@@ -2952,6 +2952,21 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
       return logLines(h).slice(mark);
     } });
   }
+  // (hp-23 gap: a land taken from another player's library says whose; one beside an unrelated spell at that player, or
+  // from your own library by a "target player" spell, doesn't)
+  for (const [how, text, target] of [["from the AI's library", "Search target opponent's library for a land card.", "player-1"], ["a spell at the AI", "Target player discards a card.", "player-1"], ["your own library", "Search target player's library for a land card.", "player-0"]]) {
+    add({ name: `hp-23 gap: log: a land put onto the battlefield (${how})`, run: async (h) => {
+      const start = myMain(D2.board);
+      start.gameView.stack = [{ id: "engine-stack-81", sourceId: "engine-card-956", controllerId: "player-0", identity: { name: "A Spell" }, sourceAbilityText: text, targets: [{ kind: "player", id: target }] }];
+      const seat = game(h, start);
+      await boardAs(h, seat, start);
+      const mark = logLines(h).length;
+      const b = clone(start); b.gameView.stack = [];
+      b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push({ id: "engine-card-957", identity: { name: "Urborg, Tomb of Yawgmoth" }, types: ["Land"], ownerId: "player-0", controllerId: "player-0", text: "" });
+      await boardAs(h, seat, b);
+      return logLines(h).slice(mark);
+    } });
+  }
   // (hp-24 gap: commander ninjutsu, fortify and aura swap by name; what ninjutsu and aura swap send back reads as returned,
   // the hand level as one card went in and one came out; a card gone with no such swap still only leaves)
   for (const [how, description, card] of [["commander ninjutsu", "Commander Ninjutsu {U}{B} ({U}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield.)", "engine-card-43"],
@@ -4781,7 +4796,7 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
       const lib = (b, o) => b.gameView.zones.find((z) => z.zone === "library" && z.ownerId === o);
       const zone = (b, zn, o) => b.gameView.zones.find((z) => z.zone === zn && z.ownerId === o);
       const dementia = { id: "d1", sourceId: "card-d1", controllerId: "player-0", identity: { name: "Surging Dementia" }, sourceAbilityText: "Target player discards a card.", targets: [{ kind: "player", id: "player-1" }] };
-      const dominion = { id: "d2", sourceId: "engine-card-952", controllerId: "player-0", identity: { name: "Eternal Dominion" }, sourceAbilityText: "Search target opponent's library." };
+      const dominion = { id: "d2", sourceId: "engine-card-952", controllerId: "player-0", identity: { name: "Eternal Dominion" }, sourceAbilityText: "Search target opponent's library.", targets: [{ kind: "player", id: "player-1" }] };
       await put([dementia, dominion]);
       await put([dementia, dominion], (b) => {
         const hand = zone(b, "hand", "player-1"); hand.count = (hand.count ?? (hand.cards || []).length) - 1;
@@ -4792,7 +4807,8 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
         zone(b, "graveyard", "player-1").cards.push({ id: "engine-card-951", identity: { name: "Explosive Vegetation" }, types: ["Sorcery"], ownerId: "player-1", controllerId: "player-1", text: "" });
         zone(b, "graveyard", "player-0").cards.push({ id: "engine-card-952", identity: { name: "Eternal Dominion" }, types: ["Sorcery"], ownerId: "player-0", controllerId: "player-0", text: "Search target opponent's library.\nEpic (For the rest of the game, you can't cast spells.)" });
         zone(b, "exile", "player-0").cards.push({ id: "engine-card-953", identity: { name: "Improvisation Capstone" }, types: ["Sorcery"], ownerId: "player-0", controllerId: "player-0", text: "Exile cards.\nParadigm (Then exile this spell.)" });
-        zone(b, "battlefield", "player-0").cards.push({ id: "engine-card-954", identity: { name: "Gaea's Cradle" }, types: ["Land"], ownerId: "player-1", controllerId: "player-0", text: "" });
+        zone(b, "battlefield", "player-0").cards.push({ id: "engine-card-954", identity: { name: "Gaea's Cradle" }, types: ["Land"], ownerId: "player-0", controllerId: "player-0", text: "" });
+        zone(b, "battlefield", "player-0").cards.push({ id: "engine-card-955", identity: { name: "Island" }, types: ["Land"], ownerId: "player-0", controllerId: "player-0", tapped: true, text: "" });
       });
       return logLines(h).slice(mark);
     } });

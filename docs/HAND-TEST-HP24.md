@@ -95,3 +95,10 @@ Engine built from a clean upstream clone plus engine/*.patch (image 9b2708d7c2ca
 - Found: Lightning Bolt read "deals 3 damage to any which?"; Flusterstorm's copy read "Copy of Lightning Bolt" and offered a raw
   card id. Fixed. "Blue cancels ..." passed its golden and failed live: fixed by reading the game log. Mutation pass
   tmp/mut58.js: 25 mutations, 2 escaped, both closed (tmp/mut58b.js 2/2, tmp/mut58c 2/2).
+
+Second live pass (2026-10-30, the same engine): "deals 3 damage to which target?", "White cancels Lightning Bolt", "returns to White's hand"
+for aura swap and ninjutsu, and "White puts AI 1's Eiganjo, Seat of the Empire onto the battlefield" all read correctly. That last one had
+passed its golden and failed live: a card on a battlefield reports that zone's player as its owner, so the fixture's owner was
+one the engine never sends. Fixed by reading the spell that took it, and the fixture now has the live shape. Mutation pass
+tmp/mut59.js: 1/3, then 3/3 with two new inputs. A bridge restart resumed the running game.
+Not yet seen live: the Hold button, `mtg hold`, `mtg timer` from chat, and the slimmer UI, which need the ENGINE MODE save loaded.

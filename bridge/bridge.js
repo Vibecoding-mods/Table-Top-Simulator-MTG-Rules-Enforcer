@@ -1527,9 +1527,10 @@ function logEvents(prev, cur, pub) {
         if (played) out.push(`${who(c.ctl)} plays ${c.name}${arrive}`);
         else {
           const put = (landsPut[`${c.ctl}|${c.tapped ? "t" : ""}${arrive}`] ??= { at: out.length, names: [] });
-          // (another player's by name: Eternal Dominion's "White puts Gaea's Cradle onto the battlefield", hp-23 gap)
-          const realOwner = pubIndex[id]?.ownerId ?? c.owner;
-          put.names.push(`${realOwner !== c.ctl ? `${who(realOwner)}'s ` : ""}${c.name}`);
+          // (another player's by the spell that took it: a card on a battlefield reports that zone's player as its owner, so
+          // Eternal Dominion's read "White puts Gaea's Cradle onto the battlefield", hp-23 gap)
+          const robbed = [...Object.values(prev.stack), ...Object.values(cur.stack)].find((s) => s.ctl === c.ctl && /\btarget (?:opponent|player)'s library\b/i.test(s.text || "") && s.plTg?.some((p) => p !== c.ctl));
+          put.names.push(`${robbed ? `${who(robbed.plTg.find((p) => p !== c.ctl))}'s ` : ""}${c.name}`);
           out[put.at] = `${who(c.ctl)} puts ${put.names.join(", ")} onto the battlefield${c.tapped ? " tapped" : ""}${arrive}`;
         }
       }
