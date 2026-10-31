@@ -1,0 +1,445 @@
+diff --git a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java b/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
+index 627c7d49..380a4355 100644
+--- a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
++++ b/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
+@@ -354,6 +354,11 @@ public class TriggerHandler {
+         return checkStatics;
+     }
+ 
++    public void removeWaitingTapsForMana(final Card source) {
++        waitingTriggers.removeIf(wt -> wt.getMode() == TriggerType.TapsForMana
++                && (source == null || source.equals(wt.getParams().get(AbilityKey.Card))));
++    }
++
+     public void clearWaitingTriggers() {
+         waitingTriggers.clear();
+     }
+diff --git a/forge-gui/res/cardsfolder/a/aetherling.txt b/forge-gui/res/cardsfolder/a/aetherling.txt
+index f6e89bab..88978a3b 100644
+--- a/forge-gui/res/cardsfolder/a/aetherling.txt
++++ b/forge-gui/res/cardsfolder/a/aetherling.txt
+@@ -3,7 +3,8 @@ ManaCost:4 U U
+ Types:Creature Shapeshifter
+ PT:4/5
+ A:AB$ ChangeZone | Cost$ U | Defined$ Self | Origin$ Battlefield | Destination$ Exile | SubAbility$ DelTrig | RememberChanged$ True | SpellDescription$ Exile CARDNAME. Return it to the battlefield under its owner's control at the beginning of the next end step.
+-SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | TriggerDescription$ Return CARDNAME to the battlefield.
++SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | SubAbility$ DBCleanup | TriggerDescription$ Return CARDNAME to the battlefield.
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:TrigReturn:DB$ ChangeZone | Defined$ DelayTriggerRememberedLKI | Origin$ Exile | Destination$ Battlefield
+ A:AB$ Effect | Cost$ U | RememberObjects$ Self | ExileOnMoved$ Battlefield | StaticAbilities$ Unblockable | SpellDescription$ CARDNAME can't be blocked this turn.
+ SVar:Unblockable:Mode$ CantBlockBy | ValidAttacker$ Card.IsRemembered | Description$ EFFECTSOURCE can't be blocked this turn.
+diff --git a/forge-gui/res/cardsfolder/a/animists_awakening.txt b/forge-gui/res/cardsfolder/a/animists_awakening.txt
+index 2cd01581..69905e66 100644
+--- a/forge-gui/res/cardsfolder/a/animists_awakening.txt
++++ b/forge-gui/res/cardsfolder/a/animists_awakening.txt
+@@ -2,6 +2,7 @@ Name:Animist's Awakening
+ ManaCost:X G
+ Types:Sorcery
+ A:SP$ Dig | DigNum$ X | Reveal$ True | ChangeNum$ All | ChangeValid$ Land | DestinationZone$ Battlefield | Tapped$ True | RememberChanged$ True | RestRandomOrder$ True | SubAbility$ DBUntap | SpellDescription$ Reveal the top X cards of your library. Put all land cards from among them onto the battlefield tapped and the rest on the bottom of your library in a random order. Spell mastery — If there are two or more instant and/or sorcery cards in your graveyard, untap those lands.
+-SVar:DBUntap:DB$ Untap | Defined$ Remembered | ConditionPresent$ Instant.YouOwn,Sorcery.YouOwn | ConditionZone$ Graveyard | ConditionCompare$ GE2
++SVar:DBUntap:DB$ Untap | Defined$ Remembered | ConditionPresent$ Instant.YouOwn,Sorcery.YouOwn | ConditionZone$ Graveyard | ConditionCompare$ GE2 | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:X:Count$xPaid
+ Oracle:Reveal the top X cards of your library. Put all land cards from among them onto the battlefield tapped and the rest on the bottom of your library in a random order.\nSpell mastery — If there are two or more instant and/or sorcery cards in your graveyard, untap those lands.
+diff --git a/forge-gui/res/cardsfolder/a/anurid_brushhopper.txt b/forge-gui/res/cardsfolder/a/anurid_brushhopper.txt
+index 6d01a6a9..7b7f6f5d 100644
+--- a/forge-gui/res/cardsfolder/a/anurid_brushhopper.txt
++++ b/forge-gui/res/cardsfolder/a/anurid_brushhopper.txt
+@@ -3,7 +3,8 @@ ManaCost:1 G W
+ Types:Creature Frog Beast
+ PT:3/4
+ A:AB$ ChangeZone | Cost$ Discard<2/Card> | Defined$ Self | Origin$ Battlefield | Destination$ Exile | SubAbility$ DelTrig | RememberChanged$ True | SpellDescription$ Exile CARDNAME. Return it to the battlefield under its owner's control at the beginning of the next end step.
+-SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | TriggerDescription$ Return CARDNAME to the battlefield.
++SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | SubAbility$ DBCleanup | TriggerDescription$ Return CARDNAME to the battlefield.
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:TrigReturn:DB$ ChangeZone | Origin$ Exile | Destination$ Battlefield | Defined$ DelayTriggerRememberedLKI
+ AI:RemoveDeck:All
+ Oracle:Discard two cards: Exile Anurid Brushhopper. Return it to the battlefield under its owner's control at the beginning of the next end step.
+diff --git a/forge-gui/res/cardsfolder/a/archfiends_vessel.txt b/forge-gui/res/cardsfolder/a/archfiends_vessel.txt
+index 0684f371..d8fe8587 100644
+--- a/forge-gui/res/cardsfolder/a/archfiends_vessel.txt
++++ b/forge-gui/res/cardsfolder/a/archfiends_vessel.txt
+@@ -6,7 +6,8 @@ K:Lifelink
+ T:Mode$ ChangesZone | Origin$ Graveyard | Destination$ Battlefield | ValidCard$ Card.Self+YouOwn | Execute$ TrigExile | TriggerDescription$ When CARDNAME enters, if it entered from your graveyard or you cast it from your graveyard, exile it. If you do, create a 5/5 black Demon creature token with flying.
+ T:Mode$ ChangesZone | Destination$ Battlefield | ValidCard$ Card.Self+wasCastFromYourGraveyardByYou | Execute$ TrigExile | Secondary$ True | TriggerDescription$ When CARDNAME enters, if it entered from your graveyard or you cast it from your graveyard, exile it. If you do, create a 5/5 black Demon creature token with flying.
+ SVar:TrigExile:DB$ ChangeZone | Origin$ Battlefield | Destination$ Exile | Defined$ Self | SubAbility$ DBToken | RememberChanged$ True
+-SVar:DBToken:DB$ Token | TokenScript$ b_5_5_demon_flying | TokenOwner$ You | ConditionDefined$ Remembered | ConditionPresent$ Card.Self | ConditionCompare$ GE1
++SVar:DBToken:DB$ Token | TokenScript$ b_5_5_demon_flying | TokenOwner$ You | ConditionDefined$ Remembered | ConditionPresent$ Card.Self | ConditionCompare$ GE1 | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ DeckHas:Ability$Token
+ DeckHints:Ability$Graveyard
+ Oracle:Lifelink (Damage dealt by this creature also causes you to gain that much life.)\nWhen Archfiend's Vessel enters, if it entered from your graveyard or you cast it from your graveyard, exile it. If you do, create a 5/5 black Demon creature token with flying.
+diff --git a/forge-gui/res/cardsfolder/a/argent_sphinx.txt b/forge-gui/res/cardsfolder/a/argent_sphinx.txt
+index 3bc04954..432a0b2f 100644
+--- a/forge-gui/res/cardsfolder/a/argent_sphinx.txt
++++ b/forge-gui/res/cardsfolder/a/argent_sphinx.txt
+@@ -4,6 +4,7 @@ Types:Creature Sphinx
+ PT:4/3
+ K:Flying
+ A:AB$ ChangeZone | Cost$ U | Defined$ Self | Origin$ Battlefield | Destination$ Exile | RememberChanged$ True | SubAbility$ DelTrig | Activation$ Metalcraft | PrecostDesc$ Metalcraft — | SpellDescription$ Exile CARDNAME. Return it to the battlefield under your control at the beginning of the next end step. Activate only if you control three or more artifacts.
+-SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | RememberObjects$ Remembered | TriggerDescription$ Return CARDNAME to the battlefield.
++SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | RememberObjects$ Remembered | SubAbility$ DBCleanup | TriggerDescription$ Return CARDNAME to the battlefield.
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:TrigReturn:DB$ ChangeZone | Defined$ DelayTriggerRememberedLKI | Origin$ Exile | Destination$ Battlefield
+ Oracle:Flying\nMetalcraft — {U}: Exile Argent Sphinx. Return it to the battlefield under your control at the beginning of the next end step. Activate only if you control three or more artifacts.
+diff --git a/forge-gui/res/cardsfolder/c/conquerors_galleon_conquerors_foothold.txt b/forge-gui/res/cardsfolder/c/conquerors_galleon_conquerors_foothold.txt
+index 078155a6..9d57e37c 100644
+--- a/forge-gui/res/cardsfolder/c/conquerors_galleon_conquerors_foothold.txt
++++ b/forge-gui/res/cardsfolder/c/conquerors_galleon_conquerors_foothold.txt
+@@ -6,7 +6,8 @@ K:Crew:4
+ T:Mode$ Attacks | ValidCard$ Card.Self | Execute$ DelayedTransform | TriggerDescription$ When CARDNAME attacks, exile it at end of combat, then return it to the battlefield transformed under your control.
+ SVar:DelayedTransform:DB$ DelayedTrigger | Mode$ Phase | Phase$ EndCombat | RememberObjects$ TriggeredAttacker | Execute$ TrigExile | TriggerDescription$ When CARDNAME attacks, exile it at end of combat, then return it to the battlefield transformed under your control.
+ SVar:TrigExile:DB$ ChangeZone | Defined$ DelayTriggerRememberedLKI | Origin$ Battlefield | Destination$ Exile | RememberChanged$ True | SubAbility$ DBReturn
+-SVar:DBReturn:DB$ ChangeZone | Defined$ Remembered | Origin$ Exile | Destination$ Battlefield | Transformed$ True
++SVar:DBReturn:DB$ ChangeZone | Defined$ Remembered | Origin$ Exile | Destination$ Battlefield | Transformed$ True | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ AlternateMode:DoubleFaced
+ Oracle:When Conqueror's Galleon attacks, exile it at end of combat, then return it to the battlefield transformed under your control.\nCrew 4 (Tap any number of creatures you control with total power 4 or more: This Vehicle becomes an artifact creature until end of turn.)
+ 
+diff --git a/forge-gui/res/cardsfolder/d/djinn_of_the_fountain.txt b/forge-gui/res/cardsfolder/d/djinn_of_the_fountain.txt
+index f4b58042..002db5b7 100644
+--- a/forge-gui/res/cardsfolder/d/djinn_of_the_fountain.txt
++++ b/forge-gui/res/cardsfolder/d/djinn_of_the_fountain.txt
+@@ -7,7 +7,8 @@ T:Mode$ SpellCast | TriggerZones$ Battlefield | ValidCard$ Instant,Sorcery | Val
+ SVar:TrigCharm:DB$ Charm | Choices$ DBPump,DBExile,DBScry
+ SVar:DBPump:DB$ Pump | Defined$ Self | NumAtt$ +1 | NumDef$ +1 | SpellDescription$ CARDNAME gets +1/+1 until end of turn.
+ SVar:DBExile:DB$ ChangeZone | Defined$ Self | Origin$ Battlefield | Destination$ Exile | SubAbility$ DelTrig | RememberChanged$ True | SpellDescription$ Exile CARDNAME. Return it to the battlefield under its owner's control at the beginning of the next end step.
+-SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | RememberObjects$ Remembered | ConditionDefined$ Remembered | ConditionPresent$ Card | TriggerDescription$ Return CARDNAME to the battlefield under its owner's control at the beginning of the next end step.
++SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | RememberObjects$ Remembered | ConditionDefined$ Remembered | ConditionPresent$ Card | SubAbility$ DBCleanup | TriggerDescription$ Return CARDNAME to the battlefield under its owner's control at the beginning of the next end step.
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:TrigReturn:DB$ ChangeZone | Defined$ DelayTriggerRememberedLKI | Origin$ Exile | Destination$ Battlefield
+ SVar:DBScry:DB$ Scry | ScryNum$ 1 | SpellDescription$ Scry 1.
+ SVar:BuffedBy:Spell.Instant,Spell.Sorcery
+diff --git a/forge-gui/res/cardsfolder/d/dubious_challenge.txt b/forge-gui/res/cardsfolder/d/dubious_challenge.txt
+index ad700397..f7f8f6e4 100644
+--- a/forge-gui/res/cardsfolder/d/dubious_challenge.txt
++++ b/forge-gui/res/cardsfolder/d/dubious_challenge.txt
+@@ -4,5 +4,6 @@ Types:Sorcery
+ A:SP$ Dig | DigNum$ 10 | ChangeNum$ 2 | Optional$ True | ChangeValid$ Creature | DestinationZone$ Exile | RememberChanged$ True | SubAbility$ DBShuffle | SpellDescription$ Look at the top ten cards of your library, exile up to two creature cards from among them, then shuffle. Target opponent may choose one of the exiled cards and put it onto the battlefield under their control. Put the rest onto the battlefield under your control. | StackDescription$ SpellDescription
+ SVar:DBShuffle:DB$ Shuffle | Defined$ You | SubAbility$ OpponentChooses
+ SVar:OpponentChooses:DB$ ChangeZone | Origin$ Exile | Destination$ Battlefield | GainControl$ Targeted | DefinedPlayer$ You | Chooser$ Targeted | ValidTgts$ Opponent | ChangeType$ Card.IsRemembered | Hidden$ True | SubAbility$ YouGetTheRest
+-SVar:YouGetTheRest:DB$ ChangeZoneAll | Origin$ Exile | Destination$ Battlefield | ChangeType$ Card.IsRemembered
++SVar:YouGetTheRest:DB$ ChangeZoneAll | Origin$ Exile | Destination$ Battlefield | ChangeType$ Card.IsRemembered | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ Oracle:Look at the top ten cards of your library, exile up to two creature cards from among them, then shuffle. Target opponent may choose one of the exiled cards and put it onto the battlefield under their control. Put the rest onto the battlefield under your control.
+diff --git a/forge-gui/res/cardsfolder/f/fleeting_spirit.txt b/forge-gui/res/cardsfolder/f/fleeting_spirit.txt
+index 6914881b..53babab4 100644
+--- a/forge-gui/res/cardsfolder/f/fleeting_spirit.txt
++++ b/forge-gui/res/cardsfolder/f/fleeting_spirit.txt
+@@ -4,7 +4,8 @@ Types:Creature Spirit
+ PT:3/1
+ A:AB$ Pump | Cost$ W ExileFromGrave<3/Card> | Defined$ Self | KW$ First Strike | SpellDescription$ CARDNAME gains first strike until end of turn.
+ A:AB$ ChangeZone | Cost$ Discard<1/Card> | Defined$ Self | Origin$ Battlefield | Destination$ Exile | SubAbility$ DelTrig | RememberChanged$ True | SpellDescription$ Exile CARDNAME. Return it to the battlefield under its owner's control at the beginning of the next end step.
+-SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | TriggerDescription$ Return CARDNAME to the battlefield under its owner's control at the beginning of the next end step.
++SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | SubAbility$ DBCleanup | TriggerDescription$ Return CARDNAME to the battlefield under its owner's control at the beginning of the next end step.
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:TrigReturn:DB$ ChangeZone | Origin$ Exile | Destination$ Battlefield | Defined$ DelayTriggerRememberedLKI
+ AI:RemoveDeck:All
+ DeckHas:Ability$Discard|Graveyard
+diff --git a/forge-gui/res/cardsfolder/f/forgefire_automaton.txt b/forge-gui/res/cardsfolder/f/forgefire_automaton.txt
+index 46e0bb2d..12563d7f 100644
+--- a/forge-gui/res/cardsfolder/f/forgefire_automaton.txt
++++ b/forge-gui/res/cardsfolder/f/forgefire_automaton.txt
+@@ -5,7 +5,8 @@ PT:8/5
+ K:Prototype:2 B:3:2
+ T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Battlefield | Execute$ TrigReturn | TriggerDescription$ At the beginning of your upkeep, return target creature card with power less than CARDNAME's power from your graveyard to the battlefield. Its base power perpetually becomes equal to CARDNAME's power.
+ SVar:TrigReturn:DB$ ChangeZone | ValidTgts$ Creature.powerLTX+YouOwn | RememberChanged$ True | TgtPrompt$ Select target creature card with power less than CARDNAME's power | Origin$ Graveyard | Destination$ Battlefield | SubAbility$ DBAnimate
+-SVar:DBAnimate:DB$ Animate | Defined$ Remembered | Power$ X | Duration$ Perpetual
++SVar:DBAnimate:DB$ Animate | Defined$ Remembered | Power$ X | Duration$ Perpetual | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:X:Count$CardPower
+ DeckHints:Ability$Graveyard|Discard|Mill & Color$Black
+ DeckHas:Ability$Graveyard
+diff --git a/forge-gui/res/cardsfolder/g/ghost_council_of_orzhova.txt b/forge-gui/res/cardsfolder/g/ghost_council_of_orzhova.txt
+index 55a61dc3..4961b58b 100644
+--- a/forge-gui/res/cardsfolder/g/ghost_council_of_orzhova.txt
++++ b/forge-gui/res/cardsfolder/g/ghost_council_of_orzhova.txt
+@@ -6,6 +6,7 @@ T:Mode$ ChangesZone | Origin$ Any | Destination$ Battlefield | ValidCard$ Card.S
+ SVar:TrigDrain:DB$ LoseLife | ValidTgts$ Opponent | LifeAmount$ 1 | SubAbility$ DBGainLife
+ SVar:DBGainLife:DB$ GainLife | Defined$ You | LifeAmount$ 1
+ A:AB$ ChangeZone | Cost$ 1 Sac<1/Creature> | Defined$ Self | Origin$ Battlefield | Destination$ Exile | RememberChanged$ True | SubAbility$ DelTrig | SpellDescription$ Exile CARDNAME. Return it to the battlefield under its owner's control at the beginning of the next end step.
+-SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | TriggerDescription$ Return CARDNAME to the battlefield.
++SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | SubAbility$ DBCleanup | TriggerDescription$ Return CARDNAME to the battlefield.
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:TrigReturn:DB$ ChangeZone | Origin$ Exile | Destination$ Battlefield | Defined$ DelayTriggerRememberedLKI
+ Oracle:When Ghost Council of Orzhova enters, target opponent loses 1 life and you gain 1 life.\n{1}, Sacrifice a creature: Exile Ghost Council of Orzhova. Return it to the battlefield under its owner's control at the beginning of the next end step.
+diff --git a/forge-gui/res/cardsfolder/h/hikari_twilight_guardian.txt b/forge-gui/res/cardsfolder/h/hikari_twilight_guardian.txt
+index e6652b6d..f76a2444 100644
+--- a/forge-gui/res/cardsfolder/h/hikari_twilight_guardian.txt
++++ b/forge-gui/res/cardsfolder/h/hikari_twilight_guardian.txt
+@@ -5,7 +5,8 @@ PT:4/4
+ K:Flying
+ T:Mode$ SpellCast | ValidCard$ Spirit,Arcane | ValidActivatingPlayer$ You | TriggerZones$ Battlefield | OptionalDecider$ You | Execute$ TrigExile | TriggerDescription$ Whenever you cast a Spirit or Arcane spell, you may exile CARDNAME. If you do, return it to the battlefield under its owner's control at the beginning of the next end step.
+ SVar:TrigExile:DB$ ChangeZone | Defined$ Self | Origin$ Battlefield | Destination$ Exile | AILogic$ IfNotBuffed | RememberChanged$ True | SubAbility$ DelTrig
+-SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | TriggerDescription$ Return CARDNAME to the battlefield.
++SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | SubAbility$ DBCleanup | TriggerDescription$ Return CARDNAME to the battlefield.
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:TrigReturn:DB$ ChangeZone | Defined$ DelayTriggerRememberedLKI | Origin$ Exile | Destination$ Battlefield
+ AI:RemoveDeck:Random
+ DeckHints:Type$Spirit|Arcane
+diff --git a/forge-gui/res/cardsfolder/i/immortal_obligation.txt b/forge-gui/res/cardsfolder/i/immortal_obligation.txt
+index cd282d0a..fa6548b9 100644
+--- a/forge-gui/res/cardsfolder/i/immortal_obligation.txt
++++ b/forge-gui/res/cardsfolder/i/immortal_obligation.txt
+@@ -2,7 +2,8 @@ Name:Immortal Obligation
+ ManaCost:1 W
+ Types:Instant
+ A:SP$ ChangeZone | Origin$ Graveyard | Destination$ Battlefield | RememberChanged$ True | TgtPrompt$ Select target creature card in an opponent's graveyard | ValidTgts$ Creature.OppOwn | SubAbility$ DBEffect | WithCountersType$ DUTY | SpellDescription$ Return target creature card from an opponent's graveyard to the battlefield under their control with a duty counter on it. For as long as that creature has a duty counter on it, it is goaded, can't attack you or a permanent you control, and can't block creatures you control.
+-SVar:DBEffect:DB$ Effect | RememberObjects$ Remembered | StaticAbilities$ Static,StaticTwo,StaticThree | ForgetOnMoved$ Battlefield | ForgetCounter$ DUTY | Duration$ Permanent
++SVar:DBEffect:DB$ Effect | RememberObjects$ Remembered | StaticAbilities$ Static,StaticTwo,StaticThree | ForgetOnMoved$ Battlefield | ForgetCounter$ DUTY | Duration$ Permanent | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:Static:Mode$ Continuous | Affected$ Creature.IsRemembered | Goad$ True | Description$ For as long as that creature has a duty counter on it, it is goaded, can't attack you or a permanent you control, and can't block creatures you control.
+ SVar:StaticTwo:Mode$ CantBlockBy | ValidAttacker$ Creature.YouCtrl | ValidBlocker$ Creature.IsRemembered | Secondary$ True | Description$ For as long as that creature has a duty counter on it, it is goaded, can't attack you or a permanent you control, and can't block creatures you control.
+ SVar:StaticThree:Mode$ CantAttack | ValidCard$ Card.IsRemembered | Target$ You,Permanent.YouCtrl | Secondary$ True | Description$ For as long as that creature has a duty counter on it, it is goaded, can't attack you or a permanent you control, and can't block creatures you control.
+diff --git a/forge-gui/res/cardsfolder/i/inscribed_tablet.txt b/forge-gui/res/cardsfolder/i/inscribed_tablet.txt
+index cefed8f0..ac1bf0f9 100644
+--- a/forge-gui/res/cardsfolder/i/inscribed_tablet.txt
++++ b/forge-gui/res/cardsfolder/i/inscribed_tablet.txt
+@@ -2,5 +2,6 @@ Name:Inscribed Tablet
+ ManaCost:1
+ Types:Artifact
+ A:AB$ Dig | Cost$ 1 T Sac<1/CARDNAME> | DigNum$ 5 | Reveal$ True | ChangeNum$ 1 | RememberChanged$ True | ChangeValid$ Land | RestRandomOrder$ True | SubAbility$ DBDraw | SpellDescription$ Reveal the top five cards of your library. Put a land card from among them into your hand and the rest on the bottom of your library in a random order. If you didn't put a card into your hand this way, draw a card.
+-SVar:DBDraw:DB$ Draw | ConditionDefined$ Remembered | ConditionPresent$ Card | ConditionCompare$ EQ0
++SVar:DBDraw:DB$ Draw | ConditionDefined$ Remembered | ConditionPresent$ Card | ConditionCompare$ EQ0 | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ Oracle:{1}, {T}, Sacrifice Inscribed Tablet: Reveal the top five cards of your library. Put a land card from among them into your hand and the rest on the bottom of your library in a random order. If you didn't put a card into your hand this way, draw a card.
+diff --git a/forge-gui/res/cardsfolder/j/jeskai_infiltrator.txt b/forge-gui/res/cardsfolder/j/jeskai_infiltrator.txt
+index 8d50f18f..01e117e9 100644
+--- a/forge-gui/res/cardsfolder/j/jeskai_infiltrator.txt
++++ b/forge-gui/res/cardsfolder/j/jeskai_infiltrator.txt
+@@ -6,5 +6,6 @@ S:Mode$ CantBlockBy | ValidAttacker$ Card.Self | IsPresent$ Creature.YouCtrl+Oth
+ T:Mode$ DamageDone | ValidSource$ Card.Self | ValidTarget$ Player | CombatDamage$ True | TriggerZones$ Battlefield | Execute$ TrigExile | TriggerDescription$ When CARDNAME deals combat damage to a player, exile it and the top card of your library in a face-down pile, shuffle that pile, then manifest those cards. (To manifest a card, put it onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)
+ SVar:TrigExile:DB$ ChangeZone | Origin$ Battlefield | Destination$ Exile | RememberChanged$ True | SubAbility$ DBExileTopCard
+ SVar:DBExileTopCard:DB$ Dig | Defined$ You | DigNum$ 1 | ChangeNum$ All | DestinationZone$ Exile | RememberChanged$ True | ExileFaceDown$ True | SubAbility$ DBManifest
+-SVar:DBManifest:DB$ Manifest | Amount$ 2 | Defined$ Remembered | Shuffle$ True
++SVar:DBManifest:DB$ Manifest | Amount$ 2 | Defined$ Remembered | Shuffle$ True | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ Oracle:Jeskai Infiltrator can't be blocked as long as you control no other creatures.\nWhen Jeskai Infiltrator deals combat damage to a player, exile it and the top card of your library in a face-down pile, shuffle that pile, then manifest those cards. (To manifest a card, put it onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)
+diff --git a/forge-gui/res/cardsfolder/k/kaya_geist_hunter.txt b/forge-gui/res/cardsfolder/k/kaya_geist_hunter.txt
+index 39e3d482..55720542 100644
+--- a/forge-gui/res/cardsfolder/k/kaya_geist_hunter.txt
++++ b/forge-gui/res/cardsfolder/k/kaya_geist_hunter.txt
+@@ -8,7 +8,8 @@ A:AB$ Effect | Cost$ SubCounter<2/LOYALTY> | Planeswalker$ True | ReplacementEff
+ SVar:TokenReplace:Event$ CreateToken | ActiveZones$ Battlefield | ValidToken$ Card.YouCtrl | ReplaceWith$ DoubleToken | Description$ If one or more tokens would be created under your control, twice that many of those tokens are created instead.
+ SVar:DoubleToken:DB$ ReplaceToken | Type$ Amount
+ A:AB$ ChangeZoneAll | Cost$ SubCounter<6/LOYALTY> | Planeswalker$ True | Ultimate$ True | ChangeType$ Card | Origin$ Graveyard | Destination$ Exile | RememberChanged$ True | SubAbility$ DBToken | SpellDescription$ Exile all cards from all graveyards, then create a 1/1 white Spirit creature token with flying for each card exiled this way.
+-SVar:DBToken:DB$ Token | TokenScript$ w_1_1_spirit_flying | TokenAmount$ X
++SVar:DBToken:DB$ Token | TokenScript$ w_1_1_spirit_flying | TokenAmount$ X | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:X:Remembered$Amount
+ DeckHas:Ability$Counters|Token & Type$Spirit
+ DeckHints:Ability$Token
+diff --git a/forge-gui/res/cardsfolder/l/lukamina_moon_druid.txt b/forge-gui/res/cardsfolder/l/lukamina_moon_druid.txt
+index cd6dc539..e442f611 100644
+--- a/forge-gui/res/cardsfolder/l/lukamina_moon_druid.txt
++++ b/forge-gui/res/cardsfolder/l/lukamina_moon_druid.txt
+@@ -18,7 +18,8 @@ K:Flying
+ K:Lifelink
+ T:Mode$ ChangesZone | ValidCard$ Card.Self | Origin$ Battlefield | Destination$ Graveyard | Execute$ TrigUnspecialize | TriggerDescription$ When CARDNAME dies, it unspecializes. If it unspecializes this way, return it to the battlefield tapped.
+ SVar:TrigUnspecialize:DB$ SetState | Mode$ Unspecialize | RememberChanged$ True | SubAbility$ DBReturn
+-SVar:DBReturn:DB$ ChangeZone | ConditionDefined$ Remembered | ConditionPresent$ Card | Origin$ Graveyard | Destination$ Battlefield | Tapped$ True | Defined$ Remembered
++SVar:DBReturn:DB$ ChangeZone | ConditionDefined$ Remembered | ConditionPresent$ Card | Origin$ Graveyard | Destination$ Battlefield | Tapped$ True | Defined$ Remembered | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ DeckHas:Ability$LifeGain
+ Oracle:Flying, lifelink\nWhen Lukamina, Hawk Form dies, it unspecializes. If it unspecializes this way, return it to the battlefield tapped.
+ 
+@@ -34,7 +35,8 @@ SVar:DBEffect:DB$ Effect | RememberObjects$ Targeted | ForgetOnMoved$ Battlefiel
+ SVar:DontUntap:Event$ Untap | ValidCard$ Card.IsRemembered | ValidStepTurnToController$ You | Layer$ CantHappen | Description$ That creature doesn't untap during its controller's untap step for as long as you control EFFECTSOURCE.
+ T:Mode$ ChangesZone | ValidCard$ Card.Self | Origin$ Battlefield | Destination$ Graveyard | Execute$ TrigUnspecialize | TriggerDescription$ When NICKNAME dies, it unspecializes. If it unspecializes this way, return it to the battlefield tapped.
+ SVar:TrigUnspecialize:DB$ SetState | Defined$ TriggeredCard | Mode$ Unspecialize | RememberChanged$ True | SubAbility$ DBReturn
+-SVar:DBReturn:DB$ ChangeZone | ConditionDefined$ Remembered | ConditionPresent$ Card | Origin$ Graveyard | Destination$ Battlefield | Tapped$ True | Defined$ Remembered
++SVar:DBReturn:DB$ ChangeZone | ConditionDefined$ Remembered | ConditionPresent$ Card | Origin$ Graveyard | Destination$ Battlefield | Tapped$ True | Defined$ Remembered | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ Oracle:When this creature specializes, tap target nonland permanent an opponent controls. That permanent doesn't untap during its controller's untap step for as long as you control Lukamina, Crocodile Form.\nWhen Lukamina dies, it unspecializes. If it unspecializes this way, return it to the battlefield tapped.
+ 
+ SPECIALIZE:BLACK
+@@ -47,7 +49,8 @@ K:Deathtouch
+ K:CARDNAME must be blocked if able.
+ T:Mode$ ChangesZone | ValidCard$ Card.Self | Origin$ Battlefield | Destination$ Graveyard | Execute$ TrigUnspecialize | TriggerDescription$ When NICKNAME dies, it unspecializes. If it unspecializes this way, return it to the battlefield tapped.
+ SVar:TrigUnspecialize:DB$ SetState | Defined$ TriggeredCard | Mode$ Unspecialize | RememberChanged$ True | SubAbility$ DBReturn
+-SVar:DBReturn:DB$ ChangeZone | ConditionDefined$ Remembered | ConditionPresent$ Card | Origin$ Graveyard | Destination$ Battlefield | Tapped$ True | Defined$ Remembered
++SVar:DBReturn:DB$ ChangeZone | ConditionDefined$ Remembered | ConditionPresent$ Card | Origin$ Graveyard | Destination$ Battlefield | Tapped$ True | Defined$ Remembered | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ Oracle:Deathtouch\nLukamina, Scorpion Form must be blocked if able.\nWhen Lukamina dies, it unspecializes. If it unspecializes this way, return it to the battlefield tapped.
+ 
+ SPECIALIZE:RED
+@@ -62,7 +65,8 @@ T:Mode$ Attacks | ValidCard$ Card.Self | Execute$ TrigToken | Secondary$ True |
+ SVar:TrigToken:DB$ Token | TokenScript$ g_2_2_wolf
+ T:Mode$ ChangesZone | ValidCard$ Card.Self | Origin$ Battlefield | Destination$ Graveyard | Execute$ TrigUnspecialize | TriggerDescription$ When NICKNAME dies, it unspecializes. If it unspecializes this way, return it to the battlefield tapped.
+ SVar:TrigUnspecialize:DB$ SetState | Defined$ TriggeredCard | Mode$ Unspecialize | RememberChanged$ True | SubAbility$ DBReturn
+-SVar:DBReturn:DB$ ChangeZone | ConditionDefined$ Remembered | ConditionPresent$ Card | Origin$ Graveyard | Destination$ Battlefield | Tapped$ True | Defined$ Remembered
++SVar:DBReturn:DB$ ChangeZone | ConditionDefined$ Remembered | ConditionPresent$ Card | Origin$ Graveyard | Destination$ Battlefield | Tapped$ True | Defined$ Remembered | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ DeckHas:Ability$Token
+ Oracle:Menace\nWhenever this creature specializes or attacks, create a 2/2 green Wolf creature token.\nWhen Lukamina, Wolf Form dies, it unspecializes. If it unspecializes this way, return it to the battlefield tapped.
+ 
+@@ -76,5 +80,6 @@ K:Trample
+ S:Mode$ Continuous | Affected$ Creature.YouCtrl+Other | AddPower$ 1 | AddToughness$ 1 | AddKeyword$ Trample | Description$ Other creatures you control get +1/+1 and have trample.
+ T:Mode$ ChangesZone | ValidCard$ Card.Self | Origin$ Battlefield | Destination$ Graveyard | Execute$ TrigUnspecialize | TriggerDescription$ When CARDNAME dies, it unspecializes. If it unspecializes this way, return it to the battlefield tapped.
+ SVar:TrigUnspecialize:DB$ SetState | Defined$ TriggeredCard | Mode$ Unspecialize | RememberChanged$ True | SubAbility$ DBReturn
+-SVar:DBReturn:DB$ ChangeZone | ConditionDefined$ Remembered | ConditionPresent$ Card | Origin$ Graveyard | Destination$ Battlefield | Tapped$ True | Defined$ Remembered
++SVar:DBReturn:DB$ ChangeZone | ConditionDefined$ Remembered | ConditionPresent$ Card | Origin$ Graveyard | Destination$ Battlefield | Tapped$ True | Defined$ Remembered | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ Oracle:Trample\nOther creatures you control get +1/+1 and have trample.\nWhen Lukamina, Bear Form dies, it unspecializes. If it unspecializes this way, return it to the battlefield tapped.
+diff --git a/forge-gui/res/cardsfolder/m/mazemind_tome.txt b/forge-gui/res/cardsfolder/m/mazemind_tome.txt
+index 289f13e2..5a582892 100644
+--- a/forge-gui/res/cardsfolder/m/mazemind_tome.txt
++++ b/forge-gui/res/cardsfolder/m/mazemind_tome.txt
+@@ -5,6 +5,7 @@ A:AB$ Scry | Cost$ T AddCounter<1/PAGE> | ScryNum$ 1 | SpellDescription$ Scry 1.
+ A:AB$ Draw | Cost$ 2 T AddCounter<1/PAGE> | NumCards$ 1 | SpellDescription$ Draw a card.
+ T:Mode$ Always | TriggerZones$ Battlefield | IsPresent$ Card.Self+counters_GE4_PAGE | Execute$ TrigChange | TriggerDescription$ When there are four or more page counters on CARDNAME, exile it. If you do, you gain 4 life.
+ SVar:TrigChange:DB$ ChangeZone | Origin$ Battlefield | Destination$ Exile | Defined$ Self | RememberChanged$ True | SubAbility$ DBGainLife
+-SVar:DBGainLife:DB$ GainLife | ConditionDefined$ Remembered | ConditionPresent$ Card.Self | ConditionCompare$ GE1 | LifeAmount$ 4
++SVar:DBGainLife:DB$ GainLife | ConditionDefined$ Remembered | ConditionPresent$ Card.Self | ConditionCompare$ GE1 | LifeAmount$ 4 | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ DeckHas:Ability$Counters|LifeGain
+ Oracle:{T}, Put a page counter on Mazemind Tome: Scry 1.\n{2}, {T}, Put a page counter on Mazemind Tome: Draw a card.\nWhen there are four or more page counters on Mazemind Tome, exile it. If you do, you gain 4 life.
+diff --git a/forge-gui/res/cardsfolder/m/meandering_towershell.txt b/forge-gui/res/cardsfolder/m/meandering_towershell.txt
+index fd1a3875..3dbe9aa3 100644
+--- a/forge-gui/res/cardsfolder/m/meandering_towershell.txt
++++ b/forge-gui/res/cardsfolder/m/meandering_towershell.txt
+@@ -5,6 +5,7 @@ PT:5/9
+ K:Landwalk:Island
+ T:Mode$ Attacks | ValidCard$ Card.Self | Execute$ TrigExile | TriggerZones$ Battlefield | TriggerDescription$ Whenever CARDNAME attacks, exile it. Return it to the battlefield under your control tapped and attacking at the beginning of the next declare attackers step on your next turn.
+ SVar:TrigExile:DB$ ChangeZone | Defined$ Self | Origin$ Battlefield | Destination$ Exile | RememberChanged$ True | SubAbility$ DelTrig
+-SVar:DelTrig:DB$ DelayedTrigger | ConditionDefined$ Remembered | ConditionPresent$ Card | DelayedTriggerDefinedPlayer$ You | RememberObjects$ RememberedLKI | ThisTurn$ True | Mode$ Phase | Phase$ Declare Attackers | Execute$ TrigReturn | TriggerDescription$ Return CARDNAME to the battlefield tapped and attacking.
++SVar:DelTrig:DB$ DelayedTrigger | ConditionDefined$ Remembered | ConditionPresent$ Card | DelayedTriggerDefinedPlayer$ You | RememberObjects$ RememberedLKI | ThisTurn$ True | Mode$ Phase | Phase$ Declare Attackers | Execute$ TrigReturn | SubAbility$ DBCleanup | TriggerDescription$ Return CARDNAME to the battlefield tapped and attacking.
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:TrigReturn:DB$ ChangeZone | Defined$ DelayTriggerRememberedLKI | Origin$ Exile | Destination$ Battlefield | Attacking$ True | Tapped$ True | GainControl$ True
+ Oracle:Islandwalk (This creature can't be blocked as long as defending player controls an Island.)\nWhenever Meandering Towershell attacks, exile it. Return it to the battlefield under your control tapped and attacking at the beginning of the declare attackers step on your next turn.
+diff --git a/forge-gui/res/cardsfolder/m/mnemonic_betrayal.txt b/forge-gui/res/cardsfolder/m/mnemonic_betrayal.txt
+index f0bb728f..24b98133 100644
+--- a/forge-gui/res/cardsfolder/m/mnemonic_betrayal.txt
++++ b/forge-gui/res/cardsfolder/m/mnemonic_betrayal.txt
+@@ -6,5 +6,6 @@ SVar:DBEffect:DB$ Effect | Duration$ Permanent | StaticAbilities$ STPlay | Remem
+ SVar:STPlay:Mode$ Continuous | MayPlay$ True | MayPlayIgnoreType$ True | Affected$ Card.nonLand+IsRemembered | AffectedZone$ Exile | Description$ You may cast those cards this turn, and you may spend mana as though it were mana of any type to cast those spells.
+ SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | RememberObjects$ RememberedLKI | IsPresent$ Card.IsTriggerRemembered | PresentZone$ Exile | TriggerDescription$ At the beginning of the next end step, if any of those cards remain exiled, return them to their owner's graveyards. | SubAbility$ ExileSelf
+ SVar:TrigReturn:DB$ ChangeZone | Defined$ DelayTriggerRememberedLKI | Origin$ Exile | Destination$ Graveyard
+-SVar:ExileSelf:DB$ ChangeZone | Defined$ Self | Origin$ Stack | Destination$ Exile
++SVar:ExileSelf:DB$ ChangeZone | Defined$ Self | Origin$ Stack | Destination$ Exile | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ Oracle:Exile all cards from all opponents' graveyards. You may cast spells from among those cards this turn, and you may spend mana as though it were mana of any type to cast those spells. At the beginning of the next end step, if any of those cards remain exiled, return them to their owners' graveyards.\nExile Mnemonic Betrayal.
+diff --git a/forge-gui/res/cardsfolder/n/nezahal_primal_tide.txt b/forge-gui/res/cardsfolder/n/nezahal_primal_tide.txt
+index 13a5a586..1b425efb 100644
+--- a/forge-gui/res/cardsfolder/n/nezahal_primal_tide.txt
++++ b/forge-gui/res/cardsfolder/n/nezahal_primal_tide.txt
+@@ -7,6 +7,7 @@ S:Mode$ Continuous | Affected$ You | SetMaxHandSize$ Unlimited | Description$ Yo
+ T:Mode$ SpellCast | TriggerZones$ Battlefield | ValidCard$ Card.nonCreature | ValidActivatingPlayer$ Opponent | Execute$ TrigDraw | TriggerDescription$ Whenever an opponent casts a noncreature spell, draw a card.
+ SVar:TrigDraw:DB$ Draw | Defined$ You | NumCards$ 1
+ A:AB$ ChangeZone | Cost$ Discard<3/Card> | Defined$ Self | Origin$ Battlefield | Destination$ Exile | SubAbility$ DelTrig | RememberChanged$ True | StackDescription$ SpellDescription | SpellDescription$ Exile CARDNAME. Return it to the battlefield tapped under its owner's control at the beginning of the next end step.
+-SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | StackDescription$ None | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | TriggerDescription$ Return CARDNAME to the battlefield tapped under its owner's control.
++SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | StackDescription$ None | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | SubAbility$ DBCleanup | TriggerDescription$ Return CARDNAME to the battlefield tapped under its owner's control.
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:TrigReturn:DB$ ChangeZone | Defined$ DelayTriggerRememberedLKI | Origin$ Exile | Destination$ Battlefield | Tapped$ True
+ Oracle:This spell can't be countered.\nYou have no maximum hand size.\nWhenever an opponent casts a noncreature spell, draw a card.\nDiscard three cards: Exile Nezahal, Primal Tide. Return it to the battlefield tapped under its owner's control at the beginning of the next end step.
+diff --git a/forge-gui/res/cardsfolder/n/norin_the_wary.txt b/forge-gui/res/cardsfolder/n/norin_the_wary.txt
+index 899b8bb4..0a2e07b1 100644
+--- a/forge-gui/res/cardsfolder/n/norin_the_wary.txt
++++ b/forge-gui/res/cardsfolder/n/norin_the_wary.txt
+@@ -5,7 +5,8 @@ PT:2/1
+ T:Mode$ SpellCast | ValidCard$ Card | Execute$ TrigExile | TriggerZones$ Battlefield | TriggerDescription$ When a player casts a spell or a creature attacks, exile CARDNAME. Return it to the battlefield under its owner's control at the beginning of the next end step.
+ T:Mode$ Attacks | ValidCard$ Creature | Execute$ TrigExile | TriggerZones$ Battlefield | Secondary$ True | TriggerDescription$ When a player casts a spell or a creature attacks, exile CARDNAME. Return it to the battlefield under its owner's control at the beginning of the next end step.
+ SVar:TrigExile:DB$ ChangeZone | Defined$ Self | Origin$ Battlefield | Destination$ Exile | RememberChanged$ True | SubAbility$ DelTrig
+-SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | TriggerDescription$ Return CARDNAME to the battlefield under its owner's control at the beginning of the next end step.
++SVar:DelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | Execute$ TrigReturn | ConditionDefined$ Remembered | ConditionPresent$ Card | RememberObjects$ Remembered | SubAbility$ DBCleanup | TriggerDescription$ Return CARDNAME to the battlefield under its owner's control at the beginning of the next end step.
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:TrigReturn:DB$ ChangeZone | Defined$ DelayTriggerRememberedLKI | Origin$ Exile,Command | Destination$ Battlefield
+ SVar:MustAttack:True
+ AI:RemoveDeck:Random
+diff --git a/forge-gui/res/cardsfolder/p/primal_surge.txt b/forge-gui/res/cardsfolder/p/primal_surge.txt
+index 2f5f75fc..f302f92e 100644
+--- a/forge-gui/res/cardsfolder/p/primal_surge.txt
++++ b/forge-gui/res/cardsfolder/p/primal_surge.txt
+@@ -1,7 +1,8 @@
+ Name:Primal Surge
+ ManaCost:8 G G
+ Types:Sorcery
+-A:SP$ Repeat | RepeatSubAbility$ DBDig | RepeatDefined$ Remembered | RepeatPresent$ Permanent | RepeatCompare$ EQ1 | StackDescription$ Exile the top card of your library. If it's a permanent card, you may put it onto the battlefield. If you do, repeat this process. | SpellDescription$ Exile the top card of your library. If it's a permanent card, you may put it onto the battlefield. If you do, repeat this process.
++A:SP$ Repeat | RepeatSubAbility$ DBDig | RepeatDefined$ Remembered | RepeatPresent$ Permanent | RepeatCompare$ EQ1 | SubAbility$ DBCleanup | StackDescription$ Exile the top card of your library. If it's a permanent card, you may put it onto the battlefield. If you do, repeat this process. | SpellDescription$ Exile the top card of your library. If it's a permanent card, you may put it onto the battlefield. If you do, repeat this process.
+ SVar:DBDig:DB$ Dig | DigNum$ 1 | ChangeNum$ All | ChangeValid$ Card | DestinationZone$ Exile | ForgetOtherRemembered$ True | RememberChanged$ True | SubAbility$ DBChangeZone
+ SVar:DBChangeZone:DB$ ChangeZone | Origin$ Exile | Destination$ Battlefield | Defined$ Remembered | ConditionDefined$ Remembered | ConditionPresent$ Permanent | ConditionCompare$ EQ1 | Optional$ True | RememberChanged$ True | ForgetOtherRemembered$ True
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ Oracle:Exile the top card of your library. If it's a permanent card, you may put it onto the battlefield. If you do, repeat this process.
+diff --git a/forge-gui/res/cardsfolder/p/primeval_spawn.txt b/forge-gui/res/cardsfolder/p/primeval_spawn.txt
+index a9f2ccf4..5efb50b1 100644
+--- a/forge-gui/res/cardsfolder/p/primeval_spawn.txt
++++ b/forge-gui/res/cardsfolder/p/primeval_spawn.txt
+@@ -9,5 +9,6 @@ R:Event$ Moved | ActiveZones$ Battlefield | Destination$ Battlefield | ValidCard
+ SVar:Exile:DB$ ChangeZone | Hidden$ True | Origin$ All | Destination$ Exile | Defined$ ReplacedCard
+ T:Mode$ ChangesZone | Origin$ Battlefield | Destination$ Any | ValidCard$ Card.Self | Execute$ TrigExile | TriggerDescription$ When CARDNAME leaves the battlefield, exile the top ten cards of your library. You may cast any number of spells with total mana value 10 or less from among them without paying their mana costs.
+ SVar:TrigExile:DB$ Dig | Defined$ You | DigNum$ 10 | ChangeNum$ All | DestinationZone$ Exile | RememberChanged$ True | SubAbility$ DBPlay
+-SVar:DBPlay:DB$ Play | Valid$ Card.nonLand+IsRemembered+YouOwn+cmcLE10 | WithTotalCMC$ 10 | ValidZone$ Exile | ValidSA$ Spell | Controller$ You | WithoutManaCost$ True | Optional$ True | Amount$ All
++SVar:DBPlay:DB$ Play | Valid$ Card.nonLand+IsRemembered+YouOwn+cmcLE10 | WithTotalCMC$ 10 | ValidZone$ Exile | ValidSA$ Spell | Controller$ You | WithoutManaCost$ True | Optional$ True | Amount$ All | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ Oracle:If Primeval Spawn would enter and it wasn't cast or no mana was spent to cast it, exile it instead.\nVigilance, trample, lifelink\nWhen Primeval Spawn leaves the battlefield, exile the top ten cards of your library. You may cast any number of spells with total mana value 10 or less from among them without paying their mana costs.
+diff --git a/forge-gui/res/cardsfolder/p/puppet_master.txt b/forge-gui/res/cardsfolder/p/puppet_master.txt
+index bef40405..1ed604ab 100644
+--- a/forge-gui/res/cardsfolder/p/puppet_master.txt
++++ b/forge-gui/res/cardsfolder/p/puppet_master.txt
+@@ -5,7 +5,8 @@ K:Enchant:Creature
+ SVar:AttachAILogic:Pump
+ T:Mode$ ChangesZone | Origin$ Battlefield | Destination$ Graveyard | ValidCard$ Card.EnchantedBy | Execute$ TrigChange | TriggerDescription$ When enchanted creature dies, return that card to its owner's hand. If that card is returned to its owner's hand this way, you may pay {U}{U}{U}. If you do, return CARDNAME to its owner's hand.
+ SVar:TrigChange:DB$ ChangeZone | Origin$ Graveyard | Destination$ Hand | Defined$ TriggeredNewCardLKICopy | RememberChanged$ True | SubAbility$ DBChangeZone
+-SVar:DBChangeZone:DB$ ChangeZone | Defined$ Self | Origin$ Graveyard | Destination$ Hand | ConditionDefined$ Remembered | ConditionPresent$ Card.Creature | ConditionCompare$ GE1 | UnlessCost$ U U U | UnlessPayer$ You | UnlessSwitched$ True
++SVar:DBChangeZone:DB$ ChangeZone | Defined$ Self | Origin$ Graveyard | Destination$ Hand | ConditionDefined$ Remembered | ConditionPresent$ Card.Creature | ConditionCompare$ GE1 | UnlessCost$ U U U | UnlessPayer$ You | UnlessSwitched$ True | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ S:Mode$ Continuous | AffectedDefined$ AttachedBy Self | Affected$ Creature | AddSVar$ Sac
+ SVar:NonStackingAttachEffect:True
+ SVar:Sac:SVar:SacMe:3
+diff --git a/forge-gui/res/cardsfolder/s/saltskitter.txt b/forge-gui/res/cardsfolder/s/saltskitter.txt
+index 301cd794..2282fd91 100644
+--- a/forge-gui/res/cardsfolder/s/saltskitter.txt
++++ b/forge-gui/res/cardsfolder/s/saltskitter.txt
+@@ -4,6 +4,7 @@ Types:Creature Wurm
+ PT:3/4
+ T:Mode$ ChangesZone | Origin$ Any | Destination$ Battlefield | ValidCard$ Creature.Other | TriggerZones$ Battlefield | Execute$ TrigExile | TriggerDescription$ Whenever another creature enters, exile CARDNAME. Return CARDNAME to the battlefield under its owner's control at the beginning of the next end step.
+ SVar:TrigExile:DB$ ChangeZone | Defined$ Self | RememberChanged$ True | Origin$ Battlefield | Destination$ Exile | SubAbility$ DBDelTrig
+-SVar:DBDelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | RememberObjects$ Remembered | Execute$ TrigBack | TriggerDescription$ Return CARDNAME to the battlefield under its owner's control at the beginning of the next end step.
++SVar:DBDelTrig:DB$ DelayedTrigger | Mode$ Phase | Phase$ End of Turn | RememberObjects$ Remembered | Execute$ TrigBack | SubAbility$ DBCleanup | TriggerDescription$ Return CARDNAME to the battlefield under its owner's control at the beginning of the next end step.
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:TrigBack:DB$ ChangeZone | Defined$ DelayTriggerRememberedLKI | Origin$ Exile | Destination$ Battlefield
+ Oracle:Whenever another creature enters, exile Saltskitter. Return Saltskitter to the battlefield under its owner's control at the beginning of the next end step.
+diff --git a/forge-gui/res/cardsfolder/s/shoreline_scout.txt b/forge-gui/res/cardsfolder/s/shoreline_scout.txt
+index 3b1a2830..9ed19dec 100644
+--- a/forge-gui/res/cardsfolder/s/shoreline_scout.txt
++++ b/forge-gui/res/cardsfolder/s/shoreline_scout.txt
+@@ -4,7 +4,8 @@ Types:Creature Merfolk Scout
+ PT:1/1
+ T:Mode$ ChangesZone | Origin$ Any | Destination$ Battlefield | ValidCard$ Card.Self | Execute$ TrigExile | OptionalDecider$ You | TriggerDescription$ When CARDNAME enters, you may exile a Merfolk card or a land card from your hand. If you do, conjure a Tropical Island card into your hand.
+ SVar:TrigExile:DB$ ChangeZone | Origin$ Hand | Destination$ Exile | Hidden$ True | ChangeType$ Card.Merfolk,Card.Land | SelectPrompt$ Choose a Merfolk card or a land card | SubAbility$ DBConjure | RememberChanged$ True
+-SVar:DBConjure:DB$ MakeCard | Conjure$ True | ConditionDefined$ Remembered | ConditionPresent$ Card | ConditionCompare$ EQ1 | Name$ Tropical Island | Zone$ Hand
++SVar:DBConjure:DB$ MakeCard | Conjure$ True | ConditionDefined$ Remembered | ConditionPresent$ Card | ConditionCompare$ EQ1 | Name$ Tropical Island | Zone$ Hand | SubAbility$ DBCleanup
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ S:Mode$ Continuous | CheckSVar$ X | AffectedDefined$ Self | AddPower$ 1 | Description$ As long as another Merfolk or an Island entered the battlefield under your control this turn, CARDNAME gets +1/+0.
+ SVar:X:Count$Valid Merfolk.Other+ThisTurnEntered+EnteredUnder You/Plus.Y
+ SVar:Y:Count$Valid Island.ThisTurnEntered+EnteredUnder You
+diff --git a/forge-gui/res/cardsfolder/s/sunfall.txt b/forge-gui/res/cardsfolder/s/sunfall.txt
+index 73d1c987..9edbadf2 100644
+--- a/forge-gui/res/cardsfolder/s/sunfall.txt
++++ b/forge-gui/res/cardsfolder/s/sunfall.txt
+@@ -2,7 +2,8 @@ Name:Sunfall
+ ManaCost:3 W W
+ Types:Sorcery
+ A:SP$ ChangeZoneAll | ChangeType$ Creature | Origin$ Battlefield | Destination$ Exile | RememberChanged$ True | SubAbility$ DBIncubate | SpellDescription$ Exile all creatures.
+-SVar:DBIncubate:DB$ Incubate | Amount$ X | SpellDescription$ Incubate X, where is the number of creatures exiled this way. (Create an Incubator token with X +1/+1 counters on it and "{2}: Transform this token." It transforms into a 0/0 Phyrexian artifact creature.)
++SVar:DBIncubate:DB$ Incubate | Amount$ X | SubAbility$ DBCleanup | SpellDescription$ Incubate X, where is the number of creatures exiled this way. (Create an Incubator token with X +1/+1 counters on it and "{2}: Transform this token." It transforms into a 0/0 Phyrexian artifact creature.)
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ SVar:X:Remembered$Amount
+ DeckHas:Ability$Token|Counters & Type$Artifact|Phyrexian
+ Oracle:Exile all creatures. Incubate X, where X is the number of creatures exiled this way. (Create an Incubator token with X +1/+1 counters on it and "{2}: Transform this token." It transforms into a 0/0 Phyrexian artifact creature.)
+diff --git a/forge-gui/res/cardsfolder/t/thieves_auction.txt b/forge-gui/res/cardsfolder/t/thieves_auction.txt
+index fa2fe231..7ede9db2 100644
+--- a/forge-gui/res/cardsfolder/t/thieves_auction.txt
++++ b/forge-gui/res/cardsfolder/t/thieves_auction.txt
+@@ -2,9 +2,10 @@ Name:Thieves' Auction
+ ManaCost:4 R R R
+ Types:Sorcery
+ A:SP$ ChangeZoneAll | ChangeType$ Permanent.!token | Origin$ Battlefield | Destination$ Exile | RememberChanged$ True | SubAbility$ DBRepeatChoose | StackDescription$ SpellDescription | SpellDescription$ Exile all nontoken permanents. Starting with you, each player chooses one of the exiled cards and puts it onto the battlefield tapped under their control. Repeat this process until all cards exiled this way have been chosen.
+-SVar:DBRepeatChoose:DB$ Repeat | RepeatSubAbility$ DBRepeat | RepeatDefined$ Remembered | RepeatPresent$ Card | StackDescription$ None
++SVar:DBRepeatChoose:DB$ Repeat | RepeatSubAbility$ DBRepeat | RepeatDefined$ Remembered | RepeatPresent$ Card.inRealZoneExile | SubAbility$ DBCleanup | StackDescription$ None
+ SVar:DBRepeat:DB$ RepeatEach | StartingWith$ You | RepeatPlayers$ Player | RepeatSubAbility$ DBChoose
+ SVar:DBChoose:DB$ ChooseCard | Defined$ Player.IsRemembered | Choices$ Card.IsRemembered | ForgetChosen$ True | ChoiceZone$ Exile | SubAbility$ DBGainControl
+ SVar:DBGainControl:DB$ ChangeZone | Origin$ Exile | Destination$ Battlefield | Defined$ ChosenCard | GainControl$ Player.IsRemembered | Tapped$ True
++SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+ AI:RemoveDeck:All
+ Oracle:Exile all nontoken permanents. Starting with you, each player chooses one of the exiled cards and puts it onto the battlefield tapped under their control. Repeat this process until all cards exiled this way have been chosen.

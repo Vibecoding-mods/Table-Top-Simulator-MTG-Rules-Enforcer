@@ -1,0 +1,23 @@
+{
+ "label": "Rules check: cancel a sacrifice or discard cost",
+ "format": "commander",
+ "commander": "Rograkh, Son of Rohgahh",
+ "cards": [
+  {
+   "name": "Rograkh, Son of Rohgahh",
+   "count": 1
+  },
+  {
+   "name": "Fling",
+   "count": 20
+  },
+  {
+   "name": "Tormenting Voice",
+   "count": 20
+  },
+  {
+   "name": "Mountain",
+   "count": 59
+  }
+ ]
+}

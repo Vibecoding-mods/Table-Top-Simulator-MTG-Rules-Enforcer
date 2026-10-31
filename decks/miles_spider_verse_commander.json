@@ -1,0 +1,319 @@
+{
+ "label": "Miles Morales Spider-Verse (AI)",
+ "format": "commander",
+ "commander": "Miles Morales",
+ "cards": [
+  {
+   "name": "Miles Morales",
+   "count": 1
+  },
+  {
+   "name": "Electro, Assaulting Battery",
+   "count": 1
+  },
+  {
+   "name": "Shock",
+   "count": 1
+  },
+  {
+   "name": "Iron Spider, Stark Upgrade",
+   "count": 1
+  },
+  {
+   "name": "Spectacular Spider-Man",
+   "count": 1
+  },
+  {
+   "name": "Peter Parker's Camera",
+   "count": 1
+  },
+  {
+   "name": "Strength of Will",
+   "count": 1
+  },
+  {
+   "name": "Spider-Punk",
+   "count": 1
+  },
+  {
+   "name": "Spider Manifestation",
+   "count": 1
+  },
+  {
+   "name": "Shadow of the Goblin",
+   "count": 1
+  },
+  {
+   "name": "Anti-Venom, Horrifying Healer",
+   "count": 1
+  },
+  {
+   "name": "With Great Power . . .",
+   "count": 1
+  },
+  {
+   "name": "Aunt May",
+   "count": 1
+  },
+  {
+   "name": "Maximum Carnage",
+   "count": 1
+  },
+  {
+   "name": "Romantic Rendezvous",
+   "count": 1
+  },
+  {
+   "name": "Araña, Heart of the Spider",
+   "count": 1
+  },
+  {
+   "name": "Spider-Ham, Peter Porker",
+   "count": 1
+  },
+  {
+   "name": "Radioactive Spider",
+   "count": 1
+  },
+  {
+   "name": "Hot Dog Cart",
+   "count": 1
+  },
+  {
+   "name": "Interdimensional Web Watch",
+   "count": 1
+  },
+  {
+   "name": "Spectacular Tactics",
+   "count": 1
+  },
+  {
+   "name": "Spider-Man, Brooklyn Visionary",
+   "count": 1
+  },
+  {
+   "name": "Web of Life and Destiny",
+   "count": 1
+  },
+  {
+   "name": "Silk, Web Weaver",
+   "count": 1
+  },
+  {
+   "name": "Spider-Verse",
+   "count": 1
+  },
+  {
+   "name": "Spider-Man India",
+   "count": 1
+  },
+  {
+   "name": "Scarlet Spider, Ben Reilly",
+   "count": 1
+  },
+  {
+   "name": "Doc Ock's Tentacles",
+   "count": 1
+  },
+  {
+   "name": "Spider-Bot",
+   "count": 1
+  },
+  {
+   "name": "Hobgoblin, Mantled Marauder",
+   "count": 1
+  },
+  {
+   "name": "Spider-Rex, Daring Dino",
+   "count": 1
+  },
+  {
+   "name": "J. Jonah Jameson",
+   "count": 1
+  },
+  {
+   "name": "Spider-UK",
+   "count": 1
+  },
+  {
+   "name": "Sandman, Shifting Scoundrel",
+   "count": 1
+  },
+  {
+   "name": "Mary Jane Watson",
+   "count": 1
+  },
+  {
+   "name": "Heroes' Hangout",
+   "count": 1
+  },
+  {
+   "name": "Web-Warriors",
+   "count": 1
+  },
+  {
+   "name": "Web Up",
+   "count": 1
+  },
+  {
+   "name": "Spider-Gwen, Free Spirit",
+   "count": 1
+  },
+  {
+   "name": "Spinneret and Spiderling",
+   "count": 1
+  },
+  {
+   "name": "Spiders-Man, Heroic Horde",
+   "count": 1
+  },
+  {
+   "name": "Rocket-Powered Goblin Glider",
+   "count": 1
+  },
+  {
+   "name": "Sudden Strike",
+   "count": 1
+  },
+  {
+   "name": "Costume Closet",
+   "count": 1
+  },
+  {
+   "name": "Lizard, Connors's Curse",
+   "count": 1
+  },
+  {
+   "name": "Spider-Man, Web-Slinger",
+   "count": 1
+  },
+  {
+   "name": "Wall Crawl",
+   "count": 1
+  },
+  {
+   "name": "Kapow!",
+   "count": 1
+  },
+  {
+   "name": "Guy in the Chair",
+   "count": 1
+  },
+  {
+   "name": "Origin of Spider-Man",
+   "count": 1
+  },
+  {
+   "name": "Silver Sable, Mercenary Leader",
+   "count": 1
+  },
+  {
+   "name": "Grow Extra Arms",
+   "count": 1
+  },
+  {
+   "name": "Supportive Parents",
+   "count": 1
+  },
+  {
+   "name": "Sol Ring",
+   "count": 1
+  },
+  {
+   "name": "Arcane Signet",
+   "count": 1
+  },
+  {
+   "name": "Cultivate",
+   "count": 1
+  },
+  {
+   "name": "Kodama's Reach",
+   "count": 1
+  },
+  {
+   "name": "Swords to Plowshares",
+   "count": 1
+  },
+  {
+   "name": "Beast Within",
+   "count": 1
+  },
+  {
+   "name": "Chaos Warp",
+   "count": 1
+  },
+  {
+   "name": "Heroic Intervention",
+   "count": 1
+  },
+  {
+   "name": "Rampant Growth",
+   "count": 1
+  },
+  {
+   "name": "Farseek",
+   "count": 1
+  },
+  {
+   "name": "Command Tower",
+   "count": 1
+  },
+  {
+   "name": "Exotic Orchard",
+   "count": 1
+  },
+  {
+   "name": "Path of Ancestry",
+   "count": 1
+  },
+  {
+   "name": "Jungle Shrine",
+   "count": 1
+  },
+  {
+   "name": "Rugged Prairie",
+   "count": 1
+  },
+  {
+   "name": "Wooded Bastion",
+   "count": 1
+  },
+  {
+   "name": "Fire-Lit Thicket",
+   "count": 1
+  },
+  {
+   "name": "Sacred Foundry",
+   "count": 1
+  },
+  {
+   "name": "Stomping Ground",
+   "count": 1
+  },
+  {
+   "name": "Temple Garden",
+   "count": 1
+  },
+  {
+   "name": "Evolving Wilds",
+   "count": 1
+  },
+  {
+   "name": "Terramorphic Expanse",
+   "count": 1
+  },
+  {
+   "name": "Forest",
+   "count": 8
+  },
+  {
+   "name": "Mountain",
+   "count": 8
+  },
+  {
+   "name": "Plains",
+   "count": 9
+  }
+ ]
+}

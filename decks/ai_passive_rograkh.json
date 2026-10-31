@@ -1,0 +1,15 @@
+{
+ "label": "Passive AI (Rograkh, mountains)",
+ "format": "commander",
+ "commander": "Rograkh, Son of Rohgahh",
+ "cards": [
+  {
+   "name": "Rograkh, Son of Rohgahh",
+   "count": 1
+  },
+  {
+   "name": "Mountain",
+   "count": 99
+  }
+ ]
+}

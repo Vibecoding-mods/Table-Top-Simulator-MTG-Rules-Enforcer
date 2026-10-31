@@ -1,0 +1,58 @@
+{
+  "GUID": "bc0b40",
+  "Name": "Card",
+  "Transform": {
+    "posX": 39.46689,
+    "posY": 3.37482452,
+    "posZ": -32.0,
+    "rotX": 1.00051761E-06,
+    "rotY": 180.0,
+    "rotZ": 180.0,
+    "scaleX": 1.0,
+    "scaleY": 1.0,
+    "scaleZ": 1.0
+  },
+  "Nickname": "Squirrel\nToken Creature â Squirrel 0CMC",
+  "Description": "\n[b]1/1[/b]",
+  "GMNotes": "",
+  "AltLookAngle": {
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0
+  },
+  "ColorDiffuse": {
+    "r": 0.713235259,
+    "g": 0.713235259,
+    "b": 0.713235259
+  },
+  "LayoutGroupSortIndex": 0,
+  "Value": 0,
+  "Locked": false,
+  "Grid": true,
+  "Snap": true,
+  "IgnoreFoW": false,
+  "MeasureMovement": false,
+  "DragSelectable": true,
+  "Autoraise": true,
+  "Sticky": true,
+  "Tooltip": true,
+  "GridProjection": false,
+  "HideWhenFaceDown": true,
+  "Hands": true,
+  "CardID": 1251780600,
+  "SidewaysCard": false,
+  "CustomDeck": {
+    "12517806": {
+      "FaceURL": "https://img.klrmngr.com/display/front/5/a/5a6ec62e-0e9b-4312-bfe8-cc85d76fd9e0.webp",
+      "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/2442730426865822027/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/",
+      "NumWidth": 1,
+      "NumHeight": 1,
+      "BackIsHidden": true,
+      "UniqueBack": false,
+      "Type": 0
+    }
+  },
+  "LuaScript": "",
+  "LuaScriptState": "",
+  "XmlUI": ""
+}

@@ -1,0 +1,63 @@
+{
+ "label": "Rules check: commander damage (Kogla + ramp)",
+ "format": "commander",
+ "commander": "Kogla, the Titan Ape",
+ "cards": [
+  {
+   "name": "Kogla, the Titan Ape",
+   "count": 1
+  },
+  {
+   "name": "Llanowar Elves",
+   "count": 1
+  },
+  {
+   "name": "Elvish Mystic",
+   "count": 1
+  },
+  {
+   "name": "Fyndhorn Elves",
+   "count": 1
+  },
+  {
+   "name": "Arbor Elf",
+   "count": 1
+  },
+  {
+   "name": "Rampant Growth",
+   "count": 1
+  },
+  {
+   "name": "Cultivate",
+   "count": 1
+  },
+  {
+   "name": "Nature's Lore",
+   "count": 1
+  },
+  {
+   "name": "Three Visits",
+   "count": 1
+  },
+  {
+   "name": "Farseek",
+   "count": 1
+  },
+  {
+   "name": "Sol Ring",
+   "count": 1
+  },
+  {
+   "name": "Arcane Signet",
+   "count": 1
+  },
+  {
+   "name": "Mind Stone",
+   "count": 1
+  },
+  {
+   "name": "Forest",
+   "count": 87
+  }
+ ]
+}

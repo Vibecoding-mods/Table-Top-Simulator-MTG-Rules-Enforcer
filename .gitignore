@@ -1,0 +1,29 @@
+# Generated, local or large: never published
+tmp/
+node_modules/
+research_notes/
+*.log
+.env
+.env.*
+
+# Bridge caches (rebuilt automatically on first use)
+bridge/image-cache*.json
+bridge/tts-console.log
+bridge/*.mutant.js
+bridge/latency-*.csv
+
+# Third-party content we only use locally:
+# Manabrew: clone it yourself (see README; the tested commit is in docs/publishing-checklist.md)
+manabrew/
+# the group table's own scripts (not ours; tools/extract-tts-scripts.js extracts them from your Workshop copy)
+table-scripts/
+# the skybox picture (third-party art; the save points at its Steam Cloud copy)
+assets/
+# PresentMon.exe (download from github.com/GameTechDev/PresentMon)
+tools/presentmon/
+
+# Private: personal skill notes, and a collage of Arena screenshots (Wizards' art)
+docs/skills/
+arena-features-collage.jpg
+# The engine build's clean clone
+engine/.build/

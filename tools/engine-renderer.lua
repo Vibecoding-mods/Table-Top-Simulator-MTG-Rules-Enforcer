@@ -1,0 +1,5671 @@
+-- [engine copy] ===================== ENGINE RENDERER (PLAN M4 step 3) =====================
+-- Draws the rules engine's game on this table: cards in each player's zones (same card format as the
+-- Card Importer), life / commander damage / commander tax trackers, the active turn, and a prompt panel.
+-- Everything here only runs after "mtg start"; the table is untouched until then.
+
+local ENGINE_BACK = "https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/"
+local LIFE_TRACKERS = { White = "23e485", Red = "448880", Yellow = "37e533", Blue = "395037" }
+-- Commander damage trackers sit on the victim's side, one per attacking colour.
+local CMD_DAMAGE = {
+  White  = { Blue = "b748df", Yellow = "0f6598", Red = "6b6e1f" },
+  Blue   = { White = "bfcf4a", Red = "8d172a", Yellow = "f43e61" },
+  Yellow = { Red = "906d4b", White = "484c38", Blue = "45331a" },
+  Red    = { Yellow = "d5907a", Blue = "95eb63", White = "4bfa09" },
+}
+local TAX_LABELS = { White = {"908f60", "ce8ea5"}, Red = {"9d380e", "16aed3"}, Yellow = {"baffa9", "dc9c6d"}, Blue = {"0c0c5e", "3b2d18"} }
+
+-- Battlefield grid on each playmat (same spacing as the table's own tools): 10 cards per row, row 0 is the
+-- edge nearest the table centre, row 4 the edge nearest the player.
+local SURFACE_Y = 1.15 -- table top; cards are placed at this height, not at the height of the zone objects
+local function onTable(v, lift) return Vector(v.x, SURFACE_Y + (lift or 0), v.z) end
+
+local GRID = { colStep = 2.4, colStart = 10.75, rowStep = 3.2, rowStart = -8, perRow = 10 }
+local ROWS = { creature = 0, other = 2, land = 3 }
+
+local engineObjs = {}     -- engine card id -> object
+local engineSpawning = {} -- engine card id -> true while its object is being spawned
+local enginePlanned = {}  -- engine card id -> planned position (for attachments)
+local engineInHand = {}   -- engine card id -> true while the card sits in a player's hand
+local engineFace = {}     -- engine card id -> face and back image URLs the object was spawned with (engineFaceKey)
+local engineMeta = {}     -- engine card id -> { zone = "hand"|"battlefield"|"command"|..., color = owner/controller colour }
+local engineManual = {}   -- engine card id -> position the player arranged it at on their battlefield
+engineManualPlay = {} -- engine card id -> true while engineManual only holds a card being cast where it was dropped
+local engineHeld = {}     -- engine card id -> os.clock() while a dragged card waits for the engine's answer
+local lastTurnSet = nil
+local stashed = {}        -- imported deck objects moved aside while the engine plays: guid -> {pos, rot, lock}
+local lastTable = nil
+local renderQueued = false
+local engineColors = {}   -- colour -> true for every colour the engine is playing (humans and AI)
+
+-- ───────── geometry ─────────
+local function seatGeometry(color)
+  local d = data[color]
+  if d == nil or d.playmat == nil or d.libraryZone == nil then return nil end
+  local lib = d.libraryZone
+  local g = {
+    mat = d.playmat.getPosition(), right = d.playmat.getTransformRight(), fwd = d.playmat.getTransformForward(),
+    lib = lib.getPosition(), libFwd = lib.getTransformForward(),
+    grave = d.graveyard and d.graveyard.getPosition() or lib.getPosition(),
+  }
+  local hand = Player[color].getHandTransform()
+  g.rotY = (hand and hand.rotation.y or d.playmat.getRotation().y) + 180 -- readable for that player
+  g.handPos = hand and hand.position or nil
+  return g
+end
+
+local function gridPos(g, col, row)
+  return onTable(g.mat + g.right * (col * -GRID.colStep + GRID.colStart) + g.fwd * (row * GRID.rowStep + GRID.rowStart), 0)
+end
+
+-- ───────── card objects ─────────
+local function nickname(c)
+  if c.n == nil then return "Face-down card" end
+  return c.n .. "\n" .. (c.tl or "") .. "\n" .. tostring(c.cmc or 0) .. "CMC"
+end
+
+local function description(c)
+  -- (its text as changed by Mind Bend, Exchange of Words, Deadpool, Volrath's Shapeshifter: the changed text, and the
+  -- printed card under its new name, hp-25 2026-10-27)
+  local s = c.ct and ("[b]Text changed:[/b]\n" .. c.ct) or (c.tx or "")
+  if c.pn then s = "[b]" .. c.pn .. "[/b], as " .. tostring(c.n) .. "\n" .. s end
+  if c.p ~= nil and c.t ~= nil then s = s .. "\n[b]" .. tostring(c.p) .. "/" .. tostring(c.t) .. "[/b]" end
+  return (s:gsub('"', "'"))
+end
+
+-- TTS caches card images by CustomDeck number for the whole save, so two different pictures under the same number
+-- show the same image (engine cards once all used 1, which the table's "The Ring" emblem also uses). Each picture
+-- gets its own number, counting up from 3000 (above the importer's small numbers).
+-- The numbers must stay SMALL: TTS's save/rewind snapshot costs time in proportion to a card's number (measured
+-- 2026-10-19: number 1 = 0 ms, 999999 = 2.5 ms, 12517809 = 25 ms per card per snapshot). The old hash numbers
+-- (1-20 million) made every rewind snapshot take 2.7 s with ~100 engine cards on the table.
+local ENGINE_KEY_BASE = 3000
+local engineKeys, engineKeyNext = nil, ENGINE_KEY_BASE
+local function seedEngineKeys()
+  engineKeys = {}
+  -- numbers already used by engine cards in this save keep their picture, so a reloaded game never shows a wrong one
+  for _, o in ipairs(getObjects()) do
+    if (o.type == "Card" or o.type == "Deck") and (tostring(o.getGMNotes()):find("^engine") or o.getGMNotes() == "libcard") then
+      for k, cd in pairs(o.getData().CustomDeck or {}) do
+        k = tonumber(k)
+        if k ~= nil and k >= ENGINE_KEY_BASE and k < 1000000 then
+          engineKeys[tostring(cd.FaceURL) .. "|" .. tostring(cd.BackURL)] = k
+          if k >= engineKeyNext then engineKeyNext = k + 1 end
+        end
+      end
+    end
+  end
+end
+function engineDeckKey(face, back)
+  if engineKeys == nil then seedEngineKeys() end
+  local str = tostring(face) .. "|" .. tostring(back)
+  local k = engineKeys[str]
+  if k == nil then
+    k = engineKeyNext
+    engineKeyNext = engineKeyNext + 1
+    engineKeys[str] = k
+  end
+  return k
+end
+
+local function deckEntry(face, back)
+  return { FaceURL = face, BackURL = back, NumWidth = 1, NumHeight = 1, BackIsHidden = true, UniqueBack = false, Type = 0 }
+end
+
+-- A LOCKED deck silently refuses putObject (measured 2026-10-19). Unlock it, put, and lock it again a frame later.
+function enginePutInDeck(deck, obj)
+  if deck == nil or deck.isDestroyed() or obj == nil or obj.isDestroyed() then return end
+  local wasLocked = deck.getLock()
+  if wasLocked then deck.setLock(false) end
+  obj.setLock(false)
+  deck.putObject(obj)
+  if wasLocked then Wait.frames(function() if deck ~= nil and not deck.isDestroyed() then deck.setLock(true) end end, 1) end
+end
+
+-- Removing objects without the pause: TTS spends ~360 ms in the frame after EVERY destruct() (measured 2026-10-19
+-- with PresentMon: one card 358 ms, five in one frame 1807 ms, locked or not, wherever it is; putting a card into a
+-- bag costs the same), but a card merged into a DECK with putObject costs nothing. So engine cards that leave the
+-- table are merged into a trash deck in a table corner, invisible to everyone and not grabbable. (It must sit on the
+-- table: unlocked for the merge, a deck under the table is pushed back up.) Every TRASH_MAX cards the trash is
+-- thrown away (one pause) and a new one starts; the game's end clears the rest.
+local TRASH_SPOT, TRASH_MAX = Vector(52, 1.5, 33), 300
+local engineTrash, trashQueue, trashSpawning = nil, {}, false
+local function hideTrash(o)
+  o.interactable = false
+  local all = Player.getAvailableColors()
+  all[#all + 1] = "Grey"
+  all[#all + 1] = "Black"
+  o.setInvisibleTo(all)
+end
+local function feedTrash()
+  local t = engineTrash
+  if t == nil or t.isDestroyed() then return end
+  for _, o in ipairs(trashQueue) do
+    if o ~= nil and not o.isDestroyed() then enginePutInDeck(t, o) end
+  end
+  trashQueue = {}
+end
+engineDebugDispose = false -- true: print every engine card the table removes (hunting "missing object" problems)
+function engineDispose(o)
+  if o == nil or o.isDestroyed() then return end
+  if engineDebugDispose and tostring(o.getGMNotes()):find("^engine:") then
+    print("[engine] remove " .. tostring(o.getGMNotes()) .. " (" .. (tostring(o.getName()):match("^[^\n]*") or "") .. ")")
+  end
+  if o.type ~= "Card" and o.type ~= "Deck" then o.destruct() return end
+  o.setGMNotes("enginetrash") -- no longer an engine card: the spawn/destroy/container watchers leave it alone
+  o.highlightOff()
+  o.clearContextMenu()
+  hideTrash(o)
+  o.setLock(true)
+  o.setPosition(TRASH_SPOT + Vector(0, 3, 0))
+  trashQueue[#trashQueue + 1] = o
+  if engineTrash ~= nil and not engineTrash.isDestroyed() and engineTrash.getQuantity() >= TRASH_MAX then
+    engineTrash.destruct() -- one pause per TRASH_MAX cards instead of one per card
+    engineTrash = nil
+  end
+  if engineTrash ~= nil and not engineTrash.isDestroyed() then feedTrash() return end
+  if trashSpawning then return end
+  trashSpawning = true
+  local k = engineDeckKey(ENGINE_BACK, ENGINE_BACK)
+  local flat = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 }
+  local card = { Name = "Card", Nickname = "Trash", GMNotes = "enginetrash", CardID = k * 100, CustomDeck = { [k] = deckEntry(ENGINE_BACK, ENGINE_BACK) }, Transform = flat }
+  spawnObjectData({ data = { Name = "Deck", Nickname = "Engine trash", GMNotes = "engine:trash", Locked = true,
+    DeckIDs = { k * 100, k * 100 }, CustomDeck = { [k] = deckEntry(ENGINE_BACK, ENGINE_BACK) }, ContainedObjects = { card, card }, Transform = flat },
+    position = TRASH_SPOT, callback_function = function(d)
+      trashSpawning = false
+      hideTrash(d)
+      engineTrash = d
+      feedTrash()
+    end })
+end
+
+local function engineCardData(c)
+  local hidden = c.n == nil
+  local face, back = hidden and ENGINE_BACK or (c.f or ENGINE_BACK), c.b or ENGINE_BACK
+  local key = engineDeckKey(face, back)
+  return {
+    Name = "Card", Nickname = nickname(c), Description = description(c), GMNotes = "engine:" .. tostring(c.id),
+    Transform = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 },
+    CardID = key * 100, Locked = true, Tags = { "engine" },
+    CustomDeck = { [key] = deckEntry(face, back) },
+  }
+end
+
+local function firstLine(s) return (tostring(s or ""):match("^[^\n]*") or "") end
+
+local function isInHand(o, color, index)
+  for _, h in ipairs(Player[color].getHandObjects(index or 1) or {}) do if h == o then return true end end
+  return false
+end
+
+-- Put engine card `c` at pos/rot (or into `handColor`'s hand). Spawns it the first time.
+-- A seated player may drag their own battlefield and command-zone cards; everything else stays locked.
+-- Keeps obj as the only object carrying engine id `id` (pile and library decks are rebuilt often).
+local function keepOnly(id, obj)
+  local gm = "engine:" .. id
+  for _, o in ipairs(getObjects()) do
+    if o ~= obj and tostring(o.getGMNotes()) == gm then engineDispose(o) end
+  end
+end
+
+-- Cards an open question asks someone to click (a target, an attacker to block, a card to choose, a planeswalker to
+-- attack): unlocked while it is open, even the AI's. TTS reports no click on a locked object, and the AI's cards are
+-- always locked, so its creatures couldn't be targeted or blocked by clicking (2026-10-22 playtest).
+engineClickable = {}
+local function isFree(meta)
+  return meta ~= nil and (meta.zone == "battlefield" or meta.zone == "command" or meta.zone == "playable") and meta.color ~= nil
+    and Player[meta.color] ~= nil and Player[meta.color].seated
+end
+
+engineOps = {} -- what the last frames asked TTS to do (profiling)
+local function op(name) engineOps[name] = (engineOps[name] or 0) + 1 end
+
+-- Counters, damage and changed power/toughness show as a small label on the card (phase 3).
+engineBadge = {} -- engine card id -> label currently on its card
+engineGroupShown = {} -- engine card id -> the "xN" count its badge last showed (a group that grows flashes gold)
+
+-- An object becomes card <id>'s object (a card pulled out of a pile or a search, what is left of a pile deck): the
+-- same bookkeeping every time. The face it shows is recorded, so the next board doesn't mistake it for a changed
+-- card and replace it (two of the four copies this replaced didn't, and a tutored card was thrown away and respawned).
+-- held: the player just took it; the next boards wait a moment for the engine to say where it goes.
+function engineAdopt(id, obj, held)
+  engineObjs[id] = obj
+  engineSpawning[id] = nil
+  engineFace[id] = engineFaceKey(engineStatic[id] or {})
+  if engineInPile ~= nil then engineInPile[id] = nil end
+  if held then engineHeld[id] = os.clock() end
+end
+local COUNTER_NAMES = { P1P1 = "+1/+1", M1M1 = "-1/-1", LOYALTY = "Loyalty", POISON = "Poison", SHIELD = "Shield",
+  STUN = "Stun", LORE = "Lore", OIL = "Oil", CHARGE = "Charge", TIME = "Time", FADE = "Fade", AGE = "Age", DEFENSE = "Defense" }
+function engineNoop() end
+-- M5 step 2, Arena's layout: power/toughness bottom right (blue when raised, red when lowered or damaged: the
+-- toughness shown is what is left after damage), loyalty/defense there for planeswalkers and battles, +1/+1 and
+-- -1/-1 counters as a dark-blue tag top right with other counters under it, "xN" top left on a group of tokens.
+-- One string per card (engineBadge) decides whether anything changed; then its buttons are drawn again.
+local BADGE = { pt = { 0.62, 0.3, 1.18 }, ctr = { 0.6, 0.3, -1.12 }, grp = { -0.62, 0.3, -1.12 }, cp = { -0.55, 0.3, 1.18 }, cpBg = { 0.42, 0.18, 0.55, 0.95 },
+  kw = { 0, 0.3, 0.62 }, kwBg = { 0.05, 0.32, 0.12, 0.95 }, kwAbove = { 0, 0.3, 0.33 }, tb = { 0, 0.29, 0.73 }, tbBg = { 0.95, 0.92, 0.84, 0.98 },
+  black = { 0, 0, 0, 0.85 }, grew = { 0.8, 0.55, 0.05, 0.95 }, up = { 0.1, 0.35, 0.8, 0.95 }, down = { 0.62, 0.08, 0.08, 0.95 }, ctrBg = { 0.06, 0.16, 0.42, 0.95 } }
+local function badgeParts(c)
+  local parts = {}
+  if (c.groupN or 1) > 1 then parts[#parts + 1] = { "grp", "x" .. c.groupN, BADGE.black } end
+  -- a copy of another card (Phantasmal Image as Kenrith): which of two alike is the copy (legend rule, playtest 2026-10-26)
+  if c.cp then parts[#parts + 1] = { "cp", "COPY", BADGE.cpBg } end
+  -- its text as changed (Mind Bend's "islandwalk", Deadpool's exchanged text box): a box over the card's own text box,
+  -- wrapped to the card's width, at most 6 lines here and the whole text in its tooltip (hp-25 2026-10-27)
+  if c.ct then
+    local lines = {}
+    for para in (tostring(c.ct) .. "\n"):gmatch("([^\n]*)\n") do
+      local cur = ""
+      for w in para:gmatch("%S+") do
+        if cur ~= "" and #cur + #w + 1 > 28 then lines[#lines + 1] = cur cur = w else cur = cur == "" and w or (cur .. " " .. w) end
+      end
+      if cur ~= "" then lines[#lines + 1] = cur end
+    end
+    if #lines > 6 then
+      local cut = {}
+      for k = 1, 5 do cut[k] = lines[k] end
+      cut[6] = "... (point at it for the rest)"
+      lines = cut
+    end
+    parts[#parts + 1] = { "tb", table.concat(lines, "\n"), BADGE.tbBg, "Text changed: " .. tostring(c.ct), { 0.08, 0.06, 0.04 } }
+  end
+  -- keywords another card gave it ("Toxic 1", "Hexproof from red": Skrelv's grant showed nowhere, hp-07 #31)
+  -- (two lines at most, card-wide at most, the whole list in its tooltip: "Protection from multicolored" was wider than
+  -- the card and three lines reached the ability buttons, suite review 2026-10-27)
+  if type(c.kw) == "table" and #c.kw > 0 then
+    local shown = #c.kw <= 2 and table.concat(c.kw, "\n") or (c.kw[1] .. "\n+" .. (#c.kw - 1) .. " more")
+    -- (above the changed text box when there is one: it covered the box's first lines, suite review 2026-10-27)
+    parts[#parts + 1] = { "kw", shown, BADGE.kwBg, table.concat(c.kw, ", "), nil, c.ct and BADGE.kwAbove or nil }
+  end
+  local dmg = tonumber(c.dmg or 0) or 0
+  local ctr, special, names = {}, nil, {}
+  for k in pairs(c.ctr or {}) do names[#names + 1] = k end
+  table.sort(names)
+  local plus = 0
+  for _, k in ipairs(names) do
+    local n, up = tonumber(c.ctr[k]) or 0, string.upper(k)
+    if up == "P1P1" then plus = plus + n
+    elseif up == "M1M1" then plus = plus - n
+    elseif up == "LOYALTY" or up == "DEFENSE" then special = tostring(n)
+    else ctr[#ctr + 1] = n .. " " .. (COUNTER_NAMES[up] or (string.upper(k:sub(1, 1)) .. string.lower(k:sub(2)))) end
+  end
+  if plus ~= 0 then table.insert(ctr, 1, (plus > 0 and "+" or "") .. plus .. "/" .. (plus > 0 and "+" or "") .. plus) end
+  if #ctr > 0 then parts[#parts + 1] = { "ctr", table.concat(ctr, "\n"), BADGE.ctrBg } end
+  if c.p ~= nil and c.t ~= nil then
+    local p, t, bp, bt = tonumber(c.p), tonumber(c.t), tonumber(c.bp), tonumber(c.bt)
+    local changed = tostring(c.p) ~= tostring(c.bp) or tostring(c.t) ~= tostring(c.bt)
+    if changed or dmg > 0 then
+      local lower = dmg > 0 or (p and bp and p < bp) or (t and bt and t < bt)
+      parts[#parts + 1] = { "pt", tostring(c.p) .. "/" .. tostring(t and (t - dmg) or c.t), lower and BADGE.down or BADGE.up }
+    end
+  elseif special ~= nil then parts[#parts + 1] = { "pt", special, BADGE.black } end
+  return parts
+end
+local function badgeText(c)
+  local out = {}
+  for _, b in ipairs(badgeParts(c)) do out[#out + 1] = b[1] .. "=" .. b[2] .. "=" .. table.concat(b[3], ",") end
+  return table.concat(out, ";")
+end
+local function updateBadge(o, c, zone)
+  if o == nil or o.isDestroyed() then return end
+  local text = (zone == "battlefield" and not c.fd) and badgeText(c) or ""
+  -- (the card's ability buttons are drawn with its badges: one set of buttons per card, engineAbilityButtons)
+  local ab = engineAbilitySig ~= nil and engineAbilitySig(c) or ""
+  if engineBadge[c.id] == text .. "#" .. ab then return end
+  local had = engineBadge[c.id] ~= nil and engineBadge[c.id] ~= "" and engineBadge[c.id] ~= "#"
+  engineBadge[c.id] = text .. "#" .. ab
+  if had then o.clearButtons() end
+  if ab ~= "" then Wait.frames(function() if not o.isDestroyed() and engineBadge[c.id] == text .. "#" .. ab then engineAbilityButtons(o, c) end end, 1) end
+  -- a group of identical tokens that just grew ("x2" -> "x3") shows its count in gold for a moment: a new token that
+  -- joins a group adds no card, and a player looked for it in vain (Grist's Insect, 2026-10-22 playtest)
+  local grew = (c.groupN or 1) > (engineGroupShown[c.id] or 1)
+  engineGroupShown[c.id] = c.groupN or 1
+  if text == "" then return end
+  for k, b in ipairs(badgeParts(c)) do
+    if b[1] == "grp" and grew then
+      local mark = text .. "#" .. ab
+      Wait.time(function() if engineBadge[c.id] == mark and not o.isDestroyed() then o.editButton({ index = k - 1, color = BADGE.black }) end end, 1.5)
+    end
+    local lines, longest = 1, 0
+    for line in (b[2] .. "\n"):gmatch("([^\n]*)\n") do longest = math.max(longest, #line) lines = lines + 1 end
+    lines = lines - 1
+    local pos = b[6] or BADGE[b[1]]
+    local kwb, tbb = b[1] == "kw", b[1] == "tb"
+    -- (granted keywords: smaller, card-wide at most, growing upward by half a line's height per extra line; the changed
+    -- text box: smaller still, card-wide, centred on the card's text box)
+    local fs, lineH = tbb and 64 or kwb and 115 or 180, tbb and 78 or kwb and 130 or 165
+    o.createButton({ click_function = "engineNoop", function_owner = Global, label = b[2],
+      -- (a tall counter list grows downward from the top-right corner; granted keywords grow upward)
+      position = { pos[1], pos[2], pos[3] + (b[1] == "ctr" and 0.13 * (lines - 1) or kwb and -(lineH / 2000) * (lines - 1) or 0) },
+      rotation = { 0, 0, 0 }, width = tbb and 880 or kwb and math.min(1000, math.max(340, 66 * longest + 120)) or math.max(340, 112 * longest),
+      -- (the changed text box covers the whole printed one, whatever its length)
+      height = tbb and math.max(500, 100 + lineH * lines) or (180 + lineH * lines), font_size = fs,
+      color = (b[1] == "grp" and grew) and BADGE.grew or b[3], font_color = b[5] or { 1, 1, 1 }, tooltip = b[4] or "" })
+  end
+end
+
+engineFlipped = {} -- engine card id -> true while its owner has flipped it over on the table (looks only)
+
+local ATTACH_SCALE = 0.5
+local function place(c, pos, rot, seen, handColor, meta)
+  if c == nil or c.id == nil then return end
+  if engineFlipped[c.id] then
+    if meta ~= nil and (meta.zone == "battlefield" or meta.zone == "command") then
+      rot = Vector(rot.x, rot.y, (rot.z + 180) % 360)
+    else engineFlipped[c.id] = nil end
+  end
+  seen[c.id] = true
+  enginePlanned[c.id] = pos
+  if meta ~= nil then engineMeta[c.id] = meta end
+  local free = isFree(meta) or engineClickable[c.id] == true
+  if engineHeld[c.id] ~= nil then
+    local decided = meta ~= nil and meta.zone ~= "hand" and meta.zone ~= "command"
+    if not decided and os.clock() - engineHeld[c.id] < 3 and engineObjs[c.id] ~= nil then return end -- still waiting
+    engineHeld[c.id] = nil
+  end
+  local o = engineObjs[c.id]
+  if o ~= nil and (o.isDestroyed() or firstLine(o.getName()) ~= firstLine(nickname(c)) or (c.f ~= nil and engineFace[c.id] ~= engineFaceKey(c))) then
+    -- the card changed identity (transformed, turned face up, ...) or its back (a double-faced card shows the plain
+    -- back in a hand and its other face elsewhere): replace it
+    if not o.isDestroyed() then engineDispose(o) end
+    engineObjs[c.id], o = nil, nil
+  end
+  if o == nil then
+    if engineSpawning[c.id] then return end
+    engineSpawning[c.id] = true
+    if handColor ~= nil then engineInHand[c.id] = true end
+    op("spawn")
+    -- (a held mill comes off the library face down and turns face up onto its spot, a moment after the one before)
+    local arrive = meta ~= nil and meta.zone == "heldmill" and meta.from ~= nil and not engineAnimOff
+    spawnObjectData({ data = engineCardData(c), position = arrive and meta.from or pos, rotation = arrive and Vector(rot.x, rot.y, 180) or rot, callback_function = function(obj)
+      engineSpawning[c.id] = nil
+      if arrive then
+        Wait.time(function()
+          if obj ~= nil and not obj.isDestroyed() then obj.setRotationSmooth(rot, false, true) obj.setPositionSmooth(pos, false, true) end
+        end, math.max(0.01, ((meta.k or 1) - 1) * MILL_GAP))
+      end
+      engineObjs[c.id] = obj
+      engineStackGlow[c.id] = nil -- a new object: its glow is drawn again on the next board
+      engineFace[c.id] = engineFaceKey(c)
+      engineBadge[c.id] = nil
+      updateBadge(obj, c, meta and meta.zone)
+      obj.setLock(handColor == nil and not free) -- a card spawned on the hand position joins that hand
+      if meta and (meta.zone == "attached" or meta.zone == "linked") then obj.setScale(Vector(ATTACH_SCALE, 1, ATTACH_SCALE)) end
+      if engineGlowLate ~= nil then engineGlowLate(c.id) end
+    end })
+    return
+  end
+  -- (its type line as it is now: Vraska's -2 made Relentless Rats a Treasure artifact, and the card still read
+  -- "Creature — Rat", hp-22 #4 2026-10-28)
+  if o.getName() ~= nickname(c) then op("name") o.setName(nickname(c)) end
+  if o.getDescription() ~= description(c) then op("desc") o.setDescription(description(c)) end
+  local wantScale = (meta and (meta.zone == "attached" or meta.zone == "linked")) and ATTACH_SCALE or 1
+  if math.abs(o.getScale().x - wantScale) > 0.01 then op("scale") o.setScale(Vector(wantScale, 1, wantScale)) end
+  if handColor ~= nil then
+    engineInHand[c.id] = true
+    if not isInHand(o, handColor, meta and meta.hand2 and 2 or 1) then o.setLock(false) o.setPosition(pos) o.setRotation(rot) end
+    return
+  end
+  if engineInHand[c.id] then
+    -- TTS keeps re-laying-out hand cards, so a smooth move never leaves the hand: jump out first.
+    engineInHand[c.id] = nil
+    o.setLock(not free)
+    o.setPosition(pos)
+    o.setRotation(rot)
+    return
+  end
+  if o.getLock() ~= (not free) then op("lock") o.setLock(not free) end
+  -- (an attacking card swinging at its target: the board update leaves it alone until it is back, engineCombatLunge)
+  if engineAnimUntil ~= nil and (engineAnimUntil[c.id] or 0) > os.clock() then updateBadge(o, c, meta and meta.zone) return end
+  local cur, curRot = o.getPosition(), o.getRotation()
+  local dr = math.abs(((curRot.y - rot.y + 540) % 360) - 180) + math.abs(((curRot.z - rot.z + 540) % 360) - 180)
+  -- compare on the table plane: a card resting a little lower than planned must not be "moved" (that would
+  -- interrupt its tap/untap rotation every redraw)
+  local moved = (cur.x - pos.x) ^ 2 + (cur.z - pos.z) ^ 2 > 0.0025 or math.abs(cur.y - pos.y) > 0.4
+  if moved then op("move") o.setPositionSmooth(pos, false, false) end
+  if dr > 1 then op("rotate") o.setRotationSmooth(rot, false, false) end
+  updateBadge(o, c, meta and meta.zone)
+end
+
+local function hasType(c, t)
+  for _, x in ipairs(c.ty or {}) do if x == t then return true end end
+  return false
+end
+
+-- ───────── doing it yourself: draws, mills and untaps wait for the player (SPEC §10a) ─────────
+-- The engine draws, mills and untaps the moment the rules say so. On the table those moves wait for the player:
+-- the drawn card stays on top of the library until you click the library, drag it or press Draw; milled cards
+-- until you drag them or press Mill; your permanents stay tapped until you press Untap. With "Auto" on in your
+-- panel they go by themselves after 15 seconds. Anything a decision needs is released at once.
+enginePending = {}  -- colour -> { draw = { ids }, mill = { ids }, untap = { [id] = true } }
+-- colour -> false: that player turned Auto off. Auto is on by default (2026-10-22): draws, mills and untaps held on
+-- the table finish by themselves after AUTO_DELAY (Arena has no holding; a held mill fanned beside the library and a
+-- tutored card waiting on top of it looked like glitches to the player). Click the library / pile to take them sooner.
+engineAutoPace = {}
+function engineAutoOn(color) return engineAutoPace[color] ~= false end
+local AUTO_DELAY = 2
+local autoPaceToken = {} -- colour -> number of the newest auto-release timer (only that one may fire)
+local paceSeen = {} -- colour -> { hand = {id=true}, handN, lib, public = {id=true}, tapped = {id=true} } from the last update
+paceArmed = {} -- colour -> true once that player had a decision after the opening hand (mulligans are not draws)
+local paceTable = nil -- the last board the detection ran on (re-renders of the same board detect nothing new)
+
+local function pendingOf(color)
+  enginePending[color] = enginePending[color] or { draw = {}, mill = {}, untap = {} }
+  return enginePending[color]
+end
+
+function enginePendingCount(color)
+  local p = enginePending[color]
+  if p == nil then return 0, 0, 0 end
+  local u = 0
+  for _ in pairs(p.untap) do u = u + 1 end
+  return #p.draw, #p.mill, u
+end
+
+local function idSet(list)
+  local set = {}
+  for _, c in ipairs(list or {}) do set[c.id] = true end
+  return set
+end
+
+-- Compares this board with the previous one and holds back new draws, mills and untaps for seated players.
+local function detectPending(m)
+  if m == paceTable then return end
+  paceTable = m
+  for _, pl in ipairs(m.players or {}) do
+    local color = pl.color
+    if color ~= nil and Player[color] ~= nil and Player[color].seated and pl.hand ~= nil then
+      local prev = paceSeen[color]
+      local p = pendingOf(color)
+      local handSet = idSet(pl.hand)
+      local public = {}
+      for _, z in ipairs({ "battlefield", "graveyard", "exile", "command" }) do
+        for _, c in ipairs(pl[z] or {}) do public[c.id] = true end
+      end
+      for _, sItem in ipairs(m.stack or {}) do if sItem.src then public[sItem.src] = true end end
+      -- forget held cards the engine has moved on since (cast, discarded, shuffled away, ...)
+      local keep = {}
+      for _, id in ipairs(p.draw) do if handSet[id] then keep[#keep + 1] = id end end
+      p.draw = keep
+      local gy = idSet(pl.graveyard)
+      keep = {}
+      for _, id in ipairs(p.mill) do if gy[id] then keep[#keep + 1] = id end end
+      p.mill = keep
+      local tappedNow = {}
+      for _, c in ipairs(pl.battlefield or {}) do if c.tap then tappedNow[c.id] = true end end
+      local bf = idSet(pl.battlefield)
+      for id in pairs(p.untap) do if not bf[id] or tappedNow[id] then p.untap[id] = nil end end
+
+      if prev ~= nil and paceArmed[color] then
+        local libDrop = (prev.lib or 0) - (pl.library or 0)
+        -- draws: new cards in hand, the hand grew by as many, and the library shrank
+        local newHand = {}
+        for _, c in ipairs(pl.hand) do if not prev.hand[c.id] and not prev.public[c.id] then newHand[#newHand + 1] = c.id end end
+        local grew = #pl.hand - (prev.handN or 0)
+        local drawn = math.min(#newHand, math.max(0, libDrop), math.max(0, grew))
+        for i = #newHand - drawn + 1, #newHand do p.draw[#p.draw + 1] = newHand[i] end
+        if drawn > 0 then
+          engineTableLog(color, "drew " .. drawn .. ": held on the library " .. ((engineAutoOn ~= nil and engineAutoOn(color)) and "(Auto takes it)" or "until the library or Draw is clicked (Auto off)"))
+        end
+        libDrop = libDrop - drawn
+        -- a question already open about these very cards means the player needs them in hand now: the engine sends
+        -- the question ~50 ms before the board that draws them (Sylvan Library's "choose 2 cards drawn this turn";
+        -- they stayed on the library and the question couldn't be answered on the table, 2026-10-22 playtest)
+        local q = enginePrompts[color]
+        if q ~= nil and q.promptId ~= nil and #p.draw > 0 then
+          local held = {}
+          for _, id in ipairs(p.draw) do held[id] = true end
+          for _, o in ipairs(q.options or {}) do
+            if held[(tostring(o.cardId or o.id or ""):gsub("^card|", ""))] then p.draw = {} break end
+          end
+        end
+        -- mills: new cards in the graveyard that weren't anywhere public before, while the library shrank
+        if libDrop > 0 then
+          for _, c in ipairs(pl.graveyard or {}) do
+            if libDrop > 0 and not prev.public[c.id] and not prev.hand[c.id] then
+              p.mill[#p.mill + 1] = c.id
+              libDrop = libDrop - 1
+            end
+          end
+        end
+        -- a big mill (more than 5) goes straight into the graveyard deck: 20 loose face-up cards would be 20 live
+        -- objects, each one making Unity's clean-up pauses longer
+        if #p.mill > 5 then p.mill = {} end
+        -- untaps: your own permanents the engine untapped as your turn began (Forge rarely stops in the untap step
+        -- itself, so "a new turn and it is yours" is the sign)
+        -- (not for a player who pressed READY: their Untap button is out of the way, so untapping happens at once)
+        if m.active == color and m.turn ~= prev.turn and not (engineReadyState ~= nil and engineReadyState[color] == "ready") then
+          for _, c in ipairs(pl.battlefield or {}) do
+            if prev.tapped[c.id] and not c.tap then p.untap[c.id] = true end
+          end
+        end
+        local d, mi, u = enginePendingCount(color)
+        if (d + mi + u) > 0 and engineAutoOn(color) then
+          autoPaceToken[color] = (autoPaceToken[color] or 0) + 1
+          local mine, batch = autoPaceToken[color], p
+          Wait.time(function()
+            if autoPaceToken[color] == mine and enginePending[color] == batch then engineReleasePending(color, "all") end
+          end, AUTO_DELAY)
+        end
+      end
+      paceSeen[color] = { hand = handSet, handN = #pl.hand, lib = pl.library or 0, public = public, tapped = tappedNow, turn = m.turn }
+    end
+  end
+end
+
+function engineHeldTapped(id)
+  for _, p in pairs(enginePending) do if p.untap[id] then return true end end
+  return false
+end
+
+local function heldIn(list, id)
+  for _, x in ipairs(list) do if x == id then return true end end
+  return false
+end
+
+-- Identical tokens (same name, controller, tapped state, counters, power/toughness, damage, nothing attached) are
+-- drawn as ONE card with an "xN" label, like Arena, once there are ENGINE_GROUP_MIN of them; fewer lie side by side
+-- (playtest 2026-10-25: "split tokens until it hits five, then stack"). Every live object makes Unity's periodic
+-- clean-up pass slower, and token-heavy boards were the worst case. The first token of a group stands for all of
+-- them: clicking it to attack sends the whole stack (engineGroupMembers), and in an attack, block or target question
+-- the box beside it splits the stack so each token can be picked (engineSplit, until the question closes).
+ENGINE_GROUP_MIN = 5
+engineGroupOf = {} -- engine card id -> representative id while it is drawn as part of a group
+engineGroupKey = {} -- representative id -> its group's key
+engineSplit = {} -- group key -> the colour whose question split it
+function engineTokenKey(c)
+  local ctr = {}
+  for k, v in pairs(c.ctr or {}) do ctr[#ctr + 1] = k .. v end
+  table.sort(ctr)
+  return table.concat({ tostring(c.n), tostring(c.ctl), tostring(c.tap), tostring(c.p), tostring(c.t), tostring(c.dmg or 0), table.concat(ctr, ","), tostring(c.fd) }, "|")
+end
+function engineGroupMembers(id)
+  local out = { id }
+  for member, rep in pairs(engineGroupOf) do if rep == id then out[#out + 1] = member end end
+  return out
+end
+function groupTokens(list, seen, hosts)
+  local out, byKey, count = {}, {}, {}
+  local groupable = function(c) return c.tok and c.att == nil and not (hosts and hosts[c.id]) end
+  for _, c in ipairs(list) do
+    if groupable(c) then local key = engineTokenKey(c) count[key] = (count[key] or 0) + 1 end
+  end
+  for _, c in ipairs(list) do
+    local key = groupable(c) and engineTokenKey(c) or nil
+    if key ~= nil and count[key] >= ENGINE_GROUP_MIN and engineSplit[key] == nil then
+      local rep = byKey[key]
+      if rep == nil then
+        byKey[key] = c
+        c.groupN = 1
+        engineGroupOf[c.id] = nil
+        engineGroupKey[c.id] = key
+        out[#out + 1] = c
+      else
+        rep.groupN = rep.groupN + 1
+        engineGroupOf[c.id] = rep.id
+        seen[c.id] = true -- part of the group: no object of its own
+        local o = engineObjs[c.id]
+        if o ~= nil then
+          if not o.isDestroyed() then engineDispose(o) end
+          engineObjs[c.id] = nil
+        end
+      end
+    else
+      engineGroupOf[c.id] = nil
+      engineGroupKey[c.id] = nil
+      c.groupN = nil -- (a redraw of the same board after a split: this card led the stack last time)
+      out[#out + 1] = c
+    end
+  end
+  return out
+end
+
+local ATTACH = { scale = 0.5, extraCols = 0.6 } -- auras/equipment: half size, beside their host
+local function layoutRow(g, cards, row, seen, color, hosts)
+  local n = #cards
+  if n == 0 then return end
+  local width = 0
+  for _, c in ipairs(cards) do width = width + 1 + ((hosts and hosts[c.id]) and ATTACH.extraCols or 0) end
+  local step = width > GRID.perRow and GRID.perRow / width or 1 -- squeeze long rows
+  local col = 0
+  for i, c in ipairs(cards) do
+    -- a permanent that changed controller (Volatile Stormdrake's exchange, a steal) goes to its new controller's
+    -- side: the spot its old controller arranged it at is on the other side of the table
+    local was = engineMeta[c.id]
+    if was ~= nil and was.color ~= nil and was.color ~= color then engineManual[c.id] = nil end
+    -- a card played by dragging it here lands in its row (a land in the land row, a creature with the creatures): the
+    -- spot it was dropped on only held it while it was being cast (playtest 2026-10-26: "it appears in the middle of
+    -- the battlefield instead of the lower mana box"; cards dropped near each other piled up). A permanent you moved
+    -- yourself on your mat stays where you put it.
+    if engineManualPlay[c.id] then engineManual[c.id] = nil engineManualPlay[c.id] = nil end
+    local pos = engineManual[c.id] or gridPos(g, col * step, row)
+    col = col + 1 + ((hosts and hosts[c.id]) and ATTACH.extraCols or 0)
+    place(c, pos, Vector(0, g.rotY + ((c.tap or engineHeldTapped(c.id)) and 90 or 0), c.fd and 180 or 0), seen, nil, { zone = "battlefield", color = color })
+  end
+end
+
+-- ───────── trackers ─────────
+-- M5 step 2: a life change shows as a red "-N" / green "+N" under the counter's number for 3 s (the counter's own
+-- change line, see make-engine-copy "engineLifeChange"); changes within those 3 s add up, so a combat with five
+-- attackers shows one "-14". Only changes during a game: the first board of a game just sets the number.
+engineLifeSeen = {} -- colour -> { life = last life the engine reported, base = life before the change on show, at = os.clock() }
+local function setLife(color, life)
+  local o = getObjectFromGUID(LIFE_TRACKERS[color] or "")
+  if o == nil or life == nil then return end
+  local seen = engineLifeSeen[color]
+  engineLifeSeen[color] = seen or { life = life }
+  if seen ~= nil and seen.life ~= life then
+    if seen.at == nil or os.clock() - seen.at > 3 then seen.base = seen.life end
+    seen.at, seen.life = os.clock(), life
+    o.setVar("count", life)
+    if o.getVar("engineLifeChange") ~= nil then o.call("engineLifeChange", { life = life, delta = life - seen.base })
+    else o.call("sL", life) end
+    o.call("updateSave")
+    return
+  end
+  if o.getVar("count") == life then return end
+  o.setVar("count", life)
+  o.call("sL", life)
+  o.call("updateSave")
+end
+
+local function setCounterVal(guid, val)
+  local o = getObjectFromGUID(guid)
+  if o == nil or o.getVar("val") == val then return end
+  o.setVar("val", val)
+  o.call("updateVal")
+  o.call("updateSave")
+end
+
+local function setTax(guid, tax)
+  local o = getObjectFromGUID(guid)
+  if o == nil or o.getVar("val") == tax then return end
+  o.setVar("val", tax)
+  for i = 0, 9 do pcall(function() o.editButton({ index = i, label = tostring(tax) }) end) end
+end
+
+local function updateTrackers(m)
+  for _, pl in ipairs(m.players or {}) do
+    local color = pl.color
+    if color ~= nil then
+      setLife(color, pl.life)
+      if enginePlayerCounters ~= nil then pcall(enginePlayerCounters, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
+      for from, guid in pairs(CMD_DAMAGE[color] or {}) do setCounterVal(guid, (pl.cmdDamage or {})[from] or 0) end
+      for i, guid in ipairs(TAX_LABELS[color] or {}) do setTax(guid, (pl.tax or {})[i] or 0) end
+    end
+  end
+  if m.active ~= nil and m.active ~= lastTurnSet then
+    lastTurnSet = m.active
+    if Player[m.active] ~= nil and Player[m.active].seated and Turns.turn_color ~= m.active then
+      pcall(function() Turns.enable = true Turns.turn_color = m.active end)
+    end
+  end
+end
+
+-- ───────── render ─────────
+local function keepStashed()
+  for guid, st in pairs(stashed) do
+    local o = getObjectFromGUID(guid)
+    if o ~= nil and o.getPosition().y > -5 then o.setLock(true) o.setPosition(st.pos + Vector(0, -15, 0)) end
+  end
+end
+
+engineStackGlow = {} -- engine card id -> "stack" / "atk" / "blk": the glow it has when no question is open
+engineBaseGlow = {}  -- object -> colour of that glow
+BASE_GLOW = { stack = {0.75, 0.35, 1}, atk = {1, 0.12, 0.08}, blk = {0.15, 0.45, 1}, playable = {0.35, 1, 0.45} }
+-- A player's counters other than life (poison, energy) as one green label under their life counter, while there are
+-- any (Skrelv's toxic gave the AI poison and nothing showed it, playtest 2026-10-27; energy was sent and shown nowhere,
+-- structural review the same day). A button of the counter object, found again by its tooltip.
+ENGINE_COUNTERS_TIP = "Poison (ten and that player loses), energy, the monarch (draws at their end step), the initiative, the city's blessing and an enduring story"
+engineCountersShown = {} -- counter object guid -> the label it shows (redrawn only on a change)
+-- (the label goes with the game: it stayed on the normal table after a reset, stage 3 review 2026-10-27)
+function engineCountersReset()
+  for _, guid in pairs(LIFE_TRACKERS) do
+    local o = getObjectFromGUID(guid)
+    for i, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then o.removeButton(i - 1) break end end
+  end
+  engineCountersShown = {}
+end
+function enginePlayerCounters(o, pl)
+  if o == nil then return end
+  local parts = {}
+  for _, k in ipairs({ "poison", "energy" }) do
+    local n = tonumber(pl[k]) or 0
+    if n > 0 then parts[#parts + 1] = string.upper(k) .. " " .. n end
+  end
+  -- (and the monarch and the initiative, which nothing showed: Palace Jailer's monarchy, hp-17 gap)
+  if pl.monarch then parts[#parts + 1] = "MONARCH" end
+  if pl.initiative then parts[#parts + 1] = "INITIATIVE" end
+  -- (and the city's blessing and an enduring story, kept for the rest of the game, hp-21 gap)
+  if pl.blessed then parts[#parts + 1] = "CITY'S BLESSING" end
+  if pl.story then parts[#parts + 1] = "ENDURING STORY" end
+  local label = table.concat(parts, "   ")
+  local at
+  for i, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then at = i - 1 end end
+  -- (unchanged and still there: the tracker's own onload clears its buttons, stage 3 review 2026-10-27)
+  if engineCountersShown[o.getGUID()] == label and (at ~= nil) == (label ~= "") then return end
+  engineCountersShown[o.getGUID()] = label
+  if label ~= "" and at ~= nil then o.editButton({ index = at, label = label, width = 640 * #parts + 300 })
+  elseif label ~= "" then
+    o.createButton({ click_function = "engineNoop", function_owner = Global, label = label, position = { 0, 0.05, 1.45 },
+      rotation = { 0, 0, 0 }, width = 640 * #parts + 300, height = 380, font_size = 300, color = { 0.04, 0.2, 0.05, 0.92 }, font_color = { 0.45, 1, 0.45 },
+      tooltip = ENGINE_COUNTERS_TIP })
+  elseif at ~= nil then o.removeButton(at) end
+end
+-- true while a player's open question has its own glow on the object (it gives the base glow back afterwards)
+function engineGlowOwned(o)
+  for _, set in pairs(engineGlowing or {}) do if set[o] then return true end end
+  return false
+end
+engineStatic = {} -- engine card id -> fixed details (name, pictures, type line, text) the bridge sent once
+
+-- Updates list cards as { id, tapped, counters, ..., s = 1 }; their fixed details come from engineStatic.
+-- the bridge shortens picture links (bridge.js shortUrl): "" is the default card back, "kf"/"kb" + uuid a klrmngr picture
+function engineExpandUrl(u)
+  if type(u) ~= "string" then return u end
+  if u == "" then return ENGINE_BACK end
+  local side, id = u:match("^k([fb])(%x%x%x%x%x%x%x%x%-[%x%-]+)$")
+  if side == nil then return u end
+  return "https://img.klrmngr.com/display/" .. (side == "f" and "front" or "back") .. "/" .. id:sub(1, 1) .. "/" .. id:sub(2, 2) .. "/" .. id .. ".webp"
+end
+function engineFaceKey(c) return tostring(c.f) .. "|" .. tostring(c.b) end
+function engineStoreStatic(id, st)
+  st.f, st.b = engineExpandUrl(st.f), engineExpandUrl(st.b)
+  local old = engineStatic[id]
+  if old ~= nil and old.tx ~= nil and st.tx == nil then st.tx = old.tx end
+  engineStatic[id] = st
+end
+
+local function mergeStatic(m)
+  if m == nil then return end
+  -- zones the bridge left out because they didn't change: reuse the last board's (already merged) lists
+  for _, pl in ipairs(m.players or {}) do
+    if pl.keep ~= nil then
+      local prev
+      for _, q in ipairs((lastTable and lastTable.players) or {}) do if q.color == pl.color then prev = q end end
+      for _, z in ipairs(pl.keep) do pl[z] = prev and prev[z] or {} end
+      pl.keep = nil
+    end
+  end
+  local fresh = {}
+  for id, st in pairs(m.cards or {}) do engineStoreStatic(id, st) fresh[id] = true end
+  m.cards = nil
+  for _, pl in ipairs(m.players or {}) do
+    -- ("playable" too: cards you may play from exile or a graveyard lay as card backs without it, playtest 2026-10-26)
+    for _, z in ipairs({ "hand", "battlefield", "graveyard", "exile", "command", "playable" }) do
+      for _, c in ipairs(pl[z] or {}) do
+        if c.s ~= nil then
+          local st = engineStatic[c.id] or {}
+          for k, v in pairs(st) do if c[k] == nil then c[k] = v end end
+          c.s = nil
+        elseif fresh[c.id] then
+          -- (details sent again for a card in a zone kept from the last board: a token's picture found after it was
+          -- drawn as a card back never reached it, hp-12 re-test 2026-10-27)
+          for k, v in pairs(engineStatic[c.id]) do c[k] = v end
+        end
+      end
+    end
+  end
+end
+
+-- Rules texts arrive after the cards (in small messages): store them, fill them into the current board and update
+-- the hover text of cards already on the table.
+function engineOnTexts(m)
+  local t = m.texts or {}
+  for id, tx in pairs(t) do
+    if engineStatic[id] ~= nil then engineStatic[id].tx = tx end
+  end
+  for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+    for _, z in ipairs({ "hand", "battlefield", "graveyard", "exile", "command" }) do
+      for _, c in ipairs(pl[z] or {}) do
+        if t[c.id] ~= nil then
+          c.tx = t[c.id]
+          local o = engineObjs[c.id]
+          if o ~= nil and not o.isDestroyed() then o.setDescription(description(c)) end
+        end
+      end
+    end
+  end
+end
+
+-- An option's words on its own card (its buttons, its menu): the ability alone. The bridge sends it as "ab"; for an
+-- older message the card's name in front of the label is cut off (structural review 2026-10-27: this was done twice).
+function engineAbilityText(o)
+  if o.ab ~= nil then return tostring(o.ab) end
+  local label = tostring(o.label or "")
+  local own = tostring((engineStatic[o.cardId] or {}).n or "")
+  if own ~= "" and label:sub(1, #own + 2) == own .. ": " then label = label:sub(#own + 3) end
+  return (label:gsub("^Activate [^:]*: ", ""))
+end
+-- A question that wants exactly one pick: the click answers it (engineConfirmIfComplete), so the corner counts instead
+-- of offering Done and the instruction says so. One rule for the table, the row's pictures and its buttons (structural
+-- review 2026-10-27). A pick of 2 or more keeps Done: the second click answering made a misclick final (suite review).
+function engineExactPick(p)
+  return p ~= nil and p.min == p.max and tonumber(p.max) == 1
+end
+-- Cuts text to at most n bytes without splitting a character: Lua counts bytes, and a cut in the middle of "—" or "…"
+-- left a broken character (and crashed the headless test table's JSON, 2026-10-22). A character the cut would split
+-- is left out whole.
+function engineCut(text, n)
+  text = tostring(text or "")
+  if #text <= n then return text end
+  local cut = text:sub(1, n)
+  local i = #cut
+  while i > 0 and cut:byte(i) >= 128 and cut:byte(i) < 192 do i = i - 1 end -- back to the last character's first byte
+  if i > 0 then
+    local b = cut:byte(i)
+    local need = (b >= 240 and 4) or (b >= 224 and 3) or (b >= 192 and 2) or 1
+    if #cut - i + 1 < need then cut = cut:sub(1, i - 1) end
+  end
+  return cut
+end
+-- A card picture the screen UI can draw, for every player. TTS's screen UI can't draw .webp, and Scryfall's CDN refuses
+-- TTS's downloader by its user-agent (HTTP 400): both left pictures white. The bridge's own route on this PC reached
+-- only the host: the other players saw grey tiles with names (playtest 2026-10-23). wsrv.nl, a public image proxy,
+-- fetches Scryfall's jpg for every player's TTS. Any other picture (the card back, a custom image) is used as it is.
+-- A panel picture: the card back first, then the card. A picture that loads slowly, or not at all, left the previous
+-- card's picture showing under the new card's name (playtest 2026-10-26: "Sacrifice Evolving Wilds?" showed Uro, Chord's
+-- question showed Tenacious Underdog). The back shows until the new one arrives.
+-- TTS draws whichever download ends last, not the newest set: a picture asked for moments earlier and still loading
+-- (the AI's Relentless Rats) replaced the next one (Consuming Sepulcher's trigger) when it arrived. The wanted picture
+-- is set again after such a load can have ended; the same link set again is drawn at once (hp-12 re-test 2026-10-27).
+engineImgWant = {} -- UI element id -> the picture it should show
+function engineSetImage(id, url)
+  if engineImgWant[id] == url then return end
+  engineImgWant[id] = url
+  UI.setAttribute(id, "image", engineUiImage(ENGINE_BACK))
+  local function again() if engineImgWant[id] == url then UI.setAttribute(id, "image", url) end end
+  Wait.frames(again, 2)
+  Wait.time(again, 3)
+  Wait.time(again, 8)
+end
+function engineUiImage(u)
+  u = engineExpandUrl(u) or ENGINE_BACK
+  return (u:gsub("^https://img%.klrmngr%.com/display/(%a+)/(%x)/(%x)/([%x%-]+)%.webp$", "https://wsrv.nl/?url=cards.scryfall.io/normal/%1/%2/%3/%4.jpg"))
+end
+
+-- Shows the newest spell or ability put on the stack (once per stack item), for 8.5 seconds.
+local popSeen = {}
+local popToken = 0
+popShown = nil -- { id, at, token } of the stack item the pop-up shows
+-- Its X closes it for that player only (TTS shows a UI element to the colours in its "visibility"); the next card
+-- that pops up shows to everyone again.
+enginePopClosed = {}
+do
+  local POP_COLOURS = { "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" }
+  local function popVisibility()
+    local v = {}
+    for _, c in ipairs(POP_COLOURS) do if not enginePopClosed[c] and not engineEffectsOff[c] then v[#v + 1] = c end end
+    -- (an empty list would show it to everyone)
+    if #v == 0 then UI.setAttribute("eng_pop", "active", "false") else UI.setAttribute("eng_pop", "visibility", table.concat(v, "|")) end
+  end
+  local popXFlip = false
+  function enginePopOpen()
+    enginePopClosed = {}
+    popVisibility()
+    UI.setAttribute("eng_pop", "active", "true")
+    -- (showing a button again draws its label dark unless its text colour changes: see nextWhite)
+    popXFlip = not popXFlip
+    UI.setAttribute("eng_pop_x", "textColor", popXFlip and "#FFFFFF" or "#FEFEFE")
+  end
+  function enginePopRefresh() popVisibility() end
+  function onMtgPopClose(player)
+    enginePopClosed[player.color] = true
+    popVisibility()
+  end
+end
+
+-- ───────── M5: target, attack and block lines (Arena draws these; on a 4-player table "at whom?" matters more) ─────────
+-- One arc per target of a stack item (cyan, from the spell on the stack or an ability's source card to the card, the
+-- player's life counter or the other spell), per attacker (red-pink, to the player's life counter or the planeswalker
+-- / battle) and per block (gold, blocker to attacker). Global vector lines are shared with what players draw by
+-- hand: ours are told apart by their exact thickness and only ours are replaced.
+do -- (its own scope, as the setup buttons below: the main chunk is at standard Lua's 200-locals limit)
+local LINE_STYLE = { target = { color = {0.35, 0.85, 1}, thickness = 0.3001 }, attack = { color = {1, 0.32, 0.4}, thickness = 0.2201 },
+  block = { color = {1, 0.8, 0.25}, thickness = 0.1601 } }
+local linesSig = ""
+local function isOurLine(l)
+  for _, st in pairs(LINE_STYLE) do if math.abs((tonumber(l.thickness) or 0) - st.thickness) < 0.00005 then return true end end
+  return false
+end
+local function lifeSpot(color)
+  local o = LIFE_TRACKERS[color] and getObjectFromGUID(LIFE_TRACKERS[color])
+  if o ~= nil then return o.getPosition() end
+  local g = seatGeometry(color)
+  return g and g.mat or nil
+end
+-- Where a player is aimed at (the player, 2026-10-22, as Arena's player portraits): the back centre of their board,
+-- just behind the land row, not their life counter. Attack lines, spell/ability target lines and the attack lunge.
+local BACK_ROW = ROWS.land + 0.6
+local function playerSpot(color)
+  local g = seatGeometry(color)
+  if g ~= nil then return onTable(g.mat + g.fwd * (BACK_ROW * GRID.rowStep + GRID.rowStart), 0) end
+  return lifeSpot(color)
+end
+local function cardSpot(id)
+  if enginePlanned[id] ~= nil then return enginePlanned[id] end -- where it is going (it may still be moving)
+  local o = engineObjs[id]
+  if o ~= nil and not o.isDestroyed() then return o.getPosition() end
+  return nil
+end
+-- a raised arc from a to b, 11 points
+local function arc(a, b, lift)
+  local d = math.sqrt((b.x - a.x) ^ 2 + (b.z - a.z) ^ 2)
+  local h = lift or (0.5 + d * 0.12)
+  local pts = {}
+  for i = 0, 10 do
+    local t = i / 10
+    pts[#pts + 1] = { a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t + 0.3 + 4 * h * t * (1 - t), a.z + (b.z - a.z) * t }
+  end
+  return pts
+end
+-- Attack lunge (the player, 2026-10-22, as in Arena): when combat damage is dealt, each attacking card swings all of
+-- the way into what it hits (its blocker, the planeswalker or battle, or the back centre of the defending player's
+-- board, Arena's player portrait) and back.
+-- Plain object movement, no AssetBundle. The attackers and their blockers are remembered from the combat steps
+-- before damage (the damage board may already have them gone); one lunge per combat. A creature that died in the
+-- damage is gone from the table before it could swing (its graveyard flash shows instead).
+engineAnimUntil = {} -- engine card id -> os.clock() until which place() leaves it alone
+local lunge = { atk = {}, turn = nil, done = nil }
+local DAMAGE_STEPS = { combatFirstStrikeDamage = true, combatDamage = true, combatEnd = true }
+-- Arena's swing (reference video hOY2wZcuMJk 12:11): a wind-up (the card lifts and pulls back a little), the hit (it
+-- lands right on its target, overlapping it), then back to its spot
+-- Several attackers swing one after another, each swing quick (2026-10-24: "make the multi hit attack one at a time
+-- but make it faster per hit"; before that they all swung at once, first fast, then at half speed): LUNGE_STEP apart,
+-- each one LUNGE_WIND into its wind-up and back home LUNGE_OUT after it starts.
+local LUNGE_REACH, LUNGE_LIFT, LUNGE_BACK, LUNGE_WIND, LUNGE_OUT, LUNGE_STEP = 0.92, 0.9, 0.8, 0.15, 0.45, 0.6
+function engineCombatLunge(m)
+  if m == nil then lunge.atk, lunge.turn, lunge.done = {}, nil, nil return end
+  local turn = tostring(m.turn)
+  local atk = {}
+  for _, pl in ipairs(m.players or {}) do
+    for _, c in ipairs(pl.battlefield or {}) do if c.atk then atk[c.id] = { atkT = c.atkT } end end
+  end
+  for _, pl in ipairs(m.players or {}) do
+    for _, c in ipairs(pl.battlefield or {}) do
+      for _, a in ipairs(c.blkOf or {}) do if atk[a] ~= nil and atk[a].blocker == nil then atk[a].blocker = c.id end end
+    end
+  end
+  if next(atk) ~= nil and not DAMAGE_STEPS[tostring(m.step)] then lunge.atk, lunge.turn = atk, turn end
+  if not DAMAGE_STEPS[tostring(m.step)] or lunge.turn ~= turn or lunge.done == turn then return 0 end
+  lunge.done = turn
+  local n = 0
+  local order = {}
+  for id in pairs(lunge.atk) do order[#order + 1] = id end
+  table.sort(order)
+  for _, id in ipairs(order) do
+    local a = lunge.atk[id]
+    local o = engineObjs[id]
+    local to = (a.blocker and cardSpot(a.blocker)) or (a.atkT ~= nil and (LIFE_TRACKERS[a.atkT] ~= nil and playerSpot(a.atkT) or cardSpot(a.atkT))) or nil
+    if o ~= nil and not o.isDestroyed() and to ~= nil then
+      local from = enginePlanned[id] or o.getPosition()
+      local dx, dz = to.x - from.x, to.z - from.z
+      local len = math.max(0.001, math.sqrt(dx * dx + dz * dz))
+      local wind = Vector(from.x - dx / len * LUNGE_BACK, from.y + LUNGE_LIFT, from.z - dz / len * LUNGE_BACK)
+      local hit = Vector(from.x + dx * LUNGE_REACH, from.y + LUNGE_LIFT, from.z + dz * LUNGE_REACH)
+      local at = n * LUNGE_STEP
+      engineAnimUntil[id] = os.clock() + at + LUNGE_OUT + 0.6
+      local go = function(to2) if o ~= nil and not o.isDestroyed() then o.setPositionSmooth(to2, false, true) end end
+      if at > 0 then Wait.time(function() go(wind) end, at) else go(wind) end
+      Wait.time(function() go(hit) end, at + LUNGE_WIND)
+      Wait.time(function() go(enginePlanned[id] or from) end, at + LUNGE_OUT)
+      n = n + 1
+    end
+  end
+  return n
+end
+function engineDrawLines(m, stackSpot)
+  if m ~= nil and m.gameOver then m = nil end -- (the game is over: no attack or target lines stay on the table)
+  local ours = {}
+  local function add(a, b, style, lift)
+    if a == nil or b == nil then return end
+    ours[#ours + 1] = { points = arc(a, b, lift), color = style.color, thickness = style.thickness }
+  end
+  if m ~= nil then
+    for _, s in ipairs(m.stack or {}) do
+      for _, t in ipairs(s.tg or {}) do
+        local to = nil
+        if t.k == "p" then to = playerSpot(t.c) elseif t.k == "s" then to = stackSpot and stackSpot[t.id] else to = cardSpot(t.id) end
+        add(stackSpot and stackSpot[s.id], to, LINE_STYLE.target)
+      end
+    end
+    for _, pl in ipairs(m.players or {}) do
+      for _, c in ipairs(pl.battlefield or {}) do
+        if c.atk and c.atkT ~= nil then
+          add(cardSpot(c.id), LIFE_TRACKERS[c.atkT] ~= nil and playerSpot(c.atkT) or cardSpot(c.atkT), LINE_STYLE.attack, 0.5)
+        end
+        for _, a in ipairs(c.blkOf or {}) do add(cardSpot(c.id), cardSpot(a), LINE_STYLE.block, 0.3) end
+      end
+    end
+  end
+  -- only when they changed (setVectorLines redraws for everyone and goes into the save)
+  local parts = {}
+  for _, l in ipairs(ours) do
+    local a, b = l.points[1], l.points[#l.points]
+    parts[#parts + 1] = string.format("%.4f:%.1f,%.1f,%.1f,%.1f", l.thickness, a[1], a[3], b[1], b[3])
+  end
+  local sig = table.concat(parts, ";")
+  if sig == linesSig then return end
+  linesSig = sig
+  local keep = {}
+  for _, l in ipairs(Global.getVectorLines() or {}) do if not isOurLine(l) then keep[#keep + 1] = l end end
+  for _, l in ipairs(ours) do keep[#keep + 1] = l end
+  Global.setVectorLines(keep)
+end
+end
+function enginePopups(m)
+  local newest
+  local now = {}
+  for _, st in ipairs(m.stack or {}) do
+    now[st.id] = true
+    if not popSeen[st.id] then newest = st end
+  end
+  popSeen = now
+  if newest == nil or not panelReadyForPopup() then return end
+  local stc = newest.src and engineStatic[newest.src] or nil
+  local img = engineUiImage(newest.f or (stc and stc.f) or ENGINE_BACK)
+  local who = newest.ctl and (" - " .. tostring(newest.ctl)) or ""
+  -- the engine starts with "Ponder (18) - ": cut up to the first "(n) - " near the start ("^.-" on a long text made
+  -- MoonSharp fail with "pattern too complex", which also stopped the rest of that table update)
+  local text = tostring(newest.tx or "")
+  local _, cut = text:sub(1, 120):find("%(%d+%) %- ")
+  if cut ~= nil then text = text:sub(cut + 1) end
+  engineSetImage("eng_pop_img", img)
+  UI.setValue("eng_pop_who", tostring(newest.n) .. who)
+  UI.setValue("eng_pop_text", engineCut(text, 260))
+  enginePopOpen()
+  popToken = popToken + 1
+  popShown = { id = newest.id, at = os.clock(), token = popToken }
+end
+-- The pop-up stays while what it shows is on the stack (Arena keeps the stack in view), at least POP_MIN seconds so
+-- a quick resolve can still be read. Called with every board update, after enginePopups.
+POP_MIN = 2.5
+function enginePopupsClose(m)
+  local shown = popShown
+  if shown == nil then return end
+  for _, st in ipairs(m.stack or {}) do if st.id == shown.id then return end end
+  popShown = nil
+  local left = POP_MIN - (os.clock() - shown.at)
+  local hide = function() if popToken == shown.token then UI.setAttribute("eng_pop", "active", "false") end end
+  if left > 0 then Wait.time(hide, left) else hide() end
+end
+
+-- ───────── M5 (2026-10-22): knock-outs, VICTORY / DEFEAT, deaths, countered spells ─────────
+-- With the table's own UI and highlights (no AssetBundle yet; docs/m5-plan.md). Called with every board update after
+-- the pop-ups. Short, never in the way, Arena's colours: violet for death, red for knocked out / countered, gold for
+-- victory. "mtg effects off" turns a player's big banners off (engineEffectsOff); world highlights are for everyone.
+engineEffectsOff = {}
+do
+  local FX = { prev = nil, dimmed = {}, VIOLET = { 0.62, 0.25, 0.95 }, OUT = { 0.38, 0.38, 0.42 } }
+  local TRACK = { White = "23e485", Red = "448880", Yellow = "37e533", Blue = "395037" }
+  local function result(c, text, color, outline, hold)
+    if engineEffectsOff[c] or Player[c] == nil or not Player[c].seated then return end
+    UI.setValue("eng_result_" .. c, text)
+    UI.setAttribute("eng_result_" .. c, "color", color)
+    UI.setAttribute("eng_result_" .. c, "outline", outline)
+    -- (not UI.show: it showed the text to every player, VICTORY over DEFEAT, playtest 2026-10-23)
+    UI.setAttribute("eng_result_" .. c, "active", "true")
+    -- (one mark per player: a banner shown to two players at once hid only the second one's)
+    FX.resultMark = FX.resultMark or {}
+    FX.resultMark[c] = (FX.resultMark[c] or 0) + 1
+    local mark = FX.resultMark[c]
+    Wait.time(function() if FX.resultMark[c] == mark then UI.setAttribute("eng_result_" .. c, "active", "false") end end, hold)
+  end
+  local function seatedColors(m)
+    local out = {}
+    for _, pl in ipairs(m.players or {}) do if pl.color and Player[pl.color] ~= nil and Player[pl.color].seated then out[#out + 1] = pl.color end end
+    return out
+  end
+  -- the owner's graveyard pile flashes violet; "xN" on it when several died at once (a board wipe shows once)
+  -- (a graveyard of one card is that card, not a pile: then the card that died lights up)
+  -- (the dead cards slide onto the pile and the pile is rebuilt over the next ~30 frames: it lights up once they have
+  -- landed; it keeps looking for a second, then settles for the card itself)
+  local function deathFlash(color, n, ids, tries)
+    if engineAnimOff then return end -- (the host turned table animations off)
+    Wait.frames(function()
+      local target = nil
+      for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:graveyard:" .. color and not o.isDestroyed() then target = o end end
+      if target == nil and (tries or 0) < 4 then return deathFlash(color, n, ids, (tries or 0) + 1) end
+      if target == nil then
+        for _, id in ipairs(ids) do local o = engineObjs[id] if target == nil and o ~= nil and not o.isDestroyed() then target = o end end
+      end
+      engineFxFlashed = target and tostring(target.getGMNotes()) or "none" -- (what lit up, for the tests)
+      if target == nil then return end
+      target.highlightOn(FX.VIOLET, 1.2)
+      if n > 1 then
+        target.createButton({ click_function = "engineNoop", function_owner = Global, label = "x" .. n, position = { 0, 0.6, 0 },
+          rotation = { 0, 0, 0 }, width = 520, height = 380, font_size = 300, color = { 0.25, 0.08, 0.4, 0.9 }, font_color = { 1, 1, 1 }, tooltip = "" })
+        Wait.time(function() if target ~= nil and not target.isDestroyed() then target.clearButtons() end end, 1.4)
+      end
+    end, (tries or 0) == 0 and 40 or 15)
+  end
+  function engineEffects(m)
+    local prev = FX.prev
+    local now = { bf = {}, gy = {}, stack = {}, status = {} }
+    for _, pl in ipairs(m.players or {}) do
+      local c = pl.color
+      if c ~= nil then
+        now.status[c] = pl.status
+        for _, card in ipairs(pl.battlefield or {}) do now.bf[card.id] = { owner = c, tok = card.tok } end
+        for _, card in ipairs(pl.graveyard or {}) do now.gy[card.id] = c end
+      end
+    end
+    for i, st in ipairs(m.stack or {}) do now.stack[i] = st end
+    -- (a board that leaves a zone out because it didn't change: carry the last one over)
+    for _, pl in ipairs(m.players or {}) do
+      local c = pl.color
+      if c ~= nil and prev ~= nil then
+        if pl.battlefield == nil then for id, x in pairs(prev.bf) do if x.owner == c then now.bf[id] = x end end end
+        if pl.graveyard == nil then for id, x in pairs(prev.gy) do if x == c then now.gy[id] = x end end end
+      end
+    end
+    FX.prev = now
+    if prev == nil or m.gameOver and prev.over then now.over = m.gameOver return end
+    now.over = m.gameOver
+    -- deaths: battlefield -> its owner's graveyard, and tokens that left the battlefield (they go nowhere)
+    local died, diedIds = {}, {}
+    for id, x in pairs(prev.bf) do
+      if now.bf[id] == nil and (now.gy[id] ~= nil or x.tok) then
+        local c = now.gy[id] or x.owner
+        died[c] = (died[c] or 0) + 1
+        diedIds[c] = diedIds[c] or {}
+        diedIds[c][#diedIds[c] + 1] = id
+      end
+    end
+    for c, n in pairs(died) do deathFlash(c, n, diedIds[c]) end
+    engineFxLast = { died = died }
+    -- countered: a spell that left the stack while a "counter target ..." spell or ability aimed at it left too (the
+    -- board's stack targets; "it left while not on top" alone also caught several spells resolving between updates)
+    local still, countered = {}, {}
+    for _, st in ipairs(now.stack) do still[st.id] = true end
+    for _, st in ipairs(prev.stack) do
+      if not still[st.id] and tostring(st.tx or ""):lower():find("counter target") then
+        for _, t in ipairs(st.tg or {}) do if t.k == "s" and not still[t.id] then countered[t.id] = true end end
+      end
+    end
+    for _, st in ipairs(prev.stack) do
+      if countered[st.id] and st.spell and panelReadyForPopup() then
+        local stc = st.src and engineStatic[st.src] or nil
+        engineSetImage("eng_pop_img", engineUiImage(st.f or (stc and stc.f) or ENGINE_BACK))
+        UI.setValue("eng_pop_who", "COUNTERED: " .. tostring(st.n))
+        UI.setAttribute("eng_pop_who", "color", "#FF6B5A")
+        UI.setValue("eng_pop_text", " ")
+        enginePopOpen()
+        popToken = popToken + 1
+        local token = popToken
+        popShown = nil
+        Wait.time(function()
+          UI.setAttribute("eng_pop_who", "color", "#FFD27A")
+          if popToken == token then UI.setAttribute("eng_pop", "active", "false") end
+        end, 1.8)
+        break
+      end
+    end
+    -- knocked out: DEFEAT for them, "<NAME> IS OUT" for the others; their life counter goes dark
+    for c, status in pairs(now.status) do
+      if status == "lost" and prev.status[c] ~= nil and prev.status[c] ~= "lost" then
+        for _, viewer in ipairs(seatedColors(m)) do
+          if viewer == c then result(viewer, "DEFEAT", "#C9A3FF", "#1a0730E0", 3)
+          elseif not m.gameOver then result(viewer, string.upper(c) .. " IS OUT", "#FF8A7A", "#2a0700E0", 2) end
+        end
+        local life = getObjectFromGUID(TRACK[c] or "")
+        if life ~= nil and FX.dimmed[c] == nil then FX.dimmed[c] = life.getColorTint() life.setColorTint(FX.OUT) end
+      end
+    end
+    -- game over: VICTORY for the winner, DEFEAT for everyone else (2.5 s after the knock-out, as Arena)
+    if m.gameOver and not prev.over then
+      Wait.time(function()
+        for _, viewer in ipairs(seatedColors(m)) do
+          if m.winner ~= nil and viewer == m.winner then result(viewer, "VICTORY", "#FFD27A", "#2a1600E0", 4)
+          else result(viewer, "DEFEAT", "#C9A3FF", "#1a0730E0", 4) end
+        end
+      end, 2.5)
+    end
+  end
+  -- a new game: the life counters light up again, nothing carried over
+  function engineEffectsReset()
+    for c, tint in pairs(FX.dimmed) do
+      local life = getObjectFromGUID(TRACK[c] or "")
+      if life ~= nil then life.setColorTint(tint) end
+    end
+    FX.dimmed, FX.prev = {}, nil
+  end
+end
+
+local rewindOffAt = -100
+-- where a board update spends its time (engineProfile.sect: name -> total ms; read over the debug channel)
+local sectAt = 0
+local function sect(name)
+  local now = os.clock()
+  local S = engineProfile and engineProfile.sect
+  if S ~= nil and name ~= nil then S[name] = (S[name] or 0) + (now - sectAt) * 1000 end
+  sectAt = now
+end
+
+function engineRender(m)
+  if m == nil then return end
+  if engineFixHolds ~= nil and engineFixHolds(m) then return end -- (a manual fix has the engine paused: the board waits)
+  sect()
+  mergeStatic(m)
+  detectPending(m)
+  if engineMarkSpecial ~= nil then pcall(engineMarkSpecial, m) end
+  if engineMillDetect ~= nil then pcall(engineMillDetect, m) end
+  lastTable = m
+  -- losses and the winner are announced to everyone ("you win the game" cards and "can't lose" effects are the
+  -- engine's rules: a player at 0 life who can't lose stays "playing")
+  engineStatusSeen = engineStatusSeen or {}
+  for _, pl in ipairs(m.players or {}) do
+    local was = engineStatusSeen[pl.color or pl.slot]
+    if was ~= nil and was ~= pl.status and pl.status == "lost" then
+      broadcastToAll("[MTG] " .. tostring(pl.name or pl.color) .. " has lost the game.", {1, 0.45, 0.35})
+    end
+    engineStatusSeen[pl.color or pl.slot] = pl.status
+  end
+  if m.gameOver and not engineOverAnnounced then
+    engineOverAnnounced = true
+    broadcastToAll("[MTG] GAME OVER" .. (m.winner and (" - " .. engineNameOf(m.winner) .. " wins!") or " - draw."), {1, 0.85, 0.3})
+    if engineGameOverBanner ~= nil then engineGameOverBanner(m) end
+  elseif not m.gameOver then engineOverAnnounced = false end
+  sect("status")
+  if engineTakeFromPiles ~= nil then pcall(engineTakeFromPiles, m) end
+  sect("takeFromPiles")
+  keepStashed()
+  sect("keepStashed")
+  local seen = {}
+  enginePlanned = {}
+  -- every card something is attached to, on any battlefield (an aura can sit on another player's token)
+  local allHosts = {}
+  for _, pl in ipairs(m.players or {}) do for _, c in ipairs(pl.battlefield or {}) do if c.att ~= nil then allHosts[c.att] = true end end end
+  for _, pl in ipairs(m.players or {}) do
+    local color = pl.color
+    local g = color and seatGeometry(color)
+    if g ~= nil then
+      engineColors[color] = true
+      local creatures, others, lands, attached = {}, {}, {}, {}
+      for _, c in ipairs(pl.battlefield or {}) do
+        if c.att ~= nil then attached[#attached + 1] = c
+        elseif hasType(c, "Land") then lands[#lands + 1] = c
+        elseif hasType(c, "Creature") then creatures[#creatures + 1] = c
+        else others[#others + 1] = c end
+      end
+      creatures = groupTokens(creatures, seen, allHosts)
+      others = groupTokens(others, seen, allHosts)
+      -- cards carrying auras/equipment get room beside them; the attachments sit there at half size, stacked
+      local hosts, perHost = {}, {}
+      for _, c in ipairs(attached) do hosts[c.att] = true end
+      layoutRow(g, creatures, ROWS.creature, seen, color, hosts)
+      layoutRow(g, others, ROWS.other, seen, color, hosts)
+      layoutRow(g, lands, ROWS.land, seen, color, hosts)
+      sect("battlefield")
+      for _, c in ipairs(attached) do
+        perHost[c.att] = (perHost[c.att] or 0) + 1
+        local k = perHost[c.att]
+        local host = enginePlanned[c.att] or gridPos(g, 0, ROWS.other)
+        -- toward the next column (the space layoutRow left), first one level with the host's top, then downward
+        local spot = host - g.right * (GRID.colStep * (0.5 + ATTACH.extraCols / 2)) + g.fwd * (0.8 - 1.0 * (k - 1)) + Vector(0, 0.02 * k, 0)
+        place(c, spot, Vector(0, g.rotY + (c.tap and 90 or 0), 0), seen, nil, { zone = "attached", color = color, host = c.att })
+      end
+      local pend = enginePending[color]
+      local graveShown = pl.graveyard or {}
+      if pend ~= nil and #pend.mill > 0 then
+        -- held mills lie face up on top of the library, fanned toward the graveyard, so you see what is coming
+        graveShown = {}
+        local k = 0
+        for _, c in ipairs(pl.graveyard or {}) do
+          if heldIn(pend.mill, c.id) then
+            k = k + 1
+            local spot = g.lib + (g.grave - g.lib) * math.min(0.85, 0.25 + 0.12 * (k - 1)) + Vector(0, 0.6 + 0.05 * k, 0)
+            place(c, spot, Vector(0, g.rotY, 0), seen, nil, { zone = "heldmill", color = color, from = g.lib + Vector(0, 1.6, 0), k = k })
+          else graveShown[#graveShown + 1] = c end
+        end
+      end
+      sect("attached")
+      engineZonePile(color, "graveyard", engineWithoutSpecial(graveShown), g.grave, g.rotY, seen)
+      engineZonePile(color, "exile", engineWithoutSpecial(pl.exile or {}), g.lib + g.libFwd * 4.16, g.rotY, seen)
+      sect("piles")
+      local labels = TAX_LABELS[color] or {}
+      for i, c in ipairs(pl.command or {}) do
+        local label = getObjectFromGUID(labels[i] or labels[1] or "")
+        local base = label and label.getPosition() or g.lib
+        -- (the dropped spot only while it is being cast; a commander that came back goes to its command zone,
+        -- playtest 2026-10-26: Kenrith back in the command zone was still drawn where it had been on the battlefield)
+        place(c, (engineManualPlay[c.id] and engineManual[c.id]) or onTable(base), Vector(0, g.rotY, 0), seen, nil, { zone = "command", color = color })
+      end
+      if pl.hand ~= nil and g.handPos ~= nil and Player[color].seated then
+        for _, c in ipairs(pl.hand) do
+          if pend ~= nil and heldIn(pend.draw, c.id) then seen[c.id] = true -- still on top of the library
+          else place(c, g.handPos + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, color, { zone = "hand", color = color }) end
+        end
+      end
+      sect("commandHand")
+      local heldDraw = enginePendingCount(color)
+      engineLibraryDeck(color, g, (pl.library or 0) + heldDraw, seen)
+      sect("library")
+    end
+  end
+  local okPop, errPop = pcall(function() enginePopups(m) enginePopupsClose(m) engineEffects(m) end) -- a pop-up problem must never stop the board update
+  if not okPop then print("[MTG] pop-up: " .. tostring(errPop)) end
+  sect("popups")
+  -- The stack floats above its caster's own playmat (the table centre is where the life trackers are), newest on
+  -- top and a little to the side, so you can read every spell waiting to resolve.
+  local perCaster = {}
+  local stackGlow = {}
+  local stackSpot = {} -- stack item id -> where its target lines start
+  for i, s in ipairs(m.stack or {}) do
+    local g = s.ctl and seatGeometry(s.ctl)
+    local n = (perCaster[s.ctl or "?"] or 0) + 1
+    perCaster[s.ctl or "?"] = n
+    local pos, rot
+    if g ~= nil then
+      pos = g.mat + g.right * (1.4 * (n - 1) - 2) + Vector(0, 2.5 + 0.1 * i, 0)
+      rot = Vector(0, g.rotY, 0)
+    else
+      pos, rot = Vector(-3 + 1.2 * (i - 1), 3 + 0.1 * i, 0), Vector(0, 180, 0)
+    end
+    -- an ability's lines start at its source card, a spell's at its spot on the stack
+    local srcObj = s.src and engineObjs[s.src]
+    stackSpot[s.id] = (not s.spell and s.src and (enginePlanned[s.src] or (srcObj ~= nil and not srcObj.isDestroyed() and srcObj.getPosition()))) or pos
+    local st = s.src and engineStatic[s.src]
+    if s.spell and st ~= nil then
+      -- the spell's own card moves onto the stack (spawning a new object costs a frame hitch while its picture loads)
+      local c = { id = s.src }
+      for k, v in pairs(st) do c[k] = v end
+      -- a card you dropped on your battlefield to cast waits right there, raised a little
+      if engineManual[s.src] ~= nil then pos = engineManual[s.src] + Vector(0, 0.6, 0) end
+      place(c, pos, rot, seen, nil, { zone = "stack", color = s.ctl })
+    elseif not s.spell and s.src and engineObjs[s.src] ~= nil then
+      stackGlow[s.src] = true -- an ability: its source glows purple; the panel lists the stack
+    else
+      place({ id = "stack:" .. tostring(s.id), n = s.n, tl = "On the stack", tx = s.tx, f = s.f, b = ENGINE_BACK },
+        pos, rot, seen, nil, { zone = "stack", color = s.ctl })
+    end
+  end
+  -- what each card glows when no question is open: ability on the stack (purple), attacking (red), blocking (blue).
+  -- Everyone sees these, for the whole combat.
+  sect("stack")
+  if engineScryPlace ~= nil then pcall(engineScryPlace, seen) end
+  if enginePlaceSpecial ~= nil then
+    local okSp, errSp = pcall(enginePlaceSpecial, m, seen)
+    if not okSp then print("[MTG] playable / linked cards: " .. tostring(errSp)) end
+  end
+  local combat = {}
+  for _, pl in ipairs(m.players or {}) do
+    for _, c in ipairs(pl.battlefield or {}) do
+      if c.atk then combat[c.id] = "atk" elseif c.blk then combat[c.id] = "blk" end
+    end
+  end
+  for id in pairs(engineStackGlow) do if engineObjs[id] == nil then engineStackGlow[id] = nil end end -- gone from the table
+  -- a face-down card that may be played only through its permanent (a hideaway card: Mosswort Bridge's needs creatures
+  -- with total power 10) doesn't glow as playable; a foretold one does (playtest 2026-10-26)
+  local onlyVia = {}
+  for _, pl in ipairs(m.players or {}) do for _, c in ipairs(pl.playable or {}) do if c.fd and not c.fo then onlyVia[c.id] = true end end end
+  for id, o in pairs(engineObjs) do
+    local want = stackGlow[id] and "stack" or combat[id] or (engineSpecial[id] == "playable" and not onlyVia[id] and "playable" or nil)
+    if engineStackGlow[id] ~= want and o ~= nil and not o.isDestroyed() then
+      engineStackGlow[id] = want
+      engineBaseGlow[o] = want and BASE_GLOW[want] or nil
+      if not engineGlowOwned(o) then
+        if want then o.highlightOn(BASE_GLOW[want]) else o.highlightOff() end
+      end
+    end
+  end
+  sect("glow")
+  engineManualLanded = engineManualLanded or {}
+  engineManualPlay = engineManualPlay or {}
+  for id in pairs(engineManual) do
+    -- a spell on the stack isn't drawn under its card id; keep the spot it was dropped on until it lands
+    local z = seen[id] and engineMeta[id] and engineMeta[id].zone
+    if seen[id] and z ~= "battlefield" and z ~= "command" and z ~= "stack" then engineManual[id] = nil engineManualPlay[id] = nil end
+    -- a commander that was on the battlefield and went back to the command zone: forget where it was dropped
+    if z == "battlefield" then engineManualLanded[id] = true
+    elseif z == "command" and engineManualLanded[id] then engineManual[id] = nil engineManualLanded[id] = nil end
+  end
+  for id, o in pairs(engineObjs) do
+    if not seen[id] then
+      if o ~= nil and not o.isDestroyed() then op("destroy") engineDispose(o) end
+      engineObjs[id] = nil
+    end
+  end
+  local okLn, errLn = pcall(engineDrawLines, m, stackSpot)
+  if not okLn then print("[MTG] lines: " .. tostring(errLn)) end
+  if engineCombatLunge ~= nil and not engineAnimOff then
+    local okLu, errLu = pcall(engineCombatLunge, m)
+    if not okLu then print("[MTG] attack lunge: " .. tostring(errLu)) end
+  end
+  sect("dispose")
+  local okRw, errRw = pcall(engineRewindUpdate, m.rewind, m.gameOver)
+  if not okRw then print("[MTG] rewind panel: " .. tostring(errRw)) end
+  updateTrackers(m)
+  sect("trackers")
+  if engineRefreshBrowse ~= nil then engineRefreshBrowse() end
+  sect("browse")
+  engineRenderPanels("none")
+  sect("panels")
+  if engineSetupButtons ~= nil then pcall(engineSetupButtons) end -- (hidden while a game runs; "New game" after it)
+  if enginePlayableGlowAll ~= nil then enginePlayableGlowAll() end
+  -- the open questions' ability buttons once their permanents are known: a question that came before the board (after
+  -- a reload) had no card on the battlefield yet and drew none (seen 2026-10-26); unchanged lists redraw nothing
+  if engineAbilityBoxes ~= nil and enginePromptKind ~= nil then
+    for color, q in pairs(enginePrompts) do
+      local kind = enginePromptKind(q)
+      if (kind == "action" or kind == "attack" or kind == "block" or kind == "target") and q.__abWait ~= false then pcall(engineAbilityBoxes, color, q, kind) end
+    end
+  end
+  if engineFixUpdate ~= nil then
+    local okFx, errFx = pcall(engineFixUpdate, m.fix)
+    if not okFx then print("[MTG] manual fix: " .. tostring(errFx)) end
+  end
+end
+
+-- ───────── imported decks step aside during an engine game ─────────
+-- The original spot is also written on the object itself (memo), so putting things back works even after a reload
+-- lost this script's memory; objects already under the table are never pushed further down.
+local function stashObject(o)
+  if o == nil or stashed[o.getGUID()] then return end
+  local p, r = o.getPosition(), o.getRotation()
+  if p.y < -5 then return end
+  stashed[o.getGUID()] = { pos = p, rot = r, lock = o.getLock() }
+  o.memo = string.format("enginestash:%.3f,%.3f,%.3f,%.1f,%.1f,%.1f,%s", p.x, p.y, p.z, r.x, r.y, r.z, tostring(o.getLock()))
+  o.setLock(true)
+  o.setPosition(p + Vector(0, -15, 0))
+end
+
+local function stashImported(colors)
+  for _, color in ipairs(colors) do
+    local zone = data[color] and data[color].libraryZone
+    stashObject(zone and getDeckFromZone(zone))
+    for _, o in ipairs(Player[color].getHandObjects() or {}) do
+      if o.type == "Card" and not tostring(o.getName()):find("Identity") and not tostring(o.getGMNotes()):find("^engine:") then stashObject(o) end
+    end
+    local anchors = {}
+    for _, guid in ipairs(TAX_LABELS[color] or {}) do
+      local a = getObjectFromGUID(guid)
+      if a then anchors[#anchors + 1] = a.getPosition() end
+    end
+    for _, o in ipairs(getObjects()) do
+      if o.type == "Card" and not tostring(o.getName()):find("Identity") and not tostring(o.getGMNotes()):find("^engine:") then
+        local p = o.getPosition()
+        for _, a in ipairs(anchors) do
+          -- only cards on the table: ones already put away under it must not be pushed down again
+          if (p.x - a.x) ^ 2 + (p.z - a.z) ^ 2 < 6.25 and p.y > a.y - 3 then stashObject(o) break end
+        end
+      end
+    end
+  end
+end
+
+local function restoreStash()
+  for guid, s in pairs(stashed) do
+    local o = getObjectFromGUID(guid)
+    if o ~= nil then o.setPosition(s.pos) o.setRotation(s.rot) o.setLock(s.lock) o.memo = nil end
+    if o ~= nil and o.type == "Deck" then
+      for _, e in ipairs(o.getObjects() or {}) do
+        if e.gm_notes == "libcard" and o.getQuantity() > 1 then
+          o.takeObject({ guid = e.guid, position = o.getPosition() + Vector(0, 3, 0), smooth = false, callback_function = function(x) x.destruct() end })
+        end
+      end
+    end
+  end
+  stashed = {}
+  -- anything still marked (its record was lost in a reload) goes back to the spot written on it
+  for _, o in ipairs(getObjects()) do
+    local m = tostring(o.memo or "")
+    local x, y, z, rx, ry, rz, lock = m:match("^enginestash:([-%d.]+),([-%d.]+),([-%d.]+),([-%d.]+),([-%d.]+),([-%d.]+),(%a+)")
+    if x ~= nil then
+      o.setPosition(Vector(tonumber(x), tonumber(y), tonumber(z)))
+      o.setRotation(Vector(tonumber(rx), tonumber(ry), tonumber(rz)))
+      o.setLock(lock == "true")
+      o.memo = nil
+    end
+  end
+end
+
+-- Every engine card on the table, including ones a reload or undo left behind that this script no longer tracks.
+-- They are hidden at once and merged into the trash deck (free), and that deck is thrown away once when the merges
+-- have landed: one ~360 ms pause instead of one per card (a 40-card board froze TTS for ~15 s, a late 4-player one
+-- for most of a minute). Older trash decks a reload left behind go the same way.
+local function sweepEngineCards()
+  local current = engineTrash
+  for _, o in ipairs(getObjects()) do
+    local gm = tostring(o.getGMNotes())
+    if gm == "engine:trash" then
+      if o ~= current then o.setGMNotes("enginetrash-old") Wait.frames(function() if not o.isDestroyed() then o.destruct() end end, 2) end
+    -- library placeholders too: one left lying on the library spot got merged into the player's deck put back there
+    elseif gm:find("^engine:") or gm == "enginetrash" or gm == "libcard" then engineDispose(o) end
+  end
+  Wait.condition(function()
+    local t = engineTrash
+    engineTrash = nil -- the next game starts a new trash deck
+    if t ~= nil and not t.isDestroyed() then t.setGMNotes("enginetrash-old") Wait.frames(function() if not t.isDestroyed() then t.destruct() end end, 2) end
+  end, function() return #trashQueue == 0 and not trashSpawning end, 10)
+end
+
+engineGen = 0 -- counts games: callbacks scheduled for an earlier game do nothing
+
+function engineClear()
+  engineGen = engineGen + 1
+  -- (each open question ends the one way, engineExitPrompt: the ability panel stayed on the normal table after a reset,
+  -- stage 3 review 2026-10-27)
+  for c in pairs(enginePrompts or {}) do if engineExitPrompt ~= nil then pcall(engineExitPrompt, c) end end
+  if engineAbilityReset ~= nil then engineAbilityReset() end
+  if engineCountersReset ~= nil then pcall(engineCountersReset) end
+  sweepEngineCards()
+  engineFlipped, engineStatic, engineSearch, engineSearchIds, engineChoosable = {}, {}, {}, {}, {}
+  engineBadge, cardClickAt, engineGroupShown = {}, {}, {}
+  if engineResetUi ~= nil then engineResetUi() end -- the panel's per-player state (defined further down)
+  engineObjs, engineSpawning, enginePlanned, engineColors, engineInHand, engineFace = {}, {}, {}, {}, {}, {}
+  engineMeta, engineManual, engineHeld, lastTurnSet = {}, {}, {}, nil
+  engineLifeSeen = {} -- the next game's first board sets the counters without a "-N"
+  if engineEffectsReset ~= nil then engineEffectsReset() end -- life counters lit again, no effects carried over
+  if enginePileReset ~= nil then enginePileReset() end -- piles, groups and glows: ids repeat in the next game
+  lastTable = nil
+  enginePrompts = {}
+  restoreStash()
+  engineRenderPanels()
+  -- back to the normal table, except after the NEW GAME button (straight back to READY)
+  -- (a start clears the last game's cards, and the bridge's own reset clears again: a one-time flag was used up by the
+  -- first clear and the second turned engine mode off, playtest 2026-10-23; it now lasts while the start runs)
+  if engineKeepEngineMode then engineKeepUntil = os.clock() + 30 engineKeepEngineMode = nil end
+  if ENGINE_MODE and not (engineKeepUntil ~= nil and os.clock() < engineKeepUntil) then setEngineMode(false) end
+end
+
+function engineStarted(m)
+  paceArmed = {}
+  enginePending = {}
+  local humans = {}
+  for slot, color in pairs(m.colors or {}) do
+    local isAI = false
+    for _, c in ipairs(m.ai or {}) do if c == color then isAI = true end end
+    if not isAI then humans[#humans + 1] = color end
+  end
+  if lastTable == nil then engineGen = engineGen + 1 sweepEngineCards() end -- a new game: nothing from an earlier one stays behind
+  stashImported(humans)
+  if not ENGINE_MODE then setEngineMode(true) end
+end
+
+-- ───────── prompt panel (added next to the table's own UI, never replacing it) ─────────
+-- The panel is built once per seated colour; after that only its texts and buttons are updated. Rebuilding the
+-- whole Global UI on every change caused frame hitches and reset the scroll position.
+enginePrompts = {}        -- colour -> open prompt from the bridge
+local engineSelected = {} -- colour -> { [option index] = true }
+-- The panel is hidden unless something opened it (the player playtested it popping up on every card played):
+-- "pin" = the player pressed Engine: show (stays until Engine: hide), "ask" = a question the table can't answer
+-- itself (closes again once that question is gone), "browse" = Graveyards / exile was pressed.
+local engineShown = {}    -- colour -> nil | "pin" | "ask" | "browse"
+local engineFilter = {}   -- colour -> search text
+local engineVisible = {}  -- colour -> { [button slot] = option index }
+local baseXml = nil       -- the table's own Global UI, captured once
+local builtFor = nil      -- colours the panels were built for, e.g. "White,Red"
+local panelReady = false
+local uiCache = {}        -- element id .. attribute -> last value set (skip redundant UI calls)
+-- option buttons per panel: a longer list pages with its last button ("More..."), and the search box narrows it.
+-- (60 until 2026-10-23: a quarter of every seat's screen UI, which four seats need small; past 60 a list was cut off)
+local POOL = 30
+
+local function count(t) local n = 0 for _ in pairs(t or {}) do n = n + 1 end return n end
+
+-- Each UI change costs TTS about a millisecond, and a new prompt changes dozens, so every change is one call.
+-- Setting a button's text (or showing it again) redraws its label in the default dark colour, and TTS ignores a
+-- textColor equal to the stored one; alternating between two near-identical whites makes every set count, in
+-- the same call (this used to take a second call a frame later).
+local whiteFlip = {}
+local function nextWhite(id)
+  whiteFlip[id] = not whiteFlip[id]
+  return whiteFlip[id] and "#FFFFFF" or "#FEFEFE"
+end
+local function isButton(id)
+  return id:find("^eng_opt_") or id:find("^eng_confirm_") or id:find("^eng_cancel_") or id:find("^eng_toggle_")
+    or id:find("^eng_browse_") or id:find("^eng_logbtn_") or id:find("^eng_pace_") or id:find("^eng_fx_") or id:find("^eng_anim_") or id:find("^eng_snd_") or id:find("^eng_set_") or id:find("^eng_stop_")
+    or id:find("^eng_big_") or id:find("^eng_big2_") or id:find("^eng_rowopt_") or id:find("^eng_abp_%a+_%d")
+    or id:find("^eng_undo") or id:find("^eng_autores_") or id:find("^eng_voteyes_") or id:find("^eng_voteno_") or id:find("^eng_scoop") or id:find("^eng_fixb") or id:find("^eng_fixcall_")
+end
+
+-- Applies only the attributes that changed, in one call. attrs: { text = ..., color = ..., active = ... }
+local function setButton(id, attrs)
+  local changed, n, needWhite = {}, 0, false
+  for k, v in pairs(attrs) do
+    v = tostring(v)
+    local key = k == "text" and id or (id .. "|" .. k)
+    if uiCache[key] ~= v then
+      uiCache[key] = v
+      changed[k] = v
+      n = n + 1
+      if k == "text" or (k == "active" and v == "true") then needWhite = true end
+    end
+  end
+  if n == 0 then return end
+  if needWhite then changed.textColor = nextWhite(id) end
+  if engineProfile then engineProfile.uiCalls = engineProfile.uiCalls + 1 end
+  UI.setAttributes(id, changed)
+end
+
+local function setText(id, text)
+  text = tostring(text or "")
+  if isButton(id) then return setButton(id, { text = text }) end
+  if uiCache[id] == text then return end
+  uiCache[id] = text
+  if engineProfile then engineProfile.uiCalls = engineProfile.uiCalls + 1 end
+  UI.setValue(id, text) -- Text and InputField elements draw their value
+end
+
+local function setAttr(id, attr, value)
+  if isButton(id) then return setButton(id, { [attr] = value }) end
+  value = tostring(value)
+  local key = id .. "|" .. attr
+  if uiCache[key] == value then return end
+  uiCache[key] = value
+  if engineProfile then engineProfile.uiCalls = engineProfile.uiCalls + 1 end
+  UI.setAttribute(id, attr, value)
+end
+
+local function statusText()
+  local m = lastTable
+  if m == nil then return "" end
+  local n = m.activeTurnNo or 1
+  local suffix = (n % 10 == 1 and n % 100 ~= 11) and "st" or (n % 10 == 2 and n % 100 ~= 12) and "nd"
+    or (n % 10 == 3 and n % 100 ~= 13) and "rd" or "th"
+  local s = string.format("%s's %d%s turn (game turn %s) - %s - priority: %s",
+    tostring(m.active), n, suffix, tostring(m.turn), tostring(m.step), tostring(m.priority))
+  if m.stack and #m.stack > 0 then
+    local names = {}
+    for i = #m.stack, 1, -1 do names[#names + 1] = m.stack[i].n end
+    s = s .. "\nStack (top first): " .. table.concat(names, ", ")
+  end
+  if m.gameOver then s = "GAME OVER" .. (m.winner and (" - winner: " .. tostring(m.winner)) or "") .. "\n" .. s end
+  return s
+end
+
+-- Arena-style corner: a big button for the main choice, a smaller one for the second, and the turn's phases.
+-- Arena-style card row in the middle of the screen: the cards an order / scry / small "choose a card" question is
+-- about, as pictures to click, with that question's buttons under them (pictures: see engineUiImage).
+ROW_MAX, ROW_BTNS = 7, 5
+local function rowXml(c)
+  local tiles, btns = {}, {}
+  for k = 1, ROW_MAX do
+    local s = c .. "_" .. k
+    tiles[#tiles + 1] = '<Panel id="eng_rowslot_' .. s .. '" preferredWidth="180" preferredHeight="300" color="#FFFFFF14" active="false">'
+      .. '<Image id="eng_rowimg_' .. s .. '" width="168" height="234" rectAlignment="UpperCenter" offsetXY="0 -6" preserveAspect="true" raycastTarget="false"></Image>'
+      .. '<Text id="eng_rowname_' .. s .. '" width="172" height="54" rectAlignment="LowerCenter" offsetXY="0 2" fontSize="13" color="#FFFFFF" alignment="MiddleCenter" raycastTarget="false"> </Text>'
+      .. '<Button id="eng_rowbtn_' .. s .. '" onClick="onMtgRow" width="180" height="300" color="#00000000"></Button>'
+      .. '</Panel>'
+  end
+  for k = 1, ROW_BTNS do
+    btns[#btns + 1] = '<Button id="eng_rowopt_' .. c .. '_' .. k .. '" onClick="onMtgRowOpt" preferredWidth="220" preferredHeight="44" color="#2e3a59" textColor="#ffffff" fontSize="17" fontStyle="Bold" active="false"> </Button>'
+  end
+  return '<Panel id="eng_row_' .. c .. '" visibility="' .. c .. '" width="720" height="470" rectAlignment="MiddleCenter" offsetXY="0 60" color="#0A0C10E8" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
+    -- (title and line sized to the panel: at 1300 px wide a long line ran off both edges, 2026-10-22)
+    .. '<Text id="eng_rowtitle_' .. c .. '" width="700" height="34" rectAlignment="UpperCenter" offsetXY="0 -8" fontSize="22" resizeTextForBestFit="true" resizeTextMinSize="14" resizeTextMaxSize="22" fontStyle="Bold" color="#FFD27A" alignment="MiddleCenter"> </Text>'
+    .. '<Text id="eng_rowsub_' .. c .. '" width="690" height="42" rectAlignment="UpperCenter" offsetXY="0 -42" fontSize="14" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="14" horizontalOverflow="Wrap" color="#D8DEE8" alignment="MiddleCenter"> </Text>'
+    .. '<HorizontalLayout width="1360" height="300" rectAlignment="UpperCenter" offsetXY="0 -88" spacing="12" childAlignment="MiddleCenter" childForceExpandWidth="false" childForceExpandHeight="false">'
+    .. table.concat(tiles) .. '</HorizontalLayout>'
+    .. '<HorizontalLayout width="1300" height="44" rectAlignment="LowerCenter" offsetXY="0 16" spacing="12" childAlignment="MiddleCenter" childForceExpandWidth="false" childForceExpandHeight="false">'
+    .. table.concat(btns) .. '</HorizontalLayout></Panel>\n'
+end
+
+-- Rewind by vote (M4.5): "Undo..." lists the engine's restore points; a vote pop-up asks the other players.
+UNDO_MAX = 8
+local function rewindXml(c)
+  local opts = {}
+  for k = 1, UNDO_MAX do
+    opts[#opts + 1] = '<Button id="eng_undopt_' .. c .. '_' .. k .. '" onClick="onMtgUndoPick" preferredHeight="34" color="#2f3542" textColor="#ffffff" fontSize="15" active="false"> </Button>'
+  end
+  return '<Button id="eng_autores_' .. c .. '" onClick="onMtgAutoResolve" visibility="' .. c .. '" width="150" height="32" rectAlignment="LowerCenter" offsetXY="-850 8" color="#3a3f4b" textColor="#ffffff" fontSize="14" tooltip="On other players\' turns, pass priority by itself (even with an instant or a sacrifice outlet)" active="false">Auto-resolve: off</Button>\n'
+    .. '<Button id="eng_undo_' .. c .. '" onClick="onMtgUndo" visibility="' .. c .. '" width="110" height="32" rectAlignment="LowerCenter" offsetXY="-580 8" color="#3a3f4b" textColor="#ffffff" fontSize="15" active="false">Undo...</Button>\n'
+    .. '<Panel id="eng_undolist_' .. c .. '" visibility="' .. c .. '" width="380" height="380" rectAlignment="LowerCenter" offsetXY="-580 48" color="#0A0C10F0" active="false">'
+    .. '<VerticalLayout padding="8 8 8 8" spacing="4" childForceExpandHeight="false">'
+    .. '<Text preferredHeight="30" fontSize="16" fontStyle="Bold" color="#FFD27A" alignment="MiddleCenter">Rewind to... (the others vote)</Text>'
+    .. table.concat(opts)
+    .. '<Button id="eng_undoclose_' .. c .. '" onClick="onMtgUndo" preferredHeight="30" color="#5a1f1f" textColor="#ffffff" fontSize="14">Close</Button>'
+    .. '</VerticalLayout></Panel>\n'
+    .. '<Panel id="eng_vote_' .. c .. '" visibility="' .. c .. '" width="600" height="120" rectAlignment="UpperCenter" offsetXY="0 -120" color="#0A0C10F0" active="false">'
+    .. '<Text id="eng_votetext_' .. c .. '" width="580" height="60" rectAlignment="UpperCenter" offsetXY="0 -6" fontSize="18" color="#FFFFFF" alignment="MiddleCenter"> </Text>'
+    .. '<HorizontalLayout width="440" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
+    .. '<Button id="eng_voteyes_' .. c .. '" onClick="onMtgVote" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Rewind</Button>'
+    .. '<Button id="eng_voteno_' .. c .. '" onClick="onMtgVote" color="#8e2a2a" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Keep playing</Button>'
+    .. '</HorizontalLayout></Panel>\n'
+end
+
+-- Scoop (concede): a screen button beside the player's name at the top, only for that player and only in a game;
+-- it opens a big "Concede this game?" box with Scoop / Keep playing (screen UI: readable from any camera angle)
+local function scoopXml(c)
+  return '<Button id="eng_scoop_' .. c .. '" onClick="onMtgScoopAsk" visibility="' .. c .. '" width="120" height="40" rectAlignment="UpperCenter" offsetXY="250 -118" color="#c62828" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Scoop</Button>\n'
+    .. '<Panel id="eng_scoopask_' .. c .. '" visibility="' .. c .. '" width="620" height="230" rectAlignment="MiddleCenter" offsetXY="0 40" color="#0A0C10F2" active="false">'
+    .. '<Text width="600" height="110" rectAlignment="UpperCenter" offsetXY="0 -10" fontSize="30" fontStyle="Bold" color="#FFFFFF" alignment="MiddleCenter">Concede this game?</Text>'
+    .. '<HorizontalLayout width="560" height="70" rectAlignment="LowerCenter" offsetXY="0 22" spacing="24" childForceExpandWidth="true">'
+    .. '<Button id="eng_scoopyes_' .. c .. '" onClick="onMtgScoopYes" color="#c62828" textColor="#ffffff" fontSize="26" fontStyle="Bold">Scoop</Button>'
+    .. '<Button id="eng_scoopno_' .. c .. '" onClick="onMtgScoopNo" color="#2e3a59" textColor="#ffffff" fontSize="26" fontStyle="Bold">Keep playing</Button>'
+    .. '</HorizontalLayout></Panel>\n'
+end
+
+local function cornerXml(c)
+  return rowXml(c) .. rewindXml(c) .. scoopXml(c) .. (engineFixXml ~= nil and engineFixXml(c) or "")
+    -- M5: VICTORY / DEFEAT / "<NAME> IS OUT", big, in the middle of the screen
+    .. '<Text id="eng_result_' .. c .. '" visibility="' .. c .. '" width="1600" height="200" rectAlignment="MiddleCenter" offsetXY="0 120" fontSize="120" fontStyle="Bold" color="#FFD27A" outline="#2a1600E0" outlineSize="4 -4" alignment="MiddleCenter" showAnimation="Grow" hideAnimation="FadeOut" animationDuration="0.35" active="false"> </Text>\n'
+    .. '<Panel id="eng_phasebg_' .. c .. '" visibility="' .. c .. '" width="900" height="46" rectAlignment="UpperCenter" offsetXY="0 -64" color="#0A0C10C8" active="false"></Panel>'
+    .. '<Text id="eng_phase_' .. c .. '" visibility="' .. c .. '" width="900" height="46" rectAlignment="UpperCenter" offsetXY="0 -64" fontSize="22" color="#B8C0CC" alignment="MiddleCenter" active="false"> </Text>\n'
+    -- Arena-style instruction line above the corner buttons (at the top it ran into TTS's name tags): what the open question wants, in table terms
+    .. '<Text id="eng_hint_' .. c .. '" visibility="' .. c .. '" width="620" height="130" rectAlignment="LowerRight" offsetXY="-20 196" fontSize="18" fontStyle="Italic" color="#F2F2F2" outline="#000000C0" outlineSize="1 -1" alignment="LowerRight" active="false"> </Text>\n'
+    -- big turn banner in the middle of the screen when the turn changes
+    .. '<Text id="eng_banner_' .. c .. '" visibility="' .. c .. '" width="1200" height="120" rectAlignment="MiddleCenter" offsetXY="0 80" fontSize="64" fontStyle="Bold" color="#FFD27A" outline="#2a1600E0" outlineSize="3 -3" alignment="MiddleCenter" showAnimation="FadeIn" hideAnimation="FadeOut" animationDuration="0.25" active="false"> </Text>\n'
+    .. '<Button id="eng_big2_' .. c .. '" onClick="onMtgBig2" visibility="' .. c .. '" width="280" height="44" rectAlignment="LowerRight" offsetXY="-20 140" color="#2e3a59" textColor="#ffffff" fontSize="18" active="false"> </Button>\n'
+    .. '<Button id="eng_big_' .. c .. '" onClick="onMtgBig" visibility="' .. c .. '" width="280" height="64" rectAlignment="LowerRight" offsetXY="-20 70" color="#e8711a" textColor="#ffffff" fontSize="26" fontStyle="Bold" active="false"> </Button>\n'
+    .. engineAbPanelXml(c)
+end
+-- The abilities of the card you point at, as big buttons on the screen (engineAbPanelShow): the buttons on the card are
+-- a few pixels tall at the usual camera, and its right-click menu opened under the top bars (hp-07, 2026-10-27).
+ENGINE_AB_MAX = 6
+function engineAbPanelXml(c)
+  local rows = {}
+  for k = 1, ENGINE_AB_MAX do
+    rows[#rows + 1] = '<Button id="eng_abp_' .. c .. '_' .. k .. '" onClick="onMtgAbPanel" preferredHeight="40" fontSize="15" color="#2f3542" textColor="#ffffff" active="false"> </Button>'
+  end
+  return '<Panel id="eng_abp_' .. c .. '" visibility="' .. c .. '" width="440" height="320" rectAlignment="LowerRight" offsetXY="-20 272" color="#0A0C10E6" active="false">'
+    .. '<VerticalLayout padding="8 8 6 6" spacing="4" childForceExpandHeight="false" childAlignment="LowerCenter">'
+    .. '<Text id="eng_abpt_' .. c .. '" preferredHeight="24" fontSize="16" fontStyle="Bold" color="#FFD27A" alignment="MiddleLeft"> </Text>'
+    .. table.concat(rows) .. '</VerticalLayout></Panel>\n'
+end
+
+-- A spell or ability going on the stack pops up for everyone, with its picture and text (Arena-style).
+local POPUP_XML = '<Panel id="eng_pop" width="300" height="500" rectAlignment="MiddleRight" offsetXY="-30 40" color="#0A0C10E8" active="false">'
+  .. '<VerticalLayout padding="8 8 8 8" spacing="6" childForceExpandHeight="false">'
+  .. '<Text id="eng_pop_who" fontSize="14" color="#FFD27A" alignment="MiddleCenter" preferredHeight="22"> </Text>'
+  .. '<Image id="eng_pop_img" preferredHeight="390" preserveAspect="true" color="#FFFFFF"></Image>'
+  .. '<Text id="eng_pop_text" fontSize="12" color="#FFFFFF" alignment="UpperLeft" preferredHeight="70"> </Text>'
+  .. '</VerticalLayout>'
+  .. '<Button id="eng_pop_x" onClick="onMtgPopClose" width="34" height="34" rectAlignment="UpperRight" offsetXY="-4 -4" color="#3a3f4b" textColor="#ffffff" fontSize="20" fontStyle="Bold" tooltip="Close (only for you)">X</Button>'
+  .. '</Panel>'
+
+local function panelXml(color)
+  local slots = {}
+  for k = 1, POOL do
+    slots[#slots + 1] = string.format('<Button id="eng_opt_%s_%d" onClick="onMtgSlot" active="false" minHeight="32" fontSize="14" color="#2f3542" textColor="#ffffff"> </Button>', color, k)
+  end
+  local c = color
+  -- (bottom left, a row above Auto-resolve / Fix / Undo: at the top right these covered the first items of the cards'
+  -- right-click menus, playtest 2026-10-26)
+  return '<Button id="eng_toggle_' .. c .. '" onClick="onMtgToggle" visibility="' .. c .. '" width="120" height="32" rectAlignment="LowerCenter" offsetXY="-865 46" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Engine: hide</Button>\n'
+    .. '<Button id="eng_browse_' .. c .. '" onClick="onMtgBrowse" visibility="' .. c .. '" width="170" height="32" rectAlignment="LowerCenter" offsetXY="-712 46" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Graveyards / exile</Button>\n'
+    .. '<Button id="eng_logbtn_' .. c .. '" onClick="onMtgLog" visibility="' .. c .. '" width="90" height="32" rectAlignment="LowerCenter" offsetXY="-574 46" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Log</Button>\n'
+    .. '<Button id="eng_pace_' .. c .. '" onClick="onMtgPace" visibility="' .. c .. '" width="150" height="32" rectAlignment="LowerCenter" offsetXY="-446 46" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Auto: off</Button>\n'
+    -- (2026-10-22) Settings: your own screen effects and sounds, and the host's switch for the table's shared animations
+    .. '<Button id="eng_set_' .. c .. '" onClick="onMtgSettings" visibility="' .. c .. '" width="100" height="32" rectAlignment="LowerCenter" offsetXY="-313 46" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Settings</Button>\n'
+    .. '<Panel id="eng_setpanel_' .. c .. '" visibility="' .. c .. '" width="290" height="150" rectAlignment="LowerCenter" offsetXY="-313 84" color="#0A0C10F0" active="false">'
+    .. '<VerticalLayout padding="8 8 8 8" spacing="6">'
+    .. '<Button id="eng_fx_' .. c .. '" onClick="onMtgFx" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Banners and pop-ups, for you only">My effects: on</Button>'
+    .. '<Button id="eng_snd_' .. c .. '" onClick="onMtgSnd" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Sounds, for you">My sounds: on</Button>'
+    .. '<Button id="eng_anim_' .. c .. '" onClick="onMtgAnim" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Seen by everyone, so the host decides">Table animations: on</Button>'
+    .. '</VerticalLayout></Panel>\n'
+    .. '<Panel id="eng_log_' .. c .. '" visibility="' .. c .. '" width="430" height="290" rectAlignment="UpperRight" offsetXY="-10 -150" color="#0A0C10D0" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
+    .. '<Text id="eng_logtext_' .. c .. '" width="414" height="280" fontSize="13" color="#FFFFFF" alignment="LowerLeft"> </Text></Panel>\n'
+    .. '<Panel id="eng_panel_' .. c .. '" visibility="' .. c .. '" width="430" height="620" rectAlignment="MiddleLeft" offsetXY="95 120" color="#0A0C10E8" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">\n'
+    .. '  <VerticalLayout padding="8 8 8 8" spacing="5" childForceExpandHeight="false">\n'
+    .. '    <Text id="eng_status_' .. c .. '" fontSize="13" color="#FFFFFF" alignment="UpperLeft" preferredHeight="44"> </Text>\n'
+    .. '    <Text id="eng_title_' .. c .. '" fontSize="17" fontStyle="Bold" color="#FFFFFF" alignment="MiddleLeft" preferredHeight="26">Waiting for other players...</Text>\n'
+    .. '    <Text id="eng_text_' .. c .. '" fontSize="13" color="#FFFFFF" alignment="UpperLeft" preferredHeight="46"> </Text>\n'
+    .. '    <InputField id="eng_search_' .. c .. '" onValueChanged="onMtgSearch" placeholder="Search..." preferredHeight="30" fontSize="14" active="false"></InputField>\n'
+    .. '    <VerticalScrollView id="eng_scroll_' .. c .. '" preferredHeight="318" flexibleHeight="0" color="#FFFFFF0A" scrollSensitivity="120">\n'
+    .. '      <VerticalLayout contentSizeFitter="vertical" childForceExpandHeight="false" spacing="4" padding="4 14 4 4">\n'
+    .. table.concat(slots, "\n") .. '\n'
+    .. '      </VerticalLayout>\n'
+    .. '    </VerticalScrollView>\n'
+    .. '    <HorizontalLayout preferredHeight="36" spacing="6" childForceExpandWidth="true">\n'
+    .. '      <Button id="eng_confirm_' .. c .. '" onClick="onMtgConfirm" active="false" color="#1e6f5c" textColor="#ffffff" fontSize="15">Done</Button>\n'
+    .. '      <Button id="eng_cancel_' .. c .. '" onClick="onMtgCancel" active="false" color="#8b1e1e" textColor="#ffffff" fontSize="15">Cancel</Button>\n'
+    .. '    </HorizontalLayout>\n'
+    .. '    <HorizontalLayout preferredHeight="30" spacing="4" childForceExpandWidth="true">'
+    .. '<Button id="eng_stop_start_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: start</Button>'
+    .. '<Button id="eng_stop_combat_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: combat</Button>'
+    .. '<Button id="eng_stop_end_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: end</Button>'
+    .. '<Button id="eng_stop_hold_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Hold</Button>'
+    .. '</HorizontalLayout>\n'
+    .. '  </VerticalLayout>\n'
+    .. '</Panel>'
+end
+
+-- Options of the open prompt as { index, label }; numbers for number prompts.
+local function optionList(p, filter)
+  local list = {}
+  if p.mode == "number" then
+    -- every number in range that matches the search (the search box finds 99 in 0-100), the first 1000 (paged)
+    for n = p.min or 0, p.max or 0 do
+      local label = tostring(n)
+      if filter == nil or filter == "" or label:find(filter, 1, true) then list[#list + 1] = { index = n, label = label } end
+      if #list >= 1000 then break end
+    end
+    return list
+  end
+  for i, o in ipairs(p.options or {}) do list[#list + 1] = { index = i, label = tostring(o.label or o.id or "?") } end
+  return list
+end
+
+-- Button colours: the default answer green, End turn red, attackers red, blockers blue (brighter once picked).
+local KIND_OLD_TITLES = { { "^Pay ", "mana" }, { "^Declare attackers", "attack" }, { "^Declare blockers", "block" },
+  { "^Mulligan", "mulligan" }, { "^Put %d", "mulliganPutBack" }, { "^Dice", "dice" } }
+-- { kind = the engine's question type ("priority", "mana", "attack", "cards", "order", ...), toLibrary = the chosen
+-- cards go to the library }. Kept on the prompt (p.__view) until it changes.
+-- How many options are only pictures: cards with no object on the table (in a graveyard or exile pile). A question
+-- with more than the card row holds is picked in the Engine panel (hp-07 #41 2026-10-27); cards in a hand or on the
+-- battlefield are clicked on the table however many there are.
+-- (inside a pile deck, engineInPile: a token folded into its group or a card still spawning has no object either, and
+-- opened the panel for a plain "sacrifice a creature", suite review 2026-10-27)
+function enginePileOnly(p)
+  local n = 0
+  for _, o in ipairs((p and p.options) or {}) do
+    if o.img ~= nil and engineInPile ~= nil and engineInPile[(tostring(o.id):gsub("^card|", ""))] then n = n + 1 end
+  end
+  return n
+end
+-- "panel" when a question's choices can only be made in the Engine panel: more pile pictures than the card row
+-- holds, or a life payment whose buttons don't fit the row; else nil. Read by the panel's open check and the hints
+-- (they had drifted: the panel opened while the hint said "Click a glowing card", suite review 2026-10-27).
+function engineAnswerPlace(p)
+  if p == nil then return nil end
+  if enginePileOnly(p) > ROW_MAX then return "panel" end
+  if engineLifePayOption(p) ~= nil then
+    local n = 0
+    for _, o in ipairs(p.options or {}) do local id = tostring(o.id) if not id:find("^tap:") and not id:find("^untap:") then n = n + 1 end end
+    if n > ROW_BTNS then return "panel" end
+  end
+  return nil
+end
+-- The option of a payment that pays with life (the bridge's "Pay N life" for a Phyrexian cost), or nil
+function engineLifePayOption(p)
+  for i, o in ipairs((p and p.options) or {}) do
+    if o.id == "pay-life" or tostring(o.label or ""):find("^Pay %d+ life$") then return i end
+  end
+end
+function describePrompt(p)
+  if p == nil then return nil end
+  if p.__view ~= nil then return p.__view end
+  local v = {}
+  if p.kind ~= nil then
+    v.kind = tostring(p.kind)
+    v.toLibrary = p.dest == "library"
+  else
+    local t = tostring(p.title or "")
+    if t == "Your priority" then v.kind = "priority" end
+    for _, r in ipairs(KIND_OLD_TITLES) do if v.kind == nil and t:find(r[1]) then v.kind = r[2] end end
+    -- and from the question's shape: Yes/No, a lone OK (something revealed), a number
+    local ids = {}
+    for _, o in ipairs(p.options or {}) do ids[#ids + 1] = tostring(o.id) end
+    if v.kind == nil and #ids == 2 and ((ids[1] == "yes" and ids[2] == "no") or (ids[1] == "no" and ids[2] == "yes")) then v.kind = "yesno" end
+    if v.kind == nil and #ids == 1 and ids[1] == "ok" then v.kind = "reveal" end
+    if v.kind == nil and p.mode == "number" then v.kind = "number" end
+    v.toLibrary = engineToLibrary(t)
+  end
+  p.__view = v
+  return v
+end
+
+function optionColor(p, index, picked)
+  local o = (p.options or {})[index] or {}
+  local kind = describePrompt(p).kind
+  if o.id == "__allattack" then return "#e84118" end
+  if o.id == "__noattack" then return "#2e86de" end
+  if kind == "attack" then return picked and "#e84118" or "#7a2323" end
+  if kind == "block" then return picked and "#2e86de" or "#1e3a6e" end
+  -- Arena-style, same colours as the corner buttons and the card row: orange main choice, blue alternative,
+  -- red for what you picked
+  if picked then return "#E53935" end
+  if o.id == "__endturn" then return "#2e3a59" end
+  if o.id == "__resolve" then return "#b8860b" end -- yellow: pass until the stack is empty
+  if p.mode == "single" and index == 1 then return "#e8711a" end
+  return "#2f3542"
+end
+
+-- "Graveyards / exile" view: every player's graveyard and exile as a searchable, look-only list in the panel.
+engineBrowse = {}     -- colour -> true while that player browses graveyards and exile
+local browseCards = {} -- colour -> list shown, { label, card }
+local function browsePrompt(color)
+  local list, options = {}, {}
+  for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+    local who = (pl.color == color) and "Your" or ((pl.name or pl.color or "?") .. "'s")
+    for _, z in ipairs({ { "graveyard", "graveyard" }, { "exile", "exile" } }) do
+      for i = #(pl[z[1]] or {}), 1, -1 do -- newest first
+        local c = pl[z[1]][i]
+        if c.n ~= nil then list[#list + 1] = { label = c.n .. "   (" .. who .. " " .. z[2] .. ")", card = c } end
+      end
+    end
+  end
+  browseCards[color] = list
+  for i, e in ipairs(list) do options[i] = { id = "browse:" .. i, label = e.label } end
+  return { title = "Graveyards and exile (look only)", mode = "browse",
+    text = #list == 0 and "Nothing in any graveyard or exile yet." or "Click a card to read it. Search by name or by whose it is.",
+    options = options }
+end
+
+-- The corner's two buttons mirror the prompt: the first (default) choice big, a second useful one small.
+local PHASES = { { "upkeep", "Upkeep" }, { "draw", "Draw" }, { "main1", "Main 1" }, { "combat", "Combat" }, { "main2", "Main 2" }, { "end", "End" } }
+engineCorner = {} -- colour -> { big = option index or "confirm", small = option index }
+-- A question that puts cards on top or at the bottom of your library ("Put 1 on the bottom"): whole words only, so a
+-- card named "Treetop Village" in the title doesn't count.
+function engineToLibrary(title)
+  local low = " " .. tostring(title or ""):lower() .. " "
+  return low:find("%f[%a]bottom%f[%A]") ~= nil or low:find("%f[%a]top%f[%A]") ~= nil
+end
+
+-- What the screen calls a player: the Steam name of whoever sits at that colour (as the chat does), an AI player's name
+-- ("AI 1"), else the colour (playtest 2026-10-26: "replace Red's turn with the player's name sitting in red").
+function engineNameOf(c)
+  if c == nil then return "" end
+  local pl = Player[c]
+  if pl ~= nil and pl.seated and pl.steam_name ~= nil and pl.steam_name ~= "" then return pl.steam_name end
+  for _, x in ipairs((lastTable and lastTable.players) or {}) do
+    if x.color == c and x.name ~= nil and x.name ~= c then return tostring(x.name) end
+  end
+  return tostring(c)
+end
+-- The step you were just asked in, as a banner like YOUR TURN: only for a real question (your priority) and never with
+-- Auto-resolve on (playtest 2026-10-26: "what part of your turn ... shouldn't pop up if you have auto pass on or if
+-- you don't have any priority"). Combat once per combat. Cleanup has no priority: its banner comes with the
+-- discard-to-hand-size question instead (it showed END while asking to discard, playtest 2026-10-26).
+engineStepNames = { upkeep = "UPKEEP", draw = "DRAW", main1 = "MAIN PHASE 1", main2 = "MAIN PHASE 2", ["end"] = "END STEP",
+  endOfTurn = "END STEP", cleanup = "CLEANUP" }
+engineStepSeen = {}
+function engineStepBanner(color, t)
+  if t == nil or engineEffectsOff[color] or engineAutoResolve[color] then return end
+  local step = tostring(t.step or "")
+  local label = engineStepNames[step] or (step:find("^combat") and "COMBAT") or nil
+  if label == nil then return end
+  local key = tostring(t.turn) .. "|" .. label
+  if engineStepSeen[color] == key then return end
+  engineStepSeen[color] = key
+  local show = function()
+    if engineStepSeen[color] ~= key then return end
+    setText("eng_banner_" .. color, label)
+    setAttr("eng_banner_" .. color, "color", "#FFFFFF")
+    setAttr("eng_banner_" .. color, "outline", "#101010E0")
+    setAttr("eng_banner_" .. color, "active", "true")
+    Wait.time(function() if engineStepSeen[color] == key then setAttr("eng_banner_" .. color, "active", "false") end end, 1.1)
+  end
+  -- (after the turn banner, not over it)
+  local since = engineBannerAt and engineBannerAt[color] and (os.clock() - engineBannerAt[color]) or 99
+  if since < 1.7 then Wait.time(show, 1.7 - since) else show() end
+end
+-- On screen when the game ends, like YOUR TURN (the board just stood still with its attack lines, playtest 2026-10-26)
+function engineGameOverBanner(m)
+  for _, c in ipairs(getSeatedPlayers()) do
+    if Player[c] ~= nil then
+      setText("eng_banner_" .. c, m.winner == nil and "DRAW" or (m.winner == c and "VICTORY" or (string.upper(engineNameOf(m.winner)) .. " WINS")))
+      setAttr("eng_banner_" .. c, "color", m.winner == c and "#FFD27A" or "#D6E4FF")
+      setAttr("eng_banner_" .. c, "outline", "#101010E0")
+      setAttr("eng_banner_" .. c, "active", "true")
+      Wait.time(function() setAttr("eng_banner_" .. c, "active", "false") end, 4)
+    end
+  end
+end
+function engineUpdateCorner(color, p)
+  local t = lastTable
+  local step = tostring(t and t.step or "")
+  local parts = {}
+  for _, ph in ipairs(PHASES) do
+    local here = step == ph[1] or (ph[1] == "combat" and step:find("^combat")) or (ph[1] == "end" and (step == "end" or step == "cleanup" or step == "endOfTurn"))
+    local name = (here and step == "cleanup") and "Cleanup" or ph[2]
+    parts[#parts + 1] = here and ("<b><color=#FFD27A>" .. string.upper(name) .. "</color></b>") or name
+  end
+  local whose = t and t.active and ((t.active == color) and "<b><color=#7CFC9A>YOUR TURN</color></b>" or ("<b>" .. string.upper(engineNameOf(t.active)) .. "'S TURN</b>")) or ""
+  setAttr("eng_phase_" .. color, "active", t ~= nil and "true" or "false")
+  setAttr("eng_phasebg_" .. color, "active", t ~= nil and "true" or "false")
+  -- day or night, once a daybound card has made it one (nothing showed it, playtest 2026-10-26)
+  local day = (t and t.day == "day") and "      <b><color=#FFE08A>DAY</color></b>" or ((t and t.day == "night") and "      <b><color=#9FB4FF>NIGHT</color></b>" or "")
+  setText("eng_phase_" .. color, whose .. "      " .. table.concat(parts, "   ›   ") .. day)
+  -- instruction line (Arena-style): what the open question wants, in table terms; or who you're waiting for
+  local hint = ""
+  local q = enginePrompts[color]
+  if q ~= nil then
+    local kind = enginePromptKind and enginePromptKind(q)
+    local title = tostring(q.title or "")
+    local low = title:lower()
+    -- (Arena's top line: the question, then one short line on how to answer it here)
+    if kind == "cards" and describePrompt(q).toLibrary then
+      hint = title .. (engineExactPick(q) and "\nClick the card" .. (q.max == 1 and "" or "s") .. " to put there: the last click answers. Dragging works too."
+        or "\nClick a card, then your library (or Done). Dragging it there works too.")
+    -- (cards in a graveyard or exile pile, maybe another player's: nothing on the table glows, so say where they are;
+    -- Dauthi Voidwalker's choice among the AI's exiled cards showed only Done, hp-07 2026-10-27)
+    elseif kind == "cards" and q.pileChoices ~= nil then
+      hint = title .. "\nRight-click that graveyard or exile pile -> Search, and drag the card out. Or Engine: show."
+    elseif kind == "cards" and engineExactPick(q) then
+      hint = title .. "\nClick " .. q.max .. " glowing card" .. (q.max == 1 and "" or "s") .. ": the last click answers." .. (q.cancel and " (Or Cancel.)" or "")
+    elseif kind == "cards" then hint = title .. (q.cancel and "\nClick the glowing cards, then Done (or Cancel)." or "\nClick the glowing cards, then Done.")
+    elseif kind == "target" then
+      local cards, players, spells = false, false, false
+      for _, o in ipairs(q.options or {}) do local id = tostring(o.id) if id:find("^player|") then players = true elseif id:find("^card|") then cards = true elseif id:find("^spell|") then spells = true end end
+      -- (targets in a graveyard or exile come with a picture: more than the card row holds are picked in the Engine panel,
+      -- which then opens; "Click a glowing card" showed with nothing glowing, hp-07 #41 2026-10-27)
+      local pile = enginePileOnly(q)
+      -- (spells on the stack have no card to click: Counterspell said "Click a glowing card" with nothing glowing, hp-01 #5)
+      if spells and not cards and not players then hint = title .. "\nPick the spell in the Engine panel (Engine: show)."
+      elseif engineAnswerPlace(q) == "panel" then hint = title .. "\nThe cards are in a graveyard or exile: pick one in the Engine panel."
+      -- (the cards pictures in the card row: nothing glows on the table, hp-07 re-test 2026-10-27; with players too, a
+      -- life counter, suite review)
+      elseif pile > 0 and pile == #(q.options or {}) then hint = title .. "\nClick its picture in the card row."
+      elseif pile > 0 and players then hint = title .. "\nClick its picture in the card row or a player's life counter."
+      else hint = title .. ((cards and players) and "\nClick a glowing card or a life counter." or players and "\nClick a player's life counter." or "\nClick a glowing card.") end
+    elseif kind == "attack" then hint = title .. "\nClick a creature, then who it attacks. Or All attack / No attacks."
+    elseif kind == "block" then hint = title .. "\nClick your creature, then the attacker it blocks."
+    elseif kind == "mana" then
+      local life = engineLifePayOption(q)
+      hint = title .. (life and ("\nTap lands (Q/E), Auto-pay, or " .. tostring(q.options[life].label) .. (engineAnswerPlace(q) == "panel" and " (in the Engine panel)." or "."))
+        or "\nTap lands (Q/E), or Auto-pay.")
+    elseif describePrompt(q).kind ~= "priority" then hint = title end
+    -- (the bridge's "note" for a question answered on the table: the panel's text isn't seen there; Connive's "a nonland
+    -- card discarded puts a +1/+1 counter" was missing, hp-06 2026-10-28)
+    if hint ~= "" and q.note ~= nil and q.note ~= "" then hint = hint .. "\n" .. engineCut(tostring(q.note), 140) end
+    if describePrompt(q).kind == "priority" or step == "cleanup" then engineStepBanner(color, t) end
+  elseif t ~= nil and t.priority ~= nil and t.priority ~= color and not t.gameOver then
+    hint = "Waiting for " .. engineNameOf(t.priority) .. "..."
+  elseif t ~= nil and t.priority == color and not t.gameOver then
+    hint = "Thinking..." -- you answered; the engine hasn't asked the next thing yet (instant click feedback)
+  end
+  setAttr("eng_hint_" .. color, "active", hint ~= "" and "true" or "false")
+  setText("eng_hint_" .. color, hint ~= "" and hint or " ")
+  -- (the "Waiting for ..." line flashes in rainbow colours once it has waited 5 s: engineWaitFlash)
+  local waitingFor = hint:match("^Waiting for (.-)%.%.%.$")
+  local w = engineWaiting[color]
+  if waitingFor == nil then
+    if w ~= nil then engineWaiting[color] = nil setAttr("eng_hint_" .. color, "color", "#F2F2F2") end
+  elseif w == nil or w.who ~= waitingFor then
+    engineWaiting[color] = { who = waitingFor, since = os.clock() }
+    setAttr("eng_hint_" .. color, "color", "#F2F2F2")
+  end
+  -- turn banner when the turn changes
+  engineBannerSeen = engineBannerSeen or {}
+  if t ~= nil and t.active ~= nil and engineBannerSeen[color] ~= tostring(t.active) .. "|" .. tostring(t.turn) then
+    local first = engineBannerSeen[color] == nil
+    engineBannerSeen[color] = tostring(t.active) .. "|" .. tostring(t.turn)
+    if not first and not engineEffectsOff[color] then
+      setText("eng_banner_" .. color, t.active == color and "YOUR TURN" or (string.upper(engineNameOf(t.active)) .. "'S TURN"))
+      engineBannerAt = engineBannerAt or {}
+      engineBannerAt[color] = os.clock()
+      -- gold for your turn, blue-white for someone else's (as Arena). (Not UI.show / UI.hide: they showed every
+      -- player's banner to everyone, YOUR TURN over BLUE'S TURN, playtest 2026-10-23; "active" keeps it to its player.)
+      setAttr("eng_banner_" .. color, "color", t.active == color and "#FFD27A" or "#D6E4FF")
+      setAttr("eng_banner_" .. color, "outline", t.active == color and "#2a1600E0" or "#0b1a3aE0")
+      setAttr("eng_banner_" .. color, "active", "true")
+      local mark = engineBannerSeen[color]
+      Wait.time(function() if engineBannerSeen[color] == mark then setAttr("eng_banner_" .. color, "active", "false") end end, 1.6)
+    end
+  end
+  local big, small, bigLabel, smallLabel, labelOnly
+  if p ~= nil and p.mode == "browse" then p = enginePrompts[color] end
+  if p ~= nil and p.mode == "single" and p.options and p.options[1] then
+    big, bigLabel = 1, p.options[1].label
+    for i, o in ipairs(p.options) do
+      if i > 1 and (o.id == "__endturn" or o.id == "__resolve" or o.id == "no" or o.id == "mull") then small, smallLabel = i, o.label break end
+      -- (Cancel takes a spell back while paying for it: it was only in the Engine panel, playtest 2026-10-24)
+      if i > 1 and o.id == "__cancel" and small == nil then small, smallLabel = i, "Cancel" end
+    end
+  elseif p ~= nil and p.mode == "multi" then
+    big, bigLabel = "confirm", "Done"
+    -- attacks, as Arena: nothing chosen yet: No attacks / All attack; some chosen: Attack (n) / No attacks. (The
+    -- second button used to be overwritten with "Attack", so No attacks never showed, playtest 2026-10-24.)
+    local all, none
+    for i, o in ipairs(p.options or {}) do
+      if o.id == "__allattack" then all = i end
+      if o.id == "__noattack" then none = i end
+    end
+    if all ~= nil or none ~= nil then
+      local n = 0
+      for k in pairs(engineSelected[color] or {}) do
+        local o = p.options[k]
+        if o ~= nil and tostring(o.id):sub(1, 2) ~= "__" then n = n + 1 end
+      end
+      if n == 0 then
+        if none ~= nil then big, bigLabel = none, "No attacks" else big, bigLabel = "confirm", "No attacks" end
+        if all ~= nil then small, smallLabel = all, "All attack" end
+      else
+        big, bigLabel = "confirm", "Attack (" .. n .. ")"
+        if none ~= nil then small, smallLabel = none, "No attacks" end
+      end
+    end
+    -- an exact number to pick answers by itself at the last click (engineConfirmIfComplete): no Done, which would land
+    -- on the next question (it passed main 1 after a player's life counter answered "choose a player to draw", playtest
+    -- 2026-10-27); the button counts instead and does nothing
+    if all == nil and none == nil and engineExactPick(p) then
+      big, bigLabel, labelOnly = nil, count(engineSelected[color]) .. " of " .. p.max .. " chosen", true
+    end
+    if small == nil and p.cancel then small, smallLabel = "cancel", "Cancel" end
+  end
+  -- a long label ("Keep this order: Mist-Syndicate Naga, Crystal Ball, ...") keeps only the part before the colon
+  if bigLabel and #bigLabel > 22 and bigLabel:find(":") then bigLabel = bigLabel:sub(1, bigLabel:find(":", 1, true) - 1) end
+  if smallLabel and #smallLabel > 30 and smallLabel:find(":") then smallLabel = smallLabel:sub(1, smallLabel:find(":", 1, true) - 1) end
+  if bigLabel and #bigLabel > 22 then bigLabel = engineCut(bigLabel, 21) .. "…" end
+  if smallLabel and #smallLabel > 30 then smallLabel = engineCut(smallLabel, 29) .. "…" end
+  if big == nil and small == nil and p == nil and engineLinger(color, function() engineUpdateCorner(color, nil) end) then return end
+  -- a button whose words just changed under the pointer ignores clicks for 0.6 s (Resolve became Next as the spell
+  -- resolved by itself, and the click meant for Resolve passed the main phase, playtest 2026-10-26). Only a new
+  -- question the player did nothing for counts: their own picks ("Attack (1)") change the words too, and so does the
+  -- payment that follows their own cast (Auto-pay, clicked at once).
+  local was = engineCorner[color] or {}
+  local asked = p and (tostring(p.promptId) .. "|" .. tostring(p.step)) or was.asked
+  local acted = engineActedAt[color] ~= nil and was.shownAt ~= nil and engineActedAt[color] >= was.shownAt
+  local fresh = asked ~= was.asked and not acted
+  engineCorner[color] = { big = big, small = small, bigLabel = bigLabel, smallLabel = smallLabel, asked = asked,
+    shownAt = (asked ~= was.asked) and os.clock() or was.shownAt,
+    bigAt = (fresh and was.bigLabel ~= nil and bigLabel ~= nil and was.bigLabel ~= bigLabel) and os.clock() or was.bigAt,
+    smallAt = (fresh and was.smallLabel ~= nil and smallLabel ~= nil and was.smallLabel ~= smallLabel) and os.clock() or was.smallAt }
+  setButton("eng_big_" .. color, { active = (big ~= nil or labelOnly) and "true" or "false", text = bigLabel or " " })
+  setButton("eng_big2_" .. color, { active = small ~= nil and "true" or "false", text = smallLabel or " " })
+  for _, g in ipairs({ "start", "combat", "end" }) do
+    setButton("eng_stop_" .. g .. "_" .. color, { color = engineStopsOf(color)[g] and "#b8860b" or "#2f3542" })
+  end
+end
+engineStops = {} -- colour -> { start = true, combat = true, end = true }
+-- Start of turn and End of turn are on until a player switches them off (2026-10-24: "we are skipping upkeep priority
+-- and end step priority"); they only stop when you can do something there. Same default in the bridge (DEFAULT_STOPS).
+function engineStopsOf(color)
+  if engineStops[color] == nil then engineStops[color] = { start = true, ["end"] = true } end
+  return engineStops[color]
+end
+
+local function updateOptions(color)
+  local p = engineBrowse[color] and browsePrompt(color) or enginePrompts[color]
+  engineVisible[color] = {}
+  if p == nil then
+    setText("eng_title_" .. color, (lastTable and lastTable.gameOver) and "Game over" or "Waiting for other players...")
+    setText("eng_text_" .. color, " ")
+    setAttr("eng_search_" .. color, "active", "false")
+    setAttr("eng_confirm_" .. color, "active", "false")
+    setAttr("eng_cancel_" .. color, "active", "false")
+    for k = 1, POOL do setAttr("eng_opt_" .. color .. "_" .. k, "active", "false") end
+    engineUpdateCorner(color, nil)
+    if engineRowUpdate ~= nil then pcall(engineRowUpdate, color) end
+    return
+  end
+  setText("eng_title_" .. color, p.title)
+  setText("eng_text_" .. color, (p.text ~= nil and p.text ~= "") and p.text or " ")
+  local all = optionList(p, string.lower(engineFilter[color] or ""))
+  setAttr("eng_search_" .. color, "active", (#all > 8 or p.mode == "browse") and "true" or "false")
+  local filter = string.lower(engineFilter[color] or "")
+  local sel = engineSelected[color] or {}
+  local shown = {}
+  for _, o in ipairs(all) do
+    if filter == "" or string.find(string.lower(o.label), filter, 1, true) then shown[#shown + 1] = o end
+  end
+  -- a longer list than the buttons: pages of POOL - 1, the last button turns the page (kept for the same question
+  -- and search; anything else starts at page one)
+  local per, first = POOL, 1
+  if #shown > POOL then
+    per = POOL - 1
+    local key = table.concat({ tostring(p.promptId), tostring(p.title), #all, filter, tostring(p.mode) }, "|")
+    local pg = enginePage[color]
+    if pg == nil or pg.key ~= key then pg = { key = key, n = 0 } enginePage[color] = pg end
+    pg.n = pg.n % math.ceil(#shown / per)
+    first = pg.n * per + 1
+  end
+  local last = math.min(#shown, first + per - 1)
+  local k = 0
+  for i = first, last do
+    local o = shown[i]
+    k = k + 1
+    engineVisible[color][k] = o.index
+    local picked = p.mode == "multi" and sel[o.index]
+    setButton("eng_opt_" .. color .. "_" .. k, { text = (p.mode == "multi" and (picked and "[x] " or "[  ] ") or "") .. o.label,
+      color = optionColor(p, o.index, picked), active = "true" })
+  end
+  for j = k + 1, per do setAttr("eng_opt_" .. color .. "_" .. j, "active", "false") end
+  if per < POOL then
+    engineVisible[color][POOL] = "more"
+    setButton("eng_opt_" .. color .. "_" .. POOL, { text = string.format("More... (%d-%d of %d)", first, last, #shown),
+      color = "#3a3f4b", active = "true" })
+  end
+  engineUpdateCorner(color, p)
+  if p.mode == "multi" then
+    local n = count(sel)
+    local ok = n >= (p.min or 0) and n <= (p.max or 99)
+    local need = (p.min == p.max) and tostring(p.min) or (tostring(p.min) .. "-" .. tostring(p.max))
+    setText("eng_confirm_" .. color, p.min == p.max and string.format("Done (%d of %s)", n, need) or string.format("Done (%d chosen)", n))
+    setAttr("eng_confirm_" .. color, "interactable", ok and "true" or "false")
+    setAttr("eng_confirm_" .. color, "active", "true")
+  else
+    setAttr("eng_confirm_" .. color, "active", "false")
+  end
+  setAttr("eng_cancel_" .. color, "active", p.cancel and "true" or "false")
+  if engineRowUpdate ~= nil then
+    local ok, err = pcall(engineRowUpdate, color)
+    if not ok then print("[MTG] card row: " .. tostring(err)) end
+  end
+end
+
+-- the panel's per-player question state, cleared when a game ends (engineClear)
+function engineResetUi()
+  -- the rewind button, its list and an open vote belong to the game that ended
+  if engineRewindUpdate ~= nil then engineRewindUpdate(nil, true) end
+  if engineDrawLines ~= nil then pcall(engineDrawLines, nil, nil) end -- and the target/attack/block lines
+  if engineCombatLunge ~= nil then pcall(engineCombatLunge, nil) end -- and the remembered attackers
+  -- a new game checks decks again (the bridge forgets them on reset too): every Ready button goes back to yellow
+  if engineReadyState ~= nil then for k in pairs(engineReadyState) do engineReadyState[k] = nil end end
+  for k in pairs(engineSelected) do engineSelected[k] = nil end
+  for k in pairs(engineFilter) do engineFilter[k] = nil end
+  for k in pairs(engineBrowse) do engineBrowse[k] = nil end
+  for k in pairs(enginePage) do enginePage[k] = nil end
+end
+
+engineLogHidden = {} -- colour -> true when the player closed the game log
+AUTO_PACE_DELAY = 2
+
+-- "Your mana pool: GG B" for the player's own floating mana.
+local POOL_ORDER = { "W", "U", "B", "R", "G", "C" }
+local function poolText(color)
+  for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+    if pl.color == color and pl.pool ~= nil then
+      local parts = {}
+      for _, k in ipairs(POOL_ORDER) do
+        local n = tonumber(pl.pool[k] or 0) or 0
+        if n > 0 then parts[#parts + 1] = string.rep(k, n) end
+      end
+      if #parts > 0 then return "\nYour mana pool: " .. table.concat(parts, " ") end
+    end
+  end
+  return ""
+end
+
+-- "Waiting for you: draw 1 ..." while moves are held for the player.
+local function pendingText(color)
+  local d, mi, u = enginePendingCount(color)
+  local parts = {}
+  if d > 0 then parts[#parts + 1] = "draw " .. d .. " (click your library or press Draw)" end
+  if mi > 0 then parts[#parts + 1] = "mill " .. mi .. " (drag one of the face-up cards or press Mill)" end
+  if u > 0 then parts[#parts + 1] = "untap (press Untap)" end
+  if #parts == 0 then return "" end
+  return "\nWaiting for you: " .. table.concat(parts, ", ")
+end
+
+local function updatePanel(color)
+  setAttr("eng_toggle_" .. color, "active", lastTable ~= nil and "true" or "false")
+  setText("eng_toggle_" .. color, engineShown[color] and "Engine: hide" or "Engine: show")
+  setAttr("eng_browse_" .. color, "active", lastTable ~= nil and "true" or "false")
+  setText("eng_browse_" .. color, engineBrowse[color] and "Back to choices" or "Graveyards / exile")
+  setAttr("eng_panel_" .. color, "active", (lastTable ~= nil and engineShown[color] ~= nil) and "true" or "false")
+  setAttr("eng_logbtn_" .. color, "active", lastTable ~= nil and "true" or "false")
+  setAttr("eng_log_" .. color, "active", (lastTable ~= nil and not engineLogHidden[color]) and "true" or "false")
+  setAttr("eng_pace_" .. color, "active", lastTable ~= nil and "true" or "false")
+  setText("eng_pace_" .. color, engineAutoOn(color) and ("Auto: on (" .. AUTO_PACE_DELAY .. " s)") or "Auto: off")
+  setAttr("eng_set_" .. color, "active", lastTable ~= nil and "true" or "false")
+  setAttr("eng_setpanel_" .. color, "active", (lastTable ~= nil and engineSettingsOpen[color]) and "true" or "false")
+  setText("eng_fx_" .. color, engineEffectsOff[color] and "My effects: off" or "My effects: on")
+  setText("eng_snd_" .. color, engineSoundOff[color] and "My sounds: off" or "My sounds: on")
+  -- (the host's switch: what moves on the table is the same for everyone; others see it and can't press it)
+  local host = Player[color] ~= nil and Player[color].host
+  setText("eng_anim_" .. color, "Table animations: " .. (engineAnimOff and "off" or "on") .. (host and "" or " (host)"))
+  setAttr("eng_anim_" .. color, "interactable", host and "true" or "false")
+  setText("eng_status_" .. color, statusText() .. poolText(color) .. pendingText(color))
+end
+
+-- The screen UI as small as it can be (2026-10-23): TTS sends the whole XML to every player, and with two players
+-- seated it had grown past 64 KB, when the second player's buttons stopped working (a size limit is the likely cause,
+-- not proven). Each element's look (every attribute but its id, events, visibility and class) becomes a class in the
+-- <Defaults> block whenever two elements share it, so every seat's copy of a panel shares one set of classes and a seat
+-- costs little more than its ids (four seats came to ~90 KB with the hand-picked classes this replaced). Events stay on
+-- the element: TTS honours "active" and the layout attributes from <Defaults> (checked in TTS, 2026-10-23), onClick
+-- there was not checked. An element that already has a class is left as written.
+-- Returns the compacted XML and the class entries it needs (they go into the document's one <Defaults> block).
+function engineXmlCompact(xml)
+  local tags, uses, pos = {}, {}, 1
+  while true do
+    local i, j, name = xml:find("<(%a%w*)", pos)
+    if i == nil then break end
+    local keep, rest, has, k = {}, {}, false, j + 1
+    while true do
+      local _, e, key, val = xml:find('^%s+([%w_]+)="([^"]*)"', k)
+      if e == nil then break end
+      local pair = " " .. key .. '="' .. val .. '"'
+      if key == "id" or key == "visibility" or key:find("^on%u") then keep[#keep + 1] = pair
+      else
+        if key == "class" then has = true end
+        rest[#rest + 1] = pair
+      end
+      k = e + 1
+    end
+    local _, e, close = xml:find("^%s*(/?)>", k)
+    if e == nil then pos = j + 1
+    else
+      local look = (not has and #rest > 0) and (name .. table.concat(rest)) or nil
+      tags[#tags + 1] = { i = i, e = e, name = name, keep = table.concat(keep), rest = table.concat(rest), close = close, look = look }
+      if look ~= nil then uses[look] = (uses[look] or 0) + 1 end
+      pos = e + 1
+    end
+  end
+  local out, defaults, class, last = {}, {}, {}, 1
+  for _, t in ipairs(tags) do
+    out[#out + 1] = xml:sub(last, t.i - 1)
+    if t.look ~= nil and uses[t.look] > 1 then
+      if class[t.look] == nil then
+        class[t.look] = "m" .. (#defaults + 1)
+        defaults[#defaults + 1] = "<" .. t.name .. ' class="' .. class[t.look] .. '"' .. t.rest .. "/>"
+      end
+      out[#out + 1] = "<" .. t.name .. t.keep .. ' class="' .. class[t.look] .. '"' .. t.close .. ">"
+    else
+      out[#out + 1] = "<" .. t.name .. t.keep .. t.rest .. t.close .. ">"
+    end
+    last = t.e + 1
+  end
+  out[#out + 1] = xml:sub(last)
+  return table.concat(out), table.concat(defaults)
+end
+-- the classes into the table's own <Defaults> block (one per document), or a block of their own
+function engineXmlJoin(base, ours, defaults)
+  if defaults == "" then return base .. "\n" .. ours end
+  local i, j = base:find("<Defaults>", 1, true)
+  if i ~= nil then return base:sub(1, j) .. defaults .. base:sub(j + 1) .. "\n" .. ours end
+  return "<Defaults>" .. defaults .. "</Defaults>\n" .. base .. "\n" .. ours
+end
+function engineXmlMinify(xml) return (xml:gsub("\r?\n%s*", " "):gsub(">%s+<", "><")) end
+
+-- Builds the panels once (and again only when the seated colours change); otherwise just updates them.
+-- promptColor: refresh that colour's options too ("none" = status lines only, nil = everyone's options).
+function engineRenderPanels(promptColor)
+  local seated = {}
+  for _, c in ipairs(getSeatedPlayers()) do if data[c] then seated[#seated + 1] = c end end
+  local key = table.concat(seated, ",")
+  if key ~= builtFor then
+    builtFor, panelReady, uiCache = key, false, {}
+    if engineAbPanelFor ~= nil then engineAbPanelFor = {} end -- (rebuilt hidden: pointing at the card shows it again)
+    if baseXml == nil then baseXml = engineXmlMinify(UI.getXml() or "") end
+    local parts = {}
+    for _, c in ipairs(seated) do parts[#parts + 1] = panelXml(c) parts[#parts + 1] = cornerXml(c) end
+    parts[#parts + 1] = POPUP_XML
+    local ours, defaults = engineXmlCompact(table.concat(parts, "\n"))
+    local xml = engineXmlJoin(baseXml, ours, defaults)
+    engineXmlSize = #xml
+    if engineXmlSize > 60000 then
+      print("[MTG] The screen UI is " .. math.floor(engineXmlSize / 1024) .. " KB with " .. #seated .. " players: other players' buttons may not work (it reached them below 60 KB).")
+    end
+    UI.setXml(xml)
+    engineImgWant = {} -- (the new panel shows no pictures yet)
+    Wait.frames(function()
+      panelReady = true
+      for _, c in ipairs(seated) do updatePanel(c) updateOptions(c) end
+      if engineRewindRedraw ~= nil then engineRewindRedraw() end -- the new XML starts with the rewind UI hidden
+      if engineFixRedraw ~= nil then engineFixRedraw() end -- and the manual-fix UI
+      if engineScoopRedraw ~= nil then engineScoopRedraw() end -- and with Scoop hidden
+    end, 3)
+    return
+  end
+  if not panelReady then return end
+  for _, c in ipairs(seated) do
+    updatePanel(c)
+    if promptColor == nil or promptColor == c then updateOptions(c)
+    -- a board update without a new question: the phase bar, hint line and turn banner still follow the board
+    -- (before, the bar showed DRAW while the game was in main 1, until the next question arrived)
+    else engineUpdateCorner(c, enginePrompts[c]) end
+  end
+end
+
+function panelReadyForPopup() return panelReady end
+
+-- After an answer the question's buttons stay up for half a second before they go (engineLinger): the next question
+-- often follows at once with the same buttons (Sylvan Library's "pay 4 life? (2 of 2)" 0.1 s after "(1 of 2)"), and
+-- buttons switched off and on again under a mouse that didn't move ignored the next click (playtest 2026-10-23: the
+-- second "Pay 4 life" did nothing, so the player pressed No). Clicks in that half second do nothing.
+engineAnsweredAt = {}
+engineActedAt = {} -- colour -> os.clock() of the player's last answer or drag sent to the engine (the big button's guard)
+function engineLinger(color, redo)
+  local at = engineAnsweredAt[color]
+  if enginePrompts[color] ~= nil or at == nil or os.clock() - at > 0.5 then return false end
+  Wait.time(function()
+    engineAnsweredAt[color] = nil
+    if enginePrompts[color] == nil then redo() end
+  end, 0.55)
+  return true
+end
+local function engineAnswer(color, choice)
+  local p = enginePrompts[color]
+  if p == nil then return end
+  engineAnsweredAt[color] = os.clock()
+  engineActedAt[color] = os.clock()
+  engineSend("answer", { color = color, promptId = p.promptId, choice = choice })
+  enginePrompts[color] = nil
+  if engineExitPrompt ~= nil then engineExitPrompt(color) end
+  if panelReady then setText("eng_search_" .. color, "") updateOptions(color) end
+end
+
+-- Picking option number i of the open prompt (number prompts: the number itself).
+-- Instant feedback: what a panel click will most likely do is shown at once (the engine answers 0.1-0.9 s later
+-- and its board then puts everything exactly where it belongs, or back if the move was refused).
+local function optimistic(color, o)
+  if o == nil or o.cardId == nil then return end
+  local obj = engineObjs and engineObjs[o.cardId]
+  local g = seatGeometry(color)
+  if obj == nil or obj.isDestroyed() or g == nil then return end
+  local label = tostring(o.label or "")
+  local spot
+  if label:find("^Play ") then spot = gridPos(g, 0, ROWS.land) + Vector(0, 0.5, 0)
+  elseif label:find("^Cast ") then spot = g.mat + Vector(0, 2.5, 0)
+  elseif label:find("^Mana: tap ") then
+    local r = obj.getRotation()
+    obj.setRotationSmooth(Vector(r.x, r.y + 90, r.z), false, true)
+    return
+  else return end
+  engineHeld[o.cardId] = os.clock()
+  obj.setLock(false)
+  obj.setPosition(spot)
+end
+
+local function pick(color, i)
+  if engineBrowse[color] then
+    local e = (browseCards[color] or {})[i]
+    if e ~= nil then
+      local c = e.card
+      local pt = (c.p ~= nil and c.t ~= nil) and ("  " .. tostring(c.p) .. "/" .. tostring(c.t)) or ""
+      broadcastToColor(c.n .. "  -  " .. tostring(c.tl or "") .. pt .. "\n" .. tostring(c.tx or ""), color, {0.85, 0.9, 1})
+    end
+    return
+  end
+  local p = enginePrompts[color]
+  if p == nil or i == nil then return end
+  if p.mode == "number" then return engineAnswer(color, { i }) end
+  if p.mode == "multi" and p.options[i] ~= nil and tostring(p.options[i].id):sub(1, 2) == "__" then
+    return engineAnswer(color, { p.options[i].id }) -- a quick button: answers by itself
+  end
+  if p.mode == "single" then
+    if p.options[i] == nil then return end
+    pcall(optimistic, color, p.options[i])
+    return engineAnswer(color, { p.options[i].id })
+  end
+  engineSelected[color] = engineSelected[color] or {}
+  if not engineSelected[color][i] and describePrompt(p).kind == "block" then
+    -- a creature blocks one attacker: picking it for this one drops its other pick
+    local blocker = tostring((p.options[i] or {}).id):match("^(.-)|")
+    for j, o in ipairs(p.options or {}) do
+      if j ~= i and engineSelected[color][j] and tostring(o.id):match("^(.-)|") == blocker then engineSelected[color][j] = nil end
+    end
+  end
+  if engineSelected[color][i] then engineSelected[color][i] = nil
+  elseif count(engineSelected[color]) < (p.max or 99) then engineSelected[color][i] = true end
+  if panelReady then updateOptions(color) end
+  -- the table shows the same picks (red glows): a pick from the panel, corner or card row redraws them too
+  if enginePhase2Prompt ~= nil then pcall(enginePhase2Prompt, color) end
+end
+
+function engineSelectedFor(color, i) return engineSelected[color] ~= nil and engineSelected[color][i] == true end
+-- (what is selected, every key and value as text: for checks and debugging)
+function engineSelectedKeys(color)
+  local out = {}
+  for k, v in pairs(engineSelected[color] or {}) do out[#out + 1] = tostring(k) .. ":" .. type(k) .. "=" .. tostring(v) end
+  return table.concat(out, ",")
+end
+
+local function confirm(color)
+  local p = enginePrompts[color]
+  if p == nil then return end
+  if p.scry ~= nil and engineScryFinish ~= nil then return engineScryFinish(color) end
+  local ids = {}
+  for i, o in ipairs(p.options or {}) do if engineSelected[color] and engineSelected[color][i] then ids[#ids + 1] = o.id end end
+  -- too few or too many would make the engine abort the game (the bridge checks this too)
+  if #ids < (p.min or 0) or #ids > (p.max or 99) then return end
+  engineAnswer(color, ids)
+end
+
+enginePick = pick
+-- a card chosen by dragging it (a discard of 2, cards to the bottom): shown chosen like a click would
+function enginePickById(color, id)
+  local p = enginePrompts[color]
+  for i, o in ipairs((p and p.options) or {}) do
+    if tostring(o.id) == tostring(id) and not engineSelectedFor(color, i) then
+      pick(color, i)
+      if engineConfirmIfComplete ~= nil then engineConfirmIfComplete(color) end -- (a drag or a pile pick: the same rule)
+      if enginePhase2Prompt ~= nil then enginePhase2Prompt(color) end
+      return
+    end
+  end
+end
+engineConfirm = confirm
+
+-- ───────── card row (Arena-style order / scry / pick) ─────────
+engineRowMap = {} -- colour -> { tiles = { k -> option index }, btns = { k -> option index or "confirm" } }
+local function shortLabel(l)
+  l = tostring(l or "")
+  if #l > 24 and l:find(":") then l = l:sub(1, l:find(":", 1, true) - 1) end
+  return l
+end
+-- Questions answered with buttons in the row (no card to click on the table): a mode, a colour, which mana, a
+-- yes/no about a card, a number, a reveal, how to split damage. The card asking (p.show) is pictured above them.
+local ROW_BUTTON_KINDS = { modal = true, color = true, choice = true, damage = true, yesno = true, number = true, reveal = true, place = true }
+local COLOR_BTN = { w = "#d8cfa8", u = "#2f6fb5", b = "#444444", r = "#c0392b", g = "#2e8b57", c = "#8e8e8e" }
+engineNumber = {}    -- colour -> { prompt = the number question, value = what the row's picker shows }
+function engineRowUpdate(color)
+  local p = enginePrompts[color]
+  local tiles, others = {}, {}
+  local usable = p ~= nil and not engineBrowse[color] and p.scry == nil and (enginePromptKind == nil or enginePromptKind(p) ~= "cards")
+  local numberMode = usable and p.mode == "number"
+  if usable and (p.mode == "single" or p.mode == "multi") then
+    for i, o in ipairs(p.options or {}) do
+      if o.img ~= nil then tiles[#tiles + 1] = { opt = i, n = o.label, img = o.img } else others[#others + 1] = i end
+    end
+  end
+  -- a cost that can be paid with life (Phyrexian {W/P}): Auto-pay, Pay N life and Cancel as buttons in the row, the
+  -- lands still tapped on the table ("Pay 2 life" was only in the Engine panel, hp-07 #30 re-test 2026-10-27)
+  local lifePay = usable and describePrompt(p).kind == "mana" and engineLifePayOption(p) ~= nil
+  if lifePay then
+    local keep = {}
+    for _, i in ipairs(others) do
+      local id = tostring(p.options[i].id)
+      if not id:find("^tap:") and not id:find("^untap:") then keep[#keep + 1] = i end
+    end
+    others = keep
+  end
+  local buttonMode = numberMode or (usable and #tiles == 0 and (ROW_BUTTON_KINDS[describePrompt(p).kind] or lifePay)
+    and #others > 0 and #others <= (p.mode == "multi" and ROW_BTNS - 1 or ROW_BTNS))
+  if usable and #tiles == 0 then
+    for _, c in ipairs(p.show or {}) do tiles[#tiles + 1] = { n = c.n, img = c.img } end
+  end
+  local on = (#tiles > 0 and #tiles <= ROW_MAX and #others <= ROW_BTNS - 1) or buttonMode
+  engineRowMap[color] = { tiles = {}, btns = {} }
+  if not on and p == nil and engineLinger(color, function() engineRowUpdate(color) end) then return end
+  setAttr("eng_row_" .. color, "active", on and "true" or "false")
+  if not on then return end
+  local map = engineRowMap[color]
+  setAttr("eng_row_" .. color, "height", #tiles > 0 and "470" or "170")
+  -- the short one (buttons only: "how do you play it?") in the upper half: in the middle it covered your own mat and
+  -- the card you had just dropped, whose pop-up text then hid its buttons (hp-07 2026-10-27). setAttr sends only a
+  -- change, so a panel the player dragged stays where they put it until the size changes.
+  setAttr("eng_row_" .. color, "offsetXY", #tiles > 0 and "0 60" or "0 230")
+  setText("eng_rowtitle_" .. color, tostring(p.title or ""))
+  local sub = tostring(p.text or ""):gsub("\n", "   ")
+  if numberMode then
+    local st = engineNumber[color]
+    if st == nil or st.prompt ~= p then st = { prompt = p, value = p.min or 0 } engineNumber[color] = st end
+    sub = "Number: " .. tostring(st.value) .. "   (" .. tostring(p.min or 0) .. " to " .. tostring(p.max) .. ")   " .. sub
+  -- (an exact number answers at the last click, onMtgRow: the line said "then Done" for Kenrith's one target, hp-07 re-test)
+  elseif p.mode == "multi" and #tiles > 0 and tiles[1].opt ~= nil then
+    sub = (engineExactPick(p) and ("Click " .. (p.max == 1 and "the card" or (p.max .. " cards")) .. " you want: the last click answers.   ")
+      or "Click the cards you want, then Done.   ") .. sub
+  elseif p.mode == "multi" and engineExactPick(p) then sub = "Pick one: the click answers.   " .. sub
+  elseif p.mode == "multi" then sub = "Pick, then Done.   " .. sub
+  elseif tiles[1] ~= nil and tiles[1].opt ~= nil then sub = "Click a card.   " .. sub end
+  setText("eng_rowsub_" .. color, engineCut(sub, 220))
+  local sel = engineSelected[color] or {}
+  for k = 1, ROW_MAX do
+    local t, s = tiles[k], color .. "_" .. k
+    setAttr("eng_rowslot_" .. s, "active", t ~= nil and "true" or "false")
+    if t ~= nil then
+      map.tiles[k] = t.opt
+      engineSetImage("eng_rowimg_" .. s, engineUiImage(t.img))
+      setText("eng_rowname_" .. s, engineCut(t.n, 70))
+      setAttr("eng_rowslot_" .. s, "color", (t.opt ~= nil and sel[t.opt]) and "#E53935" or "#FFFFFF14")
+    end
+  end
+  local b = {}
+  if numberMode then
+    local v = engineNumber[color].value
+    b = { { id = "num:-1", text = "-", ok = v > (p.min or 0) }, { id = "num:+1", text = "+", ok = v < (p.max or v) },
+      { id = "num:min", text = "Min" }, { id = "num:max", text = "Max" }, { id = "num:ok", text = "OK: " .. tostring(v), primary = true } }
+  end
+  for _, i in ipairs(others) do
+    local o = p.options[i]
+    -- a colour choice: each button in its colour
+    local tint = describePrompt(p).kind == "color" and COLOR_BTN[tostring(o.id):sub(1, 1):lower()] or nil
+    b[#b + 1] = { id = i, text = shortLabel(o.label), tint = tint, picked = p.mode == "multi" and sel[i] }
+  end
+  if p.mode == "multi" and not engineExactPick(p) then
+    local n = count(sel)
+    b[#b + 1] = { id = "confirm", text = "Done (" .. n .. ")", primary = true, ok = n >= (p.min or 0) and n <= (p.max or 99) }
+  end
+  -- wide enough for its pictures and its buttons (220 each, 12 apart)
+  setAttr("eng_row_" .. color, "width", tostring(math.max(720, #tiles * 192 + 60, math.min(#b, ROW_BTNS) * 232 + 48)))
+  for k = 1, ROW_BTNS do
+    local e = b[k]
+    map.btns[k] = e and e.id
+    setButton("eng_rowopt_" .. color .. "_" .. k, { active = e ~= nil and "true" or "false", text = e and e.text or " ",
+      color = (e ~= nil and e.picked) and "#E53935" or (e ~= nil and e.tint) or ((e ~= nil and (e.primary or (p.mode == "single" and k == 1))) and "#e8711a" or "#2e3a59"),
+      interactable = (e == nil or e.ok ~= false) and "true" or "false" })
+  end
+end
+function onMtgRow(player, value, id)
+  local color, k = id:match("^eng_rowbtn_(%a+)_(%d+)$")
+  if color == nil or player.color ~= color then return end
+  local i = (engineRowMap[color] and engineRowMap[color].tiles or {})[tonumber(k)]
+  if i == nil then return end
+  pick(color, i)
+  -- (an exact number: the last pick answers here too, as on the table: Dauthi's "choose a card" in the row waited for
+  -- Done while the corner said "1 of 1 chosen", hp-07 #33 re-test 2026-10-27)
+  engineConfirmIfComplete(color)
+end
+function onMtgRowOpt(player, value, id)
+  local color, k = id:match("^eng_rowopt_(%a+)_(%d+)$")
+  if color == nil or player.color ~= color then return end
+  local v = (engineRowMap[color] and engineRowMap[color].btns or {})[tonumber(k)]
+  local p, st = enginePrompts[color], engineNumber[color]
+  if type(v) == "string" and v:sub(1, 4) == "num:" and p ~= nil and st ~= nil and st.prompt == p then
+    -- the number picker: change the value, or answer with it
+    local lo, hi = p.min or 0, p.max or st.value
+    if v == "num:ok" then pick(color, st.value) return end
+    if v == "num:-1" then st.value = math.max(lo, st.value - 1) elseif v == "num:+1" then st.value = math.min(hi, st.value + 1)
+    elseif v == "num:min" then st.value = lo elseif v == "num:max" then st.value = hi end
+    engineRowUpdate(color)
+    return
+  end
+  -- (a button of an exact pick answers at the last click too, as the row's pictures and the table's cards: Power
+  -- Depot's "which applies first?" waited for Done while the corner said "0 of 1 chosen", hp-12 #7 2026-10-27)
+  if v == "confirm" then confirm(color) elseif v ~= nil then pick(color, v) engineConfirmIfComplete(color) end
+end
+
+-- Confirms a multi prompt once exactly the required number is chosen (table clicks feel instant).
+function engineConfirmIfComplete(color)
+  local p = enginePrompts[color]
+  if not engineExactPick(p) or p.mode ~= "multi" then return end
+  if count(engineSelected[color]) == p.max then confirm(color) end
+end
+
+local function idColor(id) return id:match("^eng_%a+_(%a+)") end
+
+function onMtgSlot(player, value, id)
+  local color, slot = id:match("^eng_opt_(%a+)_(%d+)$")
+  if color == nil or player.color ~= color then return end
+  local v = (engineVisible[color] or {})[tonumber(slot)]
+  if v == "more" then
+    enginePage[color].n = enginePage[color].n + 1
+    updateOptions(color)
+    return
+  end
+  pick(color, v)
+end
+enginePage = {} -- colour -> { key, n }: the page of a long answer list (see updateOptions)
+function onMtgConfirm(player, value, id) if player.color == idColor(id) then confirm(player.color) end end
+function onMtgCancel(player, value, id) if player.color == idColor(id) then engineAnswer(player.color, { "__cancel" }) end end
+function onMtgToggle(player, value, id)
+  if player.color ~= idColor(id) then return end
+  engineShown[player.color] = not engineShown[player.color] and "pin" or nil
+  updatePanel(player.color)
+end
+-- ───────── game log (phase 3) ─────────
+engineLog = {}
+function engineRenderLog()
+  if not panelReady then return end
+  local from = math.max(1, #engineLog - 15)
+  local lines = {}
+  for i = from, #engineLog do lines[#lines + 1] = engineLog[i] end
+  local text = #lines > 0 and table.concat(lines, "\n") or "Nothing has happened yet."
+  for _, c in ipairs(getSeatedPlayers()) do if data[c] then setText("eng_logtext_" .. c, text) end end
+end
+function engineOnLog(m)
+  if m.reset then engineLog = {} end
+  for _, l in ipairs(m.lines or {}) do engineLog[#engineLog + 1] = l end
+  while #engineLog > 200 do table.remove(engineLog, 1) end
+  engineRenderLog()
+end
+function onMtgLog(player, value, id)
+  if player.color ~= idColor(id) then return end
+  engineLogHidden[player.color] = not engineLogHidden[player.color] or nil
+  updatePanel(player.color)
+end
+
+local function cornerPress(color, which)
+  local c = engineCorner[color]
+  local v = c and c[which]
+  if v == nil then return end
+  local changed = c[which .. "At"]
+  if changed ~= nil and os.clock() - changed < 0.6 then return end
+  if v == "confirm" then confirm(color) elseif v == "cancel" then engineAnswer(color, { "__cancel" }) else pick(color, v) end
+end
+function engineCornerPress(color, which) cornerPress(color, which) end
+function onMtgBig(player, value, id) if id == "eng_big_" .. player.color then cornerPress(player.color, "big") end end
+
+-- ───────── rewind by vote (M4.5): the bridge sends `rewind` = { points = {{id,label}}, vote = {...} } with the board ─────────
+engineRewind = nil
+local undoOpen = {}   -- colour -> list shown
+local rewindSig = nil
+local function undoList(color)
+  local pts = (engineRewind and engineRewind.points) or {}
+  for k = 1, UNDO_MAX do
+    local pt = pts[k]
+    setAttr("eng_undopt_" .. color .. "_" .. k, "active", (undoOpen[color] and pt ~= nil) and "true" or "false")
+    if pt ~= nil then setText("eng_undopt_" .. color .. "_" .. k, pt.label) end
+  end
+  setAttr("eng_undolist_" .. color, "active", undoOpen[color] and "true" or "false")
+end
+function engineRewindUpdate(r, gameOver)
+  engineRewind = r
+  -- (a plain string, not JSON.encode: cheap, and nothing here can trip TTS's encoder)
+  local parts = { tostring(gameOver) }
+  for _, pt in ipairs((r and r.points) or {}) do parts[#parts + 1] = tostring(pt.id) .. "=" .. tostring(pt.label) end
+  local v0 = r and r.vote
+  if v0 ~= nil then parts[#parts + 1] = table.concat({ tostring(v0.id), tostring(v0.status), tostring(v0.by), tostring(v0.to), table.concat(v0.waiting or {}, ","), tostring(v0.note) }, "|") end
+  local sig = table.concat(parts, ";")
+  if sig == rewindSig then return end
+  rewindSig = sig
+  local v = r and r.vote
+  for c in pairs(engineColors) do
+    if Player[c] ~= nil and Player[c].seated then
+      if engineAutoResolveDraw ~= nil then engineAutoResolveDraw(c) end
+      local has = r ~= nil and r.points ~= nil and #r.points > 0 and not gameOver
+      setAttr("eng_undo_" .. c, "active", has and "true" or "false")
+      if not has then undoOpen[c] = nil end
+      undoList(c)
+      local pending = v ~= nil and v.status == "pending"
+      local mine = false
+      for _, w in ipairs((v and v.waiting) or {}) do if w == c then mine = true end end
+      setAttr("eng_vote_" .. c, "active", pending and "true" or "false")
+      if pending then
+        -- (everyone has voted and the engine waits for a priority question: v.note says who it waits for)
+        setText("eng_votetext_" .. c, tostring(v.by or "A player") .. " asks to rewind to " .. tostring(v.to) .. "."
+          .. (v.note ~= nil and ("\n" .. tostring(v.note)) or mine and "" or ("\nWaiting for " .. table.concat(v.waiting or {}, ", ") .. "...")))
+      end
+      setAttr("eng_voteyes_" .. c, "active", (pending and mine) and "true" or "false")
+      setAttr("eng_voteno_" .. c, "active", (pending and mine) and "true" or "false")
+    end
+  end
+end
+-- the panels were rebuilt (someone sat down): draw the rewind UI again from the last board's state
+function engineRewindRedraw()
+  rewindSig = nil
+  engineRewindUpdate(engineRewind, lastTable ~= nil and lastTable.gameOver)
+end
+-- Auto-resolve (2026-10-23): your own toggle, beside Undo; the bridge passes for you on other players' turns
+engineAutoResolve = {}
+function engineAutoResolveDraw(c)
+  setAttr("eng_autores_" .. c, "active", (lastTable ~= nil and not lastTable.gameOver) and "true" or "false")
+  setText("eng_autores_" .. c, engineAutoResolve[c] and "Auto-resolve: on" or "Auto-resolve: off")
+  setAttr("eng_autores_" .. c, "color", engineAutoResolve[c] and "#2e7d32" or "#3a3f4b")
+end
+function engineSetAutoResolve(c, on)
+  engineAutoResolve[c] = on or nil
+  engineSend("autoresolve", { color = c, on = on and true or false })
+  engineAutoResolveDraw(c)
+end
+function onMtgAutoResolve(player, value, id)
+  local c = player.color
+  if id ~= "eng_autores_" .. c then return end
+  engineSetAutoResolve(c, not engineAutoResolve[c])
+  -- (engineTell, not tell: tell is a local defined further down, nil here; calling it raised an error)
+  engineTell(c, engineAutoResolve[c] and "Auto-resolve on: on other players' turns you pass by itself. Your own turn asks as usual." or "Auto-resolve off.")
+end
+function onMtgUndo(player, value, id)
+  local c = player.color
+  if id ~= "eng_undo_" .. c and id ~= "eng_undoclose_" .. c then return end
+  undoOpen[c] = (id == "eng_undo_" .. c) and not undoOpen[c] or nil
+  undoList(c)
+end
+function engineAskRewind(color, k)
+  local pt = engineRewind and engineRewind.points and engineRewind.points[k]
+  if pt == nil then return false end
+  engineSend("rewind", { color = color, checkpointId = pt.id })
+  return true
+end
+function onMtgUndoPick(player, value, id)
+  local c = player.color
+  local k = tonumber(tostring(id):match("^eng_undopt_" .. c .. "_(%d+)$") or "")
+  if k == nil then return end
+  undoOpen[c] = nil
+  undoList(c)
+  engineAskRewind(c, k)
+end
+function onMtgVote(player, value, id)
+  local c = player.color
+  if id == "eng_voteyes_" .. c then engineSend("rewindVote", { color = c, accept = true })
+  elseif id == "eng_voteno_" .. c then engineSend("rewindVote", { color = c, accept = false }) end
+end
+function onMtgBig2(player, value, id) if id == "eng_big2_" .. player.color then cornerPress(player.color, "small") end end
+
+function onMtgStop(player, value, id)
+  local g, color = id:match("^eng_stop_(%a+)_(%a+)$")
+  if color ~= player.color then return end
+  if g == "hold" then engineSend("hold", { color = color, on = true }) return end
+  local stops = engineStopsOf(color)
+  stops[g] = not stops[g] or nil
+  local list = {}
+  for k in pairs(engineStops[color]) do list[#list + 1] = k end
+  engineSend("stops", { color = color, stops = list })
+  engineUpdateCorner(color, enginePrompts[color])
+end
+
+-- Settings (2026-10-22): one button opening My effects / My sounds / Table animations.
+engineSettingsOpen = {} -- colour -> true while that player's settings panel is open
+engineSoundOff = {}     -- colour -> true: no sounds for that player (sounds come with the M5 effect bundle)
+function onMtgSettings(player, value, id)
+  if player.color ~= idColor(id) then return end
+  engineSettingsOpen[player.color] = not engineSettingsOpen[player.color] or nil
+  updatePanel(player.color)
+end
+function onMtgSnd(player, value, id)
+  if player.color ~= idColor(id) then return end
+  engineSoundOff[player.color] = not engineSoundOff[player.color] or nil
+  updatePanel(player.color)
+end
+-- Effects (each player, 2026-10-22): that player's own screen effects: the VICTORY / DEFEAT / "IS OUT" banners, the
+-- turn banner and the stack pop-up. Players who want the plain TTS table turn them off; others keep the Arena look.
+function onMtgFx(player, value, id)
+  if player.color ~= idColor(id) then return end
+  engineEffectsOff[player.color] = not engineEffectsOff[player.color] or nil
+  if enginePopRefresh ~= nil then enginePopRefresh() end
+  updatePanel(player.color)
+end
+-- Table animations (the host, 2026-10-22): the attack lunge, mills turning over on their way to the graveyard and the
+-- graveyard flash when creatures die. These move or light real objects, which every player sees, so one switch
+-- for the table. The target / attack / block lines stay (they say what is attacking and targeting what).
+engineAnimOff = false
+function engineSetAnimations(on, by)
+  engineAnimOff = not on
+  broadcastToAll("[MTG] Table animations " .. (on and "on" or "off") .. (by and (" (" .. by .. ")") or "") .. ".", {1, 0.85, 0.4})
+  for _, c in ipairs(getSeatedPlayers()) do if panelReady then updatePanel(c) end end
+end
+function onMtgAnim(player, value, id)
+  if player.color ~= idColor(id) or not player.host then return end
+  engineSetAnimations(engineAnimOff, player.steam_name)
+end
+function onMtgPace(player, value, id)
+  if player.color ~= idColor(id) then return end
+  engineAutoPace[player.color] = not engineAutoOn(player.color)
+  updatePanel(player.color)
+  if engineAutoOn(player.color) then
+    local color = player.color
+    Wait.time(function() if engineAutoOn(color) then engineReleasePending(color, "all") end end, AUTO_PACE_DELAY)
+  end
+end
+
+function onMtgBrowse(player, value, id)
+  if player.color ~= idColor(id) then return end
+  engineBrowse[player.color] = not engineBrowse[player.color] or nil
+  engineFilter[player.color] = nil
+  if engineBrowse[player.color] then engineShown[player.color] = engineShown[player.color] or "browse"
+  elseif engineShown[player.color] == "browse" then engineShown[player.color] = nil end
+  if panelReady then setText("eng_search_" .. player.color, "") end
+  updatePanel(player.color)
+  updateOptions(player.color)
+end
+
+-- Keeps an open graveyard/exile list current as cards come and go.
+function engineRefreshBrowse()
+  if not panelReady then return end
+  for c in pairs(engineBrowse) do updateOptions(c) end
+end
+
+function onMtgSearch(player, value, id)
+  if player.color ~= idColor(id) then return end
+  engineFilter[player.color] = value
+  updateOptions(player.color)
+end
+
+-- Older button ids, still used by the automated tests: "o|Color|i", "confirm|Color", "cancel|Color", "n|Color|n".
+function onMtgClick(player, value, id)
+  local kind, color, arg = id:match("^(%a+)|(%a+)|?(.*)$")
+  if kind == nil or player.color ~= color then return end
+  if kind == "o" or kind == "n" then pick(color, tonumber(arg))
+  elseif kind == "confirm" then confirm(color)
+  elseif kind == "cancel" then engineAnswer(color, { "__cancel" })
+  elseif kind == "toggle" then engineShown[color] = not engineShown[color] and "pin" or nil updatePanel(color) end
+end
+
+function engineOnPrompt(m)
+  -- library searches carry each card's details once (like the board): merge them, then fill in the slim entries
+  for id, st in pairs(m.cards or {}) do engineStoreStatic(id, st) end
+  m.cards = nil
+  for _, c in ipairs(m.librarySearch or {}) do
+    if c.s ~= nil then
+      for k, v in pairs(engineStatic[c.id] or {}) do if c[k] == nil then c[k] = v end end
+      c.s = nil
+    end
+  end
+  if m.promptId == nil then enginePrompts[m.color] = nil else enginePrompts[m.color] = m end
+  -- the cards anyone's open question names (targets, attackers to block, cards to choose, planeswalkers) are clickable
+  -- now; the ones no longer named lock again if they are not their owner's to move (see engineClickable)
+  local wasClickable = engineClickable
+  engineClickable = {}
+  for _, q in pairs(enginePrompts) do
+    for _, o in ipairs(q.options or {}) do
+      for id in (tostring(o.id or "") .. "|" .. tostring(o.cardId or "")):gmatch("engine%-card%-%d+") do engineClickable[id] = true end
+    end
+  end
+  for id in pairs(engineClickable) do
+    local o = engineObjs[id]
+    if not wasClickable[id] and o ~= nil and not o.isDestroyed() and o.getLock() then o.setLock(false) end
+  end
+  for id in pairs(wasClickable) do
+    local o = engineObjs[id]
+    if not engineClickable[id] and o ~= nil and not o.isDestroyed() and not isFree(engineMeta[id]) then o.setLock(true) end
+  end
+  engineChoosable = engineChoosable or {}
+  engineChoosable[m.color] = nil
+  if m.promptId ~= nil and m.pileChoices ~= nil then
+    engineChoosable[m.color] = {}
+    for _, cid in ipairs(m.pileChoices) do engineChoosable[m.color][cid] = true end
+  end
+  local search = m.promptId ~= nil and m.librarySearch or nil
+  if (engineSearch or {})[m.color] ~= search then
+    engineSearch = engineSearch or {}
+    engineSearch[m.color] = search
+    if lastTable ~= nil then Wait.frames(function() if lastTable ~= nil then engineRender(lastTable) end end, 1) end
+  end
+  -- a question closes (answered elsewhere, withdrawn) or a new one opens: see engineEnterPrompt / engineExitPrompt
+  if m.promptId == nil then engineExitPrompt(m.color)
+  else engineSelected[m.color] = nil engineFilter[m.color] = nil engineEnterPrompt(m.color, m) end
+  -- The panel opens by itself only for questions the table can't answer (not priority, paying, combat, targets,
+  -- cards on the table, the card row, two-button questions in the corner) and closes again once the next question
+  -- is one of those, or the question is gone. A panel the player opened (Engine: show) stays open.
+  if engineShown[m.color] ~= "pin" and engineShown[m.color] ~= "browse" then
+    local handled = true
+    if m.promptId ~= nil then
+      local kind = enginePromptKind and enginePromptKind(m)
+      -- (the corner's second button only shows End turn / Resolve / No / Mulligan: "Tap X for which mana?" with two
+      -- colours needs the panel)
+      local opts = m.options or {}
+      local small = { __endturn = true, __resolve = true, no = true, mull = true }
+      -- the card row (engineRowUpdate) fits ROW_MAX pictures and ROW_BTNS buttons: anything bigger needs the panel (a
+      -- 352-way "choose a creature type" with its card's picture showed nowhere, 2026-10-22 review); a library search
+      -- is picked from the panel's list (or right-click Search), as Arena opens a search window
+      local pictures = 0
+      for _, o in ipairs(opts) do if o.img ~= nil then pictures = pictures + 1 end end
+      local fits = #opts <= (m.mode == "multi" and ROW_BTNS - 1 or ROW_BTNS)
+      -- (a question whose cards are pictures, not on the table, that the row can't hold is answered in the panel: Kenrith's
+      -- "target creature card from a graveyard" with 8 showed nowhere, hp-07 #41 2026-10-27)
+      handled = (kind ~= nil and m.librarySearch == nil and engineAnswerPlace(m) ~= "panel")
+        or (m.mode == "single" and (#opts <= 1 or (#opts == 2 and small[tostring(opts[2].id)])))
+        or m.mode == "number"
+        or (pictures > 0 and pictures <= ROW_MAX and #opts - pictures <= ROW_BTNS - 1)
+        or (pictures == 0 and #opts > 0 and fits and (m.show ~= nil or ROW_BUTTON_KINDS[describePrompt(m).kind] ~= nil))
+    end
+    engineShown[m.color] = (not handled) and "ask" or nil
+  end
+  if m.promptId ~= nil and describePrompt(m).kind ~= "priority" and engineBrowse[m.color] then
+    engineBrowse[m.color] = nil
+    if engineShown[m.color] == "browse" then engineShown[m.color] = nil end
+    if panelReady then updatePanel(m.color) end
+  end
+  if panelReady then setText("eng_search_" .. m.color, "") end
+  -- (once in ~60 games TTS raised "Value cannot be null, key" right after a question arrived: catch it and say where)
+  local ok, err = pcall(engineRenderPanels, m.color)
+  if not ok then print("[engine] panel error (" .. tostring(m.color) .. ", " .. tostring(m.title) .. "): " .. tostring(err)) end
+  if enginePhase2Prompt ~= nil then
+    ok, err = pcall(enginePhase2Prompt, m.color)
+    if not ok then print("[engine] glow/menu error (" .. tostring(m.color) .. ", " .. tostring(m.title) .. "): " .. tostring(err)) end
+  end
+  if enginePlayableGlow ~= nil then
+    ok, err = pcall(enginePlayableGlow, m.color)
+    if not ok then print("[engine] playable glow error: " .. tostring(err)) end
+  end
+end
+
+-- ───────── playing by hand (SPEC §10a) ─────────
+-- Players drag their own cards like on a normal table; each move is a request to the engine, which accepts it
+-- (the card stays) or refuses it (the card snaps back with a reason). Opponents' cards can be looked at only.
+local function isEngineCard(o) return o ~= nil and tostring(o.getGMNotes()):find("^engine:") ~= nil end
+local function engineIdOf(o) return (tostring(o.getGMNotes()):gsub("^engine:", "")) end
+
+local toldAt = {}
+local function tell(color, text)
+  local key = color .. text
+  if toldAt[key] and os.clock() - toldAt[key] < 3 then return end
+  toldAt[key] = os.clock()
+  engineTableLog(color, "told: " .. text)
+  if Player[color] ~= nil and Player[color].seated then broadcastToColor("[MTG] " .. text, color, {1, 0.65, 0.2}) end
+end
+engineTell = tell -- (for code above this point)
+
+local function insideZone(zoneObj, pos)
+  if zoneObj == nil then return false end
+  local l = zoneObj.positionToLocal(pos)
+  return math.abs(l.x) <= 0.5 and math.abs(l.z) <= 0.5
+end
+
+-- Which of the player's own areas a position is in.
+local function dropArea(color, pos)
+  local d = data[color]
+  if d == nil then return "elsewhere" end
+  if insideZone(d.graveyard, pos) then return "graveyard" end
+  if insideZone(d.libraryZone, pos) then return "library" end
+  if insideZone(d.playmat, pos) then return "battlefield" end
+  local exile = d.libraryZone.getPosition() + d.libraryZone.getTransformForward() * 4.16
+  if (pos.x - exile.x) ^ 2 + (pos.z - exile.z) ^ 2 < 2.5 then return "exile" end
+  for _, guid in ipairs(TAX_LABELS[color] or {}) do
+    local a = getObjectFromGUID(guid)
+    if a ~= nil then
+      local p = a.getPosition()
+      if (pos.x - p.x) ^ 2 + (pos.z - p.z) ^ 2 < 2.25 then return "command" end
+    end
+  end
+  return "elsewhere"
+end
+
+function onPlayerAction(player, action, targets)
+  if not ENGINE_MODE or lastTable == nil or action == Player.Action.Select then return true end
+  for _, o in ipairs(targets or {}) do
+    if isEngineCard(o) then
+      local meta = engineMeta[engineIdOf(o)] or {}
+      local mine = meta.color == player.color
+      local movable = mine and (meta.zone == "hand" or meta.zone == "battlefield" or meta.zone == "command" or meta.zone == "playable")
+      -- (in your hand too: a double-faced card's back is its other face, so you can read both sides)
+      if action == Player.Action.FlipOver and mine and (meta.zone == "battlefield" or meta.zone == "command" or meta.zone == "hand") then
+        -- flipping is only for looking (e.g. the back of a double-faced card); the engine's card is unchanged
+        local id = engineIdOf(o)
+        engineFlipped[id] = not engineFlipped[id] or nil
+        return true
+      end
+      if action ~= Player.Action.PickUp or not movable then
+        tell(player.color, mine and "The engine handles that (rotate, copy and delete are off; you can flip cards on your battlefield to look at them)."
+          or "You can only touch your own cards.")
+        return false
+      end
+    end
+  end
+  return true
+end
+
+local function snapBack()
+  if lastTable ~= nil then engineRender(lastTable) end
+end
+
+local function request(color, kind, id, obj)
+  engineHeld[id] = os.clock()
+  engineActedAt[color] = os.clock()
+  engineSend("intent", { color = color, kind = kind, id = id })
+end
+
+function onObjectDrop(color, obj)
+  if not (ENGINE_MODE and lastTable ~= nil and isEngineCard(obj)) then return end
+  local id = engineIdOf(obj)
+  local meta = engineMeta[id]
+  if meta == nil or meta.color ~= color then return Wait.frames(snapBack, 2) end
+  Wait.frames(function()
+    if obj == nil or obj.isDestroyed() then return end
+    if meta.zone == "hand" and isInHand(obj, color) then return end -- just rearranged inside the hand
+    if meta.zone == "playable" and isInHand(obj, color, 2) then return end -- (a private playable card, moved in its zone)
+    local area = dropArea(color, obj.getPosition())
+    -- (the playable row lies on the mat: a card picked up and put down near its spot goes back, it isn't played)
+    local home = enginePlanned[id]
+    if meta.zone == "playable" and home ~= nil then
+      local p = obj.getPosition()
+      if (p.x - home.x) ^ 2 + (p.z - home.z) ^ 2 < 1.8 ^ 2 then return snapBack() end
+    end
+    if (meta.zone == "hand" or meta.zone == "command" or meta.zone == "playable") and area == "battlefield" then
+      engineManual[id] = onTable(obj.getPosition())
+      engineManualPlay[id] = true -- (held there while it is cast; it lands in its row)
+      request(color, "play", id, obj)
+    elseif meta.zone == "hand" and area == "graveyard" then
+      request(color, "discard", id, obj)
+    elseif meta.zone == "hand" and area == "library" then
+      request(color, "bottom", id, obj)
+    elseif meta.zone == "battlefield" and area == "graveyard" then
+      request(color, "sacrifice", id, obj) -- accepted only when the engine is asking you to sacrifice it
+    elseif meta.zone == "battlefield" and area == "battlefield" and engineEquipTarget(color, id, obj) ~= nil then
+      -- equipment dropped onto one of your creatures: equip it there (Arena's gesture, playtest 2026-10-26)
+      local to = engineEquipTarget(color, id, obj)
+      engineTableLog(color, "attach " .. tostring((engineStatic[id] or {}).n) .. " to " .. tostring((engineStatic[to] or {}).n))
+      engineSend("intent", { color = color, kind = "attach", id = id, to = to })
+      snapBack()
+    elseif meta.zone == "battlefield" and area == "battlefield" then
+      engineManual[id] = onTable(obj.getPosition()) -- rearranging your own permanents
+      obj.setLock(false)
+    elseif meta.zone == "command" and area == "command" then
+      return
+    else
+      if area ~= "elsewhere" and area ~= meta.zone then tell(color, "The engine moves cards there itself (it isn't a legal move right now).") end
+      snapBack()
+    end
+  end, 2)
+end
+
+-- Your creature an equipment card was dropped onto (nil when it isn't equipment, or nothing of yours is under it)
+function engineEquipTarget(color, id, obj)
+  local st = engineStatic[id] or {}
+  if not tostring(st.tl or ""):find("Equipment") then return nil end
+  local p, best, bestD = obj.getPosition(), nil, 1.6
+  for other, meta in pairs(engineMeta) do
+    local o, ost = engineObjs[other], engineStatic[other] or {}
+    if other ~= id and meta.color == color and meta.zone == "battlefield" and o ~= nil and not o.isDestroyed() then
+      local isCreature = false
+      for _, t in ipairs(ost.ty or {}) do if t == "Creature" then isCreature = true end end
+      local q = o.getPosition()
+      local d = math.sqrt((p.x - q.x) ^ 2 + (p.z - q.z) ^ 2)
+      if isCreature and d < bestD then best, bestD = other, d end
+    end
+  end
+  return best
+end
+function engineRefused(m)
+  if m.id ~= nil then
+    engineHeld[m.id] = nil
+    local meta = engineMeta[m.id]
+    if meta and meta.zone ~= "battlefield" then engineManual[m.id] = nil engineManualPlay[m.id] = nil end
+  end
+  snapBack()
+end
+
+-- ───────── table log (2026-10-24) ─────────
+-- What the table does that the engine never hears about (held draws and their release, what a player is told, cards
+-- slid back), sent to the bridge every 2 s; it writes tmp/table-log.log beside what the table sent the engine.
+engineTLog = {}
+function engineTableLog(color, text)
+  engineTLog[#engineTLog + 1] = os.date("%H:%M:%S", os.time()) .. " " .. tostring(color or "-") .. " " .. tostring(text)
+  if #engineTLog > 200 then table.remove(engineTLog, 1) end
+end
+Wait.time(function()
+  if #engineTLog > 0 and engineSend ~= nil and ENGINE_MODE then
+    local lines = table.concat(engineTLog, "\n")
+    engineTLog = {}
+    engineSend("tlog", { lines = lines })
+  end
+end, 2, -1)
+
+-- Flick containment (2026-10-23): a card you may move (your battlefield and command zone, or a card a question asks
+-- someone to click) can be flicked or thrown, and TTS reports neither as a drop: Blue knocked cards across the table
+-- and into the other player's hand. Five times a second, each such card that nobody holds, that isn't on its way
+-- anywhere (a smooth move: control changing, an attack swing) and that is away from where the board update put it
+-- (enginePlanned):
+--   * your own permanent resting anywhere on your own playmat stays there, as if you had dropped it (engineManual);
+--   * anything else (off the mat, on a pile, on another mat, a commander off its spot) is stopped and slides back.
+-- Not while a manual fix is under way (cards go anywhere then), nor for a card waiting on the engine after a drag
+-- (engineHeld: a commander dragged out to be cast lies on the battlefield until the engine answers).
+engineContain = { back = 0 } -- back: cards slid back; err: the first error (printed once)
+do
+  local CONTAIN_ZONES = { battlefield = true, command = true, attached = true, linked = true }
+  local function check(id, o, meta)
+    if o.isDestroyed() or o.held_by_color ~= nil or o.isSmoothMoving() then return end
+    local p, home = o.getPosition(), enginePlanned[id]
+    if home == nil or (p.x - home.x) ^ 2 + (p.z - home.z) ^ 2 < 4 then return end
+    local d = data[meta.color]
+    if meta.zone == "battlefield" and isFree(meta) and d ~= nil and insideZone(d.playmat, p) then
+      local v = o.getVelocity()
+      if v.x ^ 2 + v.y ^ 2 + v.z ^ 2 < 0.25 then
+        engineManual[id] = onTable(p)
+        enginePlanned[id] = engineManual[id]
+      end
+      return
+    end
+    o.setVelocity(Vector(0, 0, 0))
+    o.setAngularVelocity(Vector(0, 0, 0))
+    o.setPositionSmooth(home, false, true)
+    local r = o.getRotation()
+    o.setRotationSmooth(Vector(0, r.y, (r.z > 90 and r.z < 270) and 180 or 0), false, true)
+    engineContain.back = engineContain.back + 1
+    engineTableLog(meta.color, "card slid back onto its mat: " .. tostring(o.getName():match("^[^\n]*")))
+  end
+  function engineContainHome(id) return enginePlanned[id] end -- (for the tests)
+  function engineContainTick()
+    if not ENGINE_MODE or lastTable == nil or engineFix ~= nil then return end
+    local now = os.clock()
+    for id, o in pairs(engineObjs) do
+      local meta = engineMeta[id]
+      if meta ~= nil and CONTAIN_ZONES[meta.zone] and meta.color ~= nil and engineHeld[id] == nil
+        and (isFree(meta) or engineClickable[id]) and (engineAnimUntil[id] or 0) <= now then
+        local ok, e = pcall(check, id, o, meta)
+        if not ok and not engineContain.err then engineContain.err = e print("[MTG] flick containment: " .. tostring(e)) end
+      end
+    end
+  end
+end
+Wait.time(function() pcall(engineContainTick) end, 0.2, -1)
+
+-- Two engine cards dropped onto each other form a TTS deck; break it up and redraw the real cards.
+local tableEnterContainer = onObjectEnterContainer
+function onObjectEnterContainer(container, obj)
+  if obj ~= nil and engineEntering[obj.getGUID()] then
+    engineEntering[obj.getGUID()] = nil -- the renderer added this card to a pile itself
+    return
+  end
+  local cgm = container ~= nil and tostring(container.getGMNotes()) or ""
+  if cgm:find("^engine:graveyard:") or cgm:find("^engine:exile:") then
+    -- never break up a pile, but a card that doesn't belong in it (a permanent dropped onto the graveyard by
+    -- accident) comes back out and is drawn where the engine has it; otherwise it vanished into the pile (P9).
+    -- A card dropped there to discard goes in for real once the engine has moved it.
+    if ENGINE_MODE and lastTable ~= nil and isEngineCard(obj) then
+      local id = engineIdOf(obj)
+      local zone, color = cgm:match("^engine:(%a+):(%a+)$")
+      local belongs = false
+      for _, pl in ipairs(lastTable.players or {}) do
+        if pl.color == color then for _, c in ipairs(pl[zone] or {}) do if c.id == id then belongs = true end end end
+      end
+      if not belongs then
+        if engineDebugDispose then print("[engine] " .. id .. " landed in " .. cgm .. " by mistake: taking it out") end
+        local guid = obj.getGUID()
+        Wait.frames(function()
+          if container ~= nil and not container.isDestroyed() then
+            for _, e in ipairs(container.getObjects() or {}) do
+              if e.guid == guid then
+                engineTakingOut[id] = true -- (the table's own take, not a player's: no "Look only", suite review 2026-10-27)
+                container.takeObject({ guid = guid, smooth = false, callback_function = function(o) engineDispose(o) end })
+              end
+            end
+          end
+          local cur = engineObjs[id]
+          if cur == nil or cur.isDestroyed() then engineObjs[id] = nil end -- merged away: draw it again
+          Wait.frames(snapBack, 2)
+        end, 1)
+      end
+    end
+    return
+  end
+  if ENGINE_MODE and lastTable ~= nil and isEngineCard(obj) then
+    Wait.frames(function()
+      if container ~= nil and not container.isDestroyed() then
+        local onlyEngine = container.type == "Deck"
+        for _, e in ipairs(container.getObjects() or {}) do
+          if not tostring(e.gm_notes or ""):find("^engine:") then onlyEngine = false end
+        end
+        if onlyEngine then engineDispose(container) -- a deck made of engine cards only: the engine redraws them
+        else container.takeObject({ guid = obj.getGUID(), smooth = false, callback_function = function(o) engineDispose(o) end }) end
+      end
+      Wait.frames(snapBack, 2)
+    end, 1)
+    return
+  end
+  if tableEnterContainer ~= nil then return tableEnterContainer(container, obj) end
+end
+
+-- ───────── phase 2: tap to pay, tap to attack, click to block / target, right-click actions (SPEC §10a) ─────────
+-- Gestures answer the open prompt the same way the panel buttons do (pick → engineAnswer), so the panel and the
+-- table always agree. Glows show what you can use: mana sources, attackers, blockers, targets.
+-- white: can attack/block; red: attacking or a picked target; blue: blocking; orange: can be targeted; gold: can pay
+-- (M5, after MTG Arena's colour code: green = you can act on it, like the hand's playable glow; orange-gold = chosen;
+-- red = attacking, blue = blocking, as the base glows; gold = the lands that will pay)
+local CAN, CHOSEN = {0.3, 1, 0.4}, {1, 0.7, 0.15}
+local GLOW = { mana = {1, 0.85, 0.2}, attack = CAN, attackPick = {1, 0.12, 0.08}, block = CAN, blockPick = {0.15, 0.45, 1},
+  target = CAN, targetPick = CHOSEN, picked = CHOSEN }
+engineGlowing = {}
+local glowing = engineGlowing -- colour -> { object = true }
+local menued = {}          -- colour -> { object = true } (context menus we added)
+local pendingBlocker = {}  -- colour -> blocker card id waiting for its attacker
+local unblock              -- defined below; declared here so the "Don't block with this" menu (above it) can call it
+local pendingAttacker = {} -- colour -> attacker id whose target the next click chooses
+
+-- How the table answers a question: "mana" (tap lands), "attack", "block", "action" (your priority), "target"
+-- (click a card or life counter), "cards" (click cards on the table), or nil (the panel / card row).
+local SURFACE = { mana = "mana", attack = "attack", block = "block", priority = "action", target = "target" }
+local function promptKind(p)
+  if p == nil then return nil end
+  local surface = SURFACE[describePrompt(p).kind]
+  if surface ~= nil then return surface end
+  local cards = 0
+  for _, o in ipairs(p.options or {}) do
+    local id = tostring(o.id)
+    if id:sub(1, 5) == "card|" or id:sub(1, 7) == "player|" then return "target" end
+    if engineObjs[id] ~= nil then cards = cards + 1 end
+  end
+  -- choose cards (put on the bottom, discard, Brainstorm, Ponder's order...): click the cards themselves
+  if cards > 0 then return "cards" end
+  return nil
+end
+
+enginePromptKind = promptKind -- for the instruction line (engineUpdateCorner is defined earlier)
+local function startsWith(s, prefix) return tostring(s):sub(1, #prefix) == prefix end
+
+local function unglow(color)
+  local was = glowing[color] or {}
+  glowing[color] = {}
+  for o in pairs(was) do
+    if o ~= nil and not o.isDestroyed() and not engineGlowOwned(o) then
+      local base = engineBaseGlow[o]
+      if base then o.highlightOn(base) else o.highlightOff() end
+    end
+  end
+end
+
+local function glowObj(color, o, rgb)
+  if o == nil or o.isDestroyed() then return end
+  o.highlightOn(rgb)
+  glowing[color] = glowing[color] or {}
+  glowing[color][o] = true
+end
+local function glowCard(color, id, rgb) glowObj(color, engineObjs[id], rgb) end
+
+local function clearMenus(color)
+  for o in pairs(menued[color] or {}) do if o ~= nil and not o.isDestroyed() then o.clearContextMenu() end end
+  menued[color] = {}
+end
+
+-- Option index for a predicate over the open prompt's options.
+local function findOption(color, test)
+  local p = enginePrompts[color]
+  for i, o in ipairs((p and p.options) or {}) do if test(o) then return i, o end end
+end
+
+local function isSelected(color, i)
+  local p = enginePrompts[color]
+  return p ~= nil and p.mode == "multi" and engineSelectedFor(color, i)
+end
+
+-- Glows and right-click menus for the prompt that just opened.
+-- A player's question, its whole life: opened (a new question from the engine), closed (answered, withdrawn, or
+-- the game ended). Everything that belongs to one question is dropped here and nowhere else: the selection and
+-- search text, the table's glows and right-click menus, a half-made two-click gesture (attacker waiting for its
+-- target, blocker waiting for its attacker) and the pile cards it allowed. enginePhase2Prompt only redraws.
+-- (Preferences such as the hidden panel, the stops, auto-pace and the green glow are not part of a question.)
+function engineEnterPrompt(color, m)
+  pendingBlocker[color] = nil
+  -- the same attack question sent again (a refused answer) keeps the attacker that waits for its target
+  if describePrompt(m).kind ~= "attack" then pendingAttacker[color] = nil end
+end
+function engineExitPrompt(color)
+  local split = false
+  for key, by in pairs(engineSplit) do if by == color then engineSplit[key] = nil split = true end end
+  if split then Wait.frames(snapBack, 2) end -- the stacks split for this question go back together
+  engineSelected[color] = nil
+  engineFilter[color] = nil
+  pendingBlocker[color] = nil
+  pendingAttacker[color] = nil
+  if engineChoosable ~= nil then engineChoosable[color] = nil end
+  unglow(color)
+  clearMenus(color)
+  if engineAbilityBoxes ~= nil then pcall(engineAbilityBoxes, color, nil, nil) end
+end
+
+-- Redraws the table's side of the open question (glows, right-click menus) from its current state.
+-- The glow of a card a question offers (a card to choose, a card to target), picked or not: one rule for the whole
+-- question (enginePhase2Prompt) and for a card that arrives after it (engineGlowLate). (Structural review 2026-10-27:
+-- the late path was a copy that had already drifted by a check.)
+function engineGlowOption(color, kind, i, id)
+  if kind == "cards" then glowCard(color, id, isSelected(color, i) and GLOW.targetPick or GLOW.attack)
+  elseif kind == "target" and startsWith(id, "card|") then glowCard(color, id:sub(6), isSelected(color, i) and GLOW.targetPick or GLOW.target) end
+end
+-- A card whose object arrives after the question that names it (a token made a moment before the legend rule asked
+-- which one stays: only the other one glowed, playtest 2026-10-27): that question is drawn again on the next frame,
+-- glows and menus of every kind, at most once a frame however many cards arrive in it (altitude review 2026-10-27).
+engineRedrawSoon = {} -- colour -> true while a redraw is waiting for the next frame
+function engineGlowLate(id)
+  for color, p in pairs(enginePrompts or {}) do
+    local named = false
+    for _, o in ipairs(p.options or {}) do
+      local oid = tostring(o.id)
+      if oid == id or o.cardId == id or oid:sub(-#id - 1) == "|" .. id or oid:sub(1, #id + 1) == id .. "|" then named = true break end
+    end
+    if named and not engineRedrawSoon[color] then
+      engineRedrawSoon[color] = true
+      -- (the question open then, the same or one that replaced it: stage 3 review 2026-10-27)
+      Wait.frames(function() engineRedrawSoon[color] = nil if enginePrompts[color] ~= nil then enginePhase2Prompt(color) end end, 1)
+    end
+  end
+end
+function enginePhase2Prompt(color)
+  unglow(color)
+  clearMenus(color)
+  local p = enginePrompts[color]
+  local kind = promptKind(p)
+  -- (no kind the table draws: the last question's ability buttons go, a click on one answered this question with an
+  -- option of the same id, stage 3 review 2026-10-27)
+  if kind == nil then if engineAbilityBoxes ~= nil then pcall(engineAbilityBoxes, color, nil, nil) end return end
+  for i, o in ipairs(p.options or {}) do
+    local id = tostring(o.id)
+    if kind == "mana" and o.cardId ~= nil and startsWith(id, "tap:") then glowCard(color, o.cardId, GLOW.mana)
+    elseif kind == "mana" and o.cardId ~= nil and startsWith(id, "untap:") then glowCard(color, o.cardId, GLOW.picked)
+    elseif kind == "attack" and id:find("|", 1, true) then -- ("All attack"/"No attacks" buttons have no creature)
+      local att = id:match("^(.-)|")
+      -- one creature has an option per target: red once any of them is picked
+      local picked = false
+      for k, x in ipairs(p.options) do if startsWith(x.id, att .. "|") and isSelected(color, k) then picked = true end end
+      glowCard(color, att, picked and GLOW.attackPick or GLOW.attack)
+    elseif kind == "block" and id:find("|", 1, true) then
+      local blocker, attacker = id:match("^(.-)|(.+)$")
+      local picked = false
+      for k, x in ipairs(p.options) do if startsWith(x.id, blocker .. "|") and isSelected(color, k) then picked = true end end
+      glowCard(color, blocker, picked and GLOW.blockPick or GLOW.block)
+      local obj = engineObjs[blocker]
+      if obj ~= nil and not obj.isDestroyed() and not (menued[color] or {})[obj] then
+        obj.addContextMenuItem("Don't block with this", function(playerColor)
+          if playerColor == color and unblock(color, blocker) then tell(color, "Block removed.") end
+        end)
+        menued[color] = menued[color] or {}
+        menued[color][obj] = true
+      end
+    elseif kind == "cards" or (kind == "target" and startsWith(id, "card|")) then engineGlowOption(color, kind, i, id)
+    elseif kind == "target" and startsWith(id, "player|") then
+      -- a player you can target: their life counter glows (click it); red once picked
+      for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+        if pl.slot == id:sub(8) and LIFE_TRACKERS[pl.color] then glowObj(color, getObjectFromGUID(LIFE_TRACKERS[pl.color]), isSelected(color, i) and GLOW.targetPick or GLOW.target) end
+      end
+    elseif kind == "action" and o.cardId ~= nil then
+      -- right-click menu on the card: cast it / activate its ability
+      local obj = engineObjs[o.cardId]
+      if obj ~= nil and not obj.isDestroyed() then
+        -- (the menu is the card's own: its name in front only cut the ability off, "Kenrith, the Returned King:
+        -- {3}{U}: Ta…", playtest 2026-10-27)
+        local label = engineAbilityText(o)
+        if #label > 40 then label = engineCut(label, 38) .. "…" end
+        local optionId = o.id
+        obj.addContextMenuItem(label, function(playerColor)
+          if playerColor ~= color then return end
+          local idx = findOption(color, function(x) return x.id == optionId end)
+          if idx ~= nil then enginePick(color, idx) end
+        end)
+        menued[color] = menued[color] or {}
+        menued[color][obj] = true
+      end
+    end
+  end
+  if engineAbilityBoxes ~= nil then pcall(engineAbilityBoxes, color, p, kind) end
+end
+
+-- Removes every block chosen for this blocker. Returns true if there was one.
+function unblock(color, blockerId) -- the local declared with pendingBlocker
+  local p = enginePrompts[color]
+  local any = false
+  for i, o in ipairs((p and p.options) or {}) do
+    if startsWith(o.id, blockerId .. "|") and engineSelectedFor(color, i) then
+      enginePick(color, i) -- picking a selected option again deselects it
+      any = true
+    end
+  end
+  if any then enginePhase2Prompt(color) end
+  return any
+end
+
+-- Q/E on one of your cards: pay with it, or attack with it.
+local function tapGesture(color, id)
+  local p = enginePrompts[color]
+  local kind = promptKind(p)
+  local function turnNow()
+    local o = engineObjs[id]
+    if o ~= nil and not o.isDestroyed() then
+      local r = o.getRotation()
+      o.setRotationSmooth(Vector(r.x, r.y + 90, r.z), false, true)
+    end
+  end
+  if kind == "mana" then
+    -- a land that makes several colours: the one the cost still needs (the bridge ranks each button: 2 a needed
+    -- colour, 1 generic only, 0 no use), not simply its first button
+    local i, best = nil, -1
+    for k, o in ipairs((p and p.options) or {}) do
+      if o.cardId == id and startsWith(o.id, "tap:") and (o.rank or 1) > best then i, best = k, (o.rank or 1) end
+    end
+    if i ~= nil and best == 0 then
+      tell(color, "That makes the wrong colour for this cost.")
+      return true
+    end
+    if i ~= nil then turnNow() end
+    -- turning a source you already tapped for this cost back gives its mana back
+    if i == nil then i = findOption(color, function(o) return o.cardId == id and startsWith(o.id, "untap:") end) end
+    if i ~= nil then enginePick(color, i) return true end
+    tell(color, "That can't pay for this.")
+    return true
+  elseif kind == "attack" then
+    local i = findOption(color, function(o) return startsWith(o.id, id .. "|") end)
+    if i ~= nil then
+      enginePick(color, i)
+      enginePhase2Prompt(color)
+      pendingAttacker[color] = engineSelectedFor(color, i) and id or nil
+      if pendingAttacker[color] then tell(color, "Attacking. Click a life counter or a planeswalker to change what it attacks.") end
+      return true
+    end
+    tell(color, "That creature can't attack right now.")
+    return true
+  elseif kind == "action" then
+    -- turning back a source whose mana you haven't spent: the mana goes back and it untaps
+    local u = findOption(color, function(o) return o.cardId == id and startsWith(tostring(o.id), "untap:") end)
+    if u ~= nil then enginePick(color, u) return true end
+    -- tapping a land while you have priority makes its mana (it floats until you spend it)
+    turnNow()
+    engineSend("intent", { color = color, kind = "tapmana", id = id })
+    return true
+  end
+  return false
+end
+
+-- Clicking a card or a life tracker: choose a target, or set up a block.
+cardClickAt = {} -- object guid -> os.clock() of its last acted-on click
+-- false when this object was already clicked in the last 0.4 s (one click arrives as both "select" and "pick up";
+-- counting it twice undid the pick, an attack or a target)
+local function firstClick(obj)
+  local guid = obj.getGUID()
+  if (cardClickAt[guid] or -1) > os.clock() - 0.4 then return false end
+  cardClickAt[guid] = os.clock()
+  return true
+end
+local clickGesture
+-- a life counter's own button was clicked (its script hands the click over): the same as clicking the counter object
+function engineLifeTrackerClick(params)
+  local o = params and getObjectFromGUID(params.guid or "")
+  if o == nil or params.color == nil then return end
+  if not clickGesture(params.color, o) then
+    tell(params.color, "Life totals follow the game. To attack or target this player, choose your creature or spell first.")
+  end
+end
+-- What a click on a card or a target said, for a pick that waits for Done: chosen, or taken back by a second click
+-- (one place for cards and targets: the cards' line said "Chosen" for the click that took it back, and a target said
+-- nothing, so "up to 1 target to fight" went to Done empty, hp-12 re-test 2026-10-27). Said before the pick can answer.
+function engineTellPick(color, p, i)
+  if not isSelected(color, i) then tell(color, "Taken back.") return end
+  tell(color, "Chosen. Click it again to undo; click Done" .. (describePrompt(p).toLibrary and " or your library" or "") .. " when you're finished.")
+end
+clickGesture = function(color, obj)
+  local p = enginePrompts[color]
+  local kind = promptKind(p)
+  if kind == nil then return false end
+  local id = isEngineCard(obj) and engineIdOf(obj) or nil
+  if kind == "cards" then
+    if id == "library:" .. color and describePrompt(p).toLibrary then
+      -- the chosen cards go to your library: clicking it confirms (like dragging a card onto it)
+      if engineConfirm ~= nil then engineConfirm(color) end
+      return true
+    end
+    local i = id and findOption(color, function(o) return tostring(o.id) == id end)
+    if i == nil then return false end
+    if not firstClick(obj) then return true end
+    enginePick(color, i)
+    if p.mode == "multi" then
+      -- (an exact number: the last click answers, as for targets; the corner has no Done for it, so a legend rule's pick
+      -- did nothing, stage 3 review 2026-10-27)
+      if not engineExactPick(p) then engineTellPick(color, p, i) end
+      engineConfirmIfComplete(color)
+      enginePhase2Prompt(color)
+    end
+    return true
+  end
+  if kind == "target" then
+    local i
+    if id ~= nil then i = findOption(color, function(o) return o.id == "card|" .. id end) end
+    if i == nil then
+      -- a life tracker stands for its player
+      for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+        if LIFE_TRACKERS[pl.color] == obj.getGUID() and pl.slot ~= nil then
+          i = findOption(color, function(o) return o.id == "player|" .. pl.slot end)
+        end
+      end
+    end
+    if i ~= nil then
+      if not firstClick(obj) then return true end
+      enginePick(color, i)
+      -- (a single target answers at the click; an exact pick at its last one)
+      if p.mode == "multi" and not engineExactPick(p) then engineTellPick(color, p, i) end
+      engineConfirmIfComplete(color)
+      enginePhase2Prompt(color)
+      return true
+    end
+    -- a permanent that can't be chosen says so (a click that did nothing looked like the table ignoring you)
+    if id ~= nil and (engineMeta[id] or {}).zone == "battlefield" and firstClick(obj) then
+      tell(color, "That card can't be chosen for this. Click a glowing card, or a player's life counter if a player can be.")
+    end
+    return false
+  elseif kind == "attack" and id ~= nil and findOption(color, function(o) return startsWith(o.id, id .. "|") end) ~= nil then
+    -- one of your creatures: click = attack (the first opponent, then click a life counter / planeswalker to change).
+    -- A stack of tokens attacks as a whole ("full swing"); its Split box lets them be picked one by one.
+    if not firstClick(obj) then return true end
+    local members = {}
+    for _, m in ipairs(engineGroupMembers(id)) do
+      if findOption(color, function(o) return startsWith(o.id, m .. "|") end) ~= nil then members[#members + 1] = m end
+    end
+    local picked = function(m)
+      for k, o in ipairs((p and p.options) or {}) do if startsWith(o.id, m .. "|") and engineSelectedFor(color, k) then return true end end
+      return false
+    end
+    if picked(id) and pendingAttacker[color] == id then
+      for _, m in ipairs(members) do
+        for k, o in ipairs((p and p.options) or {}) do
+          if startsWith(o.id, m .. "|") and engineSelectedFor(color, k) then enginePick(color, k) end
+        end
+      end
+      pendingAttacker[color] = nil
+      enginePhase2Prompt(color)
+      tell(color, "Not attacking.")
+      return true
+    end
+    for _, m in ipairs(members) do
+      if not picked(m) then enginePick(color, (findOption(color, function(o) return startsWith(o.id, m .. "|") end))) end
+    end
+    enginePhase2Prompt(color)
+    pendingAttacker[color] = id
+    tell(color, (#members > 1 and ("All " .. #members .. " attacking (Split picks some). ") or "Attacking. ")
+      .. "Click a life counter or a planeswalker to choose what " .. (#members > 1 and "they attack" or "it attacks") .. "; click it again to cancel.")
+    return true
+  elseif kind == "attack" and pendingAttacker[color] ~= nil then
+    local target = id
+    if target == nil then
+      for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+        if LIFE_TRACKERS[pl.color] == obj.getGUID() then target = pl.slot end
+      end
+    end
+    if target == nil then return false end
+    local set = 0
+    for _, att in ipairs(engineGroupMembers(pendingAttacker[color])) do
+      local j = findOption(color, function(o) return o.id == att .. "|" .. target end)
+      if j ~= nil then
+        -- one target per attacker: drop its other pick, then pick this one
+        for k, o in ipairs((p and p.options) or {}) do
+          if k ~= j and startsWith(o.id, att .. "|") and engineSelectedFor(color, k) then enginePick(color, k) end
+        end
+        if not engineSelectedFor(color, j) then enginePick(color, j) end
+        set = set + 1
+      end
+    end
+    if set == 0 then return false end
+    enginePhase2Prompt(color)
+    tell(color, "Target set.")
+    return true
+  elseif kind == "block" and id ~= nil then
+    -- (one click arrives as select + pick up: the second one did the click again. After a block was set it fell
+    -- through to "You can only touch your own cards", and the next click on the creature took the block back:
+    -- blocking looked broken, playtest 2026-10-24)
+    if not firstClick(obj) then return true end
+    if pendingBlocker[color] == nil and unblock(color, id) then
+      tell(color, "Block removed.")
+      return true
+    end
+    if findOption(color, function(o) return startsWith(o.id, id .. "|") end) ~= nil then
+      pendingBlocker[color] = id -- one of your blockers: now click the attacker it blocks
+      glowCard(color, id, GLOW.blockPick)
+      tell(color, "Now click the attacker to block.")
+      return true
+    end
+    if pendingBlocker[color] ~= nil then
+      local i = findOption(color, function(o) return o.id == pendingBlocker[color] .. "|" .. id end)
+      if i ~= nil then
+        local blocker = engineObjs[pendingBlocker[color]]
+        local name = function(o) return o ~= nil and not o.isDestroyed() and (o.getName():match("^[^\n]*")) or "it" end
+        enginePick(color, i)
+        pendingBlocker[color] = nil
+        enginePhase2Prompt(color)
+        tell(color, name(blocker) .. " blocks " .. name(obj) .. ". Click it again to take the block back; Done when finished.")
+        return true
+      end
+      tell(color, "That blocker can't block that attacker.")
+      return true
+    end
+  end
+  return false
+end
+
+local phase1PlayerAction = onPlayerAction
+function onPlayerAction(player, action, targets)
+  if ENGINE_MODE and lastTable ~= nil and enginePrompts[player.color] ~= nil then
+    local A = Player.Action
+    for _, o in ipairs(targets or {}) do
+      if (action == A.RotateIncrementalLeft or action == A.RotateIncrementalRight) and isEngineCard(o) then
+        local meta = engineMeta[engineIdOf(o)] or {}
+        if meta.color == player.color and tapGesture(player.color, engineIdOf(o)) then return false end
+      elseif action == A.Select or action == A.PickUp then
+        -- choosing cards: the click chooses, and picking it up still works (drag it onto your library)
+        local cardsKind = promptKind(enginePrompts[player.color]) == "cards"
+        if clickGesture(player.color, o) and not (cardsKind and action == A.PickUp) then return false end
+      end
+    end
+  end
+  return phase1PlayerAction(player, action, targets)
+end
+
+-- ───────── undo / copy / paste safety ─────────
+-- Ctrl+Z, copy-paste and similar bring back engine cards the renderer didn't make. Remove those copies and redraw
+-- from the engine's state, which never changes because of them.
+local resyncQueued = false
+local function resyncSoon()
+  if resyncQueued then return end
+  resyncQueued = true
+  Wait.frames(function() resyncQueued = false snapBack() end, 5)
+end
+
+local tableObjectSpawn = onObjectSpawn
+function onObjectSpawn(obj)
+  if ENGINE_MODE and lastTable ~= nil and isEngineCard(obj) then
+    local id = engineIdOf(obj)
+    local deckId = id:find("^library:") or id:find("^graveyard:") or id:find("^exile:") or id == "trash"
+    if not deckId and not engineSpawning[id] and engineObjs[id] ~= obj and not (engineSearchIds or {})[id] and not (engineInPile or {})[id] then
+      Wait.frames(function()
+        if obj ~= nil and not obj.isDestroyed() and engineObjs[id] ~= obj then engineDispose(obj) end
+        resyncSoon()
+      end, 1)
+    end
+  end
+  if tableObjectSpawn ~= nil then return tableObjectSpawn(obj) end
+end
+
+local tableObjectDestroy = onObjectDestroy
+function onObjectDestroy(obj)
+  if ENGINE_MODE and lastTable ~= nil and isEngineCard(obj) then resyncSoon() end
+  if tableObjectDestroy ~= nil then return tableObjectDestroy(obj) end
+end
+
+-- ───────── surviving a reload ─────────
+-- Save & Play, Ctrl+S/loading a save, or a script reload keep the objects but forget this script's memory.
+-- The positions of anything moved aside are saved with the game; after a reload they are put back, leftover
+-- engine cards are swept away, and the bridge is asked to redraw a game that is still running.
+function onSave()
+  local s = {}
+  for guid, st in pairs(stashed) do
+    s[guid] = { pos = { st.pos.x, st.pos.y, st.pos.z }, rot = { st.rot.x, st.rot.y, st.rot.z }, lock = st.lock }
+  end
+  return JSON.encode({ engineStash = s })
+end
+
+Wait.frames(function()
+  local ok, saved = pcall(JSON.decode, Global.script_state or "")
+  if ok and type(saved) == "table" and type(saved.engineStash) == "table" then
+    for guid, st in pairs(saved.engineStash) do
+      stashed[guid] = { pos = Vector(st.pos[1], st.pos[2], st.pos[3]), rot = Vector(st.rot[1], st.rot[2], st.rot[3]), lock = st.lock }
+    end
+  end
+  sweepEngineCards()
+  restoreStash()
+  engineSend("hello", {})
+  -- the running game sent back on that hello was not drawn once, after a TTS relaunch with a big table still loading
+  -- (hp-22 re-test 2026-10-28: the bridge's record has it sent; the table showed READY): ask again while nothing came
+  local function askAgain(tries)
+    Wait.time(function()
+      if lastTable ~= nil then return end
+      engineSend("hello", { again = true })
+      if tries > 1 then askAgain(tries - 1) end
+    end, 10)
+  end
+  askAgain(3)
+end, 30)
+
+-- The library is a real face-down deck holding as many cards as the engine says. Draws take cards off it toward
+-- the hand; during a library search it holds exactly the cards you may pick, so right-click → Search works.
+local libraryState = {}  -- colour -> { qty, key }
+engineSearch = {}        -- colour -> cards the open prompt lets you pick from your library
+engineSearchIds = {}        -- engine card id -> true while that card sits in a search deck
+libraryAnimTo = {}          -- colour -> where cards leaving the library fly next (graveyard for a mill)
+local libraryAnimUntil = {} -- colour -> os.clock() until which cards leaving the deck are our own draw animation
+
+local FLAT = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 }
+local function backDeckEntry()
+  return { FaceURL = ENGINE_BACK, BackURL = ENGINE_BACK, NumWidth = 1, NumHeight = 1, BackIsHidden = true, UniqueBack = false, Type = 0 }
+end
+
+local function libraryDeckData(color, count, candidates)
+  local backKey = engineDeckKey(ENGINE_BACK, ENGINE_BACK)
+  local objs, ids, decks = {}, {}, { [backKey] = backDeckEntry() }
+  for _, c in ipairs(candidates or {}) do
+    local face = c.f or ENGINE_BACK
+    local k = engineDeckKey(face, ENGINE_BACK)
+    decks[k] = deckEntry(face, ENGINE_BACK)
+    objs[#objs + 1] = { Name = "Card", Nickname = nickname(c), Description = description(c), GMNotes = "engine:" .. c.id,
+      CardID = k * 100, CustomDeck = { [k] = decks[k] }, Transform = FLAT }
+    ids[#ids + 1] = k * 100
+  end
+  for _ = #objs + 1, math.max(count, #objs) do
+    objs[#objs + 1] = { Name = "Card", Nickname = "Library card", GMNotes = "libcard", CardID = backKey * 100,
+      CustomDeck = { [backKey] = decks[backKey] }, Transform = FLAT }
+    ids[#ids + 1] = backKey * 100
+  end
+  return { Name = "Deck", Nickname = "Library", GMNotes = "engine:library:" .. color, Locked = true,
+    DeckIDs = ids, CustomDeck = decks, ContainedObjects = objs, Transform = FLAT }
+end
+
+-- Linked and playable exile (2026-10-23, needs our Forge build: reports/MTG linked exile and zone quirks.md).
+-- A card a seated player may play from exile or a graveyard (Tibalt, flashback, adventure, plot, foretell, Gonti,
+-- impulse draw...) leaves its pile for that player's playable row, as Arena puts them beside the hand: face-up ones in
+-- a public row in the empty strip at the near edge of the player's own mat, glowing (in front of the small second hand
+-- zone it was half hidden under the big buttons, playtest 2026-10-26); ones others may not see (foretold, Gonti's face-down
+-- card) inside that second hand zone, where TTS shows a card's face to its owner only. An exiled card linked to a
+-- permanent still on the battlefield (Banishing Light, Valki, Arcane Bombardment, imprint) lies half-size under that
+-- permanent, as Forge shows it, instead of in the pile. Dragging a playable card onto the battlefield plays it.
+engineSpecial = {} -- engine card id -> "playable" | "linked" on the current board
+PLAYABLE_ROW = 4.25 -- (a grid row past the lands: the mat's near strip)
+function engineMarkSpecial(m)
+  engineSpecial = {}
+  local onField = {}
+  for _, pl in ipairs(m.players or {}) do for _, c in ipairs(pl.battlefield or {}) do onField[c.id] = pl.color end end
+  for _, pl in ipairs(m.players or {}) do
+    if pl.color ~= nil and Player[pl.color] ~= nil and Player[pl.color].seated then
+      for _, c in ipairs(pl.playable or {}) do engineSpecial[c.id] = "playable" end
+    end
+  end
+  for _, pl in ipairs(m.players or {}) do
+    for _, c in ipairs(pl.exile or {}) do
+      if engineSpecial[c.id] == nil and c.ew ~= nil and onField[c.ew] ~= nil then engineSpecial[c.id] = "linked" end
+    end
+  end
+  engineLinkHost = onField
+end
+function engineWithoutSpecial(list)
+  if next(engineSpecial) == nil then return list end
+  local out = {}
+  for _, c in ipairs(list) do if engineSpecial[c.id] == nil then out[#out + 1] = c end end
+  return out
+end
+function enginePlaceSpecial(m, seen)
+  if next(engineSpecial) == nil then return end
+  local faceDown = {}
+  for _, pl in ipairs(m.players or {}) do
+    for _, z in ipairs({ "exile", "graveyard" }) do for _, c in ipairs(pl[z] or {}) do if c.fd then faceDown[c.id] = true end end end
+  end
+  for _, pl in ipairs(m.players or {}) do
+    local color = pl.color
+    local g = color and seatGeometry(color)
+    if g ~= nil and Player[color] ~= nil and Player[color].seated and #(pl.playable or {}) > 0 then
+      local side = Player[color].getHandTransform(2)
+      local base = side and side.position or (g.handPos or g.mat)
+      local k, public = 0, 0
+      for _, c in ipairs(pl.playable or {}) do if not (faceDown[c.id] or c.fo) then public = public + 1 end end
+      local step = public > GRID.perRow and GRID.perRow / public or 1 -- (squeezed like a long row)
+      for _, c in ipairs(pl.playable or {}) do
+        if faceDown[c.id] or c.fo then
+          place(c, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, color, { zone = "playable", color = color, hand2 = true })
+        else
+          local spot = gridPos(g, k * step, PLAYABLE_ROW)
+          k = k + 1
+          place(c, spot, Vector(0, g.rotY, 0), seen, nil, { zone = "playable", color = color })
+        end
+      end
+    end
+  end
+  local perHost = {}
+  for _, pl in ipairs(m.players or {}) do
+    for _, c in ipairs(pl.exile or {}) do
+      if engineSpecial[c.id] == "linked" then
+        local hostColor = engineLinkHost[c.ew]
+        local g = hostColor and seatGeometry(hostColor)
+        local host = enginePlanned[c.ew]
+        if g ~= nil and host ~= nil then
+          perHost[c.ew] = (perHost[c.ew] or 0) + 1
+          local n = perHost[c.ew]
+          local spot = host + g.fwd * (1.1 + 0.35 * (n - 1)) + g.right * (0.35 * (n - 1)) + Vector(0, -0.02 * n, 0)
+          place(c, spot, Vector(0, g.rotY, c.fd and 180 or 0), seen, nil, { zone = "linked", color = hostColor, host = c.ew, returns = c.rl })
+        end
+      end
+    end
+  end
+end
+-- Mills, as the table's own Mill button does them (its mill1: each card turns face up and slides to the graveyard, a
+-- moment apart; the player, 2026-10-22). A mill is a new card in a graveyard that wasn't anywhere public before,
+-- while that player's library shrank. Cards held for the player (enginePending, up to 5, Auto) come off the library
+-- turning face up onto the fan (place) and slide into the graveyard pile when released (engineZonePile takes them in);
+-- the others (bigger mills, AI players) fly face up from the library to the graveyard as stand-ins, the first
+-- MILL_FLY of them, MILL_GAP apart, while the graveyard pile already holds them.
+engineMillNow = {}   -- colour -> cards milled on this board (the library takes as many off without flying them)
+engineMillFx = {}    -- colour -> { lib, public } from the last board
+MILL_FLY, MILL_GAP, MILL_TIME = 5, 0.25, 0.6
+function engineMillDetect(m)
+  for _, pl in ipairs(m.players or {}) do
+    local color = pl.color
+    if color ~= nil then
+      local public = {}
+      for _, z in ipairs({ "battlefield", "graveyard", "exile", "command", "hand" }) do
+        for _, c in ipairs(pl[z] or {}) do public[c.id] = true end
+      end
+      for _, sItem in ipairs(m.stack or {}) do if sItem.src then public[sItem.src] = true end end
+      local prev = engineMillFx[color]
+      engineMillFx[color] = { lib = pl.library or 0, public = public }
+      local drop = prev and ((prev.lib or 0) - (pl.library or 0)) or 0
+      if drop > 0 then
+        local milled = {}
+        for _, c in ipairs(pl.graveyard or {}) do
+          if #milled < drop and not prev.public[c.id] then milled[#milled + 1] = c end
+        end
+        if #milled > 0 then
+          engineMillNow[color] = #milled
+          local held = {}
+          for _, id in ipairs((enginePending[color] or {}).mill or {}) do held[id] = true end
+          local g = seatGeometry(color)
+          local k = 0
+          for _, c in ipairs(milled) do
+            if not held[c.id] and k < MILL_FLY and g ~= nil and not engineAnimOff then
+              k = k + 1
+              engineMillFly(c, g, (k - 1) * MILL_GAP)
+            end
+          end
+        end
+      end
+    end
+  end
+end
+-- one stand-in card: face down on the library, turning face up as it slides onto the graveyard, then gone
+function engineMillFly(c, g, delay)
+  Wait.time(function()
+    local data = engineCardData(c)
+    data.GMNotes = "enginefx"
+    op("spawn")
+    spawnObjectData({ data = data, position = g.lib + Vector(0, 1.6, 0), rotation = Vector(0, g.rotY, 180), callback_function = function(obj)
+      obj.setLock(true)
+      obj.setRotationSmooth(Vector(0, g.rotY, 0), false, true)
+      obj.setPositionSmooth(g.grave + Vector(0, 1.2, 0), false, true)
+      Wait.time(function() if obj ~= nil and not obj.isDestroyed() then engineDispose(obj) end end, MILL_TIME + 0.3)
+    end })
+  end, math.max(delay, 0.01))
+end
+function engineLibraryDeck(color, g, count, seen)
+  local id = "library:" .. color
+  seen[id] = true
+  engineMeta[id] = { zone = "library", color = color }
+  local candidates = engineSearch[color]
+  local key = candidates and ("search:" .. tostring(#candidates)) or "plain"
+  local st = libraryState[color]
+  local o = engineObjs[id]
+  local alive = o ~= nil and not o.isDestroyed()
+  if alive and st ~= nil and st.key == key and st.qty == count then return end
+  if engineSpawning[id] then
+    -- a deck is already on its way; when it arrives it checks it is still current (see below)
+    libraryState[color] = { qty = count, key = key, pendingRebuild = true }
+    return
+  end
+  -- Draws: take the difference off the top toward the hand (the real card appears there), no rebuild.
+  if alive and st ~= nil and st.key == "plain" and key == "plain" and o.type == "Deck" and count < st.qty and count >= 2 then
+    libraryAnimUntil[color] = os.clock() + 2
+    local target = (libraryAnimTo[color] or g.handPos or g.lib) + Vector(0, 2, 0)
+    libraryAnimTo[color] = nil
+    -- (milled cards leave as their own face-up cards, engineMillDetect: their plain backs just go, without flying to
+    -- the hand as they used to)
+    local milled = math.min(engineMillNow[color] or 0, st.qty - count)
+    engineMillNow[color] = nil
+    for k = 1, math.min(st.qty - count, o.getQuantity() - 1) do
+      local quiet = k <= milled
+      op("take") o.takeObject({ position = quiet and (o.getPosition() + Vector(0, -3, 0)) or target, smooth = not quiet, callback_function = function(card)
+        Wait.time(function() if card ~= nil and not card.isDestroyed() then engineDispose(card) end end, quiet and 0 or 0.6)
+      end })
+    end
+    st.qty = count
+    return
+  end
+  if alive and st ~= nil and st.key == "plain" and key == "plain" and o.type == "Deck" and count > st.qty then
+    local backKey = engineDeckKey(ENGINE_BACK, ENGINE_BACK)
+    for _ = 1, count - st.qty do
+      op("libAdd")
+      spawnObjectData({ data = { Name = "Card", Nickname = "Library card", GMNotes = "libcard", CardID = backKey * 100,
+        CustomDeck = { [backKey] = backDeckEntry() }, Transform = FLAT }, position = o.getPosition() + Vector(0, 2, 0),
+        rotation = Vector(0, g.rotY, 180), callback_function = function(card)
+          if o == nil or o.isDestroyed() then engineDispose(card) return end
+          engineEntering[card.getGUID()] = true
+          enginePutInDeck(o, card)
+        end })
+    end
+    st.qty = count
+    return
+  end
+  if alive then engineDispose(o) end
+  engineObjs[id] = nil
+  libraryState[color] = { qty = count, key = key }
+  engineSearchIds = {}
+  for _, c in ipairs(candidates or {}) do engineSearchIds[c.id] = true end
+  if count <= 0 and not candidates then return end
+  local data
+  if count + #(candidates or {}) <= 1 and not candidates then
+    data = engineCardData({ id = id, n = "Library", tl = "1 card", cmc = 0, f = ENGINE_BACK, b = ENGINE_BACK })
+  else
+    data = libraryDeckData(color, count, candidates)
+  end
+  engineSpawning[id] = true
+  local built = libraryState[color]
+  op("deckSpawn") spawnObjectData({ data = data, position = onTable(g.lib, 0.3), rotation = Vector(0, g.rotY, 180), callback_function = function(obj)
+    engineSpawning[id] = nil
+    local now = libraryState[color]
+    if now ~= built and now ~= nil and now.pendingRebuild then
+      -- the library changed while this deck was spawning: replace it with an up-to-date one
+      engineDispose(obj)
+      libraryState[color] = nil
+      if lastTable ~= nil then engineRender(lastTable) end
+      return
+    end
+    engineObjs[id] = obj
+    obj.setLock(true)
+    keepOnly(id, obj)
+    -- a library holding a search's candidates (face down, with names): only its owner sees it, so nobody else can
+    -- right-click → Search it or pull a card out that would answer the owner's search
+    if candidates then
+      local others = {}
+      for _, c in ipairs(Player.getAvailableColors()) do if c ~= color then others[#others + 1] = c end end
+      others[#others + 1] = "Grey"
+      obj.setInvisibleTo(others)
+    end
+  end })
+end
+
+-- Cards leaving a library deck: the chosen card of a search becomes the player's pick; anything else goes back.
+local libraryLeaveBefore = onObjectLeaveContainer
+function onObjectLeaveContainer(container, obj)
+  local gm = container ~= nil and tostring(container.getGMNotes()) or ""
+  local color = gm:match("^engine:library:(%a+)$")
+  if ENGINE_MODE and color ~= nil and obj ~= nil then
+    local ogm = tostring(obj.getGMNotes())
+    local cid = ogm:match("^engine:(.+)$")
+    if cid ~= nil and engineSearchIds[cid] and engineSearch[color] ~= nil then
+      engineAdopt(cid, obj, true) -- the engine will say where it goes next
+      engineSend("intent", { color = color, kind = "choose", id = cid })
+      return
+    end
+    if ogm == "libcard" and libraryAnimUntil[color] ~= nil and os.clock() < libraryAnimUntil[color] then return end
+    tell(color, "The engine draws and shuffles your library; cards go back in.")
+    Wait.frames(function()
+      if obj ~= nil and not obj.isDestroyed() then engineDispose(obj) end
+      libraryState[color] = nil
+      local lib = engineObjs["library:" .. color]
+      if lib ~= nil and not lib.isDestroyed() then engineDispose(lib) end
+      engineObjs["library:" .. color] = nil
+      for _, x in ipairs(getObjects()) do if tostring(x.getGMNotes()) == "libcard" then engineDispose(x) end end
+      if lastTable ~= nil then engineRender(lastTable) end
+    end, 1)
+    return
+  end
+  if libraryLeaveBefore ~= nil then return libraryLeaveBefore(container, obj) end
+end
+
+-- Graveyard and exile are real face-up decks (right-click → Search to look through them). One card is a plain card;
+-- two or more become a deck. A card arriving from elsewhere slides onto the pile first, then joins the deck.
+engineInPile = {}           -- engine card id -> true while the card sits inside a graveyard/exile deck
+local pileState = {}        -- "graveyard:White" -> key of the cards it was built with
+engineChoosable = {}        -- colour -> { [engine card id] = true } cards the open prompt lets you pick from a pile
+
+local pileIds = {}   -- "graveyard:White" -> card ids the pile deck holds, in order
+engineEntering = {}  -- object GUID -> true while the renderer itself puts that card into a pile deck
+
+-- A card joining an existing pile goes into that deck (putObject): no new deck, no destroyed objects. Rebuilding the
+-- whole pile for every card made Unity's clean-up passes (265-400 ms freezes) grow with each game.
+pileRepairAt = {} -- pile id -> os.clock() of its last repair
+local function addToPile(deck, c)
+  engineInPile[c.id] = true
+  local single = engineObjs[c.id]
+  engineObjs[c.id] = nil
+  local pileId = (deck ~= nil and not deck.isDestroyed()) and tostring(deck.getGMNotes()):gsub("^engine:", "") or nil
+  -- a few frames later the card must be inside the pile; if the pile was replaced meanwhile or the put didn't take,
+  -- redraw the pile from the engine's list so the card can't get lost (it once vanished with an old pile deck)
+  -- (a check that can't decide yet looks again, up to 6 times half a second apart: giving up at the first "not yet"
+  -- left a card missing for good when its pile was being redrawn or another repair had just run)
+  local gen = engineGen
+  local function verify(attempt)
+    attempt = attempt or 1
+    local function later() if attempt < 6 then Wait.frames(function() verify(attempt + 1) end, 30) end end
+    Wait.frames(function()
+      if pileId == nil or lastTable == nil or gen ~= engineGen then return end
+      -- a pile being rebuilt is spawned from the engine's full list: check again once it is there (checking during
+      -- it made the repair rebuild the pile again and again, and the whole graveyard went missing)
+      if engineSpawning[pileId] then later() return end
+      local d = engineObjs[pileId]
+      if d == nil or d.isDestroyed() then later() return end
+      if d.type ~= "Deck" then return end -- drawn another way (a one-card pile is the card itself)
+      for _, e in ipairs(d.getObjects() or {}) do if e.gm_notes == "engine:" .. c.id then return end end
+      if engineObjs[c.id] ~= nil then return end -- it is drawn as its own object after all
+      -- still in this pile in the engine's game? (it may have moved on since)
+      local zone, color = pileId:match("^(%a+):(%a+)$")
+      local still = false
+      for _, pl in ipairs(lastTable.players or {}) do
+        if pl.color == color then for _, x in ipairs(pl[zone] or {}) do if x.id == c.id then still = true end end end
+      end
+      if not still then return end
+      if (pileRepairAt[pileId] or -100) > os.clock() - 3 then later() return end -- at most one repair per pile every 3 s
+      pileRepairAt[pileId] = os.clock()
+      op("pileRepair")
+      print("[engine] pile repair: " .. tostring(c.n or c.id) .. " was missing from " .. pileId)
+      if engineRebuildPile ~= nil then engineRebuildPile(pileId) end
+    end, 6)
+  end
+  local function put(obj)
+    if obj == nil or obj.isDestroyed() then verify() return end
+    if deck == nil or deck.isDestroyed() then verify() return end
+    engineEntering[obj.getGUID()] = true
+    enginePutInDeck(deck, obj)
+    verify()
+  end
+  if single ~= nil and not single.isDestroyed() then
+    if engineInHand[c.id] then
+      -- cards held in a hand are lifted out first; the hand would keep re-taking them
+      engineInHand[c.id] = nil
+      single.setPosition(deck.getPosition() + Vector(0, 2, 0))
+      Wait.frames(function() put(single) end, 1)
+    else
+      put(single)
+    end
+  else
+    op("pileSpawn")
+    spawnObjectData({ data = engineCardData(c), position = deck.getPosition() + Vector(0, 2, 0), callback_function = put })
+  end
+end
+
+-- Cards that LEFT a pile (reanimated, cast from exile, ...) are taken out of the pile deck before the board is
+-- drawn: the taken card becomes the object that moves to its new place, so nothing is respawned or rebuilt.
+function engineTakeFromPiles(m)
+  for _, pl in ipairs(m.players or {}) do
+    for _, zone in ipairs({ "graveyard", "exile" }) do
+      local id = zone .. ":" .. tostring(pl.color)
+      local old, deck = pileIds[id], engineObjs[id]
+      if old ~= nil and deck ~= nil and not deck.isDestroyed() and deck.type == "Deck" and not engineSpawning[id] then
+        local now, nowIds = {}, {}
+        for _, c in ipairs(pl[zone] or {}) do now[c.id] = true nowIds[#nowIds + 1] = c.id end
+        local removed, kept = {}, {}
+        for _, cid in ipairs(old) do if now[cid] then kept[#kept + 1] = cid else removed[#removed + 1] = cid end end
+        -- only when the rest of the pile is unchanged (same cards, same order) and something stays behind
+        local same = #kept == #nowIds and #kept >= 1 and #removed > 0
+        for i = 1, #kept do if kept[i] ~= nowIds[i] then same = false break end end
+        if same then
+          -- (by its place in the deck, read again for each card: cards inside a deck can share a guid, and a take by guid
+          -- took the first of them, a Swamp, for Bayek of Siwa; that Swamp then read as a player's "Look only", hp-07
+          -- #42 2026-10-27)
+          -- (read once and taken from the highest index down, so a take never moves a later one, suite review)
+          local takes, want = {}, {}
+          for _, cid in ipairs(removed) do want["engine:" .. cid] = cid end
+          for _, e in ipairs(deck.getObjects() or {}) do
+            local cid = want[tostring(e.gm_notes)]
+            if cid ~= nil then takes[#takes + 1] = { cid = cid, at = e.index } end
+          end
+          table.sort(takes, function(a, b) return a.at > b.at end)
+          for _, t in ipairs(takes) do
+            if deck ~= nil and not deck.isDestroyed() then
+              engineTakingOut[t.cid] = true -- (the table's own take: not a player's, see onObjectLeaveContainer)
+              local obj = deck.takeObject({ index = t.at, position = deck.getPosition() + Vector(0, 1.5, 0), smooth = false })
+              if obj ~= nil then
+                engineAdopt(t.cid, obj)
+                op("pileTake")
+              else engineTakingOut[t.cid] = nil end
+            end
+          end
+          -- a deck taken down to one card turns into that card: adopt it as the remaining card's object
+          if deck ~= nil and deck.remainder ~= nil then
+            local rem = deck.remainder
+            local rid = tostring(rem.getGMNotes()):gsub("^engine:", "")
+            engineAdopt(rid, rem)
+            engineObjs[id] = nil
+            pileState[id], pileIds[id] = nil, nil
+          else
+            pileIds[id] = kept
+            pileState[id] = table.concat(kept, ",")
+          end
+        end
+      end
+    end
+  end
+end
+
+-- A card the pile already holds that is still a separate object on the table (taken from a search and dropped short
+-- of the pile, then put there by the engine: it stayed where it lay, locked, 2026-10-21): it slides onto the pile and
+-- goes away, as the cards a new pile is built from do.
+function enginePileStrays(cards, base)
+  for _, c in ipairs(cards) do
+    local single = engineObjs[c.id]
+    if single ~= nil and not single.isDestroyed() then
+      engineObjs[c.id] = nil
+      single.setLock(true)
+      single.setPositionSmooth(onTable(base, 0.3), false, false)
+      Wait.time(function() if single ~= nil and not single.isDestroyed() then engineDispose(single) end end, 0.6)
+    end
+  end
+end
+function engineZonePile(color, zone, cards, base, rotY, seen)
+  local id = zone .. ":" .. color
+  seen[id] = true
+  engineMeta[id] = { zone = zone .. "pile", color = color }
+  if #cards <= 1 then
+    -- a single card is an ordinary engine card
+    local o = engineObjs[id]
+    if o ~= nil and not o.isDestroyed() then engineDispose(o) end
+    engineObjs[id], pileState[id], pileIds[id] = nil, nil, nil
+    for _, c in ipairs(cards) do
+      engineInPile[c.id] = nil
+      place(c, onTable(base), Vector(0, rotY, c.fd and 180 or 0), seen, nil, { zone = zone, color = color })
+    end
+    return
+  end
+  local ids = {}
+  for _, c in ipairs(cards) do ids[#ids + 1] = c.id end
+  local key = table.concat(ids, ",")
+  local o = engineObjs[id]
+  if pileState[id] == key and (engineSpawning[id] or (o ~= nil and not o.isDestroyed())) then
+    for _, c in ipairs(cards) do seen[c.id] = true end
+    enginePileStrays(cards, base)
+    return
+  end
+  local old = pileIds[id]
+  if old ~= nil and #ids > #old and o ~= nil and not o.isDestroyed() and o.type == "Deck" and not engineSpawning[id] then
+    local same = true
+    for i = 1, #old do if ids[i] ~= old[i] then same = false break end end
+    if same then
+      for i = #old + 1, #cards do addToPile(o, cards[i]) end
+      pileState[id], pileIds[id] = key, ids
+      for _, c in ipairs(cards) do seen[c.id] = true end
+      enginePileStrays(cards, base)
+      return
+    end
+  end
+  -- cards that are still separate objects slide onto the pile, then disappear into the new deck
+  for _, c in ipairs(cards) do
+    seen[c.id] = true
+    local single = engineObjs[c.id]
+    if single ~= nil and not single.isDestroyed() then
+      engineObjs[c.id] = nil
+      single.setLock(true)
+      single.setPositionSmooth(onTable(base, 0.3), false, false)
+      Wait.time(function() if single ~= nil and not single.isDestroyed() then engineDispose(single) end end, 0.6)
+    end
+    engineInPile[c.id] = true
+  end
+  if o ~= nil and not o.isDestroyed() then engineDispose(o) end
+  engineObjs[id] = nil
+  pileState[id] = key
+  pileIds[id] = ids
+  local decks, objs, deckIds = {}, {}, {}
+  for i = #cards, 1, -1 do -- newest first: the top of a face-up deck is the card you see
+    local c = cards[i]
+    local n = #objs + 1
+    local face, back = (c.n ~= nil and c.f) or ENGINE_BACK, c.b or ENGINE_BACK
+    local k = engineDeckKey(face, back)
+    decks[k] = deckEntry(face, back)
+    objs[n] = { Name = "Card", Nickname = nickname(c), Description = description(c), GMNotes = "engine:" .. c.id,
+      CardID = k * 100, CustomDeck = { [k] = decks[k] },
+      Transform = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 } }
+    deckIds[n] = k * 100
+  end
+  local data = { Name = "Deck", Nickname = (zone == "graveyard" and "Graveyard" or "Exile"), GMNotes = "engine:" .. id,
+    Locked = true, DeckIDs = deckIds, CustomDeck = decks, ContainedObjects = objs,
+    Transform = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 } }
+  engineSpawning[id] = true
+  local gen = engineGen
+  Wait.time(function()
+    if gen ~= engineGen then engineSpawning[id] = nil return end -- the game ended meanwhile
+    op("deckSpawn") spawnObjectData({ data = data, position = onTable(base, 0.2), rotation = Vector(0, rotY, 0), callback_function = function(obj)
+      engineSpawning[id] = nil
+      if pileState[id] ~= key then engineDispose(obj) return end -- a newer version of this pile is on its way
+      engineObjs[id] = obj
+      obj.setLock(true)
+      keepOnly(id, obj)
+    end })
+  end, 0.5)
+end
+
+-- Throws a pile deck away and redraws it from the engine state, clearing loose copies of its cards first
+-- (pulling a card out of a 2-card deck leaves TTS with two loose cards).
+function enginePileReset()
+  engineTakingOut = {} -- (ids repeat in the next game: no mark may outlive this one)
+  for k in pairs(pileState) do pileState[k] = nil end
+  for k in pairs(pileIds) do pileIds[k] = nil end
+  engineInPile = {}
+  engineGroupOf = {}
+  engineGroupKey = {}
+  engineSplit = {}
+  engineAutoMana = nil
+  engineStackGlow = {}
+  engineBaseGlow = {}
+  engineManualLanded = {}
+  engineManualPlay = {}
+end
+
+function engineRebuildPile(id)
+  pileState[id] = nil
+  local o = engineObjs[id]
+  if o ~= nil and not o.isDestroyed() then engineDispose(o) end
+  engineObjs[id] = nil
+  for _, x in ipairs(getObjects()) do
+    local cid = tostring(x.getGMNotes()):match("^engine:(.+)$")
+    if cid ~= nil and (engineInPile[cid] or x.getGMNotes() == "engine:" .. id) and engineObjs[cid] ~= x then engineDispose(x) end
+  end
+  if lastTable ~= nil then Wait.frames(function() if lastTable ~= nil then engineRender(lastTable) end end, 2) end
+end
+
+-- Cards pulled out of a graveyard/exile deck: the pick for an open prompt, otherwise the pile is redrawn.
+-- engineTakingOut: engine card ids the table itself takes out (a card the engine moved out of the pile): those are not
+-- the player's, who was told "Look only" when Kenrith returned Hero of Iroas from the graveyard (hp-07 #42 2026-10-27).
+-- By card id, not guid: a card leaving a deck can get a new guid when its old one is taken.
+engineTakingOut = {}
+local pileLeaveBefore = onObjectLeaveContainer
+function onObjectLeaveContainer(container, obj)
+  local gm = container ~= nil and tostring(container.getGMNotes()) or ""
+  local zone, color = gm:match("^engine:(%a+):(%a+)$")
+  local takenId = obj ~= nil and tostring(obj.getGMNotes()):match("^engine:(.+)$") or nil
+  if takenId ~= nil and engineTakingOut[takenId] then
+    engineTakingOut[takenId] = nil
+    if pileLeaveBefore ~= nil then return pileLeaveBefore(container, obj) end
+    return
+  end
+  -- (not while a manual fix is being edited: taking a card out of a pile is how a fix moves it; the handler threw it
+  -- back, found by the fake table once it fired this event as TTS does, hp-07 #42 2026-10-27)
+  if ENGINE_MODE and not ENGINE_FIX_EDIT and (zone == "graveyard" or zone == "exile") and obj ~= nil then
+    local cid = tostring(obj.getGMNotes()):match("^engine:(.+)$")
+    local chooser = nil
+    for c, set in pairs(engineChoosable) do if cid ~= nil and set[cid] then chooser = c end end
+    if chooser ~= nil then
+      engineAdopt(cid, obj, true) -- the engine says where it goes next
+      engineSend("intent", { color = chooser, kind = "choose", id = cid })
+      return
+    end
+    tell(color, "Look only: the engine moves cards out of the " .. zone .. " when an effect lets you.")
+    Wait.frames(function()
+      if obj ~= nil and not obj.isDestroyed() then engineDispose(obj) end
+      engineRebuildPile(zone .. ":" .. color)
+    end, 1)
+    return
+  end
+  if pileLeaveBefore ~= nil then return pileLeaveBefore(container, obj) end
+end
+
+-- Nothing merges into the engine's own library / graveyard / exile decks by physics (a card sliding onto a pile
+-- while it is rebuilt would otherwise be swallowed); the engine decides what those decks contain.
+local tryEnterBefore = tryObjectEnterContainer
+function tryObjectEnterContainer(container, obj)
+  if obj ~= nil and engineEntering[obj.getGUID()] then return true end
+  if ENGINE_MODE and container ~= nil then
+    local gm = tostring(container.getGMNotes())
+    if gm:find("^engine:library:") or gm:find("^engine:graveyard:") or gm:find("^engine:exile:") then return false end
+    -- one engine card dropped onto another (rearranging your lands) made TTS merge them into a deck: both cards
+    -- vanished until the table broke the deck up and drew them again (the "stacking glitch", playtest 2026-10-24).
+    -- They don't merge now; the card just lies on the other.
+    if gm:find("^engine:engine%-card%-") and obj ~= nil and isEngineCard(obj) then
+      if engineTableLog ~= nil then engineTableLog(nil, "kept " .. tostring(obj.getName():match("^[^\n]*")) .. " from stacking into " .. tostring(container.getName():match("^[^\n]*"))) end
+      return false
+    end
+  end
+  if tryEnterBefore ~= nil then return tryEnterBefore(container, obj) end
+  return true
+end
+
+-- ───────── profiling (read engineProfile over the debug channel) ─────────
+-- Times the table's main engine handlers; slow calls are what players feel as a frame hitch.
+engineProfile = { calls = {}, total = {}, max = {}, slow = {}, recent = {}, hitches = {}, sect = {}, frames = 0, uiCalls = 0 }
+
+-- Frame-hitch recorder: a frame over 50 ms is logged with the engine handlers that ran just before it (TTS does
+-- UI layout and spawning after a script returns, so that cost lands in the following frame).
+function onUpdate()
+  local P = engineProfile
+  P.frames = P.frames + 1
+  local dt = Time.delta_time -- Unity caps this at 0.15 s, so 150 means "150 ms or more"
+  if dt > 0.05 and #P.hitches < 60 then
+    local ops = {}
+    for k, v in pairs(engineOps) do ops[#ops + 1] = k .. "=" .. v end
+    P.hitches[#P.hitches + 1] = string.format("%.0fms after [%s] ui=%d ops{%s}", dt * 1000, table.concat(P.recent, ","), P.uiCalls, table.concat(ops, " "))
+  end
+  P.recent = {}
+  P.uiCalls = 0
+  engineOps = {}
+end
+local function profiled(name)
+  local fn = _G[name]
+  if type(fn) ~= "function" then return end
+  _G[name] = function(...)
+    local t0 = os.clock()
+    engineProfile.recent[#engineProfile.recent + 1] = name
+    local a, b, c = fn(...)
+    local ms = (os.clock() - t0) * 1000
+    local P = engineProfile
+    P.calls[name] = (P.calls[name] or 0) + 1
+    P.total[name] = (P.total[name] or 0) + ms
+    if ms > (P.max[name] or 0) then P.max[name] = ms end
+    if ms > 30 and #P.slow < 40 then P.slow[#P.slow + 1] = string.format("%s %.0fms", name, ms) end
+    return a, b, c
+  end
+end
+for _, n in ipairs({ "engineRender", "engineOnPrompt", "engineRenderPanels", "onExternalMessage", "engineZonePile", "engineLibraryDeck" }) do profiled(n) end
+
+-- ───────── table buttons (phase 3) ─────────
+-- The manual Untap / Reveal / Draw / Mill / Scry buttons and the Mulligan tiles stay in engine mode (they ask the
+-- engine, engineTableButton). A player who presses READY gets their own set out of the way: it goes under the table
+-- until they un-ready, the game ends or engine mode goes off (2026-10-21, the user's call).
+local TABLE_BUTTONS = {
+  "86e447", "1f3e4a", "18fb5d", "e2f7ae", -- Untap
+  "59ab68", "0ad181", "c489e1", "d67eb4", -- Reveal
+  "885f49", "305c12", "26775a", "b49d50", -- Draw
+  "67b4a5", "da5d0d", "d06889", "57914a", -- Mill
+  "ffa67c", "8a4c8b", "614515", "4e19c8", -- Scry
+  "c53ac6", "47645d", "3b07ae", "e0a3bc", -- Mulligan tiles
+}
+local BUTTON_DROP = 20
+local buttonSeat = {} -- table button guid -> the seat whose playmat it is nearest (worked out once)
+local function seatOfButton(o)
+  local guid = o.getGUID()
+  if buttonSeat[guid] == nil then
+    local p, bestD = o.getPosition(), nil
+    for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do
+      local mat = data[c] and data[c].playmat
+      if mat ~= nil then
+        local m = mat.getPosition()
+        local d = (p.x - m.x) ^ 2 + (p.z - m.z) ^ 2
+        if bestD == nil or d < bestD then buttonSeat[guid], bestD = c, d end
+      end
+    end
+  end
+  return buttonSeat[guid]
+end
+-- hide: true / false for every seat, or a function seat -> true / false
+function engineTableButtons(hide)
+  for _, guid in ipairs(TABLE_BUTTONS) do
+    local o = getObjectFromGUID(guid)
+    if o ~= nil then
+      local p = o.getPosition()
+      local h = hide
+      if type(hide) == "function" then h = hide(seatOfButton(o)) end
+      if h and p.y > -5 then
+        o.setLock(true)
+        o.setPosition(p + Vector(0, -BUTTON_DROP, 0))
+      elseif not h and p.y < -5 then
+        o.setPosition(p + Vector(0, BUTTON_DROP, 0))
+      end
+    end
+  end
+end
+-- where `color`'s Draw button stands on the table (also while it is under it): the READY button goes there
+local DRAW_BUTTONS = { "885f49", "305c12", "26775a", "b49d50" }
+function engineDrawButtonSpot(color)
+  local mat = data[color] and data[color].playmat
+  if mat == nil then return nil end
+  local m, best, bestD = mat.getPosition(), nil, nil
+  for _, guid in ipairs(DRAW_BUTTONS) do
+    local o = getObjectFromGUID(guid)
+    if o ~= nil then
+      local p = o.getPosition()
+      local d = (p.x - m.x) ^ 2 + (p.z - m.z) ^ 2
+      if bestD == nil or d < bestD then best, bestD = p, d end
+    end
+  end
+  return best and Vector(best.x, m.y + 0.2, best.z) or nil
+end
+local HIDE_IN_ENGINE_MODE = { "540e21", "ee33ec" } -- Pirate Cannon, first-player die (the engine picks who goes first)
+-- where each one was is kept in its memo (saved with the table, as text: see the JSON.encode freeze), so it goes back
+-- to the same spot and lock state even after a save and reload in engine mode
+function engineHideForEngine(on)
+  for _, guid in ipairs(HIDE_IN_ENGINE_MODE) do
+    local o = getObjectFromGUID(guid)
+    local home = o ~= nil and tostring(o.memo or ""):match("^mtghome (.+)$")
+    if o ~= nil and on and home == nil then
+      local p = o.getPosition()
+      o.memo = string.format("mtghome %.3f %.3f %.3f %s", p.x, p.y, p.z, tostring(o.getLock()))
+      o.setLock(true)
+      o.setPosition({ p.x, -30, p.z })
+    elseif o ~= nil and not on and home ~= nil then
+      local x, y, z, locked = home:match("^(%S+) (%S+) (%S+) (%S+)$")
+      o.memo = ""
+      o.setPosition({ tonumber(x), tonumber(y), tonumber(z) })
+      o.setLock(locked == "true")
+    end
+  end
+end
+local setEngineModeWithoutButtons = setEngineMode
+function setEngineMode(on)
+  setEngineModeWithoutButtons(on)
+  engineTableButtons(false) -- (back for everyone; READY hides a player's own set again)
+  engineHideForEngine(on)
+end
+Wait.frames(function() engineTableButtons(false) engineHideForEngine(ENGINE_MODE) end, 20)
+
+-- For the debug channel: the last board the bridge sent (lastTable is private to this file).
+function engineTable() return lastTable end
+-- For the table's hand counters (make-engine-copy "Hand counter"): the engine's count while a game runs, nil otherwise
+-- (they counted the hand's objects and caught cards being re-laid out, hp-07 2026-10-27)
+function engineHandCount(p)
+  if not ENGINE_MODE or lastTable == nil or lastTable.gameOver or p == nil then return nil end
+  for _, pl in ipairs(lastTable.players or {}) do if pl.color == p.color then return tonumber(pl.handCount) end end
+  return nil
+end
+
+-- ───────── doing it yourself: releasing held moves ─────────
+function heldInList(list, id)
+  for _, x in ipairs(list) do if x == id then return true end end
+  return false
+end
+-- kind: "draw" (one card), "mill" (all held mills), "untap" (all), "all".
+function engineReleasePending(color, kind)
+  local p = enginePending[color]
+  if p == nil then return false end
+  local did = false
+  if (kind == "draw" or kind == "all") and #p.draw > 0 then
+    p.draw = {} -- one click takes every held card
+    did = true
+  end
+  if (kind == "mill" or kind == "all") and #p.mill > 0 then
+    p.mill = {}
+    did = true
+  end
+  if (kind == "untap" or kind == "all") and next(p.untap) ~= nil then
+    p.untap = {}
+    did = true
+  end
+  if did then engineTableLog(color, "takes the held " .. kind) end
+  if did and engineTable() ~= nil then engineRender(engineTable()) end
+  return did
+end
+
+-- The table's own Draw / Mill / Untap / Scry / Mulligan / Reveal buttons, while the engine runs.
+function engineTableButton(kind, color)
+  if color == nil or engineTable() == nil then return end
+  local function say(t) broadcastToColor("[MTG] " .. t, color, {1, 0.85, 0.4}) end
+  if kind == "draw" then
+    if not engineReleasePending(color, "draw") then say("Not now: the engine draws for you when a rule or card says so.") end
+  elseif kind == "mill" then
+    if not engineReleasePending(color, "mill") then say("Not now: nothing is milling you.") end
+  elseif kind == "untap" then
+    if not engineReleasePending(color, "untap") then say("Not now: your permanents untap in your untap step.") end
+  elseif kind == "mulligan" then
+    local p = enginePrompts[color]
+    local i
+    for k, o in ipairs((p and p.options) or {}) do if o.id == "mull" then i = k end end
+    if i ~= nil then enginePick(color, i) else say("Not now: you can only mulligan before the game starts.") end
+  elseif kind == "scry" or kind == "reveal" then
+    local p = enginePrompts[color]
+    local k = p ~= nil and describePrompt(p).kind or nil
+    local asks = (kind == "reveal" and k == "reveal") or (kind == "scry" and (k == "cards" or k == "place" or k == "order") and tostring(p.title):lower():find("scry"))
+    if asks then say("Choose in your panel on the left.")
+    else say("Not now: the engine asks you when a card makes you " .. kind .. ".") end
+  end
+end
+
+-- Clicking or picking up your own library takes the held card (a draw first, then any mill).
+local paceBeforeAction = onPlayerAction
+function onPlayerAction(player, action, targets)
+  if ENGINE_MODE and engineTable() ~= nil and (action == Player.Action.Select or action == Player.Action.PickUp) then
+    for _, o in ipairs(targets or {}) do
+      local gm = tostring(o.getGMNotes())
+      local p = enginePending[player.color]
+      if p ~= nil and #p.mill > 0 and heldInList(p.mill, (gm:gsub("^engine:", ""))) then
+        engineReleasePending(player.color, "mill")
+        return false
+      end
+      if gm == "engine:library:" .. player.color then
+        local d, mi = enginePendingCount(player.color)
+        if d > 0 then engineReleasePending(player.color, "draw") return false end
+        if mi > 0 then engineReleasePending(player.color, "mill") return false end
+      end
+    end
+  end
+  return paceBeforeAction(player, action, targets)
+end
+
+-- A decision about a held card shows that card first.
+local paceBeforePrompt = engineOnPrompt
+function engineOnPrompt(m)
+  local title = tostring(m.title or "")
+  local k = describePrompt(m).kind
+  if m.promptId ~= nil and k ~= "mulligan" and k ~= "mulliganPutBack" and k ~= "dice" then
+    paceArmed[m.color] = true
+  end
+  local p = enginePending[m.color]
+  if p ~= nil and m.promptId ~= nil then
+    local wanted = {}
+    for _, o in ipairs(m.options or {}) do
+      if o.cardId then wanted[o.cardId] = true end
+      local id = tostring(o.id or "")
+      wanted[id] = true
+      wanted[id:gsub("^card|", "")] = true
+    end
+    for _, list in ipairs({ p.draw, p.mill }) do
+      for _, id in ipairs(list) do if wanted[id] then engineReleasePending(m.color, "all") break end end
+    end
+  end
+  return paceBeforePrompt(m)
+end
+
+-- ───────── hotkey: pass priority (bind it to P) ─────────
+-- Scripts can't claim a letter key themselves; this registers "MTG: pass priority / main button", which each
+-- player binds once (Options → Controls). It passes priority, or presses the big corner button when there is no
+-- pass (e.g. Confirm).
+pcall(function()
+  addHotkey("MTG: pass priority / main button", function(playerColor)
+    local p = enginePrompts[playerColor]
+    if p == nil then return end
+    for i, o in ipairs(p.options or {}) do
+      if o.id == "__pass" then enginePick(playerColor, i) return end
+    end
+    if engineCornerPress ~= nil then engineCornerPress(playerColor, "big") end
+  end)
+end)
+
+-- ───────── rewind snapshots: once a minute instead of every ~10 s ─────────
+-- TTS serializes the whole table for its rewind history about every 10 seconds. Measured with PresentMon
+-- (2026-10-19): each snapshot froze this table for 2.6-2.8 s, all CPU, even with no game running. storeRewindState(fn,
+-- true) stores one state now and blocks automatic ones for 60 s; renewing it every 55 s keeps rewind working (one state
+-- a minute) while removing four of every five freezes. (allowRewindStore() LIFTS the block; it doesn't set it.)
+local function holdRewind()
+  if type(storeRewindState) == "function" then pcall(storeRewindState, function() end, true) end
+  Wait.time(holdRewind, 55)
+end
+Wait.time(holdRewind, 5)
+
+-- Debug readout for one engine card (tools/tts-check.lua uses it to explain a "missing object"): its object and the
+-- table's bookkeeping about it.
+function engineDebugCard(id)
+  local o = engineObjs[id]
+  local copies = 0
+  for _, x in ipairs(getObjects()) do if tostring(x.getGMNotes()) == "engine:" .. id then copies = copies + 1 end end
+  local m = engineMeta[id] or {}
+  return string.format("obj=%s spawning=%s inPile=%s held=%s inHand=%s zone=%s manual=%s copies=%d",
+    o == nil and "nil" or (o.isDestroyed() and "destroyed" or o.getGUID() .. "@" .. string.format("%.0f,%.0f", o.getPosition().x, o.getPosition().z)),
+    tostring(engineSpawning[id]), tostring(engineInPile[id]), tostring(engineHeld[id]), tostring(engineInHand[id]),
+    tostring(m.zone), tostring(engineManual[id] ~= nil), copies)
+end
+
+-- ───────── playable cards glow green in your hand (only you see it) ─────────
+-- TTS highlights are seen by every player, so the glow is a frame drawn by the card's own UI with visibility set to
+-- the hand's owner. Only cards you can cast or play right now ("Your priority" options) glow. "mtg glow" toggles it.
+engineGlowOff = engineGlowOff or {}  -- colour -> true when that player switched the green glow off
+local playableShown = {}            -- colour -> { card id = object } currently framed
+-- A green frame sticking out past the card's edges: the UI draws under the card, so a frame inside the card's
+-- outline (or a transparent panel's "outline", which Unity draws at the panel's own zero alpha) never showed.
+local PLAYABLE_BAR = '<Panel color="#3dff6e" raycastTarget="false" width="%d" height="%d" rectAlignment="%s"/>'
+local PLAYABLE_XML = '<Panel id="eng_play" visibility="%s" position="0 0 -12" rotation="0 0 180" width="266" height="366" color="#00000000" raycastTarget="false" active="%s">'
+  .. string.format(PLAYABLE_BAR, 266, 13, "UpperCenter") .. string.format(PLAYABLE_BAR, 266, 13, "LowerCenter")
+  .. string.format(PLAYABLE_BAR, 13, 366, "MiddleLeft") .. string.format(PLAYABLE_BAR, 13, 366, "MiddleRight") .. '</Panel>'
+local playableBuilt = {} -- object -> owner colour its frame was built for (built once, then only shown/hidden)
+local function frameOn(obj, color, on)
+  if playableBuilt[obj] ~= color then
+    -- the first time: build it (a full UI build costs a frame); afterwards only the "active" switch changes
+    obj.UI.setXml(string.format(PLAYABLE_XML, color, on and "true" or "false"))
+    playableBuilt[obj] = color
+  else
+    obj.UI.setAttribute("eng_play", "active", on and "true" or "false")
+  end
+end
+function enginePlayableGlow(color)
+  if color == nil then return end
+  local want = {}
+  local p = enginePrompts[color]
+  if p ~= nil and not engineGlowOff[color] and describePrompt(p).kind == "priority" then
+    for _, o in ipairs(p.options or {}) do
+      local l = tostring(o.label)
+      -- (your hand, your commander in the command zone, and your playable row of exile and graveyard cards)
+      local m = o.cardId ~= nil and engineMeta[o.cardId]
+      local mine = m and m.color == color and (m.zone == "command" or m.zone == "playable")
+      if o.cardId ~= nil and (l:find("^Cast ") or l:find("^Play ")) and (engineInHand[o.cardId] or mine) then want[o.cardId] = true end
+    end
+    -- the engine offers one "Play Island" for three Islands: frame every copy in this player's hand
+    local names = {}
+    for id in pairs(want) do local st = engineStatic[id] if st and st.n then names[st.n] = true end end
+    for id in pairs(engineInHand) do
+      local st, meta = engineStatic[id], engineMeta[id]
+      if st and names[st.n] and meta and meta.color == color and meta.zone == "hand" then want[id] = true end
+    end
+  end
+  local shown = playableShown[color] or {}
+  for id, obj in pairs(shown) do
+    if not want[id] or engineObjs[id] ~= obj then
+      if obj ~= nil and not obj.isDestroyed() then frameOn(obj, color, false) end
+      shown[id] = nil
+    end
+  end
+  local missing = false
+  for id in pairs(want) do
+    local obj = engineObjs[id]
+    if shown[id] == nil and obj ~= nil and not obj.isDestroyed() then
+      frameOn(obj, color, true)
+      shown[id] = obj
+    elseif obj == nil or obj.isDestroyed() then missing = true end
+  end
+  playableShown[color] = shown
+  -- (a card drawn just now is still being made when the question arrives: it was never framed, playtest 2026-10-23)
+  if missing and not playableRetry[color] then
+    playableRetry[color] = true
+    Wait.frames(function() playableRetry[color] = nil enginePlayableGlow(color) end, 30)
+  end
+end
+playableRetry = {}
+-- after every board: the hand may have changed under an open question
+function enginePlayableGlowAll()
+  for c in pairs(enginePrompts) do pcall(enginePlayableGlow, c) end
+end
+function engineToggleGlow(color)
+  engineGlowOff[color] = not engineGlowOff[color] or nil
+  enginePlayableGlow(color)
+  return engineGlowOff[color] and "off" or "on"
+end
+
+-- ───────── setup buttons: Ready on each seat, Start in the middle (docs/game-modes-spec.md §6) ─────────
+-- The same as typing "mtg ready" / "mtg start", for players who'd rather not type. Ready sits on each seated player's
+-- playmat, near their life counter: yellow until their deck is checked, green when it's ready, red when the check
+-- found a problem (the chat says what). Start sits on a small tile between the life counters: yellow until every
+-- seated player is ready, then green, and anyone may press it. While a game runs both are hidden; after it ends the
+-- middle button offers "New game" (anyone seated, as "mtg reset"). Only in engine mode.
+do -- (its own scope: the main chunk is near the 200-locals limit of standard Lua, which the tests run on)
+engineReadyState = {} -- colour -> "ready" | "problem" (from the bridge's deck report)
+local SETUP = { tag = "mtgsetup", sig = nil, spawning = false, seats = { "White", "Red", "Yellow", "Blue" }, size = 2.5, tileW = 2.2, tileD = 1.5, -- (the tile fits the gap between the four life counters)
+  color = { wait = {0.85, 0.68, 0.12}, go = {0.2, 0.68, 0.3}, bad = {0.78, 0.2, 0.18}, idle = {0.28, 0.33, 0.46} } }
+
+local function setupTile()
+  for _, o in ipairs(getObjects()) do if o.getGMNotes() == SETUP.tag then return o end end
+  return nil
+end
+
+-- What the last drawing put where: the tile's label and, per seat, whether its mat has a READY button.
+SETUP.drawn = { tile = nil, mats = {} }
+function engineSetupIntact()
+  local tile = setupTile()
+  local want = SETUP.drawn.tile
+  local have = tile ~= nil and (tile.getButtons() or {})[1] or nil
+  if (want == nil) ~= (have == nil) or (have ~= nil and have.label ~= want) then return false end
+  for c in pairs(SETUP.drawn.mats) do
+    local mat = data[c] and data[c].playmat
+    local any = false
+    for _, b in ipairs((mat and mat.getButtons()) or {}) do if b.click_function == "onMtgSetupReady" then any = true end end
+    if not any then return false end
+  end
+  return true
+end
+local function seatedSetupColors()
+  local out = {}
+  for _, c in ipairs(SETUP.seats) do if Player[c] ~= nil and Player[c].seated and data[c] and data[c].playmat then out[#out + 1] = c end end
+  return out
+end
+
+-- one button on `obj` at world position `at`, readable from the seat `facing` (nil: as the object lies)
+local function setupButton(obj, click, label, color, at, facing, width)
+  local s = obj.getScale()
+  local rotY = 0
+  if facing ~= nil then
+    local hand = Player[facing].getHandTransform()
+    rotY = ((hand and hand.rotation.y or 0) + 180) - obj.getRotation().y
+  end
+  obj.createButton({ click_function = click, function_owner = Global, label = label, position = obj.positionToLocal(at),
+    -- (the playmats are stretched objects: the scale undoes that, then makes the button readable from a seat)
+    rotation = { 0, rotY, 0 }, scale = { SETUP.size / s.x, 1 / s.y, SETUP.size / s.z }, width = width or 1300, height = 420, font_size = 220,
+    color = color, font_color = { 1, 1, 1 }, tooltip = "" })
+end
+
+function engineDeckReport(m)
+  local ok = {}
+  for _, c in ipairs(m.ready or {}) do ok[c] = true end
+  for _, c in ipairs(m.checked or m.ready or {}) do engineReadyState[c] = ok[c] and "ready" or "problem" end
+  engineSetupButtons()
+end
+
+function engineSetupButtons()
+  local game = engineTable ~= nil and engineTable() or nil
+  local running = game ~= nil and not game.gameOver
+  local seated = seatedSetupColors()
+  local ready = 0
+  for _, c in ipairs(seated) do if engineReadyState[c] == "ready" then ready = ready + 1 end end
+  local over = game ~= nil and game.gameOver
+  -- only when something changed (buttons on objects are synced to every player)
+  local alive = {}
+  for _, pl in ipairs((game and game.players) or {}) do if pl.status == "playing" then alive[#alive + 1] = tostring(pl.color) end end
+  table.sort(alive)
+  local sig = table.concat({ tostring(ENGINE_MODE), tostring(running), tostring(over), table.concat(seated, ","), tostring(ready), table.concat(alive, ","),
+    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)() }, "|")
+  -- (unchanged, and the buttons are still there: TTS's own scripts or a reload can wipe an object's buttons, and after a
+  -- game ended the READY buttons and the middle tile stayed gone or stale, "Engine: off" with engine mode on, playtest
+  -- 2026-10-24; engineSetupHeal below looks every 2 s)
+  if sig == SETUP.sig and engineSetupIntact() then return end
+  SETUP.sig = sig
+  SETUP.drawn = { tile = nil, mats = {} }
+  for _, c in ipairs(SETUP.seats) do
+    local mat = data[c] and data[c].playmat
+    if mat ~= nil then mat.clearButtons() end
+  end
+  local tile = setupTile()
+  if tile ~= nil then tile.clearButtons() end
+  if engineTableButtons ~= nil then
+    engineTableButtons(function(c) return ENGINE_MODE and c ~= nil and engineReadyState[c] == "ready" end)
+  end
+  if tile == nil then
+    if not SETUP.spawning then
+      SETUP.spawning = true
+      spawnObject({ type = "BlockSquare", position = { 0, 0.95, 0 }, scale = { SETUP.tileW, 0.08, SETUP.tileD }, callback_function = function(o)
+        SETUP.spawning = false
+        o.setLock(true)
+        o.setGMNotes(SETUP.tag)
+        o.setName("MTG game setup")
+        o.setColorTint({ 0.08, 0.1, 0.14 })
+        SETUP.sig = nil
+        engineSetupButtons()
+      end })
+    end
+  end
+  if tile ~= nil and math.abs(tile.getScale().x - SETUP.tileW) > 0.01 then tile.setScale({ SETUP.tileW, 0.08, SETUP.tileD }) end -- (an older, bigger tile)
+  if tile ~= nil and tile.getPosition().y < -10 then tile.setPosition({ 0, 0.95, 0 }) end -- (an older tile kept under the table)
+  if not ENGINE_MODE then
+    if tile ~= nil then
+      SETUP.drawn.tile = "Engine: off"
+      tile.createButton({ click_function = "onMtgSetupEngine", function_owner = Global, label = "Engine: off", position = { 0, 0.6, 0 },
+        rotation = { 0, 0, 0 }, scale = { 1 / SETUP.tileW, 1, 1 / SETUP.tileD }, width = 1100, height = 720, font_size = 260,
+        color = SETUP.color.idle, font_color = { 1, 1, 1 }, tooltip = "Turn the rules engine on (host)" })
+    end
+    return
+  end
+  if not running and not over then
+    for _, c in ipairs(seated) do
+      local mat = data[c].playmat
+      local st = engineReadyState[c]
+      local life = LIFE_TRACKERS[c] and getObjectFromGUID(LIFE_TRACKERS[c])
+      local m = mat.getPosition()
+      local toward = life and life.getPosition() or Vector(0, m.y, 0)
+      -- below the Draw button (further from the playmat, toward the player); without one, toward the life counter
+      local spot = engineDrawButtonSpot ~= nil and engineDrawButtonSpot(c) or nil
+      local at = m + (toward - m) * 0.62 + Vector(0, 0.2, 0)
+      if spot ~= nil then
+        local away = Vector(spot.x - m.x, 0, spot.z - m.z)
+        local len = math.sqrt(away.x ^ 2 + away.z ^ 2)
+        at = len > 0 and (spot + away * (1.4 / len)) or spot
+      end
+      SETUP.drawn.mats[c] = true
+      setupButton(mat, "onMtgSetupReady", st == "ready" and "READY" or (st == "problem" and "FIX DECK" or "READY?"),
+        st == "ready" and SETUP.color.go or (st == "problem" and SETUP.color.bad or SETUP.color.wait), at, c)
+    end
+  end
+  if tile ~= nil then
+    local label, color, click = nil, nil, "onMtgSetupStart"
+    if over then label, color = "New game", SETUP.color.idle
+    elseif running then label = nil
+    elseif #seated > 0 and ready == #seated then label, color = "Start", SETUP.color.go
+    else label, color, click = "Engine: on", SETUP.color.idle, "onMtgSetupEngine" end -- (Start appears once all are ready)
+    if label ~= nil then
+      SETUP.drawn.tile = label
+      tile.createButton({ click_function = click, function_owner = Global, label = label, position = { 0, 0.6, 0 },
+        rotation = { 0, 0, 0 }, scale = { 1 / SETUP.tileW, 1, 1 / SETUP.tileD }, width = 1100, height = 720,
+        font_size = #label > 6 and 260 or 400, color = color, font_color = { 1, 1, 1 }, tooltip = "" })
+    end
+  end
+  engineScoopRedraw()
+end
+
+-- Scoop: each seated player still in the game sees it beside their name at the top (screen UI). Also called after
+-- the screen UI is rebuilt (a game start seats players): the rebuilt XML starts with it hidden, and attributes set
+-- while TTS is still loading new XML are lost.
+function engineScoopRedraw()
+  local game = engineTable ~= nil and engineTable() or nil
+  local running = ENGINE_MODE and game ~= nil and not game.gameOver
+  for _, c in ipairs(SETUP.seats) do
+    local show = false
+    if running and Player[c] ~= nil and Player[c].seated then
+      for _, pl in ipairs(game.players or {}) do if pl.color == c and pl.status == "playing" then show = true end end
+    end
+    UI.setAttribute("eng_scoop_" .. c, "active", show and "true" or "false")
+    if not show then UI.setAttribute("eng_scoopask_" .. c, "active", "false") end
+  end
+end
+
+-- Engine mode on/off from the middle button (anyone seated, as "mtg engine on/off")
+function onMtgSetupEngine(obj, playerColor)
+  local pl = Player[playerColor]
+  if pl ~= nil then engineChat(ENGINE_MODE and "mtg engine off" or "mtg engine on", pl) end
+end
+
+-- Scoop: the button opens the "Concede this game?" box; Scoop there concedes (each player sees only their own)
+function onMtgScoopAsk(player, value, id)
+  if id == "eng_scoop_" .. player.color then UI.setAttribute("eng_scoopask_" .. player.color, "active", "true") end
+end
+function onMtgScoopYes(player, value, id)
+  if id ~= "eng_scoopyes_" .. player.color then return end
+  UI.setAttribute("eng_scoopask_" .. player.color, "active", "false")
+  engineSend("concede", { color = player.color })
+end
+function onMtgScoopNo(player, value, id)
+  if id == "eng_scoopno_" .. player.color then UI.setAttribute("eng_scoopask_" .. player.color, "active", "false") end
+end
+
+function onMtgSetupReady(obj, playerColor)
+  local c = nil
+  for _, col in ipairs(SETUP.seats) do if data[col] and data[col].playmat == obj then c = col end end
+  if c == nil then return end
+  if playerColor ~= c then
+    broadcastToColor("[MTG] That's " .. c .. "'s Ready button. Use the one on your own playmat.", playerColor, { 1, 0.65, 0.2 })
+    return
+  end
+  if engineReadyState[c] == "ready" then -- pressed again: not ready any more (the table buttons come back)
+    engineReadyState[c] = nil
+    return engineSetupButtons()
+  end
+  engineChat("mtg ready", Player[c])
+end
+
+function onMtgSetupStart(obj, playerColor)
+  local game = engineTable ~= nil and engineTable() or nil
+  local pl = Player[playerColor]
+  if pl == nil then return end
+  if game ~= nil and game.gameOver then
+    if pl.host or pl.admin or pl.promoted or pl.seated then engineKeepEngineMode = true end -- (back to READY, engine mode stays on)
+    engineChat("mtg reset", pl) -- (as typed: anyone seated once the game is over)
+    return
+  end
+  if game ~= nil then return end
+  local seated = seatedSetupColors()
+  for _, c in ipairs(seated) do
+    if engineReadyState[c] ~= "ready" then
+      broadcastToColor("[MTG] Waiting for " .. c .. " to press READY.", playerColor, { 1, 0.85, 0.4 })
+      return
+    end
+  end
+  if #seated == 0 then return end
+  engineStartGame(pl, #seated == 1 and "ai 1" or "")
+end
+
+function onPlayerChangeColor(color)
+  if engineSetupButtons ~= nil then engineSetupButtons() end
+end
+-- on load (engine mode is off then): the middle tile with its engine switch
+Wait.frames(function() if engineSetupButtons ~= nil then pcall(engineSetupButtons) end end, 60)
+-- and every 2 s while no game is running: buttons wiped or left from another state are drawn again
+Wait.time(function()
+  local t = engineTable ~= nil and engineTable() or nil
+  if t == nil or t.gameOver then pcall(engineSetupButtons) end
+end, 2, -1)
+
+-- ───────── manual fix by vote (PLAN M7, docs/m7-manual-fix-spec.md) ─────────
+-- The bridge sends `fix` = { id, state, by, waiting, lines, message } with the board while a fix is under way
+-- (voting -> pausing -> editing -> review -> applying). While the engine is paused (editing, review, applying) the
+-- table holds its board: nothing snaps back, and in editing every seated player may pick up, turn and flip any
+-- engine card. A card dropped on a pile or the library pops back out and lies there, so every moved card is a loose
+-- card whose area (dropArea) says where it went. Done reads the cards that were touched and sends the change list;
+-- numbers (life, poison, counters) are set by chat:  mtg fix life blue 31 / mtg fix poison red 2 /
+-- mtg fix counters +1/+1 3  (the card under your pointer). When the fix ends the next board is drawn as usual: the
+-- engine's new one after an apply, the old one after Cancel (everything goes back where it was).
+engineFix = nil
+engineFixTouched = {}  -- engine card id -> true: picked up, turned, flipped or taken from a pile while editing
+engineFixExtra = {}    -- key -> op, from the chat commands
+engineFixBottom = {}   -- engine card id -> true: "Put on the bottom of the library" (right-click) while editing
+ENGINE_FIX_EDIT = false -- (read by the life and commander-damage counters' scripts: they work again while editing)
+FIX_HOLD = { editing = true, review = true, applying = true }
+do
+  local F = { sig = nil }
+  function engineFixXml(c)
+    return '<Button id="eng_fixcall_' .. c .. '" onClick="onMtgFix" visibility="' .. c .. '" width="110" height="32" rectAlignment="LowerCenter" offsetXY="-705 8" color="#3a3f4b" textColor="#ffffff" fontSize="15" active="false">Fix...</Button>\n'
+      .. '<Panel id="eng_fixp_' .. c .. '" visibility="' .. c .. '" width="660" height="270" rectAlignment="UpperCenter" offsetXY="0 -250" color="#0A0C10F0" active="false">'
+      .. '<Text id="eng_fixtext_' .. c .. '" width="640" height="200" rectAlignment="UpperCenter" offsetXY="0 -8" fontSize="17" color="#FFFFFF" alignment="UpperCenter"> </Text>'
+      .. '<HorizontalLayout width="440" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
+      .. '<Button id="eng_fixbyes_' .. c .. '" onClick="onMtgFix" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Yes</Button>'
+      .. '<Button id="eng_fixbno_' .. c .. '" onClick="onMtgFix" color="#8e2a2a" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">No</Button>'
+      .. '</HorizontalLayout></Panel>\n'
+  end
+  function F.waitingFor(fix, c) return heldIn((fix and fix.waiting) or {}, c) end
+  -- the engine card id of a card object (not a pile or the library deck), or nil
+  function F.cardId(o) return o ~= nil and tostring(o.getGMNotes()):match("^engine:(engine%-card%-%d+)$") or nil end
+  function F.editing() return engineFix ~= nil and engineFix.state == "editing" end
+  -- the panel's text and its two buttons for one seat
+  function engineFixPanel(fix, c)
+    local mine = F.waitingFor(fix, c)
+    local who = tostring(fix.by or "A player")
+    local waits = (#(fix.waiting or {}) > 0 and not mine) and ("\nWaiting for " .. table.concat(fix.waiting, ", ") .. "...") or ""
+    local lines = (fix.lines and #fix.lines > 0) and ("\n- " .. table.concat(fix.lines, "\n- ")) or ""
+    local s = fix.state
+    if s == "voting" then return who .. " asks to pause the game for a manual fix." .. waits, mine and "Pause" or nil, mine and "Keep playing" or "Cancel"
+    elseif s == "pausing" then return "Manual fix: waiting for a moment with nothing on the stack...", nil, "Cancel"
+    elseif s == "editing" then
+      return "MANUAL FIX - the engine is paused.\nMove cards to where they belong (battlefield, graveyard, exile, library, hand, command zone), turn them to tap or untap, flip them face down, drop an aura or equipment onto its permanent, right-click for the library's top or bottom. Life and commander damage: their counters. Also: mtg fix poison red 2 / mtg fix counters +1/+1 3 (the card under your pointer) / mtg fix token treasure."
+        .. (fix.message and ("\nThe engine refused the last list: " .. tostring(fix.message)) or ""), "Done", "Cancel"
+    elseif s == "review" then return who .. " wants to apply these changes:" .. lines .. waits, mine and "Apply" or nil, mine and "Not yet" or "Cancel"
+    elseif s == "applying" then return "Applying the changes..." .. lines, nil, nil end
+    return "", nil, nil
+  end
+  function engineFixUpdate(fix)
+    local entering = fix ~= nil and fix.state == "editing" and (engineFix == nil or engineFix.state ~= "editing")
+    engineFix = fix
+    if fix == nil then engineFixTouched, engineFixExtra = {}, {} end
+    local leaving = fix == nil and F.menued ~= nil
+    ENGINE_FIX_EDIT = fix ~= nil and fix.state == "editing"
+    -- "mtg mana <n>" called this fix: add the mana and press Done for its caller (only right after the call)
+    local auto = entering and fix.by ~= nil and engineAutoMana ~= nil and engineAutoMana[fix.by] or nil
+    if auto ~= nil then
+      engineAutoMana[fix.by] = nil
+      if os.clock() - auto.at < 30 then
+        local by = fix.by
+        Wait.frames(function() if F.editing() then engineFixSet(by, "mana " .. auto.rest) engineFixDone(by) end end, 2)
+      end
+    end
+    if entering then
+      -- (engine cards lie locked; piles and the library stay locked: search them to take a card out). A right-click
+      -- puts a card on top of or under its library.
+      F.menued = F.menued or {}
+      for id, o in pairs(engineObjs) do
+        if o ~= nil and not o.isDestroyed() and o.type == "Card" and tostring(id):find("^engine%-card%-") then
+          o.setLock(false)
+          for _, where in ipairs({ "top", "bottom" }) do
+            o.addContextMenuItem(where == "top" and "Fix: top of its library" or "Fix: bottom of its library", function(playerColor)
+              if not F.editing() or not engineColors[playerColor] then return end
+              local meta = engineMeta[id] or {}
+              local d = data[meta.color or playerColor]
+              if d == nil or d.libraryZone == nil or o.isDestroyed() then return end
+              engineFixTouched[id] = true
+              engineFixBottom[id] = where == "bottom" or nil
+              o.setPosition(d.libraryZone.getPosition() + Vector(0, 2, 0))
+            end)
+          end
+          F.menued[#F.menued + 1] = o
+        end
+      end
+    end
+    if leaving then
+      for _, o in ipairs(F.menued) do if o ~= nil and not o.isDestroyed() then o.clearContextMenu() end end
+      F.menued = nil
+      engineFixBottom = {}
+      -- (a life or commander-damage counter turned during the fix shows the engine's number again by itself: the
+      -- board after the fix is drawn as usual, and updateTrackers sets every counter that differs)
+    end
+    local over = lastTable == nil or lastTable.gameOver
+    local sig = table.concat({ tostring(over), fix and table.concat({ tostring(fix.id), tostring(fix.state), tostring(fix.by),
+      table.concat(fix.waiting or {}, ","), table.concat(fix.lines or {}, ","), tostring(fix.message) }, "|") or "-" }, ";")
+    if sig == F.sig then return end
+    F.sig = sig
+    for c in pairs(engineColors) do
+      if Player[c] ~= nil and Player[c].seated then
+        setAttr("eng_fixcall_" .. c, "active", (fix == nil and not over) and "true" or "false")
+        setAttr("eng_fixp_" .. c, "active", fix ~= nil and "true" or "false")
+        if fix ~= nil then
+          local text, yes, no = engineFixPanel(fix, c)
+          setText("eng_fixtext_" .. c, text)
+          setAttr("eng_fixbyes_" .. c, "active", yes and "true" or "false")
+          if yes then setText("eng_fixbyes_" .. c, yes) end
+          setAttr("eng_fixbno_" .. c, "active", no and "true" or "false")
+          if no then setText("eng_fixbno_" .. c, no) end
+        end
+      end
+    end
+  end
+  function engineFixRedraw()
+    F.sig = nil
+    engineFixUpdate(engineFix)
+  end
+  function onMtgFix(player, value, id)
+    local c = player.color
+    local fix = engineFix
+    if id == "eng_fixcall_" .. c then engineSend("fix", { color = c, action = "call" })
+    elseif id == "eng_fixbyes_" .. c and fix ~= nil then
+      if fix.state == "editing" then engineFixDone(c)
+      elseif F.waitingFor(fix, c) then engineSend("fix", { color = c, action = "vote", accept = true }) end
+    elseif id == "eng_fixbno_" .. c and fix ~= nil then
+      if F.waitingFor(fix, c) then engineSend("fix", { color = c, action = "vote", accept = false })
+      else engineSend("fix", { color = c, action = "cancel" }) end
+    end
+  end
+  -- Where a loose engine card is now: a hand (either hand zone), else the first seat whose area holds it.
+  function engineFixWhere(o)
+    for c in pairs(engineColors) do
+      if Player[c] ~= nil and (isInHand(o, c, 1) or isInHand(o, c, 2)) then return "hand", c end
+    end
+    local pos = o.getPosition()
+    for c in pairs(engineColors) do
+      local area = dropArea(c, pos)
+      if area ~= "elsewhere" then return area, c end
+    end
+    return nil, nil
+  end
+  -- The change list from the touched cards: { ops } or { unplaced = names }.
+  function engineFixRead()
+    local before = {}
+    for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+      for _, z in ipairs({ "hand", "battlefield", "graveyard", "exile", "command" }) do
+        for _, c in ipairs(pl[z] or {}) do before[c.id] = { zone = z, color = pl.color, tap = c.tap and true or false, fd = c.fd and true or false, att = c.att } end
+      end
+    end
+    local now, posOf = {}, {}
+    for _, o in ipairs(getObjects()) do
+      local gm = tostring(o.getGMNotes())
+      local id = F.cardId(o)
+      local pz, pc = gm:match("^engine:(%a+):(%a+)$")
+      if id ~= nil and o.type == "Card" then posOf[id] = o.getPosition() end
+      if id ~= nil and engineFixTouched[id] and before[id] ~= nil and o.type == "Card" then
+        local zone, color = engineFixWhere(o)
+        local planned, p = enginePlanned[id], o.getPosition()
+        local kept = planned ~= nil and (p.x - planned.x) ^ 2 + (p.z - planned.z) ^ 2 < 1.0
+        if kept then zone, color = before[id].zone, before[id].color end
+        local tapped = false
+        if zone == "battlefield" then
+          local g = seatGeometry(color)
+          local rel = ((o.getRotation().y - (g and g.rotY or 0)) % 360 + 360) % 360
+          tapped = (rel > 45 and rel < 135) or (rel > 225 and rel < 315)
+        end
+        now[id] = { zone = zone, color = color, tap = tapped, fd = o.is_face_down and true or false, name = tostring(o.getName()):match("^[^\n]*"), kept = kept }
+      elseif (pz == "graveyard" or pz == "exile") and o.type == "Deck" then
+        for _, e in ipairs(o.getObjects() or {}) do
+          local eid = tostring(e.gm_notes):match("^engine:(engine%-card%-%d+)$")
+          if eid ~= nil and engineFixTouched[eid] and before[eid] ~= nil then now[eid] = { zone = pz, color = pc, tap = false, fd = before[eid].fd } end
+        end
+      end
+    end
+    -- a card dropped onto another permanent (overlapping it) goes on that permanent
+    for id, n in pairs(now) do
+      if n.zone == "battlefield" and not n.kept then
+        local best, bestD = nil, 1.3 ^ 2
+        for hid, hp in pairs(posOf) do
+          local hb = before[hid]
+          if hid ~= id and hb ~= nil and hb.zone == "battlefield" and (now[hid] == nil or now[hid].zone == "battlefield") then
+            local d = (hp.x - posOf[id].x) ^ 2 + (hp.z - posOf[id].z) ^ 2
+            if d < bestD then best, bestD = hid, d end
+          end
+        end
+        n.host = best
+      end
+    end
+    local ops, unplaced = {}, {}
+    local ids = {}
+    for id in pairs(now) do ids[#ids + 1] = id end
+    table.sort(ids, function(a, b) return (tonumber(a:match("%d+$")) or 0) < (tonumber(b:match("%d+$")) or 0) end)
+    for _, id in ipairs(ids) do
+      local b, n = before[id], now[id]
+      if n.zone == nil then unplaced[#unplaced + 1] = n.name or id
+      else
+        if n.zone ~= b.zone or (n.zone == "library" and engineFixBottom[id]) then
+          local op = { op = "move", card = id, zone = n.zone }
+          if n.zone == "library" and engineFixBottom[id] then op.position = "bottom" end
+          ops[#ops + 1] = op
+        end
+        if n.zone == "battlefield" and n.host ~= nil and n.host ~= b.att then ops[#ops + 1] = { op = "attach", card = id, to = n.host }
+        elseif n.zone == "battlefield" and n.host == nil and b.att ~= nil and not n.kept then ops[#ops + 1] = { op = "attach", card = id } end
+        if n.zone == "battlefield" and n.color ~= b.color then ops[#ops + 1] = { op = "control", card = id, player = n.color } end
+        if n.zone == "battlefield" and n.tap ~= (b.zone == "battlefield" and b.tap) then ops[#ops + 1] = { op = "tap", card = id, tapped = n.tap } end
+        if n.zone ~= "hand" and n.zone ~= "library" and n.zone ~= "graveyard" and n.fd ~= b.fd then ops[#ops + 1] = { op = "faceDown", card = id, value = n.fd } end
+      end
+    end
+    -- the table's own counters, turned while editing (a number typed by chat wins over its counter)
+    for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+      local c = pl.color
+      local lt = c and getObjectFromGUID(LIFE_TRACKERS[c] or "")
+      local life = lt and tonumber(lt.getVar("count"))
+      if life ~= nil and pl.life ~= nil and life ~= pl.life and life >= 0 and engineFixExtra["life:" .. c] == nil then
+        ops[#ops + 1] = { op = "life", player = c, n = math.floor(life) }
+      end
+      for from, guid in pairs((c and CMD_DAMAGE[c]) or {}) do
+        local o = getObjectFromGUID(guid)
+        local v = o and tonumber(o.getVar("val"))
+        if v ~= nil and v >= 0 and v ~= ((pl.cmdDamage or {})[from] or 0) and engineColors[from] then
+          ops[#ops + 1] = { op = "commanderDamage", player = c, from = from, n = math.floor(v) }
+        end
+      end
+    end
+    local keys = {}
+    for k in pairs(engineFixExtra) do keys[#keys + 1] = k end
+    table.sort(keys)
+    for _, k in ipairs(keys) do ops[#ops + 1] = engineFixExtra[k] end
+    return ops, unplaced
+  end
+  function engineFixDone(color)
+    local ops, unplaced = engineFixRead()
+    if #unplaced > 0 then
+      tell(color, "Not in any zone: " .. table.concat(unplaced, ", ") .. ". Put each on a battlefield, graveyard, exile, library, hand or command zone first.")
+      return
+    end
+    if #ops == 0 then tell(color, "Nothing was changed yet. Move some cards first (or press Cancel).") return end
+    engineSend("fix", { color = color, action = "done", ops = ops })
+  end
+  F.KINDS = (function() local t = {} for key, label in pairs(COUNTER_NAMES) do t[label:lower()] = key end return t end)()
+  -- mtg fix life <colour> <n> / poison <colour> <n> / counters <kind> <n> (hovered card)
+  function engineFixSet(color, rest)
+    if not F.editing() then tell(color, "The game isn't paused for a fix.") return end
+    -- mtg fix token <what> [for <colour>] [tapped]
+    local what0, body = rest:match("^(%a+)%s+(.+)$")
+    if what0 == "token" then
+      local tapped = body:find("%f[%a]tapped%f[%A]") ~= nil
+      body = body:gsub("%f[%a]tapped%f[%A]", "")
+      local name, forWho = body:match("^(.-)%s+for%s+(%a+)%s*$")
+      local who = color
+      if forWho ~= nil then
+        who = nil
+        for c in pairs(engineColors) do if c:lower() == forWho:lower() then who = c end end
+        if who == nil then tell(color, "No player " .. forWho .. ".") return end
+      end
+      name = (name or body):gsub("^%s+", ""):gsub("%s+$", "")
+      if name == "" then tell(color, "Use:  mtg fix token treasure  (or  mtg fix token 1/1 green saproling for red tapped)") return end
+      F.tokens = (F.tokens or 0) + 1
+      engineFixExtra[string.format("token:%03d", F.tokens)] = { op = "createToken", script = name, player = who, tapped = tapped }
+      tell(color, "New token for " .. who .. ": " .. name .. (tapped and ", tapped" or "") .. " (press Done to list the changes).")
+      return
+    end
+    -- mtg fix mana <n> [for <colour>]: n of each colour (W U B R G and colourless) that stays in the pool through the
+    -- steps until the end of the turn (Forge's persistent mana; 2026-10-26, for testing against a harmless AI: "99 mana")
+    if what0 == "mana" then
+      local k, forWho = body:match("^(%d+)%s*for%s+(%a+)%s*$")
+      k = tonumber(k or body:match("^(%d+)%s*$") or "")
+      local who = color
+      if forWho ~= nil then
+        who = nil
+        for c in pairs(engineColors) do if c:lower() == forWho:lower() then who = c end end
+      end
+      if k == nil or k < 1 or k > 99 or who == nil then tell(color, "Use:  mtg fix mana <1-99> [for <colour>]  (that many of each colour)") return end
+      local syms = {}
+      for _, m in ipairs({ "W", "U", "B", "R", "G", "C" }) do for _ = 1, k do syms[#syms + 1] = m end end
+      engineFixExtra["mana:" .. who] = { op = "mana", player = who, mana = table.concat(syms, " ") }
+      tell(color, who .. " gets " .. k .. " of each colour until the end of the turn (press Done to list the changes).")
+      return
+    end
+    local what, a, n = rest:match("^(%a+)%s+(%S+)%s+(%d+)$")
+    n = tonumber(n or "")
+    if what == "life" or what == "poison" then
+      local who = nil
+      for c in pairs(engineColors) do if c:lower() == tostring(a):lower() then who = c end end
+      if who == nil or n == nil then tell(color, "Use:  mtg fix " .. what .. " <colour> <number>") return end
+      engineFixExtra[what .. ":" .. who] = { op = what, player = who, n = n }
+      tell(color, who .. " " .. what .. " will be " .. n .. " (press Done to list the changes).")
+    elseif what == "counters" then
+      local o = Player[color] ~= nil and Player[color].getHoverObject() or nil
+      local id = F.cardId(o)
+      if id == nil or n == nil then tell(color, "Point at a card and type  mtg fix counters +1/+1 3") return end
+      local kind = F.KINDS[tostring(a):lower()] or tostring(a):upper():gsub("[^%w]", "_")
+      engineFixExtra["counters:" .. id .. ":" .. kind] = { op = "counters", card = id, kind = kind, n = n }
+      tell(color, o.getName() .. ": " .. n .. " " .. tostring(a) .. " counter(s) (press Done to list the changes).")
+    else
+      tell(color, "Use:  mtg fix life <colour> <n>,  mtg fix poison <colour> <n>,  mtg fix counters <kind> <n>,  mtg fix token <what> [for <colour>],  mtg fix mana <n> [for <colour>]")
+    end
+  end
+  -- (engineRender asks first) the board waits while the engine is paused: only the zones the bridge left out are
+  -- filled in from the last board, and the panel is updated
+  function engineFixHolds(m)
+    if m.fix == nil or not FIX_HOLD[m.fix.state] or lastTable == nil then return false end
+    mergeStatic(m)
+    lastTable = m
+    local ok, err = pcall(engineFixUpdate, m.fix)
+    if not ok then print("[MTG] manual fix: " .. tostring(err)) end
+    return true
+  end
+  F.act = onPlayerAction
+  function onPlayerAction(player, action, targets)
+    if ENGINE_MODE and lastTable ~= nil and F.editing() then
+      local A = Player.Action
+      if not engineColors[player.color] then
+        for _, o in ipairs(targets or {}) do if isEngineCard(o) then return false end end
+        return true
+      end
+      local free = action == A.Select or action == A.PickUp or action == A.FlipOver
+        or action == A.RotateIncrementalLeft or action == A.RotateIncrementalRight
+      for _, o in ipairs(targets or {}) do
+        if isEngineCard(o) then
+          if not free then tell(player.color, "During a manual fix cards can be moved, turned and flipped only.") return false end
+          if action ~= A.Select then engineFixTouched[engineIdOf(o)] = true end
+        end
+      end
+      return true
+    end
+    return F.act(player, action, targets)
+  end
+  F.drop = onObjectDrop
+  function onObjectDrop(color, obj)
+    if engineFix ~= nil and FIX_HOLD[engineFix.state] then return end
+    return F.drop(color, obj)
+  end
+  F.enter = onObjectEnterContainer
+  function onObjectEnterContainer(container, obj)
+    if F.editing() and F.cardId(obj) ~= nil then
+      -- (it stays a loose card on that spot: the spot says where it went)
+      local guid, id = obj.getGUID(), engineIdOf(obj)
+      engineFixTouched[id] = true
+      Wait.frames(function()
+        if container == nil or container.isDestroyed() or container.type ~= "Deck" then return end
+        pcall(function()
+          container.takeObject({ guid = guid, position = container.getPosition() + Vector(0, 1.2, 0), smooth = false,
+            callback_function = function(card) if card ~= nil then card.setLock(false) end end })
+        end)
+      end, 1)
+      return
+    end
+    if F.enter ~= nil then return F.enter(container, obj) end
+  end
+  F.leave = onObjectLeaveContainer
+  function onObjectLeaveContainer(container, obj)
+    if F.editing() and F.cardId(obj) ~= nil then
+      engineFixTouched[F.cardId(obj)] = true
+    end
+    if F.leave ~= nil then return F.leave(container, obj) end
+  end
+end
+
+-- Cards thrown or flicked into a hand they don't belong in (no drop event reaches the table then: playtest 2026-10-23,
+-- Blue's card landed in White's hand, and its face showed to White): an engine card entering a hand zone other than
+-- its owner's, or any hand when it isn't a hand card, goes back where the engine has it at once. (A manual fix's
+-- editing is left alone: moving cards into hands is how a fix says "to the hand".)
+do
+  local before = onObjectEnterZone
+  function onObjectEnterZone(zone, obj)
+    if before ~= nil then before(zone, obj) end
+    if not ENGINE_MODE or lastTable == nil or zone == nil or obj == nil or zone.type ~= "Hand" then return end
+    local id = tostring(obj.getGMNotes()):match("^engine:(engine%-card%-%d+)$")
+    local meta = id and engineMeta[id]
+    if meta == nil or (engineFix ~= nil and engineFix.state == "editing") then return end
+    local zp, owner = zone.getPosition(), nil
+    for c in pairs(engineColors) do
+      for i = 1, 2 do
+        local t = Player[c] ~= nil and Player[c].getHandTransform(i) or nil
+        if t ~= nil and (t.position.x - zp.x) ^ 2 + (t.position.z - zp.z) ^ 2 < 1 then owner = c end
+      end
+    end
+    -- (the table's own cards in its owner's second hand zone too: a scry's looked-at card is laid there, and set this
+    -- off, "can't go into another player's hand", hp-08 #4 2026-10-28)
+    if (meta.zone == "hand" or meta.zone == "playable" or meta.hand2) and owner == meta.color then return end
+    -- (a card of that player's open scry or surveil, by the question itself: Grave Researcher's surveil card still set it
+    -- off, its record being the library's when it reached the hand, hp-06 #15 2026-10-28)
+    if owner ~= nil then
+      local _, sp = engineScryOpen(owner)
+      if sp ~= nil and engineScryIndex(sp, id) ~= nil then return end
+    end
+    engineInHand[id] = true -- (out of a hand by a jump: TTS lays hand cards out again after a smooth move)
+    Wait.frames(function() if lastTable ~= nil then engineRender(lastTable) end end, 2)
+    if meta.color ~= nil then tell(meta.color, "Cards can't go into another player's hand: it went back.") end
+  end
+end
+
+-- Hand-test deck kits (tools/make-handtest-kits.js): a bag holding a 39-card test deck and its commander, with a
+-- "Load into my seat" button. Its deck goes on the player's library spot and the commander on their command zone,
+-- ready for READY and Start. Not during a game; a test deck already there is replaced; the player's own cards there
+-- stop it (they would merge).
+function engineLoadTestKit(params)
+  local kit, c = getObjectFromGUID((params and params.guid) or ""), params and params.color
+  local d = c and data[c]
+  -- (broadcastToColor throws for a colour nobody sits at)
+  local say = function(t) if c ~= nil and Player[c] ~= nil and Player[c].seated then broadcastToColor("[MTG] " .. t, c, { 1, 0.85, 0.4 }) else print("[MTG] " .. t) end end
+  if kit == nil or d == nil or d.libraryZone == nil then if c ~= nil and Player[c] ~= nil then say("Sit at a seat with a playmat first.") end return end
+  local t = engineTable ~= nil and engineTable() or nil
+  if t ~= nil and not t.gameOver then return say("Not during a game: press New game (or type  mtg reset ) first.") end
+  -- (an empty kit was already loaded: a second click on its button deleted the deck it had just put down, as an "old
+  -- test deck", and loaded nothing, 2026-10-22)
+  if #(kit.getObjects() or {}) == 0 then return say(kit.getName() .. " is empty: it is already loaded (or put its deck back in to load it again).") end
+  local lib = d.libraryZone.getPosition()
+  local label = getObjectFromGUID((TAX_LABELS[c] or {})[1] or "")
+  local cmd = label and label.getPosition() or lib
+  local near = function(p, q) return math.abs(p.x - q.x) < 2.5 and math.abs(p.z - q.z) < 2.5 end
+  local old = {}
+  for _, o in ipairs(getObjects()) do
+    if (o.type == "Card" or o.type == "Deck") and o ~= kit then
+      local p, gm = o.getPosition(), tostring(o.getGMNotes())
+      if near(p, lib) or near(p, cmd) then
+        if gm == "testcard" then old[#old + 1] = o
+        elseif not gm:find("^engine") then return say("Your own " .. string.lower(o.type) .. " is on your library or command spot: move it off first (it would merge with the test deck).") end
+      end
+    end
+  end
+  for _, o in ipairs(old) do o.destruct() end -- (an earlier test deck: replaced)
+  local name = kit.getName()
+  -- (commanders side by side, each its own card: a partner or Background pair put on one spot merged into a pile the
+  -- table doesn't read as commanders, "not ready", hp-09 gap 2026-10-29; within the command spot's 2.5 reach)
+  local k = 0
+  for _, e in ipairs(kit.getObjects()) do
+    local isDeck = tostring(e.name):find("^Test deck") ~= nil
+    if not isDeck then k = k + 1 end
+    kit.takeObject({ guid = e.guid, smooth = false, position = isDeck and Vector(lib.x, 2, lib.z) or Vector(cmd.x + 1.4 * (k - 1), 2, cmd.z),
+      rotation = isDeck and Vector(0, 180, 180) or Vector(0, 180, 0) })
+  end
+  say(name .. " loaded. Press READY, then Start. (For a harmless AI: type  mtg aideck ai_passive_lands  first.)")
+end
+end
+
+-- ───────── scry, the table's way (2026-10-24) ─────────
+-- "Make sure scry cards use the TTS mechanic": as the table's own Scry button (scry1 deals the cards into the second hand
+-- zone), an engine scry puts its cards there, face up, seen by that player only. Dragged onto the library a card stays
+-- on top (the last one dragged ends up on top); clicked (or right-click > Bottom) it goes to the bottom, dragged onto
+-- the graveyard it goes there (surveil). Done answers; so does dragging the last card out. Cards still in the zone stay
+-- on top. The bridge marks such a question with "scry" and reads the answer "__tts", "top:<id>"..., "move:<id>"...
+engineScry = {} -- colour -> { promptId, top = { ids in the order dragged }, gone = { id -> true }, menu = { id -> true } }
+function engineScryOpen(color)
+  local p = enginePrompts[color]
+  if p == nil or p.scry == nil then engineScry[color] = nil return nil end
+  local st = engineScry[color]
+  if st == nil or st.promptId ~= p.promptId then
+    st = { promptId = p.promptId, top = {}, gone = {}, menu = {} }
+    engineScry[color] = st
+  end
+  return st, p
+end
+function engineScryIndex(p, id)
+  for i, o in ipairs(p.options or {}) do if tostring(o.id) == tostring(id) then return i end end
+  return nil
+end
+function engineScryPlace(seen)
+  for color in pairs(enginePrompts) do
+    local st, p = engineScryOpen(color)
+    local g = st and seatGeometry(color)
+    if g ~= nil and Player[color] ~= nil and Player[color].seated then
+      local side = Player[color].getHandTransform(2)
+      local base = side and side.position or (g.handPos or g.mat)
+      for i, o in ipairs(p.options or {}) do
+        if not st.gone[o.id] then
+          place({ id = o.id, n = o.label, f = o.img }, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, color, { zone = "scry", color = color, hand2 = true })
+          local obj = engineObjs[o.id]
+          if obj ~= nil and not obj.isDestroyed() and not st.menu[o.id] then
+            st.menu[o.id] = true
+            obj.addContextMenuItem(p.scry.move == "graveyard" and "Into the graveyard" or "Bottom of library", function(pc)
+              if pc == color and enginePrompts[color] == p then enginePick(color, i) end
+            end)
+          end
+        end
+      end
+    end
+  end
+end
+-- the whole answer: dragged cards top first (last dragged on top), chosen ones moved
+function engineScryFinish(color)
+  local st, p = engineScryOpen(color)
+  if st == nil then return end
+  local choice = { "__tts" }
+  for k = #st.top, 1, -1 do choice[#choice + 1] = "top:" .. st.top[k] end
+  for i, o in ipairs(p.options or {}) do
+    if engineSelectedFor(color, i) and not st.gone[o.id] then choice[#choice + 1] = "move:" .. o.id end
+    if engineSelectedFor(color, i) and st.gone[o.id] == "move" then choice[#choice + 1] = "move:" .. o.id end
+  end
+  engineTableLog(color, "scry: " .. table.concat(choice, " ", 2))
+  engineAnswer(color, choice)
+end
+function engineScryDrop(color, obj, id)
+  local st, p = engineScryOpen(color)
+  if st == nil or obj == nil or obj.isDestroyed() then return end
+  if isInHand(obj, color, 2) or isInHand(obj, color, 1) then return end -- rearranged in a hand
+  local area = dropArea(color, obj.getPosition())
+  local i = engineScryIndex(p, id)
+  if area == "library" then
+    for k = #st.top, 1, -1 do if st.top[k] == id then table.remove(st.top, k) end end
+    st.top[#st.top + 1] = id
+    st.gone[id] = "top"
+    if i ~= nil and engineSelectedFor(color, i) then enginePick(color, i) end
+    engineDispose(obj)
+    tell(color, "On top of your library.")
+  elseif area == "graveyard" and p.scry.move == "graveyard" then
+    st.gone[id] = "move"
+    if i ~= nil and not engineSelectedFor(color, i) then enginePick(color, i) end
+    engineDispose(obj)
+    tell(color, "Into your graveyard.")
+  else
+    local side = Player[color].getHandTransform(2)
+    if side ~= nil then obj.setPosition(side.position + Vector(0, 1, 0)) end
+    return
+  end
+  for _, o in ipairs(p.options or {}) do if not st.gone[o.id] then return end end
+  engineScryFinish(color) -- the last card is out of the zone
+end
+do
+  local scryDrop = onObjectDrop
+  function onObjectDrop(color, obj)
+    if ENGINE_MODE and lastTable ~= nil and obj ~= nil and isEngineCard(obj) then
+      local st, p = engineScryOpen(color)
+      local id = engineIdOf(obj)
+      if st ~= nil and engineScryIndex(p, id) ~= nil then
+        Wait.frames(function() engineScryDrop(color, obj, id) end, 2)
+        return
+      end
+    end
+    return scryDrop(color, obj)
+  end
+  -- a scry question arriving draws its cards into the hand zone at once (not at the next board)
+  local scryEnter = engineEnterPrompt
+  function engineEnterPrompt(color, m)
+    local r = scryEnter(color, m)
+    if m ~= nil and m.scry ~= nil and lastTable ~= nil then engineRender(lastTable) end
+    return r
+  end
+end
+
+-- ───────── "Waiting for ..." flashes (2026-10-24) ─────────
+-- "Have the 'waiting for X' start flashing after 5 seconds, random colors of the rainbow": once a player has waited 5 s
+-- for the same player, their line changes to a random rainbow colour (never the same twice running) 3 times a second,
+-- until the wait ends or moves on to someone else (engineUpdateCorner keeps engineWaiting).
+engineWaiting = {} -- colour -> { who, since, last }
+ENGINE_RAINBOW = { "#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#00C7BE", "#007AFF", "#AF52DE" }
+function engineWaitFlash()
+  local now = os.clock()
+  for color, w in pairs(engineWaiting) do
+    if now - w.since >= 5 then
+      local k = math.random(#ENGINE_RAINBOW - 1)
+      if w.last ~= nil and k >= w.last then k = k + 1 end
+      w.last = k
+      setAttr("eng_hint_" .. color, "color", ENGINE_RAINBOW[k])
+    end
+  end
+end
+Wait.time(function() pcall(engineWaitFlash) end, 0.33, -1)
+
+-- ───────── ability boxes (2026-10-24) ─────────
+-- "Instead of right-clicking a card for an ability or to attach it, a floating clear grey box beside it, like the
+-- counter box, saying the ability as the engine writes it." While you have priority, each of your permanents with an
+-- ability you can use now (equip and attach included; mana abilities and "Untap" left out: lands would all get one)
+-- shows one button per ability on the card. Everyone sees the buttons; only you can use them (a click checks the
+-- colour). Clicking a button does what the right-click entry does (that stays too).
+engineAbilityOn = {}   -- colour -> { card id -> signature of what it shows }
+-- The boxes are buttons on the card, drawn like its counter badges (the player asked for a box "like the colored
+-- counter box on cards"; the first version was a screen panel on the card, too small to read at the usual camera
+-- distance, turned sideways with a tapped card, and only drawn at the next question, playtest 2026-10-26).
+-- engineAbilityWant: card id -> { color, promptId, list = { { id, text } }, sig }; updateBadge draws them when they change.
+engineAbilityWant = {}
+-- (a reset: nothing of the last game's buttons or panel stays, stage 3 review 2026-10-27)
+function engineAbilityReset()
+  for c in pairs(engineAbPanelFor or {}) do setAttr("eng_abp_" .. c, "active", "false") end
+  engineAbilityWant, engineAbilityOn, engineAbPanelFor, engineRedrawSoon = {}, {}, {}, {}
+end
+-- one short line per ability: its cost and the start of what it does ("{1}{G}: Put a +1/+1…"); the button's tooltip
+-- has the whole text
+function engineAbilityShort(text, n)
+  local cost, eff = tostring(text):match("^([^:]+):%s*(.+)$")
+  if cost == nil or #cost > 14 then cost, eff = nil, tostring(text) end
+  local out = ""
+  for word in eff:gmatch("%S+") do
+    if out ~= "" and #out + #word + 1 > n then out = out .. "…" break end
+    out = out == "" and word or (out .. " " .. word)
+  end
+  return cost and (cost .. ": " .. out) or out
+end
+function engineAbilitySig(c)
+  local w = engineAbilityWant[c.id]
+  if w == nil then return "" end
+  return tostring(c.tap or false) .. "|" .. w.sig
+end
+-- The ability on button number k of the card object obj, for player colour c (nil unless it is theirs)
+function engineAbilityAt(obj, k, c)
+  local w = obj ~= nil and engineAbilityWant[tostring(obj.getGMNotes()):gsub("^engine:", "")] or nil
+  local a = w and w.color == c and w.list[tonumber(k)]
+  return a and a.id or nil, w and w.promptId
+end
+-- one click function per button number, shared by every card (one per card and button stayed in _G for good). A
+-- right-click arrives too, as alt_click: it used the ability when the card's menu was wanted, playtest 2026-10-27.
+ENGINE_AB_BUTTONS = ENGINE_AB_MAX -- (the panel's rows: a 7th ability was on the card only, stage 3 review 2026-10-27)
+for k = 1, ENGINE_AB_BUTTONS do
+  _G["engineAbBtn" .. k] = function(obj, playerColor, altClick)
+    if altClick then return end
+    local id, promptId = engineAbilityAt(obj, k, playerColor)
+    if id then engineUseAbility(playerColor, id, promptId) end
+  end
+end
+function engineAbilityButtons(o, c)
+  local w = engineAbilityWant[c.id]
+  if w == nil or o == nil or o.isDestroyed() then return end
+  local z, h = -0.95, 190
+  for k, a in ipairs(w.list) do
+    if k > ENGINE_AB_BUTTONS then break end
+    -- on the card itself, top down (beside it they covered the next card, seen 2026-10-26); a tapped card turns its
+    -- buttons back so they read the right way up
+    local zz = z + h / 2000
+    -- (a little above the badges: where they meet, the ability is what a click means, suite review 2026-10-27)
+    local pos, rot = { 0, 0.31, zz }, { 0, 0, 0 }
+    if c.tap then pos, rot = { -zz, 0.31, 0 }, { 0, -90, 0 } end
+    o.createButton({ click_function = "engineAbBtn" .. k, function_owner = Global, label = engineAbilityShort(a.text, 16),
+      position = pos, rotation = rot, width = 1000, height = h, font_size = 115,
+      color = { 0.12, 0.13, 0.16, 0.92 }, font_color = { 1, 1, 1 }, hover_color = { 0.32, 0.36, 0.44, 0.95 }, tooltip = a.text })
+    z = z + h / 1000 + 0.05
+  end
+end
+-- (the card's current entry on the board, for a redraw of its buttons)
+function engineAbilityCard(id)
+  for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+    for _, c in ipairs(pl.battlefield or {}) do if c.id == id then return c end end
+  end
+end
+function engineAbilityBoxes(color, p, kind)
+  local want = {}
+  -- (an ability whose card is not one of your permanents on the table yet, or a token stack this question names: the
+  -- renders after it ask again, which only redraws what changed. A cycling card in the hand keeps it asking; a card
+  -- the table still had in a hand when the question came is the case it is for, stage 3 review 2026-10-27.)
+  local waiting = false
+  if kind == "attack" or kind == "block" or kind == "target" then
+    local named = {}
+    for _, o in ipairs((p and p.options) or {}) do
+      for piece in tostring(o.id):gmatch("[^|]+") do named[piece] = true end
+    end
+    for rep, key in pairs(engineGroupKey) do
+      local obj = engineObjs[rep]
+      local n = engineGroupShown[rep] or 1
+      if named[rep] then waiting = true end
+      if named[rep] and n > 1 and engineSplit[key] == nil and obj ~= nil and not obj.isDestroyed() then
+        want[rep] = { { id = "__split:" .. rep, text = "Split the " .. n .. " to pick one by one" } }
+      end
+    end
+  end
+  local options = (kind == "action" and p and p.options) or {}
+  local sent = false -- (a bridge that sends "ab" sends it on every ability: then nothing else is one)
+  for _, o in ipairs(options) do if o.ab ~= nil then sent = true break end end
+  for _, o in ipairs(options) do
+    local id, label = tostring(o.id), tostring(o.label or "")
+    local meta = o.cardId and engineMeta[o.cardId]
+    -- (an ability: the bridge sends its text as "ab"; older messages are told apart by their label. "Untap X (mana
+    -- back)" is not one: every land tapped for mana got a button, stage 3 review 2026-10-27)
+    local ability = o.ab ~= nil or (not sent and not id:find("^tap:") and not id:find("^untap:") and not label:find("^Mana:")
+      and not label:find("^Cast ") and not label:find("^Play ") and not label:find("^Untap "))
+    if meta ~= nil and meta.color == color and (meta.zone == "battlefield" or meta.zone == "attached") and ability then
+      -- (by card id: a permanent still being spawned gets its buttons when it is drawn)
+      want[o.cardId] = want[o.cardId] or {}
+      local w = want[o.cardId]
+      w[#w + 1] = { id = o.id, text = engineAbilityText(o) }
+    elseif o.cardId ~= nil and ability then waiting = true end
+  end
+  if p ~= nil then p.__abWait = waiting end
+  -- cards that no longer have a box lose it, and each changed card is drawn again with its badges
+  local on = engineAbilityOn[color] or {}
+  local changed = {}
+  for id in pairs(on) do
+    if want[id] == nil then on[id] = nil engineAbilityWant[id] = nil changed[id] = true end
+  end
+  for id, list in pairs(want) do
+    -- (drawn again only when the words change: the ids are positions and shift with every new option, which redrew
+    -- every card's buttons; a click reads the list as it is now, stage 3 review 2026-10-27)
+    local sig = {}
+    for _, a in ipairs(list) do sig[#sig + 1] = a.text end
+    sig = table.concat(sig, "|")
+    local had = engineAbilityWant[id]
+    if on[id] ~= sig or had == nil or had.color ~= color then changed[id] = true end
+    on[id] = sig
+    engineAbilityWant[id] = { color = color, promptId = p and p.promptId, list = list, sig = sig }
+  end
+  engineAbilityOn[color] = on
+  for id in pairs(changed) do
+    local obj, c = engineObjs[id], engineAbilityCard(id)
+    if obj ~= nil and not obj.isDestroyed() and c ~= nil then updateBadge(obj, c, "battlefield")
+    -- (a card that left the battlefield, bounced to a hand: its buttons go with the question, stage 3 review)
+    elseif obj ~= nil and not obj.isDestroyed() and engineAbilityWant[id] == nil then obj.clearButtons() engineBadge[id] = nil end
+  end
+  -- (the screen panel follows: other abilities now, or none)
+  local shown = engineAbPanelFor and engineAbPanelFor[color]
+  if shown ~= nil and changed[shown] then engineAbPanelShow(color, shown) end
+end
+
+-- (by name, for tests and tools: "ab|<object guid>|<button number>")
+function onMtgAbility(player, value, id)
+  local guid, k = tostring(id):match("^ab|(%w+)|(%d+)$")
+  if guid == nil then return end
+  local optionId, promptId = engineAbilityAt(getObjectFromGUID(guid), k, player.color)
+  if optionId then engineUseAbility(player.color, optionId, promptId) end
+end
+-- An ability (or a stack's Split) chosen on a card's button or on the screen panel: one way to use it
+function engineUseAbility(color, optionId, promptId)
+  -- (only for the question the buttons were drawn for: ids are positions, "prompt-action-0" is in the next one too)
+  if promptId ~= nil and (enginePrompts[color] or {}).promptId ~= promptId then return end
+  local splitRep = tostring(optionId):match("^__split:(.+)$")
+  if splitRep ~= nil then
+    local key = engineGroupKey[splitRep]
+    if key == nil then return end
+    engineSplit[key] = color
+    engineTableLog(color, "split a stack of " .. tostring(engineGroupShown[splitRep]))
+    snapBack()
+    -- the new cards glow (and the stack's box goes) once they are on the table
+    return Wait.time(function() if enginePrompts[color] ~= nil then enginePhase2Prompt(color) end end, 0.6)
+  end
+  local p = enginePrompts[color]
+  for i, o in ipairs((p and p.options) or {}) do
+    if o.id == optionId then
+      engineTableLog(color, "ability box: " .. tostring(o.label))
+      return enginePick(color, i)
+    end
+  end
+end
+
+-- The screen panel (engineAbPanelXml): pointing at one of your cards that has ability buttons shows them there, whole
+-- and readable; it stays while you move to it, and goes when that card has no buttons any more.
+engineAbPanelFor = {} -- colour -> engine card id shown
+function engineAbPanelShow(color, id)
+  local w = id and engineAbilityWant[id]
+  if w == nil or w.color ~= color then
+    if engineAbPanelFor[color] ~= nil then setAttr("eng_abp_" .. color, "active", "false") end
+    engineAbPanelFor[color] = nil
+    return
+  end
+  engineAbPanelFor[color] = id
+  setText("eng_abpt_" .. color, tostring((engineStatic[id] or {}).n or "Abilities"))
+  for k = 1, ENGINE_AB_MAX do
+    local a = w.list[k]
+    setAttr("eng_abp_" .. color .. "_" .. k, "active", a ~= nil and "true" or "false")
+    -- (cut at a word with "…", the whole text on hover: Vraska's -2 ended "Sacrifice t", hp-22 re-test 2026-10-28)
+    if a ~= nil then
+      local full = tostring(a.text)
+      local shown = engineCut(full, 70)
+      if #shown < #full then shown = shown:gsub("%s+%S*$", "") .. "…" end
+      setText("eng_abp_" .. color .. "_" .. k, shown)
+      setAttr("eng_abp_" .. color .. "_" .. k, "tooltip", full)
+    end
+  end
+  setAttr("eng_abp_" .. color, "active", "true")
+end
+function onMtgAbPanel(player, value, idAttr)
+  local c, k = tostring(idAttr):match("^eng_abp_(%a+)_(%d+)$")
+  if c == nil or c ~= player.color then return end
+  -- (from the list the panel shows: the card's buttons may not be drawn yet; structural review 2026-10-27)
+  local w = engineAbPanelFor[c] and engineAbilityWant[engineAbPanelFor[c]]
+  local a = w and w.color == c and w.list[tonumber(k)]
+  if a then engineUseAbility(c, a.id, w.promptId) end
+end
+-- (chained to the table's own onObjectHover, which keeps hoveredObjs for "mtg commander" and the hover hotkeys:
+-- replacing it broke both, structural review 2026-10-27)
+do
+local before = onObjectHover
+function onObjectHover(color, obj)
+  if before ~= nil then before(color, obj) end
+  if not ENGINE_MODE or obj == nil or Player[color] == nil or next(engineAbilityWant) == nil then return end
+  local id = tostring(obj.getGMNotes()):match("^engine:(.+)$")
+  local w = id and engineAbilityWant[id]
+  if w ~= nil and w.color == color and engineAbPanelFor[color] ~= id then engineAbPanelShow(color, id) end
+end
+end
+

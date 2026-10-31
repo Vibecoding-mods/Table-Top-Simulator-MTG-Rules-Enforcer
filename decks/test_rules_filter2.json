@@ -1,0 +1,27 @@
+{
+ "label": "Rules check: Red's playtest lands (Swiftwater Cliffs, Skycloud Expanse, Shivan Reef) and Gale",
+ "format": "commander",
+ "commander": "Kenrith, the Returned King",
+ "cards": [
+  {
+   "name": "Kenrith, the Returned King",
+   "count": 1
+  },
+  {
+   "name": "Swiftwater Cliffs",
+   "count": 20
+  },
+  {
+   "name": "Skycloud Expanse",
+   "count": 20
+  },
+  {
+   "name": "Shivan Reef",
+   "count": 20
+  },
+  {
+   "name": "Gale, Waterdeep Prodigy",
+   "count": 39
+  }
+ ]
+}

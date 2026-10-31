@@ -1,0 +1,135 @@
+{
+ "label": "AI gap tests: spells, bounce and ward (mono-blue)",
+ "format": "commander",
+ "commander": "Talrand, Sky Summoner",
+ "cards": [
+  {
+   "name": "Talrand, Sky Summoner",
+   "count": 1
+  },
+  {
+   "name": "Aboleth Spawn",
+   "count": 1
+  },
+  {
+   "name": "Armguard Familiar",
+   "count": 1
+  },
+  {
+   "name": "Benevolent River Spirit",
+   "count": 1
+  },
+  {
+   "name": "Experimental Pilot",
+   "count": 1
+  },
+  {
+   "name": "Imoen, Mystic Trickster",
+   "count": 1
+  },
+  {
+   "name": "Kitesail Larcenist",
+   "count": 1
+  },
+  {
+   "name": "Long River Lurker",
+   "count": 1
+  },
+  {
+   "name": "Obsessive Collector",
+   "count": 1
+  },
+  {
+   "name": "Aegis Sculptor",
+   "count": 1
+  },
+  {
+   "name": "Unsummon",
+   "count": 1
+  },
+  {
+   "name": "Vapor Snag",
+   "count": 1
+  },
+  {
+   "name": "Fading Hope",
+   "count": 1
+  },
+  {
+   "name": "Into the Roil",
+   "count": 1
+  },
+  {
+   "name": "Repulse",
+   "count": 1
+  },
+  {
+   "name": "Snap",
+   "count": 1
+  },
+  {
+   "name": "Boomerang",
+   "count": 1
+  },
+  {
+   "name": "Opt",
+   "count": 1
+  },
+  {
+   "name": "Consider",
+   "count": 1
+  },
+  {
+   "name": "Ponder",
+   "count": 1
+  },
+  {
+   "name": "Preordain",
+   "count": 1
+  },
+  {
+   "name": "Brainstorm",
+   "count": 1
+  },
+  {
+   "name": "Divination",
+   "count": 1
+  },
+  {
+   "name": "Think Twice",
+   "count": 1
+  },
+  {
+   "name": "Impulse",
+   "count": 1
+  },
+  {
+   "name": "Sleight of Hand",
+   "count": 1
+  },
+  {
+   "name": "Serum Visions",
+   "count": 1
+  },
+  {
+   "name": "Deep Analysis",
+   "count": 1
+  },
+  {
+   "name": "Peek",
+   "count": 1
+  },
+  {
+   "name": "Anticipate",
+   "count": 1
+  },
+  {
+   "name": "Chart a Course",
+   "count": 1
+  },
+  {
+   "name": "Island",
+   "count": 69
+  }
+ ]
+}

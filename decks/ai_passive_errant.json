@@ -1,0 +1,15 @@
+{
+ "label": "Passive AI (Errant, defender, islands)",
+ "format": "commander",
+ "commander": "Errant, Street Artist",
+ "cards": [
+  {
+   "name": "Errant, Street Artist",
+   "count": 1
+  },
+  {
+   "name": "Island",
+   "count": 99
+  }
+ ]
+}

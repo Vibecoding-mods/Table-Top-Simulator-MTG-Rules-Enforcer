@@ -1,0 +1,171 @@
+{
+ "label": "AI gap tests: cheap ward creatures and bounce",
+ "format": "commander",
+ "commander": "Sisay, Weatherlight Captain",
+ "cards": [
+  {
+   "name": "Sisay, Weatherlight Captain",
+   "count": 1
+  },
+  {
+   "name": "Aboleth Spawn",
+   "count": 1
+  },
+  {
+   "name": "Armguard Familiar",
+   "count": 1
+  },
+  {
+   "name": "Armored Armadillo",
+   "count": 1
+  },
+  {
+   "name": "Benevolent River Spirit",
+   "count": 1
+  },
+  {
+   "name": "Bristlebane Battler",
+   "count": 1
+  },
+  {
+   "name": "Colorstorm Stallion",
+   "count": 1
+  },
+  {
+   "name": "Dazzling Flameweaver",
+   "count": 1
+  },
+  {
+   "name": "Dragonfly Swarm",
+   "count": 1
+  },
+  {
+   "name": "Dwarven Forge-Chanter",
+   "count": 1
+  },
+  {
+   "name": "Experimental Pilot",
+   "count": 1
+  },
+  {
+   "name": "Gavony Dawnguard",
+   "count": 1
+  },
+  {
+   "name": "Hamlet Vanguard",
+   "count": 1
+  },
+  {
+   "name": "Hexbane Tortoise",
+   "count": 1
+  },
+  {
+   "name": "Hexing Squelcher",
+   "count": 1
+  },
+  {
+   "name": "Kitesail Larcenist",
+   "count": 1
+  },
+  {
+   "name": "Leonin Lightbringer",
+   "count": 1
+  },
+  {
+   "name": "Long River Lurker",
+   "count": 1
+  },
+  {
+   "name": "Patchwork Automaton",
+   "count": 1
+  },
+  {
+   "name": "Polterheist",
+   "count": 1
+  },
+  {
+   "name": "Quicksilver Servitor",
+   "count": 1
+  },
+  {
+   "name": "Razor Demon",
+   "count": 1
+  },
+  {
+   "name": "Rimewall Protector",
+   "count": 1
+  },
+  {
+   "name": "Sedgemoor Witch",
+   "count": 1
+  },
+  {
+   "name": "Sleep-Cursed Faerie",
+   "count": 1
+  },
+  {
+   "name": "Sunset Saboteur",
+   "count": 1
+  },
+  {
+   "name": "Thornfist Striker",
+   "count": 1
+  },
+  {
+   "name": "Toadstool Admirer",
+   "count": 1
+  },
+  {
+   "name": "Tomakul Honor Guard",
+   "count": 1
+  },
+  {
+   "name": "Unsummon",
+   "count": 1
+  },
+  {
+   "name": "Vapor Snag",
+   "count": 1
+  },
+  {
+   "name": "Fading Hope",
+   "count": 1
+  },
+  {
+   "name": "Into the Roil",
+   "count": 1
+  },
+  {
+   "name": "Repulse",
+   "count": 1
+  },
+  {
+   "name": "Snap",
+   "count": 1
+  },
+  {
+   "name": "Boomerang",
+   "count": 1
+  },
+  {
+   "name": "Island",
+   "count": 16
+  },
+  {
+   "name": "Plains",
+   "count": 12
+  },
+  {
+   "name": "Swamp",
+   "count": 12
+  },
+  {
+   "name": "Mountain",
+   "count": 12
+  },
+  {
+   "name": "Forest",
+   "count": 12
+  }
+ ]
+}

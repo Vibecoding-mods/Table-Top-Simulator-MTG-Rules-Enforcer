@@ -1,0 +1,46 @@
+# Local Manabrew stack for the TTS project (spec: ../SPEC.md, milestone M0).
+# Relay + web client + one Forge-backed Commander room, all on this PC.
+#   docker compose up -d        → open http://localhost:8080
+# The key below is local-only; nothing here is exposed beyond localhost.
+# Images are pinned to the builds every test in this repo ran against (2026-10-17). To move to a newer engine:
+# pull the new :latest, run the rules checks (tools/rules-check.sh) and the golden tests, then update the digests.
+services:
+  relay:
+    # Our build (2026-10-23), same source as forge-room below: the stock relay checks each player directive against
+    # its own copy of the protocol and drops applyState (M7) as an "unauthorized game envelope". Stock:
+    # image: ghcr.io/witchesofthehill/manabrew-server@sha256:d1698c337d47f5c95c7e364b107307caf962ebedf38c55f57cc65df696252637
+    image: mtg-relay:exile
+    environment:
+      MANABREW_SERVER_KEY: "${MANABREW_SERVER_KEY:-tts-local}"
+      RUST_LOG: "manabrew_server=info"
+    ports:
+      - "${RELAY_BIND:-127.0.0.1}:9443:9443"   # the bridge connects here (tools/setup-server.sh sets RELAY_BIND on a server)
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/witchesofthehill/manabrew-web@sha256:18a559898cbe587de97946a740cabadbdb08333153aae9420495165d1dc7dbca
+    environment:
+      RELAY_HOST: localhost
+      RELAY_PORT: "9443"
+      RELAY_PASSWORD: "${MANABREW_SERVER_KEY:-tts-local}"
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on: [relay]
+    restart: unless-stopped
+
+  forge-room:
+    # Our build (2026-10-23): Manabrew fd16e2f + exile links (exiledWith, mayPlay, ...) and the applyState directive (M7),
+    # built from ../manabrew with manabrew-rs/crates/self-hosted-node/Dockerfile. To go back to the stock engine:
+    # image: ghcr.io/witchesofthehill/manabrew-node@sha256:45ec00583f35b0a00dc5f70b5eb75386fee0e5c54ebaf3af08fbdcaed9c3545b
+    image: mtg-forge-node:exile
+    environment:
+      SELF_HOSTED_NODE_RELAY_URL: "ws://relay:9443"
+      SELF_HOSTED_NODE_SERVER_KEY: "${MANABREW_SERVER_KEY:-tts-local}"
+      SELF_HOSTED_NODE_ROOM_NAME: "tts-commander"
+      SELF_HOSTED_NODE_ENGINE_BACKEND: forge
+      SELF_HOSTED_NODE_FORMAT: commander
+      SELF_HOSTED_NODE_MAX_PLAYERS: "${SEATS:-4}"   # try 5-8 later (SPEC §7)
+      SELF_HOSTED_NODE_AUTO_START: "true"
+      RUST_LOG: "self_hosted_node=info"
+    depends_on: [relay]
+    restart: unless-stopped

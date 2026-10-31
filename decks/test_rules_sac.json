@@ -1,0 +1,47 @@
+{
+ "label": "Rules check: sacrifice for mana, then cancel",
+ "format": "commander",
+ "commander": "Rograkh, Son of Rohgahh",
+ "cards": [
+  {
+   "name": "Rograkh, Son of Rohgahh",
+   "count": 1
+  },
+  {
+   "name": "Ashnod's Altar",
+   "count": 1
+  },
+  {
+   "name": "Phyrexian Tower",
+   "count": 1
+  },
+  {
+   "name": "Mind Stone",
+   "count": 1
+  },
+  {
+   "name": "Fellwar Stone",
+   "count": 1
+  },
+  {
+   "name": "Wayfarer's Bauble",
+   "count": 1
+  },
+  {
+   "name": "Sol Ring",
+   "count": 1
+  },
+  {
+   "name": "Arcane Signet",
+   "count": 1
+  },
+  {
+   "name": "Thought Vessel",
+   "count": 1
+  },
+  {
+   "name": "Mountain",
+   "count": 91
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "label": "Passive AI (lands only)",
+ "format": "commander",
+ "commander": "Pramikon, Sky Rampart",
+ "cards": [
+  {
+   "name": "Pramikon, Sky Rampart",
+   "count": 1
+  },
+  {
+   "name": "Plains",
+   "count": 33
+  },
+  {
+   "name": "Island",
+   "count": 33
+  },
+  {
+   "name": "Mountain",
+   "count": 33
+  }
+ ]
+}

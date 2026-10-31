@@ -1,0 +1,131 @@
+{
+ "label": "Rules check: tax (Rograkh + burn)",
+ "format": "commander",
+ "commander": "Rograkh, Son of Rohgahh",
+ "cards": [
+  {
+   "name": "Rograkh, Son of Rohgahh",
+   "count": 1
+  },
+  {
+   "name": "Lightning Bolt",
+   "count": 1
+  },
+  {
+   "name": "Shock",
+   "count": 1
+  },
+  {
+   "name": "Burst Lightning",
+   "count": 1
+  },
+  {
+   "name": "Fiery Impulse",
+   "count": 1
+  },
+  {
+   "name": "Searing Spear",
+   "count": 1
+  },
+  {
+   "name": "Incinerate",
+   "count": 1
+  },
+  {
+   "name": "Magma Jet",
+   "count": 1
+  },
+  {
+   "name": "Play with Fire",
+   "count": 1
+  },
+  {
+   "name": "Lava Dart",
+   "count": 1
+  },
+  {
+   "name": "Skewer the Critics",
+   "count": 1
+  },
+  {
+   "name": "Chaos Warp",
+   "count": 1
+  },
+  {
+   "name": "Lightning Strike",
+   "count": 1
+  },
+  {
+   "name": "Volcanic Hammer",
+   "count": 1
+  },
+  {
+   "name": "Mizzium Mortars",
+   "count": 1
+  },
+  {
+   "name": "Flame Slash",
+   "count": 1
+  },
+  {
+   "name": "Wild Slash",
+   "count": 1
+  },
+  {
+   "name": "Galvanic Blast",
+   "count": 1
+  },
+  {
+   "name": "Firebolt",
+   "count": 1
+  },
+  {
+   "name": "Strangle",
+   "count": 1
+  },
+  {
+   "name": "Scorching Dragonfire",
+   "count": 1
+  },
+  {
+   "name": "Unholy Heat",
+   "count": 1
+  },
+  {
+   "name": "Frost Bite",
+   "count": 1
+  },
+  {
+   "name": "Abrade",
+   "count": 1
+  },
+  {
+   "name": "Rift Bolt",
+   "count": 1
+  },
+  {
+   "name": "Chain Lightning",
+   "count": 1
+  },
+  {
+   "name": "Burning Hands",
+   "count": 1
+  },
+  {
+   "name": "Stoke the Flames",
+   "count": 1
+  },
+  {
+   "name": "Jaya's Greeting",
+   "count": 1
+  },
+  {
+   "name": "Spikefield Hazard",
+   "count": 1
+  },
+  {
+   "name": "Mountain",
+   "count": 70
+  }
+ ]
+}

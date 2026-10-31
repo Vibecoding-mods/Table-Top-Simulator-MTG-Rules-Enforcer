@@ -1,0 +1,27 @@
+{
+ "label": "Rules check: commander put into the library",
+ "format": "commander",
+ "commander": "Isamaru, Hound of Konda",
+ "cards": [
+  {
+   "name": "Isamaru, Hound of Konda",
+   "count": 1
+  },
+  {
+   "name": "Oust",
+   "count": 1
+  },
+  {
+   "name": "Excommunicate",
+   "count": 1
+  },
+  {
+   "name": "Unexpectedly Absent",
+   "count": 1
+  },
+  {
+   "name": "Plains",
+   "count": 96
+  }
+ ]
+}

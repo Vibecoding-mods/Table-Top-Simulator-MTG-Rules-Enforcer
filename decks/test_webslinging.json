@@ -1,0 +1,55 @@
+{
+ "label": "TEST web-slinging",
+ "format": "commander",
+ "commander": "Miles Morales",
+ "cards": [
+  {
+   "name": "Miles Morales",
+   "count": 1
+  },
+  {
+   "name": "Scarlet Spider, Ben Reilly",
+   "count": 4
+  },
+  {
+   "name": "Silk, Web Weaver",
+   "count": 4
+  },
+  {
+   "name": "Spider-Man, Brooklyn Visionary",
+   "count": 4
+  },
+  {
+   "name": "Spider-Man India",
+   "count": 4
+  },
+  {
+   "name": "Spider-Man, Web-Slinger",
+   "count": 4
+  },
+  {
+   "name": "Spiders-Man, Heroic Horde",
+   "count": 4
+  },
+  {
+   "name": "Spider-UK",
+   "count": 4
+  },
+  {
+   "name": "Ornithopter",
+   "count": 20
+  },
+  {
+   "name": "Forest",
+   "count": 17
+  },
+  {
+   "name": "Mountain",
+   "count": 17
+  },
+  {
+   "name": "Plains",
+   "count": 17
+  }
+ ]
+}

@@ -1,0 +1,31 @@
+{
+ "label": "Rules check: commander exiled",
+ "format": "commander",
+ "commander": "Isamaru, Hound of Konda",
+ "cards": [
+  {
+   "name": "Isamaru, Hound of Konda",
+   "count": 1
+  },
+  {
+   "name": "Swords to Plowshares",
+   "count": 1
+  },
+  {
+   "name": "Path to Exile",
+   "count": 1
+  },
+  {
+   "name": "Journey to Nowhere",
+   "count": 1
+  },
+  {
+   "name": "Oblivion Ring",
+   "count": 1
+  },
+  {
+   "name": "Plains",
+   "count": 95
+  }
+ ]
+}

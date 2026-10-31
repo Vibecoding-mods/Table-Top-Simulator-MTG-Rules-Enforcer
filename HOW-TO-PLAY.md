@@ -1,0 +1,138 @@
+# How to play: the rules-enforced MTG table
+
+Commander in Tabletop Simulator, with the Forge rules engine running the game: it knows the rules, asks the
+questions (targets, blockers, triggers) and moves the cards. You play with the table as usual (drag, tap, click),
+and anything illegal snaps back with the reason.
+
+## Host: starting up (once per session)
+
+1. Double-click **Start MTG** (in this folder). It starts Docker, the
+   Forge engine, the bridge and TTS. Wait for "Ready" in its window.
+2. In TTS: **Create → Multiplayer** (your friends need a server to join), then
+   **Games → Saved Games → "MTG 4 player table - ENGINE MODE"**.
+3. Friends join your server (Steam invite, or the server browser). Only the host runs Start MTG; friends just need
+   TTS.
+
+To shut down: **Stop MTG.bat** in the same folder.
+
+## Everyone: getting into a game
+
+1. **Sit at a colour** (White, Red, Yellow, Blue).
+2. **Bring your deck** the usual way, with the table's Card Importer: the deck on your library spot, your commander
+   on your command zone.
+3. Anyone seated turns the engine on with the middle tile (**Engine: on**), or types `mtg engine on`.
+4. Press **READY?** on your playmat. It checks every card against the engine:
+   - **READY** (green): good to go;
+   - **FIX DECK** (red): the chat says what's wrong (an unknown card, no commander, ...).
+5. When everyone is ready, anyone seated presses **Start** on the middle tile.
+   - Against the computer: `mtg start ai 1` (up to 3 AI players); `mtg aideck <deck>` (host) picks their deck.
+   - **Turn order goes clockwise round the table: White → Red → Yellow → Blue.** A dice roll picks who goes first;
+     the next turn is always the seat clockwise of them. AI players take the empty seats.
+
+## Your turn, Arena style
+
+- **Play a land / cast a spell:** drag it from your hand onto your battlefield. Your commander: drag it from the
+  command zone (the tax is added for you). Tip: drag from the cards in your hand zone on the table, not from the strip
+  at the bottom of the screen: that strip (TTS's own) rises when the pointer touches it, and the card under the
+  pointer moves away.
+- **The big orange button** (bottom right) is your main answer: **Next** (pass), **Resolve**, **Done**,
+  **End turn**. The blue one under it is the other choice. Tip: bind *MTG: pass priority / main button* to **P**
+  (Options → Controls → scripting hotkeys). When a new question changes the button's words (Resolve becomes Next),
+  a click in the next half second is ignored, so a click meant for the old button doesn't pass by mistake.
+- **Step banners:** when the table stops to ask you something, the step shows in the middle of the screen (UPKEEP,
+  DRAW, MAIN PHASE 1, COMBAT, MAIN PHASE 2, END STEP, CLEANUP), once per step. Never with Auto-resolve on. Turn and
+  win banners name the player by their Steam name.
+- **Day and night:** once a daybound card makes it day, the bar at the top says **DAY** or **NIGHT**; the log says
+  when it changes.
+- **Glows tell you what you can do:** green = you can act on it (a target, an attacker, a blocker, a card to pick);
+  gold = chosen.
+- **Pay mana:** the cost is usually paid for you (Auto-pay uses your lands and other sources before anything it has
+  to sacrifice, such as a Treasure); or press **Q/E** on a glowing land or mana source to tap it. Mana already in your
+  pool pays for a spell or ability you just started by itself, as on Arena.
+- **Attack:** Q/E on a glowing creature makes it attack (click a life counter, planeswalker or battle to pick what it
+  attacks), then Done.
+- **Block:** click your glowing creature, then the attacker. Done.
+- **Tokens:** up to four identical tokens lie side by side; from five they stack as one card with an "xN" label.
+  Clicking a stack to attack sends the whole stack (a life counter then aims all of them). To use only some of them,
+  or to block or target one, press **Split** in the grey box beside the stack: the tokens lie out one by one until
+  the question is answered.
+- **Targets:** click the glowing card or player.
+- **Exact picks** ("which one stays?", "discard 1"): click the glowing card(s); the last one you need answers. The
+  orange button counts them ("1 of 1 chosen") instead of offering Done.
+- **Necromancy and similar cards** (sacrificed at cleanup if cast when a sorcery couldn't be): cast outside your main
+  phase, the table asks first (**Cast anyway** / **Wait**).
+- **Blink and you miss it:** a creature that enters and leaves the battlefield within a few seconds is announced in the
+  chat, with what left alongside it.
+- **Abilities:** the abilities you can use right now are dark buttons on the card itself (yours only), one short line
+  each (its cost and the start of what it does); hover a button for the whole text, click it to use the ability. Pointing at
+  the card also shows them as big buttons on the screen. Right-clicking the card shows the same list in its menu.
+- **Equip:** drag the equipment onto your creature (or use its Equip button). It works when equipping is legal (your
+  main phase, empty stack, mana available); otherwise the table says why.
+- **Copies:** a permanent that copies another (Phantasmal Image as your commander) has a purple **COPY** label.
+- **Draws and mills wait for you:** click your library (or the table's Draw button) to take the card.
+- **Cards you may play from exile or your graveyard** (flashback, foretell, Tibalt, adventure...) sit in a glowing
+  row on the near strip of your own mat (below your lands); private ones (foretold) are in the small second hand zone. Drag one onto the battlefield to
+  play it.
+- **Cards exiled by a permanent** (Banishing Light, O-Ring...) lie half-size under that permanent.
+- **Discarding most of your hand** (cleanup with a huge hand, "discard 2" with 3 cards): the table asks which cards
+  to **keep** instead; the rest are discarded. Dragging a card onto your graveyard still discards that card.
+- **Long lists** (a creature type, a big search): the last button says **More...** and shows the next page; the
+  search box narrows the list.
+- **Cancel a cost:** while you choose what to sacrifice, discard, exile or tap to pay for something, **Cancel** (the
+  second button, bottom right) takes the spell or ability back. The card returns to your hand and the lands you
+  tapped for it untap.
+- **Your cards stay on your mat:** move your permanents around your own mat as you like. A card you flick or throw off
+  your mat slides back.
+
+## The buttons at the bottom left (yours only)
+
+A row above Auto-resolve / Fix... / Undo...:
+
+- **Engine: show** — the full question panel (it also opens by itself when a question needs it).
+- **Graveyards / exile** — look through everyone's piles.
+- **Log** — the game log.
+- **Auto** — how fast held draws and untaps happen by themselves.
+- **Settings** — your effects and sounds; the host also switches the table's animations.
+- **Stop: start / combat / end, Hold** (in the panel) — where the game waits for you on other
+  players' turns.
+
+## When something goes wrong
+
+- **Undo...** (bottom right): rewind to an earlier point; the other players vote.
+- **Fix...** (bottom right): pause the game and put the board right by hand (the engine got a rule wrong, or the
+  mistake is too old to rewind). The others vote first, then:
+  - move cards where they belong (battlefield, graveyard, exile, library, hand, command zone), turn them to tap or
+    untap, flip them face down;
+  - drop an aura or equipment onto its permanent to attach it;
+  - right-click a card: **Fix: top / bottom of its library**;
+  - turn the **life and commander-damage counters**;
+  - in chat: `mtg fix token treasure`, `mtg fix token 1/1 green saproling for red tapped`, `mtg fix poison red 2`,
+    `mtg fix counters +1/+1 3` (the card under your pointer);
+  - press **Done**: the change list is shown, the others vote, and the engine applies it.
+- **Scoop** (top, beside your name): concede the game.
+
+## Chat commands
+
+| Command | What it does |
+|---|---|
+| `mtg help` | the list of commands |
+| `mtg ready` | the same as the READY? button |
+| `mtg engine on` / `off` | anyone seated: the rules engine on or off |
+| `mtg start [ai N]` | anyone seated: start (optionally with N Forge AI players) |
+| `mtg reset` | host: end the game and give the imported decks back (anyone seated once the game is over) |
+| `mtg undo [N]` / `mtg vote yes/no` | rewind, and the vote on it |
+| `mtg hold` / `mtg hold off` | keep priority once after something goes on the stack, to respond to your own spell (or press Hold) |
+| `mtg timer [seconds]` / `mtg timer off` | turn timers for everyone (host) |
+| `mtg fix` (`yes` / `no` / `done` / `cancel`) | the manual fix, as the Fix... button |
+| `mtg concede` | leave the game (twice within 15 s) |
+| `mtg effects on/off`, `mtg sounds on/off` | your own effects and sounds |
+| `mtg mana 99` | (testing) a manual fix in one line: 99 of each mana until the end of the turn |
+| `mtg aideck <name>[, <name>...]` | host: the deck(s) the Forge AI players get (one name per AI; a new list replaces the old) |
+
+## Trouble?
+
+- **"Room not found" or the game won't start:** run Start MTG again (it gives you a fresh room), then Start.
+- **A friend's buttons don't react:** reload the save (the screen UI is rebuilt for everyone who is seated), and
+  tell Claude what they see. Their TTS log is
+  `%USERPROFILE%\AppData\LocalLow\Berserk Games\Tabletop Simulator\Player.log`.
+- **Something looks stuck:** the bridge restarts itself; its log is `tmp/bridge-live.log`.

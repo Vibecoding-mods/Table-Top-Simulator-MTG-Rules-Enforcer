@@ -1,0 +1,23 @@
+{
+ "label": "Rules check: filter land (Skycloud Expanse) pays for a spell",
+ "format": "commander",
+ "commander": "Kenrith, the Returned King",
+ "cards": [
+  {
+   "name": "Kenrith, the Returned King",
+   "count": 1
+  },
+  {
+   "name": "Skycloud Expanse",
+   "count": 30
+  },
+  {
+   "name": "Island",
+   "count": 30
+  },
+  {
+   "name": "Rhystic Study",
+   "count": 39
+  }
+ ]
+}

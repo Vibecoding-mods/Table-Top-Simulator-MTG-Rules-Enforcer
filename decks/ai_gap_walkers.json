@@ -1,0 +1,35 @@
+{
+ "label": "AI gap tests: landwalkers that attack (green-white-red)",
+ "format": "commander",
+ "commander": "Hazezon, Shaper of Sand",
+ "cards": [
+  {
+   "name": "Hazezon, Shaper of Sand",
+   "count": 6
+  },
+  {
+   "name": "Zodiac Rooster",
+   "count": 25
+  },
+  {
+   "name": "Dryad Sophisticate",
+   "count": 20
+  },
+  {
+   "name": "Ayumi, the Last Visitor",
+   "count": 8
+  },
+  {
+   "name": "Forest",
+   "count": 26
+  },
+  {
+   "name": "Plains",
+   "count": 8
+  },
+  {
+   "name": "Mountain",
+   "count": 7
+  }
+ ]
+}

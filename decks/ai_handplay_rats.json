@@ -1,0 +1,10 @@
+{
+ "label": "Attacking AI for the hand-play sweep (Relentless Rats)",
+ "format": "commander",
+ "commander": "Yargle, Glutton of Urborg",
+ "cards": [
+  { "name": "Yargle, Glutton of Urborg", "count": 1 },
+  { "name": "Relentless Rats", "count": 10 },
+  { "name": "Swamp", "count": 89 }
+ ]
+}

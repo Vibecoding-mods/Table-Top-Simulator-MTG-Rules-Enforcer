@@ -1,0 +1,359 @@
+{
+ "label": "AI gap tests: cheap attacking creatures, five colours, every basic land type",
+ "format": "commander",
+ "commander": "Sisay, Weatherlight Captain",
+ "cards": [
+  {
+   "name": "Sisay, Weatherlight Captain",
+   "count": 1
+  },
+  {
+   "name": "Savannah Lions",
+   "count": 1
+  },
+  {
+   "name": "Elite Vanguard",
+   "count": 1
+  },
+  {
+   "name": "Thraben Inspector",
+   "count": 1
+  },
+  {
+   "name": "Youthful Knight",
+   "count": 1
+  },
+  {
+   "name": "Suntail Hawk",
+   "count": 1
+  },
+  {
+   "name": "Healer's Hawk",
+   "count": 1
+  },
+  {
+   "name": "Serra Angel",
+   "count": 1
+  },
+  {
+   "name": "Daring Skyjek",
+   "count": 1
+  },
+  {
+   "name": "Glory Seeker",
+   "count": 1
+  },
+  {
+   "name": "Knight of Meadowgrain",
+   "count": 1
+  },
+  {
+   "name": "Skyhunter Skirmisher",
+   "count": 1
+  },
+  {
+   "name": "Precinct Captain",
+   "count": 1
+  },
+  {
+   "name": "Silvercoat Lion",
+   "count": 1
+  },
+  {
+   "name": "Mardu Hordechief",
+   "count": 1
+  },
+  {
+   "name": "Storm Crow",
+   "count": 1
+  },
+  {
+   "name": "Wind Drake",
+   "count": 1
+  },
+  {
+   "name": "Coral Merfolk",
+   "count": 1
+  },
+  {
+   "name": "Merfolk Looter",
+   "count": 1
+  },
+  {
+   "name": "Spectral Sailor",
+   "count": 1
+  },
+  {
+   "name": "Faerie Miscreant",
+   "count": 1
+  },
+  {
+   "name": "Tolarian Scholar",
+   "count": 1
+  },
+  {
+   "name": "Walking Corpse",
+   "count": 1
+  },
+  {
+   "name": "Gravedigger",
+   "count": 1
+  },
+  {
+   "name": "Typhoid Rats",
+   "count": 1
+  },
+  {
+   "name": "Vampire Nighthawk",
+   "count": 1
+  },
+  {
+   "name": "Child of Night",
+   "count": 1
+  },
+  {
+   "name": "Dread Wanderer",
+   "count": 1
+  },
+  {
+   "name": "Zombie Goliath",
+   "count": 1
+  },
+  {
+   "name": "Raging Goblin",
+   "count": 1
+  },
+  {
+   "name": "Goblin Guide",
+   "count": 1
+  },
+  {
+   "name": "Monastery Swiftspear",
+   "count": 1
+  },
+  {
+   "name": "Mogg Fanatic",
+   "count": 1
+  },
+  {
+   "name": "Goblin Piker",
+   "count": 1
+  },
+  {
+   "name": "Borderland Marauder",
+   "count": 1
+  },
+  {
+   "name": "Ash Zealot",
+   "count": 1
+  },
+  {
+   "name": "Goblin Rabblemaster",
+   "count": 1
+  },
+  {
+   "name": "Keldon Raider",
+   "count": 1
+  },
+  {
+   "name": "Hill Giant",
+   "count": 1
+  },
+  {
+   "name": "Furnace Whelp",
+   "count": 1
+  },
+  {
+   "name": "Bloodmark Mentor",
+   "count": 1
+  },
+  {
+   "name": "Llanowar Elves",
+   "count": 1
+  },
+  {
+   "name": "Elvish Mystic",
+   "count": 1
+  },
+  {
+   "name": "Grizzly Bears",
+   "count": 1
+  },
+  {
+   "name": "Giant Spider",
+   "count": 1
+  },
+  {
+   "name": "Deadly Recluse",
+   "count": 1
+  },
+  {
+   "name": "Sentinel Spider",
+   "count": 1
+  },
+  {
+   "name": "Centaur Courser",
+   "count": 1
+  },
+  {
+   "name": "Kalonian Tusker",
+   "count": 1
+  },
+  {
+   "name": "Garruk's Companion",
+   "count": 1
+  },
+  {
+   "name": "Wild Nacatl",
+   "count": 1
+  },
+  {
+   "name": "Leatherback Baloth",
+   "count": 1
+  },
+  {
+   "name": "Elvish Warrior",
+   "count": 1
+  },
+  {
+   "name": "Ambush Viper",
+   "count": 1
+  },
+  {
+   "name": "Watchwolf",
+   "count": 1
+  },
+  {
+   "name": "Kird Ape",
+   "count": 1
+  },
+  {
+   "name": "Boros Swiftblade",
+   "count": 1
+  },
+  {
+   "name": "Burning-Tree Emissary",
+   "count": 1
+  },
+  {
+   "name": "Woolly Thoctar",
+   "count": 1
+  },
+  {
+   "name": "Tidehollow Strix",
+   "count": 1
+  },
+  {
+   "name": "Glorious Anthem",
+   "count": 1
+  },
+  {
+   "name": "Bonesplitter",
+   "count": 1
+  },
+  {
+   "name": "Tundra",
+   "count": 1
+  },
+  {
+   "name": "Underground Sea",
+   "count": 1
+  },
+  {
+   "name": "Badlands",
+   "count": 1
+  },
+  {
+   "name": "Taiga",
+   "count": 1
+  },
+  {
+   "name": "Savannah",
+   "count": 1
+  },
+  {
+   "name": "Scrubland",
+   "count": 1
+  },
+  {
+   "name": "Volcanic Island",
+   "count": 1
+  },
+  {
+   "name": "Bayou",
+   "count": 1
+  },
+  {
+   "name": "Plateau",
+   "count": 1
+  },
+  {
+   "name": "Tropical Island",
+   "count": 1
+  },
+  {
+   "name": "Hallowed Fountain",
+   "count": 1
+  },
+  {
+   "name": "Watery Grave",
+   "count": 1
+  },
+  {
+   "name": "Blood Crypt",
+   "count": 1
+  },
+  {
+   "name": "Stomping Ground",
+   "count": 1
+  },
+  {
+   "name": "Temple Garden",
+   "count": 1
+  },
+  {
+   "name": "Godless Shrine",
+   "count": 1
+  },
+  {
+   "name": "Steam Vents",
+   "count": 1
+  },
+  {
+   "name": "Overgrown Tomb",
+   "count": 1
+  },
+  {
+   "name": "Sacred Foundry",
+   "count": 1
+  },
+  {
+   "name": "Breeding Pool",
+   "count": 1
+  },
+  {
+   "name": "Command Tower",
+   "count": 1
+  },
+  {
+   "name": "Plains",
+   "count": 4
+  },
+  {
+   "name": "Island",
+   "count": 3
+  },
+  {
+   "name": "Swamp",
+   "count": 3
+  },
+  {
+   "name": "Mountain",
+   "count": 4
+  },
+  {
+   "name": "Forest",
+   "count": 3
+  }
+ ]
+}

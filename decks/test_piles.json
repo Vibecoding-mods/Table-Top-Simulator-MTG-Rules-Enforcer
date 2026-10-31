@@ -1,0 +1,79 @@
+{
+ "label": "TEST piles",
+ "format": "commander",
+ "commander": "Kenrith, the Returned King",
+ "cards": [
+  {
+   "name": "Kenrith, the Returned King",
+   "count": 1
+  },
+  {
+   "name": "Faithless Looting",
+   "count": 3
+  },
+  {
+   "name": "Tormenting Voice",
+   "count": 3
+  },
+  {
+   "name": "Cathartic Reunion",
+   "count": 3
+  },
+  {
+   "name": "Thrill of Possibility",
+   "count": 2
+  },
+  {
+   "name": "Wild Guess",
+   "count": 2
+  },
+  {
+   "name": "Regrowth",
+   "count": 2
+  },
+  {
+   "name": "Eternal Witness",
+   "count": 2
+  },
+  {
+   "name": "Gravedigger",
+   "count": 2
+  },
+  {
+   "name": "Raise Dead",
+   "count": 2
+  },
+  {
+   "name": "Rummaging Goblin",
+   "count": 1
+  },
+  {
+   "name": "Command Tower",
+   "count": 1
+  },
+  {
+   "name": "Mountain",
+   "count": 6
+  },
+  {
+   "name": "Forest",
+   "count": 4
+  },
+  {
+   "name": "Swamp",
+   "count": 4
+  },
+  {
+   "name": "Island",
+   "count": 1
+  },
+  {
+   "name": "Plains",
+   "count": 1
+  },
+  {
+   "name": "City of Brass",
+   "count": 1
+  }
+ ]
+}

@@ -1,0 +1,347 @@
+{
+ "label": "AI gap tests: every land type early (Deserts, legendary and nonbasic lands, basics, ramp)",
+ "format": "commander",
+ "commander": "Sisay, Weatherlight Captain",
+ "cards": [
+  {
+   "name": "Sisay, Weatherlight Captain",
+   "count": 1
+  },
+  {
+   "name": "Desert",
+   "count": 1
+  },
+  {
+   "name": "Desert of the True",
+   "count": 1
+  },
+  {
+   "name": "Desert of the Fervent",
+   "count": 1
+  },
+  {
+   "name": "Desert of the Mindful",
+   "count": 1
+  },
+  {
+   "name": "Desert of the Glorified",
+   "count": 1
+  },
+  {
+   "name": "Desert of the Indomitable",
+   "count": 1
+  },
+  {
+   "name": "Ipnu Rivulet",
+   "count": 1
+  },
+  {
+   "name": "Hashep Oasis",
+   "count": 1
+  },
+  {
+   "name": "Endless Sands",
+   "count": 1
+  },
+  {
+   "name": "Sunscorched Desert",
+   "count": 1
+  },
+  {
+   "name": "Shefet Dunes",
+   "count": 1
+  },
+  {
+   "name": "Ifnir Deadlands",
+   "count": 1
+  },
+  {
+   "name": "Urborg, Tomb of Yawgmoth",
+   "count": 1
+  },
+  {
+   "name": "Yavimaya, Cradle of Growth",
+   "count": 1
+  },
+  {
+   "name": "Eiganjo, Seat of the Empire",
+   "count": 1
+  },
+  {
+   "name": "Takenuma, Abandoned Mire",
+   "count": 1
+  },
+  {
+   "name": "Pendelhaven",
+   "count": 1
+  },
+  {
+   "name": "Mikokoro, Center of the Sea",
+   "count": 1
+  },
+  {
+   "name": "Minamo, School at Water's Edge",
+   "count": 1
+  },
+  {
+   "name": "Shizo, Death's Storehouse",
+   "count": 1
+  },
+  {
+   "name": "Tolaria",
+   "count": 1
+  },
+  {
+   "name": "The Shire",
+   "count": 1
+  },
+  {
+   "name": "Rivendell",
+   "count": 1
+  },
+  {
+   "name": "Gaea's Cradle",
+   "count": 1
+  },
+  {
+   "name": "Okina, Temple to the Grandfathers",
+   "count": 1
+  },
+  {
+   "name": "Command Tower",
+   "count": 1
+  },
+  {
+   "name": "City of Brass",
+   "count": 1
+  },
+  {
+   "name": "Mana Confluence",
+   "count": 1
+  },
+  {
+   "name": "Exotic Orchard",
+   "count": 1
+  },
+  {
+   "name": "Path of Ancestry",
+   "count": 1
+  },
+  {
+   "name": "Cultivate",
+   "count": 1
+  },
+  {
+   "name": "Kodama's Reach",
+   "count": 1
+  },
+  {
+   "name": "Rampant Growth",
+   "count": 1
+  },
+  {
+   "name": "Farseek",
+   "count": 1
+  },
+  {
+   "name": "Nature's Lore",
+   "count": 1
+  },
+  {
+   "name": "Three Visits",
+   "count": 1
+  },
+  {
+   "name": "Explosive Vegetation",
+   "count": 1
+  },
+  {
+   "name": "Skyshroud Claim",
+   "count": 1
+  },
+  {
+   "name": "Search for Tomorrow",
+   "count": 1
+  },
+  {
+   "name": "Sakura-Tribe Elder",
+   "count": 1
+  },
+  {
+   "name": "Wood Elves",
+   "count": 1
+  },
+  {
+   "name": "Farhaven Elf",
+   "count": 1
+  },
+  {
+   "name": "Yavimaya Elder",
+   "count": 1
+  },
+  {
+   "name": "Explore",
+   "count": 1
+  },
+  {
+   "name": "Harrow",
+   "count": 1
+  },
+  {
+   "name": "Crop Rotation",
+   "count": 1
+  },
+  {
+   "name": "Sylvan Scrying",
+   "count": 1
+  },
+  {
+   "name": "Expedition Map",
+   "count": 1
+  },
+  {
+   "name": "Azusa, Lost but Seeking",
+   "count": 1
+  },
+  {
+   "name": "Exploration",
+   "count": 1
+  },
+  {
+   "name": "Burgeoning",
+   "count": 1
+  },
+  {
+   "name": "Oracle of Mul Daya",
+   "count": 1
+  },
+  {
+   "name": "Dryad of the Ilysian Grove",
+   "count": 1
+  },
+  {
+   "name": "Prismatic Omen",
+   "count": 1
+  },
+  {
+   "name": "Growth Spiral",
+   "count": 1
+  },
+  {
+   "name": "Hour of Promise",
+   "count": 1
+  },
+  {
+   "name": "Tempt with Discovery",
+   "count": 1
+  },
+  {
+   "name": "Knight of the Reliquary",
+   "count": 1
+  },
+  {
+   "name": "Sylvan Ranger",
+   "count": 1
+  },
+  {
+   "name": "Borderland Ranger",
+   "count": 1
+  },
+  {
+   "name": "Solemn Simulacrum",
+   "count": 1
+  },
+  {
+   "name": "Burnished Hart",
+   "count": 1
+  },
+  {
+   "name": "Wayfarer's Bauble",
+   "count": 1
+  },
+  {
+   "name": "Land Tax",
+   "count": 1
+  },
+  {
+   "name": "Gift of Estates",
+   "count": 1
+  },
+  {
+   "name": "Weathered Wayfarer",
+   "count": 1
+  },
+  {
+   "name": "Tithe",
+   "count": 1
+  },
+  {
+   "name": "Knight of the White Orchid",
+   "count": 1
+  },
+  {
+   "name": "Llanowar Elves",
+   "count": 1
+  },
+  {
+   "name": "Elvish Mystic",
+   "count": 1
+  },
+  {
+   "name": "Fyndhorn Elves",
+   "count": 1
+  },
+  {
+   "name": "Ramunap Excavator",
+   "count": 1
+  },
+  {
+   "name": "Journey of Discovery",
+   "count": 1
+  },
+  {
+   "name": "Blanket of Night",
+   "count": 1
+  },
+  {
+   "name": "Splendid Reclamation",
+   "count": 1
+  },
+  {
+   "name": "Boundless Realms",
+   "count": 1
+  },
+  {
+   "name": "Migration Path",
+   "count": 1
+  },
+  {
+   "name": "Circuitous Route",
+   "count": 1
+  },
+  {
+   "name": "Reshape the Earth",
+   "count": 1
+  },
+  {
+   "name": "Plains",
+   "count": 4
+  },
+  {
+   "name": "Island",
+   "count": 4
+  },
+  {
+   "name": "Swamp",
+   "count": 4
+  },
+  {
+   "name": "Mountain",
+   "count": 4
+  },
+  {
+   "name": "Forest",
+   "count": 4
+  }
+ ]
+}

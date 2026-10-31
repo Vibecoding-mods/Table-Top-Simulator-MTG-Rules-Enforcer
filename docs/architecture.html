@@ -1,0 +1,321 @@
+<title>MTG Engine Table Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vollkorn:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column (~70ch) with full-width diagram panels; felt-green accent, ink neutrals with a green bias */
+:root {
+  --bg: #f4f6f3;
+  --panel: #ffffff;
+  --ink: #1b2420;
+  --muted: #5b6862;
+  --line: #d3dbd5;
+  --accent: #1f6b57;      /* table felt */
+  --accent-soft: #e2efe9;
+  --warn: #a8432c;        /* "required" / attention */
+  --warn-soft: #f6e6e0;
+  --opt: #6f6a2b;         /* optional pieces */
+  --opt-soft: #f1efdc;
+  --font-display: "Vollkorn", "Iowan Old Style", Georgia, serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111715; --panel: #18201d; --ink: #e4ebe7; --muted: #9aa9a2; --line: #2d3a35;
+    --accent: #63c3a6; --accent-soft: #1d3029; --warn: #e48a6f; --warn-soft: #362520;
+    --opt: #d2c770; --opt-soft: #2f2d1a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111715; --panel: #18201d; --ink: #e4ebe7; --muted: #9aa9a2; --line: #2d3a35;
+  --accent: #63c3a6; --accent-soft: #1d3029; --warn: #e48a6f; --warn-soft: #362520;
+  --opt: #d2c770; --opt-soft: #2f2d1a; color-scheme: dark;
+}
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 980px; margin: 0 auto; padding-block: 40px 72px; display: grid; gap: 56px; }
+.prose { max-width: 70ch; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.9rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.65rem; font-weight: 700; }
+h3 { font-size: 1.15rem; font-weight: 700; }
+p { margin: 0; }
+section { display: grid; gap: 18px; min-width: 0; }
+.eyebrow { font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.lede { font-size: 1.15rem; color: var(--muted); max-width: 62ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+code { background: var(--accent-soft); padding: 0.05em 0.35em; border-radius: 4px; }
+header { display: grid; gap: 14px; }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; min-width: 0; }
+.scroll { overflow-x: auto; }
+svg { display: block; max-width: none; }
+.diagram text { font-family: var(--font-body); fill: var(--ink); }
+.diagram .small { font-size: 12px; fill: var(--muted); }
+.diagram .mono { font-family: var(--font-mono); font-size: 11.5px; fill: var(--muted); }
+.diagram .title { font-size: 15px; font-weight: 600; }
+.diagram .frame { fill: none; stroke: var(--line); stroke-width: 1.5; }
+.diagram .req { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+.diagram .opt { fill: var(--opt-soft); stroke: var(--opt); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.diagram .net { fill: var(--panel); stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.diagram .arrow { stroke: var(--ink); stroke-width: 1.4; fill: none; }
+.diagram .arrow.soft { stroke: var(--muted); stroke-dasharray: 4 4; }
+.diagram .head { fill: var(--ink); }
+.diagram .head.soft { fill: var(--muted); }
+.diagram .label { font-size: 11.5px; fill: var(--ink); }
+.diagram .frameLabel { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; fill: var(--muted); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 0.9rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { width: 22px; height: 14px; border-radius: 3px; display: inline-block; }
+.sw.req { background: var(--accent-soft); border: 1.5px solid var(--accent); }
+.sw.opt { background: var(--opt-soft); border: 1.5px dashed var(--opt); }
+.sw.net { background: var(--panel); border: 1.2px dashed var(--muted); }
+
+ol.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; gap: 0; }
+ol.steps li { counter-increment: step; display: grid; grid-template-columns: 2.4rem 7.5rem 1fr; gap: 12px; align-items: baseline; padding: 12px 0; border-top: 1px solid var(--line); }
+ol.steps li:first-child { border-top: none; }
+ol.steps li::before { content: counter(step); font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); font-weight: 500; }
+.who { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); }
+.what { min-width: 0; }
+
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { text-align: left; vertical-align: top; padding: 11px 12px; border-top: 1px solid var(--line); }
+th { font-size: 0.78rem; font-family: var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; border-top: none; }
+td:first-child { font-weight: 600; min-width: 11rem; }
+.chip { display: inline-block; font-family: var(--font-mono); font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.chip.req { background: var(--warn-soft); color: var(--warn); }
+.chip.opt { background: var(--opt-soft); color: var(--opt); }
+.chip.dev { background: var(--accent-soft); color: var(--accent); }
+
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.two .panel { display: grid; gap: 10px; align-content: start; }
+ul.list { margin: 0; padding-left: 1.1rem; display: grid; gap: 6px; }
+.rules { display: grid; gap: 14px; }
+.rule { display: grid; grid-template-columns: minmax(0, 15rem) 1fr; gap: 6px 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+.rule:first-child { border-top: none; padding-top: 0; }
+.rule strong { font-family: var(--font-display); font-size: 1.05rem; }
+.measure { font-family: var(--font-mono); font-size: 0.85rem; color: var(--warn); font-variant-numeric: tabular-nums; }
+.check { display: grid; gap: 12px; }
+.check div { display: grid; grid-template-columns: 1.4rem 1fr; gap: 10px; }
+.check div::before { content: ""; width: 14px; height: 14px; margin-top: 5px; border: 1.5px solid var(--accent); border-radius: 3px; }
+footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 18px; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 640px) {
+  ol.steps li { grid-template-columns: 2rem 1fr; }
+  ol.steps li .what { grid-column: 2; }
+  .rule { grid-template-columns: 1fr; }
+  main { gap: 44px; padding-block: 28px 56px; }
+}
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow">Commander on Tabletop Simulator · rules by Forge</div>
+    <h1>How the engine table works</h1>
+    <p class="lede">The TTS table shows the game and takes your clicks. A small Node bridge translates. Forge, running through Manabrew, decides what is legal and plays the AI. Then the table redraws whatever Forge says happened.</p>
+  </header>
+
+  <section>
+    <h2>The big picture</h2>
+    <div class="legend">
+      <span><i class="sw req"></i>Required</span>
+      <span><i class="sw opt"></i>Optional</span>
+      <span><i class="sw net"></i>On the internet</span>
+    </div>
+    <div class="panel scroll">
+      <svg class="diagram" viewBox="0 0 940 470" width="940" height="470" role="img" aria-label="Players connect to the TTS host over Steam. On the host, TTS talks to the bridge, and the bridge talks to the relay and Forge in Docker. Card pictures come from the internet.">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head soft" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+
+        <!-- other players -->
+        <rect class="opt" x="20" y="40" width="170" height="78" rx="8"/>
+        <text class="title" x="36" y="68">Friend's PC</text>
+        <text class="small" x="36" y="88">TTS client</text>
+        <text class="small" x="36" y="105">sees the table, clicks</text>
+        <rect class="opt" x="20" y="140" width="170" height="78" rx="8"/>
+        <text class="title" x="36" y="168">Friend's PC</text>
+        <text class="small" x="36" y="188">TTS client</text>
+        <text class="small" x="36" y="205">up to 8 seats</text>
+
+        <!-- host frame -->
+        <rect class="frame" x="250" y="14" width="670" height="350" rx="12"/>
+        <text class="frameLabel" x="268" y="36">HOST PC</text>
+
+        <rect class="req" x="270" y="52" width="250" height="132" rx="8"/>
+        <text class="title" x="288" y="80">Tabletop Simulator</text>
+        <text class="small" x="288" y="100">MTG 4 player table, ENGINE MODE</text>
+        <text class="mono" x="288" y="124">table Lua (life, importer, mats)</text>
+        <text class="mono" x="288" y="142">+ engine-renderer.lua</text>
+        <text class="small" x="288" y="166">draws cards, panel, glows</text>
+
+        <rect class="req" x="620" y="52" width="280" height="132" rx="8"/>
+        <text class="title" x="638" y="80">Bridge</text>
+        <text class="mono" x="638" y="100">bridge/bridge.js · Node</text>
+        <text class="small" x="638" y="124">questions → panel buttons</text>
+        <text class="small" x="638" y="142">sends only what changed</text>
+        <text class="small" x="638" y="160">card pictures, AI decks</text>
+
+        <rect class="frame" x="560" y="214" width="340" height="132" rx="10"/>
+        <text class="frameLabel" x="576" y="234">DOCKER</text>
+        <rect class="req" x="576" y="246" width="128" height="84" rx="8"/>
+        <text class="title" x="592" y="274">Relay</text>
+        <text class="mono" x="592" y="294">ws :9443</text>
+        <text class="small" x="592" y="314">game rooms</text>
+        <rect class="req" x="728" y="246" width="156" height="84" rx="8"/>
+        <text class="title" x="744" y="274">manabrew-node</text>
+        <text class="small" x="744" y="294">Forge rules engine</text>
+        <text class="small" x="744" y="314">+ Forge AI players</text>
+
+        <!-- internet -->
+        <rect class="net" x="270" y="396" width="250" height="60" rx="8"/>
+        <text class="title" x="288" y="421">Card pictures</text>
+        <text class="mono" x="288" y="441">img.klrmngr.com · Scryfall</text>
+
+        <!-- arrows: players <-> TTS -->
+        <path class="arrow" d="M190,79 L268,100" marker-end="url(#ah)" marker-start="url(#ah)"/>
+        <path class="arrow" d="M190,179 L268,150" marker-end="url(#ah)" marker-start="url(#ah)"/>
+        <text class="label" x="196" y="236">Steam relay:</text>
+        <text class="label" x="196" y="252">every object change</text>
+
+        <!-- TTS -> bridge / bridge -> TTS -->
+        <path class="arrow" d="M520,98 L618,98" marker-end="url(#ah)"/>
+        <text class="label" x="526" y="90">clicks, answers</text>
+        <text class="mono" x="526" y="114" style="font-size:10.5px">POST :48787</text>
+        <path class="arrow" d="M618,150 L522,150" marker-end="url(#ah)"/>
+        <text class="label" x="526" y="142">board, questions</text>
+        <text class="mono" x="526" y="166" style="font-size:10.5px">custom msg :39999</text>
+
+        <!-- bridge <-> relay <-> forge -->
+        <path class="arrow" d="M680,184 L660,244" marker-end="url(#ah)" marker-start="url(#ah)"/>
+        <text class="label" x="684" y="212">WebSocket</text>
+        <path class="arrow" d="M704,288 L726,288" marker-end="url(#ah)" marker-start="url(#ah)"/>
+
+        <!-- pictures -->
+        <path class="arrow soft" d="M395,186 L395,394" marker-end="url(#ahs)"/>
+        <text class="label" x="403" y="300">each PC downloads</text>
+        <text class="label" x="403" y="316">pictures itself</text>
+        <path class="arrow soft" d="M700,184 C700,380 600,425 522,425" marker-end="url(#ahs)"/>
+        <text class="label" x="560" y="396">picture lookups</text>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <h2>One click, start to finish</h2>
+    <p class="prose">Casting Lightning Bolt at an opponent, end to end.</p>
+    <div class="panel">
+      <ol class="steps">
+        <li><span class="who">You</span><span class="what">Click <em>Cast Lightning Bolt</em> in your panel, then click the opponent's life counter.</span></li>
+        <li><span class="who">TTS table</span><span class="what">Shows it at once: the card moves and the life counter turns red as your target.</span></li>
+        <li><span class="who">TTS → bridge</span><span class="what">Sends your answer as a background web request (<code>POST /msg</code>).</span></li>
+        <li><span class="who">Bridge → Forge</span><span class="what">Passes the action and its target through the relay.</span></li>
+        <li><span class="who">Forge</span><span class="what">Checks it is legal, puts it on the stack and lets the AI respond.</span></li>
+        <li><span class="who">Forge → bridge</span><span class="what">Returns the new game state and the next question.</span></li>
+        <li><span class="who">Bridge → TTS</span><span class="what">Sends the board, only the zones that changed, plus the question for your panel.</span></li>
+        <li><span class="who">TTS table</span><span class="what">Redraws: cards move, glows update, and the next question appears.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <h2>What you need, and why</h2>
+    <div class="panel scroll">
+      <table>
+        <thead><tr><th>Piece</th><th>Status</th><th>Why it exists</th><th>Without it</th></tr></thead>
+        <tbody>
+          <tr><td>Tabletop Simulator on the host</td><td><span class="chip req">required</span></td><td>The table everyone sees and plays on.</td><td>Nothing to play on.</td></tr>
+          <tr><td>MTG 4 player table → ENGINE MODE</td><td><span class="chip req">required</span></td><td>The scripted table (workshop 2296042369), built into ENGINE MODE by <code>make-engine-copy.js</code>. It adds <code>engine-renderer.lua</code>, which draws the engine's game and turns your clicks into answers.</td><td>A normal manual table with no rules enforcement.</td></tr>
+          <tr><td>Bridge</td><td><span class="chip req">required</span></td><td>TTS can't talk to the engine directly. The bridge turns questions into buttons, sends only what changed, picks card pictures and handles AI decks.</td><td>The table can't reach the engine.</td></tr>
+          <tr><td>Docker: relay + manabrew-node</td><td><span class="chip req">required</span></td><td>The actual Magic rules: every card, the stack, combat, triggers, and the Forge AI.</td><td>No rules and no AI.</td></tr>
+          <tr><td>Internet for card pictures</td><td><span class="chip req">required</span></td><td>Card images and token art. Each player's PC downloads its own copies.</td><td>Blank cards.</td></tr>
+          <tr><td>Friends' PCs</td><td><span class="chip opt">optional</span></td><td>They join over Steam like any TTS game. The table code runs only on the host.</td><td>Solo against AI players.</td></tr>
+          <tr><td>Forge AI players</td><td><span class="chip opt">optional</span></td><td><code>mtg start ai N</code> fills empty seats. A deck put in an empty seat is played by an AI.</td><td>Humans only.</td></tr>
+          <tr><td>Cloud gaming PC as host</td><td><span class="chip opt">optional</span></td><td>Datacenter upload if a home host's connection causes lag.</td><td>A home PC hosts; 5–10 Mbps steady upload is fine.</td></tr>
+          <tr><td>Linux server for bridge + Forge</td><td><span class="chip opt">optional</span></td><td>Frees the host's CPU, so anyone can host without Docker.</td><td>Docker runs on the host PC.</td></tr>
+          <tr><td>Test and measurement tools</td><td><span class="chip dev">developers</span></td><td>Automated games, board checks against the engine, frame-time analysis, keyword coverage.</td><td>No safety net when changing code.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Inside the host</h2>
+    <div class="two">
+      <div class="panel">
+        <h3>Table script</h3>
+        <p class="mono" style="color:var(--muted)">engine-renderer.lua</p>
+        <ul class="list">
+          <li>Draws cards, piles, library and command zone from the engine's board.</li>
+          <li>Panel with the current question, phase bar, stops and game log.</li>
+          <li>Q/E on a card pays mana or attacks; clicking a card or life counter targets or blocks.</li>
+          <li>Glows: white = can act, red = attacking or targeted, blue = blocking, orange = can be targeted, purple = on the stack.</li>
+          <li>Auras and equipment at half size beside their creature.</li>
+          <li>Removed cards go into a hidden trash deck instead of being destroyed (no 360 ms pause per card).</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Bridge</h3>
+        <p class="mono" style="color:var(--muted)">bridge/bridge.js</p>
+        <ul class="list">
+          <li>One engine seat per TTS player, plus Forge AI seats.</li>
+          <li>Questions become panel options, including web-slinging and other alternative costs, and ninjutsu stops.</li>
+          <li>Arena-style stops: you're asked only when you can do something.</li>
+          <li>Board updates send card details once and skip zones that didn't change.</li>
+          <li>Card pictures: the table's own images first, then Scryfall, plus a token-art search.</li>
+          <li>AI decks from empty seats or <code>mtg aideck</code> presets.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Performance rules learned the hard way</h2>
+    <p class="prose">Measured with PresentMon in October 2026. These explain why the code looks the way it does.</p>
+    <div class="panel rules">
+      <div class="rule"><strong>Keep card picture numbers small</strong><span>TTS's rewind snapshot cost grows with each card's CustomDeck number. Engine pictures count up from 3000. <span class="measure">12,517,809 → 25 ms per card; 100 cards froze the table 2.7 s every 10 s</span></span></div>
+      <div class="rule"><strong>Never destroy cards mid-game</strong><span>Each <code>destruct()</code> triggers Unity's asset clean-up. Merging into a hidden deck is free. <span class="measure">~360 ms per card · 5 at once = 1.8 s</span></span></div>
+      <div class="rule"><strong>Unlock decks before adding cards</strong><span>A locked deck silently refuses <code>putObject</code>. Unlock, put, and lock again a frame later.</span></div>
+      <div class="rule"><strong>Send less JSON</strong><span>TTS decodes JSON slowly, so card details go once and unchanged zones are skipped. <span class="measure">~12–20 ms per KB</span></span></div>
+      <div class="rule"><strong>Use the cheap message path</strong><span>The bridge's custom messages are free; the debug "run Lua" command is not. <span class="measure">custom message 0 ms · run Lua ~360 ms</span></span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Repository map</h2>
+    <div class="panel scroll">
+      <table>
+        <thead><tr><th>Path</th><th>What's in it</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">bridge/</td><td>The bridge, plus its card-name and picture caches.</td></tr>
+          <tr><td class="mono">tools/engine-renderer.lua</td><td>Everything the table does in engine mode.</td></tr>
+          <tr><td class="mono">tools/make-engine-copy.js</td><td>Builds ENGINE MODE from your own subscribed copy of the workshop table: patches, slimming, engine code.</td></tr>
+          <tr><td class="mono">tools/</td><td>Start/stop the bridge, push to TTS, automated games, board checks, PresentMon analysis, keyword coverage.</td></tr>
+          <tr><td class="mono">manabrew/</td><td>Upstream Manabrew: engine host, relay, protocol. Its own license.</td></tr>
+          <tr><td class="mono">docs/</td><td>This map, the server spec, function references, keyword tables and test results.</td></tr>
+          <tr><td class="mono">PLAN.md · SPEC.md · TESTING.md</td><td>What was built, what's planned, how it's tested.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Before publishing on GitHub</h2>
+    <div class="panel check">
+      <div><span><strong>License.</strong> Manabrew is AGPL-3.0-or-later and Forge is GPL-3.0. Release this project's code under GPL-3.0 or AGPL-3.0, and credit both projects and the TTS table's authors.</span></div>
+      <div><span><strong>The TTS table.</strong> Its scripts belong to their authors. Publish <code>make-engine-copy.js</code>, which builds ENGINE MODE from each user's own copy, rather than the patched table file, unless the authors agree.</span></div>
+      <div><span><strong>Leave out</strong> <code>tmp/</code> (logs and deck exports), the PresentMon program (link to Intel's download instead), and personal paths such as <code>C:/Users/…</code>.</span></div>
+      <div><span><strong>Secrets.</strong> Any public server needs its own relay key, never the default <code>tts-local</code>.</span></div>
+      <div><span><strong>Card pictures</strong> stay links to klrmngr and Scryfall. Don't bundle images.</span></div>
+    </div>
+  </section>
+
+  <footer>Server options and costs are in <span class="mono">docs/server-setup-spec.md</span>. Built on <a href="https://github.com/Card-Forge/forge">Forge</a> and Manabrew.</footer>
+</main>

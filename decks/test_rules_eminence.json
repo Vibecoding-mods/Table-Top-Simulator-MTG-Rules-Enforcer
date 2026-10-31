@@ -1,0 +1,67 @@
+{
+ "label": "Rules check: eminence (Edgar Markov from the command zone)",
+ "format": "commander",
+ "commander": "Edgar Markov",
+ "cards": [
+  {
+   "name": "Edgar Markov",
+   "count": 1
+  },
+  {
+   "name": "Vampire Lacerator",
+   "count": 4
+  },
+  {
+   "name": "Vampire of the Dire Moon",
+   "count": 4
+  },
+  {
+   "name": "Indulgent Aristocrat",
+   "count": 4
+  },
+  {
+   "name": "Knight of the Ebon Legion",
+   "count": 4
+  },
+  {
+   "name": "Gifted Aetherborn",
+   "count": 4
+  },
+  {
+   "name": "Stromkirk Noble",
+   "count": 4
+  },
+  {
+   "name": "Bloodghast",
+   "count": 4
+  },
+  {
+   "name": "Cordial Vampire",
+   "count": 4
+  },
+  {
+   "name": "Vampire Interloper",
+   "count": 4
+  },
+  {
+   "name": "Child of Night",
+   "count": 4
+  },
+  {
+   "name": "Falkenrath Pit Fighter",
+   "count": 4
+  },
+  {
+   "name": "Swamp",
+   "count": 25
+  },
+  {
+   "name": "Mountain",
+   "count": 15
+  },
+  {
+   "name": "Plains",
+   "count": 15
+  }
+ ]
+}

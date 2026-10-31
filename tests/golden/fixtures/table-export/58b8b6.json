@@ -1,0 +1,58 @@
+{
+  "GUID": "58b8b6",
+  "Name": "Card",
+  "Transform": {
+    "posX": 42.03606,
+    "posY": 1.96000016,
+    "posZ": 8.329659,
+    "rotX": -1.46425248E-06,
+    "rotY": 1.0898365E-05,
+    "rotZ": 0.00163220789,
+    "scaleX": 1.0,
+    "scaleY": 1.0,
+    "scaleZ": 1.0
+  },
+  "Nickname": "Yuriko, the Tiger's Shadow\nLegendary Creature â Human Ninja 3CMC",
+  "Description": "Commander ninjutsu {U}{B} ({U}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand or the command zone tapped and attacking.)\nWhenever a Ninja you control deals combat damage to a player, reveal the top card of your library and put that card into your hand. Each opponent loses life equal to that card's mana value.\n[b]1/3[/b]",
+  "GMNotes": "",
+  "AltLookAngle": {
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0
+  },
+  "ColorDiffuse": {
+    "r": 0.713235259,
+    "g": 0.713235259,
+    "b": 0.713235259
+  },
+  "LayoutGroupSortIndex": 0,
+  "Value": 0,
+  "Locked": true,
+  "Grid": true,
+  "Snap": true,
+  "IgnoreFoW": false,
+  "MeasureMovement": false,
+  "DragSelectable": true,
+  "Autoraise": true,
+  "Sticky": true,
+  "Tooltip": true,
+  "GridProjection": false,
+  "HideWhenFaceDown": true,
+  "Hands": true,
+  "CardID": 200300,
+  "SidewaysCard": false,
+  "CustomDeck": {
+    "2003": {
+      "FaceURL": "https://img.klrmngr.com/display/front/f/e/fe9be3e0-076c-4703-9750-2a6b0a178bc9.webp",
+      "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/2442730426865822027/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/",
+      "NumWidth": 1,
+      "NumHeight": 1,
+      "BackIsHidden": true,
+      "UniqueBack": false,
+      "Type": 0
+    }
+  },
+  "LuaScript": "",
+  "LuaScriptState": "",
+  "XmlUI": ""
+}
