@@ -52,3 +52,16 @@ Repository: `Vibecoding-mods/Table-Top-Simulator-Mock-MTGA-Magic-The-Gathering-A
 
 - The Steam Workshop upload (needs the table author's OK, see decision 2).
 - The companion app (docs/companion-app-spec.md): a later release.
+
+## Before making the repository public
+
+- [ ] **Message the table's author first** (Workshop 2296042369: a Workshop comment or their Steam profile). Draft:
+
+  > Hi! I've really enjoyed your MTG 4 player table. I've been building an open-source project that runs Commander on it with
+  > the Forge rules engine enforcing the rules. It doesn't include or redistribute your table: people need their own copy from
+  > the Workshop, and a small script patches that copy on their PC. The patcher does change some things for engine play,
+  > including removing the hard-coded "promote me" permission and the Smart mulligan button, and the docs describe how your
+  > scripts work. I'm planning to make the GitHub repository public and wanted to tell you first, with credit to you and a
+  > link to your table. Are you okay with that, or is there anything you'd like changed?
+
+- [ ] Read the repository through once on GitHub, then change it to public.
