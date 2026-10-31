@@ -152,3 +152,6 @@ These can't be played with the hand-test setup and are left until the pieces the
   bridge to send a sideboard, and a deck built for it.
 - **Attractions** (hp-23): there is no Attraction deck in this setup; Line Cutter only rolls the d6.
 - **Doctor's companion** (hp-11): a commander pairing with a Doctor; the hand-test decks' commander is Kenrith.
+
+## Table UI size (2026-10-30)
+The screen UI must stay under 60 KB: at about 64 KB the second player's buttons stopped working, and the code's note calls a size limit the likely cause, which isn't confirmed. Each seat adds its own panels. Measured with four seats at 59,988 bytes: element ids 12.6 KB, shared styles 10 KB, style references 9.1 KB, click handlers 7.1 KB. The table's dead Scryfall panels (3.8 KB) are now left out of the engine UI. Next room if needed: fewer answer buttons per page (POOL, 30, about 62 bytes each per seat), or building settings panels on demand.

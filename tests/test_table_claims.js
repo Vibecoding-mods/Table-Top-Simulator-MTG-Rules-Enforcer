@@ -125,8 +125,10 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
 {
   const seated = ["Blue", "White", "Red", "Yellow"];
   const r = simulate({ save, seated, steps: [...prefix, q("return tostring(engineXmlSize)", "size"),
+    q('local x = UI.getXml() return ((x:find("SearchPanel", 1, true) or x:find("ListPanel", 1, true)) and "there" or "gone") .. " " .. ((x:find("<Defaults>", 1, true) and x:find("eng_opt_Blue_1", 1, true)) and "kept" or "lost")', "dead panels"),
     q('local x = UI.getXml() local d = x:match("<Defaults>.-</Defaults>") or "" return (d:find(" on%u%a*=") and "event" or "clean") .. " " .. tostring(select(2, x:gsub("eng_opt_Yellow_%d+", "")))', "defaults")] });
   ok("UI size: four seats under 60 KB", Number(valueOf(r, "size")) > 20000 && Number(valueOf(r, "size")) < 60000, valueOf(r, "size"));
+  ok("UI size: the dead Scryfall panels are left out, the rest kept", valueOf(r, "dead panels") === "gone kept", valueOf(r, "dead panels"));
   ok("UI size: every seat built, no events in <Defaults>", valueOf(r, "defaults") === "clean 30", valueOf(r, "defaults"));
 }
 // flick containment: a movable card nobody holds that ends up off its owner's mat goes back (2026-10-23)

@@ -1790,9 +1790,9 @@ local function panelXml(color)
     .. '<Button id="eng_set_' .. c .. '" onClick="onMtgSettings" visibility="' .. c .. '" width="100" height="32" rectAlignment="LowerCenter" offsetXY="-313 46" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Settings</Button>\n'
     .. '<Panel id="eng_setpanel_' .. c .. '" visibility="' .. c .. '" width="290" height="150" rectAlignment="LowerCenter" offsetXY="-313 84" color="#0A0C10F0" active="false">'
     .. '<VerticalLayout padding="8 8 8 8" spacing="6">'
-    .. '<Button id="eng_fx_' .. c .. '" onClick="onMtgFx" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Banners and pop-ups, for you only">My effects: on</Button>'
+    .. '<Button id="eng_fx_' .. c .. '" onClick="onMtgFx" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Banners, the turn banner and the stack pop-up, for you only">My effects: on</Button>'
     .. '<Button id="eng_snd_' .. c .. '" onClick="onMtgSnd" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Sounds, for you">My sounds: on</Button>'
-    .. '<Button id="eng_anim_' .. c .. '" onClick="onMtgAnim" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Seen by everyone, so the host decides">Table animations: on</Button>'
+    .. '<Button id="eng_anim_' .. c .. '" onClick="onMtgAnim" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Attack swings, mills and the graveyard flash: everyone sees them, so the host decides">Table animations: on</Button>'
     .. '</VerticalLayout></Panel>\n'
     .. '<Panel id="eng_log_' .. c .. '" visibility="' .. c .. '" width="430" height="290" rectAlignment="UpperRight" offsetXY="-10 -150" color="#0A0C10D0" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
     .. '<Text id="eng_logtext_' .. c .. '" width="414" height="280" fontSize="13" color="#FFFFFF" alignment="LowerLeft"> </Text></Panel>\n'
@@ -1812,10 +1812,10 @@ local function panelXml(color)
     .. '      <Button id="eng_cancel_' .. c .. '" onClick="onMtgCancel" active="false" color="#8b1e1e" textColor="#ffffff" fontSize="15">Cancel</Button>\n'
     .. '    </HorizontalLayout>\n'
     .. '    <HorizontalLayout preferredHeight="30" spacing="4" childForceExpandWidth="true">'
-    .. '<Button id="eng_stop_start_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: start</Button>'
+    .. '<Button id="eng_stop_start_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: start of turn</Button>'
     .. '<Button id="eng_stop_combat_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: combat</Button>'
-    .. '<Button id="eng_stop_end_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: end</Button>'
-    .. '<Button id="eng_stop_hold_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Hold</Button>'
+    .. '<Button id="eng_stop_end_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: end of turn</Button>'
+    .. '<Button id="eng_stop_hold_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12" tooltip="Keep priority once after something goes on the stack">Hold</Button>'
     .. '</HorizontalLayout>\n'
     .. '  </VerticalLayout>\n'
     .. '</Panel>'
@@ -2365,7 +2365,10 @@ function engineRenderPanels(promptColor)
     for _, c in ipairs(seated) do parts[#parts + 1] = panelXml(c) parts[#parts + 1] = cornerXml(c) end
     parts[#parts + 1] = POPUP_XML
     local ours, defaults = engineXmlCompact(table.concat(parts, "\n"))
-    local xml = engineXmlJoin(baseXml, ours, defaults)
+    -- (without the table's Scryfall search and deck panels, the last thing in its UI: only an "MTG Importer" object opens
+    -- them, and the table has none, docs/table-functions-global-importer.md 1.8. 3.8 KB of the 60 KB limit, 2026-10-30)
+    local base = baseXml:sub(1, (baseXml:find('<Panel id="SearchPanel"', 1, true) or #baseXml + 1) - 1)
+    local xml = engineXmlJoin(base, ours, defaults)
     engineXmlSize = #xml
     if engineXmlSize > 60000 then
       print("[MTG] The screen UI is " .. math.floor(engineXmlSize / 1024) .. " KB with " .. #seated .. " players: other players' buttons may not work (it reached them below 60 KB).")

@@ -93,7 +93,7 @@ A row above Auto-resolve / Fix... / Undo...:
 - **Log** — the game log.
 - **Auto** — how fast held draws and untaps happen by themselves.
 - **Settings** — your effects and sounds; the host also switches the table's animations.
-- **Stop: start / combat / end, Hold** (in the panel) — where the game waits for you on other
+- **Stop: start of turn / combat / end of turn, and Hold** (in the panel) — where the game waits for you on other
   players' turns.
 
 ## When something goes wrong
