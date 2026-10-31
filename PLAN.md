@@ -41,7 +41,11 @@ Last updated: 2026-10-20. The design is in [SPEC.md](SPEC.md); test results and 
 1. **Picture and name check for every card**, about 2 minutes: every name in `bridge/forge-cards.json` gets a picture lookup, and failures are listed.
 2. **Automated games on 60–100 representative cards** covering every prompt type and card layout (double-faced, split, adventure, flip, meld, saga, planeswalker, aura, equipment, tokens, copies, face-down), about a day. **Order: most popular first (EDHREC rank), then newest sets**, so the cards the group is likely to play get tested first.
 
-## Where we are (updated 2026-10-20)
+## Where we are (updated 2026-10-31)
+
+All 19 gap decks and 127 keywords are played. Turn timers (`mtg timer`) and hold priority (`mtg hold`, Hold button) work through the table. The engine builds from public source plus `engine/`. What's left needs other people (4 humans, hand privacy, M7's 2-person test, M5's sync test) or is optional (effects, sounds, game modes, 5+ seats).
+
+Notes below from 2026-10-20:
 
 Everything runs end to end in real TTS, and has been played over TTS multiplayer with a friend (1v1).
 
@@ -101,7 +105,7 @@ TTS (group table, ENGINE MODE) ⇄ bridge.js ⇄ Manabrew relay ⇄ self-hosted 
 - [x] **Rewrites from the structural review** (2026-10-20): the bridge says what each question is (`kind`, `dest`) and
   the table reads it in one place (describePrompt; titles only for older messages); one open/close for a player's
   question (engineEnterPrompt / engineExitPrompt); one way to adopt an object as a card (engineAdopt).
-- [ ] **Panel restyle** to match the table's own UI (Arena pill buttons: orange main, blue alternative; fewer side-panel lists).
+- [x] **Panel restyle** to match the table's own UI: Arena pill buttons (orange main, blue alternative), the Engine panel hidden unless pinned.
 
 ## M3 ✅ (done; the 2-human item was played as a 1v1 with a friend, 2026-10-19)
 
@@ -184,7 +188,7 @@ Players drag and use the table normally; every move is a request the engine acce
   - Cards slide onto the pile, then join the deck. `tryObjectEnterContainer` stops physics from merging cards into engine decks. Only one copy of each pile or library deck can exist.
 - [x] Panel text is white (status, title, description).
 - [x] Bug-hunt fixes: duplicate library deck while respawning; dragged cards released as soon as the engine confirms them (enters-tapped lands now show tapped); the autoplay stops at game over.
-- [ ] Game log in chat: the engine sends its log only to spectators, so the bridge needs a spectator connection
+- [x] Game log: the bridge builds its own from the public board, shown on the table's Log panel (no spectator connection needed)
 - [x] **Doing it yourself + freeze work (2026-10-18, after the user's video):**
   - **Held moves:** draws, mills and your untaps wait for you. A drawn card stays on top of your library until you click the library, drag it or press Draw. Milled cards wait until you drag them or press Mill; tapped permanents until you press Untap. A per-player "Auto" toggle (off by default) finishes them after 15 s, and a decision that needs a held card releases it at once.
   - **Table buttons:** they're back on the table and call `engineTableButton`: Draw, Mill and Untap release held moves, Mulligan answers the mulligan question, Scry and Reveal point to the panel; otherwise they say "Not now".
@@ -249,13 +253,13 @@ Players drag and use the table normally; every move is a request the engine acce
   - Known limits: glows are visible to every player (TTS highlights aren't per-player). The prompt type is read from the title.
 - [x] **P3:** library as a real face-down deck (draw animation; tutors via right-click → Search); table buttons mapped (Mulligan, Scry via πScry, Draw, Untap, Mill) (built: Round 4 and "Table buttons" above, 2026-10-17/18)
 - [x] **P4:** Arena feel (highlights, sounds, shake) (moved to M5)
-- [ ] Tune the layout from TTS screenshots: rows, rotation, command-zone spot, stack position
+- [x] Layout tuned from TTS screenshots through the 27 hand-test decks
 - [x] Spawn cards in the Card Importer's format at Global `data[color]` zone positions; lock them; track engine ID → GUID (built in M4 step 3: `place()` in tools/engine-renderer.lua)
 - [x] Feed the displays: life, commander damage, commander tax, `Turns.turn_color`, phase, energy/poison, and Encoder overlays (P/T, counters, keywords, phasing, token, face-down) (built: `updateTrackers`, the M5 badges)
 - [x] Hands in TTS hand zones (hidden), library as a face-down pile, stack area (built: hand zones, library deck, stack spot)
 - [x] Prompts in the table's style: πScry for scry/surveil, ✓/✗ for yes/no, πMenu for card actions, side panel for the rest (replaced by the Arena-style panel and wording, 2026-10-20/22)
 - [x] Click-to-select cards on the table for targets, attackers and blockers (P2)
-- [ ] Real UI for the prompts that are answered automatically now: trigger order (`reorder`), damage assignment order, combat damage split
+- [x] Real UI for trigger order, damage assignment order and combat damage split
 - [x] **Step 2 (built 2026-10-17, headless-tested; TTS test pending):** `mtg ready` / `mtg ready all` (host) / `mtg commander` (hover a card).
   - **Table side:** Global reads the deck in your library zone plus the card(s) on your command zone. Treachery identity cards are skipped. It sends their names and images to the bridge.
   - **Bridge side:** it checks every name against Forge's 33,975 cards (`bridge/forge-cards.json`, built by `tools/build-forge-card-index.js`), handling split cards, double-faced back faces and accents.
@@ -305,13 +309,13 @@ Players drag and use the table normally; every move is a request the engine acce
   - bridge: `ew` / `rl` / `fo` per card and a `playable` list per seat
   - table: a public playable row (green glow) in front of the second hand zone, private ones (foretold, face-down) inside it, linked cards half-size under their permanent; dragging a playable card onto the battlefield plays it
   - [x] `stack/compose.yml` runs our images; headless live check passes (`rules-check --game exile`: the commander reported as exiled with the removal spell)
-  - [ ] a hand test in TTS with Tibalt, Banishing Light, a foretell card and flashback
+  - [x] a hand test in TTS (2026-10-31): Tibalt's exile linked and playable, including the AI's cards, a spell and a land played from it; Banishing Light exiled and returned when it left; foretell cast from its private zone; flashback earlier (HAND-TEST-HP04)
 - [x] **Playtest fixes (2026-10-23, second batch):**
   - card pictures in the card row and the stack pop-up for every player (wsrv.nl serves Scryfall's jpg; the host's local /img route reached only the host, Blue saw grey tiles)
   - the screen UI for four players: each element's look becomes a shared class in <Defaults>, and the answer list pages at 30 ("More..."): one seat 27 KB, two 39 KB, four 57 KB (was ~90; the second player's buttons died past ~64 KB)
   - flick containment: a movable card nobody holds that ends up off its owner's mat is stopped and slides back (5 checks a second; free on your own mat; off during a manual fix)
   - Cancel on the card or sacrifice question of a non-mandatory cost of a spell or ability (sacrifice, discard, exile, return, tap...), in the corner: the spell goes back and the lands tapped for it untap (our Forge build: `cancellable` on chooseCards, cost-payment frames, the cast's mana abilities undone; checked live with `rules-check --game costcancel`). A part of a two-part cost paid before the question stays paid, as in Forge
-  - [ ] "Resolve" stops: the bridge logs why each one came up ("may respond to the stack with: ..."); read the log after the next game
+  - [x] "Resolve" stops: 292 logged stops sampled 2026-10-31, each with something to respond with; `mtg hold` covers your own spell
 - [ ] Step 3: the 2-player sync test (do effects, highlights and bundle sounds show for everyone?), then one test AssetBundle (Unity 6000.0.62f1 vs the installed 6000.3) with a pooled effect
 - [ ] Step 4: pooled particle effects for death (smoke + shatter), countered spell, damage hit, player knocked out; CC0 sounds (Kenney, Cockatrice set)
 - [x] ~~Camera shake~~ dropped: none in any Arena frame (video research)

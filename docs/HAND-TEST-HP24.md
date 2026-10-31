@@ -102,3 +102,9 @@ passed its golden and failed live: a card on a battlefield reports that zone's p
 one the engine never sends. Fixed by reading the spell that took it, and the fixture now has the live shape. Mutation pass
 tmp/mut59.js: 1/3, then 3/3 with two new inputs. A bridge restart resumed the running game.
 Not yet seen live: the Hold button, `mtg hold`, `mtg timer` from chat, and the slimmer UI, which need the ENGINE MODE save loaded.
+
+Third live pass (2026-10-31), the new table script pushed (the normal push; the table held none of the owner's decks):
+`mtg timer 10` from chat (warned, took the default at 130 s) and `mtg timer off`; the Hold button's handler and `mtg hold` from chat, each
+keeping priority, with an unheld cast passing as before; the UI at 24,963 bytes for one seat (28,549 before), Hold in the Engine panel
+and fitting its row. Hold gives no lit state while armed, only a chat line. The Engine panel is hidden by default, so `mtg hold` is
+the quicker way. Two more log lines fixed live: "White casts Tibalt, Cosmic Impostor" (read Valki) and "White plays Swamp from exile".

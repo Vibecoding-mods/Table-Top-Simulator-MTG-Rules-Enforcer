@@ -1184,6 +1184,11 @@ function notePlay(seat, act, name, promptId) {
   // (and from exile with no way named: Avatar's Wrath's airbent Skyhunter Strike Force cast for {2} read "White casts
   // Skyhunter Strike Force", hp-18 gap)
   const fromExile = zoneOfCard("exile");
+  // (the face being cast, by the action's own label: Tibalt, Valki's back, read "White casts Valki, God of Lies", re-test
+  // 2026-10-31)
+  const face = kind === "cast" && !how ? String(act.label || "").match(/^Cast (.+)$/)?.[1] : null;
+  const doubleFaced = (seat.board?.state?.gameView?.zones || []).some((z) => (z.cards || []).some((c) => c.id === act.cardId && c.isDoubleFaced));
+  if (face && doubleFaced && !name.includes("//")) name = face;
   game.pendingPlays.push({ id: act.cardId, name: faceDown ? "a face-down spell" : how ? `${name} (${how})` : fromTop ? `${name} from the top of their library` : fromExile ? `${name} from exile` : name, ctl: seat.slot, kind, text: way, at: Date.now(), promptId: promptId ?? 0 });
 }
 
@@ -1544,6 +1549,8 @@ function logEvents(prev, cur, pub) {
       // (brought back: Necromancy said nothing about what it returned, playtest 2026-10-26)
       else if (from === "graveyard") out.push(`${c.name} returns to the battlefield from ${who(was.owner)}'s graveyard${arrive} (${who(c.ctl)})`);
       // (cast from exile: an adventurer, a foretold card, ... enters; read "returns ... from exile", hp-02 #3)
+      // (a land played from exile is a play: Tibalt's read "returns to the battlefield from exile", re-test 2026-10-31)
+      else if (from === "exile" && c.land && landPlays.has(id)) out.push(`${who(c.ctl)} plays ${c.name} from exile${arrive}`);
       else if (from === "exile") out.push(castNow.has(id) ? `${c.name} enters the battlefield${arrive} (${who(c.ctl)})` : `${c.name} returns to the battlefield from exile${arrive} (${who(c.ctl)})`);
       // (face down: off the stack a face-down spell's creature, else put there (manifest, cloak); Abhorrent Oculus's
       // manifest dread read "a face-down card enters the battlefield (White)", hp-09)

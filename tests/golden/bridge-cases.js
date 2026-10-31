@@ -2967,6 +2967,31 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
       return logLines(h).slice(mark);
     } });
   }
+  // (re-test 2026-10-31: a double-faced card's back face cast by its own name; a land played from exile; one that returns from
+  // exile by an effect stays "returns")
+  add({ name: "re-test: log: a back face cast, a land played from exile", run: async (h) => {
+    const start = myMain(D2.board);
+    const hand = start.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0");
+    hand.cards.push({ id: "engine-card-961", identity: { name: "Valki, God of Lies" }, types: ["Creature"], ownerId: "player-0", controllerId: "player-0", isDoubleFaced: true, text: "" });
+    const ex = start.gameView.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0");
+    ex.cards.push({ id: "engine-card-962", identity: { name: "Plains" }, types: ["Land"], ownerId: "player-0", controllerId: "player-0", text: "" }, { id: "engine-card-963", identity: { name: "Island" }, types: ["Land"], ownerId: "player-0", controllerId: "player-0", text: "" });
+    const seat = game(h, start);
+    await boardAs(h, seat, start);
+    const mark = logLines(h).length;
+    h.B.onPrompt(seat, prompt("chooseAction", { actions: [{ id: "a-t", type: "cast", cardId: "engine-card-961", label: "Cast Tibalt, Cosmic Impostor" }, { id: "a-p", type: "cast", cardId: "engine-card-962", label: "Play Plains" }] })); await h.flush();
+    await answer(h, 900, ["a-t"]);
+    const c = clone(start);
+    c.gameView.stack = [{ id: "s1", sourceId: "engine-card-961", controllerId: "player-0", identity: { name: "Valki, God of Lies" } }];
+    await boardAs(h, seat, c);
+    (h.B._getGame().pendingPlays ??= []).push({ id: "engine-card-962", name: "Plains", ctl: "player-0", kind: "cast", at: Date.now(), promptId: -2 });
+    const d = clone(start);
+    const bf = d.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0");
+    const dex = d.gameView.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0");
+    bf.cards.push(...dex.cards.filter((x) => /engine-card-96[23]/.test(x.id)));
+    dex.cards = dex.cards.filter((x) => !/engine-card-96[23]/.test(x.id));
+    await boardAs(h, seat, d);
+    return logLines(h).slice(mark);
+  } });
   // (hp-24 gap: commander ninjutsu, fortify and aura swap by name; what ninjutsu and aura swap send back reads as returned,
   // the hand level as one card went in and one came out; a card gone with no such swap still only leaves)
   for (const [how, description, card] of [["commander ninjutsu", "Commander Ninjutsu {U}{B} ({U}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield.)", "engine-card-43"],
