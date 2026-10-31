@@ -40,13 +40,13 @@ const ROOM = arg("room", "tts-commander");
 const MINUTES = Number(arg("minutes", 25));
 const SEATS = GAME === "cmddmg" ? 4 : 2;
 // tax / exile / library: one free-ish commander and removal aimed at it; the deck decides where it goes
-const DECK_ID = { filter2: "test_rules_filter2", filter: "test_rules_filter", eminence: "test_rules_eminence", costcancel: "test_rules_costcancel", sac: "test_rules_sac", fix: "test_rules_tax", rewind: "test_rules_tax", concede: "test_rules_tax", cmddmg: "test_rules_cmddmg", exile: "test_rules_exile", library: "test_rules_library", keywords: "test_rules_keywords" }[GAME] || "test_rules_tax";
-const TAXLIKE = GAME !== "cmddmg" && GAME !== "keywords" && GAME !== "sac" && GAME !== "costcancel" && GAME !== "eminence" && GAME !== "filter" && GAME !== "filter2";
+const DECK_ID = { audit: "test_rules_audit", filter2: "test_rules_filter2", filter: "test_rules_filter", eminence: "test_rules_eminence", costcancel: "test_rules_costcancel", sac: "test_rules_sac", fix: "test_rules_tax", rewind: "test_rules_tax", concede: "test_rules_tax", cmddmg: "test_rules_cmddmg", exile: "test_rules_exile", library: "test_rules_library", keywords: "test_rules_keywords" }[GAME] || "test_rules_tax";
+const TAXLIKE = GAME !== "audit" && GAME !== "cmddmg" && GAME !== "keywords" && GAME !== "sac" && GAME !== "costcancel" && GAME !== "eminence" && GAME !== "filter" && GAME !== "filter2";
 // keywords: situational cards the table-driven games didn't get to (see `kwPlan`): what each needs is set up here
 const KW_TARGETS = { Aftermath: /Ribbons/, Fuse: /Turn.*Burn|Burn.*Turn|fuse/i, Enrage: /Apex Altisaur/, Fight: /Bridgeworks Battle/, Spree: /Return the Favor/ };
 // KW_ONLY=Fuse,Spree: check only these (the tutors then fetch them first)
 for (const k of Object.keys(KW_TARGETS)) if (process.env.KW_ONLY && !process.env.KW_ONLY.split(",").includes(k)) delete KW_TARGETS[k];
-const BOT_DECK = "ai_passive_rograkh";
+const BOT_DECK = process.env.RC_BOT || "ai_passive_rograkh";
 const { presetFile } = require("./presets");
 const USERNAME = `tts-rules-${Math.random().toString(36).slice(2, 7)}`;
 const OUT = path.join(__dirname, "..", "tmp", `rules-check-${GAME}.json`);
@@ -163,6 +163,7 @@ function onBoard() {
   }
   if (GAME === "rewind") rewindStep(g);
   if (GAME === "fix") fixSeen(g);
+  if (GAME === "audit") auditSeen(g);
   // exile links (our Forge build): every card seen with exiledWith / mayPlay / isForetold
   for (const z of g.zones || []) for (const c of z.cards || []) {
     if ((c.exiledWith || c.mayPlay || c.isForetold) && !obs.exileLinks.some((e) => e.id === c.id && e.zone === z.zone)) {
@@ -203,6 +204,7 @@ let dbg = 0;
 function answer(prompt) {
   if (GAME === "rewind" && obs.rewind?.holding) { obs.rewind.held = (obs.rewind.held || 0) + 1; return; }
   if (GAME === "fix" && fixAsk(prompt)) return;
+  if (GAME === "audit" && auditFix(prompt)) return;
   if (process.env.RC_DEBUG && dbg++ < Number(process.env.RC_DEBUG)) log("prompt", prompt.kind, prompt.input?.type, JSON.stringify((prompt.input?.actions || []).map((a) => a.label)).slice(0, 200), "cmd:", JSON.stringify(myCommander()?.zone?.zone));
   if (prompt.kind === "priority") return respond(prompt, "chooseAction", { type: "pass" });
   const input = prompt.input || {};
@@ -251,6 +253,7 @@ function answer(prompt) {
       if (!pick && TAXLIKE && cm?.zone.zone === "battlefield") pick = acts.find((a) => a.type === "cast" && a.cardId !== cmdId);
       if (!pick && GAME === "cmddmg") pick = acts.find((a) => a.type === "cast" && a.cardId !== cmdId);
       if (!pick && GAME === "keywords") pick = kwPlan(acts, g);
+      if (!pick && GAME === "audit") pick = auditPick(acts, g);
       if (!pick && GAME === "sac") pick = acts.find((a) => a.type === "cast");
       if (GAME === "costcancel") {
         ccCheck();
@@ -518,6 +521,52 @@ function fixAsk(prompt) {
   }
   return false;
 }
+// audit: the Forge scripts fixed by docs/reviews/forge-remembered-audit.md, each used at least twice. Every main phase of
+// ours: mana by manual fix, and audited cards in the graveyard or exile back to hand, so spells are really cast again.
+const AUDIT_CARDS = ["Aetherling", "Anurid Brushhopper", "Archfiend's Vessel", "Argent Sphinx", "Djinn of the Fountain", "Dubious Challenge", "Fleeting Spirit", "Ghost Council of Orzhova", "Hikari, Twilight Guardian",
+  "Immortal Obligation", "Inscribed Tablet", "Jeskai Infiltrator", "Kaya, Geist Hunter", "Lukamina, Moon Druid", "Mazemind Tome", "Meandering Towershell", "Mnemonic Betrayal", "Nezahal, Primal Tide", "Norin the Wary",
+  "Primeval Spawn", "Saltskitter", "Shoreline Scout", "Sunfall", "Conqueror's Galleon", "Thieves' Auction"];
+const auditName = (text) => AUDIT_CARDS.find((n) => String(text || "").includes(n));
+obs.audit = { used: {}, stacked: {}, seen: {}, manaTurn: -1, holding: null, id: 200, perTurn: {}, auctions: [] };
+function auditFix(prompt) {
+  const g = gv(), A = obs.audit;
+  if (prompt.input?.type !== "chooseAction" || (g.stack || []).length) return false;
+  if (A.holding) return true;
+  if (A.manaTurn === g.turn || g.activePlayerId !== slot || !/main/i.test(g.step || "")) return false;
+  A.manaTurn = g.turn;
+  const back = [...zoneCards(g, "graveyard", slot), ...zoneCards(g, "exile", slot)].filter((c) => AUDIT_CARDS.includes(c.identity?.name) && (A.stacked[c.identity.name] || 0) < 3);
+  const foe = obs.order.find((p) => p !== slot);
+  const victim = zoneCards(g, "battlefield", foe).find((c) => (c.types || []).includes("Creature") && !c.identity?.isToken);
+  const ops = [{ op: "mana", player: slot, mana: Array(16).fill("W U B R G").join(" ") }, ...back.map((c) => ({ op: "move", card: c.id, zone: "hand" })), ...(victim ? [{ op: "move", card: victim.id, zone: "graveyard" }] : [])];
+  A.holding = ++A.id;
+  broadcast({ kind: "directive", fromPlayer: slot, directive: { type: "applyState", fixId: A.holding, ops } });
+  return true;
+}
+function auditSeen(g) {
+  const r = g.stateFix, A = obs.audit;
+  // (what truly reached the stack, by its own stack id: a pick that was undone doesn't count)
+  for (const it of g.stack || []) if (!A.seen[it.id]) {
+    A.seen[it.id] = true;
+    const n = auditName(it.identity?.name);
+    if (n && it.controllerId === slot) A.stacked[n] = (A.stacked[n] || 0) + 1;
+  }
+  if (r && r.fixId === A.holding) { if (!r.applied) obs.notes.push(`audit fix refused: ${JSON.stringify(r).slice(0, 120)}`); A.holding = null; }
+}
+function auditPick(acts, g) {
+  const A = obs.audit;
+  if (g.activePlayerId !== slot || !/main/i.test(g.step || "") || (g.stack || []).length) return null;
+  const tally = (a, what) => { const n = auditName(what) || "other"; A.used[n] = (A.used[n] || 0) + 1; return a; };
+  const fresh = (a) => { const k = `${g.turn}:${a.cardId}:${a.abilityIndex ?? "cast"}`; A.perTurn[k] = (A.perTurn[k] || 0) + 1; return A.perTurn[k] <= 2; };
+  const label = (a) => a.label || a.description || cname(a.cardId);
+  const allSeen = g.turn >= 14;
+  const cast = acts.filter((a) => a.type === "cast").sort((x, y) => (A.stacked[auditName(label(x))] || 0) - (A.stacked[auditName(label(y))] || 0))
+    .find((a) => !/Thieves' Auction/.test(label(a)) || (allSeen && zoneCards(g, "battlefield", slot).some((c) => c.identity?.name === COMMANDER)));
+  if (cast && fresh(cast)) { if (/Thieves' Auction/.test(label(cast))) A.auctions.push({ turn: g.turn }); return tally(cast, label(cast)); }
+  const ability = acts.find((a) => a.type === "activateAbility" && (auditName(cname(a.cardId)) || /draws a card/i.test(label(a))) && !/Kenrith/.test(cname(a.cardId) + "x") || (a.type === "activateAbility" && /draws a card/i.test(label(a)) && zoneCards(g, "hand", slot).length < 5));
+  if (ability && fresh(ability)) return tally(ability, cname(ability.cardId));
+  return null;
+}
+function cname(id) { return (gv().zones || []).flatMap((z) => z.cards || []).find((c) => c.id === id)?.identity?.name || ""; }
 function fixSeen(g) {
   const F = obs.fix;
   if (F.after && !F.manaLater && g.step !== F.afterStep && g.turn === F.afterTurn) {
@@ -699,6 +748,10 @@ function verdicts() {
   if (GAME === "exile") {
     const linked = obs.exileLinks.filter((e) => e.exiledWith);
     pass("Exile links: a card exiled with a permanent is reported", obs.exileLinks.length ? linked.length > 0 : null, JSON.stringify(obs.exileLinks.slice(0, 4)));
+  }
+  if (GAME === "audit") {
+    for (const n of AUDIT_CARDS) pass(`Audit: ${n} on the stack twice or more`, (obs.audit.stacked[n] || 0) >= 2 ? true : null, `${obs.audit.stacked[n] || 0} times`);
+    pass("Audit: Thieves' Auction with a commander out, and the game carried on", obs.audit.auctions.length ? obs.turns[obs.turns.length - 1].turn > obs.audit.auctions[0].turn : null, JSON.stringify(obs.audit.auctions));
   }
   pass("No engine errors or rejected answers", obs.errors.length === 0, obs.errors.slice(0, 3).join(" | "));
   return v;

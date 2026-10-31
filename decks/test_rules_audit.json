@@ -1,0 +1,131 @@
+{
+ "label": "Rules check: the audited Forge scripts",
+ "format": "commander",
+ "commander": "Kenrith, the Returned King",
+ "cards": [
+  {
+   "name": "Kenrith, the Returned King",
+   "count": 1
+  },
+  {
+   "name": "Aetherling",
+   "count": 1
+  },
+  {
+   "name": "Anurid Brushhopper",
+   "count": 1
+  },
+  {
+   "name": "Archfiend's Vessel",
+   "count": 1
+  },
+  {
+   "name": "Argent Sphinx",
+   "count": 1
+  },
+  {
+   "name": "Djinn of the Fountain",
+   "count": 1
+  },
+  {
+   "name": "Dubious Challenge",
+   "count": 1
+  },
+  {
+   "name": "Fleeting Spirit",
+   "count": 1
+  },
+  {
+   "name": "Ghost Council of Orzhova",
+   "count": 1
+  },
+  {
+   "name": "Hikari, Twilight Guardian",
+   "count": 1
+  },
+  {
+   "name": "Immortal Obligation",
+   "count": 1
+  },
+  {
+   "name": "Inscribed Tablet",
+   "count": 1
+  },
+  {
+   "name": "Jeskai Infiltrator",
+   "count": 1
+  },
+  {
+   "name": "Kaya, Geist Hunter",
+   "count": 1
+  },
+  {
+   "name": "Lukamina, Moon Druid",
+   "count": 1
+  },
+  {
+   "name": "Mazemind Tome",
+   "count": 1
+  },
+  {
+   "name": "Meandering Towershell",
+   "count": 1
+  },
+  {
+   "name": "Mnemonic Betrayal",
+   "count": 1
+  },
+  {
+   "name": "Nezahal, Primal Tide",
+   "count": 1
+  },
+  {
+   "name": "Norin the Wary",
+   "count": 1
+  },
+  {
+   "name": "Primeval Spawn",
+   "count": 1
+  },
+  {
+   "name": "Saltskitter",
+   "count": 1
+  },
+  {
+   "name": "Shoreline Scout",
+   "count": 1
+  },
+  {
+   "name": "Sunfall",
+   "count": 1
+  },
+  {
+   "name": "Conqueror's Galleon",
+   "count": 1
+  },
+  {
+   "name": "Thieves' Auction",
+   "count": 1
+  },
+  {
+   "name": "Island",
+   "count": 4
+  },
+  {
+   "name": "Swamp",
+   "count": 4
+  },
+  {
+   "name": "Plains",
+   "count": 3
+  },
+  {
+   "name": "Forest",
+   "count": 2
+  },
+  {
+   "name": "Mountain",
+   "count": 1
+  }
+ ]
+}

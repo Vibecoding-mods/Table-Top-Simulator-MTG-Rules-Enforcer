@@ -205,3 +205,18 @@ loop still repeats).
 - Originals: `tmp/remembered-audit-orig/<card>.txt.orig`. Animist's Awakening: `tmp/animists_awakening.txt.orig`.
 - `manabrew/AGENTS.md` says to treat the `forge/` submodule as read-only, and these edits are in it, as you asked. They sit
   in the submodule's working tree, so a `git submodule update` could discard them.
+
+## Played on the rebuilt engine (2026-10-30)
+
+`node bridge/rules-check.js --game audit` (headless, no TTS) cast and activated every fixed card on an engine built from `engine/`,
+counting what truly reached the stack, not what was attempted. With audited cards returned to hand by manual fix:
+**all 25 cards in the deck reached the stack at least twice, with no engine errors or rejected answers.** Immortal Obligation
+needed a creature moved to the AI's graveyard (`RC_BOT=ai_gap_creatures`). Puppet Master, Obzedat, Forgefire Automaton and
+Primal Surge were played through the table (docs/HAND-TEST-HP24.md).
+
+This shows the scripts load, run, repeat and don't crash. It doesn't check each card's outcome: a fix whose only effect shows
+on a doubled trigger (Panharmonicon) wasn't exercised, since no doubling was in the deck.
+
+Thieves' Auction with a commander: played twice with Kenrith out. Kenrith went into exile and stayed pickable; the
+command-zone choice only comes afterwards, as a state-based choice. So the "loop could never end" path above wasn't reached in play
+and doesn't look reachable through this card; the fix stays as cheap insurance.

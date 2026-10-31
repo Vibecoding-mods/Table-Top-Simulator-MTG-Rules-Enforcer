@@ -220,3 +220,9 @@ The cloud gaming PC hosts TTS and the VPS runs Forge. Docker may not run on a cl
 - **Shadow PC:** would its idle detection close an unattended TTS host?
 - **Vultr fractional GPU** (~$21.50/month at launch, 2023): the current price, and whether TTS runs on it, could make always-on affordable.
 - **ARM build of manabrew-node** (for Oracle's free tier): is the work worth it?
+
+## tools/setup-server.sh, tested 2026-10-30
+
+On a clean Ubuntu 24.04 container: Docker installed by the script, key created (mode 600), relay and Forge room started, and a
+rules-check game played over the network through the relay, all checks passing. It refused a public address without `--public`,
+and reported a stopped Docker service. Its image build was tested separately (a clean-clone build on Windows), not on Linux.
