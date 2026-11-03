@@ -1,0 +1,289 @@
+<title>Bridge Function Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a reference sheet. Summary (flow + file strip) first, then one section per part of bridge.js, rows in file order. */
+:root {
+  --bg: #f4f5f1; --panel: #fbfcf9; --fg: #1c2420; --muted: #5d6862; --line: #dce1d9;
+  --accent: #2e6b5a; --accent-soft: #dcebe4; --big: #a8641a; --big-soft: #f6e6cf; --new: #6a3fa0; --new-soft: #ece3f6;
+  --seg-a: #2e6b5a; --seg-b: #7fa999;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111613; --panel: #171d19; --fg: #e3e9e4; --muted: #9aa69f; --line: #29312c;
+  --accent: #74c4a8; --accent-soft: #1f3a31; --big: #e2a457; --big-soft: #3a2c19; --new: #b99ae6; --new-soft: #2e2440;
+  --seg-a: #74c4a8; --seg-b: #3f6e5f; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #111613; --panel: #171d19; --fg: #e3e9e4; --muted: #9aa69f; --line: #29312c;
+  --accent: #74c4a8; --accent-soft: #1f3a31; --big: #e2a457; --big-soft: #3a2c19; --new: #b99ae6; --new-soft: #2e2440;
+  --seg-a: #74c4a8; --seg-b: #3f6e5f; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 750; letter-spacing: -0.01em; }
+h2 { font-size: 22px; font-weight: 750; }
+h3 { font-size: 17px; font-weight: 600; }
+.sub { color: var(--muted); margin: 6px 0 0; max-width: 68ch; }
+.eyebrow { font: 600 12px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+code, .mono { font-family: var(--mono); font-size: 0.92em; }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.flow { display: grid; gap: 14px; }
+.lane { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; }
+.lane-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+.lane-head span { color: var(--muted); font-size: 13px; }
+.path { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.path .tag { font: 600 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; min-width: 72px; }
+.node { font: 600 13px var(--mono); border: 1px solid var(--line); background: var(--bg); padding: 3px 8px; border-radius: 6px; cursor: pointer; }
+.node.ext { cursor: default; color: var(--muted); border-style: dashed; }
+.node:not(.ext):hover { border-color: var(--accent); }
+.arrow { color: var(--muted); }
+
+.strip-box { display: grid; gap: 8px; }
+.strip { display: flex; height: 30px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+.seg { border: 0; padding: 0; cursor: pointer; min-width: 2px; }
+.seg:nth-child(odd) { background: var(--seg-a); } .seg:nth-child(even) { background: var(--seg-b); }
+.seg:hover, .seg:focus-visible { filter: brightness(1.15); }
+.strip-key { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.strip-key b { color: var(--fg); font-variant-numeric: tabular-nums; }
+
+.stats { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 14px; }
+.stats b { font-family: var(--display); font-size: 20px; font-variant-numeric: tabular-nums; }
+
+.controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border-bottom: 1px solid var(--line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+#q { flex: 1 1 260px; min-width: 0; font: 15px var(--body); padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); }
+.seg-btn { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg-btn button { border: 0; background: var(--panel); padding: 7px 12px; cursor: pointer; font-size: 14px; }
+.seg-btn button[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+#count { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.area { display: grid; gap: 10px; scroll-margin-top: 70px; }
+.area-head { display: grid; gap: 2px; border-top: 2px solid var(--fg); padding-top: 10px; }
+.area-head .meta { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.rows { display: grid; gap: 0; }
+.fn { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: 4px 18px; padding: 10px 8px; border-bottom: 1px solid var(--line); scroll-margin-top: 70px; border-radius: 6px; }
+.fn.flash { background: var(--accent-soft); transition: background 1.2s; }
+.fn .name { font: 600 14px var(--mono); overflow-wrap: anywhere; display: grid; gap: 4px; align-content: start; }
+.fn .where { font: 400 12px var(--mono); color: var(--muted); display: flex; gap: 8px; align-items: center; font-variant-numeric: tabular-nums; }
+.bar { height: 5px; background: var(--accent); border-radius: 3px; min-width: 2px; }
+.fn.big .bar { background: var(--big); }
+.fn .body { min-width: 0; display: grid; gap: 6px; }
+.fn .what { margin: 0; max-width: 72ch; }
+.links { display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 12px; align-items: center; }
+.links .lbl { color: var(--muted); font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.05em; margin-right: 2px; }
+.chip { font: 12px var(--mono); border: 1px solid var(--line); background: var(--panel); border-radius: 5px; padding: 1px 6px; cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+.badge { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 4px; justify-self: start; }
+.badge.big { background: var(--big-soft); color: var(--big); }
+.badge.new { background: var(--new-soft); color: var(--new); }
+.badge.cls { background: var(--accent-soft); color: var(--accent); }
+.tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.tbl { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 2px; }
+.tbl .mono { font-weight: 600; }
+.tbl span { color: var(--muted); font-size: 13px; }
+.empty { color: var(--muted); padding: 16px 0; }
+footer { color: var(--muted); font-size: 13px; }
+@media (max-width: 640px) { .fn { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .fn.flash { transition: none; } html { scroll-behavior: auto; } }
+html { scroll-behavior: smooth; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">mtg-tts · bridge/bridge.js</div>
+    <h1>Bridge Function Map</h1>
+    <p class="sub">Every function in the bridge, what it does, and what it calls. The bridge sits between the TTS table and the Forge engine: each human seat has its own relay connection, and the bridge turns engine boards and questions into table updates and buttons.</p>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <section class="flow" aria-labelledby="flow-h">
+    <h2 id="flow-h">How a game moves through it</h2>
+    <div class="lane">
+      <div class="lane-head"><h3>Engine to table</h3><span>a new board or question from Forge</span></div>
+      <div class="path"><span class="tag">arrives</span><span class="node ext">relay WebSocket</span><span class="arrow">→</span><span class="node" data-go="Seat.onRelay">Seat.onRelay</span><span class="arrow">→</span><span class="node" data-go="Seat.onEnvelope">Seat.onEnvelope</span></div>
+      <div class="path"><span class="tag">board</span><span class="node" data-go="scheduleTable">scheduleTable</span><span class="arrow">→</span><span class="node" data-go="sendTable">sendTable</span><span class="arrow">→</span><span class="node" data-go="tableCard">tableCard</span><span class="arrow">→</span><span class="node" data-go="slimmer">slimmer</span><span class="arrow">→</span><span class="node" data-go="toTTS">toTTS</span></div>
+      <div class="path"><span class="tag">log</span><span class="node" data-go="updateLog">updateLog</span><span class="arrow">→</span><span class="node" data-go="engineFacts">engineFacts</span><span class="arrow">→</span><span class="node" data-go="logEvents">logEvents</span><span class="arrow">→</span><span class="node" data-go="libraryKind">libraryKind</span><span class="arrow">→</span><span class="node" data-go="gameLogLine">gameLogLine</span></div>
+      <div class="path"><span class="tag">question</span><span class="node" data-go="onPrompt">onPrompt</span><span class="arrow">→</span><span class="node" data-go="arenaWords">arenaWords</span><span class="arrow">→</span><span class="node" data-go="prepareUi">prepareUi</span><span class="arrow">→</span><span class="node" data-go="armTimer">armTimer</span><span class="arrow">→</span><span class="node" data-go="toTTS">toTTS</span></div>
+    </div>
+    <div class="lane">
+      <div class="lane-head"><h3>Table to engine</h3><span>a click, drag, button or command at the table</span></div>
+      <div class="path"><span class="tag">arrives</span><span class="node ext">TTS External Editor port</span><span class="arrow">→</span><span class="node" data-go="onTTS">onTTS</span></div>
+      <div class="path"><span class="tag">answer</span><span class="node" data-go="onAnswer">onAnswer</span><span class="arrow">→</span><span class="node" data-go="answerProblem">answerProblem</span><span class="arrow">→</span><span class="node" data-go="Seat.respond">Seat.respond</span><span class="arrow">→</span><span class="node" data-go="Seat.send">Seat.send</span></div>
+      <div class="path"><span class="tag">gesture</span><span class="node" data-go="onIntent">onIntent</span><span class="arrow">→</span><span class="node" data-go="whyNot">whyNot</span><span class="arrow">→</span><span class="node" data-go="Seat.respond">Seat.respond</span></div>
+      <div class="path"><span class="tag">votes</span><span class="node" data-go="onRewind">onRewind</span><span class="node" data-go="onFix">onFix</span><span class="node" data-go="onConcede">onConcede</span><span class="arrow">→</span><span class="node" data-go="Seat.directive">Seat.directive</span></div>
+    </div>
+  </section>
+
+  <section class="strip-box" aria-labelledby="strip-h">
+    <h2 id="strip-h">Where the lines go</h2>
+    <p class="sub">The file from top to bottom, each block as wide as its share of lines. Click a block to jump to it.</p>
+    <div class="strip" id="strip"></div>
+    <div class="strip-key" id="strip-key"></div>
+  </section>
+
+  <div class="controls">
+    <label for="q" class="eyebrow" style="position:absolute;left:-9999px">Search</label>
+    <input id="q" type="search" placeholder="Search names and descriptions (dredge, rewind, picture...)" autocomplete="off">
+    <div class="seg-btn" role="group" aria-label="Order">
+      <button id="ord-file" aria-pressed="true">File order</button>
+      <button id="ord-size" aria-pressed="false">Biggest first</button>
+    </div>
+    <span id="count"></span>
+  </div>
+
+  <main id="areas"></main>
+
+  <section aria-labelledby="tables-h" style="display:grid;gap:10px">
+    <h2 id="tables-h">Wording tables</h2>
+    <p class="sub">Lists of patterns and phrases the functions above read from. Adding a row to one of these is how a mechanic gets its words without new code (SPEC §4a).</p>
+    <div class="tables" id="tables"></div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const DATA = /*DATA*/null;
+const byName = new Map(DATA.fns.map((f) => [f.n, f]));
+const byShort = new Map(DATA.fns.filter((f) => f.k !== "method").map((f) => [f.s, f]));
+const NEW = new Set(["libraryKind"]);
+const BIG = 200;
+const maxSize = Math.max(...DATA.fns.map((f) => f.z));
+const areaTitle = Object.fromEntries(DATA.areas.map((a) => [a.id, a.title]));
+let order = "file";
+
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const idOf = (n) => "fn-" + n.replace(/[^A-Za-z0-9_-]/g, "_");
+
+function go(name) {
+  const f = byName.get(name) || byShort.get(name);
+  if (!f) return;
+  const q = document.getElementById("q");
+  if (q.value) { q.value = ""; render(); }
+  const row = document.getElementById(idOf(f.n));
+  if (!row) return;
+  row.scrollIntoView({ block: "center" });
+  row.classList.add("flash");
+  setTimeout(() => row.classList.remove("flash"), 1400);
+}
+
+function stats() {
+  const s = document.getElementById("stats");
+  const top = [...DATA.fns].sort((a, b) => b.z - a.z).slice(0, 2);
+  const items = [[DATA.lines.toLocaleString(), "lines"], [DATA.fns.length, "functions and methods"], [DATA.areas.length, "parts"],
+    [Math.round(top[0].z / DATA.lines * 100) + "%", "of the file is " + top[0].n], [top[1].z + "", "lines in " + top[1].n]];
+  for (const [n, l] of items) { const d = el("div"); d.append(el("b", null, n), document.createTextNode(" " + l)); s.append(d); }
+}
+
+function strip() {
+  const box = document.getElementById("strip"), key = document.getElementById("strip-key");
+  const lines = {};
+  for (const f of DATA.fns) lines[f.a] = (lines[f.a] || 0) + f.z;
+  for (const a of DATA.areas) {
+    const n = lines[a.id] || 0;
+    if (!n) continue;
+    const b = el("button", "seg");
+    b.style.flex = String(n);
+    b.title = `${a.title}: ${n} lines`;
+    b.setAttribute("aria-label", b.title);
+    b.onclick = () => document.getElementById("area-" + a.id)?.scrollIntoView();
+    box.append(b);
+  }
+  for (const a of [...DATA.areas].sort((x, y) => (lines[y.id] || 0) - (lines[x.id] || 0)).slice(0, 6)) {
+    const d = el("span"); d.append(el("b", null, String(lines[a.id])), document.createTextNode(" " + a.title)); key.append(d);
+  }
+}
+
+function chips(label, names) {
+  const wrap = el("div", "links");
+  wrap.append(el("span", "lbl", label));
+  const shown = names.slice(0, 10);
+  for (const n of shown) { const c = el("button", "chip", n); c.onclick = () => go(n); wrap.append(c); }
+  if (names.length > shown.length) {
+    const more = el("button", "chip", `+${names.length - shown.length} more`);
+    more.onclick = () => { more.remove(); for (const n of names.slice(10)) { const c = el("button", "chip", n); c.onclick = () => go(n); wrap.append(c); } };
+    wrap.append(more);
+  }
+  return wrap;
+}
+
+function row(f) {
+  const r = el("article", "fn" + (f.z >= BIG ? " big" : ""));
+  r.id = idOf(f.n);
+  const name = el("div", "name");
+  name.append(el("span", null, f.n));
+  const where = el("div", "where");
+  const bar = el("div", "bar"); bar.style.width = Math.max(2, Math.round(Math.sqrt(f.z / maxSize) * 110)) + "px";
+  where.append(el("span", null, "L" + f.l), bar, el("span", null, f.z + (f.z === 1 ? " line" : " lines")));
+  name.append(where);
+  if (f.k === "class") name.append(el("span", "badge cls", "class"));
+  if (f.z >= BIG) name.append(el("span", "badge big", "very large"));
+  if (NEW.has(f.n)) name.append(el("span", "badge new", "new 2026-11-03"));
+  const body = el("div", "body");
+  body.append(el("p", "what", f.d));
+  if (f.c.length) body.append(chips("calls", f.c));
+  if (f.b.length) body.append(chips("called by", f.b));
+  r.append(name, body);
+  return r;
+}
+
+function render() {
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  const root = document.getElementById("areas");
+  root.replaceChildren();
+  let shown = 0;
+  const match = (f) => !q || f.n.toLowerCase().includes(q) || f.d.toLowerCase().includes(q) || (areaTitle[f.a] || "").toLowerCase().includes(q);
+  if (order === "size") {
+    const list = DATA.fns.filter(match).sort((a, b) => b.z - a.z);
+    const sec = el("section", "area");
+    const head = el("div", "area-head"); head.append(el("h2", null, "All functions, biggest first"));
+    const rows = el("div", "rows");
+    for (const f of list) rows.append(row(f));
+    sec.append(head, rows); root.append(sec); shown = list.length;
+  } else {
+    for (const a of DATA.areas) {
+      const list = DATA.fns.filter((f) => f.a === a.id && match(f));
+      if (!list.length) continue;
+      const all = DATA.fns.filter((f) => f.a === a.id);
+      const sec = el("section", "area"); sec.id = "area-" + a.id;
+      const head = el("div", "area-head");
+      head.append(el("h2", null, a.title));
+      if (a.blurb) head.append(el("p", "sub", a.blurb));
+      head.append(el("div", "meta", `${all.length} functions · ${all.reduce((n, f) => n + f.z, 0)} lines · from line ${Math.min(...all.map((f) => f.l))}`));
+      const rows = el("div", "rows");
+      for (const f of list) rows.append(row(f));
+      sec.append(head, rows); root.append(sec); shown += list.length;
+    }
+  }
+  if (!shown) root.append(el("p", "empty", "Nothing matches. Try a card mechanic (dredge, flashback), a zone, or a feature (rewind, timer)."));
+  document.getElementById("count").textContent = q ? `${shown} of ${DATA.fns.length}` : `${DATA.fns.length} functions`;
+}
+
+function tables() {
+  const box = document.getElementById("tables");
+  for (const t of DATA.tables) {
+    const d = el("div", "tbl");
+    d.append(el("span", "mono", t.n), el("span", null, `line ${t.l} · ${t.d}`));
+    box.append(d);
+  }
+}
+
+document.querySelectorAll("[data-go]").forEach((n) => { n.tabIndex = 0; n.setAttribute("role", "button"); n.onclick = () => go(n.dataset.go); n.onkeydown = (e) => { if (e.key === "Enter") go(n.dataset.go); }; });
+document.getElementById("q").addEventListener("input", render);
+for (const [id, o] of [["ord-file", "file"], ["ord-size", "size"]]) document.getElementById(id).onclick = () => {
+  order = o;
+  document.getElementById("ord-file").setAttribute("aria-pressed", String(o === "file"));
+  document.getElementById("ord-size").setAttribute("aria-pressed", String(o === "size"));
+  render();
+};
+document.getElementById("foot").textContent = `Built ${DATA.built} from bridge/bridge.js (${DATA.lines} lines). Function names, lines, sizes and calls are read from the source; descriptions are written by hand. "Calls" lists top-level functions only.`;
+stats(); strip(); render(); tables();
+</script>

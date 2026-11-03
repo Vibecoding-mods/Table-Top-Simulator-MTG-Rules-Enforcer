@@ -12497,6 +12497,108 @@
      "f6086 \"setGMNotes\" obj:s00016 \"enginetrash-old\"",
      "f6088 \"destruct\" obj:s00016"
     ]
+   },
+   {
+    "step": "notes: flashback in the graveyard, plotted in exile, player marks",
+    "fx": [
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00146 \"Face-down card\" V(30.15,1.15,13.8) 0 300700 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00147 \"Face-down card\" V(27.75,1.15,13.8) 0 300700 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00148 \"Face-down card\" V(25.35,1.15,13.8) 0 300700 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00149 \"Face-down card\" V(22.95,1.15,13.8) 0 300700 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00150 \"Face-down card\" V(20.55,1.15,13.8) 0 300700 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00151 \"Face-down card\" V(18.15,1.15,13.8) 0 300700 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00152 \"Face-down card\" V(15.75,1.15,13.8) 0 300700 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00153 \"Face-down card\" V(13.35,1.15,13.8) 0 300700 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00154 \"Face-down card\" V(10.95,1.15,13.8) 0 300700 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00155 \"Island\\\nBasic Land — Island\\\n0CMC\" V(40.762,1.15,14.58) 0 300600 \"3006\"",
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00156 \"Face-down card\" V(42.036,1.15,8.33) 0 300700 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Deck\" obj:s00157 \"Library\" V(40.762,1.45,18.74) 84 0 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Deck\" obj:s00158 \"Library\" V(40.777,1.45,-18.755) 88 0 \"3007\"",
+     "f6175 \"spawnObjectData\" \"Card\" obj:s00159 \"Dokuchi Silencer\\\nOn the stack\\\n0CMC\" V(17.4,3.4,15.4) 0 302200 \"3022\"",
+     "f6175 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (13.3,13.8)->(19.4,-18.9) mid y1.9\"",
+     "f6175 \"createButton\" obj:395037 \"RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at 0.00,0.05,1.45\"",
+     "f6175 \"UI.setAttributes\" \"eng_toggle_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
+     "f6175 \"UI.setAttributes\" \"eng_browse_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
+     "f6175 \"UI.setAttributes\" \"eng_logbtn_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
+     "f6175 \"UI.setAttribute\" \"eng_log_Blue\" \"active\" \"true\"",
+     "f6175 \"UI.setAttributes\" \"eng_pace_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
+     "f6175 \"UI.setAttributes\" \"eng_set_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
+     "f6175 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
+     "f6175 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"true\"",
+     "f6175 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"true\"",
+     "f6175 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f6175 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
+     "f6175 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
+     "f6175 \"createButton\" obj:s00001 \"Engine: off\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
+     "f6176 \"setLock\" obj:s00146 false",
+     "f6176 \"setLock\" obj:s00147 false",
+     "f6176 \"setLock\" obj:s00148 false",
+     "f6176 \"setLock\" obj:s00149 false",
+     "f6176 \"setLock\" obj:s00150 false",
+     "f6176 \"setLock\" obj:s00151 false",
+     "f6176 \"setLock\" obj:s00152 false",
+     "f6176 \"createButton\" obj:s00153 \"2/1\" \"0.10,0.35,0.80\" \"at 0.62,0.30,1.18\"",
+     "f6176 \"setLock\" obj:s00153 false",
+     "f6176 \"setLock\" obj:s00154 false",
+     "f6176 \"setLock\" obj:s00156 false",
+     "f6181 \"UI.setValue\" \"eng_result_Blue\" \"DEFEAT\"",
+     "f6181 \"UI.setAttribute\" \"eng_result_Blue\" \"color\" \"#C9A3FF\"",
+     "f6181 \"UI.setAttribute\" \"eng_result_Blue\" \"outline\" \"#1a0730E0\"",
+     "f6181 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"true\"",
+     "f6205 \"spawnObjectData\" \"Deck\" obj:s00160 \"Graveyard\" V(40.762,1.35,22.872) 3 0 \"3001,3004,3006\"",
+     "f6271 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"false\""
+    ]
+   },
+   {
+    "step": "click: for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:graveyard:Blue\" then return x.type .. \": \" .. x.getDescription() end end return \"no pile\"",
+    "value": "Deck: [b]Island[/b]: Flashback {2}{R}\n[b]Sol Ring[/b]: Flashback {1}{U}; Has flashback 'twice'",
+    "fx": []
+   },
+   {
+    "step": "click: for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:engine-card-9844\" then return x.getDescription() end end return \"none\"",
+    "value": "[i]Plotted: its owner may cast it without paying its mana cost on a later turn, as a sorcery[/i]\n[i]3 time counters[/i]",
+    "fx": []
+   },
+   {
+    "step": "click: local o = getObjectFromGUID(\"395037\") for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then return b.label .. \" @\" .. tostring(b.width) end end return \"no label\"",
+    "value": "RING TEMPTED 2   YOU CAN'T LOSE THE GAME @7300",
+    "fx": []
+   },
+   {
+    "step": "notes: rules text arrives",
+    "fx": [
+     "f6393 \"setDescription\" obj:s00155 \"1584042844/135\""
+    ]
+   },
+   {
+    "step": "click: for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:engine-card-9844\" then return x.getDescription() end end return \"none\"",
+    "value": "Suspend 4—{U}\n[i]Plotted: its owner may cast it without paying its mana cost on a later turn, as a sorcery[/i]\n[i]3 time counters[/i]",
+    "fx": []
+   },
+   {
+    "step": "notes: only the notes changed",
+    "fx": [
+     "f6405 \"setDescription\" obj:s00160 \"149389411/88\"",
+     "f6405 \"setDescription\" obj:s00155 \"904594286/38\"",
+     "f6405 \"highlightOn\" obj:s00153 {1=1,2=0.12,3=0.08}",
+     "f6405 \"removeButton\" obj:395037 0",
+     "f6421 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"false\""
+    ]
+   },
+   {
+    "step": "click: for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:graveyard:Blue\" then return x.type .. \": \" .. x.getDescription() end end return \"no pile\"",
+    "value": "Deck: [b]Island[/b]: Flashback {1}{R}\n[b]Sol Ring[/b]: Flashback {1}{U}; Has flashback 'twice'",
+    "fx": []
+   },
+   {
+    "step": "click: for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:engine-card-9844\" then return x.getDescription() end end return \"none\"",
+    "value": "Suspend 4—{U}\n[i]2 time counters[/i]",
+    "fx": []
+   },
+   {
+    "step": "click: local o = getObjectFromGUID(\"395037\") for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then return b.label .. \" @\" .. tostring(b.width) end end return \"no label\"",
+    "value": "no label",
+    "fx": []
    }
   ]
  },

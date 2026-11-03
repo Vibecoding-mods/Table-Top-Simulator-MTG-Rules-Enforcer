@@ -37,7 +37,7 @@ const between = (before, after, events) => {
   const facts = h.B.engineFacts(events);
   return h.B.logEvents(h.B.logSnapshot(before), h.B.logSnapshot(after), after, facts);
 };
-const ev = (seq, from, to, cardId, how, ownerId = "player-0") => ({ seq, ...(cardId ? { cardId } : {}), ...(from ? { from } : {}), to, ownerId, ...(how ? { how } : {}) });
+const ev = (seq, from, to, cardId, how, ownerId = "player-0", cause = {}) => ({ seq, ...(cardId ? { cardId } : {}), ...(from ? { from } : {}), to, ownerId, ...(how ? { how } : {}), ...cause });
 const board = (fill) => { const b = blank(); fill(b); return b; };
 const id = (n) => `engine-card-${n}`;
 
@@ -126,7 +126,47 @@ const id = (n) => `engine-card-${n}`;
     ["Blue mills Grizzly Bears", "Bonesplitter is exiled"]);
   same("surveil: into the graveyard by surveil isn't a mill",
     between(board(lib(50)), board((b) => { lib(49)(b); put(b, "graveyard", BEAR()); }), [ev(11, "Library", "Graveyard", id(1), "surveil")]),
-    ["Grizzly Bears is put into Blue's graveyard"]);
+    ["Blue surveils, putting Grizzly Bears into their graveyard"]);
+
+  // what moved a card out of a library, by Forge's cause: each mechanic worded as the move it made, its name a label
+  const into = (...cards) => (b) => { lib(50 - cards.length)(b); for (const c of cards) put(b, "graveyard", c); };
+  const DARK = (n = 6) => card(n, "Darkblast", ["Instant"]);
+  same("surveil: by its cause alone, before Forge marks how",
+    between(board(lib(50)), board(into(BEAR())), [ev(11, "Library", "Graveyard", id(1), null, "player-0", { cause: "Surveil", causeName: "Consider" })]),
+    ["Blue surveils, putting Grizzly Bears into their graveyard"]);
+  same("mill: Forge's mill, by a mill effect, is a mill",
+    between(board(lib(50)), board(into(BEAR())), [ev(11, "Library", "Graveyard", id(1), "mill", "player-0", { cause: "Mill", causeName: "Thought Scour" })]),
+    ["Blue mills Grizzly Bears"]);
+  same("put: into the graveyard by an effect that isn't a mill isn't one",
+    between(board(lib(50)), board(into(BEAR())), [ev(11, "Library", "Graveyard", id(1), null, "player-0", { cause: "Dig", causeName: "Grisly Salvage" })]),
+    ["Blue puts Grizzly Bears into their graveyard from their library"]);
+  same("explore: the revealed card into the graveyard is the explore's, not a mill",
+    between(board(lib(50)), board(into(BEAR())), [ev(11, "Library", "Graveyard", id(1), null, "player-0", { cause: "Explore", causeName: "Jadelight Ranger" })]),
+    ["Jadelight Ranger explores: Blue puts Grizzly Bears into their graveyard"]);
+  same("explore: a land revealed goes to the hand, said with the explore",
+    between(board(lib(50)), board(lib(49, 4)), [ev(11, "Library", "Hand", null, null, "player-0", { cause: "Explore", causeName: "Jadelight Ranger" })]),
+    ["Blue puts a card from their library into their hand (Jadelight Ranger explores)"]);
+  {
+    const dredged = { cause: "Darkblast - Dredge 3" };
+    const milled3 = (b) => { put(b, "graveyard", BEAR()); put(b, "graveyard", SWORD()); put(b, "graveyard", LAND()); };
+    same("dredge: the mill and the card back in one line, instead of a draw",
+      between(board((b) => { lib(50)(b); put(b, "graveyard", DARK()); }), board((b) => { lib(47, 4)(b); milled3(b); }),
+        [ev(11, "Library", "Graveyard", id(1), "mill", "player-0", dredged), ev(12, "Library", "Graveyard", id(2), "mill", "player-0", dredged),
+          ev(13, "Library", "Graveyard", id(3), "mill", "player-0", dredged), ev(14, "Graveyard", "Hand", id(6), null, "player-0", dredged)]),
+      ["Blue dredges Darkblast instead of drawing (dredge 3), milling Grizzly Bears, Bonesplitter, Mountain"]);
+    same("dredge: with a draw beside it, each said",
+      between(board((b) => { lib(50)(b); put(b, "graveyard", DARK()); }), board((b) => { lib(46, 5)(b); milled3(b); }),
+        [ev(11, "Library", "Hand", null, "draw"), ev(12, "Library", "Graveyard", id(1), "mill", "player-0", dredged), ev(13, "Library", "Graveyard", id(2), "mill", "player-0", dredged),
+          ev(14, "Library", "Graveyard", id(3), "mill", "player-0", dredged), ev(15, "Graveyard", "Hand", id(6), null, "player-0", dredged)]),
+      ["Blue draws a card", "Blue dredges Darkblast instead of drawing (dredge 3), milling Grizzly Bears, Bonesplitter, Mountain"]);
+  }
+  same("two kinds at once: each its own line",
+    between(board(lib(50)), board(into(BEAR(), SWORD())), [ev(11, "Library", "Graveyard", id(1), "mill", "player-0", { cause: "Mill", causeName: "Thought Scour" }),
+      ev(12, "Library", "Graveyard", id(2), "surveil", "player-0", { cause: "Surveil", causeName: "Consider" })]),
+    ["Blue mills Grizzly Bears", "Blue surveils, putting Bonesplitter into their graveyard"]);
+  same("a graveyard card back to the hand by anything else is still said",
+    between(board((b) => { lib(50)(b); put(b, "graveyard", DARK()); }), board(lib(50, 4)), [ev(11, "Graveyard", "Hand", id(6), null, "player-0", { cause: "ChangeZone", causeName: "Raise Dead" })]),
+    ["Darkblast is put into Blue's hand from the graveyard"]);
   same("from the hand: into the graveyard without a discard isn't one",
     between(board((b) => lib(50, 4)(b)), board((b) => { lib(50)(b); put(b, "graveyard", BEAR()); }), [ev(11, "Hand", "Graveyard", id(1))]),
     ["Grizzly Bears is put into Blue's graveyard"]);
@@ -183,6 +223,10 @@ const id = (n) => `engine-card-${n}`;
     const m = F([ev(10, "Battlefield", "Graveyard", id(1), "sacrificed"), ev(11, "Graveyard", "Exile", id(1))]).moves.get(id(1));
     same("feed: one move per card, first zone to last, keeping how it left", m, { from: "Battlefield", to: "Exile", how: "sacrificed" });
     same("feed: a single lost entry is lost", F([ev(13, "Hand", "Exile", id(2))]), null);
+    h.B._getGame().eventSeq = 11;
+    same("feed: and the cause of its first move",
+      F([ev(12, "Library", "Graveyard", id(1), "mill", "player-0", { cause: "Mill", causeName: "Glimpse the Unthinkable" }), ev(13, "Graveyard", "Exile", id(1), null, "player-0", { cause: "ChangeZone", causeName: "Bojuka Bog" })]).moves.get(id(1)),
+      { from: "Library", to: "Exile", how: "mill", cause: "Mill", causeName: "Glimpse the Unthinkable" });
   }
 
   process.stdout.write(`${failed ? "FAILED" : "PASSED"}: ${passed} passed, ${failed} failed\n`);

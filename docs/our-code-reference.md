@@ -1424,3 +1424,20 @@ None of it shows at the table except the out-of-step warning, and nothing here c
 
 `tests/test_alignment.js` and `tests/test_table_check.js` hold these. The second runs the check on every 10th board of two
 recorded games, quiet, then breaks the table one way per `map:` line, and fails if a new line has no case. `docs/spec-own-engine.md` is the separate plan for dropping the bridge and Forge.
+
+### Table-map gaps filled (2026-11-03)
+
+Every fact Forge sends about a card or a player that the table showed nowhere (`node tests/test_table_map.js --gaps`).
+
+| File | Function | What it does |
+|---|---|---|
+| `bridge/bridge.js` | `tableCard(c, blockers, active, zone)` | `zone` is "battlefield", "graveyard" or "exile" (absent for hand, command, stack). New status box lines: the next Saga chapter (`nextChapter`), the next Class level's cost (`nextLevel`), "Dies in this combat as it stands" (Forge's `wouldDieInCombat`, attackers and blockers only), "Owned by X" on the battlefield, and what a permanent chose (`choiceWords`) |
+| `bridge/bridge.js` | `cardNotes`, `keywordCostText` | `nt`: flashback in a graveyard; madness, warp and plot in exile; counters in exile only. A cost as the card prints it, else Forge's mana string as symbols, else none ("Has flashback") |
+| `bridge/bridge.js` | `choiceWords`, `game.choiceViews` | a choice is said only when every seated player's view has it, since the table is drawn the same for everyone and a secret choice reaches only some views |
+| `bridge/bridge.js` | `playerMarks(p, pub)` | `marks` on the player row: experience, rad and ticket counters, the Ring's temptations, speed, a turn run by someone else, an extra turn (while it is theirs), prevention shields, a hand size other than 7, the player's keywords |
+| `bridge/table-map.js` | `PLAYER_FACTS` | every `PlayerDto` field: shown, or why not |
+| `tools/engine-renderer.lua` | `description` | a card's `nt` lines in its hover text |
+| `tools/engine-renderer.lua` | `enginePileNotes`, `enginePileDescribe` | a graveyard or exile pile deck's hover text lists its cards' notes, newest first; set again when only the notes change (a suspended card's time counters), without rebuilding the pile |
+| `tools/engine-renderer.lua` | `enginePlayerCounters` | the `marks` join the label under the life total, sized to its letters |
+
+Pinned by bridge scenarios "table: what a card in a graveyard or exile can still do", "table: sagas, classes, combat deaths and owners", "table: choices are said only when every seat sees them", "table: player marks", and the last steps of the 1v1 table game ("notes: ...").

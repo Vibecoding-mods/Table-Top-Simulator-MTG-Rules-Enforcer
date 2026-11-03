@@ -1989,6 +1989,116 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
     await boardAs(h, seat, start);
     return { why: h.B.whyNot(seat, "engine-card-961") };
   } });
+  // (table-map gaps, 2026-11-03: what Forge sends about a card or a player that the table showed nowhere.
+  // Each case returns the last table update's words, card by card: kw = the status box, nt = hover and pile notes.)
+  const zoneIn = (b, zn, o) => b.gameView.zones.find((z) => z.zone === zn && z.ownerId === o);
+  // (a zone the last update left out, named in its keep list, is the one sent before)
+  const said = (h) => {
+    const zones = {};
+    let last;
+    for (const t of h.effects.map((e) => e.tts).filter((m) => m?.t === "table")) {
+      last = t;
+      for (const p of t.players) for (const z of ["battlefield", "graveyard", "exile"]) if (p[z]) zones[p.color + z] = p[z];
+    }
+    return (last?.players || []).map((p) => ({ color: p.color, marks: p.marks || null,
+      cards: ["battlefield", "graveyard", "exile"].flatMap((z) => (zones[p.color + z] || []).filter((c) => c.kw || c.nt).map((c) => ({ z, id: c.id, kw: c.kw || null, nt: c.nt || null }))) }));
+  };
+  const gc = (id, name, o, more = {}) => ({ id, identity: { name }, types: ["Instant"], ownerId: o, controllerId: o, text: "", ...more });
+  // flashback in a graveyard (printed, granted with Forge's cost, neither); madness, warp and plot in exile; counters
+  // said in exile only (CR 122.2: a card that moved has none it had before, and Forge's leftover ones mean nothing)
+  add({ name: "table: what a card in a graveyard or exile can still do", run: async (h) => {
+    const b = myMain(D2.board);
+    zoneIn(b, "graveyard", "player-0").cards.push(
+      gc("engine-card-1201", "Faithless Looting", "player-0", { text: "Draw two cards, then discard two cards.\nFlashback {2}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)", flashbackCost: "2 R" }),
+      gc("engine-card-1202", "Lightning Bolt", "player-0", { flashbackCost: "1 U" }),
+      gc("engine-card-1203", "Deep Analysis", "player-0", { text: "Target player draws two cards.\nFlashback—{1}{U}, Pay 3 life.", flashbackCost: "1 U PayLife<3>" }),
+      gc("engine-card-1204", "Opt", "player-0", { flashbackCost: "Discard<1/Card>" }),
+      gc("engine-card-1206", "Think Twice", "player-0", { flashbackCost: "1 U PayLife<3>" }),
+      gc("engine-card-1205", "Shock", "player-0", { counters: { Time: 2 }, isPlotted: true, isMadnessExiled: true }));
+    zoneIn(b, "exile", "player-0").cards.push(
+      gc("engine-card-1211", "Fiery Temper", "player-0", { text: "Fiery Temper deals 3 damage to any target.\nMadness {R} (If you discard this card, discard it into exile.)", isMadnessExiled: true, madnessCost: "R" }),
+      gc("engine-card-1212", "Lightning Bolt", "player-0", { isMadnessExiled: true }),
+      gc("engine-card-1213", "Starfield Shepherd", "player-0", { isWarpExiled: true }),
+      gc("engine-card-1214", "Preordain", "player-0", { isPlotted: true }),
+      gc("engine-card-1215", "Ancestral Vision", "player-0", { counters: { Time: 3, Void: 1, Fade: 0 } }),
+      gc("engine-card-1216", "Ancestral Vision", "player-0", { counters: { Time: 1 } }),
+      gc("engine-card-1217", "Opt", "player-0", { flashbackCost: "U" }));
+    const seat = game(h, b);
+    await boardAs(h, seat, b);
+    return said(h);
+  } });
+  // a Saga's chapter and the next one, a Class's level and the next one's cost, Forge's combat sums, a stolen permanent
+  add({ name: "table: sagas, classes, combat deaths and owners", run: async (h) => {
+    const b = myMain(D2.board);
+    b.gameView.step = "declareBlockers";
+    const sagaCh = [{ chapters: [1], oracle: "Create a 1/1 white Soldier creature token." }, { chapters: [2, 3], oracle: "Put a +1/+1 counter on each creature you control.   It gains   flying until end of turn, and this sentence keeps on going well past ninety characters." }];
+    const levels = [{ level: 1, oracle: "Creatures you control get +1/+0." }, { level: 2, oracle: "Draw a card.", cost: "{1}{W}" }, { level: 3, oracle: "Win.", cost: "{3}{W}" }];
+    const bf = (id, name, more = {}) => ({ id, identity: { name }, types: ["Creature"], ownerId: "player-0", controllerId: "player-0", text: "", ...more });
+    zoneIn(b, "battlefield", "player-0").cards.push(
+      bf("engine-card-1221", "History of Benalia", { types: ["Enchantment"], counters: { LORE: 1 }, finalChapter: 3, sagaChapters: sagaCh }),
+      bf("engine-card-1222", "The Eldest Reborn", { types: ["Enchantment"], counters: { Lore: 3 }, finalChapter: 3, sagaChapters: sagaCh }),
+      bf("engine-card-1223", "Urza's Saga", { types: ["Enchantment"], finalChapter: 3, sagaChapters: sagaCh }),
+      bf("engine-card-1220", "Fall of the Thran", { types: ["Enchantment"], counters: { LORE: 2 }, finalChapter: 3, sagaChapters: sagaCh }),
+      bf("engine-card-1224", "Barbarian Class", { types: ["Enchantment"], classLevel: 1, classLevels: levels }),
+      bf("engine-card-1225", "Bard Class", { types: ["Enchantment"], classLevel: 3, classLevels: levels }),
+      bf("engine-card-1226", "Grizzly Bears", { isAttacking: true, attackTargetId: "player-1", wouldDieInCombat: true }),
+      bf("engine-card-1227", "Hill Giant", { isAttacking: true, attackTargetId: "player-1", wouldDieInCombat: false }),
+      bf("engine-card-1228", "Elvish Mystic", { wouldDieInCombat: true }),
+      bf("engine-card-1229", "Act of Treason's Bear", { ownerId: "player-1" }));
+    zoneIn(b, "battlefield", "player-1").cards.push(
+      { id: "engine-card-1231", identity: { name: "Wall of Stone" }, types: ["Creature"], ownerId: "player-1", controllerId: "player-1", text: "", wouldDieInCombat: true });
+    zoneIn(b, "graveyard", "player-0").cards.push(gc("engine-card-1232", "Stolen Shock", "player-0", { ownerId: "player-1" }));
+    b.gameView.combatAssignments = [{ blockerId: "engine-card-1231", attackerId: "engine-card-1226" }];
+    const seat = game(h, b);
+    await boardAs(h, seat, b);
+    return said(h);
+  } });
+  // what a permanent chose, in words; a choice one seat's view lacks (made in secret) is said to nobody, as every
+  // seat sees the same table
+  add({ name: "table: choices are said only when every seat sees them", run: async (h) => {
+    const b = myMain(D2.board);
+    const ch = (id, name, choices) => ({ id, identity: { name }, types: ["Artifact"], ownerId: "player-0", controllerId: "player-0", text: "", choices });
+    zoneIn(b, "battlefield", "player-0").cards.push(
+      ch("engine-card-1241", "Caged Sun", [{ kind: "color", colors: ["R", "G"] }]),
+      ch("engine-card-1240", "Painter's Servant", [{ kind: "color", colors: ["W", "U", "B", "C", "Q"] }]),
+      ch("engine-card-1242", "Door of Destinies", [{ kind: "type", values: ["Elf"] }]),
+      ch("engine-card-1243", "Pithing Needle", [{ kind: "namedCard", names: ["Sol Ring"] }]),
+      ch("engine-card-1244", "Hidden Strings", [{ kind: "namedCard", names: ["Lightning Bolt"] }, { kind: "number", value: 0 }]),
+      ch("engine-card-1245", "Siege-Gang Lieutenant", [{ kind: "mode", value: "Khans" }, { kind: "chosenCard", count: 1 }, { kind: "chosenCard", count: 2 }]),
+      ch("engine-card-1246", "Curse of Opulence", [{ kind: "player", playerId: "player-1", name: "Engine Name" }, { kind: "player", playerId: "player-9", name: "Someone" }]),
+      ch("engine-card-1247", "Oddity", [{ kind: "unknownKind", value: 3 }]));
+    zoneIn(b, "graveyard", "player-0").cards.push(ch("engine-card-1248", "Gone Needle", [{ kind: "namedCard", names: ["Sol Ring"] }]));
+    const seat = game(h, b);
+    // a second person at the table (Red, player-1), whose view lacks Hidden Strings' named card and has its number
+    const other = new h.B.Seat("Red", "neheb_minotaur_commander");
+    other.slot = "player-1";
+    const ob = clone(b);
+    zoneIn(ob, "battlefield", "player-0").cards.find((c) => c.id === "engine-card-1244").choices = [{ kind: "number", value: 0 }];
+    other.board = { state: ob, fingerprint: null };
+    h.B._getGame().seats.set("Red", other);
+    await boardAs(h, seat, b);
+    const both = said(h);
+    h.B._getGame().seats.delete("Red");
+    Object.assign(h.B._getGame(), { lastTableSig: null, sentZones: {} });
+    await boardAs(h, seat, b);
+    return { both, alone: said(h) };
+  } });
+  // the player facts under a life total: counters, the Ring, speed, a turn someone else runs, an extra turn (while it is
+  // theirs), prevention shields, hand size, and the player's keywords
+  add({ name: "table: player marks", run: async (h) => {
+    const b = myMain(D2.board);
+    const [me, them] = b.gameView.players;
+    Object.assign(me, { counters: { EXPERIENCE: 2, RADIATION: 3, TICKET: 0, poison: 1 }, ringLevel: 2, speed: 4, damagePrevention: 5, maxHandSize: 0,
+      playerKeywords: ["Hexproof", "You can't lose the game.", "Protection:Player.Opponent:each of your opponents", "ETBReplacement:Other:Foo", "Your opponents can't cast spells during your turn and this is a long sentence."] });
+    Object.assign(them, { counters: { experience: 1, radiation: 0 }, controlledBy: "player-0", isExtraTurn: true, unlimitedHandSize: true, maxHandSize: 3, ringLevel: 0, speed: 0, damagePrevention: 0 });
+    const seat = game(h, b);
+    await boardAs(h, seat, b);
+    const first = said(h).map((p) => p.marks);
+    const theirs = clone(b); theirs.gameView.activePlayerId = "player-1";
+    theirs.gameView.players[0].maxHandSize = 7;
+    await boardAs(h, seat, theirs);
+    return { first, theirTurn: said(h).map((p) => p.marks) };
+  } });
   add({ name: "log: lands phased out by a trigger", run: async (h) => {
     const start = myMain(D2.board);
     const bfz = (b, o) => b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === o);

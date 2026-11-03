@@ -976,7 +976,9 @@ async function fetchTokens() {
 // blockers: ids of creatures blocking on the board being drawn (sendTable); other callers have none
 // active: whose turn it is, for a card on the battlefield (a creature that can't attack yet is news on its controller's
 // turn only; Forge calls every creature card sick until it has been in play, in hand as well)
-function tableCard(c, blockers = null, active = null) {
+// zone: the zone list the card is drawn from (sendTable), for what only means something there: a graveyard card's
+// flashback, an exiled card's madness, warp or plot, a permanent's owner and choices
+function tableCard(c, blockers = null, active = null, zone = null) {
   if (!c || c.visibility === "hidden" || !c.identity) return { id: c?.id, fd: true };
   // A face-down card (morph, manifest, foretold or "exiled face down") travels without name, picture or text: the
   // board goes to every player's table from one seat's view, and that seat may be allowed to see what it is.
@@ -1034,7 +1036,13 @@ function tableCard(c, blockers = null, active = null) {
       ...hauntedBy(c.id).map((n) => `Haunted by ${n}`),
       ...(c.summoningSick && active === c.controllerId && c.types?.includes("Creature") ? ["Summoning sick"] : []),
       ...(c.isCrewed ? ["Crewed"] : []), ...(c.isBestowed ? ["Bestowed"] : []), ...(c.isRingBearer ? ["Ring-bearer"] : []),
-      ...(c.finalChapter ? [`Chapter ${loreOf(c)} of ${c.finalChapter}`] : []), ...(c.classLevel ? [`Level ${c.classLevel}`] : [])]),
+      ...(c.finalChapter ? [`Chapter ${loreOf(c)} of ${c.finalChapter}`, ...nextChapter(c)] : []),
+      ...(c.classLevel ? [`Level ${c.classLevel}`, ...nextLevel(c)] : []),
+      // (Forge's own combat sums, as the attackers and blockers stand; a trick can still change it)
+      ...(c.wouldDieInCombat && (c.isAttacking || blockers?.has(c.id)) ? ["Dies in this combat as it stands"] : []),
+      ...(zone === "battlefield" && c.ownerId && c.controllerId && c.ownerId !== c.controllerId ? [`Owned by ${nameOf(c.ownerId)}`] : []),
+      ...(zone === "battlefield" ? choiceWords(c) : [])]),
+    ...cardNotes(c, zone),
   };
 }
 
@@ -1046,6 +1054,34 @@ function statusLists(c, marks) {
   return { ...(kw.length ? { kw } : {}), ...((kw.length || c.phasedOut) && own.length ? { ow: own } : {}) };
 }
 
+// What a card in a graveyard or exile can still do, and its counters in exile (suspend's time counters, Dauthi
+// Voidwalker's void counters): the table puts these in its hover text and on its pile, as the cards inside a pile deck
+// show no status box
+function cardNotes(c, zone) {
+  const nt = [];
+  if (zone === "graveyard" && c.flashbackCost) {
+    const cost = keywordCostText(c, "Flashback", c.flashbackCost);
+    nt.push(cost ? `Flashback ${cost}` : "Has flashback");
+  }
+  if (zone === "exile") {
+    if (c.isMadnessExiled) nt.push(`Exiled for madness: its owner may cast it for ${keywordCostText(c, "Madness", c.madnessCost) || "its madness cost"}, or it goes to the graveyard`);
+    if (c.isWarpExiled) nt.push("Warped: its owner may cast it from exile on a later turn");
+    if (c.isPlotted) nt.push("Plotted: its owner may cast it without paying its mana cost on a later turn, as a sorcery");
+  }
+  // (exile only: counters leave a card that moves (CR 122.2), and nothing reads counters in a graveyard)
+  if (zone === "exile") for (const [k, n] of Object.entries(c.counters || {})) if (n) nt.push(`${n} ${k.toLowerCase()} counter${n === 1 ? "" : "s"}`);
+  return nt.length ? { nt: nt } : {};
+}
+// A keyword's cost as the card prints it ("Flashback {2}{R}", "Flashback—Pay 3 life"), else Forge's cost string as
+// mana symbols ("2 R" -> "{2}{R}"), for a keyword another card granted; null for any other cost of Forge's
+// ("Discard<1/Card>"), which is no words for a player
+function keywordCostText(c, word, cost) {
+  const printed = new RegExp(`\\b${word}(?: |—)([^(\\n]+)`).exec(c.text || "")?.[1]?.trim().replace(/\.$/, "");
+  if (printed) return printed;
+  const parts = String(cost || "").trim().split(/\s+/);
+  return cost && parts.every((p) => /^[0-9WUBRGCXSP/]+$/.test(p)) ? parts.map((p) => `{${p}}`).join("") : null;
+}
+
 // The lore counters on a Saga (the counter's name comes from Forge: compared without its case)
 const loreOf = (c) => Object.entries(c.counters || {}).find(([k]) => k.toUpperCase() === "LORE")?.[1] || 0;
 
@@ -1053,6 +1089,40 @@ const loreOf = (c) => Object.entries(c.counters || {}).find(([k]) => k.toUpperCa
 function hauntedBy(id) {
   return [...(game?.haunting || [])].filter(([, t]) => t === id).map(([h]) => game.namesSeen?.get(h) || "a haunting card");
 }
+
+const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+const shortText = (s, n = 90) => { const t = String(s || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
+// A Saga's next chapter, which its next lore counter brings (Forge's chapter list: one entry may cover several, "I, II")
+function nextChapter(c) {
+  const n = loreOf(c) + 1;
+  const ch = (c.sagaChapters || []).find((x) => (x.chapters || []).includes(n));
+  return ch && n <= c.finalChapter ? [`Next, chapter ${ROMAN[n] || n}: ${shortText(ch.oracle)}`] : [];
+}
+// A Class's next level and what it costs to gain
+function nextLevel(c) {
+  const next = (c.classLevels || []).find((x) => x.level === c.classLevel + 1);
+  return next?.cost ? [`Level ${next.level} costs ${next.cost}`] : [];
+}
+
+// What a permanent chose as it entered (a colour, a creature type, a card name, a player), in words. A choice made in
+// secret reaches only the seats allowed to see it, and the table is drawn the same for everyone, so a choice is said
+// only when every human seat's view has it (game.choiceViews, set by sendTable).
+const COLOR_WORDS = { W: "white", U: "blue", B: "black", R: "red", G: "green", C: "colorless" };
+const CHOICE_WORDS = {
+  color: (x) => `Chosen colour: ${(x.colors || []).map((k) => COLOR_WORDS[k] || k).join(", ")}`,
+  type: (x) => `Chosen type: ${(x.values || []).join(", ")}`,
+  namedCard: (x) => `Named: ${(x.names || []).join(", ")}`,
+  chosenCard: (x) => `Chose ${x.count} card${x.count === 1 ? "" : "s"}`,
+  number: (x) => `Chosen number: ${x.value}`,
+  mode: (x) => `Chosen: ${x.value}`,
+  player: (x) => `Chosen player: ${game.slotNames[x.playerId] ? nameOf(x.playerId) : x.name || x.playerId}`,
+};
+function choiceWords(c) {
+  const views = game?.choiceViews || [];
+  const same = (x) => views.every((v) => (v[c.id]?.choices || []).some((y) => JSON.stringify(y) === JSON.stringify(x)));
+  return (c.choices || []).filter((x) => CHOICE_WORDS[x.kind] && same(x)).map((x) => CHOICE_WORDS[x.kind](x));
+}
+
 
 // Keywords a card has now that its own text doesn't give it: granted by another card (Skrelv's toxic 1 and hexproof
 // from a colour on Kenrith showed nowhere, hp-07 #31). Forge's keyword strings read as words (as it sent them live):
@@ -1286,20 +1356,41 @@ function engineFacts(events) {
   game.eventSeq = events.length ? events[events.length - 1].seq : seen ?? 0;
   if (seen == null || !events.length) return null;
   if (events[0].seq > seen + 1) { noteGuess("feed gap", `events ${seen + 1} to ${events[0].seq - 1} fell behind`); return null; }
-  const facts = { moves: new Map(), draws: {}, tutors: {}, mills: {} };
+  const facts = { moves: new Map(), draws: {}, tutors: {}, mills: {}, explored: {} };
   for (const e of events) {
     if (e.seq <= seen) continue;
     if (e.from === "Library") {
       const tally = e.to === "Hand" ? (e.how === "draw" ? facts.draws : facts.tutors)
         : e.to === "Exile" || (e.to === "Graveyard" && e.how !== "surveil") ? facts.mills : null;
       if (tally) tally[e.ownerId] = (tally[e.ownerId] || 0) + 1;
+      if (tally === facts.tutors && e.cause === "Explore") facts.explored[e.ownerId] = e.causeName;
     }
     if (!e.cardId) continue;
     const was = facts.moves.get(e.cardId);
-    facts.moves.set(e.cardId, { from: was ? was.from : e.from, to: e.to, how: e.how || was?.how });
+    const cause = was?.cause ? { cause: was.cause, causeName: was.causeName } : e.cause ? { cause: e.cause, causeName: e.causeName } : {};
+    facts.moves.set(e.cardId, { from: was ? was.from : e.from, to: e.to, how: e.how || was?.how, ...cause });
   }
   return facts;
 }
+// What took a card out of its library into a graveyard, from Forge's word on the move (EngineEventLog's how and
+// cause): every mechanic that moves cards there is one of these kinds, and its name is only the label the line carries
+// (dredge mills, an explore or a surveil puts, PLAN "every mechanic through the core moves"). A move Forge says nothing
+// of, from an older engine or no feed, is a mill, as the boards always read it.
+function libraryKind(m) {
+  const dredge = /^(.+) - Dredge (\d+)$/.exec(m?.cause || "");
+  if (dredge) return { kind: "dredge", card: dredge[1], n: dredge[2] };
+  if (m?.how === "surveil" || m?.cause === "Surveil") return { kind: "surveil" };
+  if (m?.how === "mill" || !m?.cause) return { kind: "mill" };
+  return m.cause === "Explore" ? { kind: "explore", card: m.causeName } : { kind: "put" };
+}
+// each kind's line, for the cards one player had moved that way at once
+const LIBRARY_WORDS = {
+  mill: (w, names, list) => `${w} mills ${names.length > 6 ? `${names.length} cards: ${list}` : list}`,
+  dredge: (w, names, list, k) => `${w} dredges ${k.card} instead of drawing (dredge ${k.n}), milling ${list}`,
+  surveil: (w, names, list) => `${w} surveils, putting ${list} into their graveyard`,
+  explore: (w, names, list, k) => `${k.card || "A creature"} explores: ${w} puts ${list} into their graveyard`,
+  put: (w, names, list) => `${w} puts ${list} into their graveyard from their library`,
+};
 function logEvents(prev, cur, pub, facts = null) {
   const out = [];
   const who = (id) => nameOf(id);
@@ -1529,7 +1620,7 @@ function logEvents(prev, cur, pub, facts = null) {
   // read "is put into AI 1's graveyard", hp-23 gap)
   for (const s of [...Object.values(prev.stack), ...Object.values(cur.stack)]) if (/\btarget (?:player|opponent) discards\b/i.test(s.text || "")) for (const p of s.plTg || []) looted.add(p);
   const lootedOut = (o) => looted.has(o) ? Object.entries(cur.cards).filter(([id, c]) => c.owner === o && c.zone === "graveyard" && !prev.cards[id] && !fromStack(id, c)).length : 0;
-  const sayDrawn = (owner, k, searched) => (drawAfter ? afterEntries : out).push(searched ? `${who(owner)} puts ${countWords(k, k, "card")} from their library into their hand` : `${who(owner)} draws ${countWords(k, k, "card")}`);
+  const sayDrawn = (owner, k, searched) => (drawAfter ? afterEntries : out).push(searched ? `${who(owner)} puts ${countWords(k, k, "card")} from their library into their hand${owner in (facts?.explored || {}) ? ` (${facts.explored[owner] || "a creature"} explores)` : ""}` : `${who(owner)} draws ${countWords(k, k, "card")}`);
   for (const [owner, k] of Object.entries(facts?.draws || {})) sayDrawn(owner, k, false);
   for (const [owner, k] of Object.entries(facts?.tutors || {})) {
     seatOfSlot(owner)?.forget("search");
@@ -1601,9 +1692,10 @@ function logEvents(prev, cur, pub, facts = null) {
   for (const [id, c] of Object.entries(cur.cards)) for (const m of c.merged || []) if (!(prev.cards[id]?.merged || []).includes(m)) mutatedInto.set(m, id);
   const mutatedHosts = new Set(mutatedInto.values());
   const attackers = {}, landPlaysLeft = {}, tokensMade = {}, landsPut = {};
-  const milled = (owner, name) => {
-    if (!mills[owner]) { mills[owner] = { at: out.length, names: [] }; out.push(""); }
-    mills[owner].names.push(name);
+  const milled = (owner, name, k = { kind: "mill" }) => {
+    const key = `${owner}|${k.kind}|${k.card || ""}`;
+    if (!mills[key]) { mills[key] = { owner, k, at: out.length, names: [] }; out.push(""); }
+    mills[key].names.push(name);
   };
   const toGraveyard = (c) => out.push(`${c.name} is put into ${who(c.owner)}'s graveyard`);
   for (const [id, c] of Object.entries(cur.cards)) {
@@ -1701,7 +1793,7 @@ function logEvents(prev, cur, pub, facts = null) {
       else if (!from && moved?.from === "Stack" && !fromStack(id, c)) out.push(`${who(c.owner)} casts ${c.name}`);
       else if (!from && !discardedIds.has(id) && (moved?.from === "Library" || !fromStack(id, c))) {
         if (moved) {
-          if (moved.from === "Library" && moved.how !== "surveil") milled(c.owner, c.name);
+          if (moved.from === "Library") milled(c.owner, c.name, libraryKind(moved));
           else toGraveyard(c);
         }
         // (the card whose ability its owner just used from the hand: discarded as the cost; Muddle the Mixture's transmute
@@ -1792,6 +1884,8 @@ function logEvents(prev, cur, pub, facts = null) {
       // (tokens gone together, one line: Avatar's Wrath's eight read one "leaves the battlefield" each, hp-18 gap)
       else if (was.token) { if (tokensGone.at == null) { tokensGone.at = out.length; out.push(""); } tokensGone.names.push(was.name); }
       else out.push(`${was.name} leaves the battlefield`);
+    } else if (gone && libraryKind(gone).kind === "dredge") {
+      // (the dredged card, said in its dredge's line)
     } else if ((was.zone === "graveyard" || was.zone === "exile") && !was.fd && toHand) {
       handRoom[o] = Math.max(0, handRoom[o] - 1); out.push(`${was.name} is put into ${who(o)}'s hand from ${was.zone === "exile" ? "exile" : "the graveyard"}`);
     }
@@ -1869,9 +1963,9 @@ function logEvents(prev, cur, pub, facts = null) {
   const byCount = (names) => [...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
   // (cards a player searched out into their graveyard aren't milled: Buried Alive's read "White mills Skyhunter Strike
   // Force", hp-18 gap)
-  for (const [owner, m] of Object.entries(mills)) {
-    out[m.at] = seatOfSlot(owner)?.justDid("search", 20000) ? `${who(owner)} puts ${m.names.join(", ")} into their graveyard from their library`
-      : m.names.length > 6 ? `${who(owner)} mills ${m.names.length} cards: ${byCount(m.names)}` : `${who(owner)} mills ${m.names.join(", ")}`;
+  for (const { owner, k, at, names } of Object.values(mills)) {
+    const kind = k.kind === "mill" && seatOfSlot(owner)?.justDid("search", 20000) ? "put" : k.kind;
+    out[at] = LIBRARY_WORDS[kind](who(owner), names, names.length > 6 ? byCount(names) : names.join(", "), k);
   }
   for (const [owner, g] of Object.entries(libExiles)) out[g.at] = `${byCount(g.names)} ${g.names.length === 1 ? "is" : "are"} exiled from ${who(owner)}'s library`;
   for (const [owner, g] of Object.entries(gyExiles)) out[g.at] = g.names.length === 1 ? `${g.names[0]} is exiled from ${who(owner)}'s graveyard` : `${g.names.join(", ")} are exiled from ${who(owner)}'s graveyard`;
@@ -2002,6 +2096,7 @@ function sendTable() {
   const rewind = rewindNews(pub);
   fixNews(pub);
   const byId = cardIndex(pub);
+  game.choiceViews = seats.map((s) => cardIndex(s.board.state.gameView));
   const players = (pub.players || []).map((p) => {
     const own = seats.find((s) => s.slot === p.id)?.board.state.gameView;
     const command = zoneOf(pub, "command", p.id).cards;
@@ -2020,6 +2115,7 @@ function sendTable() {
       ...(pub.monarchId === p.id ? { monarch: true } : {}), ...(pub.initiativeHolderId === p.id ? { initiative: true } : {}),
       // (and the city's blessing and an enduring story, for the rest of the game, shown nowhere either, hp-21 gap)
       ...(p.hasCityBlessing ? { blessed: true } : {}), ...(p.hasEnduringStory ? { story: true } : {}),
+      ...playerMarks(p, pub),
       cmdDamage,
       // Commander tax per commander, in command-zone order (casts × 2).
       tax: Object.values(p.commanderCasts || {}).map((n) => 2 * (n || 0)),
@@ -2028,9 +2124,9 @@ function sendTable() {
       // in a hand a card shows the plain back: TTS shows the other players a hand card's back, and a double-faced
       // card's back is its other face (playtest 2026-10-25: a daybound card in Yellow's hand showed its night side)
       hand: own ? zoneOf(own, "hand", p.id).cards.map((c) => ({ ...toCard(c), b: DEFAULT_BACK })) : null,
-      battlefield: zoneOf(pub, "battlefield", p.id).cards.map((c) => tableCard(c, blockers, pub.activePlayerId)),
-      graveyard: zoneOf(pub, "graveyard", p.id).cards.map(toCard),
-      exile: zoneOf(pub, "exile", p.id).cards.map(toCard),
+      battlefield: zoneOf(pub, "battlefield", p.id).cards.map((c) => tableCard(c, blockers, pub.activePlayerId, "battlefield")),
+      graveyard: zoneOf(pub, "graveyard", p.id).cards.map((c) => tableCard(c, blockers, null, "graveyard")),
+      exile: zoneOf(pub, "exile", p.id).cards.map((c) => tableCard(c, blockers, null, "exile")),
       command: command.map(toCard),
     };
     // (after the zones: the cards a seat may play from outside its hand, built once)
@@ -2164,6 +2260,31 @@ function lossReasons(gv) {
 }
 // A player counter the engine may spell either way ("POISON" / "poison").
 const playerCounter = (p, name) => (p.counters || {})[name.toUpperCase()] || (p.counters || {})[name] || 0;
+
+// What else Forge says about a player that changes the game and showed nowhere, as short labels under their life:
+// the other player counters, the Ring's temptations, speed, a turn someone else controls (Mindslaver), an extra turn,
+// damage prevention shields, a changed hand size, and keywords on the player (hexproof, "can't lose the game")
+function playerMarks(p, pub) {
+  const marks = [];
+  for (const [k, label] of [["experience", "EXPERIENCE"], ["radiation", "RAD"], ["ticket", "TICKETS"]]) {
+    const n = playerCounter(p, k);
+    if (n) marks.push(`${label} ${n}`);
+  }
+  if (p.ringLevel > 0) marks.push(`RING TEMPTED ${p.ringLevel}`);
+  if (p.speed > 0) marks.push(`SPEED ${p.speed}`);
+  if (p.controlledBy) marks.push(`TURN RUN BY ${nameOf(p.controlledBy).toUpperCase()}`);
+  if (p.isExtraTurn && pub.activePlayerId === p.id) marks.push("EXTRA TURN");
+  if (p.damagePrevention > 0) marks.push(`PREVENT ${p.damagePrevention}`);
+  if (p.unlimitedHandSize) marks.push("NO MAX HAND SIZE");
+  else if (p.maxHandSize != null && p.maxHandSize !== 7) marks.push(`MAX HAND ${p.maxHandSize}`);
+  // (a keyword as cards' keywords read, "Protection:Player.Opponent:each of your opponents" -> "Protection from each
+  // of your opponents", the internal ones left out; one written as a sentence, "You can't lose the game.", as it is)
+  const kws = (p.playerKeywords || []).map(String);
+  const sentences = kws.filter((k) => /\.\s*$/.test(k));
+  const words = cardKeywords({ keywords: kws.filter((k) => !sentences.includes(k)), text: "" }).granted;
+  for (const k of [...words, ...sentences.map((k) => k.trim().replace(/\.$/, ""))]) marks.push(shortText(k, 32).toUpperCase());
+  return marks.length ? { marks } : {};
+}
 
 function cardIndex(gv) {
   const byId = {};

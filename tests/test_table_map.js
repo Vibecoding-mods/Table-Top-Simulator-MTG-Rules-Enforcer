@@ -2,7 +2,7 @@
 //   node tests/test_table_map.js            prints the known gaps as well: --gaps
 const fs = require("fs");
 const path = require("path");
-const { CARD_FACTS, TABLE_ONLY_KEYS, ZONES, GESTURES } = require("../bridge/table-map");
+const { CARD_FACTS, TABLE_ONLY_KEYS, ZONES, GESTURES, PLAYER_FACTS } = require("../bridge/table-map");
 
 const root = path.join(__dirname, "..");
 const read = (f) => fs.readFileSync(path.join(root, f), "utf8").replace(/\r\n/g, "\n");
@@ -38,6 +38,20 @@ for (const [f, e] of Object.entries(CARD_FACTS)) for (const k of e.to || []) {
 // a fact the map says is checked on the live table has its marked line in engineSelfCheck
 ok("engineSelfCheck was found", check.length > 1000 && check.includes("-- map:present"), `${check.length} characters`);
 for (const [f, e] of Object.entries(CARD_FACTS)) if (e.check) ok(`${f}: engineSelfCheck checks ${e.check}`, check.includes(`-- map:${e.check}`), `no "-- map:${e.check}" line`);
+
+// every PlayerDto field is mapped, and a key it names is in sendTable's player row and read by the table
+const playerFields = [...struct("PlayerDto").matchAll(/pub ([a-z_0-9]+):/g)].map((m) => camel(m[1]));
+ok("the protocol parsed: PlayerDto has its fields", playerFields.length > 20 && playerFields.includes("ringLevel"), `${playerFields.length} fields`);
+for (const f of playerFields) ok(`PlayerDto.${f} is mapped`, !!PLAYER_FACTS[f], "add it to PLAYER_FACTS: shown, a gap, or why not");
+for (const f of Object.keys(PLAYER_FACTS)) ok(`${f} is still a PlayerDto field`, playerFields.includes(f));
+const send = bridge.slice(bridge.indexOf("function sendTable("), bridge.indexOf("function sendTable(") + 6000);
+const marksFn = bridge.slice(bridge.indexOf("function playerMarks("), bridge.indexOf("function cardIndex("));
+for (const [f, e] of Object.entries(PLAYER_FACTS)) for (const k of e.to || []) {
+  ok(`${f}: the player row sends ${k}`, k === "marks" ? /\.\.\.playerMarks\(p, pub\)/.test(send) && /\{ marks \}/.test(marksFn)
+    : new RegExp(`\\b${k}\\b`).test(send), "the map names a key that is gone");
+  ok(`${f}: the table reads ${k}`, new RegExp(`\\.${k}\\b|\\[k\\]`).test(lua), "sent, and nothing reads it");
+  if (k === "marks") ok(`${f}: playerMarks reads it`, new RegExp(`\\bp\\.${f}\\b|"${f.replace(/s$/, "")}"|playerCounter\\(p`).test(marksFn), "playerMarks doesn't read this field");
+}
 
 const zones = [...(protocol.match(/pub enum ZoneKind \{[^}]*\}/)?.[0] || "").matchAll(/^\s+([A-Z][a-z]+),/gm)].map((m) => m[1]);
 ok("the protocol parsed: ZoneKind has its zones", zones.includes("Exile"), zones.join(" "));

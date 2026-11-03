@@ -530,6 +530,39 @@ function scenarios() {
     // the game ends with a vote open: "mtg reset" (the bridge's clear) hides the Undo button and the vote
     withRw({ id: 6, to: "turn 10, Blue's upkeep", by: "White", waiting: ["Blue"], status: "pending" }),
     { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 90, mark: "clear with rewind UI showing" });
+  // (2026-11-03, table-map gaps) the bridge's notes on graveyard and exile cards (nt) go in a lone card's hover text and
+  // on a pile deck, newest card first, set again when only the notes change; the player's marks join the label under
+  // the life total. Blue's cards are copies of its battlefield's under new ids.
+  {
+    let bfB = [];
+    for (const m of s1) if (m.t === "table") { const pl = JSON.parse(m.json).players.find((x) => x.color === "Blue"); if (pl && pl.battlefield) bfB = pl.battlefield; }
+    // (with their names and pictures, as the bridge sends a card's fixed details the first time)
+    const statics = {};
+    for (const m of s1) if (m.t === "table") Object.assign(statics, JSON.parse(m.json).cards || {});
+    const noted = JSON.parse(JSON.stringify(lastTable));
+    noted.cards = {};
+    const as = (c, id, nt) => { noted.cards[id] = statics[c.id]; return { ...c, id, tap: false, atk: false, ...(nt ? { nt } : {}) }; };
+    const nb = noted.players.find((x) => x.color === "Blue");
+    nb.graveyard = [as(bfB[0], "engine-card-9841", ["Flashback {1}{U}", "Has flashback \"twice\""]), as(bfB[1], "engine-card-9842"), as(bfB[2], "engine-card-9843", ["Flashback {2}{R}"])];
+    nb.exile = [as(bfB[3] || bfB[0], "engine-card-9844", ["Plotted: its owner may cast it without paying its mana cost on a later turn, as a sorcery", "3 time counters"])];
+    nb.marks = ["RING TEMPTED 2", "YOU CAN'T LOSE THE GAME"];
+    nb.keep = (nb.keep || []).filter((z) => z !== "graveyard" && z !== "exile");
+    const later = JSON.parse(JSON.stringify(noted));
+    later.cards = {};
+    const lb = later.players.find((x) => x.color === "Blue");
+    lb.graveyard[2].nt = ["Flashback {1}{R}"];
+    lb.exile[0].nt = ["2 time counters"];
+    delete lb.marks;
+    const pileText = click('for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:graveyard:Blue" then return x.type .. ": " .. x.getDescription() end end return "no pile"');
+    const loneText = click('for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-9844" then return x.getDescription() end end return "none"');
+    const marksLabel = click('local o = getObjectFromGUID("395037") for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then return b.label .. " @" .. tostring(b.width) end end return "no label"');
+    one.push({ msg: { t: "table", json: JSON.stringify(noted) }, frames: 200, mark: "notes: flashback in the graveyard, plotted in exile, player marks" },
+      pileText, loneText, marksLabel,
+      // (its rules text arriving after it keeps the notes)
+      { msg: { t: "texts", json: JSON.stringify({ t: "texts", texts: { "engine-card-9844": "Suspend 4—{U}" } }) }, mark: "notes: rules text arrives" }, loneText,
+      { msg: { t: "table", json: JSON.stringify(later) }, frames: 200, mark: "notes: only the notes changed" },
+      pileText, loneText, marksLabel);
+  }
   // Ready / Start buttons (docs/game-modes-spec.md §6): two seated players, the bridge's deck reports, clicks
   const tile = 'local t for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then t = o end end';
   const report = (ready, checked) => ({ msg: { t: "deckReport", json: JSON.stringify({ t: "deckReport", request: -1, ready, checked }) }, mark: `deckReport ready=${ready} checked=${checked}` });

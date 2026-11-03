@@ -12,7 +12,7 @@ const RELAY = arg("relay", "ws://127.0.0.1:9444"), ROOM = arg("room", "tts-test"
 const VERBOSE = process.argv.includes("--verbose");
 
 const card = (name) => ({ identity: { name, setCode: "", cardNumber: "" }, manaCost: "", cmc: 0, types: [], subtypes: [], supertypes: [], colorIdentity: [], text: "", power: "", toughness: "" });
-const HELPER = { bear: "Elvish Visionary", sword: "Bonesplitter" };
+const HELPER = { bear: "Elvish Visionary", sword: "Bonesplitter", dredger: "Darkblast" };
 const STEPS = [
   { key: "land", play: "Mountain" },
   { key: "sacrifice", cast: "Village Rites", mana: "B", token: true },
@@ -24,14 +24,17 @@ const STEPS = [
   { key: "bounce", cast: "Unsummon", mana: "U", needs: HELPER.bear, target: "helper" },
   { key: "tokenDies", cast: "Doom Blade", mana: "B B", token: true, target: "token" },
   { key: "tokenExiled", cast: "Swords to Plowshares", mana: "W", token: true, target: "token" },
+  // (each move made by a mechanic carries the mechanic as its cause, SPEC §4a: explore's reveals, dredge's mill)
+  { key: "explore", cast: "Jadelight Ranger", mana: "G G G" },
+  { key: "dredge", cast: "Think Twice", mana: "U U", needs: HELPER.dredger, needsZone: "graveyard" },
 ];
 const cards = [];
-for (const [n, k] of [["Mountain", 20], ...STEPS.filter((s) => s.cast).map((s) => [s.cast, 7]), [HELPER.bear, 9], [HELPER.sword, 8]]) for (let i = 0; i < k; i++) cards.push(card(n));
+for (const [n, k] of [["Mountain", 20], ...STEPS.filter((s) => s.cast).map((s) => [s.cast, 7]), [HELPER.bear, 9], [HELPER.sword, 8], [HELPER.dredger, 7]]) for (let i = 0; i < k; i++) cards.push(card(n));
 const COMMANDER = "Rograkh, Son of Rohgahh";
 const DECK = { deckName: "events-check", deck: { name: "events-check", cards, sideboard: [], format: "commander", commanders: [card(COMMANDER)] }, commanderName: COMMANDER };
 
 const results = [];
-const check = (ok, what) => { results.push({ ok: !!ok, what }); process.stdout.write(`${ok ? "pass" : "FAIL"}: ${what}\n`); };
+const check = (ok, what) => { results.push({ ok: !!ok, what }); process.stdout.write(`${ok ? "pass" : "FAIL"}: ${what}\n`); return !!ok; };
 let finished = false, started = false;
 const finish = (why) => {
   if (finished) return;
@@ -121,7 +124,8 @@ class Client {
         const chosen = want ? [want] : input.candidates.slice(0, input.minTargets);
         return this.respond(p, type, { type: "boardTargets", chosen: chosen.map(({ kind, id }) => ({ kind, id })) });
       }
-      case "chooseBoolean": return this.respond(p, type, { type: "decision", value: true });
+      // (dredge only in its own step: a Darkblast milled or surveiled early would otherwise replace another step's draws)
+      case "chooseBoolean": return this.respond(p, type, { type: "decision", value: !/dredge/i.test(JSON.stringify(input)) || (mine && T.step.key === "dredge") });
       case "chooseCards": {
         const n = mine && T.step.key === "tutor" ? Math.max(input.min || 0, 1) : input.min || 0;
         return this.respond(p, type, { type: "chooseCardsDecision", chosenCardIds: input.cards.slice(0, n).map((c) => c.id) });
@@ -164,7 +168,7 @@ function begin(c, p, g, input, step) {
   if (step.target === "self") T.step.targetId = c.slot;
   T.step.fixId = ++T.fixId;
   c.directive({ type: "applyState", fixId: T.step.fixId, ops: [
-    ...(helper ? [{ op: "move", card: helper.id, zone: "battlefield" }] : []),
+    ...(helper ? [{ op: "move", card: helper.id, zone: step.needsZone || "battlefield" }] : []),
     ...(step.token ? [{ op: "createToken", script: "r_1_1_goblin", player: c.slot }] : []),
     { op: "mana", player: c.slot, mana: step.mana }] });
 }
@@ -217,14 +221,22 @@ function judge() {
   check(on("sacrifice", (e) => e.cardId === D.sacrifice.tokenId && e.from === "Battlefield" && e.how === "sacrificed").length === 1, "Village Rites: the token is sacrificed");
   check(on("sacrifice", (e) => lib(e) && e.to === "Hand" && e.how === "draw").length === 2, "Village Rites: two draws");
   check(on("destroy", (e) => e.cardId === D.destroy.helper && e.from === "Battlefield" && e.to === "Graveyard" && e.how === "destroyed").length === 1, "Disenchant destroys the artifact");
-  check(on("mill", (e) => lib(e) && e.to === "Graveyard" && !e.how && e.cardId && e.ownerId === D.mill.seat).length === 2, "Thought Scour mills two, named");
+  check(on("mill", (e) => lib(e) && e.to === "Graveyard" && e.how === "mill" && e.cardId && e.ownerId === D.mill.seat).length === 2, "Thought Scour mills two, named");
+  check(on("mill", (e) => lib(e) && e.to === "Graveyard" && e.cause === "Mill" && e.causeName === "Thought Scour").length === 2, "and Thought Scour's mill is the cause");
   check(on("mill", (e) => lib(e) && e.to === "Hand" && e.how === "draw").length === 1, "Thought Scour draws one");
   check(on("surveil", (e) => lib(e) && e.to === "Graveyard" && e.how === "surveil" && e.cardId).length === 1, "Consider's surveil isn't a mill");
-  check(on("surveil", (e) => lib(e) && e.to === "Graveyard" && !e.how).length === 0, "and nothing else was milled");
+  check(on("surveil", (e) => lib(e) && e.to === "Graveyard" && e.how === "surveil" && e.cause === "Surveil" && e.causeName === "Consider").length === 1, "and Consider's surveil is the cause");
+  check(on("surveil", (e) => lib(e) && e.to === "Graveyard" && e.how !== "surveil").length === 0, "and nothing else was milled");
+  check(on("explore", (e) => lib(e) && (e.to === "Graveyard" || e.to === "Hand") && e.cause === "Explore" && e.causeName === "Jadelight Ranger").length === 2, "Jadelight Ranger explores twice, each reveal moved by the explore");
+  check(on("explore", (e) => lib(e) && e.how === "mill").length === 0, "and explore mills nothing");
+  check(on("dredge", (e) => lib(e) && e.to === "Graveyard" && e.how === "mill" && e.cause === "Darkblast - Dredge 3").length === 3, "Darkblast's dredge mills three, dredge the cause");
+  // (any Darkblast: a surveil or mill may have put another copy there first, and the dredge may pick that one)
+  check(on("dredge", (e) => e.cardId && e.from === "Graveyard" && e.to === "Hand" && e.cause === "Darkblast - Dredge 3").length === 1, "and Darkblast returns to the hand by its dredge");
+  check(on("dredge", (e) => lib(e) && e.to === "Hand" && e.how === "draw").length === 0, "and Think Twice's draw was replaced");
   check(on("tutor", (e) => lib(e) && e.to === "Hand" && !e.how).length === 1, "Demonic Tutor: a card to the hand that wasn't drawn");
   check(on("discard", (e) => e.from === "Hand" && e.to === "Graveyard" && e.how === "discard" && e.cardId).length === 2, "Faithless Looting discards two, named");
   check(on("discard", (e) => lib(e) && e.to === "Hand" && e.how === "draw").length === 2, "Faithless Looting draws two");
-  check(on("bounce", (e) => e.cardId === D.bounce.helper && e.from === "Battlefield" && e.to === "Hand").length === 1, "Unsummon returns the creature");
+  if (!check(on("bounce", (e) => e.cardId === D.bounce.helper && e.from === "Battlefield" && e.to === "Hand").length === 1, "Unsummon returns the creature")) process.stdout.write(`bounce: helper ${D.bounce.helper}, feed ${JSON.stringify(feedOf(D.bounce))}\n`);
   check(on("tokenDies", (e) => e.cardId === D.tokenDies.tokenId && e.from === "Battlefield" && e.to === "Graveyard" && e.how === "destroyed").length === 1, "Doom Blade destroys the token, which goes to the graveyard first (CR 111.8)");
   check(on("tokenExiled", (e) => e.cardId === D.tokenExiled.tokenId && e.from === "Battlefield" && e.to === "Exile").length === 1, "Swords exiles the token");
   check(T.boards.flatMap((b) => b.events || []).some((e) => lib(e) && e.to === "Hand" && e.how === "draw"), "the turn's draws are on the feed");
@@ -267,7 +279,11 @@ function judge() {
     return said;
   };
   const atSurveil = atBoard("surveil", (e) => e.how === "surveil");
-  check(atSurveil.some((l) => /is put into .*'s graveyard/.test(l)) && !atSurveil.some((l) => /\bmills\b/.test(l)), "log: the surveiled card goes to the graveyard, no mill");
+  check(atSurveil.some((l) => new RegExp(`^${who("surveil")} surveils, putting .* into their graveyard`).test(l)) && !atSurveil.some((l) => /\bmills\b/.test(l)), "log: the surveil is said, no mill");
+  const atExplore = atBoard("explore", (e) => e.cause === "Explore");
+  check(atExplore.some((l) => /Jadelight Ranger explores/.test(l)) && !atExplore.some((l) => /\bmills\b/.test(l)), "log: the explore is said, no mill");
+  check(said("dredge", new RegExp(`^${who("dredge")} dredges Darkblast instead of drawing \\(dredge 3\\), milling `)) === 1, "log: the dredge, in one line");
+  check(said("dredge", /Darkblast is put into .* hand/) === 0, "log: and Darkblast's return isn't said again");
   const atSearch = atBoard("tutor", (e) => e.from === "Library" && e.to === "Hand" && !e.how);
   check(atSearch.some((l) => l.includes("from their library into their hand")) && !atSearch.some((l) => /\bdraws\b/.test(l)), "log: and no draw on the search's board");
   check(said("discard", new RegExp(`^${who("discard")} discards `)) === 1, "log: the discards on one line");

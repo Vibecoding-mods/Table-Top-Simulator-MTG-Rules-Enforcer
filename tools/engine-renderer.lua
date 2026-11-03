@@ -71,6 +71,9 @@ local function description(c)
   if c.pn then s = "[b]" .. c.pn .. "[/b], as " .. tostring(c.n) .. "\n" .. s end
   if c.p ~= nil and c.t ~= nil then s = s .. "\n[b]" .. tostring(c.p) .. "/" .. tostring(c.t) .. "[/b]" end
   if c.ew and c.rl then s = s .. "\n[i]" .. COMES_BACK .. "[/i]" end
+  -- (what it can still do from a graveyard or exile, and its counters there: flashback, madness, warp, plot, suspend's
+  -- time counters, from the bridge's cardNotes)
+  for _, line in ipairs(c.nt or {}) do s = s .. (s == "" and "" or "\n") .. "[i]" .. tostring(line) .. "[/i]" end
   return (s:gsub('"', "'"))
 end
 
@@ -752,7 +755,7 @@ BASE_GLOW = { stack = {0.75, 0.35, 1}, atk = {1, 0.12, 0.08}, blk = {0.15, 0.45,
 -- A player's counters other than life (poison, energy) as one green label under their life counter, while there are
 -- any (Skrelv's toxic gave the AI poison and nothing showed it, playtest 2026-10-27; energy was sent and shown nowhere,
 -- structural review the same day). A button of the counter object, found again by its tooltip.
-ENGINE_COUNTERS_TIP = "Poison (ten and that player loses), energy, the monarch (draws at their end step), the initiative, the city's blessing and an enduring story"
+ENGINE_COUNTERS_TIP = "Poison (ten and that player loses), energy and the other player counters, the monarch (draws at their end step), the initiative, the city's blessing, an enduring story, the Ring's temptations, speed, a turn run by another player, an extra turn, damage prevention, hand size, and what protects or binds the player"
 engineCountersShown = {} -- counter object guid -> the label it shows (redrawn only on a change)
 -- (the label goes with the game: it stayed on the normal table after a reset, stage 3 review 2026-10-27)
 function engineCountersReset()
@@ -775,16 +778,21 @@ function enginePlayerCounters(o, pl)
   -- (and the city's blessing and an enduring story, kept for the rest of the game, hp-21 gap)
   if pl.blessed then parts[#parts + 1] = "CITY'S BLESSING" end
   if pl.story then parts[#parts + 1] = "ENDURING STORY" end
+  -- (and the rest the bridge reads off the player: other counters, the Ring, speed, a controlled or extra turn,
+  -- prevention shields, hand size, keywords on the player; bridge playerMarks)
+  for _, m in ipairs(pl.marks or {}) do parts[#parts + 1] = tostring(m) end
   local label = table.concat(parts, "   ")
   local at
   for i, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then at = i - 1 end end
   -- (unchanged and still there: the tracker's own onload clears its buttons, stage 3 review 2026-10-27)
   if engineCountersShown[o.getGUID()] == label and (at ~= nil) == (label ~= "") then return end
   engineCountersShown[o.getGUID()] = label
-  if label ~= "" and at ~= nil then o.editButton({ index = at, label = label, width = 640 * #parts + 300 })
+  -- (as wide as its letters: a long mark such as "YOU CAN'T LOSE THE GAME" ran past a box sized by the count of marks)
+  local width = math.max(640 * #parts + 300, 175 * #label + 300)
+  if label ~= "" and at ~= nil then o.editButton({ index = at, label = label, width = width })
   elseif label ~= "" then
     o.createButton({ click_function = "engineNoop", function_owner = Global, label = label, position = { 0, 0.05, 1.45 },
-      rotation = { 0, 0, 0 }, width = 640 * #parts + 300, height = 380, font_size = 300, color = { 0.04, 0.2, 0.05, 0.92 }, font_color = { 0.45, 1, 0.45 },
+      rotation = { 0, 0, 0 }, width = width, height = 380, font_size = 300, color = { 0.04, 0.2, 0.05, 0.92 }, font_color = { 0.45, 1, 0.45 },
       tooltip = ENGINE_COUNTERS_TIP })
   elseif at ~= nil then o.removeButton(at) end
 end
@@ -4273,10 +4281,26 @@ function enginePileStrays(cards, base)
     end
   end
 end
+-- A pile deck's hover text: what its cards can still do there and their counters (the bridge's notes; a card inside
+-- a deck shows none of its own), newest first as the pile lies. Set on the deck as it changes, so a suspended card's
+-- time counters count down without the pile being rebuilt.
+function enginePileNotes(cards)
+  local lines = {}
+  for i = #cards, 1, -1 do
+    local c = cards[i]
+    if c.nt ~= nil and #c.nt > 0 then lines[#lines + 1] = "[b]" .. tostring(c.n or "A card") .. "[/b]: " .. table.concat(c.nt, "; ") end
+  end
+  return (table.concat(lines, "\n"):gsub('"', "'"))
+end
+function enginePileDescribe(id, notes)
+  local o = engineObjs[id]
+  if o ~= nil and not o.isDestroyed() and o.type == "Deck" and o.getDescription() ~= notes then o.setDescription(notes) end
+end
 function engineZonePile(color, zone, cards, base, rotY, seen)
   local id = zone .. ":" .. color
   seen[id] = true
   engineMeta[id] = { zone = zone .. "pile", color = color }
+  local notes = enginePileNotes(cards)
   if #cards <= 1 then
     -- a single card is an ordinary engine card
     local o = engineObjs[id]
@@ -4295,6 +4319,7 @@ function engineZonePile(color, zone, cards, base, rotY, seen)
   if pileState[id] == key and (engineSpawning[id] or (o ~= nil and not o.isDestroyed())) then
     for _, c in ipairs(cards) do seen[c.id] = true end
     enginePileStrays(cards, base)
+    enginePileDescribe(id, notes)
     return
   end
   local old = pileIds[id]
@@ -4306,6 +4331,7 @@ function engineZonePile(color, zone, cards, base, rotY, seen)
       pileState[id], pileIds[id] = key, ids
       for _, c in ipairs(cards) do seen[c.id] = true end
       enginePileStrays(cards, base)
+      enginePileDescribe(id, notes)
       return
     end
   end
@@ -4337,7 +4363,7 @@ function engineZonePile(color, zone, cards, base, rotY, seen)
       Transform = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 } }
     deckIds[n] = k * 100
   end
-  local data = { Name = "Deck", Nickname = (zone == "graveyard" and "Graveyard" or "Exile"), GMNotes = "engine:" .. id,
+  local data = { Name = "Deck", Nickname = (zone == "graveyard" and "Graveyard" or "Exile"), Description = notes, GMNotes = "engine:" .. id,
     Locked = true, DeckIDs = deckIds, CustomDeck = decks, ContainedObjects = objs,
     Transform = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 } }
   engineSpawning[id] = true

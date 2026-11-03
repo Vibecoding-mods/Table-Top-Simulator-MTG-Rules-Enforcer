@@ -41,6 +41,35 @@ Last updated: 2026-10-20. The design is in [SPEC.md](SPEC.md); test results and 
 1. **Picture and name check for every card**, about 2 minutes: every name in `bridge/forge-cards.json` gets a picture lookup, and failures are listed.
 2. **Automated games on 60–100 representative cards** covering every prompt type and card layout (double-faced, split, adventure, flip, meld, saga, planeswalker, aura, equipment, tokens, copies, face-down), about a day. **Order: most popular first (EDHREC rank), then newest sets**, so the cards the group is likely to play get tested first.
 
+## Every mechanic through the core moves (decided 2026-11-03, SPEC §4a)
+
+**Rule for all new and changed mechanics:** build them on the core moves (zone move, counter, life). The engine names
+the cause, and the bridge words it as a label. Do not write separate handling per mechanic.
+
+Why: an audit of the bridge and the table on 2026-11-03 found about 125 places that word or handle a mechanic on their
+own. It also found mill worked out twice on the table (`detectPending` and `engineMillDetect`). Bugs it caused:
+- explore's card logged as "mills";
+- dredge never named in the log;
+- surveil never said "surveils".
+
+Done 2026-11-03 (in source, not yet live):
+- 🔶 The harness sends `cause`, `causeName` and `causeCardId` on every zone move, and `how: "mill"` from Forge's own
+  flag. The image is `mtg-forge-node:cause`. It needs a live check, then `tools/deploy.js --image cause`.
+- 🔶 The bridge words moves out of a library through one table, covering mill, dredge, surveil, explore and a plain
+  put. Tested in `tests/test_bridge_events.js`.
+
+Still to move onto the core moves, in this order:
+- ⬜ The table's mill: one detector instead of two. Check surveil, which may be counted as a mill twice.
+- ⬜ Exile wording: one table instead of about 7 places.
+- ⬜ Draw and discard wording onto the same move list.
+- ⬜ One keyword reader (`keywordInfo`) instead of a regex per keyword.
+- ⬜ Prompt wording: one registry instead of per-mechanic branches.
+- ⬜ One follow-up memory per seat instead of several `justDid` flags.
+- ⬜ `askUnder` for prompts asked while another is open.
+- ⬜ `trackMarks` for player marks.
+- ⬜ On the table: one `engineBoardDiff` (there are 5 copies of "previous board"), one `engineFly` (there are 4 slide
+  animations), and one `engineCardEntry`.
+
 ## Copy engine experiment (2026-11-02): closed 2026-11-03, not worth continuing
 
 Result: the Lua copy plays a whole correct game inside real TTS from its own save ("Copy Engine Test", branch commit

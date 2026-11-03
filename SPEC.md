@@ -86,6 +86,39 @@ Every message is a Lua table (TTS ignores anything else). The fields are:
 
 The bridge turns Manabrew's typed prompt `input` into this simple `options` list. TTS only needs a small set of generic UI widgets (§5).
 
+### 4a. Rule for every mechanic: build it from the core moves (decided 2026-11-03)
+
+Every mechanic is made of a few core moves: a card moves from one zone to another (draw, mill, discard, exile,
+return, sacrifice), a counter changes, a player's life changes. The bridge and the table handle each core move once.
+A mechanic does not get its own handling. It gets a label on the core moves it makes.
+
+Example: dredge 3 is "mill 3, then move this card from the graveyard to the hand, instead of a draw". The log line
+comes from the mill wording plus a dredge label ("White dredges Darkblast instead of drawing (dredge 3), milling …").
+The table moves the cards the way it moves any milled card.
+
+How this works:
+- **The engine names the cause.** Forge's zone-change event carries no cause, so the harness reads it at the moment
+  of the move (`EngineEventLog`):
+  - `how` comes from Forge's own flags: `mill`, `draw`, `discard`, `surveil`, `sacrificed`, `destroyed`, `played`.
+  - `cause` is the replacement that made the move (`Darkblast - Dredge 3`), or the API of the resolving ability
+    (`Explore`, `Mill`, `Surveil`, `Dig`, `ChangeZone`).
+  - `causeName` and `causeCardId` name the card behind it.
+- **The bridge keeps one list of moves.** It builds it from that feed (`engineFacts`), or from the two boards when an
+  engine sends no feed. Each move gets a kind (`libraryKind` for moves out of a library). One wording table
+  (`LIBRARY_WORDS`) says each kind once, with the cause as its label.
+- **The table moves cards the same way, whatever the mechanic.** Animations, piles and hover text key on the zone
+  move, never on a mechanic's name.
+
+What a new mechanic needs:
+1. Check that the harness already sends its moves with the right `how` and `cause`. If the cause is missing, fix that
+   in the harness, not in the bridge.
+2. If it needs to be named, add a label (or one row in the wording table).
+3. Add a test in `tests/test_bridge_events.js` that feeds the events and checks the line.
+
+Never add a second code path that recognises a mechanic by guessing from the board, its card text or its prompt
+title when the engine can say it. Board guesses stay only as the fallback for an engine with no feed. When they are
+used, `tmp/guess-log.log` records it.
+
 ## 5. TTS mod
 
 > **Decided 2026-10-17:** the face is the group's existing table, "MTG 4 player table - scripted" (workshop 2296042369), running in a new "engine mode". The M3 text board below remains the fallback and debug view.
