@@ -101,6 +101,7 @@ node bridge/bridge.js
 | `mtg start` / `mtg start ai 2` | start the game, optionally with Forge AI players (host) |
 | `mtg undo` / `mtg undo N` | rewind to an earlier point; the other players vote |
 | `mtg vote yes` / `mtg vote no` | answer a rewind vote |
+| `mtg skip <phase>` / `mtg skip off` | pass priority until that phase: upkeep, draw, main, combat, blockers, damage, main2, end, mine (also the **Auto-resolve** list) |
 | `mtg hold` / `mtg hold off` | keep priority once this turn after something goes on the stack, to respond to your own spell (also the **Hold** button) |
 | `mtg timer [seconds]` / `mtg timer off` | turn timers for everyone (host); default 60 seconds a decision plus a time bank |
 | `mtg concede` | leave the game (asks once more) |

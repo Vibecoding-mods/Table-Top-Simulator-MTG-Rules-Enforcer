@@ -41,6 +41,23 @@ Last updated: 2026-10-20. The design is in [SPEC.md](SPEC.md); test results and 
 1. **Picture and name check for every card**, about 2 minutes: every name in `bridge/forge-cards.json` gets a picture lookup, and failures are listed.
 2. **Automated games on 60–100 representative cards** covering every prompt type and card layout (double-faced, split, adventure, flip, meld, saga, planeswalker, aura, equipment, tokens, copies, face-down), about a day. **Order: most popular first (EDHREC rank), then newest sets**, so the cards the group is likely to play get tested first.
 
+## Copy engine experiment (2026-11-02): closed 2026-11-03, not worth continuing
+
+Result: the Lua copy plays a whole correct game inside real TTS from its own save ("Copy Engine Test", branch commit
+ddcc69a), but 4.4 times slower than outside TTS: 906 s for one AI game, single freezes up to 43 s, and a freeze can get
+TTS closed through Windows' Not Responding prompt. The profile says no runtime fix buys more than about 4 times, and
+it was never wired to the table. The current build stays the game. Kept on the branch, not merged.
+
+What it was for:
+
+The user asked for a copy of Forge in Lua inside TTS (spec: `docs/spec-own-engine.md`; build: `copy-engine` branch,
+worktree `../mtg-tts-copy-engine`) **so that big fixes would be easier and better**: one place for the rules and the
+table, instead of a fix spread across Forge/harness Java, the bridge and the table, with an image rebuild in between.
+**That has not been proved yet.** So far the copy only shows that Forge translates and plays a game (slowly). The open
+test: fix the same bugs in both builds and compare where each fix lives, how many files and languages it touches, and
+how long it takes to rebuild and redeploy. A people-only speed test is also open (`docs/compare-current-vs-copy.md` on
+the branch, "To test").
+
 ## Where we are (updated 2026-10-31)
 
 All 19 gap decks and 127 keywords are played. Turn timers (`mtg timer`) and hold priority (`mtg hold`, Hold button) work through the table. The engine builds from public source plus `engine/`. What's left needs other people (4 humans, hand privacy, M7's 2-person test, M5's sync test) or is optional (effects, sounds, game modes, 5+ seats).
@@ -242,7 +259,7 @@ Players drag and use the table normally; every move is a request the engine acce
       - "should be tapped" and "missing (hand)" at single steps are the checker catching a rotation or a draw mid-update.
     - *Recheck (2026-10-20, headless, small decks with tutors against Errant + 99 Islands):* 42 of the 47 flagged keywords now played, 0 table problems on them, 0 engine/TTS errors. The last 5 (Aftermath, Fuse, Enrage, Fight, Spree) pass in `bash tools/rules-check.sh keywords`, which casts each on purpose (0 engine errors). Every flagged keyword is now played.
   - **Online notice:** `mtg start` with other people seated tells everyone that the host needs at least 5 Mbps upload (10+ recommended), a wired connection and no VPN. This is a guideline, not measured yet: run `tools/net-upload-meter.ps1` on the host during an online game to measure it.
-  - **Not possible yet: friendly (free) mulligans.** Forge has no free-mulligan setting, and answering its "put N on the bottom" with fewer cards would abort the game. It needs a Forge change.
+  - **Friendly (free) mulligans:** Forge has no free-mulligan setting, and answering its "put N on the bottom" with fewer cards would abort the game. It can be done in our harness without touching `forge/`: spec in SPEC.md, "Friendly mulligans by vote" (2026-10-31).
 - [x] **P2 (2026-10-18):** gestures answer the open prompt exactly like the panel buttons do.
   - **Pay by tapping:** Q/E on a glowing (gold) land or mana source taps it for the cost. Turning a tapped one back gives its mana back. The payment finishes by itself once the last tap covers the cost.
   - **Attack by tapping:** Q/E on a glowing (red) creature toggles it as an attacker, and it glows green when picked. Confirm in the panel. With several opponents it attacks the first one in A-Z order; pick others in the panel.
@@ -324,6 +341,11 @@ Players drag and use the table normally; every move is a request the engine acce
 - [x] `SEATS=6 docker compose up -d forge-room`, then `node bridge/engine-test.js --seats 6 --turns 12` (2026-10-20): 1 test seat + 5 Forge AI to turn 12 in 24 s; 113 answers, 0 resyncs, 0 fingerprint mismatches; response → next engine message p50 182 ms / p95 356 ms (mostly the 5 AIs thinking between our prompts; relay hop p50 9 ms). Room set back to 4 seats afterwards
 - [x] The lobby's 4-seat limit doesn't block it: the room the node creates with `SELF_HOSTED_NODE_MAX_PLAYERS=6` seated all 6
 - [ ] A full game in TTS with 5+ seats: **blocked by the table**, which has 4 playmats and 4 seat colours (`TABLE_COLORS`, the bridge refuses more). Needs a 6–8 seat table (TTS has 10 colours) and its geometry in `seatGeometry`
+- [x] A 6-player table found: Workshop 2293586471, on the host's PC (2026-10-31); compared with the 4-player table, plan in SPEC §7
+- [ ] Cut the screen UI first: six seats would be about 77.5 KB against the 60 KB limit
+- [ ] `make-engine-copy.js` and the renderer: per-table profiles (seats, GUIDs, layout) instead of the 4-player values
+- [ ] 6-player engine table: our scripts patched in (not the 4-player script pasted over), background objects removed, table buttons added
+- [ ] A full 6-seat game on it
 
 ### M8: game modes (spec 2026-10-21: docs/game-modes-spec.md)
 - [x] **Ready / Start buttons (2026-10-21, revised with the user):** a small READY? just below each seated player's Draw button (yellow → green when the deck checks out, red "FIX DECK" with the reason in chat; only that seat's player can press it; = "mtg ready"; press again to un-ready). A ready player's own table buttons (untap, reveal, draw, mill, scry, mulligan) go under the table until they un-ready or the game is reset. "Start" appears between the four life counters only when every seated player is ready; anyone can press it (= "mtg start"; alone: against 1 Forge AI); hidden during the game, NEW GAME afterwards (host, = "mtg reset"). Engine mode only. Checked live on the table
@@ -354,6 +376,7 @@ Players drag and use the table normally; every move is a request the engine acce
 | Dedicated server | §10b | TLS relay, strong server key, measure the internet round-trip cost (~62 ms measured by Manabrew) |
 | Bridge forwards editor messages to VSCode | §8 | Lets the host use the VSCode TTS plugin while the bridge runs |
 | Decklist import | §11 | Paste an Arena/Moxfield list instead of using only Manabrew's preset decks |
+| Friendly mulligans by vote | "Friendly mulligans by vote" | None, 1 or 2 free mulligans, voted at the READY buttons. Needs both engine images rebuilt |
 
 ---
 

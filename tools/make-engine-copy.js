@@ -237,7 +237,7 @@ function engineStartGame(pl, rest, cleared)
   if engineStartSentAt ~= nil and os.clock() - engineStartSentAt < 5 then return false end
   engineStartSentAt = os.clock()
   engineSendDecks(read, pl.color)
-  engineSend("start", { seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true })
+  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true })
 end
 
 -- All "mtg ..." chat commands. Returns false (hide the line) when handled, nil otherwise.
@@ -543,6 +543,7 @@ function engineOnMessage(m)
   elseif m.t == "table" then engineRender(m)
   elseif m.t == "prompt" then engineOnPrompt(m)
   elseif m.t == "clear" then engineClear()
+  elseif m.t == "autostate" then engineOnAutoState(m)
   elseif m.t == "refused" then engineRefused(m)
   elseif m.t == "log" then broadcastToAll(m.text, {0.7, 0.7, 0.7})
   elseif m.t == "gamelog" then engineOnLog(m)

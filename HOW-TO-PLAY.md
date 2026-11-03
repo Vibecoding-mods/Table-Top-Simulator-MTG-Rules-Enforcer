@@ -84,7 +84,7 @@ To shut down: **Stop MTG.bat** in the same folder.
 - **Your cards stay on your mat:** move your permanents around your own mat as you like. A card you flick or throw off
   your mat slides back.
 
-## The buttons at the bottom left (yours only)
+## The buttons at the top left (yours only)
 
 A row above Auto-resolve / Fix... / Undo...:
 
@@ -93,12 +93,24 @@ A row above Auto-resolve / Fix... / Undo...:
 - **Log** — the game log.
 - **Auto** — how fast held draws and untaps happen by themselves.
 - **Settings** — your effects and sounds; the host also switches the table's animations.
+
+Under it, **Auto-resolve...** opens a list. Pick one:
+
+- **Off** — you are asked as usual.
+- **Other players' turns** — you pass by yourself on their turns; your own turn asks as usual.
+- **Until upkeep / draw / main phase / combat / blockers / damage / main 2 / end step** — you pass until that phase next
+  comes, on anyone's turn, then the button goes back to off. Your own priority is passed too, so play your lands first.
+- **Until my turn** — the same, up to your next turn.
+
+An opponent's spell or ability on the stack ends an "Until" so you can answer, and questions other than priority
+(targets, blocks, discards) are still asked. Picking an "Until" turns Other players' turns off.
 - **Stop: start of turn / combat / end of turn, and Hold** (in the panel) — where the game waits for you on other
   players' turns.
 
 ## When something goes wrong
 
-- **Undo...** (bottom right): rewind to an earlier point; the other players vote.
+- **Undo...** (bottom right): rewind to an earlier point; the other players vote. Once everyone agrees it happens at once; if someone still has a question open, a **Rewind to ...** button appears for everyone, and pressing it goes back without answering the question.
+- A **phased-out** permanent stays where it was, dimmed, with PHASED OUT in its status box. It counts as not there until it phases in at its controller's next untap step, with its counters and attachments.
 - **Fix...** (bottom right): pause the game and put the board right by hand (the engine got a rule wrong, or the
   mistake is too old to rewind). The others vote first, then:
   - move cards where they belong (battlefield, graveyard, exile, library, hand, command zone), turn them to tap or
@@ -122,6 +134,7 @@ A row above Auto-resolve / Fix... / Undo...:
 | `mtg reset` | host: end the game and give the imported decks back (anyone seated once the game is over) |
 | `mtg undo [N]` / `mtg vote yes/no` | rewind, and the vote on it |
 | `mtg hold` / `mtg hold off` | keep priority once after something goes on the stack, to respond to your own spell (or press Hold) |
+| `mtg skip <phase>` / `mtg skip off` | the Auto-resolve list's "Until" choices, typed: upkeep, draw, main, combat, blockers, damage, main2, end, mine |
 | `mtg timer [seconds]` / `mtg timer off` | turn timers for everyone (host) |
 | `mtg fix` (`yes` / `no` / `done` / `cancel`) | the manual fix, as the Fix... button |
 | `mtg concede` | leave the game (twice within 15 s) |

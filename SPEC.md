@@ -210,6 +210,28 @@ The bridge logs one CSV row per action to `latency.csv`. To keep clocks honest, 
 
 **v1 targets 4 players.** 5–8 players is a stretch goal. The node's env var probably creates a room with up to 8 seats, but this is untested. The bridge sets the seat count itself and never calls `SetMaxPlayers`, so the 4-seat lobby cap shouldn't apply. Test 5 and 6 players after the 4-player tests pass.
 
+### The 6-player table (added 2026-10-31, not started)
+
+Goal: bring **"MTG 6 player table - scripted"** to the same state as the 4-player engine table: our scripts on it, the background objects removed, the table buttons added. Workshop 2293586471, by the same author, is on the host's PC at `Mods/Workshop/2293586471.json` (v14.2.1, 282 objects, 592 with contents). The engine side already works with 6 seats (`SEATS=6`, M6).
+
+**Compared with the 4-player table (read-only, 2026-10-31):**
+- The UI XML is identical. Global is about 97% the same: 2,800 lines against 2,804, 83 lines only in the 6-player table, 65 only in the 4-player.
+- Those lines are what make it a different table: seat lists (White, Red, Yellow, Green, Blue, Purple), every seat's zone GUIDs, and the layout numbers (`revealUp`, `exileRot`, `gravFor`).
+- 81 of its 97 distinct object scripts are identical to the 4-player table's. The rest include older versions: Card Importer 6.4 (6.6 on the 4-player table), the Encoder and the Hand Counters.
+- It carries the same hard-coded Steam IDs, so `tools/make-engine-copy.js`'s security patches are needed here too.
+
+**So don't copy the 4-player script over it.** Pasting it would point at GUIDs that don't exist on this table and lose Green and Purple. Run the same patches against this table's own scripts instead:
+
+1. `tools/make-engine-copy.js`: take a table profile (source file, seats, GUID maps, layout) instead of assuming the 4-player one. Its find-and-replace patterns must be re-checked against this table's older scripts, and it must report any that don't match.
+2. `tools/engine-renderer.lua`: move its hard-coded tables into per-table data. `CMD_DAMAGE` and `TAX_LABELS` name GUIDs for four colours, and `TABLE_COLORS` in the bridge lists four. Commander damage needs five attackers per seat. The main chunk is at about 194 of 200 locals, so this data can't add locals.
+3. Remove the background objects by this table's own list: its GUIDs differ.
+4. Add the table buttons (Ready, Start, Scoop and the rest) at positions for six mats.
+5. Turn order: extend the clockwise seat order to six colours.
+
+**Blocker: the UI size limit.** The screen UI grows about 10.5 KB per seat: 25 KB for one seat, 56.5 KB for four, so **about 77.5 KB for six**. The limit is 60 KB, because past about 64 KB the second player's buttons stopped working. Six seats need about 18 KB cut, or a different layout: one shared panel across seats, or building each panel only for the player using it. Do this first, and confirm with two real players that buttons still work at the new size.
+
+**Testing:** a separate golden recording for this table, and a 6-player game (host plus AI seats) on the real table before calling it done.
+
 ## 8. The External Editor port conflict
 
 TTS sends all of its editor traffic to one port, 39998: script contents, `print()` output, errors, "game saved". Whichever program is listening there gets it. The VSCode and Atom TTS plugins listen on that port so you can edit scripts live. Two programs can't hold the same port, so:
@@ -375,3 +397,74 @@ Planned as milestone **M4.5** (Tier A) and **M7** (Tier B).
 - **Turn timer:** an optional per-turn timer. When it runs out the turn is **not** skipped automatically: the other players get a vote ("Skip their turn?"). With a majority, the bridge answers the stalled player's open prompt with its default (pass, no attack, no block) until their turn ends.
 - **AFK vote:** any player can start a vote to mark someone away. With a majority, that player's turns pass automatically (or a Forge AI covers the seat, chosen by the vote) until they press "I'm back" in their panel.
 - Both use the same vote panel as the planned rewind and manual-fix votes (SPEC §10c).
+
+## Friendly mulligans by vote (added 2026-10-31, not scheduled)
+
+Built on 2026-10-31 and taken out on 2026-11-01 at the user's request, while they chased a choppy PC. The built code is kept in `tmp/backup/update-2026-10-31/`, not in the source.
+
+The table votes on how many free mulligans each player gets: none, 1 or 2. A free mulligan is a new 7 with nothing put on the bottom. When a player has used theirs, the game says so and that player's mulligans cost a card again.
+
+### How it plays
+
+- **Vote:** a small button under each player's READY, on their own mat: **Friendly: none**, click for **1**, click for **2**, click for none. `mtg friendly 0|1|2` does the same. The vote can change until Start. AI seats don't vote.
+- **Result:** at Start, the count with the most votes wins, and a tie goes to the lower count. No vote counts as none, so with two players the lower of the two votes wins.
+- **Announced at the start:** `[MTG] Friendly mulligans this game: 1 each (White voted 1, Blue voted 2).` Nothing is said when the result is none.
+- **Each free mulligan:** `[MTG] White took a friendly mulligan (1 of 2).`
+- **Going back to normal:** `[MTG] That was White's last friendly mulligan: their next one costs a card.` When the first turn starts, after a game with friendly mulligans: `[MTG] Friendly mulligans are over: normal rules from here.`
+- **On the question:** the button reads **Mulligan (free)** while the next one is free, and the panel says how many are left. When keeping costs cards it says how many go on the bottom.
+- **Counted per player**, not per table: White taking two doesn't use up Blue's.
+- **With 3 or more players**, the rules already make the first mulligan free, and Forge does this by itself. The vote adds to it: "none" is the normal rules, "1" means two free in a 4-player game. Friendly mulligans are spent after the rules' free one.
+- **AI players** take normal mulligans. Forge's AI doesn't go through our controller.
+
+### How the engine stays involved
+
+- Forge's `London` mulligan is the default rule, and `MulliganService` asks the controller `mulliganKeepHand(firstPlayer, cardsToReturn)` once per decision. Our harness controller (`ManaBrewInteractiveController`), not Forge, puts the cards back when the player keeps, and its `tuckCardsViaMulligan` returns nothing.
+- So this needs **no change to `forge/`**, which stays read-only. The old PLAN note saying it needs a Forge change is out of date. The bridge can't do it alone, because `mulliganPutBack` must be answered with exactly N cards.
+- **The number travels with the Keep answer**, as a new optional field. Sending it through `StartGame` was the other option: that touches the relay protocol, `connection.rs`, `lobby.rs`, the node and all four `StartGame` senders, to carry one number only the bridge uses. The answer route is five small edits. Both routes need both images rebuilt.
+
+### Engine changes (`manabrew/`, no comments, both images rebuilt)
+
+| File | Change |
+|---|---|
+| `manabrew-rs/crates/manabrew-protocol/src/prompts/mulligan.rs` | `MulliganDecision { keep: bool, #[serde(default)] free_cards: u32 }` (`freeCards` in JSON, the enum is camelCase). Regenerate the ts-rs type |
+| `manabot/src/agent/simple_ai.rs:1225`, `manabrew-agent-interface/src/agent_impl/choices.rs:171`, `self-hosted-node/src/engine_backend/java_backend.rs:2096,2128,2132` | Patterns get `..`, constructors get `free_cards: 0`. If the node rebuilds the answer at `:2096`, it must carry the field on |
+| `forge-harness/.../host/ManabrewProtocolAdapter.java` (`case "mulligan"`) | Copy `freeCards` into the flat action as `free_cards` |
+| `forge-harness/.../host/ManaBrewInteractiveSession.java` (`awaitMulliganDecision`) | Remember the action's `free_cards` in a field, read back with `takeMulliganFree()`, which resets it to 0 |
+| `forge-harness/.../host/ManaBrewInteractiveController.java` (`mulliganKeepHand`) | See below |
+
+```java
+final boolean keep = session.awaitMulliganDecision(me(), cardsToReturn);
+final int owed = Math.max(0, cardsToReturn - session.takeMulliganFree());
+if (keep && owed > 0) {
+    final CardCollection hand = new CardCollection(player.getCardsIn(ZoneType.Hand));
+    final CardCollection selected = session.awaitMulliganPutBack(me(), hand, owed);
+    ...
+```
+
+The relay takes the field on trust from the client. That's fine for a private table, where the bridge is the only client. `Math.max` keeps a wrong number harmless.
+
+### Bridge changes (`bridge/bridge.js`)
+
+- `case "start"`: read `m.friendlyVotes`, work out the result with a new `friendlyCount(votes, humans)` (most votes, tie goes lower, a missing vote is 0, anything but 0/1/2 is 0), and pass it to `startGame`. Goes in the `go` closure, so a Start that only resumes a running game changes nothing.
+- `startGame`: `game.friendly = n`. The crash-recovery snapshot lists its fields by hand, so add `friendly` to its `game` part or a bridge restart would lose it.
+- `Seat`: new `mullsTaken`, counted when a Mulligan is answered, and added to the snapshot's seat list the same way. `input.mulliganCount` can't be used for this: it's the cards owed, so it stays 0 after the free one in a 4-player game.
+- `mulliganCost(seat)`: `rulesFree = game.total > 2 ? 1 : 0`, owed = `max(0, taken - rulesFree - game.friendly)`.
+- `case "mulligan"` in `onPrompt`: the label and text above. Keep the option ids `keep` and `mull`, because the Mulligan tiles look for `mull`.
+- `toOutput`: add `freeCards: game.friendly` when it's above 0. The timer's automatic answer goes through the same `toOutput`, so it's covered.
+- Chat and game-log lines above: the start line in `startGame`'s announcement, the per-mulligan lines where `mullsTaken` goes up, the "over" line on the first turn.
+
+### Table changes (`tools/engine-renderer.lua`, `tools/make-engine-copy.js`)
+
+- `engineFriendlyVote = {}` (colour -> 0, 1 or 2), a global: the main chunk has no locals to spare.
+- In the setup draw, beside the READY button: `setupButton(mat, "onMtgSetupFriendly", "Friendly: " .. label, SETUP.color.wait, spot, c)`, moved further along the same line from the Draw button. A mat button adds nothing to the 60 KB screen UI.
+- `onMtgSetupFriendly(obj, playerColor)`: finds the mat's colour as `onMtgSetupReady` does, refuses another player's click with the same message, moves to the next count and redraws.
+- `make-engine-copy.js`: `mtg friendly 0|1|2` in the chat commands and `mtg help`; `friendlyVotes = engineFriendlyVote` in the `start` message.
+- The vote carries over to the next game, so a rematch needs no clicks. A table reload clears it.
+
+### Tests and rollout
+
+- **Bridge goldens:** the result for each vote mix (ties, missing votes, a bad value); 2 players with 1 free; 4 players with 1 free; the last-free line; a timer's automatic Keep; a bridge restart between mulligans.
+- **Table claims:** the button cycles, another player's click is refused, Start sends the votes, a resumed game starts no vote.
+- **Engine, headless, on a second container** (room `tts-test`, the running table isn't touched): with 2 free, two mulligans keep 7; with 1 free, two mulligans put 1 on the bottom; a game with 3 players; `freeCards` absent behaves as today.
+- **Break it on purpose** (`jr-programmer-suite` §2b), then one real game with two people.
+- **Rollout:** tag the current images for rollback, convert `.sh` to LF, build `mtg-relay:friendly` and `mtg-forge-node:friendly` (about 20 minutes for the node, most of it the native step), update `stack/compose.yml`. Only between games: never swap images mid-game, and the table push needs the decks off the table. Then HOW-TO-PLAY.md, README.md and the PLAN note.

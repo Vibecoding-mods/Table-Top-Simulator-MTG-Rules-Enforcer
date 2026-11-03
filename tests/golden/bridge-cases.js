@@ -250,6 +250,15 @@ add(promptCase("attack: all attack", D2.board, attackP, [["__allattack"]]));
 add(promptCase("attack: no attacks keeps the must-attack one", D2.board, attackP, [["__noattack"]]));
 add(promptCase("attack: one at the planeswalker", D2.board, attackP, [["engine-card-75|engine-card-200"]]));
 add(promptCase("attack: none possible", D2.board, prompt("chooseAttackers", { attackers: [] }), [[]]));
+// 2026-11-01: a refused attack says why (Kardur, Doomscourge: "Attack declaration invalid", 15 times, nothing else)
+add(promptCase("attack: refused with nothing that must attack", D2.board, prompt("revealCards", { presentation: { title: "Attack declaration invalid" }, cards: [] }), []));
+add({ name: "attack: refused, names who must attack", run: async (h) => {
+  const seat = game(h, D2.board);
+  h.B.sendTable(); await h.flush();
+  h.B.onPrompt(seat, attackP); await h.flush();
+  h.B.onPrompt(seat, prompt("revealCards", { presentation: { title: "Attack declaration invalid" }, cards: [] })); await h.flush();
+  return { mustAttack: seat.mustAttack };
+} });
 // 2026-10-27: End turn pressed this turn skips the attack (the must-attack creature still attacks); another turn's doesn't
 add(promptCase("attack: End turn this turn skips it", D2.board, attackP, [], { seat: { endTurnAt: D2.board.gameView.turn } }));
 add(promptCase("attack: End turn from an earlier turn doesn't", D2.board, attackP, [], { seat: { endTurnAt: D2.board.gameView.turn - 1 } }));
@@ -1358,6 +1367,22 @@ add({ name: "M4.5 rewind: restore points and the vote ride on the board update; 
 } });
 // everyone voted yes, but a player is answering something other than a priority question: the vote names them (the
 // table said "Waiting for ..." with no name for as long as that took, playtest 2026-10-24)
+// the button once everyone has agreed: its yes reaches Forge only with nobody left to ask and the vote still open
+add({ name: "M4.5 rewind go: the button sends a yes on an agreed vote, and only then", run: async (h) => {
+  const seat = game(h, withRewind(null));
+  const sent = [];
+  seat.directive = (d) => sent.push(d);
+  const press = () => h.B.onTTS({ t: "rewindGo", color: seat.color });
+  press();
+  seat.board.state = withRewind(voteOf({ type: "pending" }, ["player-1"]));
+  press();
+  seat.board.state = withRewind(voteOf({ type: "declined" }, []));
+  press();
+  seat.board.state = withRewind(voteOf({ type: "pending" }, []));
+  press();
+  await h.flush();
+  return { sent };
+} });
 add({ name: "M4.5 rewind agreed: the vote says who it waits for and what they must answer", run: async (h) => {
   const seat = game(h, withRewind(null));
   h.B.sendTable(); await h.flush();
@@ -1483,6 +1508,20 @@ add({ name: "M5 lines: stack targets (player, card, spell), the attacked player,
   add({ name: "seat order: White and Yellow + 2 AI go White, Red, Yellow, Blue", run: startWith(["White", "Yellow"], 2, ["Yellow", "White"]) });
   add({ name: "seat order: four players joined out of order go clockwise", run: startWith(["Blue", "White", "Yellow", "Red"], 0, ["Blue", "Yellow", "Red", "White"]) });
   add({ name: "seat order: Blue alone + 1 AI", run: startWith(["Blue"], 1, ["Blue"]) });
+  // 2026-10-31: the relay takes StartGame only from the first human seated; White sent it with Blue seated first
+  const startFrom = (humans, joinOrder, bots = 0) => async (h) => {
+    const seats = humans.map((c) => { const st = new h.B.Seat(c, "neheb_minotaur_commander"); st.joined = true; st.sent = []; st.send = (m) => st.sent.push(m.type); return st; });
+    h.B._setGame({ seats: new Map(seats.map((st) => [st.color, st])), bots, total: humans.length + bots, playerOrder: [], slotNames: {}, slotColor: {},
+      started: false, closing: false, fromTable: true, setupAt: 0, maxSet: true, botsRequested: true, sentStatic: {}, sentZones: {} });
+    const players = [...Array.from({ length: bots }, (_, i) => ({ username: `self-hosted-node-${i}-bot`, ready: true, connected: true, is_bot: true })),
+      ...joinOrder.map((c) => ({ username: seats.find((st) => st.color === c).username, ready: true, connected: true, is_bot: false }))];
+    h.B.onRoomUpdate(seats[0], { status: "Lobby", host: "self-hosted-node", max_players: 4, players });
+    await h.flush();
+    return { startedBy: seats.filter((st) => st.sent.includes("StartGame")).map((st) => st.color) };
+  };
+  add({ name: "start: sent by Blue when Blue is seated first", run: startFrom(["White", "Blue"], ["Blue", "White"]) });
+  add({ name: "start: sent by White when White is seated first", run: startFrom(["White", "Blue"], ["White", "Blue"]) });
+  add({ name: "start: an AI seated first is never the controller", run: startFrom(["White", "Blue"], ["Blue", "White"], 1) });
 }
 // 2026-10-25: in a hand it shows the plain back (TTS shows the other players a hand card's back: a daybound card in
 // Yellow's hand showed its night side to everyone); on the battlefield its other face
@@ -1515,6 +1554,20 @@ add({ name: "table: a copy of a card is marked cp", run: async (h) => {
   const sent = h.effects.filter((e) => e.tts && e.tts.t === "table").map((e) => JSON.stringify(e.tts)).join(" ");
   const of = (id) => (sent.match(new RegExp('"id":"' + id + '"[^}]*}')) || ["not sent"])[0];
   return { copy: of("engine-card-22"), other: of("engine-card-64") };
+} });
+// 2026-10-31: Saw in Half's tokens of a 2/2 are 1/1 with a base of 1/1: bp/bt carry the printed numbers, so the table's
+// badge shows. Without printed numbers (a real token, a printed *) the base is used, as before
+add({ name: "table: bp/bt are the printed numbers", run: async (h) => {
+  const s = clone(D2.board);
+  const bf = s.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0");
+  const set = (id, f) => Object.assign(bf.cards.find((c) => c.id === id), f);
+  set("engine-card-22", { power: "1", toughness: "1", basePower: 1, baseToughness: 1, printedPower: 2, printedToughness: 2, isCopy: true });
+  set("engine-card-64", { power: "1", toughness: "1", basePower: 1, baseToughness: 1 });
+  game(h, s);
+  h.B.sendTable(); await h.flush();
+  const sent = h.effects.filter((e) => e.tts && e.tts.t === "table").map((e) => e.tts);
+  const stat = (id) => { for (const t of sent) { const st = t.cards?.[id]; if (st) return [st.bp, st.bt]; } return "not sent"; };
+  return { printed: stat("engine-card-22"), none: stat("engine-card-64") };
 } });
 // ── Start from the table button: a leftover game is reset first; a restarting room is waited for ──
 add({ name: "start (button): a leftover game is reset, the room restarted, then the game set up", run: async (h) => {
@@ -1917,13 +1970,25 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
       { id: "engine-card-958", identity: { name: "Grizzly Bears" }, types: ["Creature"], keywords: [], ownerId: "player-0", controllerId: "player-0", text: "" });
     await boardAs(h, seat, start);
     const mark = logLines(h).length;
-    const out = clone(start); bfz(out).cards = bfz(out).cards.filter((c) => c.id !== "engine-card-959" && c.id !== "engine-card-958");
+    // (Forge sends a phased-out card flagged, where it was; a card that really left is gone from the list)
+    const out = clone(start); bfz(out).cards = bfz(out).cards.filter((c) => c.id !== "engine-card-958");
+    bfz(out).cards.find((c) => c.id === "engine-card-959").phasedOut = true;
     await boardAs(h, seat, out);
     await boardAs(h, seat, start);
     return { lines: logLines(h).slice(mark) };
   } });
   // (hp-18 gap: Taniwha's upkeep trigger, "all lands you control phase out", resolved: the lands gone from the view phase
   // out, and come back phasing in; the AI's land gone at the same time (no such trigger of its own) leaves)
+  // (a phased-out card goes to the table flagged, face-down ones too; dragging one says why nothing happens)
+  add({ name: "table: phased-out cards keep their place, flagged", run: async (h) => {
+    const start = myMain(D2.board);
+    const bfz = (b) => b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0");
+    bfz(start).cards.push({ id: "engine-card-961", identity: { name: "Grizzly Bears" }, types: ["Creature"], ownerId: "player-0", controllerId: "player-0", text: "", phasedOut: true, counters: { P1P1: 1 } },
+      { id: "engine-card-962", identity: { name: "Grizzly Bears" }, isFaceDown: true, types: ["Creature"], power: 2, toughness: 2, ownerId: "player-0", controllerId: "player-0", text: "", phasedOut: true });
+    const seat = game(h, start);
+    await boardAs(h, seat, start);
+    return { why: h.B.whyNot(seat, "engine-card-961") };
+  } });
   add({ name: "log: lands phased out by a trigger", run: async (h) => {
     const start = myMain(D2.board);
     const bfz = (b, o) => b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === o);
@@ -1942,7 +2007,8 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
     await boardAs(h, seat, s2);
     await boardAs(h, seat, s);
     const out = clone(start);
-    for (const o of ["player-0", "player-1"]) bfz(out, o).cards = bfz(out, o).cards.filter((c) => !["engine-card-971", "engine-card-972", "engine-card-973"].includes(c.id));
+    for (const c of bfz(out, "player-0").cards) if (["engine-card-971", "engine-card-972"].includes(c.id)) c.phasedOut = true;
+    bfz(out, "player-1").cards = bfz(out, "player-1").cards.filter((c) => c.id !== "engine-card-973");
     await boardAs(h, seat, out);
     const back = clone(start); bfz(back, "player-1").cards = bfz(back, "player-1").cards.filter((c) => c.id !== "engine-card-973");
     await boardAs(h, seat, back);
@@ -2126,6 +2192,40 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
       h.B.onTTS({ t: "skipto", json: JSON.stringify({ t: "skipto", color: "Blue", phase: "off" }) }); await h.flush();
       out.push(["off", await ask(seat, at("main2"), 990)]);
     }
+    return out;
+  } });
+  // (the Auto-resolve list, 2026-10-31: the table is told every change, one choice is on at a time, and a skip that ends by
+  // itself says so; auto-resolve can't pass the stop a skip asked for)
+  add({ name: "auto-resolve list: the table is told, one choice at a time", run: async (h) => {
+    const at = (step, active = "player-0", turn = 5) => { const b = myMain(D2.board); b.gameView.step = step; b.gameView.activePlayerId = active; b.gameView.turn = turn; b.gameView.stack = []; return b; };
+    const seat = game(h, at("main1"));
+    seat.board = { state: at("main1"), fingerprint: null };
+    const told = () => h.effects.filter((e) => e.tts && e.tts.t === "autostate").map((e) => [e.tts.color, e.tts.phase, e.tts.on]);
+    const send = async (t, m) => { h.B.onTTS({ t, json: JSON.stringify({ t, color: "Blue", ...m }) }); await h.flush(); };
+    const out = [];
+    await send("autoresolve", { on: true }); out.push(["auto on", told().slice(-1)]);
+    await send("skipto", { phase: "end" }); out.push(["skip takes over", told().slice(-1), seat.skipTo?.phase]);
+    await send("autoresolve", { on: true }); out.push(["auto takes over", told().slice(-1), seat.skipTo]);
+    await send("skipto", { phase: "nonsense" }); out.push(["unknown phase", told().length]);
+    await send("skipto", { phase: "off" }); out.push(["skip off leaves auto on", told().slice(-1)]);
+    await send("autoresolve", { on: false }); out.push(["auto off", told().slice(-1)]);
+    await send("skipto", { phase: "end" });
+    const n = told().length;
+    // the opponent's end step: the skip stops there, and the table hears it once
+    seat.board = { state: at("endOfTurn", "player-1", 6), fingerprint: null };
+    h.B.onPrompt(seat, { ...prompt("chooseAction", { actions: acts.slice(0, 2) }), promptId: 995 }); await h.flush();
+    out.push(["reached", told().slice(n), !!seat.prompt, seat.skipTo]);
+    // the same with auto-resolve on first: picking the skip turned it off, so the stop on their turn holds
+    await send("autoresolve", { on: true }); await send("skipto", { phase: "end" });
+    seat.prompt = null;
+    seat.board = { state: at("end", "player-1", 8), fingerprint: null };
+    h.B.onPrompt(seat, { ...prompt("chooseAction", { actions: acts.slice(0, 2) }), promptId: 996 }); await h.flush();
+    out.push(["stop holds on their turn", !!seat.prompt]);
+    // a reloaded table gets it back
+    await send("skipto", { phase: "combat" });
+    const before = told().length;
+    h.B.onTTS({ t: "hello", json: JSON.stringify({ t: "hello", again: true }) }); await h.flush();
+    out.push(["after a reload", told().slice(before)]);
     return out;
   } });
   // (hp-11 gap: -1/-1 counters a permanent gains are said, as +1/+1 counters are)
@@ -3209,7 +3309,7 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
   // keywords another card gave it are sent in words; its own and Forge's internal ones are not (hp-07 #31)
   add({ name: "table: granted keywords are sent in words", run: async (h) => {
     const b = clone(D2.board);
-    for (const z of b.gameView.zones) for (const c of z.cards || []) if (c.id === "engine-card-75") c.keywords = ["Toxic:1", "Hexproof:Red", "Landwalk:Swamp", "Protection:Card.Black:black", "ETBReplacement:Other:ChooseCT", "Toxic:1"]; // (as Forge sent them live)
+    for (const z of b.gameView.zones) for (const c of z.cards || []) if (c.id === "engine-card-75") c.keywords = ["Toxic:1", "Hexproof:Red", "Landwalk:Swamp", "Protection:Card.Black:black", "ETBReplacement:Other:ChooseCT", "Toxic:1", "Chapter:3:DBSacrifice,DBDiscard,DBChangeZone", "MayFlashSac", "AlternateAdditionalCost:1:Sac"]; // (as Forge sent them live)
     game(h, b);
     h.B.sendTable(); await h.flush();
     const cards = h.effects.filter((e) => e.tts && e.tts.t === "table").flatMap((e) => (e.tts.players || []).flatMap((p) => Object.values(p).filter(Array.isArray).flat()));

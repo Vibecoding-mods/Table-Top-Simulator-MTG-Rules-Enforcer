@@ -261,6 +261,7 @@ local function newGuid()
 end
 local ObjMeta = {}
 ObjMeta.__index = function(o, k)
+  if k == "is_face_down" then local z = (o.__d.rot and o.__d.rot.z or 0) % 360 return z > 90 and z < 270 end
   local m = M[k]
   if m then
     -- TTS methods are called with a dot (obj.getPosition()); a colon call passes the object twice
@@ -318,7 +319,8 @@ function M.getScale(o) return o.__d.scale:copy() end
 function M.setScale(o, s) o.__d.scale = vec(s) fx("setScale", o, o.__d.scale) end
 function M.getLock(o) return o.__d.lock end
 function M.setLock(o, b) if o.__d.lock ~= b then fx("setLock", o, b) end o.__d.lock = b end
-function M.setColorTint(o, c) fx("setColorTint", o, c) end
+function M.setColorTint(o, c) o.__d.tint = c fx("setColorTint", o, c) end
+function M.getColorTint(o) local c = o.__d.tint or { 1, 1, 1 } return { r = c.r or c[1], g = c.g or c[2], b = c.b or c[3] } end
 function M.isDestroyed(o) return o.__d.destroyed == true end
 function M.destruct(o) if not o.__d.destroyed then o.__d.destroyed = true fx("destruct", o) end return true end
 function M.isSmoothMoving(o) return false end

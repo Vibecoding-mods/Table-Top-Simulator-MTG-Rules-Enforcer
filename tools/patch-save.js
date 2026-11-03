@@ -1,0 +1,121 @@
+// Brings the installed save's table script up to the source, without rebuilding the save: a rebuild would bring back
+// everything the save holds out on purpose, and a push wipes the table. It compares the save's script with a fresh build
+// line by line and takes every difference except those tools/deploy-holds.json keeps out, then stamps the script's version.
+// Only the script's text in the file is replaced: a script it can't find there as one exact string stops it. TTS must be
+// closed (a running TTS saves over the file).
+//   node tools/patch-save.js              what would change
+//   node tools/patch-save.js --write      change it (a copy goes to tmp/backup first)
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { execFileSync } = require("child_process");
+const { sha8 } = require("../bridge/versions");
+
+const ROOT = path.join(__dirname, "..");
+const SAVE = process.env.MTG_SAVE || path.join(process.env.USERPROFILE || "", "Documents/My Games/Tabletop Simulator/Saves/TS_Save_1.json");
+const DEV_STAMP = 'function engineStamp() return "dev" end';
+const lf = (s) => s.replace(/\r\n/g, "\n");
+
+// The differences from a to b as hunks: { at: first line of a (from 0), gone: lines, added: lines }
+function hunks(a, b) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "patch-save-"));
+  const fa = path.join(dir, "a"), fb = path.join(dir, "b");
+  fs.writeFileSync(fa, a);
+  fs.writeFileSync(fb, b);
+  let out = "";
+  try { execFileSync("git", ["diff", "--no-index", "--no-color", "-U0", "--inter-hunk-context=0", fa, fb], { encoding: "utf8", maxBuffer: 1 << 26, stdio: ["ignore", "pipe", "ignore"] }); }
+  catch (e) { if (e.status !== 1) throw e; out = e.stdout; } // (git diff exits 1 when they differ)
+  fs.rmSync(dir, { recursive: true });
+  const list = [];
+  let cur = null;
+  for (const line of out.split("\n")) {
+    const m = /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/.exec(line);
+    if (m) {
+      const count = m[2] === undefined ? 1 : Number(m[2]);
+      cur = { at: count === 0 ? Number(m[1]) : Number(m[1]) - 1, gone: [], added: [] };
+      list.push(cur);
+    } else if (cur && line.startsWith("-") ) cur.gone.push(line.slice(1));
+    else if (cur && line.startsWith("+")) cur.added.push(line.slice(1));
+  }
+  return list;
+}
+
+// The hold a hunk falls under, by what it takes out or puts in, or null
+function heldBy(hunk, holds) {
+  const text = [...hunk.gone, ...hunk.added].join("\n");
+  return Object.keys(holds).find((name) => new RegExp(holds[name]).test(text)) || null;
+}
+
+// What a held hunk also drops: its lines the hold doesn't name. A hunk is held whole, so a fix beside held code goes with it.
+const unheld = (hunk, holds) => [...hunk.gone, ...hunk.added].filter((l) => l.trim() && !new RegExp(holds[hunk.by]).test(l));
+
+// Applied last to first, so each hunk's line numbers still hold
+function apply(script, list) {
+  const lines = script.split("\n");
+  for (const h of [...list].sort((x, y) => y.at - x.at)) lines.splice(h.at, h.gone.length, ...h.added);
+  return lines.join("\n");
+}
+
+// The script's version: a hash of it with the stamp left at "dev", so the same script always has the same version
+function stamped(script) {
+  if (script.split(DEV_STAMP).length !== 2) throw new Error("engineStamp isn't in the script once");
+  const stamp = sha8(script);
+  return { stamp, script: script.replace(DEV_STAMP, `function engineStamp() return "${stamp}" end`) };
+}
+
+const ttsRunning = () => /Tabletop Simulator\.exe/i.test(execFileSync("tasklist", ["/FI", "IMAGENAME eq Tabletop Simulator.exe"], { encoding: "utf8" }));
+
+// oldScript -> the new one and what happened to each hunk. Pure: the tests drive this.
+function patch(oldScript, built, holds) {
+  const was = lf(oldScript).replace(/function engineStamp\(\) return "[^"]*" end/, DEV_STAMP);
+  const all = hunks(was, lf(built));
+  const whole = (t) => t.replace(/\n+$/, "");
+  if (whole(apply(was, all)) !== whole(lf(built))) throw new Error("the diff doesn't rebuild the script: nothing changed");
+  const taken = [], held = [];
+  for (const h of all) { const by = heldBy(h, holds); if (by) held.push({ ...h, by }); else taken.push(h); }
+  return { ...stamped(apply(was, taken)), taken, held };
+}
+
+// The save's file with its script replaced, and every other byte as it was. The script keeps its own line endings.
+function rewrite(raw, script) {
+  const old = JSON.parse(raw).LuaScript;
+  const oldJson = JSON.stringify(old);
+  if (raw.split(oldJson).length !== 2) throw new Error("the script isn't in the save's file as JSON.stringify writes it: nothing changed");
+  return raw.split(oldJson).join(JSON.stringify(old.includes("\r\n") ? script.replace(/\n/g, "\r\n") : script));
+}
+
+function main(write) {
+  const raw = fs.readFileSync(SAVE, "utf8");
+  const save = JSON.parse(raw);
+  const { buildSave } = require("../tests/golden/table-run");
+  const holds = JSON.parse(fs.readFileSync(path.join(__dirname, "deploy-holds.json"), "utf8"));
+  const { script, stamp, taken, held } = patch(save.LuaScript, buildSave().LuaScript, holds);
+
+  for (const h of taken) console.log(`take  line ${h.at + 1}: -${h.gone.length} +${h.added.length}  ${(h.added[0] || h.gone[0] || "").trim().slice(0, 90)}`);
+  for (const h of held) {
+    const also = unheld(h, holds);
+    console.log(`hold  line ${h.at + 1}: -${h.gone.length} +${h.added.length}  [${h.by}]${also.length ? `  and ${also.length} lines it doesn't name: ${also[0].trim().slice(0, 70)}` : ""}`);
+  }
+
+  const out = rewrite(raw, script);
+
+  // what comes out has to load and start: a held hunk can leave something the taken ones need. This sees no board:
+  // tools/deploy.js plays real ones on the file a dry run returns.
+  const { simulate } = require("../tests/lua/run-sim");
+  const trial = simulate({ save: { ...JSON.parse(out) }, steps: [{ lua: "return engineStamp()", mark: "stamp" }] });
+  if (trial.errors.length) throw new Error(`the patched script doesn't run: ${trial.errors[0]}`);
+  const said = trial.steps.find((s) => s.step === "stamp")?.value;
+  if (said !== stamp) throw new Error(`the patched script says version ${said}, not ${stamp}`);
+
+  console.log(`${taken.length} taken, ${held.length} held, version ${stamp}, save ${sha8(raw)} -> ${sha8(out)}`);
+  if (!write) { console.log("dry run: nothing written"); return { trial: out }; }
+  if (ttsRunning()) throw new Error("TTS is running: close it first, it would save over this");
+  fs.mkdirSync(path.join(ROOT, "tmp", "backup"), { recursive: true });
+  fs.writeFileSync(path.join(ROOT, "tmp", "backup", `TS_Save_1.${sha8(raw)}.json`), raw);
+  fs.writeFileSync(SAVE, out);
+  console.log(`written; a copy of the old save is at tmp/backup/TS_Save_1.${sha8(raw)}.json`);
+  return { stamp, save: sha8(out) };
+}
+
+if (require.main === module) main(process.argv.includes("--write"));
+module.exports = { patch, hunks, heldBy, unheld, apply, stamped, rewrite, ttsRunning, main, SAVE };

@@ -499,7 +499,7 @@ function scenarios() {
         local p = o.getPosition() return string.format("%.1f %.1f in Blue's hand: %s", p.x, p.z, tostring(inBlue))`);
       one.push({ msg: { t: "table", json: JSON.stringify(lastTable) }, frames: 6, mark: "hand guard: Blue's card into White's hand" },
         into("hand", "White"), into(bf[0].id, "White"), into("hand", "Blue"),
-        click('onMtgAutoResolve(Player.Blue, nil, "eng_autores_Blue") local on = tostring(engineAutoResolve.Blue) onMtgAutoResolve(Player.Red, nil, "eng_autores_Blue") onMtgAutoResolve(Player.Blue, nil, "eng_autores_Blue") return on .. " then " .. tostring(engineAutoResolve.Blue)'),
+        click('onMtgAutoResolve(Player.Blue, nil, "eng_autores_Blue") local on = tostring(engineAutoListOpen.Blue) onMtgAutoResolve(Player.Red, nil, "eng_autores_Blue") onMtgAutoResolve(Player.Blue, nil, "eng_autores_Blue") return on .. " then " .. tostring(engineAutoListOpen.Blue)'),
         ask({ promptId: 1401, kind: "priority", title: "Your priority", mode: "single", min: 1, max: 1,
           options: [{ id: "a-cmd", label: "Cast the commander", cardId: cmdId }, { id: "__pass", label: "Pass priority" }, { id: `untap:${bf[2].id}`, cardId: bf[2].id, label: "Untap it (mana back)" }] }),
         click(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${bf[2].id}" then o = x end end if not o then return "none" end return tostring(onPlayerAction(Player.Blue, Player.Action.RotateIncrementalRight, { o }))`),

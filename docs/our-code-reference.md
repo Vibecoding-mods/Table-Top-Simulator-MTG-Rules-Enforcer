@@ -1145,7 +1145,7 @@ Note: the Global guards on `onObjectEnterZone`/`onObjectLeaveZone` are silent an
 | `tools/tts-autoplay2.js` | `exec` (collects errors), `state` (`/state`), `check` (runs `tts-check.lua`), `drag` (calls `simDrop` to the graveyard or a random battlefield spot). Loads `tts-sim.lua`; installs the `debugTable` hook. Loop: drag lands; drag spells 70% of the time; else Pass/End turn; drag discards; first or last option when stuck. Records stuck prompts. Prints a JSON report | `node tools/tts-autoplay2.js [stopTurn=14] [maxSteps=600]` |
 | `tools/tts-run-game.sh` | reset → cleanup → spawn test deck (cached in `tmp/`) → wait for deck/hand `92/7` → `engineSendDecks` → `mtg start ai N` → autoplay2 → reset → cleanup | `tools/tts-run-game.sh [deck] [stopTurn] [ai]` |
 | `tools/tts-summarize.js` | Prints the header, first problem, problems, errors, stuck prompts and counts of a run report | `node tools/tts-summarize.js report.txt` |
-| `tools/tts-check.lua` | Duplicate objects; missing or misplaced cards per zone (hand membership, playmat zone, 1.6 radius for piles and command); tap state from the rotation; leftover engine objects; life tracker vs. the engine. Returns JSON `{turn, step, active, counts, problems}` | via `tts-exec.sh`; needs the `debugTable` hook |
+| `tools/tts-check.lua` | Calls `engineSelfCheck` in the table script (Keeping the three aligned, below). Duplicate objects; missing or misplaced cards per zone (hand membership, playmat zone, 1.6 radius for piles and command); tap state from the rotation; leftover engine objects; life tracker vs. the engine. Returns JSON `{turn, step, active, counts, problems}` | via `tts-exec.sh`; needs the `debugTable` hook |
 | `tools/tts-cleanup-test.lua` | Destroys `testcard` objects and decks made only of them | via `tts-exec.sh` |
 | `tools/tts-inspect.lua` | `near`, `where` (area of an object). JSON summary: engine cards per area, samples, White life, turn colour, engine mode, White's prompt, whether the imported deck is still in the zone | via `tts-exec.sh` |
 | `tools/tts-sim.lua` | `simFind(pred)`, `simHand(color)`, `simDrop(color, o, pos)` (unlock, move, call `onObjectDrop`), `simWhere(o)` | loaded by autoplay2 |
@@ -1259,6 +1259,8 @@ Needs our engine build: `stack/compose.yml` runs `mtg-forge-node:exile` and `mtg
 | table | corner Cancel | a multi-choice question with `cancel` (a cost being chosen) puts Cancel on the corner's second button (`cornerPress` → `__cancel`) |
 | table | `engineContainTick` (5/s), `engineContainHome(id)` | flick containment: a card you may move (`isFree` or clickable) in the battlefield, command, attached or linked zone, not held, not smooth-moving, not waiting on the engine (`engineHeld`), and 2+ units from where the board put it (`enginePlanned`): your own permanent resting on your own playmat becomes your arrangement (`engineManual`), anything else is stopped and slides back. Off during a manual fix. `engineContain.back` counts the slides; errors are caught per card and printed once |
 | table | `engineTell` | the global alias of the local `tell` for code above it (`onMtgAutoResolve` called the nil local and errored) |
+| table | `engineAutoChoices`, `engineAutoListXml`, `engineAutoListDraw`, `engineOnAutoState`, `onMtgAutoPick` | the Auto-resolve list: one panel `eng_autolist` shared by all seats (`visibility` = who has it open); a pick sends `autoresolve` or `skipto`, the label follows the bridge's `autostate` |
+| bridge | `autoNotice(seat)` | sends `autostate` {color, phase, on} on every change, when a skip ends, and in `resendToTable`; a skip and auto-resolve are never both on |
 | bridge | `chooseCards` | `cancel: input.cancellable`; the answer `__cancel` → `{type: "cancel"}` |
 | engine | `choose_cards.rs`, `prompts/mod.rs` | `ChooseCardsInput.cancellable` (serde default false), `ChooseCardsOutput::Cancel`; `validate_response` refuses a Cancel the prompt didn't offer |
 | engine | `HarnessCostPlumbing` frames | one frame per cost payment: reserved sacrifices, `cancellable` (spells and abilities paid through the 4-argument `payWithControllerDecision`, not mandatory, not an effect), `asking` (a cost's own card or sacrifice choice is open: the `ask` wrapper), `cancelled`; `costCancellable()` = cancellable and asking; a cancelled payment returns false |
@@ -1298,13 +1300,13 @@ Needs our engine build: `stack/compose.yml` runs `mtg-forge-node:exile` and `mtg
 | bridge | game log plays | `notePlay` → `game.pendingPlays` (a land play, which Forge sends as a cast, is not one); `logEvents` says each once: from the stack (spell or ability by the player's record), from a public zone, or after priority came back (`game.saidEarly` keeps the stack from saying it again) |
 | bridge | `lossReasons(gv)`, `noteOuts`, `outLast` | life, poison, 21 commander damage, for the players who lost last only (`game.outOrder`, stamped as each board shows them out) |
 | table | `enginePlaceSpecial` | the public playable row: `gridPos(g, k, PLAYABLE_ROW)` with `PLAYABLE_ROW` 4.25, the near strip of the player's own mat past the land row (squeezed past 10); `onObjectDrop` puts a playable card dropped within 1.8 of its spot back instead of playing it |
-| table | bottom-left row | `eng_toggle`, `eng_browse`, `eng_logbtn`, `eng_pace`, `eng_set` (LowerCenter, y 46: above Auto-resolve / Fix / Undo); the Settings panel opens above its button; the Log panel stays top right |
+| table | top-left row | `eng_toggle`, `eng_browse`, `eng_logbtn`, `eng_pace`, `eng_set` (UpperLeft, y -140: above Auto-resolve / Fix / Undo); the Settings panel opens above its button; the Log panel stays top right |
 
 ### hp-07 re-test additions (2026-10-27)
 | side | name | what |
 |---|---|---|
-| bridge | `grantedKeywords(c)` → `kw` | keywords a card has that its own text doesn't name, in words ("Toxic 1", "Hexproof from red", "Swampwalk", "Protection from black"); Forge's internal ones left out |
-| table | `badgeParts` `kw` | a green badge in the card's lower middle, one line per keyword, growing upward |
+| bridge | `cardKeywords(c)` → `statusLists` → `kw`, `ow` | `kw`: keywords a card has that its own text doesn't name, in words ("Toxic 1", "Hexproof from red", "Swampwalk", "Protection from black"), plus goaded, exerted and the like. `ow`: its own always-on keywords (`ALWAYS_ON`), sent only when the card has a `kw` or is phased out. Forge's internal names left out (`NOT_KEYWORD`) |
+| table | `badgeParts` `kw` | the status box: one box at the bottom edge of the art, every status, `kw` then `ow`, wrapped at 20 characters, growing up the card, PHASED OUT on top. Turned to stay upright on a tapped card. Ability buttons stay separate, above it |
 | bridge | `checkRestored` | a rewind is told by the turn going down, the newest restore point going down, or a newly seen approved vote (`seat.lastApprovedVote`); it clears End turn and the records, logs one "--- Rewound to turn N (step) ---" line and makes the board it went back to the log's new start (`game.logPrev = null`) |
 | bridge | `chooseBoardTargets` `seat.targetPicks` | the player's picks for a whole target question; Forge's one-at-a-time follow-ups for the same card are answered from them (the rest, then Done) |
 | bridge | `CONFIRMS` | the "Sacrifice X" / "pay N life" auto-yes also matches Forge's bare title (no "?") |
@@ -1390,3 +1392,35 @@ Needs our engine build: `stack/compose.yml` runs `mtg-forge-node:exile` and `mtg
 | bridge | `chooseBoolean` | `OPTIONAL_ASK` (Forge's "Use triggered ability of X?" / "Apply replacement effect of X?"): Yes notes `mayYes` with the "you may" words; the same card's next yes/no whose words are all in them is answered yes (Sylvan Library's "Draw two Cards") (hp-26) |
 | bridge | `gameLogLine(line)` | one line to `game.log` (kept for a table reload) and the table's log panel |
 | table | engine hand guard | a card of the table's own in its owner's second hand zone is no "another player's hand" (a scry's card laid there) (hp-08) |
+
+### Engine events (2026-11-02, Forge's own record of what moved)
+Our image of Forge sends `gameView.events`: the last 256 zone moves, each `{ id, seq, cardId?, from, to, ownerId, how? }`. `how` is what no board shows: `draw`, `played`, `sacrificed`, `destroyed`, `surveil`, `discard`. `cardId` is left out when the move is hidden from that seat. The Rust engine and older Forge images send `[]`.
+| side | name | what |
+|---|---|---|
+| bridge | `engineFacts(events)` | the moves since `game.eventSeq`, as `{ moves, draws, tutors, mills }`. Null means "no facts": the first board, an empty list, or a gap (the ring moved past the last one read). `logEvents` then falls back to working it out from the two boards, as it always did |
+| bridge | `logEvents(prev, cur, pub, facts)` | where `facts.moves` has a card, that decides the line (`moved`, `gone`, `landPlayed`, `toHand`); the board guesses run only without one |
+| bridge | `updateLog` | reads `engineFacts` before its first-board return, so a rewind's board moves the place on and what came before it isn't told after it |
+| Forge | `EngineEventLog` | the Guava subscriber that fills the ring. `isPublic` decides `cardId`. A move onto a graveyard reads `sacrificed` from Forge's event and `destroyed` from `card.wasDestroyed()` |
+| relay | `state_delta.rs` `element_key` | needs a string `id`, which is why each event has `event-<seq>`: without it the whole ring went out on every change |
+
+### Keeping the three aligned (2026-11-02)
+
+The bridge, the table script and the engine are built and started apart, and each works alone. These keep them together.
+None of it shows at the table except the out-of-step warning, and nothing here can stop a game.
+
+| where | what | does |
+|---|---|---|
+| `bridge/versions.js` | `outOfStep`, `waiting`, `containerImages`, `fileHash`, `bridgeHash` | compares what is running with `stack/deployed.json`: the bridge's loaded code (`bridge.js` and the files of ours it loads), the stamp the table sends with its hello, each check and Start, the images of `stack-forge-room-1` and `stack-relay-1`. `waiting` lists source edited since the deploy |
+| `bridge/bridge.js` | `warnIfOutOfStep`, `GET /versions` | warns in chat on a hello and on Start, real bridge only. `/versions` shows the same, plus the check and guess counts (`alignment`) |
+| `tools/deploy.js` | `mustBeIdle`, `bridgeCameUp`, `livePassed` | refuses during a game or with TTS open, and asks again before each step that would land on a game. Dry-runs the save patch, runs the gates, plays `test_table_check` on the script going out, with `--image <tag>` live-tests and swaps the engine (a live test passes only on its own `PASSED:` line), restarts the bridge and waits for the new code to answer, patches the save, writes the manifest. A failure after the engine swap leaves the old record, so `/versions` shows what moved |
+| `tools/patch-save.js` | `patch`, `hunks`, `heldBy`, `unheld`, `rewrite`, `ttsRunning` | brings the save's script up to a fresh build line by line, except hunks matching `tools/deploy-holds.json` (the Auto-resolve dropdown), then stamps it. A hunk is held whole, so the dry run prints lines the hold doesn't name. Default is a dry run; the result must load on the fake TTS before it is written; `rewrite` replaces the script's text and no other byte |
+| `tools/engine-renderer.lua` | `engineSelfCheck` | the table's own check, moved here from `tools/tts-check.lua`, which now only calls it. New: `badges`, `attack`, `attackLine`, `hoverName`, `hoverText`. Not faults: held untaps and mills, a card moving or in a hand, a scry's cards, cards playable from a library's top, a foretold card named from another seat's view. Counters are read through the badges |
+| `tools/engine-renderer.lua` | `engineCheckDue`, `engineCheckRun` | asked for once as a turn starts and once when attackers are declared, run 3 s later on the newest board. A problem must still be there 2 s on, since a board can change mid-check. A finished game isn't checked. Sent as `check` |
+| `tools/engine-renderer.lua` | `engineStamp` | "dev" in source, the script's hash in the save |
+| `bridge/bridge.js` | `noteCheck` | counts and appends to `tmp/table-check.log`; no chat |
+| `bridge/bridge.js` | `noteGuess` | the log worked something out while the feed was on: `no feed` (once a game), `feed gap`, `arrival`, `departure`. To `tmp/guess-log.log` |
+| `bridge/bridge.js` | `tableCard(c, blockers, active)`, `loreOf` | new status box lines: Summoning sick (a creature, its controller's turn, on the battlefield; a token's status keeps it out of a stack, `engineTokenKey`), Crewed, Bestowed, Ring-bearer, Chapter N of M, Level N. `active` is passed only for battlefield cards, because Forge calls a creature card sick in hand too |
+| `tools/engine-renderer.lua` | `description`, `COMES_BACK` | a linked exile card that returns says so in its hover text; `rl` was sent and read by nothing, though the map said otherwise |
+
+`tests/test_alignment.js` and `tests/test_table_check.js` hold these. The second runs the check on every 10th board of two
+recorded games, quiet, then breaks the table one way per `map:` line, and fails if a new line has no case. `docs/spec-own-engine.md` is the separate plan for dropping the bridge and Forge.

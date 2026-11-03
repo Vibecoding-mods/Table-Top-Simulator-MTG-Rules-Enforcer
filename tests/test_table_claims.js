@@ -388,6 +388,27 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("non-host: White clears a finished game", /reset/.test(sent(r, "White reset after")), JSON.stringify(fxOf(r, "White reset after").slice(0, 3)));
   ok("non-host: unseated Red can't clear it", !/reset/.test(sent(r, "Red reset after")), sent(r, "Red reset after").slice(0, 200));
 }
+// a question closing leaves its hand cards unlocked: a locked card drops out of its hand zone and shows to everyone
+// until the next redraw (Nicol Bolas, the Ravager, each opponent discards: the hands of the players who had answered lay
+// open until the last one did, game 2026-11-01). A card that isn't in a hand locks again as before.
+{
+  let hand = [];
+  for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.json).players.find((x) => x.color === "Blue"); if (pl && pl.hand) hand = pl.hand.map((c) => c.id); }
+  let whiteCard;
+  for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.json).players.find((x) => x.color !== "Blue"); if (pl && pl.battlefield && pl.battlefield[0]) whiteCard = pl.battlefield[0].id; }
+  const lockOf = (id, mark) => q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end return o and tostring(o.getLock()) or "none"`, mark);
+  const r = run([ask({ promptId: 960, kind: "cards", title: "Nicol Bolas, the Ravager: discard a card", mode: "multi", min: 1, max: 1, options: [{ id: hand[0], label: "A" }, { id: hand[1], label: "B" }] }),
+    lockOf(hand[0], "asked"), ask({}), lockOf(hand[0], "answered"), lockOf(hand[1], "answered 2"),
+    ask({ promptId: 961, kind: "priority", title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "prompt-action-1", cardId: hand[0], label: "Cast A" }] }),
+    ask({}), lockOf(hand[0], "cast gone"),
+    ask({ promptId: 962, title: "Target: choose a target", mode: "single", options: [{ id: `card|${whiteCard}`, label: "a card" }] }),
+    lockOf(whiteCard, "target open"), ask({}), lockOf(whiteCard, "target closed")]);
+  ok("precondition: Blue holds two cards and White has a permanent", hand.length >= 2 && whiteCard !== undefined, `${hand.length} / ${whiteCard}`);
+  ok("hand cards: unlocked while the discard is asked", valueOf(r, "asked") === "false", valueOf(r, "asked"));
+  ok("hand cards: a closed discard question leaves them unlocked", valueOf(r, "answered") === "false" && valueOf(r, "answered 2") === "false", `${valueOf(r, "answered")} / ${valueOf(r, "answered 2")}`);
+  ok("hand cards: a Cast option going away leaves the card unlocked", valueOf(r, "cast gone") === "false", valueOf(r, "cast gone"));
+  ok("hand cards: an opponent's permanent still locks again", valueOf(r, "target open") === "false" && valueOf(r, "target closed") === "true", `${valueOf(r, "target open")} / ${valueOf(r, "target closed")}`);
+}
 // "mtg mana <n>": the manual fix in one line (call; once the game is paused for its caller, the mana and Done);
 // 1-99 only; a pause that comes long after the call (someone else's fix later) adds nothing
 {
@@ -534,6 +555,77 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("copy badge: none before it is a copy", !String(valueOf(r, "before")).includes("COPY"), String(valueOf(r, "before")) + " " + r.errors.join(" | "));
   ok("copy badge: a copy shows COPY", String(valueOf(r, "after")).split("|").includes("COPY"), String(valueOf(r, "after")) + " " + r.errors.join(" | "));
 }
+// a phased-out card stays where it was, dimmed and marked, and comes back as it was (2026-11-02: it used to vanish)
+{
+  const last = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
+  const tbl = JSON.parse(last.json);
+  const pl = tbl.players.find((x) => x.color === "Blue");
+  const back = JSON.stringify(tbl);
+  pl.battlefield = pl.battlefield.map((c) => (c.id === blueBf[0] ? { ...c, po: true } : c));
+  const objOf = `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${blueBf[0]}" then o = x end end `;
+  const look = objOf + 'local out = {} for _, b in ipairs(o.getButtons() or {}) do out[#out + 1] = b.label end local p = o.getPosition() return table.concat(out, "|") .. " tint " .. string.format("%.2f", o.getColorTint().r) .. string.format(" at %.1f,%.1f", p.x, p.z)';
+  const r = run([{ frames: 30 }, q(look, "before"), { msg: { t: "table", json: JSON.stringify(tbl) } }, { frames: 30 }, q(look, "phased"), { msg: { t: "table", json: back } }, { frames: 30 }, q(look, "back")]);
+  const where = (m) => String(valueOf(r, m)).replace(/^.* at /, "");
+  ok("phased: not marked before", !String(valueOf(r, "before")).includes("PHASED OUT") && /tint 1\.00/.test(valueOf(r, "before")), String(valueOf(r, "before")) + " " + r.errors.join(" | "));
+  ok("phased: marked PHASED OUT and dimmed", String(valueOf(r, "phased")).includes("PHASED OUT") && /tint 0\.38/.test(valueOf(r, "phased")), String(valueOf(r, "phased")) + " " + r.errors.join(" | "));
+  ok("phased: the card stays where it was", where("phased") === where("before"), `${where("before")} -> ${where("phased")}`);
+  ok("phased: back to normal when it phases in", !String(valueOf(r, "back")).includes("PHASED OUT") && /tint 1\.00/.test(valueOf(r, "back")), String(valueOf(r, "back")) + " " + r.errors.join(" | "));
+}
+// a phased-out token is no longer one of a group of tokens like it: the group's key tells them apart
+{
+  const r = run([q('local c = { n = "Soldier", ctl = "Blue", tap = false, p = 1, t = 1 } local a = engineTokenKey(c) c.po = true return tostring(a ~= engineTokenKey(c))', "key")]);
+  ok("phased: a phased-out token leaves its group", valueOf(r, "key") === "true", String(valueOf(r, "key")) + " " + r.errors.join(" | "));
+}
+// an agreed rewind with a question open: a button that says where to, for everyone, and it sends rewindGo
+{
+  const r = run([q('engineRewindUpdate({ points = {}, vote = { id = 5, to = "turn 10, Red\'s main phase", by = "Blue", waiting = {}, status = "pending", go = true, note = "Everyone agreed." } }, false) return tostring(UI.getAttribute("eng_votego_Blue", "active")) .. "|" .. tostring(UI.getAttribute("eng_voteyes_Blue", "active"))', "shown"),
+    q('onMtgVote(Player.Blue, nil, "eng_votego_Blue")', "press"),
+    q('engineRewindUpdate({ points = {}, vote = { id = 5, to = "turn 10", by = "Blue", waiting = { "Red" }, status = "pending" } }, false) return tostring(UI.getAttribute("eng_votego_Blue", "active"))', "waiting")]);
+  const text = fxOf(r, "shown").filter((l) => l.includes("eng_votego_Blue")).join(" ");
+  ok("rewind go: the button shows, the vote buttons don't", valueOf(r, "shown") === "true|false", String(valueOf(r, "shown")) + " " + r.errors.join(" | "));
+  // (a Button draws its text attribute: real TTS ignores UI.setValue on one, the simulator doesn't, and the button stayed "Rewind")
+  const label = fxOf(r, "shown").filter((l) => l.includes("UI.setAttributes") && l.includes("eng_votego_Blue")).join(" ");
+  ok("rewind go: it says where to, in the attribute a Button draws", label.includes("Rewind to turn 10, Red's main phase"), text.slice(0, 300));
+  ok("rewind go: pressing it sends rewindGo", fxOf(r, "press").join(" ").split("\\").join("").includes("rewindGo"), fxOf(r, "press").join(" ").slice(0, 200));
+  ok("rewind go: hidden while a vote is still open", valueOf(r, "waiting") === "false", String(valueOf(r, "waiting")));
+}
+// TTS's own rewind arrows and spare tools are covered while a game runs, under the table's buttons, for those whose bars they fit
+{
+  const cover = (mark) => q('return tostring(UI.getAttribute("eng_cover_1", "active")) .. tostring(UI.getAttribute("eng_cover_2", "active")) .. tostring(UI.getAttribute("eng_cover_3", "active"))', mark);
+  const r = run([q('engineScoopRedraw()', "draw"), cover("running"), q('engineTable().gameOver = true engineScoopRedraw()', "end it"), cover("over"),
+    q('engineTable().gameOver = false engineScoopRedraw()', "restart"), cover("again"), q('return tostring(engineToolCoverXml():find("^<Panel id=\\"eng_cover_1\\" visibility=\\"Admin\\"") ~= nil)', "xml")]);
+  ok("covers: on while a game runs", valueOf(r, "running") === "truetruetrue", String(valueOf(r, "running")) + " " + r.errors.join(" | "));
+  ok("covers: off when it ends", valueOf(r, "over") === "falsefalsefalse", String(valueOf(r, "over")));
+  ok("covers: back on with a game", valueOf(r, "again") === "truetruetrue", String(valueOf(r, "again")));
+  ok("covers: for the host and promoted players only", valueOf(r, "xml") === "true", String(valueOf(r, "xml")));
+  // TTS scales the top bar from the screen's centre, so the arrows' cover has to hang from there (1920x1009 left the forward arrow bare)
+  const a = run([q('return tostring(engineToolCoverXml():find(\'id="eng_cover_3" visibility="Admin" width="136" height="66" rectAlignment="UpperCenter" offsetXY="-505 -1"\', 1, true) ~= nil)', "arrows xml")]);
+  ok("covers: the arrows' cover is anchored to the screen's centre", valueOf(a, "arrows xml") === "true", String(valueOf(a, "arrows xml")) + " " + a.errors.join(" | "));
+}
+// a deck stashed for a game is invisible to everyone while it is under the table, and visible again when it comes back
+{
+  const r = run([q(`stashTestDeck = spawnObject({ type = "Deck" }) stashTestDeck.setPosition(Vector(40, 2, 10))
+      local real = getDeckFromZone getDeckFromZone = function() return stashTestDeck end
+      engineStarted({ colors = { "White" } }) getDeckFromZone = real
+      return tostring(stashTestDeck.getPosition().y)`, "stash deck"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 90, mark: "stash back" },
+    q('return tostring(stashTestDeck.getPosition().y)', "stash home"), q('return stashTestDeck.getGUID()', "stash guid")]);
+  const mine = (mark) => fxOf(r, mark).filter((l) => l.includes('"setInvisibleTo" obj:' + valueOf(r, "stash guid") + " "));
+  const hides = mine("stash deck"), shows = mine("stash back");
+  ok("stash: the deck went under the table", Number(valueOf(r, "stash deck")) < -5, String(valueOf(r, "stash deck")) + " " + r.errors.join(" | "));
+  ok("stash: invisible to every seat and to spectators", hides.length === 1 && ["White", "Grey", "Black"].every((c) => hides[0].includes(c)), hides.join(" ; "));
+  ok("stash: the deck is back on the table", Number(valueOf(r, "stash home")) === 2, String(valueOf(r, "stash home")));
+  ok("stash: visible again once it is back", shows.length === 1 && !/White|Grey|Black/.test(shows[0]), shows.join(" ; "));
+}
+// every Button that setText names is one isButton knows: real TTS ignores UI.setValue on a Button, so a label set that way never shows
+{
+  const src = fs.readFileSync(path.join(__dirname, "..", "tools", "engine-renderer.lua"), "utf8");
+  const known = [...src.slice(src.indexOf("local function isButton"), src.indexOf("-- Applies only the attributes that changed")).matchAll(/\^(eng_[a-z0-9_]+)/g)].map((m) => m[1]);
+  const buttons = [...src.matchAll(/<Button id="(eng_[a-z0-9_]+)/g)].map((m) => m[1]);
+  const named = [...src.matchAll(/setText\("(eng_[a-z0-9_]+)"/g)].map((m) => m[1]);
+  const missing = [...new Set(named)].filter((id) => buttons.includes(id) && !known.some((k) => id.startsWith(k)));
+  ok("setText: every Button it names sets the text attribute", named.length > 5 && buttons.length > 5 && known.length > 5 && missing.length === 0, missing.join(", "));
+}
 // day and night show on the phase bar once it is one (2026-10-26)
 {
   const bar = (mark) => q('engineUpdateCorner("Blue", nil) return tostring(UI.getValue("eng_phase_Blue"))', mark);
@@ -561,14 +653,77 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("ability buttons: they sit on the card", /@0#/.test(gv), gv);
   ok("ability buttons: the tooltip has the whole text", gv.endsWith("#" + long), gv);
 }
-// the Engine / Graveyards / Log / Auto / Settings buttons are a row at the bottom left: at the top right they covered the
-// first items of the cards' right-click menus (2026-10-26, #35). (The fake TTS keeps no layout: read from the XML text.)
+// the Engine / Graveyards / Log / Auto / Settings buttons are a row at the top left, under TTS's own menu (2026-10-31): at
+// the top right they covered the first items of the cards' right-click menus (2026-10-26, #35). (The fake TTS keeps no
+// layout: read from the XML text.)
 {
   const lua = String(save.LuaScript || "");
-  for (const id of ["eng_toggle_", "eng_browse_", "eng_logbtn_", "eng_pace_", "eng_set_", "eng_setpanel_"]) {
+  for (const id of ["eng_toggle_", "eng_browse_", "eng_logbtn_", "eng_pace_", "eng_set_", "eng_setpanel_", "eng_autores_", "eng_fixcall_", "eng_undo_", "eng_undolist_"]) {
     const tag = (lua.match(new RegExp(`<(?:Button|Panel) id="${id}' \\.\\. c \\.\\. '"[^>]*>`)) || [""])[0];
-    ok(`bottom-left row: ${id} sits at the bottom`, /rectAlignment="LowerCenter"/.test(tag) && /offsetXY="-\d+ \d+"/.test(tag), tag.slice(0, 200) || "not found");
+    ok(`top-left row: ${id} sits at the top left`, /rectAlignment="UpperLeft"/.test(tag) && /offsetXY="\d+ -\d+"/.test(tag), tag.slice(0, 200) || "not found");
   }
+}
+// the Auto-resolve button opens one list shared by every seat (2026-10-31): only the players who opened it see it, a pick
+// goes to the bridge, and the button shows what the bridge says, which ends a skip by itself. One choice at a time.
+{
+  const list = (mark) => q('return tostring(UI.getAttribute("eng_autolist", "active")) .. "|" .. tostring(UI.getAttribute("eng_autolist", "visibility"))', mark);
+  const btn = (mark) => q('return tostring(UI.getAttribute("eng_autores_Blue", "text")) .. "|" .. tostring(UI.getAttribute("eng_autores_Blue", "color")) .. "|" .. tostring(engineAutoResolve.Blue)', mark);
+  const open = (who, mark) => q(`onMtgAutoResolve(Player.${who}, nil, "eng_autores_${who}")`, mark);
+  const pick = (who, id, mark) => q(`onMtgAutoPick(Player.${who}, nil, "eng_auto_${id}")`, mark);
+  const state = (phase, on, mark) => ({ msg: { t: "autostate", json: JSON.stringify({ t: "autostate", color: "Blue", phase, on }) }, mark });
+  const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  const banner = (mark) => q('return tostring(UI.getAttribute("eng_banner_Blue", "active")) .. "|" .. tostring(UI.getValue("eng_banner_Blue"))', mark);
+  const setStep = (step, turn, mark) => q(`local t = engineTable() t.step = "${step}" t.turn = ${turn} t.active = "Blue" t.priority = "Blue" engineBannerAt = {} engineBannerSeen = engineBannerSeen or {} engineBannerSeen.Blue = "Blue|${turn}"`, mark);
+  const prio = (id) => ask({ promptId: id, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }] });
+  const r = simulate({ save, seated: ["Blue", "White"], steps: [...prefix, { frames: 10 }, q('engineAutoResolveDraw("Blue")', "first draw"), btn("start"), list("closed"),
+    open("Blue", "open"), list("Blue open"), open("White", "open 2"), list("both open"),
+    q('onMtgAutoResolve(Player.Red, nil, "eng_autores_Blue")', "not yours"), list("after a stranger"),
+    open("White", "close 2"), list("White closed"),
+    pick("White", "end", "pick with it shut"),
+    pick("Blue", "end", "pick end"), list("after pick"), btn("sent only"),
+    state("end", false, "bridge says end"), btn("skipping"),
+    setStep("draw", 60, "set draw"), prio(960), { frames: 3 }, banner("banner skipping"),
+    open("Blue", "open again"), pick("Blue", "off", "pick off"), state("", false, "bridge says off"), btn("off again"),
+    setStep("main2", 60, "set main2"), prio(961), { frames: 3 }, banner("banner after"), { frames: 120 },
+    open("Blue", "open others"), pick("Blue", "others", "pick others"), btn("others"),
+    state("combat", false, "typed skip"), btn("typed"),
+    state("", false, "skip ended"), btn("ended"),
+    open("Blue", "open last"), pick("Blue", "others", "others again"),
+    open("Blue", "open off"), pick("Blue", "off", "off from others"), btn("button after off"),
+    state("mine", false, "bridge says mine"), btn("mine"), open("Blue", "open at game over"),
+    q('engineTable().gameOver = true engineAutoResolveDraw("Blue") engineTable().gameOver = nil engineAutoResolveDraw("Blue")', "game over"), list("after game over"), open("Blue", "open at clear"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" }, list("after clear"), q('return tostring(engineSkipTo.Blue)', "skip after clear")] });
+  const v = (m) => String(valueOf(r, m));
+  ok("auto list: no errors", r.errors.length === 0, r.errors.join(" | "));
+  ok("auto list: the button says off and hints at a list", v("start").startsWith("Auto-resolve: off...|#3a3f4b"), v("start"));
+  ok("auto list: shut at the start", v("closed").startsWith("false"), v("closed"));
+  ok("auto list: only the player who opened it sees it", v("Blue open") === "true|Blue", v("Blue open"));
+  ok("auto list: a second player joins the first", v("both open") === "true|Blue|White", v("both open"));
+  ok("auto list: another colour's click changes nothing", v("after a stranger") === "true|Blue|White", v("after a stranger"));
+  ok("auto list: one closing leaves the other's open", v("White closed") === "true|Blue", v("White closed"));
+  ok("auto list: a pick with the list shut sends nothing", !sent(r, "pick with it shut").includes("skipto"), sent(r, "pick with it shut").slice(0, 200));
+  ok("auto list: a pick asks the bridge for that phase", sent(r, "pick end").includes('"phase":"end"') && sent(r, "pick end").includes("skipto"), sent(r, "pick end").slice(0, 200));
+  ok("auto list: a pick closes the list", v("after pick").startsWith("false"), v("after pick"));
+  ok("auto list: the label waits for the bridge", v("sent only").startsWith("Auto-resolve: off..."), v("sent only"));
+  ok("auto list: the button names the phase, green", v("skipping").startsWith("Until end step...|#2e7d32"), v("skipping"));
+  ok("auto list: no step banners while skipping", !/DRAW/.test(v("banner skipping")) || v("banner skipping").startsWith("false"), v("banner skipping"));
+  ok("auto list: step banners come back after", v("banner after") === "true|MAIN PHASE 2", v("banner after"));
+  ok("auto list: game over shuts it", v("after game over").startsWith("false"), v("after game over"));
+  ok("auto list: Off ends the skip at the bridge", sent(r, "pick off").includes('"phase":"off"'), sent(r, "pick off").slice(0, 200));
+  ok("auto list: back to off, grey", v("off again").startsWith("Auto-resolve: off...|#3a3f4b"), v("off again"));
+  ok("auto list: Other players' turns is the old auto-resolve", v("others").startsWith("Auto-resolve: on...|#2e7d32|true") && sent(r, "pick others").includes('"on":true'), v("others"));
+  ok("auto list: a skip typed in the chat shows, and takes over from auto-resolve", v("typed").startsWith("Until combat...|#2e7d32|nil"), v("typed"));
+  ok("auto list: the skip ending by itself puts the button back", v("ended").startsWith("Auto-resolve: off...|#3a3f4b|nil"), v("ended"));
+  ok("auto list: Off turns auto-resolve off", sent(r, "off from others").includes('"on":false') && v("button after off").startsWith("Auto-resolve: off..."), sent(r, "off from others").slice(0, 200));
+  ok("auto list: Off sends no skip message with no skip on", !sent(r, "off from others").includes("skipto"), sent(r, "off from others").slice(0, 200));
+  ok("auto list: my next turn fits a short label", v("mine").startsWith("Until my turn..."), v("mine"));
+  ok("auto list: a game's end shuts it", v("after clear").startsWith("false"), v("after clear"));
+  ok("auto list: a game's end forgets the skip", v("skip after clear") === "nil", v("skip after clear"));
+  // (the list's words are the bridge's: a word it doesn't know would answer "Skip to which phase?" in the chat)
+  const words = [...String(save.LuaScript || "").matchAll(/\{ "(\w+)", "Until [^"]+" \}/g)].map((m) => m[1]).sort();
+  const bridge = /const SKIP_PHASES = \{([\s\S]*?)\};/.exec(fs.readFileSync(path.join(__dirname, "..", "bridge", "bridge.js"), "utf8"))[1];
+  const known = [...bridge.matchAll(/(\w+):\s*\[/g)].map((m) => m[1]).sort();
+  ok("auto list: every phase the bridge knows, and only those", words.length === 9 && words.join() === known.join(), `${words} vs ${known}`);
 }
 // pointing at your card with abilities shows them on the screen as big buttons; clicking one uses it; a right-click on
 // the card's own button does nothing (hp-07 2026-10-27: the buttons on cards were too small, the menu went under the bars)
@@ -732,7 +887,7 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("life pay: Pay 2 life is a button, the taps are not", btns.split(",").includes("Pay 2 life") && !btns.includes("Tap Swamp"), btns);
   ok("life pay: the hint says it", String(hint).includes("Pay 2 life"), hint);
 }
-// keywords another card gave a permanent show as a green badge on it (hp-07 #31: Skrelv's toxic 1 and hexproof from red
+// keywords another card gave a permanent show in its status box (hp-07 #31: Skrelv's toxic 1 and hexproof from red
 // on Kenrith showed nowhere)
 {
   const lastK = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
@@ -742,7 +897,38 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   bl.battlefield[0] = { ...bl.battlefield[0], kw: ["Toxic 1", "Hexproof from red"] };
   const lbl = `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end local out = {} for _, b in ipairs((o and o.getButtons()) or {}) do out[#out + 1] = tostring(b.label) end return table.concat(out, "|")`;
   const r = run([{ msg: { t: "table", json: JSON.stringify(tk) } }, { frames: 30 }, q(lbl, "kw")]);
-  ok("granted keywords: shown on the card", String(valueOf(r, "kw")).split("|").includes("Toxic 1\nHexproof from red"), JSON.stringify(valueOf(r, "kw")) + " " + r.errors.join(" | "));
+  ok("granted keywords: shown on the card", String(valueOf(r, "kw")).split("|").includes("Toxic 1,\nHexproof from red"), JSON.stringify(valueOf(r, "kw")) + " " + r.errors.join(" | "));
+  // the status box: every status shows, none behind "+5 more"; no card-wide line is longer than the box; it never reaches
+  // the text box; a tapped card turns it back; phased out is in the same box (2026-11-02, the Ur-Dragon game)
+  const six = { ...bl.battlefield[0], kw: ["Haste", "Vigilance", "Hexproof", "Lifelink"], ow: ["Flying", "Protection from multicolored"] };
+  const boxOf = (card) => { bl.battlefield[0] = card; return JSON.stringify(tk); };
+  const geo = `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end for _, b in ipairs((o and o.getButtons()) or {}) do if tostring(b.tooltip):find("Haste", 1, true) or tostring(b.label):find("PHASED", 1, true) then local p = b.position return table.concat({ tostring(b.label), tostring(b.tooltip), p.x or p[1], p.z or p[3], b.height, (b.rotation and (b.rotation.y or b.rotation[2])) or 0 }, "@@") end end return "none"`;
+  const r2 = run([{ msg: { t: "table", json: boxOf(six) } }, { frames: 30 }, q(geo, "six"),
+    { msg: { t: "table", json: boxOf({ ...six, tap: true }) } }, { frames: 30 }, q(geo, "tapped"),
+    { msg: { t: "table", json: boxOf({ ...six, po: true }) } }, { frames: 30 }, q(geo, "phased")]);
+  const parse = (m) => { const [label, tip, x, z, h, rot] = String(valueOf(r2, m)).split("@@"); return { label: String(label), tip: String(tip), x: Number(x), z: Number(z), h: Number(h), rot: Number(rot) }; };
+  const a = parse("six"), t = parse("tapped"), p = parse("phased");
+  ok("status box: every status on the card", ["Haste", "Vigilance", "Hexproof", "Lifelink", "Flying", "Protection", "multicolored"].every((w) => a.label.includes(w)) && !/more/i.test(a.label), JSON.stringify(a.label) + " " + r2.errors.join(" | "));
+  ok("status box: no line over 20 characters", a.label.split("\n").every((l) => l.length <= 20), JSON.stringify(a.label));
+  ok("status box: its bottom edge stays above the type line", Math.abs(a.z + a.h / 2000 - 0.1) < 1e-6, `${a.z} ${a.h}`);
+  ok("status box: the whole list in its tooltip", a.tip === "Haste, Vigilance, Hexproof, Lifelink, Flying, Protection from multicolored", a.tip);
+  ok("status box: a tapped card turns it back", t.label === a.label && Math.abs(t.x + a.z) < 1e-6 && t.z === 0 && Math.abs(Math.abs(t.rot) - (360 - Math.abs(t.rot) < 180 ? 270 : 90)) < 1e-6, JSON.stringify(t));
+  ok("status box: phased out is in the same box, first", p.label.startsWith("PHASED OUT\n") && p.label.includes("Haste"), JSON.stringify(p.label));
+  // "above this one where they meet": a click where the two overlap means the ability
+  const heights = `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end __sim.frames(3) local ab, st = "none", "none" for _, b in ipairs((o and o.getButtons()) or {}) do local y = b.position.y or b.position[2] if tostring(b.click_function):find("engineAbBtn", 1, true) then ab = y elseif tostring(b.tooltip):find("Haste", 1, true) then st = y end end return tostring(ab) .. "@@" .. tostring(st)`;
+  const r4 = run([{ msg: { t: "table", json: boxOf(six) } }, { frames: 30 }, ask({ promptId: 895, kind: "priority", title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "prompt-action-3", cardId: id, label: "X: {1}, {T}: Draw a card." }] }), q(heights, "heights")]);
+  const [abY, stY] = String(valueOf(r4, "heights")).split("@@").map(Number);
+  ok("status box: an ability button lies above it", abY > stY, String(valueOf(r4, "heights")) + " " + r4.errors.join(" | "));
+  // "Attached cards sit beside the card, clear of it": the host is 1 either side of its centre, an attached card half that
+  const hostId = id, onIt = "engine-card-9911";
+  bl.battlefield[0] = six;
+  bl.battlefield.push({ ...six, id: onIt, kw: undefined, ow: undefined, att: hostId });
+  if (tk.cards) tk.cards[onIt] = tk.cards[hostId];
+  const pos = (card) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${card}" then o = x end end local p = o.getPosition() return string.format("%.3f,%.3f,%.3f", p.x, p.z, o.getScale().x)`;
+  const r3 = run([{ msg: { t: "table", json: JSON.stringify(tk) } }, { frames: 30 }, q(pos(hostId), "host"), q(pos(onIt), "attached")]);
+  const [hx, hz] = String(valueOf(r3, "host")).split(",").map(Number), [ax, az, as] = String(valueOf(r3, "attached")).split(",").map(Number);
+  ok("status box: an attached card is half size", as === 0.5, String(valueOf(r3, "attached")) + " " + r3.errors.join(" | "));
+  ok("status box: an attached card lies clear of the card's width", Math.hypot(hx - ax, hz - az) >= 1 + as && Math.abs(hx - ax) >= 1 + as, `${valueOf(r3, "host")} ${valueOf(r3, "attached")}`);
 }
 // a card whose text was changed shows the changed text in a box over its text box, the whole text in its tooltip and
 // its hover text; a long text is cut to 6 lines there (hp-25 2026-10-27: Mind Bend's islandwalk showed nowhere)
@@ -767,7 +953,7 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("changed text: a long text is cut to 6 lines on the card", label.split("\n").length === 6 && /point at it/.test(label), JSON.stringify(label.split("\n").length) + " " + label.slice(-60));
   ok("changed text: the whole long text in the box's tooltip", /more29/.test(box(btnsB).split("@@")[1] || ""), (box(btnsB).split("@@")[1] || "").slice(-60));
   ok("changed text: the printed name in the hover text", /Volrath's Shapeshifter/.test(descB), String(descB).slice(0, 120));
-  // (a granted-keyword badge sits above the box, not over its first lines, suite review 2026-10-27)
+  // (the status box sits above the changed text, not over its first lines, suite review 2026-10-27)
   const tk3 = JSON.parse(JSON.stringify(tk));
   tk3.players.find((x) => x.color === "Blue").battlefield[0] = { ...base, ct: "Islandwalk", kw: ["Hexproof from red"] };
   const kwz = `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${a}" then o = x end end for _, b in ipairs((o and o.getButtons()) or {}) do if b.label == "Hexproof from red" then return tostring(b.position.z or b.position[3]) end end return "none"`;

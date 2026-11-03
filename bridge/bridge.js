@@ -7,6 +7,7 @@ const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 const delta = require("./state-delta");
+const versions = require("./versions");
 
 const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -92,10 +93,44 @@ const chat = (text, color) => toTTS({ t: "chat", text, color: color || null });
 // bridge log only said "from TTS: answer (106 bytes)", and "Blue drew a card but it isn't on the table" (a draw held
 // on the library with Blue's Auto off) took a live probe to explain.
 const TABLE_LOG = path.join(__dirname, "..", "tmp", "table-log.log");
+const clockNow = () => { const d = new Date(); return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":"); };
 function tlog(color, text) {
-  const d = new Date();
-  const hms = [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":");
-  fs.appendFile(TABLE_LOG, `[${hms}] ${String(color || "-").padEnd(6)} ${text}\n`, () => {});
+  fs.appendFile(TABLE_LOG, `[${clockNow()}] ${String(color || "-").padEnd(6)} ${text}\n`, () => {});
+}
+
+// Keeping the three aligned, seen on GET /versions and in a chat warning. Nothing here changes the game.
+// (LIVE: the real bridge; a test that loaded this file has no docker)
+const LIVE = require.main === module;
+const CHECK_LOG = path.join(__dirname, "..", "tmp", "table-check.log"), GUESS_LOG = path.join(__dirname, "..", "tmp", "guess-log.log");
+const BRIDGE_HASH = LIVE ? versions.bridgeHash() : null; // (read now: the code this process runs, whatever the file becomes)
+let tableStamp; // the version the table last said: undefined until it said one, null from a table older than stamps
+const alignment = { checks: 0, problems: 0, slowestMs: 0, guesses: {} }; // (since this bridge started)
+
+// (a hello comes only at load: a bridge restarted under a loaded table hears the version from these)
+function noteStamp(m) { if (m.stamp !== undefined) tableStamp = m.stamp; }
+
+// What the table's own check said (engineCheckRun): each problem to tmp/table-check.log
+function noteCheck(m) {
+  const problems = String(m.problems || "").split("\n").filter(Boolean);
+  noteStamp(m);
+  alignment.checks++;
+  alignment.problems += problems.length;
+  alignment.slowestMs = Math.max(alignment.slowestMs, Number(m.ms) || 0);
+  for (const p of problems) fs.appendFile(CHECK_LOG, `[${clockNow()}] turn ${m.turn} ${m.step}: ${p}\n`, () => {});
+}
+
+// The log worked something out from two boards though Forge's event feed is on: each one is a thing the feed doesn't
+// cover yet. kind: "no feed", "feed gap", "arrival" or "departure".
+function noteGuess(kind, detail) {
+  alignment.guesses[kind] = (alignment.guesses[kind] || 0) + 1;
+  fs.appendFile(GUESS_LOG, `[${clockNow()}] ${kind}: ${detail}\n`, () => {});
+}
+
+function versionsNow(done) { versions.containerImages((images) => done({ bridge: BRIDGE_HASH, table: tableStamp, ...images })); }
+function warnOutOfStep(now, deployed) { for (const w of versions.outOfStep(now, deployed)) chat(`[MTG] ${w}`); }
+function warnIfOutOfStep() {
+  if (!LIVE) return;
+  versionsNow((now) => warnOutOfStep(now, versions.readManifest()));
 }
 // Forge's question for an optional trigger or replacement ("Use triggered ability of Sylvan Library?", "Apply
 // replacement effect of Abundance?" with its text on the next lines): its first line
@@ -136,6 +171,7 @@ function tlogIn(m) {
     }
     case "intent": return `${m.kind} ${tlogCard(m.id)}${m.to ? ` -> ${m.to}` : ""}`;
     case "hello": return "table connected";
+    case "check": return null; // (tmp/table-check.log has it)
     case "decks": return `sends the decks on the table (${Object.keys(m.decks || {}).join(", ") || "none"})`;
     case "tlog": return null;
     default: {
@@ -611,6 +647,7 @@ function resendToTable() {
   game.sentZones = {};
   toTTS({ t: "started", colors: game.slotColor, names: game.slotNames, ai: Object.keys(game.slotColor).filter((k) => !TABLE_COLORS.includes(game.slotNames[k])).map((k) => game.slotColor[k]) });
   scheduleTable();
+  for (const st of game.seats.values()) autoNotice(st); // (a reloaded table has forgotten its Auto-resolve lists)
   // show each player's still-open question again (re-running the last prompt could answer it twice)
   for (const st of game.seats.values()) if (st.prompt?.ui) toTTS({ t: "prompt", color: st.color, promptId: st.prompt.promptId, ...st.prompt.ui, ...(st.prompt.ui.allCards ? { cards: st.prompt.ui.allCards } : {}) });
 }
@@ -633,10 +670,13 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   log(`setup: seats ${seatList.join(", ")}, bots ${bots}, relay ${RELAY}`);
 }
 
-// Only the room's controller (the first seat that joined, room.host) may start the game or add AI players; sending
-// from any other seat is refused with "not_host". With several people at the table the first to join varies.
+// Only the room's controller may start the game or add AI players; sending from any other seat is refused with
+// "not_host". The controller is the first human seated (the relay's Room::controller_id). room.host is the engine node
+// in a hosted room, never a player: asking it always picked White, so a game where Blue's connection joined first
+// stayed on "Setting up" until a third Start restarted the room (playtest 2026-10-31).
 function controllerOf(room, seats) {
-  return seats.find((s) => s.username === room.host) || seats[0];
+  const first = room.players.find((p) => !p.is_bot) || room.players[0];
+  return seats.find((s) => s.username === first?.username) || seats[0];
 }
 
 function onRoomUpdate(seat, room) {
@@ -654,7 +694,7 @@ function onRoomUpdate(seat, room) {
   }
   const seats = [...game.seats.values()];
   // the relay resets a room to 4 seats after every game: make room for everyone first (controller only)
-  if (!game.maxSet && typeof room.max_players === "number" && room.max_players < game.total && seats.some((st) => st.username === room.host)) {
+  if (!game.maxSet && typeof room.max_players === "number" && room.max_players < game.total) {
     game.maxSet = true;
     controllerOf(room, seats).send({ type: "SetMaxPlayers", max_players: game.total });
   }
@@ -934,7 +974,9 @@ async function fetchTokens() {
 }
 
 // blockers: ids of creatures blocking on the board being drawn (sendTable); other callers have none
-function tableCard(c, blockers = null) {
+// active: whose turn it is, for a card on the battlefield (a creature that can't attack yet is news on its controller's
+// turn only; Forge calls every creature card sick until it has been in play, in hand as well)
+function tableCard(c, blockers = null, active = null) {
   if (!c || c.visibility === "hidden" || !c.identity) return { id: c?.id, fd: true };
   // A face-down card (morph, manifest, foretold or "exiled face down") travels without name, picture or text: the
   // board goes to every player's table from one seat's view, and that seat may be allowed to see what it is.
@@ -948,6 +990,7 @@ function tableCard(c, blockers = null) {
       // creature, and the table lays it out with the creatures, hp-07 2026-10-27; never its real types, which the
       // owner's view carries: a foretold Instant, a manifested land, stage 3 review 2026-10-27)
       ty: c.power != null ? ["Creature"] : [],
+      ...(c.phasedOut ? { po: true } : {}),
       ...(c.isForetold ? { fo: true } : {}), ...(c.exiledWith ? { ew: c.exiledWith } : {}) };
   }
   const name = c.identity.name;
@@ -961,7 +1004,10 @@ function tableCard(c, blockers = null) {
     // on the table shows the other side, as the table's own state button did
     id: c.id, n: name, f: img?.face || cachedImage(name)?.face || null, b: imageCache[normName(name)]?.back || img?.back || DEFAULT_BACK,
     tl: typeLine, cmc: c.cmc || 0, tx: c.text || "", ty: c.types || [],
-    tap: !!c.tapped, fd: !!c.isFaceDown, p: c.power ?? null, t: c.toughness ?? null, bp: c.basePower ?? null, bt: c.baseToughness ?? null,
+    tap: !!c.tapped, fd: !!c.isFaceDown, p: c.power ?? null, t: c.toughness ?? null,
+    // (the table's badge shows when the numbers differ from bp/bt, so these are what the card's picture says: Saw in Half's
+    // 1/1 tokens of a 2/2 have a base of 1/1, and looked 2/2 with no badge, playtest 2026-10-31)
+    bp: c.printedPower ?? c.basePower ?? null, bt: c.printedToughness ?? c.baseToughness ?? null,
     ctr: Object.fromEntries(Object.entries(c.counters || {}).filter(([, k]) => k)), dmg: c.damage || 0,
     att: c.attachedTo || null, tok: !!c.identity.isToken, sick: !!c.summoningSick, ctl: game.slotColor[c.controllerId] || null,
     // in combat: attacking (and at whom), blocking (from the game's blocker list)
@@ -979,14 +1025,29 @@ function tableCard(c, blockers = null) {
     ...(c.printedName ? { pn: c.printedName } : {}),
     ...(c.isForetold ? { fo: true } : {}),
     ...(c.isCopy ? { cp: true } : {}), // (a copy of another card: marked COPY on the table)
+    ...(c.phasedOut ? { po: true } : {}), // (phased out: stays where it was, marked on the table; our Forge build sends it)
     // (goaded, which Forge doesn't show: with the keywords another card gave it, "Goaded by White", hp-05 gap)
     // (and exerted, which nothing showed: Arena of Glory stays tapped through its controller's next untap step, hp-09 gap)
-    ...((kw) => (kw.length ? { kw } : {}))([...grantedKeywords(c), ...(game.goaded?.has(c.id) ? [`Goaded by ${nameOf(game.goaded.get(c.id).by)}`] : []),
+    ...statusLists(c, [...(game.goaded?.has(c.id) ? [`Goaded by ${nameOf(game.goaded.get(c.id).by)}`] : []),
       ...(c.exerted ? ["Exerted: doesn't untap next turn"] : []), ...(game.renowned?.has(c.id) ? ["Renowned"] : []),
       ...(game.suspected?.has(c.id) ? ["Suspected: can't block"] : []), ...(game.solved?.has(c.id) ? ["Solved"] : []),
-      ...hauntedBy(c.id).map((n) => `Haunted by ${n}`)]),
+      ...hauntedBy(c.id).map((n) => `Haunted by ${n}`),
+      ...(c.summoningSick && active === c.controllerId && c.types?.includes("Creature") ? ["Summoning sick"] : []),
+      ...(c.isCrewed ? ["Crewed"] : []), ...(c.isBestowed ? ["Bestowed"] : []), ...(c.isRingBearer ? ["Ring-bearer"] : []),
+      ...(c.finalChapter ? [`Chapter ${loreOf(c)} of ${c.finalChapter}`] : []), ...(c.classLevel ? [`Level ${c.classLevel}`] : [])]),
   };
 }
+
+// What the card's status box lists: kw, what changed about it (granted keywords and the table's marks), and ow, the
+// always-on keywords of its own. A card nothing changed has no box, so ow goes only with a box (kw, or phased out).
+function statusLists(c, marks) {
+  const { granted, own } = cardKeywords(c);
+  const kw = [...granted, ...marks];
+  return { ...(kw.length ? { kw } : {}), ...((kw.length || c.phasedOut) && own.length ? { ow: own } : {}) };
+}
+
+// The lore counters on a Saga (the counter's name comes from Forge: compared without its case)
+const loreOf = (c) => Object.entries(c.counters || {}).find(([k]) => k.toUpperCase() === "LORE")?.[1] || 0;
 
 // The cards haunting a creature (game.haunting: haunting card id -> its creature's id), by name (hp-20 gap)
 function hauntedBy(id) {
@@ -996,23 +1057,30 @@ function hauntedBy(id) {
 // Keywords a card has now that its own text doesn't give it: granted by another card (Skrelv's toxic 1 and hexproof
 // from a colour on Kenrith showed nowhere, hp-07 #31). Forge's keyword strings read as words (as it sent them live):
 // "Toxic:1" -> "Toxic 1", "Hexproof:Red" -> "Hexproof from red", "Landwalk:Swamp" -> "Swampwalk",
-// "Protection:Card.Black:black" -> "Protection from black"; its internal ones ("ETBReplacement:...") are left out.
-function grantedKeywords(c) {
-  const out = [];
+// "Protection:Card.Black:black" -> "Protection from black". Its internal ones are left out: "ETBReplacement:...", and
+// the run-together names ("MayFlashSac", "AlternateAdditionalCost") and the few plain words that aren't keywords
+// ("Chapter:3:DBSacrifice,..." read "Chapter from DBSacrifice,..." on a Saga, Ur-Dragon game 2026-11-01).
+// Its own keywords are returned too, those that are always on: Equip or Cycling on a permanent is no status.
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const NOT_KEYWORD = /Replacement|^ETB|^Hidden|^Static|^Trigger|^[A-Z][a-z]+[A-Z]|^(Chapter|Class|Visit|Prize|Piracy)$/;
+const ALWAYS_ON = /^(Flying|First Strike|Double Strike|Deathtouch|Lifelink|Trample|Vigilance|Haste|Reach|Menace|Hexproof|Indestructible|Defender|Shroud|Ward|Protection|Fear|Intimidate|Skulk|Shadow|Horsemanship|Flanking|Banding|Infect|Wither|Toxic|Afflict|Annihilator|Exalted|Prowess|Bushido|Rampage|Battle Cry|Dethrone|Undying|Persist|Absorb|Melee|Mentor|Training|Riot|Backup|Changeling|\w+walk)\b/i;
+function cardKeywords(c) {
+  const granted = [], own = [];
+  // (its text as changed when it was: Mind Bend's islandwalk is its own text, not a grant, hp-25)
+  const text = String(c.currentText ? withoutForgeNotes(c.currentText).replace(/\r\n/g, "\n") : c.text || "");
   for (const k of c.keywords || []) {
     const [base, ...rest] = String(k).split(":");
-    if (!/^[A-Z][A-Za-z ]*$/.test(base) || /Replacement|^ETB|^Hidden|^Static|^Trigger/.test(base)) continue;
+    if (!/^[A-Z][A-Za-z ]*$/.test(base) || NOT_KEYWORD.test(base)) continue;
     const arg = rest.length ? String(rest[rest.length - 1]).trim() : "";
     const word = !arg ? base : /^\d+$/.test(arg) ? `${base} ${arg}` : base === "Landwalk" ? `${arg}walk`
       : /^(Hexproof|Protection)$/.test(base) ? `${base} from ${arg.toLowerCase()}` : rest.length >= 2 ? `${base} from ${arg}` : `${base} ${arg}`;
     // (its own when its keyword lines name it: at a line's start or after ", " - "Swampwalk", "Protection from white
     // and from black"; not "flying" inside "block only creatures with flying", suite review 2026-10-27)
-    const head = word.split(" ")[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    // (its text as changed when it was: Mind Bend's islandwalk is its own text, not a grant, hp-25)
-    if (new RegExp(`(^|\\n|, )${head}\\b`, "i").test(String(c.currentText ? withoutForgeNotes(c.currentText).replace(/\r\n/g, "\n") : c.text || ""))) continue;
-    if (!out.includes(word)) out.push(word);
+    const list = new RegExp(`(^|\\n|, )${escapeRe(word.split(" ")[0])}\\b`, "i").test(text) ? own : granted;
+    if (list === own && !ALWAYS_ON.test(word)) continue;
+    if (!list.includes(word)) list.push(word);
   }
-  return out;
+  return { granted, own };
 }
 
 // The cards a seat may play from outside its hand right now (exile, graveyard; not the command zone, where the
@@ -1071,7 +1139,8 @@ function logSnapshot(pub) {
         ...(c.mergedCardIds?.length ? { merged: [...c.mergedCardIds] } : {}),
         ...((c.keywords || []).some((k) => /^Rebound\b/i.test(k)) ? { rebound: true } : {}),
         ...((c.keywords || []).some((k) => /^Suspend\b/i.test(k)) ? { suspend: true } : {}),
-        ...((c.keywords || []).some((k) => /^Phasing\b/i.test(k)) ? { phasing: true } : {}) };
+        // (phasing is no zone change, so it stays "battlefield" here: Forge says which, the log no longer guesses)
+        ...(c.phasedOut ? { po: true } : {}) };
     }
     if (z.zone === "hand" || z.zone === "library") counts[`${z.zone}:${z.ownerId}`] = z.count ?? (z.cards || []).length;
   }
@@ -1202,7 +1271,36 @@ function keywordLine(kind, ctl, name) {
 }
 
 const timeCounters = (c) => (c.ctrs || []).find(([k]) => /^time$/i.test(k))?.[1] || 0;
-function logEvents(prev, cur, pub) {
+// What Forge says moved since the last board (GameViewDto.events, EngineEventLog on the engine side), or null when it
+// says nothing: an older engine or the Rust one (an empty list, where our Forge has moved no card yet either), the first
+// board a bridge sees, or falling behind its ring. The log then works it out from the boards. One move per card, from
+// its first zone to its last, so a card sacrificed and then exiled in one go stays sacrificed.
+// (call it on every board, a new game's or a rewind's first too: it keeps the place in the ring)
+function engineFacts(events) {
+  if (!Array.isArray(events)) {
+    if (!game.noFeedSaid) noteGuess("no feed", "this engine sends no events");
+    game.noFeedSaid = true;
+    return null;
+  }
+  const seen = game.eventSeq;
+  game.eventSeq = events.length ? events[events.length - 1].seq : seen ?? 0;
+  if (seen == null || !events.length) return null;
+  if (events[0].seq > seen + 1) { noteGuess("feed gap", `events ${seen + 1} to ${events[0].seq - 1} fell behind`); return null; }
+  const facts = { moves: new Map(), draws: {}, tutors: {}, mills: {} };
+  for (const e of events) {
+    if (e.seq <= seen) continue;
+    if (e.from === "Library") {
+      const tally = e.to === "Hand" ? (e.how === "draw" ? facts.draws : facts.tutors)
+        : e.to === "Exile" || (e.to === "Graveyard" && e.how !== "surveil") ? facts.mills : null;
+      if (tally) tally[e.ownerId] = (tally[e.ownerId] || 0) + 1;
+    }
+    if (!e.cardId) continue;
+    const was = facts.moves.get(e.cardId);
+    facts.moves.set(e.cardId, { from: was ? was.from : e.from, to: e.to, how: e.how || was?.how });
+  }
+  return facts;
+}
+function logEvents(prev, cur, pub, facts = null) {
   const out = [];
   const who = (id) => nameOf(id);
   if (cur.turn !== prev.turn && cur.active) {
@@ -1405,7 +1503,6 @@ function logEvents(prev, cur, pub) {
       game.regenShields.delete(id);
     }
   }
-  const phasingOut = new Set(Object.values(prev.stack).filter((s) => !s.sids.some((x) => curSids.has(x)) && /\bphases? out\b/i.test(s.text || "")).map((s) => s.ctl));
   // (something that cloaks just resolved: an ability gone from the stack, or a spell that reached a graveyard)
   const cloaking = [...Object.values(prev.stack).filter((s) => !s.sids.some((x) => curSids.has(x))).map((s) => s.text || ""),
     ...Object.entries(cur.cards).filter(([id, c]) => c.zone === "graveyard" && c.spell && !prev.cards[id]).map(([id]) => pubIndex[id]?.text || "")].some((t) => /\bcloaks?\b/i.test(t));
@@ -1432,7 +1529,13 @@ function logEvents(prev, cur, pub) {
   // read "is put into AI 1's graveyard", hp-23 gap)
   for (const s of [...Object.values(prev.stack), ...Object.values(cur.stack)]) if (/\btarget (?:player|opponent) discards\b/i.test(s.text || "")) for (const p of s.plTg || []) looted.add(p);
   const lootedOut = (o) => looted.has(o) ? Object.entries(cur.cards).filter(([id, c]) => c.owner === o && c.zone === "graveyard" && !prev.cards[id] && !fromStack(id, c)).length : 0;
-  for (const [p, n] of Object.entries(cur.counts)) {
+  const sayDrawn = (owner, k, searched) => (drawAfter ? afterEntries : out).push(searched ? `${who(owner)} puts ${countWords(k, k, "card")} from their library into their hand` : `${who(owner)} draws ${countWords(k, k, "card")}`);
+  for (const [owner, k] of Object.entries(facts?.draws || {})) sayDrawn(owner, k, false);
+  for (const [owner, k] of Object.entries(facts?.tutors || {})) {
+    seatOfSlot(owner)?.forget("search");
+    sayDrawn(owner, k, true);
+  }
+  for (const [p, n] of facts ? [] : Object.entries(cur.counts)) {
     const [zone, owner] = p.split(":");
     const before = prev.counts[p];
     // (a hand discarded then drawn anew can end smaller: the discards count back, White's 8 to 2 under Reforge the Soul
@@ -1444,14 +1547,16 @@ function logEvents(prev, cur, pub) {
       const searched = !!ownerSeat?.justDid("search", 20000);
       if (searched) ownerSeat.forget("search");
       // (no more than left the library for it: a graveyard card into the hand beside a draw read "draws 2 cards", hp-05)
-      const k = Math.min(n - before + lootedOut(owner), libToHand(owner));
-      const cards = countWords(k, k, "card");
-      (drawAfter ? afterEntries : out).push(searched ? `${who(owner)} puts ${cards} from their library into their hand` : `${who(owner)} draws ${cards}`);
+      sayDrawn(owner, Math.min(n - before + lootedOut(owner), libToHand(owner)), searched);
     }
   }
   // cards from a hand into a graveyard together: one line (14 lines for a discard to hand size, playtest 2026-10-27)
   const discarded = {};
   for (const [id, c] of Object.entries(cur.cards)) {
+    if (facts?.moves.has(id)) {
+      if (facts.moves.get(id).how === "discard" && c.zone === "graveyard" && !prev.cards[id]) (discarded[c.owner] ||= []).push(id);
+      continue;
+    }
     // (an instant or sorcery from a hand into a graveyard between boards was most often cast, an AI's resolved in one
     // go: a discard only when its owner just chose cards to discard, else the neutral line below, stage 3 review)
     // (or its owner just chose cards to discard, the hand level by a draw beside it: connive and loot read as mills, suite
@@ -1466,8 +1571,10 @@ function logEvents(prev, cur, pub) {
     // (no more than could have left the hand: its drop, and what was drawn beside a chosen discard, at most what left the
     // library; a card beyond that came from elsewhere, suite review)
     const handDrop = prev.counts[`hand:${owner}`] - cur.counts[`hand:${owner}`];
-    if (!seatOfSlot(owner)?.justDid("discard", 20000) && !looted.has(owner)) { if (ids.length > handDrop) { delete discarded[owner]; continue; } }
-    else ids.splice(Math.max(0, handDrop + libLoss(owner)));
+    if (!ids.every((id) => facts?.moves.has(id))) {
+      if (!seatOfSlot(owner)?.justDid("discard", 20000) && !looted.has(owner)) { if (ids.length > handDrop) { delete discarded[owner]; continue; } }
+      else ids.splice(Math.max(0, handDrop + libLoss(owner)));
+    }
     if (!ids.length) { delete discarded[owner]; continue; }
     // (the last turn's player's discard, seen with the new turn: their cleanup's, said before the new turn's line; read
     // "--- AI 1's turn 2 ---" then "White discards ...", hp-05)
@@ -1485,7 +1592,7 @@ function logEvents(prev, cur, pub) {
     // (no more than left the library for the hand: Life from the Loam's dredge, the hand's card from the graveyard, cut
     // its three milled cards to "mills Forest, Forest" and "Plains is put into White's graveyard", hp-17)
     const drawn = Math.min(Math.max(0, (cur.counts[`hand:${owner}`] ?? 0) - (prev.counts[`hand:${owner}`] ?? 0) + (discarded[owner] || []).length), libToHand(owner));
-    millLeft[owner] = Math.max(0, libLoss(owner) - drawn);
+    millLeft[owner] = facts ? facts.mills[owner] || 0 : Math.max(0, libLoss(owner) - drawn);
     millAll[owner] = millLeft[owner];
   }
   // (a card merged into a permanent this time: it mutated onto or under it; Gemrazer onto Eidolon of Blossoms read
@@ -1494,6 +1601,11 @@ function logEvents(prev, cur, pub) {
   for (const [id, c] of Object.entries(cur.cards)) for (const m of c.merged || []) if (!(prev.cards[id]?.merged || []).includes(m)) mutatedInto.set(m, id);
   const mutatedHosts = new Set(mutatedInto.values());
   const attackers = {}, landPlaysLeft = {}, tokensMade = {}, landsPut = {};
+  const milled = (owner, name) => {
+    if (!mills[owner]) { mills[owner] = { at: out.length, names: [] }; out.push(""); }
+    mills[owner].names.push(name);
+  };
+  const toGraveyard = (c) => out.push(`${c.name} is put into ${who(c.owner)}'s graveyard`);
   for (const [id, c] of Object.entries(cur.cards)) {
     const was = prev.cards[id];
     // (one put onto the battlefield attacking was never declared: its arrival line says so instead; Hero of Bladehold's
@@ -1503,16 +1615,20 @@ function logEvents(prev, cur, pub) {
     // (the same card under another name on the battlefield: it transformed or became a copy; Growing Rites of Itlimoc becoming Itlimoc,
     // Cradle of the Sun logged nothing, hp-03 #3)
     else if (was && was.zone === c.zone && c.zone === "battlefield" && !was.fd && !c.fd && was.name !== c.name && !mutatedHosts.has(id)) out.push(`${was.name} becomes ${c.name}`);
+    if (was && was.zone === c.zone && !was.po !== !c.po) out.push(`${c.name} phases ${c.po ? "out" : "in"}`);
     if (was && was.zone === c.zone) continue;
     const from = was ? was.zone : null;
+    const moved = facts?.moves.get(id);
+    if (facts && !moved) noteGuess("arrival", `${c.name}: ${from || "nowhere seen"} to ${c.zone}`);
+    // (a land played, not put: by Forge's word, else by the record of a player's play)
+    const landPlayed = moved ? moved.how === "played" : landPlays.has(id);
     // (an arrival with its +1/+1 counters: Mycoloth's devour and Indoraptor's undying put them on unsaid, hp-13)
     const withP1 = c.p1 ? ` with ${c.p1 === 1 ? "a +1/+1 counter" : `${c.p1} +1/+1 counters`}` : "";
     // (and an Aura or Equipment with what it is attached to: Changing Loyalty and its two replicate copies read only
     // "creates Changing Loyalty", hp-14 gap)
     const others = (c.ctrs || []).map(([k, n]) => countWords(n, n, counterWords(k.toUpperCase()) || `${k.toLowerCase()} counter`)).join(" and ");
     const arrive = `${withP1}${others ? `${withP1 ? " and" : " with"} ${others}` : ""}${c.attacking ? `, ${c.tapped ? "tapped and " : ""}attacking` : ""}${c.att && cur.cards[c.att] ? `, attached to ${cur.cards[c.att].name}` : ""}`;
-    if (c.zone === "battlefield" && !from && game.phasedOut?.delete(id)) out.push(`${c.name} phases in`);
-    else if (c.zone === "battlefield" && mutatedInto.has(id)) {
+    if (c.zone === "battlefield" && mutatedInto.has(id)) {
       const host = mutatedInto.get(id), under = prev.cards[host]?.name ?? cur.cards[host].name;
       out.push(`${c.name} mutates ${cur.cards[host].name === c.name && under !== c.name ? "onto" : "under"} ${under}`);
     } else if (c.zone === "battlefield") {
@@ -1525,7 +1641,7 @@ function logEvents(prev, cur, pub) {
         // (no more plays than the count rose: a land play and a Cultivate's land between two boards read as two plays)
         const landsNow = cur.lands[c.ctl], landsBefore = cur.turn === prev.turn ? (prev.lands[c.ctl] ?? 0) : 0;
         landPlaysLeft[c.ctl] ??= landsNow != null ? Math.max(0, landsNow - landsBefore) : null;
-        const played = landPlays.has(id) || (!seatOfSlot(c.ctl) && (landPlaysLeft[c.ctl] != null ? landPlaysLeft[c.ctl]-- > 0
+        const played = landPlayed || (!moved && !seatOfSlot(c.ctl) && (landPlaysLeft[c.ctl] != null ? landPlaysLeft[c.ctl]-- > 0
           : (cur.counts[`hand:${c.owner}`] ?? 0) < (prev.counts[`hand:${c.owner}`] ?? 0)));
         // (lands put there together, one line, tapped if so: Animist's Awakening's four read four lines and never said
         // tapped, hp-15 gap)
@@ -1547,10 +1663,11 @@ function logEvents(prev, cur, pub) {
         out[made.at] = made.n === 1 ? `${who(c.ctl)} creates ${c.name}${arrive}` : `${who(c.ctl)} creates ${made.n} ${c.name}${/s$/.test(c.name) ? "" : "s"}${arrive}`;
       }
       // (brought back: Necromancy said nothing about what it returned, playtest 2026-10-26)
+      else if (from === "graveyard" && c.land && landPlayed) out.push(`${who(c.ctl)} plays ${c.name} from ${who(was.owner)}'s graveyard${arrive}`);
       else if (from === "graveyard") out.push(`${c.name} returns to the battlefield from ${who(was.owner)}'s graveyard${arrive} (${who(c.ctl)})`);
       // (cast from exile: an adventurer, a foretold card, ... enters; read "returns ... from exile", hp-02 #3)
       // (a land played from exile is a play: Tibalt's read "returns to the battlefield from exile", re-test 2026-10-31)
-      else if (from === "exile" && c.land && landPlays.has(id)) out.push(`${who(c.ctl)} plays ${c.name} from exile${arrive}`);
+      else if (from === "exile" && c.land && landPlayed) out.push(`${who(c.ctl)} plays ${c.name} from exile${arrive}`);
       else if (from === "exile") out.push(castNow.has(id) ? `${c.name} enters the battlefield${arrive} (${who(c.ctl)})` : `${c.name} returns to the battlefield from exile${arrive} (${who(c.ctl)})`);
       // (face down: off the stack a face-down spell's creature, else put there (manifest, cloak); Abhorrent Oculus's
       // manifest dread read "a face-down card enters the battlefield (White)", hp-09)
@@ -1571,7 +1688,8 @@ function logEvents(prev, cur, pub) {
       // Umbra goes to the graveyard", hp-17 gap)
       const armored = from === "battlefield" && was.att && cur.cards[was.att]?.zone === "battlefield" && /\b(?:Umbra|Totem) armor\b/i.test(pubIndex[id]?.text || "") ? cur.cards[was.att].name : null;
       if (armored) out.push(`${c.name} is destroyed instead of ${armored} (umbra armor)`);
-      else if (from === "battlefield") out.push(ownSacrifice ? `${c.name} is sacrificed` : was.creature ? `${c.name} dies` : `${c.name} goes to the graveyard`);
+      else if (from === "battlefield") out.push((moved ? moved.how === "sacrificed" : ownSacrifice) ? `${c.name} is sacrificed` : was.creature ? `${c.name} dies`
+        : moved?.how === "destroyed" ? `${c.name} is destroyed` : `${c.name} goes to the graveyard`);
       // (a permanent spell from the stack into a graveyard, which another spell targeted, was countered: Counterspell on the
       // Rats logged nothing, hp-01 #6)
       // (an instant or sorcery only under a counterspell: one under Twincast resolves; An Offer You Can't Refuse's Opt
@@ -1579,20 +1697,25 @@ function logEvents(prev, cur, pub) {
       else if (!from && (prevSpellOf.get(id)?.sids || []).some((sid) => (c.spell ? prevCounterTargeted : prevTargeted).has(sid))) out.push(`${c.name} is countered`);
       // (an epic spell resolved: its player's spells are gone for good, shown nowhere; Eternal Dominion, hp-23 gap)
       else if (!from && fromStack(id, c) && /(?:^|\n)Epic \(/.test(pubIndex[id]?.text || "")) out.push(`${who(c.owner)} can't cast spells for the rest of the game (epic); at each of their upkeeps, ${c.name} is copied`);
-      else if (!from && !discardedIds.has(id) && !fromStack(id, c)) {
+      // (off the stack by Forge's word with no board showing it there: an AI's spell resolved between two boards)
+      else if (!from && moved?.from === "Stack" && !fromStack(id, c)) out.push(`${who(c.owner)} casts ${c.name}`);
+      else if (!from && !discardedIds.has(id) && (moved?.from === "Library" || !fromStack(id, c))) {
+        if (moved) {
+          if (moved.from === "Library" && moved.how !== "surveil") milled(c.owner, c.name);
+          else toGraveyard(c);
+        }
         // (the card whose ability its owner just used from the hand: discarded as the cost; Muddle the Mixture's transmute
         // and Lórien Revealed's cycling read "is put into White's graveyard", hp-17 hp-05)
-        if (abilityRecords.has(id)) out.push(`${who(c.owner)} discards ${c.name}`);
+        else if (abilityRecords.has(id)) out.push(`${who(c.owner)} discards ${c.name}`);
         // (an AI's own instant or sorcery in its own turn, one card down from its library: as likely cast between two
         // boards as milled, so neither is claimed; the AI's Sleight of Hand read "AI 1 mills Sleight of Hand", hp-08 gap)
         else if (c.spell && !seatOfSlot(c.owner) && cur.active === c.owner && millAll[c.owner] === 1) {
           millLeft[c.owner]--;
-          out.push(`${c.name} is put into ${who(c.owner)}'s graveyard`);
+          toGraveyard(c);
         } else if (millLeft[c.owner] > 0) {
           millLeft[c.owner]--;
-          if (!mills[c.owner]) { mills[c.owner] = { at: out.length, names: [] }; out.push(""); }
-          mills[c.owner].names.push(c.name);
-        } else out.push(`${c.name} is put into ${who(c.owner)}'s graveyard`);
+          milled(c.owner, c.name);
+        } else toGraveyard(c);
       }
     } else if (c.zone === "exile") {
       // (its adventure resolved: the stack had it under the adventure's name, Stomp; read "is exiled", hp-02 #1)
@@ -1618,7 +1741,7 @@ function logEvents(prev, cur, pub) {
         out.push(`${c.name} is exiled suspended with ${n} time counter${n === 1 ? "" : "s"}: ${who(c.owner)} may cast it without paying its mana cost when the last is removed`);
       // (and from a library, up to what left it for no hand, one line per owner: Benthic Infiltrator's ingest read "Island
       // is exiled", hp-21 gap)
-      } else if (!from && !adventure && !rebound && !c.plotted && !fromStack(id, c) && millLeft[c.owner] > 0) {
+      } else if (!from && !adventure && !rebound && !c.plotted && (moved ? moved.from === "Library" : !fromStack(id, c) && millLeft[c.owner] > 0)) {
         millLeft[c.owner]--;
         if (game.exiledSaid?.delete(id)) continue;
         if (!libExiles[c.owner]) { libExiles[c.owner] = { at: out.length, names: [] }; out.push(""); }
@@ -1653,22 +1776,24 @@ function logEvents(prev, cur, pub) {
         ? Object.entries(cur.cards).filter(([id, c]) => c.owner === o && c.zone === "battlefield" && !c.token && !prev.cards[id]).length : 0));
     // (a nontoken permanent gone while its owner's hand grew: returned to the hand; Champions of the Perfect returned by
     // Sneak read "leaves the battlefield", hp-11)
+    const gone = facts?.moves.get(id);
+    if (facts && !gone) noteGuess("departure", `${was.name} left ${was.zone}`);
+    const toHand = gone ? gone.to === "Hand" : handRoom[o] > 0;
     if (was.zone === "battlefield") {
-      // (a card with phasing gone from the view phased out: Forge leaves it out; Taniwha read "leaves the battlefield",
-      // hp-18. Remembered so its return reads "phases in".)
       if (toLibraryTop.has(id)) out.push(`${was.name} is put on top of ${who(o)}'s library`);
-      // (and one a resolved "phase out" of its controller's took away: Taniwha's upkeep trigger, "all lands you control
-      // phase out", read "Mountain leaves the battlefield", hp-18 gap)
-      else if (was.phasing || phasingOut.has(was.ctl)) { (game.phasedOut ??= new Set()).add(id); out.push(`${was.name} phases out`); }
-      else if (!was.token && !was.fd && handRoom[o] > 0) { handRoom[o]--; out.push(`${was.name} returns to ${who(o)}'s hand`); }
+      else if (was.token && gone?.how === "sacrificed") out.push(`${was.name} is sacrificed`);
+      else if (was.token && was.creature && gone?.to === "Graveyard") out.push(`${was.name} dies`);
+      else if (was.token && gone?.to === "Exile") out.push(`${was.name} is exiled`);
+      else if (!was.token && gone?.to === "Library") out.push(`${was.name} is put into ${who(o)}'s library`);
+      else if (!was.token && !was.fd && toHand) { handRoom[o] = Math.max(0, handRoom[o] - 1); out.push(`${was.name} returns to ${who(o)}'s hand`); }
       // (a creature token gone in the combat damage step died: a token leaves no card in a graveyard, and a blocked
       // Phyrexian Mite read "leaves the battlefield", hp-11 gap)
       else if (was.token && was.creature && /damage/i.test(cur.step || "")) out.push(`${was.name} dies`);
       // (tokens gone together, one line: Avatar's Wrath's eight read one "leaves the battlefield" each, hp-18 gap)
       else if (was.token) { if (tokensGone.at == null) { tokensGone.at = out.length; out.push(""); } tokensGone.names.push(was.name); }
       else out.push(`${was.name} leaves the battlefield`);
-    } else if ((was.zone === "graveyard" || was.zone === "exile") && !was.fd && handRoom[o] > 0) {
-      handRoom[o]--; out.push(`${was.name} is put into ${who(o)}'s hand from ${was.zone === "exile" ? "exile" : "the graveyard"}`);
+    } else if ((was.zone === "graveyard" || was.zone === "exile") && !was.fd && toHand) {
+      handRoom[o] = Math.max(0, handRoom[o] - 1); out.push(`${was.name} is put into ${who(o)}'s hand from ${was.zone === "exile" ? "exile" : "the graveyard"}`);
     }
   }
   // (the city's blessing, for the rest of the game: Wayward Swordtooth's ascend, hp-11 gap)
@@ -1796,8 +1921,9 @@ function updateLog(pub) {
   for (const [id, c] of Object.entries(cur.cards)) game.namesSeen.set(id, c.name);
   const prev = game.logPrev;
   game.logPrev = cur;
+  const facts = engineFacts(pub.events);
   if (!prev) return;
-  const lines = logEvents(prev, cur, pub);
+  const lines = logEvents(prev, cur, pub, facts);
   flashNews(prev, cur, pub);
   if (!lines.length) return;
   game.log ??= [];
@@ -1902,7 +2028,7 @@ function sendTable() {
       // in a hand a card shows the plain back: TTS shows the other players a hand card's back, and a double-faced
       // card's back is its other face (playtest 2026-10-25: a daybound card in Yellow's hand showed its night side)
       hand: own ? zoneOf(own, "hand", p.id).cards.map((c) => ({ ...toCard(c), b: DEFAULT_BACK })) : null,
-      battlefield: zoneOf(pub, "battlefield", p.id).cards.map(toCard),
+      battlefield: zoneOf(pub, "battlefield", p.id).cards.map((c) => tableCard(c, blockers, pub.activePlayerId)),
       graveyard: zoneOf(pub, "graveyard", p.id).cards.map(toCard),
       exile: zoneOf(pub, "exile", p.id).cards.map(toCard),
       command: command.map(toCard),
@@ -2502,7 +2628,7 @@ function purposeOf(words, kind, labels = [], reminders = false) {
       // (up to 130 characters: Radiance's "Target creature and each other creature that shares a color with it gain
       // protection from the chosen color until end of turn" read "choose a target" at 90, hp-21)
       if (q.length <= 130) found.push(`${q[0].toLowerCase()}${q.slice(1)}?`);
-    } else if (kind === "selection" && labels.length > 1 && labels.every((l) => new RegExp(`\\b${l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} tokens?\\b`, "i").test(s))) found.push("create which token?");
+    } else if (kind === "selection" && labels.length > 1 && labels.every((l) => new RegExp(`\\b${escapeRe(l)} tokens?\\b`, "i").test(s))) found.push("create which token?");
   }
   // (a landcycling's search is only in its reminder text: "Plainscycling {2} ({2}, Discard this card: Search your
   // library for a Plains card, ...)", Angel of the Ruins in the sweep 2026-10-27)
@@ -2743,6 +2869,11 @@ function skipReached(skip, gv, slot) {
   if (skip.phase === "mine") return gv.activePlayerId === slot && gv.turn > skip.turn;
   return at >= first && (gv.turn > skip.turn || SKIP_ORDER.indexOf(skip.step) < first);
 }
+// tells the table what this player's Auto-resolve list is set to: a skip's phase, or on / off (the bridge passes, so the
+// table only shows it; a skip ends here, not there)
+function autoNotice(seat) {
+  toTTS({ t: "autostate", color: seat.color, phase: seat.skipTo?.phase || "", on: !!autoResolve[seat.color] });
+}
 const STOP_STEPS = {
   start: ["upkeep", "draw"],
   combat: ["combatBegin", "combatDeclareAttackers", "combatDeclareBlockers", "combatFirstStrikeDamage", "combatDamage", "combatEnd"],
@@ -2796,7 +2927,7 @@ function textChangeQuestion(seat, ui, src, prompt, gv, byId) {
   // "mountainwalk"); the rest A-Z, colours in their W U B R G order
   const txt = String(targetText || "");
   if (ui.options) {
-    const word = (o) => String(o.label).replace(/ \(needed\)$/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const word = (o) => escapeRe(String(o.label).replace(/ \(needed\)$/, ""));
     const mine = (o) => !!txt && new RegExp(`\\b${word(o)}(?:s|walk)?\\b`, "i").test(txt);
     const rest = ui.options.filter((o) => !mine(o));
     if (kind !== "colour word") rest.sort((x, y) => String(x.label).localeCompare(String(y.label)));
@@ -3027,6 +3158,7 @@ function onPrompt(seat, prompt) {
         if (theirs || skipReached(seat.skipTo, gv, seat.slot)) {
           chat(`[MTG] Skip ended: ${theirs ? `${theirs.identity?.name || "something"} (${nameOf(theirs.controllerId)}) is on the stack` : `${REWIND_STEPS[gv.step] || gv.step}, ${gv.activePlayerId === seat.slot ? "your" : `${nameOf(gv.activePlayerId)}'s`} turn`}.`, seat.color);
           seat.skipTo = null;
+          autoNotice(seat);
           skipStop = true; // (stopped there, whatever the step stops say)
         } else {
           seat.respond(prompt.promptId, type, { type: "pass" });
@@ -3716,7 +3848,7 @@ function onPrompt(seat, prompt) {
         // (the keyword's reminder text says it better than Forge's cost: Conspire's "It costs: tap two untapped creature
         // that shares a color with Rally the Galadhrims you control" -> "Rally the Galadhrim: tap two untapped creatures
         // you control that share a color with it?", sweep 2026-10-28)
-        const kw = pay[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const kw = escapeRe(pay[1]);
         const reminder = srcCardText.match(new RegExp(`\\b${kw}\\b[^(\\n]*\\(([^)]*)\\)`))?.[1];
         const may = reminder?.match(/^(?:As you cast this spell, )?you may ([^.]+)\.\s*(.*)$/i);
         ui = /^\{/.test(pay[2])
@@ -3860,7 +3992,10 @@ function onPrompt(seat, prompt) {
       const must = input.attackers.filter((a) => a.mustAttack && a.validTargetIds.length);
       // "All attack" sends every creature at its first target; "No attacks" none (except those that must attack).
       const quick = pairs.length ? [{ id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" }] : [];
-      ui = { title: "Choose attackers", mode: "multi", min: 0, max: pairs.length, options: [...quick, ...pairs] };
+      // (who must attack, said on the question and again if the attack is refused: Kardur, Doomscourge sent four of Red's
+      // Dragons in, and all they saw was "Attack declaration invalid", 15 times, game 2026-11-01)
+      seat.mustAttack = must.map((m) => cname(m.attackerId));
+      ui = { title: "Choose attackers", mode: "multi", min: 0, max: pairs.length, options: [...quick, ...pairs], ...(must.length ? { text: `Must attack: ${seat.mustAttack.join(", ")}.` } : {}) };
       toOutput = (a) => {
         const byAttacker = {};
         for (const m of must) byAttacker[m.attackerId] = m.validTargetIds[0];
@@ -3965,6 +4100,12 @@ function onPrompt(seat, prompt) {
       if (/^AI can't play/i.test(title)) { seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" }); return; }
       // a notice with no cards ("White picked AI 1", "AI 1 vote Money"): told in chat and the game log, not asked (one
       // test game asked for OK 15 times; Arena shows such things in passing)
+      if (/^Attack declaration invalid\b/i.test(title)) {
+        const names = seat.mustAttack || [];
+        chat(`[MTG] That attack isn't legal. ${names.length ? `Must attack: ${names.join(", ")}. Any you don't choose are sent for you. Check the table too: an effect can also forbid attacking a player.` : "Something on the table limits who can attack, or who they can attack."}`, seat.color);
+        seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" });
+        return;
+      }
       if (!(input.cards || []).length) {
         const me = nameOf(seat.slot);
         const said = displayText(`${src ? `${src}: ` : ""}${String(title || "").split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean).join(". ")}`);
@@ -4340,6 +4481,7 @@ function whyNot(seat, cardId) {
   const me = (gv.players || []).find((p) => p.id === seat.slot);
   const types = card?.types || [];
   const myMain = gv.activePlayerId === seat.slot && /main/i.test(gv.step || "") && !(gv.stack || []).length;
+  if (card?.phasedOut) return `${name} is phased out: it counts as not there until it phases in.`;
   if (gv.priorityPlayerId !== seat.slot) return `${name}: wait, it isn't your priority.`;
   // (a permanent already on the battlefield is not played: Arena of Glory, its one ability a mana ability, read "lands
   // can only be played in your main phase with an empty stack" in the main phase, hp-09)
@@ -4649,16 +4791,23 @@ function onTTS(m) {
       // the table's own events, already one per line with the table's time and colour
       for (const line of String(m.lines || "").split("\n")) if (line) fs.appendFile(TABLE_LOG, `[table] ${line}\n`, () => {});
       break;
+    case "check":
+      noteCheck(m);
+      break;
     case "hello":
+      tableStamp = m.stamp ?? null;
       // (the table's repeat while it has drawn nothing, with no game running: nothing to send, suite review)
       if (m.again && !game?.started) break;
       log("TTS connected");
+      if (!m.again) warnIfOutOfStep();
       if (game?.started && game.fromTable) resendToTable(); // the table was reloaded mid-game
       // (a table that drew nothing yet asks again: the greeting once is enough)
       if (!m.again) chat(`[MTG] Bridge connected (relay ${RELAY}). Type "mtg help".`);
       if (game) for (const s of game.seats.values()) { scheduleView(s); }
       break;
     case "start": {
+      noteStamp(m);
+      warnIfOutOfStep();
       const go = () => {
         startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats));
         if (game && m.autoplay) game.autoplay = true;
@@ -4721,6 +4870,10 @@ function onTTS(m) {
       log(`${m.color}: auto-resolve ${m.on ? "on" : "off"}`);
       // a "Resolve" already waiting on someone else's turn goes at once
       const seat = game?.seats.get(m.color);
+      if (seat) {
+        if (m.on) seat.skipTo = null; // (one choice at a time: the list on the table has one setting)
+        autoNotice(seat);
+      }
       const gv = seat?.board?.state?.gameView;
       if (m.on && seat?.prompt?.type === "chooseAction" && gv && gv.activePlayerId !== seat.slot) {
         seat.respond(seat.prompt.promptId, "chooseAction", { type: "pass" });
@@ -4733,10 +4886,12 @@ function onTTS(m) {
       const seat = game?.seats.get(m.color);
       const phase = String(m.phase || "").trim().toLowerCase().replace(/^(?:my|my turn|my next turn|next turn)$/, "mine");
       if (!seat) { chat("[MTG] Skip: no game running.", m.color); break; }
-      if (phase === "off" || phase === "") { seat.skipTo = null; chat("[MTG] Skip off.", m.color); break; }
+      if (phase === "off" || phase === "") { seat.skipTo = null; autoNotice(seat); chat("[MTG] Skip off.", m.color); break; }
       if (!Object.hasOwn(SKIP_PHASES, phase)) { chat(`[MTG] Skip to which phase? ${Object.keys(SKIP_PHASES).join(", ")} (or off).`, m.color); break; }
       const gv = seat.board?.state?.gameView || {};
       seat.skipTo = { phase, turn: gv.turn ?? 0, step: gv.step || "untap" };
+      autoResolve[m.color] = undefined; // (or auto-resolve would pass the very stop this asks for)
+      autoNotice(seat);
       chat(`[MTG] Passing until ${phase === "mine" ? "your next turn" : `the next ${phase === "main" ? "main phase" : phase === "main2" ? "second main phase" : phase === "end" ? "end step" : `${phase} step`}`}; an opponent's spell stops it. (mtg skip off)`, m.color);
       // a priority already waiting goes at once
       if (seat.prompt?.type === "chooseAction" && !skipReached(seat.skipTo, gv, seat.slot) && !(gv.stack || []).some((x) => x.controllerId !== seat.slot)) {
@@ -4769,6 +4924,9 @@ function onTTS(m) {
       break;
     case "rewindVote":
       onRewindVote(m.color, m.accept);
+      break;
+    case "rewindGo":
+      onRewindGo(m.color);
       break;
     case "concede":
       onConcede(m.color);
@@ -4807,7 +4965,9 @@ function rewindState(gv) {
   // as long as that took (playtest 2026-10-24). Say who and what.
   if (vote && vote.status === "pending" && vote.waiting.length === 0) {
     const busy = [...game.seats.values()].filter((st) => st.prompt && st.prompt.type !== "chooseAction");
-    vote.note = busy.length ? `Agreed: it happens when ${busy.map((st) => `${st.color} answers "${st.prompt.ui?.title || st.prompt.type}"`).join(" and ")}.`
+    // (the table shows a button then: anyone can go now, and the open question is dropped with what it would have undone)
+    vote.go = busy.length > 0;
+    vote.note = busy.length ? `Everyone agreed. ${busy.map((st) => `${st.color} still has "${st.prompt.ui?.title || st.prompt.type}" open`).join(" and ")}: press Rewind to go now.`
       : "Agreed: rewinding...";
   }
   return { points, vote };
@@ -4836,6 +4996,15 @@ function onRewind(color, checkpointId) {
   if (!isPlaying(gv, seat.slot)) return chat("[MTG] Players who are out can't ask to rewind.", color);
   log(`${color} asks to rewind to ${checkpointLabel(cp)} (#${cp.checkpointId})`);
   seat.directive({ type: "requestRestore", checkpointId: cp.checkpointId });
+}
+// The button once everyone has agreed: a yes on a vote with nobody left to ask. Forge then answers the open questions
+// with their safe defaults up to the next priority and rewinds there, instead of waiting for a player to click on.
+function onRewindGo(color) {
+  const seat = game?.seats.get(color);
+  const v = seat?.board?.state?.gameView?.restoreVote;
+  if (!v || v.status?.type !== "pending" || (v.awaitingPlayerIds || []).length) return chat("[MTG] No agreed rewind is waiting.", color);
+  log(`${color} starts the agreed rewind (vote ${v.voteId})`);
+  seat.directive({ type: "restoreVote", voteId: v.voteId, accept: true });
 }
 function onRewindVote(color, accept) {
   const seat = game?.seats.get(color);
@@ -5308,6 +5477,13 @@ const debugServer = http.createServer((req, res) => {
     });
   } else if (req.url === "/stats") {
     res.end(JSON.stringify(ttsStats));
+  } else if (req.url === "/versions") {
+    // is what's running what the last deploy put together, and what the table's check and the log's guesses found
+    versionsNow((now) => {
+      const deployed = versions.readManifest();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ now, deployed, outOfStep: versions.outOfStep(now, deployed), waiting: versions.waiting(deployed), alignment }, null, 1));
+    });
   } else if (req.url === "/state") {
     const seats = game ? [...game.seats.values()].map((st) => {
       const gv = st.board?.state?.gameView;
@@ -5315,7 +5491,7 @@ const debugServer = http.createServer((req, res) => {
       return { color: st.color, slot: st.slot, turn: gv?.turn, step: gv?.step, battlefield: bf, manaPool: gv?.players?.find((p) => p.id === st.slot)?.manaPool, rawPrompt: st.lastRawPrompt };
     }) : null;
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ started: !!game?.started, seats }, null, 1));
+    res.end(JSON.stringify({ started: !!game?.started && !game.over, seats }, null, 1));
   } else if (req.url.startsWith("/card/")) {
     // a card as the engine sends it, from the lead seat's view: GET /card/<name or engine id> (debugging what Forge says)
     let want = "";
@@ -5341,8 +5517,8 @@ if (require.main === module) {
 } else {
   // Loaded by a test (tests/bridge-harness.js): the logic without servers. `game` is set through _setGame.
   module.exports = {
-    Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
-    summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, cardIndex, nameOf,
+    alignment, tableCard, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
+    summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, cardIndex, nameOf,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer,
   };
 }

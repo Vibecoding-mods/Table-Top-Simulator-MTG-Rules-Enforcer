@@ -116,6 +116,13 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("debug port: TTS/curl request (no Origin, local Host) works", (await req({})) === 200);
     ok("debug port: a browser request (Origin header) is refused", (await req({ Origin: "https://evil.example" })) === 403);
     ok("debug port: a foreign Host (DNS rebinding) is refused", (await req({ Host: "evil.example:48991" })) === 403);
+    // "a game is running" stops a deploy: a game that has ended isn't one
+    const started = () => new Promise((resolve) => require("http").get({ host: "127.0.0.1", port: 48991, path: "/state" }, (res) => { let t = ""; res.on("data", (d) => { t += d; }); res.on("end", () => resolve(JSON.parse(t).started)); }));
+    h.B._setGame({ seats: new Map(), started: true });
+    ok("/state: a game in play is running", (await started()) === true);
+    h.B._setGame({ seats: new Map(), started: true, over: true });
+    ok("/state: a finished game isn't", (await started()) === false);
+    h.B._setGame(null);
     h.B.debugServer.close();
     delete process.env.MTG_DEBUG_PORT;
   }
@@ -134,6 +141,29 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       fs.unlinkSync(files[0]);
       ok("presets: Manabrew's copy is used when ours is absent", label() === "manabrew's", `read ${label()}`);
     } finally { for (const f of files) try { fs.unlinkSync(f); } catch {} }
+  }
+  // "A card nothing changed has no box, so ow goes only with a box" (statusLists), "those that are always on" (cardKeywords)
+  {
+    const look = async (keywords, extra = {}) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      const c = b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards[0];
+      Object.assign(c, { text: "Flying, trample\nEquip {2}\nCycling {1}", keywords, ...extra });
+      setup(h, b);
+      h.B.sendTable(); await h.flush();
+      return sent(h, "table")[0].players.flatMap((p) => p.battlefield || []).find((x) => x.id === c.id);
+    };
+    const own = ["Flying", "Trample", "Equip:2", "Cycling:1"];
+    const plain = await look(own);
+    ok("status: a card with only its own keywords has no box", !!plain && plain.kw === undefined && plain.ow === undefined, JSON.stringify(plain?.ow));
+    const given = await look([...own, "Hexproof"]);
+    ok("status: a grant lists it as changed", JSON.stringify(given?.kw) === '["Hexproof"]', JSON.stringify(given?.kw));
+    ok("status: with a box, its own always-on keywords go too, no Equip or Cycling", JSON.stringify(given?.ow) === '["Flying","Trample"]', JSON.stringify(given?.ow));
+    const phased = await look(own, { phasedOut: true });
+    ok("status: phased out is a box, so its own keywords go too", phased?.po === true && JSON.stringify(phased?.ow) === '["Flying","Trample"]', JSON.stringify(phased?.ow));
+    const junk = await look(["Chapter:3:DBSacrifice,DBDiscard,DBChangeZone", "MayFlashSac", "AlternateAdditionalCost:1:Sac", "Class:2:Foo", "Visit:Bar"]);
+    ok("status: Forge's internal names are no status", junk?.kw === undefined, JSON.stringify(junk?.kw));
+    harness.restore();
   }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);

@@ -221,6 +221,15 @@ The cloud gaming PC hosts TTS and the VPS runs Forge. Docker may not run on a cl
 - **Vultr fractional GPU** (~$21.50/month at launch, 2023): the current price, and whether TTS runs on it, could make always-on affordable.
 - **ARM build of manabrew-node** (for Oracle's free tier): is the work worth it?
 
+## Full hosting status, 2026-11-02
+
+Shape A chosen by the user. The Steam account for step M exists; Steam Guard and friending the players are still to do.
+
+- **Free test passed:** the engine behind a delay proxy (`tmp/delay-proxy.js`, 60 ms each way + 0-20 ms) ran three-seat games with `tmp/kardur-check.js`: 7 of 8 passed 8 of 8 checks, the eighth didn't deal the cards the test needs, no engine errors. This covers the Forge link only, not TTS or a real network.
+- **Not free:** a Windows GPU machine can't be tried for nothing. AWS's free plan appears not to allow GPU instances, so a first real test means a paid plan and about $2.
+- **Scripts written, syntax-checked only:** `tools/vps-up.ps1`, `vps-down.ps1`, `night-up.ps1`, `night-down.ps1`. Their doctl and aws commands have never run against real accounts.
+- **The droplet must run our images,** not the stock ones in the report's compose file, and the `race-fix` node.
+
 ## tools/setup-server.sh, tested 2026-10-30
 
 On a clean Ubuntu 24.04 container: Docker installed by the script, key created (mode 600), relay and Forge room started, and a

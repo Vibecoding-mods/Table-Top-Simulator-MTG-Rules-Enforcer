@@ -1,5 +1,6 @@
 # Generated, local or large: never published
 tmp/
+stack/deployed.json
 node_modules/
 research_notes/
 *.log
