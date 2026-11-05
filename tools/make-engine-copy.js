@@ -346,6 +346,10 @@ function engineChat(message, pl)
     engineAutoMana = engineAutoMana or {}
     engineAutoMana[pl.color] = { rest = rest, at = os.clock() }
     engineSend("fix", { color = pl.color, action = "call" })
+  elseif cmd == "debug" then
+    -- mtg debug <scenario> / list / off: a test board from scenarios/<name>.json (lands out, named cards in hand),
+    -- set up through the manual fix now, or at your first priority in the next game (the bridge reads the file)
+    engineSend("debug", { color = pl.color, scenario = rest })
   elseif cmd == "vote" then
     if rest == "yes" or rest == "no" then engineSend("rewindVote", { color = pl.color, accept = rest == "yes" })
     else pl.broadcast("[MTG] Use:  mtg vote yes  or  mtg vote no") end
@@ -362,7 +366,7 @@ function engineChat(message, pl)
     engineSend("reset", {})
     if ENGINE_MODE then engineClear() end -- don't wait for the bridge's "clear" (it may be down)
   else
-    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off, mtg sounds on/off - your own; mtg animations on/off (host) - also under Settings")
+    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off, mtg sounds on/off - your own; mtg animations on/off (host) - also under Settings")
   end
   return false
 end

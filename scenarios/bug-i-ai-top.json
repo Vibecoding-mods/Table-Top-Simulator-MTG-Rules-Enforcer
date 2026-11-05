@@ -1,0 +1,14 @@
+{
+  "label": "log bug i: the AI casts Sensei's Divining Top on its turn; its enter line must come before the next turn header (also h: mtg mana 5 for Red should say AI 1)",
+  "lands": {
+    "Mountain": 20
+  },
+  "opponents": {
+    "lands": {
+      "Island": 5
+    },
+    "hand": [
+      "Sensei's Divining Top"
+    ]
+  }
+}

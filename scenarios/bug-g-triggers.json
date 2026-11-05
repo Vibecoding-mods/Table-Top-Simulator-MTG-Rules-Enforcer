@@ -1,0 +1,14 @@
+{
+  "label": "log bug g: triggers that resolve inside one board (Fable chapter I on the cast board, Archmage Emeritus magecraft draw) must be named",
+  "lands": {
+    "Mountain": 10,
+    "Island": 10
+  },
+  "hand": [
+    "Fable of the Mirror-Breaker",
+    "Opt"
+  ],
+  "battlefield": [
+    "Archmage Emeritus"
+  ]
+}

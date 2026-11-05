@@ -1,0 +1,9 @@
+{
+  "label": "log bug a: the Goblin Shaman token attacks; its Treasure line should come after the attack line",
+  "lands": {
+    "Mountain": 20
+  },
+  "tokens": [
+    "2/2 red goblin shaman"
+  ]
+}

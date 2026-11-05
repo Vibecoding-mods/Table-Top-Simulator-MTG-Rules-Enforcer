@@ -1,0 +1,9 @@
+{
+  "label": "log bugs b, d: Ancient Copper Dragon attacks and rolls a d20 (public line, third person); its Treasures are named \"a Treasure token\"",
+  "lands": {
+    "Mountain": 20
+  },
+  "battlefield": [
+    "Ancient Copper Dragon"
+  ]
+}

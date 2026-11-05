@@ -58,6 +58,58 @@ Done 2026-11-03 (in source, not yet live):
 - 🔶 The bridge words moves out of a library through one table, covering mill, dredge, surveil, explore and a plain
   put. Tested in `tests/test_bridge_events.js`.
 
+### The next 1½–2 days (the user's go-ahead, 2026-11-03)
+
+TTS is not needed for any of this: the bridge tests and the test stack on port 9444 cover it.
+1. 🔶 **Engine causes for costs and special actions (½ day).** In source 2026-11-03: harness `Cost:<name>` causes and
+   `how` foretell / plot / suspend. The bridge labels discard, sacrifice and graveyard-exile lines with `costWords`.
+   Image `mtg-forge-node:costs`; the live check has 5 new steps. The harness names the cost or special action that moved
+   a card:
+   - cycling's discard;
+   - delve's and escape's exile;
+   - a sacrifice paid as a cost;
+   - foretell, plot and suspend.
+
+   One image rebuild covers all of it.
+2. ✅ **Every other zone move onto the kind + wording table (done 2026-11-03).** Each table has a function that
+   decides the kind:
+   - `EXILE_WORDS` (`exileKind`);
+   - `HAND_WORDS` (draws, puts into hand, discards);
+   - `LEAVE_WORDS` (`departureKind`: dies, destroyed, sacrificed, bounced, tucked, tokens gone).
+
+   One `grouped()` serves every one-line-for-many move. The golden test is unchanged, and the mutation grades caught
+   17 of 17 (exile) and 18 of 18 (hand and leave). Exile, graveyard and the other
+   moves follow the pattern `libraryKind` / `LIBRARY_WORDS` set: one function decides the kind, one table words it. It
+   replaces the ~7 exile wordings, `libExiles` / `gyExiles` / `bfExiles`, and the draw and discard wording.
+3. 🔶 **An automated keyword sweep (in source 2026-11-03).** `tools/keyword-sweep/pick.js` picks a test card per
+   keyword from Forge's cardsfolder (18 keywords; disturb has no single-faced card) into `tests/keyword-sweep.json`.
+   `tests/live_events_check.js --sweep <file>` plays them all on the 9444 test stack; the log replay is fed the seats'
+   own actions the way `Seat.respond` feeds `notePlay`, and `--dump <file>` saves the boards for an offline replay.
+   The first run reached 4 keywords and named none. The bridge fixes it led to:
+   - encore and transmute said by their keyword ("Yellow encores Impulsive Pilferer"), and evoke's sacrifice trigger;
+   - another player's keyword activation said from its stack text, not "uses X's ability";
+   - an ability activated from a hand no one else sees (transmute, cycling, ninjutsu) is no longer read as a cast;
+   - retrace and jump-start casts named; any other graveyard cast says "from their graveyard";
+   - buyback's return to the hand said;
+   - a stack item seen before under its own stack id is not said again. Retrace's cast was said twice; the golden's
+     bounced Sensei's Top read "Blue casts Sensei's Divining Top" and no longer does;
+   - an early keyword-ability line hides its stack item (it only did for plain "ability" records).
+
+   No engine rebuild was needed: the `:costs` image already sends every cause the fixes use. Mutation grade 22 of 22
+   (the first pass caught 11 of 19; each escape got a test). Final runs: sweep 34 of 34, live events 51 of 51,
+   phasing 23 of 23.
+   Two stacks in parallel: done (`LIVE_STACK=1`; events 51/51 ran beside the sweep). Sweep widened to 33 keywords
+   (2026-11-03): first run 58 of 63, now 62 of 63 on node image `:optcost` (2026-11-04). Fixed: kicker/entwine named
+   from the harness's new stack `optionalCosts`, spells mid-cast left out until they land (their costs are chosen
+   during the cast), reinforce's line and cost label, offspring's trigger, prototype's cast button labelled by the
+   harness and said by the bridge; the sweep pays offspring. Mutation 22 of 23 caught; the escape is equivalent (only a spell's
+   own cast action is ever labelled "(Prototype)"). The one sweep
+   failure left is a set-up step that varies per deal (landcycling, retrace once); the events check's delve step can
+   also stop on a deal with too few graveyard cards (Treasure Cruise, twice in five runs; 51/51 otherwise on both images).
+   Not covered: cleave and disturb (no card fits the pick rules); an AI's prototype cast (no stack flag for it).
+
+Left for later: the table's Lua cleanup (the last item below), and the prompt and keyword registries.
+
 Still to move onto the core moves, in this order:
 - ⬜ The table's mill: one detector instead of two. Check surveil, which may be counted as a mill twice.
 - ⬜ Exile wording: one table instead of about 7 places.

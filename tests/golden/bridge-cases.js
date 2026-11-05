@@ -3258,6 +3258,24 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
     await boardAs(h, seat, myMain(D2.board));
     return { early, lines: logLines(h).slice(mark) };
   } });
+  // (an early "casts" line hides only the spell: the card's own enter trigger after it is still said, keyword sweep)
+  add({ name: "log: a cast said early leaves its card's enter trigger to be said", run: async (h) => {
+    const visionary = { id: "engine-card-960", identity: { name: "Elvish Visionary" }, types: ["Creature"], ownerId: "player-0", controllerId: "player-0", text: "" };
+    const inHand = myMain(D2.board);
+    inHand.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards.push(visionary);
+    const seat = game(h, inHand);
+    h.B.sendTable(); await h.flush();
+    const mark = logLines(h).length;
+    h.B.onPrompt(seat, prompt("chooseAction", { actions: [{ id: "a-cast", type: "cast", cardId: "engine-card-960", label: "Cast Elvish Visionary", mode: { type: "normal" } }] })); await h.flush();
+    await answer(h, 900, ["a-cast"]);
+    const entered = myMain(D2.board);
+    entered.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push({ id: "engine-card-960", identity: { name: "Elvish Visionary" }, types: ["Creature"], ownerId: "player-0", controllerId: "player-0", text: "" });
+    await boardAs(h, seat, entered);
+    const trigger = clone(entered);
+    trigger.gameView.stack = [{ id: "s9", sourceId: "engine-card-960", controllerId: "player-0", identity: { name: "Elvish Visionary" }, sourceAbilityText: "When Elvish Visionary enters, draw a card.", isPermanentSpell: false }];
+    await boardAs(h, seat, trigger);
+    return { lines: logLines(h).slice(mark) };
+  } });
   add({ name: "log: the stack names an ability from the hand by the player's own record", run: async (h) => {
     const seat = game(h, myMain(D2.board));
     h.B.sendTable(); await h.flush();
@@ -5912,6 +5930,87 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
       return lines().slice(mark);
     } });
   }
+}
+
+// ── the rebuilt decks' hand test (2026-11-04) ──
+add(promptCase("rebuilt #7: a coin flip is said of its player", D2.board, prompt("revealCards", { presentation: { title: "You win the flip." }, cards: [] }, { sourceCard: H(77) }), []));
+add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board, prompt("revealCards", { presentation: { title: "Chaos Warp - Revealing cards from" }, ownerPlayerId: "player-1", zone: "library", cards: [H(43)] }, { sourceCard: H(77) }), [["ok"]]));
+{
+  const MAIRSIL_TEXT = "As Mairsil, the Pretender enters, you may exile an artifact or creature card from your hand or graveyard and put a cage counter on it.";
+  add(promptCase("rebuilt #14: Mairsil's pick names both zones", D2.board, prompt("chooseCards", { presentation: { title: "Choose" }, cards: [H(43)], min: 0, max: 1 }, { sourceCard: { ...H(77), identity: { ...H(77).identity, name: "Mairsil, the Pretender" }, text: MAIRSIL_TEXT }, sourceAbilityText: MAIRSIL_TEXT }), [[]]));
+  const b = clone(D2.board);
+  for (const z of b.gameView.zones) for (const c of z.cards || []) if (c.id === "engine-card-22") Object.assign(c, { identity: { ...c.identity, name: "Mairsil, the Pretender" }, text: MAIRSIL_TEXT });
+  add(promptCase("rebuilt #6: a question with no card, by the card on the board that asks it", b, prompt("chooseBoolean", { presentation: { title: "Exile an artifact or creature card from your hand or graveyard and put a cage counter on it?" } }), [["no"]]));
+  const m = myMain(D2.board);
+  for (const z of m.gameView.zones) for (const c of z.cards || []) if (c.id === "engine-card-64" || c.id === "engine-card-65") c.identity = { ...c.identity, name: "Mairsil, the Pretender" };
+  add(promptCase("rebuilt #12: the same ability on two permanents of one name, both offered", m, prompt("chooseAction", { actions: [
+    { id: "a-m1", type: "activateAbility", cardId: "engine-card-64", description: "{T}: Destroy target tapped creature." },
+    { id: "a-m2", type: "activateAbility", cardId: "engine-card-65", description: "{T}: Destroy target tapped creature." }] }), [["a-m2"]]));
+  add(promptCase("rebuilt #16: Ponder's look is in the log", D2.board, prompt("reorder", { presentation: { title: "Reorder" }, items: [{ id: "engine-card-43", card: H(43) }, { id: "engine-card-75", card: H(75) }, { id: "engine-card-77", card: H(77) }] },
+    { sourceCard: { ...H(77), identity: { ...H(77).identity, name: "Ponder" } }, sourceAbilityText: "Look at the top three cards of your library, then put them back in any order. You may shuffle." }), [["engine-card-75"], ["engine-card-43"], ["engine-card-77"]]));
+  add(promptCase("rebuilt #2: a card revealed for a cost is in the log", D2.board, prompt("chooseCards", { presentation: { title: "Reveal for cost" }, cards: [H(43), H(75)], min: 1, max: 1 },
+    { sourceCard: { ...H(77), identity: { ...H(77).identity, name: "Foreboding Ruins" }, text: "As Foreboding Ruins enters, you may reveal a Swamp or Mountain card from your hand. If you don't, it enters tapped." } }), [["engine-card-75"]]));
+  add(promptCase("rebuilt #2 re-test: Forge's shape, the step in the description", D2.board, prompt("chooseCards", { presentation: { title: "Choose", description: "Reveal for cost" }, cards: [H(43), H(75)], min: 1, max: 1 },
+    { sourceCard: { ...H(77), identity: { ...H(77).identity, name: "Foreboding Ruins" }, text: "As Foreboding Ruins enters, you may reveal a Swamp or Mountain card from your hand. If you don't, it enters tapped." } }), [["engine-card-75"]]));
+  add({ name: "rebuilt #7: a reveal shown to two seats is logged once", run: async (h) => {
+    const seat = game(h, D2.board);
+    const reveal = (id) => prompt("revealCards", { presentation: { title: "Chaos Warp - Revealing cards from" }, ownerPlayerId: "player-1", zone: "library", cards: [H(43)] }, { promptId: id, sourceCard: H(77) });
+    const other = new h.B.Seat("Yellow", "neheb_minotaur_commander");
+    other.slot = "player-2";
+    other.board = { state: clone(D2.board), fingerprint: null };
+    h.B._getGame().seats.set("Yellow", other);
+    h.B.onPrompt(seat, reveal(901)); await h.flush();
+    h.B.onPrompt(other, reveal(902)); await h.flush();
+    h.B._getGame().seats.delete("Yellow");
+    return { log: h.B._getGame().log };
+  } });
+  // (re-test: the reveal comes mid-spell, before the board that shows the spell's first move; said after that board's
+  // lines, or alone 2 s later when no board brings any)
+  for (const board of [true, false]) {
+    add({ name: `rebuilt #7 re-test: a reveal said after what its spell did first${board ? "" : ", or alone"}`, run: async (h) => {
+      const seat = game(h, myMain(D2.board));
+      const lines = () => h.effects.filter((e) => e.tts && e.tts.t === "gamelog").flatMap((e) => e.tts.lines);
+      const zone = (bd, zn, owner) => bd.gameView.zones.find((z) => z.zone === zn && z.ownerId === owner);
+      const island = { id: "engine-card-970", identity: { name: "Island" }, types: ["Land"], ownerId: "player-1", controllerId: "player-1", text: "" };
+      const before = myMain(D2.board);
+      zone(before, "battlefield", "player-1").cards.push(island);
+      seat.board = { state: before, fingerprint: null }; h.B.sendTable(); await h.flush();
+      const mark = lines().length;
+      h.B.onPrompt(seat, prompt("revealCards", { presentation: { title: "Chaos Warp - Revealing cards from" }, ownerPlayerId: "player-1", zone: "library", cards: [{ ...H(43), identity: { ...H(43).identity, name: "Island" } }] },
+        { sourceCard: { ...H(77), identity: { ...H(77).identity, name: "Chaos Warp" } } }));
+      if (board) {
+        const after = myMain(D2.board);
+        zone(after, "library", "player-1").count = (zone(before, "library", "player-1").count || 0) + 1;
+        after.gameView.events = [{ seq: 900, id: "ev-900", cardId: "engine-card-970", from: "Battlefield", to: "Library", ownerId: "player-1", cause: "ChangeZone", causeName: "Chaos Warp" }];
+        seat.board = { state: after, fingerprint: null }; h.B.sendTable();
+      }
+      await h.flush();
+      return lines().slice(mark);
+    } });
+  }
+  add({ name: "rebuilt #7 re-test: a held reveal dies with its game", run: async (h) => {
+    const seat = game(h, D2.board);
+    const lines = () => h.effects.filter((e) => e.tts && e.tts.t === "gamelog").flatMap((e) => e.tts.lines);
+    const mark = lines().length;
+    h.B.onPrompt(seat, prompt("revealCards", { presentation: { title: "Chaos Warp - Revealing cards from" }, ownerPlayerId: "player-1", zone: "library", cards: [H(43)] }, { sourceCard: H(77) }));
+    const next = { seats: new Map([["Blue", seat]]), bots: 1, total: 2, slotNames: { "player-0": "Blue", "player-1": "AI 1" }, slotColor: { "player-0": "Blue", "player-1": "White" }, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} };
+    h.B._setGame(next);
+    await h.flush();
+    return { lines: lines().slice(mark), newLog: next.log || [] };
+  } });
+  add({ name: "rebuilt #4: a fix's repeated tokens counted, a before a vowel an", run: async (h) => {
+    const seat = game(h, withFix(null));
+    h.B.onTTS(fixMsg("Blue", "call")); await h.flush();
+    h.B.onPrompt(seat, prompt("chooseAction", { actions: [] })); await h.flush();
+    const t = (script) => ({ op: "createToken", script, player: "Blue" });
+    h.B.onTTS(fixMsg("Blue", "done", { ops: [t("treasure"), t("treasure"), t("treasure"), t("eldrazi spawn")] })); await h.flush();
+    return h.effects.filter((e) => /Changes:/.test(e.tell?.text || e.told?.text || JSON.stringify(e))).map((e) => JSON.stringify(e).match(/Changes:[^"\\]*/)?.[0]);
+  } });
+  const f = myMain(D2.board);
+  for (const z of f.gameView.zones) for (const c of z.cards || []) if (c.id === "engine-card-75") c.text = "You may sacrifice a nontoken red creature rather than pay this spell's mana cost.\nCopy target instant or sorcery spell.";
+  add(intentCase("rebuilt #18: a static alternative cost under the plain label is asked, not merged", f, prompt("chooseAction", { actions: [
+    { id: "a-n", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur", mode: { type: "normal" } },
+    { id: "a-alt", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur", mode: { type: "staticAlternative" } }] }), [{ kind: "play", id: "engine-card-75" }]));
 }
 
 module.exports = cases;

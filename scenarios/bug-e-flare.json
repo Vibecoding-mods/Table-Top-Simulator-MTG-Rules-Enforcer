@@ -1,0 +1,13 @@
+{
+  "label": "log bug e: Flare of Duplication, cast by sacrificing Goblin Guide (the second way must say so; a drag must ask which way)",
+  "lands": {
+    "Mountain": 20
+  },
+  "hand": [
+    "Flare of Duplication",
+    "Lightning Bolt"
+  ],
+  "battlefield": [
+    "Goblin Guide"
+  ]
+}

@@ -27,9 +27,20 @@ const STEPS = [
   // (each move made by a mechanic carries the mechanic as its cause, SPEC §4a: explore's reveals, dredge's mill)
   { key: "explore", cast: "Jadelight Ranger", mana: "G G G" },
   { key: "dredge", cast: "Think Twice", mana: "U U", needs: HELPER.dredger, needsZone: "graveyard" },
+  // (a move made by paying a cost carries "Cost:<keyword or part>", and a special action's exile the flag it set)
+  { key: "cycle", cast: "Censor", ability: "Cycling", mana: "U" },
+  { key: "foretell", cast: "Saw It Coming", ability: "Foretell", mana: "U U" },
+  { key: "plot", cast: "Slickshot Show-Off", ability: "Plot", mana: "R R" },
+  { key: "suspend", cast: "Rift Bolt", ability: "Suspend", mana: "R" },
+  { key: "delve", cast: "Treasure Cruise", mana: "U U U U" },
 ];
+// --sweep <file>: the keyword sweep (tools/keyword-sweep/pick.js) in place of the steps above, each keyword's card
+// twice in a deck of nothing else, so every one is in a hand within a few turns; judged by sweepJudge
+const SWEEP = arg("sweep", null) ? JSON.parse(require("fs").readFileSync(arg("sweep"), "utf8")).steps : null;
+if (SWEEP) STEPS.splice(0, STEPS.length, ...SWEEP);
 const cards = [];
-for (const [n, k] of [["Mountain", 20], ...STEPS.filter((s) => s.cast).map((s) => [s.cast, 7]), [HELPER.bear, 9], [HELPER.sword, 8], [HELPER.dredger, 7]]) for (let i = 0; i < k; i++) cards.push(card(n));
+// (and lands for retrace's discard)
+for (const [n, k] of SWEEP ? [["Mountain", 8], ...SWEEP.map((s) => [s.cast, 2])] : [["Mountain", 20], ...STEPS.filter((s) => s.cast).map((s) => [s.cast, 7]), [HELPER.bear, 9], [HELPER.sword, 8], [HELPER.dredger, 7]]) for (let i = 0; i < k; i++) cards.push(card(n));
 const COMMANDER = "Rograkh, Son of Rohgahh";
 const DECK = { deckName: "events-check", deck: { name: "events-check", cards, sideboard: [], format: "commander", commanders: [card(COMMANDER)] }, commanderName: COMMANDER };
 
@@ -45,14 +56,15 @@ const finish = (why) => {
   process.exit(bad || why ? 1 : 0);
 };
 const realTimeout = setTimeout;
-realTimeout(() => finish(`timed out, done: ${Object.keys(T.done).join(" ")}`), Number(arg("timeout", 240)) * 1000);
+// (the sweep reports what it reached: a keyword never reached fails by name)
+realTimeout(() => (SWEEP && !finished ? sweepJudge() : finish(`timed out, done: ${Object.keys(T.done).join(" ")}`)), Number(arg("timeout", 240)) * 1000);
 
 const cname = (c) => c.identity?.name || "";
 const zone = (g, z, owner) => (g.zones || []).find((x) => x.zone === z && x.ownerId === owner)?.cards || [];
 const allCards = (g) => (g.zones || []).flatMap((z) => (z.cards || []).map((c) => ({ ...c, zone: z.zone })));
 const findIn = (g, id) => allCards(g).find((c) => c.id === id);
 
-const T = { done: {}, step: null, fixId: 700, boards: [], sizes: [] };
+const T = { done: {}, step: null, fixId: 700, boards: [], sizes: [], acts: [] };
 const clients = [];
 
 class Client {
@@ -113,12 +125,17 @@ class Client {
     if (VERBOSE) process.stdout.write(`seat ${this.slot} t${g.turn} ${g.step} stack ${(g.stack || []).length}: ${type} ${T.step?.key || ""} ${T.step?.state || ""}\n`);
     const mine = T.step?.seat === this.slot;
     switch (type) {
+      case "gameOver": return SWEEP ? sweepJudge() : finish("the game ended");
       case "diceRolled": return this.respond(p, type, { type: "diceRolledAcknowledged" });
       case "mulligan": return this.respond(p, type, { type: "mulliganDecision", keep: true });
       case "chooseAction": return priority(this, p, g, input);
-      case "payManaCost":
+      case "payManaCost": {
+        // (Treasure Cruise's generic paid from the graveyard, one card a prompt, as a player picks them)
+        const delve = mine && T.step?.key === "delve" && (input.actions || []).find((a) => a.type === "useResource" && /^delve:/.test(a.id || ""));
+        if (delve) return this.respond(p, type, { type: "act", actionId: delve.id });
         if (input.canConfirmFromPool) return this.respond(p, type, { type: "pay", auto: false });
         return this.respond(p, type, { type: "pay", auto: true });
+      }
       case "chooseBoardTargets": {
         const want = mine ? input.candidates.find((c) => c.id === T.step.targetId) : null;
         const chosen = want ? [want] : input.candidates.slice(0, input.minTargets);
@@ -128,12 +145,19 @@ class Client {
       case "chooseBoolean": return this.respond(p, type, { type: "decision", value: !/dredge/i.test(JSON.stringify(input)) || (mine && T.step.key === "dredge") });
       case "chooseCards": {
         const n = mine && T.step.key === "tutor" ? Math.max(input.min || 0, 1) : input.min || 0;
-        return this.respond(p, type, { type: "chooseCardsDecision", chosenCardIds: input.cards.slice(0, n).map((c) => c.id) });
+        // (the step's own token first, for a sacrifice: another step's creature was the first offered, and went)
+        const cards = [...input.cards].sort((a, b) => (b.id === T.step?.tokenId) - (a.id === T.step?.tokenId));
+        return this.respond(p, type, { type: "chooseCardsDecision", chosenCardIds: cards.slice(0, n).map((c) => c.id) });
       }
       case "chooseFromSelection": return this.respond(p, type, { type: "selectionDecision", chosenIndices: [0] });
-      case "chooseAttackers": return this.respond(p, type, { type: "declareAttackers", assignments: [] });
+      // (no attack but the ones that must: a dashed or blitzed creature, refused and asked again forever, keyword sweep)
+      case "chooseAttackers": return this.respond(p, type, { type: "declareAttackers", assignments: (input.attackers || []).filter((a) => a.mustAttack && a.validTargetIds?.length).map((a) => ({ attackerId: a.attackerId, targetId: a.validTargetIds[0] })) });
       case "chooseBlockers": return this.respond(p, type, { type: "declareBlockers", assignments: [] });
       case "revealCards": return this.respond(p, type, { type: "revealCardsAcknowledged" });
+      // (casualty's "Pay for Casualty?" and offspring's times to pay: the most in their own step, the least otherwise)
+      case "chooseNumber": return this.respond(p, type, { type: "numberDecision", chosenNumber: mine && /^(?:casualty|offspring)$/.test(T.step.key) ? input.max : input.min ?? 0 });
+      // (two triggers at once, Wispmare's evoke sacrifice and its enter trigger: in the order given)
+      case "reorder": return this.respond(p, type, { type: "reorderDecision", orderedIds: (input.items || []).map((x) => x.id) });
       case "scry": {
         // (surveil: every card it looks at into the graveyard, which is the case the feed has to tell from a mill)
         const moved = (input.cards || []).map((c) => c.id);
@@ -159,6 +183,7 @@ function begin(c, p, g, input, step) {
     const land = landAction(c, g, input, step.play);
     T.step.state = "cast";
     T.step.cardId = land.cardId;
+    T.acts.push({ at: T.boards.length, slot: c.slot, act: land, name: step.play });
     return c.respond(p, "chooseAction", { type: "act", actionId: land.id });
   }
   T.step.cardId = hand.find((x) => cname(x) === step.cast).id;
@@ -169,6 +194,10 @@ function begin(c, p, g, input, step) {
   T.step.fixId = ++T.fixId;
   c.directive({ type: "applyState", fixId: T.step.fixId, ops: [
     ...(helper ? [{ op: "move", card: helper.id, zone: step.needsZone || "battlefield" }] : []),
+    // (a keyword used from another zone, flashback's or unearth's graveyard: the card is put there first)
+    ...(step.fromZone ? [{ op: "move", card: T.step.cardId, zone: step.fromZone }] : []),
+    // (escape's other cards to exile: some of the hand into the graveyard first)
+    ...hand.filter((x) => x.id !== T.step.cardId && x.id !== helper?.id).slice(0, step.graveFill || 0).map((x) => ({ op: "move", card: x.id, zone: "graveyard" })),
     ...(step.token ? [{ op: "createToken", script: "r_1_1_goblin", player: c.slot }] : []),
     { op: "mana", player: c.slot, mana: step.mana }] });
 }
@@ -184,12 +213,26 @@ function priority(c, p, g, input) {
       s.tokenId = tokens.at(-1)?.id;
       if (s.target === "token") s.targetId = s.tokenId;
     }
-    const cast = (input.actions || []).find((a) => a.type === "cast" && a.cardId === s.cardId);
-    if (!cast) return finish(`no cast action for ${s.cast}: ${JSON.stringify((input.actions || []).map((a) => a.label)).slice(0, 300)}`);
+    const way = s.ability ? new RegExp(`\\b${s.ability}\\b`, "i") : null;
+    // (a special action may have no label: its words are in its description or type)
+    const cast = (input.actions || []).find((a) => a.cardId === s.cardId && (way ? way.test(`${a.label || ""} ${a.description || ""} ${a.type}`) : a.type === "cast"));
+    if (!cast) {
+      const why = `no ${s.ability || "cast"} action for ${s.cast}: ${JSON.stringify((input.actions || []).filter((a) => a.cardId === s.cardId)).slice(0, 600)}`;
+      if (!SWEEP) return finish(why);
+      // (the sweep goes on: this keyword fails by name, the rest are still tried)
+      T.done[s.key] = { ...s, failed: why };
+      T.step = null;
+      if (STEPS.every((x) => T.done[x.key])) return realTimeout(judge, 300);
+      return pass();
+    }
     s.state = "cast";
+    // (for the log replay: the bridge words a seat's own keyword actions from what it chose, Seat.respond's notePlay)
+    T.acts.push({ at: T.boards.length, slot: c.slot, act: cast, name: s.cast });
     return c.respond(p, "chooseAction", { type: "act", actionId: cast.id });
   }
-  if (s?.seat === c.slot && s.state === "cast" && empty && (s.play ? findIn(g, s.cardId)?.zone === "battlefield" : !zone(g, "hand", c.slot).some((x) => x.id === s.cardId))) {
+  // (or once it was on the stack: buyback's card is back in the hand, and its step waited 100 turns, keyword sweep)
+  if (s?.state === "cast" && (g.stack || []).some((x) => x.sourceId === s.cardId)) s.onStack = true;
+  if (s?.seat === c.slot && s.state === "cast" && empty && (s.play ? findIn(g, s.cardId)?.zone === "battlefield" : s.onStack || !zone(g, "hand", c.slot).some((x) => x.id === s.cardId))) {
     s.to = T.boards.length;
     T.done[s.key] = s;
     T.step = null;
@@ -214,7 +257,51 @@ const feedOf = (s) => {
   return out.filter((e) => e.seq > first);
 };
 
+// The bridge's log for every board seen, for the boards a step covers
+function logLines() {
+  const harness = require("./bridge-harness");
+  const h = harness.load();
+  const COLORS = { "player-0": "White", "player-1": "Red", "player-2": "Yellow" };
+  const seats = Object.entries(COLORS).map(([slot, color]) => { const s = new h.B.Seat(color, "x"); s.slot = slot; return [color, s]; });
+  h.B._setGame({ seats: new Map(seats), bots: 0, total: 3, playerOrder: [], slotNames: COLORS, slotColor: COLORS, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
+  const lines = [];
+  let prev = null;
+  T.boards.forEach((b, i) => {
+    for (const a of T.acts.filter((x) => x.at === i)) {
+      const seat = seats.find(([, s]) => s.slot === a.slot)[1];
+      seat.board = { state: { gameView: T.boards[i - 1] || b } };
+      h.B.notePlay(seat, a.act, a.name, 0);
+    }
+    const cur = h.B.logSnapshot(b), facts = h.B.engineFacts(b.events);
+    if (prev) for (const l of h.B.logEvents(prev, cur, b, facts)) lines.push({ i, l });
+    prev = cur;
+  });
+  return { lines, COLORS, of: (s) => lines.filter((x) => x.i >= s.from - 1 && x.i <= s.to + 1).map((x) => x.l) };
+}
+
+// The keyword sweep: each keyword used, and its log naming it (the word the sweep file gives); every keyword's lines
+// are printed, so a wrong wording is seen even where the word is there
+// (--dump <file>: the boards, actions and steps, to replay through the bridge offline while a wording is fixed)
+const dump = () => arg("dump", null) && require("fs").writeFileSync(arg("dump"), JSON.stringify({ boards: T.boards, acts: T.acts, done: T.done }));
+function sweepJudge() {
+  if (finished) return;
+  dump();
+  const { of } = logLines();
+  for (const s of STEPS) {
+    const done = T.done[s.key];
+    if (!check(done && !done.failed, `${s.key}: ${s.cast} was used${done?.failed ? ` (${done.failed})` : ""}`)) continue;
+    const said = of(done), feed = feedOf(done).map((e) => `${e.from || "?"}>${e.to}${e.how ? ` ${e.how}` : ""}${e.cause ? ` [${e.cause}]` : ""}`);
+    const stack = [...new Set(T.boards.slice(done.from, done.to + 1).flatMap((b) => (b.stack || []).map((x) => `${x.identity?.name}: ${x.sourceAbilityText || ""}`.slice(0, 120))))];
+    const kws = findIn(T.boards[done.from] || {}, done.cardId)?.keywords;
+    process.stdout.write(`  ${s.key} log: ${JSON.stringify(said)}\n  ${s.key} feed: ${feed.join(", ")}\n  ${s.key} stack: ${JSON.stringify(stack)}\n  ${s.key} keywords: ${JSON.stringify(kws)}\n`);
+    check(said.some((l) => new RegExp(s.word, "i").test(l)), `${s.key}: the log names it (/${s.word}/)`);
+  }
+  finish();
+}
+
 function judge() {
+  if (SWEEP) return sweepJudge();
+  dump();
   const D = T.done, on = (k, f) => feedOf(D[k]).filter(f);
   const lib = (e) => e.from === "Library";
   check(on("land", (e) => e.cardId === D.land.cardId && e.from === "Hand" && e.to === "Battlefield" && e.how === "played").length === 1, "a land from the hand is played");
@@ -240,6 +327,14 @@ function judge() {
   check(on("tokenDies", (e) => e.cardId === D.tokenDies.tokenId && e.from === "Battlefield" && e.to === "Graveyard" && e.how === "destroyed").length === 1, "Doom Blade destroys the token, which goes to the graveyard first (CR 111.8)");
   check(on("tokenExiled", (e) => e.cardId === D.tokenExiled.tokenId && e.from === "Battlefield" && e.to === "Exile").length === 1, "Swords exiles the token");
   check(T.boards.flatMap((b) => b.events || []).some((e) => lib(e) && e.to === "Hand" && e.how === "draw"), "the turn's draws are on the feed");
+  // (costs and special actions, SPEC §4a)
+  check(on("sacrifice", (e) => e.cardId === D.sacrifice.tokenId && e.cause === "Cost:Sacrifice" && e.causeName === "Village Rites").length === 1, "Village Rites: the token is sacrificed as its cost");
+  check(on("cycle", (e) => e.cardId === D.cycle.cardId && e.from === "Hand" && e.to === "Graveyard" && e.cause === "Cost:Cycling").length === 1, "Censor's cycling discard has the cycling cost as its cause");
+  check(on("foretell", (e) => e.from === "Hand" && e.to === "Exile" && e.how === "foretell").length === 1, "Saw It Coming is foretold");
+  check(on("foretell", (e) => e.from === "Hand" && e.to === "Exile" && e.cardId).length === 0, "and the foretold card isn't named");
+  check(on("plot", (e) => e.cardId === D.plot.cardId && e.from === "Hand" && e.to === "Exile" && e.how === "plot").length === 1, "Slickshot Show-Off is plotted");
+  check(on("suspend", (e) => e.cardId === D.suspend.cardId && e.from === "Hand" && e.to === "Exile" && e.how === "suspend").length === 1, "Rift Bolt is suspended");
+  check(on("delve", (e) => e.from === "Graveyard" && e.to === "Exile" && e.cause === "Cost:Delve" && e.causeName === "Treasure Cruise").length >= 1, "Treasure Cruise's delved cards have delve as the cause");
 
   // nobody is told what moved from a library to a hand, the player's own seat or anyone else's
   for (const client of clients) check(!(client.g.events || []).some((e) => lib(e) && e.to === "Hand" && e.cardId), `${client.slot}: no library-to-hand entry names its card`);
@@ -250,18 +345,7 @@ function judge() {
   process.stdout.write(`feed size: ${Math.max(...T.sizes.map((x) => x.events))} bytes at most; largest message ${heavy.bytes} (${heavy.kind}); mean delta ${Math.round(deltas.reduce((n, x) => n + x.bytes, 0) / (deltas.length || 1))}\n`);
 
   // the same boards through the bridge's log (the harness freezes the clock, so this comes last)
-  const harness = require("./bridge-harness");
-  const h = harness.load();
-  const COLORS = { "player-0": "White", "player-1": "Red", "player-2": "Yellow" };
-  const seats = Object.entries(COLORS).map(([slot, color]) => { const s = new h.B.Seat(color, "x"); s.slot = slot; return [color, s]; });
-  h.B._setGame({ seats: new Map(seats), bots: 0, total: 3, playerOrder: [], slotNames: COLORS, slotColor: COLORS, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
-  const lines = [];
-  let prev = null;
-  T.boards.forEach((b, i) => {
-    const cur = h.B.logSnapshot(b), facts = h.B.engineFacts(b.events);
-    if (prev) for (const l of h.B.logEvents(prev, cur, b, facts)) lines.push({ i, l });
-    prev = cur;
-  });
+  const { lines, COLORS } = logLines();
   const said = (k, re) => lines.filter((x) => x.i >= D[k].from - 1 && x.i <= D[k].to + 1 && re.test(x.l)).length;
   const who = (k) => COLORS[D[k].seat];
   check(said("land", new RegExp(`^${who("land")} plays Mountain`)) === 1, "log: the land is played");
@@ -290,6 +374,9 @@ function judge() {
   check(said("bounce", new RegExp(`^Elvish Visionary returns to ${who("bounce")}'s hand`)) === 1, "log: the bounce");
   check(said("tokenDies", /Goblin.* dies/) === 1, "log: the token dies");
   check(said("tokenExiled", /Goblin.* is exiled/) === 1, "log: the token is exiled");
+  check(said("sacrifice", /Goblin.* is sacrificed \(to pay for Village Rites\)/) === 1, "log: the sacrifice says what it paid for");
+  check(said("cycle", new RegExp(`^${who("cycle")} discards Censor \\(cycling\\)`)) === 1, "log: the cycling discard says cycling");
+  check(said("delve", /exiled from .* graveyard \(delve for Treasure Cruise\)$/) === 1, "log: the delved cards, one line, say delve");
   if (VERBOSE) for (const { i, l } of lines) process.stdout.write(`${i}: ${l}\n`);
   finish();
 }

@@ -99,9 +99,11 @@ The table moves the cards the way it moves any milled card.
 How this works:
 - **The engine names the cause.** Forge's zone-change event carries no cause, so the harness reads it at the moment
   of the move (`EngineEventLog`):
-  - `how` comes from Forge's own flags: `mill`, `draw`, `discard`, `surveil`, `sacrificed`, `destroyed`, `played`.
-  - `cause` is the replacement that made the move (`Darkblast - Dredge 3`), or the API of the resolving ability
-    (`Explore`, `Mill`, `Surveil`, `Dig`, `ChangeZone`).
+  - `how` comes from Forge's own flags: `mill`, `draw`, `discard`, `surveil`, `sacrificed`, `destroyed`, `played`,
+    and for a special action's exile `foretell`, `plot`, `suspend`.
+  - `cause` is the replacement that made the move (`Darkblast - Dredge 3`), or the cost being paid (`Cost:Cycling`,
+    `Cost:Delve`, `Cost:Escape`, `Cost:Sacrifice`), or the API of the resolving ability (`Explore`, `Mill`,
+    `Surveil`, `Dig`, `ChangeZone`).
   - `causeName` and `causeCardId` name the card behind it.
 - **The bridge keeps one list of moves.** It builds it from that feed (`engineFacts`), or from the two boards when an
   engine sends no feed. Each move gets a kind (`libraryKind` for moves out of a library). One wording table
@@ -118,6 +120,16 @@ What a new mechanic needs:
 Never add a second code path that recognises a mechanic by guessing from the board, its card text or its prompt
 title when the engine can say it. Board guesses stay only as the fallback for an engine with no feed. When they are
 used, `tmp/guess-log.log` records it.
+
+The next stretch of work on this rule (1½–2 days, agreed 2026-11-03; the list is in PLAN "The next 1½–2 days"):
+- **Causes for costs and special actions.** The harness names a move made by paying a cost or taking a special
+  action: cycling's discard, delve's and escape's exile, a sacrifice as a cost, and foretell, plot and suspend.
+- **Every zone move on one pattern.** Exile, graveyard and the other moves get a kind function and a wording table,
+  as moves out of a library have.
+- **A keyword sweep.** Test cards are chosen from Forge's cardsfolder by keyword and run on two test stacks against
+  one engine rebuild. A keyword whose log line is wrong is fixed through its cause and label, never with its own path.
+
+None of this needs TTS. The table's own Lua cleanup and the prompt and keyword registries come later.
 
 ## 5. TTS mod
 

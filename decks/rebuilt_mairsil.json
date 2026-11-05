@@ -1,0 +1,148 @@
+{
+ "id": "rebuilt_mairsil",
+ "label": "Rebuilt: Mairsil (from the 2026-11-03 logs)",
+ "commander": "Mairsil, the Pretender",
+ "format": "commander",
+ "cards": [
+  {
+   "name": "Mairsil, the Pretender",
+   "count": 1
+  },
+  {
+   "name": "Ancient Copper Dragon",
+   "count": 1
+  },
+  {
+   "name": "Arcane Denial",
+   "count": 1
+  },
+  {
+   "name": "Arcane Signet",
+   "count": 1
+  },
+  {
+   "name": "Blasphemous Act",
+   "count": 1
+  },
+  {
+   "name": "Bloodline Keeper",
+   "count": 1
+  },
+  {
+   "name": "Brainstorm",
+   "count": 1
+  },
+  {
+   "name": "Buried Alive",
+   "count": 1
+  },
+  {
+   "name": "Chaos Warp",
+   "count": 1
+  },
+  {
+   "name": "Clone",
+   "count": 1
+  },
+  {
+   "name": "Exchange of Words",
+   "count": 1
+  },
+  {
+   "name": "Exotic Orchard",
+   "count": 1
+  },
+  {
+   "name": "Fable of the Mirror-Breaker",
+   "count": 1
+  },
+  {
+   "name": "Flare of Duplication",
+   "count": 1
+  },
+  {
+   "name": "Foreboding Ruins",
+   "count": 1
+  },
+  {
+   "name": "Helm of the Host",
+   "count": 1
+  },
+  {
+   "name": "Phyrexian Arena",
+   "count": 1
+  },
+  {
+   "name": "Ponder",
+   "count": 1
+  },
+  {
+   "name": "Rakdos Signet",
+   "count": 1
+  },
+  {
+   "name": "Reliquary Tower",
+   "count": 1
+  },
+  {
+   "name": "Rhystic Study",
+   "count": 1
+  },
+  {
+   "name": "Royal Assassin",
+   "count": 1
+  },
+  {
+   "name": "Saw in Half",
+   "count": 1
+  },
+  {
+   "name": "Spark Double",
+   "count": 1
+  },
+  {
+   "name": "Stitch in Time",
+   "count": 1
+  },
+  {
+   "name": "Sulfur Falls",
+   "count": 1
+  },
+  {
+   "name": "Sulfurous Springs",
+   "count": 1
+  },
+  {
+   "name": "Talisman of Creativity",
+   "count": 1
+  },
+  {
+   "name": "Temple of Deceit",
+   "count": 1
+  },
+  {
+   "name": "Wyll, Blade of Frontiers",
+   "count": 1
+  },
+  {
+   "name": "Xander's Lounge",
+   "count": 1
+  },
+  {
+   "name": "Zndrsplt, Eye of Wisdom",
+   "count": 1
+  },
+  {
+   "name": "Island",
+   "count": 3
+  },
+  {
+   "name": "Swamp",
+   "count": 3
+  },
+  {
+   "name": "Mountain",
+   "count": 2
+  }
+ ]
+}

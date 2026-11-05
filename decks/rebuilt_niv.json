@@ -1,0 +1,120 @@
+{
+ "id": "rebuilt_niv",
+ "label": "Rebuilt: Niv-Mizzet (from the 2026-11-03 logs)",
+ "commander": "Niv-Mizzet, Visionary",
+ "format": "commander",
+ "cards": [
+  {
+   "name": "Niv-Mizzet, Visionary",
+   "count": 1
+  },
+  {
+   "name": "Aetherize",
+   "count": 1
+  },
+  {
+   "name": "Archmage Emeritus",
+   "count": 1
+  },
+  {
+   "name": "Archmage of Runes",
+   "count": 1
+  },
+  {
+   "name": "Basilisk Collar",
+   "count": 1
+  },
+  {
+   "name": "Blasphemous Act",
+   "count": 1
+  },
+  {
+   "name": "Boltwave",
+   "count": 1
+  },
+  {
+   "name": "Electro, Assaulting Battery",
+   "count": 1
+  },
+  {
+   "name": "Firespitter Whelp",
+   "count": 1
+  },
+  {
+   "name": "Flame Rift",
+   "count": 1
+  },
+  {
+   "name": "Goblin Electromancer",
+   "count": 1
+  },
+  {
+   "name": "Guttersnipe",
+   "count": 1
+  },
+  {
+   "name": "Mystic Forge",
+   "count": 1
+  },
+  {
+   "name": "Pongify",
+   "count": 1
+  },
+  {
+   "name": "Prismatic Vista",
+   "count": 1
+  },
+  {
+   "name": "Reverberate",
+   "count": 1
+  },
+  {
+   "name": "Riverpyre Verge",
+   "count": 1
+  },
+  {
+   "name": "Sensei's Divining Top",
+   "count": 1
+  },
+  {
+   "name": "Slip Out the Back",
+   "count": 1
+  },
+  {
+   "name": "Sol Ring",
+   "count": 1
+  },
+  {
+   "name": "Strix Serenade",
+   "count": 1
+  },
+  {
+   "name": "The Vision and Scarlet Witch",
+   "count": 1
+  },
+  {
+   "name": "Training Center",
+   "count": 1
+  },
+  {
+   "name": "Twinflame Tyrant",
+   "count": 1
+  },
+  {
+   "name": "Urza's Saga",
+   "count": 1
+  },
+  {
+   "name": "Wizard Class",
+   "count": 1
+  },
+  {
+   "name": "Island",
+   "count": 7
+  },
+  {
+   "name": "Mountain",
+   "count": 7
+  }
+ ]
+}

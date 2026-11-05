@@ -1,0 +1,18 @@
+{
+  "label": "log bug f: Exchange of Words, no \"Words's\"",
+  "lands": {
+    "Island": 10,
+    "Mountain": 10
+  },
+  "hand": [
+    "Exchange of Words"
+  ],
+  "battlefield": [
+    "Grizzly Bears"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Llanowar Elves"
+    ]
+  }
+}

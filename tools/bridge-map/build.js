@@ -34,9 +34,15 @@ const fix = { checkRestored: "rewind", isCounterspell: "log", gameLogLine: "log"
 const missing = defs.filter((d) => !desc[d.name]).map((d) => d.name);
 if (missing.length) { console.error("no description:", missing.join(", ")); process.exit(1); }
 const fns = defs.map((d) => ({ n: d.name, s: d.short, l: d.line, z: d.size, k: d.kind, a: fix[d.name] || areaOf(d.line), d: desc[d.name], c: d.calls, b: d.callers }));
-const TABLES = ["LIBRARY_WORDS", "CHOICE_WORDS", "COUNTER_WORDS", "LOSS_REASONS", "FORGE_STEPS", "KEYWORD_TARGETS", "KEYWORD_YESNO", "PROMPT_KIND", "RESOURCE_WORDS", "FIX_OPS", "FIX_CHECK"];
+const TABLES = ["LIBRARY_WORDS", "EXILE_WORDS", "HAND_WORDS", "LEAVE_WORDS", "COST_KEYWORDS", "KEYWORD_WORDS", "OPTIONAL_COST_WORDS", "CHOICE_WORDS", "COUNTER_WORDS", "LOSS_REASONS", "FORGE_STEPS", "KEYWORD_TARGETS", "KEYWORD_YESNO", "PROMPT_KIND", "RESOURCE_WORDS", "FIX_OPS", "FIX_CHECK"];
 const tableInfo = {
   LIBRARY_WORDS: "How each kind of move out of a library is said (mill, dredge, surveil, explore, put). New 2026-11-03.",
+  EXILE_WORDS: "How each kind of exile is said (from a graveyard, the battlefield or a library; haunt, suspend, adventure, rebound, plot, paradigm). New 2026-11-03.",
+  HAND_WORDS: "How draws, cards put into a hand, and discards are said. New 2026-11-03.",
+  LEAVE_WORDS: "How a card leaving the battlefield (dies, destroyed, sacrificed, bounced, tucked, tokens gone) or a graveyard for a hand is said. New 2026-11-03.",
+  COST_KEYWORDS: "The cost keywords a move's label names (cycling, delve, escape, emerge, embalm, eternalize, encore, scavenge, transmute, reinforce). New 2026-11-03.",
+  OPTIONAL_COST_WORDS: "Forge's optional costs a cast is said with: kicked, entwined, bargained, gift promised. New 2026-11-04.",
+  KEYWORD_WORDS: "Each activated keyword and its log line (unearths, encores, transmutes...); keywordKind reads by the same list. New 2026-11-03.",
   CHOICE_WORDS: "Chosen colour, type, name, player, in words.",
   COUNTER_WORDS: "Counter names in words.",
   LOSS_REASONS: "Why a player lost.",

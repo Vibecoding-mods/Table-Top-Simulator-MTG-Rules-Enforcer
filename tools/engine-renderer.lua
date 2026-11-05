@@ -4300,7 +4300,6 @@ function engineZonePile(color, zone, cards, base, rotY, seen)
   local id = zone .. ":" .. color
   seen[id] = true
   engineMeta[id] = { zone = zone .. "pile", color = color }
-  local notes = enginePileNotes(cards)
   if #cards <= 1 then
     -- a single card is an ordinary engine card
     local o = engineObjs[id]
@@ -4312,6 +4311,7 @@ function engineZonePile(color, zone, cards, base, rotY, seen)
     end
     return
   end
+  local notes = enginePileNotes(cards)
   local ids = {}
   for _, c in ipairs(cards) do ids[#ids + 1] = c.id end
   local key = table.concat(ids, ",")
@@ -4564,7 +4564,8 @@ function engineDrawButtonSpot(color)
   end
   return best and Vector(best.x, m.y + 0.2, best.z) or nil
 end
-local HIDE_IN_ENGINE_MODE = { "540e21", "ee33ec" } -- Pirate Cannon, first-player die (the engine picks who goes first)
+-- Pirate Cannon, first-player die (the engine picks who goes first), the two "Screen bar keys" boxes (Ctrl + F1..F3)
+local HIDE_IN_ENGINE_MODE = { "540e21", "ee33ec", "9065aa", "e8e28d" }
 -- where each one was is kept in its memo (saved with the table, as text: see the JSON.encode freeze), so it goes back
 -- to the same spot and lock state even after a save and reload in engine mode
 function engineHideForEngine(on)

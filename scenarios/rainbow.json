@@ -1,0 +1,12 @@
+{
+  "label": "4 of each basic out, 99 of each mana this turn, dealt hand kept",
+  "lands": {
+    "Plains": 4,
+    "Island": 4,
+    "Swamp": 4,
+    "Mountain": 4,
+    "Forest": 4
+  },
+  "mana": 99,
+  "keepHand": true
+}

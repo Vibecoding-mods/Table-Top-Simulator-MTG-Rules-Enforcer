@@ -178,13 +178,17 @@ const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringif
   const h = harness.load();
   h.B._setGame({ seats: new Map(), slotColor: { "player-0": "Blue" }, sentStatic: {} });
   const bear = { id: "c1", identity: { name: "Grizzly Bears" }, types: ["Creature"], controllerId: "player-0" };
-  const kw = (extra, active = null) => h.B.tableCard({ ...bear, ...extra }, null, active).kw || [];
+  const kw = (extra, active = null) => h.B.tableCard({ ...bear, ...extra }, { active }).kw || [];
   same("box: sick on its controller's turn", kw({ summoningSick: true }, "player-0"), ["Summoning sick"]);
   same("box: sick on another player's turn says nothing", kw({ summoningSick: true }, "player-1"), []);
   same("box: not sick says nothing", kw({}, "player-0"), []);
   same("box: a card off the battlefield says nothing (no active turn passed)", kw({ summoningSick: true }), []);
-  same("box: a sick artifact says nothing", h.B.tableCard({ ...bear, types: ["Artifact"], summoningSick: true }, null, "player-0").kw || [], []);
+  same("box: a sick artifact says nothing", h.B.tableCard({ ...bear, types: ["Artifact"], summoningSick: true }, { active: "player-0" }).kw || [], []);
   same("box: crewed", kw({ isCrewed: true }), ["Crewed"]);
+  // (counters leave a card that moves, CR 122.2: said for exile only, where suspend's time counters matter)
+  const notes = (zone) => h.B.tableCard({ ...bear, counters: { TIME: 2, P1P1: 1 } }, { zone }).nt || [];
+  same("notes: counters in exile", notes("exile"), ["2 time counters", "1 +1/+1 counter"]);
+  same("notes: no counters in a graveyard", notes("graveyard"), []);
   same("box: bestowed", kw({ isBestowed: true }), ["Bestowed"]);
   same("box: Ring-bearer", kw({ isRingBearer: true }), ["Ring-bearer"]);
   same("box: a Saga's chapter", kw({ finalChapter: 3, counters: { LORE: 2 } }), ["Chapter 2 of 3"]);

@@ -1441,3 +1441,24 @@ Every fact Forge sends about a card or a player that the table showed nowhere (`
 | `tools/engine-renderer.lua` | `enginePlayerCounters` | the `marks` join the label under the life total, sized to its letters |
 
 Pinned by bridge scenarios "table: what a card in a graveyard or exile can still do", "table: sagas, classes, combat deaths and owners", "table: choices are said only when every seat sees them", "table: player marks", and the last steps of the 1v1 table game ("notes: ...").
+
+### Keyword sweep (2026-11-03, PLAN "The next 1½–2 days" item 3)
+
+| Where | Function | Details |
+|---|---|---|
+| bridge | `KEYWORD_WORDS`, `keywordKind(way)`, `keywordLine` | one table of activated keywords and their lines; `keywordKind` reads an action's words or a stack item's text ("Unearth {U} (...)") by it, cycling by its own pattern, else "faceup" / "ability" |
+| bridge | `isAbilityOnStack` | a keyword activation's text is an ability wherever its card is (another player's transmute from a hidden hand) |
+| bridge | `logSnapshot` `kwTrigger` | a keyword with its reminder straight after it and no cost ("Evoke (...)", "Paradigm (...)") is that keyword's trigger |
+| bridge | `notePlay`, `castFrom(zone, card)` | one lookup of the card; a cast says where from: the top of the library, exile, a graveyard by retrace or jump-start ("(retrace)"), else "from their graveyard"; an ability keeps its plain name |
+| bridge | `logEvents` stack | an item seen before under its own stack id is not new (Forge never reuses one); another player's keyword activation by its stack text; an early line of any kind but a cast hides its card's next stack item |
+| bridge | `logEvents` buyback | a spell from the stack to a hand: "returns to X's hand", "(buyback)" when the move has no cause and the engine names causes (`game.feedCauses`, set in `engineFacts`) |
+| bridge | `COST_KEYWORDS` | + embalm, eternalize, encore, scavenge, transmute, reinforce |
+| bridge | `OPTIONAL_COST_WORDS`, `optionalWords(opt)` | a cast's extra costs from the stack item's `optionalCosts` (Forge's OptionalCost names): "(kicked)", "(kicked twice)", "(entwined)", "(bargained)", "(gift promised)"; retrace, jump-start and buyback are said elsewhere (2026-11-04) |
+| bridge | `logSnapshot` | a spell still being cast (`isCasting`) is left out until it lands, so its line carries the costs chosen during the cast; a retrace spell mid-cast no longer looks like an ability (2026-11-04) |
+| bridge | `logSnapshot` `kwTrigger` | + a keyword with a cost whose reminder is a cost paid while casting ("Offspring {2} (You may pay an additional ...", squad) is that keyword's trigger |
+| bridge | `KEYWORD_WORDS` reinforce, `notePlay` prototype | "White reinforces with Mosquito Guard"; a cast whose label ends "(Prototype)" says "(prototype)" |
+| harness | `InteractiveSnapshotExtractor.putOptionalCosts`, `ManaBrewInteractiveSession` | stack items carry `optionalCosts` (`StackObjectDto.optional_costs`); a prototype cast's action label ends "(Prototype)". Node image `mtg-forge-node:optcost` |
+| `tests/live_events_check.js` | `--sweep <file>`, `--dump <file>` | plays `tests/keyword-sweep.json` (from `tools/keyword-sweep/pick.js`); the log replay is fed each seat's own actions through `notePlay`; must-attack creatures attack, casualty pays, triggers keep their order, a step is done once its spell was on the stack |
+| `tools/live-check.sh` | `LIVE_STACK=<n>` | stack n: containers `mtg-test-relay-n` / `mtg-test-node-n`, port 9444+n, log `tmp/live-<check>-<tag>-n.log`, so two checks run at once; stack 0 keeps the old names; the check gets `--relay` |
+
+Pinned by the bridge events checks "stack: ...", "cost: ...", "cast: ..." and the golden scenario "log: a cast said early leaves its card's enter trigger to be said".

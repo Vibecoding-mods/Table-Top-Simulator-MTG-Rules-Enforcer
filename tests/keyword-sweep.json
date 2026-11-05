@@ -1,0 +1,235 @@
+{
+  "steps": [
+    {
+      "key": "flashback",
+      "cast": "Dream Twist",
+      "ability": "Flashback",
+      "mana": "U U U",
+      "fromZone": "graveyard",
+      "word": "flashback"
+    },
+    {
+      "key": "unearth",
+      "cast": "Combat Courier",
+      "ability": "Unearth",
+      "mana": "C U",
+      "fromZone": "graveyard",
+      "word": "unearth"
+    },
+    {
+      "key": "embalm",
+      "cast": "Sacred Cat",
+      "ability": "Embalm",
+      "mana": "W W",
+      "fromZone": "graveyard",
+      "word": "embalm"
+    },
+    {
+      "key": "eternalize",
+      "cast": "Proven Combatant",
+      "ability": "Eternalize",
+      "mana": "U U U U U U U",
+      "fromZone": "graveyard",
+      "word": "eternaliz"
+    },
+    {
+      "key": "scavenge",
+      "cast": "Drudge Beetle",
+      "ability": "Scavenge",
+      "mana": "G G G G G G G G",
+      "fromZone": "graveyard",
+      "word": "scaveng"
+    },
+    {
+      "key": "retrace",
+      "cast": "Raven's Crime",
+      "mana": "B",
+      "fromZone": "graveyard",
+      "word": "retrace"
+    },
+    {
+      "key": "jumpstart",
+      "cast": "Maximize Velocity",
+      "mana": "R",
+      "fromZone": "graveyard",
+      "word": "jump.?start"
+    },
+    {
+      "key": "encore",
+      "cast": "Impulsive Pilferer",
+      "ability": "Encore",
+      "mana": "R R R R R",
+      "fromZone": "graveyard",
+      "word": "encore"
+    },
+    {
+      "key": "landcycling",
+      "cast": "Vedalken Aethermage",
+      "ability": "\\w*cycling",
+      "mana": "U U",
+      "word": "cycl"
+    },
+    {
+      "key": "evoke",
+      "cast": "Wispmare",
+      "ability": "Evoke",
+      "mana": "W W W W",
+      "word": "evoke"
+    },
+    {
+      "key": "dash",
+      "cast": "Lightning Berserker",
+      "ability": "Dash",
+      "mana": "R R",
+      "word": "dash"
+    },
+    {
+      "key": "blitz",
+      "cast": "Riveteers Decoy",
+      "ability": "Blitz",
+      "mana": "G G G G G G",
+      "word": "blitz"
+    },
+    {
+      "key": "cascade",
+      "cast": "Throes of Chaos",
+      "mana": "R R R R",
+      "word": "cascade"
+    },
+    {
+      "key": "rebound",
+      "cast": "Prey's Vengeance",
+      "mana": "G",
+      "word": "rebound"
+    },
+    {
+      "key": "buyback",
+      "cast": "Whispers of the Muse",
+      "mana": "U C C C C C",
+      "word": "buyback|returns to"
+    },
+    {
+      "key": "casualty",
+      "cast": "Grisly Sigil",
+      "mana": "B C",
+      "word": "casualty|sacrificed",
+      "token": true
+    },
+    {
+      "key": "transmute",
+      "cast": "Dizzy Spell",
+      "ability": "Transmute",
+      "mana": "U U U U",
+      "word": "transmute|discards"
+    },
+    {
+      "key": "cycling",
+      "cast": "Sandbar Merfolk",
+      "ability": "Cycling",
+      "mana": "U C C",
+      "word": "cycl"
+    },
+    {
+      "key": "escape",
+      "cast": "Fruit of Tizerus",
+      "ability": "Escape",
+      "mana": "B B B B B",
+      "fromZone": "graveyard",
+      "word": "escape",
+      "graveFill": 3
+    },
+    {
+      "key": "kicker",
+      "cast": "Llanowar Elite",
+      "mana": "G C C C C C C C C",
+      "word": "kick"
+    },
+    {
+      "key": "overload",
+      "cast": "Blustersquall",
+      "ability": "Overload",
+      "mana": "U U U U U",
+      "word": "overload"
+    },
+    {
+      "key": "bestow",
+      "cast": "Nyxborn Rollicker",
+      "ability": "Bestow",
+      "mana": "R R R",
+      "word": "bestow",
+      "token": true
+    },
+    {
+      "key": "emerge",
+      "cast": "Adipose Offspring",
+      "ability": "Emerge",
+      "mana": "W W W W W W W W W W",
+      "word": "emerge",
+      "token": true
+    },
+    {
+      "key": "levelup",
+      "cast": "Caravan Escort",
+      "ability": "Level up",
+      "mana": "W C C",
+      "fromZone": "battlefield",
+      "word": "levels up"
+    },
+    {
+      "key": "reinforce",
+      "cast": "Mosquito Guard",
+      "ability": "Reinforce",
+      "mana": "W C",
+      "word": "reinforce",
+      "token": true
+    },
+    {
+      "key": "storm",
+      "cast": "Ground Rift",
+      "mana": "R",
+      "word": "storm|copies"
+    },
+    {
+      "key": "entwine",
+      "cast": "Dream's Grip",
+      "mana": "U C",
+      "word": "entwine"
+    },
+    {
+      "key": "awaken",
+      "cast": "Clutch of Currents",
+      "ability": "Awaken",
+      "mana": "U C C C",
+      "word": "awaken",
+      "needs": "Mountain",
+      "needsZone": "battlefield"
+    },
+    {
+      "key": "morph",
+      "cast": "Foothill Guide",
+      "ability": "face down",
+      "mana": "C C C",
+      "word": "face-down"
+    },
+    {
+      "key": "impending",
+      "cast": "Overlord of the Floodpits",
+      "ability": "Impending",
+      "mana": "U U U U U C C C C",
+      "word": "impending"
+    },
+    {
+      "key": "prototype",
+      "cast": "Autonomous Assembler",
+      "ability": "Prototype",
+      "mana": "C C C C C W W",
+      "word": "prototype"
+    },
+    {
+      "key": "offspring",
+      "cast": "Iridescent Vinelasher",
+      "mana": "B C C",
+      "word": "offspring"
+    }
+  ]
+}
