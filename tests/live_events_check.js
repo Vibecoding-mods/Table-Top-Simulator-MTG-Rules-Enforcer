@@ -137,8 +137,11 @@ class Client {
         return this.respond(p, type, { type: "pay", auto: true });
       }
       case "chooseBoardTargets": {
-        const want = mine ? input.candidates.find((c) => c.id === T.step.targetId) : null;
+        // (or the step's own token for a sacrifice: emerge's "Sacrifice" asks with minTargets 0, none was chosen, and the
+        // cast fell through, keyword sweep 2026-11-05)
+        const want = mine ? input.candidates.find((c) => c.id === T.step.targetId || (input.intent === "sacrifice" && c.id === T.step.tokenId)) : null;
         const chosen = want ? [want] : input.candidates.slice(0, input.minTargets);
+        if (VERBOSE) console.log(`  targets: ${JSON.stringify(input).slice(0, 900)}`);
         return this.respond(p, type, { type: "boardTargets", chosen: chosen.map(({ kind, id }) => ({ kind, id })) });
       }
       // (dredge only in its own step: a Darkblast milled or surveiled early would otherwise replace another step's draws)
@@ -231,12 +234,15 @@ function priority(c, p, g, input) {
     return c.respond(p, "chooseAction", { type: "act", actionId: cast.id });
   }
   // (or once it was on the stack: buyback's card is back in the hand, and its step waited 100 turns, keyword sweep)
-  if (s?.state === "cast" && (g.stack || []).some((x) => x.sourceId === s.cardId)) s.onStack = true;
-  if (s?.seat === c.slot && s.state === "cast" && empty && (s.play ? findIn(g, s.cardId)?.zone === "battlefield" : s.onStack || !zone(g, "hand", c.slot).some((x) => x.id === s.cardId))) {
+  // (not the spell still being cast: emerge's cast fell through at its sacrifice, the card was discarded at cleanup, and
+  // "Adipose Offspring was used" passed, keyword sweep 2026-11-05; so a card that only left for the graveyard is not used)
+  if (s?.state === "cast" && (g.stack || []).some((x) => x.sourceId === s.cardId && !x.isCasting)) s.onStack = true;
+  const left = () => { const at = findIn(g, s.cardId)?.zone; return !!at && at !== (s.fromZone || "hand") && !(at === "graveyard" && !s.fromZone); };
+  if (s?.seat === c.slot && s.state === "cast" && empty && (s.play ? findIn(g, s.cardId)?.zone === "battlefield" : s.onStack || left())) {
     s.to = T.boards.length;
     T.done[s.key] = s;
     T.step = null;
-    process.stdout.write(`${s.key} by ${s.seat} on turn ${g.turn}\n`);
+    process.stdout.write(`${s.key} by ${s.seat} on turn ${g.turn}${s.onStack ? "" : ` (never on the stack; now in ${findIn(g, s.cardId)?.zone || "no zone seen"})`}\n`);
     if (STEPS.every((x) => T.done[x.key])) return realTimeout(judge, 300);
   }
   if (!T.step && acting && main && empty && !finishedAll()) {

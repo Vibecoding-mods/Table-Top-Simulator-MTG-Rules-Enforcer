@@ -106,21 +106,34 @@ TTS is not needed for any of this: the bridge tests and the test stack on port 9
    own cast action is ever labelled "(Prototype)"). The one sweep
    failure left is a set-up step that varies per deal (landcycling, retrace once); the events check's delve step can
    also stop on a deal with too few graveyard cards (Treasure Cruise, twice in five runs; 51/51 otherwise on both images).
-   Not covered: cleave and disturb (no card fits the pick rules); an AI's prototype cast (no stack flag for it).
+   2026-11-05: cleave and disturb added (Dig Up, Chaplain of Alms: a cleave card with no target, a disturb back that is
+   not an Aura), and an AI's prototype or cleave cast is said from the stack (node `:cleave`, optionalCosts Prototype /
+   Cleave). Found on the way: Dig Up's two casts both read "Cast Dig Up", so the table merged them and cleave could not
+   be chosen; the harness now labels it "Cast Dig Up (Cleave)". Emerge's sacrifice asks with minTargets 0, and the sweep
+   had passed "was used" on a cast that fell through (the card was later discarded); the check now needs the stack or
+   a seen zone. 51/51 events check on `:cleave`.
 
-Left for later: the table's Lua cleanup (the last item below), and the prompt and keyword registries.
+Left for later: the last three items below.
 
-Still to move onto the core moves, in this order:
-- ⬜ The table's mill: one detector instead of two. Check surveil, which may be counted as a mill twice.
-- ⬜ Exile wording: one table instead of about 7 places.
-- ⬜ Draw and discard wording onto the same move list.
-- ⬜ One keyword reader (`keywordInfo`) instead of a regex per keyword.
-- ⬜ Prompt wording: one registry instead of per-mechanic branches.
-- ⬜ One follow-up memory per seat instead of several `justDid` flags.
+Still to move onto the core moves, in this order (checked 2026-11-05):
+- ✅ The table's mill: one detector instead of two. `engineBoardDiff` compares each board with the one before once, and
+  the draw/mill holder (`detectPending`) and the mill stand-ins (`engineMillDetect`) both read it. Surveil is not
+  counted twice: a held card is not also flown. `tests/test_table_board_diff.js` pins the two things the recorded games
+  never exercise (a discard beside a mill, the tapped list the untap holder reads); 6 mutants, all caught between it
+  and the table golden.
+- ✅ Exile wording: one table (was done before this list was checked).
+- ✅ Draw and discard wording onto the same move list (the same).
+- ✅ One keyword reader: `hasKeyword(card, word)` in the bridge ("Flashback" is not "Flash", "Suspend 1—{R}" is
+  Suspend); Rebound, Suspend, Jump-start, Retrace and Flash read through it.
+- ✅ Prompt wording: the `KEYWORD_TARGETS` / `KEYWORD_YESNO` registries.
+- ✅ One follow-up memory per seat (`lately`: note / justDid / forget).
+- ✅ On the table: one `engineBoardDiff` for the two board comparisons (the other "previous board" copies do other jobs:
+  merging zones the bridge left out, life changes), and one `engineSlideAway` for the three "slide there and go" moves
+  (mill stand-ins, strays joining a pile, cards a new pile is built from). The attack lunge and the held-mill arrival
+  are different moves and stay.
 - ⬜ `askUnder` for prompts asked while another is open.
 - ⬜ `trackMarks` for player marks.
-- ⬜ On the table: one `engineBoardDiff` (there are 5 copies of "previous board"), one `engineFly` (there are 4 slide
-  animations), and one `engineCardEntry`.
+- ⬜ `engineCardEntry` (one way a card object is made).
 
 ## Copy engine experiment (2026-11-02): closed 2026-11-03, not worth continuing
 

@@ -2,7 +2,7 @@
 // Fails by scenario name, with the first differing side effect.   node tests/test_bridge_golden.js
 const fs = require("fs");
 const path = require("path");
-const { runAll } = require("./golden/bridge-run");
+const { runAll, codeErrors } = require("./golden/bridge-run");
 
 const GOLDEN = path.join(__dirname, "golden", "bridge_golden.json");
 
@@ -11,6 +11,7 @@ const GOLDEN = path.join(__dirname, "golden", "bridge_golden.json");
   const got = await runAll();
   const byName = new Map(got.map((g) => [g.name, g]));
   let failed = 0;
+  for (const c of codeErrors(got)) { failed++; console.log(`FAIL ${c} (a programming error, not a behaviour to keep)`); }
   for (const w of want) {
     const g = byName.get(w.name);
     if (!g) { failed++; console.log(`FAIL ${w.name}: scenario missing`); continue; }

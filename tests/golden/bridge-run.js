@@ -15,4 +15,11 @@ async function runAll() {
   return out;
 }
 
-module.exports = { runAll };
+// Scenarios that ended in a programming error (a ReferenceError, TypeError...). One was recorded as the expected
+// result on 2026-11-05 and the test went on passing while the real table's Flare of Duplication drop failed, so the
+// capture refuses them and the test fails on them, whatever the golden file says.
+function codeErrors(results) {
+  return results.filter((r) => /^(Reference|Type|Syntax|Range)Error\b/.test(r.result?.threw || "")).map((r) => `${r.name}: ${r.result.threw}`);
+}
+
+module.exports = { runAll, codeErrors };

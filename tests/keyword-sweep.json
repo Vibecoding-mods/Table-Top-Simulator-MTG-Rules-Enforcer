@@ -55,6 +55,14 @@
       "word": "jump.?start"
     },
     {
+      "key": "disturb",
+      "cast": "Chaplain of Alms",
+      "ability": "Disturb",
+      "mana": "W W W W W",
+      "fromZone": "graveyard",
+      "word": "disturb"
+    },
+    {
       "key": "encore",
       "cast": "Impulsive Pilferer",
       "ability": "Encore",
@@ -230,6 +238,13 @@
       "cast": "Iridescent Vinelasher",
       "mana": "B C C",
       "word": "offspring"
+    },
+    {
+      "key": "cleave",
+      "cast": "Dig Up",
+      "ability": "Cleave",
+      "mana": "G G B B G",
+      "word": "cleave"
     }
   ]
 }

@@ -4,7 +4,7 @@
 //   node tools/capture_bridge_golden.js --check    -> runs twice and fails unless both runs are byte-identical
 const fs = require("fs");
 const path = require("path");
-const { runAll } = require("../tests/golden/bridge-run");
+const { runAll, codeErrors } = require("../tests/golden/bridge-run");
 
 const OUT = path.join(__dirname, "..", "tests", "golden", "bridge_golden.json");
 
@@ -14,6 +14,11 @@ const OUT = path.join(__dirname, "..", "tests", "golden", "bridge_golden.json");
   if (a !== b) {
     fs.writeFileSync(OUT + ".run1", a); fs.writeFileSync(OUT + ".run2", b);
     console.error("NOT DETERMINISTIC: the two runs differ (see .run1 / .run2)");
+    process.exit(1);
+  }
+  const crashed = codeErrors(JSON.parse(a));
+  if (crashed.length) {
+    console.error(`NOT RECORDED: ${crashed.length} scenario(s) crashed with a programming error:\n  ${crashed.join("\n  ")}`);
     process.exit(1);
   }
   if (process.argv.includes("--check")) { console.log("deterministic: two runs identical"); return; }

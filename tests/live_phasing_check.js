@@ -10,7 +10,8 @@
 const delta = require("../bridge/state-delta");
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
-const RELAY = arg("relay", "ws://127.0.0.1:9444"), ROOM = arg("room", "tts-test"), KEY = "tts-local", SEATS = 3;
+// (--seats 4: four people, the most the table seats; the node's room takes 4)
+const RELAY = arg("relay", "ws://127.0.0.1:9444"), ROOM = arg("room", "tts-test"), KEY = "tts-local", SEATS = Number(arg("seats", 3));
 const VERBOSE = process.argv.includes("--verbose");
 
 const card = (name) => ({ identity: { name, setCode: "", cardNumber: "" }, manaCost: "", cmc: 0, types: [], subtypes: [], supertypes: [], colorIdentity: [], text: "" });
@@ -131,6 +132,12 @@ const watched = () => [...T.bears, T.aura, ...T.tokens];
 function afterPhaseOut(c, g) {
   for (const client of clients) {
     const seen = client.g;
+    // hand privacy, as far as the engine goes: each seat is sent the size of another's hand and none of its cards
+    // (whether TTS shows a hand to its owner only needs people at the table)
+    for (const other of others(client.slot)) {
+      const hand = zone(seen, "hand", other.slot), n = zoneCount(seen, "hand", other.slot);
+      check(n > 0 && hand.every((x) => !cname(x)), `${client.slot} sees ${other.slot}'s hand as ${n} cards, ${hand.filter((x) => cname(x)).length} named`);
+    }
     const list = watched().map((id) => findIn(seen, id));
     check(list.every((x) => x?.zone === "battlefield"), `${client.slot}: every phased card is still in the battlefield zone (CR 702.26b: no zone change)`);
     check(list.every((x) => x?.phasedOut), `${client.slot}: every one is flagged phased out`);

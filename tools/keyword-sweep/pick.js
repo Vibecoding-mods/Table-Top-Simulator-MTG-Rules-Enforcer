@@ -18,7 +18,9 @@ const KEYWORDS = [
   // (a plain cast from the graveyard: Forge's action names no keyword for these two)
   { key: "retrace", k: "Retrace", how: "cast", from: "graveyard", word: "retrace" },
   { key: "jumpstart", k: "Jump-start", how: "cast", from: "graveyard", word: "jump.?start" },
-  { key: "disturb", k: "Disturb", how: "Disturb", from: "graveyard", word: "disturb" },
+  // (every disturb card is double-faced: its back is what disturb casts, and not an Aura: Lantern Bearer's Lanterns'
+  // Lift had no creature to enchant, and Forge offered no disturb at all, sweep on :proto 2026-11-05)
+  { key: "disturb", k: "Disturb", how: "Disturb", from: "graveyard", word: "disturb", dfc: true, backNot: /^Types:.*\bAura\b/m },
   { key: "encore", k: "Encore", how: "Encore", from: "graveyard", word: "encore" },
   { key: "landcycling", k: "TypeCycling", how: "\\w*cycling", word: "cycl" },
   { key: "evoke", k: "Evoke", how: "Evoke", word: "evoke" },
@@ -47,7 +49,9 @@ const KEYWORDS = [
   { key: "impending", k: "Impending", how: "Impending", word: "impending" },
   { key: "prototype", k: "Prototype", how: "Prototype", word: "prototype" },
   { key: "offspring", k: "Offspring", how: "cast", word: "offspring" },
-  { key: "cleave", k: "Cleave", how: "Cleave", word: "cleave" },
+  // (cleave is no K: line in Forge's scripts: a second spell, "A:SP$ ... | Cost$ 4 U U R | ... | PrecostDesc$ Cleave")
+  // (and with no target: Wash Away counters a spell, there was none, and it could not be cast, 2026-11-05)
+  { key: "cleave", k: "Cleave", how: "Cleave", word: "cleave", untargeted: true, line: /^A:SP\$.*\|\s*PrecostDesc\$ Cleave\b/m, cost: /^A:SP\$[^\n]*\|\s*Cost\$ ([^|\n]+?)\s*\|[^\n]*PrecostDesc\$ Cleave\b/m },
 ];
 
 const COLOURS = { W: "W", U: "U", B: "B", R: "R", G: "G" };
@@ -67,19 +71,30 @@ function costOf(cost) {
   return { mv: pips.length, mana: pips.join(" ") };
 }
 
+// "4 U U R" -> the mana that pays it, generic as the card's own colour: "R R R R U U R"
+function pipsOf(cost, generic = "C") {
+  const parts = cost.split(/\s+/).filter(Boolean);
+  if (!parts.length) return null;
+  return { mana: parts.flatMap((p) => (/^\d+$/.test(p) ? Array(Number(p)).fill(generic) : [p])).join(" ") };
+}
+
 const all = [];
 for (const dir of fs.readdirSync(CARDS).filter((d) => fs.statSync(path.join(CARDS, d)).isDirectory())) for (const f of fs.readdirSync(path.join(CARDS, dir))) if (f.endsWith(".txt")) all.push(path.join(CARDS, dir, f));
 const out = [];
 for (const kw of KEYWORDS) {
-  const line = new RegExp(`^K:${kw.k.replace(/[-]/g, "\\-")}(:|$)`, "m");
+  const line = kw.line || new RegExp(`^K:${kw.k.replace(/[-]/g, "\\-")}(:|$)`, "m");
   const found = [];
   for (const file of all) {
     const c = parse(file);
-    if (!c.name || c.faces > 1 || !line.test(c.text) || !/\b(Instant|Sorcery|Creature)\b/.test(c.types)) continue;
+    // (not an Alchemy rebalance, "A-Lantern Bearer": those are not Commander cards)
+    if (!c.name || /^A-/.test(c.name) || (c.faces > 1 && !kw.dfc) || !line.test(c.text) || !/\b(Instant|Sorcery|Creature)\b/.test(c.types)) continue;
+    if ((kw.untargeted && /ValidTgts\$/.test(c.text)) || (kw.backNot && kw.backNot.test(c.text.split(/^ALTERNATE/m)[1] || ""))) continue;
     // (the keyword's own cost, for a card cast or used by it: "K:Flashback:1 R" -> 1 R)
-    const kwCost = new RegExp(`^K:${kw.k.replace(/[-]/g, "\\-")}:([^:\\n]*)`, "m").exec(c.text)?.[1] || "";
-    // (the mana of it only: escape's "R ExileFromGrave<2/Card.Other>" is R)
-    const cost = costOf(c.cost), more = costOf(kwCost.replace(/<[^>]*>/g, "").split(/\s+/).filter((p) => /^(\d+|[WUBRGC])$/.test(p)).join(" "));
+    const kwCost = (kw.cost || new RegExp(`^K:${kw.k.replace(/[-]/g, "\\-")}:([^:\\n]*)`, "m")).exec(c.text)?.[1] || "";
+    // (the mana of it only: escape's "R ExileFromGrave<2/Card.Other>" is R; a cost of two colours, as a cleave cost
+    // often is, is paid pip for pip, its generic in the card's colour: leaving it out left the sweep unable to pay it)
+    const kwMana = kwCost.replace(/<[^>]*>/g, "").split(/\s+/).filter((p) => /^(\d+|[WUBRGC])$/.test(p)).join(" ");
+    const cost = costOf(c.cost), more = costOf(kwMana) || pipsOf(kwMana, cost?.mana.split(" ")[0]);
     if (!cost) continue;
     found.push({ name: c.name, mv: cost.mv, size: c.size, mana: [cost.mana, more?.mana || ""].join(" ").trim() });
   }

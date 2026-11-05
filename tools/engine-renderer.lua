@@ -482,9 +482,7 @@ engineAutoPace = {}
 function engineAutoOn(color) return engineAutoPace[color] ~= false end
 local AUTO_DELAY = 2
 local autoPaceToken = {} -- colour -> number of the newest auto-release timer (only that one may fire)
-local paceSeen = {} -- colour -> { hand = {id=true}, handN, lib, public = {id=true}, tapped = {id=true} } from the last update
 paceArmed = {} -- colour -> true once that player had a decision after the opening hand (mulligans are not draws)
-local paceTable = nil -- the last board the detection ran on (re-renders of the same board detect nothing new)
 
 local function pendingOf(color)
   enginePending[color] = enginePending[color] or { draw = {}, mill = {}, untap = {} }
@@ -505,21 +503,53 @@ local function idSet(list)
   return set
 end
 
--- Compares this board with the previous one and holds back new draws, mills and untaps for seated players.
-local function detectPending(m)
-  if m == paceTable then return end
-  paceTable = m
+-- The one comparison of each board with the board before it, for every player: how many cards the library lost and
+-- which graveyard cards are new (nowhere public and not in the hand before). The holder of draws and mills
+-- (detectPending) and the mill stand-ins (engineMillDetect) both read it; each kept its own copy of the previous board
+-- before, and the copies were taken from different boards (the holder's only while the player was seated).
+engineBoardSeen = {}  -- colour -> { hand = {id=true}, handN, lib, public = {id=true}, tapped = {id=true}, turn } of the newest board
+engineBoardDiffs = {} -- colour -> { prev, drop, fresh = {card, ...} }: the newest board against the one before
+engineBoardNew = false -- whether the board being rendered is a new one (a re-render of the same board detects nothing)
+engineBoardLast = nil
+function engineBoardDiff(m)
+  engineBoardNew = m ~= engineBoardLast
+  if not engineBoardNew then engineBoardDiffs = {} return end
+  engineBoardLast = m
+  local diffs = {}
   for _, pl in ipairs(m.players or {}) do
     local color = pl.color
-    if color ~= nil and Player[color] ~= nil and Player[color].seated and pl.hand ~= nil then
-      local prev = paceSeen[color]
-      local p = pendingOf(color)
-      local handSet = idSet(pl.hand)
+    if color ~= nil then
       local public = {}
       for _, z in ipairs({ "battlefield", "graveyard", "exile", "command" }) do
         for _, c in ipairs(pl[z] or {}) do public[c.id] = true end
       end
       for _, sItem in ipairs(m.stack or {}) do if sItem.src then public[sItem.src] = true end end
+      local tapped = {}
+      for _, c in ipairs(pl.battlefield or {}) do if c.tap then tapped[c.id] = true end end
+      local prev = engineBoardSeen[color]
+      if prev ~= nil then
+        local fresh = {}
+        for _, c in ipairs(pl.graveyard or {}) do
+          if not prev.public[c.id] and not prev.hand[c.id] then fresh[#fresh + 1] = c end
+        end
+        diffs[color] = { prev = prev, drop = (prev.lib or 0) - (pl.library or 0), fresh = fresh }
+      end
+      engineBoardSeen[color] = { hand = idSet(pl.hand), handN = #(pl.hand or {}), lib = pl.library or 0, public = public, tapped = tapped, turn = m.turn }
+    end
+  end
+  engineBoardDiffs = diffs
+end
+
+-- Holds back the newest board's draws, mills and untaps (engineBoardDiff) for seated players.
+local function detectPending(m)
+  if not engineBoardNew then return end
+  for _, pl in ipairs(m.players or {}) do
+    local color = pl.color
+    if color ~= nil and Player[color] ~= nil and Player[color].seated and pl.hand ~= nil then
+      local diff = engineBoardDiffs[color]
+      local prev = diff and diff.prev
+      local p = pendingOf(color)
+      local handSet = engineBoardSeen[color].hand
       -- forget held cards the engine has moved on since (cast, discarded, shuffled away, ...)
       local keep = {}
       for _, id in ipairs(p.draw) do if handSet[id] then keep[#keep + 1] = id end end
@@ -528,13 +558,12 @@ local function detectPending(m)
       keep = {}
       for _, id in ipairs(p.mill) do if gy[id] then keep[#keep + 1] = id end end
       p.mill = keep
-      local tappedNow = {}
-      for _, c in ipairs(pl.battlefield or {}) do if c.tap then tappedNow[c.id] = true end end
+      local tappedNow = engineBoardSeen[color].tapped
       local bf = idSet(pl.battlefield)
       for id in pairs(p.untap) do if not bf[id] or tappedNow[id] then p.untap[id] = nil end end
 
       if prev ~= nil and paceArmed[color] then
-        local libDrop = (prev.lib or 0) - (pl.library or 0)
+        local libDrop = diff.drop
         -- draws: new cards in hand, the hand grew by as many, and the library shrank
         local newHand = {}
         for _, c in ipairs(pl.hand) do if not prev.hand[c.id] and not prev.public[c.id] then newHand[#newHand + 1] = c.id end end
@@ -557,13 +586,10 @@ local function detectPending(m)
           end
         end
         -- mills: new cards in the graveyard that weren't anywhere public before, while the library shrank
-        if libDrop > 0 then
-          for _, c in ipairs(pl.graveyard or {}) do
-            if libDrop > 0 and not prev.public[c.id] and not prev.hand[c.id] then
-              p.mill[#p.mill + 1] = c.id
-              libDrop = libDrop - 1
-            end
-          end
+        for _, c in ipairs(diff.fresh) do
+          if libDrop <= 0 then break end
+          p.mill[#p.mill + 1] = c.id
+          libDrop = libDrop - 1
         end
         -- a big mill (more than 5) goes straight into the graveyard deck: 20 loose face-up cards would be 20 live
         -- objects, each one making Unity's clean-up pauses longer
@@ -585,7 +611,6 @@ local function detectPending(m)
           end, AUTO_DELAY)
         end
       end
-      paceSeen[color] = { hand = handSet, handN = #pl.hand, lib = pl.library or 0, public = public, tapped = tappedNow, turn = m.turn }
     end
   end
 end
@@ -1292,6 +1317,7 @@ function engineRender(m)
   if engineFixHolds ~= nil and engineFixHolds(m) then return end -- (a manual fix has the engine paused: the board waits)
   sect()
   mergeStatic(m)
+  engineBoardDiff(m)
   detectPending(m)
   if engineMarkSpecial ~= nil then pcall(engineMarkSpecial, m) end
   if engineMillDetect ~= nil then pcall(engineMillDetect, m) end
@@ -3977,37 +4003,25 @@ end
 -- the others (bigger mills, AI players) fly face up from the library to the graveyard as stand-ins, the first
 -- MILL_FLY of them, MILL_GAP apart, while the graveyard pile already holds them.
 engineMillNow = {}   -- colour -> cards milled on this board (the library takes as many off without flying them)
-engineMillFx = {}    -- colour -> { lib, public } from the last board
 MILL_FLY, MILL_GAP, MILL_TIME = 5, 0.25, 0.6
 function engineMillDetect(m)
   for _, pl in ipairs(m.players or {}) do
     local color = pl.color
-    if color ~= nil then
-      local public = {}
-      for _, z in ipairs({ "battlefield", "graveyard", "exile", "command", "hand" }) do
-        for _, c in ipairs(pl[z] or {}) do public[c.id] = true end
-      end
-      for _, sItem in ipairs(m.stack or {}) do if sItem.src then public[sItem.src] = true end end
-      local prev = engineMillFx[color]
-      engineMillFx[color] = { lib = pl.library or 0, public = public }
-      local drop = prev and ((prev.lib or 0) - (pl.library or 0)) or 0
-      if drop > 0 then
-        local milled = {}
-        for _, c in ipairs(pl.graveyard or {}) do
-          if #milled < drop and not prev.public[c.id] then milled[#milled + 1] = c end
-        end
-        if #milled > 0 then
-          engineMillNow[color] = #milled
-          local held = {}
-          for _, id in ipairs((enginePending[color] or {}).mill or {}) do held[id] = true end
-          local g = seatGeometry(color)
-          local k = 0
-          for _, c in ipairs(milled) do
-            if not held[c.id] and k < MILL_FLY and g ~= nil and not engineAnimOff then
-              k = k + 1
-              engineMillFly(c, g, (k - 1) * MILL_GAP)
-            end
-          end
+    local diff = color ~= nil and engineBoardDiffs[color] or nil
+    local milled = {}
+    for _, c in ipairs(diff and diff.fresh or {}) do
+      if #milled < diff.drop then milled[#milled + 1] = c end
+    end
+    if #milled > 0 then
+      engineMillNow[color] = #milled
+      local held = {}
+      for _, id in ipairs((enginePending[color] or {}).mill or {}) do held[id] = true end
+      local g = seatGeometry(color)
+      local k = 0
+      for _, c in ipairs(milled) do
+        if not held[c.id] and k < MILL_FLY and g ~= nil and not engineAnimOff then
+          k = k + 1
+          engineMillFly(c, g, (k - 1) * MILL_GAP)
         end
       end
     end
@@ -4020,12 +4034,17 @@ function engineMillFly(c, g, delay)
     data.GMNotes = "enginefx"
     op("spawn")
     spawnObjectData({ data = data, position = g.lib + Vector(0, 1.6, 0), rotation = Vector(0, g.rotY, 180), callback_function = function(obj)
-      obj.setLock(true)
-      obj.setRotationSmooth(Vector(0, g.rotY, 0), false, true)
-      obj.setPositionSmooth(g.grave + Vector(0, 1.2, 0), false, true)
-      Wait.time(function() if obj ~= nil and not obj.isDestroyed() then engineDispose(obj) end end, MILL_TIME + 0.3)
+      engineSlideAway(obj, g.grave + Vector(0, 1.2, 0), MILL_TIME + 0.3, true, Vector(0, g.rotY, 0))
     end })
   end, math.max(delay, 0.01))
+end
+-- A card leaving the table by sliding somewhere and going: a milled card's stand-in, a stray card joining its pile.
+-- (rot: it turns as it goes; fast: TTS's quick smooth move)
+function engineSlideAway(obj, pos, after, fast, rot)
+  obj.setLock(true)
+  if rot ~= nil then obj.setRotationSmooth(rot, false, true) end
+  obj.setPositionSmooth(pos, false, fast == true)
+  Wait.time(function() if obj ~= nil and not obj.isDestroyed() then engineDispose(obj) end end, after)
 end
 function engineLibraryDeck(color, g, count, seen)
   local id = "library:" .. color
@@ -4275,9 +4294,7 @@ function enginePileStrays(cards, base)
     local single = engineObjs[c.id]
     if single ~= nil and not single.isDestroyed() then
       engineObjs[c.id] = nil
-      single.setLock(true)
-      single.setPositionSmooth(onTable(base, 0.3), false, false)
-      Wait.time(function() if single ~= nil and not single.isDestroyed() then engineDispose(single) end end, 0.6)
+      engineSlideAway(single, onTable(base, 0.3), 0.6)
     end
   end
 end
@@ -4341,9 +4358,7 @@ function engineZonePile(color, zone, cards, base, rotY, seen)
     local single = engineObjs[c.id]
     if single ~= nil and not single.isDestroyed() then
       engineObjs[c.id] = nil
-      single.setLock(true)
-      single.setPositionSmooth(onTable(base, 0.3), false, false)
-      Wait.time(function() if single ~= nil and not single.isDestroyed() then engineDispose(single) end end, 0.6)
+      engineSlideAway(single, onTable(base, 0.3), 0.6)
     end
     engineInPile[c.id] = true
   end

@@ -1145,6 +1145,14 @@ function choiceWords(c, views) {
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const NOT_KEYWORD = /Replacement|^ETB|^Hidden|^Static|^Trigger|^[A-Z][a-z]+[A-Z]|^(Chapter|Class|Visit|Prize|Piracy)$/;
 const ALWAYS_ON = /^(Flying|First Strike|Double Strike|Deathtouch|Lifelink|Trample|Vigilance|Haste|Reach|Menace|Hexproof|Indestructible|Defender|Shroud|Ward|Protection|Fear|Intimidate|Skulk|Shadow|Horsemanship|Flanking|Banding|Infect|Wither|Toxic|Afflict|Annihilator|Exalted|Prowess|Bushido|Rampage|Battle Cry|Dethrone|Undying|Persist|Absorb|Melee|Mentor|Training|Riot|Backup|Changeling|\w+walk)\b/i;
+// Whether a card has a keyword: Forge's keyword string starts with it and no more letters follow ("Suspend 1—{R}",
+// "Suspend:3:..." are Suspend; Flashback is not Flash). One reader for every such check: "/flash/i" matched Flashback,
+// and a flashback sorcery read as castable at instant speed.
+function hasKeyword(c, word) {
+  const w = String(word).toLowerCase();
+  return (c?.keywords || []).some((k) => { const s = String(k).toLowerCase(); return s.startsWith(w) && !/^[a-z-]/.test(s.slice(w.length)); });
+}
+
 function cardKeywords(c) {
   const granted = [], own = [];
   // (its text as changed when it was: Mind Bend's islandwalk is its own text, not a grant, hp-25)
@@ -1221,8 +1229,8 @@ function logSnapshot(pub) {
         // (its other counters but loyalty, for its arrival line: Tangle Wire's 4 fade counters read nothing, hp-14 gap)
         ...((o) => (o.length ? { ctrs: o } : {}))(Object.entries(c.counters || {}).filter(([k, n]) => n > 0 && !/^(?:P1P1|M1M1|LOYALTY)$/i.test(k))),
         ...(c.mergedCardIds?.length ? { merged: [...c.mergedCardIds] } : {}),
-        ...((c.keywords || []).some((k) => /^Rebound\b/i.test(k)) ? { rebound: true } : {}),
-        ...((c.keywords || []).some((k) => /^Suspend\b/i.test(k)) ? { suspend: true } : {}),
+        ...(hasKeyword(c, "Rebound") ? { rebound: true } : {}),
+        ...(hasKeyword(c, "Suspend") ? { suspend: true } : {}),
         // (phasing is no zone change, so it stays "battlefield" here: Forge says which, the log no longer guesses)
         ...(c.phasedOut ? { po: true } : {}),
         // (its text as it reads now, for a text box swap: Exchange of Words was in no log, rebuilt hand test #11)
@@ -1246,7 +1254,9 @@ function logSnapshot(pub) {
     // (Forge's paradigm effect is "<card>' Paradigm": said by its card, hp-23 gap)
     // (and an effect, "Eternal Dominion (5)'s Effect": read "... (5)'s Effect's ability triggers", hp-23 gap)
     const effect = /(?:'s Effect|' Paradigm)$/.test(s.identity?.name || "");
-    const name = s.identity?.name && s.identity.name !== "?" ? s.identity.name.replace(/' Paradigm$/, "").replace(/(?: \(\d+\))?'s Effect$/, "") : ability ? "a face-down permanent" : "a face-down spell"; // (a face-down creature's ward read "a face-down spell's", hp-20 gap)
+    let name = s.identity?.name && s.identity.name !== "?" ? s.identity.name.replace(/' Paradigm$/, "").replace(/(?: \(\d+\))?'s Effect$/, "") : ability ? "a face-down permanent" : "a face-down spell"; // (a face-down creature's ward read "a face-down spell's", hp-20 gap)
+    // (a token's ability by the log's word for it: "Goblin Shaman Token's ability triggers" on the real table, 2026-11-05)
+    if (ability && cards[s.sourceId]?.token && s.identity?.name) name = tokenWords(name, true);
     // (an upkeep cost's trigger by its keyword: Karmic Guide's echo read "White uses Karmic Guide's ability", then "dies", hp-06)
     // (and cumulative upkeep's, by its cost: Mystic Remora's read "uses Mystic Remora's ability", hp-05)
     // (a cost that isn't mana is said as itself: Glacial Chasm's "Cumulative upkeep—Pay 2 life.", "pay 2 life for each ...")
@@ -1353,10 +1363,11 @@ function notePlay(seat, act, name, promptId) {
   const faceDown = kind === "cast" && / \(face down\)$/i.test(way);
   // (and a cast by another way says which: Faithless Looting's flashback read "White casts Faithless Looting" twice, gap-04;
   // Forge's mode names its cost, "flashback", "webSlinging", "more_than_meets_the_eye")
-  // (a prototype cast is a normal mode: the harness's label says it, "Cast Autonomous Assembler (Prototype)", keyword sweep)
+  // (a prototype cast is a normal mode: the harness's label says it, "Cast Autonomous Assembler (Prototype)", keyword sweep;
+  // and a cleave cast, "Cast Dig Up (Cleave)": both of Dig Up's casts read "Cast Dig Up", and the table offered one, sweep 2026-11-05)
   const how = kind === "cast" && !faceDown && act.mode?.type === "alternative" && act.mode.cost
     ? String(act.mode.cost).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()
-    : kind === "cast" && / \(Prototype\)$/.test(way) ? "prototype" : null;
+    : kind === "cast" && / \((Prototype|Cleave)\)$/.exec(way)?.[1].toLowerCase() || null;
   // (the card where the player saw it)
   const zone = (seat.board?.state?.gameView?.zones || []).find((z) => (z.cards || []).some((c) => c.id === act.cardId));
   const card = zone?.cards.find((c) => c.id === act.cardId);
@@ -1377,15 +1388,17 @@ function castFrom(zone, card) {
   if (zone === "library") return "from the top of their library";
   if (zone === "exile") return "from exile";
   if (zone !== "graveyard") return null;
-  const way = (card?.keywords || []).map((k) => /^(Jump-start|Retrace)$/i.exec(k)?.[1]).find(Boolean);
+  const way = ["Jump-start", "Retrace"].find((k) => hasKeyword(card, k));
   return way ? `(${way.toLowerCase()})` : "from their graveyard";
 }
 // The extra costs a spell was cast with (the harness's stack optionalCosts, Forge's OptionalCost names), as words after
 // its name: "(kicked)". Any other name says nothing: retrace and jump-start are said by castFrom, buyback by the spell's
 // return to its hand. (Llanowar Elite kicked and Dream's Grip entwined read "Red casts ...", keyword sweep 2026-11-03)
-const OPTIONAL_COST_WORDS = { Kicker1: "kicked", Kicker2: "kicked", Entwine: "entwined", Bargain: "bargained", PromiseGift: "gift promised" };
-function optionalWords(opt) {
-  const words = (opt || []).map((k) => OPTIONAL_COST_WORDS[k]).filter(Boolean);
+// (Prototype: the harness adds it for a prototype cast, so an AI's reads "AI 1 casts X (prototype)" as ours does, keyword sweep gap)
+const OPTIONAL_COST_WORDS = { Kicker1: "kicked", Kicker2: "kicked", Entwine: "entwined", Bargain: "bargained", PromiseGift: "gift promised", Prototype: "prototype", Cleave: "cleave" };
+// (a word the cast's own name already says is left out: our prototype cast is named "X (prototype)" by notePlay)
+function optionalWords(opt, name = "") {
+  const words = (opt || []).map((k) => OPTIONAL_COST_WORDS[k]).filter((w) => w && !name.endsWith(` (${w})`));
   const said = [...new Set(words)].map((w) => (w === "kicked" && words.filter((x) => x === w).length > 1 ? "kicked twice" : w));
   return said.length ? ` (${said.join(", ")})` : "";
 }
@@ -1649,7 +1662,7 @@ function logEvents(prev, cur, pub, facts = null) {
       if (!ability) { spellsSeen.add(`${s.ctl}|${s.name}`); namesSeen.add(s.name); }
       (!mine && ability && (s.trigger || s.kwTrigger || s.upkeepCost) ? triggered : !mine && ability && entered ? afterEntries : out).push(s.upkeepCost ? `${poss(s.name)} ${s.upkeepCost}, or it is sacrificed`
         : ability ? keywordLine(mine ? mine.kind : !s.trigger && !s.kwTrigger ? keywordKind(s.text) : null, s.ctl, s.name) || (!mine && s.kwTrigger ? `${poss(s.name)} ${s.kwTrigger} triggers (${who(s.ctl)})` : !mine && s.trigger ? `${poss(s.name)} ability triggers (${who(s.ctl)})` : `${who(s.ctl)} uses ${poss(s.name)} ability${s.via ? ` (${poss(s.via)})` : ""}`)
-        : k >= 1 || copyOf ? `${who(s.ctl)} copies ${s.name}` : `${who(s.ctl)} casts ${mine ? mine.name : s.name}${optionalWords(s.opt)}`);
+        : k >= 1 || copyOf ? `${who(s.ctl)} copies ${s.name}` : `${who(s.ctl)} casts ${mine ? mine.name : s.name}${optionalWords(s.opt, mine?.name)}`);
     }
   }
   for (const e of pending) {
@@ -2009,7 +2022,7 @@ function logEvents(prev, cur, pub, facts = null) {
           // Eternal Dominion's read "White puts Gaea's Cradle onto the battlefield", hp-23 gap)
           const robbed = [...Object.values(prev.stack), ...Object.values(cur.stack)].find((s) => s.ctl === c.ctl && /\btarget (?:opponent|player)'s library\b/i.test(s.text || "") && s.plTg?.some((p) => p !== c.ctl));
           put.names.push(`${robbed ? `${who(robbed.plTg.find((p) => p !== c.ctl))}'s ` : ""}${c.name}`);
-          out[put.at] = `${who(c.ctl)} puts ${put.names.join(", ")} onto the battlefield${c.tapped ? " tapped" : ""}${arrive}`;
+          out[put.at] = `${who(c.ctl)} puts ${listOf(put.names)} onto the battlefield${c.tapped ? " tapped" : ""}${arrive}`;
         }
       }
       // (the same tokens together, one line with their count: An Offer You Can't Refuse's two Treasures read "AI 1 creates
@@ -2233,7 +2246,13 @@ function logEvents(prev, cur, pub, facts = null) {
   const lines = out.map(sentence);
   // (sources sacrificed for mana, for updateLog to add to the line before when they are paid one click a board)
   const sac = Object.values(groups).find((g) => g.k.kind === "sacrificed" && g.k.label === " for mana");
-  if (sac) lines.manaSac = { names: sac.names, line: sentence(sac.words.sacrificed("", sac.names, sac.k)) };
+  if (sac) {
+    lines.manaSac = { names: sac.names, line: sentence(sac.words.sacrificed("", sac.names, sac.k)) };
+    // (said before the cast it paid for: the last Treasure clicked lands on the cast's board, and real TTS read "Treasure
+    // token ×3 are sacrificed for mana", "White casts Inspiration", "Treasure token is sacrificed for mana", 2026-11-05)
+    const at = lines.indexOf(lines.manaSac.line), cast = lines.findIndex((l) => / casts /.test(l));
+    if (cast >= 0 && cast < at) lines.splice(cast, 0, ...lines.splice(at, 1));
+  }
   return lines;
 }
 const sentence = (l) => (l ? l[0].toUpperCase() + l.slice(1) : l);
@@ -3709,7 +3728,10 @@ function onPrompt(seat, prompt) {
       // (which kind of tap pays for this spell, from its rules text: our Forge build sends Improvise's taps as mana
       // abilities with no cost and no mana, not the protocol's useResource, hp-12 re-test 2026-10-27)
       const payKind = resourceKindOf(byId[input.cardId]?.text || game?.cardText?.[input.cardId] || "");
-      ui = { title: `Pay ${input.manaCost}${input.cardName || src ? ` for ${input.cardName || src}` : ""}`, mode: "single", options: [
+      // (what is still owed once the pool's mana counts: Forge sends the cost before the pool is spent, and four Treasures
+      // clicked one at a time each read "Pay {3}{U} for Inspiration" on the real table, 2026-11-05)
+      const owes = owed !== input.manaCost && owed !== "{0}" ? `${owed} more` : input.manaCost;
+      ui = { title: `Pay ${owes}${input.cardName || src ? ` for ${input.cardName || src}` : ""}`, mode: "single", options: [
         ...(input.canConfirmFromPool ? [{ id: "__pool", label: "Pay from mana pool" }] : autoFailed ? [] : [{ id: "__auto", label: "Auto-pay" }]),
         ...(lifeAct ? [{ id: lifeAct.id || "pay-life", label: `Pay ${lifeN ?? 2} life` }] : []),
         ...(input.actions || []).filter((a) => a !== lifeAct).map((a) => ({ id: a.id, cardId: a.cardId, label: a.type === "undoMana" ? `Undo mana from ${cname(a.cardId)}`
@@ -3760,7 +3782,14 @@ function onPrompt(seat, prompt) {
       // (no asking card: a copy's new target, "You may choose new targets for the copy"; named by the player's own spell
       // on the stack whose card is in no zone, a copy: Flusterstorm's storm copies read "Choose a target to counter", hp-08)
       // (the newest such spell, gv.stack running oldest first: Flusterstorm's copy on your own Bolt read "Copy of Lightning Bolt", re-test 2026-10-30)
-      const copy = !src && [...(gv.stack || [])].reverse().find((s) => s.controllerId === seat.slot && !isAbilityOnStack(s, gv) && !byId[s.sourceId]);
+      const newest = !src && [...(gv.stack || [])].reverse().find((s) => s.controllerId === seat.slot && !isAbilityOnStack(s, gv) && !byId[s.sourceId]);
+      // (or, when that is the resolving spell that copies another, the spell it copies: Flare of Duplication's copy of
+      // Lightning Bolt read "Copy of Flare of Duplication: choose a player to damage", re-test 2 2026-11-05)
+      // (the real engine sent Flare with no targets, only its text "Copy Lightning Bolt (162).": the spell that text names,
+      // real table 2026-11-05)
+      const copies = (s) => newest && s !== newest && s.identity?.name && String(newest.text || "").replace(/ \(\d+\)/g, "").includes(`Copy ${s.identity.name}`);
+      const copy = newest && ((newest.targets || []).filter((t) => t.kind === "spell").map((t) => (gv.stack || []).find((s) => s.id === t.id)).find(Boolean)
+        || (gv.stack || []).find(copies) || newest);
       // (or by the effect on the stack that makes it, "Eternal Dominion (5)'s Effect": epic's upkeep copy read "Choose a player
       // to search their library", no card named, hp-23 gap)
       const effectOf = !src && !copy && (gv.stack || []).map((s) => String(s.identity?.name || "").match(/^(.+?)(?: \(\d+\))?'s Effect$/)?.[1]).find(Boolean);
@@ -4938,7 +4967,7 @@ function whyNot(seat, cardId) {
     if (me && me.landsPlayedThisTurn >= (me.maxLandPlaysPerTurn || 1)) return `${name}: you already played a land this turn.`;
     return `${name}: lands can only be played in your main phase with an empty stack.`;
   }
-  const instantSpeed = types.includes("Instant") || (card?.keywords || []).some((k) => /flash/i.test(k));
+  const instantSpeed = types.includes("Instant") || hasKeyword(card, "Flash");
   if (!instantSpeed && !myMain) return `${name}: only at sorcery speed (your main phase, empty stack).`;
   return `${name}: can't be cast right now (not enough mana, no legal targets, or another restriction).`;
 }
@@ -5012,7 +5041,7 @@ function onIntent(m) {
         // (a split card cast whole is its fuse: "Cast Turn // Burn" beside "Cast Turn" and "Cast Burn", hp-15)
         if (a.type === "cast" && name.includes(" // ") && l === `Cast ${name}`) return "Cast both halves (fuse)";
         // (an alternative cost under the plain label: by what the card says it is)
-        if (a.mode?.type === "staticAlternative" && l === `Cast ${name}`) return `Cast ${name} (${altCostWords(seat.board?.state?.gameView, m.id)})`;
+        if (a.mode?.type === "staticAlternative" && l === `Cast ${name}`) return `Cast ${name} (${altCostWords(seat.board?.state?.gameView, a.cardId)})`;
         // (a reminder sentence only: "Cast X (WebSlinging)" names the way, and keeps its brackets)
         const m = l.match(/^([^()]+?) \((.+\.)\)$/);
         if (!m || m[1].includes("{")) return m ? m[1] : l;
@@ -6114,7 +6143,7 @@ if (require.main === module) {
   // Loaded by a test (tests/bridge-harness.js): the logic without servers. `game` is set through _setGame.
   module.exports = {
     alignment, tableCard, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
-    summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, cardIndex, nameOf, notePlay,
+    summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, cardIndex, nameOf, notePlay, hasKeyword,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer,
   };
 }

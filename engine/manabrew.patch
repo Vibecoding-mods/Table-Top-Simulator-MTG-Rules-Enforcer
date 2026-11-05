@@ -788,7 +788,7 @@ index 0000000..00026e1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..3600a8a 100644
+index 713e1ef..930d371 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 @@ -37,11 +37,13 @@ import forge.game.cost.CostAdjustment;
@@ -970,7 +970,7 @@ index 713e1ef..3600a8a 100644
          return stackItem;
      }
  
-@@ -1163,6 +1233,19 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1233,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -981,6 +981,12 @@ index 713e1ef..3600a8a 100644
 +        final List<String> names = new ArrayList<>();
 +        for (final OptionalCost cost : ability.getOptionalCosts()) {
 +            names.add(cost.name());
++        }
++        if (ability.hasParam("Prototype")) {
++            names.add("Prototype");
++        }
++        if (ability.hasParam("NonBasicSpell") && ability.hasParam("PrecostDesc")) {
++            names.add(ability.getParam("PrecostDesc").trim());
 +        }
 +        if (!names.isEmpty()) {
 +            target.put("optionalCosts", names);
@@ -1073,7 +1079,7 @@ index fb82e6d..c302d8f 100644
  
      @Override
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..259735d 100644
+index 643e5de..fd0d8a6 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -19,6 +19,7 @@ import forge.game.card.Card;
@@ -1762,7 +1768,7 @@ index 643e5de..259735d 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +2570,12 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +2570,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -1773,11 +1779,13 @@ index 643e5de..259735d 100644
                  continue;
              }
 +            final String label = sa.isCastFaceDown() ? formatted + " (face down)"
-+                    : sa.hasParam("Prototype") ? formatted + " (Prototype)" : formatted;
++                    : sa.hasParam("Prototype") ? formatted + " (Prototype)"
++                    : sa.hasParam("NonBasicSpell") && sa.hasParam("PrecostDesc") ? formatted + " (" + sa.getParam("PrecostDesc").trim() + ")"
++                    : formatted;
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +2612,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +2614,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -1786,7 +1794,7 @@ index 643e5de..259735d 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +2655,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +2657,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -1809,7 +1817,7 @@ index 643e5de..259735d 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,16 +2699,17 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,16 +2701,17 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -1830,7 +1838,7 @@ index 643e5de..259735d 100644
          }
          publishAgentPrompt("player-" + playerId, sourceCardId, input);
      }
-@@ -2579,11 +2957,16 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,11 +2959,16 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -1848,7 +1856,7 @@ index 643e5de..259735d 100644
              }
              final boolean mustAttack =
                      a.isGoaded() || !StaticAbilityMustAttack.entitiesMustAttack(a).isEmpty();
-@@ -2969,12 +3352,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +3354,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }

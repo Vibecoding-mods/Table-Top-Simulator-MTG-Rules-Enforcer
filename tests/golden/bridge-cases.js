@@ -4943,6 +4943,18 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
       b.gameView.stack = [{ id: "engine-stack-3", sourceId: "engine-card-958", controllerId: "player-0", identity: { name: "Lightning Bolt" } }, { id: "engine-stack-4", sourceId: "engine-card-959", controllerId: "player-0", identity: { name: "Flusterstorm" } }];
       add(promptCase("re-test: a storm copy over your own spell", b, prompt("chooseBoardTargets", { cancellable: false, candidates: [{ id: "engine-card-999144", kind: "card" }, { id: "engine-stack-3", kind: "spell" }], chosenTargets: 0, maxTargets: 1, minTargets: 1, presentation: { targets: [], title: "Counter" } }), [["spell|engine-stack-3"]]));
     }
+    {
+      // (re-test 2 2026-11-05: Flare of Duplication resolving, its copy of Bolt asking for a new target, named by the Bolt)
+      const b = myMain(D2.board);
+      b.gameView.stack = [{ id: "engine-stack-5", sourceId: "engine-card-958", controllerId: "player-0", identity: { name: "Lightning Bolt" } },
+        { id: "engine-stack-6", sourceId: "engine-card-961", controllerId: "player-0", identity: { name: "Flare of Duplication" }, targets: [{ kind: "spell", id: "engine-stack-5" }] }];
+      add(promptCase("re-test 2: a copy made by a resolving spell is named by the spell it copies", b, prompt("chooseBoardTargets", { cancellable: false, candidates: [{ id: "player-1", kind: "player" }, { id: "player-0", kind: "player" }], chosenTargets: 0, maxTargets: 1, minTargets: 1, presentation: { targets: [], title: "choose a player to damage" } }), [["player|player-1"]]));
+      // (and as the real engine sent it: Flare with no targets, only its text, real table 2026-11-05)
+      const r = myMain(D2.board);
+      r.gameView.stack = [{ id: "engine-stack-2", sourceId: "engine-card-958", controllerId: "player-0", identity: { name: "Lightning Bolt" }, text: "Lightning Bolt deals 3 damage to AI 1." },
+        { id: "engine-stack-3", sourceId: "engine-card-961", controllerId: "player-0", identity: { name: "Flare of Duplication" }, targets: [], text: "Copy Lightning Bolt (958)." }];
+      add(promptCase("real table: a copy is named by the spell its maker's text copies", r, prompt("chooseBoardTargets", { cancellable: false, candidates: [{ id: "player-1", kind: "player" }, { id: "player-0", kind: "player" }], chosenTargets: 0, maxTargets: 1, minTargets: 1, presentation: { targets: [], title: "choose a player to damage" } }), [["player|player-1"]]));
+    }
     // (hp-23 gap: Demonstrate's copy and Paradigm's, as Forge asks them live)
     add(promptCase("hp-23 gap: demonstrate's copy", myMain(D2.board), { ...prompt("chooseBoolean", { confirmLabel: "Accept", denyLabel: "Decline", presentation: { targets: [], title: "Do you want to copy the spell Incarnation Technique?" } }),
       sourceAbilityText: "Demonstrate (When you cast this spell, you may copy it. If you do, choose an opponent to also copy it. Players may choose new targets for their copies.)", sourceCard: { id: "engine-card-966", identity: { name: "Incarnation Technique" }, text: "x" } }, [["yes"]]));
@@ -6014,6 +6026,10 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
   add(intentCase("rebuilt #18: the priority row says what the alternative cost is", f, prompt("chooseAction", { actions: [
     { id: "a-n", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur", mode: { type: "normal" } },
     { id: "a-alt", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur", mode: { type: "staticAlternative" } }] }), []));
+  // (cleave is a second spell in a normal mode: the harness names it in the label, and the drop asks which, keyword sweep 2026-11-05)
+  add(intentCase("sweep: a cleave cast is asked beside the plain one", f, prompt("chooseAction", { actions: [
+    { id: "a-n", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur", mode: { type: "normal" } },
+    { id: "a-cl", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur (Cleave)", mode: { type: "normal" } }] }), [{ kind: "play", id: "engine-card-75" }]));
 }
 
 module.exports = cases;

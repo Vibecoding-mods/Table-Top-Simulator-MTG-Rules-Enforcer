@@ -22733,18 +22733,18 @@
     "wsOpen": "ws://127.0.0.1:9443"
    },
    {
-    "log": "prompt Blue #900: payManaCost \"Pay {2}{G} for X\""
+    "log": "prompt Blue #900: payManaCost \"Pay {G} more for X\""
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Pay {2}{G} for X\": Auto-pay | Tap Forest for {G} | Tap Mountain for {R} | Cancel\n"
+    "text": "[time] Blue   is asked #900 \"Pay {G} more for X\": Auto-pay | Tap Forest for {G} | Tap Mountain for {R} | Cancel\n"
    },
    {
     "tts": {
      "t": "prompt",
      "color": "Blue",
      "promptId": 900,
-     "title": "Pay {2}{G} for X",
+     "title": "Pay {G} more for X",
      "mode": "single",
      "options": [
       {
@@ -22779,7 +22779,7 @@
    "open": {
     "type": "payManaCost",
     "ui": {
-     "title": "Pay {2}{G} for X",
+     "title": "Pay {G} more for X",
      "mode": "single",
      "options": [
       {
@@ -22821,18 +22821,18 @@
     "wsOpen": "ws://127.0.0.1:9443"
    },
    {
-    "log": "prompt Blue #900: payManaCost \"Pay {1}{U}{B} for Yuriko\""
+    "log": "prompt Blue #900: payManaCost \"Pay {1}{B} more for Yuriko\""
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Pay {1}{U}{B} for Yuriko\": Auto-pay | Tap City of Brass for {W} | Tap City of Brass for {U} | Tap City of Brass for {B} | Tap City of Brass for {R} | Tap City of Brass for {G} | Cancel\n"
+    "text": "[time] Blue   is asked #900 \"Pay {1}{B} more for Yuriko\": Auto-pay | Tap City of Brass for {W} | Tap City of Brass for {U} | Tap City of Brass for {B} | Tap City of Brass for {R} | Tap City of Brass for {G} | Cancel\n"
    },
    {
     "tts": {
      "t": "prompt",
      "color": "Blue",
      "promptId": 900,
-     "title": "Pay {1}{U}{B} for Yuriko",
+     "title": "Pay {1}{B} more for Yuriko",
      "mode": "single",
      "options": [
       {
@@ -22885,7 +22885,7 @@
    "open": {
     "type": "payManaCost",
     "ui": {
-     "title": "Pay {1}{U}{B} for Yuriko",
+     "title": "Pay {1}{B} more for Yuriko",
      "mode": "single",
      "options": [
       {
@@ -607915,6 +607915,172 @@
   }
  },
  {
+  "name": "re-test 2: a copy made by a resolving spell is named by the spell it copies",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseBoardTargets \"Copy of Lightning Bolt: choose a player to damage\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Copy of Lightning Bolt: choose a player to damage\": AI 1 | Blue\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Copy of Lightning Bolt: choose a player to damage",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "cancel": false,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "player|player-0",
+       "label": "Blue"
+      }
+     ],
+     "kind": "target",
+     "text": ""
+    }
+   },
+   {
+    "answer": [
+     "player|player-1"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Copy of Lightning Bolt: choose a player to damage\": AI 1\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 900,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   }
+  ],
+  "result": {
+   "open": null,
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
+  "name": "real table: a copy is named by the spell its maker's text copies",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseBoardTargets \"Copy of Lightning Bolt: choose a player to damage\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Copy of Lightning Bolt: choose a player to damage\": AI 1 | Blue\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Copy of Lightning Bolt: choose a player to damage",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "cancel": false,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "player|player-0",
+       "label": "Blue"
+      }
+     ],
+     "kind": "target",
+     "text": ""
+    }
+   },
+   {
+    "answer": [
+     "player|player-1"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Copy of Lightning Bolt: choose a player to damage\": AI 1\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 900,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   }
+  ],
+  "result": {
+   "open": null,
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
   "name": "hp-23 gap: demonstrate's copy",
   "effects": [
    {
@@ -761940,10 +762106,45 @@
    },
    {
     "log": "intent Blue: play engine-card-75 (Hurloon Minotaur)"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Hurloon Minotaur: how do you play it?\": Cast Hurloon Minotaur | Cast Hurloon Minotaur (sacrifice a nontoken red creature instead of its mana cost) | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Hurloon Minotaur: how do you play it?",
+     "text": "",
+     "mode": "single",
+     "kind": "choice",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "a-n",
+       "label": "Cast Hurloon Minotaur"
+      },
+      {
+       "id": "a-alt",
+       "label": "Cast Hurloon Minotaur (sacrifice a nontoken red creature instead of its mana cost)"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ]
+    }
    }
   ],
   "result": {
-   "threw": "ReferenceError: Cannot access 'm' before initialization"
+   "open": {
+    "type": "chooseAction",
+    "picks": []
+   }
   }
  },
  {
@@ -761993,6 +762194,105 @@
      "text": "",
      "min": 1,
      "max": 1
+    }
+   }
+  ],
+  "result": {
+   "open": {
+    "type": "chooseAction",
+    "picks": []
+   }
+  }
+ },
+ {
+  "name": "sweep: a cleave cast is asked beside the plain one",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Your priority\": Next | End turn | Cast Hurloon Minotaur | Cast Hurloon Minotaur (Cleave)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Next"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-n",
+       "cardId": "engine-card-75",
+       "label": "Cast Hurloon Minotaur"
+      },
+      {
+       "id": "a-cl",
+       "cardId": "engine-card-75",
+       "label": "Cast Hurloon Minotaur (Cleave)"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "intent": {
+     "kind": "play",
+     "id": "engine-card-75"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   play Hurloon Minotaur\n"
+   },
+   {
+    "log": "intent Blue: play engine-card-75 (Hurloon Minotaur)"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Hurloon Minotaur: how do you play it?\": Cast Hurloon Minotaur | Cast Hurloon Minotaur (Cleave) | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Hurloon Minotaur: how do you play it?",
+     "text": "",
+     "mode": "single",
+     "kind": "choice",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "a-n",
+       "label": "Cast Hurloon Minotaur"
+      },
+      {
+       "id": "a-cl",
+       "label": "Cast Hurloon Minotaur (Cleave)"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ]
     }
    }
   ],
