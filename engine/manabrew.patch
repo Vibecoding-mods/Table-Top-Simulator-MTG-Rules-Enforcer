@@ -1,3 +1,48 @@
+diff --git a/forge-harness/native/extra-config/reflect-config.json b/forge-harness/native/extra-config/reflect-config.json
+index b363b43..dbdd84c 100644
+--- a/forge-harness/native/extra-config/reflect-config.json
++++ b/forge-harness/native/extra-config/reflect-config.json
+@@ -8,5 +8,10 @@
+   { "name": "forge.game.trigger.Trigger", "fields": [{ "name": "maxId" }] },
+   { "name": "forge.game.replacement.ReplacementEffect", "fields": [{ "name": "maxId" }] },
+   { "name": "forge.game.staticability.StaticAbility", "fields": [{ "name": "maxId" }] },
+-  { "name": "forge.game.Game", "fields": [{ "name": "maxId" }] }
++  { "name": "forge.game.Game", "fields": [{ "name": "maxId" }] },
++  {
++    "name": "forge.harness.host.EngineEventLog",
++    "queryAllDeclaredMethods": true,
++    "methods": [{ "name": "recieve", "parameterTypes": ["forge.game.event.GameEvent"] }]
++  }
+ ]
+diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
+index 54173c6..0211ef0 100644
+--- a/forge-harness/src/main/java/forge/harness/AGENTS.md
++++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
+@@ -78,9 +78,11 @@ The session records at most one restore point (a Forge `GameSnapshot`) per step:
+ 
+ The session records the points itself, in `awaitPriorityAction`, before it publishes the prompt. Manabot seats (`botSeats`) and Forge AI seats never record, and a held pass-until or exhaust-stack pass returns before the prompt, so a fast-forward takes no points in the steps it skips. The prompt comes after the priority loop's state-based check has put waiting triggers on the stack, so a step gets its point only after they resolve; after a restore the loop runs the state-based check again. Controllers take no part in recording. The restore is applied from `ManaBrewInteractiveController.chooseSpellAbilityToPlay` through `restoreIfApproved`, because only a controller's answer can hand priority on: after `GameSnapshot.restoreGameState`, the session calls `PhaseHandler.setPriority` with the player who had priority at the point, and the controller returns an **empty list**: `PhaseHandler.mainLoopStep` treats `null` as a pass, but an empty list keeps its priority loop running, and the loop then asks `pPlayerPriority`. Returning `null` would pass priority in the restored step.
+ 
+-The vote is table business, not a game decision, so it never uses a prompt and never touches the prompt a player holds. `requestRestore { checkpointId }` opens a vote in `GameViewDto.restoreVote` (a new `voteId`, the checkpoint, the requester, `awaitingPlayerIds`, status `pending`); every other human seat still in the game is awaited. Forge AI seats and Manabot seats are never awaited; the start request marks Manabot seats with `players[].bot` (the browser worker from the room's bot slots, the node from the room's bot usernames). Each voter answers with `restoreVote { voteId, accept }`. One "no" ends the vote as `declined` with that player; a player who loses leaves the awaited set. `takeAction` handles both directives on the game thread. When the awaited set is empty and the open prompt is a priority prompt, `takeAction` returns the directive, `awaitPriorityAction` turns it into `PriorityActionKind.RESTORE`, and the controller restores at once; otherwise the restore happens at the next priority of a human seat. The vote ends as `approved`, or `unavailable` when the point left the ring first, and the record stays in the view until the next request.
++The vote is table business, not a game decision, so it never uses a prompt and never touches the prompt a player holds. `requestRestore { checkpointId }` opens a vote in `GameViewDto.restoreVote` (a new `voteId`, the checkpoint, the requester, `awaitingPlayerIds`, status `pending`); every other human seat still in the game is awaited. Forge AI seats and Manabot seats are never awaited; the start request marks Manabot seats with `players[].bot` (the browser worker from the room's bot slots, the node from the room's bot usernames). Each voter answers with `restoreVote { voteId, accept }`. One "no" ends the vote as `declined` with that player; a player who loses leaves the awaited set. `takeAction` handles both directives on the game thread. When the awaited set is empty and the open prompt is a priority prompt, `takeAction` returns the directive, `awaitPriorityAction` turns it into `PriorityActionKind.RESTORE`, and the controller restores at once; otherwise the restore happens at the next priority of a human seat. A further `restoreVote { accept: true }` from any seat once nobody is awaited sets `restoreForced`: `takeAction` then answers every open prompt with a synthetic pass, the safe default each await site already handles, until `chooseSpellAbilityToPlay` reaches `restoreIfApproved`, so a question nobody wants to answer can't hold an agreed rewind. `MAX_RESTORE_FORCED_PASSES` bounds it if a prompt re-asks forever. The vote ends as `approved`, or `unavailable` when the point left the ring first, and the record stays in the view until the next request.
+ 
+-A vote change must reach every seat without a prompt. After handling a vote directive that does not restore at once, `takeAction` raises `stateRevision` and, in the browser build, calls `InteractiveBridge.publishState`: `SabTransport` posts a `game:seat_state` event per human seat, which the host routes like a seat state frame. The node polls `getStateRevision` every loop and sends every seat its state when the revision moves; the game thread is parked in `takeAction` when the revision moves, so the snapshots do not race the game.
++A vote change must reach every seat without a prompt. After handling a vote directive that does not restore at once, `takeAction` raises `stateRevision` and, in the browser build, calls `InteractiveBridge.publishState`: `SabTransport` posts a `game:seat_state` event per human seat, which the host routes like a seat state frame. The node polls `getStateRevision` every loop and sends every seat its state when the revision moves.
++
++A moved revision or a new prompt does not mean the game thread is parked: it may already hold the next queued action, such as the vote that starts a restore. So the game thread holds `gameLock` for the whole match and releases it only around the poll in `takeAction`, and `getSnapshotJson` takes it; a snapshot then waits for the next park instead of walking collections the game is changing (`ConcurrentModificationException`, which ended the game on a seat snapshot). Any new read of game state from a host thread must take `gameLock` too.
+ 
+ Recording can be switched off, and then no `GameSnapshot` is made at all. The start request carries `snapshotRecording` (default on; the browser worker fills it from the host's saved setting), so a game that starts with it off never takes one. During the game only the engine host may change it, with `setSnapshotRecording { enabled }` on the **host lane**: a lane that only the tab running the engine can write, apart from the seat lanes that carry players' directives (including those relayed from guests). The session honours it only when its `player` is `InteractiveBridge.HOST_SEAT`. Turning recording off drops the points already taken. `GameViewDto.snapshotRecording` shows every seat the current state. A node-hosted game has no client host, so recording stays as the start request set it, and the node refuses the directive from any seat.
+ 
+@@ -94,7 +96,9 @@ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the
+ 
+ `publishAgentPrompt` resolves an omitted source from the currently resolving stack item. It emits `sourceAbilityText` from that stack ability, or from `castingAbility` during cast-time prompts, only when the ability host matches an explicit source. Keep this centralized fallback: Forge callbacks such as `arrangeForScry`, `arrangeForSurveil`, and `reveal` do not receive the originating `SpellAbility`, but their prompts still need the source card and ability in the envelope. Prompts outside stack resolution remain source-less unless their caller provides a source explicitly, and unmatched abilities remain absent rather than being misattributed.
+ 
+-Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see.
++Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see. Phased-out permanents stay in the battlefield zone with `phasedOut` set (`getCardsIn(Battlefield, false)`): phasing is not a zone change, and a client that hides them can't tell them from cards that left.
++
++`GameViewDto.events` is a ring of the last 256 zone changes, from `EngineEventLog`, which the session subscribes to the game in `attach`. The same ring goes to every seat and each entry has a rising `seq`, so a client that misses a snapshot loses nothing and a gap shows it fell behind. Each entry also carries an `id`: the relay's state patches key an array by `id`, and without one every new entry resends the whole ring. Forge fires no draw or discard event, so one entry carries `how`, set from the event order: `sacrificed` from the event just before the move, `destroyed` from `CardView.wasDestroyed` (`GameAction` sets it on a destroy and on a state-based death but fires `GameEventCardDestroyed` only on the first, and sets it on a sacrifice too, so `sacrificed` is checked first), `played`, `discard` and `surveil` from the event just after it, and `draw` from `Card.getDrawnThisTurn`, read at the next move, phase or snapshot because Forge sets it after the move (at the next move, or a card drawn and then discarded in one resolution, as Faithless Looting does, moves before its draw is read and loses it); `mill` likewise from `Card.wasMilled`, read at the next move or snapshot because `Player.mill` sets it after `moveTo`; and, the same way, `foretell`, `plot` and `suspend` for a card still in exile with `isForetold`, `isPlotted` or `hasSuspend` (special actions resolve off the stack, so no ability names them). `GameEventCardChangeZone` carries no cause, so `cause` is read from the game at the move: a move made while `ReplacementHandler.isReplacing()` takes the next `EFFECT_REPLACED` log message (Dredge's reads `<card> - Dredge N`); a move made while `game.costPaymentStack` holds a cost part takes `Cost:<name>`, the name being `Delve` for a card exiled while the mana part of a delve card is paid, else the paying ability's keyword (`Cycling`, `TypeCycling`), else its alternative cost (`Escape`, `Emerge`), else the cost part's class without `Cost` (`Sacrifice`, `Discard`, `Exile`), with the ability's host as `causeName`; and otherwise a move made while the stack resolves takes the resolving ability's `ApiType` name (`Explore`, `Mill`, `Surveil`), with its host as `causeName`/`causeCardId`. Moves off the stack never get a cause. Moves onto the stack and moves before `GameStage.Play` are skipped. An entry names its card only when a public zone is involved and the card isn't face down; foretell turns its card face down after the move, so an exile entry whose card is face down in exile when the move settles loses its name too; a draw stays a count. Moves made by a restore are ignored. `EngineEventLog` is named in `native/extra-config/reflect-config.json` like `GameLogFormatter` in the frozen config: Guava finds `@Subscribe` by reflection, so a subscriber missing from that file receives nothing in the native image while working on a JVM.
+ 
+ ## Boundary API discipline
+ 
 diff --git a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
 index 972f4ae..9a062b9 100644
 --- a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
@@ -428,11 +473,339 @@ index 1098de8..673d62f 100644
                  if (selected == null || CardLists.getTotalPower(new CardCollection(selected), ability) < totalPowerRequired) {
                      return null;
                  }
+diff --git a/forge-harness/src/main/java/forge/harness/common/ParityCardMap.java b/forge-harness/src/main/java/forge/harness/common/ParityCardMap.java
+index aa1a47c..14c82b4 100644
+--- a/forge-harness/src/main/java/forge/harness/common/ParityCardMap.java
++++ b/forge-harness/src/main/java/forge/harness/common/ParityCardMap.java
+@@ -106,6 +106,10 @@ public final class ParityCardMap {
+         }
+     }
+ 
++    public static synchronized Integer knownParityId(final int cardId) {
++        return CARD_TO_PARITY.get(cardId);
++    }
++
+     public static synchronized int parityId(final Card c) {
+         if (c == null) {
+             return Integer.MAX_VALUE;
+diff --git a/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java b/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java
+new file mode 100644
+index 0000000..00026e1
+--- /dev/null
++++ b/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java
+@@ -0,0 +1,293 @@
++package forge.harness.host;
++
++import com.google.common.eventbus.Subscribe;
++import forge.game.Game;
++import forge.game.GameLogEntryType;
++import forge.game.GameStage;
++import forge.game.card.Card;
++import forge.game.card.CardView;
++import forge.game.cost.CostPart;
++import forge.game.cost.CostPartMana;
++import forge.game.event.GameEvent;
++import forge.game.event.GameEventAddLog;
++import forge.game.event.GameEventCardChangeZone;
++import forge.game.event.GameEventCardSacrificed;
++import forge.game.event.GameEventLandPlayed;
++import forge.game.event.GameEventSnapshotRestored;
++import forge.game.event.GameEventSurveil;
++import forge.game.event.GameEventTurnPhase;
++import forge.game.keyword.Keyword;
++import forge.game.player.Player;
++import forge.game.player.PlayerView;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.CostPaymentStack;
++import forge.game.zone.MagicStack;
++import forge.game.zone.ZoneType;
++import forge.game.zone.ZoneView;
++import forge.harness.common.ParityCardMap;
++import forge.harness.common.SnapshotExtractor;
++import java.util.ArrayDeque;
++import java.util.ArrayList;
++import java.util.HashSet;
++import java.util.Iterator;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++final class EngineEventLog {
++    private static final int CAPACITY = 256;
++
++    private static final class Entry {
++        int seq;
++        int cardId;
++        boolean visible;
++        ZoneType from;
++        ZoneType to;
++        int owner;
++        String how;
++        String cause;
++        String causeName;
++        int causeCardId;
++    }
++
++    private final Game game;
++    private final ArrayDeque<Entry> ring = new ArrayDeque<>();
++    private final List<Entry> maybeDrawn = new ArrayList<>();
++    private final List<Entry> unsettled = new ArrayList<>();
++    private final List<Entry> replacing = new ArrayList<>();
++    private final Set<Integer> sacrificed = new HashSet<>();
++    private boolean restoring;
++    private int seq;
++
++    EngineEventLog(final Game game) {
++        this.game = game;
++    }
++
++    @Subscribe
++    public void recieve(final GameEvent event) {
++        if (event instanceof GameEventSnapshotRestored restored) {
++            restoring = restored.start();
++            maybeDrawn.clear();
++            unsettled.clear();
++            replacing.clear();
++            sacrificed.clear();
++        } else if (restoring) {
++            return;
++        } else if (event instanceof GameEventCardChangeZone moved) {
++            zoneChange(moved);
++        } else if (event instanceof GameEventCardSacrificed gone) {
++            sacrificed.add(gone.card().getId());
++        } else if (event instanceof GameEventLandPlayed played) {
++            markLast(played.land().getId(), "played");
++        } else if (event instanceof GameEventAddLog logged) {
++            if (logged.type() == GameLogEntryType.DISCARD && logged.sourceCard() != null) {
++                markLast(logged.sourceCard().getId(), "discard");
++            } else if (logged.type() == GameLogEntryType.EFFECT_REPLACED) {
++                markReplaced(logged.message());
++            }
++        } else if (event instanceof GameEventSurveil surveil) {
++            markSurveiled(surveil.player(), surveil.toGraveyard());
++        } else if (event instanceof GameEventTurnPhase) {
++            settleDraws();
++        }
++    }
++
++    private void zoneChange(final GameEventCardChangeZone moved) {
++        final ZoneView to = moved.to();
++        final ZoneView from = moved.from();
++        if (to == null || to.zoneType() == ZoneType.Stack || game.getAge() != GameStage.Play) {
++            return;
++        }
++        settleDraws();
++        settleMoves();
++        final CardView card = moved.card();
++        final Entry entry = new Entry();
++        entry.seq = ++seq;
++        entry.cardId = card.getId();
++        entry.from = from == null ? null : from.zoneType();
++        entry.to = to.zoneType();
++        entry.visible = !card.isFaceDown() && (isPublic(entry.from) || isPublic(entry.to));
++        entry.owner = playerIndex(card.getOwner());
++        if (entry.from == ZoneType.Battlefield) {
++            if (sacrificed.remove(entry.cardId)) {
++                entry.how = "sacrificed";
++            } else if (card.wasDestroyed()) {
++                entry.how = "destroyed";
++            }
++        }
++        if (entry.from == ZoneType.Library && entry.to == ZoneType.Hand) {
++            maybeDrawn.add(entry);
++        }
++        if (entry.to == ZoneType.Exile || entry.from == ZoneType.Library && entry.to == ZoneType.Graveyard) {
++            unsettled.add(entry);
++        }
++        if (entry.from != ZoneType.Stack) {
++            markCause(entry);
++        }
++        ring.addLast(entry);
++        if (ring.size() > CAPACITY) {
++            ring.removeFirst();
++        }
++    }
++
++    private void markCause(final Entry entry) {
++        if (game.getReplacementHandler().isReplacing()) {
++            replacing.add(entry);
++            return;
++        }
++        replacing.clear();
++        final CostPaymentStack.Entry paying = game.costPaymentStack.peek();
++        if (paying != null) {
++            final SpellAbility ability = paying.payment().getAbility();
++            entry.cause = "Cost:" + costName(entry, paying.cost(), ability);
++            markHost(entry, ability);
++            return;
++        }
++        final MagicStack stack = game.getStack();
++        if (!stack.isResolving() || stack.peek() == null) {
++            return;
++        }
++        final SpellAbility ability = stack.peekAbility();
++        if (ability.getApi() != null) {
++            entry.cause = ability.getApi().name();
++        }
++        markHost(entry, ability);
++    }
++
++    private static String costName(final Entry entry, final CostPart part, final SpellAbility ability) {
++        final Card host = ability.getHostCard();
++        if (part instanceof CostPartMana && entry.to == ZoneType.Exile && host != null && host.hasKeyword(Keyword.DELVE)) {
++            return "Delve";
++        }
++        if (ability.getKeyword() != null) {
++            return ability.getKeyword().getKeyword().toString();
++        }
++        if (ability.getAlternativeCost() != null) {
++            return ability.getAlternativeCost().name();
++        }
++        return part.getClass().getSimpleName().replaceFirst("^Cost", "");
++    }
++
++    private static void markHost(final Entry entry, final SpellAbility ability) {
++        final Card host = ability.getHostCard();
++        if (host != null && !host.isFaceDown()) {
++            entry.causeName = host.getName();
++            entry.causeCardId = host.getId();
++        }
++    }
++
++    private void markReplaced(final String message) {
++        for (final Entry entry : replacing) {
++            entry.cause = message;
++        }
++        replacing.clear();
++    }
++
++    private int playerIndex(final PlayerView view) {
++        final Player player = view == null ? null : game.getPlayer(view);
++        return player == null ? -1 : SnapshotExtractor.playerIndex(game, player);
++    }
++
++    private static boolean isPublic(final ZoneType zone) {
++        return zone != null && !zone.isHidden();
++    }
++
++    private void markLast(final int cardId, final String how) {
++        final Iterator<Entry> newestFirst = ring.descendingIterator();
++        while (newestFirst.hasNext()) {
++            final Entry entry = newestFirst.next();
++            if (entry.cardId == cardId) {
++                entry.how = how;
++                return;
++            }
++        }
++    }
++
++    private void markSurveiled(final PlayerView player, final int count) {
++        final int owner = playerIndex(player);
++        int left = count;
++        final Iterator<Entry> newestFirst = ring.descendingIterator();
++        while (left > 0 && newestFirst.hasNext()) {
++            final Entry entry = newestFirst.next();
++            if (entry.owner == owner && entry.from == ZoneType.Library && entry.to == ZoneType.Graveyard) {
++                entry.how = "surveil";
++                left--;
++            }
++        }
++    }
++
++    private void settleDraws() {
++        for (final Entry entry : maybeDrawn) {
++            final Card card = game.findById(entry.cardId);
++            if (card != null && card.getDrawnThisTurn()) {
++                entry.how = "draw";
++            }
++        }
++        maybeDrawn.clear();
++    }
++
++    private void settleMoves() {
++        for (final Entry entry : unsettled) {
++            final Card card = game.findById(entry.cardId);
++            if (card != null && entry.to == ZoneType.Exile && card.isInZone(ZoneType.Exile) && card.isFaceDown()) {
++                entry.visible = false;
++            }
++            if (card != null && entry.how == null) {
++                entry.how = settledHow(entry, card);
++            }
++        }
++        unsettled.clear();
++    }
++
++    private static String settledHow(final Entry entry, final Card card) {
++        if (entry.from == ZoneType.Library && card.wasMilled()) {
++            return "mill";
++        }
++        if (entry.to != ZoneType.Exile || !card.isInZone(ZoneType.Exile)) {
++            return null;
++        }
++        if (card.isForetold()) {
++            return "foretell";
++        }
++        if (card.isPlotted()) {
++            return "plot";
++        }
++        return card.hasSuspend() ? "suspend" : null;
++    }
++
++    List<Map<String, Object>> view() {
++        settleDraws();
++        settleMoves();
++        final List<Map<String, Object>> events = new ArrayList<>(ring.size());
++        for (final Entry entry : ring) {
++            final Map<String, Object> event = new LinkedHashMap<>();
++            event.put("id", "event-" + entry.seq);
++            event.put("seq", entry.seq);
++            final Integer parityId = entry.visible ? ParityCardMap.knownParityId(entry.cardId) : null;
++            if (parityId != null) {
++                event.put("cardId", "engine-card-" + parityId);
++            }
++            if (entry.from != null) {
++                event.put("from", entry.from.name());
++            }
++            event.put("to", entry.to.name());
++            event.put("ownerId", "player-" + entry.owner);
++            if (entry.how != null) {
++                event.put("how", entry.how);
++            }
++            if (entry.cause != null) {
++                event.put("cause", entry.cause);
++            }
++            if (entry.causeName != null) {
++                event.put("causeName", entry.causeName);
++                final Integer causeParityId = ParityCardMap.knownParityId(entry.causeCardId);
++                if (causeParityId != null) {
++                    event.put("causeCardId", "engine-card-" + causeParityId);
++                }
++            }
++            events.add(event);
++        }
++        return events;
++    }
++}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..1c37138 100644
+index 713e1ef..3600a8a 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-@@ -97,6 +97,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -37,11 +37,13 @@ import forge.game.cost.CostAdjustment;
+ import forge.game.keyword.KeywordInterface;
+ import forge.game.phase.PhaseType;
+ import forge.game.player.Player;
++import forge.game.spellability.OptionalCost;
+ import forge.game.spellability.SpellAbility;
+ import forge.game.spellability.SpellAbilityStackInstance;
+ import forge.game.spellability.TargetChoices;
+ import forge.game.trigger.Trigger;
+ import forge.game.zone.ZoneType;
++import forge.card.ICardFace;
+ import forge.item.IPaperCard;
+ import forge.item.PaperToken;
+ 
+@@ -97,6 +99,7 @@ public final class InteractiveSnapshotExtractor {
      }
  
      private static final Gson GSON = new GsonBuilder().create();
@@ -440,13 +813,14 @@ index 713e1ef..1c37138 100644
  
      public static String snapshotJson(
              final Game game,
-@@ -106,18 +107,31 @@ public final class InteractiveSnapshotExtractor {
+@@ -106,18 +109,32 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
 -            final boolean snapshotRecording
 +            final boolean snapshotRecording,
-+            final Map<String, Object> stateFix
++            final Map<String, Object> stateFix,
++            final EngineEventLog eventLog
      ) {
          ParityCardMap.beginSnapshot(game);
 +        final Player viewerPlayer = playerForIndex(game, viewer);
@@ -455,7 +829,7 @@ index 713e1ef..1c37138 100644
              return GSON.toJson(buildGameView(
                      game, castingAbility, gameId, viewer, secretChoiceVisibility, checkpoints, restoreVote,
 -                    snapshotRecording));
-+                    snapshotRecording, stateFix));
++                    snapshotRecording, stateFix, eventLog));
          } finally {
 +            PLAYABLE_OUTSIDE_HAND.remove();
              ParityCardMap.endSnapshot();
@@ -474,17 +848,31 @@ index 713e1ef..1c37138 100644
      private static Map<String, Object> buildGameView(
              final Game game,
              final SpellAbility castingAbility,
-@@ -126,7 +140,8 @@ public final class InteractiveSnapshotExtractor {
+@@ -126,7 +143,9 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
 -            final boolean snapshotRecording
 +            final boolean snapshotRecording,
-+            final Map<String, Object> stateFix
++            final Map<String, Object> stateFix,
++            final EngineEventLog eventLog
      ) {
          final Map<String, Object> base = SnapshotExtractor.extractSnapshot(game);
  
-@@ -227,6 +242,9 @@ public final class InteractiveSnapshotExtractor {
+@@ -171,7 +190,7 @@ public final class InteractiveSnapshotExtractor {
+         final Map<String, List<JsonObject>> battlefieldByController = new LinkedHashMap<>();
+         for (final Player player : game.getRegisteredPlayers()) {
+             final int ownerIndex = SnapshotExtractor.playerIndex(game, player);
+-            for (final Card card : player.getCardsIn(ZoneType.Battlefield)) {
++            for (final Card card : player.getCardsIn(ZoneType.Battlefield, false)) {
+                 final String controllerId =
+                         "player-" + SnapshotExtractor.playerIndex(game, card.getController());
+                 final CardDto dto = toCard(
+@@ -224,9 +243,13 @@ public final class InteractiveSnapshotExtractor {
+         view.put("dayTime", dayTime(game));
+         view.put("checkpoints", checkpoints);
+         view.put("snapshotRecording", snapshotRecording);
++        view.put("events", eventLog.view());
          if (restoreVote != null) {
              view.put("restoreVote", restoreVote);
          }
@@ -494,7 +882,42 @@ index 713e1ef..1c37138 100644
          final List<String> activePlaneNames = activePlaneNames(game);
          if (!activePlaneNames.isEmpty()) {
              view.put("activePlaneNames", activePlaneNames);
-@@ -752,6 +770,27 @@ public final class InteractiveSnapshotExtractor {
+@@ -685,6 +708,22 @@ public final class InteractiveSnapshotExtractor {
+         return dto;
+     }
+ 
++    private static ICardFace printedFace(final IPaperCard paper, final String name) {
++        if (paper == null || paper.getRules() == null) {
++            return null;
++        }
++        final ICardFace main = paper.getRules().getMainPart();
++        if (main != null && name.equals(main.getName())) {
++            return main;
++        }
++        final ICardFace other = paper.getRules().getOtherPart();
++        return other != null && name.equals(other.getName()) ? other : null;
++    }
++
++    private static boolean isNumber(final String text) {
++        return text != null && text.matches("\\d+");
++    }
++
+     private static CardDto toCard(
+             final Game game,
+             final Card card,
+@@ -714,6 +753,11 @@ public final class InteractiveSnapshotExtractor {
+             dto.toughness = String.valueOf(card.getNetToughness());
+             dto.basePower = card.getBasePower();
+             dto.baseToughness = card.getBaseToughness();
++            final ICardFace printed = printedFace(paper, card.getName());
++            if (printed != null && isNumber(printed.getPower()) && isNumber(printed.getToughness())) {
++                dto.printedPower = Integer.valueOf(printed.getPower());
++                dto.printedToughness = Integer.valueOf(printed.getToughness());
++            }
+         }
+         if (card.isInPlay()) {
+             if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
+@@ -752,6 +796,29 @@ public final class InteractiveSnapshotExtractor {
          dto.isMadnessExiled = card.isMadness();
          dto.isPlotted = card.isPlotted();
          dto.isWarpExiled = card.isWarped();
@@ -515,6 +938,8 @@ index 713e1ef..1c37138 100644
 +            }
 +            if (card.hasNameOverwrite()) {
 +                dto.printedName = card.getCurrentState().getName();
++            } else if (card.isCloned()) {
++                dto.printedName = card.getOriginalState(CardStateName.Original).getName();
 +            }
 +        }
 +        final CardCollectionView playableOutsideHand = PLAYABLE_OUTSIDE_HAND.get();
@@ -522,6 +947,49 @@ index 713e1ef..1c37138 100644
          dto.foil = card.hasPaperFoil();
  
          final Card attachedTo = card.getAttachedTo();
+@@ -1078,12 +1145,14 @@ public final class InteractiveSnapshotExtractor {
+             stackItem.put("identity", stackIdentity(name, source));
+             stackItem.put("text", item.getStackDescription());
+             putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
++            stackItem.put("isTrigger", sa != null && sa.isTrigger());
+             stackItem.put("isPermanentSpell", source != null && item.isSpell() && source.isPermanent());
+             stackItem.put("isCasting", false);
+             stackItem.put("isDoubleFaced", source != null
+                     && (source.isDoubleFaced() || source.isModal()));
+             stackItem.put("faceIndex", stackFaceIndex(source, sa));
+             stackItem.put("targets", stackTargets(game, item.getSpellAbility()));
++            putOptionalCosts(stackItem, sa);
+             out.add(stackItem);
+             index++;
+         }
+@@ -1131,6 +1200,7 @@ public final class InteractiveSnapshotExtractor {
+         stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
+         stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
+         stackItem.put("targets", stackTargets(game, castingAbility));
++        putOptionalCosts(stackItem, castingAbility);
+         return stackItem;
+     }
+ 
+@@ -1163,6 +1233,19 @@ public final class InteractiveSnapshotExtractor {
+         }
+     }
+ 
++    private static void putOptionalCosts(final Map<String, Object> target, final SpellAbility ability) {
++        if (ability == null) {
++            return;
++        }
++        final List<String> names = new ArrayList<>();
++        for (final OptionalCost cost : ability.getOptionalCosts()) {
++            names.add(cost.name());
++        }
++        if (!names.isEmpty()) {
++            target.put("optionalCosts", names);
++        }
++    }
++
+     private static int stackFaceIndex(final Card source, final SpellAbility ability) {
+         if (source == null) {
+             return 0;
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 index fb82e6d..c302d8f 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
@@ -605,7 +1073,7 @@ index fb82e6d..c302d8f 100644
  
      @Override
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..8e82a32 100644
+index 643e5de..259735d 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -19,6 +19,7 @@ import forge.game.card.Card;
@@ -616,7 +1084,11 @@ index 643e5de..8e82a32 100644
  import forge.game.combat.Combat;
  import forge.game.combat.CombatUtil;
  import forge.game.cost.Cost;
-@@ -31,8 +32,12 @@ import forge.game.spellability.AlternativeCost;
+@@ -28,11 +29,16 @@ import forge.game.player.Player;
+ import forge.game.player.PlayerView;
+ import forge.game.spellability.AbilityManaPart;
+ import forge.game.spellability.AlternativeCost;
++import forge.game.spellability.OptionalCost;
  import forge.game.spellability.SpellAbility;
  import forge.game.staticability.StaticAbilityCantAttackBlock;
  import forge.game.staticability.StaticAbilityMustAttack;
@@ -629,7 +1101,7 @@ index 643e5de..8e82a32 100644
  import org.apache.commons.lang3.tuple.ImmutablePair;
  import org.apache.commons.lang3.tuple.Pair;
  
-@@ -45,6 +50,7 @@ import java.util.HashSet;
+@@ -45,6 +51,7 @@ import java.util.HashSet;
  import java.util.List;
  import java.util.LinkedHashMap;
  import java.util.Locale;
@@ -637,29 +1109,61 @@ index 643e5de..8e82a32 100644
  import java.util.Map;
  import java.util.Objects;
  import java.util.Random;
-@@ -78,6 +84,7 @@ public final class ManaBrewInteractiveSession {
+@@ -52,6 +59,7 @@ import java.util.Set;
+ import java.util.TreeSet;
+ import java.util.concurrent.BlockingQueue;
+ import java.util.concurrent.LinkedBlockingQueue;
++import java.util.concurrent.locks.ReentrantLock;
+ 
+ public final class ManaBrewInteractiveSession {
+ 
+@@ -59,6 +67,7 @@ public final class ManaBrewInteractiveSession {
+     private Match match;
+     private Game game;
+     private final BlockingQueue<JsonObject> actions = new LinkedBlockingQueue<>();
++    private final ReentrantLock gameLock = new ReentrantLock();
+     private volatile String latestPromptJson;
+     private volatile int promptedPlayerIndex = -1;
+     private long promptSeq;
+@@ -70,16 +79,21 @@ public final class ManaBrewInteractiveSession {
+     private final InteractiveSnapshotExtractor.SecretChoiceVisibility secretChoiceVisibility =
+             new InteractiveSnapshotExtractor.SecretChoiceVisibility();
+     private static final int CHECKPOINT_TURNS = 3;
++    private static final int MAX_RESTORE_FORCED_PASSES = 500;
+     private final Deque<Checkpoint> checkpoints = new ArrayDeque<>();
+     private volatile List<Map<String, Object>> checkpointViews = List.of();
+     private int nextCheckpointId = 1;
+     private int checkpointTurn = -1;
+     private PhaseType checkpointPhase;
      private RestoreVote restoreVote;
++    private boolean restoreForced;
++    private int restoreForcedPasses;
      private int restoreVoteCount;
      private volatile Map<String, Object> restoreVoteView;
 +    private volatile Map<String, Object> stateFixView;
      private volatile long stateRevision;
      private volatile boolean snapshotRecording;
++    private EngineEventLog eventLog;
      private boolean checkpointMetricsEnabled;
-@@ -92,6 +99,7 @@ public final class ManaBrewInteractiveSession {
+     private final List<long[]> checkpointTimings = new ArrayList<>();
+     private boolean priorityPromptOpen;
+@@ -92,6 +106,8 @@ public final class ManaBrewInteractiveSession {
          private final Player activePlayer;
          private final Player priorityPlayer;
          private final GameSnapshot snapshot;
 +        private final Map<Integer, Map<ZoneType, List<Integer>>> zoneOrder;
++        private final Map<Integer, Player> phasedOut;
  
          private Checkpoint(
                  final int id,
-@@ -99,13 +107,15 @@ public final class ManaBrewInteractiveSession {
+@@ -99,13 +115,17 @@ public final class ManaBrewInteractiveSession {
                  final PhaseType phase,
                  final Player activePlayer,
                  final Player priorityPlayer,
 -                final GameSnapshot snapshot) {
 +                final GameSnapshot snapshot,
-+                final Map<Integer, Map<ZoneType, List<Integer>>> zoneOrder) {
++                final Map<Integer, Map<ZoneType, List<Integer>>> zoneOrder,
++                final Map<Integer, Player> phasedOut) {
              this.id = id;
              this.turn = turn;
              this.phase = phase;
@@ -667,19 +1171,79 @@ index 643e5de..8e82a32 100644
              this.priorityPlayer = priorityPlayer;
              this.snapshot = snapshot;
 +            this.zoneOrder = zoneOrder;
++            this.phasedOut = phasedOut;
          }
      }
  
-@@ -218,7 +228,7 @@ public final class ManaBrewInteractiveSession {
+@@ -136,6 +156,8 @@ public final class ManaBrewInteractiveSession {
+         this.game = Objects.requireNonNull(game, "game");
+         this.botSeats = Set.copyOf(botSeats);
+         this.snapshotRecording = snapshotRecording;
++        this.eventLog = new EngineEventLog(game);
++        game.subscribeToEvents(eventLog);
+     }
+ 
+     public String getSessionId() {
+@@ -155,26 +177,26 @@ public final class ManaBrewInteractiveSession {
          requireAttached();
-         return InteractiveSnapshotExtractor.snapshotJson(
-                 game, castingAbility, sessionId, viewer, secretChoiceVisibility, checkpointViews,
+         Objects.requireNonNull(rng, "rng");
+         if (bridge != null) {
+-            forge.util.MyRandom.setRandom(rng);
+-            try {
+-                match.startGame(game);
+-            } catch (RuntimeException | Error error) {
+-                recordEngineError(error);
+-            }
++            runMatch(rng);
+             return;
+         }
+-        gameThread = new Thread(() -> {
+-            forge.util.MyRandom.setRandom(rng);
+-            try {
+-                match.startGame(game);
+-            } catch (RuntimeException | Error error) {
+-                recordEngineError(error);
+-            }
+-        }, "mana-brew-forge-" + sessionId);
++        gameThread = new Thread(() -> runMatch(rng), "mana-brew-forge-" + sessionId);
+         gameThread.setDaemon(true);
+         gameThread.start();
+     }
+ 
++    private void runMatch(final Random rng) {
++        forge.util.MyRandom.setRandom(rng);
++        gameLock.lock();
++        try {
++            match.startGame(game);
++        } catch (RuntimeException | Error error) {
++            recordEngineError(error);
++        } finally {
++            gameLock.unlock();
++        }
++    }
++
+     public void close() {
+         closed = true;
+         JsonObject action = new JsonObject();
+@@ -216,9 +238,14 @@ public final class ManaBrewInteractiveSession {
+ 
+     public String getSnapshotJson(final int viewer) {
+         requireAttached();
+-        return InteractiveSnapshotExtractor.snapshotJson(
+-                game, castingAbility, sessionId, viewer, secretChoiceVisibility, checkpointViews,
 -                restoreVoteView, snapshotRecording);
-+                restoreVoteView, snapshotRecording, stateFixView);
++        gameLock.lock();
++        try {
++            return InteractiveSnapshotExtractor.snapshotJson(
++                    game, castingAbility, sessionId, viewer, secretChoiceVisibility, checkpointViews,
++                    restoreVoteView, snapshotRecording, stateFixView, eventLog);
++        } finally {
++            gameLock.unlock();
++        }
      }
  
      void rememberSecretNumberViewer(final String sourceCardId, final Player viewer) {
-@@ -266,7 +276,7 @@ public final class ManaBrewInteractiveSession {
+@@ -266,7 +293,7 @@ public final class ManaBrewInteractiveSession {
  
      static final String TRIGGER_ORDER_TITLE = "Order triggered abilities";
  
@@ -688,7 +1252,7 @@ index 643e5de..8e82a32 100644
  
      static final class PriorityChoice {
          private final PriorityActionKind kind;
-@@ -362,6 +372,10 @@ public final class ManaBrewInteractiveSession {
+@@ -362,6 +389,10 @@ public final class ManaBrewInteractiveSession {
              if (isRestoreDirective(action)) {
                  return new PriorityChoice(PriorityActionKind.RESTORE, null, null, null);
              }
@@ -699,7 +1263,17 @@ index 643e5de..8e82a32 100644
              try {
                  return interpretPriorityAction(action, actionsForPrompt, untappableCards);
              } catch (IllegalArgumentException | UnsupportedOperationException | NullPointerException invalid) {
-@@ -1104,14 +1118,31 @@ public final class ManaBrewInteractiveSession {
+@@ -823,6 +854,9 @@ public final class ManaBrewInteractiveSession {
+                 }
+                 return chosen;
+             }
++            if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
++                return new ArrayList<>();
++            }
+             throw new UnsupportedOperationException("unsupported action kind: " + actionKind);
+         }
+         return new ArrayList<>();
+@@ -1104,14 +1138,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -734,7 +1308,7 @@ index 643e5de..8e82a32 100644
      }
  
      void awaitRevealCards(
-@@ -1762,24 +1793,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +1813,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -766,7 +1340,7 @@ index 643e5de..8e82a32 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +1857,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +1877,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -776,7 +1350,7 @@ index 643e5de..8e82a32 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +1871,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +1891,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -789,7 +1363,7 @@ index 643e5de..8e82a32 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +1923,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +1943,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -806,7 +1380,7 @@ index 643e5de..8e82a32 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +1943,9 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +1963,9 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -816,7 +1390,25 @@ index 643e5de..8e82a32 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1966,6 +2020,14 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,10 +2014,16 @@ public final class ManaBrewInteractiveSession {
+ 
+     private JsonObject takeAction() throws InterruptedException {
+         while (true) {
++            if (restoreForced && !priorityPromptOpen && restoreApproved()) {
++                if (++restoreForcedPasses <= MAX_RESTORE_FORCED_PASSES) {
++                    return syntheticPass();
++                }
++                restoreForced = false;
++            }
+             if (bridge != null && actions.isEmpty() && !closed && !game.isGameOver()) {
+                 submitAction(bridge.exchange(promptedPlayerIndex, latestPromptJson));
+             }
+-            final JsonObject action = actions.poll(1, java.util.concurrent.TimeUnit.SECONDS);
++            final JsonObject action = pollAction();
+             if (action == null) {
+                 if (closed || game.isGameOver()) {
+                     return syntheticPass();
+@@ -1966,6 +2046,14 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -831,11 +1423,37 @@ index 643e5de..8e82a32 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -2075,14 +2137,9 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2075,15 @@ public final class ManaBrewInteractiveSession {
+         }
+     }
+ 
++    private JsonObject pollAction() throws InterruptedException {
++        gameLock.unlock();
++        try {
++            return actions.poll(1, java.util.concurrent.TimeUnit.SECONDS);
++        } finally {
++            gameLock.lock();
++        }
++    }
++
+     private static JsonObject syntheticPass() {
+         final JsonObject pass = new JsonObject();
+         pass.addProperty("kind", "pass");
+@@ -2010,6 +2107,8 @@ public final class ManaBrewInteractiveSession {
+         if (!restoreApproved()) {
+             return false;
+         }
++        restoreForced = false;
++        restoreForcedPasses = 0;
+         final RestoreVote vote = restoreVote;
+         if (!checkpoints.contains(vote.checkpoint)) {
+             vote.status = RestoreVoteStatus.UNAVAILABLE;
+@@ -2075,14 +2174,10 @@ public final class ManaBrewInteractiveSession {
          final long started = checkpointMetricsEnabled ? System.nanoTime() : 0;
          final GameSnapshot snapshot = new GameSnapshot(game);
          snapshot.makeCopy();
 +        final Map<Integer, Map<ZoneType, List<Integer>>> order = zoneOrder();
++        final Map<Integer, Player> phased = phasedOut();
          final long copied = checkpointMetricsEnabled ? System.nanoTime() : 0;
 -        checkpoints.addLast(new Checkpoint(
 -                nextCheckpointId++, handler.getTurn(), handler.getPhase(), handler.getPlayerTurn(),
@@ -844,11 +1462,11 @@ index 643e5de..8e82a32 100644
 -            checkpoints.removeFirst();
 -        }
 -        publishCheckpointViews();
-+        addCheckpoint(snapshot, handler.getPriorityPlayer(), order);
++        addCheckpoint(snapshot, handler.getPriorityPlayer(), order, phased);
          if (checkpointMetricsEnabled) {
              final long finished = System.nanoTime();
              synchronized (checkpointTimings) {
-@@ -2091,6 +2148,63 @@ public final class ManaBrewInteractiveSession {
+@@ -2091,6 +2186,86 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -898,11 +1516,34 @@ index 643e5de..8e82a32 100644
 +        }
 +    }
 +
++    private Map<Integer, Player> phasedOut() {
++        final Map<Integer, Player> phased = new LinkedHashMap<>();
++        for (final Player player : game.getPlayers()) {
++            for (final Card card : player.getZone(ZoneType.Battlefield).getCards(false)) {
++                if (card.isPhasedOut()) {
++                    phased.put(card.getId(), card.getPhasedOut());
++                }
++            }
++        }
++        return phased;
++    }
++
++    private void restorePhasedOut(final Map<Integer, Player> phased) {
++        for (final Player player : game.getPlayers()) {
++            for (final Card card : player.getZone(ZoneType.Battlefield).getCards(false)) {
++                card.setPhasedOut(phased.get(card.getId()));
++            }
++        }
++    }
++
 +    private void addCheckpoint(
-+            final GameSnapshot snapshot, final Player priority, final Map<Integer, Map<ZoneType, List<Integer>>> order) {
++            final GameSnapshot snapshot,
++            final Player priority,
++            final Map<Integer, Map<ZoneType, List<Integer>>> order,
++            final Map<Integer, Player> phased) {
 +        final PhaseHandler handler = game.getPhaseHandler();
 +        checkpoints.addLast(new Checkpoint(
-+                nextCheckpointId++, handler.getTurn(), handler.getPhase(), handler.getPlayerTurn(), priority, snapshot, order));
++                nextCheckpointId++, handler.getTurn(), handler.getPhase(), handler.getPlayerTurn(), priority, snapshot, order, phased));
 +        while (checkpoints.peekFirst().turn < handler.getTurn() - CHECKPOINT_TURNS) {
 +            checkpoints.removeFirst();
 +        }
@@ -912,15 +1553,27 @@ index 643e5de..8e82a32 100644
      private void publishCheckpointViews() {
          final List<Map<String, Object>> views = new ArrayList<>();
          for (final Checkpoint checkpoint : checkpoints) {
-@@ -2161,6 +2275,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2299,10 @@ public final class ManaBrewInteractiveSession {
+     }
+ 
+     private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
++        if (accept && restoreApproved() && restoreVote.id == voteId) {
++            restoreForced = true;
++            return;
++        }
+         if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
+                 || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
+             return;
+@@ -2161,6 +2340,8 @@ public final class ManaBrewInteractiveSession {
          game.getStack().clearSimultaneousStack();
          game.getStack().clearUndoStack();
          target.snapshot.restoreGameState(game);
 +        restoreZoneOrder(target.zoneOrder);
++        restorePhasedOut(target.phasedOut);
          game.getPhaseHandler().setPriority(target.priorityPlayer);
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
-@@ -2175,6 +2290,166 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2356,188 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -935,6 +1588,7 @@ index 643e5de..8e82a32 100644
 +        final GameSnapshot before = new GameSnapshot(game);
 +        before.makeCopy();
 +        final Map<Integer, Map<ZoneType, List<Integer>>> beforeOrder = zoneOrder();
++        final Map<Integer, Player> beforePhased = phasedOut();
 +        game.getStack().setResolving(true);
 +        game.getTriggerHandler().setSuppressAllTriggers(true);
 +        RuntimeException refused = null;
@@ -950,6 +1604,7 @@ index 643e5de..8e82a32 100644
 +        if (refused != null) {
 +            before.restoreGameState(game);
 +            restoreZoneOrder(beforeOrder);
++            restorePhasedOut(beforePhased);
 +            handler.setPriority(priority);
 +            publishStateFix(fixId, false, refused.getMessage() == null ? refused.toString() : refused.getMessage());
 +            return;
@@ -957,7 +1612,7 @@ index 643e5de..8e82a32 100644
 +        game.getStack().unfreezeStack();
 +        game.getAction().checkStateEffects(true);
 +        if (snapshotRecording) {
-+            addCheckpoint(before, priority, beforeOrder);
++            addCheckpoint(before, priority, beforeOrder, beforePhased);
 +        }
 +        publishStateFix(fixId, true, null);
 +    }
@@ -1043,6 +1698,26 @@ index 643e5de..8e82a32 100644
 +                manaPart.produceMana(null);
 +                break;
 +            }
++            case "createCard": {
++                final String name = op.get("name").getAsString();
++                final PaperCard paper = StaticData.instance().getCommonCards().getCard(name);
++                final PaperToken token = paper == null ? StaticData.instance().getAllTokens().getToken(name) : null;
++                if (paper == null && token == null) {
++                    throw new IllegalArgumentException("no card named " + name);
++                }
++                final ZoneType zone = ZoneType.smartValueOf(op.get("zone").getAsString());
++                final Player owner = statePlayer(op.get("player").getAsString());
++                final Card card = paper != null ? Card.fromPaperCard(paper, owner) : CardFactory.getCard(token, owner, game);
++                final Card made = zone == ZoneType.Battlefield
++                        ? game.getAction().moveToPlay(card, null, null)
++                        : game.getAction().moveTo(zone, card, null, null);
++                if (made == null || !made.isInZone(zone)) {
++                    throw new IllegalStateException(name + " can't move to " + zone);
++                }
++                made.setSickness(false);
++                made.setTapped(op.has("tapped") && op.get("tapped").getAsBoolean());
++                break;
++            }
 +            default:
 +                throw new IllegalArgumentException("unknown op " + kind);
 +        }
@@ -1087,7 +1762,7 @@ index 643e5de..8e82a32 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +2482,11 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +2570,12 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -1097,11 +1772,21 @@ index 643e5de..8e82a32 100644
 +            if (formatted.isEmpty()) {
                  continue;
              }
-+            final String label = sa.isCastFaceDown() ? formatted + " (face down)" : formatted;
++            final String label = sa.isCastFaceDown() ? formatted + " (face down)"
++                    : sa.hasParam("Prototype") ? formatted + " (Prototype)" : formatted;
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2290,9 +2566,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +2612,7 @@ public final class ManaBrewInteractiveSession {
+     private static PlayCardMode playCardMode(final SpellAbility sa) {
+         final AlternativeCost alt = sa.getAlternativeCost();
+         if (alt == null) {
+-            return new PlayCardMode_normal();
++            return sa.isOptionalCostPaid(OptionalCost.AltCost) ? new PlayCardMode_staticAlternative() : new PlayCardMode_normal();
+         }
+         return new PlayCardMode_alternative(alternativeCostKind(alt));
+     }
+@@ -2290,9 +2655,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -1124,7 +1809,7 @@ index 643e5de..8e82a32 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,16 +2610,17 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,16 +2699,17 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -1145,7 +1830,25 @@ index 643e5de..8e82a32 100644
          }
          publishAgentPrompt("player-" + playerId, sourceCardId, input);
      }
-@@ -2969,12 +3258,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,11 +2957,16 @@ public final class ManaBrewInteractiveSession {
+             final Combat combat,
+             final List<Card> availableAttackers
+     ) {
++        final Map<Card, GameEntity> bestAttack = combat.getAttackConstraints().getLegalAttackers().getLeft();
+         final List<AttackerOptionDto> attackers = new java.util.ArrayList<>();
+         for (final Card a : availableAttackers) {
+             final List<String> validTargetIds = new java.util.ArrayList<>();
+             for (final GameEntity d : CombatChoiceSpace.legalDefendersForAttacker(a, combat)) {
+-                validTargetIds.add(defenderId(d));
++                if (d.equals(bestAttack.get(a))) {
++                    validTargetIds.add(0, defenderId(d));
++                } else {
++                    validTargetIds.add(defenderId(d));
++                }
+             }
+             final boolean mustAttack =
+                     a.isGoaded() || !StaticAbilityMustAttack.entitiesMustAttack(a).isEmpty();
+@@ -2969,12 +3352,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -1296,15 +1999,17 @@ index 3385214..8cd1501 100644
          Reorder(reorder::ReorderInput {
              presentation: common::PromptPresentation {
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-index 76fdc4f..8c0bdda 100644
+index 76fdc4f..39568e5 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-@@ -789,6 +789,13 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
+@@ -789,6 +789,15 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
          // Rust engine doesn't surface it yet.
          would_die_in_combat: false,
          zone: None,
 +        exiled_with: None,
 +        returns_when_host_leaves: false,
++        printed_power: None,
++        printed_toughness: None,
 +        is_foretold: false,
 +        may_play: false,
 +        current_text: None,
@@ -1313,25 +2018,72 @@ index 76fdc4f..8c0bdda 100644
      }
  }
  
-@@ -1063,6 +1070,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1015,6 +1024,7 @@ impl GameViewDtoExt for GameViewDto {
+                     identity,
+                     text: entry.spell_ability.ability_text.clone(),
+                     source_ability_text: stack_source_ability_text(game, &entry.spell_ability),
++                    is_trigger: entry.spell_ability.is_trigger,
+                     is_permanent_spell: entry.is_creature_spell || entry.is_permanent_spell,
+                     is_casting: entry.is_pending_cast,
+                     is_double_faced: source_card.map(|c| c.is_double_faced()).unwrap_or(false),
+@@ -1022,6 +1032,7 @@ impl GameViewDtoExt for GameViewDto {
+                         .map(|c| u8::from(c.is_transformed))
+                         .unwrap_or_default(),
+                     targets: collect_stack_targets(&entry.spell_ability),
++                    optional_costs: Vec::new(),
+                 }
+             })
+             .collect();
+@@ -1063,6 +1074,8 @@ impl GameViewDtoExt for GameViewDto {
              active_plane_names: (!active_plane_names.is_empty()).then_some(active_plane_names),
              checkpoints: Vec::new(),
              restore_vote: None,
 +            state_fix: None,
++            events: Vec::new(),
              snapshot_recording: false,
          }
      }
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-index 0f579af..1598554 100644
+index 0f579af..0fe8b00 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-@@ -155,6 +155,20 @@ pub struct GameViewDto {
+@@ -155,6 +155,50 @@ pub struct GameViewDto {
      pub restore_vote: Option<RestoreVoteDto>,
      #[serde(default)]
      pub snapshot_recording: bool,
 +    #[serde(default, skip_serializing_if = "Option::is_none")]
 +    #[ts(optional)]
 +    pub state_fix: Option<StateFixDto>,
++    #[serde(default)]
++    pub events: Vec<EngineEventDto>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "game/index.ts")]
++pub struct EngineEventDto {
++    pub id: String,
++    pub seq: u32,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub card_id: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub from: Option<String>,
++    pub to: String,
++    pub owner_id: String,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub how: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub cause: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub cause_name: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub cause_card_id: Option<String>,
 +}
 +
 +#[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -1346,7 +2098,7 @@ index 0f579af..1598554 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -397,6 +411,24 @@ pub struct CardDto {
+@@ -397,6 +441,30 @@ pub struct CardDto {
      #[serde(default, skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub zone: Option<ZoneKind>,
@@ -1355,6 +2107,12 @@ index 0f579af..1598554 100644
 +    pub exiled_with: Option<String>,
 +    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
 +    pub returns_when_host_leaves: bool,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub printed_power: Option<i32>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub printed_toughness: Option<i32>,
 +    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
 +    pub is_foretold: bool,
 +    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -1371,6 +2129,36 @@ index 0f579af..1598554 100644
  }
  
  #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+@@ -412,11 +480,15 @@ pub struct StackObjectDto {
+     #[serde(skip_serializing_if = "Option::is_none")]
+     #[ts(optional)]
+     pub source_ability_text: Option<String>,
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub is_trigger: bool,
+     pub is_permanent_spell: bool,
+     pub is_casting: bool,
+     pub is_double_faced: bool,
+     pub face_index: u8,
+     pub targets: Vec<TargetRef>,
++    #[serde(default, skip_serializing_if = "Vec::is_empty")]
++    pub optional_costs: Vec<String>,
+ }
+ 
+ #[cfg(test)]
+@@ -433,11 +505,13 @@ mod stack_object_tests {
+             identity: CardIdentity::default(),
+             text: String::new(),
+             source_ability_text: Some("When this enters, draw a card.".into()),
++            is_trigger: false,
+             is_permanent_spell: true,
+             is_casting: true,
+             is_double_faced: true,
+             face_index: 1,
+             targets: Vec::new(),
++            optional_costs: Vec::new(),
+         };
+ 
+         let value = serde_json::to_value(stack_object).unwrap();
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_cards.rs b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_cards.rs
 index 41bcd1f..91a01ed 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_cards.rs
@@ -1405,7 +2193,7 @@ index 0594ad2..7533fd8 100644
                  ChooseBoardTargetsOutput::Cancel if !input.cancellable => {
                      Err(ResponseViolation::CancelNotAllowed)
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
-index a1bcdce..352fa7b 100644
+index a1bcdce..92bef8a 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
 @@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
@@ -1426,7 +2214,7 @@ index a1bcdce..352fa7b 100644
  #[serde(
      tag = "type",
      rename_all = "camelCase",
-@@ -33,6 +33,52 @@ pub enum DirectiveInput {
+@@ -33,6 +33,59 @@ pub enum DirectiveInput {
      RequestRestore { checkpoint_id: u32 },
      RestoreVote { vote_id: u32, accept: bool },
      SetSnapshotRecording { enabled: bool },
@@ -1468,6 +2256,13 @@ index a1bcdce..352fa7b 100644
 +        tapped: bool,
 +    },
 +    Mana { player: String, mana: String },
++    CreateCard {
++        name: String,
++        player: String,
++        zone: ZoneKind,
++        #[serde(default)]
++        tapped: bool,
++    },
 +}
 +
 +#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
