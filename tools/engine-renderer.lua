@@ -251,7 +251,7 @@ function engineNoop() end
 -- -1/-1 counters as a dark-blue tag top right with other counters under it, "xN" top left on a group of tokens.
 -- One string per card (engineBadge) decides whether anything changed; then its buttons are drawn again.
 local BADGE = { pt = { 0.62, 0.3, 1.18 }, ctr = { 0.6, 0.3, -1.12 }, grp = { -0.62, 0.3, -1.12 }, cp = { -0.55, 0.3, 1.18 }, cpBg = { 0.42, 0.18, 0.55, 0.95 },
-  kw = { 0, 0.3, 0.1 }, kwBg = { 0.05, 0.32, 0.12, 0.95 }, tb = { 0, 0.29, 0.73 }, tbBg = { 0.95, 0.92, 0.84, 0.98 },
+  kw = { 0, 0.3, 0.1 }, kwBg = { 0.05, 0.32, 0.12, 0.95 }, tb = { 0, 0.29, 0.74 }, tbBg = { 0.95, 0.92, 0.84, 0.98 },
   poBg = { 0.1, 0.16, 0.42, 0.95 }, poTint = { 0.38, 0.42, 0.62 },
   black = { 0, 0, 0, 0.85 }, grew = { 0.8, 0.55, 0.05, 0.95 }, up = { 0.1, 0.35, 0.8, 0.95 }, down = { 0.62, 0.08, 0.08, 0.95 }, ctrBg = { 0.06, 0.16, 0.42, 0.95 } }
 local function badgeParts(c)
@@ -269,7 +269,8 @@ local function badgeParts(c)
   -- a copy of another card (Phantasmal Image as Kenrith): which of two alike is the copy (legend rule, playtest 2026-10-26)
   if c.cp then parts[#parts + 1] = { "cp", "COPY", BADGE.cpBg } end
   -- its text as changed (Mind Bend's "islandwalk", Deadpool's exchanged text box): a box over the card's own text box,
-  -- wrapped to the card's width, at most 6 lines here and the whole text in its tooltip (hp-25 2026-10-27)
+  -- wrapped to the card's width, at most 4 lines here and the whole text in its tooltip (hp-25 2026-10-27); it stops
+  -- under the type line, which no text change touches (Llanowar Elves' "(no text)" hid "Creature - Elf Druid", 2026-11-05)
   if c.ct then
     local lines = {}
     for para in (tostring(c.ct) .. "\n"):gmatch("([^\n]*)\n") do
@@ -277,10 +278,10 @@ local function badgeParts(c)
       for w in para:gmatch("%S+") do words[#words + 1] = w end
       wrapInto(lines, words, 28)
     end
-    if #lines > 6 then
+    if #lines > 4 then
       local cut = {}
-      for k = 1, 5 do cut[k] = lines[k] end
-      cut[6] = "... (point at it for the rest)"
+      for k = 1, 3 do cut[k] = lines[k] end
+      cut[4] = "... (point at it for the rest)"
       lines = cut
     end
     parts[#parts + 1] = { "tb", table.concat(lines, "\n"), BADGE.tbBg, "Text changed: " .. tostring(c.ct), { 0.08, 0.06, 0.04 } }
@@ -368,14 +369,14 @@ local function updateBadge(o, c, zone)
     -- (the status box: smaller, card-wide at most, its bottom edge fixed, growing upward; the changed text box: smaller
     -- still, card-wide, centred on the card's text box)
     local fs, lineH = tbb and 64 or kwb and 90 or 180, tbb and 78 or kwb and 102 or 165
-    local h = tbb and math.max(500, 100 + lineH * lines) or kwb and (60 + lineH * lines) or (180 + lineH * lines)
+    local h = tbb and math.max(390, 80 + lineH * lines) or kwb and (60 + lineH * lines) or (180 + lineH * lines)
     -- (a tall counter list grows downward from the top-right corner)
     local where, turn = { pos[1], pos[2], pos[3] + (b[1] == "ctr" and 0.13 * (lines - 1) or kwb and -h / 2000 or 0) }, { 0, 0, 0 }
     -- (a tapped card turns its status box back so it reads the right way up, as engineAbilityButtons does)
     if kwb and c.tap then where, turn = { -where[3], pos[2], 0 }, { 0, -90, 0 } end
     o.createButton({ click_function = "engineNoop", function_owner = Global, label = b[2],
       position = where, rotation = turn, width = tbb and 880 or kwb and math.min(1000, math.max(340, 50 * longest + 100)) or math.max(340, 112 * longest),
-      -- (the changed text box covers the whole printed one, whatever its length)
+      -- (the changed text box covers the printed one from under the type line to above the power/toughness)
       height = h, font_size = fs,
       color = (b[1] == "grp" and grew) and BADGE.grew or b[3], font_color = b[5] or { 1, 1, 1 }, tooltip = b[4] or "" })
   end

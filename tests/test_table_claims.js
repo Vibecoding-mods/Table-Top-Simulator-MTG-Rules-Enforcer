@@ -647,6 +647,25 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("day/night: DAY on the phase bar", /DAY/.test(v("day")) && !/NIGHT/.test(v("day")), v("day"));
   ok("day/night: NIGHT on the phase bar", /NIGHT/.test(v("night")), v("night"));
 }
+// a changed text box covers the printed text box only: under the type line, above the power/toughness, at most 4 lines
+// (Llanowar Elves' "(no text)" hid "Creature - Elf Druid", real table 2026-11-05)
+{
+  const pick = 'local t = engineTable() local c for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if c == nil and x.id then c = x end end end __tbId = c and c.id return tostring(__tbId)';
+  const setCt = (ct, mark) => q(`local t = engineTable() for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if x.id == __tbId then x.ct = ${JSON.stringify(ct)} end end end engineRender(t) __sim.frames(30)`, mark);
+  const box = (mark) => q('local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. tostring(__tbId) then o = x end end if o == nil then return "no card" end ' +
+    'for _, b in ipairs(o.getButtons() or {}) do if string.find(tostring(b.tooltip), "Text changed", 1, true) then return b.label .. "@h" .. tostring(b.height) .. "@z" .. tostring(b.position.z or b.position[3]) end end return "no box"', mark);
+  const long = "Flying, first strike, vigilance, trample, haste. Whenever this creature attacks, each opponent loses 2 life and you gain 2 life. At the beginning of your upkeep, draw a card.";
+  const r = run([q(pick, "pick"), setCt("(no text)", "set empty"), box("empty"), setCt(long, "set long"), box("long")]);
+  const e = String(valueOf(r, "empty")), l = String(valueOf(r, "long"));
+  const num = (s, k) => Number((s.match(new RegExp("@" + k + "([-0-9.]+)")) || [])[1]);
+  ok("text box: precondition, a battlefield card", valueOf(r, "pick") !== "nil", String(valueOf(r, "pick")) + " " + r.errors.join(" | "));
+  ok("text box: (no text) shows", e.startsWith("(no text)@"), e);
+  // (top edge = z - h/1000 in the card's units: at 0.35 or below it the type line shows, measured on the real table)
+  const top = (s) => num(s, "z") - num(s, "h") / 1000, bottom = (s) => num(s, "z") + num(s, "h") / 1000;
+  ok("text box: it stops under the type line", top(e) >= 0.34 && top(l) >= 0.34, `${top(e)} / ${top(l)}`);
+  ok("text box: it stops above the power/toughness", bottom(e) <= 1.14 && bottom(l) <= 1.14, `${bottom(e)} / ${bottom(l)}`);
+  ok("text box: a long text is cut to 4 lines", l.split("@")[0].split("\n").length === 4 && /point at it for the rest/.test(l), l);
+}
 // a question that names a card's ability before that card is on the table (after a reload the question came first)
 // gets the button once the board brings the card (2026-10-26)
 {
@@ -943,7 +962,7 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("status box: an attached card lies clear of the card's width", Math.hypot(hx - ax, hz - az) >= 1 + as && Math.abs(hx - ax) >= 1 + as, `${valueOf(r3, "host")} ${valueOf(r3, "attached")}`);
 }
 // a card whose text was changed shows the changed text in a box over its text box, the whole text in its tooltip and
-// its hover text; a long text is cut to 6 lines there (hp-25 2026-10-27: Mind Bend's islandwalk showed nowhere)
+// its hover text; a long text is cut to 4 lines there (hp-25 2026-10-27: Mind Bend's islandwalk showed nowhere)
 {
   const lastK = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
   const tk = JSON.parse(lastK.json);
@@ -962,7 +981,7 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("changed text: a box on the card with the new words", /Islandwalk \(This creature/.test(box(btnsA).split("@@")[0]), btnsA.slice(0, 300) + " " + r.errors.join(" | "));
   ok("changed text: the hover text says it changed", /Text changed:/.test(descA) && /Island \(was Swamp\)/.test(descA), String(descA).slice(0, 200));
   const label = box(btnsB).split("@@")[0];
-  ok("changed text: a long text is cut to 6 lines on the card", label.split("\n").length === 6 && /point at it/.test(label), JSON.stringify(label.split("\n").length) + " " + label.slice(-60));
+  ok("changed text: a long text is cut to 4 lines on the card", label.split("\n").length === 4 && /point at it/.test(label), JSON.stringify(label.split("\n").length) + " " + label.slice(-60));
   ok("changed text: the whole long text in the box's tooltip", /more29/.test(box(btnsB).split("@@")[1] || ""), (box(btnsB).split("@@")[1] || "").slice(-60));
   ok("changed text: the printed name in the hover text", /Volrath's Shapeshifter/.test(descB), String(descB).slice(0, 120));
   // (the status box sits above the changed text, not over its first lines, suite review 2026-10-27)
@@ -971,14 +990,16 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   const kwz = `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${a}" then o = x end end for _, b in ipairs((o and o.getButtons()) or {}) do if b.label == "Hexproof from red" then return tostring(b.position.z or b.position[3]) end end return "none"`;
   const r3 = run([{ msg: { t: "table", json: JSON.stringify(tk3) } }, { frames: 30 }, q(kwz, "kwz")]);
   ok("changed text: a granted-keyword badge sits above the box", Number(valueOf(r3, "kwz")) < 0.45, String(valueOf(r3, "kwz")) + " " + r3.errors.join(" | "));
-  // (both sides of the cut: 7 lines are cut to 6; and each wrapped line fits the box, 28 characters at most)
-  const seven = Array.from({ length: 7 }, (_, k) => `line${k} abcde fghij klmno`).join("\n");
+  // (both sides of the cut: 5 lines are cut to 4, 4 stay whole; and each wrapped line fits the box, 28 characters at most)
+  const five = Array.from({ length: 5 }, (_, k) => `line${k} abcde fghij klmno`).join("\n");
+  const four = Array.from({ length: 4 }, (_, k) => `line${k} abcde fghij klmno`).join("\n");
   const wide = Array.from({ length: 12 }, () => "wordy").join(" ");
   const boxOf = (ct) => { const t = JSON.parse(JSON.stringify(tk)); t.players.find((x) => x.color === "Blue").battlefield[0] = { ...base, ct }; return JSON.stringify(t); };
   const lbl = `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${a}" then o = x end end for _, b in ipairs((o and o.getButtons()) or {}) do if tostring(b.tooltip):find("Text changed:", 1, true) then return tostring(b.label) end end return "none"`;
-  const r4 = run([{ msg: { t: "table", json: boxOf(seven) } }, { frames: 30 }, q(lbl, "seven"), { msg: { t: "table", json: boxOf(wide) } }, { frames: 30 }, q(lbl, "wide")]);
-  const sevenL = String(valueOf(r4, "seven")).split("\n");
-  ok("changed text: 7 lines are cut to 6 too", sevenL.length === 6 && /point at it/.test(sevenL[5]), JSON.stringify(sevenL.length) + " " + r4.errors.join(" | "));
+  const r4 = run([{ msg: { t: "table", json: boxOf(five) } }, { frames: 30 }, q(lbl, "five"), { msg: { t: "table", json: boxOf(four) } }, { frames: 30 }, q(lbl, "four"), { msg: { t: "table", json: boxOf(wide) } }, { frames: 30 }, q(lbl, "wide")]);
+  const fiveL = String(valueOf(r4, "five")).split("\n"), fourL = String(valueOf(r4, "four")).split("\n");
+  ok("changed text: 5 lines are cut to 4 too", fiveL.length === 4 && /point at it/.test(fiveL[3]), JSON.stringify(fiveL.length) + " " + r4.errors.join(" | "));
+  ok("changed text: 4 lines stay whole", fourL.length === 4 && !/point at it/.test(fourL.join(" ")), JSON.stringify(fourL));
   const wideL = String(valueOf(r4, "wide")).split("\n");
   ok("changed text: each wrapped line is 28 characters at most", wideL.length >= 2 && wideL.every((l) => l.length <= 28), JSON.stringify(wideL));
 }
