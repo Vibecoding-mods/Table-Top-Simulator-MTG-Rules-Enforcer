@@ -224,7 +224,7 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     h.B.onTTS({ t: "fix", json: JSON.stringify({ color: "Blue", action: "done", ops: [{ op: "createCard", name: "Opt", player: "White", zone: "graveyard" }, { op: "createCard", name: "Opt", player: "Blue", zone: "nowhere" }] }) }); await h.flush();
     same("manual fix: a bad zone is refused", chats(h).at(-1), "[MTG] No zone nowhere.");
     h.B.onTTS({ t: "fix", json: JSON.stringify({ color: "Blue", action: "done", ops: [{ op: "createCard", name: "Opt", player: "White", zone: "graveyard", tapped: false, extra: 1, shown: "nothing to see" }] }) }); await h.flush();
-    ok("manual fix: the table's list never words itself", h.B._getGame().fix?.lines?.[0] === "White gets Opt (graveyard)", JSON.stringify(h.B._getGame().fix?.lines));
+    ok("manual fix: the table's list never words itself", h.B._getGame().fix?.lines?.[0] === "AI 1 gets Opt (graveyard)", JSON.stringify(h.B._getGame().fix?.lines));
     same("manual fix: createCard goes as the engine reads it", applies(h).map((a) => a.ops), [[{ op: "createCard", name: "Opt", player: "player-1", zone: "graveyard", tapped: false }]]);
   });
 

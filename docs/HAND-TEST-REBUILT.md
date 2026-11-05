@@ -251,7 +251,30 @@ went between ("and returns to the command zone"; a bounce: "returns to AI 1's ha
 "AI 1 casts Niv-Mizzet, Visionary". Tests: 7 in tests/test_bridge_events.js (155 pass); break-it 10 of 11 caught, the one
 escape equivalent (the old loop adds nothing for a recast card: it starts at the previous board's count, 1).
 
-Still wrong (new, not fixed):
+Found in re-test 2, fixed 2026-11-05 (each checked live on the headless table with its `scenarios/bug-*.json`):
+- a. The attack line now comes before what its trigger made in the same board ("White attacks with Goblin Shaman token",
+  then "Goblin Shaman token's ability resolves (White)", "White creates a Treasure token").
+- b. "White rolls 15 (Ancient Copper Dragon)", in the public log, said of the roller (only a seated player's name counts
+  as a roller).
+- c. Treasures paid one click at a time join one line: "Treasure token ×4 are sacrificed for mana" (only a board whose
+  first line is more of them, right after that line; the table's log is sent again with the line rewritten).
+- d. "a Treasure token", "15 Treasure tokens", "Goblin Shaman token", in creating, attacking and leaving.
+- e. Flare of Duplication: the harness now sends Forge's static alternative cost (OptionalCost.AltCost) as the
+  `staticAlternative` mode (node image `mtg-forge-node:altcost`, no protocol change), so a drag asks "how do you play
+  it?" with "Cast Flare of Duplication (sacrifice a nontoken red creature instead of its mana cost)"; the priority row
+  says the same. Live: Goblin Guide sacrificed, no mana spent, Bolt and its copy dealt 6.
+- f. "Exchange of Words' ability", "Archmage Emeritus' magecraft".
+- g. An ability that resolved between two boards, unseen on the stack, is named from the event feed's cause (an effect's
+  word only: not a cost, a replacement, a card moving itself, or a source off the battlefield).
+- h. Manual-fix and debug lines name players as the log does ("AI 1 gets Island (battlefield) ×5").
+- i. A spell that resolved in the turn just ended goes above the next turn's header; the new turn's own lines (its draw,
+  a spell cast in it) stay under it.
+Tests: tests/test_bridge_events.js (183), tests/test_bridge_debug.js (47), golden 898. Break-it on the log code: 35 of
+35 caught after closing 11 escapes of the first pass (20 of 31); the jr-programmer-suite ran on all the fixes (one token
+naming helper, the bug-i move without index arithmetic, the bug-c join through updateLog's own tail so the 300-line trim
+applies).
+
+Before the fixes, as found:
 - a. Goblin Shaman's attack trigger: "White creates Treasure Token" before "White attacks with ...".
 - b. A die roll reads private and second person: "White saw: Ancient Copper Dragon: White rolled 6" (coin flips were
   fixed in #7, dice not).

@@ -6011,6 +6011,9 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
   add(intentCase("rebuilt #18: a static alternative cost under the plain label is asked, not merged", f, prompt("chooseAction", { actions: [
     { id: "a-n", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur", mode: { type: "normal" } },
     { id: "a-alt", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur", mode: { type: "staticAlternative" } }] }), [{ kind: "play", id: "engine-card-75" }]));
+  add(intentCase("rebuilt #18: the priority row says what the alternative cost is", f, prompt("chooseAction", { actions: [
+    { id: "a-n", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur", mode: { type: "normal" } },
+    { id: "a-alt", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur", mode: { type: "staticAlternative" } }] }), []));
 }
 
 module.exports = cases;

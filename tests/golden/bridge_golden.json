@@ -67275,7 +67275,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Evolving Wilds's ability",
+      "Blue uses Evolving Wilds' ability",
       "Evolving Wilds goes to the graveyard"
      ]
     }
@@ -67431,7 +67431,7 @@
   "result": {
    "early": [],
    "lines": [
-    "Blue uses Evolving Wilds's ability",
+    "Blue uses Evolving Wilds' ability",
     "Evolving Wilds goes to the graveyard"
    ]
   }
@@ -72678,7 +72678,7 @@
      "t": "gamelog",
      "lines": [
       "Blue discards Vraska's Fall, Venomous Changeling",
-      "--- AI 1's turn 1 ---"
+      ""
      ]
     }
    },
@@ -72863,7 +72863,7 @@
   "result": {
    "lines": [
     "Blue discards Vraska's Fall, Venomous Changeling",
-    "--- AI 1's turn 1 ---"
+    ""
    ]
   }
  },
@@ -109290,7 +109290,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Changes: Farseek: White's graveyard → White's battlefield; Vraska's Fall: Blue's hand → Blue's library (bottom); Evolving Wilds: untapped; Mountain: 2 +1/+1 counters; Swamp: 1 loyalty counter; Mountain: attached to Mountain; Mountain: not attached; Smoldering Marsh: now controlled by Blue; Forest: face down; White life → 31; Blue poison → 4; White: 14 damage from Neheb, the Worthy; Blue: 7 damage from Ashling, the Limitless; Blue gets a treasure token; Blue gets a c_a_clue_draw token; White gets a 1/1 green saproling token, tapped; Blue gets mana until the end of the turn: 2 {W}, 1 {U}, 1 {B}, 1 {R}, 1 {G}, 2 {C}.\n"
+    "text": "[time] all    told: [MTG] Changes: Farseek: AI 1's graveyard → AI 1's battlefield; Vraska's Fall: Blue's hand → Blue's library (bottom); Evolving Wilds: untapped; Mountain: 2 +1/+1 counters; Swamp: 1 loyalty counter; Mountain: attached to Mountain; Mountain: not attached; Smoldering Marsh: now controlled by Blue; Forest: face down; AI 1 life → 31; Blue poison → 4; AI 1: 14 damage from Neheb, the Worthy; Blue: 7 damage from Ashling, the Limitless; Blue gets a treasure token; Blue gets a c_a_clue_draw token; AI 1 gets a 1/1 green saproling token, tapped; Blue gets mana until the end of the turn: 2 {W}, 1 {U}, 1 {B}, 1 {R}, 1 {G}, 2 {C}.\n"
    },
    {
     "log": "fix #1: [{\"op\":\"move\",\"card\":\"engine-card-196\",\"zone\":\"battlefield\"},{\"op\":\"move\",\"card\":\"engine-card-43\",\"zone\":\"library\",\"position\":\"bottom\"},{\"op\":\"tap\",\"card\":\"engine-card-22\",\"tapped\":false},{\"op\":\"counters\",\"card\":\"engine-card-64\",\"kind\":\"P1P1\",\"n\":2},{\"op\":\"counters\",\"card\":\"engine-card-65\",\"kind\":\"LOYALTY\",\"n\":1},{\"op\":\"attach\",\"card\":\"engine-card-36\",\"to\":\"engine-card-64\"},{\"op\":\"attach\",\"card\":\"engine-card-36\"},{\"op\":\"control\",\"card\":\"engine-card-192\",\"player\":\"player-0\"},{\"op\":\"faceDown\",\"card\":\"engine-card-126\",\"value\":true},{\"op\":\"life\",\"player\":\"player-1\",\"n\":31},{\"op\":\"poison\",\"player\":\"player-0\",\"n\":4},{\"op\":\"commanderDamage\",\"player\":\"player-1\",\"from\":\"engine-card-199\",\"n\":14},{\"op\":\"commanderDamage\",\"player\":\"player-0\",\"from\":\"engine-card-200\",\"n\":7},{\"op\":\"createToken\",\"script\":\"c_a_treasure_sac\",\"player\":\"player-0\"},{\"op\":\"createToken\",\"script\":\"c_a_clue_draw\",\"player\":\"player-0\"},{\"op\":\"createToken\",\"script\":\"g_1_1_saproling\",\"player\":\"player-1\",\"tapped\":true},{\"op\":\"mana\",\"player\":\"player-0\",\"mana\":\"W W U B R G C C\"}]"
@@ -109403,7 +109403,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Changes: Farseek: White's graveyard → White's battlefield; Vraska's Fall: Blue's hand → Blue's library (bottom); Evolving Wilds: untapped; Mountain: 2 +1/+1 counters; Swamp: 1 loyalty counter; Mountain: attached to Mountain; Mountain: not attached; Smoldering Marsh: now controlled by Blue; Forest: face down; White life → 31; Blue poison → 4; White: 14 damage from Neheb, the Worthy; Blue: 7 damage from Ashling, the Limitless; Blue gets a treasure token; Blue gets a c_a_clue_draw token; White gets a 1/1 green saproling token, tapped; Blue gets mana until the end of the turn: 2 {W}, 1 {U}, 1 {B}, 1 {R}, 1 {G}, 2 {C}.",
+     "text": "[MTG] Changes: Farseek: AI 1's graveyard → AI 1's battlefield; Vraska's Fall: Blue's hand → Blue's library (bottom); Evolving Wilds: untapped; Mountain: 2 +1/+1 counters; Swamp: 1 loyalty counter; Mountain: attached to Mountain; Mountain: not attached; Smoldering Marsh: now controlled by Blue; Forest: face down; AI 1 life → 31; Blue poison → 4; AI 1: 14 damage from Neheb, the Worthy; Blue: 7 damage from Ashling, the Limitless; Blue gets a treasure token; Blue gets a c_a_clue_draw token; AI 1 gets a 1/1 green saproling token, tapped; Blue gets mana until the end of the turn: 2 {W}, 1 {U}, 1 {B}, 1 {R}, 1 {G}, 2 {C}.",
      "color": null
     }
    },
@@ -109530,7 +109530,7 @@
       "by": "Blue",
       "waiting": [],
       "lines": [
-       "Farseek: White's graveyard → White's battlefield",
+       "Farseek: AI 1's graveyard → AI 1's battlefield",
        "Vraska's Fall: Blue's hand → Blue's library (bottom)",
        "Evolving Wilds: untapped",
        "Mountain: 2 +1/+1 counters",
@@ -109539,13 +109539,13 @@
        "Mountain: not attached",
        "Smoldering Marsh: now controlled by Blue",
        "Forest: face down",
-       "White life → 31",
+       "AI 1 life → 31",
        "Blue poison → 4",
-       "White: 14 damage from Neheb, the Worthy",
+       "AI 1: 14 damage from Neheb, the Worthy",
        "Blue: 7 damage from Ashling, the Limitless",
        "Blue gets a treasure token",
        "Blue gets a c_a_clue_draw token",
-       "White gets a 1/1 green saproling token, tapped",
+       "AI 1 gets a 1/1 green saproling token, tapped",
        "Blue gets mana until the end of the turn: 2 {W}, 1 {U}, 1 {B}, 1 {R}, 1 {G}, 2 {C}"
       ],
       "message": null
@@ -109675,7 +109675,7 @@
       "by": "Blue",
       "waiting": [],
       "lines": [
-       "Farseek: White's graveyard → White's battlefield",
+       "Farseek: AI 1's graveyard → AI 1's battlefield",
        "Vraska's Fall: Blue's hand → Blue's library (bottom)",
        "Evolving Wilds: untapped",
        "Mountain: 2 +1/+1 counters",
@@ -109684,13 +109684,13 @@
        "Mountain: not attached",
        "Smoldering Marsh: now controlled by Blue",
        "Forest: face down",
-       "White life → 31",
+       "AI 1 life → 31",
        "Blue poison → 4",
-       "White: 14 damage from Neheb, the Worthy",
+       "AI 1: 14 damage from Neheb, the Worthy",
        "Blue: 7 damage from Ashling, the Limitless",
        "Blue gets a treasure token",
        "Blue gets a c_a_clue_draw token",
-       "White gets a 1/1 green saproling token, tapped",
+       "AI 1 gets a 1/1 green saproling token, tapped",
        "Blue gets mana until the end of the turn: 2 {W}, 1 {U}, 1 {B}, 1 {R}, 1 {G}, 2 {C}"
       ],
       "message": null
@@ -109834,7 +109834,7 @@
       "by": "Blue",
       "waiting": [],
       "lines": [
-       "Farseek: White's graveyard → White's battlefield",
+       "Farseek: AI 1's graveyard → AI 1's battlefield",
        "Vraska's Fall: Blue's hand → Blue's library (bottom)",
        "Evolving Wilds: untapped",
        "Mountain: 2 +1/+1 counters",
@@ -109843,13 +109843,13 @@
        "Mountain: not attached",
        "Smoldering Marsh: now controlled by Blue",
        "Forest: face down",
-       "White life → 31",
+       "AI 1 life → 31",
        "Blue poison → 4",
-       "White: 14 damage from Neheb, the Worthy",
+       "AI 1: 14 damage from Neheb, the Worthy",
        "Blue: 7 damage from Ashling, the Limitless",
        "Blue gets a treasure token",
        "Blue gets a c_a_clue_draw token",
-       "White gets a 1/1 green saproling token, tapped",
+       "AI 1 gets a 1/1 green saproling token, tapped",
        "Blue gets mana until the end of the turn: 2 {W}, 1 {U}, 1 {B}, 1 {R}, 1 {G}, 2 {C}"
       ],
       "message": "no card engine-card-196"
@@ -109868,7 +109868,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Changes: Farseek: White's graveyard → White's battlefield.\n"
+    "text": "[time] all    told: [MTG] Changes: Farseek: AI 1's graveyard → AI 1's battlefield.\n"
    },
    {
     "log": "fix #1: [{\"op\":\"move\",\"card\":\"engine-card-196\",\"zone\":\"battlefield\"}]"
@@ -109896,7 +109896,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Changes: Farseek: White's graveyard → White's battlefield.",
+     "text": "[MTG] Changes: Farseek: AI 1's graveyard → AI 1's battlefield.",
      "color": null
     }
    },
@@ -110023,7 +110023,7 @@
       "by": "Blue",
       "waiting": [],
       "lines": [
-       "Farseek: White's graveyard → White's battlefield"
+       "Farseek: AI 1's graveyard → AI 1's battlefield"
       ],
       "message": null
      }
@@ -110034,12 +110034,12 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Manual fix applied: Farseek: White's graveyard → White's battlefield.\n"
+    "text": "[time] all    told: [MTG] Manual fix applied: Farseek: AI 1's graveyard → AI 1's battlefield.\n"
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Manual fix applied: Farseek: White's graveyard → White's battlefield.",
+     "text": "[MTG] Manual fix applied: Farseek: AI 1's graveyard → AI 1's battlefield.",
      "color": null
     }
    },
@@ -110047,7 +110047,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue's manual fix: Farseek: White's graveyard → White's battlefield"
+      "Blue's manual fix: Farseek: AI 1's graveyard → AI 1's battlefield"
      ]
     }
    },
@@ -118070,7 +118070,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Changes: White life → 31.\n"
+    "text": "[time] all    told: [MTG] Changes: AI 1 life → 31.\n"
    },
    {
     "log": "fix #1: [{\"op\":\"life\",\"player\":\"player-1\",\"n\":31}]"
@@ -118098,7 +118098,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Changes: White life → 31.",
+     "text": "[MTG] Changes: AI 1 life → 31.",
      "color": null
     }
    },
@@ -118225,7 +118225,7 @@
       "by": "Blue",
       "waiting": [],
       "lines": [
-       "White life → 31"
+       "AI 1 life → 31"
       ],
       "message": null
      }
@@ -118368,7 +118368,7 @@
       "by": "Blue",
       "waiting": [],
       "lines": [
-       "White life → 31"
+       "AI 1 life → 31"
       ],
       "message": "not waiting for priority"
      }
@@ -118383,7 +118383,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Changes: White life → 31.\n"
+    "text": "[time] all    told: [MTG] Changes: AI 1 life → 31.\n"
    },
    {
     "log": "fix #1: [{\"op\":\"life\",\"player\":\"player-1\",\"n\":31}]"
@@ -118411,7 +118411,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Changes: White life → 31.",
+     "text": "[MTG] Changes: AI 1 life → 31.",
      "color": null
     }
    },
@@ -118538,7 +118538,7 @@
       "by": "Blue",
       "waiting": [],
       "lines": [
-       "White life → 31"
+       "AI 1 life → 31"
       ],
       "message": null
      }
@@ -118681,7 +118681,7 @@
       "by": "Blue",
       "waiting": [],
       "lines": [
-       "White life → 31"
+       "AI 1 life → 31"
       ],
       "message": "no answer from the engine"
      }
@@ -245349,7 +245349,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons's ability"
+      "Blue uses Drudge Skeletons' ability"
      ]
     }
    },
@@ -245934,7 +245934,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons's ability",
+    "Blue uses Drudge Skeletons' ability",
     "Blue casts Murder",
     "Drudge Skeletons regenerates"
    ]
@@ -251959,7 +251959,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "AI 1 uses Typhoid Rats's ability"
+      "AI 1 uses Typhoid Rats' ability"
      ]
     }
    },
@@ -252410,7 +252410,7 @@
   ],
   "result": {
    "lines": [
-    "AI 1 uses Typhoid Rats's ability",
+    "AI 1 uses Typhoid Rats' ability",
     "Grizzly Bears is goaded by AI 1: it attacks each combat, a player other than AI 1 if able, until AI 1's next turn",
     "--- AI 1's turn 1 ---"
    ],
@@ -258949,7 +258949,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Phyrexian Mite Token dies"
+      "Phyrexian Mite token dies"
      ]
     }
    },
@@ -259095,7 +259095,7 @@
    }
   ],
   "result": [
-   "Phyrexian Mite Token dies"
+   "Phyrexian Mite token dies"
   ]
  },
  {
@@ -260291,7 +260291,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Phyrexian Mite Token leaves the battlefield"
+      "Phyrexian Mite token leaves the battlefield"
      ]
     }
    },
@@ -260437,7 +260437,7 @@
    }
   ],
   "result": [
-   "Phyrexian Mite Token leaves the battlefield"
+   "Phyrexian Mite token leaves the battlefield"
   ]
  },
  {
@@ -261631,7 +261631,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Treasure Token leaves the battlefield"
+      "Treasure token leaves the battlefield"
      ]
     }
    },
@@ -261777,7 +261777,7 @@
    }
   ],
   "result": [
-   "Treasure Token leaves the battlefield"
+   "Treasure token leaves the battlefield"
   ]
  },
  {
@@ -278300,7 +278300,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons's ability"
+      "Blue uses Drudge Skeletons' ability"
      ]
     }
    },
@@ -278580,7 +278580,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons's ability",
+    "Blue uses Drudge Skeletons' ability",
     "Drudge Skeletons regenerates"
    ]
   }
@@ -281036,7 +281036,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons's ability"
+      "Blue uses Drudge Skeletons' ability"
      ]
     }
    },
@@ -281163,7 +281163,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons's ability"
+      "Blue uses Drudge Skeletons' ability"
      ]
     }
    },
@@ -281316,8 +281316,8 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons's ability",
-    "Blue uses Drudge Skeletons's ability"
+    "Blue uses Drudge Skeletons' ability",
+    "Blue uses Drudge Skeletons' ability"
    ]
   }
  },
@@ -282379,7 +282379,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons's ability"
+      "Blue uses Drudge Skeletons' ability"
      ]
     }
    },
@@ -282660,7 +282660,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons's ability",
+    "Blue uses Drudge Skeletons' ability",
     "Blue attacks with Drudge Skeletons"
    ]
   }
@@ -283723,7 +283723,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons's ability"
+      "Blue uses Drudge Skeletons' ability"
      ]
     }
    },
@@ -283995,7 +283995,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons's ability"
+    "Blue uses Drudge Skeletons' ability"
    ]
   }
  },
@@ -285057,7 +285057,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons's ability"
+      "Blue uses Drudge Skeletons' ability"
      ]
     }
    },
@@ -285628,7 +285628,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons's ability",
+    "Blue uses Drudge Skeletons' ability",
     "Drudge Skeletons regenerates"
    ]
   }
@@ -308121,7 +308121,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Wanderwine Prophets's champion triggers (Blue)"
+      "Wanderwine Prophets' champion triggers (Blue)"
      ]
     }
    },
@@ -308257,7 +308257,7 @@
    }
   ],
   "result": [
-   "Wanderwine Prophets's champion triggers (Blue)"
+   "Wanderwine Prophets' champion triggers (Blue)"
   ]
  },
  {
@@ -309487,7 +309487,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue creates 2 Soldier Tokens, tapped and attacking"
+      "Blue creates 2 Soldier tokens, tapped and attacking"
      ]
     }
    },
@@ -309971,7 +309971,7 @@
   "result": [
    "Blue attacks with Hero of Bladehold",
    "Hero of Bladehold's battle cry triggers (Blue)",
-   "Blue creates 2 Soldier Tokens, tapped and attacking"
+   "Blue creates 2 Soldier tokens, tapped and attacking"
   ]
  },
  {
@@ -320546,7 +320546,7 @@
      "t": "gamelog",
      "lines": [
       "Izoni, Thousand-Eyed, Moseo, Vein's New Dean, Wind Drake are exiled",
-      "Insect Token ×2, Survivor Token leave the battlefield"
+      "Insect token ×2, Survivor token leave the battlefield"
      ]
     }
    },
@@ -320758,7 +320758,7 @@
   ],
   "result": [
    "Izoni, Thousand-Eyed, Moseo, Vein's New Dean, Wind Drake are exiled",
-   "Insect Token ×2, Survivor Token leave the battlefield"
+   "Insect token ×2, Survivor token leave the battlefield"
   ]
  },
  {
@@ -321980,7 +321980,7 @@
      "t": "gamelog",
      "lines": [
       "Izoni, Thousand-Eyed is exiled",
-      "Insect Token leaves the battlefield"
+      "Insect token leaves the battlefield"
      ]
     }
    },
@@ -322133,7 +322133,7 @@
   ],
   "result": [
    "Izoni, Thousand-Eyed is exiled",
-   "Insect Token leaves the battlefield"
+   "Insect token leaves the battlefield"
   ]
  },
  {
@@ -337628,7 +337628,7 @@
      "t": "gamelog",
      "lines": [
       "AI 1 discards Deep Analysis",
-      "--- Blue's turn 1 ---"
+      ""
      ]
     }
    },
@@ -337935,7 +337935,7 @@
   ],
   "result": [
    "AI 1 discards Deep Analysis",
-   "--- Blue's turn 1 ---"
+   ""
   ]
  },
  {
@@ -355506,7 +355506,7 @@
      "t": "gamelog",
      "lines": [
       "Blue ninjutsus Some Card",
-      "Blue creates Goblin Token",
+      "Blue creates a Goblin token",
       "Dryad Sophisticate leaves the battlefield"
      ]
     }
@@ -355953,7 +355953,7 @@
   ],
   "result": [
    "Blue ninjutsus Some Card",
-   "Blue creates Goblin Token",
+   "Blue creates a Goblin token",
    "Dryad Sophisticate leaves the battlefield"
   ]
  },
@@ -361563,7 +361563,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Evolving Wilds's ability",
+      "Blue uses Evolving Wilds' ability",
       "Evolving Wilds goes to the graveyard"
      ]
     }
@@ -361718,7 +361718,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Evolving Wilds's ability",
+    "Blue uses Evolving Wilds' ability",
     "Evolving Wilds goes to the graveyard"
    ]
   }
@@ -364401,8 +364401,8 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Evolving Wilds's ability",
-      "Blue uses Evolving Wilds's ability"
+      "Blue uses Evolving Wilds' ability",
+      "Blue uses Evolving Wilds' ability"
      ]
     }
    },
@@ -364684,8 +364684,8 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Evolving Wilds's ability",
-    "Blue uses Evolving Wilds's ability"
+    "Blue uses Evolving Wilds' ability",
+    "Blue uses Evolving Wilds' ability"
    ]
   }
  },
@@ -390925,7 +390925,7 @@
   ],
   "result": {
    "lines": [
-    "Angel Token leaves the battlefield"
+    "Angel token leaves the battlefield"
    ]
   }
  },
@@ -506145,7 +506145,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Evolving Wilds's echo: pay its echo cost, or it is sacrificed"
+      "Evolving Wilds' echo: pay its echo cost, or it is sacrificed"
      ]
     }
    },
@@ -506401,7 +506401,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Evolving Wilds's cumulative upkeep: pay {1} for each age counter on it, or it is sacrificed"
+      "Evolving Wilds' cumulative upkeep: pay {1} for each age counter on it, or it is sacrificed"
      ]
     }
    },
@@ -506657,7 +506657,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Evolving Wilds's cumulative upkeep: pay 2 life for each age counter on it, or it is sacrificed"
+      "Evolving Wilds' cumulative upkeep: pay 2 life for each age counter on it, or it is sacrificed"
      ]
     }
    },
@@ -506913,7 +506913,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Evolving Wilds's cumulative upkeep: pay {2}{U} for each age counter on it, or it is sacrificed"
+      "Evolving Wilds' cumulative upkeep: pay {2}{U} for each age counter on it, or it is sacrificed"
      ]
     }
    },
@@ -507169,7 +507169,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Evolving Wilds's ability triggers (Blue)"
+      "Evolving Wilds' ability triggers (Blue)"
      ]
     }
    },
@@ -507304,11 +507304,11 @@
    }
   ],
   "result": [
-   "Evolving Wilds's echo: pay its echo cost, or it is sacrificed",
-   "Evolving Wilds's cumulative upkeep: pay {1} for each age counter on it, or it is sacrificed",
-   "Evolving Wilds's cumulative upkeep: pay 2 life for each age counter on it, or it is sacrificed",
-   "Evolving Wilds's cumulative upkeep: pay {2}{U} for each age counter on it, or it is sacrificed",
-   "Evolving Wilds's ability triggers (Blue)"
+   "Evolving Wilds' echo: pay its echo cost, or it is sacrificed",
+   "Evolving Wilds' cumulative upkeep: pay {1} for each age counter on it, or it is sacrificed",
+   "Evolving Wilds' cumulative upkeep: pay 2 life for each age counter on it, or it is sacrificed",
+   "Evolving Wilds' cumulative upkeep: pay {2}{U} for each age counter on it, or it is sacrificed",
+   "Evolving Wilds' ability triggers (Blue)"
   ]
  },
  {
@@ -659076,7 +659076,7 @@
      "t": "gamelog",
      "lines": [
       "Blue casts Throes of Chaos",
-      "Throes of Chaos's cascade triggers (Blue)"
+      "Throes of Chaos' cascade triggers (Blue)"
      ]
     }
    },
@@ -659384,7 +659384,7 @@
   ],
   "result": [
    "Blue casts Throes of Chaos",
-   "Throes of Chaos's cascade triggers (Blue)"
+   "Throes of Chaos' cascade triggers (Blue)"
   ]
  },
  {
@@ -683593,7 +683593,7 @@
      "t": "gamelog",
      "lines": [
       "Blue casts Splinter's Technique",
-      "Champions of the Perfect leaves the battlefield"
+      "Champions of the Perfect token leaves the battlefield"
      ]
     }
    },
@@ -685563,7 +685563,7 @@
    ],
    [
     "Blue casts Splinter's Technique",
-    "Champions of the Perfect leaves the battlefield"
+    "Champions of the Perfect token leaves the battlefield"
    ],
    [
     "cast resolved",
@@ -710641,7 +710641,7 @@
      "t": "gamelog",
      "lines": [
       "Lizard Blades enters the battlefield (Blue)",
-      "Evolving Wilds's ability triggers (Blue)"
+      "Evolving Wilds' ability triggers (Blue)"
      ]
     }
    },
@@ -711110,7 +711110,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Evolving Wilds's ability triggers (Blue)"
+      "Evolving Wilds' ability triggers (Blue)"
      ]
     }
    },
@@ -711594,7 +711594,7 @@
      "t": "gamelog",
      "lines": [
       "Grizzly Bears dies",
-      "Evolving Wilds's ability triggers (Blue)"
+      "Evolving Wilds' ability triggers (Blue)"
      ]
     }
    },
@@ -711888,7 +711888,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Evolving Wilds's ability",
+      "Blue uses Evolving Wilds' ability",
       "Llanowar Elves enters the battlefield (Blue)"
      ]
     }
@@ -712243,12 +712243,12 @@
   ],
   "result": [
    "Lizard Blades enters the battlefield (Blue)",
-   "Evolving Wilds's ability triggers (Blue)",
-   "Evolving Wilds's ability triggers (Blue)",
+   "Evolving Wilds' ability triggers (Blue)",
+   "Evolving Wilds' ability triggers (Blue)",
    "Grizzly Bears enters the battlefield (Blue)",
    "Grizzly Bears dies",
-   "Evolving Wilds's ability triggers (Blue)",
-   "Blue uses Evolving Wilds's ability",
+   "Evolving Wilds' ability triggers (Blue)",
+   "Blue uses Evolving Wilds' ability",
    "Llanowar Elves enters the battlefield (Blue)"
   ]
  },
@@ -738455,7 +738455,7 @@
      "t": "gamelog",
      "lines": [
       "Opt is countered",
-      "AI 1 creates 2 Treasure Tokens"
+      "AI 1 creates 2 Treasure tokens"
      ]
     }
    },
@@ -739006,7 +739006,7 @@
   ],
   "result": [
    "Opt is countered",
-   "AI 1 creates 2 Treasure Tokens"
+   "AI 1 creates 2 Treasure tokens"
   ]
  },
  {
@@ -740098,7 +740098,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "AI 1 creates Treasure Token"
+      "AI 1 creates a Treasure token"
      ]
     }
    },
@@ -740622,7 +740622,7 @@
    }
   ],
   "result": [
-   "AI 1 creates Treasure Token"
+   "AI 1 creates a Treasure token"
   ]
  },
  {
@@ -745552,8 +745552,8 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "--- Blue's turn 2 ---",
-      "Daring Skyjek is countered"
+      "Daring Skyjek is countered",
+      "--- Blue's turn 2 ---"
      ]
     }
    },
@@ -745709,8 +745709,8 @@
    }
   ],
   "result": [
-   "--- Blue's turn 2 ---",
-   "Daring Skyjek is countered"
+   "Daring Skyjek is countered",
+   "--- Blue's turn 2 ---"
   ]
  },
  {
@@ -761893,7 +761893,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Your priority\": Next | End turn | Cast Hurloon Minotaur | Cast Hurloon Minotaur — alternative cost\n"
+    "text": "[time] Blue   is asked #900 \"Your priority\": Next | End turn | Cast Hurloon Minotaur | Cast Hurloon Minotaur — sacrifice a nontoken red creature instead of its mana cost\n"
    },
    {
     "tts": {
@@ -761919,7 +761919,7 @@
       {
        "id": "a-alt",
        "cardId": "engine-card-75",
-       "label": "Cast Hurloon Minotaur — alternative cost"
+       "label": "Cast Hurloon Minotaur — sacrifice a nontoken red creature instead of its mana cost"
       }
      ],
      "kind": "priority",
@@ -761940,37 +761940,59 @@
    },
    {
     "log": "intent Blue: play engine-card-75 (Hurloon Minotaur)"
+   }
+  ],
+  "result": {
+   "threw": "ReferenceError: Cannot access 'm' before initialization"
+  }
+ },
+ {
+  "name": "rebuilt #18: the priority row says what the alternative cost is",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "special actions Blue (main1): Cast Hurloon Minotaur {\"type\":\"staticAlternative\"}"
+   },
+   {
+    "log": "prompt Blue #900: chooseAction \"Your priority\""
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Hurloon Minotaur: how do you play it?\": Cast Hurloon Minotaur | Cast Hurloon Minotaur (sacrifice a nontoken red creature instead of its mana cost) | Back\n"
+    "text": "[time] Blue   is asked #900 \"Your priority\": Next | End turn | Cast Hurloon Minotaur | Cast Hurloon Minotaur — sacrifice a nontoken red creature instead of its mana cost\n"
    },
    {
     "tts": {
      "t": "prompt",
      "color": "Blue",
      "promptId": 900,
-     "step": 0,
-     "title": "Hurloon Minotaur: how do you play it?",
-     "text": "",
+     "title": "Your priority",
      "mode": "single",
-     "kind": "choice",
-     "min": 1,
-     "max": 1,
      "options": [
       {
+       "id": "__pass",
+       "label": "Next"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
        "id": "a-n",
+       "cardId": "engine-card-75",
        "label": "Cast Hurloon Minotaur"
       },
       {
        "id": "a-alt",
-       "label": "Cast Hurloon Minotaur (sacrifice a nontoken red creature instead of its mana cost)"
-      },
-      {
-       "id": "__back",
-       "label": "Back"
+       "cardId": "engine-card-75",
+       "label": "Cast Hurloon Minotaur — sacrifice a nontoken red creature instead of its mana cost"
       }
-     ]
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
     }
    }
   ],

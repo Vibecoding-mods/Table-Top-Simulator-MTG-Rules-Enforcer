@@ -1438,7 +1438,7 @@ function engineFacts(events) {
   if (events[0].seq > seen + 1) { noteGuess("feed gap", `events ${seen + 1} to ${events[0].seq - 1} fell behind`); return null; }
   // (firstDraw / firstDiscard: each player's first of each by Forge's order, so a discard before its draw is said first;
   // Fable's chapter II read "draws 2 cards" then "discards ...", rebuilt re-test)
-  const facts = { moves: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {} };
+  const facts = { moves: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map() };
   for (const e of events) {
     if (e.seq <= seen) continue;
     // (an engine that names causes: a move without one means something only then, buyback's return, see logEvents)
@@ -1451,6 +1451,9 @@ function engineFacts(events) {
       if (tally === facts.draws) facts.firstDraw[e.ownerId] ??= e.seq;
     }
     if (e.how === "discard") facts.firstDiscard[e.ownerId] ??= e.seq;
+    // (what an ability did, by the card whose ability it was: one that went on the stack and resolved between two boards
+    // was never named, re-test 2 bug g. An effect's word only: not a cost's, a replacement's, or a card moving itself.)
+    if (e.causeCardId && e.causeCardId !== e.cardId && /^[A-Z][A-Za-z]+$/.test(e.cause || "")) facts.causes.set(e.causeCardId, e.causeName);
     if (!e.cardId) continue;
     const was = facts.moves.get(e.cardId);
     const cause = was?.cause ? { cause: was.cause, causeName: was.causeName } : e.cause ? { cause: e.cause, causeName: e.causeName } : {};
@@ -1544,7 +1547,9 @@ function extraTurn(prev, cur) {
 function logEvents(prev, cur, pub, facts = null) {
   const out = [];
   const who = (id) => nameOf(id);
-  if (cur.turn !== prev.turn && cur.active) {
+  const turnBegan = cur.turn !== prev.turn && !!cur.active;
+  const oldTurn = []; // (the lines of spells that resolved in the turn just ended: they go above the header)
+  if (turnBegan) {
     // (a turn right after their own is an extra one: Stitch in Time's read as a plain turn, rebuilt hand test #15)
     out.push(`--- ${who(cur.active)}'s turn ${game.turnsTaken?.[cur.active] || 1}${extraTurn(prev, cur) ? " (extra turn)" : ""} ---`);
     // (a look at a library last turn says nothing about this turn's draw: Top looked, then the draw step's card read
@@ -1642,8 +1647,8 @@ function logEvents(prev, cur, pub, facts = null) {
         || (namesSeen.has(s.name) && !((cur.counts[`hand:${s.ctl}`] ?? 0) < (prev.counts[`hand:${s.ctl}`] ?? 0)))
         || Object.values(prev.stack).some((x) => x.effect && x.name === s.name));
       if (!ability) { spellsSeen.add(`${s.ctl}|${s.name}`); namesSeen.add(s.name); }
-      (!mine && ability && (s.trigger || s.kwTrigger || s.upkeepCost) ? triggered : !mine && ability && entered ? afterEntries : out).push(s.upkeepCost ? `${s.name}'s ${s.upkeepCost}, or it is sacrificed`
-        : ability ? keywordLine(mine ? mine.kind : !s.trigger && !s.kwTrigger ? keywordKind(s.text) : null, s.ctl, s.name) || (!mine && s.kwTrigger ? `${s.name}'s ${s.kwTrigger} triggers (${who(s.ctl)})` : !mine && s.trigger ? `${s.name}'s ability triggers (${who(s.ctl)})` : `${who(s.ctl)} uses ${s.name}'s ability${s.via ? ` (${s.via}'s)` : ""}`)
+      (!mine && ability && (s.trigger || s.kwTrigger || s.upkeepCost) ? triggered : !mine && ability && entered ? afterEntries : out).push(s.upkeepCost ? `${poss(s.name)} ${s.upkeepCost}, or it is sacrificed`
+        : ability ? keywordLine(mine ? mine.kind : !s.trigger && !s.kwTrigger ? keywordKind(s.text) : null, s.ctl, s.name) || (!mine && s.kwTrigger ? `${poss(s.name)} ${s.kwTrigger} triggers (${who(s.ctl)})` : !mine && s.trigger ? `${poss(s.name)} ability triggers (${who(s.ctl)})` : `${who(s.ctl)} uses ${poss(s.name)} ability${s.via ? ` (${poss(s.via)})` : ""}`)
         : k >= 1 || copyOf ? `${who(s.ctl)} copies ${s.name}` : `${who(s.ctl)} casts ${mine ? mine.name : s.name}${optionalWords(s.opt)}`);
     }
   }
@@ -1660,7 +1665,7 @@ function logEvents(prev, cur, pub, facts = null) {
     // cast went unlogged, hp-07 #39 2026-10-27)
     else if (e.kind === "cast" && cur.cards[e.id] && (!prev.cards[e.id] || prev.cards[e.id].zone !== cur.cards[e.id].zone)) { out.push(`${who(e.ctl)} casts ${e.name}`); e.said = true; castNow.add(e.id); game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
     else if (e.kind === "faceup" && back) e.said = true;
-    else if (e.kind !== "cast" && back) { out.push(keywordLine(e.kind, e.ctl, e.name) || `${who(e.ctl)} uses ${e.name}'s ability`); e.said = true; game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
+    else if (e.kind !== "cast" && back) { out.push(keywordLine(e.kind, e.ctl, e.name) || `${who(e.ctl)} uses ${poss(e.name)} ability`); e.said = true; game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
   }
   // (a spell back in a hand from the stack, which no board shows: buyback's, the move with no cause of its own; one sent
   // back by another spell has that spell's, Remand's. Whispers of the Muse's buyback read nothing, keyword sweep. Only
@@ -1773,6 +1778,17 @@ function logEvents(prev, cur, pub, facts = null) {
       out.push(`${now.name} regenerates`);
       game.regenShields.delete(id);
     }
+  }
+  // (the attack goes before what came of it in the same board: Goblin Shaman's Treasure read before "attacks with",
+  // re-test 2 bug a; its place is kept here and filled at the end)
+  const attackAt = out.push("") - 1;
+  // (an ability no board showed on the stack, named before what it did: a permanent's, not the player's own activation,
+  // which has its line; Archmage Emeritus's draw read "AI 1 draws a card" alone, re-test 2 bug g)
+  const stackSeen = facts?.causes.size ? [...Object.values(prev.stack), ...Object.values(cur.stack)] : [];
+  for (const [id, name] of facts?.causes || []) {
+    const src = cur.cards[id] || prev.cards[id];
+    if (src?.zone !== "battlefield" || stackSeen.some((x) => x.id === id) || pending.some((e) => e.id === id)) continue;
+    out.push(`${poss(tokenWords(name || src.name, src.token))} ability resolves (${who(src.ctl)})`);
   }
   // (something that cloaks just resolved: an ability gone from the stack, or a spell that reached a graveyard)
   const cloaking = [...Object.values(prev.stack).filter((s) => !s.sids.some((x) => curSids.has(x))).map((s) => s.text || ""),
@@ -1943,13 +1959,14 @@ function logEvents(prev, cur, pub, facts = null) {
     const was = prev.cards[id];
     // (one put onto the battlefield attacking was never declared: its arrival line says so instead; Hero of Bladehold's
     // Soldiers read "White attacks with Soldier Token, Soldier Token", hp-16 gap)
-    if (c.attacking && was?.zone === "battlefield" && !was.attacking) (attackers[c.ctl] ||= []).push(c.name);
+    if (c.attacking && was?.zone === "battlefield" && !was.attacking) (attackers[c.ctl] ||= []).push(tokenWords(c.name, c.token));
     if (was && was.zone === c.zone && was.fd && !c.fd) out.push(`${c.name} is turned face up (${who(c.ctl)})`);
     // (the same card under another name on the battlefield: it transformed or became a copy; Growing Rites of Itlimoc becoming Itlimoc,
     // Cradle of the Sun logged nothing, hp-03 #3)
     else if (was && was.zone === c.zone && c.zone === "battlefield" && !was.fd && !c.fd && was.name !== c.name && !mutatedHosts.has(id)) out.push(`${was.name} becomes ${c.name}`);
     if (was && was.zone === c.zone && !was.po !== !c.po) out.push(`${c.name} phases ${c.po ? "out" : "in"}`);
     if (was && was.zone === c.zone) continue;
+    const n0 = out.length;
     const from = was ? was.zone : null;
     const moved = facts?.moves.get(id);
     // (a spell off the stack that another spell targeted was countered: an instant or sorcery only under a counterspell,
@@ -2002,10 +2019,11 @@ function logEvents(prev, cur, pub, facts = null) {
       else if (c.token) {
         const made = (tokensMade[`${c.ctl}|${c.name}${arrive}`] ??= { at: out.length, n: 0 });
         made.n++;
-        // (a copy token has only the copied card's name: Saw in Half's read "White creates Mairsil, the Pretender", rebuilt re-test)
-        const named = /\btokens?$/i.test(c.name);
-        out[made.at] = made.n === 1 ? `${who(c.ctl)} creates ${named ? c.name : `${/^[aeiou]/i.test(c.name) ? "an" : "a"} ${c.name} token`}${arrive}`
-          : `${who(c.ctl)} creates ${made.n} ${c.name}${named ? "s" : " tokens"}${arrive}`;
+        // (a copy token has only the copied card's name: Saw in Half's read "White creates Mairsil, the Pretender", rebuilt re-test;
+        // Forge's own "Treasure Token" read so too, Arena says "a Treasure token", re-test 2 bug d)
+        const base = tokenBase(c.name);
+        out[made.at] = made.n === 1 ? `${who(c.ctl)} creates ${/^[aeiou]/i.test(base) ? "an" : "a"} ${base} token${arrive}`
+          : `${who(c.ctl)} creates ${made.n} ${base} tokens${arrive}`;
       }
       // (brought back: Necromancy said nothing about what it returned, playtest 2026-10-26)
       else if (from === "graveyard" && c.land && landPlayed) out.push(`${who(c.ctl)} plays ${c.name} from ${who(was.owner)}'s graveyard${arrive}`);
@@ -2039,7 +2057,7 @@ function logEvents(prev, cur, pub, facts = null) {
         // (by what it was on the battlefield, a copy with its own name: "Clone dies" for a Bloodline Keeper, "Fable of the
         // Mirror-Breaker dies" for Reflection of Kiki-Jiki, rebuilt hand test #10)
         // (a face-down one by the face the graveyard shows)
-        const gone = was.fd ? c.name : was.pn ? `${was.name} (${was.pn})` : was.name;
+        const gone = was.fd ? c.name : was.pn ? `${was.name} (${was.pn})` : tokenWords(was.name, was.token);
         leave(c.owner, gone, { kind, label: kind === "sacrificed" ? sacrificeWords(moved, was) : costWords(moved, c.name) });
       }
       else if (countered) out.push(`${c.name} is countered`);
@@ -2083,6 +2101,8 @@ function logEvents(prev, cur, pub, facts = null) {
     } else if (c.zone === "command" && (from || countered)) {
       out.push(countered ? `${c.name} is countered and returns to the command zone` : `${c.name} returns to the command zone`);
     }
+    // (a spell that resolved in the turn just ended, on the board that began the next: its line before the turn header)
+    if (turnBegan && out.length > n0 && !castNow.has(id) && fromStack(id, c)) oldTurn.push([n0, out.length]);
   }
   // (two permanents' text boxes swapped: both changed in one board as a spell that exchanges text boxes resolved, or each
   // now reads as the other did; Exchange of Words was in no log, rebuilt hand test #11)
@@ -2119,7 +2139,7 @@ function logEvents(prev, cur, pub, facts = null) {
     if (was.zone === "battlefield") {
       const k = departureKind(id, was, gone, toHand);
       if (k.kind === "hand") handRoom[o] = Math.max(0, handRoom[o] - 1);
-      leave(o, was.name, k);
+      leave(o, tokenWords(was.name, was.token), k);
     } else if (gone && libraryKind(gone).kind === "dredge") {
       // (the dredged card, said in its dredge's line)
     } else if ((was.zone === "graveyard" || was.zone === "exile") && !was.fd && toHand) {
@@ -2148,7 +2168,7 @@ function logEvents(prev, cur, pub, facts = null) {
   }
   // (day and night: Brutal Cathar made it day with nothing shown or logged, playtest 2026-10-26)
   if (cur.day !== prev.day && (cur.day === "day" || cur.day === "night")) out.push(`It becomes ${cur.day}`);
-  for (const [ctl, names] of Object.entries(attackers)) out.push(`${who(ctl)} attacks with ${names.join(", ")}`);
+  const attackLines = Object.entries(attackers).map(([ctl, names]) => `${who(ctl)} attacks with ${names.join(", ")}`);
   // blocks, which the table draws as lines and the log never said (Fog Bank blocking Cavalry Master, hp-10 gap): each
   // attacker's new blockers, one line per attacker
   const newBlocks = {};
@@ -2202,9 +2222,21 @@ function logEvents(prev, cur, pub, facts = null) {
     const what = `${n === "1" ? "a" : n} +1/+1 counter${n === "1" ? "" : "s"}`;
     out[g.at] = g.names.length === 1 ? `${g.names[0]} gets ${what}` : `${byCount(g.names)} each get ${what}`;
   }
+  // (last: the lines above are written by index. What resolved in the turn just ended goes above the new turn's header:
+  // the AI's Sensei's Divining Top "entered" after White's turn header, re-test 2 bug i; the new turn's own lines, its
+  // draw, stay under it. Those lines all come after the attack's place, so cutting them leaves that place where it is.)
+  const oldLines = oldTurn.flatMap(([a, b]) => out.slice(a, b));
+  for (const [a, b] of oldTurn.reverse()) out.splice(a, b - a);
+  out.splice(attackAt, 1, ...attackLines);
+  out.unshift(...oldLines);
   // (each line a sentence: "a face-down card is exiled" began in lower case, hp-16)
-  return out.map((l) => (l ? l[0].toUpperCase() + l.slice(1) : l));
+  const lines = out.map(sentence);
+  // (sources sacrificed for mana, for updateLog to add to the line before when they are paid one click a board)
+  const sac = Object.values(groups).find((g) => g.k.kind === "sacrificed" && g.k.label === " for mana");
+  if (sac) lines.manaSac = { names: sac.names, line: sentence(sac.words.sacrificed("", sac.names, sac.k)) };
+  return lines;
 }
+const sentence = (l) => (l ? l[0].toUpperCase() + l.slice(1) : l);
 
 // A creature that enters and leaves the battlefield within FLASH_MS is said in the chat, with what left alongside it:
 // the engine passes empty steps in a fraction of a second, so it could come and go before anyone saw it (playtest
@@ -2249,9 +2281,21 @@ function updateLog(pub) {
   if (!lines.length) return;
   if (game.heldLines?.length) { clearTimeout(game.heldTimer); lines.push(...game.heldLines.splice(0)); }
   game.log ??= [];
+  // (Treasures paid for one spell one click at a time read four "Treasure token is sacrificed for mana" lines, re-test 2
+  // bug c: a board whose first line is more of them, right after the last such line, joins that line, and the table's
+  // log is sent again)
+  const last = game.lastManaSac;
+  game.lastManaSac = lines.manaSac || null;
+  const joined = last && lines.manaSac && lines[0] === lines.manaSac.line && game.log.at(-1) === last.line;
+  if (joined) {
+    const names = [...last.names, ...lines.manaSac.names];
+    game.lastManaSac = { names, line: sentence(LEAVE_WORDS.sacrificed("", names, { label: " for mana" })) };
+    game.log[game.log.length - 1] = game.lastManaSac.line;
+    lines.shift();
+  }
   game.log.push(...lines);
   if (game.log.length > 300) game.log.splice(0, game.log.length - 300);
-  toTTS({ t: "gamelog", lines });
+  toTTS(joined ? { t: "gamelog", lines: game.log.slice(-60), reset: true } : { t: "gamelog", lines });
 }
 
 // Card rules texts trickle out ~1 KB at a time, 150 ms apart, so no single message makes TTS stall.
@@ -2539,6 +2583,19 @@ function withoutForgeNotes(t) {
     .replace(/(^|\n|: )([A-Z][\w' -]{0,30} — (?:[^:\n]{0,40}: )?)\2/g, "$1$2");
 }
 
+// a static alternative cost by what the card says it is (Flare of Duplication: "sacrifice a nontoken red creature instead
+// of its mana cost")
+function altCostWords(gv, cardId) {
+  const alt = String(cardIndex(gv || {})[cardId]?.text || "").match(/\bYou may ([^.]+?) rather than pay this spell's mana cost\b/i)?.[1];
+  return alt ? `${alt} instead of its mana cost` : "alternative cost";
+}
+// a token's name without Forge's " Token": "Treasure Token" -> "Treasure" (said "a Treasure token", re-test 2 bug d)
+function tokenBase(name) { return String(name).replace(/ tokens?$/i, ""); }
+// a card as the log names it: a token as "Goblin Shaman token"
+function tokenWords(name, token) { return token ? `${tokenBase(name)} token` : name; }
+// a card's possessive: "Exchange of Words' ability", not "Exchange of Words's" (re-test 2 bug f)
+function poss(name) { return /s$/i.test(String(name)) ? `${name}'` : `${name}'s`; }
+
 // Engine text names players by relay username; show TTS colors / "AI n" instead.
 function displayText(text) {
   if (!game || !text) return text;
@@ -2737,7 +2794,7 @@ const KEYWORD_TARGETS = [
   // (Haunt's creature, asked as the haunting card dies: Blind Hunter's read "which player loses 2 life and you gain 2
   // life?" over the creatures, its other sentence, hp-20 gap)
   ({ src, cardText, srcOnBattlefield, cardsOnly }) => cardsOnly && !srcOnBattlefield && /(?:^|\n)Haunt \(When this creature dies, exile it haunting target creature\.\)/i.test(cardText)
-    && { title: `${src}: haunt which creature?`, note: `${src} is exiled haunting it; when that creature dies, ${src}'s haunt trigger happens again.` },
+    && { title: `${src}: haunt which creature?`, note: `${src} is exiled haunting it; when that creature dies, ${poss(src)} haunt trigger happens again.` },
   // (Awaken's land, its reminder as the ability text: Part the Waterveil's read "choose a target", hp-16)
   // (over a purpose read from its reminder: "awaken 2—{3}{G} If you cast this spell for {3}{G}, also put ...", suite
   // review)
@@ -3553,7 +3610,7 @@ function onPrompt(seat, prompt) {
         const m = a.mode || {};
         const how = m.type === "alternative" ? String(m.cost || "alternative cost").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()
           : m.type === "backFaceLand" ? "back face" : m.type === "roomRightSplit" ? "right door" : m.type === "unlockDoor" ? "unlock door"
-          : m.type === "foretellExile" ? "foretell (exile it face down)" : m.type === "staticAlternative" ? "alternative cost" : "";
+          : m.type === "foretellExile" ? "foretell (exile it face down)" : m.type === "staticAlternative" ? altCostWords(gv, a.cardId) : "";
         // the engine's own label already names the mode in brackets ("(WebSlinging)"): keep one readable version
         const base = how ? String(a.label || `Cast ${cname(a.cardId)}`).replace(/\s*\([A-Za-z]+\)$/, "") : (a.label || `Cast ${cname(a.cardId)}`);
         return `${base}${how ? ` — ${how}` : ""}`;
@@ -4491,8 +4548,12 @@ function onPrompt(seat, prompt) {
         // (a coin flip is the table's, said of its player: "White saw: Zndrsplt, Eye of Wisdom: You win the flip",
         // rebuilt hand test #7)
         const flip = plain.match(/^(?:(.+): )?You (win|lose) the flip\.?$/);
+        // (and a die roll, said of its roller: "White saw: Ancient Copper Dragon: White rolled 6", re-test 2 bug b)
+        const roll = plain.match(/^(?:(.+): )?(.+?) rolled (\d+(?:(?:, | and |\+)\d+)*)\.?$/);
+        const roller = roll && Object.values(game?.slotNames || {}).includes(roll[2]) ? roll[2] : null;
         if (game) gameLogLine(mine && mine[2] === me ? `${me} chooses ${mine[3]} (${mine[1]})`
-          : flip ? `${me} ${flip[2]}s the flip${flip[1] ? ` (${flip[1]})` : ""}` : `${seat.color} saw: ${plain}`);
+          : flip ? `${me} ${flip[2]}s the flip${flip[1] ? ` (${flip[1]})` : ""}`
+            : roller ? `${roller} rolls ${roll[3]}${roll[1] ? ` (${roll[1]})` : ""}` : `${seat.color} saw: ${plain}`);
         seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" });
         return;
       }
@@ -4940,7 +5001,6 @@ function onIntent(m) {
     const wayKey = (a) => `${a.label || a.description || a.id}|${a.mode?.type || ""}|${a.mode?.cost || ""}`;
     const ways = [];
     for (const a of acts) if (!ways.some((w) => wayKey(w) === wayKey(a))) ways.push(a);
-    const altText = String(cardIndex(seat.board?.state?.gameView || {})[m.id]?.text || "").match(/\bYou may ([^.]+?) rather than pay this spell's mana cost\b/i)?.[1];
     if (ways.length > 1) {
       const prev = { ui: seat.prompt.ui, toOutput: seat.prompt.toOutput };
       // (a keyword's way without its reminder sentence, its cost kept: Foretell's button read "Foretell (During your turn,
@@ -4952,7 +5012,7 @@ function onIntent(m) {
         // (a split card cast whole is its fuse: "Cast Turn // Burn" beside "Cast Turn" and "Cast Burn", hp-15)
         if (a.type === "cast" && name.includes(" // ") && l === `Cast ${name}`) return "Cast both halves (fuse)";
         // (an alternative cost under the plain label: by what the card says it is)
-        if (a.mode?.type === "staticAlternative" && l === `Cast ${name}`) return `Cast ${name} (${altText ? `${altText} instead of its mana cost` : "alternative cost"})`;
+        if (a.mode?.type === "staticAlternative" && l === `Cast ${name}`) return `Cast ${name} (${altCostWords(seat.board?.state?.gameView, m.id)})`;
         // (a reminder sentence only: "Cast X (WebSlinging)" names the way, and keeps its brackets)
         const m = l.match(/^([^()]+?) \((.+\.)\)$/);
         if (!m || m[1].includes("{")) return m ? m[1] : l;
@@ -5493,7 +5553,7 @@ function fixOps(list, pub, ownWords = false) {
   const zoneOfCard = {};
   for (const z of pub.zones || []) for (const c of z.cards || []) zoneOfCard[c.id] = z.zone;
   const cardName = (id) => byId[id]?.identity?.name || id;
-  const where = (c) => `${game.slotColor[c.ownerId] || "?"}'s ${zoneOfCard[c.id] || "?"}`;
+  const where = (c) => `${nameOf(c.ownerId)}'s ${zoneOfCard[c.id] || "?"}`;
   const ops = [];
   const lines = [];
   for (const raw of list) {
@@ -5528,20 +5588,20 @@ function fixOps(list, pub, ownWords = false) {
     }
     const c = op.card ? byId[op.card] : null;
     lines.push(ownWords && typeof raw.shown === "string" ? raw.shown : {
-      move: () => `${cardName(op.card)}: ${where(c)} → ${game.slotColor[c.ownerId] || "?"}'s ${op.zone}${op.zone === "library" ? (op.position === "bottom" ? " (bottom)" : " (top)") : ""}`,
+      move: () => `${cardName(op.card)}: ${where(c)} → ${nameOf(c.ownerId)}'s ${op.zone}${op.zone === "library" ? (op.position === "bottom" ? " (bottom)" : " (top)") : ""}`,
       tap: () => `${cardName(op.card)}: ${op.tapped ? "tapped" : "untapped"}`,
       counters: () => `${cardName(op.card)}: ${op.n} ${counterWords(op.kind) || op.kind}${op.n === 1 ? "" : "s"}`,
       attach: () => (op.to ? `${cardName(op.card)}: attached to ${cardName(op.to)}` : `${cardName(op.card)}: not attached`),
-      control: () => `${cardName(op.card)}: now controlled by ${raw.player}`,
+      control: () => `${cardName(op.card)}: now controlled by ${nameOf(op.player)}`,
       faceDown: () => `${cardName(op.card)}: face ${op.value ? "down" : "up"}`,
-      life: () => `${raw.player} life → ${op.n}`,
-      poison: () => `${raw.player} poison → ${op.n}`,
-      commanderDamage: () => `${raw.player}: ${op.n} damage from ${cardName(op.from)}`,
+      life: () => `${nameOf(op.player)} life → ${op.n}`,
+      poison: () => `${nameOf(op.player)} poison → ${op.n}`,
+      commanderDamage: () => `${nameOf(op.player)}: ${op.n} damage from ${cardName(op.from)}`,
       // (by what the player typed, not Forge's script name: "New token for Red: treasure (c_a_treasure_sac)" twelve
       // times, rebuilt hand test #4; the same lines are counted below)
-      createToken: () => getsToken(raw.player, raw.script, op.tapped),
-      mana: () => { const each = {}; for (const m of op.mana.split(" ")) each[m] = (each[m] || 0) + 1; return `${raw.player} gets mana until the end of the turn: ${Object.entries(each).map(([m, k]) => `${k} {${m}}`).join(", ")}`; },
-      createCard: () => `${raw.player} gets ${op.name} (${op.zone}${op.tapped ? ", tapped" : ""})`,
+      createToken: () => getsToken(nameOf(op.player), raw.script, op.tapped),
+      mana: () => { const each = {}; for (const m of op.mana.split(" ")) each[m] = (each[m] || 0) + 1; return `${nameOf(op.player)} gets mana until the end of the turn: ${Object.entries(each).map(([m, k]) => `${k} {${m}}`).join(", ")}`; },
+      createCard: () => `${nameOf(op.player)} gets ${op.name} (${op.zone}${op.tapped ? ", tapped" : ""})`,
     }[op.op]());
     ops.push(op);
   }
@@ -5767,7 +5827,7 @@ function debugSide(side, color, pub, you) {
   for (const name of Array.isArray(lands) ? lands : []) out.push({ op: "createCard", name, player: color, zone: "battlefield" });
   if (you && !side.keepHand) {
     const hand = (pub.zones || []).find((z) => z.zone === "hand" && z.ownerId === slot)?.cards || [];
-    for (const c of hand) if (c.id) out.push({ op: "move", card: c.id, zone: "library", position: "bottom", shown: `${color}'s dealt hand: to the bottom of the library` });
+    for (const c of hand) if (c.id) out.push({ op: "move", card: c.id, zone: "library", position: "bottom", shown: `${poss(nameOf(slot))} dealt hand: to the bottom of the library` });
   }
   for (const zone of DEBUG_ZONES) {
     for (const e of Array.isArray(side[zone]) ? side[zone] : []) {
@@ -5779,7 +5839,7 @@ function debugSide(side, color, pub, you) {
   for (const e of Array.isArray(side.tokens) ? side.tokens : []) {
     const text = typeof e === "string" ? e : e?.name;
     out.push({ op: "createCard", name: tokenScript(text) || text, player: color, zone: "battlefield", ...(e?.tapped ? { tapped: true } : {}),
-      shown: getsToken(color, text, e?.tapped) });
+      shown: getsToken(nameOf(slot), text, e?.tapped) });
   }
   if (Number.isInteger(side.life)) out.push({ op: "life", player: color, n: side.life });
   if (Number.isInteger(side.mana) && side.mana > 0) {

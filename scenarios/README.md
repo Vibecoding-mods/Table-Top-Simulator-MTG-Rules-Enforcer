@@ -5,7 +5,9 @@ triggers, state-based actions after, a restore point before). Names are lower ca
 `mtg debug list` lists them, `mtg debug off` drops one waiting for the next game.
 
 - Typed before a game: it waits for your first priority on your own turn with nothing on the stack (your opening hand
-  is kept by itself). Typed during one: at the next moment with nothing on the stack, whoever's turn it is. Against the AI it applies at once; other people vote.
+  is kept by itself). That first priority is usually your upkeep, so a sorcery-speed card waits until you pass to your
+  main phase. Typed during one: at the next moment with nothing on the stack, whoever's turn it is. Against the AI it
+  applies at once; other people vote.
 - Every card put on the battlefield is ready (no summoning sickness), untapped unless `"tapped": true`.
 
 ```json
