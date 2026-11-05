@@ -11498,7 +11498,7 @@
    {
     "step": "click: engineFixSet(\"Blue\", \"life white 31\") engineFixSet(\"Blue\", \"poison purple 2\") engineFixSet(\"Blue\", \"dance blue 2\")",
     "fx": [
-     "f5576 \"broadcastToColor\" \"Blue\" \"[MTG] White life will be 31 (press Done to list the changes).\"",
+     "f5576 \"broadcastToColor\" \"Blue\" \"[MTG] AI 1's life will be 31 (press Done to list the changes).\"",
      "f5576 \"broadcastToColor\" \"Blue\" \"[MTG] Use:  mtg fix poison <colour> <number>\"",
      "f5576 \"broadcastToColor\" \"Blue\" \"[MTG] Use:  mtg fix life <colour> <n>,  mtg fix poison <colour> <n>,  mtg fix counters <kind> <n>,  mtg fix token <what> [for <colour>],  mtg fix mana <n> [for <colour>]\""
     ]
@@ -11557,7 +11557,7 @@
     "step": "click: onMtgFix(Player.Blue, nil, \"eng_fixbyes_Blue\")",
     "fx": [
      "f5639 \"broadcastToColor\" \"Blue\" \"[MTG] Not in any zone: Arcane Signet. Put each on a battlefield, graveyard, exile, library, hand or command zone first.\"",
-     "f5640 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue told: Nothing was changed yet. Move some cards first (or press Cancel).\\\\\\\\n2026-10-20 12:00:00 Blue told: During a manual fix cards can be moved, turned and flipped only.\\\\\\\\n2026-10-20 12:00:00 Blue told: White life will be 31 (press Done to list the changes).\\\\\\\\n2026-10-20 12:00:00 Blue told: Use:  mtg fix poison <colour> <number>\\\\\\\\n2026-10-20 12:00:00 Blue told: Use:  mtg fix life <colour> <n>,  mtg fix poison <colour> <n>,  mtg fix counters <kind> <n>,  mtg fix token <what> [for <colour>],  mtg fix mana <n> [for <colour>]\\\\\\\\n2026-10-20 12:00:00 Blue told: Not in any zone: Arcane Signet. Put each on a battlefield, graveyard, exile, library, hand or command zone first.\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\"",
+     "f5640 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue told: Nothing was changed yet. Move some cards first (or press Cancel).\\\\\\\\n2026-10-20 12:00:00 Blue told: During a manual fix cards can be moved, turned and flipped only.\\\\\\\\n2026-10-20 12:00:00 Blue told: AI 1's life will be 31 (press Done to list the changes).\\\\\\\\n2026-10-20 12:00:00 Blue told: Use:  mtg fix poison <colour> <number>\\\\\\\\n2026-10-20 12:00:00 Blue told: Use:  mtg fix life <colour> <n>,  mtg fix poison <colour> <n>,  mtg fix counters <kind> <n>,  mtg fix token <what> [for <colour>],  mtg fix mana <n> [for <colour>]\\\\\\\\n2026-10-20 12:00:00 Blue told: Not in any zone: Arcane Signet. Put each on a battlefield, graveyard, exile, library, hand or command zone first.\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\"",
      "f5641 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatDeclareBlockers\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":10}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -11816,7 +11816,7 @@
    {
     "step": "click: engineFixSet(\"Blue\", \"token 1/1 green saproling for white tapped\") engineFixSet(\"Blue\", \"token treasure\") engineFixSet(\"Blue\", \"token zombie for purple\") engineFixSet(\"Blue\", \"token \")",
     "fx": [
-     "f5795 \"broadcastToColor\" \"Blue\" \"[MTG] New token for White: 1/1 green saproling, tapped (press Done to list the changes).\"",
+     "f5795 \"broadcastToColor\" \"Blue\" \"[MTG] New token for AI 1: 1/1 green saproling, tapped (press Done to list the changes).\"",
      "f5795 \"broadcastToColor\" \"Blue\" \"[MTG] New token for Blue: treasure (press Done to list the changes).\"",
      "f5795 \"broadcastToColor\" \"Blue\" \"[MTG] No player purple.\"",
      "f5795 \"broadcastToColor\" \"Blue\" \"[MTG] Use:  mtg fix life <colour> <n>,  mtg fix poison <colour> <n>,  mtg fix counters <kind> <n>,  mtg fix token <what> [for <colour>],  mtg fix mana <n> [for <colour>]\""
@@ -11827,7 +11827,7 @@
     "value": "1187 W W U U B B R R G G C C",
     "fx": [
      "f5801 \"broadcastToColor\" \"Blue\" \"[MTG] Blue gets 99 of each colour until the end of the turn (press Done to list the changes).\"",
-     "f5801 \"broadcastToColor\" \"Blue\" \"[MTG] White gets 2 of each colour until the end of the turn (press Done to list the changes).\"",
+     "f5801 \"broadcastToColor\" \"Blue\" \"[MTG] AI 1 gets 2 of each colour until the end of the turn (press Done to list the changes).\"",
      "f5801 \"broadcastToColor\" \"Blue\" \"[MTG] Use:  mtg fix mana <1-99> [for <colour>]  (that many of each colour)\""
     ]
    },
@@ -11948,7 +11948,7 @@
      "f5875 \"UI.setAttribute\" \"eng_autolist\" \"visibility\" \"Blue\"",
      "f5875 \"UI.setAttribute\" \"eng_autolist\" \"active\" \"true\"",
      "f5875 \"UI.setAttribute\" \"eng_autolist\" \"active\" \"false\"",
-     "f5880 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue told: New token for White: 1/1 green saproling, tapped (press Done to list the changes).\\\\\\\\n2026-10-20 12:00:00 Blue told: New token for Blue: treasure (press Done to list the changes).\\\\\\\\n2026-10-20 12:00:00 Blue told: No player purple.\\\\\\\\n2026-10-20 12:00:00 Blue told: Use:  mtg fix life <colour> <n>,  mtg fix poison <colour> <n>,  mtg fix counters <kind> <n>,  mtg fix token <what> [for <colour>],  mtg fix mana <n> [for <colour>]\\\\\\\\n2026-10-20 12:00:00 Blue told: Blue gets 99 of each colour until the end of the turn (press Done to list the changes).\\\\\\\\n2026-10-20 12:00:00 Blue told: White gets 2 of each colour until the end of the turn (press Done to list the changes).\\\\\\\\n2026-10-20 12:00:00 Blue told: Use:  mtg fix mana <1-99> [for <colour>]  (that many of each colour)\\\\\\\\n2026-10-20 12:00:00 Blue told: Cards can't go into another player's hand: it went back.\\\\\\\\n2026-10-20 12:00:00 Blue card slid back onto its mat: Sol Ring\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\""
+     "f5880 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue told: New token for AI 1: 1/1 green saproling, tapped (press Done to list the changes).\\\\\\\\n2026-10-20 12:00:00 Blue told: New token for Blue: treasure (press Done to list the changes).\\\\\\\\n2026-10-20 12:00:00 Blue told: No player purple.\\\\\\\\n2026-10-20 12:00:00 Blue told: Use:  mtg fix life <colour> <n>,  mtg fix poison <colour> <n>,  mtg fix counters <kind> <n>,  mtg fix token <what> [for <colour>],  mtg fix mana <n> [for <colour>]\\\\\\\\n2026-10-20 12:00:00 Blue told: Blue gets 99 of each colour until the end of the turn (press Done to list the changes).\\\\\\\\n2026-10-20 12:00:00 Blue told: AI 1 gets 2 of each colour until the end of the turn (press Done to list the changes).\\\\\\\\n2026-10-20 12:00:00 Blue told: Use:  mtg fix mana <1-99> [for <colour>]  (that many of each colour)\\\\\\\\n2026-10-20 12:00:00 Blue told: Cards can't go into another player's hand: it went back.\\\\\\\\n2026-10-20 12:00:00 Blue card slid back onto its mat: Sol Ring\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\""
     ]
    },
    {

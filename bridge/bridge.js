@@ -1035,7 +1035,8 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
     // its text as changed (Mind Bend, Exchange of Words, Deadpool, Volrath's Shapeshifter: Forge's current text, sent
     // only when changed) and its printed name when a text effect renamed it (hp-25 T0 T13)
     // (each line once: Forge's text repeats a replacement's line, "As Deadpool enters, ..." twice on the Shapeshifter)
-    ...(c.currentText ? { ct: [...new Set(displayText(c.currentText).replace(/\r\n/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean))].join("\n") } : {}),
+    // (an empty one is a text taken away: Llanowar Elves after Exchange of Words with Grizzly Bears, 2026-11-05)
+    ...(c.currentText != null ? { ct: [...new Set(displayText(c.currentText).replace(/\r\n/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean))].join("\n") || "(no text)" } : {}),
     ...(c.printedName ? { pn: c.printedName } : {}),
     ...(c.isForetold ? { fo: true } : {}),
     ...(c.isCopy ? { cp: true } : {}), // (a copy of another card: marked COPY on the table)
@@ -1156,7 +1157,7 @@ function hasKeyword(c, word) {
 function cardKeywords(c) {
   const granted = [], own = [];
   // (its text as changed when it was: Mind Bend's islandwalk is its own text, not a grant, hp-25)
-  const text = String(c.currentText ? withoutForgeNotes(c.currentText).replace(/\r\n/g, "\n") : c.text || "");
+  const text = String(c.currentText != null ? withoutForgeNotes(c.currentText).replace(/\r\n/g, "\n") : c.text || "");
   for (const k of c.keywords || []) {
     const [base, ...rest] = String(k).split(":");
     if (!/^[A-Z][A-Za-z ]*$/.test(base) || NOT_KEYWORD.test(base)) continue;
@@ -1234,7 +1235,7 @@ function logSnapshot(pub) {
         // (phasing is no zone change, so it stays "battlefield" here: Forge says which, the log no longer guesses)
         ...(c.phasedOut ? { po: true } : {}),
         // (its text as it reads now, for a text box swap: Exchange of Words was in no log, rebuilt hand test #11)
-        ...(z.zone === "battlefield" && !c.isFaceDown ? { tx: String(c.currentText || c.text || "").replace(/\r\n/g, "\n").trim() } : {}),
+        ...(z.zone === "battlefield" && !c.isFaceDown ? { tx: String(c.currentText ?? c.text ?? "").replace(/\r\n/g, "\n").trim() } : {}),
         // (it gives mana by sacrificing itself: a Treasure's sacrifice, see sacrificeWords)
         ...(/\bSacrifice [^:.]*: Add\b/.test(c.text || "") ? { selfMana: true } : {}) };
     }

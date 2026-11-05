@@ -428,6 +428,18 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("mtg mana: a pause long after the call adds nothing", late && !(late.fx || []).some((l) => l.includes("WebRequest") && l.includes("mana")), JSON.stringify((late && late.fx || []).slice(0, 2)));
   ok("mtg mana: someone else's pause doesn't take it", !/"op":"mana"/.test(sent(r, "editing White")), sent(r, "editing White").slice(0, 160));
 }
+// a manual fix names the other seat as the game log does ("AI 1 gets 5 of each colour", not "White"; bug h's leftover,
+// real table 2026-11-05)
+{
+  const rename = 'for _, p in ipairs(engineTable().players) do if p.color == "White" then p.name = "AI 1" end end';
+  const r = run([q(rename, "rename"), q('engineFixUpdate({ id = 1, state = "editing", by = "Blue", waiting = {} }) __sim.frames(10)', "editing"),
+    q('engineChat("mtg fix mana 5 for white", Player.Blue)', "mana for"), q('engineChat("mtg fix life white 30", Player.Blue)', "life for"),
+    q('engineChat("mtg fix token treasure for white", Player.Blue)', "token for")]);
+  const said = (m) => fxOf(r, m).filter((l) => !l.includes("WebRequest")).join(" | ");
+  ok("fix names: mana for a seat says its log name", /AI 1 gets 5 of each colour/.test(said("mana for")) && !/White gets/.test(said("mana for")), said("mana for").slice(0, 200));
+  ok("fix names: life for a seat says its log name", /AI 1's life will be 30/.test(said("life for")), said("life for").slice(0, 200));
+  ok("fix names: a token for a seat says its log name", /New token for AI 1/.test(said("token for")), said("token for").slice(0, 200));
+}
 // a card played by dragging it onto the mat lands in its row, not where it was dropped; a permanent the player moved
 // on their own mat stays there (2026-10-26: lands stayed in the middle of the battlefield)
 {

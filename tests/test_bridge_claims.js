@@ -51,6 +51,20 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("face-down: no name, picture or text reaches the table", !/SecretMorph|SecretForetold|Morph \{3\}/.test(out));
     ok("face-down: its public 2/2 still does", bf && bf.battlefield.some((c) => c.id === "engine-card-903" && c.fd && c.p === 2 && c.t === 2), JSON.stringify(bf && bf.battlefield.find((c) => c.id === "engine-card-903")));
   }
+  // "its text as changed": an emptied text box is a change (Exchange of Words, real table 2026-11-05)
+  {
+    const h = harness.load();
+    const b = clone(F.board);
+    b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push(
+      { id: "engine-card-905", identity: { name: "Llanowar Elves" }, types: ["Creature"], power: 1, toughness: 1, text: "{T}: Add {G}.", currentText: "" },
+      { id: "engine-card-906", identity: { name: "Grizzly Bears" }, types: ["Creature"], power: 2, toughness: 2, text: "" });
+    setup(h, b);
+    h.B.sendTable(); await h.flush();
+    const bf = (sent(h, "table")[0] || { players: [] }).players.find((p) => p.slot === "player-0");
+    const at = (id) => bf && bf.battlefield.find((c) => c.id === id);
+    ok("changed text: an emptied text box shows as (no text)", at("engine-card-905")?.ct === "(no text)", JSON.stringify(at("engine-card-905")));
+    ok("changed text: a card never changed has no box", !!at("engine-card-906") && at("engine-card-906").ct === undefined, JSON.stringify(at("engine-card-906")));
+  }
   // "Hidden cards are never named" in the game log (logSnapshot / logEvents)
   {
     const h = harness.load();

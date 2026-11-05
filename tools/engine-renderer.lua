@@ -4610,6 +4610,13 @@ Wait.frames(function() engineTableButtons(false) engineHideForEngine(ENGINE_MODE
 
 -- For the debug channel: the last board the bridge sent (lastTable is private to this file).
 function engineTable() return lastTable end
+-- A seat named as the game log names it ("AI 1", not "Red"; bug h's leftover, real table 2026-11-05)
+function engineSeatName(color)
+  for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+    if pl.color == color then return pl.name or color end
+  end
+  return color
+end
 -- For the table's hand counters (make-engine-copy "Hand counter"): the engine's count while a game runs, nil otherwise
 -- (they counted the hand's objects and caught cards being re-laid out, hp-07 2026-10-27)
 function engineHandCount(p)
@@ -5313,7 +5320,7 @@ do
       if name == "" then tell(color, "Use:  mtg fix token treasure  (or  mtg fix token 1/1 green saproling for red tapped)") return end
       F.tokens = (F.tokens or 0) + 1
       engineFixExtra[string.format("token:%03d", F.tokens)] = { op = "createToken", script = name, player = who, tapped = tapped }
-      tell(color, "New token for " .. who .. ": " .. name .. (tapped and ", tapped" or "") .. " (press Done to list the changes).")
+      tell(color, "New token for " .. engineSeatName(who) .. ": " .. name .. (tapped and ", tapped" or "") .. " (press Done to list the changes).")
       return
     end
     -- mtg fix mana <n> [for <colour>]: n of each colour (W U B R G and colourless) that stays in the pool through the
@@ -5330,7 +5337,7 @@ do
       local syms = {}
       for _, m in ipairs({ "W", "U", "B", "R", "G", "C" }) do for _ = 1, k do syms[#syms + 1] = m end end
       engineFixExtra["mana:" .. who] = { op = "mana", player = who, mana = table.concat(syms, " ") }
-      tell(color, who .. " gets " .. k .. " of each colour until the end of the turn (press Done to list the changes).")
+      tell(color, engineSeatName(who) .. " gets " .. k .. " of each colour until the end of the turn (press Done to list the changes).")
       return
     end
     local what, a, n = rest:match("^(%a+)%s+(%S+)%s+(%d+)$")
@@ -5340,7 +5347,7 @@ do
       for c in pairs(engineColors) do if c:lower() == tostring(a):lower() then who = c end end
       if who == nil or n == nil then tell(color, "Use:  mtg fix " .. what .. " <colour> <number>") return end
       engineFixExtra[what .. ":" .. who] = { op = what, player = who, n = n }
-      tell(color, who .. " " .. what .. " will be " .. n .. " (press Done to list the changes).")
+      tell(color, engineSeatName(who) .. "'s " .. what .. " will be " .. n .. " (press Done to list the changes).")
     elseif what == "counters" then
       local o = Player[color] ~= nil and Player[color].getHoverObject() or nil
       local id = F.cardId(o)
