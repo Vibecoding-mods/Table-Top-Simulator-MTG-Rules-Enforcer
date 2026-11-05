@@ -1,0 +1,21 @@
+{
+  "label": "hp-21: Kilnmouth Dragon amplifies with Scourge of the Throne, Unbreakable Formation in the main phase, Munda's Vanguard cohort, Bathe in Light, Benthic Infiltrator ingests",
+  "mana": 4,
+  "lands": {
+    "Mountain": 6,
+    "Plains": 6,
+    "Island": 4,
+    "Forest": 4
+  },
+  "hand": [
+    "Kilnmouth Dragon",
+    "Scourge of the Throne",
+    "Unbreakable Formation",
+    "Bathe in Light"
+  ],
+  "battlefield": [
+    "Munda's Vanguard",
+    "Changeling Outcast",
+    "Benthic Infiltrator"
+  ]
+}

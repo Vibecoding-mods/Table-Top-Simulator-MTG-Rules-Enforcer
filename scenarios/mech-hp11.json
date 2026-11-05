@@ -1,0 +1,27 @@
+{
+  "label": "hp-11: Joraga Treespeaker levels up twice, Champions of the Perfect beholds Morcant, Dawn's Truce with the gift, Cut then Ribbons, Impulsive Pilferer's encore",
+  "mana": 6,
+  "lands": {
+    "Forest": 5,
+    "Mountain": 6,
+    "Swamp": 5,
+    "Plains": 4
+  },
+  "hand": [
+    "Dawn's Truce",
+    "Champions of the Perfect",
+    "High Perfect Morcant",
+    "Cut // Ribbons"
+  ],
+  "battlefield": [
+    "Joraga Treespeaker"
+  ],
+  "graveyard": [
+    "Impulsive Pilferer"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Tolarian Scholar"
+    ]
+  }
+}

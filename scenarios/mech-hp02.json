@@ -1,0 +1,20 @@
+{
+  "label": "hp-02: Stomp then the Giant from exile, Sakura-Tribe Elder search, Raise Dead, Cultivate, Brainstorm, Think Twice flashback",
+  "mana": 5,
+  "lands": {
+    "Forest": 6,
+    "Mountain": 5,
+    "Island": 5,
+    "Swamp": 4
+  },
+  "hand": [
+    "Bonecrusher Giant",
+    "Raise Dead",
+    "Cultivate",
+    "Brainstorm",
+    "Think Twice"
+  ],
+  "battlefield": [
+    "Sakura-Tribe Elder"
+  ]
+}

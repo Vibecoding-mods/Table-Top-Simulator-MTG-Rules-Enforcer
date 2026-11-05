@@ -1,0 +1,22 @@
+{
+  "label": "hp-13: Beseech the Mirror bargains The Reality Chip, casts Frontline Medic free (Gyre Sage evolves), Mycoloth devours, Ragavan dashed and attacks",
+  "mana": 4,
+  "lands": {
+    "Swamp": 6,
+    "Forest": 6,
+    "Mountain": 4,
+    "Island": 4
+  },
+  "hand": [
+    "Beseech the Mirror",
+    "Mycoloth",
+    "Ragavan, Nimble Pilferer"
+  ],
+  "battlefield": [
+    "The Reality Chip",
+    "Gyre Sage"
+  ],
+  "library": [
+    "Frontline Medic"
+  ]
+}

@@ -1,6 +1,6 @@
 # M7 spec: manual fix mode (hand-edit the board, the engine takes it back)
 
-Status: built 2026-10-23 (engine handler, bridge, table; see "As built" at the end), waiting on the node image and a
+Status: §1-11 built 2026-10-23; §12 (fix from hand) spec only, 2026-11-05. Board edit built 2026-10-23 (engine handler, bridge, table; see "As built" at the end), waiting on the node image and a
 live test. Spec written 2026-10-20. Extends SPEC.md §10c Tier B. Rewind by vote (Tier A, M4.5) is built; this is for what a
 rewind can't fix: the engine got a rule wrong, or the mistake is older than the ~3 turns of restore points Forge keeps.
 
@@ -208,3 +208,103 @@ Differences from the plan above:
   then state-based actions run once; a restore point from before the fix is added when restore points are on.
 
 - **From the table** (added later the same day): attach by dropping onto the permanent, right-click for the library's top or bottom, the table's life and commander-damage counters (unlocked while editing, read at Done), `mtg fix token`. The relay is our build too: the stock one drops `applyState` as an unauthorized envelope.
+
+## 12. Fix from hand: engine-UI options instead of moving cards (spec 2026-11-05, not built)
+
+Asked for by the user 2026-11-05. Example: a phase-out that should have happened and didn't. Today the only fix is to
+drag cards around. Instead, the fix panel in the engine UI offers **actions on the cards in your hand**, and nobody
+moves a card by hand.
+
+### 12.1 What the player sees
+
+The call is unchanged: "Manual fix…" (or `mtg fix`), then the vote. Once the vote passes, the fix panel asks which kind
+of fix:
+- **Fix from hand** (new): table cards stay locked, as in normal play.
+- **Edit the board**: today's mode (§11).
+
+In **Fix from hand**, each player's panel lists **their own hand** (others' hands stay hidden). Every card has buttons:
+
+| Button | What it does | Shown when |
+|---|---|---|
+| **Cast free** | Casts the card as if its mana were paid and its conditions met: no mana, no timing check (sorcery speed, "only during combat"), no "cast only if" check. Targets, modes and X are still asked for as usual. It goes on the stack and resolves normally, triggers included. | the card has a spell |
+| **Activate free** | The same for an ability that works from the hand: cycling, channel, ninjutsu, forecast, a hand-zone ability. A list if there is more than one. | the card has a hand ability |
+| **Play land** | Puts the land onto the battlefield as a land play, without counting against the land drop. | a land card |
+| **To graveyard** | Puts the card into its owner's graveyard with no effect and no triggers. This stands for an interaction the engine got wrong, for example a counterspell or instant whose effect is fixed some other way, or a card that should already have been discarded. | always |
+
+The panel also has an optional **note** box: "what should have happened" (one line, up to 200 characters). Chat
+works too: `mtg fix note <text>`.
+
+**Example:** Teferi's Protection should have phased White's permanents out, but the engine didn't. White presses
+**Cast free** on the copy in hand, so the spell is cast and resolves now. The note reads "Teferi's Protection should
+have resolved before Blasphemous Act".
+
+### 12.2 Review and vote
+
+- Each pick is added to the change list as a line:
+  - "White casts Teferi's Protection for free"
+  - "Blue activates Fabled Passage's … for free"
+  - "Red puts Counterspell into their graveyard (no effect)"
+  - plus "Note (White): …".
+- **Done** shows the list to everyone, and the same vote rule applies (§5 step 5).
+- A pick can be removed before Done. The order of the list is the order things happen, and the player can move a
+  line up or down.
+- Nothing happens before the vote passes. Picking a card only records it, so a declined vote changes nothing.
+
+### 12.3 Apply
+
+The bridge sends the list as `applyState` with new ops, in list order:
+
+```json
+{ "op": "freeCast", "card": "engine-card-88", "player": "player-0" }
+{ "op": "freeActivate", "card": "engine-card-91", "ability": 2, "player": "player-1" }
+{ "op": "freeLand", "card": "engine-card-12", "player": "player-0" }
+{ "op": "move", "card": "engine-card-40", "zone": "graveyard" }
+```
+
+`move` to the graveyard is today's op: triggers are off while ops apply. The **note** isn't an op. It goes to the game
+log, the bridge log and the debug log (`mtg debug` bug reports pick it up), stamped with the fix id and the seat.
+
+**Engine side** (harness, `ManaBrewInteractiveSession.applyState`):
+- First, the plain ops apply with triggers off, then state-based actions run (as today).
+- After that, the free plays happen one at a time, with triggers **on**, because they stand in for real plays:
+  - **`freeCast` / `freeActivate`:** follow Forge's own dev-mode "cast a spell" (`PlayerControllerHuman` dev cheats,
+    `addCardToZone`):
+    1. `sa.setActivatingPlayer(p)`;
+    2. `sa.setCastFromPlayEffect(true)`;
+    3. `PlaySpellAbility.playSaWithoutPayingManaCost(controller, sa, true)`;
+    4. `game.getStack().addAllTriggeredAbilitiesToStack()`.
+
+    The player's own controller asks for the targets, modes and X, so the usual prompts reach the table.
+  - **`freeLand`:** `game.getAction().moveToPlay(card, …)` then `getTriggerHandler().runWaitingTriggers()`, as dev mode
+    does for lands. It doesn't touch the land-drop count.
+- The stack then resolves through the normal priority loop: everyone gets priority and can respond.
+- Refusal: if a card isn't in that player's hand any more, or has no spell or ability of that kind, the whole list is
+  undone and refused, as today. A target question cancelled during a free play only drops that play, and the log
+  says so.
+
+### 12.4 Limits and rules
+
+- Only cards in the **caller's own hand**, picked by their owner. Nobody plays another player's card. Commanders in
+  the command zone aren't in the list; that is "Edit the board" territory.
+- "Free" means mana and timing only. Additional costs that aren't mana (sacrifice, discard, pay life) are still asked
+  for, because they change the board. The vote is what decides whether that was fair.
+- Commander tax doesn't count up for a free cast, because `castFromPlayEffect` casts aren't "from the command zone".
+- Rewind (M4.5) can undo the whole fix: the restore point from before the fix still comes first.
+
+### 12.5 Tests to add when built
+
+- **Golden (bridge):**
+  - the kind question;
+  - the hand list shows only your own hand;
+  - picks are recorded but nothing is sent before the vote;
+  - list order is kept;
+  - the note goes to the log and not into the ops;
+  - a declined vote changes nothing.
+- **Headless (`rules-check --game fix`):**
+  - `freeCast` of a sorcery on an opponent's turn resolves;
+  - a target question reaches the caster;
+  - a resolving free spell's trigger fires (prowess as the witness);
+  - `freeLand` leaves the land drop unused;
+  - `move` to the graveyard fires no "dies"/"put into a graveyard" trigger;
+  - a missing card refuses the whole list.
+- **Live:** the Teferi's Protection example above with 2 people.

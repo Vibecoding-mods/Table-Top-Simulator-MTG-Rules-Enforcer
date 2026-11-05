@@ -458,6 +458,7 @@ Players drag and use the table normally; every move is a request the engine acce
 - [x] TTS: Fix... button, fix panel per state, cards unlocked while editing, board held, Done reads the touched cards; chat: mtg fix / yes / no / done / cancel / life / poison / counters
 - [x] From the table (2026-10-23): drop an aura/equipment onto its permanent (attach; put down alone = off), right-click "top / bottom of its library", the life and commander-damage counters work while editing and are read at Done, `mtg fix token <what> [for <colour>] [tapped]` (Forge's token scripts, `bridge/token-scripts.json`)
 - [ ] Snap points (not needed so far: `dropArea` reads the zones)
+- [ ] Fix from hand (spec 2026-11-05, m7-manual-fix-spec §12): the fix panel offers your hand's cards: Cast free / Activate free / Play land / To graveyard, plus a "what should have happened" note; no card moved by hand; new ops `freeCast` / `freeActivate` / `freeLand` (Forge's dev-mode free cast)
 - [ ] Live test with 2 people
 
 ---

@@ -1,0 +1,28 @@
+{
+  "label": "hp-09: Ephemerate on Eidolon (rebound), Asceticism (constellation draws), Gemrazer mutates paid by Arena of Glory's exert, Uro escapes",
+  "mana": 5,
+  "lands": {
+    "Forest": 7,
+    "Island": 6,
+    "Plains": 4,
+    "Mountain": 3
+  },
+  "hand": [
+    "Ephemerate",
+    "Asceticism",
+    "Gemrazer"
+  ],
+  "battlefield": [
+    "Eidolon of Blossoms",
+    "Argothian Enchantress",
+    "Arena of Glory"
+  ],
+  "graveyard": [
+    "Uro, Titan of Nature's Wrath",
+    "City of Brass",
+    "Exotic Orchard",
+    "Command Tower",
+    "Mana Confluence",
+    "Forest"
+  ]
+}

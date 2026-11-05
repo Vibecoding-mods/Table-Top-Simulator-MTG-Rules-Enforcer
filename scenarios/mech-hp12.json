@@ -1,0 +1,23 @@
+{
+  "label": "hp-12: Power Depot played, Deadeye Navigator pairs (Anafenza bolsters), Incubation Druid adapts, Tithing Blade crafts, Lunarch Veteran disturbed",
+  "mana": 5,
+  "lands": {
+    "Forest": 5,
+    "Island": 5,
+    "Plains": 5,
+    "Swamp": 5
+  },
+  "hand": [
+    "Power Depot",
+    "Deadeye Navigator"
+  ],
+  "battlefield": [
+    "Tithing Blade",
+    "Anafenza, Kin-Tree Spirit",
+    "Incubation Druid",
+    "Benalish Hero"
+  ],
+  "graveyard": [
+    "Lunarch Veteran"
+  ]
+}

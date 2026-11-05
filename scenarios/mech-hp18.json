@@ -1,0 +1,25 @@
+{
+  "label": "hp-18: Llanowar Reborn played (graft), Spider-Punk riot, Oliphaunt mountaincycled, Abzan Falconer outlasts, Varchild's War-Riders attack and get bloodrushed",
+  "mana": 5,
+  "lands": {
+    "Forest": 6,
+    "Mountain": 6,
+    "Plains": 5,
+    "Swamp": 3
+  },
+  "hand": [
+    "Llanowar Reborn",
+    "Spider-Punk",
+    "Oliphaunt",
+    "Wasteland Viper"
+  ],
+  "battlefield": [
+    "Abzan Falconer",
+    "Varchild's War-Riders"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Woolly Thoctar"
+    ]
+  }
+}

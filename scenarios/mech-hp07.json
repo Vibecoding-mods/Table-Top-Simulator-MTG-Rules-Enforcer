@@ -1,0 +1,28 @@
+{
+  "label": "hp-07: Skrelv grants toxic (Pay 2 life), Nantuko bestowed on Hero of Iroas (heroic), Riverchurn mill into Dauthi exile, Shriekmaw evoked, Mana Confluence, Bayek face down, toxic attack",
+  "mana": 5,
+  "lands": {
+    "Plains": 5,
+    "Forest": 4,
+    "Island": 4,
+    "Swamp": 4,
+    "Mountain": 3
+  },
+  "hand": [
+    "Springheart Nantuko",
+    "Shriekmaw",
+    "Bayek of Siwa"
+  ],
+  "battlefield": [
+    "Skrelv, Defector Mite",
+    "Hero of Iroas",
+    "Dauthi Voidwalker",
+    "Riverchurn Monument",
+    "Mana Confluence"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Llanowar Elves"
+    ]
+  }
+}

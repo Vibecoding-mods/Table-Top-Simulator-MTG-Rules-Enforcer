@@ -1,0 +1,33 @@
+{
+  "label": "hp-01: Greaves on Hermit Druid, Druid reveal (put, not drawn), Sorcerer ping, Signet colours, Verdant pay-life, Swords, Counterspell on the AI's Rats",
+  "mana": 5,
+  "lands": {
+    "Island": 6,
+    "Plains": 4,
+    "Forest": 4,
+    "Mountain": 3,
+    "Swamp": 3
+  },
+  "hand": [
+    "Verdant Catacombs",
+    "Swords to Plowshares",
+    "Counterspell"
+  ],
+  "battlefield": [
+    "Hermit Druid",
+    "Lightning Greaves",
+    "Prodigal Sorcerer",
+    "Arcane Signet"
+  ],
+  "library": [
+    "Mountain"
+  ],
+  "opponents": {
+    "hand": [
+      "Relentless Rats"
+    ],
+    "lands": {
+      "Swamp": 4
+    }
+  }
+}

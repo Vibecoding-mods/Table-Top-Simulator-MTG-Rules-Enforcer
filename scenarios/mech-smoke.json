@@ -1,0 +1,13 @@
+{
+  "label": "runner smoke: cast Llanowar Elves, attack with a Grizzly Bears",
+  "mana": 5,
+  "lands": {
+    "Forest": 10
+  },
+  "hand": [
+    "Llanowar Elves"
+  ],
+  "battlefield": [
+    "Grizzly Bears"
+  ]
+}

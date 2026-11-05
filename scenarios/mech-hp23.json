@@ -1,0 +1,25 @@
+{
+  "label": "hp-23: Minds Aglow join forces, Overlord impending, Barrel Down Sokenzan sweep, Surging Dementia ripples into its namesake, Incarnation Technique demonstrated",
+  "mana": 6,
+  "lands": {
+    "Mountain": 8,
+    "Island": 4,
+    "Forest": 4,
+    "Swamp": 4
+  },
+  "hand": [
+    "Minds Aglow",
+    "Overlord of the Hauntwoods",
+    "Barrel Down Sokenzan",
+    "Surging Dementia",
+    "Incarnation Technique"
+  ],
+  "library": [
+    "Surging Dementia"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Viscera Seer"
+    ]
+  }
+}

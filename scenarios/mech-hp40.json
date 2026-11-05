@@ -1,0 +1,27 @@
+{
+  "label": "hp-40: Bonesplitter equipped, Fire // Ice (Swiftspear prowess), Kolaghan's Command two modes, Grapeshot storm, Banishing Light on an AI land, Copter crewed, attack",
+  "mana": 5,
+  "lands": {
+    "Mountain": 8,
+    "Island": 4,
+    "Plains": 4,
+    "Swamp": 4
+  },
+  "hand": [
+    "Fire // Ice",
+    "Kolaghan's Command",
+    "Grapeshot",
+    "Banishing Light"
+  ],
+  "battlefield": [
+    "Monastery Swiftspear",
+    "Bonesplitter",
+    "Smuggler's Copter",
+    "Viscera Seer"
+  ],
+  "opponents": {
+    "lands": {
+      "Forest": 3
+    }
+  }
+}

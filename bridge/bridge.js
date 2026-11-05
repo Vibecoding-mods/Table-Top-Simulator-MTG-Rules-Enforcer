@@ -1234,6 +1234,8 @@ function logSnapshot(pub) {
         ...(hasKeyword(c, "Suspend") ? { suspend: true } : {}),
         // (phasing is no zone change, so it stays "battlefield" here: Forge says which, the log no longer guesses)
         ...(c.phasedOut ? { po: true } : {}),
+        // (a dungeon's room, Forge's "[Room: Cave Entrance]" note: venturing read only its effect, "+1 life", mechanic run hp-08)
+        ...((r) => (z.zone === "command" && r ? { room: r[1] } : {}))(/\[Room: ([^\]]+)\]/.exec(String(c.currentText ?? c.text ?? ""))),
         // (its text as it reads now, for a text box swap: Exchange of Words was in no log, rebuilt hand test #11)
         ...(z.zone === "battlefield" && !c.isFaceDown ? { tx: String(c.currentText ?? c.text ?? "").replace(/\r\n/g, "\n").trim() } : {}),
         // (it gives mana by sacrificing itself: a Treasure's sacrifice, see sacrificeWords)
@@ -1285,7 +1287,9 @@ function logSnapshot(pub) {
     // not an article: "Champion a Merfolk (When ...)" read "champion a triggers", hp-19 gap)
     // (and Forge's "<Keyword> N - <card>" form, no reminder: Surging Dementia's "Ripple 4 - Surging Dementia" read "White
     // uses Surging Dementia's ability", hp-23 gap)
-    const kwTrigger = chapter && ability ? `chapter ${chapter}` : ability && !when ? abilityWord || (s.sourceAbilityText || "").match(/^([A-Z][a-z]+(?: (?!an?\b|the\b)[a-z]+)?)\b[^(]*\((?:When|Whenever|At)\b/)?.[1]?.toLowerCase()
+    // ("For Mirrodin!" whole, as printed: it read "Hexplate Wallbreaker's for triggers", mechanic run hp-16)
+    const kwTrigger = chapter && ability ? `chapter ${chapter}` : ability && !when ? abilityWord || (s.sourceAbilityText || "").match(/^(For Mirrodin!)\s*\((?:When|Whenever|At)\b/)?.[1]
+      || (s.sourceAbilityText || "").match(/^([A-Z][a-z]+(?: (?!an?\b|the\b)[a-z]+)?)\b[^(]*\((?:When|Whenever|At)\b/)?.[1]?.toLowerCase()
       || (s.sourceAbilityText || "").match(/^([A-Z][a-z]+)(?: \d+)? - [A-Z]/)?.[1]?.toLowerCase()
       // (and a keyword with its reminder straight after it, no cost, so no activation: Paradigm's, and evoke's sacrifice,
       // whose reminder has no "When"; Wispmare's read "Yellow uses Wispmare's ability", keyword sweep)
@@ -1301,8 +1305,12 @@ function logSnapshot(pub) {
     const own = (s.sourceAbilityText || "").replace(/\.$/, "");
     const via = ability && !trigger && own ? (pub.zones || []).filter((z) => z.zone === "exile").flatMap((z) => z.cards || [])
       .find((c) => c.exiledWith === s.sourceId && c.identity?.name && (c.text || "").includes(own))?.identity.name : null;
+    // (a dungeon room's ability, "Yawning Portal — You gain 1 life. (Leads to: Dungeon Level)": the room ventured into.
+    // Forge writes no room note on the dungeon card itself; venturing read only "+1 life", mechanic run hp-08 re-test)
+    const room = ability && (/\(Leads to: /.test(s.sourceAbilityText || "") || (pub.zones || []).some((z) => z.zone === "command" && (z.cards || []).some((c) => c.id === s.sourceId && (c.types || []).includes("Dungeon"))))
+      ? (s.sourceAbilityText || "").match(/^([^—(]+?) — /)?.[1] || null : null;
     stack[key] ??= { id: s.sourceId, name, ctl: s.controllerId, ability, trigger, kwTrigger, upkeepCost, n: 0, sids: [], tg: [], ...(regen ? { regen } : {}), ...(effect ? { effect } : {}),
-      ...(s.optionalCosts?.length ? { opt: s.optionalCosts } : {}), ...(via ? { via } : {}),
+      ...(s.optionalCosts?.length ? { opt: s.optionalCosts } : {}), ...(via ? { via } : {}), ...(room ? { room } : {}),
       // (its words and the cards it targets: a goad's creatures, see logEvents)
       text: s.sourceAbilityText || "", cardTg: cardTargets, plTg: (s.targets || []).filter((t) => t.kind === "player").map((t) => t.id) };
     stack[key].n++;
@@ -1535,8 +1543,29 @@ const EXILE_GROUPED = new Set(["graveyard", "battlefield", "library"]);
 const HAND_WORDS = {
   draw: (w, n) => `${w} draws ${countWords(n, n, "card")}`,
   put: (w, n, k) => `${w} puts ${countWords(n, n, "card")} from their library into their hand${k.explore != null ? ` (${k.explore} explores)` : ""}`,
+  putNamed: (w, names) => `${w} puts ${names.join(", ")} into their hand`,
   discard: (w, names) => `${w} discards ${names.join(", ")}`,
 };
+// What a text-changing spell changed, ": old → new": Forge's own "Elf (was Goblin)" note when it writes one, else the
+// words gone and the words new (a few each; more, and only that it changed is said). Word by word read "Goblins →
+// strike" for Artificial Evolution and "This → protection" for Sleight of Mind, mechanic run hp-25 re-test 2026-11-05.
+// (Forge's own text: "<strike>Goblin</strike> Elf", the note as the table shows it; reminder text left out, as Forge
+// leaves it out of a changed text, "First strike, protection from red" for White Knight, mechanic run hp-25 re-test 2)
+function textChangeWords(was, now) {
+  [was, now] = [was, now].map((t) => withoutForgeNotes(String(t || "")));
+  const noted = /\b([\w'-]+) \(was ([\w'-]+)\)/.exec(now);
+  if (noted) return `: ${noted[2]} → ${noted[1]}`;
+  [was, now] = [was, now].map((t) => t.replace(/\s*\([^)]*\)/g, ""));
+  // (words of three letters or more: "a Swamp" becoming "an Island" is no change of "a"; and the shortest of a family,
+  // "Swampwalk" and "Swamp" read "Swamp")
+  const words = (t) => [...new Set(t.toLowerCase().split(/[^\w'-]+/).filter((w) => w.length > 2))];
+  const a = words(was), b = words(now);
+  const roots = (ws) => ws.filter((w) => !ws.some((o) => o !== w && w.startsWith(o)));
+  const gone = roots(a.filter((w) => !b.includes(w))), added = roots(b.filter((w) => !a.includes(w)));
+  if (!gone.length || !added.length || gone.length > 3 || added.length > 3) return "";
+  const asIn = (t, w) => t.split(/[^\w'-]+/).find((x) => x.toLowerCase() === w);
+  return `: ${gone.map((w) => asIn(was, w)).join(", ")} → ${added.map((w) => asIn(now, w)).join(", ")}`;
+}
 // How a card left the battlefield, a graveyard or exile for a zone that isn't exile (departureKind in logEvents, and
 // its battlefield-to-graveyard line, decide the kind), each kind's line: w is its owner. "tokens" takes every token
 // gone at once in one line (Avatar's Wrath's eight read one "leaves the battlefield" each, hp-18 gap).
@@ -1662,6 +1691,7 @@ function logEvents(prev, cur, pub, facts = null) {
         || Object.values(prev.stack).some((x) => x.effect && x.name === s.name));
       if (!ability) { spellsSeen.add(`${s.ctl}|${s.name}`); namesSeen.add(s.name); }
       (!mine && ability && (s.trigger || s.kwTrigger || s.upkeepCost) ? triggered : !mine && ability && entered ? afterEntries : out).push(s.upkeepCost ? `${poss(s.name)} ${s.upkeepCost}, or it is sacrificed`
+        : ability && s.room ? `${who(s.ctl)} ventures into ${s.room} (${s.name})`
         : ability ? keywordLine(mine ? mine.kind : !s.trigger && !s.kwTrigger ? keywordKind(s.text) : null, s.ctl, s.name) || (!mine && s.kwTrigger ? `${poss(s.name)} ${s.kwTrigger} triggers (${who(s.ctl)})` : !mine && s.trigger ? `${poss(s.name)} ability triggers (${who(s.ctl)})` : `${who(s.ctl)} uses ${poss(s.name)} ability${s.via ? ` (${poss(s.via)})` : ""}`)
         : k >= 1 || copyOf ? `${who(s.ctl)} copies ${s.name}` : `${who(s.ctl)} casts ${mine ? mine.name : s.name}${optionalWords(s.opt, mine?.name)}`);
     }
@@ -1802,7 +1832,9 @@ function logEvents(prev, cur, pub, facts = null) {
   for (const [id, name] of facts?.causes || []) {
     const src = cur.cards[id] || prev.cards[id];
     if (src?.zone !== "battlefield" || stackSeen.some((x) => x.id === id) || pending.some((e) => e.id === id)) continue;
-    out.push(`${poss(tokenWords(name || src.name, src.token))} ability resolves (${who(src.ctl)})`);
+    // (one that triggers on something entering goes after the entries, as the draw does: Eidolon of Blossoms' read before
+    // "Asceticism enters the battlefield", mechanic run hp-09 2026-11-05; Argothian Enchantress' cast trigger stays first)
+    (drawAfter && /\benters\b/i.test(pubIndex[id]?.text || "") ? afterEntries : out).push(`${poss(tokenWords(name || src.name, src.token))} ability resolves (${who(src.ctl)})`);
   }
   // (something that cloaks just resolved: an ability gone from the stack, or a spell that reached a graveyard)
   const cloaking = [...Object.values(prev.stack).filter((s) => !s.sids.some((x) => curSids.has(x))).map((s) => s.text || ""),
@@ -1833,7 +1865,17 @@ function logEvents(prev, cur, pub, facts = null) {
   const drawAt = {};
   const sayDrawn = (owner, n, searched) => {
     if (!drawAfter && !searched) drawAt[owner] ??= out.length;
-    (drawAfter ? afterEntries : out).push(searched
+    // (the cards its owner just revealed from that library, as many as went: by name; Dark Confidant's and Yuriko's
+    // revealed card read "puts a card from their library into their hand", mechanic run hp-24/hp-26 2026-11-05)
+    const rv = searched && !(owner in (facts?.explored || {})) && game?.lastReveal;
+    const named = rv && !rv.used && rv.slot === owner && rv.zone === "library" && rv.names?.length === n && Date.now() - rv.at < 30000;
+    if (named) rv.used = true;
+    // (and its reveal, still held, said first: Dark Confidant's read "puts Mountain into their hand" above "reveals
+    // Mountain", mechanic run hp-26 re-test 2026-11-05)
+    const heldAt = named ? (game.heldLines || []).indexOf(displayText(rv.line)) : -1;
+    if (heldAt >= 0) (drawAfter ? afterEntries : out).push(game.heldLines.splice(heldAt, 1)[0]);
+    (drawAfter ? afterEntries : out).push(named ? HAND_WORDS.putNamed(who(owner), rv.names)
+      : searched
       ? HAND_WORDS.put(who(owner), n, { explore: owner in (facts?.explored || {}) ? facts.explored[owner] || "a creature" : null })
       : HAND_WORDS.draw(who(owner), n));
   };
@@ -2101,7 +2143,8 @@ function logEvents(prev, cur, pub, facts = null) {
       const k = exileKind(id, c, from, was, moved);
       // (exiled with a permanent, its counters and whether it comes back: Mairsil's cage read "Ancient Copper Dragon is
       // exiled", rebuilt hand test #1)
-      const host = c.ew && cur.cards[c.ew];
+      // (not itself: Tithing Blade exiled to pay its own craft read "Tithing Blade is exiled with Tithing Blade", mechanic run hp-12)
+      const host = c.ew && c.ew !== id && cur.cards[c.ew];
       if (host && ["graveyard", "battlefield", "library", "plain"].includes(k.kind)) {
         const ctrs = (c.ctrs || []).map(([t, n]) => countWords(n, n, counterWords(t.toUpperCase()) || `${t.toLowerCase()} counter`)).join(" and ");
         k.label = `${k.label || ""} with ${host.name}${ctrs ? ` (${ctrs})` : ""}${c.rl ? `, until ${host.name} leaves the battlefield` : ""}`;
@@ -2125,6 +2168,15 @@ function logEvents(prev, cur, pub, facts = null) {
     const [[a, ca], [b, cb]] = retexted;
     const swapper = Object.values(prev.stack).find((s) => /\bexchange\b[^.]*\btext box/i.test(s.text || "") && !s.sids.some((x) => curSids.has(x)));
     if (swapper || (ca.tx === prev.cards[b].tx && cb.tx === prev.cards[a].tx)) out.push(`${ca.name} and ${cb.name} exchange text boxes${swapper ? ` (${swapper.name})` : ""}`);
+  }
+  // (a word in a permanent's text changed by the spell that targeted it, just resolved: the first word that differs, as
+  // it was and as it is; Mind Bend, Artificial Evolution and Sleight of Mind were in no log, mechanic run hp-25 2026-11-05)
+  for (const s of Object.values(prev.stack)) {
+    if (!/\bchange the text of\b/i.test(s.text || "") || s.sids.some((x) => curSids.has(x))) continue;
+    for (const [id, c] of retexted) {
+      if (!s.cardTg.includes(id)) continue;
+      out.push(`${c.name}'s text changes${textChangeWords(prev.cards[id].tx, c.tx)} (${s.name})`);
+    }
   }
   out.push(...afterEntries);
   // (a token ceases to exist wherever it goes: two Angel tokens killed by Apex Altisaur's fights left the log silent,
@@ -2174,6 +2226,10 @@ function logEvents(prev, cur, pub, facts = null) {
   // hp-17 gap; "undefined" in a board from before this was recorded is no change)
   if (prev.monarch !== undefined && cur.monarch && cur.monarch !== prev.monarch) out.push(`${who(cur.monarch)} becomes the monarch`);
   if (prev.initiative !== undefined && cur.initiative && cur.initiative !== prev.initiative) out.push(`${who(cur.initiative)} takes the initiative`);
+  for (const [id, c] of Object.entries(cur.cards)) if (c.room && prev.cards[id]?.room !== c.room) {
+    const line = `${who(c.owner)} ventures into ${c.room} (${c.name})`;
+    if (!out.includes(line) && !triggered.includes(line)) out.push(line);
+  }
   // (energy, which the table shows and the log never said: Volatile Stormdrake's four, then two paid, hp-16 gap)
   for (const [p, n] of Object.entries(cur.energy || {})) {
     const was = prev.energy?.[p];
@@ -2292,6 +2348,9 @@ function updateLog(pub) {
   game.namesSeen ??= new Map();
   // (a face-down card's name here is already "a face-down card": logSnapshot hides it)
   for (const [id, c] of Object.entries(cur.cards)) game.namesSeen.set(id, c.name);
+  // (every card seen in a command zone this game: a commander, for the legend rule's choice; see chooseCards)
+  game.commandIds ??= new Set();
+  for (const [id, c] of Object.entries(cur.cards)) if (c.zone === "command") game.commandIds.add(id);
   const prev = game.logPrev;
   game.logPrev = cur;
   const facts = engineFacts(pub.events);
@@ -3461,6 +3520,16 @@ function distinctLabels(acts, label) {
   });
 }
 
+// A board still waiting in scheduleTable's 40 ms, with something on the stack the log hasn't seen: sent (and logged)
+// before its priority is answered. One passed by itself resolves it before the next board, and what no logged board
+// showed was never said (Fire's prowess trigger, cast in your main phase and passed like Arena, read only "casts Fire //
+// Ice", mechanic run hp-40 2026-11-05).
+function logPriorityStack(gv) {
+  if (!tableQueued || !game?.logPrev) return;
+  const logged = new Set(Object.values(game.logPrev.stack || {}).flatMap((s) => s.sids || []));
+  if ((gv.stack || []).some((x) => !logged.has(x.id))) guarded("sendTable", sendTable);
+}
+
 // "End turn" pressed this turn: priority passes and the attack is skipped until the turn number changes; from another
 // turn it is forgotten. One check for both (structural review 2026-10-27: it was written twice).
 function endTurnHolds(seat, gv) {
@@ -3534,6 +3603,7 @@ function onPrompt(seat, prompt) {
         if (special.length) log(`special actions ${seat.color} (${gv.step}): ${special.map((a) => `${a.label || a.description} ${JSON.stringify(a.mode || {})}`).join(" | ")}`);
       }
       if (holdForFix(seat, prompt, gv)) return;
+      logPriorityStack(gv);
       // a spell or ability dragged while it wasn't this player's priority (during their blockers question, or while
       // someone else held priority): used now, at the first priority it can be (playtest 2026-10-24: Blue dragged
       // Galadriel's Dismissal while blocking, was told "wait", and combat passed by without asking)
@@ -3802,6 +3872,12 @@ function onPrompt(seat, prompt) {
           // a target inside a graveyard/exile pile has no card of its own on the table to click: give it a picture, so
           // the table shows it in the card row (Emry's "target artifact card in your graveyard", 2026-10-21 sweep)
           ...((gv.zones || []).some((z) => (z.zone === "graveyard" || z.zone === "exile") && z.cards.some((x) => x.id === c.id)) ? { img: imgOf(byId[c.id]) } : {}) })) };
+      // (a token beside a card of its name says so: Cut Your Losses offered "Galadhrim Brigade / Galadhrim Brigade", the
+      // squad token and the card, mechanic run hp-16 2026-11-05)
+      for (const o of ui.options) {
+        const tid = o.id.split("|")[1];
+        if (byId[tid]?.identity?.isToken && ui.options.some((x) => x !== o && x.label === o.label)) o.label += " (token)";
+      }
       // (a modal spell's chosen modes, which Forge adds after its list and a blank line: Collective Resistance's
       // hexproof target read "choose a target", hp-21)
       const chosenModes = String(prompt.sourceAbilityText || "").match(/•[^]*?\r?\n\r?\n\s*([^]+)$/)?.[1];
@@ -4139,7 +4215,9 @@ function onPrompt(seat, prompt) {
       if (legend) {
         ui = { title: `Legend rule: which ${legendName} stays?`, mode: "multi", min: 1, max: 1,
           text: "You can have only one. The other goes to the graveyard.",
-          options: input.cards.map((c) => ({ id: c.id, label: `${cardLabel(c)}${c.identity?.isToken ? " (token)" : ""}${c.isCopy ? " (copy)" : ""}`, img: imgOf(c) })) };
+          // (your commander, and the one that just entered, said: Mairsil cast from the command zone beside the one from the
+          // hand read "Mairsil, the Pretender 4/4 / Mairsil, the Pretender 4/4", mechanic run rebuilt 2026-11-05)
+          options: input.cards.map((c) => ({ id: c.id, label: `${cardLabel(c)}${c.identity?.isToken ? " (token)" : ""}${c.isCopy ? " (copy)" : ""}${game?.commandIds?.has(c.id) ? " (commander)" : ""}${game?.logPrev && game.logPrev.cards[c.id]?.zone !== "battlefield" ? " (just entered)" : ""}`, img: imgOf(c) })) };
         toOutput = (a2) => ({ type: "chooseCardsDecision", chosenCardIds: a2 });
         break;
       }
@@ -4217,6 +4295,9 @@ function onPrompt(seat, prompt) {
         // Forge says "Reveal for cost" in the question's description, the title only in our cases, re-test)
         const shown = a.map((id) => input.cards.find((c) => c.id === id)?.identity?.name).filter(Boolean);
         if (shown.length && game && [title, desc].some((t) => /^Reveal for cost$/i.test(String(t || "")))) holdLogLine(`${seat.color} reveals ${shown.join(", ")}${src ? ` (${src})` : ""}`);
+        // (a search that reveals what it finds shows it to the table: Ash Barrens' basic landcycling read only "puts a card
+        // from their library into their hand", mechanic run hp-03 2026-11-05)
+        else if (fromLibrary && !onTop && shown.length && game && /\breveal (?:it|that card|them|those cards|the chosen cards?)\b/i.test(effectText)) holdLogLine(`${seat.color} reveals ${shown.join(", ")}${src ? ` (${src})` : ""}`);
         seat.cardsDone = a.length < input.max ? { src, at: prompt.promptId } : null; // (see "Cancel Search?" in chooseBoolean)
         // (then which of them goes on top; Forge puts them on top one by one, so its last ends on top)
         if (handToTop && a.length > 1) {
@@ -4712,7 +4793,7 @@ function onPrompt(seat, prompt) {
           : `${seat.color} looked at ${countWords(input.cards.length, input.cards.length, "card")} (${mine ? "their" : `${nameOf(ownerSlot)}'s`} ${input.zone})`;
         // (each seat is shown a reveal: said once)
         const again = revealedNow && game.lastReveal?.line === line && Date.now() - game.lastReveal.at < 5000;
-        if (revealedNow) game.lastReveal = { line, at: Date.now() };
+        if (revealedNow) game.lastReveal = { line, at: Date.now(), slot: ownerSlot, zone: input.zone, names: input.cards.map((c) => c.identity?.name).filter(Boolean) };
         if (!again) (revealedNow ? holdLogLine : gameLogLine)(line);
       }
       toOutput = () => ({ type: "revealCardsAcknowledged" });
@@ -4960,7 +5041,7 @@ function whyNot(seat, cardId) {
   // (a permanent already on the battlefield is not played: Arena of Glory, its one ability a mana ability, read "lands
   // can only be played in your main phase with an empty stack" in the main phase, hp-09)
   if ((gv.zones || []).some((z) => z.zone === "battlefield" && (z.cards || []).some((c) => c.id === cardId))) {
-    const mana = /(?:^|\n)[^:\n]*:\s*Add \{/.test(String(card?.text || ""));
+    const mana = /(?:^|\n)[^:\n]*:\s*Add (?:\{|one|two|three|X|an amount|that much|mana)/i.test(String(card?.text || ""));
     return `${name}: none of its abilities can be used right now${mana ? " (a mana ability is used while paying a cost: tap it then)" : ""}.`;
   }
   if (types.includes("Land")) {
@@ -5023,6 +5104,9 @@ function onIntent(m) {
       acts = (input.actions || []).filter((a) => a.cardId !== m.id && a.type !== "undoMana" && !a.isManaAbility
         && byId[a.cardId]?.identity?.name === name && zoneOf(a.cardId) && zoneOf(a.cardId) === zoneOf(m.id));
     }
+    // (a click on a mana rock or creature at priority taps it, as its "Mana: tap" button does: Arcane Signet was refused
+    // with "none of its abilities can be used right now", mechanic run hp-01 2026-11-05)
+    if (!acts.length && (seat.prompt?.ui?.options || []).some((o) => o.id === `__mana:${m.id}`)) return onAnswer(seat.color, seat.prompt.promptId, [`__mana:${m.id}`]);
     if (!acts.length) return refuse(seat, m.id, whyNot(seat, m.id));
     // A card that can be played more than one way (a modal double-faced card: cast the spell or play the land; an
     // adventure; a split card): ask, as Arena does, instead of taking the first. "Back" returns to the open question.

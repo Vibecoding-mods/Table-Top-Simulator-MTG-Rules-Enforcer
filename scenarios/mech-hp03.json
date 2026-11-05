@@ -1,0 +1,22 @@
+{
+  "label": "hp-03: Ash Barrens cycling, Wild Growth, Mithril Coat on Six, a four-creature attack (Six mills), Growing Rites transforms at the end step",
+  "mana": 5,
+  "lands": {
+    "Forest": 8,
+    "Mountain": 4,
+    "Plains": 4,
+    "Island": 4
+  },
+  "hand": [
+    "Ash Barrens",
+    "Wild Growth",
+    "Mithril Coat"
+  ],
+  "battlefield": [
+    "Six",
+    "Professional Face-Breaker",
+    "Craterhoof Behemoth",
+    "Knight of the White Orchid",
+    "Growing Rites of Itlimoc"
+  ]
+}

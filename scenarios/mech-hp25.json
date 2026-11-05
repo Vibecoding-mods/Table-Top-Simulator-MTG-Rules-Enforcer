@@ -1,0 +1,24 @@
+{
+  "label": "hp-25: Mind Bend on Bog Wraith (Swamp -> Island), Artificial Evolution on Goblin King (Goblin -> Elf), Sleight of Mind on White Knight (Black -> Red), Glamerdye retraced",
+  "mana": 5,
+  "lands": {
+    "Island": 10,
+    "Forest": 4,
+    "Plains": 3,
+    "Swamp": 3
+  },
+  "hand": [
+    "Mind Bend",
+    "Artificial Evolution",
+    "Sleight of Mind",
+    "Forest"
+  ],
+  "battlefield": [
+    "Bog Wraith",
+    "Goblin King",
+    "White Knight"
+  ],
+  "graveyard": [
+    "Glamerdye"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "label": "hp-08: Acererak ventures, Skitterspike monstrosity, Exalted Sunborn warped, Jade Avenger attacks alone (exalted), Nashi ninjutsu",
+  "mana": 5,
+  "lands": {
+    "Swamp": 6,
+    "Plains": 5,
+    "Forest": 5,
+    "Island": 4
+  },
+  "hand": [
+    "Acererak the Archlich",
+    "Exalted Sunborn",
+    "Nashi, Moon Sage's Scion"
+  ],
+  "battlefield": [
+    "Ignoble Hierarch",
+    "Jade Avenger",
+    "Giggling Skitterspike"
+  ]
+}

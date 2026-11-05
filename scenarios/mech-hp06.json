@@ -1,0 +1,24 @@
+{
+  "label": "hp-06: foretell Delayed Blast Fireball, unearth Molten Gatekeeper, Reality Shift manifests it, Bowmasters as the second spell (Shredder connives, discard Emrakul for madness), suspend Profane Tutor",
+  "mana": 6,
+  "lands": {
+    "Mountain": 6,
+    "Island": 5,
+    "Swamp": 5,
+    "Forest": 2,
+    "Plains": 2
+  },
+  "hand": [
+    "Delayed Blast Fireball",
+    "Reality Shift",
+    "Orcish Bowmasters",
+    "Emrakul, the World Anew",
+    "Profane Tutor"
+  ],
+  "battlefield": [
+    "Ledger Shredder"
+  ],
+  "graveyard": [
+    "Molten Gatekeeper"
+  ]
+}

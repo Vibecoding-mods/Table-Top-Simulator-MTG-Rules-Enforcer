@@ -1,0 +1,25 @@
+{
+  "label": "hp-22: Selvala's parley, Vraska paid with 2 life, her -2 on the AI's Rats, Restoration Magic's tiers, The Ur-Dragon and Battle Cry Goblin attack",
+  "mana": 6,
+  "lands": {
+    "Swamp": 6,
+    "Plains": 5,
+    "Forest": 5,
+    "Mountain": 4
+  },
+  "hand": [
+    "Vraska, Betrayal's Sting",
+    "Restoration Magic",
+    "Matzalantli, the Great Door"
+  ],
+  "battlefield": [
+    "Selvala, Explorer Returned",
+    "The Ur-Dragon",
+    "Battle Cry Goblin"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Relentless Rats"
+    ]
+  }
+}

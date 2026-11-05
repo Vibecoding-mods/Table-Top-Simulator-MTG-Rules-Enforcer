@@ -1,0 +1,27 @@
+{
+  "label": "hp-04: Forest landfall (Tracker, Provisioner), Clue, crew Hedge Shredder, Drudge Skeletons regenerates, kicked Tear Asunder at a ward creature, Grim Haruspex face down",
+  "mana": 5,
+  "lands": {
+    "Swamp": 7,
+    "Forest": 6,
+    "Island": 4,
+    "Plains": 3
+  },
+  "hand": [
+    "Forest",
+    "Tear Asunder",
+    "Murder",
+    "Grim Haruspex"
+  ],
+  "battlefield": [
+    "Tireless Tracker",
+    "Tireless Provisioner",
+    "Hedge Shredder",
+    "Drudge Skeletons"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Hexing Squelcher"
+    ]
+  }
+}

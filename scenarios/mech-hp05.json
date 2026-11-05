@@ -1,0 +1,26 @@
+{
+  "label": "hp-05: Lizard Blades makes Kodama put in Mystic Remora, Blades on Pinnacle Monk, Disrupt Decorum goads, Angel plainscycles, Remora's upkeep",
+  "mana": 5,
+  "lands": {
+    "Forest": 6,
+    "Island": 5,
+    "Mountain": 5,
+    "Plains": 4
+  },
+  "hand": [
+    "Lizard Blades",
+    "Mystic Remora",
+    "Disrupt Decorum",
+    "Angel of the Ruins"
+  ],
+  "battlefield": [
+    "Pinnacle Monk",
+    "Kodama of the East Tree"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Kird Ape",
+      "Typhoid Rats"
+    ]
+  }
+}

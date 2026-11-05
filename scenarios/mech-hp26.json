@@ -1,0 +1,21 @@
+{
+  "label": "hp-26: Mystical Tutor and Vampiric Tutor to the top, Preordain scry, Brainstorm with order, Scroll Rack, Top's draw, Dark Confidant next upkeep",
+  "mana": 5,
+  "lands": {
+    "Island": 8,
+    "Swamp": 6,
+    "Plains": 3,
+    "Forest": 3
+  },
+  "hand": [
+    "Mystical Tutor",
+    "Vampiric Tutor",
+    "Preordain",
+    "Brainstorm"
+  ],
+  "battlefield": [
+    "Sensei's Divining Top",
+    "Scroll Rack",
+    "Dark Confidant"
+  ]
+}

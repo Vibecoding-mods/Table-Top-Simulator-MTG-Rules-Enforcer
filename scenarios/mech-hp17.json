@@ -1,0 +1,24 @@
+{
+  "label": "hp-17: Life from the Loam dredges in the draw step, Mycodrax scavenged, Qarsi Revenant renewed, Bear Umbra saves Elegy Acolyte from Murder (repartee), Muddle the Mixture transmuted, Acolyte's void at the end step",
+  "mana": 4,
+  "lands": {
+    "Forest": 5,
+    "Swamp": 6,
+    "Island": 5,
+    "Plains": 4
+  },
+  "hand": [
+    "Bear Umbra",
+    "Murder",
+    "Muddle the Mixture"
+  ],
+  "battlefield": [
+    "Elegy Acolyte",
+    "Stirring Hopesinger"
+  ],
+  "graveyard": [
+    "Life from the Loam",
+    "Boneyard Mycodrax",
+    "Qarsi Revenant"
+  ]
+}

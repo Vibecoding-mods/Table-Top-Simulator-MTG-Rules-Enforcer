@@ -1,0 +1,27 @@
+{
+  "label": "hp-20: Blind Hunter (Torens trains), Light Up the Stage for spectacle, The Cruelty of Gix read ahead, Council's Judgment vote, Generous Ent forestcycled, Neheb attacks",
+  "mana": 4,
+  "lands": {
+    "Plains": 6,
+    "Swamp": 5,
+    "Mountain": 4,
+    "Forest": 3,
+    "Island": 2
+  },
+  "hand": [
+    "Blind Hunter",
+    "Light Up the Stage",
+    "The Cruelty of Gix",
+    "Council's Judgment",
+    "Generous Ent"
+  ],
+  "battlefield": [
+    "Torens, Fist of the Angels",
+    "Neheb, the Eternal"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Burning-Tree Emissary"
+    ]
+  }
+}

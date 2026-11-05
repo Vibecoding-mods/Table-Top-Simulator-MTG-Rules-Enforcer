@@ -1,0 +1,25 @@
+{
+  "label": "hp-19: Skyscribing forecast in the upkeep, Jacked Rabbit X=3, Brighthearth Banneret reinforces Heartfire Hero (valiant), Murder on Tithe Taker (afterlife), Raging Battle Mouse's celebration, Fanatic of Rhonas eternalized",
+  "mana": 6,
+  "lands": {
+    "Island": 4,
+    "Mountain": 5,
+    "Plains": 5,
+    "Forest": 4,
+    "Swamp": 2
+  },
+  "hand": [
+    "Skyscribing",
+    "Jacked Rabbit",
+    "Brighthearth Banneret",
+    "Murder"
+  ],
+  "battlefield": [
+    "Heartfire Hero",
+    "Raging Battle Mouse",
+    "Tithe Taker"
+  ],
+  "graveyard": [
+    "Fanatic of Rhonas"
+  ]
+}

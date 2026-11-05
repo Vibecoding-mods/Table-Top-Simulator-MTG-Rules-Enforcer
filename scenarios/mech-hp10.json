@@ -1,0 +1,22 @@
+{
+  "label": "hp-10: Chrome Mox imprints Dig Through Time, Kodama's Reach with two splices (Storm-Kiln Artist's Treasure), saddle The Gitrog and attack, Chimil discovers at the end step",
+  "mana": 6,
+  "lands": {
+    "Forest": 6,
+    "Mountain": 6,
+    "Island": 4,
+    "Swamp": 4
+  },
+  "hand": [
+    "Chrome Mox",
+    "Dig Through Time",
+    "Kodama's Reach",
+    "Desperate Ritual",
+    "Glacial Ray"
+  ],
+  "battlefield": [
+    "Storm-Kiln Artist",
+    "The Gitrog, Ravenous Ride",
+    "Chimil, the Inner Sun"
+  ]
+}

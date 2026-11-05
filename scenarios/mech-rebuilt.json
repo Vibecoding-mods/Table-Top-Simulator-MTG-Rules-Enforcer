@@ -1,0 +1,23 @@
+{
+  "label": "rebuilt: Foreboding Ruins reveal, Mairsil cages Royal Assassin from the graveyard, Clone as Bloodline Keeper, Ponder, Zndrsplt flips; next turn Mairsil (Royal Assassin's) kills the tapped Clone",
+  "mana": 5,
+  "lands": {
+    "Island": 8,
+    "Mountain": 6,
+    "Swamp": 6
+  },
+  "hand": [
+    "Foreboding Ruins",
+    "Mountain",
+    "Mairsil, the Pretender",
+    "Clone",
+    "Ponder"
+  ],
+  "battlefield": [
+    "Zndrsplt, Eye of Wisdom",
+    "Bloodline Keeper"
+  ],
+  "graveyard": [
+    "Royal Assassin"
+  ]
+}

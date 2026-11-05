@@ -1,0 +1,30 @@
+{
+  "label": "hp-15: Glorious Anthem (extort, eerie), Throes of Chaos cascades into Marionette Apprentice (fabricate), Turn // Burn fused, Evolving Wilds then Fatal Push with revolt",
+  "mana": 6,
+  "lands": {
+    "Plains": 5,
+    "Swamp": 4,
+    "Mountain": 5,
+    "Forest": 3,
+    "Island": 3
+  },
+  "hand": [
+    "Glorious Anthem",
+    "Throes of Chaos",
+    "Turn // Burn",
+    "Fatal Push"
+  ],
+  "battlefield": [
+    "Blind Obedience",
+    "Entity Tracker",
+    "Evolving Wilds"
+  ],
+  "library": [
+    "Marionette Apprentice"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Savannah Lions"
+    ]
+  }
+}

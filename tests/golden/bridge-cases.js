@@ -792,6 +792,22 @@ add(promptCase("unless: a pay-to-do question labels Yes with the effect, No with
     cards: [H(43), H(35)], presentation: { title: "Choose", description: "Choose a card" } }), [["engine-card-43"]]));
   add(promptCase("legend rule: not for two different cards", myMain(D2.board), prompt("chooseCards", { min: 1, max: 1,
     cards: [leg(75), { ...H(43), zone: "battlefield", supertypes: ["Legendary"] }], presentation: { title: "Choose a card" } }), [["engine-card-43"]]));
+  // (mechanic run rebuilt 2026-11-05: Mairsil cast from the command zone beside the one from the hand read "Mairsil 4/4 /
+  // Mairsil 4/4": the commander, and the one that just entered, are said; the one already there is not)
+  add({ name: "legend rule: the commander and the one just entered marked", run: async (h) => {
+    const start = myMain(D2.board);
+    const b = clone(start);
+    const field = b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0");
+    field.cards.push(leg(177));
+    let cmd = b.gameView.zones.find((z) => z.zone === "command" && z.ownerId === "player-0");
+    if (!cmd) { cmd = { zone: "command", ownerId: "player-0", cards: [] }; b.gameView.zones.push(cmd); }
+    cmd.cards.push({ ...leg(178), zone: "command" });
+    const seat = game(h, b);
+    seat.board = { state: b, fingerprint: null }; h.B.sendTable(); await h.flush();
+    const p = prompt("chooseCards", { min: 1, max: 1, cards: [leg(177), leg(178)], presentation: { title: "Choose a card" } });
+    h.B.onPrompt(seat, p); await h.flush();
+    return seat.prompt ? seat.prompt.ui.options.map((o) => o.label) : null;
+  } });
 }
 // a Phyrexian cost: "Pay 2 life" by name, before the taps
 add(promptCase("pay: a Phyrexian cost offers Pay 2 life first", myMain(D2.board), prompt("payManaCost", { cardId: "engine-card-75", cardName: "Skrelv, Defector Mite", manaCost: "{W/P}", canConfirmFromPool: false,
@@ -3143,6 +3159,82 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
     await boardAs(h, seat, b);
     return logLines(h).slice(mark);
   } });
+  // (mechanic run 2026-11-05: a revealed card into the hand is named, but only when as many went as were revealed:
+  // four revealed and one into the hand is still "a card")
+  add({ name: "mechanic run: log: four revealed, one put into the hand", run: async (h) => {
+    const start = myMain(D2.board);
+    const seat = game(h, start);
+    await boardAs(h, seat, start);
+    const text = "Reveal the top four cards of your library. You may choose a land card among them and put that card into your hand. Put the rest into your graveyard.";
+    const look = { ...prompt("revealCards", { presentation: { title: "Look at these cards", targets: [] }, ownerPlayerId: "player-0", zone: "library", cards: [H(75), H(77), H(43), H(35)] }), sourceAbilityText: text, sourceCard: { id: "engine-card-949", identity: { name: "Satyr Wayfinder" }, text } };
+    h.B.onPrompt(seat, look); await h.flush();
+    await answer(h, look.promptId, ["ok"]);
+    const mark = logLines(h).length;
+    const b = clone(start);
+    const lib = b.gameView.zones.find((z) => z.zone === "library" && z.ownerId === "player-0"); lib.count = (lib.count ?? (lib.cards || []).length) - 1;
+    const hand = b.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0"); hand.count = (hand.count ?? (hand.cards || []).length) + 1;
+    await boardAs(h, seat, b);
+    return logLines(h).slice(mark);
+  } });
+  // (mechanic run hp-26 re-test 2026-11-05: the board that puts it in the hand inside the reveal's 2 s hold: the reveal
+  // first, then the card by name; Dark Confidant's read "puts Mountain into their hand" above "reveals Mountain")
+  add({ name: "mechanic run: log: a revealed card put into the hand, in one board", run: async (h) => {
+    const start = myMain(D2.board);
+    const seat = game(h, start);
+    await boardAs(h, seat, start);
+    const text = "At the beginning of your upkeep, reveal the top card of your library and put that card into your hand. You lose life equal to its mana value.";
+    const look = { ...prompt("revealCards", { presentation: { title: "Look at these cards", targets: [] }, ownerPlayerId: "player-0", zone: "library", cards: [H(75)] }), sourceAbilityText: text, sourceCard: { id: "engine-card-951", identity: { name: "Dark Confidant" }, text } };
+    const mark = logLines(h).length;
+    h.B.onPrompt(seat, look);
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: look.promptId, choice: ["ok"] }) });
+    const b = clone(start);
+    const lib = b.gameView.zones.find((z) => z.zone === "library" && z.ownerId === "player-0"); lib.count = (lib.count ?? (lib.cards || []).length) - 1;
+    const hand = b.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0"); hand.count = (hand.count ?? (hand.cards || []).length) + 1;
+    await boardAs(h, seat, b);
+    return logLines(h).slice(mark);
+  } });
+  // (mechanic run hp-40 2026-11-05: a board still waiting to be sent when its priority passes by itself: Fire's prowess
+  // trigger was on it, resolved before the next board, and the log never said it. Sent first, it is said; with no new
+  // stack item the board waits as before)
+  for (const [how, trig] of [["a new trigger", true], ["nothing new", false]]) {
+    add({ name: `log: a priority passed by itself with a waiting board: ${how}`, run: async (h) => {
+      const start = myMain(D2.board);
+      start.gameView.stack = [{ id: "stack-8", controllerId: "player-0", sourceId: "engine-card-501", identity: { name: "Opt" }, text: "Scry 1. Draw a card." }];
+      const seat = game(h, start);
+      await boardAs(h, seat, start);
+      const mark = logLines(h).length;
+      const b2 = clone(start);
+      if (trig) b2.gameView.stack.push({ id: "stack-9", controllerId: "player-0", sourceId: "engine-card-75", identity: { name: "Hurloon Minotaur" }, isTrigger: true,
+        sourceAbilityText: "Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)", text: "Prowess" });
+      seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: b2 });
+      h.B.onPrompt(seat, prompt("chooseAction", { actions: [] }));
+      const b3 = clone(start); b3.gameView.stack = [];
+      seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: b3 });
+      await h.flush();
+      return logLines(h).slice(mark);
+    } });
+  }
+  // (and only the same player's library reveal, once: another player's reveal, a graveyard's, or one already said, then a
+  // search of your own is still "a card")
+  for (const [how, owner, zone, twice] of [["another player's", "player-1", "library", false], ["a graveyard's", "player-0", "graveyard", false], ["one already named", "player-0", "library", true]]) {
+    add({ name: `mechanic run: log: a put after ${how} reveal`, run: async (h) => {
+      const start = myMain(D2.board);
+      const seat = game(h, start);
+      await boardAs(h, seat, start);
+      const text = "Reveal the top card of your library. That player puts it into their hand.";
+      const look = { ...prompt("revealCards", { presentation: { title: "Look at these cards", targets: [] }, ownerPlayerId: owner, zone, cards: [H(75)] }), sourceAbilityText: text, sourceCard: { id: "engine-card-950", identity: { name: "Goblin Guide" }, text } };
+      h.B.onPrompt(seat, look); await h.flush();
+      await answer(h, look.promptId, ["ok"]);
+      const mark = logLines(h).length;
+      let b = clone(start);
+      const step = () => { b = clone(b); const lib = b.gameView.zones.find((z) => z.zone === "library" && z.ownerId === "player-0"); lib.count = (lib.count ?? (lib.cards || []).length) - 1;
+        const hand = b.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0"); hand.count = (hand.count ?? (hand.cards || []).length) + 1; return b; };
+      if (twice) await boardAs(h, seat, step());
+      seat.note("search", seat.slot);
+      await boardAs(h, seat, step());
+      return logLines(h).slice(mark);
+    } });
+  }
   // (hp-24 gap: a cast the log had said, cancelled while paying, says so; hp-23 gap: a player's own pick by a card)
   add({ name: "hp-24 gap: log: a said cast cancelled", run: async (h) => {
     const start = myMain(D2.board);

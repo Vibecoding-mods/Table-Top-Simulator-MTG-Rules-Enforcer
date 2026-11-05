@@ -1,0 +1,21 @@
+{
+  "label": "hp-24: C.A.M.P. fortifies Command Tower, Homing Sliver slivercycled, Arcanum Wings on Dryad Sophisticate then swapped for Rancor, Yuriko ninjutsus in",
+  "mana": 4,
+  "lands": {
+    "Island": 6,
+    "Swamp": 5,
+    "Forest": 5,
+    "Plains": 4
+  },
+  "hand": [
+    "Homing Sliver",
+    "Arcanum Wings",
+    "Rancor",
+    "Yuriko, the Tiger's Shadow"
+  ],
+  "battlefield": [
+    "Dryad Sophisticate",
+    "C.A.M.P.",
+    "Command Tower"
+  ]
+}

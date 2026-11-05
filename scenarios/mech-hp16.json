@@ -1,0 +1,24 @@
+{
+  "label": "hp-16: Mosswort Bridge hideaway, Galadhrim Brigade squad 2, Cut Your Losses with casualty, Hexplate Wallbreaker, Vizier of Many Faces embalmed, Hero of Bladehold and Yavimaya Steelcrusher attack",
+  "mana": 6,
+  "lands": {
+    "Forest": 6,
+    "Island": 5,
+    "Mountain": 4,
+    "Plains": 3,
+    "Swamp": 2
+  },
+  "hand": [
+    "Mosswort Bridge",
+    "Galadhrim Brigade",
+    "Cut Your Losses",
+    "Hexplate Wallbreaker"
+  ],
+  "battlefield": [
+    "Hero of Bladehold",
+    "Yavimaya Steelcrusher"
+  ],
+  "graveyard": [
+    "Vizier of Many Faces"
+  ]
+}

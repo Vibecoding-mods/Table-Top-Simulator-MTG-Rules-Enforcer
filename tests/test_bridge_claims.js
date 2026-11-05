@@ -179,6 +179,46 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("status: Forge's internal names are no status", junk?.kw === undefined, JSON.stringify(junk?.kw));
     harness.restore();
   }
+  // "a click on a mana rock or creature at priority taps it, as its Mana: tap button does" (the play intent)
+  {
+    const click = async (actions) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      Object.assign(b.gameView, { activePlayerId: "player-0", priorityPlayerId: "player-0", step: "main1", stack: [] });
+      // (a mana rock: lands have no Mana button, they tap while paying)
+      Object.assign(b.gameView.zones.flatMap((z) => z.cards || []).find((c) => c.id === "engine-card-36"),
+        { identity: { name: "Arcane Signet" }, types: ["Artifact"], text: "{T}: Add one mana of any color in your commander's color identity." });
+      const seat = setup(h, b);
+      h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input: { type: "chooseAction", actions } }); await h.flush();
+      h.B.onTTS({ t: "intent", json: JSON.stringify({ color: "Blue", kind: "play", id: "engine-card-36" }) }); await h.flush();
+      const out = { relay: JSON.stringify(h.effects.filter((e) => e.relay)), told: JSON.stringify(h.effects.filter((e) => e.tts && e.tts.t === "chat")) + JSON.stringify(h.effects.filter((e) => e.tts)) };
+      harness.restore();
+      return out;
+    };
+    const tap = { id: "tap:engine-card-36:0", type: "activateManaAbility", cardId: "engine-card-36", isManaAbility: true, description: "Add {R}", producedMana: [{ amount: 1, color: "R" }] };
+    const rock = await click([tap, { id: "pass", type: "pass", label: "Pass priority" }]);
+    ok("mana click: a mana source clicked at priority is tapped", rock.relay.includes("tap:engine-card-36:0"), rock.relay.slice(-300));
+    ok("mana click: and not refused", !rock.told.includes("none of its abilities"), rock.told.slice(0, 300));
+    const none = await click([{ id: "pass", type: "pass", label: "Pass priority" }]);
+    ok("mana click: with no mana button it is still refused with why", none.told.includes("none of its abilities") && !none.relay.includes("tap:engine-card-36"), none.told.slice(0, 300));
+  }
+  // "a token beside a card of its name says so" (chooseBoardTargets)
+  {
+    const h = harness.load();
+    const b = clone(F.board);
+    const all = b.gameView.zones.flatMap((z) => z.cards || []);
+    Object.assign(all.find((c) => c.id === "engine-card-36"), { identity: { name: "Galadhrim Brigade" }, types: ["Creature"] });
+    Object.assign(all.find((c) => c.id === "engine-card-22"), { identity: { name: "Galadhrim Brigade", isToken: true }, types: ["Creature"] });
+    const seat = setup(h, b);
+    h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input: { type: "chooseBoardTargets", min: 1, max: 1,
+      candidates: [{ kind: "card", id: "engine-card-36" }, { kind: "card", id: "engine-card-22" }, { kind: "card", id: "engine-card-64" }], presentation: { title: "choose a creature to sacrifice" } } });
+    await h.flush();
+    const labels = (seat.prompt?.ui?.options || []).map((o) => o.label);
+    ok("token label: the token says token", labels.includes("Galadhrim Brigade (token)"), JSON.stringify(labels));
+    ok("token label: the card keeps its name", labels.includes("Galadhrim Brigade"), JSON.stringify(labels));
+    ok("token label: a name seen once is unchanged", labels.includes("Mountain"), JSON.stringify(labels));
+    harness.restore();
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();
