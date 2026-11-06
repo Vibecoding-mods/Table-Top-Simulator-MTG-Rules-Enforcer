@@ -2,6 +2,9 @@
 
 Written 2026-11-05 (night). Spec only: nothing here is built. Sizes are bytes. Hours include updating tests.
 
+**Parked 2026-11-06 (the user):** no work on M6 until the 4-player table is polished and mostly complete. The open
+questions in §7 wait until then.
+
 Inputs:
 - `docs/m6-ui-size.md`: the UI measurements and the reviewed shrink plan (read its "Review" list first).
 - SPEC §7: the player-count limits and the first 6-player table notes (2026-10-31).

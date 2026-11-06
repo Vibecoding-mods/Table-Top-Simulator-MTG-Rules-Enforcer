@@ -616,7 +616,10 @@ Other proposals outside this spec:
 
 ## 9. Technology
 
-**Recommendation: a C# WinForms tray app on .NET Framework 4.8, compiled with the `csc.exe` that ships with Windows.**
+**Superseded 2026-11-06: the app must run on Windows, Mac and Linux (see §15, "Decided"), so the WinForms
+recommendation below no longer stands; Tauri v2 is the proposed choice.** Kept for the record:
+
+**Recommendation (2026-11-05): a C# WinForms tray app on .NET Framework 4.8, compiled with the `csc.exe` that ships with Windows.**
 
 | Option | Size | Build needs | Good | Bad |
 |---|---|---|---|---|
@@ -862,6 +865,26 @@ published protocol, unmodified by the app (SPEC §9).
 8. **Exe name and place:** `MTG Companion.exe` in the repo root, beside `Start MTG.bat`?
 9. **Image source label:** OK to add it to `engine/build-images.sh` (§3.3)? Without it, "images out of date vs
    source" can only say "can't tell".
+
+**Answers (the user, 2026-11-06):** 1–6, 8 and 9 as proposed (WinForms tray app; start on open; relay probe every
+30 s; keep the bridge restart loop; leave Docker running, with a setting; OMEN button that asks each time;
+`MTG Companion.exe` beside `Start MTG.bat`; add the image source label). **7: anyone may host, Mac included.** So
+signing and a GitHub release are in scope, and this conflicts with 1: a WinForms app runs only on Windows, and
+`Start MTG.bat`, the `.ps1` tools and the WSL setup are Windows-only too.
+
+**Decided (the user, 2026-11-06, later): cross-platform, Windows, Mac and Linux.** This replaces answer 1: the
+WinForms/`csc` plan in §9 is dropped. Proposed instead: Tauri v2 (the 2026-10-20 choice, which Manabrew already uses),
+which gives a tray icon and notifications on all three. What has to change for it (not yet specced in detail):
+- `Start MTG.bat` and the `.ps1` tools (`start-bridge.ps1`, `tts-shot.ps1`, the WSL steps) become Node scripts or
+  get Mac/Linux twins; Node is already required.
+- Docker: WSL2 is Windows-only. Mac runs Docker Desktop; Linux runs Docker Engine natively. The memory and
+  `vmmemWSL` lights are Windows-only and need per-OS versions or are hidden.
+- Engine images are built for x86-64. Apple-silicon Macs need arm64 builds of mtg-relay and mtg-forge-node (or run
+  them slowly under emulation); to be measured.
+- Windows-only lights are hidden elsewhere: OMEN button, GPU reset events (Windows event log), `GetExtendedTcpTable`.
+- TTS itself runs on all three; its save and log folders differ per OS (Player.log path, Saves folder).
+- Signing: Windows code signing, Apple notarization (needs an Apple developer account, the user's to create), and a
+  Linux AppImage or .deb; the GitHub release carries all three.
 
 ## 16. Review 2026-11-05
 
