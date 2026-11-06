@@ -1,10 +1,23 @@
 # Project plan: rules-enforced MTG Commander in TTS
 
-Last updated: 2026-11-05. The design is in [SPEC.md](SPEC.md); test results and how to rerun them are in [TESTING.md](TESTING.md).
+Last updated: 2026-11-06. The design is in [SPEC.md](SPEC.md); test results and how to rerun them are in [TESTING.md](TESTING.md).
 
 **Status key:** ✅ done · 🔶 built, needs testing in TTS · ⬜ to do · 💡 idea, not scheduled
 
 ---
+
+## Monday 2026-11-09 (after the weekly usage reset)
+- ⬜ **Update Forge for Star Trek before the set's release (2026-11-13).** Our Forge copy (`manabrew/forge`, through
+  Manabrew's fork witchesofthehill/forge) is from 2026-09-21: Star Trek (TRK) has 92 cards and Star Trek Commander
+  (TRC) 40, with Borg Queen, Perfection Manifest missing and ~76 cards still preview scripts in `upcoming/`. The
+  official Card-Forge/forge has ~311 TRK and ~337 TRC cards (checked 2026-11-06) and 15 Star Trek edition commits since
+  2026-10-09, Borg Queen included. Steps: bring the official Forge changes into our copy (two months of other Forge
+  changes come with it), rebuild mtg-forge-node and mtg-relay (one build at a time), rules checks + a test game,
+  deploy, then a debug game with Beam me up, Federation and Borg Queen. About 2–3 h plus build time.
+- ⬜ **Token stacks the Arena way** ([docs/token-stacks-spec.md](docs/token-stacks-spec.md)), held until the reset.
+- ⬜ Small sweep bugs: the second AI named "AI 1 2" in questions and votes; persist's -1/-1 counter missing from the
+  return line; Halflingcycling's question naming a basic land; the log gaps in tmp/kw-runs/SUMMARY.md.
+- ⬜ Slow-tail re-measure on a quiet PC.
 
 ## From the first friends game: done 2026-10-19 (tested live in single player)
 - **Opening hand visible:** draws are only held after a player's first real decision (mulligans are no longer "draws"); one click takes every held card. Tested: 7 cards in hand right away.
