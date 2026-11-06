@@ -886,6 +886,23 @@ which gives a tray icon and notifications on all three. What has to change for i
 - Signing: Windows code signing, Apple notarization (needs an Apple developer account, the user's to create), and a
   Linux AppImage or .deb; the GitHub release carries all three.
 
+**Decided (the user, 2026-11-06, later still): no app, no signing. Scripts plus a browser status page.** This
+replaces the Tauri proposal above.
+- `tools/start-mtg.js` (Node, already required) does what `Start MTG.bat` does today and stays running as the
+  supervisor: it starts Docker and the stack, starts the bridge, keeps the bridge restart loop (answer 4), and runs
+  the checks behind the lights (§3).
+- Double-click wrappers only call it: `Start MTG.bat` (Windows), `Start MTG.command` (Mac, executable bit set in git),
+  `start-mtg.sh` (Linux). Run from a `git clone` they carry no download flag, so nothing needs signing; a ZIP download
+  needs one Unblock (Windows) or one `xattr -d com.apple.quarantine` / Open Anyway (Mac).
+- The status page: `start-mtg.js` serves `http://127.0.0.1:<port>/` (bound to the loopback address only, so only the
+  host's own PC can open it) and opens it in the default browser at start. The page shows the lights and refreshes
+  every few seconds; its buttons (Restart relay and room, End game night, the OMEN button on Windows) post back to
+  the same script, under the same game lock (§5). The launcher serves it, not the bridge, so the page can still say
+  "bridge down" when the bridge is down. No npm packages: Node's built-in `http` module. Closing the browser tab
+  changes nothing; closing the terminal window ends game night as the End button does.
+- Lost against the app: tray icon and system notifications (the page can play a sound and change its tab title
+  instead).
+
 ## 16. Review 2026-11-05
 
 A second agent checked this spec against the repo and this PC, with read-only probes only. A game was on during the
