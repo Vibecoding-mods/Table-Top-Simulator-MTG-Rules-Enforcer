@@ -21,6 +21,14 @@
 //   node rules-check.js --game filter  Skycloud Expanse ({1},{T}: Add {W}{U}) with Islands: with 3 untapped lands
 //       (one of them Skycloud) Rhystic Study ({2}{U}) can be paid, so it must be offered, and auto-pay must pay it
 //       (playtest 2026-10-24: Red held Rhystic Study with Cliffs, Skycloud and Reef and was never offered it).
+//   node rules-check.js --game dungeon  rewind during a dungeon (docs/planechase-dungeon-engine-spec.md §2.4, D3): Veteran
+//       Dungeoneers are made in hand by manual fix and cast to venture into Lost Mine of Phandelver; three rewinds read
+//       dungeonState (and Cloister Gargoyle's +3/+0, which shows a completed dungeon) before and after: a venture after
+//       the restore point (the room must go back), a first venture after it (the dungeon must go), a completion after
+//       it (the dungeon must come back in its room and leave the completed list); a fourth goes back to applyState's own
+//       restore point after a completion before it and a new dungeon after it (the completion must stay, the dungeon
+//       go). Then, in the same turn, the opponent gets Keen-Eared Sentry (one venture a turn): the venture undone by
+//       the rewind must not count, so the next one enters Cave Entrance and the one after it is stopped.
 //   node rules-check.js --game cmddmg  4 players vs 3 passive AIs: Kogla (7/6) + ramp hits one player three times.
 //       Checks: 21 commander damage from one commander knocks a player out (with life still above 0),
 //       turn order skips the eliminated player, priority passes in seat order around the table.
@@ -40,8 +48,8 @@ const ROOM = arg("room", "tts-commander");
 const MINUTES = Number(arg("minutes", 25));
 const SEATS = GAME === "cmddmg" ? 4 : 2;
 // tax / exile / library: one free-ish commander and removal aimed at it; the deck decides where it goes
-const DECK_ID = { audit: "test_rules_audit", filter2: "test_rules_filter2", filter: "test_rules_filter", eminence: "test_rules_eminence", costcancel: "test_rules_costcancel", sac: "test_rules_sac", fix: "test_rules_tax", rewind: "test_rules_tax", concede: "test_rules_tax", cmddmg: "test_rules_cmddmg", exile: "test_rules_exile", library: "test_rules_library", keywords: "test_rules_keywords" }[GAME] || "test_rules_tax";
-const TAXLIKE = GAME !== "audit" && GAME !== "cmddmg" && GAME !== "keywords" && GAME !== "sac" && GAME !== "costcancel" && GAME !== "eminence" && GAME !== "filter" && GAME !== "filter2";
+const DECK_ID = { dungeon: "test_rules_dungeon", audit: "test_rules_audit", filter2: "test_rules_filter2", filter: "test_rules_filter", eminence: "test_rules_eminence", costcancel: "test_rules_costcancel", sac: "test_rules_sac", fix: "test_rules_tax", rewind: "test_rules_tax", concede: "test_rules_tax", cmddmg: "test_rules_cmddmg", exile: "test_rules_exile", library: "test_rules_library", keywords: "test_rules_keywords" }[GAME] || "test_rules_tax";
+const TAXLIKE = GAME !== "dungeon" && GAME !== "audit" && GAME !== "cmddmg" && GAME !== "keywords" && GAME !== "sac" && GAME !== "costcancel" && GAME !== "eminence" && GAME !== "filter" && GAME !== "filter2";
 // keywords: situational cards the table-driven games didn't get to (see `kwPlan`): what each needs is set up here
 const KW_TARGETS = { Aftermath: /Ribbons/, Fuse: /Turn.*Burn|Burn.*Turn|fuse/i, Enrage: /Apex Altisaur/, Fight: /Bridgeworks Battle/, Spree: /Return the Favor/ };
 // KW_ONLY=Fuse,Spree: check only these (the tutors then fetch them first)
@@ -164,6 +172,7 @@ function onBoard() {
   if (GAME === "rewind") rewindStep(g);
   if (GAME === "fix") fixSeen(g);
   if (GAME === "audit") auditSeen(g);
+  if (GAME === "dungeon") dgSeen(g);
   // exile links (our Forge build): every card seen with exiledWith / mayPlay / isForetold
   for (const z of g.zones || []) for (const c of z.cards || []) {
     if ((c.exiledWith || c.mayPlay || c.isForetold) && !obs.exileLinks.some((e) => e.id === c.id && e.zone === z.zone)) {
@@ -205,6 +214,7 @@ function answer(prompt) {
   if (GAME === "rewind" && obs.rewind?.holding) { obs.rewind.held = (obs.rewind.held || 0) + 1; return; }
   if (GAME === "fix" && fixAsk(prompt)) return;
   if (GAME === "audit" && auditFix(prompt)) return;
+  if (GAME === "dungeon" && dgAnswer(prompt)) return;
   if (process.env.RC_DEBUG && dbg++ < Number(process.env.RC_DEBUG)) log("prompt", prompt.kind, prompt.input?.type, JSON.stringify((prompt.input?.actions || []).map((a) => a.label)).slice(0, 200), "cmd:", JSON.stringify(myCommander()?.zone?.zone));
   if (prompt.kind === "priority") return respond(prompt, "chooseAction", { type: "pass" });
   const input = prompt.input || {};
@@ -344,6 +354,15 @@ function answer(prompt) {
     }
     case "chooseNumber": return respond(prompt, type, { type: "numberDecision", chosenNumber: input.min });
     case "chooseFromSelection": {
+      if (GAME === "dungeon") {
+        // Forge's dungeon question is its "Name a card" option prompt (chooseSingleCardFace); the room question lists rooms
+        const labels = (input.options || []).map((o) => o.label ?? JSON.stringify(o));
+        obs.dg.prompts.push({ turn: g.turn, title: input.presentation?.title || "", source: prompt.sourceAbilityText || "", options: labels });
+        log(`dungeon: asked "${input.presentation?.title}" ${JSON.stringify(labels)}`);
+        // (Dark Pool over Storeroom: Storeroom's +1/+1 counter could land on Cloister Gargoyle and blur the +3/+0 reading)
+        const lm = labels.findIndex((l) => /^(Lost Mine of Phandelver|Dark Pool)/.test(l));
+        if (lm >= 0) return respond(prompt, type, { type: "selectionDecision", chosenIndices: [lm] });
+      }
       const k = Math.min(Math.max(input.minTotal, 1), input.maxTotal, input.options.length);
       return respond(prompt, type, { type: "selectionDecision", chosenIndices: [...Array(k).keys()] });
     }
@@ -630,6 +649,112 @@ setInterval(() => {
   if (resolved >= 3 && obs.em.maxTokens >= 3) finish();
 }, 1000);
 
+// dungeon: the stages, run in order in our own main phases. A "fix" stage makes cards by manual fix (Veteran Dungeoneer:
+// "When Veteran Dungeoneer enters, venture into the dungeon", Forge's script) and casts them; a stage with `cp` first
+// keeps the newest restore point (taken before any of its ventures) with the room the board shows then; one with
+// `cpFix` keeps the point the fix itself records (applyState's restore point, taken before its ops). A "restore"
+// stage goes back to a kept point and compares the board after with the board when the point was kept.
+const DG_VD = "Veteran Dungeoneer";
+const dgMana = (n) => ({ op: "mana", player: slot, mana: Array(n).fill("W").join(" ") });
+const dgMake = (name, zone, player = slot) => ({ op: "createCard", name, player, zone });
+const dgOpponent = () => (gv().players || []).find((p) => p.id !== slot)?.id;
+const DG_FIRST_ROOMS = ["", "Cave Entrance", "Goblin Lair", "Mine Tunnels"];
+const DG_STAGES = [
+  { name: "first venture", cp: "B", ops: () => [dgMana(4), dgMake(DG_VD, "hand")], casts: 1, done: (g) => !!myDungeon(g)?.room },
+  { name: "second venture", cp: "A", newTurn: true, ops: () => [dgMana(4), dgMake(DG_VD, "hand")], casts: 1,
+    done: (g) => !!myDungeon(g)?.room && myDungeon(g).room !== obs.dg.cps.A.view.dungeon?.room },
+  { restore: "A", check: "a venture after the restore point: the room goes back",
+    ok: (was, now) => !!was.dungeon && now.dungeon?.name === was.dungeon.name && now.dungeon?.room === was.dungeon.room },
+  { restore: "B", check: "a first venture after the restore point: the dungeon goes", ok: (was, now) => !was.dungeon && !now.dungeon },
+  { name: "three ventures", ops: () => [dgMana(12), dgMake("Cloister Gargoyle", "battlefield"), dgMake(DG_VD, "hand"), dgMake(DG_VD, "hand"), dgMake(DG_VD, "hand")],
+    casts: 3, done: (g) => !!myDungeon(g)?.room && !DG_FIRST_ROOMS.includes(myDungeon(g).room) },
+  { name: "completion", cp: "C", newTurn: true, ops: () => [dgMana(4), dgMake(DG_VD, "hand")], casts: 1,
+    done: (g) => !myDungeon(g) && dgGargoyle(g) === obs.dg.cps.C.view.gargoyle + 3 },
+  { restore: "C", check: "a completion after the restore point: the dungeon comes back in its room and leaves the completed list (Cloister Gargoyle loses its +3/+0)",
+    ok: (was, now) => !!was.dungeon && now.dungeon?.name === was.dungeon.name && now.dungeon?.room === was.dungeon.room && now.gargoyle === was.gargoyle },
+  // the other direction: a completion before the point must survive the rewind. A point that kept the live completed
+  // list (not a copy) would come back empty, and Cloister Gargoyle would lose its +3/+0.
+  { name: "completion again", ops: () => [dgMana(4), dgMake(DG_VD, "hand")], casts: 1, done: (g) => !myDungeon(g) && dgGargoyle(g) === 3 },
+  { name: "second dungeon", cpFix: "D", newTurn: true, ops: () => [dgMana(4), dgMake(DG_VD, "hand")], casts: 1,
+    done: (g) => !!myDungeon(g)?.room && dgGargoyle(g) === 3 },
+  { restore: "D", check: "a completion before the restore point survives it and a dungeon entered after it goes (applyState's own restore point; Cloister Gargoyle keeps its +3/+0)",
+    ok: (was, now, cp) => cp.fixRecorded && !was.dungeon && was.gargoyle === 3 && !now.dungeon && now.gargoyle === 3 },
+  // same turn as the restore: the venture before it (second dungeon) must not count, or the opponent's Keen-Eared
+  // Sentry ("each opponent can't venture into the dungeon more than once each turn") blocks this one
+  { name: "venture after the rewind", ops: () => [dgMana(4), dgMake("Keen-Eared Sentry", "battlefield", dgOpponent()), dgMake(DG_VD, "hand")], casts: 1, done: () => true },
+  { name: "second venture this turn", ops: () => [dgMana(4), dgMake(DG_VD, "hand")], casts: 1, done: () => true },
+];
+obs.dg = { stage: 0, cps: {}, prompts: [], results: [], holding: null, lastTurn: -1, fixId: 300, voteSeen: 0 };
+function myDungeon(g) { return (g.players || []).find((p) => p.id === slot)?.dungeonState || null; }
+function dgGargoyle(g) { const c = zoneCards(g, "battlefield", slot).find((x) => x.identity?.name === "Cloister Gargoyle"); return c ? Number(c.power) : null; }
+function dgVD(g) { return zoneCards(g, "battlefield", slot).filter((c) => c.identity?.name === DG_VD).length + (g.stack || []).filter((s) => s.identity?.name === DG_VD).length; }
+function dgView(g) { return { turn: g.turn, step: g.step, dungeon: myDungeon(g), gargoyle: dgGargoyle(g), completedDungeons: playerOf(slot)?.completedDungeons ?? "not in the view" }; }
+function dgNext(g, result) {
+  const D = obs.dg, st = DG_STAGES[D.stage];
+  D.results.push({ stage: st.name || `restore ${st.restore}`, ...result });
+  log(`dungeon: ${st.name || `restore ${st.restore}`}: ${JSON.stringify(result)}`);
+  D.lastTurn = g.turn;
+  D.stage++;
+  if (D.stage >= DG_STAGES.length) setTimeout(finish, 3000);
+}
+function dgSeen(g) {
+  const D = obs.dg, st = DG_STAGES[D.stage];
+  if (!st) return;
+  const v = g.restoreVote;
+  if (D.holding === "restore" && v && v.voteId > D.voteSeen && v.status?.type !== "pending") {
+    D.holding = null;
+    D.voteSeen = v.voteId;
+    const was = D.cps[st.restore].view, now = dgView(g);
+    const cp = D.cps[st.restore];
+    dgNext(g, { vote: v.status?.type, checkpoint: cp.checkpoint, fixRecorded: cp.fixRecorded, before: st.before, was, now, pass: v.status?.type === "approved" && st.ok(was, now, cp) });
+    return;
+  }
+  const r = g.stateFix;
+  if (D.holding === "fix" && r && r.fixId === D.fixId) {
+    D.holding = null;
+    st.fixed = r;
+    if (!r.applied) { obs.notes.push(`dungeon fix refused: ${JSON.stringify(r).slice(0, 160)}`); dgNext(g, { refused: r }); return; }
+    if (st.cpFix) {
+      const newest = (g.checkpoints || []).at(-1) || null;
+      D.cps[st.cpFix] = { checkpoint: newest, view: st.pre, fixRecorded: !!newest && newest.checkpointId > st.cpPrior };
+      log(`dungeon: keeping the fix's restore point ${st.cpFix} = ${JSON.stringify(D.cps[st.cpFix])}`);
+    }
+  }
+}
+function dgAnswer(prompt) {
+  const D = obs.dg, g = gv(), st = DG_STAGES[D.stage];
+  if (D.holding) return true; // (no answers while a fix or a rewind is on its way: a stale answer crashed Forge once)
+  if (prompt.input?.type !== "chooseAction") return false;
+  const ours = g.activePlayerId === slot && /main/i.test(g.step || "") && !(g.stack || []).length;
+  // a stage is settled at our next empty-stack question, once the room's own ability has resolved too
+  if (st && st.fixed && !(g.stack || []).length && dgVD(g) >= st.vdBase + st.casts && st.done(g)) return dgNext(g, { pre: st.pre, now: dgView(g) }), dgAnswer(prompt);
+  if (st && ours && st.restore && !st.before) {
+    const cp = D.cps[st.restore].checkpoint;
+    st.before = dgView(g);
+    D.holding = "restore";
+    broadcast({ kind: "directive", fromPlayer: slot, directive: { type: "requestRestore", checkpointId: cp.checkpointId } });
+    log(`dungeon: rewind to ${JSON.stringify(cp)} from ${JSON.stringify(st.before)}`);
+    return true;
+  }
+  if (st && ours && st.ops && !st.sent && (!st.newTurn || g.turn > D.lastTurn)) {
+    if (st.cp) D.cps[st.cp] = { checkpoint: (g.checkpoints || []).at(-1) || null, view: dgView(g) };
+    st.sent = { turn: g.turn };
+    st.pre = dgView(g);
+    st.cpPrior = (g.checkpoints || []).at(-1)?.checkpointId ?? -1;
+    st.vdBase = dgVD(g);
+    D.holding = "fix";
+    broadcast({ kind: "directive", fromPlayer: slot, directive: { type: "applyState", fixId: ++D.fixId, ops: st.ops() } });
+    log(`dungeon: ${st.name}: fix ${D.fixId}` + (st.cp ? `, keeping restore point ${st.cp} = ${JSON.stringify(D.cps[st.cp])}` : ""));
+    return true;
+  }
+  if (st && st.fixed && ours && dgVD(g) < st.vdBase + st.casts) {
+    const cast = (prompt.input.actions || []).find((a) => a.type === "cast" && new RegExp(DG_VD).test(a.label || "") && !failed.has(`${g.turn}:${a.id}`));
+    if (cast) { lastAct = `${g.turn}:${cast.id}`; respond(prompt, "chooseAction", { type: "act", actionId: cast.id }); return true; }
+  }
+  respond(prompt, "chooseAction", { type: "pass" });
+  return true;
+}
+
 // ── verdicts ──
 function verdicts() {
   const v = [];
@@ -644,7 +769,7 @@ function verdicts() {
     const counts = obs.commanderCasts.map((c) => Object.values(c.castsBefore).reduce((a, b) => a + (b || 0), 0));
     const rising = counts.length >= 3 && counts.every((n, i) => n === i);
     pass("Commander tax: casts counted 0, 1, 2... (tax 0, {2}, {4})", counts.length >= 3 ? rising : null, `casts before each cast: ${counts.join(", ")}; pay prompts for it: ${JSON.stringify(obs.payPrompts.filter((p) => p.isCommander).map((p) => p.cost ?? p.title))}`);
-  } else {
+  } else if (GAME !== "dungeon") {
     const elim = obs.eliminations.find((e) => e.player !== slot);
     const cd = elim ? Math.max(0, ...Object.values(elim.commanderDamage)) : 0;
     pass("21 commander damage knocks a player out (life still above 0)", elim ? cd >= 21 && elim.life > 0 : null, elim ? `out at life ${elim.life}, commander damage ${cd}` : "nobody went out");
@@ -702,7 +827,26 @@ function verdicts() {
     pass("Rewind: no card is duplicated", R.back ? !(R.dupes || []).length : null, (R.dupes || []).slice(0, 4).join("; "));
   }
   // after a rewind the answer to the question that was open before it is refused as stale: expected
-  if (GAME === "rewind") obs.errors = obs.errors.filter((e) => !/stalePrompt/.test(e));
+  if (GAME === "rewind" || GAME === "dungeon") obs.errors = obs.errors.filter((e) => !/stalePrompt/.test(e));
+  if (GAME === "dungeon") {
+    const D = obs.dg;
+    const res = (name) => D.results.find((r) => r.stage === name);
+    const first = res("first venture");
+    pass("Dungeon: the first venture enters Lost Mine of Phandelver, Cave Entrance", first ? first.now?.dungeon?.name === "Lost Mine of Phandelver" && first.now.dungeon.room === "Cave Entrance" : null, JSON.stringify(first?.now?.dungeon || first || {}));
+    const roomQ = D.prompts.filter((p) => !p.options.some((o) => /Lost Mine of Phandelver/.test(o)));
+    pass("Dungeon: a branch asks which room next", roomQ.length ? roomQ.some((p) => p.options.length === 2) : null, JSON.stringify(roomQ.slice(0, 2)));
+    const done = res("completion");
+    pass("Dungeon: completing it removes the dungeon (Cloister Gargoyle gets +3/+0)", done ? !!done.now && !done.now.dungeon && done.now.gargoyle === 3 : null, JSON.stringify(done?.now || done || {}));
+    for (const st of DG_STAGES.filter((s) => s.restore)) {
+      const r = res(`restore ${st.restore}`);
+      pass(`Dungeon rewind: ${st.check}`, r ? r.pass : null, r ? JSON.stringify({ vote: r.vote, fixRecorded: r.fixRecorded, was: { dungeon: r.was.dungeon, gargoyle: r.was.gargoyle }, before: { dungeon: r.before?.dungeon, gargoyle: r.before?.gargoyle }, after: { turn: r.now.turn, step: r.now.step, dungeon: r.now.dungeon, gargoyle: r.now.gargoyle } }) : "");
+    }
+    // the precondition first: without a working Sentry the venture check below would pass whatever the count said
+    const after = res("venture after the rewind"), again = res("second venture this turn");
+    const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    pass("Dungeon: Keen-Eared Sentry stops a second venture in a turn (precondition for the next check)", again?.now ? same(again.pre.dungeon, again.now.dungeon) : null, JSON.stringify(again ? { pre: again.pre?.dungeon, now: again.now?.dungeon, refused: again.refused } : {}));
+    pass("Dungeon rewind: a venture before the restore point is not counted after it (the next venture enters Cave Entrance)", after?.now ? after.now.dungeon?.room === "Cave Entrance" : null, JSON.stringify(after ? { pre: after.pre?.dungeon, now: after.now?.dungeon, refused: after.refused } : {}));
+  }
   if (GAME === "fix") {
     const F = obs.fix;
     const ok = F.results.find((r) => r.fixId === 101), bad = F.results.find((r) => r.fixId === 102);
@@ -774,6 +918,7 @@ function finish() {
 setInterval(() => {
   fs.writeFileSync(OUT.replace(".json", "-live.json"), JSON.stringify(obs, null, 1));
   if (TAXLIKE && obs.commanderCasts.length >= 4) finish();
+  if (GAME === "dungeon" && obs.turns.length && obs.turns[obs.turns.length - 1].turn > 30) { obs.notes.push(`dungeon: stuck at stage ${obs.dg.stage}`); finish(); }
   if (GAME === "keywords" && (Object.values(KW_TARGETS).every((re) => obs.kwCasts.some((c) => re.test(`${c.label} ${JSON.stringify(c.mode || {})}`))) || (obs.turns.length && obs.turns[obs.turns.length - 1].turn > 120))) finish();
   if (GAME === "cmddmg" && obs.eliminations.some((e) => e.player !== slot) && obs.turns.length > 0
     && obs.turns[obs.turns.length - 1].turn >= (obs.eliminations[0].turn + SEATS + 1)) finish();

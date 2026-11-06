@@ -82,9 +82,19 @@ Node and relay: no change. `dungeonState` is an open field on the protocol `Play
   TS/Java DTOs.
 
 **D3. Harness rewind (`ManaBrewInteractiveSession`, checkpoint take and restore, near line 2188)**
-- At checkpoint: record each dungeon card's id → current room, and each player's completed dungeon names.
-- After restore: `setCurrentRoom` on the matching card (also `""` for a card that had no room); `resetCompletedDungeons`
-  then re-add the recorded cards.
+- At checkpoint (and at the point `applyState` records before its ops): for every registered player, record each
+  dungeon card's id → current room, a copy of the completed dungeon list (the cards, not names; a copy because the
+  restore clears the live list before re-adding), and `venturedThisTurn` (Keen-Eared Sentry reads it).
+- After restore (and after a refused fix): `setCurrentRoom` on the matching card (also `""` for a card that had no
+  room); `resetCompletedDungeons` then re-add the recorded cards; `resetVenturedThisTurn` then count back up.
+- Done 2026-11-06 (manabrew ebed03e; venturedThisTurn and all registered players in 29d4c5c; node image `mtg-forge-node:dungeon2`). Proof: `rules-check --game dungeon`,
+  four rewinds (a venture, a first venture, a completion after the point; a completion before applyState's own point)
+  plus the Sentry pair (a rewound venture must not count). Not covered: the refused-fix path (no op ventures while
+  triggers are suppressed, so nothing can change the progress before a refusal), and two players in one dungeon.
+- Left alone (Forge's `GameSnapshot`, not D3): rewinding to before anyone had the initiative (or was monarch) leaves the
+  holder in place, because `copyGameState` only sets them when non-null; and an initiative effect card made after the
+  point leaves the command zone while `Player.initiativeEffect` still points at it, so no Undercity venture at upkeep
+  until the initiative is taken again (which re-adds the same card).
 - First prove the bug (step 0 of §2.5). It needs no new field: `dungeonState.room` is in the view today. If Forge
   already rolls the room back, drop D3.
 

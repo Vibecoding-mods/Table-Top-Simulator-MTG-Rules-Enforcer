@@ -1,0 +1,47 @@
+{
+ "label": "Rules check: dungeon (venture and initiative, Nadaar)",
+ "format": "commander",
+ "commander": "Nadaar, Selfless Paladin",
+ "cards": [
+  {
+   "name": "Nadaar, Selfless Paladin",
+   "count": 1
+  },
+  {
+   "name": "Veteran Dungeoneer",
+   "count": 1
+  },
+  {
+   "name": "Cloister Gargoyle",
+   "count": 1
+  },
+  {
+   "name": "White Plume Adventurer",
+   "count": 1
+  },
+  {
+   "name": "Seasoned Dungeoneer",
+   "count": 1
+  },
+  {
+   "name": "Ranger's Hawk",
+   "count": 1
+  },
+  {
+   "name": "Immovable Rod",
+   "count": 1
+  },
+  {
+   "name": "Delver's Torch",
+   "count": 1
+  },
+  {
+   "name": "Dungeon Map",
+   "count": 1
+  },
+  {
+   "name": "Plains",
+   "count": 91
+  }
+ ]
+}
