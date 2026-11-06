@@ -116,14 +116,28 @@ local function deckEntry(face, back)
   return { FaceURL = face, BackURL = back, NumWidth = 1, NumHeight = 1, BackIsHidden = true, UniqueBack = false, Type = 0 }
 end
 
--- A LOCKED deck silently refuses putObject (measured 2026-10-19). Unlock it, put, and lock it again a frame later.
+-- A LOCKED deck silently refuses putObject (measured 2026-10-19). Unlock it, put, and lock it again a frame later,
+-- once the LAST put into it has landed: a put made while an earlier one's re-lock was still to come found the deck
+-- unlocked, scheduled no re-lock of its own, and was refused when that re-lock came first (the trash, 2026-11-06).
+enginePutsPending = {} -- deck guid -> { n = puts still landing, relock = it was locked before the first }
 function enginePutInDeck(deck, obj)
   if deck == nil or deck.isDestroyed() or obj == nil or obj.isDestroyed() then return end
-  local wasLocked = deck.getLock()
-  if wasLocked then deck.setLock(false) end
+  local guid = deck.getGUID()
+  local p = enginePutsPending[guid]
+  if p == nil then
+    p = { n = 0, relock = deck.getLock() }
+    enginePutsPending[guid] = p
+  end
+  if p.relock then deck.setLock(false) end
   obj.setLock(false)
   deck.putObject(obj)
-  if wasLocked then Wait.frames(function() if deck ~= nil and not deck.isDestroyed() then deck.setLock(true) end end, 1) end
+  p.n = p.n + 1
+  Wait.frames(function()
+    p.n = p.n - 1
+    if p.n > 0 then return end
+    if enginePutsPending[guid] == p then enginePutsPending[guid] = nil end
+    if p.relock and deck ~= nil and not deck.isDestroyed() then deck.setLock(true) end
+  end, 1)
 end
 
 -- Removing objects without the pause: TTS spends ~360 ms in the frame after EVERY destruct() (measured 2026-10-19
@@ -186,14 +200,18 @@ function engineDispose(o)
     end })
 end
 
-local function engineCardData(c)
+local FLAT = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 }
+-- The one builder of an engine card's data (what TTS spawns). how: nil, a card on its own (locked, tagged "engine");
+-- "inside", a member of a graveyard or exile pile deck; "search", a member of the library deck during a search, with
+-- the plain back like the library's other cards. A member is neither locked nor tagged (the deck is locked).
+local function engineCardData(c, how)
   local hidden = c.n == nil
-  local face, back = hidden and ENGINE_BACK or (c.f or ENGINE_BACK), c.b or ENGINE_BACK
+  local face, back = hidden and ENGINE_BACK or (c.f or ENGINE_BACK), how == "search" and ENGINE_BACK or (c.b or ENGINE_BACK)
   local key = engineDeckKey(face, back)
+  local own = how == nil
   return {
     Name = "Card", Nickname = nickname(c), Description = description(c), GMNotes = "engine:" .. tostring(c.id),
-    Transform = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 },
-    CardID = key * 100, Locked = true, Tags = { "engine" },
+    Transform = FLAT, CardID = key * 100, Locked = own or nil, Tags = own and { "engine" } or nil,
     CustomDeck = { [key] = deckEntry(face, back) },
   }
 end
@@ -232,17 +250,6 @@ engineBadge = {} -- engine card id -> label currently on its card
 enginePhaseTint = {} -- engine card id -> true while its card is dimmed as phased out
 engineGroupShown = {} -- engine card id -> the "xN" count its badge last showed (a group that grows flashes gold)
 
--- An object becomes card <id>'s object (a card pulled out of a pile or a search, what is left of a pile deck): the
--- same bookkeeping every time. The face it shows is recorded, so the next board doesn't mistake it for a changed
--- card and replace it (two of the four copies this replaced didn't, and a tutored card was thrown away and respawned).
--- held: the player just took it; the next boards wait a moment for the engine to say where it goes.
-function engineAdopt(id, obj, held)
-  engineObjs[id] = obj
-  engineSpawning[id] = nil
-  engineFace[id] = engineFaceKey(engineStatic[id] or {})
-  if engineInPile ~= nil then engineInPile[id] = nil end
-  if held then engineHeld[id] = os.clock() end
-end
 local COUNTER_NAMES = { P1P1 = "+1/+1", M1M1 = "-1/-1", LOYALTY = "Loyalty", POISON = "Poison", SHIELD = "Shield",
   STUN = "Stun", LORE = "Lore", OIL = "Oil", CHARGE = "Charge", TIME = "Time", FADE = "Fade", AGE = "Age", DEFENSE = "Defense" }
 function engineNoop() end
@@ -385,6 +392,43 @@ end
 engineFlipped = {} -- engine card id -> true while its owner has flipped it over on the table (looks only)
 
 local ATTACH_SCALE = 0.5
+-- The one way an object becomes engine card <id>'s object on the table (docs/core-moves-cleanup-plan.md §3): spawned
+-- for board card c (place), or taken over with c nil (a card pulled out of a pile or a search, what is left of a pile
+-- deck). The face it shows is recorded, so the next board doesn't mistake it for a changed card and replace it (a
+-- tutored card was once thrown away and respawned): a spawned card's from c, a taken one's from the card's details.
+-- opts.held: the player just took it; the next boards wait a moment for the engine to say where it goes.
+-- opts.zone, opts.lock: a spawned card, drawn as it lies there (its badges, its lock, half size when attached).
+function engineCardEntry(id, obj, c, opts)
+  opts = opts or {}
+  engineObjs[id] = obj
+  engineSpawning[id] = nil
+  engineFace[id] = engineFaceKey(c or engineStatic[id] or {})
+  -- (a taken card is out of its pile; a spawned one was out when place asked for it, and a pile that took it in
+  -- meanwhile has marked it again: the late callback must not undo that, or the pile counts and sweeps miss it)
+  if c == nil and engineInPile ~= nil then engineInPile[id] = nil end
+  if opts.held then engineHeld[id] = os.clock() end
+  -- a new object has no badges or buttons yet: drawn again here for a spawned card, on the next board for one taken
+  -- over (the text it had when it went into a pile drew nothing, and a reanimated Serra Angel had no status box)
+  engineBadge[id] = nil
+  engineStackGlow[id] = nil -- (its glow too: the board's on the next board, an open question's on the next frame)
+  if c ~= nil then
+    updateBadge(obj, c, opts.zone)
+    obj.setLock(opts.lock == true)
+    if opts.zone == "attached" or opts.zone == "linked" then obj.setScale(Vector(ATTACH_SCALE, 1, ATTACH_SCALE)) end
+  end
+  if engineGlowLate ~= nil then engineGlowLate(id) end
+end
+
+-- A spawn callback from an earlier game ("mtg reset" while it spawned, gen = engineGen when the spawn was asked): true,
+-- and the caller touches nothing. The reset's sweep put the object in the trash already (registering it wrote a trashed
+-- object into the next game's bookkeeping and locked it, an error once the trash had merged it); one the sweep missed
+-- (still "engine:<id>") goes now. Card spawns (place) and the library deck.
+function engineSpawnStale(gen, obj, id)
+  if gen == engineGen then return false end
+  if obj ~= nil and not obj.isDestroyed() and tostring(obj.getGMNotes()) == "engine:" .. id then engineDispose(obj) end
+  return true
+end
+
 local function place(c, pos, rot, seen, handColor, meta)
   if c == nil or c.id == nil then return end
   if engineFlipped[c.id] then
@@ -411,25 +455,21 @@ local function place(c, pos, rot, seen, handColor, meta)
   if o == nil then
     if engineSpawning[c.id] then return end
     engineSpawning[c.id] = true
+    engineInPile[c.id] = nil -- (placed on its own: in no pile deck now, though it may have left one without being taken out)
     if handColor ~= nil then engineInHand[c.id] = true end
     op("spawn")
     -- (a held mill comes off the library face down and turns face up onto its spot, a moment after the one before)
     local arrive = meta ~= nil and meta.zone == "heldmill" and meta.from ~= nil and not engineAnimOff
+    local gen = engineGen
     spawnObjectData({ data = engineCardData(c), position = arrive and meta.from or pos, rotation = arrive and Vector(rot.x, rot.y, 180) or rot, callback_function = function(obj)
-      engineSpawning[c.id] = nil
+      if engineSpawnStale(gen, obj, c.id) then return end -- (from before an "mtg reset" while the board was spawning)
       if arrive then
         Wait.time(function()
           if obj ~= nil and not obj.isDestroyed() then obj.setRotationSmooth(rot, false, true) obj.setPositionSmooth(pos, false, true) end
         end, math.max(0.01, ((meta.k or 1) - 1) * MILL_GAP))
       end
-      engineObjs[c.id] = obj
-      engineStackGlow[c.id] = nil -- a new object: its glow is drawn again on the next board
-      engineFace[c.id] = engineFaceKey(c)
-      engineBadge[c.id] = nil
-      updateBadge(obj, c, meta and meta.zone)
-      obj.setLock(handColor == nil and not free) -- a card spawned on the hand position joins that hand
-      if meta and (meta.zone == "attached" or meta.zone == "linked") then obj.setScale(Vector(ATTACH_SCALE, 1, ATTACH_SCALE)) end
-      if engineGlowLate ~= nil then engineGlowLate(c.id) end
+      -- (unlocked on the hand position: a card spawned there joins that hand)
+      engineCardEntry(c.id, obj, c, { zone = meta and meta.zone, lock = handColor == nil and not free })
     end })
     return
   end
@@ -794,19 +834,27 @@ end
 function enginePlayerCounters(o, pl)
   if o == nil then return end
   local parts = {}
-  for _, k in ipairs({ "poison", "energy" }) do
-    local n = tonumber(pl[k]) or 0
-    if n > 0 then parts[#parts + 1] = string.upper(k) .. " " .. n end
+  -- (the whole label, worded and ordered by the bridge since 2026-11-06: bridge PLAYER_MARKS; it is left out when there
+  -- is no mark)
+  if type(pl.allMarks) == "table" then
+    for _, m in ipairs(pl.allMarks) do parts[#parts + 1] = tostring(m) end
+  else
+    -- (a bridge from before allMarks: six marks worded here, then its marks. Both halves are live since 2026-11-06; this
+    -- goes with docs/core-moves-cleanup-plan.md "2. trackMarks" step 6)
+    for _, k in ipairs({ "poison", "energy" }) do
+      local n = tonumber(pl[k]) or 0
+      if n > 0 then parts[#parts + 1] = string.upper(k) .. " " .. n end
+    end
+    -- (and the monarch and the initiative, which nothing showed: Palace Jailer's monarchy, hp-17 gap)
+    if pl.monarch then parts[#parts + 1] = "MONARCH" end
+    if pl.initiative then parts[#parts + 1] = "INITIATIVE" end
+    -- (and the city's blessing and an enduring story, kept for the rest of the game, hp-21 gap)
+    if pl.blessed then parts[#parts + 1] = "CITY'S BLESSING" end
+    if pl.story then parts[#parts + 1] = "ENDURING STORY" end
+    -- (and the rest the bridge reads off the player: other counters, the Ring, speed, a controlled or extra turn,
+    -- prevention shields, hand size, keywords on the player; bridge playerMarks)
+    for _, m in ipairs(pl.marks or {}) do parts[#parts + 1] = tostring(m) end
   end
-  -- (and the monarch and the initiative, which nothing showed: Palace Jailer's monarchy, hp-17 gap)
-  if pl.monarch then parts[#parts + 1] = "MONARCH" end
-  if pl.initiative then parts[#parts + 1] = "INITIATIVE" end
-  -- (and the city's blessing and an enduring story, kept for the rest of the game, hp-21 gap)
-  if pl.blessed then parts[#parts + 1] = "CITY'S BLESSING" end
-  if pl.story then parts[#parts + 1] = "ENDURING STORY" end
-  -- (and the rest the bridge reads off the player: other counters, the Ring, speed, a controlled or extra turn,
-  -- prevention shields, hand size, keywords on the player; bridge playerMarks)
-  for _, m in ipairs(pl.marks or {}) do parts[#parts + 1] = tostring(m) end
   local label = table.concat(parts, "   ")
   local at
   for i, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then at = i - 1 end end
@@ -848,6 +896,8 @@ end
 
 local function mergeStatic(m)
   if m == nil then return end
+  -- the restore points the bridge left out because they didn't change (keepRewind): the last board's
+  if m.keepRewind then m.rewind = lastTable and lastTable.rewind or nil m.keepRewind = nil end
   -- zones the bridge left out because they didn't change: reuse the last board's (already merged) lists
   for _, pl in ipairs(m.players or {}) do
     if pl.keep ~= nil then
@@ -1013,6 +1063,7 @@ local function playerSpot(color)
   if g ~= nil then return onTable(g.mat + g.fwd * (BACK_ROW * GRID.rowStep + GRID.rowStart), 0) end
   return lifeSpot(color)
 end
+enginePlayerSpot = playerSpot -- (the table effects' burst for damage to a player lands here too)
 local function cardSpot(id)
   if enginePlanned[id] ~= nil then return enginePlanned[id] end -- where it is going (it may still be moving)
   local o = engineObjs[id]
@@ -1060,6 +1111,9 @@ function engineCombatLunge(m)
   if next(atk) ~= nil and not DAMAGE_STEPS[tostring(m.step)] then lunge.atk, lunge.turn = atk, turn end
   if not DAMAGE_STEPS[tostring(m.step)] or lunge.turn ~= turn or lunge.done == turn then return 0 end
   lunge.done = turn
+  -- (when each swing lands, os.clock(): its target's id or colour, and a blocked attacker's own id; the table effects
+  -- time their impacts with it, for this board only)
+  engineLungeHits = { board = m }
   local n = 0
   local order = {}
   for id in pairs(lunge.atk) do order[#order + 1] = id end
@@ -1076,6 +1130,9 @@ function engineCombatLunge(m)
       local hit = Vector(from.x + dx * LUNGE_REACH, from.y + LUNGE_LIFT, from.z + dz * LUNGE_REACH)
       local at = n * LUNGE_STEP
       engineAnimUntil[id] = os.clock() + at + LUNGE_OUT + 0.6
+      local hitAt, tgt = os.clock() + at + LUNGE_WIND, a.blocker or a.atkT
+      if engineLungeHits[tgt] == nil or hitAt < engineLungeHits[tgt] then engineLungeHits[tgt] = hitAt end
+      if a.blocker ~= nil and (engineLungeHits[id] == nil or hitAt < engineLungeHits[id]) then engineLungeHits[id] = hitAt end
       local go = function(to2) if o ~= nil and not o.isDestroyed() then o.setPositionSmooth(to2, false, true) end end
       if at > 0 then Wait.time(function() go(wind) end, at) else go(wind) end
       Wait.time(function() go(hit) end, at + LUNGE_WIND)
@@ -1167,8 +1224,318 @@ end
 -- victory. "mtg effects off" turns a player's big banners off (engineEffectsOff); world highlights are for everyone.
 engineEffectsOff = {}
 do
-  local FX = { prev = nil, dimmed = {}, VIOLET = { 0.62, 0.25, 0.95 }, OUT = { 0.38, 0.38, 0.42 } }
+  -- (step 4, the table effects, docs/m5-effects-design.md: seven panels of Object UI on a life counter, moved to where
+  -- something happened and switched on and off; nothing is spawned. UNIT, AX, AY, ROT0, LIFT and CARD are to be
+  -- calibrated on the real table with engineFxTest; AX = 1 was measured on the real table 2026-11-06 (with -1 an
+  -- effect at Red's seat drew on White's mat), the rest looked right there. SHOW = true plays the Grow / FadeOut tweens with UI.show, which
+  -- ignores visibility: then "mtg effects off" can't hide them from one player.)
+  local FX = { prev = nil, dimmed = {}, VIOLET = { 0.62, 0.25, 0.95 }, OUT = { 0.38, 0.38, 0.42 },
+    slotUntil = {}, slotOn = {}, slotText = {}, gen = 0, built = false, jumpNext = false, sndAt = {}, sndLast = -100,
+    UNIT = 100, AX = 1, AY = 1, ROT0 = 180, LIFT = 0.7, CARD = 2.2, SHOW = false, SLOTS = 6, PER_BOARD = 6, MAX_RINGS = 4, MAX_HITS = 4,
+    COLOURS = { "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" },
+    SOUND_OF = { knockout = "knockout", death = "death", player = "damage", damage = "damage", counter = "counter" } }
   local TRACK = { White = "23e485", Red = "448880", Yellow = "37e533", Blue = "395037" }
+  -- the carrier of the effect panels: White's life counter, else the first other one there is
+  function FX.carrier()
+    for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do
+      local o = getObjectFromGUID(TRACK[c] or "")
+      if o ~= nil and not o.isDestroyed() then return o end
+    end
+    return nil
+  end
+  -- pictures only once all three links are set (engineFxArt); until then a coloured "●" stands in
+  function FX.hasArt()
+    local a = engineFxArt or {}
+    for _, k in ipairs({ "burst", "smoke", "ring" }) do if type(a[k]) ~= "string" or a[k] == "" then return false end end
+    return true
+  end
+  function FX.slotXml(id, art)
+    local pic = art and ('<Image id="' .. id .. '_img" image="fx_burst" color="#FFFFFFE6" preserveAspect="true" raycastTarget="false"/>')
+      or ('<Text id="' .. id .. '_img" fontSize="200" color="#FFFFFFE6" alignment="MiddleCenter" raycastTarget="false">●</Text>')
+    return '<Panel id="' .. id .. '" active="false" raycastTarget="false" width="220" height="220" position="0 0 -70" showAnimation="Grow" hideAnimation="FadeOut" animationDuration="0.15">'
+      .. pic .. '<Text id="' .. id .. '_txt" fontSize="90" fontStyle="Bold" color="#FFFFFF" outline="#000000C0" outlineSize="3 -3" alignment="MiddleCenter" raycastTarget="false"> </Text></Panel>'
+  end
+  -- once per game at most (the first board): the pool goes on the carrier unless it is already there (it stays in
+  -- the save, inactive). A marker panel says which kind of pool it is, so setting the picture links rebuilds it once.
+  function FX.build()
+    FX.built = true
+    local o = FX.carrier()
+    FX.car = o
+    if o == nil then return end
+    local art = FX.hasArt()
+    FX.art = art
+    local want = art and "eng_fx_pool_art" or "eng_fx_pool_dots"
+    local xml = tostring(o.UI.getXml() or "")
+    if xml:find('id="' .. want .. '"', 1, true) then return end
+    -- (an older pool goes: everything from its marker on is ours; a pool without a marker means the XML is all ours)
+    local cut = xml:find('<Panel id="eng_fx_pool_', 1, true)
+    if cut ~= nil then xml = xml:sub(1, cut - 1) elseif xml:find("eng_fx_", 1, true) then xml = "" end
+    local parts = { xml, '<Panel id="' .. want .. '" active="false" raycastTarget="false"></Panel>' }
+    for i = 1, FX.SLOTS do parts[#parts + 1] = FX.slotXml("eng_fx_" .. i, art) end
+    parts[#parts + 1] = FX.slotXml("eng_fx_ko", art)
+    if art then
+      local a = engineFxArt
+      pcall(o.UI.setCustomAssets, { { name = "fx_burst", url = a.burst }, { name = "fx_smoke", url = a.smoke }, { name = "fx_ring", url = a.ring } })
+    end
+    o.UI.setXml(table.concat(parts))
+    FX.slotOn, FX.slotText = {}, {}
+  end
+  -- who sees the panels: every colour but those who turned their effects off (an empty list would mean everyone)
+  function FX.viewers()
+    local v = {}
+    for _, c in ipairs(FX.COLOURS) do if not engineEffectsOff[c] then v[#v + 1] = c end end
+    return v
+  end
+  -- anything to show at all: the host's table animations on and a seated player with effects on
+  function FX.visualsOn()
+    if engineAnimOff then return false end
+    for _, c in ipairs(getSeatedPlayers()) do if not engineEffectsOff[c] then return true end end
+    return false
+  end
+  function FX.toggle(id, on)
+    local o = FX.car
+    FX.slotOn[id] = on or nil
+    if o == nil or o.isDestroyed() then return end
+    if FX.SHOW then if on then o.UI.show(id) else o.UI.hide(id) end
+    else o.UI.setAttribute(id, "active", on and "true" or "false") end
+  end
+  -- one picture of an effect: which one, its colour and its size in card widths (one UI call). (The "●" stand-in's
+  -- font stays inside its box: TTS draws no text taller than its box, and at 1.3x the dot never showed, 2026-11-06.)
+  function FX.pic(id, ph, s)
+    local w, h = math.floor(ph.size * FX.CARD * FX.UNIT / s.x), math.floor(ph.size * FX.CARD * FX.UNIT / s.z)
+    if FX.art then FX.car.UI.setAttributes(id .. "_img", { image = "fx_" .. ph.img, color = ph.col, width = w, height = h })
+    else FX.car.UI.setAttributes(id .. "_img", { color = ph.col, fontSize = math.floor(math.min(w, h) * 0.85), width = w, height = h }) end
+  end
+  -- one effect in one slot, `delay` seconds from now. e: { spot, seat, phases = { { t, img, col, size }, ... }, stop,
+  -- text, textCol }. The panel is moved, sized and shown in one call; each later picture is one call; off is one.
+  function FX.start(id, e, delay)
+    local o, gen = FX.car, FX.gen
+    local s = o.getScale()
+    local big = 0
+    for _, ph in ipairs(e.phases) do big = math.max(big, ph.size) end
+    local function step(k)
+      if FX.gen ~= gen or o.isDestroyed() then return end
+      if k > 1 then FX.pic(id, e.phases[k], s) return end
+      local l = o.positionToLocal(e.spot)
+      local g = e.seat and seatGeometry(e.seat)
+      local attrs = { position = string.format("%.0f %.0f %.0f", FX.AX * l.x * FX.UNIT, FX.AY * l.z * FX.UNIT, -FX.LIFT * FX.UNIT / s.y),
+        width = math.floor(big * FX.CARD * FX.UNIT / s.x), height = math.floor(big * FX.CARD * FX.UNIT / s.z),
+        rotation = string.format("0 0 %.0f", FX.ROT0 + (g and g.rotY or 0) - o.getRotation().y),
+        visibility = table.concat(FX.viewers(), "|") } -- (read now: a player who turned effects off since is left out)
+      if not FX.SHOW then attrs.active = "true" end
+      o.UI.setAttributes(id, attrs)
+      local txt, col = e.text or " ", e.textCol or "#FFFFFF"
+      if FX.slotText[id] ~= txt .. col then FX.slotText[id] = txt .. col o.UI.setAttributes(id .. "_txt", { text = txt, color = col }) end
+      FX.pic(id, e.phases[1], s)
+      if FX.SHOW then o.UI.show(id) end
+      FX.slotOn[id] = true
+    end
+    for k, ph in ipairs(e.phases) do
+      if delay + ph.t <= 0 then step(k) else Wait.time(function() step(k) end, delay + ph.t) end
+    end
+    Wait.time(function() if FX.gen == gen then FX.toggle(id, false) end end, delay + e.stop)
+  end
+  -- a free slot: "ko" (knock-outs only) or 1..SLOTS; busy until the effect in it has ended (never reused early)
+  function FX.slot(ko)
+    local now = os.clock()
+    if ko and now >= (FX.slotUntil.ko or 0) then return "ko" end
+    for i = 1, FX.SLOTS do if now >= (FX.slotUntil[i] or 0) then return i end end
+    return nil
+  end
+  -- what each kind looks like (design section 4)
+  function FX.look(e)
+    if e.kind == "death" then
+      return { phases = { { t = 0, img = "burst", col = "#FFFFFFE6", size = e.wipe and 1.5 or 1.0 }, { t = 0.15, img = "smoke", col = "#3D1A5CDD", size = e.wipe and 2.2 or 1.5 } },
+        stop = 0.9, text = e.wipe and ("×" .. e.n) or nil }
+    elseif e.kind == "counter" then
+      return { phases = { { t = 0, img = "ring", col = e.m1 and "#9A7ACCE6" or "#A8D8FFE6", size = 1.1 } }, stop = 0.5 }
+    elseif e.kind == "damage" then
+      return { phases = { { t = 0, img = "burst", col = "#FFB050E6", size = 1.2 } }, stop = 0.35, text = "−" .. e.n, textCol = "#FF4A3A" }
+    elseif e.kind == "player" then
+      return { phases = { { t = 0, img = "burst", col = "#FF9A40E6", size = 2.0 } }, stop = 0.45 }
+    end
+    return { phases = { { t = 0.6, img = "burst", col = "#FFF2D0F0", size = 3 }, { t = 0.8, img = "smoke", col = "#C8401AD0", size = 4 } }, stop = 1.5 }
+  end
+  -- a life counter's red flash (seen by everyone; not while a question has it lit as a target)
+  function FX.glowLife(c, rgb, len, delay)
+    local life = getObjectFromGUID(TRACK[c] or "")
+    if life == nil or engineGlowOwned(life) then return end
+    local gen = FX.gen
+    local go = function() if FX.gen == gen and not life.isDestroyed() and not engineGlowOwned(life) then life.highlightOn(rgb, len) end end
+    if delay > 0 then Wait.time(go, delay) else go() end
+  end
+  -- one frame after the board (engineCombatLunge has stamped its hit times by then): start what fits, drop the rest
+  function FX.dispatch(m, ev, visual, gen)
+    if FX.gen ~= gen then return end
+    local t0 = os.clock()
+    local hits = (engineLungeHits ~= nil and engineLungeHits.board == m) and engineLungeHits or {}
+    local last = engineFxLast or {}
+    last.fx, last.dropped = last.fx or {}, last.dropped or 0
+    if visual and (FX.car == nil or FX.car.isDestroyed()) then FX.car = FX.carrier() end
+    local started, deaths, soundAt = 0, 0, nil
+    for _, e in ipairs(ev) do
+      local hit = hits[e.id or e.seat]
+      local delay = hit ~= nil and math.max(0, hit - os.clock()) or 0
+      if e.kind == "death" then delay = delay + 0.08 * deaths deaths = deaths + 1 end
+      if soundAt == nil then soundAt = delay + (e.kind == "knockout" and 0.6 or 0) end
+      if visual then
+        local spot = e.spot
+        if e.kind == "knockout" then local life = getObjectFromGUID(TRACK[e.seat] or "") spot = life and life.getPosition() end
+        local key = (started < FX.PER_BOARD and spot ~= nil and FX.car ~= nil) and FX.slot(e.kind == "knockout") or nil
+        if key ~= nil then
+          local look = FX.look(e)
+          look.spot, look.seat = spot, e.seat
+          FX.start("eng_fx_" .. key, look, delay)
+          FX.slotUntil[key] = os.clock() + delay + look.stop
+          started = started + 1
+          last.fx[#last.fx + 1] = { kind = e.kind, seat = e.seat, at = delay, x = spot.x, z = spot.z, n = e.n, slot = key }
+          if e.kind == "player" then FX.glowLife(e.seat, { 1, 0.2, 0.15 }, 0.5, delay)
+          elseif e.kind == "knockout" then FX.glowLife(e.seat, { 1, 0.15, 0.1 }, 0.7, delay) end
+        else last.dropped = last.dropped + 1 end
+      end
+    end
+    local kind = ev[1] and FX.SOUND_OF[ev[1].kind]
+    if kind ~= nil and soundAt ~= nil then
+      if soundAt <= 0 then engineSoundPlay(kind) else Wait.time(function() if FX.gen == gen then engineSoundPlay(kind) end end, soundAt) end
+    end
+    local S = engineProfile and engineProfile.sect
+    if S ~= nil then S.fx = (S.fx or 0) + (os.clock() - t0) * 1000 end
+  end
+  -- The board's events, most important first: knock-outs, deaths, damage to players, damage to creatures, counters.
+  -- prev/now are engineEffects' snapshots, diedIds its deaths. Returns how many events it found.
+  function engineFxBoard(m, prev, now, diedIds)
+    local ev = {}
+    local sortedKeys = function(t) local ks = {} for k in pairs(t) do ks[#ks + 1] = k end table.sort(ks) return ks end
+    for _, c in ipairs(sortedKeys(now.status)) do
+      if now.status[c] ~= "playing" and prev.status[c] == "playing" then ev[#ev + 1] = { kind = "knockout", seat = c } end
+    end
+    -- deaths by the battlefield they left; more than 3 on one = one bigger cloud with "×N" in the middle of them
+    local bySeat = {}
+    for _, ids in pairs(diedIds) do
+      for _, id in ipairs(ids) do
+        local x = prev.bf[id]
+        if x ~= nil then bySeat[x.owner] = bySeat[x.owner] or {} table.insert(bySeat[x.owner], id) end
+      end
+    end
+    for _, c in ipairs(sortedKeys(bySeat)) do
+      local list = bySeat[c]
+      table.sort(list)
+      if #list > 3 then
+        local sx, sz, k, y = 0, 0, 0, 0
+        for _, id in ipairs(list) do local p = prev.bf[id].pos if p ~= nil then sx, sz, k, y = sx + p.x, sz + p.z, k + 1, p.y end end
+        if k > 0 then ev[#ev + 1] = { kind = "death", seat = c, id = list[1], spot = Vector(sx / k, y, sz / k), n = #list, wipe = true } end
+      else
+        local at = {}
+        for _, id in ipairs(list) do
+          local p = prev.bf[id].pos
+          local key = p and string.format("%.1f,%.1f", p.x, p.z)
+          if p ~= nil and not at[key] then at[key] = true ev[#ev + 1] = { kind = "death", seat = c, id = id, spot = p, n = 1 } end
+        end
+      end
+    end
+    -- damage to players: life went down (life paid reads the same)
+    for _, c in ipairs(sortedKeys(now.life)) do
+      local was, life = tonumber(prev.life[c]), tonumber(now.life[c])
+      if was ~= nil and life ~= nil and life < was and enginePlayerSpot ~= nil then
+        ev[#ev + 1] = { kind = "player", seat = c, n = was - life, spot = enginePlayerSpot(c) }
+      end
+    end
+    -- damage to creatures and counters put on permanents: only cards on the battlefield in both boards, one per spot
+    -- (grouped tokens share one)
+    local hitsAt, rings = {}, {}
+    for id, x in pairs(now.bf) do
+      local p = prev.bf[id]
+      if p ~= nil and x.pos ~= nil then
+        if x.dmg > p.dmg then hitsAt[#hitsAt + 1] = { kind = "damage", seat = x.owner, id = id, spot = x.pos, n = x.dmg - p.dmg } end
+        local grew, other = false, false
+        if x.ctr ~= nil then
+          local was = p.ctr or {}
+          for k, v in pairs(x.ctr) do
+            if (tonumber(v) or 0) > (tonumber(was[k]) or 0) then grew = true if k ~= "M1M1" then other = true end end
+          end
+        end
+        if grew then rings[#rings + 1] = { kind = "counter", seat = x.owner, id = id, spot = x.pos, m1 = not other } end
+      end
+    end
+    table.sort(hitsAt, function(a, b) if a.n ~= b.n then return a.n > b.n end return a.id < b.id end)
+    table.sort(rings, function(a, b) return a.id < b.id end)
+    for _, list in ipairs({ { hitsAt, FX.MAX_HITS }, { rings, FX.MAX_RINGS } }) do
+      local at, n = {}, 0
+      for _, e in ipairs(list[1]) do
+        local key = string.format("%.1f,%.1f", e.spot.x, e.spot.z)
+        if n < list[2] and not at[key] then at[key], n = true, n + 1 ev[#ev + 1] = e end
+      end
+    end
+    if #ev == 0 then return 0 end
+    local visual = FX.visualsOn()
+    local kind = FX.SOUND_OF[ev[1].kind]
+    local sound = not engineSoundsMuted and engineSounds ~= nil and engineSounds[kind] ~= nil
+    if not visual and not sound then return #ev end
+    if visual and not FX.built then FX.build() end
+    local gen = FX.gen
+    Wait.frames(function() FX.dispatch(m, ev, visual, gen) end, 1)
+    return #ev
+  end
+  -- a jump, not a play: the next board only gives the effects a new start (the table was sent again, "started")
+  function engineEffectsJump() FX.jumpNext = true end
+  -- for calibrating on the real table (real-table check 2): one slot on a card (engine id) or a player's spot (a
+  -- colour) for 3 s; kind = "ring", "burst" or "smoke"
+  function engineFxTest(kind, id)
+    if not FX.built then FX.build() end
+    if FX.car == nil then return "no life counter to carry the effects" end
+    local spot = enginePlanned[id] or (engineObjs[id] ~= nil and not engineObjs[id].isDestroyed() and engineObjs[id].getPosition())
+      or (enginePlayerSpot ~= nil and LIFE_TRACKERS[id] ~= nil and enginePlayerSpot(id)) or nil
+    if not spot then return "no such card or colour on the table" end
+    local seat = (engineMeta[id] and engineMeta[id].color) or (LIFE_TRACKERS[id] ~= nil and id) or nil
+    FX.slotUntil[1] = os.clock() + 3
+    FX.start("eng_fx_1", { spot = spot, seat = seat, phases = { { t = 0, img = kind or "ring", col = "#FFFFFFE6", size = 1.0 } }, stop = 3, text = "×3" }, 0)
+    return "shown"
+  end
+  -- M5 sounds (design section 6), at most one per board: each kind at most every 0.3 s, any two 0.15 s apart.
+  -- engineSounds[kind]: nil = silent; a link (https://...) plays through the table's music player (route A, shared by
+  -- everyone); a name plays that trigger effect of the sound object whose GM notes are "engine:sounds" (route B).
+  -- force (mtg sounds test) skips the spacing. True if it played. engineSoundLog: "kind route", for the tests.
+  function engineSoundPlay(kind, force)
+    local pick = engineSounds and engineSounds[kind]
+    if engineSoundsMuted or type(pick) ~= "string" or pick == "" then return false end
+    local now = os.clock()
+    if not force and (now - (FX.sndAt[kind] or -100) < 0.3 or now - FX.sndLast < 0.15) then return false end
+    local route
+    if pick:find("^https?://") then
+      if MusicPlayer == nil then return false end
+      local okBusy, busy = pcall(function()
+        local clip = MusicPlayer.getCurrentAudioclip() or {}
+        return MusicPlayer.player_status == "Play" and not tostring(clip.title or ""):find("^MTG effect")
+      end)
+      if not okBusy or busy then return false end -- (the players' own music is playing: never cut it)
+      local ok = pcall(function()
+        MusicPlayer.setCurrentAudioclip({ url = pick, title = "MTG effect: " .. kind })
+        Wait.condition(function() MusicPlayer.play() end, function() return MusicPlayer.loaded end, 2)
+      end)
+      if not ok then return false end
+      route = "music"
+    else
+      if FX.sndObj == nil or FX.sndObj.isDestroyed() then
+        FX.sndObj, FX.sndIdx = nil, nil
+        for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:sounds" then FX.sndObj = o end end
+      end
+      local o = FX.sndObj
+      if o == nil or o.AssetBundle == nil then return false end
+      if FX.sndIdx == nil then
+        FX.sndIdx = {}
+        local okList, list = pcall(o.AssetBundle.getTriggerEffects)
+        for _, t in ipairs(okList and list or {}) do if t.name ~= nil then FX.sndIdx[t.name] = t.index end end
+      end
+      local idx = FX.sndIdx[pick]
+      if idx == nil or not pcall(o.AssetBundle.playTriggerEffect, idx) then return false end
+      route = "bundle"
+    end
+    FX.sndAt[kind], FX.sndLast = now, now
+    engineSoundLog = engineSoundLog or {}
+    engineSoundLog[#engineSoundLog + 1] = kind .. " " .. route
+    if #engineSoundLog > 50 then table.remove(engineSoundLog, 1) end
+    return true
+  end
   local function result(c, text, color, outline, hold)
     if engineEffectsOff[c] or Player[c] == nil or not Player[c].seated then return end
     UI.setValue("eng_result_" .. c, text)
@@ -1211,13 +1578,19 @@ do
     end, (tries or 0) == 0 and 40 or 15)
   end
   function engineEffects(m)
+    if not engineBoardNew then return end -- (a redraw of the same board: nothing happened)
     local prev = FX.prev
-    local now = { bf = {}, gy = {}, stack = {}, status = {} }
+    local now = { bf = {}, gy = {}, stack = {}, status = {}, life = {}, turn = tonumber(m.turn) }
     for _, pl in ipairs(m.players or {}) do
       local c = pl.color
       if c ~= nil then
         now.status[c] = pl.status
-        for _, card in ipairs(pl.battlefield or {}) do now.bf[card.id] = { owner = c, tok = card.tok } end
+        now.life[c] = pl.life
+        -- (its spot on this board, for the effects; a token drawn as part of a group has its group's spot)
+        for _, card in ipairs(pl.battlefield or {}) do
+          now.bf[card.id] = { owner = c, tok = card.tok, pos = enginePlanned[card.id] or (engineGroupOf[card.id] ~= nil and enginePlanned[engineGroupOf[card.id]]) or nil,
+            dmg = tonumber(card.dmg) or 0, ctr = card.ctr }
+        end
         for _, card in ipairs(pl.graveyard or {}) do now.gy[card.id] = c end
       end
     end
@@ -1230,9 +1603,28 @@ do
         if pl.graveyard == nil then for id, x in pairs(prev.gy) do if x == c then now.gy[id] = x end end end
       end
     end
+    -- a rewind, a bridge resume or a table resend is a jump, not a play: the bridge says so (jump), and until it does
+    -- the turn going down, the newest restore point going down or a newly approved rewind vote say it too
+    local r = m.rewind
+    now.newest = (r and r.points and r.points[1] and tonumber(r.points[1].id)) or (prev and prev.newest) or nil
+    now.approved = (r and r.vote and r.vote.status == "approved") and r.vote.id or nil
+    local jump = m.jump == true or FX.jumpNext
+    if prev ~= nil and ((now.turn ~= nil and prev.turn ~= nil and now.turn < prev.turn) or (now.newest ~= nil and prev.newest ~= nil and now.newest < prev.newest)
+      or (now.approved ~= nil and now.approved ~= prev.approved)) then jump = true end
+    FX.jumpNext = false
     FX.prev = now
+    if not FX.built then FX.build() end -- (the first board of a game: the effect panels, once)
     if prev == nil or m.gameOver and prev.over then now.over = m.gameOver return end
     now.over = m.gameOver
+    if jump then
+      -- (and a player the rewind brought back gets their life counter lit again)
+      for c, tint in pairs(FX.dimmed) do
+        local life = now.status[c] == "playing" and getObjectFromGUID(TRACK[c] or "")
+        if life then life.setColorTint(tint) FX.dimmed[c] = nil end
+      end
+      engineFxLast = { died = {}, fx = {}, dropped = 0, jump = true }
+      return
+    end
     -- deaths: battlefield -> its owner's graveyard, and tokens that left the battlefield (they go nowhere)
     local died, diedIds = {}, {}
     for id, x in pairs(prev.bf) do
@@ -1244,7 +1636,7 @@ do
       end
     end
     for c, n in pairs(died) do deathFlash(c, n, diedIds[c]) end
-    engineFxLast = { died = died }
+    engineFxLast = { died = died, fx = {}, dropped = 0 }
     -- countered: a spell that left the stack while a "counter target ..." spell or ability aimed at it left too (the
     -- board's stack targets; "it left while not on top" alone also caught several spells resolving between updates)
     local still, countered = {}, {}
@@ -1272,9 +1664,10 @@ do
         break
       end
     end
-    -- knocked out: DEFEAT for them, "<NAME> IS OUT" for the others; their life counter goes dark
+    -- knocked out (lost, or conceded: the engine's "conceded" got no banner before step 4): DEFEAT for them,
+    -- "<NAME> IS OUT" for the others; their life counter goes dark
     for c, status in pairs(now.status) do
-      if status == "lost" and prev.status[c] ~= nil and prev.status[c] ~= "lost" then
+      if status ~= nil and status ~= "playing" and prev.status[c] == "playing" then
         for _, viewer in ipairs(seatedColors(m)) do
           if viewer == c then result(viewer, "DEFEAT", "#C9A3FF", "#1a0730E0", 3)
           elseif not m.gameOver then result(viewer, string.upper(c) .. " IS OUT", "#FF8A7A", "#2a0700E0", 2) end
@@ -1292,14 +1685,20 @@ do
         end
       end, 2.5)
     end
+    -- step 4: the table effects and their sound (nothing found = no UI call at all)
+    local okFx, errFx = pcall(engineFxBoard, m, prev, now, diedIds)
+    if not okFx then print("[MTG] table effects: " .. tostring(errFx)) end
   end
-  -- a new game: the life counters light up again, nothing carried over
+  -- a new game: the life counters light up again, nothing carried over (an effect still showing goes off)
   function engineEffectsReset()
     for c, tint in pairs(FX.dimmed) do
       local life = getObjectFromGUID(TRACK[c] or "")
       if life ~= nil then life.setColorTint(tint) end
     end
     FX.dimmed, FX.prev = {}, nil
+    FX.gen = FX.gen + 1
+    for id in pairs(FX.slotOn) do FX.toggle(id, false) end
+    FX.slotOn, FX.slotUntil, FX.slotText, FX.built, FX.jumpNext = {}, {}, {}, false, false
   end
 end
 
@@ -1329,8 +1728,8 @@ function engineRender(m)
   engineStatusSeen = engineStatusSeen or {}
   for _, pl in ipairs(m.players or {}) do
     local was = engineStatusSeen[pl.color or pl.slot]
-    if was ~= nil and was ~= pl.status and pl.status == "lost" then
-      broadcastToAll("[MTG] " .. tostring(pl.name or pl.color) .. " has lost the game.", {1, 0.45, 0.35})
+    if was ~= nil and was ~= pl.status and (pl.status == "lost" or pl.status == "conceded") then
+      broadcastToAll("[MTG] " .. tostring(pl.name or pl.color) .. (pl.status == "conceded" and " has conceded." or " has lost the game."), {1, 0.45, 0.35})
     end
     engineStatusSeen[pl.color or pl.slot] = pl.status
   end
@@ -1607,7 +2006,17 @@ local function sweepEngineCards()
     if gm == "engine:trash" then
       if o ~= current then o.setGMNotes("enginetrash-old") Wait.frames(function() if not o.isDestroyed() then o.destruct() end end, 2) end
     -- library placeholders too: one left lying on the library spot got merged into the player's deck put back there
-    elseif gm:find("^engine:") or gm == "enginetrash" or gm == "libcard" then engineDispose(o) end
+    elseif gm:find("^engine:") or gm == "enginetrash" or gm == "libcard" then engineDispose(o)
+    elseif o.type == "Deck" then
+      -- and a deck of nothing but library placeholders, which has no GM notes of its own: TTS made one of cards added
+      -- to a library together (the libAdd path before 2026-11-06) and it lay on the library after a reset
+      local n, plain = 0, true
+      for _, e in ipairs(o.getObjects() or {}) do
+        n = n + 1
+        if e.gm_notes ~= "libcard" then plain = false break end
+      end
+      if plain and n > 0 then engineDispose(o) end
+    end
   end
   Wait.condition(function()
     local t = engineTrash
@@ -1655,6 +2064,7 @@ function engineStarted(m)
     if not isAI then humans[#humans + 1] = color end
   end
   if lastTable == nil then engineGen = engineGen + 1 sweepEngineCards() end -- a new game: nothing from an earlier one stays behind
+  if engineEffectsJump ~= nil then engineEffectsJump() end -- (the bridge sends "started" again before a resend: no effects for it)
   stashImported(humans)
   if not ENGINE_MODE then setEngineMode(true) end
 end
@@ -1869,8 +2279,8 @@ local function panelXml(color)
     .. '<Button id="eng_set_' .. c .. '" onClick="onMtgSettings" visibility="' .. c .. '" width="100" height="32" rectAlignment="UpperLeft" offsetXY="578 -140" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Settings</Button>\n'
     .. '<Panel id="eng_setpanel_' .. c .. '" visibility="' .. c .. '" width="290" height="150" rectAlignment="UpperLeft" offsetXY="420 -178" color="#0A0C10F0" active="false">'
     .. '<VerticalLayout padding="8 8 8 8" spacing="6">'
-    .. '<Button id="eng_fx_' .. c .. '" onClick="onMtgFx" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Banners, the turn banner and the stack pop-up, for you only">My effects: on</Button>'
-    .. '<Button id="eng_snd_' .. c .. '" onClick="onMtgSnd" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Sounds, for you">My sounds: on</Button>'
+    .. '<Button id="eng_fx_' .. c .. '" onClick="onMtgFx" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Banners, the turn banner, the stack pop-up and table effects, for you only">My effects: on</Button>'
+    .. '<Button id="eng_snd_' .. c .. '" onClick="onMtgSnd" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Table sounds (shared by everyone: the host mutes them)">My sounds: on</Button>'
     .. '<Button id="eng_anim_' .. c .. '" onClick="onMtgAnim" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Attack swings, mills and the graveyard flash: everyone sees them, so the host decides">Table animations: on</Button>'
     .. '</VerticalLayout></Panel>\n'
     .. '<Panel id="eng_log_' .. c .. '" visibility="' .. c .. '" width="430" height="290" rectAlignment="UpperRight" offsetXY="-10 -150" color="#0A0C10D0" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
@@ -2237,6 +2647,8 @@ function engineStopsOf(color)
 end
 
 local function updateOptions(color)
+  -- (a fix from hand: the engine is paused, and the panel lists the player's hand instead, M7 §12)
+  if engineFixHandDraw ~= nil and engineFixHandDraw(color) then return end
   local p = engineBrowse[color] and browsePrompt(color) or enginePrompts[color]
   engineVisible[color] = {}
   if p == nil then
@@ -2355,7 +2767,8 @@ local function updatePanel(color)
   setText("eng_toggle_" .. color, engineShown[color] and "Engine: hide" or "Engine: show")
   setAttr("eng_browse_" .. color, "active", lastTable ~= nil and "true" or "false")
   setText("eng_browse_" .. color, engineBrowse[color] and "Back to choices" or "Graveyards / exile")
-  setAttr("eng_panel_" .. color, "active", (lastTable ~= nil and engineShown[color] ~= nil) and "true" or "false")
+  -- (also while a fix from hand lists this player's hand in it)
+  setAttr("eng_panel_" .. color, "active", (lastTable ~= nil and (engineShown[color] ~= nil or (engineFixHandWants ~= nil and engineFixHandWants(color)))) and "true" or "false")
   setAttr("eng_logbtn_" .. color, "active", lastTable ~= nil and "true" or "false")
   setAttr("eng_log_" .. color, "active", (lastTable ~= nil and not engineLogHidden[color]) and "true" or "false")
   setAttr("eng_pace_" .. color, "active", lastTable ~= nil and "true" or "false")
@@ -2737,6 +3150,7 @@ local function idColor(id) return id:match("^eng_%a+_(%a+)") end
 function onMtgSlot(player, value, id)
   local color, slot = id:match("^eng_opt_(%a+)_(%d+)$")
   if color == nil or player.color ~= color then return end
+  if engineFixHandClick ~= nil and engineFixHandClick(color, tonumber(slot)) then return end
   local v = (engineVisible[color] or {})[tonumber(slot)]
   if v == "more" then
     enginePage[color].n = enginePage[color].n + 1
@@ -2746,7 +3160,11 @@ function onMtgSlot(player, value, id)
   pick(color, v)
 end
 enginePage = {} -- colour -> { key, n }: the page of a long answer list (see updateOptions)
-function onMtgConfirm(player, value, id) if player.color == idColor(id) then confirm(player.color) end end
+function onMtgConfirm(player, value, id)
+  if player.color ~= idColor(id) then return end
+  if engineFixHandClick ~= nil and engineFixHandClick(player.color, "done") then return end -- (Done of a fix from hand)
+  confirm(player.color)
+end
 function onMtgCancel(player, value, id) if player.color == idColor(id) then engineAnswer(player.color, { "__cancel" }) end end
 function onMtgToggle(player, value, id)
   if player.color ~= idColor(id) then return end
@@ -2963,7 +3381,25 @@ end
 
 -- Settings (2026-10-22): one button opening My effects / My sounds / Table animations.
 engineSettingsOpen = {} -- colour -> true while that player's settings panel is open
-engineSoundOff = {}     -- colour -> true: no sounds for that player (sounds come with the M5 effect bundle)
+engineSoundOff = {}     -- colour -> true: that player asked for no sounds (the table's sounds are shared: the host's switch)
+-- M5 step 4 sound picks (docs/m5-effects-design.md section 6, "Plugging in a sound"): nil = silent. A link to an
+-- .mp3 (https://...) plays through the table's music player, for everyone; a name plays that trigger effect of the
+-- sound object (an AssetBundle whose GM notes are "engine:sounds").
+engineSounds = engineSounds or { death = nil, counter = nil, damage = nil, knockout = nil }
+engineSoundsMuted = false -- the host's switch for the whole table
+-- the three pictures of the table effects (links from TTS's Cloud Manager); nil = a coloured "●" stands in
+engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }
+-- "mtg sounds on/off" and Settings → My sounds: the host mutes the table; anyone else is told it's shared
+function engineSetSounds(player, on)
+  engineSoundOff[player.color] = (not on) or nil
+  if player.host then
+    engineSoundsMuted = not on
+    broadcastToAll("[MTG] Table sounds " .. (on and "on" or "off") .. " (" .. tostring(player.steam_name) .. ").", {1, 0.85, 0.4})
+  else
+    player.broadcast("[MTG] Table sounds are shared: ask the host, or turn down Music / Effects in TTS's settings.", {1, 0.85, 0.4})
+  end
+  if panelReady then updatePanel(player.color) end
+end
 function onMtgSettings(player, value, id)
   if player.color ~= idColor(id) then return end
   engineSettingsOpen[player.color] = not engineSettingsOpen[player.color] or nil
@@ -2971,11 +3407,11 @@ function onMtgSettings(player, value, id)
 end
 function onMtgSnd(player, value, id)
   if player.color ~= idColor(id) then return end
-  engineSoundOff[player.color] = not engineSoundOff[player.color] or nil
-  updatePanel(player.color)
+  engineSetSounds(player, engineSoundOff[player.color] ~= nil)
 end
 -- Effects (each player, 2026-10-22): that player's own screen effects: the VICTORY / DEFEAT / "IS OUT" banners, the
--- turn banner and the stack pop-up. Players who want the plain TTS table turn them off; others keep the Arena look.
+-- turn banner, the stack pop-up and (step 4) the table effects' panels on their screen. Players who want the plain
+-- TTS table turn them off; others keep the Arena look.
 function onMtgFx(player, value, id)
   if player.color ~= idColor(id) then return end
   engineEffectsOff[player.color] = not engineEffectsOff[player.color] or nil
@@ -3024,6 +3460,7 @@ end
 
 function onMtgSearch(player, value, id)
   if player.color ~= idColor(id) then return end
+  if engineFixHandNote ~= nil and engineFixHandNote(player.color, value) then return end -- (the box is a fix note then)
   engineFilter[player.color] = value
   updateOptions(player.color)
 end
@@ -3876,13 +4313,13 @@ Wait.frames(function()
   end
   sweepEngineCards()
   restoreStash()
-  engineSend("hello", { stamp = engineStamp() })
+  engineSend("hello", { stamp = engineStamp(), keepRewind = true })
   -- the running game sent back on that hello was not drawn once, after a TTS relaunch with a big table still loading
   -- (hp-22 re-test 2026-10-28: the bridge's record has it sent; the table showed READY): ask again while nothing came
   local function askAgain(tries)
     Wait.time(function()
       if lastTable ~= nil then return end
-      engineSend("hello", { again = true, stamp = engineStamp() })
+      engineSend("hello", { again = true, stamp = engineStamp(), keepRewind = true })
       if tries > 1 then askAgain(tries - 1) end
     end, 10)
   end
@@ -3897,21 +4334,14 @@ engineSearchIds = {}        -- engine card id -> true while that card sits in a 
 libraryAnimTo = {}          -- colour -> where cards leaving the library fly next (graveyard for a mill)
 local libraryAnimUntil = {} -- colour -> os.clock() until which cards leaving the deck are our own draw animation
 
-local FLAT = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 }
-local function backDeckEntry()
-  return { FaceURL = ENGINE_BACK, BackURL = ENGINE_BACK, NumWidth = 1, NumHeight = 1, BackIsHidden = true, UniqueBack = false, Type = 0 }
-end
-
 local function libraryDeckData(color, count, candidates)
   local backKey = engineDeckKey(ENGINE_BACK, ENGINE_BACK)
-  local objs, ids, decks = {}, {}, { [backKey] = backDeckEntry() }
+  local objs, ids, decks = {}, {}, { [backKey] = deckEntry(ENGINE_BACK, ENGINE_BACK) }
   for _, c in ipairs(candidates or {}) do
-    local face = c.f or ENGINE_BACK
-    local k = engineDeckKey(face, ENGINE_BACK)
-    decks[k] = deckEntry(face, ENGINE_BACK)
-    objs[#objs + 1] = { Name = "Card", Nickname = nickname(c), Description = description(c), GMNotes = "engine:" .. c.id,
-      CardID = k * 100, CustomDeck = { [k] = decks[k] }, Transform = FLAT }
-    ids[#ids + 1] = k * 100
+    local d = engineCardData(c, "search")
+    for k, e in pairs(d.CustomDeck) do decks[k] = e end
+    objs[#objs + 1] = d
+    ids[#ids + 1] = d.CardID
   end
   for _ = #objs + 1, math.max(count, #objs) do
     objs[#objs + 1] = { Name = "Card", Nickname = "Library card", GMNotes = "libcard", CardID = backKey * 100,
@@ -4080,18 +4510,19 @@ function engineLibraryDeck(color, g, count, seen)
     st.qty = count
     return
   end
+  -- Cards added (put on the bottom, a mulligan's cards back): ONE object goes in, a plain card or a deck of them, built
+  -- as the library's own plain backs. (Several cards spawned on one spot merged into their own unnamed deck lying on
+  -- the library instead, real table 2026-11-06: the debug setup's dealt hand of 7; "mtg reset" left it there.)
   if alive and st ~= nil and st.key == "plain" and key == "plain" and o.type == "Deck" and count > st.qty then
-    local backKey = engineDeckKey(ENGINE_BACK, ENGINE_BACK)
-    for _ = 1, count - st.qty do
-      op("libAdd")
-      spawnObjectData({ data = { Name = "Card", Nickname = "Library card", GMNotes = "libcard", CardID = backKey * 100,
-        CustomDeck = { [backKey] = backDeckEntry() }, Transform = FLAT }, position = o.getPosition() + Vector(0, 2, 0),
-        rotation = Vector(0, g.rotY, 180), callback_function = function(card)
-          if o == nil or o.isDestroyed() then engineDispose(card) return end
-          engineEntering[card.getGUID()] = true
-          enginePutInDeck(o, card)
-        end })
-    end
+    local add = libraryDeckData(color, count - st.qty)
+    if #add.ContainedObjects == 1 then add = add.ContainedObjects[1] end
+    add.Nickname, add.GMNotes, add.Locked = "Library card", "libcard", nil
+    op("libAdd")
+    spawnObjectData({ data = add, position = o.getPosition() + Vector(0, 2, 0), rotation = Vector(0, g.rotY, 180), callback_function = function(obj)
+      if o == nil or o.isDestroyed() then engineDispose(obj) return end -- (the library was replaced meanwhile)
+      engineEntering[obj.getGUID()] = true
+      enginePutInDeck(o, obj) -- (a deck put into a deck merges its cards in: TTS's putObject "works for ... decks")
+    end })
     st.qty = count
     return
   end
@@ -4108,8 +4539,11 @@ function engineLibraryDeck(color, g, count, seen)
     data = libraryDeckData(color, count, candidates)
   end
   engineSpawning[id] = true
-  local built = libraryState[color]
+  local built, gen = libraryState[color], engineGen
   op("deckSpawn") spawnObjectData({ data = data, position = onTable(g.lib, 0.3), rotation = Vector(0, g.rotY, 180), callback_function = function(obj)
+    -- (a callback from an earlier game: registering it locked a trashed deck and its keepOnly could throw away the next
+    -- game's library)
+    if engineSpawnStale(gen, obj, id) then return end
     engineSpawning[id] = nil
     local now = libraryState[color]
     if now ~= built and now ~= nil and now.pendingRebuild then
@@ -4142,7 +4576,7 @@ function onObjectLeaveContainer(container, obj)
     local ogm = tostring(obj.getGMNotes())
     local cid = ogm:match("^engine:(.+)$")
     if cid ~= nil and engineSearchIds[cid] and engineSearch[color] ~= nil then
-      engineAdopt(cid, obj, true) -- the engine will say where it goes next
+      engineCardEntry(cid, obj, nil, { held = true }) -- the engine will say where it goes next
       engineSend("intent", { color = color, kind = "choose", id = cid })
       return
     end
@@ -4229,12 +4663,26 @@ local function addToPile(deck, c)
     end
   else
     op("pileSpawn")
-    spawnObjectData({ data = engineCardData(c), position = deck.getPosition() + Vector(0, 2, 0), callback_function = put })
+    -- (built as the cards a pile deck is built from: it goes straight in, so it needs no lock and no engine tag)
+    spawnObjectData({ data = engineCardData(c, "inside"), position = deck.getPosition() + Vector(0, 2, 0), callback_function = put })
   end
 end
 
 -- Cards that LEFT a pile (reanimated, cast from exile, ...) are taken out of the pile deck before the board is
 -- drawn: the taken card becomes the object that moves to its new place, so nothing is respawned or rebuilt.
+-- A pile deck taken down to one card turns into that card (TTS's deck.remainder): it becomes the remaining card's
+-- object and the pile is no deck any more. After the table's own takes (engineTakeFromPiles) and a player's pick.
+function enginePileRemainder(id, deck)
+  local rem = deck ~= nil and deck.remainder or nil
+  if rem == nil then return false end
+  -- (only an engine card becomes a card's object: anything else left in a pile, a card a player dropped into it, stays
+  -- as it is; the pile is no deck any more either way)
+  local gm = tostring(rem.getGMNotes())
+  if gm:sub(1, 7) == "engine:" then engineCardEntry(gm:sub(8), rem) end
+  engineObjs[id] = nil
+  pileState[id], pileIds[id] = nil, nil
+  return true
+end
 function engineTakeFromPiles(m)
   for _, pl in ipairs(m.players or {}) do
     for _, zone in ipairs({ "graveyard", "exile" }) do
@@ -4265,19 +4713,13 @@ function engineTakeFromPiles(m)
               engineTakingOut[t.cid] = true -- (the table's own take: not a player's, see onObjectLeaveContainer)
               local obj = deck.takeObject({ index = t.at, position = deck.getPosition() + Vector(0, 1.5, 0), smooth = false })
               if obj ~= nil then
-                engineAdopt(t.cid, obj)
+                engineCardEntry(t.cid, obj)
                 op("pileTake")
               else engineTakingOut[t.cid] = nil end
             end
           end
-          -- a deck taken down to one card turns into that card: adopt it as the remaining card's object
-          if deck ~= nil and deck.remainder ~= nil then
-            local rem = deck.remainder
-            local rid = tostring(rem.getGMNotes()):gsub("^engine:", "")
-            engineAdopt(rid, rem)
-            engineObjs[id] = nil
-            pileState[id], pileIds[id] = nil, nil
-          else
+          -- a deck taken down to one card turns into that card (enginePileRemainder)
+          if not enginePileRemainder(id, deck) then
             pileIds[id] = kept
             pileState[id] = table.concat(kept, ",")
           end
@@ -4369,19 +4811,13 @@ function engineZonePile(color, zone, cards, base, rotY, seen)
   pileIds[id] = ids
   local decks, objs, deckIds = {}, {}, {}
   for i = #cards, 1, -1 do -- newest first: the top of a face-up deck is the card you see
-    local c = cards[i]
     local n = #objs + 1
-    local face, back = (c.n ~= nil and c.f) or ENGINE_BACK, c.b or ENGINE_BACK
-    local k = engineDeckKey(face, back)
-    decks[k] = deckEntry(face, back)
-    objs[n] = { Name = "Card", Nickname = nickname(c), Description = description(c), GMNotes = "engine:" .. c.id,
-      CardID = k * 100, CustomDeck = { [k] = decks[k] },
-      Transform = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 } }
-    deckIds[n] = k * 100
+    objs[n] = engineCardData(cards[i], "inside")
+    for k, e in pairs(objs[n].CustomDeck) do decks[k] = e end
+    deckIds[n] = objs[n].CardID
   end
   local data = { Name = "Deck", Nickname = (zone == "graveyard" and "Graveyard" or "Exile"), Description = notes, GMNotes = "engine:" .. id,
-    Locked = true, DeckIDs = deckIds, CustomDeck = decks, ContainedObjects = objs,
-    Transform = { posX = 0, posY = 0, posZ = 0, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 } }
+    Locked = true, DeckIDs = deckIds, CustomDeck = decks, ContainedObjects = objs, Transform = FLAT }
   engineSpawning[id] = true
   local gen = engineGen
   Wait.time(function()
@@ -4447,7 +4883,9 @@ function onObjectLeaveContainer(container, obj)
     local chooser = nil
     for c, set in pairs(engineChoosable) do if cid ~= nil and set[cid] then chooser = c end end
     if chooser ~= nil then
-      engineAdopt(cid, obj, true) -- the engine says where it goes next
+      engineCardEntry(cid, obj, nil, { held = true }) -- the engine says where it goes next
+      -- (picked out of a 2-card pile: the card left is loose now, and stayed on the table as a stray copy)
+      enginePileRemainder(zone .. ":" .. color, container)
       engineSend("intent", { color = chooser, kind = "choose", id = cid })
       return
     end
@@ -4905,7 +5343,7 @@ function engineSetupButtons()
   for _, pl in ipairs((game and game.players) or {}) do if pl.status == "playing" then alive[#alive + 1] = tostring(pl.color) end end
   table.sort(alive)
   local sig = table.concat({ tostring(ENGINE_MODE), tostring(running), tostring(over), table.concat(seated, ","), tostring(ready), table.concat(alive, ","),
-    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)() }, "|")
+    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) .. ":" .. tostring(engineFriendlyVote[c]) end return table.concat(p, ",") end)() }, "|")
   -- (unchanged, and the buttons are still there: TTS's own scripts or a reload can wipe an object's buttons, and after a
   -- game ended the READY buttons and the middle tile stayed gone or stale, "Engine: off" with engine mode on, playtest
   -- 2026-10-24; engineSetupHeal below looks every 2 s)
@@ -4956,14 +5394,14 @@ function engineSetupButtons()
       -- below the Draw button (further from the playmat, toward the player); without one, toward the life counter
       local spot = engineDrawButtonSpot ~= nil and engineDrawButtonSpot(c) or nil
       local at = m + (toward - m) * 0.62 + Vector(0, 0.2, 0)
-      if spot ~= nil then
-        local away = Vector(spot.x - m.x, 0, spot.z - m.z)
-        local len = math.sqrt(away.x ^ 2 + away.z ^ 2)
-        at = len > 0 and (spot + away * (1.4 / len)) or spot
-      end
+      local away = spot ~= nil and Vector(spot.x - m.x, 0, spot.z - m.z) or Vector(at.x - m.x, 0, at.z - m.z)
+      local len = math.sqrt(away.x ^ 2 + away.z ^ 2)
+      local step = len > 0 and away * (1.4 / len) or Vector(0, 0, 0)
+      if spot ~= nil then at = spot + step end
       SETUP.drawn.mats[c] = true
       setupButton(mat, "onMtgSetupReady", st == "ready" and "READY" or (st == "problem" and "FIX DECK" or "READY?"),
         st == "ready" and SETUP.color.go or (st == "problem" and SETUP.color.bad or SETUP.color.wait), at, c)
+      setupButton(mat, "onMtgSetupFriendly", engineFriendlyLabel(c), SETUP.color.wait, at + step * 1.4, c, 1700)
     end
   end
   if tile ~= nil then
@@ -5033,6 +5471,28 @@ function onMtgSetupReady(obj, playerColor)
   engineChat("mtg ready", Player[c])
 end
 
+-- Friendly mulligans: each player's vote, under their READY button (none, 1, 2, none...). The bridge counts them at
+-- Start. A rematch keeps them; a table reload clears them.
+engineFriendlyVote = {}
+function engineFriendlyLabel(c)
+  local n = engineFriendlyVote[c] or 0
+  return "Friendly: " .. (n == 0 and "none" or string.format("%d", n))
+end
+function engineSetFriendly(c, n)
+  engineFriendlyVote[c] = n
+  engineSetupButtons()
+end
+function onMtgSetupFriendly(obj, playerColor)
+  local c = nil
+  for _, col in ipairs(SETUP.seats) do if data[col] and data[col].playmat == obj then c = col end end
+  if c == nil then return end
+  if playerColor ~= c then
+    broadcastToColor("[MTG] That's " .. c .. "'s vote. Use the one on your own playmat.", playerColor, { 1, 0.65, 0.2 })
+    return
+  end
+  engineSetFriendly(c, ((engineFriendlyVote[c] or 0) + 1) % 3)
+end
+
 function onMtgSetupStart(obj, playerColor)
   local game = engineTable ~= nil and engineTable() or nil
   local pl = Player[playerColor]
@@ -5074,6 +5534,8 @@ end, 2, -1)
 -- numbers (life, poison, counters) are set by chat:  mtg fix life blue 31 / mtg fix poison red 2 /
 -- mtg fix counters +1/+1 3  (the card under your pointer). When the fix ends the next board is drawn as usual: the
 -- engine's new one after an apply, the old one after Cancel (everything goes back where it was).
+-- Once paused, the panel first asks which kind of fix (§12): "Edit the board" is the above; "Fix from hand" keeps the
+-- cards locked and lists each player's hand in their Engine panel instead (see "fix from hand" below).
 engineFix = nil
 engineFixTouched = {}  -- engine card id -> true: picked up, turned, flipped or taken from a pile while editing
 engineFixExtra = {}    -- key -> op, from the chat commands
@@ -5085,17 +5547,30 @@ do
   function engineFixXml(c)
     return '<Button id="eng_fixcall_' .. c .. '" onClick="onMtgFix" visibility="' .. c .. '" width="110" height="32" rectAlignment="UpperLeft" offsetXY="174 -178" color="#3a3f4b" textColor="#ffffff" fontSize="15" active="false">Fix...</Button>\n'
       .. '<Panel id="eng_fixp_' .. c .. '" visibility="' .. c .. '" width="660" height="270" rectAlignment="UpperCenter" offsetXY="0 -250" color="#0A0C10F0" active="false">'
-      .. '<Text id="eng_fixtext_' .. c .. '" width="640" height="200" rectAlignment="UpperCenter" offsetXY="0 -8" fontSize="17" color="#FFFFFF" alignment="UpperCenter"> </Text>'
-      .. '<HorizontalLayout width="440" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
+      .. '<Text id="eng_fixtext_' .. c .. '" width="640" height="200" rectAlignment="UpperCenter" offsetXY="0 -8" fontSize="17" resizeTextForBestFit="true" resizeTextMinSize="11" resizeTextMaxSize="17" color="#FFFFFF" alignment="UpperCenter"> </Text>'
+      .. '<HorizontalLayout width="560" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
       .. '<Button id="eng_fixbyes_' .. c .. '" onClick="onMtgFix" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Yes</Button>'
+      -- (the kind question's second answer, "Edit the board": §12)
+      .. '<Button id="eng_fixbk_' .. c .. '" onClick="onMtgFix" color="#2e3a59" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Edit the board</Button>'
       .. '<Button id="eng_fixbno_' .. c .. '" onClick="onMtgFix" color="#8e2a2a" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">No</Button>'
       .. '</HorizontalLayout></Panel>\n'
   end
   function F.waitingFor(fix, c) return heldIn((fix and fix.waiting) or {}, c) end
   -- the engine card id of a card object (not a pile or the library deck), or nil
   function F.cardId(o) return o ~= nil and tostring(o.getGMNotes()):match("^engine:(engine%-card%-%d+)$") or nil end
-  function F.editing() return engineFix ~= nil and engineFix.state == "editing" end
-  -- the panel's text and its two buttons for one seat
+  -- Which kind of fix (§12): "hand" (fix from hand: the cards stay locked, each player picks free plays from their own
+  -- hand and permanents in their Engine panel) or "board" (edit the board, as above); nil until someone picks one.
+  -- The bridge's `fix.kind` wins; else the pick made on this table (F.kind, for that fix id).
+  function F.kindOf(fix)
+    if fix == nil then return nil end
+    if fix.kind == "hand" or fix.kind == "board" then return fix.kind end
+    if F.kind ~= nil and F.kind.id == fix.id then return F.kind.kind end
+    return nil
+  end
+  function F.paused() return engineFix ~= nil and engineFix.state == "editing" end
+  -- editing the board: engine cards unlocked, moves read back at Done
+  function F.editing() return F.paused() and F.kindOf(engineFix) == "board" end
+  -- the panel's text and its buttons for one seat: text, yes, no, and the kind question's "Edit the board"
   function engineFixPanel(fix, c)
     local mine = F.waitingFor(fix, c)
     local who = tostring(fix.by or "A player")
@@ -5105,28 +5580,43 @@ do
     if s == "voting" then return who .. " asks to pause the game for a manual fix." .. waits, mine and "Pause" or nil, mine and "Keep playing" or "Cancel"
     elseif s == "pausing" then return "Manual fix: waiting for a moment with nothing on the stack...", nil, "Cancel"
     elseif s == "editing" then
+      local refused = fix.message and ("\nThe engine refused the last list: " .. tostring(fix.message)) or ""
+      local kind = F.kindOf(fix)
+      if kind == nil then
+        return "MANUAL FIX - the engine is paused. Which kind of fix?\n- Fix from hand: cast, activate or play cards from your hand for free (or activate your own permanents), or put a hand card into your graveyard. The cards on the table stay locked.\n- Edit the board: move, turn and flip the engine's cards by hand."
+          .. refused, "Fix from hand", "Cancel", "Edit the board"
+      elseif kind == "hand" then
+        return "FIX FROM HAND - the engine is paused.\nPick what should have happened in your Engine panel, then press Done. Nothing happens until everyone agrees. A note for the log: the panel's box, or  mtg fix note <text>."
+          .. F.listText() .. refused, "Done", "Cancel"
+      end
       return "MANUAL FIX - the engine is paused.\nMove cards to where they belong (battlefield, graveyard, exile, library, hand, command zone), turn them to tap or untap, flip them face down, drop an aura or equipment onto its permanent, right-click for the library's top or bottom. Life and commander damage: their counters. Also: mtg fix poison red 2 / mtg fix counters +1/+1 3 (the card under your pointer) / mtg fix token treasure."
-        .. (fix.message and ("\nThe engine refused the last list: " .. tostring(fix.message)) or ""), "Done", "Cancel"
+        .. refused, "Done", "Cancel"
     elseif s == "review" then return who .. " wants to apply these changes:" .. lines .. waits, mine and "Apply" or nil, mine and "Not yet" or "Cancel"
     elseif s == "applying" then return "Applying the changes..." .. lines, nil, nil end
     return "", nil, nil
   end
   function engineFixUpdate(fix)
     local entering = fix ~= nil and fix.state == "editing" and (engineFix == nil or engineFix.state ~= "editing")
+    -- (a new fix starts with an empty pick list and no notes)
+    if (fix and fix.id) ~= F.picksFor then F.handReset(fix and fix.id) end
     engineFix = fix
     if fix == nil then engineFixTouched, engineFixExtra = {}, {} end
     local leaving = fix == nil and F.menued ~= nil
-    ENGINE_FIX_EDIT = fix ~= nil and fix.state == "editing"
+    -- editing the board (not the kind question, not a fix from hand: the cards stay locked then)
+    local board = fix ~= nil and fix.state == "editing" and F.kindOf(fix) == "board"
+    local unlock = board and not F.unlocked
+    F.unlocked = board
+    ENGINE_FIX_EDIT = board
     -- "mtg mana <n>" called this fix: add the mana and press Done for its caller (only right after the call)
     local auto = entering and fix.by ~= nil and engineAutoMana ~= nil and engineAutoMana[fix.by] or nil
     if auto ~= nil then
       engineAutoMana[fix.by] = nil
       if os.clock() - auto.at < 30 then
         local by = fix.by
-        Wait.frames(function() if F.editing() then engineFixSet(by, "mana " .. auto.rest) engineFixDone(by) end end, 2)
+        Wait.frames(function() if F.paused() then engineFixSet(by, "mana " .. auto.rest) engineFixDone(by) end end, 2)
       end
     end
-    if entering then
+    if unlock then
       -- (engine cards lie locked; piles and the library stay locked: search them to take a card out). A right-click
       -- puts a card on top of or under its library.
       F.menued = F.menued or {}
@@ -5157,7 +5647,7 @@ do
     end
     local over = lastTable == nil or lastTable.gameOver
     local sig = table.concat({ tostring(over), fix and table.concat({ tostring(fix.id), tostring(fix.state), tostring(fix.by),
-      table.concat(fix.waiting or {}, ","), table.concat(fix.lines or {}, ","), tostring(fix.message) }, "|") or "-" }, ";")
+      table.concat(fix.waiting or {}, ","), table.concat(fix.lines or {}, ","), tostring(fix.message), tostring(F.kindOf(fix)), F.ver }, "|") or "-" }, ";")
     if sig == F.sig then return end
     F.sig = sig
     for c in pairs(engineColors) do
@@ -5165,13 +5655,22 @@ do
         setAttr("eng_fixcall_" .. c, "active", (fix == nil and not over) and "true" or "false")
         setAttr("eng_fixp_" .. c, "active", fix ~= nil and "true" or "false")
         if fix ~= nil then
-          local text, yes, no = engineFixPanel(fix, c)
+          local text, yes, no, alt = engineFixPanel(fix, c)
           setText("eng_fixtext_" .. c, text)
           setAttr("eng_fixbyes_" .. c, "active", yes and "true" or "false")
           if yes then setText("eng_fixbyes_" .. c, yes) end
+          setAttr("eng_fixbk_" .. c, "active", alt and "true" or "false")
           setAttr("eng_fixbno_" .. c, "active", no and "true" or "false")
           if no then setText("eng_fixbno_" .. c, no) end
         end
+      end
+    end
+    -- a fix from hand lists each player's hand in their Engine panel (engineFixHandDraw); it goes back to its
+    -- questions when the fix moves on
+    if panelReady then
+      local on = F.handMode()
+      for c in pairs(engineColors) do
+        if (on or F.handOn[c]) and Player[c] ~= nil and Player[c].seated and data[c] ~= nil then updatePanel(c) updateOptions(c) end
       end
     end
   end
@@ -5182,9 +5681,12 @@ do
   function onMtgFix(player, value, id)
     local c = player.color
     local fix = engineFix
+    local choosing = fix ~= nil and fix.state == "editing" and F.kindOf(fix) == nil
     if id == "eng_fixcall_" .. c then engineSend("fix", { color = c, action = "call" })
+    elseif id == "eng_fixbk_" .. c and choosing then F.choose(c, "board")
     elseif id == "eng_fixbyes_" .. c and fix ~= nil then
-      if fix.state == "editing" then engineFixDone(c)
+      if choosing then F.choose(c, "hand")
+      elseif fix.state == "editing" then engineFixDone(c)
       elseif F.waitingFor(fix, c) then engineSend("fix", { color = c, action = "vote", accept = true }) end
     elseif id == "eng_fixbno_" .. c and fix ~= nil then
       if F.waitingFor(fix, c) then engineSend("fix", { color = c, action = "vote", accept = false })
@@ -5286,31 +5788,54 @@ do
         end
       end
     end
+    return F.extraOps(ops), unplaced
+  end
+  -- the chat numbers (life, poison, counters, tokens, mana) after the other ops, sorted by key
+  function F.extraOps(ops)
     local keys = {}
     for k in pairs(engineFixExtra) do keys[#keys + 1] = k end
     table.sort(keys)
     for _, k in ipairs(keys) do ops[#ops + 1] = engineFixExtra[k] end
-    return ops, unplaced
+    return ops
   end
+  -- Done: the change list to the bridge, { color, action = "done", ops, kind?, notes? } (kind: "hand" or "board" once
+  -- picked; notes: { { color, text } } from mtg fix note / the panel's box, never ops). A fix from hand sends its picks
+  -- in list order, then the chat numbers; editing the board sends what the touched cards read back.
   function engineFixDone(color)
-    local ops, unplaced = engineFixRead()
+    local kind = F.kindOf(engineFix)
+    local ops, unplaced
+    if kind == "hand" then ops, unplaced = F.handOps(), {}
+    else ops, unplaced = engineFixRead() end
     if #unplaced > 0 then
       tell(color, "Not in any zone: " .. table.concat(unplaced, ", ") .. ". Put each on a battlefield, graveyard, exile, library, hand or command zone first.")
       return
     end
-    if #ops == 0 then tell(color, "Nothing was changed yet. Move some cards first (or press Cancel).") return end
-    engineSend("fix", { color = color, action = "done", ops = ops })
+    if #ops == 0 then
+      tell(color, kind == "hand" and "Nothing picked yet: pick what should have happened in your Engine panel first (or press Cancel)."
+        or "Nothing was changed yet. Move some cards first (or press Cancel).")
+      return
+    end
+    local msg = { color = color, action = "done", ops = ops }
+    if kind ~= nil then msg.kind = kind end
+    local notes = F.noteList()
+    if #notes > 0 then msg.notes = notes end
+    engineSend("fix", msg)
   end
   F.KINDS = (function() local t = {} for key, label in pairs(COUNTER_NAMES) do t[label:lower()] = key end return t end)()
   -- mtg fix life <colour> <n> / poison <colour> <n> / counters <kind> <n> (hovered card)
   function engineFixSet(color, rest)
-    if not F.editing() then tell(color, "The game isn't paused for a fix.") return end
+    if not F.paused() then tell(color, "The game isn't paused for a fix.") return end
+    -- mtg fix note <text>: what should have happened, for the log (any kind of fix; an empty one removes it)
+    if rest == "note" or rest:find("^note%s") then F.setNote(color, rest:sub(5), true) return end
     -- mtg fix token <what> [for <colour>] [tapped]
     local what0, body = rest:match("^(%a+)%s+(.+)$")
     if what0 == "token" then
       local tapped = body:find("%f[%a]tapped%f[%A]") ~= nil
       body = body:gsub("%f[%a]tapped%f[%A]", "")
-      local name, forWho = body:match("^(.-)%s+for%s+(%a+)%s*$")
+      -- (the leftmost "for <who>" that ends the text, by an unanchored find: "^(.-)%s+for..." raised "pattern too
+      -- complex" in TTS on 99+ characters, tmp/pattern-trap/audit.md)
+      local forAt, _, forWho = body:find("%s+for%s+(%a+)%s*$")
+      local name = forAt ~= nil and body:sub(1, forAt - 1) or nil
       local who = color
       if forWho ~= nil then
         who = nil
@@ -5357,13 +5882,289 @@ do
       engineFixExtra["counters:" .. id .. ":" .. kind] = { op = "counters", card = id, kind = kind, n = n }
       tell(color, o.getName() .. ": " .. n .. " " .. tostring(a) .. " counter(s) (press Done to list the changes).")
     else
-      tell(color, "Use:  mtg fix life <colour> <n>,  mtg fix poison <colour> <n>,  mtg fix counters <kind> <n>,  mtg fix token <what> [for <colour>],  mtg fix mana <n> [for <colour>]")
+      tell(color, "Use:  mtg fix life <colour> <n>,  mtg fix poison <colour> <n>,  mtg fix counters <kind> <n>,  mtg fix token <what> [for <colour>],  mtg fix mana <n> [for <colour>],  mtg fix note <text>")
     end
+  end
+  -- ───── fix from hand (§12): each player's Engine panel (eng_panel_, free while the engine is paused: the screen UI
+  -- has no room for a panel of its own, 4 seats are at ~58 of 60 KB) lists their own hand, and their permanents with an
+  -- activated ability, with Cast free / Activate free / Play land / To graveyard. A pick only joins the list: one per
+  -- card, shared by everyone, in the order things happen; its owner moves it up or down or takes it out. Done sends the
+  -- list as ops (freeCast / freeActivate / freeLand with the player's colour, move to the graveyard); the notes go
+  -- beside the ops. The bridge words the lines for the vote and maps colours to slots (tmp/fix-from-hand-table.md).
+  F.picks, F.notes, F.sel, F.page, F.rows, F.handOn, F.ver = {}, {}, {}, {}, {}, {}, 0
+  F.OP = { cast = "freeCast", activate = "freeActivate", land = "freeLand" }
+  F.ACT = { cast = "Cast free", activate = "Activate free", land = "Play land", grave = "To graveyard" }
+  F.WORDS = {
+    cast = function(who, name) return who .. " casts " .. name .. " for free" end,
+    activate = function(who, name) return who .. " activates " .. name .. "'s ability for free" end,
+    land = function(who, name) return who .. " plays " .. name .. " for free (the land drop stays unused)" end,
+    grave = function(who, name) return who .. " puts " .. name .. " into their graveyard (no effect)" end,
+  }
+  -- the keywords of activated abilities that work from a hand / on the battlefield (a line of the text starts with one)
+  F.HAND_WORDS = { "cycling", "ninjutsu", "commander ninjutsu", "channel", "forecast", "transmute", "bloodrush", "reinforce" }
+  F.BF_WORDS = { "equip", "fortify", "level up", "outlast", "crew", "reconfigure" }
+  function F.handMode() return F.paused() and F.kindOf(engineFix) == "hand" end
+  -- (updatePanel asks) this seat's Engine panel shows the hand list
+  function engineFixHandWants(c) return F.handMode() and engineColors[c] ~= nil end
+  function F.handReset(id)
+    F.picks, F.notes, F.sel, F.page, F.picksFor = {}, {}, {}, {}, id
+    -- (the kind picked here, for another fix: fix ids start at 1 again in the next game, and its first fix would
+    -- skip the kind question)
+    if F.kind ~= nil and F.kind.id ~= id then F.kind = nil end
+    F.ver = F.ver + 1
+  end
+  function F.choose(c, kind)
+    if not engineColors[c] or engineFix == nil then return end
+    F.kind = { id = engineFix.id, kind = kind }
+    engineSend("fix", { color = c, action = "kind", kind = kind })
+    engineFixRedraw()
+  end
+  -- a card's text as lines, reminder text left out ("Cycling {2} ({2}, Discard this card: Draw a card.)")
+  function F.lines(card)
+    local out = {}
+    for line in (tostring(card.ct or card.tx or "") .. "\n"):gmatch("([^\n]*)\n") do out[#out + 1] = (line:gsub("%b()", "")) end
+    return out
+  end
+  -- "cost: effect" split at the first colon, nil without one (a plain find: TTS's Lua raises "pattern too complex"
+  -- when a pattern such as "^([^:]*):" fails on a line of 99+ characters, tmp/pattern-trap/rule.md)
+  function F.split(line)
+    local at = line:find(":", 1, true)
+    if at == nil then return nil, nil end
+    return line:sub(1, at - 1), line:sub(at + 1)
+  end
+  function F.starts(line, words)
+    local head = line:lower():match("^%s*(%a+ ?%a*)") or ""
+    for _, w in ipairs(words) do
+      if head == w or head:sub(1, #w + 1) == w .. " " or (w == "cycling" and head:find("cycling", 1, true)) then return true end
+    end
+    return false
+  end
+  -- (a guess from the text, as Forge words it: a wrong one is refused by the engine with a reason, and the list
+  -- goes back to editing)
+  function F.handAbility(card)
+    local name = tostring(card.n or "")
+    for _, line in ipairs(F.lines(card)) do
+      if F.starts(line, F.HAND_WORDS) then return true end
+      local cost = F.split(line)
+      if cost ~= nil and (cost:find("from your hand", 1, true)
+        or (cost:find("Discard", 1, true) and (cost:find("this card", 1, true) or (name ~= "" and cost:find(name, 1, true))))) then return true end
+    end
+    return false
+  end
+  -- a non-mana activated ability on the battlefield: a keyword, or "cost: effect" whose cost is mana, a tap, a
+  -- sacrifice ... or loyalty, and whose effect isn't "Add ..."
+  function F.bfAbility(card)
+    for _, line in ipairs(F.lines(card)) do
+      if F.starts(line, F.BF_WORDS) then return true end
+      local cost, effect = F.split(line)
+      if cost ~= nil and not F.starts(line, F.HAND_WORDS) and not effect:find("^%s*Add ") and not cost:find("from your ", 1, true) then
+        local loyalty = #cost <= 6 and cost:find("[%dX]") ~= nil and cost:find("%a%a") == nil
+        if loyalty or cost:find("{", 1, true) or cost:find("^%s*Sacrifice") or cost:find("^%s*Discard") or cost:find("^%s*Pay ")
+          or cost:find("^%s*Exile") or cost:find("^%s*Remove") or cost:find("^%s*Tap ") or cost:find("^%s*Untap ") or cost:find("^%s*Return") then return true end
+      end
+    end
+    return false
+  end
+  -- what one seat may pick: { id, name, where = "hand" | "battlefield", acts } from the last board (its own hand; the
+  -- permanents it controls with an ability)
+  function F.cards(c)
+    local out = {}
+    for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+      if pl.color == c then
+        for _, card in ipairs(pl.hand or {}) do
+          if card.id ~= nil and card.n ~= nil and not card.fd then
+            -- (a land is never cast, a land creature such as Dryad Arbor included: the engine would refuse the
+            -- whole list, "has no spell to cast")
+            local land, spell = false, #(card.ty or {}) == 0
+            for _, t in ipairs(card.ty or {}) do if t == "Land" then land = true else spell = true end end
+            if land then spell = false end
+            local acts = {}
+            if spell then acts[#acts + 1] = "cast" end
+            if F.handAbility(card) then acts[#acts + 1] = "activate" end
+            if land then acts[#acts + 1] = "land" end
+            acts[#acts + 1] = "grave"
+            out[#out + 1] = { id = card.id, name = tostring(card.n), where = "hand", acts = acts }
+          end
+        end
+      end
+    end
+    for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+      for _, card in ipairs(pl.battlefield or {}) do
+        if card.id ~= nil and card.n ~= nil and not card.fd and not card.po and (card.ctl == c or (card.ctl == nil and pl.color == c)) and F.bfAbility(card) then
+          out[#out + 1] = { id = card.id, name = tostring(card.n), where = "battlefield", acts = { "activate" } }
+        end
+      end
+    end
+    return out
+  end
+  function F.can(c, id, act)
+    for _, e in ipairs(F.cards(c)) do
+      if e.id == id then for _, a in ipairs(e.acts) do if a == act then return true end end end
+    end
+    return false
+  end
+  function F.pickLine(p) return F.WORDS[p.act](engineSeatName(p.color), p.name) end
+  function F.noteList()
+    local out = {}
+    for c, t in pairs(F.notes) do
+      local s = tostring(t):gsub("^%s+", ""):gsub("%s+$", "")
+      if s ~= "" then out[#out + 1] = { color = c, text = s:sub(1, 200) } end
+    end
+    table.sort(out, function(a, b) return a.color < b.color end)
+    return out
+  end
+  -- the list as the main fix panel shows it
+  function F.listText()
+    local out = {}
+    for i, p in ipairs(F.picks) do out[#out + 1] = "\n" .. i .. ". " .. F.pickLine(p) end
+    for _, n in ipairs(F.noteList()) do out[#out + 1] = "\nNote (" .. engineSeatName(n.color) .. "): " .. n.text end
+    return #out > 0 and ("\nThe list:" .. table.concat(out)) or "\nThe list is empty."
+  end
+  -- the panel's rows for one seat: the whole list (yours with Move up / Move down / Remove under the one you clicked),
+  -- then what you can still pick
+  function F.rowsFor(c)
+    local rows, picked = {}, {}
+    for i, p in ipairs(F.picks) do
+      picked[p.id] = true
+      local mine, open = p.color == c, p.color == c and F.sel[c] == p.id
+      rows[#rows + 1] = { kind = "pick", id = p.id, label = (open and "> " or "") .. i .. ". " .. F.pickLine(p), color = open and "#8a7428" or (mine and "#6b5a1e" or "#3a3f4b") }
+      if open then
+        rows[#rows + 1] = { kind = "up", id = p.id, label = "      Move up", color = "#2e3a59" }
+        rows[#rows + 1] = { kind = "down", id = p.id, label = "      Move down", color = "#2e3a59" }
+        rows[#rows + 1] = { kind = "remove", id = p.id, label = "      Take it out of the list", color = "#8e2a2a" }
+      end
+    end
+    for _, e in ipairs(F.cards(c)) do
+      if not picked[e.id] then
+        for _, act in ipairs(e.acts) do
+          rows[#rows + 1] = { kind = "add", id = e.id, act = act, name = e.name, where = e.where, color = "#2f3542",
+            label = F.ACT[act] .. ": " .. e.name .. (e.where == "battlefield" and " (on the battlefield)" or "") }
+        end
+      end
+    end
+    return rows
+  end
+  -- (updateOptions asks first) draws the hand list into this seat's Engine panel; false when it isn't showing (and
+  -- the panel's note box becomes the search box again)
+  function engineFixHandDraw(c)
+    if not engineFixHandWants(c) then
+      if F.handOn[c] then
+        F.handOn[c] = nil
+        setAttr("eng_search_" .. c, "placeholder", "Search...")
+        setAttr("eng_search_" .. c, "characterLimit", "0")
+        setText("eng_search_" .. c, "")
+      end
+      return false
+    end
+    F.handOn[c] = true
+    local rows = F.rowsFor(c)
+    local per, first = POOL, 1
+    if #rows > POOL then
+      per = POOL - 1
+      F.page[c] = (F.page[c] or 0) % math.ceil(#rows / per)
+      first = F.page[c] * per + 1
+    end
+    local last = math.min(#rows, first + per - 1)
+    local slots, k = {}, 0
+    engineVisible[c] = {}
+    for i = first, last do
+      k = k + 1
+      slots[k] = rows[i]
+      setButton("eng_opt_" .. c .. "_" .. k, { text = rows[i].label, color = rows[i].color, active = "true" })
+    end
+    for j = k + 1, per do setAttr("eng_opt_" .. c .. "_" .. j, "active", "false") end
+    if per < POOL then
+      slots[POOL] = { kind = "more" }
+      setButton("eng_opt_" .. c .. "_" .. POOL, { text = string.format("More... (%d-%d of %d)", first, last, #rows), color = "#3a3f4b", active = "true" })
+    end
+    F.rows[c] = slots
+    setText("eng_title_" .. c, "Fix from hand")
+    setText("eng_text_" .. c, (#rows == 0 and "Your hand is empty. " or "") .. "A pick only joins the list: nothing happens until everyone agrees. The list runs top to bottom (spells: the last one resolves first). Click a line of yours to move it or take it out.")
+    setAttr("eng_search_" .. c, "active", "true")
+    setAttr("eng_search_" .. c, "placeholder", "Note: what should have happened (optional)")
+    setAttr("eng_search_" .. c, "characterLimit", "200")
+    setText("eng_search_" .. c, F.notes[c] or "")
+    setText("eng_confirm_" .. c, "Done: show the list to everyone")
+    setAttr("eng_confirm_" .. c, "interactable", "true")
+    setAttr("eng_confirm_" .. c, "active", "true")
+    setAttr("eng_cancel_" .. c, "active", "false")
+    return true
+  end
+  -- (onMtgSlot / onMtgConfirm ask first) a click in the hand list: slot number, or "done"; false when the list isn't
+  -- showing for this seat
+  function engineFixHandClick(c, slot)
+    if not F.handOn[c] then return false end
+    if not engineFixHandWants(c) then return true end -- (a click on a list that is going away)
+    if slot == "done" then engineFixDone(c) return true end
+    local r = (F.rows[c] or {})[slot]
+    if r == nil then return true end
+    local at = nil
+    for i, p in ipairs(F.picks) do if p.id == r.id then at = i end end
+    if r.kind == "more" then F.page[c] = (F.page[c] or 0) + 1
+    elseif r.kind == "pick" then
+      local p = at and F.picks[at]
+      if p == nil then return true end
+      if p.color ~= c then tell(c, "Only " .. engineSeatName(p.color) .. " can move or take out that line.") return true end
+      F.sel[c] = F.sel[c] ~= p.id and p.id or nil
+    elseif r.kind == "up" or r.kind == "down" then
+      local to = at and (r.kind == "up" and at - 1 or at + 1)
+      if to == nil or F.picks[to] == nil then return true end
+      F.picks[at], F.picks[to] = F.picks[to], F.picks[at]
+    elseif r.kind == "remove" then
+      if at ~= nil then table.remove(F.picks, at) end
+      F.sel[c] = nil
+    elseif r.kind == "add" then
+      if at ~= nil then tell(c, r.name .. " is in the list already.") return true end
+      if not F.can(c, r.id, r.act) then tell(c, r.name .. " can't be picked for that now.")
+      else F.picks[#F.picks + 1] = { color = c, id = r.id, act = r.act, name = r.name, where = r.where } end
+    end
+    F.ver = F.ver + 1
+    engineFixRedraw()
+    return true
+  end
+  -- (onMtgSearch asks first) the note box: what was typed, as it is (trimmed when sent)
+  function engineFixHandNote(c, value)
+    if not F.handOn[c] or not engineFixHandWants(c) then return false end
+    value = tostring(value or ""):sub(1, 200)
+    uiCache["eng_search_" .. c] = value
+    F.setNote(c, value, false)
+    return true
+  end
+  -- said: typed in chat (mtg fix note <text>): trimmed and confirmed to the player
+  function F.setNote(c, text, said)
+    text = tostring(text or ""):sub(1, 200)
+    local bare = text:gsub("^%s+", ""):gsub("%s+$", "")
+    if said then
+      F.notes[c] = bare ~= "" and bare or nil
+      tell(c, bare ~= "" and ("Note: " .. bare .. " (it goes to the log with the fix)") or "Note taken out.")
+    else
+      F.notes[c] = text ~= "" and text or nil
+    end
+    F.ver = F.ver + 1
+    engineFixRedraw()
+  end
+  -- the picks as ops, in list order (a pick whose card has moved is taken out and its owner told), then the chat
+  -- numbers (life, poison, counters, tokens, mana)
+  function F.handOps()
+    local keep, ops = {}, {}
+    for _, p in ipairs(F.picks) do
+      if F.can(p.color, p.id, p.act) then keep[#keep + 1] = p
+      else tell(p.color, p.name .. " isn't where it was: taken out of the list.") end
+    end
+    if #keep ~= #F.picks then F.picks = keep F.ver = F.ver + 1 engineFixRedraw() end
+    for _, p in ipairs(F.picks) do
+      if p.act == "grave" then ops[#ops + 1] = { op = "move", card = p.id, zone = "graveyard" }
+      else ops[#ops + 1] = { op = F.OP[p.act], card = p.id, player = p.color } end
+    end
+    return F.extraOps(ops)
   end
   -- (engineRender asks first) the board waits while the engine is paused: only the zones the bridge left out are
   -- filled in from the last board, and the panel is updated
+  -- (a fix from hand moved nothing on the table: while the engine plays its picks, asking for targets and the like, the
+  -- board is drawn as the engine has it)
   function engineFixHolds(m)
     if m.fix == nil or not FIX_HOLD[m.fix.state] or lastTable == nil then return false end
+    if m.fix.state == "applying" and F.kindOf(m.fix) == "hand" then return false end
     mergeStatic(m)
     lastTable = m
     local ok, err = pcall(engineFixUpdate, m.fix)
@@ -5642,8 +6443,17 @@ end
 -- one short line per ability: its cost and the start of what it does ("{1}{G}: Put a +1/+1…"); the button's tooltip
 -- has the whole text
 function engineAbilityShort(text, n)
-  local cost, eff = tostring(text):match("^([^:]+):%s*(.+)$")
-  if cost == nil or #cost > 14 then cost, eff = nil, tostring(text) end
+  -- (split by a plain find: the pattern "^([^:]+):%s*(.+)$" raised "pattern too complex" in TTS on a text of 100+
+  -- characters with no colon, tmp/pattern-trap/rule.md)
+  text = tostring(text)
+  local at = text:find(":", 1, true)
+  local cost, eff = nil, nil
+  if at ~= nil and at > 1 and at < #text then
+    local rest = text:sub(at + 1)
+    cost, eff = text:sub(1, at - 1), rest:gsub("^%s+", "")
+    if eff == "" then eff = rest:sub(-1) end
+  end
+  if cost == nil or #cost > 14 then cost, eff = nil, text end
   local out = ""
   for word in eff:gmatch("%S+") do
     if out ~= "" and #out + #word + 1 > n then out = out .. "…" break end

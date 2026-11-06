@@ -1,7 +1,7 @@
 # Game modes spec: Standard, 2v2, Juggernaut (3v1), and what the engine needs
 
-Status: spec, 2026-10-21. Proposed milestone **M8**. Includes the "ready / start buttons" request (§6), which needs no
-engine change and is being built first.
+Status: spec, 2026-10-21. Milestone **M8**. Includes the "ready / start buttons" request (§6), which needs no
+engine change: built 2026-10-21 and checked live (PLAN M8). The game modes themselves are not started.
 
 ## 1. What exists today
 
@@ -122,3 +122,10 @@ The chat commands as buttons, so nobody has to type:
   - "Start" by anyone, once all are ready;
   - "New game" by the host only (as `mtg reset` today).
 - The buttons only exist in engine mode.
+
+## 7. Planechase and dungeons (pointer, 2026-11-05)
+
+Spec: [planechase-dungeon-engine-spec.md](planechase-dungeon-engine-spec.md).
+- Planechase is a setting on top of any mode here (a planar deck per player, `Deck.planes` already in the protocol).
+  The node and harness drop it today; no `gameConfig` message is needed for it.
+- Dungeons and the initiative already run in the engine; the work is state fields, the bridge and the table.

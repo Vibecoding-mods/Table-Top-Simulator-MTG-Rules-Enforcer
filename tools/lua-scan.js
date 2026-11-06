@@ -7,7 +7,8 @@ const fs = require("fs");
 const path = require("path");
 const luaparse = require(path.join(__dirname, "..", "tests", "lua", "node_modules", "luaparse"));
 
-const arg = process.argv[2] || path.join(process.env.USERPROFILE, "Documents", "My Games", "Tabletop Simulator", "Saves", "MTG 4 player table - ENGINE MODE + your decks.json");
+// (the default is the save tools/deploy.js writes, "Mock MTGA 4 player"; the old ENGINE MODE save was deleted)
+const arg = process.argv[2] || require("./patch-save").SAVE;
 const src = arg.endsWith(".json") ? JSON.parse(fs.readFileSync(arg, "utf8")).LuaScript : fs.readFileSync(arg, "utf8");
 
 // TTS API and Lua standard names that are globals by design

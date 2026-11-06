@@ -61,7 +61,46 @@ Before any art:
 
 The answers decide whether particles and sounds go ahead as one shared bundle or stay as UI-only effects.
 
-## Step 4: the effect bundle (about 3–5 days, after step 3)
+## Step 4: effects (design 2026-11-05, not built)
+
+Full design: `docs/m5-effects-design.md`. It needs no AssetBundle, no Unity and no new objects, and doesn't wait for
+step 3. The bundle below stays the later, nicer version.
+
+| Event | What players see | Length |
+|---|---|---|
+| A permanent to the graveyard | white flash, then purple-black smoke where the card was; a board wipe: one bigger cloud with "×N" | 0.9 s |
+| A counter put on a permanent | a pale blue ring around the card (violet-grey for -1/-1) | 0.5 s |
+| Damage to a creature | an orange-white burst with "−N", when the attacker's swing hits | 0.35 s |
+| Damage to a player | an orange burst at the back of their board, their life counter flashes red | 0.45 s |
+| A player knocked out (loses **or concedes**) | red glow on their life counter, a white-hot burst, orange-red smoke | 1.5 s |
+
+How:
+- **Pictures, not particles:** seven pre-built panels of Object UI (XML UI that belongs to one object) on White's life
+  counter. They are moved where needed and switched on and off. One UI build per game, nothing spawned or destroyed.
+- **Pictures:** three CC0 pictures (smoke, burst, ring). The user uploads them once; until then a coloured "●" stands
+  in.
+- **Data:** read from the board the bridge already sends (`battlefield`/`graveyard` ids, `dmg`, `ctr`, `life`,
+  `status`). One new bridge field, `jump`, keeps rewinds and resends from playing effects.
+- **Cheap:**
+  - at most 6 effects at once and 6 per board, the rest dropped;
+  - nothing runs on a board that didn't change;
+  - one sound per board.
+- **Switches:** `mtg effects off` hides them for you, `mtg animations off` (host) stops them for everyone.
+- **Sounds:** `engineSounds = { death, counter, damage, knockout }`, empty until the user picks.
+  - A link plays through the table's music player: works today, shared by everyone, no volume from Lua, delay
+    unmeasured.
+  - A name plays a sound bundle's trigger effect, later.
+  - `mtg sounds off` (host) mutes the table; `mtg sounds test <kind>` tries a sound.
+- **Found while designing:** a concession sends status `"conceded"`, which today's knock-out banners don't look for.
+  Step 4 covers it.
+- **Limits:**
+  - flat pictures, at most 3 steps each;
+  - life paid reads as damage;
+  - planeswalker damage isn't covered;
+  - the life counter glow can't be hidden per player;
+  - nothing yet checked with a second player.
+
+## Step 4 (earlier plan): the effect bundle (about 3–5 days, after step 3)
 
 One small AssetBundle, under ~5 MB, made from CC0 textures (Kenney particle pack) with Unity's standard particle system (Shuriken). No Asset Store packs, since they can't be redistributed in a public mod. At load, a pool of rigs is spawned under the table, then moved and triggered when needed:
 

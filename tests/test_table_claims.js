@@ -126,7 +126,7 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   const seated = ["Blue", "White", "Red", "Yellow"];
   const r = simulate({ save, seated, steps: [...prefix, q("return tostring(engineXmlSize)", "size"),
     q('local x = UI.getXml() return ((x:find("SearchPanel", 1, true) or x:find("ListPanel", 1, true)) and "there" or "gone") .. " " .. ((x:find("<Defaults>", 1, true) and x:find("eng_opt_Blue_1", 1, true)) and "kept" or "lost")', "dead panels"),
-    q('local x = UI.getXml() local d = x:match("<Defaults>.-</Defaults>") or "" return (d:find(" on%u%a*=") and "event" or "clean") .. " " .. tostring(select(2, x:gsub("eng_opt_Yellow_%d+", "")))', "defaults")] });
+    q('local x = UI.getXml() local a = x:find("<Defaults>", 1, true) local b = a and x:find("</Defaults>", a, true) local d = b and x:sub(a, b) or "" return (d:find(" on%u%a*=") and "event" or "clean") .. " " .. tostring(select(2, x:gsub("eng_opt_Yellow_%d+", "")))', "defaults")] });
   ok("UI size: four seats under 60 KB", Number(valueOf(r, "size")) > 20000 && Number(valueOf(r, "size")) < 60000, valueOf(r, "size"));
   ok("UI size: the dead Scryfall panels are left out, the rest kept", valueOf(r, "dead panels") === "gone kept", valueOf(r, "dead panels"));
   ok("UI size: every seat built, no events in <Defaults>", valueOf(r, "defaults") === "clean 30", valueOf(r, "defaults"));
@@ -409,6 +409,33 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("hand cards: a Cast option going away leaves the card unlocked", valueOf(r, "cast gone") === "false", valueOf(r, "cast gone"));
   ok("hand cards: an opponent's permanent still locks again", valueOf(r, "target open") === "false" && valueOf(r, "target closed") === "true", `${valueOf(r, "target open")} / ${valueOf(r, "target closed")}`);
 }
+// Friendly mulligans: the vote button under READY, "mtg friendly", and Start sending the votes
+{
+  const vote = (mark) => q('return tostring(engineFriendlyVote.Blue) .. "|" .. tostring(engineFriendlyVote.White)', mark);
+  const click = (who, mark) => q(`onMtgSetupFriendly(data.Blue.playmat, "${who}")`, mark);
+  const label = (r, mark) => fxOf(r, mark).filter((l) => /createButton/.test(l) && /Friendly:/.test(l)).map((l) => l.match(/"Friendly: [^"]*"/)[0]).join(" ");
+  const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  const r = simulate({ save, seated: ["Blue", "White"], host: "Blue", steps: [{ lua: "setEngineMode(true)", frames: 60 }, q('SETUP_probe = 1', "drawn"),
+    click("Blue", "one"), vote("after one"), click("White", "stranger"), vote("after stranger"), click("Blue", "two"), click("Blue", "back"), vote("after back"),
+    q('engineChat("mtg friendly 2", Player.White)', "typed"), vote("after typed"), q('engineChat("mtg friendly 5", Player.White)', "typed bad"), vote("after bad"),
+    q('engineChat("mtg friendly", Player.White)', "typed nothing"), vote("after nothing"),
+    q('engineChat("mtg friendly 1", Player.Red)', "unseated"), q('return tostring(engineFriendlyVote.Red)', "red vote"),
+    q('engineChat("mtg friendly 0", Player.Blue)', "typed none"), vote("after none"),
+    q('engineSetFriendly("Blue", 1)', "blue 1"),
+    q('engineChat("mtg start ai 1", Player.White)', "start"),
+    q('engineClear()', "cleared"), vote("after clear")] });
+  ok("friendly: no errors", r.errors.length === 0, r.errors.join(" | "));
+  ok("friendly: a click votes 1 and the button says so", valueOf(r, "after one") === "1|nil" && label(r, "one").includes('"Friendly: 1"'), `${valueOf(r, "after one")} ${label(r, "one")}`);
+  ok("friendly: another player's click is refused", valueOf(r, "after stranger") === "1|nil" && fxOf(r, "stranger").some((l) => /Blue's vote/.test(l)), JSON.stringify(fxOf(r, "stranger").slice(0, 2)));
+  ok("friendly: 2, then back to none", label(r, "two").includes('"Friendly: 2"') && label(r, "back").includes('"Friendly: none"') && valueOf(r, "after back").startsWith("0|"), `${label(r, "two")} ${label(r, "back")} ${valueOf(r, "after back")}`);
+  ok("friendly: typed vote", valueOf(r, "after typed") === "0|2" && fxOf(r, "typed").some((l) => /vote: 2/.test(l)), `${valueOf(r, "after typed")} ${JSON.stringify(fxOf(r, "typed").slice(0, 3))}`);
+  ok("friendly: a bad number changes nothing and says how", valueOf(r, "after bad") === "0|2" && fxOf(r, "typed bad").some((l) => /Use: mtg friendly/.test(l)), valueOf(r, "after bad"));
+  ok("friendly: no number changes nothing", valueOf(r, "after nothing") === "0|2" && fxOf(r, "typed nothing").some((l) => /Use: mtg friendly/.test(l)), valueOf(r, "after nothing"));
+  ok("friendly: typed none reads none", fxOf(r, "typed none").some((l) => /vote: none/.test(l)) && valueOf(r, "after none") === "0|2", `${valueOf(r, "after none")} ${JSON.stringify(fxOf(r, "typed none").slice(0, 3))}`);
+  ok("friendly: someone not seated can't vote", valueOf(r, "red vote") === "nil" && fxOf(r, "unseated").some((l) => /Sit at a colour/.test(l)), String(valueOf(r, "red vote")));
+  ok("friendly: Start sends the votes", /"friendlyVotes":\{/.test(sent(r, "start")) && /"Blue":1/.test(sent(r, "start")) && /"White":2/.test(sent(r, "start")), sent(r, "start").slice(0, 300));
+  ok("friendly: a rematch keeps the votes", valueOf(r, "after clear") === "1|2", valueOf(r, "after clear"));
+}
 // "mtg mana <n>": the manual fix in one line (call; once the game is paused for its caller, the mana and Done);
 // 1-99 only; a pause that comes long after the call (someone else's fix later) adds nothing
 {
@@ -434,11 +461,16 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   const rename = 'for _, p in ipairs(engineTable().players) do if p.color == "White" then p.name = "AI 1" end end';
   const r = run([q(rename, "rename"), q('engineFixUpdate({ id = 1, state = "editing", by = "Blue", waiting = {} }) __sim.frames(10)', "editing"),
     q('engineChat("mtg fix mana 5 for white", Player.Blue)', "mana for"), q('engineChat("mtg fix life white 30", Player.Blue)', "life for"),
-    q('engineChat("mtg fix token treasure for white", Player.Blue)', "token for")]);
+    q('engineChat("mtg fix token treasure for white", Player.Blue)', "token for"),
+    // (99+ characters: "^(.-)%s+for..." raised "pattern too complex" in TTS, tmp/pattern-trap/audit.md)
+    q('engineChat("mtg fix token ' + "big ".repeat(30) + ' saproling for white", Player.Blue)', "long token for"),
+    q('return engineAbilityShort("{1}{G}: Put a +1/+1 counter on target creature.", 20) .. " | " .. engineAbilityShort(string.rep("word ", 40), 20) .. " | " .. engineAbilityShort("{T}:", 20)', "ability short")]);
   const said = (m) => fxOf(r, m).filter((l) => !l.includes("WebRequest")).join(" | ");
   ok("fix names: mana for a seat says its log name", /AI 1 gets 5 of each colour/.test(said("mana for")) && !/White gets/.test(said("mana for")), said("mana for").slice(0, 200));
   ok("fix names: life for a seat says its log name", /AI 1's life will be 30/.test(said("life for")), said("life for").slice(0, 200));
   ok("fix names: a token for a seat says its log name", /New token for AI 1/.test(said("token for")), said("token for").slice(0, 200));
+  ok("long text: a 120-character token name for a seat", /New token for AI 1/.test(said("long token for")) && r.errors.length === 0, said("long token for").slice(0, 200) + " " + r.errors.join(" | "));
+  ok("long text: ability labels split at the colon, a long one with none is cut", valueOf(r, "ability short") === "{1}{G}: Put a +1/+1 counter… | word word word word… | {T}:", valueOf(r, "ability short"));
 }
 // a card played by dragging it onto the mat lands in its row, not where it was dropped; a permanent the player moved
 // on their own mat stays there (2026-10-26: lands stayed in the middle of the battlefield)
@@ -1123,6 +1155,227 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   // (no game running: the loader refuses during one)
   const r = simulate({ save, steps: [{ frames: 5 }, q(kitLua(["Jaheira", "Raised by Giants"]), "two"), { frames: 5 }] });
   ok("kit loader: two commanders, two cards side by side", valueOf(r, "two") === "Jaheira,Raised by Giants 1.4 apart", `${valueOf(r, "two")} ${r.errors.join(" | ")}`);
+}
+// engineCardEntry (docs/core-moves-cleanup-plan.md §3, 2026-11-06): the one way an object becomes an engine card's
+// object. Plays the golden's "card entry" game (tests/golden/table-run.js) and reads its named reports ("ce: ..."): a
+// card taken back out of a pile gets its badges again, a reset while a board spawns leaves no late object behind, the
+// pile and library members the table builds are neither locked nor tagged.
+{
+  const sc = require("./golden/table-run").scenarios().find((s) => s.name.startsWith("card entry"));
+  const r = simulate({ save, steps: sc.steps });
+  const value = (name) => String((r.steps.find((s) => s.step === `ce: ${name}`) || {}).value);
+  // one card's part of a report ("7001 [a; b] | 7002 ...")
+  const part = (name, n) => (value(name).split(" | ").find((x) => x.startsWith(`${n} `)) || "");
+  ok("precondition: the scenario ran without a script error", r.errors.length === 0, r.errors.slice(0, 2).join(" | "));
+  ok("precondition: the creatures had their boxes before they died", /Hexproof/.test(part("buttons on the board", 7001)) && /\[3\/3\]/.test(part("buttons on the board", 7002)), value("buttons on the board"));
+  ok("precondition: the four went into the pile deck", value("in the pile").split(" | ").every((x) => /obj=nil .*inPile=true/.test(x)), value("in the pile"));
+
+  // finding 1: engineAdopt kept the old badge text, so updateBadge drew nothing on the new object
+  ok("entry: a creature taken back out of a 2-card graveyard shows its status box", /Hexproof, Flying,\/Vigilance/.test(part("buttons back from the pile", 7001)), part("buttons back from the pile", 7001));
+  ok("entry: one under an anthem shows its P/T box", /\[3\/3\]/.test(part("buttons back from the pile", 7002)), part("buttons back from the pile", 7002));
+  ok("entry: at the next priority both ability creatures have their buttons", /Prodigal/.test(part("buttons at priority after the return", 7004)) && /Destroy target/.test(part("buttons at priority after the return", 7005)), value("buttons at priority after the return"));
+  ok("entry: and the status box is still there with them", /Hexproof/.test(part("buttons at priority after the return", 7001)), part("buttons at priority after the return", 7001));
+  // the take-over keeps the taken object (no throw-away and respawn)
+  const guidOf = (s) => (s.match(/obj=(\w+)@/) || [])[1];
+  ok("entry: the cards back from the pile are the objects taken out of it", value("back from the pile").split(" | ").every((x) => /obj=s\d+@.*inPile=nil.*copies=1/.test(x)), value("back from the pile"));
+  ok("entry: the searched card pulled out is its object, held for the engine's answer", /obj=s\d+@.*inPile=nil held=[\d.]+ .*copies=1/.test(value("the searched card pulled out")), value("the searched card pulled out"));
+  ok("entry: the searched card is not replaced when it is played", guidOf(value("the searched card pulled out")) !== undefined && guidOf(value("the searched card pulled out")) === guidOf(value("the searched card, next board")), `${value("the searched card pulled out")} / ${value("the searched card, next board")}`);
+  ok("entry: the picked graveyard card is its object, out of the pile, held", /obj=s\d+@.*inPile=nil held=[\d.]+ .*copies=1/.test(value("the picked card pulled out")), value("the picked card pulled out"));
+  ok("entry: the picked card is not replaced in the hand", guidOf(value("the picked card pulled out")) !== undefined && guidOf(value("the picked card pulled out")) === guidOf(part("the picked card in the hand", 7010)), `${value("the picked card pulled out")} / ${part("the picked card in the hand", 7010)}`);
+
+  // finding 2: a spawn callback from before "mtg reset" registered a trashed object and called setLock on it
+  // round 2: engineInPile on the spawn path
+  ok("entry: a card spawned on its own, out of a rebuilt pile, is in no pile", /^7040 obj=s\d+@.*inPile=nil .*copies=1$/.test(value("the card that left the rebuilt pile")), value("the card that left the rebuilt pile"));
+  ok("precondition: the creature was still spawning when it died", /^7042 obj=nil spawning=true inPile=nil /.test(value("the creature spawning")), value("the creature spawning"));
+  ok("entry: a pile that took a spawning card in keeps it in the pile after the late callback", /inPile=true/.test(value("the creature in the pile after its late callback")) && /^in the pile/.test(value("the late creature in the pile")), `${value("the creature in the pile after its late callback")} / ${value("the late creature in the pile")}`);
+  ok("entry: and on the next board too, the late object gone from the table", /^7042 obj=nil .*inPile=true .*copies=0$/.test(value("the late creature, next board")) && /loose objects 0$/.test(value("the late creature in the pile, next board")), `${value("the late creature, next board")} / ${value("the late creature in the pile, next board")}`);
+  ok("data: a card spawned to join a pile deck has no Locked and no Tags", /^in the pile, loose objects/.test(value("the late creature in the pile")), value("the late creature in the pile"));
+
+  ok("precondition: the reset came while three cards and the library deck were spawning", value("the spawning objects") === "4 spawning", value("the spawning objects"));
+  ok("entry: after a reset mid-spawn the late library deck is not the library's object", /\| library obj=nil .*copies=0 \|/.test(value("after the reset")), value("after the reset"));
+  ok("entry: after a reset mid-spawn no late object is the card's object", [7030, 7031, 7032].every((n) => /obj=nil /.test(part("after the reset", n))), value("after the reset"));
+  ok("entry: nothing is called on the destroyed late objects", /calls on destroyed objects: none$/.test(value("after the reset")), value("after the reset"));
+  ok("precondition: one late object was hidden from the reset's sweep", value("hidden from the sweep") === "hidden" && value("listed again") === "listed", `${value("hidden from the sweep")} / ${value("listed again")}`);
+  ok("entry: a late object the sweep missed is thrown away, not left on the table", /engine cards on the table: 0 /.test(value("after the reset")), value("after the reset"));
+
+  // one data builder: what goes inside a pile or the library has no Locked and no Tags
+  for (const name of ["graveyard members", "library members during the search"]) {
+    ok(`data: ${name} have no Locked and no Tags`, !/Locked|Tags/.test(value(name).split(" + ")[0]) && / \(0 with Locked or Tags\) \| /.test(value(name)), value(name));
+    ok(`data: ${name}: the deck's DeckIDs are its members' CardIDs`, / \| DeckIDs match \(\d+\)$/.test(value(name)), value(name));
+  }
+  ok("precondition: the members were read", /^7011, 7010 \+ 0 plain/.test(value("graveyard members")) && /^7020, 7021 \+ 90 plain/.test(value("library members during the search")), `${value("graveyard members")} / ${value("library members during the search")}`);
+
+  // the face recorded for a spawned card is the board's (a hand card shows the plain back, its details its other face)
+  ok("precondition: the double-faced card is in the hand, one object", /^7050 obj=s\d+@.* zone=hand .*copies=1$/.test(value("the drawn double-faced card")), value("the drawn double-faced card"));
+  ok("entry: a double-faced card in the hand is not replaced on the next board", guidOf(value("the drawn double-faced card")) === guidOf(value("the drawn double-faced card, next board")) && /copies=1$/.test(value("the drawn double-faced card, next board")), `${value("the drawn double-faced card")} / ${value("the drawn double-faced card, next board")}`);
+
+  // (2026-11-06, real table) cards added to a library together: they go IN as one object; a stray deck of plain backs
+  // (TTS made one of 7 cards spawned on one spot, lying on the library) goes at "mtg reset". The fake TTS puts each card
+  // in fine, so the one-object rule is read from what was spawned and put.
+  {
+    const fx = (mark) => (r.steps.find((s) => s.step === mark) || {}).fx || [];
+    const libId = ((fx("library: a new game").find((l) => /"spawnObjectData" "Deck" obj:\S+ "Library" V\(40\.762/.test(l)) || "").match(/obj:(\S+) "Library"/) || [])[1];
+    const added = (mark) => {
+      const spawns = fx(mark).filter((l) => /"spawnObjectData" "(Card|Deck)" obj:\S+ "Library card"/.test(l));
+      const ids = spawns.map((l) => l.match(/obj:(\S+) "Library card"/)[1]);
+      const puts = fx(mark).filter((l) => /"putObject" /.test(l) && ids.some((x) => l.endsWith(`obj:${x}`)));
+      return { spawns, puts, into: puts.every((l) => l.includes(`"putObject" obj:${libId} `)) };
+    };
+    const lib = (n) => `library Deck ${n} (${n} plain backs, 1 picture) | loose plain cards 0 | decks of plain backs off the library 0 | mixed deck no`;
+    ok("precondition: libAdd: the library deck was found and starts at 92", libId !== undefined && value("library at the start") === lib(92), `${libId} / ${value("library at the start")}`);
+    ok("libAdd: one card added goes into the library", value("library after one card") === lib(93), value("library after one card"));
+    const one = added("library: one card put on the bottom");
+    ok("libAdd: one card added is one plain card, put into the library", one.spawns.length === 1 && /"Card" obj:\S+ "Library card" .* 0 \d+ "\d+"$/.test(one.spawns[0]) && one.puts.length === 1 && one.into, JSON.stringify(one));
+    ok("libAdd: seven added at once go into the library, nothing lies on it", value("library after seven at once") === lib(100), value("library after seven at once"));
+    const seven = added("library: seven cards put on the bottom at once");
+    ok("libAdd: seven added at once are ONE deck of 7, put into the library once", seven.spawns.length === 1 && /"Deck" obj:\S+ "Library card" V\([^)]*\) 7 0 "\d+"$/.test(seven.spawns[0]) && seven.puts.length === 1 && seven.into, JSON.stringify(seven));
+    ok("libAdd: cards on their way are one unlocked deck of the library's plain backs, not a second library", value("the added cards on their way") === "Deck libcard locked=false of 3 libcard", value("the added cards on their way"));
+    ok("precondition: libAdd: the library was destroyed while three were on their way", value("the library destroyed") === "destroyed" && added("library: three more, the library destroyed meanwhile").spawns.length === 1, value("the library destroyed"));
+    ok("libAdd: cards added to a library destroyed meanwhile go to the trash, nothing left", value("library destroyed while cards were added") === "library none | loose plain cards 0 | decks of plain backs off the library 0 | mixed deck no"
+      && fx("ce: the library destroyed").some((l) => { const id = (added("library: three more, the library destroyed meanwhile").spawns[0] || "").match(/obj:(\S+) "Library card"/); return id && l.endsWith(`"setGMNotes" obj:${id[1]} "enginetrash"`); }), value("library destroyed while cards were added"));
+    ok("libAdd: the next board builds the whole library again", value("library on the next board") === lib(103), value("library on the next board"));
+    ok("precondition: sweep: a stray deck of plain backs and a mixed deck lie on the table", /decks of plain backs off the library 1 \| mixed deck yes 7$/.test(value("library with the stray deck")), value("library with the stray deck"));
+    ok("sweep: mtg reset throws away a deck of nothing but plain backs", /decks of plain backs off the library 0 \|/.test(value("library after the reset")), value("library after the reset"));
+    ok("sweep: and leaves a deck with any other card in it alone", /\| mixed deck yes 7$/.test(value("library after the reset")), value("library after the reset"));
+    // (breakit 2026-11-06) the library part plays with engine mode on, as a real game: the table refuses puts into its
+    // own decks then, so a libAdd that forgot engineEntering is refused and its cards lie on the library
+    ok("precondition: libAdd: engine mode is on in the library part", value("engine mode in the library part") === "true", value("engine mode in the library part"));
+  }
+  // (breakit 2026-11-06) every put the table makes is let in: the fake TTS asks tryObjectEnterContainer as TTS does, and
+  // the table refuses its own puts unless it marked them (engineEntering)
+  {
+    const refused = r.steps.flatMap((s) => (s.fx || []).filter((l) => /"putObject refused/.test(l)).map((l) => `${s.step}: ${l}`));
+    ok("puts: no put the table made in the card-entry game was refused", refused.length === 0, refused.slice(0, 3).join(" || "));
+  }
+
+  // round 2: a card picked out of a 2-card pile. TTS turns the deck into its last card (deck.remainder) and destroys
+  // the deck; the fake table has no remainder, so the pick is played as TTS would: the remainder set on the deck
+  // before the take, the deck destroyed after it. The card left must become that card's object, not a stray copy.
+  const at = sc.steps.findIndex((s) => s.mark === "ce: the picked card pulled out");
+  const upto = sc.steps.findIndex((s) => s.mark === "ce: the picked card in the hand");
+  const pick = { mark: "ce: the picked card pulled out", lua: `local pile for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:graveyard:Blue" then pile = x end end
+    if pile == nil then return "no pile" end
+    local at, rest for _, e in ipairs(pile.getObjects()) do if e.gm_notes == "engine:engine-card-7010" then at = e.index end end
+    for _, e in ipairs(pile.getData().ContainedObjects or {}) do if e.GMNotes == "engine:engine-card-7011" then rest = e end end
+    if at == nil or rest == nil then return "not in the pile" end
+    local left = spawnObjectData({ data = rest, position = pile.getPosition() })
+    rawset(pile, "remainder", left)
+    pile.takeObject({ index = at, position = pile.getPosition() + Vector(0, 2, 0), smooth = false })
+    pile.destruct()
+    return left.getGUID()` };
+  const r2 = simulate({ save, steps: [...sc.steps.slice(0, at), pick, ...sc.steps.slice(at + 1, upto + 1)] });
+  const v2 = (name) => String((r2.steps.find((s) => s.step === `ce: ${name}`) || {}).value);
+  const left = (v2("the picked card in the hand").split(" | ").find((x) => x.startsWith("7011 ")) || "");
+  ok("precondition: the remainder pick ran without a script error", at > 0 && upto > at && r2.errors.length === 0 && /^s\d+$/.test(v2("the picked card pulled out")), `${v2("the picked card pulled out")} ${r2.errors.slice(0, 2).join(" | ")}`);
+  ok("entry: the card left in a 2-card pile after a pick is that pile's remainder object, no stray copy", left.startsWith(`7011 obj=${v2("the picked card pulled out")}@`) && /copies=1$/.test(left), `${v2("the picked card pulled out")} / ${left}`);
+
+  // (jr-programmer-suite 2026-11-06) the same for the table's own take (engineTakeFromPiles): a land returns from a
+  // 2-card graveyard. The pile deck is played as TTS has it: after the take, the card left is its remainder and the
+  // deck is gone. That card must become the card's object, on this board and the next, with no copy spawned.
+  const boardAt = sc.steps.findIndex((s) => s.mark === "entry: the board");
+  const t0 = JSON.parse(sc.steps[boardAt].msg.json);
+  const blue0 = t0.players.find((p) => p.color === "Blue");
+  blue0.battlefield = [...blue0.battlefield, { s: 1, id: "engine-card-7010", ctl: "Blue" }];
+  blue0.graveyard = [{ s: 1, id: "engine-card-7011", ctl: "Blue" }];
+  const took = { msg: { t: "table", json: JSON.stringify(t0) }, frames: 60 };
+  const cards = 'local out = {} for _, n in ipairs({ 7010, 7011 }) do out[#out + 1] = n .. " " .. engineDebugCard("engine-card-" .. n) end return table.concat(out, " | ") .. " | pile " .. engineDebugCard("graveyard:Blue")';
+  const r3 = simulate({ save, steps: [...sc.steps.slice(0, boardAt + 1),
+    { mark: "ce: remainder take patched", lua: `local pile for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:graveyard:Blue" then pile = x end end
+      if pile == nil then return "no pile" end
+      local take = pile.takeObject
+      rawset(pile, "takeObject", function(p) local o = take(p) local rest = pile.getData().ContainedObjects
+        if #rest == 1 then local left = spawnObjectData({ data = rest[1], position = pile.getPosition() }) rawset(pile, "remainder", left) pile.destruct() __ceLeft = left.getGUID() end
+        return o end)
+      return "patched " .. #pile.getObjects()` },
+    { ...took, mark: "ce: a land returns from the 2-card graveyard" }, { mark: "ce: remainder take", lua: cards },
+    { ...took, frames: 10, mark: "ce: the same board again" }, { mark: "ce: remainder take, next board", lua: `return tostring(__ceLeft) .. " | " .. (function() ${cards} end)()` },
+    // (a pile whose last card is not an engine card, one a player dropped in: it is no card's object)
+    { mark: "ce: a foreign remainder", lua: `local x = spawnObjectData({ data = { Name = "Card", Nickname = "a player's card", GMNotes = "" }, position = Vector(0, 1, 0) })
+      local done = enginePileRemainder("graveyard:White", { remainder = x })
+      return tostring(done) .. " | " .. engineDebugCard("") .. " | pile " .. engineDebugCard("graveyard:White")` }] });
+  const v3 = (name) => String((r3.steps.find((s) => s.step === `ce: ${name}`) || {}).value);
+  const left3 = (v3("remainder take, next board").split(" | ")[0]);
+  ok("precondition: the table's own take from a 2-card pile ran, the remainder played as TTS does", boardAt > 0 && r3.errors.length === 0 && v3("remainder take patched") === "patched 2" && /^s\d+$/.test(left3), `${v3("remainder take patched")} ${left3} ${r3.errors.slice(0, 2).join(" | ")}`);
+  for (const name of ["remainder take", "remainder take, next board"]) {
+    const part3 = (n) => v3(name).split(" | ").find((x) => x.startsWith(`${n} `)) || "";
+    ok(`entry: ${name}: the card left in the pile is the deck's remainder object, one copy`, part3(7011).startsWith(`7011 obj=${left3}@`) && /copies=1$/.test(part3(7011)), `${left3} / ${v3(name)}`);
+    ok(`entry: ${name}: the land taken out is its object, one copy`, /^7010 obj=s\d+@.*inPile=nil .*copies=1$/.test(part3(7010)), v3(name));
+  }
+  ok("entry: a pile's remainder that is not an engine card is no card's object, and the pile is no deck", /^true \| obj=nil .* \| pile obj=nil /.test(v3("a foreign remainder")), v3("a foreign remainder"));
+}
+// The one way an object becomes an engine card's object (engineCardEntry) and the one builder of its data
+// (engineCardData), as their comments say: no other place in the renderer registers an object for a card id or writes
+// a card's "engine:<id>" GM notes. (Read from the source: a new way added elsewhere fails here by name.
+// RENDERER_LUA=<a copy> reads a copy instead, to see it fail without touching the real file.)
+{
+  const src = fs.readFileSync(process.env.RENDERER_LUA || path.join(__dirname, "..", "tools", "engine-renderer.lua"), "utf8");
+  const sets = src.split("\n").filter((l) => /engineObjs\[[^\]]+\]\s*=\s*(?!nil\b)[^=\s]/.test(l)).map((l) => l.trim());
+  ok("one way: only engineCardEntry and the library and pile decks register an object in engineObjs", sets.length === 3 && sets[0] === "engineObjs[id] = obj" && sets.filter((l) => l === "engineObjs[id] = obj").length === 3, JSON.stringify(sets));
+  const entry = src.slice(src.indexOf("function engineCardEntry("), src.indexOf("\nend\n", src.indexOf("function engineCardEntry(")));
+  ok("one way: engineCardEntry is the card-id one", /\n  engineObjs\[id\] = obj\n/.test(entry), entry.slice(0, 120));
+  const builders = src.split("\n").filter((l) => /GMNotes = "engine:" \.\./.test(l)).map((l) => l.trim());
+  ok("one builder: a card's engine GM notes are written only by engineCardData (and a pile deck's own)", builders.length === 2 && /tostring\(c\.id\)/.test(builders[0]) && /GMNotes = "engine:" \.\. id,/.test(builders[1]), JSON.stringify(builders));
+}
+// trackMarks (2026-11-06, docs/core-moves-cleanup-plan.md "2. trackMarks" step 4): the label under a life counter is the
+// bridge's allMarks when the row has it, whatever the old fields say; without it (a bridge from before), the old way
+{
+  const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
+  const white = (fields) => { const t = JSON.parse(lastT.json); for (const p of t.players) if (p.color === "White") Object.assign(p, fields); return { msg: { t: "table", json: JSON.stringify(t) } }; };
+  const label = 'local l = "no label" for _, b in ipairs(getObjectFromGUID("23e485").getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then l = b.label .. " @" .. tostring(b.width) end end return l';
+  const r = run([
+    white({ poison: 3, energy: 2, monarch: true, marks: ["SPEED 1"] }), { frames: 10 }, q(label, "old fields"),
+    white({ poison: 0, energy: 0 }), { frames: 10 }, q(label, "none"),
+    white({ poison: 3, energy: 2, monarch: true, marks: ["SPEED 1"], allMarks: ["POISON 3", "ENERGY 2", "MONARCH", "SPEED 1"] }), { frames: 10 }, q(label, "both"),
+    white({ poison: 3, energy: 2, monarch: true, marks: ["SPEED 1"], allMarks: ["POISON 5", "SPEED 1"] }), { frames: 10 }, q(label, "allMarks wins"),
+    white({ allMarks: ["CITY'S BLESSING", "RING TEMPTED 1"] }), { frames: 10 }, q(label, "allMarks alone"),
+    white({ poison: 2 }), { frames: 10 }, q(label, "back to old fields"),
+    white({ poison: 2, allMarks: [] }), { frames: 10 }, q(label, "empty allMarks"),
+    // (not a list: a broken bridge message; the type test keeps the old way instead of an error)
+    white({ poison: 2, allMarks: "POISON 9" }), { frames: 10 }, q(label, "allMarks not a list")]);
+  const v = (m) => String(valueOf(r, m));
+  ok("trackMarks: precondition: the old fields drew their label", v("old fields") === "POISON 3   ENERGY 2   MONARCH   SPEED 1 @7125", v("old fields") + " " + r.errors.join(" | "));
+  ok("trackMarks: precondition: no marks, no label", v("none") === "no label", v("none"));
+  ok("trackMarks: allMarks with the old fields: the same label and width, once", v("both") === v("old fields"), v("both"));
+  ok("trackMarks: allMarks is the label, not the old fields", v("allMarks wins") === "POISON 5   SPEED 1 @3450", v("allMarks wins"));
+  ok("trackMarks: allMarks alone is drawn", v("allMarks alone") === "CITY'S BLESSING   RING TEMPTED 1 @5900", v("allMarks alone"));
+  ok("trackMarks: a row without allMarks is drawn the old way", v("back to old fields") === "POISON 2 @1700", v("back to old fields"));
+  ok("trackMarks: an empty allMarks is no label", v("empty allMarks") === "no label", v("empty allMarks"));
+  // (breakit 2026-11-06) the tracker's own onload clears its buttons: the same marks on the next board draw the label again
+  const r2 = run([white({ allMarks: ["POISON 3", "MONARCH"] }), { frames: 10 }, q(label, "before the reload"),
+    q('getObjectFromGUID("23e485").clearButtons() return "cleared"', "tracker reloaded"),
+    white({ allMarks: ["POISON 3", "MONARCH"] }), { frames: 10 }, q(label, "same marks after the reload")]);
+  ok("trackMarks: precondition: the label was drawn before the tracker reloaded", String(valueOf(r2, "before the reload")) === "POISON 3   MONARCH @3450", String(valueOf(r2, "before the reload")));
+  ok("trackMarks: a tracker that lost its buttons gets the same label back", String(valueOf(r2, "same marks after the reload")) === String(valueOf(r2, "before the reload")), String(valueOf(r2, "same marks after the reload")));
+  ok("trackMarks: an allMarks that is not a list is drawn the old way, with no error", v("allMarks not a list") === "POISON 2 @1700" && !r.errors.length, v("allMarks not a list") + " " + r.errors.slice(0, 1).join(""));
+}
+// (breakit 2026-11-06) a slow library spawn from before "mtg reset" arrives while the next game's library is still on
+// its way (a 100-card deck takes TTS several frames): the late one must leave the new one's "spawning" mark alone, or
+// the next board spawns a second library beside it. The fake TTS's spawnDelay makes library spawns slow: the search's
+// library 1 frame, the old game's last one 3, the next game's 10.
+{
+  const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
+  const libBoard = (n) => { const t = JSON.parse(lastT.json); t.players.find((p) => p.color === "Blue").library = n; return { msg: { t: "table", json: JSON.stringify(t) }, frames: 1 }; };
+  const started = s1.find((m) => m.t === "started");
+  const opt = { n: "Opt", f: "https://img.example/opt.jpg", tl: "Instant", cmc: 1, ty: ["Instant"] };
+  const libs = 'local n = 0 for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:library:Blue" then n = n + 1 end end return n .. " library objects, " .. tostring(__bkLibN) .. " library spawns"';
+  const r = run([
+    { lua: '__sim.spawnDelay = function(d) if d.GMNotes == "engine:library:Blue" then __bkLibN = (__bkLibN or 0) + 1 return __bkLibN == 1 and 1 or __bkLibN == 2 and 3 or 10 end end return "slow libraries"', frames: 0 },
+    ask({ promptId: 9001, kind: "cards", title: "Search your library", mode: "multi", min: 0, max: 1, cards: { "engine-card-9001": opt },
+      librarySearch: [{ s: 1, id: "engine-card-9001" }], options: [{ id: "engine-card-9001", label: "Opt" }] }),
+    { ...ask({ promptId: null }), frames: 1 }, // (the search closes: the library is rebuilt, slowly)
+    { lua: libs, frames: 0, mark: "race: the old library on its way" },
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 0 },
+    { lua: 'engineChat("mtg start ai 1", Player.Blue)', frames: 0 }, { msg: { t: started.t, json: started.json }, frames: 0 },
+    libBoard(50), { lua: libs, frames: 0, mark: "race: the new library on its way" },
+    { frames: 5 }, libBoard(51), { lua: libs, frames: 0, mark: "race: a board while the new one is still on its way" }]);
+  const v = (m) => String(valueOf(r, m));
+  ok("precondition: race: the old game's library was spawning (slowly)", v("race: the old library on its way") === "1 library objects, 2 library spawns", v("race: the old library on its way") + " " + r.errors.slice(0, 1).join(""));
+  ok("precondition: race: the new game's library is on its way after the reset", v("race: the new library on its way") === "1 library objects, 3 library spawns", v("race: the new library on its way"));
+  // (the old library was thrown away by the reset and is gone when its callback comes: the fake TTS raises on any call
+  // to a destroyed object but isDestroyed, as TTS does, and an error in a callback is recorded as "ERROR wait")
+  const errs = r.steps.flatMap((s) => (s.fx || []).filter((l) => /"ERROR/.test(l)));
+  ok("spawn: the late library callback calls nothing on its destroyed object", errs.length === 0 && r.errors.length === 0, errs.concat(r.errors).slice(0, 2).join(" || "));
+  ok("spawn: a late library from before a reset leaves the next game's spawning library alone (one library, no second spawn)", v("race: a board while the new one is still on its way") === "1 library objects, 3 library spawns", v("race: a board while the new one is still on its way"));
 }
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

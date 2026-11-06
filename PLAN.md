@@ -1,6 +1,6 @@
 # Project plan: rules-enforced MTG Commander in TTS
 
-Last updated: 2026-10-20. The design is in [SPEC.md](SPEC.md); test results and how to rerun them are in [TESTING.md](TESTING.md).
+Last updated: 2026-11-05. The design is in [SPEC.md](SPEC.md); test results and how to rerun them are in [TESTING.md](TESTING.md).
 
 **Status key:** ✅ done · 🔶 built, needs testing in TTS · ⬜ to do · 💡 idea, not scheduled
 
@@ -19,27 +19,24 @@ Last updated: 2026-10-20. The design is in [SPEC.md](SPEC.md); test results and 
   - The table's messages arrive in order (a start could overtake its deck check).
   - The bridge joins a free room when an older one is still busy.
   - Picture preloading goes one at a time (six at once froze TTS).
-- **Button delay, measured:** the panel answers in a few frames. The 0.1-0.9 s wait is Forge (the AI takes its priority between your actions). Still to do: instant click feedback, a "thinking..." hint, and Forge's own "pass until" to cut round trips.
+- **Button delay, measured:** the panel answers in a few frames. The 0.1-0.9 s wait is Forge (the AI takes its priority between your actions). Since done: instant click feedback, a "Thinking..." hint. Still to do: Forge's own "pass until" to cut round trips.
 - **Remote players' Q/E on mana creatures:** works for the host. Untested for remote players; the panel button is the sure route.
 
 ## Spec additions (2026-10-19)
 - **Turn timer with a vote:** a turn that runs out isn't skipped automatically. The other players vote to skip it.
 - **AFK vote:** players can vote to mark someone away; their turns then pass, or the AI covers them, until they return.
+- **Status (checked 2026-11-05):** the timer was built differently. `mtg timer` gives each decision a clock plus a time
+  bank, and a question that runs out takes its default answer. Neither vote is built.
 
-## From the first friends game (2026-10-19, 1v1 over TTS multiplayer): original list
-1. **Opening hand held back as draws.** The table counted the opening 7 as held draws, so players had to click Mulligan or click the library one card at a time to see their hand, and the count showed more than 7 before correcting. Fix: never hold draws before the first turn starts or while a mulligan question is open. Taking held draws should also take them **all** with one click (Draw / library).
-2. **Alternative costs look identical.** Forge offered Scarlet Spider 4 ways (normal, and web-slinging {R}{G} returning each tapped creature), but the panel showed four identical "Cast Scarlet Spider" buttons. Label every cast with its mode and cost, e.g. "Cast Scarlet Spider: web-slinging {R}{G}, return Delighted Halfling". Apply the same to kicker, flashback, foretell, adventure, morph and similar options.
-3. **Tapping creatures for mana (Delighted Halfling).** No tap gesture on the Halfling reached the bridge, and Forest taps were refused because Forge listed no mana ability for it at that moment (most likely already tapped). Log every intent's kind and card, show "Tap X for mana" buttons in the panel for every untapped mana source, and test Q/E on mana creatures for remote players.
-4. **Button delay is still felt.** Measure click → panel update time per player, including remote players, and remove any wait.
-5. **Fewer passes.** Don't ask a player to pass when they can't do anything: no instant, flash, activated ability or response available. That includes their own main phase when nothing is castable or playable (Arena auto-passes this too). Keep the Stop toggles for players who want to hold priority.
-6. **"P" passes.** A keyboard shortcut for Pass priority (scripting hotkeys or onScriptingButtonDown), plus the big button.
-7. **Phases large and obvious.** A big phase bar (Upkeep, Draw, Main 1, Combat, Main 2, End) with the current step highlighted and whose turn it is, readable from across the table.
-8. **Attack target by clicking.** After choosing an attacker, click the opponent's life tracker or player badge, or a planeswalker or battle, to choose what it attacks, instead of the first target A-Z.
-9. **Engine card support.** Forge in our Docker image (manabrew-node, built 2026-10-17) has sets through Star Trek (Nov 2026), so new mechanics exist in the engine. Problems with keywords are most likely in how the table presents them (see 2). Show keywords and abilities clearly on hover.
+The first game's original list (9 items) is the done list above. Item 9, engine card support (Forge has sets through
+Star Trek, Nov 2026, so keyword trouble is the table's wording), was covered by the keyword passes and the keyword
+sweep below.
 
-## Next up (user's order, 2026-10-18)
-1. **Picture and name check for every card**, about 2 minutes: every name in `bridge/forge-cards.json` gets a picture lookup, and failures are listed.
-2. **Automated games on 60–100 representative cards** covering every prompt type and card layout (double-faced, split, adventure, flip, meld, saga, planeswalker, aura, equipment, tokens, copies, face-down), about a day. **Order: most popular first (EDHREC rank), then newest sets**, so the cards the group is likely to play get tested first.
+## Next up (user's order, 2026-10-18): done
+1. ✅ **Picture and name check for every card** (2026-10-18, `docs/card-image-check.md`): 33,975 names; 274 show the
+   card back (230 digital-only Alchemy cards, 44 crossover printings Scryfall does not list).
+2. ✅ **Automated games on representative cards, every prompt type and layout:** covered by the keyword decks (324
+   keywords, 2026-10-19/20), the 27 hand-test decks and the mechanic runs (2026-11-05).
 
 ## Every mechanic through the core moves (decided 2026-11-03, SPEC §4a)
 
@@ -52,25 +49,22 @@ own. It also found mill worked out twice on the table (`detectPending` and `engi
 - dredge never named in the log;
 - surveil never said "surveils".
 
-Done 2026-11-03 (in source, not yet live):
-- 🔶 The harness sends `cause`, `causeName` and `causeCardId` on every zone move, and `how: "mill"` from Forge's own
-  flag. The image is `mtg-forge-node:cause`. It needs a live check, then `tools/deploy.js --image cause`.
-- 🔶 The bridge words moves out of a library through one table, covering mill, dredge, surveil, explore and a plain
+Done 2026-11-03, live since 2026-11-04:
+- ✅ The harness sends `cause`, `causeName` and `causeCardId` on every zone move, and `how: "mill"` from Forge's own
+  flag (first image `:cause`; the running engine is retagged `mtg-forge-node:exile` by `tools/deploy.js --image`).
+- ✅ The bridge words moves out of a library through one table, covering mill, dredge, surveil, explore and a plain
   put. Tested in `tests/test_bridge_events.js`.
 
-### The next 1½–2 days (the user's go-ahead, 2026-11-03)
+### The next 1½–2 days (the user's go-ahead, 2026-11-03): steps 1–3 done and live
 
 TTS is not needed for any of this: the bridge tests and the test stack on port 9444 cover it.
-1. 🔶 **Engine causes for costs and special actions (½ day).** In source 2026-11-03: harness `Cost:<name>` causes and
-   `how` foretell / plot / suspend. The bridge labels discard, sacrifice and graveyard-exile lines with `costWords`.
-   Image `mtg-forge-node:costs`; the live check has 5 new steps. The harness names the cost or special action that moved
-   a card:
+1. ✅ **Engine causes for costs and special actions (live 2026-11-04).** Harness `Cost:<name>` causes and `how`
+   foretell / plot / suspend (image `:costs`); the bridge labels discard, sacrifice and graveyard-exile lines with
+   `costWords`. The harness names the cost or special action that moved a card:
    - cycling's discard;
    - delve's and escape's exile;
    - a sacrifice paid as a cost;
    - foretell, plot and suspend.
-
-   One image rebuild covers all of it.
 2. ✅ **Every other zone move onto the kind + wording table (done 2026-11-03).** Each table has a function that
    decides the kind:
    - `EXILE_WORDS` (`exileKind`);
@@ -81,7 +75,7 @@ TTS is not needed for any of this: the bridge tests and the test stack on port 9
    17 of 17 (exile) and 18 of 18 (hand and leave). Exile, graveyard and the other
    moves follow the pattern `libraryKind` / `LIBRARY_WORDS` set: one function decides the kind, one table words it. It
    replaces the ~7 exile wordings, `libExiles` / `gyExiles` / `bfExiles`, and the draw and discard wording.
-3. 🔶 **An automated keyword sweep (in source 2026-11-03).** `tools/keyword-sweep/pick.js` picks a test card per
+3. ✅ **An automated keyword sweep (2026-11-03, live 2026-11-04).** `tools/keyword-sweep/pick.js` picks a test card per
    keyword from Forge's cardsfolder (18 keywords; disturb has no single-faced card) into `tests/keyword-sweep.json`.
    `tests/live_events_check.js --sweep <file>` plays them all on the 9444 test stack; the log replay is fed the seats'
    own actions the way `Seat.respond` feeds `notePlay`, and `--dump <file>` saves the boards for an offline replay.
@@ -113,9 +107,7 @@ TTS is not needed for any of this: the bridge tests and the test stack on port 9
    had passed "was used" on a cast that fell through (the card was later discarded); the check now needs the stack or
    a seen zone. 51/51 events check on `:cleave`.
 
-Left for later: the last three items below.
-
-Still to move onto the core moves, in this order (checked 2026-11-05):
+Still to move onto the core moves, in this order (checked 2026-11-05; the last three are being specified 2026-11-05):
 - ✅ The table's mill: one detector instead of two. `engineBoardDiff` compares each board with the one before once, and
   the draw/mill holder (`detectPending`) and the mill stand-ins (`engineMillDetect`) both read it. Surveil is not
   counted twice: a held card is not also flown. `tests/test_table_board_diff.js` pins the two things the recorded games
@@ -140,29 +132,49 @@ Still to move onto the core moves, in this order (checked 2026-11-05):
 Result: the Lua copy plays a whole correct game inside real TTS from its own save ("Copy Engine Test", branch commit
 ddcc69a), but 4.4 times slower than outside TTS: 906 s for one AI game, single freezes up to 43 s, and a freeze can get
 TTS closed through Windows' Not Responding prompt. The profile says no runtime fix buys more than about 4 times, and
-it was never wired to the table. The current build stays the game. Kept on the branch, not merged.
+it was never wired to the table. The current build stays the game. Kept on the `copy-engine` branch, not merged (its
+worktree folder `../mtg-tts-copy-engine` is gone; git lists it as prunable).
 
-What it was for:
+What it was for: one place for the rules and the table (spec: `docs/spec-own-engine.md`), so that big fixes would not
+be spread across Forge/harness Java, the bridge and the table with an image rebuild in between. That was never proved:
+the planned same-bugs-in-both-builds comparison and the people-only speed test (`docs/compare-current-vs-copy.md` on
+the branch) were not run before it closed on speed.
 
-The user asked for a copy of Forge in Lua inside TTS (spec: `docs/spec-own-engine.md`; build: `copy-engine` branch,
-worktree `../mtg-tts-copy-engine`) **so that big fixes would be easier and better**: one place for the rules and the
-table, instead of a fix spread across Forge/harness Java, the bridge and the table, with an image rebuild in between.
-**That has not been proved yet.** So far the copy only shows that Forge translates and plays a game (slowly). The open
-test: fix the same bugs in both builds and compare where each fix lives, how many files and languages it touches, and
-how long it takes to rebuild and redeploy. A people-only speed test is also open (`docs/compare-current-vs-copy.md` on
-the branch, "To test").
+## Where we are (updated 2026-11-05)
 
-## Where we are (updated 2026-10-31)
+Details per day: `docs/changes-2026-10-31-to-11-05.md`. Everything up to `980aece` is committed and pushed.
 
-All 19 gap decks and 127 keywords are played. Turn timers (`mtg timer`) and hold priority (`mtg hold`, Hold button) work through the table. The engine builds from public source plus `engine/`. What's left needs other people (4 humans, hand privacy, M7's 2-person test, M5's sync test) or is optional (effects, sounds, game modes, 5+ seats).
+- **Debug mode (2026-11-04):** `mtg debug <scenario>` sets up a test board from `scenarios/<name>.json` through the
+  manual fix's new `createCard` op.
+- **Log bugs a–i** from re-test 2 of the rebuilt decks: fixed and live 2026-11-05.
+- **Mechanic runs (2026-11-05):** 28 of 28 deck scenarios played on the live table through debug mode, no TTS crash.
+  21 fixes, all live; 20 confirmed on the real table, the bounced token (#21) by test only
+  (`docs/mechanic-runs-2026-11-05.md`).
+- **Engine on 2 WSL cores** (2026-11-05): no TTS crash or GPU reset since.
+- **Friendly mulligans:** built, then rolled back 2026-11-01 over a stutter suspicion the staged tests did not support.
+  Being restored 2026-11-05.
+- **Auto-resolve dropdown:** rolled back 2026-11-02; still in source, held back by `tools/deploy-holds.json`.
+- **Fix from hand:** specified in M7 §12 (`docs/m7-manual-fix-spec.md`), not built.
+- **Tests:** bridge golden 926 scenarios, `test_bridge_events` 221 checks, both passing.
+- **Being specified 2026-11-05 (open):**
+  - ⬜ Companion .exe: a deeper spec (`docs/companion-app-spec.md`).
+  - ⬜ Core-moves cleanups: `askUnder`, `trackMarks`, `engineCardEntry`.
+  - ⬜ M5 step 4: particle effects with sound hooks.
+  - ⬜ Planechase plane and dungeon room: engine changes.
+  - ⬜ Investigations: the engine's p95 slow tail, External Editor message size.
+- **Left after that:** things that need other people (4 humans, hand privacy, M7's 2-person test, M5's sync test, remote
+  players' gestures, the host's upload with `tools/net-upload-meter.ps1`) or are optional (effects, sounds, game modes, 6 seats).
 
-Notes below from 2026-10-20:
+From 2026-10-31: all 19 gap decks and 127 keywords are played. Turn timers (`mtg timer`) and hold priority (`mtg hold`,
+Hold button) work through the table. The engine builds from public source plus `engine/`.
+
+Notes below from 2026-10-20 (still true unless marked):
 
 Everything runs end to end in real TTS, and has been played over TTS multiplayer with a friend (1v1).
 
 ```
-TTS (group table, ENGINE MODE) ⇄ bridge.js ⇄ Manabrew relay ⇄ self-hosted node ⇄ Java Forge
-            ✅                       ✅            ✅                 ✅               ✅
+TTS (the "Mock MTGA 4 player" save) ⇄ bridge.js ⇄ Manabrew relay ⇄ self-hosted node ⇄ Java Forge
+            ✅                            ✅            ✅                 ✅               ✅
 ```
 
 - **Stutter:** fixed. Rewind snapshots, `destruct()` pauses and JSON size are all solved; a full game's worst frame is ~244 ms. See the stutter notes below.
@@ -170,9 +182,8 @@ TTS (group table, ENGINE MODE) ⇄ bridge.js ⇄ Manabrew relay ⇄ self-hosted 
 - **Big late-game board (2026-10-20):** 4 players vs 3 harmless AIs to turn 103, 125 permanents: 127 fps, median frame 6–7 ms (flat as the board grew), ~1 frame over 250 ms per 30 s of fast AI play, `mtg reset` under 1 s, 0 errors (`tools/bigboard-test.sh`, QUIET=1).
 - **Table bugs from testing:** P1, P2, P3, P4, P7 and P8 are fixed; P9 is fixed but not yet confirmed in a real game (`docs/problem-log.md`).
 - **Engine link recovery (2026-10-20):** the bridge reconnects to the relay by itself (heartbeat every 20 s, retries for up to ~1 min, resync of board and question); tested live by restarting the relay mid-game: back in 3 s, game finished with 0 errors.
-- **Next real-world checks:** a game with friends (hand privacy, remote players' gestures, measuring the host's upload with `tools/net-upload-meter.ps1`).
 - **2026-10-20, review and tests (jr-programmer-suite):** the bridge went through all stages (structure, simplify,
-  correctness with 20 findings fixed or decided, claims, docs); golden masters for the bridge (145 scenarios) and the
+  correctness with 20 findings fixed or decided, claims, docs); golden masters for the bridge (145 scenarios then, 926 now) and the
   table script (two recorded games replayed on fengari), both graded by mutation; rule checks M0.5 pass; a 4-player
   game to turn 17 with no errors (slowest update 118 ms). The table script went through the same suite (golden master graded SOUND: 26 mutations, 1 equivalent escape; claims; relation test).
   Commands: TESTING.md, "Golden masters and rule checks".
@@ -183,7 +194,7 @@ TTS (group table, ENGINE MODE) ⇄ bridge.js ⇄ Manabrew relay ⇄ self-hosted 
 
 | | What | Where |
 |---|---|---|
-| Research | Decided the approach: no MTGA decompiling. TTS is the front end and Forge is the rules engine, through Manabrew | `Desktop/mtg-tts-engine-handoff.md` |
+| Research | Decided the approach: no MTGA decompiling. TTS is the front end and Forge is the rules engine, through Manabrew | `Desktop/MTG/mtg-tts-engine-handoff.md` |
 | Spec | Architecture, protocol, UI, latency targets, licensing, milestones | `SPEC.md` |
 | Setup | Docker Desktop installed; virtualization enabled in the BIOS | — |
 | M0 (stack) | Relay, web client and a 4-seat Forge Commander room run locally | `stack/compose.yml` |
@@ -256,15 +267,15 @@ Decided 2026-10-17: the group's existing table is the face. The full review is i
   - Phasing and Color Module self-updaters turned off.
   - The rikrassen importer strips scripts from spawned objects and its version download is off.
 
-  Only those 6 scripts plus 1 removed object differ from the original. Still to do: load it in TTS and check that the table works as before.
-- [x] **Step 1 (built 2026-10-17, needs a TTS test):** `ENGINE_MODE` switch. `mtg engine on|off` (host/promoted only), off on every load. 346 guards added by `tools/make-engine-copy.js`; each blocked tool posts "[MTG] Engine mode is on: '<tool>' is handled by the rules engine." What's blocked:
+  Only those 6 scripts plus 1 removed object differ from the original. Loaded and played in TTS since 2026-10-17. The ENGINE MODE save has since been deleted: the table is now the user's "Mock MTGA 4 player" save (`TS_Save_1.json`), updated by `tools/deploy.js` with TTS closed.
+- [x] **Step 1 (built 2026-10-17, in use in every game since):** `ENGINE_MODE` switch. `mtg engine on|off` (host/promoted only), off on every load. 346 guards added by `tools/make-engine-copy.js`; each blocked tool posts "[MTG] Engine mode is on: '<tool>' is handled by the rules engine." What's blocked:
   - **Global:** Draw/Scry/Mill/Untap/Mulligan/Reveal buttons, hotkeys, typed numbers, the zone context-menu handlers (incl. the `clearContextMenu` wipe), Get basic, Token copy, Cascade, Random discard, Reveal-until-type, and the "my/your turn" chat.
   - **Trackers:** life buttons and chat; commander damage, tax, energy/poison/experience, mana/suspend and card-counter buttons.
   - **Turns:** Turn Skipper, the Pirate Cannon who-goes-first hook, and TTS's own end-turn button (`Turns.pass_turns=false`).
   - **Card buttons:** Easy Modules clicks, keywords, token marker, phasing, face-down, menu flip.
   - **Other:** Card Importer (import before turning it on), Day/Night clicks and card transforms, the Ring, deck-search tools, the enabler bag (items go back in), Treachery token buttons, and dungeon token spawns.
   - **Deliberately left alone:** highlight mats, timers, hand counters, CardCustom, dungeon room markers, sort hand, notes, dice.
-- [x] **Step 3 (built 2026-10-17, headless-tested on the bridge side; first TTS test pending):** `mtg start [ai N]` / `mtg reset` (host).
+- [x] **Step 3 (built 2026-10-17; tested live the same day, below):** `mtg start [ai N]` / `mtg reset` (host).
   - **Bridge:** sends a whole-table model (`t:"table"`, about 5 KB per update, coalesced). Public zones come from any seat's view; each hand only from its own player's view. AI hands are counts only. Cards use the deck's own images; anything else falls back to the Scryfall image URL. AI players take the free table colours.
   - **Renderer:** `tools/engine-renderer.lua`, appended to Global.
     - Spawns locked cards in the Card Importer format, at your table's zones: battlefield grid on the playmat (creatures / other / lands rows, tapped turned 90°), graveyard and exile piles, command zone next to the tax labels, the hand via each player's hand zone, one face-down library marker with a count, and the stack floating over the table centre.
@@ -353,7 +364,7 @@ Players drag and use the table normally; every move is a request the engine acce
       - "should be tapped" and "missing (hand)" at single steps are the checker catching a rotation or a draw mid-update.
     - *Recheck (2026-10-20, headless, small decks with tutors against Errant + 99 Islands):* 42 of the 47 flagged keywords now played, 0 table problems on them, 0 engine/TTS errors. The last 5 (Aftermath, Fuse, Enrage, Fight, Spree) pass in `bash tools/rules-check.sh keywords`, which casts each on purpose (0 engine errors). Every flagged keyword is now played.
   - **Online notice:** `mtg start` with other people seated tells everyone that the host needs at least 5 Mbps upload (10+ recommended), a wired connection and no VPN. This is a guideline, not measured yet: run `tools/net-upload-meter.ps1` on the host during an online game to measure it.
-  - **Friendly (free) mulligans:** Forge has no free-mulligan setting, and answering its "put N on the bottom" with fewer cards would abort the game. It can be done in our harness without touching `forge/`: spec in SPEC.md, "Friendly mulligans by vote" (2026-10-31).
+  - **Friendly (free) mulligans:** built 2026-10-31 in our harness, without touching `forge/`, taken out 2026-11-01 and put back 2026-11-05 (the user: "add back in friendly mulligans the way it was before"). Forge has no free-mulligan setting, and answering its "put N on the bottom" with fewer cards would abort the game, so the harness asks for fewer. Spec in SPEC.md, "Friendly mulligans by vote".
 - [x] **P2 (2026-10-18):** gestures answer the open prompt exactly like the panel buttons do.
   - **Pay by tapping:** Q/E on a glowing (gold) land or mana source taps it for the cost. Turning a tapped one back gives its mana back. The payment finishes by itself once the last tap covers the cost.
   - **Attack by tapping:** Q/E on a glowing (red) creature toggles it as an attacker, and it glows green when picked. Confirm in the panel. With several opponents it attacks the first one in A-Z order; pick others in the panel.
@@ -361,7 +372,7 @@ Players drag and use the table normally; every move is a request the engine acce
   - **Click to target:** click a glowing (orange) card, or a player's life tracker. When the required number is picked, it answers right away.
   - **Right-click to cast:** spells and abilities you can use appear in that card's right-click menu during your priority.
   - **Guard:** a multi-choice answer outside min–max is refused and asked again, both in Lua and in the bridge. An empty "choose 1" made Forge abort a game during testing.
-  - Known limits: glows are visible to every player (TTS highlights aren't per-player). The prompt type is read from the title.
+  - Known limits: glows are visible to every player (TTS highlights aren't per-player; the green playable frame is per-player since 2026-10-20). The prompt type was read from the title until the bridge sent `kind` (2026-10-20).
 - [x] **P3:** library as a real face-down deck (draw animation; tutors via right-click → Search); table buttons mapped (Mulligan, Scry via πScry, Draw, Untap, Mill) (built: Round 4 and "Table buttons" above, 2026-10-17/18)
 - [x] **P4:** Arena feel (highlights, sounds, shake) (moved to M5)
 - [x] Layout tuned from TTS screenshots through the 27 hand-test decks
@@ -371,7 +382,7 @@ Players drag and use the table normally; every move is a request the engine acce
 - [x] Prompts in the table's style: πScry for scry/surveil, ✓/✗ for yes/no, πMenu for card actions, side panel for the rest (replaced by the Arena-style panel and wording, 2026-10-20/22)
 - [x] Click-to-select cards on the table for targets, attackers and blockers (P2)
 - [x] Real UI for trigger order, damage assignment order and combat damage split
-- [x] **Step 2 (built 2026-10-17, headless-tested; TTS test pending):** `mtg ready` / `mtg ready all` (host) / `mtg commander` (hover a card).
+- [x] **Step 2 (built 2026-10-17; in use live since, now behind the READY buttons, M8):** `mtg ready` / `mtg ready all` (host) / `mtg commander` (hover a card).
   - **Table side:** Global reads the deck in your library zone plus the card(s) on your command zone. Treachery identity cards are skipped. It sends their names and images to the bridge.
   - **Bridge side:** it checks every name against Forge's 33,975 cards (`bridge/forge-cards.json`, built by `tools/build-forge-card-index.js`), handling split cards, double-faced back faces and accents.
   - **Report:** the bridge sends back ready / not ready with reasons (no deck, no commander, unknown cards), plus warnings for card count and extra copies.
@@ -390,15 +401,16 @@ Players drag and use the table normally; every move is a request the engine acce
 - [ ] Not possible: "the Leader goes first" (no engine option to choose the starting player); unveil costs and identity powers stay honour-system
 
 ### Later (decided 2026-10-17): Planechase and dungeons
-- [ ] Drive the Eternities Map centre plane and the dungeon room markers (one per player) from the engine; turn off their manual moves and token spawns. See `table-review/notes-variants.md`.
+- [ ] Drive the Eternities Map centre plane and the dungeon room markers (one per player) from the engine; turn off their manual moves and token spawns. See `table-review/notes-variants.md`. The engine changes are being specified 2026-11-05.
 
-### M4.5: rewind by vote ✅ (built 2026-10-20; needs a table reload and a 2-person vote test)
+### M4.5: rewind by vote ✅ (built 2026-10-20; 2-person vote test pending)
 - [x] Engine side checked headless (`bash tools/rules-check.sh rewind`): checkpoints ~8 per turn, last 25 kept; a restore to "turn 6 upkeep" from turn 8 brings back life, commander casts and every zone exactly (3 of 3 runs)
 - [x] "Undo..." button (bottom right) lists the last 12 points (upkeep, main, attacks, second main of each turn); `mtg undo` / `mtg undo N` in chat
 - [x] Sends `requestRestore` / `restoreVote` directives; refuses unknown points, a second vote, players who are out, votes not awaited
 - [x] Vote pop-up for the awaited players (Rewind / Keep playing; `mtg vote yes|no`); request, decline and "no longer kept" posted to chat. Against AI only it applies at once (Forge asks humans only)
 - [x] After a rewind the bridge closes the question that was open (an answer to it crashed Forge in a test) and the per-player turn count goes back too
-- Tests: bridge golden 151 scenarios (8 deliberate breaks of the rewind code, all caught), table golden 705 steps (7 of 7 caught)
+- [x] Rewind race fixed (engine lock: 0 failures in 52 rewinds) and a "Rewind to <point>" button when a question holds an agreed vote (live 2026-11-02)
+- Tests (2026-10-20): bridge golden 151 scenarios (8 deliberate breaks of the rewind code, all caught), table golden 705 steps (7 of 7 caught)
 
 ### M5: Arena feel (plan: docs/m5-plan.md; research: reports/MTG Arena style effects for TTS.md, reports/MTG Arena effects from gameplay video.md)
 - [x] **Step 1 (2026-10-21), no AssetBundle needed:**
@@ -415,7 +427,7 @@ Players drag and use the table normally; every move is a request the engine acce
 - [x] **Mills like the table's own Mill button (2026-10-22):** milled cards held for you come off the library turning face up, a beat apart, and slide into the graveyard pile when let go; other mills (AI players, more than 5) fly face up from library to graveyard as stand-ins (the first 5). The library's plain backs no longer fly to the hand on a mill (`libraryAnimTo` was never set)
 - [x] **Attack swing (2026-10-22, after Arena, reference video hOY2wZcuMJk 12:11):** at combat damage each attacker winds up (lifts, pulls back), lands on its blocker / the planeswalker / the back centre of the defending player's board (Arena's player portrait), and goes back; attack and spell target lines aim at that back centre too
 - [x] **Settings button (2026-10-22):** My effects (your banners, turn banner, stack pop-up), My sounds (ready for the sounds), Table animations (host only: swings, mills, the graveyard flash, which everyone sees); also `mtg effects|sounds|animations on/off`
-- [x] **Linked exile, playable exile, face-down exile on the table** (research: reports/MTG linked exile and zone quirks.md). Built 2026-10-23, golden-tested; waiting on a live check with our Forge build:
+- [x] **Linked exile, playable exile, face-down exile on the table** (research: reports/MTG linked exile and zone quirks.md). Built 2026-10-23, golden-tested, checked live (the last two items):
   - our node image (`mtg-forge-node:exile`) sends `exiledWith`, `returnsWhenHostLeaves`, `isForetold`, `mayPlay` per card (Forge's own `getExiledWith`, `getUntilLeavesBattlefield`, `getCardsActivatableInExternalZones`)
   - bridge: `ew` / `rl` / `fo` per card and a `playable` list per seat
   - table: a public playable row (green glow) in front of the second hand zone, private ones (foretold, face-down) inside it, linked cards half-size under their permanent; dragging a playable card onto the battlefield plays it
@@ -428,23 +440,23 @@ Players drag and use the table normally; every move is a request the engine acce
   - Cancel on the card or sacrifice question of a non-mandatory cost of a spell or ability (sacrifice, discard, exile, return, tap...), in the corner: the spell goes back and the lands tapped for it untap (our Forge build: `cancellable` on chooseCards, cost-payment frames, the cast's mana abilities undone; checked live with `rules-check --game costcancel`). A part of a two-part cost paid before the question stays paid, as in Forge
   - [x] "Resolve" stops: 292 logged stops sampled 2026-10-31, each with something to respond with; `mtg hold` covers your own spell
 - [ ] Step 3: the 2-player sync test (do effects, highlights and bundle sounds show for everyone?), then one test AssetBundle (Unity 6000.0.62f1 vs the installed 6000.3) with a pooled effect
-- [ ] Step 4: pooled particle effects for death (smoke + shatter), countered spell, damage hit, player knocked out; CC0 sounds (Kenney, Cockatrice set)
+- [ ] Step 4: pooled particle effects for death (smoke + shatter), countered spell, damage hit, player knocked out, with sound hooks; CC0 sounds (Kenney, Cockatrice set). Being specified 2026-11-05
 - [x] ~~Camera shake~~ dropped: none in any Arena frame (video research)
 
-### M6: 5–8 players
+### M6: 4–6 players (was 5–8; shrunk 2026-11-05 to fit the 6-player Workshop table 2293586471)
+**Spec: `docs/m6-six-seat-spec.md`** (2026-11-05): 16 steps, about 44.5 hours, UI shrink first (six seats 78,699 → about 45,600 bytes, budget 50,000), then relay cap, bridge seats and the table port. UI measurements: `docs/m6-ui-size.md`.
 - [x] `SEATS=6 docker compose up -d forge-room`, then `node bridge/engine-test.js --seats 6 --turns 12` (2026-10-20): 1 test seat + 5 Forge AI to turn 12 in 24 s; 113 answers, 0 resyncs, 0 fingerprint mismatches; response → next engine message p50 182 ms / p95 356 ms (mostly the 5 AIs thinking between our prompts; relay hop p50 9 ms). Room set back to 4 seats afterwards
 - [x] The lobby's 4-seat limit doesn't block it: the room the node creates with `SELF_HOSTED_NODE_MAX_PLAYERS=6` seated all 6
-- [ ] A full game in TTS with 5+ seats: **blocked by the table**, which has 4 playmats and 4 seat colours (`TABLE_COLORS`, the bridge refuses more). Needs a 6–8 seat table (TTS has 10 colours) and its geometry in `seatGeometry`
+- [ ] A full game in TTS with 5 or 6 seats: **blocked by the table**, which has 4 playmats and 4 seat colours (`TABLE_COLORS`, the bridge refuses more). Needs the 6-seat table below and its geometry in `seatGeometry`
 - [x] A 6-player table found: Workshop 2293586471, on the host's PC (2026-10-31); compared with the 4-player table, plan in SPEC §7
 - [ ] Cut the screen UI first: six seats would be about 77.5 KB against the 60 KB limit
 - [ ] `make-engine-copy.js` and the renderer: per-table profiles (seats, GUIDs, layout) instead of the 4-player values
-- [ ] 6-player engine table: our scripts patched in (not the 4-player script pasted over), background objects removed, table buttons added
-- [ ] A full 6-seat game on it
+- [ ] 6-player engine table: our scripts patched in (not the 4-player script pasted over), background objects removed, table buttons added; then the full 5–6 seat game above
 
 ### M8: game modes (spec 2026-10-21: docs/game-modes-spec.md)
 - [x] **Ready / Start buttons (2026-10-21, revised with the user):** a small READY? just below each seated player's Draw button (yellow → green when the deck checks out, red "FIX DECK" with the reason in chat; only that seat's player can press it; = "mtg ready"; press again to un-ready). A ready player's own table buttons (untap, reveal, draw, mill, scry, mulligan) go under the table until they un-ready or the game is reset. "Start" appears between the four life counters only when every seated player is ready; anyone can press it (= "mtg start"; alone: against 1 Forge AI); hidden during the game, NEW GAME afterwards (host, = "mtg reset"). Engine mode only. Checked live on the table
 - [ ] Standard 1v1 (our side only: no-commander decks, 20 life)
-- [ ] Engine spike: teams, per-player starting life and hand in Forge (needs the forge submodule)
+- [ ] Engine spike: teams, per-player starting life and hand in Forge (the forge submodule is checked out since M7)
 - [ ] Teams + per-player settings through protocol, harness and node (fork or upstream PR); 2v2 Team Commander
 - [ ] Juggernaut 3v1: settings, perks (extra draw), "Juggernaut wins" / "team wins"
 - [ ] Later: Two-Headed Giant (shared life), Juggernaut turn-order option, Archenemy schemes
@@ -457,8 +469,9 @@ Players drag and use the table normally; every move is a request the engine acce
 - [x] Bridge: vote → pause (the next empty-stack priority question is held) → editing → review vote → apply; refusal back to editing; Cancel (golden-tested, 27 mutations caught)
 - [x] TTS: Fix... button, fix panel per state, cards unlocked while editing, board held, Done reads the touched cards; chat: mtg fix / yes / no / done / cancel / life / poison / counters
 - [x] From the table (2026-10-23): drop an aura/equipment onto its permanent (attach; put down alone = off), right-click "top / bottom of its library", the life and commander-damage counters work while editing and are read at Done, `mtg fix token <what> [for <colour>] [tapped]` (Forge's token scripts, `bridge/token-scripts.json`)
+- [x] `createCard` op (2026-11-04), used by `mtg debug <scenario>` to build test boards
 - [ ] Snap points (not needed so far: `dropArea` reads the zones)
-- [ ] Fix from hand (spec 2026-11-05, m7-manual-fix-spec §12): the fix panel offers your hand's cards: Cast free / Activate free / Play land / To graveyard, plus a "what should have happened" note; no card moved by hand; new ops `freeCast` / `freeActivate` / `freeLand` (Forge's dev-mode free cast)
+- [ ] Fix from hand (spec only, 2026-11-05, m7-manual-fix-spec §12): the fix panel offers your hand's cards: Cast free / Activate free / Play land / To graveyard, plus a "what should have happened" note; no card moved by hand; new ops `freeCast` / `freeActivate` / `freeLand` (Forge's dev-mode free cast)
 - [ ] Live test with 2 people
 
 ---
@@ -467,11 +480,10 @@ Players drag and use the table normally; every move is a request the engine acce
 
 | Idea | Spec | Notes |
 |---|---|---|
-| Companion .exe: choose self-host or dedicated server | §10b | The bridge always stays on the host's PC. Self-host also starts Docker. Status lights, latency readout |
-| Dedicated server | §10b | TLS relay, strong server key, measure the internet round-trip cost (~62 ms measured by Manabrew) |
+| Companion .exe: choose self-host or dedicated server | §10b, `docs/companion-app-spec.md` | The bridge always stays on the host's PC. Self-host also starts Docker. Status lights, latency readout. Deeper spec being written 2026-11-05 |
+| Dedicated server | §10b, `docs/server-setup-spec.md` | TLS relay, strong server key, measure the internet round-trip cost (~62 ms measured by Manabrew). Full AWS hosting paused by the user 2026-11-02 |
 | Bridge forwards editor messages to VSCode | §8 | Lets the host use the VSCode TTS plugin while the bridge runs |
-| Decklist import | §11 | Paste an Arena/Moxfield list instead of using only Manabrew's preset decks |
-| Friendly mulligans by vote | "Friendly mulligans by vote" | None, 1 or 2 free mulligans, voted at the READY buttons. Needs both engine images rebuilt |
+| Decklist import | §11 | Paste an Arena/Moxfield list as well as importing with the table's Card Importer (`mtg ready`) |
 
 ---
 
@@ -479,9 +491,9 @@ Players drag and use the table normally; every move is a request the engine acce
 
 - **Forge Commander rules:** confirmed headless on 2026-10-20 (M0.5): tax, 21 commander damage, command-zone choice, 4-player priority, turn order after elimination.
 - **TTS render speed on a big board:** answered 2026-10-20: fine at 125 permanents (avg update 36 ms, worst 152 ms).
-- **External Editor message size:** does TTS cut off very large messages? Patches keep them small (~1 KB), but the first full state is ~25 KB.
-- **Slow tail in the engine:** p95 ~90 ms. Check whether it's the engine or CPU contention by running clients on another machine.
-- **Manabrew is pre-release and changes fast:** the Docker images use `:latest`. Pin a version once the board works.
+- **External Editor message size:** does TTS cut off very large messages? Patches keep them small (~1 KB), but the first full state is ~25 KB. Investigation being specified 2026-11-05.
+- **Slow tail in the engine:** p95 ~90 ms. Check whether it's the engine or CPU contention by running clients on another machine. Investigation being specified 2026-11-05 (the engine has run on 2 WSL cores since 2026-11-05).
+- **Manabrew is pre-release and changes fast:** relay and node are our own builds (`mtg-relay:exile`, `mtg-forge-node:exile`, from Manabrew `fd16e2f` plus `engine/manabrew.patch`); the web client is pinned by digest in `stack/compose.yml`. A newer Manabrew means bringing the patch forward and rerunning the rules checks and golden tests.
 - **Licensing:** fine for private play. Before publishing on the Workshop or running a public server, review §9 (AGPL obligations if Manabrew is modified, e.g. for M7).
 
 ---
@@ -489,7 +501,8 @@ Players drag and use the table normally; every move is a request the engine acce
 ## Everyday commands
 
 ```bash
-cd stack && docker compose up -d      # start the engine stack
-node bridge\bridge.js                 # start the bridge (TTS must use tts/mtg-board.lua)
+docker compose -f stack/compose.yml up -d   # start the engine stack
+node bridge/bridge.js                       # start the bridge (or tools/start-bridge.ps1: hidden, restarts itself)
+node tools/deploy.js                        # ship the bridge and the table script together (TTS closed; --image <tag> for the engine)
 ```
-In TTS chat: `mtg help`, `mtg start ai 1`, `mtg deck <id>`, `mtg decks`, `mtg reset`.
+In TTS chat: `mtg help`, `mtg start ai 1`, `mtg deck <id>`, `mtg decks`, `mtg reset`, `mtg debug <scenario>`.

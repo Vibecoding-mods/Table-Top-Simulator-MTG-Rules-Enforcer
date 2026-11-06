@@ -110,6 +110,7 @@ node bridge/bridge.js
 |---|---|
 | `mtg engine on` | rules engine on (host) |
 | `mtg ready` / `mtg ready all` | check your deck (or everyone's) against the engine's card list |
+| `mtg friendly 0\|1\|2` | vote for free mulligans (also the Friendly button under READY) |
 | `mtg start` / `mtg start ai 2` | start the game, optionally with Forge AI players (host) |
 | `mtg undo` / `mtg undo N` | rewind to an earlier point; the other players vote |
 | `mtg vote yes` / `mtg vote no` | answer a rewind vote |

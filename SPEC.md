@@ -1,12 +1,13 @@
 # Spec: Rules-enforced MTG Commander in Tabletop Simulator
 
-Status: v0.2, 2026-10-20 (v0.1 draft 2026-10-17). M0–M4 built and tested; see the milestone table in §10.
+Status: v0.3, 2026-11-05 (v0.2 2026-10-20, v0.1 draft 2026-10-17). M0–M4.5 and M7 built, M5 steps 1–2 built; see the
+milestone table in §10.
 Background: the original hand-off notes (private)
 Progress tracking (done / to do): [PLAN.md](PLAN.md)
 
 ## 1. Goal
 
-Play Magic: The Gathering Commander in Tabletop Simulator (TTS) with full rules enforcement and MTG Arena-style automation: automatic triggers, a visible stack, priority passing, and damage and life alerts. Effects and screen shake are a later layer.
+Play Magic: The Gathering Commander in Tabletop Simulator (TTS) with full rules enforcement and MTG Arena-style automation: automatic triggers, a visible stack, priority passing, and damage and life alerts. Effects are a later layer (M5).
 
 **Hard constraint:** TTS is the only front end. Players see and play the game in TTS.
 
@@ -34,8 +35,8 @@ Play Magic: The Gathering Commander in Tabletop Simulator (TTS) with full rules 
 |---|---|---|
 | **TTS mod** (Global Lua + UI XML) | us | Renders the engine's state, shows prompts as UI and sends player choices. Holds no game rules. |
 | **Bridge** (Node.js) | us | Translates between TTS's External Editor messages and Manabrew's relay protocol. Opens one relay session per seated player. Stamps timestamps for latency measurement. |
-| **manabrew-server** | Manabrew (unchanged) | Relay, lobby and rooms. |
-| **self-hosted-node** | Manabrew (unchanged) | Hosts the room and runs Forge, which is the authority on game state. |
+| **manabrew-server** | Manabrew, our build (`mtg-relay:exile`) | Relay, lobby and rooms. |
+| **self-hosted-node** | Manabrew and its Forge harness, our build (`mtg-forge-node:exile`; patches in `engine/`) | Hosts the room and runs Forge, which is the authority on game state. |
 
 Everything runs on the host's PC. The other players only need TTS and join the host's TTS server as normal. TTS copies objects and UI to them, and their button clicks run in the host's Lua.
 
@@ -48,26 +49,25 @@ Everything runs on the host's PC. The other players only need TTS and join the h
 ## 3. Bridge ↔ engine (Manabrew relay protocol)
 
 - Connect to `ws://127.0.0.1:9443` with the server key, once per TTS seat (each with a username such as `tts-White`).
-- Join the node's room. Every session readies up. Set `SELF_HOSTED_NODE_AUTO_START=true` so the game starts when the room fills.
+- Join the node's room. Every session readies up. The bridge's controller seat (the first human seated) sends
+  `StartGame`: the node's own auto-start can't start a hosted room (engine-interface-reference §11, #7).
 - From the engine, per seat:
   - `StateUpdate`: either a full `gameView` or a patch. The bridge applies patches and keeps the full state.
   - `AgentPrompt`: a decision for a player.
   - `DisplayEvent`.
   - `ProtocolError`.
-- To the engine: `{kind: "response", promptId, action}`, sent exactly once per prompt and echoing the most recent `promptId`. Also `directive: concede`.
+- To the engine: `{kind: "response", promptId, action}`, sent exactly once per prompt and echoing the most recent `promptId`. Also directives: `concede`, `requestRestore` and `restoreVote` (rewind, M4.5),
+  and our own `applyState` (manual fix, M7).
 - **Reference client:** `manabrew-rs/crates/manabot`, a headless bot that joins rooms over the relay. Copy its connection flow: `JoinRoom`, ready, and `RequestResync` on reconnect.
-- **The working flow, verified in `bridge/engine-test.js`:**
-  1. `Authenticate {username, password: <server key>}`, then `ListRooms`, then `JoinRoom {room_id}`.
-  2. Once a `RoomUpdate` lists us: `SetDeckSelection {deck_name, deck, commander_name}`, then `SetReady`.
-  3. To fill seats with AI players: `BroadcastState {state: {kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId, roomId, payload: {type: "spawnBot", decks: [...], forgeAi: true}}}`.
-  4. `StartGame {format: "Commander"}`, then `GameStarted` arrives with `player_order`; our seat ID is `player-<index>`.
-  5. Engine traffic arrives as `StateUpdate.state` envelopes (`kind`: `state`, `stateDelta`, `prompt`, `error`, `display`, `log`, `fatal`).
-  6. To answer a prompt: `BroadcastState {state: {kind: "response", fromPlayer: "player-N", promptId, action: {type: <prompt input type>, output: {...}}}}`.
+- **The working flow** (first verified in `bridge/engine-test.js`), step by step with every message:
+  [docs/engine-interface-reference.md](docs/engine-interface-reference.md) §2.5.
 - The message definitions live in `manabrew-rs/crates/manabrew-relay-protocol/src/lib.rs` and `manabrew-agent-interface`. The public spec is https://docs.manabrew.app/protocol/.
 
 ## 4. Bridge ↔ TTS message format
 
-Every message is a Lua table (TTS ignores anything else). The fields are:
+Every message is a Lua table (TTS ignores anything else). Below is the first design (2026-10-17). The messages as
+built (`table`, `prompt`, `answer`, `intent` and the rest) are listed in
+[docs/our-code-reference.md](docs/our-code-reference.md), "TTS → bridge" and "Bridge → TTS". The first design's fields:
 
 ```jsonc
 // bridge → TTS
@@ -121,13 +121,14 @@ Never add a second code path that recognises a mechanic by guessing from the boa
 title when the engine can say it. Board guesses stay only as the fallback for an engine with no feed. When they are
 used, `tmp/guess-log.log` records it.
 
-The next stretch of work on this rule (1½–2 days, agreed 2026-11-03; the list is in PLAN "The next 1½–2 days"):
+The stretch of work on this rule agreed 2026-11-03 (PLAN "The next 1½–2 days") is done, built 2026-11-03 and live
+since 2026-11-04 (`0cf0e21`):
 - **Causes for costs and special actions.** The harness names a move made by paying a cost or taking a special
   action: cycling's discard, delve's and escape's exile, a sacrifice as a cost, and foretell, plot and suspend.
-- **Every zone move on one pattern.** Exile, graveyard and the other moves get a kind function and a wording table,
-  as moves out of a library have.
-- **A keyword sweep.** Test cards are chosen from Forge's cardsfolder by keyword and run on two test stacks against
-  one engine rebuild. A keyword whose log line is wrong is fixed through its cause and label, never with its own path.
+- **Every zone move on one pattern.** Exile, hand and leave-the-battlefield moves have a kind function and a wording
+  table (`EXILE_WORDS`, `HAND_WORDS`, `LEAVE_WORDS`), as moves out of a library have.
+- **A keyword sweep.** Test cards are chosen from Forge's cardsfolder by keyword and run on two test stacks. A keyword
+  whose log line is wrong is fixed through its cause and label, never with its own path.
 
 None of this needs TTS. The table's own Lua cleanup and the prompt and keyword registries come later.
 
@@ -153,7 +154,8 @@ Card images come from Scryfall by name or ID through TTS custom card assets. Spa
 
 **Hands are private.** Each seat's hand is placed in its TTS hand zone, so TTS hides it from the other players.
 
-**Locking.** All engine-owned objects get `setLock(true)` and `interactable = false`. Players can't drag them.
+**Locking.** ~~All engine-owned objects get `setLock(true)` and `interactable = false`. Players can't drag them.~~
+Changed 2026-10-17: players drag their own cards and the engine checks every move (§10a).
 
 **Prompts** are UI XML panels, made visible only to the deciding seat with the `visibility` attribute. One generic widget per prompt shape:
 
@@ -167,7 +169,7 @@ Card images come from Scryfall by name or ID through TTS custom card assets. Spa
 
 Unknown prompt kinds fall back to a button list built from the bridge's `options`, so new prompt types never stall a game.
 
-**Effects (phase 4):** camera shake, which is a short sequence of `Player.lookAt` offsets, applied only for players who opt in. Also sounds through custom assets, particle effects as custom AssetBundles, and damage numbers. All of these are driven by `fx` messages that the bridge derives from state diffs and `DisplayEvent`.
+**Effects (M5):** the plan is [docs/m5-plan.md](docs/m5-plan.md). Camera shake was dropped there: Arena has none.
 
 ## 6. Latency (first priority once a game runs)
 
@@ -188,7 +190,8 @@ Unknown prompt kinds fall back to a button list built from the bridge's `options
 - `tts_out`
 - `rendered`: Lua, after it finishes moving objects
 
-The bridge logs one CSV row per action to `latency.csv`. To keep clocks honest, the bridge and Lua sync their clocks with `ping` messages at startup (NTP-style midpoint).
+The test tools log one CSV row per sample: `bridge/echo-bridge.js` to `bridge/latency-echo.csv`, `bridge/engine-test.js` to
+`bridge/latency-engine-<seats>p.csv`. The game bridge (`bridge/bridge.js`) writes no latency CSV. To keep clocks honest, the bridge and Lua sync their clocks with `ping` messages at startup (NTP-style midpoint).
 
 **Results:**
 - **Test 1, echo (2026-10-17):** 500 pings, TTS host, real TTS. p50 10.4 ms, p95 12.8 ms, p99 13.7 ms, max 17.0 ms. **Passes** the target of < 30 ms. Wall-clock time agrees: 500 pings took about 5 s in the chat timestamps, so `os.clock` is measuring real elapsed time. Of that, the bridge accounts for about 2–3 ms; the rest is TTS handling the message on its main thread, roughly one frame. **Conclusion:** the External Editor API is fast enough, so the WebRequest fallback isn't needed for speed.
@@ -236,10 +239,10 @@ The bridge logs one CSV row per action to `latency.csv`. To keep clocks honest, 
   - **Estimated 4-human click-to-update before TTS rendering:** about 10 ms (TTS hop) + about 22 ms, so about 32 ms typical and about 105 ms p95.
 
 **Test order:**
-1. **Echo test** (needs only TTS and the bridge, no Manabrew; can run today). Send 1,000 pings from Lua and record p50/p95/p99. This shows whether the External Editor channel's one-connection-per-message design is fast enough.
-2. **Engine round trip.** A bot game in a 2-seat Forge room: the bridge answers prompts automatically. This measures the engine alone.
-3. **Full path, 4 seats.** Scripted Commander games with 4 bot-controlled seats driven through TTS. Measure render time on a large board.
-4. Compare the WebRequest fallback against the External Editor API on the same tests.
+1. **Echo test** (needs only TTS and the bridge, no Manabrew). Send 1,000 pings from Lua and record p50/p95/p99. This shows whether the External Editor channel's one-connection-per-message design is fast enough. **Done** (test 1).
+2. **Engine round trip.** A bot game in a 2-seat Forge room: the bridge answers prompts automatically. This measures the engine alone. **Done** (tests 2 to 2c).
+3. **Full path, 4 seats.** Scripted Commander games with 4 bot-controlled seats driven through TTS. Measure render time on a large board. **Done 2026-10-20:** 125 permanents, board update 36 ms on average, worst 152 ms (PLAN M4, test 3).
+4. Compare the WebRequest fallback against the External Editor API on the same tests. Not needed: test 1 passed.
 
 ## 7. Player count
 
@@ -253,9 +256,11 @@ The bridge logs one CSV row per action to `latency.csv`. To keep clocks honest, 
 | Forge | up to 8 (its own network play) | Forge wiki Network-Play |
 | Manabrew docs | "commander up to 4 players" | docs.manabrew.app |
 
-**v1 targets 4 players.** 5–8 players is a stretch goal. The node's env var probably creates a room with up to 8 seats, but this is untested. The bridge sets the seat count itself and never calls `SetMaxPlayers`, so the 4-seat lobby cap shouldn't apply. Test 5 and 6 players after the 4-player tests pass.
+**v1 targets 4 players.** M6 is the stretch goal, cut from 5–8 to 4–6 players on 2026-11-05. The node's env var does make a bigger room: `SEATS=6` seated all 6 and played 12 turns headless (2026-10-20, PLAN M6). The relay resets the room to 4 seats after every game (engine-interface-reference §10), so the bridge's controller seat sends `SetMaxPlayers` when a game needs more. That message is capped at 4 (`lobby.rs:640`, unchanged in our relay build), so a second 5–6 player game without a node restart would need a relay change. On the table, the bridge refuses more than the 4 colours in `TABLE_COLORS`, so 5–6 players need the 6-player table below.
 
 ### The 6-player table (added 2026-10-31, not started)
+
+**The build plan is now `docs/m6-six-seat-spec.md` (2026-11-05)**: port steps, UI shrink order, the relay change (`lobby.rs:640` to 8, plus the node's AI cap of `SEATS − 1` and the stack's default of 4), bridge seats and tests. It supersedes the numbers below; the UI measurements are in `docs/m6-ui-size.md`.
 
 Goal: bring **"MTG 6 player table - scripted"** to the same state as the 4-player engine table: our scripts on it, the background objects removed, the table buttons added. Workshop 2293586471, by the same author, is on the host's PC at `Mods/Workshop/2293586471.json` (v14.2.1, 282 objects, 592 with contents). The engine side already works with 6 seats (`SEATS=6`, M6).
 
@@ -280,15 +285,42 @@ Goal: bring **"MTG 6 player table - scripted"** to the same state as the 4-playe
 ## 8. The External Editor port conflict
 
 TTS sends all of its editor traffic to one port, 39998: script contents, `print()` output, errors, "game saved". Whichever program is listening there gets it. The VSCode and Atom TTS plugins listen on that port so you can edit scripts live. Two programs can't hold the same port, so:
-- While the bridge runs, the host can't use the VSCode/Atom plugin's live features (Get Scripts, Save & Play, console output in the editor).
+- With nothing set up, while the bridge runs the host can't use the VSCode/Atom plugin's live features (Get Scripts, Save & Play, console output in the editor).
 - This only matters to whoever is developing the mod. Players never notice.
-- Mitigation (phase 2): the bridge forwards any non-custom messages (IDs 0–3, 5–7) to a second port, and the editor plugin is pointed there. Until then, edit scripts in TTS's built-in editor or stop the bridge while editing.
+
+**Built 2026-11-05 (bridge/editor-forward.js, wired into bridge.js; off unless a port is set).** The bridge keeps 39998 and passes the plugin its share:
+- TTS → bridge (39998) → plugin (a second port, `MTG_EDITOR_FORWARD_PORT`). Which messages go where (by TTS's message ID):
+  - Prints (2), errors (3), "game loaded" (1) and unknown IDs: both the plugin and the bridge.
+  - "Game loaded" that answers the plugin's own Get Scripts (within 5 s): the plugin only, so the table is not redrawn.
+  - Object pushed (0), game saved (6), object created (7): the plugin only.
+  - Custom messages (4): our table's (a string `t`) to the bridge only; any other to the plugin only.
+  - Lua return values (5): numbers from 1,000,000,000 up are the bridge's own Execute Lua (it now numbers them from there); lower ones the plugin's.
+- Plugin → bridge (a third port, `MTG_EDITOR_COMMAND_PORT`) → TTS (39999): Get Scripts, custom messages and Execute Lua go through as sent.
+- **Save & Play from the plugin goes through only when it can't wipe the table.** In this order: no game is running; the table check (the same one as tools/tts-push-global.js) answered within 10 s and found none of the player's own cards or decks; the save file (`MTG_TTS_SAVE`, default `Saves/TS_Save_1.json`) was copied to `tmp/backup/`. Otherwise the plugin's console shows `[MTG bridge] Save & Play blocked: <reason>`, and the bridge logs it.
+- Sends to the plugin never hold up the bridge: one at a time, a 1 s timeout, and when the plugin isn't listening its messages are dropped for 5 s at a time.
+- Tests: tests/test_editor_forward.js (the module), tests/test_bridge_claims.js (the wiring: off by default, offer first, the bridge's Execute Lua numbers).
+
+**The developer's setup (once):**
+1. Install "Tabletop Simulator Lua" (rolandostar, 1.1.3) in VSCode.
+2. Close VSCode. In `%USERPROFILE%\.vscode\extensions\rolandostar.tabletopsimulator-lua-1.1.3\dist\extension.js`, change `39998` to `39996` and `39999` to `39997` (each should appear once; count first).
+3. Start the bridge with `MTG_EDITOR_FORWARD_PORT=39996` and `MTG_EDITOR_COMMAND_PORT=39997` (or `--editor-forward-port 39996 --editor-command-port 39997`). Then start VSCode.
+4. After any extension update, redo step 2.
+- Without the 39999 edit the plugin still gets prints, errors and scripts, but its Save & Play goes straight to TTS and the bridge can't stop it. Then never use Save & Play with a game or the player's decks on the table.
+- A risk with or without this: the unedited plugin retries 39998 every second. If it is open while the bridge restarts, it takes the port and the new bridge exits with "Port 39998 is taken". The step 2 edit removes this; until then close VSCode's TTS plugin before restarting the bridge.
+- Not checked live yet: that TTS returns a returnID this big unchanged (it is under the 32-bit limit, 2,147,483,647). Check once with `POST /exec` (`return 1`) after the next bridge restart.
 
 ## 9. Licensing
 
-- Manabrew is AGPL-3.0, and Forge is GPL-3.0. We run them **unmodified** as separate processes.
-- The bridge and the TTS mod are new code that talks to Manabrew over the published protocol (CC-BY-4.0, which invites independent implementations). We don't copy any Manabrew source.
-- For private play with friends, nothing is triggered either way. Before publishing the mod on the Workshop, review this again.
+- Manabrew is AGPL-3.0-or-later, and Forge is GPL-3.0. We run **our own modified builds** of both as separate
+  programs (`mtg-relay:exile`, `mtg-forge-node:exile`; the stock images can't run this table).
+- Our changes to them stay under their licences, and their source is published: `engine/manabrew.patch` and
+  `engine/forge.patch` against pinned upstream commits, built by `engine/build-images.sh` ([engine/README.md](engine/README.md)).
+  The AGPL also covers a modified engine offered to people over a network, such as a server for friends.
+- Our own code (the bridge, the table script, the tools) is public domain under the Unlicense (`LICENSE`). It talks to
+  Manabrew over the published protocol (CC-BY-4.0, which invites independent implementations).
+  `bridge/state-delta.js` was rewritten from that protocol spec, so no Manabrew code is left in it.
+- Details: README.md "Credits and legal", THIRD-PARTY-NOTICES.md, [docs/publishing-checklist.md](docs/publishing-checklist.md).
+  Before publishing the mod on the Workshop, review this again.
 - Card images come from Scryfall under its usage guidelines. Card text and art belong to Wizards of the Coast; this is a non-commercial fan project.
 
 ## 10. Milestones
@@ -301,11 +333,11 @@ TTS sends all of its editor traffic to one port, 39998: script contents, `print(
 | M2 | Bridge ↔ engine | Bridge plays a 2-seat bot game headless and logs latencies (§6 test 2). **Done 2026-10-17, for both 2 and 4 seats; see §6** |
 | M3 | Minimal TTS render | Text-only board plus button prompts; a 2-player game is playable end to end in TTS. **Done**: built 2026-10-17, played in real TTS against Forge AI and as a 1v1 with a friend over TTS multiplayer (2026-10-19). |
 | M4 | Real table | Card objects, zones, stack column, hidden hands, all prompt widgets, 4 players. **Built** on the group's table (ENGINE MODE); 4-player games vs 3 AIs played to turn 100+ (125 permanents: 127 fps, reset under 1 s). Left: hand privacy checked by a second person, 4 humans |
-| M4.5 | Rewind by vote | "Undo…" lists engine checkpoints; restore vote panel; uses existing `requestRestore`/`restoreVote` directives (§10c Tier A) |
-| M5 | Arena feel | `fx` layer: shake, sounds, damage popups, turn banners |
-| M6 | 5–8 players | §7 stretch tests |
-| M8 | Game modes | Standard 1v1, 2v2 teams, Juggernaut 3v1 (one player with more life, cards and draws). Needs teams and per-player life/hand/perks in the engine (fork). Spec: [docs/game-modes-spec.md](docs/game-modes-spec.md) |
-| M7 | Manual fix mode by vote | Vote → pause → hand-edit in TTS → change list → confirm vote → engine applies via new `applyState` directive (§10c Tier B; needs a Manabrew/forge-harness fork or upstream PR) |
+| M4.5 | Rewind by vote | "Undo…" lists engine checkpoints; restore vote panel; uses existing `requestRestore`/`restoreVote` directives (§10c Tier A). **Built 2026-10-20**; the rewind race fixed and a "Rewind to <point>" button added 2026-11-01 to 11-03. Left: a 2-person vote test |
+| M5 | Arena feel | Effects: glows, target lines, turn banners, life changes, badges, sounds, particles. Steps 1–2 **built** 2026-10-21/22; the sync test, particles and sounds are open. Plan: [docs/m5-plan.md](docs/m5-plan.md) |
+| M6 | 4–6 players (was 5–8, cut 2026-11-05) | §7: 6 seats work headless (2026-10-20); the 6-player table is not started |
+| M8 | Game modes | Standard 1v1, 2v2 teams, Juggernaut 3v1 (one player with more life, cards and draws). Needs teams and per-player life/hand/perks in the engine (fork). Only the Ready / Start buttons are built (2026-10-21). Spec: [docs/game-modes-spec.md](docs/game-modes-spec.md) |
+| M7 | Manual fix mode by vote | Vote → pause → hand-edit in TTS → change list → confirm vote → engine applies via new `applyState` directive (§10c Tier B). **Built 2026-10-23** on our own engine builds; `mtg debug` sets up its boards through it (2026-11-04). Left: a 2-person live test; "fix from hand" is spec only. Spec: [docs/m7-manual-fix-spec.md](docs/m7-manual-fix-spec.md) |
 
 ## 10a. Interactive play: tabletop freedom, Arena rules (decided 2026-10-17)
 
@@ -336,7 +368,7 @@ The current build feels like "a pocket universe inside the game": the engine dra
 - **Opponents' cards:** look and zoom only. You can still click them as targets.
 - **The panel:** stays for decisions that have no natural gesture, such as modal choices, numbers, "may" yes/no, and stack responses. It also shows status and "Pass".
 
-**Phases** (PLAN M4 "interactive"):
+**Phases** (PLAN M4 "interactive"; P1–P3 built 2026-10-17/18, P4 moved to M5):
 1. **P1:**
    - Fix the turn-message spam.
    - Own-area restriction.
@@ -350,35 +382,19 @@ The current build feels like "a pocket universe inside the game": the engine dra
    - Library as a real face-down deck: tutor searches with right-click → Search; draws animate from it.
    - Table buttons mapped (Mulligan, Scry via πScry, Draw, Untap).
    - Mill and reveal animations.
-4. **P4:** Arena-style feel (§5 effects: highlights, sounds, shake).
+4. **P4:** Arena-style feel (highlights, sounds): moved to M5, [docs/m5-plan.md](docs/m5-plan.md).
 
 ## 10b. Companion app (.exe), added 2026-10-17
 
-**Full spec (2026-10-20): [docs/companion-app-spec.md](docs/companion-app-spec.md)** (Tauri shell + the bridge as a sidecar; Home / Cloud Forge / Own server modes; one-click game night with the cloud server created and deleted automatically). The notes below are the original idea.
+A small Windows app that the TTS host runs instead of terminal commands: self-host (Docker on the host's PC) or the
+engine on a server. Spec only, not built. **Full spec (rewritten 2026-11-05): [docs/companion-app-spec.md](docs/companion-app-spec.md)**
+(a small C# tray app; Home mode first, with a status light for each failure we have hit; Own server and Cloud Forge
+later). The server side: [docs/server-setup-spec.md](docs/server-setup-spec.md).
 
-A small Windows app that the TTS host runs instead of terminal commands. On launch it asks for one choice:
+**Why the bridge always stays on the host's PC:** TTS only talks to `localhost` through the External Editor API (§2). So
+with a server, only the engine moves off the PC; the bridge connects to the remote relay instead of `ws://127.0.0.1:9443`.
 
-| Mode | What runs on the host's PC | What runs elsewhere |
-|---|---|---|
-| **Self-host** | Bridge, plus the relay and Forge room (Docker stack started and stopped by the app) | — |
-| **Dedicated server** | Bridge only | Relay and Forge room on a server; the app asks for its address (`wss://…`) and server key |
-
-**Why the bridge always stays on the host's PC:** TTS only talks to `localhost` through the External Editor API (§2). So in dedicated mode, only the engine moves off the PC; the bridge connects to the remote relay instead of `ws://127.0.0.1:9443`.
-
-**App features:**
-- A status light for each part (Docker, relay, Forge room, TTS connected), plus a "Restart room" button.
-- A latency readout, using the same timing as the test harness.
-- Remembers the last mode and server.
-- Shows a port 39998 warning if the VSCode TTS plugin is holding it.
-
-**How it could be built:** wrap the Node bridge in a single exe (Node SEA or `pkg`) with a small UI, either a tray app or a local web page. A Tauri or Electron shell is also possible but heavier. Self-host mode needs Docker Desktop installed; the app can check for it and link to setup steps (virtualization in BIOS, WSL2).
-
-**Dedicated server to-dos:**
-- Make the relay reachable through TLS (Caddy, as in Manabrew's `hosting-full-stack` docs).
-- Choose a strong server key.
-- Measure the added delay: the internet round trip is added to every action. Manabrew's measured relay round trip between two home connections was about 62 ms.
-
-## 10c. Feature: manual fix mode by vote (added 2026-10-17, not scheduled yet)
+## 10c. Feature: manual fix mode by vote (added 2026-10-17; Tier A built as M4.5, Tier B built as M7)
 
 **Goal:** if the engine gets something wrong (a bug, a misclick, an interaction Forge doesn't handle), the players can vote to pause enforcement and fix the board by hand in TTS. The engine then accepts the corrected board and carries on enforcing from there.
 
@@ -391,61 +407,41 @@ Manabrew's Forge engine already records restore points and runs a restore vote:
 - **To vote:** each awaited seat sends `directive: {type: "restoreVote", voteId, accept}`.
 - The self-hosted node already passes these directives on to Forge (`self-hosted-node/src/host.rs`, `route_seat_envelope`).
 
-**TTS work:**
+**TTS work** (built 2026-10-20, PLAN M4.5):
 - An **"Undo…"** button lists the checkpoints by turn and step.
 - A vote panel appears for every awaited player, showing Accept and Decline plus who asked.
 - The result goes to chat.
-- No engine changes are needed. This can ship with M4, or even on the M3 text board.
+- No engine changes were needed at first. Our engine build later added a lock against the rewind race (2026-11-01 to 11-03).
 
 ### Tier B: hand-edit the board, then hand it back to the engine (new engine work)
 
-**Full spec (2026-10-20): [docs/m7-manual-fix-spec.md](docs/m7-manual-fix-spec.md)**: cards are placed on snap points the table adds to every playmat during fix mode, so each spot maps to exactly one zone of one player; the change list becomes one `applyState` directive. Tier A (rewind by vote) is built (M4.5).
-1. **Call the vote.** Any player presses **"Manual fix"**. Everyone else gets Accept/Decline. The rule is configurable: unanimous by default, majority as an option. Only allowed when the stack is empty and no prompt is mid-resolution.
-2. **Pause.** The bridge stops forwarding prompts and holds the engine, and TTS shows "MANUAL MODE" to everyone.
-   - **On the physical board (M4):** engine-owned objects are unlocked so players can drag cards between zones, tap and untap, and add or remove counters.
-   - **On the text board (M3):** the same edits are made through buttons: move a card to a zone, tap/untap, counters ±, life/poison/commander damage ±.
-3. **Review.** When someone presses **"Done"**, the bridge compares the TTS board with the engine's last state. It shows everyone a change list, for example: *"Llanowar Elves: graveyard → battlefield"* or *"White life 31 → 34"*.
-4. **Confirm vote.** Everyone accepts the change list, using the same rule as step 1.
-5. **Apply.**
-   - The bridge sends a new directive, `applyState {changes}`, to the engine host.
-   - The engine host records a checkpoint first, so the fix itself can be rewound with Tier A.
-   - It then applies the changes to the live Forge game, checks state-based actions, and resumes.
-   - The engine's next `state` resyncs every TTS seat.
-6. **Log.** Chat and the bridge log record who called it, who voted, and the exact changes.
-
-**What Tier B can change:**
-- Move existing cards between zones, attach and detach.
-- Tap and untap; counters; life, poison and commander damage.
-- Create tokens by name.
-
-**What it can't change:** cards can't be invented or turned into other cards. Effects that aren't board state can't be edited: "until end of turn" continuous effects, delayed triggers, copy effects, the stack. For those, use Tier A and replay.
-
-**Engine changes needed:** this goes beyond Manabrew's current protocol.
-- **Protocol:** a new `DirectiveInput` variant in `manabrew-protocol`, plus the TS/Java DTO regeneration (`yarn gen:types`, `yarn build:harness`).
-- **Engine host:** a handler in the Java `forge-harness` that applies the changes through Forge's game-state tools. Forge's puzzle/"Setup Game State" dev feature (`forge-ai` `GameState`) already applies zones, tapped status, counters and life to a running game. **To verify** once the `forge/` submodule is checked out.
-- **Running it:** we'd run a modified node image built from our fork, or upstream it as a PR to Manabrew. Licensing: private use is fine. If a modified relay or node is offered to other people over the network, AGPL requires offering them its source.
-
-**Depends on:**
-- Tier A: M3 or M4.
-- Tier B: M4 (physical cards) for drag editing; the button version could come earlier.
-
-Planned as milestone **M4.5** (Tier A) and **M7** (Tier B).
+The players vote to pause enforcement, fix the board by hand in TTS, review the change list and vote again; the bridge
+sends the list as one `applyState` directive, and the engine records a restore point, applies it and carries on. Built
+2026-10-23 as M7 on our own engine builds (§9); a 2-person live test is left, and "fix from hand" is spec only.
+**Full spec, as built, limits and engine work: [docs/m7-manual-fix-spec.md](docs/m7-manual-fix-spec.md).**
 
 ## 11. Open questions
 
-- Does Manabrew's Forge backend handle every Commander rule correctly? (M0.5 answers this.)
+- ~~Does Manabrew's Forge backend handle every Commander rule correctly?~~ Answered 2026-10-20 (M0.5): the rules checklist passes headless.
 - How far does the External Editor API scale? Large states are big JSON; check whether TTS truncates them and whether the bridge needs to split them into chunks.
 - ~~How fast can TTS move or spawn ~150 objects in one update?~~ Answered 2026-10-20: a 125-permanent board updates in 36 ms on average (worst 152 ms).
-- How do decks get from TTS to Forge? The `hello` message carries the deck lists; the bridge needs to map them onto Manabrew's deck submission.
+- ~~How do decks get from TTS to Forge?~~ Answered (PLAN M4, deck intake): decks are imported with the table's Card
+  Importer as before, and `mtg ready` (or READY) reads the deck objects, checks every name against Forge's card list and
+  sends them with `SetDeckSelection`.
 
 ## Turn timer and AFK votes (added 2026-10-19)
+
+Status: a turn timer is built (2026-10-30, `mtg timer`), but not this one: it times each decision and takes the safest
+answer at zero, with no vote ([docs/m5-plan.md](docs/m5-plan.md), "Player requests"). The skip vote and the AFK vote
+below are not built.
+
 - **Turn timer:** an optional per-turn timer. When it runs out the turn is **not** skipped automatically: the other players get a vote ("Skip their turn?"). With a majority, the bridge answers the stalled player's open prompt with its default (pass, no attack, no block) until their turn ends.
 - **AFK vote:** any player can start a vote to mark someone away. With a majority, that player's turns pass automatically (or a Forge AI covers the seat, chosen by the vote) until they press "I'm back" in their panel.
-- Both use the same vote panel as the planned rewind and manual-fix votes (SPEC §10c).
+- Both would use the same vote panel as the rewind and manual-fix votes (§10c).
 
-## Friendly mulligans by vote (added 2026-10-31, not scheduled)
+## Friendly mulligans by vote (built 2026-10-31, restored 2026-11-05)
 
-Built on 2026-10-31 and taken out on 2026-11-01 at the user's request, while they chased a choppy PC. The built code is kept in `tmp/backup/update-2026-10-31/`, not in the source.
+Built on 2026-10-31, taken out on 2026-11-01 while the user chased a choppy PC, and put back on 2026-11-05 at the user's request ("the way it was before"). If the stutter comes back with it, that is looked at then.
 
 The table votes on how many free mulligans each player gets: none, 1 or 2. A free mulligan is a new 7 with nothing put on the bottom. When a player has used theirs, the game says so and that player's mulligans cost a card again.
 
@@ -456,7 +452,7 @@ The table votes on how many free mulligans each player gets: none, 1 or 2. A fre
 - **Announced at the start:** `[MTG] Friendly mulligans this game: 1 each (White voted 1, Blue voted 2).` Nothing is said when the result is none.
 - **Each free mulligan:** `[MTG] White took a friendly mulligan (1 of 2).`
 - **Going back to normal:** `[MTG] That was White's last friendly mulligan: their next one costs a card.` When the first turn starts, after a game with friendly mulligans: `[MTG] Friendly mulligans are over: normal rules from here.`
-- **On the question:** the button reads **Mulligan (free)** while the next one is free, and the panel says how many are left. When keeping costs cards it says how many go on the bottom.
+- **On the question:** the button reads **Mulligan (free)** while the next one is free, and the panel says how many are left. When keeping costs cards it says how many go on the bottom. With no friendly mulligans voted the question reads as it always did.
 - **Counted per player**, not per table: White taking two doesn't use up Blue's.
 - **With 3 or more players**, the rules already make the first mulligan free, and Forge does this by itself. The vote adds to it: "none" is the normal rules, "1" means two free in a 4-player game. Friendly mulligans are spent after the rules' free one.
 - **AI players** take normal mulligans. Forge's AI doesn't go through our controller.
@@ -465,14 +461,14 @@ The table votes on how many free mulligans each player gets: none, 1 or 2. A fre
 
 - Forge's `London` mulligan is the default rule, and `MulliganService` asks the controller `mulliganKeepHand(firstPlayer, cardsToReturn)` once per decision. Our harness controller (`ManaBrewInteractiveController`), not Forge, puts the cards back when the player keeps, and its `tuckCardsViaMulligan` returns nothing.
 - So this needs **no change to `forge/`**, which stays read-only. The old PLAN note saying it needs a Forge change is out of date. The bridge can't do it alone, because `mulliganPutBack` must be answered with exactly N cards.
-- **The number travels with the Keep answer**, as a new optional field. Sending it through `StartGame` was the other option: that touches the relay protocol, `connection.rs`, `lobby.rs`, the node and all four `StartGame` senders, to carry one number only the bridge uses. The answer route is five small edits. Both routes need both images rebuilt.
+- **The number travels with the Keep answer**, as a new optional field. Sending it through `StartGame` was the other option: that touches the relay protocol, `connection.rs`, `lobby.rs`, the node and all four `StartGame` senders, to carry one number only the bridge uses. The answer route is five small edits.
 
-### Engine changes (`manabrew/`, no comments, both images rebuilt)
+### Engine changes (`manabrew/`, no comments, the node image rebuilt)
 
 | File | Change |
 |---|---|
-| `manabrew-rs/crates/manabrew-protocol/src/prompts/mulligan.rs` | `MulliganDecision { keep: bool, #[serde(default)] free_cards: u32 }` (`freeCards` in JSON, the enum is camelCase). Regenerate the ts-rs type |
-| `manabot/src/agent/simple_ai.rs:1225`, `manabrew-agent-interface/src/agent_impl/choices.rs:171`, `self-hosted-node/src/engine_backend/java_backend.rs:2096,2128,2132` | Patterns get `..`, constructors get `free_cards: 0`. If the node rebuilds the answer at `:2096`, it must carry the field on |
+| `manabrew-rs/crates/manabrew-protocol/src/prompts/mulligan.rs` | `MulliganDecision { keep: bool, free_cards: Option<u32> }` (`freeCards` in JSON, optional, left out when none, so Manabrew's web client needs no change) |
+| `manabot/src/agent/simple_ai.rs:1225`, `manabrew-agent-interface/src/agent_impl/choices.rs:171`, `self-hosted-node/src/engine_backend/java_backend.rs:2096,2128,2132` | Patterns get `..`, constructors get `free_cards: None` |
 | `forge-harness/.../host/ManabrewProtocolAdapter.java` (`case "mulligan"`) | Copy `freeCards` into the flat action as `free_cards` |
 | `forge-harness/.../host/ManaBrewInteractiveSession.java` (`awaitMulliganDecision`) | Remember the action's `free_cards` in a field, read back with `takeMulliganFree()`, which resets it to 0 |
 | `forge-harness/.../host/ManaBrewInteractiveController.java` (`mulliganKeepHand`) | See below |
@@ -486,14 +482,14 @@ if (keep && owed > 0) {
     ...
 ```
 
-The relay takes the field on trust from the client. That's fine for a private table, where the bridge is the only client. `Math.max` keeps a wrong number harmless.
+Only the node image needs the rebuild. The relay checks an answer by reading it into its own types, which ignore a field they don't know, and then forwards the original text, so `freeCards` passes through today's relay unchanged (`manabrew-server/src/connection.rs`, `authorize_game_message`). The node reads the answer into `PromptOutput` (`self-hosted-node/src/host.rs`), so it needs the new field. The relay takes the field on trust from the client. That's fine for a private table, where the bridge is the only client. `Math.max` keeps a wrong number harmless.
 
 ### Bridge changes (`bridge/bridge.js`)
 
-- `case "start"`: read `m.friendlyVotes`, work out the result with a new `friendlyCount(votes, humans)` (most votes, tie goes lower, a missing vote is 0, anything but 0/1/2 is 0), and pass it to `startGame`. Goes in the `go` closure, so a Start that only resumes a running game changes nothing.
-- `startGame`: `game.friendly = n`. The crash-recovery snapshot lists its fields by hand, so add `friendly` to its `game` part or a bridge restart would lose it.
-- `Seat`: new `mullsTaken`, counted when a Mulligan is answered, and added to the snapshot's seat list the same way. `input.mulliganCount` can't be used for this: it's the cards owed, so it stays 0 after the free one in a 4-player game.
-- `mulliganCost(seat)`: `rulesFree = game.total > 2 ? 1 : 0`, owed = `max(0, taken - rulesFree - game.friendly)`.
+- `case "start"`: passes `m.friendlyVotes` to `startGame` inside the `go` closure, so a Start that only resumes a running game changes nothing.
+- `startGame`: `game.friendly = friendlyCount(votes, humans)` (most votes, tie goes lower, a missing vote is 0, anything but 1 or 2 is 0). The crash-recovery snapshot lists its fields by hand, so `friendly` and `friendlyOver` are in its `game` part.
+- `Seat`: new `mullsTaken`, counted in `Seat.respond` (every answer goes through it, the timer's too), and added to the snapshot's seat list the same way. `input.mulliganCount` can't be used for this: it's the cards owed, so it stays 0 after the free one in a 4-player game.
+- `rulesFreeMulligans()`: `game.total > 2 ? 1 : 0`. `friendlyFreeLeft(seat)`: `max(0, rulesFree + game.friendly - taken)`. `friendlyText(seat)`: the free ones left, or owed = `max(0, taken - rulesFree - game.friendly)`.
 - `case "mulligan"` in `onPrompt`: the label and text above. Keep the option ids `keep` and `mull`, because the Mulligan tiles look for `mull`.
 - `toOutput`: add `freeCards: game.friendly` when it's above 0. The timer's automatic answer goes through the same `toOutput`, so it's covered.
 - Chat and game-log lines above: the start line in `startGame`'s announcement, the per-mulligan lines where `mullsTaken` goes up, the "over" line on the first turn.
@@ -503,7 +499,7 @@ The relay takes the field on trust from the client. That's fine for a private ta
 - `engineFriendlyVote = {}` (colour -> 0, 1 or 2), a global: the main chunk has no locals to spare.
 - In the setup draw, beside the READY button: `setupButton(mat, "onMtgSetupFriendly", "Friendly: " .. label, SETUP.color.wait, spot, c)`, moved further along the same line from the Draw button. A mat button adds nothing to the 60 KB screen UI.
 - `onMtgSetupFriendly(obj, playerColor)`: finds the mat's colour as `onMtgSetupReady` does, refuses another player's click with the same message, moves to the next count and redraws.
-- `make-engine-copy.js`: `mtg friendly 0|1|2` in the chat commands and `mtg help`; `friendlyVotes = engineFriendlyVote` in the `start` message.
+- `make-engine-copy.js`: `mtg friendly 0|1|2` in the chat commands and `mtg help` (anyone seated); `friendlyVotes = engineFriendlyVote` in the `start` message.
 - The vote carries over to the next game, so a rematch needs no clicks. A table reload clears it.
 
 ### Tests and rollout
@@ -512,4 +508,4 @@ The relay takes the field on trust from the client. That's fine for a private ta
 - **Table claims:** the button cycles, another player's click is refused, Start sends the votes, a resumed game starts no vote.
 - **Engine, headless, on a second container** (room `tts-test`, the running table isn't touched): with 2 free, two mulligans keep 7; with 1 free, two mulligans put 1 on the bottom; a game with 3 players; `freeCards` absent behaves as today.
 - **Break it on purpose** (`jr-programmer-suite` §2b), then one real game with two people.
-- **Rollout:** tag the current images for rollback, convert `.sh` to LF, build `mtg-relay:friendly` and `mtg-forge-node:friendly` (about 20 minutes for the node, most of it the native step), update `stack/compose.yml`. Only between games: never swap images mid-game, and the table push needs the decks off the table. Then HOW-TO-PLAY.md, README.md and the PLAN note.
+- **Rollout:** convert `.sh` to LF, build `mtg-forge-node:<tag>` (about 20 minutes, most of it the native step), then `node tools/deploy.js --image <tag>` with TTS closed: it runs the gates and the live checks, retags the node as `:exile` and recreates the containers. The relay stays as it is. Only between games: never swap images mid-game, and the table push needs the decks off the table. Then HOW-TO-PLAY.md, README.md and the PLAN note.

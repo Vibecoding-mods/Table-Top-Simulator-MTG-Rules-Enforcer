@@ -10,10 +10,13 @@ src="${ENGINE_BUILD_DIR:-$here/.build}"
 refresh() { # <checkout> <clean tree> <patch>
   local files added
   git -C "$2" checkout -q -- .
-  files="$(git -C "$1" -c core.safecrlf=false diff --ignore-submodules=all --ignore-space-at-eol --name-only)"
+  # (against the clean tree's commit, not the checkout's HEAD: our own local commits on top of upstream belong in the
+  # patch too, 2026-11-06)
+  files="$(git -C "$1" -c core.safecrlf=false diff --ignore-submodules=all --ignore-space-at-eol --name-only "$(git -C "$2" rev-parse HEAD)")"
   # new files too (EngineEventLog.java was left out of the first patches): copied with LF, then marked intent-to-add
   # so the diff shows them whole
-  added="$(git -C "$1" ls-files --others --exclude-standard)"
+  # (and files our local commits added, which the clean tree doesn't have either)
+  added="$(git -C "$1" ls-files --others --exclude-standard; git -C "$1" diff --ignore-submodules=all --name-only --diff-filter=A "$(git -C "$2" rev-parse HEAD)")"
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     if git -C "$2" show "HEAD:$f" 2>/dev/null | head -c 65536 | grep -q $'\r'; then

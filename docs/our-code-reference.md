@@ -363,10 +363,15 @@ Seat fields: `color, deckId, username, slot, board{state,fingerprint}, prompt{pr
 - Writes `seat.lastRawPrompt`. A priority-kind prompt → respond `chooseAction pass` with promptId 0, return.
 - Locals: `input`, `type`, `gv`, `byId`, `cname(id)` (card name, or player name for `player-*`, or the id), `baseText` (source card + ability text), `title` (`presentation.title` or the type). Any type other than `payManaCost` clears `autoPayFailedFor`. `opts` turns options into `{id, label}` with index ids.
 - Per type:
-  - `mulligan`: single Keep/Mulligan → `mulliganDecision {keep}`.
+  - `mulligan`: single Keep/Mulligan → `mulliganDecision {keep}`. With `game.friendly` above 0 the answer also carries `freeCards`, the Mulligan button reads "Mulligan (free)" while `friendlyFreeLeft(seat)` is above 0, and the text comes from `friendlyText(seat)`.
   - `mulliganPutBack`: multi with min = max = `count` → `mulliganPutBackDecision {cardIds}`.
   - `chooseAction`: actions = not `undoMana` and not mana abilities. If `endTurnAt === gv.turn`: pass and return. Otherwise `endTurnAt = null`. No actions and not your own main phase: pass, close any open panel, return. Otherwise a single prompt "Your priority" with `__pass`, `__endturn`, then each action `{id, cardId, label}`. `toOutput`: pass / set `endTurnAt` and pass / `act {actionId}`.
-  - `payManaCost`: if `autoPayCard === cardId` or `tappedFor === cardId`, and the cost can be paid from the pool → clear both, `pay {auto: false}`, return (br:622-627). The cost is finished automatically after auto-pay or after the last hand tap, as on Arena. `autoFailed` = auto-pay already ran or failed for this card. Options: `__pool` when payable from the pool, else `__auto` unless `autoFailed`; every engine action `{id, cardId, label}`; `__cancel`. Text explains when auto-pay failed. `toOutput`: `__auto` sets `autoPayCard` → `pay {auto: true}`; `__pool` → `pay {auto: false}`; `__cancel` → `cancel`; else `act {actionId}`, and `tappedFor` = this card when the id starts `tap:`, else null (br:643).
+  - `payManaCost`: four seat fields, kept apart on purpose: `autoPayCard` (Forge's auto-pay asked for this card), `tappedFor` (a source tapped by hand for it), `autoPayFailedFor` (auto-pay already failed for it), `smartPay` (our own auto-pay under way: `{ card, sent }`, the card and the taps already sent).
+    - Finish by itself: when `autoPayCard`, `smartPay.card` or `tappedFor` is this card (or the player just started this spell while mana floats), the pool covers the cost and no life can pay part of it → clear them, `pay {auto: false}`. As on Arena.
+    - Our auto-pay (`smartPayTap(owed, actions, otherHandCards, byId)`), only for a payment that names its card (`input.cardId`): `__auto` plans the whole cost from plain `{T}` sources making one mana each and sends the first tap; each next question for that card sends the next planned tap. A tap already in `smartPay.sent` that is offered again was not taken: then Forge's own auto-pay (`pay {auto: true}`) does the rest, never the same tap twice. A cost with hybrid, X or Phyrexian symbols, or one that can't be planned, goes to Forge's auto-pay at once.
+    - The plan: each coloured symbol from a source of that colour, the scarcest colour first; then the generic part. Among sources, the one the rest of the hand needs least goes first (a creature counts half a card more); a tie: a painless ability before one that deals damage to you (a pain land's coloured ability pays last), then the card making fewer colours (a basic before a dual land, colours read over all its actions).
+    - `smartPay` is cleared by any other question, when the payment ends, and on a rewind (`checkRestored`).
+    - Options: `__pool` when payable from the pool, else `__auto` unless auto-pay already failed; every engine action `{id, cardId, label}`; `__cancel`. `toOutput`: `__auto` → our first tap (sets `smartPay`) or `pay {auto: true}` (sets `autoPayCard`); `__pool` → `pay {auto: false}`; `__cancel` → `cancel`; else `act {actionId}`, and `tappedFor` = this card when the id starts `tap:`, else null.
   - `chooseBoardTargets`: multi with min/max targets, `cancel` if cancellable; ids `kind|id`. → `boardTargets {chosen: [{kind, id}]}`, or `cancel` when the first pick is `__cancel`.
   - `chooseBoolean`: Yes/No (engine labels) → `decision {value}`.
   - `chooseCards`: multi min/max → `chooseCardsDecision`. Adds `pileChoices` when every card is in a graveyard/exile zone, and `librarySearch` (card models) when no card is visible to the seat; each sets a hint text.
@@ -522,6 +527,7 @@ Table globals used: `data[color]` (`playmat`, `libraryZone`, `graveyard`), `getD
 | `mtg engine on`/`off` | host, admin or promoted | `setEngineMode(true/false)` |
 | `mtg engine` (anything else) | same | shows the current mode |
 | `mtg ready` | anyone | `engineSendDecks({own colour}, own colour)` |
+| `mtg friendly 0\|1\|2` | anyone seated | `engineSetFriendly(colour, n)`: their vote in `engineFriendlyVote`, the `start` message's `friendlyVotes` |
 | `mtg ready all` | host | all seated colours that have `data[c]` |
 | `mtg commander` | anyone | `engineMarkCommander(pl)` |
 | `mtg start [ai N]` / `mtg start N` | host | `engineSend("start", {seats, bots: first number in the rest, requireReady: true})` |
@@ -673,8 +679,8 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 #### `description(c)` — er:65
 - Rules text plus `[b]P/T[/b]`; `"` is replaced with `'`.
 
-#### `engineCardData(c)` — er:71
-- One locked `Card` with GMNotes `engine:<id>`, tag `engine`, `CardID 100`, `CustomDeck[1]` (a hidden card gets the back image as its face).
+#### `engineCardData(c, how)` — er:193
+- The one builder of an engine card's data: a `Card` with GMNotes `engine:<id>`, `CardID key·100`, `CustomDeck[key]` (key from `engineDeckKey(face, back)`; a hidden card gets the back image as its face). `how` nil: a card on its own, locked, tag `engine`. `"inside"`: a pile deck member, or a card spawned to go straight into one (`addToPile`): no `Locked`, no `Tags`. `"search"`: a library search member, the same with the plain back. See "Core moves: engineCardEntry and trackMarks, table half" below.
 
 #### `firstLine(s)` — er:82
 - The text up to the first newline.
@@ -745,8 +751,8 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 #### `restoreStash()` — er:315
 - Puts every existing stashed object back (position, rotation, lock) and empties `stashed`.
 
-#### `sweepEngineCards()` — er:324
-- Destroys every object with GMNotes starting `engine:`. Filler `libcard`s outside decks are not swept here.
+#### `sweepEngineCards()` — er:1986
+- Every object with GMNotes starting `engine:`, `enginetrash` or `libcard` goes to the trash (`engineDispose`); older `engine:trash` decks are destroyed. Since 2026-11-06 also any deck with no such GM notes whose cards are all `libcard` (one TTS formed from library cards added together, left on the library).
 
 #### `engineClear()` — er:330 (global)
 - Sweep; resets `engineObjs`, `engineSpawning`, `enginePlanned`, `engineColors`, `engineInHand`, `engineFace`, `engineMeta`, `engineManual`, `engineHeld`, `lastTurnSet`, `lastTable`, `enginePrompts`; `restoreStash`; `engineRenderPanels()`; turns engine mode off.
@@ -929,11 +935,8 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 - After 30 frames: decode `Global.script_state`; restore `stashed` from `engineStash`; sweep; `restoreStash`; send `hello`.
 - Note: this runs on every script load, including Save & Play mid-game. The bridge then redraws.
 
-#### `backDeckEntry()` — er:978
-- `CustomDeck` entry whose face and back are both the card back.
-
-#### `libraryDeckData(color, count, candidates)` — er:982
-- `CustomDeck[1]` = back. Each candidate `k = 2…` gets its own `CustomDeck` with its face, nickname, description, GMNotes `engine:<id>`, `CardID k·100`. Then filler `libcard`s (`CardID 100`) up to `max(count, candidates)` objects in total. A locked deck with GMNotes `engine:library:<Color>`.
+#### `libraryDeckData(color, count, candidates)` — er:4311
+- The plain back's `CustomDeck` entry is `deckEntry(ENGINE_BACK, ENGINE_BACK)` (`backDeckEntry` was removed 2026-11-06). Each candidate is `engineCardData(c, "search")`. Then filler `libcard`s ("Library card", `CardID backKey·100`) up to `max(count, candidates)` objects in total. A locked deck with GMNotes `engine:library:<Color>`. The libAdd path in `engineLibraryDeck` reuses it for the cards it adds.
 - Note: the candidates sit first in `ContainedObjects`, which is the top of the deck.
 
 #### `engineLibraryDeck(color, g, count, seen)` — er:1000 (global)
@@ -941,7 +944,8 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 - Alive with the same key and count → return.
 - Spawning → record `{qty, key, pendingRebuild = true}` and return.
 - Plain deck shrank (to `count ≥ 2`): set the 2 s animation window; take `min(diff, quantity−1)` cards toward the hand (or library) + 2 y, smoothly; each is destroyed 0.6 s later. Update `qty`. Return.
-- Else: destroy the old deck; new state; rebuild `engineSearchIds` from the candidates. Nothing to show → return. One card and no search → a single `engineCardData` card named "Library". Else `libraryDeckData`. Spawn at the library position + 0.3, face down. Callback: if the state changed and is marked `pendingRebuild` → destroy, clear the state, re-render. Else track it, lock it, `keepOnly`.
+- Plain deck grew (cards put on the bottom, a mulligan's cards back; op `libAdd`): ONE object is spawned 2 above it, a plain card for 1, else a deck of the N plain backs (`libraryDeckData`, unlocked, GMNotes `libcard`), and put into the library with one `enginePutInDeck` (a deck put into a deck merges its cards). If the library was destroyed meanwhile the object goes to the trash. Update `qty`. Return. (Before 2026-11-06 it spawned N cards on one spot; on the real table they merged into their own deck lying on the library.)
+- Else: destroy the old deck; new state; rebuild `engineSearchIds` from the candidates. Nothing to show → return. One card and no search → a single `engineCardData` card named "Library". Else `libraryDeckData`. Spawn at the library position + 0.3, face down. Callback: from an earlier game (`engineSpawnStale`) → nothing. If the state changed and is marked `pendingRebuild` → destroy, clear the state, re-render. Else track it, lock it, `keepOnly`.
 - Note: `engineSearchIds` is a single global table, so rebuilding one colour's library clears every other colour's search ids.
 - Note: a library at 1 card that then draws to 0 is rebuilt (destroyed), not animated.
 
@@ -1260,6 +1264,9 @@ Needs our engine build: `stack/compose.yml` runs `mtg-forge-node:exile` and `mtg
 | table | `engineContainTick` (5/s), `engineContainHome(id)` | flick containment: a card you may move (`isFree` or clickable) in the battlefield, command, attached or linked zone, not held, not smooth-moving, not waiting on the engine (`engineHeld`), and 2+ units from where the board put it (`enginePlanned`): your own permanent resting on your own playmat becomes your arrangement (`engineManual`), anything else is stopped and slides back. Off during a manual fix. `engineContain.back` counts the slides; errors are caught per card and printed once |
 | table | `engineTell` | the global alias of the local `tell` for code above it (`onMtgAutoResolve` called the nil local and errored) |
 | table | `engineAutoChoices`, `engineAutoListXml`, `engineAutoListDraw`, `engineOnAutoState`, `onMtgAutoPick` | the Auto-resolve list: one panel `eng_autolist` shared by all seats (`visibility` = who has it open); a pick sends `autoresolve` or `skipto`, the label follows the bridge's `autostate` |
+| table | `engineFriendlyVote`, `engineFriendlyLabel`, `engineSetFriendly`, `onMtgSetupFriendly` | friendly mulligans: the vote button under READY; the vote survives `engineClear`, a table reload clears it |
+| bridge | `friendlyCount`, `friendlyFreeLeft`, `friendlyText`, `mulliganTaken`, `friendlyEnded` | friendly mulligans: `game.friendly` set at Start, `seat.mullsTaken` counted in `respond`, both in the crash-recovery snapshot |
+| engine | `ManaBrewInteractiveSession.takeMulliganFree`, `ManaBrewInteractiveController.mulliganKeepHand` | friendly mulligans: the Keep answer's `free_cards` is taken off the cards a kept hand owes |
 | bridge | `autoNotice(seat)` | sends `autostate` {color, phase, on} on every change, when a skip ends, and in `resendToTable`; a skip and auto-resolve are never both on |
 | bridge | `chooseCards` | `cancel: input.cancellable`; the answer `__cancel` → `{type: "cancel"}` |
 | engine | `choose_cards.rs`, `prompts/mod.rs` | `ChooseCardsInput.cancellable` (serde default false), `ChooseCardsOutput::Cancel`; `validate_response` refuses a Cancel the prompt didn't offer |
@@ -1281,7 +1288,7 @@ Needs our engine build: `stack/compose.yml` runs `mtg-forge-node:exile` and `mtg
 | bridge | `Seat.respond` | records `activated` (an ability: its own "Sacrifice X?" is answered yes within 30 s) and `played` (a cast or non-mana ability) |
 | bridge | `payManaCost` | pays from the pool by itself when the pool covers it and the payment is for the card the player started in the last 60 s (`played`), or after auto-pay / a hand tap; anyone else's cost still asks |
 | bridge | `attach` intent | equipment dropped on a creature: its Equip/Reconfigure action (regex `^([^:(]*: )?(Equip|Reconfigure)\b`); `seat.attachTo` answers the target question that follows with that creature (30 s); otherwise refused with the reason |
-| bridge | "how do you play it?" / "cast it now?" | **Back** sends `refused` for the card (`__next.returns`) so the table puts it back in the hand |
+| bridge | "how do you play it?" / "cast it now?" | **Back** sends `refused` for the card so the table puts it back in the hand (since 2026-11-06 `askUnder`'s `returns`, see "Core moves" below) |
 | bridge | `chooseBoardTargets` | the range still needed (`chosenTargets`): an optional extra target can be skipped with Done |
 | table | `engineEquipTarget(color, id, obj)` | your creature within 1.6 units of a dropped Equipment (type line), nearest first; `onObjectDrop` sends `attach` |
 | table | `engineStepBanner(color, t)`, `engineStepNames` | the step's banner (once per turn and step, after the turn banner, never with Auto-resolve or effects off) for a priority question, and for any question at cleanup (CLEANUP) |
@@ -1295,7 +1302,7 @@ Needs our engine build: `stack/compose.yml` runs `mtg-forge-node:exile` and `mtg
 | table | `engineAbilityShort(text, n)` | an ability button's label: its cost and the effect's first words up to n characters, then "…"; the tooltip has the whole text. Buttons sit on the card (x 0), top down, width 1000, font 115 |
 | table | `engineRender` end | runs `engineAbilityBoxes` again for an open question while `p.__abWait` (an ability's card is not one of your permanents on the table yet, or a token stack it names), so a question that arrived before its permanents (a reload) gets its buttons; unchanged lists redraw nothing. A card arriving after its question redraws that question on the next frame (`engineGlowLate`, `engineRedrawSoon`, at most once a frame) |
 | table | exact picks | `engineExactPick(p)` (min = max ≥ 1): the last click answers (`engineConfirmIfComplete` from the card click, a target click, `enginePickById` for drags and pile picks), the corner counts "N of M chosen" instead of Done, the hint says so |
-| table | `enginePlayerCounters(o, pl)` | poison and energy as one label under the life counter (`ENGINE_COUNTERS_TIP`), redrawn on a change or when the tracker lost it; `engineCountersReset` at `engineClear` |
+| table | `enginePlayerCounters(o, pl)` | the player's marks as one label under the life counter (`ENGINE_COUNTERS_TIP`): `pl.allMarks` (the bridge's whole label, since 2026-11-06) when the row has it, else the old way (poison, energy, monarch, initiative, blessing, story worded here, then `pl.marks`); redrawn on a change or when the tracker lost it; `engineCountersReset` at `engineClear` |
 | bridge | seat records | `seat.note(kind, id, name, text)` / `justDid(kind, ms)` / `forget(kind)`: "activate", "manaTap" (with the cost text: the auto-yes for "Sacrifice X?" / "pay N life?" needs the cost to name it), "start" (a spell or ability started, or Pay on your own card's may-pay: the pool pays the next cost), "search" (a look at your library: the next hand gain is "puts", forgotten at a new turn), "discard" (an answer to Forge's "Discard" question: an instant reaching the graveyard is then a discard). Cancel forgets "start"/"activate" and that one play; a rewind (`checkRestored`) forgets all of them and End turn, resolve-stack, a queued play, an attach |
 | bridge | game log plays | `notePlay` → `game.pendingPlays` (a land play, which Forge sends as a cast, is not one); `logEvents` says each once: from the stack (spell or ability by the player's record), from a public zone, or after priority came back (`game.saidEarly` keeps the stack from saying it again) |
 | bridge | `lossReasons(gv)`, `noteOuts`, `outLast` | life, poison, 21 commander damage, for the players who lost last only (`game.outOrder`, stamped as each board shows them out) |
@@ -1434,11 +1441,11 @@ Every fact Forge sends about a card or a player that the table showed nowhere (`
 | `bridge/bridge.js` | `tableCard(c, blockers, active, zone)` | `zone` is "battlefield", "graveyard" or "exile" (absent for hand, command, stack). New status box lines: the next Saga chapter (`nextChapter`), the next Class level's cost (`nextLevel`), "Dies in this combat as it stands" (Forge's `wouldDieInCombat`, attackers and blockers only), "Owned by X" on the battlefield, and what a permanent chose (`choiceWords`) |
 | `bridge/bridge.js` | `cardNotes`, `keywordCostText` | `nt`: flashback in a graveyard; madness, warp and plot in exile; counters in exile only. A cost as the card prints it, else Forge's mana string as symbols, else none ("Has flashback") |
 | `bridge/bridge.js` | `choiceWords`, `game.choiceViews` | a choice is said only when every seated player's view has it, since the table is drawn the same for everyone and a secret choice reaches only some views |
-| `bridge/bridge.js` | `playerMarks(p, pub)` | `marks` on the player row: experience, rad and ticket counters, the Ring's temptations, speed, a turn run by someone else, an extra turn (while it is theirs), prevention shields, a hand size other than 7, the player's keywords |
+| `bridge/bridge.js` | `playerMarks(p, pub)` | `marks` on the player row: experience, rad and ticket counters, the Ring's temptations, speed, a turn run by someone else, an extra turn (while it is theirs), prevention shields, a hand size other than 7, the player's keywords. Since 2026-11-06 every field comes from `PLAYER_MARKS` / `trackMarks`, and the row also gets `allMarks` (see "Core moves" below) |
 | `bridge/table-map.js` | `PLAYER_FACTS` | every `PlayerDto` field: shown, or why not |
 | `tools/engine-renderer.lua` | `description` | a card's `nt` lines in its hover text |
 | `tools/engine-renderer.lua` | `enginePileNotes`, `enginePileDescribe` | a graveyard or exile pile deck's hover text lists its cards' notes, newest first; set again when only the notes change (a suspended card's time counters), without rebuilding the pile |
-| `tools/engine-renderer.lua` | `enginePlayerCounters` | the `marks` join the label under the life total, sized to its letters |
+| `tools/engine-renderer.lua` | `enginePlayerCounters` | draws `pl.allMarks` (since 2026-11-06), or for an older bridge the six marks it words itself with the `marks` after them; the label is sized to its letters |
 
 Pinned by bridge scenarios "table: what a card in a graveyard or exile can still do", "table: sagas, classes, combat deaths and owners", "table: choices are said only when every seat sees them", "table: player marks", and the last steps of the 1v1 table game ("notes: ...").
 
@@ -1462,3 +1469,39 @@ Pinned by bridge scenarios "table: what a card in a graveyard or exile can still
 | `tools/live-check.sh` | `LIVE_STACK=<n>` | stack n: containers `mtg-test-relay-n` / `mtg-test-node-n`, port 9444+n, log `tmp/live-<check>-<tag>-n.log`, so two checks run at once; stack 0 keeps the old names; the check gets `--relay` |
 
 Pinned by the bridge events checks "stack: ...", "cost: ...", "cast: ..." and the golden scenario "log: a cast said early leaves its card's enter trigger to be said".
+
+### Core moves: askUnder and trackMarks, bridge half (2026-11-06, docs/core-moves/askunder.md, trackmarks.md)
+
+| Where | Function | Details |
+|---|---|---|
+| bridge | `askUnder(seat, ui, pick, { back, returns })` | a question of the bridge's own under the open engine question: "how do you play it?", "cast it now?" (`onIntent` play), "which ability?", "which mana?" (`onIntent` tapmana), the "Mana: tap X" colour (`manaChoice`). Adds the option `__back` (label `back`: "Back", "Wait (keep it)" or "Cancel") last, runs `prepareUi`, keeps the question underneath in `seat.prompt.under = { ui, toOutput, step, returns }`, sends the sub-question with a new step. `__back`: `refused` for `returns`, then the question underneath is re-sent exactly as first sent (its ui, its step), `under` is null again. Any other option: `pick(picks)` is the engine's answer. Returns `ASKED` |
+| bridge | `ASKED` | what a `toOutput` returns once it has asked a sub-question itself or taken its way back; `onAnswer` then sends nothing |
+| bridge | `timeoutChoice(ui)` | `ui.onTimeout` first, then `__back`, then `__pass`, `keep`, `__cancel`, ...: a timed-out sub-question goes back, then the priority question passes |
+| bridge | `closePrompt(seat, answered)` | sends `refused` for an open sub-question's card unless `answered` (only `onAnswer`'s last line passes it: the sub-question's own option was taken, so the card goes ahead) |
+| bridge | `onPrompt` (first line) | a new engine question while a sub-question is open closes it (`closePrompt`): its card goes back and the panel is cleared, even when the bridge answers the new question itself (End turn); a late Back or Pass on the old id is then ignored |
+| bridge | `checkRestored` | a rewind while a sub-question is open closes it the same way |
+| bridge | `onIntent` (first rule) | while a sub-question is open, every gesture is refused: "X stays: answer "<question>" first (or Back)." The open question stays; nothing reaches the engine |
+| bridge | `PLAYER_MARKS` | one row per mark under a player's life total: `key`, `read(p, pub)`, `label(value)` (a list for keywords), optional `say(who, now, was)` (the log line), `lua` (one of the six an older table words itself). Row order = label order: poison, energy, monarch, initiative, blessing, story, experience, rad, tickets, Ring, speed, turn run by, extra turn, prevent, hand size, keywords |
+| bridge | `positive(n)`, `counterOf(name)` | a number mark (the counters, the Ring, speed, prevention) is a positive number or 0: a "0", "3", true or -1 is 0, so the label, the log and the old row fields agree |
+| bridge | `trackMarks(p, pub)` | `{ values: key -> value, labels: the whole label in order, marks: the labels of the rows that aren't lua }`; a value of 0, false, null, "" or [] shows nothing (`markShown`) |
+| bridge | `playerMarks(p, pub)` | the row's mark fields: `allMarks` (left out when empty), plus for an older table `poison` and `energy` (numbers), `monarch`, `initiative`, `blessed`, `story` (only when set) and `marks`. The old fields go in trackMarks step 6, once the table's fallback goes |
+| bridge | `logSnapshot` `marks` | `{ playerId: trackMarks values }`; `logEvents` says each row's `say` in row order, only when the earlier board has that player and the value changed; the venture rooms after the marks |
+| bridge | `extraTurn(prev, cur)` | the turn header's "(extra turn)": the active player's `extraTurn` value in `cur.marks` (Forge's `isExtraTurn`, read once, by the row), else the guess from `game.turnOwners` when a board has no flag |
+| bridge | `sendView` | the text board's `poison` from `trackMarks` |
+
+Pinned by the bridge golden's "askUnder: ...", "review askUnder: ...", "trackMarks: ...", "review trackMarks: ..." and "table: player marks" scenarios, and by `tests/test_bridge_claims.js` (Back re-sends the question as it was, for A to E; every gesture in `bridge/table-map.js` GESTURES is refused while a sub-question is open; poison's label, log and old field agree for every pair of nine values).
+
+### Core moves: engineCardEntry and trackMarks, table half (2026-11-06, docs/core-moves/cardentry.md, trackmarks.md)
+
+| Where | Function | Details |
+|---|---|---|
+| table | `engineCardEntry(id, obj, c, opts)` (global) | the one way an object becomes engine card `id`'s object: `place`'s spawn callback (`c` = the board's card, `opts.zone`, `opts.lock`) and every take-over with `c` nil (a search card pulled out of the library, a card the table takes out of a pile, a pile pick, a pile's remainder). Sets `engineObjs`, clears `engineSpawning`, records `engineFace` (from `c`, else `engineStatic`), clears `engineInPile` for a taken card only, stamps `engineHeld` for `opts.held`, resets `engineBadge` and `engineStackGlow`; a spawned card gets its badges, its lock and half size when attached or linked; then `engineGlowLate` |
+| table | `engineSpawnStale(gen, obj, id)` (global) | true for a spawn callback from an earlier game (`gen` ≠ `engineGen`, "mtg reset" while it spawned): the caller touches nothing; an object the reset's sweep missed (still `engine:<id>`) goes to the trash. Used by `place` and `engineLibraryDeck` |
+| table | `enginePileRemainder(id, deck)` (global) | a pile deck taken down to one card (TTS's `deck.remainder`): the card left becomes that card's object (only an engine card), the pile's object and state are cleared, returns true. After `engineTakeFromPiles` and a pile pick |
+| table | `engineCardData(c, how)` | the one data builder: nil, "inside", "search" (see 4.5) |
+| table | `addToPile` | a card with no object joining a pile is spawned as `engineCardData(c, "inside")` |
+| table | `engineLibraryDeck` libAdd | cards added to a plain library go in as one object (4.5) |
+| table | `sweepEngineCards` | also a stray deck of nothing but `libcard`s (4.5) |
+| table | `enginePlayerCounters(o, pl)` | `pl.allMarks` when it is a table (an empty one draws nothing), else the old six fields and `marks`; the fallback goes in trackMarks step 6 |
+
+Pinned by the table golden's "card entry: every way a card object is made" game (sections 1-6, its "ce: ..." reports) and the last steps of the 1v1 game ("marks: ..."), and by `tests/test_table_claims.js` (the engineCardEntry, libAdd, sweep, remainder, "one way" and trackMarks checks). The golden's fake TTS merges a deck put into a deck, as TTS does (`withDeckMerge` in `tests/golden/table-run.js`).

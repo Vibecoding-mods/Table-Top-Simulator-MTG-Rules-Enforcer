@@ -15,6 +15,17 @@ Short names: **RP** = `manabrew-relay-protocol/src/lib.rs`; **SD** =
 
 Section 11 lists every bug and oddity found, in one place.
 
+**Status, 2026-11-05.** This is a read of **stock** Manabrew at `fd16e2f` (2026-10-16). It is still right for the relay and
+node code it cites. Three things have moved since it was written:
+- **We run our own builds** (`mtg-relay:exile`, `mtg-forge-node:exile`, manabrew branch `tts-engine`, commit `b7a42c8`;
+  patches and build script in `engine/`). They add, among other things: the `applyState` directive and
+  `gameView.stateFix` (M7, `createCard` for `mtg debug`), Forge's event feed in `gameView.events` (the harness's
+  `EngineEventLog`: zone moves with `how` and `cause`), exile links, a snapshot/game lock for rewinds, stack trigger
+  marks, and `seat_order` on `StartGame`. Most of it is listed in docs/changes-2026-10-31-to-11-05.md, "Engine".
+- **`bridge.js` line numbers** (`bridge.js:NNN`) date from before rewind by vote (2026-10-20). The bridge is about 6,300
+  lines now: search by name. §6, §9, §10 and §11 note what changed.
+- **The bridge's own messages and functions** are in docs/our-code-reference.md, not here.
+
 ---
 
 ## 1. Components and how they connect
@@ -40,11 +51,13 @@ Game identity: the relay generates `game_id` at `StartGame` (lobby:713); the nod
 
 | Service | Lines | Image | Settings |
 |---|---|---|---|
-| `relay` | 6-13 | `ghcr.io/witchesofthehill/manabrew-server:latest` | `MANABREW_SERVER_KEY=${MANABREW_SERVER_KEY:-tts-local}`, `RUST_LOG=manabrew_server=info`, port `127.0.0.1:9443`. Relay reads `FORGE_HOST` (default 0.0.0.0), `FORGE_PORT` (default 9443), `FORGE_MAX_ROOMS`, `MANABREW_SERVER_KEY` (`manabrew-server/src/config.rs:88-102`). |
-| `web` | 15-24 | `manabrew-web:latest` | browser client at `127.0.0.1:8080`, `RELAY_PASSWORD` = server key. |
-| `forge-room` | 26-38 | `manabrew-node:latest` | `SELF_HOSTED_NODE_RELAY_URL=ws://relay:9443`, `_SERVER_KEY`, `_ROOM_NAME=tts-commander`, `_ENGINE_BACKEND=forge`, `_FORMAT=commander`, `_MAX_PLAYERS=${SEATS:-4}`, `_AUTO_START=true`, `RUST_LOG=self_hosted_node=info`. `STATE_DELTA` unset → on. |
+| `relay` | 8-18 | `mtg-relay:exile` (our build; stock was `ghcr.io/witchesofthehill/manabrew-server:latest`) | `MANABREW_SERVER_KEY=${MANABREW_SERVER_KEY:-tts-local}`, `RUST_LOG=manabrew_server=info`, port `127.0.0.1:9443`. Relay reads `FORGE_HOST` (default 0.0.0.0), `FORGE_PORT` (default 9443), `FORGE_MAX_ROOMS`, `MANABREW_SERVER_KEY` (`manabrew-server/src/config.rs:88-102`). |
+| `web` | 20-29 | `manabrew-web`, pinned by digest | browser client at `127.0.0.1:8080`, `RELAY_PASSWORD` = server key. |
+| `forge-room` | 31-46 | `mtg-forge-node:exile` (our build; stock was `manabrew-node:latest`) | `SELF_HOSTED_NODE_RELAY_URL=ws://relay:9443`, `_SERVER_KEY`, `_ROOM_NAME=tts-commander`, `_ENGINE_BACKEND=forge`, `_FORMAT=commander`, `_MAX_PLAYERS=${SEATS:-4}`, `_AUTO_START=true`, `RUST_LOG=self_hosted_node=info`. `STATE_DELTA` unset → on. |
 
-All images are `:latest`, so a `docker compose pull` can change the wire protocol under the bridge. The bridge restarts the node for "mtg reset" via `docker compose -f stack/compose.yml restart forge-room` (`bridge/bridge.js:867-871`).
+~~All images are `:latest`, so a `docker compose pull` can change the wire protocol under the bridge.~~ Fixed: the relay
+and node are our local builds and the web client is pinned by digest, so a pull changes nothing. The bridge restarts the
+node for "mtg reset" via `docker compose -f stack/compose.yml restart -t 3 forge-room` (`roomRestarting` in `bridge/bridge.js`).
 
 ---
 
@@ -177,7 +190,7 @@ Carried inside `BroadcastState.state` / `StateUpdate.state`; `#[serde(tag="kind"
 
 `StateEnvelope::for_agent_message` (139-142) / `for_agent_message_timed` (146-174) map `AgentMessage::{State,Display,Prompt,Error}` (MP/transport/mod.rs:8-15) to envelopes; `State` always gets `forPlayer: Some(slot)`, `fingerprint: None`, `emitMs: None`.
 
-`engineMs` = ms since the last seat response reached the node, `None` once the next prompt went out (`EngineClock`, host:2254-2292). `emitMs` = ms spent serialising/fingerprinting/diffing, stamped last (host:2234-2245). See LATENCY_ANALYSIS.md:24-57.
+`engineMs` = ms since the last seat response reached the node, `None` once the next prompt went out (`EngineClock`, host:2254-2292). `emitMs` = ms spent serialising/fingerprinting/diffing, stamped last (host:2234-2245). See `manabrew/docs/agents/LATENCY_ANALYSIS.md`:24-57.
 
 ### 3.1 Patch format and fingerprint (SD)
 
@@ -288,7 +301,10 @@ Wire: `{kind:"directive", fromPlayer:"player-N", directive:{type, …}}`, `Direc
 | `restoreVote` | `voteId`, `accept` | Forwarded. Ignored unless the vote is pending, ids match and the voter is awaited; `accept:false` → `declined{playerId}`; when nobody is awaited (lost players drop out) the game restores, or `unavailable` if the checkpoint was evicted (Java 2009-2023, 2044-2051, 2126-2137). Shown in `gameView.restoreVote`. |
 | `setSnapshotRecording` | `enabled` | **Refused from seats** with a warning (host:2188-2190). Disabling clears checkpoints (Java 2032-2038). |
 
-The bridge sends no directives today.
+~~The bridge sends no directives today.~~ Since 2026-10-20 the bridge sends `concede`, `requestRestore` and `restoreVote`
+(rewind, M4.5), and, on our builds only, `applyState {fixId, ops}` (manual fix, M7; also `mtg debug`'s `createCard` ops),
+answered in `gameView.stateFix`. The stock relay drops `applyState` as an unauthorized envelope, which is why the relay is
+our build too.
 
 ---
 
@@ -399,12 +415,17 @@ Seat input routing:
 
 ## 9. What the bridge uses (bridge/bridge.js)
 
+As read before 2026-10-20; the line numbers no longer match. Changed since: the bridge also sends `SetMaxPlayers`
+(controller seat, when a game needs more than the room's seats) and the directives in §6; `log` envelopes are read by
+the lead seat; the game log comes from `gameView.events` (`engineFacts`), with board comparison only as the fallback.
+
 - Wire: `Authenticate`, `ListRooms`, `JoinRoom`, `SetDeckSelection`, `SetReady`, `BroadcastState` (roomRelay `spawnBot`, `response`), `StartGame`, `RequestResync`, `LeaveRoom`. Handles `AuthResult`, `RoomList`, `RoomUpdate`, `GameStarted`, `StateUpdate`, `Error`, `GameAborted` (bridge.js:201-235).
 - Envelopes handled (236-262): `state` (own, or observer as first board), `stateDelta` (own only; base mismatch → `RequestResync`), `prompt` (own), `error` (own, chat), `log` (first seat only), `fatal`. Ignores `display`, `snapshot`, `roomRelay`.
 - Decks: presets from `decks/` then `manabrew/public/preset_decks` (bridge/presets.js) with the commander moved into `deck.commanders` (75-92), or table decks as names only (161-168).
 - Prompt handling (572-767): every `PromptInput` type mapped; `reorder`, `chooseDamageAssignmentOrder`, `chooseCombatDamageAssignment` auto-answered; `revealCards` titled "AI can't play…" auto-acked; `gameOver` → chat only; unknown types → chat.
 - Library-search detection (657-669): for `chooseCards`, if every offered id is missing from every zone in the seat's view → `ui.librarySearch`; if every offered id is in a graveyard/exile zone → `ui.pileChoices`.
-- Auto-pay (619-641): `pay{auto:true}` once per card; if the next prompt for that card has `canConfirmFromPool`, auto-confirm with `pay{auto:false}`; if auto-pay already ran and the engine asks again without the pool flag, Auto-pay is no longer offered.
+- Auto-pay (619-641; since 2026-11-05 the bridge taps for plain costs itself, keeping the colours the hand needs, and
+  sends Forge's auto-pay only for hybrid, X, Phyrexian and similar costs, docs/mechanic-runs-2026-11-05.md #13): `pay{auto:true}` once per card; if the next prompt for that card has `canConfirmFromPool`, auto-confirm with `pay{auto:false}`; if auto-pay already ran and the engine asks again without the pool flag, Auto-pay is no longer offered.
 - Player names in engine text are replaced case-insensitively with colours/"AI n" (`displayText` 503-518).
 
 ---
@@ -414,7 +435,8 @@ Seat input routing:
 - `CreateRoom` `max_players` clamped 2-8 (room:83); the hosted node is an observer and does not count (room:84-108).
 - `SetMaxPlayers` clamps to ≤4 (lobby:640).
 - After every game, and whenever the last seat leaves a Lobby room the node still observes, `max_players` → 4 and format → `Any` (room:155-160; lobby:437-439, 797; cleanup:534-536). So `SEATS` 5-8 only holds for the first game after the node starts.
-- Bridge accepts 2-4 players total (bridge.js:272).
+- Bridge accepts 2 to `TABLE_COLORS.length` (4) players total (`startGame` in bridge.js). Before a bigger game it sends
+  `SetMaxPlayers`, which the relay still caps at 4 (above).
 - `JoinRoom` → `room_full` at seats ≥ `max_players` (room:140-142, 173-182).
 - Node spawns at most `max_players - 1` bots (host:1023-1024).
 - `diceRolled` waits for one ack per remote seat, including Forge-AI seats (jb:1818).
@@ -426,13 +448,14 @@ Seat input routing:
 Project findings (from testing):
 
 1. **Hybrid generic costs (`{2/B}`)**: Forge sometimes never sets `canConfirmFromPool` even with enough mana floating, so auto-pay loops (TESTING.md:222, 242). Workaround: Cancel, tap sources manually; the bridge stops offering Auto-pay after one failure (bridge.js:626-638).
-2. **Game log only to spectators** (TESTING.md:243; PLAN.md:122). Code reading does not confirm the mechanism: the relay accepts `log` only from the host (conn:77), `AgentMessage` has no log variant (MP/transport/mod.rs:8-15), and neither the node nor the harness `host/` package emits a `kind:"log"` envelope. So a spectator connection may not help either; check a capture before building one.
+2. **Game log only to spectators** (TESTING.md:243). **Moot since 2026-11-01 to 11-03:** our harness sends Forge's own
+   event feed in `gameView.events`, which drives the log. Code reading did not confirm the mechanism: the relay accepts `log` only from the host (conn:77), `AgentMessage` has no log variant (MP/transport/mod.rs:8-15), and neither the node nor the harness `host/` package emits a `kind:"log"` envelope. So a spectator connection may not help either; check a capture before building one.
 3. **Player names in prompt text** are relay usernames, sometimes capitalised ("Self-hosted-node-…-bot"); bot usernames come from host:1025-1029 and cfg:72-74. The bridge rewrites them (bridge.js:503-518; PLAN.md:115).
 
 Found while reading the code:
 
-4. **Bridge error filter never matches**: `bridge.js:229` hides `code === "NotHost"`, but the relay sends `not_host` (error.rs:71).
-5. **`StartGame`/`spawnBot` from `seats[0]`**: both are controller-only (lobby:665-667; conn:176-178; controller = first non-bot seat to join, room:334-340). Bridge seats connect concurrently, so if another seat joined first, `StartGame` returns `not_host` and `spawnBot` is dropped with only a relay warning (bridge.js:294, 302; conn:2196-2199).
+4. **Bridge error filter never matches**: `bridge.js:229` hides `code === "NotHost"`, but the relay sends `not_host` (error.rs:71). **Fixed:** the bridge now hides both.
+5. **`StartGame`/`spawnBot` from `seats[0]`**: both are controller-only (lobby:665-667; conn:176-178; controller = first non-bot seat to join, room:334-340). Bridge seats connect concurrently, so if another seat joined first, `StartGame` returns `not_host` and `spawnBot` is dropped with only a relay warning (bridge.js:294, 302; conn:2196-2199). **Fixed 2026-10-31:** `controllerOf` sends them (and `SetMaxPlayers`) from the first human seated.
 6. **Room settings reset**: format → `Any` and `max_players` → 4 after each game and after the last seat leaves (§10). The bridge's `StartGame{format:"Commander"}` covers the format.
 7. **Node auto-start cannot work in a hosted room**: `maybe_auto_start_room` sends `StartGame` from the node (host:1509-1541), but the node is an observer, never the controller, so the relay answers `not_host` (lobby:665-667). It also needs seats ≥ `max_players` and a non-`Any` format.
 8. **Redundant full states before each prompt (likely)**: the Java loop re-sends every seat's state before each prompt (jb:1837-1848). The forwarder's duplicate check compares the envelope including `engineMs` (host:2415, 2437-2443), so an unchanged board with a different `engineMs` is not suppressed; `patch_against_last` then finds no diff and returns `None`, and the caller sends the **full** state (host:2294-2306, 2465-2476). Confirm with a capture.
@@ -441,14 +464,14 @@ Found while reading the code:
 11. **Dice acks are not tied to a prompt or a seat**: any `diceRolledAcknowledged` decrements the counter, so one seat acking twice can release the roll early (jb:1640-1654). The counter includes Forge-AI seats, whose manabot connections must still answer (jb:1818), or the game waits.
 12. **`player_index` defaults to seat 0** for an unparseable `decidingPlayerId` (jb:1933-1939).
 13. **Split-card names**: `java_card_name` keeps only the part before `" // "` (jb:3139-3143), so a split card like "Fire // Ice" reaches Forge as "Fire". Check whether Forge resolves it.
-14. **Unparseable `ServerMessage` breaks node and bot sockets**: both treat it as a connection error (host:2767; manabot/src/native.rs:92-93), so a newer relay variant makes them reconnect in a loop. Images are `:latest` (compose.yml:7, 16, 27).
+14. **Unparseable `ServerMessage` breaks node and bot sockets**: both treat it as a connection error (host:2767; manabot/src/native.rs:92-93), so a newer relay variant makes them reconnect in a loop. ~~Images are `:latest`.~~ Our relay and node are local builds now (§1.1), so this needs a deliberate rebuild to happen.
 15. **Replay folding does not check `base`** (replay:71-95), and the folded envelope keeps the old `engineMs`/`emitMs` while taking the new fingerprint.
 16. **`active_player_usernames` reads only the observer state** (`snap.last_state`, host:1883-1887); with per-seat states that is the untargeted observer view, which the Java loop does send (jb:1762), so it works for Forge.
 17. **Rust-engine builder shows every hand** (`from_engine` 815-830, 876); not used with `forge`, but it means `SELF_HOSTED_NODE_ENGINE_BACKEND=manabrew` would leak hands.
 18. **Game-over batch is sent as full states without fingerprints** (host:2578-2586); a delta-applying client must accept a full `state` at any time.
 19. **`setSnapshotRecording` from a seat is refused** (host:2188-2190), so seats cannot turn checkpoints off.
-20. **Bridge `RoomUpdate` after reset**: `onRoomUpdate` dereferences `game.seats` (bridge.js:288) but `resetGame` sets `game = null` (471) before seat sockets finish closing, so a late `RoomUpdate` on a closing seat would throw.
-21. **Bridge resync spam**: unlike manabot, the bridge has no `resync_pending` guard, so every mismatching patch sends another `RequestResync` (bridge.js:245).
+20. **Bridge `RoomUpdate` after reset**: `onRoomUpdate` dereferences `game.seats` (bridge.js:288) but `resetGame` sets `game = null` (471) before seat sockets finish closing, so a late `RoomUpdate` on a closing seat would throw. **Fixed:** `onRoomUpdate` returns when `game` is null or closing.
+21. **Bridge resync spam**: unlike manabot, the bridge has no `resync_pending` guard, so every mismatching patch sends another `RequestResync` (bridge.js:245). Still true (`onEnvelope`, `stateDelta`).
 22. **Bridge answer approximations**: `chooseBlockers` can express only one attacker per blocker and `chooseAttackers` one target per attacker (later picks win, bridge.js:680-702); `chooseColor` puts the whole `amount` on one colour (713-715); `chooseFromSelection` ignores `canRepeat` (676-678); `scry` with more than two destinations leaves the extras empty (704-711).
 23. **`turn` counts all players' turns** (turn 10 = your 5th in two-player); the bridge counts per player (bridge.js:407-413).
 24. **Resync after a bad base must replace the board**, never partially apply (AI/protocol.rs:45-48); the relay-folded state from `RequestResync` carries the node's fingerprint, so later patches apply to it.

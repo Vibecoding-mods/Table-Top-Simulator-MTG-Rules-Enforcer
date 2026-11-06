@@ -1,6 +1,7 @@
 # Server setup spec: hosting our MTG Commander table online
 
-Status: v2, 2026-10-20 (v1 proposal 2026-10-19). Prices are October 2026, USD, US regions. Full A–Z steps with commands and sources: `reports/Cloud hosting setup step by step.md`; the first comparison: `reports/Cloud hosting for online TTS games.md`.
+Status: v2, 2026-10-20 (v1 proposal 2026-10-19). Full hosting paused by the user on 2026-11-02; the latest state is
+"Full hosting status, 2026-11-02" at the end. Prices are October 2026, USD, US regions. Full A–Z steps with commands and sources: `reports/Cloud hosting setup step by step.md`; the first comparison: `reports/Cloud hosting for online TTS games.md`.
 
 ## 0. Decision and A–Z overview (2026-10-20)
 
@@ -31,7 +32,7 @@ Status: v2, 2026-10-20 (v1 proposal 2026-10-19). Prices are October 2026, USD, U
 | C | First login: updates, a non-root user, SSH keys only, unattended security updates (already on by default) | 15 min | both |
 | D | Docker Engine from Docker's own repo + the compose plugin | 10 min | both |
 | E | Tailscale on the droplet; turn key expiry off; ACL: only the host PC may reach port 9443 | 5 min | both |
-| F | Deploy the stack: our `stack/compose.yml` (relay bound to the Tailscale IP, **never** `manabrew/compose.selfhost.yml`, which publishes 9443 to the internet), images pinned by digest, a long random `MANABREW_SERVER_KEY` | 20 min | both |
+| F | Deploy the stack: our `stack/compose.yml` (relay bound to the Tailscale IP, **never** `manabrew/compose.selfhost.yml`, which publishes 9443 to the internet), our own images built from `engine/`, a long random `MANABREW_SERVER_KEY`. `tools/setup-server.sh` does all of this | 20 min | both |
 | G | Point the bridge at it: `MTG_RELAY=ws://<droplet tailscale name>:9443 MTG_KEY=<key> node bridge.js`; play a test game vs AI | 10 min | both |
 | H | Snapshot the droplet ("golden"), delete it; from now on `vps-up.ps1` / `vps-down.ps1` create and delete it each night | 10 min | both |
 | I | AWS account + **GPU quota request** ("Running On-Demand G and VT instances" ≥ 4), 2 days ahead | — | A |
@@ -46,13 +47,17 @@ Status: v2, 2026-10-20 (v1 proposal 2026-10-19). Prices are October 2026, USD, U
 **Code changes this needs (ours):**
 1. ~~Bridge: ping/pong heartbeat and automatic reconnect to the relay.~~ **Done 2026-10-20**: a dropped or silent link is
    reconnected within the relay's 60 s window and the game resyncs (tested live by restarting the relay mid-game).
-2. `vps-up.ps1` / `vps-down.ps1` (+ `night-up/down.ps1` for shape A) in `tools/`.
-3. A compose file for the droplet: relay bound to the Tailscale IP, pinned digests, key from an `.env` that isn't committed.
-4. The companion app (docs/companion-app-spec.md) wraps steps G, H and P into buttons.
+2. `vps-up.ps1` / `vps-down.ps1` (+ `night-up/down.ps1` for shape A) in `tools/`. **Written 2026-11-02**, syntax-checked
+   only, never run against real accounts.
+3. ~~A compose file for the droplet.~~ **Done 2026-10-30** by `tools/setup-server.sh` on `stack/compose.yml`: relay bound to
+   the Tailscale IP (`RELAY_BIND`), our images built from `engine/`, key in `stack/.env`, which isn't committed.
+4. The companion app (docs/companion-app-spec.md) wraps steps G, H and P into buttons. Since its 2026-11-05 rewrite
+   that is a later phase, after Home mode.
 
 **Step zero (free, before paying for anything):**
 - Play one online game on the current home setup, now that the 2026-10-19 snapshot fix is in.
-- Throttle Forge locally to see whether its CPU matters at all.
+- Throttle Forge locally to see whether its CPU matters at all. Done in effect: the engine runs on 2 WSL cores since
+  2026-11-05, after TTS crashed with it on 3 (README).
 
 The chop may already be gone.
 
@@ -66,7 +71,7 @@ The chop may already be gone.
 |---|---|---|
 | **TTS host** | The table itself. The host's PC simulates every object and sends each change to the other players over Steam's relays. | One player's PC |
 | **Bridge** (`bridge/bridge.js`) | Translates between the table and the rules engine: board updates, questions, clicks. | Same PC (it talks to TTS on localhost) |
-| **Forge engine + relay** (Docker: `manabrew-node`, relay on 9443) | The rules and the AI players. | Same PC, in Docker (WSL2, capped at 3 cores / 8 GB) |
+| **Forge engine + relay** (Docker: `manabrew-node`, relay on 9443) | The rules and the AI players. | Same PC, in Docker (WSL2, capped at 3 cores / 8 GB then; 2 cores since 2026-11-05) |
 
 The **host's upload** carries every player. Forge's AI uses the **host's CPU** when it thinks. Two kinds of server can take over parts of this.
 
@@ -132,7 +137,7 @@ The cloud gaming PC hosts TTS and the VPS runs Forge. Docker may not run on a cl
 | Step | Option | Monthly cost | Pick it when |
 |---|---|---|---|
 | 0 | **Home host (now)**, wired, upload checked with `tools/net-upload-meter.ps1` | $0 | Default. Today's fixes removed the 10-second chop and click freezes. |
-| 1 | **$0 check**: cap Forge to 2 cores at low priority and compare PresentMon frame times | $0 | Before paying for B. If nothing changes, B buys no smoothness, only flexibility. |
+| 1 | **$0 check**: cap Forge to 2 cores at low priority and compare PresentMon frame times (2 cores in use since 2026-11-05) | $0 | Before paying for B. If nothing changes, B buys no smoothness, only flexibility. |
 | 2 | **Server B** (hourly VPS) | ~$2–8 | Hosting should rotate between friends, or the host's PC struggles during AI turns. |
 | 3 | **Server A** for game nights | ~$11–17 (16 h), ~$50 (70 h) | The upload meter shows the home host is the bottleneck (under ~5 Mbps steady), or friends still see chops. |
 | 4 | **A + B** | ~$15–25 for 16 h | Server A can't run Docker. |
@@ -193,7 +198,7 @@ The cloud gaming PC hosts TTS and the VPS runs Forge. Docker may not run on a cl
 1. **Machine:** airgpu, or AWS g4dn.xlarge / Azure NV6ads A10 v5, in the US region nearest the group. Windows. A 100 GB disk kept between sessions.
 2. **Software:**
    - Steam on a dedicated account that owns TTS;
-   - TTS with the table (`MTG 4 player table - ENGINE MODE + your decks.json`) and our mods cached;
+   - TTS with the table (today the "Mock MTGA 4 player" save, `TS_Save_1.json`, kept current by `tools/deploy.js`) and our mods cached;
    - Parsec or Sunshine for remote control;
    - Node, plus Docker if it runs there (otherwise use Server B for Forge).
 3. **TTS settings:**
@@ -223,12 +228,13 @@ The cloud gaming PC hosts TTS and the VPS runs Forge. Docker may not run on a cl
 
 ## Full hosting status, 2026-11-02
 
-Shape A chosen by the user. The Steam account for step M exists; Steam Guard and friending the players are still to do.
+Shape A chosen by the user, then **paused by the user the same day**. The Steam account for step M exists; Steam Guard and friending the players are still to do.
 
 - **Free test passed:** the engine behind a delay proxy (`tmp/delay-proxy.js`, 60 ms each way + 0-20 ms) ran three-seat games with `tmp/kardur-check.js`: 7 of 8 passed 8 of 8 checks, the eighth didn't deal the cards the test needs, no engine errors. This covers the Forge link only, not TTS or a real network.
 - **Not free:** a Windows GPU machine can't be tried for nothing. AWS's free plan appears not to allow GPU instances, so a first real test means a paid plan and about $2.
 - **Scripts written, syntax-checked only:** `tools/vps-up.ps1`, `vps-down.ps1`, `night-up.ps1`, `night-down.ps1`. Their doctl and aws commands have never run against real accounts.
-- **The droplet must run our images,** not the stock ones in the report's compose file, and the `race-fix` node.
+- **The droplet must run our images,** not the stock ones in the report's compose file: today `mtg-relay:exile` and
+  `mtg-forge-node:exile`, built by `engine/build-images.sh` (`tools/setup-server.sh` runs it).
 
 ## tools/setup-server.sh, tested 2026-10-30
 

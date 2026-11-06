@@ -408,7 +408,7 @@ function scenarios() {
         click(`${objOf("engine-card-9903")} if o then o.setPosition(o.getPosition() + Vector(0.5, 0, 0)) onObjectDrop("Blue", o) return "moved in hand2" end return "none"`),
         // (a manual fix, M7) a playable card in hand zone 2 and a linked card under its permanent, picked up and left
         // where they lie: no change; a spectator can't pick anything up
-        { msg: { t: "table", json: JSON.stringify({ ...ex, fix: { id: 9, state: "editing", by: "Blue", waiting: [] } }) }, frames: 4, mark: "exile: a manual fix touches them" },
+        { msg: { t: "table", json: JSON.stringify({ ...ex, fix: { id: 9, state: "editing", kind: "board", by: "Blue", waiting: [] } }) }, frames: 4, mark: "exile: a manual fix touches them" },
         click(`${objOf("engine-card-9903")} ${objOf("engine-card-9901").replace("local o", "local l")} return tostring(onPlayerAction(Player.Blue, Player.Action.PickUp, { o })) .. " " .. tostring(onPlayerAction(Player.Blue, Player.Action.PickUp, { l })) .. " grey " .. tostring(onPlayerAction(Player.Grey, Player.Action.PickUp, { o }))`),
         click('local ops, un = engineFixRead() local out = {} for _, o in ipairs(ops) do out[#out + 1] = o.op .. ":" .. tostring(o.card) end return #ops .. " ops " .. table.concat(out, " ") .. " | unplaced " .. #un'),
         { msg: { t: "table", json: JSON.stringify(ex) }, frames: 6, mark: "exile: the fix is cancelled" },
@@ -430,25 +430,26 @@ function scenarios() {
         msg({ id: 1, state: "voting", by: "White", waiting: ["Blue"] }, "fix: voting"), panel,
         click('onMtgFix(Player.Blue, nil, "eng_fixbno_Blue")'),
         msg({ id: 1, state: "pausing", by: "Blue", waiting: [] }, "fix: pausing"), panel,
-        msg({ id: 1, state: "editing", by: "Blue", waiting: [] }, "fix: editing"), panel,
+        msg({ id: 1, state: "editing", kind: "board", by: "Blue", waiting: [] }, "fix: editing"), panel,
         click('onMtgFix(Player.Blue, nil, "eng_fixbyes_Blue")'),
         pick(bf[0].id), click(`${objOf(bf[0].id)} if o then o.setPosition(data.Blue.graveyard.getPosition() + Vector(0, 1, 0)) onObjectDrop("Blue", o) end`),
         click(`${objOf(bf[2].id)} if o then onPlayerAction(Player.Blue, Player.Action.RotateIncrementalRight, { o }) o.setRotation(o.getRotation() + Vector(0, 90, 0)) end`),
         pick(bfW[0].id), click(`${objOf(bfW[0].id)} if o then local p = data.Blue.playmat.getPosition() o.setPosition(Vector(p.x - 4, 1.5, p.z)) onObjectDrop("Blue", o) end`),
         click(`${objOf(bf[3].id)} if o then return tostring(onPlayerAction(Player.Blue, Player.Action.Delete, { o })) end return "none"`),
         click('engineFixSet("Blue", "life white 31") engineFixSet("Blue", "poison purple 2") engineFixSet("Blue", "dance blue 2")'),
-        // a card dropped onto a pile pops back out and lies on it (so its spot says where it went)
+        // a card dropped onto a pile lies on it (so its spot says where it went): the fake TTS asks tryObjectEnterContainer,
+        // which keeps it out of an engine pile, then the drop is reported (picked up first, as a player does)
         click(`local deck for _, x in ipairs(getObjects()) do if tostring(x.getGMNotes()):find("^engine:%a+:%a+$") and x.type == "Deck" and not tostring(x.getGMNotes()):find("library") then deck = x end end
           ${objOf(bf[1].id)} if not deck or not o then return "no pile or card" end
-          deck.setLock(false) deck.putObject(o) onObjectEnterContainer(deck, o) __sim.frames(3)
+          onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) deck.setLock(false) o.setPosition(deck.getPosition() + Vector(0, 1, 0)) deck.putObject(o) onObjectDrop("Blue", o) __sim.frames(3)
           local n, loose = 0, nil for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${bf[1].id}" then n = n + 1 loose = x end end
           local p = loose and loose.getPosition() return "pops back out: " .. n .. (loose and string.format(" at %.1f %.1f, %s", p.x, p.z, tostring(engineFixTouched["${bf[1].id}"])) or "")`),
-        msg({ id: 1, state: "editing", by: "Blue", waiting: [] }, "fix: the board holds while editing"), pos(bf[0].id), pos(bf[2].id), pos(bfW[0].id), read,
+        msg({ id: 1, state: "editing", kind: "board", by: "Blue", waiting: [] }, "fix: the board holds while editing"), pos(bf[0].id), pos(bf[2].id), pos(bfW[0].id), read,
         pick(bf[1].id), click(`${objOf(bf[1].id)} if o then o.setPosition(Vector(0, 1.5, 0)) end`), read,
         click('onMtgFix(Player.Blue, nil, "eng_fixbyes_Blue")'),
         click(`${objOf(bf[1].id)} if o then local p = data.Blue.playmat.getPosition() o.setPosition(Vector(p.x + 4, 1.5, p.z)) end`),
         click('onMtgFix(Player.Blue, nil, "eng_fixbyes_Blue")'),
-        msg({ id: 1, state: "editing", by: "Blue", waiting: [], message: "no card engine-card-1" }, "fix: refused, back to editing"), panel,
+        msg({ id: 1, state: "editing", kind: "board", by: "Blue", waiting: [], message: "no card engine-card-1" }, "fix: refused, back to editing"), panel,
         msg({ id: 1, state: "review", by: "Blue", waiting: ["Blue"], lines: ["Mountain: Blue's battlefield → Blue's graveyard", "White life → 31"] }, "fix: review"), panel,
         click(`${objOf(bf[3].id)} if o then return tostring(onPlayerAction(Player.Blue, Player.Action.PickUp, { o })) end return "none"`),
         click('onMtgFix(Player.Blue, nil, "eng_fixbyes_Blue") onMtgFix(Player.Blue, nil, "eng_fixbno_Blue")'),
@@ -468,7 +469,7 @@ function scenarios() {
       const at = (fix, mark) => ({ msg: { t: "table", json: JSON.stringify({ ...base, fix }) }, frames: 6, mark });
       const pick = (id) => click(`${objOf(id)} if o then return tostring(onPlayerAction(Player.Blue, Player.Action.PickUp, { o })) end return "none"`);
       const read = click('local ops, un = engineFixRead() local out = {} for _, o in ipairs(ops) do out[#out + 1] = o.op .. ":" .. tostring(o.card or o.player) .. ":" .. tostring(o.to or o.zone or o.from or o.script) .. ":" .. tostring(o.position or o.n or o.tapped) end return table.concat(out, " ") .. " | unplaced: " .. table.concat(un, ",")');
-      const editing = { id: 2, state: "editing", by: "Blue", waiting: [] };
+      const editing = { id: 2, state: "editing", kind: "board", by: "Blue", waiting: [] };
       one.push({ msg: { t: "table", json: JSON.stringify(base) }, frames: 8, mark: "fix2: an attached card" },
         at(editing, "fix2: editing"), click('return tostring(ENGINE_FIX_EDIT)'),
         pick(bf[1].id), click(`${objOf(bf[1].id)} local h for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${bf[0].id}" then h = x end end if o and h then o.setPosition(h.getPosition() + Vector(0.3, 0.5, 0.2)) return "on its host" end return "none"`),
@@ -562,6 +563,29 @@ function scenarios() {
       { msg: { t: "texts", json: JSON.stringify({ t: "texts", texts: { "engine-card-9844": "Suspend 4—{U}" } }) }, mark: "notes: rules text arrives" }, loneText,
       { msg: { t: "table", json: JSON.stringify(later) }, frames: 200, mark: "notes: only the notes changed" },
       pileText, loneText, marksLabel);
+    // (2026-11-06, docs/core-moves-cleanup-plan.md "2. trackMarks" step 1) every mark the table words itself (poison,
+    // energy, monarch, initiative, blessing, story) with the bridge's marks after them: the label and its width under
+    // Blue's and White's life counters, then a board with none (the label goes)
+    const marked = JSON.parse(JSON.stringify(later));
+    const mb = marked.players.find((x) => x.color === "Blue"), mw = marked.players.find((x) => x.color === "White");
+    Object.assign(mb, { poison: 3, energy: 2, monarch: true, initiative: true, blessed: true, story: true, marks: ["RING TEMPTED 2", "YOU CAN'T LOSE THE GAME"] });
+    Object.assign(mw, { poison: 1, energy: 0, story: true, marks: ["SPEED 1"] });
+    const bothLabels = click('local out = {} for _, g in ipairs({ "395037", "23e485" }) do local o, l = getObjectFromGUID(g), "no label" for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then l = b.label .. " @" .. tostring(b.width) end end out[#out + 1] = g .. ": " .. l end return table.concat(out, " | ")');
+    one.push({ msg: { t: "table", json: JSON.stringify(marked) }, frames: 30, mark: "marks: every mark the table words, then the bridge's" }, bothLabels,
+      { msg: { t: "table", json: JSON.stringify(later) }, frames: 30, mark: "marks: none" }, bothLabels);
+    // (step 4) the same marks as the bridge sends them since: the old fields and allMarks, the whole label (the same
+    // label and width); then allMarks alone, as the bridge will send them once the old fields go (step 6)
+    const allOf = { Blue: ["POISON 3", "ENERGY 2", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "ENDURING STORY", "RING TEMPTED 2", "YOU CAN'T LOSE THE GAME"], White: ["POISON 1", "ENDURING STORY", "SPEED 1"] };
+    const both = JSON.parse(JSON.stringify(marked));
+    for (const p of both.players) if (allOf[p.color]) p.allMarks = allOf[p.color];
+    const alone = JSON.parse(JSON.stringify(later));
+    for (const p of alone.players) {
+      for (const k of ["poison", "energy", "monarch", "initiative", "blessed", "story", "marks"]) delete p[k];
+      if (allOf[p.color]) p.allMarks = allOf[p.color];
+    }
+    one.push({ msg: { t: "table", json: JSON.stringify(both) }, frames: 30, mark: "marks: old fields and allMarks" }, bothLabels,
+      { msg: { t: "table", json: JSON.stringify(later) }, frames: 30, mark: "marks: none again" }, bothLabels,
+      { msg: { t: "table", json: JSON.stringify(alone) }, frames: 30, mark: "marks: allMarks alone" }, bothLabels);
   }
   // Ready / Start buttons (docs/game-modes-spec.md §6): two seated players, the bridge's deck reports, clicks
   const tile = 'local t for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then t = o end end';
@@ -613,8 +637,215 @@ function scenarios() {
     report(["Blue"], ["Blue"]), click(`${tile} onMtgSetupStart(t, "Blue")`)];
   return [{ name: "4-player game vs 3 AI (recorded)", steps: four }, { name: "1v1 with a player's clicks (recorded)", steps: one },
     { name: "setup buttons (Ready / Start)", steps: setup, seated: ["Blue", "White"] },
-    { name: "setup buttons: one player starts against an AI", steps: solo, seated: ["Blue"] }];
+    { name: "setup buttons: one player starts against an AI", steps: solo, seated: ["Blue"] },
+    { name: "card entry: every way a card object is made", steps: cardEntry(s1) }];
 }
+
+// (2026-11-06, docs/core-moves-cleanup-plan.md §3) every way an object becomes an engine card's object, on crafted boards
+// after the 1v1's first one: creatures with a status box, a P/T box under an anthem and abilities die into a 2-card
+// graveyard and come back (engineTakeFromPiles); a searched double-faced card pulled from the library and played; a
+// graveyard card picked for a question; "mtg reset" one frame after a board starts spawning.
+function cardEntry(s1) {
+  const first = s1.findIndex((m) => m.t === "table");
+  const steps = [click("engineAutoPace.Blue = false"), click('engineChat("mtg start ai 1", Player.Blue)'),
+    ...s1.slice(0, first + 1).map((m) => ({ msg: { t: m.t, json: m.json } }))];
+  const base = JSON.parse(s1[first].json);
+  delete base.cards;
+  const back = "https://steamusercontent-a.akamaihd.net/ugc/2442730426865822027/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/";
+  const id = (n) => `engine-card-${n}`;
+  const statics = {
+    [id(7001)]: { n: "Serra Angel", f: "https://img.example/serra.jpg", b: back, tl: "Creature — Angel", cmc: 5, ty: ["Creature"], bp: 4, bt: 4 },
+    [id(7002)]: { n: "Grizzly Bears", f: "https://img.example/bears.jpg", b: back, tl: "Creature — Bear", cmc: 2, ty: ["Creature"], bp: 2, bt: 2 },
+    [id(7003)]: { n: "Glorious Anthem", f: "https://img.example/anthem.jpg", b: back, tl: "Enchantment", cmc: 3, ty: ["Enchantment"] },
+    [id(7004)]: { n: "Prodigal Sorcerer", f: "https://img.example/tim.jpg", b: back, tl: "Creature — Human Wizard", cmc: 3, ty: ["Creature"], bp: 1, bt: 1 },
+    [id(7005)]: { n: "Royal Assassin", f: "https://img.example/assassin.jpg", b: back, tl: "Creature — Human Assassin", cmc: 3, ty: ["Creature"], bp: 1, bt: 1 },
+    [id(7010)]: { n: "Island", f: "https://img.example/island.jpg", b: back, tl: "Basic Land — Island", cmc: 0, ty: ["Land"] },
+    [id(7011)]: { n: "Swamp", f: "https://img.example/swamp.jpg", b: back, tl: "Basic Land — Swamp", cmc: 0, ty: ["Land"] },
+  };
+  const angel = { s: 1, id: id(7001), p: 4, t: 4, ctl: "Blue", kw: ["Hexproof"], ow: ["Flying", "Vigilance"] };
+  const bears = { s: 1, id: id(7002), p: 3, t: 3, ctl: "Blue" }; // (2/2, raised by the anthem)
+  const anthem = { s: 1, id: id(7003), ctl: "Blue" };
+  const tim = { s: 1, id: id(7004), p: 1, t: 1, ctl: "Blue" };
+  const assassin = { s: 1, id: id(7005), p: 1, t: 1, ctl: "Blue" };
+  const gy = (n) => ({ s: 1, id: id(n), ctl: "Blue" });
+  const board = (blue, extra = {}) => {
+    const t = JSON.parse(JSON.stringify(base));
+    Object.assign(t, extra);
+    Object.assign(t.players.find((p) => p.color === "Blue"), blue);
+    return { t: "table", json: JSON.stringify(t) };
+  };
+  const ask = (p) => ({ msg: { t: "prompt", json: JSON.stringify({ t: "prompt", color: "Blue", ...p }) } });
+  const pass = { id: "__pass", label: "Pass priority" };
+  const ability = (n, text) => ({ id: `a-${n}`, cardId: id(n), label: `${statics[id(n)].n}: ${text}`, ab: text });
+  const objOf = (cid) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${cid}" then o = x end end`;
+  // (a report tests/test_table_claims.js reads by its name)
+  const rep = (name, lua) => ({ lua, mark: `ce: ${name}` });
+  // the members of a pile or library deck the table built: Locked or Tags set on any (none should have either), and
+  // whether the deck's DeckIDs are its members' CardIDs in order (TTS shows each member by its DeckIDs entry)
+  const members = (name, gm) => rep(name, `local d for _, x in ipairs(getObjects()) do if x.getGMNotes() == "${gm}" then d = x end end if d == nil then return "no deck" end
+    local data = d.getData() local list, ids = data.ContainedObjects or {}, data.DeckIDs or {} local match = #ids == #list
+    local out, plain, flags = {}, 0, 0 for i, e in ipairs(list) do if ids[i] ~= e.CardID then match = false end
+      if e.GMNotes == "libcard" then plain = plain + 1 if e.Locked or e.Tags then flags = flags + 1 end
+      else out[#out + 1] = tostring(e.GMNotes):gsub("^engine:engine%-card%-", "") .. (e.Locked and " Locked" or "") .. (e.Tags and " Tags" or "") end end
+    return table.concat(out, ", ") .. " + " .. plain .. " plain backs (" .. flags .. " with Locked or Tags) | DeckIDs " .. (match and "match" or "differ") .. " (" .. #ids .. ")"`);
+  // each card's object and the labels of the buttons on it (the badges and the ability buttons)
+  const buttons = (name, ns) => rep(name, `local out = {} for _, n in ipairs({ ${ns.join(", ")} }) do local cid = "engine-card-" .. n local o
+    for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. cid then o = x end end
+    local labels = {} if o then for _, b in ipairs(o.getButtons() or {}) do labels[#labels + 1] = (tostring(b.label):gsub("\\n", "/")) end end
+    out[#out + 1] = n .. (o and (" [" .. table.concat(labels, "; ") .. "]") or " none") end return table.concat(out, " | ")`);
+  const debug = (name, ns) => rep(name, `local out = {} for _, n in ipairs({ ${ns.join(", ")} }) do out[#out + 1] = n .. " " .. engineDebugCard("engine-card-" .. n) end return table.concat(out, " | ")`);
+  const badges = (name, ns) => rep(name, `local out = {} for _, n in ipairs({ ${ns.join(", ")} }) do out[#out + 1] = n .. " " .. tostring(engineBadge["engine-card-" .. n]) end return table.concat(out, " | ")`);
+  const backOf = (name, n) => rep(name, `${objOf(id(n))} if o == nil then return "none" end for _, e in pairs(o.getData().CustomDeck or {}) do return e.BackURL end return "no deck"`);
+  const all = [7001, 7002, 7004, 7005];
+  steps.push(ask({ promptId: null }),
+    // 1. the creatures on the battlefield, two cards already in the graveyard (a pile deck)
+    { msg: board({ battlefield: [angel, bears, anthem, tim, assassin], graveyard: [gy(7010), gy(7011)] }, { cards: statics }), frames: 60, mark: "entry: the board" },
+    buttons("buttons on the board", all), members("graveyard members", "engine:graveyard:Blue"),
+    // (the Assassin's ability on screen when it dies; the Sorcerer's not)
+    ask({ promptId: 2001, kind: "priority", title: "Your priority", mode: "single", min: 1, max: 1, options: [ability(7005, "{T}: Destroy target tapped creature."), pass] }),
+    buttons("buttons at the first priority", all),
+    { msg: board({ battlefield: [anthem], graveyard: [gy(7010), gy(7011), gy(7001), gy(7002), gy(7004), gy(7005)] }), frames: 60, mark: "entry: four die into the 2-card graveyard" },
+    ask({ promptId: 2002, kind: "priority", title: "Your priority", mode: "single", min: 1, max: 1, options: [pass] }),
+    ask({ promptId: null }),
+    debug("in the pile", all), badges("badges kept in the pile", all),
+    // 2. all four come back (taken out of the pile deck): the status box, the P/T box, then the abilities at priority
+    { msg: board({ battlefield: [angel, bears, anthem, tim, assassin], graveyard: [gy(7010), gy(7011)] }), frames: 60, mark: "entry: the four return from the graveyard" },
+    debug("back from the pile", all), buttons("buttons back from the pile", all),
+    ask({ promptId: 2003, kind: "priority", title: "Your priority", mode: "single", min: 1, max: 1,
+      options: [ability(7004, "{T}: Prodigal Sorcerer deals 1 damage to any target."), ability(7005, "{T}: Destroy target tapped creature."), pass] }),
+    buttons("buttons at priority after the return", all),
+    ask({ promptId: null }));
+  // 3. a library search: the double-faced card pulled out of the library deck (its plain back there), then played
+  const delver = { n: "Delver of Secrets", f: "https://img.example/delver.jpg", b: "https://img.example/insectile.jpg", tl: "Creature — Human Wizard", cmc: 1, ty: ["Creature"], bp: 1, bt: 1 };
+  const opt = { n: "Opt", f: "https://img.example/opt.jpg", b: back, tl: "Instant", cmc: 1, ty: ["Instant"] };
+  const field = [angel, bears, anthem, tim, assassin];
+  steps.push(ask({ promptId: 2004, kind: "cards", title: "Demonic Tutor: choose a card", mode: "multi", min: 0, max: 1,
+      cards: { [id(7020)]: delver, [id(7021)]: opt }, librarySearch: [{ s: 1, id: id(7020) }, { s: 1, id: id(7021) }],
+      options: [{ id: id(7020), label: "Delver of Secrets" }, { id: id(7021), label: "Opt" }] }),
+    members("library members during the search", "engine:library:Blue"),
+    rep("the searched card pulled out", `local lib for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:library:Blue" then lib = x end end
+      if lib == nil then return "no library" end
+      local at for _, e in ipairs(lib.getObjects()) do if e.gm_notes == "engine:${id(7020)}" then at = e.index end end
+      if at == nil then return "not in the library" end
+      local o = lib.takeObject({ index = at, position = lib.getPosition() + Vector(0, 2, 0), smooth = false })
+      local bk = "none" for _, e in pairs(o.getData().CustomDeck or {}) do bk = e.BackURL end
+      return tostring(o.getGMNotes()) .. " back " .. bk .. " | " .. engineDebugCard("${id(7020)}")`),
+    // (the board before the question closes: a close first redraws the old board, which throws the loose card away)
+    { msg: board({ battlefield: [...field, { s: 1, id: id(7020), p: 1, t: 1, ctl: "Blue" }], graveyard: [gy(7010), gy(7011)], library: 91 }), frames: 60, mark: "entry: the searched card played" },
+    backOf("back of the searched card", 7020), debug("the searched card", [7020]),
+    ask({ promptId: null }),
+    // (a double-faced card turned over by its owner: the table shows the back it recorded)
+    { msg: board({ battlefield: [...field, { s: 1, id: id(7020), p: 1, t: 1, ctl: "Blue" }], graveyard: [gy(7010), gy(7011)], library: 91 }), frames: 10, mark: "entry: the searched card, next board" },
+    backOf("back of the searched card, next board", 7020), debug("the searched card, next board", [7020]));
+  // 4. a graveyard card picked for a question (pulled out of the pile deck), then put in the hand
+  const field2 = [...field, { s: 1, id: id(7020), p: 1, t: 1, ctl: "Blue" }];
+  const hand = base.players.find((p) => p.color === "Blue").hand;
+  steps.push(ask({ promptId: 2005, kind: "cards", title: "Choose a land card in your graveyard", mode: "multi", min: 1, max: 1,
+      pileChoices: [id(7010), id(7011)], options: [{ id: id(7010), label: "Island" }, { id: id(7011), label: "Swamp" }] }),
+    rep("the picked card pulled out", `local pile for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:graveyard:Blue" then pile = x end end
+      if pile == nil then return "no pile" end
+      local at for _, e in ipairs(pile.getObjects()) do if e.gm_notes == "engine:${id(7010)}" then at = e.index end end
+      if at == nil then return "not in the pile" end
+      pile.takeObject({ index = at, position = pile.getPosition() + Vector(0, 2, 0), smooth = false })
+      return engineDebugCard("${id(7010)}")`),
+    ask({ promptId: null }),
+    { msg: board({ battlefield: field2, graveyard: [gy(7011)], hand: [...hand, gy(7010)], handCount: hand.length + 1, library: 91 }), frames: 200, mark: "entry: the picked card goes to the hand" },
+    { msg: board({ battlefield: field2, graveyard: [gy(7011)], hand: [...hand, gy(7010)], handCount: hand.length + 1, library: 91 }), frames: 10, mark: "entry: the same board again" },
+    debug("the picked card in the hand", [7010, 7011]));
+  // 4b. a card spawned on its own is in no pile; a pile that takes the card in while it still spawns keeps it marked
+  // in the pile when the late spawn callback comes (review round 2)
+  const more = { [id(7040)]: { ...statics[id(7010)], n: "Forest", f: "https://img.example/forest.jpg" }, [id(7041)]: { ...statics[id(7010)], n: "Mountain", f: "https://img.example/mountain.jpg" },
+    [id(7042)]: { ...statics[id(7002)], n: "Wild Mongrel", f: "https://img.example/mongrel.jpg" } };
+  const rest = { hand: [...hand, gy(7010)], handCount: hand.length + 1, library: 91 };
+  const field3 = [...field2, gy(7040)];
+  const late = 'local d for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:graveyard:Blue" then d = x end end if d == nil then return "no pile" end'
+    + ` local loose = 0 for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id(7042)}" then loose = loose + 1 end end`
+    + ` for _, e in ipairs(d.getData().ContainedObjects or {}) do if e.GMNotes == "engine:${id(7042)}" then return "in the pile" .. (e.Locked and " Locked" or "") .. (e.Tags and " Tags" or "") .. ", loose objects " .. loose end end`
+    + ' return "not in the pile, loose objects " .. loose';
+  steps.push({ msg: board({ battlefield: field2, graveyard: [gy(7011), gy(7040), gy(7041)], ...rest }, { cards: more }), frames: 60, mark: "entry: three cards in the graveyard" },
+    // (Forest leaves and the other two change order: the pile is rebuilt, and Forest is spawned on its own)
+    { msg: board({ battlefield: field3, graveyard: [gy(7041), gy(7011)], ...rest }), frames: 60, mark: "entry: one leaves, the pile is rebuilt" },
+    debug("the card that left the rebuilt pile", [7040]),
+    { msg: board({ battlefield: [...field3, { s: 1, id: id(7042), p: 2, t: 2, ctl: "Blue" }], graveyard: [gy(7041), gy(7011)], ...rest }), frames: 0, mark: "entry: a creature starts spawning" },
+    { ...debug("the creature spawning", [7042]), frames: 0 },
+    // (it dies before its object arrives: the pile takes it in, then the late callback comes)
+    { msg: board({ battlefield: field3, graveyard: [gy(7041), gy(7011), gy(7042)], ...rest }), frames: 60, mark: "entry: it dies while spawning" },
+    debug("the creature in the pile after its late callback", [7042]), rep("the late creature in the pile", late),
+    { msg: board({ battlefield: field3, graveyard: [gy(7041), gy(7011), gy(7042)], ...rest }), frames: 60, mark: "entry: the same board again (late creature)" },
+    debug("the late creature, next board", [7042]), rep("the late creature in the pile, next board", late));
+  // 5. "mtg reset" one frame after a board starts spawning: which objects the late spawn callbacks register, and what
+  // they do to them (they were swept into the trash by then); the library deck too, rebuilt as a search closed
+  const fresh = { [id(7030)]: { ...statics[id(7002)], n: "Llanowar Elves" }, [id(7031)]: { ...statics[id(7002)], n: "Elvish Mystic" }, [id(7032)]: { ...statics[id(7002)], n: "Fyndhorn Elves" } };
+  steps.push(ask({ promptId: 2006, kind: "cards", title: "Search your library for an instant", mode: "multi", min: 0, max: 1,
+      cards: { [id(7021)]: opt }, librarySearch: [{ s: 1, id: id(7021) }], options: [{ id: id(7021), label: "Opt" }] }),
+    { ...ask({ promptId: null }), frames: 0 },
+    { msg: board({ battlefield: [...field3, ...[7030, 7031, 7032].map((n) => ({ s: 1, id: id(n), p: 1, t: 1, ctl: "Blue" }))], graveyard: [gy(7041), gy(7011), gy(7042)], ...rest },
+      { cards: fresh }), frames: 0, mark: "reset: a board starts spawning" },
+    // (the spawning objects note every call made on them once they are destroyed: in TTS each such call is an error)
+    { ...rep("the spawning objects", `__ceCalls = {} local n = 0 for _, x in ipairs(getObjects()) do local gm = tostring(x.getGMNotes()) if gm:find("^engine:engine%-card%-703") or gm == "engine:library:Blue" then n = n + 1
+        for _, name in ipairs({ "getGMNotes", "setLock", "setScale", "setPosition", "setPositionSmooth", "setRotation", "setRotationSmooth", "createButton", "clearButtons", "editButton", "setColorTint", "highlightOn", "highlightOff", "addContextMenuItem", "UI" }) do
+          local orig = x[name] if type(orig) == "function" then rawset(x, name, function(...) if x.isDestroyed() then __ceCalls[#__ceCalls + 1] = gm:sub(-4) .. "." .. name end return orig(...) end) end end end end
+      return n .. " spawning"`), frames: 0 },
+    // (and one the reset's sweep doesn't see, as if TTS listed it a frame late: Fyndhorn Elves)
+    { ...rep("hidden from the sweep", `for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id(7032)}" then x.setGMNotes("ce-unlisted") return "hidden" end end return "none"`), frames: 0 },
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 0, mark: "reset: mtg reset one frame later" },
+    { ...rep("listed again", `for _, x in ipairs(getObjects()) do if x.getGMNotes() == "ce-unlisted" then x.setGMNotes("engine:${id(7032)}") return "listed" end end return "none"`), frames: 0 },
+    rep("after the reset", `__sim.frames(120) local out = {} for _, n in ipairs({ 7030, 7031, 7032 }) do out[#out + 1] = n .. " " .. engineDebugCard("engine-card-" .. n) end
+      local live = 0 for _, x in ipairs(getObjects()) do if tostring(x.getGMNotes()):find("^engine:engine") then live = live + 1 end end
+      return table.concat(out, " | ") .. " | library " .. engineDebugCard("library:Blue") .. " | engine cards on the table: " .. live .. " | calls on destroyed objects: " .. (#__ceCalls > 0 and table.concat(__ceCalls, " ") or "none")`));
+  // 6. (2026-11-06, real table) a library growing by several plain cards at once (the debug setup's dealt hand put on
+  // the bottom, a London mulligan's bottom cards): the cards must end up IN the library deck, nothing lying on it; a
+  // library destroyed meanwhile leaves nothing behind; "mtg reset" sweeps a deck of plain backs TTS formed by itself
+  // (the library deck: its size, its plain backs and how many pictures they use; plain cards and decks of nothing but
+  // plain backs lying anywhere else; the one mixed deck the case lays down)
+  const lib = (name) => rep(name, `local lib, loose, decks, mixed = nil, 0, 0, "no" for _, x in ipairs(getObjects()) do local gm = tostring(x.getGMNotes())
+      if gm == "engine:library:Blue" then lib = x elseif gm == "libcard" and x.type == "Card" then loose = loose + 1
+      elseif x.getName() == "ce-mixed" then mixed = "yes " .. x.getQuantity()
+      elseif x.type == "Deck" and not gm:find("^engine") then local all, n = true, 0 for _, e in ipairs(x.getObjects()) do n = n + 1 if e.gm_notes ~= "libcard" then all = false end end if all and n > 0 then decks = decks + 1 end end end
+    local plain, pics = 0, {} if lib then for _, e in ipairs(lib.getObjects()) do if e.gm_notes == "libcard" then plain = plain + 1 end end
+      for _, e in ipairs(lib.getData().ContainedObjects or {}) do pics[tostring(e.CardID)] = true end end
+    local np = 0 for _ in pairs(pics) do np = np + 1 end
+    return "library " .. (lib and (lib.type .. " " .. lib.getQuantity() .. " (" .. plain .. " plain backs, " .. np .. " picture)") or "none") .. " | loose plain cards " .. loose .. " | decks of plain backs off the library " .. decks .. " | mixed deck " .. mixed`);
+  const libBoard = (n, mark, frames = 60) => ({ msg: board({ library: n }), frames, mark });
+  // ("started" first, as a real game sends it: engine mode is on, so the table's refusals of puts into its own decks apply)
+  const started = s1.find((m) => m.t === "started");
+  steps.push(click('engineChat("mtg start ai 1", Player.Blue)'), { msg: { t: started.t, json: started.json } },
+    { msg: { t: s1[first].t, json: s1[first].json }, mark: "library: a new game" },
+    rep("engine mode in the library part", "return tostring(ENGINE_MODE)"),
+    libBoard(92, "library: the first board again"), lib("library at the start"),
+    libBoard(93, "library: one card put on the bottom"), lib("library after one card"),
+    libBoard(100, "library: seven cards put on the bottom at once"), lib("library after seven at once"),
+    // (the library deck destroyed before the added cards arrive: they go, and the next board builds the library again)
+    libBoard(103, "library: three more, the library destroyed meanwhile", 0),
+    // (what the three are spawned as, before they arrive: one object, the library's plain backs, not a second library)
+    { ...rep("the added cards on their way", `local out = {} for _, x in ipairs(getObjects()) do if x.getName() == "Library card" then local gms = {} for _, e in ipairs(x.type == "Deck" and x.getObjects() or {}) do gms[e.gm_notes] = (gms[e.gm_notes] or 0) + 1 end
+        local inside = {} for g, n in pairs(gms) do inside[#inside + 1] = n .. " " .. g end
+        out[#out + 1] = x.type .. " " .. tostring(x.getGMNotes()) .. " locked=" .. tostring(x.getLock()) .. (#inside > 0 and (" of " .. table.concat(inside, ", ")) or "") end end return table.concat(out, " | ")`), frames: 0 },
+    { ...rep("the library destroyed", `for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:library:Blue" then x.destruct() return "destroyed" end end return "no library"`), frames: 60 },
+    lib("library destroyed while cards were added"),
+    libBoard(103, "library: the next board"), lib("library on the next board"),
+    // (jr-programmer-suite) a double-faced card put into the hand: the bridge sends a hand card with the plain back
+    // while its details have its other face as the back. The face recorded is the one the object shows (the board's),
+    // so the next board keeps the object instead of replacing it
+    { msg: board({ library: 103, hand: [...hand, { s: 1, id: id(7050), b: back }], handCount: hand.length + 1 }, { cards: { [id(7050)]: { ...delver, n: "Huntmaster of the Fells" } } }), frames: 60, mark: "entry: a double-faced card put into the hand" },
+    debug("the drawn double-faced card", [7050]),
+    { msg: board({ library: 103, hand: [...hand, { s: 1, id: id(7050), b: back }], handCount: hand.length + 1 }), frames: 60, mark: "entry: the same board again (double-faced card)" },
+    debug("the drawn double-faced card, next board", [7050]),
+    // (a stray deck of seven plain backs with no GM notes on the library, as TTS formed one on the real table)
+    rep("a stray deck of plain backs", `local l for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:library:Blue" then l = x end end if l == nil then return "no library" end
+      local d = l.getData() local m = d.ContainedObjects[1] local objs, ids = {}, {}
+      for i = 1, 7 do objs[i] = { Name = "Card", Nickname = m.Nickname, GMNotes = m.GMNotes, CardID = m.CardID, CustomDeck = m.CustomDeck } ids[i] = m.CardID end
+      spawnObjectData({ data = { Name = "Deck", Nickname = "", GMNotes = "", DeckIDs = ids, CustomDeck = d.CustomDeck, ContainedObjects = objs }, position = l.getPosition() + Vector(0, 1, 0) })
+      -- (and a deck that is not only plain backs, a player's own card among them: the reset must leave it alone)
+      local mixed = {} for i = 1, 6 do mixed[i] = objs[i] end mixed[7] = { Name = "Card", Nickname = "a player's card", GMNotes = "", CardID = m.CardID, CustomDeck = m.CustomDeck }
+      spawnObjectData({ data = { Name = "Deck", Nickname = "ce-mixed", GMNotes = "", DeckIDs = ids, CustomDeck = d.CustomDeck, ContainedObjects = mixed }, position = Vector(0, 1, 0) })
+      return "spawned " .. tostring(m.GMNotes)`),
+    lib("library with the stray deck"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 90, mark: "library: mtg reset" },
+    lib("library after the reset"));
+  return steps;
+}
+
 
 function runAll(save = buildSave()) {
   return scenarios().map((sc) => {

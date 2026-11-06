@@ -1,8 +1,11 @@
 # Spec: our own copy of the rules, in Lua inside Tabletop Simulator
 
-Status: written 2026-11-02, then built the same day as an experiment on the `copy-engine` branch (worktree
-`../mtg-tts-copy-engine`, folder `engine-lua/`). What the build found, the comparison with this build and the next test are
-on that branch: `docs/spec-own-engine.md`, `docs/compare-current-vs-copy.md`, `docs/engine-compare-map.html`. Numbers
+Status: **closed 2026-11-03, not worth continuing.** Written 2026-11-02, then built the same day as an experiment on the
+`copy-engine` branch (commit ddcc69a, folder `engine-lua/`; its worktree `../mtg-tts-copy-engine` is gone). The Lua copy
+played a whole correct game inside real TTS, but 906 s for one AI game with single freezes up to 43 s, and no runtime fix
+bought more than about 4 times (PLAN "Copy engine experiment"). The current build stays the game. What the build found
+and the comparison with this build are on that branch: `docs/spec-own-engine.md`, `docs/compare-current-vs-copy.md`,
+`docs/engine-compare-map.html`. The plan below is kept as written. Numbers
 marked *measured* were taken that day from the Forge copy in `manabrew/forge` (Manabrew snapshot fd16e2f, 2026-10-16) and
 from TTS's own Lua interpreter.
 
@@ -315,5 +318,5 @@ licence files, not legal advice.
 
 ## Not decided here
 
-- Whether to start. This spec is the case for and against; Phase 0 is cheap, the rest isn't.
+- ~~Whether to start.~~ Decided 2026-11-03: built as an experiment, then closed (see Status).
 - 6-player: nothing here blocks it or helps it. The engine doesn't care about seats; the UI does.

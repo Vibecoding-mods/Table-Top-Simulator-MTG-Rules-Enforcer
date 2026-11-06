@@ -1,0 +1,9 @@
+{
+  "label": "core-moves real-table check: a 2-card graveyard pick (Raise Dead), reanimating a creature under an anthem (P/T box, ability button), a tutor pulled from the library, monarch and energy under the life counter",
+  "lands": { "Swamp": 10, "Plains": 5, "Mountain": 5 },
+  "mana": 10,
+  "hand": ["Raise Dead", "Lightning Bolt", "Reanimate", "Demonic Tutor", "Palace Jailer", "Harnessed Lightning"],
+  "battlefield": ["Glorious Anthem", "Prodigal Sorcerer"],
+  "graveyard": ["Grizzly Bears", "Serra Angel"],
+  "opponents": { "battlefield": ["Llanowar Elves", "Hill Giant"], "lands": 3, "life": 40 }
+}

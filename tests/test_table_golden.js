@@ -28,5 +28,12 @@ for (const w of want) {
     break; // later steps follow from this one
   }
 }
+// (breakit 2026-11-06) every put the table makes is let in: the fake TTS asks tryObjectEnterContainer and refuses a
+// locked deck as TTS does. Only the fix-from-hand step that plays a PLAYER's drop onto a pile expects a refusal.
+for (const g of got) {
+  const refused = g.steps.filter((s) => !s.step.includes('onObjectDrop("Blue", o)'))
+    .flatMap((s) => (s.fx || []).filter((l) => /"putObject refused/.test(l)).map((l) => `${s.step.slice(0, 60)}: ${l}`));
+  if (refused.length) { failed++; console.log(`FAIL ${g.name}: a put the table made was refused: ${refused.slice(0, 2).join(" || ")}`); }
+}
 console.log(failed ? `\n${failed} of ${want.length} games differ` : `all ${want.length} games match (${want.reduce((n, g) => n + g.steps.length, 0)} steps)`);
 process.exit(failed ? 1 : 0);

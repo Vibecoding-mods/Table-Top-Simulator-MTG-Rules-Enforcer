@@ -1,0 +1,7 @@
+{
+  "label": "core-moves real-table check 2: the 'Mana: tap X' colour question's Back (Birds of Paradise), then a tutor and 'mtg reset' while the library is rebuilt",
+  "lands": { "Swamp": 5 },
+  "mana": 5,
+  "hand": ["Demonic Tutor", "Grizzly Bears"],
+  "battlefield": ["Birds of Paradise"]
+}

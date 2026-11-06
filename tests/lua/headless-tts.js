@@ -10,6 +10,7 @@ const fs = require("fs");
 const net = require("net");
 const http = require("http");
 const path = require("path");
+require("./moonsharp-patterns"); // (fails on the patterns TTS fails on)
 const { lua, lauxlib, lualib, to_luastring } = require("fengari");
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };

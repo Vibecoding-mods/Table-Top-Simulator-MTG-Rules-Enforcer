@@ -124,6 +124,12 @@ add(promptCase("chooseAction: mana creature with one colour taps", myMain(D2.boa
   const spent = clone(D2.board); spent.gameView.activePlayerId = "player-1";
   add(promptCase("chooseAction: undo listed but the pool is empty: no stale mana back, passes", spent, prompt("chooseAction", { actions: [acts[7], acts[11]] }), []));
   add(promptCase("chooseAction: undo listed, empty pool, my main: no mana back option", myMain(D2.board), prompt("chooseAction", { actions: [acts[7], acts[11]] }), []));
+  // (the pool read is the seat's own: an opponent's floating mana is no mana of yours to take back)
+  const theirsFloat = myMain(D2.board); theirsFloat.gameView.players.find((p) => p.id === "player-1").manaPool = { ...theirsFloat.gameView.players.find((p) => p.id === "player-1").manaPool, R: 2 };
+  add(promptCase("chooseAction: undo listed, only an opponent's mana floats: no mana back option", theirsFloat, prompt("chooseAction", { actions: [acts[7], acts[11]] }), []));
+  // (a pool sent with no colours at all is an empty pool, not an unknown one)
+  const noKeys = myMain(D2.board); noKeys.gameView.players.find((p) => p.id === "player-0").manaPool = {};
+  add(promptCase("chooseAction: undo listed, pool {}: no mana back option", noKeys, prompt("chooseAction", { actions: [acts[7], acts[11]] }), []));
   add(promptCase("chooseAction: end turn held for this turn", myMain(D2.board), actionP, [], { seat: { endTurnAt: 11 } }));
   add(promptCase("chooseAction: resolve-the-stack keeps passing", b, actionP, [], { seat: { resolveStack: new Set(["s1"]) } }));
 }
@@ -170,12 +176,82 @@ add(promptCase("pay: shown", myMain(D2.board), payP, []));
   const lands = [src(981, "G"), src(982, "G"), src(983, "G"), src(984, "G"), src(985, "G"), src(986, "W"), src(987, "W"), src(988, "W"), src(989, "W"), src(990, "B")];
   const payScav = (cost, acts) => prompt("payManaCost", { cardId: "engine-card-75", cardName: "Dreg Mangler", manaCost: cost, canConfirmFromPool: false, actions: acts });
   add(promptCase("hp-17: auto-pay: the coloured part first, from its only source", hp17, payScav("{4}{B}", lands), [["__auto"]]));
-  add(promptCase("hp-17: auto-pay goes on with a Plains, not a Forest the hand needs", hp17, payScav("{4}", lands.filter((l) => l.cardId !== "engine-card-990")), [], { seat: { smartPay: "engine-card-75" } }));
-  add(promptCase("hp-17: auto-pay with only Forests left uses them", hp17, payScav("{1}", lands.slice(0, 5)), [], { seat: { smartPay: "engine-card-75" } }));
-  add(promptCase("hp-17: after its taps the pool covers it: confirmed by itself", hp17, { ...payScav("{4}{B}", lands), input: { ...payScav("{4}{B}", lands).input, canConfirmFromPool: true } }, [], { seat: { smartPay: "engine-card-75" } }));
+  const going = { seat: { smartPay: { card: "engine-card-75", sent: [] } } };
+  add(promptCase("hp-17: auto-pay goes on with a Plains, not a Forest the hand needs", hp17, payScav("{4}", lands.filter((l) => l.cardId !== "engine-card-990")), [], going));
+  add(promptCase("hp-17: auto-pay with only Forests left uses them", hp17, payScav("{1}", lands.slice(0, 5)), [], going));
+  add(promptCase("hp-17: after its taps the pool covers it: confirmed by itself", hp17, { ...payScav("{4}{B}", lands), input: { ...payScav("{4}{B}", lands).input, canConfirmFromPool: true } }, [], going));
   add(promptCase("hp-17: a hybrid cost goes to Forge's auto-pay", hp17, payScav("{1}{W/B}", lands), [["__auto"]]));
   add(promptCase("hp-17: not enough plain sources: Forge's auto-pay", hp17, payScav("{4}{B}", [...lands.slice(0, 3), src(990, "B")]), [["__auto"]]));
   add(promptCase("hp-17: a source with a cost beyond {T} is left to Forge", hp17, payScav("{B}", [{ ...src(990, "B"), cost: "{T}, Pay 1 life" }]), [["__auto"]]));
+  // (suite review 2026-11-05: each rule of the plan, one case each)
+  add(promptCase("hp-17: an X cost goes to Forge's auto-pay", hp17, payScav("{X}{B}", lands), [["__auto"]]));
+  add(promptCase("hp-17: a Phyrexian cost goes to Forge's auto-pay", hp17, payScav("{1}{B/P}", lands), [["__auto"]]));
+  add(promptCase("hp-17: a source making two mana is left to Forge", hp17, payScav("{2}", [{ ...src(990, "C"), producedMana: [{ amount: 2, color: "C" }] }]), [["__auto"]]));
+  add(promptCase("hp-17: a payment naming no card goes to Forge's auto-pay", hp17, { ...payScav("{B}", lands), input: { ...payScav("{B}", lands).input, cardId: "" } }, [["__auto"]]));
+  // (the land beats a mana creature, the hand needing neither)
+  const elves = clone(hp17);
+  elves.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push({ id: "engine-card-991", identity: { name: "Llanowar Elves" }, types: ["Creature"], power: 1, toughness: 1, ownerId: "player-0", controllerId: "player-0", text: "" });
+  elves.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards = [];
+  add(promptCase("hp-17: a land is tapped before a mana creature", elves, payScav("{1}", [src(991, "G"), src(986, "W")]), [["__auto"]]));
+  // (a basic before a dual land, the hand needing neither colour: the dual is two actions of one colour each)
+  const savannah = [{ ...src(992, "G") }, { ...src(992, "W"), id: "tap:engine-card-992:1" }];
+  add(promptCase("hp-17: a basic is tapped before a dual land", elves, payScav("{1}", [...savannah, src(981, "G")]), [["__auto"]]));
+  // (the scarcest colour first: {W} only the dual makes, so the Forest pays {G})
+  add(promptCase("hp-17: the colour fewest sources make is planned first", elves, payScav("{G}{W}", [...savannah, src(981, "G")]), [["__auto"]]));
+  // (the pool's mana counts: {B} floating, so only the {1} is planned and the first source listed pays it; planning the
+  // full {1}{B} would tap the Swamp first)
+  const floatB = clone(hp17); floatB.gameView.players.find((p) => p.id === "player-0").manaPool = { ...floatB.gameView.players.find((p) => p.id === "player-0").manaPool, B: 1 };
+  add(promptCase("hp-17: mana floating is spent first", floatB, payScav("{1}{B}", [src(986, "W"), src(990, "B")]), [["__auto"]]));
+  // (the card being paid for is no card the hand still needs: its own {G}{G} doesn't keep the Forest)
+  const self = clone(elves); self.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards = [{ id: "engine-card-75", identity: { name: "Dreg Mangler" }, types: ["Creature"], manaCost: "{G}{G}", ownerId: "player-0", controllerId: "player-0", text: "" }];
+  add(promptCase("hp-17: the spell's own cost is not the hand's need", self, payScav("{1}", [src(981, "G"), src(986, "W")]), [["__auto"]]));
+  add(promptCase("hp-17: under way, the rest can't be planned: Forge's auto-pay", hp17, payScav("{B}", lands.slice(0, 5)), [], going));
+  add(promptCase("hp-17: under way, a tap sent already and offered again: Forge's auto-pay", hp17, payScav("{B}", lands), [], { seat: { smartPay: { card: "engine-card-75", sent: ["tap:engine-card-990:0"] } } }));
+  add(promptCase("hp-17: under way for another card: asked", hp17, payScav("{B}", lands), [], { seat: { smartPay: { card: "engine-card-64", sent: [] } } }));
+  // (round 2 of the 2026-11-05 break-it pass: each closes a mutant that escaped)
+  // hand need is per card: {G}{G} is one card needing green, as {W} is one needing white, so the first listed pays
+  const perCard = clone(elves); perCard.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards = [
+    { id: "engine-card-971", identity: { name: "Bear Umbra" }, types: ["Enchantment"], manaCost: "{G}{G}", ownerId: "player-0", controllerId: "player-0", text: "" },
+    { id: "engine-card-972", identity: { name: "Pacifism" }, types: ["Enchantment"], manaCost: "{W}", ownerId: "player-0", controllerId: "player-0", text: "" }];
+  add(promptCase("hp-17: the hand's need counts cards, not mana symbols", perCard, payScav("{1}", [src(981, "G"), src(986, "W")]), [["__auto"]]));
+  add(promptCase("hp-17: a {C} cost is planned from a colourless source", elves, payScav("{C}", [src(986, "W"), src(993, "C")]), [["__auto"]]));
+  const floatC = clone(hp17); floatC.gameView.players.find((p) => p.id === "player-0").manaPool = { ...floatC.gameView.players.find((p) => p.id === "player-0").manaPool, C: 1 };
+  add(promptCase("hp-17: under way with nothing left owed: no tap, Forge's auto-pay", floatC, payScav("{1}", lands), [], going));
+  // (life can pay part of it, so the pool isn't confirmed by itself; nor does our auto-pay tap on with the pool enough)
+  const floatB2 = clone(floatB);
+  add(promptCase("hp-17: under way, the pool covers it but life could pay: asked, nothing tapped", floatB2, { ...payScav("{1}{B/P}", [...lands, { id: "pay-life", type: "payLife", amount: 2 }]),
+    input: { ...payScav("{1}{B/P}", [...lands, { id: "pay-life", type: "payLife", amount: 2 }]).input, canConfirmFromPool: true, manaCost: "{B/P}" } }, [], going));
+  const twice = (name, steps) => add({ name, run: async (h) => {
+    const seat = game(h, hp17, going);
+    const out = [];
+    for (const p of steps) {
+      const mark = h.effects.length;
+      h.B.onPrompt(seat, p); await h.flush();
+      out.push({ sent: h.effects.slice(mark).filter((e) => e.relay).map((e) => e.relay.state?.action ?? e.relay), open: seat.prompt?.type ?? null });
+    }
+    return out;
+  } });
+  // (each tap sent is remembered, not only the first: the same tap offered twice goes to Forge the second time)
+  twice("hp-17: under way, a later tap offered again: Forge's auto-pay", [payScav("{B}", lands), payScav("{B}", lands)]);
+  // (another question between: the next payment for the same card is asked, not tapped; Mirri's second activation)
+  twice("hp-17: a question between forgets our auto-pay", [prompt("chooseBoolean", { presentation: { title: "Draw a card?" } }), payScav("{B}", lands)]);
+  // (paid: the same card's next payment is asked)
+  twice("hp-17: paid from the pool, the same card's next payment is asked", [{ ...payScav("{B}", lands), input: { ...payScav("{B}", lands).input, canConfirmFromPool: true } }, payScav("{B}", lands)]);
+  // (relations review 2026-11-05: a pain land's painful ability is the last to pay generic, whichever Forge lists first)
+  const wastesC = { id: "tap:engine-card-994:0", type: "activateManaAbility", cardId: "engine-card-994", cost: "{T}", isManaAbility: true, description: "{T}: Add {C}.", producedMana: [{ amount: 1, color: "C" }] };
+  const wastesG = { ...wastesC, id: "tap:engine-card-994:1:G", description: "{T}: Add {B} or {G}. Llanowar Wastes deals 1 damage to you.", producedMana: [{ amount: 1, color: "G" }] };
+  add(promptCase("hp-17: a pain land pays generic with its painless {C}, listed second", elves, payScav("{1}", [wastesG, wastesC]), [["__auto"]]));
+  add(promptCase("hp-17: a pain land pays {G} with its painful ability when that is the only {G}", elves, payScav("{G}", [wastesC, wastesG]), [["__auto"]]));
+  // (a rewind forgets it: the same card's payment asked again is asked, not tapped)
+  add({ name: "hp-17: a rewind forgets our auto-pay under way", run: async (h) => {
+    const seat = game(h, hp17, going);
+    const at = (turn) => { const b = clone(hp17); b.gameView.turn = turn; return b; };
+    seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: at(9) }); await h.flush();
+    seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: at(8) }); await h.flush();
+    const mark = h.effects.length;
+    h.B.onPrompt(seat, payScav("{B}", lands)); await h.flush();
+    return { smartPay: seat.smartPay ?? null, open: seat.prompt?.type ?? null, sent: h.effects.slice(mark).filter((e) => e.relay).map((e) => e.relay.state?.action ?? e.relay) };
+  } });
 }
 add(promptCase("pay: pool covers it after auto-pay -> confirms itself", myMain(D2.board), { ...payP, input: { ...payP.input, canConfirmFromPool: true } }, [], { seat: { autoPayCard: "engine-card-75" } }));
 add(promptCase("pay: pool covers it, no auto-pay -> asks", myMain(D2.board), { ...payP, input: { ...payP.input, canConfirmFromPool: true } }, [["__pool"]]));
@@ -342,6 +418,43 @@ add(promptCase("reorder words: triggers", D2.board, itemsP("Order triggered abil
   // hp-09: Ephemerate's return order read "Ephemerate: pick #1"
   add(promptCase("hp-09: an order of creatures coming back in words", D2.board, { ...prompt("reorder", { items: [{ id: "r1", card: H(43) }, { id: "r2", card: H(77) }], presentation: { title: "Ephemerate" } }),
     sourceAbilityText: "Exile target creature you control, then return it to the battlefield under its owner's control.", sourceCard: { ...H(35), identity: { name: "Ephemerate" } } }, [["r2"]]));
+  // (suite review 2026-11-05) graft's words by the card's type as the board has it, and at a sentence's start too
+  const root = myMain(D2.board);
+  root.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push({ id: "engine-card-967", identity: { name: "Spirit Loop" }, types: ["Enchantment"], ownerId: "player-0", controllerId: "player-0", text: "" });
+  add(promptCase("hp-18: an enchantment's question by its board types says this enchantment", root, prompt("chooseBoolean", { confirmLabel: "Yes", denyLabel: "No",
+    presentation: { title: "This creature deals 1 damage to you. Move a +1/+1 counter from this creature onto it?" } }, { sourceCard: { id: "engine-card-967", identity: { name: "Spirit Loop" } } }), [["no"]]));
+  // (an artifact land is said as a land; a source with no types known keeps Forge's words)
+  add(promptCase("hp-18: an artifact land says this land", myMain(D2.board), prompt("chooseBoolean", { confirmLabel: "Yes", denyLabel: "No",
+    presentation: { title: "Move a +1/+1 counter from this creature onto it?" } }, { sourceCard: { ...reborn, identity: { name: "Darksteel Citadel" }, types: ["Artifact", "Land"] } }), [["no"]]));
+  add(promptCase("hp-18: a source with no types keeps this creature", myMain(D2.board), prompt("chooseBoolean", { confirmLabel: "Yes", denyLabel: "No",
+    presentation: { title: "Move a +1/+1 counter from this creature onto it?" } }, { sourceCard: { id: "engine-card-959", identity: { name: "Graft" } } }), [["no"]]));
+  // (hp-09: "return" and "battlefield" in two sentences is no coming back)
+  add(promptCase("hp-09: return to the hand, then a sentence about the battlefield: goes", D2.board, { ...prompt("reorder", { items: [{ id: "r1", card: H(43) }, { id: "r2", card: H(77) }], presentation: { title: "Order" } }),
+    sourceAbilityText: "Return up to two target cards from your graveyard to your hand. Then put a creature card onto the battlefield.", sourceCard: { ...H(35), identity: { name: "Graverobber" } } }, [["__keep"]]));
+  // (relations review 2026-11-05: alike things with no power get numbers too; Forge's hidden view of a face-down card
+  // reads "Face-down creature", two of them numbered)
+  const alike = myMain(D2.board);
+  alike.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards.push(
+    { id: "engine-card-973", identity: { name: "Treasure", isToken: true }, types: ["Artifact"], ownerId: "player-1", controllerId: "player-1", text: "" },
+    { id: "engine-card-974", identity: { name: "Treasure", isToken: true }, types: ["Artifact"], ownerId: "player-1", controllerId: "player-1", text: "" },
+    { id: "engine-card-975", identity: { name: "Forest" }, types: ["Land"], ownerId: "player-1", controllerId: "player-1", text: "" },
+    { id: "engine-card-976", identity: { name: "Forest" }, types: ["Land"], ownerId: "player-1", controllerId: "player-1", text: "" },
+    { visibility: "hidden", id: "engine-card-977" }, { visibility: "hidden", id: "engine-card-978" });
+  add(promptCase("labels: alike Treasures, Forests and hidden face-down cards are numbered", alike, { ...prompt("chooseBoardTargets", { cancellable: true,
+    candidates: [973, 974, 975, 976, 977, 978].map((n) => ({ id: `engine-card-${n}`, kind: "card" })),
+    chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Destroy" } }),
+    sourceAbilityText: "Destroy target permanent.", sourceCard: { id: "engine-card-966", identity: { name: "Vindicate" } } }, [["card|engine-card-977"]]));
+  // (power 0 is a power: two 0/1 Plants get their numbers; a face-down card you may not see gets no "(face down)", and
+  // reads "Face-down creature", not its card id)
+  const plants = myMain(D2.board);
+  plants.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards.push(
+    { id: "engine-card-968", identity: { name: "Plant", isToken: true }, types: ["Creature"], power: 0, toughness: 1, ownerId: "player-1", controllerId: "player-1", text: "" },
+    { id: "engine-card-969", identity: { name: "Plant", isToken: true }, types: ["Creature"], power: 0, toughness: 1, ownerId: "player-1", controllerId: "player-1", text: "" },
+    { id: "engine-card-970", isFaceDown: true, types: ["Creature"], power: 2, toughness: 2, ownerId: "player-1", controllerId: "player-1", text: "" });
+  add(promptCase("hp-14/hp-06: 0-power tokens told apart; an unseen face-down card not called face down", plants, { ...prompt("chooseBoardTargets", { cancellable: true,
+    candidates: ["engine-card-968", "engine-card-969", "engine-card-970"].map((id) => ({ id, kind: "card" })),
+    chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Deal 1 damage" } }),
+    sourceAbilityText: "When this creature enters, it deals 1 damage to any target.", sourceCard: { id: "engine-card-966", identity: { name: "Orcish Bowmasters" } } }, [["card|engine-card-968"]]));
 }
 // (hp-14: two Coruscation Mages, a 2/2 and a 1/1, one trigger each: ordered by themselves, as Arena does)
 {
@@ -358,6 +471,12 @@ add(promptCase("reorder words: triggers", D2.board, itemsP("Order triggered abil
   const shock = "Whenever you cast a noncreature spell, this creature deals 1 damage to target opponent.";
   add(promptCase("reorder: identical triggers that target: still asked", D2.board, { ...prompt("reorder", { items: [
     { id: "r1", card: mage(43, "engine-card-301", 2), oracle: shock }, { id: "r2", card: mage(77, "engine-card-302", 1), oracle: shock }],
+    presentation: { title: "Order triggered abilities" } }) }, [["__keep"]]));
+  add(promptCase("reorder: two copies alike, but no trigger order: still asked", D2.board, { ...prompt("reorder", { items: [
+    { id: "r1", card: mage(43, "engine-card-301", 2), oracle: ping }, { id: "r2", card: mage(77, "engine-card-302", 1), oracle: ping }],
+    presentation: { title: "Put these in order" } }) }, [["__keep"]]));
+  add(promptCase("reorder: two cards' triggers with the same words: still asked", D2.board, { ...prompt("reorder", { items: [
+    { id: "r1", card: mage(43, "engine-card-301", 2), oracle: ping }, { id: "r2", card: { ...mage(77, "engine-card-302", 1), identity: { name: "Kessig Flamebreather" }, name: "Kessig Flamebreather" }, oracle: ping }],
     presentation: { title: "Order triggered abilities" } }) }, [["__keep"]]));
   add(promptCase("reorder: same card, different triggers: still asked", D2.board, { ...prompt("reorder", { items: [
     { id: "r1", card: mage(43, "engine-card-301", 2), oracle: ping }, { id: "r2", card: mage(77, "engine-card-302", 1), oracle: "When this creature enters, draw a card." }],
@@ -1637,6 +1756,132 @@ add({ name: "table: a copy of a card is marked cp", run: async (h) => {
   const of = (id) => (sent.match(new RegExp('"id":"' + id + '"[^}]*}')) || ["not sent"])[0];
   return { copy: of("engine-card-22"), other: of("engine-card-64") };
 } });
+// ── Friendly mulligans (SPEC "Friendly mulligans by vote") ──
+add({ name: "friendly: the vote's result", run: async (h) => {
+  const n = (v, who = ["White", "Blue"]) => h.B._friendlyCount(v, who);
+  const four = ["White", "Red", "Yellow", "Blue"];
+  return { noVotes: n(null), empty: n({}), emptyList: n([]), both1: n({ White: 1, Blue: 1 }), both2: n({ White: 2, Blue: 2 }), tieGoesLower: n({ White: 1, Blue: 2 }),
+    oneMissing: n({ White: 2 }), outOfRange: n({ White: 3, Blue: 3 }), text: n({ White: "1", Blue: "1" }), yes: n({ White: true, Blue: true }), stranger: n({ Red: 2 }),
+    mostWins: n({ White: 1, Red: 2, Yellow: 2, Blue: 0 }, four), fourTie: n({ White: 1, Red: 1, Yellow: 2, Blue: 2 }, four), noneBeats: n({ White: 0, Red: 0, Yellow: 2, Blue: 1 }, four) };
+} });
+{
+  // every mulligan question in turn: what the player saw, what went to the engine, what the table was told
+  const askAll = async (h, seat, steps) => {
+    const seen = [];
+    let id = 950;
+    for (const [count, answer] of steps) {
+      id++;
+      h.B.onPrompt(seat, { ...prompt("mulligan", { mulliganCount: count }), promptId: id }); await h.flush();
+      const ui = h.effects.filter((e) => e.tts?.t === "prompt" && e.tts.promptId === id).at(-1)?.tts;
+      const mark = h.effects.length;
+      h.B.onAnswer(seat.color, id, [answer]); await h.flush();
+      const after = h.effects.slice(mark);
+      seen.push({ count, answer, button: ui?.options?.find((o) => o.id === "mull")?.label, text: ui?.text ?? null,
+        sent: JSON.stringify(after.filter((e) => e.relay)).match(/"output":\{[^}]*\}/)?.[0] ?? null,
+        said: after.filter((e) => e.tts?.t === "chat").map((e) => e.tts.text || e.tts.msg), log: after.filter((e) => e.tts?.t === "gamelog").flatMap((e) => e.tts.lines) });
+    }
+    return seen;
+  };
+  add({ name: "friendly: 2 players, 1 free", run: async (h) => {
+    const seat = game(h, D2.board, { game: { friendly: 1 } });
+    return askAll(h, seat, [[0, "mull"], [1, "mull"], [2, "keep"]]);
+  } });
+  add({ name: "friendly: 2 players, 2 free, the second is the last", run: async (h) => {
+    const seat = game(h, D2.board, { game: { friendly: 2 } });
+    return askAll(h, seat, [[0, "mull"], [1, "mull"], [2, "keep"]]);
+  } });
+  add({ name: "friendly: 4 players, 1 free comes after the rules' free one", run: async (h) => {
+    const seat = game(h, D2.board, { game: { friendly: 1, total: 4 } });
+    return askAll(h, seat, [[0, "mull"], [0, "mull"], [1, "mull"], [2, "keep"]]);
+  } });
+  add({ name: "friendly: 3 players have the rules' free one too", run: async (h) => {
+    const seat = game(h, D2.board, { game: { friendly: 1, total: 3 } });
+    return askAll(h, seat, [[0, "mull"], [0, "mull"], [1, "keep"]]);
+  } });
+  add({ name: "friendly: the snapshot says the line was said", run: async (h) => {
+    const seat = game(h, D2.board, { game: { friendly: 1, friendlyOver: true } });
+    await askAll(h, seat, [[0, "mull"]]);
+    return h.effects.filter((e) => e.writeFile).map((e) => e.bytes);
+  } });
+  add({ name: "friendly: none voted, the question is as it always was", run: async (h) => {
+    const two = await askAll(h, game(h, D2.board, { game: { friendly: 0 } }), [[0, "mull"], [1, "mull"], [2, "keep"]]);
+    const four = await askAll(h, game(h, D2.board, { game: { total: 4 } }), [[0, "mull"], [0, "keep"]]);
+    return { two, four };
+  } });
+  add({ name: "friendly: counted per player", run: async (h) => {
+    const seat = game(h, D2.board, { game: { friendly: 1 } });
+    const other = new h.B.Seat("White", "neheb_minotaur_commander");
+    other.slot = "player-1";
+    other.board = { state: clone(D2.board), fingerprint: null };
+    h.B._getGame().seats.set("White", other);
+    await askAll(h, seat, [[0, "mull"]]);
+    return askAll(h, other, [[0, "keep"]]);
+  } });
+  add({ name: "friendly: a timer's automatic answer carries the free cards", run: async (h) => {
+    const seat = game(h, D2.board, { game: { friendly: 2, timer: { on: true, seconds: 90 } } });
+    h.B.onPrompt(seat, { ...prompt("mulligan", { mulliganCount: 1 }), promptId: 960 }); await h.flush();
+    h.B._timerExpired(seat, 960); await h.flush();
+    h.B._stopTimer(seat, true);
+    return { sent: JSON.stringify(h.effects.filter((e) => e.relay)).match(/"output":\{[^}]*\}/)?.[0] ?? null };
+  } });
+  add({ name: "friendly: a bridge restart between mulligans keeps the vote and the count", run: async (h) => {
+    const file = process.env.MTG_RESUME_FILE;
+    const seat = game(h, D2.board, { game: { friendly: 2, roomId: "r1", deckNames: new Set(), total: 2 } });
+    await askAll(h, seat, [[0, "mull"]]);
+    const saved = h.effects.filter((e) => e.writeFile).length;
+    return { saved, count: seat.mullsTaken, resumed: await (async () => {
+      const fsp = require("fs").promises;
+      await fsp.writeFile(file, JSON.stringify({ savedAt: Date.now() - 3000, game: { bots: 1, total: 2, friendly: 2, friendlyOver: true, playerOrder: [], slotNames: {}, slotColor: {}, fromTable: true, deckNames: [] },
+        seats: [{ color: "Blue", deckId: "neheb_minotaur_commander", username: "tts-Blue-abcd", slot: "player-0", roomId: "r1", mullsTaken: 1 }] }));
+      h.B._setGame(null);
+      const ok = h.B.resumeGame();
+      const g = h.B._getGame();
+      const st = g.seats.get("Blue");
+      st.board = { state: clone(D2.board), fingerprint: null };
+      const again = await askAll(h, st, [[1, "keep"]]);
+      await fsp.unlink(file).catch(() => {});
+      return { ok, friendly: g.friendly, over: g.friendlyOver, taken: st.mullsTaken, again };
+    })() };
+  } });
+  add({ name: "friendly: Start reads the votes and the game says so", run: async (h) => {
+    const start = (m) => h.B.onTTS({ t: "start", seats: ["White", "Blue"], bots: 0, ...m });
+    start({ friendlyVotes: { White: 2, Blue: 2, Red: 1 } }); await h.flush();
+    const g = h.B._getGame();
+    const seat = g.seats.get("Blue"), other = g.seats.get("White");
+    const mark = h.effects.length;
+    seat.onRelay({ type: "GameStarted", player_order: [other.username, seat.username], game_id: "g1", starting_life: 40 });
+    await h.flush();
+    return { friendly: g.friendly, said: h.effects.slice(mark).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text || e.tts.msg).filter((t) => /friendly/i.test(t)),
+      log: h.effects.slice(mark).filter((e) => e.tts?.t === "gamelog").flatMap((e) => e.tts.lines) };
+  } });
+  add({ name: "friendly: a vote for none says nothing at the start", run: async (h) => {
+    h.B.onTTS({ t: "start", seats: ["White", "Blue"], bots: 0, friendlyVotes: { White: 2 } }); await h.flush();
+    const g = h.B._getGame();
+    const seat = g.seats.get("Blue"), other = g.seats.get("White");
+    const mark = h.effects.length;
+    seat.onRelay({ type: "GameStarted", player_order: [other.username, seat.username], game_id: "g1", starting_life: 40 });
+    await h.flush();
+    return { friendly: g.friendly, said: h.effects.slice(mark).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text || e.tts.msg).filter((t) => /friendly/i.test(t)) };
+  } });
+  add({ name: "friendly: Start with a game running changes no vote", run: async (h) => {
+    const seat = game(h, D2.board, { game: { friendly: 1 }, seat: { roomId: "r1" } });
+    h.B.onTTS({ t: "start", seats: ["Blue"], bots: 1, autoReset: true, friendlyVotes: { Blue: 2 } }); await h.flush();
+    return { friendly: h.B._getGame().friendly, same: h.B._getGame().seats.get("Blue") === seat };
+  } });
+  add({ name: "friendly: the first turn ends them, said once", run: async (h) => {
+    const board = (turn) => { const b = clone(D2.board); b.gameView.turn = turn; return b; };
+    const seat = game(h, board(0), { game: { friendly: 1 } });
+    const lines = () => h.effects.filter((e) => e.tts?.t === "gamelog").flatMap((e) => e.tts.lines).filter((l) => /Friendly/.test(l));
+    const at = async (turn) => { seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: board(turn), fingerprint: `f${turn}` }); await h.flush(); return lines().length; };
+    return { mulligans: await at(0), first: await at(1), second: await at(2), lines: lines() };
+  } });
+  add({ name: "friendly: no vote, no line on the first turn", run: async (h) => {
+    const b = clone(D2.board); b.gameView.turn = 1;
+    const seat = game(h, D2.board, { game: { friendly: 0 } });
+    seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: b, fingerprint: "f1" }); await h.flush();
+    return h.effects.filter((e) => e.tts?.t === "gamelog").flatMap((e) => e.tts.lines).filter((l) => /Friendly/.test(l));
+  } });
+}
 // 2026-10-31: Saw in Half's tokens of a 2/2 are 1/1 with a base of 1/1: bp/bt carry the printed numbers, so the table's
 // badge shows. Without printed numbers (a real token, a printed *) the base is used, as before
 add({ name: "table: bp/bt are the printed numbers", run: async (h) => {
@@ -6188,6 +6433,537 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
   add(intentCase("sweep: a cleave cast is asked beside the plain one", f, prompt("chooseAction", { actions: [
     { id: "a-n", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur", mode: { type: "normal" } },
     { id: "a-cl", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur (Cleave)", mode: { type: "normal" } }] }), [{ kind: "play", id: "engine-card-75" }]));
+}
+
+// Review 2026-11-05 (docs/core-moves-cleanup-plan.md): a timeout or Cancel on a sub-question under priority (A "how do
+// you play it?", B "cast it now?", C "which ability?", D "which mana?") goes back to priority and puts the card back
+// (refused); the timer then passes. Before: A cast the first way, B cast Necromancy, C used the first ability, D tapped
+// the first colour, and Cancel on C/D sent no refused. Also the extra-turn header read from Forge's isExtraTurn.
+{
+  const subActs = [
+    { id: "a-cast1", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur", mode: { type: "normal" } },
+    { id: "a-cast2", type: "cast", cardId: "engine-card-75", label: "Cast Hurloon Minotaur (WebSlinging)", mode: { type: "alternative", cost: "webSlinging" } },
+    { id: "tap:engine-card-35:0", type: "activateAbility", cardId: "engine-card-35", isManaAbility: true, description: "Add {G}", producedMana: [{ amount: 1, color: "G" }] },
+    { id: "tap:engine-card-35:1", type: "activateAbility", cardId: "engine-card-35", isManaAbility: true, description: "Add {B}", producedMana: [{ amount: 1, color: "B" }] },
+    { id: "ab-fetch1", type: "activateAbility", cardId: "engine-card-64", description: "{T}, Pay 1 life, Sacrifice: Search for a Swamp or Forest card." },
+    { id: "ab-fetch3", type: "activateAbility", cardId: "engine-card-64", cost: "{T}", description: "Exile target card from a graveyard." },
+    { id: "a-necro", type: "cast", cardId: "engine-card-43", label: "Cast Necromancy", mode: { type: "normal" } },
+  ];
+  // (Necromancy outside a sorcery's time: our main phase with an opponent's Shock on the stack)
+  const necroBoard = () => {
+    const b = myMain(D2.board);
+    b.gameView.stack = [{ id: "s1", controllerId: "player-1", identity: { name: "Shock" } }];
+    for (const z of b.gameView.zones) for (const c of z.cards || []) if (c.id === "engine-card-43") {
+      c.identity.name = "Necromancy"; c.types = ["Enchantment"];
+      c.text = "You may cast Necromancy as though it had flash. If you cast it any time a sorcery couldn't have been cast, the controller of the permanent it becomes sacrifices it at the beginning of the next cleanup step.";
+    }
+    return b;
+  };
+  const responses = (h) => h.effects.map((e) => e.relay).filter((r) => r && r.state?.kind === "response").map((r) => r.state.action);
+  const sub = (name, board, gesture, finish) => add({ name: `review askUnder: ${name}`, run: async (h) => {
+    const seat = game(h, board);
+    h.B.onPrompt(seat, prompt("chooseAction", { actions: subActs })); await h.flush();
+    h.B.onTTS({ t: "intent", json: JSON.stringify({ color: "Blue", ...gesture }) }); await h.flush();
+    const asked = seat.prompt?.ui?.title ?? null, onTimeout = seat.prompt?.ui?.onTimeout ?? null;
+    const n0 = h.effects.length;
+    if (finish === "timeout") { h.B._getGame().timer = { on: true, seconds: 90 }; h.B._timerExpired(seat, seat.prompt.promptId); }
+    else h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: seat.prompt.promptId, choice: [finish] }) });
+    await h.flush();
+    h.B._stopTimer(seat, true);
+    return { asked, onTimeout, responses: responses(h), refused: h.effects.slice(n0).filter((e) => e.tts?.t === "refused").map((e) => e.tts.id),
+      openAfter: seat.prompt?.ui?.title ?? null };
+  } });
+  sub("A timeout passes, the card goes back", myMain(D2.board), { kind: "play", id: "engine-card-75" }, "timeout");
+  sub("B timeout passes, Necromancy is not cast", necroBoard(), { kind: "play", id: "engine-card-43" }, "timeout");
+  sub("C timeout passes, no ability used", myMain(D2.board), { kind: "tapmana", id: "engine-card-64" }, "timeout");
+  // (C and D's Cancel is an option of its own since 2026-11-06, id "__back": it was the panel's Cancel, "__cancel")
+  sub("C Cancel puts the card back", myMain(D2.board), { kind: "tapmana", id: "engine-card-64" }, "__back");
+  sub("D timeout passes, nothing tapped", myMain(D2.board), { kind: "tapmana", id: "engine-card-35" }, "timeout");
+  sub("D Cancel puts the land back", myMain(D2.board), { kind: "tapmana", id: "engine-card-35" }, "__back");
+  add({ name: "review askUnder: timeoutChoice takes a question's onTimeout, then Back", run: async (h) => {
+    game(h, myMain(D2.board));
+    const c = h.B._timeoutChoice;
+    return [c({ mode: "single", onTimeout: "__cancel", options: [{ id: "a1" }, { id: "__cancel" }] }),
+      c({ mode: "single", options: [{ id: "a1" }, { id: "a2" }, { id: "__back" }] }), c({ mode: "single", options: [{ id: "__pass" }, { id: "__back" }] })];
+  } });
+  // (Time Warp cast on the AI in Blue's turn 5: turn 6 is the AI's extra turn, 7 its normal one; the turn owners guess
+  // had them the other way round)
+  add({ name: "review trackMarks: the extra-turn header is Forge's isExtraTurn", run: async (h) => {
+    const owners = { 1: "player-0", 2: "player-1", 3: "player-0", 4: "player-1", 5: "player-0", 6: "player-1", 7: "player-1" };
+    game(h, D2.board, { game: { turnOwners: owners, turnsTaken: { "player-0": 3, "player-1": 4 } } });
+    const gvAt = (turn, active, extra) => {
+      const g = clone(D2.board.gameView);
+      g.turn = turn; g.activePlayerId = active; g.step = "upkeep"; g.stack = [];
+      for (const p of g.players) { if (extra === undefined) delete p.isExtraTurn; else p.isExtraTurn = p.id === active && extra; }
+      return g;
+    };
+    const header = (a, b) => h.B.logEvents(h.B.logSnapshot(a), h.B.logSnapshot(b), b).filter((l) => l.startsWith("---"));
+    return { turn6: header(gvAt(5, "player-0", false), gvAt(6, "player-1", true)), turn7: header(gvAt(6, "player-1", true), gvAt(7, "player-1", false)),
+      noFieldGuess: header(gvAt(6, "player-1"), gvAt(7, "player-1")) };
+  } });
+
+  // askUnder photographs (2026-11-06, docs/core-moves-cleanup-plan.md "1. askUnder" step 1): moves made one after
+  // another on one priority question (#900). After each: what the engine got (with the prompt id), which cards were put
+  // back, every question sent to the panel (its id, step, title, options, Cancel flag) and what is open after.
+  const view = (ui, promptId) => ({ promptId: promptId ?? null, title: ui?.title ?? null, options: (ui?.options || []).map((o) => String(o.id)), cancel: !!ui?.cancel });
+  const moves = (name, board, list) => add({ name: `askUnder: ${name}`, run: async (h) => {
+    const seat = game(h, board);
+    h.B.onPrompt(seat, prompt("chooseAction", { actions: subActs })); await h.flush();
+    const out = [];
+    for (const mv of list) {
+      const n0 = h.effects.length;
+      if (mv === "timeout") { h.B._getGame().timer = { on: true, seconds: 90 }; h.B._timerExpired(seat, seat.prompt.promptId); }
+      else if (mv.prompt) {
+        // (endTurn: "End turn" holds, so the bridge passes the new question itself; promptKind: Forge's "priority" kind)
+        if (mv.endTurn) seat.endTurnAt = seat.board.state.gameView.turn;
+        h.B.onPrompt(seat, prompt("chooseAction", { actions: subActs }, { promptId: mv.prompt, ...(mv.promptKind ? { kind: mv.promptKind } : {}) }));
+      }
+      else if (mv.tts) h.B.onTTS({ t: mv.tts, json: JSON.stringify({ color: "Blue", ...mv.body }) });
+      // (a board from the engine at that turn: one turn lower than the board before is a rewind, checkRestored)
+      else if (mv.boardTurn != null) {
+        const b = clone(seat.board.state); b.gameView.turn = mv.boardTurn;
+        seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: b });
+      }
+      else if (mv.answerTo) h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: mv.answerTo, choice: [mv.choice] }) });
+      else if (mv.answer) h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: seat.prompt?.promptId ?? 900, choice: [mv.answer] }) });
+      else h.B.onTTS({ t: "intent", json: JSON.stringify({ color: "Blue", ...mv }) });
+      await h.flush();
+      const fx = h.effects.slice(n0);
+      out.push({ move: mv,
+        responses: fx.map((e) => e.relay?.state).filter((s) => s?.kind === "response").map((s) => ({ promptId: s.promptId, action: s.action })),
+        refused: fx.filter((e) => e.tts?.t === "refused").map((e) => e.tts.id),
+        shown: fx.filter((e) => e.tts?.t === "prompt").map((e) => ({ ...view(e.tts, e.tts.promptId), step: e.tts.step ?? null })),
+        open: seat.prompt ? view(seat.prompt.ui, seat.prompt.promptId) : null });
+    }
+    h.B._stopTimer(seat, true);
+    return out;
+  } });
+  const play = (id) => ({ kind: "play", id }), tap = (id) => ({ kind: "tapmana", id }), pick = (answer) => ({ answer });
+  // the way back from each sub-question, then the priority question's own answer
+  moves("A Back, then Pass", myMain(D2.board), [play("engine-card-75"), pick("__back"), pick("__pass")]);
+  moves("B Wait, then Pass", necroBoard(), [play("engine-card-43"), pick("__back"), pick("__pass")]);
+  moves("C Cancel, then Pass", myMain(D2.board), [tap("engine-card-64"), pick("__back"), pick("__pass")]);
+  moves("D Cancel, then Pass", myMain(D2.board), [tap("engine-card-35"), pick("__back"), pick("__pass")]);
+  moves("E (Mana: tap X) timeout", myMain(D2.board), [pick("__mana:engine-card-35"), "timeout"]);
+  moves("E (Mana: tap X) a colour", myMain(D2.board), [pick("__mana:engine-card-35"), pick("tap:engine-card-35:1")]);
+  moves("E (Mana: tap X) Back, then Pass", myMain(D2.board), [pick("__mana:engine-card-35"), pick("__back"), pick("__pass")]);
+  // the engine asks a new question while a sub-question is open (a reconnect asks again)
+  moves("A open, the engine asks again", myMain(D2.board), [play("engine-card-75"), { prompt: 901 }]);
+  moves("C open, the engine asks again", myMain(D2.board), [tap("engine-card-64"), { prompt: 901 }]);
+  moves("E open, the engine asks again", myMain(D2.board), [pick("__mana:engine-card-35"), { prompt: 901 }]);
+  // (jr suite 2026-11-06) the engine asking the SAME question again (#900, a relay reconnect re-sends what is pending):
+  // the sub-question is closed too, its card goes back, and the priority question is asked afresh
+  moves("A open, the engine asks #900 again", myMain(D2.board), [play("engine-card-75"), { prompt: 900 }, pick("__pass")]);
+  // (round 4, 2026-11-06) a re-send keeps the open question's step (showPrompt): an answer that isn't an option, and
+  // a reloaded table (hello, resendToTable), re-send the sub-question with its own step, not as the question under it;
+  // then Back and Pass still work. Before, both re-sends had no step.
+  moves("A open, a wrong answer and a reloaded table re-send it with its step", myMain(D2.board),
+    [play("engine-card-75"), pick("not-an-option"), { tts: "hello", body: { again: true } }, pick("__back"), pick("__pass")]);
+  // (two questions the bridge answers itself, "End turn" holding, leave seat.prompt as it was: the card goes back once)
+  add({ name: "askUnder: A open, two questions passed by End turn: the card goes back once", run: async (h) => {
+    const seat = game(h, myMain(D2.board));
+    h.B.onPrompt(seat, prompt("chooseAction", { actions: subActs })); await h.flush();
+    h.B.onTTS({ t: "intent", json: JSON.stringify({ color: "Blue", kind: "play", id: "engine-card-75" }) }); await h.flush();
+    seat.endTurnAt = seat.board.state.gameView.turn;
+    const n0 = h.effects.length;
+    h.B.onPrompt(seat, prompt("chooseAction", { actions: subActs }, { promptId: 901 })); await h.flush();
+    h.B.onPrompt(seat, prompt("chooseAction", { actions: subActs }, { promptId: 902 })); await h.flush();
+    h.B._stopTimer(seat, true);
+    return { refused: h.effects.slice(n0).filter((e) => e.tts?.t === "refused").map((e) => e.tts.id),
+      responses: h.effects.slice(n0).map((e) => e.relay?.state).filter((s) => s?.kind === "response").map((s) => s.promptId),
+      under: seat.prompt?.under ?? null };
+  } });
+  // a second gesture while a sub-question is open (review 2026-11-05, "Missed")
+  moves("A open, a second card dragged", myMain(D2.board), [play("engine-card-75"), play("engine-card-43")]);
+  moves("A open, Q/E, Cancel, then Back", myMain(D2.board), [play("engine-card-75"), tap("engine-card-35"), pick("__back"), pick("__back")]);
+  moves("A open, Q/E, then a timeout", myMain(D2.board), [play("engine-card-75"), tap("engine-card-35"), "timeout"]);
+  moves("C open, a two-way card dragged", myMain(D2.board), [tap("engine-card-64"), play("engine-card-75")]);
+  moves("E open, a card dragged", myMain(D2.board), [pick("__mana:engine-card-35"), play("engine-card-43")]);
+  moves("E open, Q/E on a two-colour land", myMain(D2.board), [pick("__mana:engine-card-35"), tap("engine-card-35")]);
+  // (review 2026-11-06) the refuse rule covers every gesture kind: a sacrifice drag (the fetch land's ability sacrifices
+  // it) and an equipment drag
+  moves("A open, a sacrifice drag", myMain(D2.board), [play("engine-card-75"), { kind: "sacrifice", id: "engine-card-64" }]);
+  moves("A open, an attach drag", myMain(D2.board), [play("engine-card-75"), { kind: "attach", id: "engine-card-22", to: "engine-card-65" }]);
+  // a sub-question closed by anything but its own answer gives its card back and leaves the panel: the engine asking
+  // again with Forge's "priority" kind; End turn passing the new question (a late Back and Pass on #900 then do nothing);
+  // mtg skip; auto-resolve on someone else's turn
+  moves("A open, a priority-kind question", myMain(D2.board), [play("engine-card-75"), { prompt: 901, promptKind: "priority" }]);
+  moves("A open, End turn passes #901, then Back and Pass on #900", myMain(D2.board),
+    [play("engine-card-75"), { prompt: 901, endTurn: true }, { answerTo: 900, choice: "__back" }, { answerTo: 900, choice: "__pass" }]);
+  moves("A open, mtg skip end", myMain(D2.board), [play("engine-card-75"), { tts: "skipto", body: { phase: "end" } }]);
+  {
+    const theirs = myMain(D2.board);
+    theirs.gameView.activePlayerId = "player-1";
+    theirs.gameView.stack = [{ id: "s1", controllerId: "player-1", identity: { name: "Shock" } }]; // (a stop: their spell)
+    moves("A open on their turn, auto-resolve on", theirs, [play("engine-card-75"), { tts: "autoresolve", body: { on: true } }]);
+  }
+  // (jr suite 2026-11-06) a rewind while a sub-question is open: the card goes back and the question leaves the panel
+  // (checkRestored's close; a board, not a new question, so onPrompt's close does not run). The board at turn 11 first
+  // only records the turn; turn 10 then is the rewind. C (Q/E) too: its card was turned at the key press
+  moves("A open, the game is rewound", myMain(D2.board), [{ boardTurn: 11 }, play("engine-card-75"), { boardTurn: 10 }, pick("__back")]);
+  moves("C open, the game is rewound", myMain(D2.board), [{ boardTurn: 11 }, tap("engine-card-64"), { boardTurn: 10 }]);
+  // (a board that goes forward is no rewind: the sub-question stays open, its card stays out)
+  moves("A open, a board one turn later", myMain(D2.board), [{ boardTurn: 11 }, play("engine-card-75"), { boardTurn: 12 }]);
+}
+
+// Bridge batch 2026-11-05 (night)
+{
+  const moved = (board, id, to) => {
+    const b = clone(board);
+    let c = null;
+    for (const z of b.gameView.zones) { const i = (z.cards || []).findIndex((x) => x.id === id); if (i >= 0) c = z.cards.splice(i, 1)[0]; }
+    if (c) b.gameView.zones.find((z) => z.zone === to && z.ownerId === "player-0").cards.push(c);
+    return b;
+  };
+  // (each prompt's engine time and message-building time go in the bridge log: tmp/slow-tail/logs.md)
+  add({ name: "bridge log: a prompt says the engine's own time and its emit time", run: async (h) => {
+    const seat = game(h, myMain(D2.board));
+    seat.onEnvelope({ kind: "prompt", forPlayer: "player-0", engineMs: 37, emitMs: 2, prompt: prompt("chooseAction", { actions: acts }) }); await h.flush();
+    seat.onEnvelope({ kind: "prompt", forPlayer: "player-0", prompt: { ...prompt("chooseAction", { actions: acts }), promptId: 901 } }); await h.flush();
+    h.B._stopTimer(seat, true);
+    return h.effects.filter((e) => /prompt #/.test(e.log || "")).map((e) => e.log);
+  } });
+  // (M5 effects, docs/m5-effects-design.md section 5: the board after a resend is a jump, the table plays no effects
+  // for it; the flag goes with that one board only, and a board skipped as identical keeps it for the next)
+  add({ name: "effects jump: the board after a resend says jump, the next one not", run: async (h) => {
+    const seat = game(h, D2.board);
+    const jumps = () => h.effects.filter((e) => e.tts?.t === "table").map((e) => e.tts.jump ?? false);
+    h.B.sendTable(); await h.flush();
+    h.B.onTTS({ t: "hello", json: JSON.stringify({ t: "hello", again: true }) }); await h.flush();
+    const b = moved(D2.board, "engine-card-75", "battlefield");
+    seat.board = { state: b, fingerprint: null }; h.B.sendTable(); await h.flush();
+    const afterResend = jumps();
+    // (a board skipped as the same as the last: the flag waits for the next one that goes out)
+    h.B._getGame().fxJump = true;
+    h.B.sendTable(); await h.flush();
+    const skipped = jumps().length === afterResend.length;
+    seat.board = { state: moved(b, "engine-card-43", "battlefield"), fingerprint: null }; h.B.sendTable(); await h.flush();
+    return { afterResend, skipped, all: jumps() };
+  } });
+  // (message size, tmp/json-decode/impact.md: a library search of more cards than the table's row holds sends each
+  // picture once, in `cards`; seven or fewer keep theirs, the row shows them)
+  const libCards = (n) => Array.from({ length: n }, (_, i) => ({ id: `engine-card-${7001 + i}`, identity: { name: `Library Card ${i + 1}` },
+    types: ["Creature"], ownerId: "player-0", controllerId: "player-0", zone: "library", text: "" }));
+  for (const n of [8, 7]) {
+    add({ name: `message size: a library search of ${n} cards, pictures in options ${n > 7 ? "left out" : "kept"}`, run: async (h) => {
+      const seat = game(h, myMain(D2.board));
+      for (const c of libCards(n)) h.B.imgOf(c); // (the pictures known, as for a deck on the table)
+      await h.flush();
+      h.B.onPrompt(seat, prompt("chooseCards", { min: 0, max: 1, cards: libCards(n), presentation: { title: "Search your library for a creature card" } },
+        { sourceCard: { id: "engine-card-9100", identity: { name: "Worldly Tutor" } } })); await h.flush();
+      const sent = h.effects.filter((e) => e.tts?.t === "prompt" && e.tts.librarySearch).pop()?.tts;
+      return { optionPictures: (sent?.options || []).filter((o) => o.img).length, labels: (sent?.options || []).map((o) => o.label),
+        cardPictures: Object.values(sent?.cards || {}).filter((c) => c.f).length, slim: (sent?.librarySearch || []).length };
+    } });
+  }
+  // (the restore points, sent in a board only when they changed, for a table whose hello says keepRewind; a resend and
+  // an older table get them in full)
+  add({ name: "message size: unchanged restore points are left out, keepRewind, for a table that says so", run: async (h) => {
+    const cp = (id, step) => ({ checkpointId: id, step, turn: 11 });
+    const at = (points) => { const b = myMain(D2.board); b.gameView.checkpoints = points; return b; };
+    const seat = game(h, at([cp(5, "main1")]));
+    const boards = () => h.effects.filter((e) => e.tts?.t === "table").map((e) => ({ rewind: e.tts.rewind ? e.tts.rewind.points.map((p) => p.id) : "absent", keep: e.tts.keepRewind ?? false }));
+    const send = async (b) => { seat.board = { state: b, fingerprint: null }; h.B.sendTable(); await h.flush(); };
+    h.B.onTTS({ t: "hello", json: JSON.stringify({ t: "hello", stamp: "x", keepRewind: true }) }); await h.flush();
+    await send(at([cp(5, "main1")]));
+    await send(moved(at([cp(5, "main1")]), "engine-card-75", "battlefield"));
+    await send(moved(at([cp(6, "main2"), cp(5, "main1")]), "engine-card-75", "battlefield"));
+    await send(moved(moved(at([cp(6, "main2"), cp(5, "main1")]), "engine-card-75", "battlefield"), "engine-card-43", "battlefield"));
+    const told = boards();
+    h.B.onTTS({ t: "hello", json: JSON.stringify({ t: "hello", stamp: "x" }) }); await h.flush();
+    await send(moved(at([cp(6, "main2"), cp(5, "main1")]), "engine-card-43", "battlefield"));
+    await send(moved(moved(at([cp(6, "main2"), cp(5, "main1")]), "engine-card-43", "battlefield"), "engine-card-35", "battlefield"));
+    return { told, olderTable: boards().slice(told.length) };
+  } });
+  // Fix from hand (docs/m7-manual-fix-spec.md §12; tmp/fix-from-hand-table.md, tmp/fix-from-hand-protocol.md): the kind
+  // picked on the table, Done with free plays and a note, the ops sent with slots, the lines voted on, a free play's
+  // question while applying, and what the engine dropped
+  {
+    const wait = async (h, ms) => { setTimeout(() => {}, ms); await h.flush(); };
+    const handOps = [
+      { op: "move", card: "engine-card-43", zone: "graveyard" },
+      { op: "freeLand", card: "engine-card-74", player: "Blue" },
+      { op: "freeActivate", card: "engine-card-22", player: "Blue" },
+      { op: "freeCast", card: "engine-card-75", player: "Blue" },
+    ];
+    const pausedFix = async (h) => {
+      const seat = game(h, withFix(null));
+      const send = async (m, note) => { h.effects.push({ step: note }); h.B.onTTS(m); await h.flush(); };
+      await send(fixMsg("Blue", "call"), "call");
+      h.B.onPrompt(seat, prompt("chooseAction", { actions: [] })); await h.flush();
+      return { seat, send, g: h.B._getGame() };
+    };
+    const tableFix = (h) => h.effects.filter((e) => e.tts?.t === "table" && e.tts.fix).map((e) => ({ state: e.tts.fix.state, kind: e.tts.fix.kind ?? null }));
+    add({ name: "fix from hand: kind, free plays and a note, applied, a dropped play said", run: async (h) => {
+      const { seat, send, g } = await pausedFix(h);
+      await send(fixMsg("Blue", "kind", { kind: "hand" }), "kind: hand");
+      await send(fixMsg("Blue", "kind", { kind: "board" }), "a second, different kind");
+      await send(fixMsg("Blue", "done", { kind: "hand", ops: handOps, notes: [{ color: "Blue", text: "  Teferi's Protection should have resolved first  " }, { color: "Nobody", text: "x" }, { color: "Blue", text: "   " }] }), "done");
+      const directive = h.effects.filter((e) => e.relay?.state?.directive?.type === "applyState").map((e) => e.relay.state.directive);
+      const lines = g.fix?.lines;
+      // (a free play's target question while applying goes to the player as usual)
+      h.B.onPrompt(seat, { ...prompt("chooseBoardTargets", { min: 1, max: 1, candidates: [{ kind: "card", id: "engine-card-192" }], presentation: { title: "Choose target creature" } }), promptId: 950 }); await h.flush();
+      const asked = seat.prompt?.ui?.title ?? null;
+      seat.board.state = withFix({ fixId: g.fix.applyId, applied: true, dropped: [{ index: 3, card: "engine-card-75", reason: "not played: a choice was cancelled, or there was no legal target or a cost that could be paid" }] });
+      g.lastTableSig = null; h.B.sendTable(); await h.flush();
+      return { directive, lines, asked, kinds: tableFix(h), fixAfter: g.fix ?? null,
+        said: h.effects.filter((e) => e.tts?.t === "chat" && /Not played|chose|Manual fix applied/.test(e.tts.text)).map((e) => e.tts.text),
+        log: (g.log || []).slice(-2), notesLogged: h.effects.filter((e) => /note/.test(e.log || e.appendFile && e.text || "")).length };
+    } });
+    add({ name: "fix from hand: free plays refused before the vote", run: async (h) => {
+      const { send, g } = await pausedFix(h);
+      const tries = [
+        [{ op: "freeCast", card: "engine-card-22", player: "Blue" }], // (on the battlefield, not in the hand)
+        [{ op: "freeLand", card: "engine-card-192", player: "Blue" }], // (an opponent's card)
+        [{ op: "freeCast", card: "engine-card-75", player: "White" }], // (an AI seat)
+        [{ op: "freeActivate", card: "engine-card-192", player: "Blue" }], // (an opponent's permanent)
+        [{ op: "freeCast", card: "engine-card-75" }], // (no player)
+      ];
+      for (const ops of tries) await send(fixMsg("Blue", "done", { kind: "hand", ops }), "done");
+      return { state: g.fix?.state, told: h.effects.filter((e) => e.tts?.t === "chat" && e.tts.color === "Blue").map((e) => e.tts.text).slice(-tries.length) };
+    } });
+    // (the 20 s watchdog counted from the apply and fired while a player was still picking a free play's target)
+    add({ name: "fix from hand: the watchdog waits while a free play's question is open", run: async (h) => {
+      const { seat, send, g } = await pausedFix(h);
+      await send(fixMsg("Blue", "done", { kind: "hand", ops: handOps.slice(3) }), "done");
+      const at = [];
+      const check = async (note) => { h.B.fixWatchdog(); await h.flush(); at.push(`${note}: ${g.fix?.state ?? "over"}`); };
+      await wait(h, 5000);
+      h.B.onPrompt(seat, { ...prompt("chooseBoardTargets", { min: 1, max: 1, candidates: [{ kind: "card", id: "engine-card-192" }], presentation: { title: "Choose target creature" } }), promptId: 950 }); await h.flush();
+      await wait(h, 35000); await check("40 s, the target question open");
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 950, choice: ["card|engine-card-192"] }) }); await h.flush();
+      await wait(h, 15000); await check("15 s after the answer");
+      await wait(h, 6000); await check("21 s after the answer, nothing open");
+      // (control: an apply with no question at all is still given up after 20 s)
+      g.fix = null;
+      const b = await (async () => { await send(fixMsg("Blue", "call"), "call again"); h.B.onPrompt(seat, { ...prompt("chooseAction", { actions: [] }), promptId: 960 }); await h.flush(); })();
+      void b;
+      await send(fixMsg("Blue", "done", { kind: "hand", ops: handOps.slice(3) }), "done again");
+      await wait(h, 21000); await check("control: 21 s, no question");
+      return at;
+    } });
+    // (a turn timer runs for a free play's question, as for any other: the game is the engine's again while it applies;
+    // in the other fix states every clock waits)
+    add({ name: "fix from hand: a free play's question is timed", run: async (h) => {
+      const { seat, send, g } = await pausedFix(h);
+      g.timer = { on: true, seconds: 90 };
+      await send(fixMsg("Blue", "done", { kind: "hand", ops: handOps.slice(3) }), "done");
+      h.B.onPrompt(seat, { ...prompt("chooseBoolean", { presentation: { title: "Pay the kicker?" } }), promptId: 950 }); await h.flush();
+      h.B._timerExpired(seat, 950); await h.flush();
+      const answered = seat.prompt?.promptId ?? null;
+      h.B._stopTimer(seat, true);
+      return { answered, sent: h.effects.map((e) => e.relay).filter((r) => r && r.state?.kind === "response").map((r) => r.state.action) };
+    } });
+    // (a fix of a free land only: the engine's next question is a priority one with an empty stack, and it can be read
+    // before the board that ends the fix (that board waits for scheduleTable): it is held, then asked once the fix ends)
+    add({ name: "fix from hand: an empty-stack question during the apply reaches the player once the fix ends", run: async (h) => {
+      const { seat, send, g } = await pausedFix(h);
+      await send(fixMsg("Blue", "done", { kind: "hand", ops: [handOps[1]] }), "done");
+      seat.board.state = withFix({ fixId: g.fix.applyId, applied: true });
+      h.B.onPrompt(seat, { ...prompt("chooseAction", { actions: [] }), promptId: 970 });
+      const during = { state: g.fix?.state ?? null, open: seat.prompt?.promptId ?? null };
+      g.lastTableSig = null; h.B.sendTable(); await h.flush();
+      // (with nothing to do it is passed: the pass is the sign it was asked)
+      return { during, after: { fix: g.fix ?? null, open: seat.prompt?.promptId ?? null },
+        answered: h.effects.filter((e) => e.relay?.state?.kind === "response" && e.relay.state.promptId === 970).map((e) => e.relay.state.action) };
+    } });
+    // (Done says the kind when the bridge has none: the table's own pick, from before a bridge restart. A hand card to the
+    // graveyard is worded as a fix from hand's, and the kind is kept for the rest of the fix)
+    add({ name: "fix from hand: Done's own kind, when no kind was picked through the bridge", run: async (h) => {
+      const { send, g } = await pausedFix(h);
+      await send(fixMsg("Blue", "done", { kind: "hand", ops: [handOps[0]] }), "done, kind hand");
+      return { lines: g.fix?.lines ?? null, kind: g.fix?.kind ?? null };
+    } });
+    // (two players, a board fix: a face-down card in exile shows only on its owner's board, and a hidden entry on the
+    // caller's; the change is worded from the board that shows it)
+    add({ name: "board fix: a card the caller's board shows hidden is worded from the board that shows it", run: async (h) => {
+      const { seat, send, g } = await pausedFix(h);
+      const white = new h.B.Seat("White", "neheb_minotaur_commander");
+      white.slot = "player-1";
+      const wb = withFix(null);
+      const foretold = { ...H(75), id: "engine-card-302", ownerId: "player-1", controllerId: "player-1", isFaceDown: true, identity: { ...H(75).identity, name: "Saw It Coming" } };
+      for (const z of wb.gameView.zones) if (z.zone === "exile" && z.ownerId === "player-1") z.cards = [foretold];
+      for (const z of seat.board.state.gameView.zones) if (z.zone === "exile" && z.ownerId === "player-1") z.cards = [{ visibility: "hidden", id: "engine-card-302" }];
+      white.board = { state: wb, fingerprint: null };
+      g.seats.set("White", white);
+      g.slotNames["player-1"] = "White";
+      await send(fixMsg("Blue", "kind", { kind: "board" }), "kind: board");
+      await send(fixMsg("Blue", "done", { kind: "board", ops: [{ op: "move", card: "engine-card-302", zone: "hand" }] }), "done");
+      return { state: g.fix?.state ?? null, lines: g.fix?.lines ?? null };
+    } });
+    // (two players at the table: each board shows only its own seat's hand, so White's pick is checked and worded from
+    // White's board when Blue presses Done; it was "No such card" from Blue's)
+    add({ name: "fix from hand: picks from two players' hands, Done pressed by one of them", run: async (h) => {
+      const { seat, send, g } = await pausedFix(h);
+      const white = new h.B.Seat("White", "neheb_minotaur_commander");
+      white.slot = "player-1";
+      const wb = withFix(null);
+      const counter = { ...H(75), id: "engine-card-301", ownerId: "player-1", controllerId: "player-1", identity: { ...H(75).identity, name: "Counterspell" } };
+      for (const z of wb.gameView.zones) {
+        if (z.zone === "hand" && z.ownerId === "player-0") z.cards = [];
+        if (z.zone === "hand" && z.ownerId === "player-1") z.cards = [counter];
+      }
+      white.board = { state: wb, fingerprint: null };
+      g.seats.set("White", white);
+      g.slotNames["player-1"] = "White";
+      await send(fixMsg("White", "kind", { kind: "hand" }), "kind: hand, by White");
+      // (White's card as Blue's free play: refused, a card is played only from its owner's hand)
+      await send(fixMsg("Blue", "done", { kind: "hand", ops: [{ op: "freeCast", card: "engine-card-301", player: "Blue" }] }), "done: White's card for Blue");
+      const refusedFirst = g.fix?.state ?? null;
+      await send(fixMsg("Blue", "done", { kind: "hand", ops: [{ op: "freeCast", card: "engine-card-75", player: "Blue" }, { op: "freeCast", card: "engine-card-301", player: "White" }] }), "done, by Blue");
+      const review = { refusedFirst, state: g.fix?.state ?? null, lines: g.fix?.lines ?? null, waiting: g.fix?.waiting ?? null };
+      // (a kind picked during the vote: refused, the game isn't paused for one then)
+      await send(fixMsg("White", "kind", { kind: "board" }), "kind during the vote");
+      review.kindAfter = g.fix?.kind ?? null;
+      await send(fixMsg("White", "vote", { accept: true }), "White agrees");
+      const directive = h.effects.filter((e) => e.relay?.state?.directive?.type === "applyState").map((e) => e.relay.state.directive);
+      // (the engine dropped White's play: said by the name only White's board shows)
+      seat.board.state = withFix({ fixId: g.fix?.applyId, applied: true, dropped: [{ index: 1, card: "engine-card-301", reason: "not played: a choice was cancelled, or there was no legal target or a cost that could be paid" }] });
+      white.board.state = { ...wb, gameView: { ...wb.gameView, stateFix: seat.board.state.gameView.stateFix } };
+      g.lastTableSig = null; h.B.sendTable(); await h.flush();
+      return { review, directive, fixAfter: g.fix ?? null,
+        said: h.effects.filter((e) => e.tts?.t === "chat" && /Not played|Changes|No such card|isn't in/.test(e.tts.text)).map((e) => e.tts.text) };
+    } });
+  }
+}
+
+// trackMarks photographs (2026-11-06, docs/core-moves-cleanup-plan.md "2. trackMarks" step 1): the marks under each
+// player's life total as the table's player rows carry them, and the log lines when each one changes.
+{
+  const logLines = (h) => h.effects.filter((e) => e.tts && e.tts.t === "gamelog").flatMap((e) => e.tts.lines);
+  const boardAs = async (h, seat, b) => { seat.board = { state: b, fingerprint: null }; h.B.sendTable(); await h.flush(); };
+  // (each mark field a row has, with its value; a field the row leaves out is left out here too)
+  const MARK_FIELDS = ["poison", "energy", "monarch", "initiative", "blessed", "story", "marks", "allMarks"];
+  const rows = (h) => (h.effects.filter((e) => e.tts && e.tts.t === "table").pop()?.tts.players || [])
+    .map((p) => ({ c: p.color, ...Object.fromEntries(MARK_FIELDS.filter((k) => k in p).map((k) => [k, p[k]])) }));
+  const pl = (b, id) => b.gameView.players.find((p) => p.id === id);
+  // (a dungeon in Blue's command zone, in the room Forge's note names)
+  const inRoom = (b, room) => {
+    const cz = b.gameView.zones.find((z) => z.zone === "command" && z.ownerId === "player-0");
+    cz.cards = cz.cards.filter((c) => c.id !== "engine-card-310");
+    if (room) cz.cards.push({ id: "engine-card-310", identity: { name: "Lost Mine of Phandelver" }, types: ["Dungeon"], ownerId: "player-0", controllerId: "player-0", text: `[Room: ${room}]` });
+    return b;
+  };
+  // every mark set: Blue with the upper-case counters, White with the lower-case ones (Forge may spell them either way)
+  const everyMark = () => {
+    const b = myMain(D2.board);
+    Object.assign(pl(b, "player-0"), { counters: { POISON: 3, ENERGY: 2, EXPERIENCE: 2, RADIATION: 1, TICKET: 4 }, hasCityBlessing: true, hasEnduringStory: true,
+      ringLevel: 3, speed: 2, controlledBy: "player-1", isExtraTurn: true, damagePrevention: 1, maxHandSize: 5, playerKeywords: ["Hexproof"] });
+    Object.assign(pl(b, "player-1"), { counters: { poison: 1, energy: 5, experience: 1 }, hasCityBlessing: true, hasEnduringStory: true,
+      ringLevel: 1, speed: 1, isExtraTurn: true, unlimitedHandSize: true, playerKeywords: ["You can't lose the game."] });
+    b.gameView.monarchId = "player-0"; b.gameView.initiativeHolderId = "player-1";
+    return b;
+  };
+  add({ name: "trackMarks: every mark on both players' rows", run: async (h) => {
+    const b = everyMark();
+    const seat = game(h, b);
+    await boardAs(h, seat, b);
+    const all = rows(h);
+    // (the monarch and the initiative change hands; Blue's poison and blessing gone, White's energy at 0)
+    const swapped = clone(b); swapped.gameView.monarchId = "player-1"; swapped.gameView.initiativeHolderId = "player-0";
+    pl(swapped, "player-0").counters.POISON = 0; pl(swapped, "player-0").hasCityBlessing = false; pl(swapped, "player-1").counters.energy = 0;
+    await boardAs(h, seat, swapped);
+    const changed = rows(h);
+    // (and none at all)
+    const none = myMain(D2.board);
+    await boardAs(h, seat, none);
+    return { all, changed, none: rows(h) };
+  } });
+  // the log, board by board: everything changes on one board (with a dungeon room), then changes back and on, then the
+  // same board again, then the monarch and the initiative held by nobody
+  add({ name: "trackMarks: every mark changes on one board (the log)", run: async (h) => {
+    const start = inRoom(myMain(D2.board), "Cave Entrance");
+    const seat = game(h, start);
+    await boardAs(h, seat, start);
+    const boards = [];
+    const step = async (b) => { const n = logLines(h).length; await boardAs(h, seat, b); boards.push(logLines(h).slice(n)); };
+    const b1 = inRoom(clone(start), "Goblin Lair");
+    for (const [id, n] of [["player-0", [2, 3]], ["player-1", [1, 1]]]) Object.assign(pl(b1, id), { counters: { POISON: n[0], ENERGY: n[1] }, hasCityBlessing: true, hasEnduringStory: true });
+    b1.gameView.monarchId = "player-0"; b1.gameView.initiativeHolderId = "player-1";
+    await step(b1);
+    const b2 = inRoom(clone(b1), "Temple of Dumathoin");
+    pl(b2, "player-0").counters = { POISON: 1, ENERGY: 1 }; pl(b2, "player-0").hasCityBlessing = false;
+    pl(b2, "player-1").counters = { POISON: 4, ENERGY: 1 };
+    b2.gameView.monarchId = "player-1"; b2.gameView.initiativeHolderId = "player-0";
+    await step(b2);
+    await step(clone(b2));
+    const b3 = clone(b2); delete b3.gameView.monarchId; delete b3.gameView.initiativeHolderId;
+    await step(b3);
+    // (energy alone back up, and a room alone)
+    const b4 = clone(b3); pl(b4, "player-1").counters.ENERGY = 6;
+    await step(b4);
+    await step(inRoom(clone(b4), "Mine Tunnels"));
+    return boards;
+  } });
+  // a game whose first board already has every mark says nothing about them; the next change is said
+  add({ name: "trackMarks: the first board's marks are not said", run: async (h) => {
+    const b = everyMark();
+    const seat = game(h, b);
+    const boards = [];
+    const step = async (x) => { const n = logLines(h).length; await boardAs(h, seat, x); boards.push(logLines(h).slice(n)); };
+    await step(b);
+    await step(clone(b));
+    const more = clone(b); pl(more, "player-1").counters.energy = 7;
+    await step(more);
+    return boards;
+  } });
+  // the log between two boards made by hand: a mark the earlier board has no record of (no player row then)
+  add({ name: "trackMarks: logEvents with a player the earlier board did not have", run: async (h) => {
+    const b = everyMark();
+    game(h, b);
+    const before = clone(b); before.gameView.players = before.gameView.players.filter((p) => p.id === "player-0");
+    return h.B.logEvents(h.B.logSnapshot(before.gameView), h.B.logSnapshot(b.gameView), b.gameView).filter((l) => !l.startsWith("---"));
+  } });
+  // the text board (a game the table does not draw): its player rows carry poison only
+  add({ name: "trackMarks: the text board's player rows", run: async (h) => {
+    const b = everyMark();
+    const seat = game(h, b, { game: { fromTable: false } });
+    seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(b), fingerprint: "f1" });
+    await h.flush();
+    return (h.effects.filter((e) => e.tts && e.tts.t === "view").pop()?.tts.view.players || []).map((p) => ({ name: p.name, poison: p.poison, marks: p.marks ?? null }));
+  } });
+  // (round 2, review 2026-11-06) Time Warp on yourself: Forge sets isExtraTurn on the new active player at each turn
+  // start and leaves it on the others, so Blue's flag is still set in the AI's turn 7. The header says "(extra turn)"
+  // and the label EXTRA TURN only on turn 6, Blue's extra turn.
+  add({ name: "trackMarks: Time Warp on yourself, the flag stays on in the next player's turn", run: async (h) => {
+    const at = (turn, active, blueFlag) => {
+      const b = clone(D2.board);
+      Object.assign(b.gameView, { turn, activePlayerId: active, priorityPlayerId: active, step: "upkeep", stack: [] });
+      pl(b, "player-0").isExtraTurn = blueFlag; pl(b, "player-1").isExtraTurn = false;
+      return b;
+    };
+    const first = at(5, "player-0", false);
+    const seat = game(h, first);
+    await boardAs(h, seat, first);
+    const out = [];
+    for (const [turn, active, flag] of [[6, "player-0", true], [7, "player-1", true], [8, "player-0", false]]) {
+      const n = logLines(h).length;
+      await boardAs(h, seat, at(turn, active, flag));
+      out.push({ turn, headers: logLines(h).slice(n).filter((l) => l.startsWith("---")), labels: rows(h).map((r) => [r.c, r.allMarks || []]) });
+    }
+    return out;
+  } });
+  // (round 2) a player counter shows only as a positive number: "0", true, "x" or -1 show nothing (as the table's own
+  // poison and energy did), 2 shows
+  add({ name: "trackMarks: a counter that isn't a positive number shows nothing", run: async (h) => {
+    const b = myMain(D2.board);
+    pl(b, "player-0").counters = { POISON: "0", ENERGY: true, EXPERIENCE: -1, RADIATION: "x", TICKET: 2 };
+    pl(b, "player-1").counters = { poison: -2, energy: 3 };
+    const seat = game(h, b);
+    await boardAs(h, seat, b);
+    return rows(h);
+  } });
+  // (jr suite 2026-11-06) the Ring, speed and prevention follow the same rule as the counters: a positive number only
+  // ("3", true and -1 show nothing; before, "3" and true showed, "RING TEMPTED true"); and a controller that isn't a
+  // known seat's id, even one that isn't text, is named as it is and the board still goes out
+  add({ name: "trackMarks: the Ring, speed, prevention and a controller that aren't plain", run: async (h) => {
+    const b = myMain(D2.board);
+    Object.assign(pl(b, "player-0"), { ringLevel: "3", speed: true, damagePrevention: -1, controlledBy: 5 });
+    Object.assign(pl(b, "player-1"), { ringLevel: 2, speed: 1, damagePrevention: 4, controlledBy: "player-9" });
+    const seat = game(h, b);
+    await boardAs(h, seat, b);
+    return rows(h);
+  } });
 }
 
 module.exports = cases;

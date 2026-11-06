@@ -8,12 +8,15 @@ const { execFile } = require("child_process");
 
 const ROOT = path.join(__dirname, "..");
 const MANIFEST = path.join(ROOT, "stack", "deployed.json");
-const BRIDGE_FILES = ["bridge.js", "state-delta.js", "presets.js", "versions.js"].map((f) => path.join(__dirname, f));
-const TABLE_SOURCE = path.join(ROOT, "tools", "engine-renderer.lua");
+const BRIDGE_FILES = ["bridge.js", "state-delta.js", "presets.js", "versions.js", "editor-forward.js"].map((f) => path.join(__dirname, f));
+// the table script's source: tools/make-engine-copy.js appends both to the table's Global (engine-json.lua is the JSON
+// decoder, 2026-11-05)
+const TABLE_SOURCE = [path.join(ROOT, "tools", "engine-renderer.lua"), path.join(ROOT, "tools", "engine-json.lua")];
 const NODE_CONTAINER = "stack-forge-room-1", RELAY_CONTAINER = "stack-relay-1";
 
 const sha8 = (data) => crypto.createHash("sha256").update(data).digest("hex").slice(0, 8);
-const fileHash = (file) => { try { return sha8(fs.readFileSync(file)); } catch { return null; } };
+// (a list of files: one hash over all of them, in order)
+const fileHash = (file) => { try { return Array.isArray(file) ? sha8(file.map((x) => fs.readFileSync(x, "utf8")).join("\0")) : sha8(fs.readFileSync(file)); } catch { return null; } };
 // The bridge's code: every file of ours it loads
 const bridgeHash = () => { try { return sha8(BRIDGE_FILES.map((f) => fs.readFileSync(f, "utf8")).join("\0")); } catch { return null; } };
 const readManifest = () => { try { return JSON.parse(fs.readFileSync(MANIFEST, "utf8")); } catch { return null; } };
@@ -48,7 +51,7 @@ function outOfStep(now, deployed) {
 // Source edited since the deploy: not out of step yet, only waiting for the next one
 const waiting = (deployed) => (deployed ? [
   ...(bridgeHash() !== deployed.bridge ? ["the bridge's code"] : []),
-  ...(fileHash(TABLE_SOURCE) !== deployed.tableSource ? ["tools/engine-renderer.lua"] : []),
+  ...(fileHash(TABLE_SOURCE) !== deployed.tableSource ? ["tools/engine-renderer.lua or tools/engine-json.lua"] : []),
 ] : []);
 
 module.exports = { MANIFEST, BRIDGE_FILES, TABLE_SOURCE, sha8, fileHash, bridgeHash, readManifest, containerImages, outOfStep, waiting };

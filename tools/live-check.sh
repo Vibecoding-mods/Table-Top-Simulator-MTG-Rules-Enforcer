@@ -14,7 +14,7 @@ node_c=mtg-test-node$sfx
 log=tmp/live-$(basename "$file" .js)-$tag$sfx.log
 for try in 1 2 3 4; do
   docker rm -f "$relay" "$node_c" >/dev/null 2>&1
-  docker run -d --name "$relay" --network stack_default -p 127.0.0.1:$port:9443 -e MANABREW_SERVER_KEY=tts-local mtg-relay:exile >/dev/null
+  docker run -d --name "$relay" --network stack_default -p 127.0.0.1:$port:9443 -e MANABREW_SERVER_KEY=tts-local "mtg-relay:${LIVE_RELAY:-exile}" >/dev/null
   sleep 2
   docker run -d --name "$node_c" --network stack_default -e SELF_HOSTED_NODE_RELAY_URL=ws://$relay:9443 \
     -e SELF_HOSTED_NODE_SERVER_KEY=tts-local -e SELF_HOSTED_NODE_ROOM_NAME=tts-test -e SELF_HOSTED_NODE_ENGINE_BACKEND=forge \

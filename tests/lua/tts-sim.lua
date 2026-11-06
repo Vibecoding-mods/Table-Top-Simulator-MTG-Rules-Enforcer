@@ -229,6 +229,7 @@ local function runFrame()
   SIM.frame = SIM.frame + 1
   SIM.clock = SIM.frame / 60
   Time.time = SIM.clock
+  if SIM.landPuts then SIM.landPuts() end
   local due = {}
   local keep = {}
   for _, w in ipairs(SIM.waits) do
@@ -265,7 +266,15 @@ ObjMeta.__index = function(o, k)
   local m = M[k]
   if m then
     -- TTS methods are called with a dot (obj.getPosition()); a colon call passes the object twice
-    return function(a, ...) if a == o then return m(o, ...) end return m(o, a, ...) end
+    -- (an object destroyed in an earlier frame raises on every call but isDestroyed, as in TTS; in the frame it was
+    -- destroyed it still answers, as Unity removes it at the frame's end)
+    return function(a, ...)
+      local died = rawget(o, "__d") and o.__d.diedAt
+      if died ~= nil and died < SIM.frame and k ~= "isDestroyed" then
+        error("sim: " .. k .. " called on " .. o.__guid .. ", destroyed in frame " .. died, 2)
+      end
+      if a == o then return m(o, ...) end return m(o, a, ...)
+    end
   end
   return nil
 end
@@ -302,6 +311,8 @@ end
 SIM.makeObj = makeObj
 
 local function alive(o) return o ~= nil and not o.__d.destroyed end
+local function kill(o) if not o.__d.destroyed then o.__d.destroyed = true o.__d.diedAt = SIM.frame end end
+SIM.kill = kill
 function M.getGUID(o) return o.__guid end
 function M.getName(o) return o.__d.nick end
 function M.setName(o, n) o.__d.nick = n fx("setName", o, n) end
@@ -322,7 +333,7 @@ function M.setLock(o, b) if o.__d.lock ~= b then fx("setLock", o, b) end o.__d.l
 function M.setColorTint(o, c) o.__d.tint = c fx("setColorTint", o, c) end
 function M.getColorTint(o) local c = o.__d.tint or { 1, 1, 1 } return { r = c.r or c[1], g = c.g or c[2], b = c.b or c[3] } end
 function M.isDestroyed(o) return o.__d.destroyed == true end
-function M.destruct(o) if not o.__d.destroyed then o.__d.destroyed = true fx("destruct", o) end return true end
+function M.destruct(o) if not o.__d.destroyed then kill(o) fx("destruct", o) end return true end
 function M.isSmoothMoving(o) return false end
 function M.getVelocity(o) return (o.__d.vel or vec({ x = 0, y = 0, z = 0 })):copy() end
 function M.setVelocity(o, v) o.__d.vel = vec(v) fx("setVelocity", o, o.__d.vel) end
@@ -416,14 +427,41 @@ function M.takeObject(o, p)
   if p.callback_function then Wait.frames(function() p.callback_function(n) end, 1) end
   return n
 end
+-- putObject as TTS does it (2026-11-06): the script's tryObjectEnterContainer is asked first (false: refused); the
+-- object lands at the frame's end (a deck that is locked by then refuses it, measured 2026-10-19); a deck put into a
+-- deck merges its cards in on top, in their order ("Works for stacking chips, decks, and bags", the putObject API),
+-- anything else goes in as one card; the script's onObjectEnterContainer is told while the object still answers, and
+-- the object is gone after that frame.
+local function landPut(o, x)
+  if not alive(o) or not alive(x) then fx("putObject lost", o, x) return end
+  if o.__d.lock and o.type == "Deck" then fx("putObject refused (locked)", o, x) return end
+  if x.type == "Deck" and o.type == "Deck" then
+    for i = #x.__d.contained, 1, -1 do table.insert(o.__d.contained, 1, x.__d.contained[i]) end
+  else
+    local d = M.getData(x)
+    d.Name = "Card"
+    table.insert(o.__d.contained, 1, d)
+  end
+  if type(_G.onObjectEnterContainer) == "function" then _G.onObjectEnterContainer(o, x) end
+  kill(x)
+end
 function M.putObject(o, x)
-  if o.__d.lock and o.type == "Deck" then fx("putObject refused (locked)", o, x) return nil end
-  local d = M.getData(x)
-  d.Name = "Card"
-  table.insert(o.__d.contained, 1, d)
-  x.__d.destroyed = true
+  if not alive(x) then fx("putObject none", o) return nil end
+  if type(_G.tryObjectEnterContainer) == "function" and _G.tryObjectEnterContainer(o, x) == false then
+    fx("putObject refused (tryObjectEnterContainer)", o, x) return nil
+  end
   fx("putObject", o, x)
+  SIM.landing[#SIM.landing + 1] = { o = o, x = x }
   return o
+end
+SIM.landing = {} -- puts made this frame: they land at the start of the next, before its Wait callbacks
+SIM.landPuts = function()
+  local q = SIM.landing
+  SIM.landing = {}
+  for _, p in ipairs(q) do
+    local ok, err = pcall(landPut, p.o, p.x)
+    if not ok then fx("ERROR putObject", tostring(err)) end
+  end
 end
 function M.shuffle(o) fx("shuffle", o) end
 function M.deal(o, n, color) fx("deal", o, n, color) if o.type == "Card" then o.__d.pos = SIM.hands[color] and SIM.hands[color][1].__d.pos:copy() or o.__d.pos end end
@@ -469,7 +507,10 @@ function spawnObjectData(p)
   for k in pairs(d.CustomDeck or {}) do keys[#keys + 1] = tostring(k) end
   table.sort(keys)
   fx("spawnObjectData", d.Name, o, d.Nickname or "", o.__d.pos, #(d.ContainedObjects or {}), d.CardID or 0, table.concat(keys, ","))
-  if p.callback_function then Wait.frames(function() p.callback_function(o) end, 1) end
+  -- (a spawn arrives a frame later; a test may make some slower, as a big deck is in TTS: __sim.spawnDelay(data) -> frames)
+  local delay = 1
+  if SIM.spawnDelay then local v = SIM.spawnDelay(d) if type(v) == "number" then delay = v end end
+  if p.callback_function then Wait.frames(function() p.callback_function(o) end, delay) end
   return o
 end
 function spawnObjectJSON(p) return spawnObjectData({ data = jdecode(p.json), position = p.position, rotation = p.rotation, callback_function = p.callback_function }) end

@@ -1,7 +1,9 @@
 # M7 spec: manual fix mode (hand-edit the board, the engine takes it back)
 
-Status: §1-11 built 2026-10-23; §12 (fix from hand) spec only, 2026-11-05. Board edit built 2026-10-23 (engine handler, bridge, table; see "As built" at the end), waiting on the node image and a
-live test. Spec written 2026-10-20. Extends SPEC.md §10c Tier B. Rewind by vote (Tier A, M4.5) is built; this is for what a
+Status: §1-11 built 2026-10-23, except §3's snap points (`dropArea` reads the zones instead, §11); §12 (fix from hand)
+built 2026-11-05 (engine images :fixhand, bridge, table; jr-programmer-suite run, 2-player test pending). Board edit built 2026-10-23 (engine handler, bridge, table; see "As built" at the end) and running
+on our node image (`mtg-forge-node:exile`); `mtg debug` sets up its boards through it (2026-11-04). Waiting on a
+2-person live test. Spec written 2026-10-20. Extends SPEC.md §10c Tier B. Rewind by vote (Tier A, M4.5) is built; this is for what a
 rewind can't fix: the engine got a rule wrong, or the mistake is older than the ~3 turns of restore points Forge keeps.
 
 ## 1. The idea in one paragraph
@@ -209,7 +211,7 @@ Differences from the plan above:
 
 - **From the table** (added later the same day): attach by dropping onto the permanent, right-click for the library's top or bottom, the table's life and commander-damage counters (unlocked while editing, read at Done), `mtg fix token`. The relay is our build too: the stock one drops `applyState` as an unauthorized envelope.
 
-## 12. Fix from hand: engine-UI options instead of moving cards (spec 2026-11-05, not built)
+## 12. Fix from hand: engine-UI options instead of moving cards (spec and built 2026-11-05)
 
 Asked for by the user 2026-11-05. Example: a phase-out that should have happened and didn't. Today the only fix is to
 drag cards around. Instead, the fix panel in the engine UI offers **actions on the cards in your hand**, and nobody

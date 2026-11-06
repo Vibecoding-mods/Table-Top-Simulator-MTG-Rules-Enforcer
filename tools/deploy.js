@@ -12,7 +12,7 @@ const versions = require("../bridge/versions");
 const { ttsRunning, main: patchSave } = require("./patch-save");
 
 const ROOT = path.join(__dirname, "..");
-const GATES = ["test_bridge_golden", "test_bridge_events", "test_bridge_claims", "test_bridge_debug", "test_state_delta", "test_table_map", "test_alignment", "test_table_check", "test_table_claims", "test_table_golden", "test_table_kind_relation", "test_table_board_diff"];
+const GATES = ["test_bridge_golden", "test_bridge_events", "test_bridge_claims", "test_bridge_debug", "test_state_delta", "test_table_map", "test_alignment", "test_table_check", "test_table_claims", "test_table_golden", "test_table_kind_relation", "test_table_board_diff", "test_table_effects", "test_engine_json", "test_table_fix_hand", "test_open_items_relations", "test_fix_hand_relations", "test_editor_forward", "test_moonsharp_patterns"];
 const LIVE_TESTS = ["tests/live_phasing_check.js", "tests/live_events_check.js"];
 const run = (cmd, args, env = {}) => execFileSync(cmd, args, { cwd: ROOT, stdio: "inherit", timeout: 600000, env: { ...process.env, ...env } });
 const stop = (why) => { console.error(`deploy stopped: ${why}`); process.exit(1); };
@@ -54,14 +54,18 @@ async function main() {
   run(process.execPath, ["tests/test_table_check.js"], { TABLE_SAVE: trialFile });
   fs.rmSync(trialFile);
   if (image) {
+    // a protocol change comes with a relay built from the same source under the same tag: test and swap it too
+    let relay = false;
+    try { execFileSync("docker", ["image", "inspect", `mtg-relay:${image}`], { stdio: "ignore" }); relay = true; } catch {}
     for (const t of LIVE_TESTS) {
-      console.log(`live ${t} on ${image}`);
-      const log = execFileSync("sh", ["tools/live-check.sh", image, t], { cwd: ROOT, encoding: "utf8", timeout: 600000 });
+      console.log(`live ${t} on ${image}${relay ? " (with its relay)" : ""}`);
+      const log = execFileSync("sh", ["tools/live-check.sh", image, t], { cwd: ROOT, encoding: "utf8", timeout: 600000, env: { ...process.env, LIVE_RELAY: relay ? image : "exile" } });
       console.log(log.split("\n").slice(-4).join("\n"));
       if (!livePassed(log)) stop(`${t} didn't pass on ${image}`);
     }
     await mustBeIdle();
     run("docker", ["tag", `mtg-forge-node:${image}`, "mtg-forge-node:exile"]);
+    if (relay) run("docker", ["tag", `mtg-relay:${image}`, "mtg-relay:exile"]);
     run("docker", ["compose", "-f", "stack/compose.yml", "up", "-d", "--force-recreate", "relay", "forge-room"]);
   }
   await mustBeIdle();

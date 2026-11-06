@@ -1,7 +1,8 @@
 # Publishing checklist (GitHub, open source)
 
-Status 2026-10-30: **prepared, not published.** Nothing has been pushed anywhere and no git repository exists yet.
-Repository: `Vibecoding-mods/Table-Top-Simulator-Mock-MTGA-Magic-The-Gathering-Arena-` (the name is the owner's decision).
+Status 2026-11-05: **prepared, not public.** The git repository exists (first commit 2026-10-30) and is pushed to a
+**private** GitHub repository; it has not been made public.
+Repository: `Vibecoding-mods/Table-Top-Simulator-Mock-MTGA` (the name is the owner's decision).
 
 ## Done
 
@@ -45,7 +46,11 @@ Repository: `Vibecoding-mods/Table-Top-Simulator-Mock-MTGA-Magic-The-Gathering-A
   needs the Workshop table (`MTG_TABLE_JSON` points at a copy).
 - [ ] `bridge/forge-cards.json` (1.4 MB, card names from Forge): keep in the repo (simplest), or build it on first run.
 - [x] The tested Manabrew and Forge commits are pinned in `engine/build-images.sh`.
-- [ ] `git init`, first commit, push to a **private** GitHub repository, read it through on GitHub once, then make it public.
+- [x] `git init`, first commit, push to a **private** GitHub repository (Vibecoding-mods/Table-Top-Simulator-Mock-MTGA).
+- [ ] Read it through on GitHub once, then make it public (after messaging the table's author, below).
+- [x] Refresh `engine/manabrew.patch` from the running engine (done 2026-11-06: 31 files, applies to upstream
+  `fd16e2f` and reproduces every changed file; `engine/make-patches.sh` now diffs against the clean tree's commit, so
+  our local manabrew commit is included). Redo it after any later harness change.
 - [ ] Optional: GitHub Actions running the bridge golden + claims tests on every push (no Docker or TTS needed).
 
 ## Not in scope of the first release

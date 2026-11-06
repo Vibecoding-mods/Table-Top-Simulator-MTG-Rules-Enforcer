@@ -237,14 +237,17 @@ function engineStartGame(pl, rest, cleared)
   if engineStartSentAt ~= nil and os.clock() - engineStartSentAt < 5 then return false end
   engineStartSentAt = os.clock()
   engineSendDecks(read, pl.color)
-  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true })
+  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendlyVotes = engineFriendlyVote })
 end
 
 -- All "mtg ..." chat commands. Returns false (hide the line) when handled, nil otherwise.
 function engineChat(message, pl)
   local lower = string.lower(message)
   if not lower:match("^%s*mtg%f[%A]") then return nil end
-  local cmd, rest = lower:match("^%s*mtg%s*(%a*)%s*(.-)%s*$")
+  -- (a position capture and a trim, not "(.-)%s*$": that lazy match raised "pattern too complex" in TTS once the
+  -- text passed ~55 characters, tmp/pattern-trap/audit.md)
+  local cmd, restAt = lower:match("^%s*mtg%s*(%a*)%s*()")
+  local rest = (lower:sub(restAt):gsub("%s+$", ""))
   local isHost = pl.host or pl.admin or pl.promoted
   -- engine mode, starting a game and clearing a finished one: anyone sitting at the table (playtest 2026-10-25:
   -- "allow non host to turn the engine on and off and to start games"); ending a running game stays the host's
@@ -259,6 +262,13 @@ function engineChat(message, pl)
     elseif rest == "off" then setEngineMode(false)
     else pl.broadcast("[MTG] Engine mode is " .. (ENGINE_MODE and "ON" or "OFF") .. ". Use: mtg engine on | mtg engine off")
     end
+  elseif cmd == "friendly" then
+    local n = tonumber(rest)
+    if not (atTable and data[pl.color]) then pl.broadcast("[MTG] Sit at a colour to vote.")
+    elseif n == 0 or n == 1 or n == 2 then
+      engineSetFriendly(pl.color, n)
+      pl.broadcast("[MTG] Your friendly mulligan vote: " .. engineFriendlyLabel(pl.color):gsub("^Friendly: ", "") .. ".")
+    else pl.broadcast("[MTG] Use: mtg friendly 0 | 1 | 2") end
   elseif cmd == "ready" then
     if rest == "all" then
       if not isHost then pl.broadcast("[MTG] Only the host can check everyone's decks.") return false end
@@ -286,14 +296,23 @@ function engineChat(message, pl)
       pl.broadcast("[MTG] Rewind to (the other players vote):\\n" .. table.concat(lines, "\\n") .. "\\nType  mtg undo N  or use the Undo... button.")
     end
   elseif cmd == "effects" then
-    -- M5: a player's own screen effects (banners, turn banner, stack pop-up) on or off (also: Settings → My effects)
+    -- M5: a player's own screen effects (banners, turn banner, stack pop-up, the table effects' panels) on or off
+    -- (also: Settings → My effects)
     engineEffectsOff[pl.color] = (rest == "off") or nil
     if enginePopRefresh ~= nil then enginePopRefresh() end
-    pl.broadcast("[MTG] Your screen effects (banners, turn banner, stack pop-up): " .. (engineEffectsOff[pl.color] and "off" or "on") .. ". Type  mtg effects on  or  mtg effects off  (or Settings) to change.", {1, 0.85, 0.4})
+    pl.broadcast("[MTG] Your screen effects (banners, turn banner, stack pop-up and table effects): " .. (engineEffectsOff[pl.color] and "off" or "on") .. ". Type  mtg effects on  or  mtg effects off  (or Settings) to change.", {1, 0.85, 0.4})
   elseif cmd == "sounds" then
-    -- a player's own sounds (they come with the M5 effect bundle); also Settings → My sounds
-    engineSoundOff[pl.color] = (rest == "off") or nil
-    pl.broadcast("[MTG] Your sounds: " .. (engineSoundOff[pl.color] and "off" or "on") .. ".", {1, 0.85, 0.4})
+    -- M5 step 4: the table's sounds are shared, so on/off is the host's switch (engineSetSounds; Settings → My sounds
+    -- too); "mtg sounds test <death|counter|damage|knockout>" (host) plays that pick now
+    local kind = rest:match("^test%s+(%a+)$")
+    if kind ~= nil then
+      if not pl.host then pl.broadcast("[MTG] Only the host can test the table's sounds (everyone hears them).")
+      elseif kind ~= "death" and kind ~= "counter" and kind ~= "damage" and kind ~= "knockout" then pl.broadcast("[MTG] The sounds are: death, counter, damage, knockout.")
+      elseif engineSounds[kind] == nil then pl.broadcast("[MTG] No sound picked for " .. kind .. " yet (engineSounds." .. kind .. ", docs/m5-effects-design.md section 6).")
+      elseif engineSoundPlay(kind, true) then pl.broadcast("[MTG] Playing the " .. kind .. " sound.")
+      else pl.broadcast("[MTG] The " .. kind .. " sound didn't play (table sounds off, the players' own music is playing, or the pick isn't found).") end
+    elseif rest == "on" or rest == "off" then engineSetSounds(pl, rest == "on")
+    else pl.broadcast("[MTG] Table sounds: " .. (engineSoundsMuted and "off" or "on") .. ". Type  mtg sounds on  or  mtg sounds off  (host), or  mtg sounds test death .", {1, 0.85, 0.4}) end
   elseif cmd == "animations" then
     -- the table's shared animations (attack swings, mills, the graveyard flash): the host's switch (Settings too)
     if not pl.host then pl.broadcast("[MTG] Only the host can turn the table's animations on or off (everyone sees them).")
@@ -337,6 +356,8 @@ function engineChat(message, pl)
     elseif rest == "yes" or rest == "no" then engineSend("fix", { color = pl.color, action = "vote", accept = rest == "yes" })
     elseif rest == "done" then engineFixDone(pl.color)
     elseif rest == "cancel" then engineSend("fix", { color = pl.color, action = "cancel" })
+    -- mtg fix note <text>: the text as typed, not lowered (it goes to the log)
+    elseif rest == "note" or rest:find("^note%s") then engineFixSet(pl.color, "note " .. (message:sub(message:match("^%s*[Mm][Tt][Gg]%s*[Ff][Ii][Xx]%s+[Nn][Oo][Tt][Ee]%s*()") or #message + 1):gsub("%s+$", "")))
     else engineFixSet(pl.color, rest) end
   elseif cmd == "mana" then
     -- mtg mana <n> [for <colour>]: the manual fix in one line (pause, n of each colour until the end of the turn,
@@ -366,7 +387,7 @@ function engineChat(message, pl)
     engineSend("reset", {})
     if ENGINE_MODE then engineClear() end -- don't wait for the bridge's "clear" (it may be down)
   else
-    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off, mtg sounds on/off - your own; mtg animations on/off (host) - also under Settings")
+    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg friendly 0|1|2 - vote for free mulligans\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <kind>; mtg animations on/off (host) - also under Settings")
   end
   return false
 end
@@ -528,7 +549,13 @@ end
 function engineOnMessage(m)
   if type(m) ~= "table" then return end
   if type(m.json) == "string" then
-    local ok, d = pcall(JSON.decode, m.json)
+    -- engineJsonDecode (tools/engine-json.lua): the same tables as JSON.decode, whose cost grows with the square of
+    -- the size (25 KB froze the table ~1-2 s, 56 KB 7-19 s; tmp/json-decode/bench.md). JSON.decode stays as the fallback.
+    local ok, d = pcall(engineJsonDecode, m.json)
+    if not ok or type(d) ~= "table" then
+      print("[MTG] fast JSON decode failed (" .. tostring(d) .. "): using JSON.decode")
+      ok, d = pcall(JSON.decode, m.json)
+    end
     if not ok or type(d) ~= "table" then return end
     m = d
   end
@@ -565,6 +592,9 @@ end
 `;
 
 // Step 3: the renderer (cards, trackers, prompt panel), kept in its own Lua file.
+// The decoder for the bridge's messages (engineJsonDecode) goes first, also its own file: its backslashes would need
+// doubling in a template literal.
+save.LuaScript += "\n\n" + fs.readFileSync(path.join(__dirname, "engine-json.lua"), "utf8");
 save.LuaScript += "\n\n" + fs.readFileSync(path.join(__dirname, "engine-renderer.lua"), "utf8");
 
 // Global: table buttons, hotkeys, typed numbers, zone context menus, rules context tools

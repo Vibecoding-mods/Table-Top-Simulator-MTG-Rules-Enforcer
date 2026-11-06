@@ -3,6 +3,7 @@
 // steps: [{ msg: { t, json } } | { frames: n } | { lua: "code" } | { mark: "label" }]
 const fs = require("fs");
 const path = require("path");
+require("./moonsharp-patterns"); // (fails on the patterns TTS fails on)
 const { lua, lauxlib, lualib, to_luastring, to_jsstring } = require("fengari");
 
 function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPerMsg = 6 }) {

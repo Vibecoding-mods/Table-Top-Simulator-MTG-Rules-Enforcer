@@ -81,6 +81,10 @@ const id = (n) => `engine-card-${n}`;
   // (a bounced token: sweep's Everywhere read "leaves the battlefield", mechanic run hp-23)
   same("token: returned to the hand", gone(TOKEN(), [ev(11, "Battlefield", "Hand", id(5))]), ["Goblin token returns to Blue's hand and ceases to exist"]);
   same("token: no event, no guess of the hand", gone(TOKEN(), []), ["Goblin token leaves the battlefield"]);
+  // (the token's owner's hand, not the seat's: an opponent's token bounced, suite review 2026-11-05)
+  same("token: an opponent's token returned to its owner's hand",
+    between(board((b) => put(b, "battlefield", { ...TOKEN(), controllerId: "player-1" }, "player-1")), board(() => {}), [ev(11, "Battlefield", "Hand", id(5), null, "player-1")]),
+    ["Goblin token returns to AI 1's hand and ceases to exist"]);
   same("bounced: back to a hand no fuller than before (a discard beside it)",
     between(board((b) => { put(b, "battlefield", BEAR()); count(b, "hand", 3); }), board((b) => count(b, "hand", 3)), [ev(11, "Battlefield", "Hand", id(1))]),
     ["Grizzly Bears returns to Blue's hand"]);
@@ -613,6 +617,34 @@ const id = (n) => `engine-card-${n}`;
   same("text change: a target whose text stays as it was",
     between(board((b) => { put(b, "battlefield", WRAITH()); b.stack.push(BEND); }), board((b) => { put(b, "battlefield", WRAITH()); put(b, "graveyard", card(54, "Mind Bend", ["Instant"])); }), [ev(13, "Stack", "Graveyard", id(54))]),
     ["Mind Bend changes nothing in Bog Wraith's text"]);
+  // (suite review 2026-11-05: a countered Mind Bend read "Mind Bend changes nothing in Bog Wraith's text" under its "is
+  // countered")
+  const COUNTER = { id: "stack-11", sourceId: id(55), identity: { name: "Counterspell" }, controllerId: "player-1", sourceAbilityText: "Counter target spell.", targets: [{ kind: "spell", id: "stack-10" }] };
+  same("text change: a countered spell changes nothing and says only that it is countered",
+    between(board((b) => { put(b, "battlefield", WRAITH()); b.stack.push(BEND, COUNTER); }),
+      board((b) => { put(b, "battlefield", WRAITH()); put(b, "graveyard", card(54, "Mind Bend", ["Instant"])); put(b, "graveyard", card(55, "Counterspell", ["Instant"]), "player-1"); }),
+      [ev(11, "Stack", "Graveyard", id(55), null, "player-1"), ev(12, "Stack", "Graveyard", id(54))]),
+    ["Mind Bend is countered"]);
+  same("text change: one that resolved under a counterspell aimed elsewhere still says it changed nothing",
+    between(board((b) => { put(b, "battlefield", WRAITH()); b.stack.push(BEND, { ...COUNTER, targets: [{ kind: "spell", id: "stack-99" }] }); }),
+      board((b) => { put(b, "battlefield", WRAITH()); put(b, "graveyard", card(54, "Mind Bend", ["Instant"])); put(b, "graveyard", card(55, "Counterspell", ["Instant"]), "player-1"); }),
+      [ev(11, "Stack", "Graveyard", id(55), null, "player-1"), ev(12, "Stack", "Graveyard", id(54))]),
+    ["Mind Bend changes nothing in Bog Wraith's text"]);
+  // (a spell aimed at it that is no counterspell, a copy: it resolves, so it still says it changed nothing)
+  const TWINCAST = { ...COUNTER, identity: { name: "Twincast" }, sourceAbilityText: "Copy target instant or sorcery spell. You may choose new targets for the copy." };
+  same("text change: targeted by a spell that copies it, not a counter, still says it changed nothing",
+    between(board((b) => { put(b, "battlefield", WRAITH()); b.stack.push(BEND, TWINCAST); }),
+      board((b) => { put(b, "battlefield", WRAITH()); put(b, "graveyard", card(54, "Mind Bend", ["Instant"])); put(b, "graveyard", card(55, "Twincast", ["Instant"]), "player-1"); }),
+      [ev(11, "Stack", "Graveyard", id(55), null, "player-1"), ev(12, "Stack", "Graveyard", id(54))]),
+    ["Mind Bend changes nothing in Bog Wraith's text"]);
+  // (its target gone before it resolved: nothing about the text, and no crash)
+  // (a throw is returned as a marker, so this fails by name and the checks after it still run)
+  let goneLines;
+  try {
+    goneLines = between(board((b) => { put(b, "battlefield", WRAITH()); b.stack.push(BEND); }), board((b) => { put(b, "graveyard", card(54, "Mind Bend", ["Instant"])); }),
+      [ev(11, "Battlefield", "Hand", id(53)), ev(12, "Stack", "Graveyard", id(54))]).filter((l) => /text/.test(l));
+  } catch (e) { goneLines = [`THREW ${e.constructor.name}: ${e.message}`]; }
+  same("text change: a target gone from play says nothing of its text", goneLines, []);
   same("text change: not while the spell is still on the stack",
     between(board((b) => { put(b, "battlefield", WRAITH()); b.stack.push(BEND); }), board((b) => { put(b, "battlefield", WRAITH("Islandwalk")); b.stack.push(BEND); }), []),
     []);

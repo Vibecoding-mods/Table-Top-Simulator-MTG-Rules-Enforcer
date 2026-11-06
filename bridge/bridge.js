@@ -104,6 +104,10 @@ const LIVE = require.main === module;
 const CHECK_LOG = path.join(__dirname, "..", "tmp", "table-check.log"), GUESS_LOG = path.join(__dirname, "..", "tmp", "guess-log.log");
 const BRIDGE_HASH = LIVE ? versions.bridgeHash() : null; // (read now: the code this process runs, whatever the file becomes)
 let tableStamp; // the version the table last said: undefined until it said one, null from a table older than stamps
+// the table's hello said it reuses the last board's restore points when a board says keepRewind (see sendTable); an
+// older table, or one not heard from since the bridge started, gets them in every board
+let tableKeepsRewind = false;
+const TABLE_ROW_PICTURES = 7; // the pictures the table's card row holds (ROW_MAX in tools/engine-renderer.lua)
 const alignment = { checks: 0, problems: 0, slowestMs: 0, guesses: {} }; // (since this bridge started)
 
 // (a hello comes only at load: a bridge restarted under a loaded table hears the version from these)
@@ -190,6 +194,15 @@ function tlogIn(m) {
   }
 }
 
+// SPEC.md §8: share the editor port with the VSCode/Atom TTS plugin (bridge/editor-forward.js). Off unless
+// MTG_EDITOR_FORWARD_PORT (--editor-forward-port) is set. The callbacks run later, when `game` and execInTTS exist.
+// Save & Play from the plugin goes through only with no game, a table check that found none of the player's cards or
+// decks (tools/tts-push-global.js's check), and a backup of the save (MTG_TTS_SAVE, default Saves/TS_Save_1.json).
+const { createEditorForwarder, BRIDGE_EXEC_BASE, TABLE_CHECK_LUA } = require("./editor-forward");
+const editorForward = createEditorForwarder({
+  forwardPort: arg("editor-forward-port", 0), commandPort: arg("editor-command-port", 0), ttsPort: TTS_OUT, ttsInPort: TTS_IN,
+  gameRunning: () => !!game, checkTable: () => execInTTS(TABLE_CHECK_LUA, 8000), log,
+});
 const server = net.createServer((sock) => {
   const chunks = [];
   sock.on("data", (c) => chunks.push(c));
@@ -201,6 +214,7 @@ const server = net.createServer((sock) => {
       log(`unreadable message from TTS (${text.length} bytes): ${e.message}; starts ${JSON.stringify(text.slice(0, 120))} ends ${JSON.stringify(text.slice(-80))}`);
       return;
     }
+    if (!editorForward.offer(msg, text)) return; // the editor plugin's alone (SPEC.md §8)
     if (msg.messageID === 4 && msg.customMessage) {
       if (process.env.MTG_TRACE) log(`from TTS: ${msg.customMessage.t} (${text.length} bytes)`);
       guarded(`TTS message ${msg.customMessage.t}`, () => onTTS(msg.customMessage));
@@ -209,7 +223,7 @@ const server = net.createServer((sock) => {
   sock.on("error", () => {});
 });
 server.on("error", (e) => {
-  if (e.code === "EADDRINUSE") console.error(`Port ${TTS_IN} is taken: close the VSCode/Atom TTS plugin (or another bridge) and retry.`);
+  if (e.code === "EADDRINUSE") console.error(`Port ${TTS_IN} is taken: close the VSCode/Atom TTS plugin (or another bridge) and retry. To use both, move the plugin to another port (SPEC.md §8, MTG_EDITOR_FORWARD_PORT).`);
   else console.error(e);
   process.exit(1);
 });
@@ -345,6 +359,7 @@ class Seat {
     this.ready = false;
     this.closed = false; // "mtg reset" closed it on purpose: no reconnect
     this.lostAt = null;  // when the link to the relay dropped mid-game (reconnecting while set)
+    this.mullsTaken = resume?.mullsTaken || 0; // (the prompt's mulliganCount is cards owed: 0 after the rules' free one)
     if (resume) { this.roomId = resume.roomId; this.joined = true; this.lostAt = Date.now(); this.tries = 0; }
     this.connect();
   }
@@ -424,6 +439,8 @@ class Seat {
   justDid(kind, ms) { const r = this.lately?.[kind]; return r && Date.now() - r.at < ms ? r : null; }
   forget(kind) { if (kind) delete this.lately?.[kind]; else this.lately = {}; }
   respond(promptId, type, output) {
+    if (game?.fix?.state === "applying" && game.fix.activeAt) game.fix.activeAt = Date.now();
+    if (type === "mulligan" && output?.keep === false) mulliganTaken(this);
     // (cards chosen to discard: what reaches the graveyard next is a discard, instants too; see logEvents)
     const asked = this.lastRawPrompt?.input?.presentation;
     if (type === "chooseCards" && /discard/i.test(`${asked?.title || ""} ${asked?.description || ""}`)) this.note("discard", this.slot);
@@ -578,6 +595,9 @@ class Seat {
         break;
       case "prompt":
         if (env.forPlayer === this.slot) {
+          // (the engine's own time since our last answer, and its time to build the message: tells a slow engine from a
+          // busy TTS in any game's log, tmp/slow-tail/logs.md)
+          log(`${this.color} prompt #${env.prompt?.promptId} ${env.prompt?.input?.type || "?"}: engine ${env.engineMs ?? "-"} ms, emit ${env.emitMs ?? "-"} ms`);
           const ok = guarded(`${this.color} prompt ${env.prompt?.input?.type}`, () => (onPrompt(this, env.prompt), true));
           if (!ok) chat(`[MTG] Couldn't show the engine's question (${env.prompt?.input?.type || "?"}); see the bridge log. Try "mtg reset" if the game is stuck.`, this.color);
         }
@@ -617,8 +637,8 @@ function saveResume() {
     game: { bots: game.bots, total: game.total, playerOrder: game.playerOrder, slotNames: game.slotNames, slotColor: game.slotColor,
       fromTable: game.fromTable, roomId: game.roomId, deckNames: [...(game.deckNames || [])],
       // (who had which turn: "White's 6th turn" read "2nd" after a resume without it)
-      turnOwners: game.turnOwners || {} },
-    seats: [...game.seats.values()].map((st) => ({ color: st.color, deckId: st.deckId, username: st.username, slot: st.slot, roomId: st.roomId })),
+      turnOwners: game.turnOwners || {}, friendly: game.friendly, friendlyOver: game.friendlyOver },
+    seats: [...game.seats.values()].map((st) => ({ color: st.color, deckId: st.deckId, username: st.username, slot: st.slot, roomId: st.roomId, mullsTaken: st.mullsTaken })),
   };
   const tmp = `${RESUME_FILE}.tmp`;
   fs.mkdir(path.dirname(RESUME_FILE), { recursive: true }, () =>
@@ -654,15 +674,24 @@ function resendToTable() {
   if (game.log?.length) toTTS({ t: "gamelog", lines: game.log.slice(-60), reset: true });
   game.lastTableSig = null;
   game.sentZones = {};
+  game.fxJump = true; // (the next board is a jump, not a play: the table plays no effects for it)
   toTTS({ t: "started", colors: game.slotColor, names: game.slotNames, ai: Object.keys(game.slotColor).filter((k) => !TABLE_COLORS.includes(game.slotNames[k])).map((k) => game.slotColor[k]) });
   scheduleTable();
   for (const st of game.seats.values()) autoNotice(st); // (a reloaded table has forgotten its Auto-resolve lists)
   // show each player's still-open question again (re-running the last prompt could answer it twice)
-  for (const st of game.seats.values()) if (st.prompt?.ui) toTTS({ t: "prompt", color: st.color, promptId: st.prompt.promptId, ...st.prompt.ui, ...(st.prompt.ui.allCards ? { cards: st.prompt.ui.allCards } : {}) });
+  for (const st of game.seats.values()) if (st.prompt?.ui) showPrompt(st, st.prompt.ui.allCards ? { cards: st.prompt.ui.allCards } : {});
+}
+
+// Friendly mulligans (SPEC "Friendly mulligans by vote"): the count most players voted for, a tie going to the lower one.
+// No vote, or anything but 1 or 2, is a vote for none.
+function friendlyCount(votes, humans) {
+  const tally = [0, 0, 0];
+  for (const c of humans) tally[votes?.[c] === 1 || votes?.[c] === 2 ? votes[c] : 0]++;
+  return tally.indexOf(Math.max(...tally));
 }
 
 // fromTable: the group's table draws the game (default: games whose decks come from the table)
-function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = []) {
+function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], votes = null) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
   const notReady = requireReady ? seatList.filter((c) => !readyDecks[c]) : [];
   if (notReady.length) { chat(`[MTG] Not started: ${notReady.join(", ")} still need \"mtg ready\" (import your deck, put your commander on the command zone).`); return; }
@@ -671,6 +700,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   // the table has a playmat per colour (TABLE_COLORS); a 5th player had no colour and no zones (5-8 players: PLAN M6)
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
+    friendly: friendlyCount(votes, seatList), friendlyVoted: seatList.map((c) => `${c} voted ${votes?.[c] === 1 || votes?.[c] === 2 ? votes[c] : "none"}`).join(", "),
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI
     aiTableDecks: aiSeats.filter((c) => readyDecks[c]).slice(0, bots).map((c) => engineDeckFromTable(readyDecks[c])) };
   for (const c of aiSeats) if (!readyDecks[c]) chat(`[MTG] The deck in ${c}'s seat isn't ready (see above); that AI plays a built-in deck.`);
@@ -765,6 +795,7 @@ function onGameStarted(msg) {
   for (const n of game.deckNames || []) pictureOf(n);
   chat(`[MTG] Game started! Seats in turn order: ${msg.player_order.map((_, i) => game.slotNames[`player-${i}`]).join(" → ")}. Life ${msg.starting_life}. A dice roll decides who goes first.`);
   log(`game started ${msg.game_id}: ${Object.values(game.slotNames).join(", ")}`);
+  if (game.friendly) friendlySay(`Friendly mulligans this game: ${game.friendly} each (${game.friendlyVoted}).`);
   saveResume();
 }
 
@@ -1324,13 +1355,9 @@ function logSnapshot(pub) {
   for (const a of pub.combatAssignments || []) if (a.blockerId && a.attackerId) (blocks[a.blockerId] ||= []).push(a.attackerId);
   // (each player's land plays this turn: an AI's land play is told from a land an effect put there by it)
   const lands = Object.fromEntries((pub.players || []).map((p) => [p.id, p.landsPlayedThisTurn ?? null]));
-  // (who has the city's blessing: Ascend's, which nothing showed, hp-11 gap)
-  const blessed = Object.fromEntries((pub.players || []).map((p) => [p.id, !!p.hasCityBlessing]));
-  const story = Object.fromEntries((pub.players || []).map((p) => [p.id, !!p.hasEnduringStory]));
-  // (poison counters: Vraska's Fall and Prologue to Phyresis gave the AI three and the log said nothing, hp-11 gap)
-  const poison = Object.fromEntries((pub.players || []).map((p) => [p.id, playerCounter(p, "poison")]));
-  const energy = Object.fromEntries((pub.players || []).map((p) => [p.id, playerCounter(p, "energy")]));
-  return { cards, counts, life, lands, stack, blocks, blessed, story, poison, energy, monarch: pub.monarchId || null, initiative: pub.initiativeHolderId || null, turn: pub.turn, step: pub.step, active: pub.activePlayerId, day: pub.dayTime };
+  // (each player's marks, PLAYER_MARKS' values: the log says some when they change)
+  const marks = Object.fromEntries((pub.players || []).map((p) => [p.id, trackMarks(p, pub).values]));
+  return { cards, counts, life, lands, stack, blocks, marks, turn: pub.turn, step: pub.step, active: pub.activePlayerId, day: pub.dayTime };
 }
 
 // A stack item is an ability (not a spell) when Forge gives it ability text and it isn't a spell: Forge also gives
@@ -1583,8 +1610,13 @@ const LEAVE_WORDS = {
   tokens: (w, names) => (names.length === 1 ? `${names[0]} leaves the battlefield` : `${byCount(names)} leave the battlefield`),
   left: (w, names) => `${names[0]} leaves the battlefield`,
 };
-// A turn that follows its player's own last one, in a game where someone else has had a turn: an extra turn
+// An extra turn: Forge says so on the new active player (isExtraTurn, set at each turn start), read once by the
+// extraTurn row of PLAYER_MARKS, which also draws the EXTRA TURN label. A board without the field falls back to a
+// guess: a turn that follows its player's own last one, when someone else has had a turn (the guess called Time Warp
+// on another player's turn 6 plain and turn 7 extra, review 2026-11-05).
 function extraTurn(prev, cur) {
+  const said = cur.marks?.[cur.active]?.extraTurn;
+  if (typeof said === "boolean") return said;
   const owners = game.turnOwners || {};
   return cur.turn === prev.turn + 1 && owners[prev.turn] === cur.active && Object.values(owners).some((p) => p !== cur.active);
 }
@@ -2174,16 +2206,20 @@ function logEvents(prev, cur, pub, facts = null) {
   }
   // (a word in a permanent's text changed by the spell that targeted it, just resolved: the first word that differs, as
   // it was and as it is; Mind Bend, Artificial Evolution and Sleight of Mind were in no log, mechanic run hp-25 2026-11-05)
+  // (a target with no such word: Glamerdye on a Forest read "Forest's text changes (Glamerdye)", Forge having only
+  // dropped its reminder, hp-25)
+  const bare = (t) => withoutForgeNotes(String(t || "")).replace(/\s*\([^)]*\)/g, "").trim();
   for (const s of Object.values(prev.stack)) {
     if (!/\bchange the text of\b/i.test(s.text || "") || s.sids.some((x) => curSids.has(x))) continue;
-    // (a target with no such word: Glamerdye on a Forest read "Forest's text changes (Glamerdye)", Forge having only
-    // dropped its reminder, hp-25)
-    const bare = (t) => withoutForgeNotes(String(t || "")).replace(/\s*\([^)]*\)/g, "").trim();
+    // (not a spell countered: a countered Mind Bend read "Mind Bend changes nothing in Bog Wraith's text" under its "is
+    // countered", suite review 2026-11-05; one that fizzled can't be told from the boards and still says it)
+    const countered = s.sids.some((x) => prevCounterTargeted.has(x));
     for (const id of s.cardTg) {
       const c = cur.cards[id];
       if (c?.tx == null || prev.cards[id]?.tx == null) continue;
       const words = c.tx !== prev.cards[id].tx ? textChangeWords(prev.cards[id].tx, c.tx) : "";
-      out.push(words || bare(c.tx) !== bare(prev.cards[id].tx) ? `${c.name}'s text changes${words} (${s.name})` : `${s.name} changes nothing in ${c.name}'s text`);
+      if (words || bare(c.tx) !== bare(prev.cards[id].tx)) out.push(`${c.name}'s text changes${words} (${s.name})`);
+      else if (!countered) out.push(`${s.name} changes nothing in ${c.name}'s text`);
     }
   }
   out.push(...afterEntries);
@@ -2221,28 +2257,18 @@ function logEvents(prev, cur, pub, facts = null) {
       out.push(LEAVE_WORDS.handFrom(who(o), [was.name], { from: was.zone === "exile" ? "exile" : "the graveyard" }));
     }
   }
-  // (the city's blessing, for the rest of the game: Wayward Swordtooth's ascend, hp-11 gap)
-  for (const [p, b] of Object.entries(cur.blessed || {})) if (b && !prev.blessed?.[p]) out.push(`${who(p)} gets the city's blessing`);
-  // (and an enduring story, storied's, for the rest of the game: Kíli the Resourceful's said nothing, hp-21 gap)
-  for (const [p, b] of Object.entries(cur.story || {})) if (b && prev.story && !prev.story[p]) out.push(`${who(p)} has an enduring story`);
-  for (const [p, n] of Object.entries(cur.poison || {})) {
-    const was = prev.poison?.[p] ?? 0;
-    if (n > was) out.push(`${who(p)} gets ${countWords(n - was, n - was, "poison counter")} (${n} in all)`);
-    else if (n < was) out.push(`${who(p)} loses ${countWords(was - n, was - n, "poison counter")} (${n} in all)`);
+  // (a player's marks that changed, in PLAYER_MARKS' order, each row's `say` for every player: only between two boards
+  // that both have the player, so a game's first board, or a player new to it, says nothing)
+  for (const row of PLAYER_MARKS) if (row.say) for (const [p, now] of Object.entries(cur.marks || {})) {
+    const was = prev.marks?.[p];
+    if (!was || now[row.key] === was[row.key]) continue;
+    const line = row.say(who(p), now[row.key], was[row.key]);
+    if (line) out.push(line);
   }
-  // (the monarch and the initiative, never said: Palace Jailer made White the monarch and Starscream converted unexplained,
-  // hp-17 gap; "undefined" in a board from before this was recorded is no change)
-  if (prev.monarch !== undefined && cur.monarch && cur.monarch !== prev.monarch) out.push(`${who(cur.monarch)} becomes the monarch`);
-  if (prev.initiative !== undefined && cur.initiative && cur.initiative !== prev.initiative) out.push(`${who(cur.initiative)} takes the initiative`);
+  // (the rooms ventured into: after the marks, as taking the initiative ventures too)
   for (const [id, c] of Object.entries(cur.cards)) if (c.room && prev.cards[id]?.room !== c.room) {
     const line = `${who(c.owner)} ventures into ${c.room} (${c.name})`;
     if (!out.includes(line) && !triggered.includes(line)) out.push(line);
-  }
-  // (energy, which the table shows and the log never said: Volatile Stormdrake's four, then two paid, hp-16 gap)
-  for (const [p, n] of Object.entries(cur.energy || {})) {
-    const was = prev.energy?.[p];
-    if (was == null || n === was) continue;
-    out.push(n > was ? `${who(p)} gets ${n - was} energy (${n} in all)` : `${who(p)} pays ${was - n} energy (${n} left)`);
   }
   // (day and night: Brutal Cathar made it day with nothing shown or logged, playtest 2026-10-26)
   if (cur.day !== prev.day && (cur.day === "day" || cur.day === "night")) out.push(`It becomes ${cur.day}`);
@@ -2468,12 +2494,8 @@ function sendTable() {
       color: game.slotColor[p.id], slot: p.id, name: nameOf(p.id), ai: !own, life: p.life, status: p.status,
       // your own floating mana (only your seat's view has it)
       pool: own ? Object.fromEntries(Object.entries(own.players?.find((x) => x.id === p.id)?.manaPool || {}).filter(([, n]) => n)) : null,
-      poison: playerCounter(p, "poison"),
-      energy: playerCounter(p, "energy"),
-      // (the monarch and the initiative, which Forge sends and nothing showed: Palace Jailer's monarchy, hp-17 gap)
-      ...(pub.monarchId === p.id ? { monarch: true } : {}), ...(pub.initiativeHolderId === p.id ? { initiative: true } : {}),
-      // (and the city's blessing and an enduring story, for the rest of the game, shown nowhere either, hp-21 gap)
-      ...(p.hasCityBlessing ? { blessed: true } : {}), ...(p.hasEnduringStory ? { story: true } : {}),
+      // the marks under the life total (allMarks, and for an older table poison, energy, monarch, initiative, blessed,
+      // story, marks: PLAYER_MARKS, playerMarks)
       ...playerMarks(p, pub),
       cmdDamage,
       // Commander tax per commander, in command-zone order (casts × 2).
@@ -2522,6 +2544,9 @@ function sendTable() {
   const sig = JSON.stringify(tableMsg);
   if (sig === game.lastTableSig) return;
   game.lastTableSig = sig;
+  // (after a rewind or a resend: the table plays no effects for this board. Left out of the signature: the board after
+  // it, the same but for the flag, would go out again for nothing)
+  if (game.fxJump) tableMsg.jump = true;
   // Zones identical to the last board sent are left out and named in `keep`: the table reuses its copy. A board
   // update was 1.5-4.7 KB and cost TTS 45-120 ms to decode; most updates change one or two zones.
   game.sentZones ??= {};
@@ -2533,7 +2558,16 @@ function sendTable() {
       if (game.sentZones[key] === js) { (pl.keep ??= []).push(z); delete pl[z]; } else game.sentZones[key] = js;
     }
   }
+  // The restore points the same as in the last board sent are left out, the board says keepRewind and the table reuses
+  // its copy (27% of a board update's bytes, and unchanged in 3 updates of 4: tmp/json-decode/impact.md). Kept with the
+  // zones, so a resend or a rewind sends them in full again. Only to a table that said it understands keepRewind.
+  if (tableKeepsRewind) {
+    const rw = JSON.stringify(tableMsg.rewind ?? null);
+    if (game.sentZones["|rewind"] === rw) { delete tableMsg.rewind; tableMsg.keepRewind = true; } else game.sentZones["|rewind"] = rw;
+  }
   toTTS(tableMsg);
+  // (cleared after the send, not before the same-board check: a board skipped as identical keeps it for the next)
+  game.fxJump = false;
   flushTexts();
 }
 
@@ -2620,29 +2654,78 @@ function lossReasons(gv) {
 // A player counter the engine may spell either way ("POISON" / "poison").
 const playerCounter = (p, name) => (p.counters || {})[name.toUpperCase()] || (p.counters || {})[name] || 0;
 
-// What else Forge says about a player that changes the game and showed nowhere, as short labels under their life:
-// the other player counters, the Ring's temptations, speed, a turn someone else controls (Mindslaver), an extra turn,
-// damage prevention shields, a changed hand size, and keywords on the player (hexproof, "can't lose the game")
+// The mark fields of a player's table row (sendTable), from PLAYER_MARKS below: `allMarks`, the whole label under the
+// life total in order (left out when there is none). A table of 2026-11-06 or later draws just that. For an older
+// table, until both are live (docs/core-moves-cleanup-plan.md "2. trackMarks" step 6), the old fields go too: the six
+// marks it words itself (`lua` rows), poison and energy as numbers and the four flags only when set, and every other
+// row's labels as `marks`.
 function playerMarks(p, pub) {
-  const marks = [];
-  for (const [k, label] of [["experience", "EXPERIENCE"], ["radiation", "RAD"], ["ticket", "TICKETS"]]) {
-    const n = playerCounter(p, k);
-    if (n) marks.push(`${label} ${n}`);
+  const { values: v, labels, marks } = trackMarks(p, pub);
+  return { poison: v.poison, energy: v.energy, ...(v.monarch ? { monarch: true } : {}), ...(v.initiative ? { initiative: true } : {}),
+    ...(v.blessed ? { blessed: true } : {}), ...(v.story ? { story: true } : {}), ...(marks.length ? { marks } : {}),
+    ...(labels.length ? { allMarks: labels } : {}) };
+}
+// Every mark under a player's life total, one row each: `read` takes its value from Forge's player (p) and the game
+// (pub); `label` says it on the table (a list of labels for keywords); `say(who, now, was)`, if the row has one, is the
+// log line when the value changes (null: nothing to say), see logEvents. The rows' order is the label's order. A value
+// of 0, false, null, "" or [] shows nothing. A number (a player counter, the Ring, speed, prevention) is read as a
+// positive number or 0 (`positive`): a "0", true or -1 is 0, so the label, the log and the old row fields all see the
+// same value (review 2026-11-06; jr suite 2026-11-06). Forge sends all of these and nothing else showed them: poison (Skrelv's
+// toxic, playtest 2026-10-27), energy (structural review the same day), the monarch and the initiative (Palace Jailer,
+// hp-17), the city's blessing and an enduring story (hp-21), then the other player counters, the Ring's temptations,
+// speed, a turn someone else controls (Mindslaver), an extra turn, damage prevention shields, a changed hand size, and
+// keywords on the player (hexproof, "can't lose the game"; table-map gaps 2026-11-03).
+// The log said none of the first six either: Vraska's Fall's poison (hp-11), Volatile Stormdrake's energy gained and
+// paid (hp-16), Palace Jailer's monarch (hp-17), Wayward Swordtooth's ascend (hp-11), Kíli the Resourceful's story (hp-21).
+const positive = (n) => (typeof n === "number" && n > 0 ? n : 0);
+const counterOf = (name) => (p) => positive(playerCounter(p, name));
+const PLAYER_MARKS = [
+  { key: "poison", lua: true, read: counterOf("poison"), label: (n) => `POISON ${n}`,
+    say: (who, n, was) => (n > was ? `${who} gets ${countWords(n - was, n - was, "poison counter")} (${n} in all)`
+      : `${who} loses ${countWords(was - n, was - n, "poison counter")} (${n} in all)`) },
+  { key: "energy", lua: true, read: counterOf("energy"), label: (n) => `ENERGY ${n}`,
+    say: (who, n, was) => (n > was ? `${who} gets ${n - was} energy (${n} in all)` : `${who} pays ${was - n} energy (${n} left)`) },
+  { key: "monarch", lua: true, read: (p, pub) => pub.monarchId === p.id, label: () => "MONARCH", say: (who, now) => (now ? `${who} becomes the monarch` : null) },
+  { key: "initiative", lua: true, read: (p, pub) => pub.initiativeHolderId === p.id, label: () => "INITIATIVE", say: (who, now) => (now ? `${who} takes the initiative` : null) },
+  { key: "blessed", lua: true, read: (p) => !!p.hasCityBlessing, label: () => "CITY'S BLESSING", say: (who, now) => (now ? `${who} gets the city's blessing` : null) },
+  { key: "story", lua: true, read: (p) => !!p.hasEnduringStory, label: () => "ENDURING STORY", say: (who, now) => (now ? `${who} has an enduring story` : null) },
+  { key: "experience", read: counterOf("experience"), label: (n) => `EXPERIENCE ${n}` },
+  { key: "radiation", read: counterOf("radiation"), label: (n) => `RAD ${n}` },
+  { key: "ticket", read: counterOf("ticket"), label: (n) => `TICKETS ${n}` },
+  { key: "ring", read: (p) => positive(p.ringLevel), label: (n) => `RING TEMPTED ${n}` },
+  { key: "speed", read: (p) => positive(p.speed), label: (n) => `SPEED ${n}` },
+  // (String: a name that isn't text must not throw, or the whole board would not go out)
+  { key: "controlledBy", read: (p) => p.controlledBy || null, label: (id) => `TURN RUN BY ${String(nameOf(id)).toUpperCase()}` },
+  // (while it is theirs: Forge keeps the flag on the player after the turn. The value is Forge's own flag for the
+  // active player, undefined when a board has none: the turn header reads it too, extraTurn)
+  { key: "extraTurn", read: (p, pub) => (pub.activePlayerId === p.id ? p.isExtraTurn : false), label: () => "EXTRA TURN" },
+  { key: "prevention", read: (p) => positive(p.damagePrevention), label: (n) => `PREVENT ${n}` },
+  // (as text: a maximum of 0 is shown)
+  { key: "handSize", read: (p) => (p.unlimitedHandSize ? "none" : p.maxHandSize != null && p.maxHandSize !== 7 ? String(p.maxHandSize) : null),
+    label: (n) => (n === "none" ? "NO MAX HAND SIZE" : `MAX HAND ${n}`) },
+  { key: "keywords", read: playerKeywordLabels, label: (list) => list },
+];
+const markShown = (v) => (Array.isArray(v) ? v.length > 0 : !!v);
+// One player's marks: { values: key -> value, labels: the whole label list in order, marks: the labels of the rows
+// that aren't `lua` }
+function trackMarks(p, pub) {
+  const values = {}, labels = [], marks = [];
+  for (const m of PLAYER_MARKS) {
+    const v = (values[m.key] = m.read(p, pub));
+    if (!markShown(v)) continue;
+    const said = [].concat(m.label(v));
+    labels.push(...said);
+    if (!m.lua) marks.push(...said);
   }
-  if (p.ringLevel > 0) marks.push(`RING TEMPTED ${p.ringLevel}`);
-  if (p.speed > 0) marks.push(`SPEED ${p.speed}`);
-  if (p.controlledBy) marks.push(`TURN RUN BY ${nameOf(p.controlledBy).toUpperCase()}`);
-  if (p.isExtraTurn && pub.activePlayerId === p.id) marks.push("EXTRA TURN");
-  if (p.damagePrevention > 0) marks.push(`PREVENT ${p.damagePrevention}`);
-  if (p.unlimitedHandSize) marks.push("NO MAX HAND SIZE");
-  else if (p.maxHandSize != null && p.maxHandSize !== 7) marks.push(`MAX HAND ${p.maxHandSize}`);
-  // (a keyword as cards' keywords read, "Protection:Player.Opponent:each of your opponents" -> "Protection from each
-  // of your opponents", the internal ones left out; one written as a sentence, "You can't lose the game.", as it is)
+  return { values, labels, marks };
+}
+// (a keyword as cards' keywords read, "Protection:Player.Opponent:each of your opponents" -> "Protection from each
+// of your opponents", the internal ones left out; one written as a sentence, "You can't lose the game.", as it is)
+function playerKeywordLabels(p) {
   const kws = (p.playerKeywords || []).map(String);
   const sentences = kws.filter((k) => /\.\s*$/.test(k));
   const words = cardKeywords({ keywords: kws.filter((k) => !sentences.includes(k)), text: "" }).granted;
-  for (const k of [...words, ...sentences.map((k) => k.trim().replace(/\.$/, ""))]) marks.push(shortText(k, 32).toUpperCase());
-  return marks.length ? { marks } : {};
+  return [...words, ...sentences.map((k) => k.trim().replace(/\.$/, ""))].map((k) => shortText(k, 32).toUpperCase());
 }
 
 function cardIndex(gv) {
@@ -3201,7 +3284,7 @@ function sendView(seat) {
       .map(([cid, n]) => `${n} from ${byId[cid]?.identity?.name || "a commander"}`);
     return {
       name: nameOf(p.id), you: p.id === seat.slot, life: p.life, status: p.status,
-      poison: playerCounter(p, "poison"),
+      poison: trackMarks(p, gv).values.poison,
       hand: zone("hand", p.id).count, library: zone("library", p.id).count,
       graveyard: zone("graveyard", p.id).count, exile: zone("exile", p.id).count,
       command: zone("command", p.id).cards.map((c) => cardLabel(c)),
@@ -3242,6 +3325,51 @@ function summarizeLands(lands) {
 // The panel asks them one at a time; a step's toOutput returns { __next: { ui, toOutput } } for the next step,
 // and only the last step builds the answer the engine gets.
 const next = (ui, toOutput) => ({ __next: { ui, toOutput } });
+
+// ───────────────────────── A question of the bridge's own under the engine's (askUnder) ─────────────────────────
+// The bridge asks the player something of its own while the engine's question stays open underneath: "how do you play
+// it?" (a card with several ways), "cast it now?" (Necromancy outside a sorcery's time), "which ability?" and "which
+// mana?" (a card turned with Q/E), the colour of a "Mana: tap X" button. Unlike steps (next()), its way back returns to
+// the question underneath exactly as it was, and the card the gesture moved is put back on the table (refused).
+//   ui: the sub-question (prepareUi runs here); pick(picks): the engine's answer for any other option
+//   back: the label of its way back, an option of its own (added last, id "__back": the panel lists it and the timer
+//   takes it first, timeoutChoice; the corner shows only the first option and End turn / Resolve all / No / Cancel, so
+//   not Back, engine-renderer.lua engineUpdateCorner); returns: the card id put back (null: none)
+// The question underneath is kept as seat.prompt.under ({ ui, toOutput, step, returns }) while the sub-question is open,
+// and Back re-sends it as it was first sent (its ui, its step: none for the engine's question).
+// One at a time: onIntent refuses every gesture while one is open, and E is asked only from the priority question's own
+// answer, so a sub-question is never asked under another. Closed any other way than by its own answer (a new engine
+// question, mtg skip, auto-resolve, a fix holding the question, a rewind: closePrompt), its card goes back too.
+// Returns ASKED, what a toOutput returns once it has asked a sub-question itself (onAnswer then sends nothing). Needs an
+// open question (seat.prompt) to ask under.
+const ASKED = { asked: true };
+function askUnder(seat, ui, pick, { back, returns = null }) {
+  const p = seat.prompt;
+  const under = { ui: p.ui, toOutput: p.toOutput, step: p.step, returns };
+  ui.options = [...(ui.options || []), { id: "__back", label: back }];
+  prepareUi(ui);
+  const toOutput = (picks) => {
+    if (picks[0] !== "__back") return pick(picks);
+    // (the card dragged out goes back where it came from: nothing else redraws it, playtest 2026-10-26)
+    if (under.returns) toTTS({ t: "refused", color: seat.color, id: under.returns });
+    // (its own step kept: the table's corner keys a question by id and step, and a new step made it a new question,
+    // finding 5. Its ui as it was sent, not worded again: onPrompt worded it once)
+    seat.prompt = { ...seat.prompt, ui: under.ui, toOutput: under.toOutput, step: under.step, under: null };
+    showPrompt(seat);
+    return ASKED;
+  };
+  seat.prompt = { ...p, ui, toOutput, step: Date.now() % 100000, under };
+  showPrompt(seat);
+  return ASKED;
+}
+// The seat's open question sent to its panel as it is kept: seat.prompt's id, its step (none for an engine question
+// as first asked) and its ui. Every re-send goes through here, so what is shown is what is stored, and a later
+// sub-question saves the step the table really saw (the table's corner keys a question by id and step,
+// engine-renderer.lua engineUpdateCorner). extra: fields for this message only (resendToTable's `cards`).
+function showPrompt(seat, extra = {}) {
+  const p = seat.prompt;
+  toTTS({ t: "prompt", color: seat.color, promptId: p.promptId, step: p.step, ...p.ui, ...extra });
+}
 
 // Asks for an order one pick at a time. items: [{ id, label }]. done(orderedIds) builds the final answer.
 // "Keep this order" finishes with the remaining items as they are.
@@ -3504,26 +3632,28 @@ function costLeft(cost, pool) {
 // {4}{B} with 4 Plains untapped, so Bear Umbra's {2}{G}{G} was lost, mechanic run hp-17). owed: the cost still owed;
 // acts: the payment's actions; hand: the other cards in hand; cards: the card index. Returns the action to tap next, or
 // null when the whole cost can't be planned from plain {T} sources (then Forge's own auto-pay does it).
+// Each source taps once; the cheapest to lose first: the fewest hand cards needing its colours (a creature counts half
+// a card more, so it goes after a land nothing needs but before one the hand needs), then a painless ability before one
+// that deals damage to you (a pain land's {C} before its coloured one), then the card making fewer colours (a basic
+// before a dual land).
 function smartPayTap(owed, acts, hand, cards) {
   const syms = [...String(owed || "").matchAll(/\{([^}]+)\}/g)].map((m) => m[1].toUpperCase());
   if (!syms.length || syms.some((x) => !/^(\d+|[WUBRGC])$/.test(x))) return null;
-  const made = (a) => {
-    const set = new Set((a.producedMana || []).map((m) => String(m.color || "").toUpperCase()).filter((c) => /^[WUBRGC]$/.test(c)));
-    const c = String(a.id || "").match(/:([WUBRGC])$/);
-    if (!set.size && c) set.add(c[1]);
-    return set;
-  };
+  const made = (a) => producedColours(a, (c) => /^[WUBRGC]$/.test(c));
   const plain = acts.filter((a) => (a.type === "activateManaAbility" || a.isManaAbility) && a.cardId && (!a.cost || a.cost === "{T}")
     && made(a).size > 0 && (a.producedMana || []).reduce((n, m) => n + (Number(m.amount) || 1), 0) <= 1);
   const need = {};
   for (const c of hand) for (const col of new Set([...String(c.manaCost || "").matchAll(/[WUBRG]/g)].map((m) => m[0]))) need[col] = (need[col] || 0) + 1;
-  const loss = (cardId) => {
-    const cols = new Set(plain.filter((a) => a.cardId === cardId).flatMap((a) => [...made(a)]));
-    return [...cols].reduce((n, col) => n + (need[col] || 0), 0) + ((cards[cardId]?.types || []).includes("Creature") ? 0.5 : 0);
-  };
+  // (a card's colours over all its actions: a dual land is two actions of one colour each, so one action's colours
+  // could never tell it from a basic)
+  const colsOf = (cardId) => new Set(plain.filter((a) => a.cardId === cardId).flatMap((a) => [...made(a)]));
+  const loss = (cardId) => [...colsOf(cardId)].reduce((n, col) => n + (need[col] || 0), 0) + ((cards[cardId]?.types || []).includes("Creature") ? 0.5 : 0);
+  // (Llanowar Wastes' "{B} or {G}" deals 1 damage to you: it paid a generic {1} whenever Forge listed it first)
+  const pain = (a) => (/\bdamage to you\b/i.test(String(a.description || "")) ? 1 : 0);
   const used = new Set(), taps = [];
   const pick = (ok) => {
-    const best = plain.filter((a) => !used.has(a.cardId) && ok(a)).sort((x, y) => loss(x.cardId) - loss(y.cardId) || made(x).size - made(y).size)[0];
+    const best = plain.filter((a) => !used.has(a.cardId) && ok(a))
+      .sort((x, y) => loss(x.cardId) - loss(y.cardId) || pain(x) - pain(y) || colsOf(x.cardId).size - colsOf(y.cardId).size)[0];
     if (best) { used.add(best.cardId); taps.push(best); }
     return !!best;
   };
@@ -3535,10 +3665,18 @@ function smartPayTap(owed, acts, hand, cards) {
   return taps[0] || null;
 }
 
-function manaRank(cost, a) {
-  const made = new Set((a.producedMana || []).map((m) => String(m.color || "").toUpperCase()));
+// The colours a mana action makes: its producedMana's, else the colour its id ends in ("tap:engine-card-9:G"). keep:
+// which of producedMana's count (smartPayTap keeps WUBRGC only, so an "ANY" falls back to the id). One reading for the
+// three that need it (manaRank, the payment's rank, smartPayTap; it was written three times, suite review 2026-11-05).
+function producedColours(a, keep = () => true) {
+  const set = new Set((a.producedMana || []).map((m) => String(m.color || "").toUpperCase()).filter(keep));
   const c = String(a.id || "").match(/:([WUBRGC])$/);
-  if (!made.size && c) made.add(c[1]);
+  if (!set.size && c) set.add(c[1]);
+  return set;
+}
+
+function manaRank(cost, a) {
+  const made = producedColours(a);
   if (!made.size || made.has("ANY")) return 1;
   let generic = false, needed = false;
   for (const [, sym] of String(cost || "").matchAll(/\{([^}]+)\}/g)) {
@@ -3581,7 +3719,12 @@ function endTurnHolds(seat, gv) {
   return false;
 }
 function onPrompt(seat, prompt) {
+  // (a new engine question while a sub-question was open, the engine asking again after a reconnect: that question is
+  // gone, its card goes back now, and it is taken off the panel even when the bridge answers the new one itself, End
+  // turn holding; review 2026-11-05 finding 4 and 2026-11-06)
+  if (seat.prompt?.under) closePrompt(seat);
   seat.lastRawPrompt = prompt;
+  if (game?.fix?.state === "applying") game.fix.activeAt = Date.now(); // (the engine is playing a fix's free plays: fixWatchdog)
   if (prompt.input?.type === "chooseAction") seat.priorityPromptId = prompt.promptId ?? 0; // (the log's "priority came back")
   // MTG_RAW=1 (tests): every question as the engine sent it, to see what a prompt carries
   if (process.env.MTG_RAW) log(`raw ${seat.color}: ${JSON.stringify(prompt).slice(0, 4000)}`);
@@ -3630,9 +3773,9 @@ function onPrompt(seat, prompt) {
   switch (type) {
     case "mulligan":
       // (Arena: "Keep" / "Mulligan"; how many were taken goes below, not in the question)
-      ui = { title: "Keep this hand?", mode: "single", options: [{ id: "keep", label: "Keep" }, { id: "mull", label: "Mulligan" }],
-        ...(input.mulliganCount ? { text: `Mulligans so far: ${input.mulliganCount}.` } : {}) };
-      toOutput = (a) => ({ type: "mulliganDecision", keep: a[0] === "keep" });
+      ui = { title: "Keep this hand?", mode: "single", options: [{ id: "keep", label: "Keep" }, { id: "mull", label: friendlyFreeLeft(seat) > 0 ? "Mulligan (free)" : "Mulligan" }],
+        ...(game?.friendly ? { text: friendlyText(seat) } : input.mulliganCount ? { text: `Mulligans so far: ${input.mulliganCount}.` } : {}) };
+      toOutput = (a) => ({ type: "mulliganDecision", keep: a[0] === "keep", ...(game?.friendly ? { freeCards: game.friendly } : {}) });
       break;
     case "mulliganPutBack":
       ui = { title: `Put ${countWords(input.count, input.count, "card")} on the bottom of your library`, mode: "multi", min: input.count, max: input.count,
@@ -3784,20 +3927,23 @@ function onPrompt(seat, prompt) {
       toOutput = (a) => (a[0] === "__pass" ? { type: "pass" } : a[0] === "__endturn" ? (seat.endTurnAt = gv.turn, { type: "pass" })
         : a[0] === "__resolve" ? (seat.resolveStack = new Set(stackIds), { type: "pass" })
         : String(a[0]).startsWith("__mana:") ? manaChoice(String(a[0]).slice(7)) : { type: "act", actionId: a[0] });
-      // one button per mana creature/artifact; if it can make several kinds of mana, the next step asks which
+      // one button per mana creature/artifact; if it can make several kinds of mana, a question under this one asks
+      // which (Back and a timeout return to priority and turn the card back: the table turns it at the button press,
+      // engine-renderer.lua optimistic "Mana: tap", review 2026-11-06)
       const manaText = (m) => manaLabel(m) || m.description || "mana";
       const manaChoice = (cid) => {
         const acts = manaButtons.filter((m) => m.cardId === cid);
         if (acts.length === 1) return { type: "act", actionId: acts[0].id };
-        return next({ title: `Tap ${cname(cid)} for which mana?`, mode: "single", kind: "choice",
-          options: distinctLabels(acts, manaText).map((label, i) => ({ id: acts[i].id, label })) }, (b) => ({ type: "act", actionId: b[0] }));
+        return askUnder(seat, { title: `Tap ${cname(cid)} for which mana?`, mode: "single", kind: "choice",
+          options: distinctLabels(acts, manaText).map((label, i) => ({ id: acts[i].id, label })) }, (b) => ({ type: "act", actionId: b[0] }), { back: "Back", returns: cid });
       };
       break;
     }
     case "payManaCost":
-      // Three seat fields about paying, kept apart on purpose (merging them changed behaviour, see
-      // docs/reviews/structural-review-bridge-2026-10-20.md #2): autoPayCard = auto-pay asked for this card,
-      // tappedFor = a source tapped by hand for it, autoPayFailedFor = auto-pay already failed for it (survives a tap).
+      // Four seat fields about paying, kept apart on purpose (merging them changed behaviour, see
+      // docs/reviews/structural-review-bridge-2026-10-20.md #2): autoPayCard = Forge's auto-pay asked for this card,
+      // tappedFor = a source tapped by hand for it, autoPayFailedFor = auto-pay already failed for it (survives a tap),
+      // smartPay = our own auto-pay under way for it ({ card, sent }: the card and the taps already sent, see smartPayTap).
       // Auto-pay fills the mana pool, then the engine asks to confirm: do that for the player.
       // Same after the player tapped the last source by hand: the cost is covered, so finish paying (like Arena). And
       // for a spell or ability the player just started while mana floats: Arena pays from the pool by itself (every
@@ -3807,7 +3953,7 @@ function onPrompt(seat, prompt) {
       // (not when life can pay part of it: a Phyrexian {B/P} is the player's choice, and Vraska's Compleated paid with
       // floating mana never offered the life, hp-22 #1 2026-10-28)
       const canPayLife = (input.actions || []).some((a) => a.type === "payLife" || a.id === "pay-life");
-      if (input.cardId && (seat.autoPayCard === input.cardId || seat.smartPay === input.cardId || seat.tappedFor === input.cardId || ownJustNow) && input.canConfirmFromPool && !canPayLife) {
+      if (input.cardId && (seat.autoPayCard === input.cardId || seat.smartPay?.card === input.cardId || seat.tappedFor === input.cardId || ownJustNow) && input.canConfirmFromPool && !canPayLife) {
         seat.autoPayCard = null;
         seat.smartPay = null;
         seat.tappedFor = null;
@@ -3815,12 +3961,16 @@ function onPrompt(seat, prompt) {
         seat.respond(prompt.promptId, type, { type: "pay", auto: false });
         return;
       }
+      // (the cost less the pool's mana: what our auto-pay plans, the taps are ranked against and the title says)
+      const pool = gv.players?.find((p) => p.id === seat.slot)?.manaPool || {};
+      const owed = costLeft(input.manaCost, pool);
       // (our auto-pay under way: the next planned tap, or Forge's own auto-pay when the rest can't be planned)
+      // (a tap already sent and offered again was not taken: Forge's auto-pay then, not the same tap sent for ever; a
+      // payment answered by itself looped 1,600 times once, 2026-10-22 review)
       const handOthers = () => (zoneOf(gv, "hand", seat.slot).cards || []).filter((c) => c.id !== input.cardId);
-      const ownPool = gv.players?.find((p) => p.id === seat.slot)?.manaPool || {};
-      if (seat.smartPay && seat.smartPay === input.cardId && !input.canConfirmFromPool) {
-        const next = smartPayTap(costLeft(input.manaCost, ownPool), input.actions || [], handOthers(), byId);
-        if (next) { seat.respond(prompt.promptId, type, { type: "act", actionId: next.id }); return; }
+      if (input.cardId && seat.smartPay?.card === input.cardId && !input.canConfirmFromPool) {
+        const next = smartPayTap(owed, input.actions || [], handOthers(), byId);
+        if (next && !seat.smartPay.sent.includes(next.id)) { seat.smartPay.sent.push(next.id); seat.respond(prompt.promptId, type, { type: "act", actionId: next.id }); return; }
         seat.smartPay = null;
         seat.autoPayCard = input.cardId;
         seat.respond(prompt.promptId, type, { type: "pay", auto: true });
@@ -3835,21 +3985,13 @@ function onPrompt(seat, prompt) {
       // again would just repeat this prompt, so that becomes the first (default) button.
       // (a land that can pay two needed colours pays the one no other source here offers: with Urborg, a Forest can
       // make {B} or {G}; for {B}{G} it made {B}, the Swamp {B} too, and nothing was left for {G}, 2026-10-22)
-      const madeBy = (a) => {
-        const set = new Set((a.producedMana || []).map((m) => String(m.color || "").toUpperCase()));
-        const c = String(a.id || "").match(/:([WUBRGC])$/);
-        if (!set.size && c) set.add(c[1]);
-        return set;
-      };
       const payActs = (input.actions || []).filter((a) => a.type !== "undoMana");
-      const pool = gv.players?.find((p) => p.id === seat.slot)?.manaPool || {};
-      const owed = costLeft(input.manaCost, pool);
       seat.payingCost = owed; // (for a "Choose a color" that comes next: Command Tower)
       const rankOf = (a) => {
         const r = manaRank(owed, a);
         if (r < 2) return r;
         const others = payActs.filter((o) => o.cardId !== a.cardId && manaRank(owed, o) > 0);
-        return [...madeBy(a)].some((col) => !others.some((o) => madeBy(o).has(col))) ? 3 : 2;
+        return [...producedColours(a)].some((col) => !others.some((o) => producedColours(o).has(col))) ? 3 : 2;
       };
       // a Phyrexian cost paid with life (our Forge build's "pay-life"): said as such and offered before the taps that
       // can't pay it (it read "pay-life", last, under "Tap Swamp for {B}" for Skrelv's {W/P}, playtest 2026-10-27)
@@ -3877,8 +4019,9 @@ function onPrompt(seat, prompt) {
         seat.tappedFor = String(a[0]).startsWith("tap:") ? input.cardId : null;
         // (the stack showed it, so the log said "casts" and nothing took that back: Silvergill Adept, hp-24 gap)
         if (a[0] === "__cancel" && game?.log?.slice(-12).includes(`${seat.color} casts ${input.cardName || src}`)) gameLogLine(`${seat.color} cancels ${input.cardName || src}`);
-        const first = a[0] === "__auto" && smartPayTap(owed, input.actions || [], handOthers(), byId);
-        if (first) { seat.smartPay = input.cardId; return { type: "act", actionId: first.id }; }
+        // (ours only for a payment that names its card: the next question finds it by that id)
+        const first = a[0] === "__auto" && input.cardId && smartPayTap(owed, input.actions || [], handOthers(), byId);
+        if (first) { seat.smartPay = { card: input.cardId, sent: [first.id] }; return { type: "act", actionId: first.id }; }
         return a[0] === "__auto" ? (seat.autoPayCard = input.cardId, { type: "pay", auto: true }) : a[0] === "__pool" ? { type: "pay", auto: false }
           : a[0] === "__cancel" ? { type: "cancel" } : { type: "act", actionId: a[0] };
       };
@@ -3930,27 +4073,33 @@ function onPrompt(seat, prompt) {
       ui = { title: unnamed ? `${unnamed}: ${targetTitle(title, src, minLeft, maxLeft, noun).replace(/^C/, "c")}` : targetTitle(title, src, minLeft, maxLeft, noun),
         mode: "multi", min: minLeft, max: maxLeft, cancel: input.cancellable,
         // (a copy offered as a target before it reaches the stack has no name yet: its original's, not "engine-card-144", re-test 2026-10-30)
-        options: input.candidates.map((c) => ({ id: `${c.kind}|${c.id}`, label: cname(c.id) === c.id && copy ? `${copy.identity?.name} (the copy)` : cname(c.id),
+        // (and a face-down card you may not see by what it is, not its card id: the AI's face-down 2/2 read "engine-card-970",
+        // suite review 2026-11-05)
+        options: input.candidates.map((c) => ({ id: `${c.kind}|${c.id}`, label: cname(c.id) === c.id && copy ? `${copy.identity?.name} (the copy)`
+          // (Forge's own view of one you may not see, { visibility: "hidden", id }, reads the same, relations review)
+          : cname(c.id) === c.id && (byId[c.id]?.isFaceDown || byId[c.id]?.visibility === "hidden") ? "Face-down creature" : cname(c.id),
           // a target inside a graveyard/exile pile has no card of its own on the table to click: give it a picture, so
           // the table shows it in the card row (Emry's "target artifact card in your graveyard", 2026-10-21 sweep)
           ...((gv.zones || []).some((z) => (z.zone === "graveyard" || z.zone === "exile") && z.cards.some((x) => x.id === c.id)) ? { img: imgOf(byId[c.id]) } : {}) })) };
       // (a token beside a card of its name says so: Cut Your Losses offered "Galadhrim Brigade / Galadhrim Brigade", the
       // squad token and the card, mechanic run hp-16 2026-11-05)
       // (decided before any label changes: two token copies read "Coruscation Mage (token) / Coruscation Mage", hp-14)
-      const tokenTwins = ui.options.filter((o) => byId[o.id.split("|")[1]]?.identity?.isToken && ui.options.some((x) => x !== o && x.label === o.label));
+      const cardOf = (o) => byId[o.id.split("|")[1]];
+      const tokenTwins = ui.options.filter((o) => cardOf(o)?.identity?.isToken && ui.options.some((x) => x !== o && x.label === o.label));
       for (const o of tokenTwins) o.label += " (token)";
       // (a face-down card you may see is named, and says it is face down: Bowmasters offered the manifested card as
       // "Brainstorm", hp-06)
-      for (const o of ui.options) if (byId[o.id.split("|")[1]]?.isFaceDown && byId[o.id.split("|")[1]]?.identity) o.label += " (face down)";
-      // (two that still read alike get their power/toughness, then a number: Coruscation Mage's two token copies read
-      // "Coruscation Mage (token) / Coruscation Mage (token)", hp-14)
+      for (const o of ui.options) if (cardOf(o)?.isFaceDown && cardOf(o)?.identity) o.label += " (face down)";
+      // (two creatures that still read alike get their power/toughness, then anything still alike a number: Coruscation
+      // Mage's two token copies read "Coruscation Mage (token) / Coruscation Mage (token)", hp-14; two Treasures, two
+      // Forests and two unseen face-down cards read alike too, relations review 2026-11-05)
       for (const pass of ["pt", "n"]) {
         const seen = {};
         for (const o of ui.options) (seen[o.label] ??= []).push(o);
         for (const group of Object.values(seen)) {
-          if (group.length < 2 || !group.every((o) => byId[o.id.split("|")[1]]?.power != null)) continue;
+          if (group.length < 2 || (pass === "pt" && !group.every((o) => cardOf(o)?.power != null))) continue;
           group.forEach((o, k) => {
-            const c = byId[o.id.split("|")[1]];
+            const c = cardOf(o);
             if (pass === "pt") { if (c?.power != null && c?.toughness != null) o.label = o.label.replace(/^([^(]+?)(?= \(|$)/, `$1 ${c.power}/${c.toughness}`); }
             else o.label += ` #${k + 1}`;
           });
@@ -4450,6 +4599,10 @@ function onPrompt(seat, prompt) {
           const full = input.cards.map((c) => tableCard(c));
           ui.librarySearch = full.map(sl.slim);
           if (Object.keys(sl.statics).length) ui.cards = sl.statics;
+          // (more pictures than the table's card row holds, ROW_MAX 7 in tools/engine-renderer.lua: the table lists them
+          // by name in the panel and never reads an option's picture, so the link goes once, in `cards`. It was the library
+          // a second time, ~12 KB of a 40 KB tutor question: tmp/json-decode/impact.md)
+          if (ui.options.filter((o) => o.img).length > TABLE_ROW_PICTURES) ui.options = ui.options.map(({ img, ...o }) => o);
           setTimeout(flushTexts, 200);
           // a reloaded table has forgotten earlier details: the resend after "hello" carries them all
           Object.defineProperty(ui, "allCards", { value: Object.fromEntries(full.filter((c) => c.n != null).map((c) => [c.id, { n: c.n, f: shortUrl(c.f), b: shortUrl(c.b), tl: c.tl, cmc: c.cmc, ty: c.ty, tok: c.tok, bp: c.bp, bt: c.bt, tx: c.tx }])), enumerable: false });
@@ -4907,6 +5060,8 @@ function onPrompt(seat, prompt) {
       // (and "the rest on the bottom", Ripple's: Surging Dementia's three asked "click the card to put on top", hp-23 gap)
       const trig = /^Order triggered abilities/i.test(title), bottom = /bottom of [^.]*library in any order|\bthe rest on the bottom of (?:your|their) library\./i.test(what);
       const onTop = !trig && !bottom && !!src && /library/i.test(what);
+      // (permanents returned to the battlefield: Ephemerate's order is the order they come back, enters triggers too)
+      const comesBack = /\breturn\b[^.]*\bbattlefield\b/i.test(what);
       // (a look at the top of a library said in the log, as Brainstorm's put-back is: Ponder's read nothing, rebuilt hand
       // test #16)
       if (onTop && game && /\blook at the top \w+ cards of your library\b/i.test(what)) gameLogLine(`${seat.color} looks at the top ${input.items.length === 1 ? "card" : `${input.items.length} cards`} of their library (${src})`);
@@ -4917,8 +5072,10 @@ function onPrompt(seat, prompt) {
           : onTop
             ? [(n) => `${src}: click the card to put ${n ? `next (number ${n + 1} from the top)` : "on top"}`, "Your library's top card first. Not sure? Keep this order."]
             // (any other order in words too: Ephemerate's two creatures coming back read "Ephemerate: pick #1", hp-09)
-            : [(n) => `${src || title || "Put these in order"}: click the one that ${/\breturn\b[^.]*\bbattlefield\b/i.test(what) ? "comes back" : "goes"} ${n ? "next" : "first"}`,
-              "The one you click first goes first (its enters triggers too). Not sure? Keep this order."];
+            // (its enters triggers only for what comes back: Pestilence's own order said "(its enters triggers too)")
+            : [(n) => `${src || title || "Put these in order"}: click the one that ${comesBack ? "comes back" : "goes"} ${n ? "next" : "first"}`,
+              comesBack ? "The one you click first comes back first (its enters triggers too). Not sure? Keep this order."
+                : "The one you click first goes first. Not sure? Keep this order."];
       // (to the bottom: the order hardly ever matters, so the engine's order is kept without asking, 2026-10-22 review)
       // (nor does the order an "exile all" effect takes permanents in: Sunfall asked "Sunfall: pick #1" over six creatures,
       // hp-09)
@@ -4927,19 +5084,22 @@ function onPrompt(seat, prompt) {
       // (nor the order of things that are all the same once Forge's object numbers are out: Flusterstorm's three storm
       // copies asked "click the one that happens first" over "Flusterstorm (145) - Counter Chart a Course (61) unless...",
       // hp-08 gap)
-      const plain = (i) => `${cardLabel(i.card)}|${withoutForgeNotes(String(i.oracle || "")).replace(/ \(\d+\)/g, "")}`;
+      // (an item's text without Forge's notes and object numbers: the "[Card: Twinflame ...]" note names the spell that
+      // set a trigger off, and its "target" is none of the trigger's, hp-14 re-test)
+      const oracleOf = (i) => withoutForgeNotes(String(i.oracle || "")).replace(/ \(\d+\)/g, "");
+      const plain = (i) => `${cardLabel(i.card)}|${oracleOf(i)}`;
       // (and identical triggers from copies of one card, as Arena orders them itself: two Coruscation Mages, a 2/2 and a
       // 1/1, asked which pings first, hp-14; not when they target, since the targets may differ)
-      const sameTrig = (i) => `${i.card?.identity?.name}|${withoutForgeNotes(String(i.oracle || "")).replace(/ \(\d+\)/g, "")}`;
+      const sameTrig = (i) => `${i.card?.identity?.name}|${oracleOf(i)}`;
       const allSame = input.items.length > 1 && (input.items.every((i) => plain(i) === plain(input.items[0]))
-        || (trig && input.items.every((i) => sameTrig(i) === sameTrig(input.items[0]) && !/\btarget\b/i.test(withoutForgeNotes(String(i.oracle || ""))))));
+        || (trig && input.items.every((i) => sameTrig(i) === sameTrig(input.items[0]) && !/\btarget\b/i.test(oracleOf(i)))));
       // (nor the order lands are put onto the battlefield together: Animist's Awakening's four lands asked "click the card
       // to put on top", hp-15 gap)
       const landsDown = !trig && input.items.length > 0 && input.items.every((i) => (i.card?.types || []).includes("Land"))
         && /\bland cards?\b[^.]*\bonto the battlefield\b/i.test(prompt.sourceAbilityText || "");
       if (bottom || exileAll || allSame || landsDown) { seat.respond(prompt.promptId, type, { type: "reorderDecision", orderedIds: input.items.map((i) => i.id) }); return; }
       // (Forge's object numbers left out of what is shown: "Counter Chart a Course (61)")
-      const items = input.items.map((i) => ({ id: i.id, label: cardLabel(i.card) + (i.oracle ? `: ${shorten(withoutForgeNotes(String(i.oracle)).replace(/ \(\d+\)/g, ""), 60)}` : ""), img: imgOf(i.card) }));
+      const items = input.items.map((i) => ({ id: i.id, label: cardLabel(i.card) + (i.oracle ? `: ${shorten(oracleOf(i), 60)}` : ""), img: imgOf(i.card) }));
       const step = orderSteps(words, hint, onTop ? [...items].reverse() : items,
         (ids) => ({ type: "reorderDecision", orderedIds: onTop ? [...ids].reverse() : ids }));
       if (step.auto) { seat.respond(prompt.promptId, type, step.auto); return; }
@@ -5013,7 +5173,8 @@ function onPrompt(seat, prompt) {
   const srcTypes = prompt.sourceCard?.types || byId[prompt.sourceCard?.id]?.types || [];
   if (srcTypes.length && !srcTypes.includes("Creature") && typeof ui.title === "string") {
     const kind = ["Land", "Artifact", "Enchantment", "Planeswalker", "Battle"].find((t) => srcTypes.includes(t));
-    ui.title = ui.title.replace(/\bthis creature\b/g, `this ${kind ? kind.toLowerCase() : "permanent"}`);
+    // (a sentence's first word too: "This creature ..." -> "This land ...")
+    ui.title = ui.title.replace(/\b([Tt])his creature\b/g, (m, t) => `${t}his ${kind ? kind.toLowerCase() : "permanent"}`);
   }
   // (Forge repeats a replacement effect's text in its title: said once)
   const ability = prompt.sourceAbilityText && !String(ui.text || "").includes(String(prompt.sourceAbilityText).slice(0, 60))
@@ -5074,17 +5235,21 @@ function armTimer(seat) {
   seat.timerWarn?.unref?.(); seat.timerEnd.unref?.();
 }
 // The safest legal answer to what's on screen: pass, keep, no attackers or blockers, No, cancel a payment; else the
-// question's first legal picks.
+// question's first legal picks. A question can name its own (ui.onTimeout); a sub-question with Back steps back to
+// the question under it, whose own safe answer then applies (review 2026-11-05: a timeout on "how do you play it?"
+// cast the first way).
 function timeoutChoice(ui) {
+  if (ui.onTimeout) return [ui.onTimeout];
   if (ui.mode === "number") return [String(ui.min ?? 0)];
   const ids = (ui.options || []).map((o) => String(o.id));
   if (ui.mode === "multi") return ids.filter((id) => !id.startsWith("__")).slice(0, ui.min || 0);
-  return [["__pass", "keep", "__cancel", "__auto", "__keep", "auto", "ok", "no"].find((id) => ids.includes(id)) ?? ids[0]];
+  return [["__back", "__pass", "keep", "__cancel", "__auto", "__keep", "auto", "ok", "no"].find((id) => ids.includes(id)) ?? ids[0]];
 }
 function timerExpired(seat, promptId) {
   if (seat.prompt?.promptId !== promptId) return;
   // (a manual fix or a rewind vote holds the game: everyone's clock waits)
-  if (game?.fix || seat.board?.state?.gameView?.restoreVote) { armTimer(seat); return; }
+  // (but a fix being applied is the engine playing its free plays: their questions are timed like any other)
+  if ((game?.fix && game.fix.state !== "applying") || seat.board?.state?.gameView?.restoreVote) { armTimer(seat); return; }
   seat.timeBank = 0; seat.timerFrom = null;
   chat(`[MTG] ${seat.color} ran out of time: ${seat.prompt.ui?.title || "the question"} took its default answer.`);
   // (a question of several steps keeps its id: each step answered in turn)
@@ -5105,8 +5270,13 @@ function setTimer(on, seconds) {
 // ───────────────────────── Table gestures (SPEC §10a) ─────────────────────────
 // The table reports what a player physically did; the bridge turns it into the engine action it means,
 // or refuses it (the card snaps back) with a reason.
-// The seat's open question is answered or gone: forget it and take it off the player's panel.
-function closePrompt(seat) {
+// The seat's open question is answered or gone: forget it and take it off the player's panel. A sub-question
+// (askUnder) closed by anything but its own answer gives its card back (refused: the table turned or moved it at the
+// gesture, and nothing else redraws it until the next board; review 2026-11-06). answered: the open question itself was
+// answered (onAnswer), so its card goes ahead.
+function closePrompt(seat, answered = false) {
+  const back = !answered && seat.prompt?.under?.returns;
+  if (back) toTTS({ t: "refused", color: seat.color, id: back });
   stopTimer(seat);
   seat.prompt = null;
   toTTS({ t: "prompt", color: seat.color, promptId: null });
@@ -5166,6 +5336,14 @@ function onIntent(m) {
   const p = seat.prompt;
   const input = p?.input || {};
   const name = cardNameIn(seat, m.id);
+  // One question of the bridge's own at a time (askUnder): a gesture while one is open is refused and the open one
+  // stays. (Before, a second card dragged was cast and left the first one on the battlefield, and a Q/E nested a second
+  // sub-question whose Cancel went back to the first: review 2026-11-05, "Missed".) Nothing is done for a gesture
+  // made while the player had a different question in front of them; that question's Back still puts its card back.
+  if (p?.under) {
+    const back = (p.ui?.options || []).find((o) => o.id === "__back")?.label;
+    return refuse(seat, m.id, `${name} stays: answer "${p.ui?.title || "the open question"}" first${back ? ` (or ${back})` : ""}.`);
+  }
   // "Pay ..., or else ..." answered by doing the "or else" by hand: Sylvan Library's card dragged onto the library puts
   // it back, Mystic Remora dragged to the graveyard is sacrificed (both = No; see chooseBoolean's otherwiseDo)
   if (p?.type === "chooseBoolean" && p.ui?.aboutCards?.includes(m.id) && p.ui.otherwiseDo && p.ui.otherwiseDo === { bottom: "library", sacrifice: "sacrifice" }[m.kind]) {
@@ -5210,7 +5388,6 @@ function onIntent(m) {
     const ways = [];
     for (const a of acts) if (!ways.some((w) => wayKey(w) === wayKey(a))) ways.push(a);
     if (ways.length > 1) {
-      const prev = { ui: seat.prompt.ui, toOutput: seat.prompt.toOutput };
       // (a keyword's way without its reminder sentence, its cost kept: Foretell's button read "Foretell (During your turn,
       // you may pay {2} and exile", cut there, hp-06 2026-10-28)
       const wayLabel = (a) => {
@@ -5227,12 +5404,9 @@ function onIntent(m) {
         const pay = m[2].match(/\bpay ((?:\{[^}]+\})+)/i);
         return pay ? `${m[1]} (pay ${pay[1]})` : m[1];
       };
-      const ui = prepareUi({ title: `${name}: how do you play it?`, text: "", mode: "single", kind: "choice", min: 1, max: 1,
-        options: [...ways.map((a) => ({ id: String(a.id), label: wayLabel(a) })), { id: "__back", label: "Back" }] });
-      seat.prompt = { ...seat.prompt, ui,
-        toOutput: (picks) => (picks[0] === "__back" ? { __next: { ...prev, returns: m.id } } : { type: "act", actionId: ways.find((a) => String(a.id) === picks[0])?.id ?? picks[0] }) };
-      toTTS({ t: "prompt", color: seat.color, promptId: p.promptId, step: Date.now() % 100000, ...ui });
-      return;
+      return askUnder(seat, { title: `${name}: how do you play it?`, text: "", mode: "single", kind: "choice", min: 1, max: 1,
+        options: ways.map((a) => ({ id: String(a.id), label: wayLabel(a) })) },
+      (picks) => ({ type: "act", actionId: ways.find((a) => String(a.id) === picks[0])?.id ?? picks[0] }), { back: "Back", returns: m.id });
     }
     const act = acts.find((a) => a.mode?.type === "normal") || acts[0];
     // Necromancy and the like: cast when a sorcery couldn't be, it is sacrificed at the next cleanup step (and the
@@ -5240,13 +5414,9 @@ function onIntent(m) {
     // Obliterator it returned was gone half a second later and it looked like the table had lost it)
     const gv = seat.board?.state?.gameView || {};
     if (act.type === "cast" && sacrificedIfInstant(cardIndex(gv)[m.id]) && !sorceryTime(seat, gv)) {
-      const prev = { ui: seat.prompt.ui, toOutput: seat.prompt.toOutput };
-      const ui = prepareUi({ title: `${name}: cast it now?`, mode: "single", kind: "choice", min: 1, max: 1,
+      return askUnder(seat, { title: `${name}: cast it now?`, mode: "single", kind: "choice", min: 1, max: 1,
         text: `Cast now, outside your main phase, ${name} is sacrificed at the next cleanup step, and whatever it brings back goes with it. Cast it in your main phase to keep it.`,
-        options: [{ id: String(act.id), label: "Cast anyway" }, { id: "__back", label: "Wait (keep it)" }] });
-      seat.prompt = { ...seat.prompt, ui, toOutput: (picks) => (picks[0] === "__back" ? { __next: { ...prev, returns: m.id } } : { type: "act", actionId: act.id }) };
-      toTTS({ t: "prompt", color: seat.color, promptId: p.promptId, step: Date.now() % 100000, ...ui });
-      return;
+        options: [{ id: String(act.id), label: "Cast anyway" }] }, () => ({ type: "act", actionId: act.id }), { back: "Wait (keep it)", returns: m.id });
     }
     closePrompt(seat);
     seat.respond(p.promptId, "chooseAction", { type: "act", actionId: act.id });
@@ -5294,21 +5464,15 @@ function onIntent(m) {
       if (!taps.length) return refuse(seat, m.id, `${name} can't be tapped for anything right now.`);
       if (taps.length === 1) return act(taps[0]);
       acts = taps;
-      const ui = prepareUi({ title: `${name}: which ability?`, mode: "single", cancel: true, kind: "choice",
-        options: acts.map((a) => ({ id: a.id, label: a.label || a.description || a.id })) });
-      const back = { ui: p.ui, toOutput: p.toOutput };
-      seat.prompt = { ...p, ui, toOutput: (a) => (a[0] === "__cancel" ? (Object.assign(seat.prompt, back), next(back.ui, back.toOutput)) : { type: "act", actionId: a[0] }) };
-      toTTS({ t: "prompt", color: seat.color, promptId: p.promptId, step: Date.now() % 100000, ...ui });
-      return;
+      // (Cancel and a timeout go back to priority and put the turned card back: refused, as Back does above)
+      return askUnder(seat, { title: `${name}: which ability?`, mode: "single", kind: "choice",
+        options: acts.map((a) => ({ id: a.id, label: a.label || a.description || a.id })) }, (a) => ({ type: "act", actionId: a[0] }), { back: "Cancel", returns: m.id });
     }
     if (acts.length === 1) return act(acts[0]);
     // a land with a choice of colours: ask which, under the same prompt
-    const ui = prepareUi({ title: `Tap ${name} for which mana?`, mode: "single", cancel: true, kind: "choice",
-      options: distinctLabels(acts, (a) => manaLabel(a) || a.description || a.id).map((label, i) => ({ id: acts[i].id, label })) });
-    const back = { ui: p.ui, toOutput: p.toOutput };
-    seat.prompt = { ...p, ui, toOutput: (a) => (a[0] === "__cancel" ? (Object.assign(seat.prompt, back), next(back.ui, back.toOutput)) : { type: "act", actionId: a[0] }) };
-    toTTS({ t: "prompt", color: seat.color, promptId: p.promptId, step: Date.now() % 100000, ...ui });
-    return;
+    return askUnder(seat, { title: `Tap ${name} for which mana?`, mode: "single", kind: "choice",
+      options: distinctLabels(acts, (a) => manaLabel(a) || a.description || a.id).map((label, i) => ({ id: acts[i].id, label })) },
+    (a) => ({ type: "act", actionId: a[0] }), { back: "Cancel", returns: m.id });
   }
 
   // Dragging one of your permanents to your graveyard: sacrifice it, if that is what the engine is asking.
@@ -5396,28 +5560,28 @@ function onAnswer(color, promptId, choice) {
   const ttsScry = ui?.scry && picks[0] === "__tts";
   if (!ttsScry && ui?.mode === "multi" && picks[0] !== "__cancel" && (picks.length < ui.min || picks.length > ui.max)) {
     chat(`[MTG] Choose ${ui.min === ui.max ? ui.min : `${ui.min}-${ui.max}`} (you chose ${picks.length}).`, color);
-    toTTS({ t: "prompt", color, promptId, ...ui });
+    showPrompt(seat); // (with its step: a sub-question or a step re-sent without it read as the question under it)
     return;
   }
   const problem = ttsScry ? null : answerProblem(ui, picks);
   if (problem) {
     log(`answer refused for ${color} #${promptId}: ${problem} (${JSON.stringify(picks).slice(0, 120)})`);
     chat(`[MTG] ${problem} Choose again.`, color);
-    toTTS({ t: "prompt", color, promptId, ...ui });
+    showPrompt(seat); // (with its step: a sub-question or a step re-sent without it read as the question under it)
     return;
   }
   const out = toOutput(picks.map(String));
+  if (out === ASKED) return; // (a sub-question asked, or its way back taken: askUnder sent it)
   if (out && out.__next) {
-    // a step-by-step choice: show the next step under the same engine prompt (after "Back" on a card dragged out to
-    // be played, that card goes back where it came from: nothing else redraws it, playtest 2026-10-26)
-    if (out.__next.returns) toTTS({ t: "refused", color, id: out.__next.returns });
+    // a step-by-step choice: show the next step under the same engine prompt
     const ui2 = prepareUi(out.__next.ui);
-    seat.prompt = { ...seat.prompt, ui: ui2, toOutput: out.__next.toOutput };
-    toTTS({ t: "prompt", color, promptId, step: Date.now() % 100000, ...ui2 });
+    const step = Date.now() % 100000;
+    seat.prompt = { ...seat.prompt, ui: ui2, toOutput: out.__next.toOutput, step };
+    showPrompt(seat);
     return;
   }
   seat.respond(promptId, type, out);
-  closePrompt(seat);
+  closePrompt(seat, true);
 }
 
 let roomRestarting = false; // a "docker compose restart" from "mtg reset" is running
@@ -5453,6 +5617,7 @@ function onTTS(m) {
       break;
     case "hello":
       tableStamp = m.stamp ?? null;
+      tableKeepsRewind = m.keepRewind === true;
       // (the table's repeat while it has drawn nothing, with no game running: nothing to send, suite review)
       if (m.again && !game?.started) break;
       log("TTS connected");
@@ -5466,7 +5631,7 @@ function onTTS(m) {
       noteStamp(m);
       warnIfOutOfStep();
       const go = () => {
-        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats));
+        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendlyVotes);
         if (game && m.autoplay) game.autoplay = true;
       };
       // the table's Start button (autoReset): a game left over from before is reset first, and a room that is still
@@ -5692,7 +5857,13 @@ const FIX_OPS = {
   commanderDamage: { player: "player", from: "commander", n: "count" }, createToken: { script: "token", player: "player", tapped: "bool?" },
   mana: { player: "player", mana: "mana" },
   createCard: { name: "cardName", player: "player", zone: "zone", tapped: "bool?" },
+  // fix from hand (docs/m7-manual-fix-spec.md §12, tmp/fix-from-hand-protocol.md): played by the engine after the plain
+  // ops, with triggers on and no mana; `ability` is never sent by the table (the engine asks when there are several)
+  freeCast: { card: "card", player: "player" }, freeLand: { card: "card", player: "player" },
+  freeActivate: { card: "card", player: "player", ability: "count?" },
 };
+const FREE_OPS = new Set(["freeCast", "freeLand", "freeActivate"]);
+const FIX_KINDS = { hand: "fix from hand", board: "edit the board" };
 // Forge's token scripts by name (tools/make-token-list.js), for "mtg fix token ...": what a player types ("treasure",
 // "1/1 green saproling", "2/2 black zombie") becomes the script with that colour and size whose name has every other
 // word, with the fewest extra words (treasure -> c_a_treasure_sac). A script name typed as it is is taken as it is.
@@ -5747,19 +5918,35 @@ const FIX_CHECK = {
 };
 // a token change as the player said it: "Red gets a treasure token, tapped"
 const getsToken = (who, text, tapped) => `${who} gets ${/^[aeiou]/i.test(text) ? "an" : "a"} ${text} token${tapped ? ", tapped" : ""}`;
-const FIX_ANSWER_MS = 20000; // the engine answers an applyState at once; after this the fix goes back to editing
+// the engine answers an applyState at once, or first asks a free play's questions; this long with neither (fixWatchdog)
+// and the fix goes back to editing
+const FIX_ANSWER_MS = 20000;
 function fixVoters(pub, except) {
   return [...game.seats.values()].filter((s) => s.color !== except && isPlaying(pub, s.slot)).map((s) => s.color);
 }
 function slotOfColor(color) { return Object.keys(game.slotColor).find((slot) => game.slotColor[slot] === color) || null; }
+// The cards of a fix, by id, and the zone each is in, from every seated player's board: a board shows only its own
+// seat's hand (Forge hides the others), and a fix from hand can hold picks from several players' hands while one of
+// them presses Done. A card a board shows hidden (face-down exile) is taken from a board that shows it.
+function fixCardView(pub) {
+  const byId = {};
+  const zoneOfCard = {};
+  for (const gv of [pub, ...[...(game?.seats?.values() || [])].map((s) => s.board?.state?.gameView)]) {
+    for (const z of gv?.zones || []) for (const c of z.cards || []) {
+      if (byId[c.id] && (byId[c.id].identity || !c.identity)) continue;
+      byId[c.id] = c;
+      zoneOfCard[c.id] = z.zone;
+    }
+  }
+  return { byId, zoneOfCard };
+}
 // The table names players by colour; the engine by slot. A list the table built is checked here, so a bad op is
 // refused with a reason instead of reaching the engine. Returns { ops, lines } or { error }. ownWords: a change may say
 // itself (`shown`), only for a list the bridge made (a debug setup): the table's list never words its own vote.
-function fixOps(list, pub, ownWords = false) {
+// kind: "hand" for a fix from hand (its graveyard moves are worded as such), else a board fix.
+function fixOps(list, pub, ownWords = false, kind = null) {
   if (!Array.isArray(list) || !list.length) return { error: "Nothing was changed." };
-  const byId = cardIndex(pub);
-  const zoneOfCard = {};
-  for (const z of pub.zones || []) for (const c of z.cards || []) zoneOfCard[c.id] = z.zone;
+  const { byId, zoneOfCard } = fixCardView(pub);
   const cardName = (id) => byId[id]?.identity?.name || id;
   const where = (c) => `${nameOf(c.ownerId)}'s ${zoneOfCard[c.id] || "?"}`;
   const ops = [];
@@ -5795,8 +5982,16 @@ function fixOps(list, pub, ownWords = false) {
       op.n = Math.max(0, op.n - others);
     }
     const c = op.card ? byId[op.card] : null;
+    // a free play is a table player's own card, in their hand (or, to activate, under their control on the battlefield):
+    // said here, before the vote, rather than as the engine's refusal after it
+    if (FREE_OPS.has(op.op)) {
+      if (!game.seats.get(raw.player)) return { error: `${raw.player} isn't a player at the table: only a seated player's card can be played for free.` };
+      const inHand = zoneOfCard[op.card] === "hand" && c.ownerId === op.player;
+      const onField = zoneOfCard[op.card] === "battlefield" && (c.controllerId ?? c.ownerId) === op.player;
+      if (!(inHand || (op.op === "freeActivate" && onField))) return { error: `${cardName(op.card)} isn't in ${poss(nameOf(op.player))} hand${op.op === "freeActivate" ? " or on their battlefield" : ""}.` };
+    }
     lines.push(ownWords && typeof raw.shown === "string" ? raw.shown : {
-      move: () => `${cardName(op.card)}: ${where(c)} → ${nameOf(c.ownerId)}'s ${op.zone}${op.zone === "library" ? (op.position === "bottom" ? " (bottom)" : " (top)") : ""}`,
+      move: () => (kind === "hand" && op.zone === "graveyard" && zoneOfCard[op.card] === "hand" ? `${nameOf(c.ownerId)} puts ${cardName(op.card)} into their graveyard (no effect)` : null) || `${cardName(op.card)}: ${where(c)} → ${nameOf(c.ownerId)}'s ${op.zone}${op.zone === "library" ? (op.position === "bottom" ? " (bottom)" : " (top)") : ""}`,
       tap: () => `${cardName(op.card)}: ${op.tapped ? "tapped" : "untapped"}`,
       counters: () => `${cardName(op.card)}: ${op.n} ${counterWords(op.kind) || op.kind}${op.n === 1 ? "" : "s"}`,
       attach: () => (op.to ? `${cardName(op.card)}: attached to ${cardName(op.to)}` : `${cardName(op.card)}: not attached`),
@@ -5810,6 +6005,9 @@ function fixOps(list, pub, ownWords = false) {
       createToken: () => getsToken(nameOf(op.player), raw.script, op.tapped),
       mana: () => { const each = {}; for (const m of op.mana.split(" ")) each[m] = (each[m] || 0) + 1; return `${nameOf(op.player)} gets mana until the end of the turn: ${Object.entries(each).map(([m, k]) => `${k} {${m}}`).join(", ")}`; },
       createCard: () => `${nameOf(op.player)} gets ${op.name} (${op.zone}${op.tapped ? ", tapped" : ""})`,
+      freeCast: () => `${nameOf(op.player)} casts ${cardName(op.card)} for free`,
+      freeActivate: () => `${nameOf(op.player)} activates ${poss(cardName(op.card))} ability for free`,
+      freeLand: () => `${nameOf(op.player)} plays ${cardName(op.card)} for free (the land drop stays unused)`,
     }[op.op]());
     ops.push(op);
   }
@@ -5818,7 +6016,7 @@ function fixOps(list, pub, ownWords = false) {
 // the fix part of a board update
 function fixState() {
   const f = game?.fix;
-  return f ? { id: f.id, state: f.state, by: f.by, waiting: f.waiting, lines: f.lines || null, message: f.message || null } : null;
+  return f ? { id: f.id, state: f.state, ...(f.kind ? { kind: f.kind } : {}), by: f.by, waiting: f.waiting, lines: f.lines || null, message: f.message || null } : null;
 }
 function fixNews(pub) {
   const f = game.fix;
@@ -5830,6 +6028,17 @@ function fixNews(pub) {
     chat(`[MTG] ${f.debug ? `Debug setup "${f.debug.name}"` : "Manual fix"} applied: ${f.lines.join("; ")}.`);
     // (and in the game log, which said nothing of King Macar put on top of the library by hand, hp-14 gap)
     gameLogLine(`${f.by}'s ${what}: ${f.lines.join("; ")}`);
+    // (free plays the engine couldn't make: a choice cancelled, no legal target, a cost that couldn't be paid. The rest
+    // of the fix stands; the table shows nothing of it by itself)
+    for (const d of Array.isArray(r.dropped) ? r.dropped : []) {
+      const op = f.ops?.[d.index];
+      const id = d.card || op?.card;
+      const name = fixCardView(pub).byId[id]?.identity?.name || game.namesSeen?.get(id) || id || "a card";
+      const line = `Not played in the fix: ${name}${op?.player ? ` (${nameOf(op.player)})` : ""}: ${String(d.reason || "no reason given").replace(/^not played:\s*/i, "")}`;
+      log(`fix #${f.id}: ${line}`);
+      chat(`[MTG] ${line}`);
+      gameLogLine(line);
+    }
     endFix();
   } else {
     const why = r.message || "no reason given";
@@ -5849,9 +6058,14 @@ function fixBackToEditing(f, message, text) {
   scheduleTable();
 }
 // (on the bridge's 5-second tick) an apply with no answer: the directive was lost or refused unread
+// A fix from hand's free plays ask the players (targets, X, costs, trigger order) before the engine's answer comes: a
+// question that came after the apply means the engine took the list. Then it waits while one is open, and counts from
+// the last question or answer, not the apply (20 s fired while a player was still picking a target).
 function fixWatchdog() {
   const f = game?.fix;
-  if (!f || f.state !== "applying" || Date.now() - f.appliedAt < FIX_ANSWER_MS) return;
+  if (!f || f.state !== "applying") return;
+  if (f.activeAt && [...game.seats.values()].some((st) => st.prompt)) return;
+  if (Date.now() - Math.max(f.appliedAt, f.activeAt || 0) < FIX_ANSWER_MS) return;
   log(`fix #${f.id}: no answer from the engine to ${f.applyId}`);
   fixBackToEditing(f, "no answer from the engine", "[MTG] The engine didn't answer the fix. Back to editing: press Done to try again, or Cancel.");
 }
@@ -5911,6 +6125,7 @@ function fixPaused(f) {
 function fixApply(f, pub) {
   f.applyId = game.fixApplies = Math.max(game.fixApplies || 0, pub.stateFix?.fixId || 0) + 1;
   f.appliedAt = Date.now();
+  f.activeAt = null;
   f.state = "applying";
   f.waiting = [];
   const seat = f.held.seat;
@@ -5961,10 +6176,32 @@ function onFix(m) {
       else fixApply(f, pub);
       break;
     }
+    // which kind of fix, picked on the table once the game is paused: "hand" (cards stay locked, the players pick free
+    // plays from their hands) or "board" (move the cards). The first pick counts, for the whole fix.
+    case "kind": {
+      if (!f || f.state !== "editing") return chat("[MTG] The game isn't paused for a fix.", color);
+      if (m.kind !== "hand" && m.kind !== "board") return;
+      if (f.kind && f.kind !== m.kind) return chat(`[MTG] ${f.kindBy} already chose: ${FIX_KINDS[f.kind]}.`, color);
+      if (f.kind) return;
+      Object.assign(f, { kind: m.kind, kindBy: color });
+      log(`fix #${f.id}: ${color} chose ${m.kind}`);
+      chat(`[MTG] ${color} chose: ${FIX_KINDS[m.kind]}.`);
+      break;
+    }
     case "done": {
       if (!f || f.state !== "editing") return chat("[MTG] The game isn't paused for a fix.", color);
-      const r = fixOps(m.ops, pub);
+      // (no kind said: a board fix, as before the kind was asked; "mtg mana <n>" presses Done before anyone picks)
+      const kind = f.kind || (m.kind === "hand" ? "hand" : "board");
+      const r = fixOps(m.ops, pub, false, kind);
       if (r.error) return chat(`[MTG] ${r.error}`, color);
+      // "what should have happened", one line each: never ops; in the vote's list, the bridge log and the table log,
+      // with the fix id and the seat, and in the game log once applied (fixNews)
+      const notes = (Array.isArray(m.notes) ? m.notes : []).map((n) => ({ color: n?.color, text: typeof n?.text === "string" ? n.text.trim().slice(0, 200) : "" }))
+        .filter((n) => n.text && game.seats.has(n.color));
+      for (const n of notes) { log(`fix #${f.id} note (${n.color}): ${n.text}`); tlog(n.color, `fix #${f.id} note: ${n.text}`); }
+      r.lines.push(...notes.map((n) => `Note (${n.color}): ${n.text}`));
+      // (the kind is kept only when someone said it: a refused list goes back to editing as it was)
+      if (!f.kind && (m.kind === "hand" || m.kind === "board")) f.kind = m.kind;
       Object.assign(f, { ops: r.ops, lines: r.lines, message: null });
       chat(`[MTG] Changes: ${r.lines.join("; ")}.`);
       if (!fixAsk(f, pub, color, "review", "wants to apply these changes")) fixApply(f, pub);
@@ -6117,12 +6354,41 @@ function onWinner(color, by) {
   chat(`[MTG] ${by} declares ${color} the winner.` + (ai.length ? ` AI players ${ai.join(", ")} can't concede; type  mtg reset  to end the game.` : ""));
 }
 
+// Friendly mulligans. The engine takes the count off what a kept hand owes (the Keep answer's freeCards); these say so
+// at the table. With 3 or more players the rules' free mulligan comes first (Forge does that one by itself).
+const rulesFreeMulligans = () => (game.total > 2 ? 1 : 0);
+const friendlySay = (line) => { chat(`[MTG] ${line}`); gameLogLine(line); };
+function friendlyFreeLeft(seat) {
+  return game?.friendly ? Math.max(0, rulesFreeMulligans() + game.friendly - seat.mullsTaken) : 0;
+}
+function friendlyText(seat) {
+  const left = friendlyFreeLeft(seat);
+  if (left) return `Free mulligans left: ${left}.`;
+  const owed = Math.max(0, seat.mullsTaken - rulesFreeMulligans() - game.friendly);
+  return owed ? `Keeping puts ${owed} on the bottom.` : "No free mulligans left: the next one costs a card.";
+}
+function mulliganTaken(seat) {
+  seat.mullsTaken++;
+  if (!game?.friendly) return;
+  saveResume(); // (a bridge restart between mulligans keeps the count)
+  const nth = seat.mullsTaken - rulesFreeMulligans();
+  if (nth < 1 || nth > game.friendly) return; // the rules' free one, or one that costs a card
+  friendlySay(`${seat.color} took a friendly mulligan (${nth} of ${game.friendly}).`);
+  if (nth === game.friendly) friendlySay(`That was ${seat.color}'s last friendly mulligan: their next one costs a card.`);
+}
+function friendlyEnded(gv) {
+  if (!game.friendly || game.friendlyOver || !(gv.turn >= 1)) return;
+  game.friendlyOver = true;
+  friendlySay("Friendly mulligans are over: normal rules from here.");
+}
+
 // After a restore the engine is back at an earlier point and asks its questions again. A question that was open
 // before it must not be answered any more: an answer reaching the engine's new question crashed Forge in a test
 // (rules-check --game rewind: "unsupported action kind: choose_action" while it waited for a target).
 function checkRestored(seat) {
   const gv = seat.board?.state?.gameView;
   if (!gv || !game) return;
+  friendlyEnded(gv);
   // Two signs, either is enough: the turn number never goes down otherwise, and a restore drops every checkpoint
   // after the one it went back to, so the newest checkpoint id goes DOWN (measured: 56 -> 40). The second also
   // catches a rewind within the same turn. (The STEP going back is no sign: extra combat phases do that.)
@@ -6155,6 +6421,10 @@ function checkRestored(seat) {
   seat.cardsDone = null;
   seat.unless = null;
   seat.autoPayCard = null;
+  seat.autoPayFailedFor = null;
+  // (and our own auto-pay: left set, the same card's payment asked again after the rewind would be tapped without
+  // asking, suite review 2026-11-05)
+  seat.smartPay = null;
   seat.tappedFor = null;
   seat.payingCost = null;
   seat.forget();
@@ -6162,6 +6432,7 @@ function checkRestored(seat) {
   if (seat === leadSeat()) {
     chat(`[MTG] Rewound to turn ${gv.turn} (${REWIND_STEPS[gv.step] || gv.step}).`);
     game.sentZones = {}; // the next board update sends every zone in full
+    game.fxJump = true; // (and says it is a jump: the table plays no death / damage effects for what the rewind undid)
     game.lastTableSig = null; // (and goes out even if it matches the last one sent)
     // the log says the rewind, and the board it went back to is its new start: the difference was told as plays
     // ("Dauthi Voidwalker returns to the battlefield", "Command Tower leaves the battlefield", hp-07 #36 2026-10-27)
@@ -6183,7 +6454,7 @@ const DEBUG_PORT = Number(arg("debug-port", 48787));
 const CONSOLE_LOG = path.join(__dirname, "tts-console.log");
 const consoleLines = [];
 let consoleTotal = 0; // lines ever added (consoleLines keeps the last 500)
-let execSeq = 0;
+let execSeq = BRIDGE_EXEC_BASE; // (Execute Lua answers from here up are the bridge's; lower ones the editor plugin's)
 const execWaiters = new Map();
 
 function onTTSDebug(msg) {
@@ -6224,6 +6495,9 @@ const MAX_BODY = 4 * 1024 * 1024;
 const LOCAL_HOSTS = new Set([`127.0.0.1:${DEBUG_PORT}`, `localhost:${DEBUG_PORT}`]);
 // collects a request body up to MAX_BODY; bigger requests get 413 and done is never called
 function readBody(req, res, done) {
+  // (decoded as text by Node: a character split across two chunks is held until its other bytes arrive; `body += d` on
+  // raw Buffers turned an accented card name split at a chunk edge into two replacement marks, tmp/msg-size/live.md)
+  req.setEncoding("utf8");
   let body = "", tooBig = false;
   req.on("data", (d) => { if (tooBig) return; body += d; if (body.length > MAX_BODY) { tooBig = true; res.writeHead(413); res.end(); req.destroy(); } });
   req.on("end", () => { if (!tooBig) done(body); });
@@ -6315,6 +6589,7 @@ const debugServer = http.createServer((req, res) => {
 if (require.main === module) {
   debugServer.listen(DEBUG_PORT, "127.0.0.1").on("error", (e) => log(`debug port ${DEBUG_PORT} unavailable: ${e.message}`));
   server.listen(TTS_IN, "127.0.0.1", () => log(`Bridge listening for TTS on ${TTS_IN}; relay ${RELAY}, room "${ROOM}". Load tts/mtg-board.lua in TTS.`));
+  editorForward.start();
   process.on("SIGINT", () => { if (game) { game.closing = true; for (const s of game.seats.values()) s.close(); } setTimeout(() => process.exit(0), 200); });
   resumeGame();
   setInterval(() => { guarded("save game", saveResume); guarded("fix watchdog", fixWatchdog); }, 5000);
@@ -6323,6 +6598,7 @@ if (require.main === module) {
   module.exports = {
     alignment, tableCard, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, cardIndex, nameOf, notePlay, hasKeyword,
-    _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer,
+    _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
+    _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
   };
 }

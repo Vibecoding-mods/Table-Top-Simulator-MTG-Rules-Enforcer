@@ -98,7 +98,10 @@ const GESTURES = {
 };
 
 // PLAYER_FACTS: Forge's PlayerDto field -> { to: keys of the bridge's player row (sendTable), show }, or { gap }, or
-// { skip }. Most land in "marks", short labels under the player's life (bridge playerMarks).
+// { skip }. Most land in "marks", short labels under the player's life (bridge playerMarks). Every mark shown is also in
+// "allMarks", the whole label in order, which a table of 2026-11-06 or later draws instead (bridge PLAYER_MARKS,
+// trackMarks); "marks" and the six fields poison, energy, monarch, initiative, blessed and story stay for an older
+// table until docs/core-moves-cleanup-plan.md "2. trackMarks" step 6.
 const PLAYER_FACTS = {
   id: { to: ["slot"], show: "which seat" },
   name: { to: ["name"], show: "the seat's name" },
