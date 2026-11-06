@@ -22,24 +22,36 @@ by tmp/mech-run.js; one report per deck in this folder, a line each in summary.t
 | 10 | hp-40, hp-14 | a trigger on a board still in scheduleTable's 40 ms wait, passed by itself (your own spell in your main phase), was never logged | golden "a priority passed by itself with a waiting board" (2 cases; 3 mutants red) | all 4 prowess triggers; both Coruscation Mages each time |
 | 11 | hp-25 | Mind Bend / Artificial Evolution / Sleight of Mind left no log line; first wording read live text word by word ("Goblins → strike") | test_bridge_events "text change" (12; 9 mutants red) | "Bog Wraith's text changes: Swampwalk → Islandwalk (Mind Bend)", "Goblin King's ...: Goblin → Elf", "White Knight's ...: black → red" (bridge 3cfe7f78) |
 
-## Open (not fixed)
+## Fixed after the first write-up (2026-11-05 night, bridge e64e34a3, then 3e533e72 with the trigger-note fix)
 
-- hp-05: after paying Mystic Remora's cumulative upkeep with Auto-pay, the priority row keeps one "Untap Forest (mana
-  back)" per land tapped, for mana already spent (only after an "unless you pay" cost during a trigger; never after a
-  cast). If pressing one untaps the land, it is free mana. Harness: undoableManaSources lists Forge's undo stack, which
-  an unless-cost payment never clears. To test on the table before fixing.
-- hp-17: Auto-pay spends colours the hand needs: scavenge's {4}{B} took 4 of 5 Forests with 4 Plains untapped, so Bear
-  Umbra ({2}{G}{G}) could no longer be cast. Arena's auto-tapper keeps needed colours; Forge's does not.
-- hp-14: identical triggers (two Coruscation Mages) still ask for an order; Arena orders identical triggers itself.
-  Two token copies of one creature still read "Coruscation Mage (token) / Coruscation Mage (token)".
-- hp-15: Fatal Push's question says "mana value 2 or less" with revolt on (it is 4 or less then).
-- hp-06: Bowmasters' target list names the manifested face-down card "Brainstorm" (allowed: it is yours) without saying
-  it is face down.
-- hp-09: flickering a mutated creature asks "Ephemerate: pick #1" (which comes back first), unclear words.
-- hp-18: graft on a land says "from this creature".
-- hp-25: Glamerdye aimed at a Forest (no colour word to change) still logs "Forest's text changes (Glamerdye)" with
-  no detail; Forge's text differs only by the dropped reminder. Better: say nothing changed, or skip the line.
-- hp-23: a token returned to the hand (sweep's Everywhere) reads only "leaves the battlefield".
+Live re-test, 9 decks:
+- **Confirmed on the real table:**
+  - #12: after Remora's Auto-paid upkeep the priority row had no "mana back";
+  - #13: Bear Umbra was cast after Auto-pay;
+  - #15: "Coruscation Mage 1/1 (token) / Coruscation Mage 2/2 (token)";
+  - #16: "Saw in Half (face down)";
+  - #17: "mana value 4 or less";
+  - #18: "Ephemerate: click the one that comes back first";
+  - #19: "from this land";
+  - #20: "Glamerdye changes nothing in Forest's text".
+- **#14, first try:** the Chalice and Together Forever triggers were ordered by themselves, but Twinflame's still asked. Forge's note on each trigger ("[Card: Twinflame … SpellAbility: Choose any number of target creatures …]") tripped the "does it target" check, which now reads the text without Forge's notes (golden case from the live text; caught when broken). Re-run on bridge 3e533e72: Twinflame's two Mage triggers ordered by themselves, both logged; the one question left was Warboss vs Nelly, two different triggers.
+- **#21:** not reached live (the runner returned Mountains, not the token); covered by its test.
+- **hp-06:** first re-run timed out. The scenario's 6 {C} were partly spent before Emrakul's madness {C}x6; the plan now gives 12.
+
+| # | found in | what was wrong | fix | test (goes red without the fix) |
+|---|---|---|---|---|
+| 12 | hp-05 | after Mystic Remora's upkeep paid with Auto-pay, one "Untap Forest (mana back)" per land stayed, for mana already spent (Forge keeps its undo list after an "unless you pay" cost) | "mana back" is offered only while mana floats in your pool | golden "undo listed but the pool is empty" (2) |
+| 13 | hp-17 | Auto-pay spent the colours the hand needs (4 of 5 Forests for {4}{B} with 4 Plains free; Bear Umbra lost) | the bridge taps for plain costs itself: each coloured symbol from a source of that colour, the generic part from the lands the rest of the hand needs least; hybrid, X, Phyrexian, extra-cost sources go to Forge's auto-pay as before | golden "hp-17: auto-pay" (7 cases; 7 of 8 mutants red, the 8th an equivalent program) |
+| 14 | hp-14 | identical triggers (two Coruscation Mages) asked for an order | ordered by themselves when name and text are the same and nothing targets, as Arena does | golden "identical triggers" (3) |
+| 15 | hp-14 | two token copies read "Coruscation Mage (token) / Coruscation Mage" (the token pass changed a label before comparing the next) | collisions decided first; alike creatures then get power/toughness, then #1 / #2 | golden "target labels" |
+| 16 | hp-06 | a manifested card you may see was offered as "Brainstorm" | "Brainstorm (face down)" | golden "target labels" |
+| 17 | hp-15 | Fatal Push asked "mana value 2 or less" with revolt on | with revolt on the question says "4 or less" | golden "revolt on or off" |
+| 18 | hp-09 | "Ephemerate: pick #1" | "Ephemerate: click the one that comes back first" | golden "an order of creatures coming back" |
+| 19 | hp-18 | a land's graft asked "from this creature" | "from this land" (a non-creature card's "this creature" is said as its type) | golden "graft" (2) |
+| 20 | hp-25 | Glamerdye on a Forest logged "Forest's text changes" with no detail | "Glamerdye changes nothing in Forest's text" | test_bridge_events "text change" (2 new) |
+| 21 | hp-23 | a bounced token read "leaves the battlefield" | "Everywhere token returns to White's hand and ceases to exist" | test_bridge_events "token: returned to the hand" |
+
+Break-it pass: 16 of 16 mutants of #12, #14-#21 caught by name; #13 7 of 8 (above).
 
 ## Runner limits (not game bugs)
 

@@ -1578,6 +1578,7 @@ const LEAVE_WORDS = {
   libraryTop: (w, names) => `${names[0]} is put on top of ${w}'s library`,
   library: (w, names) => `${names[0]} is put into ${w}'s library`,
   hand: (w, names) => `${names[0]} returns to ${w}'s hand`,
+  tokenHand: (w, names) => `${names[0]} returns to ${w}'s hand and ceases to exist`,
   handFrom: (w, names, k) => `${names[0]} is put into ${w}'s hand from ${k.from}`,
   tokens: (w, names) => (names.length === 1 ? `${names[0]} leaves the battlefield` : `${byCount(names)} leave the battlefield`),
   left: (w, names) => `${names[0]} leaves the battlefield`,
@@ -1976,6 +1977,8 @@ function logEvents(prev, cur, pub, facts = null) {
     if (was.token && gone?.how === "sacrificed") return { kind: "sacrificed", label: sacrificeWords(gone, was) };
     if (was.token && was.creature && gone?.to === "Graveyard") return { kind: "dies" };
     if (was.token && gone?.to === "Exile") return { kind: "exiled" };
+    // (a token bounced: it goes to the hand and ceases to exist; sweep's Everywhere read "leaves the battlefield", hp-23)
+    if (was.token && gone?.to === "Hand") return { kind: "tokenHand" };
     if (!was.token && gone?.to === "Library") return { kind: "library" };
     if (!was.token && !was.fd && toHand) return { kind: "hand" };
     // (a creature token gone in the combat damage step died: a token leaves no card in a graveyard, and a blocked
@@ -2173,9 +2176,14 @@ function logEvents(prev, cur, pub, facts = null) {
   // it was and as it is; Mind Bend, Artificial Evolution and Sleight of Mind were in no log, mechanic run hp-25 2026-11-05)
   for (const s of Object.values(prev.stack)) {
     if (!/\bchange the text of\b/i.test(s.text || "") || s.sids.some((x) => curSids.has(x))) continue;
-    for (const [id, c] of retexted) {
-      if (!s.cardTg.includes(id)) continue;
-      out.push(`${c.name}'s text changes${textChangeWords(prev.cards[id].tx, c.tx)} (${s.name})`);
+    // (a target with no such word: Glamerdye on a Forest read "Forest's text changes (Glamerdye)", Forge having only
+    // dropped its reminder, hp-25)
+    const bare = (t) => withoutForgeNotes(String(t || "")).replace(/\s*\([^)]*\)/g, "").trim();
+    for (const id of s.cardTg) {
+      const c = cur.cards[id];
+      if (c?.tx == null || prev.cards[id]?.tx == null) continue;
+      const words = c.tx !== prev.cards[id].tx ? textChangeWords(prev.cards[id].tx, c.tx) : "";
+      out.push(words || bare(c.tx) !== bare(prev.cards[id].tx) ? `${c.name}'s text changes${words} (${s.name})` : `${s.name} changes nothing in ${c.name}'s text`);
     }
   }
   out.push(...afterEntries);
@@ -3492,6 +3500,41 @@ function costLeft(cost, pool) {
   return out.join("") || "{0}";
 }
 
+// Auto-pay that keeps the colours the hand needs (Arena's auto-tapper does; Forge's took 4 of 5 Forests for a scavenge
+// {4}{B} with 4 Plains untapped, so Bear Umbra's {2}{G}{G} was lost, mechanic run hp-17). owed: the cost still owed;
+// acts: the payment's actions; hand: the other cards in hand; cards: the card index. Returns the action to tap next, or
+// null when the whole cost can't be planned from plain {T} sources (then Forge's own auto-pay does it).
+function smartPayTap(owed, acts, hand, cards) {
+  const syms = [...String(owed || "").matchAll(/\{([^}]+)\}/g)].map((m) => m[1].toUpperCase());
+  if (!syms.length || syms.some((x) => !/^(\d+|[WUBRGC])$/.test(x))) return null;
+  const made = (a) => {
+    const set = new Set((a.producedMana || []).map((m) => String(m.color || "").toUpperCase()).filter((c) => /^[WUBRGC]$/.test(c)));
+    const c = String(a.id || "").match(/:([WUBRGC])$/);
+    if (!set.size && c) set.add(c[1]);
+    return set;
+  };
+  const plain = acts.filter((a) => (a.type === "activateManaAbility" || a.isManaAbility) && a.cardId && (!a.cost || a.cost === "{T}")
+    && made(a).size > 0 && (a.producedMana || []).reduce((n, m) => n + (Number(m.amount) || 1), 0) <= 1);
+  const need = {};
+  for (const c of hand) for (const col of new Set([...String(c.manaCost || "").matchAll(/[WUBRG]/g)].map((m) => m[0]))) need[col] = (need[col] || 0) + 1;
+  const loss = (cardId) => {
+    const cols = new Set(plain.filter((a) => a.cardId === cardId).flatMap((a) => [...made(a)]));
+    return [...cols].reduce((n, col) => n + (need[col] || 0), 0) + ((cards[cardId]?.types || []).includes("Creature") ? 0.5 : 0);
+  };
+  const used = new Set(), taps = [];
+  const pick = (ok) => {
+    const best = plain.filter((a) => !used.has(a.cardId) && ok(a)).sort((x, y) => loss(x.cardId) - loss(y.cardId) || made(x).size - made(y).size)[0];
+    if (best) { used.add(best.cardId); taps.push(best); }
+    return !!best;
+  };
+  const colours = syms.filter((x) => !/^\d+$/.test(x));
+  const scarce = (col) => plain.filter((a) => made(a).has(col)).length;
+  for (const col of [...colours].sort((x, y) => scarce(x) - scarce(y))) if (!pick((a) => made(a).has(col))) return null;
+  const generic = syms.filter((x) => /^\d+$/.test(x)).reduce((n, x) => n + Number(x), 0);
+  for (let i = 0; i < generic; i++) if (!pick(() => true)) return null;
+  return taps[0] || null;
+}
+
 function manaRank(cost, a) {
   const made = new Set((a.producedMana || []).map((m) => String(m.color || "").toUpperCase()));
   const c = String(a.id || "").match(/:([WUBRGC])$/);
@@ -3576,7 +3619,7 @@ function onPrompt(seat, prompt) {
   const title = input.presentation?.title || { chooseFromSelection: "Choose", chooseCards: "Choose", chooseBoardTargets: "Choose a target", chooseNumber: "Choose a number", chooseColor: "Choose a color", chooseBoolean: "Yes or no?", revealCards: "Revealed", reorder: "Put these in order" }[type] || type;
   let ui;
   let toOutput;
-  if (type !== "payManaCost") { seat.autoPayFailedFor = null; }
+  if (type !== "payManaCost") { seat.autoPayFailedFor = null; seat.smartPay = null; }
   if (type !== "chooseBoolean") seat.cardsDone = null; // (only the question right after counts)
   // the cost being paid, for a "Choose a color" from a source tapped while paying (Command Tower)
   if (type === "payManaCost") seat.payingCost = input.manaCost || null;
@@ -3681,7 +3724,11 @@ function onPrompt(seat, prompt) {
       // mana you tapped for and haven't spent can be taken back (the engine's undo for that source): you are always
       // asked then, so the land can be turned back instead of the mana being lost (playtest 2026-10-23: "I gotta be
       // able to untap without the full undo")
-      const undos = (input.actions || []).filter((a) => a.type === "undoMana" && a.cardId);
+      // (only while mana floats: Forge keeps the undo list after an "unless you pay" cost paid during a trigger, so
+      // Mystic Remora's upkeep left one "Untap Forest (mana back)" per land for mana already spent, hp-05)
+      const pool = gv.players?.find((p) => p.id === seat.slot)?.manaPool;
+      const floating = !pool || Object.values(pool).some((n) => n > 0);
+      const undos = floating ? (input.actions || []).filter((a) => a.type === "undoMana" && a.cardId) : [];
       // "mtg hold": priority kept once this turn with something on the stack you could respond with: your own spell
       // passed by itself in your main phase, so Flusterstorm on your own Bolt had no moment (2026-10-29 request)
       const holdStop = seat.hold === gv.turn && (gv.stack || []).length > 0 && actions.length > 0;
@@ -3760,13 +3807,26 @@ function onPrompt(seat, prompt) {
       // (not when life can pay part of it: a Phyrexian {B/P} is the player's choice, and Vraska's Compleated paid with
       // floating mana never offered the life, hp-22 #1 2026-10-28)
       const canPayLife = (input.actions || []).some((a) => a.type === "payLife" || a.id === "pay-life");
-      if (input.cardId && (seat.autoPayCard === input.cardId || seat.tappedFor === input.cardId || ownJustNow) && input.canConfirmFromPool && !canPayLife) {
+      if (input.cardId && (seat.autoPayCard === input.cardId || seat.smartPay === input.cardId || seat.tappedFor === input.cardId || ownJustNow) && input.canConfirmFromPool && !canPayLife) {
         seat.autoPayCard = null;
+        seat.smartPay = null;
         seat.tappedFor = null;
         seat.forget("start");
         seat.respond(prompt.promptId, type, { type: "pay", auto: false });
         return;
       }
+      // (our auto-pay under way: the next planned tap, or Forge's own auto-pay when the rest can't be planned)
+      const handOthers = () => (zoneOf(gv, "hand", seat.slot).cards || []).filter((c) => c.id !== input.cardId);
+      const ownPool = gv.players?.find((p) => p.id === seat.slot)?.manaPool || {};
+      if (seat.smartPay && seat.smartPay === input.cardId && !input.canConfirmFromPool) {
+        const next = smartPayTap(costLeft(input.manaCost, ownPool), input.actions || [], handOthers(), byId);
+        if (next) { seat.respond(prompt.promptId, type, { type: "act", actionId: next.id }); return; }
+        seat.smartPay = null;
+        seat.autoPayCard = input.cardId;
+        seat.respond(prompt.promptId, type, { type: "pay", auto: true });
+        return;
+      }
+      seat.smartPay = null;
       // Auto-pay already ran for this spell and the engine still asks: don't offer it again (it would loop).
       const autoFailed = seat.autoPayCard === input.cardId || seat.autoPayFailedFor === input.cardId;
       seat.autoPayFailedFor = autoFailed ? input.cardId : null;
@@ -3817,6 +3877,8 @@ function onPrompt(seat, prompt) {
         seat.tappedFor = String(a[0]).startsWith("tap:") ? input.cardId : null;
         // (the stack showed it, so the log said "casts" and nothing took that back: Silvergill Adept, hp-24 gap)
         if (a[0] === "__cancel" && game?.log?.slice(-12).includes(`${seat.color} casts ${input.cardName || src}`)) gameLogLine(`${seat.color} cancels ${input.cardName || src}`);
+        const first = a[0] === "__auto" && smartPayTap(owed, input.actions || [], handOthers(), byId);
+        if (first) { seat.smartPay = input.cardId; return { type: "act", actionId: first.id }; }
         return a[0] === "__auto" ? (seat.autoPayCard = input.cardId, { type: "pay", auto: true }) : a[0] === "__pool" ? { type: "pay", auto: false }
           : a[0] === "__cancel" ? { type: "cancel" } : { type: "act", actionId: a[0] };
       };
@@ -3874,9 +3936,25 @@ function onPrompt(seat, prompt) {
           ...((gv.zones || []).some((z) => (z.zone === "graveyard" || z.zone === "exile") && z.cards.some((x) => x.id === c.id)) ? { img: imgOf(byId[c.id]) } : {}) })) };
       // (a token beside a card of its name says so: Cut Your Losses offered "Galadhrim Brigade / Galadhrim Brigade", the
       // squad token and the card, mechanic run hp-16 2026-11-05)
-      for (const o of ui.options) {
-        const tid = o.id.split("|")[1];
-        if (byId[tid]?.identity?.isToken && ui.options.some((x) => x !== o && x.label === o.label)) o.label += " (token)";
+      // (decided before any label changes: two token copies read "Coruscation Mage (token) / Coruscation Mage", hp-14)
+      const tokenTwins = ui.options.filter((o) => byId[o.id.split("|")[1]]?.identity?.isToken && ui.options.some((x) => x !== o && x.label === o.label));
+      for (const o of tokenTwins) o.label += " (token)";
+      // (a face-down card you may see is named, and says it is face down: Bowmasters offered the manifested card as
+      // "Brainstorm", hp-06)
+      for (const o of ui.options) if (byId[o.id.split("|")[1]]?.isFaceDown && byId[o.id.split("|")[1]]?.identity) o.label += " (face down)";
+      // (two that still read alike get their power/toughness, then a number: Coruscation Mage's two token copies read
+      // "Coruscation Mage (token) / Coruscation Mage (token)", hp-14)
+      for (const pass of ["pt", "n"]) {
+        const seen = {};
+        for (const o of ui.options) (seen[o.label] ??= []).push(o);
+        for (const group of Object.values(seen)) {
+          if (group.length < 2 || !group.every((o) => byId[o.id.split("|")[1]]?.power != null)) continue;
+          group.forEach((o, k) => {
+            const c = byId[o.id.split("|")[1]];
+            if (pass === "pt") { if (c?.power != null && c?.toughness != null) o.label = o.label.replace(/^([^(]+?)(?= \(|$)/, `$1 ${c.power}/${c.toughness}`); }
+            else o.label += ` #${k + 1}`;
+          });
+        }
       }
       // (a modal spell's chosen modes, which Forge adds after its list and a blank line: Collective Resistance's
       // hexproof target read "choose a target", hp-21)
@@ -3911,6 +3989,9 @@ function onPrompt(seat, prompt) {
       if (revolt && game?.revolt) {
         const on = game.revolt[seat.slot] === gv.turn;
         ui.text = `${ui.text ? `${ui.text}\n` : ""}Revolt is ${on ? "ON" : "off"}: ${on ? "a permanent you controlled left the battlefield this turn" : "no permanent you controlled has left the battlefield this turn"}.`;
+        // (and with revolt on, the question says the revolt number: Fatal Push asked "mana value 2 or less", hp-15)
+        const instead = on && /\b(mana value|power|toughness) (\d+|X) or (less|greater|more) instead\b/i.exec(revolt);
+        if (instead) ui.title = ui.title.replace(new RegExp(`\\b${instead[1]} (?:\\d+|X) or (?:less|greater|more)\\b`, "i"), `${instead[1]} ${instead[2]} or ${instead[3]}`);
       }
       if (src) {
         const ctx = { src, uiTitle: ui.title, title: String(title), ability: String(prompt.sourceAbilityText || ""), cardText: srcCardText, srcOnBattlefield, maxTargets: input.maxTargets, cardsOnly: input.candidates.length > 0 && input.candidates.every((c) => c.kind === "card") };
@@ -4835,7 +4916,9 @@ function onPrompt(seat, prompt) {
           ? [(n) => `${src || title}: these go to the bottom of your library${n ? ` (${n + 1})` : ""}`, "The order on the bottom hardly matters: Keep this order is fine."]
           : onTop
             ? [(n) => `${src}: click the card to put ${n ? `next (number ${n + 1} from the top)` : "on top"}`, "Your library's top card first. Not sure? Keep this order."]
-            : [title || "Put these in order", "Pick what goes first. Not sure? Keep this order."];
+            // (any other order in words too: Ephemerate's two creatures coming back read "Ephemerate: pick #1", hp-09)
+            : [(n) => `${src || title || "Put these in order"}: click the one that ${/\breturn\b[^.]*\bbattlefield\b/i.test(what) ? "comes back" : "goes"} ${n ? "next" : "first"}`,
+              "The one you click first goes first (its enters triggers too). Not sure? Keep this order."];
       // (to the bottom: the order hardly ever matters, so the engine's order is kept without asking, 2026-10-22 review)
       // (nor does the order an "exile all" effect takes permanents in: Sunfall asked "Sunfall: pick #1" over six creatures,
       // hp-09)
@@ -4845,7 +4928,11 @@ function onPrompt(seat, prompt) {
       // copies asked "click the one that happens first" over "Flusterstorm (145) - Counter Chart a Course (61) unless...",
       // hp-08 gap)
       const plain = (i) => `${cardLabel(i.card)}|${withoutForgeNotes(String(i.oracle || "")).replace(/ \(\d+\)/g, "")}`;
-      const allSame = input.items.length > 1 && input.items.every((i) => plain(i) === plain(input.items[0]));
+      // (and identical triggers from copies of one card, as Arena orders them itself: two Coruscation Mages, a 2/2 and a
+      // 1/1, asked which pings first, hp-14; not when they target, since the targets may differ)
+      const sameTrig = (i) => `${i.card?.identity?.name}|${withoutForgeNotes(String(i.oracle || "")).replace(/ \(\d+\)/g, "")}`;
+      const allSame = input.items.length > 1 && (input.items.every((i) => plain(i) === plain(input.items[0]))
+        || (trig && input.items.every((i) => sameTrig(i) === sameTrig(input.items[0]) && !/\btarget\b/i.test(withoutForgeNotes(String(i.oracle || ""))))));
       // (nor the order lands are put onto the battlefield together: Animist's Awakening's four lands asked "click the card
       // to put on top", hp-15 gap)
       const landsDown = !trig && input.items.length > 0 && input.items.every((i) => (i.card?.types || []).includes("Land"))
@@ -4921,6 +5008,13 @@ function onPrompt(seat, prompt) {
   // (a title that already has its own heading, "Scry 1: where does ... go?", gets no second one)
   if (src && ui.title && !/^[^:]{1,40}: /.test(String(ui.title)) && !String(ui.title).toLowerCase().includes(src.toLowerCase()) && !["priority", "mana", "attack", "block"].includes(ui.kind)) ui.title = `${src}: ${ui.title}`;
   arenaWords(ui, src, seat.slot);
+  // (Forge's keyword text says "this creature" on a card that is none: graft on Llanowar Reborn asked "move a +1/+1
+  // counter from this creature onto it?", hp-18)
+  const srcTypes = prompt.sourceCard?.types || byId[prompt.sourceCard?.id]?.types || [];
+  if (srcTypes.length && !srcTypes.includes("Creature") && typeof ui.title === "string") {
+    const kind = ["Land", "Artifact", "Enchantment", "Planeswalker", "Battle"].find((t) => srcTypes.includes(t));
+    ui.title = ui.title.replace(/\bthis creature\b/g, `this ${kind ? kind.toLowerCase() : "permanent"}`);
+  }
   // (Forge repeats a replacement effect's text in its title: said once)
   const ability = prompt.sourceAbilityText && !String(ui.text || "").includes(String(prompt.sourceAbilityText).slice(0, 60))
     ? shorten(String(prompt.sourceAbilityText), 160) : null;

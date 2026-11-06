@@ -118,7 +118,12 @@ add(promptCase("chooseAction: mana creature with one colour taps", myMain(D2.boa
   add(promptCase("chooseAction: stop for combat switched on", b3, prompt("chooseAction", { actions: acts.slice(0, 2) }), [], { seat: { stops: new Set(["combat"]) } }));
   add(promptCase("chooseAction: nothing to do in my main passes", myMain(D2.board), prompt("chooseAction", { actions: [acts[11]] }), []));
   // (2026-10-23) mana tapped and not spent: asked, with "Untap Mountain (mana back)", which sends the engine's undo
-  add(promptCase("chooseAction: floating mana can be taken back", myMain(D2.board), prompt("chooseAction", { actions: [acts[7], acts[11]] }), [["a-undo"]]));
+  const floatR = myMain(D2.board); floatR.gameView.players.find((p) => p.id === "player-0").manaPool = { ...floatR.gameView.players.find((p) => p.id === "player-0").manaPool, R: 1 };
+  add(promptCase("chooseAction: floating mana can be taken back", floatR, prompt("chooseAction", { actions: [acts[7], acts[11]] }), [["a-undo"]]));
+  // (hp-05: the engine still lists an undo after an "unless you pay" cost spent the mana: no "mana back" with an empty pool)
+  const spent = clone(D2.board); spent.gameView.activePlayerId = "player-1";
+  add(promptCase("chooseAction: undo listed but the pool is empty: no stale mana back, passes", spent, prompt("chooseAction", { actions: [acts[7], acts[11]] }), []));
+  add(promptCase("chooseAction: undo listed, empty pool, my main: no mana back option", myMain(D2.board), prompt("chooseAction", { actions: [acts[7], acts[11]] }), []));
   add(promptCase("chooseAction: end turn held for this turn", myMain(D2.board), actionP, [], { seat: { endTurnAt: 11 } }));
   add(promptCase("chooseAction: resolve-the-stack keeps passing", b, actionP, [], { seat: { resolveStack: new Set(["s1"]) } }));
 }
@@ -155,6 +160,23 @@ add(promptCase("chooseAction: mana creature with one colour taps", myMain(D2.boa
 const payP = prompt("payManaCost", { cardId: "engine-card-75", cardName: "Hurloon Minotaur", manaCost: "{1}{R}{R}", canConfirmFromPool: false,
   actions: [acts[11], { id: "undo:engine-card-64", type: "undoMana", cardId: "engine-card-64" }, { id: "tap:engine-card-65:0", type: "activateManaAbility", cardId: "engine-card-65", description: "Swamp" }] });
 add(promptCase("pay: shown", myMain(D2.board), payP, []));
+// (hp-17: auto-pay keeps the colours the hand needs: scavenge's {4}{B} took 4 of 5 Forests with 4 Plains untapped, and
+// Bear Umbra's {2}{G}{G} was lost)
+{
+  const hp17 = myMain(D2.board);
+  const hz = hp17.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0");
+  hz.cards = [{ id: "engine-card-970", identity: { name: "Bear Umbra" }, types: ["Enchantment"], manaCost: "{2}{G}{G}", ownerId: "player-0", controllerId: "player-0", text: "" }];
+  const src = (n, col) => ({ id: `tap:engine-card-${n}:0`, type: "activateManaAbility", cardId: `engine-card-${n}`, cost: "{T}", producedMana: [{ amount: 1, color: col }], description: col });
+  const lands = [src(981, "G"), src(982, "G"), src(983, "G"), src(984, "G"), src(985, "G"), src(986, "W"), src(987, "W"), src(988, "W"), src(989, "W"), src(990, "B")];
+  const payScav = (cost, acts) => prompt("payManaCost", { cardId: "engine-card-75", cardName: "Dreg Mangler", manaCost: cost, canConfirmFromPool: false, actions: acts });
+  add(promptCase("hp-17: auto-pay: the coloured part first, from its only source", hp17, payScav("{4}{B}", lands), [["__auto"]]));
+  add(promptCase("hp-17: auto-pay goes on with a Plains, not a Forest the hand needs", hp17, payScav("{4}", lands.filter((l) => l.cardId !== "engine-card-990")), [], { seat: { smartPay: "engine-card-75" } }));
+  add(promptCase("hp-17: auto-pay with only Forests left uses them", hp17, payScav("{1}", lands.slice(0, 5)), [], { seat: { smartPay: "engine-card-75" } }));
+  add(promptCase("hp-17: after its taps the pool covers it: confirmed by itself", hp17, { ...payScav("{4}{B}", lands), input: { ...payScav("{4}{B}", lands).input, canConfirmFromPool: true } }, [], { seat: { smartPay: "engine-card-75" } }));
+  add(promptCase("hp-17: a hybrid cost goes to Forge's auto-pay", hp17, payScav("{1}{W/B}", lands), [["__auto"]]));
+  add(promptCase("hp-17: not enough plain sources: Forge's auto-pay", hp17, payScav("{4}{B}", [...lands.slice(0, 3), src(990, "B")]), [["__auto"]]));
+  add(promptCase("hp-17: a source with a cost beyond {T} is left to Forge", hp17, payScav("{B}", [{ ...src(990, "B"), cost: "{T}, Pay 1 life" }]), [["__auto"]]));
+}
 add(promptCase("pay: pool covers it after auto-pay -> confirms itself", myMain(D2.board), { ...payP, input: { ...payP.input, canConfirmFromPool: true } }, [], { seat: { autoPayCard: "engine-card-75" } }));
 add(promptCase("pay: pool covers it, no auto-pay -> asks", myMain(D2.board), { ...payP, input: { ...payP.input, canConfirmFromPool: true } }, [["__pool"]]));
 // 2026-10-26: the player's own spell, just cast, with the pool covering it: paid from the pool without asking (Arena);
@@ -297,6 +319,50 @@ add(promptCase("reorder: keep this order", D2.board, reorderP, [["__keep"]]));
 const itemsP = (title, extra) => ({ ...prompt("reorder", { items: [{ id: "r1", card: H(43) }, { id: "r2", card: H(77) }, { id: "r3", card: H(35) }], presentation: { title } }), ...extra });
 // (Forge names one of the triggers' cards as the source: a library card's text doesn't make it a library order)
 add(promptCase("reorder words: triggers", D2.board, itemsP("Order triggered abilities", { sourceCard: { ...H(77), identity: { name: "Mirri's Guile" } }, sourceAbilityText: "At the beginning of your upkeep, you may look at the top three cards of your library, then put them back in any order." }), [["r2"], ["r1"]]));
+// (mechanic run 2026-11-05 open items)
+{
+  // hp-18: graft on a land said "from this creature"
+  const reborn = { id: "engine-card-960", identity: { name: "Llanowar Reborn" }, types: ["Land"], text: "Graft 1" };
+  add(promptCase("hp-18: a land's graft question says this land", myMain(D2.board), prompt("chooseBoolean", { confirmLabel: "Yes", denyLabel: "No",
+    presentation: { title: "Move a +1/+1 counter from this creature onto it?" } }, { sourceCard: reborn, sourceAbilityText: "Whenever another creature enters, you may move a +1/+1 counter from this creature onto it." }), [["no"]]));
+  add(promptCase("hp-18: a creature's graft question keeps this creature", myMain(D2.board), prompt("chooseBoolean", { confirmLabel: "Yes", denyLabel: "No",
+    presentation: { title: "Move a +1/+1 counter from this creature onto it?" } }, { sourceCard: { ...reborn, identity: { name: "Cytoplast Root-Kin" }, types: ["Creature"] }, sourceAbilityText: "Whenever another creature enters, you may move a +1/+1 counter from this creature onto it." }), [["no"]]));
+  // hp-06 and hp-14: a face-down card you may see says so; alike tokens get power/toughness, then a number
+  const tg = myMain(D2.board);
+  tg.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push(
+    { id: "engine-card-961", identity: { name: "Brainstorm" }, isFaceDown: true, types: ["Instant"], power: 2, toughness: 2, ownerId: "player-0", controllerId: "player-0", text: "" },
+    { id: "engine-card-962", identity: { name: "Coruscation Mage", isToken: true }, types: ["Creature"], power: 2, toughness: 2, ownerId: "player-0", controllerId: "player-0", text: "" },
+    { id: "engine-card-963", identity: { name: "Coruscation Mage", isToken: true }, types: ["Creature"], power: 1, toughness: 1, ownerId: "player-0", controllerId: "player-0", text: "" },
+    { id: "engine-card-964", identity: { name: "Goblin", isToken: true }, types: ["Creature"], power: 1, toughness: 1, ownerId: "player-0", controllerId: "player-0", text: "" },
+    { id: "engine-card-965", identity: { name: "Goblin", isToken: true }, types: ["Creature"], power: 1, toughness: 1, ownerId: "player-0", controllerId: "player-0", text: "" });
+  add(promptCase("hp-06/hp-14: target labels: face down said, alike tokens told apart", tg, { ...prompt("chooseBoardTargets", { cancellable: true,
+    candidates: ["engine-card-961", "engine-card-962", "engine-card-963", "engine-card-964", "engine-card-965"].map((id) => ({ id, kind: "card" })),
+    chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Deal 1 damage" } }),
+    sourceAbilityText: "When this creature enters, it deals 1 damage to any target.", sourceCard: { id: "engine-card-966", identity: { name: "Orcish Bowmasters" } } }, [["card|engine-card-961"]]));
+  // hp-09: Ephemerate's return order read "Ephemerate: pick #1"
+  add(promptCase("hp-09: an order of creatures coming back in words", D2.board, { ...prompt("reorder", { items: [{ id: "r1", card: H(43) }, { id: "r2", card: H(77) }], presentation: { title: "Ephemerate" } }),
+    sourceAbilityText: "Exile target creature you control, then return it to the battlefield under its owner's control.", sourceCard: { ...H(35), identity: { name: "Ephemerate" } } }, [["r2"]]));
+}
+// (hp-14: two Coruscation Mages, a 2/2 and a 1/1, one trigger each: ordered by themselves, as Arena does)
+{
+  const mage = (n, id, p) => ({ ...H(n), id, identity: { ...(H(n).identity || {}), name: "Coruscation Mage" }, name: "Coruscation Mage", power: p, toughness: p });
+  const ping = "Whenever you cast a noncreature spell, this creature deals 1 damage to each opponent.";
+  add(promptCase("reorder: identical triggers from two copies of one card: not asked", D2.board, { ...prompt("reorder", { items: [
+    { id: "r1", card: mage(43, "engine-card-301", 2), oracle: ping }, { id: "r2", card: mage(77, "engine-card-302", 1), oracle: ping }],
+    presentation: { title: "Order triggered abilities" } }) }, []));
+  // (live: Forge's note names the spell that set it off, and that spell's own "target" is no target of the trigger)
+  const noted = `${ping} [Card: Twinflame (168), Activator: tts-White-9gwe, SpellAbility: Choose any number of target creatures you control.]`;
+  add(promptCase("reorder: identical triggers, Forge's note naming a targeting spell: not asked", D2.board, { ...prompt("reorder", { items: [
+    { id: "r1", card: mage(43, "engine-card-301", 3), oracle: noted }, { id: "r2", card: mage(77, "engine-card-302", 1), oracle: noted }],
+    presentation: { title: "Order triggered abilities" } }) }, []));
+  const shock = "Whenever you cast a noncreature spell, this creature deals 1 damage to target opponent.";
+  add(promptCase("reorder: identical triggers that target: still asked", D2.board, { ...prompt("reorder", { items: [
+    { id: "r1", card: mage(43, "engine-card-301", 2), oracle: shock }, { id: "r2", card: mage(77, "engine-card-302", 1), oracle: shock }],
+    presentation: { title: "Order triggered abilities" } }) }, [["__keep"]]));
+  add(promptCase("reorder: same card, different triggers: still asked", D2.board, { ...prompt("reorder", { items: [
+    { id: "r1", card: mage(43, "engine-card-301", 2), oracle: ping }, { id: "r2", card: mage(77, "engine-card-302", 1), oracle: "When this creature enters, draw a card." }],
+    presentation: { title: "Order triggered abilities" } }) }, [["__keep"]]));
+}
 add(promptCase("reorder words: back on top of the library", D2.board, itemsP("Mirri's Guile", { sourceCard: { ...H(77), identity: { name: "Mirri's Guile" } }, sourceAbilityText: "At the beginning of your upkeep, you may look at the top three cards of your library, then put them back in any order." }), [["r3"], ["r2"]]));
 add(promptCase("reorder words: to the bottom", D2.board, itemsP("Abundance", { sourceCard: { ...H(77), identity: { name: "Abundance" }, text: "If you would draw a card, you may instead choose land or nonland and reveal cards from the top of your library until you reveal a card of the chosen kind. Put that card into your hand and put all other cards revealed this way on the bottom of your library in any order." } }), [["__keep"]]));
 add(promptCase("reorder words: a card's own order, not the library", D2.board, itemsP("Pestilence", { sourceCard: H(77), sourceAbilityText: "Put these in any order." }), [["r2"], ["r1"]]));
@@ -2764,7 +2830,7 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
       const ask = async (id) => {
         h.B.onPrompt(seat, { ...prompt("chooseBoardTargets", { cancellable: true, candidates: [{ id: "engine-card-952", kind: "card" }], chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Destroy" } }),
           sourceAbilityText: FP, promptId: id, sourceCard: { id: "engine-card-954", identity: { name: "Fatal Push" }, text: FP } }); await h.flush();
-        return seat.prompt?.ui?.text || null;
+        return `${seat.prompt?.ui?.title} | ${seat.prompt?.ui?.text || null}`;
       };
       const before = await ask(970);
       const b = clone(start);

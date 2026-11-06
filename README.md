@@ -54,7 +54,19 @@ More: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [SPEC.md](SPEC.md).
 ## What you need (host only)
 
 - Windows with Tabletop Simulator (Steam) and the Workshop table above.
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (WSL2), about 3 CPU cores and 8 GB RAM free for Forge.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (WSL2), limited to **2 CPU cores** and 8 GB RAM for
+  Forge, so the engine can't take CPU from TTS. On a 6-core PC, TTS crashed with the engine on 3 cores and stayed stable
+  through a 28-deck test run on 2 (2026-11-05). Put this in `%USERPROFILE%\.wslconfig`, then run `wsl --shutdown` and
+  restart Docker Desktop:
+
+  ```ini
+  [wsl2]
+  processors=2
+  memory=8GB
+  ```
+
+  After `wsl --shutdown`, restart the relay container too (`docker restart stack-relay-1`), or games fail at setup.
+  Capping TTS's frame rate (Options → Graphics) also helps.
 - [Node.js](https://nodejs.org/) 22 or newer.
 - The engine images, built once (see "Building the engine"): about 20 minutes and several GB of disk.
 
