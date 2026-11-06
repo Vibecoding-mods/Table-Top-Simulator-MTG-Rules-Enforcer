@@ -12941,22 +12941,16 @@
    },
    {
     "step": "marks: every mark the table words, then the bridge's",
-    "fx": [
-     "f6623 \"createButton\" obj:395037 \"POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING   ENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at 0.00,0.05,1.45\"",
-     "f6623 \"createButton\" obj:23e485 \"POISON 1   ENDURING STORY   SPEED 1\" \"0.04,0.20,0.05\" \"at 0.00,0.05,1.45\""
-    ]
+    "fx": []
    },
    {
     "step": "click: local out = {} for _, g in ipairs({ \"395037\", \"23e485\" }) do local o, l = getObjectFromGUID(g), \"no label\" for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then l = b.label .. \" @\" .. tostring(b.width) end end out[#out + 1] = g .. \": \" .. l end return table.concat(out, \" | \")",
-    "value": "395037: POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING   ENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME @21300 | 23e485: POISON 1   ENDURING STORY   SPEED 1 @6425",
+    "value": "395037: no label | 23e485: no label",
     "fx": []
    },
    {
     "step": "marks: none",
-    "fx": [
-     "f6659 \"removeButton\" obj:395037 0",
-     "f6659 \"removeButton\" obj:23e485 0"
-    ]
+    "fx": []
    },
    {
     "step": "click: local out = {} for _, g in ipairs({ \"395037\", \"23e485\" }) do local o, l = getObjectFromGUID(g), \"no label\" for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then l = b.label .. \" @\" .. tostring(b.width) end end out[#out + 1] = g .. \": \" .. l end return table.concat(out, \" | \")",

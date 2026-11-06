@@ -704,11 +704,15 @@ const id = (n) => `engine-card-${n}`;
     const h = harness.load();
     setup(h);
     const g = h.B._getGame();
-    const at = (turn, active) => Object.assign(blank(), { turn, activePlayerId: active });
+    // (Forge's isExtraTurn on the active player; no guess from turn order since trackMarks step 7, 2026-11-06)
+    const at = (turn, active, extra) => Object.assign(blank(), { turn, activePlayerId: active,
+      ...(extra === undefined ? {} : { players: ["player-0", "player-1"].map((id) => ({ id, isExtraTurn: id === active && extra })) }) });
     g.turnOwners = { 1: "player-0", 2: "player-1", 3: "player-1" };
-    same("#15: a turn after the player's own is an extra turn", h.B.logEvents(h.B.logSnapshot(at(2, "player-1")), h.B.logSnapshot(at(3, "player-1")), at(3, "player-1"))[0].includes("(extra turn)"), true);
+    same("#15: a turn Forge flags is an extra turn", h.B.logEvents(h.B.logSnapshot(at(2, "player-1", false)), h.B.logSnapshot(at(3, "player-1", true)), at(3, "player-1", true))[0].includes("(extra turn)"), true);
+    same("#15: a turn after the player's own that Forge doesn't flag is not", h.B.logEvents(h.B.logSnapshot(at(2, "player-1", true)), h.B.logSnapshot(at(3, "player-1", false)), at(3, "player-1", false))[0].includes("extra"), false);
+    same("#15: nor one on a board without the flag", h.B.logEvents(h.B.logSnapshot(at(2, "player-1")), h.B.logSnapshot(at(3, "player-1")), at(3, "player-1"))[0].includes("extra"), false);
     g.turnOwners = { 1: "player-0", 2: "player-1" };
-    same("#15: and a turn after another player's is not", h.B.logEvents(h.B.logSnapshot(at(1, "player-0")), h.B.logSnapshot(at(2, "player-1")), at(2, "player-1"))[0].includes("extra"), false);
+    same("#15: and a turn after another player's is not", h.B.logEvents(h.B.logSnapshot(at(1, "player-0", false)), h.B.logSnapshot(at(2, "player-1", false)), at(2, "player-1", false))[0].includes("extra"), false);
   }
 
   // re-test 2's log bugs (docs/HAND-TEST-REBUILT.md "Still wrong", a to i)

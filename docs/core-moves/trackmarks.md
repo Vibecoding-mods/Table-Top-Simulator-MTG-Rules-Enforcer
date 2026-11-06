@@ -115,12 +115,8 @@ Gates: see the end of this file.
 
 ## Not done
 
-- Step 6 (drop the old fields and the Lua fallback): only after both halves are live.
-- Step 7 (new log lines for the Ring, speed, a turn run by another player): needs the user's OK.
-- Docs I don't own, out of date now: `docs/our-code-reference.md` lines ~1307, 1446, 1450 (`enginePlayerCounters`
-  now draws `allMarks`; `playerMarks` is the row's mark fields from `PLAYER_MARKS`).
-- `bridge/table-map.js` still says `marks`/`poison`/... for the player facts. Right until step 6; then it should name
-  `allMarks`, and `tests/test_table_map.js` line 50 should look for `allMarks` (not my files).
+All done since: steps 6 and 7, the code reference rows, `bridge/table-map.js` and `tests/test_table_map.js`. See
+"Steps 6 and 7" at the end.
 
 ## Going live
 
@@ -248,3 +244,106 @@ Renderer only (`tools/engine-renderer.lua`), not deployed. Scope: enginePlayerCo
 - **T21: the text board's poison read raw escaped.** The code already reads it through the row (`trackMarks`, so
   `positive`); nothing checked it. New claims check: poison "0", "3", true, -1 and 2 on the text board give 0, 0, 0,
   0 and 2. The mutant is caught by name.
+
+## Steps 6 and 7 (2026-11-06, the user's OK for step 7 the same day)
+
+Source only: not deployed, not committed. Forge's field names read from `InteractiveSnapshotExtractor.toPlayer` and
+`PlayerDto` (manabrew-protocol): `ringLevel` (getNumRingTemptedYou, only goes up), `speed` (0, then 1 to 4,
+`decreaseSpeed` never below 1), `controlledBy` (sent only while another player controls, `getControllingPlayer`;
+not only ControlPlayerEffect, see "Step 7, jr suite" below), `isExtraTurn` (always sent, serde default
+false). The recorded fixtures (dump, dump2, noset) have all four, at 0/false/null.
+
+Step 7, the log (bridge `PLAYER_MARKS` rows get `say`; `extraTurn(cur)`):
+- `Blue is tempted by the Ring (1)`; `Blue is tempted by the Ring 2 times (3)`; nothing when the count goes down.
+- `AI 1 starts their engines (speed 1)`; `AI 1's speed goes up to 2`; `AI 1's speed goes up to 4 (max speed)`;
+  `AI 1's speed goes down to 3`; nothing at 0.
+- `AI 1 takes control of Blue's turn`; `AI 1's control of Blue's turn ends` (a turn's control only; any other is
+  `Blue controls AI 1 for now` / `Blue no longer controls AI 1`, see "Step 7, jr suite" below).
+- The turn header says "(extra turn)" only when the active player's `isExtraTurn` is true. The turn-order guess for
+  a board without the flag is gone (such a turn is plain).
+- `tests/test_bridge_events.js` #15 fed boards with no players (the guess); it now sets the flag, plus "not flagged"
+  and "no flag" checks.
+
+Step 6, the old fields: `playerMarks` sends only `allMarks`; the `lua` flag and `trackMarks().marks` are gone;
+`enginePlayerCounters` draws `allMarks` when it is a list, nothing otherwise (no main-chunk local added; 191).
+`bridge/table-map.js` maps every player fact to `allMarks`; `tests/test_table_map.js` checks `{ allMarks: labels }`
+and that no old field is sent, read by the renderer, or named by the map.
+
+Golden, bridge (1033 cases, 3 new): "trackMarks: the Ring, speed and a turn run by another player in the log",
+"trackMarks: Mindslaver, the turn run by another player and the headers", "trackMarks: Time Warp on another player,
+four players, the headers". Step 7 changed 2 old cases (the review case's no-flag header now plain; "every mark on
+both players' rows" says "AI 1's control of Blue's turn ends" when the marks go). Step 6: every table player row lost
+`poison`/`energy` (and the other old fields where set), checked by `tmp/core-moves/trackmarks-67/step6-check.js`:
+3778 rows, nothing else changed except "table: player marks" (its label now has POISON 1 first, read from
+`allMarks`). Three cases that read the old fields read `allMarks` now (said() in the table-map gap cases, "log: monarch
+and initiative", "log: an enduring story"; the last two give the same results). "F1/F18 mtg deck" was kept from the
+old golden: another agent's new `decks/test_rules_dungeon.json` changes its deck list.
+
+Golden, table: the notes step sends `allMarks`; the step-1 photograph (old fields only) now draws nothing (3 steps
+differ, all in it). Claims: the old trackMarks block rewritten (old fields alone, or a row without `allMarks`, draw
+nothing; a string or a number `allMarks` draws nothing); the older poison/energy/monarch/blessing block sends
+`allMarks`. Bridge claims: the poison pairs check reads no old field and checks the row has none; 20 extra-turn
+header combinations; Ring, speed and control lines for every pair of values.
+
+Break-it (`tmp/core-moves/trackmarks-67/mutate.js`, copies or hash-checked in-place): bridge A1-A15 14 of 15 caught
+(A3, the header reading any player's flag, is equivalent: the row holds the flag only for the active player), B1-B5 5
+of 5; Lua L1-L5 5 of 5 (L4, the type test dropped, escaped first and is caught by the new number check); test_table_map
+T1-T4 4 of 4 (T3 escaped first and is caught by the new map check).
+
+Real table, after the lead deploys (bridge restart and a table deploy, either order: both sides already send and read
+`allMarks`): the label under each life total as before; a Ring card, a "Start your engines!" card, Mindslaver and
+Time Warp on another player in a 3-4 player game, reading the log lines above.
+
+## Step 7, jr suite (2026-11-06): the verifier's three findings
+
+Source only: not deployed, not committed. Scope: the uncommitted steps 6/7 change above, plus the verifier's report.
+
+- **Finding 1, CODE fixed: `controlledBy` is not Mindslaver's alone.** Forge's `getControllingPlayer` (what the
+  harness sends) is also set for a moment, on any player's turn: Opposition Agent's "control while searching"
+  (ChangeZoneEffect:1075, ChooseCardEffect:249) and a spell cast under another player's control (PlayEffect:220,
+  MagicStack:595). The old code logged "Blue takes control of AI 1's turn" for a fetch land AI 1 cracked in its own
+  turn, and drew TURN RUN BY BLUE on AI 1 in Blue's turn. Those controls last only while an ability resolves, and Forge
+  keeps a resolving ability on the stack (MagicStack.resolveStack: "isn't removed from the Stack until it finishes
+  resolving"); ControlPlayerEffect hands a whole turn over as the turn passes (PhaseHandler, the cleanup's end: the
+  next player first, then `addController`). So `turnRuns(prev, marks, pub)` (in `logSnapshot`, which now takes the
+  board before) calls a control a turn's once a board shows it on the active player with an empty stack, and keeps
+  it while the same player keeps control. A turn's control: TURN RUN BY X, "X takes control of Y's turn", "X's control
+  of Y's turn ends". Any other: CONTROLLED BY X, "X controls Y for now", "X no longer controls Y". The label reads
+  the same `turnRun` (`playerMarks`, from `game.logPrev`, which `updateLog` has just set for the board).
+  Limits: a Mindslaver turn whose first board has a trigger on the stack starts plainly ("controls Blue for now") and
+  becomes a turn's on the next empty-stack board (its end is said as a turn's); Secret of Bloodbending's one-combat
+  control is worded as a turn's.
+- **Finding 2, test fixed:** `tests/test_table_claims.js` "a reset takes the poison label away" sent `poison = 3`,
+  which draws nothing since step 6. It sends `allMarks: ["POISON 3"]` now, with a new precondition that the label was
+  up before the reset.
+- **Finding 3, test added:** `tests/test_table_map.js` checks the other way round too: every Forge player field a
+  `PLAYER_MARKS` row reads (`p.<field>`, and `counters` through `playerCounter`) is mapped to `allMarks`, not skipped or
+  a gap (with a precondition that the scan found the rows' fields).
+- **Also:** the `extraTurn` row is `true` only for a flag of exactly `true`, as the header: a flag of 1 drew EXTRA TURN
+  with a plain header. Forge sends a boolean, so nothing real changes. The Ring comment said the count "only goes up";
+  a rewind or a restarted game lowers it (nothing is said then), and the sentence says so.
+
+Golden, bridge (1036 cases, 3 new): "trackMarks: Opposition Agent, a search controlled on either player's turn",
+"trackMarks: Opposition Agent, a search controlled as a turn begins and ends", "trackMarks: Mindslaver seen first with
+a trigger on the stack". Changed: "trackMarks: Mindslaver, ..." (rebuilt in Forge's order: the first board under
+control is Blue's turn 6, with a fetch on the stack mid-turn; the old case had the control on the AI's own cleanup
+board), "table: player marks" and "... a controller that aren't plain" (AI 1, controlled while not active: CONTROLLED BY),
+and "F1/F18 mtg deck" (the 6 "Commander decks:" lines gain test_rules_dungeon, from f75159a; nothing else in it).
+
+Claims (`tests/test_bridge_claims.js`): `turnRun` and the control line for all 32768 chains of three boards
+(controller none, null, AI 1 or an unknown id; active player; an ability on the stack; who has priority), stated from
+the sentence; the label for 128 board pairs through `sendTable`; a controller of 5 in the log line, no throw; the
+EXTRA TURN label against the header for 5 flags.
+
+Break-it (`tmp/core-moves/trackmarks-67-jr/mutate.js`; uniquely named copies or hash-checked in-place restores, the
+files gated pristine by sha256 before each batch): **26 mutants, 25 caught first time, 1 escaped and closed.** Bridge
+M1-M20: the stack test, the active-player test, the carry-over (dropped, or for any controller), priority for the
+active player, a stack of one as empty, updateLog not passing the board before, the label without `turnRun`, the
+label or the start or the end always one wording, the end read from the wrong board, the names swapped, no default
+`at` (a TypeError, by name), and the `extraTurn` row raw, by truthiness or for any player. M17 (`String` dropped
+from the line's name) escaped: no log case had a controller that isn't text; the new "a controller of 5" check
+catches it by name. Lua L1 (the reset leaves the label on, the verifier's escape) and L2; table-map T1 (controlledBy
+skipped, the verifier's escape), T2 (ringLevel a gap), T3 (counters skipped), T4 (playerKeywords to the slot): all
+caught by name.
+
+Gates: all 19 green, one by one (bridge golden 1036 scenarios, bridge claims 489, table map 482, table claims 353).

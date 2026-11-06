@@ -852,7 +852,13 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
 // (hp-07 hand test, 2026-10-27)
 {
   const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
-  const withPoison = (n, energy = 0, flags = {}) => { const t = JSON.parse(lastT.json); for (const p of t.players) if (p.color === "White") { p.poison = n; p.energy = energy; Object.assign(p, flags); } return { msg: { t: "table", json: JSON.stringify(t) } }; };
+  // (as the bridge sends them since trackMarks step 6: allMarks only, left out when there is none)
+  const withPoison = (n, energy = 0, flags = {}) => {
+    const t = JSON.parse(lastT.json);
+    const all = [n > 0 && `POISON ${n}`, energy > 0 && `ENERGY ${energy}`, flags.monarch && "MONARCH", flags.initiative && "INITIATIVE", flags.blessed && "CITY'S BLESSING", flags.story && "ENDURING STORY"].filter(Boolean);
+    for (const p of t.players) if (p.color === "White") { delete p.allMarks; if (all.length) p.allMarks = all; }
+    return { msg: { t: "table", json: JSON.stringify(t) } };
+  };
   const labels = 'local out = {} for _, b in ipairs(getObjectFromGUID("23e485").getButtons() or {}) do out[#out + 1] = tostring(b.label) end return table.concat(out, "|")';
   const r = run([withPoison(3), { frames: 10 }, q(labels, "poison 3"), withPoison(4), { frames: 10 }, q(labels, "poison 4"), withPoison(4, 2), { frames: 10 }, q(labels, "energy 2"), withPoison(0, 0, { monarch: true, initiative: true }), { frames: 10 }, q(labels, "monarch"), withPoison(0, 0, { blessed: true, story: true }), { frames: 10 }, q(labels, "story"), withPoison(0), { frames: 10 }, q(labels, "poison 0")]);
   const v = (m) => String(valueOf(r, m));
@@ -905,14 +911,19 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("stage 3: an Untap (mana back) option gets no ability button", !String(valueOf(r2, "untap")).includes("Untap"), String(valueOf(r2, "untap")) + " " + r2.errors.join(" | "));
   // a reset takes the panel, the ability state and the poison label away
   const lastT = [...s1.slice(0, 44)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
-  const poisoned = JSON.parse(lastT.json); for (const p of poisoned.players) if (p.color === "White") p.poison = 3;
+  // (the label as the bridge sends it since trackMarks step 6, allMarks: the old `poison = 3` drew nothing, so the
+  // check passed with the reset leaving the label on, verifier finding 2, 2026-11-06)
+  const poisoned = JSON.parse(lastT.json); for (const p of poisoned.players) if (p.color === "White") p.allMarks = ["POISON 3"];
+  const whiteLabels = 'local l = {} for _, b in ipairs(getObjectFromGUID("23e485").getButtons() or {}) do l[#l + 1] = tostring(b.label) end return table.concat(l, ",")';
   const r3 = run([...more, { frames: 30 }, ask({ promptId: 978, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, scry] }), { frames: 30 },
     { msg: { t: "table", json: JSON.stringify(poisoned) } }, { frames: 10 },
+    q(whiteLabels, "poison up"),
     q(objOf + 'onObjectHover("Blue", o) return tostring(UI.getAttribute("eng_abp_Blue", "active"))', "hover"),
     { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 90 },
     q('local n = 0 for _ in pairs(engineAbilityWant) do n = n + 1 end local l = {} for _, b in ipairs(getObjectFromGUID("23e485").getButtons() or {}) do l[#l + 1] = tostring(b.label) end return tostring(UI.getAttribute("eng_abp_Blue", "active")) .. "|" .. n .. "|" .. table.concat(l, ",")', "cleared")]);
   const [panel, wants, tracker] = String(valueOf(r3, "cleared")).split("|");
-  ok("stage 3: precondition: the panel and the poison label were up", valueOf(r3, "hover") === "true", String(valueOf(r3, "hover")) + " " + r3.errors.join(" | "));
+  ok("stage 3: precondition: the panel was up", valueOf(r3, "hover") === "true", String(valueOf(r3, "hover")) + " " + r3.errors.join(" | "));
+  ok("stage 3: precondition: the poison label was up", String(valueOf(r3, "poison up")).includes("POISON 3"), String(valueOf(r3, "poison up")) + " " + r3.errors.join(" | "));
   ok("stage 3: a reset hides the ability panel", panel === "false", String(valueOf(r3, "cleared")));
   ok("stage 3: a reset forgets the abilities", wants === "0", String(valueOf(r3, "cleared")));
   ok("stage 3: a reset takes the poison label away", !String(tracker).includes("POISON"), String(valueOf(r3, "cleared")));
@@ -1316,37 +1327,50 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   const builders = src.split("\n").filter((l) => /GMNotes = "engine:" \.\./.test(l)).map((l) => l.trim());
   ok("one builder: a card's engine GM notes are written only by engineCardData (and a pile deck's own)", builders.length === 2 && /tostring\(c\.id\)/.test(builders[0]) && /GMNotes = "engine:" \.\. id,/.test(builders[1]), JSON.stringify(builders));
 }
-// trackMarks (2026-11-06, docs/core-moves-cleanup-plan.md "2. trackMarks" step 4): the label under a life counter is the
-// bridge's allMarks when the row has it, whatever the old fields say; without it (a bridge from before), the old way
+// trackMarks (2026-11-06, docs/core-moves-cleanup-plan.md "2. trackMarks" steps 4 and 6): the label under a life counter
+// is the bridge's allMarks, whatever the old fields say; since step 6 the old fields alone (a bridge from before) draw
+// nothing, and neither does an allMarks that isn't a list
 {
   const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
   const white = (fields) => { const t = JSON.parse(lastT.json); for (const p of t.players) if (p.color === "White") Object.assign(p, fields); return { msg: { t: "table", json: JSON.stringify(t) } }; };
   const label = 'local l = "no label" for _, b in ipairs(getObjectFromGUID("23e485").getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then l = b.label .. " @" .. tostring(b.width) end end return l';
+  const OLD = { poison: 3, energy: 2, monarch: true, initiative: true, blessed: true, story: true, marks: ["SPEED 1"] };
   const r = run([
-    white({ poison: 3, energy: 2, monarch: true, marks: ["SPEED 1"] }), { frames: 10 }, q(label, "old fields"),
+    white({ allMarks: ["POISON 3", "ENERGY 2", "MONARCH", "SPEED 1"] }), { frames: 10 }, q(label, "allMarks"),
+    white(OLD), { frames: 10 }, q(label, "old fields"),
     white({ poison: 0, energy: 0 }), { frames: 10 }, q(label, "none"),
-    white({ poison: 3, energy: 2, monarch: true, marks: ["SPEED 1"], allMarks: ["POISON 3", "ENERGY 2", "MONARCH", "SPEED 1"] }), { frames: 10 }, q(label, "both"),
-    white({ poison: 3, energy: 2, monarch: true, marks: ["SPEED 1"], allMarks: ["POISON 5", "SPEED 1"] }), { frames: 10 }, q(label, "allMarks wins"),
+    white({ ...OLD, allMarks: ["POISON 3", "ENERGY 2", "MONARCH", "SPEED 1"] }), { frames: 10 }, q(label, "both"),
+    white({ ...OLD, allMarks: ["POISON 5", "SPEED 1"] }), { frames: 10 }, q(label, "allMarks wins"),
     white({ allMarks: ["CITY'S BLESSING", "RING TEMPTED 1"] }), { frames: 10 }, q(label, "allMarks alone"),
     white({ poison: 2 }), { frames: 10 }, q(label, "back to old fields"),
+    white({ allMarks: ["POISON 2"] }), { frames: 10 }, q(label, "drawn again"),
     white({ poison: 2, allMarks: [] }), { frames: 10 }, q(label, "empty allMarks"),
-    // (not a list: a broken bridge message; the type test keeps the old way instead of an error)
-    white({ poison: 2, allMarks: "POISON 9" }), { frames: 10 }, q(label, "allMarks not a list")]);
+    white({ allMarks: ["POISON 2"] }), { frames: 10 }, q(label, "drawn before the broken one"),
+    // (not a list: a broken bridge message; the type test draws nothing instead of an error)
+    white({ poison: 2, marks: ["POISON 2"], allMarks: "POISON 9" }), { frames: 10 }, q(label, "allMarks not a list"),
+    // (a number: without the type test ipairs throws, the caller's pcall swallows it and the last label stays)
+    white({ allMarks: ["POISON 2"] }), { frames: 10 }, q(label, "drawn before the number"),
+    white({ allMarks: 7 }), { frames: 10 }, q(label, "allMarks a number")]);
   const v = (m) => String(valueOf(r, m));
-  ok("trackMarks: precondition: the old fields drew their label", v("old fields") === "POISON 3   ENERGY 2   MONARCH   SPEED 1 @7125", v("old fields") + " " + r.errors.join(" | "));
+  ok("trackMarks: precondition: allMarks drew its label", v("allMarks") === "POISON 3   ENERGY 2   MONARCH   SPEED 1 @7125", v("allMarks") + " " + r.errors.join(" | "));
+  ok("trackMarks: the old fields alone draw nothing (step 6)", v("old fields") === "no label", v("old fields"));
   ok("trackMarks: precondition: no marks, no label", v("none") === "no label", v("none"));
-  ok("trackMarks: allMarks with the old fields: the same label and width, once", v("both") === v("old fields"), v("both"));
+  ok("trackMarks: allMarks with the old fields: allMarks' label and width, once", v("both") === v("allMarks"), v("both"));
   ok("trackMarks: allMarks is the label, not the old fields", v("allMarks wins") === "POISON 5   SPEED 1 @3450", v("allMarks wins"));
   ok("trackMarks: allMarks alone is drawn", v("allMarks alone") === "CITY'S BLESSING   RING TEMPTED 1 @5900", v("allMarks alone"));
-  ok("trackMarks: a row without allMarks is drawn the old way", v("back to old fields") === "POISON 2 @1700", v("back to old fields"));
+  ok("trackMarks: a row without allMarks takes the label away (step 6)", v("back to old fields") === "no label", v("back to old fields"));
+  ok("trackMarks: precondition: allMarks drew a label before the empty one", v("drawn again") === "POISON 2 @1700", v("drawn again"));
   ok("trackMarks: an empty allMarks is no label", v("empty allMarks") === "no label", v("empty allMarks"));
+  ok("trackMarks: precondition: allMarks drew a label before the broken one", v("drawn before the broken one") === "POISON 2 @1700", v("drawn before the broken one"));
   // (breakit 2026-11-06) the tracker's own onload clears its buttons: the same marks on the next board draw the label again
   const r2 = run([white({ allMarks: ["POISON 3", "MONARCH"] }), { frames: 10 }, q(label, "before the reload"),
     q('getObjectFromGUID("23e485").clearButtons() return "cleared"', "tracker reloaded"),
     white({ allMarks: ["POISON 3", "MONARCH"] }), { frames: 10 }, q(label, "same marks after the reload")]);
   ok("trackMarks: precondition: the label was drawn before the tracker reloaded", String(valueOf(r2, "before the reload")) === "POISON 3   MONARCH @3450", String(valueOf(r2, "before the reload")));
   ok("trackMarks: a tracker that lost its buttons gets the same label back", String(valueOf(r2, "same marks after the reload")) === String(valueOf(r2, "before the reload")), String(valueOf(r2, "same marks after the reload")));
-  ok("trackMarks: an allMarks that is not a list is drawn the old way, with no error", v("allMarks not a list") === "POISON 2 @1700" && !r.errors.length, v("allMarks not a list") + " " + r.errors.slice(0, 1).join(""));
+  ok("trackMarks: precondition: allMarks drew a label before the number", v("drawn before the number") === "POISON 2 @1700", v("drawn before the number"));
+  ok("trackMarks: an allMarks that is a number takes the label away", v("allMarks a number") === "no label", v("allMarks a number"));
+  ok("trackMarks: an allMarks that is not a list draws nothing (not the old fields), with no error", v("allMarks not a list") === "no label" && !r.errors.length, v("allMarks not a list") + " " + r.errors.slice(0, 1).join(""));
 }
 // (breakit 2026-11-06) a slow library spawn from before "mtg reset" arrives while the next game's library is still on
 // its way (a 100-card deck takes TTS several frames): the late one must leave the new one's "spawning" mark alone, or

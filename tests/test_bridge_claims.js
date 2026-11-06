@@ -390,9 +390,9 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok(`text board poison ${JSON.stringify(v)}: a positive number or 0, as the table row`, mine && mine.poison === (typeof v === "number" && v > 0 ? v : 0), JSON.stringify(mine?.poison));
     harness.restore();
   }
-  // trackMarks: "a "0", true or -1 is 0, so the label, the log and the old row fields all see the same value"
-  // (PLAYER_MARKS header). For every pair of poison values: the label shows POISON n exactly when the old field n > 0,
-  // and the log says a poison line exactly when the old field changed.
+  // trackMarks: "a "0", true or -1 is 0, so the label and the log see the same value" (PLAYER_MARKS header). For every
+  // pair of poison values: the label shows POISON n exactly when n, the value read as a positive number or 0, is above
+  // 0, and the log says a poison line exactly when n changed. The row has none of the old mark fields (step 6).
   {
     const VALUES = [3, "3", "0", true, -1, "x", null, 0, 2];
     const at = (v) => { const b = clone(F.board); b.gameView.players.find((p) => p.id === "player-0").counters = { POISON: v }; return b; };
@@ -405,31 +405,178 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       harness.restore();
       return r;
     };
+    const pos = (v) => (typeof v === "number" && v > 0 ? v : 0);
     const rowFor = new Map();
     for (const v of VALUES) rowFor.set(v, await rowOf(v));
     ok("marks: precondition, every value made a row", VALUES.every((v) => rowFor.get(v)));
-    ok("marks: precondition, some rows show poison and some do not", VALUES.some((v) => rowFor.get(v)?.poison > 0) && VALUES.some((v) => rowFor.get(v)?.poison === 0));
+    ok("marks: precondition, some values are above 0 and some are not", VALUES.some((v) => pos(v) > 0) && VALUES.some((v) => pos(v) === 0));
     const h = harness.load();
     setup(h, at(0));
     let pairs = 0, said = 0;
     for (const v of VALUES) {
       const r = rowFor.get(v);
       if (!r) continue;
-      ok(`marks: poison ${JSON.stringify(v)}, the old field is a number`, typeof r.poison === "number", JSON.stringify(r.poison));
+      const old = ["poison", "energy", "monarch", "initiative", "blessed", "story", "marks"].filter((k) => k in r);
+      ok(`marks: poison ${JSON.stringify(v)}, the row has none of the old mark fields`, !old.length, old.join(" "));
       const shown = (r.allMarks || []).filter((m) => m.startsWith("POISON"));
-      ok(`marks: poison ${JSON.stringify(v)}, the label shows it exactly when the old field is above 0, with that number`,
-        r.poison > 0 ? shown.length === 1 && shown[0] === `POISON ${r.poison}` : shown.length === 0, JSON.stringify(r));
+      ok(`marks: poison ${JSON.stringify(v)}, the label shows it exactly when it is above 0, with that number`,
+        pos(v) > 0 ? shown.length === 1 && shown[0] === `POISON ${pos(v)}` : shown.length === 0, JSON.stringify(r));
       for (const w of VALUES) {
         const rb = rowFor.get(w);
         if (!rb) continue;
         const b = at(w).gameView;
         const lines = h.B.logEvents(h.B.logSnapshot(at(v).gameView), h.B.logSnapshot(b), b).filter((l) => /poison/.test(l));
         pairs++; if (lines.length) said++;
-        ok(`marks: poison ${JSON.stringify(v)} -> ${JSON.stringify(w)}, the log says it exactly when the old field changed`,
-          (r.poison !== rb.poison) === (lines.length === 1), `${r.poison} -> ${rb.poison}: ${JSON.stringify(lines)}`);
+        ok(`marks: poison ${JSON.stringify(v)} -> ${JSON.stringify(w)}, the log says it exactly when it changed`,
+          (pos(v) !== pos(w)) === (lines.length === 1), `${pos(v)} -> ${pos(w)}: ${JSON.stringify(lines)}`);
       }
     }
     ok("marks: precondition, every pair was logged, some with a poison line and some without", pairs === VALUES.length ** 2 && said > 0 && said < pairs, `${said} of ${pairs}`);
+    await h.flush();
+    harness.restore();
+  }
+  // trackMarks step 7 (2026-11-06): "Only Forge's flag" (extraTurn): the header says "(extra turn)" exactly when the
+  // new active player's isExtraTurn is true, whatever the turn order, the other players' flags or a flag that isn't
+  // true (1, "true") say
+  {
+    const h = harness.load();
+    setup(h, F.board);
+    const g = h.B._getGame();
+    let n = 0, extra = 0;
+    for (const mine of [true, false, undefined, 1, "true"]) for (const other of [true, false]) for (const ownBefore of [true, false]) {
+      g.turnOwners = { 1: "player-0", 2: ownBefore ? "player-1" : "player-0", 3: "player-1" };
+      const at = (turn, active, flag) => {
+        const b = clone(F.board.gameView);
+        Object.assign(b, { turn, activePlayerId: active, priorityPlayerId: active, step: "upkeep", stack: [] });
+        for (const p of b.players) { const f = p.id === active ? flag : other; if (f === undefined) delete p.isExtraTurn; else p.isExtraTurn = f; }
+        return b;
+      };
+      const b = at(3, "player-1", mine);
+      const head = h.B.logEvents(h.B.logSnapshot(at(2, ownBefore ? "player-1" : "player-0", false)), h.B.logSnapshot(b), b).find((l) => l.startsWith("---")) || "";
+      n++; if (head.includes("(extra turn)")) extra++;
+      ok(`extra turn: active flag ${JSON.stringify(mine)}, the other's ${other}, turn order ${ownBefore ? "its own before" : "another's before"}: "(extra turn)" exactly when the flag is true`,
+        head.startsWith("--- AI 1's turn") && head.includes("(extra turn)") === (mine === true), head);
+    }
+    ok("extra turn: precondition, 20 headers, some extra and some not", n === 20 && extra > 0 && extra < n, `${extra} of ${n}`);
+    // (jr suite 2026-11-06) "so the label and the header agree on a flag that isn't true" (PLAYER_MARKS extraTurn): the
+    // EXTRA TURN label on the active player exactly when its flag is true, as the header
+    let shownN = 0;
+    for (const flag of [true, false, undefined, 1, "true"]) {
+      Object.assign(g, { logPrev: null, lastTableSig: null, sentZones: {} });
+      const b = clone(F.board);
+      const ai = b.gameView.players.find((p) => p.id === "player-1");
+      if (flag === undefined) delete ai.isExtraTurn; else ai.isExtraTurn = flag;
+      ai.life += 7 + shownN; // (each board differs from the last)
+      g.seats.get("Blue").board = { state: b, fingerprint: null };
+      const before = h.effects.length;
+      h.B.sendTable(); await h.flush();
+      const row = h.effects.slice(before).filter((e) => e.tts && e.tts.t === "table").pop()?.tts.players.find((p) => p.slot === "player-1");
+      shownN++;
+      ok(`extra turn label: AI 1's flag ${JSON.stringify(flag)} on its turn: EXTRA TURN exactly when the flag is true, as the header`,
+        !!row && (row.allMarks || []).includes("EXTRA TURN") === (flag === true), JSON.stringify(row?.allMarks));
+    }
+    ok("extra turn label: precondition, 5 boards sent, AI 1 active", shownN === 5 && F.board.gameView.activePlayerId === "player-1");
+    harness.restore();
+  }
+  // trackMarks step 7: the Ring, speed and control lines (PLAYER_MARKS' say): for every pair of values, a line exactly
+  // when the rule says, with the new value in it
+  {
+    const mark = (field, v) => { const b = clone(F.board); const p = b.gameView.players.find((x) => x.id === "player-0"); if (v === undefined) delete p[field]; else p[field] = v; return b.gameView; };
+    const linesOf = (h, field, v, w, re) => h.B.logEvents(h.B.logSnapshot(mark(field, v)), h.B.logSnapshot(mark(field, w)), mark(field, w)).filter((l) => re.test(l));
+    const pos = (v) => (typeof v === "number" && v > 0 ? v : 0);
+    const h = harness.load();
+    setup(h, F.board);
+    let said = 0, pairs = 0;
+    const RING = [0, 1, 2, 3, 5, "2", -1, true];
+    for (const v of RING) for (const w of RING) {
+      const lines = linesOf(h, "ringLevel", v, w, /Ring/);
+      const up = pos(w) - pos(v);
+      pairs++; if (lines.length) said++;
+      ok(`ring ${JSON.stringify(v)} -> ${JSON.stringify(w)}: a line exactly when the count goes up, naming the new count`,
+        up > 0 ? lines.length === 1 && lines[0] === `Blue is tempted by the Ring${up > 1 ? ` ${up} times` : ""} (${pos(w)})` : lines.length === 0, JSON.stringify(lines));
+    }
+    const SPEED = [0, 1, 2, 3, 4, "3", -1];
+    for (const v of SPEED) for (const w of SPEED) {
+      const lines = linesOf(h, "speed", v, w, /speed/);
+      const a = pos(v), b = pos(w);
+      pairs++; if (lines.length) said++;
+      const want = b > a ? `${a ? `Blue's speed goes up to ${b}` : `Blue starts their engines (speed ${b})`}${b === 4 ? " (max speed)" : ""}` : b < a && b ? `Blue's speed goes down to ${b}` : null;
+      ok(`speed ${JSON.stringify(v)} -> ${JSON.stringify(w)}: ${want ? `"${want}"` : "no line"}`, want ? lines.length === 1 && lines[0] === want : lines.length === 0, JSON.stringify(lines));
+    }
+    ok("ring, speed: precondition, every pair was logged, some with a line and some without", pairs === RING.length ** 2 + SPEED.length ** 2 && said > 0 && said < pairs, `${said} of ${pairs}`);
+    await h.flush();
+    harness.restore();
+  }
+  // turnRuns and controlledBy's say (verifier finding 1, 2026-11-06): "a control is a turn's once a board shows it on
+  // the active player with an empty stack, and stays one while the same player keeps it"; the line says "turn" exactly
+  // for a turn's control (Mindslaver), plainly otherwise (Opposition Agent's search, on either player's turn). Every
+  // chain of three boards: the controller on each (none, AI 1, an unknown id), whose turn it is, and whether an ability
+  // is on the stack. The rule is stated here from the sentence, not read from the code
+  {
+    const h = harness.load();
+    setup(h, F.board);
+    const ITEM = { id: "stack-agent-1", sourceId: "engine-card-975", controllerId: "player-1", ownerId: "player-1", identity: { name: "Polluted Delta" },
+      text: "Search your library for an Island or Swamp card.", sourceAbilityText: "{T}, Sacrifice Polluted Delta: Search your library for an Island or Swamp card.", isTrigger: false, targets: [] };
+    const board = (ctl, active, stacked, prio = active) => {
+      const b = clone(F.board.gameView);
+      Object.assign(b, { activePlayerId: active, priorityPlayerId: prio, stack: stacked ? [clone(ITEM)] : [] });
+      const p = b.players.find((x) => x.id === "player-0");
+      if (ctl === undefined) delete p.controlledBy; else p.controlledBy = ctl;
+      return b;
+    };
+    const CTL = [undefined, null, "player-1", "player-7"];
+    // ([active player, an ability on the stack, who has priority]: priority is not whose turn it is)
+    const SHAPES = [];
+    for (const a of ["player-0", "player-1"]) for (const st of [false, true]) for (const pr of ["player-0", "player-1"]) SHAPES.push([a, st, pr]);
+    const name = (id) => ({ "player-1": "AI 1" })[id] || id;
+    const cap = (s) => s && s[0].toUpperCase() + s.slice(1);
+    // (the sentence as a rule: the board before's turn's controller, and this board)
+    const turnOf = (before, by, [active, stacked]) => (by && (before === by || (active === "player-0" && !stacked)) ? by : undefined);
+    let n = 0, turnSaid = 0, plainSaid = 0, none = 0, bad = 0;
+    for (const u of CTL) for (const v of CTL) for (const w of CTL) for (const s0 of SHAPES) for (const s1 of SHAPES) for (const s2 of SHAPES) {
+      const g0 = board(u, ...s0), g1 = board(v, ...s1), g2 = board(w, ...s2);
+      const a = h.B.logSnapshot(g0), b = h.B.logSnapshot(g1, a), c = h.B.logSnapshot(g2, b);
+      const t1 = turnOf(turnOf(undefined, u, s0), v, s1), t2 = turnOf(t1, w, s2);
+      const lines = h.B.logEvents(b, c, g2).filter((l) => /control/.test(l));
+      const want = cap((v || null) === (w || null) ? null : w ? (t2 === w ? `${name(w)} takes control of Blue's turn` : `${name(w)} controls Blue for now`)
+        : t1 === v ? `${name(v)}'s control of Blue's turn ends` : `${name(v)} no longer controls Blue`);
+      n++;
+      if (!want) none++; else if (/turn/.test(want)) turnSaid++; else plainSaid++;
+      const okRun = (c.turnRun["player-0"] ?? undefined) === t2;
+      const okLine = want ? lines.length === 1 && lines[0] === want : lines.length === 0;
+      // (the first few wrong chains by name; the count below says how many)
+      if ((!okRun || !okLine) && bad++ < 6) process.stdout.write(`  control ${JSON.stringify([u, v, w])} on ${JSON.stringify([s0, s1, s2])}: want turnRun ${JSON.stringify(t2)}, ${want ? `"${want}"` : "no line"}; got turnRun ${JSON.stringify(c.turnRun)}, lines ${JSON.stringify(lines)}\n`);
+    }
+    ok(`control: every chain of three boards gives the turn's controller and the line the rule says`, bad === 0, `${bad} of ${n} chains wrong`);
+    // "a name that isn't text must not throw" (controlledBy), for the log line too: a controller of 5 comes and goes
+    for (const [v, w, want] of [[undefined, 5, "5 controls Blue for now"], [5, undefined, "5 no longer controls Blue"], [5, "player-1", "AI 1 controls Blue for now"]]) {
+      const g1 = board(v, "player-1", true), g2 = board(w, "player-1", true);
+      let lines;
+      try { lines = h.B.logEvents(h.B.logSnapshot(g1), h.B.logSnapshot(g2, h.B.logSnapshot(g1)), g2).filter((l) => /control/.test(l)); } catch (e) { lines = [`THREW ${e.constructor.name}: ${e.message}`]; }
+      ok(`control ${JSON.stringify(v)} -> ${JSON.stringify(w)}: "${want}", no throw`, lines.length === 1 && lines[0] === want, JSON.stringify(lines));
+    }
+    ok("control: precondition, 32768 chains, some say a turn's control, some a plain one, some nothing", n === 32768 && turnSaid > 0 && plainSaid > 0 && none > 0, `${turnSaid} turn, ${plainSaid} plain, ${none} none of ${n}`);
+    // the label says the same as the line, read from the board the log just read (playerMarks reads game.logPrev): a
+    // turn's control "TURN RUN BY AI 1", any other "CONTROLLED BY AI 1"
+    let labels = 0;
+    for (const s1 of SHAPES) for (const s2 of SHAPES) for (const ownBefore of [true, false]) {
+      const g = h.B._getGame();
+      g.logPrev = null; g.lastTableSig = null; g.sentZones = {};
+      const seat = g.seats.get("Blue");
+      const send = async (gv) => { seat.board = { state: { ...clone(F.board), gameView: gv }, fingerprint: null }; h.B.sendTable(); await h.flush(); };
+      await send(board(ownBefore ? "player-1" : undefined, ...s1));
+      const before = h.effects.length;
+      // (AI 1 a life down, so the second board is never the first one again, which the table is not sent twice)
+      const g2 = board("player-1", ...s2); g2.players.find((x) => x.id === "player-1").life--;
+      await send(g2);
+      const row = h.effects.slice(before).filter((e) => e.tts && e.tts.t === "table").pop()?.tts.players.find((p) => p.slot === "player-0");
+      const turn = turnOf(turnOf(undefined, ownBefore ? "player-1" : undefined, s1), "player-1", s2) === "player-1";
+      const shown = (row?.allMarks || []).filter((m) => /BY AI 1$/.test(m));
+      labels++;
+      ok(`control label: AI 1 before ${ownBefore}, ${JSON.stringify([s1, s2])}: ${turn ? "TURN RUN BY AI 1" : "CONTROLLED BY AI 1"}`,
+        shown.length === 1 && shown[0] === (turn ? "TURN RUN BY AI 1" : "CONTROLLED BY AI 1"), JSON.stringify(row?.allMarks));
+    }
+    ok("control label: precondition, 128 boards sent", labels === 128);
     await h.flush();
     harness.restore();
   }

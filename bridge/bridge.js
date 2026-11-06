@@ -1245,7 +1245,7 @@ function trackTurns(pub, seats) {
 // What each player did, worked out by comparing public board states: battlefield, graveyards, exile, command
 // zone, stack, life and the hand/library counts. Hidden cards are never named.
 const PUBLIC_ZONES = ["battlefield", "graveyard", "exile", "command"];
-function logSnapshot(pub) {
+function logSnapshot(pub, prev = null) {
   const cards = {}, counts = {};
   for (const z of pub.zones || []) {
     if (PUBLIC_ZONES.includes(z.zone)) for (const c of z.cards || []) {
@@ -1357,7 +1357,24 @@ function logSnapshot(pub) {
   const lands = Object.fromEntries((pub.players || []).map((p) => [p.id, p.landsPlayedThisTurn ?? null]));
   // (each player's marks, PLAYER_MARKS' values: the log says some when they change)
   const marks = Object.fromEntries((pub.players || []).map((p) => [p.id, trackMarks(p, pub).values]));
-  return { cards, counts, life, lands, stack, blocks, marks, turn: pub.turn, step: pub.step, active: pub.activePlayerId, day: pub.dayTime };
+  return { cards, counts, life, lands, stack, blocks, marks, turnRun: turnRuns(prev, marks, pub), turn: pub.turn, step: pub.step, active: pub.activePlayerId, day: pub.dayTime };
+}
+// Whose turn another player runs: player id -> the controller, for a control that is a turn's (the TURN RUN BY label
+// and the "takes control of ...'s turn" line; any other control is said plainly, see PLAYER_MARKS' controlledBy). Forge
+// hands a whole turn over only by ControlPlayerEffect (Mindslaver, Sorin Markov, Emrakul the Promised End: from the
+// turn's start to the next cleanup, or one combat with Secret of Bloodbending). It also hands a player over for a
+// moment, on any player's turn: Opposition Agent's "control while searching" (ChangeZoneEffect, ChooseCardEffect) and a
+// spell cast under another player's control (PlayEffect, MagicStack.resolveStack). Those last only while an ability
+// resolves, and Forge keeps a resolving ability on the stack until it is done. So a control is a turn's once a board
+// shows it on the active player with an empty stack, and stays one while the same player keeps it (prev: the board
+// before, whose turnRun this carries on; null for a game's first board).
+function turnRuns(prev, marks, pub) {
+  const out = {};
+  for (const [p, m] of Object.entries(marks)) {
+    const by = m.controlledBy;
+    if (by && (prev?.turnRun?.[p] === by || (pub.activePlayerId === p && !(pub.stack || []).length))) out[p] = by;
+  }
+  return out;
 }
 
 // A stack item is an ability (not a spell) when Forge gives it ability text and it isn't a spell: Forge also gives
@@ -1611,14 +1628,11 @@ const LEAVE_WORDS = {
   left: (w, names) => `${names[0]} leaves the battlefield`,
 };
 // An extra turn: Forge says so on the new active player (isExtraTurn, set at each turn start), read once by the
-// extraTurn row of PLAYER_MARKS, which also draws the EXTRA TURN label. A board without the field falls back to a
-// guess: a turn that follows its player's own last one, when someone else has had a turn (the guess called Time Warp
-// on another player's turn 6 plain and turn 7 extra, review 2026-11-05).
-function extraTurn(prev, cur) {
-  const said = cur.marks?.[cur.active]?.extraTurn;
-  if (typeof said === "boolean") return said;
-  const owners = game.turnOwners || {};
-  return cur.turn === prev.turn + 1 && owners[prev.turn] === cur.active && Object.values(owners).some((p) => p !== cur.active);
+// extraTurn row of PLAYER_MARKS, which also draws the EXTRA TURN label. Only Forge's flag: the guess from turn order
+// called Time Warp on another player's turn 6 plain and turn 7 extra (review 2026-11-05), and a board without the
+// flag is a plain turn (the harness always sends it; trackMarks step 7).
+function extraTurn(cur) {
+  return cur.marks?.[cur.active]?.extraTurn === true;
 }
 function logEvents(prev, cur, pub, facts = null) {
   const out = [];
@@ -1626,8 +1640,8 @@ function logEvents(prev, cur, pub, facts = null) {
   const turnBegan = cur.turn !== prev.turn && !!cur.active;
   const oldTurn = []; // (the lines of spells that resolved in the turn just ended: they go above the header)
   if (turnBegan) {
-    // (a turn right after their own is an extra one: Stitch in Time's read as a plain turn, rebuilt hand test #15)
-    out.push(`--- ${who(cur.active)}'s turn ${game.turnsTaken?.[cur.active] || 1}${extraTurn(prev, cur) ? " (extra turn)" : ""} ---`);
+    // (an extra turn, Forge's flag: Stitch in Time's read as a plain turn, rebuilt hand test #15)
+    out.push(`--- ${who(cur.active)}'s turn ${game.turnsTaken?.[cur.active] || 1}${extraTurn(cur) ? " (extra turn)" : ""} ---`);
     // (a look at a library last turn says nothing about this turn's draw: Top looked, then the draw step's card read
     // "puts 1 card from their library", stage 3 review 2026-10-27)
     for (const st of game.seats.values()) st.forget("search");
@@ -2258,11 +2272,12 @@ function logEvents(prev, cur, pub, facts = null) {
     }
   }
   // (a player's marks that changed, in PLAYER_MARKS' order, each row's `say` for every player: only between two boards
-  // that both have the player, so a game's first board, or a player new to it, says nothing)
+  // that both have the player, so a game's first board, or a player new to it, says nothing; `at` says whose turn
+  // another player runs on this board and the one before, turnRuns)
   for (const row of PLAYER_MARKS) if (row.say) for (const [p, now] of Object.entries(cur.marks || {})) {
     const was = prev.marks?.[p];
     if (!was || now[row.key] === was[row.key]) continue;
-    const line = row.say(who(p), now[row.key], was[row.key]);
+    const line = row.say(who(p), now[row.key], was[row.key], { turnRun: cur.turnRun?.[p], wasTurnRun: prev.turnRun?.[p] });
     if (line) out.push(line);
   }
   // (the rooms ventured into: after the marks, as taking the initiative ventures too)
@@ -2377,7 +2392,7 @@ function flashNews(prev, cur, pub) {
 }
 
 function updateLog(pub) {
-  const cur = logSnapshot(pub);
+  const cur = logSnapshot(pub, game.logPrev);
   // (every public card's name this game, for a card gone from all zones: see cname)
   game.namesSeen ??= new Map();
   // (a face-down card's name here is already "a face-down card": logSnapshot hides it)
@@ -2494,8 +2509,7 @@ function sendTable() {
       color: game.slotColor[p.id], slot: p.id, name: nameOf(p.id), ai: !own, life: p.life, status: p.status,
       // your own floating mana (only your seat's view has it)
       pool: own ? Object.fromEntries(Object.entries(own.players?.find((x) => x.id === p.id)?.manaPool || {}).filter(([, n]) => n)) : null,
-      // the marks under the life total (allMarks, and for an older table poison, energy, monarch, initiative, blessed,
-      // story, marks: PLAYER_MARKS, playerMarks)
+      // the marks under the life total (allMarks: PLAYER_MARKS, playerMarks)
       ...playerMarks(p, pub),
       cmdDamage,
       // Commander tax per commander, in command-zone order (casts × 2).
@@ -2654,51 +2668,65 @@ function lossReasons(gv) {
 // A player counter the engine may spell either way ("POISON" / "poison").
 const playerCounter = (p, name) => (p.counters || {})[name.toUpperCase()] || (p.counters || {})[name] || 0;
 
-// The mark fields of a player's table row (sendTable), from PLAYER_MARKS below: `allMarks`, the whole label under the
-// life total in order (left out when there is none). A table of 2026-11-06 or later draws just that. For an older
-// table, until both are live (docs/core-moves-cleanup-plan.md "2. trackMarks" step 6), the old fields go too: the six
-// marks it words itself (`lua` rows), poison and energy as numbers and the four flags only when set, and every other
-// row's labels as `marks`.
+// The mark field of a player's table row (sendTable), from PLAYER_MARKS below: `allMarks`, the whole label under the
+// life total in order (left out when there is none). The old fields (poison, energy, monarch, initiative, blessed,
+// story, marks) went once both halves were live (docs/core-moves-cleanup-plan.md "2. trackMarks" step 6).
 function playerMarks(p, pub) {
-  const { values: v, labels, marks } = trackMarks(p, pub);
-  return { poison: v.poison, energy: v.energy, ...(v.monarch ? { monarch: true } : {}), ...(v.initiative ? { initiative: true } : {}),
-    ...(v.blessed ? { blessed: true } : {}), ...(v.story ? { story: true } : {}), ...(marks.length ? { marks } : {}),
-    ...(labels.length ? { allMarks: labels } : {}) };
+  // (updateLog has just read this board: game.logPrev is its log snapshot)
+  const { labels } = trackMarks(p, pub, { turnRun: game.logPrev?.turnRun?.[p.id] });
+  return labels.length ? { allMarks: labels } : {};
 }
 // Every mark under a player's life total, one row each: `read` takes its value from Forge's player (p) and the game
-// (pub); `label` says it on the table (a list of labels for keywords); `say(who, now, was)`, if the row has one, is the
-// log line when the value changes (null: nothing to say), see logEvents. The rows' order is the label's order. A value
+// (pub); `label(v, at)` says it on the table (a list of labels for keywords); `say(who, now, was, at)`, if the row has
+// one, is the log line when the value changes (null: nothing to say), see logEvents (`at`: whose turn another player
+// runs, turnRuns; only controlledBy reads it). The rows' order is the label's order. A value
 // of 0, false, null, "" or [] shows nothing. A number (a player counter, the Ring, speed, prevention) is read as a
-// positive number or 0 (`positive`): a "0", true or -1 is 0, so the label, the log and the old row fields all see the
-// same value (review 2026-11-06; jr suite 2026-11-06). Forge sends all of these and nothing else showed them: poison (Skrelv's
-// toxic, playtest 2026-10-27), energy (structural review the same day), the monarch and the initiative (Palace Jailer,
+// positive number or 0 (`positive`): a "0", true or -1 is 0, so the label and the log see the same value (review
+// 2026-11-06; jr suite 2026-11-06). Forge sends all of these and nothing else showed them: poison (Skrelv's toxic,
+// playtest 2026-10-27), energy (structural review the same day), the monarch and the initiative (Palace Jailer,
 // hp-17), the city's blessing and an enduring story (hp-21), then the other player counters, the Ring's temptations,
-// speed, a turn someone else controls (Mindslaver), an extra turn, damage prevention shields, a changed hand size, and
-// keywords on the player (hexproof, "can't lose the game"; table-map gaps 2026-11-03).
+// speed, another player in control (Mindslaver's turn, Opposition Agent's search), an extra turn, damage prevention
+// shields, a changed hand size, and keywords on the player (hexproof, "can't lose the game"; table-map gaps 2026-11-03).
 // The log said none of the first six either: Vraska's Fall's poison (hp-11), Volatile Stormdrake's energy gained and
-// paid (hp-16), Palace Jailer's monarch (hp-17), Wayward Swordtooth's ascend (hp-11), Kíli the Resourceful's story (hp-21).
+// paid (hp-16), Palace Jailer's monarch (hp-17), Wayward Swordtooth's ascend (hp-11), Kíli the Resourceful's story (hp-21),
+// nor the Ring, speed or another player in control (trackMarks step 7, 2026-11-06).
 const positive = (n) => (typeof n === "number" && n > 0 ? n : 0);
 const counterOf = (name) => (p) => positive(playerCounter(p, name));
 const PLAYER_MARKS = [
-  { key: "poison", lua: true, read: counterOf("poison"), label: (n) => `POISON ${n}`,
+  { key: "poison", read: counterOf("poison"), label: (n) => `POISON ${n}`,
     say: (who, n, was) => (n > was ? `${who} gets ${countWords(n - was, n - was, "poison counter")} (${n} in all)`
       : `${who} loses ${countWords(was - n, was - n, "poison counter")} (${n} in all)`) },
-  { key: "energy", lua: true, read: counterOf("energy"), label: (n) => `ENERGY ${n}`,
+  { key: "energy", read: counterOf("energy"), label: (n) => `ENERGY ${n}`,
     say: (who, n, was) => (n > was ? `${who} gets ${n - was} energy (${n} in all)` : `${who} pays ${was - n} energy (${n} left)`) },
-  { key: "monarch", lua: true, read: (p, pub) => pub.monarchId === p.id, label: () => "MONARCH", say: (who, now) => (now ? `${who} becomes the monarch` : null) },
-  { key: "initiative", lua: true, read: (p, pub) => pub.initiativeHolderId === p.id, label: () => "INITIATIVE", say: (who, now) => (now ? `${who} takes the initiative` : null) },
-  { key: "blessed", lua: true, read: (p) => !!p.hasCityBlessing, label: () => "CITY'S BLESSING", say: (who, now) => (now ? `${who} gets the city's blessing` : null) },
-  { key: "story", lua: true, read: (p) => !!p.hasEnduringStory, label: () => "ENDURING STORY", say: (who, now) => (now ? `${who} has an enduring story` : null) },
+  { key: "monarch", read: (p, pub) => pub.monarchId === p.id, label: () => "MONARCH", say: (who, now) => (now ? `${who} becomes the monarch` : null) },
+  { key: "initiative", read: (p, pub) => pub.initiativeHolderId === p.id, label: () => "INITIATIVE", say: (who, now) => (now ? `${who} takes the initiative` : null) },
+  { key: "blessed", read: (p) => !!p.hasCityBlessing, label: () => "CITY'S BLESSING", say: (who, now) => (now ? `${who} gets the city's blessing` : null) },
+  { key: "story", read: (p) => !!p.hasEnduringStory, label: () => "ENDURING STORY", say: (who, now) => (now ? `${who} has an enduring story` : null) },
   { key: "experience", read: counterOf("experience"), label: (n) => `EXPERIENCE ${n}` },
   { key: "radiation", read: counterOf("radiation"), label: (n) => `RAD ${n}` },
   { key: "ticket", read: counterOf("ticket"), label: (n) => `TICKETS ${n}` },
-  { key: "ring", read: (p) => positive(p.ringLevel), label: (n) => `RING TEMPTED ${n}` },
-  { key: "speed", read: (p) => positive(p.speed), label: (n) => `SPEED ${n}` },
-  // (String: a name that isn't text must not throw, or the whole board would not go out)
-  { key: "controlledBy", read: (p) => p.controlledBy || null, label: (id) => `TURN RUN BY ${String(nameOf(id)).toUpperCase()}` },
+  // (Forge's count of temptations only goes up in play, getNumRingTemptedYou: a rewind or a restarted game lowers it,
+  // and that says nothing)
+  { key: "ring", read: (p) => positive(p.ringLevel), label: (n) => `RING TEMPTED ${n}`,
+    say: (who, n, was) => (n > was ? `${who} is tempted by the Ring${n - was > 1 ? ` ${n - was} times` : ""} (${n})` : null) },
+  // (0 until a "Start your engines!" card; then 1 to 4, up once a turn, Forge's "Max Speed!" at 4, never down below 1)
+  { key: "speed", read: (p) => positive(p.speed), label: (n) => `SPEED ${n}`,
+    say: (who, n, was) => (n > was ? `${was ? `${who}'s speed goes up to ${n}` : `${who} starts their engines (speed ${n})`}${n === 4 ? " (max speed)" : ""}`
+      : n ? `${who}'s speed goes down to ${n}` : null) },
+  // (String: a name that isn't text must not throw, or the whole board would not go out. Forge sends it while another
+  // player controls this one, for a turn or for a moment, Opposition Agent's search: a turn's is worded as one only
+  // when turnRuns says it is)
+  { key: "controlledBy", read: (p) => p.controlledBy || null,
+    label: (id, at) => `${at.turnRun === id ? "TURN RUN BY" : "CONTROLLED BY"} ${String(nameOf(id)).toUpperCase()}`,
+    say: (who, id, was, at) => {
+      const by = String(nameOf(id || was));
+      if (id) return at.turnRun === id ? `${by} takes control of ${who}'s turn` : `${by} controls ${who} for now`;
+      return at.wasTurnRun === was ? `${by}'s control of ${who}'s turn ends` : `${by} no longer controls ${who}`;
+    } },
   // (while it is theirs: Forge keeps the flag on the player after the turn. The value is Forge's own flag for the
-  // active player, undefined when a board has none: the turn header reads it too, extraTurn)
-  { key: "extraTurn", read: (p, pub) => (pub.activePlayerId === p.id ? p.isExtraTurn : false), label: () => "EXTRA TURN" },
+  // active player, true only when the flag is true: the turn header reads it too, extraTurn, so the label and the
+  // header agree on a flag of 1 or "true", which neither takes as one)
+  { key: "extraTurn", read: (p, pub) => pub.activePlayerId === p.id && p.isExtraTurn === true, label: () => "EXTRA TURN" },
   { key: "prevention", read: (p) => positive(p.damagePrevention), label: (n) => `PREVENT ${n}` },
   // (as text: a maximum of 0 is shown)
   { key: "handSize", read: (p) => (p.unlimitedHandSize ? "none" : p.maxHandSize != null && p.maxHandSize !== 7 ? String(p.maxHandSize) : null),
@@ -2706,18 +2734,16 @@ const PLAYER_MARKS = [
   { key: "keywords", read: playerKeywordLabels, label: (list) => list },
 ];
 const markShown = (v) => (Array.isArray(v) ? v.length > 0 : !!v);
-// One player's marks: { values: key -> value, labels: the whole label list in order, marks: the labels of the rows
-// that aren't `lua` }
-function trackMarks(p, pub) {
-  const values = {}, labels = [], marks = [];
+// One player's marks: { values: key -> value, labels: the whole label list in order }. `at.turnRun`: who runs this
+// player's turn, from turnRuns (the label says a turn's control as one)
+function trackMarks(p, pub, at = {}) {
+  const values = {}, labels = [];
   for (const m of PLAYER_MARKS) {
     const v = (values[m.key] = m.read(p, pub));
     if (!markShown(v)) continue;
-    const said = [].concat(m.label(v));
-    labels.push(...said);
-    if (!m.lua) marks.push(...said);
+    labels.push(...[].concat(m.label(v, at)));
   }
-  return { values, labels, marks };
+  return { values, labels };
 }
 // (a keyword as cards' keywords read, "Protection:Player.Opponent:each of your opponents" -> "Protection from each
 // of your opponents", the internal ones left out; one written as a sentence, "You can't lose the game.", as it is)

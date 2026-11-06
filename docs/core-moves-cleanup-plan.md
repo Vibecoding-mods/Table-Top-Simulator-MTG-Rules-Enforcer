@@ -566,8 +566,8 @@ the Time Warp header); they become askUnder step 1's photographs, recorded with 
 
 All three are built, independently reviewed, fixed after review, and deployed (table 0d1f4982, save 165c09a4, bridge
 4b7228e4). Each one's full record (steps, golden diffs, mutation results, review rounds) is in `docs/core-moves/`:
-`askunder.md`, `cardentry.md`, `trackmarks.md`. Step 6 of trackMarks (drop the old fields) is still to do, now that
-both halves are live; step 7 (new log lines) needs the user's OK.
+`askunder.md`, `cardentry.md`, `trackmarks.md`. Steps 6 (drop the old fields) and 7 (new log lines, the user's OK
+2026-11-06) of trackMarks are built in source, not deployed: `trackmarks.md` "Steps 6 and 7".
 
 Real-table check, same night (debug scenarios `core-moves` and `core-moves-2`, 1v1 against the AI):
 - PASS: a creature card picked out of a graveyard of exactly 2 cards (Raise Dead): one card left, no stray copy.

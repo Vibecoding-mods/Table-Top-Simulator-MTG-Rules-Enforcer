@@ -2327,7 +2327,8 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
       last = t;
       for (const p of t.players) for (const z of ["battlefield", "graveyard", "exile"]) if (p[z]) zones[p.color + z] = p[z];
     }
-    return (last?.players || []).map((p) => ({ color: p.color, marks: p.marks || null,
+    // (marks: the row's allMarks since trackMarks step 6, the old marks before)
+    return (last?.players || []).map((p) => ({ color: p.color, marks: p.allMarks || null,
       cards: ["battlefield", "graveyard", "exile"].flatMap((z) => (zones[p.color + z] || []).filter((c) => c.kw || c.nt).map((c) => ({ z, id: c.id, kw: c.kw || null, nt: c.nt || null }))) }));
   };
   const gc = (id, name, o, more = {}) => ({ id, identity: { name }, types: ["Instant"], ownerId: o, controllerId: o, text: "", ...more });
@@ -2420,6 +2421,7 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
     Object.assign(them, { counters: { experience: 1, radiation: 0 }, controlledBy: "player-0", isExtraTurn: true, unlimitedHandSize: true, maxHandSize: 3, ringLevel: 0, speed: 0, damagePrevention: 0 });
     const seat = game(h, b);
     await boardAs(h, seat, b);
+    // (the whole label since trackMarks step 6: Blue's POISON 1 now leads it)
     const first = said(h).map((p) => p.marks);
     const theirs = clone(b); theirs.gameView.activePlayerId = "player-1";
     theirs.gameView.players[0].maxHandSize = 7;
@@ -3190,7 +3192,8 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
     await boardAs(h, seat, with_("player-0", null));
     await boardAs(h, seat, with_("player-1", "player-0"));
     const t = h.effects.filter((e) => e.tts && e.tts.t === "table").pop()?.tts;
-    return { lines: logLines(h).slice(mark), rows: (t?.players || []).map((p) => ({ c: p.color, monarch: !!p.monarch, initiative: !!p.initiative })) };
+    // (read from allMarks since trackMarks step 6)
+    return { lines: logLines(h).slice(mark), rows: (t?.players || []).map((p) => ({ c: p.color, monarch: (p.allMarks || []).includes("MONARCH"), initiative: (p.allMarks || []).includes("INITIATIVE") })) };
   } });
   // (hp-18 gap: Buried Alive's search into the graveyard says so; with no search just before, the same board is a mill)
   for (const searched of [true, false]) {
@@ -3309,7 +3312,8 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
     await boardAs(h, seat, b);
     await boardAs(h, seat, clone(b));
     const t = h.effects.filter((e) => e.tts && e.tts.t === "table").pop()?.tts;
-    return { lines: logLines(h).slice(mark), rows: (t?.players || []).map((p) => ({ c: p.color, blessed: !!p.blessed, story: !!p.story })) };
+    // (read from allMarks since trackMarks step 6)
+    return { lines: logLines(h).slice(mark), rows: (t?.players || []).map((p) => ({ c: p.color, blessed: (p.allMarks || []).includes("CITY'S BLESSING"), story: (p.allMarks || []).includes("ENDURING STORY") })) };
   } });
   // (hp-21 gap: cohort's counter on each creature: one line for those getting one each, with counts; another number apart)
   add({ name: "log: +1/+1 counters on several", run: async (h) => {
@@ -6963,6 +6967,108 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
     const seat = game(h, b);
     await boardAs(h, seat, b);
     return rows(h);
+  } });
+  // (step 7, 2026-11-06) the log says the Ring, speed and a turn run by another player, board by board (Forge's fields
+  // ringLevel, speed, controlledBy: InteractiveSnapshotExtractor). The Ring once, twice at once, then a count that went
+  // down (said nothing); speed from 0, up, to 4, down, to 0 (said nothing); control taken, then given back
+  add({ name: "trackMarks: the Ring, speed and a turn run by another player in the log", run: async (h) => {
+    const start = myMain(D2.board);
+    const seat = game(h, start);
+    await boardAs(h, seat, start);
+    const boards = [];
+    let b = start;
+    const step = async (blue, ai) => {
+      b = clone(b); Object.assign(pl(b, "player-0"), blue); Object.assign(pl(b, "player-1"), ai);
+      const n = logLines(h).length; await boardAs(h, seat, b); boards.push(logLines(h).slice(n));
+    };
+    await step({ ringLevel: 1 }, { speed: 1 });
+    await step({ ringLevel: 3 }, { speed: 2 });
+    await step({}, {});
+    await step({ controlledBy: "player-1" }, { speed: 4 });
+    await step({ ringLevel: 2, controlledBy: null }, { speed: 3 });
+    await step({}, { speed: 0 });
+    return { boards, labels: rows(h).map((r) => [r.c, r.allMarks || []]) };
+  } });
+  // (step 7; jr suite 2026-11-06, Forge's order) Mindslaver: Forge hands Blue's turn to the AI as the turn passes to
+  // Blue (PhaseHandler's cleanup end: the next player first, then ControlPlayerEffect's addController), so the first
+  // board under control is Blue's turn 6, and gives it back as the turn passes on after Blue's cleanup. Mid-turn, a
+  // spell on the stack keeps it a turn's control. The control lines, the labels and the turn headers in order
+  const ctlAt = (turn, active, step, ctl, stack = []) => {
+    const b = clone(D2.board);
+    Object.assign(b.gameView, { turn, activePlayerId: active, priorityPlayerId: active, step, stack: clone(stack).map(({ zone, ...s }) => s) });
+    // (each item's source card where it is while the item resolves: a fetch land sacrificed; Blue's Phyrexian Arena,
+    // whose upkeep trigger UPKEEP is, on every board)
+    const put = (zone, owner, id, name, types, text) => b.gameView.zones.find((z) => z.zone === zone && z.ownerId === owner).cards
+      .push({ id, identity: { name }, types, ownerId: owner, controllerId: owner, text });
+    put("battlefield", "player-0", "engine-card-976", "Phyrexian Arena", ["Enchantment"], "At the beginning of your upkeep, you draw a card and you lose 1 life.");
+    for (const s of stack) if (s.zone === "graveyard") put("graveyard", s.controllerId, s.sourceId, s.identity.name, ["Land"], s.sourceAbilityText);
+    for (const [id, by] of Object.entries(ctl || {})) pl(b, id).controlledBy = by;
+    return b;
+  };
+  const ctlRun = async (h, first, boards) => {
+    const seat = game(h, first, { game: { turnOwners: { 1: "player-1", 2: "player-0", 3: "player-1", 4: "player-0" } } });
+    await boardAs(h, seat, first);
+    const out = [];
+    for (const [turn, active, step, ctl, stack] of boards) {
+      const n = logLines(h).length;
+      await boardAs(h, seat, ctlAt(turn, active, step, ctl, stack));
+      out.push({ turn, step, lines: logLines(h).slice(n), labels: rows(h).map((r) => [r.c, r.allMarks || []]) });
+    }
+    return out;
+  };
+  // (a fetch land's ability on the stack, as Forge keeps it there while it resolves; the search is what Opposition
+  // Agent takes over)
+  const FETCH = (ctl) => [{ zone: "graveyard", id: "stack-agent-1", sourceId: "engine-card-975", controllerId: ctl, ownerId: ctl, identity: { name: "Polluted Delta" },
+    text: "Search your library for an Island or Swamp card, put it onto the battlefield, then shuffle.", isTrigger: false, isPermanentSpell: false, targets: [],
+    sourceAbilityText: "{T}, Pay 1 life, Sacrifice Polluted Delta: Search your library for an Island or Swamp card, put it onto the battlefield, then shuffle." }];
+  const UPKEEP = (ctl) => [{ id: "stack-upkeep-1", sourceId: "engine-card-976", controllerId: ctl, ownerId: ctl, identity: { name: "Phyrexian Arena" },
+    text: "You draw a card and you lose 1 life.", isTrigger: true, isPermanentSpell: false, targets: [],
+    sourceAbilityText: "At the beginning of your upkeep, you draw a card and you lose 1 life." }];
+  add({ name: "trackMarks: Mindslaver, the turn run by another player and the headers", run: async (h) => ctlRun(h, ctlAt(5, "player-1", "main2"), [
+    [5, "player-1", "cleanup", null], [6, "player-0", "upkeep", { "player-0": "player-1" }], [6, "player-0", "main1", { "player-0": "player-1" }, FETCH("player-0")],
+    [6, "player-0", "cleanup", { "player-0": "player-1" }], [7, "player-1", "upkeep", null]]) });
+  // (verifier finding 1, 2026-11-06) Forge also hands a player over for a moment, on any player's turn: Opposition
+  // Agent's "control while searching" (ChangeZoneEffect:1075) and a spell cast under another's control (PlayEffect,
+  // MagicStack.resolveStack), only while an ability resolves, so with it on the stack. That is no turn run by another
+  // player: "Blue controls AI 1 for now", the label CONTROLLED BY BLUE. Blue holds Opposition Agent; AI 1 cracks a
+  // fetch land in its own main phase, then in Blue's turn
+  add({ name: "trackMarks: Opposition Agent, a search controlled on either player's turn", run: async (h) => ctlRun(h, ctlAt(5, "player-1", "main1"), [
+    [5, "player-1", "main1", { "player-1": "player-0" }, FETCH("player-1")], [5, "player-1", "main1", null],
+    [6, "player-0", "main1", { "player-1": "player-0" }, FETCH("player-1")], [6, "player-0", "main1", null]]) });
+  // (the same, where the turn passes: the first board of AI 1's turn is the search, an upkeep trigger's, so it begins
+  // with the turn; and a search in its end step whose control is gone only on the next turn's board. Neither is a turn's)
+  add({ name: "trackMarks: Opposition Agent, a search controlled as a turn begins and ends", run: async (h) => ctlRun(h, ctlAt(4, "player-0", "main2"), [
+    [5, "player-1", "upkeep", { "player-1": "player-0" }, FETCH("player-1")], [5, "player-1", "draw", null],
+    [5, "player-1", "end", { "player-1": "player-0" }, FETCH("player-1")], [6, "player-0", "upkeep", null]]) });
+  // (and Mindslaver whose first board under control has an upkeep trigger on the stack: said plainly then, a turn's once
+  // a board shows it with the stack empty, and its end said as a turn's)
+  add({ name: "trackMarks: Mindslaver seen first with a trigger on the stack", run: async (h) => ctlRun(h, ctlAt(5, "player-1", "main2"), [
+    [6, "player-0", "upkeep", { "player-0": "player-1" }, UPKEEP("player-0")], [6, "player-0", "draw", { "player-0": "player-1" }],
+    [7, "player-1", "upkeep", null]]) });
+  // (step 7) the plan's case: four players, Blue casts Time Warp on AI 1 in its turn 5. Turn 6 is AI 1's extra turn,
+  // turn 7 its normal one (Forge's flag, set at each turn start), turn 8 AI 2's. The guess from turn order had turns 6
+  // and 7 the other way round; a board without the flag is a plain turn
+  add({ name: "trackMarks: Time Warp on another player, four players, the headers", run: async (h) => {
+    const ids = ["player-0", "player-1", "player-2", "player-3"];
+    const at = (turn, active, flag) => {
+      const b = clone(D2.board);
+      const ai = pl(b, "player-1");
+      b.gameView.players = [pl(b, "player-0"), ai, { ...clone(ai), id: "player-2" }, { ...clone(ai), id: "player-3" }];
+      Object.assign(b.gameView, { turn, activePlayerId: active, priorityPlayerId: active, step: "upkeep", stack: [] });
+      for (const p of b.gameView.players) { if (flag === undefined) delete p.isExtraTurn; else p.isExtraTurn = p.id === active && flag; }
+      return b;
+    };
+    const first = at(5, "player-0", false);
+    const seat = game(h, first, { game: { total: 4, bots: 3, slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "AI 2", "player-3": "AI 3" },
+      slotColor: { "player-0": "Blue", "player-1": "White", "player-2": "Red", "player-3": "Yellow" }, turnOwners: { 1: ids[0], 2: ids[1], 3: ids[2], 4: ids[3] } } });
+    await boardAs(h, seat, first);
+    const out = [];
+    for (const [turn, active, flag] of [[6, ids[1], true], [7, ids[1], false], [8, ids[2], false], [9, ids[3], undefined], [10, ids[3], undefined]]) {
+      const n = logLines(h).length;
+      await boardAs(h, seat, at(turn, active, flag));
+      out.push({ turn, headers: logLines(h).slice(n).filter((l) => l.startsWith("---")), labels: rows(h).filter((r) => (r.allMarks || []).length).map((r) => [r.c, r.allMarks]) });
+    }
+    return out;
   } });
 }
 

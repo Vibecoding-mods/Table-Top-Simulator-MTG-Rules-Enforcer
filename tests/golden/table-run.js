@@ -546,14 +546,15 @@ function scenarios() {
     const nb = noted.players.find((x) => x.color === "Blue");
     nb.graveyard = [as(bfB[0], "engine-card-9841", ["Flashback {1}{U}", "Has flashback \"twice\""]), as(bfB[1], "engine-card-9842"), as(bfB[2], "engine-card-9843", ["Flashback {2}{R}"])];
     nb.exile = [as(bfB[3] || bfB[0], "engine-card-9844", ["Plotted: its owner may cast it without paying its mana cost on a later turn, as a sorcery", "3 time counters"])];
-    nb.marks = ["RING TEMPTED 2", "YOU CAN'T LOSE THE GAME"];
+    // (allMarks since trackMarks step 6: the table reads only that)
+    nb.allMarks = ["RING TEMPTED 2", "YOU CAN'T LOSE THE GAME"];
     nb.keep = (nb.keep || []).filter((z) => z !== "graveyard" && z !== "exile");
     const later = JSON.parse(JSON.stringify(noted));
     later.cards = {};
     const lb = later.players.find((x) => x.color === "Blue");
     lb.graveyard[2].nt = ["Flashback {1}{R}"];
     lb.exile[0].nt = ["2 time counters"];
-    delete lb.marks;
+    delete lb.allMarks;
     const pileText = click('for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:graveyard:Blue" then return x.type .. ": " .. x.getDescription() end end return "no pile"');
     const loneText = click('for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-9844" then return x.getDescription() end end return "none"');
     const marksLabel = click('local o = getObjectFromGUID("395037") for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then return b.label .. " @" .. tostring(b.width) end end return "no label"');
@@ -563,9 +564,10 @@ function scenarios() {
       { msg: { t: "texts", json: JSON.stringify({ t: "texts", texts: { "engine-card-9844": "Suspend 4—{U}" } }) }, mark: "notes: rules text arrives" }, loneText,
       { msg: { t: "table", json: JSON.stringify(later) }, frames: 200, mark: "notes: only the notes changed" },
       pileText, loneText, marksLabel);
-    // (2026-11-06, docs/core-moves-cleanup-plan.md "2. trackMarks" step 1) every mark the table words itself (poison,
+    // (2026-11-06, docs/core-moves-cleanup-plan.md "2. trackMarks" step 1) every mark the table worded itself (poison,
     // energy, monarch, initiative, blessing, story) with the bridge's marks after them: the label and its width under
-    // Blue's and White's life counters, then a board with none (the label goes)
+    // Blue's and White's life counters, then a board with none (the label goes). Since step 6 these old fields draw
+    // nothing
     const marked = JSON.parse(JSON.stringify(later));
     const mb = marked.players.find((x) => x.color === "Blue"), mw = marked.players.find((x) => x.color === "White");
     Object.assign(mb, { poison: 3, energy: 2, monarch: true, initiative: true, blessed: true, story: true, marks: ["RING TEMPTED 2", "YOU CAN'T LOSE THE GAME"] });

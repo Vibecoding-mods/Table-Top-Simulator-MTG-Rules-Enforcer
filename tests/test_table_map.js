@@ -47,10 +47,27 @@ for (const f of Object.keys(PLAYER_FACTS)) ok(`${f} is still a PlayerDto field`,
 const send = bridge.slice(bridge.indexOf("function sendTable("), bridge.indexOf("function sendTable(") + 6000);
 const marksFn = bridge.slice(bridge.indexOf("function playerMarks("), bridge.indexOf("function cardIndex("));
 for (const [f, e] of Object.entries(PLAYER_FACTS)) for (const k of e.to || []) {
-  ok(`${f}: the player row sends ${k}`, k === "marks" ? /\.\.\.playerMarks\(p, pub\)/.test(send) && /\{ marks \}/.test(marksFn)
+  ok(`${f}: the player row sends ${k}`, k === "allMarks" ? /\.\.\.playerMarks\(p, pub\)/.test(send) && /\{ allMarks: labels \}/.test(marksFn)
     : new RegExp(`\\b${k}\\b`).test(send), "the map names a key that is gone");
   ok(`${f}: the table reads ${k}`, new RegExp(`\\.${k}\\b|\\[k\\]`).test(lua), "sent, and nothing reads it");
-  if (k === "marks") ok(`${f}: playerMarks reads it`, new RegExp(`\\bp\\.${f}\\b|"${f.replace(/s$/, "")}"|playerCounter\\(p`).test(marksFn), "playerMarks doesn't read this field");
+  if (k === "allMarks") ok(`${f}: PLAYER_MARKS reads it`, new RegExp(`\\bp\\.${f}\\b|"${f.replace(/s$/, "")}"|playerCounter\\(p`).test(marksFn), "no PLAYER_MARKS row reads this field");
+}
+// (verifier finding 3, 2026-11-06) the other way round: every Forge player field a PLAYER_MARKS row reads is mapped to
+// allMarks, not skipped or called a gap (p.<field>, and counters through playerCounter); id says which player
+const marksRead = new Set([...marksFn.matchAll(/\bp\.([A-Za-z_]\w*)\b/g)].map((m) => m[1]));
+if (/\bplayerCounter\(p\b/.test(marksFn)) marksRead.add("counters");
+ok("PLAYER_MARKS reads: precondition, the rows' fields were found (counters, ringLevel, speed, controlledBy, isExtraTurn)",
+  ["counters", "ringLevel", "speed", "controlledBy", "isExtraTurn"].every((f) => marksRead.has(f)) && marksRead.size >= 10, [...marksRead].join(" "));
+for (const f of marksRead) {
+  if (f === "id") { ok("PLAYER_MARKS reads id: mapped", !!PLAYER_FACTS.id?.to?.length, JSON.stringify(PLAYER_FACTS.id)); continue; }
+  ok(`PLAYER_MARKS reads ${f}: PLAYER_FACTS maps it to allMarks`, !!PLAYER_FACTS[f]?.to?.includes("allMarks"),
+    `${JSON.stringify(PLAYER_FACTS[f])}: a mark is drawn from it, so it is no skip or gap`);
+}
+// (trackMarks step 6) the old mark fields are gone from the row and from the table: no player row key, no Lua reader
+for (const k of ["marks", "poison", "energy", "monarch", "initiative", "blessed", "story"]) {
+  ok(`old mark field ${k}: no PLAYER_FACTS entry maps to it`, !Object.values(PLAYER_FACTS).some((e) => (e.to || []).includes(k)), "the map names an old field");
+  ok(`old mark field ${k}: playerMarks doesn't send it`, !new RegExp(`\\b${k}:`).test(marksFn.slice(0, marksFn.indexOf("\n}\n"))), "an old field is back on the row");
+  ok(`old mark field ${k}: the table doesn't read it`, !new RegExp(`\\bpl\\.${k}\\b|\\bpl\\[k\\]`).test(lua), "the renderer reads an old field again");
 }
 
 const zones = [...(protocol.match(/pub enum ZoneKind \{[^}]*\}/)?.[0] || "").matchAll(/^\s+([A-Z][a-z]+),/gm)].map((m) => m[1]);

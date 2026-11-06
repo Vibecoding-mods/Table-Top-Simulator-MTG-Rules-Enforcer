@@ -834,26 +834,11 @@ end
 function enginePlayerCounters(o, pl)
   if o == nil then return end
   local parts = {}
-  -- (the whole label, worded and ordered by the bridge since 2026-11-06: bridge PLAYER_MARKS; it is left out when there
-  -- is no mark)
+  -- (the whole label, worded and ordered by the bridge: bridge PLAYER_MARKS; it is left out when there is no mark. The
+  -- old fields' fallback went in docs/core-moves-cleanup-plan.md "2. trackMarks" step 6; a row that isn't a list draws
+  -- nothing)
   if type(pl.allMarks) == "table" then
     for _, m in ipairs(pl.allMarks) do parts[#parts + 1] = tostring(m) end
-  else
-    -- (a bridge from before allMarks: six marks worded here, then its marks. Both halves are live since 2026-11-06; this
-    -- goes with docs/core-moves-cleanup-plan.md "2. trackMarks" step 6)
-    for _, k in ipairs({ "poison", "energy" }) do
-      local n = tonumber(pl[k]) or 0
-      if n > 0 then parts[#parts + 1] = string.upper(k) .. " " .. n end
-    end
-    -- (and the monarch and the initiative, which nothing showed: Palace Jailer's monarchy, hp-17 gap)
-    if pl.monarch then parts[#parts + 1] = "MONARCH" end
-    if pl.initiative then parts[#parts + 1] = "INITIATIVE" end
-    -- (and the city's blessing and an enduring story, kept for the rest of the game, hp-21 gap)
-    if pl.blessed then parts[#parts + 1] = "CITY'S BLESSING" end
-    if pl.story then parts[#parts + 1] = "ENDURING STORY" end
-    -- (and the rest the bridge reads off the player: other counters, the Ring, speed, a controlled or extra turn,
-    -- prevention shields, hand size, keywords on the player; bridge playerMarks)
-    for _, m in ipairs(pl.marks or {}) do parts[#parts + 1] = tostring(m) end
   end
   local label = table.concat(parts, "   ")
   local at

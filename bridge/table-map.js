@@ -98,38 +98,37 @@ const GESTURES = {
 };
 
 // PLAYER_FACTS: Forge's PlayerDto field -> { to: keys of the bridge's player row (sendTable), show }, or { gap }, or
-// { skip }. Most land in "marks", short labels under the player's life (bridge playerMarks). Every mark shown is also in
-// "allMarks", the whole label in order, which a table of 2026-11-06 or later draws instead (bridge PLAYER_MARKS,
-// trackMarks); "marks" and the six fields poison, energy, monarch, initiative, blessed and story stay for an older
-// table until docs/core-moves-cleanup-plan.md "2. trackMarks" step 6.
+// { skip }. The marks land in "allMarks", the whole label under the player's life in order (bridge PLAYER_MARKS,
+// trackMarks, playerMarks); the old "marks" and the six fields poison, energy, monarch, initiative, blessed and story
+// went in docs/core-moves-cleanup-plan.md "2. trackMarks" step 6.
 const PLAYER_FACTS = {
   id: { to: ["slot"], show: "which seat" },
   name: { to: ["name"], show: "the seat's name" },
   status: { to: ["status"], show: "a player who lost or conceded" },
   isHuman: { to: ["ai"], show: "an AI seat" },
   life: { to: ["life"], show: "the life counter" },
-  maxHandSize: { to: ["marks"], show: "MAX HAND 5 when it isn't seven" },
-  unlimitedHandSize: { to: ["marks"], show: "NO MAX HAND SIZE" },
+  maxHandSize: { to: ["allMarks"], show: "MAX HAND 5 when it isn't seven" },
+  unlimitedHandSize: { to: ["allMarks"], show: "NO MAX HAND SIZE" },
   landsPlayedThisTurn: { skip: "the land play is refused with a reason when none is left" },
   maxLandPlaysPerTurn: { skip: "as landsPlayedThisTurn" },
   unlimitedLandPlays: { skip: "as landsPlayedThisTurn" },
   cardsDrawnThisTurn: { skip: "the log says each draw" },
-  damagePrevention: { to: ["marks"], show: "PREVENT 3" },
-  isExtraTurn: { to: ["marks"], show: "EXTRA TURN on the player taking it" },
+  damagePrevention: { to: ["allMarks"], show: "PREVENT 3" },
+  isExtraTurn: { to: ["allMarks"], show: "EXTRA TURN on the player taking it; the turn header's \"(extra turn)\"" },
   extraTurnCount: { skip: "isExtraTurn says the turn is one; the log says each extra turn" },
-  controlledBy: { to: ["marks"], show: "TURN RUN BY BLUE (Mindslaver)" },
-  playerKeywords: { to: ["marks"], show: "HEXPROOF, YOU CAN'T LOSE THE GAME" },
+  controlledBy: { to: ["allMarks"], show: "TURN RUN BY BLUE (Mindslaver), CONTROLLED BY BLUE (Opposition Agent's search); the log says when it starts and ends" },
+  playerKeywords: { to: ["allMarks"], show: "HEXPROOF, YOU CAN'T LOSE THE GAME" },
   commanderCasts: { to: ["tax"], show: "the commander tax counter" },
   dungeonState: { skip: "the dungeon card in the command zone shows its room" },
   activeSchemeNames: { skip: "Archenemy: no schemes on this table" },
   teamNumber: { skip: "no team games on this table" },
-  counters: { to: ["poison", "energy", "marks"], show: "POISON 3, ENERGY 2, and EXPERIENCE, RAD, TICKETS in the marks" },
+  counters: { to: ["allMarks"], show: "POISON 3, ENERGY 2, EXPERIENCE, RAD, TICKETS" },
   manaPool: { to: ["pool"], show: "your own floating mana" },
   commanderDamage: { to: ["cmdDamage"], show: "commander damage by seat" },
-  hasCityBlessing: { to: ["blessed"], show: "CITY'S BLESSING" },
-  hasEnduringStory: { to: ["story"], show: "ENDURING STORY" },
-  ringLevel: { to: ["marks"], show: "RING TEMPTED 2" },
-  speed: { to: ["marks"], show: "SPEED 3" },
+  hasCityBlessing: { to: ["allMarks"], show: "CITY'S BLESSING" },
+  hasEnduringStory: { to: ["allMarks"], show: "ENDURING STORY" },
+  ringLevel: { to: ["allMarks"], show: "RING TEMPTED 2; the log says each temptation" },
+  speed: { to: ["allMarks"], show: "SPEED 3; the log says each change" },
 };
 
 module.exports = { CARD_FACTS, TABLE_ONLY_KEYS, ZONES, GESTURES, PLAYER_FACTS };
