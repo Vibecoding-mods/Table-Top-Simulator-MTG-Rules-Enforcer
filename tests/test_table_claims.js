@@ -1401,5 +1401,23 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("spawn: the late library callback calls nothing on its destroyed object", errs.length === 0 && r.errors.length === 0, errs.concat(r.errors).slice(0, 2).join(" || "));
   ok("spawn: a late library from before a reset leaves the next game's spawning library alone (one library, no second spawn)", v("race: a board while the new one is still on its way") === "1 library objects, 3 library spawns", v("race: a board while the new one is still on its way"));
 }
+// Done with too few cards picked tells the player how many, as the bridge's own refusal does (live check 11: forage's
+// "Done (1)" of 3 did nothing and said nothing), on the row's Done and the panel's, and sends nothing
+{
+  const sentIn = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ");
+  const said = (r, mark) => fxOf(r, mark).filter((l) => l.includes("broadcastToColor")).join(" | ");
+  const r = run([
+    ask({ promptId: 821, kind: "modal", title: "Choose two", mode: "multi", min: 2, max: 2, options: [{ id: "0", label: "Draw a card" }, { id: "1", label: "Gain 3 life" }, { id: "2", label: "Scry 2" }] }),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_1")', "one mode"),
+    q('return tostring(UI.getAttribute("eng_rowopt_Blue_4", "interactable"))', "row done clickable"),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_4")', "row done"),
+    q('return tostring(UI.getAttribute("eng_confirm_Blue", "interactable"))', "panel done clickable"),
+    q('engineConfirm("Blue")', "panel done"),
+  ]);
+  ok("too few: the row's Done can be pressed", valueOf(r, "row done clickable") === "true", valueOf(r, "row done clickable"));
+  ok("too few: the row's Done says how many, and sends nothing", /Choose 2 \(you chose 1\)\./.test(said(r, "row done")) && !sentIn(r, "row done").includes('"choice"'), `${said(r, "row done")} ${sentIn(r, "row done").slice(0, 200)}`);
+  ok("too few: the panel's Done can be pressed", valueOf(r, "panel done clickable") === "true", valueOf(r, "panel done clickable"));
+  ok("too few: the panel's Done says it too", /Choose 2 \(you chose 1\)\./.test(said(r, "panel done")) || /Choose 2 \(you chose 1\)\./.test(said(r, "row done")), said(r, "panel done"));
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

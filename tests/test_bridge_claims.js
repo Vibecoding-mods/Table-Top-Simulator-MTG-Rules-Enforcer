@@ -580,6 +580,193 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     await h.flush();
     harness.restore();
   }
+  // bridge fix batch 2026-11-07 (live checks tmp/live-checks/RESULTS.md, keyword sweep tmp/kw-runs/SUMMARY.md)
+  {
+    const chats = (h, from = 0) => h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => [e.tts.text, e.tts.color]);
+    const logged = (h, from = 0) => h.effects.slice(from).filter((e) => e.tts && e.tts.t === "gamelog").flatMap((e) => e.tts.lines || []);
+    const fresh = (gvExtra = {}, extra = {}) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      Object.assign(b.gameView, { activePlayerId: "player-0", priorityPlayerId: "player-0", step: "main1", stack: [] }, gvExtra);
+      const seat = setup(h, b, extra);
+      return { h, seat, b };
+    };
+    const asked = (h, seat, input, more = {}) => { h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input, ...more }); return h.flush(); };
+    // a skip ended at a step says it in the table's words, not Forge's (live check 12: "Skip ended: combatBegin, AI 1's
+    // turn.", "Skip ended: endOfTurn, your turn.")
+    for (const [step, active, want] of [["combatBegin", "player-1", "[MTG] Skip ended: beginning of combat, AI 1's turn."], ["endOfTurn", "player-0", "[MTG] Skip ended: end step, your turn."]]) {
+      const { h, seat } = fresh({ step, activePlayerId: active, turn: 9 });
+      seat.skipTo = { phase: step === "combatBegin" ? "combat" : "end", turn: 8, step: "main1" };
+      await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }] });
+      const said = chats(h).map(([t]) => t).filter((t) => /Skip ended/.test(t));
+      ok(`skip ended at ${step}: "${want}"`, said.length === 1 && said[0] === want, JSON.stringify(said));
+      harness.restore();
+    }
+    // game over said once: the question, then the relay's abort right after it (live check 12: said twice, 25 ms apart),
+    // and the question twice
+    {
+      const { h, seat, b } = fresh();
+      b.gameView.players.find((p) => p.id === "player-1").life = 0;
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      h.B.onPrompt(seat, { promptId: 901, decidingPlayerId: "player-0", input: { type: "gameOver" } }); await h.flush();
+      seat.onRelay({ type: "GameAborted" }); await h.flush();
+      const said = chats(h).map(([t]) => t).filter((t) => /Game over/.test(t));
+      ok("game over: said once, though the question comes twice and the relay aborts after it", said.length === 1 && said[0] === "[MTG] Game over: AI 1 is at 0 life.", JSON.stringify(said));
+      harness.restore();
+    }
+    // the timer warning goes only to the player asked (live check 1: "all told: [MTG] White: 15 seconds left to answer.")
+    {
+      const { h, seat } = fresh();
+      h.B._getGame().timer = { on: true, seconds: 30 };
+      seat.timeBank = 0;
+      await asked(h, seat, { type: "mulligan", mulliganCount: 0 });
+      const warn = chats(h).filter(([t]) => /seconds left to answer/.test(t));
+      ok("timer warning: to the player asked only", warn.length === 1 && warn[0][1] === "Blue", JSON.stringify(warn));
+      h.B._stopTimer(seat, true);
+      harness.restore();
+    }
+    // the second AI is "AI 2" everywhere: its account name is the first's plus " 2" (kw-15: "Mob Verdict: choose one ::
+    // AI 1 / AI 1 2")
+    {
+      const h = harness.load();
+      setup(h, clone(F.board), { playerOrder: ["tts-Blue-ab12", "self-hosted-node-77-bot", "self-hosted-node-77-bot 2"], slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "AI 2" } });
+      const got = h.B.displayText("self-hosted-node-77-bot 2 voted for self-hosted-node-77-bot. Self-hosted-node-77-bot picked tts-Blue-ab12");
+      ok("names: the second AI is AI 2, not AI 1 2", got === "AI 2 voted for AI 1. AI 1 picked Blue", got);
+      harness.restore();
+    }
+    // the Ring-bearer question says what it is (live check 9: "Claim the Precious: choose a card"; Forge's description is
+    // its lblChooseRingBearer, "Choose your Ring-bearer")
+    {
+      const { h, seat, b } = fresh();
+      const bf = b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards;
+      bf.push({ id: "engine-card-950", identity: { name: "Grizzly Bears" }, types: ["Creature"], power: 2, toughness: 2, controllerId: "player-0" },
+        { id: "engine-card-951", identity: { name: "Hill Giant" }, types: ["Creature"], power: 3, toughness: 3, controllerId: "player-0" });
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, cards: bf.slice(-2).map((c) => ({ ...c, zone: "battlefield" })), presentation: { title: "Claim the Precious", description: "Choose your Ring-bearer" } },
+        { sourceCard: { id: "engine-card-952", identity: { name: "Claim the Precious" }, text: "Destroy target creature. The Ring tempts you." }, sourceAbilityText: "Destroy target creature. The Ring tempts you." });
+      ok("ring-bearer: the question names it", seat.prompt?.ui?.title === "The Ring: choose your Ring-bearer", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // halflingcycling's search by its own reminder, not the card's first ability (kw-23: "Hobbit Hole: search your library
+    // for which basic land card?")
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, cards: [{ id: "engine-card-953", identity: { name: "Delighted Halfling" }, types: ["Creature"], subtypes: ["Halfling", "Citizen"], power: 1, toughness: 2, zone: "library", ownerId: "player-0" }],
+        presentation: { title: "Hobbit Hole", description: "Choose a card" } },
+        { sourceCard: { id: "engine-card-954", identity: { name: "Hobbit Hole" }, text: "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\nHalflingcycling {4} ({4}, Discard this card: Search your library for a Halfling card, reveal it, put it into your hand, then shuffle.)" },
+          sourceAbilityText: "Halflingcycling {4} ({4}, Discard this card: Search your library for a Halfling card, reveal it, put it into your hand, then shuffle.)" });
+      ok("halflingcycling: its own search", seat.prompt?.ui?.title === "Hobbit Hole: search your library for which Halfling card?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // entwine's player target: no bullet, no second card name (kw-06: "Barbed Lightning: • Barbed Lightning deals 3
+    // damage to which player or planeswalker?")
+    {
+      const { h, seat } = fresh();
+      const text = "Choose one —\n• Barbed Lightning deals 3 damage to target creature.\n• Barbed Lightning deals 3 damage to target player or planeswalker.\nEntwine {2} (Choose both if you pay the entwine cost.)";
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, candidates: [{ kind: "player", id: "player-1" }, { kind: "player", id: "player-0" }], presentation: { title: "Choose a player to damage" } },
+        { sourceCard: { id: "engine-card-955", identity: { name: "Barbed Lightning" }, text }, sourceAbilityText: text });
+      ok("entwine: the player target's question is plain", seat.prompt?.ui?.title === "Barbed Lightning: deals 3 damage to which player or planeswalker?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // kinship's "Reveal it" says the card (kw-05: only "White looked at a card (their library)")
+    {
+      const { h, seat } = fresh({ step: "upkeep" });
+      const elder = { id: "engine-card-956", identity: { name: "Leaf-Crowned Elder" }, text: "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with Leaf-Crowned Elder, you may reveal it. If you do, you may play that card without paying its mana cost." };
+      const kin = "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with Leaf-Crowned Elder, you may reveal it. If you do, you may play that card without paying its mana cost.";
+      await asked(h, seat, { type: "revealCards", zone: "library", ownerPlayerId: "player-0", cards: [{ id: "engine-card-957", identity: { name: "Elvish Visionary" }, types: ["Creature"] }], presentation: { title: "Look at these cards" } }, { sourceCard: elder, sourceAbilityText: kin });
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["ok"] }) }); await h.flush();
+      const mark = h.effects.length;
+      h.B.onPrompt(seat, { promptId: 902, decidingPlayerId: "player-0", sourceCard: elder, sourceAbilityText: kin, input: { type: "chooseBoolean", confirmLabel: "Yes", denyLabel: "No", presentation: { title: "Reveal cards to other players?" } } }); await h.flush();
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 902, choice: ["yes"] }) }); await h.flush(5);
+      ok("kinship: the revealed card is said", logged(h, mark).includes("Blue reveals Elvish Visionary (Leaf-Crowned Elder)"), JSON.stringify(logged(h, mark)));
+      harness.restore();
+    }
+    // fateseal's bottom card is said, as scry's is (kw-18: nothing after "White looked at a card (AI 1's library)")
+    {
+      const { h, seat } = fresh();
+      const sliver = { id: "engine-card-958", identity: { name: "Mesmeric Sliver" }, text: "All Slivers have \"When this permanent enters, fateseal 1.\"" };
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, cards: [{ id: "engine-card-959", identity: { name: "Plains" }, types: ["Land"], zone: "library", ownerId: "player-1" }],
+        presentation: { title: "Mesmeric Sliver", description: "Choose card(s) to put on the bottom of AI 1 library" } }, { sourceCard: sliver, sourceAbilityText: "When this permanent enters, fateseal 1." });
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["engine-card-959"] }) }); await h.flush(5);
+      ok("fateseal: the bottom card is said", logged(h, mark).includes("Blue puts a card on the bottom of AI 1's library (Mesmeric Sliver)"), JSON.stringify(logged(h, mark)));
+      harness.restore();
+    }
+    // cipher's encode is said (kw-17: only "Last Thoughts is exiled")
+    {
+      const { h, seat, b } = fresh();
+      const bear = { id: "engine-card-960", identity: { name: "Grizzly Bears" }, types: ["Creature"], power: 2, toughness: 2, controllerId: "player-0", zone: "battlefield" };
+      b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push(bear, { ...bear, id: "engine-card-962", identity: { name: "Hill Giant" } });
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, cards: [bear, { ...bear, id: "engine-card-962", identity: { name: "Hill Giant" } }], presentation: { title: "Last Thoughts", description: "Choose a creature you control to encode" } },
+        { sourceCard: { id: "engine-card-961", identity: { name: "Last Thoughts" }, text: "Draw a card.\nCipher (...)" }, sourceAbilityText: "Draw a card." });
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["engine-card-960"] }) }); await h.flush(5);
+      ok("cipher: the encode is said", logged(h, mark).includes("Blue encodes Last Thoughts onto Grizzly Bears"), JSON.stringify(logged(h, mark)));
+      harness.restore();
+    }
+    // a trigger-order label without Forge's object number (kw-13: "First Day of Class (225)'s Effect: Whenever ...")
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "reorder", items: [
+        { id: "t1", card: { id: "engine-card-963", identity: { name: "First Day of Class (225)'s Effect" } }, oracle: "Whenever a creature you control enters this turn, put a +1/+1 counter on it." },
+        { id: "t2", card: { id: "engine-card-964", identity: { name: "Soul Warden" } }, oracle: "Whenever another creature enters, you gain 1 life." }], presentation: { title: "Order triggered abilities" } });
+      const labels = (seat.prompt?.ui?.options || []).map((o) => o.label).join(" / ");
+      ok("trigger order: no object number in a label", labels.includes("First Day of Class' effect:") && !/\(\d+\)/.test(labels), labels);
+      harness.restore();
+    }
+    // a whole library revealed is counted, not listed card by card (kw-22/kw-25: "Island, Island, Island, ...")
+    {
+      const { h, seat } = fresh();
+      const isl = (n) => ({ id: `engine-card-${970 + n}`, identity: { name: "Island" }, types: ["Land"] });
+      await asked(h, seat, { type: "revealCards", zone: "library", ownerPlayerId: "player-0", cards: [...Array(9)].map((_, n) => isl(n)), presentation: { title: "Look at these cards" } },
+        { sourceCard: { id: "engine-card-990", identity: { name: "Improvisation Capstone" } }, sourceAbilityText: "Exile cards from the top of your library until you exile cards with total mana value 4 or greater. You may cast any number of spells from among them without paying their mana costs." });
+      await h.flush(5);
+      const lines = logged(h);
+      ok("whole library: the cards counted", lines.some((l) => /Island ×9/.test(l)) && !lines.some((l) => /Island, Island/.test(l)), JSON.stringify(lines));
+      harness.restore();
+    }
+    // checker round 2026-11-07: a reveal of more than 6 keeps the library's order, only a run of one card counted
+    // ("Island, Opt, Island, Swamp, Island, Opt, Forest" read "Island ×3, Opt ×2, Swamp, Forest")
+    for (const [names, want] of [[["Island", "Opt", "Island", "Swamp", "Island", "Opt", "Forest"], "Blue reveals Island, Opt, Island, Swamp, Island, Opt, Forest from their library (Fathom Trawl)"],
+      [["Island", "Island", "Island", "Opt", "Swamp", "Island", "Forest", "Forest"], "Blue reveals Island ×3, Opt, Swamp, Island, Forest ×2 from their library (Fathom Trawl)"]]) {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "revealCards", zone: "library", ownerPlayerId: "player-0", cards: names.map((n, k) => ({ id: `engine-card-${1000 + k}`, identity: { name: n }, types: [/^(?:Island|Swamp|Forest)$/.test(n) ? "Land" : "Instant"] })),
+        presentation: { title: "Fathom Trawl - Revealing cards from" } },
+        { sourceCard: { id: "engine-card-1020", identity: { name: "Fathom Trawl" } }, sourceAbilityText: "Reveal cards from the top of your library until you reveal three nonland cards. Put the nonland cards revealed this way into your hand, then put the rest of the revealed cards on the bottom of your library in any order." });
+      await h.flush(5);
+      ok(`reveal in order: "${want}"`, logged(h).includes(want), JSON.stringify(logged(h)));
+      harness.restore();
+    }
+    // fateseal declined: the card stays on top, said as scry's is (fix 10's other half)
+    {
+      const { h, seat } = fresh();
+      const sliver = { id: "engine-card-1021", identity: { name: "Mesmeric Sliver" }, text: "All Slivers have \"When this permanent enters, fateseal 1.\"" };
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, cards: [{ id: "engine-card-1022", identity: { name: "Plains" }, types: ["Land"], zone: "library", ownerId: "player-1" }],
+        presentation: { title: "Mesmeric Sliver", description: "Choose card(s) to put on the bottom of AI 1 library" } }, { sourceCard: sliver, sourceAbilityText: "When this permanent enters, fateseal 1." });
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: [] }) }); await h.flush(5);
+      ok("fateseal declined: the card left on top is said", logged(h, mark).includes("Blue leaves the card on top of AI 1's library (Mesmeric Sliver)"), JSON.stringify(logged(h, mark)));
+      ok("fateseal declined: nothing put on the bottom", !logged(h, mark).some((l) => /on the bottom/.test(l)), JSON.stringify(logged(h, mark)));
+      harness.restore();
+    }
+    // the player's own "detain up to two target" trigger, picked before any board shows it: both detained once it is gone
+    // (Azorius Justiciar's TriggerDescription, CARDNAME as Forge writes it)
+    {
+      const { h, seat, b } = fresh();
+      const opp = b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards;
+      opp.push({ id: "engine-card-1023", identity: { name: "Wall of Omens" }, types: ["Creature"], power: 0, toughness: 4, controllerId: "player-1" },
+        { id: "engine-card-1024", identity: { name: "Hill Giant" }, types: ["Creature"], power: 3, toughness: 3, controllerId: "player-1" });
+      seat.board = { state: b, fingerprint: null };
+      const text = "When Azorius Justiciar enters, detain up to two target creatures your opponents control. (Until your next turn, those creatures can't attack or block and their activated abilities can't be activated.)";
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 0, maxTargets: 2, candidates: [{ kind: "card", id: "engine-card-1023" }, { kind: "card", id: "engine-card-1024" }], presentation: { title: "Choose targets" } },
+        { sourceCard: { id: "engine-card-1025", identity: { name: "Azorius Justiciar" }, text }, sourceAbilityText: text });
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["card|engine-card-1023", "card|engine-card-1024"] }) }); await h.flush(5);
+      const gv = b.gameView;
+      const lines = h.B.logEvents(h.B.logSnapshot(gv), h.B.logSnapshot(gv), gv, null);
+      ok("detain up to two (own trigger): both said", lines.includes("Wall of Omens, Hill Giant are detained: until Blue's next turn they can't attack or block, and their activated abilities can't be activated"), JSON.stringify(lines));
+      harness.restore();
+    }
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();

@@ -132,6 +132,24 @@ const id = (n) => `engine-card-${n}`;
     between(board((b) => lib(50, 5)(b)), board((b) => { lib(50, 3)(b); put(b, "graveyard", BEAR()); put(b, "graveyard", SWORD()); }),
       [ev(11, "Hand", "Graveyard", id(1), "discard"), ev(12, "Hand", "Graveyard", id(2), "discard")]),
     ["Blue discards Grizzly Bears, Bonesplitter"]);
+  // (the last turn's cleanup discard, seen on the next turn's first board, goes above that turn's header and keeps it:
+  // the insert at the top moved the attack's place and the header was cut in its stead, live check 2026-11-07, "White
+  // discards Blasphemous Act", "", "AI 1 draws a card")
+  const nextTurn = (b) => { b.turn = 4; b.step = "draw"; b.activePlayerId = "player-1"; b.priorityPlayerId = "player-1"; };
+  same("cleanup discard on the next turn's board: above the header, which stays",
+    between(board((b) => { lib(50, 8)(b); count(b, "hand", 3, "player-1"); count(b, "library", 50, "player-1"); put(b, "hand", BEAR()); }),
+      board((b) => { nextTurn(b); lib(50, 7)(b); count(b, "hand", 4, "player-1"); count(b, "library", 49, "player-1"); put(b, "graveyard", BEAR()); }),
+      [ev(11, "Hand", "Graveyard", id(1), "discard"), ev(12, "Library", "Hand", null, "draw", "player-1")]),
+    ["Blue discards Grizzly Bears", "--- AI 1's turn 1 ---", "AI 1 draws a card"]);
+  {
+    // (and with an attack on the same board: the attack goes in its own place, the header stays)
+    const atk = { ...BEAR(6), controllerId: "player-1" };
+    same("cleanup discard on the next turn's board with an attack: the header and the attack both kept",
+      between(board((b) => { lib(50, 8)(b); count(b, "hand", 3, "player-1"); count(b, "library", 50, "player-1"); put(b, "hand", BEAR()); put(b, "battlefield", atk, "player-1"); }),
+        board((b) => { nextTurn(b); b.step = "declareAttackers"; lib(50, 7)(b); count(b, "hand", 4, "player-1"); count(b, "library", 49, "player-1"); put(b, "graveyard", BEAR()); put(b, "battlefield", { ...atk, isAttacking: true, tapped: true }, "player-1"); }),
+        [ev(11, "Hand", "Graveyard", id(1), "discard"), ev(12, "Library", "Hand", null, "draw", "player-1")]),
+      ["Blue discards Grizzly Bears", "--- AI 1's turn 1 ---", "AI 1 attacks with Grizzly Bears", "AI 1 draws a card"]);
+  }
   same("milled: named by Forge with the hand as it was",
     between(board(lib(50)), board((b) => { lib(49)(b); put(b, "graveyard", BEAR()); }), [ev(11, "Library", "Graveyard", id(1))]),
     ["Blue mills Grizzly Bears"]);
@@ -1137,6 +1155,204 @@ const id = (n) => `engine-card-${n}`;
     same("b: a die roll is the roller's, not \"saw\"", h2.B._getGame().log, ["Blue rolls 6 (Ancient Copper Dragon)", "AI 1 rolls 17 (Ancient Copper Dragon)",
       "Blue saw: Ancient Copper Dragon: Something else happened", "Blue saw: Ancient Copper Dragon: Goblin rolled 3", "Blue rolls 3 and 5 (Ancient Copper Dragon)"]);
     harness.restore();
+  }
+
+  // bridge fix batch 2026-11-07 (keyword sweep and live checks, tmp/kw-runs/SUMMARY.md)
+  {
+    // persist's return names its -1/-1 counter, as undying's names its +1/+1 (kw-10: "Kitchen Finks returns to the
+    // battlefield from White's graveyard (White)")
+    const FINKS = card(40, "Kitchen Finks", ["Creature"]);
+    same("persist: the return names its -1/-1 counter",
+      between(board((b) => put(b, "graveyard", FINKS)), board((b) => put(b, "battlefield", { ...FINKS, counters: { M1M1: 1 } })), [ev(11, "Graveyard", "Battlefield", id(40))]),
+      ["Kitchen Finks returns to the battlefield from Blue's graveyard with a -1/-1 counter (Blue)"]);
+    // forage's exile, its cost, goes before the draw it paid for, and names its card once (live check 11: "White draws a
+    // card", then "Island, Island, Island are exiled from White's graveyard (to pay for Treetop Sentries) with Treetop
+    // Sentries")
+    const SENTRIES = card(41, "Treetop Sentries", ["Creature"]);
+    const ISLES = [42, 43, 44].map((n) => card(n, "Island", ["Land"]));
+    const forage = { cause: "Cost:Forage", causeName: "Treetop Sentries", causeCardId: id(41) };
+    same("forage: the cost's exile first, then the draw, the card named once",
+      between(board((b) => { lib(50)(b); put(b, "battlefield", SENTRIES); for (const c of ISLES) put(b, "graveyard", c); }),
+        board((b) => { lib(49, 4)(b); put(b, "battlefield", SENTRIES); for (const c of ISLES) put(b, "exile", { ...c, exiledWith: id(41) }); }),
+        [...ISLES.map((c, k) => ev(11 + k, "Graveyard", "Exile", c.id, null, "player-0", forage)), ev(14, "Library", "Hand", null, "draw")]),
+      ["Island, Island, Island are exiled from Blue's graveyard (to pay for Treetop Sentries)", "Blue draws a card"]);
+    // empower: the Jace token's loyalty, made and then added to (kw-07: the second Empower said nothing, the table showed
+    // Loyalty 4; the first named no loyalty)
+    const JACE = card(45, "Jace Token", ["Planeswalker"], { token: true });
+    same("empower: the new Jace token names its loyalty",
+      between(board(() => {}), board((b) => put(b, "battlefield", { ...JACE, counters: { LOYALTY: 2 } })), [ev(11, null, "Battlefield", id(45))]),
+      ["Blue creates a Jace token with 2 loyalty counters"]);
+    same("empower: loyalty put on an existing token is said, with the total",
+      between(board((b) => put(b, "battlefield", { ...JACE, counters: { LOYALTY: 2 } })), board((b) => put(b, "battlefield", { ...JACE, counters: { LOYALTY: 4 } })), []),
+      ["Jace token gets 2 loyalty counters (4 in all)"]);
+    // (not a planeswalker's own loyalty cost: its ability's line says that)
+    const WALKER = { ...card(46, "Jace Beleren", ["Planeswalker"]), counters: { LOYALTY: 3 } };
+    same("loyalty: a planeswalker's own +ability is no extra line",
+      between(board((b) => put(b, "battlefield", WALKER)), board((b) => { put(b, "battlefield", { ...WALKER, counters: { LOYALTY: 5 } }); b.stack = [{ id: "stack-9", sourceId: id(46), identity: { name: "Jace Beleren" }, controllerId: "player-0", sourceAbilityText: "+2: Each player draws a card." }]; }), []),
+      ["Blue uses Jace Beleren's ability"]);
+    // tribute not paid: the creature enters with no counters, which no line said (kw-22)
+    const RAVAGER = { ...card(47, "Nessian Wilds Ravager", ["Creature"]), text: "Tribute 6 (As this creature enters, an opponent of your choice may put six +1/+1 counters on it.)\nWhen this creature enters, if tribute wasn't paid, you may have it fight another target creature." };
+    same("tribute: unpaid is said",
+      between(board(() => {}), board((b) => put(b, "battlefield", RAVAGER)), [ev(11, "Stack", "Battlefield", id(47))]),
+      ["Nessian Wilds Ravager enters the battlefield (Blue)", "Tribute wasn't paid for Nessian Wilds Ravager"]);
+    same("tribute: paid, the counters say it",
+      between(board(() => {}), board((b) => put(b, "battlefield", { ...RAVAGER, counters: { P1P1: 6 } })), [ev(11, "Stack", "Battlefield", id(47))]),
+      ["Nessian Wilds Ravager enters the battlefield with 6 +1/+1 counters (Blue)"]);
+    // detain: the target, once the trigger resolved (kw-21: "Lyev Skyknight's ability triggers (White)" only)
+    const KNIGHT = card(48, "Lyev Skyknight", ["Creature"]);
+    const WALL = { ...card(49, "Wall of Omens", ["Creature"]), controllerId: "player-1" };
+    const DETAIN = { id: "stack-8", sourceId: id(48), identity: { name: "Lyev Skyknight" }, controllerId: "player-0", isTrigger: true,
+      sourceAbilityText: "When Lyev Skyknight enters, detain target nonland permanent an opponent controls. (Until your next turn, that permanent can't attack or block and its activated abilities can't be activated.)", targets: [{ kind: "card", id: id(49) }] };
+    same("detain: its permanent is said detained",
+      between(board((b) => { put(b, "battlefield", KNIGHT); put(b, "battlefield", WALL, "player-1"); b.stack = [DETAIN]; }), board((b) => { put(b, "battlefield", KNIGHT); put(b, "battlefield", WALL, "player-1"); }), []),
+      ["Wall of Omens is detained: until Blue's next turn it can't attack or block, and its activated abilities can't be activated"]);
+    // living weapon's trigger by its whole keyword (kw-16: "Batterskull's living triggers"; Forge writes "Living Weapon")
+    const SKULL = card(50, "Batterskull", ["Artifact"]);
+    same("living weapon: the trigger by its two words",
+      between(board((b) => put(b, "battlefield", SKULL)), board((b) => { put(b, "battlefield", SKULL); b.stack = [{ id: "stack-10", sourceId: id(50), identity: { name: "Batterskull" }, controllerId: "player-0",
+        sourceAbilityText: "Living Weapon (When this Equipment enters, create a 0/0 black Phyrexian Germ creature token, then attach this to it.)" }]; }), []),
+      ["Batterskull's living weapon triggers (Blue)"]);
+  }
+  // grandeur's card into the hand by name: the revealed card it stopped at, the last one (kw-25: "White reveals Island,
+  // Divination from their library (Page, Loose Leaf)", then "White puts a card from their library into their hand")
+  {
+    const h = harness.load();
+    const seat = setup(h);
+    seat.board = { state: { gameView: blank() }, fingerprint: null };
+    const lookAt = { promptId: 401, decidingPlayerId: "player-0", sourceCard: { id: id(51), identity: { name: "Page, Loose Leaf" } },
+      sourceAbilityText: "Grandeur — Discard another card named Page, Loose Leaf: Reveal cards from the top of your library until you reveal an instant or sorcery card. Put that card into your hand and the rest on the bottom of your library in a random order.",
+      input: { type: "revealCards", zone: "library", ownerPlayerId: "player-0", cards: [card(52, "Island", ["Land"]), card(53, "Divination", ["Sorcery"])], presentation: { title: "Page, Loose Leaf - Revealing cards from" } } };
+    h.B.onPrompt(seat, lookAt); await h.flush(1);
+    seat.note("search", seat.slot);
+    const lines = h.B.logEvents(h.B.logSnapshot(board(lib(50))), h.B.logSnapshot(board(lib(49, 4))), board(lib(49, 4)), h.B.engineFacts([ev(11, "Library", "Hand", null, null)]));
+    ok("grandeur: the card put into the hand is the one it stopped at", lines.includes("Blue puts Divination from their library into their hand") || lines.some((l) => /Divination/.test(l) && /into their hand/.test(l)), JSON.stringify(lines));
+    harness.restore();
+  }
+
+  // checker round 2026-11-07
+  // Fathom Trawl (DigUntil Amount$ 3): the three nonland cards found can be anywhere among those revealed, so not the
+  // last three; named only by the cards that reached the hand on its owner's own board, else counted
+  {
+    const TRAWL = "Reveal cards from the top of your library until you reveal three nonland cards. Put the nonland cards revealed this way into your hand, then put the rest of the revealed cards on the bottom of your library in any order.";
+    const shown = [card(61, "Island", ["Land"]), card(62, "Opt", ["Instant"]), card(63, "Island", ["Land"]), card(64, "Brainstorm", ["Instant"]), card(65, "Forest", ["Land"]), card(66, "Divination", ["Sorcery"])];
+    const trawl = async (hand) => {
+      const h = harness.load();
+      const seat = setup(h);
+      seat.board = { state: { gameView: board((b) => { for (const c of hand) put(b, "hand", c); }) }, fingerprint: null };
+      h.B.onPrompt(seat, { promptId: 402, decidingPlayerId: "player-0", sourceCard: { id: id(60), identity: { name: "Fathom Trawl" } }, sourceAbilityText: TRAWL,
+        input: { type: "revealCards", zone: "library", ownerPlayerId: "player-0", cards: shown, presentation: { title: "Fathom Trawl - Revealing cards from" } } });
+      await h.flush(1);
+      const lines = h.B.logEvents(h.B.logSnapshot(board(lib(50))), h.B.logSnapshot(board(lib(47, 6))), board(lib(47, 6)),
+        h.B.engineFacts([ev(11, "Library", "Hand", null, null), ev(12, "Library", "Hand", null, null), ev(13, "Library", "Hand", null, null)]));
+      harness.restore();
+      return lines.filter((l) => /into their hand/.test(l));
+    };
+    same("fathom trawl: its three not named as the last three revealed, counted when the hand isn't seen", await trawl([]), ["Blue puts 3 cards from their library into their hand"]);
+    same("fathom trawl: named by the cards now in its owner's hand", await trawl([shown[1], shown[3], shown[5]]), ["Blue puts Opt, Brainstorm, Divination into their hand"]);
+  }
+  // detain "up to two target" (Azorius Justiciar, Lyev Decree, Archon of the Triumvirate), and not one countered
+  {
+    const JUSTICIAR = card(67, "Azorius Justiciar", ["Creature"]);
+    const WALL = { ...card(68, "Wall of Omens", ["Creature"]), controllerId: "player-1" }, GIANT = { ...card(69, "Hill Giant", ["Creature"]), controllerId: "player-1" };
+    const trig = (targets) => ({ id: "stack-30", sourceId: id(67), identity: { name: "Azorius Justiciar" }, controllerId: "player-0", isTrigger: true,
+      sourceAbilityText: "When Azorius Justiciar enters, detain up to two target creatures your opponents control. (Until your next turn, those creatures can't attack or block and their activated abilities can't be activated.)",
+      targets: targets.map((t) => ({ kind: "card", id: t })) });
+    const field = (b) => { put(b, "battlefield", JUSTICIAR); put(b, "battlefield", WALL, "player-1"); put(b, "battlefield", GIANT, "player-1"); };
+    same("detain up to two: both said",
+      between(board((b) => { field(b); b.stack = [trig([id(68), id(69)])]; }), board(field), []),
+      ["Wall of Omens, Hill Giant are detained: until Blue's next turn they can't attack or block, and their activated abilities can't be activated"]);
+    same("detain up to two, one chosen: it is said",
+      between(board((b) => { field(b); b.stack = [trig([id(68)])]; }), board(field), []),
+      ["Wall of Omens is detained: until Blue's next turn it can't attack or block, and its activated abilities can't be activated"]);
+    const DECREE = { id: "stack-31", sourceId: id(70), identity: { name: "Lyev Decree" }, controllerId: "player-0",
+      sourceAbilityText: "Detain up to two target creatures your opponents control. (Until your next turn, those creatures can't attack or block and their activated abilities can't be activated.)", targets: [{ kind: "card", id: id(68) }] };
+    const COUNTER = { id: "stack-32", sourceId: id(71), identity: { name: "Counterspell" }, controllerId: "player-1", sourceAbilityText: "Counter target spell.", targets: [{ kind: "spell", id: "stack-31" }] };
+    const countered = between(board((b) => { field(b); b.stack = [DECREE, COUNTER]; }),
+      board((b) => { field(b); put(b, "graveyard", card(70, "Lyev Decree", ["Sorcery"])); put(b, "graveyard", { ...card(71, "Counterspell", ["Instant"]), controllerId: "player-1" }, "player-1"); }), []);
+    ok("detain: a countered one detains nothing", countered.includes("Lyev Decree is countered") && !countered.some((l) => /detained/.test(l)), JSON.stringify(countered));
+  }
+  // loyalty: an AI planeswalker's own +1 that no board showed is no extra line; a rise that can't be its ability is
+  // (Chandra, Torch of Defiance's abilities as Forge writes them: CostPutCounter "+1", CostRemoveCounter "-3")
+  {
+    const CHANDRA_TEXT = "+1: Exile the top card of your library. You may cast that card. If you don't, Chandra, Torch of Defiance deals 2 damage to each opponent.\n+1: Add {R}{R}.\n-3: Chandra, Torch of Defiance deals 4 damage to target creature.\n-7: You get an emblem with \"Whenever you cast a spell, this emblem deals 5 damage to any target.\"";
+    const CHANDRA = (loy) => ({ ...card(72, "Chandra, Torch of Defiance", ["Planeswalker"]), controllerId: "player-1", text: CHANDRA_TEXT, counters: { LOYALTY: loy } });
+    const aiTurn = (b) => { b.activePlayerId = "player-1"; b.priorityPlayerId = "player-1"; };
+    const at = (loy, fill = () => {}) => board((b) => { put(b, "battlefield", CHANDRA(loy), "player-1"); fill(b); });
+    same("loyalty: an AI's +1 no board showed is its own ability, no line", between(at(4, aiTurn), at(5, aiTurn), []), []);
+    same("loyalty: a rise on another player's turn is said", between(at(4), at(5), []), ["Chandra, Torch of Defiance gets a loyalty counter (5 in all)"]);
+    same("loyalty: a rise no +N cost fits is said", between(at(4, aiTurn), at(6, aiTurn), []), ["Chandra, Torch of Defiance gets 2 loyalty counters (6 in all)"]);
+    {
+      // (a second rise in the same turn: a planeswalker activates once a turn, so this one is an effect's)
+      const h = harness.load();
+      setup(h);
+      const step = (a, b) => h.B.logEvents(h.B.logSnapshot(a), h.B.logSnapshot(b), b, null);
+      const first = step(at(4, aiTurn), at(5, aiTurn)), second = step(at(5, aiTurn), at(6, aiTurn));
+      same("loyalty: the first +1 of a turn is the ability", first, []);
+      same("loyalty: a second +1 that turn is said", second, ["Chandra, Torch of Defiance gets a loyalty counter (6 in all)"]);
+      harness.restore();
+    }
+    {
+      // (the player's own activation, its record taken: its "uses" line says it, no loyalty line, though no board showed it
+      // and nothing in its text fits)
+      const h = harness.load();
+      setup(h);
+      const JACE = (loy) => ({ ...card(73, "Jace Beleren", ["Planeswalker"]), counters: { LOYALTY: loy } });
+      h.B._getGame().pendingPlays = [{ id: id(73), name: "Jace Beleren", ctl: "player-0", kind: "ability", text: "", at: Date.now(), promptId: 0 }];
+      const lines = h.B.logEvents(h.B.logSnapshot(board((b) => put(b, "battlefield", JACE(3)))), h.B.logSnapshot(board((b) => put(b, "battlefield", JACE(5)))), board((b) => put(b, "battlefield", JACE(5))), null);
+      ok("loyalty: the player's own activation record is no loyalty line", !lines.some((l) => /loyalty counter/.test(l)), JSON.stringify(lines));
+      harness.restore();
+    }
+  }
+  // forage order: a group moves above the draw by its own first move, not any cost of its player's before the draw (a
+  // Treasure sacrificed to pay, then the draw, then delve's exiles: the delve line stays after the draw)
+  {
+    const TREASURE = card(74, "Treasure Token", ["Artifact"], { token: true });
+    const CRUISE = card(75, "Treasure Cruise", ["Sorcery"]);
+    const GY = [76, 77, 78].map((n) => card(n, "Island", ["Land"]));
+    const lines = between(board((b) => { lib(50)(b); put(b, "battlefield", TREASURE); for (const c of GY) put(b, "graveyard", c); }),
+      board((b) => { lib(49, 4)(b); for (const c of GY) put(b, "exile", c); }),
+      [ev(11, "Battlefield", "Graveyard", id(74), "sacrificed", "player-0", { cause: "Cost:Sacrifice", causeName: "Treasure Token", causeCardId: id(74) }),
+        ev(12, "Library", "Hand", null, "draw"),
+        ...GY.map((c, k) => ev(13 + k, "Graveyard", "Exile", c.id, null, "player-0", { cause: "Cost:Delve", causeName: "Treasure Cruise", causeCardId: id(75) }))]);
+    const drawAt = lines.indexOf("Blue draws a card"), delveAt = lines.findIndex((l) => /^Island, Island, Island are exiled from Blue's graveyard/.test(l));
+    ok("forage order: a delve after the draw stays after it, though a Treasure was sacrificed to pay before it", drawAt >= 0 && delveAt > drawAt, JSON.stringify(lines));
+  }
+  // tribute: declined while counters arrive from another source (Master Biomancer's), told by Forge's own "if tribute
+  // wasn't paid" trigger, made only when it wasn't
+  {
+    const RAVAGER = { ...card(79, "Nessian Wilds Ravager", ["Creature"]), text: "Tribute 6 (As this creature enters, an opponent of your choice may put six +1/+1 counters on it.)\nWhen this creature enters, if tribute wasn't paid, you may have it fight another target creature." };
+    const NOT_PAID = { id: "stack-33", sourceId: id(79), identity: { name: "Nessian Wilds Ravager" }, controllerId: "player-0", isTrigger: true,
+      sourceAbilityText: "When Nessian Wilds Ravager enters, if tribute wasn't paid, you may have Nessian Wilds Ravager fight another target creature." };
+    const BIO = card(80, "Master Biomancer", ["Creature"]);
+    same("tribute: unpaid with Master Biomancer's counters, its trigger on the stack, is said",
+      between(board((b) => put(b, "battlefield", BIO)), board((b) => { put(b, "battlefield", BIO); put(b, "battlefield", { ...RAVAGER, counters: { P1P1: 2 } }); b.stack = [NOT_PAID]; }), [ev(11, "Stack", "Battlefield", id(79))]).filter((l) => /Tribute/.test(l)),
+      ["Tribute wasn't paid for Nessian Wilds Ravager"]);
+    same("tribute: paid with Master Biomancer's, no trigger, not said",
+      between(board((b) => put(b, "battlefield", BIO)), board((b) => { put(b, "battlefield", BIO); put(b, "battlefield", { ...RAVAGER, counters: { P1P1: 8 } }); }), [ev(11, "Stack", "Battlefield", id(79))]).filter((l) => /Tribute/.test(l)),
+      []);
+    {
+      // (its trigger seen a board later, and said once)
+      const h = harness.load();
+      setup(h);
+      const step = (a, b) => h.B.logEvents(h.B.logSnapshot(a), h.B.logSnapshot(b), b, null);
+      const on = (fill = () => {}) => board((b) => { put(b, "battlefield", BIO); put(b, "battlefield", { ...RAVAGER, counters: { P1P1: 2 } }); fill(b); });
+      const a = step(board((b) => put(b, "battlefield", BIO)), on()), b2 = step(on(), on((b) => { b.stack = [NOT_PAID]; })), c = step(on((b) => { b.stack = [NOT_PAID]; }), on());
+      same("tribute: the trigger a board later says it then, once", [a, b2, c].map((ls) => ls.filter((l) => /Tribute/.test(l))), [[], ["Tribute wasn't paid for Nessian Wilds Ravager"], []]);
+      harness.restore();
+    }
+    {
+      // (the player's own trigger asking its question before any board shows it: noted at the question)
+      const h = harness.load();
+      const seat = setup(h);
+      seat.board = { state: { gameView: blank() }, fingerprint: null };
+      h.B.onPrompt(seat, { promptId: 403, decidingPlayerId: "player-0", sourceCard: { id: id(79), identity: { name: "Nessian Wilds Ravager" } }, sourceAbilityText: NOT_PAID.sourceAbilityText,
+        input: { type: "chooseBoolean", confirmLabel: "Yes", denyLabel: "No", presentation: { title: "Use triggered ability of Nessian Wilds Ravager?" } } });
+      await h.flush(1);
+      const lines = h.B.logEvents(h.B.logSnapshot(board((b) => put(b, "battlefield", BIO))), h.B.logSnapshot(board((b) => { put(b, "battlefield", BIO); put(b, "battlefield", { ...RAVAGER, counters: { P1P1: 2 } }); })),
+        board((b) => { put(b, "battlefield", BIO); put(b, "battlefield", { ...RAVAGER, counters: { P1P1: 2 } }); }), h.B.engineFacts([ev(11, "Stack", "Battlefield", id(79))]));
+      same("tribute: its trigger's question noted, then said on its arrival", lines.filter((l) => /Tribute/.test(l)), ["Tribute wasn't paid for Nessian Wilds Ravager"]);
+      harness.restore();
+    }
   }
 
   process.stdout.write(`${failed ? "FAILED" : "PASSED"}: ${passed} passed, ${failed} failed\n`);

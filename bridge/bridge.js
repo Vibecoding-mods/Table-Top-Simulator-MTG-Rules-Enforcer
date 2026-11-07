@@ -570,7 +570,9 @@ class Seat {
         // Forge stops with a NullPointerException while writing the result of a game a player lost by drawing from an
         // empty library (2026-10-22: turn 28, library 0, right after declining Abundance), and the relay calls that
         // "aborted". Say what happened, once.
-        if (game?.abortSaid) break;
+        // (and not after the game-over question, which said why already: the relay aborts right after it, and "Game over:
+        // AI 1 is at 0 life." was said twice, live check 12)
+        if (game?.abortSaid || game?.over) break;
         if (game) game.abortSaid = true;
         const gv = this.board?.state?.gameView;
         // (a game won by life, poison or commander damage also ends here: then that is the reason, not an empty library;
@@ -1267,6 +1269,7 @@ function logSnapshot(pub, prev = null) {
         spell: (c.types || []).some((t) => t === "Instant" || t === "Sorcery"), p1: c.counters?.P1P1 || 0, m1: c.counters?.M1M1 || 0,
         // (its other counters but loyalty, for its arrival line: Tangle Wire's 4 fade counters read nothing, hp-14 gap)
         ...((o) => (o.length ? { ctrs: o } : {}))(Object.entries(c.counters || {}).filter(([k, n]) => n > 0 && !/^(?:P1P1|M1M1|LOYALTY)$/i.test(k))),
+        ...(c.counters?.LOYALTY > 0 ? { loy: c.counters.LOYALTY } : {}),
         ...(c.mergedCardIds?.length ? { merged: [...c.mergedCardIds] } : {}),
         ...(hasKeyword(c, "Rebound") ? { rebound: true } : {}),
         ...(hasKeyword(c, "Suspend") ? { suspend: true } : {}),
@@ -1327,7 +1330,9 @@ function logSnapshot(pub, prev = null) {
     // uses Surging Dementia's ability", hp-23 gap)
     // ("For Mirrodin!" whole, as printed: it read "Hexplate Wallbreaker's for triggers", mechanic run hp-16)
     const kwTrigger = chapter && ability ? `chapter ${chapter}` : ability && !when ? abilityWord || (s.sourceAbilityText || "").match(/^(For Mirrodin!)\s*\((?:When|Whenever|At)\b/)?.[1]
-      || (s.sourceAbilityText || "").match(/^([A-Z][a-z]+(?: (?!an?\b|the\b)[a-z]+)?)\b[^(]*\((?:When|Whenever|At)\b/)?.[1]?.toLowerCase()
+      // (the second word in capitals too, as Forge writes "Living Weapon": Batterskull's read "living triggers", keyword
+      // sweep kw-16)
+      || (s.sourceAbilityText || "").match(/^([A-Z][a-z]+(?: (?!an?\b|the\b)[A-Za-z][a-z]+)?)\b[^(]*\((?:When|Whenever|At)\b/)?.[1]?.toLowerCase()
       || (s.sourceAbilityText || "").match(/^([A-Z][a-z]+)(?: \d+)? - [A-Z]/)?.[1]?.toLowerCase()
       // (and a keyword with its reminder straight after it, no cost, so no activation: Paradigm's, and evoke's sacrifice,
       // whose reminder has no "When"; Wispmare's read "Yellow uses Wispmare's ability", keyword sweep)
@@ -1517,7 +1522,9 @@ function engineFacts(events) {
   // Fable's chapter II read "draws 2 cards" then "discards ...", rebuilt re-test)
   // (offStack: the cards that left the stack, in Forge's order, each with where to and its owner, for what took a spell
   // off it, see logEvents)
-  const facts = { moves: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), offStack: [] };
+  // (firstSeq: each moved card's first move by Forge's order, so what was moved to pay a cost before a draw is said
+  // before it, see logEvents)
+  const facts = { moves: new Map(), firstSeq: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), offStack: [] };
   for (const e of events) {
     if (e.seq <= seen) continue;
     if (e.from === "Stack" && e.cardId) facts.offStack.push({ id: e.cardId, to: e.to, owner: e.ownerId });
@@ -1540,6 +1547,7 @@ function engineFacts(events) {
     // (through: the zone it passed on the way, a commander countered and recast before the next board went Stack, Command,
     // Stack, which read as never having left; Arcane Denial on Niv-Mizzet, recast at once, rebuilt re-test 2)
     facts.moves.set(e.cardId, { from: was ? was.from : e.from, to: e.to, how: e.how || was?.how, ...(was ? { through: was.to } : {}), ...cause });
+    if (!facts.firstSeq.has(e.cardId)) facts.firstSeq.set(e.cardId, e.seq);
   }
   return facts;
 }
@@ -1572,6 +1580,9 @@ function sacrificeWords(m, was) {
 // (many cards by count: Cut Your Losses's 46 read as one name after another, hp-16)
 const byCount = (names) => [...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
 const listOf = (names) => (names.length > 6 ? byCount(names) : names.join(", "));
+// (the same, keeping the order: only a run of one card next to itself counted, for cards whose order is told)
+const byRuns = (names) => names.reduce((runs, n) => (runs.at(-1)?.[0] === n ? runs.at(-1)[1]++ : runs.push([n, 1]), runs), []).map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
+const listInOrder = (names) => (names.length > 6 ? byRuns(names) : names.join(", "));
 // each kind's line, for the cards one player had moved that way at once (w: who, k: the kind and what it names)
 const LIBRARY_WORDS = {
   mill: (w, names) => `${w} mills ${names.length > 6 ? `${names.length} cards: ${listOf(names)}` : listOf(names)}`,
@@ -1598,6 +1609,8 @@ const EXILE_WORDS = {
 const EXILE_GROUPED = new Set(["graveyard", "battlefield", "library"]);
 // What a player's library gave their hand (drawn, or put there by a search or an explore's reveal) and what their
 // hand gave their graveyard (discarded), each kind's line: n, how many; names, the cards; k, what the line names
+// a detain's words, one target or "up to two" (Lyev Skyknight's, Azorius Justiciar's): see logEvents and onPrompt
+const DETAIN_TARGET = /\bdetains? (?:up to (?:one|two|three|four|\d+) )?target\b/i;
 const HAND_WORDS = {
   draw: (w, n) => `${w} draws ${countWords(n, n, "card")}`,
   put: (w, n, k) => `${w} puts ${countWords(n, n, "card")} from their library into their hand${k.explore != null ? ` (${k.explore} explores)` : ""}`,
@@ -1884,7 +1897,10 @@ function logEvents(prev, cur, pub, facts = null) {
   game.goaded ??= new Map();
   for (const [id, g] of game.goaded) if (cur.active === g.by && cur.turn > g.turn) game.goaded.delete(id);
   const goads = [];
-  for (const s of Object.values(prev.stack)) if (!s.sids.some((x) => curSids.has(x))) goads.push({ ctl: s.ctl, text: s.text || "", targets: s.cardTg || [] });
+  // (countered: by a counterspell seen targeting it or one no board showed, as the text-change line below tells it; only
+  // detain reads it)
+  for (const s of Object.values(prev.stack)) if (!s.sids.some((x) => curSids.has(x))) goads.push({ ctl: s.ctl, text: s.text || "", targets: s.cardTg || [],
+    countered: s.sids.some((x) => prevCounterTargeted.has(x)) || takenOff.get(s.id)?.how === "counter" });
   // (and the player's own targeted trigger noted at its target pick: resolved once off the stack, taken from the stack
   // above when a board showed it there)
   game.ownTargeted = (game.ownTargeted || []).filter((t) => {
@@ -1896,6 +1912,15 @@ function logEvents(prev, cur, pub, facts = null) {
   // leave the battlefield, said in the log and shown on each card (see tableCard); Nelly Borca, hp-14 gap
   game.suspected ??= new Set();
   for (const id of game.suspected) if (cur.cards[id]?.zone !== "battlefield") game.suspected.delete(id);
+  // tribute (Forge shows nothing of the opponent's choice, an AI's never asked here): unpaid, said once while the card
+  // stays, by Forge's own "if tribute wasn't paid" trigger, which it makes only then (on a stack, or asking its player,
+  // see onPrompt), or by no counters at all on its arrival. Master Biomancer's counters on a Ravager whose tribute was
+  // declined read nothing, checker 2026-11-07. Paid, the counters on its arrival line say it.
+  game.tributeSaid ??= new Set();
+  for (const [id, was] of Object.entries(prev.cards)) if (was.zone === "battlefield" && cur.cards[id]?.zone !== "battlefield") { game.tributeSaid.delete(id); game.tributeUnpaid?.delete(id); }
+  const tributeCard = (id, c) => !c.fd && !game.tributeSaid.has(id) && /(?:^|\n)Tribute \d+\b/.test(pubIndex[id]?.text || "");
+  const tributeTrig = (id) => game.tributeUnpaid?.has(id) || [...Object.values(prev.stack), ...Object.values(cur.stack)].some((s) => s.id === id && /\bif tribute wasn't paid\b/i.test(s.text));
+  const sayTribute = (id, c) => { game.tributeSaid.add(id); out.push(`Tribute wasn't paid for ${c.name}`); };
   for (const g of goads) {
     if (!/\bsuspect target creature\b/i.test(g.text)) continue;
     const ids = g.targets.filter((id) => cur.cards[id]?.zone === "battlefield" && !game.suspected.has(id));
@@ -1916,6 +1941,15 @@ function logEvents(prev, cur, pub, facts = null) {
     if (!ids.length) continue;
     for (const id of ids) game.goaded.set(id, { by: g.ctl, turn: cur.turn });
     out.push(`${ids.map((id) => cur.cards[id].name).join(", ")} ${ids.length > 1 ? "are" : "is"} goaded by ${who(g.ctl)}: ${ids.length > 1 ? "they attack" : "it attacks"} each combat, a player other than ${who(g.ctl)} if able, until ${who(g.ctl)}'s next turn`);
+  }
+  // detain (Forge shows none): a resolved "detain target ..." said of its targets; Lyev Skyknight's read only "ability
+  // triggers", keyword sweep kw-21
+  // ("detain up to two target ...", Azorius Justiciar's, Lyev Decree's and Archon of the Triumvirate's, checker
+  // 2026-11-07; not one countered. One that fizzled, its targets made illegal but still there, the boards can't tell.)
+  for (const g of goads) {
+    if (!DETAIN_TARGET.test(g.text) || g.countered) continue;
+    const ids = g.targets.filter((id) => cur.cards[id]?.zone === "battlefield");
+    if (ids.length) out.push(`${ids.map((id) => cur.cards[id].name).join(", ")} ${ids.length > 1 ? "are" : "is"} detained: until ${who(g.ctl)}'s next turn ${ids.length > 1 ? "they" : "it"} can't attack or block, and ${ids.length > 1 ? "their" : "its"} activated abilities can't be activated`);
   }
   // revolt (Forge shows none): the turn a permanent its controller had left the battlefield, for the question of a revolt
   // card (see the target branch); Fatal Push asked "mana value 2 or less" after Evolving Wilds was cracked, hp-15 gap
@@ -1953,7 +1987,10 @@ function logEvents(prev, cur, pub, facts = null) {
   }
   // (the attack goes before what came of it in the same board: Goblin Shaman's Treasure read before "attacks with",
   // re-test 2 bug a; its place is kept here and filled at the end)
-  const attackAt = out.push("") - 1;
+  // (kept by identity, not index: a line put in above it, the last turn's cleanup discard at the top, moves it, and the
+  // index cut the turn's header in its stead, live check 2026-11-07 "White discards Blasphemous Act", "", "AI 1 draws")
+  const attackSlot = {};
+  out.push(attackSlot);
   // (an ability no board showed on the stack, named before what it did: a permanent's, not the player's own activation,
   // which has its line; Archmage Emeritus's draw read "AI 1 draws a card" alone, re-test 2 bug g)
   const stackSeen = facts?.causes.size ? [...Object.values(prev.stack), ...Object.values(cur.stack)] : [];
@@ -1996,17 +2033,28 @@ function logEvents(prev, cur, pub, facts = null) {
     // (the cards its owner just revealed from that library, as many as went: by name; Dark Confidant's and Yuriko's
     // revealed card read "puts a card from their library into their hand", mechanic run hp-24/hp-26 2026-11-05)
     const rv = searched && !(owner in (facts?.explored || {})) && game?.lastReveal;
-    const named = rv && !rv.used && rv.slot === owner && rv.zone === "library" && rv.names?.length === n && Date.now() - rv.at < 30000;
+    // (of a reveal until a card is found, the last one when one was sought: grandeur's, keyword sweep kw-25. Until more
+    // are found, Forge's DigUntilEffect stops at the last of them and the others can be anywhere among those revealed:
+    // the ones now in their owner's hand on that seat's own board, else none named; Fathom Trawl's three read the last
+    // three revealed, checker 2026-11-07)
+    const rvFresh = rv && !rv.used && rv.slot === owner && rv.zone === "library" && Date.now() - rv.at < 30000;
+    const inHand = rvFresh && rv.until && n > 1 ? new Set(zoneOf(seatOfSlot(owner)?.board?.state?.gameView || {}, "hand", owner).cards.map((c) => c.id)) : null;
+    const foundNames = inHand ? (rv.cards || []).filter((c) => inHand.has(c.id)).map((c) => c.name) : [];
+    const named = !rvFresh ? null : rv.names?.length === n ? rv.names
+      : rv.until && rv.names?.length > n ? (n === 1 ? rv.names.slice(-1) : foundNames.length === n ? foundNames : null) : null;
     if (named) rv.used = true;
     // (and its reveal, still held, said first: Dark Confidant's read "puts Mountain into their hand" above "reveals
     // Mountain", mechanic run hp-26 re-test 2026-11-05)
     const heldAt = named ? (game.heldLines || []).indexOf(displayText(rv.line)) : -1;
     if (heldAt >= 0) (drawAfter ? afterEntries : out).push(game.heldLines.splice(heldAt, 1)[0]);
-    (drawAfter ? afterEntries : out).push(named ? HAND_WORDS.putNamed(who(owner), rv.names)
+    const line = named ? HAND_WORDS.putNamed(who(owner), named)
       : searched
       ? HAND_WORDS.put(who(owner), n, { explore: owner in (facts?.explored || {}) ? facts.explored[owner] || "a creature" : null })
-      : HAND_WORDS.draw(who(owner), n));
+      : HAND_WORDS.draw(who(owner), n);
+    if (!searched) drawLines[owner] = line;
+    (drawAfter ? afterEntries : out).push(line);
   };
+  const drawLines = {}; // (each player's draw line, for a cost paid before it: see the end)
   for (const [owner, k] of Object.entries(facts?.draws || {})) sayDrawn(owner, k, false);
   for (const [owner, k] of Object.entries(facts?.tutors || {})) {
     seatOfSlot(owner)?.forget("search");
@@ -2089,6 +2137,8 @@ function logEvents(prev, cur, pub, facts = null) {
     const key = `${k.kind}|${owner}|${k.card || ""}|${k.label || ""}`;
     if (!groups[key]) { groups[key] = { words, owner, k, at: out.length, names: [] }; out.push(""); }
     groups[key].names.push(name);
+    // (the group's first move by Forge's order, of those that carry one: see the cost's place at the end)
+    if (k.seq != null) groups[key].seq = Math.min(groups[key].seq ?? k.seq, k.seq);
   };
   // a permanent's leave line (LEAVE_WORDS): tokens gone, and sacrifices for one reason (seven Treasures for mana, rebuilt
   // hand test #3), one line for all; any other its own
@@ -2125,7 +2175,7 @@ function logEvents(prev, cur, pub, facts = null) {
     const haunted = from === "graveyard" && game.haunting?.has(id) && cur.cards[game.haunting.get(id)];
     if (haunted) return { kind: "haunt", owner: c.owner, card: haunted.name };
     // (and from a graveyard by what they paid for: delve's and escape's cards, one line each)
-    if (from === "graveyard") return { kind: "graveyard", owner: was.owner, label: costWords(moved, c.name) };
+    if (from === "graveyard") return { kind: "graveyard", owner: was.owner, label: costWords(moved, c.name), cost: /^Cost:/.test(moved?.cause || ""), seq: facts?.firstSeq.get(id) };
     if (from === "battlefield" && !adventure && !rebound) return { kind: "battlefield", owner: "" };
     // (a hidden card exiled suspended: the Tenth Doctor's from the library read "Diabolic Tutor is exiled", hp-21 gap)
     if (!from && c.suspend && timeCounters(c)) return { kind: "suspended", owner: c.owner, n: timeCounters(c) };
@@ -2167,7 +2217,10 @@ function logEvents(prev, cur, pub, facts = null) {
     const withP1 = c.p1 ? ` with ${c.p1 === 1 ? "a +1/+1 counter" : `${c.p1} +1/+1 counters`}` : "";
     // (and an Aura or Equipment with what it is attached to: Changing Loyalty and its two replicate copies read only
     // "creates Changing Loyalty", hp-14 gap)
-    const others = (c.ctrs || []).map(([k, n]) => countWords(n, n, counterWords(k.toUpperCase()) || `${k.toLowerCase()} counter`)).join(" and ");
+    // (and its -1/-1 counters: persist's return read "Kitchen Finks returns to the battlefield from White's graveyard
+    // (White)", keyword sweep kw-10; a token's loyalty, which nothing printed shows: Empower's Jace token, kw-07)
+    const others = [...(c.m1 ? [countWords(c.m1, c.m1, "-1/-1 counter")] : []), ...(c.token && c.loy ? [countWords(c.loy, c.loy, "loyalty counter")] : []),
+      ...(c.ctrs || []).map(([k, n]) => countWords(n, n, counterWords(k.toUpperCase()) || `${k.toLowerCase()} counter`))].join(" and ");
     const arrive = `${withP1}${others ? `${withP1 ? " and" : " with"} ${others}` : ""}${c.attacking ? `, ${c.tapped ? "tapped and " : ""}attacking` : ""}${c.att && cur.cards[c.att] ? `, attached to ${cur.cards[c.att].name}` : ""}`;
     if (c.zone === "battlefield" && mutatedInto.has(id)) {
       const host = mutatedInto.get(id), under = prev.cards[host]?.name ?? cur.cards[host].name;
@@ -2227,6 +2280,9 @@ function logEvents(prev, cur, pub, facts = null) {
         : cloaking ? `${who(c.ctl)} cloaks a card: a face-down 2/2 with ward {2}` : `${who(c.ctl)} puts a card onto the battlefield face down`);
       // (Clone as Bloodline Keeper read "Bloodline Keeper enters the battlefield", rebuilt hand test #10)
       else out.push(`${self} enters the battlefield${asCopy}${arrive} (${who(c.ctl)})`);
+      // (tribute declined: it enters with none of its counters, or with others' and its trigger seen, which only that
+      // trigger's "if tribute wasn't paid" told; keyword sweep kw-22. See tributeCard.)
+      if (tributeCard(id, c) && (!c.p1 || tributeTrig(id))) sayTribute(id, c);
     } else if (c.zone === "graveyard") {
       // (what it was on the battlefield: the Rats made a Treasure "died" when sacrificed for mana, a creature card again
       // in the graveyard, hp-22 re-test 2026-10-28)
@@ -2285,7 +2341,9 @@ function logEvents(prev, cur, pub, facts = null) {
       // (exiled with a permanent, its counters and whether it comes back: Mairsil's cage read "Ancient Copper Dragon is
       // exiled", rebuilt hand test #1)
       // (not itself: Tithing Blade exiled to pay its own craft read "Tithing Blade is exiled with Tithing Blade", mechanic run hp-12)
-      const host = c.ew && c.ew !== id && cur.cards[c.ew];
+      // (nor the card it was paid for, its cost's words name it: forage read "(to pay for Treetop Sentries) with Treetop
+      // Sentries", live check 11)
+      const host = c.ew && c.ew !== id && !(/^Cost:/.test(moved?.cause || "") && moved.causeName === cur.cards[c.ew]?.name) && cur.cards[c.ew];
       if (host && ["graveyard", "battlefield", "library", "plain"].includes(k.kind)) {
         const ctrs = (c.ctrs || []).map(([t, n]) => countWords(n, n, counterWords(t.toUpperCase()) || `${t.toLowerCase()} counter`)).join(" and ");
         k.label = `${k.label || ""} with ${host.name}${ctrs ? ` (${ctrs})` : ""}${c.rl ? `, until ${host.name} leaves the battlefield` : ""}`;
@@ -2408,6 +2466,8 @@ function logEvents(prev, cur, pub, facts = null) {
       const n = c.m1 - (was.m1 || 0);
       out.push(`${c.name} gets ${n === 1 ? "a" : n} -1/-1 counter${n === 1 ? "" : "s"}`);
     }
+    // (a tribute's trigger seen a board after its card arrived: see tributeCard)
+    if (c.zone === "battlefield" && was?.zone === "battlefield" && tributeCard(id, c) && tributeTrig(id)) sayTribute(id, c);
     // (attached to something new while it stays: For Mirrodin!'s Equipment onto its Rebel, an equip; Hexplate Wallbreaker
     // read "creates Rebel Token" and nothing of the attach, hp-16 gap)
     if (c.zone === "battlefield" && was?.zone === "battlefield" && c.att && c.att !== was.att && cur.cards[c.att]) out.push(`${c.name} is attached to ${cur.cards[c.att].name}`);
@@ -2421,6 +2481,23 @@ function logEvents(prev, cur, pub, facts = null) {
         const d = (now[k] || 0) - (then[k] || 0), noun = counterWords(k.toUpperCase()) || `${k.toLowerCase()} counter`;
         if (d) out.push(`${c.name} ${d > 0 ? "gets" : "loses"} ${countWords(Math.abs(d), Math.abs(d), noun)} (${now[k] || 0} ${d > 0 ? "in all" : "left"})`);
       }
+    }
+    // (and loyalty an effect puts on, not its own ability's cost, which that ability's line says: a second Empower on the
+    // Jace token said nothing, the table showing Loyalty 4, keyword sweep kw-07)
+    // (its own ability: the player's record of it, or the ability seen on a stack. The state counts no loyalty
+    // activations, so an AI's +1 that resolved between two boards is told by its timing: a rise of one of its own "+N:"
+    // costs, in its controller's main phase, no spell gone from the stack with it, the first such rise this turn, as a
+    // planeswalker activates once a turn. An AI Chandra's 4 to 5 read "gets a loyalty counter (5 in all)", checker
+    // 2026-11-07. A proliferate or the like that fits all of that is taken for the ability and not said.)
+    if (c.zone === "battlefield" && was?.zone === "battlefield" && (c.loy || 0) > (was.loy || 0)) {
+      const n = c.loy - (was.loy || 0);
+      const own = pending.some((e) => e.id === id && e.kind !== "cast") || [...Object.values(prev.stack), ...Object.values(cur.stack)].some((s) => s.id === id && s.ability);
+      const plusCosts = [...String(pubIndex[id]?.text || "").matchAll(/(?:^|\n)\[?\+(\d+)\]?:/g)].map((m) => Number(m[1]));
+      const spellGone = (facts?.offStack || []).some((o) => cur.cards[o.id]?.spell) || [...prevSpellOf.keys()].some((sid) => !stackIds.has(sid));
+      const unseenOwn = !own && plusCosts.includes(n) && cur.active === c.ctl && cur.turn === prev.turn && /^main/i.test(cur.step || "")
+        && !spellGone && game.ownLoyalty?.get(id) !== cur.turn;
+      if (own || unseenOwn) (game.ownLoyalty ??= new Map()).set(id, cur.turn);
+      else out.push(`${tokenWords(c.name, c.token)} gets ${countWords(n, n, "loyalty counter")} (${c.loy} in all)`);
     }
   }
   // (what a resolved "taps an untapped ..." made its player tap: Tangle Wire's upkeep taps read nothing, hp-14 gap)
@@ -2442,13 +2519,23 @@ function logEvents(prev, cur, pub, facts = null) {
   }
   // (last: the lines above are written by index. What resolved in the turn just ended goes above the new turn's header:
   // the AI's Sensei's Divining Top "entered" after White's turn header, re-test 2 bug i; the new turn's own lines, its
-  // draw, stay under it. Those lines all come after the attack's place, so cutting them leaves that place where it is.)
+  // draw, stay under it. The attack's place is found by identity, so neither these cuts nor the discard's insert above
+  // move it; the discard's insert is the only line put in mid-list, and it shifts the one index kept before it, drawAt.)
   const oldLines = oldTurn.flatMap(([a, b]) => out.slice(a, b));
   for (const [a, b] of oldTurn.reverse()) out.splice(a, b - a);
-  out.splice(attackAt, 1, ...attackLines);
+  out.splice(out.indexOf(attackSlot), 1, ...attackLines);
   out.unshift(...oldLines);
   // (each line a sentence: "a face-down card is exiled" began in lower case, hp-16)
   const lines = out.map(sentence);
+  // (a cost paid from a graveyard before the draw it paid for, by Forge's order, said before that draw: forage's exile
+  // read after "White draws a card", live check 11. By the lines themselves, all indexes being spent. Each group by its
+  // own first move: a Treasure's sacrifice before the draw moved a delve after it above it too, checker 2026-11-07.)
+  for (const g of Object.values(groups)) {
+    const drawn = drawLines[g.owner];
+    if (!g.k.cost || !drawn || !(g.seq < facts?.firstDraw[g.owner])) continue;
+    const from = lines.indexOf(sentence(g.words[g.k.kind](who(g.owner), g.names, g.k))), to = lines.indexOf(sentence(drawn));
+    if (to >= 0 && from > to) lines.splice(to, 0, ...lines.splice(from, 1));
+  }
   // (sources sacrificed for mana, for updateLog to add to the line before when they are paid one click a board)
   const sac = Object.values(groups).find((g) => g.k.kind === "sacrificed" && g.k.label === " for mana");
   if (sac) {
@@ -2894,18 +2981,15 @@ function poss(name) { return /s$/i.test(String(name)) ? `${name}'` : `${name}'s`
 // Engine text names players by relay username; show TTS colors / "AI n" instead.
 function displayText(text) {
   if (!game || !text) return text;
-  let out = withoutForgeNotes(String(text));
-  game.playerOrder.forEach((username, i) => {
-    // case-insensitive: the engine sometimes capitalises names ("Self-hosted-node-…-bot picked …")
-    const lower = out.toLowerCase();
-    const needle = username.toLowerCase();
-    let at = lower.lastIndexOf(needle);
-    while (at >= 0) {
-      out = out.slice(0, at) + nameOf(`player-${i}`) + out.slice(at + username.length);
-      at = at > 0 ? lower.lastIndexOf(needle, at - 1) : -1;
-    }
-  });
-  return out;
+  const out = withoutForgeNotes(String(text));
+  // (every name in one pass, the longest first: the second AI is "<node>-bot 2", which holds the first's "<node>-bot",
+  // and name by name it read "AI 1 2", keyword sweep kw-15 "Mob Verdict: choose one :: AI 1 / AI 1 2")
+  // (case-insensitive: the engine sometimes capitalises names, "Self-hosted-node-…-bot picked …")
+  const names = game.playerOrder.map((username, i) => [String(username || ""), i]).filter(([u]) => u).sort((a, b) => b[0].length - a[0].length);
+  if (!names.length) return out;
+  const slotOf = new Map(names.map(([u, i]) => [u.toLowerCase(), i]));
+  const any = new RegExp(names.map(([u]) => escapeRe(u)).join("|"), "gi");
+  return out.replace(any, (m) => nameOf(`player-${slotOf.get(m.toLowerCase())}`));
 }
 
 // Forge's question titles in plain words (the player playtested them: "keep the text simple when asking questions").
@@ -3036,6 +3120,8 @@ const FORGE_STEPS = [
   // hp-24; the player's engine name becomes their table name in the last pass, prepareUi)
   [/^Choose card\(s\) to put on the bottom of (.+?) library$/i, (m, { src }) => ({ title: `${src}: put which cards on the bottom of ${m[1]}'s library?`,
     text: "The rest stay on top in the same order." })],
+  // (the Ring's tempting, Forge's lblChooseRingBearer: Claim the Precious read "choose a card", live check 9)
+  [/^Choose your Ring-bearer$/i, () => ({ title: "The Ring: choose your Ring-bearer", text: "It becomes legendary and has the Ring's abilities so far." })],
   // (Analyze the Pollen's read "choose up to 3 cards", hp-13)
   [/^Collect evidence (\d+)$/i, (m, { src }) => ({ title: `${src}: collect evidence ${m[1]}: exile which cards from your graveyard?`,
     note: `Their mana values must add up to ${m[1]} or more.`, text: `Their mana values must add up to ${m[1]} or more.` })],
@@ -3607,6 +3693,10 @@ const QUEUED_PLAY_MS = 30000;
 const SKIP_PHASES = { upkeep: ["upkeep"], draw: ["draw"], main: ["main1"], combat: ["combatBegin", "combatDeclareAttackers"],
   blockers: ["combatDeclareBlockers"], damage: ["combatFirstStrikeDamage", "combatDamage"], main2: ["main2"], end: ["end", "endOfTurn"],
   mine: ["upkeep", "draw", "main1"] };
+// Forge's steps in the table's words, for what the chat says of one ("Skip ended: combatBegin" read so, live check 12)
+const STEP_WORDS = { untap: "untap step", upkeep: "upkeep", draw: "draw step", main1: "main phase", combatBegin: "beginning of combat",
+  combatDeclareAttackers: "declare attackers step", combatDeclareBlockers: "declare blockers step", combatFirstStrikeDamage: "first-strike damage step",
+  combatDamage: "combat damage step", combatEnd: "end of combat", main2: "second main phase", end: "end step", endOfTurn: "end step", cleanup: "cleanup step" };
 const SKIP_ORDER = ["untap", "upkeep", "draw", "main1", "combatBegin", "combatDeclareAttackers", "combatDeclareBlockers", "combatFirstStrikeDamage",
   "combatDamage", "combatEnd", "main2", "end", "endOfTurn", "cleanup"];
 // whether a skip set at (turn, step) has reached its phase: that phase's step, or one past it, in a later turn or later in
@@ -3873,6 +3963,9 @@ function onPrompt(seat, prompt) {
   }
   // (the asking card's rules text, from the prompt or the board: "" when neither has it)
   const srcCardText = String(prompt.sourceCard?.text || byId[prompt.sourceCard?.id]?.text || "");
+  // (a question of a tribute card's "if tribute wasn't paid" trigger, which Forge makes only when it wasn't: noted for
+  // the log, see logEvents)
+  if (game && prompt.sourceCard?.id && /\bif tribute wasn't paid\b/i.test(String(prompt.sourceAbilityText || ""))) (game.tributeUnpaid ??= new Set()).add(prompt.sourceCard.id);
   // (a spell or ability on the stack by its name and whose it is: Counterspell's target read "engine-stack-56", hp-01 #4)
   const onStack = (id) => (gv.stack || []).find((s) => s.id === id);
   // (spell or ability as the log tells them: Forge gives an instant its text too, so "Lightning Bolt (AI 1's ability)")
@@ -3973,7 +4066,7 @@ function onPrompt(seat, prompt) {
       if (seat.skipTo) {
         const theirs = (gv.stack || []).find((x) => x.controllerId !== seat.slot);
         if (theirs || skipReached(seat.skipTo, gv, seat.slot)) {
-          chat(`[MTG] Skip ended: ${theirs ? `${theirs.identity?.name || "something"} (${nameOf(theirs.controllerId)}) is on the stack` : `${REWIND_STEPS[gv.step] || gv.step}, ${gv.activePlayerId === seat.slot ? "your" : `${nameOf(gv.activePlayerId)}'s`} turn`}.`, seat.color);
+          chat(`[MTG] Skip ended: ${theirs ? `${theirs.identity?.name || "something"} (${nameOf(theirs.controllerId)}) is on the stack` : `${STEP_WORDS[gv.step] || gv.step}, ${gv.activePlayerId === seat.slot ? "your" : `${nameOf(gv.activePlayerId)}'s`} turn`}.`, seat.color);
           seat.skipTo = null;
           autoNotice(seat);
           skipStop = true; // (stopped there, whatever the step stops say)
@@ -4283,7 +4376,9 @@ function onPrompt(seat, prompt) {
         && String(prompt.sourceAbilityText || srcCardText || "").replace(/\([^()]*\)/g, "")
           .split(/(?<=\.)\s+|\n/).filter((x) => /\btarget player\b/i.test(x));
       if (playerSentence?.length === 1) {
-        const s = playerSentence[0].trim().replace(/^[+−–-]?\d+:\s*/, "").replace(/^[^:.]*\{[^:.]*\}[^:.]*:\s*/, "").replace(/^(?:When|Whenever|At)\b[^,]*,\s*/i, "").replace(/\btarget player\b/i, "which player").replace(/\.$/, "");
+        // (a mode's bullet and the card's own name at its start left out: entwine's second target read "Barbed Lightning: •
+        // Barbed Lightning deals 3 damage to which player or planeswalker?", keyword sweep kw-06)
+        const s = playerSentence[0].trim().replace(/^•\s*/, "").replace(new RegExp(`^${escapeRe(src)} (?=[a-z])`), "").replace(/^[+−–-]?\d+:\s*/, "").replace(/^[^:.]*\{[^:.]*\}[^:.]*:\s*/, "").replace(/^(?:When|Whenever|At)\b[^,]*,\s*/i, "").replace(/\btarget player\b/i, "which player").replace(/\.$/, "");
         ui.title = `${src}: ${s[0].toLowerCase()}${s.slice(1)}?`;
       }
       // (Partner with: Forge's "Choose player to fetch" names neither the partner nor that it's a may, hp-06 2026-10-28)
@@ -4314,7 +4409,8 @@ function onPrompt(seat, prompt) {
         }
         // (and a suspect's: the player's trigger resolves before any board shows it on the stack, so the suspect and its
         // goad are noted when it is gone, see logEvents; Nelly Borca's read nothing, hp-14 gap)
-        if (game && /\bsuspect target\b/i.test(String(prompt.sourceAbilityText || srcCardText)) && prompt.sourceCard?.id) {
+        // (a detain's too, the same way: Lyev Skyknight's, keyword sweep kw-21)
+        if (game && (/\bsuspect target\b/i.test(String(prompt.sourceAbilityText || srcCardText)) || DETAIN_TARGET.test(String(prompt.sourceAbilityText || srcCardText))) && prompt.sourceCard?.id) {
           (game.ownTargeted ??= []).push({ id: prompt.sourceCard.id, ctl: prompt.decidingPlayerId, text: String(prompt.sourceAbilityText || srcCardText), targets: a.filter((v) => v.startsWith("card|")).map((v) => v.slice(5)) });
         }
         // (and a counterspell's: the player's own resolves before any board shows it on the stack, so its targets are
@@ -4488,7 +4584,13 @@ function onPrompt(seat, prompt) {
         const ownCard = (byId[prompt.sourceCard?.id]?.controllerId ?? prompt.sourceCard?.controllerId) === seat.slot;
         const castsOwn = (yes === "Cast it" || (/^Pay \{/.test(yes) && ownCard)) && prompt.sourceCard?.id;
         const freeCast = String(prompt.sourceAbilityText || below).match(/\byou may cast (.+?) without paying its mana cost\b/i)?.[1];
+        // (kinship's reveal of the card just looked at, by its name: the log read only "White looked at a card", keyword sweep
+        // kw-05)
+        const shown = seat.lastShown;
+        const kinReveal = /^Reveal cards to other players\?$/i.test(title) && /^Kinship —/i.test(String(prompt.sourceAbilityText || ""))
+          && shown?.src === src && shown.names?.length && Date.now() - shown.at < 60000 ? shown.names : null;
         toOutput = (a) => {
+          if (a[0] === "yes" && kinReveal && game) gameLogLine(`${seat.color} reveals ${kinReveal.join(", ")} (${src})`);
           if (a[0] === "yes" && castsOwn) seat.note("start", prompt.sourceCard.id, src);
           // (a miracle cast says so, as a flashback does: "White casts Reforge the Soul" said nothing of it, hp-15 gap)
           // (and a reveal's free cast by its keyword: Surging Dementia's ripple cast of its namesake read "White copies
@@ -4585,7 +4687,10 @@ function onPrompt(seat, prompt) {
       // (cards from your library while the ability text is only a cast way's reminder: the card's own text; Splinter's
       // Technique cast by Sneak titled its search "return which unblocked attacker to your hand?", hp-11)
       const cardText = srcCardText;
-      const words = String((keywordOnly(prompt.sourceAbilityText) && input.cards.length && input.cards.every((c) => c.zone === "library") && cardText)
+      // (not when the keyword's own reminder is the search: a typecycling's; Hobbit Hole's halflingcycling read its land
+      // ability's "search your library for which basic land card?", keyword sweep kw-23)
+      const ownSearch = /\([^()]*\bsearch your library\b[^()]*\)/i.test(String(prompt.sourceAbilityText || ""));
+      const words = String((keywordOnly(prompt.sourceAbilityText) && !ownSearch && input.cards.length && input.cards.every((c) => c.zone === "library") && cardText)
         || prompt.sourceAbilityText || cardText || "");
       // (Soulbond on another creature entering pairs that one: "Pair Deadeye Navigator with which creature?" offered only
       // Deadeye when Apex Altisaur entered. Forge's "[Zone Changer: X (n)]" names it; without it, not the source either
@@ -4631,8 +4736,15 @@ function onPrompt(seat, prompt) {
       const handToTop = input.max > 1 && input.cards.every((c) => c.zone === "hand")
         && /\bput [^.]*?\bfrom your hand on top of your library\b/i.test(String(prompt.sourceAbilityText || srcCardText));
       // (remembered for "pay or put a chosen card back" questions that may follow, see chooseBoolean)
+      // (what a fateseal put on the bottom and what a cipher encoded onto, which no board shows: the log said nothing after
+      // "White looked at a card (AI 1's library)", and only "Last Thoughts is exiled", keyword sweep kw-18 kw-17)
+      const bottomOf = desc.match(/^Choose card\(s\) to put on the bottom of (.+?) library$/i)?.[1];
+      const encoding = /^Choose a creature you control to encode\s*$/i.test(desc);
       toOutput = (a) => {
         if (a[0] === "__cancel") return { type: "cancel" };
+        if (game && src && bottomOf) gameLogLine(a.length ? `${seat.color} puts ${countWords(a.length, a.length, "card")} on the bottom of ${bottomOf}'s library (${src})`
+          : `${seat.color} leaves ${input.cards.length === 1 ? "the card" : "the cards"} on top of ${bottomOf}'s library (${src})`);
+        if (game && src && encoding && a.length) holdLogLine(`${seat.color} encodes ${src} onto ${a.map((id) => input.cards.find((c) => c.id === id)?.identity?.name).filter(Boolean).join(", ")}`);
         seat.unless = src && fromHand ? { src, ids: [...a], n: a.length, k: 0 } : null;
         // (cards picked from your library: the one into your hand next was put there, not drawn, marked as the pick is
         // made; the look's mark had run out when the pick took longer, Growing Rites' Mangara "White draws a card", hp-03 #2)
@@ -5073,7 +5185,7 @@ function onPrompt(seat, prompt) {
         seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" });
         return;
       }
-      seat.lastShown = { ids: shownIds, src, at: Date.now() };
+      seat.lastShown = { ids: shownIds, src, at: Date.now(), names: input.cards.map((c) => c.identity?.name).filter(Boolean) };
       // (Forge's trailing " - " left out: "revealed for Explore - (your library)", hp-06 #16)
       // (Forge's "Face-down card leaves the <player>'s Battlefield:" read "... the AI 1's Battlefield: (AI 1's graveyard)",
       // hp-20 gap)
@@ -5146,15 +5258,23 @@ function onPrompt(seat, prompt) {
         const said = instead ? instead.name : src;
         // (cards exiled face up are the table's to see: the Tenth Doctor's read "White looked at a card (their library)",
         // hp-21 gap)
-        const line = exiledTop ? `${seat.color} exiles from the top of their library${said ? ` (${said})` : ""}: ${ui.text}`
+        // (many by count, as a mill's are: a whole library exiled or revealed read "Island, Island, Island, ...", keyword
+        // sweep kw-22 kw-25; in their order, only a run of one card counted, as the order is the library's: "Island, Opt,
+        // Island, Swamp, Island, Opt, Forest" read "Island ×3, Opt ×2, Swamp, Forest", checker 2026-11-07)
+        const many = listInOrder(input.cards.map((c) => cardLabel(c)));
+        const line = exiledTop ? `${seat.color} exiles from the top of their library${said ? ` (${said})` : ""}: ${many}`
           // (a reveal is said as the revealing player's, once for the table: "White saw: Chaos Warp: revealed from AI 1's
           // library: Mountain", rebuilt hand test #7)
-          : revealedNow ? `${owner} reveals ${ui.text} from their ${input.zone}${said ? ` (${said})` : ""}`
+          : revealedNow ? `${owner} reveals ${many} from their ${input.zone}${said ? ` (${said})` : ""}`
           : revealed ? `${seat.color} saw: ${ui.title}: ${ui.text}`
           : `${seat.color} looked at ${countWords(input.cards.length, input.cards.length, "card")} (${mine ? "their" : `${nameOf(ownerSlot)}'s`} ${input.zone})`;
         // (each seat is shown a reveal: said once)
         const again = revealedNow && game.lastReveal?.line === line && Date.now() - game.lastReveal.at < 5000;
-        if (revealedNow) game.lastReveal = { line, at: Date.now(), slot: ownerSlot, zone: input.zone, names: input.cards.map((c) => c.identity?.name).filter(Boolean) };
+        // (until: revealed until a card is found, which is the last; grandeur's Divination read "puts a card from their
+        // library into their hand", keyword sweep kw-25)
+        // (cards: each with its id, for which of them went to the hand, see logEvents)
+        if (revealedNow) game.lastReveal = { line, at: Date.now(), slot: ownerSlot, zone: input.zone, names: input.cards.map((c) => c.identity?.name).filter(Boolean),
+          cards: input.cards.filter((c) => c.identity?.name).map((c) => ({ id: c.id, name: c.identity.name })), until: /\buntil you reveal\b/i.test(abilityWords) };
         if (!again) (revealedNow ? holdLogLine : gameLogLine)(line);
       }
       toOutput = () => ({ type: "revealCardsAcknowledged" });
@@ -5226,7 +5346,8 @@ function onPrompt(seat, prompt) {
         && /\bland cards?\b[^.]*\bonto the battlefield\b/i.test(prompt.sourceAbilityText || "");
       if (bottom || exileAll || allSame || landsDown) { seat.respond(prompt.promptId, type, { type: "reorderDecision", orderedIds: input.items.map((i) => i.id) }); return; }
       // (Forge's object numbers left out of what is shown: "Counter Chart a Course (61)")
-      const items = input.items.map((i) => ({ id: i.id, label: cardLabel(i.card) + (i.oracle ? `: ${shorten(oracleOf(i), 60)}` : ""), img: imgOf(i.card) }));
+      // (and an effect's own name too: "First Day of Class (225)'s Effect" read so, keyword sweep kw-13)
+      const items = input.items.map((i) => ({ id: i.id, label: String(cardLabel(i.card)).replace(/^(.+?) \(\d+\)'s Effect$/, (m, n) => `${poss(n)} effect`) + (i.oracle ? `: ${shorten(oracleOf(i), 60)}` : ""), img: imgOf(i.card) }));
       const step = orderSteps(words, hint, onTop ? [...items].reverse() : items,
         (ids) => ({ type: "reorderDecision", orderedIds: onTop ? [...ids].reverse() : ids }));
       if (step.auto) { seat.respond(prompt.promptId, type, step.auto); return; }
@@ -5273,7 +5394,10 @@ function onPrompt(seat, prompt) {
     }
     case "gameOver": {
       const why = lossReasons(gv);
-      chat(why ? `[MTG] Game over: ${why}.` : `[MTG] Game over.`, seat.color);
+      // (once to each player: the question comes again)
+      if (game) game.overSaid ??= new Set();
+      if (!game?.overSaid.has(seat.color)) chat(why ? `[MTG] Game over: ${why}.` : `[MTG] Game over.`, seat.color);
+      game?.overSaid.add(seat.color);
       // (and in the game log, once: White's loss to an empty library under Reforge the Soul ended it unsaid, hp-15 gap)
       if (game && !game.over) gameLogLine(why ? `Game over: ${why}` : "Game over");
       if (game) game.over = true;
@@ -5357,7 +5481,7 @@ function armTimer(seat) {
   }
   const total = t.seconds + seat.timeBank, promptId = seat.prompt.promptId;
   seat.timerFrom = Date.now();
-  if (total > TIMER_WARN) seat.timerWarn = setTimeout(() => guarded("timer warning", () => { if (seat.prompt?.promptId === promptId) chat(`[MTG] ${seat.color}: ${TIMER_WARN} seconds left to answer.`); }), (total - TIMER_WARN) * 1000);
+  if (total > TIMER_WARN) seat.timerWarn = setTimeout(() => guarded("timer warning", () => { if (seat.prompt?.promptId === promptId) chat(`[MTG] ${TIMER_WARN} seconds left to answer.`, seat.color); }), (total - TIMER_WARN) * 1000); // (to the player asked only: it went to everyone, live check 1)
   seat.timerEnd = setTimeout(() => guarded("timer", () => timerExpired(seat, promptId)), total * 1000);
   seat.timerWarn?.unref?.(); seat.timerEnd.unref?.();
 }

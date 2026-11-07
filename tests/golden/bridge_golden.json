@@ -88447,7 +88447,7 @@
      "t": "gamelog",
      "lines": [
       "Blue discards Vraska's Fall, Venomous Changeling",
-      ""
+      "--- AI 1's turn 1 ---"
      ]
     }
    },
@@ -88628,7 +88628,7 @@
   "result": {
    "lines": [
     "Blue discards Vraska's Fall, Venomous Changeling",
-    ""
+    "--- AI 1's turn 1 ---"
    ]
   }
  },
@@ -168978,13 +168978,13 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Blue: 15 seconds left to answer.\n"
+    "text": "[time] Blue   told: [MTG] 15 seconds left to answer.\n"
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Blue: 15 seconds left to answer.",
-     "color": null
+     "text": "[MTG] 15 seconds left to answer.",
+     "color": "Blue"
     }
    },
    {
@@ -177696,18 +177696,7 @@
     }
    },
    {
-    "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Game over: AI 1 has 10 poison counters.\n"
-   },
-   {
     "unlink": "mtg-bridge-game-test.json"
-   },
-   {
-    "tts": {
-     "t": "chat",
-     "text": "[MTG] Game over: AI 1 has 10 poison counters.",
-     "color": "Blue"
-    }
    }
   ],
   "result": [
@@ -276071,7 +276060,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Skip ended: endOfTurn, your turn.\n"
+    "text": "[time] Blue   told: [MTG] Skip ended: end step, your turn.\n"
    },
    {
     "log": "prompt Blue #982: chooseAction \"Your priority\""
@@ -276083,7 +276072,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Skip ended: endOfTurn, your turn.",
+     "text": "[MTG] Skip ended: end step, your turn.",
      "color": "Blue"
     }
    },
@@ -276531,7 +276520,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Skip ended: combatBegin, AI 1's turn.\n"
+    "text": "[time] Blue   told: [MTG] Skip ended: beginning of combat, AI 1's turn.\n"
    },
    {
     "log": "prompt Blue #980: chooseAction \"Your priority\""
@@ -276543,7 +276532,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Skip ended: combatBegin, AI 1's turn.",
+     "text": "[MTG] Skip ended: beginning of combat, AI 1's turn.",
      "color": "Blue"
     }
    },
@@ -276984,7 +276973,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Skip ended: endOfTurn, AI 1's turn.\n"
+    "text": "[time] Blue   told: [MTG] Skip ended: end step, AI 1's turn.\n"
    },
    {
     "log": "prompt Blue #995: chooseAction \"Your priority\""
@@ -276996,7 +276985,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Skip ended: endOfTurn, AI 1's turn.",
+     "text": "[MTG] Skip ended: end step, AI 1's turn.",
      "color": "Blue"
     }
    },
@@ -277104,7 +277093,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Skip ended: end, AI 1's turn.\n"
+    "text": "[time] Blue   told: [MTG] Skip ended: end step, AI 1's turn.\n"
    },
    {
     "log": "prompt Blue #996: chooseAction \"Your priority\""
@@ -277116,7 +277105,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Skip ended: end, AI 1's turn.",
+     "text": "[MTG] Skip ended: end step, AI 1's turn.",
      "color": "Blue"
     }
    },
@@ -357642,13 +357631,13 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Blue: 15 seconds left to answer.\n"
+    "text": "[time] Blue   told: [MTG] 15 seconds left to answer.\n"
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Blue: 15 seconds left to answer.",
-     "color": null
+     "text": "[MTG] 15 seconds left to answer.",
+     "color": "Blue"
     }
    },
    {
@@ -358735,7 +358724,7 @@
      "t": "gamelog",
      "lines": [
       "AI 1 discards Deep Analysis",
-      ""
+      "--- Blue's turn 1 ---"
      ]
     }
    },
@@ -359034,7 +359023,7 @@
   ],
   "result": [
    "AI 1 discards Deep Analysis",
-   ""
+   "--- Blue's turn 1 ---"
   ]
  },
  {
@@ -669875,6 +669864,14 @@
    },
    {
     "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Blue puts a card on the bottom of AI 1's library (Mesmeric Sliver)"
+     ]
+    }
+   },
+   {
+    "tts": {
      "t": "prompt",
      "color": "Blue",
      "promptId": null
@@ -699959,6 +699956,14 @@
      "t": "prompt",
      "color": "Blue",
      "promptId": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Blue encodes Whispering Madness onto Hurloon Minotaur"
+     ]
     }
    }
   ],
@@ -815387,13 +815392,13 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Blue: 15 seconds left to answer.\n"
+    "text": "[time] Blue   told: [MTG] 15 seconds left to answer.\n"
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Blue: 15 seconds left to answer.",
-     "color": null
+     "text": "[MTG] 15 seconds left to answer.",
+     "color": "Blue"
     }
    },
    {

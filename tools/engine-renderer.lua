@@ -2687,10 +2687,10 @@ local function updateOptions(color)
   engineUpdateCorner(color, p)
   if p.mode == "multi" then
     local n = count(sel)
-    local ok = n >= (p.min or 0) and n <= (p.max or 99)
     local need = (p.min == p.max) and tostring(p.min) or (tostring(p.min) .. "-" .. tostring(p.max))
     setText("eng_confirm_" .. color, p.min == p.max and string.format("Done (%d of %s)", n, need) or string.format("Done (%d chosen)", n))
-    setAttr("eng_confirm_" .. color, "interactable", ok and "true" or "false")
+    -- (pressable below its count too: confirm says how many, live check 11)
+    setAttr("eng_confirm_" .. color, "interactable", "true")
     setAttr("eng_confirm_" .. color, "active", "true")
   else
     setAttr("eng_confirm_" .. color, "active", "false")
@@ -2974,8 +2974,13 @@ local function confirm(color)
   if p.scry ~= nil and engineScryFinish ~= nil then return engineScryFinish(color) end
   local ids = {}
   for i, o in ipairs(p.options or {}) do if engineSelected[color] and engineSelected[color][i] then ids[#ids + 1] = o.id end end
-  -- too few or too many would make the engine abort the game (the bridge checks this too)
-  if #ids < (p.min or 0) or #ids > (p.max or 99) then return end
+  -- too few or too many would make the engine abort the game (the bridge checks this too): said, as the bridge's own
+  -- refusal says it (forage's Done of 1 of 3 did nothing and said nothing, live check 11)
+  if #ids < (p.min or 0) or #ids > (p.max or 99) then
+    local need = (p.min == p.max) and tostring(p.min) or (tostring(p.min or 0) .. "-" .. tostring(p.max or 99))
+    if engineTell ~= nil then engineTell(color, "Choose " .. need .. " (you chose " .. #ids .. ").") end
+    return
+  end
   engineAnswer(color, ids)
 end
 
@@ -3082,7 +3087,8 @@ function engineRowUpdate(color)
   end
   if p.mode == "multi" and not engineExactPick(p) then
     local n = count(sel)
-    b[#b + 1] = { id = "confirm", text = "Done (" .. n .. ")", primary = true, ok = n >= (p.min or 0) and n <= (p.max or 99) }
+    -- (pressable below its count too, to say how many: only its colour says it isn't ready)
+    b[#b + 1] = { id = "confirm", text = "Done (" .. n .. ")", primary = n >= (p.min or 0) and n <= (p.max or 99) }
   end
   -- wide enough for its pictures and its buttons (220 each, 12 apart)
   setAttr("eng_row_" .. color, "width", tostring(math.max(720, #tiles * 192 + 60, math.min(#b, ROW_BTNS) * 232 + 48)))
