@@ -1426,8 +1426,10 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     "every player mark (past two lines)": EVERY,
     "one mark longer than a line": ["THIS PLAYER CAN'T BE THE TARGET OF SPELLS OR ABILITIES YOUR OPPONENTS CONTROL AND CAN'T LOSE"],
     "short": ["POISON 2"],
+    // (jr suite 2026-11-07) two-byte letters, so the cut at 71 bytes falls inside one: "not inside a character"
+    "one accented mark longer than a line": ["É".repeat(60)],
   };
-  const CUT = new Set(["every player mark (past two lines)", "one mark longer than a line"]);
+  const CUT = new Set(["every player mark (past two lines)", "one mark longer than a line", "one accented mark longer than a line"]);
   const steps = [];
   for (const [name, marks] of Object.entries(COMBOS)) steps.push(q(setAll(marks), `set ${name}`), q(geo, `geo ${name}`));
   const r = run(steps);
@@ -1453,6 +1455,7 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
         const same = kept.every((k, i) => k === marks[i] || (k.endsWith("...") && k.length > 3 && marks[i].startsWith(k.slice(0, -3))));
         ok(`marks fit, ${seat}: cut to two lines, the marks kept in order and "+n MORE" for the rest`, lines.length <= 2 && kept.length >= 1 && same
           && kept.length + (more ? Number(more[1]) : 0) === marks.length, JSON.stringify(t.label));
+        ok(`marks fit, ${seat}: cut at a whole character (no broken UTF-8)`, !String(t.label).includes("�") && Buffer.from(String(t.label), "utf8").toString("utf8") === String(t.label), JSON.stringify(t.label));
       }
       ok(`marks fit, ${seat}: no line wider than 8000`, t.w <= 8000, `width ${t.w}`);
       ok(`marks fit, ${seat}: a readable font, and its bottom edge where a one-line label's is`, t.f >= 180 && Math.abs(t.bz + t.h / 2 / PER - (1.45 + 380 / 2 / PER)) < 1e-6, `font ${t.f}, z ${t.bz}, height ${t.h}`);
@@ -1567,6 +1570,17 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     }
   }
 }
+// (jr suite 2026-11-07) "from the last button down, as a removal moves the ones after it" (engineCountersReset): a
+// tracker with both its marks label and its extra-turn badge loses both at the end of the game, and a button of its own
+// put before them stays (removing from the first up skipped the badge, which moved into the label's place)
+{
+  const count = 'local o = getObjectFromGUID("23e485") local n, own = 0, 0 for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP or engineExtraTurnTip(b.tooltip) then n = n + 1 elseif b.label == "OWN" then own = own + 1 end end return tostring(n) .. " engine, " .. tostring(own) .. " own"';
+  const r = run([
+    q('local o = getObjectFromGUID("23e485") o.createButton({ click_function = "engineNoop", function_owner = Global, label = "OWN" }) enginePlayerCounters(o, { allMarks = { "POISON 2" } }) engineExtraTurnBadge(o, { extraTurns = 1, name = "P" }) return "set"', "set"),
+    q(count, "before"), q("engineCountersReset() return 'reset'", "reset"), q(count, "after")]);
+  ok("reset: precondition, the label and the badge are on the tracker beside its own button", String(valueOf(r, "before")) === "2 engine, 1 own" && !r.errors.length, `${valueOf(r, "before")} ${r.errors.slice(0, 1).join("")}`);
+  ok("reset: the label and the badge both go, the tracker's own button stays", String(valueOf(r, "after")) === "0 engine, 1 own", String(valueOf(r, "after")));
+}
 // (breakit 2026-11-06) a slow library spawn from before "mtg reset" arrives while the next game's library is still on
 // its way (a 100-card deck takes TTS several frames): the late one must leave the new one's "spawning" mark alone, or
 // the next board spawns a second library beside it. The fake TTS's spawnDelay makes library spawns slow: the search's
@@ -1607,12 +1621,34 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     q('return tostring(UI.getAttribute("eng_rowopt_Blue_4", "interactable"))', "row done clickable"),
     q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_4")', "row done"),
     q('return tostring(UI.getAttribute("eng_confirm_Blue", "interactable"))', "panel done clickable"),
+    q('return tostring(UI.getAttribute("eng_rowopt_Blue_4", "color"))', "row done colour short"),
     q('engineConfirm("Blue")', "panel done"),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_2")', "second mode"),
+    q('return tostring(UI.getAttribute("eng_rowopt_Blue_4", "color"))', "row done colour ready"),
+    // (a question with a min and no max: its bounds as engineCountOk reads them, "2-99", not "2-nil")
+    ask({ promptId: 822, kind: "modal", title: "Choose two or more", mode: "multi", min: 2, options: [{ id: "0", label: "Draw a card" }, { id: "1", label: "Gain 3 life" }, { id: "2", label: "Scry 2" }] }),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_1")', "open max one"),
+    q('engineConfirm("Blue")', "open max done"),
   ]);
   ok("too few: the row's Done can be pressed", valueOf(r, "row done clickable") === "true", valueOf(r, "row done clickable"));
   ok("too few: the row's Done says how many, and sends nothing", /Choose 2 \(you chose 1\)\./.test(said(r, "row done")) && !sentIn(r, "row done").includes('"choice"'), `${said(r, "row done")} ${sentIn(r, "row done").slice(0, 200)}`);
   ok("too few: the panel's Done can be pressed", valueOf(r, "panel done clickable") === "true", valueOf(r, "panel done clickable"));
-  ok("too few: the panel's Done says it too", /Choose 2 \(you chose 1\)\./.test(said(r, "panel done")) || /Choose 2 \(you chose 1\)\./.test(said(r, "row done")), said(r, "panel done"));
+  // (jr suite 2026-11-07: "the panel's Done says it too" passed on the row's message alone. The panel's press right after
+  // the row's says nothing, tell's 3 s repeat guard, and sends nothing; its own message is checked in a run below)
+  ok("too few: the panel's Done right after the row's sends nothing", !sentIn(r, "panel done").includes('"choice"'), sentIn(r, "panel done").slice(0, 200));
+  // ("only its colour says it isn't ready": grey below its count, the primary orange once the count is met, the colour
+  // engineCountOk gives the row's Done)
+  ok("too few: the row's Done is grey below its count and orange once it is met", valueOf(r, "row done colour short") === "#2e3a59" && valueOf(r, "row done colour ready") === "#e8711a",
+    `${valueOf(r, "row done colour short")} -> ${valueOf(r, "row done colour ready")}`);
+  ok("too few: a question with no max says its bounds as 2-99", /Choose 2-99 \(you chose 1\)\./.test(said(r, "open max done")) && !sentIn(r, "open max done").includes('"choice"'), said(r, "open max done"));
+  // (the panel's own press, in a run of its own: tell says the same words to a player once in 3 s, so the panel's press
+  // right after the row's said nothing, by design)
+  const r2 = run([
+    ask({ promptId: 823, kind: "modal", title: "Choose two", mode: "multi", min: 2, max: 2, options: [{ id: "0", label: "Draw a card" }, { id: "1", label: "Gain 3 life" }, { id: "2", label: "Scry 2" }] }),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_1")', "one mode"),
+    q('engineConfirm("Blue")', "panel done alone"),
+  ]);
+  ok("too few: the panel's Done says it on its own, and sends nothing", /Choose 2 \(you chose 1\)\./.test(said(r2, "panel done alone")) && !sentIn(r2, "panel done alone").includes('"choice"'), `${said(r2, "panel done alone")} ${sentIn(r2, "panel done alone").slice(0, 200)}`);
 }
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

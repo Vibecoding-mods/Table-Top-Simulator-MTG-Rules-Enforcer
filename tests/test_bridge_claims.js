@@ -649,6 +649,13 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       seat.onRelay({ type: "GameAborted" }); await h.flush();
       const said = chats(h).map(([t]) => t).filter((t) => /Game over/.test(t));
       ok("game over: said once, though the question comes twice and the relay aborts after it", said.length === 1 && said[0] === "[MTG] Game over: AI 1 is at 0 life.", JSON.stringify(said));
+      // (jr suite 2026-11-07) "once to each player": a second seat's own question tells that seat too
+      const white = new h.B.Seat("White", "neheb_minotaur_commander");
+      white.slot = "player-1"; white.board = { state: clone(b), fingerprint: null };
+      h.B._getGame().seats.set("White", white);
+      h.B.onPrompt(white, { promptId: 903, decidingPlayerId: "player-1", input: { type: "gameOver" } }); await h.flush();
+      const byColor = chats(h).filter(([t]) => /Game over/.test(t)).map(([, c]) => c);
+      ok("game over: once to each player", JSON.stringify(byColor) === '["Blue","White"]', JSON.stringify(byColor));
       harness.restore();
     }
     // the timer warning goes only to the player asked (live check 1: "all told: [MTG] White: 15 seconds left to answer.")
@@ -669,6 +676,10 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       setup(h, clone(F.board), { playerOrder: ["tts-Blue-ab12", "self-hosted-node-77-bot", "self-hosted-node-77-bot 2"], slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "AI 2" } });
       const got = h.B.displayText("self-hosted-node-77-bot 2 voted for self-hosted-node-77-bot. Self-hosted-node-77-bot picked tts-Blue-ab12");
       ok("names: the second AI is AI 2, not AI 1 2", got === "AI 2 voted for AI 1. AI 1 picked Blue", got);
+      // (jr suite 2026-11-07) "made once per player list": a new list is read anew, not the first one's names
+      h.B._getGame().playerOrder = ["tts-Blue-ab12", "other-node-bot"];
+      const again = h.B.displayText("other-node-bot picked self-hosted-node-77-bot");
+      ok("names: a changed player list is matched by its own names", again === "AI 1 picked self-hosted-node-77-bot", again);
       harness.restore();
     }
     // the Ring-bearer question says what it is (live check 9: "Claim the Precious: choose a card"; Forge's description is
@@ -783,6 +794,17 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: [] }) }); await h.flush(5);
       ok("fateseal declined: the card left on top is said", logged(h, mark).includes("Blue leaves the card on top of AI 1's library (Mesmeric Sliver)"), JSON.stringify(logged(h, mark)));
       ok("fateseal declined: nothing put on the bottom", !logged(h, mark).some((l) => /on the bottom/.test(l)), JSON.stringify(logged(h, mark)));
+      harness.restore();
+    }
+    // (jr suite 2026-11-07) Forge names the library's player by the engine's name: the player's own is "their library",
+    // another's by its table name ("AI 1's", the engine's "self-hosted-node-77-bot")
+    for (const [engineName, want] of [["tts-Blue-ab12", "Blue puts a card on the bottom of their library (Mesmeric Sliver)"], ["self-hosted-node-77-bot", "Blue puts a card on the bottom of AI 1's library (Mesmeric Sliver)"]]) {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, cards: [{ id: "engine-card-1026", identity: { name: "Plains" }, types: ["Land"], zone: "library", ownerId: "player-1" }],
+        presentation: { title: "Mesmeric Sliver", description: `Choose card(s) to put on the bottom of ${engineName} library` } }, { sourceCard: { id: "engine-card-1027", identity: { name: "Mesmeric Sliver" } }, sourceAbilityText: "When this permanent enters, fateseal 1." });
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["engine-card-1026"] }) }); await h.flush(5);
+      ok(`bottom of ${engineName}'s library: "${want}"`, logged(h, mark).includes(want), JSON.stringify(logged(h, mark)));
       harness.restore();
     }
     // the player's own "detain up to two target" trigger, picked before any board shows it: both detained once it is gone

@@ -1270,6 +1270,17 @@ const id = (n) => `engine-card-${n}`;
     const countered = between(board((b) => { field(b); b.stack = [DECREE, COUNTER]; }),
       board((b) => { field(b); put(b, "graveyard", card(70, "Lyev Decree", ["Sorcery"])); put(b, "graveyard", { ...card(71, "Counterspell", ["Instant"]), controllerId: "player-1" }, "player-1"); }), []);
     ok("detain: a countered one detains nothing", countered.includes("Lyev Decree is countered") && !countered.some((l) => /detained/.test(l)), JSON.stringify(countered));
+    // (jr suite 2026-11-07) the same for goad and suspect: what is countered did nothing (the one list they all read,
+    // `resolved`); the same spell not countered still says it, so the check can't pass by saying nothing at all
+    for (const [name, text, re] of [["Disrupt Decorum", "Goad target creature an opponent controls.", /goaded/], ["Case of the Stashed Skeleton", "Suspect target creature.", /suspected/]]) {
+      const SPELL = { id: "stack-34", sourceId: id(81), identity: { name }, controllerId: "player-0", sourceAbilityText: text, targets: [{ kind: "card", id: id(68) }] };
+      const COUNTER2 = { ...COUNTER, id: "stack-35", targets: [{ kind: "spell", id: "stack-34" }] };
+      const done = (b) => { field(b); put(b, "graveyard", card(81, name, ["Sorcery"])); };
+      const hit = between(board((b) => { field(b); b.stack = [SPELL, COUNTER2]; }), board((b) => { done(b); put(b, "graveyard", { ...card(71, "Counterspell", ["Instant"]), controllerId: "player-1" }, "player-1"); }), []);
+      const free = between(board((b) => { field(b); b.stack = [SPELL]; }), board(done), []);
+      ok(`${re.source}: precondition, not countered it is said`, free.some((l) => re.test(l)), JSON.stringify(free));
+      ok(`${re.source}: a countered one is not said`, hit.includes(`${name} is countered`) && !hit.some((l) => re.test(l)), JSON.stringify(hit));
+    }
   }
   // loyalty: an AI planeswalker's own +1 that no board showed is no extra line; a rise that can't be its ability is
   // (Chandra, Torch of Defiance's abilities as Forge writes them: CostPutCounter "+1", CostRemoveCounter "-3")
@@ -1281,6 +1292,13 @@ const id = (n) => `engine-card-${n}`;
     same("loyalty: an AI's +1 no board showed is its own ability, no line", between(at(4, aiTurn), at(5, aiTurn), []), []);
     same("loyalty: a rise on another player's turn is said", between(at(4), at(5), []), ["Chandra, Torch of Defiance gets a loyalty counter (5 in all)"]);
     same("loyalty: a rise no +N cost fits is said", between(at(4, aiTurn), at(6, aiTurn), []), ["Chandra, Torch of Defiance gets 2 loyalty counters (6 in all)"]);
+    // (jr suite 2026-11-07) the timing's other two parts: outside its controller's main phase, and with a spell gone from
+    // the stack on the same board (a proliferate's), the rise is an effect's and said
+    const combat = (b) => { aiTurn(b); b.step = "combatDeclareAttackers"; };
+    same("loyalty: a +1-sized rise in combat is said", between(at(4, combat), at(5, combat), []), ["Chandra, Torch of Defiance gets a loyalty counter (5 in all)"]);
+    const PROLIF = { id: "stack-41", sourceId: id(82), identity: { name: "Steady Progress" }, controllerId: "player-1", sourceAbilityText: "Proliferate. Draw a card." };
+    const gone = between(at(4, (b) => { aiTurn(b); b.stack = [PROLIF]; }), at(5, (b) => { aiTurn(b); put(b, "graveyard", { ...card(82, "Steady Progress", ["Instant"]), controllerId: "player-1" }, "player-1"); }), []);
+    ok("loyalty: a +1-sized rise with a spell gone from the stack is said", gone.includes("Chandra, Torch of Defiance gets a loyalty counter (5 in all)"), JSON.stringify(gone));
     {
       // (a second rise in the same turn: a planeswalker activates once a turn, so this one is an effect's)
       const h = harness.load();
@@ -1338,6 +1356,12 @@ const id = (n) => `engine-card-${n}`;
       const on = (fill = () => {}) => board((b) => { put(b, "battlefield", BIO); put(b, "battlefield", { ...RAVAGER, counters: { P1P1: 2 } }); fill(b); });
       const a = step(board((b) => put(b, "battlefield", BIO)), on()), b2 = step(on(), on((b) => { b.stack = [NOT_PAID]; })), c = step(on((b) => { b.stack = [NOT_PAID]; }), on());
       same("tribute: the trigger a board later says it then, once", [a, b2, c].map((ls) => ls.filter((l) => /Tribute/.test(l))), [[], ["Tribute wasn't paid for Nessian Wilds Ravager"], []]);
+      // (jr suite 2026-11-07) "forgotten as it leaves": the same card dies and comes back, its tribute unpaid again, and
+      // it is said again
+      const gone = board((b) => { put(b, "battlefield", BIO); put(b, "graveyard", RAVAGER); });
+      const back = board((b) => { put(b, "battlefield", BIO); put(b, "battlefield", RAVAGER); });
+      const d = step(on(), gone), e = step(gone, back);
+      same("tribute: a card that left and came back unpaid is said again", [d, e].map((ls) => ls.filter((l) => /Tribute/.test(l))), [[], ["Tribute wasn't paid for Nessian Wilds Ravager"]]);
       harness.restore();
     }
     {
@@ -1351,6 +1375,14 @@ const id = (n) => `engine-card-${n}`;
       const lines = h.B.logEvents(h.B.logSnapshot(board((b) => put(b, "battlefield", BIO))), h.B.logSnapshot(board((b) => { put(b, "battlefield", BIO); put(b, "battlefield", { ...RAVAGER, counters: { P1P1: 2 } }); })),
         board((b) => { put(b, "battlefield", BIO); put(b, "battlefield", { ...RAVAGER, counters: { P1P1: 2 } }); }), h.B.engineFacts([ev(11, "Stack", "Battlefield", id(79))]));
       same("tribute: its trigger's question noted, then said on its arrival", lines.filter((l) => /Tribute/.test(l)), ["Tribute wasn't paid for Nessian Wilds Ravager"]);
+      // (jr suite 2026-11-07) the same trigger's question again (a second target question, a rewind's replay) while the
+      // card stays: said once, not again on the next board
+      h.B.onPrompt(seat, { promptId: 404, decidingPlayerId: "player-0", sourceCard: { id: id(79), identity: { name: "Nessian Wilds Ravager" } }, sourceAbilityText: NOT_PAID.sourceAbilityText,
+        input: { type: "chooseBoolean", confirmLabel: "Yes", denyLabel: "No", presentation: { title: "Use triggered ability of Nessian Wilds Ravager?" } } });
+      await h.flush(1);
+      const stays = board((b) => { put(b, "battlefield", BIO); put(b, "battlefield", { ...RAVAGER, counters: { P1P1: 2 } }); });
+      const again = h.B.logEvents(h.B.logSnapshot(stays), h.B.logSnapshot(stays), stays, null);
+      same("tribute: asked again after it was said, not said again", again.filter((l) => /Tribute/.test(l)), []);
       harness.restore();
     }
   }

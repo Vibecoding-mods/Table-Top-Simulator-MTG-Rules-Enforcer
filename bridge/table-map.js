@@ -101,7 +101,7 @@ const GESTURES = {
 // { skip }. The marks land in "allMarks", the whole label under the player's life in order (bridge PLAYER_MARKS,
 // trackMarks, playerMarks); the old "marks" and the six fields poison, energy, monarch, initiative, blessed and story
 // went in docs/core-moves-cleanup-plan.md "2. trackMarks" step 6. A PLAYER_MARKS row with no label (extra turns) has a
-// row key of its own, sent by playerMarks beside allMarks.
+// row key of its own, its `row`, sent by playerMarks beside allMarks.
 const PLAYER_FACTS = {
   id: { to: ["slot"], show: "which seat" },
   name: { to: ["name"], show: "the seat's name" },

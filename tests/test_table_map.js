@@ -46,9 +46,11 @@ for (const f of playerFields) ok(`PlayerDto.${f} is mapped`, !!PLAYER_FACTS[f], 
 for (const f of Object.keys(PLAYER_FACTS)) ok(`${f} is still a PlayerDto field`, playerFields.includes(f));
 const send = bridge.slice(bridge.indexOf("function sendTable("), bridge.indexOf("function sendTable(") + 6000);
 const marksFn = bridge.slice(bridge.indexOf("function playerMarks("), bridge.indexOf("function cardIndex("));
-// (a key playerMarks sends beside allMarks: a PLAYER_MARKS row's value under a row key of its own, extraTurns)
-const marksKeys = new Set([...marksFn.matchAll(/\{ (\w+): values\.(\w+) \}/g)].filter((m) => m[1] === m[2]).map((m) => m[1]));
-ok("playerMarks: precondition, its own row keys were found (extraTurns)", marksKeys.has("extraTurns") && /\.\.\.playerMarks\(p, pub\)/.test(send), [...marksKeys].join(" "));
+// (a key playerMarks sends beside allMarks: a PLAYER_MARKS row's value under a row key of its own, its `row`, extraTurns;
+// playerMarks sends every row's)
+const marksKeys = new Set([...marksFn.matchAll(/\{ key: "\w+", row: "(\w+)"/g)].map((m) => m[1]));
+ok("playerMarks: precondition, its own row keys were found (extraTurns), and it sends each row's", marksKeys.has("extraTurns") && /\.\.\.playerMarks\(p, pub\)/.test(send)
+  && /for \(const m of PLAYER_MARKS\) if \(m\.row && markShown\(values\[m\.key\]\)\) out\[m\.row\] = values\[m\.key\];/.test(marksFn), [...marksKeys].join(" "));
 for (const [f, e] of Object.entries(PLAYER_FACTS)) for (const k of e.to || []) {
   ok(`${f}: the player row sends ${k}`, k === "allMarks" ? /\.\.\.playerMarks\(p, pub\)/.test(send) && /\{ allMarks: labels \}/.test(marksFn)
     : new RegExp(`\\b${k}\\b`).test(send) || marksKeys.has(k), "the map names a key that is gone");

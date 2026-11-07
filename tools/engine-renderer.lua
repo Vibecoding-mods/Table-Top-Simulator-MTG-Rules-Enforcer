@@ -2810,6 +2810,11 @@ function engineStopsOf(color)
   return engineStops[color]
 end
 
+-- whether n picks answer a multi-pick question p: from its min (0 when unsaid) to its max (99); the one rule for the
+-- row's Done colour and confirm's refusal, which say the same of the same picks
+function engineCountOk(p, n)
+  return n >= (p.min or 0) and n <= (p.max or 99)
+end
 local function updateOptions(color)
   -- (a fix from hand: the engine is paused, and the panel lists the player's hand instead, M7 §12)
   if engineFixHandDraw ~= nil and engineFixHandDraw(color) then return end
@@ -3155,8 +3160,10 @@ local function confirm(color)
   for i, o in ipairs(p.options or {}) do if engineSelected[color] and engineSelected[color][i] then ids[#ids + 1] = o.id end end
   -- too few or too many would make the engine abort the game (the bridge checks this too): said, as the bridge's own
   -- refusal says it (forage's Done of 1 of 3 did nothing and said nothing, live check 11)
-  if #ids < (p.min or 0) or #ids > (p.max or 99) then
-    local need = (p.min == p.max) and tostring(p.min) or (tostring(p.min or 0) .. "-" .. tostring(p.max or 99))
+  if not engineCountOk(p, #ids) then
+    -- (the same bounds engineCountOk reads: a question without its min or max says "0-..." or "...-99", never "nil")
+    local lo, hi = p.min or 0, p.max or 99
+    local need = lo == hi and tostring(lo) or (tostring(lo) .. "-" .. tostring(hi))
     if engineTell ~= nil then engineTell(color, "Choose " .. need .. " (you chose " .. #ids .. ").") end
     return
   end
@@ -3267,7 +3274,7 @@ function engineRowUpdate(color)
   if p.mode == "multi" and not engineExactPick(p) then
     local n = count(sel)
     -- (pressable below its count too, to say how many: only its colour says it isn't ready)
-    b[#b + 1] = { id = "confirm", text = "Done (" .. n .. ")", primary = n >= (p.min or 0) and n <= (p.max or 99) }
+    b[#b + 1] = { id = "confirm", text = "Done (" .. n .. ")", primary = engineCountOk(p, n) }
   end
   -- wide enough for its pictures and its buttons (220 each, 12 apart)
   setAttr("eng_row_" .. color, "width", tostring(math.max(720, #tiles * 192 + 60, math.min(#b, ROW_BTNS) * 232 + 48)))
