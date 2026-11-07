@@ -1,0 +1,368 @@
+{
+ "id": "kykar_winds_fury",
+ "label": "Kykar, Wind's Fury (the user's deck, 2026-11-07)",
+ "commander": "Kykar, Wind's Fury",
+ "format": "commander",
+ "cards": [
+  {
+   "name": "Kykar, Wind's Fury",
+   "count": 1
+  },
+  {
+   "name": "Adarkar Wastes",
+   "count": 1
+  },
+  {
+   "name": "Akroma's Will",
+   "count": 1
+  },
+  {
+   "name": "Alchemist's Gambit",
+   "count": 1
+  },
+  {
+   "name": "Anointed Procession",
+   "count": 1
+  },
+  {
+   "name": "Arcane Bombardment",
+   "count": 1
+  },
+  {
+   "name": "Arcane Denial",
+   "count": 1
+  },
+  {
+   "name": "Arcane Signet",
+   "count": 1
+  },
+  {
+   "name": "Archmage Emeritus",
+   "count": 1
+  },
+  {
+   "name": "Battlefield Forge",
+   "count": 1
+  },
+  {
+   "name": "Big Score",
+   "count": 1
+  },
+  {
+   "name": "Blue Sun's Twilight",
+   "count": 1
+  },
+  {
+   "name": "Boros Charm",
+   "count": 1
+  },
+  {
+   "name": "Brass's Bounty",
+   "count": 1
+  },
+  {
+   "name": "Chaos Warp",
+   "count": 1
+  },
+  {
+   "name": "Clever Concealment",
+   "count": 1
+  },
+  {
+   "name": "Clifftop Retreat",
+   "count": 1
+  },
+  {
+   "name": "Command Tower",
+   "count": 1
+  },
+  {
+   "name": "Counterspell",
+   "count": 1
+  },
+  {
+   "name": "Crackle with Power",
+   "count": 1
+  },
+  {
+   "name": "Deflecting Palm",
+   "count": 1
+  },
+  {
+   "name": "Electrostatic Field",
+   "count": 1
+  },
+  {
+   "name": "Esper Sentinel",
+   "count": 1
+  },
+  {
+   "name": "Expansion // Explosion",
+   "count": 1
+  },
+  {
+   "name": "Experimental Augury",
+   "count": 1
+  },
+  {
+   "name": "Fact or Fiction",
+   "count": 1
+  },
+  {
+   "name": "Fateful Absence",
+   "count": 1
+  },
+  {
+   "name": "Fellwar Stone",
+   "count": 1
+  },
+  {
+   "name": "Fierce Guardianship",
+   "count": 1
+  },
+  {
+   "name": "Firebrand Archer",
+   "count": 1
+  },
+  {
+   "name": "Flawless Maneuver",
+   "count": 1
+  },
+  {
+   "name": "Floodfarm Verge",
+   "count": 1
+  },
+  {
+   "name": "Ghostly Prison",
+   "count": 1
+  },
+  {
+   "name": "Glacial Fortress",
+   "count": 1
+  },
+  {
+   "name": "Guardian of Faith",
+   "count": 1
+  },
+  {
+   "name": "Hallowed Fountain",
+   "count": 1
+  },
+  {
+   "name": "Idyllic Tutor",
+   "count": 1
+  },
+  {
+   "name": "Impact Tremors",
+   "count": 1
+  },
+  {
+   "name": "Inspiring Vantage",
+   "count": 1
+  },
+  {
+   "name": "Intangible Virtue",
+   "count": 1
+  },
+  {
+   "name": "Island",
+   "count": 6
+  },
+  {
+   "name": "Izzet Signet",
+   "count": 1
+  },
+  {
+   "name": "Jin-Gitaxias, Progress Tyrant",
+   "count": 1
+  },
+  {
+   "name": "Karn's Bastion",
+   "count": 1
+  },
+  {
+   "name": "Mentor of the Meek",
+   "count": 1
+  },
+  {
+   "name": "Merchant Scroll",
+   "count": 1
+  },
+  {
+   "name": "Mind Stone",
+   "count": 1
+  },
+  {
+   "name": "Mindsplice Apparatus",
+   "count": 1
+  },
+  {
+   "name": "Monastery Mentor",
+   "count": 1
+  },
+  {
+   "name": "Mondrak, Glory Dominus",
+   "count": 1
+  },
+  {
+   "name": "Mountain",
+   "count": 4
+  },
+  {
+   "name": "Mystic Monastery",
+   "count": 1
+  },
+  {
+   "name": "Mystic Remora",
+   "count": 1
+  },
+  {
+   "name": "Mystical Tutor",
+   "count": 1
+  },
+  {
+   "name": "Niv-Mizzet, Parun",
+   "count": 1
+  },
+  {
+   "name": "Path of Ancestry",
+   "count": 1
+  },
+  {
+   "name": "Path to Exile",
+   "count": 1
+  },
+  {
+   "name": "Plains",
+   "count": 3
+  },
+  {
+   "name": "Propaganda",
+   "count": 1
+  },
+  {
+   "name": "Ral Zarek",
+   "count": 1
+  },
+  {
+   "name": "Ral, Storm Conduit",
+   "count": 1
+  },
+  {
+   "name": "Raugrin Triome",
+   "count": 1
+  },
+  {
+   "name": "Reflect Damage",
+   "count": 1
+  },
+  {
+   "name": "Reliquary Tower",
+   "count": 1
+  },
+  {
+   "name": "Reverberate",
+   "count": 1
+  },
+  {
+   "name": "Reverse the Sands",
+   "count": 1
+  },
+  {
+   "name": "Rhystic Study",
+   "count": 1
+  },
+  {
+   "name": "Riverpyre Verge",
+   "count": 1
+  },
+  {
+   "name": "Sacred Foundry",
+   "count": 1
+  },
+  {
+   "name": "Saheeli, Sublime Artificer",
+   "count": 1
+  },
+  {
+   "name": "Seachrome Coast",
+   "count": 1
+  },
+  {
+   "name": "Shivan Reef",
+   "count": 1
+  },
+  {
+   "name": "Skullclamp",
+   "count": 1
+  },
+  {
+   "name": "Slip Out the Back",
+   "count": 1
+  },
+  {
+   "name": "Sol Ring",
+   "count": 1
+  },
+  {
+   "name": "Solve the Equation",
+   "count": 1
+  },
+  {
+   "name": "Spirebluff Canal",
+   "count": 1
+  },
+  {
+   "name": "Steam Vents",
+   "count": 1
+  },
+  {
+   "name": "Storm-Kiln Artist",
+   "count": 1
+  },
+  {
+   "name": "Sulfur Falls",
+   "count": 1
+  },
+  {
+   "name": "Swords to Plowshares",
+   "count": 1
+  },
+  {
+   "name": "Talisman of Creativity",
+   "count": 1
+  },
+  {
+   "name": "Talisman of Progress",
+   "count": 1
+  },
+  {
+   "name": "Third Path Iconoclast",
+   "count": 1
+  },
+  {
+   "name": "Time Warp",
+   "count": 1
+  },
+  {
+   "name": "Tocasia's Welcome",
+   "count": 1
+  },
+  {
+   "name": "Veyran, Voice of Duality",
+   "count": 1
+  },
+  {
+   "name": "Warleader's Call",
+   "count": 1
+  },
+  {
+   "name": "Wear // Tear",
+   "count": 1
+  },
+  {
+   "name": "Young Pyromancer",
+   "count": 1
+  }
+ ]
+}

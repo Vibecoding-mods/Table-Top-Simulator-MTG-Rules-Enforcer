@@ -1,0 +1,8 @@
+{
+  "label": "kykar-2: Kykar hand test batch 2 (mid-game): magecraft creatures, Veyran, Ral, Saheeli, copies, treasures",
+  "lands": 0,
+  "keepHand": true,
+  "hand": ["Veyran, Voice of Duality", "Storm-Kiln Artist", "Third Path Iconoclast", "Firebrand Archer", "Arcane Bombardment",
+           "Reverberate", "Ral Zarek", "Ral, Storm Conduit", "Saheeli, Sublime Artificer", "Expansion // Explosion", "Big Score",
+           "Brass's Bounty", "Crackle with Power", "Solve the Equation", "Mentor of the Meek", "Tocasia's Welcome"]
+}

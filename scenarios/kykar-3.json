@@ -1,0 +1,9 @@
+{
+  "label": "kykar-3: Kykar hand test batch 3 (mid-game): taxes, doublers, protection, phasing, lands; AI attackers",
+  "keepHand": true,
+  "lands": ["Glacial Fortress", "Inspiring Vantage", "Seachrome Coast", "Sacred Foundry", "Mystic Monastery"],
+  "hand": ["Propaganda", "Warleader's Call", "Electrostatic Field", "Mindsplice Apparatus", "Jin-Gitaxias, Progress Tyrant",
+           "Mondrak, Glory Dominus", "Anointed Procession", "Akroma's Will", "Flawless Maneuver", "Fateful Absence", "Boros Charm",
+           "Slip Out the Back", "Reverse the Sands", "Steam Vents", "Raugrin Triome", "Path of Ancestry", "Spirebluff Canal"],
+  "opponents": { "battlefield": ["Serra Angel", "Craw Wurm", "Hill Giant", "Mountain", "Mountain", "Mountain", "Mountain", "Mountain", "Mountain"] }
+}

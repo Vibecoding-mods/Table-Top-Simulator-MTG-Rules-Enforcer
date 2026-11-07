@@ -1,0 +1,10 @@
+{
+  "label": "kykar-1: Kykar hand test turn 1: rocks, taxes, Archmage, Young Pyromancer, removal, counters",
+  "lands": ["Plains", "Plains", "Plains", "Plains", "Island", "Island", "Island", "Island", "Mountain", "Mountain", "Mountain", "Mountain",
+            "Adarkar Wastes", "Battlefield Forge", "Shivan Reef", "Floodfarm Verge", "Riverpyre Verge", "Karn's Bastion", "Reliquary Tower", "Command Tower"],
+  "hand": ["Sol Ring", "Arcane Signet", "Mind Stone", "Fellwar Stone", "Izzet Signet", "Talisman of Creativity", "Talisman of Progress",
+           "Esper Sentinel", "Rhystic Study", "Mystic Remora", "Archmage Emeritus", "Young Pyromancer", "Skullclamp",
+           "Swords to Plowshares", "Path to Exile", "Counterspell", "Arcane Denial", "Fierce Guardianship", "Hallowed Fountain"],
+  "mana": 99,
+  "opponents": { "battlefield": ["Grizzly Bears", "Hill Giant", "Serra Angel", "Craw Wurm"], "life": 400 }
+}

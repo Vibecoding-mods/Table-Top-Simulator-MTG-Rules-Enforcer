@@ -1,0 +1,13 @@
+{
+  "label": "kykar-g2: Kykar hand test game 2 (after the game 1 trigger-cap draw): the cards game 1 never reached",
+  "lands": ["Plains", "Plains", "Plains", "Plains", "Island", "Island", "Island", "Island", "Mountain", "Mountain", "Mountain", "Mountain",
+            "Adarkar Wastes", "Battlefield Forge", "Shivan Reef", "Command Tower", "Karn's Bastion", "Reliquary Tower", "Floodfarm Verge", "Riverpyre Verge"],
+  "battlefield": ["Archmage Emeritus", "Arcane Bombardment"],
+  "hand": ["Mindsplice Apparatus", "Electrostatic Field", "Propaganda", "Warleader's Call", "Anointed Procession", "Mondrak, Glory Dominus",
+           "Jin-Gitaxias, Progress Tyrant", "Mentor of the Meek", "Guardian of Faith", "Akroma's Will", "Flawless Maneuver", "Clever Concealment",
+           "Slip Out the Back", "Fateful Absence", "Boros Charm", "Reverse the Sands", "Reverberate", "Expansion // Explosion", "Wear // Tear",
+           "Solve the Equation", "Brass's Bounty", "Deflecting Palm", "Arcane Denial", "Fierce Guardianship", "Alchemist's Gambit",
+           "Steam Vents", "Raugrin Triome", "Path of Ancestry", "Spirebluff Canal", "Mystic Monastery", "Glacial Fortress"],
+  "mana": 99,
+  "opponents": { "battlefield": ["Serra Angel", "Craw Wurm", "Hill Giant", "Mountain", "Mountain", "Mountain", "Mountain", "Mountain", "Mountain"], "life": 400 }
+}
