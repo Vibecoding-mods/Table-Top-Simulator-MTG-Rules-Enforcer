@@ -507,6 +507,42 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     await h.flush();
     harness.restore();
   }
+  // extra-turn counter (docs/extra-turn-counter-spec.md, 2026-11-06): the row's extraTurns is Forge's extraTurnCount
+  // read as a positive number, left out at 0 and when the engine doesn't send it (an engine from before); the log says
+  // "will take an extra turn (n coming)" exactly when the count goes up, with the count after it, and nothing when it
+  // goes down (a turn taken, a rewind past Time Walk). The rule is stated here from the spec, not read from the code
+  {
+    const COUNTS = [undefined, 0, 1, 2, 3, "2", -1, true];
+    const pos = (v) => (typeof v === "number" && v > 0 ? v : 0);
+    const at = (v) => { const b = clone(F.board); const p = b.gameView.players.find((x) => x.id === "player-0"); if (v === undefined) delete p.extraTurnCount; else p.extraTurnCount = v; return b; };
+    let rows = 0, shown = 0;
+    for (const v of COUNTS) {
+      const h = harness.load();
+      setup(h, at(v));
+      h.B.sendTable(); await h.flush();
+      const r = sent(h, "table").pop()?.players.find((p) => p.color === "Blue");
+      harness.restore();
+      if (!r) continue;
+      rows++; if ("extraTurns" in r) shown++;
+      ok(`extra turns ${JSON.stringify(v)}: the row's extraTurns is the count when above 0, and absent otherwise`,
+        pos(v) > 0 ? r.extraTurns === pos(v) : !("extraTurns" in r), JSON.stringify(r.extraTurns));
+      ok(`extra turns ${JSON.stringify(v)}: no label for it under the life total`, !(r.allMarks || []).some((m) => /EXTRA TURNS?\b.*\d|COMING/.test(m)), JSON.stringify(r.allMarks));
+    }
+    ok("extra turns: precondition, every count made a row, some with the field and some without", rows === COUNTS.length && shown > 0 && shown < rows, `${shown} of ${rows}`);
+    const h = harness.load();
+    setup(h, F.board);
+    let pairs = 0, said = 0;
+    for (const v of COUNTS) for (const w of COUNTS) {
+      const lines = h.B.logEvents(h.B.logSnapshot(at(v).gameView), h.B.logSnapshot(at(w).gameView), at(w).gameView).filter((l) => /extra turn/.test(l));
+      const up = pos(w) - pos(v);
+      pairs++; if (lines.length) said++;
+      const want = up > 0 ? `Blue will take ${up > 1 ? `${up} extra turns` : "an extra turn"} (${pos(w)} coming)` : null;
+      ok(`extra turns ${JSON.stringify(v)} -> ${JSON.stringify(w)}: ${want ? `"${want}"` : "no line"}`, want ? lines.length === 1 && lines[0] === want : lines.length === 0, JSON.stringify(lines));
+    }
+    ok("extra turns: precondition, every pair was logged, some with a line and some without", pairs === COUNTS.length ** 2 && said > 0 && said < pairs, `${said} of ${pairs}`);
+    await h.flush();
+    harness.restore();
+  }
   // turnRuns and controlledBy's say (verifier finding 1, 2026-11-06): "a control is a turn's once a board shows it on
   // the active player with an empty stack, and stays one while the same player keeps it"; the line says "turn" exactly
   // for a turn's control (Mindslaver), plainly otherwise (Opposition Agent's search, on either player's turn). Every

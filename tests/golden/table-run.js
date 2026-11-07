@@ -113,6 +113,8 @@ function scenarios() {
     const soldier = (n) => ({ id: `engine-card-${n}`, n: "Soldier", tok: true, ctl: "Blue", p: 1, t: 1, bp: 1, bt: 1 });
     bb.battlefield.push(soldier(901), soldier(902), soldier(903), soldier(904));
     bb.keep = (bb.keep || []).filter((z) => z !== "battlefield");
+    // (2026-11-07) and an extra turn coming: the badge "2" beside Blue's life, on these boards only
+    bb.extraTurns = 1;
     const life = (n) => { const t = JSON.parse(JSON.stringify(badges)); t.players.find((x) => x.color === "Blue").life = n; return t; };
     const soldiers = (k) => { const t = life(31); for (let n = 905; n < 901 + k; n++) t.players.find((x) => x.color === "Blue").battlefield.push(soldier(n)); return t; };
     one.push(click('getObjectFromGUID("395037").setVar("engineLifeChange", true) return "patched"'),

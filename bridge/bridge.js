@@ -2857,10 +2857,12 @@ const playerCounter = (p, name) => (p.counters || {})[name.toUpperCase()] || (p.
 // The mark field of a player's table row (sendTable), from PLAYER_MARKS below: `allMarks`, the whole label under the
 // life total in order (left out when there is none). The old fields (poison, energy, monarch, initiative, blessed,
 // story, marks) went once both halves were live (docs/core-moves-cleanup-plan.md "2. trackMarks" step 6).
+// `extraTurns` too: the extra turns the player has coming (PLAYER_MARKS' extraTurns), drawn as a number beside the life
+// counter rather than in the label; left out at 0 and from an engine that doesn't send the count.
 function playerMarks(p, pub) {
   // (updateLog has just read this board: game.logPrev is its log snapshot)
-  const { labels } = trackMarks(p, pub, { turnRun: game.logPrev?.turnRun?.[p.id] });
-  return labels.length ? { allMarks: labels } : {};
+  const { values, labels } = trackMarks(p, pub, { turnRun: game.logPrev?.turnRun?.[p.id] });
+  return { ...(labels.length ? { allMarks: labels } : {}), ...(values.extraTurns ? { extraTurns: values.extraTurns } : {}) };
 }
 // Every mark under a player's life total, one row each: `read` takes its value from Forge's player (p) and the game
 // (pub); `label(v, at)` says it on the table (a list of labels for keywords); `say(who, now, was, at)`, if the row has
@@ -2918,6 +2920,10 @@ const PLAYER_MARKS = [
   { key: "handSize", read: (p) => (p.unlimitedHandSize ? "none" : p.maxHandSize != null && p.maxHandSize !== 7 ? String(p.maxHandSize) : null),
     label: (n) => (n === "none" ? "NO MAX HAND SIZE" : `MAX HAND ${n}`) },
   { key: "keywords", read: playerKeywordLabels, label: (list) => list },
+  // (Forge's extra turn count, up when Time Walk resolves and down as each turn starts: no label, the table draws it
+  // as a number beside the life counter, playerMarks' extraTurns; the log says each one added, the count after it)
+  { key: "extraTurns", read: (p) => positive(p.extraTurnCount), label: () => [],
+    say: (who, n, was) => (n > was ? `${who} will take ${n - was > 1 ? `${n - was} extra turns` : "an extra turn"} (${n} coming)` : null) },
 ];
 const markShown = (v) => (Array.isArray(v) ? v.length > 0 : !!v);
 // One player's marks: { values: key -> value, labels: the whole label list in order }. `at.turnRun`: who runs this

@@ -100,7 +100,8 @@ const GESTURES = {
 // PLAYER_FACTS: Forge's PlayerDto field -> { to: keys of the bridge's player row (sendTable), show }, or { gap }, or
 // { skip }. The marks land in "allMarks", the whole label under the player's life in order (bridge PLAYER_MARKS,
 // trackMarks, playerMarks); the old "marks" and the six fields poison, energy, monarch, initiative, blessed and story
-// went in docs/core-moves-cleanup-plan.md "2. trackMarks" step 6.
+// went in docs/core-moves-cleanup-plan.md "2. trackMarks" step 6. A PLAYER_MARKS row with no label (extra turns) has a
+// row key of its own, sent by playerMarks beside allMarks.
 const PLAYER_FACTS = {
   id: { to: ["slot"], show: "which seat" },
   name: { to: ["name"], show: "the seat's name" },
@@ -115,7 +116,7 @@ const PLAYER_FACTS = {
   cardsDrawnThisTurn: { skip: "the log says each draw" },
   damagePrevention: { to: ["allMarks"], show: "PREVENT 3" },
   isExtraTurn: { to: ["allMarks"], show: "EXTRA TURN on the player taking it; the turn header's \"(extra turn)\"" },
-  extraTurnCount: { skip: "isExtraTurn says the turn is one; the log says each extra turn" },
+  extraTurnCount: { to: ["extraTurns"], show: "a number beside the life counter while extra turns are coming: the count + 1 (2 for one), hover \"AI 1 has 1 extra turn coming\"; the log says each one added, \"White will take an extra turn (1 coming)\"" },
   controlledBy: { to: ["allMarks"], show: "TURN RUN BY BLUE (Mindslaver), CONTROLLED BY BLUE (Opposition Agent's search); the log says when it starts and ends" },
   playerKeywords: { to: ["allMarks"], show: "HEXPROOF, YOU CAN'T LOSE THE GAME" },
   commanderCasts: { to: ["tax"], show: "the commander tax counter" },
