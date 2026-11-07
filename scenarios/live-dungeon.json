@@ -1,0 +1,5 @@
+{
+  "label": "live check 8: rewinding during a dungeon: venture twice (Veteran Dungeoneer in main 1, Lost Mine of Phandelver, Cave Entrance; again in main 2, Goblin Lair), rewind to the second main phase: the room must be Cave Entrance again (the next venture offers Goblin Lair / Mine Tunnels, not Storeroom / Dark Pool)",
+  "lands": { "Plains": 12, "Swamp": 4, "Island": 4 },
+  "hand": ["Veteran Dungeoneer", "Veteran Dungeoneer", "Veteran Dungeoneer"]
+}

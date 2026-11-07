@@ -1,0 +1,7 @@
+{
+  "label": "live check 9: live-marks plus an Opposition Agent search (Field of Ruin on the AI's Sulfurous Springs: each player searches, White controls the AI while it searches): speed, the Ring, Time Warp on the AI, Mindslaver on the AI",
+  "mana": 10,
+  "hand": ["Burnout Bashtronaut", "Lightning Bolt", "Lightning Bolt", "Claim the Precious", "Claim the Precious", "Time Warp"],
+  "battlefield": ["Mindslaver", "Grizzly Bears", "Opposition Agent", "Field of Ruin"],
+  "opponents": { "battlefield": ["Llanowar Elves", "Hill Giant", "Sulfurous Springs"] }
+}

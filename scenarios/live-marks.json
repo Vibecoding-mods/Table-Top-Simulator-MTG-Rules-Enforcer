@@ -1,0 +1,7 @@
+{
+  "label": "live check 7: the new log lines and labels: speed (Burnout Bashtronaut, then Bolt the AI), the Ring tempting White (Claim the Precious x2), an extra turn for the AI (Time Warp), a turn run by another player (Mindslaver on the AI, next White turn)",
+  "mana": 10,
+  "hand": ["Burnout Bashtronaut", "Lightning Bolt", "Lightning Bolt", "Claim the Precious", "Claim the Precious", "Time Warp"],
+  "battlefield": ["Mindslaver", "Grizzly Bears"],
+  "opponents": { "battlefield": ["Llanowar Elves", "Hill Giant"] }
+}

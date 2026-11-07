@@ -1,0 +1,8 @@
+{
+  "label": "live checks 10-12: AI 1's Counterspell on Craw Wurm; Treetop Sentries forage twice (refuse 1 + Cancel, then 3); White's own cleaved Wash Away and Remand on its Divinations (mtg hold); then the Auto-resolve list",
+  "mana": 5,
+  "lands": { "Island": 7, "Swamp": 4, "Mountain": 4, "Forest": 5 },
+  "hand": ["Craw Wurm", "Treetop Sentries", "Treetop Sentries", "Divination", "Divination", "Wash Away", "Remand"],
+  "graveyard": ["Island", "Island", "Island", "Island"],
+  "opponents": { "hand": ["Counterspell"], "lands": { "Island": 2 } }
+}

@@ -1,0 +1,9 @@
+{
+  "label": "live check 6b: Wrath of God puts many cards into the same locked graveyard piles (and tokens into the trash) in one board; every pile must end up right with no pile repair (the enginePutsPending relock fix)",
+  "mana": 4,
+  "hand": ["Wrath of God"],
+  "battlefield": ["Grizzly Bears", "Serra Angel", "Hill Giant"],
+  "tokens": ["1/1 white soldier", "2/2 black zombie", "3/3 green beast"],
+  "graveyard": ["Llanowar Elves", "Raise Dead"],
+  "opponents": { "battlefield": ["Llanowar Elves", "Hill Giant", "Grizzly Bears"], "graveyard": ["Shock", "Opt"] }
+}

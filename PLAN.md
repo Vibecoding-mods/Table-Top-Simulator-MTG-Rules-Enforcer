@@ -21,6 +21,14 @@ Last updated: 2026-11-06. The design is in [SPEC.md](SPEC.md); test results and 
   ([docs/card-other-side-spec.md](docs/card-other-side-spec.md)): readable in your hand too, cast from the side shown.
 - ⬜ Small sweep bugs: the second AI named "AI 1 2" in questions and votes; persist's -1/-1 counter missing from the
   return line; Halflingcycling's question naming a basic land; the log gaps in tmp/kw-runs/SUMMARY.md.
+- ⬜ Live-check bugs (2026-11-07, tmp/live-checks/RESULTS.md):
+  - a turn header lost after a cleanup discard: in `logEvents` the discard is put at index 0 but `attackAt` isn't
+    shifted, so the attack splice deletes the header (`White discards Blasphemous Act`, "", `AI 1 draws a card`);
+  - two players' mark labels overlap under the life counters (TURN RUN BY WHITE over RING TEMPTED 2 SPEED 3);
+  - Mindslaver: the log and label say White controls AI 1's turn, but the AI still made AI 1's choices (harness);
+  - small: "Skip ended: combatBegin" uses Forge step names; "Game over" printed twice; forage log order and "with
+    Treetop Sentries" twice; "Claim the Precious: choose a card"; the timer warning told to everyone; Done with too
+    few cards gives no message; the Auto-resolve button's text dim next to "Fix...".
 - ⬜ Slow-tail re-measure on a quiet PC.
 
 ## From the first friends game: done 2026-10-19 (tested live in single player)

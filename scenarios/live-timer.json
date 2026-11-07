@@ -1,0 +1,6 @@
+{
+  "label": "live check 1: the turn timer and the Cancel/Back of the questions under priority: Bonecrusher Giant's 'how do you play it?' (Back), Trading Post's 'which ability?' (Q/E, Cancel), Sulfurous Springs' 'Tap ... for which mana?' (Q/E, Cancel), Talisman of Indulgence's 'Mana: tap' colour question (Back); then each one left to time out",
+  "lands": { "Swamp": 4, "Mountain": 4, "Island": 2 },
+  "hand": ["Bonecrusher Giant"],
+  "battlefield": ["Trading Post", "Sulfurous Springs", "Talisman of Indulgence", "Grizzly Bears"]
+}

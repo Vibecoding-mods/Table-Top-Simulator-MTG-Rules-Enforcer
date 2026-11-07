@@ -1,0 +1,7 @@
+{
+  "label": "live check 4: each effect once: a +1/+1 counter (Battlegrowth on Grizzly Bears), a death (Bolt the Hill Giant), damage that doesn't kill (Bolt the Serra Angel), a player hit (Bolt the AI, 6 -> 3), a knockout (Bolt the AI, 3 -> 0)",
+  "mana": 10,
+  "hand": ["Battlegrowth", "Lightning Bolt", "Lightning Bolt", "Lightning Bolt", "Lightning Bolt"],
+  "battlefield": ["Grizzly Bears"],
+  "opponents": { "battlefield": ["Serra Angel", "Hill Giant"], "life": 6 }
+}

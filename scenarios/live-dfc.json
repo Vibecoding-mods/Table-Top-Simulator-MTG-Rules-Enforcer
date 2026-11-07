@@ -1,0 +1,5 @@
+{
+  "label": "live check 5: double-faced cards drawn into the hand (Delver of Secrets, the MDFC Valakut Awakening) keep the same table object on every later board, not respawned; Night's Whisper draws them",
+  "hand": ["Night's Whisper"],
+  "library": ["Island", "Valakut Awakening", "Delver of Secrets"]
+}
