@@ -269125,7 +269125,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Swarmyard's ability"
+      "Blue uses Swarmyard's ability targeting Drudge Skeletons"
      ]
     }
    },
@@ -269699,7 +269699,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Swarmyard's ability",
+    "Blue uses Swarmyard's ability targeting Drudge Skeletons",
     "Blue casts Murder",
     "Drudge Skeletons regenerates"
    ]
@@ -273995,7 +273995,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "AI 1 uses Typhoid Rats' ability"
+      "AI 1 uses Typhoid Rats' ability targeting Grizzly Bears"
      ]
     }
    },
@@ -274434,7 +274434,7 @@
   ],
   "result": {
    "lines": [
-    "AI 1 uses Typhoid Rats' ability",
+    "AI 1 uses Typhoid Rats' ability targeting Grizzly Bears",
     "Grizzly Bears is goaded by AI 1: it attacks each combat, a player other than AI 1 if able, until AI 1's next turn",
     "--- AI 1's turn 1 ---"
    ],
@@ -309799,7 +309799,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Nelly Borca, Impulsive Accuser's ability"
+      "Blue uses Nelly Borca, Impulsive Accuser's ability targeting Garruk's Companion"
      ]
     }
    },
@@ -310123,7 +310123,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Nelly Borca, Impulsive Accuser's ability",
+    "Blue uses Nelly Borca, Impulsive Accuser's ability targeting Garruk's Companion",
     "Garruk's Companion is suspected: menace, and can't block",
     "Garruk's Companion is goaded by Blue: it attacks each combat, a player other than Blue if able, until Blue's next turn"
    ],
@@ -650501,8 +650501,8 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue casts Surging Dementia",
-      "Blue casts Eternal Dominion"
+      "Blue casts Surging Dementia targeting AI 1",
+      "Blue casts Eternal Dominion targeting AI 1"
      ]
     }
    },
@@ -651575,8 +651575,8 @@
    "Blue copies Eternal Dominion",
    "Improvisation Capstone's paradigm triggers (Blue)",
    "Blue copies Improvisation Capstone",
-   "Blue casts Surging Dementia",
-   "Blue casts Eternal Dominion",
+   "Blue casts Surging Dementia targeting AI 1",
+   "Blue casts Eternal Dominion targeting AI 1",
    "AI 1 discards Explosive Vegetation",
    "Blue can't cast spells for the rest of the game (epic); at each of their upkeeps, Eternal Dominion is copied",
    "Improvisation Capstone is exiled (paradigm): at the start of each of their first main phases, Blue may cast a copy of it without paying its mana cost",
@@ -764942,7 +764942,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Opt is countered",
+      "Opt is countered by An Offer You Can't Refuse",
       "AI 1 creates 2 Treasure tokens"
      ]
     }
@@ -765481,7 +765481,7 @@
    }
   ],
   "result": [
-   "Opt is countered",
+   "Opt is countered by An Offer You Can't Refuse",
    "AI 1 creates 2 Treasure tokens"
   ]
  },

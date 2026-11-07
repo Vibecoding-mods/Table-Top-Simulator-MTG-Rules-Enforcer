@@ -457,6 +457,41 @@ class Seat {
       const act = (this.lastRawPrompt?.input?.actions || []).find((a) => a.id === output.actionId);
       const card = act?.cardId ? cardIndex(this.board?.state?.gameView || {})[act.cardId] : null;
       if (card) this.note("manaTap", act.cardId, card.identity?.name || null, `${act.cost || ""} ${card.text || ""}`);
+      if (card) notePain(this, act, card);
+    }
+    // (what the player's answers say that no board shows, for the log: see logEvents)
+    if (game && this.lastRawPrompt) {
+      const raw = this.lastRawPrompt, src = raw.sourceCard;
+      // (targets picked, by the card whose spell or ability they are: a cast line names them, and a spell target is
+      // in no stack item Forge sends; "White casts Counterspell" named no target, Kykar #8; Skullclamp's equip, #3.
+      // A follow-up pick adds to the first.)
+      if (type === "chooseBoardTargets" && output?.type === "boardTargets" && src?.id) {
+        const ids = (output.chosen || []).map((t) => `${t.kind}|${t.id}`);
+        const was = game.picked?.get(src.id);
+        (game.picked ??= new Map()).set(src.id, { ids: Number(raw.input?.chosenTargets) > 0 && was ? [...was.ids, ...ids] : ids, at: Date.now() });
+      }
+      // (a source chosen, Reflect Damage's, a Circle of Protection's, Deflecting Palm's: said, and kept for what it does
+      // to that source's damage this turn; Reflect Damage's choice read nothing, Kykar #6, Deflecting Palm's #24)
+      const asked = `${raw.input?.presentation?.text || ""} ${raw.input?.presentation?.description || ""}`;
+      if (type === "chooseCards" && /^\s*Choose a source\b/i.test(asked) && src?.identity?.name) {
+        const picked = (raw.input.cards || []).filter((c) => (output?.chosenCardIds || []).includes(c.id) && c.identity?.name);
+        const how = String(raw.sourceAbilityText || src.text || "");
+        if (picked.length) {
+          gameLogLine(`${nameOf(this.slot)} chooses ${picked.map((c) => c.identity.name).join(", ")} (${src.identity.name})`);
+          // (kept for the turn it was chosen in: "this turn", every such shield's words)
+          const turn = this.board?.state?.gameView?.turn;
+          game.sourceShields = (game.sourceShields || []).filter((x) => x.turn === turn);
+          for (const c of picked) game.sourceShields.push({ id: c.id, by: src.identity.name, slot: this.slot, turn,
+            kind: /\binstead\b/i.test(how) && /\bdealt to\b/i.test(how) && !/\bprevent\b/i.test(how) ? "redirect" : /\bprevent\b/i.test(how) ? "prevent" : null,
+            ...(/\bdeals that much damage to that source's controller\b/i.test(how) ? { back: true } : {}) });
+        }
+      }
+      // (a yes or no to a card's "may", by the card, or to its "Pay {1}?": an "unless that player pays" trigger's, see
+      // unlessNews. Forge asks the payment first, Rhystic Study's "Pay {1}?" before "Do you want to draw a card?".)
+      if (type === "chooseBoolean" && src?.id) {
+        const pay = /^Pay\b/i.test(String(raw.input?.presentation?.title || ""));
+        (game[pay ? "payAnswers" : "mayAnswers"] ??= new Map()).set(src.id, { value: output?.value !== false, at: Date.now() });
+      }
     }
     if (type === "chooseAction" && output?.type === "act") {
       const act = (this.lastRawPrompt?.input?.actions || []).find((a) => a.id === output.actionId);
@@ -468,7 +503,11 @@ class Seat {
       const desc = String(act?.description || "");
       const text = act?.cost || (desc.includes(":") ? desc.split(":")[0] : "");
       if (act?.cardId && act.type === "activateAbility") this.note("activate", act.cardId, cardName, text); else this.forget("activate");
-      if (act?.cardId && act.isManaAbility) this.note("manaTap", act.cardId, cardName, text);
+      if (act?.cardId && act.isManaAbility) {
+        this.note("manaTap", act.cardId, cardName, text);
+        const card = cardIndex(this.board?.state?.gameView || {})[act.cardId];
+        if (card) notePain(this, act, card);
+      }
       if (act?.cardId && (act.type === "cast" || act.type === "activateAbility") && !act.isManaAbility) {
         this.note("start", act.cardId, cardName);
         notePlay(this, act, cardName, promptId);
@@ -1259,8 +1298,16 @@ function logSnapshot(pub, prev = null) {
   for (const z of pub.zones || []) {
     if (PUBLIC_ZONES.includes(z.zone)) for (const c of z.cards || []) {
       // (a face-down card is named in nobody's log: the board comes from one seat's view, which may know what it is)
+      // (its owner by the card: a battlefield zone is its controller's, and Chaos Warp on AI 1's Hill Giant under White's
+      // control read "is put into White's library", Kykar #12)
       if (c.identity) cards[c.id] = { zone: z.zone, name: c.isFaceDown ? "a face-down card" : c.identity.name, fd: !!c.isFaceDown,
-        owner: z.ownerId, ctl: c.controllerId || z.ownerId,
+        owner: c.ownerId || z.ownerId, ctl: c.controllerId || z.ownerId,
+        // (what a creature can deal and has been dealt, for the damage lines: see damageNews)
+        ...(c.damage > 0 ? { dmg: c.damage } : {}), ...((c.types || []).includes("Creature") && /^\d+$/.test(String(c.power ?? "")) ? { pw: Number(c.power) } : {}),
+        ...(hasKeyword(c, "Lifelink") ? { ll: true } : {}), ...(hasKeyword(c, "Double Strike") ? { ds: true } : {}), ...(hasKeyword(c, "First Strike") ? { fs: true } : {}),
+        ...(c.isAttacking && (c.attackingPlayerId || c.attackTargetId) ? { atp: c.attackingPlayerId || c.attackTargetId } : {}),
+        // (a creature's keywords, for the ones a spell gives: see tapNews)
+        ...(z.zone === "battlefield" && c.keywords?.length && (c.types || []).includes("Creature") ? { kw: c.keywords.map(String) } : {}),
         land: (c.types || []).includes("Land"), creature: (c.types || []).includes("Creature"), token: !!c.identity.isToken, attacking: !!c.isAttacking, tapped: !!c.tapped,
         ...(c.isPlotted ? { plotted: true } : {}), ...(c.attachedTo ? { att: c.attachedTo } : {}),
         ...(c.exiledWith ? { ew: c.exiledWith, rl: !!c.returnsWhenHostLeaves } : {}),
@@ -1269,7 +1316,8 @@ function logSnapshot(pub, prev = null) {
         spell: (c.types || []).some((t) => t === "Instant" || t === "Sorcery"), p1: c.counters?.P1P1 || 0, m1: c.counters?.M1M1 || 0,
         // (its other counters but loyalty, for its arrival line: Tangle Wire's 4 fade counters read nothing, hp-14 gap)
         ...((o) => (o.length ? { ctrs: o } : {}))(Object.entries(c.counters || {}).filter(([k, n]) => n > 0 && !/^(?:P1P1|M1M1|LOYALTY)$/i.test(k))),
-        ...(c.counters?.LOYALTY > 0 ? { loy: c.counters.LOYALTY } : {}),
+        // (Forge's key is "Loyalty": read as "LOYALTY", no planeswalker's loyalty was ever seen, Kykar #13 probe)
+        ...((n) => (n > 0 ? { loy: n } : {}))(Object.entries(c.counters || {}).find(([k]) => /^loyalty$/i.test(k))?.[1]),
         ...(c.mergedCardIds?.length ? { merged: [...c.mergedCardIds] } : {}),
         ...(hasKeyword(c, "Rebound") ? { rebound: true } : {}),
         ...(hasKeyword(c, "Suspend") ? { suspend: true } : {}),
@@ -1300,7 +1348,8 @@ function logSnapshot(pub, prev = null) {
     const effect = /(?:'s Effect|' Paradigm)$/.test(s.identity?.name || "");
     let name = s.identity?.name && s.identity.name !== "?" ? s.identity.name.replace(/' Paradigm$/, "").replace(/(?: \(\d+\))?'s Effect$/, "") : ability ? "a face-down permanent" : "a face-down spell"; // (a face-down creature's ward read "a face-down spell's", hp-20 gap)
     // (a token's ability by the log's word for it: "Goblin Shaman Token's ability triggers" on the real table, 2026-11-05)
-    if (ability && cards[s.sourceId]?.token && s.identity?.name) name = tokenWords(name, true);
+    // (or by Forge's word, its token sacrificed to pay for it: a Clue's, Kykar #19)
+    if (ability && (cards[s.sourceId]?.token || s.identity?.isToken) && s.identity?.name) name = tokenWords(name, true);
     // (an upkeep cost's trigger by its keyword: Karmic Guide's echo read "White uses Karmic Guide's ability", then "dies", hp-06)
     // (and cumulative upkeep's, by its cost: Mystic Remora's read "uses Mystic Remora's ability", hp-05)
     // (a cost that isn't mana is said as itself: Glacial Chasm's "Cumulative upkeep—Pay 2 life.", "pay 2 life for each ...")
@@ -1342,6 +1391,9 @@ function logSnapshot(pub, prev = null) {
       || (s.sourceAbilityText || "").match(/^([A-Z][a-z]+) \{[^(]*\((?:You may pay an additional|As an additional cost)\b/)?.[1]?.toLowerCase() : null;
     // (a regeneration shield's creature: the ability's target, or its own source, see logEvents)
     const cardTargets = (s.targets || []).filter((t) => t.kind === "card").map((t) => t.id);
+    // (each player once: Explosion's damage and its draw at one player are two targets, and read as two hits of 2 its
+    // "-2" was left bare, Kykar probe)
+    const playerTargets = [...new Set((s.targets || []).filter((t) => t.kind === "player").map((t) => t.id))];
     const regen = ability && /\bRegenerate\b/.test(s.sourceAbilityText || "") ? (cardTargets.length ? cardTargets : [s.sourceId]) : null;
     // (an ability its source has from a card exiled with it, by that card: Mairsil's from its caged Royal Assassin read
     // "White uses Mairsil, the Pretender's ability", rebuilt hand test #17)
@@ -1355,9 +1407,14 @@ function logSnapshot(pub, prev = null) {
     stack[key] ??= { id: s.sourceId, name, ctl: s.controllerId, ability, trigger, kwTrigger, upkeepCost, n: 0, sids: [], tg: [], ...(regen ? { regen } : {}), ...(effect ? { effect } : {}),
       ...(s.optionalCosts?.length ? { opt: s.optionalCosts } : {}), ...(via ? { via } : {}), ...(room ? { room } : {}),
       // (its words and the cards it targets: a goad's creatures, see logEvents)
-      text: s.sourceAbilityText || "", cardTg: cardTargets, plTg: (s.targets || []).filter((t) => t.kind === "player").map((t) => t.id) };
+      text: s.sourceAbilityText || "", cardTg: cardTargets, plTg: playerTargets,
+      // (Forge's stack words, its numbers and "Activator" filled in: a damage's amount, an unless payment's payer)
+      desc: s.text || "" };
     stack[key].n++;
     stack[key].sids.push(s.id);
+    // (each item's own targets, by its stack id: two of Niv-Mizzet's pings are one entry, and one may resolve before the
+    // other; see logEvents' resolved)
+    (stack[key].tgBy ??= {})[s.id] = { c: cardTargets, p: playerTargets };
     for (const t of s.targets || []) if (t.kind === "spell") stack[key].tg.push(t.id);
     // (and those a counterspell targets: an instant or sorcery under one is countered too, see logEvents)
     // (one cast another way, by its card once it has left the stack, see logEvents: not by Forge's stack words, "Wash Away
@@ -1397,11 +1454,16 @@ function turnRuns(prev, marks, pub) {
 // instants and sorceries their text, so "White uses Lightning Bolt's ability" was logged for a cast. A spell's card is
 // in no zone while it is on the stack; an ability's source still is (battlefield, graveyard, command zone, ...), and a
 // triggered ability says when it triggers.
+// An activated ability's words, its cost before the colon: mana, a sacrifice, a tap, a loyalty cost, ...
+const ACTIVATION_COST = /^(?:\{[^}]+\}|Sacrifice\b|Pay\b|Discard\b|Remove\b|Exile\b|Tap\b|Untap\b|Return\b|[+−-](?:\d+|X)|0)[^.:]*:\s/;
 function isAbilityOnStack(s, pub) {
   if (!s.sourceAbilityText || s.isPermanentSpell) return false;
   // (the engine's word first: a token's "Partner with" trigger, the token gone to the legend rule, was in no zone and read
-  // "White casts Zndrsplt, Eye of Wisdom", rebuilt re-test)
-  if (s.isTrigger || /^(When|Whenever|At|As)\b/.test(s.sourceAbilityText)) return true;
+  // "White casts Zndrsplt, Eye of Wisdom", rebuilt re-test. Forge sends isTrigger only when it is true, so a trigger's
+  // own words stand in for an engine without it; never "As": a spell's text starts "As an additional cost to cast this
+  // spell", and Big Score read "(your ability)" and "White uses Big Score's ability" for Jin-Gitaxias's copy, Kykar #25.
+  // No trigger of Forge's starts "As": "As ... enters" is a replacement, never on the stack.)
+  if (s.isTrigger || /^(When|Whenever|At)\b/.test(s.sourceAbilityText)) return true;
   // (Forge's "<Keyword> - <card>" trigger, its source the spell on the stack: Throes of Chaos's "Cascade - Throes of
   // Chaos" read as a second spell, "White casts Throes of Chaos" twice, hp-15)
   if (/^[A-Z][a-z]+(?: \d+)? - .+$/.test(s.sourceAbilityText)) return true;
@@ -1409,6 +1471,10 @@ function isAbilityOnStack(s, pub) {
   if (/^Paradigm \(/.test(s.sourceAbilityText)) return true;
   // (and a keyword activated from a hand no one else sees: another player's transmute read "AI 1 casts ...", keyword sweep)
   if (keywordKind(s.sourceAbilityText) !== "ability") return true;
+  // (a token's, or one with a cost before its colon, its source sacrificed to pay it and so in no zone: no token is cast,
+  // and no spell's words start with a cost; AI 1's Clue read "AI 1 casts Clue Token", Kykar #19. A copy of a spell is
+  // no token: Twincast's of Big Score has isToken false.)
+  if (s.identity?.isToken || ACTIVATION_COST.test(s.sourceAbilityText)) return true;
   // (not the hand or the library: a spell with buyback was still listed in the hand, and "White uses Constant Mists's
   // ability" was logged, playtest 2026-10-27)
   return (pub.zones || []).some((z) => z.zone !== "hand" && z.zone !== "library" && (z.cards || []).some((c) => c.id === s.sourceId));
@@ -1444,9 +1510,30 @@ function notePlay(seat, act, name, promptId) {
   // 2026-10-31)
   const face = kind === "cast" && !how ? String(act.label || "").match(/^Cast (.+)$/)?.[1] : null;
   if (face && card?.isDoubleFaced && !name.includes("//")) name = face;
+  // (and one half of a split card, the stack's name for it too: "White casts Expansion // Explosion" for Explosion,
+  // Kykar #14. Not both halves fused, "Cast both halves (fuse)".)
+  else if (face && name.includes("//") && name.split(" // ").includes(face)) name = face;
+  // (free by the card's own words, Forge's static alternative cost: Flawless Maneuver with a commander out read "White
+  // casts Flawless Maneuver", Kykar #22)
+  const free = kind === "cast" && act.mode?.type === "staticAlternative" && /\byou may cast (?:this spell|it) without paying its mana cost\b/i.test(card?.text || "");
   // (and a cast from where it was, by the card's own keyword when Forge's action names none)
   const from = kind === "cast" ? castFrom(zone?.zone, card) : null;
-  game.pendingPlays.push({ id: act.cardId, name: faceDown ? "a face-down spell" : how ? `${name} (${how})` : from ? `${name} ${from}` : name, ctl: seat.slot, kind, text: way, at: Date.now(), promptId: promptId ?? 0 });
+  game.pendingPlays.push({ id: act.cardId, name: faceDown ? "a face-down spell" : how ? `${name} (${how})` : `${name}${from ? ` ${from}` : ""}${free ? " without paying its mana cost" : ""}`, ctl: seat.slot, kind, text: way, at: Date.now(), promptId: promptId ?? 0 });
+}
+// A mana ability tapped that deals damage to its player, noted for the life line it makes (paintapLoss in logEvents):
+// the line of the card's text that adds the mana made and says "deals N damage to you", a pain land's coloured {T} or
+// Ancient Tomb's {C}{C}. Its colourless {T} has no such words and says nothing. Three bare "White: 38 -> 37 life
+// (-1)" lines for Adarkar Wastes, Battlefield Forge and Shivan Reef, Kykar #4.
+function notePain(seat, act, card) {
+  const made = (act?.producedMana || []).map((m) => m.color);
+  if (!game || !made.length) return;
+  for (const line of String(card.text || "").split(/\n/)) {
+    const m = /\bdeals (\d+) damage to you\b/i.exec(line);
+    const symbols = [...line.matchAll(/\{([WUBRGC])\}/g)].map((x) => x[1]);
+    if (!m || !/\bAdd\b/.test(line) || !made.every((c) => symbols.includes(c))) continue;
+    (game.painTaps ??= []).push({ slot: seat.slot, name: card.identity?.name || "a land", n: Number(m[1]), at: Date.now() });
+    return;
+  }
 }
 // Where a cast came from, said after its name: nothing from a hand or the command zone.
 // (the top of the library: Augur of Autumn's coven cast of King Macar read "White casts King Macar", hp-14 gap; exile:
@@ -1524,7 +1611,7 @@ function engineFacts(events) {
   // off it, see logEvents)
   // (firstSeq: each moved card's first move by Forge's order, so what was moved to pay a cost before a draw is said
   // before it, see logEvents)
-  const facts = { moves: new Map(), firstSeq: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), offStack: [] };
+  const facts = { moves: new Map(), firstSeq: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), drawsBy: new Map(), offStack: [] };
   for (const e of events) {
     if (e.seq <= seen) continue;
     if (e.from === "Stack" && e.cardId) facts.offStack.push({ id: e.cardId, to: e.to, owner: e.ownerId });
@@ -1541,6 +1628,8 @@ function engineFacts(events) {
     // (what an ability did, by the card whose ability it was: one that went on the stack and resolved between two boards
     // was never named, re-test 2 bug g. An effect's word only: not a cost's, a replacement's, or a card moving itself.)
     if (e.causeCardId && e.causeCardId !== e.cardId && /^[A-Z][A-Za-z]+$/.test(e.cause || "")) facts.causes.set(e.causeCardId, e.causeName);
+    // (and how many cards each one drew: of two Mentor of the Meek triggers, which were paid for, see unlessNews)
+    if (e.causeCardId && e.how === "draw") facts.drawsBy.set(e.causeCardId, (facts.drawsBy.get(e.causeCardId) || 0) + 1);
     if (!e.cardId) continue;
     const was = facts.moves.get(e.cardId);
     const cause = was?.cause ? { cause: was.cause, causeName: was.causeName } : e.cause ? { cause: e.cause, causeName: e.causeName } : {};
@@ -1574,8 +1663,11 @@ function costWords(m, name) {
 }
 // A sacrifice's words after its line: its cost's, or "for mana" for a card that pays its own mana ability with itself
 // (seven Treasures for one spell read "Treasure Token is sacrificed" seven times, no reason, rebuilt hand test #3)
+// (and the effect that made its player sacrifice it, Forge's resolving "Sacrifice": Diabolic Edict's Hill Giant read
+// only "is sacrificed", ability sweep)
 function sacrificeWords(m, was) {
-  return costWords(m, was.name) || (was.selfMana && (!m?.cause || (m.cause === "Cost:Sacrifice" && m.causeName === was.name)) ? " for mana" : "");
+  return costWords(m, was.name) || (was.selfMana && (!m?.cause || (m.cause === "Cost:Sacrifice" && m.causeName === was.name)) ? " for mana" : "")
+    || (m?.cause === "Sacrifice" && m.causeName && m.causeName !== was.name ? ` (${m.causeName})` : "");
 }
 // (many cards by count: Cut Your Losses's 46 read as one name after another, hp-16)
 const byCount = (names) => [...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
@@ -1698,6 +1790,181 @@ function takenOffStack(offStack, prevSpellOf, cards, pubIndex) {
   return taken;
 }
 
+// What dealt damage between two boards, and to what (Forge sends no damage event: GameViewDto.events moves cards only).
+// The evidence: a damage spell or ability that left the stack, its targets (a creature's marked damage rising, or the
+// creature gone, or a player's life falling) or its "each opponent / each creature"; and combat, an unblocked
+// attacker's power at the player it attacks, once for each combat damage step it deals damage in (double strike in
+// both), and lifelink's gain beside either. A loss nothing explains stays bare: a pain land of another player's, a
+// trigger that came and went between two boards. Niv-Mizzet's pings read only "ability triggers" and "dies", Kykar #11;
+// Kykar's double-strike lifelink attack four bare life lines, #26; Pyroclasm's survivor nothing, ability sweep.
+// A source chosen for a prevention or a redirect (sourceShields, the player's answer) says what became of its damage:
+// Reflect Damage's redirect read only "AI 1: 404 -> 401 life (-3)", Kykar #6; Circle of Protection: Red's prevention
+// nothing at all. -> { lines (said before what came of them), loss / gain: player -> [{ n, w: the words }] }
+const STEP_ORDER = ["untap", "upkeep", "draw", "main1", "combatBegin", "combatDeclareAttackers", "combatDeclareBlockers", "combatFirstStrikeDamage", "combatDamage", "combatEnd", "main2", "endOfTurn", "cleanup"];
+function damageNews(prev, cur, resolved, facts) {
+  const lines = [], loss = {}, gain = {};
+  const why = (t, p, n, w) => { if (n > 0 && p) (t[p] ||= []).push({ n, w }); };
+  const lost = (p) => (prev.life[p] ?? 0) - (cur.life[p] ?? 0);
+  // (a shield of this turn for that source, used once)
+  const shieldFor = (id, p) => {
+    const k = (game.sourceShields || []).findIndex((x) => x.id === id && x.kind && x.turn === cur.turn && (x.kind === "redirect" || x.slot === p));
+    return k >= 0 ? game.sourceShields.splice(k, 1)[0] : null;
+  };
+  const shielded = (src, name, p, n, combat) => {
+    const sh = shieldFor(src.id, p);
+    if (!sh) return false;
+    const dmg = `${poss(name)} ${combat ? "combat " : ""}damage`;
+    if (sh.kind === "prevent") {
+      lines.push(`${dmg} to ${nameOf(p)} is prevented (${sh.by})`);
+      // (Deflecting Palm's "deals that much damage to that source's controller")
+      if (sh.back) { lines.push(`${sh.by} deals ${n} damage to ${nameOf(src.ctl)}`); why(loss, src.ctl, n, `damage from ${sh.by}`); }
+    } else { lines.push(`${dmg} is dealt to ${nameOf(src.ctl)} instead (${sh.by})`); why(loss, src.ctl, n, `damage from ${name}, redirected by ${sh.by}`); }
+    return true;
+  };
+  const at = (s) => STEP_ORDER.indexOf(s);
+  const crossed = (s) => cur.turn === prev.turn && at(prev.step) >= 0 && at(prev.step) < at(s) && at(s) <= at(cur.step);
+  const firstStep = crossed("combatFirstStrikeDamage"), regular = crossed("combatDamage");
+  if (firstStep || regular) {
+    const blocked = new Set([...Object.values(prev.blocks || {}), ...Object.values(cur.blocks || {})].flat());
+    for (const [id, a] of Object.entries(prev.cards)) {
+      if (a.zone !== "battlefield" || !a.attacking || !a.pw) continue;
+      const hits = (firstStep && (a.fs || a.ds) ? 1 : 0) + (regular && (!a.fs || a.ds) ? 1 : 0), n = a.pw * hits, name = tokenWords(a.name, a.token);
+      if (!n) continue;
+      if (!blocked.has(id) && a.atp in cur.life && !shielded({ id, ctl: a.ctl }, name, a.atp, n, true)) why(loss, a.atp, n, `combat damage from ${name}`);
+      if (a.ll) why(gain, a.ctl, n, `lifelink from ${name}`);
+    }
+  }
+  // (a creature's marked damage already told, so two pings that resolved between two boards say 1 each, not 2)
+  const told = {};
+  const rise = (id) => (cur.cards[id]?.zone === "battlefield" ? (cur.cards[id].dmg || 0) - (prev.cards[id].dmg || 0) - (told[id] || 0) : 0);
+  for (const s of resolved) {
+    if (!/\bdeals?\b[^.]*\bdamage\b/i.test(s.text)) continue;
+    // (its amount: Forge's words with the numbers filled in, an X by Forge's "(X=3)", else the card's)
+    const n0 = /\bdeals? (\d+) damage\b/i.exec(s.desc)?.[1] ?? (/\bdeals? X damage\b/i.test(s.text) ? /\(X=(\d+)\)/.exec(s.desc)?.[1] : null) ?? /\bdeals? (\d+) damage\b/i.exec(s.text)?.[1];
+    const n = n0 != null && Number(n0) > 0 ? Number(n0) : null, src = { ctl: s.ctl, ...(cur.cards[s.id] || prev.cards[s.id]), id: s.id };
+    const each = /\bdamage to each\b[^.]*\bcreature/i.test(s.text);
+    // (its targets: Forge's, and the player's picks, Forge naming no spell's)
+    let cardTg = [...new Set([...s.cardTg, ...(s.pk || []).filter((t) => t.startsWith("card|")).map((t) => t.slice(5))])];
+    // (a player once for each item that targeted them: two of Niv-Mizzet's pings in one stack entry)
+    let plTg = [...s.plTg, ...[...new Set((s.pk || []).filter((t) => t.startsWith("player|")).map((t) => t.slice(7)))].filter((p) => !s.plTg.includes(p))];
+    // (none known, one target and its amount: the one creature that took just that much, or else the one player who lost
+    // just that much; an AI's Lightning Bolt. Two of either, or one of each, is no evidence.)
+    if (!cardTg.length && !plTg.length && n && /\bdeals? (?:\d+|X) damage to (?:any target|target (?:creature|player|opponent|planeswalker))\b/i.test(s.text) && !/\btargets?\b[^.]*\btargets?\b/i.test(s.text)) {
+      const cs = Object.keys(prev.cards).filter((id) => prev.cards[id].zone === "battlefield" && prev.cards[id].creature && rise(id) === n);
+      const ps = Object.keys(cur.life).filter((p) => lost(p) === n && !loss[p]);
+      if (cs.length === 1 && !ps.length) cardTg = cs;
+      else if (ps.length === 1 && !cs.length) plTg = ps;
+    }
+    let dealt = 0;
+    const hit = new Map(); // (damage -> the creatures dealt that much)
+    for (const id of new Set([...cardTg, ...(each ? Object.keys(prev.cards) : [])])) {
+      const was = prev.cards[id], now = cur.cards[id];
+      if (was?.zone !== "battlefield" || !was.creature) continue;
+      // (marked damage on one still there; on one gone, the spell's amount, only for a target: a wipe's dead say "dies".
+      // Gone of the damage: to a graveyard, not sacrificed nor by another card's effect, and by Forge's order after the
+      // spell left the stack, as state-based actions follow its resolution; a Bolt whose Bears were murdered first
+      // fizzled.)
+      const m = facts?.moves.get(id), spellAt = facts?.firstSeq.get(s.id);
+      const ofIt = !facts ? !now : m?.to === "Graveyard" && m.how !== "sacrificed" && !m.cause && (spellAt == null || facts.firstSeq.get(id) > spellAt);
+      const d = now?.zone === "battlefield" ? (each && n ? Math.min(n, rise(id)) : rise(id)) : cardTg.includes(id) && n && ofIt ? n : 0;
+      if (d > 0) { if (!hit.has(d)) hit.set(d, []); hit.get(d).push(tokenWords(was.name, was.token)); dealt += d; told[id] = (told[id] || 0) + d; }
+    }
+    for (const [d, names] of hit) lines.push(`${s.name} deals ${d} damage to ${names.join(", ")}`);
+    // (a player once for each item that hit them: two pings at AI 1 are "damage from Niv-Mizzet, Parun ×2")
+    const times = (ps) => ps.flatMap((p) => Array(s.gone || 1).fill(p));
+    const players = plTg.length ? plTg : /\bdamage to each opponent\b/i.test(s.text) ? times(Object.keys(cur.life).filter((p) => p !== s.ctl))
+      : /\bdamage to each player\b/i.test(s.text) ? times(Object.keys(cur.life)) : [];
+    // (an amount not known is the whole loss, said once)
+    for (const p of n ? players : new Set(players)) {
+      const l = lost(p);
+      if (l > 0) { why(loss, p, n ?? l, `damage from ${s.name}`); dealt += n ?? l; }
+      else if (n) shielded(src, s.name, p, n, false);
+    }
+    if (src.ll && dealt) why(gain, src.ctl, dealt, `lifelink from ${s.name}`);
+  }
+  return { lines, loss, gain };
+}
+// A life change's parts in words, the same words once with their count: "damage from Niv-Mizzet, Parun ×2"; parts
+// apart by ";", as card names have commas
+function lifeWords(parts) {
+  const k = new Map();
+  for (const x of parts) k.set(x.w, (k.get(x.w) || 0) + 1);
+  return [...k].map(([w, n]) => (n > 1 ? `${w} ×${n}` : w)).join("; ");
+}
+// An "unless that player pays" or a "you may pay ... If you do" that resolved, by what it did (Forge's feed names the
+// source of each move it made: a draw caused by Rhystic Study). The payer is Forge's "Activator" in the trigger's
+// words; Esper Sentinel's {X} is its power. Unless: it did something, so it wasn't paid. It did nothing: the payer's own
+// answer when a player of ours paid; else its controller's "no" to its "may", which Forge asks only after the payment
+// was declined (Rhystic Study: "Pay {1}?", then "Do you want to draw a card?"); else paid, when nothing was its
+// controller's to decline (no "may", or a player of ours who was never asked). "You may pay": it did something, so it
+// was paid. Each line once per item that resolved, by the cards they drew: two Mentor of the Meek triggers, one paid.
+// Esper Sentinel, Rhystic Study and Mystic Remora read only "White draws a card", Kykar #7; Mentor of the Meek, #21.
+// Nothing without the feed, which alone says whether it happened, nor for an AI's "may" with an AI to pay.
+function unlessNews(prev, resolved, facts) {
+  const lines = [];
+  if (!facts) return lines;
+  const fresh = (m, id) => { const a = m?.get(id); if (a) m.delete(id); return a && Date.now() - a.at < 60000 ? a : null; };
+  for (const s of resolved) {
+    const unless = /\bunless (?:that player|its controller|they|he or she|that spell's controller) pays? ((?:\{[^}]+\})+)/i.exec(s.text);
+    const may = /\byou may pay ((?:\{[^}]+\})+)\. If you do\b/i.exec(s.text);
+    if (!unless && !may) continue;
+    let cost = (unless || may)[1];
+    if (cost === "{X}" && /\bwhere X is [^.]*'s power\b/i.test(s.text) && prev.cards[s.id]?.pw != null) cost = `{${prev.cards[s.id].pw}}`;
+    const gone = s.gone || 1, drew = facts.drawsBy?.get(s.id);
+    const did = Math.min(gone, drew ?? (facts.causes.has(s.id) ? gone : 0));
+    const each = (n, line) => { for (let i = 0; i < n; i++) lines.push(line); };
+    if (may) {
+      each(did, `${nameOf(s.ctl)} pays ${cost} (${s.name})`);
+      each(gone - did, `${nameOf(s.ctl)} doesn't pay ${cost} (${s.name})`);
+      continue;
+    }
+    // (Forge's usernames, as displayText reads them: any case)
+    const by = /\bActivator: ([^,\]]+)/.exec(s.desc)?.[1]?.trim().toLowerCase();
+    const k = by ? (game.playerOrder || []).findIndex((u) => String(u || "").toLowerCase() === by) : -1;
+    const payer = k >= 0 ? `player-${k}` : null;
+    if (!payer) continue;
+    each(did, `${nameOf(payer)} doesn't pay ${cost} (${s.name})`);
+    if (gone - did <= 0) continue;
+    const paid = fresh(game.payAnswers, s.id), asked = fresh(game.mayAnswers, s.id);
+    const optional = /\byou may\b/i.test(s.text);
+    const line = paid ? (paid.value ? `${nameOf(payer)} pays ${cost} (${s.name})` : `${nameOf(payer)} doesn't pay ${cost}, and ${nameOf(s.ctl)} declines (${s.name})`)
+      : asked && !asked.value ? `${nameOf(payer)} doesn't pay ${cost}, and ${nameOf(s.ctl)} declines (${s.name})`
+      : !optional || seatOfSlot(s.ctl) ? `${nameOf(payer)} pays ${cost} (${s.name})` : null;
+    if (line) each(gone - did, line);
+  }
+  return lines;
+}
+// What a resolved "tap / untap target ..." did to its targets, and a permanent that just became a creature (Icy
+// Manipulator, Kiora's Follower and Mutavault read only "White uses X's ability", ability sweep)
+function tapNews(prev, cur, resolved) {
+  const lines = [];
+  for (const s of resolved) {
+    if (!/\b(?:tap|untap)\b[^.]*\btarget\b/i.test(s.text)) continue;
+    for (const id of s.cardTg) {
+      const was = prev.cards[id], now = cur.cards[id];
+      if (was?.zone === "battlefield" && now?.zone === "battlefield" && was.tapped !== now.tapped) lines.push(`${s.name} ${now.tapped ? "taps" : "untaps"} ${tokenWords(now.name, now.token)}`);
+    }
+  }
+  for (const [id, c] of Object.entries(cur.cards)) {
+    const was = prev.cards[id];
+    if (c.zone === "battlefield" && was?.zone === "battlefield" && c.creature && !was.creature) lines.push(`${tokenWords(c.name, c.token)} becomes a creature`);
+  }
+  // (and the keywords a resolved spell or ability gave creatures, the same ones together: Akroma's Will resolved with no
+  // line at all, its keywords on the cards, Kykar #26)
+  const gave = resolved.filter((s) => /\b(?:gains?|gets? [+-]\d+\/[+-]\d+ and gains?|have)\b/i.test(s.text));
+  if (gave.length) {
+    const by = new Map();
+    for (const [id, c] of Object.entries(cur.cards)) {
+      const was = prev.cards[id];
+      if (c.zone !== "battlefield" || was?.zone !== "battlefield" || !c.creature) continue;
+      const added = (c.kw || []).filter((k) => !(was.kw || []).includes(k));
+      if (added.length) { const key = added.join(", "); if (!by.has(key)) by.set(key, []); by.get(key).push(tokenWords(c.name, c.token)); }
+    }
+    for (const [kws, names] of by) lines.push(`${names.join(", ")} ${names.length > 1 ? "gain" : "gains"} ${kws.toLowerCase()} (${gave.map((s) => s.name).join(", ")})`);
+  }
+  return lines;
+}
+
 function logEvents(prev, cur, pub, facts = null) {
   const out = [];
   const who = (id) => nameOf(id);
@@ -1739,6 +2006,63 @@ function logEvents(prev, cur, pub, facts = null) {
   // their targets, above. answeredOld: the ones that took a spell seen on the last board's stack, so cast in that turn)
   const takenOff = takenOffStack(facts?.offStack || [], prevSpellOf, cur.cards, pubIndex);
   const answeredOld = new Set([...takenOff].filter(([id]) => prevSpellOf.has(id)).map(([, t]) => t.by));
+  const curSids = new Set(Object.values(cur.stack).flatMap((s) => s.sids));
+  // (what was on the stack on either board, for the lines below that look for a spell or ability there)
+  const bothStacks = [...Object.values(prev.stack), ...Object.values(cur.stack)];
+  // (resolved: what left the stack and wasn't countered, for what it did: its "unless" payment, its damage, its taps
+  // and the keywords it gave, see unlessNews, damageNews, tapNews; its suspect, goad and detain, below)
+  // (each entry with the items of it that left, one of two of a card's triggers too: gone, how many, and their targets)
+  const resolved = Object.values(prev.stack).flatMap((s) => {
+    const left = s.sids.filter((x) => !curSids.has(x));
+    if (!left.length || s.sids.some((x) => prevCounterTargeted.has(x)) || takenOff.get(s.id)?.how === "counter") return [];
+    const by = (k, all) => (s.tgBy ? left.flatMap((x) => s.tgBy[x]?.[k] || []) : all);
+    return [{ ...s, gone: left.length, cardTg: by("c", s.cardTg), plTg: by("p", s.plTg) }];
+  });
+  // (what countered a spell, said after "is countered": the counterspell seen targeting it, the one no board showed that
+  // took it, or the only counterspell that resolved just now; "Marble Diamond is countered" said nothing of White's
+  // Counterspell, Kykar #8, nor Talisman of Dominance of Jin-Gitaxias's copy)
+  const counterSpells = resolved.filter((s) => !s.ability && isCounterspell(s.text));
+  const counteredBy = (id) => {
+    const sids = prevSpellOf.get(id)?.sids || [], off = takenOff.get(id);
+    const name = Object.values(prev.stack).find((x) => x.id !== id && x.ctg?.some((t) => sids.includes(t)))?.name
+      || (off?.how === "counter" ? cur.cards[off.by]?.name || prev.cards[off.by]?.name : null)
+      || (counterSpells.length === 1 && counterSpells[0].id !== id ? counterSpells[0].name : null);
+    return name ? ` by ${name}` : "";
+  };
+  // (the targets the player picked for a stack item of theirs, kept on it while it stays: Forge's stack names no spell's
+  // targets, Shock's and Counterspell's list is empty, so its own targets are the player's picks alone)
+  for (const [key, s] of Object.entries(cur.stack)) {
+    const pick = game.picked?.get(s.id);
+    if (pick && !prev.stack[key]?.pk && Date.now() - pick.at < 60000) { s.pk = pick.ids; game.picked.delete(s.id); }
+    else if (prev.stack[key]?.pk) s.pk = prev.stack[key].pk;
+  }
+  // (" targeting X and Y": a stack item's targets by name, Forge's and the player's picks, or a pick not yet on any stack
+  // item (one cast and gone before a board showed it); "White casts Counterspell" named no target, Kykar #8)
+  const targetWords = (s, id = s?.id) => {
+    let ids = [...(s?.cardTg || []).map((x) => `card|${x}`), ...(s?.plTg || []).map((x) => `player|${x}`), ...(s?.pk || [])];
+    const pick = !s && game.picked?.get(id);
+    if (pick && Date.now() - pick.at < 60000) { ids = pick.ids; game.picked.delete(id); }
+    const stackName = (sid) => bothStacks.find((x) => x.sids.includes(sid))?.name;
+    const names = [...new Set(ids)].map((t) => {
+      const kind = t.slice(0, t.indexOf("|")), tid = t.slice(t.indexOf("|") + 1), c = cur.cards[tid] || prev.cards[tid];
+      if (kind === "player") return who(tid);
+      if (kind === "spell") return stackName(tid);
+      const name = c?.name ?? pubIndex[tid]?.identity?.name;
+      return name ? tokenWords(name, c?.token) : null;
+    }).filter(Boolean);
+    return names.length ? ` targeting ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]}` : "";
+  };
+  // (an activation's line, by its stack item or the player's record of it: an equip names what it equips, Skullclamp's
+  // read "White uses Skullclamp's ability", Kykar #3; a planeswalker's says which ability and the loyalty it cost,
+  // "White uses Ral Zarek's ability", #13; any other, its targets)
+  const activationLine = (s, mine) => {
+    const id = s?.id ?? mine.id, ctl = s?.ctl ?? mine.ctl, name = s?.name ?? mine.name, text = s?.text || mine?.text || "";
+    const tg = targetWords(s, id);
+    if (/^Equip\b/i.test(text) && tg) return `${who(ctl)} equips ${tg.slice(" targeting ".length)} with ${name}`;
+    const was = prev.cards[id]?.loy, now = cur.cards[id]?.loy, cost = /^([+−-]?(?:\d+|X)):/.exec(text)?.[1];
+    if (cost && was != null) return `${who(ctl)} activates ${poss(name)} ${cost.replace("−", "-")}${now != null && now !== was ? ` (loyalty ${was} -> ${now})` : ""}${tg}`;
+    return `${who(ctl)} uses ${poss(name)} ability${s?.via ? ` (${poss(s.via)})` : ""}${tg}`;
+  };
   // (a permanent spell straight from the stack into a graveyard was countered too, by whatever did it, an ability or a
   // spell: of those only an Aura can lose its target and not resolve, and one that resolved went by the battlefield,
   // evoke's sacrifice and the legend rule's loser. Not one cast by another name: a double-faced card's sorcery face
@@ -1783,7 +2107,7 @@ function logEvents(prev, cur, pub, facts = null) {
     // (by its last ids having landed: one only now landing from its cast is the same cast)
     if (!s.ability && prevSpellOf.has(s.id) && landed(prevSpellOf.get(s.id).sids) && !s.sids.some((x) => prevSids.has(x))) {
       const via = left?.from === "Stack" ? (left.to === "Stack" ? left.through : left.to) : null;
-      if (prevSpellOf.get(s.id).sids.some((sid) => prevCounterTargeted.has(sid))) out.push(`${s.name} is countered${via === "Command" ? " and returns to the command zone" : ""}`);
+      if (prevSpellOf.get(s.id).sids.some((sid) => prevCounterTargeted.has(sid))) out.push(`${s.name} is countered${counteredBy(s.id)}${via === "Command" ? " and returns to the command zone" : ""}`);
       else if (via === "Hand") out.push(`${s.name} returns to ${who(s.ctl)}'s hand`);
       out.push(`${who(s.ctl)} casts ${s.name}${optionalWords(s.opt)}`);
       spellsSeen.add(`${s.ctl}|${s.name}`);
@@ -1819,8 +2143,8 @@ function logEvents(prev, cur, pub, facts = null) {
       if (!ability) { spellsSeen.add(`${s.ctl}|${s.name}`); namesSeen.add(s.name); }
       (!mine && ability && (s.trigger || s.kwTrigger || s.upkeepCost) ? triggered : !mine && ability && entered ? afterEntries : out).push(s.upkeepCost ? `${poss(s.name)} ${s.upkeepCost}, or it is sacrificed`
         : ability && s.room ? `${who(s.ctl)} ventures into ${s.room} (${s.name})`
-        : ability ? keywordLine(mine ? mine.kind : !s.trigger && !s.kwTrigger ? keywordKind(s.text) : null, s.ctl, s.name) || (!mine && s.kwTrigger ? `${poss(s.name)} ${s.kwTrigger} triggers (${who(s.ctl)})` : !mine && s.trigger ? `${poss(s.name)} ability triggers (${who(s.ctl)})` : `${who(s.ctl)} uses ${poss(s.name)} ability${s.via ? ` (${poss(s.via)})` : ""}`)
-        : k >= 1 || copyOf ? `${who(s.ctl)} copies ${s.name}` : `${who(s.ctl)} casts ${mine ? mine.name : s.name}${optionalWords(s.opt, mine?.name)}`);
+        : ability ? keywordLine(mine ? mine.kind : !s.trigger && !s.kwTrigger ? keywordKind(s.text) : null, s.ctl, s.name) || (!mine && s.kwTrigger ? `${poss(s.name)} ${s.kwTrigger} triggers (${who(s.ctl)})` : !mine && s.trigger ? `${poss(s.name)} ability triggers (${who(s.ctl)})` : activationLine(s, mine))
+        : k >= 1 || copyOf ? `${who(s.ctl)} copies ${s.name}` : `${who(s.ctl)} casts ${mine ? mine.name : s.name}${optionalWords(s.opt, mine?.name)}${targetWords(s)}`);
     }
   }
   for (const e of pending) {
@@ -1834,9 +2158,9 @@ function logEvents(prev, cur, pub, facts = null) {
     if (e.kind === "cast" && cur.cards[e.id]?.land) { e.said = true; landPlays.add(e.id); }
     // (newly public, or moved from a public zone: a commander cast from the command zone was seen there already, and its
     // cast went unlogged, hp-07 #39 2026-10-27)
-    else if (e.kind === "cast" && cur.cards[e.id] && (!prev.cards[e.id] || prev.cards[e.id].zone !== cur.cards[e.id].zone)) { out.push(`${who(e.ctl)} casts ${e.name}`); e.said = true; castNow.add(e.id); game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
+    else if (e.kind === "cast" && cur.cards[e.id] && (!prev.cards[e.id] || prev.cards[e.id].zone !== cur.cards[e.id].zone)) { out.push(`${who(e.ctl)} casts ${e.name}${targetWords(null, e.id)}`); e.said = true; castNow.add(e.id); game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
     else if (e.kind === "faceup" && back) e.said = true;
-    else if (e.kind !== "cast" && back) { out.push(keywordLine(e.kind, e.ctl, e.name) || `${who(e.ctl)} uses ${poss(e.name)} ability`); e.said = true; game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
+    else if (e.kind !== "cast" && back) { out.push(keywordLine(e.kind, e.ctl, e.name) || activationLine(null, e)); e.said = true; game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
   }
   // (a spell back in a hand from the stack, which no board shows: buyback's, by no other spell. Forge gives no move off
   // the stack a cause, so a spell another one sent back, Remand or Unsubstantiate, is told by that spell: Remand counters
@@ -1854,10 +2178,10 @@ function logEvents(prev, cur, pub, facts = null) {
       if (by !== "counter") continue;
       const words = (seenBy ? Object.values(prev.stack).find((x) => x.ctg?.some((t) => s.sids.includes(t)))?.text : pubIndex[takenOff.get(id)?.by]?.text) || "";
       const top = /\btop\b[^.]*\bits owner's library\b/i.test(words), bottom = /\bbottom of its owner's library\b/i.test(words);
-      sayAfter(seenBy, id, `${s.name} is countered and put ${top && !bottom ? "on top of" : bottom && !top ? "on the bottom of" : "into"} ${owner}'s library`);
+      sayAfter(seenBy, id, `${s.name} is countered${counteredBy(id)} and put ${top && !bottom ? "on top of" : bottom && !top ? "on the bottom of" : "into"} ${owner}'s library`);
       continue;
     }
-    sayAfter(seenBy || !by, id, by === "counter" ? `${s.name} is countered and returns to ${owner}'s hand`
+    sayAfter(seenBy || !by, id, by === "counter" ? `${s.name} is countered${counteredBy(id)} and returns to ${owner}'s hand`
       : `${s.name} returns to ${owner}'s hand${!by && !m.cause && game.feedCauses ? " (buyback)" : ""}`);
   }
   const abilityRecords = new Set(pending.filter((e) => e.kind !== "cast").map((e) => e.id));
@@ -1878,7 +2202,6 @@ function logEvents(prev, cur, pub, facts = null) {
   // its record dropped, a snapshot before it resolves; hp-26 re-test)
   // (gone by its stack ids: its key changes when its source is hidden, a bounced Top's ability read as a spell)
   const topText = /\bon top of its owner's library\b/i;
-  const curSids = new Set(Object.values(cur.stack).flatMap((s) => s.sids));
   const toLibraryTop = new Set([...pending.filter((e) => e.kind !== "cast" && topText.test(e.text || "")).map((e) => e.id),
     ...Object.entries(prev.stack).filter(([k, s]) => s.ability && !s.sids.some((x) => curSids.has(x)) && topText.test(k)).map(([, s]) => s.id)]
     .filter((id) => prev.cards[id]?.zone === "battlefield" && !cur.cards[id]));
@@ -1896,19 +2219,15 @@ function logEvents(prev, cur, pub, facts = null) {
   // each card (see tableCard). Disrupt Decorum logged only "casts", hp-05 gap.
   game.goaded ??= new Map();
   for (const [id, g] of game.goaded) if (cur.active === g.by && cur.turn > g.turn) game.goaded.delete(id);
-  // (resolved: what left the stack and did what its text says, for suspect, goad and detain below; not one countered, by
-  // a counterspell seen targeting it or one no board showed, as the text-change line below tells it: a countered Lyev
-  // Decree detained nothing, checker 2026-11-07, and a countered goad or suspect does nothing either)
-  const resolved = [];
-  for (const s of Object.values(prev.stack)) {
-    if (s.sids.some((x) => curSids.has(x)) || s.sids.some((x) => prevCounterTargeted.has(x)) || takenOff.get(s.id)?.how === "counter") continue;
-    resolved.push({ ctl: s.ctl, text: s.text || "", targets: s.cardTg || [] });
-  }
-  // (and the player's own targeted trigger noted at its target pick: resolved once off the stack, taken from the stack
-  // above when a board showed it there)
+  // (suspect, goad and detain below read resolved, above: not one countered, as the text-change line below tells it; a
+  // countered Lyev Decree detained nothing, checker 2026-11-07, and a countered goad or suspect does nothing either.
+  // And unseen: what resolved with no board showing it on the stack, for them alone, as nothing says what else it did.
+  // First the player's own targeted trigger noted at its target pick: resolved once off the stack, taken from the stack
+  // above when a board showed it there.)
+  const unseen = [];
   game.ownTargeted = (game.ownTargeted || []).filter((t) => {
     if (Object.values(cur.stack).some((s) => s.id === t.id)) return true;
-    if (!Object.values(prev.stack).some((s) => s.id === t.id)) resolved.push(t);
+    if (!Object.values(prev.stack).some((s) => s.id === t.id)) unseen.push({ ctl: t.ctl, text: t.text, cardTg: t.targets });
     return false;
   });
   // suspect (Forge shows only its menace): a resolved "suspect target creature" makes its targets suspected until they
@@ -1919,31 +2238,29 @@ function logEvents(prev, cur, pub, facts = null) {
   // stays, by Forge's own "if tribute wasn't paid" trigger, which it makes only then (on a stack, or asking its player,
   // see onPrompt), or by no counters at all on its arrival. Master Biomancer's counters on a Ravager whose tribute was
   // declined read nothing, checker 2026-11-07. Paid, the counters on its arrival line say it.
-  // (what was on the stack on either board, for the lines below that look for a spell or ability there)
-  const bothStacks = [...Object.values(prev.stack), ...Object.values(cur.stack)];
   // (game.tribute: card id -> "unpaid", its trigger's question seen (onPrompt), or "said"; forgotten as it leaves)
   game.tribute ??= new Map();
   for (const [id, was] of Object.entries(prev.cards)) if (was.zone === "battlefield" && cur.cards[id]?.zone !== "battlefield") game.tribute.delete(id);
   const tributeCard = (id, c) => !c.fd && game.tribute.get(id) !== "said" && /(?:^|\n)Tribute \d+\b/.test(pubIndex[id]?.text || "");
   const tributeTrig = (id) => game.tribute.get(id) === "unpaid" || bothStacks.some((s) => s.id === id && /\bif tribute wasn't paid\b/i.test(s.text));
   const sayTribute = (id, c) => { game.tribute.set(id, "said"); out.push(`Tribute wasn't paid for ${c.name}`); };
-  for (const g of resolved) {
+  for (const g of [...resolved, ...unseen]) {
     if (!/\bsuspect target creature\b/i.test(g.text)) continue;
-    const ids = g.targets.filter((id) => cur.cards[id]?.zone === "battlefield" && !game.suspected.has(id));
+    const ids = g.cardTg.filter((id) => cur.cards[id]?.zone === "battlefield" && !game.suspected.has(id));
     for (const id of ids) game.suspected.add(id);
     if (ids.length) out.push(`${ids.map((id) => cur.cards[id].name).join(", ")} ${ids.length > 1 ? "are" : "is"} suspected: menace, and can't block`);
   }
   for (const [id, c] of Object.entries(cur.cards)) {
     if (c.zone !== "graveyard" || prev.cards[id]?.zone === "graveyard" || !c.spell || Object.values(prev.stack).some((s) => s.id === id)) continue;
     const picks = seatOfSlot(c.ctl)?.targetPicks;
-    resolved.push({ ctl: c.ctl, text: pubIndex[id]?.text || "", targets: picks && picks.src === id ? picks.ids.filter((v) => v.startsWith("card|")).map((v) => v.slice(5)) : [] });
+    unseen.push({ ctl: c.ctl, text: pubIndex[id]?.text || "", cardTg: picks && picks.src === id ? picks.ids.filter((v) => v.startsWith("card|")).map((v) => v.slice(5)) : [] });
   }
-  for (const g of resolved) {
+  for (const g of [...resolved, ...unseen]) {
     if (!/\bgoad\b/i.test(g.text)) continue;
     const all = /\bgoad (?:all|each) creatures? (?:you don't control|your opponents control)\b/i.test(g.text);
     // ("goad all suspected creatures": every suspected one, its own controller's too, Nelly Borca)
     const ids = /\bgoad all suspected creatures\b/i.test(g.text) ? [...game.suspected]
-      : all ? Object.entries(cur.cards).filter(([, c]) => c.zone === "battlefield" && c.creature && c.ctl !== g.ctl).map(([id]) => id) : g.targets.filter((id) => cur.cards[id]?.zone === "battlefield");
+      : all ? Object.entries(cur.cards).filter(([, c]) => c.zone === "battlefield" && c.creature && c.ctl !== g.ctl).map(([id]) => id) : g.cardTg.filter((id) => cur.cards[id]?.zone === "battlefield");
     if (!ids.length) continue;
     for (const id of ids) game.goaded.set(id, { by: g.ctl, turn: cur.turn });
     out.push(`${ids.map((id) => cur.cards[id].name).join(", ")} ${ids.length > 1 ? "are" : "is"} goaded by ${who(g.ctl)}: ${ids.length > 1 ? "they attack" : "it attacks"} each combat, a player other than ${who(g.ctl)} if able, until ${who(g.ctl)}'s next turn`);
@@ -1953,9 +2270,9 @@ function logEvents(prev, cur, pub, facts = null) {
   // ("detain up to two target ...", Azorius Justiciar's, Lyev Decree's and Archon of the Triumvirate's, checker
   // 2026-11-07; not one countered, see resolved. One that fizzled, its targets made illegal but still there, the boards
   // can't tell.)
-  for (const g of resolved) {
+  for (const g of [...resolved, ...unseen]) {
     if (!DETAIN_TARGET.test(g.text)) continue;
-    const ids = g.targets.filter((id) => cur.cards[id]?.zone === "battlefield");
+    const ids = g.cardTg.filter((id) => cur.cards[id]?.zone === "battlefield");
     if (ids.length) out.push(`${ids.map((id) => cur.cards[id].name).join(", ")} ${ids.length > 1 ? "are" : "is"} detained: until ${who(g.ctl)}'s next turn ${ids.length > 1 ? "they" : "it"} can't attack or block, and ${ids.length > 1 ? "their" : "its"} activated abilities can't be activated`);
   }
   // revolt (Forge shows none): the turn a permanent its controller had left the battlefield, for the question of a revolt
@@ -2008,6 +2325,16 @@ function logEvents(prev, cur, pub, facts = null) {
     // "Asceticism enters the battlefield", mechanic run hp-09 2026-11-05; Argothian Enchantress' cast trigger stays first)
     (drawAfter && /\benters\b/i.test(pubIndex[id]?.text || "") ? afterEntries : out).push(`${poss(tokenWords(name || src.name, src.token))} ability resolves (${who(src.ctl)})`);
   }
+  // (the "unless" payments of what resolved, said before the draw they made or didn't; its damage, before what died of
+  // it; its taps and the keywords it gave, below)
+  const damage = damageNews(prev, cur, resolved, facts);
+  out.push(...unlessNews(prev, resolved, facts), ...damage.lines);
+  // (a counterspell that resolved with no other spell on the stack had nothing left to counter: the spell it targeted was
+  // gone already. AI 1's Arcane Denial, its target countered by Jin-Gitaxias's copy, left the stack with no line,
+  // Kykar #26)
+  // (only one that counters spells alone: Stifle's target is an ability)
+  for (const s of resolved) if (!s.ability && isCounterspell(s.text) && /\bcounter target [^.]*\bspell\b/i.test(s.text) && !/\babilit(?:y|ies)\b/i.test(s.text)
+    && !Object.values(prev.stack).some((x) => !x.ability && x.id !== s.id)) out.push(`${s.name} does nothing: the spell it targeted is gone`);
   // (something that cloaks just resolved: an ability gone from the stack, or a spell that reached a graveyard)
   const cloaking = [...Object.values(prev.stack).filter((s) => !s.sids.some((x) => curSids.has(x))).map((s) => s.text || ""),
     ...Object.entries(cur.cards).filter(([id, c]) => c.zone === "graveyard" && c.spell && !prev.cards[id]).map(([id]) => pubIndex[id]?.text || "")].some((t) => /\bcloaks?\b/i.test(t));
@@ -2045,10 +2372,12 @@ function logEvents(prev, cur, pub, facts = null) {
     // the ones now in their owner's hand on that seat's own board, else none named; Fathom Trawl's three read the last
     // three revealed, checker 2026-11-07)
     const rvFresh = rv && !rv.used && rv.slot === owner && rv.zone === "library" && Date.now() - rv.at < 30000;
-    const inHand = rvFresh && rv.until && n > 1 ? new Set(zoneOf(seatOfSlot(owner)?.board?.state?.gameView || {}, "hand", owner).cards.map((c) => c.id)) : null;
+    // (and of a reveal that put some of them in the hand, the rest elsewhere, the same: Fact or Fiction's pile read "White
+    // puts 3 cards from their library into their hand", its five cards revealed by name, Kykar #10)
+    const inHand = rvFresh && rv.names?.length > n && !(rv.until && n === 1) ? new Set(zoneOf(seatOfSlot(owner)?.board?.state?.gameView || {}, "hand", owner).cards.map((c) => c.id)) : null;
     const foundNames = inHand ? (rv.cards || []).filter((c) => inHand.has(c.id)).map((c) => c.name) : [];
     const named = !rvFresh ? null : rv.names?.length === n ? rv.names
-      : rv.until && rv.names?.length > n ? (n === 1 ? rv.names.slice(-1) : foundNames.length === n ? foundNames : null) : null;
+      : rv.names?.length > n ? (rv.until && n === 1 ? rv.names.slice(-1) : foundNames.length === n ? foundNames : null) : null;
     if (named) rv.used = true;
     // (and its reveal, still held, said first: Dark Confidant's read "puts Mountain into their hand" above "reveals
     // Mountain", mechanic run hp-26 re-test 2026-11-05)
@@ -2160,6 +2489,9 @@ function logEvents(prev, cur, pub, facts = null) {
     if (toLibraryTop.has(id)) return { kind: "libraryTop" };
     if (was.token && gone?.how === "sacrificed") return { kind: "sacrificed", label: sacrificeWords(gone, was) };
     if (was.token && was.creature && gone?.to === "Graveyard") return { kind: "dies" };
+    // (a noncreature token destroyed, by Forge's word: Wear's copy on a Clue read "Clue token leaves the battlefield",
+    // Kykar #19)
+    if (was.token && gone?.how === "destroyed") return { kind: "destroyed" };
     if (was.token && gone?.to === "Exile") return { kind: "exiled" };
     // (a token bounced: it goes to the hand and ceases to exist; sweep's Everywhere read "leaves the battlefield", hp-23)
     if (was.token && gone?.to === "Hand") return { kind: "tokenHand" };
@@ -2198,6 +2530,7 @@ function logEvents(prev, cur, pub, facts = null) {
     return { kind: "plain", owner: c.owner };
   };
   const toGraveyard = (c) => out.push(`${c.name} is put into ${who(c.owner)}'s graveyard`);
+  const phased = [];
   for (const [id, c] of Object.entries(cur.cards)) {
     const was = prev.cards[id];
     // (one put onto the battlefield attacking was never declared: its arrival line says so instead; Hero of Bladehold's
@@ -2207,7 +2540,12 @@ function logEvents(prev, cur, pub, facts = null) {
     // (the same card under another name on the battlefield: it transformed or became a copy; Growing Rites of Itlimoc becoming Itlimoc,
     // Cradle of the Sun logged nothing, hp-03 #3)
     else if (was && was.zone === c.zone && c.zone === "battlefield" && !was.fd && !c.fd && was.name !== c.name && !mutatedHosts.has(id)) out.push(`${was.name} becomes ${c.name}`);
-    if (was && was.zone === c.zone && !was.po !== !c.po) out.push(`${c.name} phases ${c.po ? "out" : "in"}`);
+    // (one that got counters too says so after them, below: Slip Out the Back puts its counter on first, and read
+    // "phases out" then "gets a +1/+1 counter", Kykar #21)
+    if (was && was.zone === c.zone && !was.po !== !c.po) {
+      const countered = c.p1 !== was.p1 || c.m1 !== was.m1 || JSON.stringify(c.ctrs) !== JSON.stringify(was.ctrs);
+      (countered ? phased : out).push(`${c.name} phases ${c.po ? "out" : "in"}`);
+    }
     if (was && was.zone === c.zone) continue;
     const n0 = out.length;
     const from = was ? was.zone : null;
@@ -2310,11 +2648,11 @@ function logEvents(prev, cur, pub, facts = null) {
         const gone = was.fd ? c.name : was.pn ? `${was.name} (${was.pn})` : tokenWords(was.name, was.token);
         leave(c.owner, gone, { kind, label: kind === "sacrificed" ? sacrificeWords(moved, was) : costWords(moved, c.name) });
       }
-      else if (countered) out.push(`${c.name} is countered`);
+      else if (countered) out.push(`${c.name} is countered${counteredBy(id)}`);
       // (by one no board showed on the stack, or by an ability: said after that spell's cast, below)
       else if (!from && counteredOff(id, c, moved)) {
         if (moved?.from === "Stack" && !fromStack(id, c)) out.push(`${who(c.owner)} casts ${c.name}`);
-        sayAfter(false, id, `${c.name} is countered`);
+        sayAfter(false, id, `${c.name} is countered${counteredBy(id)}`);
       }
       // (an epic spell resolved: its player's spells are gone for good, shown nowhere; Eternal Dominion, hp-23 gap)
       else if (!from && fromStack(id, c) && /(?:^|\n)Epic \(/.test(pubIndex[id]?.text || "")) out.push(`${who(c.owner)} can't cast spells for the rest of the game (epic); at each of their upkeeps, ${c.name} is copied`);
@@ -2342,7 +2680,7 @@ function logEvents(prev, cur, pub, facts = null) {
       // (a spell countered into exile, Dissipate's "exile it instead", or one with flashback: read "Craw Wurm is exiled",
       // keyword sweep kw-14. By a counterspell only: one that exiles a spell, Mindbreak Trap, doesn't counter it.)
       if (moved?.from === "Stack" && !fromStack(id, c)) out.push(`${who(c.owner)} casts ${c.name}`);
-      sayAfter(exileCountered, id, `${c.name} is countered and exiled`);
+      sayAfter(exileCountered, id, `${c.name} is countered${counteredBy(id)} and exiled`);
     } else if (c.zone === "exile") {
       const k = exileKind(id, c, from, was, moved);
       // (exiled with a permanent, its counters and whether it comes back: Mairsil's cage read "Ancient Copper Dragon is
@@ -2362,8 +2700,12 @@ function logEvents(prev, cur, pub, facts = null) {
       if (EXILE_GROUPED.has(k.kind)) grouped(EXILE_WORDS, k.owner, c.name, k);
       else out.push(EXILE_WORDS[k.kind](who(k.owner), [c.name], k));
     } else if (c.zone === "command" && (from || countered)) {
-      out.push(countered ? `${c.name} is countered and returns to the command zone` : `${c.name} returns to the command zone`);
-    } else if (c.zone === "command" && takenOff.get(id)?.how === "counter") sayAfter(false, id, `${c.name} is countered and returns to the command zone`);
+      // (from the battlefield, how it left first, Forge's word or the graveyard it passed: Ral Zarek's 3 damage on Errant,
+      // Street Artist read only "returns to the command zone", Kykar #13)
+      const how = from !== "battlefield" || !moved ? null : moved.how === "sacrificed" ? "is sacrificed" : moved.how === "destroyed" || moved.through === "Graveyard" ? (was.creature ? "dies" : "is destroyed")
+        : moved.through === "Exile" ? "is exiled" : null;
+      out.push(countered ? `${c.name} is countered${counteredBy(id)} and returns to the command zone` : `${c.name} ${how ? `${how} and returns` : "returns"} to the command zone`);
+    } else if (c.zone === "command" && takenOff.get(id)?.how === "counter") sayAfter(false, id, `${c.name} is countered${counteredBy(id)} and returns to the command zone`);
     // (a spell that resolved in the turn just ended, on the board that began the next: its line before the turn header;
     // and one that took a spell seen on the stack then, cast in that turn too)
     if (turnBegan && out.length > n0 && !castNow.has(id) && (fromStack(id, c) || answeredOld.has(id))) oldTurn.push([n0, out.length]);
@@ -2514,9 +2856,19 @@ function logEvents(prev, cur, pub, facts = null) {
     for (const [id, c] of Object.entries(cur.cards)) if (c.zone === "battlefield" && c.tapped && prev.cards[id]?.zone === "battlefield" && !prev.cards[id].tapped) (by[c.ctl] ||= []).push(c.name);
     for (const [ctl, names] of Object.entries(by)) out.push(`${who(ctl)} taps ${names.join(", ")} (${s.name})`);
   }
+  out.push(...phased, ...tapNews(prev, cur, resolved));
+  // (each life change with what made it, when what the boards and the player's answers show adds up to it, each part by
+  // its words; else bare, as no source is guessed. Pain lands' damage, noted as they were tapped, used by the next loss
+  // of their player: three bare "-1" lines for Adarkar Wastes, Battlefield Forge and Shivan Reef, Kykar #4.)
+  game.painTaps = (game.painTaps || []).filter((t) => Date.now() - t.at < 60000);
   for (const [p, l] of Object.entries(cur.life)) {
     const before = prev.life[p];
-    if (before != null && l !== before) out.push(`${who(p)}: ${before} -> ${l} life (${l > before ? "+" : ""}${l - before})`);
+    if (before == null || l === before) continue;
+    const pain = l < before ? game.painTaps.filter((t) => t.slot === p) : [];
+    if (pain.length) game.painTaps = game.painTaps.filter((t) => !pain.includes(t));
+    const parts = [...(damage.gain[p] || []), ...[...(damage.loss[p] || []), ...pain.map((t) => ({ n: t.n, w: `damage from ${t.name}` }))].map((x) => ({ n: -x.n, w: x.w }))];
+    const why = parts.length && parts.reduce((a, x) => a + x.n, 0) === l - before ? `, ${lifeWords(parts)}` : "";
+    out.push(`${who(p)}: ${before} -> ${l} life (${l > before ? "+" : ""}${l - before}${why})`);
   }
   out.push(...triggered);
   // (each group's line made once and kept on it, for the moves after the cuts below to find)
