@@ -33,6 +33,30 @@ per-player settings in the engine.**
 - Other constructed formats (Pioneer, Modern, Pauper...) are the same with a different legality check.
   - **Legality:** Forge doesn't enforce format legality in this path; the deck check (`mtg ready`) would warn using Scryfall legalities.
 
+#### 2.2a Best of three (optional, requested by the user 2026-11-06)
+An option on Standard (and the other 1v1 constructed formats): `mtg match bo3`, or a "Best of 3" toggle beside the
+mode buttons (§6). Best of one stays the default.
+- **Match:** the first to win 2 games wins the match. A draw counts for neither player; the match is then decided in
+  at most 5 games, or by the score after the last game.
+- **Play or draw:** game 1, a random pick (shown in the log), and the winner of the pick chooses. Later games, the
+  loser of the previous game chooses (a question to that player: "Play" / "Draw").
+- **Sideboard:** the 15-card sideboard is used, no longer ignored. Between games each player gets a sideboarding step:
+  their main deck and sideboard laid out (or a list in a panel) to swap cards one for one, keeping 60+ main and at
+  most 15 side; "Done" when ready, and the next game starts when both are done (with the turn timer, if on, a clock
+  for it). Game 1 always uses the registered main deck; each game after starts from the deck as left after the last
+  swap (as on Arena); "Reset to registered" puts it back.
+- **Between games:** the engine game ends and a new one is started with each player's current 60; life, zones,
+  counters and marks reset; the bridge carries the match state (score, who chooses, decks) between games, since each
+  game is a new engine game. Rewind and Undo never cross a game boundary.
+- **Table:** a match score by each player ("Games 1–0"), the game number in the phase bar ("Game 2 of 3"), the
+  result line per game in the log ("Host wins game 1 (Opponent conceded)") and "MATCH WON" at the end.
+  Conceding a game is not conceding the match; a separate "Concede match" asks to confirm.
+- **Engine:** none expected: each game is an ordinary Constructed game. To check: whether Forge's mulligan rule for a
+  game 2/3 needs anything (it doesn't in paper rules), and that the sideboard is sent with the deck.
+- **Tests:** golden cases for the match state (score, who chooses play/draw, a draw game, a concede), the sideboard
+  swap keeping 60/15, and a headless run of a full 3-game match.
+- **Not in scope:** Commander has no best of three; 2v2 and Juggernaut stay single games.
+
 ### 2.3 2v2 teams
 Two ways to play it; both need **teams** in the engine.
 
