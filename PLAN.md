@@ -15,6 +15,8 @@ Last updated: 2026-11-06. The design is in [SPEC.md](SPEC.md); test results and 
   changes come with it), rebuild mtg-forge-node and mtg-relay (one build at a time), rules checks + a test game,
   deploy, then a debug game with Beam me up, Federation and Borg Queen. About 2–3 h plus build time.
 - ⬜ **Token stacks the Arena way** ([docs/token-stacks-spec.md](docs/token-stacks-spec.md)), held until the reset.
+- ⬜ **See and cast a card's other side** (Valki // Tibalt, Exdeath), with TTS object states
+  ([docs/card-other-side-spec.md](docs/card-other-side-spec.md)): readable in your hand too, cast from the side shown.
 - ⬜ Small sweep bugs: the second AI named "AI 1 2" in questions and votes; persist's -1/-1 counter missing from the
   return line; Halflingcycling's question naming a basic land; the log gaps in tmp/kw-runs/SUMMARY.md.
 - ⬜ Slow-tail re-measure on a quiet PC.
