@@ -6,6 +6,7 @@ const versions = require("../bridge/versions");
 const { patch, heldBy, unheld, stamped, rewrite } = require("../tools/patch-save");
 const holds = require("../tools/deploy-holds.json");
 const { livePassed, GATES } = require("../tools/deploy");
+const { buildSave } = require("./golden/table-run");
 
 let failed = 0, passed = 0;
 // (writes to stdout directly: the harness replaces console.log while a bridge is loaded)
@@ -57,10 +58,17 @@ const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringif
   try { patch(["a\0", stampLine].join("\n"), ["b", stampLine].join("\n"), {}); } catch (e) { binary = e.message; }
   same("patch: a diff that can't rebuild the script stops it", binary, "the diff doesn't rebuild the script: nothing changed");
   same("patch: a script with no newline at the end", patch(["a", stampLine].join("\n"), ["a", "b", stampLine, ""].join("\n"), {}).script.split("\n").slice(0, 2), ["a", "b"]);
+  // (the real holds: the Auto-resolve dropdown is back on the table, the user's call 2026-11-06, so it is held no more;
+  // a hold left in would keep it, and the tool cover that moves with it, out of every push. Its lines in the table as
+  // built, first: a hold of a line that isn't there would pass these for nothing.)
   const dropdown = (t) => heldBy({ gone: [], added: [t] }, holds);
-  ok("the real holds keep the dropdown out", !!dropdown("function engineAutoListXml()") && !!dropdown('  elseif m.t == "autostate" then engineOnAutoState(m)'));
-  // (engineToolCoverXml moves in the same change: taking its removal alone would lose it)
-  ok("the real holds keep the tool cover where it is", !!dropdown("function engineToolCoverXml()"));
+  const tableLines = buildSave().LuaScript.split("\n");
+  const dropdownLines = ["function engineAutoListXml()", '  elseif m.t == "autostate" then engineOnAutoState(m)', "function engineToolCoverXml()"];
+  same("the table as built has the dropdown and the tool cover", dropdownLines.filter((l) => !tableLines.includes(l)), []);
+  same("the real holds let the dropdown through", dropdownLines.slice(0, 2).filter(dropdown), []);
+  // (engineToolCoverXml moves in the same change: held alone, the push would lose it)
+  same("the real holds let the tool cover through", dropdown("function engineToolCoverXml()"), null);
+  same("the real holds keep no line of the table out", tableLines.filter(dropdown).slice(0, 3), []);
   ok("the real holds let the rest through", dropdown("function engineSelfCheck()") === null);
 }
 

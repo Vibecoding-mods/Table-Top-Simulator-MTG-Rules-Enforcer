@@ -637,6 +637,283 @@ const id = (n) => `engine-card-${n}`;
       board((b) => { put(b, "battlefield", WRAITH()); put(b, "graveyard", card(54, "Mind Bend", ["Instant"])); put(b, "graveyard", card(55, "Twincast", ["Instant"]), "player-1"); }),
       [ev(11, "Stack", "Graveyard", id(55), null, "player-1"), ev(12, "Stack", "Graveyard", id(54))]),
     ["Mind Bend changes nothing in Bog Wraith's text"]);
+
+  // a spell countered by one the AI cast and resolved between two boards, which no board showed on the stack: Forge
+  // moves the countered spell first, then the counterspell as it finishes. Craw Wurm under the AI's Counterspell read
+  // "AI 1 casts Counterspell" and nothing of the Wurm, keyword sweep kw-14 (both runs)
+  const WURM = { id: "engine-stack-30", sourceId: id(70), identity: { name: "Craw Wurm" }, controllerId: "player-0" };
+  const BOLT_UP = { id: "engine-stack-31", sourceId: id(71), identity: { name: "Lightning Bolt" }, controllerId: "player-0", sourceAbilityText: "Lightning Bolt deals 3 damage to any target.", targets: [{ kind: "card", id: id(1) }] };
+  const answer = (n, name, text) => ({ ...card(n, name, ["Instant"]), controllerId: "player-1", text });
+  const COUNTERSPELL = answer(72, "Counterspell", "Counter target spell.");
+  const DISSIPATE = answer(73, "Dissipate", "Counter target spell. If that spell is countered this way, exile it instead of putting it into its owner's graveyard.");
+  const REMAND = answer(74, "Remand", "Counter target spell. If that spell is countered this way, put it into its owner's hand instead of into that player's graveyard. Draw a card.");
+  const UNSUB = answer(75, "Unsubstantiate", "Return target spell or creature to its owner's hand.");
+  const MURDER = answer(76, "Murder", "Destroy target creature.");
+  const WURM_CARD = card(70, "Craw Wurm", ["Creature"]), BOLT_CARD = card(71, "Lightning Bolt", ["Instant"]);
+  // (the AI's hand one card down: its answer came from there; the Bolt's Bears on the battlefield before)
+  const answered = (spell, fill, events) => between(board((b) => { if (spell === BOLT_UP) put(b, "battlefield", BEAR()); b.stack.push(spell); count(b, "hand", 7, "player-1"); }),
+    board((b) => { count(b, "hand", 6, "player-1"); fill(b); }), events);
+  same("kw-14: a creature spell countered by the AI between two boards is countered",
+    answered(WURM, (b) => { put(b, "graveyard", WURM_CARD); put(b, "graveyard", COUNTERSPELL, "player-1"); },
+      [ev(11, "Stack", "Graveyard", id(70)), ev(12, "Stack", "Graveyard", id(72), null, "player-1")]),
+    ["AI 1 casts Counterspell", "Craw Wurm is countered"]);
+  same("kw-14: and an instant the same way",
+    answered(BOLT_UP, (b) => { put(b, "battlefield", BEAR()); put(b, "graveyard", BOLT_CARD); put(b, "graveyard", COUNTERSPELL, "player-1"); },
+      [ev(11, "Stack", "Graveyard", id(71)), ev(12, "Stack", "Graveyard", id(72), null, "player-1")]),
+    ["AI 1 casts Counterspell", "Lightning Bolt is countered"]);
+  same("kw-14: an instant that left the stack after the AI's counterspell resolved, not countered",
+    answered(BOLT_UP, (b) => { put(b, "graveyard", BEAR()); put(b, "graveyard", BOLT_CARD); put(b, "graveyard", COUNTERSPELL, "player-1"); },
+      [ev(11, "Stack", "Graveyard", id(72), null, "player-1"), ev(12, "Stack", "Graveyard", id(71)), ev(13, "Battlefield", "Graveyard", id(1), "destroyed")]),
+    ["Grizzly Bears dies", "AI 1 casts Counterspell"]);
+  same("kw-14: an instant that fizzled, its target killed by the AI between two boards, is not countered",
+    answered(BOLT_UP, (b) => { put(b, "graveyard", BEAR()); put(b, "graveyard", BOLT_CARD); put(b, "graveyard", MURDER, "player-1"); },
+      [ev(11, "Battlefield", "Graveyard", id(1), "destroyed"), ev(12, "Stack", "Graveyard", id(76), null, "player-1"), ev(13, "Stack", "Graveyard", id(71))]),
+    ["Grizzly Bears dies", "AI 1 casts Murder"]);
+  same("kw-14: and one that fizzled with no other spell seen is not countered either",
+    between(board((b) => { put(b, "battlefield", BEAR()); b.stack.push(BOLT_UP); }), board((b) => { put(b, "graveyard", BEAR()); put(b, "graveyard", BOLT_CARD); }),
+      [ev(11, "Battlefield", "Graveyard", id(1), "sacrificed"), ev(12, "Stack", "Graveyard", id(71))]),
+    ["Grizzly Bears is sacrificed"]);
+  // (the Negate another player's: Forge's AI counters no spell of its own team's, CounterAi)
+  const NEGATE_MINE = { ...card(77, "Negate", ["Instant"]), text: "Counter target noncreature spell." };
+  same("kw-14: a counterspell that was itself countered counters nothing, and is countered",
+    answered(WURM, (b) => { put(b, "battlefield", WURM_CARD); put(b, "graveyard", COUNTERSPELL, "player-1"); put(b, "graveyard", NEGATE_MINE); },
+      [ev(11, "Stack", "Graveyard", id(72), null, "player-1"), ev(12, "Stack", "Graveyard", id(77)), ev(13, "Stack", "Battlefield", id(70))]),
+    ["Blue casts Negate", "Craw Wurm enters the battlefield (Blue)", "AI 1 casts Counterspell", "Counterspell is countered"]);
+  // (and one with a spell before it that resolved: the countered Counterspell took nothing off, so the Opt that left
+  // first resolved; it read "Opt is countered" with the countered counter's own targets read, mutation pass 2026-11-06)
+  const OPT_MINE = { ...card(79, "Opt", ["Instant"]), text: "Scry 1.\nDraw a card." };
+  same("kw-14: a countered counterspell takes nothing off, the spell before it resolved",
+    answered(WURM, (b) => { put(b, "battlefield", WURM_CARD); put(b, "graveyard", OPT_MINE); put(b, "graveyard", COUNTERSPELL, "player-1"); put(b, "graveyard", NEGATE_MINE); },
+      [ev(11, "Stack", "Graveyard", id(79)), ev(12, "Stack", "Graveyard", id(72), null, "player-1"), ev(13, "Stack", "Graveyard", id(77)), ev(14, "Stack", "Battlefield", id(70))]),
+    ["Blue casts Opt", "Blue casts Negate", "Craw Wurm enters the battlefield (Blue)", "AI 1 casts Counterspell", "Counterspell is countered"]);
+  same("kw-14: a creature spell straight from the stack into the graveyard, no counterspell seen (an ability's), is countered",
+    between(board((b) => b.stack.push(WURM)), board((b) => put(b, "graveyard", WURM_CARD)), [ev(11, "Stack", "Graveyard", id(70))]),
+    ["Craw Wurm is countered"]);
+  same("kw-14: but not one that entered first (evoke, the legend rule)",
+    between(board((b) => b.stack.push(WURM)), board((b) => put(b, "graveyard", WURM_CARD)), [ev(11, "Stack", "Battlefield", id(70)), ev(12, "Battlefield", "Graveyard", id(70), "sacrificed")]),
+    []);
+  same("kw-14: nor a double-faced card's sorcery face, which resolves into the graveyard",
+    between(board((b) => b.stack.push({ ...WURM, identity: { name: "Tibalt's Trickery" } })), board((b) => put(b, "graveyard", WURM_CARD)), [ev(11, "Stack", "Graveyard", id(70))]),
+    []);
+  same("kw-14: a commander countered by the AI between two boards says so",
+    between(board((b) => { b.stack.push({ ...WURM, sourceId: id(46), identity: { name: "Niv-Mizzet, Visionary" } }); count(b, "hand", 7, "player-1"); }),
+      board((b) => { put(b, "command", { ...card(46, "Niv-Mizzet, Visionary", ["Creature"]) }); count(b, "hand", 6, "player-1"); put(b, "graveyard", COUNTERSPELL, "player-1"); }),
+      [ev(11, "Stack", "Graveyard", id(46)), ev(12, "Graveyard", "Command", id(46)), ev(13, "Stack", "Graveyard", id(72), null, "player-1")]),
+    ["AI 1 casts Counterspell", "Niv-Mizzet, Visionary is countered and returns to the command zone"]);
+  const AURA = { id: "engine-stack-32", sourceId: id(78), identity: { name: "Pacifism" }, controllerId: "player-0", targets: [{ kind: "card", id: id(1) }] };
+  same("kw-14: nor an Aura spell that fizzled, its creature gone",
+    between(board((b) => { put(b, "battlefield", BEAR()); b.stack.push(AURA); }), board((b) => { put(b, "graveyard", BEAR()); put(b, "graveyard", { ...card(78, "Pacifism", ["Enchantment"]), subtypes: ["Aura"] }); }),
+      [ev(11, "Battlefield", "Graveyard", id(1), "sacrificed"), ev(12, "Stack", "Graveyard", id(78))]),
+    ["Grizzly Bears is sacrificed"]);
+  same("kw-14: a spell exiled by a counter (Dissipate) is countered and exiled",
+    answered(WURM, (b) => { put(b, "exile", WURM_CARD); put(b, "graveyard", DISSIPATE, "player-1"); },
+      [ev(11, "Stack", "Exile", id(70)), ev(12, "Stack", "Graveyard", id(73), null, "player-1")]),
+    ["AI 1 casts Dissipate", "Craw Wurm is countered and exiled"]);
+  same("kw-14: and so under a Dissipate seen on the stack",
+    between(board((b) => b.stack.push(WURM, { id: "engine-stack-33", sourceId: id(73), identity: { name: "Dissipate" }, controllerId: "player-1", sourceAbilityText: DISSIPATE.text, targets: [{ kind: "spell", id: WURM.id }] })),
+      board((b) => { put(b, "exile", WURM_CARD); put(b, "graveyard", DISSIPATE, "player-1"); }),
+      [ev(11, "Stack", "Exile", id(70)), ev(12, "Stack", "Graveyard", id(73), null, "player-1")]),
+    ["Craw Wurm is countered and exiled"]);
+  // (the feed names causes, as live: a draw's; Forge gives no move off the stack a cause, so buyback is the spell's own return)
+  const DRAWN = (seq) => ev(seq, "Library", "Hand", null, "draw", "player-1", { cause: "Draw" });
+  same("kw-14: a spell sent back to its hand by Remand is countered and returns there, no buyback",
+    answered(BOLT_UP, (b) => { put(b, "battlefield", BEAR()); put(b, "graveyard", REMAND, "player-1"); },
+      [ev(11, "Stack", "Hand", id(71)), DRAWN(12), ev(13, "Stack", "Graveyard", id(74), null, "player-1")]),
+    ["AI 1 draws a card", "AI 1 casts Remand", "Lightning Bolt is countered and returns to Blue's hand"]);
+  same("kw-14: and so under a Remand seen on the stack",
+    between(board((b) => { put(b, "battlefield", BEAR()); b.stack.push(BOLT_UP, { id: "engine-stack-34", sourceId: id(74), identity: { name: "Remand" }, controllerId: "player-1", sourceAbilityText: REMAND.text, targets: [{ kind: "spell", id: BOLT_UP.id }] }); }),
+      board((b) => { put(b, "battlefield", BEAR()); put(b, "graveyard", REMAND, "player-1"); }),
+      [ev(11, "Stack", "Hand", id(71)), DRAWN(12), ev(13, "Stack", "Graveyard", id(74), null, "player-1")]),
+    ["Lightning Bolt is countered and returns to Blue's hand", "AI 1 draws a card"]);
+  same("kw-14: one returned to its hand by a spell that doesn't counter (Unsubstantiate) just returns, no buyback",
+    answered(BOLT_UP, (b) => { put(b, "battlefield", BEAR()); put(b, "graveyard", UNSUB, "player-1"); },
+      [DRAWN(11), ev(12, "Stack", "Hand", id(71)), ev(13, "Stack", "Graveyard", id(75), null, "player-1")]),
+    ["AI 1 draws a card", "AI 1 casts Unsubstantiate", "Lightning Bolt returns to Blue's hand"]);
+  same("kw-14: a text change countered by a counterspell no board showed says only that it is countered",
+    between(board((b) => { put(b, "battlefield", WRAITH()); b.stack.push(BEND); }),
+      board((b) => { put(b, "battlefield", WRAITH()); put(b, "graveyard", card(54, "Mind Bend", ["Instant"])); put(b, "graveyard", COUNTERSPELL, "player-1"); }),
+      [ev(11, "Stack", "Graveyard", id(54)), ev(12, "Stack", "Graveyard", id(72), null, "player-1")]),
+    ["AI 1 casts Counterspell", "Mind Bend is countered"]);
+  // a counter cast another way, whose stack item has only that way's words (Forge's alternative-cost spell ability), on
+  // the player's own spell: White's cleaved Wash Away and web-slinging Spider-Sense on its own Divinations read no "is
+  // countered", keyword sweep kw-20 (re-run and run 3a). The texts are Forge's: the cleave ability's description, the
+  // web-slinging one's (CardFactoryUtil), and the stack words (CounterEffect after the card's own "<name> (<id>) - ").
+  const WA_TEXT = "Cleave {1}{U}{U} (You may cast this spell for its cleave cost. If you do, remove the words in square brackets.)\nCounter target spell [that wasn't cast from its owner's hand].";
+  const SS_TEXT = "Web-slinging {U} (You may cast this spell for {U} if you also return a tapped creature you control to its owner's hand.)\nCounter target instant spell, sorcery spell, or triggered ability.";
+  const CLEAVE_WAY = "Cleave {1}{U}{U} (You may cast this spell for its cleave cost. If you do, remove the words in square brackets.)";
+  const WEB_WAY = "Web-Slinging {U} (You may cast this spell for {U} if you also return a tapped creature you control to its owner’s hand.)";
+  const DIV = { id: "engine-stack-40", sourceId: id(80), identity: { name: "Divination" }, controllerId: "player-0", sourceAbilityText: "Draw two cards.", text: "Divination (80) - Draw two cards." };
+  const DIV_CARD = card(80, "Divination", ["Instant"]);
+  const own = (n, name, text) => ({ ...card(n, name, ["Instant"]), text });
+  const ownStack = (n, name, sat, text) => ({ id: `engine-stack-${n}`, sourceId: id(n), identity: { name }, controllerId: "player-0", sourceAbilityText: sat, text, targets: [{ kind: "spell", id: DIV.id }] });
+  const ownCounter = (counter, cardOf, events) => between(board((b) => b.stack.push(DIV, counter)), board((b) => { put(b, "graveyard", DIV_CARD); put(b, "graveyard", cardOf); }), events);
+  same("kw-20: the player's own spell under its own cleaved Wash Away, both seen on the stack, is countered",
+    ownCounter(ownStack(81, "Wash Away", CLEAVE_WAY, "Wash Away (81) - Counter Divination (80)."), own(81, "Wash Away", WA_TEXT),
+      [ev(11, "Stack", "Graveyard", id(80)), ev(12, "Stack", "Graveyard", id(81))]),
+    ["Divination is countered"]);
+  same("kw-20: and under its own web-slinging Spider-Sense, whose stack words say only how it was cast",
+    ownCounter(ownStack(82, "Spider-Sense", WEB_WAY, "Spider-Sense (Web-Slinging)"), own(82, "Spider-Sense", SS_TEXT),
+      [ev(11, "Stack", "Graveyard", id(80)), ev(12, "Stack", "Graveyard", id(82))]),
+    ["Divination is countered"]);
+  same("kw-20: and with no feed, the same",
+    ownCounter(ownStack(82, "Spider-Sense", WEB_WAY, "Spider-Sense (Web-Slinging)"), own(82, "Spider-Sense", SS_TEXT), null),
+    ["Divination is countered"]);
+  same("kw-20: a spell cast another way that targets a spell and doesn't counter it: the spell resolves",
+    ownCounter(ownStack(83, "Twincast", "Overload {4}{U} (You may cast this spell for its overload cost. If you do, change \"target\" in its text to \"each\".)", "Twincast (83) - Copy Divination (80)."),
+      own(83, "Twincast", "Overload {4}{U} (...)\nCopy target instant or sorcery spell."), [ev(11, "Stack", "Graveyard", id(83)), ev(12, "Stack", "Graveyard", id(80))]),
+    []);
+  same("kw-20: the player's own cleaved Wash Away cast and resolved between two boards, by the feed's order",
+    between(board((b) => b.stack.push(DIV)), board((b) => { put(b, "graveyard", DIV_CARD); put(b, "graveyard", own(81, "Wash Away", WA_TEXT)); }),
+      [ev(11, "Stack", "Graveyard", id(80)), ev(12, "Stack", "Graveyard", id(81))]),
+    ["Blue casts Wash Away", "Divination is countered"]);
+  // (the player's own counter never seen on the stack: its target noted as picked, by the card's text when the ability's
+  // is only the way it was cast; no feed, so only the pick tells)
+  for (const [name, way, text] of [["Wash Away", CLEAVE_WAY, WA_TEXT], ["Spider-Sense", WEB_WAY, SS_TEXT], ["Twincast", CLEAVE_WAY, "Copy target instant or sorcery spell."]]) {
+    const h = harness.load();
+    const seat = setup(h);
+    const g = h.B._getGame();
+    const withDiv = board((b) => b.stack.push(DIV));
+    seat.board = { state: { gameView: withDiv }, fingerprint: null };
+    h.B.updateLog(withDiv);
+    h.B.onPrompt(seat, { promptId: 970, decidingPlayerId: "player-0", input: { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, candidates: [{ kind: "spell", id: DIV.id }], presentation: { title: "x", targets: [] } },
+      sourceCard: { id: id(84), identity: { name }, text }, sourceAbilityText: way });
+    await h.flush();
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 970, choice: [`spell|${DIV.id}`] }) });
+    await h.flush();
+    h.B.updateLog(board((b) => { put(b, "graveyard", DIV_CARD); put(b, "graveyard", own(84, name, text)); }));
+    same(`kw-20: the player's own ${name} cast another way, never seen on the stack: ${name === "Twincast" ? "no counter" : "Divination is countered"}`,
+      (g.log || []).filter((l) => /Divination/.test(l)), name === "Twincast" ? [] : ["Divination is countered"]);
+    harness.restore();
+  }
+  // what left the stack before a spell or permanent with counter words, which countered none of it (suite review
+  // 2026-11-06: each read a false "is countered"; the verifier's probes a to e)
+  const BOLT_ME = { ...BOLT_UP, targets: [{ kind: "player", id: "player-1" }] };
+  same("a: a permanent with counter words resolving after the player's Bolt counters nothing (Voidmage Prodigy)",
+    answered(BOLT_ME, (b) => { put(b, "graveyard", BOLT_CARD); put(b, "battlefield", { ...answer(85, "Voidmage Prodigy", "Sacrifice a Wizard: Counter target spell.\nMorph {U}"), types: ["Creature"] }, "player-1"); },
+      [ev(11, "Stack", "Graveyard", id(71)), ev(12, "Stack", "Battlefield", id(85), null, "player-1")]),
+    ["Voidmage Prodigy enters the battlefield (AI 1)"]);
+  for (const [name, text] of [["Mystic Snake", "Flash\nWhen Mystic Snake enters, counter target spell."], ["Spellstutter Sprite", "Flash\nFlying\nWhen Spellstutter Sprite enters, counter target spell with mana value X or less, where X is the number of Faeries you control."], ["Glen Elendra Archmage", "Flying\n{U}, Sacrifice Glen Elendra Archmage: Counter target noncreature spell.\nPersist"]])
+    same(`a: and so ${name}`,
+      answered(BOLT_ME, (b) => { put(b, "graveyard", BOLT_CARD); put(b, "battlefield", { ...answer(85, name, text), types: ["Creature"] }, "player-1"); },
+        [ev(11, "Stack", "Graveyard", id(71)), ev(12, "Stack", "Battlefield", id(85), null, "player-1")]),
+      [`${name} enters the battlefield (AI 1)`]);
+  same("b: a Mana Leak paid counters nothing, the AI's Opt before it resolved",
+    answered(WURM, (b) => { put(b, "battlefield", WURM_CARD); put(b, "graveyard", answer(86, "Opt", "Scry 1.\nDraw a card."), "player-1"); put(b, "graveyard", answer(87, "Mana Leak", "Counter target spell unless its controller pays {3}."), "player-1"); },
+      [ev(11, "Stack", "Graveyard", id(86), null, "player-1"), ev(12, "Stack", "Graveyard", id(87), null, "player-1"), ev(13, "Stack", "Battlefield", id(70))]),
+    ["Craw Wurm enters the battlefield (Blue)", "AI 1 casts Opt", "AI 1 casts Mana Leak"]);
+  same("b: and so with the player's Opt before it, which the AI may counter",
+    answered(WURM, (b) => { put(b, "graveyard", OPT_MINE); put(b, "battlefield", WURM_CARD); put(b, "graveyard", answer(87, "Mana Leak", "Counter target spell unless its controller pays {3}."), "player-1"); },
+      [ev(11, "Stack", "Graveyard", id(79)), ev(12, "Stack", "Graveyard", id(87), null, "player-1"), ev(13, "Stack", "Battlefield", id(70))]),
+    ["Blue casts Opt", "Craw Wurm enters the battlefield (Blue)", "AI 1 casts Mana Leak"]);
+  for (const [name, text] of [["Disallow", "Counter target spell, activated ability, or triggered ability. (Mana abilities can't be targeted.)"], ["Tale's End", "Counter target activated ability, triggered ability, or legendary spell."]])
+    same(`c: ${name} after the AI's own Bolt resolved counters nothing of it`,
+      between(board((b) => { put(b, "battlefield", BEAR()); count(b, "hand", 7, "player-1"); }),
+        board((b) => { put(b, "graveyard", BEAR()); put(b, "graveyard", answer(88, "Lightning Bolt", "Lightning Bolt deals 3 damage to any target."), "player-1"); put(b, "graveyard", answer(89, name, text), "player-1"); count(b, "hand", 5, "player-1"); }),
+        [ev(11, "Stack", "Graveyard", id(88), null, "player-1"), ev(12, "Battlefield", "Graveyard", id(1), "destroyed"), ev(13, "Stack", "Graveyard", id(89), null, "player-1")]),
+      ["Grizzly Bears dies", "AI 1 casts Lightning Bolt", `AI 1 casts ${name}`]);
+  same("c: nor after the player's Bolt no board showed (it may have countered the Bears' trigger)",
+    between(board((b) => { put(b, "battlefield", BEAR()); count(b, "hand", 7, "player-1"); }),
+      board((b) => { put(b, "graveyard", BEAR()); put(b, "graveyard", BOLT_CARD); put(b, "graveyard", answer(89, "Disallow", "Counter target spell, activated ability, or triggered ability."), "player-1"); count(b, "hand", 6, "player-1"); }),
+      [ev(11, "Stack", "Graveyard", id(71)), ev(12, "Battlefield", "Graveyard", id(1), "destroyed"), ev(13, "Stack", "Graveyard", id(89), null, "player-1")]),
+    ["Grizzly Bears dies", "Blue casts Lightning Bolt", "AI 1 casts Disallow"]);
+  same("c: but a Disallow on the player's Bolt seen on the stack counters it",
+    answered(BOLT_ME, (b) => { put(b, "graveyard", BOLT_CARD); put(b, "graveyard", answer(89, "Disallow", "Counter target spell, activated ability, or triggered ability."), "player-1"); },
+      [ev(11, "Stack", "Graveyard", id(71)), ev(12, "Stack", "Graveyard", id(89), null, "player-1")]),
+    ["AI 1 casts Disallow", "Lightning Bolt is countered"]);
+  // (Disallow seen on the stack, on an ability, the player's Bolt seen over it: the Bolt left first and resolved; a seen
+  // counter has its targets, never the spell before it, mutation pass 2026-11-06)
+  const DISALLOW_TEXT = "Counter target spell, activated ability, or triggered ability.";
+  same("c: a Disallow seen on the stack takes only its own targets, not the spell that left before it",
+    between(board((b) => { put(b, "battlefield", BEAR()); b.stack.push({ id: "engine-stack-35", sourceId: id(89), identity: { name: "Disallow" }, controllerId: "player-1", sourceAbilityText: DISALLOW_TEXT, targets: [] }, BOLT_ME); }),
+      board((b) => { put(b, "battlefield", BEAR()); put(b, "graveyard", BOLT_CARD); put(b, "graveyard", answer(89, "Disallow", DISALLOW_TEXT), "player-1"); }),
+      [ev(11, "Stack", "Graveyard", id(71)), ev(12, "Stack", "Graveyard", id(89), null, "player-1")]),
+    []);
+  const WHISPERS = { id: "engine-stack-36", sourceId: id(90), identity: { name: "Whispers of the Muse" }, controllerId: "player-0", sourceAbilityText: "Draw a card." };
+  same("d: a buyback spell back in its hand stays a buyback with Venser resolving after it",
+    answered(WHISPERS, (b) => { put(b, "battlefield", { ...answer(91, "Venser, Shaper Savant", "Flash\nWhen Venser, Shaper Savant enters, return target spell or permanent to its owner's hand."), types: ["Creature"] }, "player-1"); },
+      [ev(11, "Library", "Hand", null, "draw", "player-0", { cause: "Draw" }), ev(12, "Stack", "Hand", id(90)), ev(13, "Stack", "Battlefield", id(91), null, "player-1")]),
+    ["Whispers of the Muse returns to Blue's hand (buyback)", "Venser, Shaper Savant enters the battlefield (AI 1)", "Blue draws a card"]);
+  same("e: two of the AI's counters on one spell: the top one counters it, the one under it fizzles",
+    answered(DIV, (b) => { put(b, "graveyard", DIV_CARD); put(b, "graveyard", COUNTERSPELL, "player-1"); put(b, "graveyard", answer(77, "Negate", "Counter target noncreature spell."), "player-1"); },
+      [ev(11, "Stack", "Graveyard", id(80)), ev(12, "Stack", "Graveyard", id(77), null, "player-1"), ev(13, "Stack", "Graveyard", id(72), null, "player-1")]),
+    ["AI 1 casts Counterspell", "AI 1 casts Negate", "Divination is countered"]);
+  // (a counter cast another way, seen on the stack, itself countered back to a hand: what it would have countered
+  // resolved. Forge's stack words "Counter Divination" still showed, and read "Divination is countered", suite review
+  // 2026-11-06: so such a counter goes by its card, and its card is in no public zone)
+  const WA_AI = { ...ownStack(81, "Wash Away", CLEAVE_WAY, "Wash Away (81) - Counter Divination (80)."), controllerId: "player-1" };
+  same("kw-20: a cleaved Wash Away countered back to its hand by the player's Remand counters nothing",
+    between(board((b) => b.stack.push(DIV, WA_AI)), board((b) => { put(b, "graveyard", DIV_CARD); put(b, "graveyard", own(74, "Remand", REMAND.text)); }),
+      [ev(11, "Stack", "Hand", id(81), null, "player-1"), ev(12, "Stack", "Graveyard", id(74)), ev(13, "Stack", "Graveyard", id(80))]),
+    ["Blue casts Remand", "Wash Away is countered and returns to AI 1's hand"]);
+  // a spell countered into its library, which no board shows (Memory Lapse, Spell Crumple, Hinder): read nothing
+  for (const [name, text, where] of [["Memory Lapse", "Counter target spell. If that spell is countered this way, put it on top of its owner's library instead of into that player's graveyard.", "on top of"],
+    ["Spell Crumple", "Counter target spell. If that spell is countered this way, put it on the bottom of its owner's library instead of into that player's graveyard. Put Spell Crumple on the bottom of its owner's library.", "on the bottom of"],
+    ["Hinder", "Counter target spell. If that spell is countered this way, put that card on the top or bottom of its owner's library instead of into that player's graveyard.", "into"]]) {
+    const lapse = answer(92, name, text);
+    // (Spell Crumple goes into its library too, unseen there, so only one seen on the stack is told: see the gap below)
+    const crumple = name === "Spell Crumple";
+    if (!crumple)
+      same(`library: a spell countered by ${name} no board showed is put ${where} its owner's library`,
+        answered(WURM, (b) => put(b, "graveyard", lapse, "player-1"), [ev(11, "Stack", "Library", id(70)), ev(12, "Stack", "Graveyard", id(92), null, "player-1")]),
+        [`AI 1 casts ${name}`, `Craw Wurm is countered and put ${where} Blue's library`]);
+    same(`library: and under a ${name} seen on the stack`,
+      between(board((b) => b.stack.push(WURM, { id: "engine-stack-37", sourceId: id(92), identity: { name }, controllerId: "player-1", sourceAbilityText: text, targets: [{ kind: "spell", id: WURM.id }] })),
+        board((b) => { if (!crumple) put(b, "graveyard", lapse, "player-1"); }), [ev(11, "Stack", "Library", id(70)), ev(12, "Stack", crumple ? "Library" : "Graveyard", id(92), null, "player-1")]),
+      [`Craw Wurm is countered and put ${where} Blue's library`]);
+  }
+  same("library: a spell put back into its library by no counter says nothing of being countered",
+    between(board((b) => b.stack.push(WURM)), board(() => {}), [ev(11, "Stack", "Library", id(70))]), []);
+  // a spell countered at the end of a turn, the next board in the next turn: both lines are the old turn's
+  same("turn: a spell countered by the AI at the end of the turn reads above the new turn's header",
+    answered(WURM, (b) => { b.turn = 4; b.activePlayerId = "player-1"; put(b, "graveyard", WURM_CARD); put(b, "graveyard", COUNTERSPELL, "player-1"); },
+      [ev(11, "Stack", "Graveyard", id(70)), ev(12, "Stack", "Graveyard", id(72), null, "player-1")]),
+    ["AI 1 casts Counterspell", "Craw Wurm is countered", "--- AI 1's turn 1 ---"]);
+  same("turn: one no board showed, countered on the board of the new turn, still reads after its counter's cast",
+    between(board((b) => count(b, "hand", 7, "player-1")),
+      board((b) => { b.turn = 4; b.activePlayerId = "player-1"; put(b, "graveyard", BOLT_CARD); put(b, "graveyard", COUNTERSPELL, "player-1"); count(b, "hand", 6, "player-1"); }),
+      [ev(11, "Stack", "Graveyard", id(71)), ev(12, "Stack", "Graveyard", id(72), null, "player-1")]),
+    ["--- AI 1's turn 1 ---", "Blue casts Lightning Bolt", "AI 1 casts Counterspell", "Lightning Bolt is countered"]);
+  // (a counter cast from a graveyard, flashback's, goes into exile as it resolves: it counters all the same. On an
+  // instant: a creature spell straight into a graveyard reads as countered by itself, see counteredOff)
+  same("a counterspell that resolved into exile (flashback) counters its spell",
+    answered(BOLT_UP, (b) => { put(b, "battlefield", BEAR()); put(b, "graveyard", BOLT_CARD); put(b, "exile", COUNTERSPELL, "player-1"); },
+      [ev(11, "Stack", "Graveyard", id(71)), ev(12, "Stack", "Exile", id(72), null, "player-1")]),
+    ["Counterspell is exiled", "Lightning Bolt is countered"]);
+  // (a spell that exiles a spell doesn't counter it, Mindbreak Trap: seen on the stack or not, the spell is only exiled)
+  const TRAP_TEXT = "If an opponent cast three or more spells this turn, you may pay {0} rather than pay this spell's mana cost.\nExile any number of target spells.";
+  same("a spell exiled by Mindbreak Trap no board showed is not countered",
+    answered(BOLT_UP, (b) => { put(b, "battlefield", BEAR()); put(b, "exile", BOLT_CARD); put(b, "graveyard", answer(95, "Mindbreak Trap", TRAP_TEXT), "player-1"); },
+      [ev(11, "Stack", "Exile", id(71)), ev(12, "Stack", "Graveyard", id(95), null, "player-1")]),
+    ["Lightning Bolt is exiled", "AI 1 casts Mindbreak Trap"]);
+  same("nor one under a Mindbreak Trap seen on the stack",
+    between(board((b) => { put(b, "battlefield", BEAR()); b.stack.push(BOLT_UP, { id: "engine-stack-38", sourceId: id(95), identity: { name: "Mindbreak Trap" }, controllerId: "player-1", sourceAbilityText: "Exile any number of target spells.", targets: [{ kind: "spell", id: BOLT_UP.id }] }); }),
+      board((b) => { put(b, "battlefield", BEAR()); put(b, "exile", BOLT_CARD); put(b, "graveyard", answer(95, "Mindbreak Trap", TRAP_TEXT), "player-1"); }),
+      [ev(11, "Stack", "Exile", id(71)), ev(12, "Stack", "Graveyard", id(95), null, "player-1")]),
+    ["Lightning Bolt is exiled"]);
+  // (a permanent spell with counter words, itself countered by an ability, did nothing: the player's Opt that left
+  // before it resolved)
+  same("a permanent spell with counter words, itself countered, counters nothing (Mystic Snake)",
+    between(board((b) => count(b, "hand", 7, "player-1")),
+      board((b) => { put(b, "graveyard", OPT_MINE); put(b, "graveyard", { ...answer(94, "Mystic Snake", "Flash\nWhen Mystic Snake enters, counter target spell."), types: ["Creature"] }, "player-1"); count(b, "hand", 6, "player-1"); }),
+      [ev(11, "Stack", "Graveyard", id(79)), ev(12, "Stack", "Graveyard", id(94), null, "player-1")]),
+    ["Blue casts Opt", "AI 1 casts Mystic Snake", "Mystic Snake is countered"]);
+  // (the team rule goes by who controls the spell: the AI's own cast of the player's card, Commandeer's or a spell cast
+  // from another's library, is the AI's, and no counter of the AI's takes it)
+  same("the AI's counter takes no spell the AI controls, whoever owns its card",
+    answered({ ...BOLT_ME, controllerId: "player-1" }, (b) => { put(b, "graveyard", BOLT_CARD); put(b, "graveyard", COUNTERSPELL, "player-1"); },
+      [ev(11, "Stack", "Graveyard", id(71)), ev(12, "Stack", "Graveyard", id(72), null, "player-1")]),
+    ["AI 1 casts Counterspell"]);
+  // (a counter of up to two: the spell just before it resolved onto the battlefield, so it countered nothing of what
+  // left before that, the player's Opt)
+  same("a counter of up to two stops at a spell that resolved onto the battlefield",
+    between(board((b) => count(b, "hand", 7, "player-1")),
+      board((b) => { put(b, "graveyard", OPT_MINE); put(b, "battlefield", BEAR()); put(b, "graveyard", answer(93, "Double Negative", "Counter up to two target spells."), "player-1"); count(b, "hand", 6, "player-1"); }),
+      [ev(11, "Stack", "Graveyard", id(79)), ev(12, "Stack", "Battlefield", id(1)), ev(13, "Stack", "Graveyard", id(93), null, "player-1")]),
+    ["Blue casts Opt", "Grizzly Bears enters the battlefield (Blue)", "AI 1 casts Double Negative"]);
+  same("turn: and one countered and sent back by Remand",
+    answered(BOLT_UP, (b) => { b.turn = 4; b.activePlayerId = "player-1"; put(b, "battlefield", BEAR()); put(b, "graveyard", REMAND, "player-1"); },
+      [ev(11, "Stack", "Hand", id(71)), ev(12, "Stack", "Graveyard", id(74), null, "player-1")]),
+    ["AI 1 casts Remand", "Lightning Bolt is countered and returns to Blue's hand", "--- AI 1's turn 1 ---"]);
   // (its target gone before it resolved: nothing about the text, and no crash)
   // (a throw is returned as a marker, so this fails by name and the checks after it still run)
   let goneLines;

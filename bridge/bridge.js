@@ -142,6 +142,13 @@ const OPTIONAL_ASK = /^(?:Use (?:triggered ability of )?|Apply replacement effec
 // A spell that counters its target for sure: "Counter target ..." with no "unless" (Flusterstorm's copies, "unless its
 // controller pays {1}", were paid for, and "Chart a Course is countered" was logged as it resolved, hp-08 gap)
 const isCounterspell = (t) => /\bcounter target\b/i.test(t) && !/\bunless\b/i.test(t);
+// An ability text that is only the way a spell was cast, its cost and that cost's reminder, nothing of what it does:
+// Forge's alternative-cost spell abilities, Wash Away's cleave "Cleave {1}{U}{U} (You may cast this spell for its cleave
+// cost. ...)" and Spider-Sense's "Web-Slinging {U} (You may cast this spell for {U} if ...)". What such a spell does is
+// read from its card's text (logSnapshot says why not Forge's stack words); White's own Wash Away and Spider-Sense on
+// its Divinations read no "is countered", keyword sweep kw-20. Only the whole text: a way with more words after its
+// reminder is read as it stands, by isCounterspell.
+const castWayOnly = (t) => /^(?:[A-Z][\w-]*(?: [^(\n]*?)? )?\(You may cast this spell\b[^)]*\)\.?$/.test(String(t || "").trim());
 // a line in the game log, and to the table's log panel
 function gameLogLine(line) {
   // (players by their table names, whatever the caller built the line from: a reveal's raw title put "self-hosted-node-
@@ -1348,7 +1355,11 @@ function logSnapshot(pub, prev = null) {
     stack[key].sids.push(s.id);
     for (const t of s.targets || []) if (t.kind === "spell") stack[key].tg.push(t.id);
     // (and those a counterspell targets: an instant or sorcery under one is countered too, see logEvents)
-    if (isCounterspell(s.sourceAbilityText || s.text || "")) for (const t of s.targets || []) if (t.kind === "spell") (stack[key].ctg ??= []).push(t.id);
+    // (one cast another way, by its card once it has left the stack, see logEvents: not by Forge's stack words, "Wash Away
+    // (81) - Counter Divination (80).", which a counter itself countered still shows, its card then in a hand, suite
+    // review 2026-11-06)
+    if (castWayOnly(s.sourceAbilityText)) stack[key].way = true;
+    else if (isCounterspell(s.sourceAbilityText || s.text || "")) for (const t of s.targets || []) if (t.kind === "spell") (stack[key].ctg ??= []).push(t.id);
   }
   // (who blocks whom: blocker id -> the attackers it blocks)
   const blocks = {};
@@ -1504,9 +1515,12 @@ function engineFacts(events) {
   if (events[0].seq > seen + 1) { noteGuess("feed gap", `events ${seen + 1} to ${events[0].seq - 1} fell behind`); return null; }
   // (firstDraw / firstDiscard: each player's first of each by Forge's order, so a discard before its draw is said first;
   // Fable's chapter II read "draws 2 cards" then "discards ...", rebuilt re-test)
-  const facts = { moves: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map() };
+  // (offStack: the cards that left the stack, in Forge's order, each with where to and its owner, for what took a spell
+  // off it, see logEvents)
+  const facts = { moves: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), offStack: [] };
   for (const e of events) {
     if (e.seq <= seen) continue;
+    if (e.from === "Stack" && e.cardId) facts.offStack.push({ id: e.cardId, to: e.to, owner: e.ownerId });
     // (an engine that names causes: a move without one means something only then, buyback's return, see logEvents)
     if (e.cause) game.feedCauses = true;
     if (e.from === "Library") {
@@ -1634,6 +1648,43 @@ const LEAVE_WORDS = {
 function extraTurn(cur) {
   return cur.marks?.[cur.active]?.extraTurn === true;
 }
+// The spells a spell no board showed on the stack took off it, cast and resolved between two boards: the AI's answer.
+// Forge moves a spell's targets as it resolves and the spell itself after them, so the spells that left the stack just
+// before a counterspell, or a "return target spell", were its targets; one that resolved left after the spells above
+// it, and a counterspell itself countered did nothing. Craw Wurm under the AI's Counterspell read only "AI 1 casts
+// Counterspell", keyword sweep kw-14. offStack: engineFacts's, Forge's order; prevSpellOf: the last board's stack
+// spells by card id; cards: logSnapshot's. -> card id -> { how: "counter" or "return", by: the card that took it }
+function takenOffStack(offStack, prevSpellOf, cards, pubIndex) {
+  const taken = new Map();
+  for (let i = offStack.length - 1; i >= 0; i--) {
+    const { id: r, to, owner } = offStack[i], text = pubIndex[r]?.text || "";
+    // (one seen on the stack has its targets; one itself taken off did nothing)
+    if (prevSpellOf.has(r) || taken.has(r)) continue;
+    // (an instant or sorcery that resolved, or was itself countered: a permanent's "counter target spell" is an ability
+    // of what it became, which resolved by the battlefield, Voidmage Prodigy's, Mystic Snake's, Venser's "return target
+    // spell"; and one with "unless" may have been paid, Mana Leak, as isCounterspell. Each read "<the spell before> is
+    // countered", suite review 2026-11-06)
+    if (!cards[r]?.spell || (to !== "Graveyard" && to !== "Exile") || /\bunless\b/i.test(text)) continue;
+    const how = /\bcounter (?:target|up to \w+ target|any number of target)\b[^.]*\bspells?\b/i.test(text) ? "counter" : /\breturn target spell\b/i.test(text) ? "return" : null;
+    if (!how) continue;
+    const n = /\bany number of target\b/i.test(text) ? i : { two: 2, three: 3, four: 4 }[/\bup to (two|three|four) target\b/i.exec(text)?.[1].toLowerCase()] || 1;
+    // (a target it could have had, else it had none of these, and the spells before it left on their own: one that
+    // resolved onto the battlefield; for "return", one not in a hand (no line reads that today: a return is read only
+    // from a hand); an AI's own, as Forge's AI counters or sends back no spell of its team's by choice (CounterAi;
+    // ChangeZoneAi's doExileSpellLogic takes an opponent's); and for a counter of abilities too, Disallow, Tale's End,
+    // one no board showed, as it may have countered a trigger after that spell resolved. The AI's Negate over its
+    // Counterspell, on one Divination, read "Negate is countered"; Disallow after the AI's own Bolt, "Lightning Bolt is
+    // countered", suite review 2026-11-06)
+    const ctl = cards[r].ctl || owner, ai = !seatOfSlot(ctl), abilities = /\bcounter target\b[^.]*\babilit(?:y|ies)\b/i.test(text);
+    for (let j = i - 1; j >= i - n && j >= 0; j--) {
+      const t = offStack[j], seen = prevSpellOf.get(t.id);
+      if (t.to === "Battlefield" || (how === "return" && t.to !== "Hand") || (ai && (seen?.ctl ?? t.owner) === ctl) || (abilities && !seen)) break;
+      taken.set(t.id, { how, by: r });
+    }
+  }
+  return taken;
+}
+
 function logEvents(prev, cur, pub, facts = null) {
   const out = [];
   const who = (id) => nameOf(id);
@@ -1667,6 +1718,22 @@ function logEvents(prev, cur, pub, facts = null) {
   const prevTargeted = new Set([...Object.values(prev.stack).flatMap((s) => s.tg || []), ...counterKept]);
   const prevCounterTargeted = new Set([...Object.values(prev.stack).flatMap((s) => s.ctg || []), ...counterKept]);
   const prevSpellOf = new Map(Object.values(prev.stack).filter((s) => !s.ability).map((s) => [s.id, s]));
+  const pubIndex = cardIndex(pub);
+  // (a spell cast another way, whose stack item said nothing of what it does (castWayOnly): a counterspell by its card's
+  // text, the card now off the stack; Spider-Sense cast by web-slinging, keyword sweep kw-20)
+  for (const s of prevSpellOf.values()) if (s.way && pubIndex[s.id] && isCounterspell(pubIndex[s.id].text || "")) for (const t of s.tg) prevCounterTargeted.add(t);
+  // (and the spells taken off the stack by one no board showed there, see takenOffStack; those seen on the stack have
+  // their targets, above. answeredOld: the ones that took a spell seen on the last board's stack, so cast in that turn)
+  const takenOff = takenOffStack(facts?.offStack || [], prevSpellOf, cur.cards, pubIndex);
+  const answeredOld = new Set([...takenOff].filter(([id]) => prevSpellOf.has(id)).map(([, t]) => t.by));
+  // (a permanent spell straight from the stack into a graveyard was countered too, by whatever did it, an ability or a
+  // spell: of those only an Aura can lose its target and not resolve, and one that resolved went by the battlefield,
+  // evoke's sacrifice and the legend rule's loser. Not one cast by another name: a double-faced card's sorcery face
+  // resolves into the graveyard, its front a creature)
+  const counteredOff = (id, c, moved) => takenOff.get(id)?.how === "counter" || (moved?.from === "Stack" && moved.to === "Graveyard" && !moved.through
+    && !c.spell && !c.land && !(pubIndex[id]?.subtypes || []).includes("Aura") && (prevSpellOf.get(id)?.name ?? c.name) === c.name);
+  // (lines said after the cards' own: a spell countered by one cast just now, after that cast; [line, the spell's card])
+  const later = [], sayAfter = (now, id, line) => (now ? out.push(line) : later.push([line, id]));
   // (came off the stack, or was just logged as a cast: not a discard, not "put into a graveyard")
   // (or by its card: a split card resolves under its half's name, "Cut // Ribbons is put into White's graveyard", hp-11)
   const fromStack = (id, c) => castNow.has(id) || prevStackNames.has(c.name) || Object.values(prev.stack).some((x) => x.id === id);
@@ -1758,12 +1825,27 @@ function logEvents(prev, cur, pub, facts = null) {
     else if (e.kind === "faceup" && back) e.said = true;
     else if (e.kind !== "cast" && back) { out.push(keywordLine(e.kind, e.ctl, e.name) || `${who(e.ctl)} uses ${poss(e.name)} ability`); e.said = true; game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
   }
-  // (a spell back in a hand from the stack, which no board shows: buyback's, the move with no cause of its own; one sent
-  // back by another spell has that spell's, Remand's. Whispers of the Muse's buyback read nothing, keyword sweep. Only
-  // from an engine that names causes: from one that names none, every Remand would read as a buyback.)
+  // (a spell back in a hand from the stack, which no board shows: buyback's, by no other spell. Forge gives no move off
+  // the stack a cause, so a spell another one sent back, Remand or Unsubstantiate, is told by that spell: Remand counters
+  // it and says so, after its cast when no board showed it, keyword sweep kw-14. Whispers of the Muse's buyback read
+  // nothing, keyword sweep. Only from an engine that names causes: from one that names none, every Remand would read as
+  // a buyback.)
+  // (or into a library, countered: Memory Lapse's on top, Spell Crumple's on the bottom, Hinder's either, by the
+  // counter's words; Memory Lapse's spell read nothing, suite review 2026-11-06)
   for (const [id, m] of facts?.moves || []) {
-    const s = m.from === "Stack" && m.to === "Hand" && prevSpellOf.get(id);
-    if (s) out.push(`${s.name} returns to ${who(cur.cards[id]?.owner || s.ctl)}'s hand${!m.cause && game.feedCauses ? " (buyback)" : ""}`);
+    const s = m.from === "Stack" && (m.to === "Hand" || m.to === "Library") && prevSpellOf.get(id);
+    if (!s) continue;
+    const seenBy = s.sids.some((x) => prevCounterTargeted.has(x)) ? "counter" : s.sids.some((x) => prevTargeted.has(x)) ? "return" : null;
+    const by = seenBy || takenOff.get(id)?.how, owner = who(cur.cards[id]?.owner || s.ctl);
+    if (m.to === "Library") {
+      if (by !== "counter") continue;
+      const words = (seenBy ? Object.values(prev.stack).find((x) => x.ctg?.some((t) => s.sids.includes(t)))?.text : pubIndex[takenOff.get(id)?.by]?.text) || "";
+      const top = /\btop\b[^.]*\bits owner's library\b/i.test(words), bottom = /\bbottom of its owner's library\b/i.test(words);
+      sayAfter(seenBy, id, `${s.name} is countered and put ${top && !bottom ? "on top of" : bottom && !top ? "on the bottom of" : "into"} ${owner}'s library`);
+      continue;
+    }
+    sayAfter(seenBy || !by, id, by === "counter" ? `${s.name} is countered and returns to ${owner}'s hand`
+      : `${s.name} returns to ${owner}'s hand${!by && !m.cause && game.feedCauses ? " (buyback)" : ""}`);
   }
   const abilityRecords = new Set(pending.filter((e) => e.kind !== "cast").map((e) => e.id));
   game.pendingPlays = pending.filter((e) => !e.said && Date.now() - e.at < 60000);
@@ -1820,7 +1902,6 @@ function logEvents(prev, cur, pub, facts = null) {
     for (const id of ids) game.suspected.add(id);
     if (ids.length) out.push(`${ids.map((id) => cur.cards[id].name).join(", ")} ${ids.length > 1 ? "are" : "is"} suspected: menace, and can't block`);
   }
-  const pubIndex = cardIndex(pub);
   for (const [id, c] of Object.entries(cur.cards)) {
     if (c.zone !== "graveyard" || prev.cards[id]?.zone === "graveyard" || !c.spell || Object.values(prev.stack).some((s) => s.id === id)) continue;
     const picks = seatOfSlot(c.ctl)?.targetPicks;
@@ -2078,6 +2159,7 @@ function logEvents(prev, cur, pub, facts = null) {
     // since one under Twincast resolves; Counterspell on the Rats logged nothing, hp-01 #6; An Offer You Can't Refuse's
     // Opt, gap-04. Into a graveyard, or a commander into the command zone: Arcane Denial on Niv-Mizzet, rebuilt re-test)
     const countered = !from && (prevSpellOf.get(id)?.sids || []).some((sid) => (c.spell ? prevCounterTargeted : prevTargeted).has(sid));
+    const exileCountered = !from && (prevSpellOf.get(id)?.sids || []).some((sid) => prevCounterTargeted.has(sid));
     if (facts && !moved) noteGuess("arrival", `${c.name}: ${from || "nowhere seen"} to ${c.zone}`);
     // (a land played, not put: by Forge's word, else by the record of a player's play)
     const landPlayed = moved ? moved.how === "played" : landPlays.has(id);
@@ -2166,6 +2248,11 @@ function logEvents(prev, cur, pub, facts = null) {
         leave(c.owner, gone, { kind, label: kind === "sacrificed" ? sacrificeWords(moved, was) : costWords(moved, c.name) });
       }
       else if (countered) out.push(`${c.name} is countered`);
+      // (by one no board showed on the stack, or by an ability: said after that spell's cast, below)
+      else if (!from && counteredOff(id, c, moved)) {
+        if (moved?.from === "Stack" && !fromStack(id, c)) out.push(`${who(c.owner)} casts ${c.name}`);
+        sayAfter(false, id, `${c.name} is countered`);
+      }
       // (an epic spell resolved: its player's spells are gone for good, shown nowhere; Eternal Dominion, hp-23 gap)
       else if (!from && fromStack(id, c) && /(?:^|\n)Epic \(/.test(pubIndex[id]?.text || "")) out.push(`${who(c.owner)} can't cast spells for the rest of the game (epic); at each of their upkeeps, ${c.name} is copied`);
       // (off the stack by Forge's word with no board showing it there: an AI's spell resolved between two boards)
@@ -2188,6 +2275,11 @@ function logEvents(prev, cur, pub, facts = null) {
           milled(c.owner, c.name);
         } else toGraveyard(c);
       }
+    } else if (c.zone === "exile" && !from && (exileCountered || takenOff.get(id)?.how === "counter")) {
+      // (a spell countered into exile, Dissipate's "exile it instead", or one with flashback: read "Craw Wurm is exiled",
+      // keyword sweep kw-14. By a counterspell only: one that exiles a spell, Mindbreak Trap, doesn't counter it.)
+      if (moved?.from === "Stack" && !fromStack(id, c)) out.push(`${who(c.owner)} casts ${c.name}`);
+      sayAfter(exileCountered, id, `${c.name} is countered and exiled`);
     } else if (c.zone === "exile") {
       const k = exileKind(id, c, from, was, moved);
       // (exiled with a permanent, its counters and whether it comes back: Mairsil's cage read "Ancient Copper Dragon is
@@ -2206,9 +2298,16 @@ function logEvents(prev, cur, pub, facts = null) {
       else out.push(EXILE_WORDS[k.kind](who(k.owner), [c.name], k));
     } else if (c.zone === "command" && (from || countered)) {
       out.push(countered ? `${c.name} is countered and returns to the command zone` : `${c.name} returns to the command zone`);
-    }
-    // (a spell that resolved in the turn just ended, on the board that began the next: its line before the turn header)
-    if (turnBegan && out.length > n0 && !castNow.has(id) && fromStack(id, c)) oldTurn.push([n0, out.length]);
+    } else if (c.zone === "command" && takenOff.get(id)?.how === "counter") sayAfter(false, id, `${c.name} is countered and returns to the command zone`);
+    // (a spell that resolved in the turn just ended, on the board that began the next: its line before the turn header;
+    // and one that took a spell seen on the stack then, cast in that turn too)
+    if (turnBegan && out.length > n0 && !castNow.has(id) && (fromStack(id, c) || answeredOld.has(id))) oldTurn.push([n0, out.length]);
+  }
+  // (and a line said after, of a spell seen on the last board's stack, above a new turn's header with it: a Craw Wurm
+  // countered at the end of the turn read under the next turn's header, suite review 2026-11-06)
+  for (const [line, id] of later) {
+    if (turnBegan && prevSpellOf.has(id)) oldTurn.push([out.length, out.length + 1]);
+    out.push(line);
   }
   // (two permanents' text boxes swapped: both changed in one board as a spell that exchanges text boxes resolved, or each
   // now reads as the other did; Exchange of Words was in no log, rebuilt hand test #11)
@@ -2227,7 +2326,7 @@ function logEvents(prev, cur, pub, facts = null) {
     if (!/\bchange the text of\b/i.test(s.text || "") || s.sids.some((x) => curSids.has(x))) continue;
     // (not a spell countered: a countered Mind Bend read "Mind Bend changes nothing in Bog Wraith's text" under its "is
     // countered", suite review 2026-11-05; one that fizzled can't be told from the boards and still says it)
-    const countered = s.sids.some((x) => prevCounterTargeted.has(x));
+    const countered = s.sids.some((x) => prevCounterTargeted.has(x)) || takenOff.get(s.id)?.how === "counter";
     for (const id of s.cardTg) {
       const c = cur.cards[id];
       if (c?.tx == null || prev.cards[id]?.tx == null) continue;
@@ -4220,7 +4319,9 @@ function onPrompt(seat, prompt) {
         }
         // (and a counterspell's: the player's own resolves before any board shows it on the stack, so its targets are
         // noted here; An Offer You Can't Refuse's Divination read no "is countered", gap-04 re-test)
-        if (game && isCounterspell(String(prompt.sourceAbilityText || srcCardText))) for (const v of a) if (v.startsWith("spell|")) (game.counterTargets ??= new Set()).add(v.slice(6));
+        // (by the card's text when the ability's is only the way it was cast: cleave's, web-slinging's, keyword sweep kw-20)
+        const pickText = String(prompt.sourceAbilityText || srcCardText);
+        if (game && isCounterspell(castWayOnly(pickText) ? srcCardText : pickText)) for (const v of a) if (v.startsWith("spell|")) (game.counterTargets ??= new Set()).add(v.slice(6));
         return { type: "boardTargets", chosen: a.map((v) => { const [kind, id] = v.split("|"); return { kind, id }; }) };
       };
       break;
