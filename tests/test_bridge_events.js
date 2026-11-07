@@ -322,6 +322,21 @@ const id = (n) => `engine-card-${n}`;
   same("cost: a token sacrificed for another card names it, though it is gone from every zone",
     gone(TOKEN(), [ev(11, "Battlefield", "Graveyard", id(5), "sacrificed", "player-0", paid("Sacrifice", "Village Rites"))]),
     ["Goblin token is sacrificed (to pay for Village Rites)"]);
+  // (Kykar hand test #2: a token sacrificed to another card's mana ability paid for mana, not for that card; live cause
+  // "Cost:Sacrifice", causeName the mana source)
+  {
+    const KYKAR = { ...card(30, "Kykar, Wind's Fury", ["Creature"]), text: "Flying\nWhenever you cast a noncreature spell, create a 1/1 white Spirit creature token with flying.\nSacrifice a Spirit: Add {R}." };
+    const BOMB = { ...card(32, "Goblin Bombardment", ["Enchantment"]), text: "Sacrifice a creature: Goblin Bombardment deals 1 damage to any target." };
+    const SPIRIT = card(31, "Spirit Token", ["Creature"], { token: true });
+    same("cost: a token sacrificed to another card's mana ability is sacrificed for mana",
+      between(board((b) => { put(b, "battlefield", KYKAR); put(b, "battlefield", SPIRIT); }), board((b) => put(b, "battlefield", KYKAR)),
+        [ev(11, "Battlefield", "Graveyard", id(31), "sacrificed", "player-0", paid("Sacrifice", "Kykar, Wind's Fury"))]),
+      ["Spirit token is sacrificed for mana (Kykar, Wind's Fury)"]);
+    same("cost: a sacrifice to a card whose sacrifice makes no mana still says what it paid for",
+      between(board((b) => { put(b, "battlefield", BOMB); put(b, "battlefield", SPIRIT); }), board((b) => put(b, "battlefield", BOMB)),
+        [ev(11, "Battlefield", "Graveyard", id(31), "sacrificed", "player-0", paid("Sacrifice", "Goblin Bombardment"))]),
+      ["Spirit token is sacrificed (to pay for Goblin Bombardment)"]);
+  }
   same("cost: delve's cards, one line apart from a plain exile from the same graveyard",
     between(board((b) => { put(b, "graveyard", BEAR()); put(b, "graveyard", SWORD()); put(b, "graveyard", LAND()); }),
       board((b) => { put(b, "exile", BEAR()); put(b, "exile", SWORD()); put(b, "exile", LAND()); }),

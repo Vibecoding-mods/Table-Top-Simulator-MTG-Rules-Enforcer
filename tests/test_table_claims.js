@@ -1650,5 +1650,21 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ]);
   ok("too few: the panel's Done says it on its own, and sends nothing", /Choose 2 \(you chose 1\)\./.test(said(r2, "panel done alone")) && !sentIn(r2, "panel done alone").includes('"choice"'), `${said(r2, "panel done alone")} ${sentIn(r2, "panel done alone").slice(0, 200)}`);
 }
+// Kykar hand test #16: a finished game's top bar shows GAME OVER and why, no turn or step
+{
+  const r = run([q('local t = engineTable() t.gameOver = false engineUpdateCorner("Blue", nil) return tostring(UI.getValue("eng_phase_Blue"))', "playing"),
+    q('local t = engineTable() t.gameOver = true t.overWhy = "a draw. Nobody lost" engineUpdateCorner("Blue", nil) return tostring(UI.getValue("eng_phase_Blue"))', "over")]);
+  const bar = String(valueOf(r, "over"));
+  ok("precondition: a running game's bar shows the turn", /TURN/.test(String(valueOf(r, "playing"))), String(valueOf(r, "playing")) + " " + r.errors.join(" | "));
+  ok("kykar #16: a finished game's bar says GAME OVER and why, no turn", /GAME OVER/.test(bar) && bar.includes("a draw. Nobody lost") && !/TURN|Main 1|MAIN 1/.test(bar), bar);
+}
+// Kykar hand test #27: copies of cards in a pile (Arcane Bombardment) are cast, not dragged out: the hint says where to pick
+{
+  const r = run([q('engineInPile["engine-card-1940"] = true return "in pile"', "pile"),
+    ask({ promptId: 993, kind: "cards", title: "Arcane Bombardment: cast which copy?", text: "The copy is cast; the card stays where it is.", mode: "multi", min: 0, max: 1, copies: true, options: [{ id: "engine-card-1940", label: "Opt" }] }), { frames: 10 },
+    q('return tostring(UI.getValue("eng_hint_Blue"))', "hint")]);
+  const hint = String(valueOf(r, "hint"));
+  ok("kykar #27: copies' hint says the card row or the Engine panel, no drag", hint.includes("Pick it in the card row or the Engine panel.") && !/drag/i.test(hint), hint + " " + r.errors.join(" | "));
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

@@ -1899,7 +1899,7 @@ function engineRender(m)
   end
   if m.gameOver and not engineOverAnnounced then
     engineOverAnnounced = true
-    broadcastToAll("[MTG] GAME OVER" .. (m.winner and (" - " .. engineNameOf(m.winner) .. " wins!") or " - draw."), {1, 0.85, 0.3})
+    broadcastToAll("[MTG] GAME OVER" .. (m.winner and (" - " .. engineNameOf(m.winner) .. " wins!") or " - draw.") .. (m.overWhy and (" (" .. tostring(m.overWhy) .. ")") or ""), {1, 0.85, 0.3})
     if engineGameOverBanner ~= nil then engineGameOverBanner(m) end
   elseif not m.gameOver then engineOverAnnounced = false end
   sect("status")
@@ -2660,7 +2660,12 @@ function engineUpdateCorner(color, p)
   setAttr("eng_phasebg_" .. color, "active", t ~= nil and "true" or "false")
   -- day or night, once a daybound card has made it one (nothing showed it, playtest 2026-10-26)
   local day = (t and t.day == "day") and "      <b><color=#FFE08A>DAY</color></b>" or ((t and t.day == "night") and "      <b><color=#9FB4FF>NIGHT</color></b>" or "")
-  setText("eng_phase_" .. color, whose .. "      " .. table.concat(parts, "   ›   ") .. day)
+  -- (a finished game shows no turn: the bar read "YOUR TURN ... MAIN 1" after the engine ended Kykar's game, #16)
+  if t ~= nil and t.gameOver then
+    setText("eng_phase_" .. color, "<b><color=#FFD27A>GAME OVER</color></b>" .. (t.overWhy and ("      " .. engineCut(tostring(t.overWhy), 150)) or ""))
+  else
+    setText("eng_phase_" .. color, whose .. "      " .. table.concat(parts, "   ›   ") .. day)
+  end
   -- instruction line (Arena-style): what the open question wants, in table terms; or who you're waiting for
   local hint = ""
   local q = enginePrompts[color]
@@ -2674,6 +2679,10 @@ function engineUpdateCorner(color, p)
         or "\nClick a card, then your library (or Done). Dragging it there works too.")
     -- (cards in a graveyard or exile pile, maybe another player's: nothing on the table glows, so say where they are;
     -- Dauthi Voidwalker's choice among the AI's exiled cards showed only Done, hp-07 2026-10-27)
+    -- (copies of cards in a pile are cast, the cards stay: nothing to drag out, Kykar hand test #27; any kind, as the
+    -- pile's cards are no objects of their own)
+    elseif q.copies then
+      hint = title .. "\nPick it in the card row or the Engine panel."
     elseif kind == "cards" and q.pileChoices ~= nil then
       hint = title .. "\nRight-click that graveyard or exile pile -> Search, and drag the card out. Or Engine: show."
     elseif kind == "cards" and engineExactPick(q) then

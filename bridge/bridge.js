@@ -582,7 +582,9 @@ class Seat {
         // (a known reason wins: at the end the library count is not to be trusted, the poisoned game above read as an
         // empty library. Only the players who lost last count, see outLast.)
         if (lost) { chat(`[MTG] Game over: ${lost}.`); break; }
-        chat(empty.length ? `[MTG] Game over: ${empty.map((p) => nameOf(p.id)).join(", ")} had to draw from an empty library (that's a loss). The engine stopped the game there.` : "[MTG] Game aborted.");
+        // (an ended game's board says how it ended, a draw by the engine's cap too: Kykar's read "Game aborted.", #16)
+        chat(empty.length ? `[MTG] Game over: ${empty.map((p) => nameOf(p.id)).join(", ")} had to draw from an empty library (that's a loss). The engine stopped the game there.`
+          : gv?.gameOver ? `[MTG] Game over: ${gameEndWords(gv)}.` : "[MTG] Game aborted.");
         break;
       }
     }
@@ -1570,7 +1572,19 @@ function costWords(m, name) {
   const k = /^Cost:(\w+)$/.exec(m?.cause || "")?.[1];
   if (!k) return "";
   const forCard = m.causeName && m.causeName !== name ? ` for ${m.causeName}` : "";
+  // (another card sacrificed to a mana ability paid for mana, not for the card: "Spirit token is sacrificed (to pay for
+  // Kykar, Wind's Fury)" read as paying for casting Kykar, Kykar hand test #2)
+  if (k === "Sacrifice" && forCard && sacrificesForMana(m.causeName)) return ` for mana (${m.causeName})`;
   return COST_KEYWORDS[k] ? ` (${COST_KEYWORDS[k]}${forCard})` : forCard ? ` (to pay${forCard})` : "";
+}
+// A card on the battlefield (either board logEvents is telling, logBoards) whose only abilities with a sacrifice in their
+// cost make mana: Kykar's "Sacrifice a Spirit: Add {R}.", Ashnod's Altar, Phyrexian Altar. Not Goblin Bombardment, nor a
+// card with a sacrifice cost of another kind too (then the sacrifice may have paid for either).
+let logBoards = [];
+function sacrificesForMana(name) {
+  const c = logBoards.flatMap((b) => Object.values(b?.cards || {})).find((x) => x.name === name && x.zone === "battlefield" && x.tx);
+  const costs = String(c?.tx || "").split(/\n/).map((l) => /^([^:"]*\bSacrifice\b[^:"]*):\s*(.*)$/i.exec(l)).filter(Boolean);
+  return costs.length > 0 && costs.every((x) => /^Add\b/.test(x[2]));
 }
 // A sacrifice's words after its line: its cost's, or "for mana" for a card that pays its own mana ability with itself
 // (seven Treasures for one spell read "Treasure Token is sacrificed" seven times, no reason, rebuilt hand test #3)
@@ -1699,6 +1713,7 @@ function takenOffStack(offStack, prevSpellOf, cards, pubIndex) {
 }
 
 function logEvents(prev, cur, pub, facts = null) {
+  logBoards = [prev, cur]; // (for sacrificesForMana)
   const out = [];
   const who = (id) => nameOf(id);
   const turnBegan = cur.turn !== prev.turn && !!cur.active;
@@ -2743,6 +2758,7 @@ function sendTable() {
     t: "table", turn: pub.turn, step: pub.step, active: game.slotColor[pub.activePlayerId] || null,
     activeTurnNo: game.turnsTaken?.[pub.activePlayerId] || 1,
     priority: game.slotColor[pub.priorityPlayerId] || null, gameOver: !!pub.gameOver,
+    ...(pub.gameOver ? { overWhy: gameEndWords(pub) } : {}), // (why it ended, on the top bar: Kykar hand test #16)
     ...(pub.dayTime === "day" || pub.dayTime === "night" ? { day: pub.dayTime } : {}), // (shown beside the turn on the table)
     winner: pub.winnerId ? game.slotColor[pub.winnerId] || nameOf(pub.winnerId) : null, players, stack, cards: statics,
     rewind, // restore points and the open vote (in the board update: a message of its own doubled the traffic)
@@ -2837,7 +2853,18 @@ const LOSS_REASONS = [
   (p) => (p.life <= 0 ? `is at ${p.life} life` : null),
   (p) => { const n = playerCounter(p, "poison"); return n >= 10 ? `has ${n} poison counters` : null; },
   (p) => { const n = Math.max(0, ...Object.values(p.commanderDamage || {}).map(Number).filter(Number.isFinite)); return n >= 21 ? `took ${n} damage from one commander` : null; },
+  (p) => (p.status === "conceded" ? "conceded" : null),
 ];
+// Why the game ended, for the chat, the game log and the table's top bar: the winner and the last losers' reasons. A draw
+// no rule explains was ended by the engine itself: Forge's runaway-game cap ends a turn that fires over 5000 triggers as a
+// draw, and its reason doesn't reach the bridge (Kykar hand test #15 #16: the table said only "Game over.").
+function gameEndWords(gv) {
+  const lost = lossReasons(gv);
+  const won = gv?.winnerId ? `${nameOf(gv.winnerId)} wins` : null;
+  if (lost) return won ? `${lost}. ${won}` : lost;
+  // (a draw only when the engine says the game is over: a gameOver question with a board still playing tells nothing)
+  return won || (gv?.gameOver ? "a draw. Nobody lost by life, poison, commander damage or conceding, so the engine ended it itself (its runaway-game cap ends a turn that fires over 5000 triggers as a draw)" : null);
+}
 // The order players left the game in (status lost / conceded first seen), so an end-of-game message names who lost
 // last, not a player out since turn 5 at -3 life (stage 3 review 2026-10-27). Called with each board.
 function noteOuts(gv) {
@@ -2985,9 +3012,14 @@ function withoutForgeNotes(t) {
 
 // a static alternative cost by what the card says it is (Flare of Duplication: "sacrifice a nontoken red creature instead
 // of its mana cost")
+// (or a free cast as one, with its condition: Flawless Maneuver's and Fierce Guardianship's "If you control a commander,
+// you may cast this spell without paying its mana cost." read "alternative cost", Kykar hand test #22)
 function altCostWords(gv, cardId) {
-  const alt = String(cardIndex(gv || {})[cardId]?.text || "").match(/\bYou may ([^.]+?) rather than pay this spell's mana cost\b/i)?.[1];
-  return alt ? `${alt} instead of its mana cost` : "alternative cost";
+  const text = String(cardIndex(gv || {})[cardId]?.text || "");
+  const alt = text.match(/\bYou may ([^.]+?) rather than pay this spell's mana cost\b/i)?.[1];
+  if (alt) return `${alt} instead of its mana cost`;
+  const free = text.match(/(?:^|[.\n]\s*)(?:(?:If|As long as) ([^,.]+), )?you may cast (?:this spell|it) without paying its mana cost\b/i);
+  return free ? `without paying its mana cost${free[1] ? ` (${free[1]})` : ""}` : "alternative cost";
 }
 // a token's name without Forge's " Token": "Treasure Token" -> "Treasure" (said "a Treasure token", re-test 2 bug d)
 function tokenBase(name) { return String(name).replace(/ tokens?$/i, ""); }
@@ -2996,10 +3028,53 @@ function tokenWords(name, token) { return token ? `${tokenBase(name)} token` : n
 // a card's possessive: "Exchange of Words' ability", not "Exchange of Words's" (re-test 2 bug f)
 function poss(name) { return /s$/i.test(String(name)) ? `${name}'` : `${name}'s`; }
 
+// Forge's headings inside a list of choices: ChooseSourceEffect's fake cards ("--PERMANENTS:--", "--SPELLS ON THE
+// STACK:--", "--OBJECTS REFERRED TO ON THE STACK:--", "--CARDS IN THE COMMAND ZONE:--") and TargetSelection's strings
+// ("--CARDS ON BATTLEFIELD:--", "--CARDS IN EXILE:--" ...). A real choice such as "-- Pile 1 (0 cards) --" is none.
+function isForgeHeading(label) { return /^--[A-Z][A-Z ]*:--$/.test(String(label ?? "").trim()); }
+// a card's zone as a choice's label says it, when that is not the battlefield
+const ZONE_SAID = { command: "command zone", stack: "on the stack", graveyard: "graveyard", exile: "exile", hand: "hand", library: "library" };
+// Cards offered in one question that read alike are told apart by what differs (INV-6: Circle of Protection's source
+// choice offered "Rograkh, Son of Rohgahh 0/1" twice, one commander each): the zone, whose it is, a token, the
+// commander, and a number for what is still alike, as the legend rule's choice does. Copies that can't differ in a
+// way that matters (two Mountains in a hand, a library or one graveyard) are left alike. options: { id, label } with a
+// card id; cards: the question's cards; me: the asked seat's slot.
+function tellApart(options, cards, me) {
+  const card = (o) => cards.find((c) => c.id === o.id);
+  const groups = {};
+  for (const o of options) if (card(o)) (groups[o.label] ??= []).push(o);
+  for (const g of Object.values(groups)) {
+    if (g.length < 2) continue;
+    const cs = g.map(card);
+    const differ = (f) => new Set(cs.map(f)).size > 1;
+    const who = (c) => c.controllerId ?? c.ownerId;
+    if (!differ((c) => c.zone) && !differ(who) && ["hand", "library", "graveyard", "exile"].includes(cs[0].zone)) continue;
+    const tags = cs.map(() => []);
+    if (differ((c) => c.zone)) cs.forEach((c, k) => tags[k].push(ZONE_SAID[c.zone] || c.zone || "battlefield"));
+    if (differ(who)) cs.forEach((c, k) => tags[k].push(who(c) === me ? "yours" : `${nameOf(who(c))}'s`));
+    if (differ((c) => !!c.identity?.isToken)) cs.forEach((c, k) => { if (c.identity?.isToken) tags[k].push("token"); });
+    if (differ((c) => !!game?.commandIds?.has(c.id))) cs.forEach((c, k) => { if (game.commandIds.has(c.id)) tags[k].push("commander"); });
+    // (inside a bracket the label already ends with: "(command zone, yours)", not "(command zone) (yours)")
+    g.forEach((o, k) => { if (tags[k].length) o.label = /\)$/.test(o.label) ? `${o.label.slice(0, -1)}, ${tags[k].join(", ")})` : `${o.label} (${tags[k].join(", ")})`; });
+    const still = {};
+    for (const o of g) (still[o.label] ??= []).push(o);
+    for (const same of Object.values(still)) if (same.length > 1) same.forEach((o, k) => { o.label += ` #${k + 1}`; });
+  }
+}
+
+// Forge's plural of a word that is plural already (its Lang.getPlural adds "es" to any word ending in "s"): Mondrak's
+// cost read "Sacrifice two other artifacts and/or creatureses", Kykar hand test #18. Undone for the nouns a cost counts
+// (PLURAL_NOUNS), and for any word the card's own text has in its plain plural form (cardText: "Goblins" for "Goblinses").
+const PLURAL_NOUNS = /^(?:creatures|artifacts|enchantments|permanents|tokens|spells|players|opponents|counters|planeswalkers|instants|sorceries|battles|cards|lands|nonlands)$/i;
+function undoublePlural(text, cardText = "") {
+  return String(text).replace(/\b([A-Za-z]+s)es\b/g, (m, w) => (PLURAL_NOUNS.test(w)
+    || (cardText && new RegExp(`\\b${escapeRe(w)}\\b`).test(cardText) && !new RegExp(`\\b${escapeRe(m)}\\b`).test(cardText)) ? w : m));
+}
+
 // Engine text names players by relay username; show TTS colors / "AI n" instead.
 function displayText(text) {
   if (!game || !text) return text;
-  const out = withoutForgeNotes(String(text));
+  const out = undoublePlural(withoutForgeNotes(String(text)));
   // (every name in one pass, the longest first: the second AI is "<node>-bot 2", which holds the first's "<node>-bot",
   // and name by name it read "AI 1 2", keyword sweep kw-15 "Mob Verdict: choose one :: AI 1 / AI 1 2")
   // (case-insensitive: the engine sometimes capitalises names, "Self-hosted-node-…-bot picked …")
@@ -3124,6 +3199,9 @@ function targetTitle(title, src, min, max, noun = "permanent") {
 const plural = (input) => (input.max > 1 ? "s" : "");
 const exactCount = (input) => (input.min === input.max && input.max > 1 ? ` (choose ${input.max})` : "");
 const FORGE_STEPS = [
+  // (proliferate's own step, Forge's lblChooseProliferateTarget: Experimental Augury, whose text has another "put" too,
+  // read "choose up to 1 card", Kykar hand test #23)
+  [/^Choose any number of permanents and\/or players for proliferate$/i, (m, { src }) => ({ title: `${src}: give which another counter (proliferate)?` })],
   // (Aura swap's Aura: Arcanum Wings read "choose up to 1 card from your hand", hp-24 gap)
   [/^Choose a card$/i, (m, { src, words }) => (/^Aura swap\b/i.test(words)
     ? { title: `${src}: aura swap: exchange it with which Aura card from your hand?`, text: "Or pick none: nothing changes." } : null)],
@@ -3361,6 +3439,7 @@ function modeTargetQuestion(text, candidates, byId, slot) {
   const q = found[0].replace(/\.$/, "").replace(/^[A-Z][a-z]+(?: [A-Z][a-z]+)* — /, "").replace(/^(?:When|Whenever|At)\b[^,]*,\s*/, "").replace(/^if\b[^,]*,\s*/i, "");
   return `${q[0].toLowerCase()}${q.slice(1)}?`;
 }
+const MANY_TARGETS = /\b(?:any number of|up to (?:two|three|four|five|six|seven|eight|nine|ten|\d+|X)|two|three|four|five|\d+|X) (other )?target\b/i;
 function purposeOf(words, kind, labels = [], reminders = false) {
   const text = displayText(String(words || ""));
   const raws = (reminders ? text.replace(/[()]/g, " ") : text.replace(/\([^()]*\)/g, "")).split(/\r?\n|(?<=\.)\s+/);
@@ -3438,6 +3517,11 @@ function purposeOf(words, kind, labels = [], reminders = false) {
       // (up to 130 characters: Radiance's "Target creature and each other creature that shares a color with it gain
       // protection from the chosen color until end of turn" read "choose a target" at 90, hp-21)
       if (q.length <= 130) found.push(`${q[0].toLowerCase()}${q.slice(1)}?`);
+    // (several targets, one "target" in the sentence: Guardian of Faith's "any number of other target creatures you
+    // control phase out" read "choose up to 70 targets", Clever Concealment's "choose up to 120 targets", Kykar #23)
+    } else if (kind === "targets" && (s.match(/\btarget\b/gi) || []).length === 1 && MANY_TARGETS.test(s)) {
+      const q = s.replace(/\.$/, "").replace(MANY_TARGETS, (m, other) => (other ? "which other" : "which"));
+      if (q.length <= 130) found.push(`${q[0].toLowerCase()}${q.slice(1)}?`);
     } else if (kind === "selection" && labels.length > 1 && labels.every((l) => new RegExp(`\\b${escapeRe(l)} tokens?\\b`, "i").test(s))) found.push("create which token?");
   }
   // (a landcycling's search is only in its reminder text: "Plainscycling {2} ({2}, Discard this card: Search your
@@ -3481,6 +3565,31 @@ function shorten(s, max) { return s.length <= max ? s : `${s.slice(0, max - 1).r
 
 function nameOf(slot) { return (game && game.slotNames[slot]) || slot; }
 
+// A fused split card's half whose target the candidates are ("(Wear) Destroy target artifact." over artifacts), or null.
+// Only while the spell's ability text is the Fuse reminder: a half cast alone has its own text. The halves, from the card
+// text Forge sends ("(Wear) Destroy target artifact.\nFuse (...)\r\n\r\n(Tear) ..."), are kept by name for the copy, whose
+// card is in no zone (game.splitHalves). typesAll(t): every candidate has card type t.
+function fusedHalf(name, cardText, abilityText, typesAll) {
+  if (!/ \/\/ /.test(String(name || ""))) return null;
+  const halves = [...String(cardText || "").matchAll(/^\(([^()]+)\) ([^\r\n]+)/gm)].map((m) => ({ name: m[1], text: m[2].trim() }));
+  if (game && halves.length > 1) (game.splitHalves ??= {})[name] = halves;
+  const known = halves.length > 1 ? halves : game?.splitHalves?.[name] || [];
+  if (known.length < 2 || !/^Fuse\b/.test(String(abilityText || ""))) return null;
+  const fits = known.filter((h) => { const t = /\btarget ([a-z]+)\b/i.exec(h.text)?.[1]; return !!t && typesAll(t[0].toUpperCase() + t.slice(1).toLowerCase()); });
+  return fits.length === 1 ? fits[0] : null;
+}
+
+// X's value now, from the asking ability's "where X is <card>'s power" and that card on the board: Esper Sentinel's
+// "Pay {X}?" didn't say what X was (Kykar probe 2026-11-07). null when the text says no such thing.
+function xNow(abilityText, sourceCard, byId) {
+  const m = /\bwhere X is ([^.,]+?)'s (power|toughness)\b/i.exec(String(abilityText || ""));
+  if (!m) return null;
+  const stat = m[2].toLowerCase();
+  const card = sourceCard && m[1] === sourceCard.identity?.name ? byId[sourceCard.id] || sourceCard
+    : Object.values(byId).find((c) => c.identity?.name === m[1]);
+  return card?.[stat] != null && Number.isFinite(Number(card[stat])) ? { n: Number(card[stat]), why: `X is ${m[1]}'s ${stat}` } : null;
+}
+
 // What "No" does in an "unless you pay" question, from Forge's `otherwise: "..."` text, in the player's words:
 // "tts-White-x puts a Card.ChosenCard from their hand on top of their library." -> "put Worldly Tutor from your hand on
 // top of your library"; "Sacrifices Mystic Remora (6)" -> "sacrifice Mystic Remora". `card` names Card.ChosenCard (the
@@ -3494,6 +3603,8 @@ function otherwiseText(seat, input, card, src = null) {
   // (a sentence about the asking card itself stays as it is: "Spider-Punk gains haste" read "spider-Punk gains haste",
   // hp-18)
   if (src && s.startsWith(`${src} `)) return s;
+  // (nor one about another player: Esper Sentinel's No read "No: aI 1 draws a card", Kykar probe 2026-11-07)
+  if (Object.values(game?.slotNames || {}).some((n) => n && s.startsWith(`${n} `))) return s;
   // the verb as an instruction: "puts" -> "put", "Sacrifices" -> "Sacrifice", "passes" -> "pass"
   s = s.replace(/^\w+/, (w) => (/(ss|x|ch|sh|z)es$/i.test(w) ? w.slice(0, -2) : /s$/i.test(w) ? w.slice(0, -1) : w))
     .replace(/\ba Card\.\w+|\bCard\.\w+/g, card || "that card").replace(/\btheir\b/g, "your").replace(/\bthem\b/g, "you");
@@ -3831,6 +3942,35 @@ function manaCostExtra(a) {
   const extra = parts.filter((p) => p !== "{T}").map((p) => p.replace(/\bCARDNAME\b/g, "it").replace(/^[A-Z]/, (x) => x.toLowerCase()));
   return extra.length ? ` (${parts.includes("{T}") ? "also " : ""}${extra.join(", ")})` : "";
 }
+// The damage a mana ability deals to you, said with its button: " (1 damage to you)" for Adarkar Wastes' {W} or {U} but
+// not its {C}, " (2 damage to you)" for Ancient Tomb (Kykar hand test #4: "Tap Adarkar Wastes for {W}" never said it).
+// From the ability's own text when the action carries it ("{T}: Add {C}{C}. Ancient Tomb deals 2 damage to you."), else
+// the card's line whose "Add" makes that mana (a payment's action names only the card); two such lines that disagree are
+// told apart by the action's ability number. And City of Brass's "Whenever ... becomes tapped, it deals 1 damage to you."
+function manaPainText(a, cardText) {
+  const isAdd = (l) => /:\s*Add\b/.test(l);
+  const lines = isAdd(String(a.description || "")) ? [String(a.description)] : String(cardText || "").split(/\r?\n/).filter(isAdd);
+  const made = [...producedColours(a, (c) => /^[WUBRGC]$/.test(c))];
+  const fits = made.length ? lines.filter((l) => {
+    const add = l.slice(l.search(/:\s*Add\b/));
+    return made.every((c) => add.includes(`{${c}}`) || (c !== "C" && /\bone mana of any colou?r\b/i.test(add)));
+  }) : [];
+  const dmg = (l) => Number(/\bdeals (\d+) damage to you\b/.exec(String(l || ""))?.[1] || 0);
+  let n = fits.length && fits.every((l) => dmg(l) === dmg(fits[0])) ? dmg(fits[0])
+    : fits.includes(lines[a.abilityIndex]) ? dmg(lines[a.abilityIndex]) : 0;
+  n += Number(/\bbecomes tapped, it deals (\d+) damage to you\b/i.exec(String(cardText || ""))?.[1] || 0);
+  return n ? ` (${n} damage to you)` : "";
+}
+// A mana creature's or artifact's priority button by what its mana ability costs: "Mana: tap Llanowar Elves", but "Mana:
+// Kykar, Wind's Fury (sacrifice a Spirit)", "Mana: tap Lotus Petal (also sacrifice it)" and "Mana: Simian Spirit Guide
+// (exile it from your hand)" (Kykar hand test #1: every one said "tap", and Kykar's ability doesn't tap). acts: the card's
+// mana abilities; with different costs, "tap" only when every one of them taps.
+function manaButtonLabel(name, acts) {
+  const costs = [...new Set(acts.map((a) => String(a.cost || "{T}")))];
+  const taps = (c) => c.split(/,\s*/).includes("{T}");
+  if (costs.length === 1) return `Mana: ${taps(costs[0]) ? "tap " : ""}${name}${manaCostExtra({ cost: costs[0] })}`;
+  return `Mana: ${costs.every(taps) ? "tap " : ""}${name}`;
+}
 
 // How much a payment button helps the cost still to pay: 2 = it makes a colour a coloured symbol needs, 1 = it can
 // only go toward the generic part, 0 = no use (turning City of Brass for {W} while {B} is due just asked again: the
@@ -3965,6 +4105,12 @@ function onPrompt(seat, prompt) {
   // MTG_RAW=1 (tests): every question as the engine sent it, to see what a prompt carries
   if (process.env.MTG_RAW) log(`raw ${seat.color}: ${JSON.stringify(prompt).slice(0, 4000)}`);
   if (prompt.kind === "priority") { seat.respond(0, "chooseAction", { type: "pass" }); return; }
+  // (Forge's zone headings in a source choice are fake cards, "--PERMANENTS:--", "--SPELLS ON THE STACK:--" ...
+  // (ChooseSourceEffect): never options, Forge only asks again when one is picked, Kykar hand test #5 #24. The question
+  // remembers it had them, see chooseCards.)
+  if (prompt.input?.type === "chooseCards" && (prompt.input.cards || []).some((c) => isForgeHeading(c.identity?.name))) {
+    prompt = { ...prompt, input: { ...prompt.input, cards: prompt.input.cards.filter((c) => !isForgeHeading(c.identity?.name)), sourceHeadings: true } };
+  }
   const input = prompt.input || {};
   const type = input.type;
   const gv = seat.board?.state?.gameView || {};
@@ -4136,7 +4282,7 @@ function onPrompt(seat, prompt) {
           : m.type === "foretellExile" ? "foretell (exile it face down)" : m.type === "staticAlternative" ? altCostWords(gv, a.cardId) : "";
         // the engine's own label already names the mode in brackets ("(WebSlinging)"): keep one readable version
         const base = how ? String(a.label || `Cast ${cname(a.cardId)}`).replace(/\s*\([A-Za-z]+\)$/, "") : (a.label || `Cast ${cname(a.cardId)}`);
-        return `${base}${how ? ` — ${how}` : ""}`;
+        return `${base}${!how ? "" : /^without paying\b/.test(how) ? ` ${how}` : ` — ${how}`}`;
       };
       // mana abilities of creatures and artifacts (Delighted Halfling, mana rocks) as buttons; lands stay on Q/E
       const manaButtons = (input.actions || []).filter((a) => a.isManaAbility && a.cardId && !(byId[a.cardId]?.types || []).includes("Land"));
@@ -4161,23 +4307,23 @@ function onPrompt(seat, prompt) {
       ui = { title: "Your priority", mode: "single", options: [{ id: "__pass", label: stackIds.length ? "Resolve" : "Next" },
         ...(stackIds.length ? [{ id: "__resolve", label: `Resolve all (${stackIds.length})` }] : []),
         { id: "__endturn", label: "End turn" }, ...actions.map((a) => ({
-        id: a.id, cardId: a.cardId, label: numbered(a.type === "cast" ? castLabel(a) : `${cname(a.cardId) || a.label || "Ability"}: ${a.description || "ability"}`, a.cardId, a.type === "activateAbility" && onBattlefield.has(a.cardId)),
+        id: a.id, cardId: a.cardId, label: numbered(a.type === "cast" ? castLabel(a) : `${cname(a.cardId) || a.label || "Ability"}: ${undoublePlural(a.description || "ability", byId[a.cardId]?.text)}`, a.cardId, a.type === "activateAbility" && onBattlefield.has(a.cardId)),
         // (the ability alone, for the card's own buttons and menu: the table cut the name back off the label in two
         // places, structural review 2026-10-27)
-        ...(a.type === "activateAbility" ? { ab: displayText(a.description || "ability") } : {}),
+        ...(a.type === "activateAbility" ? { ab: displayText(undoublePlural(a.description || "ability", byId[a.cardId]?.text)) } : {}),
       })).filter((o) => o.label !== null), ...[...new Set(manaButtons.map((a) => a.cardId))].map((cid) => ({ id: `__mana:${cid}`, cardId: cid,
-        label: `Mana: tap ${cname(cid)}` })), ...undos.map((a) => ({ id: a.id, cardId: a.cardId, label: `Untap ${cname(a.cardId)} (mana back)` }))] };
+        label: manaButtonLabel(cname(cid), manaButtons.filter((m) => m.cardId === cid)) })), ...undos.map((a) => ({ id: a.id, cardId: a.cardId, label: `Untap ${cname(a.cardId)} (mana back)` }))] };
       toOutput = (a) => (a[0] === "__pass" ? { type: "pass" } : a[0] === "__endturn" ? (seat.endTurnAt = gv.turn, { type: "pass" })
         : a[0] === "__resolve" ? (seat.resolveStack = new Set(stackIds), { type: "pass" })
         : String(a[0]).startsWith("__mana:") ? manaChoice(String(a[0]).slice(7)) : { type: "act", actionId: a[0] });
       // one button per mana creature/artifact; if it can make several kinds of mana, a question under this one asks
       // which (Back and a timeout return to priority and turn the card back: the table turns it at the button press,
       // engine-renderer.lua optimistic "Mana: tap", review 2026-11-06)
-      const manaText = (m) => manaLabel(m) || m.description || "mana";
+      const manaText = (m) => (manaLabel(m) || m.description || "mana") + (manaLabel(m) ? manaPainText(m, byId[m.cardId]?.text) : "");
       const manaChoice = (cid) => {
         const acts = manaButtons.filter((m) => m.cardId === cid);
         if (acts.length === 1) return { type: "act", actionId: acts[0].id };
-        return askUnder(seat, { title: `Tap ${cname(cid)} for which mana?`, mode: "single", kind: "choice",
+        return askUnder(seat, { title: `${acts.every((m) => /\{T\}/.test(String(m.cost || "{T}"))) ? "Tap" : "Use"} ${cname(cid)} for which mana?`, mode: "single", kind: "choice",
           options: distinctLabels(acts, manaText).map((label, i) => ({ id: acts[i].id, label })) }, (b) => ({ type: "act", actionId: b[0] }), { back: "Back", returns: cid });
       };
       break;
@@ -4253,7 +4399,7 @@ function onPrompt(seat, prompt) {
         ...(input.actions || []).filter((a) => a !== lifeAct).map((a) => ({ id: a.id, cardId: a.cardId, label: a.type === "undoMana" ? `Undo mana from ${cname(a.cardId)}`
           : a.type === "useResource" || a.type === "releaseResource" ? resourceLabel(a, cname(a.cardId))
           : payKind && isResourceTap(a) ? resourceLabel({ ...a, type: "useResource", resource: payKind }, a.description || cname(a.cardId))
-          : a.description ? `${!a.cost || /\{T\}/.test(a.cost) ? "Tap" : "Use"} ${a.description}${payManaText(a)}${manaCostExtra(a)}` : a.id, ...(a.type === "undoMana" ? {} : { rank: rankOf(a) }) })),
+          : a.description ? `${!a.cost || /\{T\}/.test(a.cost) ? "Tap" : "Use"} ${a.description}${payManaText(a)}${/\bdamage to you\b/i.test(a.description) ? "" : manaPainText(a, byId[a.cardId]?.text)}${manaCostExtra(a)}` : a.id, ...(a.type === "undoMana" ? {} : { rank: rankOf(a) }) })),
         { id: "__cancel", label: "Cancel" },
       ] };
       if (autoFailed && !input.canConfirmFromPool) ui.text = "Auto-pay couldn't finish this payment. Tap other sources, undo some taps, or Cancel.";
@@ -4313,7 +4459,8 @@ function onPrompt(seat, prompt) {
       // to search their library", no card named, hp-23 gap)
       const effectOf = !src && !copy && (gv.stack || []).map((s) => String(s.identity?.name || "").match(/^(.+?)(?: \(\d+\))?'s Effect$/)?.[1]).find(Boolean);
       const unnamed = copy ? `Copy of ${copy.identity?.name}` : effectOf;
-      ui = { title: unnamed ? `${unnamed}: ${targetTitle(title, src, minLeft, maxLeft, noun).replace(/^C/, "c")}` : targetTitle(title, src, minLeft, maxLeft, noun),
+      const baseTitle = targetTitle(title, src, minLeft, maxLeft, noun);
+      ui = { title: unnamed ? `${unnamed}: ${baseTitle.replace(/^C/, "c")}` : baseTitle,
         mode: "multi", min: minLeft, max: maxLeft, cancel: input.cancellable,
         // (a copy offered as a target before it reaches the stack has no name yet: its original's, not "engine-card-144", re-test 2026-10-30)
         // (and a face-down card you may not see by what it is, not its card id: the AI's face-down 2/2 read "engine-card-970",
@@ -4351,20 +4498,34 @@ function onPrompt(seat, prompt) {
       // (a modal spell's chosen modes, which Forge adds after its list and a blank line: Collective Resistance's
       // hexproof target read "choose a target", hp-21)
       const chosenModes = String(prompt.sourceAbilityText || "").match(/•[^]*?\r?\n\r?\n\s*([^]+)$/)?.[1];
-      const targetWords = chosenModes || prompt.sourceAbilityText || srcCardText;
+      // (a copy asks in its original's words, by the copied spell's text: Twincast's copy of Shock read "Copy of Shock:
+      // choose a target to deal damage to" where Shock read "deals 2 damage to which target?", Kykar hand test #14)
+      // (the stack item's rules text: its "text" is Forge's resolved line, "Explosion (220) - Explosion (220) deals 0 damage
+      // to ...", Kykar probe 2026-11-07)
+      const copyText = !src && copy ? String(copy.sourceAbilityText || byId[copy.sourceId]?.text || "") : "";
+      // (a fused split card asks each half's target under that half's name, by the half whose target the candidates are:
+      // Wear // Tear read "Wear // Tear: choose a target to destroy" twice with the Fuse reminder as its text, its copy
+      // "Copy of Wear // Tear: ..." too, Kykar hand test #20. Its card text has the halves as "(Wear) Destroy target
+      // artifact." lines, kept by name for the copy, whose card is on the stack and in no zone)
+      const half = fusedHalf(src || copy?.identity?.name, srcCardText, prompt.sourceAbilityText || copyText, all);
+      if (half) prompt = { ...prompt, sourceAbilityText: half.text };
+      const asker = half ? half.name : src || (copy && unnamed ? copy.identity?.name : null);
+      const askedAs = half ? (src ? half.name : `Copy of ${half.name}`) : src || unnamed;
+      const bare = src ? ui.title : asker ? baseTitle : "";
+      const targetWords = half ? half.text : chosenModes || prompt.sourceAbilityText || srcCardText || copyText;
       // (a mutating spell's own target, asked while it is cast: Gemrazer's read "destroy which artifact or enchantment an
       // opponent controls?", its mutate trigger's sentence, hp-09)
       const mutateOnto = !prompt.sourceAbilityText && String(prompt.sourceCard?.text || "").match(/^Mutate\b[^(\n]*\(If you cast this spell for its mutate cost, put it over or under target ([^.]+?)\./im)?.[1];
       const srcOnBattlefield = (gv.zones || []).some((z) => z.zone === "battlefield" && (z.cards || []).some((x) => x.id === prompt.sourceCard?.id));
-      let why = src && /^choose (?:a|an|up to 1) target(?: to [a-z ]+)?$/i.test(ui.title)
+      let why = asker && /^choose (?:a|an|up to 1) target(?: to [a-z ]+)?$/i.test(bare)
         ? (mutateOnto && !srcOnBattlefield ? `mutate onto which ${mutateOnto}?`
           // (the chosen modes, one a line after Forge's list, read as modes too: Collective Resistance's three read "choose
           // a target to destroy", hp-21 gap)
-          : modeTargetQuestion(chosenModes ? chosenModes.split(/\r?\n/).filter((l) => l.trim()).map((l) => `• ${l.trim().replace(/^•\s*/, "")}`).join("\n") : prompt.sourceAbilityText || srcCardText, input.candidates, byId, seat.slot)
+          : modeTargetQuestion(chosenModes ? chosenModes.split(/\r?\n/).filter((l) => l.trim()).map((l) => `• ${l.trim().replace(/^•\s*/, "")}`).join("\n") : prompt.sourceAbilityText || srcCardText || copyText, input.candidates, byId, seat.slot)
             || purposeOf(targetWords, "target")) : null;
       // (two target sentences: the one the candidates fit, yours or not yours; Bridgeworks Battle's "Target creature you
       // control gets +2/+2 ... Then it fights up to one target creature you don't control" read "choose a target", hp-04 #2)
-      if (!why && src && /^choose (?:a|an|up to 1) target(?: to [a-z ]+)?$/i.test(ui.title)) {
+      if (!why && asker && /^choose (?:a|an|up to 1) target(?: to [a-z ]+)?$/i.test(bare)) {
         const ctl = (c) => byId[c.id]?.controllerId;
         const mineOnly = input.candidates.length > 0 && input.candidates.every((c) => ctl(c) === seat.slot);
         const theirsOnly = input.candidates.length > 0 && input.candidates.every((c) => ctl(c) && ctl(c) !== seat.slot);
@@ -4374,8 +4535,8 @@ function onPrompt(seat, prompt) {
       }
       // (a sentence that starts with the card's own name drops it after "<card>: ": Heated Debate's read "Heated Debate:
       // heated Debate deals 4 damage to which ...?", hp-14 gap)
-      if (why && src && why.toLowerCase().startsWith(`${src.toLowerCase()} `)) why = why.slice(src.length + 1);
-      if (why) ui.title = `${src}: ${why}`;
+      if (why && asker && why.toLowerCase().startsWith(`${asker.toLowerCase()} `)) why = why.slice(asker.length + 1);
+      if (why) ui.title = `${askedAs}: ${why}`;
       // (a revolt card says whether revolt is on: a permanent of the player's left the battlefield this turn)
       const revolt = /(?:^|\n)Revolt — ([^\n]+)/.exec(srcCardText)?.[1];
       if (revolt && game?.revolt) {
@@ -4393,18 +4554,24 @@ function onPrompt(seat, prompt) {
           if (said?.note) ui.text = ui.note = said.note;
         }
       }
+      // (several targets with no verb of Forge's: what they are for, from the one sentence that targets several, when
+      // nothing above said it (Strive's "to copy", Support's own words stay). Guardian of Faith read "choose up to 70
+      // targets", Clever Concealment "choose up to 120 targets", Kykar hand test #23)
+      const untold = src ? ui.title === bare : ui.title === `${unnamed}: ${bare.replace(/^C/, "c")}`;
+      const many = asker && untold && /^choose (?:up to |\d+ to )?\d+ targets$/i.test(bare) ? purposeOf(targetWords, "targets") : null;
+      if (many) ui.title = `${askedAs}: ${many.toLowerCase().startsWith(`${asker.toLowerCase()} `) ? many.slice(asker.length + 1) : many}`;
       // (a player question whose verb we don't know says the card's own "target player" sentence: Emrakul's "choose a
       // player to control" read as controlling the player; it gains control of their creatures, hp-06 2026-10-28)
       const playerVerb = String(title).match(/^Choose (?:a )?player to (\w+)/i)?.[1]?.toLowerCase();
-      const playerSentence = src && playerVerb && !Object.hasOwn(PLAYER_VERBS, playerVerb)
+      const playerSentence = asker && playerVerb && !Object.hasOwn(PLAYER_VERBS, playerVerb)
         // (not reminder text in brackets: Partner with's; a cost or loyalty before a colon is left out: Kenrith's "{3}{U}:")
-        && String(prompt.sourceAbilityText || srcCardText || "").replace(/\([^()]*\)/g, "")
+        && String(prompt.sourceAbilityText || srcCardText || copyText).replace(/\([^()]*\)/g, "")
           .split(/(?<=\.)\s+|\n/).filter((x) => /\btarget player\b/i.test(x));
       if (playerSentence?.length === 1) {
         // (a mode's bullet and the card's own name at its start left out: entwine's second target read "Barbed Lightning: •
         // Barbed Lightning deals 3 damage to which player or planeswalker?", keyword sweep kw-06)
-        const s = playerSentence[0].trim().replace(/^•\s*/, "").replace(new RegExp(`^${escapeRe(src)} (?=[a-z])`), "").replace(/^[+−–-]?\d+:\s*/, "").replace(/^[^:.]*\{[^:.]*\}[^:.]*:\s*/, "").replace(/^(?:When|Whenever|At)\b[^,]*,\s*/i, "").replace(/\btarget player\b/i, "which player").replace(/\.$/, "");
-        ui.title = `${src}: ${s[0].toLowerCase()}${s.slice(1)}?`;
+        const s = playerSentence[0].trim().replace(/^•\s*/, "").replace(new RegExp(`^${escapeRe(asker)} (?=[a-z])`), "").replace(/^[+−–-]?\d+:\s*/, "").replace(/^[^:.]*\{[^:.]*\}[^:.]*:\s*/, "").replace(/^(?:When|Whenever|At)\b[^,]*,\s*/i, "").replace(/\btarget player\b/i, "which player").replace(/\.$/, "");
+        ui.title = `${askedAs}: ${s[0].toLowerCase()}${s.slice(1)}?`;
       }
       // (Partner with: Forge's "Choose player to fetch" names neither the partner nor that it's a may, hp-06 2026-10-28)
       const partner = /^Choose (?:a )?player to fetch\b/i.test(String(title))
@@ -4548,7 +4715,9 @@ function onPrompt(seat, prompt) {
       // controller pays {PayLife<2>}", gap-04)
       const otherwise = /^Ward\b/i.test(String(prompt.sourceAbilityText || "")) ? null : otherwiseText(seat, input, u ? "a card" : null, src)?.replace(/ from your hand/, "");
       if (otherwise) {
-        const ask = title.replace(/\?\s*$/, "");
+        // ("Pay {X}?" with X's value: "Pay {1}?", the text saying why)
+        const xv = /\{X\}/.test(title) ? xNow(prompt.sourceAbilityText || srcCardText, prompt.sourceCard, byId) : null;
+        const ask = title.replace(/\?\s*$/, "").replace(/\{X\}/g, xv ? `{${xv.n}}` : "{X}");
         // the gesture that means No: a chosen card onto your library, or the permanent into your graveyard (onIntent)
         const otherwiseDo = /on top of your library/i.test(otherwise) && u ? "library" : /^sacrifice\b/i.test(otherwise) ? "sacrifice" : null;
         const aboutCards = u ? [...u.ids] : otherwiseDo === "sacrifice" && prompt.sourceCard?.id ? [prompt.sourceCard.id] : null;
@@ -4573,7 +4742,7 @@ function onPrompt(seat, prompt) {
           ...(aboutCards ? { aboutCards, otherwiseDo } : {}),
           ...(u ? { show: u.ids.filter((id) => imgOf(byId[id])).map((id) => ({ n: cname(id), img: imgOf(byId[id]) })) } : {}),
           ...(otherwiseDo === "library" ? { text: `Chosen: ${names}. Each one you don't pay for goes back on top of your library. Or drag one of them onto your library.` }
-            : otherwiseDo === "sacrifice" ? { text: `Or drag ${src} to your graveyard to sacrifice it.` } : {}) };
+            : otherwiseDo === "sacrifice" ? { text: `Or drag ${src} to your graveyard to sacrifice it.` } : xv ? { text: `${xv.why}: ${xv.n}.` } : {}) };
         toOutput = (a) => {
           if (u && a[0] !== "yes") u.awaitingPick = true;
           // (Pay: the payment that follows is the player's own, paid from the pool by itself, see payManaCost; Springheart
@@ -4769,6 +4938,19 @@ function onPrompt(seat, prompt) {
       // (whose library by the table's name, "their" for the player's own: Forge names the player by the engine's name)
       const bottomName = bottomOf && game ? displayText(bottomOf) : bottomOf;
       const whose = bottomName === seat.color ? "their" : poss(bottomName);
+      // (a source choice says so, Forge's "Choose a source " or its zone headings: Reflect Damage's, Deflecting Palm's and
+      // Circle of Protection's read "choose a card", Kykar hand test #5 #24; and where a source is when it is no
+      // permanent, the headings' word: a commander in the command zone, a spell on the stack)
+      if (src && (input.sourceHeadings || /^Choose a source\b/i.test(desc))) {
+        ui.title = /^Choose a source\s*$/i.test(desc) || !/^Choose a source\b/i.test(desc)
+          ? `${src}: choose ${input.max > 1 ? countWords(input.min, input.max, "source") : "a source"}` : `${src}: ${desc[0].toLowerCase()}${desc.slice(1)}`;
+        if (/^Choose a source\s*$/i.test(desc)) delete ui.text;
+        // (a spell comes with no zone: said by the stack, as Deflecting Palm itself was offered, Kykar probe 2026-11-07)
+        for (const o of ui.options) {
+          const z = input.cards.find((c) => c.id === o.id)?.zone || ((gv.stack || []).some((s) => s.sourceId === o.id || s.id === o.id) ? "stack" : null);
+          if (z && z !== "battlefield") o.label += ` (${ZONE_SAID[z] || z})`;
+        }
+      }
       toOutput = (a) => {
         if (a[0] === "__cancel") return { type: "cancel" };
         if (game && src && bottomOf) gameLogLine(a.length ? `${seat.color} puts ${countWords(a.length, a.length, "card")} on the bottom of ${whose} library (${src})`
@@ -4857,11 +5039,20 @@ function onPrompt(seat, prompt) {
         // The table puts exactly these cards into the library deck so the player can right-click → Search.
         const visible = new Set(Object.keys(byId));
         const inPile = (id) => (gv.zones || []).some((z) => (z.zone === "graveyard" || z.zone === "exile") && z.cards.some((c) => c.id === id));
-        if (input.cards.length && input.cards.every((c) => inPile(c.id))) {
+        // (but a copy of the card is cast, the card itself stays: Arcane Bombardment's "cast any number of the copies"
+        // read "play which card?" with the drag hint, and a dragged-out card is no copy, Kykar hand test #27)
+        const copiesCast = /\b(?:cast|play)\b[^.]*\bcop(?:y|ies)\b/i.test(String(prompt.sourceAbilityText || srcCardText));
+        if (input.cards.length && input.cards.every((c) => inPile(c.id)) && copiesCast) {
+          ui.copies = true;
+          if (src && /^[^:]+: (?:(?:play|cast) which cards?\?|choose\b.*)$/i.test(String(ui.title))) ui.title = `${src}: cast which cop${input.max > 1 ? "ies" : "y"}?`;
+          ui.text = "The copy is cast; the card stays where it is.";
+        } else if (input.cards.length && input.cards.every((c) => inPile(c.id))) {
           ui.pileChoices = input.cards.map((c) => c.id);
           ui.text = "Pick from the list, or right-click the graveyard/exile → Search and drag the card out.";
         }
-        if (input.cards.length && input.cards.every((c) => !visible.has(c.id))) {
+        // (a source is never searched for: a spell on the stack or a commander isn't in the library)
+        const sourceChoice = input.sourceHeadings || /^Choose a source\b/i.test(String(input.presentation?.description || ""));
+        if (input.cards.length && input.cards.every((c) => !visible.has(c.id)) && !sourceChoice) {
           // the same send-once details as the board: a full card list cost TTS ~300 ms to decode (Cultivate, 13 KB)
           const sl = slimmer(game);
           const full = input.cards.map((c) => tableCard(c));
@@ -4955,6 +5146,18 @@ function onPrompt(seat, prompt) {
       if (src && costs.length > 1 && costs.every(Boolean)) {
         ui = { title: `${src}: pay which additional cost?`, mode: "multi", min: input.minTotal, max: input.maxTotal,
           options: costs.map((c, i) => ({ id: i, label: /^\{/.test(c) ? `Pay ${c}` : `${c[0].toUpperCase()}${c.slice(1)}` })) };
+        toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map(Number) });
+        break;
+      }
+      // the order of replacement effects (Forge's "Choose" over each replacer's text, no card ids): titled as that, each
+      // option by the card whose text it is. Anointed Procession and Mondrak read "Kykar, Wind's Fury: choose one" over
+      // the two bare sentences (Kykar hand test #17).
+      const replacing = (l) => /\bwould\b[^.]*\binstead\b|\binstead\b[^.]*\bwould\b/i.test(l);
+      if (title === "Choose" && input.maxTotal === 1 && input.minTotal === 1 && labels.length > 1 && labels.every(replacing)) {
+        const whose = (l) => { const s = l.replace(/\.\s*$/, ""); const c = Object.values(byId).find((x) => String(x.text || "").includes(s)); return c?.identity?.name; };
+        ui = { title: `${src ? `${src}: ` : ""}which applies first?`, mode: "single", keepOrder: true,
+          text: "Each of these changes the same event. The one you pick applies first, the rest after it.",
+          options: labels.map((l, i) => { const n = whose(l); return { id: i, label: n && !l.includes(n) ? `${n}: ${l}` : l }; }) };
         toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map(Number) });
         break;
       }
@@ -5130,6 +5333,10 @@ function onPrompt(seat, prompt) {
       ui = { title: tapped ? `Tap ${src || cname(prompt.sourceCard.id)} for which mana?` : src && !title.includes(src) ? `${src}: ${title}` : title, mode: "single",
         options: colors.map((c) => ({ id: c, label: `${tapped && SYMBOL[c] ? `{${SYMBOL[c]}}`.repeat(n) : c}${need.has(c) ? " (needed)" : ""}` })) };
       toOutput = (a) => ({ type: "colorDecision", chosenColors: { [a[0]]: input.amount } });
+      // (a title that is only the card's name, by the card's own "choose a color" sentence: Thriving Isle read "Thriving
+      // Isle", text "Play land", Kykar probe 2026-11-07)
+      const says = !tapped && src && (title === src || /^Choose a colou?r$/i.test(title)) ? /[^.\n]*\b(choose an? colou?r\b[^.\n]*)\.?/i.exec(srcCardText) : null;
+      if (says) { ui.title = `${src}: ${says[1]}`; ui.text = says[0].trim(); }
       if (!tapped) {
         const said = textChangeQuestion(seat, ui, src, prompt, gv, byId);
         if (said) { const inner = toOutput; toOutput = (a) => { said(a); return inner(a); }; }
@@ -5422,7 +5629,8 @@ function onPrompt(seat, prompt) {
       break;
     }
     case "gameOver": {
-      const why = lossReasons(gv);
+      // (always why, a draw too: see gameEndWords)
+      const why = gameEndWords(gv);
       // (once to each player: the question comes again)
       const told = game ? (game.overSaid ??= new Set()) : null;
       if (!told?.has(seat.color)) chat(why ? `[MTG] Game over: ${why}.` : `[MTG] Game over.`, seat.color);
@@ -5463,12 +5671,16 @@ function onPrompt(seat, prompt) {
   ui.text = plainWords(ui.text);
   ui.title = plainWords(displayText(ui.title));
   if (ui.options) ui.options = ui.options.map((o) => ({ ...o, label: plainWords(displayText(o.label)) })); // keeps id/cardId
+  // (no heading of Forge's is ever an option, whatever the question: see isForgeHeading)
+  if (ui.options) ui.options = ui.options.filter((o) => !isForgeHeading(o.label));
+  if (type === "chooseCards" && ui.options) tellApart(ui.options, input.cards || [], seat.slot);
   ui.min ??= 1; ui.max ??= 1;
   // Lists of cards, targets, types or pairs read better A-Z (the engine gives them in no useful order).
   // (unless the question put its own first: a text change's word list, the target's words first)
+  // (numbers by their value: same-named tokens read "#1, #10, #11, #2", Kykar hand test #9)
   if (ui.mode === "multi" && ui.options && !ui.keepOrder) {
     const quick = ui.options.filter((o) => String(o.id).startsWith("__"));
-    ui.options = [...quick, ...ui.options.filter((o) => !String(o.id).startsWith("__")).sort((x, y) => String(x.label ?? "").localeCompare(String(y.label ?? "")))];
+    ui.options = [...quick, ...ui.options.filter((o) => !String(o.id).startsWith("__")).sort((x, y) => String(x.label ?? "").localeCompare(String(y.label ?? ""), undefined, { numeric: true }))];
   }
   // Test mode (start with autoplay: true): the bridge answers every prompt itself with the first choice and TTS gets
   // nothing, so TTS's frame rate can be measured while only Forge is busy (the CPU-contention test).
@@ -5677,7 +5889,10 @@ function onIntent(m) {
         // (a split card cast whole is its fuse: "Cast Turn // Burn" beside "Cast Turn" and "Cast Burn", hp-15)
         if (a.type === "cast" && name.includes(" // ") && l === `Cast ${name}`) return "Cast both halves (fuse)";
         // (an alternative cost under the plain label: by what the card says it is)
-        if (a.mode?.type === "staticAlternative" && l === `Cast ${name}`) return `Cast ${name} (${altCostWords(seat.board?.state?.gameView, a.cardId)})`;
+        if (a.mode?.type === "staticAlternative" && l === `Cast ${name}`) {
+          const how = altCostWords(seat.board?.state?.gameView, a.cardId);
+          return /^without paying\b/.test(how) ? `Cast ${name} ${how}` : `Cast ${name} (${how})`;
+        }
         // (a reminder sentence only: "Cast X (WebSlinging)" names the way, and keeps its brackets)
         const m = l.match(/^([^()]+?) \((.+\.)\)$/);
         if (!m || m[1].includes("{")) return m ? m[1] : l;
@@ -5751,7 +5966,7 @@ function onIntent(m) {
     if (acts.length === 1) return act(acts[0]);
     // a land with a choice of colours: ask which, under the same prompt
     return askUnder(seat, { title: `Tap ${name} for which mana?`, mode: "single", kind: "choice",
-      options: distinctLabels(acts, (a) => manaLabel(a) || a.description || a.id).map((label, i) => ({ id: acts[i].id, label })) },
+      options: distinctLabels(acts, (a) => (manaLabel(a) || a.description || a.id) + (manaLabel(a) ? manaPainText(a, cardIndex(seat.board?.state?.gameView || {})[m.id]?.text) : "")).map((label, i) => ({ id: acts[i].id, label })) },
     (a) => ({ type: "act", actionId: a[0] }), { back: "Cancel", returns: m.id });
   }
 
@@ -6094,6 +6309,9 @@ function onRewind(color, checkpointId) {
   const seat = game?.seats.get(color);
   const gv = seat?.board?.state?.gameView;
   if (!gv || !game.started) return chat("[MTG] Only a player in the running game can ask to rewind.", color);
+  // (a finished game first: the engine ended Kykar's game as a draw and every player was "lost", so the refusal read
+  // "Players who are out can't ask to rewind", Kykar hand test #16)
+  if (gv.gameOver || game.over) { const why = gameEndWords(gv); return chat(`[MTG] The game has ended${why ? ` (${why})` : ""}, so it can't be rewound. Start a new game.`, color); }
   if (game.fix) return chat("[MTG] Finish the manual fix first (or cancel it).", color);
   const cp = (gv.checkpoints || []).find((c) => String(c.checkpointId) === String(checkpointId));
   if (!cp) return chat("[MTG] That point is no longer kept. Type  mtg undo  for the current list.", color);

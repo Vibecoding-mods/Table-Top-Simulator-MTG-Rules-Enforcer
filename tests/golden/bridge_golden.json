@@ -100285,7 +100285,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Tap Mountain for which mana?\": {C} | {G} (Llanowar Wastes deals 1 damage to you) | {G} (nothing else) | Cancel\n"
+    "text": "[time] Blue   is asked #900 \"Tap Mountain for which mana?\": {C} | {G} (1 damage to you) | {G} | Cancel\n"
    },
    {
     "tts": {
@@ -100303,11 +100303,11 @@
       },
       {
        "id": "tap:engine-card-64:1:G",
-       "label": "{G} (Llanowar Wastes deals 1 damage to you)"
+       "label": "{G} (1 damage to you)"
       },
       {
        "id": "tap:engine-card-64:2",
-       "label": "{G} (nothing else)"
+       "label": "{G}"
       },
       {
        "id": "__back",
@@ -108913,7 +108913,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Legend rule: which Hurloon Minotaur stays?\": Hurloon Minotaur 2/3 | Hurloon Minotaur 2/3\n"
+    "text": "[time] Blue   is asked #900 \"Legend rule: which Hurloon Minotaur stays?\": Hurloon Minotaur 2/3 #1 | Hurloon Minotaur 2/3 #2\n"
    },
    {
     "fetch": "https://api.scryfall.com/cards/collection",
@@ -108939,11 +108939,11 @@
      "options": [
       {
        "id": "engine-card-75",
-       "label": "Hurloon Minotaur 2/3"
+       "label": "Hurloon Minotaur 2/3 #1"
       },
       {
        "id": "engine-card-176",
-       "label": "Hurloon Minotaur 2/3"
+       "label": "Hurloon Minotaur 2/3 #2"
       }
      ],
      "kind": "cards"
@@ -109955,7 +109955,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Legend rule: which Hurloon Minotaur stays?\": Hurloon Minotaur 2/3\n"
+    "text": "[time] Blue   answers #900 \"Legend rule: which Hurloon Minotaur stays?\": Hurloon Minotaur 2/3 #1\n"
    },
    {
     "relay": {
@@ -401633,7 +401633,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Rhystic Study: pay {1}?\": Pay {1} | No: aI 1 draws a card\n"
+    "text": "[time] Blue   is asked #900 \"Rhystic Study: pay {1}?\": Pay {1} | No: AI 1 draws a card\n"
    },
    {
     "fetch": "https://api.scryfall.com/cards/collection",
@@ -401660,7 +401660,7 @@
       },
       {
        "id": "no",
-       "label": "No: aI 1 draws a card"
+       "label": "No: AI 1 draws a card"
       }
      ],
      "kind": "yesno",
@@ -402826,7 +402826,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose a card\": Hurloon Minotaur 2/3 | Hurloon Minotaur 2/3\n"
+    "text": "[time] Blue   is asked #900 \"Choose a card\": Hurloon Minotaur 2/3 #1 | Hurloon Minotaur 2/3 #2\n"
    },
    {
     "fetch": "https://api.scryfall.com/cards/collection",
@@ -402851,11 +402851,11 @@
      "options": [
       {
        "id": "engine-card-75",
-       "label": "Hurloon Minotaur 2/3"
+       "label": "Hurloon Minotaur 2/3 #1"
       },
       {
        "id": "engine-card-176",
-       "label": "Hurloon Minotaur 2/3"
+       "label": "Hurloon Minotaur 2/3 #2"
       }
      ],
      "kind": "cards",
@@ -403868,7 +403868,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Choose a card\": Hurloon Minotaur 2/3\n"
+    "text": "[time] Blue   answers #900 \"Choose a card\": Hurloon Minotaur 2/3 #1\n"
    },
    {
     "relay": {
@@ -514511,18 +514511,18 @@
     "wsOpen": "ws://127.0.0.1:9443"
    },
    {
-    "log": "prompt Blue #900: chooseBoardTargets \"Copy of Flusterstorm: choose a target to counter\""
+    "log": "prompt Blue #900: chooseBoardTargets \"Copy of Flusterstorm: counter which instant or sorcery spell unless its controller pays {1}?\""
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Copy of Flusterstorm: choose a target to counter\": Flusterstorm (your spell) #1 | Flusterstorm (your spell) #2\n"
+    "text": "[time] Blue   is asked #900 \"Copy of Flusterstorm: counter which instant or sorcery spell unless its controller pays {1}?\": Flusterstorm (your spell) #1 | Flusterstorm (your spell) #2\n"
    },
    {
     "tts": {
      "t": "prompt",
      "color": "Blue",
      "promptId": 900,
-     "title": "Copy of Flusterstorm: choose a target to counter",
+     "title": "Copy of Flusterstorm: counter which instant or sorcery spell unless its controller pays {1}?",
      "mode": "multi",
      "min": 1,
      "max": 1,
@@ -514548,7 +514548,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Copy of Flusterstorm: choose a target to counter\": Flusterstorm (your spell) #1\n"
+    "text": "[time] Blue   answers #900 \"Copy of Flusterstorm: counter which instant or sorcery spell unless its controller pays {1}?\": Flusterstorm (your spell) #1\n"
    },
    {
     "relay": {

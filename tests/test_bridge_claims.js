@@ -825,6 +825,247 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       harness.restore();
     }
   }
+  // Kykar UI batch 2026-11-07 (docs/HAND-TEST-KYKAR.md; the engine's words from the ability probe, Kykar probe 2026-11-07)
+  {
+    const chats = (h, from = 0) => h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text);
+    const fresh = (edit, gvExtra = {}) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      Object.assign(b.gameView, { activePlayerId: "player-0", priorityPlayerId: "player-0", step: "main1", stack: [] }, gvExtra);
+      if (edit) edit(b.gameView);
+      const seat = setup(h, b);
+      return { h, seat, b };
+    };
+    const asked = (h, seat, input, more = {}) => { h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input, ...more }); return h.flush(); };
+    const mine = (gv) => gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards;
+    const labels = (seat) => (seat.prompt?.ui?.options || []).map((o) => o.label);
+    const one = (id, name, extra = {}) => ({ id, identity: { name }, types: ["Creature"], power: 1, toughness: 1, controllerId: "player-0", ...extra });
+    // #1: a mana ability's button says "tap" only when its cost has {T}; Lotus Petal's says it is sacrificed (probe extra)
+    {
+      const { h, seat } = fresh((gv) => mine(gv).push(
+        one("engine-card-1209", "Kykar, Wind's Fury", { power: 3, toughness: 3, text: "Flying\nWhenever you cast a noncreature spell, create a 1/1 white Spirit creature token with flying.\nSacrifice a Spirit: Add {R}." }),
+        { id: "engine-card-1213", identity: { name: "Ashnod's Altar" }, types: ["Artifact"], controllerId: "player-0", text: "Sacrifice a creature: Add {C}{C}." },
+        { id: "engine-card-1214", identity: { name: "Lotus Petal" }, types: ["Artifact"], controllerId: "player-0", text: "{T}, Sacrifice Lotus Petal: Add one mana of any color." }));
+      await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" },
+        { id: "tap:engine-card-1209:9", type: "activateAbility", cardId: "engine-card-1209", abilityIndex: 9, isManaAbility: true, description: "Sacrifice a Spirit: Add {R}.", cost: "Sacrifice a Spirit", producedMana: [{ amount: 1, color: "R" }] },
+        { id: "tap:engine-card-1213:10", type: "activateAbility", cardId: "engine-card-1213", abilityIndex: 10, isManaAbility: true, description: "Sacrifice a creature: Add {C}{C}.", cost: "Sacrifice a creature", producedMana: [{ amount: 2, color: "C" }] },
+        { id: "tap:engine-card-1214:11:W", type: "activateAbility", cardId: "engine-card-1214", abilityIndex: 11, isManaAbility: true, description: "{T}, Sacrifice Lotus Petal: Add one mana of any color.", cost: "{T}, Sacrifice CARDNAME", producedMana: [{ amount: 1, color: "W" }] }] });
+      const got = labels(seat);
+      ok("kykar #1: a sacrifice-only mana ability isn't 'tap'", got.includes("Mana: Kykar, Wind's Fury (sacrifice a Spirit)") && got.includes("Mana: Ashnod's Altar (sacrifice a creature)"), JSON.stringify(got));
+      ok("kykar probe: Lotus Petal's button says it is sacrificed", got.includes("Mana: tap Lotus Petal (also sacrifice it)"), JSON.stringify(got));
+      harness.restore();
+    }
+    // #4: a painland's and Ancient Tomb's pay labels say the damage, only for the colours that deal it
+    {
+      const { h, seat } = fresh((gv) => mine(gv).push(
+        { id: "engine-card-1301", identity: { name: "Adarkar Wastes" }, types: ["Land"], controllerId: "player-0", text: "{T}: Add {C}.\n{T}: Add {W} or {U}. Adarkar Wastes deals 1 damage to you." },
+        { id: "engine-card-1203", identity: { name: "Ancient Tomb" }, types: ["Land"], controllerId: "player-0", text: "{T}: Add {C}{C}. Ancient Tomb deals 2 damage to you." }));
+      await asked(h, seat, { type: "payManaCost", manaCost: "{1}{W}", presentation: { title: "Pay {1}{W}" }, actions: [
+        { id: "tap:engine-card-1301:0", cardId: "engine-card-1301", abilityIndex: 0, description: "Adarkar Wastes", cost: "{T}", producedMana: [{ amount: 1, color: "C" }] },
+        { id: "tap:engine-card-1301:1:W", cardId: "engine-card-1301", abilityIndex: 1, description: "Adarkar Wastes", cost: "{T}", producedMana: [{ amount: 1, color: "W" }] },
+        { id: "tap:engine-card-1203:2", cardId: "engine-card-1203", abilityIndex: 2, description: "Ancient Tomb", cost: "{T}", producedMana: [{ amount: 2, color: "C" }] }] },
+        { sourceCard: { id: "engine-card-43", identity: { name: "Vraska's Fall" } } });
+      const got = labels(seat);
+      ok("kykar #4: a painland's coloured mana says its damage, its {C} doesn't", got.includes("Tap Adarkar Wastes for {W} (1 damage to you)") && got.includes("Tap Adarkar Wastes for {C}"), JSON.stringify(got));
+      ok("kykar #4: Ancient Tomb says its damage", got.includes("Tap Ancient Tomb for {C}{C} (2 damage to you)"), JSON.stringify(got));
+      harness.restore();
+    }
+    // #5 #24: Forge's separator rows are never options, a source choice says "choose a source", a commander says its zone
+    {
+      const { h, seat } = fresh((gv) => {
+        mine(gv).push(one("engine-card-1805", "Rograkh, Son of Rohgahh", { power: 0 }));
+        gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards.push(one("engine-card-1804", "Serra Angel", { power: 4, toughness: 4, controllerId: "player-1" }));
+      });
+      const text = "The next time a source of your choice would deal damage to you this turn, prevent that damage. If damage is prevented this way, Deflecting Palm deals that much damage to that source's controller.";
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, presentation: { title: "Deflecting Palm", description: "Choose a source " },
+        cards: [{ id: "engine-card-1801", identity: { name: "--CARDS IN THE COMMAND ZONE:--", setCode: "???" } }, { id: "engine-card-1802", identity: { name: "--PERMANENTS:--", setCode: "???" } },
+          { id: "engine-card-1803", identity: { name: "--SPELLS ON THE STACK:--", setCode: "???" } }, { ...one("engine-card-1804", "Serra Angel", { power: 4, toughness: 4, controllerId: "player-1" }), zone: "battlefield", ownerId: "player-1" },
+          { ...one("engine-card-1806", "Rograkh, Son of Rohgahh", { power: 0 }), zone: "command", ownerId: "player-0" }] },
+        { sourceCard: { id: "engine-card-1807", identity: { name: "Deflecting Palm" }, text }, sourceAbilityText: text });
+      const got = labels(seat);
+      ok("kykar #5 #24: no separator row is an option", got.length === 2 && !got.some((l) => /--/.test(l)), JSON.stringify(got));
+      ok("kykar #5 #24: a source choice says so", seat.prompt?.ui?.title === "Deflecting Palm: choose a source", seat.prompt?.ui?.title);
+      ok("kykar #5 #24: a source outside the battlefield says where it is", got.includes("Rograkh, Son of Rohgahh 0/1 (command zone)"), JSON.stringify(got));
+      ok("kykar #5 #24: a source choice has no library-search hint", !/library/.test(seat.prompt?.ui?.text || ""), seat.prompt?.ui?.text);
+      harness.restore();
+    }
+    // (a source that is only a spell on the stack, in no zone the table shows: no "right-click your library" hint either)
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, presentation: { title: "Deflecting Palm", description: "Choose a source " },
+        cards: [{ id: "engine-card-1808", identity: { name: "--SPELLS ON THE STACK:--", setCode: "???" } }, { id: "engine-card-1809", identity: { name: "Lightning Bolt" }, types: ["Instant"], controllerId: "player-1", ownerId: "player-1", zone: "stack" }] },
+        { sourceCard: { id: "engine-card-1807", identity: { name: "Deflecting Palm" } }, sourceAbilityText: "The next time a source of your choice would deal damage to you this turn, prevent that damage." });
+      ok("kykar #5 #24: a spell as a source has no library-search hint", !/library/.test(seat.prompt?.ui?.text || "") && labels(seat).includes("Lightning Bolt (on the stack)"), JSON.stringify([seat.prompt?.ui?.text, labels(seat)]));
+      harness.restore();
+    }
+    // INV-6: two cards that read alike are told apart by whose they are
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, presentation: { title: "Circle of Protection: Red", description: "Choose a source " },
+        cards: [{ ...one("engine-card-1850", "Rograkh, Son of Rohgahh", { power: 0 }), zone: "command", ownerId: "player-0" }, { ...one("engine-card-1851", "Rograkh, Son of Rohgahh", { power: 0, controllerId: "player-1" }), zone: "command", ownerId: "player-1" }] },
+        { sourceCard: { id: "engine-card-1852", identity: { name: "Circle of Protection: Red" } }, sourceAbilityText: "{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage." });
+      const got = labels(seat);
+      ok("kykar INV-6: alike options say whose", got.includes("Rograkh, Son of Rohgahh 0/1 (command zone, yours)") && got.includes("Rograkh, Son of Rohgahh 0/1 (command zone, AI 1's)"), JSON.stringify(got));
+      harness.restore();
+    }
+    // #9: "#n" labels sort as numbers (#9 before #10)
+    {
+      const { h, seat } = fresh();
+      const toks = Array.from({ length: 11 }, (_, k) => ({ ...one(`engine-card-${1820 + k}`, "Spirit Token", { identity: { name: "Spirit Token", isToken: true } }), zone: "battlefield" }));
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 11, presentation: { title: "Choose cards", description: "Choose cards" }, cards: toks }, { sourceCard: { id: "engine-card-1840", identity: { name: "Some Card" } } });
+      const got = labels(seat);
+      ok("kykar #9: #9 comes before #10", got.indexOf("Spirit Token 1/1 #9") >= 0 && got.indexOf("Spirit Token 1/1 #9") < got.indexOf("Spirit Token 1/1 #10") && got.indexOf("Spirit Token 1/1 #2") < got.indexOf("Spirit Token 1/1 #10"), JSON.stringify(got));
+      harness.restore();
+    }
+    // #18: Forge's doubled plural is undone (Mondrak's live cost "creatureses")
+    {
+      const h = harness.load();
+      setup(h, clone(F.board));
+      const got = h.B.displayText("{1}{W/P}{W/P}, Sacrifice two other artifacts and/or creatureses: Put an indestructible counter on Mondrak, Glory Dominus.");
+      ok("kykar #18: 'creatureses' reads 'creatures'", got === "{1}{W/P}{W/P}, Sacrifice two other artifacts and/or creatures: Put an indestructible counter on Mondrak, Glory Dominus.", got);
+      ok("kykar #18: a real word in -ses stays", h.B.displayText("Each player chooses. Its horses gain haste.") === "Each player chooses. Its horses gain haste.", h.B.displayText("Each player chooses. Its horses gain haste."));
+      harness.restore();
+    }
+    // #22: a free cast says it is free, and why ("If you control a commander", Flawless Maneuver's text)
+    {
+      const { h, seat } = fresh((gv) => gv.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards.push({ id: "engine-card-1860", identity: { name: "Flawless Maneuver" }, types: ["Instant"], text: "If you control a commander, you may cast this spell without paying its mana cost.\nCreatures you control gain indestructible until end of turn." }));
+      await asked(h, seat, { type: "chooseAction", actions: [{ id: "a1", type: "cast", cardId: "engine-card-1860", label: "Cast Flawless Maneuver", mode: { type: "normal" } }, { id: "a2", type: "cast", cardId: "engine-card-1860", label: "Cast Flawless Maneuver", mode: { type: "staticAlternative" } }] });
+      const got = labels(seat);
+      ok("kykar #22: the free cast is 'without paying its mana cost'", got.includes("Cast Flawless Maneuver without paying its mana cost (you control a commander)") && !got.some((l) => /alternative cost/.test(l)), JSON.stringify(got));
+      harness.restore();
+    }
+    // probe extra: Esper Sentinel's "Pay {X}?" says X; its No says the other player's draw as it is
+    {
+      const { h, seat } = fresh();
+      const text = "Whenever an opponent casts their first noncreature spell each turn, draw a card unless that player pays {X}, where X is Esper Sentinel's power.";
+      await asked(h, seat, { type: "chooseBoolean", confirmLabel: "Pay", denyLabel: "Decline", presentation: { title: "Pay {X}?", text: "otherwise: \"AI 1 draws a card.\"" } },
+        { sourceAbilityText: text, sourceCard: { id: "engine-card-1244", identity: { name: "Esper Sentinel" }, power: "1", toughness: "1", controllerId: "player-1", text } });
+      const u = seat.prompt?.ui;
+      ok("kykar probe: Esper Sentinel's X is said", u?.title === "Esper Sentinel: pay {1}?" && /^X is Esper Sentinel's power: 1\./.test(u?.text || "") && labels(seat)[0] === "Pay {1}", JSON.stringify([u?.title, u?.text, labels(seat)]));
+      ok("kykar probe: another player's line in No keeps its name", labels(seat).includes("No: AI 1 draws a card"), JSON.stringify(labels(seat)));
+      harness.restore();
+    }
+    // probe extra: Thriving Isle's colour question, titled by its own sentence
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseColor", amount: 1, repeatAllowed: false, validColors: ["Black", "Red", "Green", "White"], presentation: { title: "Thriving Isle" } },
+        { sourceAbilityText: "Play land", sourceCard: { id: "engine-card-1264", identity: { name: "Thriving Isle" }, types: ["Land"], text: "Thriving Isle enters tapped.\nAs Thriving Isle enters, choose a color other than blue.\n{T}: Add {U} or one mana of the chosen color." } });
+      ok("kykar probe: Thriving Isle asks 'choose a color other than blue'", seat.prompt?.ui?.title === "Thriving Isle: choose a color other than blue", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #17: the order of two replacement effects says so, each by its card
+    {
+      const AP = "If an effect would create one or more tokens under your control, it creates twice that many of those tokens instead.";
+      const MO = "If one or more tokens would be created under your control, twice that many of those tokens are created instead.";
+      const { h, seat } = fresh((gv) => mine(gv).push({ id: "engine-card-1870", identity: { name: "Anointed Procession" }, types: ["Enchantment"], controllerId: "player-0", text: AP },
+        { id: "engine-card-1871", identity: { name: "Mondrak, Glory Dominus" }, types: ["Artifact", "Creature"], controllerId: "player-0", text: `Flying\n${MO}\n{1}{W/P}{W/P}, Sacrifice two other artifacts and/or creatures: Put an indestructible counter on Mondrak, Glory Dominus.` }));
+      await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose", targets: [] }, options: [{ label: AP, weight: 1, canRepeat: false }, { label: MO, weight: 1, canRepeat: false }] },
+        { sourceCard: { id: "engine-card-1209", identity: { name: "Kykar, Wind's Fury" } }, sourceAbilityText: "Whenever you cast a noncreature spell, create a 1/1 white Spirit creature token with flying." });
+      ok("kykar #17: titled 'which applies first?'", seat.prompt?.ui?.title === "Kykar, Wind's Fury: which applies first?", seat.prompt?.ui?.title);
+      ok("kykar #17: each option by its card", JSON.stringify(labels(seat)) === JSON.stringify([`Anointed Procession: ${AP}`, `Mondrak, Glory Dominus: ${MO}`]), JSON.stringify(labels(seat)));
+      harness.restore();
+    }
+    // #16: an engine-ended draw says why, the board carries it for the top bar, and a rewind after it says the game ended
+    {
+      const { h, seat } = fresh(null, { gameOver: true, winnerId: null });
+      await asked(h, seat, { type: "gameOver" });
+      const said = chats(h).filter((t) => /Game over/.test(t));
+      ok("kykar #16: an engine-ended draw says it was a draw and why", said.length === 1 && /^\[MTG\] Game over: a draw\. .*runaway-game cap/.test(said[0]), JSON.stringify(said));
+      h.B.sendTable(); await h.flush();
+      const t = sent(h, "table").at(-1);
+      ok("kykar #16: the table message carries why it ended", t?.gameOver && /^a draw\./.test(t?.overWhy || ""), JSON.stringify(t && [t.gameOver, t.overWhy]));
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "rewind", json: JSON.stringify({ color: "Blue", checkpointId: 1 }) }); await h.flush();
+      const refused = chats(h, mark);
+      ok("kykar #16: a rewind after the end says the game has ended", refused.length === 1 && /^\[MTG\] The game has ended \(a draw\./.test(refused[0]), JSON.stringify(refused));
+      harness.restore();
+    }
+    // #14: a copy's target question is worded like its original's (Twincast on Explosion, the probe's stack: the copy's
+    // card in no zone, Forge's resolved line as "text", the rules text as sourceAbilityText)
+    {
+      const stack = [{ id: "engine-stack-2", sourceId: "engine-card-1919", controllerId: "player-0", identity: { name: "Explosion" }, isPermanentSpell: false, sourceAbilityText: "Explosion deals X damage to any target. Target player draws X cards.",
+        targets: [{ id: "player-1", kind: "player" }], text: "Explosion (220) - Explosion (220) deals 0 damage to AI 1. AI 1 draws zero cards. (X=0)" },
+        { id: "engine-stack-4", sourceId: "engine-card-1920", controllerId: "player-0", identity: { name: "Twincast" }, isPermanentSpell: false, sourceAbilityText: "Copy target instant or sorcery spell. You may choose new targets for the copy.", targets: [], text: "Twincast (221) - Copy Explosion (220)." }];
+      const { h, seat } = fresh(null, { stack });
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, chosenTargets: 0, intent: "draw", candidates: [{ kind: "player", id: "player-0" }, { kind: "player", id: "player-1" }], presentation: { title: "Choose player to draw", targets: [] } });
+      ok("kykar #14: a copy asks in its original's words", seat.prompt?.ui?.title === "Copy of Explosion: which player draws X cards?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #20: fused Wear // Tear asks each half's target under that half's name (the probe's live shape: ability text the Fuse
+    // reminder, card text "(Wear) Destroy target artifact. ..."), and its copy the same way
+    {
+      const FUSE = "Fuse (You may cast one or both halves of this card from your hand.)";
+      const text = `(Wear) Destroy target artifact.\n${FUSE}\r\n\r\n(Tear) Destroy target enchantment.\n${FUSE}`;
+      const { h, seat, b } = fresh((gv) => gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards.push(
+        { id: "engine-card-1950", identity: { name: "Ornithopter" }, types: ["Artifact", "Creature"], power: 0, toughness: 2, controllerId: "player-1" },
+        { id: "engine-card-1951", identity: { name: "Glorious Anthem" }, types: ["Enchantment"], controllerId: "player-1" }));
+      const wt = { id: "engine-card-1952", identity: { name: "Wear // Tear" }, text };
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, chosenTargets: 0, intent: "destroy", candidates: [{ kind: "card", id: "engine-card-1950" }], presentation: { title: "Destroy", targets: [] } }, { sourceCard: wt, sourceAbilityText: FUSE });
+      const first = seat.prompt?.ui;
+      ok("kykar #20: Wear's target under its own name", first?.title === "Wear: destroy which artifact?", first?.title);
+      ok("kykar #20: the half's text, not the Fuse reminder", first?.text === "Destroy target artifact.", first?.text);
+      h.B.onPrompt(seat, { promptId: 901, decidingPlayerId: "player-0", input: { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, chosenTargets: 0, intent: "destroy", candidates: [{ kind: "card", id: "engine-card-1951" }], presentation: { title: "Destroy", targets: [] } }, sourceCard: wt, sourceAbilityText: FUSE });
+      await h.flush();
+      ok("kykar #20: Tear's target under its own name", seat.prompt?.ui?.title === "Tear: destroy which enchantment?", seat.prompt?.ui?.title);
+      // (the copy: no asking card, the spell on the stack with the Fuse reminder as its text)
+      b.gameView.stack = [{ id: "engine-stack-9", sourceId: "engine-card-1953", controllerId: "player-0", identity: { name: "Wear // Tear" }, isPermanentSpell: false, sourceAbilityText: FUSE, targets: [], text: "Wear // Tear (207) - Destroy target artifact. Destroy target enchantment." }];
+      seat.board = { state: b, fingerprint: null };
+      h.B.onPrompt(seat, { promptId: 902, decidingPlayerId: "player-0", input: { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, chosenTargets: 0, intent: "destroy", candidates: [{ kind: "card", id: "engine-card-1950" }], presentation: { title: "Destroy", targets: [] } } });
+      await h.flush();
+      ok("kykar #20: the copy's half too", seat.prompt?.ui?.title === "Copy of Wear: destroy which artifact?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #23: several targets say what they are for (Guardian of Faith: no ability text, the card's; Clever Concealment's)
+    {
+      const text = "Flash\nFlying\nWhen Guardian of Faith enters, any number of other target creatures you control phase out. (Treat them and anything attached to them as though they don't exist until your next turn.)";
+      const { h, seat } = fresh((gv) => mine(gv).push(one("engine-card-1930", "Grizzly Bears", { power: 2, toughness: 2 }), one("engine-card-1931", "Ornithopter", { power: 0, toughness: 2 })));
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 0, maxTargets: 11, chosenTargets: 0, intent: "hostile", candidates: [{ kind: "card", id: "engine-card-1930" }, { kind: "card", id: "engine-card-1931" }], presentation: { title: "Hostile", targets: [] } },
+        { sourceCard: { id: "engine-card-1932", identity: { name: "Guardian of Faith" }, text } });
+      ok("kykar #23: Guardian of Faith asks which creatures phase out", seat.prompt?.ui?.title === "Guardian of Faith: which other creatures you control phase out?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    {
+      const text = "Any number of target nonland permanents you control phase out. (Treat them and anything attached to them as though they don't exist until your next turn.)";
+      const { h, seat } = fresh((gv) => mine(gv).push(one("engine-card-1933", "Grizzly Bears", { power: 2, toughness: 2 }), one("engine-card-1934", "Ornithopter", { power: 0, toughness: 2 })));
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 0, maxTargets: 2, chosenTargets: 0, intent: "hostile", candidates: [{ kind: "card", id: "engine-card-1933" }, { kind: "card", id: "engine-card-1934" }], presentation: { title: "Hostile", targets: [] } },
+        { sourceCard: { id: "engine-card-1935", identity: { name: "Clever Concealment" }, text: `Convoke\n${text}` }, sourceAbilityText: text });
+      ok("kykar #23: Clever Concealment asks which permanents phase out", seat.prompt?.ui?.title === "Clever Concealment: which nonland permanents you control phase out?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #23: proliferate's own step (Forge's lblChooseProliferateTarget) under a card whose text has another "put"
+    {
+      const text = "Look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order. Proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)";
+      const { h, seat } = fresh((gv) => mine(gv).push(one("engine-card-1936", "Grizzly Bears", { power: 3, toughness: 3, counters: { P1P1: 1 } })));
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, presentation: { title: "Experimental Augury", description: "Choose any number of permanents and/or players for proliferate" },
+        cards: [{ ...one("engine-card-1936", "Grizzly Bears", { power: 3, toughness: 3, counters: { P1P1: 1 } }), zone: "battlefield", ownerId: "player-0" }] },
+        { sourceCard: { id: "engine-card-1937", identity: { name: "Experimental Augury" }, text }, sourceAbilityText: text });
+      ok("kykar #23: proliferate says it", seat.prompt?.ui?.title === "Experimental Augury: give which another counter (proliferate)?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #27: Arcane Bombardment's copies are cast, the exiled cards stay: no drag-out hint (its live trigger text, Forge's
+    // lblSelectCardToPlay)
+    {
+      const { h, seat } = fresh((gv) => gv.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0").cards.push({ id: "engine-card-1940", identity: { name: "Opt" }, types: ["Instant"], text: "Scry 1.\nDraw a card." }));
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, presentation: { title: "Arcane Bombardment", description: "Select a card to play" },
+        cards: [{ id: "engine-card-1940", identity: { name: "Opt" }, types: ["Instant"], zone: "exile", ownerId: "player-0" }] },
+        { sourceCard: { id: "engine-card-1941", identity: { name: "Arcane Bombardment" } },
+          sourceAbilityText: "Whenever you cast your first instant or sorcery spell each turn, exile an instant or sorcery card at random from your graveyard. Then copy each card exiled with Arcane Bombardment. You may cast any number of the copies without paying their mana costs." });
+      const u = seat.prompt?.ui;
+      ok("kykar #27: copies: no drag-out from the pile", u?.copies === true && u?.pileChoices === undefined && !/drag/i.test(u?.text || ""), JSON.stringify(u && [u.copies, u.pileChoices, u.text]));
+      ok("kykar #27: copies: the title says a copy is cast", u?.title === "Arcane Bombardment: cast which copy?", u?.title);
+      harness.restore();
+    }
+    // #16: a win names the winner and the loser's reason
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: "player-0" });
+      b.gameView.players.find((p) => p.id === "player-1").life = 0;
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      const said = chats(h).filter((t) => /Game over/.test(t));
+      ok("kykar #16: a win says who won", said[0] === "[MTG] Game over: AI 1 is at 0 life. Blue wins.", JSON.stringify(said));
+      harness.restore();
+    }
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();
