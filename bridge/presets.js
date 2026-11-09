@@ -2,8 +2,9 @@
 // An id found in both is ours.
 const fs = require("fs");
 const path = require("path");
+const home = require("./home"); // (decks/ and manabrew/ under MTG_HOME when it is set)
 
-const DIRS = [path.join(__dirname, "..", "decks"), path.join(__dirname, "..", "manabrew", "public", "preset_decks")];
+const DIRS = [home.data("decks"), home.data("manabrew", "public", "preset_decks")];
 
 function presetFile(id) {
   for (const d of DIRS) {

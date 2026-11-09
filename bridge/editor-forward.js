@@ -23,6 +23,7 @@
 const net = require("net");
 const fs = require("fs");
 const path = require("path");
+const home = require("./home");
 
 // The bridge numbers its own Execute Lua returnIDs from here up; plugins number theirs from 0 or 1 (research §2).
 const BRIDGE_EXEC_BASE = 1000000000;
@@ -42,7 +43,7 @@ end
 return table.concat(mine, "; ")`;
 
 const DEFAULT_SAVE = path.join(process.env.USERPROFILE || "", "Documents", "My Games", "Tabletop Simulator", "Saves", "TS_Save_1.json");
-const DEFAULT_BACKUP_DIR = path.join(__dirname, "..", "tmp", "backup");
+const DEFAULT_BACKUP_DIR = home.tmp("backup");
 
 // A function that copies the save file to backupDir as <name>-YYYY-MM-DD-HH-MM-SS.json (never overwriting one) and
 // resolves to the copy's path. Throws (rejects) when the save is missing or can't be copied.

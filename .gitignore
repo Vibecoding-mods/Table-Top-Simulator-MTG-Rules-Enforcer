@@ -28,3 +28,5 @@ docs/skills/
 arena-features-collage.jpg
 # The engine build's clean clone
 engine/.build/
+# Friend packages (tools/make-friend-package.js)
+dist/

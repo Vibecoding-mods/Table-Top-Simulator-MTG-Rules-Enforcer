@@ -6,13 +6,19 @@ const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 
+const home = require("./home");
+
 const ROOT = path.join(__dirname, "..");
-const MANIFEST = path.join(ROOT, "stack", "deployed.json");
-const BRIDGE_FILES = ["bridge.js", "state-delta.js", "presets.js", "versions.js", "editor-forward.js"].map((f) => path.join(__dirname, f));
+const MANIFEST = home.data("stack", "deployed.json");
+const COMPOSE = home.data("stack", "compose.yml");
+const BRIDGE_FILES = ["bridge.js", "state-delta.js", "presets.js", "versions.js", "editor-forward.js", "home.js"].map((f) => path.join(__dirname, f));
 // the table script's source: tools/make-engine-copy.js appends both to the table's Global (engine-json.lua is the JSON
 // decoder, 2026-11-05)
 const TABLE_SOURCE = [path.join(ROOT, "tools", "engine-renderer.lua"), path.join(ROOT, "tools", "engine-json.lua")];
-const NODE_CONTAINER = "stack-forge-room-1", RELAY_CONTAINER = "stack-relay-1";
+// The engine's containers, named as compose names them: COMPOSE_PROJECT_NAME, else the compose file's `name:`, else its
+// folder ("stack": stack-forge-room-1). The friend package's file says `name: mtg-table`.
+const PROJECT = process.env.COMPOSE_PROJECT_NAME || (() => { try { return /^name:\s*["']?([\w.-]+)/m.exec(fs.readFileSync(COMPOSE, "utf8"))[1]; } catch { return null; } })() || path.basename(path.dirname(COMPOSE));
+const NODE_CONTAINER = `${PROJECT}-forge-room-1`, RELAY_CONTAINER = `${PROJECT}-relay-1`;
 
 const sha8 = (data) => crypto.createHash("sha256").update(data).digest("hex").slice(0, 8);
 // (a list of files: one hash over all of them, in order)
@@ -48,10 +54,11 @@ function outOfStep(now, deployed) {
   return out;
 }
 
-// Source edited since the deploy: not out of step yet, only waiting for the next one
+// Source edited since the deploy: not out of step yet, only waiting for the next one. (No table source here, as in the
+// friend package: nothing to wait for.)
 const waiting = (deployed) => (deployed ? [
   ...(bridgeHash() !== deployed.bridge ? ["the bridge's code"] : []),
-  ...(fileHash(TABLE_SOURCE) !== deployed.tableSource ? ["tools/engine-renderer.lua or tools/engine-json.lua"] : []),
+  ...(![null, deployed.tableSource].includes(fileHash(TABLE_SOURCE)) ? ["tools/engine-renderer.lua or tools/engine-json.lua"] : []),
 ] : []);
 
-module.exports = { MANIFEST, BRIDGE_FILES, TABLE_SOURCE, sha8, fileHash, bridgeHash, readManifest, containerImages, outOfStep, waiting };
+module.exports = { MANIFEST, COMPOSE, BRIDGE_FILES, TABLE_SOURCE, sha8, fileHash, bridgeHash, readManifest, containerImages, outOfStep, waiting };
