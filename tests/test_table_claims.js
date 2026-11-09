@@ -1653,10 +1653,10 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
 // Kykar hand test #16: a finished game's top bar shows GAME OVER and why, no turn or step
 {
   const r = run([q('local t = engineTable() t.gameOver = false engineUpdateCorner("Blue", nil) return tostring(UI.getValue("eng_phase_Blue"))', "playing"),
-    q('local t = engineTable() t.gameOver = true t.overWhy = "a draw. Nobody lost" engineUpdateCorner("Blue", nil) return tostring(UI.getValue("eng_phase_Blue"))', "over")]);
+    q('local t = engineTable() t.gameOver = true t.overWhy = "Blue and AI 1 drew from an empty library" engineUpdateCorner("Blue", nil) return tostring(UI.getValue("eng_phase_Blue"))', "over")]);
   const bar = String(valueOf(r, "over"));
   ok("precondition: a running game's bar shows the turn", /TURN/.test(String(valueOf(r, "playing"))), String(valueOf(r, "playing")) + " " + r.errors.join(" | "));
-  ok("kykar #16: a finished game's bar says GAME OVER and why, no turn", /GAME OVER/.test(bar) && bar.includes("a draw. Nobody lost") && !/TURN|Main 1|MAIN 1/.test(bar), bar);
+  ok("kykar #16: a finished game's bar says GAME OVER and why, no turn", /GAME OVER/.test(bar) && bar.includes("Blue and AI 1 drew from an empty library") && !/TURN|Main 1|MAIN 1/.test(bar), bar);
 }
 // Kykar hand test #27: copies of cards in a pile (Arcane Bombardment) are cast, not dragged out: the hint says where to pick
 {

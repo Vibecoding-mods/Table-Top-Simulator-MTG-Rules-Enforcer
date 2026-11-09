@@ -578,11 +578,12 @@ class Seat {
         // (a game won by life, poison or commander damage also ends here: then that is the reason, not an empty library;
         // playtest 2026-10-27: 12 poison was reported as White drawing from an empty library)
         const lost = lossReasons(gv);
-        const empty = (gv?.players || []).filter(outLast).filter((p) => (gv.zones || []).some((z) => z.zone === "library" && z.ownerId === p.id) && !zoneOf(gv, "library", p.id).count);
+        const empty = deckedPlayers(gv);
         // (a known reason wins: at the end the library count is not to be trusted, the poisoned game above read as an
         // empty library. Only the players who lost last count, see outLast.)
         if (lost) { chat(`[MTG] Game over: ${lost}.`); break; }
-        // (an ended game's board says how it ended, a draw by the engine's cap too: Kykar's read "Game aborted.", #16)
+        // (a board the engine says is over says how it ended, as gameEndWords tells it, "a draw" when that is all it
+        // shows: Kykar's ended game read "Game aborted.", #16)
         chat(empty.length ? `[MTG] Game over: ${empty.map((p) => nameOf(p.id)).join(", ")} had to draw from an empty library (that's a loss). The engine stopped the game there.`
           : gv?.gameOver ? `[MTG] Game over: ${gameEndWords(gv)}.` : "[MTG] Game aborted.");
         break;
@@ -1579,10 +1580,11 @@ function costWords(m, name) {
 }
 // A card on the battlefield (either board logEvents is telling, logBoards) whose only abilities with a sacrifice in their
 // cost make mana: Kykar's "Sacrifice a Spirit: Add {R}.", Ashnod's Altar, Phyrexian Altar. Not Goblin Bombardment, nor a
-// card with a sacrifice cost of another kind too (then the sacrifice may have paid for either).
+// card with a sacrifice cost of another kind too (then the sacrifice may have paid for either). (tx: only a battlefield
+// card has its text in a log snapshot, logSnapshot; both boards, as the card may be on only the one after)
 let logBoards = [];
 function sacrificesForMana(name) {
-  const c = logBoards.flatMap((b) => Object.values(b?.cards || {})).find((x) => x.name === name && x.zone === "battlefield" && x.tx);
+  const c = logBoards.flatMap((b) => Object.values(b?.cards || {})).find((x) => x.name === name && x.tx);
   const costs = String(c?.tx || "").split(/\n/).map((l) => /^([^:"]*\bSacrifice\b[^:"]*):\s*(.*)$/i.exec(l)).filter(Boolean);
   return costs.length > 0 && costs.every((x) => /^Add\b/.test(x[2]));
 }
@@ -2855,15 +2857,26 @@ const LOSS_REASONS = [
   (p) => { const n = Math.max(0, ...Object.values(p.commanderDamage || {}).map(Number).filter(Number.isFinite)); return n >= 21 ? `took ${n} damage from one commander` : null; },
   (p) => (p.status === "conceded" ? "conceded" : null),
 ];
-// Why the game ended, for the chat, the game log and the table's top bar: the winner and the last losers' reasons. A draw
-// no rule explains was ended by the engine itself: Forge's runaway-game cap ends a turn that fires over 5000 triggers as a
-// draw, and its reason doesn't reach the bridge (Kykar hand test #15 #16: the table said only "Game over.").
+// Why the game ended, for the chat, the game log, the table's top bar and a refused rewind: the last losers' reasons
+// (LOSS_REASONS, else an empty library, deckedPlayers) and the winner; with neither, "a draw" once the engine says the
+// game is over and names no winner (Kykar hand test #16: the table said only "Game over."). The engine's own reason
+// (its runaway-game cap, a card's "the game is a draw") doesn't reach the bridge, so a draw says no why: a guessed one
+// is worse than none (verify 2026-11-07: two empty libraries read as the runaway cap).
 function gameEndWords(gv) {
-  const lost = lossReasons(gv);
+  const decked = deckedPlayers(gv).map((p) => nameOf(p.id));
+  const lost = lossReasons(gv) || (decked.length ? `${decked.length > 1 ? `${decked.slice(0, -1).join(", ")} and ${decked.at(-1)}` : decked[0]} drew from an empty library` : null);
   const won = gv?.winnerId ? `${nameOf(gv.winnerId)} wins` : null;
   if (lost) return won ? `${lost}. ${won}` : lost;
   // (a draw only when the engine says the game is over: a gameOver question with a board still playing tells nothing)
-  return won || (gv?.gameOver ? "a draw. Nobody lost by life, poison, commander damage or conceding, so the engine ended it itself (its runaway-game cap ends a turn that fires over 5000 triggers as a draw)" : null);
+  return won || (gv?.gameOver ? "a draw" : null);
+}
+// The players a board shows lost by drawing from an empty library: among the last to go out (outLast), not the winner,
+// a library zone with no cards; once the engine says the game is over, only players out of it (one still playing with an
+// empty library hasn't drawn from it yet). Read after LOSS_REASONS: at the end a library count can be 0 for a game lost
+// another way (12 poison read as an empty library, playtest 2026-10-27). GameAborted and gameEndWords both use it.
+function deckedPlayers(gv) {
+  return (gv?.players || []).filter(outLast).filter((p) => p.id !== gv.winnerId && (!gv.gameOver || (p.status && p.status !== "playing"))
+    && (gv.zones || []).some((z) => z.zone === "library" && z.ownerId === p.id) && !zoneOf(gv, "library", p.id).count);
 }
 // The order players left the game in (status lost / conceded first seen), so an end-of-game message names who lost
 // last, not a player out since turn 5 at -3 life (stage 3 review 2026-10-27). Called with each board.
@@ -3037,7 +3050,7 @@ const ZONE_SAID = { command: "command zone", stack: "on the stack", graveyard: "
 // Cards offered in one question that read alike are told apart by what differs (INV-6: Circle of Protection's source
 // choice offered "Rograkh, Son of Rohgahh 0/1" twice, one commander each): the zone, whose it is, a token, the
 // commander, and a number for what is still alike, as the legend rule's choice does. Copies that can't differ in a
-// way that matters (two Mountains in a hand, a library or one graveyard) are left alike. options: { id, label } with a
+// way that matters (two Mountains in one player's hand, library, graveyard or exile) are left alike. options: { id, label } with a
 // card id; cards: the question's cards; me: the asked seat's slot.
 function tellApart(options, cards, me) {
   const card = (o) => cards.find((c) => c.id === o.id);
@@ -3064,11 +3077,13 @@ function tellApart(options, cards, me) {
 
 // Forge's plural of a word that is plural already (its Lang.getPlural adds "es" to any word ending in "s"): Mondrak's
 // cost read "Sacrifice two other artifacts and/or creatureses", Kykar hand test #18. Undone for the nouns a cost counts
-// (PLURAL_NOUNS), and for any word the card's own text has in its plain plural form (cardText: "Goblins" for "Goblinses").
+// (PLURAL_NOUNS), and for any word the card's own text has in its plain plural form (cardText: "Goblins" for "Goblinses"),
+// in any case ("halflingses" for "Halflings"), unless the card's text has the "-ses" form itself. A word ending "ss",
+// "us" or "is" is a singular whose plural "-ses" is right: "Kisses" stays beside "Kiss of the Amesha" (verify 2026-11-07).
 const PLURAL_NOUNS = /^(?:creatures|artifacts|enchantments|permanents|tokens|spells|players|opponents|counters|planeswalkers|instants|sorceries|battles|cards|lands|nonlands)$/i;
 function undoublePlural(text, cardText = "") {
   return String(text).replace(/\b([A-Za-z]+s)es\b/g, (m, w) => (PLURAL_NOUNS.test(w)
-    || (cardText && new RegExp(`\\b${escapeRe(w)}\\b`).test(cardText) && !new RegExp(`\\b${escapeRe(m)}\\b`).test(cardText)) ? w : m));
+    || (cardText && !/(?:ss|us|is)$/i.test(w) && new RegExp(`\\b${escapeRe(w)}\\b`, "i").test(cardText) && !new RegExp(`\\b${escapeRe(m)}\\b`, "i").test(cardText)) ? w : m));
 }
 
 // Engine text names players by relay username; show TTS colors / "AI n" instead.
@@ -3439,7 +3454,9 @@ function modeTargetQuestion(text, candidates, byId, slot) {
   const q = found[0].replace(/\.$/, "").replace(/^[A-Z][a-z]+(?: [A-Z][a-z]+)* — /, "").replace(/^(?:When|Whenever|At)\b[^,]*,\s*/, "").replace(/^if\b[^,]*,\s*/i, "");
   return `${q[0].toLowerCase()}${q.slice(1)}?`;
 }
-const MANY_TARGETS = /\b(?:any number of|up to (?:two|three|four|five|six|seven|eight|nine|ten|\d+|X)|two|three|four|five|\d+|X) (other )?target\b/i;
+// (a bare number not the end of a range: "among one or two target creatures" and "one, two, or three target creatures"
+// read "among one or which creatures", verify 2026-11-07; those keep the generic title)
+const MANY_TARGETS = /\b(?:any number of|up to (?:two|three|four|five|six|seven|eight|nine|ten|\d+|X)|(?<!\bor |, )(?:two|three|four|five|\d+|X)) (other )?target\b/i;
 function purposeOf(words, kind, labels = [], reminders = false) {
   const text = displayText(String(words || ""));
   const raws = (reminders ? text.replace(/[()]/g, " ") : text.replace(/\([^()]*\)/g, "")).split(/\r?\n|(?<=\.)\s+/);
@@ -3580,14 +3597,14 @@ function fusedHalf(name, cardText, abilityText, typesAll) {
 }
 
 // X's value now, from the asking ability's "where X is <card>'s power" and that card on the board: Esper Sentinel's
-// "Pay {X}?" didn't say what X was (Kykar probe 2026-11-07). null when the text says no such thing.
+// "Pay {X}?" didn't say what X was (Kykar probe 2026-11-07). null when the text says no such thing. Power only: the
+// cards that make a player pay {X} by a card's stat (Esper Sentinel, Mausoleum Wanderer, Tomakul Phoenix) all say power.
 function xNow(abilityText, sourceCard, byId) {
-  const m = /\bwhere X is ([^.,]+?)'s (power|toughness)\b/i.exec(String(abilityText || ""));
+  const m = /\bwhere X is ([^.,]+?)'s power\b/i.exec(String(abilityText || ""));
   if (!m) return null;
-  const stat = m[2].toLowerCase();
   const card = sourceCard && m[1] === sourceCard.identity?.name ? byId[sourceCard.id] || sourceCard
     : Object.values(byId).find((c) => c.identity?.name === m[1]);
-  return card?.[stat] != null && Number.isFinite(Number(card[stat])) ? { n: Number(card[stat]), why: `X is ${m[1]}'s ${stat}` } : null;
+  return card?.power != null && Number.isFinite(Number(card.power)) ? { n: Number(card.power), why: `X is ${m[1]}'s power` } : null;
 }
 
 // What "No" does in an "unless you pay" question, from Forge's `otherwise: "..."` text, in the player's words:
@@ -3946,8 +3963,13 @@ function manaCostExtra(a) {
 // not its {C}, " (2 damage to you)" for Ancient Tomb (Kykar hand test #4: "Tap Adarkar Wastes for {W}" never said it).
 // From the ability's own text when the action carries it ("{T}: Add {C}{C}. Ancient Tomb deals 2 damage to you."), else
 // the card's line whose "Add" makes that mana (a payment's action names only the card); two such lines that disagree are
-// told apart by the action's ability number. And City of Brass's "Whenever ... becomes tapped, it deals 1 damage to you."
-function manaPainText(a, cardText) {
+// told apart by the action's ability number. And City of Brass's "Whenever City of Brass becomes tapped, it deals 1
+// damage to you." (name: the card's; another card's or "a creature" becoming tapped isn't this one's). Damage under a
+// condition the table doesn't check says nothing: Tomb of Urami's "... deals 1 damage to you if you don't control an
+// Ogre" (verify 2026-11-07); a wrong amount is worse than none. Forge's ability number is the card's mana-ability index,
+// which needn't follow the text's lines (an ability the card has from its type or another card comes in too), so the
+// colour decides first and the number only between lines that both make it.
+function manaPainText(a, cardText, name) {
   const isAdd = (l) => /:\s*Add\b/.test(l);
   const lines = isAdd(String(a.description || "")) ? [String(a.description)] : String(cardText || "").split(/\r?\n/).filter(isAdd);
   const made = [...producedColours(a, (c) => /^[WUBRGC]$/.test(c))];
@@ -3955,10 +3977,15 @@ function manaPainText(a, cardText) {
     const add = l.slice(l.search(/:\s*Add\b/));
     return made.every((c) => add.includes(`{${c}}`) || (c !== "C" && /\bone mana of any colou?r\b/i.test(add)));
   }) : [];
-  const dmg = (l) => Number(/\bdeals (\d+) damage to you\b/.exec(String(l || ""))?.[1] || 0);
+  // (the sentence that deals it, whole: with an "if" or "unless" in it, no amount)
+  const dmg = (l) => {
+    const s = String(l || "").split(/(?<=\.)\s+/).find((x) => /\bdeals \d+ damage to you\b/.test(x));
+    return s && !/\b(?:if|unless|as long as)\b/i.test(s) ? Number(/\bdeals (\d+) damage to you\b/.exec(s)[1]) : 0;
+  };
   let n = fits.length && fits.every((l) => dmg(l) === dmg(fits[0])) ? dmg(fits[0])
     : fits.includes(lines[a.abilityIndex]) ? dmg(lines[a.abilityIndex]) : 0;
-  n += Number(/\bbecomes tapped, it deals (\d+) damage to you\b/i.exec(String(cardText || ""))?.[1] || 0);
+  const tapped = name ? String(cardText || "").split(/\r?\n/).find((l) => l.startsWith(`Whenever ${name} becomes tapped, `)) : null;
+  n += Number(/\bbecomes tapped, it deals (\d+) damage to you\b/i.exec(dmg(tapped) ? tapped : "")?.[1] || 0);
   return n ? ` (${n} damage to you)` : "";
 }
 // A mana creature's or artifact's priority button by what its mana ability costs: "Mana: tap Llanowar Elves", but "Mana:
@@ -4319,7 +4346,7 @@ function onPrompt(seat, prompt) {
       // one button per mana creature/artifact; if it can make several kinds of mana, a question under this one asks
       // which (Back and a timeout return to priority and turn the card back: the table turns it at the button press,
       // engine-renderer.lua optimistic "Mana: tap", review 2026-11-06)
-      const manaText = (m) => (manaLabel(m) || m.description || "mana") + (manaLabel(m) ? manaPainText(m, byId[m.cardId]?.text) : "");
+      const manaText = (m) => (manaLabel(m) || m.description || "mana") + (manaLabel(m) ? manaPainText(m, byId[m.cardId]?.text, byId[m.cardId]?.identity?.name) : "");
       const manaChoice = (cid) => {
         const acts = manaButtons.filter((m) => m.cardId === cid);
         if (acts.length === 1) return { type: "act", actionId: acts[0].id };
@@ -4399,7 +4426,7 @@ function onPrompt(seat, prompt) {
         ...(input.actions || []).filter((a) => a !== lifeAct).map((a) => ({ id: a.id, cardId: a.cardId, label: a.type === "undoMana" ? `Undo mana from ${cname(a.cardId)}`
           : a.type === "useResource" || a.type === "releaseResource" ? resourceLabel(a, cname(a.cardId))
           : payKind && isResourceTap(a) ? resourceLabel({ ...a, type: "useResource", resource: payKind }, a.description || cname(a.cardId))
-          : a.description ? `${!a.cost || /\{T\}/.test(a.cost) ? "Tap" : "Use"} ${a.description}${payManaText(a)}${/\bdamage to you\b/i.test(a.description) ? "" : manaPainText(a, byId[a.cardId]?.text)}${manaCostExtra(a)}` : a.id, ...(a.type === "undoMana" ? {} : { rank: rankOf(a) }) })),
+          : a.description ? `${!a.cost || /\{T\}/.test(a.cost) ? "Tap" : "Use"} ${a.description}${payManaText(a)}${/\bdamage to you\b/i.test(a.description) ? "" : manaPainText(a, byId[a.cardId]?.text, byId[a.cardId]?.identity?.name)}${manaCostExtra(a)}` : a.id, ...(a.type === "undoMana" ? {} : { rank: rankOf(a) }) })),
         { id: "__cancel", label: "Cancel" },
       ] };
       if (autoFailed && !input.canConfirmFromPool) ui.text = "Auto-pay couldn't finish this payment. Tap other sources, undo some taps, or Cancel.";
@@ -4826,7 +4853,9 @@ function onPrompt(seat, prompt) {
       // opponent's revealed hand is shown; said in the chat, suite review 2026-10-27)
       const only = Array.isArray(input.cards) && input.cards.length === 1 ? input.cards[0] : null;
       if (input.min === 1 && input.max === 1 && only && !input.cancellable && only.zone === "battlefield" && (only.controllerId ?? seat.slot) === seat.slot) {
-        chat(`[MTG] ${src ? `${src}: ` : ""}${cardLabel(only)} (the only choice)`, seat.color);
+        // (a source choice left with one real source once Forge's headings are gone says it is the source: "Deflecting
+        // Palm: the source is Rograkh, Son of Rohgahh 0/1 (the only choice)", verify 2026-11-07)
+        chat(`[MTG] ${src ? `${src}: ` : ""}${input.sourceHeadings ? "the source is " : ""}${cardLabel(only)} (the only choice)`, seat.color);
         seat.respond(prompt.promptId, type, { type: "chooseCardsDecision", chosenCardIds: [only.id] });
         return;
       }
@@ -5151,10 +5180,17 @@ function onPrompt(seat, prompt) {
       }
       // the order of replacement effects (Forge's "Choose" over each replacer's text, no card ids): titled as that, each
       // option by the card whose text it is. Anointed Procession and Mondrak read "Kykar, Wind's Fury: choose one" over
-      // the two bare sentences (Kykar hand test #17).
+      // the two bare sentences (Kykar hand test #17). A card is named only when it is the one card (by name) on the
+      // battlefield with that sentence: Anointed Procession, Parallel Lives and Doubling Season share theirs, and the first
+      // of them read as the source of every copy (verify 2026-11-07); such an option keeps its bare sentence.
       const replacing = (l) => /\bwould\b[^.]*\binstead\b|\binstead\b[^.]*\bwould\b/i.test(l);
       if (title === "Choose" && input.maxTotal === 1 && input.minTotal === 1 && labels.length > 1 && labels.every(replacing)) {
-        const whose = (l) => { const s = l.replace(/\.\s*$/, ""); const c = Object.values(byId).find((x) => String(x.text || "").includes(s)); return c?.identity?.name; };
+        const onField = new Set((gv.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => (z.cards || []).map((c) => c.id)));
+        const whose = (l) => {
+          const s = l.replace(/\.\s*$/, "");
+          const names = new Set(Object.values(byId).filter((x) => onField.has(x.id) && String(x.text || "").includes(s)).map((x) => x.identity?.name));
+          return names.size === 1 ? [...names][0] : null;
+        };
         ui = { title: `${src ? `${src}: ` : ""}which applies first?`, mode: "single", keepOrder: true,
           text: "Each of these changes the same event. The one you pick applies first, the rest after it.",
           options: labels.map((l, i) => { const n = whose(l); return { id: i, label: n && !l.includes(n) ? `${n}: ${l}` : l }; }) };
@@ -5629,7 +5665,7 @@ function onPrompt(seat, prompt) {
       break;
     }
     case "gameOver": {
-      // (always why, a draw too: see gameEndWords)
+      // (why, as far as the board tells it, and "a draw" with no winner: see gameEndWords)
       const why = gameEndWords(gv);
       // (once to each player: the question comes again)
       const told = game ? (game.overSaid ??= new Set()) : null;
@@ -5966,7 +6002,7 @@ function onIntent(m) {
     if (acts.length === 1) return act(acts[0]);
     // a land with a choice of colours: ask which, under the same prompt
     return askUnder(seat, { title: `Tap ${name} for which mana?`, mode: "single", kind: "choice",
-      options: distinctLabels(acts, (a) => (manaLabel(a) || a.description || a.id) + (manaLabel(a) ? manaPainText(a, cardIndex(seat.board?.state?.gameView || {})[m.id]?.text) : "")).map((label, i) => ({ id: acts[i].id, label })) },
+      options: distinctLabels(acts, (a) => (manaLabel(a) || a.description || a.id) + (manaLabel(a) ? manaPainText(a, cardIndex(seat.board?.state?.gameView || {})[m.id]?.text, cardIndex(seat.board?.state?.gameView || {})[m.id]?.identity?.name) : "")).map((label, i) => ({ id: acts[i].id, label })) },
     (a) => ({ type: "act", actionId: a[0] }), { back: "Cancel", returns: m.id });
   }
 

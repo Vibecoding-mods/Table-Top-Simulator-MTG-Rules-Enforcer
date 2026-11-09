@@ -970,14 +970,15 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const { h, seat } = fresh(null, { gameOver: true, winnerId: null });
       await asked(h, seat, { type: "gameOver" });
       const said = chats(h).filter((t) => /Game over/.test(t));
-      ok("kykar #16: an engine-ended draw says it was a draw and why", said.length === 1 && /^\[MTG\] Game over: a draw\. .*runaway-game cap/.test(said[0]), JSON.stringify(said));
+      // (verify 2026-11-07: no guessed reason; the engine's runaway cap doesn't reach the bridge)
+      ok("kykar #16: an engine-ended draw says a draw, no guessed reason", said.length === 1 && said[0] === "[MTG] Game over: a draw.", JSON.stringify(said));
       h.B.sendTable(); await h.flush();
       const t = sent(h, "table").at(-1);
-      ok("kykar #16: the table message carries why it ended", t?.gameOver && /^a draw\./.test(t?.overWhy || ""), JSON.stringify(t && [t.gameOver, t.overWhy]));
+      ok("kykar #16: the table message carries how it ended", t?.gameOver && t?.overWhy === "a draw", JSON.stringify(t && [t.gameOver, t.overWhy]));
       const mark = h.effects.length;
       h.B.onTTS({ t: "rewind", json: JSON.stringify({ color: "Blue", checkpointId: 1 }) }); await h.flush();
       const refused = chats(h, mark);
-      ok("kykar #16: a rewind after the end says the game has ended", refused.length === 1 && /^\[MTG\] The game has ended \(a draw\./.test(refused[0]), JSON.stringify(refused));
+      ok("kykar #16: a rewind after the end says the game has ended", refused.length === 1 && refused[0] === "[MTG] The game has ended (a draw), so it can't be rewound. Start a new game.", JSON.stringify(refused));
       harness.restore();
     }
     // #14: a copy's target question is worded like its original's (Twincast on Explosion, the probe's stack: the copy's
@@ -1063,6 +1064,214 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       await asked(h, seat, { type: "gameOver" });
       const said = chats(h).filter((t) => /Game over/.test(t));
       ok("kykar #16: a win says who won", said[0] === "[MTG] Game over: AI 1 is at 0 life. Blue wins.", JSON.stringify(said));
+      harness.restore();
+    }
+    // ── the independent check of the batch (verify 2026-11-07): a wrong name or reason is worse than none ──
+    const emptyLibrary = (b, who) => { for (const z of b.gameView.zones) if (z.zone === "library" && who.includes(z.ownerId)) { z.cards = []; z.count = 0; } };
+    // #16: two players out to empty libraries at once: said so, not the runaway cap; a decked loser beside a winner; the
+    // gameOver question, the top bar and a refused rewind all say it
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: null });
+      for (const p of b.gameView.players) p.status = "lost";
+      emptyLibrary(b, ["player-0", "player-1"]);
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      const said = chats(h).filter((t) => /Game over/.test(t));
+      ok("verify #16: two empty libraries at once say so, not the runaway cap", said.length === 1 && said[0] === "[MTG] Game over: Blue and AI 1 drew from an empty library.", JSON.stringify(said));
+      h.B.sendTable(); await h.flush();
+      ok("verify #16: the top bar says the empty libraries too", sent(h, "table").at(-1)?.overWhy === "Blue and AI 1 drew from an empty library", JSON.stringify(sent(h, "table").at(-1)?.overWhy));
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "rewind", json: JSON.stringify({ color: "Blue", checkpointId: 1 }) }); await h.flush();
+      ok("verify #16: a refused rewind says the empty libraries", chats(h, mark)[0] === "[MTG] The game has ended (Blue and AI 1 drew from an empty library), so it can't be rewound. Start a new game.", JSON.stringify(chats(h, mark)));
+      harness.restore();
+    }
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: "player-1" });
+      b.gameView.players.find((p) => p.id === "player-0").status = "lost";
+      emptyLibrary(b, ["player-0"]);
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      const said = chats(h).filter((t) => /Game over/.test(t));
+      ok("verify #16: a decked loser beside the winner", said[0] === "[MTG] Game over: Blue drew from an empty library. AI 1 wins.", JSON.stringify(said));
+      harness.restore();
+    }
+    // (a player still playing with an empty library once the game is over hasn't lost to it: a plain draw)
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: null });
+      for (const p of b.gameView.players) p.status = "playing";
+      emptyLibrary(b, ["player-1"]);
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      ok("verify #16: an empty library of a player still playing isn't a reason", chats(h).filter((t) => /Game over/.test(t))[0] === "[MTG] Game over: a draw.", JSON.stringify(chats(h)));
+      harness.restore();
+    }
+    // (a winner with an empty library won with it: Laboratory Maniac, Thassa's Oracle)
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: "player-0" });
+      b.gameView.players.find((p) => p.id === "player-0").status = "won";
+      b.gameView.players.find((p) => p.id === "player-1").status = "lost";
+      emptyLibrary(b, ["player-0"]);
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      ok("verify #16: the winner's empty library is no loss", chats(h).filter((t) => /Game over/.test(t))[0] === "[MTG] Game over: Blue wins.", JSON.stringify(chats(h)));
+      harness.restore();
+    }
+    // (a concession is a reason: LOSS_REASONS' "conceded")
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: "player-0" });
+      b.gameView.players.find((p) => p.id === "player-1").status = "conceded";
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      ok("verify #16: a concession says so", chats(h).filter((t) => /Game over/.test(t))[0] === "[MTG] Game over: AI 1 conceded. Blue wins.", JSON.stringify(chats(h)));
+      harness.restore();
+    }
+    // (the relay's abort of a board the engine says is over, with nothing to tell: "a draw", not "Game aborted.")
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: null });
+      seat.board = { state: b, fingerprint: null };
+      seat.onRelay({ type: "GameAborted" }); await h.flush();
+      ok("verify #16: an abort after the engine's end says it is over", JSON.stringify(chats(h).filter((t) => /^\[MTG\] Game/.test(t))) === JSON.stringify(["[MTG] Game over: a draw."]), JSON.stringify(chats(h)));
+      harness.restore();
+    }
+    // #17: options whose sentence two cards share keep it bare (Parallel Lives and Anointed Procession print the same
+    // one; Doubling Season's has it too); one only Mondrak has is named
+    {
+      const AP = "If an effect would create one or more tokens under your control, it creates twice that many of those tokens instead.";
+      const MO = "If one or more tokens would be created under your control, twice that many of those tokens are created instead.";
+      const DS = `${AP}\nIf an effect would put one or more counters on a permanent you control, it puts twice that many of those counters on that permanent instead.`;
+      const ask17 = async (cards, options) => {
+        const { h, seat } = fresh((gv) => mine(gv).push(...cards));
+        await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose", targets: [] }, options: options.map((label) => ({ label, weight: 1, canRepeat: false })) },
+          { sourceCard: { id: "engine-card-1209", identity: { name: "Kykar, Wind's Fury" } } });
+        const got = labels(seat); harness.restore(); return got;
+      };
+      const ench = (id, name, text) => ({ id, identity: { name }, types: ["Enchantment"], controllerId: "player-0", text });
+      const two = await ask17([ench("engine-card-1872", "Parallel Lives", AP), ench("engine-card-1870", "Anointed Procession", AP)], [AP, AP]);
+      ok("verify #17: Parallel Lives + Anointed Procession: neither option is given a name", JSON.stringify(two) === JSON.stringify([AP, AP]), JSON.stringify(two));
+      const three = await ask17([ench("engine-card-1873", "Doubling Season", DS), ench("engine-card-1870", "Anointed Procession", AP),
+        { id: "engine-card-1871", identity: { name: "Mondrak, Glory Dominus" }, types: ["Artifact", "Creature"], controllerId: "player-0", text: `Flying\n${MO}` }], [MO, AP, AP]);
+      ok("verify #17: Doubling Season + Anointed Procession + Mondrak: only Mondrak's is named", JSON.stringify(three) === JSON.stringify([`Mondrak, Glory Dominus: ${MO}`, AP, AP]), JSON.stringify(three));
+      // (two of one card are one name: both named)
+      const twins = await ask17([ench("engine-card-1870", "Anointed Procession", AP), ench("engine-card-1874", "Anointed Procession", AP)], [AP, AP]);
+      ok("verify #17: two Anointed Processions are still one name", JSON.stringify(twins) === JSON.stringify([`Anointed Procession: ${AP}`, `Anointed Procession: ${AP}`]), JSON.stringify(twins));
+      // (a card off the battlefield with the sentence doesn't count: an Anointed Procession in the hand names no option)
+      const { h, seat } = fresh((gv) => gv.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards.push(ench("engine-card-1875", "Anointed Procession", AP)));
+      await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose", targets: [] }, options: [{ label: AP, weight: 1 }, { label: MO, weight: 1 }] },
+        { sourceCard: { id: "engine-card-1209", identity: { name: "Kykar, Wind's Fury" } } });
+      ok("verify #17: a card in a hand names no option", JSON.stringify(labels(seat)) === JSON.stringify([AP, MO]), JSON.stringify(labels(seat)));
+      harness.restore();
+      // (one option that isn't a replacement: not this question)
+      const mixed = fresh();
+      await asked(mixed.h, mixed.seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose", targets: [] }, options: [{ label: AP, weight: 1 }, { label: "Draw a card", weight: 1 }] },
+        { sourceCard: { id: "engine-card-1209", identity: { name: "Kykar, Wind's Fury" } } });
+      ok("verify #17: every option must be a replacement for 'which applies first?'", mixed.seat.prompt?.ui?.title !== "Kykar, Wind's Fury: which applies first?", mixed.seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #4: City of Brass's tap trigger is its damage; Tomb of Urami's conditional damage says nothing; another card's
+    // "becomes tapped" isn't this one's (Arcane Spyglass is made up: the guard is for a sentence about any creature);
+    // Tarnished Citadel's {C} never takes its any-colour line's damage, whatever its ability number (Forge's mana-ability
+    // index, which needn't follow the text's lines). Card texts from Forge's cardsfolder.
+    {
+      const land = (id, name, text) => ({ id, identity: { name }, types: ["Land"], controllerId: "player-0", text });
+      const { h, seat } = fresh((gv) => mine(gv).push(
+        land("engine-card-1401", "City of Brass", "Whenever City of Brass becomes tapped, it deals 1 damage to you.\n{T}: Add one mana of any color."),
+        land("engine-card-1402", "Tomb of Urami", "{T}: Add {B}. Tomb of Urami deals 1 damage to you if you don't control an Ogre.\n{2}{B}{B}, {T}, Sacrifice all lands you control: Create Urami, a legendary 5/5 black Demon Spirit creature token with flying."),
+        land("engine-card-1403", "Tarnished Citadel", "{T}: Add {C}.\n{T}: Add one mana of any color. Tarnished Citadel deals 3 damage to you."),
+        { id: "engine-card-1404", identity: { name: "Arcane Spyglass" }, types: ["Artifact"], controllerId: "player-0", text: "{T}: Add {U}.\nWhenever a creature becomes tapped, it deals 1 damage to you." }));
+      await asked(h, seat, { type: "payManaCost", manaCost: "{3}{B}", presentation: { title: "Pay {3}{B}" }, actions: [
+        { id: "tap:engine-card-1401:0:W", cardId: "engine-card-1401", abilityIndex: 0, description: "City of Brass", cost: "{T}", producedMana: [{ amount: 1, color: "W" }] },
+        { id: "tap:engine-card-1402:0", cardId: "engine-card-1402", abilityIndex: 0, description: "Tomb of Urami", cost: "{T}", producedMana: [{ amount: 1, color: "B" }] },
+        { id: "tap:engine-card-1403:1", cardId: "engine-card-1403", abilityIndex: 1, description: "Tarnished Citadel", cost: "{T}", producedMana: [{ amount: 1, color: "C" }] },
+        { id: "tap:engine-card-1404:0", cardId: "engine-card-1404", abilityIndex: 0, description: "Arcane Spyglass", cost: "{T}", producedMana: [{ amount: 1, color: "U" }] }] },
+        { sourceCard: { id: "engine-card-43", identity: { name: "Vraska's Fall" } } });
+      const got = labels(seat);
+      ok("verify #4: City of Brass says its tap damage", got.includes("Tap City of Brass for {W} (1 damage to you)"), JSON.stringify(got));
+      ok("verify #4: Tomb of Urami's damage under a condition says nothing", got.includes("Tap Tomb of Urami for {B}"), JSON.stringify(got));
+      ok("verify #4: Tarnished Citadel's {C} has no damage, whatever its ability number", got.includes("Tap Tarnished Citadel for {C}"), JSON.stringify(got));
+      ok("verify #4: another card's 'a creature becomes tapped' isn't this card's", got.includes("Tap Arcane Spyglass for {U}"), JSON.stringify(got));
+      harness.restore();
+    }
+    // #18: "halflingses" against Saradoc's "Halflings"; a singular in -us ("Fungus") keeps its plural "Funguses"; a -ses
+    // word the card's own text has stays (no printed card has both forms, Forge's cardsfolder: a made-up card for the guard)
+    {
+      const ab = async (name, text, description) => {
+        const { h, seat } = fresh((gv) => mine(gv).push({ id: "engine-card-1450", identity: { name }, types: ["Artifact"], controllerId: "player-0", text }));
+        await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }, { id: "a1", type: "activateAbility", cardId: "engine-card-1450", abilityIndex: 1, isManaAbility: false, description, cost: "{1}" }] });
+        const got = labels(seat).find((l) => l.startsWith(`${name}:`)); harness.restore(); return got;
+      };
+      const half = await ab("Saradoc, Master of Buckland", "Whenever Saradoc, Master of Buckland or another nontoken creature you control with power 2 or less enters, create a 1/1 white Halfling creature token.\nTap two other untapped Halflings you control: Saradoc gets +2/+0 and gains lifelink until end of turn. Activate only once each turn.",
+        "Tap two other untapped halflingses you control: Saradoc gets +2/+0 and gains lifelink until end of turn.");
+      ok("verify #18: the doubled plural is undone whatever its case", /Tap two other untapped halflings you control/.test(half || ""), half);
+      const fungus = await ab("Fungal Bloom", "{G}{G}: Put a spore counter on target Fungus.", "{G}{G}: Put a spore counter on each of two target Funguses.");
+      ok("verify #18: a singular in -us keeps its plural", /two target Funguses/.test(fungus || ""), fungus);
+      const lens = await ab("Lens Keeper", "{1}, Tap two untapped Lenses you control: Lens Keeper deals 1 damage to any target.", "{1}, Tap two untapped Lenses you control: Lens Keeper deals 1 damage to any target.");
+      ok("verify #18: a -ses word the card's own text has stays", /Tap two untapped Lenses you control/.test(lens || ""), lens);
+    }
+    // #23: "one or two target" and "one, two, or three target" aren't rewritten into "one or which"
+    {
+      for (const [name, text] of [["Armament Corps", "When Armament Corps enters, distribute two +1/+1 counters among one or two target creatures you control."],
+        ["Aberrant Return", "Put one, two, or three target creature cards from graveyards onto the battlefield under your control. Each of them enters with an additional -1/-1 counter on it."]]) {
+        const { h, seat } = fresh((gv) => mine(gv).push(one("engine-card-1460", "Grizzly Bears", { power: 2, toughness: 2 })));
+        await asked(h, seat, { type: "chooseBoardTargets", minTargets: 1, maxTargets: 2, chosenTargets: 0, intent: "pump", candidates: [{ kind: "card", id: "engine-card-1460" }], presentation: { title: "Pump", targets: [] } },
+          { sourceCard: { id: "engine-card-1461", identity: { name }, text }, sourceAbilityText: text });
+        ok(`verify #23: ${name}'s range isn't garbled`, !/\bor which\b|, which\b/.test(seat.prompt?.ui?.title || ""), seat.prompt?.ui?.title);
+        harness.restore();
+      }
+    }
+    // #5 #24: one real source left once Forge's headings are gone is picked, and the chat says it is the source
+    {
+      const { h, seat } = fresh((gv) => mine(gv).push(one("engine-card-1470", "Grizzly Bears", { power: 2, toughness: 2 })));
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, presentation: { title: "Deflecting Palm", description: "Choose a source " },
+        cards: [{ id: "engine-card-1471", identity: { name: "--PERMANENTS:--", setCode: "???" } }, { ...one("engine-card-1470", "Grizzly Bears", { power: 2, toughness: 2 }), zone: "battlefield", ownerId: "player-0" }] },
+        { sourceCard: { id: "engine-card-1807", identity: { name: "Deflecting Palm" } }, sourceAbilityText: "The next time a source of your choice would deal damage to you this turn, prevent that damage." });
+      const said = chats(h).filter((t) => /only choice/.test(t));
+      ok("verify #5 #24: the one real source is picked and the chat names it as the source", said.length === 1 && said[0] === "[MTG] Deflecting Palm: the source is Grizzly Bears 2/2 (the only choice)", JSON.stringify(said));
+      harness.restore();
+    }
+    // #5: a real choice that starts with dashes is no heading (Forge's two piles read "-- Pile 1 (2 cards) --"), and a
+    // heading among a selection's labels is never an option
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Fact or Fiction", targets: [] }, options: [{ label: "-- Pile 1 (2 cards) --", weight: 1 }, { label: "-- Pile 2 (3 cards) --", weight: 1 }] },
+        { sourceCard: { id: "engine-card-1480", identity: { name: "Fact or Fiction" } } });
+      ok("verify #5: dashes alone are no heading", labels(seat).length === 2, JSON.stringify(labels(seat)));
+      harness.restore();
+    }
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose", targets: [] }, options: [{ label: "--CARDS ON BATTLEFIELD:--", weight: 1 }, { label: "Grizzly Bears", weight: 1 }, { label: "Serra Angel", weight: 1 }] },
+        { sourceCard: { id: "engine-card-1481", identity: { name: "Some Card" } } });
+      ok("verify #5: a heading among a selection's labels is no option", JSON.stringify(labels(seat).filter((l) => /--/.test(l))) === "[]" && labels(seat).length === 2, JSON.stringify(labels(seat)));
+      harness.restore();
+    }
+    // INV-6: two alike cards in two players' graveyards say whose
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, presentation: { title: "Choose a card", description: "Choose a card" },
+        cards: [{ id: "engine-card-1490", identity: { name: "Lightning Bolt" }, types: ["Instant"], zone: "graveyard", ownerId: "player-0" }, { id: "engine-card-1491", identity: { name: "Lightning Bolt" }, types: ["Instant"], zone: "graveyard", ownerId: "player-1" }] },
+        { sourceCard: { id: "engine-card-1492", identity: { name: "Some Card" } } });
+      const got = labels(seat);
+      ok("verify INV-6: alike cards in two graveyards say whose", got.some((l) => /yours/.test(l)) && got.some((l) => /AI 1's/.test(l)), JSON.stringify(got));
+      harness.restore();
+    }
+    // probe extra: X is the power (an Esper Sentinel made 3/1 by an equipment), not the toughness
+    {
+      const { h, seat } = fresh();
+      const text = "Whenever an opponent casts their first noncreature spell each turn, draw a card unless that player pays {X}, where X is Esper Sentinel's power.";
+      await asked(h, seat, { type: "chooseBoolean", confirmLabel: "Pay", denyLabel: "Decline", presentation: { title: "Pay {X}?", text: "otherwise: \"AI 1 draws a card.\"" } },
+        { sourceAbilityText: text, sourceCard: { id: "engine-card-1244", identity: { name: "Esper Sentinel" }, power: "3", toughness: "1", controllerId: "player-1", text } });
+      ok("verify probe: X is Esper Sentinel's power, not its toughness", seat.prompt?.ui?.title === "Esper Sentinel: pay {3}?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #20: a candidate both halves could target (an artifact enchantment) names no half
+    {
+      const FUSE = "Fuse (You may cast one or both halves of this card from your hand.)";
+      const text = `(Wear) Destroy target artifact.\n${FUSE}\r\n\r\n(Tear) Destroy target enchantment.\n${FUSE}`;
+      const { h, seat } = fresh((gv) => gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards.push(
+        { id: "engine-card-1955", identity: { name: "Chief of the Foundry's Shrine" }, types: ["Artifact", "Enchantment"], controllerId: "player-1" }));
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, chosenTargets: 0, intent: "destroy", candidates: [{ kind: "card", id: "engine-card-1955" }], presentation: { title: "Destroy", targets: [] } },
+        { sourceCard: { id: "engine-card-1956", identity: { name: "Wear // Tear" }, text }, sourceAbilityText: FUSE });
+      ok("verify #20: a target both halves fit names no half", !/^(?:Wear|Tear):/.test(seat.prompt?.ui?.title || ""), seat.prompt?.ui?.title);
       harness.restore();
     }
   }
