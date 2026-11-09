@@ -426,7 +426,7 @@ function engineCardEntry(id, obj, c, opts)
   if c ~= nil then
     updateBadge(obj, c, opts.zone)
     obj.setLock(opts.lock == true)
-    if opts.zone == "attached" or opts.zone == "linked" then obj.setScale(Vector(ATTACH_SCALE, 1, ATTACH_SCALE)) end
+    if opts.zone == "attached" or opts.zone == "linked" or opts.zone == "revealed" then obj.setScale(Vector(ATTACH_SCALE, 1, ATTACH_SCALE)) end
   end
   if engineGlowLate ~= nil then engineGlowLate(id) end
 end
@@ -489,7 +489,7 @@ local function place(c, pos, rot, seen, handColor, meta)
   -- "Creature — Rat", hp-22 #4 2026-10-28)
   if o.getName() ~= nickname(c) then op("name") o.setName(nickname(c)) end
   if o.getDescription() ~= description(c) then op("desc") o.setDescription(description(c)) end
-  local wantScale = (meta and (meta.zone == "attached" or meta.zone == "linked")) and ATTACH_SCALE or 1
+  local wantScale = (meta and (meta.zone == "attached" or meta.zone == "linked" or meta.zone == "revealed")) and ATTACH_SCALE or 1
   if math.abs(o.getScale().x - wantScale) > 0.01 then op("scale") o.setScale(Vector(wantScale, 1, wantScale)) end
   if handColor ~= nil then
     engineInHand[c.id] = true
@@ -1087,8 +1087,9 @@ local function mergeStatic(m)
   for id, st in pairs(m.cards or {}) do engineStoreStatic(id, st) fresh[id] = true end
   m.cards = nil
   for _, pl in ipairs(m.players or {}) do
-    -- ("playable" too: cards you may play from exile or a graveyard lay as card backs without it, playtest 2026-10-26)
-    for _, z in ipairs({ "hand", "battlefield", "graveyard", "exile", "command", "playable" }) do
+    -- ("playable" too: cards you may play from exile or a graveyard lay as card backs without it, playtest 2026-10-26;
+    -- and "revealed", the hand cards shown to everyone: engineRevealStrip)
+    for _, z in ipairs({ "hand", "battlefield", "graveyard", "exile", "command", "playable", "revealed" }) do
       for _, c in ipairs(pl[z] or {}) do
         if c.s ~= nil then
           local st = engineStatic[c.id] or {}
@@ -2038,6 +2039,8 @@ function engineRender(m)
     local okSp, errSp = pcall(enginePlaceSpecial, m, seen)
     if not okSp then print("[MTG] playable / linked cards: " .. tostring(errSp)) end
   end
+  local okRv, errRv = pcall(engineRevealStrip, m, seen)
+  if not okRv then print("[MTG] revealed hands: " .. tostring(errRv)) end
   local combat = {}
   for _, pl in ipairs(m.players or {}) do
     for _, c in ipairs(pl.battlefield or {}) do
@@ -3220,6 +3223,9 @@ end
 local ROW_BUTTON_KINDS = { modal = true, color = true, choice = true, damage = true, yesno = true, number = true, reveal = true, place = true }
 local COLOR_BTN = { w = "#d8cfa8", u = "#2f6fb5", b = "#444444", r = "#c0392b", g = "#2e8b57", c = "#8e8e8e" }
 engineNumber = {}    -- colour -> { prompt = the number question, value = what the row's picker shows }
+-- colour -> { prompt, n = the page shown, pages }: a question showing more pictures than the row holds (Animist's
+-- Awakening's 8 cards, 2026-10-30; a revealed hand) pages through them with Back / More, ROW_MAX at a time
+engineRowPage = {}
 function engineRowUpdate(color)
   local p = enginePrompts[color]
   local tiles, others = {}, {}
@@ -3243,8 +3249,15 @@ function engineRowUpdate(color)
   end
   local buttonMode = numberMode or (usable and #tiles == 0 and (ROW_BUTTON_KINDS[describePrompt(p).kind] or lifePay)
     and #others > 0 and #others <= (p.mode == "multi" and ROW_BTNS - 1 or ROW_BTNS))
+  local page = nil
   if usable and #tiles == 0 then
-    for _, c in ipairs(p.show or {}) do tiles[#tiles + 1] = { n = c.n, img = c.img } end
+    local show = p.show or {}
+    page = engineRowPage[color]
+    if page == nil or page.prompt ~= p then page = { prompt = p, n = 1 } engineRowPage[color] = page end
+    -- (paged only when its Back and More buttons fit beside the question's own: else the first pictures, as before)
+    page.pages = (not numberMode and #others + 2 <= ROW_BTNS) and math.max(1, math.ceil(#show / ROW_MAX)) or 1
+    page.n = math.max(1, math.min(page.n, page.pages))
+    for k = (page.n - 1) * ROW_MAX + 1, math.min(#show, page.n * ROW_MAX) do tiles[#tiles + 1] = { n = show[k].n, img = show[k].img } end
   end
   local on = (#tiles > 0 and #tiles <= ROW_MAX and #others <= ROW_BTNS - 1) or buttonMode
   engineRowMap[color] = { tiles = {}, btns = {} }
@@ -3270,6 +3283,9 @@ function engineRowUpdate(color)
   elseif p.mode == "multi" and engineExactPick(p) then sub = "Pick one: the click answers.   " .. sub
   elseif p.mode == "multi" then sub = "Pick, then Done.   " .. sub
   elseif tiles[1] ~= nil and tiles[1].opt ~= nil then sub = "Click a card.   " .. sub end
+  if page ~= nil and page.pages > 1 then
+    sub = string.format("Cards %d-%d of %d.   ", (page.n - 1) * ROW_MAX + 1, (page.n - 1) * ROW_MAX + #tiles, #p.show) .. sub
+  end
   setText("eng_rowsub_" .. color, engineCut(sub, 220))
   local sel = engineSelected[color] or {}
   for k = 1, ROW_MAX do
@@ -3293,6 +3309,10 @@ function engineRowUpdate(color)
     -- a colour choice: each button in its colour
     local tint = describePrompt(p).kind == "color" and COLOR_BTN[tostring(o.id):sub(1, 1):lower()] or nil
     b[#b + 1] = { id = i, text = shortLabel(o.label), tint = tint, picked = p.mode == "multi" and sel[i] }
+  end
+  if page ~= nil and page.pages > 1 then
+    b[#b + 1] = { id = "page:-1", text = "< Back", ok = page.n > 1 }
+    b[#b + 1] = { id = "page:+1", text = "More >", ok = page.n < page.pages }
   end
   if p.mode == "multi" and not engineExactPick(p) then
     local n = count(sel)
@@ -3324,6 +3344,12 @@ function onMtgRowOpt(player, value, id)
   if color == nil or player.color ~= color then return end
   local v = (engineRowMap[color] and engineRowMap[color].btns or {})[tonumber(k)]
   local p, st = enginePrompts[color], engineNumber[color]
+  local page = engineRowPage[color]
+  if type(v) == "string" and v:sub(1, 5) == "page:" then
+    -- (the next or the last pictures of a long reveal: engineRowUpdate)
+    if page ~= nil and page.prompt == p then page.n = page.n + tonumber(v:sub(6)) engineRowUpdate(color) end
+    return
+  end
   if type(v) == "string" and v:sub(1, 4) == "num:" and p ~= nil and st ~= nil and st.prompt == p then
     -- the number picker: change the value, or answer with it
     local lo, hi = p.min or 0, p.max or st.value
@@ -4584,22 +4610,43 @@ function engineWithoutSpecial(list)
   for _, c in ipairs(list) do if engineSpecial[c.id] == nil then out[#out + 1] = c end end
   return out
 end
+-- Each playable card goes into one row only: its controller's when that seat has it, else the first seat listing it
+-- (Thief of Sanity's card, controlled by its owner, in its caster's row). A card an open scry holds stays in that
+-- player's hand zone (engineScryPlace). Placing one card in several rows threw it across the table on every board:
+-- Courser of Kruphix's revealed top card was in both players' rows, and each scry put it in Blue's hand zone, then
+-- White's row, then Blue's (2026-11-08 20:23 game).
+function enginePlayableRows(m)
+  local held = engineScryHeld()
+  local rowOf = {}
+  for _, pl in ipairs(m.players or {}) do
+    local color = pl.color
+    if color ~= nil and Player[color] ~= nil and Player[color].seated then
+      for _, c in ipairs(pl.playable or {}) do
+        if not held[c.id] and (rowOf[c.id] == nil or c.ctl == color) then rowOf[c.id] = color end
+      end
+    end
+  end
+  return rowOf
+end
 function enginePlaceSpecial(m, seen)
   if next(engineSpecial) == nil then return end
   local faceDown = {}
   for _, pl in ipairs(m.players or {}) do
     for _, z in ipairs({ "exile", "graveyard" }) do for _, c in ipairs(pl[z] or {}) do if c.fd then faceDown[c.id] = true end end end
   end
+  local rowOf = enginePlayableRows(m)
   for _, pl in ipairs(m.players or {}) do
     local color = pl.color
     local g = color and seatGeometry(color)
-    if g ~= nil and Player[color] ~= nil and Player[color].seated and #(pl.playable or {}) > 0 then
+    local row = {}
+    for _, c in ipairs(pl.playable or {}) do if rowOf[c.id] == color then row[#row + 1] = c end end
+    if g ~= nil and Player[color] ~= nil and Player[color].seated and #row > 0 then
       local side = Player[color].getHandTransform(2)
       local base = side and side.position or (g.handPos or g.mat)
       local k, public = 0, 0
-      for _, c in ipairs(pl.playable or {}) do if not (faceDown[c.id] or c.fo) then public = public + 1 end end
+      for _, c in ipairs(row) do if not (faceDown[c.id] or c.fo) then public = public + 1 end end
       local step = public > GRID.perRow and GRID.perRow / public or 1 -- (squeezed like a long row)
-      for _, c in ipairs(pl.playable or {}) do
+      for _, c in ipairs(row) do
         if faceDown[c.id] or c.fo then
           place(c, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, color, { zone = "playable", color = color, hand2 = true })
         else
@@ -4623,6 +4670,30 @@ function enginePlaceSpecial(m, seen)
           local spot = host + g.fwd * (1.1 + 0.35 * (n - 1)) + g.right * (0.35 * (n - 1)) + Vector(0, -0.02 * n, 0)
           place(c, spot, Vector(0, g.rotY, c.fd and 180 or 0), seen, nil, { zone = "linked", color = hostColor, host = c.ew })
         end
+      end
+    end
+  end
+end
+-- Hand cards shown to everyone (the bridge's revealed list: Revelation's "Players play with their hands revealed", Sen
+-- Triplets): face up, half size and locked, in the grid row between the creatures and the other permanents of the
+-- owner's mat, which nothing else uses (attachments and linked cards reach into it by about a third). Each is an
+-- object of its own, "reveal:<id>", so the real hand card stays in the hand; one no longer listed goes with the
+-- board's sweep (engineRender). An AI's hand shows too: the strip doesn't need a seated player.
+REVEAL_ROW, REVEAL_STEP = 1, 1.3
+function engineRevealStrip(m, seen)
+  for _, pl in ipairs(m.players or {}) do
+    local g = pl.color and seatGeometry(pl.color)
+    local n = #(pl.revealed or {})
+    if g ~= nil and n > 0 then
+      -- (as wide as the battlefield's rows at most: a long hand is squeezed)
+      local step = math.min(REVEAL_STEP, (GRID.perRow - 1) * GRID.colStep / math.max(1, n - 1))
+      for k, c in ipairs(pl.revealed) do
+        local r = {}
+        for key, v in pairs(c) do r[key] = v end
+        r.id = "reveal:" .. tostring(c.id)
+        r.nt = { "Revealed: in " .. engineNameOf(pl.color) .. "'s hand" }
+        local spot = onTable(g.mat + g.right * (GRID.colStart - (k - 1) * step) + g.fwd * (REVEAL_ROW * GRID.rowStep + GRID.rowStart), 0.02)
+        place(r, spot, Vector(0, g.rotY, 0), seen, nil, { zone = "revealed", color = pl.color })
       end
     end
   end
@@ -6521,6 +6592,17 @@ function engineScryIndex(p, id)
   for i, o in ipairs(p.options or {}) do if tostring(o.id) == tostring(id) then return i end end
   return nil
 end
+-- the cards open scries hold in their players' hand zones (id -> true): no other spot takes them (enginePlayableRows)
+function engineScryHeld()
+  local held = {}
+  for color in pairs(enginePrompts) do
+    local st, p = engineScryOpen(color)
+    if st ~= nil and Player[color] ~= nil and Player[color].seated then
+      for _, o in ipairs(p.options or {}) do if not st.gone[o.id] then held[o.id] = true end end
+    end
+  end
+  return held
+end
 function engineScryPlace(seen)
   for color in pairs(enginePrompts) do
     local st, p = engineScryOpen(color)
@@ -6930,6 +7012,8 @@ function engineSelfCheck()
     counts[c] = { bf = #(pl.battlefield or {}), hand = pl.hand and #pl.hand or pl.handCount, gy = #(pl.graveyard or {}), ex = #(pl.exile or {}), cmd = #(pl.command or {}), lib = pl.library, life = pl.life }
     -- (cards playable from a library's top aren't in any zone of the board: The Reality Chip)
     for _, card in ipairs(pl.playable or {}) do expected[card.id] = true end
+    -- (a hand card shown to everyone has an object of its own in the owner's strip: engineRevealStrip)
+    for _, card in ipairs(pl.revealed or {}) do expected["reveal:" .. tostring(card.id)] = true end
     local handSets, handY = {}, nil
     local function inHand(o, which)
       if handSets[which] == nil then

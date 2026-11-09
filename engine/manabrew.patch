@@ -17,7 +17,7 @@ index b363b43..024629b 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..0a99346 100644
+index 54173c6..c97c996 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
 @@ -74,18 +74,24 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
@@ -53,7 +53,7 @@ index 54173c6..0a99346 100644
  `publishAgentPrompt` resolves an omitted source from the currently resolving stack item. It emits `sourceAbilityText` from that stack ability, or from `castingAbility` during cast-time prompts, only when the ability host matches an explicit source. Keep this centralized fallback: Forge callbacks such as `arrangeForScry`, `arrangeForSurveil`, and `reveal` do not receive the originating `SpellAbility`, but their prompts still need the source card and ability in the envelope. Prompts outside stack resolution remain source-less unless their caller provides a source explicitly, and unmatched abilities remain absent rather than being misattributed.
  
 -Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see.
-+Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see. Phased-out permanents stay in the battlefield zone with `phasedOut` set (`getCardsIn(Battlefield, false)`): phasing is not a zone change, and a client that hides them can't tell them from cards that left.
++Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see. Phased-out permanents stay in the battlefield zone with `phasedOut` set (`getCardsIn(Battlefield, false)`): phasing is not a zone change, and a client that hides them can't tell them from cards that left. `mayPlay` marks a card outside the viewer's hand that the viewer may really play: `getCardsActivatableInExternalZones` also lists cards the viewer may only look at (Courser of Kruphix's revealed top card, an opponent's hand under Revelation), and `mayPlayOutsideHand` drops those.
 +
 +`GameViewDto.events` is a ring of the last 256 zone changes, from `EngineEventLog`, which the session subscribes to the game in `attach`. The same ring goes to every seat and each entry has a rising `seq`, so a client that misses a snapshot loses nothing and a gap shows it fell behind. Each entry also carries an `id`: the relay's state patches key an array by `id`, and without one every new entry resends the whole ring. Forge fires no draw or discard event, so one entry carries `how`, set from the event order: `sacrificed` from the event just before the move, `destroyed` from `CardView.wasDestroyed` (`GameAction` sets it on a destroy and on a state-based death but fires `GameEventCardDestroyed` only on the first, and sets it on a sacrifice too, so `sacrificed` is checked first), `played`, `discard` and `surveil` from the event just after it, and `draw` from `Card.getDrawnThisTurn`, read at the next move, phase or snapshot because Forge sets it after the move (at the next move, or a card drawn and then discarded in one resolution, as Faithless Looting does, moves before its draw is read and loses it); `mill` likewise from `Card.wasMilled`, read at the next move or snapshot because `Player.mill` sets it after `moveTo`; and, the same way, `foretell`, `plot` and `suspend` for a card still in exile with `isForetold`, `isPlotted` or `hasSuspend` (special actions resolve off the stack, so no ability names them). `GameEventCardChangeZone` carries no cause, so `cause` is read from the game at the move: a move made while `ReplacementHandler.isReplacing()` takes the next `EFFECT_REPLACED` log message (Dredge's reads `<card> - Dredge N`); a move made while `game.costPaymentStack` holds a cost part takes `Cost:<name>`, the name being `Delve` for a card exiled while the mana part of a delve card is paid, else the paying ability's keyword (`Cycling`, `TypeCycling`), else its alternative cost (`Escape`, `Emerge`), else the cost part's class without `Cost` (`Sacrifice`, `Discard`, `Exile`), with the ability's host as `causeName`; and otherwise a move made while the stack resolves takes the resolving ability's `ApiType` name (`Explore`, `Mill`, `Surveil`), with its host as `causeName`/`causeCardId`. Moves off the stack never get a cause. Moves onto the stack and moves before `GameStage.Play` are skipped. An entry names its card only when a public zone is involved and the card isn't face down; foretell turns its card face down after the move, so an exile entry whose card is face down in exile when the move settles loses its name too; a draw stays a count. Moves made by a restore are ignored. `EngineEventLog` is named in `native/extra-config/reflect-config.json` like `GameLogFormatter` in the frozen config: Guava finds `@Subscribe` by reflection, so a subscriber missing from that file receives nothing in the native image while working on a JVM.
  
@@ -923,10 +923,20 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..a993d31 100644
+index 713e1ef..e836ceb 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-@@ -37,11 +37,13 @@ import forge.game.cost.CostAdjustment;
+@@ -29,19 +29,24 @@ import forge.game.GameEntity;
+ import forge.ai.ComputerUtilCombat;
+ import forge.game.card.Card;
+ import forge.game.card.CardCollectionView;
++import forge.game.card.CardLists;
+ import forge.game.card.CounterEnumType;
+ import forge.game.card.CounterType;
+ import forge.game.combat.Combat;
+ import forge.game.cost.Cost;
+ import forge.game.cost.CostAdjustment;
++import forge.game.keyword.Keyword;
  import forge.game.keyword.KeywordInterface;
  import forge.game.phase.PhaseType;
  import forge.game.player.Player;
@@ -935,12 +945,13 @@ index 713e1ef..a993d31 100644
  import forge.game.spellability.SpellAbilityStackInstance;
  import forge.game.spellability.TargetChoices;
  import forge.game.trigger.Trigger;
++import forge.game.zone.Zone;
  import forge.game.zone.ZoneType;
 +import forge.card.ICardFace;
  import forge.item.IPaperCard;
  import forge.item.PaperToken;
  
-@@ -97,6 +99,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -97,6 +102,7 @@ public final class InteractiveSnapshotExtractor {
      }
  
      private static final Gson GSON = new GsonBuilder().create();
@@ -948,7 +959,7 @@ index 713e1ef..a993d31 100644
  
      public static String snapshotJson(
              final Game game,
-@@ -106,18 +109,32 @@ public final class InteractiveSnapshotExtractor {
+@@ -106,18 +112,57 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -973,17 +984,42 @@ index 713e1ef..a993d31 100644
  
 +    private static CardCollectionView playableOutsideHand(final Player player) {
 +        try {
-+            return player.getCardsActivatableInExternalZones(true);
++            return CardLists.filter(player.getCardsActivatableInExternalZones(true),
++                    card -> mayPlayOutsideHand(card, player));
 +        } catch (RuntimeException failure) {
 +            System.err.println("[mana-brew] playable cards outside the hand unavailable: " + failure);
 +            return null;
 +        }
 +    }
 +
++    static boolean mayPlayOutsideHand(final Card card, final Player player) {
++        if (!card.mayPlay(player).isEmpty()) {
++            return true;
++        }
++        final Zone zone = card.getZone();
++        if (zone == null || (zone.getPlayer() != null && !zone.getPlayer().equals(player))) {
++            return false;
++        }
++        if (zone.is(ZoneType.Graveyard) && (card.hasKeyword(Keyword.FLASHBACK) || card.hasKeyword(Keyword.RETRACE)
++                || card.hasKeyword(Keyword.JUMP_START) || card.hasKeyword(Keyword.ESCAPE)
++                || card.hasKeyword(Keyword.DISTURB))) {
++            return true;
++        }
++        if (zone.is(ZoneType.Exile) && (card.isForetold() || card.isOnAdventure())) {
++            return true;
++        }
++        for (final SpellAbility sa : card.getSpellAbilities()) {
++            if (zone.is(sa.getRestrictions().getZone())) {
++                return true;
++            }
++        }
++        return false;
++    }
++
      private static Map<String, Object> buildGameView(
              final Game game,
              final SpellAbility castingAbility,
-@@ -126,7 +143,9 @@ public final class InteractiveSnapshotExtractor {
+@@ -126,7 +171,9 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -994,7 +1030,7 @@ index 713e1ef..a993d31 100644
      ) {
          final Map<String, Object> base = SnapshotExtractor.extractSnapshot(game);
  
-@@ -171,7 +190,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -171,7 +218,7 @@ public final class InteractiveSnapshotExtractor {
          final Map<String, List<JsonObject>> battlefieldByController = new LinkedHashMap<>();
          for (final Player player : game.getRegisteredPlayers()) {
              final int ownerIndex = SnapshotExtractor.playerIndex(game, player);
@@ -1003,7 +1039,7 @@ index 713e1ef..a993d31 100644
                  final String controllerId =
                          "player-" + SnapshotExtractor.playerIndex(game, card.getController());
                  final CardDto dto = toCard(
-@@ -224,9 +243,13 @@ public final class InteractiveSnapshotExtractor {
+@@ -224,9 +271,13 @@ public final class InteractiveSnapshotExtractor {
          view.put("dayTime", dayTime(game));
          view.put("checkpoints", checkpoints);
          view.put("snapshotRecording", snapshotRecording);
@@ -1017,7 +1053,7 @@ index 713e1ef..a993d31 100644
          final List<String> activePlaneNames = activePlaneNames(game);
          if (!activePlaneNames.isEmpty()) {
              view.put("activePlaneNames", activePlaneNames);
-@@ -285,7 +308,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -285,7 +336,7 @@ public final class InteractiveSnapshotExtractor {
          out.put("cardsDrawnThisTurn", player.getNumDrawnThisTurn());
          out.put("damagePrevention", player.getPreventNextDamageTotalShields());
          out.put("isExtraTurn", player.isExtraTurn());
@@ -1026,7 +1062,7 @@ index 713e1ef..a993d31 100644
          final Player controller = player.getControllingPlayer();
          if (controller != null && controller != player) {
              out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
-@@ -685,6 +708,22 @@ public final class InteractiveSnapshotExtractor {
+@@ -685,6 +736,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -1049,7 +1085,7 @@ index 713e1ef..a993d31 100644
      private static CardDto toCard(
              final Game game,
              final Card card,
-@@ -714,6 +753,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -714,6 +781,11 @@ public final class InteractiveSnapshotExtractor {
              dto.toughness = String.valueOf(card.getNetToughness());
              dto.basePower = card.getBasePower();
              dto.baseToughness = card.getBaseToughness();
@@ -1061,7 +1097,7 @@ index 713e1ef..a993d31 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -752,6 +796,29 @@ public final class InteractiveSnapshotExtractor {
+@@ -752,6 +824,29 @@ public final class InteractiveSnapshotExtractor {
          dto.isMadnessExiled = card.isMadness();
          dto.isPlotted = card.isPlotted();
          dto.isWarpExiled = card.isWarped();
@@ -1087,11 +1123,11 @@ index 713e1ef..a993d31 100644
 +            }
 +        }
 +        final CardCollectionView playableOutsideHand = PLAYABLE_OUTSIDE_HAND.get();
-+        dto.mayPlay = playableOutsideHand != null && !card.isInZone(ZoneType.Hand) && playableOutsideHand.contains(card);
++        dto.mayPlay = playableOutsideHand != null && playableOutsideHand.contains(card);
          dto.foil = card.hasPaperFoil();
  
          final Card attachedTo = card.getAttachedTo();
-@@ -1078,12 +1145,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -1078,12 +1173,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -1106,7 +1142,7 @@ index 713e1ef..a993d31 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1200,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1228,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -1114,7 +1150,7 @@ index 713e1ef..a993d31 100644
          return stackItem;
      }
  
-@@ -1163,6 +1233,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1261,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -2687,6 +2723,245 @@ index 0000000..a109449
 +            created.getPhaseHandler().onStackResolved();
 +            return created;
 +        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java b/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java
+new file mode 100644
+index 0000000..bf1dc71
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java
+@@ -0,0 +1,233 @@
++package forge.harness.host;
++
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.staticability.StaticAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Set;
++
++public final class MayPlayVisibilityTest {
++    private MayPlayVisibilityTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++
++        check("courserRevealedTopIsNotPlayableForTheOpponent", MayPlayVisibilityTest::courserRevealedTopIsNotPlayableForTheOpponent);
++        check("courserNonlandTopIsNotPlayableForItsOwner", MayPlayVisibilityTest::courserNonlandTopIsNotPlayableForItsOwner);
++        check("courserLandTopIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::courserLandTopIsPlayableForItsOwnerOnly);
++        check("futureSightTopIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::futureSightTopIsPlayableForItsOwnerOnly);
++        check("revelationHandIsShownButNotPlayable", MayPlayVisibilityTest::revelationHandIsShownButNotPlayable);
++        check("castPermissionOnAnotherPlayersHandIsPlayable", MayPlayVisibilityTest::castPermissionOnAnotherPlayersHandIsPlayable);
++        check("exiledCardWithCastPermissionIsPlayableForItsCasterOnly", MayPlayVisibilityTest::exiledCardWithCastPermissionIsPlayableForItsCasterOnly);
++        check("exiledCardWithOnlyALookIsNotPlayable", MayPlayVisibilityTest::exiledCardWithOnlyALookIsNotPlayable);
++        check("flashbackInOwnGraveyardIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::flashbackInOwnGraveyardIsPlayableForItsOwnerOnly);
++        System.out.println(failed == 0 ? "PASS MayPlayVisibilityTest" : "FAIL MayPlayVisibilityTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void courserRevealedTopIsNotPlayableForTheOpponent() {
++        final Fixture f = new Fixture();
++        f.add("Courser of Kruphix", f.p0, ZoneType.Battlefield);
++        final Card top = f.add("Grizzly Bears", f.p0, ZoneType.Library);
++        f.settle();
++        final JsonObject seen = f.card(1, "library", 0, top);
++        expect(seen != null && "visible".equals(seen.get("visibility").getAsString()),
++                "the opponent does not see Courser's revealed top card: " + seen);
++        expect(!mayPlay(seen), "Courser's revealed top card is playable for the opponent: " + seen);
++    }
++
++    private static void courserNonlandTopIsNotPlayableForItsOwner() {
++        final Fixture f = new Fixture();
++        f.add("Courser of Kruphix", f.p0, ZoneType.Battlefield);
++        final Card top = f.add("Grizzly Bears", f.p0, ZoneType.Library);
++        f.settle();
++        final JsonObject seen = f.card(0, "library", 0, top);
++        expect(seen != null, "the owner does not see Courser's revealed top card");
++        expect(!mayPlay(seen), "a nonland top card is playable under Courser: " + seen);
++    }
++
++    private static void courserLandTopIsPlayableForItsOwnerOnly() {
++        final Fixture f = new Fixture();
++        f.add("Courser of Kruphix", f.p0, ZoneType.Battlefield);
++        final Card top = f.add("Forest", f.p0, ZoneType.Library);
++        f.settle();
++        expect(mayPlay(f.card(0, "library", 0, top)), "Courser's land on top is not playable for its owner");
++        expect(!mayPlay(f.card(1, "library", 0, top)), "Courser's land on top is playable for the opponent");
++    }
++
++    private static void futureSightTopIsPlayableForItsOwnerOnly() {
++        final Fixture f = new Fixture();
++        f.add("Future Sight", f.p0, ZoneType.Battlefield);
++        final Card top = f.add("Grizzly Bears", f.p0, ZoneType.Library);
++        f.settle();
++        expect(mayPlay(f.card(0, "library", 0, top)), "Future Sight's top card is not playable for its owner");
++        expect(!mayPlay(f.card(1, "library", 0, top)), "Future Sight's top card is playable for the opponent");
++    }
++
++    private static void revelationHandIsShownButNotPlayable() {
++        final Fixture f = new Fixture();
++        f.add("Revelation", f.p0, ZoneType.Battlefield);
++        final Card inHand = f.add("Grizzly Bears", f.p1, ZoneType.Hand);
++        f.settle();
++        final JsonObject seen = f.card(0, "hand", 1, inHand);
++        expect(seen != null && "visible".equals(seen.get("visibility").getAsString()),
++                "Revelation does not show the opponent's hand: " + seen);
++        expect(!mayPlay(seen), "a hand card shown by Revelation is playable for the opponent: " + seen);
++    }
++
++    private static void castPermissionOnAnotherPlayersHandIsPlayable() {
++        final Fixture f = new Fixture();
++        final Card source = f.add("Future Sight", f.p0, ZoneType.Battlefield);
++        final Card inHand = f.add("Grizzly Bears", f.p1, ZoneType.Hand);
++        f.settle();
++        inHand.addMayLookAt(f.game.getNextTimestamp(), List.of(f.p0));
++        inHand.setMayPlay(f.p0, false, null, false, false, firstStatic(source));
++        expect(mayPlay(f.card(0, "hand", 1, inHand)), "a hand card the viewer may cast from another player's hand is not playable");
++        final JsonObject own = f.card(1, "hand", 1, inHand);
++        expect(own != null && !mayPlay(own), "the owner's own hand card is marked playable: " + own);
++    }
++
++    private static void exiledCardWithCastPermissionIsPlayableForItsCasterOnly() {
++        final Fixture f = new Fixture();
++        final Card source = f.add("Future Sight", f.p0, ZoneType.Battlefield);
++        final Card exiled = f.add("Grizzly Bears", f.p1, ZoneType.Exile);
++        f.settle();
++        exiled.addMayLookAt(f.game.getNextTimestamp(), List.of(f.p0));
++        exiled.setMayPlay(f.p0, false, null, false, false, firstStatic(source));
++        expect(mayPlay(f.card(0, "exile", 1, exiled)), "an exiled card its caster may cast is not playable for the caster");
++        expect(!mayPlay(f.card(1, "exile", 1, exiled)), "an exiled card another player may cast is playable for its owner");
++    }
++
++    private static void exiledCardWithOnlyALookIsNotPlayable() {
++        final Fixture f = new Fixture();
++        final Card exiled = f.add("Grizzly Bears", f.p1, ZoneType.Exile);
++        f.settle();
++        exiled.addMayLookAt(f.game.getNextTimestamp(), List.of(f.p0));
++        expect(!mayPlay(f.card(0, "exile", 1, exiled)), "an exiled card the viewer may only look at is playable");
++    }
++
++    private static void flashbackInOwnGraveyardIsPlayableForItsOwnerOnly() {
++        final Fixture f = new Fixture();
++        final Card spell = f.add("Think Twice", f.p0, ZoneType.Graveyard);
++        f.settle();
++        expect(mayPlay(f.card(0, "graveyard", 0, spell)), "a flashback card in its owner's graveyard is not playable");
++        expect(!mayPlay(f.card(1, "graveyard", 0, spell)), "a flashback card is playable from the opponent's graveyard");
++    }
++
++    private static StaticAbility firstStatic(final Card card) {
++        for (final StaticAbility sta : card.getStaticAbilities()) {
++            return sta;
++        }
++        throw new AssertionError(card + " has no static ability");
++    }
++
++    private static boolean mayPlay(final JsonObject card) {
++        return card != null && card.has("mayPlay") && card.get("mayPlay").getAsBoolean();
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static final class Fixture {
++        final Game game = newGame();
++        final Player p0 = game.getPlayers().get(0);
++        final Player p1 = game.getPlayers().get(1);
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("may-play-visibility-test");
++
++        Fixture() {
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        Card add(final String name, final Player p, final ZoneType zone) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(zone).add(card, zone == ZoneType.Library ? 0 : null);
++            return card;
++        }
++
++        void settle() {
++            game.getAction().checkStaticAbilities();
++        }
++
++        JsonObject card(final int viewer, final String zone, final int owner, final Card card) {
++            final JsonObject view = JsonParser.parseString(session.getSnapshotJson(viewer)).getAsJsonObject();
++            final String id = SnapshotExtractor.javaCardId(card);
++            for (final JsonElement z : view.getAsJsonArray("zones")) {
++                final JsonObject zo = z.getAsJsonObject();
++                if (!zone.equals(zo.get("zone").getAsString()) || !("player-" + owner).equals(zo.get("ownerId").getAsString())) {
++                    continue;
++                }
++                for (final JsonElement c : zo.getAsJsonArray("cards")) {
++                    if (id.equals(c.getAsJsonObject().get("id").getAsString())) {
++                        return c.getAsJsonObject();
++                    }
++                }
++            }
++            return null;
++        }
++    }
++
++    private static Game newGame() {
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        final Deck deck = new Deck();
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("p1", null)));
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("p2", null)));
++        final GameRules rules = new GameRules(GameType.Constructed);
++        final Game game = new Game(players, rules, new Match(rules, players, "MayPlayVisibilityTest"));
++        game.setAge(GameStage.Play);
++        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++        game.getPhaseHandler().onStackResolved();
++        return game;
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/MindslaverControlTest.java b/forge-harness/src/test/java/forge/harness/host/MindslaverControlTest.java

@@ -1724,6 +1724,163 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("verify 2: a doubled plural in -as is still undone (Hydrases)", /Sacrifice two Hydras:/.test(hyd || ""), hyd);
     }
   }
+  // ── playable rows and revealed hands (scry glitch and revealed hands, 2026-11-09) ──
+  // Real card shape (dump2's Vraska's Fall), renamed; the games: 2026-11-08 20:23 (Blue's Sythis with Courser of Kruphix
+  // against White's Kykar, both human), 17:21 (Revelation), 19:09 (White's Sen Triplets on AI Red).
+  {
+    const shape = F.board.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards[0];
+    const C = (id, name, owner, extra = {}) => ({ ...clone(shape), id, identity: { ...shape.identity, name }, ownerId: owner, controllerId: owner, ...extra });
+    const zone = (gv, kind, owner) => {
+      let z = gv.zones.find((x) => x.zone === kind && x.ownerId === owner);
+      if (!z) { z = { zone: kind, ownerId: owner, cards: [], count: 0 }; gv.zones.push(z); }
+      return z;
+    };
+    const blueHand = clone(zone(F.board.gameView, "hand", "player-0").cards);
+    const whiteHand = [C("engine-card-801", "Swords to Plowshares", "player-1", { types: ["Instant"] }), C("engine-card-802", "Plains", "player-1", { types: ["Land"] })];
+    // a seat's view: its own hand in full, another's only the cards listed in `shows` (Forge leaves out what it can't see)
+    const view = (slot, shows = {}) => {
+      const b = clone(F.board);
+      const hands = { "player-0": blueHand, "player-1": whiteHand };
+      for (const [owner, cards] of Object.entries(hands)) {
+        const z = zone(b.gameView, "hand", owner);
+        z.cards = owner === slot ? clone(cards) : clone(cards.filter((c) => (shows[owner] || []).includes(c.id))).map((c) => ({ ...c, ...(shows.mayPlay ? { mayPlay: true } : {}) }));
+        z.count = cards.length;
+      }
+      return b;
+    };
+    // both players seated (the Courser game), each with its own view
+    const setup2 = (h, blueView, whiteView) => {
+      const mk = (color, slot, board) => { const s = new h.B.Seat(color, "deck"); s.slot = slot; s.board = { state: clone(board), fingerprint: null }; return s; };
+      h.B._setGame({ seats: new Map([["Blue", mk("Blue", "player-0", blueView)], ["White", mk("White", "player-1", whiteView)]]), bots: 0, total: 2,
+        playerOrder: ["tts-Blue-ab12", "tts-White-cd34"], slotNames: { "player-0": "Blue", "player-1": "White" }, slotColor: { "player-0": "Blue", "player-1": "White" },
+        started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
+    };
+    const rowOf = (table, color) => (table && table.players.find((p) => p.color === color)) || {};
+    const ids = (list) => (list || []).map((c) => c.id);
+    const board = async (blueView, whiteView) => {
+      const h = harness.load();
+      if (whiteView) setup2(h, blueView, whiteView); else setup(h, blueView);
+      h.B.sendTable(); await h.flush();
+      const t = sent(h, "table")[0];
+      harness.restore();
+      return t;
+    };
+
+    // Courser of Kruphix: Blue's revealed top card (Jugan, nonland). Our new Forge build marks it playable for nobody; an
+    // older one marked it for both (a look counted). Neither seat's row may take it from the other's library.
+    {
+      const jugan = (mayPlay) => C("engine-card-160", "Jugan Defends the Temple", "player-0", { types: ["Enchantment"], subtypes: ["Saga"], mayPlay, visibility: "visible" });
+      const bv = view("player-0"), wv = view("player-1");
+      zone(bv.gameView, "library", "player-0").cards = [jugan(false)];
+      zone(wv.gameView, "library", "player-0").cards = [jugan(true)];
+      const t = await board(bv, wv);
+      ok("Courser: precondition, a board was sent", !!t);
+      ok("Courser: the look-only top card isn't in the opponent's row", !ids(rowOf(t, "White").playable).includes("engine-card-160"), JSON.stringify(rowOf(t, "White").playable));
+      ok("Courser: nor in its owner's (the engine says it can't be played)", !ids(rowOf(t, "Blue").playable).includes("engine-card-160"), JSON.stringify(rowOf(t, "Blue").playable));
+      // its land on top: playable for Blue (Courser's MayPlay), never for White even when an older build marks the look
+      const plains = (mayPlay) => C("engine-card-106", "Plains", "player-0", { types: ["Land"], mayPlay, visibility: "visible" });
+      const bv2 = view("player-0"), wv2 = view("player-1");
+      zone(bv2.gameView, "library", "player-0").cards = [plains(true)];
+      zone(wv2.gameView, "library", "player-0").cards = [plains(true)];
+      const t2 = await board(bv2, wv2);
+      ok("Courser: its land on top is in its owner's row", ids(rowOf(t2, "Blue").playable).includes("engine-card-106"), JSON.stringify(rowOf(t2, "Blue").playable));
+      ok("Courser: and only there (one row per card)", !ids(rowOf(t2, "White").playable).includes("engine-card-106"), JSON.stringify(rowOf(t2, "White").playable));
+    }
+    // Thief of Sanity: Blue exiled White's card face down and may cast it; White sees only a hidden card
+    {
+      const bv = view("player-0"), wv = view("player-1");
+      zone(bv.gameView, "exile", "player-1").cards = [C("engine-card-950", "Counterspell", "player-1", { types: ["Instant"], isFaceDown: true, mayPlay: true, exiledWith: "engine-card-22", visibility: "visible" })];
+      zone(wv.gameView, "exile", "player-1").cards = [{ visibility: "hidden", id: "engine-card-950" }];
+      for (const v of [bv, wv]) zone(v.gameView, "exile", "player-1").count = 1;
+      const t = await board(bv, wv);
+      ok("Thief of Sanity: the exiled card is in its caster's row", ids(rowOf(t, "Blue").playable).includes("engine-card-950"), JSON.stringify(rowOf(t, "Blue").playable));
+      ok("Thief of Sanity: not in its owner's", !ids(rowOf(t, "White").playable).includes("engine-card-950"), JSON.stringify(rowOf(t, "White").playable));
+      ok("Thief of Sanity: its name doesn't reach the table", !JSON.stringify(t).includes("Counterspell"));
+    }
+    // Revelation, both seated: each hand is shown to the other seat, so each goes into its owner's revealed list
+    {
+      const t = await board(view("player-0", { "player-1": ["engine-card-801", "engine-card-802"] }), view("player-1", { "player-0": blueHand.map((c) => c.id) }));
+      ok("Revelation: White's hand is revealed", JSON.stringify(ids(rowOf(t, "White").revealed)) === JSON.stringify(["engine-card-801", "engine-card-802"]), JSON.stringify(rowOf(t, "White").revealed));
+      ok("Revelation: Blue's hand is revealed", JSON.stringify(ids(rowOf(t, "Blue").revealed)) === JSON.stringify(blueHand.map((c) => c.id)), JSON.stringify(ids(rowOf(t, "Blue").revealed)));
+      ok("Revelation: a shown card isn't playable for the other seat", !ids(rowOf(t, "Blue").playable).includes("engine-card-801") && !ids(rowOf(t, "White").playable).length, JSON.stringify([rowOf(t, "Blue").playable, rowOf(t, "White").playable]));
+      ok("Revelation: the revealed card comes with its name and picture", (t && t.cards && t.cards["engine-card-801"] && t.cards["engine-card-801"].n) === "Swords to Plowshares", JSON.stringify(t && t.cards && t.cards["engine-card-801"]));
+    }
+    // a hand nobody else sees isn't revealed (Blue sees only its own)
+    {
+      const t = await board(view("player-0"), view("player-1"));
+      ok("no reveal: no revealed list", !rowOf(t, "White").revealed && !rowOf(t, "Blue").revealed, JSON.stringify([rowOf(t, "White").revealed, rowOf(t, "Blue").revealed]));
+    }
+    // Sen Triplets on an AI: White is the AI here (dump2's 1v1), its hand shown to Blue, who may cast from it
+    {
+      const b = view("player-0", { "player-1": ["engine-card-801", "engine-card-802"], mayPlay: true });
+      const t = await board(b);
+      ok("Sen Triplets: the AI's hand is revealed", JSON.stringify(ids(rowOf(t, "White").revealed)) === JSON.stringify(["engine-card-801", "engine-card-802"]), JSON.stringify(rowOf(t, "White").revealed));
+      ok("Sen Triplets: its cards are in Blue's row", JSON.stringify(ids(rowOf(t, "Blue").playable)) === JSON.stringify(["engine-card-801", "engine-card-802"]), JSON.stringify(rowOf(t, "Blue").playable));
+      ok("Sen Triplets: the AI's hand itself stays unsent", rowOf(t, "White").hand === null, JSON.stringify(rowOf(t, "White").hand));
+      ok("Sen Triplets: the only seat's own hand isn't revealed (nobody else sees it)", !rowOf(t, "Blue").revealed, JSON.stringify(ids(rowOf(t, "Blue").revealed)));
+    }
+    // a revealed double-faced card keeps the plain card back, as a hand card does: its other face stays hidden under it
+    {
+      const h = harness.load({ imageCache: { "swords to plowshares": { face: "https://example.test/front.jpg", back: "https://example.test/other-face.jpg" } } });
+      setup(h, view("player-0", { "player-1": ["engine-card-801"] }));
+      h.B.sendTable(); await h.flush();
+      const t = sent(h, "table")[0];
+      harness.restore();
+      const r = (rowOf(t, "White").revealed || [])[0] || {};
+      const back = r.b ?? (t && t.cards && t.cards["engine-card-801"] || {}).b;
+      ok("revealed DFC: the plain card back (sent as \"\"), not its other face", back === "", JSON.stringify([r, t && t.cards && t.cards["engine-card-801"]]));
+    }
+    // a private look (Mindslaver's controller sees the hand): with a second human seat that doesn't, nothing is public
+    {
+      const h = harness.load();
+      const b3 = (slot, shows) => {
+        const b = view(slot, shows);
+        const p2 = { ...clone(b.gameView.players[1]), id: "player-2" };
+        b.gameView.players.push(p2);
+        b.gameView.zones.push({ zone: "hand", ownerId: "player-2", cards: [], count: 3 }, { zone: "library", ownerId: "player-2", cards: [], count: 80 });
+        return b;
+      };
+      const mk = (color, slot, board) => { const s = new h.B.Seat(color, "deck"); s.slot = slot; s.board = { state: board, fingerprint: null }; return s; };
+      h.B._setGame({ seats: new Map([["Blue", mk("Blue", "player-0", b3("player-0", { "player-1": ["engine-card-801"] }))], ["Yellow", mk("Yellow", "player-2", b3("player-2"))]]), bots: 1, total: 3,
+        playerOrder: ["tts-Blue-ab12", "self-hosted-node-77-bot", "tts-Yellow-ef56"], slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "Yellow" },
+        slotColor: { "player-0": "Blue", "player-1": "White", "player-2": "Yellow" }, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
+      h.B.sendTable(); await h.flush();
+      const t = sent(h, "table")[0];
+      harness.restore();
+      ok("private look: precondition, three players on the board", t && t.players.length === 3, JSON.stringify(t && t.players.map((p) => p.color)));
+      ok("private look: a card one seat of two sees isn't revealed", !rowOf(t, "White").revealed, JSON.stringify(rowOf(t, "White").revealed));
+    }
+    // the strip goes when the hand is hidden again; an unchanged reveal is kept, not sent again
+    {
+      const h = harness.load();
+      const seat = setup(h, view("player-0", { "player-1": ["engine-card-801"] }));
+      // (each send's first board: a flush may send the same board again, all kept)
+      const next = async () => { const n = sent(h, "table").length; h.B.sendTable(); await h.flush(); return sent(h, "table")[n]; };
+      const shown = await next();
+      // (a change elsewhere, so the board goes out again)
+      const same = view("player-0", { "player-1": ["engine-card-801"] });
+      same.gameView.players[0].life = 39;
+      seat.board = { state: same, fingerprint: null };
+      const kept = await next();
+      seat.board = { state: view("player-0"), fingerprint: null };
+      const gone = await next();
+      harness.restore();
+      ok("strip: shown", JSON.stringify(ids(rowOf(shown, "White").revealed)) === JSON.stringify(["engine-card-801"]), JSON.stringify(rowOf(shown, "White")));
+      ok("strip: unchanged, it is kept", (rowOf(kept, "White").keep || []).includes("revealed") && !rowOf(kept, "White").revealed, JSON.stringify(rowOf(kept, "White")));
+      ok("strip: hidden again, the list is gone and not kept", gone !== kept && !rowOf(gone, "White").revealed && !(rowOf(gone, "White").keep || []).includes("revealed"), JSON.stringify(rowOf(gone, "White")));
+    }
+    // a one-time reveal shows every card's picture (7 left out Animist's Awakening's 8th, 2026-10-30)
+    {
+      const h = harness.load();
+      const seat = setup(h, F.board);
+      const cards = Array.from({ length: 9 }, (_, i) => C(`engine-card-${700 + i}`, `Revealed Card ${i + 1}`, "player-0"));
+      h.B.onPrompt(seat, { promptId: 990, decidingPlayerId: "player-0", input: { type: "revealCards", presentation: { title: "Animist's Awakening: revealed" }, ownerPlayerId: "player-0", zone: "library", cards } });
+      await h.flush();
+      const p = sent(h, "prompt").pop();
+      harness.restore();
+      ok("reveal pictures: all 9 go to the table", p && (p.show || []).length === 9, JSON.stringify(p && p.show && p.show.length));
+    }
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();
