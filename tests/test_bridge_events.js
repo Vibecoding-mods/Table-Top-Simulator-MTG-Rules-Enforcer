@@ -1250,6 +1250,7 @@ const id = (n) => `engine-card-${n}`;
     };
     same("fathom trawl: its three not named as the last three revealed, counted when the hand isn't seen", await trawl([]), ["Blue puts 3 cards from their library into their hand"]);
     same("fathom trawl: named by the cards now in its owner's hand", await trawl([shown[1], shown[3], shown[5]]), ["Blue puts Opt, Brainstorm, Divination into their hand"]);
+    same("fathom trawl: a hand holding more of those revealed than went is counted, not named", await trawl([shown[1], shown[2], shown[3], shown[5]]), ["Blue puts 3 cards from their library into their hand"]);
     // Kykar #10: Fact or Fiction's five revealed (Forge's own reveal title), the pile of two taken to the hand, the
     // other three to the graveyard (Forge's "PeekAndReveal" moves, the ability probe's)
     const FOF = "Reveal the top five cards of your library. An opponent separates those cards into two piles. Put one pile into your hand and the other into your graveyard.";
@@ -1724,6 +1725,410 @@ const id = (n) => `engine-card-${n}`;
     same("Mutavault's animation says it became a creature (ability sweep)",
       between(board((b) => { put(b, "battlefield", card(268, "Mutavault", ["Land"])); b.stack.push(MUTAVAULT); }), board((b) => put(b, "battlefield", card(268, "Mutavault", ["Land", "Creature"]))), []),
       ["Mutavault becomes a creature"]);
+
+    // ---- the checker's round (2026-11-07): a wrong line is worse than a bare one. Each case a line dfcb659 wrote wrong,
+    // or a guard no test held; each now says only what the boards, the feed or the player's own answers make certain.
+    const ACT = "self-hosted-node-77-bot";
+    const TRIG = (sid, src, name, text, ctl = "player-0", extra = {}) => ({ controllerId: ctl, id: sid, identity: { name, isToken: false }, isPermanentSpell: false, isTrigger: true, ownerId: ctl,
+      sourceAbilityText: text, sourceId: id(src), targets: [], text, ...extra });
+    const SPL = (sid, src, name, text, ctl = "player-0", extra = {}) => ({ controllerId: ctl, id: sid, identity: { name, isToken: false }, isPermanentSpell: false, ownerId: ctl,
+      sourceAbilityText: text, sourceId: id(src), targets: [], text: `${name} (${src}) - ${text}`, ...extra });
+    const CAST_EV = [ev(11, "Hand", "Graveyard", id(399), null, "player-1")]; // (some event in the window, as a real one has)
+    const HG = (extra = {}) => GIANT({ isAttacking: true, attackingPlayerId: "player-0", attackTargetId: "player-0", tapped: true, ...extra }); // (AI 1's attacker at Blue)
+
+    // #1 unless / may pay: a payment said only from a draw seen or not, or the payer's own answer
+    const EXTORT = "Extort (Whenever you cast a spell, you may pay {W/B}. If you do, each opponent loses 1 life and you gain that much life.)";
+    const GUARDS = card(300, "Basilica Guards", ["Creature"]);
+    const extortAt = (fill, a, c) => life(board((b) => { put(b, "battlefield", GUARDS); fill(b); }), a, c);
+    same("checker: an extort paid is no 'doesn't pay' (its drain is no draw)",
+      between(extortAt((b) => b.stack.push(TRIG("engine-stack-1", 300, "Basilica Guards", EXTORT)), 40, 40), extortAt(() => {}, 41, 39), CAST_EV),
+      ["Blue: 40 -> 41 life (+1)", "AI 1: 40 -> 39 life (-1)"]);
+    same("checker: an extort the player answered 'Pay {W/B}?' yes to is paid, by that answer",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 5, sourceAbilityText: EXTORT, sourceCard: { id: id(300), identity: { name: "Basilica Guards" } }, input: { presentation: { title: "Pay {W/B}?" }, type: "chooseBoolean" } };
+        seat.respond(5, "chooseBoolean", { type: "decision", value: true });
+        return logOf(h, extortAt((b) => b.stack.push(TRIG("engine-stack-1", 300, "Basilica Guards", EXTORT)), 40, 40), extortAt(() => {}, 41, 39), CAST_EV);
+      }),
+      ["Blue pays {W/B} (Basilica Guards)", "Blue: 40 -> 41 life (+1)", "AI 1: 40 -> 39 life (-1)"]);
+    const SOUL = "Whenever an opponent casts a creature spell, Soul Barrier deals 2 damage to that player unless they pay {2}.";
+    same("checker: Soul Barrier's damage taken is no 'pays' (damage is no draw)",
+      between(life(board((b) => { put(b, "battlefield", card(301, "Soul Barrier", ["Enchantment"])); b.stack.push(TRIG("engine-stack-2", 301, "Soul Barrier", SOUL, "player-0", { text: `${SOUL} [Card: Grizzly Bears (9), Activator: ${ACT}, SpellAbility: Grizzly Bears]` })); }), 40, 40),
+        life(board((b) => put(b, "battlefield", card(301, "Soul Barrier", ["Enchantment"]))), 40, 38), CAST_EV),
+      ["AI 1: 40 -> 38 life (-2)"]);
+    const CHAN = "Whenever an opponent casts their first spell each turn, counter that spell unless that player pays {1}.";
+    same("checker: Chancellor of the Annex's counter unpaid is no 'pays' (a counter is no draw)",
+      between(board((b) => { put(b, "battlefield", card(302, "Chancellor of the Annex", ["Creature"])); b.stack.push(SPL("engine-stack-3", 303, "Opt", "Scry 1. Draw a card.", "player-1"), TRIG("engine-stack-4", 302, "Chancellor of the Annex", CHAN, "player-0", { text: `${CHAN} [Card: Opt (303), Activator: ${ACT}, SpellAbility: Opt]` })); }),
+        board((b) => { put(b, "battlefield", card(302, "Chancellor of the Annex", ["Creature"])); put(b, "graveyard", opp(card(303, "Opt", ["Instant"])), "player-1"); }),
+        [ev(11, "Stack", "Graveyard", id(303), null, "player-1")]),
+      []);
+    same("checker: two Rhystic Study triggers, both unpaid, the first draw declined: no 'pays'",
+      fresh((h, seat) => {
+        const ask = (n, v) => { seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: n, sourceAbilityText: RHYSTIC_TEXT, sourceCard: { id: id(245), identity: { name: "Rhystic Study" }, text: RHYSTIC_TEXT },
+          input: { presentation: { title: "Do you want to draw a  card?" }, type: "chooseBoolean" } }; seat.respond(n, "chooseBoolean", { type: "decision", value: v }); };
+        ask(101, false); ask(102, true);
+        const w = (fill) => board((b) => { put(b, "battlefield", RHYSTIC); count(b, "library", 50); fill(b); });
+        return logOf(h, w((b) => b.stack.push(UNLESS("engine-stack-27", 1, "Rhystic Study", RHYSTIC_TEXT, 245), UNLESS("engine-stack-28", 1, "Rhystic Study", RHYSTIC_TEXT, 245))),
+          w((b) => { count(b, "library", 49); count(b, "hand", 1); }), [ev(11, "Library", "Hand", null, "draw", "player-0", { cause: "Draw", causeCardId: id(245), causeName: "Rhystic Study" })]);
+      }),
+      ["AI 1 doesn't pay {1} (Rhystic Study)", "AI 1 doesn't pay {1}, and Blue declines (Rhystic Study)", "Blue draws a card"]);
+    const answer = (seat, n, title, v) => { seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: n, sourceAbilityText: RHYSTIC_TEXT, sourceCard: { id: id(245), identity: { name: "Rhystic Study" }, text: RHYSTIC_TEXT },
+      input: { presentation: { title }, type: "chooseBoolean" } }; seat.respond(n, "chooseBoolean", { type: "decision", value: v }); };
+    const rhyW = (fill) => board((b) => { put(b, "battlefield", RHYSTIC); count(b, "library", 50); fill(b); });
+    same("Rhystic Study's draw answers that don't match the draws seen say nothing",
+      fresh((h, seat) => {
+        answer(seat, 103, "Do you want to draw a  card?", false); answer(seat, 104, "Do you want to draw a  card?", true);
+        return logOf(h, rhyW((b) => b.stack.push(UNLESS("engine-stack-27", 1, "Rhystic Study", RHYSTIC_TEXT, 245), UNLESS("engine-stack-28", 1, "Rhystic Study", RHYSTIC_TEXT, 245))), rhyW(() => {}), CAST_EV);
+      }),
+      []);
+    same("a card's answers are used up by its trigger: the next one, unasked and not drawn, was paid",
+      fresh((h, seat) => {
+        answer(seat, 105, "Do you want to draw a  card?", false);
+        const one = (sid) => logOf(h, rhyW((b) => b.stack.push(UNLESS(sid, 1, "Rhystic Study", RHYSTIC_TEXT, 245))), rhyW(() => {}), CAST_EV);
+        return [...one("engine-stack-27"), ...one("engine-stack-29")];
+      }),
+      ["AI 1 doesn't pay {1}, and Blue declines (Rhystic Study)", "AI 1 pays {1} (Rhystic Study)"]);
+    same("the payer's own answers said only when every trigger that left was answered",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 106, sourceAbilityText: MENTOR_TEXT, sourceCard: { id: id(226), identity: { name: "Mentor of the Meek" } }, input: { presentation: { title: "Pay {1}?" }, type: "chooseBoolean" } };
+        seat.respond(106, "chooseBoolean", { type: "decision", value: true });
+        return logOf(h, mentorBoard((b) => b.stack.push(MENTOR("engine-stack-40"), MENTOR("engine-stack-41"))), mentorBoard(drew),
+          [ev(11, "Library", "Hand", null, "draw", "player-0", { cause: "Draw", causeCardId: id(226), causeName: "Mentor of the Meek" })]);
+      }),
+      ["Blue draws a card"]);
+    same("checker: a Mentor of the Meek trigger with no feed for its window says no payment",
+      between(mentorBoard((b) => b.stack.push(MENTOR("engine-stack-40"))), mentorBoard(drew), []),
+      ["Blue draws a card"]);
+    const AI_RHYSTIC = (extra = {}) => TRIG("engine-stack-60", 245, "Rhystic Study", RHYSTIC_TEXT, "player-1", { text: `${RHYSTIC_TEXT} [Card: Opt (250), Activator: tts-Blue-ab12, SpellAbility: Opt]`, ...extra });
+    const aiRhystic = (fill = () => {}) => board((b) => { put(b, "battlefield", opp(RHYSTIC), "player-1"); fill(b); });
+    same("checker: AI 1's Rhystic Study, Blue's own 'Pay {1}?' yes: Blue pays",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 9, sourceAbilityText: RHYSTIC_TEXT, sourceCard: { id: id(245), identity: { name: "Rhystic Study" } }, input: { presentation: { title: "Pay {1}?" }, type: "chooseBoolean" } };
+        seat.respond(9, "chooseBoolean", { type: "decision", value: true });
+        return logOf(h, aiRhystic((b) => b.stack.push(AI_RHYSTIC())), aiRhystic(), CAST_EV);
+      }),
+      ["Blue pays {1} (Rhystic Study)"]);
+    same("checker: AI 1's Rhystic Study not drawn, no answer of Blue's: its draw was AI 1's to decline, nothing said",
+      between(aiRhystic((b) => b.stack.push(AI_RHYSTIC())), aiRhystic(), CAST_EV),
+      []);
+
+    // #2 the fizzle line: only a single-target counterspell, alone on the stack, its target gone
+    const CRYPTIC = "Choose two —\n• Counter target spell.\n• Return target permanent to its owner's hand.\n• Tap all creatures your opponents control.\n• Draw a card.";
+    same("checker: Cryptic Command's bounce and draw does not 'do nothing'",
+      between(board((b) => { put(b, "battlefield", BEAR()); b.stack.push(SPL("engine-stack-50", 370, "Cryptic Command", CRYPTIC, "player-1", { text: "Cryptic Command (370) - Return Grizzly Bears (1) to its owner's hand. Draw a card." })); count(b, "hand", 3); }),
+        board((b) => { put(b, "graveyard", opp(card(370, "Cryptic Command", ["Instant"])), "player-1"); count(b, "hand", 4); }),
+        [ev(11, "Battlefield", "Hand", id(1), null, "player-0", { cause: "ChangeZone", causeCardId: id(370), causeName: "Cryptic Command" }), ev(12, "Stack", "Graveyard", id(370), null, "player-1")]),
+      ["Grizzly Bears returns to Blue's hand"]);
+    const DIMIR = "Choose one —\n• Counter target sorcery spell.\n• Destroy target creature with power 2 or less.\n• Look at the top three cards of target player's library, then put one back and the rest into that player's graveyard.";
+    same("checker: Dimir Charm's kill mode does not 'do nothing'",
+      between(board((b) => { put(b, "battlefield", opp(BEAR()), "player-1"); b.stack.push(SPL("engine-stack-51", 371, "Dimir Charm", DIMIR)); }),
+        board((b) => { put(b, "graveyard", opp(BEAR()), "player-1"); put(b, "graveyard", card(371, "Dimir Charm", ["Instant"])); }),
+        [ev(11, "Battlefield", "Graveyard", id(1), "destroyed", "player-1", { cause: "Destroy", causeCardId: id(371), causeName: "Dimir Charm" }), ev(12, "Stack", "Graveyard", id(371))]),
+      ["Grizzly Bears dies"]);
+    same("checker: a Counterspell that countered the spell beside it does not 'do nothing'",
+      between(board((b) => b.stack.push(SPL("engine-stack-30", 350, "Kozilek's Return", "When you cast this spell, copy it.\nKozilek's Return deals 2 damage to each creature.", "player-1"), SPL("engine-stack-31", 351, "Counterspell", "Counter target spell."))),
+        board((b) => { put(b, "graveyard", opp(card(350, "Kozilek's Return", ["Instant"])), "player-1"); put(b, "graveyard", card(351, "Counterspell", ["Instant"])); }),
+        [ev(11, "Stack", "Graveyard", id(350), null, "player-1"), ev(12, "Stack", "Graveyard", id(351))]),
+      []);
+    same("Lost in the Mist alone, its spell gone, still bounced its other target: it does not 'do nothing'",
+      between(board((b) => { put(b, "battlefield", opp(BEAR()), "player-1"); b.stack.push(SPL("engine-stack-33", 353, "Lost in the Mist", "Counter target spell. Return target permanent to its owner's hand.")); }),
+        board((b) => { count(b, "hand", 1, "player-1"); put(b, "graveyard", card(353, "Lost in the Mist", ["Instant"])); }),
+        [ev(11, "Battlefield", "Hand", id(1), null, "player-1", { cause: "ChangeZone", causeCardId: id(353), causeName: "Lost in the Mist" }), ev(12, "Stack", "Graveyard", id(353))])
+        .filter((l) => /does nothing/.test(l)),
+      []);
+    same("checker: Disallow alone, its target maybe an ability no board shows, does not 'do nothing'",
+      between(board((b) => b.stack.push(SPL("engine-stack-32", 352, "Disallow", "Counter target spell, activated ability, or triggered ability.", "player-1"))),
+        board((b) => put(b, "graveyard", opp(card(352, "Disallow", ["Instant"])), "player-1")), [ev(11, "Stack", "Graveyard", id(352), null, "player-1")]),
+      []);
+
+    // #3 divided damage: no amount per target; a target that died gets none from "deals N"
+    const ELECTRO = "Electrolyze deals 2 damage divided as you choose among one or two targets.\nDraw a card.";
+    const SPIRIT_T = opp(card(310, "Spirit Token", ["Creature"], { token: true })), SAP_T = opp(card(311, "Saproling Token", ["Creature"], { token: true }));
+    same("checker: Electrolyze's 1 and 1 at two tokens is no '2 damage' at each",
+      between(board((b) => { put(b, "battlefield", SPIRIT_T, "player-1"); put(b, "battlefield", SAP_T, "player-1"); count(b, "library", 50); count(b, "hand", 3);
+        b.stack.push(SPL("engine-stack-7", 312, "Electrolyze", ELECTRO, "player-0", { targets: [{ kind: "card", id: id(310) }, { kind: "card", id: id(311) }] })); }),
+        board((b) => { put(b, "graveyard", card(312, "Electrolyze", ["Instant"])); count(b, "library", 49); count(b, "hand", 4); }),
+        [ev(11, "Stack", "Graveyard", id(312)), ev(12, "Library", "Hand", null, "draw", "player-0", { cause: "Draw", causeCardId: id(312), causeName: "Electrolyze" }),
+          ev(13, "Battlefield", "Graveyard", id(310), "destroyed", "player-1"), ev(14, "Battlefield", "Graveyard", id(311), "destroyed", "player-1")]),
+      ["Blue draws a card", "Spirit token dies", "Saproling token dies"]);
+    same("checker: Forked Bolt's 1 at a token and 1 at AI 1: no amount, the life line bare",
+      between(life(board((b) => { put(b, "battlefield", SPIRIT_T, "player-1");
+        b.stack.push(SPL("engine-stack-8", 313, "Forked Bolt", "Forked Bolt deals 2 damage divided as you choose among one or two targets.", "player-0", { targets: [{ kind: "card", id: id(310) }, { kind: "player", id: "player-1" }] })); }), 40, 40),
+        life(board((b) => put(b, "graveyard", card(313, "Forked Bolt", ["Sorcery"]))), 40, 39),
+        [ev(11, "Stack", "Graveyard", id(313)), ev(12, "Battlefield", "Graveyard", id(310), "destroyed", "player-1")]),
+      ["Spirit token dies", "AI 1: 40 -> 39 life (-1)"]);
+    const ARC = "Arc Trail deals 2 damage to any target and 1 damage to another target.";
+    same("Arc Trail's 2 and 1 at two creatures that died: no amount",
+      between(board((b) => { put(b, "battlefield", opp(BEAR()), "player-1"); put(b, "battlefield", opp(card(390, "Llanowar Elves", ["Creature"])), "player-1");
+        b.stack.push(SPL("engine-stack-79", 392, "Arc Trail", ARC, "player-0", { targets: [{ kind: "card", id: id(1) }, { kind: "card", id: id(390) }] })); }),
+        board((b) => { put(b, "graveyard", opp(BEAR()), "player-1"); put(b, "graveyard", opp(card(390, "Llanowar Elves", ["Creature"])), "player-1"); put(b, "graveyard", card(392, "Arc Trail", ["Sorcery"])); }),
+        [ev(11, "Stack", "Graveyard", id(392)), ev(12, "Battlefield", "Graveyard", id(1), "destroyed", "player-1"), ev(13, "Battlefield", "Graveyard", id(390), "destroyed", "player-1")]),
+      ["Grizzly Bears dies", "Llanowar Elves dies"]);
+    same("a Shock at a blocked attacker resolved across a combat damage step: its rise is not the Shock's alone",
+      between(board((b) => { b.step = "combatDeclareBlockers"; b.activePlayerId = "player-1"; put(b, "battlefield", { ...card(306, "Wall of Wood", ["Creature"]), power: "1" }); put(b, "battlefield", HG(), "player-1");
+        b.combatAssignments = [{ attackerId: id(229), blockerId: id(306) }]; b.stack.push(SPL("engine-stack-80", 393, "Shock", "Shock deals 2 damage to any target.", "player-0", { targets: [{ kind: "card", id: id(229) }] })); }),
+        board((b) => { b.step = "combatDamage"; b.activePlayerId = "player-1"; put(b, "battlefield", { ...card(306, "Wall of Wood", ["Creature"]), power: "1", damage: 3 }); put(b, "battlefield", HG({ damage: 3 }), "player-1");
+          put(b, "graveyard", card(393, "Shock", ["Instant"])); }), [ev(11, "Stack", "Graveyard", id(393))]),
+      []);
+    const BOLT_AT = (t) => SPL("engine-stack-6", 308, "Lightning Bolt", "Lightning Bolt deals 3 damage to any target.", "player-1", { targets: [{ kind: "card", id: t }] });
+    same("checker: a Bolt's target killed by another card's effect is not the Bolt's",
+      between(board((b) => { put(b, "battlefield", BEAR()); b.stack.push(BOLT_AT(id(1))); }),
+        board((b) => { put(b, "graveyard", BEAR()); put(b, "graveyard", opp(card(308, "Lightning Bolt", ["Instant"])), "player-1"); }),
+        [ev(11, "Stack", "Graveyard", id(308), null, "player-1"), ev(12, "Battlefield", "Graveyard", id(1), "destroyed", "player-0", { cause: "Destroy", causeCardId: id(330), causeName: "Murder" })]),
+      ["Grizzly Bears dies"]);
+    same("checker: an AI's Bolt at a planeswalker, a blocker damaged in combat the same window: the Bolt names no creature",
+      between(board((b) => { b.step = "combatDeclareBlockers"; put(b, "battlefield", card(306, "Wall of Wood", ["Creature"])); put(b, "battlefield", { ...card(307, "Jace Beleren", ["Planeswalker"]), counters: { Loyalty: 5 } });
+        b.stack.push(SPL("engine-stack-6", 308, "Lightning Bolt", "Lightning Bolt deals 3 damage to any target.", "player-1", { text: "Lightning Bolt (308) - Lightning Bolt deals 3 damage to Jace Beleren (307)." })); }),
+        board((b) => { b.step = "combatDamage"; put(b, "battlefield", { ...card(306, "Wall of Wood", ["Creature"]), damage: 3 }); put(b, "battlefield", { ...card(307, "Jace Beleren", ["Planeswalker"]), counters: { Loyalty: 2 } });
+          put(b, "graveyard", opp(card(308, "Lightning Bolt", ["Instant"])), "player-1"); }),
+        [ev(11, "Stack", "Graveyard", id(308), null, "player-1")]),
+      []);
+
+    // #4 source shields: only the exact kinds, for the chooser, an attacker that dealt damage
+    same("checker: Circle of Protection's shield is Blue's; Hill Giant attacking Blue's Jace is not prevented",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 71, [237, "Circle of Protection: Red"], COP, [GIANT()], id(229));
+        const at = (step, loy) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", { ...card(307, "Jace Beleren", ["Planeswalker"]), counters: { Loyalty: loy } });
+          put(b, "battlefield", HG({ attackTargetId: id(307) }), "player-1"); }), 38, 40);
+        return [...tableLog(h), ...logOf(h, at("combatDeclareBlockers", 5), at("combatDamage", 2))];
+      }),
+      ["Blue chooses Hill Giant (Circle of Protection: Red)"]);
+    const BEACON = "{T}: The next time a source of your choice would deal damage to you this turn, that damage is dealt to Beacon of Destiny instead.";
+    same("checker: Beacon of Destiny's redirect is to itself, never 'dealt to AI 1 instead', AI 1's loss beside it bare",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 72, [320, "Beacon of Destiny"], BEACON, [GIANT()], id(229));
+        const at = (step, dmg, ai) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", { ...card(320, "Beacon of Destiny", ["Creature"]), power: "1", ...(dmg ? { damage: dmg } : {}) });
+          put(b, "battlefield", HG(), "player-1"); }), 38, ai);
+        return [...tableLog(h), ...logOf(h, at("combatDeclareBlockers", 0, 40), at("combatDamage", 3, 37))];
+      }),
+      ["Blue chooses Hill Giant (Beacon of Destiny)", "AI 1: 40 -> 37 life (-3)"]);
+    same("checker: Reflect Damage on an attacker killed before damage redirects nothing",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 73, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+        const a = life(board((b) => { b.step = "combatDeclareBlockers"; b.activePlayerId = "player-1"; put(b, "battlefield", HG(), "player-1"); }), 38, 40);
+        const c = life(board((b) => { b.step = "combatDamage"; b.activePlayerId = "player-1"; put(b, "graveyard", GIANT(), "player-1"); }), 38, 37);
+        return [...tableLog(h), ...logOf(h, a, c, [ev(11, "Battlefield", "Graveyard", id(229), "destroyed", "player-1", { cause: "Destroy", causeCardId: id(330), causeName: "Murder" })])];
+      }),
+      ["Blue chooses Hill Giant (Reflect Damage)", "Hill Giant dies", "AI 1: 40 -> 37 life (-3)"]);
+    const SELF_PING = { ...PYRO_PING, targets: [{ id: "player-1", intent: "hostile", kind: "player" }] };
+    same("a prevention shield is its chooser's: the source's ping at another player is that player's loss",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 71, [237, "Circle of Protection: Red"], COP, [PYRO], id(238));
+        return logOf(h, life(board((b) => { put(b, "battlefield", PYRO, "player-1"); b.stack.push(SELF_PING); }), 38, 40), life(board((b) => put(b, "battlefield", { ...PYRO, tapped: true }, "player-1")), 38, 39));
+      }),
+      ["AI 1: 40 -> 39 life (-1, damage from Prodigal Pyromancer)"]);
+    same("a shield is used up: the source's second ping that turn is Blue's loss",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 71, [237, "Circle of Protection: Red"], COP, [PYRO], id(238));
+        const ping = (sid, a) => life(board((b) => { put(b, "battlefield", PYRO, "player-1"); b.stack.push({ ...PYRO_PING, id: sid }); }), a, 40);
+        const after = (a) => life(board((b) => put(b, "battlefield", { ...PYRO, tapped: true }, "player-1")), a, 40);
+        return [...logOf(h, ping("engine-stack-40", 38), after(38)), ...logOf(h, ping("engine-stack-41", 38), after(37))];
+      }),
+      ["Prodigal Pyromancer's damage to Blue is prevented (Circle of Protection: Red)", "Blue: 38 -> 37 life (-1, damage from Prodigal Pyromancer)"]);
+
+    same("a redirect the boards don't show (the source's controller lost nothing) is not said",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+        const at = (step) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", HG(), "player-1"); }), 38, 40);
+        const ping = (a, c) => life(board((b) => { put(b, "battlefield", PYRO, "player-1"); }), a, c);
+        SOURCE_PICK(seat, 62, [231, "Reflect Damage"], REFLECT, [PYRO], id(238));
+        return [...logOf(h, at("combatDeclareBlockers"), at("combatDamage")), ...logOf(h, life(board((b) => { put(b, "battlefield", PYRO, "player-1"); b.stack.push(PYRO_PING); }), 38, 40), ping(38, 40))];
+      }),
+      []);
+    same("a prevention the boards don't show (its chooser lost the source's damage) is not said",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 71, [237, "Circle of Protection: Red"], COP, [GIANT()], id(229));
+        SOURCE_PICK(seat, 72, [237, "Circle of Protection: Red"], COP, [PYRO], id(238));
+        const two = (step, a) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", HG(), "player-1");
+          put(b, "battlefield", opp({ ...card(388, "Goblin Piker", ["Creature"]), power: "2", isAttacking: true, attackingPlayerId: "player-0", attackTargetId: "player-0", tapped: true }), "player-1"); }), a, 40);
+        return [...logOf(h, two("combatDeclareBlockers", 38), two("combatDamage", 33)),
+          ...logOf(h, life(board((b) => { put(b, "battlefield", PYRO, "player-1"); b.stack.push(PYRO_PING); }), 33, 40), life(board((b) => put(b, "battlefield", { ...PYRO, tapped: true }, "player-1")), 32, 40))];
+      }),
+      ["Blue: 38 -> 33 life (-5)", "Blue: 33 -> 32 life (-1)"]);
+    same("Deflecting Palm's damage back is said only when its controller lost it",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 90, [260, "Deflecting Palm"], "The next time a source of your choice would deal damage to you this turn, prevent that damage. If damage is prevented this way, Deflecting Palm deals that much damage to that source's controller.", [PYRO], id(238));
+        return logOf(h, life(board((b) => { put(b, "battlefield", PYRO, "player-1"); b.stack.push(PYRO_PING); }), 38, 40), life(board((b) => put(b, "battlefield", { ...PYRO, tapped: true }, "player-1")), 38, 40));
+      }),
+      ["Prodigal Pyromancer's damage to Blue is prevented (Deflecting Palm)"]);
+
+    // #5 no single-candidate fallback: a loss nothing explains stays bare
+    same("checker: AI 1's Shock with no target known kills Bears; AI 1's own 2 lost (a shock land) stays bare",
+      between(life(board((b) => { put(b, "battlefield", BEAR()); b.stack.push(SPL("engine-stack-5", 304, "Shock", "Shock deals 2 damage to any target.", "player-1", { text: "Shock (304) - Shock deals 2 damage to Grizzly Bears (1)." })); }), 40, 40),
+        life(board((b) => { put(b, "graveyard", BEAR()); put(b, "graveyard", opp(card(304, "Shock", ["Instant"])), "player-1"); put(b, "battlefield", opp(card(305, "Steam Vents", ["Land"])), "player-1"); }), 40, 38),
+        [ev(11, "Stack", "Graveyard", id(304), null, "player-1"), ev(12, "Hand", "Battlefield", id(305), null, "player-1"), ev(13, "Battlefield", "Graveyard", id(1), "destroyed")]),
+      ["Grizzly Bears dies", "AI 1 puts Steam Vents onto the battlefield", "AI 1: 40 -> 38 life (-2)"]);
+    const GUTTER = "Whenever you cast an instant or sorcery spell, Guttersnipe deals 2 damage to each opponent.";
+    const gutter = (fill, c) => life(board((b) => { put(b, "battlefield", card(380, "Guttersnipe", ["Creature"])); fill(b); }), 40, c);
+    same("an 'each opponent' trigger is each opponent's loss, once per trigger",
+      [...between(gutter((b) => b.stack.push(TRIG("engine-stack-70", 380, "Guttersnipe", GUTTER)), 40), gutter(() => {}, 38), CAST_EV),
+        ...between(gutter((b) => b.stack.push(TRIG("engine-stack-70", 380, "Guttersnipe", GUTTER), TRIG("engine-stack-71", 380, "Guttersnipe", GUTTER)), 40), gutter(() => {}, 36), CAST_EV)],
+      ["AI 1: 40 -> 38 life (-2, damage from Guttersnipe)", "AI 1: 40 -> 36 life (-4, damage from Guttersnipe ×2)"]);
+
+    // #6 each source its own amount
+    const PYRO_MINE = card(238, "Prodigal Pyromancer", ["Creature"]);
+    same("checker: a Niv-Mizzet ping and a Prodigal Pyromancer ping at one creature: 1 each, not 2 from one",
+      between(board((b) => { put(b, "battlefield", NIV); put(b, "battlefield", PYRO_MINE); put(b, "battlefield", WURM, "player-1");
+        b.stack.push(PING("engine-stack-11", id(216)), SPL("engine-stack-12", 238, "Prodigal Pyromancer", "{T}: Prodigal Pyromancer deals 1 damage to any target.", "player-0", { targets: [{ kind: "card", id: id(216) }] })); }),
+        board((b) => { put(b, "battlefield", NIV); put(b, "battlefield", { ...PYRO_MINE, tapped: true }); put(b, "battlefield", { ...WURM, damage: 2 }, "player-1"); }), []),
+      ["Niv-Mizzet, Parun deals 1 damage to Craw Wurm", "Prodigal Pyromancer deals 1 damage to Craw Wurm"]);
+    same("two pings at one creature that took 3: the sum is not theirs, nothing said",
+      between(board((b) => { put(b, "battlefield", NIV); put(b, "battlefield", WURM, "player-1"); b.stack.push(PING("engine-stack-11", id(216)), PING("engine-stack-13", id(216))); }),
+        board((b) => { put(b, "battlefield", NIV); put(b, "battlefield", { ...WURM, damage: 3 }, "player-1"); }), []),
+      []);
+
+    // #7 a keyword gained is said with the source only when that source's words name it
+    same("checker: Lightning Helix resolved, Bears gained haste from something else: not Helix's",
+      between(life(board((b) => { put(b, "battlefield", { ...BEAR(), keywords: [] }); b.stack.push({ ...SPL("engine-stack-9", 314, "Lightning Helix", "Lightning Helix deals 3 damage to any target and you gain 3 life."), targets: [{ kind: "player", id: "player-1" }] }); }), 40, 40),
+        life(board((b) => { put(b, "battlefield", { ...BEAR(), keywords: ["Haste"] }); put(b, "graveyard", card(314, "Lightning Helix", ["Instant"])); }), 43, 37),
+        [ev(11, "Stack", "Graveyard", id(314))]).filter((l) => /haste/i.test(l)),
+      []);
+    same("a resolved Plummet names flying but gives nothing: a creature's flying is not Plummet's",
+      between(board((b) => { put(b, "battlefield", { ...BEAR(), keywords: [] }); put(b, "battlefield", opp({ ...card(381, "Serra Angel", ["Creature"]), keywords: ["Flying"] }), "player-1");
+        b.stack.push(SPL("engine-stack-72", 382, "Plummet", "Destroy target creature with flying.")); }),
+        board((b) => { put(b, "battlefield", { ...BEAR(), keywords: ["Flying"] }); put(b, "graveyard", opp(card(381, "Serra Angel", ["Creature"])), "player-1"); put(b, "graveyard", card(382, "Plummet", ["Instant"])); }),
+        [ev(11, "Battlefield", "Graveyard", id(381), "destroyed", "player-1", { cause: "Destroy", causeCardId: id(382), causeName: "Plummet" }), ev(12, "Stack", "Graveyard", id(382))]).filter((l) => /Plummet/.test(l)),
+      []);
+
+    const JUMP = { ...SPL("engine-stack-77", 389, "Jump", "Target creature gains flying until end of turn."), targets: [{ kind: "card", id: id(1) }] };
+    const ELF = (kw) => ({ ...card(390, "Llanowar Elves", ["Creature"]), keywords: kw });
+    same("a targeted gift's keyword is its target's alone; the same keyword on another creature is not its",
+      between(board((b) => { put(b, "battlefield", { ...BEAR(), keywords: [] }); put(b, "battlefield", ELF([])); b.stack.push(JUMP); }),
+        board((b) => { put(b, "battlefield", { ...BEAR(), keywords: ["Flying"] }); put(b, "battlefield", ELF(["Flying"])); put(b, "graveyard", card(389, "Jump", ["Instant"])); }), [ev(11, "Stack", "Graveyard", id(389))]),
+      ["Grizzly Bears gains flying (Jump)"]);
+    same("a 'creatures you control' gift is its controller's creatures' alone",
+      between(board((b) => { put(b, "battlefield", KYKAR(["Flying"])); put(b, "battlefield", opp(ELF([])), "player-1"); b.stack.push(AKROMA); }),
+        board((b) => { put(b, "battlefield", KYKAR(["Flying", "Vigilance"])); put(b, "battlefield", opp(ELF(["Vigilance"])), "player-1"); put(b, "graveyard", card(240, "Akroma's Will", ["Instant"])); }), [ev(11, "Stack", "Graveyard", id(240))]),
+      ["Kykar, Wind's Fury gains vigilance (Akroma's Will)"]);
+
+    same("an untargeted Whirlwind names flying but gives nothing: a creature's flying is not Whirlwind's",
+      between(board((b) => { put(b, "battlefield", { ...BEAR(), keywords: [] }); b.stack.push(SPL("engine-stack-78", 391, "Whirlwind", "Destroy all creatures without flying.")); }),
+        board((b) => { put(b, "battlefield", { ...BEAR(), keywords: ["Flying"] }); put(b, "graveyard", card(391, "Whirlwind", ["Sorcery"])); }), [ev(11, "Stack", "Graveyard", id(391))])
+        .filter((l) => /Whirlwind/.test(l)),
+      []);
+
+    same("Flawless Maneuver's indestructible is not the haste a creature gained beside it",
+      between(board((b) => { put(b, "battlefield", KYKAR([])); b.stack.push(SPL("engine-stack-81", 231, "Flawless Maneuver", "Creatures you control gain indestructible until end of turn.")); }),
+        board((b) => { put(b, "battlefield", KYKAR(["Indestructible", "Haste"])); put(b, "graveyard", card(231, "Flawless Maneuver", ["Instant"])); }), [ev(11, "Stack", "Graveyard", id(231))]),
+      ["Kykar, Wind's Fury gains indestructible (Flawless Maneuver)"]);
+
+    // #8 a commander's way home by Forge's moves
+    same("checker: a planeswalker commander at 0 loyalty returns, not 'is destroyed'",
+      between(board((b) => put(b, "battlefield", { ...card(198, "Ral Zarek", ["Planeswalker"]), counters: { Loyalty: 1 } })), board((b) => put(b, "command", card(198, "Ral Zarek", ["Planeswalker"]))),
+        [ev(11, "Battlefield", "Graveyard", id(198)), ev(12, "Graveyard", "Command", id(198))]),
+      ["Ral Zarek returns to the command zone"]);
+    same("a commander exiled is exiled, then returns",
+      between(board((b) => put(b, "battlefield", card(199, "Rograkh, Son of Rohgahh", ["Creature"]))), board((b) => put(b, "command", card(199, "Rograkh, Son of Rohgahh", ["Creature"]))),
+        [ev(11, "Battlefield", "Exile", id(199), "exiled", "player-0", { cause: "ChangeZone", causeCardId: id(340), causeName: "Swords to Plowshares" }), ev(12, "Exile", "Command", id(199))]),
+      ["Rograkh, Son of Rohgahh is exiled and returns to the command zone"]);
+
+    // #9 stale state: picks by their words, a cancel or a new cast forgets them; pain for its own board
+    same("checker: a pick for one half of a split card names nothing on the other half's cast",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 85, sourceCard: { id: id(221), identity: { name: "Expansion // Explosion" } },
+          input: { candidates: [{ id: id(229), kind: "card" }], chosenTargets: 0, type: "chooseBoardTargets", presentation: { title: "Explosion" } } };
+        seat.respond(85, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: id(229) }] });
+        return logOf(h, board((b) => put(b, "battlefield", GIANT(), "player-1")),
+          board((b) => { put(b, "battlefield", GIANT(), "player-1"); b.stack.push(SPL("engine-stack-73", 221, "Expansion", "Copy target instant or sorcery spell with mana value 4 or less.")); }));
+      }),
+      ["Blue casts Expansion"]);
+    const pickThen = (then) => fresh((h, seat) => {
+      counterPick(seat);
+      then(h, seat);
+      return logOf(h, board((b) => b.stack.push(MARBLE)), board((b) => b.stack.push(MARBLE, CS)));
+    });
+    same("a cancelled cast's pick is forgotten", pickThen((h, seat) => seat.respond(86, "chooseBoardTargets", { type: "cancel" })), ["Blue casts Counterspell"]);
+    same("a new cast of the card forgets its earlier pick",
+      pickThen((h, seat) => h.B.notePlay(seat, { cardId: id(240), id: "prompt-action-30", label: "Cast Counterspell", mode: { type: "normal" }, type: "cast" }, "Counterspell", 0)),
+      ["Blue casts Counterspell"]);
+    same("and with neither, the pick is named", pickThen(() => {}), ["Blue casts Counterspell targeting Marble Diamond"]);
+    const ELECTRO_ASK = (seat, n, chosen, pick) => {
+      seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: n, sourceAbilityText: ELECTRO, sourceCard: { id: id(312), identity: { name: "Electrolyze" }, text: ELECTRO },
+        input: { cancellable: true, candidates: [{ id: id(310), kind: "card" }, { id: id(311), kind: "card" }], chosenTargets: chosen, hostile: true, maxTargets: 2, minTargets: 1, presentation: { targets: [], title: "Electrolyze" }, type: "chooseBoardTargets" } };
+      seat.respond(n, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: pick }] });
+    };
+    same("a follow-up pick adds to the first: both targets named",
+      fresh((h, seat) => {
+        ELECTRO_ASK(seat, 87, 0, id(310)); ELECTRO_ASK(seat, 88, 1, id(311));
+        const toks = (b) => { put(b, "battlefield", SPIRIT_T, "player-1"); put(b, "battlefield", SAP_T, "player-1"); };
+        return logOf(h, board(toks), board((b) => { toks(b); b.stack.push(SPL("engine-stack-74", 312, "Electrolyze", ELECTRO)); }));
+      }),
+      ["Blue casts Electrolyze targeting Spirit token and Saproling token"]);
+    same("the life line's sum check: a part that doesn't add up to the change leaves the line bare",
+      [...between(gutter((b) => b.stack.push(TRIG("engine-stack-70", 380, "Guttersnipe", GUTTER)), 40), gutter(() => {}, 35), CAST_EV),
+        ...between(combatAt("combatFirstStrikeDamage", 41, 35), combatAt("combatDamage", 46, 32), [])],
+      ["AI 1: 40 -> 35 life (-5)", "Blue: 41 -> 46 life (+5)", "AI 1: 35 -> 32 life (-3, combat damage from Drogskol Reaver)"]);
+    same("checker: a pain tap in a window whose life rose (+2 net) is not said, nor carried to a later loss",
+      fresh((h, seat) => {
+        const before = life(board((b) => put(b, "battlefield", WASTES)), 38, 40);
+        seat.board = { state: { gameView: before } };
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 22, input: { type: "chooseAction", actions: [
+          { cardId: id(202), cost: "{T}", description: "{T}: Add {W} or {U}. Adarkar Wastes deals 1 damage to you.", id: "tap:w", isManaAbility: true, producedMana: [{ amount: 1, color: "W" }], type: "activateAbility" }] } };
+        seat.respond(22, "chooseAction", { type: "act", actionId: "tap:w" });
+        const mid = life(board((b) => put(b, "battlefield", { ...WASTES, tapped: true })), 40, 40);
+        return [...logOf(h, before, mid), ...logOf(h, mid, life(board((b) => put(b, "battlefield", { ...WASTES, tapped: true })), 39, 40))];
+      }),
+      ["Blue: 38 -> 40 life (+2)", "Blue: 40 -> 39 life (-1)"]);
+    same("a pain tap is its player's: AI 1's loss beside it stays bare",
+      fresh((h, seat) => {
+        const before = life(board((b) => put(b, "battlefield", WASTES)), 38, 40);
+        seat.board = { state: { gameView: before } };
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 22, input: { type: "chooseAction", actions: [
+          { cardId: id(202), cost: "{T}", description: "{T}: Add {W} or {U}. Adarkar Wastes deals 1 damage to you.", id: "tap:w", isManaAbility: true, producedMana: [{ amount: 1, color: "W" }], type: "activateAbility" }] } };
+        seat.respond(22, "chooseAction", { type: "act", actionId: "tap:w" });
+        return logOf(h, before, life(board((b) => put(b, "battlefield", { ...WASTES, tapped: true })), 37, 39));
+      }),
+      ["Blue: 38 -> 37 life (-1, damage from Adarkar Wastes)", "AI 1: 40 -> 39 life (-1)"]);
+
+    // #10 a bite's damage is its creature's: nothing named
+    same("checker: Rabid Bite names no source (the damage is the creature's)",
+      between(board((b) => { put(b, "battlefield", { ...BEAR(), power: "2" }); put(b, "battlefield", WURM, "player-1");
+        b.stack.push(SPL("engine-stack-52", 372, "Rabid Bite", "Target creature you control deals damage equal to its power to target creature or planeswalker you don't control.", "player-0", { targets: [{ kind: "card", id: id(1) }, { kind: "card", id: id(216) }] })); }),
+        board((b) => { put(b, "battlefield", { ...BEAR(), power: "2" }); put(b, "battlefield", { ...WURM, damage: 2 }, "player-1"); put(b, "graveyard", card(372, "Rabid Bite", ["Sorcery"])); }),
+        [ev(11, "Stack", "Graveyard", id(372))]),
+      []);
+
+    // #11 a goad spell countered before any board showed it goads nothing
+    same("checker: Disrupt Decorum countered unseen goads nothing",
+      between(board((b) => { put(b, "battlefield", GIANT(), "player-1"); count(b, "hand", 7, "player-1"); }),
+        board((b) => { put(b, "battlefield", GIANT(), "player-1"); put(b, "graveyard", { ...card(360, "Disrupt Decorum", ["Sorcery"]), text: "Goad all creatures you don't control." });
+          put(b, "graveyard", opp({ ...card(361, "Counterspell", ["Instant"]), text: "Counter target spell." }), "player-1"); count(b, "hand", 6, "player-1"); }),
+        [ev(11, "Stack", "Graveyard", id(360)), ev(12, "Stack", "Graveyard", id(361), null, "player-1")]),
+      ["Blue casts Disrupt Decorum", "AI 1 casts Counterspell", "Disrupt Decorum is countered by Counterspell"]);
+
+    // guards no test held (the checker's escaped mutants)
+    same("a spell granting a quoted '{T}:' ability is cast, its colon no cost",
+      between(board(() => {}), board((b) => b.stack.push(SPL("engine-stack-75", 383, "Banishing Knack", "Until end of turn, target creature gains \"{T}: Return target nonland permanent to its owner's hand.\"", "player-1"))), []),
+      ["AI 1 casts Banishing Knack"]);
+    const VANGUARD = { ...card(219, "Elite Vanguard", ["Creature"]), power: "2", isAttacking: true, attackingPlayerId: "player-1", attackTargetId: "player-1", tapped: true };
+    const GIANT_MINE = { ...card(384, "Hill Giant", ["Creature"]), power: "3", isAttacking: true, attackingPlayerId: "player-1", attackTargetId: "player-1", tapped: true };
+    same("an attacker blocked on the board before stays blocked though its blocker is gone: the other's damage alone",
+      between(life(board((b) => { b.step = "combatDeclareBlockers"; put(b, "battlefield", VANGUARD); put(b, "battlefield", GIANT_MINE); put(b, "battlefield", opp(card(230, "Wall of Wood", ["Creature"])), "player-1");
+        b.combatAssignments = [{ attackerId: id(384), blockerId: id(230) }]; }), 40, 40),
+        life(board((b) => { b.step = "combatDamage"; put(b, "battlefield", VANGUARD); put(b, "battlefield", GIANT_MINE); put(b, "graveyard", opp(card(230, "Wall of Wood", ["Creature"])), "player-1"); }), 40, 38), [])
+        .filter((l) => /life/.test(l)),
+      ["AI 1: 40 -> 38 life (-2, combat damage from Elite Vanguard)"]);
+    same("of two counterspells resolved, which countered the spell is unknown: no 'by'",
+      between(board((b) => b.stack.push(MARBLE, CS, SPL("engine-stack-22", 385, "Negate", "Counter target noncreature spell."))),
+        board((b) => { put(b, "graveyard", opp(card(229, "Marble Diamond", ["Artifact"])), "player-1"); put(b, "graveyard", card(240, "Counterspell", ["Instant"])); put(b, "graveyard", card(385, "Negate", ["Instant"])); }),
+        [ev(11, "Stack", "Graveyard", id(229), null, "player-1"), ev(12, "Stack", "Graveyard", id(240)), ev(13, "Stack", "Graveyard", id(385))]),
+      ["Marble Diamond is countered"]);
+    same("a planeswalker cast and activated between two boards says its ability's cost",
+      between(board((b) => put(b, "battlefield", GIANT_204, "player-1")), board((b) => { put(b, "battlefield", RAL(2)); put(b, "battlefield", GIANT_204, "player-1"); b.stack.push(RAL_MINUS); }),
+        [ev(11, "Hand", "Battlefield", id(201))]).filter((l) => /Ral Zarek's/.test(l)),
+      ["Blue activates Ral Zarek's -2 targeting Hill Giant"]);
+    same("a cast by another static alternative cost (Force of Will's) is not 'without paying its mana cost'",
+      fresh((h, seat) => {
+        const fow = { ...card(386, "Force of Will", ["Instant"]), text: "You may pay 1 life and exile a blue card from your hand rather than pay this spell's mana cost.\nCounter target spell." };
+        const a = board((b) => put(b, "hand", fow));
+        seat.board = { state: { gameView: a } };
+        h.B.notePlay(seat, { cardId: id(386), id: "prompt-action-31", label: "Cast Force of Will", mode: { type: "staticAlternative" }, type: "cast" }, "Force of Will", 0);
+        return logOf(h, a, board((b) => b.stack.push(SPL("engine-stack-76", 386, "Force of Will", fow.text))));
+      }),
+      ["Blue casts Force of Will"]);
+    same("a creature sacrificed by its own trigger names no cause",
+      between(board((b) => put(b, "battlefield", card(387, "Ball Lightning", ["Creature"]))), board((b) => put(b, "graveyard", card(387, "Ball Lightning", ["Creature"]))),
+        [ev(11, "Battlefield", "Graveyard", id(387), "sacrificed", "player-0", { cause: "Sacrifice", causeCardId: id(387), causeName: "Ball Lightning" })]),
+      ["Ball Lightning is sacrificed"]);
   }
 
   process.stdout.write(`${failed ? "FAILED" : "PASSED"}: ${passed} passed, ${failed} failed\n`);
