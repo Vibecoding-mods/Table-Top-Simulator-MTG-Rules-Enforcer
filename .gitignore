@@ -28,3 +28,5 @@ docs/skills/
 arena-features-collage.jpg
 # The engine build's clean clone
 engine/.build/
+# MTG Companion build output (companion/build.cmd)
+companion/bin/
