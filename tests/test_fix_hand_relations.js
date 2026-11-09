@@ -93,7 +93,7 @@ const lastFixShown = (h, from = 0) => h.effects.slice(from).filter((e) => e.tts?
 // Call a fix, get it to editing (Red votes yes), optionally pick a kind, press Done with `ops`, then everyone else
 // votes (yes, or no when `decline`). Returns what reached the engine and what was said; { surprise } when the fix never
 // got to editing (a named failure for the caller, not a crash).
-async function runFix(h, { red = true, b, by = "Blue", ops, kind, notes, pick, decline = false, vote = true } = {}) {
+async function runFix(h, { red = true, b, by = "Blue", ops, kind, notes, pick, decline = false, vote = true, beforeDone } = {}) {
   h.effects.length = 0;
   const seat = setup(h, { red, b });
   try { h.B.onPrompt(seat, prompt("chooseAction", PASS)); } catch (e) { return { surprise: `onPrompt crashed: ${e.message}` }; }
@@ -103,6 +103,7 @@ async function runFix(h, { red = true, b, by = "Blue", ops, kind, notes, pick, d
   const g = h.B._getGame();
   if (g.fix?.state !== "editing") return { surprise: `not editing after the pause vote: ${g.fix?.state}` };
   for (const p of [].concat(pick || [])) await fixMsg(h, p.color, { action: "kind", kind: p.kind });
+  if (beforeDone) beforeDone(g);
   const mark = h.effects.length;
   const t0 = Date.now();
   await fixMsg(h, by, { action: "done", ops, ...(kind !== undefined ? { kind } : {}), ...(notes !== undefined ? { notes } : {}) });
@@ -530,6 +531,27 @@ const MIXED = [B_TO_GY, B_CAST, LIFE, R_CAST, B_ACT_FIELD, TAP, R_LAND];
       same(`R13 ${op.op} ${op.card}: the same ops and lines whoever pressed Done`, [byRed.sent, byRed.lines], [byBlue.sent, byBlue.lines]);
       ok(`R13 ${op.op} ${op.card}: the line names its player, ${op.player}`, (byBlue.lines || [])[0]?.startsWith(`${op.player} `) && byBlue.lines[0].includes(nameIn(op.card)), J(byBlue.lines));
     }
+  });
+
+  // R14 a free play is a new play of its card: a target pick left from that card's earlier cast is forgotten when the
+  // fix is sent (as notePlay forgets it for a cast), so the free cast's own casting pick doesn't add to it; another
+  // card's pick is kept, and a fix with no free play forgets nothing (checker round 5)
+  await run(async (h) => {
+    const T = "Destroy target creature.";
+    const seed = (g) => { g.picked = new Map([["engine-card-43", { ids: ["card|engine-card-75"], text: T, casting: true, at: Date.now() }],
+      ["engine-card-301", { ids: ["card|engine-card-64"], text: T, casting: true, at: Date.now() }]]); };
+    for (const [name, ops, want] of [["freeCast", [B_CAST], ["engine-card-301"]], ["freeActivate", [{ op: "freeActivate", card: "engine-card-43", player: "Blue" }], ["engine-card-301"]],
+      ["no free play", [LIFE], ["engine-card-43", "engine-card-301"]],
+      ["a card moved, not played", [{ op: "move", card: "engine-card-43", zone: "graveyard" }], ["engine-card-43", "engine-card-301"]]]) {
+      const r = await runFix(h, { red: false, ops, beforeDone: seed });
+      ok(`R14 precondition: ${name} applied`, r.count === 1, r.surprise || r.refusal);
+      same(`R14 ${name}: the picks kept after the fix is sent`, [...(r.g.picked?.keys() || [])], want);
+    }
+    const r = await runFix(h, { red: false, ops: [B_CAST], beforeDone: seed });
+    r.seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 950, sourceAbilityText: T, sourceCard: { id: "engine-card-43" },
+      input: { type: "chooseBoardTargets", cancellable: true, chosenTargets: 0, intent: "destroy", minTargets: 1, maxTargets: 1, presentation: { title: "Destroy" }, candidates: [{ kind: "card", id: "engine-card-94" }] } };
+    r.seat.respond(950, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: "engine-card-94" }] });
+    same("R14 the free cast's own casting pick, same words, is its alone", r.g.picked.get("engine-card-43")?.ids, ["card|engine-card-94"]);
   });
 
   finished = true;

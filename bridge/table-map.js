@@ -17,10 +17,11 @@ const CARD_FACTS = {
   supertypes: { to: ["tl"], show: "the type line in the hover name", check: "hoverName" },
   power: { to: ["p"], show: "power/toughness badge when it differs from the picture", check: "badges" },
   toughness: { to: ["t"], show: "power/toughness badge when it differs from the picture", check: "badges" },
-  basePower: { to: ["bp"], show: "what the badge compares against", check: "badges" },
-  baseToughness: { to: ["bt"], show: "what the badge compares against", check: "badges" },
-  printedPower: { to: ["bp"], show: "what the badge compares against", check: "badges" },
-  printedToughness: { to: ["bt"], show: "what the badge compares against", check: "badges" },
+  // (the badge compares against the picture's numbers: a base the picture doesn't show, an X/X token's 6, is no base)
+  basePower: { to: ["f"], show: "a token's picture is searched for by it (tokenKey)" },
+  baseToughness: { to: ["f"], show: "a token's picture is searched for by it (tokenKey)" },
+  printedPower: { to: ["bp"], show: "what the badge compares against: the picture's numbers (a token's from its picture)", check: "badges" },
+  printedToughness: { to: ["bt"], show: "what the badge compares against: the picture's numbers (a token's from its picture)", check: "badges" },
   text: { to: ["tx"], show: "the hover text", check: "hoverText" },
   currentText: { to: ["ct"], show: "a box over the card's text box", check: "badges" },
   printedName: { to: ["pn"], show: "its printed name when an effect renamed it", check: "hoverText" },
@@ -100,7 +101,8 @@ const GESTURES = {
 // PLAYER_FACTS: Forge's PlayerDto field -> { to: keys of the bridge's player row (sendTable), show }, or { gap }, or
 // { skip }. The marks land in "allMarks", the whole label under the player's life in order (bridge PLAYER_MARKS,
 // trackMarks, playerMarks); the old "marks" and the six fields poison, energy, monarch, initiative, blessed and story
-// went in docs/core-moves-cleanup-plan.md "2. trackMarks" step 6.
+// went in docs/core-moves-cleanup-plan.md "2. trackMarks" step 6. A PLAYER_MARKS row with no label (extra turns) has a
+// row key of its own, its `row`, sent by playerMarks beside allMarks.
 const PLAYER_FACTS = {
   id: { to: ["slot"], show: "which seat" },
   name: { to: ["name"], show: "the seat's name" },
@@ -115,7 +117,7 @@ const PLAYER_FACTS = {
   cardsDrawnThisTurn: { skip: "the log says each draw" },
   damagePrevention: { to: ["allMarks"], show: "PREVENT 3" },
   isExtraTurn: { to: ["allMarks"], show: "EXTRA TURN on the player taking it; the turn header's \"(extra turn)\"" },
-  extraTurnCount: { skip: "isExtraTurn says the turn is one; the log says each extra turn" },
+  extraTurnCount: { to: ["extraTurns"], show: "a number beside the life counter while extra turns are coming: the count + 1 (2 for one), hover \"AI 1 has 1 extra turn coming\"; the log says each one added, \"White will take an extra turn (1 coming)\"" },
   controlledBy: { to: ["allMarks"], show: "TURN RUN BY BLUE (Mindslaver), CONTROLLED BY BLUE (Opposition Agent's search); the log says when it starts and ends" },
   playerKeywords: { to: ["allMarks"], show: "HEXPROOF, YOU CAN'T LOSE THE GAME" },
   commanderCasts: { to: ["tax"], show: "the commander tax counter" },

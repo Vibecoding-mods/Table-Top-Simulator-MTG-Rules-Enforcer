@@ -1975,7 +1975,6 @@
      "f972 \"UI.setValue\" \"eng_hint_Blue\" \"Discard (1)\\\nClick 1 glowing card: the last click answers.\"",
      "f972 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",text=\"0 of 1 chosen\",textColor=\"#FEFEFE\"}",
      "f972 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 of 1)\",textColor=\"#FEFEFE\"}",
-     "f972 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"false\"}",
      "f972 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
      "f972 \"highlightOn\" obj:s00013 {1=0.3,2=1,3=0.4}",
      "f972 \"highlightOn\" obj:s00012 {1=0.3,2=1,3=0.4}",
@@ -2639,7 +2638,6 @@
      "f1362 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",text=\"No attacks\",textColor=\"#FEFEFE\"}",
      "f1362 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",text=\"All attack\",textColor=\"#FEFEFE\"}",
      "f1362 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 chosen)\",textColor=\"#FEFEFE\"}",
-     "f1362 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"true\"}",
      "f1362 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
      "f1362 \"highlightOn\" obj:s00015 {1=0.3,2=1,3=0.4}",
      "f1362 \"highlightOn\" obj:s00015 {1=0.3,2=1,3=0.4}",
@@ -6179,7 +6177,6 @@
      "f984 \"UI.setAttributes\" \"eng_big_Blue\" {text=\"0 of 1 chosen\",textColor=\"#FFFFFF\"}",
      "f984 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",text=\" \",textColor=\"#FFFFFF\"}",
      "f984 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 of 1)\",textColor=\"#FFFFFF\"}",
-     "f984 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"false\"}",
      "f984 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}"
     ]
    },
@@ -6295,7 +6292,6 @@
      "f1026 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",text=\"No attacks\",textColor=\"#FFFFFF\"}",
      "f1026 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",text=\"All attack\",textColor=\"#FEFEFE\"}",
      "f1026 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 chosen)\",textColor=\"#FFFFFF\"}",
-     "f1026 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"true\"}",
      "f1026 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
      "f1026 \"highlightOn\" obj:s00017 {1=0.3,2=1,3=0.4}",
      "f1026 \"highlightOn\" obj:s00004 {1=0.3,2=1,3=0.4}"
@@ -6437,7 +6433,6 @@
      "f1098 \"UI.setValue\" \"eng_hint_Blue\" \"Yuriko, the Tiger's Shadow (1)\\\nClick 1 glowing card: the last click answers.\"",
      "f1098 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",text=\"0 of 1 chosen\",textColor=\"#FEFEFE\"}",
      "f1098 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 of 1)\",textColor=\"#FFFFFF\"}",
-     "f1098 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"false\"}",
      "f1098 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
      "f1098 \"highlightOn\" obj:s00017 {1=0.3,2=1,3=0.4}",
      "f1098 \"highlightOn\" obj:s00004 {1=0.3,2=1,3=0.4}"
@@ -7311,7 +7306,6 @@
      "f1506 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",text=\"No attacks\",textColor=\"#FFFFFF\"}",
      "f1506 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",text=\"All attack\",textColor=\"#FEFEFE\"}",
      "f1506 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 chosen)\",textColor=\"#FEFEFE\"}",
-     "f1506 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"true\"}",
      "f1506 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
      "f1506 \"highlightOn\" obj:s00004 {1=0.3,2=1,3=0.4}",
      "f1506 \"highlightOn\" obj:s00002 {1=0.3,2=1,3=0.4}",
@@ -7457,7 +7451,6 @@
      "f1578 \"UI.setValue\" \"eng_hint_Blue\" \"Skullsnatcher (1)\\\nClick 1 glowing card: the last click answers.\"",
      "f1578 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",text=\"0 of 1 chosen\",textColor=\"#FEFEFE\"}",
      "f1578 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 of 1)\",textColor=\"#FEFEFE\"}",
-     "f1578 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"false\"}",
      "f1578 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
      "f1578 \"highlightOn\" obj:s00004 {1=0.3,2=1,3=0.4}",
      "f1578 \"highlightOn\" obj:s00002 {1=0.3,2=1,3=0.4}"
@@ -7898,7 +7891,6 @@
      "f1818 \"UI.setAttributes\" \"eng_big_Blue\" {text=\"Done\",textColor=\"#FFFFFF\"}",
      "f1818 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",text=\" \",textColor=\"#FEFEFE\"}",
      "f1818 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 chosen)\",textColor=\"#FEFEFE\"}",
-     "f1818 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"true\"}",
      "f1818 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
      "f1818 \"UI.setAttribute\" \"eng_row_Blue\" \"active\" \"true\"",
      "f1818 \"UI.setAttribute\" \"eng_row_Blue\" \"height\" \"470\"",
@@ -8669,7 +8661,6 @@
      "f2142 \"UI.setValue\" \"eng_hint_Blue\" \"Dokuchi Silencer (1)\\\nClick 1 glowing card: the last click answers.\"",
      "f2142 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",text=\"0 of 1 chosen\",textColor=\"#FEFEFE\"}",
      "f2142 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 of 1)\",textColor=\"#FFFFFF\"}",
-     "f2142 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"false\"}",
      "f2142 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
      "f2142 \"highlightOn\" obj:s00035 {1=0.3,2=1,3=0.4}",
      "f2142 \"highlightOn\" obj:s00002 {1=0.3,2=1,3=0.4}"
@@ -8857,7 +8848,6 @@
      "f2238 \"UI.setAttributes\" \"eng_opt_Blue_1\" {color=\"#E53935\",text=\"[x] first\",textColor=\"#FEFEFE\"}",
      "f2238 \"UI.setAttributes\" \"eng_big_Blue\" {text=\"1 of 1 chosen\",textColor=\"#FEFEFE\"}",
      "f2238 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (1 of 1)\",textColor=\"#FEFEFE\"}",
-     "f2238 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"true\"}",
      "f2238 \"highlightOff\" obj:s00003",
      "f2238 \"highlightOff\" obj:s00006",
      "f2238 \"highlightOn\" obj:s00003 {1=1,2=0.7,3=0.15}",
@@ -8889,7 +8879,6 @@
      "f2250 \"UI.setValue\" \"eng_hint_Blue\" \"Put 1 card(s) on the bottom\\\nClick the card to put there: the last click answers. Dragging works too.\"",
      "f2250 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",text=\"0 of 1 chosen\",textColor=\"#FEFEFE\"}",
      "f2250 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 of 1)\",textColor=\"#FFFFFF\"}",
-     "f2250 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"false\"}",
      "f2250 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
      "f2250 \"highlightOn\" obj:s00003 {1=0.3,2=1,3=0.4}"
     ]
@@ -8900,7 +8889,6 @@
      "f2256 \"UI.setAttributes\" \"eng_opt_Blue_1\" {color=\"#E53935\",text=\"[x] a card\",textColor=\"#FEFEFE\"}",
      "f2256 \"UI.setAttributes\" \"eng_big_Blue\" {text=\"1 of 1 chosen\",textColor=\"#FFFFFF\"}",
      "f2256 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (1 of 1)\",textColor=\"#FFFFFF\"}",
-     "f2256 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"true\"}",
      "f2256 \"highlightOff\" obj:s00003",
      "f2256 \"highlightOn\" obj:s00003 {1=1,2=0.7,3=0.15}"
     ]
@@ -8942,7 +8930,6 @@
      "f2280 \"UI.setValue\" \"eng_hint_Blue\" \"Choose modes\"",
      "f2280 \"UI.setAttributes\" \"eng_big_Blue\" {text=\"Done\",textColor=\"#FEFEFE\"}",
      "f2280 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 chosen)\",textColor=\"#FEFEFE\"}",
-     "f2280 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"false\"}",
      "f2280 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}"
     ]
    },
@@ -9212,7 +9199,6 @@
      "f2418 \"UI.setValue\" \"eng_hint_Blue\" \"Demonic Tutor: choose a card\\\nClick the glowing cards, then Done.\"",
      "f2418 \"UI.setAttributes\" \"eng_big_Blue\" {text=\"Done\",textColor=\"#FEFEFE\"}",
      "f2418 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 chosen)\",textColor=\"#FFFFFF\"}",
-     "f2418 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"true\"}",
      "f2418 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
      "f2418 \"highlightOn\" obj:s00003 {1=0.3,2=1,3=0.4}",
      "f2418 \"highlightOn\" obj:s00006 {1=0.3,2=1,3=0.4}",
@@ -9325,6 +9311,7 @@
      "f2472 \"createButton\" obj:s00009 \"2/1\" \"0.62,0.08,0.08\" \"at 0.62,0.30,1.18\"",
      "f2472 \"createButton\" obj:s00028 \"1 Stun\" \"0.06,0.16,0.42\" \"at 0.60,0.30,-1.12\"",
      "f2472 \"createButton\" obj:s00028 \"4\" \"0.00,0.00,0.00\" \"at 0.62,0.30,1.18\"",
+     "f2472 \"createButton\" obj:395037 \"2\" \"0.95,0.72,0.15\" \"at -1.00,0.06,-1.45\"",
      "f2473 \"setLock\" obj:s00051 false",
      "f2473 \"setLock\" obj:s00052 false",
      "f2473 \"setLock\" obj:s00053 false",
@@ -9814,6 +9801,7 @@
      "f3240 \"putObject\" obj:s00016 obj:s00051",
      "f3240 \"call\" obj:395037 \"engineLifeChange\" \"delta=3,life=34\"",
      "f3240 \"call\" obj:395037 \"updateSave\"",
+     "f3240 \"removeButton\" obj:395037 0",
      "f3241 \"setHiddenFrom\" obj:s00004 {}",
      "f3241 \"setHiddenFrom\" obj:s00017 {}",
      "f3241 \"setHiddenFrom\" obj:s00021 {}",
@@ -10038,7 +10026,6 @@
      "f3880 \"UI.setAttributes\" \"eng_big_Blue\" {text=\"Done\",textColor=\"#FFFFFF\"}",
      "f3880 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",text=\" \",textColor=\"#FEFEFE\"}",
      "f3880 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 of 2)\",textColor=\"#FFFFFF\"}",
-     "f3880 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"false\"}",
      "f3880 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
      "f3880 \"highlightOff\" obj:s00006",
      "f3880 \"highlightOn\" obj:s00003 {1=0.3,2=1,3=0.4}",
@@ -12482,6 +12469,7 @@
      "f6031 \"UI.setAttributes\" \"eng_autores_Blue\" {active=\"false\"}",
      "f6031 \"UI.setAttributes\" \"eng_undo_Blue\" {active=\"false\"}",
      "f6031 \"UI.setValue\" \"eng_status_Blue\" \"GAME OVER\\\nBlue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
+     "f6031 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#FFD27A>GAME OVER</color></b>\"",
      "f6031 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"false\"",
      "f6031 \"UI.setValue\" \"eng_hint_Blue\" \" \"",
      "f6031 \"createButton\" obj:s00001 \"New game\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
@@ -12553,6 +12541,7 @@
      "f6079 \"UI.setAttributes\" \"eng_voteyes_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
      "f6079 \"UI.setAttributes\" \"eng_voteno_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
      "f6079 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
+     "f6079 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
      "f6079 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f6079 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f6079 \"UI.setAttribute\" \"eng_cover_1\" \"active\" \"true\"",
@@ -12855,7 +12844,7 @@
      "f6175 \"spawnObjectData\" \"Deck\" obj:s00156 \"Library\" V(40.777,1.45,-18.755) 88 0 \"3007\"",
      "f6175 \"spawnObjectData\" \"Card\" obj:s00157 \"Dokuchi Silencer\\\nOn the stack\\\n0CMC\" V(17.4,3.4,15.4) 0 302200 \"3022\"",
      "f6175 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (13.3,13.8)->(19.4,-18.9) mid y1.9\"",
-     "f6175 \"createButton\" obj:395037 \"RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at 0.00,0.05,1.45\"",
+     "f6175 \"createButton\" obj:395037 \"RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -10.79,0.05,1.45\"",
      "f6175 \"UI.setAttributes\" \"eng_toggle_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
      "f6175 \"UI.setAttributes\" \"eng_browse_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
      "f6175 \"UI.setAttributes\" \"eng_logbtn_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
@@ -12876,7 +12865,7 @@
      "f6176 \"setLock\" obj:s00148 false",
      "f6176 \"setLock\" obj:s00149 false",
      "f6176 \"setLock\" obj:s00150 false",
-     "f6176 \"createButton\" obj:s00151 \"2/1\" \"0.10,0.35,0.80\" \"at 0.62,0.30,1.18\"",
+     "f6176 \"createButton\" obj:s00151 \"2/1\" \"0.00,0.00,0.00\" \"at 0.62,0.30,1.18\"",
      "f6176 \"setLock\" obj:s00151 false",
      "f6176 \"setLock\" obj:s00152 false",
      "f6176 \"setLock\" obj:s00154 false",
@@ -12960,13 +12949,13 @@
    {
     "step": "marks: old fields and allMarks",
     "fx": [
-     "f6695 \"createButton\" obj:395037 \"POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING   ENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at 0.00,0.05,1.45\"",
-     "f6695 \"createButton\" obj:23e485 \"POISON 1   ENDURING STORY   SPEED 1\" \"0.04,0.20,0.05\" \"at 0.00,0.05,1.45\""
+     "f6695 \"createButton\" obj:395037 \"POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING\\\nENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -11.06,0.05,1.32\"",
+     "f6695 \"createButton\" obj:23e485 \"POISON 1   ENDURING STORY   SPEED 1\" \"0.04,0.20,0.05\" \"at 9.87,0.05,1.45\""
     ]
    },
    {
     "step": "click: local out = {} for _, g in ipairs({ \"395037\", \"23e485\" }) do local o, l = getObjectFromGUID(g), \"no label\" for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then l = b.label .. \" @\" .. tostring(b.width) end end out[#out + 1] = g .. \": \" .. l end return table.concat(out, \" | \")",
-    "value": "395037: POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING   ENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME @21300 | 23e485: POISON 1   ENDURING STORY   SPEED 1 @6425",
+    "value": "395037: POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING\nENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME @7560 | 23e485: POISON 1   ENDURING STORY   SPEED 1 @6425",
     "fx": []
    },
    {
@@ -12984,13 +12973,13 @@
    {
     "step": "marks: allMarks alone",
     "fx": [
-     "f6767 \"createButton\" obj:395037 \"POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING   ENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at 0.00,0.05,1.45\"",
-     "f6767 \"createButton\" obj:23e485 \"POISON 1   ENDURING STORY   SPEED 1\" \"0.04,0.20,0.05\" \"at 0.00,0.05,1.45\""
+     "f6767 \"createButton\" obj:395037 \"POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING\\\nENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -11.06,0.05,1.32\"",
+     "f6767 \"createButton\" obj:23e485 \"POISON 1   ENDURING STORY   SPEED 1\" \"0.04,0.20,0.05\" \"at 9.87,0.05,1.45\""
     ]
    },
    {
     "step": "click: local out = {} for _, g in ipairs({ \"395037\", \"23e485\" }) do local o, l = getObjectFromGUID(g), \"no label\" for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then l = b.label .. \" @\" .. tostring(b.width) end end out[#out + 1] = g .. \": \" .. l end return table.concat(out, \" | \")",
-    "value": "395037: POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING   ENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME @21300 | 23e485: POISON 1   ENDURING STORY   SPEED 1 @6425",
+    "value": "395037: POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING\nENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME @7560 | 23e485: POISON 1   ENDURING STORY   SPEED 1 @6425",
     "fx": []
    }
   ]
@@ -13644,9 +13633,11 @@
      "f362 \"UI.setAttributes\" \"eng_autores_White\" {active=\"false\"}",
      "f362 \"UI.setAttributes\" \"eng_fx_White\" {text=\"My effects: on\",textColor=\"#FFFFFF\"}",
      "f362 \"UI.setValue\" \"eng_status_White\" \"GAME OVER - winner: Blue\\\nBlue's 1st turn (game turn 0) - untap - priority: Blue\"",
+     "f362 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#FFD27A>GAME OVER</color></b>\"",
      "f362 \"UI.setAttribute\" \"eng_hint_White\" \"active\" \"false\"",
      "f362 \"UI.setValue\" \"eng_hint_White\" \" \"",
      "f362 \"UI.setValue\" \"eng_status_Blue\" \"GAME OVER - winner: Blue\\\nBlue's 1st turn (game turn 0) - untap - priority: Blue\"",
+     "f362 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#FFD27A>GAME OVER</color></b>\"",
      "f362 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"false\"",
      "f362 \"UI.setValue\" \"eng_hint_Blue\" \" \"",
      "f362 \"createButton\" obj:s00001 \"New game\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
@@ -14721,7 +14712,6 @@
      "f466 \"UI.setValue\" \"eng_hint_Blue\" \"Choose a land card in your graveyard\"",
      "f466 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",text=\"0 of 1 chosen\",textColor=\"#FEFEFE\"}",
      "f466 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 of 1)\",textColor=\"#FFFFFF\"}",
-     "f466 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"false\"}",
      "f466 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}"
     ]
    },
@@ -14886,7 +14876,6 @@
      "f970 \"UI.setValue\" \"eng_hint_Blue\" \"Search your library for an instant\"",
      "f970 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",text=\"Done\",textColor=\"#FEFEFE\"}",
      "f970 \"UI.setAttributes\" \"eng_confirm_Blue\" {text=\"Done (0 chosen)\",textColor=\"#FFFFFF\"}",
-     "f970 \"UI.setAttributes\" \"eng_confirm_Blue\" {interactable=\"true\"}",
      "f970 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
      "f971 \"setGMNotes\" obj:s00023 \"enginetrash\"",
      "f971 \"highlightOff\" obj:s00023",

@@ -599,6 +599,89 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("copy badge: none before it is a copy", !String(valueOf(r, "before")).includes("COPY"), String(valueOf(r, "before")) + " " + r.errors.join(" | "));
   ok("copy badge: a copy shows COPY", String(valueOf(r, "after")).split("|").includes("COPY"), String(valueOf(r, "after")) + " " + r.errors.join(" | "));
 }
+// the power/toughness badge (live 2026-11-08: a 6/6 X/X Dinosaur Beast showed no number): shown whenever the card's
+// numbers differ from its picture's (bp/bt), and always when the picture shows none (bp nil), in black; a face-down
+// permanent's on its back, against the rules' 2/2
+{
+  const pick = 'local t = engineTable() local c for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if c == nil and x.id and x.att == nil and not x.fd then c = x end end end __ptId = c and c.id return tostring(__ptId)';
+  const set = (fields, mark) => q(`local t = engineTable() for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if x.id == __ptId then x.dmg = 0 x.ctr = {} ${fields} end end end engineRender(t) __sim.frames(30)`, `set: ${mark}`);
+  const pt = (mark) => q('local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. tostring(__ptId) then o = x end end if o == nil then return "no card" end local out = {} ' +
+    'for _, b in ipairs(o.getButtons() or {}) do if string.find(tostring(b.label), "^%-?%d+/%-?%d+$") then local col, pos = b.color or {}, b.position or {} ' +
+    'out[#out + 1] = b.label .. "@" .. string.format("%.2f,%.2f,%.2f", col[1] or col.r or -1, col[2] or col.g or -1, col[3] or col.b or -1) .. "@y" .. string.format("%.1f", pos.y or pos[2] or 0) .. "@x" .. string.format("%.2f", pos.x or pos[1] or 0) .. "@rz" .. tostring((b.rotation or {})[3] or (b.rotation or {}).z or 0) end end return #out == 0 and "none" or table.concat(out, "|")', mark);
+  // (the badge's position along the card's length)
+  const ptZ = (mark) => q('local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. tostring(__ptId) then o = x end end if o == nil then return "no card" end ' +
+    'for _, b in ipairs(o.getButtons() or {}) do if string.find(tostring(b.label), "^%-?%d+/%-?%d+$") then local pos = b.position or {} return string.format("%.2f", pos.z or pos[3] or 0) end end return "none"', `${mark} z`);
+  const r = run([{ frames: 30 }, q(pick, "pick"),
+    set('x.p = "6" x.t = "6" x.bp = nil x.bt = nil', "6/6 no base"), pt("6/6 no base"),
+    set('x.bp = 6 x.bt = 6', "6/6 base 6/6"), pt("6/6 base 6/6"),
+    set('x.p = "2" x.t = "2" x.bp = 2 x.bt = 2', "2/2"), pt("2/2"),
+    set('x.p = "3" x.t = "3"', "3/3 over 2/2"), pt("3/3 over 2/2"), ptZ("3/3 over 2/2"),
+    set('x.p = "1" x.t = "1"', "1/1 under 2/2"), pt("1/1 under 2/2"),
+    set('x.p = "6" x.t = "6" x.bp = nil x.bt = nil x.dmg = 1', "damaged no base"), pt("damaged no base"),
+    set('x.p = "0" x.t = "1" x.bp = 0 x.bt = 1', "kelp"), pt("kelp"),
+    set('x.p = "2" x.t = "2" x.bp = 2 x.bt = nil', "half known"), pt("half known"),
+    set('x.p = "3" x.t = "3" x.bp = 2 x.bt = 2 engineFlipped[x.id] = true', "flipped over"), pt("flipped over"), ptZ("flipped over"), set('engineFlipped[x.id] = nil', "flipped back"),
+    set('x.p = 2 x.t = 2 x.bp = 2 x.bt = 2 x.fd = true', "morph"), pt("morph"),
+    set('x.p = 3 x.t = 3 x.bp = 2 x.bt = 2 x.fd = true', "pumped morph"), pt("pumped morph"), ptZ("pumped morph")]);
+  const v = (m) => String(valueOf(r, m));
+  const BLACK = "0.00,0.00,0.00", UP = "0.10,0.35,0.80", DOWN = "0.62,0.08,0.08";
+  ok("pt badge: precondition, a card on the battlefield (given a P/T here)", v("pick") !== "nil", v("pick") + " " + r.errors.join(" | "));
+  ok("pt badge: a picture with no numbers (bp nil) shows the P/T, black", v("6/6 no base") === `6/6@${BLACK}@y0.3@x0.62@rz0`, v("6/6 no base"));
+  ok("pt badge: the picture's own 6/6 shows none", v("6/6 base 6/6") === "none", v("6/6 base 6/6"));
+  ok("pt badge: an ordinary 2/2 shows none", v("2/2") === "none", v("2/2"));
+  ok("pt badge: bigger than the picture, the up colour", v("3/3 over 2/2") === `3/3@${UP}@y0.3@x0.62@rz0`, v("3/3 over 2/2"));
+  ok("pt badge: smaller than the picture, the down colour", v("1/1 under 2/2") === `1/1@${DOWN}@y0.3@x0.62@rz0`, v("1/1 under 2/2"));
+  ok("pt badge: damage with no base is down, toughness left", v("damaged no base") === `6/5@${DOWN}@y0.3@x0.62@rz0`, v("damaged no base"));
+  ok("pt badge: a 0/1 over a 0/1 picture shows none", v("kelp") === "none", v("kelp"));
+  ok("pt badge: a base only half known shows, black", v("half known") === `2/2@${BLACK}@y0.3@x0.62@rz0`, v("half known"));
+  ok("pt badge: a face-up card its owner turned over has it on its back", v("flipped over") === `3/3@${UP}@y-0.3@x-0.62@rz180`, v("flipped over"));
+  ok("pt badge: a plain face-down 2/2 shows none", v("morph") === "none", v("morph") + " " + r.errors.join(" | "));
+  ok("pt badge: a pumped face-down one shows on its back, at the same corner", v("pumped morph") === `3/3@${UP}@y-0.3@x-0.62@rz180`, v("pumped morph"));
+  // (the position's third number too: the mirror of a card turned over is across its width, not its length)
+  ok("pt badge: on the back it keeps its distance from the card's top", v("flipped over z") === v("3/3 over 2/2 z") && v("pumped morph z") === v("3/3 over 2/2 z") && v("3/3 over 2/2 z") !== "0.00",
+    [v("3/3 over 2/2 z"), v("flipped over z"), v("pumped morph z")].join(" "));
+}
+// the status box reads the right way up from the card's controller's seat, as the card lies: tapped, turned over by its
+// owner (on its back, "=under"), or both (verifier 2026-11-09: tapped and turned over, its rotation {0,-90,180} read
+// upside down). Checked as TTS draws it: the object's rotation, then the button's, both Unity's Euler order (z, x, y).
+{
+  const pick = 'local t = engineTable() local c for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if c == nil and x.id and x.att == nil and not x.fd then c = x end end end __kwId = c and c.id return tostring(__kwId)';
+  const set = (fields, mark) => q(`local t = engineTable() for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if x.id == __kwId then x.kw = { "Hexproof" } x.tap = false engineFlipped[x.id] = nil ${fields} end end end engineRender(t) __sim.frames(30)`, `set: ${mark}`);
+  const v3 = (name) => `string.format("%.4f,%.4f,%.4f", ${name}.x or ${name}[1] or 0, ${name}.y or ${name}[2] or 0, ${name}.z or ${name}[3] or 0)`;
+  const box = (mark) => q('local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. tostring(__kwId) then o = x end end if o == nil then return "no card" end ' +
+    'for _, b in ipairs(o.getButtons() or {}) do if b.label == "Hexproof" then local r, br, bp = o.getRotation(), b.rotation or {}, b.position or {} ' +
+    `return ${v3("r")} .. "|" .. ${v3("br")} .. "|" .. ${v3("bp")} end end return "no box"`, mark);
+  const r = run([{ frames: 30 }, q(pick, "pick"), set("", "plain"), box("plain"), set("x.tap = true", "tapped"), box("tapped"),
+    set("engineFlipped[x.id] = true", "turned over"), box("turned over"), set("x.tap = true engineFlipped[x.id] = true", "tapped, turned over"), box("tapped, turned over"),
+    set("", "back")]);
+  const rad = Math.PI / 180;
+  const mul = (a, b) => a.map((row) => [0, 1, 2].map((j) => row[0] * b[0][j] + row[1] * b[1][j] + row[2] * b[2][j]));
+  const euler = ([x, y, z]) => {
+    const [cx, sx, cy, sy, cz, sz] = [Math.cos(x * rad), Math.sin(x * rad), Math.cos(y * rad), Math.sin(y * rad), Math.cos(z * rad), Math.sin(z * rad)];
+    return mul(mul([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]], [[1, 0, 0], [0, cx, -sx], [0, sx, cx]]), [[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]]);
+  };
+  // (the box's orientation and its offset from the card's centre, on the table)
+  const world = (mark) => {
+    const parts = String(valueOf(r, mark)).split("|").map((s) => s.split(",").map(Number));
+    if (parts.length !== 3 || parts.flat().some((n) => !Number.isFinite(n))) return null;
+    const [obj, btn, pos] = parts;
+    const o = euler(obj);
+    return { turn: mul(o, euler(btn)), at: o.map((row) => row[0] * pos[0] + row[1] * pos[1] + row[2] * pos[2]) };
+  };
+  const near = (a, b) => a.flat().every((x, i) => Math.abs(x - b.flat()[i]) < 1e-6);
+  const plain = world("plain");
+  ok("status box: precondition, a card with a status box", String(valueOf(r, "pick")) !== "nil" && !!plain, String(valueOf(r, "plain")) + " " + r.errors.join(" | "));
+  for (const mark of ["tapped", "turned over", "tapped, turned over"]) {
+    const w = world(mark);
+    ok(`status box: ${mark}, it reads the way it does on an untapped card`, !!plain && !!w && near(w.turn, plain.turn), String(valueOf(r, mark)));
+    // (and lies face up, on the side that faces up)
+    ok(`status box: ${mark}, its face is up`, !!w && w.turn[1][1] > 0.99, String(valueOf(r, mark)));
+  }
+  // (on its back it sits where it does face up: tapped or not, at the same place on the table)
+  const at = (mark) => world(mark)?.at.map((n) => (Math.abs(n) < 5e-4 ? 0 : n).toFixed(3)).join(",");
+  ok("status box: turned over, at the same place as face up", at("turned over") === at("plain"), `${at("turned over")} / ${at("plain")}`);
+  ok("status box: tapped and turned over, at the same place as tapped face up", at("tapped, turned over") === at("tapped"), `${at("tapped, turned over")} / ${at("tapped")}`);
+}
 // a phased-out card stays where it was, dimmed and marked, and comes back as it was (2026-11-02: it used to vanish)
 {
   const last = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
@@ -1372,6 +1455,215 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("trackMarks: an allMarks that is a number takes the label away", v("allMarks a number") === "no label", v("allMarks a number"));
   ok("trackMarks: an allMarks that is not a list draws nothing (not the old fields), with no error", v("allMarks not a list") === "no label" && !r.errors.length, v("allMarks not a list") + " " + r.errors.slice(0, 1).join(""));
 }
+// World boxes [x0, x1, z0, z1] for the marks-label and extra-turn-badge checks below. A button b (local bx, bz; w, h in
+// button units; its own scale scx, scz) on a tracker t (x, z, ry, sx, sz): TTS draws a button's +x on its reader's
+// right, world (-cos ry, sin ry), and its +z at world (sin ry, cos ry); 480 button units to a local unit.
+const buttonBox = (t, b) => {
+  const a = (t.ry * Math.PI) / 180, hw = (b.w * (b.scx ?? 1)) / 2 / 480, hh = (b.h * (b.scz ?? 1)) / 2 / 480;
+  const xs = [], zs = [];
+  for (const [lx, lz] of [[b.bx - hw, b.bz - hh], [b.bx + hw, b.bz - hh], [b.bx - hw, b.bz + hh], [b.bx + hw, b.bz + hh]]) {
+    xs.push(t.x + t.sx * lx * -Math.cos(a) + t.sz * lz * Math.sin(a));
+    zs.push(t.z + t.sx * lx * Math.sin(a) + t.sz * lz * Math.cos(a));
+  }
+  return [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+};
+const meets = (a, b) => a[0] < b[1] && b[0] < a[1] && a[2] < b[3] && b[2] < a[3];
+// the save's commander-damage icons (by their name, not the renderer's CMD_DAMAGE), a box `half` either side of each
+const cmdIcons = (half) => save.ObjectStates.filter((o) => o.Nickname === "Commander Damage")
+  .map((o) => ({ g: o.GUID, box: [o.Transform.posX - half, o.Transform.posX + half, o.Transform.posZ - half, o.Transform.posZ + half] }));
+// the save's four playmat zones (the scripting zones the size of a mat, 37 x 20.75)
+const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrigger" && o.Transform.scaleX > 30)
+  .map((o) => { const t = o.Transform; return { g: o.GUID, box: [t.posX - t.scaleX / 2, t.posX + t.scaleX / 2, t.posZ - t.scaleZ / 2, t.posZ + t.scaleZ / 2] }; });
+// Marks label fit (live check 9, 2026-11-06: Red's "TURN RUN BY WHITE" ran into White's "RING TEMPTED 2   SPEED 3"
+// between the two life counters). For all four seats' trackers, as they lie in the save, and long realistic marks: each
+// label stays on its own seat's half of the table (off the middle line, so never on the next seat's label) and inside
+// the mats' strip, in at most two lines, every mark in order; a short label stays as it was. The geometry is TTS's as
+// measured on the live crop: a button's +x is on its reader's right; 480 button units to a local unit.
+// (checker, 2026-11-07) No label's box meets a commander-damage icon's (the bottom icon of each column sat in the label's
+// row: "SPE0D 3" on the live crop 9-crop-label-overlap) or a mat (two lines at font 300 ran 0.8 into it), and past what
+// two lines hold the label is cut to two (marks in order, "+n MORE"). The icons and the mats' zones are read from the
+// save, not from the renderer's own list; an icon's box is 1.2 a side (1.16 on the live shot 9-ring-speed).
+{
+  const SEATS = { "23e485": "White", "448880": "Red", "37e533": "Yellow", "395037": "Blue" };
+  const PER = 480, ICON = 0.6;
+  const geo = 'local out = {} for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z } for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then row.label, row.w, row.h, row.f, row.bx, row.bz = b.label, b.width, b.height, b.font_size, b.position[1] or b.position.x, b.position[3] or b.position.z end end out[#out + 1] = row end return JSON.encode(out)';
+  const setAll = (marks) => `for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do enginePlayerCounters(getObjectFromGUID(g), JSON.decode([==[${JSON.stringify({ allMarks: marks })}]==])) end return "set"`;
+  const marksBox = (t) => buttonBox(t, { bx: t.bx, bz: t.bz, w: t.w, h: t.h });
+  // the label's world x span
+  const span = (t) => { const b = marksBox(t); return [b[0], b[1]]; };
+  const icons = cmdIcons(ICON), mats = matZones();
+  ok("marks fit: precondition, the save's twelve commander-damage icons and four mat zones (top edges at |z| 5.03)",
+    icons.length === 12 && mats.length === 4 && mats.every((m) => Math.abs(Math.min(Math.abs(m.box[2]), Math.abs(m.box[3])) - 5.025) < 0.01),
+    `${icons.length} icons, mats ${JSON.stringify(mats.map((m) => m.box.map((n) => n.toFixed(2))))}`);
+  // (the longest real labels: every PLAYER_MARKS row at once, keywords cut to 32 letters by the bridge; past two lines)
+  const EVERY = ["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "EXTRA TURN", "MONARCH", "INITIATIVE", "POISON 9", "ENERGY 12",
+    "EXPERIENCE 5", "RAD 7", "TICKETS 3", "CITY'S BLESSING", "ENDURING STORY", "PREVENT 3", "NO MAX HAND SIZE", "YOU CAN'T LOSE THE GAME",
+    "YOUR OPPONENTS CAN'T WIN THE GA…", "HEXPROOF", "SHROUD", "PROTECTION FROM EVERYTHING"];
+  const COMBOS = {
+    "Mindslaver (live check 9)": ["TURN RUN BY WHITE"],
+    "Ring and speed (live check 9)": ["RING TEMPTED 2", "SPEED 3"],
+    "every mark at once": ["TURN RUN BY WHITE", "RING TEMPTED 4", "SPEED 4 (MAX)", "EXTRA TURN", "MONARCH", "INITIATIVE", "POISON 9", "CITY'S BLESSING"],
+    "long keywords": ["YOU CAN'T LOSE THE GAME", "HEXPROOF", "CONTROLLED BY YELLOW", "RING TEMPTED 4"],
+    "just fits before the icons": ["TICKETS 10"],
+    "two lines at font 300": ["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"],
+    "every player mark (past two lines)": EVERY,
+    "one mark longer than a line": ["THIS PLAYER CAN'T BE THE TARGET OF SPELLS OR ABILITIES YOUR OPPONENTS CONTROL AND CAN'T LOSE"],
+    "short": ["POISON 2"],
+    // (jr suite 2026-11-07) two-byte letters, so the cut at 71 bytes falls inside one: "not inside a character"
+    "one accented mark longer than a line": ["É".repeat(60)],
+  };
+  const CUT = new Set(["every player mark (past two lines)", "one mark longer than a line", "one accented mark longer than a line"]);
+  const steps = [];
+  for (const [name, marks] of Object.entries(COMBOS)) steps.push(q(setAll(marks), `set ${name}`), q(geo, `geo ${name}`));
+  const r = run(steps);
+  ok("marks fit: precondition, no script error", !r.errors.length, r.errors.slice(0, 2).join(" | "));
+  for (const [name, marks] of Object.entries(COMBOS)) {
+    let rows = [];
+    try { rows = JSON.parse(String(valueOf(r, `geo ${name}`))); } catch (e) { /* checked below */ }
+    ok(`marks fit, ${name}: precondition, four trackers, each with its label`, rows.length === 4 && rows.every((t) => typeof t.label === "string" && t.w > 0), String(valueOf(r, `geo ${name}`)).slice(0, 200));
+    for (const t of rows) {
+      const seat = `${name}, ${SEATS[t.g]}`;
+      const box = marksBox(t);
+      const [lo, hi] = [box[0], box[1]];
+      // (the middle line is x = 0; the trackers of a side are 7 apart, so 0.25 off it leaves the next label 0.5 away)
+      ok(`marks fit, ${seat}: the label stays on its own half of the table`, t.x < 0 ? hi <= -0.25 : lo >= 0.25, `x ${lo.toFixed(2)}..${hi.toFixed(2)}, tracker at ${t.x}`);
+      ok(`marks fit, ${seat}: the label stays inside the mats' strip (commander zones at 39.5)`, Math.max(Math.abs(lo), Math.abs(hi)) <= 30, `x ${lo.toFixed(2)}..${hi.toFixed(2)}`);
+      const lines = String(t.label).split("\n");
+      if (!CUT.has(name)) ok(`marks fit, ${seat}: at most two lines, every mark in order`, lines.length <= 2 && lines.join("   ") === marks.join("   "), JSON.stringify(t.label));
+      else {
+        // (cut: the marks kept, in order, a mark too long for a line ending "..."; then "+n MORE" for the n left out)
+        const items = lines.join("   ").split("   ");
+        const more = /^\+(\d+) MORE$/.exec(items[items.length - 1]);
+        const kept = more ? items.slice(0, -1) : items;
+        const same = kept.every((k, i) => k === marks[i] || (k.endsWith("...") && k.length > 3 && marks[i].startsWith(k.slice(0, -3))));
+        ok(`marks fit, ${seat}: cut to two lines, the marks kept in order and "+n MORE" for the rest`, lines.length <= 2 && kept.length >= 1 && same
+          && kept.length + (more ? Number(more[1]) : 0) === marks.length, JSON.stringify(t.label));
+        ok(`marks fit, ${seat}: cut at a whole character (no broken UTF-8)`, !String(t.label).includes("�") && Buffer.from(String(t.label), "utf8").toString("utf8") === String(t.label), JSON.stringify(t.label));
+      }
+      ok(`marks fit, ${seat}: no line wider than 8000`, t.w <= 8000, `width ${t.w}`);
+      ok(`marks fit, ${seat}: a readable font, and its bottom edge where a one-line label's is`, t.f >= 180 && Math.abs(t.bz + t.h / 2 / PER - (1.45 + 380 / 2 / PER)) < 1e-6, `font ${t.f}, z ${t.bz}, height ${t.h}`);
+      const hit = icons.filter((c) => meets(box, c.box)).map((c) => c.g);
+      ok(`marks fit, ${seat}: no commander-damage icon under the label`, hit.length === 0, `label x ${lo.toFixed(2)}..${hi.toFixed(2)} z ${box[2].toFixed(2)}..${box[3].toFixed(2)} meets ${hit.join(" ")}`);
+      const onMat = mats.filter((m) => meets(box, m.box)).map((m) => m.g);
+      ok(`marks fit, ${seat}: the label stays off every mat`, onMat.length === 0, `label z ${box[2].toFixed(2)}..${box[3].toFixed(2)} meets the mat zone ${onMat.join(" ")}`);
+    }
+    // (a label that fits between the counter and its icon column stays there, by the counter; 2050 wide: 0.73..6.10)
+    if (name === "just fits before the icons") ok("marks fit, just fits before the icons: it stays between the middle and its icon column on every seat",
+      rows.length === 4 && rows.every((t) => { const b = marksBox(t); return Math.max(Math.abs(b[0]), Math.abs(b[1])) <= 6.79 - ICON; }), JSON.stringify(rows.map((t) => span(t).map((n) => +n.toFixed(2)))));
+    if (name === "short") ok("marks fit, short: a short label is as it was, centred under its counter, one line at font 300", rows.every((t) => t.label === "POISON 2" && t.w === 1700 && t.h === 380 && t.f === 300 && t.bx === 0 && t.bz === 1.45), JSON.stringify(rows.map((t) => [t.w, t.h, t.f, t.bx, t.bz])));
+  }
+  // (the live case end to end: Red's and White's labels as two table boards send them, the White row's own)
+  const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
+  const board = (marks) => { const t = JSON.parse(lastT.json); for (const p of t.players) if (p.color === "White") p.allMarks = marks; return { msg: { t: "table", json: JSON.stringify(t) }, frames: 10 }; };
+  const r2 = run([board(["RING TEMPTED 2", "SPEED 3"]), q(geo, "board long"), board(["POISON 2"]), q(geo, "board short")]);
+  const white = (m) => { try { return JSON.parse(String(valueOf(r2, m))).find((t) => t.g === "23e485"); } catch (e) { return null; } };
+  const wl = white("board long"), ws = white("board short");
+  ok("marks fit, table board: White's long label is pushed off the middle and past its icons", !!wl && wl.label === "RING TEMPTED 2   SPEED 3" && span(wl)[0] >= 0.25
+    && !icons.some((c) => meets(marksBox(wl), c.box)), JSON.stringify(wl));
+  ok("marks fit, table board: the next, short label goes back under the counter (the button is edited, not left where it was)", !!ws && ws.label === "POISON 2" && ws.bx === 0 && ws.w === 1700 && ws.h === 380, JSON.stringify(ws));
+}
+// Extra-turn counter (docs/extra-turn-counter-spec.md, 2026-11-06): the row's extraTurns as a number beside the life
+// counter, the count + 1 (one extra turn shows 2), hover text "<name> has n extra turn(s) coming", none at 0, with no
+// count (an engine from before) or a count that isn't a number; one button, edited as the count changes; gone with the
+// game (engineCountersReset) and back after the tracker's own onload clears its buttons
+{
+  const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
+  const whiteName = (JSON.parse(lastT.json).players.find((p) => p.color === "White") || {}).name;
+  const board = (fields) => { const t = JSON.parse(lastT.json); for (const p of t.players) if (p.color === "White") { delete p.extraTurns; Object.assign(p, fields); } return { msg: { t: "table", json: JSON.stringify(t) }, frames: 10 }; };
+  const badge = 'local out = {} for _, b in ipairs(getObjectFromGUID("23e485").getButtons() or {}) do if engineExtraTurnTip(b.tooltip) then local p = b.position or {} out[#out + 1] = tostring(b.label) .. " | " .. tostring(b.tooltip) .. " @" .. tostring(p[1] or p.x) .. "," .. tostring(p[3] or p.z) end end return #out == 0 and "no badge" or table.concat(out, " || ")';
+  const r = run([
+    board({}), q(badge, "missing"),
+    board({ extraTurns: 1 }), q(badge, "one"),
+    board({ extraTurns: 2, allMarks: ["RING TEMPTED 2"] }), q(badge, "two"),
+    board({ extraTurns: 2 }), q(badge, "two again"),
+    board({ extraTurns: 1 }), q(badge, "one taken"),
+    board({ extraTurns: 0 }), q(badge, "zero"),
+    board({ extraTurns: 3 }), q('getObjectFromGUID("23e485").clearButtons() return "cleared"', "tracker reloaded"),
+    board({ extraTurns: 3 }), q(badge, "after the reload"),
+    board({ extraTurns: "2" }), q(badge, "a string"),
+    board({ extraTurns: 1 }), { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 }, q(badge, "after the reset")]);
+  const v = (m) => String(valueOf(r, m));
+  const at = (s) => (s.match(/@(.*)$/) || [])[1];
+  ok("extra turns: precondition, no script error, and White has a name", !r.errors.length && !!whiteName, `${whiteName} ${r.errors.slice(0, 2).join(" | ")}`);
+  ok("extra turns: no count (an engine from before), no badge", v("missing") === "no badge", v("missing"));
+  ok("extra turns: one extra turn shows 2, \"has 1 extra turn coming\"", v("one").startsWith(`2 | ${whiteName} has 1 extra turn coming @`), v("one"));
+  ok("extra turns: two show 3, \"has 2 extra turns coming\", one button", v("two").startsWith(`3 | ${whiteName} has 2 extra turns coming @`) && !v("two").includes("||"), v("two"));
+  ok("extra turns: unchanged, the same one button", v("two again") === v("two"), v("two again"));
+  ok("extra turns: a turn taken lowers it", v("one taken") === v("one"), v("one taken"));
+  ok("extra turns: none left, no badge", v("zero") === "no badge", v("zero"));
+  ok("extra turns: a tracker that lost its buttons gets it back", v("after the reload").startsWith(`4 | ${whiteName} has 3 extra turns coming @`), v("after the reload"));
+  ok("extra turns: a count that isn't a number shows nothing", v("a string") === "no badge", v("a string"));
+  ok("extra turns: the end of the game takes it away", v("after the reset") === "no badge", v("after the reset"));
+  // (beside the life counter, on its own half: the counter's top-left lobe, off the marks label under it)
+  const [bx, bz] = String(at(v("one")) || "").split(",").map(Number);
+  ok("extra turns: the badge sits on the counter, above the marks label", Math.abs(bx) <= 1.2 && bz < 0 && bz > -1.6, `at ${at(v("one"))}`);
+}
+// Extra-turn badge fit (checker, 2026-11-07: moving it from local x -1 to +1, onto the [R] lobe, passed every test). On
+// all four trackers, with one digit ("2") and two ("10"), beside a short label and a two-line one: the badge is at local
+// (-1, -1.45), and its box meets none of the tracker's own life number, -20 or [R] buttons (read from the tracker's
+// script in the save), its marks label, or a commander-damage icon (as the marks fit above)
+{
+  const SEATS = { "23e485": "White", "448880": "Red", "37e533": "Yellow", "395037": "Blue" };
+  const icons = cmdIcons(0.6);
+  // the tracker's own buttons, as its script makes them (onload; the fake TTS runs no object scripts)
+  const own = {};
+  for (const g of Object.keys(SEATS)) {
+    const src = String((save.ObjectStates.find((o) => o.GUID === g) || {}).LuaScript || "");
+    const num = (re) => { const m = re.exec(src); return m ? m.slice(1).map(Number) : null; };
+    const X = num(/^x=([-\d.]+)\s*$/m), Z = num(/^z=([-\d.]+)\s*$/m), SC = num(/^scale\s*=\s*\{([\d.]+),1,([\d.]+)\}/m), SC2 = num(/^scale2\s*=\s*\{([\d.]+),1,([\d.]+)\}/m);
+    const MAIN = num(/-- the main button[\s\S]*?height=(\d+),\s*width=(\d+),[\s\S]*?position=\{0,y,z\}/);
+    const SIDE = num(/-- the side buttons[\s\S]*?height=(\d+),\s*width=(\d+),/);
+    const M20 = num(/\{n=-20,l='-20',p=\{-x\*([\d.]+),y,z-([\d.]+)\}\}/);
+    const RST = num(/-- reset life to 40 button[\s\S]*?position=\{x\*([\d.]+),y,z-([\d.]+)\},\s*height=(\d+),\s*width=(\d+),/);
+    const all = [X, Z, SC, SC2, MAIN, SIDE, M20, RST];
+    ok(`badge fit, ${SEATS[g]}: precondition, the tracker's life number, -20 and [R] buttons read from its script`, all.every(Boolean), JSON.stringify(all));
+    if (!all.every(Boolean)) continue;
+    own[g] = {
+      "the life number": { bx: 0, bz: Z[0], w: MAIN[1], h: MAIN[0], scx: SC[0], scz: SC[1] },
+      "the -20": { bx: -X[0] * M20[0], bz: Z[0] - M20[1], w: SIDE[1], h: SIDE[0], scx: SC2[0], scz: SC2[1] },
+      "the [R]": { bx: X[0] * RST[0], bz: Z[0] - RST[1], w: RST[3], h: RST[2], scx: SC2[0], scz: SC2[1] },
+    };
+  }
+  const four = '{ "23e485", "448880", "37e533", "395037" }';
+  const set = (marks, n) => `for _, g in ipairs(${four}) do local o = getObjectFromGUID(g) enginePlayerCounters(o, JSON.decode([==[${JSON.stringify({ allMarks: marks })}]==])) engineExtraTurnBadge(o, { extraTurns = ${n}, name = "P" }) end return "set"`;
+  const btns = `local out = {} for _, g in ipairs(${four}) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, marks = {}, badges = {} } for _, b in ipairs(o.getButtons() or {}) do local q = b.position or {} local e = { label = b.label, w = b.width, h = b.height, bx = q[1] or q.x, bz = q[3] or q.z } if b.tooltip == ENGINE_COUNTERS_TIP then row.marks[#row.marks + 1] = e elseif engineExtraTurnTip(b.tooltip) then row.badges[#row.badges + 1] = e end end out[#out + 1] = row end return JSON.encode(out)`;
+  const CASES = {
+    "one digit, a short label": [["POISON 2"], 1, "2"],
+    "two digits, a two-line label": [["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"], 9, "10"],
+  };
+  const steps = [];
+  for (const [name, [marks, n]] of Object.entries(CASES)) steps.push(q(set(marks, n), `set ${name}`), q(btns, `buttons ${name}`));
+  const r = run(steps);
+  ok("badge fit: precondition, no script error", !r.errors.length, r.errors.slice(0, 2).join(" | "));
+  const list = (v) => (Array.isArray(v) ? v : []);
+  for (const [name, [, , digits]] of Object.entries(CASES)) {
+    let rows = [];
+    try { rows = JSON.parse(String(valueOf(r, `buttons ${name}`))); } catch (e) { /* checked below */ }
+    ok(`badge fit, ${name}: precondition, four trackers, each with one badge "${digits}" and one label`,
+      rows.length === 4 && rows.every((t) => list(t.badges).length === 1 && list(t.badges)[0].label === digits && list(t.marks).length === 1), String(valueOf(r, `buttons ${name}`)).slice(0, 300));
+    for (const t of rows) {
+      const seat = `${name}, ${SEATS[t.g]}`, b = list(t.badges)[0], m = list(t.marks)[0];
+      if (!b || !m || !own[t.g]) continue;
+      ok(`badge fit, ${seat}: at local (-1, -1.45), the counter's top-left lobe`, b.bx === -1 && b.bz === -1.45, `at ${b.bx}, ${b.bz}`);
+      const box = buttonBox(t, b);
+      for (const [what, o] of Object.entries(own[t.g])) ok(`badge fit, ${seat}: clear of ${what}`, !meets(box, buttonBox(t, o)), `badge ${JSON.stringify(box.map((n) => +n.toFixed(2)))} ${what} ${JSON.stringify(buttonBox(t, o).map((n) => +n.toFixed(2)))}`);
+      ok(`badge fit, ${seat}: clear of the marks label`, !meets(box, buttonBox(t, m)), `badge ${JSON.stringify(box.map((n) => +n.toFixed(2)))} label ${JSON.stringify(buttonBox(t, m).map((n) => +n.toFixed(2)))}`);
+      const hit = icons.filter((c) => meets(box, c.box)).map((c) => c.g);
+      ok(`badge fit, ${seat}: clear of every commander-damage icon`, hit.length === 0, `meets ${hit.join(" ")}`);
+    }
+  }
+}
+// (jr suite 2026-11-07) "from the last button down, as a removal moves the ones after it" (engineCountersReset): a
+// tracker with both its marks label and its extra-turn badge loses both at the end of the game, and a button of its own
+// put before them stays (removing from the first up skipped the badge, which moved into the label's place)
+{
+  const count = 'local o = getObjectFromGUID("23e485") local n, own = 0, 0 for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP or engineExtraTurnTip(b.tooltip) then n = n + 1 elseif b.label == "OWN" then own = own + 1 end end return tostring(n) .. " engine, " .. tostring(own) .. " own"';
+  const r = run([
+    q('local o = getObjectFromGUID("23e485") o.createButton({ click_function = "engineNoop", function_owner = Global, label = "OWN" }) enginePlayerCounters(o, { allMarks = { "POISON 2" } }) engineExtraTurnBadge(o, { extraTurns = 1, name = "P" }) return "set"', "set"),
+    q(count, "before"), q("engineCountersReset() return 'reset'", "reset"), q(count, "after")]);
+  ok("reset: precondition, the label and the badge are on the tracker beside its own button", String(valueOf(r, "before")) === "2 engine, 1 own" && !r.errors.length, `${valueOf(r, "before")} ${r.errors.slice(0, 1).join("")}`);
+  ok("reset: the label and the badge both go, the tracker's own button stays", String(valueOf(r, "after")) === "0 engine, 1 own", String(valueOf(r, "after")));
+}
 // (breakit 2026-11-06) a slow library spawn from before "mtg reset" arrives while the next game's library is still on
 // its way (a 100-card deck takes TTS several frames): the late one must leave the new one's "spawning" mark alone, or
 // the next board spawns a second library beside it. The fake TTS's spawnDelay makes library spawns slow: the search's
@@ -1400,6 +1692,62 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   const errs = r.steps.flatMap((s) => (s.fx || []).filter((l) => /"ERROR/.test(l)));
   ok("spawn: the late library callback calls nothing on its destroyed object", errs.length === 0 && r.errors.length === 0, errs.concat(r.errors).slice(0, 2).join(" || "));
   ok("spawn: a late library from before a reset leaves the next game's spawning library alone (one library, no second spawn)", v("race: a board while the new one is still on its way") === "1 library objects, 3 library spawns", v("race: a board while the new one is still on its way"));
+}
+// Done with too few cards picked tells the player how many, as the bridge's own refusal does (live check 11: forage's
+// "Done (1)" of 3 did nothing and said nothing), on the row's Done and the panel's, and sends nothing
+{
+  const sentIn = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ");
+  const said = (r, mark) => fxOf(r, mark).filter((l) => l.includes("broadcastToColor")).join(" | ");
+  const r = run([
+    ask({ promptId: 821, kind: "modal", title: "Choose two", mode: "multi", min: 2, max: 2, options: [{ id: "0", label: "Draw a card" }, { id: "1", label: "Gain 3 life" }, { id: "2", label: "Scry 2" }] }),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_1")', "one mode"),
+    q('return tostring(UI.getAttribute("eng_rowopt_Blue_4", "interactable"))', "row done clickable"),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_4")', "row done"),
+    q('return tostring(UI.getAttribute("eng_confirm_Blue", "interactable"))', "panel done clickable"),
+    q('return tostring(UI.getAttribute("eng_rowopt_Blue_4", "color"))', "row done colour short"),
+    q('engineConfirm("Blue")', "panel done"),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_2")', "second mode"),
+    q('return tostring(UI.getAttribute("eng_rowopt_Blue_4", "color"))', "row done colour ready"),
+    // (a question with a min and no max: its bounds as engineCountOk reads them, "2-99", not "2-nil")
+    ask({ promptId: 822, kind: "modal", title: "Choose two or more", mode: "multi", min: 2, options: [{ id: "0", label: "Draw a card" }, { id: "1", label: "Gain 3 life" }, { id: "2", label: "Scry 2" }] }),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_1")', "open max one"),
+    q('engineConfirm("Blue")', "open max done"),
+  ]);
+  ok("too few: the row's Done can be pressed", valueOf(r, "row done clickable") === "true", valueOf(r, "row done clickable"));
+  ok("too few: the row's Done says how many, and sends nothing", /Choose 2 \(you chose 1\)\./.test(said(r, "row done")) && !sentIn(r, "row done").includes('"choice"'), `${said(r, "row done")} ${sentIn(r, "row done").slice(0, 200)}`);
+  ok("too few: the panel's Done can be pressed", valueOf(r, "panel done clickable") === "true", valueOf(r, "panel done clickable"));
+  // (jr suite 2026-11-07: "the panel's Done says it too" passed on the row's message alone. The panel's press right after
+  // the row's says nothing, tell's 3 s repeat guard, and sends nothing; its own message is checked in a run below)
+  ok("too few: the panel's Done right after the row's sends nothing", !sentIn(r, "panel done").includes('"choice"'), sentIn(r, "panel done").slice(0, 200));
+  // ("only its colour says it isn't ready": grey below its count, the primary orange once the count is met, the colour
+  // engineCountOk gives the row's Done)
+  ok("too few: the row's Done is grey below its count and orange once it is met", valueOf(r, "row done colour short") === "#2e3a59" && valueOf(r, "row done colour ready") === "#e8711a",
+    `${valueOf(r, "row done colour short")} -> ${valueOf(r, "row done colour ready")}`);
+  ok("too few: a question with no max says its bounds as 2-99", /Choose 2-99 \(you chose 1\)\./.test(said(r, "open max done")) && !sentIn(r, "open max done").includes('"choice"'), said(r, "open max done"));
+  // (the panel's own press, in a run of its own: tell says the same words to a player once in 3 s, so the panel's press
+  // right after the row's said nothing, by design)
+  const r2 = run([
+    ask({ promptId: 823, kind: "modal", title: "Choose two", mode: "multi", min: 2, max: 2, options: [{ id: "0", label: "Draw a card" }, { id: "1", label: "Gain 3 life" }, { id: "2", label: "Scry 2" }] }),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_1")', "one mode"),
+    q('engineConfirm("Blue")', "panel done alone"),
+  ]);
+  ok("too few: the panel's Done says it on its own, and sends nothing", /Choose 2 \(you chose 1\)\./.test(said(r2, "panel done alone")) && !sentIn(r2, "panel done alone").includes('"choice"'), `${said(r2, "panel done alone")} ${sentIn(r2, "panel done alone").slice(0, 200)}`);
+}
+// Kykar hand test #16: a finished game's top bar shows GAME OVER and why, no turn or step
+{
+  const r = run([q('local t = engineTable() t.gameOver = false engineUpdateCorner("Blue", nil) return tostring(UI.getValue("eng_phase_Blue"))', "playing"),
+    q('local t = engineTable() t.gameOver = true t.overWhy = "Blue and AI 1 drew from an empty library" engineUpdateCorner("Blue", nil) return tostring(UI.getValue("eng_phase_Blue"))', "over")]);
+  const bar = String(valueOf(r, "over"));
+  ok("precondition: a running game's bar shows the turn", /TURN/.test(String(valueOf(r, "playing"))), String(valueOf(r, "playing")) + " " + r.errors.join(" | "));
+  ok("kykar #16: a finished game's bar says GAME OVER and why, no turn", /GAME OVER/.test(bar) && bar.includes("Blue and AI 1 drew from an empty library") && !/TURN|Main 1|MAIN 1/.test(bar), bar);
+}
+// Kykar hand test #27: copies of cards in a pile (Arcane Bombardment) are cast, not dragged out: the hint says where to pick
+{
+  const r = run([q('engineInPile["engine-card-1940"] = true return "in pile"', "pile"),
+    ask({ promptId: 993, kind: "cards", title: "Arcane Bombardment: cast which copy?", text: "The copy is cast; the card stays where it is.", mode: "multi", min: 0, max: 1, copies: true, options: [{ id: "engine-card-1940", label: "Opt" }] }), { frames: 10 },
+    q('return tostring(UI.getValue("eng_hint_Blue"))', "hint")]);
+  const hint = String(valueOf(r, "hint"));
+  ok("kykar #27: copies' hint says the card row or the Engine panel, no drag", hint.includes("Pick it in the card row or the Engine panel.") && !/drag/i.test(hint), hint + " " + r.errors.join(" | "));
 }
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

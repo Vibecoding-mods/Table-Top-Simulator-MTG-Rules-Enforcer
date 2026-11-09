@@ -327,11 +327,16 @@ local function badgeParts(c)
   if plus ~= 0 then table.insert(ctr, 1, (plus > 0 and "+" or "") .. plus .. "/" .. (plus > 0 and "+" or "") .. plus) end
   if #ctr > 0 then parts[#parts + 1] = { "ctr", table.concat(ctr, "\n"), BADGE.ctrBg } end
   if c.p ~= nil and c.t ~= nil then
+    -- bp/bt: the numbers on the card's picture, nil when it shows none (an X/X token's */*, a Tarmogoyf) or isn't
+    -- known: then the badge always says the numbers, black, or down when damaged, never up (a 6/6 Dinosaur Beast
+    -- showed none)
     local p, t, bp, bt = tonumber(c.p), tonumber(c.t), tonumber(c.bp), tonumber(c.bt)
+    local known = c.bp ~= nil and c.bt ~= nil
+    -- (a nil base is a change: tostring(nil) is "nil")
     local changed = tostring(c.p) ~= tostring(c.bp) or tostring(c.t) ~= tostring(c.bt)
     if changed or dmg > 0 then
       local lower = dmg > 0 or (p and bp and p < bp) or (t and bt and t < bt)
-      parts[#parts + 1] = { "pt", tostring(c.p) .. "/" .. tostring(t and (t - dmg) or c.t), lower and BADGE.down or BADGE.up }
+      parts[#parts + 1] = { "pt", tostring(c.p) .. "/" .. tostring(t and (t - dmg) or c.t), lower and BADGE.down or (known and BADGE.up or BADGE.black) }
     end
   elseif special ~= nil then parts[#parts + 1] = { "pt", special, BADGE.black } end
   return parts
@@ -350,7 +355,10 @@ local function updateBadge(o, c, zone)
     enginePhaseTint[c.id] = nil
     o.setColorTint({ 1, 1, 1 })
   end
-  local text = (zone == "battlefield" and (not c.fd or c.po)) and badgeText(c) or ""
+  -- (a face-down permanent has badges too, drawn on the side that faces up, its back: one pumped or damaged said nothing.
+  -- Its base is the rules' 2/2, bridge tableCard, so a plain morph has none. "=under" in the text redraws it with the next board after a flip.)
+  local text = zone == "battlefield" and badgeText(c) or ""
+  if text ~= "" and (c.fd == true) ~= (engineFlipped[c.id] == true) then text = text .. "=under" end
   -- (the card's ability buttons are drawn with its badges: one set of buttons per card, engineAbilityButtons)
   local ab = engineAbilitySig ~= nil and engineAbilitySig(c) or ""
   if engineBadge[c.id] == text .. "#" .. ab then return end
@@ -381,6 +389,10 @@ local function updateBadge(o, c, zone)
     local where, turn = { pos[1], pos[2], pos[3] + (b[1] == "ctr" and 0.13 * (lines - 1) or kwb and -h / 2000 or 0) }, { 0, 0, 0 }
     -- (a tapped card turns its status box back so it reads the right way up, as engineAbilityButtons does)
     if kwb and c.tap then where, turn = { -where[3], pos[2], 0 }, { 0, -90, 0 } end
+    -- (on the back of a card lying face down: turned over with it, so it sits at the same corner as seen from above; the
+    -- card's flip about its length reverses a turn about its upright, so a tapped one's status box turns back the other
+    -- way: -90 read upside down there)
+    if text:sub(-6) == "=under" then where, turn = { -where[1], -where[2], where[3] }, { turn[1], 0 - turn[2], turn[3] + 180 } end
     o.createButton({ click_function = "engineNoop", function_owner = Global, label = b[2],
       position = where, rotation = turn, width = tbb and 880 or kwb and math.min(1000, math.max(340, 50 * longest + 100)) or math.max(340, 112 * longest),
       -- (the changed text box covers the printed one from under the type line to above the power/toughness)
@@ -795,6 +807,7 @@ local function updateTrackers(m)
     if color ~= nil then
       setLife(color, pl.life)
       if enginePlayerCounters ~= nil then pcall(enginePlayerCounters, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
+      if engineExtraTurnBadge ~= nil then pcall(engineExtraTurnBadge, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
       for from, guid in pairs(CMD_DAMAGE[color] or {}) do setCounterVal(guid, (pl.cmdDamage or {})[from] or 0) end
       for i, guid in ipairs(TAX_LABELS[color] or {}) do setTax(guid, (pl.tax or {})[i] or 0) end
     end
@@ -824,12 +837,145 @@ BASE_GLOW = { stack = {0.75, 0.35, 1}, atk = {1, 0.12, 0.08}, blk = {0.15, 0.45,
 ENGINE_COUNTERS_TIP = "Poison (ten and that player loses), energy and the other player counters, the monarch (draws at their end step), the initiative, the city's blessing, an enduring story, the Ring's temptations, speed, a turn run by another player, an extra turn, damage prevention, hand size, and what protects or binds the player"
 engineCountersShown = {} -- counter object guid -> the label it shows (redrawn only on a change)
 -- (the label goes with the game: it stayed on the normal table after a reset, stage 3 review 2026-10-27)
+-- (the extra-turn number beside the life counter goes too, engineExtraTurnBadge; from the last button down, as a
+-- removal moves the ones after it)
 function engineCountersReset()
   for _, guid in pairs(LIFE_TRACKERS) do
     local o = getObjectFromGUID(guid)
-    for i, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then o.removeButton(i - 1) break end end
+    local buttons = (o and o.getButtons()) or {}
+    for i = #buttons, 1, -1 do
+      if buttons[i].tooltip == ENGINE_COUNTERS_TIP or engineExtraTurnTip(buttons[i].tooltip) then o.removeButton(i - 1) end
+    end
   end
   engineCountersShown = {}
+end
+-- How the marks label fits its seat (live check 9, 2026-11-06: Red's "TURN RUN BY WHITE" ran into White's "RING
+-- TEMPTED 2   SPEED 3" between the two life counters). The two trackers of a side are 7 world units apart, so a label
+-- centred under its counter and wider than about 2,700 button units crossed into the next seat's. Now: a label reaches
+-- at most `inner` button units from its counter towards the middle of the table, and no commander-damage icon is under
+-- it (the checker's finding, 2026-11-07: the bottom icon of each column sat in the label's row, its digit over "SPEED");
+-- a label that fits between the counter and its icon column stays there, a wider one starts just past the column (the
+-- strip between the counters and the mats is empty out to the commander zones, ~40 units out; engineMarksStart). Its
+-- lines are at most `max` wide; a label that needs more than two lines at one size is drawn smaller (`fonts`), and past
+-- the smallest it is cut to two lines (engineMarksClamp). The bottom edge stays where a one-line label's is, just above
+-- the mat (its zone's edge, 0.08 below it); a second line goes up, away from the mat (two lines are at least ~3,750
+-- wide, so they always start past the icons and the heart is never under them). A short label stays as it was: centred, one line, font 300. perLocal: button units in one
+-- local unit of the tracker, measured on the live crop (a 4500-wide label was 11.75 world units on a tracker scaled
+-- 1.258; Red's 3275 and White's 4500 edges matched to a few pixels). icon: half the side of a commander-damage icon in
+-- world units (1.16 a side on the live shot 9-ring-speed, at the save's scale 0.321); clear: the room kept around one.
+ENGINE_MARKS_FIT = { inner = 1150, max = 8000, perLocal = 480, fonts = { 300, 250, 210, 180 }, z = 1.45, icon = 0.6, clear = 0.1 }
+-- the box a line of k marks needs at font f: as wide as its letters, and at least 640 a mark (a long mark such as
+-- "YOU CAN'T LOSE THE GAME" ran past a box sized by the count of marks); at font 300, the width the label always had
+function engineMarksWidth(text, k, f)
+  return math.floor(math.max(640 * k + 300, 175 * #text + 300) * f / 300 + 0.5)
+end
+-- the marks packed into lines of at most ENGINE_MARKS_FIT.max at font f, in order, a mark never split: { text (the
+-- lines joined by "\n"), lines, font, width (the widest line's), height }
+function engineMarksLines(parts, f)
+  local lines, counts, width = {}, {}, 0
+  for _, m in ipairs(parts) do
+    local n = #lines
+    if n > 0 and engineMarksWidth(lines[n] .. "   " .. m, counts[n] + 1, f) <= ENGINE_MARKS_FIT.max then
+      lines[n], counts[n] = lines[n] .. "   " .. m, counts[n] + 1
+    else
+      lines[n + 1], counts[n + 1] = m, 1
+    end
+  end
+  for i, l in ipairs(lines) do width = math.max(width, engineMarksWidth(l, counts[i], f)) end
+  return { text = table.concat(lines, "\n"), lines = #lines, font = f, width = width,
+    height = math.floor((380 * #lines - 40 * (#lines - 1)) * f / 300 + 0.5) }
+end
+-- the largest font whose lines fit, two lines at most (the smallest font's lines cut to two otherwise)
+function engineMarksLayout(parts)
+  local fonts = ENGINE_MARKS_FIT.fonts
+  for _, f in ipairs(fonts) do
+    local fit = engineMarksLines(parts, f)
+    if fit.lines <= 2 and fit.width <= ENGINE_MARKS_FIT.max then return fit end
+  end
+  return engineMarksClamp(parts, fonts[#fonts])
+end
+-- Marks too long for two lines of the smallest font (past ~150 letters): a mark longer than a line is cut to one, ending
+-- "...", at a whole character; then the first marks that fit in two lines, in order, and "+n MORE" for the ones left out
+function engineMarksClamp(parts, f)
+  local max = ENGINE_MARKS_FIT.max
+  local room = math.floor((max * 300 / f - 300) / 175) -- the letters one line holds
+  local cut = {}
+  for i, m in ipairs(parts) do
+    if #m > room then
+      local n = room - 3
+      -- (not inside a character: the byte after the cut is no UTF-8 continuation byte)
+      while n > 0 and (m:byte(n + 1) or 0) >= 128 and (m:byte(n + 1) or 0) < 192 do n = n - 1 end
+      cut[i] = m:sub(1, n) .. "..."
+    else
+      cut[i] = m
+    end
+  end
+  local fit = engineMarksLines(cut, f)
+  if fit.lines <= 2 and fit.width <= max then return fit end
+  for k = #cut - 1, 0, -1 do
+    local some = {}
+    for i = 1, k do some[i] = cut[i] end
+    some[k + 1] = "+" .. tostring(#cut - k) .. " MORE"
+    fit = engineMarksLines(some, f)
+    if fit.lines <= 2 and fit.width <= max then return fit end
+  end
+  return fit
+end
+-- The commander-damage icons beside a tracker's label, as stretches of the label's line: { lo, hi } in button units
+-- outward from the counter (s: sign is engineMarksOutward's), for every icon (CMD_DAMAGE, read where it lies) whose box
+-- with its room around it meets the rows vTop..vBot (button units along the label's +z, the counter's centre 0)
+function engineMarksIcons(o, sign, vTop, vBot)
+  local fitIn = ENGINE_MARKS_FIT
+  local p, r, sc = o.getPosition(), o.getRotation(), o.getScale()
+  local a = math.rad(r.y or 0)
+  local ku, kv = fitIn.perLocal / (sc.x or 1), fitIn.perLocal / (sc.z or 1)
+  local half = fitIn.icon + fitIn.clear
+  local out = {}
+  for _, seat in pairs(CMD_DAMAGE) do
+    for _, guid in pairs(seat) do
+      local i = getObjectFromGUID(guid)
+      if i ~= nil then
+        local q = i.getPosition()
+        local dx, dz = (q.x or 0) - (p.x or 0), (q.z or 0) - (p.z or 0)
+        local s = sign * (-dx * math.cos(a) + dz * math.sin(a)) * ku
+        local v = (dx * math.sin(a) + dz * math.cos(a)) * kv
+        if v + half * kv > vTop and v - half * kv < vBot then out[#out + 1] = { lo = s - half * ku, hi = s + half * ku } end
+      end
+    end
+  end
+  return out
+end
+-- Where a label w wide and h high starts along its line (s, as engineMarksIcons): the free place nearest the centred one
+-- (-w/2, and at most `inner` towards the middle), so a label that fits between the counter and its icons stays there
+-- and a wider one starts just past them; on a tie, the one further out
+function engineMarksStart(o, sign, w, h)
+  local fitIn = ENGINE_MARKS_FIT
+  local bottom = fitIn.z * fitIn.perLocal + 190
+  local icons = engineMarksIcons(o, sign, bottom - h, bottom)
+  local want = -math.min(w / 2, fitIn.inner)
+  local tries = { want }
+  for _, b in ipairs(icons) do
+    tries[#tries + 1] = b.lo - w
+    tries[#tries + 1] = b.hi
+  end
+  local best
+  for _, s in ipairs(tries) do
+    -- (touching is free: b.lo - w + w can come back a hair over b.lo)
+    local free = s >= -fitIn.inner - 0.001
+    for _, b in ipairs(icons) do if s < b.hi - 0.001 and s + w > b.lo + 0.001 then free = false end end
+    if free and (best == nil or math.abs(s - want) < math.abs(best - want) or (math.abs(s - want) == math.abs(best - want) and s > best)) then best = s end
+  end
+  return best or want
+end
+-- Which way along a tracker's label is away from the middle of the table, in button x: +1, -1, or 0 for a tracker on
+-- the middle line. TTS draws a button's +x on its reader's right (the tracker's own "+20" is at +x and shows on its
+-- owner's right), which is world (-cos ry, 0, sin ry) for a tracker turned ry about y.
+function engineMarksOutward(o)
+  local p, r = o.getPosition(), o.getRotation()
+  local a = math.rad(r.y or 0)
+  local s = -(p.x or 0) * math.cos(a) + (p.z or 0) * math.sin(a)
+  if s > 0.01 then return 1 elseif s < -0.01 then return -1 end
+  return 0
 end
 function enginePlayerCounters(o, pl)
   if o == nil then return end
@@ -840,20 +986,65 @@ function enginePlayerCounters(o, pl)
   if type(pl.allMarks) == "table" then
     for _, m in ipairs(pl.allMarks) do parts[#parts + 1] = tostring(m) end
   end
-  local label = table.concat(parts, "   ")
+  local fit = #parts > 0 and engineMarksLayout(parts) or { text = "" }
+  local label = fit.text
   local at
   for i, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then at = i - 1 end end
   -- (unchanged and still there: the tracker's own onload clears its buttons, stage 3 review 2026-10-27)
   if engineCountersShown[o.getGUID()] == label and (at ~= nil) == (label ~= "") then return end
   engineCountersShown[o.getGUID()] = label
-  -- (as wide as its letters: a long mark such as "YOU CAN'T LOSE THE GAME" ran past a box sized by the count of marks)
-  local width = math.max(640 * #parts + 300, 175 * #label + 300)
-  if label ~= "" and at ~= nil then o.editButton({ index = at, label = label, width = width })
-  elseif label ~= "" then
-    o.createButton({ click_function = "engineNoop", function_owner = Global, label = label, position = { 0, 0.05, 1.45 },
-      rotation = { 0, 0, 0 }, width = width, height = 380, font_size = 300, color = { 0.04, 0.2, 0.05, 0.92 }, font_color = { 0.45, 1, 0.45 },
-      tooltip = ENGINE_COUNTERS_TIP })
-  elseif at ~= nil then o.removeButton(at) end
+  if label == "" then
+    if at ~= nil then o.removeButton(at) end
+    return
+  end
+  -- (the inner edge kept off the next seat's half and off the icons: engineMarksStart; a second line grows away from the
+  -- mat, the bottom edge staying where a one-line label's is)
+  local fitIn = ENGINE_MARKS_FIT
+  local sign = engineMarksOutward(o)
+  if sign == 0 then sign = 1 end
+  local centre = engineMarksStart(o, sign, fit.width, fit.height) + fit.width / 2
+  local x = centre ~= 0 and sign * centre / fitIn.perLocal or 0
+  local look = { label = label, width = fit.width, height = fit.height, font_size = fit.font,
+    position = { x, 0.05, fitIn.z + (380 - fit.height) / 2 / fitIn.perLocal } }
+  if at ~= nil then
+    look.index = at
+    o.editButton(look)
+  else
+    look.click_function, look.function_owner, look.rotation, look.tooltip = "engineNoop", Global, { 0, 0, 0 }, ENGINE_COUNTERS_TIP
+    look.color, look.font_color = { 0.04, 0.2, 0.05, 0.92 }, { 0.45, 1, 0.45 }
+    o.createButton(look)
+  end
+end
+-- The extra turns a player has coming (the bridge's extraTurns, Forge's extra turn count) as a number beside the life
+-- counter: the count + 1, so one extra turn shows 2, "two turns in a row" (docs/extra-turn-counter-spec.md); none at 0
+-- or with no count (an engine from before it). On the counter's top-left lobe, the side away from its [R]: local
+-- (-1, -1.45), 320 high, so its box (z -1.78..-1.12) is clear of the life number's button (to -1.08), the -20 under it
+-- (from -0.95) and the [R] (x from 0.61), checked in tests/test_table_claims.js "extra-turn badge fit"; the hover text
+-- names the count, "AI 1 has 2 extra turns coming", and finds the button again (engineExtraTurnTip)
+function engineExtraTurnTip(t)
+  return type(t) == "string" and t:sub(-7) == " coming" and t:find(" extra turn", 1, true) ~= nil
+end
+function engineExtraTurnBadge(o, pl)
+  if o == nil then return end
+  local n = type(pl.extraTurns) == "number" and math.floor(pl.extraTurns) or 0
+  local at, now
+  for i, b in ipairs(o.getButtons() or {}) do if engineExtraTurnTip(b.tooltip) then at, now = i - 1, b end end
+  if n < 1 then
+    if at ~= nil then o.removeButton(at) end
+    return
+  end
+  local label = tostring(n + 1)
+  local tip = tostring(pl.name or pl.color) .. " has " .. tostring(n) .. (n == 1 and " extra turn" or " extra turns") .. " coming"
+  if now ~= nil and now.label == label and now.tooltip == tip then return end
+  local look = { label = label, tooltip = tip, width = 200 + 160 * #label, height = 320, font_size = 280 }
+  if at ~= nil then
+    look.index = at
+    o.editButton(look)
+  else
+    look.click_function, look.function_owner, look.position, look.rotation = "engineNoop", Global, { -1, 0.06, -1.45 }, { 0, 0, 0 }
+    look.color, look.font_color = { 0.95, 0.72, 0.15, 0.95 }, { 0.12, 0.06, 0 }
+    o.createButton(look)
+  end
 end
 -- true while a player's open question has its own glow on the object (it gives the base glow back afterwards)
 function engineGlowOwned(o)
@@ -1720,7 +1911,9 @@ function engineRender(m)
   end
   if m.gameOver and not engineOverAnnounced then
     engineOverAnnounced = true
-    broadcastToAll("[MTG] GAME OVER" .. (m.winner and (" - " .. engineNameOf(m.winner) .. " wins!") or " - draw."), {1, 0.85, 0.3})
+    -- (the bridge's why already names the winner, or says "a draw": said once, "GAME OVER - Blue wins! (AI 1 is at 0
+    -- life. Blue wins)" said it twice, review 2026-11-09)
+    broadcastToAll("[MTG] GAME OVER - " .. (m.overWhy and (tostring(m.overWhy) .. ".") or (m.winner and (engineNameOf(m.winner) .. " wins!") or "draw.")), {1, 0.85, 0.3})
     if engineGameOverBanner ~= nil then engineGameOverBanner(m) end
   elseif not m.gameOver then engineOverAnnounced = false end
   sect("status")
@@ -2481,7 +2674,12 @@ function engineUpdateCorner(color, p)
   setAttr("eng_phasebg_" .. color, "active", t ~= nil and "true" or "false")
   -- day or night, once a daybound card has made it one (nothing showed it, playtest 2026-10-26)
   local day = (t and t.day == "day") and "      <b><color=#FFE08A>DAY</color></b>" or ((t and t.day == "night") and "      <b><color=#9FB4FF>NIGHT</color></b>" or "")
-  setText("eng_phase_" .. color, whose .. "      " .. table.concat(parts, "   ›   ") .. day)
+  -- (a finished game shows no turn: the bar read "YOUR TURN ... MAIN 1" after the engine ended Kykar's game, #16)
+  if t ~= nil and t.gameOver then
+    setText("eng_phase_" .. color, "<b><color=#FFD27A>GAME OVER</color></b>" .. (t.overWhy and ("      " .. engineCut(tostring(t.overWhy), 150)) or ""))
+  else
+    setText("eng_phase_" .. color, whose .. "      " .. table.concat(parts, "   ›   ") .. day)
+  end
   -- instruction line (Arena-style): what the open question wants, in table terms; or who you're waiting for
   local hint = ""
   local q = enginePrompts[color]
@@ -2495,6 +2693,10 @@ function engineUpdateCorner(color, p)
         or "\nClick a card, then your library (or Done). Dragging it there works too.")
     -- (cards in a graveyard or exile pile, maybe another player's: nothing on the table glows, so say where they are;
     -- Dauthi Voidwalker's choice among the AI's exiled cards showed only Done, hp-07 2026-10-27)
+    -- (copies of cards in a pile are cast, the cards stay: nothing to drag out, Kykar hand test #27; any kind, as the
+    -- pile's cards are no objects of their own)
+    elseif q.copies then
+      hint = title .. "\nPick it in the card row or the Engine panel."
     elseif kind == "cards" and q.pileChoices ~= nil then
       hint = title .. "\nRight-click that graveyard or exile pile -> Search, and drag the card out. Or Engine: show."
     elseif kind == "cards" and engineExactPick(q) then
@@ -2631,6 +2833,11 @@ function engineStopsOf(color)
   return engineStops[color]
 end
 
+-- whether n picks answer a multi-pick question p: from its min (0 when unsaid) to its max (99); the one rule for the
+-- row's Done colour and confirm's refusal, which say the same of the same picks
+function engineCountOk(p, n)
+  return n >= (p.min or 0) and n <= (p.max or 99)
+end
 local function updateOptions(color)
   -- (a fix from hand: the engine is paused, and the panel lists the player's hand instead, M7 §12)
   if engineFixHandDraw ~= nil and engineFixHandDraw(color) then return end
@@ -2687,10 +2894,10 @@ local function updateOptions(color)
   engineUpdateCorner(color, p)
   if p.mode == "multi" then
     local n = count(sel)
-    local ok = n >= (p.min or 0) and n <= (p.max or 99)
     local need = (p.min == p.max) and tostring(p.min) or (tostring(p.min) .. "-" .. tostring(p.max))
     setText("eng_confirm_" .. color, p.min == p.max and string.format("Done (%d of %s)", n, need) or string.format("Done (%d chosen)", n))
-    setAttr("eng_confirm_" .. color, "interactable", ok and "true" or "false")
+    -- (pressable below its count too: confirm says how many, live check 11)
+    setAttr("eng_confirm_" .. color, "interactable", "true")
     setAttr("eng_confirm_" .. color, "active", "true")
   else
     setAttr("eng_confirm_" .. color, "active", "false")
@@ -2974,8 +3181,15 @@ local function confirm(color)
   if p.scry ~= nil and engineScryFinish ~= nil then return engineScryFinish(color) end
   local ids = {}
   for i, o in ipairs(p.options or {}) do if engineSelected[color] and engineSelected[color][i] then ids[#ids + 1] = o.id end end
-  -- too few or too many would make the engine abort the game (the bridge checks this too)
-  if #ids < (p.min or 0) or #ids > (p.max or 99) then return end
+  -- too few or too many would make the engine abort the game (the bridge checks this too): said, as the bridge's own
+  -- refusal says it (forage's Done of 1 of 3 did nothing and said nothing, live check 11)
+  if not engineCountOk(p, #ids) then
+    -- (the same bounds engineCountOk reads: a question without its min or max says "0-..." or "...-99", never "nil")
+    local lo, hi = p.min or 0, p.max or 99
+    local need = lo == hi and tostring(lo) or (tostring(lo) .. "-" .. tostring(hi))
+    if engineTell ~= nil then engineTell(color, "Choose " .. need .. " (you chose " .. #ids .. ").") end
+    return
+  end
   engineAnswer(color, ids)
 end
 
@@ -3082,7 +3296,8 @@ function engineRowUpdate(color)
   end
   if p.mode == "multi" and not engineExactPick(p) then
     local n = count(sel)
-    b[#b + 1] = { id = "confirm", text = "Done (" .. n .. ")", primary = true, ok = n >= (p.min or 0) and n <= (p.max or 99) }
+    -- (pressable below its count too, to say how many: only its colour says it isn't ready)
+    b[#b + 1] = { id = "confirm", text = "Done (" .. n .. ")", primary = engineCountOk(p, n) }
   end
   -- wide enough for its pictures and its buttons (220 each, 12 apart)
   setAttr("eng_row_" .. color, "width", tostring(math.max(720, #tiles * 192 + 60, math.min(#b, ROW_BTNS) * 232 + 48)))
@@ -6675,9 +6890,9 @@ function engineSelfCheck()
   -- What the engine says about a card on the battlefield against what a player sees on it. Each "map:" line is a fact
   -- bridge/table-map.js says is checked here, and tests/test_table_map.js looks for it.
   local function checkFacts(card, o, label)
-    -- map:badges (attached and face-down cards have none: updateBadge)
+    -- map:badges (attached cards have none; a face-down one's are on its back: updateBadge)
     -- map:counters (they are in badgeParts: a pair of +1/+1 and -1/-1 counters shows nothing, so this is what can say)
-    if card.att == nil and (not card.fd or card.po) then
+    if card.att == nil then
       local want, have = {}, {}
       for _, b in ipairs(badgeParts(card)) do want[#want + 1] = b[2] end
       for _, b in ipairs(o.getButtons() or {}) do if b.click_function == "engineNoop" then have[#have + 1] = tostring(b.label) end end

@@ -1883,7 +1883,8 @@ add({ name: "friendly: the vote's result", run: async (h) => {
   } });
 }
 // 2026-10-31: Saw in Half's tokens of a 2/2 are 1/1 with a base of 1/1: bp/bt carry the printed numbers, so the table's
-// badge shows. Without printed numbers (a real token, a printed *) the base is used, as before
+// badge shows. Without printed numbers (a printed *, a copy Forge sends none for) there is no base: null, and the badge
+// always shows (live 2026-11-08: an X/X token's base 6 hid its 6/6)
 add({ name: "table: bp/bt are the printed numbers", run: async (h) => {
   const s = clone(D2.board);
   const bf = s.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0");
@@ -1938,10 +1939,31 @@ add({ name: "start: the room isn't open yet (just restarted): asked for again ev
 // ── relay link recovery (reconnect, 2026-10-20) ──
 const frame = (ws, msg) => ws.emit("message", JSON.stringify(msg));
 // 2026-10-22: Forge crashes writing the result of a loss by drawing from an empty library; the relay says "aborted"
-add({ name: "aborted: an empty library is named as the reason, once", run: async (h) => {
+// (the evidence, verify 2026-11-09: the board came in with the library empty in the player's own draw step, noteOuts;
+// since the suite review of 2026-11-09, only when an earlier board showed it empty before that draw step: one first
+// seen empty in the draw step may be that draw's last card, drawn. This case's single board is no longer enough, the
+// next one has the upkeep before it)
+add({ name: "aborted: an empty library seen before the draw step is named as the reason, once", run: async (h) => {
   const board = clone(D2.board);
   for (const z of board.gameView.zones) if (z.zone === "library" && z.ownerId === "player-0") { z.count = 0; z.cards = []; }
+  Object.assign(board.gameView, { step: "upkeep", activePlayerId: "player-0" });
   const seat = game(h, board);
+  seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(board), fingerprint: "f-empty-upkeep" }); await h.flush();
+  const draw = clone(board);
+  draw.gameView.step = "draw";
+  seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(draw), fingerprint: "f-empty" }); await h.flush();
+  const ws = h.sockets.at(-1);
+  frame(ws, { type: "GameAborted" });
+  frame(ws, { type: "GameAborted" });
+  await h.flush();
+  return null;
+} });
+add({ name: "aborted: an empty library first seen in the draw step names no reason", run: async (h) => {
+  const board = clone(D2.board);
+  for (const z of board.gameView.zones) if (z.zone === "library" && z.ownerId === "player-0") { z.count = 0; z.cards = []; }
+  Object.assign(board.gameView, { step: "draw", activePlayerId: "player-0" });
+  const seat = game(h, board);
+  seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(board), fingerprint: "f-empty" }); await h.flush();
   const ws = h.sockets.at(-1);
   frame(ws, { type: "GameAborted" });
   frame(ws, { type: "GameAborted" });

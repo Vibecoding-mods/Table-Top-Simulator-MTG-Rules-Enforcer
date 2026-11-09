@@ -46,9 +46,14 @@ for (const f of playerFields) ok(`PlayerDto.${f} is mapped`, !!PLAYER_FACTS[f], 
 for (const f of Object.keys(PLAYER_FACTS)) ok(`${f} is still a PlayerDto field`, playerFields.includes(f));
 const send = bridge.slice(bridge.indexOf("function sendTable("), bridge.indexOf("function sendTable(") + 6000);
 const marksFn = bridge.slice(bridge.indexOf("function playerMarks("), bridge.indexOf("function cardIndex("));
+// (a key playerMarks sends beside allMarks: a PLAYER_MARKS row's value under a row key of its own, its `row`, extraTurns;
+// playerMarks sends every row's)
+const marksKeys = new Set([...marksFn.matchAll(/\{ key: "\w+", row: "(\w+)"/g)].map((m) => m[1]));
+ok("playerMarks: precondition, its own row keys were found (extraTurns), and it sends each row's", marksKeys.has("extraTurns") && /\.\.\.playerMarks\(p, pub\)/.test(send)
+  && /for \(const m of PLAYER_MARKS\) if \(m\.row && markShown\(values\[m\.key\]\)\) out\[m\.row\] = values\[m\.key\];/.test(marksFn), [...marksKeys].join(" "));
 for (const [f, e] of Object.entries(PLAYER_FACTS)) for (const k of e.to || []) {
   ok(`${f}: the player row sends ${k}`, k === "allMarks" ? /\.\.\.playerMarks\(p, pub\)/.test(send) && /\{ allMarks: labels \}/.test(marksFn)
-    : new RegExp(`\\b${k}\\b`).test(send), "the map names a key that is gone");
+    : new RegExp(`\\b${k}\\b`).test(send) || marksKeys.has(k), "the map names a key that is gone");
   ok(`${f}: the table reads ${k}`, new RegExp(`\\.${k}\\b|\\[k\\]`).test(lua), "sent, and nothing reads it");
   if (k === "allMarks") ok(`${f}: PLAYER_MARKS reads it`, new RegExp(`\\bp\\.${f}\\b|"${f.replace(/s$/, "")}"|playerCounter\\(p`).test(marksFn), "no PLAYER_MARKS row reads this field");
 }
@@ -60,7 +65,8 @@ ok("PLAYER_MARKS reads: precondition, the rows' fields were found (counters, rin
   ["counters", "ringLevel", "speed", "controlledBy", "isExtraTurn"].every((f) => marksRead.has(f)) && marksRead.size >= 10, [...marksRead].join(" "));
 for (const f of marksRead) {
   if (f === "id") { ok("PLAYER_MARKS reads id: mapped", !!PLAYER_FACTS.id?.to?.length, JSON.stringify(PLAYER_FACTS.id)); continue; }
-  ok(`PLAYER_MARKS reads ${f}: PLAYER_FACTS maps it to allMarks`, !!PLAYER_FACTS[f]?.to?.includes("allMarks"),
+  ok(`PLAYER_MARKS reads ${f}: PLAYER_FACTS maps it to allMarks or a row key playerMarks sends`,
+    !!PLAYER_FACTS[f]?.to?.some((k) => k === "allMarks" || marksKeys.has(k)),
     `${JSON.stringify(PLAYER_FACTS[f])}: a mark is drawn from it, so it is no skip or gap`);
 }
 // (trackMarks step 6) the old mark fields are gone from the row and from the table: no player row key, no Lua reader

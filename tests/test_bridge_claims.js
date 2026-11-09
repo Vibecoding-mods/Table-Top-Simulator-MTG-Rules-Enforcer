@@ -507,6 +507,42 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     await h.flush();
     harness.restore();
   }
+  // extra-turn counter (docs/extra-turn-counter-spec.md, 2026-11-06): the row's extraTurns is Forge's extraTurnCount
+  // read as a positive number, left out at 0 and when the engine doesn't send it (an engine from before); the log says
+  // "will take an extra turn (n coming)" exactly when the count goes up, with the count after it, and nothing when it
+  // goes down (a turn taken, a rewind past Time Walk). The rule is stated here from the spec, not read from the code
+  {
+    const COUNTS = [undefined, 0, 1, 2, 3, "2", -1, true];
+    const pos = (v) => (typeof v === "number" && v > 0 ? v : 0);
+    const at = (v) => { const b = clone(F.board); const p = b.gameView.players.find((x) => x.id === "player-0"); if (v === undefined) delete p.extraTurnCount; else p.extraTurnCount = v; return b; };
+    let rows = 0, shown = 0;
+    for (const v of COUNTS) {
+      const h = harness.load();
+      setup(h, at(v));
+      h.B.sendTable(); await h.flush();
+      const r = sent(h, "table").pop()?.players.find((p) => p.color === "Blue");
+      harness.restore();
+      if (!r) continue;
+      rows++; if ("extraTurns" in r) shown++;
+      ok(`extra turns ${JSON.stringify(v)}: the row's extraTurns is the count when above 0, and absent otherwise`,
+        pos(v) > 0 ? r.extraTurns === pos(v) : !("extraTurns" in r), JSON.stringify(r.extraTurns));
+      ok(`extra turns ${JSON.stringify(v)}: no label for it under the life total`, !(r.allMarks || []).some((m) => /EXTRA TURNS?\b.*\d|COMING/.test(m)), JSON.stringify(r.allMarks));
+    }
+    ok("extra turns: precondition, every count made a row, some with the field and some without", rows === COUNTS.length && shown > 0 && shown < rows, `${shown} of ${rows}`);
+    const h = harness.load();
+    setup(h, F.board);
+    let pairs = 0, said = 0;
+    for (const v of COUNTS) for (const w of COUNTS) {
+      const lines = h.B.logEvents(h.B.logSnapshot(at(v).gameView), h.B.logSnapshot(at(w).gameView), at(w).gameView).filter((l) => /extra turn/.test(l));
+      const up = pos(w) - pos(v);
+      pairs++; if (lines.length) said++;
+      const want = up > 0 ? `Blue will take ${up > 1 ? `${up} extra turns` : "an extra turn"} (${pos(w)} coming)` : null;
+      ok(`extra turns ${JSON.stringify(v)} -> ${JSON.stringify(w)}: ${want ? `"${want}"` : "no line"}`, want ? lines.length === 1 && lines[0] === want : lines.length === 0, JSON.stringify(lines));
+    }
+    ok("extra turns: precondition, every pair was logged, some with a line and some without", pairs === COUNTS.length ** 2 && said > 0 && said < pairs, `${said} of ${pairs}`);
+    await h.flush();
+    harness.restore();
+  }
   // turnRuns and controlledBy's say (verifier finding 1, 2026-11-06): "a control is a turn's once a board shows it on
   // the active player with an empty stack, and stays one while the same player keeps it"; the line says "turn" exactly
   // for a turn's control (Mindslaver), plainly otherwise (Opposition Agent's search, on either player's turn). Every
@@ -579,6 +615,1114 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("control label: precondition, 128 boards sent", labels === 128);
     await h.flush();
     harness.restore();
+  }
+  // bridge fix batch 2026-11-07 (live checks tmp/live-checks/RESULTS.md, keyword sweep tmp/kw-runs/SUMMARY.md)
+  {
+    const chats = (h, from = 0) => h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => [e.tts.text, e.tts.color]);
+    const logged = (h, from = 0) => h.effects.slice(from).filter((e) => e.tts && e.tts.t === "gamelog").flatMap((e) => e.tts.lines || []);
+    const fresh = (gvExtra = {}, extra = {}) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      Object.assign(b.gameView, { activePlayerId: "player-0", priorityPlayerId: "player-0", step: "main1", stack: [] }, gvExtra);
+      const seat = setup(h, b, extra);
+      return { h, seat, b };
+    };
+    const asked = (h, seat, input, more = {}) => { h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input, ...more }); return h.flush(); };
+    // a skip ended at a step says it in the table's words, not Forge's (live check 12: "Skip ended: combatBegin, AI 1's
+    // turn.", "Skip ended: endOfTurn, your turn.")
+    for (const [step, active, want] of [["combatBegin", "player-1", "[MTG] Skip ended: beginning of combat, AI 1's turn."], ["endOfTurn", "player-0", "[MTG] Skip ended: end step, your turn."]]) {
+      const { h, seat } = fresh({ step, activePlayerId: active, turn: 9 });
+      seat.skipTo = { phase: step === "combatBegin" ? "combat" : "end", turn: 8, step: "main1" };
+      await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }] });
+      const said = chats(h).map(([t]) => t).filter((t) => /Skip ended/.test(t));
+      ok(`skip ended at ${step}: "${want}"`, said.length === 1 && said[0] === want, JSON.stringify(said));
+      harness.restore();
+    }
+    // game over said once: the question, then the relay's abort right after it (live check 12: said twice, 25 ms apart),
+    // and the question twice
+    {
+      const { h, seat, b } = fresh();
+      b.gameView.players.find((p) => p.id === "player-1").life = 0;
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      h.B.onPrompt(seat, { promptId: 901, decidingPlayerId: "player-0", input: { type: "gameOver" } }); await h.flush();
+      seat.onRelay({ type: "GameAborted" }); await h.flush();
+      const said = chats(h).map(([t]) => t).filter((t) => /Game over/.test(t));
+      ok("game over: said once, though the question comes twice and the relay aborts after it", said.length === 1 && said[0] === "[MTG] Game over: AI 1 is at 0 life.", JSON.stringify(said));
+      // (jr suite 2026-11-07) "once to each player": a second seat's own question tells that seat too
+      const white = new h.B.Seat("White", "neheb_minotaur_commander");
+      white.slot = "player-1"; white.board = { state: clone(b), fingerprint: null };
+      h.B._getGame().seats.set("White", white);
+      h.B.onPrompt(white, { promptId: 903, decidingPlayerId: "player-1", input: { type: "gameOver" } }); await h.flush();
+      const byColor = chats(h).filter(([t]) => /Game over/.test(t)).map(([, c]) => c);
+      ok("game over: once to each player", JSON.stringify(byColor) === '["Blue","White"]', JSON.stringify(byColor));
+      harness.restore();
+    }
+    // the timer warning goes only to the player asked (live check 1: "all told: [MTG] White: 15 seconds left to answer.")
+    {
+      const { h, seat } = fresh();
+      h.B._getGame().timer = { on: true, seconds: 30 };
+      seat.timeBank = 0;
+      await asked(h, seat, { type: "mulligan", mulliganCount: 0 });
+      const warn = chats(h).filter(([t]) => /seconds left to answer/.test(t));
+      ok("timer warning: to the player asked only", warn.length === 1 && warn[0][1] === "Blue", JSON.stringify(warn));
+      h.B._stopTimer(seat, true);
+      harness.restore();
+    }
+    // the second AI is "AI 2" everywhere: its account name is the first's plus " 2" (kw-15: "Mob Verdict: choose one ::
+    // AI 1 / AI 1 2")
+    {
+      const h = harness.load();
+      setup(h, clone(F.board), { playerOrder: ["tts-Blue-ab12", "self-hosted-node-77-bot", "self-hosted-node-77-bot 2"], slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "AI 2" } });
+      const got = h.B.displayText("self-hosted-node-77-bot 2 voted for self-hosted-node-77-bot. Self-hosted-node-77-bot picked tts-Blue-ab12");
+      ok("names: the second AI is AI 2, not AI 1 2", got === "AI 2 voted for AI 1. AI 1 picked Blue", got);
+      // (jr suite 2026-11-07) "made once per player list": a new list is read anew, not the first one's names
+      h.B._getGame().playerOrder = ["tts-Blue-ab12", "other-node-bot"];
+      const again = h.B.displayText("other-node-bot picked self-hosted-node-77-bot");
+      ok("names: a changed player list is matched by its own names", again === "AI 1 picked self-hosted-node-77-bot", again);
+      harness.restore();
+    }
+    // the Ring-bearer question says what it is (live check 9: "Claim the Precious: choose a card"; Forge's description is
+    // its lblChooseRingBearer, "Choose your Ring-bearer")
+    {
+      const { h, seat, b } = fresh();
+      const bf = b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards;
+      bf.push({ id: "engine-card-950", identity: { name: "Grizzly Bears" }, types: ["Creature"], power: 2, toughness: 2, controllerId: "player-0" },
+        { id: "engine-card-951", identity: { name: "Hill Giant" }, types: ["Creature"], power: 3, toughness: 3, controllerId: "player-0" });
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, cards: bf.slice(-2).map((c) => ({ ...c, zone: "battlefield" })), presentation: { title: "Claim the Precious", description: "Choose your Ring-bearer" } },
+        { sourceCard: { id: "engine-card-952", identity: { name: "Claim the Precious" }, text: "Destroy target creature. The Ring tempts you." }, sourceAbilityText: "Destroy target creature. The Ring tempts you." });
+      ok("ring-bearer: the question names it", seat.prompt?.ui?.title === "The Ring: choose your Ring-bearer", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // halflingcycling's search by its own reminder, not the card's first ability (kw-23: "Hobbit Hole: search your library
+    // for which basic land card?")
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, cards: [{ id: "engine-card-953", identity: { name: "Delighted Halfling" }, types: ["Creature"], subtypes: ["Halfling", "Citizen"], power: 1, toughness: 2, zone: "library", ownerId: "player-0" }],
+        presentation: { title: "Hobbit Hole", description: "Choose a card" } },
+        { sourceCard: { id: "engine-card-954", identity: { name: "Hobbit Hole" }, text: "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\nHalflingcycling {4} ({4}, Discard this card: Search your library for a Halfling card, reveal it, put it into your hand, then shuffle.)" },
+          sourceAbilityText: "Halflingcycling {4} ({4}, Discard this card: Search your library for a Halfling card, reveal it, put it into your hand, then shuffle.)" });
+      ok("halflingcycling: its own search", seat.prompt?.ui?.title === "Hobbit Hole: search your library for which Halfling card?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // entwine's player target: no bullet, no second card name (kw-06: "Barbed Lightning: • Barbed Lightning deals 3
+    // damage to which player or planeswalker?")
+    {
+      const { h, seat } = fresh();
+      const text = "Choose one —\n• Barbed Lightning deals 3 damage to target creature.\n• Barbed Lightning deals 3 damage to target player or planeswalker.\nEntwine {2} (Choose both if you pay the entwine cost.)";
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, candidates: [{ kind: "player", id: "player-1" }, { kind: "player", id: "player-0" }], presentation: { title: "Choose a player to damage" } },
+        { sourceCard: { id: "engine-card-955", identity: { name: "Barbed Lightning" }, text }, sourceAbilityText: text });
+      ok("entwine: the player target's question is plain", seat.prompt?.ui?.title === "Barbed Lightning: deals 3 damage to which player or planeswalker?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // kinship's "Reveal it" says the card (kw-05: only "White looked at a card (their library)")
+    {
+      const { h, seat } = fresh({ step: "upkeep" });
+      const elder = { id: "engine-card-956", identity: { name: "Leaf-Crowned Elder" }, text: "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with Leaf-Crowned Elder, you may reveal it. If you do, you may play that card without paying its mana cost." };
+      const kin = "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with Leaf-Crowned Elder, you may reveal it. If you do, you may play that card without paying its mana cost.";
+      await asked(h, seat, { type: "revealCards", zone: "library", ownerPlayerId: "player-0", cards: [{ id: "engine-card-957", identity: { name: "Elvish Visionary" }, types: ["Creature"] }], presentation: { title: "Look at these cards" } }, { sourceCard: elder, sourceAbilityText: kin });
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["ok"] }) }); await h.flush();
+      const mark = h.effects.length;
+      h.B.onPrompt(seat, { promptId: 902, decidingPlayerId: "player-0", sourceCard: elder, sourceAbilityText: kin, input: { type: "chooseBoolean", confirmLabel: "Yes", denyLabel: "No", presentation: { title: "Reveal cards to other players?" } } }); await h.flush();
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 902, choice: ["yes"] }) }); await h.flush(5);
+      ok("kinship: the revealed card is said", logged(h, mark).includes("Blue reveals Elvish Visionary (Leaf-Crowned Elder)"), JSON.stringify(logged(h, mark)));
+      harness.restore();
+    }
+    // fateseal's bottom card is said, as scry's is (kw-18: nothing after "White looked at a card (AI 1's library)")
+    {
+      const { h, seat } = fresh();
+      const sliver = { id: "engine-card-958", identity: { name: "Mesmeric Sliver" }, text: "All Slivers have \"When this permanent enters, fateseal 1.\"" };
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, cards: [{ id: "engine-card-959", identity: { name: "Plains" }, types: ["Land"], zone: "library", ownerId: "player-1" }],
+        presentation: { title: "Mesmeric Sliver", description: "Choose card(s) to put on the bottom of AI 1 library" } }, { sourceCard: sliver, sourceAbilityText: "When this permanent enters, fateseal 1." });
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["engine-card-959"] }) }); await h.flush(5);
+      ok("fateseal: the bottom card is said", logged(h, mark).includes("Blue puts a card on the bottom of AI 1's library (Mesmeric Sliver)"), JSON.stringify(logged(h, mark)));
+      harness.restore();
+    }
+    // cipher's encode is said (kw-17: only "Last Thoughts is exiled")
+    {
+      const { h, seat, b } = fresh();
+      const bear = { id: "engine-card-960", identity: { name: "Grizzly Bears" }, types: ["Creature"], power: 2, toughness: 2, controllerId: "player-0", zone: "battlefield" };
+      b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push(bear, { ...bear, id: "engine-card-962", identity: { name: "Hill Giant" } });
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, cards: [bear, { ...bear, id: "engine-card-962", identity: { name: "Hill Giant" } }], presentation: { title: "Last Thoughts", description: "Choose a creature you control to encode" } },
+        { sourceCard: { id: "engine-card-961", identity: { name: "Last Thoughts" }, text: "Draw a card.\nCipher (...)" }, sourceAbilityText: "Draw a card." });
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["engine-card-960"] }) }); await h.flush(5);
+      ok("cipher: the encode is said", logged(h, mark).includes("Blue encodes Last Thoughts onto Grizzly Bears"), JSON.stringify(logged(h, mark)));
+      harness.restore();
+    }
+    // a trigger-order label without Forge's object number (kw-13: "First Day of Class (225)'s Effect: Whenever ...")
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "reorder", items: [
+        { id: "t1", card: { id: "engine-card-963", identity: { name: "First Day of Class (225)'s Effect" } }, oracle: "Whenever a creature you control enters this turn, put a +1/+1 counter on it." },
+        { id: "t2", card: { id: "engine-card-964", identity: { name: "Soul Warden" } }, oracle: "Whenever another creature enters, you gain 1 life." }], presentation: { title: "Order triggered abilities" } });
+      const labels = (seat.prompt?.ui?.options || []).map((o) => o.label).join(" / ");
+      ok("trigger order: no object number in a label", labels.includes("First Day of Class' effect:") && !/\(\d+\)/.test(labels), labels);
+      harness.restore();
+    }
+    // a whole library revealed is counted, not listed card by card (kw-22/kw-25: "Island, Island, Island, ...")
+    {
+      const { h, seat } = fresh();
+      const isl = (n) => ({ id: `engine-card-${970 + n}`, identity: { name: "Island" }, types: ["Land"] });
+      await asked(h, seat, { type: "revealCards", zone: "library", ownerPlayerId: "player-0", cards: [...Array(9)].map((_, n) => isl(n)), presentation: { title: "Look at these cards" } },
+        { sourceCard: { id: "engine-card-990", identity: { name: "Improvisation Capstone" } }, sourceAbilityText: "Exile cards from the top of your library until you exile cards with total mana value 4 or greater. You may cast any number of spells from among them without paying their mana costs." });
+      await h.flush(5);
+      const lines = logged(h);
+      ok("whole library: the cards counted", lines.some((l) => /Island ×9/.test(l)) && !lines.some((l) => /Island, Island/.test(l)), JSON.stringify(lines));
+      harness.restore();
+    }
+    // checker round 2026-11-07: a reveal of more than 6 keeps the library's order, only a run of one card counted
+    // ("Island, Opt, Island, Swamp, Island, Opt, Forest" read "Island ×3, Opt ×2, Swamp, Forest")
+    for (const [names, want] of [[["Island", "Opt", "Island", "Swamp", "Island", "Opt", "Forest"], "Blue reveals Island, Opt, Island, Swamp, Island, Opt, Forest from their library (Fathom Trawl)"],
+      [["Island", "Island", "Island", "Opt", "Swamp", "Island", "Forest", "Forest"], "Blue reveals Island ×3, Opt, Swamp, Island, Forest ×2 from their library (Fathom Trawl)"]]) {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "revealCards", zone: "library", ownerPlayerId: "player-0", cards: names.map((n, k) => ({ id: `engine-card-${1000 + k}`, identity: { name: n }, types: [/^(?:Island|Swamp|Forest)$/.test(n) ? "Land" : "Instant"] })),
+        presentation: { title: "Fathom Trawl - Revealing cards from" } },
+        { sourceCard: { id: "engine-card-1020", identity: { name: "Fathom Trawl" } }, sourceAbilityText: "Reveal cards from the top of your library until you reveal three nonland cards. Put the nonland cards revealed this way into your hand, then put the rest of the revealed cards on the bottom of your library in any order." });
+      await h.flush(5);
+      ok(`reveal in order: "${want}"`, logged(h).includes(want), JSON.stringify(logged(h)));
+      harness.restore();
+    }
+    // fateseal declined: the card stays on top, said as scry's is (fix 10's other half)
+    {
+      const { h, seat } = fresh();
+      const sliver = { id: "engine-card-1021", identity: { name: "Mesmeric Sliver" }, text: "All Slivers have \"When this permanent enters, fateseal 1.\"" };
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, cards: [{ id: "engine-card-1022", identity: { name: "Plains" }, types: ["Land"], zone: "library", ownerId: "player-1" }],
+        presentation: { title: "Mesmeric Sliver", description: "Choose card(s) to put on the bottom of AI 1 library" } }, { sourceCard: sliver, sourceAbilityText: "When this permanent enters, fateseal 1." });
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: [] }) }); await h.flush(5);
+      ok("fateseal declined: the card left on top is said", logged(h, mark).includes("Blue leaves the card on top of AI 1's library (Mesmeric Sliver)"), JSON.stringify(logged(h, mark)));
+      ok("fateseal declined: nothing put on the bottom", !logged(h, mark).some((l) => /on the bottom/.test(l)), JSON.stringify(logged(h, mark)));
+      harness.restore();
+    }
+    // (jr suite 2026-11-07) Forge names the library's player by the engine's name: the player's own is "their library",
+    // another's by its table name ("AI 1's", the engine's "self-hosted-node-77-bot")
+    for (const [engineName, want] of [["tts-Blue-ab12", "Blue puts a card on the bottom of their library (Mesmeric Sliver)"], ["self-hosted-node-77-bot", "Blue puts a card on the bottom of AI 1's library (Mesmeric Sliver)"]]) {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, cards: [{ id: "engine-card-1026", identity: { name: "Plains" }, types: ["Land"], zone: "library", ownerId: "player-1" }],
+        presentation: { title: "Mesmeric Sliver", description: `Choose card(s) to put on the bottom of ${engineName} library` } }, { sourceCard: { id: "engine-card-1027", identity: { name: "Mesmeric Sliver" } }, sourceAbilityText: "When this permanent enters, fateseal 1." });
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["engine-card-1026"] }) }); await h.flush(5);
+      ok(`bottom of ${engineName}'s library: "${want}"`, logged(h, mark).includes(want), JSON.stringify(logged(h, mark)));
+      harness.restore();
+    }
+    // the player's own "detain up to two target" trigger, picked before any board shows it: both detained once it is gone
+    // (Azorius Justiciar's TriggerDescription, CARDNAME as Forge writes it)
+    {
+      const { h, seat, b } = fresh();
+      const opp = b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards;
+      opp.push({ id: "engine-card-1023", identity: { name: "Wall of Omens" }, types: ["Creature"], power: 0, toughness: 4, controllerId: "player-1" },
+        { id: "engine-card-1024", identity: { name: "Hill Giant" }, types: ["Creature"], power: 3, toughness: 3, controllerId: "player-1" });
+      seat.board = { state: b, fingerprint: null };
+      const text = "When Azorius Justiciar enters, detain up to two target creatures your opponents control. (Until your next turn, those creatures can't attack or block and their activated abilities can't be activated.)";
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 0, maxTargets: 2, candidates: [{ kind: "card", id: "engine-card-1023" }, { kind: "card", id: "engine-card-1024" }], presentation: { title: "Choose targets" } },
+        { sourceCard: { id: "engine-card-1025", identity: { name: "Azorius Justiciar" }, text }, sourceAbilityText: text });
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["card|engine-card-1023", "card|engine-card-1024"] }) }); await h.flush(5);
+      const gv = b.gameView;
+      const lines = h.B.logEvents(h.B.logSnapshot(gv), h.B.logSnapshot(gv), gv, null);
+      ok("detain up to two (own trigger): both said", lines.includes("Wall of Omens, Hill Giant are detained: until Blue's next turn they can't attack or block, and their activated abilities can't be activated"), JSON.stringify(lines));
+      harness.restore();
+    }
+  }
+  // Kykar UI batch 2026-11-07 (docs/HAND-TEST-KYKAR.md; the engine's words from the ability probe, Kykar probe 2026-11-07)
+  {
+    const chats = (h, from = 0) => h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text);
+    const fresh = (edit, gvExtra = {}) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      Object.assign(b.gameView, { activePlayerId: "player-0", priorityPlayerId: "player-0", step: "main1", stack: [] }, gvExtra);
+      if (edit) edit(b.gameView);
+      const seat = setup(h, b);
+      return { h, seat, b };
+    };
+    const asked = (h, seat, input, more = {}) => { h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input, ...more }); return h.flush(); };
+    const mine = (gv) => gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards;
+    const labels = (seat) => (seat.prompt?.ui?.options || []).map((o) => o.label);
+    const one = (id, name, extra = {}) => ({ id, identity: { name }, types: ["Creature"], power: 1, toughness: 1, controllerId: "player-0", ...extra });
+    // #1: a mana ability's button says "tap" only when its cost has {T}; Lotus Petal's says it is sacrificed (probe extra)
+    {
+      const { h, seat } = fresh((gv) => mine(gv).push(
+        one("engine-card-1209", "Kykar, Wind's Fury", { power: 3, toughness: 3, text: "Flying\nWhenever you cast a noncreature spell, create a 1/1 white Spirit creature token with flying.\nSacrifice a Spirit: Add {R}." }),
+        { id: "engine-card-1213", identity: { name: "Ashnod's Altar" }, types: ["Artifact"], controllerId: "player-0", text: "Sacrifice a creature: Add {C}{C}." },
+        { id: "engine-card-1214", identity: { name: "Lotus Petal" }, types: ["Artifact"], controllerId: "player-0", text: "{T}, Sacrifice Lotus Petal: Add one mana of any color." }));
+      await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" },
+        { id: "tap:engine-card-1209:9", type: "activateAbility", cardId: "engine-card-1209", abilityIndex: 9, isManaAbility: true, description: "Sacrifice a Spirit: Add {R}.", cost: "Sacrifice a Spirit", producedMana: [{ amount: 1, color: "R" }] },
+        { id: "tap:engine-card-1213:10", type: "activateAbility", cardId: "engine-card-1213", abilityIndex: 10, isManaAbility: true, description: "Sacrifice a creature: Add {C}{C}.", cost: "Sacrifice a creature", producedMana: [{ amount: 2, color: "C" }] },
+        { id: "tap:engine-card-1214:11:W", type: "activateAbility", cardId: "engine-card-1214", abilityIndex: 11, isManaAbility: true, description: "{T}, Sacrifice Lotus Petal: Add one mana of any color.", cost: "{T}, Sacrifice CARDNAME", producedMana: [{ amount: 1, color: "W" }] }] });
+      const got = labels(seat);
+      ok("kykar #1: a sacrifice-only mana ability isn't 'tap'", got.includes("Mana: Kykar, Wind's Fury (sacrifice a Spirit)") && got.includes("Mana: Ashnod's Altar (sacrifice a creature)"), JSON.stringify(got));
+      ok("kykar probe: Lotus Petal's button says it is sacrificed", got.includes("Mana: tap Lotus Petal (also sacrifice it)"), JSON.stringify(got));
+      harness.restore();
+    }
+    // #4: a painland's and Ancient Tomb's pay labels say the damage, only for the colours that deal it
+    {
+      const { h, seat } = fresh((gv) => mine(gv).push(
+        { id: "engine-card-1301", identity: { name: "Adarkar Wastes" }, types: ["Land"], controllerId: "player-0", text: "{T}: Add {C}.\n{T}: Add {W} or {U}. Adarkar Wastes deals 1 damage to you." },
+        { id: "engine-card-1203", identity: { name: "Ancient Tomb" }, types: ["Land"], controllerId: "player-0", text: "{T}: Add {C}{C}. Ancient Tomb deals 2 damage to you." }));
+      await asked(h, seat, { type: "payManaCost", manaCost: "{1}{W}", presentation: { title: "Pay {1}{W}" }, actions: [
+        { id: "tap:engine-card-1301:0", cardId: "engine-card-1301", abilityIndex: 0, description: "Adarkar Wastes", cost: "{T}", producedMana: [{ amount: 1, color: "C" }] },
+        { id: "tap:engine-card-1301:1:W", cardId: "engine-card-1301", abilityIndex: 1, description: "Adarkar Wastes", cost: "{T}", producedMana: [{ amount: 1, color: "W" }] },
+        { id: "tap:engine-card-1203:2", cardId: "engine-card-1203", abilityIndex: 2, description: "Ancient Tomb", cost: "{T}", producedMana: [{ amount: 2, color: "C" }] }] },
+        { sourceCard: { id: "engine-card-43", identity: { name: "Vraska's Fall" } } });
+      const got = labels(seat);
+      ok("kykar #4: a painland's coloured mana says its damage, its {C} doesn't", got.includes("Tap Adarkar Wastes for {W} (1 damage to you)") && got.includes("Tap Adarkar Wastes for {C}"), JSON.stringify(got));
+      ok("kykar #4: Ancient Tomb says its damage", got.includes("Tap Ancient Tomb for {C}{C} (2 damage to you)"), JSON.stringify(got));
+      harness.restore();
+    }
+    // #5 #24: Forge's separator rows are never options, a source choice says "choose a source", a commander says its zone
+    {
+      const { h, seat } = fresh((gv) => {
+        mine(gv).push(one("engine-card-1805", "Rograkh, Son of Rohgahh", { power: 0 }));
+        gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards.push(one("engine-card-1804", "Serra Angel", { power: 4, toughness: 4, controllerId: "player-1" }));
+      });
+      const text = "The next time a source of your choice would deal damage to you this turn, prevent that damage. If damage is prevented this way, Deflecting Palm deals that much damage to that source's controller.";
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, presentation: { title: "Deflecting Palm", description: "Choose a source " },
+        cards: [{ id: "engine-card-1801", identity: { name: "--CARDS IN THE COMMAND ZONE:--", setCode: "???" } }, { id: "engine-card-1802", identity: { name: "--PERMANENTS:--", setCode: "???" } },
+          { id: "engine-card-1803", identity: { name: "--SPELLS ON THE STACK:--", setCode: "???" } }, { ...one("engine-card-1804", "Serra Angel", { power: 4, toughness: 4, controllerId: "player-1" }), zone: "battlefield", ownerId: "player-1" },
+          { ...one("engine-card-1806", "Rograkh, Son of Rohgahh", { power: 0 }), zone: "command", ownerId: "player-0" }] },
+        { sourceCard: { id: "engine-card-1807", identity: { name: "Deflecting Palm" }, text }, sourceAbilityText: text });
+      const got = labels(seat);
+      ok("kykar #5 #24: no separator row is an option", got.length === 2 && !got.some((l) => /--/.test(l)), JSON.stringify(got));
+      ok("kykar #5 #24: a source choice says so", seat.prompt?.ui?.title === "Deflecting Palm: choose a source", seat.prompt?.ui?.title);
+      ok("kykar #5 #24: a source outside the battlefield says where it is", got.includes("Rograkh, Son of Rohgahh 0/1 (command zone)"), JSON.stringify(got));
+      ok("kykar #5 #24: a source choice has no library-search hint", !/library/.test(seat.prompt?.ui?.text || ""), seat.prompt?.ui?.text);
+      harness.restore();
+    }
+    // (a source that is only a spell on the stack, in no zone the table shows: no "right-click your library" hint either)
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, presentation: { title: "Deflecting Palm", description: "Choose a source " },
+        cards: [{ id: "engine-card-1808", identity: { name: "--SPELLS ON THE STACK:--", setCode: "???" } }, { id: "engine-card-1809", identity: { name: "Lightning Bolt" }, types: ["Instant"], controllerId: "player-1", ownerId: "player-1", zone: "stack" }] },
+        { sourceCard: { id: "engine-card-1807", identity: { name: "Deflecting Palm" } }, sourceAbilityText: "The next time a source of your choice would deal damage to you this turn, prevent that damage." });
+      ok("kykar #5 #24: a spell as a source has no library-search hint", !/library/.test(seat.prompt?.ui?.text || "") && labels(seat).includes("Lightning Bolt (on the stack)"), JSON.stringify([seat.prompt?.ui?.text, labels(seat)]));
+      harness.restore();
+    }
+    // INV-6: two cards that read alike are told apart by whose they are
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, presentation: { title: "Circle of Protection: Red", description: "Choose a source " },
+        cards: [{ ...one("engine-card-1850", "Rograkh, Son of Rohgahh", { power: 0 }), zone: "command", ownerId: "player-0" }, { ...one("engine-card-1851", "Rograkh, Son of Rohgahh", { power: 0, controllerId: "player-1" }), zone: "command", ownerId: "player-1" }] },
+        { sourceCard: { id: "engine-card-1852", identity: { name: "Circle of Protection: Red" } }, sourceAbilityText: "{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage." });
+      const got = labels(seat);
+      ok("kykar INV-6: alike options say whose", got.includes("Rograkh, Son of Rohgahh 0/1 (command zone, yours)") && got.includes("Rograkh, Son of Rohgahh 0/1 (command zone, AI 1's)"), JSON.stringify(got));
+      harness.restore();
+    }
+    // #9: "#n" labels sort as numbers (#9 before #10)
+    {
+      const { h, seat } = fresh();
+      const toks = Array.from({ length: 11 }, (_, k) => ({ ...one(`engine-card-${1820 + k}`, "Spirit Token", { identity: { name: "Spirit Token", isToken: true } }), zone: "battlefield" }));
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 11, presentation: { title: "Choose cards", description: "Choose cards" }, cards: toks }, { sourceCard: { id: "engine-card-1840", identity: { name: "Some Card" } } });
+      const got = labels(seat);
+      ok("kykar #9: #9 comes before #10", got.indexOf("Spirit Token 1/1 #9") >= 0 && got.indexOf("Spirit Token 1/1 #9") < got.indexOf("Spirit Token 1/1 #10") && got.indexOf("Spirit Token 1/1 #2") < got.indexOf("Spirit Token 1/1 #10"), JSON.stringify(got));
+      harness.restore();
+    }
+    // #18: Forge's doubled plural is undone (Mondrak's live cost "creatureses")
+    {
+      const h = harness.load();
+      setup(h, clone(F.board));
+      const got = h.B.displayText("{1}{W/P}{W/P}, Sacrifice two other artifacts and/or creatureses: Put an indestructible counter on Mondrak, Glory Dominus.");
+      ok("kykar #18: 'creatureses' reads 'creatures'", got === "{1}{W/P}{W/P}, Sacrifice two other artifacts and/or creatures: Put an indestructible counter on Mondrak, Glory Dominus.", got);
+      ok("kykar #18: a real word in -ses stays", h.B.displayText("Each player chooses. Its horses gain haste.") === "Each player chooses. Its horses gain haste.", h.B.displayText("Each player chooses. Its horses gain haste."));
+      harness.restore();
+    }
+    // #22: a free cast says it is free, and why ("If you control a commander", Flawless Maneuver's text)
+    {
+      const { h, seat } = fresh((gv) => gv.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards.push({ id: "engine-card-1860", identity: { name: "Flawless Maneuver" }, types: ["Instant"], text: "If you control a commander, you may cast this spell without paying its mana cost.\nCreatures you control gain indestructible until end of turn." }));
+      await asked(h, seat, { type: "chooseAction", actions: [{ id: "a1", type: "cast", cardId: "engine-card-1860", label: "Cast Flawless Maneuver", mode: { type: "normal" } }, { id: "a2", type: "cast", cardId: "engine-card-1860", label: "Cast Flawless Maneuver", mode: { type: "staticAlternative" } }] });
+      const got = labels(seat);
+      ok("kykar #22: the free cast is 'without paying its mana cost'", got.includes("Cast Flawless Maneuver without paying its mana cost (you control a commander)") && !got.some((l) => /alternative cost/.test(l)), JSON.stringify(got));
+      harness.restore();
+    }
+    // probe extra: Esper Sentinel's "Pay {X}?" says X; its No says the other player's draw as it is
+    {
+      const { h, seat } = fresh();
+      const text = "Whenever an opponent casts their first noncreature spell each turn, draw a card unless that player pays {X}, where X is Esper Sentinel's power.";
+      await asked(h, seat, { type: "chooseBoolean", confirmLabel: "Pay", denyLabel: "Decline", presentation: { title: "Pay {X}?", text: "otherwise: \"AI 1 draws a card.\"" } },
+        { sourceAbilityText: text, sourceCard: { id: "engine-card-1244", identity: { name: "Esper Sentinel" }, power: "1", toughness: "1", controllerId: "player-1", text } });
+      const u = seat.prompt?.ui;
+      ok("kykar probe: Esper Sentinel's X is said", u?.title === "Esper Sentinel: pay {1}?" && /^X is Esper Sentinel's power: 1\./.test(u?.text || "") && labels(seat)[0] === "Pay {1}", JSON.stringify([u?.title, u?.text, labels(seat)]));
+      ok("kykar probe: another player's line in No keeps its name", labels(seat).includes("No: AI 1 draws a card"), JSON.stringify(labels(seat)));
+      harness.restore();
+    }
+    // probe extra: Thriving Isle's colour question, titled by its own sentence
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseColor", amount: 1, repeatAllowed: false, validColors: ["Black", "Red", "Green", "White"], presentation: { title: "Thriving Isle" } },
+        { sourceAbilityText: "Play land", sourceCard: { id: "engine-card-1264", identity: { name: "Thriving Isle" }, types: ["Land"], text: "Thriving Isle enters tapped.\nAs Thriving Isle enters, choose a color other than blue.\n{T}: Add {U} or one mana of the chosen color." } });
+      ok("kykar probe: Thriving Isle asks 'choose a color other than blue'", seat.prompt?.ui?.title === "Thriving Isle: choose a color other than blue", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #17: the order of two replacement effects says so, each by its card
+    {
+      const AP = "If an effect would create one or more tokens under your control, it creates twice that many of those tokens instead.";
+      const MO = "If one or more tokens would be created under your control, twice that many of those tokens are created instead.";
+      const { h, seat } = fresh((gv) => mine(gv).push({ id: "engine-card-1870", identity: { name: "Anointed Procession" }, types: ["Enchantment"], controllerId: "player-0", text: AP },
+        { id: "engine-card-1871", identity: { name: "Mondrak, Glory Dominus" }, types: ["Artifact", "Creature"], controllerId: "player-0", text: `Flying\n${MO}\n{1}{W/P}{W/P}, Sacrifice two other artifacts and/or creatures: Put an indestructible counter on Mondrak, Glory Dominus.` }));
+      await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose", targets: [] }, options: [{ label: AP, weight: 1, canRepeat: false }, { label: MO, weight: 1, canRepeat: false }] },
+        { sourceCard: { id: "engine-card-1209", identity: { name: "Kykar, Wind's Fury" } }, sourceAbilityText: "Whenever you cast a noncreature spell, create a 1/1 white Spirit creature token with flying." });
+      ok("kykar #17: titled 'which applies first?'", seat.prompt?.ui?.title === "Kykar, Wind's Fury: which applies first?", seat.prompt?.ui?.title);
+      ok("kykar #17: each option by its card", JSON.stringify(labels(seat)) === JSON.stringify([`Anointed Procession: ${AP}`, `Mondrak, Glory Dominus: ${MO}`]), JSON.stringify(labels(seat)));
+      harness.restore();
+    }
+    // #16: an engine-ended draw says why, the board carries it for the top bar, and a rewind after it says the game ended
+    {
+      const { h, seat } = fresh(null, { gameOver: true, winnerId: null });
+      await asked(h, seat, { type: "gameOver" });
+      const said = chats(h).filter((t) => /Game over/.test(t));
+      // (verify 2026-11-07: no guessed reason; the engine's runaway cap doesn't reach the bridge)
+      ok("kykar #16: an engine-ended draw says a draw, no guessed reason", said.length === 1 && said[0] === "[MTG] Game over: a draw.", JSON.stringify(said));
+      h.B.sendTable(); await h.flush();
+      const t = sent(h, "table").at(-1);
+      ok("kykar #16: the table message carries how it ended", t?.gameOver && t?.overWhy === "a draw", JSON.stringify(t && [t.gameOver, t.overWhy]));
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "rewind", json: JSON.stringify({ color: "Blue", checkpointId: 1 }) }); await h.flush();
+      const refused = chats(h, mark);
+      ok("kykar #16: a rewind after the end says the game has ended", refused.length === 1 && refused[0] === "[MTG] The game has ended (a draw), so it can't be rewound. Start a new game.", JSON.stringify(refused));
+      harness.restore();
+    }
+    // #14: a copy's target question is worded like its original's (Twincast on Explosion, the probe's stack: the copy's
+    // card in no zone, Forge's resolved line as "text", the rules text as sourceAbilityText)
+    {
+      const stack = [{ id: "engine-stack-2", sourceId: "engine-card-1919", controllerId: "player-0", identity: { name: "Explosion" }, isPermanentSpell: false, sourceAbilityText: "Explosion deals X damage to any target. Target player draws X cards.",
+        targets: [{ id: "player-1", kind: "player" }], text: "Explosion (220) - Explosion (220) deals 0 damage to AI 1. AI 1 draws zero cards. (X=0)" },
+        { id: "engine-stack-4", sourceId: "engine-card-1920", controllerId: "player-0", identity: { name: "Twincast" }, isPermanentSpell: false, sourceAbilityText: "Copy target instant or sorcery spell. You may choose new targets for the copy.", targets: [], text: "Twincast (221) - Copy Explosion (220)." }];
+      const { h, seat } = fresh(null, { stack });
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, chosenTargets: 0, intent: "draw", candidates: [{ kind: "player", id: "player-0" }, { kind: "player", id: "player-1" }], presentation: { title: "Choose player to draw", targets: [] } });
+      ok("kykar #14: a copy asks in its original's words", seat.prompt?.ui?.title === "Copy of Explosion: which player draws X cards?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #20: fused Wear // Tear asks each half's target under that half's name (the probe's live shape: ability text the Fuse
+    // reminder, card text "(Wear) Destroy target artifact. ..."), and its copy the same way
+    {
+      const FUSE = "Fuse (You may cast one or both halves of this card from your hand.)";
+      const text = `(Wear) Destroy target artifact.\n${FUSE}\r\n\r\n(Tear) Destroy target enchantment.\n${FUSE}`;
+      const { h, seat, b } = fresh((gv) => gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards.push(
+        { id: "engine-card-1950", identity: { name: "Ornithopter" }, types: ["Artifact", "Creature"], power: 0, toughness: 2, controllerId: "player-1" },
+        { id: "engine-card-1951", identity: { name: "Glorious Anthem" }, types: ["Enchantment"], controllerId: "player-1" }));
+      const wt = { id: "engine-card-1952", identity: { name: "Wear // Tear" }, text };
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, chosenTargets: 0, intent: "destroy", candidates: [{ kind: "card", id: "engine-card-1950" }], presentation: { title: "Destroy", targets: [] } }, { sourceCard: wt, sourceAbilityText: FUSE });
+      const first = seat.prompt?.ui;
+      ok("kykar #20: Wear's target under its own name", first?.title === "Wear: destroy which artifact?", first?.title);
+      ok("kykar #20: the half's text, not the Fuse reminder", first?.text === "Destroy target artifact.", first?.text);
+      h.B.onPrompt(seat, { promptId: 901, decidingPlayerId: "player-0", input: { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, chosenTargets: 0, intent: "destroy", candidates: [{ kind: "card", id: "engine-card-1951" }], presentation: { title: "Destroy", targets: [] } }, sourceCard: wt, sourceAbilityText: FUSE });
+      await h.flush();
+      ok("kykar #20: Tear's target under its own name", seat.prompt?.ui?.title === "Tear: destroy which enchantment?", seat.prompt?.ui?.title);
+      // (the copy: no asking card, the spell on the stack with the Fuse reminder as its text)
+      b.gameView.stack = [{ id: "engine-stack-9", sourceId: "engine-card-1953", controllerId: "player-0", identity: { name: "Wear // Tear" }, isPermanentSpell: false, sourceAbilityText: FUSE, targets: [], text: "Wear // Tear (207) - Destroy target artifact. Destroy target enchantment." }];
+      seat.board = { state: b, fingerprint: null };
+      h.B.onPrompt(seat, { promptId: 902, decidingPlayerId: "player-0", input: { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, chosenTargets: 0, intent: "destroy", candidates: [{ kind: "card", id: "engine-card-1950" }], presentation: { title: "Destroy", targets: [] } } });
+      await h.flush();
+      ok("kykar #20: the copy's half too", seat.prompt?.ui?.title === "Copy of Wear: destroy which artifact?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #23: several targets say what they are for (Guardian of Faith: no ability text, the card's; Clever Concealment's)
+    {
+      const text = "Flash\nFlying\nWhen Guardian of Faith enters, any number of other target creatures you control phase out. (Treat them and anything attached to them as though they don't exist until your next turn.)";
+      const { h, seat } = fresh((gv) => mine(gv).push(one("engine-card-1930", "Grizzly Bears", { power: 2, toughness: 2 }), one("engine-card-1931", "Ornithopter", { power: 0, toughness: 2 })));
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 0, maxTargets: 11, chosenTargets: 0, intent: "hostile", candidates: [{ kind: "card", id: "engine-card-1930" }, { kind: "card", id: "engine-card-1931" }], presentation: { title: "Hostile", targets: [] } },
+        { sourceCard: { id: "engine-card-1932", identity: { name: "Guardian of Faith" }, text } });
+      ok("kykar #23: Guardian of Faith asks which creatures phase out", seat.prompt?.ui?.title === "Guardian of Faith: which other creatures you control phase out?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    {
+      const text = "Any number of target nonland permanents you control phase out. (Treat them and anything attached to them as though they don't exist until your next turn.)";
+      const { h, seat } = fresh((gv) => mine(gv).push(one("engine-card-1933", "Grizzly Bears", { power: 2, toughness: 2 }), one("engine-card-1934", "Ornithopter", { power: 0, toughness: 2 })));
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 0, maxTargets: 2, chosenTargets: 0, intent: "hostile", candidates: [{ kind: "card", id: "engine-card-1933" }, { kind: "card", id: "engine-card-1934" }], presentation: { title: "Hostile", targets: [] } },
+        { sourceCard: { id: "engine-card-1935", identity: { name: "Clever Concealment" }, text: `Convoke\n${text}` }, sourceAbilityText: text });
+      ok("kykar #23: Clever Concealment asks which permanents phase out", seat.prompt?.ui?.title === "Clever Concealment: which nonland permanents you control phase out?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #23: proliferate's own step (Forge's lblChooseProliferateTarget) under a card whose text has another "put"
+    {
+      const text = "Look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order. Proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)";
+      const { h, seat } = fresh((gv) => mine(gv).push(one("engine-card-1936", "Grizzly Bears", { power: 3, toughness: 3, counters: { P1P1: 1 } })));
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, presentation: { title: "Experimental Augury", description: "Choose any number of permanents and/or players for proliferate" },
+        cards: [{ ...one("engine-card-1936", "Grizzly Bears", { power: 3, toughness: 3, counters: { P1P1: 1 } }), zone: "battlefield", ownerId: "player-0" }] },
+        { sourceCard: { id: "engine-card-1937", identity: { name: "Experimental Augury" }, text }, sourceAbilityText: text });
+      ok("kykar #23: proliferate says it", seat.prompt?.ui?.title === "Experimental Augury: give which another counter (proliferate)?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #27: Arcane Bombardment's copies are cast, the exiled cards stay: no drag-out hint (its live trigger text, Forge's
+    // lblSelectCardToPlay)
+    {
+      const { h, seat } = fresh((gv) => gv.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0").cards.push({ id: "engine-card-1940", identity: { name: "Opt" }, types: ["Instant"], text: "Scry 1.\nDraw a card." }));
+      await asked(h, seat, { type: "chooseCards", min: 0, max: 1, presentation: { title: "Arcane Bombardment", description: "Select a card to play" },
+        cards: [{ id: "engine-card-1940", identity: { name: "Opt" }, types: ["Instant"], zone: "exile", ownerId: "player-0" }] },
+        { sourceCard: { id: "engine-card-1941", identity: { name: "Arcane Bombardment" } },
+          sourceAbilityText: "Whenever you cast your first instant or sorcery spell each turn, exile an instant or sorcery card at random from your graveyard. Then copy each card exiled with Arcane Bombardment. You may cast any number of the copies without paying their mana costs." });
+      const u = seat.prompt?.ui;
+      ok("kykar #27: copies: no drag-out from the pile", u?.copies === true && u?.pileChoices === undefined && !/drag/i.test(u?.text || ""), JSON.stringify(u && [u.copies, u.pileChoices, u.text]));
+      ok("kykar #27: copies: the title says a copy is cast", u?.title === "Arcane Bombardment: cast which copy?", u?.title);
+      harness.restore();
+    }
+    // #16: a win names the winner and the loser's reason
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: "player-0" });
+      b.gameView.players.find((p) => p.id === "player-1").life = 0;
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      const said = chats(h).filter((t) => /Game over/.test(t));
+      ok("kykar #16: a win says who won", said[0] === "[MTG] Game over: AI 1 is at 0 life. Blue wins.", JSON.stringify(said));
+      harness.restore();
+    }
+    // ── the independent check of the batch (verify 2026-11-07): a wrong name or reason is worse than none ──
+    const emptyLibrary = (b, who) => { for (const z of b.gameView.zones) if (z.zone === "library" && who.includes(z.ownerId)) { z.cards = []; z.count = 0; } };
+    // #16: two players out with empty libraries at once, the libraries the end board shows only (no earlier board had
+    // them empty: verify 2026-11-09, a multiplayer loser's cards leave with them): no guessed reason, "a draw"
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: null });
+      for (const p of b.gameView.players) p.status = "lost";
+      emptyLibrary(b, ["player-0", "player-1"]);
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      const said = chats(h).filter((t) => /Game over/.test(t));
+      ok("verify #16: two libraries empty only at the end are no reason: a draw", said.length === 1 && said[0] === "[MTG] Game over: a draw.", JSON.stringify(said));
+      harness.restore();
+    }
+    // a decked loser beside a winner (the library already empty on an earlier board, out in their own draw step,
+    // noteOuts' record): the gameOver question, the top bar and a refused rewind all say it
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: "player-1", step: "draw", activePlayerId: "player-0" });
+      b.gameView.players.find((p) => p.id === "player-0").status = "lost";
+      emptyLibrary(b, ["player-0"]);
+      h.B._getGame().inLibrary = { "player-0": 0 };
+      // (first seen empty in the upkeep, before the draw step it lost in: noteOuts' emptyAt)
+      h.B._getGame().emptyAt = { "player-0": { turn: 1, step: "upkeep" } };
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      const said = chats(h).filter((t) => /Game over/.test(t));
+      ok("verify #16: a decked loser beside the winner", said[0] === "[MTG] Game over: Blue drew from an empty library. AI 1 wins.", JSON.stringify(said));
+      h.B.sendTable(); await h.flush();
+      ok("verify #16: the top bar says the empty library too", sent(h, "table").at(-1)?.overWhy === "Blue drew from an empty library. AI 1 wins", JSON.stringify(sent(h, "table").at(-1)?.overWhy));
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "rewind", json: JSON.stringify({ color: "Blue", checkpointId: 1 }) }); await h.flush();
+      ok("verify #16: a refused rewind says the empty library", chats(h, mark)[0] === "[MTG] The game has ended (Blue drew from an empty library. AI 1 wins), so it can't be rewound. Start a new game.", JSON.stringify(chats(h, mark)));
+      harness.restore();
+    }
+    // (a player still playing with an empty library once the game is over hasn't lost to it: a plain draw)
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: null });
+      for (const p of b.gameView.players) p.status = "playing";
+      emptyLibrary(b, ["player-1"]);
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      ok("verify #16: an empty library of a player still playing isn't a reason", chats(h).filter((t) => /Game over/.test(t))[0] === "[MTG] Game over: a draw.", JSON.stringify(chats(h)));
+      harness.restore();
+    }
+    // (a winner with an empty library won with it: Laboratory Maniac, Thassa's Oracle)
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: "player-0" });
+      b.gameView.players.find((p) => p.id === "player-0").status = "won";
+      b.gameView.players.find((p) => p.id === "player-1").status = "lost";
+      emptyLibrary(b, ["player-0"]);
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      ok("verify #16: the winner's empty library is no loss", chats(h).filter((t) => /Game over/.test(t))[0] === "[MTG] Game over: Blue wins.", JSON.stringify(chats(h)));
+      harness.restore();
+    }
+    // (a concession is a reason, said by concededPlayers: LOSS_REASONS has none for it)
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: "player-0" });
+      b.gameView.players.find((p) => p.id === "player-1").status = "conceded";
+      seat.board = { state: b, fingerprint: null };
+      await asked(h, seat, { type: "gameOver" });
+      ok("verify #16: a concession says so", chats(h).filter((t) => /Game over/.test(t))[0] === "[MTG] Game over: AI 1 conceded. Blue wins.", JSON.stringify(chats(h)));
+      harness.restore();
+    }
+    // (the relay's abort of a board the engine says is over, with nothing to tell: "a draw", not "Game aborted.")
+    {
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: null });
+      seat.board = { state: b, fingerprint: null };
+      seat.onRelay({ type: "GameAborted" }); await h.flush();
+      ok("verify #16: an abort after the engine's end says it is over", JSON.stringify(chats(h).filter((t) => /^\[MTG\] Game/.test(t))) === JSON.stringify(["[MTG] Game over: a draw."]), JSON.stringify(chats(h)));
+      harness.restore();
+    }
+    // #17: options whose sentence two cards share keep it bare (Parallel Lives and Anointed Procession print the same
+    // one; Doubling Season's has it too); one only Mondrak has is named
+    {
+      const AP = "If an effect would create one or more tokens under your control, it creates twice that many of those tokens instead.";
+      const MO = "If one or more tokens would be created under your control, twice that many of those tokens are created instead.";
+      const DS = `${AP}\nIf an effect would put one or more counters on a permanent you control, it puts twice that many of those counters on that permanent instead.`;
+      const ask17 = async (cards, options) => {
+        const { h, seat } = fresh((gv) => mine(gv).push(...cards));
+        await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose", targets: [] }, options: options.map((label) => ({ label, weight: 1, canRepeat: false })) },
+          { sourceCard: { id: "engine-card-1209", identity: { name: "Kykar, Wind's Fury" } } });
+        const got = labels(seat); harness.restore(); return got;
+      };
+      const ench = (id, name, text) => ({ id, identity: { name }, types: ["Enchantment"], controllerId: "player-0", text });
+      const two = await ask17([ench("engine-card-1872", "Parallel Lives", AP), ench("engine-card-1870", "Anointed Procession", AP)], [AP, AP]);
+      ok("verify #17: Parallel Lives + Anointed Procession: neither option is given a name", JSON.stringify(two) === JSON.stringify([AP, AP]), JSON.stringify(two));
+      const three = await ask17([ench("engine-card-1873", "Doubling Season", DS), ench("engine-card-1870", "Anointed Procession", AP),
+        { id: "engine-card-1871", identity: { name: "Mondrak, Glory Dominus" }, types: ["Artifact", "Creature"], controllerId: "player-0", text: `Flying\n${MO}` }], [MO, AP, AP]);
+      ok("verify #17: Doubling Season + Anointed Procession + Mondrak: only Mondrak's is named", JSON.stringify(three) === JSON.stringify([`Mondrak, Glory Dominus: ${MO}`, AP, AP]), JSON.stringify(three));
+      // (two of one card are one name: both named)
+      const twins = await ask17([ench("engine-card-1870", "Anointed Procession", AP), ench("engine-card-1874", "Anointed Procession", AP)], [AP, AP]);
+      ok("verify #17: two Anointed Processions are still one name", JSON.stringify(twins) === JSON.stringify([`Anointed Procession: ${AP}`, `Anointed Procession: ${AP}`]), JSON.stringify(twins));
+      // (a card off the battlefield with the sentence doesn't count: an Anointed Procession in the hand names no option)
+      const { h, seat } = fresh((gv) => gv.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards.push(ench("engine-card-1875", "Anointed Procession", AP)));
+      await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose", targets: [] }, options: [{ label: AP, weight: 1 }, { label: MO, weight: 1 }] },
+        { sourceCard: { id: "engine-card-1209", identity: { name: "Kykar, Wind's Fury" } } });
+      ok("verify #17: a card in a hand names no option", JSON.stringify(labels(seat)) === JSON.stringify([AP, MO]), JSON.stringify(labels(seat)));
+      harness.restore();
+      // (one option that isn't a replacement: not this question)
+      const mixed = fresh();
+      await asked(mixed.h, mixed.seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose", targets: [] }, options: [{ label: AP, weight: 1 }, { label: "Draw a card", weight: 1 }] },
+        { sourceCard: { id: "engine-card-1209", identity: { name: "Kykar, Wind's Fury" } } });
+      ok("verify #17: every option must be a replacement for 'which applies first?'", mixed.seat.prompt?.ui?.title !== "Kykar, Wind's Fury: which applies first?", mixed.seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #4: City of Brass's tap trigger is its damage; Tomb of Urami's conditional damage says nothing; another card's
+    // "becomes tapped" isn't this one's (Arcane Spyglass is made up: the guard is for a sentence about any creature);
+    // Tarnished Citadel's {C} never takes its any-colour line's damage, whatever its ability number (Forge's mana-ability
+    // index, which needn't follow the text's lines). Card texts from Forge's cardsfolder.
+    {
+      const land = (id, name, text) => ({ id, identity: { name }, types: ["Land"], controllerId: "player-0", text });
+      const { h, seat } = fresh((gv) => mine(gv).push(
+        land("engine-card-1401", "City of Brass", "Whenever City of Brass becomes tapped, it deals 1 damage to you.\n{T}: Add one mana of any color."),
+        land("engine-card-1402", "Tomb of Urami", "{T}: Add {B}. Tomb of Urami deals 1 damage to you if you don't control an Ogre.\n{2}{B}{B}, {T}, Sacrifice all lands you control: Create Urami, a legendary 5/5 black Demon Spirit creature token with flying."),
+        land("engine-card-1403", "Tarnished Citadel", "{T}: Add {C}.\n{T}: Add one mana of any color. Tarnished Citadel deals 3 damage to you."),
+        { id: "engine-card-1404", identity: { name: "Arcane Spyglass" }, types: ["Artifact"], controllerId: "player-0", text: "{T}: Add {U}.\nWhenever a creature becomes tapped, it deals 1 damage to you." }));
+      await asked(h, seat, { type: "payManaCost", manaCost: "{3}{B}", presentation: { title: "Pay {3}{B}" }, actions: [
+        { id: "tap:engine-card-1401:0:W", cardId: "engine-card-1401", abilityIndex: 0, description: "City of Brass", cost: "{T}", producedMana: [{ amount: 1, color: "W" }] },
+        { id: "tap:engine-card-1402:0", cardId: "engine-card-1402", abilityIndex: 0, description: "Tomb of Urami", cost: "{T}", producedMana: [{ amount: 1, color: "B" }] },
+        { id: "tap:engine-card-1403:1", cardId: "engine-card-1403", abilityIndex: 1, description: "Tarnished Citadel", cost: "{T}", producedMana: [{ amount: 1, color: "C" }] },
+        { id: "tap:engine-card-1404:0", cardId: "engine-card-1404", abilityIndex: 0, description: "Arcane Spyglass", cost: "{T}", producedMana: [{ amount: 1, color: "U" }] }] },
+        { sourceCard: { id: "engine-card-43", identity: { name: "Vraska's Fall" } } });
+      const got = labels(seat);
+      ok("verify #4: City of Brass says its tap damage", got.includes("Tap City of Brass for {W} (1 damage to you)"), JSON.stringify(got));
+      ok("verify #4: Tomb of Urami's damage under a condition says nothing", got.includes("Tap Tomb of Urami for {B}"), JSON.stringify(got));
+      ok("verify #4: Tarnished Citadel's {C} has no damage, whatever its ability number", got.includes("Tap Tarnished Citadel for {C}"), JSON.stringify(got));
+      ok("verify #4: another card's 'a creature becomes tapped' isn't this card's", got.includes("Tap Arcane Spyglass for {U}"), JSON.stringify(got));
+      harness.restore();
+    }
+    // #18: "halflingses" against Saradoc's "Halflings"; a singular in -us ("Fungus") keeps its plural "Funguses"; a -ses
+    // word the card's own text has stays (no printed card has both forms, Forge's cardsfolder: a made-up card for the guard)
+    {
+      const ab = async (name, text, description) => {
+        const { h, seat } = fresh((gv) => mine(gv).push({ id: "engine-card-1450", identity: { name }, types: ["Artifact"], controllerId: "player-0", text }));
+        await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }, { id: "a1", type: "activateAbility", cardId: "engine-card-1450", abilityIndex: 1, isManaAbility: false, description, cost: "{1}" }] });
+        const got = labels(seat).find((l) => l.startsWith(`${name}:`)); harness.restore(); return got;
+      };
+      const half = await ab("Saradoc, Master of Buckland", "Whenever Saradoc, Master of Buckland or another nontoken creature you control with power 2 or less enters, create a 1/1 white Halfling creature token.\nTap two other untapped Halflings you control: Saradoc gets +2/+0 and gains lifelink until end of turn. Activate only once each turn.",
+        "Tap two other untapped halflingses you control: Saradoc gets +2/+0 and gains lifelink until end of turn.");
+      ok("verify #18: the doubled plural is undone whatever its case", /Tap two other untapped halflings you control/.test(half || ""), half);
+      const fungus = await ab("Fungal Bloom", "{G}{G}: Put a spore counter on target Fungus.", "{G}{G}: Put a spore counter on each of two target Funguses.");
+      ok("verify #18: a singular in -us keeps its plural", /two target Funguses/.test(fungus || ""), fungus);
+      const lens = await ab("Lens Keeper", "{1}, Tap two untapped Lenses you control: Lens Keeper deals 1 damage to any target.", "{1}, Tap two untapped Lenses you control: Lens Keeper deals 1 damage to any target.");
+      ok("verify #18: a -ses word the card's own text has stays", /Tap two untapped Lenses you control/.test(lens || ""), lens);
+    }
+    // #23: "one or two target" and "one, two, or three target" aren't rewritten into "one or which"
+    {
+      for (const [name, text] of [["Armament Corps", "When Armament Corps enters, distribute two +1/+1 counters among one or two target creatures you control."],
+        ["Aberrant Return", "Put one, two, or three target creature cards from graveyards onto the battlefield under your control. Each of them enters with an additional -1/-1 counter on it."]]) {
+        const { h, seat } = fresh((gv) => mine(gv).push(one("engine-card-1460", "Grizzly Bears", { power: 2, toughness: 2 })));
+        await asked(h, seat, { type: "chooseBoardTargets", minTargets: 1, maxTargets: 2, chosenTargets: 0, intent: "pump", candidates: [{ kind: "card", id: "engine-card-1460" }], presentation: { title: "Pump", targets: [] } },
+          { sourceCard: { id: "engine-card-1461", identity: { name }, text }, sourceAbilityText: text });
+        ok(`verify #23: ${name}'s range isn't garbled`, !/\bor which\b|, which\b/.test(seat.prompt?.ui?.title || ""), seat.prompt?.ui?.title);
+        harness.restore();
+      }
+    }
+    // #5 #24: one real source left once Forge's headings are gone is picked, and the chat says it is the source
+    {
+      const { h, seat } = fresh((gv) => mine(gv).push(one("engine-card-1470", "Grizzly Bears", { power: 2, toughness: 2 })));
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, presentation: { title: "Deflecting Palm", description: "Choose a source " },
+        cards: [{ id: "engine-card-1471", identity: { name: "--PERMANENTS:--", setCode: "???" } }, { ...one("engine-card-1470", "Grizzly Bears", { power: 2, toughness: 2 }), zone: "battlefield", ownerId: "player-0" }] },
+        { sourceCard: { id: "engine-card-1807", identity: { name: "Deflecting Palm" } }, sourceAbilityText: "The next time a source of your choice would deal damage to you this turn, prevent that damage." });
+      const said = chats(h).filter((t) => /only choice/.test(t));
+      ok("verify #5 #24: the one real source is picked and the chat names it as the source", said.length === 1 && said[0] === "[MTG] Deflecting Palm: the source is Grizzly Bears 2/2 (the only choice)", JSON.stringify(said));
+      harness.restore();
+    }
+    // #5: a real choice that starts with dashes is no heading (Forge's two piles read "-- Pile 1 (2 cards) --"), and a
+    // heading among a selection's labels is never an option
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Fact or Fiction", targets: [] }, options: [{ label: "-- Pile 1 (2 cards) --", weight: 1 }, { label: "-- Pile 2 (3 cards) --", weight: 1 }] },
+        { sourceCard: { id: "engine-card-1480", identity: { name: "Fact or Fiction" } } });
+      ok("verify #5: dashes alone are no heading", labels(seat).length === 2, JSON.stringify(labels(seat)));
+      harness.restore();
+    }
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose", targets: [] }, options: [{ label: "--CARDS ON BATTLEFIELD:--", weight: 1 }, { label: "Grizzly Bears", weight: 1 }, { label: "Serra Angel", weight: 1 }] },
+        { sourceCard: { id: "engine-card-1481", identity: { name: "Some Card" } } });
+      ok("verify #5: a heading among a selection's labels is no option", JSON.stringify(labels(seat).filter((l) => /--/.test(l))) === "[]" && labels(seat).length === 2, JSON.stringify(labels(seat)));
+      harness.restore();
+    }
+    // INV-6: two alike cards in two players' graveyards say whose
+    {
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseCards", min: 1, max: 1, presentation: { title: "Choose a card", description: "Choose a card" },
+        cards: [{ id: "engine-card-1490", identity: { name: "Lightning Bolt" }, types: ["Instant"], zone: "graveyard", ownerId: "player-0" }, { id: "engine-card-1491", identity: { name: "Lightning Bolt" }, types: ["Instant"], zone: "graveyard", ownerId: "player-1" }] },
+        { sourceCard: { id: "engine-card-1492", identity: { name: "Some Card" } } });
+      const got = labels(seat);
+      ok("verify INV-6: alike cards in two graveyards say whose", got.some((l) => /yours/.test(l)) && got.some((l) => /AI 1's/.test(l)), JSON.stringify(got));
+      harness.restore();
+    }
+    // probe extra: X is the power (an Esper Sentinel made 3/1 by an equipment), not the toughness
+    {
+      const { h, seat } = fresh();
+      const text = "Whenever an opponent casts their first noncreature spell each turn, draw a card unless that player pays {X}, where X is Esper Sentinel's power.";
+      await asked(h, seat, { type: "chooseBoolean", confirmLabel: "Pay", denyLabel: "Decline", presentation: { title: "Pay {X}?", text: "otherwise: \"AI 1 draws a card.\"" } },
+        { sourceAbilityText: text, sourceCard: { id: "engine-card-1244", identity: { name: "Esper Sentinel" }, power: "3", toughness: "1", controllerId: "player-1", text } });
+      ok("verify probe: X is Esper Sentinel's power, not its toughness", seat.prompt?.ui?.title === "Esper Sentinel: pay {3}?", seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // #20: a candidate both halves could target (an artifact enchantment) names no half
+    {
+      const FUSE = "Fuse (You may cast one or both halves of this card from your hand.)";
+      const text = `(Wear) Destroy target artifact.\n${FUSE}\r\n\r\n(Tear) Destroy target enchantment.\n${FUSE}`;
+      const { h, seat } = fresh((gv) => gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards.push(
+        { id: "engine-card-1955", identity: { name: "Chief of the Foundry's Shrine" }, types: ["Artifact", "Enchantment"], controllerId: "player-1" }));
+      await asked(h, seat, { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, chosenTargets: 0, intent: "destroy", candidates: [{ kind: "card", id: "engine-card-1955" }], presentation: { title: "Destroy", targets: [] } },
+        { sourceCard: { id: "engine-card-1956", identity: { name: "Wear // Tear" }, text }, sourceAbilityText: FUSE });
+      ok("verify #20: a target both halves fit names no half", !/^(?:Wear|Tear):/.test(seat.prompt?.ui?.title || ""), seat.prompt?.ui?.title);
+      harness.restore();
+    }
+  }
+  // ── live reports 2026-11-08 (an X/X token with no badge, every player's Plains in one printing, a concession read as
+  // an empty library) and the verifier's 2026-11-09 findings (multiplayer losers read as decked, "two Lens") ──
+  {
+    const bfOf = (b, owner = "player-0") => b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === owner).cards;
+    const W = "https://img.klrmngr.com/display/front/9/d/9d447365-3aca-4996-9098-efcbe6f28f57.webp";
+    const token = (extra = {}) => ({ id: "engine-card-950", identity: { name: "Dinosaur Beast Token", isToken: true }, types: ["Creature"], color: "G",
+      power: "6", toughness: "6", basePower: 6, baseToughness: 6, printedPower: null, printedToughness: null, controllerId: "player-0", ownerId: "player-0", ...extra });
+    // bug 1: bp/bt are the picture's numbers, null when it shows none
+    {
+      // (a picture found by name only: Scryfall's */* Dinosaur Beast, the same for the 4/4, 6/6 and 18/18)
+      const h = harness.load({ imageCache: { "token:Dinosaur Beast|6/6|g": { face: W, back: null, pow: null, tou: null } } });
+      setup(h, F.board);
+      const c = h.B.tableCard(token());
+      ok("live bug 1: an X/X token whose picture was found by name has no base (bp/bt null)", c.f === W && c.bp === null && c.bt === null, JSON.stringify([c.f, c.bp, c.bt]));
+      harness.restore();
+    }
+    {
+      const h = harness.load({ imageCache: { "token:Dinosaur Beast|6/6|g": { face: W, back: null, pow: "6", tou: "6" },
+        "token:Kelp|0/1|u": { face: W, back: null, pow: "0", tou: "1" }, "token:Ooze|3/3|g": { face: W, back: null, pow: "*", tou: "*" } } });
+      setup(h, F.board);
+      const c = h.B.tableCard(token());
+      ok("live bug 1: a picture found by its P/T says it (bp/bt 6/6)", c.bp === 6 && c.bt === 6, JSON.stringify([c.bp, c.bt]));
+      const kelp = h.B.tableCard(token({ identity: { name: "Kelp Token", isToken: true }, color: "U", power: "0", toughness: "1", basePower: 0, baseToughness: 1 }));
+      ok("live bug 1: a 0/1 picture is a base of 0/1, not none", kelp.bp === 0 && kelp.bt === 1, JSON.stringify([kelp.bp, kelp.bt]));
+      const ooze = h.B.tableCard(token({ identity: { name: "Ooze Token", isToken: true }, power: "3", toughness: "3", basePower: null, baseToughness: null }));
+      ok("live bug 1: a picture printed */* is no base", ooze.f === W && ooze.bp === null && ooze.bt === null, JSON.stringify([ooze.f, ooze.bp, ooze.bt]));
+      harness.restore();
+    }
+    {
+      // (an entry from before the P/T was kept is looked up again; with no picture there is no base)
+      const h = harness.load({ imageCache: { "token:Dinosaur Beast|6/6|g": { face: W, back: null } } });
+      setup(h, F.board);
+      const c = h.B.tableCard(token());
+      ok("live bug 1: an old cache entry is asked for again, and no picture is no base", c.f === null && c.bp === null && c.bt === null, JSON.stringify([c.f, c.bp, c.bt]));
+      await h.flush();
+      ok("live bug 1: the old entry was searched for again", h.effects.some((e) => e.fetch && e.fetch.includes("/cards/search") && e.fetch.includes("Dinosaur")), "no search");
+      // (a token with no picture yet shows a card back: its printed numbers aren't on it)
+      const back = h.B.tableCard(token({ identity: { name: "Soldier Token", isToken: true }, color: "W", power: "1", toughness: "1", basePower: 1, baseToughness: 1, printedPower: 1, printedToughness: 1 }));
+      ok("live bug 1: a token with no picture has no base, whatever Forge printed", back.f === null && back.bp === null && back.bt === null, JSON.stringify([back.f, back.bp, back.bt]));
+      harness.restore();
+    }
+    {
+      // the search: the P/T is kept from the search that asked for it, never from a name-only one
+      for (const [label, exactHits, want] of [["the P/T search", true, ["6", "6"]], ["a name-only search", false, [null, null]]]) {
+        const h = harness.load();
+        setup(h, F.board);
+        const f0 = global.fetch;
+        global.fetch = async (u, o) => {
+          if (!String(u).includes("/cards/search")) return f0(u, o);
+          const exact = String(u).includes(encodeURIComponent("pow=6"));
+          const data = exact ? (exactHits ? [{ id: "aaaaaaaa-0000-0000-0000-000000000001", power: "6", toughness: "6" }] : [])
+            : [{ id: "bbbbbbbb-0000-0000-0000-000000000002", power: "4", toughness: "4" }];
+          return { ok: data.length > 0, status: data.length ? 200 : 404, json: async () => ({ data }) };
+        };
+        h.B.tableCard(token()); await h.flush();
+        const c = h.B.tableCard(token());
+        ok(`live bug 1: a picture from ${label} has base ${JSON.stringify(want)}`, c.f && JSON.stringify([c.bp, c.bt]) === JSON.stringify(want.map((x) => (x == null ? null : Number(x)))), JSON.stringify([c.f, c.bp, c.bt]));
+        harness.restore();
+      }
+    }
+    {
+      const h = harness.load();
+      setup(h, F.board);
+      const card = (extra) => h.B.tableCard({ id: "engine-card-951", identity: { name: "Grizzly Bears" }, types: ["Creature"], power: "2", toughness: "2", controllerId: "player-0", ownerId: "player-0", ...extra });
+      const bears = card({ basePower: 2, baseToughness: 2, printedPower: 2, printedToughness: 2 });
+      ok("live bug 1: a card's base is its printed P/T", bears.bp === 2 && bears.bt === 2, JSON.stringify([bears.bp, bears.bt]));
+      const goyf = card({ identity: { name: "Tarmogoyf" }, power: "3", toughness: "4", basePower: 0, baseToughness: 1 });
+      ok("live bug 1: a card with no numeric printed P/T has no base (not Forge's base 0/1)", goyf.bp === null && goyf.bt === null, JSON.stringify([goyf.bp, goyf.bt]));
+      const roots = card({ identity: { name: "Wall of Roots" }, power: "0", toughness: "5", basePower: 0, baseToughness: 5, printedPower: 0, printedToughness: 5 });
+      ok("live bug 1: a printed 0 is a base of 0", roots.bp === 0 && roots.bt === 5, JSON.stringify([roots.bp, roots.bt]));
+      const morph = h.B.tableCard({ id: "engine-card-952", identity: { name: "Secret" }, isFaceDown: true, types: ["Creature"], power: 2, toughness: 2, controllerId: "player-0" });
+      ok("live bug 1: a face-down permanent's base is the rules' 2/2", morph.fd && morph.bp === 2 && morph.bt === 2, JSON.stringify(morph));
+      const foretold = h.B.tableCard({ id: "engine-card-953", identity: { name: "Secret" }, isFaceDown: true, types: ["Instant"], controllerId: "player-0" });
+      ok("live bug 1: a face-down card with no P/T has no base", foretold.bp === undefined && foretold.bt === undefined, JSON.stringify(foretold));
+      harness.restore();
+    }
+    // bug 2: each deck's own printings, by owner, the same face for an engine card every time
+    {
+      const W1 = "https://img.klrmngr.com/display/front/1/1/11111111-0000-0000-0000-00000000000a.webp";
+      const B1 = "https://img.klrmngr.com/display/front/2/2/22222222-0000-0000-0000-00000000000b.webp";
+      const B2 = "https://img.klrmngr.com/display/front/3/3/33333333-0000-0000-0000-00000000000c.webp";
+      const cmd = "https://img.klrmngr.com/display/front/4/4/44444444-0000-0000-0000-00000000000d.webp";
+      const decks = { White: { deckName: "W", commander: [{ n: "Neheb, the Eternal", f: cmd }], library: [{ n: "Plains", f: W1 }, { n: "Plains", f: W1 }] },
+        Blue: { deckName: "B", commander: [{ n: "Neheb, the Eternal", f: cmd }], library: [{ n: "Plains", f: B1 }, { n: "Plains", f: B2 }, { n: "Plains", f: B1 }, { n: "Island", f: B2 }] } };
+      const plains = (id, ownerId, extra = {}) => ({ id, identity: { name: "Plains" }, types: ["Land"], supertypes: ["Basic"], controllerId: ownerId, ownerId, ...extra });
+      const h = harness.load();
+      // (slotColor: player-0 Blue, player-1 White)
+      setup(h, F.board);
+      // (White readied first: it was White's printing everyone got)
+      h.B.onTTS({ t: "decks", json: JSON.stringify({ seats: decks }) }); await h.flush();
+      const faces = (ids, owner, extra) => ids.map((id) => h.B.tableCard(plains(id, owner, extra)).f);
+      const blue = faces(["engine-card-10", "engine-card-11", "engine-card-12", "engine-card-13"], "player-0");
+      ok("live bug 2: a Blue-owned Plains never shows White's printing", blue.every((f) => f === B1 || f === B2), JSON.stringify(blue));
+      ok("live bug 2: two Blue Plains show B1 and B2", new Set(blue.slice(0, 2)).size === 2, JSON.stringify(blue));
+      ok("live bug 2: a White Plains shows White's", faces(["engine-card-20", "engine-card-21"], "player-1").every((f) => f === W1));
+      const again = faces(["engine-card-10", "engine-card-11", "engine-card-12", "engine-card-13"], "player-0");
+      ok("live bug 2: every Plains keeps its face on every board", JSON.stringify(again) === JSON.stringify(blue), JSON.stringify([blue, again]));
+      // (stolen: controlled by White, owned by Blue; a token copy goes by its owner too)
+      const stolen = h.B.tableCard(plains("engine-card-10", "player-0", { controllerId: "player-1" })).f;
+      ok("live bug 2: a stolen card keeps its owner's printing", stolen === blue[0], JSON.stringify([stolen, blue[0]]));
+      const copy = h.B.tableCard(plains("engine-card-30", "player-1", { identity: { name: "Plains", isToken: true } })).f;
+      ok("live bug 2: a token copy shows its owner's printing", copy === W1, copy);
+      // (an owner's deck without the card falls back to another deck's)
+      const neheb = h.B.tableCard({ id: "engine-card-40", identity: { name: "Neheb, the Eternal" }, types: ["Creature"], controllerId: "player-1", ownerId: "player-1" }).f;
+      ok("live bug 2: a card in the owner's deck only, from the owner's deck", neheb === cmd, neheb);
+      const fall = h.B.tableCard({ id: "engine-card-41", identity: { name: "Plains" }, types: ["Land"], controllerId: "player-2", ownerId: "player-2" }).f;
+      ok("live bug 2: an owner with no deck of it falls back to a deck that has it", fall === W1 || fall === B1 || fall === B2, fall);
+      // (White's deck has no Island; Blue's does)
+      const island = h.B.tableCard({ id: "engine-card-42", identity: { name: "Island" }, types: ["Land"], controllerId: "player-1", ownerId: "player-1" }).f;
+      ok("live bug 2: a card the owner's deck lacks comes from another deck", island === B2, island);
+      // (a question shows the card as the table does)
+      ok("live bug 2: a question's picture is the table's printing", h.B.imgOf(plains("engine-card-11", "player-0")) === blue[1], h.B.imgOf(plains("engine-card-11", "player-0")));
+      // (and a spell on the stack shows its card's: Blue's engine-card-11, not the first deck's; the stack item's own id
+      // is another number, as the engine's engine-stack-N beside engine-card-N, and would pick the other printing)
+      {
+        const gv = h.B._getGame().seats.get("Blue").board.state.gameView;
+        gv.stack = [{ id: "engine-stack-2", sourceId: "engine-card-11", ownerId: "player-0", controllerId: "player-0", identity: { name: "Plains" }, text: "", targets: [] }];
+        h.B.sendTable(); await h.flush();
+        const st = sent(h, "table").at(-1)?.stack?.[0]?.f;
+        ok("live bug 2: a spell on the stack shows its card's printing", st === blue[1] || st === h.B.shortUrl(blue[1]), st);
+        gv.stack = [];
+      }
+      // a restarted bridge: the game's pictures come back with the resume file, and every Plains keeps its face
+      const fsm = require("fs");
+      const w0 = fsm.writeFile;
+      let snapText = null;
+      fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
+      const g = h.B._getGame();
+      g.started = false;
+      const seat = g.seats.get("Blue");
+      h.B.onGameStarted({ player_order: [seat.username, "self-hosted-node-77-bot"], starting_life: 40, game_id: "g1" }); await h.flush();
+      fsm.writeFile = w0;
+      ok("live bug 2: the resume file holds the decks' pictures", !!snapText && JSON.parse(snapText).game.pictures?.Blue?.Plains?.length === 2, String(snapText).slice(0, 200));
+      harness.restore();
+      const h2 = harness.load();
+      await require("fs").promises.writeFile(process.env.MTG_RESUME_FILE, snapText);
+      const resumed = h2.B.resumeGame();
+      const after = ["engine-card-10", "engine-card-11", "engine-card-12", "engine-card-13"].map((id) => h2.B.tableCard(plains(id, "player-0")).f);
+      await require("fs").promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
+      ok("live bug 2: after a bridge restart every Plains shows the face it had", resumed && JSON.stringify(after) === JSON.stringify(blue), JSON.stringify([resumed, after, blue]));
+      harness.restore();
+    }
+    // verifier 2026-11-09 #3: a printing whose link turns out dead mid-game moves only the cards that showed it
+    {
+      const P1 = "https://img.klrmngr.com/display/front/6/6/66666666-0000-0000-0000-00000000000e.webp";
+      const PX = "https://img.klrmngr.com/display/front/7/7/dead7777-gone.webp";
+      const P3 = "https://img.klrmngr.com/display/front/8/8/88888888-0000-0000-0000-00000000000f.webp";
+      const cmd = "https://img.klrmngr.com/display/front/4/4/44444444-0000-0000-0000-00000000000d.webp";
+      const h = harness.load();
+      setup(h, F.board);
+      h.B.onTTS({ t: "decks", json: JSON.stringify({ seats: { Blue: { deckName: "B", commander: [{ n: "Neheb, the Eternal", f: cmd }],
+        library: [{ n: "Plains", f: P1 }, { n: "Plains", f: PX }, { n: "Plains", f: P3 }] } } }) });
+      const ids = ["engine-card-9", "engine-card-10", "engine-card-11", "engine-card-12", "engine-card-13", "engine-card-14"];
+      const faces = () => ids.map((id) => h.B.tableCard({ id, identity: { name: "Plains" }, types: ["Land"], controllerId: "player-0", ownerId: "player-0" }).f);
+      // (before the image host has answered the deck's check, the dead link is still in use)
+      const before = faces();
+      await h.flush();
+      const after = faces();
+      ok("verify #3: precondition, the link was in use before the image host said it was dead", before.includes(PX) && before.includes(P1) && before.includes(P3), JSON.stringify(before));
+      ok("verify #3: a card whose printing is still there keeps it when another printing's link dies", before.every((f, i) => f === PX || after[i] === f), JSON.stringify([before, after]));
+      ok("verify #3: a card that showed the dead link shows the next printing in the deck's list", before.every((f, i) => f !== PX || after[i] === P3), JSON.stringify([before, after]));
+      ok("verify #3: the dead link isn't shown", !after.includes(PX), JSON.stringify(after));
+      harness.restore();
+    }
+    // verifier 2026-11-09 #2: an AI plays the table deck from Yellow's seat; the bots join in either order, and the one
+    // given that deck (the node's first bot, "<name>") sits at Red or at Yellow. Its cards show that deck's printing, not
+    // White's (the first deck by table colour) nor the deck lying unused in Red's seat. White and Blue are players.
+    // (third case: an "mtg aideck" preset comes first, so Yellow's deck is the second bot's, "<name> 2")
+    for (const [label, joined, aideck] of [["sits at Red", ["self-hosted-node-77-bot", "self-hosted-node-77-bot 2"]], ["sits at Yellow", ["self-hosted-node-77-bot 2", "self-hosted-node-77-bot"]],
+      ["sits at Red behind a preset", ["self-hosted-node-77-bot 2", "self-hosted-node-77-bot"], true]]) {
+      const pic = (n) => `https://img.klrmngr.com/display/front/${n}/${n}/${String(n).repeat(8)}-0000-0000-0000-000000000001.webp`;
+      const [W1, B1, Y1, R1, cmd] = [1, 2, 3, 5, 4].map(pic);
+      const deck = (name, plains) => ({ deckName: name, commander: [{ n: "Neheb, the Eternal", f: cmd }], library: [{ n: "Plains", f: plains }] });
+      const h = harness.load();
+      const white = new h.B.Seat("White", "neheb_minotaur_commander"), blue = new h.B.Seat("Blue", "neheb_minotaur_commander");
+      for (const s of [white, blue]) { s.joined = true; s.roomId = "room-1"; }
+      h.B.onTTS({ t: "decks", json: JSON.stringify({ seats: { White: deck("W", W1), Blue: deck("B", B1), Yellow: deck("Y", Y1), Red: deck("R", R1) } }) }); await h.flush();
+      const ready = h.B._readyDecks;
+      h.B._setGame({ seats: new Map([["White", white], ["Blue", blue]]), bots: 2, total: 4, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false,
+        fromTable: true, sentStatic: {}, sentZones: {}, maxSet: true, startSent: true, botsRequested: false, pendingPlays: [],
+        aiTableDecks: [{ deckName: ready.Yellow.deckName, deck: { cards: [], commanders: [] }, commanderName: null }], aiTableColors: ["Yellow"] });
+      if (aideck) { h.B.onTTS({ t: "aideck", json: JSON.stringify({ deck: "ai_passive_lands" }) }); await h.flush(); }
+      h.B.onRoomUpdate(white, { room_id: "room-1", host: white.username, status: "Lobby", max_players: 4,
+        players: [white.username, blue.username, ...joined].map((username) => ({ username, ready: true, connected: true, is_bot: /bot/.test(username) })) });
+      await h.flush();
+      if (aideck) { h.B.onTTS({ t: "aideck", json: JSON.stringify({ deck: "clear" }) }); await h.flush(); }
+      // (clockwiseOrder: the bots take Red then Yellow in the order they joined)
+      const order = [white.username, joined[0], joined[1], blue.username];
+      h.B.onGameStarted({ player_order: order, starting_life: 40, game_id: "g-ai" }); await h.flush();
+      await require("fs").promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
+      const g = h.B._getGame();
+      const slotOf = (u) => `player-${order.indexOf(u)}`;
+      const face = (owner) => h.B.tableCard({ id: "engine-card-70", identity: { name: "Plains" }, types: ["Land"], controllerId: owner, ownerId: owner }).f;
+      const yellowsDeck = slotOf(aideck ? "self-hosted-node-77-bot 2" : "self-hosted-node-77-bot"), preset = slotOf(aideck ? "self-hosted-node-77-bot" : "self-hosted-node-77-bot 2");
+      ok(`verify #2: precondition, the AI with Yellow's deck ${label}`, g.slotColor[yellowsDeck] === (label.includes("Red") ? "Red" : "Yellow"), JSON.stringify(g.slotColor));
+      ok(`verify #2: the AI that ${label} with Yellow's deck shows its printing`, face(yellowsDeck) === Y1, face(yellowsDeck));
+      ok(`verify #2: the AI with a built-in deck shows neither Yellow's nor the unused Red deck's (${label})`, ![Y1, R1].includes(face(preset)), face(preset));
+      ok(`verify #2: the players keep their own (${label})`, face(slotOf(white.username)) === W1 && face(slotOf(blue.username)) === B1, JSON.stringify([face(slotOf(white.username)), face(slotOf(blue.username))]));
+      ok(`verify #2: no pictures for a deck nobody plays (${label})`, Object.values(g.pictures || {}).every((d) => d.Plains?.[0]?.face !== R1) && Object.keys(g.pictures || {}).length === 3, JSON.stringify(Object.keys(g.pictures || {})));
+      harness.restore();
+    }
+    // verifier 2026-11-09 #1: a copy (Clone as Grizzly Bears, whose paper is Clone's) gets no printed P/T from the engine;
+    // it shows the Bears' picture, so its base is the printed P/T the engine sent for a Grizzly Bears, from any board,
+    // even one where the copy is drawn first and after the original is gone. A name the engine never sent numbers for,
+    // and one only a token had (token names aren't unique), stay without a base.
+    {
+      const h = harness.load();
+      const card = (id, name, extra = {}) => ({ id, identity: { name }, types: ["Creature"], power: "2", toughness: "2", basePower: 2, baseToughness: 2, controllerId: "player-0", ownerId: "player-0", ...extra });
+      const b = clone(F.board);
+      const bf = bfOf(b);
+      bf.unshift(card("engine-card-961", "Grizzly Bears", { isCopy: true, power: "3", toughness: "3" }), card("engine-card-962", "Soldier", { isCopy: true }), card("engine-card-963", "Tarmogoyf", { isCopy: true }));
+      bf.push(card("engine-card-960", "Grizzly Bears", { printedPower: 2, printedToughness: 2 }),
+        card("engine-card-964", "Soldier", { identity: { name: "Soldier", isToken: true }, power: "1", toughness: "1", basePower: 1, baseToughness: 1, printedPower: 1, printedToughness: 1 }));
+      const seat = setup(h, F.board);
+      seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(b), fingerprint: "c1" }); await h.flush();
+      const statOf = (id) => { for (const t of sent(h, "table").reverse()) { const st = t.cards?.[id]; if (st) return [st.bp, st.bt]; } return "not sent"; };
+      ok("verify #1: a copy drawn before its original has the original's printed P/T as its base", JSON.stringify(statOf("engine-card-961")) === "[2,2]", JSON.stringify(statOf("engine-card-961")));
+      ok("verify #1: a name only a token printed has no base", JSON.stringify(statOf("engine-card-962")) === "[null,null]", JSON.stringify(statOf("engine-card-962")));
+      ok("verify #1: a name never printed has no base", JSON.stringify(statOf("engine-card-963")) === "[null,null]", JSON.stringify(statOf("engine-card-963")));
+      const gone = clone(b);
+      bfOf(gone).splice(bfOf(gone).findIndex((c) => c.id === "engine-card-960"), 1);
+      seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: gone, fingerprint: "c2" }); await h.flush();
+      const copy = h.B.tableCard(bfOf(gone).find((c) => c.id === "engine-card-961"));
+      ok("verify #1: the copy keeps that base once the original is gone", copy.bp === 2 && copy.bt === 2, JSON.stringify([copy.bp, copy.bt]));
+      // (a card's own printed P/T still comes first)
+      const own = h.B.tableCard(card("engine-card-965", "Grizzly Bears", { printedPower: 5, printedToughness: 5 }));
+      ok("verify #1: a card's own printed P/T comes before its name's", own.bp === 5 && own.bt === 5, JSON.stringify([own.bp, own.bt]));
+      // (kept in the resume file, so a restarted bridge draws the copy as before)
+      const fsm = require("fs");
+      const w0 = fsm.writeFile;
+      let snapText = null;
+      fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
+      h.B.saveResume(); await h.flush();
+      fsm.writeFile = w0;
+      await fsm.promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
+      ok("verify #1: the resume file keeps the printed P/T seen", JSON.stringify(JSON.parse(snapText || "{}").game?.printedPT?.["Grizzly Bears"]) === "[2,2]", String(snapText).slice(0, 200));
+      harness.restore();
+    }
+    // bug 3 and verifier finding 1: why the game ended. Players: player-0 Blue (the seat), player-1 White, player-2 Yellow,
+    // player-3 Red; boards come in one by one as the engine sends them (noteOuts reads each)
+    {
+      const chatsOf = (h) => h.effects.filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text);
+      const names = ["Blue", "White", "Yellow", "Red"];
+      const play = async (n, boards) => {
+        const h = harness.load();
+        const base = clone(F.board);
+        const gv0 = base.gameView;
+        for (let i = 2; i < n; i++) {
+          const p = clone(gv0.players.find((x) => x.id === "player-1")); p.id = `player-${i}`; gv0.players.push(p);
+          gv0.zones.push({ zone: "library", ownerId: p.id, count: 50, cards: [] }, { zone: "battlefield", ownerId: p.id, count: 0, cards: [] });
+        }
+        const slot = Object.fromEntries(names.slice(0, n).map((c, i) => [`player-${i}`, c]));
+        const seat = setup(h, base, { total: n, bots: n - 1, slotNames: slot, slotColor: slot });
+        let k = 0, last = null;
+        for (const edit of boards) {
+          const b = clone(last || base);
+          b.gameView.events = undefined;
+          edit(b.gameView);
+          last = b;
+          seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(b), fingerprint: `f${++k}` }); await h.flush();
+        }
+        return { h, seat, last };
+      };
+      const P = (gv, id) => gv.players.find((p) => p.id === id);
+      const lib = (gv, id, n) => { const z = gv.zones.find((x) => x.zone === "library" && x.ownerId === id); z.count = n; z.cards = []; };
+      const over = (winnerId) => (gv) => { gv.gameOver = true; gv.winnerId = winnerId; };
+      const gameOverSaid = async (r) => {
+        r.seat.board = { state: clone(r.last), fingerprint: null };
+        await asked(r.h, r.seat, { type: "gameOver" });
+        const said = chatsOf(r.h).filter((t) => /Game over/.test(t));
+        harness.restore();
+        return said[0];
+      };
+      const asked = (h, seat, input) => { h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input }); return h.flush(); };
+      // the live game: White conceded (a conceded player's library reads 0), then Yellow, and Blue won
+      let said = await gameOverSaid(await play(3, [() => {}, (gv) => { P(gv, "player-1").status = "conceded"; lib(gv, "player-1", 0); },
+        (gv) => { gv.turn++; }, (gv) => { P(gv, "player-2").status = "conceded"; over("player-0")(gv); }]));
+      ok("live bug 3: two concessions name both and the winner, no empty library", said === "[MTG] Game over: White and Yellow conceded. Blue wins.", said);
+      // (an early concession before a later loss of another kind isn't how it ended)
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { P(gv, "player-1").status = "conceded"; lib(gv, "player-1", 0); },
+        (gv) => { P(gv, "player-2").status = "lost"; P(gv, "player-2").life = 0; over("player-0")(gv); }]));
+      ok("live bug 3: a concession long before the last loss isn't named", said === "[MTG] Game over: Yellow is at 0 life. Blue wins.", said);
+      // (three at once, as the host's "winner" concedes everyone else; one conceded at 0 life, in response, conceded)
+      said = await gameOverSaid(await play(4, [() => {}, (gv) => { for (const id of ["player-1", "player-2", "player-3"]) P(gv, id).status = "conceded"; P(gv, "player-3").life = 0; over("player-0")(gv); }]));
+      ok("live bug 3: three concessions, one of them at 0 life", said === "[MTG] Game over: White, Yellow and Red conceded. Blue wins.", said);
+      // (a multiplayer loser's cards leave the game: one out in their own draw step with cards in their library, Phage
+      // in the draw step, is no deck-out though the board then reads 0)
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; lib(gv, "player-1", 0); },
+        (gv) => { gv.turn++; gv.step = "main1"; gv.activePlayerId = "player-2"; }, (gv) => { P(gv, "player-2").status = "conceded"; over("player-0")(gv); }]));
+      ok("verify 1: a loser whose library emptied as they left isn't decked", said === "[MTG] Game over: Yellow conceded. Blue wins.", said);
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; lib(gv, "player-1", 0); over("player-0")(gv); }]));
+      ok("verify 1: a loser in their own draw step whose library had cards isn't decked", said === "[MTG] Game over: Blue wins.", said);
+      // a real deck-out: the library already empty while White was playing, out in White's own draw step
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+        (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
+      ok("live bug 3: a real deck-out still says so", said === "[MTG] Game over: White drew from an empty library. Blue wins.", said);
+      // (a known reason is said instead: at 0 life in that draw step too)
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+        (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; P(gv, "player-1").life = 0; over("player-0")(gv); }]));
+      ok("live bug 3: a known reason, not also the empty library", said === "[MTG] Game over: White is at 0 life. Blue wins.", said);
+      // a deck-out and a concession on one board, and a mix of all three kinds in four players
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+        (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; P(gv, "player-2").status = "conceded"; lib(gv, "player-2", 0); over("player-0")(gv); }]));
+      ok("live bug 3: a deck-out and a concession together", said === "[MTG] Game over: White drew from an empty library, Yellow conceded. Blue wins.", said);
+      said = await gameOverSaid(await play(4, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+        (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; P(gv, "player-2").status = "conceded"; P(gv, "player-3").status = "lost"; P(gv, "player-3").life = -2; for (const id of ["player-2", "player-3"]) lib(gv, id, 0); over("player-0")(gv); }]));
+      ok("verify 1: concede, deck-out and life loss at once", said === "[MTG] Game over: Red is at -2 life, White drew from an empty library, Yellow conceded. Blue wins.", said);
+      // a player who lost earlier isn't named for the end (outLast)
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { P(gv, "player-1").status = "lost"; P(gv, "player-1").life = -3; lib(gv, "player-1", 0); },
+        (gv) => { gv.turn++; }, (gv) => { P(gv, "player-2").status = "lost"; lib(gv, "player-2", 0); over("player-0")(gv); }]));
+      ok("verify 1: a player out earlier isn't how the game ended", said === "[MTG] Game over: Blue wins.", said);
+      // Thassa's Oracle in 3 and 4 players: every loser's cards leave the game with them, libraries 0
+      for (const n of [3, 4]) {
+        said = await gameOverSaid(await play(n, [() => {}, (gv) => { for (let i = 1; i < n; i++) { P(gv, `player-${i}`).status = "lost"; lib(gv, `player-${i}`, 0); } lib(gv, "player-0", 0); over("player-0")(gv); }]));
+        ok(`verify 1: a Thassa's Oracle win in ${n} players blames no library`, said === "[MTG] Game over: Blue wins.", said);
+      }
+      // a 4-player draw (everyone lost at once, the runaway cap): no guessed reason
+      said = await gameOverSaid(await play(4, [() => {}, (gv) => { for (let i = 0; i < 4; i++) { P(gv, `player-${i}`).status = "lost"; lib(gv, `player-${i}`, 0); } over(null)(gv); }]));
+      ok("verify 1: a 4-player draw says a draw", said === "[MTG] Game over: a draw.", said);
+      // 2 players: a loser whose library was empty, out on the other player's turn (Phage), isn't called decked
+      said = await gameOverSaid(await play(2, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+        (gv) => { gv.step = "main1"; gv.activePlayerId = "player-0"; P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
+      ok("verify 1: an empty library and a loss outside its draw isn't a deck-out", said === "[MTG] Game over: Blue wins.", said);
+      // (nor in its own turn's main phase, nor in another player's draw step)
+      for (const [step, active] of [["main1", "player-1"], ["draw", "player-0"]]) {
+        said = await gameOverSaid(await play(2, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+          (gv) => { gv.step = step; gv.activePlayerId = active; P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
+        ok(`verify 1: an empty library and a loss in ${step} of ${active}'s turn isn't a deck-out`, said === "[MTG] Game over: Blue wins.", said);
+      }
+      // (once the game is over, a player still playing with an empty library in their own draw step hasn't drawn yet)
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { lib(gv, "player-2", 0); },
+        (gv) => { gv.step = "draw"; gv.activePlayerId = "player-2"; P(gv, "player-1").status = "lost"; P(gv, "player-1").life = 0; over("player-0")(gv); }]));
+      ok("verify 2026-11-09: a player still playing at the game's end isn't decked", said === "[MTG] Game over: White is at 0 life. Blue wins.", said);
+      // (the step is the one on the board that first showed the player out: the game's last board may have moved on)
+      const deckOut = [() => {}, (gv) => { lib(gv, "player-1", 0); }, (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; }];
+      const moveOn = (gv) => { gv.step = "main1"; gv.activePlayerId = "player-0"; gv.turn++; over("player-0")(gv); };
+      said = await gameOverSaid(await play(2, [...deckOut, (gv) => { gv.step = "upkeep"; }, moveOn]));
+      ok("verify 2026-11-09: a deck-out is read where the player went out, not on a later board", said === "[MTG] Game over: White drew from an empty library. Blue wins.", said);
+      // (and a bridge restart in between keeps that record: the resume file)
+      {
+        const r = await play(2, deckOut);
+        const fsm = require("fs");
+        const w0 = fsm.writeFile;
+        let snapText = null;
+        fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
+        r.h.B.saveResume(); await r.h.flush();
+        fsm.writeFile = w0;
+        const last = r.last;
+        harness.restore();
+        const h2 = harness.load();
+        await fsm.promises.writeFile(process.env.MTG_RESUME_FILE, snapText || "{}");
+        const resumed = h2.B.resumeGame();
+        await fsm.promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
+        const seat2 = h2.B._getGame()?.seats.get("Blue");
+        const b = clone(last);
+        moveOn(b.gameView);
+        seat2?.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(b), fingerprint: "after-restart" }); await h2.flush();
+        seat2 && (seat2.board = { state: clone(b), fingerprint: null });
+        if (seat2) await asked(h2, seat2, { type: "gameOver" });
+        const s = chatsOf(h2).filter((t) => /Game over/.test(t));
+        ok("verify 2026-11-09: a deck-out is still said after a bridge restart", resumed && s[0] === "[MTG] Game over: White drew from an empty library. Blue wins.", JSON.stringify([resumed, s]));
+        harness.restore();
+      }
+      // (suite review 2026-11-09, B #2: a library first seen empty in the draw step it lost in was that draw's last card,
+      // drawn: White drew it, then lost to something LOSS_REASONS doesn't know, a Laboratory Maniac's)
+      said = await gameOverSaid(await play(2, [(gv) => { lib(gv, "player-1", 1); gv.step = "upkeep"; gv.activePlayerId = "player-1"; },
+        (gv) => { lib(gv, "player-1", 0); gv.step = "draw"; }, (gv) => { P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
+      ok("suite: a player who drew their last card and then lost isn't decked", said === "[MTG] Game over: Blue wins.", said);
+      // (and the same draw step a turn later, the library empty since the turn before: decked)
+      said = await gameOverSaid(await play(2, [(gv) => { lib(gv, "player-1", 0); gv.step = "draw"; gv.activePlayerId = "player-1"; },
+        (gv) => { gv.turn++; gv.step = "upkeep"; }, (gv) => { gv.step = "draw"; }, (gv) => { P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
+      ok("suite: one empty since an earlier turn's draw step is decked in the next", said === "[MTG] Game over: White drew from an empty library. Blue wins.", said);
+      // (B #3: a rewind undoes the answers kept for the log, and how a player it brought back went out)
+      {
+        const r = await play(2, [(gv) => { gv.turn = 6; lib(gv, "player-1", 0); gv.step = "main1"; }, (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; }]);
+        const g = r.h.B._getGame();
+        const recorded = g.outWhere?.["player-1"]?.step === "draw";
+        g.picked = new Map([["engine-card-1", { ids: [], text: "", at: Date.now() }]]); g.answers = new Map([["engine-card-1", [{ at: Date.now() }]]]);
+        g.sourceShields = [{ id: "engine-card-2" }]; g.painTaps = [{ id: "engine-card-3", at: Date.now() }]; g.declaredBlocks = { turn: 6, ids: new Set(["engine-card-2"]) };
+        const back = clone(r.last); back.gameView.turn = 5; back.gameView.step = "main1"; back.gameView.activePlayerId = "player-0"; P(back.gameView, "player-1").status = "playing";
+        r.seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(back), fingerprint: "rewound" }); await r.h.flush();
+        ok("suite: a rewind forgets the picks, answers, shields, pain taps and blocks kept for the log",
+          recorded && g.picked.size === 0 && g.answers.size === 0 && !g.sourceShields.length && !g.painTaps.length && g.declaredBlocks === null,
+          JSON.stringify([recorded, g.picked.size, g.answers.size, g.sourceShields, g.painTaps, g.declaredBlocks]));
+        // (White, back in the game, then out in Blue's main phase with that empty library: no deck-out)
+        const out = clone(back); out.gameView.turn = 6; P(out.gameView, "player-1").status = "lost"; out.gameView.gameOver = true; out.gameView.winnerId = "player-0";
+        r.seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(out), fingerprint: "out-again" }); await r.h.flush();
+        r.seat.board = { state: clone(out), fingerprint: null };
+        await asked(r.h, r.seat, { type: "gameOver" });
+        const s = chatsOf(r.h).filter((t) => /Game over/.test(t));
+        ok("suite: a player the rewind brought back is read by how they went out again", s[0] === "[MTG] Game over: Blue wins.", JSON.stringify(s));
+        harness.restore();
+      }
+      // the relay's abort, on a board not over: a conceded player with library 0 is never decked; nothing known says no "aborted"
+      {
+        // (White's library empty while still playing, the concession in White's own draw step: all a deck-out would show)
+        const r = await play(3, [() => {}, (gv) => { lib(gv, "player-1", 0); }, (gv) => { P(gv, "player-1").status = "conceded"; gv.step = "draw"; gv.activePlayerId = "player-1"; }]);
+        r.seat.onRelay({ type: "GameAborted" }); await r.h.flush();
+        const s = chatsOf(r.h).filter((t) => /^\[MTG\] (Game|The game)/.test(t));
+        ok("live bug 3: the relay's abort after a concession names it, no empty library", JSON.stringify(s) === JSON.stringify(["[MTG] Game over: White conceded."]), JSON.stringify(s));
+        harness.restore();
+      }
+      {
+        const r = await play(2, [() => {}]);
+        r.seat.onRelay({ type: "GameAborted" }); await r.h.flush();
+        const s = chatsOf(r.h).filter((t) => /^\[MTG\] (Game|The game)/.test(t));
+        ok("live bug 3: the relay's end with nothing known says the game ended, not aborted", JSON.stringify(s) === JSON.stringify(["[MTG] The game has ended."]), JSON.stringify(s));
+        harness.restore();
+      }
+      {
+        // (the engine stopped at a deck-out, 2026-10-22: the player still playing, library 0, in their own draw step;
+        // empty already in the upkeep before it)
+        const r = await play(2, [() => {}, (gv) => { lib(gv, "player-0", 0); gv.step = "upkeep"; gv.activePlayerId = "player-0"; },
+          (gv) => { gv.step = "draw"; }]);
+        r.seat.onRelay({ type: "GameAborted" }); await r.h.flush();
+        const s = chatsOf(r.h).filter((t) => /^\[MTG\] (Game|The game)/.test(t));
+        ok("live bug 3: the engine stopping at a deck-out still says so", JSON.stringify(s) === JSON.stringify(["[MTG] Game over: Blue drew from an empty library."]), JSON.stringify(s));
+        harness.restore();
+      }
+    }
+    // verifier finding 2: a singular in "ns" or "as" keeps its "-ses" plural; Forge's doubled plurals in "ns"/"as" are still undone
+    {
+      const mineBf = (gv) => gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards;
+      const ab = async (name, text, description) => {
+        const h = harness.load();
+        const b = clone(F.board);
+        Object.assign(b.gameView, { activePlayerId: "player-0", priorityPlayerId: "player-0", step: "main1", stack: [] });
+        mineBf(b.gameView).push({ id: "engine-card-1450", identity: { name }, types: ["Artifact"], controllerId: "player-0", text });
+        const seat = setup(h, b);
+        h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input: { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" },
+          { id: "a1", type: "activateAbility", cardId: "engine-card-1450", abilityIndex: 1, isManaAbility: false, description, cost: "{1}" }] } });
+        await h.flush();
+        const got = (seat.prompt?.ui?.options || []).map((o) => o.label).find((l) => l.startsWith(`${name}:`)); harness.restore(); return got;
+      };
+      const lens = await ab("Lens Keeper", "{1}: Lens Keeper deals 1 damage to any target.", "{1}, Tap two untapped Lenses you control: Lens Keeper deals 1 damage to any target.");
+      ok("verify 2: two Lenses beside Lens Keeper stay Lenses", /two untapped Lenses you control/.test(lens || ""), lens);
+      const gas = await ab("Gas Main", "{1}: Gas Main deals 1 damage to you.", "{1}: Exile two Gases.");
+      ok("verify 2: Gases beside Gas stay Gases", /two Gases/.test(gas || ""), gas);
+      const gob = await ab("Goblin Warren", "Sacrifice two Goblins: Goblin Warren deals 2 damage to any target.", "Sacrifice two Goblinses: Goblin Warren deals 2 damage to any target.");
+      ok("verify 2: a doubled plural in -ns is still undone (Goblinses)", /Sacrifice two Goblins:/.test(gob || ""), gob);
+      const hyd = await ab("Hydra Den", "Sacrifice two Hydras: draw a card.", "Sacrifice two Hydrases: draw a card.");
+      ok("verify 2: a doubled plural in -as is still undone (Hydrases)", /Sacrifice two Hydras:/.test(hyd || ""), hyd);
+    }
   }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);

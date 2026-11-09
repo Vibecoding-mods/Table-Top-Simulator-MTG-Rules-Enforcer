@@ -58,7 +58,8 @@ quiet("an untap waiting for its player", "local o, c = attackerObject() c.tap = 
 quiet("a card still moving", `${first} o.isSmoothMoving = function() return true end o.setPosition(Vector(90, 2, 90))`, "wrong place");
 quiet("a card in a player's hand", `${first} o.held_by_color = "Blue" o.setPosition(Vector(90, 2, 90))`, "wrong place");
 quiet("an attached card with counters", "local o, c = attackerObject() c.att = c.id c.ctr = { charge = 3 }", "shows badges");
-quiet("a face-down card with counters", "local o, c = attackerObject() c.fd = true c.ctr = { charge = 3 }", "shows badges");
+// (a face-down permanent's badges are drawn on its back since 2026-11-09, and checked: quiet once drawn, an alarm when not)
+quiet("a face-down card with counters, drawn", "local o, c = attackerObject() c.fd = true c.ctr = { charge = 3 } engineRender(engineTable())", "shows badges", [{ frames: 200 }]);
 quiet("a scry's cards", "engineScryOpen = function() return { gone = {}, menu = {} }, { options = { { id = 'engine-card-99998', label = 'Looked at', img = '' } }, scry = { move = 'graveyard' } } end enginePrompts.Blue = {} engineScryPlace({}) enginePrompts.Blue = nil", "leftover object");
 
 broken("hover name", `${first} o.setName("Wrong name")`, "is named [Wrong name]");
@@ -82,6 +83,7 @@ broken("attached to nothing", "local o, c = attackerObject() c.att = 'engine-car
 broken("attached, far from its card", `${first} local other = nil for _, x in ipairs(getObjects()) do local g = tostring(x.getGMNotes()) if g:find('^engine:engine%-card') and x ~= o and lastCheckBf(g:sub(8)) then other = g:sub(8) end end
   lastCheckBf(id).att = other o.setPosition(Vector(90, 2, 90))`, "is attached, and lies away from its card");
 broken("a counter not shown", "local o, c = attackerObject() c.ctr = { lore = 77 }", "77 Lore");
+broken("a face-down card's counter not shown", "local o, c = attackerObject() c.fd = true c.ctr = { charge = 3 }", "the engine says [3 Charge]");
 broken("the life tracker", "getObjectFromGUID('395037').setVar('count', 12345)", "life tracker shows 12345");
 
 // a card exiled with a permanent and coming back: the only place a player can read that
