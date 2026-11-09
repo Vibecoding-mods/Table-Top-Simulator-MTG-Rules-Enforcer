@@ -279,12 +279,12 @@ const id = (n) => `engine-card-${n}`;
     ok("feed: and the next new entry reads on", F([ev(9, "Hand", "Exile", id(2)), ev(10, "Hand", "Exile", id(1))])?.moves.has(id(1)));
     h.B._getGame().eventSeq = 9;
     const m = F([ev(10, "Battlefield", "Graveyard", id(1), "sacrificed"), ev(11, "Graveyard", "Exile", id(1))]).moves.get(id(1));
-    same("feed: one move per card, first zone to last, keeping how it left", m, { from: "Battlefield", to: "Exile", how: "sacrificed", through: "Graveyard" });
+    same("feed: one move per card, first zone to last, keeping how it left (and its owner, Forge's)", m, { from: "Battlefield", to: "Exile", how: "sacrificed", through: "Graveyard", owner: "player-0" });
     same("feed: a single lost entry is lost", F([ev(13, "Hand", "Exile", id(2))]), null);
     h.B._getGame().eventSeq = 11;
     same("feed: and the cause of its first move",
       F([ev(12, "Library", "Graveyard", id(1), "mill", "player-0", { cause: "Mill", causeName: "Glimpse the Unthinkable" }), ev(13, "Graveyard", "Exile", id(1), null, "player-0", { cause: "ChangeZone", causeName: "Bojuka Bog" })]).moves.get(id(1)),
-      { from: "Library", to: "Exile", how: "mill", through: "Graveyard", cause: "Mill", causeName: "Glimpse the Unthinkable" });
+      { from: "Library", to: "Exile", how: "mill", through: "Graveyard", cause: "Mill", causeName: "Glimpse the Unthinkable", owner: "player-0" });
   }
 
   // exile, said by its kind (exileKind, EXILE_WORDS)
@@ -2791,6 +2791,130 @@ const id = (n) => `engine-card-${n}`;
     same("suite: and with the Counterspell alone, it names it",
       between(board((b) => { put(b, "battlefield", opp(card(241, "Voidmage Prodigy", ["Creature"])), "player-1"); b.stack.push(MARBLE, CS_AI); }), marbleGone(), marbleEv).filter((l) => /countered/.test(l)),
       ["Marble Diamond is countered by Counterspell"]);
+
+    // Kykar re-test 2026-11-09 (docs/HAND-TEST-KYKAR.md "Re-test", bridge log and tts-stream of that game)
+    // #12 again, the engine's real shape: a battlefield card's ownerId is its controller's (InteractiveSnapshotExtractor),
+    // Forge's event the true owner
+    same("re-test #12: AI 1's Serra Angel on Blue's battlefield (ownerId Blue's, as Forge sends it) goes to AI 1's library",
+      between(board((b) => put(b, "battlefield", { ...card(301, "Serra Angel", ["Creature"]), ownerId: "player-0" })), board(() => {}),
+        [ev(11, "Battlefield", "Library", id(301), null, "player-1", { cause: "ChangeZone", causeCardId: id(302), causeName: "Chaos Warp" })]),
+      ["Serra Angel is put into AI 1's library"]);
+    // new bug 9: the owner by where it was seen before, with no feed: Assimilate the Wounded's Grizzly Bears out of AI 1's
+    // graveyard onto Blue's battlefield, then bounced to AI 1's hand
+    same("re-test bug 9: a card stolen from a graveyard keeps its owner on the battlefield, and returns to that hand",
+      fresh((h) => {
+        const inGy = board((b) => { put(b, "graveyard", opp(card(303, "Grizzly Bears", ["Creature"])), "player-1"); count(b, "hand", 3, "player-1"); });
+        const onBf = board((b) => { put(b, "battlefield", { ...card(303, "Grizzly Bears", ["Creature"]), ownerId: "player-0" }); count(b, "hand", 3, "player-1"); });
+        const back = board((b) => count(b, "hand", 4, "player-1"));
+        logOf(h, inGy, onBf, null);
+        return logOf(h, onBf, back, null).filter((l) => /Grizzly/.test(l));
+      }),
+      ["Grizzly Bears returns to AI 1's hand"]);
+    // new bug 9 / #12: and seen on the stack first (its source's owner), a stolen card's status says whose it is
+    same("re-test bug 9: a card first seen on the battlefield keeps what it showed first",
+      fresh((h) => {
+        h.B.logSnapshot(board((b) => put(b, "battlefield", opp({ ...card(304, "Hill Giant", ["Creature"]), ownerId: "player-1" }), "player-1")));
+        h.B.logSnapshot(board((b) => put(b, "battlefield", { ...card(304, "Hill Giant", ["Creature"]), ownerId: "player-0" })));
+        return h.B._getGame().owners?.get(id(304)) ?? null;
+      }),
+      "player-1");
+    same("re-test bug 9: a card seen in its owner's graveyard is theirs, whatever the battlefield said before",
+      fresh((h) => {
+        h.B.logSnapshot(board((b) => put(b, "battlefield", { ...card(305, "Hill Giant", ["Creature"]), ownerId: "player-0" })));
+        h.B.logSnapshot(board((b) => put(b, "graveyard", opp(card(305, "Hill Giant", ["Creature"])), "player-1")));
+        h.B.logSnapshot(board((b) => put(b, "battlefield", { ...card(305, "Hill Giant", ["Creature"]), ownerId: "player-0" })));
+        return h.B._getGame().owners?.get(id(305)) ?? null;
+      }),
+      "player-1");
+    // #6 again: Reflect Damage, Deflecting Palm and a Circle on one combat's damage, the "which applies first?" question in
+    // the middle of it: the first board of the damage step shows no loss yet, the next the whole of it (bridge log 15:00 run)
+    {
+      const ATK = (n, name, power) => opp({ ...card(n, name, ["Creature"]), power: String(power), isAttacking: true, attackingPlayerId: "player-0", attackTargetId: "player-0", tapped: true });
+      const PALM = "The next time a source of your choice would deal damage to you this turn, prevent that damage. If damage is prevented this way, Deflecting Palm deals that much damage to that source's controller.";
+      const combat = (step, a, c) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", ATK(229, "Hill Giant", 3), "player-1"); put(b, "battlefield", ATK(1, "Grizzly Bears", 2), "player-1"); put(b, "battlefield", ATK(311, "Gray Ogre", 2), "player-1"); }), a, c);
+      const shields = (seat) => {
+        SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+        SOURCE_PICK(seat, 62, [260, "Deflecting Palm"], PALM, [opp(BEAR())], id(1));
+        SOURCE_PICK(seat, 63, [237, "Circle of Protection: Red"], COP, [opp(card(311, "Gray Ogre", ["Creature"]))], id(311));
+      };
+      same("re-test #6: a redirect and Palm's damage back said on the board that shows them, after a question in the damage",
+        fresh((h, seat) => {
+          shields(seat);
+          const a = combat("combatDeclareBlockers", 38, 378), b = combat("combatDamage", 38, 378), c = combat("combatDamage", 38, 373);
+          return [...logOf(h, a, b), ...logOf(h, b, c)];
+        }),
+        ["Grizzly Bears' combat damage to Blue is prevented (Deflecting Palm)", "Gray Ogre's combat damage to Blue is prevented (Circle of Protection: Red)",
+          "Hill Giant's combat damage is dealt to AI 1 instead (Reflect Damage)", "Deflecting Palm deals 2 damage to AI 1",
+          "AI 1: 378 -> 373 life (-5, damage from Hill Giant, redirected by Reflect Damage; damage from Deflecting Palm)"]);
+      same("re-test #6: a later loss that isn't all of it stays bare",
+        fresh((h, seat) => {
+          shields(seat);
+          const a = combat("combatDeclareBlockers", 38, 378), b = combat("combatDamage", 38, 378), c = combat("combatDamage", 38, 374);
+          return [...logOf(h, a, b), ...logOf(h, b, c)].filter((l) => /AI 1/.test(l));
+        }),
+        ["AI 1: 378 -> 374 life (-4)"]);
+      same("re-test #6: nor is it kept past the step",
+        fresh((h, seat) => {
+          shields(seat);
+          const a = combat("combatDeclareBlockers", 38, 378), b = combat("combatDamage", 38, 378), c = combat("combatEnd", 38, 378), d = combat("combatEnd", 38, 373);
+          return [...logOf(h, a, b), ...logOf(h, b, c), ...logOf(h, c, d)].filter((l) => /AI 1/.test(l));
+        }),
+        ["AI 1: 378 -> 373 life (-5)"]);
+      same("re-test #6: Palm's damage back unsaid when the attacker's power changed between the boards (a pump unseen)",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 62, [260, "Deflecting Palm"], PALM, [opp(BEAR())], id(1));
+          const at = (step, pw, c) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", ATK(1, "Grizzly Bears", pw), "player-1"); }), 38, c);
+          return logOf(h, at("combatDeclareBlockers", 2, 40), at("combatDamage", 4, 36)).filter((l) => /AI 1|Palm deals/.test(l));
+        }),
+        ["AI 1: 40 -> 36 life (-4)"]);
+      same("re-test #6: all of it on the damage board itself is said there, as before",
+        fresh((h, seat) => {
+          shields(seat);
+          return logOf(h, combat("combatDeclareBlockers", 38, 378), combat("combatDamage", 38, 373)).filter((l) => /AI 1/.test(l));
+        }),
+        ["Hill Giant's combat damage is dealt to AI 1 instead (Reflect Damage)", "Deflecting Palm deals 2 damage to AI 1",
+          "AI 1: 378 -> 373 life (-5, damage from Hill Giant, redirected by Reflect Damage; damage from Deflecting Palm)"]);
+    }
+    // new bug 3: Pyroclasm on many same-named tokens, one line (the live game: one grouped line and about 50 more)
+    {
+      const SPIRIT = (n) => card(n, "Spirit Token", ["Creature"], { token: true });
+      const before = (dead) => board((b) => { put(b, "battlefield", KYKAR([])); for (let i = 0; i < 5; i++) put(b, "battlefield", SPIRIT(320 + i)); if (dead) put(b, "battlefield", BEAR()); b.stack.push(PYROCLASM); });
+      const after = (dead) => board((b) => { put(b, "battlefield", { ...KYKAR([]), damage: 2 }); for (let i = 0; i < 5; i++) put(b, "battlefield", { ...SPIRIT(320 + i), damage: 2 }); if (dead) put(b, "graveyard", BEAR()); put(b, "graveyard", card(277, "Pyroclasm", ["Sorcery"])); });
+      same("re-test bug 3: Pyroclasm's survivors in one line, the same tokens counted, and the dead die",
+        between(before(true), after(true), [ev(11, "Stack", "Graveyard", id(277)), ev(12, "Battlefield", "Graveyard", id(1))]),
+        ["Pyroclasm deals 2 damage to Kykar, Wind's Fury, Spirit token ×5", "Grizzly Bears dies"]);
+      same("re-test bug 3: and every creature hit is 'each creature' with how many",
+        between(before(false), after(false), [ev(11, "Stack", "Graveyard", id(277))]),
+        ["Pyroclasm deals 2 damage to each creature (6)"]);
+      // (Akroma's Will and Flawless Maneuver: "Spirit token, Spirit token, ..." some 50 times, new bug 7)
+      const kw = (k) => board((b) => { put(b, "battlefield", KYKAR(k)); for (let i = 0; i < 5; i++) put(b, "battlefield", { ...SPIRIT(320 + i), keywords: k }); if (!k.length) b.stack.push(AKROMA); else put(b, "graveyard", card(240, "Akroma's Will", ["Instant"])); });
+      same("re-test bug 7: the creatures a spell gave keywords, the same names counted",
+        between(kw([]), kw(["Vigilance"]), [ev(11, "Stack", "Graveyard", id(240))]),
+        ["Kykar, Wind's Fury, Spirit token ×5 gain vigilance (Akroma's Will)"]);
+    }
+    // new bug 6: an Aura gone after its creature, by Forge's order, is said after it
+    {
+      const WURM6 = { ...card(330, "Craw Wurm", ["Creature"]) };
+      const PAC = { ...card(329, "Pacifism", ["Enchantment"]), subtypes: ["Aura"], attachedTo: id(330) };
+      same("re-test bug 6: Craw Wurm dies, then its Pacifism goes to the graveyard",
+        between(board((b) => { put(b, "battlefield", PAC); put(b, "battlefield", WURM6); }), board((b) => { put(b, "graveyard", PAC); put(b, "graveyard", WURM6); }),
+          [ev(11, "Battlefield", "Graveyard", id(330)), ev(12, "Battlefield", "Graveyard", id(329))]),
+        ["Craw Wurm dies", "Pacifism goes to the graveyard"]);
+      same("re-test bug 6: an Aura gone first stays first",
+        between(board((b) => { put(b, "battlefield", PAC); put(b, "battlefield", WURM6); }), board((b) => { put(b, "graveyard", PAC); put(b, "graveyard", WURM6); }),
+          [ev(11, "Battlefield", "Graveyard", id(329)), ev(12, "Battlefield", "Graveyard", id(330))]),
+        ["Pacifism goes to the graveyard", "Craw Wurm dies"]);
+      // Make It So: "Untap target permanent you control. Target player draws two cards." (Forge's script, the mode chosen)
+      const BASTION = card(331, "Karn's Bastion", ["Land"]);
+      const MIS = { controllerId: "player-0", id: "engine-stack-95", identity: { name: "Make It So" }, isPermanentSpell: false, ownerId: "player-0", sourceId: id(332),
+        sourceAbilityText: "Untap target permanent you control. Target player draws two cards.", text: "Make It So (332) - Untap Karn's Bastion (331). AI 1 draws two cards.",
+        targets: [{ id: id(331), kind: "card" }, { id: "player-1", kind: "player" }] };
+      const mis = (done) => board((b) => { put(b, "battlefield", { ...BASTION, tapped: !done }); count(b, "library", done ? 48 : 50, "player-1"); count(b, "hand", done ? 2 : 0, "player-1"); if (done) put(b, "graveyard", card(332, "Make It So", ["Sorcery"])); else b.stack.push(MIS); });
+      same("re-test bug 6: Make It So's untap is said before the draw it puts after it",
+        between(mis(false), mis(true), [ev(11, "Library", "Hand", null, "draw", "player-1", { cause: "Draw", causeCardId: id(332), causeName: "Make It So" }),
+          ev(12, "Library", "Hand", null, "draw", "player-1", { cause: "Draw", causeCardId: id(332), causeName: "Make It So" }), ev(13, "Stack", "Graveyard", id(332))]),
+        ["Make It So untaps Karn's Bastion", "AI 1 draws 2 cards"]);
+    }
   }
 
   process.stdout.write(`${failed ? "FAILED" : "PASSED"}: ${passed} passed, ${failed} failed\n`);

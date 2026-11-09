@@ -517,6 +517,23 @@ local function place(c, pos, rot, seen, handColor, meta)
   updateBadge(o, c, meta and meta.zone)
 end
 
+-- The hand of a player another seat controls (Mindslaver's turn: White plays AI 1's turn), in the controller's second
+-- hand zone, which only that player sees; its cards are the controller's to drag (Kykar re-test new bug 1). The bridge
+-- sends it as ctlHand with the controller's colour, ctlBy.
+function engineCtlHands(m, seen)
+  for _, pl in ipairs(m.players or {}) do
+    local by = pl.ctlBy
+    local g = by and seatGeometry(by)
+    if g ~= nil and #(pl.ctlHand or {}) > 0 and Player[by] ~= nil and Player[by].seated then
+      local side = Player[by].getHandTransform(2)
+      local base = side and side.position or (g.handPos or g.mat)
+      for _, c in ipairs(pl.ctlHand) do
+        place(c, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, by, { zone = "hand", color = by, hand2 = true, of = pl.color })
+      end
+    end
+  end
+end
+
 local function hasType(c, t)
   for _, x in ipairs(c.ty or {}) do if x == t then return true end end
   return false
@@ -1915,6 +1932,14 @@ function engineRender(m)
     -- life. Blue wins)" said it twice, review 2026-11-09)
     broadcastToAll("[MTG] GAME OVER - " .. (m.overWhy and (tostring(m.overWhy) .. ".") or (m.winner and (engineNameOf(m.winner) .. " wins!") or "draw.")), {1, 0.85, 0.3})
     if engineGameOverBanner ~= nil then engineGameOverBanner(m) end
+    -- (and every question still open closes: "Your priority" stayed up under GAME OVER after a concession, Kykar re-test
+    -- new bug 8)
+    for c, q in pairs(enginePrompts) do
+      if q ~= nil then
+        local okClose, errClose = pcall(engineOnPrompt, { color = c, promptId = nil })
+        if not okClose then print("[MTG] game over: " .. tostring(errClose)) end
+      end
+    end
   elseif not m.gameOver then engineOverAnnounced = false end
   sect("status")
   if engineTakeFromPiles ~= nil then pcall(engineTakeFromPiles, m) end
@@ -1993,6 +2018,8 @@ function engineRender(m)
       sect("library")
     end
   end
+  local okCtl, errCtl = pcall(engineCtlHands, m, seen) -- (a controlled player's hand, see engineCtlHands)
+  if not okCtl then print("[MTG] controlled hand: " .. tostring(errCtl)) end
   local okPop, errPop = pcall(function() enginePopups(m) enginePopupsClose(m) engineEffects(m) end) -- a pop-up problem must never stop the board update
   if not okPop then print("[MTG] pop-up: " .. tostring(errPop)) end
   sect("popups")
@@ -2763,6 +2790,9 @@ function engineUpdateCorner(color, p)
   end
   local big, small, bigLabel, smallLabel, labelOnly
   if p ~= nil and p.mode == "browse" then p = enginePrompts[color] end
+  -- (a finished game asks nothing: Next and End turn stayed under GAME OVER after a concession, Kykar re-test new bug 8)
+  local over = t ~= nil and t.gameOver
+  if over then p = nil end
   if p ~= nil and p.mode == "single" and p.options and p.options[1] then
     big, bigLabel = 1, p.options[1].label
     for i, o in ipairs(p.options) do
@@ -2806,7 +2836,7 @@ function engineUpdateCorner(color, p)
   if smallLabel and #smallLabel > 30 and smallLabel:find(":") then smallLabel = smallLabel:sub(1, smallLabel:find(":", 1, true) - 1) end
   if bigLabel and #bigLabel > 22 then bigLabel = engineCut(bigLabel, 21) .. "…" end
   if smallLabel and #smallLabel > 30 then smallLabel = engineCut(smallLabel, 29) .. "…" end
-  if big == nil and small == nil and p == nil and engineLinger(color, function() engineUpdateCorner(color, nil) end) then return end
+  if big == nil and small == nil and p == nil and not over and engineLinger(color, function() engineUpdateCorner(color, nil) end) then return end
   -- a button whose words just changed under the pointer ignores clicks for 0.6 s (Resolve became Next as the spell
   -- resolved by itself, and the click meant for Resolve passed the main phase, playtest 2026-10-26). Only a new
   -- question the player did nothing for counts: their own picks ("Attack (1)") change the words too, and so does the
@@ -3849,7 +3879,7 @@ function onObjectDrop(color, obj)
   if meta == nil or meta.color ~= color then return Wait.frames(snapBack, 2) end
   Wait.frames(function()
     if obj == nil or obj.isDestroyed() then return end
-    if meta.zone == "hand" and isInHand(obj, color) then return end -- just rearranged inside the hand
+    if meta.zone == "hand" and isInHand(obj, color, meta.hand2 and 2 or 1) then return end -- just rearranged inside the hand (or a controlled player's, its second one)
     if meta.zone == "playable" and isInHand(obj, color, 2) then return end -- (a private playable card, moved in its zone)
     local area = dropArea(color, obj.getPosition())
     -- (the playable row lies on the mat: a card picked up and put down near its spot goes back, it isn't played)

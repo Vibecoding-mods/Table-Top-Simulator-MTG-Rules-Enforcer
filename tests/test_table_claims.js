@@ -1749,5 +1749,37 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const hint = String(valueOf(r, "hint"));
   ok("kykar #27: copies' hint says the card row or the Engine panel, no drag", hint.includes("Pick it in the card row or the Engine panel.") && !/drag/i.test(hint), hint + " " + r.errors.join(" | "));
 }
+// Kykar re-test new bug 1: a player another seat controls (Mindslaver): its hand, the bridge's ctlHand, lies in the
+// controller's second hand zone, and a card dragged from there onto the battlefield is played by the controller
+{
+  const setup = 'local t = engineTable() local pl for _, p in ipairs(t.players) do if p.color ~= "Blue" then pl = p end end ' +
+    'engineStoreStatic("engine-card-778", { n = "Forest", f = "https://img.example/forest.jpg", ty = { "Land" } }) ' +
+    'pl.ctlHand = { { s = 1, id = "engine-card-778" } } pl.ctlBy = "Blue" pl.keep = {} ' +
+    'engineRender(t) __sim.frames(90) return "laid"';
+  const objOf = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-778" then o = x end end ';
+  const where = objOf + 'if o == nil then return "none" end local inH = false for _, h in ipairs(Player.Blue.getHandObjects(2)) do if h == o then inH = true end end ' +
+    'return inH and "hand2" or "elsewhere"';
+  const sent = (mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  const r = run([q(setup, "laid"), q(where, "where"),
+    q(objOf + 'local m = data.Blue.playmat.getPosition() o.setPosition(Vector(m.x, 1.5, m.z)) onObjectDrop("Blue", o) __sim.frames(90) return "dragged in"', "dragged in"),
+    q('local t = engineTable() for _, p in ipairs(t.players) do if p.color ~= "Blue" then p.ctlHand = nil p.ctlBy = nil end end engineRender(t) __sim.frames(90) ' +
+      objOf + 'return tostring(o ~= nil and not o.isDestroyed())', "control over")]);
+  ok("re-test bug 1: the controlled hand lies in the controller's second hand zone", valueOf(r, "where") === "hand2", String(valueOf(r, "where")) + " " + r.errors.join(" | "));
+  ok("re-test bug 1: dragged onto the battlefield, the controller plays it", /"kind":"play"/.test(sent("dragged in")) && /"color":"Blue"/.test(sent("dragged in")), sent("dragged in").slice(0, 200));
+  ok("re-test bug 1: control over, the hand is gone from the table", valueOf(r, "control over") === "false", String(valueOf(r, "control over")));
+}
+// Kykar re-test new bug 8: a finished game closes the open question, and the corner shows no Next or End turn
+{
+  const corner = (mark) => q('return tostring(UI.getAttribute("eng_big_Blue", "active")) .. "|" .. tostring(UI.getAttribute("eng_big2_Blue", "active"))', mark);
+  const r = run([ask({ promptId: 491, kind: "priority", title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "__endturn", label: "End turn" }] }), { frames: 4 },
+    corner("asked"), q('local t = engineTable() t.gameOver = true t.overWhy = "White conceded" engineRender(t) __sim.frames(30) return tostring(enginePrompts.Blue == nil)', "over"), { frames: 30 }, corner("after")]);
+  ok("precondition: priority shows Next and End turn", valueOf(r, "asked") === "true|true", String(valueOf(r, "asked")) + " " + r.errors.join(" | "));
+  ok("re-test bug 8: the game over closes the question", valueOf(r, "over") === "true", String(valueOf(r, "over")) + " " + r.errors.join(" | "));
+  ok("re-test bug 8: and the corner's buttons go", valueOf(r, "after") === "false|false", String(valueOf(r, "after")));
+  // (and a question still handed to the corner after the end shows no buttons either)
+  const r2 = run([q('local t = engineTable() t.gameOver = true engineUpdateCorner("Blue", { promptId = 492, kind = "priority", title = "Your priority", mode = "single", options = { { id = "__pass", label = "Next" }, { id = "__endturn", label = "End turn" } } }) ' +
+    'return tostring(UI.getAttribute("eng_big_Blue", "active")) .. "|" .. tostring(UI.getAttribute("eng_big2_Blue", "active"))', "late")]);
+  ok("re-test bug 8: a question shown after the game over gets no buttons", valueOf(r2, "late") === "false|false", String(valueOf(r2, "late")) + " " + r2.errors.join(" | "));
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

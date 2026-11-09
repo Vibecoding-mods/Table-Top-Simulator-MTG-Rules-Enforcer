@@ -339,3 +339,27 @@ TTS objects: 68,991 fresh, 76,769 at the first priority, peak 85,061; no freeze,
 
 Scenarios: `scenarios/kykar-r1.json` (game start), `kykar-r2.json` and `kykar-r3.json` (mid-game, `"lands": 0`,
 `"keepHand": true`). The game ended by concession; TTS was left running with the table loaded.
+
+### Fixes (branch retest-fixes, source and tests only, not yet on the real table)
+
+1. The bridge's Arena-style passing read "your main phase" as the seat's own slot; under Mindslaver the active player
+   (and the board's priority) is AI 1, so AI 1's priority, routed to White, passed by itself. Now a question for a
+   player the seat controls (`controlledBy`, the board's priority or active player, or what that player just cast)
+   counts that player's turn and stack, is titled `AI 1's priority (you control)` / `AI 1 (you control): ...`, and pays
+   from that player's pool. The controlled hand (Forge's MindSlaveMaster view shows it to White) is sent as `ctlHand`
+   and laid in White's second hand zone, which only White sees; dragged out, White plays it. No engine change.
+2. #12 / new bug 9: Forge's battlefield card names its controller as owner (InteractiveSnapshotExtractor builds a
+   battlefield card with the index of the player whose battlefield holds it). The owner now comes from any other zone,
+   a stack item, or Forge's events (`noteOwners`); the departure line uses the move's own owner. Stolen permanents also
+   show `Owned by ...` again. (Engine side not changed.)
+3. #6: the "which applies first?" question sits inside the damage, so the first damage board shows no loss yet and the
+   redirect / Palm's damage back were dropped. What a shield owes a source's controller is kept for the next board of
+   that step and said there only when the loss is exactly that.
+4. New bugs 3 and 7: one line per amount, same names counted (`Spirit token ×50`), `each creature (N)` when every
+   creature took it. New bug 2: prevention sentences count as replacement texts; options named by the sources chosen
+   this turn (the card's "a red source of your choice would deal damage" against Forge's "the chosen red source deals
+   damage"). New bug 4: same-named targets told apart by controller, then owner, before `#n`. New bug 5: Arc Trail's
+   two questions say `deal 2 damage to which target?` / `deal 1 damage to which other target?`. New bug 6: an Aura
+   gone after its host (Forge's order) and an untap before a draw (the spell's own order) are said in that order. New
+   bug 8: a game over closes every open question (bridge) and the table drops its buttons (renderer). New bug 10:
+   `(-2, paid for Mondrak, Glory Dominus)`.
