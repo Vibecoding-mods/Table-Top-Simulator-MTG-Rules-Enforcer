@@ -1119,7 +1119,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("verify #16: the winner's empty library is no loss", chats(h).filter((t) => /Game over/.test(t))[0] === "[MTG] Game over: Blue wins.", JSON.stringify(chats(h)));
       harness.restore();
     }
-    // (a concession is a reason: LOSS_REASONS' "conceded")
+    // (a concession is a reason, said by concededPlayers: LOSS_REASONS has none for it)
     {
       const { h, seat, b } = fresh(null, { gameOver: true, winnerId: "player-0" });
       b.gameView.players.find((p) => p.id === "player-1").status = "conceded";
@@ -1390,10 +1390,11 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("live bug 2: a card the owner's deck lacks comes from another deck", island === B2, island);
       // (a question shows the card as the table does)
       ok("live bug 2: a question's picture is the table's printing", h.B.imgOf(plains("engine-card-11", "player-0")) === blue[1], h.B.imgOf(plains("engine-card-11", "player-0")));
-      // (and a spell on the stack shows its card's: Blue's engine-card-11, not the first deck's)
+      // (and a spell on the stack shows its card's: Blue's engine-card-11, not the first deck's; the stack item's own id
+      // is another number, as the engine's engine-stack-N beside engine-card-N, and would pick the other printing)
       {
         const gv = h.B._getGame().seats.get("Blue").board.state.gameView;
-        gv.stack = [{ id: "stack-1", sourceId: "engine-card-11", ownerId: "player-0", controllerId: "player-0", identity: { name: "Plains" }, text: "", targets: [] }];
+        gv.stack = [{ id: "engine-stack-2", sourceId: "engine-card-11", ownerId: "player-0", controllerId: "player-0", identity: { name: "Plains" }, text: "", targets: [] }];
         h.B.sendTable(); await h.flush();
         const st = sent(h, "table").at(-1)?.stack?.[0]?.f;
         ok("live bug 2: a spell on the stack shows its card's printing", st === blue[1] || st === h.B.shortUrl(blue[1]), st);
@@ -1417,6 +1418,102 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const after = ["engine-card-10", "engine-card-11", "engine-card-12", "engine-card-13"].map((id) => h2.B.tableCard(plains(id, "player-0")).f);
       await require("fs").promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
       ok("live bug 2: after a bridge restart every Plains shows the face it had", resumed && JSON.stringify(after) === JSON.stringify(blue), JSON.stringify([resumed, after, blue]));
+      harness.restore();
+    }
+    // verifier 2026-11-09 #3: a printing whose link turns out dead mid-game moves only the cards that showed it
+    {
+      const P1 = "https://img.klrmngr.com/display/front/6/6/66666666-0000-0000-0000-00000000000e.webp";
+      const PX = "https://img.klrmngr.com/display/front/7/7/dead7777-gone.webp";
+      const P3 = "https://img.klrmngr.com/display/front/8/8/88888888-0000-0000-0000-00000000000f.webp";
+      const cmd = "https://img.klrmngr.com/display/front/4/4/44444444-0000-0000-0000-00000000000d.webp";
+      const h = harness.load();
+      setup(h, F.board);
+      h.B.onTTS({ t: "decks", json: JSON.stringify({ seats: { Blue: { deckName: "B", commander: [{ n: "Neheb, the Eternal", f: cmd }],
+        library: [{ n: "Plains", f: P1 }, { n: "Plains", f: PX }, { n: "Plains", f: P3 }] } } }) });
+      const ids = ["engine-card-9", "engine-card-10", "engine-card-11", "engine-card-12", "engine-card-13", "engine-card-14"];
+      const faces = () => ids.map((id) => h.B.tableCard({ id, identity: { name: "Plains" }, types: ["Land"], controllerId: "player-0", ownerId: "player-0" }).f);
+      // (before the image host has answered the deck's check, the dead link is still in use)
+      const before = faces();
+      await h.flush();
+      const after = faces();
+      ok("verify #3: precondition, the link was in use before the image host said it was dead", before.includes(PX) && before.includes(P1) && before.includes(P3), JSON.stringify(before));
+      ok("verify #3: a card whose printing is still there keeps it when another printing's link dies", before.every((f, i) => f === PX || after[i] === f), JSON.stringify([before, after]));
+      ok("verify #3: a card that showed the dead link shows the next printing in the deck's list", before.every((f, i) => f !== PX || after[i] === P3), JSON.stringify([before, after]));
+      ok("verify #3: the dead link isn't shown", !after.includes(PX), JSON.stringify(after));
+      harness.restore();
+    }
+    // verifier 2026-11-09 #2: an AI plays the table deck from Yellow's seat; the bots join in either order, and the one
+    // given that deck (the node's first bot, "<name>") sits at Red or at Yellow. Its cards show that deck's printing, not
+    // White's (the first deck by table colour) nor the deck lying unused in Red's seat. White and Blue are players.
+    // (third case: an "mtg aideck" preset comes first, so Yellow's deck is the second bot's, "<name> 2")
+    for (const [label, joined, aideck] of [["sits at Red", ["self-hosted-node-77-bot", "self-hosted-node-77-bot 2"]], ["sits at Yellow", ["self-hosted-node-77-bot 2", "self-hosted-node-77-bot"]],
+      ["sits at Red behind a preset", ["self-hosted-node-77-bot 2", "self-hosted-node-77-bot"], true]]) {
+      const pic = (n) => `https://img.klrmngr.com/display/front/${n}/${n}/${String(n).repeat(8)}-0000-0000-0000-000000000001.webp`;
+      const [W1, B1, Y1, R1, cmd] = [1, 2, 3, 5, 4].map(pic);
+      const deck = (name, plains) => ({ deckName: name, commander: [{ n: "Neheb, the Eternal", f: cmd }], library: [{ n: "Plains", f: plains }] });
+      const h = harness.load();
+      const white = new h.B.Seat("White", "neheb_minotaur_commander"), blue = new h.B.Seat("Blue", "neheb_minotaur_commander");
+      for (const s of [white, blue]) { s.joined = true; s.roomId = "room-1"; }
+      h.B.onTTS({ t: "decks", json: JSON.stringify({ seats: { White: deck("W", W1), Blue: deck("B", B1), Yellow: deck("Y", Y1), Red: deck("R", R1) } }) }); await h.flush();
+      const ready = h.B._readyDecks;
+      h.B._setGame({ seats: new Map([["White", white], ["Blue", blue]]), bots: 2, total: 4, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false,
+        fromTable: true, sentStatic: {}, sentZones: {}, maxSet: true, startSent: true, botsRequested: false, pendingPlays: [],
+        aiTableDecks: [{ deckName: ready.Yellow.deckName, deck: { cards: [], commanders: [] }, commanderName: null }], aiTableColors: ["Yellow"] });
+      if (aideck) { h.B.onTTS({ t: "aideck", json: JSON.stringify({ deck: "ai_passive_lands" }) }); await h.flush(); }
+      h.B.onRoomUpdate(white, { room_id: "room-1", host: white.username, status: "Lobby", max_players: 4,
+        players: [white.username, blue.username, ...joined].map((username) => ({ username, ready: true, connected: true, is_bot: /bot/.test(username) })) });
+      await h.flush();
+      if (aideck) { h.B.onTTS({ t: "aideck", json: JSON.stringify({ deck: "clear" }) }); await h.flush(); }
+      // (clockwiseOrder: the bots take Red then Yellow in the order they joined)
+      const order = [white.username, joined[0], joined[1], blue.username];
+      h.B.onGameStarted({ player_order: order, starting_life: 40, game_id: "g-ai" }); await h.flush();
+      await require("fs").promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
+      const g = h.B._getGame();
+      const slotOf = (u) => `player-${order.indexOf(u)}`;
+      const face = (owner) => h.B.tableCard({ id: "engine-card-70", identity: { name: "Plains" }, types: ["Land"], controllerId: owner, ownerId: owner }).f;
+      const yellowsDeck = slotOf(aideck ? "self-hosted-node-77-bot 2" : "self-hosted-node-77-bot"), preset = slotOf(aideck ? "self-hosted-node-77-bot" : "self-hosted-node-77-bot 2");
+      ok(`verify #2: precondition, the AI with Yellow's deck ${label}`, g.slotColor[yellowsDeck] === (label.includes("Red") ? "Red" : "Yellow"), JSON.stringify(g.slotColor));
+      ok(`verify #2: the AI that ${label} with Yellow's deck shows its printing`, face(yellowsDeck) === Y1, face(yellowsDeck));
+      ok(`verify #2: the AI with a built-in deck shows neither Yellow's nor the unused Red deck's (${label})`, ![Y1, R1].includes(face(preset)), face(preset));
+      ok(`verify #2: the players keep their own (${label})`, face(slotOf(white.username)) === W1 && face(slotOf(blue.username)) === B1, JSON.stringify([face(slotOf(white.username)), face(slotOf(blue.username))]));
+      ok(`verify #2: no pictures for a deck nobody plays (${label})`, Object.values(g.pictures || {}).every((d) => d.Plains?.[0]?.face !== R1) && Object.keys(g.pictures || {}).length === 3, JSON.stringify(Object.keys(g.pictures || {})));
+      harness.restore();
+    }
+    // verifier 2026-11-09 #1: a copy (Clone as Grizzly Bears, whose paper is Clone's) gets no printed P/T from the engine;
+    // it shows the Bears' picture, so its base is the printed P/T the engine sent for a Grizzly Bears, from any board,
+    // even one where the copy is drawn first and after the original is gone. A name the engine never sent numbers for,
+    // and one only a token had (token names aren't unique), stay without a base.
+    {
+      const h = harness.load();
+      const card = (id, name, extra = {}) => ({ id, identity: { name }, types: ["Creature"], power: "2", toughness: "2", basePower: 2, baseToughness: 2, controllerId: "player-0", ownerId: "player-0", ...extra });
+      const b = clone(F.board);
+      const bf = bfOf(b);
+      bf.unshift(card("engine-card-961", "Grizzly Bears", { isCopy: true, power: "3", toughness: "3" }), card("engine-card-962", "Soldier", { isCopy: true }), card("engine-card-963", "Tarmogoyf", { isCopy: true }));
+      bf.push(card("engine-card-960", "Grizzly Bears", { printedPower: 2, printedToughness: 2 }),
+        card("engine-card-964", "Soldier", { identity: { name: "Soldier", isToken: true }, power: "1", toughness: "1", basePower: 1, baseToughness: 1, printedPower: 1, printedToughness: 1 }));
+      const seat = setup(h, F.board);
+      seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(b), fingerprint: "c1" }); await h.flush();
+      const statOf = (id) => { for (const t of sent(h, "table").reverse()) { const st = t.cards?.[id]; if (st) return [st.bp, st.bt]; } return "not sent"; };
+      ok("verify #1: a copy drawn before its original has the original's printed P/T as its base", JSON.stringify(statOf("engine-card-961")) === "[2,2]", JSON.stringify(statOf("engine-card-961")));
+      ok("verify #1: a name only a token printed has no base", JSON.stringify(statOf("engine-card-962")) === "[null,null]", JSON.stringify(statOf("engine-card-962")));
+      ok("verify #1: a name never printed has no base", JSON.stringify(statOf("engine-card-963")) === "[null,null]", JSON.stringify(statOf("engine-card-963")));
+      const gone = clone(b);
+      bfOf(gone).splice(bfOf(gone).findIndex((c) => c.id === "engine-card-960"), 1);
+      seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: gone, fingerprint: "c2" }); await h.flush();
+      const copy = h.B.tableCard(bfOf(gone).find((c) => c.id === "engine-card-961"));
+      ok("verify #1: the copy keeps that base once the original is gone", copy.bp === 2 && copy.bt === 2, JSON.stringify([copy.bp, copy.bt]));
+      // (a card's own printed P/T still comes first)
+      const own = h.B.tableCard(card("engine-card-965", "Grizzly Bears", { printedPower: 5, printedToughness: 5 }));
+      ok("verify #1: a card's own printed P/T comes before its name's", own.bp === 5 && own.bt === 5, JSON.stringify([own.bp, own.bt]));
+      // (kept in the resume file, so a restarted bridge draws the copy as before)
+      const fsm = require("fs");
+      const w0 = fsm.writeFile;
+      let snapText = null;
+      fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
+      h.B.saveResume(); await h.flush();
+      fsm.writeFile = w0;
+      await fsm.promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
+      ok("verify #1: the resume file keeps the printed P/T seen", JSON.stringify(JSON.parse(snapText || "{}").game?.printedPT?.["Grizzly Bears"]) === "[2,2]", String(snapText).slice(0, 200));
       harness.restore();
     }
     // bug 3 and verifier finding 1: why the game ended. Players: player-0 Blue (the seat), player-1 White, player-2 Yellow,
@@ -1509,6 +1606,40 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
         said = await gameOverSaid(await play(2, [() => {}, (gv) => { lib(gv, "player-1", 0); },
           (gv) => { gv.step = step; gv.activePlayerId = active; P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
         ok(`verify 1: an empty library and a loss in ${step} of ${active}'s turn isn't a deck-out`, said === "[MTG] Game over: Blue wins.", said);
+      }
+      // (once the game is over, a player still playing with an empty library in their own draw step hasn't drawn yet)
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { lib(gv, "player-2", 0); },
+        (gv) => { gv.step = "draw"; gv.activePlayerId = "player-2"; P(gv, "player-1").status = "lost"; P(gv, "player-1").life = 0; over("player-0")(gv); }]));
+      ok("verify 2026-11-09: a player still playing at the game's end isn't decked", said === "[MTG] Game over: White is at 0 life. Blue wins.", said);
+      // (the step is the one on the board that first showed the player out: the game's last board may have moved on)
+      const deckOut = [() => {}, (gv) => { lib(gv, "player-1", 0); }, (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; }];
+      const moveOn = (gv) => { gv.step = "main1"; gv.activePlayerId = "player-0"; gv.turn++; over("player-0")(gv); };
+      said = await gameOverSaid(await play(2, [...deckOut, (gv) => { gv.step = "upkeep"; }, moveOn]));
+      ok("verify 2026-11-09: a deck-out is read where the player went out, not on a later board", said === "[MTG] Game over: White drew from an empty library. Blue wins.", said);
+      // (and a bridge restart in between keeps that record: the resume file)
+      {
+        const r = await play(2, deckOut);
+        const fsm = require("fs");
+        const w0 = fsm.writeFile;
+        let snapText = null;
+        fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
+        r.h.B.saveResume(); await r.h.flush();
+        fsm.writeFile = w0;
+        const last = r.last;
+        harness.restore();
+        const h2 = harness.load();
+        await fsm.promises.writeFile(process.env.MTG_RESUME_FILE, snapText || "{}");
+        const resumed = h2.B.resumeGame();
+        await fsm.promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
+        const seat2 = h2.B._getGame()?.seats.get("Blue");
+        const b = clone(last);
+        moveOn(b.gameView);
+        seat2?.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(b), fingerprint: "after-restart" }); await h2.flush();
+        seat2 && (seat2.board = { state: clone(b), fingerprint: null });
+        if (seat2) await asked(h2, seat2, { type: "gameOver" });
+        const s = chatsOf(h2).filter((t) => /Game over/.test(t));
+        ok("verify 2026-11-09: a deck-out is still said after a bridge restart", resumed && s[0] === "[MTG] Game over: White drew from an empty library. Blue wins.", JSON.stringify([resumed, s]));
+        harness.restore();
       }
       // the relay's abort, on a board not over: a conceded player with library 0 is never decked; nothing known says no "aborted"
       {

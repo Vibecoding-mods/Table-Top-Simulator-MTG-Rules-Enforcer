@@ -388,8 +388,10 @@ local function updateBadge(o, c, zone)
     local where, turn = { pos[1], pos[2], pos[3] + (b[1] == "ctr" and 0.13 * (lines - 1) or kwb and -h / 2000 or 0) }, { 0, 0, 0 }
     -- (a tapped card turns its status box back so it reads the right way up, as engineAbilityButtons does)
     if kwb and c.tap then where, turn = { -where[3], pos[2], 0 }, { 0, -90, 0 } end
-    -- (on the back of a card lying face down: turned over with it, so it sits at the same corner as seen from above)
-    if text:sub(-6) == "=under" then where, turn = { -where[1], -where[2], where[3] }, { turn[1], turn[2], turn[3] + 180 } end
+    -- (on the back of a card lying face down: turned over with it, so it sits at the same corner as seen from above; the
+    -- card's flip about its length reverses a turn about its upright, so a tapped one's status box turns back the other
+    -- way: -90 read upside down there)
+    if text:sub(-6) == "=under" then where, turn = { -where[1], -where[2], where[3] }, { turn[1], 0 - turn[2], turn[3] + 180 } end
     o.createButton({ click_function = "engineNoop", function_owner = Global, label = b[2],
       position = where, rotation = turn, width = tbb and 880 or kwb and math.min(1000, math.max(340, 50 * longest + 100)) or math.max(340, 112 * longest),
       -- (the changed text box covers the printed one from under the type line to above the power/toughness)

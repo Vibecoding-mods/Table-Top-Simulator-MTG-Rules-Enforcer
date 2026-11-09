@@ -652,13 +652,13 @@ class Seat {
     const forUs = env.forPlayer === this.slot;
     switch (env.kind) {
       case "state":
-        if (forUs || (!this.board && env.forPlayer == null)) { this.board = { state: env.state, fingerprint: env.fingerprint ?? null }; checkRestored(this); noteOuts(env.state?.gameView); scheduleView(this); }
+        if (forUs || (!this.board && env.forPlayer == null)) { this.board = { state: env.state, fingerprint: env.fingerprint ?? null }; checkRestored(this); noteBoard(env.state?.gameView); scheduleView(this); }
         break;
       case "stateDelta":
         if (!forUs) break;
         if (!this.board || this.board.fingerprint !== env.base) { this.send({ type: "RequestResync" }); break; }
         this.board = { state: delta.apply(this.board.state, env.patch), fingerprint: env.fingerprint };
-        noteOuts(this.board.state?.gameView);
+        noteBoard(this.board.state?.gameView);
         checkRestored(this);
         scheduleView(this);
         break;
@@ -708,7 +708,10 @@ function saveResume() {
       // (who had which turn: "White's 6th turn" read "2nd" after a resume without it)
       turnOwners: game.turnOwners || {}, friendly: game.friendly, friendlyOver: game.friendlyOver,
       // (each deck's own pictures: every Plains keeps its printing after a restart, imagesFor)
-      pictures: game.pictures },
+      pictures: game.pictures,
+      // (who went out when, and each library as last seen in the game: a true deck-out is still said after a restart,
+      // noteOuts; and the printed P/T seen for each name, so a copy's badge stays as it was, notePrinted)
+      outOrder: game.outOrder, outStamp: game.outStamp, outWhere: game.outWhere, inLibrary: game.inLibrary, printedPT: game.printedPT },
     seats: [...game.seats.values()].map((st) => ({ color: st.color, deckId: st.deckId, username: st.username, slot: st.slot, roomId: st.roomId, mullsTaken: st.mullsTaken })),
   };
   const tmp = `${RESUME_FILE}.tmp`;
@@ -772,8 +775,10 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
     friendly: friendlyCount(votes, seatList), friendlyVoted: seatList.map((c) => `${c} voted ${votes?.[c] === 1 || votes?.[c] === 2 ? votes[c] : "none"}`).join(", "),
-    // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI
-    aiTableDecks: aiSeats.filter((c) => readyDecks[c]).slice(0, bots).map((c) => engineDeckFromTable(readyDecks[c])) };
+    // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
+    // each came from, for its pictures (onGameStarted)
+    aiTableDecks: aiSeats.filter((c) => readyDecks[c]).slice(0, bots).map((c) => engineDeckFromTable(readyDecks[c])),
+    aiTableColors: aiSeats.filter((c) => readyDecks[c]).slice(0, bots) };
   for (const c of aiSeats) if (!readyDecks[c]) chat(`[MTG] The deck in ${c}'s seat isn't ready (see above); that AI plays a built-in deck.`);
   seatList.forEach((color, i) => game.seats.set(color, new Seat(color, deckChoice[color] || DEFAULT_DECKS[i % DEFAULT_DECKS.length])));
   // (a debug setup waits for its player's next game: one not in this game is dropped, not kept for a later one)
@@ -815,7 +820,11 @@ function onRoomUpdate(seat, room) {
     const used = new Set(seats.map((s) => s.deckId));
     // (a deck chosen with "mtg aideck" comes first: before, a deck lying in an empty seat beat it, and a test against
     // a harmless AI got the player's other Commander deck instead)
-    const botDecks = [...aiDeckChoice.map(loadPreset), ...game.aiTableDecks, ...DEFAULT_DECKS.filter((d) => !used.has(d)).map(loadPreset)].slice(0, game.bots);
+    // (with the table seat each deck came from, null for a preset: the k-th deck goes to the k-th bot, onGameStarted)
+    const choices = [...aiDeckChoice.map((id) => [loadPreset(id), null]), ...game.aiTableDecks.map((d, i) => [d, game.aiTableColors?.[i] ?? null]),
+      ...DEFAULT_DECKS.filter((d) => !used.has(d)).map((id) => [loadPreset(id), null])].slice(0, game.bots);
+    const botDecks = choices.map(([d]) => d);
+    game.botDeckColors = choices.map(([, c]) => c);
     for (const b of botDecks) for (const c of [...b.deck.cards, ...(b.deck.commanders || [])]) {
       cachedImage(c.identity.name);
       (game.deckNames ??= new Set()).add(c.identity.name);
@@ -858,9 +867,9 @@ function onGameStarted(msg) {
     game.slotNames[`player-${i}`] = seat ? seat.color : `AI ${++ai}`;
     game.slotColor[`player-${i}`] = seat ? seat.color : freeColors.shift() || null;
   });
-  // (the decks' own pictures for this game, by table colour: kept in the resume file, so a restarted bridge shows each
-  // card as it was; readyDecks starts empty then. See imagesFor.)
-  game.pictures = Object.fromEntries(Object.entries(readyDecks).map(([c, r]) => [c, r.images]));
+  // (the decks' own pictures for this game, by the table colour of the seat playing them: kept in the resume file, so a
+  // restarted bridge shows each card as it was; readyDecks starts empty then. See imagesFor.)
+  game.pictures = gamePictures(msg.player_order);
   toTTS({ t: "gamelog", reset: true, lines: [] }); // (a new game: the last game's log lines go, playtest 2026-10-26)
   toTTS({ t: "started", colors: game.slotColor, names: game.slotNames,
     ai: Object.keys(game.slotColor).filter((k) => !TABLE_COLORS.includes(game.slotNames[k])).map((k) => game.slotColor[k]) });
@@ -871,6 +880,29 @@ function onGameStarted(msg) {
   log(`game started ${msg.game_id}: ${Object.values(game.slotNames).join(", ")}`);
   if (game.friendly) friendlySay(`Friendly mulligans this game: ${game.friendly} each (${game.friendlyVoted}).`);
   saveResume();
+}
+// Each seat's deck pictures, keyed by the colour it sits at: a player's own readied deck; an AI's, the table deck it was
+// given (botDeckColors: the seat that deck lay in, which need not be the colour the AI sits at: an AI seated at Red with
+// Yellow's deck showed White's Plains, verifier 2026-11-09). A deck nobody plays has no pictures here.
+// The relay's node names the bot given decks[k] "<name>" for k = 0 and "<name> <k+1>" after that (self-hosted-node
+// spawn_bots), and the bots join in any order; an AI whose name doesn't say which it is gets none.
+function gamePictures(order) {
+  const ai = order.filter((u) => ![...game.seats.values()].some((s) => s.username === u));
+  const first = ai.find((u) => ai.every((v) => v === u || v.startsWith(`${u} `)));
+  const botIndex = (u) => {
+    if (u === first) return 0;
+    const k = first != null && u.startsWith(`${first} `) ? Number(u.slice(first.length + 1)) : NaN;
+    return Number.isInteger(k) && k >= 2 ? k - 1 : null;
+  };
+  const pictures = {};
+  order.forEach((u, i) => {
+    const color = game.slotColor[`player-${i}`];
+    const seat = [...game.seats.values()].find((s) => s.username === u);
+    const k = seat ? null : botIndex(u);
+    const from = seat ? seat.color : k != null ? game.botDeckColors?.[k] ?? null : null;
+    if (color && from && readyDecks[from]) pictures[color] = readyDecks[from].images;
+  });
+  return pictures;
 }
 
 // ───────────────────────── Whole-table model for the group's table (SPEC §5, PLAN M4 step 3) ─────────────────────────
@@ -1012,18 +1044,22 @@ const ttsImage = (u) => (u && SCRYFALL_CDN.test(u) ? u.replace(SCRYFALL_CDN, "ht
 // with the card (an AI seat plays a deck from a colour it may not sit at); null when no deck has it (the lookup by name,
 // cachedImage). A deck with several printings gives each engine card one of them by the number in its id: the same one
 // on every board (the table replaces a card whose picture changes) and after a bridge restart, with nothing stored.
+// The number picks from the deck's whole list, and a printing with no usable picture passes to the next one in the
+// list: a dead link found mid-game (checkDeckImages) moves only the cards that showed it. (Picking from the usable ones
+// alone moved other cards too, as the list shrank.)
 // The running game's pictures (game.pictures, in the resume file), else the decks readied since.
 function imagesFor(name, ownerColor = null, id = null) {
   const decks = game?.pictures || Object.fromEntries(Object.entries(readyDecks).map(([c, r]) => [c, r.images]));
   const order = [...new Set([ownerColor, ...TABLE_COLORS, ...Object.keys(decks)])].filter((c) => c != null);
   const n = Number(/(\d+)\D*$/.exec(String(id ?? ""))?.[1] ?? 0);
+  // (a deck card without its own picture, or with the card back as its face, uses the lookup by name: Fire // Ice
+  // showed a card back, 2026-10-26)
+  const usable = (i) => i.face && i.face !== DEFAULT_BACK && !deadImages.has(i.face);
   for (const color of order) {
-    // (a deck card without its own picture, or with the card back as its face, uses the lookup by name: Fire // Ice
-    // showed a card back, 2026-10-26)
-    const faces = (decks[color]?.[name] || []).filter((i) => i.face && i.face !== DEFAULT_BACK && !deadImages.has(i.face));
-    if (!faces.length) continue;
-    const img = faces[n % faces.length];
-    return { ...img, face: ttsImage(img.face), back: ttsImage(img.back) };
+    const all = decks[color]?.[name] || [];
+    const k = n % (all.length || 1);
+    const img = [...all.slice(k), ...all.slice(0, k)].find(usable);
+    if (img) return { ...img, face: ttsImage(img.face), back: ttsImage(img.back) };
   }
   return null;
 }
@@ -1147,9 +1183,13 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
   // it says none or isn't known: Saw in Half's 1/1 tokens of a 2/2 have a base of 1/1, and looked 2/2 with no badge,
   // playtest 2026-10-31; a 6/6 X/X Dinosaur Beast showed no badge, its base 6 standing in for the picture's */*, live
   // 2026-11-08. A token's own picture says the P/T Scryfall printed on it, kept only from a search by its P/T; a card's,
-  // the printed P/T the engine sends for a numeric one.)
+  // the printed P/T the engine sends for a numeric one, else the one it sent for a card of that name, notePrinted: a
+  // Clone copying Grizzly Bears shows the Bears' picture (looked up by name), and the engine sends no printed P/T for it,
+  // its paper being Clone's.)
   const [bp, bt] = tok?.face ? [ptNumber(tok.pow), ptNumber(tok.tou)]
-    : c.identity.isToken && !face ? [null, null] : [c.printedPower ?? null, c.printedToughness ?? null];
+    : c.identity.isToken && !face ? [null, null]
+    : c.printedPower != null || c.printedToughness != null ? [c.printedPower ?? null, c.printedToughness ?? null]
+    : Object.hasOwn(game.printedPT || {}, name) ? game.printedPT[name] : [null, null];
   // (a dungeon is in no deck: its picture was first asked for as it entered, and its first look was a card back,
   // hp-08 #2 2026-10-28. A card that ventures or takes the initiative asks for them all ahead.)
   if (/\bventure into\b|\binitiative\b/i.test(c.text || "")) for (const d of DUNGEON_NAMES) cachedImage(d);
@@ -3448,6 +3488,21 @@ function noteOuts(gv) {
   }
   if (any) game.outStamp = (game.outStamp ?? 0) + 1;
 }
+// The printed P/T of each card name the engine has sent one for (game.printedPT, kept in the resume file), for a card
+// of that name it sends none for (tableCard: a copy, whose paper is another card's). Forge's harness sends a card's
+// printed P/T only from the face of its own paper that bears its current name, and only when both are numbers, so the
+// numbers are that name's, as printed on every picture of it. Tokens are left out: their names aren't unique ("Soldier"
+// is a 1/1 and a 2/2). Read from every board before it is drawn, so a copy drawn before its original on a board gets them.
+function notePrinted(gv) {
+  if (!game || !gv) return;
+  for (const z of gv.zones || []) for (const c of z.cards || []) {
+    if (c?.identity?.name && !c.identity.isToken && !c.isFaceDown && c.printedPower != null && c.printedToughness != null) {
+      (game.printedPT ??= {})[c.identity.name] = [c.printedPower, c.printedToughness];
+    }
+  }
+}
+// What the bridge records from each board the engine sends, before it is drawn
+function noteBoard(gv) { noteOuts(gv); notePrinted(gv); }
 // Not out before the last players to go (still playing, or among them)
 function outLast(p) { const at = game?.outOrder?.[p.id]; return at == null || at === game.outStamp; }
 // (a conceded player's reason is the concession, whatever the board shows: concededPlayers)

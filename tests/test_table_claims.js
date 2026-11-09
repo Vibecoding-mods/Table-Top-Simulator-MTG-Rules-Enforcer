@@ -608,18 +608,21 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   const pt = (mark) => q('local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. tostring(__ptId) then o = x end end if o == nil then return "no card" end local out = {} ' +
     'for _, b in ipairs(o.getButtons() or {}) do if string.find(tostring(b.label), "^%-?%d+/%-?%d+$") then local col, pos = b.color or {}, b.position or {} ' +
     'out[#out + 1] = b.label .. "@" .. string.format("%.2f,%.2f,%.2f", col[1] or col.r or -1, col[2] or col.g or -1, col[3] or col.b or -1) .. "@y" .. string.format("%.1f", pos.y or pos[2] or 0) .. "@x" .. string.format("%.2f", pos.x or pos[1] or 0) .. "@rz" .. tostring((b.rotation or {})[3] or (b.rotation or {}).z or 0) end end return #out == 0 and "none" or table.concat(out, "|")', mark);
+  // (the badge's position along the card's length)
+  const ptZ = (mark) => q('local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. tostring(__ptId) then o = x end end if o == nil then return "no card" end ' +
+    'for _, b in ipairs(o.getButtons() or {}) do if string.find(tostring(b.label), "^%-?%d+/%-?%d+$") then local pos = b.position or {} return string.format("%.2f", pos.z or pos[3] or 0) end end return "none"', `${mark} z`);
   const r = run([{ frames: 30 }, q(pick, "pick"),
     set('x.p = "6" x.t = "6" x.bp = nil x.bt = nil', "6/6 no base"), pt("6/6 no base"),
     set('x.bp = 6 x.bt = 6', "6/6 base 6/6"), pt("6/6 base 6/6"),
     set('x.p = "2" x.t = "2" x.bp = 2 x.bt = 2', "2/2"), pt("2/2"),
-    set('x.p = "3" x.t = "3"', "3/3 over 2/2"), pt("3/3 over 2/2"),
+    set('x.p = "3" x.t = "3"', "3/3 over 2/2"), pt("3/3 over 2/2"), ptZ("3/3 over 2/2"),
     set('x.p = "1" x.t = "1"', "1/1 under 2/2"), pt("1/1 under 2/2"),
     set('x.p = "6" x.t = "6" x.bp = nil x.bt = nil x.dmg = 1', "damaged no base"), pt("damaged no base"),
     set('x.p = "0" x.t = "1" x.bp = 0 x.bt = 1', "kelp"), pt("kelp"),
     set('x.p = "2" x.t = "2" x.bp = 2 x.bt = nil', "half known"), pt("half known"),
-    set('x.p = "3" x.t = "3" x.bp = 2 x.bt = 2 engineFlipped[x.id] = true', "flipped over"), pt("flipped over"), set('engineFlipped[x.id] = nil', "flipped back"),
+    set('x.p = "3" x.t = "3" x.bp = 2 x.bt = 2 engineFlipped[x.id] = true', "flipped over"), pt("flipped over"), ptZ("flipped over"), set('engineFlipped[x.id] = nil', "flipped back"),
     set('x.p = 2 x.t = 2 x.bp = 2 x.bt = 2 x.fd = true', "morph"), pt("morph"),
-    set('x.p = 3 x.t = 3 x.bp = 2 x.bt = 2 x.fd = true', "pumped morph"), pt("pumped morph")]);
+    set('x.p = 3 x.t = 3 x.bp = 2 x.bt = 2 x.fd = true', "pumped morph"), pt("pumped morph"), ptZ("pumped morph")]);
   const v = (m) => String(valueOf(r, m));
   const BLACK = "0.00,0.00,0.00", UP = "0.10,0.35,0.80", DOWN = "0.62,0.08,0.08";
   ok("pt badge: precondition, a card on the battlefield (given a P/T here)", v("pick") !== "nil", v("pick") + " " + r.errors.join(" | "));
@@ -634,6 +637,50 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("pt badge: a face-up card its owner turned over has it on its back", v("flipped over") === `3/3@${UP}@y-0.3@x-0.62@rz180`, v("flipped over"));
   ok("pt badge: a plain face-down 2/2 shows none", v("morph") === "none", v("morph") + " " + r.errors.join(" | "));
   ok("pt badge: a pumped face-down one shows on its back, at the same corner", v("pumped morph") === `3/3@${UP}@y-0.3@x-0.62@rz180`, v("pumped morph"));
+  // (the position's third number too: the mirror of a card turned over is across its width, not its length)
+  ok("pt badge: on the back it keeps its distance from the card's top", v("flipped over z") === v("3/3 over 2/2 z") && v("pumped morph z") === v("3/3 over 2/2 z") && v("3/3 over 2/2 z") !== "0.00",
+    [v("3/3 over 2/2 z"), v("flipped over z"), v("pumped morph z")].join(" "));
+}
+// the status box reads the right way up from the card's controller's seat, as the card lies: tapped, turned over by its
+// owner (on its back, "=under"), or both (verifier 2026-11-09: tapped and turned over, its rotation {0,-90,180} read
+// upside down). Checked as TTS draws it: the object's rotation, then the button's, both Unity's Euler order (z, x, y).
+{
+  const pick = 'local t = engineTable() local c for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if c == nil and x.id and x.att == nil and not x.fd then c = x end end end __kwId = c and c.id return tostring(__kwId)';
+  const set = (fields, mark) => q(`local t = engineTable() for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if x.id == __kwId then x.kw = { "Hexproof" } x.tap = false engineFlipped[x.id] = nil ${fields} end end end engineRender(t) __sim.frames(30)`, `set: ${mark}`);
+  const v3 = (name) => `string.format("%.4f,%.4f,%.4f", ${name}.x or ${name}[1] or 0, ${name}.y or ${name}[2] or 0, ${name}.z or ${name}[3] or 0)`;
+  const box = (mark) => q('local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. tostring(__kwId) then o = x end end if o == nil then return "no card" end ' +
+    'for _, b in ipairs(o.getButtons() or {}) do if b.label == "Hexproof" then local r, br, bp = o.getRotation(), b.rotation or {}, b.position or {} ' +
+    `return ${v3("r")} .. "|" .. ${v3("br")} .. "|" .. ${v3("bp")} end end return "no box"`, mark);
+  const r = run([{ frames: 30 }, q(pick, "pick"), set("", "plain"), box("plain"), set("x.tap = true", "tapped"), box("tapped"),
+    set("engineFlipped[x.id] = true", "turned over"), box("turned over"), set("x.tap = true engineFlipped[x.id] = true", "tapped, turned over"), box("tapped, turned over"),
+    set("", "back")]);
+  const rad = Math.PI / 180;
+  const mul = (a, b) => a.map((row) => [0, 1, 2].map((j) => row[0] * b[0][j] + row[1] * b[1][j] + row[2] * b[2][j]));
+  const euler = ([x, y, z]) => {
+    const [cx, sx, cy, sy, cz, sz] = [Math.cos(x * rad), Math.sin(x * rad), Math.cos(y * rad), Math.sin(y * rad), Math.cos(z * rad), Math.sin(z * rad)];
+    return mul(mul([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]], [[1, 0, 0], [0, cx, -sx], [0, sx, cx]]), [[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]]);
+  };
+  // (the box's orientation and its offset from the card's centre, on the table)
+  const world = (mark) => {
+    const parts = String(valueOf(r, mark)).split("|").map((s) => s.split(",").map(Number));
+    if (parts.length !== 3 || parts.flat().some((n) => !Number.isFinite(n))) return null;
+    const [obj, btn, pos] = parts;
+    const o = euler(obj);
+    return { turn: mul(o, euler(btn)), at: o.map((row) => row[0] * pos[0] + row[1] * pos[1] + row[2] * pos[2]) };
+  };
+  const near = (a, b) => a.flat().every((x, i) => Math.abs(x - b.flat()[i]) < 1e-6);
+  const plain = world("plain");
+  ok("status box: precondition, a card with a status box", String(valueOf(r, "pick")) !== "nil" && !!plain, String(valueOf(r, "plain")) + " " + r.errors.join(" | "));
+  for (const mark of ["tapped", "turned over", "tapped, turned over"]) {
+    const w = world(mark);
+    ok(`status box: ${mark}, it reads the way it does on an untapped card`, !!plain && !!w && near(w.turn, plain.turn), String(valueOf(r, mark)));
+    // (and lies face up, on the side that faces up)
+    ok(`status box: ${mark}, its face is up`, !!w && w.turn[1][1] > 0.99, String(valueOf(r, mark)));
+  }
+  // (on its back it sits where it does face up: tapped or not, at the same place on the table)
+  const at = (mark) => world(mark)?.at.map((n) => (Math.abs(n) < 5e-4 ? 0 : n).toFixed(3)).join(",");
+  ok("status box: turned over, at the same place as face up", at("turned over") === at("plain"), `${at("turned over")} / ${at("plain")}`);
+  ok("status box: tapped and turned over, at the same place as tapped face up", at("tapped, turned over") === at("tapped"), `${at("tapped, turned over")} / ${at("tapped")}`);
 }
 // a phased-out card stays where it was, dimmed and marked, and comes back as it was (2026-11-02: it used to vanish)
 {
