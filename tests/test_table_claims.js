@@ -599,6 +599,42 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("copy badge: none before it is a copy", !String(valueOf(r, "before")).includes("COPY"), String(valueOf(r, "before")) + " " + r.errors.join(" | "));
   ok("copy badge: a copy shows COPY", String(valueOf(r, "after")).split("|").includes("COPY"), String(valueOf(r, "after")) + " " + r.errors.join(" | "));
 }
+// the power/toughness badge (live 2026-11-08: a 6/6 X/X Dinosaur Beast showed no number): shown whenever the card's
+// numbers differ from its picture's (bp/bt), and always when the picture shows none (bp nil), in black; a face-down
+// permanent's on its back, against the rules' 2/2
+{
+  const pick = 'local t = engineTable() local c for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if c == nil and x.id and x.att == nil and not x.fd then c = x end end end __ptId = c and c.id return tostring(__ptId)';
+  const set = (fields, mark) => q(`local t = engineTable() for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if x.id == __ptId then x.dmg = 0 x.ctr = {} ${fields} end end end engineRender(t) __sim.frames(30)`, `set: ${mark}`);
+  const pt = (mark) => q('local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. tostring(__ptId) then o = x end end if o == nil then return "no card" end local out = {} ' +
+    'for _, b in ipairs(o.getButtons() or {}) do if string.find(tostring(b.label), "^%-?%d+/%-?%d+$") then local col, pos = b.color or {}, b.position or {} ' +
+    'out[#out + 1] = b.label .. "@" .. string.format("%.2f,%.2f,%.2f", col[1] or col.r or -1, col[2] or col.g or -1, col[3] or col.b or -1) .. "@y" .. string.format("%.1f", pos.y or pos[2] or 0) .. "@x" .. string.format("%.2f", pos.x or pos[1] or 0) .. "@rz" .. tostring((b.rotation or {})[3] or (b.rotation or {}).z or 0) end end return #out == 0 and "none" or table.concat(out, "|")', mark);
+  const r = run([{ frames: 30 }, q(pick, "pick"),
+    set('x.p = "6" x.t = "6" x.bp = nil x.bt = nil', "6/6 no base"), pt("6/6 no base"),
+    set('x.bp = 6 x.bt = 6', "6/6 base 6/6"), pt("6/6 base 6/6"),
+    set('x.p = "2" x.t = "2" x.bp = 2 x.bt = 2', "2/2"), pt("2/2"),
+    set('x.p = "3" x.t = "3"', "3/3 over 2/2"), pt("3/3 over 2/2"),
+    set('x.p = "1" x.t = "1"', "1/1 under 2/2"), pt("1/1 under 2/2"),
+    set('x.p = "6" x.t = "6" x.bp = nil x.bt = nil x.dmg = 1', "damaged no base"), pt("damaged no base"),
+    set('x.p = "0" x.t = "1" x.bp = 0 x.bt = 1', "kelp"), pt("kelp"),
+    set('x.p = "2" x.t = "2" x.bp = 2 x.bt = nil', "half known"), pt("half known"),
+    set('x.p = "3" x.t = "3" x.bp = 2 x.bt = 2 engineFlipped[x.id] = true', "flipped over"), pt("flipped over"), set('engineFlipped[x.id] = nil', "flipped back"),
+    set('x.p = 2 x.t = 2 x.bp = 2 x.bt = 2 x.fd = true', "morph"), pt("morph"),
+    set('x.p = 3 x.t = 3 x.bp = 2 x.bt = 2 x.fd = true', "pumped morph"), pt("pumped morph")]);
+  const v = (m) => String(valueOf(r, m));
+  const BLACK = "0.00,0.00,0.00", UP = "0.10,0.35,0.80", DOWN = "0.62,0.08,0.08";
+  ok("pt badge: precondition, a card on the battlefield (given a P/T here)", v("pick") !== "nil", v("pick") + " " + r.errors.join(" | "));
+  ok("pt badge: a picture with no numbers (bp nil) shows the P/T, black", v("6/6 no base") === `6/6@${BLACK}@y0.3@x0.62@rz0`, v("6/6 no base"));
+  ok("pt badge: the picture's own 6/6 shows none", v("6/6 base 6/6") === "none", v("6/6 base 6/6"));
+  ok("pt badge: an ordinary 2/2 shows none", v("2/2") === "none", v("2/2"));
+  ok("pt badge: bigger than the picture, the up colour", v("3/3 over 2/2") === `3/3@${UP}@y0.3@x0.62@rz0`, v("3/3 over 2/2"));
+  ok("pt badge: smaller than the picture, the down colour", v("1/1 under 2/2") === `1/1@${DOWN}@y0.3@x0.62@rz0`, v("1/1 under 2/2"));
+  ok("pt badge: damage with no base is down, toughness left", v("damaged no base") === `6/5@${DOWN}@y0.3@x0.62@rz0`, v("damaged no base"));
+  ok("pt badge: a 0/1 over a 0/1 picture shows none", v("kelp") === "none", v("kelp"));
+  ok("pt badge: a base only half known shows, black", v("half known") === `2/2@${BLACK}@y0.3@x0.62@rz0`, v("half known"));
+  ok("pt badge: a face-up card its owner turned over has it on its back", v("flipped over") === `3/3@${UP}@y-0.3@x-0.62@rz180`, v("flipped over"));
+  ok("pt badge: a plain face-down 2/2 shows none", v("morph") === "none", v("morph") + " " + r.errors.join(" | "));
+  ok("pt badge: a pumped face-down one shows on its back, at the same corner", v("pumped morph") === `3/3@${UP}@y-0.3@x-0.62@rz180`, v("pumped morph"));
+}
 // a phased-out card stays where it was, dimmed and marked, and comes back as it was (2026-11-02: it used to vanish)
 {
   const last = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);

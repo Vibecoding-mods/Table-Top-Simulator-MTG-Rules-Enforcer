@@ -284,11 +284,14 @@ function checkDeck(color, entry) {
   const unknown = [];
   const commanders = [];
   const cards = [];
-  const images = {}; // engine name → the table's own card images
+  // engine name → the table's own pictures of it, one per printing in the deck (a deck with three Plains printings keeps
+  // all three; imagesFor gives each engine card one of them)
+  const images = {};
   const resolve = (c) => {
     const name = index[normName(c.n)];
     if (!name) { unknown.push(c.n || "(unnamed card)"); return null; }
-    images[name] ??= { face: c.f || null, back: c.b || null };
+    const list = (images[name] ??= []);
+    if (!list.some((i) => i.face === (c.f || null))) list.push({ face: c.f || null, back: c.b || null });
     return name;
   };
   for (const c of asList(entry.commander)) { const n = resolve(c); if (n) commanders.push(n); }
@@ -575,17 +578,13 @@ class Seat {
         if (game?.abortSaid || game?.over) break;
         if (game) game.abortSaid = true;
         const gv = this.board?.state?.gameView;
-        // (a game won by life, poison or commander damage also ends here: then that is the reason, not an empty library;
-        // playtest 2026-10-27: 12 poison was reported as White drawing from an empty library)
-        const lost = lossReasons(gv);
-        const empty = deckedPlayers(gv);
-        // (a known reason wins: at the end the library count is not to be trusted, the poisoned game above read as an
-        // empty library. Only the players who lost last count, see outLast.)
-        if (lost) { chat(`[MTG] Game over: ${lost}.`); break; }
-        // (a board the engine says is over says how it ended, as gameEndWords tells it, "a draw" when that is all it
-        // shows: Kykar's ended game read "Game aborted.", #16)
-        chat(empty.length ? `[MTG] Game over: ${empty.map((p) => nameOf(p.id)).join(", ")} had to draw from an empty library (that's a loss). The engine stopped the game there.`
-          : gv?.gameOver ? `[MTG] Game over: ${gameEndWords(gv)}.` : "[MTG] Game aborted.");
+        // (as gameEndWords tells it: a game won by life, poison or commander damage also ends here, and that is the
+        // reason, not an empty library, playtest 2026-10-27; who conceded, never an empty library, live 2026-11-08; "a
+        // draw" for a board the engine says is over, Kykar #16)
+        const why = gameEndWords(gv);
+        // (else the bare fact: the relay sends this for every game that ends, a normal end too ("room reset to lobby"),
+        // and every concession ended with "Game aborted.", which reads as a crash, live 2026-11-08)
+        chat(why ? `[MTG] Game over: ${why}.` : "[MTG] The game has ended.");
         break;
       }
     }
@@ -649,7 +648,9 @@ function saveResume() {
     game: { bots: game.bots, total: game.total, playerOrder: game.playerOrder, slotNames: game.slotNames, slotColor: game.slotColor,
       fromTable: game.fromTable, roomId: game.roomId, deckNames: [...(game.deckNames || [])],
       // (who had which turn: "White's 6th turn" read "2nd" after a resume without it)
-      turnOwners: game.turnOwners || {}, friendly: game.friendly, friendlyOver: game.friendlyOver },
+      turnOwners: game.turnOwners || {}, friendly: game.friendly, friendlyOver: game.friendlyOver,
+      // (each deck's own pictures: every Plains keeps its printing after a restart, imagesFor)
+      pictures: game.pictures },
     seats: [...game.seats.values()].map((st) => ({ color: st.color, deckId: st.deckId, username: st.username, slot: st.slot, roomId: st.roomId, mullsTaken: st.mullsTaken })),
   };
   const tmp = `${RESUME_FILE}.tmp`;
@@ -799,6 +800,9 @@ function onGameStarted(msg) {
     game.slotNames[`player-${i}`] = seat ? seat.color : `AI ${++ai}`;
     game.slotColor[`player-${i}`] = seat ? seat.color : freeColors.shift() || null;
   });
+  // (the decks' own pictures for this game, by table colour: kept in the resume file, so a restarted bridge shows each
+  // card as it was; readyDecks starts empty then. See imagesFor.)
+  game.pictures = Object.fromEntries(Object.entries(readyDecks).map(([c, r]) => [c, r.images]));
   toTTS({ t: "gamelog", reset: true, lines: [] }); // (a new game: the last game's log lines go, playtest 2026-10-26)
   toTTS({ t: "started", colors: game.slotColor, names: game.slotNames,
     ai: Object.keys(game.slotColor).filter((k) => !TABLE_COLORS.includes(game.slotNames[k])).map((k) => game.slotColor[k]) });
@@ -824,7 +828,9 @@ try {
   imageCache = JSON.parse(fs.readFileSync(IMAGE_CACHE_FILE, "utf8"));
   // a token search that found no picture is tried again once per bridge start: one that failed in passing was kept as
   // "no picture" for good (the Food token stayed a card back, playtest 2026-10-26)
-  for (const k of Object.keys(imageCache)) if (k.startsWith("token:") && !imageCache[k]?.face) delete imageCache[k];
+  // (and one found before its printed P/T was kept, "pow" absent, is looked up again: its badge would read the picture as
+  // showing no numbers until then, every 1/1 Soldier showing 1/1)
+  for (const k of Object.keys(imageCache)) if (k.startsWith("token:") && (!imageCache[k]?.face || !("pow" in imageCache[k]))) delete imageCache[k];
 }
 catch (e) { if (e.code !== "ENOENT") log(`image cache unreadable, starting empty: ${e.message}`); }
 // One writer for the cache file, at most every 2 s, written to a temp file and renamed into place: two writers at
@@ -943,12 +949,23 @@ function scheduleTable() {
 const SCRYFALL_CDN = /^https?:\/\/cards\.scryfall\.io\/[a-z_]+\/(front|back)\/([0-9a-f])\/([0-9a-f])\/([0-9a-f-]+)\.[a-z]+(\?.*)?$/i;
 const ttsImage = (u) => (u && SCRYFALL_CDN.test(u) ? u.replace(SCRYFALL_CDN, "https://img.klrmngr.com/display/$1/$2/$3/$4.webp") : u);
 
-function imagesFor(name) {
-  for (const r of Object.values(readyDecks)) {
-    const img = r.images[name];
+// A card's picture from a deck put on the table: its OWNER's deck first (ownerColor: a stolen card or a token copy keeps
+// its owner's printing; every player's Plains showed the first-readied deck's, live 2026-11-08), then another deck
+// with the card (an AI seat plays a deck from a colour it may not sit at); null when no deck has it (the lookup by name,
+// cachedImage). A deck with several printings gives each engine card one of them by the number in its id: the same one
+// on every board (the table replaces a card whose picture changes) and after a bridge restart, with nothing stored.
+// The running game's pictures (game.pictures, in the resume file), else the decks readied since.
+function imagesFor(name, ownerColor = null, id = null) {
+  const decks = game?.pictures || Object.fromEntries(Object.entries(readyDecks).map(([c, r]) => [c, r.images]));
+  const order = [...new Set([ownerColor, ...TABLE_COLORS, ...Object.keys(decks)])].filter((c) => c != null);
+  const n = Number(/(\d+)\D*$/.exec(String(id ?? ""))?.[1] ?? 0);
+  for (const color of order) {
     // (a deck card without its own picture, or with the card back as its face, uses the lookup by name: Fire // Ice
     // showed a card back, 2026-10-26)
-    if (img && img.face && img.face !== DEFAULT_BACK && !deadImages.has(img.face)) return { ...img, face: ttsImage(img.face), back: ttsImage(img.back) };
+    const faces = (decks[color]?.[name] || []).filter((i) => i.face && i.face !== DEFAULT_BACK && !deadImages.has(i.face));
+    if (!faces.length) continue;
+    const img = faces[n % faces.length];
+    return { ...img, face: ttsImage(img.face), back: ttsImage(img.back) };
   }
   return null;
 }
@@ -958,7 +975,7 @@ function imagesFor(name) {
 const deadImages = new Set();
 const checkedImages = new Set();
 async function checkDeckImages(images) {
-  const urls = [...new Set(Object.values(images).map((i) => i.face).filter((u) => u && /^https:\/\/img\.klrmngr\.com\//.test(u) && !checkedImages.has(u)))];
+  const urls = [...new Set(Object.values(images).flat().map((i) => i.face).filter((u) => u && /^https:\/\/img\.klrmngr\.com\//.test(u) && !checkedImages.has(u)))];
   for (const u of urls) checkedImages.add(u);
   for (let i = 0; i < urls.length; i += 8) {
     await Promise.all(urls.slice(i, i + 8).map(async (u) => {
@@ -978,13 +995,17 @@ function tokenKey(c) {
   const colors = String(c.color || "").replace(/[^WUBRG]/gi, "").toLowerCase();
   return { base, key: `token:${base}|${p ?? ""}/${t ?? ""}|${colors}`, p, t, colors };
 }
+// A printed power or toughness as a number, null when it isn't one ("*", "X", "1+*", absent): a picture that shows no
+// number can't match the card's (0 is a number: a 0/1 Kelp)
+const ptNumber = (v) => (v != null && /^\d+$/.test(String(v)) ? Number(v) : null);
 function tokenImage(c) {
   const { base, key, p, t, colors } = tokenKey(c);
   if (!base) return null;
   if (imageCache[key]) return imageCache[key];
   if (!tokenWanted.has(key)) {
     const exact = [`t:token`, `!"${base}"`, p != null ? `pow=${p}` : "", t != null ? `tou=${t}` : "", `c=${colors || "c"}`].filter(Boolean).join(" ");
-    tokenWanted.set(key, [exact, `t:token !"${base}"`, `t:token name:"${base}"`]);
+    // (only the first query asks for the P/T: its hit's printed P/T is recorded with the picture, see fetchTokens)
+    tokenWanted.set(key, [{ q: exact, pt: p != null && t != null }, { q: `t:token !"${base}"` }, { q: `t:token name:"${base}"` }]);
     setImmediate(fetchTokens);
   }
   return null;
@@ -1000,14 +1021,20 @@ async function fetchTokens() {
   try {
     for (const [key, queries] of [...tokenWanted]) {
       let entry = { face: null, back: null }, transient = false;
-      for (const q of queries) {
+      for (const { q, pt } of queries) {
         const res = await fetch(`https://api.scryfall.com/cards/search?unique=art&order=released&dir=desc&q=${encodeURIComponent(q)}`,
           { headers: { Accept: "application/json", "User-Agent": "mtg-tts-bridge/0.1" } }).catch(() => null);
         await new Promise((r) => setTimeout(r, 120));
         if (!res || res.status === 429 || res.status >= 500) { transient = true; break; }
         if (!res.ok) continue; // 404: nothing for this query; try the next
         const card = (await res.json()).data?.[0];
-        if (card?.id) { entry = { face: `https://img.klrmngr.com/display/front/${card.id[0]}/${card.id[1]}/${card.id}.webp`, back: null }; break; }
+        // (the P/T printed on the picture, kept only from the search that asked for this token's P/T: the name-only
+        // searches found one Dinosaur Beast picture for the 4/4, 6/6 and 18/18 alike, live 2026-11-08; tableCard's bp/bt)
+        if (card?.id) {
+          entry = { face: `https://img.klrmngr.com/display/front/${card.id[0]}/${card.id[1]}/${card.id}.webp`, back: null,
+            pow: pt ? card.power ?? null : null, tou: pt ? card.toughness ?? null : null };
+          break;
+        }
       }
       if (transient) { failed = true; break; }
       tokenWanted.delete(key);
@@ -1047,11 +1074,24 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
       // creature, and the table lays it out with the creatures, hp-07 2026-10-27; never its real types, which the
       // owner's view carries: a foretold Instant, a manifested land, stage 3 review 2026-10-27)
       ty: c.power != null ? ["Creature"] : [],
+      // (what the badge compares against, as for a face-up card's picture: a face-down permanent is a 2/2 by the rules,
+      // so a plain morph shows no numbers and a pumped or damaged one does)
+      ...(c.power != null ? { bp: 2, bt: 2 } : {}),
       ...(c.phasedOut ? { po: true } : {}),
       ...(c.isForetold ? { fo: true } : {}), ...(c.exiledWith ? { ew: c.exiledWith } : {}) };
   }
   const name = c.identity.name;
-  const img = c.identity.isToken ? tokenImage(c) : imagesFor(name);
+  // the picture: a token's own (tokenImage), else its owner's deck's (a token copy of a deck card too), else by name
+  const tok = c.identity.isToken ? tokenImage(c) : null;
+  const img = tok?.face ? tok : imagesFor(name, game.slotColor?.[c.ownerId] || null, c.id);
+  const face = img?.face || cachedImage(name)?.face || null;
+  // (the table's badge shows when the numbers differ from bp/bt, so these are what the card's picture says, null when
+  // it says none or isn't known: Saw in Half's 1/1 tokens of a 2/2 have a base of 1/1, and looked 2/2 with no badge,
+  // playtest 2026-10-31; a 6/6 X/X Dinosaur Beast showed no badge, its base 6 standing in for the picture's */*, live
+  // 2026-11-08. A token's own picture says the P/T Scryfall printed on it, kept only from a search by its P/T; a card's,
+  // the printed P/T the engine sends for a numeric one.)
+  const [bp, bt] = tok?.face ? [ptNumber(tok.pow), ptNumber(tok.tou)]
+    : c.identity.isToken && !face ? [null, null] : [c.printedPower ?? null, c.printedToughness ?? null];
   // (a dungeon is in no deck: its picture was first asked for as it entered, and its first look was a card back,
   // hp-08 #2 2026-10-28. A card that ventures or takes the initiative asks for them all ahead.)
   if (/\bventure into\b|\binitiative\b/i.test(c.text || "")) for (const d of DUNGEON_NAMES) cachedImage(d);
@@ -1059,12 +1099,10 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
   return {
     // a double-faced card's back is its other face (the imported deck's back is the plain card back): flipping it
     // on the table shows the other side, as the table's own state button did
-    id: c.id, n: name, f: img?.face || cachedImage(name)?.face || null, b: imageCache[normName(name)]?.back || img?.back || DEFAULT_BACK,
+    id: c.id, n: name, f: face, b: imageCache[normName(name)]?.back || img?.back || DEFAULT_BACK,
     tl: typeLine, cmc: c.cmc || 0, tx: c.text || "", ty: c.types || [],
     tap: !!c.tapped, fd: !!c.isFaceDown, p: c.power ?? null, t: c.toughness ?? null,
-    // (the table's badge shows when the numbers differ from bp/bt, so these are what the card's picture says: Saw in Half's
-    // 1/1 tokens of a 2/2 have a base of 1/1, and looked 2/2 with no badge, playtest 2026-10-31)
-    bp: c.printedPower ?? c.basePower ?? null, bt: c.printedToughness ?? c.baseToughness ?? null,
+    bp, bt,
     ctr: Object.fromEntries(Object.entries(c.counters || {}).filter(([, k]) => k)), dmg: c.damage || 0,
     att: c.attachedTo || null, tok: !!c.identity.isToken, sick: !!c.summoningSick, ctl: game.slotColor[c.controllerId] || null,
     // in combat: attacking (and at whom), blocking (from the game's blocker list)
@@ -2754,7 +2792,8 @@ function sendTable() {
     tg: (s.targets || []).map((t) => (t.kind === "player" ? { k: "p", c: game.slotColor[t.id] || null } : { k: t.kind === "spell" ? "s" : "c", id: t.id }))
       .filter((t) => t.c || t.id),
 
-    f: pictureOf(s.identity?.name),
+    // (a spell's picture is its card's, sourceId; the owner's printing)
+    f: pictureOf(s.identity?.name, { id: s.sourceId || s.id, ownerId: s.ownerId }),
   }));
   const tableMsg = {
     t: "table", turn: pub.turn, step: pub.step, active: game.slotColor[pub.activePlayerId] || null,
@@ -2817,14 +2856,16 @@ function scheduleView(seat) {
 
 // A card's picture by name: the table's own image (the deck as imported), else Scryfall's (asked for once, cached).
 const IMG_DIR = path.join(__dirname, "..", "tmp", "img-cache"); // jpgs for the /img/ route (older table scripts)
-function pictureOf(name) {
-  return (name && (imagesFor(name)?.face || cachedImage(name)?.face)) || null;
+// card: the engine card (or stack item) it is the picture of, for its owner's deck and its printing (imagesFor): the
+// picture in a question is the one on the table
+function pictureOf(name, card = null) {
+  return (name && (imagesFor(name, card ? game?.slotColor?.[card.ownerId] || null : null, card?.id)?.face || cachedImage(name)?.face)) || null;
 }
 
 // The picture the table's card row shows for a card (undefined when face-down or not known yet).
 function imgOf(c) {
   const name = c && c.visibility !== "hidden" ? c.identity?.name : null;
-  return pictureOf(name) || undefined;
+  return pictureOf(name, c) || undefined;
 }
 
 function battlefieldLabel(c) { return cardLabel(c) + (c?.identity && c.visibility !== "hidden" && c.summoningSick && (c.types || []).includes("Creature") ? " (sick)" : ""); }
@@ -2855,45 +2896,77 @@ const LOSS_REASONS = [
   (p) => (p.life <= 0 ? `is at ${p.life} life` : null),
   (p) => { const n = playerCounter(p, "poison"); return n >= 10 ? `has ${n} poison counters` : null; },
   (p) => { const n = Math.max(0, ...Object.values(p.commanderDamage || {}).map(Number).filter(Number.isFinite)); return n >= 21 ? `took ${n} damage from one commander` : null; },
-  (p) => (p.status === "conceded" ? "conceded" : null),
 ];
-// Why the game ended, for the chat, the game log, the table's top bar and a refused rewind: the last losers' reasons
-// (LOSS_REASONS, else an empty library, deckedPlayers) and the winner; with neither, "a draw" once the engine says the
-// game is over and names no winner (Kykar hand test #16: the table said only "Game over."). The engine's own reason
-// (its runaway-game cap, a card's "the game is a draw") doesn't reach the bridge, so a draw says no why: a guessed one
-// is worse than none (verify 2026-11-07: two empty libraries read as the runaway cap).
+// "A", "A and B", "A, B and C"
+const andList = (names) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] || "");
+// Why the game ended, for the chat, the game log, the table's top bar, a refused rewind and the relay's abort: the last
+// losers' reasons (LOSS_REASONS, else an empty library, deckedPlayers), who conceded (concededPlayers), and the winner;
+// with none of these, "a draw" once the engine says the game is over and names no winner (Kykar hand test #16: the
+// table said only "Game over."), else null. The engine's own reason (its runaway-game cap, a card's "the game is a
+// draw") doesn't reach the bridge, so a draw says no why: a guessed one is worse than none (verify 2026-11-07: two
+// empty libraries read as the runaway cap). "White and Yellow conceded. Blue wins." (live 2026-11-08: "White had to
+// draw from an empty library", a conceded player's library reading 0.)
 function gameEndWords(gv) {
   const decked = deckedPlayers(gv).map((p) => nameOf(p.id));
-  const lost = lossReasons(gv) || (decked.length ? `${decked.length > 1 ? `${decked.slice(0, -1).join(", ")} and ${decked.at(-1)}` : decked[0]} drew from an empty library` : null);
+  const conceded = concededPlayers(gv).map((p) => nameOf(p.id));
+  const lost = [lossReasons(gv), decked.length ? `${andList(decked)} drew from an empty library` : null,
+    conceded.length ? `${andList(conceded)} conceded` : null].filter(Boolean).join(", ") || null;
   const won = gv?.winnerId ? `${nameOf(gv.winnerId)} wins` : null;
   if (lost) return won ? `${lost}. ${won}` : lost;
   // (a draw only when the engine says the game is over: a gameOver question with a board still playing tells nothing)
   return won || (gv?.gameOver ? "a draw" : null);
 }
 // The players a board shows lost by drawing from an empty library: among the last to go out (outLast), not the winner,
-// a library zone with no cards; once the engine says the game is over, only players out of it (one still playing with an
-// empty library hasn't drawn from it yet). Read after LOSS_REASONS: at the end a library count can be 0 for a game lost
-// another way (12 poison read as an empty library, playtest 2026-10-27). GameAborted and gameEndWords both use it.
+// not one who conceded; once the engine says the game is over, only players out of it (one still playing with an empty
+// library hasn't drawn from it yet). The library on the board that shows them out says nothing: a conceded player's
+// reads 0 (live 2026-11-08), and so does every loser's in a game of 3 or more, whose cards leave the game with them
+// (CR 800.4a: a Thassa's Oracle win read "AI 1 and AI 2 drew from an empty library", verify 2026-11-09). So the
+// evidence is the bridge's own record (noteOuts): the library was already empty on a board that still showed the player
+// in the game, and they went out in their own draw step, the draw they couldn't make. A deck-out the boards can't show
+// that way (an effect's draw, both libraries at once) is said without a reason: a guessed one is worse than none. A
+// player with a reason in LOSS_REASONS is said with that one (12 poison read as an empty library, playtest 2026-10-27).
+// gameEndWords uses it.
 function deckedPlayers(gv) {
-  return (gv?.players || []).filter(outLast).filter((p) => p.id !== gv.winnerId && (!gv.gameOver || (p.status && p.status !== "playing"))
-    && (gv.zones || []).some((z) => z.zone === "library" && z.ownerId === p.id) && !zoneOf(gv, "library", p.id).count);
+  return (gv?.players || []).filter(outLast).filter((p) => p.id !== gv.winnerId && p.status !== "conceded" && (!gv.gameOver || (p.status && p.status !== "playing"))
+    && !LOSS_REASONS.some((r) => r(p)) && drewFromEmpty(gv, p));
+}
+// (where the player went out: the board that first showed them out, else this one, a player the relay's abort stopped)
+function drewFromEmpty(gv, p) {
+  const where = game?.outWhere?.[p.id] ?? { step: gv.step, active: gv.activePlayerId };
+  return game?.inLibrary?.[p.id] === 0 && where.step === "draw" && where.active === p.id;
+}
+// The players whose concessions ended the game: every player the engine shows conceded since the last player lost
+// another way (White and Yellow conceding 19 s apart both ended it, live 2026-11-08; one who conceded on turn 5 before
+// another lost at 0 life on turn 20 did not), in seat order.
+function concededPlayers(gv) {
+  const players = gv?.players || [];
+  const at = (p) => game?.outOrder?.[p.id];
+  const lastLoss = Math.max(0, ...players.filter((p) => p.status === "lost" && at(p) != null).map(at));
+  return players.filter((p) => p.status === "conceded" && (at(p) == null || at(p) > lastLoss || outLast(p)));
 }
 // The order players left the game in (status lost / conceded first seen), so an end-of-game message names who lost
 // last, not a player out since turn 5 at -3 life (stage 3 review 2026-10-27). Called with each board.
+// Also what deckedPlayers needs: each player's library count on the last board that showed them still in the game
+// (game.inLibrary), and the step and active player of the board that first showed them out (game.outWhere).
 function noteOuts(gv) {
   if (!game || !gv) return;
   game.outOrder ??= {};
+  game.inLibrary ??= {};
+  game.outWhere ??= {};
   let any = false;
   for (const p of gv.players || []) {
-    if (p.status && p.status !== "playing" && game.outOrder[p.id] == null) { game.outOrder[p.id] = (game.outStamp ?? 0) + 1; any = true; }
+    if (p.status && p.status !== "playing") {
+      if (game.outOrder[p.id] == null) { game.outOrder[p.id] = (game.outStamp ?? 0) + 1; game.outWhere[p.id] = { step: gv.step, active: gv.activePlayerId }; any = true; }
+    } else if ((gv.zones || []).some((z) => z.zone === "library" && z.ownerId === p.id)) game.inLibrary[p.id] = zoneOf(gv, "library", p.id).count || 0;
   }
   if (any) game.outStamp = (game.outStamp ?? 0) + 1;
 }
 // Not out before the last players to go (still playing, or among them)
 function outLast(p) { const at = game?.outOrder?.[p.id]; return at == null || at === game.outStamp; }
+// (a conceded player's reason is the concession, whatever the board shows: concededPlayers)
 function lossReasons(gv) {
   const said = [];
-  for (const p of (gv?.players || []).filter(outLast)) {
+  for (const p of (gv?.players || []).filter((p) => outLast(p) && p.status !== "conceded")) {
     const why = LOSS_REASONS.map((r) => r(p)).filter(Boolean);
     if (why.length) said.push(`${nameOf(p.id)} ${why.join(" and ")}`);
   }
@@ -3079,11 +3152,14 @@ function tellApart(options, cards, me) {
 // cost read "Sacrifice two other artifacts and/or creatureses", Kykar hand test #18. Undone for the nouns a cost counts
 // (PLURAL_NOUNS), and for any word the card's own text has in its plain plural form (cardText: "Goblins" for "Goblinses"),
 // in any case ("halflingses" for "Halflings"), unless the card's text has the "-ses" form itself. A word ending "ss",
-// "us" or "is" is a singular whose plural "-ses" is right: "Kisses" stays beside "Kiss of the Amesha" (verify 2026-11-07).
+// "us" or "is" is a singular whose plural "-ses" is right: "Kisses" stays beside "Kiss of the Amesha" (verify 2026-11-07);
+// so are the few singulars in "ns" or "as" (SINGULAR_S: "two Lenses" beside "Lens Keeper" read "two Lens", verify
+// 2026-11-09), named one by one, as most words in "ns" and "as" are plurals Forge doubles: Goblinses, Plainses, Hydrases.
 const PLURAL_NOUNS = /^(?:creatures|artifacts|enchantments|permanents|tokens|spells|players|opponents|counters|planeswalkers|instants|sorceries|battles|cards|lands|nonlands)$/i;
+const SINGULAR_S = /(?:ss|us|is)$|^(?:lens|gas|atlas|canvas|bias|alias)$/i;
 function undoublePlural(text, cardText = "") {
   return String(text).replace(/\b([A-Za-z]+s)es\b/g, (m, w) => (PLURAL_NOUNS.test(w)
-    || (cardText && !/(?:ss|us|is)$/i.test(w) && new RegExp(`\\b${escapeRe(w)}\\b`, "i").test(cardText) && !new RegExp(`\\b${escapeRe(m)}\\b`, "i").test(cardText)) ? w : m));
+    || (cardText && !SINGULAR_S.test(w) && new RegExp(`\\b${escapeRe(w)}\\b`, "i").test(cardText) && !new RegExp(`\\b${escapeRe(m)}\\b`, "i").test(cardText)) ? w : m));
 }
 
 // Engine text names players by relay username; show TTS colors / "AI n" instead.

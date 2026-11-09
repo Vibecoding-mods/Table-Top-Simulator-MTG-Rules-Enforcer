@@ -1068,8 +1068,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     }
     // ── the independent check of the batch (verify 2026-11-07): a wrong name or reason is worse than none ──
     const emptyLibrary = (b, who) => { for (const z of b.gameView.zones) if (z.zone === "library" && who.includes(z.ownerId)) { z.cards = []; z.count = 0; } };
-    // #16: two players out to empty libraries at once: said so, not the runaway cap; a decked loser beside a winner; the
-    // gameOver question, the top bar and a refused rewind all say it
+    // #16: two players out with empty libraries at once, the libraries the end board shows only (no earlier board had
+    // them empty: verify 2026-11-09, a multiplayer loser's cards leave with them): no guessed reason, "a draw"
     {
       const { h, seat, b } = fresh(null, { gameOver: true, winnerId: null });
       for (const p of b.gameView.players) p.status = "lost";
@@ -1077,22 +1077,25 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       seat.board = { state: b, fingerprint: null };
       await asked(h, seat, { type: "gameOver" });
       const said = chats(h).filter((t) => /Game over/.test(t));
-      ok("verify #16: two empty libraries at once say so, not the runaway cap", said.length === 1 && said[0] === "[MTG] Game over: Blue and AI 1 drew from an empty library.", JSON.stringify(said));
-      h.B.sendTable(); await h.flush();
-      ok("verify #16: the top bar says the empty libraries too", sent(h, "table").at(-1)?.overWhy === "Blue and AI 1 drew from an empty library", JSON.stringify(sent(h, "table").at(-1)?.overWhy));
-      const mark = h.effects.length;
-      h.B.onTTS({ t: "rewind", json: JSON.stringify({ color: "Blue", checkpointId: 1 }) }); await h.flush();
-      ok("verify #16: a refused rewind says the empty libraries", chats(h, mark)[0] === "[MTG] The game has ended (Blue and AI 1 drew from an empty library), so it can't be rewound. Start a new game.", JSON.stringify(chats(h, mark)));
+      ok("verify #16: two libraries empty only at the end are no reason: a draw", said.length === 1 && said[0] === "[MTG] Game over: a draw.", JSON.stringify(said));
       harness.restore();
     }
+    // a decked loser beside a winner (the library already empty on an earlier board, out in their own draw step,
+    // noteOuts' record): the gameOver question, the top bar and a refused rewind all say it
     {
-      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: "player-1" });
+      const { h, seat, b } = fresh(null, { gameOver: true, winnerId: "player-1", step: "draw", activePlayerId: "player-0" });
       b.gameView.players.find((p) => p.id === "player-0").status = "lost";
       emptyLibrary(b, ["player-0"]);
+      h.B._getGame().inLibrary = { "player-0": 0 };
       seat.board = { state: b, fingerprint: null };
       await asked(h, seat, { type: "gameOver" });
       const said = chats(h).filter((t) => /Game over/.test(t));
       ok("verify #16: a decked loser beside the winner", said[0] === "[MTG] Game over: Blue drew from an empty library. AI 1 wins.", JSON.stringify(said));
+      h.B.sendTable(); await h.flush();
+      ok("verify #16: the top bar says the empty library too", sent(h, "table").at(-1)?.overWhy === "Blue drew from an empty library. AI 1 wins", JSON.stringify(sent(h, "table").at(-1)?.overWhy));
+      const mark = h.effects.length;
+      h.B.onTTS({ t: "rewind", json: JSON.stringify({ color: "Blue", checkpointId: 1 }) }); await h.flush();
+      ok("verify #16: a refused rewind says the empty library", chats(h, mark)[0] === "[MTG] The game has ended (Blue drew from an empty library. AI 1 wins), so it can't be rewound. Start a new game.", JSON.stringify(chats(h, mark)));
       harness.restore();
     }
     // (a player still playing with an empty library once the game is over hasn't lost to it: a plain draw)
@@ -1273,6 +1276,287 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
         { sourceCard: { id: "engine-card-1956", identity: { name: "Wear // Tear" }, text }, sourceAbilityText: FUSE });
       ok("verify #20: a target both halves fit names no half", !/^(?:Wear|Tear):/.test(seat.prompt?.ui?.title || ""), seat.prompt?.ui?.title);
       harness.restore();
+    }
+  }
+  // ── live reports 2026-11-08 (an X/X token with no badge, every player's Plains in one printing, a concession read as
+  // an empty library) and the verifier's 2026-11-09 findings (multiplayer losers read as decked, "two Lens") ──
+  {
+    const bfOf = (b, owner = "player-0") => b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === owner).cards;
+    const W = "https://img.klrmngr.com/display/front/9/d/9d447365-3aca-4996-9098-efcbe6f28f57.webp";
+    const token = (extra = {}) => ({ id: "engine-card-950", identity: { name: "Dinosaur Beast Token", isToken: true }, types: ["Creature"], color: "G",
+      power: "6", toughness: "6", basePower: 6, baseToughness: 6, printedPower: null, printedToughness: null, controllerId: "player-0", ownerId: "player-0", ...extra });
+    // bug 1: bp/bt are the picture's numbers, null when it shows none
+    {
+      // (a picture found by name only: Scryfall's */* Dinosaur Beast, the same for the 4/4, 6/6 and 18/18)
+      const h = harness.load({ imageCache: { "token:Dinosaur Beast|6/6|g": { face: W, back: null, pow: null, tou: null } } });
+      setup(h, F.board);
+      const c = h.B.tableCard(token());
+      ok("live bug 1: an X/X token whose picture was found by name has no base (bp/bt null)", c.f === W && c.bp === null && c.bt === null, JSON.stringify([c.f, c.bp, c.bt]));
+      harness.restore();
+    }
+    {
+      const h = harness.load({ imageCache: { "token:Dinosaur Beast|6/6|g": { face: W, back: null, pow: "6", tou: "6" },
+        "token:Kelp|0/1|u": { face: W, back: null, pow: "0", tou: "1" }, "token:Ooze|3/3|g": { face: W, back: null, pow: "*", tou: "*" } } });
+      setup(h, F.board);
+      const c = h.B.tableCard(token());
+      ok("live bug 1: a picture found by its P/T says it (bp/bt 6/6)", c.bp === 6 && c.bt === 6, JSON.stringify([c.bp, c.bt]));
+      const kelp = h.B.tableCard(token({ identity: { name: "Kelp Token", isToken: true }, color: "U", power: "0", toughness: "1", basePower: 0, baseToughness: 1 }));
+      ok("live bug 1: a 0/1 picture is a base of 0/1, not none", kelp.bp === 0 && kelp.bt === 1, JSON.stringify([kelp.bp, kelp.bt]));
+      const ooze = h.B.tableCard(token({ identity: { name: "Ooze Token", isToken: true }, power: "3", toughness: "3", basePower: null, baseToughness: null }));
+      ok("live bug 1: a picture printed */* is no base", ooze.f === W && ooze.bp === null && ooze.bt === null, JSON.stringify([ooze.f, ooze.bp, ooze.bt]));
+      harness.restore();
+    }
+    {
+      // (an entry from before the P/T was kept is looked up again; with no picture there is no base)
+      const h = harness.load({ imageCache: { "token:Dinosaur Beast|6/6|g": { face: W, back: null } } });
+      setup(h, F.board);
+      const c = h.B.tableCard(token());
+      ok("live bug 1: an old cache entry is asked for again, and no picture is no base", c.f === null && c.bp === null && c.bt === null, JSON.stringify([c.f, c.bp, c.bt]));
+      await h.flush();
+      ok("live bug 1: the old entry was searched for again", h.effects.some((e) => e.fetch && e.fetch.includes("/cards/search") && e.fetch.includes("Dinosaur")), "no search");
+      // (a token with no picture yet shows a card back: its printed numbers aren't on it)
+      const back = h.B.tableCard(token({ identity: { name: "Soldier Token", isToken: true }, color: "W", power: "1", toughness: "1", basePower: 1, baseToughness: 1, printedPower: 1, printedToughness: 1 }));
+      ok("live bug 1: a token with no picture has no base, whatever Forge printed", back.f === null && back.bp === null && back.bt === null, JSON.stringify([back.f, back.bp, back.bt]));
+      harness.restore();
+    }
+    {
+      // the search: the P/T is kept from the search that asked for it, never from a name-only one
+      for (const [label, exactHits, want] of [["the P/T search", true, ["6", "6"]], ["a name-only search", false, [null, null]]]) {
+        const h = harness.load();
+        setup(h, F.board);
+        const f0 = global.fetch;
+        global.fetch = async (u, o) => {
+          if (!String(u).includes("/cards/search")) return f0(u, o);
+          const exact = String(u).includes(encodeURIComponent("pow=6"));
+          const data = exact ? (exactHits ? [{ id: "aaaaaaaa-0000-0000-0000-000000000001", power: "6", toughness: "6" }] : [])
+            : [{ id: "bbbbbbbb-0000-0000-0000-000000000002", power: "4", toughness: "4" }];
+          return { ok: data.length > 0, status: data.length ? 200 : 404, json: async () => ({ data }) };
+        };
+        h.B.tableCard(token()); await h.flush();
+        const c = h.B.tableCard(token());
+        ok(`live bug 1: a picture from ${label} has base ${JSON.stringify(want)}`, c.f && JSON.stringify([c.bp, c.bt]) === JSON.stringify(want.map((x) => (x == null ? null : Number(x)))), JSON.stringify([c.f, c.bp, c.bt]));
+        harness.restore();
+      }
+    }
+    {
+      const h = harness.load();
+      setup(h, F.board);
+      const card = (extra) => h.B.tableCard({ id: "engine-card-951", identity: { name: "Grizzly Bears" }, types: ["Creature"], power: "2", toughness: "2", controllerId: "player-0", ownerId: "player-0", ...extra });
+      const bears = card({ basePower: 2, baseToughness: 2, printedPower: 2, printedToughness: 2 });
+      ok("live bug 1: a card's base is its printed P/T", bears.bp === 2 && bears.bt === 2, JSON.stringify([bears.bp, bears.bt]));
+      const goyf = card({ identity: { name: "Tarmogoyf" }, power: "3", toughness: "4", basePower: 0, baseToughness: 1 });
+      ok("live bug 1: a card with no numeric printed P/T has no base (not Forge's base 0/1)", goyf.bp === null && goyf.bt === null, JSON.stringify([goyf.bp, goyf.bt]));
+      const roots = card({ identity: { name: "Wall of Roots" }, power: "0", toughness: "5", basePower: 0, baseToughness: 5, printedPower: 0, printedToughness: 5 });
+      ok("live bug 1: a printed 0 is a base of 0", roots.bp === 0 && roots.bt === 5, JSON.stringify([roots.bp, roots.bt]));
+      const morph = h.B.tableCard({ id: "engine-card-952", identity: { name: "Secret" }, isFaceDown: true, types: ["Creature"], power: 2, toughness: 2, controllerId: "player-0" });
+      ok("live bug 1: a face-down permanent's base is the rules' 2/2", morph.fd && morph.bp === 2 && morph.bt === 2, JSON.stringify(morph));
+      const foretold = h.B.tableCard({ id: "engine-card-953", identity: { name: "Secret" }, isFaceDown: true, types: ["Instant"], controllerId: "player-0" });
+      ok("live bug 1: a face-down card with no P/T has no base", foretold.bp === undefined && foretold.bt === undefined, JSON.stringify(foretold));
+      harness.restore();
+    }
+    // bug 2: each deck's own printings, by owner, the same face for an engine card every time
+    {
+      const W1 = "https://img.klrmngr.com/display/front/1/1/11111111-0000-0000-0000-00000000000a.webp";
+      const B1 = "https://img.klrmngr.com/display/front/2/2/22222222-0000-0000-0000-00000000000b.webp";
+      const B2 = "https://img.klrmngr.com/display/front/3/3/33333333-0000-0000-0000-00000000000c.webp";
+      const cmd = "https://img.klrmngr.com/display/front/4/4/44444444-0000-0000-0000-00000000000d.webp";
+      const decks = { White: { deckName: "W", commander: [{ n: "Neheb, the Eternal", f: cmd }], library: [{ n: "Plains", f: W1 }, { n: "Plains", f: W1 }] },
+        Blue: { deckName: "B", commander: [{ n: "Neheb, the Eternal", f: cmd }], library: [{ n: "Plains", f: B1 }, { n: "Plains", f: B2 }, { n: "Plains", f: B1 }, { n: "Island", f: B2 }] } };
+      const plains = (id, ownerId, extra = {}) => ({ id, identity: { name: "Plains" }, types: ["Land"], supertypes: ["Basic"], controllerId: ownerId, ownerId, ...extra });
+      const h = harness.load();
+      // (slotColor: player-0 Blue, player-1 White)
+      setup(h, F.board);
+      // (White readied first: it was White's printing everyone got)
+      h.B.onTTS({ t: "decks", json: JSON.stringify({ seats: decks }) }); await h.flush();
+      const faces = (ids, owner, extra) => ids.map((id) => h.B.tableCard(plains(id, owner, extra)).f);
+      const blue = faces(["engine-card-10", "engine-card-11", "engine-card-12", "engine-card-13"], "player-0");
+      ok("live bug 2: a Blue-owned Plains never shows White's printing", blue.every((f) => f === B1 || f === B2), JSON.stringify(blue));
+      ok("live bug 2: two Blue Plains show B1 and B2", new Set(blue.slice(0, 2)).size === 2, JSON.stringify(blue));
+      ok("live bug 2: a White Plains shows White's", faces(["engine-card-20", "engine-card-21"], "player-1").every((f) => f === W1));
+      const again = faces(["engine-card-10", "engine-card-11", "engine-card-12", "engine-card-13"], "player-0");
+      ok("live bug 2: every Plains keeps its face on every board", JSON.stringify(again) === JSON.stringify(blue), JSON.stringify([blue, again]));
+      // (stolen: controlled by White, owned by Blue; a token copy goes by its owner too)
+      const stolen = h.B.tableCard(plains("engine-card-10", "player-0", { controllerId: "player-1" })).f;
+      ok("live bug 2: a stolen card keeps its owner's printing", stolen === blue[0], JSON.stringify([stolen, blue[0]]));
+      const copy = h.B.tableCard(plains("engine-card-30", "player-1", { identity: { name: "Plains", isToken: true } })).f;
+      ok("live bug 2: a token copy shows its owner's printing", copy === W1, copy);
+      // (an owner's deck without the card falls back to another deck's)
+      const neheb = h.B.tableCard({ id: "engine-card-40", identity: { name: "Neheb, the Eternal" }, types: ["Creature"], controllerId: "player-1", ownerId: "player-1" }).f;
+      ok("live bug 2: a card in the owner's deck only, from the owner's deck", neheb === cmd, neheb);
+      const fall = h.B.tableCard({ id: "engine-card-41", identity: { name: "Plains" }, types: ["Land"], controllerId: "player-2", ownerId: "player-2" }).f;
+      ok("live bug 2: an owner with no deck of it falls back to a deck that has it", fall === W1 || fall === B1 || fall === B2, fall);
+      // (White's deck has no Island; Blue's does)
+      const island = h.B.tableCard({ id: "engine-card-42", identity: { name: "Island" }, types: ["Land"], controllerId: "player-1", ownerId: "player-1" }).f;
+      ok("live bug 2: a card the owner's deck lacks comes from another deck", island === B2, island);
+      // (a question shows the card as the table does)
+      ok("live bug 2: a question's picture is the table's printing", h.B.imgOf(plains("engine-card-11", "player-0")) === blue[1], h.B.imgOf(plains("engine-card-11", "player-0")));
+      // (and a spell on the stack shows its card's: Blue's engine-card-11, not the first deck's)
+      {
+        const gv = h.B._getGame().seats.get("Blue").board.state.gameView;
+        gv.stack = [{ id: "stack-1", sourceId: "engine-card-11", ownerId: "player-0", controllerId: "player-0", identity: { name: "Plains" }, text: "", targets: [] }];
+        h.B.sendTable(); await h.flush();
+        const st = sent(h, "table").at(-1)?.stack?.[0]?.f;
+        ok("live bug 2: a spell on the stack shows its card's printing", st === blue[1] || st === h.B.shortUrl(blue[1]), st);
+        gv.stack = [];
+      }
+      // a restarted bridge: the game's pictures come back with the resume file, and every Plains keeps its face
+      const fsm = require("fs");
+      const w0 = fsm.writeFile;
+      let snapText = null;
+      fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
+      const g = h.B._getGame();
+      g.started = false;
+      const seat = g.seats.get("Blue");
+      h.B.onGameStarted({ player_order: [seat.username, "self-hosted-node-77-bot"], starting_life: 40, game_id: "g1" }); await h.flush();
+      fsm.writeFile = w0;
+      ok("live bug 2: the resume file holds the decks' pictures", !!snapText && JSON.parse(snapText).game.pictures?.Blue?.Plains?.length === 2, String(snapText).slice(0, 200));
+      harness.restore();
+      const h2 = harness.load();
+      await require("fs").promises.writeFile(process.env.MTG_RESUME_FILE, snapText);
+      const resumed = h2.B.resumeGame();
+      const after = ["engine-card-10", "engine-card-11", "engine-card-12", "engine-card-13"].map((id) => h2.B.tableCard(plains(id, "player-0")).f);
+      await require("fs").promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
+      ok("live bug 2: after a bridge restart every Plains shows the face it had", resumed && JSON.stringify(after) === JSON.stringify(blue), JSON.stringify([resumed, after, blue]));
+      harness.restore();
+    }
+    // bug 3 and verifier finding 1: why the game ended. Players: player-0 Blue (the seat), player-1 White, player-2 Yellow,
+    // player-3 Red; boards come in one by one as the engine sends them (noteOuts reads each)
+    {
+      const chatsOf = (h) => h.effects.filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text);
+      const names = ["Blue", "White", "Yellow", "Red"];
+      const play = async (n, boards) => {
+        const h = harness.load();
+        const base = clone(F.board);
+        const gv0 = base.gameView;
+        for (let i = 2; i < n; i++) {
+          const p = clone(gv0.players.find((x) => x.id === "player-1")); p.id = `player-${i}`; gv0.players.push(p);
+          gv0.zones.push({ zone: "library", ownerId: p.id, count: 50, cards: [] }, { zone: "battlefield", ownerId: p.id, count: 0, cards: [] });
+        }
+        const slot = Object.fromEntries(names.slice(0, n).map((c, i) => [`player-${i}`, c]));
+        const seat = setup(h, base, { total: n, bots: n - 1, slotNames: slot, slotColor: slot });
+        let k = 0, last = null;
+        for (const edit of boards) {
+          const b = clone(last || base);
+          b.gameView.events = undefined;
+          edit(b.gameView);
+          last = b;
+          seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(b), fingerprint: `f${++k}` }); await h.flush();
+        }
+        return { h, seat, last };
+      };
+      const P = (gv, id) => gv.players.find((p) => p.id === id);
+      const lib = (gv, id, n) => { const z = gv.zones.find((x) => x.zone === "library" && x.ownerId === id); z.count = n; z.cards = []; };
+      const over = (winnerId) => (gv) => { gv.gameOver = true; gv.winnerId = winnerId; };
+      const gameOverSaid = async (r) => {
+        r.seat.board = { state: clone(r.last), fingerprint: null };
+        await asked(r.h, r.seat, { type: "gameOver" });
+        const said = chatsOf(r.h).filter((t) => /Game over/.test(t));
+        harness.restore();
+        return said[0];
+      };
+      const asked = (h, seat, input) => { h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input }); return h.flush(); };
+      // the live game: White conceded (a conceded player's library reads 0), then Yellow, and Blue won
+      let said = await gameOverSaid(await play(3, [() => {}, (gv) => { P(gv, "player-1").status = "conceded"; lib(gv, "player-1", 0); },
+        (gv) => { gv.turn++; }, (gv) => { P(gv, "player-2").status = "conceded"; over("player-0")(gv); }]));
+      ok("live bug 3: two concessions name both and the winner, no empty library", said === "[MTG] Game over: White and Yellow conceded. Blue wins.", said);
+      // (an early concession before a later loss of another kind isn't how it ended)
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { P(gv, "player-1").status = "conceded"; lib(gv, "player-1", 0); },
+        (gv) => { P(gv, "player-2").status = "lost"; P(gv, "player-2").life = 0; over("player-0")(gv); }]));
+      ok("live bug 3: a concession long before the last loss isn't named", said === "[MTG] Game over: Yellow is at 0 life. Blue wins.", said);
+      // (three at once, as the host's "winner" concedes everyone else; one conceded at 0 life, in response, conceded)
+      said = await gameOverSaid(await play(4, [() => {}, (gv) => { for (const id of ["player-1", "player-2", "player-3"]) P(gv, id).status = "conceded"; P(gv, "player-3").life = 0; over("player-0")(gv); }]));
+      ok("live bug 3: three concessions, one of them at 0 life", said === "[MTG] Game over: White, Yellow and Red conceded. Blue wins.", said);
+      // (a multiplayer loser's cards leave the game: one out in their own draw step with cards in their library, Phage
+      // in the draw step, is no deck-out though the board then reads 0)
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; lib(gv, "player-1", 0); },
+        (gv) => { gv.turn++; gv.step = "main1"; gv.activePlayerId = "player-2"; }, (gv) => { P(gv, "player-2").status = "conceded"; over("player-0")(gv); }]));
+      ok("verify 1: a loser whose library emptied as they left isn't decked", said === "[MTG] Game over: Yellow conceded. Blue wins.", said);
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; lib(gv, "player-1", 0); over("player-0")(gv); }]));
+      ok("verify 1: a loser in their own draw step whose library had cards isn't decked", said === "[MTG] Game over: Blue wins.", said);
+      // a real deck-out: the library already empty while White was playing, out in White's own draw step
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+        (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
+      ok("live bug 3: a real deck-out still says so", said === "[MTG] Game over: White drew from an empty library. Blue wins.", said);
+      // (a known reason is said instead: at 0 life in that draw step too)
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+        (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; P(gv, "player-1").life = 0; over("player-0")(gv); }]));
+      ok("live bug 3: a known reason, not also the empty library", said === "[MTG] Game over: White is at 0 life. Blue wins.", said);
+      // a deck-out and a concession on one board, and a mix of all three kinds in four players
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+        (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; P(gv, "player-2").status = "conceded"; lib(gv, "player-2", 0); over("player-0")(gv); }]));
+      ok("live bug 3: a deck-out and a concession together", said === "[MTG] Game over: White drew from an empty library, Yellow conceded. Blue wins.", said);
+      said = await gameOverSaid(await play(4, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+        (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; P(gv, "player-2").status = "conceded"; P(gv, "player-3").status = "lost"; P(gv, "player-3").life = -2; for (const id of ["player-2", "player-3"]) lib(gv, id, 0); over("player-0")(gv); }]));
+      ok("verify 1: concede, deck-out and life loss at once", said === "[MTG] Game over: Red is at -2 life, White drew from an empty library, Yellow conceded. Blue wins.", said);
+      // a player who lost earlier isn't named for the end (outLast)
+      said = await gameOverSaid(await play(3, [() => {}, (gv) => { P(gv, "player-1").status = "lost"; P(gv, "player-1").life = -3; lib(gv, "player-1", 0); },
+        (gv) => { gv.turn++; }, (gv) => { P(gv, "player-2").status = "lost"; lib(gv, "player-2", 0); over("player-0")(gv); }]));
+      ok("verify 1: a player out earlier isn't how the game ended", said === "[MTG] Game over: Blue wins.", said);
+      // Thassa's Oracle in 3 and 4 players: every loser's cards leave the game with them, libraries 0
+      for (const n of [3, 4]) {
+        said = await gameOverSaid(await play(n, [() => {}, (gv) => { for (let i = 1; i < n; i++) { P(gv, `player-${i}`).status = "lost"; lib(gv, `player-${i}`, 0); } lib(gv, "player-0", 0); over("player-0")(gv); }]));
+        ok(`verify 1: a Thassa's Oracle win in ${n} players blames no library`, said === "[MTG] Game over: Blue wins.", said);
+      }
+      // a 4-player draw (everyone lost at once, the runaway cap): no guessed reason
+      said = await gameOverSaid(await play(4, [() => {}, (gv) => { for (let i = 0; i < 4; i++) { P(gv, `player-${i}`).status = "lost"; lib(gv, `player-${i}`, 0); } over(null)(gv); }]));
+      ok("verify 1: a 4-player draw says a draw", said === "[MTG] Game over: a draw.", said);
+      // 2 players: a loser whose library was empty, out on the other player's turn (Phage), isn't called decked
+      said = await gameOverSaid(await play(2, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+        (gv) => { gv.step = "main1"; gv.activePlayerId = "player-0"; P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
+      ok("verify 1: an empty library and a loss outside its draw isn't a deck-out", said === "[MTG] Game over: Blue wins.", said);
+      // (nor in its own turn's main phase, nor in another player's draw step)
+      for (const [step, active] of [["main1", "player-1"], ["draw", "player-0"]]) {
+        said = await gameOverSaid(await play(2, [() => {}, (gv) => { lib(gv, "player-1", 0); },
+          (gv) => { gv.step = step; gv.activePlayerId = active; P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
+        ok(`verify 1: an empty library and a loss in ${step} of ${active}'s turn isn't a deck-out`, said === "[MTG] Game over: Blue wins.", said);
+      }
+      // the relay's abort, on a board not over: a conceded player with library 0 is never decked; nothing known says no "aborted"
+      {
+        // (White's library empty while still playing, the concession in White's own draw step: all a deck-out would show)
+        const r = await play(3, [() => {}, (gv) => { lib(gv, "player-1", 0); }, (gv) => { P(gv, "player-1").status = "conceded"; gv.step = "draw"; gv.activePlayerId = "player-1"; }]);
+        r.seat.onRelay({ type: "GameAborted" }); await r.h.flush();
+        const s = chatsOf(r.h).filter((t) => /^\[MTG\] (Game|The game)/.test(t));
+        ok("live bug 3: the relay's abort after a concession names it, no empty library", JSON.stringify(s) === JSON.stringify(["[MTG] Game over: White conceded."]), JSON.stringify(s));
+        harness.restore();
+      }
+      {
+        const r = await play(2, [() => {}]);
+        r.seat.onRelay({ type: "GameAborted" }); await r.h.flush();
+        const s = chatsOf(r.h).filter((t) => /^\[MTG\] (Game|The game)/.test(t));
+        ok("live bug 3: the relay's end with nothing known says the game ended, not aborted", JSON.stringify(s) === JSON.stringify(["[MTG] The game has ended."]), JSON.stringify(s));
+        harness.restore();
+      }
+      {
+        // (the engine stopped at a deck-out, 2026-10-22: the player still playing, library 0, in their own draw step)
+        const r = await play(2, [() => {}, (gv) => { lib(gv, "player-0", 0); gv.step = "draw"; gv.activePlayerId = "player-0"; }]);
+        r.seat.onRelay({ type: "GameAborted" }); await r.h.flush();
+        const s = chatsOf(r.h).filter((t) => /^\[MTG\] (Game|The game)/.test(t));
+        ok("live bug 3: the engine stopping at a deck-out still says so", JSON.stringify(s) === JSON.stringify(["[MTG] Game over: Blue drew from an empty library."]), JSON.stringify(s));
+        harness.restore();
+      }
+    }
+    // verifier finding 2: a singular in "ns" or "as" keeps its "-ses" plural; Forge's doubled plurals in "ns"/"as" are still undone
+    {
+      const mineBf = (gv) => gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards;
+      const ab = async (name, text, description) => {
+        const h = harness.load();
+        const b = clone(F.board);
+        Object.assign(b.gameView, { activePlayerId: "player-0", priorityPlayerId: "player-0", step: "main1", stack: [] });
+        mineBf(b.gameView).push({ id: "engine-card-1450", identity: { name }, types: ["Artifact"], controllerId: "player-0", text });
+        const seat = setup(h, b);
+        h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input: { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" },
+          { id: "a1", type: "activateAbility", cardId: "engine-card-1450", abilityIndex: 1, isManaAbility: false, description, cost: "{1}" }] } });
+        await h.flush();
+        const got = (seat.prompt?.ui?.options || []).map((o) => o.label).find((l) => l.startsWith(`${name}:`)); harness.restore(); return got;
+      };
+      const lens = await ab("Lens Keeper", "{1}: Lens Keeper deals 1 damage to any target.", "{1}, Tap two untapped Lenses you control: Lens Keeper deals 1 damage to any target.");
+      ok("verify 2: two Lenses beside Lens Keeper stay Lenses", /two untapped Lenses you control/.test(lens || ""), lens);
+      const gas = await ab("Gas Main", "{1}: Gas Main deals 1 damage to you.", "{1}: Exile two Gases.");
+      ok("verify 2: Gases beside Gas stay Gases", /two Gases/.test(gas || ""), gas);
+      const gob = await ab("Goblin Warren", "Sacrifice two Goblins: Goblin Warren deals 2 damage to any target.", "Sacrifice two Goblinses: Goblin Warren deals 2 damage to any target.");
+      ok("verify 2: a doubled plural in -ns is still undone (Goblinses)", /Sacrifice two Goblins:/.test(gob || ""), gob);
+      const hyd = await ab("Hydra Den", "Sacrifice two Hydras: draw a card.", "Sacrifice two Hydrases: draw a card.");
+      ok("verify 2: a doubled plural in -as is still undone (Hydrases)", /Sacrifice two Hydras:/.test(hyd || ""), hyd);
     }
   }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
