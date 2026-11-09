@@ -126,6 +126,16 @@ async function liveRun() {
     const stats = await fetch(`http://127.0.0.1:${debug}/stats`).then((r) => r.ok).catch(() => false);
     ok("live: /stats answers", stats);
     ok("live: no tmp/ made in the folder", !fs.existsSync(path.join(pkg, "tmp")));
+    // GET /health: cheap (no docker, no TTS), and the table's hello shows in it
+    const health = async () => { const t0 = Date.now(); const body = await fetch(`http://127.0.0.1:${debug}/health`).then((r) => r.json()); return { ms: Date.now() - t0, body }; };
+    const h0 = await health();
+    ok("health: answers in well under a second", h0.ms < 500, `${h0.ms} ms`);
+    same("health: no game, the table not heard", h0.body, { phase: "none", started: false, seats: false, bridge: want, table: { stamp: null, lastHeardMs: null }, ttsConnected: null });
+    await fetch(`http://127.0.0.1:${debug}/msg`, { method: "POST", body: JSON.stringify({ t: "hello", stamp: "abcd1234", again: true }) });
+    const h1 = (await health()).body;
+    same("health: the table's stamp, after its hello", h1.table.stamp, "abcd1234");
+    ok("health: heard just now", typeof h1.table.lastHeardMs === "number" && h1.table.lastHeardMs < 5000, JSON.stringify(h1.table));
+    same("health: TTS spoke, so it is up", h1.ttsConnected, true);
   } finally {
     const gone = new Promise((done) => child.on("exit", done));
     child.kill();

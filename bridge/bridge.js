@@ -79,12 +79,16 @@ function pump() {
   ttsStats.maxByType[next.t] = Math.max(ttsStats.maxByType[next.t] || 0, msg.json.length);
   if (msg.json.length > 3000) ttsStats.big = [...(ttsStats.big || []).slice(-9), `${next.t} ${msg.json.length}`];
   sending = true;
-  const sock = net.connect(TTS_OUT, "127.0.0.1", () => sock.end(JSON.stringify({ messageID: 2, customMessage: msg })));
+  const sock = net.connect(TTS_OUT, "127.0.0.1", () => { ttsSaw(true); sock.end(JSON.stringify({ messageID: 2, customMessage: msg })); });
   sock.on("close", pump);
   sock.setTimeout(10000, () => { log(`TTS didn't take a ${next.t} message within 10 s; moving on`); sock.destroy(); });
-  sock.on("error", (e) => { if (e.code === "ECONNREFUSED") log("TTS not reachable on 39999 (is a game loaded?)"); else log(`sending to TTS: ${e.message}`); });
+  sock.on("error", (e) => { if (e.code === "ECONNREFUSED") { ttsSaw(false); log("TTS not reachable on 39999 (is a game loaded?)"); } else log(`sending to TTS: ${e.message}`); });
 }
 const ttsStats = { n: 0, bytes: 0, max: 0, tables: 0, tableBytes: 0, maxByType: {} };
+// For GET /health: whether TTS answered last (a send connected, or a message came: true; a send refused: false; null
+// until either), and when the table last spoke
+const ttsLink = { up: null, tableAt: 0 };
+const ttsSaw = (up) => { ttsLink.up = up; };
 const chat = (text, color) => toTTS({ t: "chat", text, color: color || null });
 
 // ───────── table log: tmp/table-log.log (2026-10-24) ─────────
@@ -6809,6 +6813,7 @@ function restartRoom(then) {
 
 // ───────────────────────── TTS commands ─────────────────────────
 function onTTS(m) {
+  ttsSaw(true); ttsLink.tableAt = Date.now();
   if (typeof m.json === "string") { try { m = { ...JSON.parse(m.json), t: m.t }; } catch { return log(`bad json payload for ${m.t}`); } }
   const said = tlogIn(m);
   if (said) tlog(m.color, said);
@@ -7674,6 +7679,7 @@ let execSeq = BRIDGE_EXEC_BASE; // (Execute Lua answers from here up are the bri
 const execWaiters = new Map();
 
 function onTTSDebug(msg) {
+  ttsSaw(true);
   let line = null;
   if (msg.messageID === 2) line = `print: ${msg.message}`;
   else if (msg.messageID === 3) line = `ERROR ${msg.guid ?? ""}: ${msg.error || msg.errorMessagePrefix || ""} ${msg.message || ""}`.trim();
@@ -7771,6 +7777,12 @@ const debugServer = http.createServer((req, res) => {
     });
   } else if (req.url === "/stats") {
     res.end(JSON.stringify(ttsStats));
+  } else if (req.url === "/health") {
+    // cheap enough to poll every few seconds (no docker, no TTS round trip): the companion app's game lock and lights
+    const phase = !game ? "none" : game.over ? "over" : game.started ? "running" : "setup";
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ phase, started: !!game?.started && !game.over, seats: !!game?.seats?.size, bridge: BRIDGE_HASH,
+      table: { stamp: tableStamp ?? null, lastHeardMs: ttsLink.tableAt ? Date.now() - ttsLink.tableAt : null }, ttsConnected: ttsLink.up }));
   } else if (req.url === "/versions") {
     // is what's running what the last deploy put together, and what the table's check and the log's guesses found
     versionsNow((now) => {

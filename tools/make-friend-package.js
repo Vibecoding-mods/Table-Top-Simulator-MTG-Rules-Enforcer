@@ -187,12 +187,14 @@ WHAT YOU NEED
 
 
 FIRST TIME
-1. Unzip the whole folder somewhere you keep, e.g. Documents\\MTG-Table. Don't run it from inside the zip.
-   (Before unzipping: right-click the .zip > Properties > tick "Unblock" > OK. Otherwise Windows may say "Windows
-   protected your PC" when you start the app: click "More info", then "Run anyway".)
-2. Start Docker Desktop and wait until it says it is running.
-3. Double-click "MTG Companion.exe". The first start loads the engine into Docker (a few minutes). It also copies the
-   table into your TTS saves. Then it starts the engine and opens Tabletop Simulator.
+1. Before unzipping: right-click the .zip > Properties > tick "Unblock" > OK.
+   MTG Companion.exe isn't signed. If you skip this, Windows may say "Windows protected your PC" when you start it:
+   click "More info", then "Run anyway".
+2. Unzip the whole folder somewhere you keep, e.g. Documents\\MTG-Table. Don't run it from inside the zip.
+3. Start Docker Desktop and wait until it says it is running. Its first start may ask you to accept its terms, or
+   to update WSL (Windows' Linux layer, which Docker uses): do both, then let it finish starting.
+4. Double-click "MTG Companion.exe". The first start takes a few minutes while it loads the engine into Docker. It
+   also copies the table into your TTS saves. Then it starts the engine and opens Tabletop Simulator.
 
 
 EVERY GAME NIGHT
@@ -347,7 +349,7 @@ function companion(pkg) {
   }
   const t0 = Date.now() - 2000;
   execFileSync("cmd", ["/c", build], { cwd: tree, stdio: "inherit", timeout: 300000 });
-  const exe = [path.join(tree, "MTG Companion.exe"), path.join(tree, "companion", "MTG Companion.exe")].find((f) => fs.existsSync(f) && fs.statSync(f).mtimeMs >= t0);
+  const exe = [path.join(tree, "companion", "bin", "MTG Companion.exe"), path.join(tree, "MTG Companion.exe"), path.join(tree, "companion", "MTG Companion.exe")].find((f) => fs.existsSync(f) && fs.statSync(f).mtimeMs >= t0);
   if (!exe) stop(`${build} ran, but no fresh "MTG Companion.exe" is in ${tree} or its companion folder`);
   copy(exe, path.join(pkg, "MTG Companion.exe"));
   return `built from ${tree}`;
