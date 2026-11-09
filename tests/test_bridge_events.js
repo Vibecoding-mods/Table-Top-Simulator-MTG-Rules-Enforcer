@@ -2650,6 +2650,147 @@ const id = (n) => `engine-card-${n}`;
           [ev(11, "Stack", "Graveyard", id(426)), ev(12, "Battlefield", "Hand", id(229), null, "player-1")]).filter((l) => /casts/.test(l));
       }),
       ["Blue casts Into the Roil targeting Hill Giant"]);
+
+    // ── suite review of the merge, 2026-11-09: a line the boards can't back is left bare ──
+    // (blocks: an attacker is unblocked only once the blocks are known; review B #1)
+    const WALL = (extra = {}) => ({ ...card(414, "Wall of Stone", ["Creature"]), power: "0", ...extra });
+    const giantAt = (step, giant, wall) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", giant, "player-1"); put(b, "battlefield", wall); }), 38, 40);
+    same("suite: a Circle's attacker blocked where no board shows the blocks isn't 'prevented'",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 76, [412, "Circle of Protection: Red"], COP, [GIANT()], id(229));
+        return [...tableLog(h), ...logOf(h, giantAt("combatDeclareAttackers", HG(), WALL()), giantAt("main2", GIANT({ tapped: true }), WALL({ damage: 3 })))];
+      }),
+      ["Blue chooses Hill Giant (Circle of Protection: Red)"]);
+    same("suite: and with no shield, a loss across blocks no board showed names no attacker",
+      fresh((h) => logOf(h, giantAt("combatDeclareAttackers", HG(), WALL()), (() => { const b = giantAt("main2", GIANT({ tapped: true }), WALL()); b.players[0].life = 35; return b; })())),
+      ["Blue: 38 -> 35 life (-3)"]);
+    same("suite: nor one the player blocked on the board that asked the blocks, which shows none",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 77, [412, "Circle of Protection: Red"], COP, [GIANT()], id(229));
+        const a = giantAt("combatDeclareBlockers", HG(), WALL());
+        seat.board = { state: { gameView: a } };
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 78, input: { type: "chooseBlockers" } };
+        seat.respond(78, "chooseBlockers", { type: "declareBlockers", assignments: [{ attackerId: id(229), blockerId: id(414) }] });
+        return [...tableLog(h), ...logOf(h, a, giantAt("main2", GIANT({ tapped: true }), WALL({ damage: 3 })))];
+      }),
+      ["Blue chooses Hill Giant (Circle of Protection: Red)"]);
+    same("suite: an unblocked one, on the board that asked the blocks, is still 'prevented'",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 79, [412, "Circle of Protection: Red"], COP, [GIANT()], id(229));
+        const a = giantAt("combatDeclareBlockers", HG(), WALL());
+        seat.board = { state: { gameView: a } };
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 80, input: { type: "chooseBlockers" } };
+        seat.respond(80, "chooseBlockers", { type: "declareBlockers", assignments: [] });
+        return [...tableLog(h), ...logOf(h, a, giantAt("main2", GIANT({ tapped: true }), WALL()))];
+      }),
+      ["Blue chooses Hill Giant (Circle of Protection: Red)", "Hill Giant's combat damage to Blue is prevented (Circle of Protection: Red)"]);
+    same("suite: blocks declared on an earlier turn block nothing now",
+      fresh((h, seat) => {
+        const old = giantAt("combatDeclareBlockers", HG(), WALL()); old.turn = 1;
+        seat.board = { state: { gameView: old } };
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 81, input: { type: "chooseBlockers" } };
+        seat.respond(81, "chooseBlockers", { type: "declareBlockers", assignments: [{ attackerId: id(229), blockerId: id(414) }] });
+        SOURCE_PICK(seat, 82, [412, "Circle of Protection: Red"], COP, [GIANT()], id(229));
+        return logOf(h, giantAt("combatDeclareBlockers", HG(), WALL()), giantAt("main2", GIANT({ tapped: true }), WALL()));
+      }),
+      ["Hill Giant's combat damage to Blue is prevented (Circle of Protection: Red)"]);
+    // (Deflecting Palm's damage back in combat: the attacker's power on both boards, else bare; review A #2)
+    const PALM = "The next time a source of your choice would deal damage to you this turn, prevent that damage. If damage is prevented this way, Deflecting Palm deals that much damage to that source's controller.";
+    same("suite: Deflecting Palm's combat damage back is said while the attacker's power is the same on both boards",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 83, [260, "Deflecting Palm"], PALM, [GIANT()], id(229));
+        const at = (step, ai, pw) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", HG({ power: pw }), "player-1"); }), 38, ai);
+        return logOf(h, at("combatDeclareBlockers", 40, "3"), at("combatDamage", 37, "3"));
+      }),
+      ["Hill Giant's combat damage to Blue is prevented (Deflecting Palm)", "Deflecting Palm deals 3 damage to AI 1", "AI 1: 40 -> 37 life (-3, damage from Deflecting Palm)"]);
+    same("suite: and not with a pump between the boards (a Giant Growth: 6 back, the board before says 3)",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 84, [260, "Deflecting Palm"], PALM, [GIANT()], id(229));
+        const at = (step, ai, pw) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", HG({ power: pw }), "player-1"); }), 38, ai);
+        return logOf(h, at("combatDeclareBlockers", 40, "3"), at("combatDamage", 34, "6")).filter((l) => /Deflecting Palm deals/.test(l));
+      }),
+      []);
+    // (a pain land's damage by the shared reading: none under a condition; review A #1, B #5)
+    const TOMB = { ...card(207, "Tomb of Urami", ["Land"]), text: "{T}: Add {B}. Tomb of Urami deals 1 damage to you if you don't control an Ogre." };
+    same("suite: Tomb of Urami's tap names nothing on a loss beside it (its damage is under a condition)",
+      fresh((h, seat) => {
+        const before = life(board((b) => put(b, "battlefield", TOMB)), 38, 40);
+        seat.board = { state: { gameView: before } };
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 23, input: { type: "chooseAction", actions: [
+          { abilityIndex: 0, cardId: id(207), cost: "{T}", description: "Tomb of Urami", id: "tap:engine-card-207:0", isManaAbility: true, producedMana: [{ amount: 1, color: "B" }], type: "activateAbility" }] } };
+        seat.respond(23, "chooseAction", { type: "act", actionId: "tap:engine-card-207:0" });
+        return logOf(h, before, life(board((b) => put(b, "battlefield", { ...TOMB, tapped: true })), 37, 40));
+      }),
+      ["Blue: 38 -> 37 life (-1)"]);
+    // (a pain tap is used by the first board that shows the land tapped: a board logged from before the tap keeps it; review B #4)
+    same("suite: a pain tap waits for the board that shows its land tapped",
+      fresh((h, seat) => {
+        const before = life(board((b) => put(b, "battlefield", WASTES)), 38, 40);
+        seat.board = { state: { gameView: before } };
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 24, input: { type: "chooseAction", actions: [
+          { cardId: id(202), cost: "{T}", description: "{T}: Add {W} or {U}. Adarkar Wastes deals 1 damage to you.", id: "tap:w", isManaAbility: true, producedMana: [{ amount: 1, color: "W" }], type: "activateAbility" }] } };
+        seat.respond(24, "chooseAction", { type: "act", actionId: "tap:w" });
+        const stale = life(board((b) => put(b, "battlefield", WASTES)), 37, 40);
+        return [...logOf(h, before, stale), ...logOf(h, stale, life(board((b) => put(b, "battlefield", { ...WASTES, tapped: true })), 36, 40))];
+      }),
+      ["Blue: 38 -> 37 life (-1)", "Blue: 37 -> 36 life (-1, damage from Adarkar Wastes)"]);
+    same("suite: and a board without the land drops it",
+      fresh((h, seat) => {
+        const before = life(board((b) => put(b, "battlefield", WASTES)), 38, 40);
+        seat.board = { state: { gameView: before } };
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 25, input: { type: "chooseAction", actions: [
+          { cardId: id(202), cost: "{T}", description: "{T}: Add {W} or {U}. Adarkar Wastes deals 1 damage to you.", id: "tap:w", isManaAbility: true, producedMana: [{ amount: 1, color: "W" }], type: "activateAbility" }] } };
+        seat.respond(25, "chooseAction", { type: "act", actionId: "tap:w" });
+        const gone = life(board(() => {}), 38, 40);
+        return [...logOf(h, before, gone), ...logOf(h, gone, life(board((b) => put(b, "battlefield", { ...WASTES, tapped: true })), 37, 40))].filter((l) => /life/.test(l));
+      }),
+      ["Blue: 38 -> 37 life (-1)"]);
+    // (a "you may pay" yes with no feed for the window and no card drawn may be a failed payment: not said; review B #6)
+    same("suite: with no feed, a 'Pay {1}?' yes and nothing drawn isn't 'pays'",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 117, sourceAbilityText: MENTOR_TEXT, sourceCard: { id: id(226), identity: { name: "Mentor of the Meek" } }, input: { presentation: { title: "Pay {1}?" }, type: "chooseBoolean" } };
+        seat.respond(117, "chooseBoolean", { type: "decision", value: true });
+        return logOf(h, mentorBoard((b) => b.stack.push(MENTOR("engine-stack-40"))), mentorBoard(() => {}), []).filter((l) => /pay/.test(l));
+      }),
+      []);
+    // ({X} by the source's own power only when the words name it: "enchanted creature's power" is another card's; review A #3)
+    const AURA_TEXT = "Whenever an opponent casts their first noncreature spell each turn, draw a card unless that player pays {X}, where X is enchanted creature's power.";
+    const AURA = { ...card(246, "Watchful Aura", ["Enchantment", "Creature"]), power: "3" };
+    const auraW = (fill = () => {}) => board((b) => { put(b, "battlefield", AURA); count(b, "library", 50); fill(b); });
+    same("suite: an {X} by another card's power stays {X}",
+      between(auraW((b) => b.stack.push(UNLESS("engine-stack-28", 1, "Watchful Aura", AURA_TEXT, 246))), auraW(), CAST_EV),
+      ["AI 1 pays {X} (Watchful Aura)"]);
+    same("suite: and Esper Sentinel's, by its own name, is its power",
+      between(watchers((b) => b.stack.push(UNLESS("engine-stack-26", 1, "Esper Sentinel", SENTINEL_TEXT, 244))), watchers(), CAST_EV),
+      ["AI 1 pays {1} (Esper Sentinel)"]);
+    // (a source the boards show with no name, face down: no power is read for it, and nothing breaks)
+    // (a throw is returned as a line, so the check fails by its name and the checks after it still run)
+    same("suite: an {X} trigger from a source with no name stays {X}",
+      (() => { try {
+        return between(board((b) => { put(b, "battlefield", { ...AURA, identity: {} }); count(b, "library", 50); b.stack.push(UNLESS("engine-stack-29", 1, "Watchful Aura", SENTINEL_TEXT, 246)); }),
+          board((b) => { put(b, "battlefield", { ...AURA, identity: {} }); count(b, "library", 50); }), CAST_EV);
+      } catch (e) { return [`threw: ${e.message}`]; } })(),
+      ["AI 1 pays {X} (Watchful Aura)"]);
+    // (an answer of no yes-or-no shape is no answer; review B #10)
+    same("suite: a chooseBoolean answer with no true or false isn't kept",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 118, sourceAbilityText: MENTOR_TEXT, sourceCard: { id: id(226), identity: { name: "Mentor of the Meek" } }, input: { presentation: { title: "Pay {1}?" }, type: "chooseBoolean" } };
+        seat.respond(118, "chooseBoolean", { type: "decision" });
+        return h.B._getGame().answers?.get(id(226)) ?? null;
+      }),
+      null);
+    // (the only counterspell resolved, but an ability that counters resolved beside it: either may have; review B #7)
+    const PRODIGY_AB = { controllerId: "player-1", id: "engine-stack-22", identity: { name: "Voidmage Prodigy" }, isPermanentSpell: false, ownerId: "player-1",
+      sourceAbilityText: "Sacrifice a Wizard: Counter target spell.", sourceId: id(241), targets: [], text: "Voidmage Prodigy (241) - Counter target spell." };
+    const CS_AI = { ...CS, controllerId: "player-1", ownerId: "player-1" };
+    const marbleGone = () => board((b) => { put(b, "graveyard", opp(card(229, "Marble Diamond", ["Artifact"])), "player-1"); put(b, "graveyard", opp(card(240, "Counterspell", ["Instant"])), "player-1"); put(b, "battlefield", opp(card(241, "Voidmage Prodigy", ["Creature"])), "player-1"); });
+    const marbleEv = [ev(11, "Stack", "Graveyard", id(229), null, "player-1"), ev(12, "Stack", "Graveyard", id(240), null, "player-1")];
+    same("suite: a spell countered with a Counterspell and a counter ability resolved together names neither",
+      between(board((b) => { put(b, "battlefield", opp(card(241, "Voidmage Prodigy", ["Creature"])), "player-1"); b.stack.push(MARBLE, CS_AI, PRODIGY_AB); }), marbleGone(), marbleEv).filter((l) => /countered/.test(l)),
+      ["Marble Diamond is countered"]);
+    same("suite: and with the Counterspell alone, it names it",
+      between(board((b) => { put(b, "battlefield", opp(card(241, "Voidmage Prodigy", ["Creature"])), "player-1"); b.stack.push(MARBLE, CS_AI); }), marbleGone(), marbleEv).filter((l) => /countered/.test(l)),
+      ["Marble Diamond is countered by Counterspell"]);
   }
 
   process.stdout.write(`${failed ? "FAILED" : "PASSED"}: ${passed} passed, ${failed} failed\n`);

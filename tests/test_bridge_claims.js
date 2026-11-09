@@ -1087,6 +1087,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       b.gameView.players.find((p) => p.id === "player-0").status = "lost";
       emptyLibrary(b, ["player-0"]);
       h.B._getGame().inLibrary = { "player-0": 0 };
+      // (first seen empty in the upkeep, before the draw step it lost in: noteOuts' emptyAt)
+      h.B._getGame().emptyAt = { "player-0": { turn: 1, step: "upkeep" } };
       seat.board = { state: b, fingerprint: null };
       await asked(h, seat, { type: "gameOver" });
       const said = chats(h).filter((t) => /Game over/.test(t));
@@ -1641,6 +1643,36 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
         ok("verify 2026-11-09: a deck-out is still said after a bridge restart", resumed && s[0] === "[MTG] Game over: White drew from an empty library. Blue wins.", JSON.stringify([resumed, s]));
         harness.restore();
       }
+      // (suite review 2026-11-09, B #2: a library first seen empty in the draw step it lost in was that draw's last card,
+      // drawn: White drew it, then lost to something LOSS_REASONS doesn't know, a Laboratory Maniac's)
+      said = await gameOverSaid(await play(2, [(gv) => { lib(gv, "player-1", 1); gv.step = "upkeep"; gv.activePlayerId = "player-1"; },
+        (gv) => { lib(gv, "player-1", 0); gv.step = "draw"; }, (gv) => { P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
+      ok("suite: a player who drew their last card and then lost isn't decked", said === "[MTG] Game over: Blue wins.", said);
+      // (and the same draw step a turn later, the library empty since the turn before: decked)
+      said = await gameOverSaid(await play(2, [(gv) => { lib(gv, "player-1", 0); gv.step = "draw"; gv.activePlayerId = "player-1"; },
+        (gv) => { gv.turn++; gv.step = "upkeep"; }, (gv) => { gv.step = "draw"; }, (gv) => { P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
+      ok("suite: one empty since an earlier turn's draw step is decked in the next", said === "[MTG] Game over: White drew from an empty library. Blue wins.", said);
+      // (B #3: a rewind undoes the answers kept for the log, and how a player it brought back went out)
+      {
+        const r = await play(2, [(gv) => { gv.turn = 6; lib(gv, "player-1", 0); gv.step = "main1"; }, (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; }]);
+        const g = r.h.B._getGame();
+        const recorded = g.outWhere?.["player-1"]?.step === "draw";
+        g.picked = new Map([["engine-card-1", { ids: [], text: "", at: Date.now() }]]); g.answers = new Map([["engine-card-1", [{ at: Date.now() }]]]);
+        g.sourceShields = [{ id: "engine-card-2" }]; g.painTaps = [{ id: "engine-card-3", at: Date.now() }]; g.declaredBlocks = { turn: 6, ids: new Set(["engine-card-2"]) };
+        const back = clone(r.last); back.gameView.turn = 5; back.gameView.step = "main1"; back.gameView.activePlayerId = "player-0"; P(back.gameView, "player-1").status = "playing";
+        r.seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(back), fingerprint: "rewound" }); await r.h.flush();
+        ok("suite: a rewind forgets the picks, answers, shields, pain taps and blocks kept for the log",
+          recorded && g.picked.size === 0 && g.answers.size === 0 && !g.sourceShields.length && !g.painTaps.length && g.declaredBlocks === null,
+          JSON.stringify([recorded, g.picked.size, g.answers.size, g.sourceShields, g.painTaps, g.declaredBlocks]));
+        // (White, back in the game, then out in Blue's main phase with that empty library: no deck-out)
+        const out = clone(back); out.gameView.turn = 6; P(out.gameView, "player-1").status = "lost"; out.gameView.gameOver = true; out.gameView.winnerId = "player-0";
+        r.seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(out), fingerprint: "out-again" }); await r.h.flush();
+        r.seat.board = { state: clone(out), fingerprint: null };
+        await asked(r.h, r.seat, { type: "gameOver" });
+        const s = chatsOf(r.h).filter((t) => /Game over/.test(t));
+        ok("suite: a player the rewind brought back is read by how they went out again", s[0] === "[MTG] Game over: Blue wins.", JSON.stringify(s));
+        harness.restore();
+      }
       // the relay's abort, on a board not over: a conceded player with library 0 is never decked; nothing known says no "aborted"
       {
         // (White's library empty while still playing, the concession in White's own draw step: all a deck-out would show)
@@ -1658,8 +1690,10 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
         harness.restore();
       }
       {
-        // (the engine stopped at a deck-out, 2026-10-22: the player still playing, library 0, in their own draw step)
-        const r = await play(2, [() => {}, (gv) => { lib(gv, "player-0", 0); gv.step = "draw"; gv.activePlayerId = "player-0"; }]);
+        // (the engine stopped at a deck-out, 2026-10-22: the player still playing, library 0, in their own draw step;
+        // empty already in the upkeep before it)
+        const r = await play(2, [() => {}, (gv) => { lib(gv, "player-0", 0); gv.step = "upkeep"; gv.activePlayerId = "player-0"; },
+          (gv) => { gv.step = "draw"; }]);
         r.seat.onRelay({ type: "GameAborted" }); await r.h.flush();
         const s = chatsOf(r.h).filter((t) => /^\[MTG\] (Game|The game)/.test(t));
         ok("live bug 3: the engine stopping at a deck-out still says so", JSON.stringify(s) === JSON.stringify(["[MTG] Game over: Blue drew from an empty library."]), JSON.stringify(s));

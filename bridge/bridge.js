@@ -354,6 +354,10 @@ function listCommanderPresets() {
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000]; // then every 8 s
 const RECONNECT_GIVE_UP_MS = 55000; // last try starts by ~63 s: the relay forfeits the seat at reconnect_timeout_s + 5 = 65 s
 const PING_EVERY_MS = 20000, SILENT_DEAD_MS = 45000;
+// How long a player's answer is kept for the log (a target pick, a "Pay {1}?"): one window for every reader, so a pick
+// can't be attached to a stack item by one and refused by another
+const ANSWER_MS = 60000;
+const fresh = (r) => !!r && Date.now() - r.at < ANSWER_MS;
 
 class Seat {
   // resume: { username, slot, roomId } of a seat saved before the bridge stopped (resumeGame): it logs in again under
@@ -509,11 +513,19 @@ class Seat {
       // (a yes or no to a card's "may", or to its "Pay {1}?", each answer kept, by the card, with who gave it: an
       // "unless that player pays" or a "you may pay" trigger's, see unlessNews. Forge asks the payment first, Rhystic
       // Study's "Pay {1}?" before "Do you want to draw a card?". Every answer, as one card's two triggers ask twice.)
-      if (type === "chooseBoolean" && src?.id) {
+      // (only a real yes or no: an answer of any other shape isn't kept as either)
+      if (type === "chooseBoolean" && src?.id && typeof output?.value === "boolean") {
         const kind = /^Pay\b/i.test(String(raw.input?.presentation?.title || "")) ? "pay" : "may";
         const list = (game.answers ??= new Map()).get(src.id) || [];
-        game.answers.set(src.id, [...list.filter((a) => Date.now() - a.at < 60000), { kind, slot: this.slot, value: output?.value !== false, at: Date.now() }]);
+        game.answers.set(src.id, [...list.filter(fresh), { kind, slot: this.slot, value: output.value, at: Date.now() }]);
       }
+    }
+    // (the blocks a player declared, this turn's: a board that shows them may never come, the next one is past combat,
+    // and an attacker they blocked must not read as unblocked, damageNews)
+    if (type === "chooseBlockers" && output?.type === "declareBlockers" && game) {
+      const turn = this.board?.state?.gameView?.turn;
+      if (game.declaredBlocks?.turn !== turn) game.declaredBlocks = { turn, ids: new Set() };
+      for (const a of output.assignments || []) if (a.attackerId) game.declaredBlocks.ids.add(a.attackerId);
     }
     if (type === "chooseAction" && output?.type === "act") {
       const act = (this.lastRawPrompt?.input?.actions || []).find((a) => a.id === output.actionId);
@@ -711,7 +723,7 @@ function saveResume() {
       pictures: game.pictures,
       // (who went out when, and each library as last seen in the game: a true deck-out is still said after a restart,
       // noteOuts; and the printed P/T seen for each name, so a copy's badge stays as it was, notePrinted)
-      outOrder: game.outOrder, outStamp: game.outStamp, outWhere: game.outWhere, inLibrary: game.inLibrary, printedPT: game.printedPT },
+      outOrder: game.outOrder, outStamp: game.outStamp, outWhere: game.outWhere, inLibrary: game.inLibrary, emptyAt: game.emptyAt, printedPT: game.printedPT },
     seats: [...game.seats.values()].map((st) => ({ color: st.color, deckId: st.deckId, username: st.username, slot: st.slot, roomId: st.roomId, mullsTaken: st.mullsTaken })),
   };
   const tmp = `${RESUME_FILE}.tmp`;
@@ -773,12 +785,12 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (!seatList.length) { chat("[MTG] Nobody is seated."); return; }
   // the table has a playmat per colour (TABLE_COLORS); a 5th player had no colour and no zones (5-8 players: PLAN M6)
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
+  const aiTable = aiSeats.filter((c) => readyDecks[c]).slice(0, bots); // (empty seats' ready decks, in order: see below)
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
     friendly: friendlyCount(votes, seatList), friendlyVoted: seatList.map((c) => `${c} voted ${votes?.[c] === 1 || votes?.[c] === 2 ? votes[c] : "none"}`).join(", "),
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
     // each came from, for its pictures (onGameStarted)
-    aiTableDecks: aiSeats.filter((c) => readyDecks[c]).slice(0, bots).map((c) => engineDeckFromTable(readyDecks[c])),
-    aiTableColors: aiSeats.filter((c) => readyDecks[c]).slice(0, bots) };
+    aiTableDecks: aiTable.map((c) => engineDeckFromTable(readyDecks[c])), aiTableColors: aiTable };
   for (const c of aiSeats) if (!readyDecks[c]) chat(`[MTG] The deck in ${c}'s seat isn't ready (see above); that AI plays a built-in deck.`);
   seatList.forEach((color, i) => game.seats.set(color, new Seat(color, deckChoice[color] || DEFAULT_DECKS[i % DEFAULT_DECKS.length])));
   // (a debug setup waits for its player's next game: one not in this game is dropped, not kept for a later one)
@@ -1323,6 +1335,12 @@ function choiceWords(c, views) {
 // ("Chapter:3:DBSacrifice,..." read "Chapter from DBSacrifice,..." on a Saga, Ur-Dragon game 2026-11-01).
 // Its own keywords are returned too, those that are always on: Equip or Cycling on a permanent is no status.
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// The ids of one kind in a player's target picks ("card|engine-card-5", "player|player-1": the boardTargets answer's)
+const pickedIds = (ids, kind) => (ids || []).filter((t) => t.startsWith(`${kind}|`)).map((t) => t.slice(kind.length + 1));
+// A chooseCards question that asks for a source (Reflect Damage's, a Circle's, Deflecting Palm's: Forge's "Choose a
+// source " or its zone headings): titled so, and never offered as a library search. Seat.respond's own looser test of
+// the raw words only adds the "chooses" line.
+const isSourceChoice = (input) => !!input.sourceHeadings || /^Choose a source\b/i.test(String(input.presentation?.description || "").trim());
 const NOT_KEYWORD = /Replacement|^ETB|^Hidden|^Static|^Trigger|^[A-Z][a-z]+[A-Z]|^(Chapter|Class|Visit|Prize|Piracy)$/;
 const ALWAYS_ON = /^(Flying|First Strike|Double Strike|Deathtouch|Lifelink|Trample|Vigilance|Haste|Reach|Menace|Hexproof|Indestructible|Defender|Shroud|Ward|Protection|Fear|Intimidate|Skulk|Shadow|Horsemanship|Flanking|Banding|Infect|Wither|Toxic|Afflict|Annihilator|Exalted|Prowess|Bushido|Rampage|Battle Cry|Dethrone|Undying|Persist|Absorb|Melee|Mentor|Training|Riot|Backup|Changeling|\w+walk)\b/i;
 // Whether a card has a keyword: Forge's keyword string starts with it and no more letters follow ("Suspend 1—{R}",
@@ -1628,19 +1646,15 @@ function notePlay(seat, act, name, promptId) {
   game.pendingPlays.push({ id: act.cardId, name: faceDown ? "a face-down spell" : how ? `${name} (${how})` : `${name}${from ? ` ${from}` : ""}${free ? " without paying its mana cost" : ""}`, ctl: seat.slot, kind, text: way, at: Date.now(), promptId: promptId ?? 0 });
 }
 // A mana ability tapped that deals damage to its player, noted for the life line it makes (paintapLoss in logEvents):
-// the line of the card's text that adds the mana made and says "deals N damage to you", a pain land's coloured {T} or
-// Ancient Tomb's {C}{C}. Its colourless {T} has no such words and says nothing. Three bare "White: 38 -> 37 life
-// (-1)" lines for Adarkar Wastes, Battlefield Forge and Shivan Reef, Kykar #4.
+// the amount its pay button says (manaPainDamage: the line that adds the mana made and says "deals N damage to you", a
+// pain land's coloured {T} or Ancient Tomb's {C}{C}; none for its colourless {T}, none for damage under a condition,
+// Tomb of Urami's). Three bare "White: 38 -> 37 life (-1)" lines for Adarkar Wastes, Battlefield Forge and Shivan
+// Reef, Kykar #4. (No name: City of Brass's "becomes tapped" damage is a trigger, resolving on a later board.)
 function notePain(seat, act, card) {
-  const made = (act?.producedMana || []).map((m) => m.color);
-  if (!game || !made.length) return;
-  for (const line of String(card.text || "").split(/\n/)) {
-    const m = /\bdeals (\d+) damage to you\b/i.exec(line);
-    const symbols = [...line.matchAll(/\{([WUBRGC])\}/g)].map((x) => x[1]);
-    if (!m || !/\bAdd\b/.test(line) || !made.every((c) => symbols.includes(c))) continue;
-    (game.painTaps ??= []).push({ slot: seat.slot, name: card.identity?.name || "a land", n: Number(m[1]), at: Date.now() });
-    return;
-  }
+  if (!game || !(act?.producedMana || []).length) return;
+  const n = manaPainDamage(act, card.text, null);
+  // (old ones go here too: a game the table doesn't draw logs no board to use them up)
+  if (n) game.painTaps = [...(game.painTaps || []).filter((t) => Date.now() - t.at < 10000), { slot: seat.slot, id: card.id, name: card.identity?.name || "a land", n, at: Date.now() }];
 }
 // Where a cast came from, said after its name: nothing from a hand or the command zone.
 // (the top of the library: Augur of Autumn's coven cast of King Macar read "White casts King Macar", hp-14 gap; exile:
@@ -1775,6 +1789,8 @@ function costWords(m, name) {
 // cost make mana: Kykar's "Sacrifice a Spirit: Add {R}.", Ashnod's Altar, Phyrexian Altar. Not Goblin Bombardment, nor a
 // card with a sacrifice cost of another kind too (then the sacrifice may have paid for either). (tx: only a battlefield
 // card has its text in a log snapshot, logSnapshot; both boards, as the card may be on only the one after)
+// (logBoards is set at the top of logEvents and read only from inside it, through costWords and sacrificeWords: a
+// caller outside logEvents would read the last logged boards)
 let logBoards = [];
 function sacrificesForMana(name) {
   const c = logBoards.flatMap((b) => Object.values(b?.cards || {})).find((x) => x.name === name && x.tx);
@@ -1930,7 +1946,6 @@ function takenOffStack(offStack, prevSpellOf, cards, pubIndex) {
 // once the boards show it happened: Reflect Damage's redirect read only "AI 1: 404 -> 401 life (-3)", Kykar #6; Circle of
 // Protection: Red's prevention nothing at all. -> { lines (said before what came of them), loss / gain: player ->
 // [{ n, w: the words }] }
-const STEP_ORDER = ["untap", "upkeep", "draw", "main1", "combatBegin", "combatDeclareAttackers", "combatDeclareBlockers", "combatFirstStrikeDamage", "combatDamage", "combatEnd", "main2", "endOfTurn", "cleanup"];
 function damageNews(prev, cur, resolved, facts) {
   const lines = [], loss = {}, gain = {};
   const why = (t, p, n, w) => { if (n > 0 && p) (t[p] ||= []).push({ n, w }); };
@@ -1945,24 +1960,32 @@ function damageNews(prev, cur, resolved, facts) {
   };
   const prevented = (sh, src, name, p, n, combat) => {
     lines.push(`${poss(name)} ${combat ? "combat " : ""}damage to ${nameOf(p)} is prevented (${sh.by})`);
-    // (Deflecting Palm's "deals that much damage to that source's controller")
-    if (sh.back && lost(src.ctl) >= n) { lines.push(`${sh.by} deals ${n} damage to ${nameOf(src.ctl)}`); why(loss, src.ctl, n, `damage from ${sh.by}`); }
+    // (Deflecting Palm's "deals that much damage to that source's controller"; in combat the amount is the attacker's
+    // power on the board before, so only while both boards agree on it: a Giant Growth between them is unseen)
+    if (sh.back && lost(src.ctl) >= n && (!combat || cur.cards[src.id]?.pw === prev.cards[src.id]?.pw)) { lines.push(`${sh.by} deals ${n} damage to ${nameOf(src.ctl)}`); why(loss, src.ctl, n, `damage from ${sh.by}`); }
     used(sh);
   };
-  const at = (s) => STEP_ORDER.indexOf(s);
+  // (Forge's step names in turn order, SKIP_ORDER; its "end" is never sent)
+  const at = (s) => SKIP_ORDER.indexOf(s);
   const crossed = (s) => cur.turn === prev.turn && at(prev.step) >= 0 && at(prev.step) < at(s) && at(s) <= at(cur.step);
   const firstStep = crossed("combatFirstStrikeDamage"), regular = crossed("combatDamage");
   if (firstStep || regular) {
-    const blocked = new Set([...Object.values(prev.blocks || {}), ...Object.values(cur.blocks || {})].flat());
+    // (an attacker is unblocked only when the blocks are known: a board from the declare blockers step on, or the blocks a
+    // player declared this turn; a board before them and one past combat showed a blocked Hill Giant as unblocked, its
+    // damage "prevented" by a Circle that was never used, review 2026-11-09)
+    const blocksKnown = at(prev.step) >= at("combatDeclareBlockers");
+    const blocked = new Set([...Object.values(prev.blocks || {}), ...Object.values(cur.blocks || {})].flat()
+      .concat(game.declaredBlocks?.turn === cur.turn ? [...game.declaredBlocks.ids] : []));
     // (each attacker that dealt combat damage: still there, an attacker killed first dealt none)
     const hitters = Object.entries(prev.cards).filter(([id, a]) => a.zone === "battlefield" && a.attacking && a.pw && cur.cards[id]?.zone === "battlefield")
       .map(([id, a]) => ({ id, a, n: a.pw * ((firstStep && (a.fs || a.ds) ? 1 : 0) + (regular && (!a.fs || a.ds) ? 1 : 0)), name: tokenWords(a.name, a.token) })).filter((x) => x.n > 0);
-    // (what the unblocked ones would deal each player, for a prevention: the player lost less than that)
+    // (what the unblocked ones would deal each player, for a prevention: the player lost less than that; read only below,
+    // with the blocks known)
     const aimed = {};
     for (const x of hitters) if (!blocked.has(x.id) && x.a.atp in cur.life) aimed[x.a.atp] = (aimed[x.a.atp] || 0) + x.n;
     for (const { id, a, n, name } of hitters) {
       let stopped = false;
-      if (!blocked.has(id) && a.atp in cur.life) {
+      if (blocksKnown && !blocked.has(id) && a.atp in cur.life) {
         const sh = shieldFor(id, a.atp);
         // (a redirect, or a prevention, only when the player it was aimed at lost no more than the others aimed there: Hill
         // Giant's 3 that Blue lost read "dealt to AI 1 instead" beside AI 1's 3 paid elsewhere, checker round 3)
@@ -1983,10 +2006,10 @@ function damageNews(prev, cur, resolved, facts) {
     const fixed = !/\bdivided\b/i.test(s.text) && (s.text.match(/\b(?:\d+|X) damage\b/gi) || []).length === 1;
     const n = fixed && n0 != null && Number(n0) > 0 ? Number(n0) : null;
     // (its card targets with each item's own, so two pings at one creature are two; the player's picks, one item's)
-    const picks = (s.pk || []).filter((t) => t.startsWith("card|")).map((t) => t.slice(5));
+    const picks = pickedIds(s.pk, "card");
     const cardTg = [...s.cardTg, ...[...new Set(picks)].filter((x) => !s.cardTg.includes(x))];
     // (a player once for each item that targeted them: two of Niv-Mizzet's pings in one stack entry)
-    const plTg = [...s.plTg, ...[...new Set((s.pk || []).filter((t) => t.startsWith("player|")).map((t) => t.slice(7)))].filter((p) => !s.plTg.includes(p))];
+    const plTg = [...s.plTg, ...[...new Set(pickedIds(s.pk, "player"))].filter((p) => !s.plTg.includes(p))];
     // (every creature only by the plain words, nothing after "creature" that limits it: "each creature that isn't a
     // Pirate", "without flying", "you don't control", "each other creature" and "each opponent" are not every creature,
     // checker round 3)
@@ -2067,17 +2090,19 @@ function lifeWords(parts) {
 // Chancellor of the Annex): nothing said. Nor without the feed. The payer of an "unless" is Forge's "Activator" in the
 // trigger's words; Esper Sentinel's {X} is its power. Esper Sentinel, Rhystic Study and Mystic Remora read only "White
 // draws a card", Kykar #7; Mentor of the Meek, #21.
-function unlessNews(prev, resolved, facts) {
+function unlessNews(prev, cur, resolved, facts) {
   const lines = [];
   for (const s of resolved) {
     const unless = /\bunless (?:that player|its controller|they|he or she|that spell's controller) pays? ((?:\{[^}]+\})+)/i.exec(s.text);
     const may = /\byou may pay ((?:\{[^}]+\})+)\. If you do\b/i.exec(s.text);
     if (!unless && !may) continue;
     // (this card's answers, used up here)
-    const answers = (game.answers?.get(s.id) || []).filter((a) => Date.now() - a.at < 60000);
+    const answers = (game.answers?.get(s.id) || []).filter(fresh);
     game.answers?.delete(s.id);
     let cost = (unless || may)[1];
-    if (cost === "{X}" && /\bwhere X is [^.]*'s power\b/i.test(s.text) && prev.cards[s.id]?.pw != null) cost = `{${prev.cards[s.id].pw}}`;
+    // (X by this card's own power only, named: "where X is enchanted creature's power" is another card's, as xNow reads it)
+    const self = prev.cards[s.id];
+    if (cost === "{X}" && self?.pw != null && self.name && new RegExp(`\\bwhere X is ${escapeRe(self.name)}'s power\\b`, "i").test(s.text)) cost = `{${self.pw}}`;
     // (Forge's usernames, as displayText reads them: any case)
     // (each item that left by its own words, and one payer for them all or none: Esper Sentinel's two triggers, AI 1's
     // spell and AI 2's, merged into one entry read "AI 1 doesn't pay" and "AI 1 pays", checker round 4)
@@ -2101,8 +2126,11 @@ function unlessNews(prev, resolved, facts) {
       // round 3. Paid, a "you may pay" draws once each, and a yes with no draw may be a failed payment; an "unless"
       // draws only unpaid, and not always: "you may draw", or a draw from an empty library, so only a draw beyond the
       // "no"s contradicts them.)
+      // (with no feed for the window, a "you may pay" yes is said only when the payer's hand grew: a yes with nothing drawn
+      // may be a failed payment)
       const paid = own.filter((a) => a.value).length;
-      const fits = !facts || !drawOnly || (may ? drew === paid : drew <= gone - paid);
+      const grew = (cur.counts[`hand:${payer}`] ?? 0) > (prev.counts[`hand:${payer}`] ?? 0);
+      const fits = !drawOnly || (facts ? (may ? drew === paid : drew <= gone - paid) : !may || !paid || grew);
       if (own.length === gone && fits) for (const a of own) lines.push(a.value ? pays : not);
       continue;
     }
@@ -2156,7 +2184,7 @@ function tapNews(prev, cur, resolved) {
       for (const k of added) {
         // (and only what it could give it to: a targeted gift its known targets, a "you control" one its controller's)
         const from = gave.filter((s) => new RegExp(`\\b${escapeRe(k)}\\b`, "i").test(s.text)
-          && (!/\btarget\b/i.test(s.text) || [...(s.cardTg || []), ...(s.pk || []).filter((t) => t.startsWith("card|")).map((t) => t.slice(5))].includes(id))
+          && (!/\btarget\b/i.test(s.text) || [...(s.cardTg || []), ...pickedIds(s.pk, "card")].includes(id))
           && (!/\byou control\b/i.test(s.text) || c.ctl === s.ctl)).map((s) => s.name);
         if (from.length) { const g = from.join(", "); givers.set(g, [...(givers.get(g) || []), k]); }
       }
@@ -2225,14 +2253,16 @@ function logEvents(prev, cur, pub, facts = null) {
     return [{ ...s, gone: left.length, left, cardTg: by("c", s.cardTg), plTg: by("p", s.plTg) }];
   });
   // (what countered a spell, said after "is countered": the counterspell seen targeting it, the one no board showed that
-  // took it, or the only counterspell that resolved just now; "Marble Diamond is countered" said nothing of White's
+  // took it, or the only counterspell that resolved just now, with no ability that counters beside it (Voidmage
+  // Prodigy's above a Counterspell may be what countered it); "Marble Diamond is countered" said nothing of White's
   // Counterspell, Kykar #8, nor Talisman of Dominance of Jin-Gitaxias's copy)
   const counterSpells = resolved.filter((s) => !s.ability && isCounterspell(s.text));
+  const onlyCounter = counterSpells.length === 1 && !resolved.some((s) => s.ability && isCounterspell(s.text)) ? counterSpells[0] : null;
   const counteredBy = (id) => {
     const sids = prevSpellOf.get(id)?.sids || [], off = takenOff.get(id);
     const name = Object.values(prev.stack).find((x) => x.id !== id && x.ctg?.some((t) => sids.includes(t)))?.name
       || (off?.how === "counter" ? cur.cards[off.by]?.name || prev.cards[off.by]?.name : null)
-      || (counterSpells.length === 1 && counterSpells[0].id !== id ? counterSpells[0].name : null);
+      || (onlyCounter && onlyCounter.id !== id ? onlyCounter.name : null);
     return name ? ` by ${name}` : "";
   };
   // (the targets the player picked for a stack item of theirs, kept on it while it stays: Forge's stack names no spell's
@@ -2242,7 +2272,7 @@ function logEvents(prev, cur, pub, facts = null) {
     const pick = game.picked?.get(s.id);
     // (a casting pick with no words is a permanent spell's, whose stack item has none either: an Aura's, which named no
     // target, checker round 4; any other only with its words)
-    if (pick && !prev.stack[key]?.pk && (pick.text || pick.casting) && pick.text === s.text && Date.now() - pick.at < 60000) { s.pk = pick.ids; game.picked.delete(s.id); }
+    if (pick && !prev.stack[key]?.pk && (pick.text || pick.casting) && pick.text === s.text && fresh(pick)) { s.pk = pick.ids; game.picked.delete(s.id); }
     else if (prev.stack[key]?.pk) s.pk = prev.stack[key].pk;
   }
   // (" targeting X and Y": a stack item's targets by name, Forge's and the player's picks, or a pick not yet on any stack
@@ -2255,7 +2285,7 @@ function logEvents(prev, cur, pub, facts = null) {
   const targetWords = (s, id = s?.id) => {
     let ids = [...(s?.cardTg || []).map((x) => `card|${x}`), ...(s?.plTg || []).map((x) => `player|${x}`), ...(s?.pk || [])];
     const pick = !s && game.picked?.get(id);
-    if (pick?.casting && Date.now() - pick.at < 60000) { ids = pick.ids; game.picked.delete(id); }
+    if (pick?.casting && fresh(pick)) { ids = pick.ids; game.picked.delete(id); }
     const stackName = (sid) => bothStacks.find((x) => x.sids.includes(sid))?.name;
     const names = [...new Set(ids)].map((t) => {
       const kind = t.slice(0, t.indexOf("|")), tid = t.slice(t.indexOf("|") + 1), c = cur.cards[tid] || prev.cards[tid];
@@ -2264,7 +2294,7 @@ function logEvents(prev, cur, pub, facts = null) {
       const name = c?.name ?? pubIndex[tid]?.identity?.name;
       return name ? tokenWords(name, c?.token) : null;
     }).filter(Boolean);
-    return names.length ? ` targeting ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]}` : "";
+    return names.length ? ` targeting ${andList(names)}` : "";
   };
   // (an activation's line, by its stack item or the player's record of it: an equip names what it equips, Skullclamp's
   // read "White uses Skullclamp's ability", Kykar #3; a planeswalker's says which ability and the loyalty it cost,
@@ -2476,7 +2506,7 @@ function logEvents(prev, cur, pub, facts = null) {
     // 2026-11-07)
     if (c.zone !== "graveyard" || prev.cards[id]?.zone === "graveyard" || !c.spell || Object.values(prev.stack).some((s) => s.id === id) || takenOff.get(id)?.how === "counter") continue;
     const picks = seatOfSlot(c.ctl)?.targetPicks;
-    unseen.push({ ctl: c.ctl, text: pubIndex[id]?.text || "", cardTg: picks && picks.src === id ? picks.ids.filter((v) => v.startsWith("card|")).map((v) => v.slice(5)) : [] });
+    unseen.push({ ctl: c.ctl, text: pubIndex[id]?.text || "", cardTg: picks && picks.src === id ? pickedIds(picks.ids, "card") : [] });
   }
   for (const g of [...resolved, ...unseen]) {
     if (!/\bgoad\b/i.test(g.text)) continue;
@@ -2551,7 +2581,7 @@ function logEvents(prev, cur, pub, facts = null) {
   // (the "unless" payments of what resolved, said before the draw they made or didn't; its damage, before what died of
   // it; its taps and the keywords it gave, below)
   const damage = damageNews(prev, cur, resolved, facts);
-  out.push(...unlessNews(prev, resolved, facts), ...damage.lines);
+  out.push(...unlessNews(prev, cur, resolved, facts), ...damage.lines);
   // (a counterspell that resolved alone on the stack had nothing left to counter: the spell it targeted was gone
   // already. AI 1's Arcane Denial, its target countered by Jin-Gitaxias's copy, left the stack with no line, Kykar #26.
   // Only a spell whose one sentence that targets is "Counter target ... spell", no modes, no ability: Cryptic Command's
@@ -3087,11 +3117,12 @@ function logEvents(prev, cur, pub, facts = null) {
   }
   out.push(...phased, ...tapNews(prev, cur, resolved));
   // (each life change with what made it, when what the boards and the player's answers show adds up to it, each part by
-  // its words; else bare, as no source is guessed. Pain lands' damage, noted as they were tapped, for this board only,
-  // the one after the tap, as Forge deals it with the mana: three bare "-1" lines for Adarkar Wastes, Battlefield Forge
-  // and Shivan Reef, Kykar #4; one kept for later named a later, other loss, checker 2026-11-07.)
-  const pains = game.painTaps || [];
-  game.painTaps = [];
+  // its words; else bare, as no source is guessed. Pain lands' damage, noted as they were tapped, for the first board
+  // that shows the land tapped only, as Forge deals it with the mana: three bare "-1" lines for Adarkar Wastes,
+  // Battlefield Forge and Shivan Reef, Kykar #4; one kept for later named a later, other loss, checker 2026-11-07. A board
+  // logged again from before the tap (another seat's, a redraw) keeps it, for 10 s; one without the land drops it.)
+  const pains = (game.painTaps || []).filter((t) => cur.cards[t.id]?.tapped);
+  game.painTaps = (game.painTaps || []).filter((t) => !pains.includes(t) && cur.cards[t.id] && Date.now() - t.at < 10000);
   for (const [p, l] of Object.entries(cur.life)) {
     const before = prev.life[p];
     if (before == null || l === before) continue;
@@ -3449,7 +3480,7 @@ function gameEndWords(gv) {
 // reads 0 (live 2026-11-08), and so does every loser's in a game of 3 or more, whose cards leave the game with them
 // (CR 800.4a: a Thassa's Oracle win read "AI 1 and AI 2 drew from an empty library", verify 2026-11-09). So the
 // evidence is the bridge's own record (noteOuts): the library was already empty on a board that still showed the player
-// in the game, and they went out in their own draw step, the draw they couldn't make. A deck-out the boards can't show
+// in the game, before that draw step, and they went out in their own draw step, the draw they couldn't make. A deck-out the boards can't show
 // that way (an effect's draw, both libraries at once) is said without a reason: a guessed one is worse than none. A
 // player with a reason in LOSS_REASONS is said with that one (12 poison read as an empty library, playtest 2026-10-27).
 // gameEndWords uses it.
@@ -3458,13 +3489,18 @@ function deckedPlayers(gv) {
     && !LOSS_REASONS.some((r) => r(p)) && drewFromEmpty(gv, p));
 }
 // (where the player went out: the board that first showed them out, else this one, a player the relay's abort stopped)
+// The library empty already before that draw step: one first seen empty in that same draw step was their draw's last
+// card, drawn (a player who drew their last card and then lost to Laboratory Maniac read as decked, review 2026-11-09).
 function drewFromEmpty(gv, p) {
-  const where = game?.outWhere?.[p.id] ?? { step: gv.step, active: gv.activePlayerId };
-  return game?.inLibrary?.[p.id] === 0 && where.step === "draw" && where.active === p.id;
+  const where = game?.outWhere?.[p.id] ?? { step: gv.step, active: gv.activePlayerId, turn: gv.turn };
+  const empty = game?.emptyAt?.[p.id];
+  return game?.inLibrary?.[p.id] === 0 && !!empty && !(empty.step === "draw" && empty.turn === where.turn)
+    && where.step === "draw" && where.active === p.id;
 }
-// The players whose concessions ended the game: every player the engine shows conceded since the last player lost
-// another way (White and Yellow conceding 19 s apart both ended it, live 2026-11-08; one who conceded on turn 5 before
-// another lost at 0 life on turn 20 did not), in seat order.
+// The concessions said at the game's end: every player the engine shows conceded since the last player lost another way
+// (White and Yellow conceding 19 s apart both ended it, live 2026-11-08; one who conceded on turn 5 before another lost
+// at 0 life on turn 20 did not), in seat order. Every one of them did concede; with no other loss between, an early
+// concession is named beside the last one, as both left the winner alone.
 function concededPlayers(gv) {
   const players = gv?.players || [];
   const at = (p) => game?.outOrder?.[p.id];
@@ -3474,17 +3510,24 @@ function concededPlayers(gv) {
 // The order players left the game in (status lost / conceded first seen), so an end-of-game message names who lost
 // last, not a player out since turn 5 at -3 life (stage 3 review 2026-10-27). Called with each board.
 // Also what deckedPlayers needs: each player's library count on the last board that showed them still in the game
-// (game.inLibrary), and the step and active player of the board that first showed them out (game.outWhere).
+// (game.inLibrary), the turn and step that library was first seen empty in (game.emptyAt), and the step, active player
+// and turn of the board that first showed them out (game.outWhere).
 function noteOuts(gv) {
   if (!game || !gv) return;
   game.outOrder ??= {};
   game.inLibrary ??= {};
   game.outWhere ??= {};
+  game.emptyAt ??= {};
   let any = false;
   for (const p of gv.players || []) {
     if (p.status && p.status !== "playing") {
-      if (game.outOrder[p.id] == null) { game.outOrder[p.id] = (game.outStamp ?? 0) + 1; game.outWhere[p.id] = { step: gv.step, active: gv.activePlayerId }; any = true; }
-    } else if ((gv.zones || []).some((z) => z.zone === "library" && z.ownerId === p.id)) game.inLibrary[p.id] = zoneOf(gv, "library", p.id).count || 0;
+      if (game.outOrder[p.id] == null) { game.outOrder[p.id] = (game.outStamp ?? 0) + 1; game.outWhere[p.id] = { step: gv.step, active: gv.activePlayerId, turn: gv.turn }; any = true; }
+    } else if ((gv.zones || []).some((z) => z.zone === "library" && z.ownerId === p.id)) {
+      const n = zoneOf(gv, "library", p.id).count || 0;
+      game.inLibrary[p.id] = n;
+      // (the turn and step it was first seen empty in, drewFromEmpty)
+      if (n > 0) delete game.emptyAt[p.id]; else game.emptyAt[p.id] ??= { turn: gv.turn, step: gv.step };
+    }
   }
   if (any) game.outStamp = (game.outStamp ?? 0) + 1;
 }
@@ -4588,6 +4631,16 @@ function manaCostExtra(a) {
 // which needn't follow the text's lines (an ability the card has from its type or another card comes in too), so the
 // colour decides first and the number only between lines that both make it.
 function manaPainText(a, cardText, name) {
+  const n = manaPainDamage(a, cardText, name);
+  return n ? ` (${n} damage to you)` : "";
+}
+// A mana choice's label: the colour it makes (manaLabel) and its pain, else Forge's words, else the fallback
+function manaChoiceText(a, card, fallback) {
+  const l = manaLabel(a);
+  return (l || a.description || fallback) + (l ? manaPainText(a, card?.text, card?.identity?.name) : "");
+}
+// (the amount manaPainText says, 0 for none: also what notePain records for the log)
+function manaPainDamage(a, cardText, name) {
   const isAdd = (l) => /:\s*Add\b/.test(l);
   const lines = isAdd(String(a.description || "")) ? [String(a.description)] : String(cardText || "").split(/\r?\n/).filter(isAdd);
   const made = [...producedColours(a, (c) => /^[WUBRGC]$/.test(c))];
@@ -4604,7 +4657,7 @@ function manaPainText(a, cardText, name) {
     : fits.includes(lines[a.abilityIndex]) ? dmg(lines[a.abilityIndex]) : 0;
   const tapped = name ? String(cardText || "").split(/\r?\n/).find((l) => l.startsWith(`Whenever ${name} becomes tapped, `)) : null;
   n += Number(/\bbecomes tapped, it deals (\d+) damage to you\b/i.exec(dmg(tapped) ? tapped : "")?.[1] || 0);
-  return n ? ` (${n} damage to you)` : "";
+  return n;
 }
 // A mana creature's or artifact's priority button by what its mana ability costs: "Mana: tap Llanowar Elves", but "Mana:
 // Kykar, Wind's Fury (sacrifice a Spirit)", "Mana: tap Lotus Petal (also sacrifice it)" and "Mana: Simian Spirit Guide
@@ -4964,7 +5017,7 @@ function onPrompt(seat, prompt) {
       // one button per mana creature/artifact; if it can make several kinds of mana, a question under this one asks
       // which (Back and a timeout return to priority and turn the card back: the table turns it at the button press,
       // engine-renderer.lua optimistic "Mana: tap", review 2026-11-06)
-      const manaText = (m) => (manaLabel(m) || m.description || "mana") + (manaLabel(m) ? manaPainText(m, byId[m.cardId]?.text, byId[m.cardId]?.identity?.name) : "");
+      const manaText = (m) => manaChoiceText(m, byId[m.cardId], "mana");
       const manaChoice = (cid) => {
         const acts = manaButtons.filter((m) => m.cardId === cid);
         if (acts.length === 1) return { type: "act", actionId: acts[0].id };
@@ -5105,7 +5158,8 @@ function onPrompt(seat, prompt) {
       const effectOf = !src && !copy && (gv.stack || []).map((s) => String(s.identity?.name || "").match(/^(.+?)(?: \(\d+\))?'s Effect$/)?.[1]).find(Boolean);
       const unnamed = copy ? `Copy of ${copy.identity?.name}` : effectOf;
       const baseTitle = targetTitle(title, src, minLeft, maxLeft, noun);
-      ui = { title: unnamed ? `${unnamed}: ${baseTitle.replace(/^C/, "c")}` : baseTitle,
+      const firstTitle = unnamed ? `${unnamed}: ${baseTitle.replace(/^C/, "c")}` : baseTitle;
+      ui = { title: firstTitle,
         mode: "multi", min: minLeft, max: maxLeft, cancel: input.cancellable,
         // (a copy offered as a target before it reaches the stack has no name yet: its original's, not "engine-card-144", re-test 2026-10-30)
         // (and a face-down card you may not see by what it is, not its card id: the AI's face-down 2/2 read "engine-card-970",
@@ -5156,7 +5210,8 @@ function onPrompt(seat, prompt) {
       if (half) prompt = { ...prompt, sourceAbilityText: half.text };
       const asker = half ? half.name : src || (copy && unnamed ? copy.identity?.name : null);
       const askedAs = half ? (src ? half.name : `Copy of ${half.name}`) : src || unnamed;
-      const bare = src ? ui.title : asker ? baseTitle : "";
+      // (Forge's own question in our words, with no card name before it; only with a card to name)
+      const bare = asker ? baseTitle : "";
       const targetWords = half ? half.text : chosenModes || prompt.sourceAbilityText || srcCardText || copyText;
       // (a mutating spell's own target, asked while it is cast: Gemrazer's read "destroy which artifact or enchantment an
       // opponent controls?", its mutate trigger's sentence, hp-09)
@@ -5202,7 +5257,7 @@ function onPrompt(seat, prompt) {
       // (several targets with no verb of Forge's: what they are for, from the one sentence that targets several, when
       // nothing above said it (Strive's "to copy", Support's own words stay). Guardian of Faith read "choose up to 70
       // targets", Clever Concealment "choose up to 120 targets", Kykar hand test #23)
-      const untold = src ? ui.title === bare : ui.title === `${unnamed}: ${bare.replace(/^C/, "c")}`;
+      const untold = ui.title === firstTitle;
       const many = asker && untold && /^choose (?:up to |\d+ to )?\d+ targets$/i.test(bare) ? purposeOf(targetWords, "targets") : null;
       if (many) ui.title = `${askedAs}: ${many.toLowerCase().startsWith(`${asker.toLowerCase()} `) ? many.slice(asker.length + 1) : many}`;
       // (a player question whose verb we don't know says the card's own "target player" sentence: Emrakul's "choose a
@@ -5249,7 +5304,7 @@ function onPrompt(seat, prompt) {
         // (a detain's too, the same way: Lyev Skyknight's, keyword sweep kw-21)
         const trigText = String(prompt.sourceAbilityText || srcCardText);
         if (game && (/\bsuspect target\b/i.test(trigText) || DETAIN_TARGET.test(trigText)) && prompt.sourceCard?.id) {
-          (game.ownTargeted ??= []).push({ id: prompt.sourceCard.id, ctl: prompt.decidingPlayerId, text: trigText, targets: a.filter((v) => v.startsWith("card|")).map((v) => v.slice(5)) });
+          (game.ownTargeted ??= []).push({ id: prompt.sourceCard.id, ctl: prompt.decidingPlayerId, text: trigText, targets: pickedIds(a, "card") });
         }
         // (and a counterspell's: the player's own resolves before any board shows it on the stack, so its targets are
         // noted here; An Offer You Can't Refuse's Divination read no "is countered", gap-04 re-test)
@@ -5413,7 +5468,7 @@ function onPrompt(seat, prompt) {
         // provoke asked "have target creature defending player controls untap ..." after the Tenth Doctor's reveal, hp-21 gap)
         const resolving = (gv.stack || []).find((s) => s.sourceId === prompt.sourceCard?.id && (s.targets || []).some((x) => x.kind === "card"));
         const picked = picks && picks.src && picks.src === prompt.sourceCard?.id && Date.now() - picks.at < 30000
-          ? picks.ids.filter((v) => v.startsWith("card|")).map((v) => byId[v.slice(5)]?.identity?.name).filter(Boolean)
+          ? pickedIds(picks.ids, "card").map((v) => byId[v]?.identity?.name).filter(Boolean)
           : (resolving?.targets || []).filter((x) => x.kind === "card").map((x) => byId[x.id]?.identity?.name).filter(Boolean);
         if (picked.length && OPTIONAL_ASK.test(String(title).split(/\r?\n/)[0])) t = t.replace(/\btarget (?:[a-z]+ )??(?:creature|permanent|artifact|enchantment|land|planeswalker|card)s?\b(?: (?:defending player|an opponent|that player) controls)?/i, picked.join(" and "));
         ui = { title: t, mode: "single", options: [{ id: "yes", label: yes }, { id: "no", label: no }], ...(more ? { text: more } : {}) };
@@ -5588,7 +5643,7 @@ function onPrompt(seat, prompt) {
       // (a source choice says so, Forge's "Choose a source " or its zone headings: Reflect Damage's, Deflecting Palm's and
       // Circle of Protection's read "choose a card", Kykar hand test #5 #24; and where a source is when it is no
       // permanent, the headings' word: a commander in the command zone, a spell on the stack)
-      if (src && (input.sourceHeadings || /^Choose a source\b/i.test(desc))) {
+      if (src && isSourceChoice(input)) {
         ui.title = /^Choose a source\s*$/i.test(desc) || !/^Choose a source\b/i.test(desc)
           ? `${src}: choose ${input.max > 1 ? countWords(input.min, input.max, "source") : "a source"}` : `${src}: ${desc[0].toLowerCase()}${desc.slice(1)}`;
         if (/^Choose a source\s*$/i.test(desc)) delete ui.text;
@@ -5698,8 +5753,7 @@ function onPrompt(seat, prompt) {
           ui.text = "Pick from the list, or right-click the graveyard/exile → Search and drag the card out.";
         }
         // (a source is never searched for: a spell on the stack or a commander isn't in the library)
-        const sourceChoice = input.sourceHeadings || /^Choose a source\b/i.test(String(input.presentation?.description || ""));
-        if (input.cards.length && input.cards.every((c) => !visible.has(c.id)) && !sourceChoice) {
+        if (input.cards.length && input.cards.every((c) => !visible.has(c.id)) && !isSourceChoice(input)) {
           // the same send-once details as the board: a full card list cost TTS ~300 ms to decode (Cultivate, 13 KB)
           const sl = slimmer(game);
           const full = input.cards.map((c) => tableCard(c));
@@ -6619,8 +6673,9 @@ function onIntent(m) {
     }
     if (acts.length === 1) return act(acts[0]);
     // a land with a choice of colours: ask which, under the same prompt
+    const manaCard = cardIndex(seat.board?.state?.gameView || {})[m.id];
     return askUnder(seat, { title: `Tap ${name} for which mana?`, mode: "single", kind: "choice",
-      options: distinctLabels(acts, (a) => (manaLabel(a) || a.description || a.id) + (manaLabel(a) ? manaPainText(a, cardIndex(seat.board?.state?.gameView || {})[m.id]?.text, cardIndex(seat.board?.state?.gameView || {})[m.id]?.identity?.name) : "")).map((label, i) => ({ id: acts[i].id, label })) },
+      options: distinctLabels(acts, (a) => manaChoiceText(a, manaCard, a.id)).map((label, i) => ({ id: acts[i].id, label })) },
     (a) => ({ type: "act", actionId: a[0] }), { back: "Cancel", returns: m.id });
   }
 
@@ -7592,6 +7647,11 @@ function checkRestored(seat) {
     // the log says the rewind, and the board it went back to is its new start: the difference was told as plays
     // ("Dauthi Voidwalker returns to the battlefield", "Command Tower leaves the battlefield", hp-07 #36 2026-10-27)
     game.logPrev = null;
+    // (and what the players' answers said for the log: a source chosen, a "Pay {1}?", a target pick, a pain land's
+    // tap, the blocks, all from the turns undone; a shield chosen before the rewind named a replayed turn's damage
+    // "prevented", review 2026-11-09. A player the rewind brought back is in the game again: how they went out is undone.)
+    game.picked?.clear(); game.answers?.clear(); game.sourceShields = []; game.painTaps = []; game.declaredBlocks = null;
+    for (const p of gv.players || []) if (!p.status || p.status === "playing") { delete game.outOrder?.[p.id]; delete game.outWhere?.[p.id]; }
     // (the turn as the log's headers count it, each player's own: "White's turn 4", suite review 2026-10-27)
     // (whose turn and which step: Forge's turn number counts every player's turns, unlike the log's headers, and the
     // per-player count isn't wound back, suite review 2026-10-27)

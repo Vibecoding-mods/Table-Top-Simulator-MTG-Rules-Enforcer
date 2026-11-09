@@ -218,7 +218,18 @@ const near = (a, b) => Math.abs(a - b) < 0.01;
   const over = clone(s0); over.gameOver = true; over.winner = "Blue"; over.White.status = "lost"; over.overWhy = "AI 1 drew from an empty library. Blue wins";
   const t = run([send(s0, "first board"), send(over, "over", 30)]);
   const said = t.fx("over").filter((l) => l.includes('"broadcastToAll"') && l.includes("GAME OVER"));
-  ok("kykar #16: the GAME OVER broadcast says why", said.length === 1 && said[0].includes("(AI 1 drew from an empty library. Blue wins)"), JSON.stringify(said));
+  ok("kykar #16: the GAME OVER broadcast says why", said.length === 1 && said[0].includes('"[MTG] GAME OVER - AI 1 drew from an empty library. Blue wins."'), JSON.stringify(said));
+  // (once: the why names the winner, so the winner isn't said again before it, review 2026-11-09)
+  ok("kykar #16: the broadcast names the winner once", said.length === 1 && said[0].split("Blue wins").length === 2, JSON.stringify(said));
+}
+// (a bridge that sends no why: the winner, else a draw)
+// (engineNameOf's name for Blue in the fake table is its player's, "PlayerBlue")
+for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [null, "[MTG] GAME OVER - draw."]]) {
+  const s0 = base();
+  const over = clone(s0); over.gameOver = true; over.winner = winner; over.White.status = "lost";
+  const t = run([send(s0, "first board"), send(over, "over", 30)]);
+  const said = t.fx("over").filter((l) => l.includes('"broadcastToAll"') && l.includes("GAME OVER"));
+  ok(`kykar #16: with no why, the broadcast says ${winner ? "the winner" : "a draw"}`, said.length === 1 && said[0].includes(`"${want}"`), JSON.stringify(said));
 }
 
 // 5: combat: the bursts land with the swing

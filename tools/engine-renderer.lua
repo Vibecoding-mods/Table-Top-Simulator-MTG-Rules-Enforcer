@@ -328,7 +328,8 @@ local function badgeParts(c)
   if #ctr > 0 then parts[#parts + 1] = { "ctr", table.concat(ctr, "\n"), BADGE.ctrBg } end
   if c.p ~= nil and c.t ~= nil then
     -- bp/bt: the numbers on the card's picture, nil when it shows none (an X/X token's */*, a Tarmogoyf) or isn't
-    -- known: then the badge always says the numbers, black, neither up nor down (a 6/6 Dinosaur Beast showed none)
+    -- known: then the badge always says the numbers, black, or down when damaged, never up (a 6/6 Dinosaur Beast
+    -- showed none)
     local p, t, bp, bt = tonumber(c.p), tonumber(c.t), tonumber(c.bp), tonumber(c.bt)
     local known = c.bp ~= nil and c.bt ~= nil
     -- (a nil base is a change: tostring(nil) is "nil")
@@ -355,7 +356,7 @@ local function updateBadge(o, c, zone)
     o.setColorTint({ 1, 1, 1 })
   end
   -- (a face-down permanent has badges too, drawn on the side that faces up, its back: one pumped or damaged said nothing.
-  -- Its base is the rules' 2/2, bridge tableCard, so a plain morph has none. "=under" in the text redraws on a flip.)
+  -- Its base is the rules' 2/2, bridge tableCard, so a plain morph has none. "=under" in the text redraws it with the next board after a flip.)
   local text = zone == "battlefield" and badgeText(c) or ""
   if text ~= "" and (c.fd == true) ~= (engineFlipped[c.id] == true) then text = text .. "=under" end
   -- (the card's ability buttons are drawn with its badges: one set of buttons per card, engineAbilityButtons)
@@ -1910,7 +1911,9 @@ function engineRender(m)
   end
   if m.gameOver and not engineOverAnnounced then
     engineOverAnnounced = true
-    broadcastToAll("[MTG] GAME OVER" .. (m.winner and (" - " .. engineNameOf(m.winner) .. " wins!") or " - draw.") .. (m.overWhy and (" (" .. tostring(m.overWhy) .. ")") or ""), {1, 0.85, 0.3})
+    -- (the bridge's why already names the winner, or says "a draw": said once, "GAME OVER - Blue wins! (AI 1 is at 0
+    -- life. Blue wins)" said it twice, review 2026-11-09)
+    broadcastToAll("[MTG] GAME OVER - " .. (m.overWhy and (tostring(m.overWhy) .. ".") or (m.winner and (engineNameOf(m.winner) .. " wins!") or "draw.")), {1, 0.85, 0.3})
     if engineGameOverBanner ~= nil then engineGameOverBanner(m) end
   elseif not m.gameOver then engineOverAnnounced = false end
   sect("status")
