@@ -2129,6 +2129,319 @@ const id = (n) => `engine-card-${n}`;
       between(board((b) => put(b, "battlefield", card(387, "Ball Lightning", ["Creature"]))), board((b) => put(b, "graveyard", card(387, "Ball Lightning", ["Creature"]))),
         [ev(11, "Battlefield", "Graveyard", id(387), "sacrificed", "player-0", { cause: "Sacrifice", causeCardId: id(387), causeName: "Ball Lightning" })]),
       ["Ball Lightning is sacrificed"]);
+
+    // ---- the checker's round 3 (ed3f74e): lines it still wrote wrong, and guards no test held
+    // (boards one after another as updateLog takes them: each snapshot is the next one's prev, the picks kept on it)
+    const chain = (h, first, ...steps) => {
+      let prev = h.B.logSnapshot(first);
+      return steps.flatMap(([b, evs = []]) => { const cur = h.B.logSnapshot(b, prev); const lines = h.B.logEvents(prev, cur, b, h.B.engineFacts(evs)); prev = cur; return lines; });
+    };
+    // (a/b) one damage item at a creature names only its own amount, the rise exactly that
+    const BEAR3 = { ...BEAR(), power: "3" };
+    const BITE = (sid) => SPL(sid, 372, "Rabid Bite", "Target creature you control deals damage equal to its power to target creature or planeswalker you don't control.", "player-0", { targets: [{ kind: "card", id: id(1) }, { kind: "card", id: id(216) }] });
+    const BITE_GONE = (b) => { put(b, "graveyard", card(372, "Rabid Bite", ["Sorcery"])); };
+    same("checker r3: Pyroclasm's 2 beside Rabid Bite's 3 at Craw Wurm is no 'Pyroclasm deals 5'",
+      between(board((b) => { put(b, "battlefield", BEAR3); put(b, "battlefield", WURM, "player-1"); b.stack.push(SPL("engine-stack-90", 277, "Pyroclasm", "Pyroclasm deals 2 damage to each creature."), BITE("engine-stack-91")); }),
+        board((b) => { put(b, "battlefield", { ...BEAR3, damage: 2 }); put(b, "battlefield", { ...WURM, damage: 5 }, "player-1"); put(b, "graveyard", card(277, "Pyroclasm", ["Sorcery"])); BITE_GONE(b); }),
+        [ev(11, "Stack", "Graveyard", id(372)), ev(12, "Stack", "Graveyard", id(277))]),
+      ["Pyroclasm deals 2 damage to Grizzly Bears"]);
+    same("checker r3: a Bolt beside Rabid Bite at Craw Wurm, marked 6, is no 'Bolt deals 6'",
+      between(board((b) => { put(b, "battlefield", BEAR3); put(b, "battlefield", WURM, "player-1"); b.stack.push({ ...SPL("engine-stack-92", 308, "Lightning Bolt", "Lightning Bolt deals 3 damage to any target."), targets: [{ kind: "card", id: id(216) }] }, BITE("engine-stack-93")); }),
+        board((b) => { put(b, "battlefield", BEAR3); put(b, "battlefield", { ...WURM, damage: 6 }, "player-1"); put(b, "graveyard", card(308, "Lightning Bolt", ["Instant"])); BITE_GONE(b); }),
+        [ev(11, "Stack", "Graveyard", id(372)), ev(12, "Stack", "Graveyard", id(308))]),
+      []);
+    same("and a Bolt alone at Craw Wurm, marked 3, is the Bolt's 3",
+      between(board((b) => { put(b, "battlefield", WURM, "player-1"); b.stack.push({ ...SPL("engine-stack-92", 308, "Lightning Bolt", "Lightning Bolt deals 3 damage to any target."), targets: [{ kind: "card", id: id(216) }] }); }),
+        board((b) => { put(b, "battlefield", { ...WURM, damage: 3 }, "player-1"); put(b, "graveyard", card(308, "Lightning Bolt", ["Instant"])); }), [ev(11, "Stack", "Graveyard", id(308))]),
+      ["Lightning Bolt deals 3 damage to Craw Wurm"]);
+    // (c) "each creature" only by the plain words
+    same("checker r3: Fiery Cannonade's 'each creature that isn't a Pirate' is not the 2 a fight put on a Pirate (its own amount, so only the words tell)",
+      between(board((b) => { put(b, "battlefield", { ...card(380, "Fathom Fleet Captain", ["Creature"]), power: "2" });
+        b.stack.push(SPL("engine-stack-94", 381, "Fiery Cannonade", "Fiery Cannonade deals 2 damage to each creature that isn't a Pirate."), SPL("engine-stack-95", 382, "Prey Upon", "Target creature you control fights target creature you don't control.", "player-1")); }),
+        board((b) => { put(b, "battlefield", { ...card(380, "Fathom Fleet Captain", ["Creature"]), power: "2", damage: 2 }); put(b, "graveyard", card(381, "Fiery Cannonade", ["Instant"])); put(b, "graveyard", opp(card(382, "Prey Upon", ["Sorcery"])), "player-1"); }),
+        [ev(11, "Stack", "Graveyard", id(382), null, "player-1"), ev(12, "Stack", "Graveyard", id(381))]),
+      []);
+    same("checker r3: Sizzle's 'each opponent' is no creature's: Blue's Wurm's 3 from elsewhere is not Sizzle's",
+      between(life(board((b) => { put(b, "battlefield", card(410, "Craw Wurm", ["Creature"])); b.stack.push(SPL("engine-stack-90", 411, "Sizzle", "Sizzle deals 3 damage to each opponent.")); }), 40, 40),
+        life(board((b) => { put(b, "battlefield", { ...card(410, "Craw Wurm", ["Creature"]), damage: 3 }); put(b, "graveyard", card(411, "Sizzle", ["Sorcery"])); }), 40, 37),
+        [ev(11, "Stack", "Graveyard", id(411))]),
+      ["AI 1: 40 -> 37 life (-3, damage from Sizzle)"]);
+    // (and two of Pestilence's activations, one stack entry: each creature twice, each player twice, the sums add up)
+    const PEST = "{B}: Pestilence deals 1 damage to each creature and each player.";
+    const PEST_AT = (sid) => SPL(sid, 397, "Pestilence", PEST);
+    const pest = (fill, dmg, l) => life(board((b) => { put(b, "battlefield", card(397, "Pestilence", ["Enchantment"])); put(b, "battlefield", { ...WURM, ...(dmg ? { damage: dmg } : {}) }, "player-1"); fill(b); }), l, l);
+    same("two Pestilence activations in one entry: 1 and 1 at each creature",
+      between(pest((b) => b.stack.push(PEST_AT("engine-stack-96"), PEST_AT("engine-stack-97")), 0, 40), pest(() => {}, 2, 38), CAST_EV),
+      ["Pestilence deals 1 damage to Craw Wurm", "Pestilence deals 1 damage to Craw Wurm", "Blue: 40 -> 38 life (-2)", "AI 1: 40 -> 38 life (-2)"]);
+    const PYRE = "Whenever a player casts a spell, Weird Pyre deals 1 damage to each player.";
+    const pyre = (fill, l) => life(board((b) => { put(b, "battlefield", card(399, "Weird Pyre", ["Enchantment"])); fill(b); }), l, l);
+    same("two 'each player' triggers in one entry: each player's loss, once for each",
+      between(pyre((b) => b.stack.push(TRIG("engine-stack-96", 399, "Weird Pyre", PYRE), TRIG("engine-stack-97", 399, "Weird Pyre", PYRE)), 40), pyre(() => {}, 38), CAST_EV),
+      ["Blue: 40 -> 38 life (-2, damage from Weird Pyre ×2)", "AI 1: 40 -> 38 life (-2, damage from Weird Pyre ×2)"]);
+    // (d) the payer's own answer, checked against the draws Forge says it made
+    same("checker r3: Blue's 'Pay {1}?' yes to AI 1's Rhystic Study, then AI 1's draw by it: no 'Blue pays'",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 9, sourceAbilityText: RHYSTIC_TEXT, sourceCard: { id: id(245), identity: { name: "Rhystic Study" } }, input: { presentation: { title: "Pay {1}?" }, type: "chooseBoolean" } };
+        seat.respond(9, "chooseBoolean", { type: "decision", value: true });
+        const w = (fill) => aiRhystic((b) => { count(b, "library", 50, "player-1"); fill(b); });
+        return logOf(h, w((b) => b.stack.push(AI_RHYSTIC())), w((b) => { count(b, "library", 49, "player-1"); count(b, "hand", 1, "player-1"); }),
+          [ev(11, "Library", "Hand", null, "draw", "player-1", { cause: "Draw", causeCardId: id(245), causeName: "Rhystic Study" })]);
+      }),
+      ["AI 1 draws a card"]);
+    same("a 'Pay {1}?' yes to Mentor of the Meek with no draw by it in the feed: no 'pays'",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 107, sourceAbilityText: MENTOR_TEXT, sourceCard: { id: id(226), identity: { name: "Mentor of the Meek" } }, input: { presentation: { title: "Pay {1}?" }, type: "chooseBoolean" } };
+        seat.respond(107, "chooseBoolean", { type: "decision", value: true });
+        return logOf(h, mentorBoard((b) => b.stack.push(MENTOR("engine-stack-40"))), mentorBoard(() => {}), CAST_EV);
+      }),
+      []);
+    const REMORA = "Whenever an opponent casts a noncreature spell, you may draw a card unless that player pays {4}.";
+    same("checker r3: Blue's 'Pay {1}?' yes to Mystic Remora's cumulative upkeep is not AI 1's payment of {4}",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 30, sourceAbilityText: "At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.",
+          sourceCard: { id: id(400), identity: { name: "Mystic Remora" } }, input: { presentation: { title: "Pay {1}?" }, type: "chooseBoolean" } };
+        seat.respond(30, "chooseBoolean", { type: "decision", value: true });
+        const w = (fill) => board((b) => { put(b, "battlefield", card(400, "Mystic Remora", ["Enchantment"])); count(b, "library", 50); fill(b); });
+        return logOf(h, w((b) => b.stack.push(TRIG("engine-stack-70", 400, "Mystic Remora", REMORA, "player-0", { text: `${REMORA} [Card: Opt (401), Activator: ${ACT}, SpellAbility: Opt]` }))),
+          w((b) => { count(b, "library", 49); count(b, "hand", 1); }), [ev(11, "Library", "Hand", null, "draw", "player-0", { cause: "Draw", causeCardId: id(400), causeName: "Mystic Remora" })]);
+      }),
+      ["AI 1 doesn't pay {4} (Mystic Remora)", "Blue draws a card"]);
+    same("one Rhystic Study trigger, two draws by it in the feed (another came and went): one 'doesn't pay'",
+      between(rhyW((b) => b.stack.push(UNLESS("engine-stack-27", 1, "Rhystic Study", RHYSTIC_TEXT, 245))), rhyW((b) => { count(b, "library", 48); count(b, "hand", 2); }),
+        [ev(11, "Library", "Hand", null, "draw", "player-0", { cause: "Draw", causeCardId: id(245), causeName: "Rhystic Study" }), ev(12, "Library", "Hand", null, "draw", "player-0", { cause: "Draw", causeCardId: id(245), causeName: "Rhystic Study" })])
+        .filter((l) => /Rhystic/.test(l)),
+      ["AI 1 doesn't pay {1} (Rhystic Study)"]);
+    same("an 'unless' whose words name no Activator has no payer: nothing said of a payment",
+      between(aiRhystic((b) => { count(b, "library", 50, "player-1"); b.stack.push(TRIG("engine-stack-61", 245, "Rhystic Study", RHYSTIC_TEXT, "player-1")); }),
+        aiRhystic((b) => { count(b, "library", 49, "player-1"); count(b, "hand", 1, "player-1"); }),
+        [ev(11, "Library", "Hand", null, "draw", "player-1", { cause: "Draw", causeCardId: id(245), causeName: "Rhystic Study" })]).filter((l) => /pay/.test(l)),
+      []);
+    // (e) a redirect only when the player it was aimed at lost no more than the rest aimed there
+    same("checker r3: Reflect Damage on Hill Giant, Blue lost its 3 and AI 1 paid 3 elsewhere: no redirect said",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 74, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+        const at = (step, a, c) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", HG(), "player-1"); }), a, c);
+        return [...tableLog(h), ...logOf(h, at("combatDeclareBlockers", 38, 404), at("combatDamage", 35, 401))];
+      }),
+      ["Blue chooses Hill Giant (Reflect Damage)", "Blue: 38 -> 35 life (-3)", "AI 1: 404 -> 401 life (-3)"]);
+    // (f) a loyalty cost only for a planeswalker
+    same("checker r3: an artifact's '0: Draw a card.' is an ability, no loyalty cost",
+      between(board((b) => put(b, "battlefield", card(390, "Weird Thing", ["Artifact"]))), board((b) => { put(b, "battlefield", card(390, "Weird Thing", ["Artifact"])); b.stack.push(SPL("engine-stack-96", 390, "Weird Thing", "0: Draw a card.")); }), []),
+      ["Blue uses Weird Thing's ability"]);
+    // (g) a pick for a play no board showed on the stack, only with that play's own words
+    const CHUPA_ETB = "When Ravenous Chupacabra enters, destroy target creature an opponent controls.";
+    const CHUPA = { ...card(395, "Ravenous Chupacabra", ["Creature"]), text: CHUPA_ETB };
+    const pendingPick = (seat, h, c, words, n, pick) => {
+      h.B.notePlay(seat, { cardId: c.id, id: `prompt-action-${n}`, label: `Cast ${c.identity.name}`, mode: { type: "normal" }, type: "cast" }, c.identity.name, 0);
+      seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: n, sourceAbilityText: words, sourceCard: { id: c.id, identity: c.identity },
+        input: { candidates: [{ id: pick, kind: "card" }], chosenTargets: 0, type: "chooseBoardTargets", presentation: { title: c.identity.name } } };
+      seat.respond(n, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: pick }] });
+    };
+    same("checker r3: a creature cast unseen, its enter trigger's pick made and resolved: the cast names no target",
+      fresh((h, seat) => {
+        const a = board((b) => { put(b, "hand", CHUPA); put(b, "battlefield", GIANT(), "player-1"); });
+        seat.board = { state: { gameView: a } };
+        pendingPick(seat, h, CHUPA, CHUPA_ETB, 91, id(229));
+        return logOf(h, a, board((b) => { put(b, "battlefield", CHUPA); put(b, "graveyard", GIANT(), "player-1"); }),
+          [ev(11, "Battlefield", "Graveyard", id(229), "destroyed", "player-1", { cause: "Destroy", causeCardId: id(395), causeName: "Ravenous Chupacabra" })]).filter((l) => /casts/.test(l));
+      }),
+      ["Blue casts Ravenous Chupacabra"]);
+    same("and an instant cast unseen, picked with its own words, names its target",
+      fresh((h, seat) => {
+        const SHOCK_T = "Shock deals 2 damage to any target.", shock = { ...card(396, "Shock", ["Instant"]), text: SHOCK_T };
+        const a = board((b) => { put(b, "hand", shock); put(b, "battlefield", opp(BEAR()), "player-1"); });
+        seat.board = { state: { gameView: a } };
+        pendingPick(seat, h, shock, SHOCK_T, 93, id(1));
+        return logOf(h, a, board((b) => { put(b, "graveyard", shock); put(b, "graveyard", opp(BEAR()), "player-1"); }),
+          [ev(11, "Stack", "Graveyard", id(396)), ev(12, "Battlefield", "Graveyard", id(1), "destroyed", "player-1")]).filter((l) => /casts/.test(l));
+      }),
+      ["Blue casts Shock targeting Grizzly Bears"]);
+    // (the source-shield guards: a partial prevention is none; a blocked attacker aims nothing; a lifelink prevented gains nothing)
+    same("checker r3: Healing Grace's 3 of a 6-power Wurm's 6 is no 'is prevented'",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 75, [402, "Healing Grace"], "Prevent the next 3 damage that would be dealt to any target this turn by a source of your choice. You gain 3 life.", [opp({ ...card(403, "Craw Wurm", ["Creature"]), power: "6" })], id(403));
+        const g = opp({ ...card(403, "Craw Wurm", ["Creature"]), power: "6", isAttacking: true, attackingPlayerId: "player-0", attackTargetId: "player-0", tapped: true });
+        const at = (step) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", g, "player-1"); }), 38, 40);
+        return [...tableLog(h), ...logOf(h, at("combatDeclareBlockers"), at("combatDamage"))];
+      }),
+      ["Blue chooses Craw Wurm (Healing Grace)"]);
+    const WALL_B = card(414, "Wall of Wood", ["Creature"]);
+    const ATK = (n, name, power, kw = []) => opp({ ...card(n, name, ["Creature"]), power, keywords: kw, isAttacking: true, attackingPlayerId: "player-0", attackTargetId: "player-0", tapped: true });
+    same("checker r3: Circle of Protection on an unblocked Hill Giant, a blocked Craw Wurm beside it, Blue still lost 3: no 'is prevented'",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 76, [412, "Circle of Protection: Red"], COP, [GIANT()], id(229));
+        const at = (step, a) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", HG(), "player-1"); put(b, "battlefield", ATK(413, "Craw Wurm", "6"), "player-1");
+          put(b, "battlefield", WALL_B); b.combatAssignments = [{ attackerId: id(413), blockerId: id(414) }]; }), a, 40);
+        return [...tableLog(h), ...logOf(h, at("combatDeclareBlockers", 38), at("combatDamage", 35))];
+      }),
+      ["Blue chooses Hill Giant (Circle of Protection: Red)", "Blue: 38 -> 35 life (-3)"]);
+    same("a lifelink attacker's damage prevented gains nothing: the gain is the blocked lifelinker's alone",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 77, [412, "Circle of Protection: Red"], COP, [GIANT()], id(229));
+        const at = (step, c) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", HG({ keywords: ["Lifelink"] }), "player-1");
+          put(b, "battlefield", ATK(398, "Child of Night", "2", ["Lifelink"]), "player-1"); put(b, "battlefield", WALL_B); b.combatAssignments = [{ attackerId: id(398), blockerId: id(414) }]; }), 38, c);
+        return [...tableLog(h), ...logOf(h, at("combatDeclareBlockers", 40), at("combatDamage", 42))];
+      }),
+      ["Blue chooses Hill Giant (Circle of Protection: Red)", "Hill Giant's combat damage to Blue is prevented (Circle of Protection: Red)", "AI 1: 40 -> 42 life (+2, lifelink from Child of Night)"]);
+    same("a combat damage step on an earlier turn is no attacker's damage on this one",
+      between(life(board((b) => { b.step = "combatDeclareBlockers"; b.activePlayerId = "player-1"; put(b, "battlefield", HG(), "player-1"); }), 38, 40),
+        (() => { const b = life(board((x) => { x.step = "main2"; x.activePlayerId = "player-1"; put(x, "battlefield", GIANT(), "player-1"); }), 35, 40); b.turn = 4; return b; })(), [])
+        .filter((l) => /life/.test(l)),
+      ["Blue: 38 -> 35 life (-3)"]);
+    // (a pick used once: the card's next item with the same words, picked for by no one, names nothing)
+    const PYRO_T = "{T}: Prodigal Pyromancer deals 1 damage to any target.";
+    same("a player's pick goes on its stack item once: the same ability's next item names nothing",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 94, sourceAbilityText: PYRO_T, sourceCard: { id: id(238), identity: { name: "Prodigal Pyromancer" } },
+          input: { candidates: [{ id: id(216), kind: "card" }], chosenTargets: 0, type: "chooseBoardTargets", presentation: { title: "Prodigal Pyromancer" } } };
+        seat.respond(94, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: id(216) }] });
+        const w = (dmg, fill = () => {}) => board((b) => { put(b, "battlefield", PYRO_MINE); put(b, "battlefield", { ...WURM, ...(dmg ? { damage: dmg } : {}) }, "player-1"); fill(b); });
+        const b1 = w(0, (b) => b.stack.push(SPL("engine-stack-98", 238, "Prodigal Pyromancer", PYRO_T))), c = w(1), d = w(1, (b) => b.stack.push(SPL("engine-stack-99", 238, "Prodigal Pyromancer", PYRO_T)));
+        return chain(h, w(0), [b1], [c], [d]);
+      }),
+      ["Blue uses Prodigal Pyromancer's ability targeting Craw Wurm", "Prodigal Pyromancer deals 1 damage to Craw Wurm", "Blue uses Prodigal Pyromancer's ability"]);
+    // (a planeswalker commander destroyed is destroyed, never "dies")
+    same("a planeswalker commander destroyed is destroyed, then returns",
+      between(board((b) => put(b, "battlefield", { ...card(198, "Ral Zarek", ["Planeswalker"]), counters: { Loyalty: 3 } })), board((b) => put(b, "command", card(198, "Ral Zarek", ["Planeswalker"]))),
+        [ev(11, "Battlefield", "Graveyard", id(198), "destroyed", "player-0", { cause: "Destroy", causeCardId: id(330), causeName: "Vindicate" }), ev(12, "Graveyard", "Command", id(198))]),
+      ["Ral Zarek is destroyed and returns to the command zone"]);
+    // (a targeted gift's target known by the player's pick alone)
+    const JUMP_T = "Target creature gains flying until end of turn.";
+    same("a targeted gift whose target is the player's pick: that creature's keyword is its",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 95, sourceAbilityText: JUMP_T, sourceCard: { id: id(389), identity: { name: "Jump" } },
+          input: { candidates: [{ id: id(1), kind: "card" }], chosenTargets: 0, type: "chooseBoardTargets", presentation: { title: "Jump" } } };
+        seat.respond(95, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: id(1) }] });
+        const a = board((b) => put(b, "battlefield", { ...BEAR(), keywords: [] })), b1 = board((b) => { put(b, "battlefield", { ...BEAR(), keywords: [] }); b.stack.push(SPL("engine-stack-100", 389, "Jump", JUMP_T)); });
+        const c = board((b) => { put(b, "battlefield", { ...BEAR(), keywords: ["Flying"] }); put(b, "graveyard", card(389, "Jump", ["Instant"])); });
+        return chain(h, a, [b1], [c, [ev(11, "Stack", "Graveyard", id(389))]]);
+      }),
+      ["Blue casts Jump targeting Grizzly Bears", "Grizzly Bears gains flying (Jump)"]);
+
+    // (round 3's mutation pass: guards each escaped mutant showed no test held)
+    same("an X spell's amount is Forge's filled-in words, with no '(X=N)' note",
+      between(board((b) => { put(b, "battlefield", WURM, "player-1"); b.stack.push(SPL("engine-stack-101", 420, "Banefire", "Banefire deals X damage to any target. If X is 5 or more, this spell can't be countered and the damage can't be prevented.", "player-0",
+        { targets: [{ kind: "card", id: id(216) }], text: "Banefire (420) - Banefire (420) deals 4 damage to Craw Wurm (216)." })); }),
+        board((b) => { put(b, "battlefield", { ...WURM, damage: 4 }, "player-1"); put(b, "graveyard", card(420, "Banefire", ["Sorcery"])); }), [ev(11, "Stack", "Graveyard", id(420))]),
+      ["Banefire deals 4 damage to Craw Wurm"]);
+    same("a spell whose creature deals the damage is no source: 'Target creature you control deals 2 damage'",
+      between(board((b) => { put(b, "battlefield", BEAR3); put(b, "battlefield", WURM, "player-1");
+        b.stack.push(SPL("engine-stack-102", 421, "Weird Sling", "Target creature you control deals 2 damage to target creature you don't control.", "player-0", { targets: [{ kind: "card", id: id(1) }, { kind: "card", id: id(216) }] })); }),
+        board((b) => { put(b, "battlefield", BEAR3); put(b, "battlefield", { ...WURM, damage: 2 }, "player-1"); put(b, "graveyard", card(421, "Weird Sling", ["Sorcery"])); }), [ev(11, "Stack", "Graveyard", id(421))]),
+      []);
+    same("a pick sent twice is one target: the ping's 1 at Craw Wurm is said",
+      fresh((h, seat) => {
+        const ask = (n, chosen) => { seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: n, sourceAbilityText: PYRO_T, sourceCard: { id: id(238), identity: { name: "Prodigal Pyromancer" } },
+          input: { candidates: [{ id: id(216), kind: "card" }], chosenTargets: chosen, type: "chooseBoardTargets", presentation: { title: "Prodigal Pyromancer" } } };
+          seat.respond(n, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: id(216) }] }); };
+        ask(96, 0); ask(97, 1);
+        const w = (dmg, fill = () => {}) => board((b) => { put(b, "battlefield", PYRO_MINE); put(b, "battlefield", { ...WURM, ...(dmg ? { damage: dmg } : {}) }, "player-1"); fill(b); });
+        return chain(h, w(0), [w(0, (b) => b.stack.push(SPL("engine-stack-103", 238, "Prodigal Pyromancer", PYRO_T)))], [w(1)]);
+      }),
+      ["Blue uses Prodigal Pyromancer's ability targeting Craw Wurm", "Prodigal Pyromancer deals 1 damage to Craw Wurm"]);
+    same("a land a creature only on the later board took no wipe's damage for sure (it may have become one after)",
+      between(board((b) => { put(b, "battlefield", card(268, "Mutavault", ["Land"])); b.stack.push(SPL("engine-stack-90", 277, "Pyroclasm", "Pyroclasm deals 2 damage to each creature.")); }),
+        board((b) => { put(b, "battlefield", { ...card(268, "Mutavault", ["Land", "Creature"]), damage: 2 }); put(b, "graveyard", card(277, "Pyroclasm", ["Sorcery"])); }), [ev(11, "Stack", "Graveyard", id(277))])
+        .filter((l) => /Pyroclasm/.test(l)),
+      []);
+    same("a Bolt's target sacrificed (no cause in the feed) is not the Bolt's",
+      between(board((b) => { put(b, "battlefield", opp(BEAR()), "player-1"); b.stack.push({ ...SPL("engine-stack-104", 308, "Lightning Bolt", "Lightning Bolt deals 3 damage to any target."), targets: [{ kind: "card", id: id(1) }] }); }),
+        board((b) => { put(b, "graveyard", opp(BEAR()), "player-1"); put(b, "graveyard", card(308, "Lightning Bolt", ["Instant"])); }),
+        [ev(11, "Stack", "Graveyard", id(308)), ev(12, "Battlefield", "Graveyard", id(1), "sacrificed", "player-1")]).filter((l) => /Bolt/.test(l)),
+      []);
+    same("a lifelink pinger's ping at a player who lost nothing gains nothing: its controller's +1 from elsewhere stays bare",
+      between(life(board((b) => { put(b, "battlefield", { ...PYRO_MINE, keywords: ["Lifelink"] }); b.stack.push(SPL("engine-stack-105", 238, "Prodigal Pyromancer", PYRO_T, "player-0", { targets: [{ kind: "player", id: "player-1" }] })); }), 40, 40),
+        life(board((b) => put(b, "battlefield", { ...PYRO_MINE, keywords: ["Lifelink"], tapped: true })), 41, 40), []),
+      ["Blue: 40 -> 41 life (+1)"]);
+    same("a prevention whose 'If damage is prevented this way' gains life deals nothing back",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 98, [423, "Weird Ward"], "The next time a source of your choice would deal damage to you this turn, prevent that damage. If damage is prevented this way, you gain that much life.", [PYRO], id(238));
+        return [...tableLog(h), ...logOf(h, life(board((b) => { put(b, "battlefield", PYRO, "player-1"); b.stack.push(PYRO_PING); }), 38, 40), life(board((b) => put(b, "battlefield", { ...PYRO, tapped: true }, "player-1")), 39, 39))];
+      }),
+      ["Blue chooses Prodigal Pyromancer (Weird Ward)", "Prodigal Pyromancer's damage to Blue is prevented (Weird Ward)", "Blue: 38 -> 39 life (+1)", "AI 1: 40 -> 39 life (-1)"]);
+    same("a redirect of a ping only when the player it was aimed at lost nothing",
+      fresh((h, seat) => {
+        SOURCE_PICK(seat, 99, [231, "Reflect Damage"], REFLECT, [PYRO], id(238));
+        return [...tableLog(h), ...logOf(h, life(board((b) => { put(b, "battlefield", PYRO, "player-1"); b.stack.push(PYRO_PING); }), 38, 40), life(board((b) => put(b, "battlefield", { ...PYRO, tapped: true }, "player-1")), 37, 39))];
+      }),
+      ["Blue chooses Prodigal Pyromancer (Reflect Damage)", "Blue: 38 -> 37 life (-1)", "AI 1: 40 -> 39 life (-1)"]);
+    same("a spell that taps nothing it targets says no tap: its target tapped by something else",
+      between(board((b) => { put(b, "battlefield", BEAR()); b.stack.push({ ...SPL("engine-stack-106", 424, "Weird Surge", "Target creature gets +2/+2 until end of turn. Untap all lands you control."), targets: [{ kind: "card", id: id(1) }] }); }),
+        board((b) => { put(b, "battlefield", { ...BEAR(), tapped: true }); put(b, "graveyard", card(424, "Weird Surge", ["Instant"])); }), [ev(11, "Stack", "Graveyard", id(424))]).filter((l) => /taps|untaps/.test(l)),
+      []);
+    same("a spell granting a quoted 'Counter target spell' ability is no counterspell that did nothing",
+      between(board((b) => b.stack.push(SPL("engine-stack-107", 425, "Weird Gift", "Creatures you control gain \"Sacrifice this creature: Counter target spell.\" until end of turn."))),
+        board((b) => put(b, "graveyard", card(425, "Weird Gift", ["Instant"]))), [ev(11, "Stack", "Graveyard", id(425))]).filter((l) => /does nothing/.test(l)),
+      []);
+    same("a counter ability alone on the stack is not said to do nothing (the fizzle line is a spell's)",
+      between(board((b) => { put(b, "battlefield", card(426, "Weird Snare", ["Enchantment"])); b.stack.push(TRIG("engine-stack-108", 426, "Weird Snare", "Counter target spell.")); }),
+        board((b) => put(b, "battlefield", card(426, "Weird Snare", ["Enchantment"]))), [ev(11, "Hand", "Graveyard", id(399), null, "player-1")]).filter((l) => /does nothing/.test(l)),
+      []);
+    const SENT_AI = opp(SENTINEL);
+    const aiSentinel = (sid) => TRIG(sid, 244, "Esper Sentinel", SENTINEL_TEXT, "player-1", { text: `${SENTINEL_TEXT} [Card: Opt (250), Activator: tts-Blue-ab12, SpellAbility: Opt]` });
+    const sentAnswer = (seat, n, v) => { seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: n, sourceAbilityText: SENTINEL_TEXT, sourceCard: { id: id(244), identity: { name: "Esper Sentinel" } }, input: { presentation: { title: "Pay {1}?" }, type: "chooseBoolean" } };
+      seat.respond(n, "chooseBoolean", { type: "decision", value: v }); };
+    const sentW = (fill) => board((b) => { put(b, "battlefield", SENT_AI, "player-1"); count(b, "library", 50, "player-1"); fill(b); });
+    same("Blue's 'Pay {1}?' yes to AI 1's Esper Sentinel, no draw: Blue pays its {X} by its power",
+      fresh((h, seat) => { sentAnswer(seat, 110, true); return logOf(h, sentW((b) => b.stack.push(aiSentinel("engine-stack-109"))), sentW(() => {}), CAST_EV); }),
+      ["Blue pays {1} (Esper Sentinel)"]);
+    same("with no feed for the window, the payer's own answer is all there is: it is said",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 115, sourceAbilityText: MENTOR_TEXT, sourceCard: { id: id(226), identity: { name: "Mentor of the Meek" } }, input: { presentation: { title: "Pay {1}?" }, type: "chooseBoolean" } };
+        seat.respond(115, "chooseBoolean", { type: "decision", value: true });
+        return logOf(h, mentorBoard((b) => b.stack.push(MENTOR("engine-stack-40"))), mentorBoard(drew), []);
+      }),
+      ["Blue pays {1} (Mentor of the Meek)", "Blue draws a card"]);
+    same("and the yes when AI 1 drew by it (a mandatory draw unless paid): no 'Blue pays'",
+      fresh((h, seat) => {
+        sentAnswer(seat, 111, true);
+        return logOf(h, sentW((b) => b.stack.push(aiSentinel("engine-stack-109"))), sentW((b) => { count(b, "library", 49, "player-1"); count(b, "hand", 1, "player-1"); }),
+          [ev(11, "Library", "Hand", null, "draw", "player-1", { cause: "Draw", causeCardId: id(244), causeName: "Esper Sentinel" })]).filter((l) => /pay/.test(l));
+      }),
+      []);
+    same("a 'Pay {1}?' no to Mentor of the Meek, then its draw in the feed: no 'doesn't pay'",
+      fresh((h, seat) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 112, sourceAbilityText: MENTOR_TEXT, sourceCard: { id: id(226), identity: { name: "Mentor of the Meek" } }, input: { presentation: { title: "Pay {1}?" }, type: "chooseBoolean" } };
+        seat.respond(112, "chooseBoolean", { type: "decision", value: false });
+        return logOf(h, mentorBoard((b) => b.stack.push(MENTOR("engine-stack-40"))), mentorBoard(drew),
+          [ev(11, "Library", "Hand", null, "draw", "player-0", { cause: "Draw", causeCardId: id(226), causeName: "Mentor of the Meek" })]).filter((l) => /pay/.test(l));
+      }),
+      []);
+    const RAL_ULT = { ...RAL_MINUS, id: "engine-stack-110", sourceAbilityText: "-7: Flip five coins. Target opponent skips their next X turns, where X is the number of coins that came up heads.", targets: [{ id: "player-1", intent: "hostile", kind: "player" }], text: "Ral Zarek (203) - Flip five coins." };
+    same("a planeswalker activated to 0 and gone to the graveyard between two boards: its cost by its type",
+      between(board(() => {}), board((b) => { put(b, "graveyard", card(201, "Ral Zarek", ["Planeswalker"])); b.stack.push(RAL_ULT); }), [ev(11, "Battlefield", "Graveyard", id(201))]).filter((l) => /Ral Zarek's/.test(l)),
+      ["Blue activates Ral Zarek's -7 targeting AI 1"]);
+    same("a planeswalker's ability with a mana cost, not a loyalty one, is an ability",
+      between(board((b) => put(b, "battlefield", RAL(4))), board((b) => { put(b, "battlefield", RAL(4)); b.stack.push({ ...RAL_ULT, sourceAbilityText: "{1}: Ral Zarek gains hexproof until end of turn.", targets: [] }); }), [])
+        .filter((l) => /Ral Zarek's/.test(l)),
+      ["Blue uses Ral Zarek's ability"]);
+    same("a planeswalker activated and returned to its owner's hand: its cost by its loyalty last seen",
+      between(board((b) => put(b, "battlefield", RAL(4))), board((b) => { count(b, "hand", 1); b.stack.push({ ...RAL_ULT, sourceAbilityText: "-2: Ral Zarek deals 3 damage to any target." }); }), []).filter((l) => /Ral Zarek's/.test(l)),
+      ["Blue activates Ral Zarek's -2 targeting AI 1"]);
+    same("a pick asked with no words names nothing on a cast no board showed on the stack",
+      fresh((h, seat) => {
+        const bare = card(427, "Shock", ["Instant"]);
+        const a = board((b) => { put(b, "hand", bare); put(b, "battlefield", opp(BEAR()), "player-1"); });
+        seat.board = { state: { gameView: a } };
+        pendingPick(seat, h, bare, undefined, 113, id(1));
+        return logOf(h, a, board((b) => { put(b, "graveyard", bare); put(b, "graveyard", opp(BEAR()), "player-1"); }),
+          [ev(11, "Stack", "Graveyard", id(427)), ev(12, "Battlefield", "Graveyard", id(1), "destroyed", "player-1")]).filter((l) => /casts/.test(l));
+      }),
+      ["Blue casts Shock"]);
+    // (an activation no board showed on the stack: the pick is its own only with its words)
+    const pendingAct = (pickWords) => fresh((h, seat) => {
+      const w = (dmg, tapped) => board((b) => { put(b, "battlefield", { ...PYRO_MINE, tapped }); put(b, "battlefield", { ...WURM, ...(dmg ? { damage: dmg } : {}) }, "player-1"); });
+      const a = w(0, false);
+      seat.board = { state: { gameView: a } };
+      h.B.notePlay(seat, { cardId: id(238), id: "prompt-action-41", description: PYRO_T, type: "activateAbility" }, "Prodigal Pyromancer", 3);
+      seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 114, sourceAbilityText: pickWords, sourceCard: { id: id(238), identity: { name: "Prodigal Pyromancer" } },
+        input: { candidates: [{ id: id(216), kind: "card" }], chosenTargets: 0, type: "chooseBoardTargets", presentation: { title: "Prodigal Pyromancer" } } };
+      seat.respond(114, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: id(216) }] });
+      seat.priorityPromptId = 9;
+      return logOf(h, a, w(1, true)).filter((l) => /uses/.test(l));
+    });
+    same("an activation seen only once paid for names its pick, asked with its words", pendingAct(PYRO_T), ["Blue uses Prodigal Pyromancer's ability targeting Craw Wurm"]);
+    same("and not a pick asked with other words (another ability of the card's)", pendingAct("When Prodigal Pyromancer dies, it deals 1 damage to any target."), ["Blue uses Prodigal Pyromancer's ability"]);
   }
 
   process.stdout.write(`${failed ? "FAILED" : "PASSED"}: ${passed} passed, ${failed} failed\n`);

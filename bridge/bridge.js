@@ -1813,8 +1813,9 @@ function takenOffStack(offStack, prevSpellOf, cards, pubIndex) {
 //   lifelink's gain beside it;
 // - a damage spell or ability that left the stack and says "<its name> deals N damage" once, no "divided": N at each
 //   target, Forge's or the player's picks (no target known, nothing: no guessing by who lost that much), and at "each
-//   opponent / each player" once for each item that left; a creature's marked damage told only when it adds up: one
-//   item at it, its rise; or items of fixed amounts summing to it; a target gone to its graveyard only with one item
+//   opponent / each player" once for each item that left ("each creature" only by those plain words); a creature's
+//   marked damage told only when it adds up: one item at it, its rise exactly its amount; or items of fixed amounts
+//   summing to it; a target gone to its graveyard only with one item
 //   at it, by Forge's order after the spell and no other cause. No combat damage step crossed for any creature's line.
 // A loss nothing explains stays bare: a pain land of another player's, a trigger that came and went between two boards,
 // an AI's Lightning Bolt (Forge names no spell's target). Niv-Mizzet's pings read only "ability triggers" and "dies",
@@ -1857,7 +1858,9 @@ function damageNews(prev, cur, resolved, facts) {
       let stopped = false;
       if (!blocked.has(id) && a.atp in cur.life) {
         const sh = shieldFor(id, a.atp);
-        if (sh?.kind === "redirect" && lost(a.ctl) >= n) redirected(sh, { id, ctl: a.ctl }, name, n, true);
+        // (a redirect, or a prevention, only when the player it was aimed at lost no more than the others aimed there: Hill
+        // Giant's 3 that Blue lost read "dealt to AI 1 instead" beside AI 1's 3 paid elsewhere, checker round 3)
+        if (sh?.kind === "redirect" && lost(a.ctl) >= n && lost(a.atp) <= aimed[a.atp] - n) redirected(sh, { id, ctl: a.ctl }, name, n, true);
         else if (sh?.kind === "prevent" && lost(a.atp) <= aimed[a.atp] - n) { prevented(sh, { id, ctl: a.ctl }, name, a.atp, n, true); stopped = true; }
         else if (!sh) why(loss, a.atp, n, `combat damage from ${name}`);
       }
@@ -1878,7 +1881,10 @@ function damageNews(prev, cur, resolved, facts) {
     const cardTg = [...s.cardTg, ...[...new Set(picks)].filter((x) => !s.cardTg.includes(x))];
     // (a player once for each item that targeted them: two of Niv-Mizzet's pings in one stack entry)
     const plTg = [...s.plTg, ...[...new Set((s.pk || []).filter((t) => t.startsWith("player|")).map((t) => t.slice(7)))].filter((p) => !s.plTg.includes(p))];
-    const each = /\bdamage to each\b[^.]*\bcreature/i.test(s.text);
+    // (every creature only by the plain words, nothing after "creature" that limits it: "each creature that isn't a
+    // Pirate", "without flying", "you don't control", "each other creature" and "each opponent" are not every creature,
+    // checker round 3)
+    const each = /\bdamage to each creature(?: and each (?:player|planeswalker))? *(?:[.;]|$)/im.test(s.text);
     return [{ s, n, cardTg, plTg, each, src: { ctl: s.ctl, ...(cur.cards[s.id] || prev.cards[s.id]), id: s.id }, dealt: 0, hit: new Map() }];
   });
   // (each creature's items: how many of each item's hits it took)
@@ -1900,7 +1906,9 @@ function damageNews(prev, cur, resolved, facts) {
     if (now?.zone === "battlefield") {
       const r = (now.dmg || 0) - (prev.cards[id].dmg || 0);
       if (r <= 0) continue;
-      if (one) say(one, r, id);
+      // (one item: only its own known amount, the rise exactly that; a rise of more had another source beside it, one no
+      // item names, Rabid Bite's beside a Pyroclasm read "Pyroclasm deals 5 damage", checker round 3)
+      if (one) { if (one.n && r === one.n) say(one, r, id); }
       else if (list.every((x) => x.it.n) && list.reduce((a, x) => a + x.k * x.it.n, 0) === r) for (const x of list) for (let i = 0; i < x.k; i++) say(x.it, x.it.n, id);
       continue;
     }
@@ -1927,7 +1935,7 @@ function damageNews(prev, cur, resolved, facts) {
     for (const p of players) {
       const sh = shieldFor(src.id, p);
       if (sh?.kind === "prevent" && lost(p) <= 0) prevented(sh, src, s.name, p, n, false);
-      else if (sh?.kind === "redirect" && lost(src.ctl) >= n) redirected(sh, src, s.name, n, false);
+      else if (sh?.kind === "redirect" && lost(src.ctl) >= n && lost(p) <= 0) redirected(sh, src, s.name, n, false);
       else if (!sh && lost(p) > 0) { why(loss, p, n, `damage from ${s.name}`); it.dealt += n; }
     }
     if (src.ll && it.dealt) why(gain, src.ctl, it.dealt, `lifelink from ${s.name}`);
@@ -1943,8 +1951,9 @@ function lifeWords(parts) {
 }
 // An "unless that player pays" or a "you may pay ... If you do" that resolved: paid or not, said only when certain.
 // First the payer's own answer, a player of ours asked "Pay {1}?" (game.answers, by the card: one card's two triggers
-// ask twice). Else only when what it does is a draw and nothing else, as Forge's feed names the card that caused each
-// draw (facts.drawsBy) and so says whether it happened: "you may pay {1}. If you do, draw a card", drawn means paid;
+// ask twice), unless the feed's draws contradict it (a "yes" whose payment then failed). Else only when what it does
+// is a draw and nothing else, as Forge's feed names the card that caused each draw (facts.drawsBy) and so says whether
+// it happened: "you may pay {1}. If you do, draw a card", drawn means paid;
 // "draw a card unless that player pays", drawn means not paid, and not drawn means paid unless the draw was its
 // controller's to decline ("you may draw"): then their "no" to it, which Forge asks only once the payment was declined
 // (Rhystic Study: "Pay {1}?", then "Do you want to draw a card?"), or a player of ours asked fewer times than not drawn.
@@ -1971,21 +1980,26 @@ function unlessNews(prev, resolved, facts) {
     const gone = s.gone || 1;
     const each = (n, line) => { for (let i = 0; i < n; i++) lines.push(line); };
     const pays = `${nameOf(payer)} pays ${cost} (${s.name})`, not = `${nameOf(payer)} doesn't pay ${cost} (${s.name})`;
+    // (what it does is a draw and nothing else: then the feed's draws say whether it was paid)
+    const drawOnly = may ? /\byou may pay (?:\{[^}]+\})+\. If you do, draw a card\.?$/i.test(s.text.trim())
+      : /^(?:When|Whenever|At)\b[^.]*, (?:you may )?draw a card unless\b[^.]*\.$/i.test(s.text.trim());
+    const drew = facts ? Math.min(gone, facts.drawsBy?.get(s.id) || 0) : 0;
     const own = answers.filter((a) => a.kind === "pay" && a.slot === payer);
     if (own.length) {
-      // (all of them answered, or nothing: which of the others was which is unknown)
-      if (own.length === gone) for (const a of own) lines.push(a.value ? pays : not);
+      // (all of them answered, or nothing: which of the others was which is unknown. And none the feed contradicts: a
+      // "yes" whose payment failed, Blue's yes to AI 1's Rhystic Study then AI 1's draw, read "Blue pays {1}", checker
+      // round 3. Paid, a "you may pay" draws once each; an "unless" draws only unpaid, a "you may draw" not always.)
+      const paid = own.filter((a) => a.value).length;
+      const fits = !facts || !drawOnly || (may ? drew === paid : /, you may draw a card unless\b/i.test(s.text) ? drew <= gone - paid : drew === gone - paid);
+      if (own.length === gone && fits) for (const a of own) lines.push(a.value ? pays : not);
       continue;
     }
-    if (!facts) continue;
-    const drew = Math.min(gone, facts.drawsBy?.get(s.id) || 0);
+    if (!facts || !drawOnly) continue;
     if (may) {
-      if (!/\byou may pay (?:\{[^}]+\})+\. If you do, draw a card\.?$/i.test(s.text.trim())) continue;
       each(drew, pays);
       each(gone - drew, not);
       continue;
     }
-    if (!/^(?:When|Whenever|At)\b[^.]*, (?:you may )?draw a card unless\b[^.]*\.$/i.test(s.text.trim())) continue;
     each(drew, not);
     const rest = gone - drew;
     if (!rest) continue;
@@ -2118,10 +2132,14 @@ function logEvents(prev, cur, pub, facts = null) {
   }
   // (" targeting X and Y": a stack item's targets by name, Forge's and the player's picks, or a pick not yet on any stack
   // item (one cast and gone before a board showed it); "White casts Counterspell" named no target, Kykar #8)
-  const targetWords = (s, id = s?.id) => {
+  // (a record's pick, with no stack item to hold it, only with the record's own words, as a stack item's: a cast's, an
+  // instant's or sorcery's card text; an activation's, its words. Else not this play's, kept for its own item: a
+  // creature's enter trigger's pick read "casts <the creature> targeting", checker round 3)
+  const norm = (t) => String(t || "").replace(/\s+/g, " ").trim();
+  const targetWords = (s, id = s?.id, words = null) => {
     let ids = [...(s?.cardTg || []).map((x) => `card|${x}`), ...(s?.plTg || []).map((x) => `player|${x}`), ...(s?.pk || [])];
     const pick = !s && game.picked?.get(id);
-    if (pick && Date.now() - pick.at < 60000) { ids = pick.ids; game.picked.delete(id); }
+    if (pick && Date.now() - pick.at < 60000 && norm(pick.text) && norm(pick.text) === norm(words)) { ids = pick.ids; game.picked.delete(id); }
     const stackName = (sid) => bothStacks.find((x) => x.sids.includes(sid))?.name;
     const names = [...new Set(ids)].map((t) => {
       const kind = t.slice(0, t.indexOf("|")), tid = t.slice(t.indexOf("|") + 1), c = cur.cards[tid] || prev.cards[tid];
@@ -2137,12 +2155,14 @@ function logEvents(prev, cur, pub, facts = null) {
   // "White uses Ral Zarek's ability", #13; any other, its targets)
   const activationLine = (s, mine) => {
     const id = s?.id ?? mine.id, ctl = s?.ctl ?? mine.ctl, name = s?.name ?? mine.name, text = s?.text || mine?.text || "";
-    const tg = targetWords(s, id);
+    const tg = targetWords(s, id, s ? null : mine?.text);
     if (/^Equip\b/i.test(text) && tg) return `${who(ctl)} equips ${tg.slice(" targeting ".length)} with ${name}`;
     const was = prev.cards[id]?.loy, now = cur.cards[id]?.loy, cost = /^([+−-]?(?:\d+|X)):/.exec(text)?.[1];
     // (the cost is the ability's own words; its loyalty before and after only when both boards show it: a planeswalker
-    // cast and activated between two boards read "White uses Ral Zarek's ability")
-    if (cost) return `${who(ctl)} activates ${poss(name)} ${cost.replace("−", "-")}${now != null && was != null && now !== was ? ` (loyalty ${was} -> ${now})` : ""}${tg}`;
+    // cast and activated between two boards read "White uses Ral Zarek's ability". A planeswalker's alone, by its type or
+    // its loyalty: an artifact's "0: Draw a card." read "activates Weird Thing's 0", checker round 3)
+    const walker = was != null || now != null || (pubIndex[id]?.types || []).includes("Planeswalker");
+    if (cost && walker) return `${who(ctl)} activates ${poss(name)} ${cost.replace("−", "-")}${now != null && was != null && now !== was ? ` (loyalty ${was} -> ${now})` : ""}${tg}`;
     return `${who(ctl)} uses ${poss(name)} ability${s?.via ? ` (${poss(s.via)})` : ""}${tg}`;
   };
   // (a permanent spell straight from the stack into a graveyard was countered too, by whatever did it, an ability or a
@@ -2240,7 +2260,7 @@ function logEvents(prev, cur, pub, facts = null) {
     if (e.kind === "cast" && cur.cards[e.id]?.land) { e.said = true; landPlays.add(e.id); }
     // (newly public, or moved from a public zone: a commander cast from the command zone was seen there already, and its
     // cast went unlogged, hp-07 #39 2026-10-27)
-    else if (e.kind === "cast" && cur.cards[e.id] && (!prev.cards[e.id] || prev.cards[e.id].zone !== cur.cards[e.id].zone)) { out.push(`${who(e.ctl)} casts ${e.name}${targetWords(null, e.id)}`); e.said = true; castNow.add(e.id); game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
+    else if (e.kind === "cast" && cur.cards[e.id] && (!prev.cards[e.id] || prev.cards[e.id].zone !== cur.cards[e.id].zone)) { out.push(`${who(e.ctl)} casts ${e.name}${targetWords(null, e.id, cur.cards[e.id].spell ? pubIndex[e.id]?.text : null)}`); e.said = true; castNow.add(e.id); game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
     else if (e.kind === "faceup" && back) e.said = true;
     else if (e.kind !== "cast" && back) { out.push(keywordLine(e.kind, e.ctl, e.name) || activationLine(null, e)); e.said = true; game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
   }
