@@ -327,11 +327,15 @@ local function badgeParts(c)
   if plus ~= 0 then table.insert(ctr, 1, (plus > 0 and "+" or "") .. plus .. "/" .. (plus > 0 and "+" or "") .. plus) end
   if #ctr > 0 then parts[#parts + 1] = { "ctr", table.concat(ctr, "\n"), BADGE.ctrBg } end
   if c.p ~= nil and c.t ~= nil then
+    -- bp/bt: the numbers on the card's picture, nil when it shows none (an X/X token's */*, a Tarmogoyf) or isn't
+    -- known: then the badge always says the numbers, black, neither up nor down (a 6/6 Dinosaur Beast showed none)
     local p, t, bp, bt = tonumber(c.p), tonumber(c.t), tonumber(c.bp), tonumber(c.bt)
+    local known = c.bp ~= nil and c.bt ~= nil
+    -- (a nil base is a change: tostring(nil) is "nil")
     local changed = tostring(c.p) ~= tostring(c.bp) or tostring(c.t) ~= tostring(c.bt)
     if changed or dmg > 0 then
       local lower = dmg > 0 or (p and bp and p < bp) or (t and bt and t < bt)
-      parts[#parts + 1] = { "pt", tostring(c.p) .. "/" .. tostring(t and (t - dmg) or c.t), lower and BADGE.down or BADGE.up }
+      parts[#parts + 1] = { "pt", tostring(c.p) .. "/" .. tostring(t and (t - dmg) or c.t), lower and BADGE.down or (known and BADGE.up or BADGE.black) }
     end
   elseif special ~= nil then parts[#parts + 1] = { "pt", special, BADGE.black } end
   return parts
@@ -350,7 +354,10 @@ local function updateBadge(o, c, zone)
     enginePhaseTint[c.id] = nil
     o.setColorTint({ 1, 1, 1 })
   end
-  local text = (zone == "battlefield" and (not c.fd or c.po)) and badgeText(c) or ""
+  -- (a face-down permanent has badges too, drawn on the side that faces up, its back: one pumped or damaged said nothing.
+  -- Its base is the rules' 2/2, bridge tableCard, so a plain morph has none. "=under" in the text redraws on a flip.)
+  local text = zone == "battlefield" and badgeText(c) or ""
+  if text ~= "" and (c.fd == true) ~= (engineFlipped[c.id] == true) then text = text .. "=under" end
   -- (the card's ability buttons are drawn with its badges: one set of buttons per card, engineAbilityButtons)
   local ab = engineAbilitySig ~= nil and engineAbilitySig(c) or ""
   if engineBadge[c.id] == text .. "#" .. ab then return end
@@ -381,6 +388,8 @@ local function updateBadge(o, c, zone)
     local where, turn = { pos[1], pos[2], pos[3] + (b[1] == "ctr" and 0.13 * (lines - 1) or kwb and -h / 2000 or 0) }, { 0, 0, 0 }
     -- (a tapped card turns its status box back so it reads the right way up, as engineAbilityButtons does)
     if kwb and c.tap then where, turn = { -where[3], pos[2], 0 }, { 0, -90, 0 } end
+    -- (on the back of a card lying face down: turned over with it, so it sits at the same corner as seen from above)
+    if text:sub(-6) == "=under" then where, turn = { -where[1], -where[2], where[3] }, { turn[1], turn[2], turn[3] + 180 } end
     o.createButton({ click_function = "engineNoop", function_owner = Global, label = b[2],
       position = where, rotation = turn, width = tbb and 880 or kwb and math.min(1000, math.max(340, 50 * longest + 100)) or math.max(340, 112 * longest),
       -- (the changed text box covers the printed one from under the type line to above the power/toughness)
@@ -1899,7 +1908,7 @@ function engineRender(m)
   end
   if m.gameOver and not engineOverAnnounced then
     engineOverAnnounced = true
-    broadcastToAll("[MTG] GAME OVER" .. (m.winner and (" - " .. engineNameOf(m.winner) .. " wins!") or " - draw."), {1, 0.85, 0.3})
+    broadcastToAll("[MTG] GAME OVER" .. (m.winner and (" - " .. engineNameOf(m.winner) .. " wins!") or " - draw.") .. (m.overWhy and (" (" .. tostring(m.overWhy) .. ")") or ""), {1, 0.85, 0.3})
     if engineGameOverBanner ~= nil then engineGameOverBanner(m) end
   elseif not m.gameOver then engineOverAnnounced = false end
   sect("status")
@@ -2660,7 +2669,12 @@ function engineUpdateCorner(color, p)
   setAttr("eng_phasebg_" .. color, "active", t ~= nil and "true" or "false")
   -- day or night, once a daybound card has made it one (nothing showed it, playtest 2026-10-26)
   local day = (t and t.day == "day") and "      <b><color=#FFE08A>DAY</color></b>" or ((t and t.day == "night") and "      <b><color=#9FB4FF>NIGHT</color></b>" or "")
-  setText("eng_phase_" .. color, whose .. "      " .. table.concat(parts, "   ›   ") .. day)
+  -- (a finished game shows no turn: the bar read "YOUR TURN ... MAIN 1" after the engine ended Kykar's game, #16)
+  if t ~= nil and t.gameOver then
+    setText("eng_phase_" .. color, "<b><color=#FFD27A>GAME OVER</color></b>" .. (t.overWhy and ("      " .. engineCut(tostring(t.overWhy), 150)) or ""))
+  else
+    setText("eng_phase_" .. color, whose .. "      " .. table.concat(parts, "   ›   ") .. day)
+  end
   -- instruction line (Arena-style): what the open question wants, in table terms; or who you're waiting for
   local hint = ""
   local q = enginePrompts[color]
@@ -2674,6 +2688,10 @@ function engineUpdateCorner(color, p)
         or "\nClick a card, then your library (or Done). Dragging it there works too.")
     -- (cards in a graveyard or exile pile, maybe another player's: nothing on the table glows, so say where they are;
     -- Dauthi Voidwalker's choice among the AI's exiled cards showed only Done, hp-07 2026-10-27)
+    -- (copies of cards in a pile are cast, the cards stay: nothing to drag out, Kykar hand test #27; any kind, as the
+    -- pile's cards are no objects of their own)
+    elseif q.copies then
+      hint = title .. "\nPick it in the card row or the Engine panel."
     elseif kind == "cards" and q.pileChoices ~= nil then
       hint = title .. "\nRight-click that graveyard or exile pile -> Search, and drag the card out. Or Engine: show."
     elseif kind == "cards" and engineExactPick(q) then
@@ -6867,9 +6885,9 @@ function engineSelfCheck()
   -- What the engine says about a card on the battlefield against what a player sees on it. Each "map:" line is a fact
   -- bridge/table-map.js says is checked here, and tests/test_table_map.js looks for it.
   local function checkFacts(card, o, label)
-    -- map:badges (attached and face-down cards have none: updateBadge)
+    -- map:badges (attached cards have none; a face-down one's are on its back: updateBadge)
     -- map:counters (they are in badgeParts: a pair of +1/+1 and -1/-1 counters shows nothing, so this is what can say)
-    if card.att == nil and (not card.fd or card.po) then
+    if card.att == nil then
       local want, have = {}, {}
       for _, b in ipairs(badgeParts(card)) do want[#want + 1] = b[2] end
       for _, b in ipairs(o.getButtons() or {}) do if b.click_function == "engineNoop" then have[#have + 1] = tostring(b.label) end end

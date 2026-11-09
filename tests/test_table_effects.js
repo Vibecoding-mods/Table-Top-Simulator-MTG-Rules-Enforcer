@@ -28,7 +28,7 @@ function board(st) {
   });
   return JSON.stringify({ t: "table", turn: st.turn ?? 3, step: st.step || "main1", active: "Blue", activeTurnNo: 2, priority: "Blue", gameOver: !!st.gameOver,
     winner: st.winner || null, players: [pl("Blue", "player-0", st.Blue), pl("White", "player-1", st.White)], stack: [], cards,
-    ...(st.rewind ? { rewind: st.rewind } : {}), ...(st.jump ? { jump: true } : {}) });
+    ...(st.rewind ? { rewind: st.rewind } : {}), ...(st.jump ? { jump: true } : {}), ...(st.overWhy ? { overWhy: st.overWhy } : {}) });
 }
 const base = () => ({ Blue: { bf: [...blueC.slice(0, 7), "bl1"], gy: [], more: {} }, White: { bf: [...whiteC, "wl1"], gy: [], more: {} } });
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -210,6 +210,15 @@ const near = (a, b) => Math.abs(a - b) < 0.01;
   ok("concession: DEFEAT for Blue (the banner the old check missed)", t.fx("Blue concedes").some((l) => l.includes('"UI.setValue" "eng_result_Blue" "DEFEAT"')), JSON.stringify(t.fx("Blue concedes").filter((l) => l.includes("eng_result"))));
   ok("concession: everyone is told", t.fx("Blue concedes").some((l) => l.includes('"broadcastToAll" "[MTG] Blue has conceded."')));
   ok("concession: Blue's life counter goes dark", t.fx("Blue concedes").some((l) => l.includes('"setColorTint" obj:395037')));
+}
+
+// Kykar hand test #16 (verify 2026-11-07): the GAME OVER broadcast says how it ended, as the bridge's overWhy tells it
+{
+  const s0 = base();
+  const over = clone(s0); over.gameOver = true; over.winner = "Blue"; over.White.status = "lost"; over.overWhy = "AI 1 drew from an empty library. Blue wins";
+  const t = run([send(s0, "first board"), send(over, "over", 30)]);
+  const said = t.fx("over").filter((l) => l.includes('"broadcastToAll"') && l.includes("GAME OVER"));
+  ok("kykar #16: the GAME OVER broadcast says why", said.length === 1 && said[0].includes("(AI 1 drew from an empty library. Blue wins)"), JSON.stringify(said));
 }
 
 // 5: combat: the bursts land with the swing
