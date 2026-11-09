@@ -2530,6 +2530,61 @@ const id = (n) => `engine-card-${n}`;
           [ev(11, "Battlefield", "Graveyard", id(390), "sacrificed", "player-0", { cause: "Cost:Sacrifice", causeCardId: id(428), causeName: "Bone Splinters" })]).filter((l) => /casts/.test(l));
       }),
       ["Blue casts Bone Splinters targeting Grizzly Bears"]);
+    // (an edict's target prompt has intent "sacrifice" too, from its api, but asks for a player: publishTargetPrompt's
+    // "Choose player to sacrifice"; the victim's choice of what to sacrifice is publishSacrificePrompt's, "Sacrifice",
+    // only cards, and is no target. Checker round 5, r4-edict-target)
+    const EDICT_T = "Target player sacrifices a creature.";
+    const EDICT = { ...card(429, "Diabolic Edict", ["Instant"]), text: EDICT_T };
+    const edictAsk = (seat, c, n, words, casting = true) => {
+      seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: n, sourceAbilityText: words, sourceCard: { id: c.id, identity: c.identity },
+        input: { type: "chooseBoardTargets", cancellable: casting, candidates: [{ id: "player-0", kind: "player" }, { id: "player-1", kind: "player" }], chosenTargets: 0, hostile: true,
+          intent: "sacrifice", minTargets: 1, maxTargets: 1, presentation: { title: "Choose player to sacrifice" } } };
+      seat.respond(n, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "player", id: "player-1" }] });
+    };
+    const victimSacs = (seat, c, n, words) => {
+      seat.lastRawPrompt = { decidingPlayerId: "player-1", promptId: n, sourceAbilityText: words, sourceCard: { id: c.id, identity: c.identity },
+        input: { type: "chooseBoardTargets", cancellable: false, candidates: [{ id: id(1), kind: "card" }], chosenTargets: 0, hostile: true,
+          intent: "sacrifice", minTargets: 1, maxTargets: 1, presentation: { title: "Sacrifice" } } };
+      seat.respond(n, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: id(1) }] });
+    };
+    same("checker r5: Diabolic Edict cast and gone before any board names the player it targeted, not the victim's pick",
+      fresh((h, seat) => {
+        const a = board((b) => { put(b, "hand", EDICT); put(b, "battlefield", opp(BEAR()), "player-1"); });
+        seat.board = { state: { gameView: a } };
+        h.B.notePlay(seat, { cardId: EDICT.id, id: "prompt-action-170", label: "Cast Diabolic Edict", mode: { type: "normal" }, type: "cast" }, "Diabolic Edict", 0);
+        edictAsk(seat, EDICT, 170, EDICT_T);
+        victimSacs(seat, EDICT, 171, EDICT_T);
+        return logOf(h, a, board((b) => { put(b, "graveyard", EDICT); put(b, "graveyard", opp(BEAR()), "player-1"); }),
+          [ev(11, "Stack", "Graveyard", id(429)), ev(12, "Battlefield", "Graveyard", id(1), "sacrificed", "player-1", { cause: "Sacrifice", causeCardId: id(429), causeName: "Diabolic Edict" })]).filter((l) => /casts/.test(l));
+      }),
+      ["Blue casts Diabolic Edict targeting AI 1"]);
+    same("and Diabolic Edict seen on the stack names it too",
+      fresh((h, seat) => {
+        const a = board((b) => { put(b, "hand", EDICT); put(b, "battlefield", opp(BEAR()), "player-1"); });
+        seat.board = { state: { gameView: a } };
+        h.B.notePlay(seat, { cardId: EDICT.id, id: "prompt-action-172", label: "Cast Diabolic Edict", mode: { type: "normal" }, type: "cast" }, "Diabolic Edict", 0);
+        edictAsk(seat, EDICT, 172, EDICT_T);
+        return logOf(h, a, board((b) => { put(b, "battlefield", opp(BEAR()), "player-1"); b.stack.push(SPL("engine-stack-113", 429, "Diabolic Edict", EDICT_T)); })).filter((l) => /casts/.test(l));
+      }),
+      ["Blue casts Diabolic Edict targeting AI 1"]);
+    same("and Liliana of the Veil's -2 names the player it targets",
+      fresh((h, seat) => {
+        const LIL_T = "-2: Target player sacrifices a creature.";
+        const lil = { ...card(430, "Liliana of the Veil", ["Planeswalker"]), counters: { Loyalty: 3 } };
+        const a = board((b) => { put(b, "battlefield", lil); put(b, "battlefield", opp(BEAR()), "player-1"); });
+        seat.board = { state: { gameView: a } };
+        h.B.notePlay(seat, { cardId: lil.id, id: "prompt-action-173", description: LIL_T, type: "activateAbility" }, "Liliana of the Veil", 0);
+        edictAsk(seat, lil, 173, LIL_T);
+        return logOf(h, a, board((b) => { put(b, "battlefield", { ...lil, counters: { Loyalty: 1 } }); put(b, "battlefield", opp(BEAR()), "player-1");
+          b.stack.push(SPL("engine-stack-114", 430, "Liliana of the Veil", LIL_T)); })).filter((l) => /Liliana/.test(l));
+      }),
+      ["Blue activates Liliana of the Veil's -2 (loyalty 3 -> 1) targeting AI 1"]);
+    same("a victim's choice of what to sacrifice, alone, is no pick",
+      fresh((h, seat) => {
+        victimSacs(seat, EDICT, 174, EDICT_T);
+        return h.B._getGame().picked?.has(EDICT.id) ?? false;
+      }),
+      false);
     // (C) a permanent spell's cast pick has no words: an Aura's target, unseen or on the stack
     const PAC = { ...card(425, "Pacifism", ["Enchantment"]), text: "Enchant creature\nEnchanted creature can't attack or block." };
     same("checker r4: Pacifism cast and resolved before any board names what it targeted",

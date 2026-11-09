@@ -471,8 +471,12 @@ class Seat {
       // (castingAbility != null, ManaBrewInteractiveSession's target prompt; set only by playChosenSpellAbility and
       // playFree): a casting pick is that play's, a trigger's never is. Each sub-ability's targets are asked apart, its
       // own chosenTargets from 0, so a casting pick with the same words adds to the play's earlier ones: Arc Trail's
-      // second target replaced its first, checker round 4. A cost's sacrifice is asked the same way and is no target.)
-      if (type === "chooseBoardTargets" && output?.type === "boardTargets" && src?.id && raw.input?.intent !== "sacrifice") {
+      // second target replaced its first, checker round 4. A cost's sacrifice, or an edict's victim's, is asked the same
+      // way and is no target: publishSacrificePrompt's, intent "sacrifice" titled "Sacrifice". An edict's target prompt
+      // has that intent too (its api's), but asks for a player, titled "Choose player to sacrifice" (playerTargetTitle);
+      // every scripted Sacrifice target is a player or opponent.)
+      const sacrifice = raw.input?.intent === "sacrifice" && raw.input?.presentation?.title === "Sacrifice";
+      if (type === "chooseBoardTargets" && output?.type === "boardTargets" && src?.id && !sacrifice) {
         const ids = (output.chosen || []).map((t) => `${t.kind}|${t.id}`);
         const was = game.picked?.get(src.id);
         const text = String(raw.sourceAbilityText || ""), casting = raw.input?.cancellable === true;
@@ -6895,6 +6899,9 @@ function fixApply(f, pub) {
   f.spent = f.held; // (the engine answers with a new question; until then this one may still be open)
   f.held = null;
   log(`fix #${f.id}: ${JSON.stringify(f.ops)}`);
+  // (a free play is a new cast or activation of its card, as notePlay's: the card's earlier picks are not its; the
+  // harness's playFree casts it with castingAbility set, so its own picks come as casting ones)
+  for (const op of f.ops) if (FREE_OPS.has(op.op) && op.card) game.picked?.delete(op.card);
   seat.directive({ type: "applyState", fixId: f.applyId, ops: f.ops });
 }
 // why this player can't change the game now (a manual fix or a debug setup), or null
