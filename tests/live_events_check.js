@@ -32,7 +32,8 @@ const STEPS = [
   { key: "foretell", cast: "Saw It Coming", ability: "Foretell", mana: "U U" },
   { key: "plot", cast: "Slickshot Show-Off", ability: "Plot", mana: "R R" },
   { key: "suspend", cast: "Rift Bolt", ability: "Suspend", mana: "R" },
-  { key: "delve", cast: "Treasure Cruise", mana: "U U U U" },
+  // (U U U U and four cards to delve pay its {7}{U}: with three or fewer in the graveyard it can't be cast at all)
+  { key: "delve", cast: "Treasure Cruise", mana: "U U U U", graveFill: 4 },
 ];
 // --sweep <file>: the keyword sweep (tools/keyword-sweep/pick.js) in place of the steps above, each keyword's card
 // twice in a deck of nothing else, so every one is in a hand within a few turns; judged by sweepJudge
@@ -148,8 +149,13 @@ class Client {
       case "chooseBoolean": return this.respond(p, type, { type: "decision", value: !/dredge/i.test(JSON.stringify(input)) || (mine && T.step.key === "dredge") });
       case "chooseCards": {
         const n = mine && T.step.key === "tutor" ? Math.max(input.min || 0, 1) : input.min || 0;
-        // (the step's own token first, for a sacrifice: another step's creature was the first offered, and went)
-        const cards = [...input.cards].sort((a, b) => (b.id === T.step?.tokenId) - (a.id === T.step?.tokenId));
+        // (the step's own token first, for a sacrifice: another step's creature was the first offered, and went; and one
+        // copy of each card a step still to come plays is chosen last: the hand is offered alphabetically, so cleanup threw
+        // away Censor, Consider, Demonic Tutor and Disenchant first, and games ran to the timeout, 2026-11-09)
+        const left = new Set(STEPS.filter((x) => !T.done[x.key]).map((x) => x.play || x.cast));
+        const keep = new Set(input.cards.filter((x) => left.delete(cname(x))).map((x) => x.id));
+        const rank = (x) => (x.id === T.step?.tokenId ? 0 : keep.has(x.id) ? 2 : 1);
+        const cards = [...input.cards].sort((a, b) => rank(a) - rank(b));
         return this.respond(p, type, { type: "chooseCardsDecision", chosenCardIds: cards.slice(0, n).map((c) => c.id) });
       }
       case "chooseFromSelection": return this.respond(p, type, { type: "selectionDecision", chosenIndices: [0] });
@@ -179,9 +185,12 @@ const landAction = (c, g, input, name) => {
   return (input.actions || []).find((a) => held.includes(a.cardId));
 };
 
+// the feed's last entry on a board (the entries are numbered in order, the same for every seat)
+const lastSeq = (g) => (g.events || []).at(-1)?.seq ?? 0;
+
 function begin(c, p, g, input, step) {
   const hand = zone(g, "hand", c.slot);
-  T.step = { ...step, seat: c.slot, state: "fix", from: T.boards.length, turn: g.turn };
+  T.step = { ...step, seat: c.slot, state: "fix", from: T.boards.length, fromSeq: lastSeq(g), turn: g.turn };
   if (step.play) {
     const land = landAction(c, g, input, step.play);
     T.step.state = "cast";
@@ -190,17 +199,18 @@ function begin(c, p, g, input, step) {
     return c.respond(p, "chooseAction", { type: "act", actionId: land.id });
   }
   T.step.cardId = hand.find((x) => cname(x) === step.cast).id;
-  const helper = step.needs ? hand.find((x) => cname(x) === step.needs) : null;
-  if (helper) T.step.helper = helper.id;
-  if (step.target === "helper") T.step.targetId = helper.id;
+  // (the card a step needs beside it is made where it's needed, not waited for in the same hand: Disenchant and
+  // Bonesplitter, or Think Twice and Darkblast, rarely met, 2026-11-09; it's found once the set-up is applied)
+  if (step.needs) T.step.helperZone = step.needsZone || "battlefield";
+  if (step.needs) T.step.helpersBefore = zone(g, T.step.helperZone, c.slot).map((x) => x.id);
   if (step.target === "self") T.step.targetId = c.slot;
   T.step.fixId = ++T.fixId;
   c.directive({ type: "applyState", fixId: T.step.fixId, ops: [
-    ...(helper ? [{ op: "move", card: helper.id, zone: step.needsZone || "battlefield" }] : []),
+    ...(step.needs ? [{ op: "createCard", name: step.needs, player: c.slot, zone: T.step.helperZone }] : []),
     // (a keyword used from another zone, flashback's or unearth's graveyard: the card is put there first)
     ...(step.fromZone ? [{ op: "move", card: T.step.cardId, zone: step.fromZone }] : []),
-    // (escape's other cards to exile: some of the hand into the graveyard first)
-    ...hand.filter((x) => x.id !== T.step.cardId && x.id !== helper?.id).slice(0, step.graveFill || 0).map((x) => ({ op: "move", card: x.id, zone: "graveyard" })),
+    // (escape's and delve's other cards to exile: the graveyard made up to graveFill with Mountains first, the hand kept)
+    ...Array.from({ length: Math.max(0, (step.graveFill || 0) - zone(g, "graveyard", c.slot).length) }, () => ({ op: "createCard", name: "Mountain", player: c.slot, zone: "graveyard" })),
     ...(step.token ? [{ op: "createToken", script: "r_1_1_goblin", player: c.slot }] : []),
     { op: "mana", player: c.slot, mana: step.mana }] });
 }
@@ -211,6 +221,11 @@ function priority(c, p, g, input) {
   if (s?.seat === c.slot && s.state === "fix") {
     if (g.stateFix?.fixId !== s.fixId) return pass();
     if (!g.stateFix.ok && g.stateFix.applied !== true) return finish(`set-up refused: ${JSON.stringify(g.stateFix).slice(0, 200)}`);
+    if (s.needs) {
+      s.helper = zone(g, s.helperZone, c.slot).find((x) => cname(x) === s.needs && !s.helpersBefore.includes(x.id))?.id;
+      if (!s.helper) return finish(`set-up made no ${s.needs} in ${c.slot}'s ${s.helperZone}`);
+      if (s.target === "helper") s.targetId = s.helper;
+    }
     if (s.token) {
       const tokens = zone(g, "battlefield", c.slot).filter((x) => x.identity?.isToken);
       s.tokenId = tokens.at(-1)?.id;
@@ -240,28 +255,54 @@ function priority(c, p, g, input) {
   const left = () => { const at = findIn(g, s.cardId)?.zone; return !!at && at !== (s.fromZone || "hand") && !(at === "graveyard" && !s.fromZone); };
   if (s?.seat === c.slot && s.state === "cast" && empty && (s.play ? findIn(g, s.cardId)?.zone === "battlefield" : s.onStack || left())) {
     s.to = T.boards.length;
+    s.toSeq = lastSeq(g);
     T.done[s.key] = s;
     T.step = null;
     process.stdout.write(`${s.key} by ${s.seat} on turn ${g.turn}${s.onStack ? "" : ` (never on the stack; now in ${findIn(g, s.cardId)?.zone || "no zone seen"})`}\n`);
     if (STEPS.every((x) => T.done[x.key])) return realTimeout(judge, 300);
   }
+  if (T.deal?.seat === c.slot) {
+    if (g.stateFix?.fixId !== T.deal.fixId) return pass();
+    if (!g.stateFix.ok && g.stateFix.applied !== true) return finish(`deal refused: ${JSON.stringify(g.stateFix).slice(0, 200)}`);
+    T.deal = null;
+  }
   if (!T.step && acting && main && empty && !finishedAll()) {
     const hand = zone(g, "hand", c.slot).map(cname);
-    const step = STEPS.find((x) => !T.done[x.key] && hand.includes(x.play || x.cast) && (!x.needs || hand.includes(x.needs))
-      && (!x.play || landAction(c, g, input, x.play)));
-    if (step) return begin(c, p, g, input, step);
+    const ready = (x) => hand.includes(x.play || x.cast) && (!x.play || landAction(c, g, input, x.play));
+    // (the sweep takes any keyword whose card is held; this check takes its steps in their order, so Village Rites draws
+    // before anything reaches a graveyard: a Darkblast there asks "dredge?" between its two draws, a board goes out
+    // between them, and the log says "draws a card" twice, "log: two cards drawn" failing, 2026-11-09)
+    const step = STEPS.find((x) => !T.done[x.key] && (!SWEEP || ready(x)));
+    if (step && ready(step)) return begin(c, p, g, input, step);
+    // (and the cards come by applyState, not the deal: every card a step still to come plays and the hand lacks is put
+    // there at once, before the steps begin; the last steps waited on the deal for up to 38 turns, 300 s, against the
+    // deploy gate's 120 s, 2026-11-09)
+    const missing = SWEEP ? [] : [...new Set(STEPS.filter((x) => !T.done[x.key]).map((x) => x.play || x.cast))].filter((n) => !hand.includes(n));
+    if (missing.length) {
+      T.deal = { seat: c.slot, fixId: ++T.fixId };
+      return c.directive({ type: "applyState", fixId: T.deal.fixId, ops: missing.map((name) => ({ op: "createCard", name, player: c.slot, zone: "hand" })) });
+    }
   }
   return pass();
 }
 const finishedAll = () => STEPS.every((x) => T.done[x.key]);
 
-// the feed for a step: every entry on the boards it covers, new ones only
+// the feed for a step: every entry from its start to its end, as the seat that played it saw them (the boards kept are
+// player-0's, which can lag that seat: Disenchant's destroy reached them after its step had ended, and "Disenchant
+// destroys the artifact" failed though the log said it, 2026-11-09)
 const feedOf = (s) => {
   const seen = new Set(), out = [];
-  for (const b of T.boards.slice(s.from, Math.max(s.to, s.from + 1))) for (const e of b.events || []) if (!seen.has(e.seq)) { seen.add(e.seq); out.push(e); }
-  const first = (T.boards[s.from - 1]?.events || []).at(-1)?.seq ?? 0;
-  return out.filter((e) => e.seq > first);
+  for (const b of T.boards) for (const e of b.events || []) if (e.seq > s.fromSeq && e.seq <= s.toSeq && !seen.has(e.seq)) { seen.add(e.seq); out.push(e); }
+  return out;
 };
+// (and the boards a step covers reach the first of player-0's to show its last entry, for the log)
+const settle = () => {
+  for (const s of Object.values(T.done)) {
+    const i = s.toSeq ? T.boards.findIndex((b) => (b.events || []).some((e) => e.seq >= s.toSeq)) : -1;
+    if (i > s.to) s.to = i;
+  }
+};
+const caughtUp = () => lastSeq(T.boards.at(-1) || {}) >= Math.max(0, ...Object.values(T.done).map((s) => s.toSeq || 0));
 
 // The bridge's log for every board seen, for the boards a step covers
 function logLines() {
@@ -291,6 +332,7 @@ function logLines() {
 const dump = () => arg("dump", null) && require("fs").writeFileSync(arg("dump"), JSON.stringify({ boards: T.boards, acts: T.acts, done: T.done }));
 function sweepJudge() {
   if (finished) return;
+  settle();
   dump();
   const { of } = logLines();
   for (const s of STEPS) {
@@ -306,7 +348,10 @@ function sweepJudge() {
 }
 
 function judge() {
+  // (once player-0's boards have every step's last entry)
+  if (!caughtUp()) return realTimeout(judge, 200);
   if (SWEEP) return sweepJudge();
+  settle();
   dump();
   const D = T.done, on = (k, f) => feedOf(D[k]).filter(f);
   const lib = (e) => e.from === "Library";
