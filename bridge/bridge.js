@@ -467,11 +467,17 @@ class Seat {
       // A follow-up pick adds to the first. Kept with the words they were asked for, and used only for a stack item with
       // those words: a pick for a cast that was then cancelled named the target of that card's next, other spell. A
       // cancel forgets them.)
-      if (type === "chooseBoardTargets" && output?.type === "boardTargets" && src?.id) {
+      // (the harness's target prompt is cancellable exactly while a spell is being cast or an ability activated
+      // (castingAbility != null, ManaBrewInteractiveSession's target prompt; set only by playChosenSpellAbility and
+      // playFree): a casting pick is that play's, a trigger's never is. Each sub-ability's targets are asked apart, its
+      // own chosenTargets from 0, so a casting pick with the same words adds to the play's earlier ones: Arc Trail's
+      // second target replaced its first, checker round 4. A cost's sacrifice is asked the same way and is no target.)
+      if (type === "chooseBoardTargets" && output?.type === "boardTargets" && src?.id && raw.input?.intent !== "sacrifice") {
         const ids = (output.chosen || []).map((t) => `${t.kind}|${t.id}`);
         const was = game.picked?.get(src.id);
-        const text = String(raw.sourceAbilityText || "");
-        (game.picked ??= new Map()).set(src.id, { ids: Number(raw.input?.chosenTargets) > 0 && was?.text === text ? [...was.ids, ...ids] : ids, text, at: Date.now() });
+        const text = String(raw.sourceAbilityText || ""), casting = raw.input?.cancellable === true;
+        const more = was?.text === text && (Number(raw.input?.chosenTargets) > 0 || (casting && was.casting));
+        (game.picked ??= new Map()).set(src.id, { ids: more ? [...was.ids, ...ids] : ids, text, casting, at: Date.now() });
       } else if (output?.type === "cancel" && src?.id) game.picked?.delete(src.id);
       // (a source chosen, Reflect Damage's, a Circle of Protection's, Deflecting Palm's: said, and kept for what it does
       // to that source's damage this turn; Reflect Damage's choice read nothing, Kykar #6, Deflecting Palm's #24. Only the
@@ -1426,6 +1432,8 @@ function logSnapshot(pub, prev = null) {
     // (each item's own targets, by its stack id: two of Niv-Mizzet's pings are one entry, and one may resolve before the
     // other; see logEvents' resolved)
     (stack[key].tgBy ??= {})[s.id] = { c: cardTargets, p: playerTargets };
+    // (and its own stack words: two triggers of one card from two opponents' spells name two Activators, see unlessNews)
+    (stack[key].descBy ??= {})[s.id] = s.text || "";
     for (const t of s.targets || []) if (t.kind === "spell") stack[key].tg.push(t.id);
     // (and those a counterspell targets: an instant or sorcery under one is countered too, see logEvents)
     // (one cast another way, by its card once it has left the stack, see logEvents: not by Forge's stack words, "Wash Away
@@ -1973,7 +1981,11 @@ function unlessNews(prev, resolved, facts) {
     let cost = (unless || may)[1];
     if (cost === "{X}" && /\bwhere X is [^.]*'s power\b/i.test(s.text) && prev.cards[s.id]?.pw != null) cost = `{${prev.cards[s.id].pw}}`;
     // (Forge's usernames, as displayText reads them: any case)
-    const by = /\bActivator: ([^,\]]+)/.exec(s.desc)?.[1]?.trim().toLowerCase();
+    // (each item that left by its own words, and one payer for them all or none: Esper Sentinel's two triggers, AI 1's
+    // spell and AI 2's, merged into one entry read "AI 1 doesn't pay" and "AI 1 pays", checker round 4)
+    const activator = (d) => /\bActivator: ([^,\]]+)/.exec(d || "")?.[1]?.trim().toLowerCase();
+    const bys = new Set((s.left?.length ? s.left : [null]).map((sid) => activator(sid != null && s.descBy?.[sid] != null ? s.descBy[sid] : s.desc)));
+    const by = bys.size === 1 ? [...bys][0] : null;
     const k = by ? (game.playerOrder || []).findIndex((u) => String(u || "").toLowerCase() === by) : -1;
     const payer = may ? s.ctl : k >= 0 ? `player-${k}` : null;
     if (!payer) continue;
@@ -1988,9 +2000,11 @@ function unlessNews(prev, resolved, facts) {
     if (own.length) {
       // (all of them answered, or nothing: which of the others was which is unknown. And none the feed contradicts: a
       // "yes" whose payment failed, Blue's yes to AI 1's Rhystic Study then AI 1's draw, read "Blue pays {1}", checker
-      // round 3. Paid, a "you may pay" draws once each; an "unless" draws only unpaid, a "you may draw" not always.)
+      // round 3. Paid, a "you may pay" draws once each, and a yes with no draw may be a failed payment; an "unless"
+      // draws only unpaid, and not always: "you may draw", or a draw from an empty library, so only a draw beyond the
+      // "no"s contradicts them.)
       const paid = own.filter((a) => a.value).length;
-      const fits = !facts || !drawOnly || (may ? drew === paid : /, you may draw a card unless\b/i.test(s.text) ? drew <= gone - paid : drew === gone - paid);
+      const fits = !facts || !drawOnly || (may ? drew === paid : drew <= gone - paid);
       if (own.length === gone && fits) for (const a of own) lines.push(a.value ? pays : not);
       continue;
     }
@@ -2109,7 +2123,7 @@ function logEvents(prev, cur, pub, facts = null) {
     const left = s.sids.filter((x) => !curSids.has(x));
     if (!left.length || s.sids.some((x) => prevCounterTargeted.has(x)) || takenOff.get(s.id)?.how === "counter") return [];
     const by = (k, all) => (s.tgBy ? left.flatMap((x) => s.tgBy[x]?.[k] || []) : all);
-    return [{ ...s, gone: left.length, cardTg: by("c", s.cardTg), plTg: by("p", s.plTg) }];
+    return [{ ...s, gone: left.length, left, cardTg: by("c", s.cardTg), plTg: by("p", s.plTg) }];
   });
   // (what countered a spell, said after "is countered": the counterspell seen targeting it, the one no board showed that
   // took it, or the only counterspell that resolved just now; "Marble Diamond is countered" said nothing of White's
@@ -2127,19 +2141,22 @@ function logEvents(prev, cur, pub, facts = null) {
   // these words only, see Seat.respond)
   for (const [key, s] of Object.entries(cur.stack)) {
     const pick = game.picked?.get(s.id);
-    if (pick && !prev.stack[key]?.pk && pick.text && pick.text === s.text && Date.now() - pick.at < 60000) { s.pk = pick.ids; game.picked.delete(s.id); }
+    // (a casting pick with no words is a permanent spell's, whose stack item has none either: an Aura's, which named no
+    // target, checker round 4; any other only with its words)
+    if (pick && !prev.stack[key]?.pk && (pick.text || pick.casting) && pick.text === s.text && Date.now() - pick.at < 60000) { s.pk = pick.ids; game.picked.delete(s.id); }
     else if (prev.stack[key]?.pk) s.pk = prev.stack[key].pk;
   }
   // (" targeting X and Y": a stack item's targets by name, Forge's and the player's picks, or a pick not yet on any stack
   // item (one cast and gone before a board showed it); "White casts Counterspell" named no target, Kykar #8)
-  // (a record's pick, with no stack item to hold it, only with the record's own words, as a stack item's: a cast's, an
-  // instant's or sorcery's card text; an activation's, its words. Else not this play's, kept for its own item: a
-  // creature's enter trigger's pick read "casts <the creature> targeting", checker round 3)
-  const norm = (t) => String(t || "").replace(/\s+/g, " ").trim();
-  const targetWords = (s, id = s?.id, words = null) => {
+  // (a record's pick, with no stack item to hold it, only a casting one (see Seat.respond): made while that play was
+  // being cast or activated, as notePlay forgets the card's earlier picks. Any other is not this play's and is kept for
+  // its own item: a creature's enter trigger's pick read "casts <the creature> targeting", checker round 3. Not by the
+  // card's words: Forge's prompt words differ from the Oracle text for half the targeted instants in our decks, Into
+  // the Roil's kicker line, and a permanent spell's prompt has none, Pacifism's, checker round 4.)
+  const targetWords = (s, id = s?.id) => {
     let ids = [...(s?.cardTg || []).map((x) => `card|${x}`), ...(s?.plTg || []).map((x) => `player|${x}`), ...(s?.pk || [])];
     const pick = !s && game.picked?.get(id);
-    if (pick && Date.now() - pick.at < 60000 && norm(pick.text) && norm(pick.text) === norm(words)) { ids = pick.ids; game.picked.delete(id); }
+    if (pick?.casting && Date.now() - pick.at < 60000) { ids = pick.ids; game.picked.delete(id); }
     const stackName = (sid) => bothStacks.find((x) => x.sids.includes(sid))?.name;
     const names = [...new Set(ids)].map((t) => {
       const kind = t.slice(0, t.indexOf("|")), tid = t.slice(t.indexOf("|") + 1), c = cur.cards[tid] || prev.cards[tid];
@@ -2155,13 +2172,14 @@ function logEvents(prev, cur, pub, facts = null) {
   // "White uses Ral Zarek's ability", #13; any other, its targets)
   const activationLine = (s, mine) => {
     const id = s?.id ?? mine.id, ctl = s?.ctl ?? mine.ctl, name = s?.name ?? mine.name, text = s?.text || mine?.text || "";
-    const tg = targetWords(s, id, s ? null : mine?.text);
+    const tg = targetWords(s, id);
     if (/^Equip\b/i.test(text) && tg) return `${who(ctl)} equips ${tg.slice(" targeting ".length)} with ${name}`;
     const was = prev.cards[id]?.loy, now = cur.cards[id]?.loy, cost = /^([+−-]?(?:\d+|X)):/.exec(text)?.[1];
     // (the cost is the ability's own words; its loyalty before and after only when both boards show it: a planeswalker
-    // cast and activated between two boards read "White uses Ral Zarek's ability". A planeswalker's alone, by its type or
-    // its loyalty: an artifact's "0: Draw a card." read "activates Weird Thing's 0", checker round 3)
-    const walker = was != null || now != null || (pubIndex[id]?.types || []).includes("Planeswalker");
+    // cast and activated between two boards read "White uses Ral Zarek's ability". A planeswalker's alone, by its type
+    // on this board or its loyalty on the last (gone from view since, to a hand): an artifact's "0: Draw a card." read
+    // "activates Weird Thing's 0", checker round 3)
+    const walker = was != null || (pubIndex[id]?.types || []).includes("Planeswalker");
     if (cost && walker) return `${who(ctl)} activates ${poss(name)} ${cost.replace("−", "-")}${now != null && was != null && now !== was ? ` (loyalty ${was} -> ${now})` : ""}${tg}`;
     return `${who(ctl)} uses ${poss(name)} ability${s?.via ? ` (${poss(s.via)})` : ""}${tg}`;
   };
@@ -2260,7 +2278,7 @@ function logEvents(prev, cur, pub, facts = null) {
     if (e.kind === "cast" && cur.cards[e.id]?.land) { e.said = true; landPlays.add(e.id); }
     // (newly public, or moved from a public zone: a commander cast from the command zone was seen there already, and its
     // cast went unlogged, hp-07 #39 2026-10-27)
-    else if (e.kind === "cast" && cur.cards[e.id] && (!prev.cards[e.id] || prev.cards[e.id].zone !== cur.cards[e.id].zone)) { out.push(`${who(e.ctl)} casts ${e.name}${targetWords(null, e.id, cur.cards[e.id].spell ? pubIndex[e.id]?.text : null)}`); e.said = true; castNow.add(e.id); game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
+    else if (e.kind === "cast" && cur.cards[e.id] && (!prev.cards[e.id] || prev.cards[e.id].zone !== cur.cards[e.id].zone)) { out.push(`${who(e.ctl)} casts ${e.name}${targetWords(null, e.id)}`); e.said = true; castNow.add(e.id); game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
     else if (e.kind === "faceup" && back) e.said = true;
     else if (e.kind !== "cast" && back) { out.push(keywordLine(e.kind, e.ctl, e.name) || activationLine(null, e)); e.said = true; game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
   }

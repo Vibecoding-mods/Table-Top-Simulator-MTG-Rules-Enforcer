@@ -2228,25 +2228,40 @@ const id = (n) => `engine-card-${n}`;
     same("checker r3: an artifact's '0: Draw a card.' is an ability, no loyalty cost",
       between(board((b) => put(b, "battlefield", card(390, "Weird Thing", ["Artifact"]))), board((b) => { put(b, "battlefield", card(390, "Weird Thing", ["Artifact"])); b.stack.push(SPL("engine-stack-96", 390, "Weird Thing", "0: Draw a card.")); }), []),
       ["Blue uses Weird Thing's ability"]);
-    // (g) a pick for a play no board showed on the stack, only with that play's own words
+    // (g) a pick for a play no board showed on the stack: only one made while casting it. The harness's real shapes: a
+    // target prompt is cancellable exactly while a spell is cast or an ability activated; a trigger's has no words and
+    // isn't cancellable; a permanent spell's cast has no words; a spell's words are Forge's, not the Oracle's.
     const CHUPA_ETB = "When Ravenous Chupacabra enters, destroy target creature an opponent controls.";
     const CHUPA = { ...card(395, "Ravenous Chupacabra", ["Creature"]), text: CHUPA_ETB };
-    const pendingPick = (seat, h, c, words, n, pick) => {
+    const askTargets = (seat, c, words, n, picks, casting = true, extra = {}) => {
+      for (const [k, p] of picks.entries()) {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: n + k, ...(words ? { sourceAbilityText: words } : {}), sourceCard: { id: c.id, identity: c.identity },
+          input: { cancellable: casting, candidates: [{ id: p, kind: "card" }], chosenTargets: 0, intent: "destroy", maxTargets: 1, minTargets: 1, type: "chooseBoardTargets", presentation: { title: "Choose a target" }, ...extra } };
+        seat.respond(n + k, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: p }] });
+      }
+    };
+    const pendingPick = (seat, h, c, words, n, pick, casting = true) => {
       h.B.notePlay(seat, { cardId: c.id, id: `prompt-action-${n}`, label: `Cast ${c.identity.name}`, mode: { type: "normal" }, type: "cast" }, c.identity.name, 0);
-      seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: n, sourceAbilityText: words, sourceCard: { id: c.id, identity: c.identity },
-        input: { candidates: [{ id: pick, kind: "card" }], chosenTargets: 0, type: "chooseBoardTargets", presentation: { title: c.identity.name } } };
-      seat.respond(n, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: pick }] });
+      askTargets(seat, c, words, n, [pick].flat(), casting);
     };
     same("checker r3: a creature cast unseen, its enter trigger's pick made and resolved: the cast names no target",
       fresh((h, seat) => {
         const a = board((b) => { put(b, "hand", CHUPA); put(b, "battlefield", GIANT(), "player-1"); });
         seat.board = { state: { gameView: a } };
-        pendingPick(seat, h, CHUPA, CHUPA_ETB, 91, id(229));
+        pendingPick(seat, h, CHUPA, undefined, 91, id(229), false);
         return logOf(h, a, board((b) => { put(b, "battlefield", CHUPA); put(b, "graveyard", GIANT(), "player-1"); }),
           [ev(11, "Battlefield", "Graveyard", id(229), "destroyed", "player-1", { cause: "Destroy", causeCardId: id(395), causeName: "Ravenous Chupacabra" })]).filter((l) => /casts/.test(l));
       }),
       ["Blue casts Ravenous Chupacabra"]);
-    same("and an instant cast unseen, picked with its own words, names its target",
+    same("and a trigger's pick asked with the card's very words is still no casting pick",
+      fresh((h, seat) => {
+        const a = board((b) => { put(b, "hand", CHUPA); put(b, "battlefield", GIANT(), "player-1"); });
+        seat.board = { state: { gameView: a } };
+        pendingPick(seat, h, CHUPA, CHUPA_ETB, 89, id(229), false);
+        return logOf(h, a, board((b) => { put(b, "battlefield", CHUPA); put(b, "graveyard", GIANT(), "player-1"); }), CAST_EV).filter((l) => /casts/.test(l));
+      }),
+      ["Blue casts Ravenous Chupacabra"]);
+    same("and an instant cast unseen, picked while casting it, names its target",
       fresh((h, seat) => {
         const SHOCK_T = "Shock deals 2 damage to any target.", shock = { ...card(396, "Shock", ["Instant"]), text: SHOCK_T };
         const a = board((b) => { put(b, "hand", shock); put(b, "battlefield", opp(BEAR()), "player-1"); });
@@ -2392,6 +2407,9 @@ const id = (n) => `engine-card-${n}`;
         return logOf(h, mentorBoard((b) => b.stack.push(MENTOR("engine-stack-40"))), mentorBoard(drew), []);
       }),
       ["Blue pays {1} (Mentor of the Meek)", "Blue draws a card"]);
+    same("Blue's 'Pay {1}?' no to AI 1's Esper Sentinel and no draw (AI 1's library empty): Blue doesn't pay, the no is the decision",
+      fresh((h, seat) => { sentAnswer(seat, 116, false); return logOf(h, sentW((b) => b.stack.push(aiSentinel("engine-stack-109"))), sentW(() => {}), CAST_EV); }),
+      ["Blue doesn't pay {1} (Esper Sentinel)"]);
     same("and the yes when AI 1 drew by it (a mandatory draw unless paid): no 'Blue pays'",
       fresh((h, seat) => {
         sentAnswer(seat, 111, true);
@@ -2418,30 +2436,138 @@ const id = (n) => `engine-card-${n}`;
     same("a planeswalker activated and returned to its owner's hand: its cost by its loyalty last seen",
       between(board((b) => put(b, "battlefield", RAL(4))), board((b) => { count(b, "hand", 1); b.stack.push({ ...RAL_ULT, sourceAbilityText: "-2: Ral Zarek deals 3 damage to any target." }); }), []).filter((l) => /Ral Zarek's/.test(l)),
       ["Blue activates Ral Zarek's -2 targeting AI 1"]);
-    same("a pick asked with no words names nothing on a cast no board showed on the stack",
-      fresh((h, seat) => {
-        const bare = card(427, "Shock", ["Instant"]);
-        const a = board((b) => { put(b, "hand", bare); put(b, "battlefield", opp(BEAR()), "player-1"); });
-        seat.board = { state: { gameView: a } };
-        pendingPick(seat, h, bare, undefined, 113, id(1));
-        return logOf(h, a, board((b) => { put(b, "graveyard", bare); put(b, "graveyard", opp(BEAR()), "player-1"); }),
-          [ev(11, "Stack", "Graveyard", id(427)), ev(12, "Battlefield", "Graveyard", id(1), "destroyed", "player-1")]).filter((l) => /casts/.test(l));
-      }),
-      ["Blue casts Shock"]);
-    // (an activation no board showed on the stack: the pick is its own only with its words)
-    const pendingAct = (pickWords) => fresh((h, seat) => {
+    // (an activation no board showed on the stack: the pick is its own only when made while activating it)
+    const pendingAct = (pickWords, casting) => fresh((h, seat) => {
       const w = (dmg, tapped) => board((b) => { put(b, "battlefield", { ...PYRO_MINE, tapped }); put(b, "battlefield", { ...WURM, ...(dmg ? { damage: dmg } : {}) }, "player-1"); });
       const a = w(0, false);
       seat.board = { state: { gameView: a } };
       h.B.notePlay(seat, { cardId: id(238), id: "prompt-action-41", description: PYRO_T, type: "activateAbility" }, "Prodigal Pyromancer", 3);
-      seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: 114, sourceAbilityText: pickWords, sourceCard: { id: id(238), identity: { name: "Prodigal Pyromancer" } },
-        input: { candidates: [{ id: id(216), kind: "card" }], chosenTargets: 0, type: "chooseBoardTargets", presentation: { title: "Prodigal Pyromancer" } } };
-      seat.respond(114, "chooseBoardTargets", { type: "boardTargets", chosen: [{ kind: "card", id: id(216) }] });
+      askTargets(seat, PYRO_MINE, pickWords, 114, [id(216)], casting);
       seat.priorityPromptId = 9;
       return logOf(h, a, w(1, true)).filter((l) => /uses/.test(l));
     });
-    same("an activation seen only once paid for names its pick, asked with its words", pendingAct(PYRO_T), ["Blue uses Prodigal Pyromancer's ability targeting Craw Wurm"]);
-    same("and not a pick asked with other words (another ability of the card's)", pendingAct("When Prodigal Pyromancer dies, it deals 1 damage to any target."), ["Blue uses Prodigal Pyromancer's ability"]);
+    same("an activation seen only once paid for names the pick made while activating it", pendingAct(PYRO_T, true), ["Blue uses Prodigal Pyromancer's ability targeting Craw Wurm"]);
+    same("and not a pick of the card's trigger (no words, not cancellable)", pendingAct(undefined, false), ["Blue uses Prodigal Pyromancer's ability"]);
+
+    // ---- the checker's round 4 (62733b5)
+    // (A) one card's triggers merged into one entry, from two opponents' spells: two Activators, no payer said
+    same("checker r4: Esper Sentinel's triggers from AI 1's and AI 2's spells in one entry name no payer",
+      fresh((h) => {
+        const g = h.B._getGame(); g.playerOrder.push("self-hosted-node-78-bot"); g.slotNames["player-2"] = "AI 2"; g.slotColor["player-2"] = "Red"; g.total = 3; g.bots = 2;
+        const ESP = { ...SENTINEL, power: "1" };
+        const w = (fill) => board((b) => { put(b, "battlefield", ESP); count(b, "library", 50); fill(b); });
+        return logOf(h, w((b) => b.stack.push(TRIG("engine-stack-91", 244, "Esper Sentinel", SENTINEL_TEXT, "player-0", { text: `${SENTINEL_TEXT} [Card: Opt (421), Activator: ${ACT}, SpellAbility: Opt]` }),
+            TRIG("engine-stack-92", 244, "Esper Sentinel", SENTINEL_TEXT, "player-0", { text: `${SENTINEL_TEXT} [Card: Shock (422), Activator: self-hosted-node-78-bot, SpellAbility: Shock]` }))),
+          w(drew), [ev(11, "Library", "Hand", null, "draw", "player-0", { cause: "Draw", causeCardId: id(244), causeName: "Esper Sentinel" })]);
+      }),
+      ["Blue draws a card"]);
+    same("and two from one opponent's spells in one entry: that opponent, once each",
+      between(watchers((b) => b.stack.push(UNLESS("engine-stack-26", 1, "Esper Sentinel", SENTINEL_TEXT, 244), UNLESS("engine-stack-25", 1, "Esper Sentinel", SENTINEL_TEXT, 244))), watchers(drew),
+        [ev(11, "Library", "Hand", null, "draw", "player-0", { cause: "Draw", causeCardId: id(244), causeName: "Esper Sentinel" })]).filter((l) => /pay/.test(l)),
+      ["AI 1 doesn't pay {1} (Esper Sentinel)", "AI 1 pays {1} (Esper Sentinel)"]);
+    // (B) each sub-ability's targets asked apart, from 0 each: Arc Trail's two, Decimate's four
+    const ARC_REAL = "Arc Trail deals 2 damage to any target and 1 damage to any other target.";
+    const ARC_C = { ...card(423, "Arc Trail", ["Sorcery"]), text: ARC_REAL }, ELVES = opp(card(424, "Llanowar Elves", ["Creature"]));
+    const arcCtx = (fill) => board((b) => { put(b, "battlefield", opp(BEAR()), "player-1"); put(b, "battlefield", ELVES, "player-1"); fill(b); });
+    same("checker r4: Arc Trail's two target prompts, each its sub-ability's: both targets named",
+      fresh((h, seat) => {
+        const a = arcCtx((b) => put(b, "hand", ARC_C));
+        seat.board = { state: { gameView: a } };
+        pendingPick(seat, h, ARC_C, ARC_REAL, 120, [id(1), id(424)]);
+        return logOf(h, a, arcCtx((b) => b.stack.push(SPL("engine-stack-93", 423, "Arc Trail", ARC_REAL))));
+      }),
+      ["Blue casts Arc Trail targeting Grizzly Bears and Llanowar Elves"]);
+    same("and the same cast unseen on any stack names both too",
+      fresh((h, seat) => {
+        const a = arcCtx((b) => put(b, "hand", ARC_C));
+        seat.board = { state: { gameView: a } };
+        pendingPick(seat, h, ARC_C, ARC_REAL, 122, [id(1), id(424)]);
+        return logOf(h, a, board((b) => { put(b, "graveyard", ARC_C); put(b, "graveyard", opp(BEAR()), "player-1"); put(b, "graveyard", ELVES, "player-1"); }),
+          [ev(11, "Stack", "Graveyard", id(423)), ev(12, "Battlefield", "Graveyard", id(1), "destroyed", "player-1"), ev(13, "Battlefield", "Graveyard", id(424), "destroyed", "player-1")]).filter((l) => /casts/.test(l));
+      }),
+      ["Blue casts Arc Trail targeting Grizzly Bears and Llanowar Elves"]);
+    same("a trigger's two picks with no words are no casting picks: the second does not add to the first",
+      fresh((h, seat) => {
+        askTargets(seat, ARC_C, undefined, 124, [id(1), id(424)], false);
+        const p = h.B._getGame().picked.get(id(423));
+        return p.ids;
+      }),
+      ["card|engine-card-424"]);
+    same("a trigger's pick, then a casting one with the same words: the casting pick alone",
+      fresh((h, seat) => {
+        askTargets(seat, ARC_C, ARC_REAL, 160, [id(1)], false);
+        askTargets(seat, ARC_C, ARC_REAL, 161, [id(424)], true);
+        const p = h.B._getGame().picked.get(id(423));
+        return [p.ids, p.casting];
+      }),
+      [["card|engine-card-424"], true]);
+    same("a casting pick, then a trigger's with the same (no) words: the trigger's alone, no casting pick left",
+      fresh((h, seat) => {
+        const aura = card(425, "Pacifism", ["Enchantment"]);
+        askTargets(seat, aura, undefined, 162, [id(1)], true);
+        askTargets(seat, aura, undefined, 163, [id(424)], false);
+        const p = h.B._getGame().picked.get(id(425));
+        return [p.ids, p.casting];
+      }),
+      [["card|engine-card-424"], false]);
+    same("two casting picks of one card with different words (two of its abilities): the second alone",
+      fresh((h, seat) => {
+        askTargets(seat, ARC_C, "{1}: Tap target creature.", 164, [id(1)], true);
+        askTargets(seat, ARC_C, "{2}: Destroy target creature.", 165, [id(424)], true);
+        return h.B._getGame().picked.get(id(423)).ids;
+      }),
+      ["card|engine-card-424"]);
+    // (a cost's sacrifice, asked as board targets with intent "sacrifice", is no target)
+    const SPLINTERS_T = "Destroy target creature.";
+    same("a sacrifice for a spell's cost, asked as board targets, is not named as its target",
+      fresh((h, seat) => {
+        const bs = { ...card(428, "Bone Splinters", ["Sorcery"]), text: `As an additional cost to cast this spell, sacrifice a creature.\n${SPLINTERS_T}` };
+        const a = board((b) => { put(b, "hand", bs); put(b, "battlefield", ELF([])); put(b, "battlefield", opp(BEAR()), "player-1"); });
+        seat.board = { state: { gameView: a } };
+        pendingPick(seat, h, bs, SPLINTERS_T, 126, id(1));
+        askTargets(seat, bs, SPLINTERS_T, 127, [id(390)], true, { intent: "sacrifice", presentation: { title: "Sacrifice" } });
+        return logOf(h, a, board((b) => { b.stack.push(SPL("engine-stack-111", 428, "Bone Splinters", SPLINTERS_T)); put(b, "graveyard", ELF([])); put(b, "battlefield", opp(BEAR()), "player-1"); }),
+          [ev(11, "Battlefield", "Graveyard", id(390), "sacrificed", "player-0", { cause: "Cost:Sacrifice", causeCardId: id(428), causeName: "Bone Splinters" })]).filter((l) => /casts/.test(l));
+      }),
+      ["Blue casts Bone Splinters targeting Grizzly Bears"]);
+    // (C) a permanent spell's cast pick has no words: an Aura's target, unseen or on the stack
+    const PAC = { ...card(425, "Pacifism", ["Enchantment"]), text: "Enchant creature\nEnchanted creature can't attack or block." };
+    same("checker r4: Pacifism cast and resolved before any board names what it targeted",
+      fresh((h, seat) => {
+        const a = board((b) => { put(b, "hand", PAC); put(b, "battlefield", opp(BEAR()), "player-1"); });
+        seat.board = { state: { gameView: a } };
+        pendingPick(seat, h, PAC, undefined, 130, id(1));
+        return logOf(h, a, board((b) => { put(b, "battlefield", { ...PAC, attachedTo: id(1) }); put(b, "battlefield", opp(BEAR()), "player-1"); }), [ev(11, "Stack", "Battlefield", id(425))]).filter((l) => /casts/.test(l));
+      }),
+      ["Blue casts Pacifism targeting Grizzly Bears"]);
+    same("checker r4: Pacifism seen on the stack names what it targets",
+      fresh((h, seat) => {
+        const a = board((b) => { put(b, "hand", PAC); put(b, "battlefield", opp(BEAR()), "player-1"); });
+        seat.board = { state: { gameView: a } };
+        pendingPick(seat, h, PAC, undefined, 140, id(1));
+        const st = { controllerId: "player-0", id: "engine-stack-94", identity: { name: "Pacifism", isToken: false }, isPermanentSpell: true, ownerId: "player-0", sourceId: id(425), targets: [], text: "Pacifism - Enchant creature" };
+        return logOf(h, a, board((b) => { put(b, "battlefield", opp(BEAR()), "player-1"); b.stack.push(st); }));
+      }),
+      ["Blue casts Pacifism targeting Grizzly Bears"]);
+    same("and a wordless pick not made while casting (a trigger's) names nothing on a permanent spell on the stack",
+      fresh((h, seat) => {
+        askTargets(seat, PAC, undefined, 142, [id(1)], false);
+        const st = { controllerId: "player-0", id: "engine-stack-94", identity: { name: "Pacifism", isToken: false }, isPermanentSpell: true, ownerId: "player-0", sourceId: id(425), targets: [], text: "Pacifism - Enchant creature" };
+        return logOf(h, board((b) => put(b, "battlefield", opp(BEAR()), "player-1")), board((b) => { put(b, "battlefield", opp(BEAR()), "player-1"); b.stack.push(st); }));
+      }),
+      ["Blue casts Pacifism"]);
+    // (an instant whose prompt words are Forge's, not its Oracle text: Into the Roil's, without its kicker line)
+    const ROIL_PROMPT = "Return target nonland permanent to its owner's hand. If this spell was kicked, draw a card.";
+    same("checker r4: Into the Roil cast and resolved before any board names its target (Forge's words, not the Oracle's)",
+      fresh((h, seat) => {
+        const roil = { ...card(426, "Into the Roil", ["Instant"]), text: `Kicker {1}{U} (You may pay an additional {1}{U} as you cast this spell.)\n${ROIL_PROMPT}` };
+        const a = board((b) => { put(b, "hand", roil); put(b, "battlefield", GIANT(), "player-1"); });
+        seat.board = { state: { gameView: a } };
+        pendingPick(seat, h, roil, ROIL_PROMPT, 150, id(229));
+        return logOf(h, a, board((b) => { put(b, "graveyard", roil); put(b, "hand", GIANT(), "player-1"); }),
+          [ev(11, "Stack", "Graveyard", id(426)), ev(12, "Battlefield", "Hand", id(229), null, "player-1")]).filter((l) => /casts/.test(l));
+      }),
+      ["Blue casts Into the Roil targeting Hill Giant"]);
   }
 
   process.stdout.write(`${failed ? "FAILED" : "PASSED"}: ${passed} passed, ${failed} failed\n`);
