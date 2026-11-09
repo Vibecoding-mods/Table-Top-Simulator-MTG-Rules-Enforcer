@@ -1,13 +1,15 @@
 diff --git a/forge-harness/native/extra-config/reflect-config.json b/forge-harness/native/extra-config/reflect-config.json
-index b363b43..dbdd84c 100644
+index b363b43..024629b 100644
 --- a/forge-harness/native/extra-config/reflect-config.json
 +++ b/forge-harness/native/extra-config/reflect-config.json
-@@ -8,5 +8,10 @@
+@@ -8,5 +8,12 @@
    { "name": "forge.game.trigger.Trigger", "fields": [{ "name": "maxId" }] },
    { "name": "forge.game.replacement.ReplacementEffect", "fields": [{ "name": "maxId" }] },
    { "name": "forge.game.staticability.StaticAbility", "fields": [{ "name": "maxId" }] },
 -  { "name": "forge.game.Game", "fields": [{ "name": "maxId" }] }
 +  { "name": "forge.game.Game", "fields": [{ "name": "maxId" }] },
++  { "name": "forge.game.phase.PhaseHandler", "fields": [{ "name": "extraTurns" }] },
++  { "name": "forge.game.player.PlayerStatistics", "fields": [{ "name": "extraTurnsPlayed" }] },
 +  {
 +    "name": "forge.harness.host.EngineEventLog",
 +    "queryAllDeclaredMethods": true,
@@ -15,15 +17,15 @@ index b363b43..dbdd84c 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..0eff1fc 100644
+index 54173c6..0a99346 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
-@@ -74,13 +74,15 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
+@@ -74,18 +74,24 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
  The node can opt into `checkpointMetrics` on its internal start request. `recordCheckpoint` records copy and bookkeeping nanoseconds only for successful checkpoints. The session owns the samples; `drainCheckpointMetrics` serializes and clears them under the same lock used to append. WASM games also enable collection: `WasmMain` supplies a session drain to `SabTransport`, which posts `forge:checkpoints` before each new prompt and at game end. `forge:decision.checkpointMs` accumulates checkpoints across bot prompts within the same human-response window. Keep checkpoint instrumentation separate from per-viewer board snapshot timing.
  
  
 -The session records at most one restore point (a Forge `GameSnapshot`) per step: at the first priority prompt a human seat gets in that step with an empty stack. Forge's snapshot restores spells on the stack but not abilities or triggers, and it does not remove stack entries created after it was taken, so every restore starts from an empty stack and `restore` clears the live stack first. The session keeps the points of the current turn and the 3 turns before it (`CHECKPOINT_TURNS`) and discards older ones when it records a new point; the kept points go out in `GameViewDto.checkpoints`, and a restore drops the points after it.
-+The session records at most one restore point (a Forge `GameSnapshot`) per step: at the first priority prompt a human seat gets in that step with an empty stack. Forge's snapshot restores spells on the stack but not abilities or triggers, and it does not remove stack entries created after it was taken, so every restore starts from an empty stack and `restore` clears the live stack first. The snapshot copies neither a dungeon's current room (`Card.currentRoom`), nor a player's completed dungeons, nor `Player.venturedThisTurn`, so each point also keeps them (`DungeonProgress`, for every registered player; the completed list as a copy, since the restore clears the live one before re-adding) and a restore (or a refused `applyState`) puts them back. Without that a dungeon keeps the room it reached after the point, a dungeon completed after the point comes back with no room while staying in the completed list, and a venture undone by the rewind still counts for Keen-Eared Sentry's once-a-turn limit. The snapshot also leaves the initiative and the monarch with their holder when nobody held them at the point (`GameSnapshot.copyGameState` only sets them when non-null), and a player's initiative effect card made after the point is swept from the command zone while `Player.initiativeEffect` still points at it; the session does not correct either. The session keeps the points of the current turn and the 3 turns before it (`CHECKPOINT_TURNS`) and discards older ones when it records a new point; the kept points go out in `GameViewDto.checkpoints`, and a restore drops the points after it.
++The session records at most one restore point (a Forge `GameSnapshot`) per step: at the first priority prompt a human seat gets in that step with an empty stack. Forge's snapshot restores spells on the stack but not abilities or triggers, and it does not remove stack entries created after it was taken, so every restore starts from an empty stack and `restore` clears the live stack first. The snapshot copies neither a dungeon's current room (`Card.currentRoom`), nor a player's completed dungeons, nor `Player.venturedThisTurn`, so each point also keeps them (`DungeonProgress`, for every registered player; the completed list as a copy, since the restore clears the live one before re-adding) and a restore (or a refused `applyState`) puts them back. Without that a dungeon keeps the room it reached after the point, a dungeon completed after the point comes back with no room while staying in the completed list, and a venture undone by the rewind still counts for Keen-Eared Sentry's once-a-turn limit. Nor does it copy `PhaseHandler.extraTurns`, the extra-turn queue, or a player's `isExtraTurn`, `extraTurnCount` and `extraTurnsPlayed`, so each point keeps those too (`ExtraTurnState`, by reflection; `reflect-config.json` lists both private fields for the native image): without it a Time Walk cast after the point still takes its turn after the rewind. Everything a point keeps travels as one `SavedState`, saved by `saveState` and put back by `restoreState`, which a restore and a refused `applyState` share; a new piece of state the snapshot misses goes there, in one place. `PhaseHandler.extraPhases` is not kept. The snapshot also leaves the initiative and the monarch with their holder when nobody held them at the point (`GameSnapshot.copyGameState` only sets them when non-null), and a player's initiative effect card made after the point is swept from the command zone while `Player.initiativeEffect` still points at it; the session does not correct either. The session keeps the points of the current turn and the 3 turns before it (`CHECKPOINT_TURNS`) and discards older ones when it records a new point; the kept points go out in `GameViewDto.checkpoints`, and a restore drops the points after it.
  
  The session records the points itself, in `awaitPriorityAction`, before it publishes the prompt. Manabot seats (`botSeats`) and Forge AI seats never record, and a held pass-until or exhaust-stack pass returns before the prompt, so a fast-forward takes no points in the steps it skips. The prompt comes after the priority loop's state-based check has put waiting triggers on the stack, so a step gets its point only after they resolve; after a restore the loop runs the state-based check again. Controllers take no part in recording. The restore is applied from `ManaBrewInteractiveController.chooseSpellAbilityToPlay` through `restoreIfApproved`, because only a controller's answer can hand priority on: after `GameSnapshot.restoreGameState`, the session calls `PhaseHandler.setPriority` with the player who had priority at the point, and the controller returns an **empty list**: `PhaseHandler.mainLoopStep` treats `null` as a pass, but an empty list keeps its priority loop running, and the loop then asks `pPlayerPriority`. Returning `null` would pass priority in the restored step.
  
@@ -37,7 +39,16 @@ index 54173c6..0eff1fc 100644
  
  Recording can be switched off, and then no `GameSnapshot` is made at all. The start request carries `snapshotRecording` (default on; the browser worker fills it from the host's saved setting), so a game that starts with it off never takes one. During the game only the engine host may change it, with `setSnapshotRecording { enabled }` on the **host lane**: a lane that only the tab running the engine can write, apart from the seat lanes that carry players' directives (including those relayed from guests). The session honours it only when its `player` is `InteractiveBridge.HOST_SEAT`. Turning recording off drops the points already taken. `GameViewDto.snapshotRecording` shows every seat the current state. A node-hosted game has no client host, so recording stays as the start request set it, and the node refuses the directive from any seat.
  
-@@ -94,7 +96,9 @@ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the
+ In a browser-hosted game every seat also has a directive lane (`game:directive_lanes`, one 4096-byte `SharedArrayBuffer` per seat). `SabTransport.exchange` checks the lanes every 25 ms while it waits on the prompted seat and hands a directive to the session at once; the open prompt stays open and is not sent again (`openPrompt`/`openSeat`).
+ 
++### A controlled player's prompts go to the controlling seat (Mindslaver)
++
++`Player.addController` gives a controlled player a controller made by the controlling player's lobby player, so an interactive seat that takes control of a Forge AI seat (Mindslaver) answers through `ManaBrewInteractiveController` under the AI's seat index. `publishAgentPrompt` therefore names the seat that decides, not the seat the question is about: `controllingSeat` follows `getControllingPlayer` up the chain (A controls B who controls C: C's questions go to A, since A makes every decision B would make) and stops at a controller whose original lobby player is not a `ManaBrewInteractiveLobbyPlayer` (a Forge AI cannot answer a prompt, so the question stays with the last interactive seat) or at a player it has already visited (two players controlling each other). `promptedPlayerIndex` follows `decidingPlayerId`: the browser bridge exchanges with the controlling seat, and it is the controlling seat's concede, not the controlled player's, that turns the open prompt into a pass. `MindslaverControlTest` pins one-level, nested, AI-topped and looping control.
++
+ ## Typed prompt emission (compile-time protocol check)
+ 
+ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the source of truth: `scripts/gen-harness-prompts.mjs` reads its generated TS bindings and emits one Java class per prompt input + referenced shared type into `forge-harness/src/main/java/forge/harness/protocol/` (package `forge.harness.protocol.*`), each baking in its own `type` discriminator. `scripts/harness.mjs` regenerates them before every build. The package is generated, gitignored (`forge-harness/.gitignore`), and lives under the standard `src/main/java` root on purpose: m2e/JDTLS has no build-helper connector, so an out-of-tree generated-sources dir never lands on the IDE classpath. Never hand-edit anything in this package.
+@@ -94,7 +100,9 @@ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the
  
  `publishAgentPrompt` resolves an omitted source from the currently resolving stack item. It emits `sourceAbilityText` from that stack ability, or from `castingAbility` during cast-time prompts, only when the ability host matches an explicit source. Keep this centralized fallback: Forge callbacks such as `arrangeForScry`, `arrangeForSurveil`, and `reveal` do not receive the originating `SpellAbility`, but their prompts still need the source card and ability in the envelope. Prompts outside stack resolution remain source-less unless their caller provides a source explicitly, and unmatched abilities remain absent rather than being misattributed.
  
@@ -817,8 +828,102 @@ index 0000000..00026e1
 +        return events;
 +    }
 +}
+diff --git a/forge-harness/src/main/java/forge/harness/host/ExtraTurnState.java b/forge-harness/src/main/java/forge/harness/host/ExtraTurnState.java
+new file mode 100644
+index 0000000..9d713d1
+--- /dev/null
++++ b/forge-harness/src/main/java/forge/harness/host/ExtraTurnState.java
+@@ -0,0 +1,88 @@
++package forge.harness.host;
++
++import forge.game.Game;
++import forge.game.phase.ExtraTurn;
++import forge.game.phase.PhaseHandler;
++import forge.game.player.Player;
++import forge.game.player.PlayerStatistics;
++
++import java.lang.reflect.Field;
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Stack;
++
++final class ExtraTurnState {
++    private static final Field QUEUE = field(PhaseHandler.class, "extraTurns");
++    private static final Field PLAYED = field(PlayerStatistics.class, "extraTurnsPlayed");
++
++    private final List<ExtraTurn> queue;
++    private final Map<Player, PlayerTurns> players = new LinkedHashMap<>();
++
++    private static final class PlayerTurns {
++        private final int count;
++        private final boolean taking;
++        private final int played;
++
++        private PlayerTurns(final Player player) {
++            count = player.getExtraTurnCount();
++            taking = player.isExtraTurn();
++            played = player.getExtraTurnsPlayed();
++        }
++    }
++
++    ExtraTurnState(final Game game) {
++        queue = new ArrayList<>(queue(game.getPhaseHandler()));
++        for (final Player player : game.getRegisteredPlayers()) {
++            players.put(player, new PlayerTurns(player));
++        }
++    }
++
++    void restore(final Game game) {
++        final Stack<ExtraTurn> live = queue(game.getPhaseHandler());
++        live.clear();
++        live.addAll(queue);
++        for (final Map.Entry<Player, PlayerTurns> entry : players.entrySet()) {
++            final Player player = entry.getKey();
++            final PlayerTurns saved = entry.getValue();
++            player.setExtraTurnCount(saved.count);
++            player.setExtraTurn(saved.taking);
++            try {
++                PLAYED.setInt(player.getStats(), saved.played);
++            } catch (final IllegalAccessException e) {
++                throw new IllegalStateException(e);
++            }
++        }
++    }
++
++    static int queuedFor(final Game game, final Player player) {
++        final Stack<ExtraTurn> turns = queue(game.getPhaseHandler());
++        int count = 0;
++        for (int i = 1; i < turns.size(); i++) {
++            if (turns.get(i).getPlayer().equals(player)) {
++                count++;
++            }
++        }
++        return count;
++    }
++
++    @SuppressWarnings("unchecked")
++    private static Stack<ExtraTurn> queue(final PhaseHandler handler) {
++        try {
++            return (Stack<ExtraTurn>) QUEUE.get(handler);
++        } catch (final IllegalAccessException e) {
++            throw new IllegalStateException(e);
++        }
++    }
++
++    private static Field field(final Class<?> owner, final String name) {
++        try {
++            final Field field = owner.getDeclaredField(name);
++            field.setAccessible(true);
++            return field;
++        } catch (final NoSuchFieldException e) {
++            throw new IllegalStateException(e);
++        }
++    }
++}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..930d371 100644
+index 713e1ef..a993d31 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 @@ -37,11 +37,13 @@ import forge.game.cost.CostAdjustment;
@@ -912,6 +1017,15 @@ index 713e1ef..930d371 100644
          final List<String> activePlaneNames = activePlaneNames(game);
          if (!activePlaneNames.isEmpty()) {
              view.put("activePlaneNames", activePlaneNames);
+@@ -285,7 +308,7 @@ public final class InteractiveSnapshotExtractor {
+         out.put("cardsDrawnThisTurn", player.getNumDrawnThisTurn());
+         out.put("damagePrevention", player.getPreventNextDamageTotalShields());
+         out.put("isExtraTurn", player.isExtraTurn());
+-        out.put("extraTurnCount", player.getExtraTurnCount());
++        out.put("extraTurnCount", ExtraTurnState.queuedFor(game, player));
+         final Player controller = player.getControllingPlayer();
+         if (controller != null && controller != player) {
+             out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
 @@ -685,6 +708,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
@@ -1162,7 +1276,7 @@ index fb82e6d..d166616 100644
  
      @Override
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..ce24e5a 100644
+index 643e5de..9f5f2df 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,6 +6,7 @@ import forge.harness.common.ParityCardMap;
@@ -1251,34 +1365,48 @@ index 643e5de..ce24e5a 100644
      private boolean checkpointMetricsEnabled;
      private final List<long[]> checkpointTimings = new ArrayList<>();
      private boolean priorityPromptOpen;
-@@ -92,6 +111,9 @@ public final class ManaBrewInteractiveSession {
+@@ -91,7 +110,7 @@ public final class ManaBrewInteractiveSession {
+         private final PhaseType phase;
          private final Player activePlayer;
          private final Player priorityPlayer;
-         private final GameSnapshot snapshot;
-+        private final Map<Integer, Map<ZoneType, List<Integer>>> zoneOrder;
-+        private final Map<Integer, Player> phasedOut;
-+        private final DungeonProgress dungeons;
+-        private final GameSnapshot snapshot;
++        private final SavedState state;
  
          private Checkpoint(
                  final int id,
-@@ -99,16 +121,28 @@ public final class ManaBrewInteractiveSession {
+@@ -99,16 +118,43 @@ public final class ManaBrewInteractiveSession {
                  final PhaseType phase,
                  final Player activePlayer,
                  final Player priorityPlayer,
 -                final GameSnapshot snapshot) {
-+                final GameSnapshot snapshot,
-+                final Map<Integer, Map<ZoneType, List<Integer>>> zoneOrder,
-+                final Map<Integer, Player> phasedOut,
-+                final DungeonProgress dungeons) {
++                final SavedState state) {
              this.id = id;
              this.turn = turn;
              this.phase = phase;
              this.activePlayer = activePlayer;
              this.priorityPlayer = priorityPlayer;
++            this.state = state;
++        }
++    }
++
++    private static final class SavedState {
++        private final GameSnapshot snapshot;
++        private final Map<Integer, Map<ZoneType, List<Integer>>> zoneOrder;
++        private final Map<Integer, Player> phasedOut;
++        private final DungeonProgress dungeons;
++        private final ExtraTurnState extraTurns;
++
++        private SavedState(
++                final GameSnapshot snapshot,
++                final Map<Integer, Map<ZoneType, List<Integer>>> zoneOrder,
++                final Map<Integer, Player> phasedOut,
++                final DungeonProgress dungeons,
++                final ExtraTurnState extraTurns) {
              this.snapshot = snapshot;
 +            this.zoneOrder = zoneOrder;
 +            this.phasedOut = phasedOut;
 +            this.dungeons = dungeons;
++            this.extraTurns = extraTurns;
          }
      }
  
@@ -1291,7 +1419,7 @@ index 643e5de..ce24e5a 100644
      private enum RestoreVoteStatus { PENDING, APPROVED, DECLINED, UNAVAILABLE }
  
      private static final class RestoreVote {
-@@ -136,6 +170,8 @@ public final class ManaBrewInteractiveSession {
+@@ -136,6 +182,8 @@ public final class ManaBrewInteractiveSession {
          this.game = Objects.requireNonNull(game, "game");
          this.botSeats = Set.copyOf(botSeats);
          this.snapshotRecording = snapshotRecording;
@@ -1300,7 +1428,7 @@ index 643e5de..ce24e5a 100644
      }
  
      public String getSessionId() {
-@@ -155,26 +191,26 @@ public final class ManaBrewInteractiveSession {
+@@ -155,26 +203,26 @@ public final class ManaBrewInteractiveSession {
          requireAttached();
          Objects.requireNonNull(rng, "rng");
          if (bridge != null) {
@@ -1341,7 +1469,7 @@ index 643e5de..ce24e5a 100644
      public void close() {
          closed = true;
          JsonObject action = new JsonObject();
-@@ -216,9 +252,14 @@ public final class ManaBrewInteractiveSession {
+@@ -216,9 +264,14 @@ public final class ManaBrewInteractiveSession {
  
      public String getSnapshotJson(final int viewer) {
          requireAttached();
@@ -1359,7 +1487,7 @@ index 643e5de..ce24e5a 100644
      }
  
      void rememberSecretNumberViewer(final String sourceCardId, final Player viewer) {
-@@ -266,7 +307,7 @@ public final class ManaBrewInteractiveSession {
+@@ -266,7 +319,7 @@ public final class ManaBrewInteractiveSession {
  
      static final String TRIGGER_ORDER_TITLE = "Order triggered abilities";
  
@@ -1368,7 +1496,7 @@ index 643e5de..ce24e5a 100644
  
      static final class PriorityChoice {
          private final PriorityActionKind kind;
-@@ -362,6 +403,11 @@ public final class ManaBrewInteractiveSession {
+@@ -362,6 +415,11 @@ public final class ManaBrewInteractiveSession {
              if (isRestoreDirective(action)) {
                  return new PriorityChoice(PriorityActionKind.RESTORE, null, null, null);
              }
@@ -1380,7 +1508,7 @@ index 643e5de..ce24e5a 100644
              try {
                  return interpretPriorityAction(action, actionsForPrompt, untappableCards);
              } catch (IllegalArgumentException | UnsupportedOperationException | NullPointerException invalid) {
-@@ -823,6 +869,9 @@ public final class ManaBrewInteractiveSession {
+@@ -823,6 +881,9 @@ public final class ManaBrewInteractiveSession {
                  }
                  return chosen;
              }
@@ -1390,7 +1518,7 @@ index 643e5de..ce24e5a 100644
              throw new UnsupportedOperationException("unsupported action kind: " + actionKind);
          }
          return new ArrayList<>();
-@@ -881,6 +930,12 @@ public final class ManaBrewInteractiveSession {
+@@ -881,6 +942,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -1403,7 +1531,7 @@ index 643e5de..ce24e5a 100644
      boolean awaitMulliganDecision(final int playerId, final int cardsToReturn) {
          requireAttached();
          final List<Card> cards = new ArrayList<Card>(
-@@ -896,6 +951,7 @@ public final class ManaBrewInteractiveSession {
+@@ -896,6 +963,7 @@ public final class ManaBrewInteractiveSession {
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
              if ("mulligan_decision".equals(actionKind)) {
@@ -1411,7 +1539,7 @@ index 643e5de..ce24e5a 100644
                  return action.has("keep") && action.get("keep").getAsBoolean();
              }
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
-@@ -1104,14 +1160,31 @@ public final class ManaBrewInteractiveSession {
+@@ -1104,14 +1172,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -1446,7 +1574,7 @@ index 643e5de..ce24e5a 100644
      }
  
      void awaitRevealCards(
-@@ -1762,24 +1835,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +1847,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -1478,7 +1606,7 @@ index 643e5de..ce24e5a 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +1899,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +1911,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -1488,7 +1616,7 @@ index 643e5de..ce24e5a 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +1913,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +1925,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -1501,7 +1629,7 @@ index 643e5de..ce24e5a 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +1965,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +1977,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -1518,7 +1646,7 @@ index 643e5de..ce24e5a 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +1985,12 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +1997,12 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -1531,7 +1659,7 @@ index 643e5de..ce24e5a 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1911,10 +2010,10 @@ public final class ManaBrewInteractiveSession {
+@@ -1911,10 +2022,10 @@ public final class ManaBrewInteractiveSession {
                      }
                  }
              }
@@ -1545,7 +1673,7 @@ index 643e5de..ce24e5a 100644
                  throw new IllegalArgumentException("selected card count out of range: " + selected.size());
              }
              return selected;
-@@ -1940,10 +2039,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,10 +2051,16 @@ public final class ManaBrewInteractiveSession {
  
      private JsonObject takeAction() throws InterruptedException {
          while (true) {
@@ -1563,7 +1691,7 @@ index 643e5de..ce24e5a 100644
              if (action == null) {
                  if (closed || game.isGameOver()) {
                      return syntheticPass();
-@@ -1966,6 +2071,14 @@ public final class ManaBrewInteractiveSession {
+@@ -1966,6 +2083,14 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -1578,7 +1706,7 @@ index 643e5de..ce24e5a 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2100,15 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2112,15 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -1594,7 +1722,7 @@ index 643e5de..ce24e5a 100644
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2132,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2144,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -1603,13 +1731,13 @@ index 643e5de..ce24e5a 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2075,14 +2199,11 @@ public final class ManaBrewInteractiveSession {
+@@ -2073,16 +2209,9 @@ public final class ManaBrewInteractiveSession {
+         checkpointTurn = handler.getTurn();
+         checkpointPhase = handler.getPhase();
          final long started = checkpointMetricsEnabled ? System.nanoTime() : 0;
-         final GameSnapshot snapshot = new GameSnapshot(game);
-         snapshot.makeCopy();
-+        final Map<Integer, Map<ZoneType, List<Integer>>> order = zoneOrder();
-+        final Map<Integer, Player> phased = phasedOut();
-+        final DungeonProgress dungeons = dungeonProgress();
+-        final GameSnapshot snapshot = new GameSnapshot(game);
+-        snapshot.makeCopy();
++        final SavedState state = saveState();
          final long copied = checkpointMetricsEnabled ? System.nanoTime() : 0;
 -        checkpoints.addLast(new Checkpoint(
 -                nextCheckpointId++, handler.getTurn(), handler.getPhase(), handler.getPlayerTurn(),
@@ -1618,14 +1746,32 @@ index 643e5de..ce24e5a 100644
 -            checkpoints.removeFirst();
 -        }
 -        publishCheckpointViews();
-+        addCheckpoint(snapshot, handler.getPriorityPlayer(), order, phased, dungeons);
++        addCheckpoint(state, handler.getPriorityPlayer());
          if (checkpointMetricsEnabled) {
              final long finished = System.nanoTime();
              synchronized (checkpointTimings) {
-@@ -2091,6 +2212,120 @@ public final class ManaBrewInteractiveSession {
+@@ -2091,6 +2220,132 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
++    private SavedState saveState() {
++        final GameSnapshot snapshot = new GameSnapshot(game);
++        snapshot.makeCopy();
++        return new SavedState(snapshot, zoneOrder(), phasedOut(), dungeonProgress(), new ExtraTurnState(game));
++    }
++
++    private void restoreState(final SavedState saved, final Player priority) {
++        game.getStack().clear();
++        game.getStack().clearSimultaneousStack();
++        game.getStack().clearUndoStack();
++        saved.snapshot.restoreGameState(game);
++        restoreZoneOrder(saved.zoneOrder);
++        restorePhasedOut(saved.phasedOut);
++        restoreDungeonProgress(saved.dungeons);
++        saved.extraTurns.restore(game);
++        game.getPhaseHandler().setPriority(priority);
++    }
++
 +    private static final List<ZoneType> ORDER_KEPT_ZONES = List.of(ZoneType.Library, ZoneType.Hand, ZoneType.Graveyard);
 +
 +    private Map<Integer, Map<ZoneType, List<Integer>>> zoneOrder() {
@@ -1724,16 +1870,10 @@ index 643e5de..ce24e5a 100644
 +        }
 +    }
 +
-+    private void addCheckpoint(
-+            final GameSnapshot snapshot,
-+            final Player priority,
-+            final Map<Integer, Map<ZoneType, List<Integer>>> order,
-+            final Map<Integer, Player> phased,
-+            final DungeonProgress dungeons) {
++    private void addCheckpoint(final SavedState state, final Player priority) {
 +        final PhaseHandler handler = game.getPhaseHandler();
 +        checkpoints.addLast(new Checkpoint(
-+                nextCheckpointId++, handler.getTurn(), handler.getPhase(), handler.getPlayerTurn(), priority, snapshot, order, phased,
-+                dungeons));
++                nextCheckpointId++, handler.getTurn(), handler.getPhase(), handler.getPlayerTurn(), priority, state));
 +        while (checkpoints.peekFirst().turn < handler.getTurn() - CHECKPOINT_TURNS) {
 +            checkpoints.removeFirst();
 +        }
@@ -1743,7 +1883,7 @@ index 643e5de..ce24e5a 100644
      private void publishCheckpointViews() {
          final List<Map<String, Object>> views = new ArrayList<>();
          for (final Checkpoint checkpoint : checkpoints) {
-@@ -2124,6 +2359,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2379,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -1754,17 +1894,20 @@ index 643e5de..ce24e5a 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2161,6 +2400,9 @@ public final class ManaBrewInteractiveSession {
-         game.getStack().clearSimultaneousStack();
-         game.getStack().clearUndoStack();
-         target.snapshot.restoreGameState(game);
-+        restoreZoneOrder(target.zoneOrder);
-+        restorePhasedOut(target.phasedOut);
-+        restoreDungeonProgress(target.dungeons);
-         game.getPhaseHandler().setPriority(target.priorityPlayer);
+@@ -2157,11 +2416,7 @@ public final class ManaBrewInteractiveSession {
+     }
+ 
+     private void restore(final Checkpoint target) {
+-        game.getStack().clear();
+-        game.getStack().clearSimultaneousStack();
+-        game.getStack().clearUndoStack();
+-        target.snapshot.restoreGameState(game);
+-        game.getPhaseHandler().setPriority(target.priorityPlayer);
++        restoreState(target.state, target.priorityPlayer);
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
-@@ -2175,6 +2417,374 @@ public final class ManaBrewInteractiveSession {
+         while (checkpoints.peekLast() != target) {
+@@ -2175,6 +2430,354 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -1776,11 +1919,7 @@ index 643e5de..ce24e5a 100644
 +        }
 +        final PhaseHandler handler = game.getPhaseHandler();
 +        final Player priority = handler.getPriorityPlayer();
-+        final GameSnapshot before = new GameSnapshot(game);
-+        before.makeCopy();
-+        final Map<Integer, Map<ZoneType, List<Integer>>> beforeOrder = zoneOrder();
-+        final Map<Integer, Player> beforePhased = phasedOut();
-+        final DungeonProgress beforeDungeons = dungeonProgress();
++        final SavedState before = saveState();
 +        final JsonArray ops = action.getAsJsonArray("ops");
 +        final List<Integer> plays = new ArrayList<>();
 +        game.getStack().setResolving(true);
@@ -1815,7 +1954,7 @@ index 643e5de..ce24e5a 100644
 +            }
 +        }
 +        if (refused != null) {
-+            undoFix(before, beforeOrder, beforePhased, beforeDungeons, priority);
++            restoreState(before, priority);
 +            publishStateFix(fixId, false, refusal(refused));
 +            return false;
 +        }
@@ -1837,7 +1976,7 @@ index 643e5de..ce24e5a 100644
 +                game.getStack().addAllTriggeredAbilitiesToStack();
 +            }
 +        } catch (RuntimeException failure) {
-+            undoFix(before, beforeOrder, beforePhased, beforeDungeons, priority);
++            restoreState(before, priority);
 +            publishStateFix(fixId, false, refusal(failure));
 +            return false;
 +        }
@@ -1845,26 +1984,10 @@ index 643e5de..ce24e5a 100644
 +            handler.setPriority(lastPlayer);
 +        }
 +        if (snapshotRecording) {
-+            addCheckpoint(before, priority, beforeOrder, beforePhased, beforeDungeons);
++            addCheckpoint(before, priority);
 +        }
 +        publishStateFix(fixId, true, null, dropped);
 +        return lastPlayer != null;
-+    }
-+
-+    private void undoFix(
-+            final GameSnapshot before,
-+            final Map<Integer, Map<ZoneType, List<Integer>>> beforeOrder,
-+            final Map<Integer, Player> beforePhased,
-+            final DungeonProgress beforeDungeons,
-+            final Player priority) {
-+        game.getStack().clear();
-+        game.getStack().clearSimultaneousStack();
-+        game.getStack().clearUndoStack();
-+        before.restoreGameState(game);
-+        restoreZoneOrder(beforeOrder);
-+        restorePhasedOut(beforePhased);
-+        restoreDungeonProgress(beforeDungeons);
-+        game.getPhaseHandler().setPriority(priority);
 +    }
 +
 +    private static String refusal(final RuntimeException failure) {
@@ -2139,7 +2262,7 @@ index 643e5de..ce24e5a 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +2817,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +2810,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -2156,7 +2279,7 @@ index 643e5de..ce24e5a 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +2861,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +2854,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -2165,7 +2288,7 @@ index 643e5de..ce24e5a 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +2904,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +2897,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -2188,7 +2311,7 @@ index 643e5de..ce24e5a 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +2948,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +2941,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -2219,7 +2342,7 @@ index 643e5de..ce24e5a 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,11 +3212,16 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,11 +3205,16 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -2237,7 +2360,54 @@ index 643e5de..ce24e5a 100644
              }
              final boolean mustAttack =
                      a.isGoaded() || !StaticAbilityMustAttack.entitiesMustAttack(a).isEmpty();
-@@ -2969,12 +3607,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +3549,8 @@ public final class ManaBrewInteractiveSession {
+         }
+     }
+ 
+-    private void publishAgentPrompt(final String decidingPlayerId, final String sourceCardId, final JsonObject input) {
++    private void publishAgentPrompt(final String playerId, final String sourceCardId, final JsonObject input) {
++        final String decidingPlayerId = controllingSeat(playerId);
+         promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
+         latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
+                 ++promptSeq,
+@@ -2928,6 +3560,25 @@ public final class ManaBrewInteractiveSession {
+                 input);
+     }
+ 
++    private String controllingSeat(final String playerId) {
++        final int seat = parsePlayerSlot(playerId);
++        final List<Player> players = game.getRegisteredPlayers();
++        if (seat < 0 || seat >= players.size()) {
++            return playerId;
++        }
++        final Player player = players.get(seat);
++        final Set<Player> seen = new HashSet<>();
++        seen.add(player);
++        Player decider = player;
++        Player master = decider.getControllingPlayer();
++        while (master != null && seen.add(master)
++                && master.getOriginalLobbyPlayer() instanceof ManaBrewInteractiveLobbyPlayer) {
++            decider = master;
++            master = decider.getControllingPlayer();
++        }
++        return decider == player ? playerId : "player-" + SnapshotExtractor.playerIndex(game, decider);
++    }
++
+     private static int parsePlayerSlot(final String decidingPlayerId) {
+         if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
+             return -1;
+@@ -2941,8 +3592,8 @@ public final class ManaBrewInteractiveSession {
+ 
+     private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
+ 
+-    private void publishAgentPrompt(final String decidingPlayerId, final String sourceCardId, final Object typedInput) {
+-        publishAgentPrompt(decidingPlayerId, sourceCardId, GSON.toJsonTree(typedInput).getAsJsonObject());
++    private void publishAgentPrompt(final String playerId, final String sourceCardId, final Object typedInput) {
++        publishAgentPrompt(playerId, sourceCardId, GSON.toJsonTree(typedInput).getAsJsonObject());
+     }
+ 
+     private static <T> T enumFromWire(final String wire, final Class<T> type) {
+@@ -2969,12 +3620,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -2288,6 +2458,543 @@ index 18db021..195090f 100644
              default:
                  throw new UnsupportedOperationException("unsupported directive: " + kind);
          }
+diff --git a/forge-harness/src/test/java/forge/harness/host/ExtraTurnRewindTest.java b/forge-harness/src/test/java/forge/harness/host/ExtraTurnRewindTest.java
+new file mode 100644
+index 0000000..a109449
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/ExtraTurnRewindTest.java
+@@ -0,0 +1,225 @@
++package forge.harness.host;
++
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.Deque;
++import java.util.List;
++import java.util.Set;
++
++public final class ExtraTurnRewindTest {
++    private ExtraTurnRewindTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++
++        check("countsEveryQueuedTurnNotJustTheBottomRun", ExtraTurnRewindTest::countsEveryQueuedTurnNotJustTheBottomRun);
++        check("countsARepeatedPlayerAcrossTheQueue", ExtraTurnRewindTest::countsARepeatedPlayerAcrossTheQueue);
++        check("noQueueCountsZero", ExtraTurnRewindTest::noQueueCountsZero);
++        check("rewindDropsAnExtraTurnTakenAfterTheCheckpoint", ExtraTurnRewindTest::rewindDropsAnExtraTurnTakenAfterTheCheckpoint);
++        check("rewindKeepsAnExtraTurnQueuedBeforeTheCheckpoint", ExtraTurnRewindTest::rewindKeepsAnExtraTurnQueuedBeforeTheCheckpoint);
++        check("rewindRestoresPlayerExtraTurnState", ExtraTurnRewindTest::rewindRestoresPlayerExtraTurnState);
++        check("rewindIntoAnExtraTurnKeepsItsState", ExtraTurnRewindTest::rewindIntoAnExtraTurnKeepsItsState);
++        System.out.println(failed == 0 ? "PASS ExtraTurnRewindTest" : "FAIL ExtraTurnRewindTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void countsEveryQueuedTurnNotJustTheBottomRun() {
++        final Fixture f = new Fixture();
++        f.handler.addExtraTurn(f.white);
++        f.handler.addExtraTurn(f.blue);
++        expect(f.counts(), "1 1", "queue [N, W, B]");
++        if (f.blue.getExtraTurnCount() != 0) {
++            throw new AssertionError("Forge's own count changed: " + f.blue.getExtraTurnCount());
++        }
++    }
++
++    private static void countsARepeatedPlayerAcrossTheQueue() {
++        final Fixture f = new Fixture();
++        f.handler.addExtraTurn(f.white);
++        f.handler.addExtraTurn(f.blue);
++        f.handler.addExtraTurn(f.white);
++        expect(f.counts(), "2 1", "queue [N, W, B, W]");
++    }
++
++    private static void noQueueCountsZero() {
++        final Fixture f = new Fixture();
++        expect(f.counts(), "0 0", "no queue");
++    }
++
++    private static void rewindDropsAnExtraTurnTakenAfterTheCheckpoint() throws Exception {
++        final Fixture f = new Fixture();
++        f.recordCheckpoint();
++        f.handler.addExtraTurn(f.white);
++        expect(f.counts(), "1 0", "after Time Walk");
++        if (f.handler.getNextTurn() != f.white) {
++            throw new AssertionError("Time Walk did not queue White's turn");
++        }
++        f.restoreFirstCheckpoint();
++        expect(f.counts(), "0 0", "after the rewind");
++        if (f.handler.getNextTurn() != f.blue) {
++            throw new AssertionError("after the rewind the next turn is " + f.handler.getNextTurn() + ", not Blue's");
++        }
++        if (f.white.getExtraTurnCount() != 0) {
++            throw new AssertionError("White's Forge count stayed " + f.white.getExtraTurnCount());
++        }
++    }
++
++    private static void rewindKeepsAnExtraTurnQueuedBeforeTheCheckpoint() throws Exception {
++        final Fixture f = new Fixture();
++        f.handler.addExtraTurn(f.white);
++        f.recordCheckpoint();
++        f.handler.addExtraTurn(f.blue);
++        f.handler.addExtraTurn(f.white);
++        expect(f.counts(), "2 1", "before the rewind");
++        f.restoreFirstCheckpoint();
++        expect(f.counts(), "1 0", "after the rewind");
++        if (f.handler.getNextTurn() != f.white) {
++            throw new AssertionError("after the rewind the next turn is " + f.handler.getNextTurn() + ", not White's");
++        }
++    }
++
++    private static void rewindRestoresPlayerExtraTurnState() throws Exception {
++        final Fixture f = new Fixture();
++        f.recordCheckpoint();
++        f.white.setExtraTurn(true);
++        f.white.incrementExtraTurnsPlayed();
++        f.restoreFirstCheckpoint();
++        if (f.white.isExtraTurn()) {
++            throw new AssertionError("White is still marked as taking an extra turn");
++        }
++        if (f.white.getExtraTurnsPlayed() != 0) {
++            throw new AssertionError("White's extra turns played stayed " + f.white.getExtraTurnsPlayed());
++        }
++    }
++
++    private static void rewindIntoAnExtraTurnKeepsItsState() throws Exception {
++        final Fixture f = new Fixture();
++        f.white.setExtraTurn(true);
++        f.white.incrementExtraTurnsPlayed();
++        f.handler.addExtraTurn(f.white);
++        f.handler.addExtraTurn(f.white);
++        f.recordCheckpoint();
++        f.white.setExtraTurn(false);
++        f.white.incrementExtraTurnsPlayed();
++        f.handler.addExtraTurn(f.blue);
++        f.restoreFirstCheckpoint();
++        if (!f.white.isExtraTurn()) {
++            throw new AssertionError("White's extra turn in progress at the checkpoint is no longer marked");
++        }
++        if (f.white.getExtraTurnsPlayed() != 1) {
++            throw new AssertionError("White's extra turns played is " + f.white.getExtraTurnsPlayed() + ", not 1");
++        }
++        if (f.white.getExtraTurnCount() != 2) {
++            throw new AssertionError("White's Forge count is " + f.white.getExtraTurnCount() + ", not 2");
++        }
++        expect(f.counts(), "2 0", "after the rewind");
++    }
++
++    private static void expect(final String actual, final String wanted, final String what) {
++        if (!wanted.equals(actual)) {
++            throw new AssertionError(what + ": extraTurnCount White Blue = " + actual + ", wanted " + wanted);
++        }
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("extra-turn-rewind-test");
++        final Game game = newGame();
++        final PhaseHandler handler = game.getPhaseHandler();
++        final Player white = game.getPlayers().get(0);
++        final Player blue = game.getPlayers().get(1);
++
++        Fixture() {
++            session.attach(game.getMatch(), game, Set.of(), true);
++        }
++
++        String counts() {
++            final JsonObject view = JsonParser.parseString(session.getSnapshotJson(0)).getAsJsonObject();
++            final List<String> counts = new ArrayList<>();
++            for (final JsonElement player : view.getAsJsonArray("players")) {
++                counts.add(player.getAsJsonObject().get("extraTurnCount").getAsString());
++            }
++            return String.join(" ", counts);
++        }
++
++        void recordCheckpoint() throws Exception {
++            final Method record = ManaBrewInteractiveSession.class.getDeclaredMethod("recordCheckpoint");
++            record.setAccessible(true);
++            record.invoke(session);
++            if (checkpoints().isEmpty()) {
++                throw new AssertionError("no checkpoint was recorded");
++            }
++        }
++
++        void restoreFirstCheckpoint() throws Exception {
++            final Object first = checkpoints().peekFirst();
++            for (final Method method : ManaBrewInteractiveSession.class.getDeclaredMethods()) {
++                if (method.getName().equals("restore") && method.getParameterCount() == 1) {
++                    method.setAccessible(true);
++                    method.invoke(session, first);
++                    return;
++                }
++            }
++            throw new AssertionError("no restore method");
++        }
++
++        private Deque<?> checkpoints() throws Exception {
++            final Field field = ManaBrewInteractiveSession.class.getDeclaredField("checkpoints");
++            field.setAccessible(true);
++            return (Deque<?>) field.get(session);
++        }
++
++        private Game newGame() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            final Game created = new Game(players, rules, new Match(rules, players, "ExtraTurnRewindTest"));
++            created.setAge(GameStage.Play);
++            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
++            created.getPhaseHandler().onStackResolved();
++            return created;
++        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/MindslaverControlTest.java b/forge-harness/src/test/java/forge/harness/host/MindslaverControlTest.java
+new file mode 100644
+index 0000000..9ff2732
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/MindslaverControlTest.java
+@@ -0,0 +1,300 @@
++package forge.harness.host;
++
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.ai.PlayerControllerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Set;
++import java.util.concurrent.locks.ReentrantLock;
++
++public final class MindslaverControlTest {
++    private MindslaverControlTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++
++        check("controlledAiPriorityGoesToTheController", MindslaverControlTest::controlledAiPriorityGoesToTheController);
++        check("controlledAiQuestionGoesToTheController", MindslaverControlTest::controlledAiQuestionGoesToTheController);
++        check("controllerSeesTheControlledHand", MindslaverControlTest::controllerSeesTheControlledHand);
++        check("controlEndsAndTheAiDecidesAgain", MindslaverControlTest::controlEndsAndTheAiDecidesAgain);
++        check("uncontrolledPromptsKeepTheirSeat", MindslaverControlTest::uncontrolledPromptsKeepTheirSeat);
++        check("aiControllerLeavesTheSeatAlone", MindslaverControlTest::aiControllerLeavesTheSeatAlone);
++        check("nestedControlGoesToTheTopController", MindslaverControlTest::nestedControlGoesToTheTopController);
++        check("nestedControlStopsBelowAnAiController", MindslaverControlTest::nestedControlStopsBelowAnAiController);
++        check("controlLoopStopsAtTheFirstRepeat", MindslaverControlTest::controlLoopStopsAtTheFirstRepeat);
++        check("aSeatWithNoPlayerKeepsItsId", MindslaverControlTest::aSeatWithNoPlayerKeepsItsId);
++        System.out.println(failed == 0 ? "PASS MindslaverControlTest" : "FAIL MindslaverControlTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        final Throwable[] failure = new Throwable[1];
++        final Thread runner = new Thread(() -> {
++            try {
++                check.run();
++            } catch (final Throwable thrown) {
++                failure[0] = thrown;
++            }
++        }, name);
++        runner.setDaemon(true);
++        runner.start();
++        try {
++            runner.join(60_000);
++        } catch (final InterruptedException interrupted) {
++            failure[0] = interrupted;
++        }
++        if (runner.isAlive() && failure[0] == null) {
++            failure[0] = new AssertionError("still running after 60 s");
++        }
++        if (failure[0] == null) {
++            System.out.println("ok " + name);
++        } else {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure[0]);
++        }
++    }
++
++    private static void controlledAiPriorityGoesToTheController() throws Exception {
++        final Fixture f = new Fixture();
++        f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, f.ai);
++        f.game.getPhaseHandler().onStackResolved();
++        f.ai.addController(f.game.getNextTimestamp(), f.human);
++        f.session.submitAction("{\"type\":\"chooseAction\",\"output\":{\"type\":\"pass\"}}");
++        f.ai.getController().chooseSpellAbilityToPlay();
++        final JsonObject prompt = f.prompt();
++        expectSeat(prompt, "player-0", "the controlled AI's priority");
++        final String plainsId = SnapshotExtractor.javaCardId(f.aiHand);
++        boolean offered = false;
++        for (final JsonElement action : prompt.getAsJsonObject("input").getAsJsonArray("actions")) {
++            final JsonObject a = action.getAsJsonObject();
++            if (a.has("cardId") && plainsId.equals(a.get("cardId").getAsString())) {
++                offered = true;
++            }
++        }
++        if (!offered) {
++            throw new AssertionError("the controller was not offered the AI's Plains: " + prompt.get("input"));
++        }
++    }
++
++    private static void controlledAiQuestionGoesToTheController() throws Exception {
++        final Fixture f = new Fixture();
++        f.ai.addController(f.game.getNextTimestamp(), f.human);
++        if (!(f.ai.getController() instanceof ManaBrewInteractiveController)) {
++            throw new AssertionError("the controlled AI's decisions are not the interactive controller's: " + f.ai.getController());
++        }
++        f.session.submitAction("{\"type\":\"chooseBoolean\",\"output\":{\"value\":true}}");
++        final boolean answer = ((ManaBrewInteractiveController) f.ai.getController()).confirmMulliganScry(f.ai);
++        expectSeat(f.prompt(), "player-0", "the controlled AI's question");
++        if (f.promptedSeat() != 0) {
++            throw new AssertionError("the answer is awaited from seat " + f.promptedSeat() + ", not the controller's seat 0");
++        }
++        if (!answer) {
++            throw new AssertionError("the controller's answer did not reach the AI's decision");
++        }
++    }
++
++    private static void controllerSeesTheControlledHand() throws Exception {
++        final Fixture f = new Fixture();
++        f.ai.addController(f.game.getNextTimestamp(), f.human);
++        if (!"visible".equals(f.aiHandVisibility(0))) {
++            throw new AssertionError("the controller does not see the controlled player's hand");
++        }
++        if (!"hidden".equals(f.aiHandVisibility(-1))) {
++            throw new AssertionError("a spectator sees the controlled player's hand");
++        }
++    }
++
++    private static void controlEndsAndTheAiDecidesAgain() throws Exception {
++        final Fixture f = new Fixture();
++        final long ts = f.game.getNextTimestamp();
++        f.ai.addController(ts, f.human);
++        f.ai.removeController(ts);
++        if (!(f.ai.getController() instanceof PlayerControllerAi)) {
++            throw new AssertionError("the AI did not get its own controller back: " + f.ai.getController());
++        }
++        if (!"hidden".equals(f.aiHandVisibility(0))) {
++            throw new AssertionError("the former controller still sees the AI's hand");
++        }
++    }
++
++    private static void uncontrolledPromptsKeepTheirSeat() throws Exception {
++        final Fixture f = new Fixture();
++        f.session.submitAction("{\"type\":\"chooseBoolean\",\"output\":{\"value\":true}}");
++        f.session.awaitBooleanChoice("confirm_action", 1, "q", null, "confirm_action", null, null);
++        expectSeat(f.prompt(), "player-1", "an uncontrolled seat's question");
++        final long ts = f.game.getNextTimestamp();
++        f.human.addController(ts, f.human, f.human.getController(), false);
++        f.session.submitAction("{\"type\":\"chooseBoolean\",\"output\":{\"value\":true}}");
++        f.session.awaitBooleanChoice("confirm_action", 0, "q", null, "confirm_action", null, null);
++        expectSeat(f.prompt(), "player-0", "a seat run by its own temporary controller");
++    }
++
++    private static void aiControllerLeavesTheSeatAlone() throws Exception {
++        final Fixture f = new Fixture();
++        f.human.addController(f.game.getNextTimestamp(), f.ai);
++        f.session.submitAction("{\"type\":\"chooseBoolean\",\"output\":{\"value\":true}}");
++        f.session.awaitBooleanChoice("confirm_action", 0, "q", null, "confirm_action", null, null);
++        expectSeat(f.prompt(), "player-0", "a seat controlled by a Forge AI");
++    }
++
++    private static void nestedControlGoesToTheTopController() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.green.addController(f.game.getNextTimestamp(), f.human, f.green.getController(), false);
++        f.ai.addController(f.game.getNextTimestamp(), f.green, f.ai.getController(), false);
++        expectSeat(f.askSeat(1), "player-0", "a question for the AI controlled by Green, who is controlled by White");
++        if (f.promptedSeat() != 0) {
++            throw new AssertionError("the answer is awaited from seat " + f.promptedSeat() + ", not White's seat 0");
++        }
++        expectSeat(f.askSeat(2), "player-0", "a question for Green, controlled by White");
++    }
++
++    private static void nestedControlStopsBelowAnAiController() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.green.addController(f.game.getNextTimestamp(), f.human, f.green.getController(), false);
++        f.human.addController(f.game.getNextTimestamp(), f.ai);
++        if (!(f.human.getController() instanceof PlayerControllerAi)) {
++            throw new AssertionError("the Forge AI's control did not give White an AI controller: " + f.human.getController());
++        }
++        expectSeat(f.askSeat(2), "player-0", "a question for Green, controlled by White, who is controlled by a Forge AI");
++        expectSeat(f.askSeat(0), "player-0", "a question for White, controlled by a Forge AI");
++    }
++
++    private static void controlLoopStopsAtTheFirstRepeat() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.green.addController(f.game.getNextTimestamp(), f.human, f.green.getController(), false);
++        f.human.addController(f.game.getNextTimestamp(), f.green, f.human.getController(), false);
++        expectSeat(f.askSeat(0), "player-2", "a question for White, controlled by Green, who is controlled by White");
++        expectSeat(f.askSeat(2), "player-0", "a question for Green, controlled by White, who is controlled by Green");
++    }
++
++    private static void aSeatWithNoPlayerKeepsItsId() throws Exception {
++        final Fixture f = new Fixture();
++        expectSeat(f.askSeat(2), "player-2", "a question for seat 2 of a two-player game");
++    }
++
++    private static void expectSeat(final JsonObject prompt, final String seat, final String what) {
++        final String actual = prompt.has("decidingPlayerId") ? prompt.get("decidingPlayerId").getAsString() : null;
++        if (!seat.equals(actual)) {
++            throw new AssertionError(what + " went to " + actual + ", not " + seat);
++        }
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("mindslaver-control-test");
++        final Game game;
++        final Player human;
++        final Player ai;
++        final Player green;
++        final Card aiHand;
++
++        Fixture() throws Exception {
++            this(false);
++        }
++
++        Fixture(final boolean withGreen) throws Exception {
++            game = newGame(session, withGreen);
++            human = game.getPlayers().get(0);
++            ai = game.getPlayers().get(1);
++            green = withGreen ? game.getPlayers().get(2) : null;
++            aiHand = game.getAction().moveToHand(add("Plains", ai, ZoneType.Library), null);
++            session.attach(game.getMatch(), game, Set.of(), false);
++            final Field lock = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++            lock.setAccessible(true);
++            ((ReentrantLock) lock.get(session)).lock();
++        }
++
++        JsonObject prompt() {
++            return JsonParser.parseString(session.getLatestPromptJson()).getAsJsonObject();
++        }
++
++        int promptedSeat() throws Exception {
++            final Field index = ManaBrewInteractiveSession.class.getDeclaredField("promptedPlayerIndex");
++            index.setAccessible(true);
++            return index.getInt(session);
++        }
++
++        JsonObject askSeat(final int seat) {
++            session.submitAction("{\"type\":\"chooseBoolean\",\"output\":{\"value\":true}}");
++            session.awaitBooleanChoice("confirm_action", seat, "q", null, "confirm_action", null, null);
++            return prompt();
++        }
++
++        String aiHandVisibility(final int viewer) {
++            final JsonObject view = JsonParser.parseString(session.getSnapshotJson(viewer)).getAsJsonObject();
++            for (final JsonElement zone : view.getAsJsonArray("zones")) {
++                final JsonObject z = zone.getAsJsonObject();
++                if ("hand".equals(z.get("zone").getAsString()) && "player-1".equals(z.get("ownerId").getAsString())) {
++                    for (final JsonElement card : z.getAsJsonArray("cards")) {
++                        if ("visible".equals(card.getAsJsonObject().get("visibility").getAsString())) {
++                            return "visible";
++                        }
++                    }
++                    return "hidden";
++                }
++            }
++            return "no zone";
++        }
++    }
++
++    private static Game newGame(final ManaBrewInteractiveSession session, final boolean withGreen) {
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        final Deck deck = new Deck();
++        players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("AI 1", null)));
++        if (withGreen) {
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("Green", session)));
++        }
++        final GameRules rules = new GameRules(GameType.Constructed);
++        final Game game = new Game(players, rules, new Match(rules, players, "MindslaverControlTest"));
++        game.setAge(GameStage.Play);
++        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++        game.getPhaseHandler().onStackResolved();
++        return game;
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/OptionalCardChoiceTest.java b/forge-harness/src/test/java/forge/harness/host/OptionalCardChoiceTest.java
 new file mode 100644
 index 0000000..cea5051

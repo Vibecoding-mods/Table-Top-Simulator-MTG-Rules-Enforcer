@@ -14,6 +14,25 @@ so it can't run on the stock images. Those changes are published here:
 bash engine/build-images.sh
 ```
 
+## Testing a build
+
+The harness unit tests (`MindslaverControlTest`, `ExtraTurnRewindTest` and the others under
+`forge-harness/src/test/java`) run in a throwaway container. `checks/harness-tests.sh` recompiles the harness's main and
+test sources from the tree you mount, against the Forge jar of a `java-builder` image, so the image only has to be rebuilt
+when Forge's own Java changes, not for a new harness class or test:
+
+```bash
+# once per Forge change: the java-builder stage of the node image, from the patched tree (build-images.sh's .build)
+docker build --target java-builder -f engine/.build/manabrew-rs/crates/self-hosted-node/Dockerfile -t mtg-harness-test:<tag> engine/.build
+# every run (Git Bash: MSYS_NO_PATHCONV=1 and Windows paths for -v); exit status 0 when every class passed
+docker run --rm -v "<tree>/forge-harness:/src:ro" -v "$PWD/engine/checks/harness-tests.sh:/harness-tests.sh:ro" \
+  --entrypoint sh mtg-harness-test:<tag> /harness-tests.sh [TestClass ...]
+```
+
+The live checks play real games against a built node image, beside the running stack (`tools/live-check.sh`, which
+explains its settings): `sh tools/live-check.sh <tag> tests/live_mindslaver_check.js`. The relay defaults to
+`mtg-relay:<tag>`; set `LIVE_RELAY` for a node image built without one.
+
 ## Why this source is published
 
 Forge is licensed under the **GPL-3.0** and Manabrew under the **AGPL-3.0-or-later**. Both are "copyleft" licences. They
@@ -44,7 +63,15 @@ legal advice; the licence texts are what count.
 - **Protocol and relay:** the exile links the table draws (`exiledWith`, `mayPlay`), the manual fix directive
   (`applyState`, `stateFix`), cost Cancel, seat order, and persistent mana for the fix tools.
 - **Forge harness:** filter-land playability, rewind zone order, Treasure ranked last in auto-pay, a stack-target
-  check that no longer crashes on Spider-Sense, and undoing a mana tap also undoing what that tap triggered.
+  check that no longer crashes on Spider-Sense, and undoing a mana tap also undoing what that tap triggered; a
+  controlled player's questions (Mindslaver) go to the seat controlling them, up a chain of control to the last seat
+  that can answer; a rewind puts the extra-turn queue back, and `extraTurnCount` counts every extra turn queued for a
+  player.
 - **Forge card scripts:** 29 scripts that remembered cards and never cleared them, so a second use acted on old cards
   (`docs/reviews/forge-remembered-audit.md`).
 - **Forge rules code:** `TriggerHandler.removeWaitingTapsForMana`, used by that undo.
+- **Star Trek (TRK, TRC), 2026-11:** the two sets' card scripts, tokens, edition files and creature types from
+  Card-Forge/forge `6d4a175`, plus the Java those cards need (assimilate, peace counters, and a few `Count$` and
+  property names). Every imported file is listed in `forge-trek-files.txt`; what and why in
+  `docs/forge-update-2026-11.md`. `checks/` holds the headless checks used for it and
+  `harness-tests.sh`, the unit-test runner above.
