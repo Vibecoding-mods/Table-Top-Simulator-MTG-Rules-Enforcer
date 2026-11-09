@@ -9,10 +9,11 @@ const path = require("path");
 
 const HOME = process.env.MTG_HOME ? path.resolve(process.env.MTG_HOME) : path.join(__dirname, "..");
 const LOG_DIR = process.env.MTG_LOG_DIR ? path.resolve(process.env.MTG_LOG_DIR) : null;
-if (LOG_DIR) fs.mkdirSync(LOG_DIR, { recursive: true }); // (the bridge appends without checking: a missing folder loses every line)
-
 const data = (...parts) => path.join(HOME, ...parts); // what the repo (or the package) holds
 const tmp = (...parts) => path.join(LOG_DIR || data("tmp"), ...parts); // what the bridge writes
+// (the bridge appends and saves without checking: a missing folder loses every line and the resume file. A package
+// has no tmp/, so it is made when either variable is set; the repo's is left alone)
+if (LOG_DIR || process.env.MTG_HOME) fs.mkdirSync(tmp(), { recursive: true });
 const beside = (...parts) => path.join(LOG_DIR || __dirname, ...parts); // logs the repo keeps in bridge/
 
 module.exports = { HOME, LOG_DIR, data, tmp, beside };

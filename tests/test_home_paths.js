@@ -69,8 +69,12 @@ put("stack/deployed.json", JSON.stringify({ bridge: "pkgbrdg1", table: "t" }));
 {
   const r = resolved({ MTG_LOG_DIR: logs });
   same("MTG_LOG_DIR alone: data stays in the repo", r.data, path.join(REPO, "decks"));
+  const only = resolved({ MTG_HOME: pkg });
+  same("MTG_HOME alone: state in <home>/tmp", only.tmp, path.join(pkg, "tmp", "x.log"));
+  ok("MTG_HOME alone: <home>/tmp is made", fs.existsSync(path.join(pkg, "tmp")));
   same("COMPOSE_PROJECT_NAME unset: the repo's project", r.containers[0], "stack-forge-room-1");
   same("COMPOSE_PROJECT_NAME wins over the file, as in compose", resolved({ MTG_HOME: pkg, COMPOSE_PROJECT_NAME: "other" }).containers, ["other-forge-room-1", "other-relay-1"]);
+  fs.rmSync(path.join(pkg, "tmp"), { recursive: true }); // (the live run below checks it makes none)
 }
 
 // editor-forward's save backups go to the log folder
