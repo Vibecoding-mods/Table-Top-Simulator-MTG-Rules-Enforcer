@@ -30,3 +30,5 @@ arena-features-collage.jpg
 engine/.build/
 # Friend packages (tools/make-friend-package.js)
 dist/
+# MTG Companion build output (companion/build.cmd)
+companion/bin/

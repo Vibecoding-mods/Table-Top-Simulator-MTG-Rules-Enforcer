@@ -942,3 +942,53 @@ the rest. The relay login messages match the bridge's.
 - how long a big table load keeps TTS "not responding";
 - why PowerShell's requests to the bridge took 35–41 s;
 - Razer focus stealing: no record of it in the repo or memory notes; the check is built from the lead's report.
+
+## 17. Friend mode: built 2026-11-09 (branch `companion`)
+
+The user hands the build to a friend: install Docker Desktop, unzip the package, double-click **MTG Companion.exe**.
+This revives the §9 WinForms/`csc` plan for that one job; §15's cross-platform decision still stands for the general
+host app.
+
+**Source:** `companion\src\*.cs` (C# 5), `companion\app.manifest` (asInvoker), `companion\app.ico` (made by
+`--write-icon`), `companion\build.cmd` → `companion\bin\MTG Companion.exe` (not committed). No NuGet.
+
+**Where it runs from** (`Logic.DetectLayout`):
+- **Friend mode:** `version.json` beside the exe. Package root = `MTG_HOME`; bundled `runtime\node\node.exe`; compose
+  project `mtg-table`; logs in `logs\` (`companion.log`, `bridge.log`).
+- **Home mode:** no `version.json`, but `bridge\bridge.js` + `Start MTG.bat` in the exe's folder or up to 4 above it
+  (so `companion\bin\` works). Node on PATH, project `stack`, logs in `tmp\`, bridge via `tools\start-bridge.ps1`, no
+  save step, `up -d --no-recreate`, and relay/room restarted only when the room isn't free or the login fails.
+
+**Start sequence** (one light each; a red stops the steps after it; every red has one button):
+
+| # | Light | Checks | Does (friend mode) |
+|---|---|---|---|
+| 1 | Docker | `GET /info` over the engine pipe (`dockerDesktopLinuxEngine`, then `docker_engine`); CLI `docker info` fallback every 30 s; `OSType` | not installed: red "Install Docker Desktop" + docker.com address as text, no download. Installed: starts `Docker Desktop.exe` (uninstall key, else default path), waits up to 180 s. Windows containers: red, says switch |
+| 2 | Engine images | `GET /images/mtg-relay:exile/json`, `mtg-forge-node:exile` ids vs `version.json` `relay`/`node` | missing or different: `docker load -i images\mtg-images.tar(.gz)` with % from the docker process's read bytes; 90 min timeout. Ids after a load are remembered in `state.json` (Docker's containerd store reports other ids than `docker save`'s), so it doesn't load again each start. During a game: amber, loads after |
+| 3 | Engine stack | containers by compose labels (project + service), relay `State.Health`; WebSocket login to `ws://127.0.0.1:9443` as `companion-xxxx` (the bridge's messages), `RoomList` → `tts-commander` `Lobby`; login skipped while locked | `docker compose -p mtg-table -f stack\compose.yml up -d`, `restart relay forge-room` (fresh room, as Start MTG.bat), then waits ≤120 s. Login failing 3 times on a healthy relay (the stale 9443 forward after `wsl --shutdown`) or a room stuck busy: one more restart by itself, then red **Restart relay and room**. "port is already allocated" → red naming the other engine |
+| 4 | Table save | `%LOCALAPPDATA%\MTG Companion\state.json` (`saveFile`, `saveHash`), the Saves folder (`MyDocuments\My Games\Tabletop Simulator\Saves`) | `Logic.PlanSave`: our recorded file → update only when `version.json` `save` changed (backup to `%LOCALAPPDATA%\MTG Companion\backup`, last 5); a byte-identical save → adopt; else a new `TS_Save_N.json` past every number in use (`.json` or `.png`), written with a move that refuses an existing file. Never touches a file it didn't install. Home mode: skipped |
+| 5 | Bridge | `GET /versions` (15 s); TCP listeners on 39998/48787 with owner (`GetExtendedTcpTable`) and command line (WMI) | starts `MTG Companion.exe --bridge-loop` (hidden, own process: closing the app never touches a game). The loop runs `cmd /c node.exe … bridge\bridge.js >> logs\bridge.log 2>&1` with `MTG_HOME`, and restarts it 3 s after any exit. A port held by another program → red naming it (e.g. `Code.exe`, the VS Code/Atom TTS plugin); held by another `bridge.js` (e.g. the repo's) → red "another MTG bridge" |
+| 6 | TTS | `Tabletop Simulator` process; `/versions` `now.table` (absent = the table hasn't spoken) vs `version.json` `table` | `steam://rungameid/286160` if not running. Amber with "In TTS: Create → Singleplayer (or Multiplayer) → Games → Save & Load → MTG Table (rules engine)" until the table speaks; green when the stamp matches; red "Old table loaded … load it again" when not |
+
+After the sequence, a watcher re-reads every 5 s (15 s when the window is hidden): Docker, containers, the login every
+60 s (never during a game), images every 5 minutes, `/versions` every 30 s, TTS.
+
+**Game lock** (`Logic.DecideGame`): locked when `/state` has `started:true` **or** `seats` not null (setup, or a
+finished game not yet `mtg reset`), when the bridge is refused but `bridge-game.json` (under `MTG_HOME\tmp` or
+`\logs`) is under 60 s old, and when the bridge doesn't answer (can't tell). Locked: Restart engine, Restart relay and
+room, Restart the bridge, Load the engine images, the save update. Never locked: Open TTS, Start Docker Desktop,
+Start the bridge (only when nothing runs), Try again.
+
+**Menu:** tray icon (worst light) with Open status, Open logs folder, Restart engine (locked during a game), Stop
+everything (bridge loop + bridge, then `docker compose -p mtg-table down`; Docker Desktop keeps running), Quit (asks:
+leave running, or stop first). Single instance (`Local\MtgTtsCompanion`; a second start shows the first window).
+**Limit Docker's CPU use…** is an opt-in button: writes `processors=2`, `memory=8GB` into `[wsl2]` of
+`%USERPROFILE%\.wslconfig` (backup first), never restarts WSL.
+
+**Test modes:** `--selftest` (110 canned cases, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
+`--shot FILE` for a PNG of the window), `--home DIR`, `--saves DIR`, `--state DIR`, `--log FILE`, `--steps 4,5`,
+`--bridge-url URL`, `--probe-login URL`, `--bridge-stop`.
+
+**Not yet seen live:** a whole friend-mode start (needs a PC without the repo's stack: ports 9443/39998/48787 are the
+repo's here); whether TTS lists a new `TS_Save_N.json` without an entry in `Saves\SaveFileInfos.json`; how long a
+real ~1 GB `docker load` takes (a 36 MB tar took 94 s here with the stack running on 2 WSL cores).
