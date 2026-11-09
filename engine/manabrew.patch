@@ -2727,10 +2727,10 @@ index 0000000..a109449
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java b/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java
 new file mode 100644
-index 0000000..bf1dc71
+index 0000000..16050e0
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java
-@@ -0,0 +1,233 @@
+@@ -0,0 +1,252 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonElement;
@@ -2781,6 +2781,8 @@ index 0000000..bf1dc71
 +        check("exiledCardWithCastPermissionIsPlayableForItsCasterOnly", MayPlayVisibilityTest::exiledCardWithCastPermissionIsPlayableForItsCasterOnly);
 +        check("exiledCardWithOnlyALookIsNotPlayable", MayPlayVisibilityTest::exiledCardWithOnlyALookIsNotPlayable);
 +        check("flashbackInOwnGraveyardIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::flashbackInOwnGraveyardIsPlayableForItsOwnerOnly);
++        check("unearthInOwnGraveyardIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::unearthInOwnGraveyardIsPlayableForItsOwnerOnly);
++        check("foretoldCardInExileIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::foretoldCardInExileIsPlayableForItsOwnerOnly);
 +        System.out.println(failed == 0 ? "PASS MayPlayVisibilityTest" : "FAIL MayPlayVisibilityTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
 +    }
@@ -2888,6 +2890,23 @@ index 0000000..bf1dc71
 +        f.settle();
 +        expect(mayPlay(f.card(0, "graveyard", 0, spell)), "a flashback card in its owner's graveyard is not playable");
 +        expect(!mayPlay(f.card(1, "graveyard", 0, spell)), "a flashback card is playable from the opponent's graveyard");
++    }
++
++    private static void unearthInOwnGraveyardIsPlayableForItsOwnerOnly() {
++        final Fixture f = new Fixture();
++        final Card zombie = f.add("Dregscape Zombie", f.p0, ZoneType.Graveyard);
++        f.settle();
++        expect(mayPlay(f.card(0, "graveyard", 0, zombie)), "an unearth card in its owner's graveyard is not playable");
++        expect(!mayPlay(f.card(1, "graveyard", 0, zombie)), "an unearth card is playable from the opponent's graveyard");
++    }
++
++    private static void foretoldCardInExileIsPlayableForItsOwnerOnly() {
++        final Fixture f = new Fixture();
++        final Card spell = f.add("Saw It Coming", f.p0, ZoneType.Exile);
++        spell.setForetold(true);
++        f.settle();
++        expect(mayPlay(f.card(0, "exile", 0, spell)), "a foretold card in its owner's exile is not playable");
++        expect(!mayPlay(f.card(1, "exile", 0, spell)), "a foretold card is playable for the opponent");
 +    }
 +
 +    private static StaticAbility firstStatic(final Card card) {
