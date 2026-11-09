@@ -1,0 +1,8 @@
+{
+  "label": "kykar-r3: re-test 2026-11-09, White's turn C (mid-game): Time Warp's extra-turn badge and a rewind across it, Star Trek cards (Make It So, Vexing Drone, Assimilate the Wounded), an each-creature spell with an exclusion",
+  "lands": 0,
+  "keepHand": true,
+  "hand": ["Big Score", "Time Warp", "Make It So", "Vexing Drone", "Lightning Bolt", "Assimilate the Wounded", "Fiery Cannonade"],
+  "mana": 99,
+  "opponents": { "battlefield": ["Grizzly Bears", "Craw Wurm"] }
+}

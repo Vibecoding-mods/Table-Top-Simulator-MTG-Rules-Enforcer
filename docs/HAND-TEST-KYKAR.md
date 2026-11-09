@@ -227,3 +227,115 @@ White 54 life, AI 1 334 life, stack empty. It can be rewound with Undo: the `mtg
 turn 9 (the menu shows the newest 12). So everything from turn 9 on, including Big Score (#25), can be re-tested
 from there. Game 1 can't be rewound (#15). Bridge e63981d4, table 88506f9f, node image 369481787d62, Loaded Objects
 86,326.
+
+## Re-test 2026-11-09
+
+Deploy: bridge e517dd99, table 0fa50b21, engine mtg-forge-node:trek ef61822078a0 (main 829c900). One game on the real
+table: White = `kykar_winds_fury` vs one Forge AI on `ai_bigboard`, set up by `scenarios/kykar-r1.json` (game start),
+then `kykar-r2.json` and `kykar-r3.json` typed mid-game (`mtg debug ...`). Driven with `tmp/live-checks/lc.js`; badges and
+the extra-turn number read from the table's Lua (`engineBadge`, the life tracker's buttons). Ended by White's concession.
+TTS objects: 68,991 fresh, 76,769 at the first priority, peak 85,061; no freeze, crash or driver reset.
+
+### The 27 Kykar bugs
+
+| # | result | what the table showed |
+|---|---|---|
+| 1 | PASS | `Mana: Kykar, Wind's Fury (sacrifice a Spirit)`; Treasures read `Mana: tap Treasure Token (also sacrifice this token)` |
+| 2 | PASS | `Spirit token is sacrificed for mana (Kykar, Wind's Fury)` |
+| 3 | PASS | `White equips Spirit token with Skullclamp`, `Spirit token dies`, `White draws 2 cards` |
+| 4 | PASS | labels `Tap Adarkar Wastes for {U} (1 damage to you)`; log `White: 40 -> 39 life (-1, damage from Adarkar Wastes)`, `White: 39 -> 38 life (-1, damage from Shivan Reef)` |
+| 5 | PASS | `Reflect Damage: choose a source`, no separator rows; sources say `Deflecting Palm (on the stack)`, `Errant, Street Artist 0/3 (command zone)` |
+| 6 | FAIL (half) | `White chooses Hill Giant (Reflect Damage)` is there, but the redirect isn't: Hill Giant's 3 (Reflect Damage) and Deflecting Palm's 2 came out as one bare `AI 1: 378 -> 373 life (-5)` |
+| 7 | PASS | `AI 1 pays {1} (Rhystic Study)`, `AI 1 doesn't pay {1} (Rhystic Study)`, `AI 1 doesn't pay {1} (Esper Sentinel)`, `AI 1 doesn't pay {4} (Mystic Remora)` |
+| 8 | PASS | `White casts Counterspell targeting Errant, Street Artist`, `Errant, Street Artist is countered by Counterspell and returns to the command zone`; `Hedron Archive is countered by Fierce Guardianship` |
+| 9 | PASS | `Spirit Token 1/1 (token) #1` ... `#10`, `#11` in order (and on up to `#42`) |
+| 10 | PASS | `White reveals Rhystic Study, Talisman of Progress, Island, Island, Chaos Warp from their library (Fact or Fiction)`, `White puts Island, Chaos Warp into their hand`, `White puts Island, Rhystic Study, Talisman of Progress into their graveyard from their library` |
+| 11 | PASS | `Lightning Bolt deals 3 damage to Grizzly Bears`, `Ral Zarek deals 3 damage to Craw Wurm` |
+| 12 | FAIL | Chaos Warp on AI 1's Serra Angel (stolen with Control Magic): `Serra Angel is put into White's library`, then `AI 1 reveals Wall of Air 1/5 from their library (Chaos Warp)`. AI 1's library stayed 92 (Serra in, Wall out) and White's stayed 97, so it went to AI 1's library |
+| 13 | PASS | `White activates Ral Zarek's -2 (loyalty 4 -> 2) targeting Craw Wurm`, `Ral Zarek deals 3 damage to Craw Wurm`, `White activates Liliana of the Veil's -2 (loyalty 3 -> 1) targeting AI 1`, `Wall of Air is sacrificed (Liliana of the Veil)`. A commander dying: not reached |
+| 14 | PASS | `White casts Explosion targeting AI 1 and White` |
+| 15 | NOT REACHED | the engine's trigger cap (engine batch); no Veyran/Mentor turn this game |
+| 16 | PASS | concession: `[MTG] GAME OVER - White conceded. AI 1 wins.`, log `Game over: White conceded. AI 1 wins`, top bar `GAME OVER White conceded. AI 1 wins` |
+| 17 | PASS | `Kykar, Wind's Fury: which applies first?` with `Anointed Procession: ...` / `Mondrak, Glory Dominus: ...` (also `Big Score: which applies first?` for its Treasures) |
+| 18 | PASS | `Mondrak, Glory Dominus: {1}{W/P}{W/P}, Sacrifice two other artifacts and/or creatures: ...` |
+| 19 | NOT REACHED | AI 1 got a Clue from Fateful Absence (`AI 1 creates a Clue token`) but never cracked it in 3 turns |
+| 20 | PASS | `Wear: destroy which artifact?`, `Tear: destroy which enchantment?`; `White casts Wear // Tear targeting Mind Stone and Exploration`, `Mind Stone is destroyed`, `Exploration is destroyed` |
+| 21 | PASS | `Dinosaur Beast Token gets a +1/+1 counter` then `Dinosaur Beast Token phases out`; `White pays {1} (Mentor of the Meek)`, `White doesn't pay {1} (Mentor of the Meek)` |
+| 22 | PASS | `Cast Flawless Maneuver without paying its mana cost (you control a commander)`, `White casts Flawless Maneuver without paying its mana cost`; `White casts Fierce Guardianship without paying its mana cost targeting Hedron Archive` |
+| 23 | PASS | `Guardian of Faith: which other creatures you control phase out?`, `Clever Concealment: which nonland permanents you control phase out?`, `Experimental Augury: give which another counter (proliferate)?` |
+| 24 | PASS | `Deflecting Palm: choose a source`, no separators; `White chooses Grizzly Bears (Deflecting Palm)`, `Grizzly Bears' combat damage to White is prevented (Deflecting Palm)` (its 2 damage back: see #6) |
+| 25 | PASS | Reverberate's list: `Big Score (your spell)`; `White casts Reverberate targeting Big Score`, `White copies Big Score`. Countering Big Score itself: not reached |
+| 26 | PASS | `White: 38 -> 47 life (+9, lifelink from Kykar, Wind's Fury; lifelink from Quartzwood Crasher)`, `AI 1: 396 -> 387 life (-9, combat damage from Kykar, Wind's Fury; combat damage from Quartzwood Crasher)`, twice (double strike); Akroma's Will's keyword line |
+| 27 | PASS | `Arcane Bombardment: cast which copy?`, text `The copy is cast; the card stays where it is.`; with one copy: `Cast Counterspell?` |
+
+### Log-line rounds
+
+- Damage: PASS. `AI 1: 400 -> 398 life (-2, damage from Shock)`, `AI 1: 397 -> 396 life (-1, damage from Explosion)`,
+  Bolt and Ral above. Arc Trail (two amounts) stays bare by design: `AI 1: 398 -> 397 life (-1)`, nothing for its 2 at
+  Craw Wurm.
+- "Each creature", plain (Pyroclasm): amount and source right, but see new bug 3 (one line per token). With an exclusion
+  (Fiery Cannonade, "non-Pirate"): PASS, no damage line, only `Craw Wurm dies`.
+- Rhystic Study, Esper Sentinel, Mystic Remora: PASS (#7).
+- Reflect Damage, Circle of Protection, Deflecting Palm: choices and preventions PASS (`White chooses Gray Ogre (Circle of
+  Protection: Red)`, `Gray Ogre's combat damage to White is prevented (Circle of Protection: Red)`); the redirect and the
+  Palm's damage back FAIL (#6).
+- Targets on casts: PASS. `White casts Arc Trail targeting Craw Wurm and AI 1`, `White casts Pacifism targeting Craw
+  Wurm`, `White casts Diabolic Edict targeting AI 1` + `Gray Ogre is sacrificed (Diabolic Edict)`.
+- Cost sacrifice: PASS. `White casts Bone Splinters targeting Hill Giant`, `Spirit token is sacrificed (to pay for Bone
+  Splinters)`.
+- Planeswalker loyalty: PASS (#13).
+
+### Live-report fixes
+
+- X/X token badge: PASS. Quartzwood Crasher's trample made two `Dinosaur Beast Token`s (base nil/nil, 6/6): badge
+  `pt=6/6`, black.
+- Each deck's basics: NOT REACHED. The debug start plays preset decks, which have no deck pictures, so both sides use the
+  lookup by name (White's and AI 1's Island are both `.../1335d293-3dd2-4f13-bd2c-22181f4528ee.webp`). This needs decks
+  readied from the table (live spawns, not done).
+- Clone: PASS. Clone as Serra Angel: 4/4 over base 4/4, badge only `cp=COPY`.
+- Face-down: PASS. Soul Summons' manifest: 2/2 over base 2/2, no P/T badge; after Giant Growth `pt=5/5 ... =under`.
+- Concession: PASS (#16).
+
+### Engine batch
+
+- Extra turn: PASS. After Time Warp (`White will take an extra turn (1 coming)`) the life tracker has a button `2`,
+  tooltip `White has 1 extra turn coming` (shot `tmp/live-checks/shots/r3-extra-turn.jpg`). It's gone in the extra turn.
+- Rewind across it: PASS. From the extra turn's upkeep, Undo to `turn 5, White's second main phase` brought the `2`
+  back (extraTurns 1), and passing on gave `--- White's turn 4 (extra turn) ---` again.
+- Mindslaver: HALF. `White takes control of AI 1's turn`, mark `TURN RUN BY WHITE`, and AI 1's `Choose attackers` came
+  to White; but see new bug 1: AI 1's main-phase priority never reached White.
+- Star Trek: PASS. Assimilate the Wounded: `Grizzly Bears returns to the battlefield from AI 1's graveyard with a +1/+1
+  counter (White)` (GET /card: Artifact Creature, Borg, 3/3); Make It So (`White casts Make It So targeting Karn's Bastion
+  and AI 1`, `AI 1 draws 2 cards`, `Make It So untaps Karn's Bastion`); Vexing Drone entered as a 2/2 Borg.
+
+### New bugs (re-test)
+
+1. TABLE/BRIDGE BUG (Mindslaver turn). AI 1's main-phase questions were answered without being shown, so White could
+   not play AI 1's land or cast its spells (AI 1 kept 7 cards and played no land). Bridge log: `White prompt #244
+   chooseAction`, `#245` (main1), `#246`, `#247` (combatBegin) with no `prompt White #2xx` display line, then `prompt White
+   #248: chooseAttackers`; after combat `#319` ... `#325` (combatDamage, combatEnd, main2) went the same way, up to
+   `#326` at the end step. White had pressed Next only once, at AI 1's draw step.
+2. TABLE BUG. Combat damage with Reflect Damage, Circle of Protection: Red and Deflecting Palm all set up asked
+   `Choose` (no card name) with the three replacement texts as options (`The next time a source of your choice would deal
+   damage this turn, that damage is dealt to that source's controller instead.` / `The next time the chosen red source
+   deals damage to you, prevent that damage.` / `The next time the chosen source deals damage to you, prevent that
+   damage.`), then `Choose` again with one option. #17's fix doesn't cover this prompt.
+3. TABLE BUG, log. Pyroclasm writes one grouped line (`Pyroclasm deals 2 damage to Esper Sentinel, Spirit token, Kykar,
+   ... Craw Wurm`) plus about 50 lines `Pyroclasm deals 2 damage to Spirit token`. One spell fills the 200-line game log.
+4. TABLE BUG, small. Two Serra Angels (White's Clone copy and AI 1's original) show as `Serra Angel 4/4 #1` / `#2` in
+   Control Magic's and Chaos Warp's lists, though they differ by owner and (for Control Magic) by controller.
+5. TABLE BUG, small. Arc Trail asks `Arc Trail: choose a target to deal damage to` twice; Forge's prompts say `Select any
+   target (2 damage)` / `Select any other target (1 damage)`.
+6. TABLE BUG, log, small. Order: `Pacifism goes to the graveyard` before `Craw Wurm dies`; `AI 1 draws 2 cards` before
+   `Make It So untaps Karn's Bastion` (the card untaps first).
+7. TABLE BUG, log, small. Akroma's Will and Flawless Maneuver name every token: `Spirit token, Spirit token, ...` up to
+   about 50 times in one line, instead of a count.
+8. TABLE BUG, small. After the concession the panel still shows `Next` and `End turn`, and `Your priority` (#491) is
+   still open under `GAME OVER` (shot `tmp/live-checks/shots/r3-gameover.jpg`).
+9. ENGINE VIEW, small. The assimilated Grizzly Bears read `ownerId player-0` (White) in GET /card while on the
+   battlefield; when sacrificed it went to AI 1's graveyard (`ownerId player-1`). A log line keyed on that owner would be
+   wrong (compare #12).
+10. TABLE BUG, log, small. Mondrak's Phyrexian cost paid with life is a bare `White: 55 -> 53 life (-2)`.
+
+Scenarios: `scenarios/kykar-r1.json` (game start), `kykar-r2.json` and `kykar-r3.json` (mid-game, `"lands": 0`,
+`"keepHand": true`). The game ended by concession; TTS was left running with the table loaded.

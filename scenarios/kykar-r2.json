@@ -1,0 +1,11 @@
+{
+  "label": "kykar-r2: re-test 2026-11-09, White's turn B (mid-game): X/X token badge, clone and face-down badges, Akroma's Will double strike, Big Score copy, free casts, doublers, Wear // Tear, phasing, multi-target titles, Mindslaver for the AI's next turn",
+  "lands": 0,
+  "keepHand": true,
+  "battlefield": ["Quartzwood Crasher", "Mindslaver", "Circle of Protection: Red", "Arcane Bombardment", "Mentor of the Meek"],
+  "hand": ["Akroma's Will", "Big Score", "Reverberate", "Flawless Maneuver", "Soul Summons", "Giant Growth", "Anointed Procession",
+           "Mondrak, Glory Dominus", "Wear // Tear", "Slip Out the Back", "Guardian of Faith", "Clever Concealment", "Experimental Augury",
+           "Fateful Absence", "Deflecting Palm", "Reflect Damage", "Clone"],
+  "mana": 99,
+  "opponents": { "battlefield": ["Hill Giant", "Grizzly Bears", "Gray Ogre", "Mind Stone"] }
+}

@@ -1,0 +1,14 @@
+{
+  "label": "kykar-r1: re-test 2026-11-09, White's turn A: Kykar mana label, Skullclamp, token sort, cast targets, damage lines, PW loyalty, Chaos Warp owner, split half, each creature; AI-turn pay lines and counters",
+  "lands": ["Plains", "Plains", "Plains", "Plains", "Island", "Island", "Island", "Island", "Mountain", "Mountain", "Mountain", "Mountain",
+            "Adarkar Wastes", "Battlefield Forge", "Shivan Reef", "Command Tower", "Karn's Bastion", "Reliquary Tower", "Floodfarm Verge", "Riverpyre Verge"],
+  "battlefield": ["Skullclamp", "Rhystic Study", "Esper Sentinel", "Mystic Remora"],
+  "tokens": ["1/1 white spirit flying", "1/1 white spirit flying", "1/1 white spirit flying", "1/1 white spirit flying", "1/1 white spirit flying",
+             "1/1 white spirit flying", "1/1 white spirit flying", "1/1 white spirit flying", "1/1 white spirit flying", "1/1 white spirit flying",
+             "1/1 white spirit flying"],
+  "hand": ["Lightning Bolt", "Shock", "Arc Trail", "Pacifism", "Diabolic Edict", "Bone Splinters", "Fact or Fiction", "Clone", "Control Magic",
+           "Chaos Warp", "Ral Zarek", "Liliana of the Veil", "Expansion // Explosion", "Pyroclasm", "Assimilate the Wounded",
+           "Counterspell", "Fierce Guardianship", "Reflect Damage", "Arcane Denial"],
+  "mana": 99,
+  "opponents": { "battlefield": ["Grizzly Bears", "Hill Giant", "Serra Angel", "Craw Wurm", "Gray Ogre", "Exploration"], "life": 400 }
+}
