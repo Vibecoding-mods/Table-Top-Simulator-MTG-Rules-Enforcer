@@ -8,6 +8,7 @@ const path = require("path");
 const { execFile } = require("child_process");
 const delta = require("./state-delta");
 const versions = require("./versions");
+const home = require("./home"); // where the data and logs are (MTG_HOME, MTG_LOG_DIR; unset: the repo)
 
 const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -21,7 +22,7 @@ const CLIENT_VERSION = "3.56.0"; // ≥ 3.17.0 → relay sends change-only patch
 const TTS_IN = Number(arg("tts-in", 39998)); // TTS sends to us here
 const TTS_OUT = Number(arg("tts-out", 39999)); // TTS listens here
 const { presetFile, presetIds } = require("./presets"); // decks/ (ours), then Manabrew's preset_decks
-const COMPOSE = path.join(__dirname, "..", "stack", "compose.yml");
+const COMPOSE = versions.COMPOSE;
 const DEFAULT_DECKS = ["neheb_minotaur_commander", "ashling_limitless_commander", "ramses_commander", "real_teval_commander"];
 
 const t0 = performance.now();
@@ -81,12 +82,16 @@ function pump() {
   ttsStats.maxByType[next.t] = Math.max(ttsStats.maxByType[next.t] || 0, msg.json.length);
   if (msg.json.length > 3000) ttsStats.big = [...(ttsStats.big || []).slice(-9), `${next.t} ${msg.json.length}`];
   sending = true;
-  const sock = net.connect(TTS_OUT, "127.0.0.1", () => sock.end(JSON.stringify({ messageID: 2, customMessage: msg })));
+  const sock = net.connect(TTS_OUT, "127.0.0.1", () => { ttsSaw(true); sock.end(JSON.stringify({ messageID: 2, customMessage: msg })); });
   sock.on("close", pump);
   sock.setTimeout(10000, () => { log(`TTS didn't take a ${next.t} message within 10 s; moving on`); sock.destroy(); });
-  sock.on("error", (e) => { if (e.code === "ECONNREFUSED") log("TTS not reachable on 39999 (is a game loaded?)"); else log(`sending to TTS: ${e.message}`); });
+  sock.on("error", (e) => { if (e.code === "ECONNREFUSED") { ttsSaw(false); log("TTS not reachable on 39999 (is a game loaded?)"); } else log(`sending to TTS: ${e.message}`); });
 }
 const ttsStats = { n: 0, bytes: 0, max: 0, tables: 0, tableBytes: 0, maxByType: {} };
+// For GET /health: whether TTS answered last (a send connected, or a message came: true; a send refused: false; null
+// until either), and when the table last spoke
+const ttsLink = { up: null, tableAt: 0 };
+const ttsSaw = (up) => { ttsLink.up = up; };
 const chat = (text, color) => toTTS({ t: "chat", text, color: color || null });
 
 // ───────── table log: tmp/table-log.log (2026-10-24) ─────────
@@ -95,7 +100,7 @@ const chat = (text, color) => toTTS({ t: "chat", text, color: color || null });
 // what the table did without the engine: held draws and their release, messages to a player, cards slid back. The
 // bridge log only said "from TTS: answer (106 bytes)", and "Blue drew a card but it isn't on the table" (a draw held
 // on the library with Blue's Auto off) took a live probe to explain.
-const TABLE_LOG = path.join(__dirname, "..", "tmp", "table-log.log");
+const TABLE_LOG = home.tmp("table-log.log");
 const clockNow = () => { const d = new Date(); return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":"); };
 function tlog(color, text) {
   fs.appendFile(TABLE_LOG, `[${clockNow()}] ${String(color || "-").padEnd(6)} ${text}\n`, () => {});
@@ -104,7 +109,7 @@ function tlog(color, text) {
 // Keeping the three aligned, seen on GET /versions and in a chat warning. Nothing here changes the game.
 // (LIVE: the real bridge; a test that loaded this file has no docker)
 const LIVE = require.main === module;
-const CHECK_LOG = path.join(__dirname, "..", "tmp", "table-check.log"), GUESS_LOG = path.join(__dirname, "..", "tmp", "guess-log.log");
+const CHECK_LOG = home.tmp("table-check.log"), GUESS_LOG = home.tmp("guess-log.log");
 const BRIDGE_HASH = LIVE ? versions.bridgeHash() : null; // (read now: the code this process runs, whatever the file becomes)
 let tableStamp; // the version the table last said: undefined until it said one, null from a table older than stamps
 // the table's hello said it reuses the last board's restore points when a board says keepRewind (see sendTable); an
@@ -715,7 +720,7 @@ class Seat {
 // that starts again within the relay's grace period (it gives a dropped player's seat away after ~65 s) logs back in
 // as the same players and asks for a resync: the board and the open question come back, the game goes on. The
 // bridge once died mid-game (exit 0xC0000409, nothing in its log) and the game was lost with it.
-const RESUME_FILE = process.env.MTG_RESUME_FILE || path.join(__dirname, "..", "tmp", "bridge-game.json");
+const RESUME_FILE = process.env.MTG_RESUME_FILE || home.tmp("bridge-game.json");
 const RESUME_MAX_AGE_MS = 50000;
 function saveResume() {
   if (!game || !game.started || game.closing || game.autoplay || game.over) return;
@@ -3565,7 +3570,7 @@ function scheduleView(seat) {
 }
 
 // A card's picture by name: the table's own image (the deck as imported), else Scryfall's (asked for once, cached).
-const IMG_DIR = path.join(__dirname, "..", "tmp", "img-cache"); // jpgs for the /img/ route (older table scripts)
+const IMG_DIR = home.tmp("img-cache"); // jpgs for the /img/ route (older table scripts)
 // card: the engine card (or stack item) it is the picture of, for its owner's deck and its printing (imagesFor): the
 // picture in a question is the one on the table
 function pictureOf(name, card = null) {
@@ -6970,7 +6975,7 @@ function onIntent(m) {
   seat.respond(p.promptId, p.type, p.type === "mulliganPutBack" ? { type: "mulliganPutBackDecision", cardIds: picks } : { type: "chooseCardsDecision", chosenCardIds: picks });
 }
 
-const GAME_LOG = path.join(__dirname, "game-log.txt");
+const GAME_LOG = home.beside("game-log.txt");
 function onGameLog(entry) {
   if (!entry?.message) return;
   const text = displayText(entry.message);
@@ -7054,6 +7059,7 @@ function restartRoom(then) {
 
 // ───────────────────────── TTS commands ─────────────────────────
 function onTTS(m) {
+  ttsSaw(true); ttsLink.tableAt = Date.now();
   if (typeof m.json === "string") { try { m = { ...JSON.parse(m.json), t: m.t }; } catch { return log(`bad json payload for ${m.t}`); } }
   const said = tlogIn(m);
   if (said) tlog(m.color, said);
@@ -7680,7 +7686,7 @@ function onFix(m) {
 // cards in any other zone, for the caller ("you") and the opponents ("opponents", or one colour: "Red"). Typed before
 // a game, it waits for the caller's first priority on their own turn (the opening hand is kept by itself); during one, it goes at the
 // next moment with nothing on the stack. Other players vote as for any fix.
-const SCENARIO_DIR = process.env.MTG_SCENARIO_DIR || path.join(__dirname, "..", "scenarios"); // (MTG_SCENARIO_DIR: tests)
+const SCENARIO_DIR = process.env.MTG_SCENARIO_DIR || home.data("scenarios"); // (MTG_SCENARIO_DIR: tests)
 const debugChoice = {}; // colour -> { name, scenario }: set up at that player's first priority in the next game
 const DEBUG_ZONES = ["battlefield", "hand", "library", "graveyard", "exile"];
 const BASIC_OF = { W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest" };
@@ -7912,13 +7918,14 @@ function checkRestored(seat) {
 // the return value plus any prints/errors that arrived meanwhile.
 const http = require("http");
 const DEBUG_PORT = Number(arg("debug-port", 48787));
-const CONSOLE_LOG = path.join(__dirname, "tts-console.log");
+const CONSOLE_LOG = home.beside("tts-console.log");
 const consoleLines = [];
 let consoleTotal = 0; // lines ever added (consoleLines keeps the last 500)
 let execSeq = BRIDGE_EXEC_BASE; // (Execute Lua answers from here up are the bridge's; lower ones the editor plugin's)
 const execWaiters = new Map();
 
 function onTTSDebug(msg) {
+  ttsSaw(true);
   let line = null;
   if (msg.messageID === 2) line = `print: ${msg.message}`;
   else if (msg.messageID === 3) line = `ERROR ${msg.guid ?? ""}: ${msg.error || msg.errorMessagePrefix || ""} ${msg.message || ""}`.trim();
@@ -8016,6 +8023,12 @@ const debugServer = http.createServer((req, res) => {
     });
   } else if (req.url === "/stats") {
     res.end(JSON.stringify(ttsStats));
+  } else if (req.url === "/health") {
+    // cheap enough to poll every few seconds (no docker, no TTS round trip): the companion app's game lock and lights
+    const phase = !game ? "none" : game.over ? "over" : game.started ? "running" : "setup";
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ phase, started: !!game?.started && !game.over, seats: !!game?.seats?.size, bridge: BRIDGE_HASH,
+      table: { stamp: tableStamp ?? null, lastHeardMs: ttsLink.tableAt ? Date.now() - ttsLink.tableAt : null }, ttsConnected: ttsLink.up }));
   } else if (req.url === "/versions") {
     // is what's running what the last deploy put together, and what the table's check and the log's guesses found
     versionsNow((now) => {

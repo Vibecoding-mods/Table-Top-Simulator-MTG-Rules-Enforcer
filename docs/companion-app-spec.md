@@ -942,3 +942,246 @@ the rest. The relay login messages match the bridge's.
 - how long a big table load keeps TTS "not responding";
 - why PowerShell's requests to the bridge took 35–41 s;
 - Razer focus stealing: no record of it in the repo or memory notes; the check is built from the lead's report.
+
+## 17. Friend mode: built 2026-11-09 (branch `companion`)
+
+The user hands the build to a friend: install Docker Desktop, unzip the package, double-click **MTG Companion.exe**.
+This revives the §9 WinForms/`csc` plan for that one job; §15's cross-platform decision still stands for the general
+host app.
+
+**Source:** `companion\src\*.cs` (C# 5), `companion\app.manifest` (asInvoker), `companion\app.ico` (made by
+`--write-icon`), `companion\build.cmd` → `companion\bin\MTG Companion.exe` (not committed). No NuGet.
+
+**Where it runs from** (`Logic.DetectLayout`):
+- **Friend mode:** `version.json` beside the exe. Package root = `MTG_HOME`; bundled `runtime\node\node.exe`; compose
+  project `mtg-table`; logs in `logs\` (`companion.log`, `bridge.log`).
+- **Home mode:** no `version.json`, but `bridge\bridge.js` + `Start MTG.bat` in the exe's folder or up to 4 above it
+  (so `companion\bin\` works). Node on PATH, project `stack`, logs in `tmp\`, bridge via `tools\start-bridge.ps1`, no
+  save step, `up -d --no-recreate`, and relay/room restarted only when the room isn't free or the login fails.
+
+**Start sequence** (one light each; a red stops the steps after it; every red has one button):
+
+| # | Light | Checks | Does (friend mode) |
+|---|---|---|---|
+| 1 | Docker | `GET /info` over the engine pipe (`dockerDesktopLinuxEngine`, then `docker_engine`); CLI `docker info` fallback every 30 s; `OSType` | not installed: red "Install Docker Desktop" + docker.com address as text, no download. Installed: starts `Docker Desktop.exe` (uninstall key, else default path), waits up to 180 s. Windows containers: red, says switch. The pipe refusing this account (`UnauthorizedAccessException`: not yet in `docker-users`) → red "sign out of Windows and back in", not 3 minutes of "starting" |
+| 2 | Engine images | `GET /images/mtg-relay:exile/json`, `mtg-forge-node:exile` ids vs `version.json` `relay`/`node` | missing or different: `docker load -i images\mtg-images.tar(.gz)` with % from the docker process's read bytes; 90 min timeout. Ids after a load are remembered in `state.json` (Docker's containerd store reports other ids than `docker save`'s), so it doesn't load again each start, and written into the package's `stackdeployed.json` as `node`/`relay` (the package's own kept as `nodePackage`/`relayPackage`) when they are neither its ids nor its `nodeConfig`/`relayConfig` (the classic store's ids, which the packager records), so the bridge's `/versions` agrees. During a game: amber, loads after |
+| 3 | Engine stack | containers by compose labels (project + service), relay `State.Health`; WebSocket login to `ws://127.0.0.1:9443` as `companion-xxxx` (the bridge's messages), `RoomList` → `tts-commander` `Lobby`; login skipped while locked | `docker compose -p mtg-table -f stack\compose.yml up -d`, `restart relay forge-room` (fresh room, as Start MTG.bat), then waits ≤120 s. Login failing 3 times on a healthy relay (the stale 9443 forward after `wsl --shutdown`) or a room stuck busy: one more restart by itself, then red **Restart relay and room**. "port is already allocated" → red naming the other engine |
+| 4 | Table save | `%LOCALAPPDATA%\MTG Companion\state.json` (`saveFile`, `saveHash`), the Saves folder (`MyDocuments\My Games\Tabletop Simulator\Saves`) | `Logic.PlanSave`: our recorded file → update only when `version.json` `save` changed **and** the file still hashes to what we installed (`state.json` `saveHash`); a file the player saved over gets a new number instead (backup to `%LOCALAPPDATA%\MTG Companion\backup`, last 5); a byte-identical save → adopt; else a new `TS_Save_N.json` past every number in use (`.json` or `.png`), written with a move that refuses an existing file. Never touches a file it didn't install. Home mode: skipped |
+| 5 | Bridge | `GET /versions` (15 s); TCP listeners on 39998/48787 with owner (`GetExtendedTcpTable`) and command line (WMI) | starts `MTG Companion.exe --bridge-loop` (hidden, own process: closing the app never touches a game). The loop runs `cmd /c node.exe … bridge\bridge.js >> logs\bridge.log 2>&1` with `MTG_HOME` and `MTG_LOG_DIR=logs`, and restarts it 3 s after any exit. Before starting it, a write test on `logs` and `bridge`: unwritable → one red "move the folder, e.g. C:GamesMTG-Table" (no restart loop). A port held by another program → red naming it (e.g. `Code.exe`, the VS Code/Atom TTS plugin); held by another `bridge.js` (e.g. the repo's) → red "another MTG bridge" |
+| 6 | TTS | `Tabletop Simulator` process; `/versions` `now.table` (absent = the table hasn't spoken) vs `version.json` `table` | `steam://rungameid/286160` if not running. Amber with "In TTS: Create → Singleplayer (or Multiplayer) → Games → Save & Load → MTG Table (rules engine)" until the table speaks; green when the stamp matches; red "Old table loaded … load it again" when not |
+
+After the sequence, a watcher re-reads every 5 s (15 s when the window is hidden): Docker, containers, the login every
+60 s (never during a game), images every 5 minutes, `/versions` every 30 s, TTS.
+
+**Game lock** (`Logic.DecideGame`): locked when `/state` has `started:true` **or** `seats` not null (setup, or a
+finished game not yet `mtg reset`), when the bridge is refused but `bridge-game.json` (under `MTG_HOME\tmp` or
+`\logs`) is under 60 s old, and when the bridge doesn't answer (can't tell). Locked: Restart engine, Restart relay and
+room, Restart the bridge, Load the engine images, the save update. Never locked: Open TTS, Start Docker Desktop,
+Start the bridge (only when nothing runs), Try again.
+
+**Menu:** tray icon (worst light) with Open status, Open logs folder, Restart engine (locked during a game), Stop
+everything (bridge loop + bridge, then `docker compose -p mtg-table down`; Docker Desktop keeps running), Quit (asks:
+leave running, or stop first). Single instance (`Local\MtgTtsCompanion`; a second start shows the first window).
+**Limit Docker's CPU use…** is an opt-in button: writes `processors=2`, `memory=8GB` into `[wsl2]` of
+`%USERPROFILE%\.wslconfig` (backup first), never restarts WSL.
+
+**Status page** (branch `companion-html`, `companion\src\WebUi.cs` + `WebPage.cs`): the status screen is a page in the
+default browser; the exe and the tray icon stay. A `TcpListener` on `127.0.0.1:48790` (any free port if that one is
+taken) with its own small HTTP/1.1 parser, because `HttpListener` can need a URL ACL or admin rights; it runs unelevated.
+The page is a C# string (one exe, no `build.cmd` change), inline CSS/JS only, no CDN or fonts, dark theme: a header with
+the worst light in words, a "Game in progress" banner while locked, six rows (dot, word, sentence, the row's one
+button), the hint, the menu buttons, and a collapsible log tail. It polls every 2.5 s (30 s in a hidden tab, each poll
+aborted after 6 s, the next one always armed): two misses in a row show "Companion busy, retrying", misses lasting
+10 s show "Companion not running", and a page from an earlier run shows "Reconnecting" and reloads itself at most once
+per 15 s. A button is disabled while its request is in flight; a script error shows a red "This page hit an error"
+banner and the polling goes on. The script is pure functions (status → view model, click plan, poll scheduling) plus a
+small shell, tested in Node by `tests/test_companion_page.js` with a stub DOM. `GET /api/status` (the shape is
+documented at the top of `WebUi.cs`; `update` is the self-update section in friend mode, §18.5, else `null`) and `POST /api/action {id}` (`fix:<row>:<fix>`, `restart-engine`,
+`stop-everything`, `open-logs`, `wsl-limits`, `update-check`, `update-now`, `update-later`) call the same `Controller` methods as the window, so the game lock and
+observe mode refuse exactly as there; a stale or hidden button is refused; Stop everything during a game needs a second
+confirmation (`confirmLocked`); pressing restart-engine, stop-everything or a fix again while the same one is still
+queued or running is a no-op ("Already running"). Guards: Host must be `127.0.0.1:<port>` or `localhost:<port>` (DNS rebinding); an Origin,
+when sent, must be that origin; `/api/*` needs `X-MTG-Token`, 16 random bytes per run written only into the served page
+(a page from an earlier run reloads itself); `Sec-Fetch-Site` other than same-origin/none is refused; POST needs
+exactly `application/json` (an optional `charset=utf-8`); head ≤ 8 KB, body ≤ 16 KB, no chunked bodies, bare LF or
+duplicate Host/token headers; a request must arrive within 10 s (5 s of silence closes the socket); at most 16
+connections, and past that the oldest one still waiting for its request is closed, so idle sockets can't lock the page
+out; answers carry a nonce CSP, `X-Frame-Options: DENY`, `no-store`, `Referrer-Policy: no-referrer`; only a known
+action id is logged. Tray: "Open status", a click on the icon and a click on a balloon open the page (a double-click
+opens it once, not twice). The first start of a package opens the page once and then writes `state.json`
+`statusPageShown`; if no browser opens, the window shows instead and the flag is not written, so the next start tries
+again. Later starts (and home mode) open it only when the first pass ends with a red light (the window if no browser).
+`StatusForm` stays as the fallback (`--no-web`, `--shot`, no free port, or no browser opens); `--web-port N`,
+`--no-browser` for tests.
+
+**Test modes:** `--selftest` (376 canned cases, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
+`--shot FILE` for a PNG of the window), `--home DIR`, `--saves DIR`, `--state DIR`, `--log FILE`, `--steps 4,5`,
+`--bridge-url URL`, `--probe-login URL`, `--bridge-stop`.
+
+**Not yet seen live:** a whole friend-mode start (needs a PC without the repo's stack: ports 9443/39998/48787 are the
+repo's here); whether TTS lists a new `TS_Save_N.json` without an entry in `Saves\SaveFileInfos.json`; how long a
+real ~1 GB `docker load` takes (a 36 MB tar took 94 s here with the stack running on 2 WSL cores).
+
+## 18. Self-update through GitHub Releases (friend mode)
+
+A friend's package updates itself from the releases of `Vibecoding-mods/Table-Top-Simulator-Mock-MTGA`. The user
+cuts a release on this PC and uploads it by hand; nothing here creates releases or pushes.
+
+### 18.1 A release (`node tools/make-friend-package.js --release`)
+
+Builds the package as usual, then `dist/release-<tag>/` (tag `v<yyyy.mm.dd-HHMM>` local time, `--tag` overrides) and
+prints the tag and the files to attach. Asset names have no spaces (GitHub turns a space into a dot):
+
+| Part | Asset | Holds | Version (what "changed" means) |
+|---|---|---|---|
+| `app` | `app.zip` | `bridge/` (without the picture cache `image-cache-klrmngr.json`: an update keeps the friend's own), `decks/`, `manabrew/public/preset_decks/`, `scenarios/`, `stack/compose.yml`, `stack/deployed.json`, `README-FRIEND.txt`, `LICENSES/`, `version.json` | sha8 over every file's path and bytes, without `version.json`, `stack/deployed.json`, `README-FRIEND.txt` (they change with every release) and the picture cache |
+| `table` | `table.zip` | `table/MTG Table.json` (+ `.png`) | the save's sha8 (`version.json` `save`) |
+| `images` | `images.tar` | the docker save of both images | sha8 of `node` + `relay` ids |
+| `runtime` | `runtime.zip` | `runtime/node/node.exe` | the Node version (`nodeVersion`) |
+| `companion` | `MTG.Companion.exe` | the app | sha8 of `companion/src/*.cs`, `app.manifest`, `build.cmd`, `release-keys.txt` |
+
+plus `update-manifest.json`, its signature `update-manifest.json.sig` (§18.7) and the full zip (for new friends; the
+updater never downloads it). A part whose version equals the previous release's isn't built again: its entry points at
+the release that carries the file (`release: <older tag>`), so a 300 MB `images.tar` is uploaded only when the engine
+changes. The previous release is `--previous <update-manifest.json>`: the PUBLISHED latest release's manifest, trusted
+as published. Without it, the newest other `dist/release-*/` is used, and a part is reused only when its file is in
+`dist/release-<its tag>/` with the manifest's sha256 (else it is built again). The packager prints "keep release X
+published" for every older release the new manifest points at. Without a previous manifest every part is built.
+`--release` refuses `--allow-undeployed-bridge` and `--allow-changed-save` (a release ships only what ran live), new
+images without the tar (`--no-images`), and a tag that isn't word characters, dots and dashes (or is only dots).
+
+`update-manifest.json`: `{ format: 1, version: <tag>, built, gitCommit, minCompanion, parts: { <part>: { file,
+sha256, size, version, release } }, full: { file, sha256, size }, versionJson, deployedJson }`. `versionJson` and
+`deployedJson` are the package's `version.json` (with `release: <tag>` and `parts: { <part>: version }`) and
+`stack/deployed.json`: the updater writes both after any update, since a table-only update must still move them.
+`minCompanion` is the oldest update format (`Updates.Format` in the app, now 1) that can apply this release.
+
+### 18.2 Checking
+
+- At startup (friend mode, not `--observe`) at most once per 6 hours (`%LOCALAPPDATA%\MTG Companion\updates.json` `lastCheck`), and from the
+  tray: **Check for updates**. The tray shows the version (`release`, else the build date) and the last result.
+- `GET https://api.github.com/repos/<repo>/releases/latest`, `User-Agent: MTG-Companion`, nothing else about the PC or
+  the user. 404 (the repo is private, or has no release) → the quiet line "Updates will work once the project is
+  public." and nothing else; other failures → "Couldn't check for updates (…)". Never a red light.
+- `update-manifest.json` and `update-manifest.json.sig` from that release's assets; the signature is checked over the
+  manifest's bytes (with its tag and `minCompanion`) BEFORE the manifest is parsed. Missing or not by a trusted key →
+  "The update manifest of <tag> isn't signed by this project's release key: not used." and nothing else (no dialog,
+  no red light). A manifest whose `version` isn't the release's tag is not used either.
+- each part's version against the local one (`version.json`
+  `parts`, else derived: `save`, the image ids, `nodeVersion`; app and companion unknown = changed). Same everywhere →
+  "Up to date". Otherwise a dialog: **Update available** with what changes and the download size, **Update now** /
+  **Later**.
+- Optional token (tray: **GitHub token…**, or `--set-token` reading stdin): stored with DPAPI (CurrentUser) in
+  `%LOCALAPPDATA%\MTG Companion\github-token.bin`, sent only in requests to `api.github.com` (the release lookups and
+  the asset downloads, both reads; a private repo needs it for both), never to a redirect target, never to a test
+  server (`--update-base`), never logged.
+
+### 18.3 Downloading
+
+Only the changed parts, into `<package>\updates\<tag>\`, through the asset API (`Accept: application/octet-stream`;
+a part in an older release is looked up with `releases/tags/<tag>`). Every URL, including each redirect (followed by
+hand, at most 5), must be `https://` on `api.github.com`, `github.com`, `objects.githubusercontent.com` or
+`release-assets.githubusercontent.com` (GitHub's current asset host); anything else is refused before a request is
+made. A partial file (`.part`) resumes with `Range`; a 206 counts only when its `Content-Range` starts where the
+partial file ends and names the part's size, else the partial file is deleted and the download starts again from 0;
+3 tries per part. The sha256 is checked; a mismatch deletes the file and refuses the update. The size must match too.
+The parts are checked again at the start of the install (a download that waited for a game, or `--apply-update`).
+
+### 18.4 Applying
+
+Never during a game (the game lock, §17): "Update ready — will install after this game" (kept in `updates.json`
+`pending`, so a restart still waits for it); the watcher applies it 2 minutes after the lock clears (`Updates.InstallNow`:
+not while the next game is being set up). Then, on the worker, holding the mutex `Local\MtgTtsCompanionUpdate`:
+
+1. Write `<package>\update-journal.json` (`target`, `backup`, `replaced`, `existed`, `moved`, `placed`, `phase`;
+   written whole to a `.tmp` and moved over) before the first move, and again after every move. Stop the bridge loop
+   and the bridge.
+2. Move what the update replaces and is there into `<package>\backup\<old version>\` (moves, not copies); keep the
+   last 2 backups, the engine images only in the newest.
+3. Extract each zip into the package: an entry must be under the part's own folders, with no segment that a trailing
+   dot or space trim changes (`bridge/.. /x` is `bridge/../x` to Windows) and no colon, and its full path must be
+   inside the part's folder. Move (not copy) `images.tar` to `images\mtg-images.tar`. An app update copies the old
+   picture cache back. Write `version.json` and `stack\deployed.json` from the manifest (the `companion` part's
+   version stays the old one until the new exe has taken over; without new images, the image ids this Docker gave
+   them, `Controller.RewriteDeployed`, stay). Journal phase `placed`.
+4. New images: `docker load` and `compose up -d` (the engine is idle: the lock was checked). New table: the
+   hash-guarded save install (§17 step 4: the player's own saves are never overwritten). Then start the bridge and
+   wait for `/versions`, except when the companion is part of the update: the bridge loop runs from the exe, so the
+   new exe starts it after the swap (started from the old one, it would hold the file being renamed).
+5. Any failure in 1–4: undo from the journal. Only a path that was moved to the backup, or that didn't exist before
+   (the update created it), is deleted; a path that was there and wasn't moved is never touched. What sits in the
+   backup decides what goes back (the journal can lag the last move by one). A placed `images.tar` goes back to the
+   download folder. Then load the old images again if new ones were loaded, start the bridge, and say "The update
+   failed and was undone: …" (or "… before anything changed"). When something can't be put back, the message names
+   it and the backup folder, and the journal stays, so the next start tries again. The download stays for another try.
+6. A new companion last: `MTG Companion.new.exe` (verified at the install's start) starts with `--replace-old <pid>
+   <old path> --old-start <ticks>`, the old app exits; the new one waits for that process, renames the old exe to `MTG Companion.old.exe` and itself to
+   `MTG Companion.exe`, records its part version, and starts from that name. The next clean start deletes the
+   `.old.exe`. If the new exe can't start, the old one stays, starts the bridge and says so. A release whose `minCompanion` is newer than
+   the running app swaps the companion first and passes `--apply-update <tag>` so the new one applies the rest.
+
+Interrupted (a kill, a power cut, Windows ending the app): at the next start, BEFORE the package is read (its
+`version.json` may be in the backup), `Updater.Recover` reads the journal. Phase `placed`: every file is in place, the
+journal goes and the start sequence loads the images, installs the save and starts the bridge as usual. Any other
+phase: undone as in step 5. Not in `--observe`, the bridge loop or the swap, and not while another app holds the mutex.
+While files move, the app holds Windows' shutdown (`ShutdownBlockReasonCreate`, "Finishing update…", and refuses
+`WM_QUERYENDSESSION`), the window can't be closed by Windows, Quit says to wait, and `Controller.Quit` waits for the
+install to end. The swap's new exe waits only for the old app's own process (its pid and start time, `--old-start`); if
+that is still running after a minute it says so (quit it from the tray, start again) instead of renaming a live exe.
+
+### 18.5 State and actions (for the window, the tray and the status page)
+
+The Controller keeps the update in one snapshot, `Controller.Update` (`UpdateState`: `Status` = idle, checking,
+up-to-date, not-public, available, downloading, ready, installing, restarting, updated, failed or interrupted (the
+start finished or undid an interrupted install: `Text` says which); `Current`,
+`Available`, `Notes`, `Progress` 0-100 or -1, `DeferredUntilGameEnds`, `Later`, `Error`, `LastCheck`, `Text`),
+changed only through `SetUpdate`. The actions are named methods any front end calls: `CheckNow()`, `UpdateNow()`
+(installs the release the last check offered), `Later()` (no dialog again for that release until asked). The window
+reads `Update.Text`. The status page serves it as `/api/status` `update` (`WebUi.UpdateSection`, friend mode only, null
+in home mode and observe): `{title, line, status, current, available, progress, deferred, error, lastCheck, actions}`,
+the actions in the menu's shape: `update-now` (a release is offered: available, or failed with one; asks first),
+`update-later` (offered and not put off yet), `update-check` (disabled while checking, downloading or installing).
+They go through `POST /api/action` to the same named methods, which return why they refused (observe, nothing
+offered, already busy); a second press while the same one runs is "Already running".
+
+### 18.6 Tests
+
+`tests/test_companion_update.js`: a fake GitHub (Node `http`: `releases/latest`, `releases/tags/<tag>`, asset
+downloads with a redirect to a second host name, `Range`, a first-try 500, `/state` for the game lock) and the built
+exe in a temp package, driven by hidden flags: `--update-base <url>` (the fake instead of `api.github.com`, only
+`http://` on 127.0.0.1 or localhost; its own host and `localhost` are then the allowed hosts, and no token is sent),
+`--test-public-key <key>` (the fake's signing key, only with that base), `--test-die-at move|place|placed` (the
+process kills itself there), `--test-format <n>` (an older app, for the companion-first path), `--update-check`,
+`--update-now`, `--fake-effects <file>` (bridge, docker and save steps written to a file instead of done),
+`--fake-fail <step>`. More cases: a table, images or runtime update; a failed save install undone with version.json;
+a held file that stops a move half way (every file as it was); killed after one move, after placing the tar (the
+package without version.json until the next start), and with every file in place; trailing-dot and trailing-space
+zip names and a stream name; a missing, foreign or tampered signature; a manifest of another tag; a 206 with a wrong
+`Content-Range`; a download that runs past the part's size (reading stops there); a changed download refused at the
+install; the companion first, then the rest without a second check; the bridge started by the old app only when its
+swap fails; the swap not waiting for a pid another process now has, and giving up on an old app still running after
+a minute; an undo that can't delete a held new file (named once, the journal kept, finished at the next start); an
+`--update-base` off this PC refused (exit 2). Cases: up to date; new app only; new
+images only (only the tar downloaded, from the older release); sha mismatch refused; 404 quiet; game running defers;
+failed apply rolls back; self-update swap (and the `.old.exe` removed at the next start); off-host URL refused; the
+token only to the API host and never in the log; a resumed download. The pure parts (plan, URL rule, manifest
+parsing, backups to prune, check interval, the zip-name and containment rules, `Content-Range`, the undo plan, the
+journal, the deployed.json merge, the swap's renames with failing file operations, the signature with a vector from
+the packager's Node code, DPAPI CurrentUser) are `--selftest` cases; the packager's release rules (refusals, the app
+version, reuse, the key and the signature) are in `tests/test_friend_package.js`.
+
+### 18.7 The release key
+
+`update-manifest.json` is signed with ECDSA P-256 over its exact bytes (`crypto.sign("sha256", …, { dsaEncoding:
+"ieee-p1363" })`: 64 bytes r || s, base64 in `update-manifest.json.sig`). The private key is
+`%USERPROFILE%\.mtg-release\release-key.pem` (`MTG_RELEASE_KEY` overrides; refused inside the repo; `.gitignore` has
+`.mtg-release/` and `*.pem`); the first `--release` makes it and prints where it is: back it up, never share or commit
+it. The public half (base64 of X || Y) is a line of `companion/release-keys.txt`, which `build.cmd` builds into the exe
+(`/resource`); the first `--release` adds the line before it builds the exe, and the file is committed. The app checks
+the signature with `ECDsaCng` against every line.
+
+Key change (a lost or leaked key): make a new key, add its line to `release-keys.txt` beside the old one, and ship one
+release signed with the OLD key whose companion carries BOTH lines; installed apps take it, and from then on releases
+are signed with the new key. Then the old line can go. A leaked key that can't sign that bridge release: friends
+download a full package again. Packages made before signing (no line in their exe) can't self-update: they take the
+first signed package by hand.
