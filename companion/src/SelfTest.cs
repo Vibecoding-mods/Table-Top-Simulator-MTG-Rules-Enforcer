@@ -142,9 +142,116 @@ namespace MtgCompanion
             Check("Start the bridge after the engine stopped it (green now): the save step, never skipped", Logic.StartFrom(5, 3, true) == 4, Logic.StartFrom(5, 3, true));
             Check("a button at or before the stopped step: unchanged", Logic.StartFrom(3, 3, true) == 3 && Logic.StartFrom(2, 3, false) == 2 && Logic.StartFrom(4, 4, false) == 4);
             Check("a button one past the stopped step that turned green: unchanged", Logic.StartFrom(4, 3, true) == 4);
+            Check("a button one past the stopped step that is still red: the stopped step", Logic.StartFrom(4, 3, false) == 3, Logic.StartFrom(4, 3, false));
+            // (the rule over every input, not a recorded answer: never later than asked, never past the first step not done)
+            string broke = null;
+            for (int req = 1; req <= 7 && broke == null; req++)
+                for (int at = 0; at <= 6 && broke == null; at++)
+                    foreach (bool green in new[] { false, true })
+                    {
+                        int got = Logic.StartFrom(req, at, green), firstUndone = at == 0 ? int.MaxValue : green ? at + 1 : at;
+                        if (got > req || got > firstUndone || (got != req && got != firstUndone)) { broke = "StartFrom(" + req + ", " + at + ", " + green + ") = " + got; break; }
+                    }
+            Check("every button, every stop: the requested step or the first step not done, whichever is earlier", broke == null, broke);
             Check("resume: the stopped step turned green, carry on from the next", Logic.ResumeAfterStop(3, true, false) == 4, Logic.ResumeAfterStop(3, true, false));
             Check("resume: still red, or no stop, or observe mode: nothing", Logic.ResumeAfterStop(3, false, false) == 0 && Logic.ResumeAfterStop(0, true, false) == 0 && Logic.ResumeAfterStop(3, true, true) == 0);
-            Check("resume after the last step: past the end (the sequence just says Ready)", Logic.ResumeAfterStop(6, true, false) == 7);
+            Check("resume after the last step: 7, a run that runs no step", Logic.ResumeAfterStop(6, true, false) == 7);
+            Check("engine wait: at least twice the 2 min 15 s cold start of 2026-11-10", Logic.StackWaitSeconds >= 270, Logic.StackWaitSeconds);
+            var timedOut = Logic.StackTimedOut("room busy");
+            Check("engine wait: the red text names the wait in minutes", timedOut.Contains("within " + (Logic.StackWaitSeconds / 60) + " minutes: room busy"), timedOut);
+            SequenceWiring();
+        }
+
+        // The Controller's own wiring of the two rules: the worker's turns (WorkOnce) on a Controller whose worker thread
+        // never starts, with a fake watcher. --steps 4 runs only the table save, which stops red here (no
+        // table\MTG Table.json in the temp package): no Docker, no bridge, no TTS. A run that started past step 4 would
+        // skip every step and say Ready, so "stopped at 4" proves the save step ran. The presses used (Start the bridge,
+        // Try again) only queue a step; the ones that probe the bridge or stop processes are never pressed here.
+        static void SequenceWiring()
+        {
+            var tmp = Path.Combine(Path.GetTempPath(), "mtg-companion-selftest-" + Guid.NewGuid().ToString("N").Substring(0, 6));
+            try
+            {
+                var c = new Controller(Layout.Make(Mode.Friend, tmp), false, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state"), "x.exe");
+                c.OnlySteps = new HashSet<int> { 4 };
+                int watched = 0;
+                Action watch = () => watched++;
+                Check("wiring: before any run, no stop: a button starts where it asks", c.StoppedAt == 0 && c.StartAt(5) == 5, c.StoppedAt);
+                bool ran = c.WorkOnce(watch);
+                Check("wiring: the first turn runs the start sequence, not the watcher; the red step is recorded", ran && watched == 0 && c.PendingFrom == 0 && c.StoppedAt == 4 && c.Phase.StartsWith("Stopped at step 4"), ran + " " + watched + " / " + c.StoppedAt + " / " + c.Phase);
+                Check("wiring: the steps after the stop wait for it", c.Rows[4].V.Light == Light.Grey && c.Rows[5].V.Text == "Waiting for Table save.", c.Rows[5].V);
+                ran = c.WorkOnce(watch);
+                Check("wiring: still red: a watcher turn, nothing queued", !ran && watched == 1 && c.PendingFrom == 0 && c.StoppedAt == 4, ran + " " + watched + " / " + c.PendingFrom);
+
+                c.DoFix(Controller.StepBridge, Fixes.BridgeStart);
+                ran = c.WorkOnce(watch);
+                Check("wiring: a press is a turn of its own: it queues its step", ran && watched == 1 && c.PendingFrom == 5, c.PendingFrom);
+                c.WorkOnce(watch);
+                Check("wiring: Start the bridge while the save is red: the save step again, not step 5", c.StoppedAt == 4 && c.Phase.StartsWith("Stopped at step 4"), c.StoppedAt + " / " + c.Phase);
+
+                // the bridge row's button pressed again while the run is on the unfinished step (on 2026-11-10: the
+                // 5-minute engine wait); the press arrives as the run starts that step
+                bool pressed = false;
+                Action press = () => { if (!pressed && c.Phase == "Starting: step 4 of 6") { pressed = true; c.DoFix(Controller.StepBridge, Fixes.Retry); } };
+                c.DoFix(Controller.StepBridge, Fixes.BridgeStart);
+                c.WorkOnce(watch); // the press
+                c.Changed += press;
+                c.WorkOnce(watch); // the run, interrupted by the second press
+                c.Changed -= press;
+                Check("wiring: a press during a run interrupts it, and the unfinished step is remembered", pressed && c.Phase == "Interrupted" && c.StoppedAt == 4, pressed + " / " + c.Phase + " / " + c.StoppedAt);
+                c.WorkOnce(watch); // the second press (Try again on the bridge row: step 5)
+                c.WorkOnce(watch); // its run
+                Check("wiring: pressed again during the run: the interrupted step still runs first, never skipped", c.StoppedAt == 4 && c.Phase.StartsWith("Stopped at step 4"), c.StoppedAt + " / " + c.Phase);
+
+                // a press for an EARLIER step during a run (Try again on the Docker row): the next run starts there, not
+                // at the interrupted step (a run from step 1 marks steps 1-3 skipped; a run from 4 leaves the marker)
+                c.Rows[Controller.StepDocker].V = new Verdict(Light.Red, "marker");
+                pressed = false;
+                Action pressEarly = () => { if (!pressed && c.Phase == "Starting: step 4 of 6") { pressed = true; c.DoFix(Controller.StepDocker, Fixes.Retry); } };
+                c.DoFix(Controller.StepBridge, Fixes.BridgeStart);
+                c.WorkOnce(watch); // the press
+                c.Changed += pressEarly;
+                c.WorkOnce(watch); // the run, interrupted
+                c.Changed -= pressEarly;
+                c.WorkOnce(watch); // Try again on Docker: step 1
+                c.WorkOnce(watch); // its run
+                Check("wiring: a press for an earlier step during a run: the next run starts there", pressed && c.Rows[Controller.StepDocker].V.Text == "Skipped (--steps)." && c.StoppedAt == 4, pressed + " / " + c.Rows[Controller.StepDocker].V.Text + " / " + c.StoppedAt);
+
+                c.Rows[Controller.StepSave].V = new Verdict(Light.Green, "Installed.");
+                Check("wiring: the stopped step's light is what counts (green; other rows never)", c.StepGreen(4) && !c.StepGreen(3) && !c.StepGreen(0) && !c.StepGreen(7));
+                var tts = c.Rows[Controller.StepTts].V;
+                c.Rows[Controller.StepTts].V = new Verdict(Light.Green, "TTS.");
+                Check("wiring: step 6 (the last row) can be green too", c.StepGreen(6) && !c.StepGreen(5));
+                c.Rows[Controller.StepTts].V = tts;
+                Check("wiring: green now: a button for a later step starts after it", c.StartAt(6) == 5 && c.StartAt(2) == 2, c.StartAt(6));
+                c.Rows[Controller.StepSave].V = new Verdict(Light.Red, "Not yet.");
+                // the watcher is what turns the light green (as MonitorTick re-reads a row); the carry-on check comes after it
+                Action greenWatch = () => { watched++; c.Rows[Controller.StepSave].V = new Verdict(Light.Green, "Installed."); };
+                ran = c.WorkOnce(greenWatch);
+                Check("wiring: the watcher's turn that sees it green queues the next step", !ran && c.PendingFrom == 5, ran + " / " + c.PendingFrom);
+                ran = c.WorkOnce(watch);
+                Check("wiring: the run that carries on forgets the stop", ran && c.StoppedAt == 0 && c.PendingFrom == 0 && c.Phase == "Ready", c.StoppedAt + " / " + c.Phase);
+                int before = watched;
+                ran = c.WorkOnce(watch);
+                Check("wiring: no second carry-on: the next turn only watches", !ran && watched == before + 1 && c.PendingFrom == 0, ran + " / " + c.PendingFrom);
+
+                // a run already queued (the watcher's update install queues one from step 1) is kept, not replaced
+                var u = new Controller(Layout.Make(Mode.Friend, tmp), false, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state-u"), "x.exe");
+                u.OnlySteps = new HashSet<int> { 4 };
+                u.RunSequence(1); // (its queued first run, from step 1, not consumed)
+                u.Rows[Controller.StepSave].V = new Verdict(Light.Green, "Installed.");
+                u.ResumeIfGreen();
+                Check("wiring: a run already queued is kept, not replaced by the carry-on", u.StoppedAt == 4 && u.PendingFrom == 1 && u.StartAt(1) == 1, u.StoppedAt + " / " + u.PendingFrom);
+
+                var o = new Controller(Layout.Make(Mode.Friend, tmp), true, tmp, Path.Combine(tmp, "state-o"), "x.exe");
+                o.OnlySteps = new HashSet<int> { 4 };
+                o.WorkOnce(watch); // its first run: the save red, observed
+                o.Rows[Controller.StepSave].V = new Verdict(Light.Green, "Installed.");
+                o.WorkOnce(watch);
+                Check("wiring: observe mode never records a stop, so never carries on", o.StoppedAt == 0 && o.PendingFrom == 0 && o.Phase == "Observing (no changes)", o.StoppedAt + " / " + o.PendingFrom + " / " + o.Phase);
+            }
+            catch (Exception e) { Check("wiring: no exception", false, e); }
+            finally { try { if (Directory.Exists(tmp)) Directory.Delete(tmp, true); } catch { } }
         }
 
         static void Stack()

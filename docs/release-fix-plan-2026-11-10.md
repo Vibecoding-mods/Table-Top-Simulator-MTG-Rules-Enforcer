@@ -7,8 +7,8 @@ stopped) found three problems. Don't upload that release yet: it has bugs 1 and 
 
 | # | Problem | What the friend would see | Status |
 |---|---|---|---|
-| 1 | The engine wait is 2 minutes, but a cold Forge room took 2 min 15 s to open (2 WSL cores) | A red Engine light and a Windows notification, though the engine was fine a second later | Fix written, not built |
-| 2 | After a stop, the start sequence never carries on by itself, and the "Start the bridge" button jumps to step 5, skipping step 4 (the table save) | "MTG Table (rules engine)" is missing from TTS's Save & Load list; the Table save row stays grey with no button | Fix written, not built |
+| 1 | The engine wait is 2 minutes, but a cold Forge room took 2 min 15 s to open (2 WSL cores) | A red Engine light and a Windows notification, though the engine was fine a second later | Fixed, built, self-tested; fresh install not re-run |
+| 2 | After a stop, the start sequence never carries on by itself, and the "Start the bridge" button jumps to step 5, skipping step 4 (the table save) | "MTG Table (rules engine)" is missing from TTS's Save & Load list; the Table save row stays grey with no button | Fixed, built, self-tested; fresh install not re-run |
 | 3 | Updates check GitHub Releases without a login, and the repo is private | The companion logs "Updates will work once the project is public."; the friend never gets updates | **Needs your decision** (below) |
 
 Timeline from the companion log: compose up 09:05:03, relay and room restarted 09:05:30, wait ran out 09:07:44, room
@@ -16,12 +16,21 @@ open 09:07:45, Engine green 09:08:47, bridge started by the button 09:10:37, sav
 
 ## Fixes 1 and 2 (written, in companion/src)
 
-- **Wait:** `StackWaitSeconds = 300` (5 minutes), used by both waits in `DoStack`; the red text names the minutes.
+- **Wait:** `Logic.StackWaitSeconds = 300` (5 minutes), used by both waits in `DoStack`; the red text
+  (`Logic.StackTimedOut`) names the minutes.
 - **Carry on by itself:** `RunSequence` records `stoppedAt`. Each watch tick, if that step's light has turned
   green, the sequence carries on from the next step (`Logic.ResumeAfterStop`). Not in observe mode, not after Stop.
 - **Never skip a step:** a button for a later step starts at the stopped step, or at the step after it once that
   step is green (`Logic.StartFrom`). So "Start the bridge" after an engine stop runs save → bridge → TTS.
 - **Self-tests:** a new `Sequence()` group with 8 checks covering both rules.
+- **Review (/jr-programmer-suite, 2026-11-10):** a bug the first version still had (found by the verifier): a press
+  that interrupted a run (Start the bridge pressed again during the 5-minute engine wait) cleared the stop, so the next
+  run skipped steps 3-4 again. An interrupt now records its step in `stoppedAt` too. The worker's loop body is now
+  `WorkOnce(watch)` (Loop passes `MonitorTick`), with `StartAt`, `ResumeIfGreen` and `StepGreen`, and a
+  `SequenceWiring()` group drives a real Controller through it (worker thread not started, a fake watcher, `--steps 4`,
+  where the save stops red because the temp package has no table): the stop, a later button re-running the red step,
+  a press during a run, a press for an earlier step, the carry-on once the light is green, no second carry-on, a queued
+  run kept. Stop everything also forgets the stop. `stopped` is now `everythingStopped`. Self-test group: 8 checks → 29.
 
 ## Decision needed: updates on a private repo (problem 3)
 
