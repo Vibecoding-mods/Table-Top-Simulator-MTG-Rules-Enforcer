@@ -4740,6 +4740,11 @@ const QUEUED_PLAY_MS = 30000;
 const SKIP_PHASES = { upkeep: ["upkeep"], draw: ["draw"], main: ["main1"], combat: ["combatBegin", "combatDeclareAttackers"],
   blockers: ["combatDeclareBlockers"], damage: ["combatFirstStrikeDamage", "combatDamage"], main2: ["main2"], end: ["end", "endOfTurn"],
   mine: ["upkeep", "draw", "main1"] };
+// the list's own words for a skip (the table's engineAutoChoices), and where it stops
+const SKIP_SAID = { upkeep: "Until upkeep", draw: "Until draw", main: "Until main phase", combat: "Until combat", blockers: "Until blockers",
+  damage: "Until damage", main2: "Until main 2", end: "Until end step", mine: "Until my turn" };
+const SKIP_WHERE = { upkeep: "the upkeep", draw: "the draw step", main: "the first main phase", combat: "beginning of combat and declare attackers",
+  blockers: "the declare blockers step", damage: "the combat damage steps", main2: "the second main phase", end: "the end step" };
 // Forge's steps in the table's words, for what the chat says of one ("Skip ended: combatBegin" read so, live check 12)
 const STEP_WORDS = { untap: "untap step", upkeep: "upkeep", draw: "draw step", main1: "main phase", combatBegin: "beginning of combat",
   combatDeclareAttackers: "declare attackers step", combatDeclareBlockers: "declare blockers step", combatFirstStrikeDamage: "first-strike damage step",
@@ -4753,6 +4758,13 @@ function skipReached(skip, gv, slot) {
   const at = SKIP_ORDER.indexOf(gv.step), first = SKIP_ORDER.indexOf(SKIP_PHASES[skip.phase][0]);
   if (skip.phase === "mine") return gv.activePlayerId === slot && gv.turn > skip.turn;
   return at >= first && (gv.turn > skip.turn || SKIP_ORDER.indexOf(skip.step) < first);
+}
+// whether a skip stops at this step. "Until <phase>" stays on and stops at that phase in every turn, yours and the
+// others' (the user, 2026-11-09 item 3: "the button is undone when a new phase pops up", "'Until combat' stops at my
+// combat and my opponents'"); a phase Forge gives no priority in that turn (no attackers: no blockers step) is passed.
+// "Until my turn" is one stop, as before (the whole of every other turn passed is Auto-resolve's job).
+function skipStopsHere(skip, gv, slot) {
+  return skip.phase === "mine" ? skipReached(skip, gv, slot) : SKIP_PHASES[skip.phase].includes(gv.step);
 }
 // tells the table what this player's Auto-resolve list is set to: a skip's phase, or on / off (the bridge passes, so the
 // table only shows it; a skip ends here, not there)
@@ -5206,10 +5218,15 @@ function onPrompt(seat, prompt) {
       let skipStop = false;
       if (seat.skipTo) {
         const theirs = (gv.stack || []).find((x) => x.controllerId !== seat.slot);
-        if (theirs || skipReached(seat.skipTo, gv, seat.slot)) {
-          chat(`[MTG] Skip ended: ${theirs ? `${theirs.identity?.name || "something"} (${nameOf(theirs.controllerId)}) is on the stack` : `${STEP_WORDS[gv.step] || gv.step}, ${gv.activePlayerId === seat.slot ? "your" : `${nameOf(gv.activePlayerId)}'s`} turn`}.`, seat.color);
-          seat.skipTo = null;
-          autoNotice(seat);
+        if (theirs || skipStopsHere(seat.skipTo, gv, seat.slot)) {
+          // (said once per stop: each priority in that phase, or under that spell, asks without a second line)
+          const once = seat.skipTo.phase === "mine";
+          const key = theirs ? `stack|${theirs.id}` : `${gv.turn}|${gv.activePlayerId}|${seat.skipTo.phase}`;
+          if (seat.skipTo.said !== key) {
+            chat(`[MTG] ${once ? "Skip ended" : "Stopped"}: ${theirs ? `${theirs.identity?.name || "something"} (${nameOf(theirs.controllerId)}) is on the stack` : `${STEP_WORDS[gv.step] || gv.step}, ${gv.activePlayerId === seat.slot ? "your" : `${nameOf(gv.activePlayerId)}'s`} turn`}.${once ? "" : ` "${SKIP_SAID[seat.skipTo.phase]}" stays on.`}`, seat.color);
+            seat.skipTo.said = key;
+          }
+          if (once) { seat.skipTo = null; autoNotice(seat); }
           skipStop = true; // (stopped there, whatever the step stops say)
         } else {
           seat.respond(prompt.promptId, type, { type: "pass" });
@@ -7444,9 +7461,10 @@ function onTTS(m) {
       seat.skipTo = { phase, turn: gv.turn ?? 0, step: gv.step || "untap" };
       autoResolve[m.color] = undefined; // (or auto-resolve would pass the very stop this asks for)
       autoNotice(seat);
-      chat(`[MTG] Passing until ${phase === "mine" ? "your next turn" : `the next ${phase === "main" ? "main phase" : phase === "main2" ? "second main phase" : phase === "end" ? "end step" : `${phase} step`}`}; an opponent's spell stops it. (mtg skip off)`, m.color);
+      chat(phase === "mine" ? "[MTG] Passing until your next turn; an opponent's spell stops it. (mtg skip off)"
+        : `[MTG] "${SKIP_SAID[phase]}": you pass priority except in ${SKIP_WHERE[phase]} (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)`, m.color);
       // a priority already waiting goes at once
-      if (seat.prompt?.type === "chooseAction" && !skipReached(seat.skipTo, gv, seat.slot) && !(gv.stack || []).some((x) => x.controllerId !== seat.slot)) {
+      if (seat.prompt?.type === "chooseAction" && !skipStopsHere(seat.skipTo, gv, seat.slot) && !(gv.stack || []).some((x) => x.controllerId !== seat.slot)) {
         seat.respond(seat.prompt.promptId, "chooseAction", { type: "pass" }); closePrompt(seat);
       }
       break;
