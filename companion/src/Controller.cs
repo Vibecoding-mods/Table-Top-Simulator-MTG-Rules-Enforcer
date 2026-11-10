@@ -68,10 +68,11 @@ namespace MtgCompanion
         Thread thread;
         volatile bool quit, cancel;
         int pendingFrom = 1, resumeFrom; // (resumeFrom: the step a button press interrupted)
-        int stoppedAt; // the step the start sequence last stopped at on a red light; 0 when it ran to the end
-        const int StackWaitSeconds = 300;
+        // the first step the last start-sequence run didn't finish: it stopped there on a red light, or a press
+        // interrupted it there; 0 when it ran to the end, or after Stop everything (worker only)
+        int stoppedAt;
         readonly Dictionary<int, DateTime> busyLogged = new Dictionary<int, DateTime>();
-        bool forceFresh, forceLoad, stopped, ttsLaunched;
+        bool forceFresh, forceLoad, everythingStopped, ttsLaunched; // (everythingStopped: the menu's Stop everything; the watcher pauses)
         object version, deployed;
         string dockerCli, dockerDesktop, saveName, relayKey;
         bool dockerViaCli; DateTime lastCliInfo = DateTime.MinValue; bool lastCliOk;
@@ -339,30 +340,36 @@ namespace MtgCompanion
         void Loop()
         {
             while (!quit)
+                if (!WorkOnce(MonitorTick)) wake.WaitOne(WindowVisible ? 5000 : 15000);
+        }
+
+        // One turn of the worker: a queued press, else a queued start-sequence run, else the watcher and then the
+        // carry-on check. True: it ran a press or a run (go round again at once); false: it watched (wait for the next
+        // tick). The self-test drives this with a fake watcher, the worker thread never started.
+        internal bool WorkOnce(Action watch)
+        {
+            Action a = null;
+            lock (q) if (work.Count > 0) a = work.Dequeue();
+            if (a != null)
             {
-                Action a = null;
-                lock (q) if (work.Count > 0) a = work.Dequeue();
-                if (a != null)
-                {
-                    cancel = false;
-                    Safe(a, "action");
-                    // a press that interrupted the start sequence: carry on from that step, unless the press restarted or stopped it
-                    if (pendingFrom == 0 && resumeFrom > 0 && !stopped) pendingFrom = resumeFrom;
-                    resumeFrom = 0;
-                    continue;
-                }
-                if (pendingFrom > 0)
-                {
-                    int from = Logic.StartFrom(pendingFrom, stoppedAt, StepGreen(stoppedAt)); pendingFrom = 0; cancel = false;
-                    Safe(() => RunSequence(from), "start sequence");
-                    FirstPassDone = true;
-                    Fire();
-                    continue;
-                }
-                if (!stopped) Safe(MonitorTick, "watch");
-                FirstPassDone = true;
-                wake.WaitOne(WindowVisible ? 5000 : 15000);
+                cancel = false;
+                Safe(a, "action");
+                // a press that interrupted the start sequence: carry on from that step, unless the press restarted or stopped it
+                if (pendingFrom == 0 && resumeFrom > 0 && !everythingStopped) pendingFrom = resumeFrom;
+                resumeFrom = 0;
+                return true;
             }
+            if (pendingFrom > 0)
+            {
+                int from = StartAt(pendingFrom); pendingFrom = 0; cancel = false;
+                Safe(() => RunSequence(from), "start sequence");
+                FirstPassDone = true;
+                Fire();
+                return true;
+            }
+            if (!everythingStopped) { Safe(watch, "watch"); ResumeIfGreen(); }
+            FirstPassDone = true;
+            return false;
         }
 
         void Safe(Action a, string what)
@@ -383,7 +390,25 @@ namespace MtgCompanion
             return !(quit || cancel);
         }
 
-        bool StepGreen(int step) { return step > 0 && step <= 6 && Rows[step - 1].V != null && Rows[step - 1].V.Light == Light.Green; }
+        // step: 1-6, as the sequence counts; anything else is not green
+        internal bool StepGreen(int step) { return step > 0 && step <= Rows.Length && Rows[step - 1].V.Light == Light.Green; }
+
+        // the step a run asked to start at requested really starts at (Logic.StartFrom against the last stop)
+        internal int StartAt(int requested) { return Logic.StartFrom(requested, stoppedAt, StepGreen(stoppedAt)); }
+
+        // after each watcher tick: once the step the sequence stopped at has turned green by itself, queue the rest of
+        // the sequence (Logic.ResumeAfterStop). A run already queued is kept (the watcher's update install queues one
+        // from step 1; StartAt still holds it to the first step not done).
+        internal void ResumeIfGreen()
+        {
+            int resume = Logic.ResumeAfterStop(stoppedAt, StepGreen(stoppedAt), Observe);
+            if (resume == 0 || pendingFrom != 0) return;
+            Log.Write("step " + stoppedAt + " (" + Names[stoppedAt - 1] + ") is green now: carrying on from step " + resume);
+            pendingFrom = resume; wake.Set();
+        }
+
+        internal int StoppedAt { get { return stoppedAt; } }
+        internal int PendingFrom { get { return pendingFrom; } }
 
         void Fire() { var c = Changed; if (c != null) try { c(); } catch { } }
 
@@ -440,9 +465,9 @@ namespace MtgCompanion
 
         // ───────────────────────────── the start sequence ─────────────────────────────
 
-        void RunSequence(int from)
+        internal void RunSequence(int from)
         {
-            stopped = false; stoppedAt = 0;
+            everythingStopped = false; stoppedAt = 0;
             bool fresh = forceFresh; forceFresh = false;
             for (int step = from; step <= 6 && !quit; step++)
             {
@@ -458,7 +483,8 @@ namespace MtgCompanion
                     case StepBridge: ok = DoBridge(); break;
                     default: ok = DoTts(); break;
                 }
-                if (cancel && !quit) { resumeFrom = step; SetPhase("Interrupted"); return; }
+                // (stoppedAt too: a press for a later step must not skip this unfinished one, Logic.StartFrom)
+                if (cancel && !quit) { resumeFrom = step; stoppedAt = step; SetPhase("Interrupted"); return; }
                 if (!ok && !Observe)
                 {
                     stoppedAt = step;
@@ -681,8 +707,7 @@ namespace MtgCompanion
                     autoRestarts = 1;
                 }
             }
-            // (a cold Forge room took 2 min 15 s to open on 2 cores on 2026-11-10: wait 5 minutes)
-            var until = DateTime.UtcNow.AddSeconds(StackWaitSeconds);
+            var until = DateTime.UtcNow.AddSeconds(Logic.StackWaitSeconds);
             int loginFails = 0, busy = 0;
             while (!quit)
             {
@@ -709,12 +734,12 @@ namespace MtgCompanion
                     Set(StepStack, new Verdict(Light.Busy, "The relay didn't let this PC in; restarting relay and room."));
                     if (!RestartRelayRoom()) return false;
                     autoRestarts++; loginFails = 0; busy = 0;
-                    until = DateTime.UtcNow.AddSeconds(StackWaitSeconds);
+                    until = DateTime.UtcNow.AddSeconds(Logic.StackWaitSeconds);
                     continue;
                 }
                 if (DateTime.UtcNow > until)
                 {
-                    if (v.Light != Light.Red) v = new Verdict(Light.Red, "The engine didn't get ready within " + (StackWaitSeconds / 60) + " minutes: " + v.Text).WithFix(Fixes.StackRestart, "Restart relay and room");
+                    if (v.Light != Light.Red) v = new Verdict(Light.Red, Logic.StackTimedOut(v.Text)).WithFix(Fixes.StackRestart, "Restart relay and room");
                     Set(StepStack, v);
                     return false;
                 }
@@ -1077,12 +1102,6 @@ namespace MtgCompanion
                 Set(StepBridge, v);
             }
             UpdateTts();
-            int resume = Logic.ResumeAfterStop(stoppedAt, StepGreen(stoppedAt), Observe);
-            if (resume > 0 && pendingFrom == 0)
-            {
-                Log.Write("step " + stoppedAt + " (" + Names[stoppedAt - 1] + ") is green now: carrying on from step " + resume);
-                pendingFrom = resume; wake.Set();
-            }
             if (!Observe && Phase.StartsWith("Ready")) SetPhase(Rows.Any(r => r.V.Light == Light.Red) ? "Ready, with a problem: see the red light" : "Ready");
         }
 
@@ -1131,7 +1150,7 @@ namespace MtgCompanion
             Log.Write("menu: stop everything (game: " + Game.Kind + ")");
             Enqueue(() =>
             {
-                stopped = true; pendingFrom = 0;
+                everythingStopped = true; pendingFrom = 0; stoppedAt = 0; // (the menu's stop replaces a red-light stop)
                 SetPhase("Stopping");
                 StopBridge();
                 if (dockerCli != null && Rows[StepDocker].V.Light == Light.Green) Compose(L.Friend ? "down" : "stop", 120000);
