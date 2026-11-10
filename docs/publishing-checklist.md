@@ -81,15 +81,13 @@ GitHub has no "unlisted" repositories. A private repository is seen only by peop
 
 Draft message to the table's author, for a Workshop comment on 2296042369 or their Steam profile:
 
-> Hi! I really enjoy your MTG 4 player table. I've built a project that runs Commander on it with the Forge rules engine
-> enforcing the rules: triggers, the stack, combat and AI opponents. It works by patching a copy of your table. It adds
-> the engine scripts and removes a few things that clash with engine play, such as the hard-coded "promote me"
-> permission and the Smart mulligan button.
+> Hey! Thanks for your MTG 4 player table. I've built a project on top of it: Commander with the Forge rules engine
+> enforcing the rules (triggers, the stack, priority, combat and AI opponents). It patches a copy of your table to add
+> the engine scripts, and removes the hard-coded "promote me" permission and the Smart mulligan button.
 >
-> I'd like to share it with a few friends through a private, invite-only GitHub repository. For people who can't set it
-> up themselves there's a ready-to-run download, and that includes the patched copy of your table, so it would be sharing
-> your work. Everything credits you and links to your Workshop page. Are you OK with that? If I ever make it public,
-> would you rather I ship only the patcher, so people use their own Workshop copy? Happy to change anything you'd like.
+> It's a work in progress. I'm sharing it with a few friends now, including a ready-to-run download with the patched
+> table, and I'll make the GitHub repo public soon. You're credited as the table's author with a link to your Workshop
+> page.
 
 ## Before making the repository public
 
