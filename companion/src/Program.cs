@@ -11,7 +11,7 @@
 //   MTG Companion.exe --probe-login URL [KEY]   one relay login, printed (for testing against a fake relay)
 //   MTG Companion.exe --update-check | --update-now   self-update without the window (docs/companion-app-spec.md §18):
 //       [--update-base URL] (a fake GitHub on this PC: http://127.0.0.1:PORT only; then also --test-public-key KEY,
-//       --test-die-at move|place|placed, --test-format N) [--fake-effects FILE [--fake-fail STEP,...]] (--update-now needs it)
+//       --test-die-at move|place|written|placed, --test-format N, --test-skip-recover, --test-journal-fail) [--fake-effects FILE [--fake-fail STEP,...]] (--update-now needs it)
 //       [--bridge-url URL] [--state DIR] [--log FILE]; exit 0 up to date or done, 10 update available, 3 deferred, 1 failed
 //   MTG Companion.exe --set-token               the GitHub token from stdin, stored with DPAPI (empty: removed)
 //   MTG Companion.exe --replace-old PID PATH --old-start TICKS --part-version V   (internal) the new exe takes over
@@ -79,6 +79,7 @@ namespace MtgCompanion
             {
                 upd.DieAt = Arg(args, "--test-die-at");
                 int f; if (int.TryParse(Arg(args, "--test-format") ?? "", out f)) upd.Format = f;
+                upd.TestJournalFail = args.Contains("--test-journal-fail");
             }
             UpdateManifest m; UpdatePlan plan; string error;
             string applyTag = Arg(args, "--apply-update");
@@ -146,7 +147,9 @@ namespace MtgCompanion
             // an update a kill or a power cut interrupted: finished or undone before the package is read (its
             // version.json may be in the backup). Not in the bridge loop, the swap or --observe (which changes nothing).
             string recovered = null;
-            if (!new[] { "--bridge-loop", "--bridge-stop", "--replace-old", "--observe" }.Any(args.Contains))
+            // (--test-skip-recover, only with a loopback --update-base: leave it to the install, which must finish it first)
+            bool skipRecover = Updates.TestBaseOk(ub) && args.Contains("--test-skip-recover");
+            if (!skipRecover && !new[] { "--bridge-loop", "--bridge-stop", "--replace-old", "--observe" }.Any(args.Contains))
             {
                 string home = Arg(args, "--home") ?? exeDir;
                 if (File.Exists(Path.Combine(home, Updates.JournalFile)))

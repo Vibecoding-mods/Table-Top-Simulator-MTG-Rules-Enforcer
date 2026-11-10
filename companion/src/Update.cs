@@ -257,7 +257,36 @@ namespace MtgCompanion
                 else p.CompanionFirst = true;
                 p.UpToDate = false;
             }
+            var older = Downgrade(local, m);
+            if (older != null) { p.Refused = older; p.CompanionFirst = false; p.UpToDate = false; }
             return p;
+        }
+
+        // The release Update now installs (Controller.offer): a check's while it offers one, none after a check that
+        // offers nothing or after an install (whichever release it was: a pending one may have passed the offer)
+        public static CheckResult OfferAfterCheck(CheckResult r) { return r != null && r.Available ? r : null; }
+        public static CheckResult OfferAfterApply(CheckResult offer, ApplyResult res) { return res != null && res.Ok ? null : offer; }
+
+        // `built` as the packager writes it (toISOString: 2026-11-10T12:00:00.000Z), an ISO time with its zone; else null
+        static readonly Regex IsoTime = new Regex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?(Z|[+-]\d{2}:\d{2})$");
+        public static DateTime? BuiltTime(string s)
+        {
+            DateTime t;
+            if (s == null || !IsoTime.IsMatch(s) || !DateTime.TryParse(s, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal, out t)) return null;
+            return t;
+        }
+
+        // A release built before this package is refused (whoever can move GitHub's "latest" could serve an older,
+        // validly signed release); the same build is no downgrade (the parts decide: all the same, up to date). No
+        // usable build time on either side: refused (every package and manifest the packager makes has one).
+        public static string Downgrade(object local, UpdateManifest m)
+        {
+            var mine = BuiltTime(J.Str(local, "built"));
+            var theirs = BuiltTime(m.Built);
+            if (mine == null) return "This package's version.json has no build time, so no release can be checked against it: download the full package again.";
+            if (theirs == null) return "The update manifest of " + m.Version + " has no usable build time: not installing it.";
+            if (theirs.Value < mine.Value) return "The latest release (" + m.Version + ") is older than this package; not installing it.";
+            return null;
         }
 
         public static bool Loopback(Uri u) { return u.IsLoopback && u.Scheme == Uri.UriSchemeHttp && u.UserInfo.Length == 0; }
@@ -338,10 +367,13 @@ namespace MtgCompanion
             return idleSinceUtc.HasValue && nowUtc - idleSinceUtc.Value >= IdleBeforeInstall;
         }
 
-        // backup folders to delete: all but the newest `keep`
-        public static List<string> BackupsToPrune(IEnumerable<KeyValuePair<string, DateTime>> backups, int keep)
+        // backup folders to delete: all but the newest `keep`, and never `live` (the one a journal on disk points at: an
+        // undo that couldn't finish still needs it)
+        public static List<string> BackupsToPrune(IEnumerable<KeyValuePair<string, DateTime>> backups, int keep, string live = null)
         {
-            return backups.OrderByDescending(b => b.Value).Skip(keep).Select(b => b.Key).ToList();
+            Func<string, string> norm = d => (d ?? "").TrimEnd('\\', '/');
+            return backups.Where(b => live == null || !string.Equals(norm(b.Key), norm(live), StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(b => b.Value).Skip(keep).Select(b => b.Key).ToList();
         }
 
         // A zip entry's path inside the package, or null: under one of the part's folders or files, and never outside.
