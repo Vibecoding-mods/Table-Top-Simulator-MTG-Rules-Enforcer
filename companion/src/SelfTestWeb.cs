@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 
 namespace MtgCompanion
 {
@@ -139,17 +140,35 @@ namespace MtgCompanion
             Check("Sec-Fetch-Site cross-site on the API: 403", resp.Status == 403 && ErrorId(resp) == "cross-site", resp.Body);
             Check("Sec-Fetch-Site same-site on the API: 403", Send(w, Get(w, "/api/status", w.Token, "Sec-Fetch-Site: same-site\r\n")).Status == 403);
             Check("Sec-Fetch-Site same-origin: allowed", Send(w, Get(w, "/api/status", w.Token, "Sec-Fetch-Site: same-origin\r\n")).Status == 200);
+            Check("Sec-Fetch-Site none (the address bar): allowed", Send(w, Get(w, "/api/status", w.Token, "Sec-Fetch-Site: none\r\n")).Status == 200);
             resp = Send(w, Post(w, "{\"id\":\"restart-engine\"}", null));
             Check("POST without the token: 403, nothing done", resp.Status == 403 && ErrorId(resp) == "bad-token", resp.Body);
             resp = Send(w, Post(w, "{\"id\":\"restart-engine\"}", "deadbeef"));
             Check("POST with a bad token: 403", resp.Status == 403 && ErrorId(resp) == "bad-token", resp.Body);
             resp = Send(w, Post(w, "{\"id\":\"restart-engine\"}", w.Token, "", "text/plain"));
             Check("POST as text/plain (a form or no-cors fetch): 415", resp.Status == 415, resp.Body);
+            var notJson = new[] { "application/jsonx", "text/json", "application/json; foo=bar", "application/json, text/plain", "application/json; charset=latin1", "application/json; charset=utf-8; x=1", "" };
+            Check("POST: Content-Type must be exactly application/json, else 415", notJson.All(t => Send(w, Post(w, "{\"id\":\"zz\"}", w.Token, "", t)).Status == 415)
+                && notJson.All(t => !WebUi.JsonType(t)) && !WebUi.JsonType(null));
+            Check("POST: application/json with charset=utf-8 (any case, quoted or not) gets past the type check",
+                Send(w, Post(w, "{\"id\":\"zz\"}", w.Token, "", "Application/JSON; charset=\"UTF-8\"")).Status == 400 && WebUi.JsonType("application/json") && WebUi.JsonType("application/json;charset=utf-8"));
             resp = Send(w, Post(w, "{\"id\":\"open-logs\"}", w.Token, "").Replace("Origin: http://127.0.0.1:" + w.Port, "Origin: http://evil.example"));
             Check("POST with a cross-origin Origin and the token: 403, nothing done", resp.Status == 403 && ErrorId(resp) == "bad-origin" && effects.Count == 0, resp.Body);
             Check("POST not JSON: 400", Send(w, Post(w, "id=restart-engine", w.Token)).Status == 400);
             Check("POST JSON without an id: 400", Send(w, Post(w, "{\"x\":1}", w.Token)).Status == 400);
             Check("POST an unknown id: 400", Send(w, Post(w, "{\"id\":\"format-c\"}", w.Token)).Status == 400);
+            var keepLog = Log.File;
+            Log.File = Path.Combine(Path.GetTempPath(), "mtg-companion-selftest-log-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".log");
+            try
+            {
+                Send(w, Post(w, "{\"id\":\"format-c-evil\"}", w.Token));
+                Send(w, Post(w, "{\"id\":\"fix:9:x-evil\"}", w.Token));
+                Send(w, Post(w, "{\"id\":\"wsl-limits\"}", w.Token)); // (writes only the never-written temp path's file: see Page())
+                string logged = File.Exists(Log.File) ? File.ReadAllText(Log.File) : "";
+                Check("the log: a known action is written, an unknown id never is", logged.Contains("status page: wsl-limits") && !logged.Contains("evil"), logged);
+            }
+            finally { try { File.Delete(Log.File); } catch { } Log.File = keepLog; }
+            try { File.Delete(w.WslFile); } catch { }
             Check("GET /api/action: 405", Send(w, Get(w, "/api/action", w.Token)).Status == 405);
             Check("POST /api/status: 405", Send(w, "POST /api/status HTTP/1.1\r\nHost: 127.0.0.1:48790\r\n" + WebUi.TokenHeader + ": " + w.Token + "\r\nContent-Length: 0\r\n\r\n").Status == 405);
             Check("DELETE /: 405", Send(w, "DELETE / HTTP/1.1\r\nHost: 127.0.0.1:48790\r\n\r\n").Status == 405);
@@ -158,6 +177,8 @@ namespace MtgCompanion
             var wire = Encoding.ASCII.GetString(MiniHttp.Write(Send(w, Get(w, "/", null))));
             Check("answers: no-store, nosniff, frame DENY, Connection: close, no CORS header", wire.Contains("Cache-Control: no-store") && wire.Contains("X-Content-Type-Options: nosniff")
                 && wire.Contains("X-Frame-Options: DENY") && wire.Contains("Connection: close") && !wire.Contains("Access-Control-Allow"));
+            Check("answers: no referrer; the page's CSP lets it talk to itself only", wire.Contains("Referrer-Policy: no-referrer\r\n")
+                && wire.Contains("connect-src 'self';") && wire.Contains("default-src 'none';") && wire.Contains("form-action 'none'"));
             Check("answers: Content-Length counts UTF-8 bytes", Encoding.ASCII.GetString(MiniHttp.Write(new HttpResp(200, "é"))).Contains("Content-Length: 2\r\n"));
 
             sb.AppendLine("-- status page: JSON");
@@ -185,6 +206,21 @@ namespace MtgCompanion
             var menu = J.Arr(s, "menu");
             Check("status: the menu: restart-engine, stop-everything, open-logs, wsl-limits", menu != null && string.Join(",", menu.Select(m => J.Str(m, "id"))) == "restart-engine,stop-everything,open-logs,wsl-limits");
             Check("status: versions, a log with lines, update null (reserved)", J.Has(s, "versions") && J.Str(J.Get(s, "versions"), "companion") != null && J.Arr(J.Get(s, "log"), "lines") != null && J.Has(s, "update") && J.Get(s, "update") == null);
+            var keepV = c.Rows[0].V;
+            c.Rows[0].V = null; // (a bug inside: Status() throws)
+            resp = Send(w, Get(w, "/api/status", w.Token));
+            c.Rows[0].V = keepV;
+            Check("a failure inside: 500 with a plain sentence, never the exception", resp.Status == 500 && ErrorId(resp) == "error" && !resp.Body.Contains("Exception") && !resp.Body.Contains(" at "), resp.Body);
+            w.Managing = true;
+            c.WindowVisible = false;
+            Send(w, Get(w, "/api/status", w.Token));
+            bool shownByPoll = c.WindowVisible;
+            w.IdleCheck(DateTime.UtcNow.AddSeconds(5));
+            bool stillShown = c.WindowVisible;
+            w.IdleCheck(DateTime.UtcNow.AddSeconds(25));
+            Check("a page polling counts as the window shown; 20 s without a poll: hidden (the watcher slows down)", shownByPoll && stillShown && !c.WindowVisible);
+            w.Managing = false;
+            c.WindowVisible = true;
 
             sb.AppendLine("-- status page: actions go through the game lock");
             c.Game = Game.On("Game on: turn 6, 4 seats.", 6);
@@ -225,6 +261,16 @@ namespace MtgCompanion
             Check("no game: Restart relay and room goes through", J.Bool(res, "ok"), J.Write(res));
             res = Act(w, "restart-engine");
             Check("no game: restart-engine goes through", J.Bool(res, "ok"), J.Write(res));
+            int q0 = c.QueuedWork;
+            res = Act(w, "restart-engine");
+            Check("restart-engine again while the first is still queued: a no-op that says so", J.Bool(res, "ok") && J.Str(res, "message").StartsWith("Already") && c.QueuedWork == q0, J.Write(res));
+            res = Act(w, "fix:2:stack-restart");
+            var res2 = Act(w, "fix:2:stack-restart");
+            Check("a fix pressed twice: queued once (another action in between still counts as new)", J.Bool(res, "ok") && !J.Str(res, "message").StartsWith("Already")
+                && J.Bool(res2, "ok") && J.Str(res2, "message").StartsWith("Already") && c.QueuedWork == q0 + 1, J.Write(res2) + " " + c.QueuedWork);
+            res = Act(w, "stop-everything");
+            res2 = Act(w, "stop-everything");
+            Check("stop-everything pressed twice: queued once", J.Bool(res, "ok") && J.Str(res2, "message").StartsWith("Already") && c.QueuedWork == q0 + 2, J.Write(res2) + " " + c.QueuedWork);
             res = Act(w, "open-logs");
             Check("open-logs opens the package's logs folder", J.Bool(res, "ok") && effects.Count == 1 && effects[0] == "folder " + c.L.LogsDir, string.Join("|", effects));
             c.Rows[4].V = new Verdict(Light.Red, "Code.exe (process 4242) is using port 39998.").WithFix(Fixes.ShowProgram, "Show the program");
@@ -250,6 +296,71 @@ namespace MtgCompanion
             bool before = st.StatusPageShownBefore();
             st.MarkStatusPageShown();
             Check("state.json: the flag is written once and read back", !before && st.StatusPageShownBefore() && J.Bool(J.Parse(File.ReadAllText(Path.Combine(tmp, "state", "state.json"))), "statusPageShown"));
+            Func<string, Controller> fresh = name =>
+            {
+                var x = new Controller(Layout.Make(Mode.Friend, tmp), false, tmp, Path.Combine(tmp, "state-" + name), "x.exe");
+                x.Game = Game.None("No game.");
+                foreach (var row in x.Rows) row.V = new Verdict(Light.Green, "Fine.");
+                return x;
+            };
+            int opens = 0, windows = 0;
+            Action win = () => Interlocked.Increment(ref windows);
+            Action<Action> direct = a => a();
+            var f1 = fresh("first");
+            string did = WebUi.AutoOpen(f1, false, () => { opens++; return true; }, win, direct, 20);
+            Check("first start: opens the page, writes the flag", did == "first" && opens == 1 && windows == 0 && f1.StatusPageShownBefore(), did);
+            var f2 = fresh("no-browser");
+            opens = 0;
+            did = WebUi.AutoOpen(f2, false, () => { opens++; return false; }, win, direct, 20);
+            Check("first start, no browser opened: the window instead, no flag (the next start tries again)", did == "window" && opens == 1 && windows == 1 && !f2.StatusPageShownBefore(), did);
+            opens = 0; windows = 0;
+            did = WebUi.AutoOpen(f2, true, () => { opens++; return true; }, win, direct, 20);
+            Check("--no-browser: opens nothing, writes no flag", did == "off" && opens == 0 && windows == 0 && !f2.StatusPageShownBefore(), did);
+            var f3 = fresh("later-red");
+            f3.MarkStatusPageShown();
+            f3.Rows[2].V = new Verdict(Light.Red, "The engine isn't running.");
+            int o3 = 0;
+            did = WebUi.AutoOpen(f3, false, () => { Interlocked.Increment(ref o3); return true; }, win, direct, 20);
+            Thread.Sleep(200);
+            int early = o3;
+            f3.FirstPassDone = true;
+            var until = DateTime.UtcNow.AddSeconds(3);
+            while (o3 == 0 && DateTime.UtcNow < until) Thread.Sleep(10);
+            Thread.Sleep(100);
+            Check("a later start: waits for the first pass, then opens once on a red light", did == "watching" && early == 0 && o3 == 1, did + " early " + early + " then " + o3);
+            var f4 = fresh("later-green");
+            f4.MarkStatusPageShown();
+            f4.FirstPassDone = true;
+            int o4 = 0;
+            did = WebUi.AutoOpen(f4, false, () => { Interlocked.Increment(ref o4); return true; }, win, direct, 20);
+            var f5 = fresh("later-red-no-browser");
+            f5.MarkStatusPageShown();
+            f5.Rows[4].V = new Verdict(Light.Red, "The bridge stopped.");
+            f5.FirstPassDone = true;
+            windows = 0;
+            WebUi.AutoOpen(f5, false, () => false, win, direct, 20);
+            Thread.Sleep(300);
+            Check("a later start, all green: opens nothing; red and no browser: the window", did == "watching" && o4 == 0 && windows == 1, o4 + " " + windows);
+            var t0 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            Check("tray clicks: a double click opens once; a click after the window opens again", !WebUi.ClickAllowed(t0, t0.AddMilliseconds(300), 1000)
+                && WebUi.ClickAllowed(t0, t0.AddMilliseconds(1000), 1000) && WebUi.ClickAllowed(DateTime.MinValue, DateTime.UtcNow, 1000));
+            Check("full: the connection closed is the oldest one still waiting; none while all are answering",
+                WebUi.OldestWaiting(new[] { false, true, true }) == 1 && WebUi.OldestWaiting(new[] { false, false }) == -1 && WebUi.OldestWaiting(new bool[0]) == -1);
+            var f6 = fresh("launch");
+            int o6 = 0, hooked = 0;
+            var lw = WebUi.Launch(f6, new[] { "--web-port", "0" }, x => hooked++, win, direct, () => { o6++; return true; }, 20);
+            try
+            {
+                Check("Launch: serves, takes over from the window, first start opens once and writes the flag",
+                    lw != null && lw.Managing && hooked == 1 && lw.AutoOpened == "first" && o6 == 1 && f6.StatusPageShownBefore(), lw == null ? "no server" : lw.AutoOpened);
+            }
+            finally { if (lw != null) lw.Stop(); }
+            var f7 = fresh("launch-no-browser");
+            lw = WebUi.Launch(f7, new[] { "--web-port", "0", "--no-browser" }, x => hooked++, win, direct, () => { o6++; return true; }, 20);
+            try { Check("Launch --no-browser: serves, opens nothing, no flag", lw != null && lw.AutoOpened == "off" && o6 == 1 && !f7.StatusPageShownBefore(), lw == null ? "no server" : lw.AutoOpened); }
+            finally { if (lw != null) lw.Stop(); }
+            Check("Launch --no-web or --shot: no server (the window as before)", WebUi.Launch(f7, new[] { "--no-web" }, x => hooked++, win, direct, () => true, 20) == null
+                && WebUi.Launch(f7, new[] { "--shot", "x.png" }, x => hooked++, win, direct, () => true, 20) == null && hooked == 2);
 
             sb.AppendLine("-- status page: over a real socket");
             var live = Page(c, effects);
@@ -265,9 +376,94 @@ namespace MtgCompanion
                 var second = Page(c, effects);
                 Check("the port taken: a second server falls back to a free port", second.Start(live.Port) && second.Port != live.Port && second.Port > 0, second.Port);
                 second.Stop();
+                if (started) Sockets(live);
             }
             finally { live.Stop(); }
             try { Directory.Delete(tmp, true); } catch { }
+        }
+
+        // idle and slow sockets: they can't lock the page out, and the server gives up on them in time (about 11 s)
+        static void Sockets(WebUi live)
+        {
+            string status = "GET /api/status HTTP/1.1\r\nHost: localhost:" + live.Port + "\r\n" + WebUi.TokenHeader + ": " + live.Token + "\r\n\r\n";
+            var idle = new List<TcpClient>();
+            try
+            {
+                for (int i = 0; i < 20; i++) { var t = new TcpClient(); t.Connect(IPAddress.Loopback, live.Port); idle.Add(t); }
+                Thread.Sleep(200);
+                string got = Raw(live.Port, status);
+                Check("20 idle sockets open (spare browser connections, a stuck client): the page is still answered", got.StartsWith("HTTP/1.1 200"), Logic.Clip(got, 60));
+            }
+            finally { foreach (var t in idle) t.Close(); }
+            Thread.Sleep(300);
+            string half;
+            using (var a = new TcpClient())
+            {
+                a.Connect(IPAddress.Loopback, live.Port);
+                a.ReceiveTimeout = 5000;
+                var sa = a.GetStream();
+                var head = Encoding.ASCII.GetBytes(status);
+                sa.Write(head, 0, 20);
+                Thread.Sleep(150);
+                string b1 = Raw(live.Port, status), b2 = Raw(live.Port, status);
+                try { sa.Write(head, 20, head.Length - 20); half = ReadAll(sa); } catch (Exception e) { half = "error: " + e.Message; }
+                Check("a request half sent while two others are answered: it is answered too", half.StartsWith("HTTP/1.1 200") && b1.StartsWith("HTTP/1.1 200") && b2.StartsWith("HTTP/1.1 200"), Logic.Clip(half, 60));
+            }
+            long silentMs = -1, trickleMs = -1;
+            int silentGot = -2;
+            string trickle = "";
+            var silent = new Thread(() =>
+            {
+                try
+                {
+                    using (var cl = new TcpClient())
+                    {
+                        cl.Connect(IPAddress.Loopback, live.Port);
+                        cl.ReceiveTimeout = 9000;
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        try { silentGot = cl.GetStream().Read(new byte[16], 0, 16); } catch (IOException) { silentGot = -1; }
+                        silentMs = sw.ElapsedMilliseconds;
+                    }
+                }
+                catch { }
+            });
+            var slow = new Thread(() =>
+            {
+                try
+                {
+                    using (var cl = new TcpClient())
+                    {
+                        cl.Connect(IPAddress.Loopback, live.Port);
+                        cl.ReceiveTimeout = 16000;
+                        var s = cl.GetStream();
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        bool stop = false;
+                        var bytes = Encoding.ASCII.GetBytes("GET /api/status HTTP/1.1\r\nX-Pad: " + new string('a', 100));
+                        var feed = new Thread(() => { try { for (int i = 0; i < bytes.Length && !stop; i++) { s.Write(bytes, i, 1); Thread.Sleep(700); } } catch { } });
+                        feed.IsBackground = true;
+                        feed.Start();
+                        trickle = ReadAll(s);
+                        stop = true;
+                        trickleMs = sw.ElapsedMilliseconds;
+                    }
+                }
+                catch { }
+            });
+            silent.Start(); slow.Start();
+            silent.Join(20000); slow.Join(20000);
+            Check("a socket that sends nothing is closed after the 5 s read timeout", silentGot == 0 && silentMs >= 4000 && silentMs < 8000, silentGot + " after " + silentMs + " ms");
+            Check("a request trickling in (a byte every 0.7 s) gets 408 at the 10 s deadline", trickle.StartsWith("HTTP/1.1 408") && trickleMs >= 9000 && trickleMs < 14000, Logic.Clip(trickle, 40) + " after " + trickleMs + " ms");
+        }
+
+        // everything until the peer closes (or resets: what came before is kept)
+        static string ReadAll(Stream s)
+        {
+            var ms = new MemoryStream();
+            var buf = new byte[8192];
+            try { int n; while ((n = s.Read(buf, 0, buf.Length)) > 0) ms.Write(buf, 0, n); }
+            catch (IOException) { }
+            catch (ObjectDisposedException) { }
+            return Encoding.UTF8.GetString(ms.ToArray());
         }
 
         static string Raw(int port, string request)

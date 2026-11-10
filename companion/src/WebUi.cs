@@ -1,5 +1,5 @@
 // The status page: a small HTTP/1.1 server on 127.0.0.1 that serves one page (WebPage.cs) and a JSON API over the
-// Controller. The tray's "Open status" (and a double-click on the tray icon) opens it in the default browser; StatusForm
+// Controller. The tray's "Open status" (and a click on the tray icon) opens it in the default browser; StatusForm
 // stays as the fallback (--no-web, --shot, no free port, or no browser). A TcpListener with its own parser, because
 // HttpListener can need a URL ACL (netsh http add urlacl) or admin rights; a loopback socket needs neither.
 //
@@ -22,11 +22,15 @@
 //            canInstall} for the update section, plus "update-check" / "update-now" action ids. The page shows an
 //            update section only when this is an object, so older pages keep working.
 // POST /api/action answers {ok, message, needConfirm}; ok:false is a refusal (game lock, observe mode, a stale button).
+// A second restart-engine, stop-everything or fix while the same one is still queued or running answers ok with
+// "Already running" and does nothing.
 //
 // Guards (DNS rebinding, CSRF): Host must be 127.0.0.1:<port> or localhost:<port>; an Origin, when sent, must be that
 // origin; /api/* needs the X-MTG-Token header (16 random bytes per run, only ever written into the served page) and
-// refuses Sec-Fetch-Site other than same-origin/none; POST needs Content-Type application/json (so a cross-origin form
-// can't send one without a CORS preflight, which gets no CORS headers). Responses: no-store, nosniff, frame DENY, CSP.
+// refuses Sec-Fetch-Site other than same-origin/none; POST needs Content-Type exactly application/json (charset=utf-8
+// allowed), so a cross-origin form can't send one without a CORS preflight, which gets no CORS headers. Responses:
+// no-store, nosniff, frame DENY, no referrer, CSP. At most MaxOpen connections: past that the oldest one still waiting
+// for its request is closed, so idle sockets can't lock the page out; a request must arrive within 10 s.
 // C# 5 only (csc 4.8): no $"", no ?., no => members, no nameof, no out var.
 using System;
 using System.Collections.Generic;
@@ -215,8 +219,9 @@ namespace MtgCompanion
     {
         public const int DefaultPort = 48790;
         public const string TokenHeader = "X-MTG-Token";
-        const int MaxOpen = 16;      // connections served at once; more are closed unanswered
+        const int MaxOpen = 16;      // connections at once; a new one past this closes the oldest still waiting for its request
         const int IdleSec = 20;      // no page polling for this long: the watcher slows down as for a hidden window
+        const int ReadTimeoutMs = 5000, RequestDeadlineSec = 10; // (a silent socket; a request trickling in)
 
         readonly Controller c;
         public readonly string Token = NewToken();
@@ -226,8 +231,16 @@ namespace MtgCompanion
         Thread thread;
         System.Threading.Timer idle;
         volatile bool stopping;
-        int open;
         long lastPoll; // (UTC ticks of the last /api/status)
+
+        // the open connections, oldest first; Reading: still waiting for its request (these are the ones dropped)
+        class Conn { public TcpClient Client; public volatile bool Reading = true; }
+        readonly List<Conn> conns = new List<Conn>();
+        readonly object connGate = new object();
+
+        // the actions: one at a time, and the last one accepted (a second press of it while it runs is a no-op)
+        readonly object actGate = new object();
+        string lastAccepted;
 
         // the effects that don't go through the Controller (tests replace them)
         public Action<string> OpenFolder = dir => { Directory.CreateDirectory(dir); Release(Process.Start("explorer.exe", "\"" + dir + "\"")); };
@@ -255,6 +268,16 @@ namespace MtgCompanion
         //   --web-port N   another port (0: any free one); --no-browser   never open the browser by itself (tests)
         public static WebUi Launch(Controller c, StatusForm form, string[] args)
         {
+            return Launch(c, args, w =>
+            {
+                var handle = form.Handle; // (the window's handle without showing it: its tray icon, timer and balloons run as before)
+                form.OpenStatus = w.OpenBrowser;
+            }, () => { form.Show(); c.WindowVisible = true; }, a => { try { form.BeginInvoke(a); } catch { } }, null, 500);
+        }
+
+        // (the same without a window, for --selftest: hook runs before the auto-open; open: null for the real browser)
+        public static WebUi Launch(Controller c, string[] args, Action<WebUi> hook, Action showWindow, Action<Action> onUi, Func<bool> open, int pollMs)
+        {
             if (args.Contains("--no-web") || args.Contains("--shot")) return null;
             int port = DefaultPort, n;
             string p = Program.Arg(args, "--web-port");
@@ -262,27 +285,40 @@ namespace MtgCompanion
             var w = new WebUi(c);
             if (!w.Start(port)) return null;
             w.Managing = true;
-            var handle = form.Handle; // (the window's handle without showing it: its tray icon, timer and balloons run as before)
-            form.OpenStatus = w.OpenBrowser;
-            if (args.Contains("--no-browser")) return w;
+            hook(w);
+            w.AutoOpened = AutoOpen(c, args.Contains("--no-browser"), open ?? new Func<bool>(w.OpenBrowser), showWindow, onUi, pollMs);
+            return w;
+        }
+
+        public string AutoOpened; // what AutoOpen did at start (for --selftest)
+
+        // Opening the page by itself at start. open: the browser (false when none opened); showWindow: the fallback;
+        // onUi: runs on the window's thread. Returns what it did: "off" (--no-browser), "first" (the first start of the
+        // package: opened, flag written), "window" (that first open failed: the window instead, flag not written, so
+        // the next start tries again), "watching" (later starts: opens once the first pass ends, if a light is red).
+        public static string AutoOpen(Controller c, bool noBrowser, Func<bool> open, Action showWindow, Action<Action> onUi, int pollMs)
+        {
+            if (noBrowser) return "off";
             if (OpenAtStart(c.L.Friend, c.Observe, c.StatusPageShownBefore()))
             {
+                if (!open()) { showWindow(); return "window"; }
                 c.MarkStatusPageShown();
-                w.OpenBrowser();
-                return w;
+                return "first";
             }
-            // later starts: only when the first pass ends with a red light
             var t = new Thread(() =>
             {
                 var until = DateTime.UtcNow.AddMinutes(10);
-                while (!c.FirstPassDone && DateTime.UtcNow < until) Thread.Sleep(500);
-                if (OpenAfterFirstPass(c.Observe, c.Rows.Select(r => r.V.Light)))
-                    try { form.BeginInvoke((Action)(() => w.OpenBrowser())); } catch { }
+                while (!c.FirstPassDone && DateTime.UtcNow < until) Thread.Sleep(pollMs);
+                if (c.FirstPassDone && OpenAfterFirstPass(c.Observe, c.Rows.Select(r => r.V.Light)))
+                    onUi(() => { if (!open()) showWindow(); });
             });
             t.IsBackground = true;
             t.Start();
-            return w;
+            return "watching";
         }
+
+        // a tray click and the double-click that follows it open the page once
+        public static bool ClickAllowed(DateTime last, DateTime now, int windowMs) { return (now - last).TotalMilliseconds >= windowMs; }
 
         // the first start ever of a package opens the page once by itself
         public static bool OpenAtStart(bool friend, bool observe, bool shownBefore) { return friend && !observe && !shownBefore; }
@@ -344,28 +380,46 @@ namespace MtgCompanion
                 TcpClient client;
                 try { client = listener.AcceptTcpClient(); }
                 catch { if (stopping) return; Thread.Sleep(200); continue; }
-                if (Interlocked.Increment(ref open) > MaxOpen)
+                var conn = new Conn { Client = client };
+                Conn drop = null;
+                lock (connGate)
                 {
-                    Interlocked.Decrement(ref open);
-                    try { client.Close(); } catch { }
-                    continue;
+                    if (conns.Count >= MaxOpen)
+                    {
+                        // full: idle sockets (a browser's spare connections, or a stuck client) must not lock the page out
+                        int i = OldestWaiting(conns.Select(x => x.Reading).ToList());
+                        if (i < 0) { try { client.Close(); } catch { } continue; }
+                        drop = conns[i];
+                        conns.RemoveAt(i);
+                    }
+                    conns.Add(conn);
                 }
+                if (drop != null) try { drop.Client.Close(); } catch { }
                 // (its own thread, not the thread pool: the probes' process reads use the pool and may be slow to free it)
-                var t = new Thread(() => { try { Serve(client); } finally { Interlocked.Decrement(ref open); } });
+                var t = new Thread(() => { try { Serve(conn); } finally { lock (connGate) conns.Remove(conn); } });
                 t.IsBackground = true;
                 t.Start();
             }
         }
 
-        void Serve(TcpClient client)
+        // the connection to drop when full: the oldest one still waiting for its request; -1 when all are being answered
+        public static int OldestWaiting(IList<bool> reading)
         {
+            for (int i = 0; i < reading.Count; i++) if (reading[i]) return i;
+            return -1;
+        }
+
+        void Serve(Conn conn)
+        {
+            var client = conn.Client;
             try
             {
                 using (client)
                 {
-                    client.ReceiveTimeout = 5000; client.SendTimeout = 5000; client.NoDelay = true;
+                    client.ReceiveTimeout = ReadTimeoutMs; client.SendTimeout = 5000; client.NoDelay = true;
                     var s = client.GetStream();
-                    var req = MiniHttp.Read(s, MiniHttp.MaxHead, MiniHttp.MaxBody, DateTime.UtcNow.AddSeconds(10));
+                    var req = MiniHttp.Read(s, MiniHttp.MaxHead, MiniHttp.MaxBody, DateTime.UtcNow.AddSeconds(RequestDeadlineSec));
+                    conn.Reading = false;
                     if (req == null) return;
                     var b = MiniHttp.Write(Handle(req));
                     s.Write(b, 0, b.Length);
@@ -382,9 +436,12 @@ namespace MtgCompanion
             catch (Exception e) { if (!(e is IOException) && !(e is SocketException) && !(e is ObjectDisposedException)) Log.Write("status page: " + e); }
         }
 
-        void IdleCheck()
+        void IdleCheck() { IdleCheck(DateTime.UtcNow); }
+
+        // no page has polled for IdleSec: the watcher slows down as for a hidden window
+        public void IdleCheck(DateTime nowUtc)
         {
-            if (Managing && (DateTime.UtcNow - new DateTime(Interlocked.Read(ref lastPoll), DateTimeKind.Utc)).TotalSeconds > IdleSec)
+            if (Managing && (nowUtc - new DateTime(Interlocked.Read(ref lastPoll), DateTimeKind.Utc)).TotalSeconds > IdleSec)
                 c.WindowVisible = false;
         }
 
@@ -417,6 +474,17 @@ namespace MtgCompanion
             return d == 0;
         }
 
+        // exactly application/json, with at most a charset=utf-8 parameter
+        public static bool JsonType(string ct)
+        {
+            if (ct == null) return false;
+            var parts = ct.Split(';');
+            if (parts.Length > 2 || !string.Equals(parts[0].Trim(), "application/json", StringComparison.OrdinalIgnoreCase)) return false;
+            if (parts.Length == 1) return true;
+            string p = parts[1].Trim().Replace("\"", "");
+            return string.Equals(p, "charset=utf-8", StringComparison.OrdinalIgnoreCase);
+        }
+
         static HttpResp Refuse(int status, string error, string message)
         {
             return new HttpResp(status, J.Write(new Dictionary<string, object> { { "error", error }, { "message", message } }));
@@ -447,8 +515,7 @@ namespace MtgCompanion
                         return new HttpResp(200, J.Write(Status()));
                     case "/api/action":
                         if (r.Method != "POST") return Refuse(405, "method", "POST only.");
-                        if (!(r.Header("Content-Type") ?? "").StartsWith("application/json", StringComparison.OrdinalIgnoreCase))
-                            return Refuse(415, "content-type", "Send application/json.");
+                        if (!JsonType(r.Header("Content-Type"))) return Refuse(415, "content-type", "Send application/json.");
                         var body = J.Parse(r.Body) as Dictionary<string, object>;
                         string id = J.Str(body, "id");
                         if (string.IsNullOrEmpty(id)) return Refuse(400, "bad-body", "Send {\"id\": \"...\"}.");
@@ -548,13 +615,13 @@ namespace MtgCompanion
                 new Dictionary<string, object>
                 {
                     { "id", "restart-engine" }, { "label", locked ? "Restart engine (locked: game on)" : "Restart engine" }, { "enabled", !locked && !c.Observe },
-                    { "title", locked ? Logic.LockText(g) : "Stops the bridge, restarts relay and room, then starts the bridge again." },
+                    { "title", c.Observe ? ObserveText : locked ? Logic.LockText(g) : "Stops the bridge, restarts relay and room, then starts the bridge again." },
                     { "confirm", "Restart the engine? This stops the bridge, restarts the relay and the Forge room, and starts the bridge again (under a minute)." }, { "confirmLocked", false },
                 },
                 new Dictionary<string, object>
                 {
                     { "id", "stop-everything" }, { "label", "Stop everything" }, { "enabled", !c.Observe },
-                    { "title", "Stops the bridge and the engine containers; Docker Desktop and TTS keep running." },
+                    { "title", c.Observe ? ObserveText : "Stops the bridge and the engine containers; Docker Desktop and TTS keep running." },
                     { "confirm", locked ? g.Text + "\n\nStopping everything ends that game for everyone. Stop anyway?" : "Stop the bridge and the engine containers? Docker Desktop and TTS keep running." },
                     { "confirmLocked", locked },
                 },
@@ -565,7 +632,7 @@ namespace MtgCompanion
                 new Dictionary<string, object>
                 {
                     { "id", "wsl-limits" }, { "label", "Limit Docker's CPU use…" }, { "enabled", !c.Observe },
-                    { "title", "Optional: gives Docker 2 cores so TTS runs smoother." }, { "confirm", c.Observe ? null : WslConfirm() }, { "confirmLocked", false },
+                    { "title", c.Observe ? ObserveText : "Optional: gives Docker 2 cores so TTS runs smoother." }, { "confirm", c.Observe ? null : WslConfirm() }, { "confirmLocked", false },
                 },
             };
         }
@@ -629,22 +696,42 @@ namespace MtgCompanion
 
         // The window's buttons and menu, by id. Every change goes through the same Controller call as the window, so the
         // game lock (and observe mode) refuse here exactly as there.
+        // A second press of the action last accepted, while the Controller still runs it (queued, or its start sequence
+        // going), is a no-op: a double click must not restart twice. Actions run one at a time.
         public ActResult Act(string id, bool confirmLocked)
         {
-            Log.Write("status page: " + Logic.Clip(id, 60) + (confirmLocked ? " (confirmed during a game)" : ""));
+            lock (actGate)
+            {
+                var res = Route(id, confirmLocked);
+                if (res.Known) // (only a known id is written to the log)
+                    Log.Write("status page: " + id + (confirmLocked ? " (confirmed during a game)" : "") + ": " + (res.Ok ? "" : "refused: ") + Logic.Clip(res.Message, 120));
+                return res;
+            }
+        }
+
+        bool Repeat(string id) { return id == lastAccepted && c.WorkPending; }
+        static ActResult Already() { return Done("Already running; the lights show how far it is."); }
+
+        ActResult Route(string id, bool confirmLocked)
+        {
             if (id.StartsWith("fix:")) return Fix(id);
             switch (id)
             {
                 case "restart-engine":
                 {
+                    if (!c.Observe && Repeat(id)) return Already();
                     var refused = c.RestartEngine();
-                    return refused == null ? Done("Restarting the engine: the lights show each step.") : No(refused);
+                    if (refused != null) return No(refused);
+                    lastAccepted = id;
+                    return Done("Restarting the engine: the lights show each step.");
                 }
                 case "stop-everything":
                     if (c.Observe) return No(ObserveText);
+                    if (Repeat(id)) return Already();
                     if (c.IsLocked && !confirmLocked)
                         return new ActResult { Ok = false, NeedConfirm = true, Message = c.Game.Text + "\n\nStopping everything ends that game for everyone." };
                     c.StopEverything(null);
+                    lastAccepted = id;
                     return Done("Stopping the bridge and the engine containers.");
                 case "open-logs":
                     try { OpenFolder(c.L.LogsDir); return Done("Opened " + c.L.LogsDir + "."); }
@@ -665,14 +752,18 @@ namespace MtgCompanion
             var v = c.Rows[row].V;
             if (!ShowsFix(v)) return No("That light has no button now.");
             if (v.Fix != p[2]) return No("That button has changed; the page now shows the current one.");
+            if (Repeat(id)) return Already();
             if (v.Fix == Fixes.ShowProgram)
             {
                 try { StartProgram("taskmgr.exe", "/0 /startup"); } catch { }
                 c.DoFix(Controller.StepBridge, Fixes.Retry);
+                lastAccepted = id;
                 return Done("Task Manager is open: close the program named on the Bridge row. The Bridge step runs again.");
             }
             var refused = c.DoFix(row, v.Fix);
-            return refused == null ? Done(v.FixLabel + ": started.") : No(refused);
+            if (refused != null) return No(refused);
+            lastAccepted = id;
+            return Done(v.FixLabel + ": started.");
         }
 
         ActResult Wsl()
@@ -704,5 +795,18 @@ namespace MtgCompanion
 
         // the watcher checks again now instead of after its wait
         public void Nudge() { wake.Set(); }
+
+        // a button's work is still going: queued, about to start the sequence, or the sequence/stop running
+        public bool WorkPending
+        {
+            get
+            {
+                lock (q) if (work.Count > 0) return true;
+                var p = Phase ?? "";
+                return pendingFrom > 0 || p.StartsWith("Starting") || p.StartsWith("Restarting") || p.StartsWith("Stopping");
+            }
+        }
+
+        public int QueuedWork { get { lock (q) return work.Count; } } // (for --selftest)
     }
 }
