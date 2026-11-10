@@ -1845,6 +1845,16 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("Sen Triplets: the AI's hand itself stays unsent", rowOf(t, "White").hand === null, JSON.stringify(rowOf(t, "White").hand));
       ok("Sen Triplets: the only seat's own hand isn't revealed (nobody else sees it)", !rowOf(t, "Blue").revealed, JSON.stringify(ids(rowOf(t, "Blue").revealed)));
     }
+    // the same board once the game is over: nothing is playable (the stand-ins glowed under GAME OVER, real-table check
+    // 2026-11-10); the reveal strip stays, it is the last board
+    {
+      const b = view("player-0", { "player-1": ["engine-card-801", "engine-card-802"], mayPlay: true });
+      b.gameView.gameOver = true;
+      const t = await board(b);
+      ok("game over: precondition, the table says GAME OVER", t && t.gameOver === true, JSON.stringify(t && t.gameOver));
+      ok("game over: no playable row (Sen Triplets' cards aren't castable any more)", !rowOf(t, "Blue").playable, JSON.stringify(rowOf(t, "Blue").playable));
+      ok("game over: the revealed hand stays shown", JSON.stringify(ids(rowOf(t, "White").revealed)) === JSON.stringify(["engine-card-801", "engine-card-802"]), JSON.stringify(rowOf(t, "White").revealed));
+    }
     // a revealed double-faced card keeps the plain card back, as a hand card does: its other face stays hidden under it
     {
       const h = harness.load({ imageCache: { "swords to plowshares": { face: "https://example.test/front.jpg", back: "https://example.test/other-face.jpg" } } });
