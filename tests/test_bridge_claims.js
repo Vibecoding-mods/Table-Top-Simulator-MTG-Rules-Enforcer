@@ -2360,6 +2360,90 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       harness.restore();
     }
   }
+  // a refused attack names the limit it broke (attackRefusalReason; live game 2026-11-10: Crawlspace allowed White 2
+  // attackers, Blue sent 3 eight times and heard only "Something on the table limits who can attack")
+  {
+    const attackers = ["engine-card-22", "engine-card-64", "engine-card-65"];
+    const refusal = async (opts) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      const all = b.gameView.zones.flatMap((z) => z.cards || []);
+      for (const id of attackers) Object.assign(all.find((c) => c.id === id), { identity: { name: `Bear ${id.slice(-2)}` }, types: ["Creature"], text: "" });
+      if (opts.limiter) Object.assign(all.find((c) => c.id === "engine-card-126"), { identity: { name: opts.limiter[0] }, types: ["Enchantment"], text: opts.limiter[1] });
+      if (opts.faceDown) all.find((c) => c.id === "engine-card-126").isFaceDown = true;
+      if (opts.many) {
+        const bf = b.gameView.zones.filter((z) => z.zone === "battlefield").flatMap((z) => z.cards || []).filter((c) => !attackers.includes(c.id));
+        bf.slice(0, opts.many).forEach((c, i) => Object.assign(c, { identity: { name: `Lim${i}` }, isFaceDown: false, text: "CARDNAME can't attack." }));
+        r_many = bf.length;
+      }
+      if (opts.selfText) all.find((c) => c.id === attackers[0]).text = opts.selfText;
+      if (opts.tweak) opts.tweak(all.find((c) => c.id === "engine-card-126"));
+      const seat = setup(h, b);
+      const ask = { type: "chooseAttackers", attackers: attackers.map((id) => ({ attackerId: id, validTargetIds: ["player-1"], mustAttack: id === opts.must })) };
+      h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input: ask }); await h.flush();
+      seat.prompt.toOutput(opts.pick || ["__allattack"]);
+      const from = h.effects.length;
+      h.B.onPrompt(seat, { promptId: 901, decidingPlayerId: "player-0", input: { type: "revealCards", presentation: { title: "Attack declaration invalid" }, cards: [] } }); await h.flush();
+      const chat = h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text).join(" | ");
+      h.B.onPrompt(seat, { promptId: 902, decidingPlayerId: "player-0", input: ask }); await h.flush();
+      const again = { ...seat.prompt.ui };
+      seat.prompt.toOutput(["__noattack"]);
+      const out = { chat, note: again.note, text: again.text, after: seat.attackRefused };
+      harness.restore();
+      return out;
+    };
+    let r_many = 0;
+    const crawl = ["Crawlspace", "No more than two creatures can attack you each combat."];
+    let r = await refusal({ limiter: crawl });
+    ok("refusal: Crawlspace is named with its limit and the count", r.chat === "[MTG] That attack isn't legal. Crawlspace (AI 1): no more than 2 creatures can attack AI 1 each combat. You chose 3.", r.chat);
+    ok("refusal: the next attack question keeps the reason as its note and text", r.note === "That attack isn't legal. Crawlspace (AI 1): no more than 2 creatures can attack AI 1 each combat. You chose 3." && r.text === r.note, JSON.stringify([r.note, r.text]));
+    ok("refusal: answering the question forgets the reason", r.after == null, String(r.after));
+    r = await refusal({ limiter: ["Silent Arbiter", "No more than one creature can attack each combat.\nNo more than one creature can block each combat."], pick: ["engine-card-22|player-1", "engine-card-64|player-1"] });
+    ok("refusal: a limit on every attack counts them all", r.chat === "[MTG] That attack isn't legal. Silent Arbiter (AI 1): no more than 1 creature can attack each combat. You chose 2.", r.chat);
+    r = await refusal({ limiter: crawl, pick: ["engine-card-22|player-1", "engine-card-64|player-1"] });
+    ok("refusal: a limit not broken isn't claimed; the card is listed", r.chat === "[MTG] That attack isn't legal. Something on the table limits who can attack, or who they can attack. Cards on the table that limit attacks: Crawlspace.", r.chat);
+    ok("refusal: nothing found broken leaves the question as it was", !r.note && !r.text, JSON.stringify([r.note, r.text]));
+    r = await refusal({ selfText: "Bear 22 can't attack or block alone.", pick: ["engine-card-22|player-1"] });
+    ok("refusal: a creature that can't attack alone is named", r.chat === "[MTG] That attack isn't legal. Bear 22 can't attack alone.", r.chat);
+    r = await refusal({ limiter: crawl, pick: ["engine-card-22|player-1", "engine-card-64|player-1", "engine-card-65|engine-card-200"] });
+    ok("refusal: Crawlspace counts only attacks at its controller, not at their planeswalker", !/You chose/.test(r.chat), r.chat);
+    r = await refusal({ selfText: "Bear 22 can't attack or block alone." });
+    ok("refusal: 'can't attack alone' isn't claimed when others attack too", !/can't attack alone/.test(r.chat), r.chat);
+    r = await refusal({ limiter: crawl, must: "engine-card-65" });
+    ok("refusal: the limit and who must attack are both said", r.chat.startsWith("[MTG] That attack isn't legal. Crawlspace (AI 1): no more than 2 creatures can attack AI 1 each combat. You chose 3. Must attack: Bear 65.") && r.text === `${r.note} Must attack: Bear 65.`, JSON.stringify(r));
+    r = await refusal({ limiter: crawl, faceDown: true });
+    ok("refusal: a face-down card's text is not read", r.chat === "[MTG] That attack isn't legal. Something on the table limits who can attack, or who they can attack.", r.chat);
+    r = await refusal({ many: 8 });
+    ok("refusal: the list of limiting cards is cut at six with an ellipsis", r_many >= 8 && / Cards on the table that limit attacks: (Lim\d, ){5}Lim\d, \.\.\.\.$/.test(r.chat), `${r_many} ${r.chat}`);
+    r = await refusal({ many: 2 });
+    ok("refusal: two limiting cards are listed without an ellipsis", / Cards on the table that limit attacks: Lim0, Lim1\.$/.test(r.chat), `${r_many} ${r.chat}`);
+    // (Oracle wordings from Forge's cardsfolder, checked 2026-11-10)
+    const OLD = "[MTG] That attack isn't legal. Something on the table limits who can attack, or who they can attack.";
+    r = await refusal({ limiter: ["Wall of Omens", "Defender (This creature can't attack.)\nWhen Wall of Omens enters, draw a card."] });
+    ok("refusal: Defender's reminder text isn't a limit", r.chat === OLD, r.chat);
+    r = await refusal({ limiter: ["Akrasan Squire", "Exalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)"] });
+    ok("refusal: exalted's reminder text isn't a limit", r.chat === OLD, r.chat);
+    r = await refusal({ limiter: ["Rafiq of the Many", "Exalted\nWhenever a creature you control attacks alone, it gains double strike until end of turn."] });
+    ok("refusal: an 'attacks alone' trigger isn't a limit", r.chat === OLD, r.chat);
+    const wanderer = ["The Eternal Wanderer", "No more than one creature can attack The Eternal Wanderer each combat."];
+    r = await refusal({ limiter: wanderer, pick: ["engine-card-22|player-1", "engine-card-64|player-1"] });
+    ok("refusal: The Eternal Wanderer's limit isn't claimed for attacks at its controller", !/You chose/.test(r.chat), r.chat);
+    r = await refusal({ limiter: wanderer, pick: ["engine-card-22|engine-card-126", "engine-card-64|engine-card-126"] });
+    ok("refusal: The Eternal Wanderer's limit counts attacks at it", r.chat === "[MTG] That attack isn't legal. The Eternal Wanderer (AI 1): no more than 1 creature can attack The Eternal Wanderer each combat. You chose 2.", r.chat);
+    const mirri = ["Mirri, Weatherlight Duelist", "First strike\nWhenever Mirri, Weatherlight Duelist attacks, each opponent can't block with more than one creature this combat.\nAs long as Mirri, Weatherlight Duelist is tapped, no more than one creature can attack you each combat."];
+    r = await refusal({ limiter: mirri, pick: ["engine-card-22|player-1", "engine-card-64|player-1"] });
+    ok("refusal: Mirri's limit isn't claimed while she is untapped", !/You chose/.test(r.chat), r.chat);
+    r = await refusal({ limiter: mirri, tweak: (c) => { c.tapped = true; }, pick: ["engine-card-22|player-1", "engine-card-64|player-1"] });
+    ok("refusal: Mirri's limit is named while she is tapped", /Mirri, Weatherlight Duelist \(AI 1\): no more than 1 creature can attack AI 1 each combat\. You chose 2\./.test(r.chat), r.chat);
+    r = await refusal({ selfText: "First strike, deathtouch\nBear 22 can only attack alone.", pick: ["engine-card-22|player-1", "engine-card-64|player-1"] });
+    ok("refusal: a creature that can only attack alone is named when others attack", r.chat === "[MTG] That attack isn't legal. Bear 22 can only attack alone.", r.chat);
+    r = await refusal({ selfText: "Bear 22 can only attack alone.", pick: ["engine-card-22|player-1"] });
+    ok("refusal: 'can only attack alone' isn't claimed when it attacks alone", !/can only attack alone/.test(r.chat), r.chat);
+    r = await refusal({ limiter: ["Errantry", "Enchant creature\nEnchanted creature gets +3/+0 and can only attack alone."], tweak: (c) => { c.attachedTo = "engine-card-64"; } });
+    ok("refusal: Errantry's enchanted creature is named", r.chat === "[MTG] That attack isn't legal. Bear 64 can only attack alone.", r.chat);
+    r = await refusal({});
+    ok("refusal: with nothing on the table the old line is unchanged", r.chat === "[MTG] That attack isn't legal. Something on the table limits who can attack, or who they can attack.", r.chat);
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();

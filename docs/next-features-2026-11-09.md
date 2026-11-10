@@ -83,6 +83,13 @@ The user's list, in their order. Most items need a running TTS table in debug mo
       reason, and the bridge (~line 6299) words it "That attack isn't legal. Something on the table limits who can
       attack..." without naming Crawlspace's 2-creature limit. Players thought it was a glitch. The cheapest fix is
       bridge only: name the restricting cards and the limit in that message.
+    - **Spec part 1 done in source 2026-11-10** (bridge `attackRefusalReason`): the refusal names the broken limit
+      ("Crawlspace (White): no more than 2 creatures can attack White each combat. You chose 3."), and it stays on
+      the next attack question as its note and text until answered. Covers global limits (Silent Arbiter), limits at
+      a player (Crawlspace, Judoon Enforcers, Mirri while tapped) or at a planeswalker (The Eternal Wanderer), "can't
+      attack alone" and "can only attack alone" (Errantry too). Otherwise it lists the cards whose text limits
+      attacks, reminder text ignored. Wording checked against all of Forge's Oracle lines. Not deployed.
+      Still open: the "All attack" pre-check (needs the user's answer), parts 2 and 3 of the spec.
 
 24. **Planeswalkers by click** (asked 2026-11-10): click a planeswalker card to target it with a spell or ability,
     the way a life counter picks a player.
