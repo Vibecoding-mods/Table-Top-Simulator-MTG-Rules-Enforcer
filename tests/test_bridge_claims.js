@@ -2381,7 +2381,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const seat = setup(h, b);
       const ask = { type: "chooseAttackers", attackers: attackers.map((id) => ({ attackerId: id, validTargetIds: ["player-1"], mustAttack: id === opts.must })) };
       h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input: ask }); await h.flush();
-      seat.prompt.toOutput(opts.pick || ["__allattack"]);
+      const sent = seat.prompt.toOutput(opts.pick || attackers.map((id) => `${id}|player-1`));
+      if (sent && sent.__next) { harness.restore(); return { stopped: sent.__next.ui, sent }; }
       const from = h.effects.length;
       h.B.onPrompt(seat, { promptId: 901, decidingPlayerId: "player-0", input: { type: "revealCards", presentation: { title: "Attack declaration invalid" }, cards: [] } }); await h.flush();
       const chat = h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text).join(" | ");
@@ -2443,6 +2444,41 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("refusal: Errantry's enchanted creature is named", r.chat === "[MTG] That attack isn't legal. Bear 64 can only attack alone.", r.chat);
     r = await refusal({});
     ok("refusal: with nothing on the table the old line is unchanged", r.chat === "[MTG] That attack isn't legal. Something on the table limits who can attack, or who they can attack.", r.chat);
+    // "All attack" over a limit the table can read is stopped before Forge sees it (the user's pick (a), 2026-11-10)
+    const allAttack = async (opts) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      const all = b.gameView.zones.flatMap((z) => z.cards || []);
+      for (const id of attackers) Object.assign(all.find((c) => c.id === id), { identity: { name: `Bear ${id.slice(-2)}` }, types: ["Creature"], text: "" });
+      if (opts.limiter) Object.assign(all.find((c) => c.id === "engine-card-126"), { identity: { name: opts.limiter[0] }, types: ["Enchantment"], text: opts.limiter[1] });
+      const seat = setup(h, b);
+      const ask = { type: "chooseAttackers", attackers: attackers.map((id) => ({ attackerId: id, validTargetIds: ["player-1"], mustAttack: id === opts.must })) };
+      h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input: ask }); await h.flush();
+      const first = seat.prompt.ui;
+      const from = h.effects.length;
+      const sent = seat.prompt.toOutput(["__allattack"]);
+      await h.flush();
+      const chat = h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text).join(" | ");
+      const then = sent && sent.__next && opts.then ? sent.__next.toOutput(opts.then) : null;
+      harness.restore();
+      return { first, sent, chat, then, lastAttack: seat.lastAttack };
+    };
+    const STOP = "\"All attack\" would break a limit, so nothing was sent. Crawlspace (AI 1): no more than 2 creatures can attack AI 1 each combat. You chose 3. Pick the attackers yourself.";
+    r = await allAttack({ limiter: crawl, then: ["engine-card-22|player-1", "engine-card-64|player-1"] });
+    ok("all attack: over Crawlspace's limit nothing is sent, the question is asked again", !!r.sent?.__next && r.sent.type === undefined, JSON.stringify(r.sent).slice(0, 200));
+    ok("all attack: the re-asked question says the limit as its note and text", r.sent?.__next?.ui.note === STOP && r.sent.__next.ui.text === STOP, JSON.stringify(r.sent?.__next?.ui && [r.sent.__next.ui.note, r.sent.__next.ui.text]));
+    ok("all attack: the limit is said in chat too", r.chat === `[MTG] ${STOP}`, r.chat);
+    ok("all attack: the re-asked question keeps every option, All attack included", JSON.stringify(r.sent?.__next?.ui.options) === JSON.stringify(r.first.options), JSON.stringify(r.sent?.__next?.ui.options));
+    ok("all attack: picking two after the stop sends those two", r.then?.type === "declareAttackers" && JSON.stringify(r.then.assignments.map((x) => x.attackerId)) === JSON.stringify(["engine-card-22", "engine-card-64"]), JSON.stringify(r.then));
+    r = await allAttack({ limiter: crawl, must: "engine-card-65" });
+    ok("all attack: the stop keeps who must attack in its text", r.sent?.__next?.ui.text === `${STOP} Must attack: Bear 65.` && r.sent.__next.ui.note === STOP, JSON.stringify(r.sent?.__next?.ui.text));
+    r = await allAttack({});
+    ok("all attack: with no limit it is sent as before", r.sent?.type === "declareAttackers" && r.sent.assignments.length === 3 && !r.chat, JSON.stringify(r.sent));
+    r = await allAttack({ limiter: crawl, then: null });
+    const again = r.sent?.__next;
+    ok("all attack: All attack again after the stop is stopped again", !!again && !!again.toOutput(["__allattack"])?.__next, "sent");
+    r = await allAttack({ limiter: ["The Eternal Wanderer", "No more than one creature can attack The Eternal Wanderer each combat."] });
+    ok("all attack: a limit it doesn't break doesn't stop it", r.sent?.type === "declareAttackers" && r.sent.assignments.length === 3, JSON.stringify(r.sent));
   }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);

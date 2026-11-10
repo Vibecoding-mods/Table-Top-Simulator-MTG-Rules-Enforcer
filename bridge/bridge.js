@@ -6241,12 +6241,25 @@ function onPrompt(seat, prompt) {
       const refused = seat.attackRefused;
       const said = [refused, must.length ? `Must attack: ${seat.mustAttack.join(", ")}.` : ""].filter(Boolean).join(" ");
       ui = { title: "Choose attackers", mode: "multi", min: 0, max: pairs.length, options: [...quick, ...pairs], ...(said ? { text: said } : {}), ...(refused ? { note: refused } : {}) };
+      const askUi = ui;
       toOutput = (a) => {
         const byAttacker = {};
         for (const m of must) byAttacker[m.attackerId] = m.validTargetIds[0];
         if (a.includes("__allattack")) for (const at of input.attackers) if (at.validTargetIds.length) byAttacker[at.attackerId] ??= at.validTargetIds[0];
         for (const v of a) { if (v.startsWith("__")) continue; const [att, tgt] = v.split("|"); byAttacker[att] = tgt; }
         const assignments = Object.entries(byAttacker).map(([attackerId, targetId]) => ({ attackerId, targetId }));
+        // "All attack" over a limit the table can read (Crawlspace, Silent Arbiter, a creature that can only attack
+        // alone) is stopped here and the limit said, nothing sent: Forge would only refuse it (the user's pick (a),
+        // 2026-11-10). Creatures picked one by one still go to Forge, whose refusal is explained as before.
+        if (a.includes("__allattack")) {
+          const { broken } = attackRefusalReason(gv, assignments);
+          if (broken.length) {
+            const stop = `"All attack" would break a limit, so nothing was sent. ${broken.join(" ")} Pick the attackers yourself.`;
+            chat(`[MTG] ${stop}`, seat.color);
+            const mustLine = must.length ? `Must attack: ${seat.mustAttack.join(", ")}.` : "";
+            return next({ ...askUi, text: [stop, mustLine].filter(Boolean).join(" "), note: stop }, toOutput);
+          }
+        }
         seat.lastAttack = assignments;
         seat.attackRefused = null;
         return { type: "declareAttackers", assignments };
