@@ -57,6 +57,27 @@ Option A needs only a README line, and the companion log text should say "downlo
 
 **Total: about 1 h 50 min to 2 h 20 min.** Option B would add 3–5 h before step 6.
 
+## Result, 2026-11-10 afternoon
+
+- Deployed first (bridge 6e0ff442, table 8de89da5, save c7d4a074): the companion fix, Sen glow, lands in the mana box,
+  the named attack refusal.
+- **Release v2026.11.10-1418** in `dist/release-v2026.11.10-1418/`, signed, every part included ("no previous
+  release"). v2026.11.10-0902 and a first 1417 build that reused 0902's images and runtime were moved to
+  `dist/_not-for-upload/`: never upload them.
+- **Fresh install** from `dist/MTG-Table-2026-11-10-6e0ff442.zip` (companion state moved aside, dev stack and bridge
+  stopped, TTS closed): all 6 steps ran by themselves in 25 s (Docker, images, engine 15 s, save installed as
+  TS_Save_2 "MTG Table (rules engine)", bridge 6e0ff442, TTS). The save showed in TTS's list without a restart. The
+  engine was warm; the 5-minute cold wait was not exercised again.
+- **Real game** on that install, White on rebuilt_niv vs one AI: kept a hand, played a Mountain by drop (it lay at
+  depth 7.04, inside the mana box), then `crawl-check` (Crawlspace for AI 1, three creatures for White): "All attack"
+  was refused and the table said "That attack isn't legal. Crawlspace (AI 1): no more than 2 creatures can attack AI
+  1 each combat. You chose 3.", also in the corner hint of the re-asked question. Conceded: "Game over: White
+  conceded. AI 1 wins." No bridge errors from the game.
+- Dev setup restored afterwards; /versions in step.
+- Left for the user: create the release v2026.11.10-1418 on Vibecoding-mods/Table-Top-Simulator-Mock-MTGA and attach
+  the 8 files in its folder; invite the friend; the author message (docs/publishing-checklist.md); back up the
+  release key. Updates (option B) need a token the friend enters in the companion's tray menu.
+
 ## Not in scope
 
 - The three findings from the real-table check (Sen glow under GAME OVER, Mindslaver auto-pass, the passive AI
