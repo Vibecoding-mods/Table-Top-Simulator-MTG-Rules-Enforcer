@@ -23,7 +23,7 @@ namespace MtgCompanion
         public static int Run(StringBuilder output)
         {
             sb = output; fails = 0; passes = 0;
-            Modes(); Docker(); Images(); Stack(); Ports(); Bridge(); GameLock(); Saves(); Tts(); Wsl(); Misc(); Update();
+            Modes(); Docker(); Images(); Stack(); Ports(); Bridge(); GameLock(); Saves(); Tts(); Wsl(); Misc(); Update(); UpdateSafety();
             sb.AppendLine(passes + " passed, " + fails + " failed");
             return fails;
         }
@@ -458,6 +458,131 @@ namespace MtgCompanion
             Check("state: updated, nothing offered", us.Status == "updated" && us.Available == null && us.Notes == null && us.Error == null, us.Status);
             var cp = us.Copy(); cp.Status = "x";
             Check("state: a snapshot is a copy", us.Status == "updated");
+        }
+
+        // the file ops of the exe swap, in memory, with failures on demand
+        class FakeOps : IFileOps
+        {
+            public HashSet<string> Files = new HashSet<string>();
+            public int FailAside, Slept; public bool FailTakeName;
+            public void Move(string from, string to)
+            {
+                if (from.EndsWith("MTG Companion.exe") && to.EndsWith(Updater.OldExe) && FailAside-- > 0) throw new IOException("in use");
+                if (to.EndsWith("MTG Companion.exe") && from.EndsWith(Updater.NewExe) && FailTakeName) throw new IOException("denied");
+                if (!Files.Remove(from) || Files.Contains(to)) throw new IOException("no " + from);
+                Files.Add(to);
+            }
+            public void Delete(string path) { Files.Remove(path); }
+            public bool Exists(string path) { return Files.Contains(path); }
+            public void Sleep(int ms) { Slept++; }
+        }
+
+        static void UpdateSafety()
+        {
+            sb.AppendLine("-- self-update: safety");
+            // zip entries Windows would resolve elsewhere: trailing dots and spaces, alternate data streams
+            Check("zip entry: '.. ' (trailing space) refused", Updates.EntryPath("app", "bridge/.. /x") == null);
+            Check("zip entry: '...' refused", Updates.EntryPath("app", "bridge/.../x") == null);
+            Check("zip entry: '... ' refused", Updates.EntryPath("app", "bridge/... /x") == null);
+            Check("zip entry: a name ending in a dot or a space refused", Updates.EntryPath("app", "bridge/a.js.") == null && Updates.EntryPath("app", "bridge/a.js ") == null && Updates.EntryPath("app", "bridge. /a.js") == null);
+            Check("zip entry: an alternate data stream refused", Updates.EntryPath("app", "bridge/a.js:evil") == null && Updates.EntryPath("app", "bridge/a.js::$DATA") == null);
+            Check("zip entry: ordinary dotted names kept", Updates.EntryPath("app", "bridge/.hidden/a.b.js") == "bridge/.hidden/a.b.js", Updates.EntryPath("app", "bridge/.hidden/a.b.js"));
+            Check("contained: inside the hold", Updates.Contained(@"C:\pkg", "bridge/a.js", "app") && Updates.Contained(@"C:\pkg", "stack/compose.yml", "app"));
+            Check("contained: a sibling folder with the hold's name as prefix refused", !Updates.Contained(@"C:\pkg", "bridgex/a.js", "app") && !Updates.Contained(@"C:\pkg", "stack/.env", "app"));
+            Check("contained: climbing out refused", !Updates.Contained(@"C:\pkg", "bridge/../../x", "app") && !Updates.Contained(@"C:\pkg", "bridge/../MTG Companion.exe", "app"));
+            Check("contained: '.. ' and '...' resolve outside: refused on their own too", !Updates.Contained(@"C:\pkg", "bridge/.. /x", "app") && !Updates.Contained(@"C:\pkg", "bridge/.. /.. /x", "app"));
+            Check("token: only to the API, never to a test server", Updates.TokenFor(true, null, "t") == "t" && Updates.TokenFor(false, null, "t") == null && Updates.TokenFor(true, "http://127.0.0.1:5000", "t") == null && Updates.TokenFor(true, null, null) == null);
+            Check("tag: dots alone refused", !Updates.ValidTag(".") && !Updates.ValidTag("..") && !Updates.ValidTag("...") && !Updates.ValidTag(null) && !Updates.ValidTag("a b") && !Updates.ValidTag("a/b"));
+            Check("tag: release names kept", Updates.ValidTag("v2026.11.10-1432") && Updates.ValidTag(".v1") && Updates.ValidTag("a_b"));
+            Check("release: a tag of dots refused", Updates.ParseRelease("{\"tag_name\":\"..\",\"assets\":[]}") == null);
+            string err;
+            Check("manifest: a part in release '..' refused", Updates.ParseManifest(Manifest("\"app\":" + Part("app.zip", "a", "..")), out err) == null && err.Contains("release"), err);
+
+            // a 206 must continue the partial file
+            Check("range: continues the partial file", Updates.ContentRangeOk("bytes 500-999/1000", 500, 1000));
+            Check("range: another start refused", !Updates.ContentRangeOk("bytes 0-999/1000", 500, 1000) && !Updates.ContentRangeOk("bytes 400-999/1000", 500, 1000));
+            Check("range: another size or end refused", !Updates.ContentRangeOk("bytes 500-999/2000", 500, 1000) && !Updates.ContentRangeOk("bytes 500-899/1000", 500, 1000));
+            Check("range: missing or garbage refused", !Updates.ContentRangeOk(null, 500, 1000) && !Updates.ContentRangeOk("bytes */1000", 500, 1000));
+
+            // the test base: a fake GitHub on this PC, over http, and nothing else
+            bool api;
+            Check("test base: http on loopback only", Updates.TestBaseOk("http://127.0.0.1:5000") && Updates.TestBaseOk("http://localhost:5000") && !Updates.TestBaseOk("https://127.0.0.1:5000") && !Updates.TestBaseOk("http://10.0.0.5:5000") && !Updates.TestBaseOk("http://example.com") && !Updates.TestBaseOk(null));
+            Check("test base off this PC: every URL refused", !Updates.AllowedUrl("http://10.0.0.5:5000/repos", "http://10.0.0.5:5000", out api) && !Updates.AllowedUrl("https://api.github.com/x", "http://10.0.0.5:5000", out api));
+
+            // a deferred update waits for 2 minutes with no game
+            var now = new DateTime(2026, 11, 10, 12, 0, 0, DateTimeKind.Utc);
+            Check("install: never during a game", !Updates.InstallNow(true, now.AddHours(-1), now, false) && !Updates.InstallNow(true, null, now, true));
+            Check("install: asked for, no game: now", Updates.InstallNow(false, null, now, false));
+            Check("install: deferred: not right after the game", !Updates.InstallNow(false, now.AddSeconds(-30), now, true) && !Updates.InstallNow(false, null, now, true));
+            Check("install: deferred: 2 minutes after the game", Updates.InstallNow(false, now.AddMinutes(-2), now, true));
+
+            // the undo deletes only what the update moved away or created
+            var j = new Journal { Target = "v2", Backup = @"C:\pkg\backup\v1", Replaced = new List<string> { "bridge", "decks", "scenarios", "version.json", "stack/deployed.json" },
+                Existed = new List<string> { "bridge", "decks", "version.json", "stack/deployed.json" }, Moved = new List<string> { "bridge" } };
+            j.Placed.Add(new[] { "images/mtg-images.tar", @"C:\pkg\updates\v2\images.tar" });
+            var u = Updates.Undo(j);
+            Check("undo: a path that was there and wasn't moved is never deleted", !u.Delete.Contains("decks") && !u.Delete.Contains("version.json") && !u.Delete.Contains("stack/deployed.json"), string.Join(",", u.Delete));
+            Check("undo: a moved path and a created one are deleted", u.Delete.Contains("bridge") && u.Delete.Contains("scenarios") && u.Delete.Count == 2, string.Join(",", u.Delete));
+            Check("undo: only the moved paths go back", u.MoveBack.Count == 1 && u.MoveBack[0] == "bridge", string.Join(",", u.MoveBack));
+            Check("undo: a placed download goes back to the download folder", u.ReturnToDownload.Count == 1 && u.ReturnToDownload[0][1].EndsWith("images.tar"));
+            j.Phase = "placing";
+            var back = Journal.FromJson(J.Parse(J.Write(j.ToJson())));
+            Check("journal: written and read back whole", back != null && back.Target == "v2" && back.Backup == j.Backup && back.Phase == "placing" && back.Replaced.Count == 5 && back.Existed.Count == 4
+                && back.Moved.Count == 1 && back.Placed.Count == 1 && back.Placed[0][0] == "images/mtg-images.tar", back == null ? "null" : J.Write(back.ToJson()));
+            Check("journal: no backup folder: unreadable", Journal.FromJson(J.Parse("{\"target\":\"v2\"}")) == null && Journal.FromJson(null) == null);
+
+            // stack\deployed.json: the ids this Docker gave the images stay unless the images changed
+            var mine = J.Parse("{\"bridge\":\"b1\",\"node\":\"sha256:n1\",\"nodeConfig\":\"sha256:nc-here\",\"relayConfig\":\"sha256:rc-here\"}");
+            var theirs = J.Parse("{\"bridge\":\"b2\",\"node\":\"sha256:n1\",\"nodeConfig\":\"sha256:nc\",\"relayConfig\":\"sha256:rc\"}");
+            var merged = Updates.MergeDeployed(mine, theirs, false);
+            Check("deployed: images unchanged: this PC's ids kept, the rest the release's", J.Str(merged, "nodeConfig") == "sha256:nc-here" && J.Str(merged, "relayConfig") == "sha256:rc-here" && J.Str(merged, "bridge") == "b2", J.Write(merged));
+            merged = Updates.MergeDeployed(mine, theirs, true);
+            Check("deployed: new images: the release's ids", J.Str(merged, "nodeConfig") == "sha256:nc" && J.Str(merged, "bridge") == "b2", J.Write(merged));
+
+            // the swap waits for the old app itself, not a later process with its number
+            Check("swap: the same start time is the old app", Updates.SameProcess(1000 * TimeSpan.TicksPerSecond, 1000 * TimeSpan.TicksPerSecond + 100) && Updates.SameProcess(0, 5));
+            Check("swap: another start time is another process", !Updates.SameProcess(1000 * TimeSpan.TicksPerSecond, 1010 * TimeSpan.TicksPerSecond));
+            string oldPath = @"C:\pkg\MTG Companion.exe", self = @"C:\pkg\" + Updater.NewExe;
+            var ops = new FakeOps { FailAside = 3 };
+            ops.Files.Add(oldPath); ops.Files.Add(self);
+            Check("swap: the old exe still locked for a moment: retried, then swapped", Updater.SwapFiles(oldPath, self, ops) && ops.Files.Contains(oldPath) && ops.Files.Contains(@"C:\pkg\" + Updater.OldExe) && !ops.Files.Contains(self) && ops.Slept == 3, string.Join(",", ops.Files));
+            ops = new FakeOps { FailAside = 50 };
+            ops.Files.Add(oldPath); ops.Files.Add(self);
+            Check("swap: locked for good: given up after 20 tries, the old exe in place", !Updater.SwapFiles(oldPath, self, ops) && ops.Files.Contains(oldPath) && ops.Slept == 19, ops.Slept);
+            ops = new FakeOps { FailTakeName = true };
+            ops.Files.Add(oldPath); ops.Files.Add(self);
+            Check("swap: the new one can't take the name: the old exe put back", !Updater.SwapFiles(oldPath, self, ops) && ops.Files.Contains(oldPath) && !ops.Files.Contains(@"C:\pkg\" + Updater.OldExe), string.Join(",", ops.Files));
+
+            // the manifest's signature (a vector from the packager's Node code, and a key made here)
+            const string nodeKey = "4w4l1SZR71phfBRUhXcqlR4YLfGtHULpwc8aIxg56paGWyP2mawAWljSG0D2M0wAp1igtNUsslS8lYlWH8iCHg==";
+            const string nodeSig = "Z5TpT6mOHeP5OyJbFH3p7ea9gSMs33pRjun+kueLaypZVg2gO+gyZ/OPsEU5SjjSUwRlFu+XUIQN2l1V/IMcpw==";
+            var data = Encoding.UTF8.GetBytes("{\"format\":1,\"version\":\"v1\"}\n");
+            Check("signature: the packager's (Node) signature verifies", Updates.VerifySignature(data, nodeSig, new[] { nodeKey }));
+            var changed = (byte[])data.Clone(); changed[changed.Length - 2] ^= 1;
+            Check("signature: one byte changed: refused", !Updates.VerifySignature(changed, nodeSig, new[] { nodeKey }));
+            Check("signature: missing, short or garbage: refused", !Updates.VerifySignature(data, null, new[] { nodeKey }) && !Updates.VerifySignature(data, "", new[] { nodeKey }) && !Updates.VerifySignature(data, "not base64!", new[] { nodeKey })
+                && !Updates.VerifySignature(data, Convert.ToBase64String(new byte[63]), new[] { nodeKey }));
+            Check("signature: no trusted key: refused", !Updates.VerifySignature(data, nodeSig, new string[0]) && !Updates.VerifySignature(data, nodeSig, new[] { "AAAA" }));
+            using (var k = new System.Security.Cryptography.ECDsaCng(256) { HashAlgorithm = System.Security.Cryptography.CngAlgorithm.Sha256 })
+            {
+                var blob = k.Key.Export(System.Security.Cryptography.CngKeyBlobFormat.EccPublicBlob);
+                var other = Convert.ToBase64String(blob, 8, 64);
+                var sig = Convert.ToBase64String(k.SignData(data));
+                Check("signature: another key's signature refused; either of two keys accepted (a key change)", !Updates.VerifySignature(data, sig, new[] { nodeKey }) && Updates.VerifySignature(data, sig, new[] { nodeKey, other }) && Updates.VerifySignature(data, nodeSig, new[] { other, nodeKey }));
+            }
+            Check("keys file: comments and blank lines skipped", Updates.ParseKeys("# keys\r\n\r\n  " + nodeKey + "  \r\n#x\n").SequenceEqual(new[] { nodeKey }));
+
+            // the token: DPAPI for this Windows user, not the machine
+            var dir = Path.Combine(Path.GetTempPath(), "mtg-selftest-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                TokenStore.Save(dir, "ghp_selftest");
+                var b = File.ReadAllBytes(TokenStore.FileOf(dir));
+                Check("token: DPAPI CurrentUser (not LocalMachine, which any account on the PC can read)", b.Length > 44 && (BitConverter.ToUInt32(b, 40) & 4) == 0 && TokenStore.Load(dir) == "ghp_selftest", BitConverter.ToUInt32(b, 40));
+                TokenStore.Save(dir, " ");
+                Check("token: an empty one removes the file", !File.Exists(TokenStore.FileOf(dir)) && TokenStore.Load(dir) == null);
+            }
+            finally { try { Directory.Delete(dir, true); } catch { } }
         }
 
         static void Misc()

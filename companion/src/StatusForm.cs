@@ -141,7 +141,11 @@ namespace MtgCompanion
         readonly ToolTip tips = new ToolTip();
         readonly ToolStripMenuItem miRestart, miStop, miVersion, miCheck;
         readonly EventWaitHandle showSignal;
-        bool reallyQuit, toldAboutTray;
+        bool reallyQuit, toldAboutTray, blocking;
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool ShutdownBlockReasonCreate(IntPtr hWnd, string reason);
+        [DllImport("user32.dll")] static extern bool ShutdownBlockReasonDestroy(IntPtr hWnd);
+        const int WM_QUERYENDSESSION = 0x11;
+        public const string BlockReason = "Finishing update…";
 
         public StatusForm(Controller controller, EventWaitHandle show)
         {
@@ -234,6 +238,7 @@ namespace MtgCompanion
             c.Changed += () => { try { if (IsHandleCreated) BeginInvoke((Action)Render); } catch { } };
             c.UpdateOffered += r => { try { if (IsHandleCreated) BeginInvoke((Action)(() => OfferUpdate(r))); } catch { } };
             c.ExitForUpdate += () => { try { if (IsHandleCreated) BeginInvoke((Action)Exit); } catch { } };
+            c.ApplyingChanged += () => { try { if (IsHandleCreated) BeginInvoke((Action)BlockShutdown); } catch { } };
             c.Notify += (t, x) => { try { if (IsHandleCreated) BeginInvoke((Action)(() => { if (!Visible) tray.ShowBalloonTip(8000, t, x, ToolTipIcon.Warning); })); } catch { } };
             var timer = new System.Windows.Forms.Timer { Interval = 2000 };
             timer.Tick += (s, e) => Render();
@@ -256,8 +261,30 @@ namespace MtgCompanion
             c.WindowVisible = true;
         }
 
+        // while an update moves files, Windows shows "Finishing update…" and waits (the journal covers a forced end)
+        void BlockShutdown()
+        {
+            bool want = c.Applying;
+            if (want == blocking || !IsHandleCreated) return;
+            blocking = want;
+            try { if (want) ShutdownBlockReasonCreate(Handle, BlockReason); else ShutdownBlockReasonDestroy(Handle); } catch { }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_QUERYENDSESSION && c.Applying)
+            {
+                Log.Write("Windows asked to shut down during an update: asked it to wait");
+                BlockShutdown();
+                m.Result = IntPtr.Zero; // (FALSE: not now)
+                return;
+            }
+            base.WndProc(ref m);
+        }
+
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            if (c.Applying && e.CloseReason != CloseReason.UserClosing) { e.Cancel = true; return; } // (shutdown, task manager's close: after the update)
             if (!reallyQuit && e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = true;
@@ -417,12 +444,13 @@ namespace MtgCompanion
         void DoQuit()
         {
             if (c.Observe) { Exit(); return; }
+            if (c.Applying) { MessageBox.Show(this, "An update is being installed. Quit when it's done (a minute or two).", "MTG Companion", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
             var r = MessageBox.Show(this, "Quit MTG Companion?\r\n\r\nYes: quit and leave the engine and the bridge running (a game in progress carries on).\r\nNo: stop everything first, then quit.", "MTG Companion", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
             if (r == DialogResult.Yes) Exit();
             else if (r == DialogResult.No) DoStop(Exit);
         }
 
-        void Exit() { reallyQuit = true; tray.Visible = false; Close(); Application.Exit(); }
+        void Exit() { if (c.Applying) return; reallyQuit = true; tray.Visible = false; Close(); Application.Exit(); }
 
         public void ForceExit() { Exit(); }
 

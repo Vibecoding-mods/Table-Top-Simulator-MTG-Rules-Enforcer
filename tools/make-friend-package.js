@@ -10,7 +10,10 @@
 //   --out <dir>                 where the package goes (default: dist/)
 //   --release [--tag T] [--previous update-manifest.json]   also dist/release-<tag>/: the parts the companion's
 //                               self-update downloads (docs/companion-app-spec.md §18); it prints what to attach to the
-//                               GitHub release, which the user creates by hand
+//                               GitHub release, which the user creates by hand. --previous: the PUBLISHED latest
+//                               release's manifest (else a reused part must be in dist/release-<its tag>/ with its sha).
+//                               Signs update-manifest.json with the release key, %USERPROFILE%\.mtg-release\release-key.pem
+//                               (MTG_RELEASE_KEY overrides; made on first use; never in the repo). Refuses the two --allow flags.
 // It refuses, saying why, when stack/deployed.json disagrees with the images it would ship, the running engine
 // containers or the save file. It only reads the TTS save; it never writes in the Saves folder.
 //
@@ -189,7 +192,12 @@ const RELEASE_PARTS = {
 };
 const UPDATE_FORMAT = 1; // the companion's Updates.Format that can apply what this writes
 // (the app part's version leaves these out: they change with every release; the manifest carries the first two)
-const APP_UNVERSIONED = ["version.json", "stack/deployed.json", "README-FRIEND.txt"]; // (README: its build date)
+const APP_UNVERSIONED = ["version.json", "stack/deployed.json", "README-FRIEND.txt", "bridge/image-cache-klrmngr.json"]; // (README: its build date; the picture cache: the friend's own, kept by the updater, not in app.zip)
+const APP_EXCLUDED = ["bridge/image-cache-klrmngr.json"]; // (in the package, not in app.zip: an update keeps the friend's cache)
+// the app part's version: every file it holds but the unversioned ones
+const appVersion = (entries) => treeHash(entries.filter((e) => !APP_UNVERSIONED.includes(e.rel)));
+// a release tag: word characters, dots and dashes, not only dots ("." and ".." are paths); the companion's Updates.ValidTag
+const validTag = (tag) => typeof tag === "string" && /^[\w.-]{1,100}$/.test(tag) && tag.replace(/\./g, "") !== "";
 
 // One hash over files: [{ rel, bytes }] in path order, path and bytes each
 function treeHash(entries) {
@@ -201,14 +209,54 @@ const imagesVersion = (node, relay) => sha8(Buffer.from(`${node}${relay}`, "utf8
 
 // Which parts to build, and which an older release already carries: a part whose version is the previous release's
 // points at the release holding its file
-function planRelease(partVersions, previous) {
-  const build = [], reuse = {};
+// points at the release holding its file. published: previous is the published latest release's manifest (--previous);
+// else a reused file must be in dist/release-<its tag>/ with its sha256 (have(release, file, sha) says), or it is built
+function planRelease(partVersions, previous, { published = true, have = () => true } = {}) {
+  const build = [], reuse = {}, unproven = [];
   for (const [k, version] of Object.entries(partVersions)) {
     const old = previous?.parts?.[k];
-    if (old && old.version === version && old.file && old.sha256) reuse[k] = { ...old, release: old.release || previous.version };
-    else build.push(k);
+    const release = old?.release || previous?.version;
+    if (old && old.version === version && old.file && old.sha256 && validTag(release)) {
+      if (published || have(release, old.file, old.sha256)) { reuse[k] = { ...old, release }; continue; }
+      unproven.push(k);
+    }
+    build.push(k);
   }
-  return { build, reuse };
+  return { build, reuse, unproven };
+}
+
+// what --release refuses (the companion installs these on friends' PCs: only what ran live, and every part shipped)
+function releaseRefusals({ build, imagesFile, allowUndeployedBridge, allowChangedSave, tag }) {
+  const out = [];
+  if (!validTag(tag)) out.push(`the tag ${tag} has characters a release tag can't have`);
+  if (allowUndeployedBridge) out.push("--allow-undeployed-bridge: a release ships only a bridge that ran live (deploy it first)");
+  if (allowChangedSave) out.push("--allow-changed-save: a release ships only the deployed save (deploy it again first)");
+  if (build.includes("images") && !imagesFile) out.push("the engine images changed since the previous release, so they must be shipped (drop --no-images)");
+  return out;
+}
+
+// the releases a manifest still points at (each must stay published, or the updater can't fetch that part)
+const pointedAt = (manifest) => [...new Set(Object.values(manifest.parts).map((p) => p.release).filter((r) => r && r !== manifest.version))].sort();
+
+// ── the release key: ECDSA P-256; the companion carries the public half (companion/release-keys.txt, built in)
+const crypto = require("crypto");
+// the signature over the manifest's bytes: IEEE P1363 (r || s, 64 bytes), base64 (the companion's Updates.VerifySignature)
+const signManifest = (bytes, privateKey) => crypto.sign("sha256", bytes, { key: privateKey, dsaEncoding: "ieee-p1363" }).toString("base64");
+// the public key as the companion reads it: base64 of X || Y (32 bytes each)
+function publicKeyText(key) {
+  const jwk = crypto.createPublicKey(key).export({ format: "jwk" });
+  if (jwk.crv !== "P-256") throw new Error(`the release key is ${jwk.crv}, not P-256`);
+  return Buffer.concat([Buffer.from(jwk.x, "base64url"), Buffer.from(jwk.y, "base64url")]).toString("base64");
+}
+// the private key file, made on first use (outside the repo: refused inside it). Returns { key, made }
+function releaseKey(file, root) {
+  const rel = path.relative(path.resolve(root), path.resolve(file));
+  if (!rel.startsWith("..") && !path.isAbsolute(rel)) throw new Error(`the release key ${file} is inside the repo; keep it outside (default %USERPROFILE%\\.mtg-release\\release-key.pem)`);
+  if (fs.existsSync(file)) return { key: crypto.createPrivateKey(fs.readFileSync(file)), made: false };
+  const { privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600, flag: "wx" });
+  return { key: privateKey, made: true };
 }
 
 // update-manifest.json. built: { part: { file, sha256, size } } for the parts made now
@@ -256,7 +304,9 @@ WHAT YOU NEED
   Windows and back in (or restart the PC): the install adds you to the "docker-users" group, which only counts
   after a new sign-in.
 - About 1.5 GB of free disk for the engine inside Docker, plus about 400 MB for this folder (the .zip can be
-  deleted once it is unzipped).
+  deleted once it is unzipped). An update needs up to about 700 MB more while it installs, and about 400 MB
+  stays afterwards: the companion keeps the previous version's files for an undo (the engine images only from
+  the latest update).
 
 
 FIRST TIME
@@ -284,7 +334,9 @@ EVERY GAME NIGHT
 4. Everyone sits at a colour, brings a deck with the table's Card Importer, and presses READY? on their playmat.
    Turn the engine on with the middle tile (Engine: on), then press Start. Against the computer: type
    "mtg start ai 1" in chat (up to 3 AI players).
-5. When you are done: "Stop everything" in the companion (or just shut down the PC).
+5. When you are done: "Stop everything" in the companion, or just shut down the PC. While the companion installs
+   an update, Windows says "Finishing update…" and waits: let it finish (a minute or two). If the PC went off
+   anyway, the next start of the companion puts the package back as it was before the update.
 
 
 IF A LIGHT IS RED
@@ -441,6 +493,10 @@ async function main() {
   const compose = fs.readFileSync(path.join(ROOT, "stack", "compose.yml"), "utf8");
   const containers = await new Promise((done) => versions.containerImages(done)); // (the running stack on this PC)
   const bridge = versions.bridgeHash();
+  if (flag("release") && (flag("allow-undeployed-bridge") || flag("allow-changed-save")))
+    stop(releaseRefusals({ build: [], imagesFile: "-", tag: "-", allowUndeployedBridge: flag("allow-undeployed-bridge"), allowChangedSave: flag("allow-changed-save") }).join("; "));
+  // the release key before the companion is built: its public half must be inside the exe this release ships
+  const signing = flag("release") ? releaseSigning() : null;
   const why = refusals({ deployed, tags: tagIds(), containers, save, bridge, compose },
     { allowChangedSave: flag("allow-changed-save"), allowUndeployedBridge: flag("allow-undeployed-bridge") });
   if (why.length) stop(`stack/deployed.json disagrees with what would be shipped:\n  - ${why.join("\n  - ")}`);
@@ -537,7 +593,7 @@ async function main() {
   const lines = fs.readdirSync(pkg).sort().map((f) => `  ${f.padEnd(28)} ${mb(sizeOf(path.join(pkg, f))).padStart(10)}`);
   console.log(`${lines.join("\n")}\n  decks: ${ours.length} ours, ${theirs.length} Manabrew's; ${scenarios.length} debug scenarios; companion: ${made}`);
   console.log(`made ${pkg} (${mb(sizeOf(pkg))}) and ${zip} (${mb(fs.statSync(zip).size)})`);
-  if (release) releaseFinish(release, pkg, zip, info);
+  if (release) releaseFinish(release, pkg, zip, info, signing);
 }
 
 // ── --release: dist/release-<tag>/ (docs/companion-app-spec.md §18.1)
@@ -552,9 +608,25 @@ function filesUnder(root, rel) {
 function companionVersion() {
   const dir = path.join(path.resolve(option("companion", ROOT)), "companion");
   if (!fs.existsSync(path.join(dir, "src"))) return null;
-  const files = [...fs.readdirSync(path.join(dir, "src")).filter((f) => f.endsWith(".cs")).map((f) => `src/${f}`), "app.manifest", "build.cmd"];
+  const files = [...fs.readdirSync(path.join(dir, "src")).filter((f) => f.endsWith(".cs")).map((f) => `src/${f}`), "app.manifest", "build.cmd", "release-keys.txt"]; // (the keys are inside the exe)
   return treeHash(files.flatMap((rel) => filesUnder(dir, rel)));
 }
+// the private key, and the public half in the companion's release-keys.txt (added when missing: commit that file)
+function releaseSigning() {
+  const file = process.env.MTG_RELEASE_KEY || path.join(process.env.USERPROFILE || require("os").homedir(), ".mtg-release", "release-key.pem");
+  let k;
+  try { k = releaseKey(file, ROOT); } catch (e) { stop(e.message); }
+  if (k.made) console.log(`\n  NEW RELEASE KEY: ${file}\n  Back it up somewhere safe and never share it or commit it. Every installed companion trusts only\n  this key: lose it and friends must download a full package again (key change: docs/companion-app-spec.md §18.7).\n`);
+  const pub = publicKeyText(k.key);
+  const keysFile = path.join(path.resolve(option("companion", ROOT)), "companion", "release-keys.txt");
+  const have = fs.existsSync(keysFile) ? fs.readFileSync(keysFile, "utf8") : "";
+  if (!have.split(/\r?\n/).map((l) => l.trim()).includes(pub)) {
+    fs.writeFileSync(keysFile, `${have}${have && !have.endsWith("\n") ? "\n" : ""}${pub}\n`);
+    console.log(`  added the release key's public half to ${keysFile}: commit it (the exe built now carries it)`);
+  }
+  return { key: k.key, file, pub };
+}
+
 function previousManifest(out, tag) {
   const given = option("previous", null);
   if (given) return JSON.parse(fs.readFileSync(given, "utf8"));
@@ -568,20 +640,23 @@ function previousManifest(out, tag) {
 function releaseStart(pkg, out, info) {
   const d = new Date(), two = (n) => String(n).padStart(2, "0");
   const tag = option("tag", `v${d.getFullYear()}.${two(d.getMonth() + 1)}.${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}`);
-  if (!/^[\w.-]+$/.test(tag)) stop(`the tag ${tag} has characters a release tag can't have`);
-  const app = RELEASE_PARTS.app.holds.flatMap((h) => filesUnder(pkg, h)).filter((e) => !APP_UNVERSIONED.includes(e.rel));
-  const partVersions = { app: treeHash(app), table: info.save, images: imagesVersion(info.node, info.relay), runtime: info.nodeVersion };
+  if (!validTag(tag)) stop(`the tag ${tag} has characters a release tag can't have`);
+  const app = RELEASE_PARTS.app.holds.flatMap((h) => filesUnder(pkg, h));
+  const partVersions = { app: appVersion(app), table: info.save, images: imagesVersion(info.node, info.relay), runtime: info.nodeVersion };
   const cv = companionVersion();
   if (cv && fs.existsSync(path.join(pkg, "MTG Companion.exe"))) partVersions.companion = cv;
   const previous = previousManifest(out, tag);
-  const plan = planRelease(partVersions, previous);
-  if (plan.build.includes("images") && !info.imagesFile) stop("--release: the engine images changed since the previous release, so they must be shipped (drop --no-images)");
+  const published = !!option("previous", null);
+  const plan = planRelease(partVersions, previous, { published, have: (release, file, sha) => { const f = path.join(out, `release-${release}`, file); return fs.existsSync(f) && sha256(f) === sha; } });
+  for (const k of plan.unproven) console.log(`  (${k}: unchanged, but ${previous.parts[k].file} of ${previous.parts[k].release || previous.version} isn't in ${out} with its sha256, and no --previous says it is published: built again)`);
+  const why = releaseRefusals({ build: plan.build, imagesFile: info.imagesFile, tag });
+  if (why.length) stop(`--release: ${why.join("; ")}`);
   info.release = tag;
   info.parts = partVersions;
   return { tag, dir: path.join(out, `release-${tag}`), partVersions, previous, plan };
 }
 
-function releaseFinish({ tag, dir, partVersions, previous, plan }, pkg, zip, info) {
+function releaseFinish({ tag, dir, partVersions, previous, plan }, pkg, zip, info, signing) {
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   const put = (from, name) => { const to = path.join(dir, name); try { fs.linkSync(from, to); } catch { fs.copyFileSync(from, to); } return to; };
@@ -589,7 +664,7 @@ function releaseFinish({ tag, dir, partVersions, previous, plan }, pkg, zip, inf
   for (const k of plan.build) {
     const { file, holds } = RELEASE_PARTS[k];
     const to = path.join(dir, file);
-    if (file.endsWith(".zip")) execFileSync(TAR, ["-a", "-c", "-f", to, "-C", pkg, ...holds.filter((h) => fs.existsSync(path.join(pkg, h)))], { stdio: "inherit", timeout: 1800000 });
+    if (file.endsWith(".zip")) execFileSync(TAR, ["-a", "-c", "-f", to, "-C", pkg, ...APP_EXCLUDED.flatMap((x) => ["--exclude", x]), ...holds.filter((h) => fs.existsSync(path.join(pkg, h)))], { stdio: "inherit", timeout: 1800000 });
     else put(path.join(pkg, holds[0]), file);
     made[k] = { file, sha256: sha256(to), size: fs.statSync(to).size };
   }
@@ -600,12 +675,17 @@ function releaseFinish({ tag, dir, partVersions, previous, plan }, pkg, zip, inf
     full: { file: fullName, sha256: sha256(path.join(dir, fullName)), size: fs.statSync(zip).size },
     versionJson: info, deployedJson: JSON.parse(fs.readFileSync(path.join(pkg, "stack", "deployed.json"), "utf8")),
   });
-  fs.writeFileSync(path.join(dir, "update-manifest.json"), `${JSON.stringify(manifest, null, 1)}\n`);
+  const bytes = Buffer.from(`${JSON.stringify(manifest, null, 1)}\n`, "utf8");
+  fs.writeFileSync(path.join(dir, "update-manifest.json"), bytes);
+  fs.writeFileSync(path.join(dir, "update-manifest.json.sig"), `${signManifest(bytes, signing.key)}\n`);
+  if (!crypto.verify("sha256", bytes, { key: crypto.createPublicKey(signing.key), dsaEncoding: "ieee-p1363" }, Buffer.from(fs.readFileSync(path.join(dir, "update-manifest.json.sig"), "utf8").trim(), "base64"))) stop("the manifest's signature doesn't verify");
   console.log(`\nrelease ${tag} in ${dir}${previous ? ` (after ${previous.version})` : " (no previous release: every part built)"}`);
   console.log(`  Create the release with tag ${tag} on Vibecoding-mods/Table-Top-Simulator-Mock-MTGA and attach:`);
-  for (const f of ["update-manifest.json", ...plan.build.map((k) => RELEASE_PARTS[k].file), fullName]) console.log(`    ${f.padEnd(34)} ${mb(fs.statSync(path.join(dir, f)).size).padStart(10)}`);
+  for (const f of ["update-manifest.json", "update-manifest.json.sig", ...plan.build.map((k) => RELEASE_PARTS[k].file), fullName]) console.log(`    ${f.padEnd(34)} ${mb(fs.statSync(path.join(dir, f)).size).padStart(10)}`);
   for (const [k, p] of Object.entries(plan.reuse)) console.log(`  (${k}: unchanged, the updater takes ${p.file} from release ${p.release})`);
+  for (const r of pointedAt(manifest)) console.log(`  keep release ${r} published: this release takes files from it`);
+  console.log(`  signed with ${signing.file} (public key in companion/release-keys.txt)`);
 }
 
 if (require.main === module) main().catch((e) => stop(e.stack || e.message));
-module.exports = { stampOf, renameSave, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, RELEASE_PARTS, UPDATE_FORMAT, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };
+module.exports = { stampOf, renameSave, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, releaseRefusals, pointedAt, appVersion, validTag, signManifest, publicKeyText, releaseKey, RELEASE_PARTS, UPDATE_FORMAT, APP_UNVERSIONED, APP_EXCLUDED, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };

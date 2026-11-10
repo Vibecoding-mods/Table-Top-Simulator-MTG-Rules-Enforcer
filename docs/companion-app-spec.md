@@ -985,7 +985,7 @@ leave running, or stop first). Single instance (`Local\MtgTtsCompanion`; a secon
 **Limit Docker's CPU use…** is an opt-in button: writes `processors=2`, `memory=8GB` into `[wsl2]` of
 `%USERPROFILE%\.wslconfig` (backup first), never restarts WSL.
 
-**Test modes:** `--selftest` (181 canned cases, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
+**Test modes:** `--selftest` (227 canned cases, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
 `--shot FILE` for a PNG of the window), `--home DIR`, `--saves DIR`, `--state DIR`, `--log FILE`, `--steps 4,5`,
 `--bridge-url URL`, `--probe-login URL`, `--bridge-stop`.
 
@@ -1005,16 +1005,21 @@ prints the tag and the files to attach. Asset names have no spaces (GitHub turns
 
 | Part | Asset | Holds | Version (what "changed" means) |
 |---|---|---|---|
-| `app` | `app.zip` | `bridge/`, `decks/`, `manabrew/public/preset_decks/`, `scenarios/`, `stack/compose.yml`, `stack/deployed.json`, `README-FRIEND.txt`, `LICENSES/`, `version.json` | sha8 over every file's path and bytes, without `version.json` and `stack/deployed.json` (they change with every release) |
+| `app` | `app.zip` | `bridge/` (without the picture cache `image-cache-klrmngr.json`: an update keeps the friend's own), `decks/`, `manabrew/public/preset_decks/`, `scenarios/`, `stack/compose.yml`, `stack/deployed.json`, `README-FRIEND.txt`, `LICENSES/`, `version.json` | sha8 over every file's path and bytes, without `version.json`, `stack/deployed.json`, `README-FRIEND.txt` (they change with every release) and the picture cache |
 | `table` | `table.zip` | `table/MTG Table.json` (+ `.png`) | the save's sha8 (`version.json` `save`) |
 | `images` | `images.tar` | the docker save of both images | sha8 of `node` + `relay` ids |
 | `runtime` | `runtime.zip` | `runtime/node/node.exe` | the Node version (`nodeVersion`) |
-| `companion` | `MTG.Companion.exe` | the app | sha8 of `companion/src/*.cs`, `app.manifest`, `build.cmd` |
+| `companion` | `MTG.Companion.exe` | the app | sha8 of `companion/src/*.cs`, `app.manifest`, `build.cmd`, `release-keys.txt` |
 
-plus `update-manifest.json` and the full zip (for new friends; the updater never downloads it). A part whose version
-equals the previous release's (`--previous <update-manifest.json>`, default the newest other `dist/release-*/`) isn't
-built again: its entry points at the release that carries the file (`release: <older tag>`), so a 300 MB
-`images.tar` is uploaded only when the engine changes. Without a previous manifest every part is built.
+plus `update-manifest.json`, its signature `update-manifest.json.sig` (§18.7) and the full zip (for new friends; the
+updater never downloads it). A part whose version equals the previous release's isn't built again: its entry points at
+the release that carries the file (`release: <older tag>`), so a 300 MB `images.tar` is uploaded only when the engine
+changes. The previous release is `--previous <update-manifest.json>`: the PUBLISHED latest release's manifest, trusted
+as published. Without it, the newest other `dist/release-*/` is used, and a part is reused only when its file is in
+`dist/release-<its tag>/` with the manifest's sha256 (else it is built again). The packager prints "keep release X
+published" for every older release the new manifest points at. Without a previous manifest every part is built.
+`--release` refuses `--allow-undeployed-bridge` and `--allow-changed-save` (a release ships only what ran live), new
+images without the tar (`--no-images`), and a tag that isn't word characters, dots and dashes (or is only dots).
 
 `update-manifest.json`: `{ format: 1, version: <tag>, built, gitCommit, minCompanion, parts: { <part>: { file,
 sha256, size, version, release } }, full: { file, sha256, size }, versionJson, deployedJson }`. `versionJson` and
@@ -1029,13 +1034,18 @@ sha256, size, version, release } }, full: { file, sha256, size }, versionJson, d
 - `GET https://api.github.com/repos/<repo>/releases/latest`, `User-Agent: MTG-Companion`, nothing else about the PC or
   the user. 404 (the repo is private, or has no release) → the quiet line "Updates will work once the project is
   public." and nothing else; other failures → "Couldn't check for updates (…)". Never a red light.
-- `update-manifest.json` from that release's assets; each part's version against the local one (`version.json`
+- `update-manifest.json` and `update-manifest.json.sig` from that release's assets; the signature is checked over the
+  manifest's bytes (with its tag and `minCompanion`) BEFORE the manifest is parsed. Missing or not by a trusted key →
+  "The update manifest of <tag> isn't signed by this project's release key: not used." and nothing else (no dialog,
+  no red light). A manifest whose `version` isn't the release's tag is not used either.
+- each part's version against the local one (`version.json`
   `parts`, else derived: `save`, the image ids, `nodeVersion`; app and companion unknown = changed). Same everywhere →
   "Up to date". Otherwise a dialog: **Update available** with what changes and the download size, **Update now** /
   **Later**.
 - Optional token (tray: **GitHub token…**, or `--set-token` reading stdin): stored with DPAPI (CurrentUser) in
   `%LOCALAPPDATA%\MTG Companion\github-token.bin`, sent only in requests to `api.github.com` (the release lookups and
-  the asset downloads, both reads; a private repo needs it for both), never to a redirect target, never logged.
+  the asset downloads, both reads; a private repo needs it for both), never to a redirect target, never to a test
+  server (`--update-base`), never logged.
 
 ### 18.3 Downloading
 
@@ -1043,35 +1053,57 @@ Only the changed parts, into `<package>\updates\<tag>\`, through the asset API (
 a part in an older release is looked up with `releases/tags/<tag>`). Every URL, including each redirect (followed by
 hand, at most 5), must be `https://` on `api.github.com`, `github.com`, `objects.githubusercontent.com` or
 `release-assets.githubusercontent.com` (GitHub's current asset host); anything else is refused before a request is
-made. A partial file (`.part`) resumes with `Range`; 3 tries per part. The sha256 is checked; a mismatch deletes the
-file and refuses the update. The size must match too.
+made. A partial file (`.part`) resumes with `Range`; a 206 counts only when its `Content-Range` starts where the
+partial file ends and names the part's size, else the partial file is deleted and the download starts again from 0;
+3 tries per part. The sha256 is checked; a mismatch deletes the file and refuses the update. The size must match too.
+The parts are checked again at the start of the install (a download that waited for a game, or `--apply-update`).
 
 ### 18.4 Applying
 
-Never during a game (the game lock, §17): "Update ready — will install after this game"; the watcher applies it when
-the lock clears. Then, on the worker:
+Never during a game (the game lock, §17): "Update ready — will install after this game" (kept in `updates.json`
+`pending`, so a restart still waits for it); the watcher applies it 2 minutes after the lock clears (`Updates.InstallNow`:
+not while the next game is being set up). Then, on the worker, holding the mutex `Local\MtgTtsCompanionUpdate`:
 
-1. Stop the bridge loop and the bridge.
-2. Move what the update replaces into `<package>\backup\<old version>\` (moves, not copies: the old `images.tar`
-   doesn't double the disk use); keep the last 2 backups.
-3. Extract each zip into the package (entries outside it are refused), put `images.tar` in `images\`, write
-   `version.json` and `stack\deployed.json` from the manifest (the `companion` part's version stays the old one until
-   the new exe has taken over).
+1. Write `<package>\update-journal.json` (`target`, `backup`, `replaced`, `existed`, `moved`, `placed`, `phase`;
+   written whole to a `.tmp` and moved over) before the first move, and again after every move. Stop the bridge loop
+   and the bridge.
+2. Move what the update replaces and is there into `<package>\backup\<old version>\` (moves, not copies); keep the
+   last 2 backups, the engine images only in the newest.
+3. Extract each zip into the package: an entry must be under the part's own folders, with no segment that a trailing
+   dot or space trim changes (`bridge/.. /x` is `bridge/../x` to Windows) and no colon, and its full path must be
+   inside the part's folder. Move (not copy) `images.tar` to `images\mtg-images.tar`. An app update copies the old
+   picture cache back. Write `version.json` and `stack\deployed.json` from the manifest (the `companion` part's
+   version stays the old one until the new exe has taken over; without new images, the image ids this Docker gave
+   them, `Controller.RewriteDeployed`, stay). Journal phase `placed`.
 4. New images: `docker load` and `compose up -d` (the engine is idle: the lock was checked). New table: the
    hash-guarded save install (§17 step 4: the player's own saves are never overwritten). Then start the bridge and
    wait for `/versions`.
-5. Any failure in 3–4: delete what was put in, move the backup back, load the old images again if new ones were
-   loaded, start the bridge, and say "The update failed and was undone: …". The download stays for another try.
-6. A new companion last: `MTG Companion.new.exe` (verified) starts with `--replace-old <pid> <old path>`, the old app
-   exits; the new one waits for that pid, renames the old exe to `MTG Companion.old.exe` and itself to
+5. Any failure in 1–4: undo from the journal. Only a path that was moved to the backup, or that didn't exist before
+   (the update created it), is deleted; a path that was there and wasn't moved is never touched. What sits in the
+   backup decides what goes back (the journal can lag the last move by one). A placed `images.tar` goes back to the
+   download folder. Then load the old images again if new ones were loaded, start the bridge, and say "The update
+   failed and was undone: …" (or "… before anything changed"). When something can't be put back, the message names
+   it and the backup folder, and the journal stays, so the next start tries again. The download stays for another try.
+6. A new companion last: `MTG Companion.new.exe` (verified at the install's start) starts with `--replace-old <pid>
+   <old path> --old-start <ticks>`, the old app exits; the new one waits for that process, renames the old exe to `MTG Companion.old.exe` and itself to
    `MTG Companion.exe`, records its part version, and starts from that name. The next clean start deletes the
    `.old.exe`. If the new exe can't start, the old one stays and says so. A release whose `minCompanion` is newer than
    the running app swaps the companion first and passes `--apply-update <tag>` so the new one applies the rest.
 
+Interrupted (a kill, a power cut, Windows ending the app): at the next start, BEFORE the package is read (its
+`version.json` may be in the backup), `Updater.Recover` reads the journal. Phase `placed`: every file is in place, the
+journal goes and the start sequence loads the images, installs the save and starts the bridge as usual. Any other
+phase: undone as in step 5. Not in `--observe`, the bridge loop or the swap, and not while another app holds the mutex.
+While files move, the app holds Windows' shutdown (`ShutdownBlockReasonCreate`, "Finishing update…", and refuses
+`WM_QUERYENDSESSION`), the window can't be closed by Windows, Quit says to wait, and `Controller.Quit` waits for the
+install to end. The swap's new exe waits only for the old app's own process (its pid and start time, `--old-start`); if
+that is still running after a minute it says so (quit it from the tray, start again) instead of renaming a live exe.
+
 ### 18.5 State and actions (for the window, the tray and the status page)
 
 The Controller keeps the update in one snapshot, `Controller.Update` (`UpdateState`: `Status` = idle, checking,
-up-to-date, not-public, available, downloading, ready, installing, restarting, updated or failed; `Current`,
+up-to-date, not-public, available, downloading, ready, installing, restarting, updated, failed or interrupted (the
+start finished or undid an interrupted install: `Text` says which); `Current`,
 `Available`, `Notes`, `Progress` 0-100 or -1, `DeferredUntilGameEnds`, `Later`, `Error`, `LastCheck`, `Text`),
 changed only through `SetUpdate`. The actions are named methods any front end calls: `CheckNow()`, `UpdateNow()`
 (installs the release the last check offered), `Later()` (no dialog again for that release until asked). The window
@@ -1081,11 +1113,36 @@ reads `Update.Text`; the HTML status page (branch companion-html) can serve the 
 
 `tests/test_companion_update.js`: a fake GitHub (Node `http`: `releases/latest`, `releases/tags/<tag>`, asset
 downloads with a redirect to a second host name, `Range`, a first-try 500, `/state` for the game lock) and the built
-exe in a temp package, driven by hidden flags: `--update-base <url>` (the fake instead of `api.github.com`; its own
-host and `localhost` are then the allowed hosts), `--update-check`, `--update-now`, `--fake-effects <file>` (bridge,
-docker and save steps written to a file instead of done), `--fake-fail <step>`. Cases: up to date; new app only; new
+exe in a temp package, driven by hidden flags: `--update-base <url>` (the fake instead of `api.github.com`, only
+`http://` on 127.0.0.1 or localhost; its own host and `localhost` are then the allowed hosts, and no token is sent),
+`--test-public-key <key>` (the fake's signing key, only with that base), `--test-die-at move|place|placed` (the
+process kills itself there), `--test-format <n>` (an older app, for the companion-first path), `--update-check`,
+`--update-now`, `--fake-effects <file>` (bridge, docker and save steps written to a file instead of done),
+`--fake-fail <step>`. More cases: a table, images or runtime update; a failed save install undone with version.json;
+a held file that stops a move half way (every file as it was); killed after one move, after placing the tar (the
+package without version.json until the next start), and with every file in place; trailing-dot and trailing-space
+zip names and a stream name; a missing, foreign or tampered signature; a manifest of another tag; a 206 with a wrong
+`Content-Range`; a changed download refused at the install; the companion first, then the rest without a second check. Cases: up to date; new app only; new
 images only (only the tar downloaded, from the older release); sha mismatch refused; 404 quiet; game running defers;
 failed apply rolls back; self-update swap (and the `.old.exe` removed at the next start); off-host URL refused; the
 token only to the API host and never in the log; a resumed download. The pure parts (plan, URL rule, manifest
-parsing, backups to prune, check interval) are `--selftest` cases; the packager's release manifest is in
-`tests/test_friend_package.js`.
+parsing, backups to prune, check interval, the zip-name and containment rules, `Content-Range`, the undo plan, the
+journal, the deployed.json merge, the swap's renames with failing file operations, the signature with a vector from
+the packager's Node code, DPAPI CurrentUser) are `--selftest` cases; the packager's release rules (refusals, the app
+version, reuse, the key and the signature) are in `tests/test_friend_package.js`.
+
+### 18.7 The release key
+
+`update-manifest.json` is signed with ECDSA P-256 over its exact bytes (`crypto.sign("sha256", …, { dsaEncoding:
+"ieee-p1363" })`: 64 bytes r || s, base64 in `update-manifest.json.sig`). The private key is
+`%USERPROFILE%\.mtg-release\release-key.pem` (`MTG_RELEASE_KEY` overrides; refused inside the repo; `.gitignore` has
+`.mtg-release/` and `*.pem`); the first `--release` makes it and prints where it is: back it up, never share or commit
+it. The public half (base64 of X || Y) is a line of `companion/release-keys.txt`, which `build.cmd` builds into the exe
+(`/resource`); the first `--release` adds the line before it builds the exe, and the file is committed. The app checks
+the signature with `ECDsaCng` against every line.
+
+Key change (a lost or leaked key): make a new key, add its line to `release-keys.txt` beside the old one, and ship one
+release signed with the OLD key whose companion carries BOTH lines; installed apps take it, and from then on releases
+are signed with the new key. Then the old line can go. A leaked key that can't sign that bridge release: friends
+download a full package again. Packages made before signing (no line in their exe) can't self-update: they take the
+first signed package by hand.

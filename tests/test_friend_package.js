@@ -59,6 +59,44 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
   ok("compose: the room the bridge asks for", /SELF_HOSTED_NODE_ROOM_NAME: "tts-commander"/.test(y));
 }
 
+// --release: what it refuses, the app part's version, the tag, and the manifest's signature
+{
+  const fs = require("fs"), os = require("os"), path = require("path"), crypto = require("crypto");
+  same("release: a clean release refuses nothing", pack.releaseRefusals({ build: ["app", "images"], imagesFile: "images/mtg-images.tar", tag: "v2026.11.10-1200" }), []);
+  ok("release: new images without the tar (--no-images) refused", pack.releaseRefusals({ build: ["images"], imagesFile: null, tag: "v1" }).some((w) => w.includes("--no-images")));
+  same("release: unchanged images without the tar are fine", pack.releaseRefusals({ build: ["app"], imagesFile: null, tag: "v1" }), []);
+  ok("release: --allow-undeployed-bridge refused", pack.releaseRefusals({ build: [], imagesFile: "x", tag: "v1", allowUndeployedBridge: true }).some((w) => w.includes("--allow-undeployed-bridge")));
+  ok("release: --allow-changed-save refused", pack.releaseRefusals({ build: [], imagesFile: "x", tag: "v1", allowChangedSave: true }).some((w) => w.includes("--allow-changed-save")));
+  ok("release: a tag with a slash or of dots refused", [".", "..", "...", "a/b", "a b", ""].every((tag) => pack.releaseRefusals({ build: [], imagesFile: "x", tag }).length === 1));
+  ok("tag: release names kept", ["v2026.11.10-1432", "v1", ".v1", "a_b"].every(pack.validTag) && ![".", "..", "x/..", null].some(pack.validTag));
+  const entries = [{ rel: "bridge/bridge.js", bytes: "b" }, { rel: "decks/a.json", bytes: "{}" }];
+  const v = pack.appVersion(entries);
+  for (const rel of ["version.json", "stack/deployed.json", "README-FRIEND.txt", "bridge/image-cache-klrmngr.json"])
+    same(`app version: ${rel} doesn't count (it changes with every release, or is the friend's own)`, pack.appVersion([...entries, { rel, bytes: `x${rel}` }]), v);
+  ok("app version: a changed bridge file counts", pack.appVersion([{ rel: "bridge/bridge.js", bytes: "c" }, entries[1]]) !== v);
+  ok("app.zip leaves out the picture cache (the updater keeps the friend's)", pack.APP_EXCLUDED.includes("bridge/image-cache-klrmngr.json"));
+  same("keep published: every older release a manifest points at", pack.pointedAt({ version: "v3", parts: { app: { release: "v3" }, images: { release: "v1" }, table: { release: "v2" }, runtime: { release: "v1" } } }), ["v1", "v2"]);
+
+  // the key: made outside the repo on first use, then reused; the signature verifies the way the companion checks it
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "release-key-"));
+  try {
+    const file = path.join(dir, ".mtg-release", "release-key.pem");
+    let threw = null;
+    try { pack.releaseKey(path.join(__dirname, "..", "tmp", "release-key.pem"), path.join(__dirname, "..")); } catch (e) { threw = e.message; }
+    ok("key: a key file inside the repo is refused", threw && threw.includes("inside the repo"), threw);
+    const a = pack.releaseKey(file, path.join(__dirname, ".."));
+    const b = pack.releaseKey(file, path.join(__dirname, ".."));
+    ok("key: made on first use, then the same key", a.made && !b.made && pack.publicKeyText(a.key) === pack.publicKeyText(b.key));
+    const pub = Buffer.from(pack.publicKeyText(a.key), "base64");
+    ok("key: the public text is X || Y, 64 bytes", pub.length === 64);
+    const bytes = Buffer.from('{"format":1,"version":"v2"}\n');
+    const sig = Buffer.from(pack.signManifest(bytes, a.key), "base64");
+    const verify = (data, s) => crypto.verify("sha256", data, { key: crypto.createPublicKey({ key: { kty: "EC", crv: "P-256", x: pub.subarray(0, 32).toString("base64url"), y: pub.subarray(32).toString("base64url") }, format: "jwk" }), dsaEncoding: "ieee-p1363" }, s);
+    ok("signature: 64 bytes (r || s) that verify with the public text", sig.length === 64 && verify(bytes, sig));
+    ok("signature: a changed manifest doesn't verify", !verify(Buffer.from('{"format":1,"version":"v3"}\n'), sig));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
 // a docker save tar, read in odd-sized pieces
 {
   const entry = (name, body, type = "0") => {

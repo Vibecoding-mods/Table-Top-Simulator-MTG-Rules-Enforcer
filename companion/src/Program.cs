@@ -9,10 +9,11 @@
 //   MTG Companion.exe --write-icon FILE         writes the app icon (.ico)
 //   MTG Companion.exe --probe-login URL [KEY]   one relay login, printed (for testing against a fake relay)
 //   MTG Companion.exe --update-check | --update-now   self-update without the window (docs/companion-app-spec.md §18):
-//       [--update-base URL] (a fake GitHub) [--fake-effects FILE [--fake-fail STEP,...]] (--update-now needs it)
+//       [--update-base URL] (a fake GitHub on this PC: http://127.0.0.1:PORT only; then also --test-public-key KEY,
+//       --test-die-at move|place|placed, --test-format N) [--fake-effects FILE [--fake-fail STEP,...]] (--update-now needs it)
 //       [--bridge-url URL] [--state DIR] [--log FILE]; exit 0 up to date or done, 10 update available, 3 deferred, 1 failed
 //   MTG Companion.exe --set-token               the GitHub token from stdin, stored with DPAPI (empty: removed)
-//   MTG Companion.exe --replace-old PID PATH --part-version V   (internal) the new exe takes over from the old one
+//   MTG Companion.exe --replace-old PID PATH --old-start TICKS --part-version V   (internal) the new exe takes over
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -63,32 +64,40 @@ namespace MtgCompanion
         static string Quote(string a) { return a.Length > 0 && a.IndexOfAny(new[] { ' ', '"', '\t' }) < 0 ? a : "\"" + a.Replace("\"", "\\\"") + "\""; }
 
         // --update-check / --update-now: the self-update without the window (tests drive it against a fake GitHub)
-        static int HeadlessUpdate(string[] args, Layout layout, string stateDir, string exe)
+        static int HeadlessUpdate(string[] args, Layout layout, string stateDir, string exe, string recovered)
         {
-            if (layout == null || !layout.Friend) { Out("Updates: friend mode only (a package folder)." + Environment.NewLine, Arg(args, "--out")); return 2; }
+            string said = recovered != null ? recovered + Environment.NewLine : "";
+            Action<string> say = t => { Out(said + t + Environment.NewLine, Arg(args, "--out")); said = ""; };
+            if (layout == null || !layout.Friend) { say("Updates: friend mode only (a package folder)."); return 2; }
             Log.File = Arg(args, "--log") ?? layout.CompanionLog;
             if (Arg(args, "--bridge-url") != null) Controller.BridgeUrl = Arg(args, "--bridge-url");
             string testBase = Arg(args, "--update-base");
+            if (testBase != null && !Updates.TestBaseOk(testBase)) { say("--update-base takes only http://127.0.0.1 or http://localhost (a fake GitHub on this PC)."); return 2; }
             var upd = new Updater(layout, stateDir, exe, testBase);
+            if (testBase != null)
+            {
+                upd.DieAt = Arg(args, "--test-die-at");
+                int f; if (int.TryParse(Arg(args, "--test-format") ?? "", out f)) upd.Format = f;
+            }
             UpdateManifest m; UpdatePlan plan; string error;
             string applyTag = Arg(args, "--apply-update");
             if (applyTag != null)
             {
                 m = upd.Downloaded(applyTag, out error);
-                if (m == null) { Out(error + Environment.NewLine, Arg(args, "--out")); return 1; }
+                if (m == null) { say(error); return 1; }
                 plan = upd.PlanFor(m);
             }
             else
             {
                 var r = upd.Check();
-                Out(r.Text + Environment.NewLine, Arg(args, "--out"));
+                say(r.Text);
                 if (args.Contains("--update-check") || !r.Available) return r.Available ? 10 : r.Failed && !r.Quiet ? 1 : 0;
                 m = r.Manifest; plan = r.Plan;
                 error = upd.Download(m, plan);
-                if (error != null) { Out(error + Environment.NewLine, Arg(args, "--out")); return 1; }
+                if (error != null) { say(error); return 1; }
             }
             string fake = Arg(args, "--fake-effects");
-            if (fake == null) { Out("--update-now installs only with --fake-effects (the app installs updates from its tray menu)." + Environment.NewLine, Arg(args, "--out")); return 2; }
+            if (fake == null) { say("--update-now installs only with --fake-effects (the app installs updates from its tray menu)."); return 2; }
             var fails = (Arg(args, "--fake-fail") ?? "").Split(',').Where(x => x.Length > 0);
             var fx = new FakeEffects(fake, fails, () =>
             {
@@ -98,10 +107,10 @@ namespace MtgCompanion
             });
             // what the new exe runs with: just the swap here, or (companion first) the rest of the release headless too
             var carry = new List<string>();
-            foreach (var k in new[] { "--fake-effects", "--fake-fail", "--state", "--update-base", "--bridge-url", "--log" }) if (Arg(args, k) != null) { carry.Add(k); carry.Add(Arg(args, k)); }
+            foreach (var k in new[] { "--fake-effects", "--fake-fail", "--state", "--update-base", "--test-public-key", "--bridge-url", "--log" }) if (Arg(args, k) != null) { carry.Add(k); carry.Add(Arg(args, k)); }
             string selfArgs = plan.CompanionFirst ? "--update-now " + string.Join(" ", carry.Select(Quote)) : "--then-exit " + string.Join(" ", carry.Select(Quote));
             var res = upd.Apply(m, plan, fx, selfArgs);
-            Out(res.Text + Environment.NewLine, Arg(args, "--out"));
+            say(res.Text);
             return res.Ok ? 0 : res.Deferred ? 3 : 1;
         }
 
@@ -130,23 +139,48 @@ namespace MtgCompanion
                 return r.Kind == LoginKind.Ok ? 0 : 1;
             }
 
-            var layout = Logic.DetectLayout(exeDir, File.Exists, Arg(args, "--home"));
             string stateDir = Arg(args, "--state") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MTG Companion");
+            string ub = Arg(args, "--update-base");
+            if (Updates.TestBaseOk(ub)) Updater.TestKey = Arg(args, "--test-public-key");
+            // an update a kill or a power cut interrupted: finished or undone before the package is read (its
+            // version.json may be in the backup). Not in the bridge loop, the swap or --observe (which changes nothing).
+            string recovered = null;
+            if (!new[] { "--bridge-loop", "--bridge-stop", "--replace-old", "--observe" }.Any(args.Contains))
+            {
+                string home = Arg(args, "--home") ?? exeDir;
+                if (File.Exists(Path.Combine(home, Updates.JournalFile)))
+                {
+                    Log.File = Arg(args, "--log") ?? Path.Combine(home, "logs", "companion.log");
+                    recovered = Updater.Recover(home);
+                }
+            }
+            var layout = Logic.DetectLayout(exeDir, File.Exists, Arg(args, "--home"));
             if (args.Contains("--replace-old"))
             {
                 // the new exe (MTG Companion.new.exe): the old one has exited or is exiting
-                int i = Array.IndexOf(args, "--replace-old"), pid;
+                int i = Array.IndexOf(args, "--replace-old"), pid; long oldStart; long.TryParse(Arg(args, "--old-start") ?? "0", out oldStart);
                 if (layout == null || !layout.Friend || i + 2 >= args.Length || !int.TryParse(args[i + 1], out pid)) return 2;
                 Log.File = Arg(args, "--log") ?? layout.CompanionLog;
                 string oldPath = args[i + 2];
-                var final = Updater.ReplaceOld(pid, oldPath, exe, Arg(args, "--part-version"), layout.VersionFile);
-                if (final == null) { if (!args.Contains("--then-exit") && File.Exists(oldPath)) Process.Start(oldPath, "--after-update").Dispose(); return 1; }
+                bool stillRunning;
+                var final = Updater.ReplaceOld(pid, oldStart, oldPath, exe, Arg(args, "--part-version"), layout.VersionFile, out stillRunning);
+                if (final == null)
+                {
+                    if (args.Contains("--then-exit")) return 1;
+                    if (stillRunning)
+                    {
+                        MessageBox.Show("The update of MTG Companion itself couldn't finish: the old MTG Companion was still running after a minute.\r\n\r\nRight-click its tray icon, choose Quit, then start MTG Companion again. Everything else of the update is installed.", "MTG Companion", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return 1;
+                    }
+                    if (File.Exists(oldPath)) Process.Start(oldPath, "--after-update").Dispose();
+                    return 1;
+                }
                 if (args.Contains("--then-exit")) return 0;
                 var rest = new List<string>();
                 for (int k = 0; k < args.Length; k++)
                 {
                     if (k == i) { k += 2; continue; }
-                    if (args[k] == "--part-version") { k++; continue; }
+                    if (args[k] == "--part-version" || args[k] == "--old-start") { k++; continue; }
                     rest.Add(args[k]);
                 }
                 rest.Add("--after-update"); // (not a clean start: the old exe stays until the next one)
@@ -163,7 +197,7 @@ namespace MtgCompanion
                 return 0;
             }
             if (args.Contains("--update-check") || args.Contains("--update-now"))
-                return HeadlessUpdate(args, layout, stateDir, exe);
+                return HeadlessUpdate(args, layout, stateDir, exe, recovered);
             if (args.Contains("--bridge-loop"))
             {
                 if (layout == null || !layout.Friend) return 2;
@@ -203,8 +237,9 @@ namespace MtgCompanion
                 if (!first) { show.Set(); return 0; } // (the running one shows its window)
             }
 
-            Controller.UpdateBase = Arg(args, "--update-base");
+            Controller.UpdateBase = Updates.TestBaseOk(ub) ? ub : null;
             var c = new Controller(layout, observe, savesDir, stateDir, exe);
+            c.Recovered = recovered;
             c.ApplyAfterSwap = Arg(args, "--apply-update");
             if (Arg(args, "--bridge-url") != null) Controller.BridgeUrl = Arg(args, "--bridge-url");
             string steps = Arg(args, "--steps");

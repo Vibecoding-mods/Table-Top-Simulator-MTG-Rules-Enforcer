@@ -87,7 +87,12 @@ namespace MtgCompanion
         public event Action ExitForUpdate; // the new companion takes over: close without stopping anything
         Updater upd;
         volatile bool updateBusy;
-        UpdateManifest pendingM; UpdatePlan pendingPlan; // (downloaded, waiting for the game to end)
+        UpdateManifest pendingM; UpdatePlan pendingPlan; // (downloaded, waiting for the game to end; in updates.json as "pending")
+        DateTime? idleSince; // (no game since then: a waiting update installs 2 minutes after the game)
+        public string Recovered; // (Updater.Recover's sentence at this start, or null)
+        volatile bool applying;
+        public bool Applying { get { return applying; } } // files are moving: Quit and shutdown wait
+        public event Action ApplyingChanged;
 
         public Controller(Layout l, bool observe, string savesDir, string stateDir, string exePath)
         {
@@ -100,6 +105,20 @@ namespace MtgCompanion
                 upd.Progress = (text, percent) => SetUpdate(s => { s.Status = "downloading"; s.Progress = percent; s.Text = text; });
                 var st = upd.State();
                 SetUpdate(s => { s.Text = J.Str(st, "lastResult") ?? ""; s.LastCheck = J.Str(st, "lastCheck"); });
+                var waiting = J.Str(st, "pending");
+                if (waiting != null)
+                {
+                    // an update that waited for a game when the app last ran: it still waits (and installs after the game)
+                    string error;
+                    var m = upd.Downloaded(waiting, out error);
+                    var plan = m == null ? null : upd.PlanFor(m);
+                    if (plan != null && plan.Refused == null && !plan.UpToDate)
+                    {
+                        pendingM = m; pendingPlan = plan;
+                        SetUpdate(s => { s.Status = "ready"; s.Available = m.Version; s.DeferredUntilGameEnds = true; s.Text = "Update " + m.Version + " ready — will install after the game."; });
+                    }
+                    else upd.Remember("pending", null);
+                }
             }
         }
 
@@ -158,6 +177,7 @@ namespace MtgCompanion
             thread.IsBackground = true;
             thread.Name = "companion worker";
             thread.Start();
+            if (Recovered != null) { var rec = Recovered; SetUpdate(s => { s.Status = "interrupted"; s.Text = rec; }); }
             if (upd != null)
             {
                 var after = ApplyAfterSwap;
@@ -172,7 +192,7 @@ namespace MtgCompanion
                         if (m == null) SetUpdate(s => { s.Status = "failed"; s.Error = s.Text = "The rest of update " + after + " wasn't found (" + error + ")."; });
                         else Enqueue(() => ApplyUpdate(m, upd.PlanFor(m)));
                     }
-                    else if (upd.CheckDue()) CheckForUpdates(false);
+                    else if (upd.CheckDue() && pendingM == null) CheckForUpdates(false);
                 });
                 t.IsBackground = true;
                 t.Start();
@@ -230,12 +250,11 @@ namespace MtgCompanion
                 try
                 {
                     var error = upd.Download(r.Manifest, r.Plan);
-                    if (error != null) { Log.Write("update download: " + error); SetUpdate(s => { s.Status = "failed"; s.Progress = -1; s.Error = s.Text = error; }); return; }
+                    if (error != null) { Log.Write("update download: " + error); SetUpdate(s => { s.Status = "failed"; s.Progress = -1; s.Error = s.Text = error; }); updateBusy = false; return; }
                     SetUpdate(s => { s.Status = "installing"; s.Progress = -1; s.Text = "Downloaded " + r.Manifest.Version + "; installing."; });
-                    Enqueue(() => ApplyUpdate(r.Manifest, r.Plan));
+                    Enqueue(() => ApplyUpdate(r.Manifest, r.Plan)); // (busy until ApplyUpdate ends)
                 }
-                catch (Exception e) { Log.Write("update download failed: " + e); SetUpdate(s => { s.Status = "failed"; s.Progress = -1; s.Error = s.Text = "The download failed (" + e.Message + ")."; }); }
-                finally { updateBusy = false; }
+                catch (Exception e) { Log.Write("update download failed: " + e); SetUpdate(s => { s.Status = "failed"; s.Progress = -1; s.Error = s.Text = "The download failed (" + e.Message + ")."; }); updateBusy = false; }
             });
             t.IsBackground = true;
             t.Start();
@@ -244,17 +263,24 @@ namespace MtgCompanion
         // on the worker
         void ApplyUpdate(UpdateManifest m, UpdatePlan plan)
         {
+            updateBusy = true;
             pendingM = null; pendingPlan = null;
             var was = Phase;
             SetPhase("Updating to " + m.Version);
             SetUpdate(s => { s.Status = "installing"; s.DeferredUntilGameEnds = false; });
-            var res = upd.Apply(m, plan, new Effects(this), "");
+            ApplyResult res;
+            SetApplying(true);
+            try { res = upd.Apply(m, plan, new Effects(this), ""); }
+            catch (Exception e) { Log.Write("update apply: " + e); res = new ApplyResult { Text = "The update failed (" + e.Message + ")." }; }
+            finally { SetApplying(false); updateBusy = false; } // (before ExitForUpdate: the window may close then)
             Log.Write("update: " + res.Text);
             SetUpdate(s => s.Applied(res));
             if (res.Deferred) { pendingM = m; pendingPlan = plan; SetPhase(was); return; }
             if (res.Swapping) { var h = ExitForUpdate; if (h != null) h(); return; }
             pendingFrom = 1; // (the lights again, from the package as it is now)
         }
+
+        void SetApplying(bool on) { applying = on; var h = ApplyingChanged; if (h != null) try { h(); } catch { } }
 
         // what an update does to the bridge, Docker and the save: this app's own steps
         class Effects : IUpdateEffects
@@ -276,7 +302,13 @@ namespace MtgCompanion
             public bool StartBridge() { return c.DoBridge(); }
         }
 
-        public void Quit() { quit = true; cancel = true; wake.Set(); if (thread != null) thread.Join(3000); }
+        public void Quit()
+        {
+            // an install in progress finishes first (stopping it halfway is what the journal is for, not the plan)
+            var until = DateTime.UtcNow.AddMinutes(15);
+            while (applying && DateTime.UtcNow < until) Thread.Sleep(200);
+            quit = true; cancel = true; wake.Set(); if (thread != null) thread.Join(3000);
+        }
 
         void Enqueue(Action a) { lock (q) work.Enqueue(a); cancel = true; wake.Set(); }
 
@@ -374,6 +406,7 @@ namespace MtgCompanion
             var g = Logic.DecideGame(st, age);
             bool changed = Game == null || Game.Kind != g.Kind || Game.Text != g.Text;
             Game = g;
+            if (Logic.Locked(g)) idleSince = null; else if (!idleSince.HasValue) idleSince = DateTime.UtcNow;
             if (changed) { Log.Write("game: " + g.Kind + ": " + g.Text); Fire(); }
         }
 
@@ -966,7 +999,7 @@ namespace MtgCompanion
         void MonitorTick()
         {
             RefreshGame();
-            if (pendingM != null && !IsLocked && !Observe) { ApplyUpdate(pendingM, pendingPlan); return; } // (the game ended: install the update)
+            if (pendingM != null && !Observe && Updates.InstallNow(IsLocked, idleSince, DateTime.UtcNow, true)) { ApplyUpdate(pendingM, pendingPlan); return; } // (2 minutes after the game: install the update)
             var f = DockerNow();
             if (f.Answers) Set(StepDocker, Logic.DecideDocker(f));
             else Set(StepDocker, new Verdict(f.DesktopRunning ? Light.Amber : Light.Red, f.DesktopRunning ? "Docker Desktop runs, but its engine isn't answering (starting or stopped)." : "Docker isn't running.")
