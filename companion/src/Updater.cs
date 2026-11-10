@@ -425,7 +425,14 @@ namespace MtgCompanion
             try { File.Delete(JournalPath(L.Home)); } catch { }
             Prune(backupRoot);
             Log.Write("update " + m.Version + ": files in place");
-            if (self) return Swap(m, plan, selfArgs);
+            if (self)
+            {
+                // (the bridge loop runs from this exe, so it starts only from the new one: started here, it would
+                // hold the file the swap renames. A swap that can't start means this app carries on: start it here.)
+                var sw = Swap(m, plan, selfArgs);
+                if (!sw.Ok) fx.StartBridge();
+                return sw;
+            }
             Done(m);
             return new ApplyResult { Ok = true, Text = "Updated to " + m.Version + "." };
         }

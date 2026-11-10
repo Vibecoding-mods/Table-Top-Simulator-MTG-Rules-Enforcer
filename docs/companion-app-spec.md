@@ -1106,7 +1106,8 @@ not while the next game is being set up). Then, on the worker, holding the mutex
    them, `Controller.RewriteDeployed`, stay). Journal phase `placed`.
 4. New images: `docker load` and `compose up -d` (the engine is idle: the lock was checked). New table: the
    hash-guarded save install (§17 step 4: the player's own saves are never overwritten). Then start the bridge and
-   wait for `/versions`.
+   wait for `/versions`, except when the companion is part of the update: the bridge loop runs from the exe, so the
+   new exe starts it after the swap (started from the old one, it would hold the file being renamed).
 5. Any failure in 1–4: undo from the journal. Only a path that was moved to the backup, or that didn't exist before
    (the update created it), is deleted; a path that was there and wasn't moved is never touched. What sits in the
    backup decides what goes back (the journal can lag the last move by one). A placed `images.tar` goes back to the
@@ -1116,7 +1117,7 @@ not while the next game is being set up). Then, on the worker, holding the mutex
 6. A new companion last: `MTG Companion.new.exe` (verified at the install's start) starts with `--replace-old <pid>
    <old path> --old-start <ticks>`, the old app exits; the new one waits for that process, renames the old exe to `MTG Companion.old.exe` and itself to
    `MTG Companion.exe`, records its part version, and starts from that name. The next clean start deletes the
-   `.old.exe`. If the new exe can't start, the old one stays and says so. A release whose `minCompanion` is newer than
+   `.old.exe`. If the new exe can't start, the old one stays, starts the bridge and says so. A release whose `minCompanion` is newer than
    the running app swaps the companion first and passes `--apply-update <tag>` so the new one applies the rest.
 
 Interrupted (a kill, a power cut, Windows ending the app): at the next start, BEFORE the package is read (its
@@ -1156,7 +1157,11 @@ process kills itself there), `--test-format <n>` (an older app, for the companio
 a held file that stops a move half way (every file as it was); killed after one move, after placing the tar (the
 package without version.json until the next start), and with every file in place; trailing-dot and trailing-space
 zip names and a stream name; a missing, foreign or tampered signature; a manifest of another tag; a 206 with a wrong
-`Content-Range`; a changed download refused at the install; the companion first, then the rest without a second check. Cases: up to date; new app only; new
+`Content-Range`; a download that runs past the part's size (reading stops there); a changed download refused at the
+install; the companion first, then the rest without a second check; the bridge started by the old app only when its
+swap fails; the swap not waiting for a pid another process now has, and giving up on an old app still running after
+a minute; an undo that can't delete a held new file (named once, the journal kept, finished at the next start); an
+`--update-base` off this PC refused (exit 2). Cases: up to date; new app only; new
 images only (only the tar downloaded, from the older release); sha mismatch refused; 404 quiet; game running defers;
 failed apply rolls back; self-update swap (and the `.old.exe` removed at the next start); off-host URL refused; the
 token only to the API host and never in the log; a resumed download. The pure parts (plan, URL rule, manifest

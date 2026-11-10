@@ -69,6 +69,14 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
   ok("release: --allow-changed-save refused", pack.releaseRefusals({ build: [], imagesFile: "x", tag: "v1", allowChangedSave: true }).some((w) => w.includes("--allow-changed-save")));
   ok("release: a tag with a slash or of dots refused", [".", "..", "...", "a/b", "a b", ""].every((tag) => pack.releaseRefusals({ build: [], imagesFile: "x", tag }).length === 1));
   ok("tag: release names kept", ["v2026.11.10-1432", "v1", ".v1", "a_b"].every(pack.validTag) && ![".", "..", "x/..", null].some(pack.validTag));
+  {
+    // every part names the release that holds its file: made now = this tag, carried = the older one (as given)
+    const mf = pack.releaseManifest({ tag: "v3", built: "x", gitCommit: "c", partVersions: { app: "a3", table: "s1" }, made: { app: { file: "app.zip", sha256: "a".repeat(64), size: 5 } }, reuse: { table: { file: "table.zip", sha256: "b".repeat(64), size: 6, version: "s1", release: "v1" } }, full: {}, versionJson: {}, deployedJson: {} });
+    same("manifest: a part made now names this release", [mf.parts.app.release, mf.parts.app.version], ["v3", "a3"]);
+    same("manifest: a carried part keeps its older release", mf.parts.table.release, "v1");
+    let threw = null; try { pack.releaseManifest({ tag: "v3", partVersions: { app: "a3" }, made: {}, reuse: {} }); } catch (e) { threw = e.message; }
+    ok("manifest: a part neither made nor carried is refused", /neither built nor carried/.test(threw || ""), threw);
+  }
   const entries = [{ rel: "bridge/bridge.js", bytes: "b" }, { rel: "decks/a.json", bytes: "{}" }];
   const v = pack.appVersion(entries);
   for (const rel of ["version.json", "stack/deployed.json", "README-FRIEND.txt", "bridge/image-cache-klrmngr.json"])

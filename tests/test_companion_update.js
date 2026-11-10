@@ -37,7 +37,14 @@ function build() {
 }
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "companion-update-"));
-process.on("exit", () => { try { fs.rmSync(ROOT, { recursive: true, force: true }); } catch {} });
+// PowerShell helpers (a held file, a held mutex, a stand-in old app): started outside any test folder and killed at
+// the exit, so a FAIL_FAST exit leaves nothing running that holds a folder
+const helpers = [];
+const helperPs = (command, stdio) => { const c = spawn("powershell.exe", ["-NoProfile", "-Command", command], { cwd: os.tmpdir(), stdio }); helpers.push(c); return c; };
+process.on("exit", () => {
+  for (const c of helpers) try { if (c.exitCode === null) c.kill(); } catch {}
+  try { fs.rmSync(ROOT, { recursive: true, force: true }); } catch {}
+});
 // the fake GitHub's release key (the exe trusts it through --test-public-key, which needs a loopback --update-base)
 const KEY = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey;
 const OTHER_KEY = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey;
@@ -69,7 +76,7 @@ function makePkg(parts = BASE_PARTS) {
 
 // ── the fake GitHub
 
-const server = { releases: {}, latest: null, latestStatus: 200, assets: {}, requests: [], game: false, failOnce: new Set(), cutOnce: new Set(), redirectOff: new Set(), badRange: new Set() };
+const server = { releases: {}, latest: null, latestStatus: 200, assets: {}, requests: [], game: false, failOnce: new Set(), cutOnce: new Set(), redirectOff: new Set(), badRange: new Set(), flood: new Set(), floodSent: {} };
 let PORT = 0, BASE = "";
 const srv = http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
@@ -97,6 +104,18 @@ const srv = http.createServer((req, res) => {
     const from = r ? Number(r[1]) : 0;
     if (from >= body.length) return send(416, "");
     // a server that answers a Range with the whole file as a 206 (Content-Range from 0): the client must start again
+    // a server that sends far more than the part's size (64 MB, no Content-Length): the client must stop reading
+    if (server.flood.delete(key)) {
+      res.writeHead(200, { "Content-Type": "application/octet-stream" });
+      const junk = Buffer.alloc(1 << 16, 120);
+      let sent = 0, closed = false;
+      res.on("close", () => { closed = true; server.floodSent[key] = sent; });
+      const pump = () => {
+        while (!closed && sent < 64 * 1048576) { sent += junk.length; if (!res.write(junk)) return res.once("drain", pump); }
+        if (!closed) { server.floodSent[key] = sent; res.end(); }
+      };
+      return pump();
+    }
     if (r && server.badRange.delete(key)) { res.writeHead(206, { "Content-Type": "application/octet-stream", "Content-Length": body.length, "Content-Range": `bytes 0-${body.length - 1}/${body.length}` }); return res.end(body); }
     res.writeHead(r ? 206 : 200, { "Content-Type": "application/octet-stream", "Content-Length": body.length - from, ...(r ? { "Content-Range": `bytes ${from}-${body.length - 1}/${body.length}` } : {}) });
     if (server.cutOnce.delete(key)) { res.write(body.subarray(from, from + Math.floor((body.length - from) / 2))); setTimeout(() => res.destroy(), 50); return; }
@@ -391,7 +410,7 @@ async function main() {
     for (const [rel, text] of [["LICENSES/x.txt", "lic"], ["manabrew/public/preset_decks/m.json", "{}"]]) { fs.mkdirSync(path.dirname(path.join(p.pkg, rel)), { recursive: true }); fs.writeFileSync(path.join(p.pkg, rel), text); }
     const before = snapshot(p.pkg);
     const held = path.join(p.pkg, "decks", "a.json");
-    const ps = spawn("powershell.exe", ["-NoProfile", "-Command", `$f=[System.IO.File]::Open('${held}','Open','Read','Read'); Write-Output held; Start-Sleep 30; $f.Close()`], { stdio: ["ignore", "pipe", "ignore"] });
+    const ps = helperPs(`$f=[System.IO.File]::Open('${held}','Open','Read','Read'); Write-Output held; Start-Sleep 30; $f.Close()`, ["ignore", "pipe", "ignore"]);
     await new Promise((res) => ps.stdout.once("data", res));
     const r = await now(p);
     ps.kill();
@@ -456,6 +475,34 @@ async function main() {
     ok("killed with every file in place: the tar was moved into images\\, not copied", read(path.join(p.pkg, "images", "mtg-images.tar")) === "placed tar ".repeat(50) && !fs.existsSync(path.join(p.pkg, "updates", "v8p", "images.tar")));
   }
 
+  // 7g. an undo that can't delete a new file (held open): that path is reported once, its old one stays in the backup,
+  // the journal stays, and the next start finishes the undo
+  {
+    reset();
+    publish("v8s", { app: { version: "a2", body: newApp() }, table: unchanged("table"), images: unchanged("images"), runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest });
+    server.latest = "v8s";
+    const p = makePkg();
+    const before = snapshot(p.pkg);
+    await run(p, ["--update-now", "--fake-effects", p.fx, "--test-die-at", "place"]);
+    ok("stuck undo: killed with the new bridge placed", read(path.join(p.pkg, "bridge", "bridge.js")) === "// new bridge\n" && fs.existsSync(path.join(p.pkg, "update-journal.json")));
+    const held = path.join(p.pkg, "bridge", "bridge.js");
+    const ps = helperPs(`$f=[System.IO.File]::Open('${held}','Open','Read','Read'); Write-Output held; Start-Sleep 60; $f.Close()`, ["ignore", "pipe", "ignore"]);
+    await new Promise((res) => ps.stdout.once("data", res));
+    server.latest = "v1x";
+    const next = await run(p, ["--update-check"]);
+    ps.kill();
+    await wait(() => ps.exitCode !== null, 5000);
+    const m = /These couldn't be put back: ([^.]*)\./.exec(next.out);
+    const names = m ? m[1].split(", ") : [];
+    ok("stuck undo: says what couldn't be put back, each path once", names.length > 0 && names.includes("bridge") && new Set(names).size === names.length, JSON.stringify(next));
+    ok("stuck undo: the journal and the old bridge in the backup stay", fs.existsSync(path.join(p.pkg, "update-journal.json")) && read(path.join(p.pkg, "backup", "v1", "bridge", "bridge.js")) === "// old bridge\n");
+    const again = await run(p, ["--update-check"]);
+    ok("stuck undo: the next start finishes it", again.out.includes("was interrupted, so it was undone") && !fs.existsSync(path.join(p.pkg, "update-journal.json")), JSON.stringify(again));
+    const after = snapshot(p.pkg);
+    for (const k of Object.keys(after)) if (k.startsWith("updates/")) delete after[k];
+    same("stuck undo: then every file exactly as it was", after, before);
+  }
+
   // 7f. another MTG Companion holds the update mutex: no recovery and no second install meanwhile
   {
     reset();
@@ -463,7 +510,7 @@ async function main() {
     server.latest = "v8x";
     const p = makePkg();
     await run(p, ["--update-now", "--fake-effects", p.fx, "--test-die-at", "move"]);
-    const ps = spawn("powershell.exe", ["-NoProfile", "-Command", "$m = New-Object System.Threading.Mutex($false, 'Local\\MtgTtsCompanionUpdate'); [void]$m.WaitOne(); Write-Output held; Start-Sleep 30; $m.ReleaseMutex()"], { stdio: ["ignore", "pipe", "ignore"] });
+    const ps = helperPs("$m = New-Object System.Threading.Mutex($false, 'Local\\MtgTtsCompanionUpdate'); [void]$m.WaitOne(); Write-Output held; Start-Sleep 30; $m.ReleaseMutex()", ["ignore", "pipe", "ignore"]);
     await new Promise((res) => ps.stdout.once("data", res));
     const busy = await run(p, ["--update-check"]);
     ok("mutex held: the start leaves the journal alone", !busy.out.includes("interrupted") && fs.existsSync(path.join(p.pkg, "update-journal.json")), JSON.stringify(busy));
@@ -492,6 +539,7 @@ async function main() {
     ok("self-update: no .new.exe left", await wait(() => !fs.existsSync(path.join(p.pkg, "MTG Companion.new.exe")), 5000));
     await wait(() => json(path.join(p.pkg, "version.json")).parts.companion === "c2", 5000);
     same("self-update: version.json has the new companion", json(path.join(p.pkg, "version.json")).parts.companion, "c2");
+    same("self-update: the old app never starts the bridge (its loop would hold the exe being swapped)", effects(p), ["stop-bridge", "reload"]);
     ok("self-update: the old exe is the old bytes", fs.existsSync(path.join(p.pkg, "MTG Companion.old.exe")) && fs.readFileSync(path.join(p.pkg, "MTG Companion.old.exe")).equals(fs.readFileSync(EXE)));
     const next = await run(p, ["--update-check"]);
     ok("self-update: the next start is up to date", next.code === 0 && next.out.includes("Up to date (v9)"), JSON.stringify(next));
@@ -527,9 +575,52 @@ async function main() {
     const v = json(path.join(p.pkg, "version.json"));
     same("blocked swap: the app updated, the companion's version still the old one", [v.parts.app, v.parts.companion], ["a2", "c1"]);
     ok("blocked swap: the exe untouched", fs.readFileSync(path.join(p.pkg, "MTG Companion.exe")).equals(fs.readFileSync(EXE)));
+    same("blocked swap: the bridge started once, after the swap failed (this app carries on)", effects(p), ["stop-bridge", "reload", "start-bridge"]);
     fs.rmdirSync(path.join(p.pkg, "MTG Companion.new.exe"));
     const again = await run(p, ["--update-check"]);
     ok("blocked swap: the next check offers the companion alone", again.code === 10 && again.out.includes("(this app;"), JSON.stringify(again));
+  }
+
+  // 8c. the swap waits for the old app by its pid AND start time: a pid now used by another process isn't waited
+  // for; the old app itself still running after a minute means no swap (exit 1, both exes as they were)
+  {
+    const ps = helperPs("$p = Get-Process -Id $PID; Write-Output (\"$PID \" + $p.StartTime.ToUniversalTime().Ticks); Start-Sleep 150", ["ignore", "pipe", "ignore"]);
+    let line = "";
+    ps.stdout.on("data", (d) => { line += d; });
+    await wait(() => /^\d+ \d+/.test(line), 20000);
+    const [pid, ticks] = line.trim().split(" ");
+    const swap = (p, oldStart) => new Promise((done) => {
+      const newExe = path.join(p.pkg, "MTG Companion.new.exe");
+      fs.writeFileSync(newExe, Buffer.concat([fs.readFileSync(EXE), Buffer.from("\0SWAP-" + oldStart)]));
+      const t0 = Date.now();
+      const child = spawn(newExe, ["--replace-old", pid, path.join(p.pkg, "MTG Companion.exe"), "--old-start", oldStart, "--part-version", "c2", "--then-exit", "--log", p.log], { stdio: "ignore" });
+      const t = setTimeout(() => child.kill(), 120000);
+      child.on("exit", (code) => { clearTimeout(t); done({ code, s: (Date.now() - t0) / 1000 }); });
+    });
+    const p = makePkg();
+    const other = await swap(p, String(BigInt(ticks) - 600000000n)); // (started a minute earlier: another process)
+    ok("swap: a pid reused by another process isn't waited for", other.code === 0 && other.s < 30, JSON.stringify(other));
+    ok("swap: ... and the swap happened", !fs.readFileSync(path.join(p.pkg, "MTG Companion.exe")).equals(fs.readFileSync(EXE)) && fs.existsSync(path.join(p.pkg, "MTG Companion.old.exe")));
+    const q = makePkg();
+    const same1 = await swap(q, ticks);
+    ok("swap: the old app still running after a minute: no swap, exit 1", same1.code === 1 && same1.s >= 55, JSON.stringify(same1));
+    ok("swap: ... the exe untouched", fs.readFileSync(path.join(q.pkg, "MTG Companion.exe")).equals(fs.readFileSync(EXE)) && !fs.existsSync(path.join(q.pkg, "MTG Companion.old.exe")));
+    ok("swap: ... and the log says why", (read(q.log) || "").includes("still running after 60 s"));
+    ps.kill();
+  }
+
+  // 8d. --update-base off this PC (or https): refused outright, exit 2 (a test server is only ever loopback http)
+  {
+    const p = makePkg();
+    for (const bad of ["http://192.0.2.1:9", "https://127.0.0.1:9"]) {
+      const r = await new Promise((done) => {
+        const child = spawn(path.join(p.pkg, "MTG Companion.exe"), ["--update-check", "--update-base", bad, "--state", p.state, "--log", p.log], { stdio: ["ignore", "pipe", "pipe"] });
+        let out = ""; child.stdout.on("data", (d) => { out += d; }); child.stderr.on("data", (d) => { out += d; });
+        const t = setTimeout(() => child.kill(), 60000);
+        child.on("exit", (code) => { clearTimeout(t); done({ code, out: out.trim() }); });
+      });
+      ok(`bad test base ${bad}: refused, exit 2`, r.code === 2 && r.out.includes("--update-base takes only"), JSON.stringify(r));
+    }
   }
 
   // 9. an asset off GitHub's hosts: refused before any request
@@ -601,6 +692,20 @@ async function main() {
     const r = await now(p);
     ok("a signed manifest of another release: refused", r.code === 1 && r.out.includes("says v99 but sits in release v12v"), JSON.stringify(r));
     same("a signed manifest of another release: nothing downloaded", dl(), []);
+  }
+
+  // 12e. a download that runs past the part's size: reading stops there, the file is refused
+  {
+    reset();
+    publish("v12f", { app: unchanged("app"), table: unchanged("table"), images: { version: "i12f", body: Buffer.from("small tar ".repeat(100)) }, runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest });
+    server.latest = "v12f";
+    server.flood.add("v12f/images.tar");
+    const p = makePkg();
+    const r = await now(p);
+    ok("oversized download: refused, exit 1", r.code === 1 && r.out.includes("didn't match the release's checksum"), JSON.stringify(r));
+    const sent = server.floodSent["v12f/images.tar"] || 0;
+    ok("oversized download: the reading stopped near the part's size, not at 64 MB", sent > 0 && sent < 24 * 1048576, `server sent ${(sent / 1048576).toFixed(1)} MB`);
+    same("oversized download: nothing done", effects(p), []);
   }
 
   // 12d. a 206 that doesn't continue the partial file: started again from 0, not appended
