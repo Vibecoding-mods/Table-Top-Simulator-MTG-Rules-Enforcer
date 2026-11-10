@@ -150,6 +150,24 @@ const OPTIONAL_ASK = /^(?:Use (?:triggered ability of )?|Apply replacement effec
 // A spell that counters its target for sure: "Counter target ..." with no "unless" (Flusterstorm's copies, "unless its
 // controller pays {1}", were paid for, and "Chart a Course is countered" was logged as it resolved, hp-08 gap)
 const isCounterspell = (t) => /\bcounter target\b/i.test(t) && !/\bunless\b/i.test(t);
+// Why a spell on the stack can't be countered, as far as the table can read it: its own words ("This spell can't be
+// countered.", when Forge's stack text has them), or a permanent of its controller's ("Green spells you control can't be
+// countered.", Allosaurus Shepherd; "Creature and enchantment spells ...", Destiny Spinner). Returns null, or
+// { sure: true, said: "it can't be countered" }, or { card, sure, said: 'Destiny Spinner (AI 1): "..."' }, sure only
+// when the sentence names no kind of spell (the stack item says nothing of its types or colours).
+function cantBeCounteredWhy(gv, text, ctl) {
+  if (/\b(?:this spell|it) can't be countered\b/i.test(String(text || ""))) return { sure: true, said: "it can't be countered" };
+  for (const z of gv.zones || []) {
+    if (z.zone !== "battlefield") continue;
+    for (const c of z.cards || []) {
+      if (c.isFaceDown || c.phasedOut || !c.identity?.name || (c.controllerId || z.ownerId) !== ctl) continue;
+      const s = String(c.currentText ?? c.text ?? "").replace(/\([^)]*\)/g, "").split(/\n+|(?<=\.)\s+/)
+        .map((x) => x.trim()).find((x) => /^[A-Za-z, -]*?\bspells you control can't be countered\b/i.test(x) && !/\bthis turn\b/i.test(x));
+      if (s) return { card: c.identity.name, sure: /^spells you control\b/i.test(s), said: `${c.identity.name} (${nameOf(c.controllerId || z.ownerId)}): "${s}"` };
+    }
+  }
+  return null;
+}
 // An ability text that is only the way a spell was cast, its cost and that cost's reminder, nothing of what it does:
 // Forge's alternative-cost spell abilities, Wash Away's cleave "Cleave {1}{U}{U} (You may cast this spell for its cleave
 // cost. ...)" and Spider-Sense's "Web-Slinging {U} (You may cast this spell for {U} if ...)". What such a spell does is
@@ -2383,6 +2401,18 @@ function logEvents(prev, cur, pub, facts = null) {
       || (onlyCounter && onlyCounter.id !== id ? onlyCounter.name : null);
     return name ? ` by ${name}` : "";
   };
+  // (a counterspell that resolved with its target still on the stack: that spell can't be countered (Carnage Tyrant,
+  // or a card such as Destiny Spinner), and Forge says nothing, so the counter looked broken; the user, 2026-11-10:
+  // "you can't counter spell something". Its targets: Forge's, else the player's own picks this turn when it is the
+  // only counterspell that resolved now. isCounterspell has no "unless", so a payment is no reason here.)
+  for (const s of counterSpells) {
+    const hit = new Set(s.ctg?.length ? s.ctg : onlyCounter === s ? counterKept : []);
+    for (const x of Object.values(cur.stack)) {
+      if (x.ability || !prevSpellOf.has(x.id) || !x.sids.some((t) => hit.has(t))) continue;
+      const why = cantBeCounteredWhy(pub, x.text || x.desc, x.ctl);
+      out.push(`${x.name} can't be countered: ${s.name} did nothing to it${why && why.card ? ` (${why.said})` : ""}`);
+    }
+  }
   // (the targets the player picked for a stack item of theirs, kept on it while it stays: Forge's stack names no spell's
   // targets, Shock's and Counterspell's list is empty, so its own targets are the player's picks alone; picks asked for
   // these words only, see Seat.respond)
@@ -5433,6 +5463,19 @@ function onPrompt(seat, prompt) {
       // (a face-down card you may see is named, and says it is face down: Bowmasters offered the manifested card as
       // "Brainstorm", hp-06)
       for (const o of ui.options) if (cardOf(o)?.isFaceDown && cardOf(o)?.identity) o.label += " (face down)";
+      // (a counterspell's target that can't be countered says so: countering it does nothing; the user 2026-11-10)
+      if (isCounterspell(String(prompt.sourceAbilityText || srcCardText))) {
+        const stuck = [];
+        for (const o of ui.options) {
+          if (!o.id.startsWith("spell|")) continue;
+          const s = (gv.stack || []).find((x) => x.id === o.id.slice(6));
+          const why = s && cantBeCounteredWhy(gv, `${s.text || ""}\n${s.sourceAbilityText || ""}`, s.controllerId);
+          if (!why) continue;
+          o.label += why.sure ? " (can't be countered)" : ` (maybe can't be countered: ${why.card})`;
+          stuck.push(`${s.identity?.name || o.label}: ${why.said}`);
+        }
+        if (stuck.length && !ui.text) ui.text = `Countering does nothing to a spell that can't be countered. ${stuck.join("; ")}.`;
+      }
       // (two creatures that still read alike get their power/toughness, then anything still alike a number: Coruscation
       // Mage's two token copies read "Coruscation Mage (token) / Coruscation Mage (token)", hp-14; two Treasures, two
       // Forests and two unseen face-down cards read alike too, relations review 2026-11-05)
@@ -6813,12 +6856,139 @@ function cardNameIn(seat, cardId, fallback = "That card") {
 // The seat playing a slot (undefined for an AI's)
 function seatOfSlot(slot) { return game?.seats.get(game.slotColor[slot]); }
 
+// The rules on the battlefield that forbid what a player just tried, quoted with their card: Grand Abolisher's "Your
+// opponents can't cast spells during your turn.", Drannith Magistrate's "... from anywhere other than their hands.",
+// Null Rod's "Activated abilities of artifacts can't be activated." (the user, 2026-11-10: "you can't cast while not
+// your turn, you can't cast from anywhere except your hand"). kind: "cast", "land" or "activate"; `card` the card tried,
+// `zone` where it is, `who` the player trying. Only sentences that can apply now are kept: one aimed at opponents is
+// not quoted to its controller, "during your turn" only on that turn, a type, colour, mana value or zone it names has to
+// match. A sentence whose words can't be checked (Rule of Law's "more than one spell each turn") is kept: it may be why.
+// Returns ['Grand Abolisher (AI 1): "Your opponents can't cast spells during your turn."', ...]. Static text only:
+// abilities ("{T}: ...", "When ...") and one-turn effects ("this turn") are skipped, and an effect from a resolved spell
+// (Silence) is on no permanent, so it isn't found.
+const RESTRICTS = {
+  cast: /\bcan't cast\b|\bcan't be cast\b|\bcan cast (?:spells|no more than)\b|\bcan cast [^.]*\bonly\b/i,
+  land: /\bcan't play lands?\b|\bcan play lands? only\b/i,
+  activate: /\bcan't be activated\b|\bcan't activate\b/i,
+};
+const COLOR_LETTER = { white: "W", blue: "U", black: "B", red: "R", green: "G" };
+// does "noncreature", "instant and sorcery", "red", "multicolored", ... describe this card? (an unknown word: yes)
+function describesCard(words, card) {
+  const types = (card?.types || []).map((t) => t.toLowerCase());
+  const supers = (card?.supertypes || []).map((t) => t.toLowerCase());
+  const color = String(card?.color || "");
+  const has = (w) => w in COLOR_LETTER ? color.includes(COLOR_LETTER[w]) : w === "multicolored" ? color.length > 1 : w === "colorless" ? !color
+    : w === "monocolored" ? color.length === 1 : types.includes(w) || supers.includes(w) ? true
+    : /^(creature|artifact|enchantment|instant|sorcery|planeswalker|land|battle|kindred|legendary)$/.test(w) ? false : null;
+  const list = String(words).toLowerCase().split(/[\s,]+/).map((w) => w.replace(/(?<=[a-z])(?:s|ies)$/, (m) => (m === "ies" ? "y" : ""))).filter((w) => w && !/^(and|or|a|an)$/.test(w));
+  const pos = [];
+  for (const w of list) {
+    const neg = w.startsWith("non") ? w.slice(3).replace(/^-/, "") : null;
+    const r = has(neg || w);
+    if (r === null) return true;
+    if (neg) { if (r) return false; } else pos.push(r);
+  }
+  return !pos.length || pos.some(Boolean);
+}
+function restrictionLines(gv, kind, who, card, zone) {
+  const out = [];
+  const sorceryNow = gv.activePlayerId === who && /main/i.test(gv.step || "") && !(gv.stack || []).length;
+  for (const z of gv.zones || []) {
+    if (z.zone !== "battlefield") continue;
+    for (const c of z.cards || []) {
+      if (c.isFaceDown || c.phasedOut || !c.identity?.name) continue;
+      const ctl = c.controllerId || z.ownerId;
+      const lines = String(c.currentText ?? c.text ?? "").replace(/\([^)]*\)/g, "").split(/\n+/)
+        .filter((l) => !/^\s*(?:When|Whenever|At)\b/i.test(l) && !/^[^."]*(?:\{[^}]*\}|^\s*[+−-]?\d+|\])[^."]*:\s/.test(l));
+      for (const s of lines.flatMap((l) => l.split(/(?<=\.)\s+/)).map((x) => x.trim()).filter(Boolean)) {
+        if (!RESTRICTS[kind].test(s) || /\bthis turn\b/i.test(s)) continue;
+        const name = c.identity.name;
+        const self = new RegExp(`^(?:${escapeRe(name)}|this (?:creature|permanent|artifact))\\b`, "i");
+        if (/^(?:enchanted|equipped|fortified) /i.test(s)) { if (c.attachedTo !== card?.id) continue; }
+        else if (self.test(s)) { if (c.id !== card?.id) continue; }
+        else if (/\b(?:your opponents|each opponent|opponents)\b/i.test(s)) { if (who === ctl) continue; }
+        else if (/^you\b/i.test(s) && who !== ctl) continue;
+        if (/\bduring your turn\b/i.test(s) && gv.activePlayerId !== ctl) continue;
+        if (/\bduring combat\b/i.test(s) && !/combat|attack|block|damage/i.test(gv.step || "")) continue;
+        if (/\bonly (?:any time (?:they|you) could cast a sorcery|as a sorcery)\b/i.test(s) && sorceryNow) continue;
+        if (/\bonly during (?:their|your) own turns?\b/i.test(s) && gv.activePlayerId === who) continue;
+        if (/\bfrom anywhere other than (?:their|your) hands?\b/i.test(s)) { if (zone === "hand") continue; }
+        else if (/\bfrom (?:[a-z' ]*?)(?:graveyards?|librar(?:y|ies)|exile)\b/i.test(s)) {
+          const from = s.match(/\bfrom ([^.]*)/i)[1];
+          if (!(zone === "graveyard" && /graveyard/i.test(from) || zone === "library" && /librar/i.test(from) || zone === "exile" && /exile/i.test(from))) continue;
+        }
+        const parity = s.match(/\bwith (even|odd) mana values?\b/i)?.[1];
+        if (parity && Number.isFinite(card?.cmc) && (card.cmc % 2 === 0) !== (parity.toLowerCase() === "even")) continue;
+        const mv = s.match(/\bmana value (\d+) or (greater|more|less|fewer)\b/i);
+        if (mv && Number.isFinite(card?.cmc) && (/greater|more/i.test(mv[2]) ? card.cmc < Number(mv[1]) : card.cmc > Number(mv[1]))) continue;
+        const spellWords = kind === "cast" ? (s.match(/\bcan't cast ([a-z, -]*?)spells\b/i) || s.match(/^([a-z, -]*?)spells\b[^.]*\bcan't be cast\b/i))?.[1] : null;
+        if (spellWords && !describesCard(spellWords, card)) continue;
+        const of = kind === "activate" ? s.match(/\bactivated abilities of ([a-z, -]+?)(?: (?:you|your opponents|an opponent) controls?)?(?: with [^.]*?)? can't\b/i)?.[1] : null;
+        if (of && !/^sources?$/i.test(of.trim()) && !describesCard(of, card)) continue;
+        if (kind === "activate" && /\bwith the chosen name\b/i.test(s) && (c.choices || []).length && !(c.choices || []).some((x) => (x.values || []).includes(card?.identity?.name))) continue;
+        out.push(`${name} (${nameOf(ctl)}): "${s}"`);
+      }
+    }
+  }
+  return [...new Set(out)];
+}
+const onTheTable = (lines) => ` On the table: ${lines.slice(0, 3).join("; ")}${lines.length > 3 ? "; ..." : ""}.`;
+
+// The mana a player could make now, about: their pool, and each untapped permanent of theirs with a "{T}: Add" ability
+// (a basic land 1; a creature only once it can tap). Cost reducers, rituals and lands with other costs are not seen,
+// so it is said as "about", and only when the card costs more.
+function manaAvailable(gv, who) {
+  const p = (gv.players || []).find((x) => x.id === who);
+  let n = Object.values(p?.manaPool || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+  for (const z of gv.zones || []) {
+    if (z.zone !== "battlefield") continue;
+    for (const c of z.cards || []) {
+      if ((c.controllerId || z.ownerId) !== who || c.tapped || c.phasedOut) continue;
+      const types = c.types || [];
+      if (types.includes("Creature") && c.summoningSick && !hasKeyword(c, "Haste")) continue;
+      const add = String(c.text || "").match(/\{T\}(?:, [^:\n]*)?: Add ([^.\n]*)/);
+      if (add) n += (add[1].match(/\{[WUBRGC]\}/g) || []).length || (/\btwo\b/i.test(add[1]) ? 2 : /\bthree\b/i.test(add[1]) ? 3 : 1);
+      else if (types.includes("Land") && (c.supertypes || []).includes("Basic")) n += 1;
+    }
+  }
+  return n;
+}
+
+// The first target a spell must have and whether the table has one: "Counterspell needs a spell on the stack to
+// target, and there is none." Not for "up to" targets nor a modal spell ("Choose one —"), whose modes target apart.
+// Hexproof and shroud are counted for permanents; protection and other "can't be the target" rules are not.
+const TARGET_NOUNS = { spell: null, creature: "Creature", artifact: "Artifact", enchantment: "Enchantment", planeswalker: "Planeswalker", land: "Land", permanent: "" };
+function missingTarget(gv, who, card, name) {
+  const text = String(card?.currentText ?? card?.text ?? "").replace(/\([^)]*\)/g, "");
+  if (/^\s*Choose (?:one|two|three|any|up to)\b/im.test(text) || !/(Instant|Sorcery)/.test((card?.types || []).join(" "))) return null;
+  const re = /\btarget (spell|creature|artifact|enchantment|planeswalker|land|permanent)\b(?: (you control|an opponent controls|you don't control))?/gi;
+  let m;
+  while ((m = re.exec(text))) {
+    if (/\b(?:up to (?:one|two|three|four|five|X|\w+)|any number of)\s*(?:other )?$/i.test(text.slice(Math.max(0, m.index - 24), m.index))) continue;
+    const noun = m[1].toLowerCase();
+    if (noun === "spell") {
+      const spells = (gv.stack || []).filter((s) => !isAbilityOnStack(s, gv));
+      return spells.length ? null : `${name} needs a spell on the stack to target, and there is none.`;
+    }
+    const whose = m[2]?.toLowerCase();
+    const all = (gv.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => (z.cards || []).map((c) => [c, c.controllerId || z.ownerId]))
+      .filter(([c, ctl]) => !c.phasedOut && (TARGET_NOUNS[noun] ? (c.types || []).includes(TARGET_NOUNS[noun]) : true)
+        && (!whose || (whose === "you control" ? ctl === who : ctl !== who)));
+    const legal = all.filter(([c, ctl]) => !hasKeyword(c, "Shroud") && !(ctl !== who && hasKeyword(c, "Hexproof")));
+    if (legal.length) return null;
+    return `${name} needs a target (target ${noun}${whose ? ` ${whose}` : ""}), and there is ${all.length ? "none it can target: they have hexproof or shroud" : "none on the table"}.`;
+  }
+  return null;
+}
+
 function whyNot(seat, cardId) {
   const gv = seat.board?.state?.gameView || {};
   const card = cardIndex(gv)[cardId];
   const name = card?.identity?.name || "That card";
   // (a card of a player this seat controls is played as that player: its turn and priority count, see actingFor)
-  const holder = (gv.zones || []).find((z) => (z.cards || []).some((c) => c.id === cardId))?.ownerId;
+  const where = (gv.zones || []).find((z) => (z.cards || []).some((c) => c.id === cardId));
+  const holder = where?.ownerId;
+  const zone = where?.zone;
   const who = ruledBy(gv, seat.slot).includes(holder) ? holder : seat.slot;
   const me = (gv.players || []).find((p) => p.id === who);
   const types = card?.types || [];
@@ -6827,18 +6997,47 @@ function whyNot(seat, cardId) {
   if (gv.priorityPlayerId !== who) return `${name}: wait, it isn't ${who === seat.slot ? "your" : `${nameOf(who)}'s`} priority.`;
   // (a permanent already on the battlefield is not played: Arena of Glory, its one ability a mana ability, read "lands
   // can only be played in your main phase with an empty stack" in the main phase, hp-09)
-  if ((gv.zones || []).some((z) => z.zone === "battlefield" && (z.cards || []).some((c) => c.id === cardId))) {
-    const mana = /(?:^|\n)[^:\n]*:\s*Add (?:\{|one|two|three|X|an amount|that much|mana)/i.test(String(card?.text || ""));
+  if (zone === "battlefield") {
+    const text = String(card?.text || "");
+    const banned = restrictionLines(gv, "activate", who, card, zone);
+    if (banned.length) return `${name}: its abilities can't be used.${onTheTable(banned)}`;
+    // (summoning sickness: a creature's {T} abilities wait for its controller's next turn, haste aside)
+    if (types.includes("Creature") && card.summoningSick && !hasKeyword(card, "Haste") && /(?:^|\n)[^:\n]*\{T\}[^:\n]*:/.test(text)) {
+      return `${name} has summoning sickness: its {T} abilities work from your next turn (it came under your control this turn).`;
+    }
+    const mana = /(?:^|\n)[^:\n]*:\s*Add (?:\{|one|two|three|X|an amount|that much|mana)/i.test(text);
     return `${name}: none of its abilities can be used right now${mana ? " (a mana ability is used while paying a cost: tap it then)" : ""}.`;
+  }
+  // (a card somewhere it can't be played from, and nothing lets it: the hand and, for a commander, the command zone are
+  // the usual places; a graveyard, exile or a library only by a card's leave, said so. "Your graveyard" or AI 1's.)
+  const fromElsewhere = zone && zone !== "hand" && zone !== "command";
+  if (fromElsewhere) {
+    const banned = restrictionLines(gv, types.includes("Land") ? "land" : "cast", who, card, zone);
+    if (banned.length) return `${name} can't be ${types.includes("Land") ? "played" : "cast"} from there.${onTheTable(banned)}`;
+    const whose = holder === who ? "your" : `${nameOf(holder)}'s`;
+    const lets = zone === "graveyard" ? "something lets you (flashback, escape, unearth or a card's effect)" : "a card's effect lets you";
+    const own = zone === "graveyard" && /(?:^|\n)(?:Flashback|Escape|Retrace|Jump-start|Disturb|Embalm|Eternalize|Unearth|Aftermath|Harmonize|Mayhem)\b/i.test(String(card?.text || ""));
+    if (!own) return `${name} is in ${whose} ${ZONE_SAID[zone] || zone}: it can be ${types.includes("Land") ? "played" : "cast"} from there only if ${lets}.`;
   }
   if (types.includes("Land")) {
     if (gv.activePlayerId !== who) return `${name}: lands can only be played on ${who === seat.slot ? "your" : `${nameOf(who)}'s`} turn.`;
     if (me && me.landsPlayedThisTurn >= (me.maxLandPlaysPerTurn || 1)) return `${name}: you already played a land this turn.`;
+    const banned = restrictionLines(gv, "land", who, card, zone);
+    if (banned.length) return `${name}: you can't play lands right now.${onTheTable(banned)}`;
     return `${name}: lands can only be played in your main phase with an empty stack.`;
   }
   const instantSpeed = types.includes("Instant") || hasKeyword(card, "Flash");
   if (!instantSpeed && !myMain) return `${name}: only at sorcery speed (your main phase, empty stack).`;
-  return `${name}: can't be cast right now (not enough mana, no legal targets, or another restriction).`;
+  const banned = restrictionLines(gv, "cast", who, card, zone);
+  if (banned.length) return `${name} can't be cast right now.${onTheTable(banned)}`;
+  const target = missingTarget(gv, who, card, name);
+  if (target) return target;
+  // (the commander tax: {2} more for each earlier cast from the command zone)
+  const tax = zone === "command" ? 2 * (Number(me?.commanderCasts?.[cardId]) || 0) : 0;
+  const cost = (Number(card?.cmc) || 0) + tax;
+  const avail = manaAvailable(gv, who);
+  if (cost > avail) return `${name}: probably not enough mana. It costs ${card?.manaCost && card.manaCost !== "no cost" ? `${card.manaCost} (${card.cmc})` : cost}${tax ? ` plus {${tax}} commander tax` : ""}, and you have about ${avail} available.`;
+  return `${name}: can't be cast right now (not enough mana or the right colours, no legal targets, or another restriction).`;
 }
 
 // "If you cast it any time a sorcery couldn't have been cast, ... sacrifices it at the beginning of the next cleanup

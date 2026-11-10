@@ -2480,6 +2480,157 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     r = await allAttack({ limiter: ["The Eternal Wanderer", "No more than one creature can attack The Eternal Wanderer each combat."] });
     ok("all attack: a limit it doesn't break doesn't stop it", r.sent?.type === "declareAttackers" && r.sent.assignments.length === 3, JSON.stringify(r.sent));
   }
+  // why a play was refused names the rule on the table, the zone, a missing target or the mana (whyNot, restrictionLines,
+  // missingTarget, manaAvailable; the user 2026-11-10: "you can't cast while not your turn, you can't cast from anywhere
+  // except your hand")
+  {
+    // Blue (player-0) tries card `card` in `zone`; `theirs` are permanents of AI 1's, `mine` Blue's; `g` tweaks the board
+    const why = (o) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      const gv = b.gameView;
+      Object.assign(gv, { activePlayerId: "player-0", priorityPlayerId: "player-0", step: "main1", stack: [] }, o.g || {});
+      const zoneOf = (kind, owner) => gv.zones.find((z) => z.zone === kind && z.ownerId === owner);
+      const card = { id: "engine-card-990", identity: { name: "Test Spell" }, types: ["Instant"], cmc: 1, manaCost: "{U}", color: "U", text: "Draw a card.", keywords: [], ...o.card };
+      zoneOf(o.zone || "hand", o.owner || "player-0").cards.push(card);
+      (o.theirs || []).forEach(([name, text, extra], i) => zoneOf("battlefield", "player-1").cards.push({ id: `engine-card-97${i}`, identity: { name }, types: ["Creature"], text, controllerId: "player-1", keywords: [], ...extra }));
+      (o.mine || []).forEach(([name, text, extra], i) => zoneOf("battlefield", "player-0").cards.push({ id: `engine-card-98${i}`, identity: { name }, types: ["Creature"], text, controllerId: "player-0", keywords: [], ...extra }));
+      if (o.tweak) o.tweak(gv);
+      const seat = setup(h, b);
+      const said = h.B.whyNot(seat, card.id);
+      harness.restore();
+      return said;
+    };
+    const abolisher = ["Grand Abolisher", "During your turn, your opponents can't cast spells or activate abilities of artifacts, creatures, enchantments, or planeswalkers."];
+    const abolisher2 = ["Grand Abolisher", "Your opponents can't cast spells during your turn."];
+    let s = why({ theirs: [abolisher2], g: { activePlayerId: "player-1", step: "combat_declare_attackers" } });
+    ok("why: an opponent's restriction on their turn is quoted with its card", s === "Test Spell can't be cast right now. On the table: Grand Abolisher (AI 1): \"Your opponents can't cast spells during your turn.\".", s);
+    s = why({ theirs: [abolisher2] });
+    ok("why: 'during your turn' isn't quoted on another player's turn", !/Grand Abolisher/.test(s), s);
+    s = why({ mine: [abolisher2], g: { activePlayerId: "player-0", step: "combat_declare_attackers" } });
+    ok("why: a restriction on opponents isn't quoted to its own controller", !/Grand Abolisher/.test(s), s);
+    s = why({ theirs: [["Teferi, Time Raveler", "Each opponent can cast spells only any time they could cast a sorcery."]], g: { activePlayerId: "player-1", step: "upkeep" } });
+    ok("why: Teferi's sorcery-time rule is quoted off your main phase", /^Test Spell can't be cast right now\. On the table: Teferi, Time Raveler \(AI 1\): "Each opponent can cast spells only any time they could cast a sorcery\."\.$/.test(s), s);
+    s = why({ theirs: [["Teferi, Time Raveler", "Each opponent can cast spells only any time they could cast a sorcery."]] });
+    ok("why: Teferi's rule isn't quoted in your own main phase with an empty stack", !/Teferi/.test(s), s);
+    const drannith = ["Drannith Magistrate", "Your opponents can't cast spells from anywhere other than their hands."];
+    s = why({ theirs: [drannith], zone: "graveyard", card: { text: "Draw a card.\nFlashback {2}{U}" } });
+    ok("why: Drannith Magistrate is named for a flashback card in the graveyard", s === "Test Spell can't be cast from there. On the table: Drannith Magistrate (AI 1): \"Your opponents can't cast spells from anywhere other than their hands.\".", s);
+    s = why({ theirs: [drannith] });
+    ok("why: Drannith Magistrate isn't named for a card in the hand", !/Drannith/.test(s), s);
+    s = why({ theirs: [["Grafdigger's Cage", "Creature cards in graveyards and libraries can't enter the battlefield.\nPlayers can't cast spells from graveyards or libraries.", { types: ["Artifact"] }]], zone: "graveyard", card: { text: "Draw a card.\nFlashback {2}{U}" } });
+    ok("why: a 'from graveyards' rule is named for a graveyard card", /On the table: Grafdigger's Cage \(AI 1\): "Players can't cast spells from graveyards or libraries\."/.test(s), s);
+    s = why({ theirs: [["Grafdigger's Cage", "Players can't cast spells from graveyards or libraries."]], zone: "exile" });
+    ok("why: a 'from graveyards' rule isn't named for an exiled card", !/Grafdigger/.test(s), s);
+    s = why({ zone: "graveyard" });
+    ok("why: a card in your graveyard with no way to cast it says so", s === "Test Spell is in your graveyard: it can be cast from there only if something lets you (flashback, escape, unearth or a card's effect).", s);
+    s = why({ zone: "exile", owner: "player-1" });
+    ok("why: another player's exiled card says whose", s === "Test Spell is in AI 1's exile: it can be cast from there only if a card's effect lets you.", s);
+    s = why({ zone: "graveyard", card: { text: "Draw a card.\nFlashback {2}{U}" } });
+    ok("why: a flashback card in the graveyard isn't told it needs permission", !/only if something lets you/.test(s), s);
+    const winnower = ["Void Winnower", "Your opponents can't cast spells with even mana values.\nYour opponents can't block with creatures with even mana values."];
+    s = why({ theirs: [winnower], card: { cmc: 2, manaCost: "{1}{U}" } });
+    ok("why: Void Winnower is named for an even mana value", /On the table: Void Winnower \(AI 1\): "Your opponents can't cast spells with even mana values\."\.$/.test(s), s);
+    s = why({ theirs: [winnower], card: { cmc: 3, manaCost: "{2}{U}" } });
+    ok("why: Void Winnower isn't named for an odd mana value", !/Void Winnower/.test(s), s);
+    const teeg = ["Gaddock Teeg", "Noncreature spells with mana value 4 or greater can't be cast.\nNoncreature spells with {X} in their mana costs can't be cast."];
+    s = why({ theirs: [teeg], card: { cmc: 4, manaCost: "{3}{U}" } });
+    ok("why: Gaddock Teeg is named for a noncreature spell of mana value 4", /Gaddock Teeg \(AI 1\): "Noncreature spells with mana value 4 or greater can't be cast\."/.test(s), s);
+    s = why({ theirs: [teeg], card: { cmc: 3, manaCost: "{2}{U}" } });
+    ok("why: Gaddock Teeg's mana value rule isn't named under 4", !/mana value 4 or greater/.test(s), s);
+    s = why({ theirs: [teeg], card: { types: ["Creature"], keywords: ["Flash"], cmc: 5, manaCost: "{4}{U}" } });
+    ok("why: Gaddock Teeg isn't named for a creature spell", !/Gaddock/.test(s), s);
+    s = why({ theirs: [["Rule of Law", "Each player can't cast more than one spell each turn."]] });
+    ok("why: a rule the table can't check (spells cast this turn) is still named", /On the table: Rule of Law \(AI 1\): "Each player can't cast more than one spell each turn\."/.test(s), s);
+    s = why({ theirs: [["Abolisher Tap", "{T}: Target player can't cast spells this turn."], ["Silencer", "When Silencer enters, your opponents can't cast spells this turn."]] });
+    ok("why: abilities and one-turn effects aren't quoted as rules", !/On the table/.test(s), s);
+    s = why({ theirs: [["Reminder", "Flash (You can't cast this spell any time you could cast an instant.)"]] });
+    ok("why: reminder text isn't quoted", !/On the table/.test(s), s);
+    s = why({ theirs: [["Lim", "Your opponents can't cast spells during your turn."], ["Lim2", "Your opponents can't cast spells during your turn."], ["Lim3", "Your opponents can't cast spells during your turn."], ["Lim4", "Your opponents can't cast spells during your turn."]], g: { activePlayerId: "player-1", step: "upkeep" } });
+    ok("why: more than three rules are cut with an ellipsis", / Lim3 \(AI 1\): "[^"]*"; \.\.\.\.$/.test(s), s);
+    // the battlefield: activation bans and summoning sickness
+    const rock = { types: ["Artifact"], cmc: 1, manaCost: "{1}", text: "{2}, {T}: Draw a card." };
+    s = why({ zone: "battlefield", card: rock, theirs: [["Null Rod", "Activated abilities of artifacts can't be activated.", { types: ["Artifact"] }]] });
+    ok("why: Null Rod is named for an artifact's ability", s === "Test Spell: its abilities can't be used. On the table: Null Rod (AI 1): \"Activated abilities of artifacts can't be activated.\".", s);
+    s = why({ zone: "battlefield", card: { ...rock, types: ["Creature"] }, theirs: [["Null Rod", "Activated abilities of artifacts can't be activated.", { types: ["Artifact"] }]] });
+    ok("why: Null Rod isn't named for a creature's ability", !/Null Rod/.test(s), s);
+    s = why({ zone: "battlefield", card: rock, theirs: [["Pithing Needle", "As Pithing Needle enters, choose a card name.\nActivated abilities of sources with the chosen name can't be activated unless they're mana abilities.", { choices: [{ kind: "name", values: ["Test Spell"] }] }]] });
+    ok("why: Pithing Needle naming the card is quoted", /Pithing Needle \(AI 1\): "Activated abilities of sources with the chosen name can't be activated unless they're mana abilities\."/.test(s), s);
+    s = why({ zone: "battlefield", card: rock, theirs: [["Pithing Needle", "Activated abilities of sources with the chosen name can't be activated unless they're mana abilities.", { choices: [{ kind: "name", values: ["Sol Ring"] }] }]] });
+    ok("why: Pithing Needle naming another card isn't quoted", !/Pithing/.test(s), s);
+    s = why({ zone: "battlefield", card: rock, theirs: [["Arrest", "Enchant creature\nEnchanted creature can't attack or block, and its activated abilities can't be activated.", { types: ["Enchantment"], attachedTo: "engine-card-990" }]] });
+    ok("why: an Aura's ban on the enchanted card is quoted", /Arrest \(AI 1\): "Enchanted creature can't attack or block, and its activated abilities can't be activated\."/.test(s), s);
+    s = why({ zone: "battlefield", card: rock, theirs: [["Arrest", "Enchanted creature can't attack or block, and its activated abilities can't be activated.", { types: ["Enchantment"], attachedTo: "engine-card-1" }]] });
+    ok("why: an Aura on another card isn't quoted", !/Arrest/.test(s), s);
+    s = why({ zone: "battlefield", card: { types: ["Creature"], summoningSick: true, text: "{T}: Add {G}." } });
+    ok("why: a summoning-sick creature's {T} ability says so", s === "Test Spell has summoning sickness: its {T} abilities work from your next turn (it came under your control this turn).", s);
+    s = why({ zone: "battlefield", card: { types: ["Creature"], summoningSick: true, keywords: ["Haste"], text: "{T}: Add {G}." } });
+    ok("why: haste is no summoning sickness", !/summoning sickness/.test(s), s);
+    // targets
+    s = why({ card: { text: "Counter target spell.", manaCost: "{U}{U}", cmc: 2 } });
+    ok("why: a counterspell with an empty stack says it has nothing to target", s === "Test Spell needs a spell on the stack to target, and there is none.", s);
+    const doom = { text: "Destroy target creature an opponent controls.", types: ["Instant"] };
+    s = why({ card: doom, tweak: (gv) => { for (const z of gv.zones) if (z.zone === "battlefield" && z.ownerId === "player-1") z.cards = z.cards.filter((c) => !(c.types || []).includes("Creature")); } });
+    ok("why: no creature to target is said", s === "Test Spell needs a target (target creature an opponent controls), and there is none on the table.", s);
+    s = why({ card: doom, theirs: [["Hexproof Bear", "", { keywords: ["Hexproof"] }]], tweak: (gv) => { for (const z of gv.zones) if (z.zone === "battlefield" && z.ownerId === "player-1") z.cards = z.cards.filter((c) => !(c.types || []).includes("Creature") || c.identity.name === "Hexproof Bear"); } });
+    ok("why: only hexproof creatures to target is said", s === "Test Spell needs a target (target creature an opponent controls), and there is none it can target: they have hexproof or shroud.", s);
+    s = why({ card: { text: "Destroy up to one target creature an opponent controls." }, tweak: (gv) => { for (const z of gv.zones) if (z.zone === "battlefield") z.cards = z.cards.filter((c) => !(c.types || []).includes("Creature")); } });
+    ok("why: an 'up to one' target is never missing", !/needs a target/.test(s), s);
+    // mana
+    s = why({ card: { types: ["Sorcery"], cmc: 9, manaCost: "{7}{U}{U}" } });
+    ok("why: a spell costing more than the mana sources says so", /^Test Spell: probably not enough mana\. It costs \{7\}\{U\}\{U\} \(9\), and you have about \d+ available\.$/.test(s), s);
+    const avail = Number(s.match(/about (\d+)/)?.[1]);
+    s = why({ card: { types: ["Sorcery"], cmc: 9, manaCost: "{7}{U}{U}" }, mine: [["Sol Ring", "{T}: Add {C}{C}.", { types: ["Artifact"] }]] });
+    ok("why: Sol Ring counts as two mana", Number(s.match(/about (\d+)/)?.[1]) === avail + 2, `${avail} ${s}`);
+    s = why({ card: { types: ["Sorcery"], cmc: 9, manaCost: "{7}{U}{U}" }, mine: [["Elf", "{T}: Add {G}.", { summoningSick: true }]] });
+    ok("why: a summoning-sick mana creature isn't counted", Number(s.match(/about (\d+)/)?.[1]) === avail, `${avail} ${s}`);
+    s = why({ zone: "command", card: { types: ["Creature"], cmc: 1, manaCost: "{U}" }, tweak: (gv) => { gv.players[0].commanderCasts = { "engine-card-990": 5 }; } });
+    ok("why: commander tax counts toward the cost", /plus \{10\} commander tax, and you have about/.test(s), s);
+  }
+  // a counterspell's target that can't be countered (cantBeCounteredWhy: the target list and the game log)
+  {
+    const shepherd = { id: "engine-card-975", identity: { name: "Allosaurus Shepherd" }, types: ["Creature"], controllerId: "player-1", text: "This spell can't be countered.\nGreen spells you control can't be countered." };
+    const spinnerAll = { id: "engine-card-976", identity: { name: "Spell Shield" }, types: ["Enchantment"], controllerId: "player-1", text: "Spells you control can't be countered." };
+    const targets = async (perm, stackText) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      const gv = b.gameView;
+      if (perm) gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards.push(perm);
+      gv.stack = [{ id: "engine-stack-50", sourceId: "engine-card-950", identity: { name: "Carnage Tyrant" }, controllerId: "player-1", ownerId: "player-1", text: stackText || "Carnage Tyrant", isPermanentSpell: true }];
+      const seat = setup(h, b);
+      h.B.onPrompt(seat, { promptId: 930, decidingPlayerId: "player-0", sourceCard: { id: "engine-card-43", text: "Counter target spell." }, sourceAbilityText: "Counter target spell.",
+        input: { type: "chooseBoardTargets", candidates: [{ kind: "spell", id: "engine-stack-50" }], minTargets: 1, maxTargets: 1, chosenTargets: 0, presentation: { title: "Choose a target to counter" } } });
+      await h.flush();
+      const ui = seat.prompt?.ui;
+      harness.restore();
+      return ui;
+    };
+    let ui = await targets(null, "Carnage Tyrant - This spell can't be countered.");
+    ok("counter: a spell whose words say it can't be countered is marked", /\(can't be countered\)$/.test(ui?.options?.[0]?.label || "") && /^Countering does nothing to a spell that can't be countered\. Carnage Tyrant: it can't be countered\.(\n|$)/.test(ui.text || ""), JSON.stringify([ui?.options, ui?.text]));
+    ui = await targets(spinnerAll);
+    ok("counter: 'Spells you control can't be countered' marks it for sure", /\(can't be countered\)$/.test(ui?.options?.[0]?.label || "") && /Spell Shield \(AI 1\): "Spells you control can't be countered\."/.test(ui.text || ""), JSON.stringify([ui?.options, ui?.text]));
+    ui = await targets(shepherd);
+    ok("counter: a coloured rule marks it as maybe", /\(maybe can't be countered: Allosaurus Shepherd\)$/.test(ui?.options?.[0]?.label || ""), JSON.stringify(ui?.options));
+    ui = await targets(null);
+    ok("counter: an ordinary spell isn't marked", !/countered/.test(ui?.options?.[0]?.label || "") && !/Countering/.test(ui?.text || ""), JSON.stringify([ui?.options, ui?.text]));
+    ui = await targets({ ...spinnerAll, controllerId: "player-0" });
+    ok("counter: another player's rule doesn't protect the spell", !/countered/.test(ui?.options?.[0]?.label || ""), JSON.stringify(ui?.options));
+    // the log: the counterspell resolved, its target still on the stack
+    const h = harness.load();
+    setup(h, F.board);
+    h.B._getGame().counterTargets = new Set(["engine-stack-50"]);
+    const tyrant = { id: "engine-stack-50", sourceId: "engine-card-950", identity: { name: "Carnage Tyrant" }, controllerId: "player-1", ownerId: "player-1", text: "Carnage Tyrant", isPermanentSpell: true };
+    const counter = { id: "engine-stack-51", sourceId: "engine-card-43", identity: { name: "Counterspell" }, controllerId: "player-0", ownerId: "player-0", text: "Counterspell", sourceAbilityText: "Counter target spell." };
+    const before = clone(F.board.gameView), after = clone(F.board.gameView);
+    before.stack = [tyrant, counter]; after.stack = [tyrant];
+    h.B._getGame().counterTurn = after.turn;
+    const lines = h.B.logEvents(h.B.logSnapshot(before), h.B.logSnapshot(after), after);
+    ok("counter: a counterspell that did nothing says the spell can't be countered", lines.includes("Carnage Tyrant can't be countered: Counterspell did nothing to it"), JSON.stringify(lines));
+    after.stack = [];
+    const lines2 = h.B.logEvents(h.B.logSnapshot(before), h.B.logSnapshot(after), after);
+    ok("counter: a spell that left the stack isn't called uncounterable", !lines2.some((l) => /can't be countered/.test(l)), JSON.stringify(lines2));
+    harness.restore();
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();
