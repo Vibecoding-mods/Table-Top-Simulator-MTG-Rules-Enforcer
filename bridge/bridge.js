@@ -3821,6 +3821,54 @@ function cardIndex(gv) {
   return byId;
 }
 
+// Why Forge refused an attack, from the rules text on the battlefield: Forge says only "Attack declaration invalid"
+// (Crawlspace allowed 2 attackers at White, Blue sent "All attack" with 3 eight times and was told nothing, live game
+// 2026-11-10; docs/attack-reminder-spec.md part 1). `attack` is the refused declaration, [{ attackerId, targetId }].
+// Returns { broken: sentences naming each limit the attack broke, limiters: "Cards on the table that limit attacks:
+// ..." when nothing was found broken but such cards are out, else "" }.
+const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+function attackRefusalReason(gv, attack) {
+  // (reminder text is no rule: Defender's "(This creature can't attack.)" and exalted's "attacks alone" listed every
+  // wall and exalted card as a limit; checked against Forge's 32,967 Oracle lines, 2026-11-10)
+  const textOf = (c) => String(c.currentText ?? c.text ?? "").replace(/\([^)]*\)/g, "");
+  const total = attack.length;
+  const atTarget = {};
+  for (const a of attack) atTarget[a.targetId] = (atTarget[a.targetId] || 0) + 1;
+  const said = [];
+  const limiters = [];
+  const onField = [];
+  for (const z of gv.zones || []) if (z.zone === "battlefield") for (const c of z.cards || []) if (!c.isFaceDown && c.identity?.name) onField.push([c, z]);
+  for (const [c, z] of onField) {
+    const name = c.identity.name;
+    const text = textOf(c);
+    if (/\bcan't attack\b|\bno more than \w+ creatures? can attack\b|\bcan only attack alone\b/i.test(text)) limiters.push(name);
+    // Silent Arbiter: "No more than one creature can attack each combat."; Crawlspace: "... can attack you each combat.";
+    // The Eternal Wanderer: "... can attack The Eternal Wanderer each combat." (attacks at it only)
+    const m = new RegExp(`\\bno more than (\\w+) creatures? can attack (?:(you|this planeswalker|${escapeRe(name)}) )?each combat\\b`, "i").exec(text);
+    const n = m ? NUMBER_WORDS[m[1].toLowerCase()] ?? Number(m[1]) : NaN;
+    if (!Number.isFinite(n)) continue;
+    // Mirri, Weatherlight Duelist: "As long as Mirri ... is tapped, no more than one creature ..."
+    if (/\bas long as [^.]*? is tapped, no more than\b/i.test(text) && !c.tapped) continue;
+    const ctl = c.controllerId || z.ownerId;
+    const at = !m[2] ? null : /^you$/i.test(m[2]) ? ctl : c.id;
+    const chosen = at ? atTarget[at] || 0 : total;
+    if (chosen > n) said.push(`${name} (${nameOf(ctl)}): no more than ${n} creature${n === 1 ? "" : "s"} can attack ${at ? `${at === ctl ? nameOf(ctl) : name} ` : ""}each combat. You chose ${chosen}.`);
+  }
+  // Mogg Flunkies: "can't attack or block alone"; Master of Cruelties: "can only attack alone", Errantry's enchanted
+  // creature too
+  const rulesOf = (id) => [id, ...onField.filter(([c]) => c.attachedTo === id).map(([c]) => c.id)]
+    .map((cid) => onField.find(([c]) => c.id === cid)).filter(Boolean)
+    .map(([c]) => c.id === id ? textOf(c) : (textOf(c).match(/\benchanted creature [^.]*\./gi) || []).join(" ")).join(" ");
+  for (const a of attack) {
+    const me = onField.find(([c]) => c.id === a.attackerId)?.[0];
+    if (!me) continue;
+    if (total === 1 && /\bcan't attack(?: or block)? alone\b/i.test(rulesOf(me.id))) said.push(`${me.identity.name} can't attack alone.`);
+    if (total > 1 && /\bcan only attack alone\b/i.test(rulesOf(me.id))) said.push(`${me.identity.name} can only attack alone.`);
+  }
+  const names = said.length ? [] : [...new Set(limiters)];
+  return { broken: said, limiters: names.length ? `Cards on the table that limit attacks: ${names.slice(0, 6).join(", ")}${names.length > 6 ? ", ..." : ""}.` : "" };
+}
+
 // Forge's own bookkeeping in a trigger's text is no words for a player: "... you control [Zone Changer: Deadeye
 // Navigator (1)]", "Backup 1 (Targeting: [[]])", "... you gain 1 life. [Phase: White]" (hp-12 #2; the stack item's text
 // still had them, hp-12 re-test 2026-10-27)
@@ -6189,13 +6237,19 @@ function onPrompt(seat, prompt) {
       // (who must attack, said on the question and again if the attack is refused: Kardur, Doomscourge sent four of Red's
       // Dragons in, and all they saw was "Attack declaration invalid", 15 times, game 2026-11-01)
       seat.mustAttack = must.map((m) => cname(m.attackerId));
-      ui = { title: "Choose attackers", mode: "multi", min: 0, max: pairs.length, options: [...quick, ...pairs], ...(must.length ? { text: `Must attack: ${seat.mustAttack.join(", ")}.` } : {}) };
+      // (the reason the last attack was refused stays on the question until it is answered: chat alone was missed)
+      const refused = seat.attackRefused;
+      const said = [refused, must.length ? `Must attack: ${seat.mustAttack.join(", ")}.` : ""].filter(Boolean).join(" ");
+      ui = { title: "Choose attackers", mode: "multi", min: 0, max: pairs.length, options: [...quick, ...pairs], ...(said ? { text: said } : {}), ...(refused ? { note: refused } : {}) };
       toOutput = (a) => {
         const byAttacker = {};
         for (const m of must) byAttacker[m.attackerId] = m.validTargetIds[0];
         if (a.includes("__allattack")) for (const at of input.attackers) if (at.validTargetIds.length) byAttacker[at.attackerId] ??= at.validTargetIds[0];
         for (const v of a) { if (v.startsWith("__")) continue; const [att, tgt] = v.split("|"); byAttacker[att] = tgt; }
-        return { type: "declareAttackers", assignments: Object.entries(byAttacker).map(([attackerId, targetId]) => ({ attackerId, targetId })) };
+        const assignments = Object.entries(byAttacker).map(([attackerId, targetId]) => ({ attackerId, targetId }));
+        seat.lastAttack = assignments;
+        seat.attackRefused = null;
+        return { type: "declareAttackers", assignments };
       };
       // "End turn" in your main phase skips the attack too, as on Arena (it stopped at "Choose attackers", hp-07
       // 2026-10-27); creatures that must attack still do
@@ -6300,7 +6354,12 @@ function onPrompt(seat, prompt) {
       // test game asked for OK 15 times; Arena shows such things in passing)
       if (/^Attack declaration invalid\b/i.test(title)) {
         const names = seat.mustAttack || [];
-        chat(`[MTG] That attack isn't legal. ${names.length ? `Must attack: ${names.join(", ")}. Any you don't choose are sent for you. Check the table too: an effect can also forbid attacking a player.` : "Something on the table limits who can attack, or who they can attack."}`, seat.color);
+        const { broken, limiters } = attackRefusalReason(gv, seat.lastAttack || []);
+        const why = broken.join(" ");
+        seat.attackRefused = why ? `That attack isn't legal. ${why}` : null;
+        const rest = names.length ? `Must attack: ${names.join(", ")}. Any you don't choose are sent for you. Check the table too: an effect can also forbid attacking a player.`
+          : why ? "" : `Something on the table limits who can attack, or who they can attack.${limiters ? ` ${limiters}` : ""}`;
+        chat(`[MTG] That attack isn't legal. ${[why, rest].filter(Boolean).join(" ")}`, seat.color);
         seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" });
         return;
       }
