@@ -1757,9 +1757,11 @@ do
     if #engineSoundLog > 50 then table.remove(engineSoundLog, 1) end
     return true
   end
-  local function result(c, text, color, outline, hold)
+  local function result(c, text, color, outline, hold, size)
     if engineEffectsOff[c] or Player[c] == nil or not Player[c].seated then return end
     UI.setValue("eng_result_" .. c, text)
+    -- (a long line smaller: "<NAME> WINS THE GAME" ran past the 1600-wide banner at 120)
+    UI.setAttribute("eng_result_" .. c, "fontSize", tostring(size or 120))
     UI.setAttribute("eng_result_" .. c, "color", color)
     UI.setAttribute("eng_result_" .. c, "outline", outline)
     -- (not UI.show: it showed the text to every player, VICTORY over DEFEAT, playtest 2026-10-23)
@@ -1897,13 +1899,19 @@ do
         if life ~= nil and FX.dimmed[c] == nil then FX.dimmed[c] = life.getColorTint() life.setColorTint(FX.OUT) end
       end
     end
-    -- game over: VICTORY for the winner, DEFEAT for everyone else (2.5 s after the knock-out, as Arena)
+    -- game over: VICTORY for the winner, DEFEAT for everyone else (2.5 s after the knock-out, as Arena), for 2 s; then
+    -- who won, for 4 s, to everyone (the user, 2026-11-09, item 14); no winner: DRAW, then "THE GAME IS A DRAW"
     if m.gameOver and not prev.over then
       Wait.time(function()
         for _, viewer in ipairs(seatedColors(m)) do
-          if m.winner ~= nil and viewer == m.winner then result(viewer, "VICTORY", "#FFD27A", "#2a1600E0", 4)
-          else result(viewer, "DEFEAT", "#C9A3FF", "#1a0730E0", 4) end
+          if m.winner == nil then result(viewer, "DRAW", "#E8E2D0", "#1a1a1aE0", 2)
+          elseif viewer == m.winner then result(viewer, "VICTORY", "#FFD27A", "#2a1600E0", 2)
+          else result(viewer, "DEFEAT", "#C9A3FF", "#1a0730E0", 2) end
         end
+        Wait.time(function()
+          local said = m.winner ~= nil and (string.upper(engineNameOf(m.winner)) .. " WINS THE GAME") or "THE GAME IS A DRAW"
+          for _, viewer in ipairs(seatedColors(m)) do result(viewer, said, "#FFD27A", "#2a1600E0", 4, #said > 20 and 72 or 96) end
+        end, 2)
       end, 2.5)
     end
     -- step 4: the table effects and their sound (nothing found = no UI call at all)
@@ -2704,14 +2712,22 @@ function engineStepBanner(color, t)
   if since < 1.7 then Wait.time(show, 1.7 - since) else show() end
 end
 -- On screen when the game ends, like YOUR TURN (the board just stood still with its attack lines, playtest 2026-10-26)
+-- (the big VICTORY / DEFEAT, then "<NAME> WINS THE GAME", is the table effects' result banner; this step banner says the
+-- same for a player who turned the effects off, so nobody sees two at once (both showed together, item 14 2026-11-10))
 function engineGameOverBanner(m)
   for _, c in ipairs(getSeatedPlayers()) do
-    if Player[c] ~= nil then
-      setText("eng_banner_" .. c, m.winner == nil and "DRAW" or (m.winner == c and "VICTORY" or (string.upper(engineNameOf(m.winner)) .. " WINS")))
+    if Player[c] ~= nil and engineEffectsOff[c] then
+      -- (a step banner's own timer, shown just before the game ended, would hide this one: its key no longer matches)
+      engineStepSeen[c] = "over"
+      if engineBannerSeen ~= nil then engineBannerSeen[c] = "over" end
+      setText("eng_banner_" .. c, m.winner == nil and "DRAW" or (m.winner == c and "VICTORY" or "DEFEAT"))
       setAttr("eng_banner_" .. c, "color", m.winner == c and "#FFD27A" or "#D6E4FF")
       setAttr("eng_banner_" .. c, "outline", "#101010E0")
       setAttr("eng_banner_" .. c, "active", "true")
-      Wait.time(function() setAttr("eng_banner_" .. c, "active", "false") end, 4)
+      Wait.time(function()
+        setText("eng_banner_" .. c, m.winner == nil and "THE GAME IS A DRAW" or (string.upper(engineNameOf(m.winner)) .. " WINS THE GAME"))
+        Wait.time(function() setAttr("eng_banner_" .. c, "active", "false") end, 4)
+      end, 2)
     end
   end
 end

@@ -2451,20 +2451,26 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const all = b.gameView.zones.flatMap((z) => z.cards || []);
       for (const id of attackers) Object.assign(all.find((c) => c.id === id), { identity: { name: `Bear ${id.slice(-2)}` }, types: ["Creature"], text: "" });
       if (opts.limiter) Object.assign(all.find((c) => c.id === "engine-card-126"), { identity: { name: opts.limiter[0] }, types: ["Enchantment"], text: opts.limiter[1] });
+      if (opts.selfText) all.find((c) => c.id === attackers[0]).text = opts.selfText;
+      if (opts.faceDown) all.find((c) => c.id === "engine-card-126").isFaceDown = true;
+      if (opts.tweak) opts.tweak(all.find((c) => c.id === "engine-card-126"));
       const seat = setup(h, b);
-      const ask = { type: "chooseAttackers", attackers: attackers.map((id) => ({ attackerId: id, validTargetIds: ["player-1"], mustAttack: id === opts.must })) };
+      const ask = { type: "chooseAttackers", attackers: attackers.map((id) => ({ attackerId: id, validTargetIds: opts.targets || ["player-1"], mustAttack: id === opts.must })) };
       h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input: ask }); await h.flush();
       const first = seat.prompt.ui;
       const from = h.effects.length;
       const sent = seat.prompt.toOutput(["__allattack"]);
       await h.flush();
       const chat = h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text).join(" | ");
+      const chatColors = h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.color);
+      const lastAfterStop = seat.lastAttack;
       const then = sent && sent.__next && opts.then ? sent.__next.toOutput(opts.then) : null;
       harness.restore();
-      return { first, sent, chat, then, lastAttack: seat.lastAttack };
+      return { first, sent, chat, chatColors, then, lastAttack: lastAfterStop, seatColor: seat.color };
     };
     const STOP = "\"All attack\" would break a limit, so nothing was sent. Crawlspace (AI 1): no more than 2 creatures can attack AI 1 each combat. You chose 3. Pick the attackers yourself.";
     r = await allAttack({ limiter: crawl, then: ["engine-card-22|player-1", "engine-card-64|player-1"] });
+    const r_stop = r;
     ok("all attack: over Crawlspace's limit nothing is sent, the question is asked again", !!r.sent?.__next && r.sent.type === undefined, JSON.stringify(r.sent).slice(0, 200));
     ok("all attack: the re-asked question says the limit as its note and text", r.sent?.__next?.ui.note === STOP && r.sent.__next.ui.text === STOP, JSON.stringify(r.sent?.__next?.ui && [r.sent.__next.ui.note, r.sent.__next.ui.text]));
     ok("all attack: the limit is said in chat too", r.chat === `[MTG] ${STOP}`, r.chat);
@@ -2472,6 +2478,18 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("all attack: picking two after the stop sends those two", r.then?.type === "declareAttackers" && JSON.stringify(r.then.assignments.map((x) => x.attackerId)) === JSON.stringify(["engine-card-22", "engine-card-64"]), JSON.stringify(r.then));
     r = await allAttack({ limiter: crawl, must: "engine-card-65" });
     ok("all attack: the stop keeps who must attack in its text", r.sent?.__next?.ui.text === `${STOP} Must attack: Bear 65.` && r.sent.__next.ui.note === STOP, JSON.stringify(r.sent?.__next?.ui.text));
+    ok("all attack: the stop is said in the player's own chat color", r_stop.chatColors.length === 1 && !!r_stop.seatColor && r_stop.chatColors[0] === r_stop.seatColor, JSON.stringify([r_stop.chatColors, r_stop.seatColor]));
+    ok("all attack: a stopped declaration is not remembered as the last attack", r_stop.lastAttack == null, JSON.stringify(r_stop.lastAttack));
+    r = await allAttack({ limiter: crawl, selfText: "Bear 22 can only attack alone." });
+    ok("all attack: every limit it breaks is said, not just the first", r.chat === `[MTG] "All attack" would break a limit, so nothing was sent. Crawlspace (AI 1): no more than 2 creatures can attack AI 1 each combat. You chose 3. Bear 22 can only attack alone. Pick the attackers yourself.`, r.chat);
+    // (no false stop: a Crawlspace its own controller holds limits attacks at that controller, not the ones they send out; an
+    // All attack whose first targets are a planeswalker isn't counted against a limit on attacks at the player; a face-down card has no text)
+    r = await allAttack({ limiter: crawl, tweak: (c) => { c.controllerId = "player-0"; } });
+    ok("all attack: a Crawlspace the attacker controls doesn't stop their own attack", r.sent?.type === "declareAttackers" && r.sent.assignments.length === 3 && !r.chat, JSON.stringify(r.sent).slice(0, 160));
+    r = await allAttack({ limiter: crawl, targets: ["engine-card-200", "player-1"] });
+    ok("all attack: attackers whose first target is a planeswalker aren't counted against a limit on the player", r.sent?.type === "declareAttackers" && r.sent.assignments.length === 3 && r.sent.assignments.every((x) => x.targetId === "engine-card-200"), JSON.stringify(r.sent).slice(0, 160));
+    r = await allAttack({ limiter: crawl, faceDown: true });
+    ok("all attack: a face-down limiter doesn't stop it", r.sent?.type === "declareAttackers" && r.sent.assignments.length === 3, JSON.stringify(r.sent).slice(0, 160));
     r = await allAttack({});
     ok("all attack: with no limit it is sent as before", r.sent?.type === "declareAttackers" && r.sent.assignments.length === 3 && !r.chat, JSON.stringify(r.sent));
     r = await allAttack({ limiter: crawl, then: null });

@@ -583,7 +583,9 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     q(setStep("main2", 42) + 'engineAutoResolve.Blue = nil', "main2"), ask({ promptId: 904, kind: "target", title: "Choose target", mode: "single", min: 1, max: 1, options: [{ id: "player|player-1", label: "White" }] }), { frames: 3 }, banner("main2 target"),
     q(setStep("cleanup", 42), "cleanup"), ask({ promptId: 905, title: "Discard 2 cards (hand size)", mode: "multi", min: 2, max: 2, options: [{ id: "card|x1", label: "A" }, { id: "card|x2", label: "B" }, { id: "card|x3", label: "C" }] }), { frames: 3 }, banner("cleanup discard"),
     q('return tostring(UI.getValue("eng_phase_Blue"))', "cleanup bar"),
-    q('engineGameOverBanner({ winner = "Blue" }) return "over"', "game over"), banner("victory")]);
+    q('engineEffectsOff.Blue = true engineGameOverBanner({ winner = "Blue" }) return "over"', "game over"), banner("victory"),
+    { frames: 150 }, banner("wins"), { frames: 260 }, banner("gone"),
+    q('engineEffectsOff.Blue = nil UI.setAttribute("eng_banner_Blue", "active", "false") engineGameOverBanner({ winner = "White" }) return "over2"', "game over, effects on"), banner("effects on")]);
   const b = (m) => String(valueOf(r, m));
   ok("step banner: a priority question in main 1 shows MAIN PHASE 1", b("main1 priority") === "true|MAIN PHASE 1", b("main1 priority") + " " + r.errors.join(" | "));
   ok("step banner: a second question in the same step shows nothing new", b("main1 again").startsWith("false"), b("main1 again"));
@@ -591,7 +593,10 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("step banner: not for a target question", !/MAIN PHASE 2/.test(b("main2 target")), b("main2 target"));
   ok("step banner: the cleanup discard question shows CLEANUP", b("cleanup discard") === "true|CLEANUP", b("cleanup discard"));
   ok("step banner: the phase bar names cleanup", /CLEANUP/.test(b("cleanup bar")) && !/>END</.test(b("cleanup bar")), b("cleanup bar"));
-  ok("game over: VICTORY for the winner", b("victory") === "true|VICTORY", b("victory"));
+  ok("game over: VICTORY for the winner (effects off: the step banner)", b("victory") === "true|VICTORY", b("victory"));
+  ok("game over: then who won, after 2 s", b("wins") === "true|PLAYERBLUE WINS THE GAME", b("wins"));
+  ok("game over: gone 4 s later", b("gone").startsWith("false"), b("gone"));
+  ok("game over: with effects on the step banner stays off (the result banner says it)", b("effects on").startsWith("false"), b("effects on"));
 }
 // the big button ignores clicks for 0.6 s after a new question changed its words (Resolve -> Next under the pointer
 // passed a main phase, playtest 2026-10-26); your own picks changing it are covered by "attack corner" above

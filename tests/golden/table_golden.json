@@ -12461,10 +12461,6 @@
     "step": "rewind points",
     "fx": [
      "f6031 \"broadcastToAll\" \"[MTG] GAME OVER - draw.\"",
-     "f6031 \"UI.setValue\" \"eng_banner_Blue\" \"DRAW\"",
-     "f6031 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
-     "f6031 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#101010E0\"",
-     "f6031 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"true\"",
      "f6031 \"Global.setVectorLines\" 1 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0\"",
      "f6031 \"UI.setAttributes\" \"eng_autores_Blue\" {active=\"false\"}",
      "f6031 \"UI.setAttributes\" \"eng_undo_Blue\" {active=\"false\"}",
@@ -12869,12 +12865,18 @@
      "f6176 \"setLock\" obj:s00151 false",
      "f6176 \"setLock\" obj:s00152 false",
      "f6176 \"setLock\" obj:s00154 false",
-     "f6181 \"UI.setValue\" \"eng_result_Blue\" \"DEFEAT\"",
-     "f6181 \"UI.setAttribute\" \"eng_result_Blue\" \"color\" \"#C9A3FF\"",
-     "f6181 \"UI.setAttribute\" \"eng_result_Blue\" \"outline\" \"#1a0730E0\"",
+     "f6181 \"UI.setValue\" \"eng_result_Blue\" \"DRAW\"",
+     "f6181 \"UI.setAttribute\" \"eng_result_Blue\" \"fontSize\" \"120\"",
+     "f6181 \"UI.setAttribute\" \"eng_result_Blue\" \"color\" \"#E8E2D0\"",
+     "f6181 \"UI.setAttribute\" \"eng_result_Blue\" \"outline\" \"#1a1a1aE0\"",
      "f6181 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"true\"",
      "f6205 \"spawnObjectData\" \"Deck\" obj:s00158 \"Graveyard\" V(40.762,1.35,22.872) 3 0 \"3001,3004,3006\"",
-     "f6271 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"false\""
+     "f6301 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"false\"",
+     "f6301 \"UI.setValue\" \"eng_result_Blue\" \"THE GAME IS A DRAW\"",
+     "f6301 \"UI.setAttribute\" \"eng_result_Blue\" \"fontSize\" \"96\"",
+     "f6301 \"UI.setAttribute\" \"eng_result_Blue\" \"color\" \"#FFD27A\"",
+     "f6301 \"UI.setAttribute\" \"eng_result_Blue\" \"outline\" \"#2a1600E0\"",
+     "f6301 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"true\""
     ]
    },
    {
@@ -12910,7 +12912,7 @@
      "f6405 \"setDescription\" obj:s00153 \"904594286/38\"",
      "f6405 \"highlightOn\" obj:s00151 {1=1,2=0.12,3=0.08}",
      "f6405 \"removeButton\" obj:395037 0",
-     "f6421 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"false\""
+     "f6541 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"false\""
     ]
    },
    {
@@ -13583,6 +13585,7 @@
     "fx": [
      "f156 \"broadcastToAll\" \"[MTG] Blue has lost the game.\"",
      "f156 \"UI.setValue\" \"eng_result_Blue\" \"DEFEAT\"",
+     "f156 \"UI.setAttribute\" \"eng_result_Blue\" \"fontSize\" \"120\"",
      "f156 \"UI.setAttribute\" \"eng_result_Blue\" \"color\" \"#C9A3FF\"",
      "f156 \"UI.setAttribute\" \"eng_result_Blue\" \"outline\" \"#1a0730E0\"",
      "f156 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"true\"",
@@ -13621,14 +13624,6 @@
     "step": "game over: NEW GAME",
     "fx": [
      "f362 \"broadcastToAll\" \"[MTG] GAME OVER - PlayerBlue wins!\"",
-     "f362 \"UI.setValue\" \"eng_banner_White\" \"PLAYERBLUE WINS\"",
-     "f362 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#D6E4FF\"",
-     "f362 \"UI.setAttribute\" \"eng_banner_White\" \"outline\" \"#101010E0\"",
-     "f362 \"UI.setAttribute\" \"eng_banner_White\" \"active\" \"true\"",
-     "f362 \"UI.setValue\" \"eng_banner_Blue\" \"VICTORY\"",
-     "f362 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
-     "f362 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#101010E0\"",
-     "f362 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"true\"",
      "f362 \"UI.setAttributes\" \"eng_autores_Blue\" {active=\"false\"}",
      "f362 \"UI.setAttributes\" \"eng_autores_White\" {active=\"false\"}",
      "f362 \"UI.setAttributes\" \"eng_fx_White\" {text=\"My effects: on\",textColor=\"#FFFFFF\"}",
@@ -13655,17 +13650,27 @@
      "f362 \"UI.setAttributes\" \"eng_fixcall_Blue\" {active=\"false\"}",
      "f362 \"UI.setAttributes\" \"eng_fixcall_White\" {active=\"false\"}",
      "f512 \"UI.setValue\" \"eng_result_Blue\" \"VICTORY\"",
+     "f512 \"UI.setAttribute\" \"eng_result_Blue\" \"fontSize\" \"120\"",
      "f512 \"UI.setAttribute\" \"eng_result_Blue\" \"color\" \"#FFD27A\"",
      "f512 \"UI.setAttribute\" \"eng_result_Blue\" \"outline\" \"#2a1600E0\"",
      "f512 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"true\"",
      "f512 \"UI.setValue\" \"eng_result_White\" \"DEFEAT\"",
+     "f512 \"UI.setAttribute\" \"eng_result_White\" \"fontSize\" \"120\"",
      "f512 \"UI.setAttribute\" \"eng_result_White\" \"color\" \"#C9A3FF\"",
      "f512 \"UI.setAttribute\" \"eng_result_White\" \"outline\" \"#1a0730E0\"",
      "f512 \"UI.setAttribute\" \"eng_result_White\" \"active\" \"true\"",
-     "f602 \"UI.setAttribute\" \"eng_banner_White\" \"active\" \"false\"",
-     "f602 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"false\"",
-     "f752 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"false\"",
-     "f752 \"UI.setAttribute\" \"eng_result_White\" \"active\" \"false\""
+     "f632 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"false\"",
+     "f632 \"UI.setAttribute\" \"eng_result_White\" \"active\" \"false\"",
+     "f632 \"UI.setValue\" \"eng_result_Blue\" \"PLAYERBLUE WINS THE GAME\"",
+     "f632 \"UI.setAttribute\" \"eng_result_Blue\" \"fontSize\" \"72\"",
+     "f632 \"UI.setAttribute\" \"eng_result_Blue\" \"color\" \"#FFD27A\"",
+     "f632 \"UI.setAttribute\" \"eng_result_Blue\" \"outline\" \"#2a1600E0\"",
+     "f632 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"true\"",
+     "f632 \"UI.setValue\" \"eng_result_White\" \"PLAYERBLUE WINS THE GAME\"",
+     "f632 \"UI.setAttribute\" \"eng_result_White\" \"fontSize\" \"72\"",
+     "f632 \"UI.setAttribute\" \"eng_result_White\" \"color\" \"#FFD27A\"",
+     "f632 \"UI.setAttribute\" \"eng_result_White\" \"outline\" \"#2a1600E0\"",
+     "f632 \"UI.setAttribute\" \"eng_result_White\" \"active\" \"true\""
     ]
    },
    {
