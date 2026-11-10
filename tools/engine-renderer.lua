@@ -4657,13 +4657,16 @@ end
 -- Linked and playable exile (2026-10-23, needs our Forge build: reports/MTG linked exile and zone quirks.md).
 -- A card a seated player may play from exile or a graveyard (Tibalt, flashback, adventure, plot, foretell, Gonti,
 -- impulse draw...) leaves its pile for that player's playable row, as Arena puts them beside the hand: face-up ones in
--- a public row in the strip just above the mana box on the player's own mat (PLAYABLE_ROW), glowing (in front of the
+-- a public row on the wood strip between the player's mat and hand, centred on the hand (PLAYABLE_DEPTH), glowing (in front of the
 -- small second hand zone it was half hidden under the big buttons, playtest 2026-10-26); ones others may not see (foretold, Gonti's face-down
 -- card) inside that second hand zone, where TTS shows a card's face to its owner only. An exiled card linked to a
 -- permanent still on the battlefield (Banishing Light, Valki, Arcane Bombardment, imprint) lies half-size under that
 -- permanent, as Forge shows it, instead of in the pile. Dragging a playable card onto the battlefield plays it.
 engineSpecial = {} -- engine card id -> "playable" | "linked" on the current board
-PLAYABLE_ROW = 3 -- (the strip just above the mana box: the lands have the box itself)
+-- (beside the hand, item 10 2026-11-10: the wood strip between the mat and the hand, measured on the real table: the
+-- mat's near edge is 10.38 past its centre, the hand counter screen starts at 14.07 (White's z -25.81 and -29.5), so a
+-- card 3.06 deep centred at 12.2 clears both; the row is centred on the hand, 2.3 apart, squeezed past 20.7 wide)
+PLAYABLE_DEPTH, PLAYABLE_STEP, PLAYABLE_SPAN = 12.2, 2.3, 20.7
 function engineMarkSpecial(m)
   engineSpecial = {}
   local onField = {}
@@ -4758,12 +4761,14 @@ function enginePlaceSpecial(m, seen)
       local base = side and side.position or (g.handPos or g.mat)
       local k, public = 0, 0
       for _, c in ipairs(row) do if not (faceDown[c.id] or c.fo) then public = public + 1 end end
-      local step = public > GRID.perRow and GRID.perRow / public or 1 -- (squeezed like a long row)
+      local lat = g.handPos and (g.handPos - g.mat):dot(g.right) or 0
+      local span = math.min(PLAYABLE_STEP * (public - 1), PLAYABLE_SPAN)
+      local step = public > 1 and span / (public - 1) or 0
       for _, c in ipairs(row) do
         if faceDown[c.id] or c.fo then
           place(c, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, color, { zone = "playable", color = color, hand2 = true })
         else
-          local spot = gridPos(g, k * step, PLAYABLE_ROW)
+          local spot = onTable(g.mat + g.fwd * PLAYABLE_DEPTH + g.right * (lat + span / 2 - k * step), 0)
           k = k + 1
           place(c, spot, Vector(0, g.rotY, 0), seen, nil, { zone = "playable", color = color })
         end
@@ -7164,7 +7169,8 @@ function engineSelfCheck()
           -- under its permanent: engineMarkSpecial. Face-Breaker's impulse-drawn cards read "wrong place", hp-03 sweep)
           local special = (engineSpecial or {})[card.id]
           if special == "playable" then -- map:playable
-            ok = inZone(d.playmat, p) or inHand(o, 2)
+            -- (or its row beside the hand, off the mat: enginePlaceSpecial)
+            ok = inZone(d.playmat, p) or inHand(o, 2) or (enginePlanned[card.id] ~= nil and near(p, enginePlanned[card.id], 1.6))
           elseif special == "linked" then -- map:linked
             local host = byId[card.ew]
             ok = host ~= nil and near(p, host.getPosition(), 2.5)

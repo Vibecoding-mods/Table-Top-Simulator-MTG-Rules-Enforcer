@@ -520,16 +520,19 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     'if o == nil then return "no object" end local face for _, d in pairs(o.getData().CustomDeck or {}) do face = d.FaceURL end return tostring(face)';
   // (on the near strip of your own mat, past the land row; under the big buttons it was half hidden, 2026-10-26)
   const objOf = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-777" then o = x end end ';
-  const where = objOf + 'local p, m, f = o.getPosition(), data.Blue.playmat.getPosition(), data.Blue.playmat.getTransformForward() ' +
-    'return string.format("%.1f", (p - m):dot(f))';
+  const where = objOf + 'local p, m, f, rt = o.getPosition(), data.Blue.playmat.getPosition(), data.Blue.playmat.getTransformForward(), data.Blue.playmat.getTransformRight() ' +
+    'local h = Player.Blue.getHandTransform().position ' +
+    'return string.format("%.2f|%.2f", (p - m):dot(f), (p - h):dot(rt))';
   const sent = (mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
   const r = run([q(setup, "playable"), q(where, "where"),
     q(objOf + 'o.setPosition(o.getPosition() + Vector(0.6, 1, 0.4)) onObjectDrop("Blue", o) __sim.frames(90) return "put back"', "put back"),
     q(objOf + 'local m = data.Blue.playmat.getPosition() o.setPosition(Vector(m.x, 1.5, m.z)) onObjectDrop("Blue", o) __sim.frames(90) return "dragged in"', "dragged in")]);
   ok("playable row: the card shows its picture, not a card back", String(valueOf(r, "playable")) === "https://img.example/lunarch.jpg", String(valueOf(r, "playable")) + " " + r.errors.join(" | "));
-  // (rows lie along the mat's forward axis: the mana box runs from 3.46 to the mat's near edge at 10.375, and a card
-  // is 3.06 deep, so a playable card centred under 1.93 stays out of the box, over 0 off the creatures' side)
-  ok("playable row: on your mat, just above the mana box", Number(valueOf(r, "where")) > 0 && Number(valueOf(r, "where")) < 1.93, String(valueOf(r, "where")));
+  // (rows lie along the mat's forward axis: the mat's near edge is 10.375 past its centre and the hand counter screen
+  // starts at 14.07, so a card 3.06 deep lies between them centred from 11.91 to 12.54; a lone card centred on the hand)
+  const [depth, side] = String(valueOf(r, "where")).split("|").map(Number);
+  ok("playable row: on the strip between your mat and your hand", depth > 11.91 && depth < 12.54, String(valueOf(r, "where")));
+  ok("playable row: a lone card in front of your hand's middle", Math.abs(side) < 0.05, String(valueOf(r, "where")));
   ok("playable row: put down where it lies, it isn't played", !sent("put back").includes('"kind":"play"'), sent("put back").slice(0, 200));
   ok("playable row: dragged into the battlefield, it is played", sent("dragged in").split("\\").join("").includes('"kind":"play"'), sent("dragged in").slice(0, 200));
 }

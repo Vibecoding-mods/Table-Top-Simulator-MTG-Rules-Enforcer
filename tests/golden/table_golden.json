@@ -11362,10 +11362,10 @@
      "f5426 \"putObject\" obj:s00016 obj:s00117",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00129 \"Face-down card\" V(40.777,1.15,-14.595) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Deck\" obj:s00130 \"Library card\" V(40.777,3.45,-18.755) 4 0 \"3007\"",
-     "f5426 \"spawnObjectData\" \"Card\" obj:s00131 \"Face-down card\" V(30.15,1.15,17) 0 300700 \"3007\"",
+     "f5426 \"spawnObjectData\" \"Card\" obj:s00131 \"Face-down card\" V(21.15,1.15,27.6) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00132 \"Face-down card\" V(38,5,32) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00133 \"Face-down card\" V(38,5,32) 0 300700 \"3007\"",
-     "f5426 \"spawnObjectData\" \"Card\" obj:s00134 \"Face-down card\" V(27.75,1.15,17) 0 300700 \"3007\"",
+     "f5426 \"spawnObjectData\" \"Card\" obj:s00134 \"Face-down card\" V(18.85,1.15,27.6) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00135 \"Face-down card\" V(27.75,1.13,14.9) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00136 \"Face-down card\" V(28.1,1.11,15.25) 0 300700 \"3007\"",
      "f5426 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
@@ -11387,7 +11387,7 @@
    },
    {
     "step": "click: local out = {} for _, id in ipairs({ \"engine-card-9901\", \"engine-card-9904\", \"engine-card-9902\", \"engine-card-9903\", \"engine-card-9905\", \"engine-card-9906\", \"engine-card-9907\" }) do local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:\" .. id then o = x end end if o then local inHand2 = false for _, h in ipairs(Player.Blue.getHandObjects(2)) do if h == o then inHand2 = true end end local p = o.getPosition() out[#out + 1] = string.format(\"%s %.1f %.1f s%.1f%s\", id:sub(-4), p.x, p.z, o.getScale().x, inHand2 and \" hand2\" or \"\") else out[#out + 1] = id:sub(-4) .. \" none\" end end return table.concat(out, \" | \")",
-    "value": "9901 27.7 14.9 s0.5 | 9904 28.1 15.2 s0.5 | 9902 30.2 17.0 s1.0 | 9903 38.0 32.0 s1.0 hand2 | 9905 40.8 -14.6 s1.0 | 9906 38.0 32.0 s1.0 hand2 | 9907 27.8 17.0 s1.0",
+    "value": "9901 27.7 14.9 s0.5 | 9904 28.1 15.2 s0.5 | 9902 21.1 27.6 s1.0 | 9903 38.0 32.0 s1.0 hand2 | 9905 40.8 -14.6 s1.0 | 9906 38.0 32.0 s1.0 hand2 | 9907 18.8 27.6 s1.0",
     "fx": []
    },
    {
@@ -11503,7 +11503,7 @@
      "f5470 \"setLock\" obj:s00102 true",
      "f5470 \"setLock\" obj:s00103 true",
      "f5470 \"setLock\" obj:s00129 true",
-     "f5470 \"setPositionSmooth\" obj:s00131 V(30.15,1.15,17)",
+     "f5470 \"setPositionSmooth\" obj:s00131 V(21.15,1.15,27.6)",
      "f5470 \"setLock\" obj:s00135 true",
      "f5470 \"setLock\" obj:s00136 true",
      "f5470 \"highlightOn\" obj:s00131 {1=0.35,2=1,3=0.45}",
@@ -11566,7 +11566,7 @@
    },
    {
     "step": "click: local out = {} for _, id in ipairs({ \"engine-card-9901\", \"engine-card-9904\", \"engine-card-9902\", \"engine-card-9903\", \"engine-card-9905\", \"engine-card-9906\", \"engine-card-9907\" }) do local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:\" .. id then o = x end end if o then local inHand2 = false for _, h in ipairs(Player.Blue.getHandObjects(2)) do if h == o then inHand2 = true end end local p = o.getPosition() out[#out + 1] = string.format(\"%s %.1f %.1f s%.1f%s\", id:sub(-4), p.x, p.z, o.getScale().x, inHand2 and \" hand2\" or \"\") else out[#out + 1] = id:sub(-4) .. \" none\" end end return table.concat(out, \" | \")",
-    "value": "9901 40.8 -14.6 s0.5 | 9904 40.8 -14.6 s0.5 | 9902 30.2 17.0 s1.0 | 9903 38.5 32.0 s1.0 hand2 | 9905 40.8 -14.6 s1.0 | 9906 38.0 32.0 s1.0 hand2 | 9907 27.8 17.0 s1.0",
+    "value": "9901 40.8 -14.6 s0.5 | 9904 40.8 -14.6 s0.5 | 9902 21.1 27.6 s1.0 | 9903 38.5 32.0 s1.0 hand2 | 9905 40.8 -14.6 s1.0 | 9906 38.0 32.0 s1.0 hand2 | 9907 18.8 27.6 s1.0",
     "fx": []
    },
    {
