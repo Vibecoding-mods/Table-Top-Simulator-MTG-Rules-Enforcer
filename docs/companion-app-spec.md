@@ -985,7 +985,36 @@ leave running, or stop first). Single instance (`Local\MtgTtsCompanion`; a secon
 **Limit Docker's CPU use…** is an opt-in button: writes `processors=2`, `memory=8GB` into `[wsl2]` of
 `%USERPROFILE%\.wslconfig` (backup first), never restarts WSL.
 
-**Test modes:** `--selftest` (227 canned cases, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
+**Status page** (branch `companion-html`, `companion\src\WebUi.cs` + `WebPage.cs`): the status screen is a page in the
+default browser; the exe and the tray icon stay. A `TcpListener` on `127.0.0.1:48790` (any free port if that one is
+taken) with its own small HTTP/1.1 parser, because `HttpListener` can need a URL ACL or admin rights; it runs unelevated.
+The page is a C# string (one exe, no `build.cmd` change), inline CSS/JS only, no CDN or fonts, dark theme: a header with
+the worst light in words, a "Game in progress" banner while locked, six rows (dot, word, sentence, the row's one
+button), the hint, the menu buttons, and a collapsible log tail. It polls every 2.5 s (30 s in a hidden tab, each poll
+aborted after 6 s, the next one always armed): two misses in a row show "Companion busy, retrying", misses lasting
+10 s show "Companion not running", and a page from an earlier run shows "Reconnecting" and reloads itself at most once
+per 15 s. A button is disabled while its request is in flight; a script error shows a red "This page hit an error"
+banner and the polling goes on. The script is pure functions (status → view model, click plan, poll scheduling) plus a
+small shell, tested in Node by `tests/test_companion_page.js` with a stub DOM. `GET /api/status` (the shape is
+documented at the top of `WebUi.cs`; `update` is `null`, reserved for the self-update section) and `POST /api/action {id}` (`fix:<row>:<fix>`, `restart-engine`,
+`stop-everything`, `open-logs`, `wsl-limits`) call the same `Controller` methods as the window, so the game lock and
+observe mode refuse exactly as there; a stale or hidden button is refused; Stop everything during a game needs a second
+confirmation (`confirmLocked`); pressing restart-engine, stop-everything or a fix again while the same one is still
+queued or running is a no-op ("Already running"). Guards: Host must be `127.0.0.1:<port>` or `localhost:<port>` (DNS rebinding); an Origin,
+when sent, must be that origin; `/api/*` needs `X-MTG-Token`, 16 random bytes per run written only into the served page
+(a page from an earlier run reloads itself); `Sec-Fetch-Site` other than same-origin/none is refused; POST needs
+exactly `application/json` (an optional `charset=utf-8`); head ≤ 8 KB, body ≤ 16 KB, no chunked bodies, bare LF or
+duplicate Host/token headers; a request must arrive within 10 s (5 s of silence closes the socket); at most 16
+connections, and past that the oldest one still waiting for its request is closed, so idle sockets can't lock the page
+out; answers carry a nonce CSP, `X-Frame-Options: DENY`, `no-store`, `Referrer-Policy: no-referrer`; only a known
+action id is logged. Tray: "Open status", a click on the icon and a click on a balloon open the page (a double-click
+opens it once, not twice). The first start of a package opens the page once and then writes `state.json`
+`statusPageShown`; if no browser opens, the window shows instead and the flag is not written, so the next start tries
+again. Later starts (and home mode) open it only when the first pass ends with a red light (the window if no browser).
+`StatusForm` stays as the fallback (`--no-web`, `--shot`, no free port, or no browser opens); `--web-port N`,
+`--no-browser` for tests.
+
+**Test modes:** `--selftest` (362 canned cases, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
 `--shot FILE` for a PNG of the window), `--home DIR`, `--saves DIR`, `--state DIR`, `--log FILE`, `--steps 4,5`,
 `--bridge-url URL`, `--probe-login URL`, `--bridge-stop`.
 

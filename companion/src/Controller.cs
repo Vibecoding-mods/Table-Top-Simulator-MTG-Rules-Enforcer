@@ -43,7 +43,7 @@ namespace MtgCompanion
         }
     }
 
-    public class Controller
+    public partial class Controller
     {
         public const int StepDocker = 0, StepImages = 1, StepStack = 2, StepSave = 3, StepBridge = 4, StepTts = 5;
         public static readonly string[] Names = { "Docker", "Engine images", "Engine stack", "Table save", "Bridge", "TTS" };

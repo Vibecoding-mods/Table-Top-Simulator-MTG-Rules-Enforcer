@@ -7,7 +7,7 @@ using System.Text;
 
 namespace MtgCompanion
 {
-    public static class SelfTest
+    public static partial class SelfTest
     {
         static StringBuilder sb;
         static int fails, passes;
@@ -598,6 +598,7 @@ namespace MtgCompanion
             Check("pipe HTTP: chunked body", h.Status == 200 && h.Body == "hello world", h.Body);
             h = Probes.ParseHttp(Encoding.ASCII.GetBytes("HTTP/1.0 404 Not Found\r\nContent-Type: application/json\r\n\r\n{\"message\":\"No such image\"}"), 1);
             Check("pipe HTTP: 404", h.Status == 404 && h.Body.Contains("No such image"), h.Status);
+            Web(); // (the status page's server and API: SelfTestWeb.cs)
         }
     }
 }

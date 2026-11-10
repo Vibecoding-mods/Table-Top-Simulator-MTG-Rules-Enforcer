@@ -4,6 +4,7 @@
 //   MTG Companion.exe                      start everything, then watch (tray icon)
 //   MTG Companion.exe --observe            only read and show the lights; changes nothing
 //       [--home DIR] [--saves DIR] [--state DIR] [--dump FILE]   (--dump: write the lights after one pass and exit)
+//       [--no-web] [--web-port N] [--no-browser]   the status page on 127.0.0.1:48790 (WebUi.cs) or the old window
 //   MTG Companion.exe --selftest [--out FILE]   the decision logic against canned inputs; exit code = failures
 //   MTG Companion.exe --bridge-loop --home DIR  (internal) the hidden loop that runs and restarts the bridge
 //   MTG Companion.exe --write-icon FILE         writes the app icon (.ico)
@@ -257,6 +258,7 @@ namespace MtgCompanion
             }
 
             var form = new StatusForm(c, show);
+            var web = WebUi.Launch(c, form, args); // the status page in the browser; null: this window as before (WebUi.cs)
             string shot = Arg(args, "--shot");
             if (shot != null && observe)
             {
@@ -279,8 +281,9 @@ namespace MtgCompanion
                 t.Start();
             }
             c.Start();
-            Application.Run(form);
+            if (web != null) Application.Run(); else Application.Run(form); // (the page: the window stays hidden, tray only)
             c.Quit();
+            if (web != null) web.Stop();
             if (mutex != null) { try { mutex.ReleaseMutex(); } catch { } }
             return 0;
         }

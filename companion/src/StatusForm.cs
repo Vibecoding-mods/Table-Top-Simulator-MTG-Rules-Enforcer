@@ -234,6 +234,7 @@ namespace MtgCompanion
             tray.Text = "MTG: starting";
             tray.Visible = true;
             tray.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) ShowMe(); };
+            tray.BalloonTipClicked += (s, e) => { if (OpenStatus != null) ShowMe(); };
 
             c.Changed += () => { try { if (IsHandleCreated) BeginInvoke((Action)Render); } catch { } };
             c.UpdateOffered += r => { try { if (IsHandleCreated) BeginInvoke((Action)(() => OfferUpdate(r))); } catch { } };
@@ -253,8 +254,21 @@ namespace MtgCompanion
             Render();
         }
 
+        // WebUi's hook: "Open status" opens the browser page instead of this window (which stays as the fallback when no
+        // browser opens). null: the window, as before.
+        public Func<bool> OpenStatus;
+        DateTime lastOpen = DateTime.MinValue;
+
         void ShowMe()
         {
+            if (OpenStatus != null)
+            {
+                // (a double click is two clicks: open one browser tab for it, not two)
+                var now = DateTime.UtcNow;
+                if (!WebUi.ClickAllowed(lastOpen, now, SystemInformation.DoubleClickTime + 500)) return;
+                lastOpen = now;
+                if (OpenStatus()) return;
+            }
             Show();
             if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
             Activate();
