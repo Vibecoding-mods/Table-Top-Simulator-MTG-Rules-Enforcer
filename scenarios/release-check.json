@@ -1,0 +1,9 @@
+{
+  "label": "release-check 2026-11-10: reveal strip (Revelation), Courser + scry (Opt), Arc Trail titles, Serra tags, Mindslaver turn and its hand stand-ins, Reflect Damage redirect line, Sen Triplets stand-ins, game-over panel",
+  "lands": 20,
+  "battlefield": ["Courser of Kruphix", "Revelation", "Mindslaver"],
+  "hand": ["Opt", "Arc Trail", "Reflect Damage", "Sen Triplets", "Lightning Bolt"],
+  "library": ["Forest", "Island", "Plains"],
+  "mana": 99,
+  "opponents": { "battlefield": ["Serra Angel", "Hill Giant", "Grizzly Bears"], "hand": ["Shock", "Giant Growth", "Llanowar Elves", "Counterspell"], "lands": 6, "life": 40 }
+}

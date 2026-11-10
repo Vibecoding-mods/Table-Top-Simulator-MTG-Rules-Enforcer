@@ -86,4 +86,8 @@ Also queued from earlier work:
 - Dredge splitting "draws two cards" into two lines.
 - Mayhem, Harmonize, Beam me up and Plot cards never get mayPlay, so they aren't playable from the row (e.g. Rocket-Powered Goblin Glider). Harness: add the keywords to the graveyard clause and isPlotted() to exile; engine image rebuild.
 - The table self-check false-alarms "wrong place" on a card in an opponent's graveyard or exile that you may play (Mnemonic Betrayal, Thief of Sanity). The check uses the owner's mat, but the card lies on the caster's (engine-renderer.lua ~7090). Seen only from reading the code.
-- Reveal stand-in tests: priority-frame own-player condition, stand-in frame, stand-in hover text (mutants S11, S12, S16 escape).
+- ~~Reveal stand-in tests (S11, S12, S16)~~: done in f1e2a16.
+- From the 2026-11-10 real-table check (docs/release-check-2026-11-10/):
+  - under GAME OVER, Sen Triplets' stand-ins in the playable row still glow;
+  - on a Mindslaver turn, White's own priority was passed by itself in the blockers step and with a spell on the stack (Auto timer on), so Reflect Damage couldn't be cast there;
+  - `ai_passive_lands` still casts a Counterspell a scenario puts in its hand.

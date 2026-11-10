@@ -1,0 +1,7 @@
+{
+  "label": "release-check3: Lightning Bolt, held priority, Reflect Damage on it: the redirect line",
+  "lands": 0,
+  "keepHand": true,
+  "hand": ["Lightning Bolt"],
+  "mana": 99
+}
