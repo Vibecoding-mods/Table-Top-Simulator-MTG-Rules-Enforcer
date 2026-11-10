@@ -195,6 +195,23 @@ ok("vm: the script defines MtgPage without a document (and starts nothing)", P &
   u.update = { line: "Version 1.3 is ready.", actions: [{ id: "update-now", label: "Install now", enabled: true, title: "", confirm: "Install 1.3?", confirmLocked: false }] };
   const vu = P.viewModel(u, none);
   same("vm: the update section: its line and actions in the menu's shape", [vu.update.title, vu.update.text, vu.update.actions.map((a) => [a.id, a.kind, a.disabled, a.confirm])], ["Update", "Version 1.3 is ready.", [["update-now", "menu", false, "Install 1.3?"]]]);
+  // the self-update as WebUi.UpdateSection sends it (companion/src/WebUi.cs; --selftest checks the C# side of this shape)
+  const offered = { title: "Update available: v2", line: "Update available: v2 (bridge and decks; 1.0 MB to download).", status: "available", current: "v1", available: "v2", progress: -1, deferred: false, error: null, lastCheck: "2026-11-10T12:00:00Z",
+    actions: [
+      { id: "update-now", label: "Update now", enabled: true, title: "Update available: v2 (bridge and decks; 1.0 MB to download).", confirm: "Install update v2 now?\n\n…", confirmLocked: false },
+      { id: "update-later", label: "Later", enabled: true, title: "No reminder for this update until you check again.", confirm: null, confirmLocked: false },
+      { id: "update-check", label: "Check for updates", enabled: true, title: "Last checked 2026-11-10T12:00:00Z", confirm: null, confirmLocked: false }] };
+  const uo = status(); uo.update = offered;
+  const vo = P.viewModel(uo, none);
+  same("vm: an offered update: the server's title and line, three buttons", [vo.update.title, vo.update.text, vo.update.actions.map((a) => [a.id, a.disabled])], ["Update available: v2", offered.line, [["update-now", false], ["update-later", false], ["update-check", false]]]);
+  same("click: Update now asks first (its confirm), never confirmLocked", P.clickPlan(vo.update.actions[0], none), { do: "act", id: "update-now", confirm: "Install update v2 now?\n\n…", confirmLocked: false });
+  same("click: Later and Check go straight through", [P.clickPlan(vo.update.actions[1], none), P.clickPlan(vo.update.actions[2], none)], [{ do: "act", id: "update-later", confirm: null, confirmLocked: false }, { do: "act", id: "update-check", confirm: null, confirmLocked: false }]);
+  const ud = status();
+  ud.update = { title: "Downloading update (40%)", line: "Downloading app.zip: 40% of 1.0 MB.", status: "downloading", available: "v2", progress: 40, actions: [{ id: "update-check", label: "Check for updates", enabled: false, title: "Last checked 2026-11-10T12:00:00Z", confirm: null, confirmLocked: false }] };
+  const vd = P.viewModel(ud, none);
+  same("vm: downloading: the progress in the title, Check disabled", [vd.update.title, vd.update.text, vd.update.actions[0].disabled], ["Downloading update (40%)", "Downloading app.zip: 40% of 1.0 MB.", true]);
+  same("click: a disabled update button says its title, sends nothing", P.clickPlan(vd.update.actions[0], none), { do: "say", text: "Last checked 2026-11-10T12:00:00Z", kind: "warn" });
+  same("vm: down: every update button disabled", P.viewModel(uo, { mode: "down", inflight: {} }).update.actions.every((a) => a.disabled), true);
   same("vm: update not an object: no section", [P.updateView("x", { down: false, inflight: {} }), P.updateView(null, { down: false, inflight: {} })], [null, null]);
 }
 
@@ -424,6 +441,28 @@ function boot(body) {
     h.body = status();
     await h.clock.advance(2500);
     same("shell: no update any more: the section and its button hide", [h.$("update").hidden, box.children[0].hidden], [true, true]);
+  }
+
+  {
+    // the section as the companion sends it: its title, then a download in progress
+    const up = status();
+    up.update = { title: "Update available: v2", line: "Update available: v2 (1.0 MB to download).", status: "available", available: "v2",
+      actions: [{ id: "update-now", label: "Update now", enabled: true, title: "", confirm: null, confirmLocked: false }, { id: "update-check", label: "Check for updates", enabled: true, title: "", confirm: null, confirmLocked: false }] };
+    const h = boot(up);
+    await h.clock.advance(0);
+    const box = h.$("update-actions");
+    same("shell: the server's update title and both buttons", [h.$("update-title").textContent, box.children.map((b) => b.textContent)], ["Update available: v2", ["Update now", "Check for updates"]]);
+    box.children[0].click();
+    await flush();
+    same("shell: Update now posts update-now", h.posts.map((p) => p.body.id), ["update-now"]);
+    const dl = status();
+    dl.update = { title: "Downloading update (40%)", line: "Downloading app.zip: 40%.", status: "downloading", available: "v2", progress: 40,
+      actions: [{ id: "update-check", label: "Check for updates", enabled: false, title: "Busy.", confirm: null, confirmLocked: false }] };
+    h.body = dl;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("shell: downloading: the new title and line, Update now gone, Check disabled", [h.$("update-title").textContent, h.$("update-text").textContent, box.children.filter((b) => !b.hidden).map((b) => [b.textContent, b.getAttribute("aria-disabled")])],
+      ["Downloading update (40%)", "Downloading app.zip: 40%.", [["Check for updates", "true"]]]);
   }
 
   {

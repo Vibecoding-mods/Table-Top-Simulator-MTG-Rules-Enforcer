@@ -996,8 +996,8 @@ aborted after 6 s, the next one always armed): two misses in a row show "Compani
 per 15 s. A button is disabled while its request is in flight; a script error shows a red "This page hit an error"
 banner and the polling goes on. The script is pure functions (status → view model, click plan, poll scheduling) plus a
 small shell, tested in Node by `tests/test_companion_page.js` with a stub DOM. `GET /api/status` (the shape is
-documented at the top of `WebUi.cs`; `update` is `null`, reserved for the self-update section) and `POST /api/action {id}` (`fix:<row>:<fix>`, `restart-engine`,
-`stop-everything`, `open-logs`, `wsl-limits`) call the same `Controller` methods as the window, so the game lock and
+documented at the top of `WebUi.cs`; `update` is the self-update section in friend mode, §18.5, else `null`) and `POST /api/action {id}` (`fix:<row>:<fix>`, `restart-engine`,
+`stop-everything`, `open-logs`, `wsl-limits`, `update-check`, `update-now`, `update-later`) call the same `Controller` methods as the window, so the game lock and
 observe mode refuse exactly as there; a stale or hidden button is refused; Stop everything during a game needs a second
 confirmation (`confirmLocked`); pressing restart-engine, stop-everything or a fix again while the same one is still
 queued or running is a no-op ("Already running"). Guards: Host must be `127.0.0.1:<port>` or `localhost:<port>` (DNS rebinding); an Origin,
@@ -1014,7 +1014,7 @@ again. Later starts (and home mode) open it only when the first pass ends with a
 `StatusForm` stays as the fallback (`--no-web`, `--shot`, no free port, or no browser opens); `--web-port N`,
 `--no-browser` for tests.
 
-**Test modes:** `--selftest` (362 canned cases, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
+**Test modes:** `--selftest` (376 canned cases, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
 `--shot FILE` for a PNG of the window), `--home DIR`, `--saves DIR`, `--state DIR`, `--log FILE`, `--steps 4,5`,
 `--bridge-url URL`, `--probe-login URL`, `--bridge-stop`.
 
@@ -1136,7 +1136,12 @@ start finished or undid an interrupted install: `Text` says which); `Current`,
 `Available`, `Notes`, `Progress` 0-100 or -1, `DeferredUntilGameEnds`, `Later`, `Error`, `LastCheck`, `Text`),
 changed only through `SetUpdate`. The actions are named methods any front end calls: `CheckNow()`, `UpdateNow()`
 (installs the release the last check offered), `Later()` (no dialog again for that release until asked). The window
-reads `Update.Text`; the HTML status page (branch companion-html) can serve the snapshot as `/api/status` `update`.
+reads `Update.Text`. The status page serves it as `/api/status` `update` (`WebUi.UpdateSection`, friend mode only, null
+in home mode and observe): `{title, line, status, current, available, progress, deferred, error, lastCheck, actions}`,
+the actions in the menu's shape: `update-now` (a release is offered: available, or failed with one; asks first),
+`update-later` (offered and not put off yet), `update-check` (disabled while checking, downloading or installing).
+They go through `POST /api/action` to the same named methods, which return why they refused (observe, nothing
+offered, already busy); a second press while the same one runs is "Already running".
 
 ### 18.6 Tests
 

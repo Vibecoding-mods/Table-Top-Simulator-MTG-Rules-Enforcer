@@ -212,7 +212,8 @@ var MtgPage = (function () {
     };
   }
 
-  // the update section (status.update; null today). Its actions use the menu's shape and go through the same
+  // the update section (status.update: WebUi.UpdateSection, friend mode; null in home mode and observe). Its actions
+  // (update-now, update-later, update-check) use the menu's shape and go through the same
   // click plan and POST /api/action, so a new kind of update needs no new click code.
   function updateView(u, b) {
     if (!u || typeof u !== 'object') return null;

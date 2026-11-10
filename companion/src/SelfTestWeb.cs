@@ -205,7 +205,7 @@ namespace MtgCompanion
             Check("status: game none, unlocked", J.Str(game, "kind") == "none" && !J.Bool(game, "locked") && J.Get(game, "lockText") == null, J.Write(game));
             var menu = J.Arr(s, "menu");
             Check("status: the menu: restart-engine, stop-everything, open-logs, wsl-limits", menu != null && string.Join(",", menu.Select(m => J.Str(m, "id"))) == "restart-engine,stop-everything,open-logs,wsl-limits");
-            Check("status: versions, a log with lines, update null (reserved)", J.Has(s, "versions") && J.Str(J.Get(s, "versions"), "companion") != null && J.Arr(J.Get(s, "log"), "lines") != null && J.Has(s, "update") && J.Get(s, "update") == null);
+            Check("status: versions, a log with lines, the update section (friend mode)", J.Has(s, "versions") && J.Str(J.Get(s, "versions"), "companion") != null && J.Arr(J.Get(s, "log"), "lines") != null && J.Get(s, "update") is Dictionary<string, object>);
             var keepV = c.Rows[0].V;
             c.Rows[0].V = null; // (a bug inside: Status() throws)
             resp = Send(w, Get(w, "/api/status", w.Token));
@@ -286,6 +286,37 @@ namespace MtgCompanion
             Check("observe: no buttons on the lights, restart and stop disabled", J.Arr(J.Parse(Send(ow, Get(ow, "/api/status", ow.Token)).Body), "lights").All(l => J.Get(l, "action") == null)
                 && !J.Bool(J.Arr(J.Parse(Send(ow, Get(ow, "/api/status", ow.Token)).Body), "menu")[1], "enabled"));
             Check("observe: every change refused (restart, stop, a fix, show-program, wsl)", new[] { "restart-engine", "stop-everything", "fix:2:stack-restart", "fix:4:show-program", "wsl-limits" }.All(id => !J.Bool(Act(ow, id), "ok")) && oe.Count == 0, string.Join("|", oe));
+
+            sb.AppendLine("-- status page: the update section");
+            var st0 = J.Parse(Send(w, Get(w, "/api/status", w.Token)).Body);
+            var up0 = J.Get(st0, "update");
+            var acts0 = J.Arr(up0, "actions");
+            Check("update: friend mode: a section with Check for updates", up0 is Dictionary<string, object> && J.Str(up0, "title") == "Updates" && acts0.Length == 1 && J.Str(acts0[0], "id") == "update-check" && J.Bool(acts0[0], "enabled"), J.Write(up0));
+            Check("update: its line says this package's version before any check", (J.Str(up0, "line") ?? "").StartsWith("This package: "), J.Str(up0, "line"));
+            var nu = Act(w, "update-now");
+            Check("update-now with nothing offered: refused, says to check first", !J.Bool(nu, "ok") && J.Str(nu, "message").Contains("check for updates first"), J.Write(nu));
+            nu = Act(w, "update-later");
+            Check("update-later with nothing offered: refused", !J.Bool(nu, "ok") && J.Str(nu, "message").Contains("No update is offered"), J.Write(nu));
+            Check("observe: no update section", J.Get(J.Parse(Send(ow, Get(ow, "/api/status", ow.Token)).Body), "update") == null);
+            Check("observe: the update actions refused", new[] { "update-check", "update-now", "update-later" }.All(id => !J.Bool(Act(ow, id), "ok")));
+            Func<UpdateState, bool, bool, object> Sec = (us, fr, ob) => J.Parse(J.Write(WebUi.UpdateSection(us, fr, ob))); // (as the page gets it)
+            var avail = new UpdateState { Status = "available", Current = "v1", Available = "v2", Notes = "Update available: v2 (bridge and decks; 1.0 MB to download).", Text = "Update available: v2 (bridge and decks; 1.0 MB to download).", LastCheck = "2026-11-10T12:00:00Z" };
+            var sec = Sec(avail, true, false);
+            var ids = J.Arr(sec, "actions").Select(a => J.Str(a, "id")).ToArray();
+            Check("update: offered: Update now, Later, Check, in the menu's shape", ids.SequenceEqual(new[] { "update-now", "update-later", "update-check" }) && J.Arr(sec, "actions").All(a => J.Has(a, "label") && J.Has(a, "enabled") && J.Has(a, "title") && J.Has(a, "confirm") && J.Has(a, "confirmLocked")), string.Join(",", ids));
+            Check("update: Update now asks first, naming the version and that a game only gets a download", J.Str(J.Arr(sec, "actions")[0], "confirm").Contains("v2") && J.Str(J.Arr(sec, "actions")[0], "confirm").Contains("after the game") && J.Str(sec, "title") == "Update available: v2" && J.Str(sec, "available") == "v2", J.Str(J.Arr(sec, "actions")[0], "confirm"));
+            avail.Later = true;
+            Check("update: after Later: no Later button", !J.Arr(Sec(avail, true, false), "actions").Any(a => J.Str(a, "id") == "update-later"));
+            var dlState = new UpdateState { Status = "downloading", Available = "v2", Progress = 40, Text = "Downloading app.zip: 40% of 1.0 MB." };
+            sec = Sec(dlState, true, false);
+            Check("update: downloading: the percentage, no install or check button to press", J.Str(sec, "title") == "Downloading update (40%)" && J.Int(sec, "progress") == 40 && J.Arr(sec, "actions").All(a => !J.Bool(a, "enabled") || J.Str(a, "id") != "update-check") && !J.Arr(sec, "actions").Any(a => J.Str(a, "id") == "update-now"), J.Write(sec));
+            var failedState = new UpdateState { Status = "failed", Available = "v2", Error = "The update failed and was undone: x.", Text = "The update failed and was undone: x." };
+            sec = Sec(failedState, true, false);
+            Check("update: failed with a release offered: Update now again, no Later, the error", J.Arr(sec, "actions").Select(a => J.Str(a, "id")).SequenceEqual(new[] { "update-now", "update-check" }) && J.Str(sec, "error").Contains("undone") && J.Str(sec, "title") == "Update problem", J.Write(sec));
+            sec = Sec(new UpdateState { Status = "ready", Available = "v2", DeferredUntilGameEnds = true, Text = "Update ready — will install after this game." }, true, false);
+            Check("update: waiting for the game: says so, nothing to install by hand", J.Bool(sec, "deferred") && J.Str(sec, "title").Contains("after the game") && !J.Arr(sec, "actions").Any(a => J.Str(a, "id") == "update-now"), J.Write(sec));
+            Check("update: home mode and observe: no section", Sec(avail, false, false) == null && Sec(avail, true, true) == null);
+            Check("update: an interrupted install has its own title", WebUi.UpdateTitle(new UpdateState { Status = "interrupted" }).Contains("interrupted") && WebUi.UpdateTitle(new UpdateState { Status = "installing" }) == "Installing update");
 
             sb.AppendLine("-- status page: when it opens by itself");
             Check("first start of a package: opens", WebUi.OpenAtStart(true, false, false));

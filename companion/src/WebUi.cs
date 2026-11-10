@@ -18,10 +18,12 @@
 //   hint     the help line (the first hint of an amber/red light, else how to load the table in TTS)
 //   versions {text, companion, table, bridge, save}
 //   log      {file, lines}                   the last lines of companion.log
-//   update   null for now. Reserved for the self-update branch: an object such as {line, available, version,
-//            canInstall} for the update section, plus "update-check" / "update-now" action ids. The page shows an
-//            update section only when this is an object, so older pages keep working.
+//   update   the self-update (docs/companion-app-spec.md §18), friend mode only (null in home mode and observe):
+//            {title, line, status, current, available, progress, deferred, error, lastCheck, actions}; actions in the
+//            menu's shape: update-now (when a release is offered), update-later, update-check. Built from the
+//            Controller's one UpdateState snapshot (UpdateSection). The page shows the section only when it is an object.
 // POST /api/action answers {ok, message, needConfirm}; ok:false is a refusal (game lock, observe mode, a stale button).
+// update-now never waits for the game lock: it downloads, and the install itself waits for the game to end.
 // A second restart-engine, stop-everything or fix while the same one is still queued or running answers ok with
 // "Already running" and does nothing.
 //
@@ -684,7 +686,56 @@ namespace MtgCompanion
                         { "table", c.Want("table") }, { "bridge", c.Want("bridge") }, { "save", c.SaveName },
                     } },
                 { "log", new Dictionary<string, object> { { "file", Log.File }, { "lines", LogTail(60) } } },
-                { "update", null }, // (reserved: see the header of this file)
+                { "update", UpdateSection(c.Update, c.L.Friend, c.Observe) },
+            };
+        }
+
+        // ───────────────────────────── the update section ─────────────────────────────
+
+        static bool UpdateWorking(string status) { return status == "checking" || status == "downloading" || status == "installing" || status == "restarting"; }
+
+        public static string UpdateTitle(UpdateState u)
+        {
+            switch (u.Status)
+            {
+                case "available": return "Update available: " + u.Available;
+                case "downloading": return "Downloading update" + (u.Progress >= 0 ? " (" + u.Progress + "%)" : "");
+                case "ready": return "Update ready: installs after the game";
+                case "installing": return "Installing update";
+                case "restarting": return "Restarting with the new version";
+                case "updated": return "Updated";
+                case "failed": return "Update problem";
+                case "interrupted": return "An update was interrupted";
+                case "checking": return "Checking for updates";
+                default: return "Updates";
+            }
+        }
+
+        static Dictionary<string, object> UpdateButton(string id, string label, bool enabled, string title, string confirm)
+        {
+            return new Dictionary<string, object> { { "id", id }, { "label", label }, { "enabled", enabled }, { "title", title }, { "confirm", confirm }, { "confirmLocked", false } };
+        }
+
+        // the `update` field: friend mode only (home mode updates with git; observe changes nothing)
+        public static Dictionary<string, object> UpdateSection(UpdateState u, bool friend, bool observe)
+        {
+            if (!friend || observe || u == null) return null;
+            bool working = UpdateWorking(u.Status);
+            bool offered = u.Available != null && (u.Status == "available" || u.Status == "failed");
+            var actions = new List<object>();
+            if (offered)
+            {
+                actions.Add(UpdateButton("update-now", "Update now", !working, u.Notes ?? "Downloads and installs " + u.Available + ".",
+                    "Install update " + u.Available + " now?\n\n" + (u.Notes ?? "") + "\n\nThe bridge stops for a minute while it installs. During a game it only downloads, and installs 2 minutes after the game."));
+                if (u.Status == "available" && !u.Later) actions.Add(UpdateButton("update-later", "Later", true, "No reminder for this update until you check again.", null));
+            }
+            actions.Add(UpdateButton("update-check", u.Status == "checking" ? "Checking…" : "Check for updates", !working, u.LastCheck != null ? "Last checked " + u.LastCheck : "Not checked yet.", null));
+            string line = u.Text;
+            if (string.IsNullOrEmpty(line)) line = "This package: " + (u.Current ?? "?") + ".";
+            return new Dictionary<string, object>
+            {
+                { "title", UpdateTitle(u) }, { "line", line }, { "status", u.Status }, { "current", u.Current }, { "available", u.Available },
+                { "progress", u.Progress }, { "deferred", u.DeferredUntilGameEnds }, { "error", u.Error }, { "lastCheck", u.LastCheck }, { "actions", actions },
             };
         }
 
@@ -738,6 +789,30 @@ namespace MtgCompanion
                     catch (Exception e) { return No("Couldn't open the logs folder: " + e.Message); }
                 case "wsl-limits":
                     return Wsl();
+                case "update-check":
+                {
+                    if (c.Observe) return No(ObserveText);
+                    if (Repeat(id) || (lastAccepted == id && c.UpdateBusy)) return Already();
+                    var why = c.CheckNow();
+                    if (why != null) return No(why);
+                    lastAccepted = id;
+                    return Done("Checking for updates.");
+                }
+                case "update-now":
+                {
+                    if (c.Observe) return No(ObserveText);
+                    if (lastAccepted == id && c.UpdateBusy) return Already();
+                    var why = c.UpdateNow();
+                    if (why != null) return No(why);
+                    lastAccepted = id;
+                    return Done("Downloading the update; the update section shows how far it is (it installs when no game is on).");
+                }
+                case "update-later":
+                {
+                    if (c.Observe) return No(ObserveText);
+                    var why = c.Later();
+                    return why != null ? No(why) : Done("Later: no reminder for this update until you check again.");
+                }
             }
             return new ActResult { Known = false, Message = "Unknown action." };
         }

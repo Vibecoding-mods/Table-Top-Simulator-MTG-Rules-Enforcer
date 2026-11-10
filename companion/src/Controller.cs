@@ -201,16 +201,37 @@ namespace MtgCompanion
 
         // ───────────────────────────── self-update ─────────────────────────────
 
-        // the menu's and the page's actions
-        public void CheckNow() { CheckForUpdates(true); }
-        public void UpdateNow() { CheckResult r; lock (updGate) r = offer; UpdateNow(r); }
-        public void Later()
+        // the menu's and the page's actions: null when accepted, else why not (the page shows it)
+        public bool UpdateBusy { get { return updateBusy || applying; } }
+        public string CheckNow()
+        {
+            if (upd == null)
+            {
+                var why = Observe ? "Observe mode: no updates." : "Home mode: the repo updates with git, not here.";
+                SetUpdate(s => { s.Text = why; }); // (the tray's line, as before)
+                return why;
+            }
+            if (UpdateBusy) return "An update is already being checked, downloaded or installed.";
+            CheckForUpdates(true);
+            return null;
+        }
+        public string UpdateNow()
+        {
+            CheckResult r; lock (updGate) r = offer;
+            if (upd == null) return CheckNow();
+            if (UpdateBusy) return "An update is already being checked, downloaded or installed.";
+            if (r == null || !r.Available) return "No update to install: check for updates first.";
+            UpdateNow(r);
+            return null;
+        }
+        public string Later()
         {
             string tag = null;
             lock (updGate) { if (offer != null) tag = offer.Manifest.Version; }
-            if (tag == null) return;
+            if (tag == null) return "No update is offered.";
             Log.Write("update " + tag + ": Later");
             SetUpdate(s => { s.Later = true; s.Text = "Update " + tag + " available (Later: Check for updates installs it)."; });
+            return null;
         }
 
         // a check on its own thread; an update found is offered (UpdateOffered) once per release unless asked, never
