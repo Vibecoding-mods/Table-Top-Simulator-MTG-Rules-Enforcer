@@ -55,10 +55,11 @@ const BASE_PARTS = { app: "a1", table: "s1", images: pack.imagesVersion(NID, RID
 
 // a package as v1 left it
 let pkgN = 0;
-function makePkg(parts = BASE_PARTS) {
+const PKG_BUILT = "2026-11-01T09:00:00.000Z";
+function makePkg(parts = BASE_PARTS, versionExtra = {}) {
   const pkg = path.join(ROOT, `pkg${++pkgN}`);
   const put = (rel, text) => { const p = path.join(pkg, rel); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, text); };
-  put("version.json", JSON.stringify({ bridge: "b1", table: "t1", save: "s1", node: NID, relay: RID, built: "2026-11-01T09:00:00.000Z", release: "v1", nodeVersion: "v24.1.0", parts }));
+  put("version.json", JSON.stringify({ bridge: "b1", table: "t1", save: "s1", node: NID, relay: RID, built: PKG_BUILT, release: "v1", nodeVersion: "v24.1.0", parts, ...versionExtra }));
   put("bridge/bridge.js", "// old bridge\n");
   put("bridge/old-only.js", "// gone after the update\n");
   put("decks/a.json", "{}");
@@ -165,7 +166,7 @@ function rawZip(entries) {
 
 // a release whose parts are { part: { version, body } | { version, release } (carried by an older one) }.
 // sign: "key" (the trusted test key), "other" (a key the exe doesn't trust), "none" (no .sig), "tamper" (signed, then changed)
-function publish(tag, parts, { previous = null, sha = {}, urls, sign = "key", version = tag, minCompanion } = {}) {
+function publish(tag, parts, { previous = null, sha = {}, urls, sign = "key", version = tag, minCompanion, built = "2026-11-10T12:00:00.000Z" } = {}) {
   const partVersions = Object.fromEntries(Object.entries(parts).map(([k, p]) => [k, p.version]));
   const files = {}, made = {}, reuse = {};
   for (const [k, p] of Object.entries(parts)) {
@@ -174,7 +175,7 @@ function publish(tag, parts, { previous = null, sha = {}, urls, sign = "key", ve
     files[file] = p.body;
     made[k] = { file, sha256: sha[k] || sha256(p.body), size: p.body.length };
   }
-  const versionJson = { bridge: "b2", table: "t2", save: partVersions.table, node: NID, relay: RID, built: "2026-11-10T12:00:00.000Z", release: tag, parts: partVersions };
+  const versionJson = { bridge: "b2", table: "t2", save: partVersions.table, node: NID, relay: RID, built, release: tag, parts: partVersions };
   const manifest = pack.releaseManifest({ tag: version, built: versionJson.built, gitCommit: "abc1234", partVersions, made, reuse, full: { file: "full.zip", sha256: "0".repeat(64), size: 1 }, versionJson, deployedJson: { bridge: "b2", table: "t2" } });
   if (minCompanion != null) manifest.minCompanion = minCompanion;
   for (const p of Object.values(manifest.parts)) if (p.release === version) p.release = tag;
@@ -524,6 +525,39 @@ async function main() {
     ok("mutex free again: the journal is undone", next.out.includes("was interrupted, so it was undone") && read(path.join(p.pkg, "bridge", "bridge.js")) === "// old bridge\n", JSON.stringify(next));
   }
 
+  // 7h. an undo that couldn't put runtime\ back (the old node.exe in the backup held, as an antivirus would): the
+  // package has no runtime\, the journal and backup\v1 hold it. A new install never writes its journal over that one:
+  // it finishes the old undo first, or refuses
+  {
+    reset();
+    publish("v8n", { app: unchanged("app"), table: unchanged("table"), images: unchanged("images"), runtime: { version: "v24.9.1", body: zipOf({ "runtime/node/node.exe": "newer node" }) }, companion: unchanged("companion") }, { previous: v1Manifest });
+    server.latest = "v8n";
+    const p = makePkg();
+    const journal = path.join(p.pkg, "update-journal.json"), oldNode = path.join(p.pkg, "backup", "v1", "runtime", "node", "node.exe");
+    await run(p, ["--update-now", "--fake-effects", p.fx, "--test-die-at", "place"]);
+    ok("left journal: killed with the old runtime in the backup", fs.existsSync(journal) && read(oldNode) === "old node");
+    const ps = helperPs(`$f=[System.IO.File]::Open('${oldNode}','Open','Read','Read'); Write-Output held; Start-Sleep 90; $f.Close()`, ["ignore", "pipe", "ignore"]);
+    await new Promise((res) => ps.stdout.once("data", res));
+    const stuck = await run(p, ["--update-check"]);
+    ok("left journal: the start's undo can't put runtime back, says so", /These couldn't be put back: [^.]*runtime/.test(stuck.out) && fs.existsSync(journal) && !fs.existsSync(path.join(p.pkg, "runtime")), JSON.stringify(stuck));
+    const journalBefore = fs.readFileSync(journal);
+    fs.writeFileSync(p.fx, "");
+    const r = await now(p);
+    ok("left journal: a new install is refused with a clear line, exit 1", r.code === 1 && r.out.includes("Not installing v8n: an earlier update isn't fully undone yet") && /couldn't be put back: [^.]*runtime/.test(r.out), JSON.stringify(r));
+    ok("left journal: the old journal is not written over", fs.readFileSync(journal).equals(journalBefore), read(journal));
+    ok("left journal: the old runtime still in backup\\v1, no second backup, nothing placed", read(oldNode) === "old node" && fs.readdirSync(path.join(p.pkg, "backup")).join() === "v1" && !fs.existsSync(path.join(p.pkg, "runtime")), tree(p.pkg).join(","));
+    same("left journal: the bridge stopped for the undo and started again", effects(p), ["stop-bridge", "reload", "start-bridge"]);
+    ok("left journal: the refusal is the last result (the page's line)", (json(path.join(p.state, "updates.json")).lastResult || "").includes("isn't fully undone"), read(path.join(p.state, "updates.json")));
+    ps.kill();
+    await wait(() => ps.exitCode !== null, 5000);
+    // the file free again, and the start's own recovery skipped: the install itself finishes the old undo, then installs
+    fs.writeFileSync(p.fx, "");
+    const r2 = await run(p, ["--update-now", "--fake-effects", p.fx, "--test-skip-recover"]);
+    ok("left journal, file free: the install undoes the old one first, then installs", r2.code === 0 && r2.out.includes("Updated to v8n") && !r2.out.includes("was interrupted") && /an earlier update was finished first/.test(read(p.log) || ""), JSON.stringify(r2));
+    ok("left journal, file free: the new runtime, the old one in the (new) backup, no journal", read(path.join(p.pkg, "runtime", "node", "node.exe")) === "newer node" && read(oldNode) === "old node" && !fs.existsSync(journal), tree(p.pkg).join(","));
+    same("left journal, file free: stopped for the undo, then the install's own steps", effects(p), ["stop-bridge", "reload", "stop-bridge", "reload", "start-bridge"]);
+  }
+
   // 8. a new companion: the new exe takes the old one's name
   {
     reset();
@@ -692,6 +726,40 @@ async function main() {
     const r = await now(p);
     ok("a signed manifest of another release: refused", r.code === 1 && r.out.includes("says v99 but sits in release v12v"), JSON.stringify(r));
     same("a signed manifest of another release: nothing downloaded", dl(), []);
+  }
+
+  // 12g. downgrades: "latest" moved back to an older, validly signed release is refused and not offered; the same
+  // build (its time written another way) is up to date; a newer one is offered; a package with no build time refuses
+  {
+    reset();
+    const older = (k) => (k === "app" ? { version: "a0", body: newApp() } : unchanged(k));
+    publish("v12o", Object.fromEntries(["app", "table", "images", "runtime", "companion"].map((k) => [k, older(k)])), { previous: v1Manifest, built: "2026-10-01T09:00:00.000Z" });
+    server.latest = "v12o";
+    const p = makePkg();
+    const c = await run(p, ["--update-check"]);
+    ok("older release: not offered, says so", c.code === 0 && c.out.includes("The latest release (v12o) is older than this package; not installing it."), JSON.stringify(c));
+    const r = await now(p);
+    ok("older release: --update-now doesn't install it", r.code === 0 && r.out.includes("older than this package") && !r.out.includes("Updated"), JSON.stringify(r));
+    same("older release: nothing downloaded or done", [dl(), effects(p)], [[], []]);
+    same("older release: the bridge untouched", read(path.join(p.pkg, "bridge", "bridge.js")), "// old bridge\n");
+    ok("older release: the last result says why (the page's line)", (json(path.join(p.state, "updates.json")).lastResult || "").includes("older than this package"), read(path.join(p.state, "updates.json")));
+  }
+  {
+    reset();
+    const all = (app) => Object.fromEntries(["app", "table", "images", "runtime", "companion"].map((k) => [k, k === "app" && app ? app : unchanged(k)]));
+    publish("v12e", all(null), { previous: v1Manifest, built: "2026-11-01T10:00:00+01:00" }); // (the package's own build time)
+    server.latest = "v12e";
+    const p = makePkg();
+    const c = await run(p, ["--update-check"]);
+    ok("same build: up to date", c.code === 0 && c.out.includes("Up to date (v12e)"), JSON.stringify(c));
+    publish("v12n", all({ version: "a2", body: newApp() }), { previous: v1Manifest, built: "2026-11-01T09:00:00.001Z" });
+    server.latest = "v12n";
+    const n = await run(p, ["--update-check"]);
+    ok("a release a millisecond newer: offered", n.code === 10 && n.out.includes("Update available: v12n"), JSON.stringify(n));
+    reset();
+    const q = makePkg(BASE_PARTS, { built: undefined });
+    const nb = await now(q);
+    ok("a package with no build time: refused (fail safe), nothing downloaded", nb.code === 0 && nb.out.includes("has no build time") && dl().length === 0 && effects(q).length === 0, JSON.stringify(nb));
   }
 
   // 12e. a download that runs past the part's size: reading stops there, the file is refused

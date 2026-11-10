@@ -1071,6 +1071,12 @@ sha256, size, version, release } }, full: { file, sha256, size }, versionJson, d
   `parts`, else derived: `save`, the image ids, `nodeVersion`; app and companion unknown = changed). Same everywhere →
   "Up to date". Otherwise a dialog: **Update available** with what changes and the download size, **Update now** /
   **Later**.
+- No downgrades (`Updates.Downgrade`, in the plan): a manifest whose `built` is older than the package's
+  `version.json` `built` (both ISO times with a zone, compared as instants) is refused and never offered: "The latest
+  release (<tag>) is older than this package; not installing it." (whoever can move GitHub's "latest" could otherwise
+  serve an older, validly signed release). The same instant is no downgrade: the parts decide (all the same: up to
+  date). No usable `built` on either side is refused too (fail safe: every package and manifest the packager makes
+  has one).
 - Optional token (tray: **GitHub token…**, or `--set-token` reading stdin): stored with DPAPI (CurrentUser) in
   `%LOCALAPPDATA%\MTG Companion\github-token.bin`, sent only in requests to `api.github.com` (the release lookups and
   the asset downloads, both reads; a private repo needs it for both), never to a redirect target, never to a test
@@ -1093,11 +1099,17 @@ Never during a game (the game lock, §17): "Update ready — will install after 
 `pending`, so a restart still waits for it); the watcher applies it 2 minutes after the lock clears (`Updates.InstallNow`:
 not while the next game is being set up). Then, on the worker, holding the mutex `Local\MtgTtsCompanionUpdate`:
 
+0. A journal already there (an earlier undo that couldn't finish, e.g. an antivirus holding a file in the backup) is
+   finished first, the bridge stopped meanwhile, and the plan made again from the package as it is then. If it still
+   can't be finished, the install is refused ("Not installing <tag>: an earlier update isn't fully undone yet. …",
+   the status page's line) and the old journal is never written over: it alone says where the old files are.
+
 1. Write `<package>\update-journal.json` (`target`, `backup`, `replaced`, `existed`, `moved`, `placed`, `phase`;
    written whole to a `.tmp` and moved over) before the first move, and again after every move. Stop the bridge loop
    and the bridge.
 2. Move what the update replaces and is there into `<package>\backup\<old version>\` (moves, not copies); keep the
-   last 2 backups, the engine images only in the newest.
+   last 2 backups, the engine images only in the newest. The backup a journal on disk points at is never pruned (an
+   unreadable journal: nothing is).
 3. Extract each zip into the package: an entry must be under the part's own folders, with no segment that a trailing
    dot or space trim changes (`bridge/.. /x` is `bridge/../x` to Windows) and no colon, and its full path must be
    inside the part's folder. Move (not copy) `images.tar` to `images\mtg-images.tar`. An app update copies the old
@@ -1151,7 +1163,8 @@ downloads with a redirect to a second host name, `Range`, a first-try 500, `/sta
 exe in a temp package, driven by hidden flags: `--update-base <url>` (the fake instead of `api.github.com`, only
 `http://` on 127.0.0.1 or localhost; its own host and `localhost` are then the allowed hosts, and no token is sent),
 `--test-public-key <key>` (the fake's signing key, only with that base), `--test-die-at move|place|placed` (the
-process kills itself there), `--test-format <n>` (an older app, for the companion-first path), `--update-check`,
+process kills itself there), `--test-format <n>` (an older app, for the companion-first path), `--test-skip-recover`
+(the start leaves a journal to the install, which must finish it first), `--update-check`,
 `--update-now`, `--fake-effects <file>` (bridge, docker and save steps written to a file instead of done),
 `--fake-fail <step>`. More cases: a table, images or runtime update; a failed save install undone with version.json;
 a held file that stops a move half way (every file as it was); killed after one move, after placing the tar (the
@@ -1160,7 +1173,11 @@ zip names and a stream name; a missing, foreign or tampered signature; a manifes
 `Content-Range`; a download that runs past the part's size (reading stops there); a changed download refused at the
 install; the companion first, then the rest without a second check; the bridge started by the old app only when its
 swap fails; the swap not waiting for a pid another process now has, and giving up on an old app still running after
-a minute; an undo that can't delete a held new file (named once, the journal kept, finished at the next start); an
+a minute; an undo that can't delete a held new file (named once, the journal kept, finished at the next start); an undo that
+can't put `runtime\` back, then a new install (refused, the old journal byte for byte and `backup\v1` kept; once the
+file is free, the install finishes the old undo itself and installs); an older signed release (refused, not
+offered), the same build written another way (up to date), a millisecond newer (offered), a package with no `built`
+(refused); an
 `--update-base` off this PC refused (exit 2). Cases: up to date; new app only; new
 images only (only the tar downloaded, from the older release); sha mismatch refused; 404 quiet; game running defers;
 failed apply rolls back; self-update swap (and the `.old.exe` removed at the next start); off-host URL refused; the

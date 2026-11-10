@@ -326,11 +326,8 @@ namespace MtgCompanion
         // The plan, applied from updates\<tag>\. selfArgs: what the new companion starts with after it took over.
         public ApplyResult Apply(UpdateManifest m, UpdatePlan plan, IUpdateEffects fx, string selfArgs)
         {
-            if (plan.Refused != null) return new ApplyResult { Text = plan.Refused };
-            if (plan.UpToDate) return new ApplyResult { Ok = true, Text = "Up to date (" + m.Version + ")." };
-            var dir = DownloadDir(m.Version);
-            foreach (var p in plan.Fetch)
-                if (!Verified(Path.Combine(dir, p.File), p)) return new ApplyResult { Text = "The update isn't fully downloaded (" + p.File + "): check for updates again." };
+            var no = NotReady(m, plan);
+            if (no != null) return no;
             if (fx.Locked())
             {
                 Log.Write("update " + m.Version + ": deferred, a game is on");
@@ -338,11 +335,51 @@ namespace MtgCompanion
                 return new ApplyResult { Deferred = true, Text = "Update ready — will install after this game." };
             }
             Remember("pending", null);
-            if (plan.CompanionFirst) return Swap(m, plan, selfArgs + " --apply-update " + m.Version);
             var mx = Acquire();
             if (mx == null) return new ApplyResult { Text = "Another update is being installed right now." };
-            try { return ApplyFiles(m, plan, fx, selfArgs); }
+            try
+            {
+                // An earlier update's journal (its undo couldn't finish: a held file): that one is finished first. A new
+                // journal over it would lose where the old files are, and its undo would then delete what is missing.
+                bool stopped = false;
+                if (File.Exists(JournalPath(L.Home)))
+                {
+                    fx.StopBridge(); stopped = true;
+                    var said = RecoverHeld(L.Home);
+                    fx.Reload();
+                    if (File.Exists(JournalPath(L.Home)))
+                    {
+                        fx.StartBridge();
+                        Log.Write("update " + m.Version + ": not started, an earlier update isn't undone yet");
+                        var text = "Not installing " + m.Version + ": an earlier update isn't fully undone yet. " + said;
+                        Remember("lastResult", text);
+                        return new ApplyResult { Text = text };
+                    }
+                    Log.Write("update " + m.Version + ": an earlier update was finished first (" + said + ")");
+                    plan = Updates.Plan(Local(), m, Format); // (the package changed under the plan)
+                    no = NotReady(m, plan);
+                    if (no != null) { fx.StartBridge(); return no; }
+                }
+                if (plan.CompanionFirst)
+                {
+                    var sw = Swap(m, plan, selfArgs + " --apply-update " + m.Version);
+                    if (!sw.Ok && stopped) fx.StartBridge();
+                    return sw;
+                }
+                return ApplyFiles(m, plan, fx, selfArgs);
+            }
             finally { Free(mx); }
+        }
+
+        // why this plan can't be installed now (refused, nothing to do, a download missing or changed), or null
+        ApplyResult NotReady(UpdateManifest m, UpdatePlan plan)
+        {
+            if (plan.Refused != null) return new ApplyResult { Text = plan.Refused };
+            if (plan.UpToDate) return new ApplyResult { Ok = true, Text = "Up to date (" + m.Version + ")." };
+            var dir = DownloadDir(m.Version);
+            foreach (var p in plan.Fetch)
+                if (!Verified(Path.Combine(dir, p.File), p)) return new ApplyResult { Text = "The update isn't fully downloaded (" + p.File + "): check for updates again." };
+            return null;
         }
 
         ApplyResult ApplyFiles(UpdateManifest m, UpdatePlan plan, IUpdateEffects fx, string selfArgs)
@@ -524,6 +561,13 @@ namespace MtgCompanion
             if (home == null || !File.Exists(JournalPath(home))) return null;
             var mx = Acquire();
             if (mx == null) return null; // (an update is running in another MTG Companion)
+            try { return RecoverHeld(home); }
+            finally { Free(mx); }
+        }
+
+        // Recover's work, the mutex already held (the journal stays when it couldn't finish)
+        static string RecoverHeld(string home)
+        {
             try
             {
                 var j = Journal.FromJson(J.Parse(Probes.ReadText(JournalPath(home))));
@@ -539,17 +583,24 @@ namespace MtgCompanion
                 return undo == null ? "The update to " + j.Target + " was interrupted, so it was undone. Check for updates to try again." : "The update to " + j.Target + " was interrupted. " + undo;
             }
             catch (Exception e) { Log.Write("update recovery failed: " + e.Message); return "An interrupted update couldn't be undone (" + e.Message + ")."; }
-            finally { Free(mx); }
         }
 
-        // two backups; the engine images (1+ GB) only in the newest
+        // two backups; the engine images (1+ GB) only in the newest. Never the backup a journal still points at (and a
+        // journal that can't be read: nothing pruned).
         void Prune(string backupRoot)
         {
             try
             {
+                string live = null;
+                if (File.Exists(JournalPath(L.Home)))
+                {
+                    var j = Journal.FromJson(J.Parse(Probes.ReadText(JournalPath(L.Home))));
+                    if (j == null) return;
+                    live = Path.GetFullPath(j.Backup);
+                }
                 var all = new DirectoryInfo(backupRoot).GetDirectories().Select(d => new KeyValuePair<string, DateTime>(d.FullName, d.CreationTimeUtc)).ToList();
-                foreach (var d in Updates.BackupsToPrune(all, 2)) try { Directory.Delete(d, true); } catch { }
-                foreach (var d in Updates.BackupsToPrune(all, 1))
+                foreach (var d in Updates.BackupsToPrune(all, 2, live)) try { Directory.Delete(d, true); } catch { }
+                foreach (var d in Updates.BackupsToPrune(all, 1, live))
                 {
                     var img = Path.Combine(d, "images");
                     if (Directory.Exists(img)) try { Directory.Delete(img, true); } catch { }

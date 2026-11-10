@@ -380,7 +380,7 @@ namespace MtgCompanion
             Check("local: parts win", Updates.LocalVersion(J.Parse("{\"save\":\"s1\",\"parts\":{\"table\":\"s9\"}}"), "table") == "s9");
             Check("images version: sha8 of node + relay (the packager's)", Updates.ImagesVersion("n", "r") == Logic.Sha8(Encoding.UTF8.GetBytes("nr")) && Updates.ImagesVersion("n", "r") != Updates.ImagesVersion("r", "n"));
 
-            var local = J.Parse("{\"parts\":{\"app\":\"a1\",\"table\":\"s1\",\"images\":\"i1\",\"companion\":\"c1\"}}");
+            var local = J.Parse("{\"built\":\"2026-11-10T12:00:00.000Z\",\"parts\":{\"app\":\"a1\",\"table\":\"s1\",\"images\":\"i1\",\"companion\":\"c1\"}}");
             var all = Manifest("\"app\":" + Part("app.zip", "a1") + ",\"table\":" + Part("table.zip", "s1") + ",\"images\":" + Part("images.tar", "i1") + ",\"companion\":" + Part("MTG.Companion.exe", "c1"));
             var p = Updates.Plan(local, Updates.ParseManifest(all, out err), 1);
             Check("plan: same versions: up to date", p.UpToDate && p.Fetch.Count == 0 && p.Refused == null, p.Fetch.Count);
@@ -394,8 +394,36 @@ namespace MtgCompanion
             Check("plan: needs a newer app: the companion first", p.CompanionFirst && p.Refused == null && !p.UpToDate, p.Refused);
             p = Updates.Plan(local, Updates.ParseManifest(Manifest("\"app\":" + Part("app.zip", "a2"), 2), out err), 1);
             Check("plan: needs a newer app it doesn't carry: refused", p.Refused != null && p.Refused.Contains("full package"), p.Refused);
-            p = Updates.Plan(J.Parse("{}"), Updates.ParseManifest(all, out err), 1);
+            p = Updates.Plan(J.Parse("{\"built\":\"2026-11-01T09:00:00.000Z\"}"), Updates.ParseManifest(all, out err), 1);
             Check("plan: an old package without parts takes app and companion", p.Has("app") && p.Has("companion") && p.Has("table") && p.Has("images"), string.Join(",", p.Fetch.Select(x => x.Name)));
+
+            // downgrades: a release built before this package is refused (and not offered); the same build is no downgrade
+            Func<string, string> builtAt = t => all.Replace("\"a1\"", "\"a2\"").Replace("\"built\":\"2026-11-10T12:00:00Z\"", t == null ? "\"built0\":\"\"" : "\"built\":\"" + t + "\"");
+            p = Updates.Plan(local, Updates.ParseManifest(builtAt("2026-11-09T12:00:00Z"), out err), 1);
+            Check("downgrade: an older release is refused, says so", p.Refused != null && p.Refused.Contains("older than this package; not installing it") && !p.UpToDate, p.Refused);
+            p = Updates.Plan(local, Updates.ParseManifest(builtAt("2026-11-10T11:59:59.999Z"), out err), 1);
+            Check("downgrade: a millisecond older is refused", p.Refused != null && p.Refused.Contains("older"), p.Refused);
+            p = Updates.Plan(local, Updates.ParseManifest(builtAt("2026-11-10T13:00:00+01:00"), out err), 1);
+            Check("downgrade: the same time in another zone and format is the same build: the parts decide (new app offered)", p.Refused == null && p.Has("app"), p.Refused);
+            p = Updates.Plan(local, Updates.ParseManifest(all.Replace("\"built\":\"2026-11-10T12:00:00Z\"", "\"built\":\"2026-11-10T12:00:00.000Z\""), out err), 1);
+            Check("downgrade: the same build, the same parts: up to date", p.UpToDate && p.Refused == null, p.Refused);
+            p = Updates.Plan(local, Updates.ParseManifest(builtAt("2026-11-11T00:00:00Z"), out err), 1);
+            Check("downgrade: a newer release is offered", p.Refused == null && !p.UpToDate && p.Has("app"), p.Refused);
+            p = Updates.Plan(local, Updates.ParseManifest(builtAt(null), out err), 1);
+            Check("downgrade: a manifest with no build time is refused", p.Refused != null && p.Refused.Contains("no usable build time"), p.Refused);
+            foreach (var bad in new[] { "{\"parts\":{\"app\":\"a1\"}}", "{\"built\":\"garbage\"}", "{\"built\":\"11/10/2026\"}", "{\"built\":\"2026-11-10T12:00:00\"}" })
+            {
+                p = Updates.Plan(J.Parse(bad), Updates.ParseManifest(builtAt("2026-11-11T00:00:00Z"), out err), 1);
+                Check("downgrade: no usable local build time (" + bad + ") is refused (fail safe)", p.Refused != null && p.Refused.Contains("no build time"), p.Refused);
+            }
+            p = Updates.Plan(local, Updates.ParseManifest(Manifest("\"app\":" + Part("app.zip", "a2") + ",\"companion\":" + Part("MTG.Companion.exe", "c2"), 2).Replace("2026-11-10T12:00:00Z", "2026-11-01T00:00:00Z"), out err), 1);
+            Check("downgrade: an older release that would swap the companion first is refused, no swap", p.Refused != null && !p.CompanionFirst, p.Refused);
+            var olderM = Updates.ParseManifest(builtAt("2026-11-01T00:00:00Z"), out err);
+            var olderR = new CheckResult { Manifest = olderM, Plan = Updates.Plan(local, olderM, 1), Text = Updates.Plan(local, olderM, 1).Refused };
+            var ous = new UpdateState();
+            ous.Checked(olderR, false, DateTime.UtcNow);
+            var osec = J.Parse(J.Write(WebUi.UpdateSection(ous, true, false))); // (as the page gets it)
+            Check("downgrade: not offered (no Update now on the page, the line says why)", !olderR.Available && ous.Available == null && J.Arr(osec, "actions") != null && J.Arr(osec, "actions").Any(a => J.Str(a, "id") == "update-check") && !J.Arr(osec, "actions").Any(a => J.Str(a, "id") == "update-now") && J.Str(osec, "line").Contains("older than this package"), J.Write(osec));
 
             bool api;
             Check("url: the API over https, the token's host", Updates.AllowedUrl("https://api.github.com/repos/x/y/releases/latest", null, out api) && api);
@@ -423,6 +451,12 @@ namespace MtgCompanion
             var prune = Updates.BackupsToPrune(bk, 2);
             Check("backups: the last 2 kept", prune.Count == 1 && prune[0] == "a", string.Join(",", prune));
             Check("backups: 2 or fewer: none pruned", Updates.BackupsToPrune(bk.Take(2), 2).Count == 0);
+            var live = new[] { new KeyValuePair<string, DateTime>(@"C:\pkg\backup\v1", now.AddDays(-9)), new KeyValuePair<string, DateTime>(@"C:\pkg\backup\v2", now.AddDays(-2)), new KeyValuePair<string, DateTime>(@"C:\pkg\backup\v3", now.AddDays(-1)) };
+            prune = Updates.BackupsToPrune(live, 2, @"c:\PKG\backup\v1\");
+            Check("backups: never the one a journal points at (the oldest, case and a trailing slash aside)", prune.Count == 0, string.Join(",", prune));
+            prune = Updates.BackupsToPrune(live, 1, @"C:\pkg\backup\v1");
+            Check("backups: never the journal's, for the images either", prune.Count == 1 && prune[0] == @"C:\pkg\backup\v2", string.Join(",", prune));
+            Check("backups: no journal: the oldest goes", Updates.BackupsToPrune(live, 2, null).SequenceEqual(new[] { @"C:\pkg\backup\v1" }));
             Check("backup name: the release, else the build date, plain", Updates.BackupName(J.Parse("{\"release\":\"v2026.11.09-1432\"}")) == "v2026.11.09-1432" && Updates.BackupName(J.Parse("{\"built\":\"2026-11-09T14:32:00.000Z\"}")) == "built-2026-11-09T14-32-00.000Z", Updates.BackupName(J.Parse("{\"built\":\"2026-11-09T14:32:00.000Z\"}")));
             Check("zip entry: inside the part", Updates.EntryPath("app", "bridge/bridge.js") == "bridge/bridge.js" && Updates.EntryPath("app", "stack/compose.yml") == "stack/compose.yml" && Updates.EntryPath("table", "table\\MTG Table.json") == "table/MTG Table.json");
             Check("zip entry: outside the part refused", Updates.EntryPath("app", "MTG Companion.exe") == null && Updates.EntryPath("app", "stack/.env") == null && Updates.EntryPath("table", "bridge/bridge.js") == null && Updates.EntryPath("app", "bridgex/a.js") == null);
