@@ -41,9 +41,10 @@ The user's list, in their order. Most items need a running TTS table in debug mo
     - It is display only, so the engine still decides what you actually pay.
     - Open questions: where Forge's adjusted cost comes from (the cast action's cost); hand vs battlefield vs command zone; X costs; whether colour reductions show too.
 14. **Victory/Defeat overlay.** At game end, each player first sees VICTORY or DEFEAT for 2 s, then "X wins the game" for 4 s.
-15. **Team modes: 2v2 and 3v3.**
-    - Decide which rules: Two-Headed Giant (shared life and turns) or teams with separate life.
-    - 3v3 needs the 6-seat table, which is parked (docs/m6-six-seat-spec.md).
+15. **Team modes: 2v2 and 3v3.** NOTES ONLY (the user, 2026-11-09): not scheduled, no spec yet.
+    - Rules still to decide: Two-Headed Giant (shared life and turns) or teams with separate life.
+    - Rough size: 2v2 about 15–25 h (engine work on teams and turns). 3v3 needs the parked 6-seat table
+      (docs/m6-six-seat-spec.md, about 45 h more).
 16. **Custom card art, player-made.**
     - Pictures only; card rules stay Forge's.
     - The likely route is a per-card image URL in the deck import, used in place of the Scryfall picture.
@@ -66,3 +67,6 @@ Also queued from earlier work:
 - Token attackers listed with no size.
 - #10 sorting after #1 in option lists.
 - Dredge splitting "draws two cards" into two lines.
+- Mayhem, Harmonize, Beam me up and Plot cards never get mayPlay, so they aren't playable from the row (e.g. Rocket-Powered Goblin Glider). Harness: add the keywords to the graveyard clause and isPlotted() to exile; engine image rebuild.
+- The table self-check false-alarms "wrong place" on a card in an opponent's graveyard or exile that you may play (Mnemonic Betrayal, Thief of Sanity). The check uses the owner's mat, but the card lies on the caster's (engine-renderer.lua ~7090). Seen only from reading the code.
+- Reveal stand-in tests: priority-frame own-player condition, stand-in frame, stand-in hover text (mutants S11, S12, S16 escape).
