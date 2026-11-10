@@ -717,11 +717,11 @@ its window, then exits.
 ```json
 {
   "version": 1,
-  "repo": "C:\\Users\\you\\mtg-tts",
+  "repo": "C:\\Users\\<you>\\mtg-tts",
   "node": "node",
   "docker": "docker",
   "dockerDesktop": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe",
-  "ttsSave": "C:\\Users\\you\\Documents\\My Games\\Tabletop Simulator\\Saves\\TS_Save_1.json",
+  "ttsSave": "C:\\Users\\<you>\\Documents\\My Games\\Tabletop Simulator\\Saves\\TS_Save_1.json",
   "ttsSaveName": "Mock MTGA 4 player",
   "wsl": { "cores": 2, "memory": "8GB" },
   "ports": { "ttsIn": 39998, "ttsOut": 39999, "bridgeDebug": 48787, "relay": 9443 },

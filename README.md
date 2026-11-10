@@ -51,6 +51,23 @@ Ports, all on localhost: 39998 and 39999 (TTS External Editor API), 9443 (relay)
 
 More: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [SPEC.md](SPEC.md).
 
+## The easy way: the one-click package
+
+For playing rather than developing. Nothing to build, and no Node or Workshop download.
+
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and start it once. Accept its terms, and
+   let it update WSL if it asks.
+2. Download the latest `MTG-Table-<date>-<hash>.zip` from this repository's **Releases** page. The repository is
+   invite-only: ask its owner for access.
+3. Unzip it anywhere and double-click **MTG Companion.exe**.
+   - Windows may warn that the app is unsigned: choose **More info → Run anyway**.
+   - The first start loads the engine into Docker and takes a few minutes. The tray lights turn green when it's
+     ready.
+4. In Tabletop Simulator, load **MTG Table (rules engine)** from your saves.
+
+`README-FRIEND.txt` in the zip has the details and what to do if a light stays red. The rest of this page is for hosts
+who build and run everything themselves.
+
 ## What you need (host only)
 
 - Windows with Tabletop Simulator (Steam) and the Workshop table above.

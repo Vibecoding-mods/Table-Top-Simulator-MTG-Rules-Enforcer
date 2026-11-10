@@ -58,6 +58,39 @@ Repository: `Vibecoding-mods/Table-Top-Simulator-Mock-MTGA` (the name is the own
 - The Steam Workshop upload (needs the table author's OK, see decision 2).
 - The companion app (docs/companion-app-spec.md): a later release.
 
+## Invite-only sharing (asked 2026-11-09)
+
+GitHub has no "unlisted" repositories. A private repository is seen only by people its owner invites, so the repo stays
+**private**, and friends are added one at a time.
+
+- **Owner's steps on github.com** (account actions, done by the owner):
+  1. Settings → Collaborators → Add people, with the friend's GitHub username. The friend accepts the email invite.
+  2. Releases → Draft a new release, with a tag such as `friend-2026-11-09`. Attach the zip from
+     `node tools/make-friend-package.js`, then publish. Release assets can be up to 2 GB; the zip is about 320 MB, too
+     big for git itself (100 MB per file).
+- **For someone without a GitHub account:** upload the same zip to a file host with an "anyone with the link" setting
+  (Google Drive, OneDrive, Dropbox). That is the only real link-only option.
+- The friend zip contains a **patched copy of the Workshop table**. That redistributes the author's work, even when
+  shared privately, so message them first (draft below).
+- Done for it: the privacy scan was re-run on 2026-11-09.
+  - Commit authors are the GitHub noreply address.
+  - No keys or email addresses are present.
+  - The local username has been removed from docs/companion-app-spec.md.
+  - Two old commits (8d75957, 0ee9d91) still contain local Windows paths in their history. That's harmless for an
+    invite-only repo; rewrite them only if it ever goes public.
+
+Draft message to the table's author, for a Workshop comment on 2296042369 or their Steam profile:
+
+> Hi! I really enjoy your MTG 4 player table. I've built a project that runs Commander on it with the Forge rules engine
+> enforcing the rules: triggers, the stack, combat and AI opponents. It works by patching a copy of your table. It adds
+> the engine scripts and removes a few things that clash with engine play, such as the hard-coded "promote me"
+> permission and the Smart mulligan button.
+>
+> I'd like to share it with a few friends through a private, invite-only GitHub repository. For people who can't set it
+> up themselves there's a ready-to-run download, and that includes the patched copy of your table, so it would be sharing
+> your work. Everything credits you and links to your Workshop page. Are you OK with that? If I ever make it public,
+> would you rather I ship only the patcher, so people use their own Workshop copy? Happy to change anything you'd like.
+
 ## Before making the repository public
 
 - [ ] **Message the table's author first** (Workshop 2296042369: a Workshop comment or their Steam profile). Draft:
