@@ -492,6 +492,25 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("played by drag: on the battlefield it goes to its row, not the drop spot", Number(dist) > 1 && cleared === "true", String(valueOf(r, "landed")));
   ok("moved by the player on their mat: it stays there", Number(valueOf(r, "moved own")) < 0.5, String(valueOf(r, "moved own")));
 }
+// a land, put down by the table or dragged from the hand, lies inside the mat's mana box (2026-11-10: "i want the mana
+// to snap to the mana zone properly"; row 3 lay above the box). The box runs along the mat's forward axis from 3.46
+// to the near edge at 10.375 (measured on the real table), and a card is 3.06 deep, so its centre must be in 4.99-8.84.
+{
+  const objOf = 'local function objOf(id) for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. id then return x end end end ';
+  const blue = 'local t = engineTable() local pl for _, p in ipairs(t.players) do if p.color == "Blue" then pl = p end end ';
+  const depth = 'local p, m, f = o.getPosition(), data.Blue.playmat.getPosition(), data.Blue.playmat.getTransformForward() return string.format("%.2f", (p - m):dot(f))';
+  const put = blue + 'engineStoreStatic("engine-card-881", { n = "Forest", f = "https://img.example/forest.jpg", ty = { "Land" } }) ' +
+    'table.insert(pl.battlefield, { s = 1, id = "engine-card-881" }) pl.keep = {} engineRender(t) __sim.frames(60) ' + objOf + 'local o = objOf("engine-card-881") ' + depth;
+  const drag = blue + 'engineStoreStatic("engine-card-882", { n = "Island", f = "https://img.example/island.jpg", ty = { "Land" } }) ' +
+    'table.insert(pl.hand, { s = 1, id = "engine-card-882" }) pl.keep = {} engineRender(t) __sim.frames(30) ' + objOf + 'local o = objOf("engine-card-882") ' +
+    'local m = data.Blue.playmat.getPosition() o.setPosition(Vector(m.x, 1.5, m.z)) onObjectDrop("Blue", o) __sim.frames(5) ' +
+    'local idx for i, c in ipairs(pl.hand) do if c.id == "engine-card-882" then idx = i end end table.insert(pl.battlefield, table.remove(pl.hand, idx)) ' +
+    'engineRender(t) __sim.frames(60) ' + depth;
+  const r = run([q(put, "put"), q(drag, "dragged")]);
+  const inBox = (v) => Number(v) >= 4.99 && Number(v) <= 8.84;
+  ok("mana box: a land the table puts down lies inside it", inBox(valueOf(r, "put")), String(valueOf(r, "put")) + " " + r.errors.join(" | "));
+  ok("mana box: a land dragged from the hand ends inside it", inBox(valueOf(r, "dragged")), String(valueOf(r, "dragged")) + " " + r.errors.join(" | "));
+}
 // a card you may play from a graveyard shows its face in the playable row (2026-10-26: they lay as card backs)
 {
   const setup = 'local t = engineTable() local pl for _, p in ipairs(t.players) do if p.color == "Blue" then pl = p end end ' +
@@ -508,8 +527,9 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     q(objOf + 'o.setPosition(o.getPosition() + Vector(0.6, 1, 0.4)) onObjectDrop("Blue", o) __sim.frames(90) return "put back"', "put back"),
     q(objOf + 'local m = data.Blue.playmat.getPosition() o.setPosition(Vector(m.x, 1.5, m.z)) onObjectDrop("Blue", o) __sim.frames(90) return "dragged in"', "dragged in")]);
   ok("playable row: the card shows its picture, not a card back", String(valueOf(r, "playable")) === "https://img.example/lunarch.jpg", String(valueOf(r, "playable")) + " " + r.errors.join(" | "));
-  // (rows lie along the mat's forward axis: the land row 3 at 1.6, the playable row 4.25 at 5.6)
-  ok("playable row: on your mat, past the land row", Number(valueOf(r, "where")) > 4 && Number(valueOf(r, "where")) < 7, String(valueOf(r, "where")));
+  // (rows lie along the mat's forward axis: the mana box runs from 3.46 to the mat's near edge at 10.375, and a card
+  // is 3.06 deep, so a playable card centred under 1.93 stays out of the box, over 0 off the creatures' side)
+  ok("playable row: on your mat, just above the mana box", Number(valueOf(r, "where")) > 0 && Number(valueOf(r, "where")) < 1.93, String(valueOf(r, "where")));
   ok("playable row: put down where it lies, it isn't played", !sent("put back").includes('"kind":"play"'), sent("put back").slice(0, 200));
   ok("playable row: dragged into the battlefield, it is played", sent("dragged in").split("\\").join("").includes('"kind":"play"'), sent("dragged in").slice(0, 200));
 }

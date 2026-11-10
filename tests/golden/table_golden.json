@@ -783,7 +783,7 @@
    {
     "step": "20 table",
     "fx": [
-     "f150 \"spawnObjectData\" \"Card\" obj:s00047 \"Island\\\nBasic Land — Island\\\n0CMC\" V(-8.65,1.15,17) 0 300900 \"3009\"",
+     "f150 \"spawnObjectData\" \"Card\" obj:s00047 \"Island\\\nBasic Land — Island\\\n0CMC\" V(-8.65,1.15,22.44) 0 300900 \"3009\"",
      "f150 \"UI.setValue\" \"eng_status_Blue\" \"Yellow's 1st turn (game turn 1) - main1 - priority: Blue\"",
      "f150 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
@@ -953,7 +953,7 @@
    {
     "step": "38 table",
     "fx": [
-     "f258 \"setPosition\" obj:s00014 V(30.15,1.15,17)",
+     "f258 \"setPosition\" obj:s00014 V(30.15,1.15,22.44)",
      "f258 \"setRotation\" obj:s00014 V(0,360,0)"
     ]
    },
@@ -1136,7 +1136,7 @@
    {
     "step": "58 table",
     "fx": [
-     "f378 \"spawnObjectData\" \"Card\" obj:s00051 \"Forest\\\nBasic Land — Forest\\\n0CMC\" V(8.65,1.15,-17) 0 301300 \"3013\"",
+     "f378 \"spawnObjectData\" \"Card\" obj:s00051 \"Forest\\\nBasic Land — Forest\\\n0CMC\" V(8.65,1.15,-22.44) 0 301300 \"3013\"",
      "f378 \"UI.setValue\" \"eng_status_Blue\" \"White's 1st turn (game turn 3) - main1 - priority: Blue\"",
      "f378 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
@@ -1229,7 +1229,7 @@
    {
     "step": "70 table",
     "fx": [
-     "f450 \"spawnObjectData\" \"Card\" obj:s00053 \"Drowned Catacomb\\\nLand\\\n0CMC\" V(-30.15,1.15,-17) 0 301400 \"3014\"",
+     "f450 \"spawnObjectData\" \"Card\" obj:s00053 \"Drowned Catacomb\\\nLand\\\n0CMC\" V(-30.15,1.15,-22.44) 0 301400 \"3014\"",
      "f450 \"UI.setValue\" \"eng_status_Blue\" \"Red's 1st turn (game turn 4) - main1 - priority: Blue\"",
      "f450 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
@@ -1321,7 +1321,7 @@
    {
     "step": "82 table",
     "fx": [
-     "f522 \"spawnObjectData\" \"Card\" obj:s00055 \"Fetid Pools\\\nLand — Island Swamp\\\n0CMC\" V(-11.05,1.15,17) 0 301500 \"3015\"",
+     "f522 \"spawnObjectData\" \"Card\" obj:s00055 \"Fetid Pools\\\nLand — Island Swamp\\\n0CMC\" V(-11.05,1.15,22.44) 0 301500 \"3015\"",
      "f522 \"UI.setValue\" \"eng_status_Blue\" \"Yellow's 2nd turn (game turn 5) - main1 - priority: Blue\"",
      "f522 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
@@ -1517,7 +1517,7 @@
    {
     "step": "106 table",
     "fx": [
-     "f666 \"spawnObjectData\" \"Card\" obj:s00056 \"Plains\\\nBasic Land — Plains\\\n0CMC\" V(11.05,1.15,-17) 0 301600 \"3016\"",
+     "f666 \"spawnObjectData\" \"Card\" obj:s00056 \"Plains\\\nBasic Land — Plains\\\n0CMC\" V(11.05,1.15,-22.44) 0 301600 \"3016\"",
      "f666 \"takeObject\" obj:s00005 obj:s00057 V(20,6,-34.5)",
      "f666 \"UI.setValue\" \"eng_status_Blue\" \"White's 2nd turn (game turn 7) - main1 - priority: Blue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
      "f666 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
@@ -1615,7 +1615,7 @@
    {
     "step": "118 table",
     "fx": [
-     "f738 \"spawnObjectData\" \"Card\" obj:s00059 \"Shipwreck Marsh\\\nLand\\\n0CMC\" V(-27.75,1.15,-17) 0 301700 \"3017\"",
+     "f738 \"spawnObjectData\" \"Card\" obj:s00059 \"Shipwreck Marsh\\\nLand\\\n0CMC\" V(-27.75,1.15,-22.44) 0 301700 \"3017\"",
      "f738 \"UI.setValue\" \"eng_status_Blue\" \"Red's 2nd turn (game turn 8) - main1 - priority: Blue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
      "f738 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
@@ -1722,7 +1722,7 @@
    {
     "step": "132 table",
     "fx": [
-     "f822 \"spawnObjectData\" \"Card\" obj:s00062 \"Bojuka Bog\\\nLand\\\n0CMC\" V(-13.45,1.15,17) 0 301900 \"3019\"",
+     "f822 \"spawnObjectData\" \"Card\" obj:s00062 \"Bojuka Bog\\\nLand\\\n0CMC\" V(-13.45,1.15,22.44) 0 301900 \"3019\"",
      "f822 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/\"",
      "f822 \"UI.setValue\" \"eng_pop_who\" \"Bojuka Bog - Yellow\"",
      "f822 \"UI.setValue\" \"eng_pop_text\" \"When Bojuka Bog enters, exile all cards from target player's graveyard. (Targeting: [[Blue]]) [Zone Changer: Bojuka Bog (352)]\"",
@@ -2143,7 +2143,7 @@
    {
     "step": "168 table",
     "fx": [
-     "f1038 \"spawnObjectData\" \"Card\" obj:s00071 \"Secluded Courtyard\\\nLand\\\n0CMC\" V(13.45,1.15,-17) 0 302400 \"3024\"",
+     "f1038 \"spawnObjectData\" \"Card\" obj:s00071 \"Secluded Courtyard\\\nLand\\\n0CMC\" V(13.45,1.15,-22.44) 0 302400 \"3024\"",
      "f1038 \"UI.setValue\" \"eng_status_Blue\" \"White's 3rd turn (game turn 11) - main1 - priority: Blue\"",
      "f1038 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f1044 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/8/4/84128e98-87d6-4c2f-909b-9435a7833e63.jpg\""
@@ -2265,7 +2265,7 @@
    {
     "step": "183 table",
     "fx": [
-     "f1128 \"spawnObjectData\" \"Card\" obj:s00074 \"Choked Estuary\\\nLand\\\n0CMC\" V(-25.35,1.15,-17) 0 302600 \"3026\"",
+     "f1128 \"spawnObjectData\" \"Card\" obj:s00074 \"Choked Estuary\\\nLand\\\n0CMC\" V(-25.35,1.15,-22.44) 0 302600 \"3026\"",
      "f1128 \"UI.setValue\" \"eng_status_Blue\" \"Red's 3rd turn (game turn 12) - main1 - priority: Blue\"",
      "f1128 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
@@ -2294,7 +2294,7 @@
     "fx": [
      "f1152 \"setRotationSmooth\" obj:s00060 V(0,270,0)",
      "f1152 \"highlightOn\" obj:s00060 {1=1,2=0.12,3=0.08}",
-     "f1152 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (-30.2,-7.4)->(19.4,-18.9) mid y1.9\"",
+     "f1152 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (-30.2,-7.4)->(19.4,-24.4) mid y1.9\"",
      "f1152 \"UI.setValue\" \"eng_status_Blue\" \"Red's 3rd turn (game turn 12) - combatDeclareAttackers - priority: Blue\"",
      "f1153 \"setGMNotes\" obj:s00073 \"enginetrash\"",
      "f1153 \"highlightOff\" obj:s00073",
@@ -2323,7 +2323,7 @@
    {
     "step": "190 table",
     "fx": [
-     "f1170 \"setPositionSmooth\" obj:s00060 V(-30.929,2.05,-7.219)",
+     "f1170 \"setPositionSmooth\" obj:s00060 V(-30.907,2.05,-7.141)",
      "f1170 \"call\" obj:23e485 \"sL\" \"39\"",
      "f1170 \"call\" obj:23e485 \"updateSave\"",
      "f1170 \"UI.setValue\" \"eng_status_Blue\" \"Red's 3rd turn (game turn 12) - combatDamage - priority: Blue\"",
@@ -2334,8 +2334,8 @@
     "step": "191 table",
     "fx": [
      "f1176 \"UI.setValue\" \"eng_status_Blue\" \"Red's 3rd turn (game turn 12) - combatEnd - priority: Blue\"",
-     "f1179 \"setPositionSmooth\" obj:s00060 V(15.436,2.05,-17.998)",
-     "f1179 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1296 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1179 \"setPositionSmooth\" obj:s00060 V(15.436,2.05,-23.003)",
+     "f1179 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1179 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_txt\" {color=\"#FFFFFF\",text=\" \"}",
      "f1179 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1179 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
@@ -2614,7 +2614,7 @@
    {
     "step": "220 table",
     "fx": [
-     "f1350 \"setPosition\" obj:s00081 V(27.75,1.15,17)",
+     "f1350 \"setPosition\" obj:s00081 V(27.75,1.15,22.44)",
      "f1350 \"setRotation\" obj:s00081 V(0,450,0)"
     ]
    },
@@ -2755,7 +2755,7 @@
     "step": "235 table",
     "fx": [
      "f1440 \"spawnObjectData\" \"Card\" obj:s00084 \"Treasure Token\\\nArtifact — Treasure\\\n0CMC\" V(8.65,1.15,-13.8) 0 303100 \"3031\"",
-     "f1440 \"spawnObjectData\" \"Card\" obj:s00085 \"Path of Ancestry\\\nLand\\\n0CMC\" V(15.85,1.15,-17) 0 303200 \"3032\"",
+     "f1440 \"spawnObjectData\" \"Card\" obj:s00085 \"Path of Ancestry\\\nLand\\\n0CMC\" V(15.85,1.15,-22.44) 0 303200 \"3032\"",
      "f1440 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 15) - main1 - priority: Blue\"",
      "f1440 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f1446 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/b/6/b61634ae-05be-4b56-8ebb-9d4ade902e42.jpg\""
@@ -2795,7 +2795,7 @@
     "fx": [
      "f1464 \"setRotationSmooth\" obj:s00072 V(0,270,0)",
      "f1464 \"highlightOn\" obj:s00072 {1=1,2=0.12,3=0.08}",
-     "f1464 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,18.9) mid y1.9\"",
+     "f1464 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,24.4) mid y1.9\"",
      "f1464 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 15) - combatDeclareAttackers - priority: Blue\""
     ]
    },
@@ -2849,7 +2849,7 @@
    {
     "step": "245 table",
     "fx": [
-     "f1500 \"setPositionSmooth\" obj:s00072 V(8.347,2.05,-8.141)",
+     "f1500 \"setPositionSmooth\" obj:s00072 V(8.393,2.05,-8.158)",
      "f1500 \"call\" obj:395037 \"sL\" \"37\"",
      "f1500 \"call\" obj:395037 \"updateSave\"",
      "f1500 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 15) - combatDamage - priority: Blue\""
@@ -2859,8 +2859,8 @@
     "step": "246 table",
     "fx": [
      "f1506 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 15) - combatEnd - priority: Blue\"",
-     "f1509 \"setPositionSmooth\" obj:s00072 V(18.54,2.05,16.814)",
-     "f1509 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -1713 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1509 \"setPositionSmooth\" obj:s00072 V(18.54,2.05,21.819)",
+     "f1509 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1509 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1509 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
     ]
@@ -3046,7 +3046,7 @@
      "f1608 \"setRotationSmooth\" obj:s00053 V(0,270,0)",
      "f1608 \"setRotationSmooth\" obj:s00059 V(0,270,0)",
      "f1608 \"setRotationSmooth\" obj:s00074 V(0,270,0)",
-     "f1608 \"spawnObjectData\" \"Card\" obj:s00093 \"Swamp\\\nBasic Land — Swamp\\\n0CMC\" V(-22.95,1.15,-17) 0 303600 \"3036\"",
+     "f1608 \"spawnObjectData\" \"Card\" obj:s00093 \"Swamp\\\nBasic Land — Swamp\\\n0CMC\" V(-22.95,1.15,-22.44) 0 303600 \"3036\"",
      "f1608 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/\"",
      "f1608 \"UI.setValue\" \"eng_pop_who\" \"Rush of Dread - Red\"",
      "f1608 \"UI.setValue\" \"eng_pop_text\" \" Target opponent sacrifices half the creatures they control, rounded up. (Targeting: AI 1)\"",
@@ -3255,7 +3255,7 @@
      "f1698 \"setRotationSmooth\" obj:s00047 V(0,450,0)",
      "f1698 \"setRotationSmooth\" obj:s00055 V(0,450,0)",
      "f1698 \"setRotationSmooth\" obj:s00062 V(0,450,0)",
-     "f1698 \"spawnObjectData\" \"Card\" obj:s00100 \"Watery Grave\\\nLand — Island Swamp\\\n0CMC\" V(-15.85,1.15,17) 0 303800 \"3038\"",
+     "f1698 \"spawnObjectData\" \"Card\" obj:s00100 \"Watery Grave\\\nLand — Island Swamp\\\n0CMC\" V(-15.85,1.15,22.44) 0 303800 \"3038\"",
      "f1698 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/\"",
      "f1698 \"UI.setValue\" \"eng_pop_who\" \"Teval, the Balanced Scale - Yellow\"",
      "f1698 \"UI.setValue\" \"eng_pop_text\" \"Teval, the Balanced Scale - Creature 4 / 4\"",
@@ -3278,7 +3278,7 @@
      "f1698 \"editButton\" obj:baffa9 9 \"2\"",
      "f1698 \"UI.setValue\" \"eng_status_Blue\" \"Yellow's 5th turn (game turn 17) - main1 - priority: Blue\\\nStack (top first): Teval, the Balanced Scale\"",
      "f1698 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
-     "f1699 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"1821 -1713 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1699 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"1821 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1699 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1699 \"highlightOn\" obj:37e533 {1=1,2=0.2,3=0.15}",
      "f1700 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/b/5/b5d1955a-9ff0-4f8b-9af8-341371957299.jpg\""
@@ -3356,7 +3356,7 @@
      "f1740 \"UI.setAttribute\" \"eng_pop\" \"active\" \"true\"",
      "f1740 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FFFFFF\"",
      "f1740 \"highlightOn\" obj:s00008 {1=0.75,2=0.35,3=1}",
-     "f1740 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (-8.7,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f1740 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (-8.7,7.4)->(19.4,-24.4) mid y1.9\"",
      "f1740 \"UI.setValue\" \"eng_status_Blue\" \"Yellow's 5th turn (game turn 17) - combatDeclareAttackers - priority: Blue\\\nStack (top first): Teval, the Balanced Scale\"",
      "f1742 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/b/5/b5d1955a-9ff0-4f8b-9af8-341371957299.jpg\""
     ]
@@ -3370,7 +3370,7 @@
    {
     "step": "287 table",
     "fx": [
-     "f1752 \"spawnObjectData\" \"Card\" obj:s00101 \"Contaminated Aquifer\\\nLand — Island Swamp\\\n0CMC\" V(-18.25,1.15,17) 0 303900 \"3039\"",
+     "f1752 \"spawnObjectData\" \"Card\" obj:s00101 \"Contaminated Aquifer\\\nLand — Island Swamp\\\n0CMC\" V(-18.25,1.15,22.44) 0 303900 \"3039\"",
      "f1752 \"setPositionSmooth\" obj:s00078 V(-40.76,1.45,22.884)",
      "f1752 \"takeObject\" obj:s00009 obj:s00102 V(-40.76,-1.55,18.74)",
      "f1752 \"takeObject\" obj:s00009 obj:s00103 V(-40.76,-1.55,18.74)",
@@ -3475,7 +3475,7 @@
    {
     "step": "294 table",
     "fx": [
-     "f1794 \"setPositionSmooth\" obj:s00008 V(-9.233,2.05,7.947)",
+     "f1794 \"setPositionSmooth\" obj:s00008 V(-9.18,2.05,8)",
      "f1794 \"call\" obj:23e485 \"sL\" \"39\"",
      "f1794 \"call\" obj:23e485 \"updateSave\"",
      "f1794 \"call\" obj:0f6598 \"updateVal\"",
@@ -3487,8 +3487,8 @@
     "step": "295 table",
     "fx": [
      "f1800 \"UI.setValue\" \"eng_status_Blue\" \"Yellow's 5th turn (game turn 17) - combatEnd - priority: Blue\"",
-     "f1803 \"setPositionSmooth\" obj:s00008 V(17.156,2.05,-16.814)",
-     "f1803 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1296 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1803 \"setPositionSmooth\" obj:s00008 V(17.156,2.05,-21.819)",
+     "f1803 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1803 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1803 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
     ]
@@ -4387,7 +4387,7 @@
    {
     "step": "15 table",
     "fx": [
-     "f120 \"spawnObjectData\" \"Card\" obj:s00013 \"Mountain\\\nBasic Land — Mountain\\\n0CMC\" V(8.65,1.15,-17) 0 300900 \"3009\"",
+     "f120 \"spawnObjectData\" \"Card\" obj:s00013 \"Mountain\\\nBasic Land — Mountain\\\n0CMC\" V(8.65,1.15,-22.44) 0 300900 \"3009\"",
      "f120 \"UI.setValue\" \"eng_status_Blue\" \"White's 1st turn (game turn 1) - main1 - priority: Blue\"",
      "f120 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
@@ -4603,7 +4603,7 @@
    {
     "step": "37 table",
     "fx": [
-     "f252 \"setPosition\" obj:s00008 V(30.15,1.15,17)",
+     "f252 \"setPosition\" obj:s00008 V(30.15,1.15,22.44)",
      "f252 \"setRotation\" obj:s00008 V(0,360,0)",
      "f258 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"main1\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":2}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
@@ -5049,7 +5049,7 @@
    {
     "step": "76 table",
     "fx": [
-     "f486 \"spawnObjectData\" \"Card\" obj:s00020 \"Rockfall Vale\\\nLand\\\n0CMC\" V(11.05,1.15,-17) 0 301200 \"3012\"",
+     "f486 \"spawnObjectData\" \"Card\" obj:s00020 \"Rockfall Vale\\\nLand\\\n0CMC\" V(11.05,1.15,-22.44) 0 301200 \"3012\"",
      "f486 \"UI.setValue\" \"eng_status_Blue\" \"White's 2nd turn (game turn 3) - main1 - priority: Blue\"",
      "f486 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
@@ -5296,7 +5296,7 @@
    {
     "step": "94 table",
     "fx": [
-     "f594 \"setPosition\" obj:s00009 V(27.75,1.15,17)",
+     "f594 \"setPosition\" obj:s00009 V(27.75,1.15,22.44)",
      "f594 \"setRotation\" obj:s00009 V(0,360,0)",
      "f600 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue drew 1: held on the library until the library or Draw is clicked (Auto off)\\\\\\\\n2026-10-20 12:00:00 Blue takes the held all\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\"",
      "f600 \"UI.setAttribute\" \"eng_rowimg_Blue_1\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/1/c/1c1ead90-10d8-4217-80e4-6f40320c5569.jpg\"",
@@ -5518,7 +5518,7 @@
     "fx": [
      "f696 \"setRotationSmooth\" obj:s00004 V(0,450,0)",
      "f696 \"highlightOn\" obj:s00004 {1=1,2=0.12,3=0.08}",
-     "f696 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\""
+     "f696 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\""
     ]
    },
    {
@@ -5538,7 +5538,7 @@
    {
     "step": "114 table",
     "fx": [
-     "f714 \"setPositionSmooth\" obj:s00004 V(30.452,2.05,8.141)",
+     "f714 \"setPositionSmooth\" obj:s00004 V(30.406,2.05,8.158)",
      "f714 \"call\" obj:23e485 \"sL\" \"39\"",
      "f714 \"call\" obj:23e485 \"updateSave\"",
      "f714 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 3rd turn (game turn 4) - combatDamage - priority: Blue\"",
@@ -5552,8 +5552,8 @@
      "f720 \"Global.setVectorLines\" 0 \"\"",
      "f720 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 3rd turn (game turn 4) - main2 - priority: Blue\"",
      "f720 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
-     "f723 \"setPositionSmooth\" obj:s00004 V(20.26,2.05,-16.814)",
-     "f724 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1296 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f723 \"setPositionSmooth\" obj:s00004 V(20.26,2.05,-21.819)",
+     "f724 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f724 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_txt\" {color=\"#FFFFFF\",text=\" \"}",
      "f724 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f724 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
@@ -5633,7 +5633,7 @@
     "fx": [
      "f774 \"setRotationSmooth\" obj:s00011 V(0,270,0)",
      "f774 \"highlightOn\" obj:s00011 {1=1,2=0.12,3=0.08}",
-     "f774 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,18.9) mid y1.9\"",
+     "f774 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,24.4) mid y1.9\"",
      "f774 \"UI.setValue\" \"eng_status_Blue\" \"White's 3rd turn (game turn 5) - combatDeclareBlockers - priority: White\""
     ]
    },
@@ -5678,7 +5678,7 @@
    {
     "step": "128 table",
     "fx": [
-     "f798 \"setPositionSmooth\" obj:s00011 V(8.347,2.05,-8.141)",
+     "f798 \"setPositionSmooth\" obj:s00011 V(8.393,2.05,-8.158)",
      "f798 \"call\" obj:395037 \"sL\" \"38\"",
      "f798 \"call\" obj:395037 \"updateSave\"",
      "f798 \"call\" obj:bfcf4a \"updateVal\"",
@@ -5691,8 +5691,8 @@
     "step": "129 gamelog",
     "fx": [
      "f804 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\"",
-     "f807 \"setPositionSmooth\" obj:s00011 V(18.54,2.05,16.814)",
-     "f808 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -1713 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f807 \"setPositionSmooth\" obj:s00011 V(18.54,2.05,21.819)",
+     "f808 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f808 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f808 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
     ]
@@ -6013,7 +6013,7 @@
    {
     "step": "151 table",
     "fx": [
-     "f936 \"setPosition\" obj:s00028 V(25.35,1.15,17)",
+     "f936 \"setPosition\" obj:s00028 V(25.35,1.15,22.44)",
      "f936 \"setRotation\" obj:s00028 V(0,360,0)"
     ]
    },
@@ -6339,7 +6339,7 @@
      "f1056 \"setRotationSmooth\" obj:s00017 V(0,450,0)",
      "f1056 \"highlightOn\" obj:s00004 {1=1,2=0.12,3=0.08}",
      "f1056 \"highlightOn\" obj:s00017 {1=1,2=0.12,3=0.08}",
-     "f1056 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-18.9) mid y1.9\""
+     "f1056 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-24.4) mid y1.9\""
     ]
    },
    {
@@ -6486,7 +6486,7 @@
      "f1128 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FEFEFE\"",
      "f1128 \"highlightOn\" obj:s00002 {1=0.75,2=0.35,3=1}",
      "f1128 \"highlightOff\" obj:s00017",
-     "f1128 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f1128 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f1128 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 4th turn (game turn 6) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Yuriko, the Tiger's Shadow\"",
      "f1130 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/f/e/fe9be3e0-076c-4703-9750-2a6b0a178bc9.jpg\""
     ]
@@ -6507,8 +6507,8 @@
      "f1140 \"UI.setAttribute\" \"eng_pop\" \"visibility\" \"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\"",
      "f1140 \"UI.setAttribute\" \"eng_pop\" \"active\" \"true\"",
      "f1140 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FFFFFF\"",
-     "f1140 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-18.9) mid y1.9\"",
-     "f1140 \"setPositionSmooth\" obj:s00004 V(30.452,2.05,8.141)",
+     "f1140 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f1140 \"setPositionSmooth\" obj:s00004 V(30.406,2.05,8.158)",
      "f1140 \"call\" obj:23e485 \"sL\" \"37\"",
      "f1140 \"call\" obj:23e485 \"updateSave\"",
      "f1140 \"call\" obj:b748df \"updateVal\"",
@@ -6532,8 +6532,8 @@
      "f1146 \"UI.setAttribute\" \"eng_rowslot_Blue_1\" \"active\" \"false\"",
      "f1146 \"UI.setAttribute\" \"eng_rowslot_Blue_2\" \"active\" \"false\"",
      "f1146 \"UI.setAttributes\" \"eng_rowopt_Blue_1\" {text=\"OK\",textColor=\"#FFFFFF\"}",
-     "f1149 \"setPositionSmooth\" obj:s00004 V(20.26,2.05,-16.814)",
-     "f1149 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1296 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1149 \"setPositionSmooth\" obj:s00004 V(20.26,2.05,-21.819)",
+     "f1149 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1149 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1149 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
     ]
@@ -6573,7 +6573,7 @@
      "f1176 \"call\" obj:23e485 \"sL\" \"34\"",
      "f1176 \"call\" obj:23e485 \"updateSave\"",
      "f1176 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 4th turn (game turn 6) - combatDamage - priority: Blue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1177 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1296 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1177 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1177 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1177 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
     ]
@@ -6657,7 +6657,7 @@
     "fx": [
      "f1236 \"setRotationSmooth\" obj:s00011 V(0,270,0)",
      "f1236 \"highlightOn\" obj:s00011 {1=1,2=0.12,3=0.08}",
-     "f1236 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,18.9) mid y1.9\"",
+     "f1236 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,24.4) mid y1.9\"",
      "f1236 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 7) - combatDeclareAttackers - priority: Blue\\\nWaiting for you: draw 1 (click your library or press Draw)\""
     ]
    },
@@ -6676,7 +6676,7 @@
    {
     "step": "204 table",
     "fx": [
-     "f1254 \"setPositionSmooth\" obj:s00011 V(8.347,2.05,-8.141)",
+     "f1254 \"setPositionSmooth\" obj:s00011 V(8.393,2.05,-8.158)",
      "f1254 \"call\" obj:395037 \"sL\" \"36\"",
      "f1254 \"call\" obj:395037 \"updateSave\"",
      "f1254 \"call\" obj:bfcf4a \"updateVal\"",
@@ -6698,8 +6698,8 @@
     "step": "205 table",
     "fx": [
      "f1260 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 7) - combatEnd - priority: Blue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1263 \"setPositionSmooth\" obj:s00011 V(18.54,2.05,16.814)",
-     "f1263 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -1713 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1263 \"setPositionSmooth\" obj:s00011 V(18.54,2.05,21.819)",
+     "f1263 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1263 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1263 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
     ]
@@ -7029,7 +7029,7 @@
    {
     "step": "229 table",
     "fx": [
-     "f1404 \"setPosition\" obj:s00007 V(22.95,1.15,17)",
+     "f1404 \"setPosition\" obj:s00007 V(22.95,1.15,22.44)",
      "f1404 \"setRotation\" obj:s00007 V(0,450,0)",
      "f1404 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/\"",
      "f1404 \"UI.setValue\" \"eng_pop_who\" \"Dimir Aqueduct - Blue\"",
@@ -7118,9 +7118,9 @@
    {
     "step": "234 table",
     "fx": [
-     "f1434 \"setPositionSmooth\" obj:s00009 V(30.15,1.15,17)",
-     "f1434 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
-     "f1434 \"setPositionSmooth\" obj:s00007 V(25.35,1.15,17)",
+     "f1434 \"setPositionSmooth\" obj:s00009 V(30.15,1.15,22.44)",
+     "f1434 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
+     "f1434 \"setPositionSmooth\" obj:s00007 V(25.35,1.15,22.44)",
      "f1434 \"setPosition\" obj:s00008 V(20,5,34.5)",
      "f1434 \"setRotation\" obj:s00008 V(0,360,0)",
      "f1434 \"highlightOff\" obj:s00007",
@@ -7352,7 +7352,7 @@
      "f1536 \"setRotationSmooth\" obj:s00002 V(0,450,0)",
      "f1536 \"highlightOn\" obj:s00002 {1=1,2=0.12,3=0.08}",
      "f1536 \"highlightOn\" obj:s00004 {1=1,2=0.12,3=0.08}",
-     "f1536 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-18.9) mid y1.9\""
+     "f1536 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-24.4) mid y1.9\""
     ]
    },
    {
@@ -7503,7 +7503,7 @@
      "f1608 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FEFEFE\"",
      "f1608 \"highlightOff\" obj:s00004",
      "f1608 \"highlightOn\" obj:s00035 {1=0.75,2=0.35,3=1}",
-     "f1608 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f1608 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f1608 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 5th turn (game turn 8) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Skullsnatcher\"",
      "f1610 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/6/c/6cb76fa1-a930-468d-bfd4-dd06c2a9fe9e.jpg\""
     ]
@@ -7566,8 +7566,8 @@
      "f1632 \"setPosition\" obj:s00035 V(27.75,1.15,7.4)",
      "f1632 \"setRotation\" obj:s00035 V(0,450,0)",
      "f1632 \"highlightOn\" obj:s00035 {1=1,2=0.12,3=0.08}",
-     "f1632 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-18.9) mid y1.9\"",
-     "f1632 \"setPositionSmooth\" obj:s00002 V(30.452,2.05,8.141)",
+     "f1632 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f1632 \"setPositionSmooth\" obj:s00002 V(30.406,2.05,8.158)",
      "f1632 \"call\" obj:23e485 \"sL\" \"31\"",
      "f1632 \"call\" obj:23e485 \"updateSave\"",
      "f1632 \"call\" obj:b748df \"updateVal\"",
@@ -7590,8 +7590,8 @@
      "f1638 \"UI.setValue\" \"eng_rowname_Blue_2\" \"Skullsnatcher 2/1: Whenever Skullsnatcher deals combat damage to a pla\"",
      "f1638 \"UI.setAttribute\" \"eng_rowslot_Blue_3\" \"active\" \"false\"",
      "f1640 \"UI.setAttribute\" \"eng_rowimg_Blue_2\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/6/c/6cb76fa1-a930-468d-bfd4-dd06c2a9fe9e.jpg\"",
-     "f1641 \"setPositionSmooth\" obj:s00002 V(20.26,2.05,-16.814)",
-     "f1641 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1296 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1641 \"setPositionSmooth\" obj:s00002 V(20.26,2.05,-21.819)",
+     "f1641 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1641 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1641 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
     ]
@@ -7714,7 +7714,7 @@
      "f1710 \"call\" obj:23e485 \"sL\" \"28\"",
      "f1710 \"call\" obj:23e485 \"updateSave\"",
      "f1710 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 5th turn (game turn 8) - combatDamage - priority: Blue\\\nStack (top first): Yuriko, the Tiger's Shadow, Skullsnatcher\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1711 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1296 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1711 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1711 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1711 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}",
      "f1716 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatDamage\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":8}\\\",\\\"t\\\":\\\"check\\\"}\""
@@ -7748,7 +7748,7 @@
      "f1740 \"call\" obj:23e485 \"sL\" \"25\"",
      "f1740 \"call\" obj:23e485 \"updateSave\"",
      "f1740 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 5th turn (game turn 8) - combatDamage - priority: Blue\\\nStack (top first): Skullsnatcher\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1741 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1296 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1741 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1741 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1741 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
     ]
@@ -7996,7 +7996,7 @@
     "fx": [
      "f1884 \"setRotationSmooth\" obj:s00011 V(0,270,0)",
      "f1884 \"highlightOn\" obj:s00011 {1=1,2=0.12,3=0.08}",
-     "f1884 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,18.9) mid y1.9\"",
+     "f1884 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,24.4) mid y1.9\"",
      "f1884 \"UI.setValue\" \"eng_status_Blue\" \"White's 5th turn (game turn 9) - combatDeclareAttackers - priority: Blue\\\nWaiting for you: draw 2 (click your library or press Draw)\""
     ]
    },
@@ -8025,7 +8025,7 @@
    {
     "step": "312 table",
     "fx": [
-     "f1902 \"setPositionSmooth\" obj:s00011 V(8.347,2.05,-8.141)",
+     "f1902 \"setPositionSmooth\" obj:s00011 V(8.393,2.05,-8.158)",
      "f1902 \"call\" obj:395037 \"sL\" \"34\"",
      "f1902 \"call\" obj:395037 \"updateSave\"",
      "f1902 \"call\" obj:bfcf4a \"updateVal\"",
@@ -8037,8 +8037,8 @@
     "step": "313 table",
     "fx": [
      "f1908 \"UI.setValue\" \"eng_status_Blue\" \"White's 5th turn (game turn 9) - combatEnd - priority: Blue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1911 \"setPositionSmooth\" obj:s00011 V(18.54,2.05,16.814)",
-     "f1911 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -1713 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1911 \"setPositionSmooth\" obj:s00011 V(18.54,2.05,21.819)",
+     "f1911 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1911 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1911 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
     ]
@@ -8415,7 +8415,7 @@
    {
     "step": "338 table",
     "fx": [
-     "f2058 \"setPosition\" obj:s00008 V(22.95,1.15,17)",
+     "f2058 \"setPosition\" obj:s00008 V(22.95,1.15,22.44)",
      "f2058 \"setRotation\" obj:s00008 V(0,360,0)",
      "f2064 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"main1\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":10}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
@@ -8542,7 +8542,7 @@
      "f2100 \"setRotationSmooth\" obj:s00035 V(0,450,0)",
      "f2100 \"highlightOn\" obj:s00002 {1=1,2=0.12,3=0.08}",
      "f2100 \"highlightOn\" obj:s00035 {1=1,2=0.12,3=0.08}",
-     "f2100 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-18.9) mid y1.9\""
+     "f2100 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-24.4) mid y1.9\""
     ]
    },
    {
@@ -8772,7 +8772,7 @@
      "f2190 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FEFEFE\"",
      "f2190 \"highlightOff\" obj:s00002",
      "f2190 \"highlightOn\" obj:s00017 {1=0.75,2=0.35,3=1}",
-     "f2190 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f2190 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f2190 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
      "f2192 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/a/2/a24d5664-e214-466d-bb53-4e8f6f75a009.jpg\""
     ]
@@ -9316,10 +9316,10 @@
      "f2473 \"setLock\" obj:s00052 false",
      "f2473 \"setLock\" obj:s00053 false",
      "f2473 \"setLock\" obj:s00054 false",
-     "f2473 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=209,position=\"-2119 -1560 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=209}",
+     "f2473 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=209,position=\"-2119 -1993 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=209}",
      "f2473 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_txt\" {color=\"#FF4A3A\",text=\"−1\"}",
      "f2473 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FFB050E6\",fontSize=177,height=209,width=209}",
-     "f2473 \"objUI.setAttributes\" obj:23e485 \"eng_fx_2\" {active=\"true\",height=192,position=\"-1928 -1560 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=192}",
+     "f2473 \"objUI.setAttributes\" obj:23e485 \"eng_fx_2\" {active=\"true\",height=192,position=\"-1928 -1993 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=192}",
      "f2473 \"objUI.setAttributes\" obj:23e485 \"eng_fx_2_img\" {color=\"#A8D8FFE6\",fontSize=163,height=192,width=192}",
      "f2473 \"objUI.setAttributes\" obj:23e485 \"eng_fx_3\" {active=\"true\",height=192,position=\"-1928 -1306 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=192}",
      "f2473 \"objUI.setAttributes\" obj:23e485 \"eng_fx_3_txt\" {color=\"#FFFFFF\",text=\" \"}",
@@ -9331,7 +9331,7 @@
     "fx": [
      "f2478 \"call\" obj:395037 \"engineLifeChange\" \"delta=-3,life=31\"",
      "f2478 \"call\" obj:395037 \"updateSave\"",
-     "f2479 \"objUI.setAttributes\" obj:23e485 \"eng_fx_4\" {active=\"true\",height=349,position=\"-1264 -1713 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f2479 \"objUI.setAttributes\" obj:23e485 \"eng_fx_4\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f2479 \"objUI.setAttributes\" obj:23e485 \"eng_fx_4_txt\" {color=\"#FFFFFF\",text=\" \"}",
      "f2479 \"objUI.setAttributes\" obj:23e485 \"eng_fx_4_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f2479 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
@@ -9342,7 +9342,7 @@
     "fx": [
      "f2484 \"call\" obj:395037 \"engineLifeChange\" \"delta=-5,life=29\"",
      "f2484 \"call\" obj:395037 \"updateSave\"",
-     "f2485 \"objUI.setAttributes\" obj:23e485 \"eng_fx_5\" {active=\"true\",height=349,position=\"-1264 -1713 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f2485 \"objUI.setAttributes\" obj:23e485 \"eng_fx_5\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f2485 \"objUI.setAttributes\" obj:23e485 \"eng_fx_5_txt\" {color=\"#FFFFFF\",text=\" \"}",
      "f2485 \"objUI.setAttributes\" obj:23e485 \"eng_fx_5_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f2485 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
@@ -9879,7 +9879,7 @@
      "f3378 \"setPosition\" obj:s00062 V(52,4.5,33)",
      "f3378 \"setLock\" obj:s00062 false",
      "f3378 \"putObject\" obj:s00016 obj:s00062",
-     "f3378 \"Global.setVectorLines\" 7 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(19.4,18.9) mid y7.2 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(27.7,13.8) mid y6.7 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 0.35,0.85,1.00 t0.300 n11 (30.1,13.8)->(19.4,-18.9) mid y6.1 | 1.00,0.80,0.25 t0.160 n11 (30.2,17.0)->(8.7,-17.0) mid y1.8 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f3378 \"Global.setVectorLines\" 7 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(19.4,24.4) mid y7.9 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(27.7,13.8) mid y6.7 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 0.35,0.85,1.00 t0.300 n11 (30.1,13.8)->(19.4,-24.4) mid y6.7 | 1.00,0.80,0.25 t0.160 n11 (30.2,22.4)->(8.7,-22.4) mid y1.8 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f3378 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Ability, Shock, Opt\\\nYour mana pool: C\"",
      "f3379 \"setHiddenFrom\" obj:s00061 {}",
      "f3379 \"setHiddenFrom\" obj:s00062 {}",
@@ -9910,7 +9910,7 @@
      "f3390 \"setPosition\" obj:s00064 V(52,4.5,33)",
      "f3390 \"setLock\" obj:s00064 false",
      "f3390 \"putObject\" obj:s00016 obj:s00064",
-     "f3390 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f3390 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f3390 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nYour mana pool: C\"",
      "f3391 \"setHiddenFrom\" obj:s00063 {}",
      "f3391 \"setHiddenFrom\" obj:s00064 {}",
@@ -9961,7 +9961,7 @@
     ]
    },
    {
-    "step": "click: __sim.frames(200) local o for _, x in ipairs(getObjects()) do local id = tostring(x.getGMNotes()):match(\"^engine:(engine%-card%-%d+)$\") if id and x.getPosition().z > 20 then o = x end end if o then onPlayerAction(Player.Blue, Player.Action.Select, { o }) return o.getGMNotes() end return \"no hand card\"",
+    "step": "click: __sim.frames(200) local o for _, x in ipairs(getObjects()) do local id = tostring(x.getGMNotes()):match(\"^engine:(engine%-card%-%d+)$\") if id and x.getPosition().z > 28 then o = x end end if o then onPlayerAction(Player.Blue, Player.Action.Select, { o }) return o.getGMNotes() end return \"no hand card\"",
     "value": "no hand card",
     "fx": [
      "f3720 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue told: That card can't be chosen for this. Click a glowing card, or a player's life counter if a player can be.\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\""
@@ -10090,10 +10090,10 @@
     "step": "control changed to White",
     "fx": [
      "f3916 \"setRotationSmooth\" obj:s00003 V(0,450,0)",
-     "f3916 \"setPositionSmooth\" obj:s00007 V(27.75,1.15,17)",
-     "f3916 \"setPositionSmooth\" obj:s00008 V(25.35,1.15,17)",
+     "f3916 \"setPositionSmooth\" obj:s00007 V(27.75,1.15,22.44)",
+     "f3916 \"setPositionSmooth\" obj:s00008 V(25.35,1.15,22.44)",
      "f3916 \"setLock\" obj:s00028 true",
-     "f3916 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f3916 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f3916 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f3916 \"setGMNotes\" obj:s00011 \"enginetrash\"",
      "f3916 \"highlightOff\" obj:s00011",
@@ -10129,7 +10129,7 @@
    },
    {
     "step": "click: local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:engine-card-11\" then o = x end end local p = o and o.getPosition() return p and string.format(\"%.1f %.1f\", p.x, p.z) or \"none\"",
-    "value": "8.7 -17.0",
+    "value": "8.7 -22.4",
     "fx": []
    },
    {
@@ -10193,12 +10193,12 @@
     "fx": [
      "f3970 \"setRotationSmooth\" obj:s00003 V(0,450,180)",
      "f3970 \"setLock\" obj:s00028 false",
-     "f3970 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f3970 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f3970 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
-     "f3970 \"setPositionSmooth\" obj:s00007 V(25.35,1.15,17)",
-     "f3970 \"setPositionSmooth\" obj:s00008 V(22.95,1.15,17)",
+     "f3970 \"setPositionSmooth\" obj:s00007 V(25.35,1.15,22.44)",
+     "f3970 \"setPositionSmooth\" obj:s00008 V(22.95,1.15,22.44)",
      "f3970 \"setLock\" obj:s00028 true",
-     "f3970 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f3970 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f3970 \"setRotationSmooth\" obj:s00028 V(0,180,0)"
     ]
    },
@@ -10216,7 +10216,7 @@
     "step": "a draw no question is about",
     "fx": [
      "f3982 \"setLock\" obj:s00028 false",
-     "f3982 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f3982 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f3982 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f3982 \"spawnObjectData\" \"Card\" obj:s00066 \"Swamp\\\nBasic Land — Swamp\\\n0CMC\" V(20,5,34.5) 0 301300 \"3013\"",
      "f3982 \"spawnObjectData\" \"Card\" obj:s00067 \"Dokuchi Silencer\\\nCreature — Human Ninja Ape\\\n2CMC\" V(20,5,34.5) 0 301100 \"3011\"",
@@ -10225,7 +10225,7 @@
      "f3982 \"spawnObjectData\" \"Card\" obj:s00070 \"Prosperous Thief\\\nCreature — Human Ninja Ape\\\n3CMC\" V(20,5,34.5) 0 301800 \"3018\"",
      "f3982 \"spawnObjectData\" \"Card\" obj:s00071 \"Tetsuko Umezawa, Fugitive\\\nLegendary Creature — Human Rogue Ape\\\n2CMC\" V(20,5,34.5) 0 301900 \"3019\"",
      "f3982 \"setLock\" obj:s00028 true",
-     "f3982 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f3982 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f3982 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f3982 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
      "f3983 \"setLock\" obj:s00066 false",
@@ -10246,12 +10246,12 @@
     "value": "taken",
     "fx": [
      "f3994 \"setLock\" obj:s00028 false",
-     "f3994 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f3994 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f3994 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f3994 \"spawnObjectData\" \"Card\" obj:s00072 \"Island\\\n\\\n0CMC\" V(20,5,34.5) 0 300700 \"3007\"",
      "f3994 \"takeObject\" obj:s00050 obj:s00073 V(20,6,34.5)",
      "f3994 \"setLock\" obj:s00028 true",
-     "f3994 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f3994 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f3994 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f3994 \"highlightOn\" obj:s00067 {1=0.75,2=0.35,3=1}",
      "f3994 \"setGMNotes\" obj:s00065 \"enginetrash\"",
@@ -10284,12 +10284,12 @@
     "step": "the board drawing the card the question is about",
     "fx": [
      "f4006 \"setLock\" obj:s00028 false",
-     "f4006 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4006 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4006 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f4006 \"spawnObjectData\" \"Card\" obj:s00074 \"Island\\\n\\\n0CMC\" V(20,5,34.5) 0 300700 \"3007\"",
      "f4006 \"takeObject\" obj:s00050 obj:s00075 V(20,6,34.5)",
      "f4006 \"setLock\" obj:s00028 true",
-     "f4006 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4006 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4006 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4007 \"setLock\" obj:s00074 false",
      "f4008 \"highlightOn\" obj:s00074 {1=0.3,2=1,3=0.4}"
@@ -10318,11 +10318,11 @@
     "fx": [
      "f4024 \"setRotationSmooth\" obj:s00003 V(0,450,0)",
      "f4024 \"setLock\" obj:s00028 false",
-     "f4024 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4024 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4024 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f4024 \"spawnObjectData\" \"Deck\" obj:s00076 \"Library card\" V(40.762,3.45,18.74) 2 0 \"3007\"",
      "f4024 \"setLock\" obj:s00028 true",
-     "f4024 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4024 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4024 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4025 \"setLock\" obj:s00050 false",
      "f4025 \"putObject\" obj:s00050 obj:s00076",
@@ -10334,10 +10334,10 @@
     "fx": [
      "f4030 \"setRotationSmooth\" obj:s00003 V(0,450,180)",
      "f4030 \"setLock\" obj:s00028 false",
-     "f4030 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4030 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4030 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f4030 \"setLock\" obj:s00028 true",
-     "f4030 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4030 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4030 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4030 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/\"",
      "f4030 \"UI.setValue\" \"eng_pop_who\" \"Counterspell - White\"",
@@ -10348,7 +10348,7 @@
      "f4030 \"spawnObjectData\" \"Card\" obj:s00077 \"Opt\\\nOn the stack\\\n0CMC\" V(17.4,3.4,15.4) 0 300700 \"3007\"",
      "f4030 \"spawnObjectData\" \"Card\" obj:s00078 \"Counterspell\\\nOn the stack\\\n0CMC\" V(21.4,3.498,-15.4) 0 300700 \"3007\"",
      "f4030 \"highlightOff\" obj:s00067",
-     "f4030 \"Global.setVectorLines\" 3 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f4030 \"Global.setVectorLines\" 3 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f4030 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Counterspell, Opt\\\nYour mana pool: C\"",
      "f4031 \"setGMNotes\" obj:s00073 \"enginetrash\"",
      "f4031 \"highlightOff\" obj:s00073",
@@ -10368,10 +10368,10 @@
     "fx": [
      "f4036 \"setRotationSmooth\" obj:s00003 V(0,450,0)",
      "f4036 \"setLock\" obj:s00028 false",
-     "f4036 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4036 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4036 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f4036 \"setLock\" obj:s00028 true",
-     "f4036 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4036 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4036 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4036 \"UI.setValue\" \"eng_pop_who\" \"COUNTERED: Opt\"",
      "f4036 \"UI.setAttribute\" \"eng_pop_who\" \"color\" \"#FF6B5A\"",
@@ -10392,7 +10392,7 @@
      "f4036 \"setPosition\" obj:s00078 V(52,4.5,33)",
      "f4036 \"setLock\" obj:s00078 false",
      "f4036 \"putObject\" obj:s00016 obj:s00078",
-     "f4036 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f4036 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f4036 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nYour mana pool: C\"",
      "f4037 \"setHiddenFrom\" obj:s00077 {}",
      "f4037 \"setHiddenFrom\" obj:s00078 {}",
@@ -10418,10 +10418,10 @@
      "f4166 \"setPositionSmooth\" obj:s00005 V(30.15,1.15,13.8)",
      "f4166 \"setPositionSmooth\" obj:s00034 V(27.75,1.15,13.8)",
      "f4166 \"setLock\" obj:s00028 false",
-     "f4166 \"setPositionSmooth\" obj:s00028 V(30.15,1.15,17)",
+     "f4166 \"setPositionSmooth\" obj:s00028 V(30.15,1.15,22.44)",
      "f4166 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
-     "f4166 \"setPositionSmooth\" obj:s00007 V(27.75,1.15,17)",
-     "f4166 \"setPositionSmooth\" obj:s00008 V(25.35,1.15,17)",
+     "f4166 \"setPositionSmooth\" obj:s00007 V(27.75,1.15,22.44)",
+     "f4166 \"setPositionSmooth\" obj:s00008 V(25.35,1.15,22.44)",
      "f4166 \"setLock\" obj:s00003 true",
      "f4166 \"setPositionSmooth\" obj:s00003 V(40.762,1.45,22.872)",
      "f4166 \"setLock\" obj:s00006 true",
@@ -10429,7 +10429,7 @@
      "f4166 \"setLock\" obj:s00009 true",
      "f4166 \"setPositionSmooth\" obj:s00009 V(40.762,1.45,22.872)",
      "f4166 \"setLock\" obj:s00028 true",
-     "f4166 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4166 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4166 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4166 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/\"",
      "f4166 \"UI.setValue\" \"eng_pop_who\" \"Dokuchi Silencer - Blue\"",
@@ -10446,7 +10446,7 @@
      "f4172 \"objUI.setAttributes\" obj:23e485 \"eng_fx_2\" {active=\"true\",height=262,position=\"-1928 -1306 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=262}",
      "f4172 \"objUI.setAttributes\" obj:23e485 \"eng_fx_2_img\" {color=\"#FFFFFFE6\",fontSize=147,height=174,width=174}",
      "f4176 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}",
-     "f4177 \"objUI.setAttributes\" obj:23e485 \"eng_fx_3\" {active=\"true\",height=262,position=\"-2119 -1560 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=262}",
+     "f4177 \"objUI.setAttributes\" obj:23e485 \"eng_fx_3\" {active=\"true\",height=262,position=\"-2119 -1993 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=262}",
      "f4177 \"objUI.setAttributes\" obj:23e485 \"eng_fx_3_img\" {color=\"#FFFFFFE6\",fontSize=147,height=174,width=174}",
      "f4181 \"objUI.setAttributes\" obj:23e485 \"eng_fx_2_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}",
      "f4186 \"objUI.setAttributes\" obj:23e485 \"eng_fx_3_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}",
@@ -10488,14 +10488,14 @@
      "f4266 \"spawnObjectData\" \"Card\" obj:s00081 \"Arcane Signet\\\nArtifact\\\n2CMC\" V(27.75,1.15,13.8) 0 300400 \"3004\"",
      "f4266 \"setPositionSmooth\" obj:s00005 V(25.35,1.15,13.8)",
      "f4266 \"setPositionSmooth\" obj:s00034 V(22.95,1.15,13.8)",
-     "f4266 \"spawnObjectData\" \"Card\" obj:s00082 \"Island\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,17) 0 300600 \"3006\"",
+     "f4266 \"spawnObjectData\" \"Card\" obj:s00082 \"Island\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,22.44) 0 300600 \"3006\"",
      "f4266 \"setLock\" obj:s00028 false",
-     "f4266 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4266 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4266 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
-     "f4266 \"setPositionSmooth\" obj:s00007 V(25.35,1.15,17)",
-     "f4266 \"setPositionSmooth\" obj:s00008 V(22.95,1.15,17)",
+     "f4266 \"setPositionSmooth\" obj:s00007 V(25.35,1.15,22.44)",
+     "f4266 \"setPositionSmooth\" obj:s00008 V(22.95,1.15,22.44)",
      "f4266 \"setLock\" obj:s00028 true",
-     "f4266 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4266 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4266 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4266 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/\"",
      "f4266 \"UI.setValue\" \"eng_pop_who\" \"Negate - Blue\"",
@@ -10507,7 +10507,7 @@
      "f4266 \"spawnObjectData\" \"Card\" obj:s00084 \"Counterspell\\\nOn the stack\\\n0CMC\" V(21.4,3.498,-15.4) 0 300700 \"3007\"",
      "f4266 \"spawnObjectData\" \"Card\" obj:s00085 \"Negate\\\nOn the stack\\\n0CMC\" V(18.8,3.6,15.4) 0 300700 \"3007\"",
      "f4266 \"highlightOff\" obj:s00067",
-     "f4266 \"Global.setVectorLines\" 4 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 0.35,0.85,1.00 t0.300 n11 (18.8,15.4)->(21.4,-15.4) mid y8.1 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f4266 \"Global.setVectorLines\" 4 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 0.35,0.85,1.00 t0.300 n11 (18.8,15.4)->(21.4,-15.4) mid y8.1 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f4266 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Negate, Counterspell, Opt\\\nYour mana pool: C\"",
      "f4267 \"setLock\" obj:s00080 false",
      "f4267 \"setLock\" obj:s00081 false",
@@ -10519,7 +10519,7 @@
     "step": "fx: Counterspell countered, Opt stays",
     "fx": [
      "f4272 \"setLock\" obj:s00028 false",
-     "f4272 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4272 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4272 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f4272 \"setLock\" obj:s00080 true",
      "f4272 \"setPositionSmooth\" obj:s00080 V(40.762,1.45,22.872)",
@@ -10528,7 +10528,7 @@
      "f4272 \"setLock\" obj:s00082 true",
      "f4272 \"setPositionSmooth\" obj:s00082 V(40.762,1.45,22.872)",
      "f4272 \"setLock\" obj:s00028 true",
-     "f4272 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4272 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4272 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4272 \"UI.setValue\" \"eng_pop_who\" \"COUNTERED: Counterspell\"",
      "f4272 \"UI.setAttribute\" \"eng_pop_who\" \"color\" \"#FF6B5A\"",
@@ -10549,7 +10549,7 @@
      "f4272 \"setPosition\" obj:s00085 V(52,4.5,33)",
      "f4272 \"setLock\" obj:s00085 false",
      "f4272 \"putObject\" obj:s00016 obj:s00085",
-     "f4272 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f4272 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f4272 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Opt\\\nYour mana pool: C\"",
      "f4273 \"setHiddenFrom\" obj:s00084 {}",
      "f4273 \"setHiddenFrom\" obj:s00085 {}",
@@ -10586,12 +10586,12 @@
     "fx": [
      "f4402 \"spawnObjectData\" \"Card\" obj:s00086 \"Sol Ring\\\nArtifact\\\n1CMC\" V(30.15,1.15,13.8) 0 300100 \"3001\"",
      "f4402 \"spawnObjectData\" \"Card\" obj:s00087 \"Arcane Signet\\\nArtifact\\\n2CMC\" V(27.75,1.15,13.8) 0 300400 \"3004\"",
-     "f4402 \"spawnObjectData\" \"Card\" obj:s00088 \"Island\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,17) 0 300600 \"3006\"",
+     "f4402 \"spawnObjectData\" \"Card\" obj:s00088 \"Island\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,22.44) 0 300600 \"3006\"",
      "f4402 \"setLock\" obj:s00028 false",
-     "f4402 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4402 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4402 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f4402 \"setLock\" obj:s00028 true",
-     "f4402 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4402 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4402 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4402 \"setGMNotes\" obj:s00083 \"enginetrash\"",
      "f4402 \"highlightOff\" obj:s00083",
@@ -10625,7 +10625,7 @@
     "fx": [
      "f4544 \"setRotationSmooth\" obj:s00086 V(0,450,180)",
      "f4544 \"setLock\" obj:s00028 false",
-     "f4544 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4544 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4544 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f4544 \"setLock\" obj:s00086 true",
      "f4544 \"setPositionSmooth\" obj:s00086 V(40.762,1.45,22.872)",
@@ -10636,7 +10636,7 @@
      "f4544 \"takeObject\" obj:s00050 obj:s00089 V(20,6,34.5)",
      "f4544 \"takeObject\" obj:s00050 obj:s00090 V(20,6,34.5)",
      "f4544 \"setLock\" obj:s00028 true",
-     "f4544 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4544 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4544 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4544 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/\"",
      "f4544 \"UI.setValue\" \"eng_pop_who\" \"Dokuchi Silencer - Blue\"",
@@ -10664,12 +10664,12 @@
     "fx": [
      "f4556 \"spawnObjectData\" \"Card\" obj:s00091 \"Sol Ring\\\nArtifact\\\n1CMC\" V(30.15,1.15,13.8) 0 300100 \"3001\"",
      "f4556 \"spawnObjectData\" \"Card\" obj:s00092 \"Arcane Signet\\\nArtifact\\\n2CMC\" V(27.75,1.15,13.8) 0 300400 \"3004\"",
-     "f4556 \"spawnObjectData\" \"Card\" obj:s00093 \"Island\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,17) 0 300600 \"3006\"",
+     "f4556 \"spawnObjectData\" \"Card\" obj:s00093 \"Island\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,22.44) 0 300600 \"3006\"",
      "f4556 \"setLock\" obj:s00028 false",
-     "f4556 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4556 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4556 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f4556 \"setLock\" obj:s00028 true",
-     "f4556 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4556 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4556 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4556 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
      "f4557 \"setLock\" obj:s00091 false",
@@ -10727,7 +10727,7 @@
     "step": "auto: 2 s later",
     "fx": [
      "f4592 \"setLock\" obj:s00028 false",
-     "f4592 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4592 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4592 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f4592 \"setLock\" obj:s00091 true",
      "f4592 \"setPositionSmooth\" obj:s00091 V(40.762,1.45,22.872)",
@@ -10736,7 +10736,7 @@
      "f4592 \"setLock\" obj:s00093 true",
      "f4592 \"setPositionSmooth\" obj:s00093 V(40.762,1.45,22.872)",
      "f4592 \"setLock\" obj:s00028 true",
-     "f4592 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4592 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4592 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4628 \"setGMNotes\" obj:s00091 \"enginetrash\"",
      "f4628 \"highlightOff\" obj:s00091",
@@ -10764,14 +10764,14 @@
      "f4646 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/a/2/a24d5664-e214-466d-bb53-4e8f6f75a009.jpg\"",
      "f4712 \"spawnObjectData\" \"Card\" obj:s00094 \"Sol Ring\\\nArtifact\\\n1CMC\" V(30.15,1.15,13.8) 0 300100 \"3001\"",
      "f4712 \"spawnObjectData\" \"Card\" obj:s00095 \"Arcane Signet\\\nArtifact\\\n2CMC\" V(27.75,1.15,13.8) 0 300400 \"3004\"",
-     "f4712 \"spawnObjectData\" \"Card\" obj:s00096 \"Island\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,17) 0 300600 \"3006\"",
+     "f4712 \"spawnObjectData\" \"Card\" obj:s00096 \"Island\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,22.44) 0 300600 \"3006\"",
      "f4712 \"setLock\" obj:s00028 false",
-     "f4712 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4712 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4712 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f4712 \"spawnObjectData\" \"Card\" obj:s00097 \"Island\\\n\\\n0CMC\" V(20,5,34.5) 0 300700 \"3007\"",
      "f4712 \"takeObject\" obj:s00050 obj:s00098 V(20,6,34.5)",
      "f4712 \"setLock\" obj:s00028 true",
-     "f4712 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-17)",
+     "f4712 \"setPositionSmooth\" obj:s00028 V(8.65,1.15,-22.44)",
      "f4712 \"setRotationSmooth\" obj:s00028 V(0,180,0)",
      "f4712 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
      "f4713 \"setLock\" obj:s00094 false",
@@ -10818,7 +10818,7 @@
     "step": "White's battlefield",
     "fx": [
      "f4760 \"setLock\" obj:s00028 false",
-     "f4760 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
+     "f4760 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
      "f4760 \"setRotationSmooth\" obj:s00028 V(0,360,0)",
      "f4760 \"setLock\" obj:s00094 true",
      "f4760 \"setPositionSmooth\" obj:s00094 V(40.762,1.45,22.872)",
@@ -10829,8 +10829,8 @@
      "f4760 \"spawnObjectData\" \"Deck\" obj:s00099 \"Library card\" V(40.762,3.45,18.74) 3 0 \"3007\"",
      "f4760 \"spawnObjectData\" \"Card\" obj:s00100 \"Ashling, the Limitless\\\nLegendary Creature — Elemental Sorcerer\\\n3CMC\" V(8.65,1.15,-7.4) 0 300800 \"3008\"",
      "f4760 \"spawnObjectData\" \"Card\" obj:s00101 \"Sol Ring\\\nArtifact\\\n1CMC\" V(8.65,1.15,-13.8) 0 300100 \"3001\"",
-     "f4760 \"spawnObjectData\" \"Card\" obj:s00102 \"Mountain\\\nBasic Land — Mountain\\\n0CMC\" V(8.65,1.15,-17) 0 300900 \"3009\"",
-     "f4760 \"spawnObjectData\" \"Card\" obj:s00103 \"Rockfall Vale\\\nLand\\\n0CMC\" V(11.05,1.15,-17) 0 301200 \"3012\"",
+     "f4760 \"spawnObjectData\" \"Card\" obj:s00102 \"Mountain\\\nBasic Land — Mountain\\\n0CMC\" V(8.65,1.15,-22.44) 0 300900 \"3009\"",
+     "f4760 \"spawnObjectData\" \"Card\" obj:s00103 \"Rockfall Vale\\\nLand\\\n0CMC\" V(11.05,1.15,-22.44) 0 301200 \"3012\"",
      "f4761 \"setLock\" obj:s00050 false",
      "f4761 \"putObject\" obj:s00050 obj:s00099",
      "f4762 \"setLock\" obj:s00050 true"
@@ -10911,7 +10911,7 @@
     "fx": [
      "f4802 \"spawnObjectData\" \"Card\" obj:s00104 \"Sol Ring\\\nArtifact\\\n1CMC\" V(30.15,1.15,13.8) 0 300100 \"3001\"",
      "f4802 \"spawnObjectData\" \"Card\" obj:s00105 \"Arcane Signet\\\nArtifact\\\n2CMC\" V(27.75,1.15,13.8) 0 300400 \"3004\"",
-     "f4802 \"spawnObjectData\" \"Card\" obj:s00106 \"Island\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,17) 0 300600 \"3006\"",
+     "f4802 \"spawnObjectData\" \"Card\" obj:s00106 \"Island\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,22.44) 0 300600 \"3006\"",
      "f4802 \"spawnObjectData\" \"Card\" obj:s00107 \"Face-down card\" V(40.762,4,18.74) 0 300700 \"3007\"",
      "f4802 \"spawnObjectData\" \"Card\" obj:s00108 \"Face-down card\" V(40.762,4,18.74) 0 300700 \"3007\"",
      "f4802 \"setGMNotes\" obj:s00079 \"enginetrash\"",
@@ -11101,7 +11101,7 @@
      "f5110 \"spawnObjectData\" \"Deck\" obj:s00120 \"Library card\" V(40.777,3.45,-18.755) 3 0 \"3007\"",
      "f5110 \"highlightOn\" obj:s00102 {1=0.15,2=0.45,3=1}",
      "f5110 \"highlightOn\" obj:s00104 {1=1,2=0.12,3=0.08}",
-     "f5110 \"Global.setVectorLines\" 4 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,13.8)->(19.4,-18.9) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9 | 1.00,0.80,0.25 t0.160 n11 (8.7,-17.0)->(30.1,13.8) mid y1.8\"",
+     "f5110 \"Global.setVectorLines\" 4 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,13.8)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.80,0.25 t0.160 n11 (8.7,-22.4)->(30.1,13.8) mid y1.8\"",
      "f5111 \"setLock\" obj:s00050 false",
      "f5111 \"putObject\" obj:s00050 obj:s00119",
      "f5111 \"setLock\" obj:s00012 false",
@@ -11118,7 +11118,7 @@
    {
     "step": "lunge: Blue attacks, White blocks (combatDamage)",
     "fx": [
-     "f5120 \"setPositionSmooth\" obj:s00104 V(30.608,2.05,14.456)",
+     "f5120 \"setPositionSmooth\" obj:s00104 V(30.558,2.05,14.488)",
      "f5120 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDamage - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\""
     ]
    },
@@ -11126,12 +11126,12 @@
     "step": "click: __sim.frames(15) return 'mid-swing'",
     "value": "mid-swing",
     "fx": [
-     "f5129 \"setPositionSmooth\" obj:s00104 V(10.37,2.05,-14.536)"
+     "f5129 \"setPositionSmooth\" obj:s00104 V(10.37,2.05,-19.541)"
     ]
    },
    {
     "step": "click: local o = nil for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:engine-card-1\" then o = x end end return o and string.format(\"%.1f %.1f\", o.getPosition().x, o.getPosition().z) or \"none\"",
-    "value": "10.4 -14.5",
+    "value": "10.4 -19.5",
     "fx": [
      "f5147 \"setPositionSmooth\" obj:s00104 V(30.15,1.15,13.8)"
     ]
@@ -11144,8 +11144,8 @@
     "step": "click: __sim.frames(120) return 'back'",
     "value": "back",
     "fx": [
-     "f5156 \"setPositionSmooth\" obj:s00035 V(30.452,2.05,8.141)",
-     "f5165 \"setPositionSmooth\" obj:s00035 V(20.26,2.05,-16.814)",
+     "f5156 \"setPositionSmooth\" obj:s00035 V(30.406,2.05,8.158)",
+     "f5165 \"setPositionSmooth\" obj:s00035 V(20.26,2.05,-21.819)",
      "f5183 \"setPositionSmooth\" obj:s00035 V(30.15,1.15,7.4)"
     ]
    },
@@ -11257,7 +11257,7 @@
      "f5382 \"takeObject\" obj:s00012 obj:s00127 V(20,6,-34.5)",
      "f5382 \"highlightOff\" obj:s00102",
      "f5382 \"highlightOff\" obj:s00104",
-     "f5382 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f5382 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f5382 \"UI.setValue\" \"eng_status_Blue\" \"White's 6th turn (game turn 15) - upkeep - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
      "f5382 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f5383 \"setLock\" obj:s00117 false",
@@ -11362,10 +11362,10 @@
      "f5426 \"putObject\" obj:s00016 obj:s00117",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00129 \"Face-down card\" V(40.777,1.15,-14.595) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Deck\" obj:s00130 \"Library card\" V(40.777,3.45,-18.755) 4 0 \"3007\"",
-     "f5426 \"spawnObjectData\" \"Card\" obj:s00131 \"Face-down card\" V(30.15,1.15,21) 0 300700 \"3007\"",
+     "f5426 \"spawnObjectData\" \"Card\" obj:s00131 \"Face-down card\" V(30.15,1.15,17) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00132 \"Face-down card\" V(38,5,32) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00133 \"Face-down card\" V(38,5,32) 0 300700 \"3007\"",
-     "f5426 \"spawnObjectData\" \"Card\" obj:s00134 \"Face-down card\" V(27.75,1.15,21) 0 300700 \"3007\"",
+     "f5426 \"spawnObjectData\" \"Card\" obj:s00134 \"Face-down card\" V(27.75,1.15,17) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00135 \"Face-down card\" V(27.75,1.13,14.9) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00136 \"Face-down card\" V(28.1,1.11,15.25) 0 300700 \"3007\"",
      "f5426 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
@@ -11387,7 +11387,7 @@
    },
    {
     "step": "click: local out = {} for _, id in ipairs({ \"engine-card-9901\", \"engine-card-9904\", \"engine-card-9902\", \"engine-card-9903\", \"engine-card-9905\", \"engine-card-9906\", \"engine-card-9907\" }) do local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:\" .. id then o = x end end if o then local inHand2 = false for _, h in ipairs(Player.Blue.getHandObjects(2)) do if h == o then inHand2 = true end end local p = o.getPosition() out[#out + 1] = string.format(\"%s %.1f %.1f s%.1f%s\", id:sub(-4), p.x, p.z, o.getScale().x, inHand2 and \" hand2\" or \"\") else out[#out + 1] = id:sub(-4) .. \" none\" end end return table.concat(out, \" | \")",
-    "value": "9901 27.7 14.9 s0.5 | 9904 28.1 15.2 s0.5 | 9902 30.2 21.0 s1.0 | 9903 38.0 32.0 s1.0 hand2 | 9905 40.8 -14.6 s1.0 | 9906 38.0 32.0 s1.0 hand2 | 9907 27.8 21.0 s1.0",
+    "value": "9901 27.7 14.9 s0.5 | 9904 28.1 15.2 s0.5 | 9902 30.2 17.0 s1.0 | 9903 38.0 32.0 s1.0 hand2 | 9905 40.8 -14.6 s1.0 | 9906 38.0 32.0 s1.0 hand2 | 9907 27.8 17.0 s1.0",
     "fx": []
    },
    {
@@ -11503,7 +11503,7 @@
      "f5470 \"setLock\" obj:s00102 true",
      "f5470 \"setLock\" obj:s00103 true",
      "f5470 \"setLock\" obj:s00129 true",
-     "f5470 \"setPositionSmooth\" obj:s00131 V(30.15,1.15,21)",
+     "f5470 \"setPositionSmooth\" obj:s00131 V(30.15,1.15,17)",
      "f5470 \"setLock\" obj:s00135 true",
      "f5470 \"setLock\" obj:s00136 true",
      "f5470 \"highlightOn\" obj:s00131 {1=0.35,2=1,3=0.45}",
@@ -11566,7 +11566,7 @@
    },
    {
     "step": "click: local out = {} for _, id in ipairs({ \"engine-card-9901\", \"engine-card-9904\", \"engine-card-9902\", \"engine-card-9903\", \"engine-card-9905\", \"engine-card-9906\", \"engine-card-9907\" }) do local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:\" .. id then o = x end end if o then local inHand2 = false for _, h in ipairs(Player.Blue.getHandObjects(2)) do if h == o then inHand2 = true end end local p = o.getPosition() out[#out + 1] = string.format(\"%s %.1f %.1f s%.1f%s\", id:sub(-4), p.x, p.z, o.getScale().x, inHand2 and \" hand2\" or \"\") else out[#out + 1] = id:sub(-4) .. \" none\" end end return table.concat(out, \" | \")",
-    "value": "9901 40.8 -14.6 s0.5 | 9904 40.8 -14.6 s0.5 | 9902 30.2 21.0 s1.0 | 9903 38.5 32.0 s1.0 hand2 | 9905 40.8 -14.6 s1.0 | 9906 38.0 32.0 s1.0 hand2 | 9907 27.8 21.0 s1.0",
+    "value": "9901 40.8 -14.6 s0.5 | 9904 40.8 -14.6 s0.5 | 9902 30.2 17.0 s1.0 | 9903 38.5 32.0 s1.0 hand2 | 9905 40.8 -14.6 s1.0 | 9906 38.0 32.0 s1.0 hand2 | 9907 27.8 17.0 s1.0",
     "fx": []
    },
    {
@@ -11831,7 +11831,7 @@
    },
    {
     "step": "click: local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:engine-card-7\" then o = x end end if not o then return \"none\" end local p = o.getPosition() return string.format(\"%.1f %.1f r%.0f\", p.x, p.z, o.getRotation().y)",
-    "value": "30.2 17.0 r450",
+    "value": "30.2 22.4 r450",
     "fx": []
    },
    {
@@ -11941,7 +11941,7 @@
      "f5705 \"setLock\" obj:s00100 true",
      "f5705 \"setLock\" obj:s00101 true",
      "f5705 \"setLock\" obj:s00102 true",
-     "f5705 \"setPositionSmooth\" obj:s00102 V(8.65,1.15,-17)",
+     "f5705 \"setPositionSmooth\" obj:s00102 V(8.65,1.15,-22.44)",
      "f5705 \"setLock\" obj:s00103 true",
      "f5705 \"setLock\" obj:s00138 true",
      "f5705 \"setLock\" obj:s00139 true",
@@ -11982,14 +11982,14 @@
    },
    {
     "step": "click: local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:engine-card-7\" then o = x end end if not o then return \"none\" end local p = o.getPosition() return string.format(\"%.1f %.1f r%.0f\", p.x, p.z, o.getRotation().y)",
-    "value": "30.2 17.0 r360",
+    "value": "30.2 22.4 r360",
     "fx": [
      "f5726 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatDeclareBlockers\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":10}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
    {
     "step": "click: local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:engine-card-100\" then o = x end end if not o then return \"none\" end local p = o.getPosition() return string.format(\"%.1f %.1f r%.0f\", p.x, p.z, o.getRotation().y)",
-    "value": "8.7 -17.0 r270",
+    "value": "8.7 -22.4 r270",
     "fx": []
    },
    {
@@ -12000,11 +12000,11 @@
    {
     "step": "fix2: an attached card",
     "fx": [
-     "f5739 \"setPositionSmooth\" obj:s00007 V(26.31,1.15,17)",
-     "f5739 \"setPositionSmooth\" obj:s00008 V(23.91,1.15,17)",
+     "f5739 \"setPositionSmooth\" obj:s00007 V(26.31,1.15,22.44)",
+     "f5739 \"setPositionSmooth\" obj:s00008 V(23.91,1.15,22.44)",
      "f5739 \"setScale\" obj:s00028 V(0.5,1,0.5)",
      "f5739 \"setLock\" obj:s00028 true",
-     "f5739 \"setPositionSmooth\" obj:s00028 V(28.23,1.17,17.8)"
+     "f5739 \"setPositionSmooth\" obj:s00028 V(28.23,1.17,23.24)"
     ]
    },
    {
@@ -12159,9 +12159,9 @@
     "step": "fix2: over",
     "fx": [
      "f5825 \"setPositionSmooth\" obj:s00137 V(27.75,1.15,13.8)",
-     "f5825 \"setPositionSmooth\" obj:s00106 V(30.15,1.15,17)",
+     "f5825 \"setPositionSmooth\" obj:s00106 V(30.15,1.15,22.44)",
      "f5825 \"setLock\" obj:s00028 true",
-     "f5825 \"setPositionSmooth\" obj:s00028 V(28.23,1.17,17.8)",
+     "f5825 \"setPositionSmooth\" obj:s00028 V(28.23,1.17,23.24)",
      "f5825 \"setLock\" obj:s00134 true",
      "f5825 \"setLock\" obj:s00100 true",
      "f5825 \"setLock\" obj:s00101 true",
@@ -12213,9 +12213,9 @@
     "fx": [
      "f5839 \"setScale\" obj:s00028 V(1,1,1)",
      "f5839 \"setLock\" obj:s00028 false",
-     "f5839 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,17)",
-     "f5839 \"setPositionSmooth\" obj:s00007 V(25.35,1.15,17)",
-     "f5839 \"setPositionSmooth\" obj:s00008 V(22.95,1.15,17)"
+     "f5839 \"setPositionSmooth\" obj:s00028 V(27.75,1.15,22.44)",
+     "f5839 \"setPositionSmooth\" obj:s00007 V(25.35,1.15,22.44)",
+     "f5839 \"setPositionSmooth\" obj:s00008 V(22.95,1.15,22.44)"
     ]
    },
    {
@@ -12533,7 +12533,7 @@
    {
     "step": "rewind pending",
     "fx": [
-     "f6079 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-18.9) mid y1.9\"",
+     "f6079 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f6079 \"UI.setAttributes\" \"eng_autores_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
      "f6079 \"UI.setAttributes\" \"eng_undo_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
      "f6079 \"UI.setAttribute\" \"eng_vote_Blue\" \"active\" \"true\"",
@@ -12843,7 +12843,7 @@
      "f6175 \"spawnObjectData\" \"Deck\" obj:s00155 \"Library\" V(40.762,1.45,18.74) 84 0 \"3007\"",
      "f6175 \"spawnObjectData\" \"Deck\" obj:s00156 \"Library\" V(40.777,1.45,-18.755) 88 0 \"3007\"",
      "f6175 \"spawnObjectData\" \"Card\" obj:s00157 \"Dokuchi Silencer\\\nOn the stack\\\n0CMC\" V(17.4,3.4,15.4) 0 302200 \"3022\"",
-     "f6175 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (13.3,13.8)->(19.4,-18.9) mid y1.9\"",
+     "f6175 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (13.3,13.8)->(19.4,-24.4) mid y1.9\"",
      "f6175 \"createButton\" obj:395037 \"RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -10.79,0.05,1.45\"",
      "f6175 \"UI.setAttributes\" \"eng_toggle_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
      "f6175 \"UI.setAttributes\" \"eng_browse_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
@@ -14785,7 +14785,7 @@
    {
     "step": "entry: one leaves, the pile is rebuilt",
     "fx": [
-     "f760 \"spawnObjectData\" \"Card\" obj:s00027 \"Forest\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,17) 0 301900 \"3019\"",
+     "f760 \"spawnObjectData\" \"Card\" obj:s00027 \"Forest\\\nBasic Land — Island\\\n0CMC\" V(30.15,1.15,22.44) 0 301900 \"3019\"",
      "f760 \"setGMNotes\" obj:s00026 \"enginetrash\"",
      "f760 \"highlightOff\" obj:s00026",
      "f760 \"setInvisibleTo\" obj:s00026 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -14800,7 +14800,7 @@
    },
    {
     "step": "ce: the card that left the rebuilt pile",
-    "value": "7040 obj=s00027@30,17 spawning=nil inPile=nil held=nil inHand=nil zone=battlefield manual=false copies=1",
+    "value": "7040 obj=s00027@30,22 spawning=nil inPile=nil held=nil inHand=nil zone=battlefield manual=false copies=1",
     "fx": []
    },
    {

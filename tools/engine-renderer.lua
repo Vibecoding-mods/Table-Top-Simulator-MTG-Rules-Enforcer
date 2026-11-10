@@ -20,7 +20,9 @@ local SURFACE_Y = 1.15 -- table top; cards are placed at this height, not at the
 local function onTable(v, lift) return Vector(v.x, SURFACE_Y + (lift or 0), v.z) end
 
 local GRID = { colStep = 2.4, colStart = 10.75, rowStep = 3.2, rowStart = -8, perRow = 10 }
-local ROWS = { creature = 0, other = 2, land = 3 }
+-- (lands: the centre of the mat's lower box, the mana zone, measured on the real table 2026-11-10: the box runs from
+-- 3.46 past the mat's centre to its near edge at 10.375, so a card's 3.06 fits with room; row 3 lay above it)
+local ROWS = { creature = 0, other = 2, land = 4.7 }
 
 local engineObjs = {}     -- engine card id -> object
 local engineSpawning = {} -- engine card id -> true while its object is being spawned
@@ -4639,13 +4641,13 @@ end
 -- Linked and playable exile (2026-10-23, needs our Forge build: reports/MTG linked exile and zone quirks.md).
 -- A card a seated player may play from exile or a graveyard (Tibalt, flashback, adventure, plot, foretell, Gonti,
 -- impulse draw...) leaves its pile for that player's playable row, as Arena puts them beside the hand: face-up ones in
--- a public row in the empty strip at the near edge of the player's own mat, glowing (in front of the small second hand
--- zone it was half hidden under the big buttons, playtest 2026-10-26); ones others may not see (foretold, Gonti's face-down
+-- a public row in the strip just above the mana box on the player's own mat (PLAYABLE_ROW), glowing (in front of the
+-- small second hand zone it was half hidden under the big buttons, playtest 2026-10-26); ones others may not see (foretold, Gonti's face-down
 -- card) inside that second hand zone, where TTS shows a card's face to its owner only. An exiled card linked to a
 -- permanent still on the battlefield (Banishing Light, Valki, Arcane Bombardment, imprint) lies half-size under that
 -- permanent, as Forge shows it, instead of in the pile. Dragging a playable card onto the battlefield plays it.
 engineSpecial = {} -- engine card id -> "playable" | "linked" on the current board
-PLAYABLE_ROW = 4.25 -- (a grid row past the lands: the mat's near strip)
+PLAYABLE_ROW = 3 -- (the strip just above the mana box: the lands have the box itself)
 function engineMarkSpecial(m)
   engineSpecial = {}
   local onField = {}

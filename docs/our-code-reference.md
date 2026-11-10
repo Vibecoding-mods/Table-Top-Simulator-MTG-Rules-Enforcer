@@ -613,7 +613,7 @@ Every handled line returns `false`, which hides it from chat. A non-`mtg` line r
 | `CMD_DAMAGE` | 9 | local | victim → attacker → counter GUID |
 | `TAX_LABELS` | 15 | local | colour → 2 tax-label GUIDs (command-zone anchors) |
 | `SURFACE_Y` | 19 | local | 1.15 |
-| `GRID`, `ROWS` | 22-23 | local | grid spacing; rows creature 0 / other 2 / land 3 |
+| `GRID`, `ROWS` | 22-23 | local | grid spacing; rows creature 0 / other 2 / land 4.7 (centred in the mat's mana box, which runs 3.46 to 10.375 along the forward axis) |
 | `engineObjs` | 25 | local | id → object. Writers: `place` callback, `engineRender` cleanup, `engineClear`, library/pile code, leave handlers (adopt) |
 | `engineSpawning` | 26 | local | id → true while spawning |
 | `enginePlanned` | 27 | local | id → position this render; reset in `engineRender` |
@@ -1224,7 +1224,7 @@ counted once for every click kind; per-item auto-pace timers; labels never nil; 
 | Function | Details |
 |---|---|
 | `engineCombatLunge(m)` | remembers attackers and their blockers from the combat steps before damage; on the first damage-step board of a turn each attacker still on the table winds up (lift 0.9, back 0.8), moves 92% of the way onto its blocker, planeswalker/battle or the defender's `playerSpot`, and returns (0.2 s / 0.55 s); `engineAnimUntil[id]` keeps `place()` off it for 1.6 s |
-| `playerSpot(color)` | the back centre of a player's board (just behind the land row): where attacks, attack lines and spell target lines aim at a player |
+| `playerSpot(color)` | the back centre of a player's board (just behind the land row, in the mana box): where attacks, attack lines and spell target lines aim at a player |
 | `engineMillDetect(m)` | per board, every player: new graveyard cards that weren't public before while the library shrank are mills; `engineMillNow[color]` tells the library deck to drop that many backs without flying them; unheld ones (up to `MILL_FLY` = 5, `MILL_GAP` 0.25 s apart) get `engineMillFly` stand-ins (GMNotes `enginefx`), face down on the library turning face up onto the graveyard |
 | held mills | `place()` spawns a `heldmill` card on the library face down and turns it onto its fan spot; when let go, `engineZonePile` slides the object into the graveyard pile |
 | Settings | `eng_set_<colour>` opens `eng_setpanel_<colour>`: `onMtgFx` (`engineEffectsOff`: result banners, turn banner, stack pop-up visibility), `onMtgSnd` (`engineSoundOff`, for the coming sounds), `onMtgAnim` (host only, `engineSetAnimations` / `engineAnimOff`: swing, mill stand-ins and held-mill turn-over, death flash) |
@@ -1306,7 +1306,7 @@ Needs our engine build: `stack/compose.yml` runs `mtg-forge-node:exile` and `mtg
 | bridge | seat records | `seat.note(kind, id, name, text)` / `justDid(kind, ms)` / `forget(kind)`: "activate", "manaTap" (with the cost text: the auto-yes for "Sacrifice X?" / "pay N life?" needs the cost to name it), "start" (a spell or ability started, or Pay on your own card's may-pay: the pool pays the next cost), "search" (a look at your library: the next hand gain is "puts", forgotten at a new turn), "discard" (an answer to Forge's "Discard" question: an instant reaching the graveyard is then a discard). Cancel forgets "start"/"activate" and that one play; a rewind (`checkRestored`) forgets all of them and End turn, resolve-stack, a queued play, an attach |
 | bridge | game log plays | `notePlay` → `game.pendingPlays` (a land play, which Forge sends as a cast, is not one); `logEvents` says each once: from the stack (spell or ability by the player's record), from a public zone, or after priority came back (`game.saidEarly` keeps the stack from saying it again) |
 | bridge | `lossReasons(gv)`, `noteOuts`, `outLast` | life, poison, 21 commander damage, for the players who lost last only (`game.outOrder`, stamped as each board shows them out). `noteOuts` also keeps, per player, where they went out (`game.outWhere` {step, active, turn}), their library on the last board that showed them playing (`game.inLibrary`), and where it was first seen empty (`game.emptyAt` {turn, step}): `deckedPlayers` says "drew from an empty library" only for a player out in their own draw step whose library was empty before that draw step. All four are in the resume file |
-| table | `enginePlaceSpecial` | the public playable row: `gridPos(g, k, PLAYABLE_ROW)` with `PLAYABLE_ROW` 4.25, the near strip of the player's own mat past the land row (squeezed past 10); `onObjectDrop` puts a playable card dropped within 1.8 of its spot back instead of playing it |
+| table | `enginePlaceSpecial` | the public playable row: `gridPos(g, k, PLAYABLE_ROW)` with `PLAYABLE_ROW` 3, the strip of the player's own mat just above the mana box where the lands lie (squeezed past 10); `onObjectDrop` puts a playable card dropped within 1.8 of its spot back instead of playing it |
 | table | top-left row | `eng_toggle`, `eng_browse`, `eng_logbtn`, `eng_pace`, `eng_set` (UpperLeft, y -140: above Auto-resolve / Fix / Undo); the Settings panel opens above its button; the Log panel stays top right |
 
 ### hp-07 re-test additions (2026-10-27)

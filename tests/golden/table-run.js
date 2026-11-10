@@ -192,8 +192,9 @@ function scenarios() {
       ask({ promptId: 997, kind: "target", title: "Choose target", mode: "single", min: 1, max: 1,
         options: [{ id: `card|${bf[1].id}`, label: "a creature" }] }),
       click(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${bf[0].id}" then o = x end end if o then onPlayerAction(Player.Blue, Player.Action.Select, { o }) end`),
-      // a card in your hand (looking at it): no hint
-      click(`__sim.frames(200) local o for _, x in ipairs(getObjects()) do local id = tostring(x.getGMNotes()):match("^engine:(engine%-card%-%d+)$") if id and x.getPosition().z > 20 then o = x end end if o then onPlayerAction(Player.Blue, Player.Action.Select, { o }) return o.getGMNotes() end return "no hand card"`));
+      // a card in your hand (looking at it): no hint (z > 28: Blue's hand starts at 31.9, past the mat's edge at 25.8;
+      // "z > 20" took a land once lands moved into the mana box at 22.4, 2026-11-10)
+      click(`__sim.frames(200) local o for _, x in ipairs(getObjects()) do local id = tostring(x.getGMNotes()):match("^engine:(engine%-card%-%d+)$") if id and x.getPosition().z > 28 then o = x end end if o then onPlayerAction(Player.Blue, Player.Action.Select, { o }) return o.getGMNotes() end return "no hand card"`));
   }
   // 2026-10-21 sweep fixes
   {
