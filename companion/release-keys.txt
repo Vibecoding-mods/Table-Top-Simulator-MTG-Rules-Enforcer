@@ -1,3 +1,4 @@
 # The release signing keys MTG Companion's self-update trusts (docs/companion-app-spec.md section 18.7): one per line,
 # base64 of the P-256 public key's X || Y. Built into the exe (companion/build.cmd). tools/make-friend-package.js
 # --release adds the release key's line the first time; during a key change both lines stay for one release.
+v6CTCSllMV+mRzeH5lB4c/1biG7dmUIciiSyWJhk9kY7BTyv3+ETcTPno03LXx6r5NONzzar+5fU+afsOomhBQ==
