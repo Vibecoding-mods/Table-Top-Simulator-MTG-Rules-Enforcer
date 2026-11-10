@@ -3481,8 +3481,9 @@ function sendTable() {
       exile: zoneOf(pub, "exile", p.id).cards.map((c) => tableCard(c, { blockers, zone: "exile" })),
       command: command.map(toCard),
     };
-    // (after the zones: the cards a seat may play from outside its hand, built once)
-    const playable = own ? playableOf(own, toCard, p.id) : [];
+    // (after the zones: the cards a seat may play from outside its hand, built once; none once the game is over: Sen
+    // Triplets' stand-ins kept glowing as playable under GAME OVER, real-table check 2026-11-10)
+    const playable = own && !pub.gameOver ? playableOf(own, toCard, p.id) : [];
     if (playable.length) row.playable = playable;
     // (and the hand cards shown to everyone: the table lays them face up at the owner's seat)
     const revealed = revealedOf(p, seats, toCard);
