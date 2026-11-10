@@ -72305,12 +72305,12 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Pestilence: can't be cast right now (not enough mana, no legal targets, or another restriction).\n"
+    "text": "[time] Blue   told: [MTG] Pestilence: probably not enough mana. It costs {2}{B}{B} (4), and you have about 3 available.\n"
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Pestilence: can't be cast right now (not enough mana, no legal targets, or another restriction).",
+     "text": "[MTG] Pestilence: probably not enough mana. It costs {2}{B}{B} (4), and you have about 3 available.",
      "color": "Blue"
     }
    },
@@ -112104,7 +112104,7 @@
     ],
     [
      "in main, can't cast",
-     "Hurloon Minotaur: can't be cast right now (not enough mana, no legal targets, or another restriction)."
+     "Hurloon Minotaur: can't be cast right now (not enough mana or the right colours, no legal targets, or another restriction)."
     ],
     [
      "unknown card",
