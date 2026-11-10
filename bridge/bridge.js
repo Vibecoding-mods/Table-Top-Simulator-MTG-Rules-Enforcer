@@ -38,7 +38,9 @@ const outbox = [];
 let sending = false;
 // TTS only delivers flat messages intact (nested tables arrive as unusable C# objects, and nested sends from
 // Lua are dropped), so every payload travels as a JSON string: { t, json }.
-const ZONE_KEYS = ["hand", "battlefield", "graveyard", "exile", "command", "playable"];
+const ZONE_KEYS = ["hand", "battlefield", "graveyard", "exile", "command", "playable", "revealed"];
+// A reveal's pictures (the table pages through them, 7 at a time): 7 left out Animist's Awakening's 8th, 2026-10-30
+const REVEAL_PICTURES = 40;
 function toTTS(customMessage) {
   if (game?.autoplay) return; // CPU-contention test: TTS gets nothing
   // (the table log: each question shown, and the chat players are told)
@@ -1373,15 +1375,39 @@ function cardKeywords(c) {
 // The cards a seat may play from outside its hand right now (exile, graveyard; not the command zone, where the
 // commander already has its spot), from that seat's own view: a face-down card it may look at comes with its face.
 // Forge's own list (Player.getCardsActivatableInExternalZones), sent by our Forge build as mayPlay.
-function playableOf(own, toCard) {
+// slot: the seat's player. Another player's library never counts: Forge's list also takes a card that seat may only
+// look at, and Courser of Kruphix's revealed top card was in the opponent's row as well as its owner's (each scry then
+// threw it across the table, 2026-11-08 20:23 game). Our Forge build (2026-11-09) sends mayPlay only for a card the
+// seat may really play; an older one counts a look, so a library card of another player is left out either way (no
+// card lets you play from another player's library top).
+// (another player's hand too, when this seat may cast from it: Sen Triplets; never marked by an older build)
+function playableOf(own, toCard, slot) {
   const out = [];
   for (const z of own?.zones || []) {
     // (and the library's top card when its owner may play it: The Reality Chip offered "Cast Enlightened Tutor" from
     // the top of the library with nothing shown, hp-13 gap; the row is the owner's own second hand zone)
-    if (z.zone !== "exile" && z.zone !== "graveyard" && z.zone !== "library") continue;
+    const mine = z.ownerId === slot;
+    if (z.zone !== "exile" && z.zone !== "graveyard" && !(z.zone === "library" && mine) && !(z.zone === "hand" && !mine)) continue;
     for (const c of z.cards || []) if (c.mayPlay && c.visibility !== "hidden") out.push(toCard(c));
   }
   return out;
+}
+
+// A player's hand cards shown to the whole table (Revelation's "Players play with their hands revealed", Sen
+// Triplets' "plays with their hand revealed"): the ones every other human seat's view shows (Forge sends another
+// player's hand card only when that seat may see it). An AI's too, read from the human seats. One seat's private look
+// (Mindslaver's controller sees the hand) isn't public, so a card counts only when every other seat sees it, and the
+// seat controlling this player (controlledBy) isn't asked: it sees the hand by that control, so with two humans its
+// look alone would have made the hand public.
+function revealedOf(p, seats, toCard) {
+  const by = seats.length ? (seats[0].board.state.gameView.players || []).find((x) => x.id === p.id)?.controlledBy : null;
+  const others = seats.filter((s) => s.slot !== p.id && s.slot !== by);
+  if (!others.length) return [];
+  const sees = others.map((s) => new Set((zoneOf(s.board.state.gameView, "hand", p.id).cards || [])
+    .filter((c) => c.visibility === "visible" && c.identity).map((c) => c.id)));
+  return (zoneOf(others[0].board.state.gameView, "hand", p.id).cards || []).filter((c) => sees.every((ids) => ids.has(c.id)))
+    // (face up, its plain back as in a hand: a double-faced card's back would be its other face)
+    .map((c) => ({ ...toCard(c), b: DEFAULT_BACK }));
 }
 
 // Forge numbers turns across all players (turn 10 = your 5th in a 2-player game); count each player's own turns.
@@ -3332,15 +3358,18 @@ function sendTable() {
       command: command.map(toCard),
     };
     // (after the zones: the cards a seat may play from outside its hand, built once)
-    const playable = own ? playableOf(own, toCard) : [];
+    const playable = own ? playableOf(own, toCard, p.id) : [];
     if (playable.length) row.playable = playable;
+    // (and the hand cards shown to everyone: the table lays them face up at the owner's seat)
+    const revealed = revealedOf(p, seats, toCard);
+    if (revealed.length) row.revealed = revealed;
     return row;
   });
   // TTS decodes JSON slowly (~70 ms per full board, felt as a hitch every update). A card's fixed details (name,
   // pictures, type line, rules text) go out once in `cards`; zone lists then carry only what changes (tapped,
   // counters, damage, ...) plus s:1 meaning "details as sent before". A reload (hello) or new game resends all.
   const { slim, statics } = slimmer(game);
-  for (const pl of players) for (const z of ["hand", "battlefield", "graveyard", "exile", "command", "playable"]) if (pl[z]) pl[z] = pl[z].map(slim);
+  for (const pl of players) for (const z of ZONE_KEYS) if (pl[z]) pl[z] = pl[z].map(slim);
   const stack = (pub.stack || []).map((s) => ({
     // (Forge's stack text names cards with its own number: "Change the text of Goblin King (37) by ...", hp-25 T5)
     // ("Ponder (18) - " in front, which the table's pop-up also cuts, goes first)
@@ -6097,7 +6126,7 @@ function onPrompt(seat, prompt) {
         const won = end.match(/^(.+?) wins/i);
         const result = /no winner/i.test(end) ? "Nobody wins." : won ? (isMe(won[1]) ? "You win." : `${won[1]} wins.`) : end.replace(/!$/, ".");
         ui = { title: `${src ? `${src}: ` : ""}clash`, mode: "single", text: `${who.join(", ")}. ${result}`.trim(), options: [{ id: "ok", label: "OK" }],
-          show: input.cards.slice(0, 7).map((c) => ({ n: cardLabel(c), img: imgOf(c) })) };
+          show: input.cards.slice(0, REVEAL_PICTURES).map((c) => ({ n: cardLabel(c), img: imgOf(c) })) };
         toOutput = () => ({ type: "revealCardsAcknowledged" });
         break;
       }
@@ -6135,7 +6164,7 @@ function onPrompt(seat, prompt) {
       // hp-20 gap)
       ui = { title: `${revealedNow ? "Revealed" : String(title || "").replace(/\s+-\s*$/, "").replace(/^Face-down card leaves the (.+?)'s Battlefield:?$/i, "A face-down card left $1's battlefield") || "Revealed"}${input.ownerPlayerId ? ` (${String(input.ownerPlayerId).replace("-view", "") === seat.slot ? "your" : `${nameOf(String(input.ownerPlayerId).replace("-view", ""))}'s`} ${input.zone})` : ""}`, mode: "single",
         text: input.cards.map((c) => cardLabel(c)).join(", "), options: [{ id: "ok", label: "OK" }],
-        show: input.cards.slice(0, 7).map((c) => ({ n: cardLabel(c), img: imgOf(c) })) }; // pictures in the card row
+        show: input.cards.slice(0, REVEAL_PICTURES).map((c) => ({ n: cardLabel(c), img: imgOf(c) })) }; // pictures in the card row
       if (instead) ui.title = `${instead.name}: revealed until a ${instead.text} card (your library)`;
       // (its "Do you want to play X?" next is the free cast, as cascade's is)
       if (ripple) { ui.title = `${src ? `${src}: ` : ""}ripple ${ripple}: revealed from the top of your library`; seat.note("exiledHit", null, src, "ripple"); }

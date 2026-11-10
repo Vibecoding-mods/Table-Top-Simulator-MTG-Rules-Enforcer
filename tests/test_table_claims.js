@@ -1749,5 +1749,149 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const hint = String(valueOf(r, "hint"));
   ok("kykar #27: copies' hint says the card row or the Engine panel, no drag", hint.includes("Pick it in the card row or the Engine panel.") && !/drag/i.test(hint), hint + " " + r.errors.join(" | "));
 }
+// ── the scry glitch and revealed hands (2026-11-09) ──
+// The 2026-11-08 20:23 game's own messages: Courser of Kruphix's revealed top card in both seated players' rows, and
+// Blue's scry of it (prompt #1003 as the bridge sent it).
+{
+  const { simulate } = require("./lua/run-sim");
+  const both = (steps) => simulate({ save, seated: ["Blue", "White"], steps: [...prefix, ...steps] });
+  const scry1003 = { t: "prompt", color: "Blue", promptId: 1003, title: "Scry 1: choose cards to put on the bottom", mode: "multi", min: 0, max: 1, dest: "library", kind: "cards",
+    scry: { move: "libraryBottom", keep: "libraryTop" }, text: "They are in your second hand zone.",
+    options: [{ id: "engine-card-160", label: "Jugan Defends the Temple", img: "https://img.klrmngr.com/display/front/d/0/d07659ac-f4d2-4198-af81-44bc9e677c0b.webp" }] };
+  const rows = 'local t = engineTable() local blue, white for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p elseif p.color == "White" then white = p end end ' +
+    'engineStoreStatic("engine-card-160", { n = "Jugan Defends the Temple", f = "https://img.example/jugan.jpg", ty = { "Enchantment" } }) ' +
+    'white.playable = { { s = 1, id = "engine-card-160", sick = true, ctl = "Blue" } } blue.playable = { { s = 1, id = "engine-card-160", sick = true, ctl = "Blue" } } ';
+  // where the card lies: the mat it is on (by distance), and how many objects carry it
+  const where = 'local n, o = 0, nil for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-160" then n = n + 1 o = x end end ' +
+    'if o == nil then return "none" end local p = o.getPosition() local h2 = Player.Blue.getHandTransform(2) ' +
+    'local function d(v) return math.sqrt((p.x - v.x) ^ 2 + (p.z - v.z) ^ 2) end ' +
+    'local mat = d(data.Blue.playmat.getPosition()) < d(data.White.playmat.getPosition()) and "Blue" or "White" ' +
+    'return n .. " " .. mat .. " " .. ((h2 ~= nil and d(h2.position) < 0.5) and "hand2" or "row")';
+  const r = both([
+    q(rows + 'engineRender(t) __sim.frames(90) return tostring(enginePlayableRows(t)["engine-card-160"])', "no scry"), q(where, "where before"),
+    { msg: { t: "prompt", json: JSON.stringify(scry1003) }, frames: 10 },
+    q('local t = engineTable() engineRender(t) __sim.frames(90) return tostring(enginePlayableRows(t)["engine-card-160"])', "scry"), q(where, "where scry"),
+    q('engineRender(engineTable()) __sim.frames(90) return "again"', "again"), q(where, "where again"),
+    q('return tostring(Player.Blue.getHandTransform(2) ~= nil)', "hand2"),
+    // a card dragged out of the zone (onto the library) is no longer held; an unseated player's scry has no zone to hold it in
+    q('engineScry.Blue.gone["engine-card-160"] = "top" local h = engineScryHeld() engineScry.Blue.gone["engine-card-160"] = nil return tostring(h["engine-card-160"])', "gone"),
+    q('enginePrompts.Yellow = { promptId = 4242, scry = { move = "libraryBottom", keep = "libraryTop" }, options = { { id = "engine-card-161" } } } ' +
+      'local h = engineScryHeld() enginePrompts.Yellow = nil engineScry.Yellow = nil return tostring(h["engine-card-161"]) .. " " .. tostring(Player.Yellow.seated)', "unseated"),
+  ]);
+  ok("scry glitch: precondition, Blue has a second hand zone", valueOf(r, "hand2") === "true", r.errors.join(" | "));
+  ok("scry glitch: a card in two rows goes to its controller's row only", valueOf(r, "no scry") === "Blue", String(valueOf(r, "no scry")));
+  ok("scry glitch: placed once, on Blue's mat", valueOf(r, "where before") === "1 Blue row", String(valueOf(r, "where before")));
+  ok("scry glitch: a card the scry holds is in no row", valueOf(r, "scry") === "nil", String(valueOf(r, "scry")));
+  ok("scry glitch: it stays in Blue's second hand zone", valueOf(r, "where scry") === "1 Blue hand2", String(valueOf(r, "where scry")) + " " + r.errors.join(" | "));
+  ok("scry glitch: and the next board leaves it there", valueOf(r, "where again") === "1 Blue hand2", String(valueOf(r, "where again")));
+  ok("scry glitch: a card dragged out of the zone isn't held any more", valueOf(r, "gone") === "nil", String(valueOf(r, "gone")) + " " + r.errors.join(" | "));
+  ok("scry glitch: an unseated player's scry holds nothing", valueOf(r, "unseated") === "nil false", String(valueOf(r, "unseated")) + " " + r.errors.join(" | "));
+  // Thief of Sanity's card (controlled by its owner, White) listed only in its caster's row goes there
+  // (Yellow isn't seated: its row isn't drawn, so its listing gives no row)
+  const r2 = both([q('local m = { players = { { color = "White", playable = { { id = "x", ctl = "Blue" } } }, { color = "Blue", playable = { { id = "x", ctl = "Blue" }, { id = "y", ctl = "White" } } }, ' +
+    '{ color = "Yellow", playable = { { id = "z", ctl = "Yellow" } } } } } ' +
+    'local rows = enginePlayableRows(m) return tostring(rows.x) .. " " .. tostring(rows.y) .. " " .. tostring(rows.z)', "rows")]);
+  ok("one row: the controller's row wins, a caster's card goes to the caster", /^Blue Blue /.test(String(valueOf(r2, "rows"))), String(valueOf(r2, "rows")) + " " + r2.errors.join(" | "));
+  ok("one row: an unseated player's listing gives no row", / nil$/.test(String(valueOf(r2, "rows"))), String(valueOf(r2, "rows")));
+}
+// Sen Triplets on a seated human: Blue's hand card is in White's (the caster's) playable list. The real card stays in
+// Blue's hand on every board; White's row gets a stand-in (cast:White:<id>) that casts the real card when dragged; the
+// table check agrees. (The verifier's probe, 2026-11-09: the real card jumped onto White's mat from the second board.)
+{
+  const { simulate } = require("./lua/run-sim");
+  const both = (steps) => simulate({ save, seated: ["Blue", "White"], steps: [...prefix, ...steps] });
+  const setup = (revealed) => 'local t = engineTable() local blue, white for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p elseif p.color == "White" then white = p end end ' +
+    'engineStoreStatic("engine-card-900", { n = "Lightning Bolt", f = "https://img.example/bolt.jpg", ty = { "Instant" } }) ' +
+    'blue.hand = blue.hand or {} table.insert(blue.hand, { s = 1, id = "engine-card-900", ctl = "Blue" }) blue.handCount = #blue.hand ' +
+    'white.playable = { { s = 1, id = "engine-card-900", ctl = "Blue" } } ' + (revealed ? 'blue.revealed = { { s = 1, id = "engine-card-900", ctl = "Blue" } } ' : 'blue.revealed = nil ') +
+    'SEN = t engineRender(SEN) __sim.frames(90) return "drawn"';
+  // where an object lies: how many carry the id, the nearer mat, and whether it is in a hand zone (1 or 2) of that colour
+  const where = (id) => `local n, o = 0, nil for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then n = n + 1 o = x end end ` +
+    'if o == nil then return "none" end local p = o.getPosition() local function d(v) return math.sqrt((p.x - v.x) ^ 2 + (p.z - v.z) ^ 2) end ' +
+    'local mat = d(data.Blue.playmat.getPosition()) < d(data.White.playmat.getPosition()) and "Blue" or "White" ' +
+    'local h1, h2 = Player[mat].getHandTransform(1), Player[mat].getHandTransform(2) ' +
+    'return n .. " " .. mat .. " " .. ((h1 ~= nil and d(h1.position) < 3) and "hand" or (h2 ~= nil and d(h2.position) < 0.5) and "hand2" or "row")';
+  const check = 'local out = {} for _, pr in ipairs(engineSelfCheck().problems or {}) do if tostring(pr):find("Lightning Bolt", 1, true) then out[#out + 1] = tostring(pr) end end return #out == 0 and "none" or table.concat(out, " || ")';
+  const drop = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:cast:White:engine-card-900" then o = x end end if o == nil then return "no stand-in" end ' +
+    'local m = data.White.playmat.getPosition() o.setPosition(Vector(m.x, 1.5, m.z)) onObjectDrop("White", o) __sim.frames(5) return "dropped"';
+  const r = both([q(setup(true), "drawn"), q(where("engine-card-900"), "real 1"),
+    q('engineRender(SEN) __sim.frames(90) return "again"', "again"), q(where("engine-card-900"), "real 2"), q(where("cast:White:engine-card-900"), "stand-in"),
+    q(check, "check"), q(drop, "drop"),
+    q(setup(false), "private"), q(where("cast:White:engine-card-900"), "stand-in private"), q(where("engine-card-900"), "real private"),
+    // (a seat's own hand card in its own playable list, which the bridge never sends: the hand keeps it, no stand-in)
+    q('for _, p in ipairs(SEN.players) do if p.color == "White" then p.playable = nil elseif p.color == "Blue" then p.playable = { { s = 1, id = "engine-card-900", ctl = "Blue" } } end end engineRender(SEN) __sim.frames(90) return "own"', "own"),
+    q(where("engine-card-900"), "real own"), q(check, "check own")]);
+  const sentAt = (mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  ok("Sen Triplets: the target's card lies in its owner's hand", valueOf(r, "real 1") === "1 Blue hand", String(valueOf(r, "real 1")) + " " + r.errors.join(" | "));
+  ok("Sen Triplets: and stays there on the next board", valueOf(r, "real 2") === "1 Blue hand", String(valueOf(r, "real 2")));
+  ok("Sen Triplets: the caster's row has a stand-in for it", valueOf(r, "stand-in") === "1 White row", String(valueOf(r, "stand-in")));
+  ok("Sen Triplets: the table check agrees", valueOf(r, "check") === "none", String(valueOf(r, "check")));
+  ok("Sen Triplets: dragging the stand-in onto the caster's mat casts the real card", /"kind":"play"/.test(sentAt("drop")) && sentAt("drop").includes('"id":"engine-card-900"'), sentAt("drop").slice(0, 300));
+  ok("Sen Triplets: a hand nobody else sees gives a stand-in in the caster's second hand zone", valueOf(r, "stand-in private") === "1 White hand2", String(valueOf(r, "stand-in private")) + " " + r.errors.join(" | "));
+  ok("Sen Triplets: the real card still in its owner's hand", valueOf(r, "real private") === "1 Blue hand", String(valueOf(r, "real private")));
+  ok("own hand card listed as playable: it stays in the hand, and the table check agrees", valueOf(r, "real own") === "1 Blue hand" && valueOf(r, "check own") === "none", `${valueOf(r, "real own")} / ${valueOf(r, "check own")}`);
+}
+// a revealed hand (White is the AI here, as Sen Triplets' target was): face up at White's seat as objects of their own,
+// the real hand left alone; gone when the reveal ends; the table check expects them
+{
+  const setup = 'local t = engineTable() local white for _, p in ipairs(t.players) do if p.color == "White" then white = p end end ' +
+    'engineStoreStatic("engine-card-801", { n = "Swords to Plowshares", f = "https://img.example/stp.jpg", ty = { "Instant" } }) ' +
+    'engineStoreStatic("engine-card-802", { n = "Plains", f = "https://img.example/plains.jpg", ty = { "Land" } }) ' +
+    'white.revealed = { { s = 1, id = "engine-card-801" }, { s = 1, id = "engine-card-802" } } engineRender(t) __sim.frames(90) return "shown"';
+  const objOf = (id) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end `;
+  const look = objOf("reveal:engine-card-801") + 'if o == nil then return "none" end local p, m, f = o.getPosition(), data.White.playmat.getPosition(), data.White.playmat.getTransformForward() ' +
+    'local face for _, d in pairs(o.getData().CustomDeck or {}) do face = d.FaceURL end ' +
+    'return string.format("%.1f|%.2f|%s|%s|%s", (p - m):dot(f), o.getScale().x, tostring(o.getLock()), tostring(face), tostring(o.getDescription():find("Revealed: in", 1, true) ~= nil))';
+  const real = objOf("engine-card-801") + 'return tostring(o ~= nil)';
+  const check = 'local n = 0 for _, pr in ipairs(engineSelfCheck().problems or {}) do if tostring(pr):find("reveal:", 1, true) then n = n + 1 end end return tostring(n)';
+  // (drawn twice: the second board finds the objects there and must keep them as they are)
+  const r = run([q(setup, "shown"), q(look, "look first"), q('engineRender(engineTable()) __sim.frames(30) return "again"', "again"), q(look, "look"), q(real, "real"), q(objOf("reveal:engine-card-802") + 'return tostring(o ~= nil)', "second"), q(check, "check"),
+    q('local t = engineTable() for _, p in ipairs(t.players) do if p.color == "White" then p.revealed = nil end end engineRender(t) __sim.frames(90) return "hidden"', "hidden"),
+    q(objOf("reveal:engine-card-801") + 'return tostring(o ~= nil)', "after")]);
+  const [fwd, scale, lock, face, said] = String(valueOf(r, "look")).split("|");
+  ok("revealed strip: the card is shown face up with its picture", face === "https://img.example/stp.jpg", String(valueOf(r, "look")) + " " + r.errors.join(" | "));
+  // (rows lie along the mat's forward axis: row 0 at -8, the strip's row 1 at -4.8, the other permanents' row 2 at -1.6)
+  ok("revealed strip: in the row between the creatures and the other permanents", Math.abs(Number(fwd) + 4.8) < 0.3, fwd);
+  ok("revealed strip: half size and locked", Number(scale) === 0.5 && lock === "true", `${scale} ${lock}`);
+  ok("revealed strip: half size from the first board on", String(valueOf(r, "look first")).split("|")[1] === "0.50", String(valueOf(r, "look first")));
+  ok("revealed strip: its hover text says it is revealed from the hand", said === "true", said);
+  ok("revealed strip: every revealed card", valueOf(r, "second") === "true", String(valueOf(r, "second")));
+  ok("revealed strip: the real hand card isn't put on the table", valueOf(r, "real") === "false", String(valueOf(r, "real")));
+  ok("revealed strip: the table check expects it", valueOf(r, "check") === "0", String(valueOf(r, "check")));
+  ok("revealed strip: gone when the reveal ends", valueOf(r, "after") === "false", String(valueOf(r, "after")));
+  // a long revealed hand (22 cards) is squeezed to the battlefield rows' width: 9 column steps of 2.4
+  const long = 'local t = engineTable() local white for _, p in ipairs(t.players) do if p.color == "White" then white = p end end white.revealed = {} ' +
+    'for k = 1, 22 do local id = "engine-card-" .. (850 + k) engineStoreStatic(id, { n = "Card " .. k, f = "https://img.example/c" .. k .. ".jpg", ty = { "Instant" } }) white.revealed[k] = { s = 1, id = id } end ' +
+    'engineRender(t) __sim.frames(90) local m, rt = data.White.playmat.getPosition(), data.White.playmat.getTransformRight() local lo, hi, n = 1e9, -1e9, 0 ' +
+    'for _, x in ipairs(getObjects()) do if tostring(x.getGMNotes()):find("^engine:reveal:engine%-card%-8") then local a = (x.getPosition() - m):dot(rt) n = n + 1 lo = math.min(lo, a) hi = math.max(hi, a) end end ' +
+    'return string.format("%d|%.2f", n, hi - lo)';
+  const r3 = run([q(long, "long")]);
+  const [n22, spread] = String(valueOf(r3, "long")).split("|");
+  ok("revealed strip: a 22-card hand, every card", n22 === "22", String(valueOf(r3, "long")) + " " + r3.errors.join(" | "));
+  ok("revealed strip: squeezed to the rows' width", Number(spread) <= 9 * 2.4 + 0.05 && Number(spread) > 20, spread);
+}
+// a reveal of more cards than the row holds pages through them (7 left out Animist's Awakening's 8th, 2026-10-30)
+{
+  const show = Array.from({ length: 9 }, (_, i) => ({ n: `Card ${i + 1}`, img: `https://img.example/c${i + 1}.jpg` }));
+  const slots = 'local s = "" for k = 1, ROW_MAX do s = s .. (UI.getAttribute("eng_rowslot_Blue_" .. k, "active") == "true" and "1" or "0") end return s';
+  const r = run([ask({ promptId: 995, kind: "reveal", title: "Revealed (your library)", mode: "single", options: [{ id: "ok", label: "OK" }], show }), { frames: 10 },
+    q(slots, "page 1"), q('return tostring(UI.getAttribute("eng_rowopt_Blue_3", "text")) .. "|" .. tostring(UI.getAttribute("eng_rowopt_Blue_2", "interactable"))', "buttons"),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_3") ' + slots, "page 2"), q('return tostring(UI.getValue("eng_rowsub_Blue"))', "sub"),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_2") ' + slots, "back"),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_2") ' + slots, "back on page 1"),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_3") return tostring(UI.getAttribute("eng_rowopt_Blue_3", "interactable"))', "more on last"),
+    // (the same question sent again, as a new message: it keeps its page)
+    ask({ promptId: 995, kind: "reveal", title: "Revealed (your library)", mode: "single", options: [{ id: "ok", label: "OK" }], show }), { frames: 10 }, q(slots, "resent"),
+    q('onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_3") onMtgRowOpt(Player.Blue, nil, "eng_rowopt_Blue_3") ' + slots, "twice")]);
+  ok("reveal pages: the first 7 pictures", valueOf(r, "page 1") === "1111111", String(valueOf(r, "page 1")) + " " + r.errors.join(" | "));
+  ok("reveal pages: More, with Back not pressable on the first page", valueOf(r, "buttons") === "More >|false", String(valueOf(r, "buttons")));
+  ok("reveal pages: More shows the last 2", valueOf(r, "page 2") === "1100000", String(valueOf(r, "page 2")));
+  ok("reveal pages: the line says which cards", /Cards 8-9 of 9/.test(String(valueOf(r, "sub"))), String(valueOf(r, "sub")));
+  ok("reveal pages: Back shows the first 7 again", valueOf(r, "back") === "1111111", String(valueOf(r, "back")));
+  ok("reveal pages: More pressed twice stops at the last page", valueOf(r, "twice") === "1100000", String(valueOf(r, "twice")));
+  ok("reveal pages: Back pressed on the first page stays there", valueOf(r, "back on page 1") === "1111111", String(valueOf(r, "back on page 1")));
+  ok("reveal pages: More not pressable on the last page", valueOf(r, "more on last") === "false", String(valueOf(r, "more on last")));
+  ok("reveal pages: the same question sent again keeps its page", valueOf(r, "resent") === "1100000", String(valueOf(r, "resent")));
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

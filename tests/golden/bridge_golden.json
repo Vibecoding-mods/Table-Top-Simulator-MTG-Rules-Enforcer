@@ -126229,6 +126229,58 @@
          "sick": true,
          "ctl": "Blue"
         }
+       ],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-43",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-35",
+         "p": "1",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-75",
+         "p": "2",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-77",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-97",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-94",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-74",
+         "p": "1",
+         "t": "1",
+         "sick": true,
+         "ctl": "Blue"
+        }
        ]
       },
       {
@@ -126652,7 +126704,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -127104,7 +127157,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -127240,7 +127294,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -127383,7 +127438,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -127535,7 +127591,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -127699,7 +127756,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -127854,7 +127912,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -128011,7 +128070,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -128168,7 +128228,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -128327,7 +128388,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -128730,6 +128792,58 @@
          "id": "engine-card-199",
          "p": "2",
          "t": "2",
+         "sick": true,
+         "ctl": "Blue"
+        }
+       ],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-43",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-35",
+         "p": "1",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-75",
+         "p": "2",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-77",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-97",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-94",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-74",
+         "p": "1",
+         "t": "1",
          "sick": true,
          "ctl": "Blue"
         }
@@ -129177,7 +129291,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -129623,7 +129738,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -129828,7 +129944,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -130007,7 +130124,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -130165,7 +130283,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -132321,6 +132440,58 @@
        ],
        "library": 87,
        "handCount": 7,
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-43",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-35",
+         "p": "1",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-75",
+         "p": "2",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-77",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-97",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-94",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-74",
+         "p": "1",
+         "t": "1",
+         "sick": true,
+         "ctl": "Blue"
+        }
+       ],
        "keep": [
         "hand",
         "battlefield",
@@ -132469,7 +132640,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -132603,7 +132775,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -132755,7 +132928,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -132912,7 +133086,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -133051,7 +133226,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -133205,7 +133381,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -133350,7 +133527,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -133509,7 +133687,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -139850,6 +140029,24 @@
        "name": "Neheb, the Worthy"
       },
       {
+       "name": "Vraska's Fall"
+      },
+      {
+       "name": "Venomous Changeling"
+      },
+      {
+       "name": "Pestilence"
+      },
+      {
+       "name": "Heated Debate"
+      },
+      {
+       "name": "Simian Spirit Guide"
+      },
+      {
+       "name": "Fire-Belly Changeling"
+      },
+      {
        "name": "Smoldering Marsh"
       },
       {
@@ -139941,6 +140138,58 @@
          "id": "engine-card-199",
          "p": "2",
          "t": "2",
+         "sick": true,
+         "ctl": "White"
+        }
+       ],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-43",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-35",
+         "p": "1",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-75",
+         "p": "2",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-77",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-97",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-94",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-74",
+         "p": "1",
+         "t": "1",
          "sick": true,
          "ctl": "White"
         }
@@ -140082,6 +140331,70 @@
        "b": "",
        "tl": "Legendary Creature — Minotaur Warrior",
        "cmc": 3,
+       "ty": [
+        "Creature"
+       ]
+      },
+      "engine-card-43": {
+       "n": "Vraska's Fall",
+       "b": "",
+       "tl": "Instant",
+       "cmc": 3,
+       "ty": [
+        "Instant"
+       ]
+      },
+      "engine-card-35": {
+       "n": "Venomous Changeling",
+       "b": "",
+       "tl": "Creature — Shapeshifter",
+       "cmc": 3,
+       "ty": [
+        "Creature"
+       ]
+      },
+      "engine-card-75": {
+       "n": "Hurloon Minotaur",
+       "f": "kf8c8afead-7fec-9d27-3411-3d237d052a1f",
+       "b": "",
+       "tl": "Creature — Minotaur",
+       "cmc": 3,
+       "ty": [
+        "Creature"
+       ]
+      },
+      "engine-card-77": {
+       "n": "Pestilence",
+       "b": "",
+       "tl": "Enchantment",
+       "cmc": 4,
+       "ty": [
+        "Enchantment"
+       ]
+      },
+      "engine-card-97": {
+       "n": "Heated Debate",
+       "b": "",
+       "tl": "Instant",
+       "cmc": 3,
+       "ty": [
+        "Instant"
+       ]
+      },
+      "engine-card-94": {
+       "n": "Simian Spirit Guide",
+       "b": "",
+       "tl": "Creature — Ape Spirit",
+       "cmc": 3,
+       "ty": [
+        "Creature"
+       ]
+      },
+      "engine-card-74": {
+       "n": "Fire-Belly Changeling",
+       "b": "",
+       "tl": "Creature — Shapeshifter",
+       "cmc": 2,
        "ty": [
         "Creature"
        ]
@@ -140243,9 +140556,9 @@
       "engine-card-36": "({T}: Add {R}.)",
       "engine-card-70": "Destroy target creature that was dealt damage this turn. It can't be regenerated.",
       "engine-card-199": "First strike\nOther Minotaurs you control have first strike.\nAs long as you have one or fewer cards in hand, Minotaurs you control get +2/+0.\nWhenever Neheb, the Worthy deals combat damage to a player, each player discards a card.",
-      "engine-card-192": "({T}: Add {B} or {R}.)\nSmoldering Marsh enters tapped unless you control two or more basic lands.",
-      "engine-card-126": "({T}: Add {G}.)",
-      "engine-card-195": "({T}: Add {R} or {W}.)\nThis land enters tapped unless you control two or more basic lands."
+      "engine-card-43": "Each opponent sacrifices a creature or planeswalker and gets a poison counter.",
+      "engine-card-35": "Changeling (This card is every creature type.)\nDeathtouch",
+      "engine-card-77": "At the beginning of the end step, if no creatures are on the battlefield, sacrifice Pestilence.\n{B}: Pestilence deals 1 damage to each creature and each player."
      }
     }
    },
@@ -140253,10 +140566,13 @@
     "tts": {
      "t": "texts",
      "texts": {
-      "engine-card-110": "As Secluded Courtyard enters, choose a creature type.\n{T}: Add {C}.\n{T}: Add one mana of any color. Spend this mana only to cast a creature spell of the chosen type or activate an ability of a creature or creature card of the chosen type.",
-      "engine-card-134": "When this creature enters, look at the top four cards of your library. You may reveal an Elemental, Island, or Mountain card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
-      "engine-card-104": "({T}: Add {G} or {U}.)\nThis land enters tapped unless you control two or more basic lands.",
-      "engine-card-200": "Elemental permanent spells you cast from your hand have evoke {4}. (If you cast a spell for its evoke cost, it's sacrificed when it enters.)\nWhenever you sacrifice a nontoken Elemental, create a token that's a copy of it. The token gains haste until end of turn. At the beginning of your next end step, sacrifice it unless you pay {W}{U}{B}{R}{G}."
+      "engine-card-97": "This spell can't be countered. (This includes by the ward ability.)\nHeated Debate deals 4 damage to target creature or planeswalker.",
+      "engine-card-94": "Exile Simian Spirit Guide from your hand: Add {R}.",
+      "engine-card-74": "Changeling (This card is every creature type.)\n{R}: Fire-Belly Changeling gets +1/+0 until end of turn. Activate no more than twice each turn.",
+      "engine-card-192": "({T}: Add {B} or {R}.)\nSmoldering Marsh enters tapped unless you control two or more basic lands.",
+      "engine-card-126": "({T}: Add {G}.)",
+      "engine-card-195": "({T}: Add {R} or {W}.)\nThis land enters tapped unless you control two or more basic lands.",
+      "engine-card-110": "As Secluded Courtyard enters, choose a creature type.\n{T}: Add {C}.\n{T}: Add one mana of any color. Spend this mana only to cast a creature spell of the chosen type or activate an ability of a creature or creature card of the chosen type."
      }
     }
    },
@@ -140292,7 +140608,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -140376,6 +140693,66 @@
        "b": "",
        "tl": "Legendary Creature — Minotaur Warrior",
        "cmc": 3,
+       "ty": [
+        "Creature"
+       ]
+      },
+      "engine-card-43": {
+       "n": "Vraska's Fall",
+       "f": "kf137039a7-fbc5-0163-ccfc-d6e994a31618",
+       "b": "",
+       "tl": "Instant",
+       "cmc": 3,
+       "ty": [
+        "Instant"
+       ]
+      },
+      "engine-card-35": {
+       "n": "Venomous Changeling",
+       "f": "kf0dcc7874-b771-3100-4f72-472474a54a99",
+       "b": "",
+       "tl": "Creature — Shapeshifter",
+       "cmc": 3,
+       "ty": [
+        "Creature"
+       ]
+      },
+      "engine-card-77": {
+       "n": "Pestilence",
+       "f": "kfe4f0ad5e-f0ac-3037-084d-8a5e3ca1cabc",
+       "b": "",
+       "tl": "Enchantment",
+       "cmc": 4,
+       "ty": [
+        "Enchantment"
+       ]
+      },
+      "engine-card-97": {
+       "n": "Heated Debate",
+       "f": "kf791e108f-20be-4d50-ca8a-5a5fd3bbfa49",
+       "b": "",
+       "tl": "Instant",
+       "cmc": 3,
+       "ty": [
+        "Instant"
+       ]
+      },
+      "engine-card-94": {
+       "n": "Simian Spirit Guide",
+       "f": "kf8c31ec2a-c8eb-c1a2-3e59-5b05359dde8f",
+       "b": "",
+       "tl": "Creature — Ape Spirit",
+       "cmc": 3,
+       "ty": [
+        "Creature"
+       ]
+      },
+      "engine-card-74": {
+       "n": "Fire-Belly Changeling",
+       "f": "kfd221926f-b370-cf89-0fec-2a8d69cdb34c",
+       "b": "",
+       "tl": "Creature — Shapeshifter",
+       "cmc": 2,
        "ty": [
         "Creature"
        ]
@@ -140530,15 +140907,27 @@
     "tts": {
      "t": "texts",
      "texts": {
+      "engine-card-134": "When this creature enters, look at the top four cards of your library. You may reveal an Elemental, Island, or Mountain card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
+      "engine-card-104": "({T}: Add {G} or {U}.)\nThis land enters tapped unless you control two or more basic lands.",
+      "engine-card-200": "Elemental permanent spells you cast from your hand have evoke {4}. (If you cast a spell for its evoke cost, it's sacrificed when it enters.)\nWhenever you sacrifice a nontoken Elemental, create a token that's a copy of it. The token gains haste until end of turn. At the beginning of your next end step, sacrifice it unless you pay {W}{U}{B}{R}{G}.",
       "engine-card-181": "({T}: Add {R}.)",
-      "engine-card-196": "Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield tapped, then shuffle.",
+      "engine-card-196": "Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield tapped, then shuffle."
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "texts",
+     "texts": {
       "engine-card-107": "Landfall — Whenever a land you control enters, create a 5/5 red and green Elemental creature token.\nWhenever Omnath, Locus of Rage or another Elemental you control dies, Omnath deals 3 damage to any target.",
       "engine-card-22": "{T}, Sacrifice Evolving Wilds: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
       "engine-card-64": "({T}: Add {R}.)",
       "engine-card-65": "({T}: Add {B}.)",
       "engine-card-36": "({T}: Add {R}.)",
       "engine-card-70": "Destroy target creature that was dealt damage this turn. It can't be regenerated.",
-      "engine-card-199": "First strike\nOther Minotaurs you control have first strike.\nAs long as you have one or fewer cards in hand, Minotaurs you control get +2/+0.\nWhenever Neheb, the Worthy deals combat damage to a player, each player discards a card."
+      "engine-card-199": "First strike\nOther Minotaurs you control have first strike.\nAs long as you have one or fewer cards in hand, Minotaurs you control get +2/+0.\nWhenever Neheb, the Worthy deals combat damage to a player, each player discards a card.",
+      "engine-card-43": "Each opponent sacrifices a creature or planeswalker and gets a poison counter.",
+      "engine-card-35": "Changeling (This card is every creature type.)\nDeathtouch"
      }
     }
    },
@@ -140546,11 +140935,12 @@
     "tts": {
      "t": "texts",
      "texts": {
+      "engine-card-77": "At the beginning of the end step, if no creatures are on the battlefield, sacrifice Pestilence.\n{B}: Pestilence deals 1 damage to each creature and each player.",
+      "engine-card-97": "This spell can't be countered. (This includes by the ward ability.)\nHeated Debate deals 4 damage to target creature or planeswalker.",
+      "engine-card-94": "Exile Simian Spirit Guide from your hand: Add {R}.",
+      "engine-card-74": "Changeling (This card is every creature type.)\n{R}: Fire-Belly Changeling gets +1/+0 until end of turn. Activate no more than twice each turn.",
       "engine-card-192": "({T}: Add {B} or {R}.)\nSmoldering Marsh enters tapped unless you control two or more basic lands.",
-      "engine-card-195": "({T}: Add {R} or {W}.)\nThis land enters tapped unless you control two or more basic lands.",
-      "engine-card-110": "As Secluded Courtyard enters, choose a creature type.\n{T}: Add {C}.\n{T}: Add one mana of any color. Spend this mana only to cast a creature spell of the chosen type or activate an ability of a creature or creature card of the chosen type.",
-      "engine-card-134": "When this creature enters, look at the top four cards of your library. You may reveal an Elemental, Island, or Mountain card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
-      "engine-card-104": "({T}: Add {G} or {U}.)\nThis land enters tapped unless you control two or more basic lands."
+      "engine-card-195": "({T}: Add {R} or {W}.)\nThis land enters tapped unless you control two or more basic lands."
      }
     }
    },
@@ -140558,13 +140948,13 @@
     "tts": {
      "t": "texts",
      "texts": {
-      "engine-card-200": "Elemental permanent spells you cast from your hand have evoke {4}. (If you cast a spell for its evoke cost, it's sacrificed when it enters.)\nWhenever you sacrifice a nontoken Elemental, create a token that's a copy of it. The token gains haste until end of turn. At the beginning of your next end step, sacrifice it unless you pay {W}{U}{B}{R}{G}."
+      "engine-card-110": "As Secluded Courtyard enters, choose a creature type.\n{T}: Add {C}.\n{T}: Add one mana of any color. Spend this mana only to cast a creature spell of the chosen type or activate an ability of a creature or creature card of the chosen type."
      }
     }
    },
    {
     "writeFile": "image-cache-klrmngr.json.tmp",
-    "bytes": 1890
+    "bytes": 2645
    },
    {
     "rename": [
@@ -242841,6 +243231,58 @@
          "sick": true,
          "ctl": "Blue"
         }
+       ],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-43",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-35",
+         "p": "1",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-75",
+         "p": "2",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-77",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-97",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-94",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-74",
+         "p": "1",
+         "t": "1",
+         "sick": true,
+         "ctl": "Blue"
+        }
        ]
       },
       {
@@ -243335,7 +243777,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -765869,6 +766312,58 @@
          "sick": true,
          "ctl": "Blue"
         }
+       ],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-43",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-35",
+         "p": "1",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-75",
+         "p": "2",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-77",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-97",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-94",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-74",
+         "p": "1",
+         "t": "1",
+         "sick": true,
+         "ctl": "Blue"
+        }
        ]
       },
       {
@@ -766283,7 +766778,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
@@ -802273,6 +802769,58 @@
        ],
        "library": 87,
        "handCount": 7,
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-43",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-35",
+         "p": "1",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-75",
+         "p": "2",
+         "t": "3",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-77",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-97",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-94",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-74",
+         "p": "1",
+         "t": "1",
+         "sick": true,
+         "ctl": "Blue"
+        }
+       ],
        "keep": [
         "hand",
         "battlefield",
@@ -802436,7 +802984,8 @@
         "battlefield",
         "graveyard",
         "exile",
-        "command"
+        "command",
+        "revealed"
        ]
       },
       {
