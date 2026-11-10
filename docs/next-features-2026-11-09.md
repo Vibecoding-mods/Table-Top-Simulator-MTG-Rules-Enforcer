@@ -54,6 +54,23 @@ The user's list, in their order. Most items need a running TTS table in debug mo
 18. **More debugging commands inside TTS.**
     - Debug mode (`mtg debug`) exists; this means more of it.
 
+20. **AI seat presets in the companion page** (asked 2026-11-10). This merges with item 17.
+    - For each empty seat, pick one of:
+      - **Harmless bot:** passes priority, keeps its hand, never attacks or blocks. Good for testing.
+      - **Forge AI:** a real opponent, with an AI profile.
+    - Each AI seat gets its own imported deck, from a deck list or a file.
+    - Rough size: 8–12 h.
+21. **Debug tools in the companion page** (asked 2026-11-10). This merges with item 18.
+    - Add X mana, add card X to a hand, draw, set life, mill, put a card on the battlefield, and untap.
+    - Host only, and only in debug mode.
+    - Builds on `mtg debug` and the M7 createCard/applyState ops. Adding mana may need a harness op and an image rebuild.
+    - Rough size: 8–14 h.
+22. **Monte Carlo simulation: CUT** (the user, 2026-11-10).
+    - Too slow on an ordinary PC: about 30 s to 2 min a game on 2 cores, so 1,000 games takes overnight.
+    - The user already runs deck tests in separate sessions.
+    - Reconsider only if it is hosted on a server. Route notes, if it ever returns: Forge's headless `sim` (SimulateMatch,
+      `-f commander -d a b c d -n N -c <timeout>`), one JVM per core.
+
 19. **One-click friend package** (asked 2026-11-09, top priority). The user is handing the current build to a friend.
     - A zip with MTG Companion.exe, bundled node, a bridge that runs from the package (MTG_HOME), saved engine images, the table save and a README.
     - The friend installs Docker Desktop, unzips, and double-clicks. Then they load "MTG Table (rules engine)" in TTS.
