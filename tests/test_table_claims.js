@@ -346,8 +346,11 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     q('data.Blue.playmat.clearButtons() for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then o.clearButtons() o.createButton({ click_function = "engineNoop", function_owner = Global, label = "Engine: off" }) end end', "wiped"),
     { frames: 200 }, q(labels, "after"),
     q('for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then o.clearButtons() o.createButton({ click_function = "engineNoop", function_owner = Global, label = "Engine: off" }) end end', "tile only"),
-    { frames: 200 }, q(labels, "after tile")] });
-  ok("precondition: READY? on Blue's mat and the tile drawn", /READY\?/.test(String(valueOf(r, "drawn"))) && /\|Engine: on$/.test(String(valueOf(r, "drawn"))), String(valueOf(r, "drawn")));
+    { frames: 200 }, q(labels, "after tile"),
+    q('for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then o.clearButtons() o.createButton({ click_function = "onMtgSetupEngine", function_owner = Global, label = "Engine: on" }) end end', "friendly wiped"),
+    { frames: 200 }, q(labels, "after friendly")] });
+  ok("precondition: READY? on Blue's mat and the tile drawn", /READY\?/.test(String(valueOf(r, "drawn"))) && /\|Engine: on,Free mulligans: normal,Free mulligans: normal$/.test(String(valueOf(r, "drawn"))), String(valueOf(r, "drawn")));
+  ok("setup buttons: the free-mulligan buttons wiped (the middle one right) are drawn again", valueOf(r, "after friendly") === valueOf(r, "drawn"), String(valueOf(r, "after friendly")));
   ok("setup buttons: a stale middle tile alone is drawn again", valueOf(r, "after tile") === valueOf(r, "drawn"), String(valueOf(r, "after tile")));
   ok("setup buttons: wiped or stale, they are drawn again within 2 s", valueOf(r, "after") === valueOf(r, "drawn"), `${valueOf(r, "drawn")} -> ${valueOf(r, "after")}`);
 }
@@ -364,29 +367,32 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("waiting flash: a rainbow colour after 5 s, and it changes", rainbow.includes(c("at 6 s")) && rainbow.includes(c("at 6.3 s")) && c("at 6 s") !== c("at 6.3 s"), c("at 6 s") + " / " + c("at 6.3 s"));
   ok("waiting flash: back to normal when the wait ends", c("after") === "#F2F2F2", c("after"));
 }
-// anyone seated switches engine mode, starts a game and clears a finished one; nobody unseated does; ending a game
-// that is still going stays the host's (2026-10-25: "allow non host to turn the engine on and off and to start games")
+// anyone, seated or not, switches engine mode, starts a game and clears a finished one; ending a game that is still
+// going stays the host's (2026-10-25: "allow non host to turn the engine on and off and to start games"; 2026-11-10:
+// "allow anyone to click engine on/off and start too")
 {
   const mode = (mark) => q("return tostring(ENGINE_MODE)", mark);
   const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
   const r = simulate({ save, seated: ["Blue", "White"], host: "Blue", steps: [{ lua: "setEngineMode(true)", frames: 60 }, mode("on"),
     q('engineChat("mtg engine off", Player.White)', "White off"), mode("after White off"),
     q('engineChat("mtg engine on", Player.Red)', "Red on"), mode("after Red on"),
-    q('engineChat("mtg engine on", Player.White)', "White on"), mode("after White on"),
+    q('engineChat("mtg engine off", Player.White)', "White off 2"), q('engineChat("mtg engine on", Player.White)', "White on"), mode("after White on"),
     q('engineChat("mtg start ai 1", Player.White)', "White start"),
     q('engineStartSentAt = nil engineChat("mtg start ai 1", Player.Red)', "Red start"),
     q('engineTable = function() return { gameOver = false } end engineChat("mtg reset", Player.White)', "White reset mid-game"),
     q('engineTable = function() return { gameOver = true } end engineChat("mtg reset", Player.White)', "White reset after"),
-    q('engineTable = function() return { gameOver = true } end engineChat("mtg reset", Player.Red)', "Red reset after")] });
+    q('engineTable = function() return { gameOver = true } end engineChat("mtg reset", Player.Red)', "Red reset after"),
+    q('engineTable = function() return { gameOver = false } end engineChat("mtg reset", Player.Red)', "Red reset mid-game")] });
   ok("precondition: engine mode on", valueOf(r, "on") === "true", String(valueOf(r, "on")));
   ok("non-host: seated White turns engine mode off", valueOf(r, "after White off") === "false", String(valueOf(r, "after White off")));
-  ok("non-host: unseated Red can't turn it on", valueOf(r, "after Red on") === "false" && fxOf(r, "Red on").some((l) => /Sit at a colour/.test(l)), String(valueOf(r, "after Red on")));
+  ok("non-host: unseated Red turns it on", valueOf(r, "after Red on") === "true", String(valueOf(r, "after Red on")));
   ok("non-host: seated White turns it on again", valueOf(r, "after White on") === "true", String(valueOf(r, "after White on")));
   ok("non-host: seated White starts a game", /"start"|start/.test(sent(r, "White start")) && /seats/.test(sent(r, "White start")), sent(r, "White start").slice(0, 200));
-  ok("non-host: unseated Red can't start", !/seats/.test(sent(r, "Red start")) && fxOf(r, "Red start").some((l) => /Sit at a colour/.test(l)), sent(r, "Red start").slice(0, 200));
+  ok("non-host: unseated Red starts a game", /seats/.test(sent(r, "Red start")) && !fxOf(r, "Red start").some((l) => /Sit at a colour/.test(l)), sent(r, "Red start").slice(0, 200));
   ok("non-host: White can't end a game that is still going", !/reset/.test(sent(r, "White reset mid-game")) && fxOf(r, "White reset mid-game").some((l) => /still going/.test(l)), sent(r, "White reset mid-game").slice(0, 200));
   ok("non-host: White clears a finished game", /reset/.test(sent(r, "White reset after")), JSON.stringify(fxOf(r, "White reset after").slice(0, 3)));
-  ok("non-host: unseated Red can't clear it", !/reset/.test(sent(r, "Red reset after")), sent(r, "Red reset after").slice(0, 200));
+  ok("non-host: unseated Red clears a finished game too", /reset/.test(sent(r, "Red reset after")), sent(r, "Red reset after").slice(0, 200));
+  ok("non-host: unseated Red can't end a game that is still going", !/reset/.test(sent(r, "Red reset mid-game")) && fxOf(r, "Red reset mid-game").some((l) => /still going/.test(l)), sent(r, "Red reset mid-game").slice(0, 200));
 }
 // a question closing leaves its hand cards unlocked: a locked card drops out of its hand zone and shows to everyone
 // until the next redraw (Nicol Bolas, the Ravager, each opponent discards: the hands of the players who had answered lay
@@ -409,32 +415,36 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("hand cards: a Cast option going away leaves the card unlocked", valueOf(r, "cast gone") === "false", valueOf(r, "cast gone"));
   ok("hand cards: an opponent's permanent still locks again", valueOf(r, "target open") === "false" && valueOf(r, "target closed") === "true", `${valueOf(r, "target open")} / ${valueOf(r, "target closed")}`);
 }
-// Friendly mulligans: the vote button under READY, "mtg friendly", and Start sending the votes
+// Friendly mulligans: ONE shared count (a button where the "Screen bar keys" boxes were, anyone may click it),
+// "mtg friendly" (anyone), Start sending the count; Engine on/off and Start for anyone, seated or not
 {
-  const vote = (mark) => q('return tostring(engineFriendlyVote.Blue) .. "|" .. tostring(engineFriendlyVote.White)', mark);
-  const click = (who, mark) => q(`onMtgSetupFriendly(data.Blue.playmat, "${who}")`, mark);
-  const label = (r, mark) => fxOf(r, mark).filter((l) => /createButton/.test(l) && /Friendly:/.test(l)).map((l) => l.match(/"Friendly: [^"]*"/)[0]).join(" ");
+  const val = (mark) => q('return tostring(engineFriendly)', mark);
+  const click = (who, mark) => q(`onMtgSetupFriendly(nil, "${who}")`, mark);
+  const labels = (r, mark) => fxOf(r, mark).filter((l) => /createButton/.test(l) && /Free mulligans:/.test(l)).map((l) => l.match(/"Free mulligans: [^"]*"/)[0]);
   const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
-  const r = simulate({ save, seated: ["Blue", "White"], host: "Blue", steps: [{ lua: "setEngineMode(true)", frames: 60 }, q('SETUP_probe = 1', "drawn"),
-    click("Blue", "one"), vote("after one"), click("White", "stranger"), vote("after stranger"), click("Blue", "two"), click("Blue", "back"), vote("after back"),
-    q('engineChat("mtg friendly 2", Player.White)', "typed"), vote("after typed"), q('engineChat("mtg friendly 5", Player.White)', "typed bad"), vote("after bad"),
-    q('engineChat("mtg friendly", Player.White)', "typed nothing"), vote("after nothing"),
-    q('engineChat("mtg friendly 1", Player.Red)', "unseated"), q('return tostring(engineFriendlyVote.Red)', "red vote"),
-    q('engineChat("mtg friendly 0", Player.Blue)', "typed none"), vote("after none"),
-    q('engineSetFriendly("Blue", 1)', "blue 1"),
-    q('engineChat("mtg start ai 1", Player.White)', "start"),
-    q('engineClear()', "cleared"), vote("after clear")] });
+  const r = simulate({ save, seated: ["Blue", "White"], host: "Blue", steps: [
+    q('engineChat("mtg engine on", Player.Red)', "grey engine on"), { lua: "", frames: 60 }, q('return tostring(ENGINE_MODE)', "mode after grey"),
+    q('engineSetupButtons()', "drawn"),
+    q('local out = {} for _, c in ipairs({ "White", "Blue", "Red", "Yellow" }) do for _, b in ipairs((data[c] and data[c].playmat and data[c].playmat.getButtons()) or {}) do if b.click_function == "onMtgSetupFriendly" then out[#out + 1] = c end end end local t = nil for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then t = o end end local n, xs = 0, {} for _, b in ipairs((t and t.getButtons()) or {}) do if b.click_function == "onMtgSetupFriendly" then n = n + 1 xs[#xs + 1] = string.format("%.1f", t.positionToWorld(b.position).x) end end return table.concat(out, ",") .. "|" .. n .. "|" .. table.concat(xs, ",")', "where"),
+    click("Blue", "one"), val("after one"), click("White", "two"), val("after two"), click("Red", "back"), val("after back"),
+    q('engineChat("mtg friendly 2", Player.White)', "typed"), val("after typed"), q('engineChat("mtg friendly 5", Player.White)', "typed bad"), val("after bad"),
+    q('engineChat("mtg friendly", Player.White)', "typed nothing"), val("after nothing"),
+    q('engineChat("mtg friendly 1", Player.Red)', "unseated"), val("after unseated"),
+    q('engineChat("mtg start ai 1", Player.Red)', "start"),
+    q('engineClear()', "cleared"), val("after clear")] });
   ok("friendly: no errors", r.errors.length === 0, r.errors.join(" | "));
-  ok("friendly: a click votes 1 and the button says so", valueOf(r, "after one") === "1|nil" && label(r, "one").includes('"Friendly: 1"'), `${valueOf(r, "after one")} ${label(r, "one")}`);
-  ok("friendly: another player's click is refused", valueOf(r, "after stranger") === "1|nil" && fxOf(r, "stranger").some((l) => /Blue's vote/.test(l)), JSON.stringify(fxOf(r, "stranger").slice(0, 2)));
-  ok("friendly: 2, then back to none", label(r, "two").includes('"Friendly: 2"') && label(r, "back").includes('"Friendly: none"') && valueOf(r, "after back").startsWith("0|"), `${label(r, "two")} ${label(r, "back")} ${valueOf(r, "after back")}`);
-  ok("friendly: typed vote", valueOf(r, "after typed") === "0|2" && fxOf(r, "typed").some((l) => /vote: 2/.test(l)), `${valueOf(r, "after typed")} ${JSON.stringify(fxOf(r, "typed").slice(0, 3))}`);
-  ok("friendly: a bad number changes nothing and says how", valueOf(r, "after bad") === "0|2" && fxOf(r, "typed bad").some((l) => /Use: mtg friendly/.test(l)), valueOf(r, "after bad"));
-  ok("friendly: no number changes nothing", valueOf(r, "after nothing") === "0|2" && fxOf(r, "typed nothing").some((l) => /Use: mtg friendly/.test(l)), valueOf(r, "after nothing"));
-  ok("friendly: typed none reads none", fxOf(r, "typed none").some((l) => /vote: none/.test(l)) && valueOf(r, "after none") === "0|2", `${valueOf(r, "after none")} ${JSON.stringify(fxOf(r, "typed none").slice(0, 3))}`);
-  ok("friendly: someone not seated can't vote", valueOf(r, "red vote") === "nil" && fxOf(r, "unseated").some((l) => /Sit at a colour/.test(l)), String(valueOf(r, "red vote")));
-  ok("friendly: Start sends the votes", /"friendlyVotes":\{/.test(sent(r, "start")) && /"Blue":1/.test(sent(r, "start")) && /"White":2/.test(sent(r, "start")), sent(r, "start").slice(0, 300));
-  ok("friendly: a rematch keeps the votes", valueOf(r, "after clear") === "1|2", valueOf(r, "after clear"));
+  ok("setup: someone not seated can turn engine mode on", valueOf(r, "mode after grey") === "true" && !fxOf(r, "grey engine on").some((l) => /Sit at a colour/.test(l)), String(valueOf(r, "mode after grey")));
+  ok("friendly: two shared buttons where the Screen bar keys boxes were, none on a playmat", valueOf(r, "where") === "|2|17.5,-17.5", String(valueOf(r, "where")));
+  ok("friendly: a click sets 1 for everyone and every button says so", valueOf(r, "after one") === "1" && labels(r, "one").length === 2 && labels(r, "one").every((l) => l === '"Free mulligans: 1"'), `${valueOf(r, "after one")} ${labels(r, "one")}`);
+  ok("friendly: everyone is told who set it", fxOf(r, "one").some((l) => /broadcastToAll/.test(l) && /set free mulligans for everyone: 1 each/.test(l)), JSON.stringify(fxOf(r, "one").slice(0, 3)));
+  ok("friendly: another player's click moves the same count", valueOf(r, "after two") === "2" && labels(r, "two").every((l) => l === '"Free mulligans: 2"'), `${valueOf(r, "after two")} ${labels(r, "two")}`);
+  ok("friendly: someone not seated may click, and 2 goes back to normal", valueOf(r, "after back") === "0" && labels(r, "back").every((l) => l === '"Free mulligans: normal"') && labels(r, "back").length === 2, `${valueOf(r, "after back")} ${labels(r, "back")}`);
+  ok("friendly: typed count", valueOf(r, "after typed") === "2" && fxOf(r, "typed").some((l) => /for everyone: 2 each/.test(l)), `${valueOf(r, "after typed")} ${JSON.stringify(fxOf(r, "typed").slice(0, 3))}`);
+  ok("friendly: a bad number changes nothing and says how", valueOf(r, "after bad") === "2" && fxOf(r, "typed bad").some((l) => /Use: mtg friendly/.test(l)), valueOf(r, "after bad"));
+  ok("friendly: no number changes nothing", valueOf(r, "after nothing") === "2" && fxOf(r, "typed nothing").some((l) => /Use: mtg friendly/.test(l)), valueOf(r, "after nothing"));
+  ok("friendly: someone not seated may type it", valueOf(r, "after unseated") === "1" && !fxOf(r, "unseated").some((l) => /Sit at a colour/.test(l)), String(valueOf(r, "after unseated")));
+  ok("friendly: Start (by someone not seated) sends the one count", /"friendly":1[,}]/.test(sent(r, "start")) && !/friendlyVotes/.test(sent(r, "start")) && !fxOf(r, "start").some((l) => /Sit at a colour/.test(l)), sent(r, "start").slice(0, 300));
+  ok("friendly: a rematch keeps the count", valueOf(r, "after clear") === "1", valueOf(r, "after clear"));
 }
 // "mtg mana <n>": the manual fix in one line (call; once the game is paused for its caller, the mana and Done);
 // 1-99 only; a pause that comes long after the call (someone else's fix later) adds nothing

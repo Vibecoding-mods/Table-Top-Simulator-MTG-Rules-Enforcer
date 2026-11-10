@@ -237,7 +237,7 @@ function engineStartGame(pl, rest, cleared)
   if engineStartSentAt ~= nil and os.clock() - engineStartSentAt < 5 then return false end
   engineStartSentAt = os.clock()
   engineSendDecks(read, pl.color)
-  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendlyVotes = engineFriendlyVote })
+  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly })
 end
 
 -- All "mtg ..." chat commands. Returns false (hide the line) when handled, nil otherwise.
@@ -249,13 +249,11 @@ function engineChat(message, pl)
   local cmd, restAt = lower:match("^%s*mtg%s*(%a*)%s*()")
   local rest = (lower:sub(restAt):gsub("%s+$", ""))
   local isHost = pl.host or pl.admin or pl.promoted
-  -- engine mode, starting a game and clearing a finished one: anyone sitting at the table (playtest 2026-10-25:
-  -- "allow non host to turn the engine on and off and to start games"); ending a running game stays the host's
-  local atTable = isHost or pl.seated
+  -- engine mode, starting a game, friendly mulligans and clearing a finished one: anyone, seated or not (playtest
+  -- 2026-10-25: "allow non host to turn the engine on and off and to start games"; 2026-11-10: "allow anyone to
+  -- click engine on/off and start too"); ending a running game stays the host's
   if cmd == "engine" then
-    if not atTable then
-      pl.broadcast("[MTG] Sit at a colour to switch engine mode.")
-    elseif rest == "on" then setEngineMode(true)
+    if rest == "on" then setEngineMode(true)
     elseif rest == "off" and engineTable ~= nil and engineTable() ~= nil then
       -- mid-game the engine's cards would stay while the table's own tools came back: end the game instead
       pl.broadcast("[MTG] An engine game is running. Type  mtg reset  to end it (that also turns engine mode off).")
@@ -264,11 +262,8 @@ function engineChat(message, pl)
     end
   elseif cmd == "friendly" then
     local n = tonumber(rest)
-    if not (atTable and data[pl.color]) then pl.broadcast("[MTG] Sit at a colour to vote.")
-    elseif n == 0 or n == 1 or n == 2 then
-      engineSetFriendly(pl.color, n)
-      pl.broadcast("[MTG] Your friendly mulligan vote: " .. engineFriendlyLabel(pl.color):gsub("^Friendly: ", "") .. ".")
-    else pl.broadcast("[MTG] Use: mtg friendly 0 | 1 | 2") end
+    if n == 0 or n == 1 or n == 2 then engineSetFriendly(n, pl)
+    else pl.broadcast("[MTG] Use: mtg friendly 0 | 1 | 2  (free mulligans each, for everyone)") end
   elseif cmd == "ready" then
     if rest == "all" then
       if not isHost then pl.broadcast("[MTG] Only the host can check everyone's decks.") return false end
@@ -281,7 +276,6 @@ function engineChat(message, pl)
   elseif cmd == "commander" then
     engineMarkCommander(pl)
   elseif cmd == "start" then
-    if not atTable then pl.broadcast("[MTG] Sit at a colour to start an engine game.") return false end
     engineStartGame(pl, rest)
   elseif cmd == "undo" then
     -- rewind by vote: "mtg undo" lists the restore points, "mtg undo 3" asks to go back to the third
@@ -381,13 +375,13 @@ function engineChat(message, pl)
     engineSend("aideck", { deck = rest })
   elseif cmd == "reset" then
     local running = engineTable ~= nil and engineTable() or nil
-    if not (isHost or (atTable and (running == nil or running.gameOver))) then
+    if not (isHost or running == nil or running.gameOver) then
       pl.broadcast("[MTG] Only the host can end a game that is still going.") return false
     end
     engineSend("reset", {})
     if ENGINE_MODE then engineClear() end -- don't wait for the bridge's "clear" (it may be down)
   else
-    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg friendly 0|1|2 - vote for free mulligans\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <kind>; mtg animations on/off (host) - also under Settings")
+    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <kind>; mtg animations on/off (host) - also under Settings")
   end
   return false
 end

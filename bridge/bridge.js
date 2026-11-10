@@ -797,16 +797,12 @@ function resendToTable() {
   for (const st of game.seats.values()) if (st.prompt?.ui) showPrompt(st, st.prompt.ui.allCards ? { cards: st.prompt.ui.allCards } : {});
 }
 
-// Friendly mulligans (SPEC "Friendly mulligans by vote"): the count most players voted for, a tie going to the lower one.
-// No vote, or anything but 1 or 2, is a vote for none.
-function friendlyCount(votes, humans) {
-  const tally = [0, 0, 0];
-  for (const c of humans) tally[votes?.[c] === 1 || votes?.[c] === 2 ? votes[c] : 0]++;
-  return tally.indexOf(Math.max(...tally));
-}
+// Friendly mulligans (SPEC "Friendly mulligans"): the table's one shared count, the free mulligans each player has in
+// all. Anything but 1 or 2 is none.
+const friendlyCount = (n) => (n === 1 || n === 2 ? n : 0);
 
 // fromTable: the group's table draws the game (default: games whose decks come from the table)
-function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], votes = null) {
+function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
   const notReady = requireReady ? seatList.filter((c) => !readyDecks[c]) : [];
   if (notReady.length) { chat(`[MTG] Not started: ${notReady.join(", ")} still need \"mtg ready\" (import your deck, put your commander on the command zone).`); return; }
@@ -816,7 +812,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
   const aiTable = aiSeats.filter((c) => readyDecks[c]).slice(0, bots); // (empty seats' ready decks, in order: see below)
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
-    friendly: friendlyCount(votes, seatList), friendlyVoted: seatList.map((c) => `${c} voted ${votes?.[c] === 1 || votes?.[c] === 2 ? votes[c] : "none"}`).join(", "),
+    friendly: friendlyCount(friendly),
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
     // each came from, for its pictures (onGameStarted)
     aiTableDecks: aiTable.map((c) => engineDeckFromTable(readyDecks[c])), aiTableColors: aiTable };
@@ -919,7 +915,7 @@ function onGameStarted(msg) {
   for (const n of game.deckNames || []) pictureOf(n);
   chat(`[MTG] Game started! Seats in turn order: ${msg.player_order.map((_, i) => game.slotNames[`player-${i}`]).join(" → ")}. Life ${msg.starting_life}. A dice roll decides who goes first.`);
   log(`game started ${msg.game_id}: ${Object.values(game.slotNames).join(", ")}`);
-  if (game.friendly) friendlySay(`Friendly mulligans this game: ${game.friendly} each (${game.friendlyVoted}).`);
+  if (game.friendly) friendlySay(`Free mulligans this game: ${game.friendly} each${rulesFreeMulligans() ? " (the rules' free one included)" : ""}.`);
   saveResume();
 }
 // Each seat's deck pictures, keyed by the colour it sits at: a player's own readied deck; an AI's, the table deck it was
@@ -5152,7 +5148,7 @@ function onPrompt(seat, prompt) {
       // (Arena: "Keep" / "Mulligan"; how many were taken goes below, not in the question)
       ui = { title: "Keep this hand?", mode: "single", options: [{ id: "keep", label: "Keep" }, { id: "mull", label: friendlyFreeLeft(seat) > 0 ? "Mulligan (free)" : "Mulligan" }],
         ...(game?.friendly ? { text: friendlyText(seat) } : input.mulliganCount ? { text: `Mulligans so far: ${input.mulliganCount}.` } : {}) };
-      toOutput = (a) => ({ type: "mulliganDecision", keep: a[0] === "keep", ...(game?.friendly ? { freeCards: game.friendly } : {}) });
+      toOutput = (a) => ({ type: "mulliganDecision", keep: a[0] === "keep", ...(friendlyExtra() ? { freeCards: friendlyExtra() } : {}) });
       break;
     case "mulliganPutBack":
       ui = { title: `Put ${countWords(input.count, input.count, "card")} on the bottom of your library`, mode: "multi", min: input.count, max: input.count,
@@ -7404,7 +7400,7 @@ function onTTS(m) {
       noteStamp(m);
       warnIfOutOfStep();
       const go = () => {
-        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendlyVotes);
+        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly);
         if (game && m.autoplay) game.autoplay = true;
       };
       // the table's Start button (autoReset): a game left over from before is reset first, and a room that is still
@@ -8135,26 +8131,28 @@ function onWinner(color, by) {
 }
 
 // Friendly mulligans. The engine takes the count off what a kept hand owes (the Keep answer's freeCards); these say so
-// at the table. With 3 or more players the rules' free mulligan comes first (Forge does that one by itself).
+// at the table. game.friendly is the free mulligans in all: with 3 or more players the rules' free one (Forge gives it
+// by itself) is one of them, so the engine is asked only for the rest (friendlyExtra) and a count of 1 is the rules.
 const rulesFreeMulligans = () => (game.total > 2 ? 1 : 0);
+const friendlyExtra = () => (game?.friendly ? Math.max(0, game.friendly - rulesFreeMulligans()) : 0);
 const friendlySay = (line) => { chat(`[MTG] ${line}`); gameLogLine(line); };
 function friendlyFreeLeft(seat) {
-  return game?.friendly ? Math.max(0, rulesFreeMulligans() + game.friendly - seat.mullsTaken) : 0;
+  return game?.friendly ? Math.max(0, Math.max(game.friendly, rulesFreeMulligans()) - seat.mullsTaken) : 0;
 }
 function friendlyText(seat) {
   const left = friendlyFreeLeft(seat);
   if (left) return `Free mulligans left: ${left}.`;
-  const owed = Math.max(0, seat.mullsTaken - rulesFreeMulligans() - game.friendly);
+  const owed = Math.max(0, seat.mullsTaken - Math.max(game.friendly, rulesFreeMulligans()));
   return owed ? `Keeping puts ${owed} on the bottom.` : "No free mulligans left: the next one costs a card.";
 }
 function mulliganTaken(seat) {
   seat.mullsTaken++;
   if (!game?.friendly) return;
   saveResume(); // (a bridge restart between mulligans keeps the count)
-  const nth = seat.mullsTaken - rulesFreeMulligans();
-  if (nth < 1 || nth > game.friendly) return; // the rules' free one, or one that costs a card
-  friendlySay(`${seat.color} took a friendly mulligan (${nth} of ${game.friendly}).`);
-  if (nth === game.friendly) friendlySay(`That was ${seat.color}'s last friendly mulligan: their next one costs a card.`);
+  const nth = seat.mullsTaken, all = Math.max(game.friendly, rulesFreeMulligans());
+  if (nth > all) return; // one that costs a card
+  friendlySay(`${seat.color} took a free mulligan (${nth} of ${all}).`);
+  if (nth === all) friendlySay(`That was ${seat.color}'s last free mulligan: their next one costs a card.`);
 }
 function friendlyEnded(gv) {
   if (!game.friendly || game.friendlyOver || !(gv.turn >= 1)) return;

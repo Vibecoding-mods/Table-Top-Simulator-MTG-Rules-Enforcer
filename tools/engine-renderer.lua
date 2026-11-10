@@ -5668,7 +5668,7 @@ end
 -- playmat, near their life counter: yellow until their deck is checked, green when it's ready, red when the check
 -- found a problem (the chat says what). Start sits on a small tile between the life counters: yellow until every
 -- seated player is ready, then green, and anyone may press it. While a game runs both are hidden; after it ends the
--- middle button offers "New game" (anyone seated, as "mtg reset"). Only in engine mode.
+-- middle button offers "New game" (anyone, as "mtg reset"). Only in engine mode.
 do -- (its own scope: the main chunk is near the 200-locals limit of standard Lua, which the tests run on)
 engineReadyState = {} -- colour -> "ready" | "problem" (from the bridge's deck report)
 local SETUP = { tag = "mtgsetup", sig = nil, spawning = false, seats = { "White", "Red", "Yellow", "Blue" }, size = 2.5, tileW = 2.2, tileD = 1.5, -- (the tile fits the gap between the four life counters)
@@ -5686,6 +5686,7 @@ function engineSetupIntact()
   local want = SETUP.drawn.tile
   local have = tile ~= nil and (tile.getButtons() or {})[1] or nil
   if (want == nil) ~= (have == nil) or (have ~= nil and have.label ~= want) then return false end
+  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < 1 + #FRIENDLY_SPOTS then return false end
   for c in pairs(SETUP.drawn.mats) do
     local mat = data[c] and data[c].playmat
     local any = false
@@ -5733,7 +5734,7 @@ function engineSetupButtons()
   for _, pl in ipairs((game and game.players) or {}) do if pl.status == "playing" then alive[#alive + 1] = tostring(pl.color) end end
   table.sort(alive)
   local sig = table.concat({ tostring(ENGINE_MODE), tostring(running), tostring(over), table.concat(seated, ","), tostring(ready), table.concat(alive, ","),
-    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) .. ":" .. tostring(engineFriendlyVote[c]) end return table.concat(p, ",") end)() }, "|")
+    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly) }, "|")
   -- (unchanged, and the buttons are still there: TTS's own scripts or a reload can wipe an object's buttons, and after a
   -- game ended the READY buttons and the middle tile stayed gone or stale, "Engine: off" with engine mode on, playtest
   -- 2026-10-24; engineSetupHeal below looks every 2 s)
@@ -5770,7 +5771,7 @@ function engineSetupButtons()
       SETUP.drawn.tile = "Engine: off"
       tile.createButton({ click_function = "onMtgSetupEngine", function_owner = Global, label = "Engine: off", position = { 0, 0.6, 0 },
         rotation = { 0, 0, 0 }, scale = { 1 / SETUP.tileW, 1, 1 / SETUP.tileD }, width = 1100, height = 720, font_size = 260,
-        color = SETUP.color.idle, font_color = { 1, 1, 1 }, tooltip = "Turn the rules engine on (host)" })
+        color = SETUP.color.idle, font_color = { 1, 1, 1 }, tooltip = "Turn the rules engine on (anyone)" })
     end
     return
   end
@@ -5791,7 +5792,6 @@ function engineSetupButtons()
       SETUP.drawn.mats[c] = true
       setupButton(mat, "onMtgSetupReady", st == "ready" and "READY" or (st == "problem" and "FIX DECK" or "READY?"),
         st == "ready" and SETUP.color.go or (st == "problem" and SETUP.color.bad or SETUP.color.wait), at, c)
-      setupButton(mat, "onMtgSetupFriendly", engineFriendlyLabel(c), SETUP.color.wait, at + step * 1.4, c, 1700)
     end
   end
   if tile ~= nil then
@@ -5805,6 +5805,13 @@ function engineSetupButtons()
       tile.createButton({ click_function = click, function_owner = Global, label = label, position = { 0, 0.6, 0 },
         rotation = { 0, 0, 0 }, scale = { 1 / SETUP.tileW, 1, 1 / SETUP.tileD }, width = 1100, height = 720,
         font_size = #label > 6 and 260 or 400, color = color, font_color = { 1, 1, 1 }, tooltip = "" })
+    end
+    -- (after the middle button: engineSetupIntact reads the tile's first button)
+    if not running and not over then
+      SETUP.drawn.friendly = true
+      for _, f in ipairs(FRIENDLY_SPOTS) do
+        setupButton(tile, "onMtgSetupFriendly", engineFriendlyLabel(), SETUP.color.wait, Vector(f.x, 1.1, 0), f.facing, 2100)
+      end
     end
   end
   engineScoopRedraw()
@@ -5827,7 +5834,7 @@ function engineScoopRedraw()
   end
 end
 
--- Engine mode on/off from the middle button (anyone seated, as "mtg engine on/off")
+-- Engine mode on/off from the middle button (anyone, seated or not, as "mtg engine on/off")
 function onMtgSetupEngine(obj, playerColor)
   local pl = Player[playerColor]
   if pl ~= nil then engineChat(ENGINE_MODE and "mtg engine off" or "mtg engine on", pl) end
@@ -5861,26 +5868,25 @@ function onMtgSetupReady(obj, playerColor)
   engineChat("mtg ready", Player[c])
 end
 
--- Friendly mulligans: each player's vote, under their READY button (none, 1, 2, none...). The bridge counts them at
--- Start. A rematch keeps them; a table reload clears them.
-engineFriendlyVote = {}
-function engineFriendlyLabel(c)
-  local n = engineFriendlyVote[c] or 0
-  return "Friendly: " .. (n == 0 and "none" or string.format("%d", n))
+-- Friendly mulligans: ONE count for the whole table (none, 1, 2, none...), the free mulligans each player has in
+-- all, the rules' multiplayer free one included (2026-11-10: "one button be the answer for everyone and anyone can
+-- click it"). The button lies where the "Screen bar keys" boxes were (FRIENDLY_SPOTS; they are hidden in engine mode).
+-- Start sends it. A rematch keeps it; a table reload clears it.
+engineFriendly = 0
+FRIENDLY_SPOTS = { { x = 17.5, facing = "White" }, { x = -17.5, facing = "Yellow" } }
+function engineFriendlyLabel()
+  return "Free mulligans: " .. (engineFriendly == 0 and "normal" or string.format("%d", engineFriendly))
 end
-function engineSetFriendly(c, n)
-  engineFriendlyVote[c] = n
+-- n: 0, 1 or 2; pl: who set it (everyone is told)
+function engineSetFriendly(n, pl)
+  engineFriendly = n
+  local who = pl ~= nil and (pl.steam_name or pl.color) or "Someone"
+  broadcastToAll("[MTG] " .. tostring(who) .. " set free mulligans for everyone: "
+    .. (n == 0 and "normal rules" or string.format("%d each", n) .. " (the rules' free one in a 3+ player game included)") .. ".", { 1, 0.85, 0.4 })
   engineSetupButtons()
 end
 function onMtgSetupFriendly(obj, playerColor)
-  local c = nil
-  for _, col in ipairs(SETUP.seats) do if data[col] and data[col].playmat == obj then c = col end end
-  if c == nil then return end
-  if playerColor ~= c then
-    broadcastToColor("[MTG] That's " .. c .. "'s vote. Use the one on your own playmat.", playerColor, { 1, 0.65, 0.2 })
-    return
-  end
-  engineSetFriendly(c, ((engineFriendlyVote[c] or 0) + 1) % 3)
+  engineSetFriendly((engineFriendly + 1) % 3, Player[playerColor])
 end
 
 function onMtgSetupStart(obj, playerColor)
@@ -5888,8 +5894,8 @@ function onMtgSetupStart(obj, playerColor)
   local pl = Player[playerColor]
   if pl == nil then return end
   if game ~= nil and game.gameOver then
-    if pl.host or pl.admin or pl.promoted or pl.seated then engineKeepEngineMode = true end -- (back to READY, engine mode stays on)
-    engineChat("mtg reset", pl) -- (as typed: anyone seated once the game is over)
+    engineKeepEngineMode = true -- (back to READY, engine mode stays on)
+    engineChat("mtg reset", pl) -- (as typed: anyone once the game is over)
     return
   end
   if game ~= nil then return end
