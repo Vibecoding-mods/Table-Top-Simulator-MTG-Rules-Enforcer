@@ -1659,11 +1659,16 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
         const recorded = g.outWhere?.["player-1"]?.step === "draw";
         g.picked = new Map([["engine-card-1", { ids: [], text: "", at: Date.now() }]]); g.answers = new Map([["engine-card-1", [{ at: Date.now() }]]]);
         g.sourceShields = [{ id: "engine-card-2" }]; g.painTaps = [{ id: "engine-card-3", at: Date.now() }]; g.declaredBlocks = { turn: 6, ids: new Set(["engine-card-2"]) };
+        g.owedCombat = { turn: 6, step: "combatDamage", list: [{ p: "player-1", n: 3 }] }; g.lifePays = [{ slot: "player-0", n: 2, card: "engine-card-4", at: Date.now() }];
+        g.chosenSources = [{ by: "Deflecting Palm", how: "", turn: 6, slot: "player-0" }]; g.orderAnswer = { turn: 6, step: "combatDamage" };
         const back = clone(r.last); back.gameView.turn = 5; back.gameView.step = "main1"; back.gameView.activePlayerId = "player-0"; P(back.gameView, "player-1").status = "playing";
         r.seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(back), fingerprint: "rewound" }); await r.h.flush();
         ok("suite: a rewind forgets the picks, answers, shields, pain taps and blocks kept for the log",
           recorded && g.picked.size === 0 && g.answers.size === 0 && !g.sourceShields.length && !g.painTaps.length && g.declaredBlocks === null,
           JSON.stringify([recorded, g.picked.size, g.answers.size, g.sourceShields, g.painTaps, g.declaredBlocks]));
+        ok("verify: and what is owed in combat, life paid, sources chosen and the order answer",
+          g.owedCombat === null && !g.lifePays.length && !g.chosenSources.length && g.orderAnswer === null,
+          JSON.stringify([g.owedCombat, g.lifePays, g.chosenSources, g.orderAnswer]));
         // (White, back in the game, then out in Blue's main phase with that empty library: no deck-out)
         const out = clone(back); out.gameView.turn = 6; P(out.gameView, "player-1").status = "lost"; out.gameView.gameOver = true; out.gameView.winnerId = "player-0";
         r.seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(out), fingerprint: "out-again" }); await r.h.flush();
@@ -1900,6 +1905,391 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const p = sent(h, "prompt").pop();
       harness.restore();
       ok("reveal pictures: all 9 go to the table", p && (p.show || []).length === 9, JSON.stringify(p && p.show && p.show.length));
+    }
+  }
+  // Kykar re-test 2026-11-09 (docs/HAND-TEST-KYKAR.md "Re-test", new bugs 1, 2, 4, 5, 8, 10): the questions
+  {
+    const fresh = (edit, gvExtra = {}) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      Object.assign(b.gameView, { activePlayerId: "player-0", priorityPlayerId: "player-0", step: "main1", stack: [] }, gvExtra);
+      if (edit) edit(b.gameView);
+      const seat = setup(h, b);
+      return { h, seat, b };
+    };
+    const asked = (h, seat, input, more = {}) => { h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input, ...more }); return h.flush(); };
+    const answer = async (h, choice, promptId = 900) => { h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId, choice }) }); await h.flush(5); };
+    const zone = (gv, z, p) => gv.zones.find((x) => x.zone === z && x.ownerId === p);
+    const P = (gv, id) => gv.players.find((p) => p.id === id);
+    const prompts = (h, from = 0) => h.effects.slice(from).filter((e) => e.tts && e.tts.t === "prompt").map((e) => e.tts);
+    // new bug 1: Mindslaver's turn, AI 1's main-phase priority routed to Blue (Forge's harness: decidingPlayerId the
+    // controller, the board's priority AI 1's)
+    const FOREST = { id: "engine-card-1601", identity: { name: "Forest" }, types: ["Land"], controllerId: "player-1", ownerId: "player-1" };
+    const BOLT = { id: "engine-card-1602", identity: { name: "Lightning Bolt" }, types: ["Instant"], controllerId: "player-1", ownerId: "player-1", text: "Lightning Bolt deals 3 damage to any target." };
+    const slaved = (gv) => { P(gv, "player-1").controlledBy = "player-0"; zone(gv, "hand", "player-1").cards = [FOREST, BOLT]; zone(gv, "hand", "player-1").count = 2; };
+    const AI_MAIN = { activePlayerId: "player-1", priorityPlayerId: "player-1", step: "main1" };
+    const AI_ACTIONS = { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" },
+      { id: "play:1601", type: "playLand", cardId: "engine-card-1601", label: "Play Forest" }, { id: "cast:1602", type: "cast", cardId: "engine-card-1602", label: "Cast Lightning Bolt", mode: { type: "normal" } }] };
+    {
+      const { h, seat } = fresh(slaved, AI_MAIN);
+      await asked(h, seat, AI_ACTIONS);
+      ok("re-test bug 1: AI 1's main-phase priority under Mindslaver is shown to its controller", seat.prompt?.ui?.title === "AI 1's priority (you control)", JSON.stringify(seat.prompt?.ui?.title ?? null));
+      ok("re-test bug 1: with AI 1's land and spell to play", (seat.prompt?.ui?.options || []).some((o) => o.id === "play:1601") && (seat.prompt?.ui?.options || []).some((o) => o.id === "cast:1602"), JSON.stringify(seat.prompt?.ui?.options));
+      await answer(h, ["cast:1602"]);
+      await asked(h, seat, { type: "chooseBoardTargets", candidates: [{ kind: "player", id: "player-0" }, { kind: "player", id: "player-1" }], minTargets: 1, maxTargets: 1, chosenTargets: 0,
+        presentation: { title: "Choose a target to deal damage to" } }, { promptId: 901, sourceCard: BOLT, sourceAbilityText: BOLT.text });
+      ok("re-test bug 1: and the target question of AI 1's spell says it is AI 1's", /^AI 1 \(you control\): /.test(seat.prompt?.ui?.title || ""), JSON.stringify(seat.prompt?.ui?.title ?? null));
+      harness.restore();
+    }
+    {
+      // (Blue's own priority on AI 1's turn, the board's priority Blue's: Arena-style passing as before)
+      const { h, seat } = fresh(slaved, { ...AI_MAIN, priorityPlayerId: "player-0" });
+      await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }, { id: "cast:1700", type: "cast", cardId: "engine-card-1700", label: "Cast Opt" }] });
+      ok("re-test bug 1: Blue's own priority on AI 1's controlled turn still passes by itself", seat.prompt == null, JSON.stringify(seat.prompt?.ui?.title ?? null));
+      harness.restore();
+    }
+    {
+      // (and without control, AI 1's main is no stop of Blue's)
+      const { h, seat } = fresh((gv) => { zone(gv, "hand", "player-1").cards = [FOREST]; }, AI_MAIN);
+      await asked(h, seat, AI_ACTIONS);
+      ok("re-test bug 1: no control, no stop", seat.prompt == null, JSON.stringify(seat.prompt?.ui?.title ?? null));
+      harness.restore();
+    }
+    {
+      // the controlled hand goes to the controller only, for their second hand zone
+      const { h } = fresh(slaved, AI_MAIN);
+      h.B.sendTable(); await h.flush();
+      // (the first board in full: the next, the same, keeps its zones)
+      const row = sent(h, "table")[0]?.players.find((p) => p.slot === "player-1");
+      ok("re-test bug 1: the controlled player's hand is sent for its controller", row?.ctlBy === "Blue" && (row?.ctlHand || []).map((c) => c.id).join(",") === "engine-card-1601,engine-card-1602", JSON.stringify(row && { ctlBy: row.ctlBy, ctlHand: row.ctlHand }));
+      ok("re-test bug 1: and not as AI 1's own hand", row?.hand == null, JSON.stringify(row?.hand));
+      harness.restore();
+      const { h: h2 } = fresh((gv) => { zone(gv, "hand", "player-1").cards = [FOREST]; }, AI_MAIN);
+      h2.B.sendTable(); await h2.flush();
+      const row2 = sent(h2, "table")[0]?.players.find((p) => p.slot === "player-1");
+      ok("re-test bug 1: no control, no controlled hand", row2 && row2.ctlHand == null && row2.ctlBy == null, JSON.stringify(row2 && { ctlBy: row2.ctlBy, ctlHand: row2.ctlHand }));
+      harness.restore();
+    }
+    {
+      // (a land of AI 1's dragged at Blue's own priority: why not, in AI 1's terms)
+      const { h, seat } = fresh(slaved, { ...AI_MAIN, priorityPlayerId: "player-0" });
+      const said = h.B.whyNot(seat, "engine-card-1601");
+      ok("re-test bug 1: a controlled player's land waits for that player's priority", said === "Forest: wait, it isn't AI 1's priority.", said);
+      harness.restore();
+    }
+    // (verify 2026-11-09: whose each question of a controlled turn is)
+    const TARGETS = { type: "chooseBoardTargets", candidates: [{ kind: "player", id: "player-0" }, { kind: "player", id: "player-1" }], minTargets: 1, maxTargets: 1, chosenTargets: 0,
+      presentation: { title: "Choose a target to deal damage to" } };
+    const MIND_ROT = { id: "engine-card-1607", identity: { name: "Mind Rot" }, types: ["Sorcery"], controllerId: "player-1", ownerId: "player-1", text: "Target player discards two cards." };
+    const castFor = async (h, seat, cardId = "engine-card-1602") => {
+      await asked(h, seat, { ...AI_ACTIONS, actions: [...AI_ACTIONS.actions, { id: "cast:1607", type: "cast", cardId: "engine-card-1607", label: "Cast Mind Rot", mode: { type: "normal" } }] });
+      await answer(h, [cardId === "engine-card-1602" ? "cast:1602" : "cast:1607"]);
+    };
+    const slaved2 = (gv) => { slaved(gv); zone(gv, "hand", "player-1").cards.push(MIND_ROT); };
+    const youControl = (seat) => /^AI 1 \(you control\): /.test(seat.prompt?.ui?.title || "");
+    {
+      const { h, seat } = fresh((gv) => { slaved(gv); zone(gv, "battlefield", "player-1").cards.push({ id: "engine-card-1604", identity: { name: "Hill Giant" }, types: ["Creature"], power: 3, toughness: 3, controllerId: "player-1", ownerId: "player-1" }); },
+        { ...AI_MAIN, step: "combatDeclareAttackers" });
+      await asked(h, seat, { type: "chooseAttackers", attackers: [{ attackerId: "engine-card-1604", validTargetIds: ["player-0"] }] });
+      ok("verify: the controlled player's attack says whose it is", seat.prompt?.ui?.title === "AI 1 (you control): Choose attackers", JSON.stringify(seat.prompt?.ui?.title ?? null));
+      harness.restore();
+    }
+    {
+      // (a priority question in between ends what the last one played)
+      const { h, seat } = fresh(slaved, AI_MAIN);
+      await castFor(h, seat);
+      await asked(h, seat, AI_ACTIONS, { promptId: 902 });
+      await asked(h, seat, TARGETS, { promptId: 903, sourceCard: BOLT, sourceAbilityText: BOLT.text });
+      ok("verify: after a priority question, the card played before asks as nobody's", !youControl(seat), JSON.stringify(seat.prompt?.ui?.title ?? null));
+      harness.restore();
+    }
+    {
+      // (only that card's questions: another card's is the seat's own)
+      const { h, seat } = fresh(slaved, AI_MAIN);
+      await castFor(h, seat);
+      await asked(h, seat, TARGETS, { promptId: 903, sourceCard: { id: "engine-card-1690", identity: { name: "Shock" }, text: "Shock deals 2 damage to any target." } });
+      ok("verify: another card's question is not the controlled player's", !youControl(seat), JSON.stringify(seat.prompt?.ui?.title ?? null));
+      harness.restore();
+    }
+    {
+      // (AI 1's Mind Rot at Blue: Blue's own discard, the cards Blue's own hand; at AI 1, AI 1's)
+      const ISLAND = { id: "engine-card-1608", identity: { name: "Island" }, types: ["Land"], controllerId: "player-0", ownerId: "player-0" };
+      const DISCARD = (c) => ({ type: "chooseCards", cards: [c], min: 1, max: 1, presentation: { title: "Discard", description: "Choose a card to discard" } });
+      const { h, seat } = fresh((gv) => { slaved2(gv); zone(gv, "hand", "player-0").cards = [ISLAND]; }, AI_MAIN);
+      await castFor(h, seat, "engine-card-1607");
+      await asked(h, seat, DISCARD(ISLAND), { promptId: 904, sourceCard: MIND_ROT, sourceAbilityText: MIND_ROT.text });
+      ok("verify: a discard from the seat's own hand to the controlled player's spell is the seat's own (slave-own-discard-src)", !youControl(seat), JSON.stringify(seat.prompt?.ui?.title ?? null));
+      await asked(h, seat, DISCARD(FOREST), { promptId: 905, sourceCard: MIND_ROT, sourceAbilityText: MIND_ROT.text });
+      ok("verify: and one from the controlled player's hand is theirs", youControl(seat), JSON.stringify(seat.prompt?.ui?.title ?? null));
+      harness.restore();
+    }
+    {
+      // (verify round 2: cards from both hands are no one hand's, the card played decides; Blue's own Mind Rot at AI 1, all
+      // in AI 1's hand, is AI 1's discard)
+      const ISLAND = { id: "engine-card-1608", identity: { name: "Island" }, types: ["Land"], controllerId: "player-0", ownerId: "player-0" };
+      const { h, seat } = fresh((gv) => { slaved2(gv); zone(gv, "hand", "player-0").cards = [ISLAND]; }, AI_MAIN);
+      await castFor(h, seat, "engine-card-1607");
+      await asked(h, seat, { type: "chooseCards", cards: [ISLAND, FOREST], min: 1, max: 1, presentation: { title: "Choose", description: "Choose a card" } },
+        { promptId: 909, sourceCard: MIND_ROT, sourceAbilityText: MIND_ROT.text });
+      ok("verify r2: cards from the seat's own hand and another are not its own choice (r2-hand-some)", youControl(seat), JSON.stringify(seat.prompt?.ui?.title ?? null));
+      harness.restore();
+      const BLUE_ROT = { ...MIND_ROT, id: "engine-card-1612", controllerId: "player-0", ownerId: "player-0" };
+      const r = fresh(slaved, AI_MAIN);
+      await asked(r.h, r.seat, { type: "chooseCards", cards: [FOREST, BOLT], min: 1, max: 1, presentation: { title: "Discard", description: "Choose a card to discard" } },
+        { promptId: 910, sourceCard: BLUE_ROT, sourceAbilityText: BLUE_ROT.text });
+      ok("verify r2: a choice among the controlled player's hand cards is that player's", youControl(r.seat), JSON.stringify(r.seat.prompt?.ui?.title ?? null));
+      harness.restore();
+    }
+    {
+      // (a card dragged for the controlled player: what it asks next is that player's, r2-stamp-intent)
+      const { h, seat } = fresh(slaved, AI_MAIN);
+      await asked(h, seat, AI_ACTIONS);
+      h.B.onTTS({ t: "intent", json: JSON.stringify({ color: "Blue", kind: "play", id: "engine-card-1602" }) }); await h.flush();
+      await asked(h, seat, TARGETS, { promptId: 911, sourceCard: BOLT, sourceAbilityText: BOLT.text });
+      ok("verify r2: a dragged card of the controlled player asks as that player", youControl(seat), JSON.stringify([seat.prompt?.ui?.title ?? null, seat.actingFor]));
+      harness.restore();
+    }
+    {
+      // (what was played lasts that turn, and that control: a question of the card on the next turn, or with the control
+      // ended, is the seat's own, and it is forgotten)
+      const { h, seat } = fresh(slaved, AI_MAIN);
+      await castFor(h, seat);
+      seat.board.state.gameView.turn = (seat.board.state.gameView.turn ?? 0) + 1;
+      await asked(h, seat, TARGETS, { promptId: 906, sourceCard: BOLT, sourceAbilityText: BOLT.text });
+      ok("verify: the card played for a controlled player last turn asks as nobody's", !youControl(seat) && seat.actingFor == null, JSON.stringify([seat.prompt?.ui?.title ?? null, seat.actingFor]));
+      harness.restore();
+      const r = fresh(slaved, AI_MAIN);
+      await castFor(r.h, r.seat);
+      delete P(r.seat.board.state.gameView, "player-1").controlledBy;
+      await asked(r.h, r.seat, TARGETS, { promptId: 907, sourceCard: BOLT, sourceAbilityText: BOLT.text });
+      ok("verify: and with the control over, it is forgotten", !youControl(r.seat) && r.seat.actingFor == null, JSON.stringify([r.seat.prompt?.ui?.title ?? null, r.seat.actingFor]));
+      harness.restore();
+    }
+    {
+      // (the controlled player pays from their own lands keeping their own hand's colours: Giant Growth's {G} in AI 1's
+      // hand keeps the Forest, Blue's own blue card is not AI 1's)
+      const land = (n, name) => ({ id: `engine-card-${n}`, identity: { name }, types: ["Land"], controllerId: "player-1", ownerId: "player-1" });
+      const { h, seat } = fresh((gv) => {
+        slaved(gv);
+        zone(gv, "hand", "player-1").cards.push({ id: "engine-card-1609", identity: { name: "Giant Growth" }, types: ["Instant"], manaCost: "{G}", controllerId: "player-1", ownerId: "player-1" });
+        zone(gv, "hand", "player-0").cards = [{ id: "engine-card-1610", identity: { name: "Opt" }, types: ["Instant"], manaCost: "{U}", controllerId: "player-0", ownerId: "player-0" }];
+        zone(gv, "battlefield", "player-1").cards.push(land(1605, "Forest"), land(1606, "Island"));
+      }, AI_MAIN);
+      await castFor(h, seat);
+      await asked(h, seat, { type: "payManaCost", cardId: "engine-card-1602", cardName: "Lightning Bolt", manaCost: "{1}", canConfirmFromPool: false, actions: [
+        { id: "tap:engine-card-1605:G", type: "activateManaAbility", cardId: "engine-card-1605", isManaAbility: true, cost: "{T}", producedMana: [{ color: "G", amount: 1 }] },
+        { id: "tap:engine-card-1606:U", type: "activateManaAbility", cardId: "engine-card-1606", isManaAbility: true, cost: "{T}", producedMana: [{ color: "U", amount: 1 }] }] },
+        { promptId: 908, sourceCard: BOLT });
+      const opts = seat.prompt?.ui?.options?.map((o) => o.id), from = h.effects.length;
+      await answer(h, ["__auto"], 908);
+      const sentActs = h.effects.slice(from).map((e) => e.relay?.state).filter((s) => s?.kind === "response").map((s) => s.action?.output?.actionId);
+      ok("verify: the controlled player's auto-pay keeps the colours of that player's hand", JSON.stringify(sentActs) === JSON.stringify(["tap:engine-card-1606:U"]), JSON.stringify([opts, sentActs]));
+      harness.restore();
+    }
+    {
+      // (a card of the controlled hand the controller's view doesn't name is not sent)
+      const { h } = fresh((gv) => { slaved(gv); zone(gv, "hand", "player-1").cards.push({ id: "engine-card-1611" }); zone(gv, "hand", "player-1").count = 3; }, AI_MAIN);
+      h.B.sendTable(); await h.flush();
+      const row = sent(h, "table")[0]?.players.find((p) => p.slot === "player-1");
+      ok("verify: the controlled hand holds only the cards the controller sees", (row?.ctlHand || []).map((c) => c.id).join(",") === "engine-card-1601,engine-card-1602", JSON.stringify(row?.ctlHand?.map((c) => c.id)));
+      harness.restore();
+    }
+    // new bug 2: three shields on one combat's damage, Forge's "Choose" over their sentences (the live game's words)
+    {
+      const { h, seat } = fresh();
+      const pick = (n, cardN, name, text, pickId) => {
+        seat.lastRawPrompt = { decidingPlayerId: "player-0", promptId: n, sourceAbilityText: text, sourceCard: { id: `engine-card-${cardN}`, identity: { name }, text },
+          input: { cancellable: false, cards: [{ id: pickId, identity: { name: "Hill Giant" } }], max: 1, min: 1, presentation: { description: "Choose a source ", targets: [], title: name }, type: "chooseCards" } };
+        seat.respond(n, "chooseCards", { type: "chooseCardsDecision", chosenCardIds: [pickId] });
+      };
+      pick(61, 231, "Reflect Damage", "The next time a source of your choice would deal damage this turn, that damage is dealt to that source's controller instead.", "engine-card-229");
+      pick(62, 237, "Circle of Protection: Red", "{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.", "engine-card-238");
+      pick(63, 260, "Deflecting Palm", "The next time a source of your choice would deal damage to you this turn, prevent that damage. If damage is prevented this way, Deflecting Palm deals that much damage to that source's controller.", "engine-card-1");
+      await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, options: [
+        { label: "The next time a source of your choice would deal damage this turn, that damage is dealt to that source's controller instead." },
+        { label: "The next time the chosen red source deals damage to you, prevent that damage." },
+        { label: "The next time the chosen source deals damage to you, prevent that damage." }] });
+      ok("re-test bug 2: the shields' order question says what it is", seat.prompt?.ui?.title === "Which applies first?", JSON.stringify(seat.prompt?.ui?.title ?? null));
+      const labels = (seat.prompt?.ui?.options || []).map((o) => o.label.split(":").slice(0, /^Circle/.test(o.label) ? 2 : 1).join(":"));
+      ok("re-test bug 2: each shield by its card", JSON.stringify(labels) === JSON.stringify(["Reflect Damage", "Circle of Protection: Red", "Deflecting Palm"]), JSON.stringify(seat.prompt?.ui?.options));
+      harness.restore();
+    }
+    {
+      // (no source chosen this turn: the sentences stay bare)
+      const { h, seat } = fresh();
+      await asked(h, seat, { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, options: [
+        { label: "The next time the chosen red source deals damage to you, prevent that damage." }, { label: "The next time the chosen source deals damage to you, prevent that damage." }] });
+      ok("re-test bug 2: with no source chosen, the options are Forge's words", JSON.stringify((seat.prompt?.ui?.options || []).map((o) => o.label)) === JSON.stringify(["The next time the chosen red source deals damage to you, prevent that damage.", "The next time the chosen source deals damage to you, prevent that damage."]), JSON.stringify(seat.prompt?.ui?.options));
+      harness.restore();
+    }
+    // (verify 2026-11-09: a source is named only when it was chosen this turn, by this seat, and is the one such choice)
+    {
+      const PALM_T = "The next time a source of your choice would deal damage to you this turn, prevent that damage. If damage is prevented this way, Deflecting Palm deals that much damage to that source's controller.";
+      const REVERSE_T = "The next time a source of your choice would deal damage to you this turn, prevent that damage. You gain life equal to the damage prevented this way.";
+      const pickBy = (s, n, cardN, name, text) => {
+        s.lastRawPrompt = { decidingPlayerId: s.slot, promptId: n, sourceAbilityText: text, sourceCard: { id: `engine-card-${cardN}`, identity: { name }, text },
+          input: { cancellable: false, cards: [{ id: "engine-card-229", identity: { name: "Hill Giant" } }], max: 1, min: 1, presentation: { description: "Choose a source ", targets: [], title: name }, type: "chooseCards" } };
+        s.respond(n, "chooseCards", { type: "chooseCardsDecision", chosenCardIds: ["engine-card-229"] });
+      };
+      const SHIELDQ = { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, options: [
+        { label: "The next time the chosen red source deals damage to you, prevent that damage." }, { label: "The next time the chosen source deals damage to you, prevent that damage." }] };
+      const named = (seat) => (seat.prompt?.ui?.options || []).map((o) => o.label).filter((l) => /^(?:Deflecting Palm|Reverse Damage):/.test(l));
+      {
+        const { h, seat } = fresh();
+        const turn = seat.board.state.gameView.turn;
+        seat.board.state.gameView.turn = turn - 1;
+        pickBy(seat, 64, 260, "Deflecting Palm", PALM_T);
+        seat.board.state.gameView.turn = turn;
+        await asked(h, seat, SHIELDQ);
+        ok("verify: a source chosen last turn names no option (shield-earlier-turn)", !named(seat).length, JSON.stringify(seat.prompt?.ui?.options));
+        harness.restore();
+      }
+      {
+        const { h, seat } = fresh();
+        pickBy(seat, 64, 260, "Deflecting Palm", PALM_T);
+        await asked(h, seat, SHIELDQ);
+        ok("verify: one chosen this turn names it (precondition)", JSON.stringify(named(seat)) === JSON.stringify(["Deflecting Palm: The next time the chosen source deals damage to you, prevent that damage."]), JSON.stringify(seat.prompt?.ui?.options));
+        harness.restore();
+      }
+      {
+        const { h, seat } = fresh();
+        pickBy(seat, 64, 260, "Deflecting Palm", PALM_T);
+        pickBy(seat, 65, 261, "Reverse Damage", REVERSE_T);
+        await asked(h, seat, SHIELDQ);
+        ok("verify: two chosen with the same words name neither (shield-two-same-words)", !named(seat).length, JSON.stringify(seat.prompt?.ui?.options));
+        harness.restore();
+      }
+      {
+        const { h, seat } = fresh();
+        const w = new h.B.Seat("White", "neheb_minotaur_commander");
+        w.slot = "player-1"; w.board = seat.board;
+        h.B._getGame().seats.set("White", w);
+        pickBy(w, 64, 260, "Deflecting Palm", PALM_T);
+        await asked(h, seat, SHIELDQ);
+        ok("verify: another seat's chosen source names none of this seat's options (shield-other-seat)", !named(seat).length, JSON.stringify(seat.prompt?.ui?.options));
+        harness.restore();
+      }
+    }
+    // new bug 4: two Serra Angels told apart by whose they are
+    {
+      const ANGEL = (n, ctl) => ({ id: `engine-card-${n}`, identity: { name: "Serra Angel" }, types: ["Creature"], power: 4, toughness: 4, controllerId: ctl, ownerId: ctl });
+      const { h, seat } = fresh((gv) => { zone(gv, "battlefield", "player-0").cards.push(ANGEL(1611, "player-0")); zone(gv, "battlefield", "player-1").cards.push(ANGEL(1612, "player-1")); });
+      const CM = { id: "engine-card-1613", identity: { name: "Control Magic" }, text: "Enchant creature\nYou control enchanted creature." };
+      await asked(h, seat, { type: "chooseBoardTargets", candidates: [{ kind: "card", id: "engine-card-1611" }, { kind: "card", id: "engine-card-1612" }], minTargets: 1, maxTargets: 1, chosenTargets: 0 }, { sourceCard: CM });
+      const got = (seat.prompt?.ui?.options || []).map((o) => o.label).sort();
+      ok("re-test bug 4: two Serra Angels by their controllers", JSON.stringify(got) === JSON.stringify(["Serra Angel 4/4 (AI 1's)", "Serra Angel 4/4 (yours)"]), JSON.stringify(got));
+      harness.restore();
+      // (both Blue's now, Control Magic on AI 1's: by their owners, Forge's battlefield card naming its controller)
+      const { h: h2, seat: s2 } = fresh((gv) => { zone(gv, "battlefield", "player-0").cards.push(ANGEL(1611, "player-0"), ANGEL(1612, "player-0")); });
+      h2.B._getGame().owners = new Map([["engine-card-1612", "player-1"]]);
+      const WARP = { id: "engine-card-1614", identity: { name: "Chaos Warp" }, text: "The owner of target permanent shuffles it into their library, then reveals the top card of their library." };
+      await asked(h2, s2, { type: "chooseBoardTargets", candidates: [{ kind: "card", id: "engine-card-1611" }, { kind: "card", id: "engine-card-1612" }], minTargets: 1, maxTargets: 1, chosenTargets: 0 }, { sourceCard: WARP });
+      const got2 = (s2.prompt?.ui?.options || []).map((o) => o.label).sort();
+      ok("re-test bug 4: and by their owners when both are yours", JSON.stringify(got2) === JSON.stringify(["Serra Angel 4/4 (owned by AI 1)", "Serra Angel 4/4 (owned by you)"]), JSON.stringify(got2));
+      harness.restore();
+    }
+    // new bug 5: Arc Trail's two questions, each with its amount (Forge's script: "Select any target (2 damage)" /
+    // "Select any other target (1 damage)", the harness sends neither)
+    {
+      const ARC = { id: "engine-card-1621", identity: { name: "Arc Trail" }, text: "Arc Trail deals 2 damage to any target and 1 damage to any other target." };
+      const C = (n) => ({ kind: "card", id: `engine-card-${n}` });
+      const { h, seat } = fresh();
+      const tq = (candidates, promptId) => asked(h, seat, { type: "chooseBoardTargets", candidates, minTargets: 1, maxTargets: 1, chosenTargets: 0, presentation: { title: "Choose a target to deal damage to" } },
+        { promptId, sourceCard: ARC, sourceAbilityText: ARC.text });
+      await tq([C(1), C(2), { kind: "player", id: "player-1" }], 910);
+      const first = seat.prompt?.ui?.title;
+      await tq([C(1), C(2), { kind: "player", id: "player-1" }], 911);
+      const again = seat.prompt?.ui?.title;
+      await tq([C(2), { kind: "player", id: "player-1" }], 912);
+      const second = seat.prompt?.ui?.title;
+      ok("re-test bug 5: Arc Trail's first target is for 2 damage", first === "Arc Trail: deal 2 damage to which target?", first);
+      ok("re-test bug 5: the same question again is still the first", again === first, again);
+      ok("re-test bug 5: the second for 1 damage, another target", second === "Arc Trail: deal 1 damage to which other target?", second);
+      await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }] }, { promptId: 913 });
+      await tq([C(1), C(2)], 914);
+      ok("re-test bug 5: a new casting starts at the first again", seat.prompt?.ui?.title === first, seat.prompt?.ui?.title);
+      harness.restore();
+    }
+    // new bug 8: the game over closes the open question
+    {
+      const { h, seat } = fresh((gv) => zone(gv, "hand", "player-0").cards.push({ id: "engine-card-1631", identity: { name: "Opt" }, types: ["Instant"] }));
+      await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }, { id: "cast:1631", type: "cast", cardId: "engine-card-1631", label: "Cast Opt" }] });
+      ok("re-test bug 8: precondition, priority open", seat.prompt?.ui?.title === "Your priority", JSON.stringify(seat.prompt?.ui?.title ?? null));
+      const from = h.effects.length;
+      await asked(h, seat, { type: "gameOver" }, { promptId: 4294967295 });
+      ok("re-test bug 8: game over closes it", seat.prompt == null && prompts(h, from).some((p) => p.color === "Blue" && p.promptId == null), JSON.stringify(prompts(h, from)));
+      harness.restore();
+    }
+    // new bug 10: life paid for a Phyrexian symbol named in the life line
+    // (Mondrak on the stack while it is cast, as Forge's board shows it during the payment; the lines of a board pair)
+    const MONDRAK = (casting) => ({ id: "engine-stack-1641", sourceId: "engine-card-1641", identity: { name: "Mondrak, Glory Dominus" }, controllerId: "player-0", ownerId: "player-0",
+      isPermanentSpell: true, ...(casting ? { isCasting: true } : {}), text: "Mondrak, Glory Dominus" });
+    const lifeLines = (h, a, c) => h.B.logEvents(h.B.logSnapshot(a), h.B.logSnapshot(c), c, null).filter((l) => /life/.test(l));
+    const phyrexian = async () => {
+      const r = fresh((gv) => { gv.stack = [MONDRAK(true)]; });
+      await asked(r.h, r.seat, { type: "payManaCost", cardId: "engine-card-1641", cardName: "Mondrak, Glory Dominus", manaCost: "{1}{W/P}{W/P}", canConfirmFromPool: false,
+        actions: [{ id: "pay-life", type: "payLife", amount: 2 }] });
+      await answer(r.h, ["pay-life"]);
+      const step = (from, edit) => { const x = clone(from); edit(x); return x; };
+      return { ...r, step, L: (gv) => P(gv, "player-0").life };
+    };
+    {
+      const { h, b, step, L } = await phyrexian();
+      const before = clone(b.gameView), after = step(before, (x) => { P(x, "player-0").life -= 2; });
+      const lines = lifeLines(h, before, after);
+      ok("re-test bug 10: the life paid says what for", JSON.stringify(lines) === JSON.stringify([`Blue: ${L(before)} -> ${L(after)} life (-2, paid for Mondrak, Glory Dominus)`]), JSON.stringify(lines));
+      // (and once only: the next loss is bare)
+      const later = step(after, (x) => { P(x, "player-0").life -= 2; });
+      const more = lifeLines(h, after, later);
+      ok("re-test bug 10: a later loss is not that payment", JSON.stringify(more) === JSON.stringify([`Blue: ${L(after)} -> ${L(later)} life (-2)`]), JSON.stringify(more));
+      harness.restore();
+    }
+    {
+      // (the cast cancelled, Mondrak back in hand: a later loss in the 10 s is not that payment, verify phy-leak-bare)
+      const { h, b, step, L } = await phyrexian();
+      const before = step(b.gameView, (x) => { x.stack = []; }), after = step(before, (x) => { P(x, "player-0").life -= 2; });
+      const lines = lifeLines(h, before, after);
+      ok("verify: a payment whose cast is not on the board names no loss", JSON.stringify(lines) === JSON.stringify([`Blue: ${L(before)} -> ${L(after)} life (-2)`]), JSON.stringify(lines));
+      const back = step(after, (x) => { x.stack = [MONDRAK(true)]; P(x, "player-0").life -= 2; });
+      const again = lifeLines(h, after, back);
+      ok("verify: and it is gone with that board", JSON.stringify(again) === JSON.stringify([`Blue: ${L(after)} -> ${L(back)} life (-2)`]), JSON.stringify(again));
+      harness.restore();
+    }
+    {
+      // (a gain first, the payment's board after it: still the payment's)
+      const { h, b, step, L } = await phyrexian();
+      const before = clone(b.gameView), up = step(before, (x) => { P(x, "player-0").life += 1; }), down = step(up, (x) => { P(x, "player-0").life -= 2; });
+      lifeLines(h, before, up);
+      const lines = lifeLines(h, up, down);
+      ok("verify: a gain on the cast's board leaves the payment for its loss", JSON.stringify(lines) === JSON.stringify([`Blue: ${L(up)} -> ${L(down)} life (-2, paid for Mondrak, Glory Dominus)`]), JSON.stringify(lines));
+      harness.restore();
+    }
+    {
+      // (Mondrak cast, then the board that shows the loss is the one it resolved on: just gone from the stack before)
+      const { h, b, step, L } = await phyrexian();
+      const before = step(b.gameView, (x) => { x.stack = [MONDRAK(false)]; });
+      const after = step(before, (x) => { x.stack = []; P(x, "player-0").life -= 2; zone(x, "battlefield", "player-0").cards.push({ id: "engine-card-1641", identity: { name: "Mondrak, Glory Dominus" }, types: ["Creature"], controllerId: "player-0", ownerId: "player-0" }); });
+      const lines = lifeLines(h, before, after);
+      ok("verify: the board it resolved on is still the cast's", JSON.stringify(lines) === JSON.stringify([`Blue: ${L(before)} -> ${L(after)} life (-2, paid for Mondrak, Glory Dominus)`]), JSON.stringify(lines));
+      harness.restore();
+    }
+    {
+      // (another spell on the stack is not that cast's, r2-pay-stackany)
+      const OPT = { id: "engine-stack-1642", sourceId: "engine-card-1642", identity: { name: "Opt" }, controllerId: "player-0", ownerId: "player-0", isPermanentSpell: false, isCasting: true, text: "Opt" };
+      const { h, b, step, L } = await phyrexian();
+      const before = step(b.gameView, (x) => { x.stack = [OPT]; }), after = step(before, (x) => { P(x, "player-0").life -= 2; });
+      const lines = lifeLines(h, before, after);
+      ok("verify r2: a payment names no loss on a board with only another spell on the stack", JSON.stringify(lines) === JSON.stringify([`Blue: ${L(before)} -> ${L(after)} life (-2)`]), JSON.stringify(lines));
+      harness.restore();
+    }
+    {
+      // (10 s at most)
+      const { h, b, step, L } = await phyrexian();
+      for (const x of h.B._getGame().lifePays) x.at -= 11000;
+      const before = clone(b.gameView), after = step(before, (x) => { P(x, "player-0").life -= 2; });
+      const lines = lifeLines(h, before, after);
+      ok("verify: a payment over 10 s old names nothing", JSON.stringify(lines) === JSON.stringify([`Blue: ${L(before)} -> ${L(after)} life (-2)`]), JSON.stringify(lines));
+      harness.restore();
     }
   }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);

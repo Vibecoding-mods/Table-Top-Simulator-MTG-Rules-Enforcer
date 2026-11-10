@@ -517,6 +517,40 @@ local function place(c, pos, rot, seen, handColor, meta)
   updateBadge(o, c, meta and meta.zone)
 end
 
+-- The hand of a player another seat controls (Mindslaver's turn: White plays AI 1's turn), in the controller's second
+-- hand zone, which only that player sees; its cards are the controller's to drag (Kykar re-test new bug 1). The bridge
+-- sends it as ctlHand with the controller's colour, ctlBy. Each id is placed once (enginePlayableRows): a controlled
+-- player who is seated keeps the cards in their own hand, and the controller gets stand-ins, cast:<controller>:<id>,
+-- which play the real card when dragged onto the battlefield (one id in two hands would jump between them on every
+-- board), unless the controller's playable row already has that stand-in.
+function engineCtlHands(m, seen)
+  local any = false
+  for _, pl in ipairs(m.players or {}) do if pl.ctlBy ~= nil and #(pl.ctlHand or {}) > 0 then any = true end end
+  if not any then return end
+  local inHand = engineSeatHands(m)
+  local _, castOf = enginePlayableRows(m)
+  for _, pl in ipairs(m.players or {}) do
+    local by = pl.ctlBy
+    local g = by and seatGeometry(by)
+    if g ~= nil and #(pl.ctlHand or {}) > 0 and Player[by] ~= nil and Player[by].seated then
+      local side = Player[by].getHandTransform(2)
+      local base = side and side.position or (g.handPos or g.mat)
+      for _, c in ipairs(pl.ctlHand) do
+        local stand = "cast:" .. by .. ":" .. tostring(c.id)
+        if inHand[c.id] == by then
+          place(c, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, by, { zone = "hand", color = by, hand2 = true, of = pl.color })
+        elseif castOf[stand] == nil then
+          local r = {}
+          for key, v in pairs(c) do r[key] = v end
+          r.id = stand
+          r.nt = { "In " .. engineNameOf(pl.color) .. "'s hand (you control them): drag it onto the battlefield to play it" }
+          place(r, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, by, { zone = "playable", color = by, hand2 = true })
+        end
+      end
+    end
+  end
+end
+
 local function hasType(c, t)
   for _, x in ipairs(c.ty or {}) do if x == t then return true end end
   return false
@@ -1088,8 +1122,9 @@ local function mergeStatic(m)
   m.cards = nil
   for _, pl in ipairs(m.players or {}) do
     -- ("playable" too: cards you may play from exile or a graveyard lay as card backs without it, playtest 2026-10-26;
-    -- and "revealed", the hand cards shown to everyone: engineRevealStrip)
-    for _, z in ipairs({ "hand", "battlefield", "graveyard", "exile", "command", "playable", "revealed" }) do
+    -- "revealed", the hand cards shown to everyone: engineRevealStrip; and "ctlHand", a controlled player's hand:
+    -- engineCtlHands. The bridge's ZONE_KEYS, every list it slims)
+    for _, z in ipairs({ "hand", "battlefield", "graveyard", "exile", "command", "playable", "revealed", "ctlHand" }) do
       for _, c in ipairs(pl[z] or {}) do
         if c.s ~= nil then
           local st = engineStatic[c.id] or {}
@@ -1916,6 +1951,14 @@ function engineRender(m)
     -- life. Blue wins)" said it twice, review 2026-11-09)
     broadcastToAll("[MTG] GAME OVER - " .. (m.overWhy and (tostring(m.overWhy) .. ".") or (m.winner and (engineNameOf(m.winner) .. " wins!") or "draw.")), {1, 0.85, 0.3})
     if engineGameOverBanner ~= nil then engineGameOverBanner(m) end
+    -- (and every question still open closes: "Your priority" stayed up under GAME OVER after a concession, Kykar re-test
+    -- new bug 8)
+    for c, q in pairs(enginePrompts) do
+      if q ~= nil then
+        local okClose, errClose = pcall(engineOnPrompt, { color = c, promptId = nil })
+        if not okClose then print("[MTG] game over: " .. tostring(errClose)) end
+      end
+    end
   elseif not m.gameOver then engineOverAnnounced = false end
   sect("status")
   if engineTakeFromPiles ~= nil then pcall(engineTakeFromPiles, m) end
@@ -1994,6 +2037,8 @@ function engineRender(m)
       sect("library")
     end
   end
+  local okCtl, errCtl = pcall(engineCtlHands, m, seen) -- (a controlled player's hand, see engineCtlHands)
+  if not okCtl then print("[MTG] controlled hand: " .. tostring(errCtl)) end
   local okPop, errPop = pcall(function() enginePopups(m) enginePopupsClose(m) engineEffects(m) end) -- a pop-up problem must never stop the board update
   if not okPop then print("[MTG] pop-up: " .. tostring(errPop)) end
   sect("popups")
@@ -2766,6 +2811,9 @@ function engineUpdateCorner(color, p)
   end
   local big, small, bigLabel, smallLabel, labelOnly
   if p ~= nil and p.mode == "browse" then p = enginePrompts[color] end
+  -- (a finished game asks nothing: Next and End turn stayed under GAME OVER after a concession, Kykar re-test new bug 8)
+  local over = t ~= nil and t.gameOver
+  if over then p = nil end
   if p ~= nil and p.mode == "single" and p.options and p.options[1] then
     big, bigLabel = 1, p.options[1].label
     for i, o in ipairs(p.options) do
@@ -2809,7 +2857,7 @@ function engineUpdateCorner(color, p)
   if smallLabel and #smallLabel > 30 and smallLabel:find(":") then smallLabel = smallLabel:sub(1, smallLabel:find(":", 1, true) - 1) end
   if bigLabel and #bigLabel > 22 then bigLabel = engineCut(bigLabel, 21) .. "…" end
   if smallLabel and #smallLabel > 30 then smallLabel = engineCut(smallLabel, 29) .. "…" end
-  if big == nil and small == nil and p == nil and engineLinger(color, function() engineUpdateCorner(color, nil) end) then return end
+  if big == nil and small == nil and p == nil and not over and engineLinger(color, function() engineUpdateCorner(color, nil) end) then return end
   -- a button whose words just changed under the pointer ignores clicks for 0.6 s (Resolve became Next as the spell
   -- resolved by itself, and the click meant for Resolve passed the main phase, playtest 2026-10-26). Only a new
   -- question the player did nothing for counts: their own picks ("Attack (1)") change the words too, and so does the
@@ -3876,7 +3924,7 @@ function onObjectDrop(color, obj)
   if meta == nil or meta.color ~= color then return Wait.frames(snapBack, 2) end
   Wait.frames(function()
     if obj == nil or obj.isDestroyed() then return end
-    if meta.zone == "hand" and isInHand(obj, color) then return end -- just rearranged inside the hand
+    if meta.zone == "hand" and isInHand(obj, color, meta.hand2 and 2 or 1) then return end -- just rearranged inside the hand (or a controlled player's, its second one)
     if meta.zone == "playable" and isInHand(obj, color, 2) then return end -- (a private playable card, moved in its zone)
     local area = dropArea(color, obj.getPosition())
     -- (the playable row lies on the mat: a card picked up and put down near its spot goes back, it isn't played)
@@ -4618,12 +4666,19 @@ function engineWithoutSpecial(list)
   for _, c in ipairs(list) do if engineSpecial[c.id] == nil then out[#out + 1] = c end end
   return out
 end
--- the hand cards the table lays in seated players' hands: id -> that player's colour
+-- the hand cards the table lays in seated players' hands: id -> that player's colour; then a controlled player's hand
+-- cards not in a seated hand, laid in the controller's second hand zone (engineCtlHands): id -> the controller's colour
 function engineSeatHands(m)
   local out = {}
   for _, pl in ipairs(m.players or {}) do
     if pl.color ~= nil and pl.hand ~= nil and Player[pl.color] ~= nil and Player[pl.color].seated then
       for _, c in ipairs(pl.hand) do out[c.id] = pl.color end
+    end
+  end
+  for _, pl in ipairs(m.players or {}) do
+    local by = pl.ctlBy
+    if by ~= nil and Player[by] ~= nil and Player[by].seated then
+      for _, c in ipairs(pl.ctlHand or {}) do if out[c.id] == nil then out[c.id] = by end end
     end
   end
   return out
@@ -7055,6 +7110,8 @@ function engineSelfCheck()
     -- (a hand card shown to everyone has an object of its own in the owner's strip: engineRevealStrip)
     for _, card in ipairs(pl.revealed or {}) do expected["reveal:" .. tostring(card.id)] = true end
     for _, card in ipairs(pl.playable or {}) do expected["cast:" .. tostring(c) .. ":" .. tostring(card.id)] = true end
+    -- (a controlled player's hand, in the controller's second hand zone, or as stand-ins there: engineCtlHands)
+    for _, card in ipairs(pl.ctlHand or {}) do expected[card.id] = true expected["cast:" .. tostring(pl.ctlBy) .. ":" .. tostring(card.id)] = true end
     local handSets, handY = {}, nil
     local function inHand(o, which)
       if handSets[which] == nil then

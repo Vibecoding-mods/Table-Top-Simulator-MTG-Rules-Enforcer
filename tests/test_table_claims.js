@@ -1893,5 +1893,76 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("reveal pages: More not pressable on the last page", valueOf(r, "more on last") === "false", String(valueOf(r, "more on last")));
   ok("reveal pages: the same question sent again keeps its page", valueOf(r, "resent") === "1100000", String(valueOf(r, "resent")));
 }
+// Kykar re-test new bug 1: a player another seat controls (Mindslaver): its hand, the bridge's ctlHand, lies in the
+// controller's second hand zone, and a card dragged from there onto the battlefield is played by the controller
+{
+  const setup = 'local t = engineTable() local pl for _, p in ipairs(t.players) do if p.color ~= "Blue" then pl = p end end ' +
+    'engineStoreStatic("engine-card-778", { n = "Forest", f = "https://img.example/forest.jpg", ty = { "Land" } }) ' +
+    'pl.ctlHand = { { s = 1, id = "engine-card-778" } } pl.ctlBy = "Blue" pl.keep = {} ' +
+    'engineRender(t) __sim.frames(90) return "laid"';
+  const objOf = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-778" then o = x end end ';
+  const where = objOf + 'if o == nil then return "none" end local inH = false for _, h in ipairs(Player.Blue.getHandObjects(2)) do if h == o then inH = true end end ' +
+    'return inH and "hand2" or "elsewhere"';
+  const sent = (mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  // (merge 2026-11-09: the bridge slims ctlHand as every zone list, so the table fills its details in as for the others;
+  // and the table check expects the cards)
+  const check = 'local out = {} for _, pr in ipairs(engineSelfCheck().problems or {}) do if tostring(pr):find("778", 1, true) or tostring(pr):find("Forest", 1, true) then out[#out + 1] = tostring(pr) end end return #out == 0 and "none" or table.concat(out, " || ")';
+  const r = run([q(setup, "laid"), q(where, "where"), q(objOf + 'return tostring(o and o.getName():match("^[^\\n]*"))', "name"), q(check, "check"),
+    q(objOf + 'local m = data.Blue.playmat.getPosition() o.setPosition(Vector(m.x, 1.5, m.z)) onObjectDrop("Blue", o) __sim.frames(90) return "dragged in"', "dragged in"),
+    q('local t = engineTable() for _, p in ipairs(t.players) do if p.color ~= "Blue" then p.ctlHand = nil p.ctlBy = nil end end engineRender(t) __sim.frames(90) ' +
+      objOf + 'return tostring(o ~= nil and not o.isDestroyed())', "control over")]);
+  ok("re-test bug 1: the controlled hand lies in the controller's second hand zone", valueOf(r, "where") === "hand2", String(valueOf(r, "where")) + " " + r.errors.join(" | "));
+  ok("merge: a controlled hand card sent slim (s = 1) shows its name", valueOf(r, "name") === "Forest", String(valueOf(r, "name")));
+  ok("merge: the table check expects a controlled hand's cards", valueOf(r, "check") === "none", String(valueOf(r, "check")));
+  ok("re-test bug 1: dragged onto the battlefield, the controller plays it", /"kind":"play"/.test(sent("dragged in")) && /"color":"Blue"/.test(sent("dragged in")), sent("dragged in").slice(0, 200));
+  ok("re-test bug 1: control over, the hand is gone from the table", valueOf(r, "control over") === "false", String(valueOf(r, "control over")));
+}
+// (merge 2026-11-09) Mindslaver on a seated human: White controls Blue. Blue's hand card stays in Blue's hand on every
+// board (Sen Triplets' rule, enginePlayableRows); White's second hand zone gets a stand-in, cast:White:<id>, that plays
+// the real card when dragged; one stand-in also when White's playable list has the card too; the table check agrees.
+{
+  const { simulate } = require("./lua/run-sim");
+  const both = (steps) => simulate({ save, seated: ["Blue", "White"], steps: [...prefix, ...steps] });
+  const setup = (alsoPlayable) => 'local t = engineTable() local blue, white for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p elseif p.color == "White" then white = p end end ' +
+    'engineStoreStatic("engine-card-905", { n = "Mind Rot", f = "https://img.example/mindrot.jpg", ty = { "Sorcery" } }) ' +
+    'blue.hand = blue.hand or {} table.insert(blue.hand, { s = 1, id = "engine-card-905", ctl = "Blue" }) blue.handCount = #blue.hand ' +
+    'blue.ctlHand = { { s = 1, id = "engine-card-905", ctl = "Blue" } } blue.ctlBy = "White" ' +
+    (alsoPlayable ? 'white.playable = { { s = 1, id = "engine-card-905", ctl = "Blue" } } ' : 'white.playable = nil ') +
+    'SLV = t engineRender(SLV) __sim.frames(90) return "drawn"';
+  const count = (id) => `local n = 0 for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then n = n + 1 end end return tostring(n)`;
+  const where = (id) => `local n, o = 0, nil for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then n = n + 1 o = x end end ` +
+    'if o == nil then return "none" end local p = o.getPosition() local function d(v) return math.sqrt((p.x - v.x) ^ 2 + (p.z - v.z) ^ 2) end ' +
+    'local mat = d(data.Blue.playmat.getPosition()) < d(data.White.playmat.getPosition()) and "Blue" or "White" ' +
+    'local h1, h2 = Player[mat].getHandTransform(1), Player[mat].getHandTransform(2) ' +
+    'return n .. " " .. mat .. " " .. ((h1 ~= nil and d(h1.position) < 3) and "hand" or (h2 ~= nil and d(h2.position) < 0.5) and "hand2" or "row")';
+  const check = 'local out = {} for _, pr in ipairs(engineSelfCheck().problems or {}) do if tostring(pr):find("Mind Rot", 1, true) or tostring(pr):find("905", 1, true) then out[#out + 1] = tostring(pr) end end return #out == 0 and "none" or table.concat(out, " || ")';
+  const drop = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:cast:White:engine-card-905" then o = x end end if o == nil then return "no stand-in" end ' +
+    'local m = data.White.playmat.getPosition() o.setPosition(Vector(m.x, 1.5, m.z)) onObjectDrop("White", o) __sim.frames(5) return "dropped"';
+  const r = both([q(setup(false), "drawn"), q(where("engine-card-905"), "real 1"),
+    q('engineRender(SLV) __sim.frames(90) return "again"', "again"), q(where("engine-card-905"), "real 2"), q(where("cast:White:engine-card-905"), "stand-in"),
+    q(check, "check"), q(drop, "drop"),
+    q(setup(true), "both"), q(count("cast:White:engine-card-905"), "stand-ins both"), q(where("engine-card-905"), "real both"), q(check, "check both")]);
+  const sentAt = (mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  ok("merge: a seated controlled player's hand card stays in their hand", valueOf(r, "real 1") === "1 Blue hand", String(valueOf(r, "real 1")) + " " + r.errors.join(" | "));
+  ok("merge: and on the next board", valueOf(r, "real 2") === "1 Blue hand", String(valueOf(r, "real 2")));
+  ok("merge: the controller gets a stand-in in their second hand zone", valueOf(r, "stand-in") === "1 White hand2", String(valueOf(r, "stand-in")));
+  ok("merge: the table check agrees", valueOf(r, "check") === "none", String(valueOf(r, "check")));
+  ok("merge: dragging the stand-in plays the real card", /"kind":"play"/.test(sentAt("drop")) && sentAt("drop").includes('"id":"engine-card-905"') && /"color":"White"/.test(sentAt("drop")), sentAt("drop").slice(0, 300));
+  ok("merge: one stand-in when the controller's playable list has the card too", valueOf(r, "stand-ins both") === "1" && valueOf(r, "real both") === "1 Blue hand", `${valueOf(r, "stand-ins both")} / ${valueOf(r, "real both")}`);
+  ok("merge: and the table check agrees then too", valueOf(r, "check both") === "none", String(valueOf(r, "check both")));
+}
+// Kykar re-test new bug 8: a finished game closes the open question, and the corner shows no Next or End turn
+{
+  const corner = (mark) => q('return tostring(UI.getAttribute("eng_big_Blue", "active")) .. "|" .. tostring(UI.getAttribute("eng_big2_Blue", "active"))', mark);
+  const r = run([ask({ promptId: 491, kind: "priority", title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "__endturn", label: "End turn" }] }), { frames: 4 },
+    corner("asked"), q('local t = engineTable() t.gameOver = true t.overWhy = "White conceded" engineRender(t) __sim.frames(30) return tostring(enginePrompts.Blue == nil)', "over"), { frames: 30 }, corner("after")]);
+  ok("precondition: priority shows Next and End turn", valueOf(r, "asked") === "true|true", String(valueOf(r, "asked")) + " " + r.errors.join(" | "));
+  ok("re-test bug 8: the game over closes the question", valueOf(r, "over") === "true", String(valueOf(r, "over")) + " " + r.errors.join(" | "));
+  ok("re-test bug 8: and the corner's buttons go", valueOf(r, "after") === "false|false", String(valueOf(r, "after")));
+  // (and a question still handed to the corner after the end shows no buttons either)
+  const r2 = run([q('local t = engineTable() t.gameOver = true engineUpdateCorner("Blue", { promptId = 492, kind = "priority", title = "Your priority", mode = "single", options = { { id = "__pass", label = "Next" }, { id = "__endturn", label = "End turn" } } }) ' +
+    'return tostring(UI.getAttribute("eng_big_Blue", "active")) .. "|" .. tostring(UI.getAttribute("eng_big2_Blue", "active"))', "late")]);
+  ok("re-test bug 8: a question shown after the game over gets no buttons", valueOf(r2, "late") === "false|false", String(valueOf(r2, "late")) + " " + r2.errors.join(" | "));
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);
