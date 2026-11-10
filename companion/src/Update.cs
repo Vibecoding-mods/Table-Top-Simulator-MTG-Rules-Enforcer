@@ -262,6 +262,11 @@ namespace MtgCompanion
             return p;
         }
 
+        // The release Update now installs (Controller.offer): a check's while it offers one, none after a check that
+        // offers nothing or after an install (whichever release it was: a pending one may have passed the offer)
+        public static CheckResult OfferAfterCheck(CheckResult r) { return r != null && r.Available ? r : null; }
+        public static CheckResult OfferAfterApply(CheckResult offer, ApplyResult res) { return res != null && res.Ok ? null : offer; }
+
         // `built` as the packager writes it (toISOString: 2026-11-10T12:00:00.000Z), an ISO time with its zone; else null
         static readonly Regex IsoTime = new Regex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?(Z|[+-]\d{2}:\d{2})$");
         public static DateTime? BuiltTime(string s)

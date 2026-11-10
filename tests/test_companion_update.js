@@ -77,9 +77,11 @@ function makePkg(parts = BASE_PARTS, versionExtra = {}) {
 
 // ── the fake GitHub
 
-const server = { releases: {}, latest: null, latestStatus: 200, assets: {}, requests: [], game: false, failOnce: new Set(), cutOnce: new Set(), redirectOff: new Set(), badRange: new Set(), flood: new Set(), floodSent: {} };
+const server = { releases: {}, latest: null, latestStatus: 200, assets: {}, requests: [], game: false, hold: {}, failOnce: new Set(), cutOnce: new Set(), redirectOff: new Set(), badRange: new Set(), flood: new Set(), floodSent: {} };
 let PORT = 0, BASE = "";
-const srv = http.createServer((req, res) => {
+// a download held until the test lets it go (the package changes meanwhile): hold.hit resolves when it is asked for
+const holdDl = (key) => { const h = {}; h.wait = new Promise((r) => { h.release = r; }); h.asked = new Promise((r) => { h.hit = r; }); server.hold[key] = h; return h; };
+const handle = (req, res) => {
   const u = new URL(req.url, "http://x");
   server.requests.push({ host: req.headers.host, path: u.pathname, auth: req.headers.authorization || null, range: req.headers.range || null, ua: req.headers["user-agent"] });
   const send = (code, body, headers = {}) => { res.writeHead(code, { "Content-Type": "application/json", ...headers }); res.end(body); };
@@ -100,6 +102,8 @@ const srv = http.createServer((req, res) => {
     const body = server.releases[m[1]]?.files[m[2]];
     if (!body) return send(404, "{}");
     const key = `${m[1]}/${m[2]}`;
+    const held = server.hold[key];
+    if (held) { delete server.hold[key]; held.hit(); return held.wait.then(() => handle(req, res)); }
     if (server.failOnce.delete(key)) return send(500, "{}");
     const r = /^bytes=(\d+)-$/.exec(req.headers.range || "");
     const from = r ? Number(r[1]) : 0;
@@ -123,7 +127,8 @@ const srv = http.createServer((req, res) => {
     return res.end(body.subarray(from));
   }
   send(404, "{}");
-});
+};
+const srv = http.createServer(handle);
 function releaseJson(tag) {
   const r = server.releases[tag];
   return { tag_name: tag, assets: Object.entries(r.files).map(([name, body]) => ({ name, size: body.length, url: r.urls?.[name] || `${BASE}${API}/releases/assets/${r.ids[name]}` })) };
@@ -548,6 +553,15 @@ async function main() {
     ok("left journal: the old runtime still in backup\\v1, no second backup, nothing placed", read(oldNode) === "old node" && fs.readdirSync(path.join(p.pkg, "backup")).join() === "v1" && !fs.existsSync(path.join(p.pkg, "runtime")), tree(p.pkg).join(","));
     same("left journal: the bridge stopped for the undo and started again", effects(p), ["stop-bridge", "reload", "start-bridge"]);
     ok("left journal: the refusal is the last result (the page's line)", (json(path.join(p.state, "updates.json")).lastResult || "").includes("isn't fully undone"), read(path.join(p.state, "updates.json")));
+    // the companion-first path too: refused before the new exe is put anywhere
+    const firstExe = Buffer.concat([fs.readFileSync(EXE), Buffer.from(`\0FIRST-LEFT-${Date.now()}`)]);
+    publish("v8c", { app: unchanged("app"), table: unchanged("table"), images: unchanged("images"), runtime: unchanged("runtime"), companion: { version: "c2", body: firstExe } }, { previous: v1Manifest });
+    server.latest = "v8c";
+    fs.writeFileSync(p.fx, "");
+    const cf = await run(p, ["--update-now", "--fake-effects", p.fx, "--test-format", "0"]);
+    ok("left journal, companion first: refused before the swap", cf.code === 1 && cf.out.includes("Not installing v8c: an earlier update isn't fully undone yet"), JSON.stringify(cf));
+    ok("left journal, companion first: no new exe, the exe and the journal untouched", !fs.existsSync(path.join(p.pkg, "MTG Companion.new.exe")) && fs.readFileSync(path.join(p.pkg, "MTG Companion.exe")).equals(fs.readFileSync(EXE)) && fs.readFileSync(journal).equals(journalBefore));
+    server.latest = "v8n";
     ps.kill();
     await wait(() => ps.exitCode !== null, 5000);
     // the file free again, and the start's own recovery skipped: the install itself finishes the old undo, then installs
@@ -556,6 +570,68 @@ async function main() {
     ok("left journal, file free: the install undoes the old one first, then installs", r2.code === 0 && r2.out.includes("Updated to v8n") && !r2.out.includes("was interrupted") && /an earlier update was finished first/.test(read(p.log) || ""), JSON.stringify(r2));
     ok("left journal, file free: the new runtime, the old one in the (new) backup, no journal", read(path.join(p.pkg, "runtime", "node", "node.exe")) === "newer node" && read(oldNode) === "old node" && !fs.existsSync(journal), tree(p.pkg).join(","));
     same("left journal, file free: stopped for the undo, then the install's own steps", effects(p), ["stop-bridge", "reload", "stop-bridge", "reload", "start-bridge"]);
+  }
+
+  // 7i. the earlier update finished inside the install, then the new journal can't be written: nothing changed, and
+  // the bridge the install stopped for that undo is started again
+  {
+    reset();
+    publish("v8w", { app: { version: "a2", body: newApp() }, table: unchanged("table"), images: unchanged("images"), runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest });
+    server.latest = "v8w";
+    const p = makePkg();
+    const journal = path.join(p.pkg, "update-journal.json");
+    await run(p, ["--update-now", "--fake-effects", p.fx, "--test-die-at", "move"]);
+    ok("journal unwritable: killed after one move", fs.existsSync(journal) && !fs.existsSync(path.join(p.pkg, "bridge")));
+    fs.writeFileSync(p.fx, "");
+    const r = await run(p, ["--update-now", "--fake-effects", p.fx, "--test-skip-recover", "--test-journal-fail"]);
+    ok("journal unwritable after an undo: says nothing was changed, exit 1", r.code === 1 && r.out.includes("its journal can't be written") && r.out.includes("Nothing was changed"), JSON.stringify(r));
+    same("journal unwritable after an undo: the bridge the install stopped is started again", effects(p), ["stop-bridge", "reload", "start-bridge"]);
+    ok("journal unwritable after an undo: the old bridge back, no journal", read(path.join(p.pkg, "bridge", "bridge.js")) === "// old bridge\n" && !fs.existsSync(journal));
+    const q = makePkg();
+    const plain = await run(q, ["--update-now", "--fake-effects", q.fx, "--test-journal-fail"]);
+    ok("journal unwritable, no earlier update: refused, the bridge never touched", plain.code === 1 && plain.out.includes("Nothing was changed") && effects(q).length === 0, JSON.stringify([plain, effects(q)]));
+  }
+
+  // 7j. the earlier update finished inside the install, and the plan made again refuses (an older release): the bridge
+  // stopped for the undo is started again
+  {
+    reset();
+    publish("v8q", { app: { version: "a2", body: newApp() }, table: unchanged("table"), images: unchanged("images"), runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest });
+    server.latest = "v8q";
+    const p = makePkg();
+    const journal = path.join(p.pkg, "update-journal.json");
+    await run(p, ["--update-now", "--fake-effects", p.fx, "--test-die-at", "move"]);
+    publish("v8o", { app: { version: "a0", body: newApp() }, table: unchanged("table"), images: unchanged("images"), runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest, built: "2026-10-01T09:00:00.000Z" });
+    server.latest = "v8o";
+    const c = await run(p, ["--update-check", "--test-skip-recover"]);
+    ok("re-plan refusal: the check refuses the older release, the journal still there", c.out.includes("older than this package") && fs.existsSync(journal), JSON.stringify(c));
+    fs.writeFileSync(p.fx, "");
+    const r = await run(p, ["--update-now", "--fake-effects", p.fx, "--apply-update", "v8o", "--test-skip-recover"]);
+    ok("re-plan refusal: the earlier update undone, then the older release refused", r.code === 1 && r.out.includes("The latest release (v8o) is older") && !fs.existsSync(journal) && read(path.join(p.pkg, "bridge", "bridge.js")) === "// old bridge\n", JSON.stringify(r));
+    same("re-plan refusal: the bridge started again", effects(p), ["stop-bridge", "reload", "start-bridge"]);
+  }
+
+  // 7k. an undo that couldn't put version.json back (the new one held): the install doesn't judge the release by the
+  // half-restored package ("Up to date" from the new version.json); it tries the undo and says what is stuck
+  {
+    reset();
+    publish("v8u", { app: { version: "a2", body: newApp() }, table: unchanged("table"), images: unchanged("images"), runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest });
+    server.latest = "v8u";
+    const p = makePkg();
+    const journal = path.join(p.pkg, "update-journal.json"), vf = path.join(p.pkg, "version.json");
+    await run(p, ["--update-now", "--fake-effects", p.fx, "--test-die-at", "written"]);
+    ok("new version.json left: killed with the new version.json in place", fs.existsSync(journal) && json(vf).release === "v8u");
+    const ps = helperPs(`$f=[System.IO.File]::Open('${vf}','Open','Read','Read'); Write-Output held; Start-Sleep 60; $f.Close()`, ["ignore", "pipe", "ignore"]);
+    await new Promise((res) => ps.stdout.once("data", res));
+    fs.writeFileSync(p.fx, "");
+    const r = await run(p, ["--update-now", "--fake-effects", p.fx, "--apply-update", "v8u"]);
+    ps.kill();
+    await wait(() => ps.exitCode !== null, 5000);
+    ok("new version.json left: the undo is tried and its own message shown, not 'Up to date'", r.code === 1 && r.out.includes("Not installing v8u: an earlier update isn't fully undone yet") && /couldn't be put back: [^.]*version\.json/.test(r.out) && !r.out.includes("Up to date"), JSON.stringify(r));
+    ok("new version.json left: the journal stays", fs.existsSync(journal));
+    fs.writeFileSync(p.fx, "");
+    const r2 = await run(p, ["--update-now", "--fake-effects", p.fx, "--apply-update", "v8u", "--test-skip-recover"]);
+    ok("new version.json left, file free: undone first, then installed", r2.code === 0 && r2.out.includes("Updated to v8u") && read(path.join(p.pkg, "bridge", "bridge.js")) === "// new bridge\n" && !fs.existsSync(journal), JSON.stringify(r2));
   }
 
   // 8. a new companion: the new exe takes the old one's name
@@ -761,6 +837,25 @@ async function main() {
     const nb = await now(q);
     ok("a package with no build time: refused (fail safe), nothing downloaded", nb.code === 0 && nb.out.includes("has no build time") && dl().length === 0 && effects(q).length === 0, JSON.stringify(nb));
   }
+
+  // 12h. a stale offer: a release checked (and offered) against the package as it was, then a newer build installed
+  // while it downloads (a pending update after a game, a second window): the install plans again and refuses it
+  {
+    reset();
+    const parts = Object.fromEntries(["app", "table", "images", "runtime", "companion"].map((k) => [k, k === "app" ? { version: "a2", body: newApp() } : unchanged(k)]));
+    publish("v12x", parts, { previous: v1Manifest, built: "2026-11-05T09:00:00.000Z" });
+    server.latest = "v12x";
+    const p = makePkg();
+    const h = holdDl("v12x/app.zip");
+    const running = now(p);
+    await h.asked;
+    const vf = path.join(p.pkg, "version.json"), v = json(vf);
+    fs.writeFileSync(vf, JSON.stringify({ ...v, built: "2026-11-10T12:00:00.000Z", release: "v12y", parts: { ...v.parts, app: "a3" } })); // (v12y installed meanwhile)
+    h.release();
+    const r = await running;
+    ok("stale offer: offered first (the check saw the old package)", r.out.includes("Update available: v12x"), JSON.stringify(r));
+    ok("stale offer: refused at the install, the package newer now", r.code === 1 && r.out.includes("The latest release (v12x) is older than this package") && !r.out.includes("Updated"), JSON.stringify(r));
+    same("stale offer: nothing done, the bridge untouched", [effects(p), read(path.join(p.pkg, "bridge", "bridge.js"))], [[], "// old bridge\n"]);  }
 
   // 12e. a download that runs past the part's size: reading stops there, the file is refused
   {

@@ -1100,9 +1100,14 @@ Never during a game (the game lock, §17): "Update ready — will install after 
 not while the next game is being set up). Then, on the worker, holding the mutex `Local\MtgTtsCompanionUpdate`:
 
 0. A journal already there (an earlier undo that couldn't finish, e.g. an antivirus holding a file in the backup) is
-   finished first, the bridge stopped meanwhile, and the plan made again from the package as it is then. If it still
-   can't be finished, the install is refused ("Not installing <tag>: an earlier update isn't fully undone yet. …",
-   the status page's line) and the old journal is never written over: it alone says where the old files are.
+   finished first, the bridge stopped meanwhile. If it still can't be finished, the install is refused ("Not
+   installing <tag>: an earlier update isn't fully undone yet. …", the status page's line) and the old journal is
+   never written over: it alone says where the old files are. With such a journal the release isn't judged before
+   this (the package may be half put back: no version.json, or the new one); only the game lock comes first. Then,
+   journal or not, the plan is always made again under the mutex from the package as it is (the caller's plan is
+   never trusted: a stale offer, or a newer build installed meanwhile, meets the downgrade and up-to-date rules
+   again), and every refusal after the bridge was stopped here starts it again. The Controller's offer (what
+   **Update now** installs) is dropped after an install and after a check that offers nothing.
 
 1. Write `<package>\update-journal.json` (`target`, `backup`, `replaced`, `existed`, `moved`, `placed`, `phase`;
    written whole to a `.tmp` and moved over) before the first move, and again after every move. Stop the bridge loop
@@ -1162,9 +1167,10 @@ offered, already busy); a second press while the same one runs is "Already runni
 downloads with a redirect to a second host name, `Range`, a first-try 500, `/state` for the game lock) and the built
 exe in a temp package, driven by hidden flags: `--update-base <url>` (the fake instead of `api.github.com`, only
 `http://` on 127.0.0.1 or localhost; its own host and `localhost` are then the allowed hosts, and no token is sent),
-`--test-public-key <key>` (the fake's signing key, only with that base), `--test-die-at move|place|placed` (the
-process kills itself there), `--test-format <n>` (an older app, for the companion-first path), `--test-skip-recover`
-(the start leaves a journal to the install, which must finish it first), `--update-check`,
+`--test-public-key <key>` (the fake's signing key, only with that base), `--test-die-at move|place|written|placed` (the
+process kills itself there; `written`: the new version.json in place, the journal not yet `placed`), `--test-format
+<n>` (an older app, for the companion-first path), `--test-skip-recover` (the start leaves a journal to the install,
+which must finish it first), `--test-journal-fail` (the install's journal can't be written), `--update-check`,
 `--update-now`, `--fake-effects <file>` (bridge, docker and save steps written to a file instead of done),
 `--fake-fail <step>`. More cases: a table, images or runtime update; a failed save install undone with version.json;
 a held file that stops a move half way (every file as it was); killed after one move, after placing the tar (the
@@ -1175,7 +1181,10 @@ install; the companion first, then the rest without a second check; the bridge s
 swap fails; the swap not waiting for a pid another process now has, and giving up on an old app still running after
 a minute; an undo that can't delete a held new file (named once, the journal kept, finished at the next start); an undo that
 can't put `runtime\` back, then a new install (refused, the old journal byte for byte and `backup\v1` kept; once the
-file is free, the install finishes the old undo itself and installs); an older signed release (refused, not
+file is free, the install finishes the old undo itself and installs; the companion-first path refused before the
+swap); after that undo, a journal that can't be written and a re-made plan that refuses (the bridge started again
+both times); an undo that left the new version.json (the undo tried and named, never "Up to date"); a stale offer
+(the package newer by the time the download ends: refused at the install); an older signed release (refused, not
 offered), the same build written another way (up to date), a millisecond newer (offered), a package with no `built`
 (refused); an
 `--update-base` off this PC refused (exit 2). Cases: up to date; new app only; new

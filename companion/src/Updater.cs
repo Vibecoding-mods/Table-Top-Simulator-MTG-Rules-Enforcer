@@ -21,6 +21,7 @@ namespace MtgCompanion
         public static string TestKey;  // --test-public-key: a fake GitHub's signing key (only with a loopback --update-base)
         public string DieAt;           // --test-die-at: the test kill point (only with a loopback --update-base)
         public int Format = Updates.Format; // (--test-format, tests only)
+        public bool TestJournalFail;   // --test-journal-fail: the install's journal can't be written (only with a loopback --update-base)
 
         readonly Layout L;
         readonly string stateDir, exePath, testBase;
@@ -323,11 +324,19 @@ namespace MtgCompanion
             if (File.Exists(f)) File.Replace(tmp, f, null); else File.Move(tmp, f);
         }
 
-        // The plan, applied from updates\<tag>\. selfArgs: what the new companion starts with after it took over.
-        public ApplyResult Apply(UpdateManifest m, UpdatePlan plan, IUpdateEffects fx, string selfArgs)
+        // A release, applied from updates\<tag>\. offered: the plan the caller checked and downloaded for, never trusted:
+        // the plan is made again under the mutex from the package as it is then (a stale offer, or a newer build
+        // installed meanwhile, meets the downgrade and up-to-date rules again). selfArgs: what the new companion starts
+        // with after it took over.
+        public ApplyResult Apply(UpdateManifest m, UpdatePlan offered, IUpdateEffects fx, string selfArgs)
         {
-            var no = NotReady(m, plan);
-            if (no != null) return no;
+            // (a refused or finished release isn't deferred to after the game; with an earlier update's journal there,
+            // the package may be half put back, so it is judged only after that is finished, below)
+            if (!File.Exists(JournalPath(L.Home)))
+            {
+                var early = NotReady(m, Updates.Plan(Local(), m, Format));
+                if (early != null) return early;
+            }
             if (fx.Locked())
             {
                 Log.Write("update " + m.Version + ": deferred, a game is on");
@@ -356,19 +365,26 @@ namespace MtgCompanion
                         return new ApplyResult { Text = text };
                     }
                     Log.Write("update " + m.Version + ": an earlier update was finished first (" + said + ")");
-                    plan = Updates.Plan(Local(), m, Format); // (the package changed under the plan)
-                    no = NotReady(m, plan);
-                    if (no != null) { fx.StartBridge(); return no; }
                 }
+                var plan = Updates.Plan(Local(), m, Format);
+                if (offered != null && !SamePlan(offered, plan)) Log.Write("update " + m.Version + ": the package changed since the check; planned again");
+                var no = NotReady(m, plan);
+                if (no != null) { if (stopped) fx.StartBridge(); return no; }
                 if (plan.CompanionFirst)
                 {
                     var sw = Swap(m, plan, selfArgs + " --apply-update " + m.Version);
                     if (!sw.Ok && stopped) fx.StartBridge();
                     return sw;
                 }
-                return ApplyFiles(m, plan, fx, selfArgs);
+                return ApplyFiles(m, plan, fx, selfArgs, stopped);
             }
             finally { Free(mx); }
+        }
+
+        static bool SamePlan(UpdatePlan a, UpdatePlan b)
+        {
+            return a.Refused == b.Refused && a.UpToDate == b.UpToDate && a.CompanionFirst == b.CompanionFirst
+                && string.Join(",", a.Fetch.Select(p => p.Name + "=" + p.Version)) == string.Join(",", b.Fetch.Select(p => p.Name + "=" + p.Version));
         }
 
         // why this plan can't be installed now (refused, nothing to do, a download missing or changed), or null
@@ -382,7 +398,8 @@ namespace MtgCompanion
             return null;
         }
 
-        ApplyResult ApplyFiles(UpdateManifest m, UpdatePlan plan, IUpdateEffects fx, string selfArgs)
+        // bridgeStopped: Apply stopped it already (to finish an earlier update); started again if nothing happens here
+        ApplyResult ApplyFiles(UpdateManifest m, UpdatePlan plan, IUpdateEffects fx, string selfArgs, bool bridgeStopped)
         {
             var dir = DownloadDir(m.Version);
             bool self = plan.Has("companion");
@@ -399,8 +416,16 @@ namespace MtgCompanion
             var j = new Journal { Target = m.Version, Backup = backup, Replaced = replaced };
             j.Existed = replaced.Where(rel => File.Exists(Full(rel)) || Directory.Exists(Full(rel))).ToList();
             Log.Write("update " + m.Version + ": applying " + string.Join(", ", plan.Fetch.Select(p => p.Name)) + "; backup in " + backup);
-            try { WriteJournal(L.Home, j); } // (before the first move)
-            catch (Exception e) { return new ApplyResult { Text = "The update couldn't start: its journal can't be written (" + e.Message + "). Nothing was changed." }; }
+            try
+            {
+                if (TestJournalFail) throw new IOException("test: --test-journal-fail");
+                WriteJournal(L.Home, j); // (before the first move)
+            }
+            catch (Exception e)
+            {
+                if (bridgeStopped) fx.StartBridge();
+                return new ApplyResult { Text = "The update couldn't start: its journal can't be written (" + e.Message + "). Nothing was changed." };
+            }
             fx.StopBridge();
             bool imagesLoaded = false;
             try
@@ -437,6 +462,7 @@ namespace MtgCompanion
                     }
                 WriteJson(Full("version.json"), VersionJson(m, local, self));
                 WriteJson(Full("stack/deployed.json"), Updates.MergeDeployed(localDeployed, m.DeployedJson, plan.Has("images")));
+                Point("written"); // (a test kill here: the new version.json in place, the journal not yet "placed")
                 j.Phase = "placed";
                 WriteJournal(L.Home, j);
                 Point("placed");

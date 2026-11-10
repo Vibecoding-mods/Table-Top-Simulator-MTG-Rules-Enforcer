@@ -249,7 +249,7 @@ namespace MtgCompanion
                     var r = upd.Check();
                     bool again;
                     lock (updGate) again = updState.Later && updState.Available == (r.Manifest != null ? r.Manifest.Version : null);
-                    if (r.Available) lock (updGate) offer = r;
+                    lock (updGate) offer = Updates.OfferAfterCheck(r);
                     SetUpdate(s => s.Checked(r, again, DateTime.UtcNow));
                     if (r.Available && (manual || !again)) { var h = UpdateOffered; if (h != null) h(r); }
                 }
@@ -295,6 +295,7 @@ namespace MtgCompanion
             catch (Exception e) { Log.Write("update apply: " + e); res = new ApplyResult { Text = "The update failed (" + e.Message + ")." }; }
             finally { SetApplying(false); updateBusy = false; } // (before ExitForUpdate: the window may close then)
             Log.Write("update: " + res.Text);
+            lock (updGate) offer = Updates.OfferAfterApply(offer, res);
             SetUpdate(s => s.Applied(res));
             if (res.Deferred) { pendingM = m; pendingPlan = plan; SetPhase(was); return; }
             if (res.Swapping) { var h = ExitForUpdate; if (h != null) h(); return; }

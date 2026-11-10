@@ -490,6 +490,13 @@ namespace MtgCompanion
             Check("state: restarting while the new app takes over", us.Status == "restarting" && us.Error == null, us.Status);
             us.Applied(new ApplyResult { Ok = true, Text = "Updated to v2." });
             Check("state: updated, nothing offered", us.Status == "updated" && us.Available == null && us.Notes == null && us.Error == null, us.Status);
+            // what Update now installs (Controller.offer): never a stale offer
+            Check("offer: a check that offers a release keeps it", Updates.OfferAfterCheck(avail) == avail);
+            Check("offer: a check that offers nothing (up to date, refused, failed, 404) clears it",
+                Updates.OfferAfterCheck(new CheckResult { Manifest = upToDate, Plan = Updates.Plan(local, upToDate, 1) }) == null && Updates.OfferAfterCheck(olderR) == null
+                && Updates.OfferAfterCheck(new CheckResult { Failed = true, Text = "x" }) == null && Updates.OfferAfterCheck(null) == null);
+            Check("offer: an install clears it (whichever release it was), a swap too", Updates.OfferAfterApply(avail, new ApplyResult { Ok = true, Text = "Updated to v2." }) == null && Updates.OfferAfterApply(avail, new ApplyResult { Ok = true, Swapping = true }) == null);
+            Check("offer: a failed or deferred install keeps it (Update now again)", Updates.OfferAfterApply(avail, new ApplyResult { Text = "failed" }) == avail && Updates.OfferAfterApply(avail, new ApplyResult { Deferred = true }) == avail);
             var cp = us.Copy(); cp.Status = "x";
             Check("state: a snapshot is a copy", us.Status == "updated");
         }
