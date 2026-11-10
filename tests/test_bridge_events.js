@@ -2859,12 +2859,11 @@ const id = (n) => `engine-card-${n}`;
         SOURCE_PICK(seat, 63, [237, "Circle of Protection: Red"], COP, [opp(card(311, "Gray Ogre", ["Creature"]))], id(311));
       };
       // (Forge's "Choose" over the shields' sentences, answered on the damage board: the question that splits the damage)
-      const ORDER = (h, seat, gv) => {
+      const REFLECT_L = "The next time a source of your choice would deal damage this turn, that damage is dealt to that source's controller instead.";
+      const ORDER = (h, seat, gv, labels = [REFLECT_L, "The next time the chosen source deals damage to you, prevent that damage."], choice = "0") => {
         seat.board = { state: { gameView: gv } };
-        h.B.onPrompt(seat, { promptId: 990, decidingPlayerId: "player-0", input: { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, options: [
-          { label: "The next time a source of your choice would deal damage this turn, that damage is dealt to that source's controller instead." },
-          { label: "The next time the chosen source deals damage to you, prevent that damage." }] } });
-        h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 990, choice: ["0"] }) });
+        h.B.onPrompt(seat, { promptId: 990, decidingPlayerId: "player-0", input: { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, options: labels.map((label) => ({ label })) } });
+        h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 990, choice: [choice] }) });
       };
       // (the two boards of the damage step with the question answered between them; c: the second board)
       const split = (h, seat, c, first = combat("combatDamage", 38, 378)) => {
@@ -2880,7 +2879,7 @@ const id = (n) => `engine-card-${n}`;
           "AI 1: 378 -> 373 life (-5, damage from Hill Giant, redirected by Reflect Damage; damage from Deflecting Palm)"]);
       same("re-test #6: the question was answered (precondition of the cases below)",
         fresh((h, seat) => { shields(seat); split(h, seat, combat("combatDamage", 38, 378)); return h.B._getGame().orderAnswer; }),
-        { turn: 3, step: "combatDamage" });
+        { turn: 3, step: "combatDamage", first: "Reflect Damage" });
       same("re-test #6: a later loss that isn't all of it stays bare",
         fresh((h, seat) => { shields(seat); return split(h, seat, combat("combatDamage", 38, 374)).filter((l) => /AI 1/.test(l)); }),
         ["AI 1: 378 -> 374 life (-4)"]);
@@ -2987,6 +2986,109 @@ const id = (n) => `engine-card-${n}`;
           return [...l1, ...logOf(h, b, c)].filter((l) => /AI 1/.test(l));
         }),
         ["AI 1: 378 -> 373 life (-5)"]);
+      same("verify r2: and one about something else after the damage's, in its step, leaves the damage's answer (n-order-damage)",
+        fresh((h, seat) => {
+          shields(seat);
+          const a = combat("combatDeclareBlockers", 38, 378), b = combat("combatDamage", 38, 378), c = combat("combatDamage", 38, 373);
+          const l1 = logOf(h, a, b);
+          ORDER(h, seat, b);
+          const TWICE = "If an effect would create one or more tokens under your control, it creates twice that many of those tokens instead.";
+          h.B.onPrompt(seat, { promptId: 992, decidingPlayerId: "player-0", input: { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, options: [{ label: TWICE }, { label: TWICE }] } });
+          h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 992, choice: ["0"] }) });
+          return [...l1, ...logOf(h, b, c)].filter((l) => /AI 1/.test(l));
+        }),
+        ["Hill Giant's combat damage is dealt to AI 1 instead (Reflect Damage)", "Deflecting Palm deals 2 damage to AI 1",
+          "AI 1: 378 -> 373 life (-5, damage from Hill Giant, redirected by Reflect Damage; damage from Deflecting Palm)"]);
+      // (verify round 2)
+      const COP_L = "The next time the chosen red source deals damage to you, prevent that damage.";
+      const reflectAndCop = (h, seat, choice, ai) => {
+        SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+        SOURCE_PICK(seat, 63, [237, "Circle of Protection: Red"], COP, [GIANT()], id(229));
+        const b = giantOnly("combatDamage", 38, 40);
+        const l1 = logOf(h, giantOnly("combatDeclareBlockers", 38, 40), b);
+        ORDER(h, seat, b, [REFLECT_L, COP_L], choice);
+        return [...l1, ...logOf(h, b, giantOnly("combatDamage", 38, ai))].filter((l) => /AI 1/.test(l));
+      };
+      same("verify r2: Circle of Protection put first on the same attacker: an exact loss is not the redirect (r2-cop-first-bare)",
+        fresh((h, seat) => reflectAndCop(h, seat, "1", 37)), ["AI 1: 40 -> 37 life (-3)"]);
+      same("verify r2: and Reflect Damage put first, it is",
+        fresh((h, seat) => reflectAndCop(h, seat, "0", 37)),
+        ["Hill Giant's combat damage is dealt to AI 1 instead (Reflect Damage)", "AI 1: 40 -> 37 life (-3, damage from Hill Giant, redirected by Reflect Damage)"]);
+      // (a shield put first other than Reflect Damage: by no card on the field (unknown), or Blue's Energy Field, a card
+      // but not a source chosen this turn; with the answer it left, the precondition)
+      const FIELD_L = "Prevent all damage that would be dealt to you by sources you don't control.";
+      const FIELD = { ...card(341, "Energy Field", ["Enchantment"]), text: FIELD_L };
+      const otherFirst = (h, seat, onField) => {
+        SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+        const fill = (x) => { if (onField) put(x, "battlefield", FIELD); };
+        const b = giantOnly("combatDamage", 38, 40, fill);
+        const l1 = logOf(h, giantOnly("combatDeclareBlockers", 38, 40, fill), b);
+        ORDER(h, seat, b, [REFLECT_L, FIELD_L], "1");
+        const answer = h.B._getGame().orderAnswer;
+        return [answer, ...l1, ...logOf(h, b, giantOnly("combatDamage", 38, 37, fill))].filter((l) => typeof l !== "string" || /AI 1/.test(l));
+      };
+      same("verify r2: a shield put first that names no card (unknown) says nothing",
+        fresh((h, seat) => otherFirst(h, seat, false)),
+        [{ turn: 3, step: "combatDamage", first: null }, "AI 1: 40 -> 37 life (-3)"]);
+      same("verify r2: nor one put first that is a card but no source chosen this turn (n2-first-other)",
+        fresh((h, seat) => otherFirst(h, seat, true)),
+        [{ turn: 3, step: "combatDamage", first: "Energy Field" }, "AI 1: 40 -> 37 life (-3)"]);
+      // (the answer itself Reflect Damage first, only its turn the one before)
+      same("verify r2: an order answer of an earlier turn is not this one's (r2-asked-turn)",
+        fresh((h, seat) => {
+          shields(seat);
+          const a = combat("combatDeclareBlockers", 38, 378), b = combat("combatDamage", 38, 378), c = combat("combatDamage", 38, 373);
+          const l1 = logOf(h, a, b);
+          ORDER(h, seat, b);
+          const answer = h.B._getGame().orderAnswer;
+          answer.turn = 2;
+          return [answer.first, ...l1, ...logOf(h, b, c)].filter((l) => /AI 1|Reflect/.test(l));
+        }),
+        ["Reflect Damage", "AI 1: 378 -> 373 life (-5)"]);
+      same("verify r2: a shield that redirected on the damage board is used up (r2-owed-used-said)",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+          const first = logOf(h, giantOnly("combatDeclareBlockers", 38, 40), giantOnly("combatDamage", 38, 37)).filter((l) => /AI 1/.test(l));
+          return [...first, ...again(h, 34).map((l) => l.replace("40 -> 34", "40 -> 34"))];
+        }),
+        ["Hill Giant's combat damage is dealt to AI 1 instead (Reflect Damage)", "AI 1: 40 -> 37 life (-3, damage from Hill Giant, redirected by Reflect Damage)", "AI 1: 40 -> 34 life (-6)"]);
+      same("verify r2: and one owed beside another known part, unsaid, is used up too (r2-latesaid-used-alone)",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+          const land = (t) => opp({ ...card(334, "Adarkar Wastes", ["Land"]), tapped: t });
+          const b = giantOnly("combatDamage", 38, 40, (x) => put(x, "battlefield", land(false), "player-1"));
+          logOf(h, giantOnly("combatDeclareBlockers", 38, 40, (x) => put(x, "battlefield", land(false), "player-1")), b);
+          ORDER(h, seat, b);
+          h.B._getGame().painTaps = [{ slot: "player-1", id: id(334), name: "Adarkar Wastes", n: 1, at: Date.now() }];
+          logOf(h, b, giantOnly("combatDamage", 38, 37, (x) => put(x, "battlefield", land(true), "player-1")));
+          return again(h, 37);
+        }),
+        ["AI 1: 40 -> 37 life (-3)"]);
+      // (AI 1's lifelinking Prodigal Pyromancer pings Blue on that board: AI 1's change has a gain part, so the -3 is not
+      // the 3 owed alone)
+      same("verify r2: nor beside a gain of that player's (r2-alone-gain)",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+          const PING = opp({ ...card(338, "Prodigal Pyromancer", ["Creature"]), power: "1", keywords: ["Lifelink"] });
+          const STACKED = { controllerId: "player-1", id: "engine-stack-98", identity: { name: "Prodigal Pyromancer" }, isPermanentSpell: false, ownerId: "player-1", sourceId: id(338),
+            sourceAbilityText: "{T}: Prodigal Pyromancer deals 1 damage to any target.", text: "Prodigal Pyromancer (338) - Prodigal Pyromancer deals 1 damage to any target.", targets: [{ kind: "player", id: "player-0" }] };
+          const b = giantOnly("combatDamage", 38, 40, (x) => { put(x, "battlefield", PING, "player-1"); x.stack.push(STACKED); });
+          const l1 = logOf(h, giantOnly("combatDeclareBlockers", 38, 40, (x) => put(x, "battlefield", PING, "player-1")), b);
+          ORDER(h, seat, b);
+          return [...l1, ...logOf(h, b, giantOnly("combatDamage", 37, 37, (x) => put(x, "battlefield", { ...PING, tapped: true }, "player-1")))].filter((l) => /life|instead/.test(l));
+        }),
+        ["Blue: 38 -> 37 life (-1, damage from Prodigal Pyromancer)", "AI 1: 40 -> 37 life (-3)"]);
+      same("verify r2: nor beside life that player paid on that board (r2-other-nopaid)",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+          const CASTING = { controllerId: "player-1", id: "engine-stack-99", identity: { name: "Mondrak, Glory Dominus" }, isPermanentSpell: true, isCasting: true, ownerId: "player-1", sourceId: id(339), text: "Mondrak, Glory Dominus" };
+          const b = giantOnly("combatDamage", 38, 40);
+          const l1 = logOf(h, giantOnly("combatDeclareBlockers", 38, 40), b);
+          ORDER(h, seat, b);
+          h.B._getGame().lifePays = [{ slot: "player-1", n: 2, name: "Mondrak, Glory Dominus", card: id(339), at: Date.now() }];
+          return [...l1, ...logOf(h, b, giantOnly("combatDamage", 38, 37, (x) => x.stack.push(CASTING)))].filter((l) => /AI 1|instead/.test(l));
+        }),
+        ["AI 1: 40 -> 37 life (-3)"]);
       same("verify: a first strike's split, the next board the regular damage, stays bare",
         fresh((h, seat) => {
           SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));

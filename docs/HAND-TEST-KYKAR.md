@@ -370,3 +370,7 @@ Scenarios: `scenarios/kykar-r1.json` (game start), `kykar-r2.json` and `kykar-r3
    where that card is on the stack or just left it. A shield's source is named only for the seat that chose it. What a
    seat played for a controlled player lasts that turn and that control, and a choice among the seat's own hand cards
    is its own.
+6. Verifier round 2 (source and tests only): the kept amount is said only when the shield that answer put first is
+   known and is its own (Reflect Damage first), or is a shield chosen this turn for a different source; Circle of Protection: Red put
+   first on the same attacker leaves Reflect Damage unapplied, and the loss stays bare. A choice among a controlled
+   player's hand cards is that player's (`AI 1 (you control): Mind Rot: discard a card`).

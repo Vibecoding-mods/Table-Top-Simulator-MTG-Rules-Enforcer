@@ -506,9 +506,9 @@ class Seat {
           const kind = /\bthat damage is dealt to that source's controller instead\b/i.test(how) ? "redirect"
             : /\bwould deal damage to you this turn, prevent that damage\b/i.test(how) ? "prevent" : null;
           game.sourceShields = (game.sourceShields || []).filter((x) => x.turn === turn);
-          // (every such choice by its card's words and its chooser, for that player's order question of shields on one
-          // event, "which applies first?")
-          game.chosenSources = [...(game.chosenSources || []).filter((x) => x.turn === turn), { by: src.identity.name, how, turn, slot: this.slot }];
+          // (every such choice by its card's words, its chooser and the sources chosen, for that player's order question of
+          // shields on one event, "which applies first?", and the damage it splits, see owedCombat)
+          game.chosenSources = [...(game.chosenSources || []).filter((x) => x.turn === turn), { by: src.identity.name, how, turn, slot: this.slot, ids: picked.map((c) => c.id) }];
           if (kind) for (const c of picked) game.sourceShields.push({ id: c.id, by: src.identity.name, slot: this.slot, turn, kind,
             ...(kind === "prevent" && /\bIf damage is prevented this way, [^.]* deals that much damage to that source's controller\b/i.test(how) ? { back: true } : {}) });
         }
@@ -2001,6 +2001,9 @@ function damageNews(prev, cur, resolved, facts, otherParts = () => false) {
   // Deflecting Palm read bare, Kykar re-test bug #6; a Reflect Damage that never applied named Blue's Lightning Bolt at
   // AI 1 later in the step, verify 2026-11-09. A redirect's shield is used up once said, or once that player lost life
   // it can't be told from; kept while nothing was lost, as it may not have applied (another shield went first).
+  // And only when the shield the answer put first is known (orderAnswer.first) and is its own, or a source chosen this
+  // turn for another source: Circle of Protection: Red put first on Hill Giant leaves Reflect Damage unapplied, and an
+  // unexplained -3 of AI 1's read "dealt to AI 1 instead", verify round 2.
   // (A first strike's split, the next board already the regular damage, stays bare.)
   const owedBy = (list) => { const m = new Map(); for (const o of list) m.set(o.p, [...(m.get(o.p) || []), o]); return m; };
   const owedSum = (list) => list.reduce((a, o) => a + o.n, 0);
@@ -2010,9 +2013,12 @@ function damageNews(prev, cur, resolved, facts, otherParts = () => false) {
   if (late) {
     const sameStep = late.turn === cur.turn && prev.step === late.step && cur.step === late.step;
     const asked = game.orderAnswer?.turn === late.turn && game.orderAnswer?.step === late.step;
+    const first = game.orderAnswer?.first, chosen = (game.chosenSources || []).filter((x) => x.turn === late.turn);
+    // (an unknown first, null, is neither: every shield and chosen source has its card's name)
+    const firstOk = (o) => first === o.by || chosen.some((x) => x.by === first) && !chosen.some((x) => x.by === first && (x.ids || []).includes(o.src));
     const keep = [];
     for (const [p, list] of owedBy(late.list)) {
-      if (sameStep && asked && lost(p) === owedSum(list)) lateSaid.push([p, list]);
+      if (sameStep && asked && list.every(firstOk) && lost(p) === owedSum(list)) lateSaid.push([p, list]);
       else if (sameStep && lost(p) === 0) keep.push(...list);
       else if (lost(p) !== 0) for (const o of list) if (o.sh) used(o.sh);
     }
@@ -2020,7 +2026,8 @@ function damageNews(prev, cur, resolved, facts, otherParts = () => false) {
   }
   if (firstStep || regular) {
     const owed = [];
-    const owe = (p, n, line, w, sh = null) => owed.push({ p, n, line, w, sh });
+    // (by: the shield's card, src: the attacker, for orderAnswer.first above; sh: a redirect's shield, used once said)
+    const owe = (p, n, line, w, by, src, sh = null) => owed.push({ p, n, line, w, by, src, sh });
     // (an attacker is unblocked only when the blocks are known: a board from the declare blockers step on, or the blocks a
     // player declared this turn; a board before them and one past combat showed a blocked Hill Giant as unblocked, its
     // damage "prevented" by a Circle that was never used, review 2026-11-09)
@@ -2041,12 +2048,12 @@ function damageNews(prev, cur, resolved, facts, otherParts = () => false) {
         // (a redirect, or a prevention, only when the player it was aimed at lost no more than the others aimed there: Hill
         // Giant's 3 that Blue lost read "dealt to AI 1 instead" beside AI 1's 3 paid elsewhere, checker round 3)
         if (sh?.kind === "redirect" && lost(a.atp) <= aimed[a.atp] - n) {
-          owe(a.ctl, n, `${poss(name)} combat damage is dealt to ${nameOf(a.ctl)} instead (${sh.by})`, `damage from ${name}, redirected by ${sh.by}`, sh);
+          owe(a.ctl, n, `${poss(name)} combat damage is dealt to ${nameOf(a.ctl)} instead (${sh.by})`, `damage from ${name}, redirected by ${sh.by}`, sh.by, id, sh);
         } else if (sh?.kind === "prevent" && lost(a.atp) <= aimed[a.atp] - n) {
           lines.push(`${poss(name)} combat damage to ${nameOf(a.atp)} is prevented (${sh.by})`);
           // (Deflecting Palm's "deals that much damage to that source's controller": the attacker's power on the board
           // before, so only while both boards agree on it, a Giant Growth between them is unseen)
-          if (sh.back && cur.cards[id]?.pw === prev.cards[id]?.pw) owe(a.ctl, n, `${sh.by} deals ${n} damage to ${nameOf(a.ctl)}`, `damage from ${sh.by}`);
+          if (sh.back && cur.cards[id]?.pw === prev.cards[id]?.pw) owe(a.ctl, n, `${sh.by} deals ${n} damage to ${nameOf(a.ctl)}`, `damage from ${sh.by}`, sh.by, id);
           used(sh);
           stopped = true;
         } else if (!sh) why(loss, a.atp, n, `combat damage from ${name}`);
@@ -4920,7 +4927,8 @@ function ruledBy(gv, slot) {
 // Kykar re-test new bug 1.
 // (what was played for a controlled player lasts that turn and that control only, and cards to choose that are all in
 // the seat's own hand are its own choice, a discard of its own to that player's spell: a Mind Rot kept from an earlier
-// question titled Blue's own discard "AI 1 (you control)", verify 2026-11-09)
+// question titled Blue's own discard "AI 1 (you control)", verify 2026-11-09; all in a controlled player's hand, that
+// player's, Blue's own Mind Rot at AI 1 on AI 1's controlled turn, verify round 2)
 function actingFor(seat, prompt, gv) {
   const ruled = ruledBy(gv, seat.slot);
   if (seat.actingFor && (seat.actingFor.turn !== gv.turn || !ruled.includes(seat.actingFor.p))) seat.actingFor = null;
@@ -4928,8 +4936,11 @@ function actingFor(seat, prompt, gv) {
   const type = prompt.input?.type;
   if (type === "chooseAction") return ruled.includes(gv.priorityPlayerId) ? gv.priorityPlayerId : null;
   if (type === "chooseAttackers") return ruled.includes(gv.activePlayerId) ? gv.activePlayerId : null;
-  const mine = zoneOf(gv, "hand", seat.slot).cards || [], cards = prompt.input?.cards || [];
-  if (cards.length && cards.every((c) => mine.some((x) => x.id === c.id))) return null;
+  const cards = prompt.input?.cards || [];
+  const allIn = (p) => { const hand = zoneOf(gv, "hand", p).cards || []; return cards.length > 0 && cards.every((c) => hand.some((x) => x.id === c.id)); };
+  if (allIn(seat.slot)) return null;
+  const holder = ruled.find(allIn);
+  if (holder) return holder;
   const a = seat.actingFor, card = prompt.sourceCard?.id || prompt.input?.cardId;
   return a && card && a.card === card ? a.p : null;
 }
@@ -6054,9 +6065,13 @@ function onPrompt(seat, prompt) {
         ui = { title: src ? `${src}: which applies first?` : "Which applies first?", mode: "single", keepOrder: true,
           text: "Each of these changes the same event. The one you pick applies first, the rest after it.",
           options: labels.map((l, i) => { const n = whose(l); return { id: i, label: n && !l.includes(n) ? `${n}: ${l}` : l }; }) };
-        // (answered in a damage step: the damage it splits over two boards, see owedCombat in damageNews)
+        // (answered in a damage step: the damage it splits over two boards, and whose shield went first, by its card or
+        // null when unknown, see owedCombat in damageNews)
         const damageOrder = labels.some((l) => /\bdamage\b/i.test(l));
-        toOutput = (a) => { if (game && damageOrder) game.orderAnswer = { turn: gv.turn, step: gv.step }; return { type: "selectionDecision", chosenIndices: a.map(Number) }; };
+        toOutput = (a) => {
+          if (game && damageOrder) game.orderAnswer = { turn: gv.turn, step: gv.step, first: labels[Number(a[0])] == null ? null : whose(labels[Number(a[0])]) };
+          return { type: "selectionDecision", chosenIndices: a.map(Number) };
+        };
         break;
       }
       const how = input.maxTotal === 1 && input.minTotal === 1 ? "one" : input.minTotal === 0 ? "any you want" : input.minTotal === input.maxTotal ? String(input.maxTotal) : `${input.minTotal} to ${input.maxTotal}`;

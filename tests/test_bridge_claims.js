@@ -1846,6 +1846,32 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       harness.restore();
     }
     {
+      // (verify round 2: cards from both hands are no one hand's, the card played decides; Blue's own Mind Rot at AI 1, all
+      // in AI 1's hand, is AI 1's discard)
+      const ISLAND = { id: "engine-card-1608", identity: { name: "Island" }, types: ["Land"], controllerId: "player-0", ownerId: "player-0" };
+      const { h, seat } = fresh((gv) => { slaved2(gv); zone(gv, "hand", "player-0").cards = [ISLAND]; }, AI_MAIN);
+      await castFor(h, seat, "engine-card-1607");
+      await asked(h, seat, { type: "chooseCards", cards: [ISLAND, FOREST], min: 1, max: 1, presentation: { title: "Choose", description: "Choose a card" } },
+        { promptId: 909, sourceCard: MIND_ROT, sourceAbilityText: MIND_ROT.text });
+      ok("verify r2: cards from the seat's own hand and another are not its own choice (r2-hand-some)", youControl(seat), JSON.stringify(seat.prompt?.ui?.title ?? null));
+      harness.restore();
+      const BLUE_ROT = { ...MIND_ROT, id: "engine-card-1612", controllerId: "player-0", ownerId: "player-0" };
+      const r = fresh(slaved, AI_MAIN);
+      await asked(r.h, r.seat, { type: "chooseCards", cards: [FOREST, BOLT], min: 1, max: 1, presentation: { title: "Discard", description: "Choose a card to discard" } },
+        { promptId: 910, sourceCard: BLUE_ROT, sourceAbilityText: BLUE_ROT.text });
+      ok("verify r2: a choice among the controlled player's hand cards is that player's", youControl(r.seat), JSON.stringify(r.seat.prompt?.ui?.title ?? null));
+      harness.restore();
+    }
+    {
+      // (a card dragged for the controlled player: what it asks next is that player's, r2-stamp-intent)
+      const { h, seat } = fresh(slaved, AI_MAIN);
+      await asked(h, seat, AI_ACTIONS);
+      h.B.onTTS({ t: "intent", json: JSON.stringify({ color: "Blue", kind: "play", id: "engine-card-1602" }) }); await h.flush();
+      await asked(h, seat, TARGETS, { promptId: 911, sourceCard: BOLT, sourceAbilityText: BOLT.text });
+      ok("verify r2: a dragged card of the controlled player asks as that player", youControl(seat), JSON.stringify([seat.prompt?.ui?.title ?? null, seat.actingFor]));
+      harness.restore();
+    }
+    {
       // (what was played lasts that turn, and that control: a question of the card on the next turn, or with the control
       // ended, is the seat's own, and it is forgotten)
       const { h, seat } = fresh(slaved, AI_MAIN);
@@ -2067,6 +2093,15 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const after = step(before, (x) => { x.stack = []; P(x, "player-0").life -= 2; zone(x, "battlefield", "player-0").cards.push({ id: "engine-card-1641", identity: { name: "Mondrak, Glory Dominus" }, types: ["Creature"], controllerId: "player-0", ownerId: "player-0" }); });
       const lines = lifeLines(h, before, after);
       ok("verify: the board it resolved on is still the cast's", JSON.stringify(lines) === JSON.stringify([`Blue: ${L(before)} -> ${L(after)} life (-2, paid for Mondrak, Glory Dominus)`]), JSON.stringify(lines));
+      harness.restore();
+    }
+    {
+      // (another spell on the stack is not that cast's, r2-pay-stackany)
+      const OPT = { id: "engine-stack-1642", sourceId: "engine-card-1642", identity: { name: "Opt" }, controllerId: "player-0", ownerId: "player-0", isPermanentSpell: false, isCasting: true, text: "Opt" };
+      const { h, b, step, L } = await phyrexian();
+      const before = step(b.gameView, (x) => { x.stack = [OPT]; }), after = step(before, (x) => { P(x, "player-0").life -= 2; });
+      const lines = lifeLines(h, before, after);
+      ok("verify r2: a payment names no loss on a board with only another spell on the stack", JSON.stringify(lines) === JSON.stringify([`Blue: ${L(before)} -> ${L(after)} life (-2)`]), JSON.stringify(lines));
       harness.restore();
     }
     {
