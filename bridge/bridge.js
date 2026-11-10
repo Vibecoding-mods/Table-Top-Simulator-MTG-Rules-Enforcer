@@ -506,8 +506,9 @@ class Seat {
           const kind = /\bthat damage is dealt to that source's controller instead\b/i.test(how) ? "redirect"
             : /\bwould deal damage to you this turn, prevent that damage\b/i.test(how) ? "prevent" : null;
           game.sourceShields = (game.sourceShields || []).filter((x) => x.turn === turn);
-          // (every such choice by its card's words, for the order question of shields on one event, "which applies first?")
-          game.chosenSources = [...(game.chosenSources || []).filter((x) => x.turn === turn), { by: src.identity.name, how, turn }];
+          // (every such choice by its card's words and its chooser, for that player's order question of shields on one
+          // event, "which applies first?")
+          game.chosenSources = [...(game.chosenSources || []).filter((x) => x.turn === turn), { by: src.identity.name, how, turn, slot: this.slot }];
           if (kind) for (const c of picked) game.sourceShields.push({ id: c.id, by: src.identity.name, slot: this.slot, turn, kind,
             ...(kind === "prevent" && /\bIf damage is prevented this way, [^.]* deals that much damage to that source's controller\b/i.test(how) ? { back: true } : {}) });
         }
@@ -1967,9 +1968,9 @@ function takenOffStack(offStack, prevSpellOf, cards, pubIndex) {
 // Kykar #11; Kykar's double-strike lifelink attack four bare life lines, #26; Pyroclasm's survivor nothing, ability sweep.
 // A source chosen for a prevention or a redirect (sourceShields, the player's answer) says what became of its damage,
 // once the boards show it happened: Reflect Damage's redirect read only "AI 1: 404 -> 401 life (-3)", Kykar #6; Circle of
-// Protection: Red's prevention nothing at all. -> { lines (said before what came of them), loss / gain: player ->
-// [{ n, w: the words }] }
-function damageNews(prev, cur, resolved, facts) {
+// Protection: Red's prevention nothing at all. otherParts(p): a part of p's life change known outside these lines (a
+// pain land, life paid). -> { lines (said before what came of them), loss / gain: player -> [{ n, w: the words }] }
+function damageNews(prev, cur, resolved, facts, otherParts = () => false) {
   const lines = [], loss = {}, gain = {};
   const why = (t, p, n, w) => { if (n > 0 && p) (t[p] ||= []).push({ n, w }); };
   const lost = (p) => (prev.life[p] ?? 0) - (cur.life[p] ?? 0);
@@ -1995,22 +1996,31 @@ function damageNews(prev, cur, resolved, facts) {
   // What a shield sends back at a source's controller in combat (Reflect Damage's redirect, Deflecting Palm's damage
   // back): said once that player lost all of it. A question in the middle of the damage (which shield applies first)
   // splits it over two boards of one step, the first with none of it lost yet: kept for the next board of that step, and
-  // said there only if the loss is exactly what is owed. AI 1's -5 from Reflect Damage and Deflecting Palm read bare,
-  // Kykar re-test bug #6.
+  // said there only once that question was answered in that step (game.orderAnswer), the loss exactly what is owed and
+  // no other part of it known (a damage item, a pain land, life paid: otherParts). AI 1's -5 from Reflect Damage and
+  // Deflecting Palm read bare, Kykar re-test bug #6; a Reflect Damage that never applied named Blue's Lightning Bolt at
+  // AI 1 later in the step, verify 2026-11-09. A redirect's shield is used up once said, or once that player lost life
+  // it can't be told from; kept while nothing was lost, as it may not have applied (another shield went first).
+  // (A first strike's split, the next board already the regular damage, stays bare.)
   const owedBy = (list) => { const m = new Map(); for (const o of list) m.set(o.p, [...(m.get(o.p) || []), o]); return m; };
+  const owedSum = (list) => list.reduce((a, o) => a + o.n, 0);
   const late = game.owedCombat;
   game.owedCombat = null;
-  if (late && !firstStep && !regular && late.turn === cur.turn && late.step === prev.step) {
+  const lateSaid = [];
+  if (late) {
+    const sameStep = late.turn === cur.turn && prev.step === late.step && cur.step === late.step;
+    const asked = game.orderAnswer?.turn === late.turn && game.orderAnswer?.step === late.step;
     const keep = [];
     for (const [p, list] of owedBy(late.list)) {
-      if (lost(p) === list.reduce((a, o) => a + o.n, 0)) for (const o of list) { lines.push(o.line); why(loss, p, o.n, o.w); }
-      else if (lost(p) === 0 && cur.step === late.step) keep.push(...list);
+      if (sameStep && asked && lost(p) === owedSum(list)) lateSaid.push([p, list]);
+      else if (sameStep && lost(p) === 0) keep.push(...list);
+      else if (lost(p) !== 0) for (const o of list) if (o.sh) used(o.sh);
     }
     if (keep.length) game.owedCombat = { ...late, list: keep };
   }
   if (firstStep || regular) {
     const owed = [];
-    const owe = (p, n, line, w) => owed.push({ p, n, line, w });
+    const owe = (p, n, line, w, sh = null) => owed.push({ p, n, line, w, sh });
     // (an attacker is unblocked only when the blocks are known: a board from the declare blockers step on, or the blocks a
     // player declared this turn; a board before them and one past combat showed a blocked Hill Giant as unblocked, its
     // damage "prevented" by a Circle that was never used, review 2026-11-09)
@@ -2031,8 +2041,7 @@ function damageNews(prev, cur, resolved, facts) {
         // (a redirect, or a prevention, only when the player it was aimed at lost no more than the others aimed there: Hill
         // Giant's 3 that Blue lost read "dealt to AI 1 instead" beside AI 1's 3 paid elsewhere, checker round 3)
         if (sh?.kind === "redirect" && lost(a.atp) <= aimed[a.atp] - n) {
-          owe(a.ctl, n, `${poss(name)} combat damage is dealt to ${nameOf(a.ctl)} instead (${sh.by})`, `damage from ${name}, redirected by ${sh.by}`);
-          used(sh);
+          owe(a.ctl, n, `${poss(name)} combat damage is dealt to ${nameOf(a.ctl)} instead (${sh.by})`, `damage from ${name}, redirected by ${sh.by}`, sh);
         } else if (sh?.kind === "prevent" && lost(a.atp) <= aimed[a.atp] - n) {
           lines.push(`${poss(name)} combat damage to ${nameOf(a.atp)} is prevented (${sh.by})`);
           // (Deflecting Palm's "deals that much damage to that source's controller": the attacker's power on the board
@@ -2046,8 +2055,9 @@ function damageNews(prev, cur, resolved, facts) {
     }
     // (said when that player lost at least all of it; kept when they lost nothing yet, see owedCombat above)
     for (const [p, list] of owedBy(owed)) {
-      if (lost(p) >= list.reduce((a, o) => a + o.n, 0)) for (const o of list) { lines.push(o.line); why(loss, p, o.n, o.w); }
+      if (lost(p) >= owedSum(list)) for (const o of list) { lines.push(o.line); why(loss, p, o.n, o.w); if (o.sh) used(o.sh); }
       else if (lost(p) === 0) game.owedCombat = { turn: cur.turn, step: cur.step, list: [...(game.owedCombat?.list || []), ...list] };
+      else for (const o of list) if (o.sh) used(o.sh);
     }
   }
   // (the damage items: what deals damage by its own name, "Target creature you control deals damage equal to its power"
@@ -2129,6 +2139,11 @@ function damageNews(prev, cur, resolved, facts) {
       else if (!sh && lost(p) > 0) { why(loss, p, n, `damage from ${s.name}`); it.dealt += n; }
     }
     if (src.ll && it.dealt) why(gain, src.ctl, it.dealt, `lifelink from ${s.name}`);
+  }
+  // (what was owed from the board before, now that this board's other parts are known, see owedCombat above)
+  for (const [p, list] of lateSaid) {
+    const alone = !(loss[p] || []).length && !(gain[p] || []).length && !otherParts(p);
+    for (const o of list) { if (alone) { lines.push(o.line); why(loss, p, o.n, o.w); } if (o.sh) used(o.sh); }
   }
   return { lines, loss, gain };
 }
@@ -2643,7 +2658,21 @@ function logEvents(prev, cur, pub, facts = null) {
   }
   // (the "unless" payments of what resolved, said before the draw they made or didn't; its damage, before what died of
   // it; its taps and the keywords it gave, below)
-  const damage = damageNews(prev, cur, resolved, facts);
+  // (the life changes' parts known from the players' own answers, for the damage lines and the life lines below)
+  // Pain lands' damage, noted as they were tapped, for the first board that shows the land tapped only, as Forge deals
+  // it with the mana: three bare "-1" lines for Adarkar Wastes, Battlefield Forge and Shivan Reef, Kykar #4; one kept for
+  // later named a later, other loss, checker 2026-11-07. A board logged again from before the tap (another seat's, a
+  // redraw) keeps it, for 10 s; one without the land drops it.
+  const pains = (game.painTaps || []).filter((t) => cur.cards[t.id]?.tapped);
+  game.painTaps = (game.painTaps || []).filter((t) => !pains.includes(t) && cur.cards[t.id] && Date.now() - t.at < 10000);
+  // And life paid for a Phyrexian symbol, on a board of that cast only: its card on this board's stack (being cast or
+  // cast), or just gone from the board before's; 10 s at most. One kept from a cast cancelled or over named a later,
+  // other loss, verify 2026-11-09. Mondrak's read a bare "White: 55 -> 53 life (-2)", Kykar re-test new bug 10.
+  const onStackNow = (x) => (pub.stack || []).some((s) => s.sourceId === x.card);
+  game.lifePays = (game.lifePays || []).filter((x) => x.card && Date.now() - x.at < 10000);
+  const payable = game.lifePays.filter((x) => onStackNow(x) || Object.keys(prev.stack).some((k) => k.startsWith(`${x.card}|`)));
+  game.lifePays = game.lifePays.filter(onStackNow);
+  const damage = damageNews(prev, cur, resolved, facts, (p) => pains.some((t) => t.slot === p) || payable.some((x) => x.slot === p));
   out.push(...unlessNews(prev, cur, resolved, facts), ...damage.lines);
   // (a counterspell that resolved alone on the stack had nothing left to counter: the spell it targeted was gone
   // already. AI 1's Arcane Denial, its target countered by Jin-Gitaxias's copy, left the stack with no line, Kykar #26.
@@ -3188,20 +3217,12 @@ function logEvents(prev, cur, pub, facts = null) {
   const tapLines = tapNews(prev, cur, resolved);
   out.push(...phased, ...tapLines);
   // (each life change with what made it, when what the boards and the player's answers show adds up to it, each part by
-  // its words; else bare, as no source is guessed. Pain lands' damage, noted as they were tapped, for the first board
-  // that shows the land tapped only, as Forge deals it with the mana: three bare "-1" lines for Adarkar Wastes,
-  // Battlefield Forge and Shivan Reef, Kykar #4; one kept for later named a later, other loss, checker 2026-11-07. A board
-  // logged again from before the tap (another seat's, a redraw) keeps it, for 10 s; one without the land drops it.)
-  const pains = (game.painTaps || []).filter((t) => cur.cards[t.id]?.tapped);
-  game.painTaps = (game.painTaps || []).filter((t) => !pains.includes(t) && cur.cards[t.id] && Date.now() - t.at < 10000);
-  // (and life the player paid for a Phyrexian symbol, on the first board that shows that player's life go down, 10 s at
-  // most: Mondrak's read a bare "White: 55 -> 53 life (-2)", Kykar re-test new bug 10)
-  game.lifePays = (game.lifePays || []).filter((x) => Date.now() - x.at < 10000);
+  // its words; else bare, as no source is guessed: the pain lands and life paid above, pains and payable)
   for (const [p, l] of Object.entries(cur.life)) {
     const before = prev.life[p];
     if (before == null || l === before) continue;
     const pain = l < before ? pains.filter((t) => t.slot === p) : [];
-    const paid = l < before ? game.lifePays.filter((x) => x.slot === p) : [];
+    const paid = l < before ? payable.filter((x) => x.slot === p) : [];
     if (paid.length) game.lifePays = game.lifePays.filter((x) => !paid.includes(x));
     const parts = [...(damage.gain[p] || []), ...[...(damage.loss[p] || []), ...pain.map((t) => ({ n: t.n, w: `damage from ${t.name}` })),
       ...paid.map((x) => ({ n: x.n, w: `paid for ${x.name}` }))].map((x) => ({ n: -x.n, w: x.w }))];
@@ -4897,14 +4918,20 @@ function ruledBy(gv, slot) {
 // names them), the attack is the active player's, and a question of the card just played from such a question is that
 // player's too (seat.actingFor). AI 1's main-phase priority under Mindslaver was passed unseen as "not your turn",
 // Kykar re-test new bug 1.
+// (what was played for a controlled player lasts that turn and that control only, and cards to choose that are all in
+// the seat's own hand are its own choice, a discard of its own to that player's spell: a Mind Rot kept from an earlier
+// question titled Blue's own discard "AI 1 (you control)", verify 2026-11-09)
 function actingFor(seat, prompt, gv) {
   const ruled = ruledBy(gv, seat.slot);
+  if (seat.actingFor && (seat.actingFor.turn !== gv.turn || !ruled.includes(seat.actingFor.p))) seat.actingFor = null;
   if (!ruled.length) return null;
   const type = prompt.input?.type;
   if (type === "chooseAction") return ruled.includes(gv.priorityPlayerId) ? gv.priorityPlayerId : null;
   if (type === "chooseAttackers") return ruled.includes(gv.activePlayerId) ? gv.activePlayerId : null;
+  const mine = zoneOf(gv, "hand", seat.slot).cards || [], cards = prompt.input?.cards || [];
+  if (cards.length && cards.every((c) => mine.some((x) => x.id === c.id))) return null;
   const a = seat.actingFor, card = prompt.sourceCard?.id || prompt.input?.cardId;
-  return a && card && a.card === card && ruled.includes(a.p) ? a.p : null;
+  return a && card && a.card === card ? a.p : null;
 }
 function onPrompt(seat, prompt) {
   // (a new engine question while a sub-question was open, the engine asking again after a reconnect: that question is
@@ -5146,7 +5173,7 @@ function onPrompt(seat, prompt) {
       // (what a controlled player plays: its payment and targets that follow are that player's too, actingFor)
       if (forP) {
         const base = toOutput;
-        toOutput = (a) => { const out = base(a); if (out?.type === "act") seat.actingFor = { p: forP, card: (input.actions || []).find((x) => x.id === out.actionId)?.cardId }; return out; };
+        toOutput = (a) => { const out = base(a); if (out?.type === "act") seat.actingFor = { p: forP, card: (input.actions || []).find((x) => x.id === out.actionId)?.cardId, turn: gv.turn }; return out; };
       }
       break;
     }
@@ -5233,9 +5260,9 @@ function onPrompt(seat, prompt) {
         // (the stack showed it, so the log said "casts" and nothing took that back: Silvergill Adept, hp-24 gap)
         if (a[0] === "__cancel" && game?.log?.slice(-12).includes(`${seat.color} casts ${input.cardName || src}`)) gameLogLine(`${seat.color} cancels ${input.cardName || src}`);
         // (life paid for a Phyrexian symbol, for the life line: Mondrak's read a bare "White: 55 -> 53 life (-2)", Kykar
-        // re-test new bug 10; see lifePays in logEvents)
-        if (lifeAct && a[0] === (lifeAct.id || "pay-life") && game && (input.cardName || src)) {
-          game.lifePays = [...(game.lifePays || []).filter((x) => Date.now() - x.at < 10000), { slot: payer, n: lifeN ?? 2, name: input.cardName || src, at: Date.now() }];
+        // re-test new bug 10; see lifePays in logEvents, by the card paid for)
+        if (lifeAct && a[0] === (lifeAct.id || "pay-life") && game && input.cardId && (input.cardName || src)) {
+          game.lifePays = [...(game.lifePays || []).filter((x) => Date.now() - x.at < 10000), { slot: payer, n: lifeN ?? 2, name: input.cardName || src, card: input.cardId, at: Date.now() }];
         }
         // (ours only for a payment that names its card: the next question finds it by that id)
         const first = a[0] === "__auto" && input.cardId && smartPayTap(owed, input.actions || [], handOthers(), byId);
@@ -6021,13 +6048,15 @@ function onPrompt(seat, prompt) {
           const s = l.replace(/\.\s*$/, "");
           const names = new Set(Object.values(byId).filter((x) => onField.has(x.id) && String(x.text || "").includes(s)).map((x) => x.identity?.name));
           if (names.size === 1) return [...names][0];
-          const chose = new Set((game?.chosenSources || []).filter((x) => x.turn === gv.turn && plain(x.how).includes(plain(l))).map((x) => x.by));
+          const chose = new Set((game?.chosenSources || []).filter((x) => x.turn === gv.turn && x.slot === seat.slot && plain(x.how).includes(plain(l))).map((x) => x.by));
           return !names.size && chose.size === 1 ? [...chose][0] : null;
         };
         ui = { title: src ? `${src}: which applies first?` : "Which applies first?", mode: "single", keepOrder: true,
           text: "Each of these changes the same event. The one you pick applies first, the rest after it.",
           options: labels.map((l, i) => { const n = whose(l); return { id: i, label: n && !l.includes(n) ? `${n}: ${l}` : l }; }) };
-        toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map(Number) });
+        // (answered in a damage step: the damage it splits over two boards, see owedCombat in damageNews)
+        const damageOrder = labels.some((l) => /\bdamage\b/i.test(l));
+        toOutput = (a) => { if (game && damageOrder) game.orderAnswer = { turn: gv.turn, step: gv.step }; return { type: "selectionDecision", chosenIndices: a.map(Number) }; };
         break;
       }
       const how = input.maxTotal === 1 && input.minTotal === 1 ? "one" : input.minTotal === 0 ? "any you want" : input.minTotal === input.maxTotal ? String(input.maxTotal) : `${input.minTotal} to ${input.maxTotal}`;
@@ -6751,7 +6780,7 @@ function onIntent(m) {
     if (!acts.length && (seat.prompt?.ui?.options || []).some((o) => o.id === `__mana:${m.id}`)) return onAnswer(seat.color, seat.prompt.promptId, [`__mana:${m.id}`]);
     if (!acts.length) return refuse(seat, m.id, whyNot(seat, m.id));
     // (a controlled player's card: what it asks next is that player's, see actingFor)
-    if (p.forP) seat.actingFor = { p: p.forP, card: acts[0].cardId };
+    if (p.forP) seat.actingFor = { p: p.forP, card: acts[0].cardId, turn: seat.board?.state?.gameView?.turn };
     // A card that can be played more than one way (a modal double-faced card: cast the spell or play the land; an
     // adventure; a split card): ask, as Arena does, instead of taking the first. "Back" returns to the open question.
     // (one way per label and mode: Flare of Duplication's "sacrifice a nontoken red creature" cast has the same label as its
@@ -7822,7 +7851,7 @@ function checkRestored(seat) {
     // (and what the players' answers said for the log: a source chosen, a "Pay {1}?", a target pick, a pain land's
     // tap, the blocks, all from the turns undone; a shield chosen before the rewind named a replayed turn's damage
     // "prevented", review 2026-11-09. A player the rewind brought back is in the game again: how they went out is undone.)
-    game.picked?.clear(); game.answers?.clear(); game.sourceShields = []; game.painTaps = []; game.declaredBlocks = null; game.owedCombat = null; game.lifePays = []; game.chosenSources = [];
+    game.picked?.clear(); game.answers?.clear(); game.sourceShields = []; game.painTaps = []; game.declaredBlocks = null; game.owedCombat = null; game.lifePays = []; game.chosenSources = []; game.orderAnswer = null;
     for (const p of gv.players || []) if (!p.status || p.status === "playing") { delete game.outOrder?.[p.id]; delete game.outWhere?.[p.id]; }
     // (the turn as the log's headers count it, each player's own: "White's turn 4", suite review 2026-10-27)
     // (whose turn and which step: Forge's turn number counts every player's turns, unlike the log's headers, and the

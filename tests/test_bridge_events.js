@@ -2826,6 +2826,27 @@ const id = (n) => `engine-card-${n}`;
         return h.B._getGame().owners?.get(id(305)) ?? null;
       }),
       "player-1");
+    // (verify 2026-11-09: the owner from a stack item and from Forge's event, over a battlefield seen first)
+    same("verify: a stolen card's ability on the stack names its owner",
+      fresh((h) => {
+        h.B.logSnapshot(board((b) => { put(b, "battlefield", { ...card(306, "Prodigal Pyromancer", ["Creature"]), ownerId: "player-0" });
+          b.stack.push({ controllerId: "player-0", id: "engine-stack-97", identity: { name: "Prodigal Pyromancer" }, ownerId: "player-1", sourceId: id(306), sourceAbilityText: "{T}: Prodigal Pyromancer deals 1 damage to any target.", targets: [], text: "Prodigal Pyromancer (306) - deals 1 damage" }); }));
+        return h.B._getGame().owners?.get(id(306)) ?? null;
+      }),
+      "player-1");
+    same("verify: and Forge's event names it",
+      fresh((h) => {
+        h.B.logSnapshot(Object.assign(board((b) => put(b, "battlefield", { ...card(307, "Hill Giant", ["Creature"]), ownerId: "player-0" })),
+          { events: [ev(11, "Graveyard", "Battlefield", id(307), null, "player-1")] }));
+        return h.B._getGame().owners?.get(id(307)) ?? null;
+      }),
+      "player-1");
+    same("verify: a stolen card says whose it is (Owned by)",
+      fresh((h) => {
+        h.B._getGame().owners = new Map([[id(308), "player-1"]]);
+        return (h.B.tableCard({ ...card(308, "Serra Angel", ["Creature"]), ownerId: "player-0" }, { zone: "battlefield" }).kw || []).filter((k) => /^Owned by/.test(k));
+      }),
+      ["Owned by AI 1"]);
     // #6 again: Reflect Damage, Deflecting Palm and a Circle on one combat's damage, the "which applies first?" question in
     // the middle of it: the first board of the damage step shows no loss yet, the next the whole of it (bridge log 15:00 run)
     {
@@ -2837,22 +2858,145 @@ const id = (n) => `engine-card-${n}`;
         SOURCE_PICK(seat, 62, [260, "Deflecting Palm"], PALM, [opp(BEAR())], id(1));
         SOURCE_PICK(seat, 63, [237, "Circle of Protection: Red"], COP, [opp(card(311, "Gray Ogre", ["Creature"]))], id(311));
       };
+      // (Forge's "Choose" over the shields' sentences, answered on the damage board: the question that splits the damage)
+      const ORDER = (h, seat, gv) => {
+        seat.board = { state: { gameView: gv } };
+        h.B.onPrompt(seat, { promptId: 990, decidingPlayerId: "player-0", input: { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, options: [
+          { label: "The next time a source of your choice would deal damage this turn, that damage is dealt to that source's controller instead." },
+          { label: "The next time the chosen source deals damage to you, prevent that damage." }] } });
+        h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 990, choice: ["0"] }) });
+      };
+      // (the two boards of the damage step with the question answered between them; c: the second board)
+      const split = (h, seat, c, first = combat("combatDamage", 38, 378)) => {
+        const a = combat("combatDeclareBlockers", 38, 378);
+        const l1 = logOf(h, a, first);
+        ORDER(h, seat, first);
+        return [...l1, ...logOf(h, first, c)];
+      };
       same("re-test #6: a redirect and Palm's damage back said on the board that shows them, after a question in the damage",
-        fresh((h, seat) => {
-          shields(seat);
-          const a = combat("combatDeclareBlockers", 38, 378), b = combat("combatDamage", 38, 378), c = combat("combatDamage", 38, 373);
-          return [...logOf(h, a, b), ...logOf(h, b, c)];
-        }),
+        fresh((h, seat) => { shields(seat); return split(h, seat, combat("combatDamage", 38, 373)); }),
         ["Grizzly Bears' combat damage to Blue is prevented (Deflecting Palm)", "Gray Ogre's combat damage to Blue is prevented (Circle of Protection: Red)",
           "Hill Giant's combat damage is dealt to AI 1 instead (Reflect Damage)", "Deflecting Palm deals 2 damage to AI 1",
           "AI 1: 378 -> 373 life (-5, damage from Hill Giant, redirected by Reflect Damage; damage from Deflecting Palm)"]);
+      same("re-test #6: the question was answered (precondition of the cases below)",
+        fresh((h, seat) => { shields(seat); split(h, seat, combat("combatDamage", 38, 378)); return h.B._getGame().orderAnswer; }),
+        { turn: 3, step: "combatDamage" });
       same("re-test #6: a later loss that isn't all of it stays bare",
+        fresh((h, seat) => { shields(seat); return split(h, seat, combat("combatDamage", 38, 374)).filter((l) => /AI 1/.test(l)); }),
+        ["AI 1: 378 -> 374 life (-4)"]);
+      same("verify: nor one of more than all of it",
+        fresh((h, seat) => { shields(seat); return split(h, seat, combat("combatDamage", 38, 372)).filter((l) => /AI 1/.test(l)); }),
+        ["AI 1: 378 -> 372 life (-6)"]);
+      same("verify: nor with no order question answered between the boards",
         fresh((h, seat) => {
           shields(seat);
-          const a = combat("combatDeclareBlockers", 38, 378), b = combat("combatDamage", 38, 378), c = combat("combatDamage", 38, 374);
+          const a = combat("combatDeclareBlockers", 38, 378), b = combat("combatDamage", 38, 378), c = combat("combatDamage", 38, 373);
           return [...logOf(h, a, b), ...logOf(h, b, c)].filter((l) => /AI 1/.test(l));
         }),
-        ["AI 1: 378 -> 374 life (-4)"]);
+        ["AI 1: 378 -> 373 life (-5)"]);
+      same("verify: nor on the next board in main 2 (owed-next-turn-step)",
+        fresh((h, seat) => { shields(seat); return split(h, seat, combat("main2", 38, 373)).filter((l) => /AI 1/.test(l)); }),
+        ["AI 1: 378 -> 373 life (-5)"]);
+      same("verify: nor on a board of the step logged after a later one (another seat's, a redraw)",
+        fresh((h, seat) => {
+          shields(seat);
+          split(h, seat, combat("combatDamage", 38, 378));
+          return logOf(h, combat("combatEnd", 38, 378), combat("combatDamage", 38, 373)).filter((l) => /AI 1/.test(l));
+        }),
+        ["AI 1: 378 -> 373 life (-5)"]);
+      // (the verifier's stale Reflect Damage: no loss on the damage board, then Blue's Lightning Bolt at AI 1 for exactly
+      // the 3 owed, in the same step: the Bolt's)
+      const BOLT_AT = { controllerId: "player-0", id: "engine-stack-96", identity: { name: "Lightning Bolt" }, isPermanentSpell: false, ownerId: "player-0", sourceId: id(333),
+        sourceAbilityText: "Lightning Bolt deals 3 damage to any target.", text: "Lightning Bolt (333) - Lightning Bolt deals 3 damage to any target.", targets: [{ kind: "player", id: "player-1" }] };
+      const giantOnly = (step, a, c, fill = () => {}) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", ATK(229, "Hill Giant", 3), "player-1"); fill(b); }), a, c);
+      same("verify: an amount owed is not said for a loss another part explains (owed-stale-bolt)",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+          const b = giantOnly("combatDamage", 38, 40), bs = giantOnly("combatDamage", 38, 40, (x) => x.stack.push(BOLT_AT));
+          const l1 = logOf(h, giantOnly("combatDeclareBlockers", 38, 40), b);
+          ORDER(h, seat, b);
+          return [...l1, ...logOf(h, b, bs), ...logOf(h, bs, giantOnly("combatDamage", 38, 37, (x) => put(x, "graveyard", card(333, "Lightning Bolt", ["Instant"]))), [ev(13, "Stack", "Graveyard", id(333))])];
+        }),
+        ["Blue casts Lightning Bolt targeting AI 1", "AI 1: 40 -> 37 life (-3, damage from Lightning Bolt)"]);
+      same("verify: nor beside a pain land's damage of that player's",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+          const land = (t) => opp({ ...card(334, "Adarkar Wastes", ["Land"]), tapped: t });
+          const b = giantOnly("combatDamage", 38, 40, (x) => put(x, "battlefield", land(false), "player-1"));
+          const l1 = logOf(h, giantOnly("combatDeclareBlockers", 38, 40, (x) => put(x, "battlefield", land(false), "player-1")), b);
+          ORDER(h, seat, b);
+          h.B._getGame().painTaps = [{ slot: "player-1", id: id(334), name: "Adarkar Wastes", n: 1, at: Date.now() }];
+          return [...l1, ...logOf(h, b, giantOnly("combatDamage", 38, 37, (x) => put(x, "battlefield", land(true), "player-1")))].filter((l) => /AI 1/.test(l));
+        }),
+        ["AI 1: 40 -> 37 life (-3)"]);
+      // (a loss on the damage board itself of less than all of it: nothing said, and nothing kept for the next board)
+      same("verify: a redirect's part lost on the damage board is neither said nor kept",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+          const b = giantOnly("combatDamage", 38, 38);
+          const l1 = logOf(h, giantOnly("combatDeclareBlockers", 38, 40), b);
+          ORDER(h, seat, b);
+          return [...l1, ...logOf(h, b, giantOnly("combatDamage", 38, 35))].filter((l) => /AI 1/.test(l));
+        }),
+        ["AI 1: 40 -> 38 life (-2)", "AI 1: 38 -> 35 life (-3)"]);
+      // (a Reflect Damage that never applied, nothing lost through its step, another shield first: kept for the next
+      // time, a second combat of the turn; one whose loss can't be told is used up)
+      const again = (h, ai) => logOf(h, giantOnly("combatDeclareBlockers", 38, 40), giantOnly("combatDamage", 38, ai)).filter((l) => /AI 1/.test(l));
+      same("verify: a redirect's shield that never applied redirects the next time",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+          const b = giantOnly("combatDamage", 38, 40);
+          logOf(h, giantOnly("combatDeclareBlockers", 38, 40), b);
+          logOf(h, b, giantOnly("combatEnd", 38, 40));
+          return again(h, 37);
+        }),
+        ["Hill Giant's combat damage is dealt to AI 1 instead (Reflect Damage)", "AI 1: 40 -> 37 life (-3, damage from Hill Giant, redirected by Reflect Damage)"]);
+      same("verify: one whose player lost life it can't be told from is used up",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+          const b = giantOnly("combatDamage", 38, 40);
+          logOf(h, giantOnly("combatDeclareBlockers", 38, 40), b);
+          logOf(h, b, giantOnly("combatDamage", 38, 37));
+          return again(h, 37);
+        }),
+        ["AI 1: 40 -> 37 life (-3)"]);
+      same("verify: and so is one partly lost on the damage board itself",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+          logOf(h, giantOnly("combatDeclareBlockers", 38, 40), giantOnly("combatDamage", 38, 38));
+          return again(h, 37);
+        }),
+        ["AI 1: 40 -> 37 life (-3)"]);
+      same("verify: an order answer of another step (main 1) is not the damage's",
+        fresh((h, seat) => {
+          shields(seat);
+          ORDER(h, seat, combat("main1", 38, 378));
+          const a = combat("combatDeclareBlockers", 38, 378), b = combat("combatDamage", 38, 378), c = combat("combatDamage", 38, 373);
+          return [...logOf(h, a, b), ...logOf(h, b, c)].filter((l) => /AI 1/.test(l));
+        }),
+        ["AI 1: 378 -> 373 life (-5)"]);
+      same("verify: nor one of an order question about something else (tokens doubled)",
+        fresh((h, seat) => {
+          shields(seat);
+          const a = combat("combatDeclareBlockers", 38, 378), b = combat("combatDamage", 38, 378), c = combat("combatDamage", 38, 373);
+          const l1 = logOf(h, a, b);
+          seat.board = { state: { gameView: b } };
+          const TWICE = "If an effect would create one or more tokens under your control, it creates twice that many of those tokens instead.";
+          h.B.onPrompt(seat, { promptId: 991, decidingPlayerId: "player-0", input: { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, options: [{ label: TWICE }, { label: TWICE }] } });
+          h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 991, choice: ["0"] }) });
+          return [...l1, ...logOf(h, b, c)].filter((l) => /AI 1/.test(l));
+        }),
+        ["AI 1: 378 -> 373 life (-5)"]);
+      same("verify: a first strike's split, the next board the regular damage, stays bare",
+        fresh((h, seat) => {
+          SOURCE_PICK(seat, 61, [231, "Reflect Damage"], REFLECT, [GIANT()], id(229));
+          const fs = (step, c) => life(board((b) => { b.step = step; b.activePlayerId = "player-1"; put(b, "battlefield", { ...ATK(229, "Hill Giant", 3), keywords: ["First Strike"] }, "player-1"); }), 38, c);
+          const b = fs("combatFirstStrikeDamage", 40);
+          const l1 = logOf(h, fs("combatDeclareBlockers", 40), b);
+          ORDER(h, seat, b);
+          return [...l1, ...logOf(h, b, fs("combatDamage", 37))].filter((l) => /AI 1/.test(l));
+        }),
+        ["AI 1: 40 -> 37 life (-3)"]);
       same("re-test #6: nor is it kept past the step",
         fresh((h, seat) => {
           shields(seat);
@@ -2914,6 +3058,15 @@ const id = (n) => `engine-card-${n}`;
         between(mis(false), mis(true), [ev(11, "Library", "Hand", null, "draw", "player-1", { cause: "Draw", causeCardId: id(332), causeName: "Make It So" }),
           ev(12, "Library", "Hand", null, "draw", "player-1", { cause: "Draw", causeCardId: id(332), causeName: "Make It So" }), ev(13, "Stack", "Graveyard", id(332))]),
         ["Make It So untaps Karn's Bastion", "AI 1 draws 2 cards"]);
+      // (verify 2026-11-09: only a draw that is the spell's by Forge, and the board's only player to draw)
+      const drawBy = (seq, p, cardN, name) => ev(seq, "Library", "Hand", null, "draw", p, { cause: "Draw", causeCardId: id(cardN), causeName: name });
+      same("verify: a draw of another card's is not moved after the untap",
+        between(mis(false), mis(true), [drawBy(11, "player-1", 336, "Howling Mine"), drawBy(12, "player-1", 336, "Howling Mine"), ev(13, "Stack", "Graveyard", id(332))]),
+        ["AI 1 draws 2 cards", "Make It So untaps Karn's Bastion"]);
+      const both = (done) => { const b = mis(done); count(b, "library", done ? 39 : 40); count(b, "hand", done ? 1 : 0); return b; };
+      same("verify: nor with two players drawing on that board",
+        between(both(false), both(true), [drawBy(11, "player-0", 336, "Howling Mine"), drawBy(12, "player-1", 332, "Make It So"), drawBy(13, "player-1", 332, "Make It So"), ev(14, "Stack", "Graveyard", id(332))]),
+        ["Blue draws a card", "AI 1 draws 2 cards", "Make It So untaps Karn's Bastion"]);
     }
   }
 

@@ -363,3 +363,10 @@ Scenarios: `scenarios/kykar-r1.json` (game start), `kykar-r2.json` and `kykar-r3
    gone after its host (Forge's order) and an untap before a draw (the spell's own order) are said in that order. New
    bug 8: a game over closes every open question (bridge) and the table drops its buttons (renderer). New bug 10:
    `(-2, paid for Mondrak, Glory Dominus)`.
+5. Verifier's findings on this branch (source and tests only): the amount kept for #6 is said only on a board of the
+   same step, after a "which applies first?" answer in that step, when nothing else known (a damage spell, a pain land,
+   life paid) is part of that player's loss; a Reflect Damage that never applied stays chosen until it does. A first
+   strike's split (the next board already the regular damage) stays bare. The Phyrexian label goes only on a board
+   where that card is on the stack or just left it. A shield's source is named only for the seat that chose it. What a
+   seat played for a controlled player lasts that turn and that control, and a choice among the seat's own hand cards
+   is its own.
