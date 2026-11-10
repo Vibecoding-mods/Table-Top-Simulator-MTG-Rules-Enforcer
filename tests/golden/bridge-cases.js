@@ -1756,13 +1756,10 @@ add({ name: "table: a copy of a card is marked cp", run: async (h) => {
   const of = (id) => (sent.match(new RegExp('"id":"' + id + '"[^}]*}')) || ["not sent"])[0];
   return { copy: of("engine-card-22"), other: of("engine-card-64") };
 } });
-// ── Friendly mulligans (SPEC "Friendly mulligans by vote") ──
-add({ name: "friendly: the vote's result", run: async (h) => {
-  const n = (v, who = ["White", "Blue"]) => h.B._friendlyCount(v, who);
-  const four = ["White", "Red", "Yellow", "Blue"];
-  return { noVotes: n(null), empty: n({}), emptyList: n([]), both1: n({ White: 1, Blue: 1 }), both2: n({ White: 2, Blue: 2 }), tieGoesLower: n({ White: 1, Blue: 2 }),
-    oneMissing: n({ White: 2 }), outOfRange: n({ White: 3, Blue: 3 }), text: n({ White: "1", Blue: "1" }), yes: n({ White: true, Blue: true }), stranger: n({ Red: 2 }),
-    mostWins: n({ White: 1, Red: 2, Yellow: 2, Blue: 0 }, four), fourTie: n({ White: 1, Red: 1, Yellow: 2, Blue: 2 }, four), noneBeats: n({ White: 0, Red: 0, Yellow: 2, Blue: 1 }, four) };
+// ── Friendly mulligans (SPEC "Friendly mulligans") ──
+add({ name: "friendly: the table's count", run: async (h) => {
+  const n = h.B._friendlyCount;
+  return { none: n(undefined), nul: n(null), zero: n(0), one: n(1), two: n(2), three: n(3), minus: n(-1), half: n(1.5), text: n("1"), yes: n(true), table: n({ White: 2 }) };
 } });
 {
   // every mulligan question in turn: what the player saw, what went to the engine, what the table was told
@@ -1790,8 +1787,12 @@ add({ name: "friendly: the vote's result", run: async (h) => {
     const seat = game(h, D2.board, { game: { friendly: 2 } });
     return askAll(h, seat, [[0, "mull"], [1, "mull"], [2, "keep"]]);
   } });
-  add({ name: "friendly: 4 players, 1 free comes after the rules' free one", run: async (h) => {
+  add({ name: "friendly: 4 players set to 1 is the rules' free one", run: async (h) => {
     const seat = game(h, D2.board, { game: { friendly: 1, total: 4 } });
+    return askAll(h, seat, [[0, "mull"], [0, "mull"], [1, "keep"]]);
+  } });
+  add({ name: "friendly: 4 players set to 2 is 2 in all, the rules' one included", run: async (h) => {
+    const seat = game(h, D2.board, { game: { friendly: 2, total: 4 } });
     return askAll(h, seat, [[0, "mull"], [0, "mull"], [1, "mull"], [2, "keep"]]);
   } });
   add({ name: "friendly: 3 players have the rules' free one too", run: async (h) => {
@@ -1843,29 +1844,29 @@ add({ name: "friendly: the vote's result", run: async (h) => {
       return { ok, friendly: g.friendly, over: g.friendlyOver, taken: st.mullsTaken, again };
     })() };
   } });
-  add({ name: "friendly: Start reads the votes and the game says so", run: async (h) => {
+  add({ name: "friendly: Start reads the count and the game says so", run: async (h) => {
     const start = (m) => h.B.onTTS({ t: "start", seats: ["White", "Blue"], bots: 0, ...m });
-    start({ friendlyVotes: { White: 2, Blue: 2, Red: 1 } }); await h.flush();
+    start({ friendly: 2 }); await h.flush();
     const g = h.B._getGame();
     const seat = g.seats.get("Blue"), other = g.seats.get("White");
     const mark = h.effects.length;
     seat.onRelay({ type: "GameStarted", player_order: [other.username, seat.username], game_id: "g1", starting_life: 40 });
     await h.flush();
-    return { friendly: g.friendly, said: h.effects.slice(mark).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text || e.tts.msg).filter((t) => /friendly/i.test(t)),
+    return { friendly: g.friendly, said: h.effects.slice(mark).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text || e.tts.msg).filter((t) => /friendly|mulligan/i.test(t)),
       log: h.effects.slice(mark).filter((e) => e.tts?.t === "gamelog").flatMap((e) => e.tts.lines) };
   } });
-  add({ name: "friendly: a vote for none says nothing at the start", run: async (h) => {
-    h.B.onTTS({ t: "start", seats: ["White", "Blue"], bots: 0, friendlyVotes: { White: 2 } }); await h.flush();
+  add({ name: "friendly: a count of none says nothing at the start", run: async (h) => {
+    h.B.onTTS({ t: "start", seats: ["White", "Blue"], bots: 0, friendly: 5 }); await h.flush();
     const g = h.B._getGame();
     const seat = g.seats.get("Blue"), other = g.seats.get("White");
     const mark = h.effects.length;
     seat.onRelay({ type: "GameStarted", player_order: [other.username, seat.username], game_id: "g1", starting_life: 40 });
     await h.flush();
-    return { friendly: g.friendly, said: h.effects.slice(mark).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text || e.tts.msg).filter((t) => /friendly/i.test(t)) };
+    return { friendly: g.friendly, said: h.effects.slice(mark).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text || e.tts.msg).filter((t) => /friendly|mulligan/i.test(t)) };
   } });
-  add({ name: "friendly: Start with a game running changes no vote", run: async (h) => {
+  add({ name: "friendly: Start with a game running changes no count", run: async (h) => {
     const seat = game(h, D2.board, { game: { friendly: 1 }, seat: { roomId: "r1" } });
-    h.B.onTTS({ t: "start", seats: ["Blue"], bots: 1, autoReset: true, friendlyVotes: { Blue: 2 } }); await h.flush();
+    h.B.onTTS({ t: "start", seats: ["Blue"], bots: 1, autoReset: true, friendly: 2 }); await h.flush();
     return { friendly: h.B._getGame().friendly, same: h.B._getGame().seats.get("Blue") === seat };
   } });
   add({ name: "friendly: the first turn ends them, said once", run: async (h) => {

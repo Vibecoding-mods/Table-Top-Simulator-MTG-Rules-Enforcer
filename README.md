@@ -125,10 +125,10 @@ node bridge/bridge.js
 
 | Command | What it does |
 |---|---|
-| `mtg engine on` | rules engine on (host) |
+| `mtg engine on` | rules engine on (anyone; also the button in the middle of the table) |
 | `mtg ready` / `mtg ready all` | check your deck (or everyone's) against the engine's card list |
-| `mtg friendly 0\|1\|2` | vote for free mulligans (also the Friendly button under READY) |
-| `mtg start` / `mtg start ai 2` | start the game, optionally with Forge AI players (host) |
+| `mtg friendly 0\|1\|2` | free mulligans each, for everyone (also the **Free mulligans** button in the middle of each side of the table) |
+| `mtg start` / `mtg start ai 2` | start the game, optionally with Forge AI players (anyone) |
 | `mtg undo` / `mtg undo N` | rewind to an earlier point; the other players vote |
 | `mtg vote yes` / `mtg vote no` | answer a rewind vote |
 | `mtg skip <phase>` / `mtg skip off` | pass priority until that phase: upkeep, draw, main, combat, blockers, damage, main2, end, mine (also the **Auto-resolve** list) |
@@ -137,7 +137,7 @@ node bridge/bridge.js
 | `mtg concede` | leave the game (asks once more) |
 | `mtg winner <colour>` | declare the winner, e.g. for Treachery (host) |
 | `mtg glow` | playable-card glow on/off |
-| `mtg reset` | end the game and put the imported decks back (host) |
+| `mtg reset` | end the game and put the imported decks back (anyone once it's over; host mid-game) |
 
 Playing online: the host's upload carries every player, so host from a wired connection with good upload.
 

@@ -439,22 +439,22 @@ below are not built.
 - **AFK vote:** any player can start a vote to mark someone away. With a majority, that player's turns pass automatically (or a Forge AI covers the seat, chosen by the vote) until they press "I'm back" in their panel.
 - Both would use the same vote panel as the rewind and manual-fix votes (§10c).
 
-## Friendly mulligans by vote (built 2026-10-31, restored 2026-11-05)
+## Friendly mulligans (built 2026-10-31, restored 2026-11-05, one shared count 2026-11-10)
 
 Built on 2026-10-31, taken out on 2026-11-01 while the user chased a choppy PC, and put back on 2026-11-05 at the user's request ("the way it was before"). If the stutter comes back with it, that is looked at then.
 
-The table votes on how many free mulligans each player gets: none, 1 or 2. A free mulligan is a new 7 with nothing put on the bottom. When a player has used theirs, the game says so and that player's mulligans cost a card again.
+The table sets how many free mulligans each player gets: normal rules, 1 or 2. A free mulligan is a new 7 with nothing put on the bottom. When a player has used theirs, the game says so and that player's mulligans cost a card again.
 
 ### How it plays
 
-- **Vote:** a small button under each player's READY, on their own mat: **Friendly: none**, click for **1**, click for **2**, click for none. `mtg friendly 0|1|2` does the same. The vote can change until Start. AI seats don't vote.
-- **Result:** at Start, the count with the most votes wins, and a tie goes to the lower count. No vote counts as none, so with two players the lower of the two votes wins.
-- **Announced at the start:** `[MTG] Friendly mulligans this game: 1 each (White voted 1, Blue voted 2).` Nothing is said when the result is none.
-- **Each free mulligan:** `[MTG] White took a friendly mulligan (1 of 2).`
-- **Going back to normal:** `[MTG] That was White's last friendly mulligan: their next one costs a card.` When the first turn starts, after a game with friendly mulligans: `[MTG] Friendly mulligans are over: normal rules from here.`
+- **One count for everyone** (2026-11-10, the user: "one button be the answer for everyone and anyone can click it"): a button **Free mulligans: normal** where the two "Screen bar keys" boxes (Ctrl + F1..F3) lie when engine mode is off (they are hidden in engine mode), one at each spot, both showing the same count. Anyone, seated or not, clicks it for **1**, **2**, back to **normal**. `mtg friendly 0|1|2` does the same. Each change is told to everyone: `[MTG] <name> set free mulligans for everyone: 2 each (the rules' free one in a 3+ player game included).` It can change until Start. (Before 2026-11-10 each player voted on their own mat and the most votes won.)
+- **The count is the free mulligans in all** (the user's option (a), 2026-11-10): with 3 or more players the rules' free one is one of them, so "1" is the normal rules there and "2" is two free, not three.
+- **Announced at the start:** `[MTG] Free mulligans this game: 2 each (the rules' free one included).` (the bracket only with 3 or more players). Nothing is said when the count is normal.
+- **Each free mulligan:** `[MTG] White took a free mulligan (1 of 2).`
+- **Going back to normal:** `[MTG] That was White's last free mulligan: their next one costs a card.` When the first turn starts, after a game with friendly mulligans: `[MTG] Friendly mulligans are over: normal rules from here.`
 - **On the question:** the button reads **Mulligan (free)** while the next one is free, and the panel says how many are left. When keeping costs cards it says how many go on the bottom. With no friendly mulligans voted the question reads as it always did.
 - **Counted per player**, not per table: White taking two doesn't use up Blue's.
-- **With 3 or more players**, the rules already make the first mulligan free, and Forge does this by itself. The vote adds to it: "none" is the normal rules, "1" means two free in a 4-player game. Friendly mulligans are spent after the rules' free one.
+- **With 3 or more players**, the rules already make the first mulligan free, and Forge does this by itself. The count includes it: the engine is asked only for the rest (`freeCards` = count − 1).
 - **AI players** take normal mulligans. Forge's AI doesn't go through our controller.
 
 ### How the engine stays involved
@@ -486,21 +486,21 @@ Only the node image needs the rebuild. The relay checks an answer by reading it 
 
 ### Bridge changes (`bridge/bridge.js`)
 
-- `case "start"`: passes `m.friendlyVotes` to `startGame` inside the `go` closure, so a Start that only resumes a running game changes nothing.
-- `startGame`: `game.friendly = friendlyCount(votes, humans)` (most votes, tie goes lower, a missing vote is 0, anything but 1 or 2 is 0). The crash-recovery snapshot lists its fields by hand, so `friendly` and `friendlyOver` are in its `game` part.
+- `case "start"`: passes `m.friendly` to `startGame` inside the `go` closure, so a Start that only resumes a running game changes nothing.
+- `startGame`: `game.friendly = friendlyCount(n)` (1 or 2, anything else is 0). The crash-recovery snapshot lists its fields by hand, so `friendly` and `friendlyOver` are in its `game` part.
 - `Seat`: new `mullsTaken`, counted in `Seat.respond` (every answer goes through it, the timer's too), and added to the snapshot's seat list the same way. `input.mulliganCount` can't be used for this: it's the cards owed, so it stays 0 after the free one in a 4-player game.
-- `rulesFreeMulligans()`: `game.total > 2 ? 1 : 0`. `friendlyFreeLeft(seat)`: `max(0, rulesFree + game.friendly - taken)`. `friendlyText(seat)`: the free ones left, or owed = `max(0, taken - rulesFree - game.friendly)`.
+- `rulesFreeMulligans()`: `game.total > 2 ? 1 : 0`. All free = `max(game.friendly, rulesFree)`. `friendlyFreeLeft(seat)`: `max(0, all - taken)`. `friendlyText(seat)`: the free ones left, or owed = `max(0, taken - all)`. `friendlyExtra()`: `max(0, game.friendly - rulesFree)`, what the engine adds.
 - `case "mulligan"` in `onPrompt`: the label and text above. Keep the option ids `keep` and `mull`, because the Mulligan tiles look for `mull`.
-- `toOutput`: add `freeCards: game.friendly` when it's above 0. The timer's automatic answer goes through the same `toOutput`, so it's covered.
+- `toOutput`: add `freeCards: friendlyExtra()` when it's above 0. The timer's automatic answer goes through the same `toOutput`, so it's covered.
 - Chat and game-log lines above: the start line in `startGame`'s announcement, the per-mulligan lines where `mullsTaken` goes up, the "over" line on the first turn.
 
 ### Table changes (`tools/engine-renderer.lua`, `tools/make-engine-copy.js`)
 
-- `engineFriendlyVote = {}` (colour -> 0, 1 or 2), a global: the main chunk has no locals to spare.
-- In the setup draw, beside the READY button: `setupButton(mat, "onMtgSetupFriendly", "Friendly: " .. label, SETUP.color.wait, spot, c)`, moved further along the same line from the Draw button. A mat button adds nothing to the 60 KB screen UI.
-- `onMtgSetupFriendly(obj, playerColor)`: finds the mat's colour as `onMtgSetupReady` does, refuses another player's click with the same message, moves to the next count and redraws.
-- `make-engine-copy.js`: `mtg friendly 0|1|2` in the chat commands and `mtg help` (anyone seated); `friendlyVotes = engineFriendlyVote` in the `start` message.
-- The vote carries over to the next game, so a rematch needs no clicks. A table reload clears it.
+- `engineFriendly = 0` (0, 1 or 2) and `FRIENDLY_SPOTS` (x ±17.5, read from White's and Yellow's side), globals: the main chunk has no locals to spare.
+- In the setup draw, after the middle tile's own button: one `setupButton(tile, "onMtgSetupFriendly", engineFriendlyLabel(), ...)` per spot. `engineSetupIntact` redraws when they're missing. A tile button adds nothing to the 60 KB screen UI.
+- `onMtgSetupFriendly(obj, playerColor)`: anyone; the next count, told to everyone (`engineSetFriendly(n, pl)`), and a redraw.
+- `make-engine-copy.js`: `mtg friendly 0|1|2` in the chat commands and `mtg help` (anyone); `friendly = engineFriendly` in the `start` message.
+- The count carries over to the next game, so a rematch needs no clicks. A table reload clears it.
 
 ### Tests and rollout
 

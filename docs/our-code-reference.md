@@ -363,7 +363,7 @@ Seat fields: `color, deckId, username, slot, board{state,fingerprint}, prompt{pr
 - Writes `seat.lastRawPrompt`. A priority-kind prompt → respond `chooseAction pass` with promptId 0, return.
 - Locals: `input`, `type`, `gv`, `byId`, `cname(id)` (card name, or player name for `player-*`, or the id), `baseText` (source card + ability text), `title` (`presentation.title` or the type). Any type other than `payManaCost` clears `autoPayFailedFor`. `opts` turns options into `{id, label}` with index ids.
 - Per type:
-  - `mulligan`: single Keep/Mulligan → `mulliganDecision {keep}`. With `game.friendly` above 0 the answer also carries `freeCards`, the Mulligan button reads "Mulligan (free)" while `friendlyFreeLeft(seat)` is above 0, and the text comes from `friendlyText(seat)`.
+  - `mulligan`: single Keep/Mulligan → `mulliganDecision {keep}`. With `friendlyExtra()` above 0 (the shared count minus the rules' multiplayer free one) the answer also carries `freeCards`, the Mulligan button reads "Mulligan (free)" while `friendlyFreeLeft(seat)` is above 0, and the text comes from `friendlyText(seat)`.
   - `mulliganPutBack`: multi with min = max = `count` → `mulliganPutBackDecision {cardIds}`.
   - `chooseAction`: actions = not `undoMana` and not mana abilities. If `endTurnAt === gv.turn`: pass and return. Otherwise `endTurnAt = null`. No actions and not your own main phase: pass, close any open panel, return. Otherwise a single prompt "Your priority" with `__pass`, `__endturn`, then each action `{id, cardId, label}`. `toOutput`: pass / set `endTurnAt` and pass / `act {actionId}`.
   - `payManaCost`: four seat fields, kept apart on purpose: `autoPayCard` (Forge's auto-pay asked for this card), `tappedFor` (a source tapped by hand for it), `autoPayFailedFor` (auto-pay already failed for it), `smartPay` (our own auto-pay under way: `{ card, sent }`, the card and the taps already sent).
@@ -524,14 +524,14 @@ Table globals used: `data[color]` (`playmat`, `libraryZone`, `graveyard`), `getD
 
 | Command | Who | Action |
 |---|---|---|
-| `mtg engine on`/`off` | host, admin or promoted | `setEngineMode(true/false)` |
+| `mtg engine on`/`off` | anyone, seated or not (off is refused while a game runs) | `setEngineMode(true/false)` |
 | `mtg engine` (anything else) | same | shows the current mode |
 | `mtg ready` | anyone | `engineSendDecks({own colour}, own colour)` |
-| `mtg friendly 0\|1\|2` | anyone seated | `engineSetFriendly(colour, n)`: their vote in `engineFriendlyVote`, the `start` message's `friendlyVotes` |
+| `mtg friendly 0\|1\|2` | anyone | `engineSetFriendly(n, pl)`: the one shared count in `engineFriendly`, told to everyone; the `start` message's `friendly` |
 | `mtg ready all` | host | all seated colours that have `data[c]` |
 | `mtg commander` | anyone | `engineMarkCommander(pl)` |
-| `mtg start [ai N]` / `mtg start N` | host | `engineSend("start", {seats, bots: first number in the rest, requireReady: true})` |
-| `mtg reset` | host | `engineSend("reset", {})` |
+| `mtg start [ai N]` / `mtg start N` | anyone, seated or not | `engineSend("start", {seats, bots: first number in the rest, requireReady: true})` |
+| `mtg reset` | anyone once the game is over; host mid-game | `engineSend("reset", {})` |
 | `mtg undo` / `mtg undo N` | anyone | lists `engineRewind.points` / `engineAskRewind(colour, N)` (M4.5) |
 | `mtg vote yes` / `mtg vote no` | anyone (the bridge checks the vote awaits them) | `engineSend("rewindVote", {color, accept})` |
 | `mtg concede` | anyone | first time: asks to confirm; again within 15 s (`engineConcedeAsk`, `os.clock`): `engineSend("concede", {color})` (M4.6) |
@@ -986,7 +986,7 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 | `enginePopupsClose(m)` | hides the stack pop-up once its item has left the stack, at least `POP_MIN` (2.5 s) after it appeared |
 | `engineSetupButtons()` | READY buttons (half size, just below each seated player's Draw button) and the middle "Start" tile (spawned once, GMNotes `mtgsetup`; under the table unless every seated player is ready, after a game for NEW GAME, or with engine mode off); hides a ready player's own table buttons (`engineTableButtons(fn)`, per seat by nearest playmat); redraws only when mode, game state, seats or readiness change |
 | `engineDeckReport(m)` | from the bridge's `deckReport` (`ready`, `checked`): ready → green, checked but not ready → red |
-| `onMtgSetupReady`, `onMtgSetupStart` | Ready: only the seat's own player (= `mtg ready`; pressed when ready: un-ready). Start: when all seated are ready, anyone (`engineStartGame`, "ai 1" when alone); after game over, `mtg reset` (host) |
+| `onMtgSetupReady`, `onMtgSetupStart` | Ready: only the seat's own player (= `mtg ready`; pressed when ready: un-ready). Start: when all seated are ready, anyone (`engineStartGame`, "ai 1" when alone); after game over, `mtg reset` (anyone) |
 | `onPlayerChangeColor` | redraws the setup buttons when someone sits down or leaves |
 | `scoopXml(c)`, `onMtgScoopAsk/Yes/No` | Scoop (2026-10-21): a screen-UI button beside the player's name at the top (`eng_scoop_<colour>`, visible to that player only, only while they are still playing); it opens a large "Concede this game?" box (`eng_scoopask_<colour>`) with Scoop / Keep playing; Scoop sends `concede`. Each handler ignores clicks on another player's ids |
 | `engineHideForEngine(on)` | the Pirate Cannon (540e21) and the first-player die (ee33ec) go under the table (y −30, locked) in engine mode and back when it is off; their position and lock state are kept in the object's `memo` as text (`mtghome x y z locked`), so they return to the same spot after a save and reload |
@@ -1033,7 +1033,7 @@ Hand-play sweep fixes (2026-10-21, `tmp/handplay/report.md`):
 
 Bridge (2026-10-21): turning a card (Q/E) that has no mana ability uses its `{T}` ability (Hermit Druid, fetch lands); several `{T}` abilities ask which; a cast or a land play never counts.
 
-`engineStartGame(pl, rest)` (make-engine-copy.js): the body of `mtg start`, shared by the chat command (host) and the Start button.
+`engineStartGame(pl, rest)` (make-engine-copy.js): the body of `mtg start`, shared by the chat command and the Start button (anyone, seated or not).
 
 ### 4.6 engine-renderer.lua: rewind UI and profiling (added 2026-10-20)
 
@@ -1264,8 +1264,8 @@ Needs our engine build: `stack/compose.yml` runs `mtg-forge-node:exile` and `mtg
 | table | `engineContainTick` (5/s), `engineContainHome(id)` | flick containment: a card you may move (`isFree` or clickable) in the battlefield, command, attached or linked zone, not held, not smooth-moving, not waiting on the engine (`engineHeld`), and 2+ units from where the board put it (`enginePlanned`): your own permanent resting on your own playmat becomes your arrangement (`engineManual`), anything else is stopped and slides back. Off during a manual fix. `engineContain.back` counts the slides; errors are caught per card and printed once |
 | table | `engineTell` | the global alias of the local `tell` for code above it (`onMtgAutoResolve` called the nil local and errored) |
 | table | `engineAutoChoices`, `engineAutoListXml`, `engineAutoListDraw`, `engineOnAutoState`, `onMtgAutoPick` | the Auto-resolve list: one panel `eng_autolist` shared by all seats (`visibility` = who has it open); a pick sends `autoresolve` or `skipto`, the label follows the bridge's `autostate` |
-| table | `engineFriendlyVote`, `engineFriendlyLabel`, `engineSetFriendly`, `onMtgSetupFriendly` | friendly mulligans: the vote button under READY; the vote survives `engineClear`, a table reload clears it |
-| bridge | `friendlyCount`, `friendlyFreeLeft`, `friendlyText`, `mulliganTaken`, `friendlyEnded` | friendly mulligans: `game.friendly` set at Start, `seat.mullsTaken` counted in `respond`, both in the crash-recovery snapshot |
+| table | `engineFriendly`, `FRIENDLY_SPOTS`, `engineFriendlyLabel`, `engineSetFriendly`, `onMtgSetupFriendly` | friendly mulligans: one shared count, a button on the setup tile at each "Screen bar keys" spot (x ±17.5), anyone may click; survives `engineClear`, a table reload clears it |
+| bridge | `friendlyCount`, `friendlyExtra`, `friendlyFreeLeft`, `friendlyText`, `mulliganTaken`, `friendlyEnded` | friendly mulligans: `game.friendly` set at Start, `seat.mullsTaken` counted in `respond`, both in the crash-recovery snapshot |
 | engine | `ManaBrewInteractiveSession.takeMulliganFree`, `ManaBrewInteractiveController.mulliganKeepHand` | friendly mulligans: the Keep answer's `free_cards` is taken off the cards a kept hand owes |
 | bridge | `autoNotice(seat)` | sends `autostate` {color, phase, on} on every change, when a skip ends, and in `resendToTable`; a skip and auto-resolve are never both on |
 | bridge | `chooseCards` | `cancel: input.cancellable`; the answer `__cancel` → `{type: "cancel"}` |

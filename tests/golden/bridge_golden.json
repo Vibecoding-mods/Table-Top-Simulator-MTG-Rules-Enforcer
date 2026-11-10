@@ -163972,23 +163972,20 @@
   }
  },
  {
-  "name": "friendly: the vote's result",
+  "name": "friendly: the table's count",
   "effects": [],
   "result": {
-   "noVotes": 0,
-   "empty": 0,
-   "emptyList": 0,
-   "both1": 1,
-   "both2": 2,
-   "tieGoesLower": 1,
-   "oneMissing": 0,
-   "outOfRange": 0,
+   "none": 0,
+   "nul": 0,
+   "zero": 0,
+   "one": 1,
+   "two": 2,
+   "three": 0,
+   "minus": 0,
+   "half": 0,
    "text": 0,
    "yes": 0,
-   "stranger": 0,
-   "mostWins": 2,
-   "fourTie": 1,
-   "noneBeats": 0
+   "table": 0
   }
  },
  {
@@ -164039,11 +164036,11 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Blue took a friendly mulligan (1 of 1).\n"
+    "text": "[time] all    told: [MTG] Blue took a free mulligan (1 of 1).\n"
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] That was Blue's last friendly mulligan: their next one costs a card.\n"
+    "text": "[time] all    told: [MTG] That was Blue's last free mulligan: their next one costs a card.\n"
    },
    {
     "relay": {
@@ -164066,7 +164063,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Blue took a friendly mulligan (1 of 1).",
+     "text": "[MTG] Blue took a free mulligan (1 of 1).",
      "color": null
     }
    },
@@ -164074,14 +164071,14 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue took a friendly mulligan (1 of 1)."
+      "Blue took a free mulligan (1 of 1)."
      ]
     }
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] That was Blue's last friendly mulligan: their next one costs a card.",
+     "text": "[MTG] That was Blue's last free mulligan: their next one costs a card.",
      "color": null
     }
    },
@@ -164089,7 +164086,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "That was Blue's last friendly mulligan: their next one costs a card."
+      "That was Blue's last free mulligan: their next one costs a card."
      ]
     }
    },
@@ -164229,12 +164226,12 @@
     "text": "Free mulligans left: 1.",
     "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":false,\"freeCards\":1}",
     "said": [
-     "[MTG] Blue took a friendly mulligan (1 of 1).",
-     "[MTG] That was Blue's last friendly mulligan: their next one costs a card."
+     "[MTG] Blue took a free mulligan (1 of 1).",
+     "[MTG] That was Blue's last free mulligan: their next one costs a card."
     ],
     "log": [
-     "Blue took a friendly mulligan (1 of 1).",
-     "That was Blue's last friendly mulligan: their next one costs a card."
+     "Blue took a free mulligan (1 of 1).",
+     "That was Blue's last free mulligan: their next one costs a card."
     ]
    },
    {
@@ -164305,7 +164302,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Blue took a friendly mulligan (1 of 2).\n"
+    "text": "[time] all    told: [MTG] Blue took a free mulligan (1 of 2).\n"
    },
    {
     "relay": {
@@ -164328,7 +164325,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Blue took a friendly mulligan (1 of 2).",
+     "text": "[MTG] Blue took a free mulligan (1 of 2).",
      "color": null
     }
    },
@@ -164336,7 +164333,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue took a friendly mulligan (1 of 2)."
+      "Blue took a free mulligan (1 of 2)."
      ]
     }
    },
@@ -164389,11 +164386,11 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Blue took a friendly mulligan (2 of 2).\n"
+    "text": "[time] all    told: [MTG] Blue took a free mulligan (2 of 2).\n"
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] That was Blue's last friendly mulligan: their next one costs a card.\n"
+    "text": "[time] all    told: [MTG] That was Blue's last free mulligan: their next one costs a card.\n"
    },
    {
     "relay": {
@@ -164416,7 +164413,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Blue took a friendly mulligan (2 of 2).",
+     "text": "[MTG] Blue took a free mulligan (2 of 2).",
      "color": null
     }
    },
@@ -164424,14 +164421,14 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue took a friendly mulligan (2 of 2)."
+      "Blue took a free mulligan (2 of 2)."
      ]
     }
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] That was Blue's last friendly mulligan: their next one costs a card.",
+     "text": "[MTG] That was Blue's last free mulligan: their next one costs a card.",
      "color": null
     }
    },
@@ -164439,7 +164436,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "That was Blue's last friendly mulligan: their next one costs a card."
+      "That was Blue's last free mulligan: their next one costs a card."
      ]
     }
    },
@@ -164514,10 +164511,10 @@
     "text": "Free mulligans left: 2.",
     "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":false,\"freeCards\":2}",
     "said": [
-     "[MTG] Blue took a friendly mulligan (1 of 2)."
+     "[MTG] Blue took a free mulligan (1 of 2)."
     ],
     "log": [
-     "Blue took a friendly mulligan (1 of 2)."
+     "Blue took a free mulligan (1 of 2)."
     ]
    },
    {
@@ -164527,12 +164524,12 @@
     "text": "Free mulligans left: 1.",
     "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":false,\"freeCards\":2}",
     "said": [
-     "[MTG] Blue took a friendly mulligan (2 of 2).",
-     "[MTG] That was Blue's last friendly mulligan: their next one costs a card."
+     "[MTG] Blue took a free mulligan (2 of 2).",
+     "[MTG] That was Blue's last free mulligan: their next one costs a card."
     ],
     "log": [
-     "Blue took a friendly mulligan (2 of 2).",
-     "That was Blue's last friendly mulligan: their next one costs a card."
+     "Blue took a free mulligan (2 of 2).",
+     "That was Blue's last free mulligan: their next one costs a card."
     ]
    },
    {
@@ -164547,7 +164544,270 @@
   ]
  },
  {
-  "name": "friendly: 4 players, 1 free comes after the rules' free one",
+  "name": "friendly: 4 players set to 1 is the rules' free one",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #951: mulligan \"Keep this hand?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #951 \"Keep this hand?\": Keep | Mulligan (free)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 951,
+     "title": "Keep this hand?",
+     "mode": "single",
+     "options": [
+      {
+       "id": "keep",
+       "label": "Keep"
+      },
+      {
+       "id": "mull",
+       "label": "Mulligan (free)"
+      }
+     ],
+     "text": "Free mulligans left: 1.",
+     "kind": "mulligan",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "writeFile": "mtg-bridge-game-test.json.tmp",
+    "bytes": 396
+   },
+   {
+    "rename": [
+     "mtg-bridge-game-test.json.tmp",
+     "mtg-bridge-game-test.json"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Blue took a free mulligan (1 of 1).\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] That was Blue's last free mulligan: their next one costs a card.\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 951,
+      "action": {
+       "type": "mulligan",
+       "output": {
+        "type": "mulliganDecision",
+        "keep": false
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Blue took a free mulligan (1 of 1).",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Blue took a free mulligan (1 of 1)."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] That was Blue's last free mulligan: their next one costs a card.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "That was Blue's last free mulligan: their next one costs a card."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #952: mulligan \"Keep this hand?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #952 \"Keep this hand?\": Keep | Mulligan\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 952,
+     "title": "Keep this hand?",
+     "mode": "single",
+     "options": [
+      {
+       "id": "keep",
+       "label": "Keep"
+      },
+      {
+       "id": "mull",
+       "label": "Mulligan"
+      }
+     ],
+     "text": "No free mulligans left: the next one costs a card.",
+     "kind": "mulligan",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "writeFile": "mtg-bridge-game-test.json.tmp",
+    "bytes": 396
+   },
+   {
+    "rename": [
+     "mtg-bridge-game-test.json.tmp",
+     "mtg-bridge-game-test.json"
+    ]
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 952,
+      "action": {
+       "type": "mulligan",
+       "output": {
+        "type": "mulliganDecision",
+        "keep": false
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #953: mulligan \"Keep this hand?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #953 \"Keep this hand?\": Keep | Mulligan\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 953,
+     "title": "Keep this hand?",
+     "mode": "single",
+     "options": [
+      {
+       "id": "keep",
+       "label": "Keep"
+      },
+      {
+       "id": "mull",
+       "label": "Mulligan"
+      }
+     ],
+     "text": "Keeping puts 1 on the bottom.",
+     "kind": "mulligan",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 953,
+      "action": {
+       "type": "mulligan",
+       "output": {
+        "type": "mulliganDecision",
+        "keep": true
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   }
+  ],
+  "result": [
+   {
+    "count": 0,
+    "answer": "mull",
+    "button": "Mulligan (free)",
+    "text": "Free mulligans left: 1.",
+    "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":false}",
+    "said": [
+     "[MTG] Blue took a free mulligan (1 of 1).",
+     "[MTG] That was Blue's last free mulligan: their next one costs a card."
+    ],
+    "log": [
+     "Blue took a free mulligan (1 of 1).",
+     "That was Blue's last free mulligan: their next one costs a card."
+    ]
+   },
+   {
+    "count": 0,
+    "answer": "mull",
+    "button": "Mulligan",
+    "text": "No free mulligans left: the next one costs a card.",
+    "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":false}",
+    "said": [],
+    "log": []
+   },
+   {
+    "count": 1,
+    "answer": "keep",
+    "button": "Mulligan",
+    "text": "Keeping puts 1 on the bottom.",
+    "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":true}",
+    "said": [],
+    "log": []
+   }
+  ]
+ },
+ {
+  "name": "friendly: 4 players set to 2 is 2 in all, the rules' one included",
   "effects": [
    {
     "wsOpen": "ws://127.0.0.1:9443"
@@ -164593,6 +164853,10 @@
     ]
    },
    {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Blue took a free mulligan (1 of 2).\n"
+   },
+   {
     "relay": {
      "type": "BroadcastState",
      "state": {
@@ -164608,6 +164872,21 @@
        }
       }
      }
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Blue took a free mulligan (1 of 2).",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Blue took a free mulligan (1 of 2)."
+     ]
     }
    },
    {
@@ -164659,11 +164938,11 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Blue took a friendly mulligan (1 of 1).\n"
+    "text": "[time] all    told: [MTG] Blue took a free mulligan (2 of 2).\n"
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] That was Blue's last friendly mulligan: their next one costs a card.\n"
+    "text": "[time] all    told: [MTG] That was Blue's last free mulligan: their next one costs a card.\n"
    },
    {
     "relay": {
@@ -164686,7 +164965,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Blue took a friendly mulligan (1 of 1).",
+     "text": "[MTG] Blue took a free mulligan (2 of 2).",
      "color": null
     }
    },
@@ -164694,14 +164973,14 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue took a friendly mulligan (1 of 1)."
+      "Blue took a free mulligan (2 of 2)."
      ]
     }
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] That was Blue's last friendly mulligan: their next one costs a card.",
+     "text": "[MTG] That was Blue's last free mulligan: their next one costs a card.",
      "color": null
     }
    },
@@ -164709,7 +164988,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "That was Blue's last friendly mulligan: their next one costs a card."
+      "That was Blue's last free mulligan: their next one costs a card."
      ]
     }
    },
@@ -164848,8 +165127,12 @@
     "button": "Mulligan (free)",
     "text": "Free mulligans left: 2.",
     "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":false,\"freeCards\":1}",
-    "said": [],
-    "log": []
+    "said": [
+     "[MTG] Blue took a free mulligan (1 of 2)."
+    ],
+    "log": [
+     "Blue took a free mulligan (1 of 2)."
+    ]
    },
    {
     "count": 0,
@@ -164858,12 +165141,12 @@
     "text": "Free mulligans left: 1.",
     "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":false,\"freeCards\":1}",
     "said": [
-     "[MTG] Blue took a friendly mulligan (1 of 1).",
-     "[MTG] That was Blue's last friendly mulligan: their next one costs a card."
+     "[MTG] Blue took a free mulligan (2 of 2).",
+     "[MTG] That was Blue's last free mulligan: their next one costs a card."
     ],
     "log": [
-     "Blue took a friendly mulligan (1 of 1).",
-     "That was Blue's last friendly mulligan: their next one costs a card."
+     "Blue took a free mulligan (2 of 2).",
+     "That was Blue's last free mulligan: their next one costs a card."
     ]
    },
    {
@@ -164916,71 +165199,6 @@
        "label": "Mulligan (free)"
       }
      ],
-     "text": "Free mulligans left: 2.",
-     "kind": "mulligan",
-     "min": 1,
-     "max": 1
-    }
-   },
-   {
-    "writeFile": "mtg-bridge-game-test.json.tmp",
-    "bytes": 396
-   },
-   {
-    "rename": [
-     "mtg-bridge-game-test.json.tmp",
-     "mtg-bridge-game-test.json"
-    ]
-   },
-   {
-    "relay": {
-     "type": "BroadcastState",
-     "state": {
-      "kind": "response",
-      "fromPlayer": "player-0",
-      "promptId": 951,
-      "action": {
-       "type": "mulligan",
-       "output": {
-        "type": "mulliganDecision",
-        "keep": false,
-        "freeCards": 1
-       }
-      }
-     }
-    }
-   },
-   {
-    "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": null
-    }
-   },
-   {
-    "log": "prompt Blue #952: mulligan \"Keep this hand?\""
-   },
-   {
-    "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #952 \"Keep this hand?\": Keep | Mulligan (free)\n"
-   },
-   {
-    "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": 952,
-     "title": "Keep this hand?",
-     "mode": "single",
-     "options": [
-      {
-       "id": "keep",
-       "label": "Keep"
-      },
-      {
-       "id": "mull",
-       "label": "Mulligan (free)"
-      }
-     ],
      "text": "Free mulligans left: 1.",
      "kind": "mulligan",
      "min": 1,
@@ -164999,11 +165217,105 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Blue took a friendly mulligan (1 of 1).\n"
+    "text": "[time] all    told: [MTG] Blue took a free mulligan (1 of 1).\n"
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] That was Blue's last friendly mulligan: their next one costs a card.\n"
+    "text": "[time] all    told: [MTG] That was Blue's last free mulligan: their next one costs a card.\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 951,
+      "action": {
+       "type": "mulligan",
+       "output": {
+        "type": "mulliganDecision",
+        "keep": false
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Blue took a free mulligan (1 of 1).",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Blue took a free mulligan (1 of 1)."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] That was Blue's last free mulligan: their next one costs a card.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "That was Blue's last free mulligan: their next one costs a card."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #952: mulligan \"Keep this hand?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #952 \"Keep this hand?\": Keep | Mulligan\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 952,
+     "title": "Keep this hand?",
+     "mode": "single",
+     "options": [
+      {
+       "id": "keep",
+       "label": "Keep"
+      },
+      {
+       "id": "mull",
+       "label": "Mulligan"
+      }
+     ],
+     "text": "No free mulligans left: the next one costs a card.",
+     "kind": "mulligan",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "writeFile": "mtg-bridge-game-test.json.tmp",
+    "bytes": 396
+   },
+   {
+    "rename": [
+     "mtg-bridge-game-test.json.tmp",
+     "mtg-bridge-game-test.json"
+    ]
    },
    {
     "relay": {
@@ -165016,41 +165328,10 @@
        "type": "mulligan",
        "output": {
         "type": "mulliganDecision",
-        "keep": false,
-        "freeCards": 1
+        "keep": false
        }
       }
      }
-    }
-   },
-   {
-    "tts": {
-     "t": "chat",
-     "text": "[MTG] Blue took a friendly mulligan (1 of 1).",
-     "color": null
-    }
-   },
-   {
-    "tts": {
-     "t": "gamelog",
-     "lines": [
-      "Blue took a friendly mulligan (1 of 1)."
-     ]
-    }
-   },
-   {
-    "tts": {
-     "t": "chat",
-     "text": "[MTG] That was Blue's last friendly mulligan: their next one costs a card.",
-     "color": null
-    }
-   },
-   {
-    "tts": {
-     "t": "gamelog",
-     "lines": [
-      "That was Blue's last friendly mulligan: their next one costs a card."
-     ]
     }
    },
    {
@@ -165084,7 +165365,7 @@
        "label": "Mulligan"
       }
      ],
-     "text": "No free mulligans left: the next one costs a card.",
+     "text": "Keeping puts 1 on the bottom.",
      "kind": "mulligan",
      "min": 1,
      "max": 1
@@ -165101,8 +165382,7 @@
        "type": "mulligan",
        "output": {
         "type": "mulliganDecision",
-        "keep": true,
-        "freeCards": 1
+        "keep": true
        }
       }
      }
@@ -165121,32 +165401,32 @@
     "count": 0,
     "answer": "mull",
     "button": "Mulligan (free)",
-    "text": "Free mulligans left: 2.",
-    "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":false,\"freeCards\":1}",
-    "said": [],
-    "log": []
+    "text": "Free mulligans left: 1.",
+    "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":false}",
+    "said": [
+     "[MTG] Blue took a free mulligan (1 of 1).",
+     "[MTG] That was Blue's last free mulligan: their next one costs a card."
+    ],
+    "log": [
+     "Blue took a free mulligan (1 of 1).",
+     "That was Blue's last free mulligan: their next one costs a card."
+    ]
    },
    {
     "count": 0,
     "answer": "mull",
-    "button": "Mulligan (free)",
-    "text": "Free mulligans left: 1.",
-    "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":false,\"freeCards\":1}",
-    "said": [
-     "[MTG] Blue took a friendly mulligan (1 of 1).",
-     "[MTG] That was Blue's last friendly mulligan: their next one costs a card."
-    ],
-    "log": [
-     "Blue took a friendly mulligan (1 of 1).",
-     "That was Blue's last friendly mulligan: their next one costs a card."
-    ]
+    "button": "Mulligan",
+    "text": "No free mulligans left: the next one costs a card.",
+    "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":false}",
+    "said": [],
+    "log": []
    },
    {
     "count": 1,
     "answer": "keep",
     "button": "Mulligan",
-    "text": "No free mulligans left: the next one costs a card.",
-    "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":true,\"freeCards\":1}",
+    "text": "Keeping puts 1 on the bottom.",
+    "sent": "\"output\":{\"type\":\"mulliganDecision\",\"keep\":true}",
     "said": [],
     "log": []
    }
@@ -165200,11 +165480,11 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Blue took a friendly mulligan (1 of 1).\n"
+    "text": "[time] all    told: [MTG] Blue took a free mulligan (1 of 1).\n"
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] That was Blue's last friendly mulligan: their next one costs a card.\n"
+    "text": "[time] all    told: [MTG] That was Blue's last free mulligan: their next one costs a card.\n"
    },
    {
     "relay": {
@@ -165227,7 +165507,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Blue took a friendly mulligan (1 of 1).",
+     "text": "[MTG] Blue took a free mulligan (1 of 1).",
      "color": null
     }
    },
@@ -165235,14 +165515,14 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue took a friendly mulligan (1 of 1)."
+      "Blue took a free mulligan (1 of 1)."
      ]
     }
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] That was Blue's last friendly mulligan: their next one costs a card.",
+     "text": "[MTG] That was Blue's last free mulligan: their next one costs a card.",
      "color": null
     }
    },
@@ -165250,7 +165530,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "That was Blue's last friendly mulligan: their next one costs a card."
+      "That was Blue's last free mulligan: their next one costs a card."
      ]
     }
    },
@@ -165649,11 +165929,11 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Blue took a friendly mulligan (1 of 1).\n"
+    "text": "[time] all    told: [MTG] Blue took a free mulligan (1 of 1).\n"
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] That was Blue's last friendly mulligan: their next one costs a card.\n"
+    "text": "[time] all    told: [MTG] That was Blue's last free mulligan: their next one costs a card.\n"
    },
    {
     "relay": {
@@ -165676,7 +165956,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Blue took a friendly mulligan (1 of 1).",
+     "text": "[MTG] Blue took a free mulligan (1 of 1).",
      "color": null
     }
    },
@@ -165684,14 +165964,14 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue took a friendly mulligan (1 of 1)."
+      "Blue took a free mulligan (1 of 1)."
      ]
     }
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] That was Blue's last friendly mulligan: their next one costs a card.",
+     "text": "[MTG] That was Blue's last free mulligan: their next one costs a card.",
      "color": null
     }
    },
@@ -165699,7 +165979,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "That was Blue's last friendly mulligan: their next one costs a card."
+      "That was Blue's last free mulligan: their next one costs a card."
      ]
     }
    },
@@ -165914,7 +166194,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Blue took a friendly mulligan (1 of 2).\n"
+    "text": "[time] all    told: [MTG] Blue took a free mulligan (1 of 2).\n"
    },
    {
     "relay": {
@@ -165937,7 +166217,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Blue took a friendly mulligan (1 of 2).",
+     "text": "[MTG] Blue took a free mulligan (1 of 2).",
      "color": null
     }
    },
@@ -165945,7 +166225,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue took a friendly mulligan (1 of 2)."
+      "Blue took a free mulligan (1 of 2)."
      ]
     }
    },
@@ -167176,11 +167456,11 @@
   }
  },
  {
-  "name": "friendly: Start reads the votes and the game says so",
+  "name": "friendly: Start reads the count and the game says so",
   "effects": [
    {
     "appendFile": "table-log.log",
-    "text": "[time] -      start {\"seats\":[\"White\",\"Blue\"],\"bots\":0,\"friendlyVotes\":{\"White\":2,\"Blue\":2,\"Red\":1}}\n"
+    "text": "[time] -      start {\"seats\":[\"White\",\"Blue\"],\"bots\":0,\"friendly\":2}\n"
    },
    {
     "wsOpen": "ws://127.0.0.1:9443"
@@ -167211,7 +167491,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Friendly mulligans this game: 2 each (White voted 2, Blue voted 2).\n"
+    "text": "[time] all    told: [MTG] Free mulligans this game: 2 each.\n"
    },
    {
     "writeFile": "mtg-bridge-game-test.json.tmp",
@@ -167254,7 +167534,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Friendly mulligans this game: 2 each (White voted 2, Blue voted 2).",
+     "text": "[MTG] Free mulligans this game: 2 each.",
      "color": null
     }
    },
@@ -167262,7 +167542,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Friendly mulligans this game: 2 each (White voted 2, Blue voted 2)."
+      "Free mulligans this game: 2 each."
      ]
     }
    }
@@ -167270,19 +167550,19 @@
   "result": {
    "friendly": 2,
    "said": [
-    "[MTG] Friendly mulligans this game: 2 each (White voted 2, Blue voted 2)."
+    "[MTG] Free mulligans this game: 2 each."
    ],
    "log": [
-    "Friendly mulligans this game: 2 each (White voted 2, Blue voted 2)."
+    "Free mulligans this game: 2 each."
    ]
   }
  },
  {
-  "name": "friendly: a vote for none says nothing at the start",
+  "name": "friendly: a count of none says nothing at the start",
   "effects": [
    {
     "appendFile": "table-log.log",
-    "text": "[time] -      start {\"seats\":[\"White\",\"Blue\"],\"bots\":0,\"friendlyVotes\":{\"White\":2}}\n"
+    "text": "[time] -      start {\"seats\":[\"White\",\"Blue\"],\"bots\":0,\"friendly\":5}\n"
    },
    {
     "wsOpen": "ws://127.0.0.1:9443"
@@ -167356,14 +167636,14 @@
   }
  },
  {
-  "name": "friendly: Start with a game running changes no vote",
+  "name": "friendly: Start with a game running changes no count",
   "effects": [
    {
     "wsOpen": "ws://127.0.0.1:9443"
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] -      start {\"seats\":[\"Blue\"],\"bots\":1,\"autoReset\":true,\"friendlyVotes\":{\"Blue\":2}}\n"
+    "text": "[time] -      start {\"seats\":[\"Blue\"],\"bots\":1,\"autoReset\":true,\"friendly\":2}\n"
    },
    {
     "log": "start pressed with a game running: resuming it"
