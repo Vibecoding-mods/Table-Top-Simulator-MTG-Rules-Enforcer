@@ -8,6 +8,9 @@
 //   --allow-changed-save        ship a save whose bytes changed since the deploy (its table stamp must still match)
 //   --companion <dir>           the tree that holds companion/build.cmd (default: this repo)
 //   --out <dir>                 where the package goes (default: dist/)
+//   --release [--tag T] [--previous update-manifest.json]   also dist/release-<tag>/: the parts the companion's
+//                               self-update downloads (docs/companion-app-spec.md §18); it prints what to attach to the
+//                               GitHub release, which the user creates by hand
 // It refuses, saying why, when stack/deployed.json disagrees with the images it would ship, the running engine
 // containers or the save file. It only reads the TTS save; it never writes in the Saves folder.
 //
@@ -172,6 +175,51 @@ function deployedRecord(deployed, { bridge, save, at, images }) {
   const out = { ...deployed, bridge, save, at };
   for (const k of ["node", "relay"]) if (images?.[IMAGES[k]]?.config) out[`${k}Config`] = images[IMAGES[k]].config;
   return out;
+}
+
+// ── a release for the companion's self-update (docs/companion-app-spec.md §18)
+
+// The parts of a release, their assets and what each holds (paths in the package)
+const RELEASE_PARTS = {
+  app: { file: "app.zip", holds: ["bridge", "decks", "manabrew", "scenarios", "stack/compose.yml", "stack/deployed.json", "README-FRIEND.txt", "LICENSES", "version.json"] },
+  table: { file: "table.zip", holds: ["table"] },
+  images: { file: "images.tar", holds: ["images/mtg-images.tar"] },
+  runtime: { file: "runtime.zip", holds: ["runtime"] },
+  companion: { file: "MTG.Companion.exe", holds: ["MTG Companion.exe"] },
+};
+const UPDATE_FORMAT = 1; // the companion's Updates.Format that can apply what this writes
+// (the app part's version leaves these out: they change with every release; the manifest carries the first two)
+const APP_UNVERSIONED = ["version.json", "stack/deployed.json", "README-FRIEND.txt"]; // (README: its build date)
+
+// One hash over files: [{ rel, bytes }] in path order, path and bytes each
+function treeHash(entries) {
+  const sorted = [...entries].sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  return sha8(Buffer.concat(sorted.flatMap((e) => [Buffer.from(`${e.rel}\0`), Buffer.from(e.bytes), Buffer.from("\0")])));
+}
+// the images part's version: the same in the companion (Updates.ImagesVersion)
+const imagesVersion = (node, relay) => sha8(Buffer.from(`${node}${relay}`, "utf8"));
+
+// Which parts to build, and which an older release already carries: a part whose version is the previous release's
+// points at the release holding its file
+function planRelease(partVersions, previous) {
+  const build = [], reuse = {};
+  for (const [k, version] of Object.entries(partVersions)) {
+    const old = previous?.parts?.[k];
+    if (old && old.version === version && old.file && old.sha256) reuse[k] = { ...old, release: old.release || previous.version };
+    else build.push(k);
+  }
+  return { build, reuse };
+}
+
+// update-manifest.json. built: { part: { file, sha256, size } } for the parts made now
+function releaseManifest({ tag, built, gitCommit, partVersions, made, reuse, full, versionJson, deployedJson }) {
+  const parts = {};
+  for (const k of Object.keys(partVersions)) {
+    if (reuse[k]) parts[k] = reuse[k];
+    else if (made[k]) parts[k] = { ...made[k], version: partVersions[k], release: tag };
+    else throw new Error(`the ${k} part was neither built nor carried by an older release`);
+  }
+  return { format: UPDATE_FORMAT, version: tag, built, gitCommit, minCompanion: UPDATE_FORMAT, parts, full, versionJson, deployedJson };
 }
 
 // What a docker save tar holds: tag -> { id (the OCI index digest: the image id in Docker's containerd store), config
@@ -479,8 +527,9 @@ async function main() {
     patches: { manabrew: sha8(fs.readFileSync(licences["source/manabrew.patch"])), forge: sha8(fs.readFileSync(licences["source/forge.patch"])) },
   }).replace(/\n/g, "\r\n"));
   const made = companion(pkg);
-  fs.writeFileSync(path.join(pkg, "version.json"), `${JSON.stringify(info, null, 1)}\n`);
   fs.writeFileSync(path.join(pkg, "README-FRIEND.txt"), readmeText(info).replace(/\n/g, "\r\n"));
+  const release = flag("release") ? releaseStart(pkg, out, info) : null;
+  fs.writeFileSync(path.join(pkg, "version.json"), `${JSON.stringify(info, null, 1)}\n`);
 
   console.log(`  zipping (${mb(sizeOf(pkg))})`);
   execFileSync(TAR, ["-a", "-c", "-f", zip, "-C", out, name], { stdio: "inherit", timeout: 1800000 });
@@ -488,7 +537,75 @@ async function main() {
   const lines = fs.readdirSync(pkg).sort().map((f) => `  ${f.padEnd(28)} ${mb(sizeOf(path.join(pkg, f))).padStart(10)}`);
   console.log(`${lines.join("\n")}\n  decks: ${ours.length} ours, ${theirs.length} Manabrew's; ${scenarios.length} debug scenarios; companion: ${made}`);
   console.log(`made ${pkg} (${mb(sizeOf(pkg))}) and ${zip} (${mb(fs.statSync(zip).size)})`);
+  if (release) releaseFinish(release, pkg, zip, info);
+}
+
+// ── --release: dist/release-<tag>/ (docs/companion-app-spec.md §18.1)
+
+const sha256 = (file) => require("crypto").createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+function filesUnder(root, rel) {
+  const p = path.join(root, rel);
+  if (!fs.existsSync(p)) return [];
+  if (!fs.statSync(p).isDirectory()) return [{ rel, bytes: fs.readFileSync(p) }];
+  return fs.readdirSync(p).flatMap((f) => filesUnder(root, `${rel}/${f}`));
+}
+function companionVersion() {
+  const dir = path.join(path.resolve(option("companion", ROOT)), "companion");
+  if (!fs.existsSync(path.join(dir, "src"))) return null;
+  const files = [...fs.readdirSync(path.join(dir, "src")).filter((f) => f.endsWith(".cs")).map((f) => `src/${f}`), "app.manifest", "build.cmd"];
+  return treeHash(files.flatMap((rel) => filesUnder(dir, rel)));
+}
+function previousManifest(out, tag) {
+  const given = option("previous", null);
+  if (given) return JSON.parse(fs.readFileSync(given, "utf8"));
+  const found = fs.existsSync(out) ? fs.readdirSync(out).filter((d) => d.startsWith("release-") && d !== `release-${tag}`)
+    .map((d) => path.join(out, d, "update-manifest.json")).filter((m) => fs.existsSync(m))
+    .map((m) => JSON.parse(fs.readFileSync(m, "utf8"))).sort((a, b) => (a.built < b.built ? 1 : -1)) : [];
+  return found[0] || null;
+}
+
+// before version.json is written: the tag and the part versions go into it
+function releaseStart(pkg, out, info) {
+  const d = new Date(), two = (n) => String(n).padStart(2, "0");
+  const tag = option("tag", `v${d.getFullYear()}.${two(d.getMonth() + 1)}.${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}`);
+  if (!/^[\w.-]+$/.test(tag)) stop(`the tag ${tag} has characters a release tag can't have`);
+  const app = RELEASE_PARTS.app.holds.flatMap((h) => filesUnder(pkg, h)).filter((e) => !APP_UNVERSIONED.includes(e.rel));
+  const partVersions = { app: treeHash(app), table: info.save, images: imagesVersion(info.node, info.relay), runtime: info.nodeVersion };
+  const cv = companionVersion();
+  if (cv && fs.existsSync(path.join(pkg, "MTG Companion.exe"))) partVersions.companion = cv;
+  const previous = previousManifest(out, tag);
+  const plan = planRelease(partVersions, previous);
+  if (plan.build.includes("images") && !info.imagesFile) stop("--release: the engine images changed since the previous release, so they must be shipped (drop --no-images)");
+  info.release = tag;
+  info.parts = partVersions;
+  return { tag, dir: path.join(out, `release-${tag}`), partVersions, previous, plan };
+}
+
+function releaseFinish({ tag, dir, partVersions, previous, plan }, pkg, zip, info) {
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  const put = (from, name) => { const to = path.join(dir, name); try { fs.linkSync(from, to); } catch { fs.copyFileSync(from, to); } return to; };
+  const made = {};
+  for (const k of plan.build) {
+    const { file, holds } = RELEASE_PARTS[k];
+    const to = path.join(dir, file);
+    if (file.endsWith(".zip")) execFileSync(TAR, ["-a", "-c", "-f", to, "-C", pkg, ...holds.filter((h) => fs.existsSync(path.join(pkg, h)))], { stdio: "inherit", timeout: 1800000 });
+    else put(path.join(pkg, holds[0]), file);
+    made[k] = { file, sha256: sha256(to), size: fs.statSync(to).size };
+  }
+  const fullName = path.basename(zip);
+  put(zip, fullName);
+  const manifest = releaseManifest({
+    tag, built: info.built, gitCommit: info.gitCommit, partVersions, made, reuse: plan.reuse,
+    full: { file: fullName, sha256: sha256(path.join(dir, fullName)), size: fs.statSync(zip).size },
+    versionJson: info, deployedJson: JSON.parse(fs.readFileSync(path.join(pkg, "stack", "deployed.json"), "utf8")),
+  });
+  fs.writeFileSync(path.join(dir, "update-manifest.json"), `${JSON.stringify(manifest, null, 1)}\n`);
+  console.log(`\nrelease ${tag} in ${dir}${previous ? ` (after ${previous.version})` : " (no previous release: every part built)"}`);
+  console.log(`  Create the release with tag ${tag} on Vibecoding-mods/Table-Top-Simulator-Mock-MTGA and attach:`);
+  for (const f of ["update-manifest.json", ...plan.build.map((k) => RELEASE_PARTS[k].file), fullName]) console.log(`    ${f.padEnd(34)} ${mb(fs.statSync(path.join(dir, f)).size).padStart(10)}`);
+  for (const [k, p] of Object.entries(plan.reuse)) console.log(`  (${k}: unchanged, the updater takes ${p.file} from release ${p.release})`);
 }
 
 if (require.main === module) main().catch((e) => stop(e.stack || e.message));
-module.exports = { stampOf, renameSave, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };
+module.exports = { stampOf, renameSave, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, RELEASE_PARTS, UPDATE_FORMAT, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };

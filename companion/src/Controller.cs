@@ -77,19 +77,64 @@ namespace MtgCompanion
         LoginResult loginCache;
         readonly Dictionary<int, DateTime> notified = new Dictionary<int, DateTime>();
 
+        // self-update (friend mode, docs/companion-app-spec.md §18)
+        public static string UpdateBase; // (--update-base: tests point it at a fake GitHub)
+        public string ApplyAfterSwap; // (--apply-update <tag>: the rest of a release the previous app couldn't apply)
+        readonly object updGate = new object();
+        UpdateState updState = new UpdateState();
+        CheckResult offer; // (the release Update now installs)
+        public event Action<CheckResult> UpdateOffered;
+        public event Action ExitForUpdate; // the new companion takes over: close without stopping anything
+        Updater upd;
+        volatile bool updateBusy;
+        UpdateManifest pendingM; UpdatePlan pendingPlan; // (downloaded, waiting for the game to end)
+
         public Controller(Layout l, bool observe, string savesDir, string stateDir, string exePath)
         {
             L = l; Observe = observe; SavesDir = savesDir; StateDir = stateDir; ExePath = exePath;
-            if (L.Friend) version = J.Parse(Probes.ReadText(L.VersionFile));
+            ReloadPackage();
+            if (!L.Friend) Rows[StepSave].V = new Verdict(Light.Grey, "Home mode: you keep your own save (" + saveName + ").");
+            if (L.Friend && !Observe)
+            {
+                upd = new Updater(L, StateDir, ExePath, UpdateBase);
+                upd.Progress = (text, percent) => SetUpdate(s => { s.Status = "downloading"; s.Progress = percent; s.Text = text; });
+                var st = upd.State();
+                SetUpdate(s => { s.Text = J.Str(st, "lastResult") ?? ""; s.LastCheck = J.Str(st, "lastCheck"); });
+            }
+        }
+
+        // the package's files: at start, and again after an update replaced them
+        void ReloadPackage()
+        {
+            version = L.Friend ? J.Parse(Probes.ReadText(L.VersionFile)) : null;
             deployed = J.Parse(Probes.ReadText(L.DeployedFile));
             relayKey = Logic.RelayKey(Probes.ReadText(L.EnvFile));
             saveName = L.Friend ? (Logic.ReadSaveName(ReadHead(L.TableJson)) ?? Logic.DefaultSaveName) : "Mock MTGA 4 player";
             if (L.Friend) L.ImagesTar = Logic.FindImagesTar(L.Home, File.Exists, d => Directory.Exists(d) ? Directory.GetFiles(d) : new string[0]);
             if (version != null)
-                VersionText = "Package built " + (J.Str(version, "built") ?? "?") + ", commit " + (J.Str(version, "gitCommit") ?? "?") + ", table " + (J.Str(version, "table") ?? "?") + ", bridge " + (J.Str(version, "bridge") ?? "?");
+                VersionText = "Package " + (J.Str(version, "release") ?? "built " + (J.Str(version, "built") ?? "?")) + ", commit " + (J.Str(version, "gitCommit") ?? "?") + ", table " + (J.Str(version, "table") ?? "?") + ", bridge " + (J.Str(version, "bridge") ?? "?");
             else if (deployed != null)
                 VersionText = "Home mode, deployed table " + (J.Str(deployed, "table") ?? "?") + ", bridge " + (J.Str(deployed, "bridge") ?? "?");
-            if (!L.Friend) Rows[StepSave].V = new Verdict(Light.Grey, "Home mode: you keep your own save (" + saveName + ").");
+        }
+
+        // ── the update's state: one snapshot, changed only here
+        public UpdateState Update { get { lock (updGate) return updState.Copy(); } }
+        public string UpdateLine { get { return Update.Text; } }
+        void SetUpdate(Action<UpdateState> change)
+        {
+            lock (updGate) { change(updState); updState.Current = VersionShort; }
+            Fire();
+        }
+
+        // the tray's version line
+        public string VersionShort
+        {
+            get
+            {
+                if (version == null) return L.Friend ? "Package version unknown" : "Home mode";
+                var b = J.Str(version, "built");
+                return "Version " + (J.Str(version, "release") ?? "built " + (b != null && b.Length >= 10 ? b.Substring(0, 10) : "?"));
+            }
         }
 
         static string ReadHead(string file)
@@ -113,6 +158,122 @@ namespace MtgCompanion
             thread.IsBackground = true;
             thread.Name = "companion worker";
             thread.Start();
+            if (upd != null)
+            {
+                var after = ApplyAfterSwap;
+                var t = new Thread(() =>
+                {
+                    while (!FirstPassDone && !quit) Thread.Sleep(500);
+                    if (quit) return;
+                    if (after != null)
+                    {
+                        string error;
+                        var m = upd.Downloaded(after, out error);
+                        if (m == null) SetUpdate(s => { s.Status = "failed"; s.Error = s.Text = "The rest of update " + after + " wasn't found (" + error + ")."; });
+                        else Enqueue(() => ApplyUpdate(m, upd.PlanFor(m)));
+                    }
+                    else if (upd.CheckDue()) CheckForUpdates(false);
+                });
+                t.IsBackground = true;
+                t.Start();
+            }
+        }
+
+        // ───────────────────────────── self-update ─────────────────────────────
+
+        // the menu's and the page's actions
+        public void CheckNow() { CheckForUpdates(true); }
+        public void UpdateNow() { CheckResult r; lock (updGate) r = offer; UpdateNow(r); }
+        public void Later()
+        {
+            string tag = null;
+            lock (updGate) { if (offer != null) tag = offer.Manifest.Version; }
+            if (tag == null) return;
+            Log.Write("update " + tag + ": Later");
+            SetUpdate(s => { s.Later = true; s.Text = "Update " + tag + " available (Later: Check for updates installs it)."; });
+        }
+
+        // a check on its own thread; an update found is offered (UpdateOffered) once per release unless asked, never
+        // installed unasked
+        void CheckForUpdates(bool manual)
+        {
+            if (upd == null) { SetUpdate(s => { s.Text = L.Friend ? "Observe mode: no updates." : "Home mode: the repo updates with git, not here."; }); return; }
+            if (updateBusy) return;
+            updateBusy = true;
+            SetUpdate(s => { s.Status = "checking"; s.Error = null; if (manual) s.Text = "Checking for updates…"; });
+            var t = new Thread(() =>
+            {
+                try
+                {
+                    var r = upd.Check();
+                    bool again;
+                    lock (updGate) again = updState.Later && updState.Available == (r.Manifest != null ? r.Manifest.Version : null);
+                    if (r.Available) lock (updGate) offer = r;
+                    SetUpdate(s => s.Checked(r, again, DateTime.UtcNow));
+                    if (r.Available && (manual || !again)) { var h = UpdateOffered; if (h != null) h(r); }
+                }
+                catch (Exception e) { Log.Write("update check failed: " + e); SetUpdate(s => { s.Status = "failed"; s.Error = s.Text = "Couldn't check for updates (" + e.Message + ")."; }); }
+                finally { updateBusy = false; }
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        // Update now: download (its own thread), then apply on the worker
+        void UpdateNow(CheckResult r)
+        {
+            if (upd == null || r == null || !r.Available || updateBusy) return;
+            updateBusy = true;
+            SetUpdate(s => { s.Status = "downloading"; s.Progress = 0; s.Later = false; s.Error = null; s.Text = "Downloading " + r.Manifest.Version + "…"; });
+            var t = new Thread(() =>
+            {
+                try
+                {
+                    var error = upd.Download(r.Manifest, r.Plan);
+                    if (error != null) { Log.Write("update download: " + error); SetUpdate(s => { s.Status = "failed"; s.Progress = -1; s.Error = s.Text = error; }); return; }
+                    SetUpdate(s => { s.Status = "installing"; s.Progress = -1; s.Text = "Downloaded " + r.Manifest.Version + "; installing."; });
+                    Enqueue(() => ApplyUpdate(r.Manifest, r.Plan));
+                }
+                catch (Exception e) { Log.Write("update download failed: " + e); SetUpdate(s => { s.Status = "failed"; s.Progress = -1; s.Error = s.Text = "The download failed (" + e.Message + ")."; }); }
+                finally { updateBusy = false; }
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        // on the worker
+        void ApplyUpdate(UpdateManifest m, UpdatePlan plan)
+        {
+            pendingM = null; pendingPlan = null;
+            var was = Phase;
+            SetPhase("Updating to " + m.Version);
+            SetUpdate(s => { s.Status = "installing"; s.DeferredUntilGameEnds = false; });
+            var res = upd.Apply(m, plan, new Effects(this), "");
+            Log.Write("update: " + res.Text);
+            SetUpdate(s => s.Applied(res));
+            if (res.Deferred) { pendingM = m; pendingPlan = plan; SetPhase(was); return; }
+            if (res.Swapping) { var h = ExitForUpdate; if (h != null) h(); return; }
+            pendingFrom = 1; // (the lights again, from the package as it is now)
+        }
+
+        // what an update does to the bridge, Docker and the save: this app's own steps
+        class Effects : IUpdateEffects
+        {
+            readonly Controller c;
+            public Effects(Controller c) { this.c = c; }
+            public bool Locked() { c.RefreshGame(); return c.IsLocked; }
+            public void StopBridge() { c.StopBridge(); }
+            public void Reload() { c.ReloadPackage(); }
+            public bool LoadImages()
+            {
+                if (c.L.ImagesTar == null || !c.LoadImages()) return false;
+                string e1, e2;
+                var relay = c.ImageId(Logic.RelayImage, out e1); var node = c.ImageId(Logic.NodeImage, out e2);
+                if (relay != null && node != null) { c.RememberImages(relay, node); c.RewriteDeployed(relay, node); }
+                return c.DoStack(true);
+            }
+            public bool InstallSave() { return c.DoSave(); }
+            public bool StartBridge() { return c.DoBridge(); }
         }
 
         public void Quit() { quit = true; cancel = true; wake.Set(); if (thread != null) thread.Join(3000); }
@@ -805,6 +966,7 @@ namespace MtgCompanion
         void MonitorTick()
         {
             RefreshGame();
+            if (pendingM != null && !IsLocked && !Observe) { ApplyUpdate(pendingM, pendingPlan); return; } // (the game ended: install the update)
             var f = DockerNow();
             if (f.Answers) Set(StepDocker, Logic.DecideDocker(f));
             else Set(StepDocker, new Verdict(f.DesktopRunning ? Light.Amber : Light.Red, f.DesktopRunning ? "Docker Desktop runs, but its engine isn't answering (starting or stopped)." : "Docker isn't running.")

@@ -985,10 +985,107 @@ leave running, or stop first). Single instance (`Local\MtgTtsCompanion`; a secon
 **Limit Docker's CPU use…** is an opt-in button: writes `processors=2`, `memory=8GB` into `[wsl2]` of
 `%USERPROFILE%\.wslconfig` (backup first), never restarts WSL.
 
-**Test modes:** `--selftest` (128 canned cases, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
+**Test modes:** `--selftest` (181 canned cases, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
 `--shot FILE` for a PNG of the window), `--home DIR`, `--saves DIR`, `--state DIR`, `--log FILE`, `--steps 4,5`,
 `--bridge-url URL`, `--probe-login URL`, `--bridge-stop`.
 
 **Not yet seen live:** a whole friend-mode start (needs a PC without the repo's stack: ports 9443/39998/48787 are the
 repo's here); whether TTS lists a new `TS_Save_N.json` without an entry in `Saves\SaveFileInfos.json`; how long a
 real ~1 GB `docker load` takes (a 36 MB tar took 94 s here with the stack running on 2 WSL cores).
+
+## 18. Self-update through GitHub Releases (friend mode)
+
+A friend's package updates itself from the releases of `Vibecoding-mods/Table-Top-Simulator-Mock-MTGA`. The user
+cuts a release on this PC and uploads it by hand; nothing here creates releases or pushes.
+
+### 18.1 A release (`node tools/make-friend-package.js --release`)
+
+Builds the package as usual, then `dist/release-<tag>/` (tag `v<yyyy.mm.dd-HHMM>` local time, `--tag` overrides) and
+prints the tag and the files to attach. Asset names have no spaces (GitHub turns a space into a dot):
+
+| Part | Asset | Holds | Version (what "changed" means) |
+|---|---|---|---|
+| `app` | `app.zip` | `bridge/`, `decks/`, `manabrew/public/preset_decks/`, `scenarios/`, `stack/compose.yml`, `stack/deployed.json`, `README-FRIEND.txt`, `LICENSES/`, `version.json` | sha8 over every file's path and bytes, without `version.json` and `stack/deployed.json` (they change with every release) |
+| `table` | `table.zip` | `table/MTG Table.json` (+ `.png`) | the save's sha8 (`version.json` `save`) |
+| `images` | `images.tar` | the docker save of both images | sha8 of `node` + `relay` ids |
+| `runtime` | `runtime.zip` | `runtime/node/node.exe` | the Node version (`nodeVersion`) |
+| `companion` | `MTG.Companion.exe` | the app | sha8 of `companion/src/*.cs`, `app.manifest`, `build.cmd` |
+
+plus `update-manifest.json` and the full zip (for new friends; the updater never downloads it). A part whose version
+equals the previous release's (`--previous <update-manifest.json>`, default the newest other `dist/release-*/`) isn't
+built again: its entry points at the release that carries the file (`release: <older tag>`), so a 300 MB
+`images.tar` is uploaded only when the engine changes. Without a previous manifest every part is built.
+
+`update-manifest.json`: `{ format: 1, version: <tag>, built, gitCommit, minCompanion, parts: { <part>: { file,
+sha256, size, version, release } }, full: { file, sha256, size }, versionJson, deployedJson }`. `versionJson` and
+`deployedJson` are the package's `version.json` (with `release: <tag>` and `parts: { <part>: version }`) and
+`stack/deployed.json`: the updater writes both after any update, since a table-only update must still move them.
+`minCompanion` is the oldest update format (`Updates.Format` in the app, now 1) that can apply this release.
+
+### 18.2 Checking
+
+- At startup (friend mode, not `--observe`) at most once per 6 hours (`%LOCALAPPDATA%\MTG Companion\updates.json` `lastCheck`), and from the
+  tray: **Check for updates**. The tray shows the version (`release`, else the build date) and the last result.
+- `GET https://api.github.com/repos/<repo>/releases/latest`, `User-Agent: MTG-Companion`, nothing else about the PC or
+  the user. 404 (the repo is private, or has no release) → the quiet line "Updates will work once the project is
+  public." and nothing else; other failures → "Couldn't check for updates (…)". Never a red light.
+- `update-manifest.json` from that release's assets; each part's version against the local one (`version.json`
+  `parts`, else derived: `save`, the image ids, `nodeVersion`; app and companion unknown = changed). Same everywhere →
+  "Up to date". Otherwise a dialog: **Update available** with what changes and the download size, **Update now** /
+  **Later**.
+- Optional token (tray: **GitHub token…**, or `--set-token` reading stdin): stored with DPAPI (CurrentUser) in
+  `%LOCALAPPDATA%\MTG Companion\github-token.bin`, sent only in requests to `api.github.com` (the release lookups and
+  the asset downloads, both reads; a private repo needs it for both), never to a redirect target, never logged.
+
+### 18.3 Downloading
+
+Only the changed parts, into `<package>\updates\<tag>\`, through the asset API (`Accept: application/octet-stream`;
+a part in an older release is looked up with `releases/tags/<tag>`). Every URL, including each redirect (followed by
+hand, at most 5), must be `https://` on `api.github.com`, `github.com`, `objects.githubusercontent.com` or
+`release-assets.githubusercontent.com` (GitHub's current asset host); anything else is refused before a request is
+made. A partial file (`.part`) resumes with `Range`; 3 tries per part. The sha256 is checked; a mismatch deletes the
+file and refuses the update. The size must match too.
+
+### 18.4 Applying
+
+Never during a game (the game lock, §17): "Update ready — will install after this game"; the watcher applies it when
+the lock clears. Then, on the worker:
+
+1. Stop the bridge loop and the bridge.
+2. Move what the update replaces into `<package>\backup\<old version>\` (moves, not copies: the old `images.tar`
+   doesn't double the disk use); keep the last 2 backups.
+3. Extract each zip into the package (entries outside it are refused), put `images.tar` in `images\`, write
+   `version.json` and `stack\deployed.json` from the manifest (the `companion` part's version stays the old one until
+   the new exe has taken over).
+4. New images: `docker load` and `compose up -d` (the engine is idle: the lock was checked). New table: the
+   hash-guarded save install (§17 step 4: the player's own saves are never overwritten). Then start the bridge and
+   wait for `/versions`.
+5. Any failure in 3–4: delete what was put in, move the backup back, load the old images again if new ones were
+   loaded, start the bridge, and say "The update failed and was undone: …". The download stays for another try.
+6. A new companion last: `MTG Companion.new.exe` (verified) starts with `--replace-old <pid> <old path>`, the old app
+   exits; the new one waits for that pid, renames the old exe to `MTG Companion.old.exe` and itself to
+   `MTG Companion.exe`, records its part version, and starts from that name. The next clean start deletes the
+   `.old.exe`. If the new exe can't start, the old one stays and says so. A release whose `minCompanion` is newer than
+   the running app swaps the companion first and passes `--apply-update <tag>` so the new one applies the rest.
+
+### 18.5 State and actions (for the window, the tray and the status page)
+
+The Controller keeps the update in one snapshot, `Controller.Update` (`UpdateState`: `Status` = idle, checking,
+up-to-date, not-public, available, downloading, ready, installing, restarting, updated or failed; `Current`,
+`Available`, `Notes`, `Progress` 0-100 or -1, `DeferredUntilGameEnds`, `Later`, `Error`, `LastCheck`, `Text`),
+changed only through `SetUpdate`. The actions are named methods any front end calls: `CheckNow()`, `UpdateNow()`
+(installs the release the last check offered), `Later()` (no dialog again for that release until asked). The window
+reads `Update.Text`; the HTML status page (branch companion-html) can serve the snapshot as `/api/status` `update`.
+
+### 18.6 Tests
+
+`tests/test_companion_update.js`: a fake GitHub (Node `http`: `releases/latest`, `releases/tags/<tag>`, asset
+downloads with a redirect to a second host name, `Range`, a first-try 500, `/state` for the game lock) and the built
+exe in a temp package, driven by hidden flags: `--update-base <url>` (the fake instead of `api.github.com`; its own
+host and `localhost` are then the allowed hosts), `--update-check`, `--update-now`, `--fake-effects <file>` (bridge,
+docker and save steps written to a file instead of done), `--fake-fail <step>`. Cases: up to date; new app only; new
+images only (only the tar downloaded, from the older release); sha mismatch refused; 404 quiet; game running defers;
+failed apply rolls back; self-update swap (and the `.old.exe` removed at the next start); off-host URL refused; the
+token only to the API host and never in the log; a resumed download. The pure parts (plan, URL rule, manifest
+parsing, backups to prune, check interval) are `--selftest` cases; the packager's release manifest is in
+`tests/test_friend_package.js`.

@@ -8,6 +8,11 @@
 //   MTG Companion.exe --bridge-loop --home DIR  (internal) the hidden loop that runs and restarts the bridge
 //   MTG Companion.exe --write-icon FILE         writes the app icon (.ico)
 //   MTG Companion.exe --probe-login URL [KEY]   one relay login, printed (for testing against a fake relay)
+//   MTG Companion.exe --update-check | --update-now   self-update without the window (docs/companion-app-spec.md §18):
+//       [--update-base URL] (a fake GitHub) [--fake-effects FILE [--fake-fail STEP,...]] (--update-now needs it)
+//       [--bridge-url URL] [--state DIR] [--log FILE]; exit 0 up to date or done, 10 update available, 3 deferred, 1 failed
+//   MTG Companion.exe --set-token               the GitHub token from stdin, stored with DPAPI (empty: removed)
+//   MTG Companion.exe --replace-old PID PATH --part-version V   (internal) the new exe takes over from the old one
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -41,7 +46,63 @@ namespace MtgCompanion
         static void Out(string text, string file)
         {
             if (file != null) try { File.WriteAllText(file, text, new UTF8Encoding(false)); } catch { }
-            try { AttachConsole(-1); Console.Out.Write(text); Console.Out.Flush(); } catch { }
+            try
+            {
+                if (Console.IsOutputRedirected)
+                {
+                    // (a pipe or a file: UTF-8, so "—" and "→" survive; the console's own code page would turn them into "-")
+                    var b = new UTF8Encoding(false).GetBytes(text);
+                    using (var o = Console.OpenStandardOutput()) o.Write(b, 0, b.Length);
+                    return;
+                }
+                AttachConsole(-1); Console.Out.Write(text); Console.Out.Flush();
+            }
+            catch { }
+        }
+
+        static string Quote(string a) { return a.Length > 0 && a.IndexOfAny(new[] { ' ', '"', '\t' }) < 0 ? a : "\"" + a.Replace("\"", "\\\"") + "\""; }
+
+        // --update-check / --update-now: the self-update without the window (tests drive it against a fake GitHub)
+        static int HeadlessUpdate(string[] args, Layout layout, string stateDir, string exe)
+        {
+            if (layout == null || !layout.Friend) { Out("Updates: friend mode only (a package folder)." + Environment.NewLine, Arg(args, "--out")); return 2; }
+            Log.File = Arg(args, "--log") ?? layout.CompanionLog;
+            if (Arg(args, "--bridge-url") != null) Controller.BridgeUrl = Arg(args, "--bridge-url");
+            string testBase = Arg(args, "--update-base");
+            var upd = new Updater(layout, stateDir, exe, testBase);
+            UpdateManifest m; UpdatePlan plan; string error;
+            string applyTag = Arg(args, "--apply-update");
+            if (applyTag != null)
+            {
+                m = upd.Downloaded(applyTag, out error);
+                if (m == null) { Out(error + Environment.NewLine, Arg(args, "--out")); return 1; }
+                plan = upd.PlanFor(m);
+            }
+            else
+            {
+                var r = upd.Check();
+                Out(r.Text + Environment.NewLine, Arg(args, "--out"));
+                if (args.Contains("--update-check") || !r.Available) return r.Available ? 10 : r.Failed && !r.Quiet ? 1 : 0;
+                m = r.Manifest; plan = r.Plan;
+                error = upd.Download(m, plan);
+                if (error != null) { Out(error + Environment.NewLine, Arg(args, "--out")); return 1; }
+            }
+            string fake = Arg(args, "--fake-effects");
+            if (fake == null) { Out("--update-now installs only with --fake-effects (the app installs updates from its tray menu)." + Environment.NewLine, Arg(args, "--out")); return 2; }
+            var fails = (Arg(args, "--fake-fail") ?? "").Split(',').Where(x => x.Length > 0);
+            var fx = new FakeEffects(fake, fails, () =>
+            {
+                double? age = null;
+                foreach (var f in layout.ResumeFiles) try { if (File.Exists(f)) { double a = (DateTime.UtcNow - File.GetLastWriteTimeUtc(f)).TotalSeconds; if (!age.HasValue || a < age.Value) age = a; } } catch { }
+                return Logic.Locked(Logic.DecideGame(Probes.HttpGet(Controller.BridgeUrl + "/state", 5000), age));
+            });
+            // what the new exe runs with: just the swap here, or (companion first) the rest of the release headless too
+            var carry = new List<string>();
+            foreach (var k in new[] { "--fake-effects", "--fake-fail", "--state", "--update-base", "--bridge-url", "--log" }) if (Arg(args, k) != null) { carry.Add(k); carry.Add(Arg(args, k)); }
+            string selfArgs = plan.CompanionFirst ? "--update-now " + string.Join(" ", carry.Select(Quote)) : "--then-exit " + string.Join(" ", carry.Select(Quote));
+            var res = upd.Apply(m, plan, fx, selfArgs);
+            Out(res.Text + Environment.NewLine, Arg(args, "--out"));
+            return res.Ok ? 0 : res.Deferred ? 3 : 1;
         }
 
         [STAThread]
@@ -70,6 +131,39 @@ namespace MtgCompanion
             }
 
             var layout = Logic.DetectLayout(exeDir, File.Exists, Arg(args, "--home"));
+            string stateDir = Arg(args, "--state") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MTG Companion");
+            if (args.Contains("--replace-old"))
+            {
+                // the new exe (MTG Companion.new.exe): the old one has exited or is exiting
+                int i = Array.IndexOf(args, "--replace-old"), pid;
+                if (layout == null || !layout.Friend || i + 2 >= args.Length || !int.TryParse(args[i + 1], out pid)) return 2;
+                Log.File = Arg(args, "--log") ?? layout.CompanionLog;
+                string oldPath = args[i + 2];
+                var final = Updater.ReplaceOld(pid, oldPath, exe, Arg(args, "--part-version"), layout.VersionFile);
+                if (final == null) { if (!args.Contains("--then-exit") && File.Exists(oldPath)) Process.Start(oldPath, "--after-update").Dispose(); return 1; }
+                if (args.Contains("--then-exit")) return 0;
+                var rest = new List<string>();
+                for (int k = 0; k < args.Length; k++)
+                {
+                    if (k == i) { k += 2; continue; }
+                    if (args[k] == "--part-version") { k++; continue; }
+                    rest.Add(args[k]);
+                }
+                rest.Add("--after-update"); // (not a clean start: the old exe stays until the next one)
+                Process.Start(new ProcessStartInfo(final, string.Join(" ", rest.Select(Quote))) { UseShellExecute = false, WorkingDirectory = exeDir }).Dispose();
+                return 0;
+            }
+            if (layout != null && layout.Friend && !args.Contains("--after-update") && !args.Contains("--bridge-loop") && !args.Contains("--bridge-stop"))
+                Updater.CleanAfterSwap(exe);
+            if (args.Contains("--set-token"))
+            {
+                string t = Console.In.ReadToEnd();
+                TokenStore.Save(stateDir, t);
+                Out((string.IsNullOrWhiteSpace(t) ? "token removed" : "token saved (encrypted for this Windows user)") + Environment.NewLine, Arg(args, "--out"));
+                return 0;
+            }
+            if (args.Contains("--update-check") || args.Contains("--update-now"))
+                return HeadlessUpdate(args, layout, stateDir, exe);
             if (args.Contains("--bridge-loop"))
             {
                 if (layout == null || !layout.Friend) return 2;
@@ -96,7 +190,6 @@ namespace MtgCompanion
                 return 3;
             }
 
-            string stateDir = Arg(args, "--state") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MTG Companion");
             string savesDir = Arg(args, "--saves") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "My Games", "Tabletop Simulator", "Saves");
             Log.File = Arg(args, "--log") ?? layout.CompanionLog;
 
@@ -110,7 +203,9 @@ namespace MtgCompanion
                 if (!first) { show.Set(); return 0; } // (the running one shows its window)
             }
 
+            Controller.UpdateBase = Arg(args, "--update-base");
             var c = new Controller(layout, observe, savesDir, stateDir, exe);
+            c.ApplyAfterSwap = Arg(args, "--apply-update");
             if (Arg(args, "--bridge-url") != null) Controller.BridgeUrl = Arg(args, "--bridge-url");
             string steps = Arg(args, "--steps");
             if (steps != null) c.OnlySteps = new HashSet<int>(steps.Split(',').Select(x => { int n; return int.TryParse(x.Trim(), out n) ? n : 0; }));

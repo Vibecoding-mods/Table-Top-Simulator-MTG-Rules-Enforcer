@@ -139,7 +139,7 @@ namespace MtgCompanion
         readonly TextBox hint = new TextBox();
         readonly Button restartBtn = new Button(), stopBtn = new Button(), logsBtn = new Button(), wslBtn = new Button();
         readonly ToolTip tips = new ToolTip();
-        readonly ToolStripMenuItem miRestart, miStop;
+        readonly ToolStripMenuItem miRestart, miStop, miVersion, miCheck;
         readonly EventWaitHandle showSignal;
         bool reallyQuit, toldAboutTray;
 
@@ -212,6 +212,13 @@ namespace MtgCompanion
             var menu = new ContextMenuStrip();
             menu.Items.Add("Open status", null, (s, e) => ShowMe());
             menu.Items.Add("Open logs folder", null, (s, e) => OpenLogs());
+            menu.Items.Add(new ToolStripSeparator());
+            miVersion = new ToolStripMenuItem(c.VersionShort) { Enabled = false };
+            miCheck = new ToolStripMenuItem("Check for updates", null, (s, e) => c.CheckNow());
+            menu.Items.Add(miVersion);
+            menu.Items.Add(miCheck);
+            menu.Items.Add("GitHub token…", null, (s, e) => TokenDialog());
+            menu.Items.Add(new ToolStripSeparator());
             miRestart = new ToolStripMenuItem("Restart engine", null, (s, e) => DoRestart());
             miStop = new ToolStripMenuItem("Stop everything", null, (s, e) => DoStop(null));
             menu.Items.Add(miRestart);
@@ -225,6 +232,8 @@ namespace MtgCompanion
             tray.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) ShowMe(); };
 
             c.Changed += () => { try { if (IsHandleCreated) BeginInvoke((Action)Render); } catch { } };
+            c.UpdateOffered += r => { try { if (IsHandleCreated) BeginInvoke((Action)(() => OfferUpdate(r))); } catch { } };
+            c.ExitForUpdate += () => { try { if (IsHandleCreated) BeginInvoke((Action)Exit); } catch { } };
             c.Notify += (t, x) => { try { if (IsHandleCreated) BeginInvoke((Action)(() => { if (!Visible) tray.ShowBalloonTip(8000, t, x, ToolTipIcon.Warning); })); } catch { } };
             var timer = new System.Windows.Forms.Timer { Interval = 2000 };
             timer.Tick += (s, e) => Render();
@@ -298,6 +307,11 @@ namespace MtgCompanion
             if (hintText == null)
                 hintText = Logic.TtsHowTo(c.SaveName) + "\r\n\r\nOnly the host runs this app. Friends join your TTS game (Multiplayer) and need nothing else.";
             if (hint.Text != hintText) hint.Text = hintText;
+            string ft = c.VersionText + (c.UpdateLine.Length > 0 ? "\r\n" + c.UpdateLine : "");
+            if (footer.Text != ft) footer.Text = ft;
+            string vt = c.VersionShort + (c.UpdateLine.Length > 0 ? " · " + Logic.Clip(c.UpdateLine, 70) : "");
+            if (miVersion.Text != vt) miVersion.Text = vt;
+            miCheck.Enabled = c.L.Friend && !c.Observe;
             restartBtn.Enabled = miRestart.Enabled = !locked && !c.Observe;
             tips.SetToolTip(restartBtn, locked ? Logic.LockText(g) : "Stops the bridge, restarts relay and room, then starts the bridge again.");
             stopBtn.Enabled = miStop.Enabled = !c.Observe;
@@ -330,6 +344,43 @@ namespace MtgCompanion
             }
             var refused = c.DoFix(row, v.Fix);
             if (refused != null) MessageBox.Show(this, refused, "MTG Companion", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        // Update available: Update now / Later
+        void OfferUpdate(CheckResult r)
+        {
+            using (var d = new Form { Text = "MTG Companion", FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterScreen, ClientSize = new Size(460, 170), Font = Font, ShowInTaskbar = true, TopMost = true })
+            {
+                var text = new Label { Text = r.Text + "\r\n\r\nThe update waits until no game is on. It stops the bridge for a moment, keeps a copy of the old files, and goes back to them if anything fails.", Location = new Point(14, 12), Size = new Size(432, 100) };
+                var now = new Button { Text = "Update now", DialogResult = DialogResult.OK, AutoSize = true, Location = new Point(250, 126) };
+                var later = new Button { Text = "Later", DialogResult = DialogResult.Cancel, AutoSize = true, Location = new Point(360, 126) };
+                d.Controls.AddRange(new Control[] { text, now, later });
+                d.AcceptButton = now; d.CancelButton = later;
+                if (d.ShowDialog() == DialogResult.OK) c.UpdateNow();
+                else c.Later();
+            }
+        }
+
+        // the optional token for a private repository (DPAPI, this Windows user; sent only to api.github.com)
+        void TokenDialog()
+        {
+            using (var d = new Form { Text = "GitHub token", FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterScreen, ClientSize = new Size(480, 190), Font = Font })
+            {
+                var text = new Label { Text = "Only needed while the project's GitHub repository is private. A read-only token for that repository is enough. It is kept encrypted for this Windows user and sent only to api.github.com, to read the releases. Leave it empty and press Save to remove it.", Location = new Point(14, 12), Size = new Size(452, 80) };
+                var box = new TextBox { UseSystemPasswordChar = true, Location = new Point(14, 100), Size = new Size(452, 24) };
+                var save = new Button { Text = "Save", DialogResult = DialogResult.OK, AutoSize = true, Location = new Point(290, 146) };
+                var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true, Location = new Point(380, 146) };
+                d.Controls.AddRange(new Control[] { text, box, save, cancel });
+                d.AcceptButton = save; d.CancelButton = cancel;
+                if (d.ShowDialog(this) != DialogResult.OK) return;
+                try
+                {
+                    TokenStore.Save(c.StateDir, box.Text);
+                    Log.Write(box.Text.Trim().Length > 0 ? "GitHub token saved" : "GitHub token removed");
+                    MessageBox.Show(this, box.Text.Trim().Length > 0 ? "Saved. It is used from the next check (restart the app, then Check for updates)." : "Removed.", "MTG Companion");
+                }
+                catch (Exception e) { MessageBox.Show(this, "Couldn't save it: " + e.Message, "MTG Companion"); }
+            }
         }
 
         void ShowProgram(Verdict v)

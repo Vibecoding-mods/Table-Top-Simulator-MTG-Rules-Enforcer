@@ -23,7 +23,7 @@ namespace MtgCompanion
         public static int Run(StringBuilder output)
         {
             sb = output; fails = 0; passes = 0;
-            Modes(); Docker(); Images(); Stack(); Ports(); Bridge(); GameLock(); Saves(); Tts(); Wsl(); Misc();
+            Modes(); Docker(); Images(); Stack(); Ports(); Bridge(); GameLock(); Saves(); Tts(); Wsl(); Misc(); Update();
             sb.AppendLine(passes + " passed, " + fails + " failed");
             return fails;
         }
@@ -347,6 +347,117 @@ namespace MtgCompanion
             Check("another section only: [wsl2] appended", Logic.SetWslLimits(t, 2, "8GB") == "[interop]\r\nenabled=false\r\n\r\n[wsl2]\r\nprocessors=2\r\nmemory=8GB\r\n", Logic.SetWslLimits(t, 2, "8GB"));
             t = "[wsl2]\r\nmemory=4GB\r\n[experimental]\r\nprocessors=9\r\n";
             Check("only the [wsl2] section is edited", Logic.SetWslLimits(t, 2, "8GB") == "[wsl2]\r\nprocessors=2\r\nmemory=8GB\r\n[experimental]\r\nprocessors=9\r\n", Logic.SetWslLimits(t, 2, "8GB"));
+        }
+
+        static string Part(string file, string version, string release = null, long size = 100)
+        {
+            return "{\"file\":\"" + file + "\",\"sha256\":\"" + new string('a', 64) + "\",\"size\":" + size + ",\"version\":\"" + version + "\"" + (release != null ? ",\"release\":\"" + release + "\"" : "") + "}";
+        }
+
+        static string Manifest(string parts, int min = 1, string version = "v2026.11.10-1200")
+        {
+            return "{\"format\":1,\"version\":\"" + version + "\",\"built\":\"2026-11-10T12:00:00Z\",\"minCompanion\":" + min + ",\"parts\":{" + parts + "},\"versionJson\":{\"bridge\":\"b2\"},\"deployedJson\":{\"bridge\":\"b2\"}}";
+        }
+
+        static void Update()
+        {
+            sb.AppendLine("-- self-update");
+            string err;
+            var m = Updates.ParseManifest(Manifest("\"app\":" + Part("app.zip", "a2") + ",\"images\":" + Part("images.tar", "i1", "v2026.11.01-0900") + ",\"table\":" + Part("table.zip", "s1")), out err);
+            Check("manifest: parsed, parts and their releases", m != null && m.Parts.Count == 3 && m.Parts["images"].Release == "v2026.11.01-0900" && m.Parts["app"].Release == "v2026.11.10-1200" && m.Parts["app"].Size == 100, err);
+            Check("manifest: a file name with a path is refused", Updates.ParseManifest(Manifest("\"app\":" + Part("..\\\\x.zip", "a")), out err) == null && err.Contains("file name"), err);
+            Check("manifest: a file name of dots is refused", Updates.ParseManifest(Manifest("\"app\":" + Part("..", "a")), out err) == null, err);
+            Check("manifest: no sha256 refused", Updates.ParseManifest(Manifest("\"app\":{\"file\":\"app.zip\",\"size\":5,\"version\":\"a\"}"), out err) == null && err.Contains("sha256"), err);
+            Check("manifest: size 0 refused", Updates.ParseManifest(Manifest("\"app\":" + Part("app.zip", "a", null, 0)), out err) == null && err.Contains("size"), err);
+            Check("manifest: a tag with a slash refused", Updates.ParseManifest(Manifest("\"app\":" + Part("app.zip", "a"), 1, "v1/../x"), out err) == null, err);
+            Check("manifest: not JSON", Updates.ParseManifest("<html>", out err) == null, err);
+            Check("manifest: an unknown part is skipped", Updates.ParseManifest(Manifest("\"app\":" + Part("app.zip", "a") + ",\"maps\":" + Part("maps.zip", "m")), out err).Parts.Count == 1, err);
+
+            const string RID = "sha256:dbfe69213fff7e3eccb6db806e09afbec608e7c56105020d70e3b8ac631e74b3", NID = "sha256:ef61822078a04ba83bd1086449a2a92b3860ac3d377444a2da658e1ee781c0f6";
+            var old = J.Parse("{\"save\":\"s1\",\"node\":\"" + NID + "\",\"relay\":\"" + RID + "\",\"nodeVersion\":\"v24.1.0\"}");
+            Check("local: an old package's table, images and runtime versions", Updates.LocalVersion(old, "table") == "s1" && Updates.LocalVersion(old, "images") == Updates.ImagesVersion(NID, RID) && Updates.LocalVersion(old, "runtime") == "v24.1.0");
+            Check("local: app and companion unknown", Updates.LocalVersion(old, "app") == null && Updates.LocalVersion(old, "companion") == null);
+            Check("local: parts win", Updates.LocalVersion(J.Parse("{\"save\":\"s1\",\"parts\":{\"table\":\"s9\"}}"), "table") == "s9");
+            Check("images version: sha8 of node + relay (the packager's)", Updates.ImagesVersion("n", "r") == Logic.Sha8(Encoding.UTF8.GetBytes("nr")) && Updates.ImagesVersion("n", "r") != Updates.ImagesVersion("r", "n"));
+
+            var local = J.Parse("{\"parts\":{\"app\":\"a1\",\"table\":\"s1\",\"images\":\"i1\",\"companion\":\"c1\"}}");
+            var all = Manifest("\"app\":" + Part("app.zip", "a1") + ",\"table\":" + Part("table.zip", "s1") + ",\"images\":" + Part("images.tar", "i1") + ",\"companion\":" + Part("MTG.Companion.exe", "c1"));
+            var p = Updates.Plan(local, Updates.ParseManifest(all, out err), 1);
+            Check("plan: same versions: up to date", p.UpToDate && p.Fetch.Count == 0 && p.Refused == null, p.Fetch.Count);
+            p = Updates.Plan(local, Updates.ParseManifest(all.Replace("\"a1\"", "\"a2\""), out err), 1);
+            Check("plan: new app only", !p.UpToDate && p.Fetch.Count == 1 && p.Has("app") && p.Bytes == 100, string.Join(",", p.Fetch.Select(x => x.Name)));
+            p = Updates.Plan(local, Updates.ParseManifest(all.Replace("\"i1\"", "\"i2\""), out err), 1);
+            Check("plan: new images only: the tar alone", p.Fetch.Count == 1 && p.Has("images"), string.Join(",", p.Fetch.Select(x => x.Name)));
+            p = Updates.Plan(local, Updates.ParseManifest(all.Replace("\"a1\"", "\"a2\"").Replace("\"c1\"", "\"c2\""), out err), 1);
+            Check("plan: the companion is applied last", p.Fetch.Count == 2 && p.Fetch.Last().Name == "companion" && !p.CompanionFirst, string.Join(",", p.Fetch.Select(x => x.Name)));
+            p = Updates.Plan(local, Updates.ParseManifest(Manifest("\"app\":" + Part("app.zip", "a2") + ",\"companion\":" + Part("MTG.Companion.exe", "c2"), 2), out err), 1);
+            Check("plan: needs a newer app: the companion first", p.CompanionFirst && p.Refused == null && !p.UpToDate, p.Refused);
+            p = Updates.Plan(local, Updates.ParseManifest(Manifest("\"app\":" + Part("app.zip", "a2"), 2), out err), 1);
+            Check("plan: needs a newer app it doesn't carry: refused", p.Refused != null && p.Refused.Contains("full package"), p.Refused);
+            p = Updates.Plan(J.Parse("{}"), Updates.ParseManifest(all, out err), 1);
+            Check("plan: an old package without parts takes app and companion", p.Has("app") && p.Has("companion") && p.Has("table") && p.Has("images"), string.Join(",", p.Fetch.Select(x => x.Name)));
+
+            bool api;
+            Check("url: the API over https, the token's host", Updates.AllowedUrl("https://api.github.com/repos/x/y/releases/latest", null, out api) && api);
+            Check("url: the asset hosts, no token", Updates.AllowedUrl("https://objects.githubusercontent.com/a?b=c", null, out api) && !api
+                && Updates.AllowedUrl("https://release-assets.githubusercontent.com/x", null, out api) && !api && Updates.AllowedUrl("https://github.com/o/r/releases/download/t/f", null, out api) && !api);
+            Check("url: http refused", !Updates.AllowedUrl("http://api.github.com/x", null, out api));
+            Check("url: another host refused", !Updates.AllowedUrl("https://example.com/app.zip", null, out api) && !Updates.AllowedUrl("https://api.github.com.evil.com/x", null, out api) && !Updates.AllowedUrl("https://evilgithub.com/x", null, out api));
+            Check("url: user info refused (https://api.github.com@evil)", !Updates.AllowedUrl("https://api.github.com@evil.com/x", null, out api) && !Updates.AllowedUrl("https://user@api.github.com/x", null, out api));
+            Check("url: another port refused", !Updates.AllowedUrl("https://api.github.com:8443/x", null, out api));
+            Check("url: garbage refused", !Updates.AllowedUrl("not a url", null, out api) && !Updates.AllowedUrl(null, null, out api) && !Updates.AllowedUrl("file:///C:/x", null, out api));
+            Check("url, test base: the fake is the API, localhost on its port the asset host", Updates.AllowedUrl("http://127.0.0.1:5000/repos", "http://127.0.0.1:5000", out api) && api
+                && Updates.AllowedUrl("http://localhost:5000/dl/x", "http://127.0.0.1:5000", out api) && !api);
+            Check("url, test base: GitHub itself and other ports refused", !Updates.AllowedUrl("https://api.github.com/x", "http://127.0.0.1:5000", out api) && !Updates.AllowedUrl("http://127.0.0.1:5001/x", "http://127.0.0.1:5000", out api) && !Updates.AllowedUrl("http://localhost:5001/x", "http://127.0.0.1:5000", out api));
+
+            var rel = Updates.ParseRelease("{\"tag_name\":\"v1\",\"assets\":[{\"name\":\"update-manifest.json\",\"url\":\"https://api.github.com/repos/o/r/releases/assets/7\",\"size\":900}]}");
+            Check("release: tag and assets", rel != null && rel.Tag == "v1" && rel.Assets.Count == 1 && rel.Assets[0].Size == 900 && rel.Assets[0].Url.EndsWith("/assets/7"));
+            Check("release: no tag", Updates.ParseRelease("{\"message\":\"Not Found\"}") == null && Updates.ParseRelease("nope") == null);
+            Check("check: 404 is the quiet line", Updates.CheckFailed(404, null) == Updates.NotPublic);
+            Check("check: 403 names the token or the rate limit", Updates.CheckFailed(403, null).Contains("token") && Updates.CheckFailed(0, "timed out").Contains("timed out"));
+            var now = new DateTime(2026, 11, 10, 12, 0, 0, DateTimeKind.Utc);
+            Check("check due: never checked", Updates.CheckDue(null, now) && Updates.CheckDue("garbage", now));
+            Check("check due: 5 h ago no, 6 h ago yes", !Updates.CheckDue(now.AddHours(-5).ToString("o"), now) && Updates.CheckDue(now.AddHours(-6).ToString("o"), now));
+            Check("check due: a time in the future (clock set back) yes", Updates.CheckDue(now.AddHours(2).ToString("o"), now));
+            var bk = new[] { new KeyValuePair<string, DateTime>("a", now.AddDays(-3)), new KeyValuePair<string, DateTime>("b", now.AddDays(-1)), new KeyValuePair<string, DateTime>("c", now.AddDays(-2)) };
+            var prune = Updates.BackupsToPrune(bk, 2);
+            Check("backups: the last 2 kept", prune.Count == 1 && prune[0] == "a", string.Join(",", prune));
+            Check("backups: 2 or fewer: none pruned", Updates.BackupsToPrune(bk.Take(2), 2).Count == 0);
+            Check("backup name: the release, else the build date, plain", Updates.BackupName(J.Parse("{\"release\":\"v2026.11.09-1432\"}")) == "v2026.11.09-1432" && Updates.BackupName(J.Parse("{\"built\":\"2026-11-09T14:32:00.000Z\"}")) == "built-2026-11-09T14-32-00.000Z", Updates.BackupName(J.Parse("{\"built\":\"2026-11-09T14:32:00.000Z\"}")));
+            Check("zip entry: inside the part", Updates.EntryPath("app", "bridge/bridge.js") == "bridge/bridge.js" && Updates.EntryPath("app", "stack/compose.yml") == "stack/compose.yml" && Updates.EntryPath("table", "table\\MTG Table.json") == "table/MTG Table.json");
+            Check("zip entry: outside the part refused", Updates.EntryPath("app", "MTG Companion.exe") == null && Updates.EntryPath("app", "stack/.env") == null && Updates.EntryPath("table", "bridge/bridge.js") == null && Updates.EntryPath("app", "bridgex/a.js") == null);
+            Check("zip entry: climbing out refused", Updates.EntryPath("app", "bridge/../../evil.js") == null && Updates.EntryPath("app", "/bridge/a.js") == null && Updates.EntryPath("app", "C:/bridge/a.js") == null && Updates.EntryPath("app", "bridge/./a.js") == null);
+            Check("zip entry: a part with no files of its own (companion) refused", Updates.EntryPath("companion", "MTG Companion.exe") == null);
+
+            // the state snapshot the window and the status page read
+            var man = Updates.ParseManifest(all.Replace("\"a1\"", "\"a2\""), out err);
+            var avail = new CheckResult { Manifest = man, Plan = Updates.Plan(local, man, 1), Text = "Update available: v2026.11.10-1200 (…)." };
+            var us = new UpdateState { Status = "checking", Progress = 40 };
+            us.Checked(avail, false, now);
+            Check("state: available, with the version and notes", us.Status == "available" && us.Available == "v2026.11.10-1200" && us.Notes == avail.Text && !us.Later && us.Error == null && us.Progress == -1 && us.LastCheck == now.ToString("o"), us.Status);
+            us.Checked(avail, true, now);
+            Check("state: Later stays for the same release", us.Later);
+            us.Checked(new CheckResult { Failed = true, Quiet = true, Text = Updates.NotPublic }, true, now);
+            Check("state: 404 is not-public, no error, nothing offered", us.Status == "not-public" && us.Error == null && us.Available == null && !us.Later, us.Status);
+            us.Checked(new CheckResult { Failed = true, Text = "Couldn't check for updates (HTTP 500)." }, false, now);
+            Check("state: a failed check is failed, with the error", us.Status == "failed" && us.Error.Contains("HTTP 500"), us.Status);
+            var upToDate = Updates.ParseManifest(all, out err);
+            us.Checked(new CheckResult { Manifest = upToDate, Plan = Updates.Plan(local, upToDate, 1), Text = "Up to date." }, false, now);
+            Check("state: up to date", us.Status == "up-to-date" && us.Available == null && us.Error == null, us.Status);
+            var refusedM = Updates.ParseManifest(Manifest("\"app\":" + Part("app.zip", "a2"), 2), out err);
+            us.Checked(new CheckResult { Manifest = refusedM, Plan = Updates.Plan(local, refusedM, 1), Text = "needs a newer" }, false, now);
+            Check("state: a release this app can't apply is failed, not available", us.Status == "failed" && us.Available == null, us.Status);
+            us.Checked(avail, false, now);
+            us.Applied(new ApplyResult { Deferred = true, Text = "Update ready — will install after this game." });
+            Check("state: deferred until the game ends, still offered", us.Status == "ready" && us.DeferredUntilGameEnds && us.Available != null && us.Error == null, us.Status);
+            us.Applied(new ApplyResult { Text = "The update failed and was undone: x." });
+            Check("state: failed install, the error kept, still offered", us.Status == "failed" && us.Error.Contains("undone") && !us.DeferredUntilGameEnds && us.Available != null, us.Status);
+            us.Applied(new ApplyResult { Ok = true, Swapping = true, Text = "takes over" });
+            Check("state: restarting while the new app takes over", us.Status == "restarting" && us.Error == null, us.Status);
+            us.Applied(new ApplyResult { Ok = true, Text = "Updated to v2." });
+            Check("state: updated, nothing offered", us.Status == "updated" && us.Available == null && us.Notes == null && us.Error == null, us.Status);
+            var cp = us.Copy(); cp.Status = "x";
+            Check("state: a snapshot is a copy", us.Status == "updated");
         }
 
         static void Misc()

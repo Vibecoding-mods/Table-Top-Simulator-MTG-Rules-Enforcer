@@ -15,7 +15,8 @@ if exist "%HERE%app.ico" set ICON=/win32icon:"%HERE%app.ico"
 "%CSC%" /nologo /target:winexe /optimize+ /langversion:5 /platform:anycpu /utf8output ^
   /out:"%HERE%bin\MTG Companion.exe" /win32manifest:"%HERE%app.manifest" %ICON% ^
   /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll ^
-  /r:System.Management.dll /r:System.Web.Extensions.dll ^
+  /r:System.Management.dll /r:System.Web.Extensions.dll /r:System.Security.dll ^
+  /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll ^
   "%HERE%src\*.cs"
 if errorlevel 1 (
   echo build failed
