@@ -1396,9 +1396,12 @@ function playableOf(own, toCard, slot) {
 // A player's hand cards shown to the whole table (Revelation's "Players play with their hands revealed", Sen
 // Triplets' "plays with their hand revealed"): the ones every other human seat's view shows (Forge sends another
 // player's hand card only when that seat may see it). An AI's too, read from the human seats. One seat's private look
-// (Mindslaver's controller sees the hand) isn't public, so a card counts only when every other seat sees it.
+// (Mindslaver's controller sees the hand) isn't public, so a card counts only when every other seat sees it, and the
+// seat controlling this player (controlledBy) isn't asked: it sees the hand by that control, so with two humans its
+// look alone would have made the hand public.
 function revealedOf(p, seats, toCard) {
-  const others = seats.filter((s) => s.slot !== p.id);
+  const by = seats.length ? (seats[0].board.state.gameView.players || []).find((x) => x.id === p.id)?.controlledBy : null;
+  const others = seats.filter((s) => s.slot !== p.id && s.slot !== by);
   if (!others.length) return [];
   const sees = others.map((s) => new Set((zoneOf(s.board.state.gameView, "hand", p.id).cards || [])
     .filter((c) => c.visibility === "visible" && c.identity).map((c) => c.id)));

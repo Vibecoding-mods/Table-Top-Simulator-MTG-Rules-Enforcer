@@ -3253,7 +3253,8 @@ function engineRowUpdate(color)
   if usable and #tiles == 0 then
     local show = p.show or {}
     page = engineRowPage[color]
-    if page == nil or page.prompt ~= p then page = { prompt = p, n = 1 } engineRowPage[color] = page end
+    -- (keyed on the question, not its table: the same question sent again keeps its page)
+    if page == nil or page.prompt ~= (p.promptId or p) then page = { prompt = p.promptId or p, n = 1 } engineRowPage[color] = page end
     -- (paged only when its Back and More buttons fit beside the question's own: else the first pictures, as before)
     page.pages = (not numberMode and #others + 2 <= ROW_BTNS) and math.max(1, math.ceil(#show / ROW_MAX)) or 1
     page.n = math.max(1, math.min(page.n, page.pages))
@@ -3347,7 +3348,7 @@ function onMtgRowOpt(player, value, id)
   local page = engineRowPage[color]
   if type(v) == "string" and v:sub(1, 5) == "page:" then
     -- (the next or the last pictures of a long reveal: engineRowUpdate)
-    if page ~= nil and page.prompt == p then page.n = page.n + tonumber(v:sub(6)) engineRowUpdate(color) end
+    if page ~= nil and p ~= nil and page.prompt == (p.promptId or p) then page.n = page.n + tonumber(v:sub(6)) engineRowUpdate(color) end
     return
   end
   if type(v) == "string" and v:sub(1, 4) == "num:" and p ~= nil and st ~= nil and st.prompt == p then
@@ -3885,9 +3886,10 @@ function onObjectDrop(color, obj)
       if (p.x - home.x) ^ 2 + (p.z - home.z) ^ 2 < 1.8 ^ 2 then return snapBack() end
     end
     if (meta.zone == "hand" or meta.zone == "command" or meta.zone == "playable") and area == "battlefield" then
-      engineManual[id] = onTable(obj.getPosition())
-      engineManualPlay[id] = true -- (held there while it is cast; it lands in its row)
-      request(color, "play", id, obj)
+      local real = id:match("^cast:%a+:(.+)$") or id -- (a stand-in for another player's hand card: enginePlayableRows)
+      engineManual[real] = onTable(obj.getPosition())
+      engineManualPlay[real] = true -- (held there while it is cast; it lands in its row)
+      request(color, "play", real, obj)
     elseif meta.zone == "hand" and area == "graveyard" then
       request(color, "discard", id, obj)
     elseif meta.zone == "hand" and area == "library" then
@@ -4592,9 +4594,15 @@ function engineMarkSpecial(m)
   engineSpecial = {}
   local onField = {}
   for _, pl in ipairs(m.players or {}) do for _, c in ipairs(pl.battlefield or {}) do onField[c.id] = pl.color end end
+  local _, castOf = enginePlayableRows(m)
+  local inHand = engineSeatHands(m)
   for _, pl in ipairs(m.players or {}) do
     if pl.color ~= nil and Player[pl.color] ~= nil and Player[pl.color].seated then
-      for _, c in ipairs(pl.playable or {}) do engineSpecial[c.id] = "playable" end
+      for _, c in ipairs(pl.playable or {}) do
+        local stand = "cast:" .. pl.color .. ":" .. tostring(c.id)
+        if castOf[stand] ~= nil then engineSpecial[stand] = "playable"
+        elseif inHand[c.id] == nil then engineSpecial[c.id] = "playable" end
+      end
     end
   end
   for _, pl in ipairs(m.players or {}) do
@@ -4610,23 +4618,38 @@ function engineWithoutSpecial(list)
   for _, c in ipairs(list) do if engineSpecial[c.id] == nil then out[#out + 1] = c end end
   return out
 end
+-- the hand cards the table lays in seated players' hands: id -> that player's colour
+function engineSeatHands(m)
+  local out = {}
+  for _, pl in ipairs(m.players or {}) do
+    if pl.color ~= nil and pl.hand ~= nil and Player[pl.color] ~= nil and Player[pl.color].seated then
+      for _, c in ipairs(pl.hand) do out[c.id] = pl.color end
+    end
+  end
+  return out
+end
 -- Each playable card goes into one row only: its controller's when that seat has it, else the first seat listing it
--- (Thief of Sanity's card, controlled by its owner, in its caster's row). A card an open scry holds stays in that
+-- (Thief of Sanity's card, controlled by its owner, in its caster's row). A card in a seated player's hand stays in
+-- that hand (Sen Triplets: its caster may cast the target's hand cards); the caster's row gets a stand-in of its own,
+-- cast:<caster>:<id> (castOf: stand-in id -> the hand's colour), which casts the real card when dragged. The real card
+-- was placed in the hand and again in the caster's row, and jumped onto the caster's mat from the second board on. A card an open scry holds stays in that
 -- player's hand zone (engineScryPlace). Placing one card in several rows threw it across the table on every board:
 -- Courser of Kruphix's revealed top card was in both players' rows, and each scry put it in Blue's hand zone, then
 -- White's row, then Blue's (2026-11-08 20:23 game).
 function enginePlayableRows(m)
-  local held = engineScryHeld()
-  local rowOf = {}
+  local held, inHand = engineScryHeld(), engineSeatHands(m)
+  local rowOf, castOf = {}, {}
   for _, pl in ipairs(m.players or {}) do
     local color = pl.color
     if color ~= nil and Player[color] ~= nil and Player[color].seated then
       for _, c in ipairs(pl.playable or {}) do
-        if not held[c.id] and (rowOf[c.id] == nil or c.ctl == color) then rowOf[c.id] = color end
+        if inHand[c.id] ~= nil then
+          if inHand[c.id] ~= color then castOf["cast:" .. color .. ":" .. tostring(c.id)] = inHand[c.id] end
+        elseif not held[c.id] and (rowOf[c.id] == nil or c.ctl == color) then rowOf[c.id] = color end
       end
     end
   end
-  return rowOf
+  return rowOf, castOf
 end
 function enginePlaceSpecial(m, seen)
   if next(engineSpecial) == nil then return end
@@ -4634,12 +4657,25 @@ function enginePlaceSpecial(m, seen)
   for _, pl in ipairs(m.players or {}) do
     for _, z in ipairs({ "exile", "graveyard" }) do for _, c in ipairs(pl[z] or {}) do if c.fd then faceDown[c.id] = true end end end
   end
-  local rowOf = enginePlayableRows(m)
+  local rowOf, castOf = enginePlayableRows(m)
+  local shown = {} -- (a stand-in for a hand card nobody else sees goes in the second hand zone, as a face-down card)
+  for _, pl in ipairs(m.players or {}) do for _, c in ipairs(pl.revealed or {}) do shown[c.id] = true end end
   for _, pl in ipairs(m.players or {}) do
     local color = pl.color
     local g = color and seatGeometry(color)
     local row = {}
-    for _, c in ipairs(pl.playable or {}) do if rowOf[c.id] == color then row[#row + 1] = c end end
+    for _, c in ipairs(pl.playable or {}) do
+      local stand = "cast:" .. tostring(color) .. ":" .. tostring(c.id)
+      if rowOf[c.id] == color then row[#row + 1] = c
+      elseif castOf[stand] ~= nil then
+        local r = {}
+        for key, v in pairs(c) do r[key] = v end
+        r.id = stand
+        r.nt = { "In " .. engineNameOf(castOf[stand]) .. "'s hand: drag it onto the battlefield to cast it" }
+        if not shown[c.id] then faceDown[stand] = true end
+        row[#row + 1] = r
+      end
+    end
     if g ~= nil and Player[color] ~= nil and Player[color].seated and #row > 0 then
       local side = Player[color].getHandTransform(2)
       local base = side and side.position or (g.handPos or g.mat)
@@ -5501,7 +5537,11 @@ function enginePlayableGlow(color)
       -- (your hand, your commander in the command zone, and your playable row of exile and graveyard cards)
       local m = o.cardId ~= nil and engineMeta[o.cardId]
       local mine = m and m.color == color and (m.zone == "command" or m.zone == "playable")
-      if o.cardId ~= nil and (l:find("^Cast ") or l:find("^Play ")) and (engineInHand[o.cardId] or mine) then want[o.cardId] = true end
+      local stand = o.cardId ~= nil and "cast:" .. color .. ":" .. tostring(o.cardId)
+      if o.cardId ~= nil and (l:find("^Cast ") or l:find("^Play ")) then
+        if (engineInHand[o.cardId] and m and m.color == color) or mine then want[o.cardId] = true
+        elseif engineObjs[stand] ~= nil then want[stand] = true end
+      end
     end
     -- the engine offers one "Play Island" for three Islands: frame every copy in this player's hand
     local names = {}
@@ -7014,6 +7054,7 @@ function engineSelfCheck()
     for _, card in ipairs(pl.playable or {}) do expected[card.id] = true end
     -- (a hand card shown to everyone has an object of its own in the owner's strip: engineRevealStrip)
     for _, card in ipairs(pl.revealed or {}) do expected["reveal:" .. tostring(card.id)] = true end
+    for _, card in ipairs(pl.playable or {}) do expected["cast:" .. tostring(c) .. ":" .. tostring(card.id)] = true end
     local handSets, handY = {}, nil
     local function inHand(o, which)
       if handSets[which] == nil then

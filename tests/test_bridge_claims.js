@@ -1805,6 +1805,27 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("Revelation: a shown card isn't playable for the other seat", !ids(rowOf(t, "Blue").playable).includes("engine-card-801") && !ids(rowOf(t, "White").playable).length, JSON.stringify([rowOf(t, "Blue").playable, rowOf(t, "White").playable]));
       ok("Revelation: the revealed card comes with its name and picture", (t && t.cards && t.cards["engine-card-801"] && t.cards["engine-card-801"].n) === "Swords to Plowshares", JSON.stringify(t && t.cards && t.cards["engine-card-801"]));
     }
+    // a seat's own hand is its hand, never its playable row, even marked mayPlay; a shown card the view gives no name
+    // (no identity) isn't revealed
+    {
+      const bv = view("player-0", { "player-1": ["engine-card-801", "engine-card-802"] }), wv = view("player-1", { "player-0": blueHand.map((c) => c.id) });
+      for (const c of zone(bv.gameView, "hand", "player-0").cards) c.mayPlay = true;
+      for (const v of [bv]) delete zone(v.gameView, "hand", "player-1").cards[1].identity;
+      const t = await board(bv, wv);
+      ok("own hand: not in its own playable row", !ids(rowOf(t, "Blue").playable).some((id) => blueHand.some((c) => c.id === id)), JSON.stringify(ids(rowOf(t, "Blue").playable)));
+      ok("revealed: a card shown without a name isn't revealed", JSON.stringify(ids(rowOf(t, "White").revealed)) === JSON.stringify(["engine-card-801"]), JSON.stringify(ids(rowOf(t, "White").revealed)));
+    }
+    // Mindslaver with two humans: Blue controls White's turn and so sees White's hand; that look isn't public
+    {
+      const bv = view("player-0", { "player-1": ["engine-card-801", "engine-card-802"] }), wv = view("player-1");
+      for (const v of [bv, wv]) v.gameView.players.find((x) => x.id === "player-1").controlledBy = "player-0";
+      const t = await board(bv, wv);
+      ok("Mindslaver: the controller's look at the hand isn't revealed", !rowOf(t, "White").revealed, JSON.stringify(ids(rowOf(t, "White").revealed)));
+      const bv2 = view("player-0", { "player-1": ["engine-card-801", "engine-card-802"] }), wv2 = view("player-1", { "player-0": blueHand.map((c) => c.id) });
+      for (const v of [bv2, wv2]) v.gameView.players.find((x) => x.id === "player-1").controlledBy = "player-0";
+      const t2 = await board(bv2, wv2);
+      ok("Mindslaver: the controlling player's own hand, shown to the other seat, still is", JSON.stringify(ids(rowOf(t2, "Blue").revealed)) === JSON.stringify(blueHand.map((c) => c.id)), JSON.stringify(ids(rowOf(t2, "Blue").revealed)));
+    }
     // a hand nobody else sees isn't revealed (Blue sees only its own)
     {
       const t = await board(view("player-0"), view("player-1"));
