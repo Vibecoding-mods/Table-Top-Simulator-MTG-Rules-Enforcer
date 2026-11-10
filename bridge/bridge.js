@@ -2009,16 +2009,17 @@ function damageNews(prev, cur, resolved, facts, otherParts = () => false) {
   // (a shield of this turn for that source, and for that player when it prevents; used up once said)
   const shieldFor = (id, p) => (game.sourceShields || []).find((x) => x.id === id && x.turn === cur.turn && (x.kind === "redirect" || x.slot === p)) || null;
   const used = (sh) => { game.sourceShields = game.sourceShields.filter((x) => x !== sh); };
-  const redirected = (sh, src, name, n, combat) => {
-    lines.push(`${poss(name)} ${combat ? "combat " : ""}damage is dealt to ${nameOf(src.ctl)} instead (${sh.by})`);
+  // (a damage item's redirect or prevention, said on the board it shows on; combat damage goes through owe below, as
+  // its loss can come a board later)
+  const redirected = (sh, src, name, n) => {
+    lines.push(`${poss(name)} damage is dealt to ${nameOf(src.ctl)} instead (${sh.by})`);
     why(loss, src.ctl, n, `damage from ${name}, redirected by ${sh.by}`);
     used(sh);
   };
-  const prevented = (sh, src, name, p, n, combat) => {
-    lines.push(`${poss(name)} ${combat ? "combat " : ""}damage to ${nameOf(p)} is prevented (${sh.by})`);
-    // (Deflecting Palm's "deals that much damage to that source's controller"; in combat the amount is the attacker's
-    // power on the board before, so only while both boards agree on it: a Giant Growth between them is unseen)
-    if (sh.back && lost(src.ctl) >= n && (!combat || cur.cards[src.id]?.pw === prev.cards[src.id]?.pw)) { lines.push(`${sh.by} deals ${n} damage to ${nameOf(src.ctl)}`); why(loss, src.ctl, n, `damage from ${sh.by}`); }
+  const prevented = (sh, src, name, p, n) => {
+    lines.push(`${poss(name)} damage to ${nameOf(p)} is prevented (${sh.by})`);
+    // (Deflecting Palm's "deals that much damage to that source's controller")
+    if (sh.back && lost(src.ctl) >= n) { lines.push(`${sh.by} deals ${n} damage to ${nameOf(src.ctl)}`); why(loss, src.ctl, n, `damage from ${sh.by}`); }
     used(sh);
   };
   // (Forge's step names in turn order, SKIP_ORDER; its "end" is never sent)
@@ -2173,8 +2174,8 @@ function damageNews(prev, cur, resolved, facts, otherParts = () => false) {
       : /\bdamage to each player\b/i.test(s.text) ? times(Object.keys(cur.life)) : [];
     for (const p of players) {
       const sh = shieldFor(src.id, p);
-      if (sh?.kind === "prevent" && lost(p) <= 0) prevented(sh, src, s.name, p, n, false);
-      else if (sh?.kind === "redirect" && lost(src.ctl) >= n && lost(p) <= 0) redirected(sh, src, s.name, n, false);
+      if (sh?.kind === "prevent" && lost(p) <= 0) prevented(sh, src, s.name, p, n);
+      else if (sh?.kind === "redirect" && lost(src.ctl) >= n && lost(p) <= 0) redirected(sh, src, s.name, n);
       else if (!sh && lost(p) > 0) { why(loss, p, n, `damage from ${s.name}`); it.dealt += n; }
     }
     if (src.ll && it.dealt) why(gain, src.ctl, it.dealt, `lifelink from ${s.name}`);
@@ -5117,7 +5118,7 @@ function onPrompt(seat, prompt) {
       // when you hold an instant (playtest 2026-10-24: with the Combat stop off, Blue's Galadriel's Dismissal never got
       // the chance while Yellow attacked)
       const attacking = (gv.zones || []).some((z) => z.zone === "battlefield" && (z.cards || []).some((c) => c.isAttacking));
-      const combatStop = gv.activePlayerId !== who && attacking &&["combatDeclareAttackers", "combatDeclareBlockers"].includes(gv.step);
+      const combatStop = gv.activePlayerId !== who && attacking && ["combatDeclareAttackers", "combatDeclareBlockers"].includes(gv.step);
       const ninjaStop = ["combatDeclareBlockers", "combatFirstStrikeDamage", "combatDamage"].includes(gv.step) && actions.some((a) =>
         (a.type === "activateAbility" && /ninjutsu/i.test(`${a.description || ""} ${a.label || ""}`)) ||
         (a.type === "cast" && a.mode?.type === "alternative" && a.mode.cost === "sneak"));
@@ -6773,9 +6774,10 @@ function sacrificedIfInstant(card) {
   const text = String(card?.text || "");
   return /any time a sorcery couldn.t have been cast/i.test(text) && /sacrifices? it/i.test(text);
 }
-// your own main phase with an empty stack: when a sorcery could be cast
+// your own main phase with an empty stack: when a sorcery could be cast (or the main phase of the player whose question
+// is open, one this seat controls: see actingFor)
 function sorceryTime(seat, gv) {
-  return gv.activePlayerId === (seat.prompt?.forP || seat.slot) &&/main/i.test(gv.step || "") && !(gv.stack || []).length;
+  return gv.activePlayerId === (seat.prompt?.forP || seat.slot) && /main/i.test(gv.step || "") && !(gv.stack || []).length;
 }
 
 function onIntent(m) {

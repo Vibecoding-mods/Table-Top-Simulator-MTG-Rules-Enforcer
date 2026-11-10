@@ -1949,6 +1949,14 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       harness.restore();
     }
     {
+      // (suite review 2026-11-10) Blue's own priority that stops (AI 1's spell on the stack) on AI 1's controlled turn is
+      // Blue's own question: titled "Your priority", not as a controlled player's
+      const { h, seat } = fresh(slaved, { ...AI_MAIN, priorityPlayerId: "player-0", stack: [{ id: "s1", controllerId: "player-1", sourceId: "engine-card-1602", identity: { name: "Lightning Bolt" } }] });
+      await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }, { id: "cast:1700", type: "cast", cardId: "engine-card-1700", label: "Cast Opt" }] });
+      ok("verify: Blue's own priority on AI 1's controlled turn is titled as Blue's own", seat.prompt?.ui?.title === "Your priority", JSON.stringify(seat.prompt?.ui?.title ?? null));
+      harness.restore();
+    }
+    {
       // (and without control, AI 1's main is no stop of Blue's)
       const { h, seat } = fresh((gv) => { zone(gv, "hand", "player-1").cards = [FOREST]; }, AI_MAIN);
       await asked(h, seat, AI_ACTIONS);
@@ -1960,15 +1968,65 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const { h } = fresh(slaved, AI_MAIN);
       h.B.sendTable(); await h.flush();
       // (the first board in full: the next, the same, keeps its zones)
-      const row = sent(h, "table")[0]?.players.find((p) => p.slot === "player-1");
+      const t0 = sent(h, "table")[0];
+      const row = t0?.players.find((p) => p.slot === "player-1");
       ok("re-test bug 1: the controlled player's hand is sent for its controller", row?.ctlBy === "Blue" && (row?.ctlHand || []).map((c) => c.id).join(",") === "engine-card-1601,engine-card-1602", JSON.stringify(row && { ctlBy: row.ctlBy, ctlHand: row.ctlHand }));
       ok("re-test bug 1: and not as AI 1's own hand", row?.hand == null, JSON.stringify(row?.hand));
+      // (suite review 2026-11-10: slimmed as every zone list, ZONE_KEYS: its details once in the board's cards)
+      ok("merge: the controlled hand goes slim, its details in the board's cards", (row?.ctlHand || []).length === 2 && row.ctlHand.every((c) => c.s === 1 && c.n == null) && t0?.cards?.["engine-card-1601"]?.n === "Forest",
+        JSON.stringify([row?.ctlHand, t0?.cards?.["engine-card-1601"]]));
+      harness.restore();
+      // (a player Forge names as controlled by itself is no one else's: no controlled hand, suite review 2026-11-10)
+      const { h: h3 } = fresh((gv) => { slaved(gv); P(gv, "player-0").controlledBy = "player-0"; }, AI_MAIN);
+      h3.B.sendTable(); await h3.flush();
+      const blue3 = sent(h3, "table")[0]?.players.find((p) => p.slot === "player-0");
+      ok("verify: a player controlled by itself sends no controlled hand", blue3 && blue3.ctlHand == null && blue3.ctlBy == null, JSON.stringify(blue3 && { ctlBy: blue3.ctlBy, ctlHand: blue3.ctlHand }));
       harness.restore();
       const { h: h2 } = fresh((gv) => { zone(gv, "hand", "player-1").cards = [FOREST]; }, AI_MAIN);
       h2.B.sendTable(); await h2.flush();
       const row2 = sent(h2, "table")[0]?.players.find((p) => p.slot === "player-1");
       ok("re-test bug 1: no control, no controlled hand", row2 && row2.ctlHand == null && row2.ctlBy == null, JSON.stringify(row2 && { ctlBy: row2.ctlBy, ctlHand: row2.ctlHand }));
       harness.restore();
+    }
+    {
+      // (suite review 2026-11-10) a card cast for the controlled player in that player's own main phase is cast at a
+      // sorcery's time (sorceryTime, by the open question's player): Necromancy isn't questioned there; with a spell on the
+      // stack it is (the precondition)
+      const NECRO = { id: "engine-card-1603", identity: { name: "Necromancy" }, types: ["Enchantment"], controllerId: "player-1", ownerId: "player-1",
+        text: "You may cast Necromancy as though it had flash. If you cast it any time a sorcery couldn't have been cast, the controller of the permanent it becomes sacrifices it at the beginning of the next cleanup step." };
+      const withNecro = (gv) => { slaved(gv); zone(gv, "hand", "player-1").cards.push(NECRO); zone(gv, "hand", "player-1").count = 3; };
+      const ACTS = { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }, { id: "cast:1603", type: "cast", cardId: "engine-card-1603", label: "Cast Necromancy", mode: { type: "normal" } }] };
+      const drag = async (gvExtra) => {
+        const { h, seat } = fresh(withNecro, { ...AI_MAIN, ...gvExtra });
+        await asked(h, seat, ACTS);
+        const open = seat.prompt?.ui?.title ?? null;
+        h.B.onTTS({ t: "intent", json: JSON.stringify({ color: "Blue", kind: "play", id: "engine-card-1603" }) }); await h.flush();
+        const after = seat.prompt?.ui?.title ?? null;
+        harness.restore();
+        return [open, after];
+      };
+      const [openMain, inMain] = await drag({});
+      const [, onStack] = await drag({ stack: [{ id: "s1", controllerId: "player-0", identity: { name: "Shock" } }] });
+      ok("verify: precondition, the controlled player's priority is open", openMain === "AI 1's priority (you control)", JSON.stringify(openMain));
+      ok("verify: precondition, outside a sorcery's time a Necromancy cast for AI 1 asks first", /cast it now\?/.test(String(onStack)), JSON.stringify(onStack));
+      ok("verify: in the controlled player's own main phase it is cast without asking", !/cast it now\?/.test(String(inMain)), JSON.stringify(inMain));
+    }
+    {
+      // (suite review 2026-11-10) the game over closes every seat's open question, not only the seat it came to
+      const h = harness.load();
+      const mk = (color, slot) => { const s = new h.B.Seat(color, "deck"); s.slot = slot; s.board = { state: clone(F.board), fingerprint: null }; return s; };
+      const blue = mk("Blue", "player-0"), white = mk("White", "player-1");
+      h.B._setGame({ seats: new Map([["Blue", blue], ["White", white]]), bots: 0, total: 2, playerOrder: ["tts-Blue-ab12", "tts-White-cd34"],
+        slotNames: { "player-0": "Blue", "player-1": "White" }, slotColor: { "player-0": "Blue", "player-1": "White" }, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
+      h.B.onPrompt(blue, { promptId: 920, decidingPlayerId: "player-0", input: { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, options: [{ label: "One" }, { label: "Two" }], presentation: { title: "Choose" } } });
+      await h.flush();
+      const before = !!blue.prompt;
+      h.B.onPrompt(white, { promptId: 921, decidingPlayerId: "player-1", input: { type: "gameOver" } });
+      await h.flush();
+      const after = blue.prompt;
+      harness.restore();
+      ok("verify: precondition, Blue's question is open", before);
+      ok("verify: the game over at White's seat closes Blue's question too", after == null, JSON.stringify(after?.ui?.title ?? null));
     }
     {
       // (a land of AI 1's dragged at Blue's own priority: why not, in AI 1's terms)

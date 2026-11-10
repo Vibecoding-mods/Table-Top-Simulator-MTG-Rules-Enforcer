@@ -1820,7 +1820,7 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     q(setup(false), "private"), q(where("cast:White:engine-card-900"), "stand-in private"), q(where("engine-card-900"), "real private"),
     // (a seat's own hand card in its own playable list, which the bridge never sends: the hand keeps it, no stand-in)
     q('for _, p in ipairs(SEN.players) do if p.color == "White" then p.playable = nil elseif p.color == "Blue" then p.playable = { { s = 1, id = "engine-card-900", ctl = "Blue" } } end end engineRender(SEN) __sim.frames(90) return "own"', "own"),
-    q(where("engine-card-900"), "real own"), q(check, "check own")]);
+    q(where("engine-card-900"), "real own"), q(check, "check own"), q(where("cast:Blue:engine-card-900"), "stand-in own")]);
   const sentAt = (mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
   ok("Sen Triplets: the target's card lies in its owner's hand", valueOf(r, "real 1") === "1 Blue hand", String(valueOf(r, "real 1")) + " " + r.errors.join(" | "));
   ok("Sen Triplets: and stays there on the next board", valueOf(r, "real 2") === "1 Blue hand", String(valueOf(r, "real 2")));
@@ -1830,6 +1830,7 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("Sen Triplets: a hand nobody else sees gives a stand-in in the caster's second hand zone", valueOf(r, "stand-in private") === "1 White hand2", String(valueOf(r, "stand-in private")) + " " + r.errors.join(" | "));
   ok("Sen Triplets: the real card still in its owner's hand", valueOf(r, "real private") === "1 Blue hand", String(valueOf(r, "real private")));
   ok("own hand card listed as playable: it stays in the hand, and the table check agrees", valueOf(r, "real own") === "1 Blue hand" && valueOf(r, "check own") === "none", `${valueOf(r, "real own")} / ${valueOf(r, "check own")}`);
+  ok("own hand card listed as playable: no stand-in of it in its own seat's row (suite review 2026-11-10)", valueOf(r, "stand-in own") === "none", String(valueOf(r, "stand-in own")));
 }
 // a revealed hand (White is the AI here, as Sen Triplets' target was): face up at White's seat as objects of their own,
 // the real hand left alone; gone when the reveal ends; the table check expects them
@@ -1963,6 +1964,117 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const r2 = run([q('local t = engineTable() t.gameOver = true engineUpdateCorner("Blue", { promptId = 492, kind = "priority", title = "Your priority", mode = "single", options = { { id = "__pass", label = "Next" }, { id = "__endturn", label = "End turn" } } }) ' +
     'return tostring(UI.getAttribute("eng_big_Blue", "active")) .. "|" .. tostring(UI.getAttribute("eng_big2_Blue", "active"))', "late")]);
   ok("re-test bug 8: a question shown after the game over gets no buttons", valueOf(r2, "late") === "false|false", String(valueOf(r2, "late")) + " " + r2.errors.join(" | "));
+}
+// (suite review 2026-11-10) A stand-in's priority frame and hover text, for Sen Triplets (White may cast Blue's hand card)
+// and for Mindslaver over a seated human (White controls Blue): the caster's "Cast" frames the caster's stand-in, never
+// the real card in the other player's hand; the hand's owner's own "Cast" frames the real card. Each stand-in says
+// whose hand the card is in.
+{
+  const { simulate } = require("./lua/run-sim");
+  const both = (steps) => simulate({ save, seated: ["Blue", "White"], steps: [...prefix, ...steps] });
+  const card = (id, name) => `engineStoreStatic("${id}", { n = "${name}", f = "https://img.example/${id}.jpg", ty = { "Instant" } }) `;
+  const players = 'local t = engineTable() local blue, white for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p elseif p.color == "White" then white = p end end ';
+  const inBlueHand = (id) => `blue.hand = blue.hand or {} table.insert(blue.hand, { s = 1, id = "${id}", ctl = "Blue" }) blue.handCount = #blue.hand `;
+  // Sen Triplets: Blue's hand card in White's playable list, shown to everyone (the stand-in lies face up on White's mat)
+  const sen = players + card("engine-card-910", "Lightning Bolt") + inBlueHand("engine-card-910") +
+    'white.playable = { { s = 1, id = "engine-card-910", ctl = "Blue" } } blue.revealed = { { s = 1, id = "engine-card-910", ctl = "Blue" } } engineRender(t) __sim.frames(90) return "drawn"';
+  // Mindslaver: White controls seated Blue, whose hand the bridge sends again as ctlHand
+  const slv = players + card("engine-card-911", "Shock") + inBlueHand("engine-card-911") +
+    'blue.ctlHand = { { s = 1, id = "engine-card-911", ctl = "Blue" } } blue.ctlBy = "White" white.playable = nil SLV3 = t engineRender(t) __sim.frames(90) return "drawn"';
+  // (TTS lays a hand out itself: the stand-in shifted a little inside White's second hand zone, as TTS does, and the next
+  // board must leave it there, a hand card, not pull it back to its planned spot)
+  const relaid = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:cast:White:engine-card-911" then o = x end end if o == nil then return "none" end ' +
+    'local p = o.getPosition() o.setPosition(Vector(p.x + 0.3, p.y, p.z)) __sim.frames(2) local inH = false for _, h in ipairs(Player.White.getHandObjects(2)) do if h == o then inH = true end end ' +
+    'if not inH then return "left the zone" end __fx = {} engineRender(SLV3) __sim.frames(30) local n = 0 for _, l in ipairs(__fx) do if l:find("obj:" .. o.getGUID() .. " ", 1, true) and l:find("setPosition", 1, true) then n = n + 1 end end return tostring(n)';
+  const cast = (color, pid, id, name) => ({ msg: { t: "prompt", json: JSON.stringify({ t: "prompt", color, promptId: pid, kind: "priority", title: "Your priority", mode: "single",
+    options: [{ id: "__pass", label: "Next" }, { id: `prompt-action-${pid}`, cardId: id, label: `Cast ${name}` }] }) }, frames: 10 });
+  // whether an object carries a frame for that colour, switched on: "true", "false", or "none" (no such object)
+  const lit = (id, color, mark) => q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end if o == nil then return "none" end ` +
+    `local x = o.UI.getXml() or "" if not x:find('id="eng_play" visibility="${color}"', 1, true) then return "false" end ` +
+    'local a = o.UI.getAttribute("eng_play", "active") if a ~= nil then return a end return x:find(\'active="true"\', 1, true) and "true" or "false"', mark);
+  const hover = (id, mark) => q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end return o and o.getDescription() or "none"`, mark);
+  const r = both([q(sen, "sen"), hover("cast:White:engine-card-910", "sen hover"), cast("White", 1301, "engine-card-910", "Lightning Bolt"),
+    lit("cast:White:engine-card-910", "White", "sen stand-in lit"), lit("engine-card-910", "White", "sen real lit for White")]);
+  const r2 = both([q(sen, "sen"), cast("Blue", 1302, "engine-card-910", "Lightning Bolt"), lit("engine-card-910", "Blue", "own real lit"), lit("cast:White:engine-card-910", "Blue", "own stand-in lit")]);
+  const inHand2 = (id, color, mark) => q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end if o == nil then return "none" end ` +
+    `for _, h in ipairs(Player.${color}.getHandObjects(2)) do if h == o then return "true" end end return "false"`, mark);
+  const r3 = both([q(slv, "slv"), hover("cast:White:engine-card-911", "slv hover"), inHand2("cast:White:engine-card-911", "White", "slv in hand2"), q(relaid, "slv relaid"), cast("White", 1303, "engine-card-911", "Shock"),
+    lit("cast:White:engine-card-911", "White", "slv stand-in lit"), lit("engine-card-911", "White", "slv real lit for White")]);
+  // Mindslaver and Sen Triplets at once, the hand shown to everyone: one stand-in, laid by the playable row alone (face up on
+  // White's mat), which a board with nothing new leaves where it is (laid by both, it went to the second hand zone and
+  // back to the mat on every board)
+  const slvShown = players + card("engine-card-913", "Opt") + inBlueHand("engine-card-913") +
+    'blue.ctlHand = { { s = 1, id = "engine-card-913", ctl = "Blue" } } blue.ctlBy = "White" white.playable = { { s = 1, id = "engine-card-913", ctl = "Blue" } } ' +
+    'blue.revealed = { { s = 1, id = "engine-card-913", ctl = "Blue" } } SLV2 = t engineRender(SLV2) __sim.frames(90) ' +
+    'for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:cast:White:engine-card-913" then return x.getGUID() end end return "none"';
+  const r4 = both([q(slvShown, "guid"), { frames: 30 }, q('engineRender(SLV2) __sim.frames(30) return "again"', "again")]);
+  const guid = String(valueOf(r4, "guid"));
+  const churn = fxOf(r4, "again").filter((l) => l.includes(`obj:${guid} `) && /setPosition|setDescription|setRotation/.test(l));
+  ok("one stand-in, one place: precondition, it is on the table", guid !== "none" && guid !== "undefined", guid + " " + r4.errors.join(" | "));
+  ok("one stand-in, one place: a board with nothing new doesn't move it", churn.length === 0, churn.slice(0, 3).join(" || "));
+  const v = (res, mark) => String(valueOf(res, mark));
+  ok("stand-in frame: precondition, the Sen Triplets stand-in is on the table", v(r, "sen hover") !== "none", v(r, "sen hover") + " " + r.errors.join(" | "));
+  ok("stand-in frame: the caster's Cast frames its stand-in (Sen Triplets)", v(r, "sen stand-in lit") === "true", v(r, "sen stand-in lit") + " " + r.errors.join(" | "));
+  ok("stand-in frame: and not the real card in the other player's hand (Sen Triplets)", v(r, "sen real lit for White") === "false", v(r, "sen real lit for White"));
+  ok("stand-in frame: the hand's owner's own Cast frames the real card", v(r2, "own real lit") === "true", v(r2, "own real lit") + " " + r2.errors.join(" | "));
+  ok("stand-in frame: and no stand-in for the owner", v(r2, "own stand-in lit") === "false", v(r2, "own stand-in lit"));
+  ok("stand-in hover: Sen Triplets' stand-in says whose hand it is in", v(r, "sen hover").includes("Blue's hand: drag it onto the battlefield to cast it"), v(r, "sen hover")); // (by Blue's seated player's name: "PlayerBlue" here)
+  ok("stand-in frame: precondition, the Mindslaver stand-in is on the table", v(r3, "slv hover") !== "none", v(r3, "slv hover") + " " + r3.errors.join(" | "));
+  ok("stand-in frame: the controller's Cast frames its stand-in (Mindslaver, seated)", v(r3, "slv stand-in lit") === "true", v(r3, "slv stand-in lit") + " " + r3.errors.join(" | "));
+  ok("stand-in frame: and not the controlled player's real card (Mindslaver, seated)", v(r3, "slv real lit for White") === "false", v(r3, "slv real lit for White"));
+  ok("stand-in place: the Mindslaver stand-in is a card in the controller's second hand (only they see it), not one lying there", v(r3, "slv in hand2") === "true", v(r3, "slv in hand2"));
+  ok("stand-in place: laid out by TTS inside that hand, the next board leaves it there (a hand card)", v(r3, "slv relaid") === "0", v(r3, "slv relaid") + " " + r3.errors.join(" | "));
+  ok("stand-in hover: Mindslaver's stand-in says whose hand and that you control them", v(r3, "slv hover").includes("Blue's hand (you control them): drag it onto the battlefield to play it"), v(r3, "slv hover"));
+}
+// (suite review 2026-11-10) a controlled AI's hand card put down again inside the controller's second hand zone is only
+// rearranged there: no request, and no redraw to snap it back (onObjectDrop reads that zone, not the first hand)
+{
+  const setup = 'local t = engineTable() local pl for _, p in ipairs(t.players) do if p.color ~= "Blue" then pl = p end end ' +
+    'engineStoreStatic("engine-card-779", { n = "Island", f = "https://img.example/island.jpg", ty = { "Land" } }) ' +
+    'pl.ctlHand = { { s = 1, id = "engine-card-779" } } pl.ctlBy = "Blue" engineRender(t) __sim.frames(90) return "laid"';
+  const drop = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-779" then o = x end end if o == nil then return "none" end ' +
+    'local inH = false for _, h in ipairs(Player.Blue.getHandObjects(2)) do if h == o then inH = true end end if not inH then return "not in hand2" end ' +
+    'local n, real = 0, engineRender engineRender = function(m) n = n + 1 return real(m) end onObjectDrop("Blue", o) __sim.frames(5) engineRender = real return tostring(n)';
+  const r = run([q(setup, "laid"), q(drop, "drop")]);
+  const sentAt = fxOf(r, "drop").filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  ok("controlled hand: precondition, the card is in Blue's second hand zone", /^\d+$/.test(String(valueOf(r, "drop"))), String(valueOf(r, "drop")) + " " + r.errors.join(" | "));
+  ok("controlled hand: put down inside the second hand zone, it is only rearranged (no redraw)", valueOf(r, "drop") === "0", String(valueOf(r, "drop")));
+  ok("controlled hand: and nothing is asked of the engine", !/"kind":/.test(sentAt), sentAt.slice(0, 200));
+}
+// (suite review 2026-11-10) a pick of several with 3 buttons and 9 pictures: Back and More don't fit beside its buttons
+// and its Done, so it shows the first 7 pictures unpaged and keeps Done (counted without Done, More took Done's place)
+{
+  const show = Array.from({ length: 9 }, (_, i) => ({ n: `Card ${i + 1}`, img: `https://img.example/m${i + 1}.jpg` }));
+  const btns = 'local s = {} for k = 1, ROW_BTNS do if UI.getAttribute("eng_rowopt_Blue_" .. k, "active") == "true" then s[#s + 1] = tostring(UI.getAttribute("eng_rowopt_Blue_" .. k, "text")) end end return table.concat(s, "|")';
+  const r = run([ask({ promptId: 997, title: "Choose one or two", mode: "multi", min: 1, max: 2, options: [{ id: "a", label: "Alpha" }, { id: "b", label: "Beta" }, { id: "c", label: "Gamma" }], show }), { frames: 10 },
+    q(btns, "buttons"), q('return tostring(UI.getAttribute("eng_row_Blue", "active"))', "row")]);
+  ok("reveal pages: precondition, the row is up", valueOf(r, "row") === "true", String(valueOf(r, "row")) + " " + r.errors.join(" | "));
+  ok("reveal pages: a pick of several keeps its Done when Back and More don't fit", /\|Done \(0\)$/.test(String(valueOf(r, "buttons"))) && !/More/.test(String(valueOf(r, "buttons"))), String(valueOf(r, "buttons")));
+}
+// (suite review 2026-11-10) a controlled hand counts as laid only when its controller is seated (engineSeatHands): with
+// Red (the controller) away from the table nothing lays AI White's hand, so a card of it Blue may cast goes to Blue's row
+// as the real card, not as a stand-in "in Red's hand"; and nothing is laid for Red
+{
+  const r = run([q('local m = { players = { { color = "White", ctlHand = { { id = "x" } }, ctlBy = "Red" }, { color = "Blue", playable = { { id = "x" } } } } } ' +
+    'local rows, castOf, inHand = enginePlayableRows(m) return tostring(rows.x) .. " " .. tostring(castOf["cast:Blue:x"]) .. " " .. tostring(inHand.x) .. " " .. tostring(Player.Red.seated)', "away"),
+    q('engineStoreStatic("engine-card-912", { n = "Opt", f = "https://img.example/opt.jpg", ty = { "Instant" } }) local t = engineTable() ' +
+      'for _, p in ipairs(t.players) do if p.color == "White" then p.ctlHand = { { s = 1, id = "engine-card-912" } } p.ctlBy = "Red" end end engineRender(t) __sim.frames(90) ' +
+      'local n = 0 for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-912" or x.getGMNotes() == "engine:cast:Red:engine-card-912" then n = n + 1 end end return tostring(n)', "laid")]);
+  ok("controller away: precondition, Red isn't seated", / false$/.test(String(valueOf(r, "away"))), String(valueOf(r, "away")) + " " + r.errors.join(" | "));
+  ok("controller away: the card Blue may cast is Blue's row's own, no stand-in", /^Blue nil nil /.test(String(valueOf(r, "away"))), String(valueOf(r, "away")));
+  ok("controller away: nothing of the controlled hand is laid", valueOf(r, "laid") === "0", String(valueOf(r, "laid")) + " " + r.errors.join(" | "));
+}
+// (suite review 2026-11-10) the bridge slims every list in its ZONE_KEYS, and the table's mergeStatic fills in exactly
+// those lists (each says so of the other): a list on one side only arrives as bare ids, or is filled for nothing
+{
+  const bridgeSrc = fs.readFileSync(path.join(__dirname, "..", "bridge", "bridge.js"), "utf8");
+  const luaSrc = save.LuaScript; // (the script under test, built from tools/engine-renderer.lua)
+  const keys = (/const ZONE_KEYS = \[([^\]]*)\]/.exec(bridgeSrc) || [])[1];
+  const merge = luaSrc.slice(luaSrc.indexOf("local function mergeStatic(m)"));
+  const lists = (/for _, z in ipairs\(\{([^}]*)\}\) do/.exec(merge.slice(0, 2000)) || [])[1];
+  const names = (s) => [...String(s || "").matchAll(/"([A-Za-z]+)"/g)].map((x) => x[1]).sort().join(",");
+  ok("zone lists: precondition, both lists found", !!keys && !!lists, `${keys} / ${lists}`);
+  ok("zone lists: the table's mergeStatic fills in exactly the bridge's ZONE_KEYS", names(keys) === names(lists), `bridge ${names(keys)} / table ${names(lists)}`);
 }
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);
