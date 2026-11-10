@@ -272301,7 +272301,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)\n"
+    "text": "[time] Blue   told: [MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)\n"
    },
    {
     "tts": {
@@ -272314,7 +272314,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)",
+     "text": "[MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)",
      "color": "Blue"
     }
    },
@@ -272352,7 +272352,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Skip ended: end step, your turn.\n"
+    "text": "[time] Blue   told: [MTG] Stopped: end step, your turn. \"Until end step\" stays on.\n"
    },
    {
     "log": "prompt Blue #982: chooseAction \"Your priority\""
@@ -272364,16 +272364,8 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Skip ended: end step, your turn.",
+     "text": "[MTG] Stopped: end step, your turn. \"Until end step\" stays on.",
      "color": "Blue"
-    }
-   },
-   {
-    "tts": {
-     "t": "autostate",
-     "color": "Blue",
-     "phase": "",
-     "on": false
     }
    },
    {
@@ -272418,7 +272410,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Passing until the next combat step; an opponent's spell stops it. (mtg skip off)\n"
+    "text": "[time] Blue   told: [MTG] \"Until combat\": you pass priority except in beginning of combat and declare attackers (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)\n"
    },
    {
     "tts": {
@@ -272431,107 +272423,8 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Passing until the next combat step; an opponent's spell stops it. (mtg skip off)",
+     "text": "[MTG] \"Until combat\": you pass priority except in beginning of combat and declare attackers (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)",
      "color": "Blue"
-    }
-   },
-   {
-    "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Skip ended: second main phase, your turn.\n"
-   },
-   {
-    "log": "prompt Blue #980: chooseAction \"Your priority\""
-   },
-   {
-    "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #980 \"Your priority\": Next | End turn | Fire-Belly Changeling: ability | Cast Hurloon Minotaur\n"
-   },
-   {
-    "tts": {
-     "t": "chat",
-     "text": "[MTG] Skip ended: second main phase, your turn.",
-     "color": "Blue"
-    }
-   },
-   {
-    "tts": {
-     "t": "autostate",
-     "color": "Blue",
-     "phase": "",
-     "on": false
-    }
-   },
-   {
-    "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": 980,
-     "title": "Your priority",
-     "mode": "single",
-     "options": [
-      {
-       "id": "__pass",
-       "label": "Next"
-      },
-      {
-       "id": "__endturn",
-       "label": "End turn"
-      },
-      {
-       "id": "a-land",
-       "cardId": "engine-card-74",
-       "label": "Fire-Belly Changeling: ability"
-      },
-      {
-       "id": "a-cast1",
-       "cardId": "engine-card-75",
-       "label": "Cast Hurloon Minotaur"
-      }
-     ],
-     "kind": "priority",
-     "text": "",
-     "min": 1,
-     "max": 1
-    }
-   },
-   {
-    "log": "prompt Blue #981: chooseAction \"Your priority\""
-   },
-   {
-    "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #981 \"Your priority\": Next | End turn | Fire-Belly Changeling: ability | Cast Hurloon Minotaur\n"
-   },
-   {
-    "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": 981,
-     "title": "Your priority",
-     "mode": "single",
-     "options": [
-      {
-       "id": "__pass",
-       "label": "Next"
-      },
-      {
-       "id": "__endturn",
-       "label": "End turn"
-      },
-      {
-       "id": "a-land",
-       "cardId": "engine-card-74",
-       "label": "Fire-Belly Changeling: ability"
-      },
-      {
-       "id": "a-cast1",
-       "cardId": "engine-card-75",
-       "label": "Cast Hurloon Minotaur"
-      }
-     ],
-     "kind": "priority",
-     "text": "",
-     "min": 1,
-     "max": 1
     }
    },
    {
@@ -272540,7 +272433,7 @@
      "state": {
       "kind": "response",
       "fromPlayer": "player-0",
-      "promptId": 982,
+      "promptId": 980,
       "action": {
        "type": "chooseAction",
        "output": {
@@ -272551,10 +272444,70 @@
     }
    },
    {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 981,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Stopped: beginning of combat, AI 1's turn. \"Until combat\" stays on.\n"
+   },
+   {
+    "log": "prompt Blue #982: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #982 \"Your priority\": Next | End turn | Fire-Belly Changeling: ability | Cast Hurloon Minotaur\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Stopped: beginning of combat, AI 1's turn. \"Until combat\" stays on.",
+     "color": "Blue"
+    }
+   },
+   {
     "tts": {
      "t": "prompt",
      "color": "Blue",
-     "promptId": null
+     "promptId": 982,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Next"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-land",
+       "cardId": "engine-card-74",
+       "label": "Fire-Belly Changeling: ability"
+      },
+      {
+       "id": "a-cast1",
+       "cardId": "engine-card-75",
+       "label": "Cast Hurloon Minotaur"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
     }
    },
    {
@@ -272683,7 +272636,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)\n"
+    "text": "[time] Blue   told: [MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)\n"
    },
    {
     "tts": {
@@ -272696,13 +272649,13 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)",
+     "text": "[MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)",
      "color": "Blue"
     }
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Skip ended: Lightning Bolt (AI 1) is on the stack.\n"
+    "text": "[time] Blue   told: [MTG] Stopped: Lightning Bolt (AI 1) is on the stack. \"Until end step\" stays on.\n"
    },
    {
     "log": "Blue may respond to the stack with: Play Fire-Belly Changeling | Cast Hurloon Minotaur"
@@ -272717,16 +272670,8 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Skip ended: Lightning Bolt (AI 1) is on the stack.",
+     "text": "[MTG] Stopped: Lightning Bolt (AI 1) is on the stack. \"Until end step\" stays on.",
      "color": "Blue"
-    }
-   },
-   {
-    "tts": {
-     "t": "autostate",
-     "color": "Blue",
-     "phase": "",
-     "on": false
     }
    },
    {
@@ -272793,7 +272738,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Passing until the next combat step; an opponent's spell stops it. (mtg skip off)\n"
+    "text": "[time] Blue   told: [MTG] \"Until combat\": you pass priority except in beginning of combat and declare attackers (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)\n"
    },
    {
     "tts": {
@@ -272806,13 +272751,13 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Passing until the next combat step; an opponent's spell stops it. (mtg skip off)",
+     "text": "[MTG] \"Until combat\": you pass priority except in beginning of combat and declare attackers (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)",
      "color": "Blue"
     }
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Skip ended: beginning of combat, AI 1's turn.\n"
+    "text": "[time] Blue   told: [MTG] Stopped: beginning of combat, AI 1's turn. \"Until combat\" stays on.\n"
    },
    {
     "log": "prompt Blue #980: chooseAction \"Your priority\""
@@ -272824,16 +272769,8 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Skip ended: beginning of combat, AI 1's turn.",
+     "text": "[MTG] Stopped: beginning of combat, AI 1's turn. \"Until combat\" stays on.",
      "color": "Blue"
-    }
-   },
-   {
-    "tts": {
-     "t": "autostate",
-     "color": "Blue",
-     "phase": "",
-     "on": false
     }
    },
    {
@@ -272878,7 +272815,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Passing until the next main phase; an opponent's spell stops it. (mtg skip off)\n"
+    "text": "[time] Blue   told: [MTG] \"Until main phase\": you pass priority except in the first main phase (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)\n"
    },
    {
     "tts": {
@@ -272891,29 +272828,64 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Passing until the next main phase; an opponent's spell stops it. (mtg skip off)",
+     "text": "[MTG] \"Until main phase\": you pass priority except in the first main phase (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)",
      "color": "Blue"
     }
    },
    {
-    "relay": {
-     "type": "BroadcastState",
-     "state": {
-      "kind": "response",
-      "fromPlayer": "player-0",
-      "promptId": 980,
-      "action": {
-       "type": "chooseAction",
-       "output": {
-        "type": "pass"
-       }
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Stopped: main phase, your turn. \"Until main phase\" stays on.\n"
+   },
+   {
+    "log": "prompt Blue #980: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #980 \"Your priority\": Next | End turn | Fire-Belly Changeling: ability | Cast Hurloon Minotaur\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Stopped: main phase, your turn. \"Until main phase\" stays on.",
+     "color": "Blue"
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 980,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Next"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-land",
+       "cardId": "engine-card-74",
+       "label": "Fire-Belly Changeling: ability"
+      },
+      {
+       "id": "a-cast1",
+       "cardId": "engine-card-75",
+       "label": "Cast Hurloon Minotaur"
       }
-     }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
     }
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Skip ended: main phase, AI 1's turn.\n"
+    "text": "[time] Blue   told: [MTG] Stopped: main phase, AI 1's turn. \"Until main phase\" stays on.\n"
    },
    {
     "log": "prompt Blue #981: chooseAction \"Your priority\""
@@ -272925,16 +272897,8 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Skip ended: main phase, AI 1's turn.",
+     "text": "[MTG] Stopped: main phase, AI 1's turn. \"Until main phase\" stays on.",
      "color": "Blue"
-    }
-   },
-   {
-    "tts": {
-     "t": "autostate",
-     "color": "Blue",
-     "phase": "",
-     "on": false
     }
    },
    {
@@ -272979,7 +272943,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)\n"
+    "text": "[time] Blue   told: [MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)\n"
    },
    {
     "tts": {
@@ -272992,7 +272956,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)",
+     "text": "[MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)",
      "color": "Blue"
     }
    },
@@ -273063,23 +273027,23 @@
   "result": [
    [
     "end",
-    "[MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)",
+    "[MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on unti",
     [
      "passed combatDeclareAttackers",
      "passed main2",
      "asked at endOfTurn"
     ],
-    "off"
+    "still on"
    ],
    [
     "combat",
-    "[MTG] Passing until the next combat step; an opponent's spell stops it. (mtg skip off)",
+    "[MTG] \"Until combat\": you pass priority except in beginning of combat and declare attackers (every turn, anyone's) or when an opponent's spell or ability is on ",
     [
-     "asked at main2",
-     "asked at upkeep",
-     "passed combatBegin"
+     "passed main2",
+     "passed upkeep",
+     "asked at combatBegin"
     ],
-    "off"
+    "still on"
    ],
    [
     "mine",
@@ -273093,11 +273057,11 @@
    ],
    [
     "end",
-    "[MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)",
+    "[MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on unti",
     [
      "asked at main2"
     ],
-    "off"
+    "still on"
    ],
    [
     "nonsense",
@@ -273107,20 +273071,20 @@
    ],
    [
     "combat",
-    "[MTG] Passing until the next combat step; an opponent's spell stops it. (mtg skip off)",
+    "[MTG] \"Until combat\": you pass priority except in beginning of combat and declare attackers (every turn, anyone's) or when an opponent's spell or ability is on ",
     [
      "asked at combatBegin"
     ],
-    "off"
+    "still on"
    ],
    [
     "main",
-    "[MTG] Passing until the next main phase; an opponent's spell stops it. (mtg skip off)",
+    "[MTG] \"Until main phase\": you pass priority except in the first main phase (every turn, anyone's) or when an opponent's spell or ability is on the stack. It sta",
     [
-     "passed main1",
+     "asked at main1",
      "asked at main1"
     ],
-    "off"
+    "still on"
    ],
    [
     "off",
@@ -273155,7 +273119,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)\n"
+    "text": "[time] Blue   told: [MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)\n"
    },
    {
     "tts": {
@@ -273168,7 +273132,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)",
+     "text": "[MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)",
      "color": "Blue"
     }
    },
@@ -273246,7 +273210,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)\n"
+    "text": "[time] Blue   told: [MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)\n"
    },
    {
     "tts": {
@@ -273259,13 +273223,13 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)",
+     "text": "[MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)",
      "color": "Blue"
     }
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Skip ended: end step, AI 1's turn.\n"
+    "text": "[time] Blue   told: [MTG] Stopped: end step, AI 1's turn. \"Until end step\" stays on.\n"
    },
    {
     "log": "prompt Blue #995: chooseAction \"Your priority\""
@@ -273277,16 +273241,8 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Skip ended: end step, AI 1's turn.",
+     "text": "[MTG] Stopped: end step, AI 1's turn. \"Until end step\" stays on.",
      "color": "Blue"
-    }
-   },
-   {
-    "tts": {
-     "t": "autostate",
-     "color": "Blue",
-     "phase": "",
-     "on": false
     }
    },
    {
@@ -273366,7 +273322,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)\n"
+    "text": "[time] Blue   told: [MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)\n"
    },
    {
     "tts": {
@@ -273379,13 +273335,13 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)",
+     "text": "[MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)",
      "color": "Blue"
     }
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Skip ended: end step, AI 1's turn.\n"
+    "text": "[time] Blue   told: [MTG] Stopped: end step, AI 1's turn. \"Until end step\" stays on.\n"
    },
    {
     "log": "prompt Blue #996: chooseAction \"Your priority\""
@@ -273397,16 +273353,8 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Skip ended: end step, AI 1's turn.",
+     "text": "[MTG] Stopped: end step, AI 1's turn. \"Until end step\" stays on.",
      "color": "Blue"
-    }
-   },
-   {
-    "tts": {
-     "t": "autostate",
-     "color": "Blue",
-     "phase": "",
-     "on": false
     }
    },
    {
@@ -273448,7 +273396,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Passing until the next combat step; an opponent's spell stops it. (mtg skip off)\n"
+    "text": "[time] Blue   told: [MTG] \"Until combat\": you pass priority except in beginning of combat and declare attackers (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)\n"
    },
    {
     "relay": {
@@ -273477,7 +273425,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Passing until the next combat step; an opponent's spell stops it. (mtg skip off)",
+     "text": "[MTG] \"Until combat\": you pass priority except in beginning of combat and declare attackers (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)",
      "color": "Blue"
     }
    },
@@ -274561,15 +274509,14 @@
    ],
    [
     "reached",
-    [
-     [
-      "Blue",
-      "",
-      false
-     ]
-    ],
+    [],
     true,
-    null
+    {
+     "phase": "end",
+     "turn": 5,
+     "step": "main1",
+     "said": "6|player-1|end"
+    }
    ],
    [
     "stop holds on their turn",
@@ -780705,7 +780652,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   told: [MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)\n"
+    "text": "[time] Blue   told: [MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)\n"
    },
    {
     "relay": {
@@ -780734,7 +780681,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Passing until the next end step; an opponent's spell stops it. (mtg skip off)",
+     "text": "[MTG] \"Until end step\": you pass priority except in the end step (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)",
      "color": "Blue"
     }
    },

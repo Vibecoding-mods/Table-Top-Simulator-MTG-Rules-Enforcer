@@ -630,12 +630,41 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     const asked = (h, seat, input, more = {}) => { h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", input, ...more }); return h.flush(); };
     // a skip ended at a step says it in the table's words, not Forge's (live check 12: "Skip ended: combatBegin, AI 1's
     // turn.", "Skip ended: endOfTurn, your turn.")
-    for (const [step, active, want] of [["combatBegin", "player-1", "[MTG] Skip ended: beginning of combat, AI 1's turn."], ["endOfTurn", "player-0", "[MTG] Skip ended: end step, your turn."]]) {
+    // ("Until <phase>" stays on and stops at that phase each turn, said once per stop; "Until my turn" ends, item 3
+    // 2026-11-10)
+    for (const [step, active, want] of [["combatBegin", "player-1", "[MTG] Stopped: beginning of combat, AI 1's turn. \"Until combat\" stays on."], ["endOfTurn", "player-0", "[MTG] Stopped: end step, your turn. \"Until end step\" stays on."]]) {
       const { h, seat } = fresh({ step, activePlayerId: active, turn: 9 });
       seat.skipTo = { phase: step === "combatBegin" ? "combat" : "end", turn: 8, step: "main1" };
       await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }] });
-      const said = chats(h).map(([t]) => t).filter((t) => /Skip ended/.test(t));
-      ok(`skip ended at ${step}: "${want}"`, said.length === 1 && said[0] === want, JSON.stringify(said));
+      const asks = !!seat.prompt;
+      if (seat.prompt) seat.prompt = null;
+      h.B.onPrompt(seat, { promptId: 901, decidingPlayerId: "player-0", input: { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }] } }); await h.flush();
+      const said = chats(h).map(([t]) => t).filter((t) => /Stopped|Skip ended/.test(t));
+      ok(`skip stops at ${step}: "${want}"`, said[0] === want && asks, JSON.stringify(said));
+      ok(`skip stops at ${step}: said once for two priorities in that step, and it stays on`, said.length === 1 && seat.skipTo?.phase === (step === "combatBegin" ? "combat" : "end") && !!seat.prompt, JSON.stringify([said, seat.skipTo]));
+      harness.restore();
+    }
+    {
+      // passed outside the phase, also on another player's turn, and stopped there again the next turn
+      const pass = { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }] };
+      const { h, seat } = fresh({ step: "main2", activePlayerId: "player-1", turn: 9 });
+      seat.skipTo = { phase: "combat", turn: 8, step: "main1" };
+      const from = h.effects.length;
+      await asked(h, seat, pass);
+      const passed = h.effects.slice(from).some((e) => e.relay && /"pass"/.test(JSON.stringify(e.relay)));
+      ok("skip: priority outside the phase is passed on another player's turn", passed && !seat.prompt, JSON.stringify(h.effects.slice(from).filter((e) => e.relay)).slice(0, 200));
+      const b2 = seat.board.state.gameView;
+      Object.assign(b2, { step: "combatDeclareAttackers", activePlayerId: "player-0", turn: 10 });
+      h.B.onPrompt(seat, { promptId: 902, decidingPlayerId: "player-0", input: pass }); await h.flush();
+      ok("skip: it stops at the phase again the next turn", !!seat.prompt && seat.skipTo?.phase === "combat", JSON.stringify(seat.skipTo));
+      harness.restore();
+    }
+    {
+      // "Until my turn" is one stop
+      const { h, seat } = fresh({ step: "upkeep", activePlayerId: "player-0", turn: 9 });
+      seat.skipTo = { phase: "mine", turn: 8, step: "main1" };
+      await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }] });
+      ok("skip: 'Until my turn' ends when it is reached", seat.skipTo == null && chats(h).some(([t]) => t === "[MTG] Skip ended: upkeep, your turn."), JSON.stringify(chats(h)));
       harness.restore();
     }
     // game over said once: the question, then the relay's abort right after it (live check 12: said twice, 25 ms apart),
