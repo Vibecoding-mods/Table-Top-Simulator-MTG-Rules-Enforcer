@@ -18,10 +18,13 @@
 //   bridge/                       the bridge's code (bridge/versions.js BRIDGE_FILES) and the data it reads
 //   decks/                        our decks; manabrew/public/preset_decks/: Manabrew's (bridge/presets.js)
 //   stack/compose.yml             relay + forge-room, project "mtg-table", ports on 127.0.0.1
-//   stack/deployed.json           the deploy record the bridge's /versions compares with (bridge = the packaged code)
+//   scenarios/                    the debug scenarios ("mtg debug <name>")
+//   stack/deployed.json           the deploy record the bridge's /versions compares with (bridge = the packaged code,
+//                                 nodeConfig / relayConfig = the image ids in Docker's classic store)
 //   images/mtg-images.tar         docker save of both engine images (plain: their layers are gzip already, see below)
 //   table/MTG Table.json (+ .png) the deployed save, SaveName "MTG Table (rules engine)"
-//   logs/                         empty; the bridge writes here when started with MTG_LOG_DIR=<package>\logs
+//   logs/                         empty; the companion starts the bridge with MTG_HOME=<package> and
+//                                 MTG_LOG_DIR=<package>\logs, so its logs and resume file land here
 //   README-FRIEND.txt, LICENSES/
 const fs = require("fs");
 const path = require("path");
@@ -38,6 +41,9 @@ const IMAGES = { relay: "mtg-relay:exile", node: "mtg-forge-node:exile" };
 // rebuilt from Scryfall when missing, so it is shipped when there is one.
 const BRIDGE_DATA = ["forge-cards.json", "token-scripts.json"];
 const BRIDGE_CACHE = ["image-cache-klrmngr.json"];
+// The folders of JSON files the bridge reads through home.data(), copied whole (the repo's path = the package's;
+// tests/test_home_paths.js checks every home.data() folder is here or stack/): decks, Manabrew's, "mtg debug" scenarios
+const DATA_DIRS = ["decks", "manabrew/public/preset_decks", "scenarios"];
 const DEFAULT_DECKS_RE = /const DEFAULT_DECKS = (\[[^\]]*\]);/; // the AI's decks when none was chosen (bridge.js)
 const TAR = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe"); // Windows' bsdtar writes zips
 
@@ -154,6 +160,20 @@ async function tarRead(stream, wanted) {
   return { names, text };
 }
 
+// Why a docker save tar isn't the deployed images ([] when it is): each tag must be in it under the deployed id
+function tarMismatch(held, deployed) {
+  return ["node", "relay"].filter((k) => held[IMAGES[k]]?.id !== deployed[k])
+    .map((k) => `images/mtg-images.tar holds ${IMAGES[k]} as ${held[IMAGES[k]]?.id || "nothing"}, not the deployed ${deployed[k]}`);
+}
+
+// The package's stack/deployed.json, which the bridge's /versions compares with: this package's own code and save, and
+// for each image its config digest too (the id Docker's classic store gives an image loaded from the tar)
+function deployedRecord(deployed, { bridge, save, at, images }) {
+  const out = { ...deployed, bridge, save, at };
+  for (const k of ["node", "relay"]) if (images?.[IMAGES[k]]?.config) out[`${k}Config`] = images[IMAGES[k]].config;
+  return out;
+}
+
 // What a docker save tar holds: tag -> { id (the OCI index digest: the image id in Docker's containerd store), config
 // (the config digest: the image id in the classic store) }
 function tarImages(text) {
@@ -180,17 +200,27 @@ Package: built ${v.built.slice(0, 10)}, bridge ${v.bridge}, table ${v.table}.
 
 
 WHAT YOU NEED
-- Windows 10 or 11 (64-bit), Tabletop Simulator (Steam).
+- A Windows 10 or 11 PC with an x64 processor (Intel or AMD). Windows on ARM (e.g. Snapdragon laptops) won't run
+  the engine.
+- Tabletop Simulator (Steam).
 - Docker Desktop: https://www.docker.com/products/docker-desktop/
-  Install it, start it once, and finish its first-run screens yourself (sign-in is optional).
-- About 2 GB of free disk for the engine.
+  Install it, start it once, and finish its first-run screens yourself (sign-in is optional). Then sign out of
+  Windows and back in (or restart the PC): the install adds you to the "docker-users" group, which only counts
+  after a new sign-in.
+- About 1.5 GB of free disk for the engine inside Docker, plus about 400 MB for this folder (the .zip can be
+  deleted once it is unzipped).
 
 
 FIRST TIME
 1. Before unzipping: right-click the .zip > Properties > tick "Unblock" > OK.
    MTG Companion.exe isn't signed. If you skip this, Windows may say "Windows protected your PC" when you start it:
    click "More info", then "Run anyway".
-2. Unzip the whole folder somewhere you keep, e.g. Documents\\MTG-Table. Don't run it from inside the zip.
+   If Windows blocks it outright with no "Run anyway" (Smart App Control): delete the unzipped folder, do the
+   Unblock step above on the .zip, and unzip again. If it is still blocked, Smart App Control won't run unsigned
+   programs on this PC, and the companion only runs with it off (Windows Security > App & browser control). That
+   is your decision to make: on many PCs it can't be turned back on without resetting Windows.
+2. Unzip the whole folder to a plain folder of its own, e.g. C:\\Games\\MTG-Table. Not into OneDrive, Documents or
+   Program Files (synced or protected folders get in the way), and don't run it from inside the zip.
 3. Start Docker Desktop and wait until it says it is running. Its first start may ask you to accept its terms, or
    to update WSL (Windows' Linux layer, which Docker uses): do both, then let it finish starting.
 4. Double-click "MTG Companion.exe". The first start takes a few minutes while it loads the engine into Docker. It
@@ -198,24 +228,26 @@ FIRST TIME
 
 
 EVERY GAME NIGHT
-1. Double-click "MTG Companion.exe" and wait until its lights are green.
+1. Double-click "MTG Companion.exe" and wait until its lights are green. The TTS light stays amber until the
+   table is loaded (step 2).
 2. In TTS: Create > Multiplayer (so friends can join; Singleplayer to play alone against the AI)
    > Games > Save & Load > "${SAVE_NAME}".
 3. Friends join your server (Steam invite, or the server browser). They need nothing but TTS.
 4. Everyone sits at a colour, brings a deck with the table's Card Importer, and presses READY? on their playmat.
    Turn the engine on with the middle tile (Engine: on), then press Start. Against the computer: type
    "mtg start ai 1" in chat (up to 3 AI players).
-5. When you are done: "End game night" in the companion (or just shut down the PC).
+5. When you are done: "Stop everything" in the companion (or just shut down the PC).
 
 
 IF A LIGHT IS RED
 Each red light says what is wrong and has one button that fixes it. The usual ones:
-- Docker: Docker Desktop isn't running. Start it (the button does), wait a minute.
-- Relay or Forge room: press the fix button ("Restart relay and room"). This happens after Windows slept or Docker
-  restarted. If a game was being set up, type "mtg reset" in TTS chat first.
+- Docker: Docker Desktop isn't running: "Start Docker Desktop", wait a minute. If it says Windows doesn't let this
+  account use Docker yet, sign out of Windows and back in (or restart), then press "Try again".
+- Engine stack: press "Restart relay and room". This happens after Windows slept or Docker restarted. If a game was
+  being set up, type "mtg reset" in TTS chat first.
 - Bridge: press "Start the bridge". If it says another program holds port 39998, close the TTS extension of VS Code
-  or Atom (they use the same port).
-- Table: the table loaded in TTS isn't this package's. Load "${SAVE_NAME}" again (step 2 above).
+  or Atom (they use the same port). If it says the folder can't be written to, move the folder (FIRST TIME, step 2).
+- TTS: red when the table loaded in TTS isn't this package's. Load "${SAVE_NAME}" again (step 2 above).
 Fix buttons that restart things are locked while a game is on, so a fix never ends a game by surprise.
 Still stuck: close the companion, start it again. Then send the files in the "logs" folder to whoever gave you this.
 
@@ -322,9 +354,8 @@ async function saveImages(file, deployed) {
   if (code !== 0) stop(`docker save failed (${code}): ${err.trim()}`);
   const { text } = await tarRead(fs.createReadStream(file), ["index.json", "manifest.json"]);
   const held = tarImages(text);
-  for (const k of ["node", "relay"]) {
-    if (held[IMAGES[k]]?.id !== deployed[k]) stop(`images/mtg-images.tar holds ${IMAGES[k]} as ${held[IMAGES[k]]?.id || "nothing"}, not the deployed ${deployed[k]}`);
-  }
+  const wrong = tarMismatch(held, deployed);
+  if (wrong.length) stop(wrong.join("; "));
   return held;
 }
 
@@ -402,8 +433,7 @@ async function main() {
   }
   const packaged = sha8(versions.BRIDGE_FILES.map((f) => fs.readFileSync(path.join(pkg, "bridge", path.basename(f)), "utf8")).join("\0"));
   if (packaged !== bridge) stop(`the packaged bridge hashes to ${packaged}, not ${bridge}`);
-  const ours = copyJsonDir(path.join(ROOT, "decks"), path.join(pkg, "decks"));
-  const theirs = copyJsonDir(presetsDir, path.join(pkg, "manabrew", "public", "preset_decks"));
+  const [ours, theirs, scenarios] = DATA_DIRS.map((d) => (fs.existsSync(path.join(ROOT, d)) ? copyJsonDir(path.join(ROOT, d), path.join(pkg, d)) : []));
 
   copy(node.file, path.join(pkg, "runtime", "node", "node.exe"));
 
@@ -426,8 +456,6 @@ async function main() {
 
   fs.mkdirSync(path.join(pkg, "stack"), { recursive: true });
   fs.writeFileSync(path.join(pkg, "stack", "compose.yml"), composeYaml());
-  // what the bridge's /versions compares with: this package's own code and save
-  fs.writeFileSync(path.join(pkg, "stack", "deployed.json"), `${JSON.stringify({ ...deployed, bridge, save: info.save, at: info.built }, null, 1)}\n`);
 
   fs.mkdirSync(path.join(pkg, "images"), { recursive: true });
   if (noImages) {
@@ -441,6 +469,7 @@ async function main() {
     const after = tagIds();
     if (after.node !== deployed.node || after.relay !== deployed.relay) stop("an image tag moved during docker save: run it again");
   }
+  fs.writeFileSync(path.join(pkg, "stack", "deployed.json"), `${JSON.stringify(deployedRecord(deployed, { bridge, save: info.save, at: info.built, images: info.images }), null, 1)}\n`);
   fs.mkdirSync(path.join(pkg, "logs"), { recursive: true });
 
   for (const [to, from] of Object.entries(licences)) copy(from, path.join(pkg, "LICENSES", to));
@@ -457,9 +486,9 @@ async function main() {
   execFileSync(TAR, ["-a", "-c", "-f", zip, "-C", out, name], { stdio: "inherit", timeout: 1800000 });
 
   const lines = fs.readdirSync(pkg).sort().map((f) => `  ${f.padEnd(28)} ${mb(sizeOf(path.join(pkg, f))).padStart(10)}`);
-  console.log(`${lines.join("\n")}\n  decks: ${ours.length} ours, ${theirs.length} Manabrew's; companion: ${made}`);
+  console.log(`${lines.join("\n")}\n  decks: ${ours.length} ours, ${theirs.length} Manabrew's; ${scenarios.length} debug scenarios; companion: ${made}`);
   console.log(`made ${pkg} (${mb(sizeOf(pkg))}) and ${zip} (${mb(fs.statSync(zip).size)})`);
 }
 
 if (require.main === module) main().catch((e) => stop(e.stack || e.message));
-module.exports = { stampOf, renameSave, refusals, composeYaml, tarRead, tarImages, readmeText, IMAGES, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };
+module.exports = { stampOf, renameSave, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };

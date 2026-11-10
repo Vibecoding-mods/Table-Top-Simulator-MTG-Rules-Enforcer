@@ -78,6 +78,10 @@ namespace MtgCompanion
             Check("Windows containers mode: red, says switch", v.Light == Light.Red && v.Text.Contains("Linux containers"), v);
             v = Logic.DecideDocker(new DockerFacts { CliFound = true });
             Check("CLI but no Docker Desktop: red, no start", v.Light == Light.Red && v.Action == null, v);
+            v = Logic.DecideDocker(new DockerFacts { CliFound = true, DesktopFound = true, DesktopRunning = true, AccessDenied = true });
+            Check("pipe refuses this account: red, sign out and back in, not 'starting'", v.Light == Light.Red && v.Text.Contains("sign out of Windows") && v.Fix == Fixes.Retry && v.Action == null, v);
+            v = Logic.DecideDocker(new DockerFacts { CliFound = true, DesktopFound = true, Answers = true, OsType = "linux", AccessDenied = true });
+            Check("answers: green even if an earlier probe was refused", v.Light == Light.Green, v);
         }
 
         const string R = "sha256:dbfe69213fff7e3eccb6db806e09afbec608e7c56105020d70e3b8ac631e74b3";
@@ -109,6 +113,23 @@ namespace MtgCompanion
             Check("SameId: short prefix of 12+", Logic.SameId("ef61822078a0", N));
             Check("SameId: under 12 hex must be equal", !Logic.SameId("ef6182", N));
             Check("SameId: different", !Logic.SameId(R, N));
+
+            // the package's stack\deployed.json after a load (the bridge compares it exactly)
+            const string RC = "sha256:aaaa69213fff7e3eccb6db806e09afbec608e7c56105020d70e3b8ac631e74b3";
+            const string NC = "sha256:bbbb822078a04ba83bd1086449a2a92b3860ac3d377444a2da658e1ee781c0f6";
+            const string NX = "sha256:cccc822078a04ba83bd1086449a2a92b3860ac3d377444a2da658e1ee781c0f6";
+            var dep = new Dictionary<string, object> { { "bridge", "5079109f" }, { "relay", R }, { "node", N }, { "relayConfig", RC }, { "nodeConfig", NC } };
+            Check("deployed: same ids (containerd store): unchanged", Logic.DeployedAfterLoad(dep, R, N) == null);
+            Check("deployed: the config ids (classic store): unchanged", Logic.DeployedAfterLoad(dep, RC, NC) == null);
+            var nd = Logic.DeployedAfterLoad(dep, R, NX);
+            Check("deployed: another engine id: recorded as node, the package's kept", nd != null && (string)nd["node"] == NX && (string)nd["nodePackage"] == N && (string)nd["relay"] == R && !nd.ContainsKey("relayPackage") && (string)nd["bridge"] == "5079109f", nd == null ? null : J.Write(nd));
+            Check("deployed: the input isn't changed", (string)dep["node"] == N);
+            var nd2 = Logic.DeployedAfterLoad(nd, R, R);
+            Check("deployed: a second change keeps the first package id", nd2 != null && (string)nd2["nodePackage"] == N && (string)nd2["node"] == R);
+            var rd = Logic.DeployedAfterLoad(dep, NX, N);
+            Check("deployed: another relay id: recorded as relay", rd != null && (string)rd["relay"] == NX && (string)rd["relayPackage"] == R && (string)rd["node"] == N);
+            Check("deployed: a short id isn't exact: rewritten", Logic.DeployedAfterLoad(dep, R, N.Substring(7)) != null);
+            Check("deployed: no record or no ids: nothing", Logic.DeployedAfterLoad(null, R, N) == null && Logic.DeployedAfterLoad(dep, null, N) == null && Logic.DeployedAfterLoad(dep, R, "") == null);
         }
 
         static ContainerInfo Up(string health) { return new ContainerInfo { Exists = true, State = "running", Health = health }; }
@@ -136,6 +157,11 @@ namespace MtgCompanion
             v = Logic.DecideStack(Up("healthy"), new ContainerInfo { Exists = true, State = "exited" }, null, none);
             Check("room container stopped: red", v.Light == Light.Red, v);
             Check("compose: port 9443 taken names the other engine", Logic.ComposeFailure("Error response from daemon: ... Bind for 127.0.0.1:9443 failed: port is already allocated").Contains("another copy of the MTG engine"));
+            v = Logic.DecideStack(Up("healthy"), Up(""), new LoginResult { Kind = LoginKind.AuthFailed, Detail = "bad key" }, none, true);
+            Check("friend, key refused: Stop everything, no repo stack\\.env advice", v.Text.Contains("Stop everything") && !v.Text.Contains("Check MANABREW_SERVER_KEY in stack"), v);
+            string taken = "Bind for 127.0.0.1:9443 failed: port is already allocated";
+            Check("friend compose: port taken says Stop everything, no Stop MTG.bat", Logic.ComposeFailure(taken, true).Contains("Stop everything") && !Logic.ComposeFailure(taken, true).Contains("Stop MTG.bat"));
+            Check("home compose: port taken says Stop MTG.bat", Logic.ComposeFailure(taken).Contains("Stop MTG.bat"));
             Check("compose args: project and file", Logic.ComposeArgs(Layout.Make(Mode.Friend, @"D:\P"), "up -d") == "compose -p mtg-table -f \"D:\\P\\stack\\compose.yml\" up -d", Logic.ComposeArgs(Layout.Make(Mode.Friend, @"D:\P"), "up -d"));
         }
 
@@ -155,6 +181,14 @@ namespace MtgCompanion
             Check("echo-bridge.js is not the bridge", v != null && v.Light == Light.Red, v);
             v = Logic.DecidePorts(new List<Listener> { new Listener { Port = 9443, Pid = 9, Name = "com.docker.backend" } }, ours);
             Check("other ports are ignored", v == null, v);
+            var other = new List<Listener> { new Listener { Port = 48787, Pid = 8, Name = "node", CommandLine = "node --report-on-fatalerror bridge.js" } };
+            v = Logic.DecidePorts(other, ours, true);
+            Check("friend wording: another bridge, stop it in that companion", v != null && v.Text.Contains("Stop everything") && !v.Text.Contains("Stop MTG.bat"), v);
+            v = Logic.DecidePorts(other, ours);
+            Check("home wording: Stop MTG.bat", v != null && v.Text.Contains("Stop MTG.bat"), v);
+            Check("write problem: none when all writable", Logic.WriteProblem(new[] { @"D:\P\logs", @"D:\P\bridge" }, d => null) == null);
+            string wp = Logic.WriteProblem(new[] { @"D:\P\logs", @"D:\P\bridge" }, d => d.EndsWith("bridge") ? "Access to the path is denied" : null);
+            Check("write problem: names the folder and the error, suggests C:\\Games\\MTG-Table", wp != null && wp.Contains(@"D:\P\bridge") && wp.Contains("denied") && wp.Contains(@"C:\Games\MTG-Table") && !wp.Contains(@"D:\P\logs"), wp);
             Check("bridge.js as a whole file name", Logic.IsBridgeCommandLine("node bridge.js") && Logic.IsBridgeCommandLine("\"node.exe\" \"C:\\a b\\bridge\\bridge.js\"") && Logic.IsBridgeCommandLine("node ./bridge/bridge.js --relay x"));
             Check("not a bridge: echo-bridge.js, bridge.json", !Logic.IsBridgeCommandLine("node echo-bridge.js") && !Logic.IsBridgeCommandLine("node bridge.json") && !Logic.IsBridgeCommandLine(null));
         }
@@ -241,8 +275,11 @@ namespace MtgCompanion
             var st = new InstallState { SaveFile = "TS_Save_2.json", SaveHash = "aaaa1111" };
             p = Logic.PlanSave(E("TS_Save_1.json", "TS_Save_2.json"), st, "aaaa1111", "aaaa1111", 2000, noHash);
             Check("ours, same hash: leave it (even if the player saved over it)", p.Kind == SaveKind.Skip && p.File == "TS_Save_2.json", p);
+            Func<string, string> asInstalled = n => n == "TS_Save_2.json" ? "aaaa1111" : "other";
+            p = Logic.PlanSave(E("TS_Save_1.json", "TS_Save_2.json"), st, "bbbb2222", "bbbb2222", 2000, asInstalled);
+            Check("ours, untouched, package hash changed: update that same file", p.Kind == SaveKind.Update && p.File == "TS_Save_2.json", p);
             p = Logic.PlanSave(E("TS_Save_1.json", "TS_Save_2.json"), st, "bbbb2222", "bbbb2222", 2000, noHash);
-            Check("ours, package hash changed: update that same file", p.Kind == SaveKind.Update && p.File == "TS_Save_2.json", p);
+            Check("ours but the player saved over it, package changed: a new number, never that file", p.Kind == SaveKind.Install && p.File == "TS_Save_3.json", p);
             p = Logic.PlanSave(E("TS_Save_1.json"), st, "bbbb2222", "bbbb2222", 2000, noHash);
             Check("ours but deleted: install again under the same free name", p.Kind == SaveKind.Install && p.File == "TS_Save_2.json", p);
             var ex = new List<SaveEntry> { new SaveEntry("TS_Save_1.json", 999), new SaveEntry("TS_Save_5.json", 2000) };

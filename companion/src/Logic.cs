@@ -92,7 +92,8 @@ namespace MtgCompanion
                 l.TablePng = Path.Combine(home, "table", "MTG Table.png");
                 l.ImagesTar = null; // FindImagesTar fills it
                 l.DeployedFile = Path.Combine(home, "stack", "deployed.json");
-                // (where the bridge keeps its resume file under MTG_HOME isn't fixed yet: both places are read)
+                // (the app starts the bridge with MTG_LOG_DIR=logs, so its resume file is logs\bridge-game.json; tmp\ is
+                // where a bridge started by hand with MTG_HOME alone keeps it, so a game of that one locks too)
                 l.ResumeFiles = new[] { Path.Combine(home, "tmp", "bridge-game.json"), Path.Combine(l.LogsDir, "bridge-game.json") };
             }
             else
@@ -204,6 +205,10 @@ namespace MtgCompanion
                 return new Verdict(Light.Red, "Install Docker Desktop, then press Try again. Get it from " + DockerUrl)
                     .WithFix(Fixes.Retry, "Try again")
                     .WithHint("Docker Desktop isn't installed on this PC.\r\nDownload it yourself from:\r\n    " + DockerUrl + "\r\nInstall it, start it once, accept its agreement, then press Try again.");
+            // (running, but the pipe refuses this account: waiting would only say "starting" for 3 minutes)
+            if (f.AccessDenied)
+                return new Verdict(Light.Red, "Docker Desktop is running, but Windows doesn't let this account use it yet. After installing Docker Desktop, sign out of Windows and back in (or restart the PC), then press Try again.")
+                    .WithFix(Fixes.Retry, "Try again");
             if (!f.DesktopFound)
                 return new Verdict(Light.Red, "Docker isn't answering and Docker Desktop.exe wasn't found. Start Docker yourself, then press Try again.")
                     .WithFix(Fixes.Retry, "Try again");
@@ -230,6 +235,26 @@ namespace MtgCompanion
             if (b.StartsWith("sha256:")) b = b.Substring(7);
             if (a.Length < 12 || b.Length < 12) return a == b;
             return a.StartsWith(b) || b.StartsWith(a);
+        }
+
+        // The package's stack\deployed.json after a load: the bridge checks the running containers against its node and
+        // relay (or nodeConfig / relayConfig, the classic store's ids). When this Docker gave the images yet another id,
+        // that id becomes node / relay and the package's goes to nodePackage / relayPackage. null: nothing to change.
+        public static Dictionary<string, object> DeployedAfterLoad(object deployed, string relay, string node)
+        {
+            var d = deployed as Dictionary<string, object>;
+            if (d == null || string.IsNullOrEmpty(relay) || string.IsNullOrEmpty(node)) return null;
+            var next = new Dictionary<string, object>(d);
+            bool changed = false;
+            foreach (var kv in new[] { new KeyValuePair<string, string>("relay", relay), new KeyValuePair<string, string>("node", node) })
+            {
+                string k = kv.Key, id = kv.Value;
+                if (J.Str(d, k) == id || J.Str(d, k + "Config") == id) continue; // (the bridge compares exactly)
+                if (!next.ContainsKey(k + "Package")) next[k + "Package"] = J.Str(d, k);
+                next[k] = id;
+                changed = true;
+            }
+            return changed ? next : null;
         }
 
         public static string ShortId(string id)
@@ -272,7 +297,7 @@ namespace MtgCompanion
 
         // ───────────────────────────── 3. Engine stack ─────────────────────────────
 
-        public static Verdict DecideStack(ContainerInfo relay, ContainerInfo room, LoginResult login, Game game)
+        public static Verdict DecideStack(ContainerInfo relay, ContainerInfo room, LoginResult login, Game game, bool friend = false)
         {
             if (relay == null || !relay.Exists)
                 return new Verdict(Light.Red, "The engine isn't running (no relay container).").WithFix(Fixes.StackRestart, "Start the engine");
@@ -288,7 +313,9 @@ namespace MtgCompanion
             switch (login.Kind)
             {
                 case LoginKind.AuthFailed:
-                    return new Verdict(Light.Red, "The relay refused the key (" + (login.Detail ?? "no reason") + "). Check MANABREW_SERVER_KEY in stack\\.env.")
+                    return new Verdict(Light.Red, "The relay refused the key (" + (login.Detail ?? "no reason") + "). " + (friend
+                        ? "A MANABREW_SERVER_KEY setting on this PC (a Windows environment variable, or a stack\\.env file in this folder) gives the engine another key: remove it, press Stop everything, then start again."
+                        : "Check MANABREW_SERVER_KEY in stack\\.env."))
                         .WithFix(Fixes.Retry, "Try again");
                 case LoginKind.Ok:
                     if (!login.RoomFound) return new Verdict(Light.Busy, "The relay works; the Forge room isn't open yet.");
@@ -303,13 +330,28 @@ namespace MtgCompanion
             }
         }
 
+        // The first folder of the package the bridge can't write (its logs, resume file and picture cache), in words, or
+        // null. tryWrite: dir -> null when writable, else the error.
+        public static string WriteProblem(IList<string> dirs, Func<string, string> tryWrite)
+        {
+            foreach (var d in dirs)
+            {
+                var err = tryWrite(d);
+                if (err != null)
+                    return "This folder can't be written to (" + d + ": " + err + "). The bridge keeps its logs and card pictures here. Move the whole folder somewhere you can write, such as C:\\Games\\MTG-Table (not Program Files or a read-only folder), and start MTG Companion.exe from there.";
+            }
+            return null;
+        }
+
         // `docker compose` output that names a port another program holds
-        public static string ComposeFailure(string output)
+        public static string ComposeFailure(string output, bool friend = false)
         {
             if (output == null) return "Docker compose failed.";
             if (output.IndexOf("port is already allocated", StringComparison.OrdinalIgnoreCase) >= 0 || output.IndexOf("address already in use", StringComparison.OrdinalIgnoreCase) >= 0
                 || output.IndexOf("Only one usage of each socket address", StringComparison.OrdinalIgnoreCase) >= 0)
-                return "Port 9443 is taken, most likely by another copy of the MTG engine (e.g. the repo's \"stack\" containers). Stop that one first (Stop MTG.bat, or docker compose -p stack stop), then press the button.";
+                return friend
+                    ? "Port 9443 is taken, most likely by another copy of the MTG engine (an older copy of this folder, or a developer's setup). Stop that one first (Stop everything in its MTG Companion), then press the button."
+                    : "Port 9443 is taken, most likely by another copy of the MTG engine (e.g. the repo's \"stack\" containers). Stop that one first (Stop MTG.bat, or docker compose -p stack stop), then press the button.";
             if (output.IndexOf("pull access denied", StringComparison.OrdinalIgnoreCase) >= 0 || output.IndexOf("No such image", StringComparison.OrdinalIgnoreCase) >= 0)
                 return "Docker can't find the engine images. Press Try again on the Engine images row.";
             string last = output.Trim().Split('\n').Select(s => s.Trim()).Where(s => s.Length > 0).LastOrDefault();
@@ -333,10 +375,13 @@ namespace MtgCompanion
                 if (names.Contains(st.SaveFile))
                 {
                     if (st.SaveHash == wantHash) return new SavePlan(SaveKind.Skip, st.SaveFile, "Installed as " + st.SaveFile + " (up to date).");
-                    return new SavePlan(SaveKind.Update, st.SaveFile, "Updating " + st.SaveFile + " to this package's table.");
+                    // overwritten only while it is still the file we put there: one the player saved over (decks on the
+                    // table, a game) is theirs now, so the new table goes to a new number beside it
+                    if (hashOf(st.SaveFile) == st.SaveHash)
+                        return new SavePlan(SaveKind.Update, st.SaveFile, "Updating " + st.SaveFile + " to this package's table.");
                 }
                 // gone (the player deleted it): put it back under the same name, which is free
-                return new SavePlan(SaveKind.Install, st.SaveFile, "Installing the table again as " + st.SaveFile + ".");
+                else return new SavePlan(SaveKind.Install, st.SaveFile, "Installing the table again as " + st.SaveFile + ".");
             }
             foreach (var e in existing)
             {
@@ -374,7 +419,7 @@ namespace MtgCompanion
 
         // The programs holding the bridge's ports. ourBridgeJs: the package's bridge.js (friend mode), or null in home
         // mode, where any bridge.js counts as ours. Returns null when nothing is wrong.
-        public static Verdict DecidePorts(IList<Listener> held, string ourBridgeJs)
+        public static Verdict DecidePorts(IList<Listener> held, string ourBridgeJs, bool friend = false)
         {
             foreach (var l in held)
             {
@@ -384,7 +429,8 @@ namespace MtgCompanion
                 if (isNode && IsBridgeCommandLine(l.CommandLine))
                 {
                     if (ourBridgeJs == null || Norm(l.CommandLine).Contains(Norm(ourBridgeJs))) continue;
-                    return new Verdict(Light.Red, "Another MTG bridge is already running (process " + l.Pid + ": " + Clip(l.CommandLine, 120) + "). Stop it first (in the repo: Stop MTG.bat), then press Try again.")
+                    return new Verdict(Light.Red, "Another MTG bridge is already running (process " + l.Pid + ": " + Clip(l.CommandLine, 120) + "). Stop it first ("
+                        + (friend ? "Stop everything in the MTG Companion of that other copy" : "in the repo: Stop MTG.bat") + "), then press Try again.")
                         .WithFix(Fixes.Retry, "Try again");
                 }
                 string who = (l.Name ?? "a program") + (l.Name != null && !l.Name.EndsWith(".exe") ? ".exe" : "");
@@ -555,7 +601,7 @@ namespace MtgCompanion
 
     public class DockerFacts
     {
-        public bool CliFound, DesktopFound, Answers, DesktopRunning, Waiting;
+        public bool CliFound, DesktopFound, Answers, DesktopRunning, Waiting, AccessDenied;
         public string OsType, Version; public int Cpus; public double WaitedSec;
     }
 

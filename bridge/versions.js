@@ -48,8 +48,10 @@ function outOfStep(now, deployed) {
   else if (now.table !== undefined && now.table !== deployed.table) out.push("This table isn't the deployed one. Load the save again, and don't save over it from an older session.");
   if (now.node === null) out.push("Can't read the engine's containers: is Docker up?");
   else {
-    if (now.node !== deployed.node) out.push("The engine isn't the deployed image.");
-    if (now.relay !== deployed.relay) out.push("The relay isn't the deployed image.");
+    // (an image loaded from the friend package's tar has another id in Docker's classic store: its config digest,
+    // which the package's record keeps as nodeConfig / relayConfig)
+    if (now.node !== deployed.node && now.node !== deployed.nodeConfig) out.push("The engine isn't the deployed image.");
+    if (now.relay !== deployed.relay && now.relay !== deployed.relayConfig) out.push("The relay isn't the deployed image.");
   }
   return out;
 }

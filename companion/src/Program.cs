@@ -205,6 +205,7 @@ namespace MtgCompanion
                     string inner = "\"" + l.NodeExe + "\" --report-on-fatalerror --report-uncaught-exception --report-directory=\"" + reports + "\" \"" + l.BridgeJs + "\" >> \"" + l.BridgeLog + "\" 2>&1";
                     var psi = new ProcessStartInfo("cmd.exe", "/d /s /c \"" + inner + "\"") { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(l.BridgeJs) };
                     psi.EnvironmentVariables["MTG_HOME"] = l.Home;
+                    psi.EnvironmentVariables["MTG_LOG_DIR"] = l.LogsDir; // (its logs and resume file in logs\, as README-FRIEND says)
                     int code = -1;
                     try
                     {

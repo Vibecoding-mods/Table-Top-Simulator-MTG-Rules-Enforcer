@@ -91,6 +91,7 @@ put("stack/deployed.json", JSON.stringify({ bridge: "pkgbrdg1", table: "t" }));
 {
   const pack = require("../tools/make-friend-package");
   const shipped = new Set(pack.BRIDGE_SHIPPED);
+  const dataDirs = new Set();
   for (const f of require("../bridge/versions").BRIDGE_FILES) {
     const name = path.basename(f);
     if (name === "home.js") continue;
@@ -99,7 +100,15 @@ put("stack/deployed.json", JSON.stringify({ bridge: "pkgbrdg1", table: "t" }));
     if (name === "versions.js") src = src.replace('const ROOT = path.join(__dirname, "..");', "");
     same(`no repo path in ${name} but through home.js`, src.match(/path\.join\(__dirname, "\.\."/g) || [], []);
     for (const m of src.matchAll(/path\.join\(__dirname, "([^"]+)"\)/g)) ok(`the package ships bridge/${m[1]} (read by ${name})`, shipped.has(m[1]));
+    // every folder read through home.data(): copied whole by the packager, or stack/ (its compose file and record)
+    for (const m of src.matchAll(/home\.data\(((?:"[^"]+"(?:, )?)+)\)/g)) {
+      const parts = [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+      const dir = (/\.\w+$/.test(parts.at(-1)) ? parts.slice(0, -1) : parts).join("/");
+      ok(`the package ships ${dir}/ (read by ${name})`, dir === "stack" || pack.DATA_DIRS.includes(dir));
+      dataDirs.add(dir);
+    }
   }
+  same("the bridge's data folders, as found", [...dataDirs].sort(), ["decks", "manabrew/public/preset_decks", "scenarios", "stack"]);
 }
 
 // a real bridge from a copied folder: it answers /versions from that folder's files, its logs go to MTG_LOG_DIR
@@ -147,7 +156,35 @@ async function liveRun() {
   }
 }
 
-liveRun().catch((e) => ok("live run", false, e.stack)).finally(() => {
+// /health's phase and seats through a game's life (the bridge in test mode, its real HTTP server on a spare port)
+async function healthPhases() {
+  const harness = require("./bridge-harness");
+  const port = await freePort();
+  process.env.MTG_DEBUG_PORT = String(port); // (the bridge refuses a Host header with another port)
+  const h = harness.load();
+  harness.restore(); // (real network for the requests)
+  await new Promise((done) => h.B.debugServer.listen(port, "127.0.0.1", done));
+  const get = () => fetch(`http://127.0.0.1:${port}/health`).then((r) => r.json());
+  const at = async (name, g, phase, started, seats) => {
+    h.B._setGame(g);
+    const b = await get();
+    same(`health: ${name}`, { phase: b.phase, started: b.started, seats: b.seats }, { phase, started, seats });
+  };
+  try {
+    await at("no game", null, "none", false, false);
+    await at("setting up, nobody seated yet", { seats: new Map(), started: false }, "setup", false, false);
+    await at("setting up, a seat taken", { seats: new Map([["White", {}]]), started: false }, "setup", false, true);
+    await at("running", { seats: new Map([["White", {}], ["Red", {}]]), started: true }, "running", true, true);
+    await at("running, the seats map empty", { seats: new Map(), started: true }, "running", true, false);
+    await at("over", { seats: new Map([["White", {}]]), started: true, over: true }, "over", false, true);
+  } finally {
+    h.B._setGame(null);
+    await new Promise((done) => h.B.debugServer.close(done));
+    delete process.env.MTG_DEBUG_PORT;
+  }
+}
+
+healthPhases().catch((e) => ok("health phases", false, e.stack)).then(liveRun).catch((e) => ok("live run", false, e.stack)).finally(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
   process.stdout.write(failed ? `\n${failed} bridge home checks failed (${passed} passed)\n` : `all ${passed} bridge home checks pass\n`);
   process.exit(failed ? 1 : 0);

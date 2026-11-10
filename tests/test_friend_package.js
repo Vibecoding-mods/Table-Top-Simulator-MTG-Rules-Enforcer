@@ -41,6 +41,8 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
   same("refuse: a saved-over save, allowed", said({ save: { stamp: "t1", sha8: "s2" } }, { allowChangedSave: true }), []);
   one("another table is refused even when saves may change", { save: { stamp: "t2", sha8: "s2" } }, "deploy again", { allowChangedSave: true });
   one("no save", { save: null }, "can't be read");
+  one("a save with no stamp (older than stamps)", { save: { stamp: null, sha8: "s1" } }, "no table stamp");
+  one("a save with no stamp, even when saves may change", { save: { stamp: null, sha8: "s2" } }, "no table stamp", { allowChangedSave: true });
   one("bridge code not deployed", { bridge: "b2" }, "--allow-undeployed-bridge");
   same("refuse: undeployed bridge, allowed", said({ bridge: "b2" }, { allowUndeployedBridge: true }), []);
   one("compose runs another image", { compose: compose.replace("mtg-relay:exile", "mtg-relay:exile2") }, "doesn't run mtg-relay:exile");
@@ -78,7 +80,28 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
   pack.tarRead(Readable.from(pieces), ["index.json", "manifest.json"]).then(({ names, text }) => {
     same("tar: every entry", [...names], ["blobs/", "blobs/sha256/x", "index.json", "manifest.json", "oci-layout"]);
     same("tar: index.json read whole", text["index.json"], index);
-    same("tar: the images by tag", pack.tarImages(text), { "mtg-relay:exile": { id: "sha256:aaa", config: "sha256:ccc" }, "mtg-forge-node:exile": { id: "sha256:bbb", config: "sha256:ddd" } });
+    const held = pack.tarImages(text);
+    same("tar: the images by tag", held, { "mtg-relay:exile": { id: "sha256:aaa", config: "sha256:ccc" }, "mtg-forge-node:exile": { id: "sha256:bbb", config: "sha256:ddd" } });
+    // the tar against the deploy record, and the package's record
+    const dep = { bridge: "b1", table: "t1", save: "s1", relay: "sha256:aaa", node: "sha256:bbb", at: "then" };
+    same("tar check: the deployed images", pack.tarMismatch(held, dep), []);
+    const off = pack.tarMismatch(held, { ...dep, node: "sha256:eee" });
+    ok("tar check: another engine id is named", off.length === 1 && off[0].includes("mtg-forge-node:exile") && off[0].includes("sha256:bbb") && off[0].includes("sha256:eee"), JSON.stringify(off));
+    ok("tar check: the config id is not the deployed id", pack.tarMismatch(held, { ...dep, relay: "sha256:ccc" }).length === 1);
+    const missing = pack.tarMismatch({ "mtg-relay:exile": held["mtg-relay:exile"] }, dep);
+    ok("tar check: a tag missing from the tar", missing.length === 1 && missing[0].includes("as nothing"), JSON.stringify(missing));
+    const rec = pack.deployedRecord(dep, { bridge: "b9", save: "s9", at: "now", images: held });
+    same("record: the package's code and save, the config ids", rec, { ...dep, bridge: "b9", save: "s9", at: "now", nodeConfig: "sha256:ddd", relayConfig: "sha256:ccc" });
+    same("record: --no-images keeps the deployed ids only", pack.deployedRecord(dep, { bridge: "b9", save: "s9", at: "now" }), { ...dep, bridge: "b9", save: "s9", at: "now" });
+    // what the bridge then says: the containerd store runs the index ids, the classic store the config ids
+    const { outOfStep } = require("../bridge/versions");
+    const now = { bridge: "b9", table: "t1" };
+    same("bridge: containerd store ids are the deployed ones", outOfStep({ ...now, node: "sha256:bbb", relay: "sha256:aaa" }, rec), []);
+    same("bridge: classic store ids are too", outOfStep({ ...now, node: "sha256:ddd", relay: "sha256:ccc" }, rec), []);
+    same("bridge: one of each", outOfStep({ ...now, node: "sha256:ddd", relay: "sha256:aaa" }, rec), []);
+    same("bridge: another image is still named", outOfStep({ ...now, node: "sha256:fff", relay: "sha256:ccc" }, rec), ["The engine isn't the deployed image."]);
+    same("bridge: another relay too", outOfStep({ ...now, node: "sha256:bbb", relay: "sha256:fff" }, rec), ["The relay isn't the deployed image."]);
+    same("bridge: no config ids in the repo's record: a config id is another image", outOfStep({ ...now, bridge: "b1", node: "sha256:ddd", relay: "sha256:aaa" }, dep), ["The engine isn't the deployed image."]);
   }).catch((e) => ok("tar", false, e.stack)).finally(() => {
     process.stdout.write(failed ? `\n${failed} friend package checks failed (${passed} passed)\n` : `all ${passed} friend package checks pass\n`);
     process.exit(failed ? 1 : 0);

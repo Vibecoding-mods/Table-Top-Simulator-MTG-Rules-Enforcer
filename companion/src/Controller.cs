@@ -285,6 +285,7 @@ namespace MtgCompanion
         {
             var f = new DockerFacts { CliFound = dockerCli != null, DesktopFound = dockerDesktop != null };
             DockerAnswers(f);
+            f.AccessDenied = !f.Answers && Probes.PipeDenied;
             f.DesktopRunning = Probes.ProcessRunning("Docker Desktop");
             return f;
         }
@@ -352,6 +353,7 @@ namespace MtgCompanion
                     // (after a load, the ids are whatever this Docker gives the package's images: remember them)
                     if (!Logic.SameId(relay, wantRelay) || !Logic.SameId(node, wantNode)) Log.Write("after the load Docker reports " + ImageDiff(relay, node) + ": remembered as this package's images");
                     RememberImages(relay, node);
+                    if (L.Friend) RewriteDeployed(relay, node);
                     wantRelay = relay; wantNode = node;
                 }
                 var f = new ImageFacts
@@ -447,7 +449,7 @@ namespace MtgCompanion
                 var up = Compose(L.Friend ? "up -d" : "up -d --no-recreate", 180000);
                 if (up.Exit != 0)
                 {
-                    Set(StepStack, new Verdict(Light.Red, Logic.ComposeFailure(up.TimedOut ? "timed out" : up.Output)).WithFix(Fixes.StackRestart, "Start the engine"));
+                    Set(StepStack, new Verdict(Light.Red, Logic.ComposeFailure(up.TimedOut ? "timed out" : up.Output, L.Friend)).WithFix(Fixes.StackRestart, "Start the engine"));
                     return false;
                 }
                 // (a room left over from an earlier game refuses a new start: Start MTG.bat restarts both every time)
@@ -472,7 +474,7 @@ namespace MtgCompanion
                 }
                 bool canLogin = relay != null && relay.Exists && relay.State == "running" && relay.Health != "starting" && !locked;
                 var login = canLogin ? Login() : new LoginResult { Kind = LoginKind.Skipped };
-                var v = Logic.DecideStack(relay, room, login, Game);
+                var v = Logic.DecideStack(relay, room, login, Game, L.Friend);
                 if (Observe || v.Light == Light.Green || login.Kind == LoginKind.AuthFailed) { Set(StepStack, v); return v.Light == Light.Green; }
                 if (locked && v.Light == Light.Red) { Set(StepStack, v); return false; }
                 bool broken = canLogin && relay.Health == "healthy" && login.Kind != LoginKind.Ok;
@@ -505,7 +507,7 @@ namespace MtgCompanion
             var r = Compose("restart relay forge-room", 120000);
             if (r.Exit != 0)
             {
-                Set(StepStack, new Verdict(Light.Red, Logic.ComposeFailure(r.TimedOut ? "timed out" : r.Output)).WithFix(Fixes.StackRestart, "Restart relay and room"));
+                Set(StepStack, new Verdict(Light.Red, Logic.ComposeFailure(r.TimedOut ? "timed out" : r.Output, L.Friend)).WithFix(Fixes.StackRestart, "Restart relay and room"));
                 return false;
             }
             return true;
@@ -540,6 +542,24 @@ namespace MtgCompanion
             var d = StateDict();
             d["images"] = new Dictionary<string, object> { { "wantRelay", Want("relay") }, { "wantNode", Want("node") }, { "relay", relay }, { "node", node } };
             WriteState(d);
+        }
+
+        // The package's stack\deployed.json names the ids the bridge expects; after a load, put this Docker's there (the
+        // repo's file is deploy.js's and never written here)
+        void RewriteDeployed(string relay, string node)
+        {
+            var next = Logic.DeployedAfterLoad(deployed, relay, node);
+            if (next == null) return;
+            try
+            {
+                var tmp = L.DeployedFile + ".tmp";
+                File.WriteAllText(tmp, J.Write(next), new UTF8Encoding(false));
+                if (File.Exists(L.DeployedFile)) File.Delete(L.DeployedFile);
+                File.Move(tmp, L.DeployedFile);
+                deployed = next;
+                Log.Write("stack\\deployed.json: this Docker's image ids recorded (" + ImageDiff(relay, node) + ")");
+            }
+            catch (Exception e) { Log.Write("stack\\deployed.json not rewritten: " + e.Message); }
         }
 
         // the ids to expect: the package's, or the ones Docker reported after loading this same package before
@@ -613,7 +633,8 @@ namespace MtgCompanion
                     File.Copy(L.TableJson, target, true);
                     if (File.Exists(L.TablePng)) File.Copy(L.TablePng, png, true);
                 }
-                SaveState(new InstallState { SaveFile = plan.File, SaveHash = want, SavesDir = SavesDir });
+                // (the hash of the bytes now in that file: PlanSave overwrites it later only while it still hashes to this)
+                SaveState(new InstallState { SaveFile = plan.File, SaveHash = ourHash, SavesDir = SavesDir });
                 string done = plan.Kind == SaveKind.Skip ? plan.Text
                     : plan.Kind == SaveKind.Adopt ? plan.Text
                     : plan.Kind == SaveKind.Update ? "Updated " + plan.File + " (" + saveName + ")."
@@ -640,7 +661,7 @@ namespace MtgCompanion
         Verdict BridgeVerdict(HttpResult vers)
         {
             var held = Probes.Listeners(39998, 48787);
-            var portProblem = Logic.DecidePorts(held, L.Friend ? L.BridgeJs : null);
+            var portProblem = Logic.DecidePorts(held, L.Friend ? L.BridgeJs : null, L.Friend);
             bool proc = vers.Kind == HttpKind.Ok ? true : BridgeProcessExists();
             if (portProblem == null && vers.Kind == HttpKind.Refused && !proc && held.Count > 0)
             {
@@ -669,6 +690,9 @@ namespace MtgCompanion
                 }
                 if (v.Action == Actions.StartBridge && !started)
                 {
+                    // a folder the bridge can't write would only crash it again every 3 s: say so once instead
+                    string unwritable = L.Friend ? Logic.WriteProblem(new[] { L.LogsDir, Path.GetDirectoryName(L.BridgeJs) }, TryWrite) : null;
+                    if (unwritable != null) { Set(StepBridge, new Verdict(Light.Red, unwritable).WithFix(Fixes.Retry, "Try again")); return false; }
                     Set(StepBridge, v);
                     StartBridge();
                     started = true; t0 = DateTime.UtcNow;
@@ -689,6 +713,20 @@ namespace MtgCompanion
                 if (!Pause(1500)) return false;
             }
             return false;
+        }
+
+        // null when a file can be made and removed in dir, else why not
+        static string TryWrite(string dir)
+        {
+            try
+            {
+                Directory.CreateDirectory(dir);
+                var f = Path.Combine(dir, ".mtg-companion-write-test");
+                File.WriteAllText(f, "x");
+                File.Delete(f);
+                return null;
+            }
+            catch (Exception e) { return e.Message; }
         }
 
         void StartBridge()
@@ -796,7 +834,7 @@ namespace MtgCompanion
                     if (!canLogin) login = new LoginResult { Kind = LoginKind.Skipped };
                     else if (loginCache == null || (DateTime.UtcNow - loginAt).TotalSeconds > 60) login = Login();
                     else login = loginCache;
-                    Set(StepStack, Logic.DecideStack(rc, oc, login, Game));
+                    Set(StepStack, Logic.DecideStack(rc, oc, login, Game, L.Friend));
                 }
             }
             else

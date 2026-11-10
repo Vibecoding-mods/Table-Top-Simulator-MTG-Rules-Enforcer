@@ -78,11 +78,15 @@ namespace MtgCompanion
         // ───────────────────────────── Docker ─────────────────────────────
 
         static string pipeName; // the engine pipe that answered last
+        // the last DockerGet found a pipe that refused this account (UnauthorizedAccessException): Docker Desktop runs,
+        // but the account isn't in docker-users yet, which takes a sign-out after the install
+        public static bool PipeDenied;
 
         // GET over Docker's engine pipe, as plain HTTP/1.0 (no child process). Returns null when no pipe answers.
         public static HttpResult DockerGet(string path, int timeoutMs)
         {
             var names = pipeName != null ? new[] { pipeName } : new[] { "dockerDesktopLinuxEngine", "docker_engine" };
+            PipeDenied = false;
             foreach (var name in names)
             {
                 var r = PipeGet(name, path, timeoutMs);
@@ -100,6 +104,7 @@ namespace MtgCompanion
                 pipe = new NamedPipeClientStream(".", name, PipeDirection.InOut);
                 pipe.Connect(Math.Min(timeoutMs, 700));
             }
+            catch (UnauthorizedAccessException) { if (pipe != null) pipe.Dispose(); PipeDenied = true; return null; }
             catch { if (pipe != null) pipe.Dispose(); return null; }
             var sw = Stopwatch.StartNew();
             var p = pipe;
