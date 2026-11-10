@@ -5092,6 +5092,14 @@ function onPrompt(seat, prompt) {
   const type = input.type;
   const gv = seat.board?.state?.gameView || {};
   const byId = cardIndex(gv);
+  // (a look at the top cards, not shown (see revealCards): the pick from among them shows them; with no such pick next,
+  // nothing among them could be taken, and what was seen is said instead)
+  if (seat.heldLook) {
+    const held = seat.heldLook;
+    seat.heldLook = null;
+    const picks = ["chooseCards", "chooseFromSelection"].includes(type) ? [...(input.cards || []), ...(input.options || [])].map((c) => c.id) : [];
+    if (!picks.some((id) => held.ids.includes(id))) chat(`[MTG] You looked at the top ${countWords(held.n, held.n, "card").replace(/^an? /, "")} of your library: ${held.names.join(", ")}. None of them could be chosen.`, seat.color);
+  }
   // (whose question it is: a controlled player's, see actingFor; a new priority question ends what the last one played)
   const forP = actingFor(seat, prompt, gv);
   if (type === "chooseAction") { seat.actingFor = null; seat.splitAsk = null; }
@@ -6423,6 +6431,24 @@ function onPrompt(seat, prompt) {
     case "revealCards":
       // Forge's warning about its own AI deck isn't meant for players.
       if (/^AI can't play/i.test(title)) { seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" }); return; }
+      // A look at the top cards that a pick from among them follows: "Look at these cards" (OK), then "choose an instant
+      // card" over the same cards (doubled prompts, the user 2026-11-09 item 5). Not shown: the pick has the cards. Held,
+      // and settled by the next question (heldLook): with no pick from them, what was seen is said in chat.
+      // (Forge's title is only "Look at these cards", zone "library": a top-card reveal (Dark Confidant) and Ponder's look
+      // come the same way, so only by the ability's words, "look at the top ... from among them". A search's look is
+      // settled further down, by what it seeks; Hideaway's too.)
+      {
+        const words = String((keywordOnly(prompt.sourceAbilityText) && srcCardText) || prompt.sourceAbilityText || srcCardText || "");
+        const own = String(input.ownerPlayerId || "").replace("-view", "") === seat.slot;
+        if (/^look at these cards$/i.test(String(title)) && input.zone === "library" && own && (input.cards || []).length
+          && /\blook at the top (?:\w+ )?cards? of your library\b/i.test(words) && /\bfrom among (?:them|those cards|the cards)\b/i.test(words)) {
+          seat.heldLook = { ids: input.cards.map((c) => c.id), names: input.cards.map((c) => cardLabel(c)), n: input.cards.length };
+          // (the table's log still says a look happened, as a shown look says it: private, so no names)
+          if (game) gameLogLine(`${seat.color} looked at ${countWords(input.cards.length, input.cards.length, "card")} (their library)`);
+          seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" });
+          return;
+        }
+      }
       // a notice with no cards ("White picked AI 1", "AI 1 vote Money"): told in chat and the game log, not asked (one
       // test game asked for OK 15 times; Arena shows such things in passing)
       if (/^Attack declaration invalid\b/i.test(title)) {

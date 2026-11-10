@@ -2678,6 +2678,39 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("counter: a spell that left the stack isn't called uncounterable", !lines2.some((l) => /can't be countered/.test(l)), JSON.stringify(lines2));
     harness.restore();
   }
+  // a look at the top cards that a pick from among them follows isn't asked (item 5, doubled prompts)
+  {
+    const DIG = "Look at the top three cards of your library. You may reveal an instant card from among them and put it into your hand. Put the rest on the bottom of your library in any order.";
+    const cards = [{ id: "engine-card-601", identity: { name: "Opt" }, types: ["Instant"] }, { id: "engine-card-602", identity: { name: "Island" }, types: ["Land"] }, { id: "engine-card-603", identity: { name: "Bear" }, types: ["Creature"] }];
+    const run = async (text, next) => {
+      const h = harness.load();
+      const seat = setup(h, F.board);
+      const from = h.effects.length;
+      h.B.onPrompt(seat, { promptId: 940, decidingPlayerId: "player-0", sourceAbilityText: text, sourceCard: { id: "engine-card-600", identity: { name: "Dig Spell" }, text },
+        input: { type: "revealCards", presentation: { title: "Look at these cards" }, ownerPlayerId: "player-view-0", zone: "library", cards } });
+      await h.flush();
+      const askedLook = seat.prompt?.type === "revealCards";
+      const acked = h.effects.slice(from).some((e) => e.relay && /revealCardsAcknowledged/.test(JSON.stringify(e.relay)));
+      const log = h.effects.slice(from).filter((e) => e.tts?.t === "gamelog").flatMap((e) => e.tts.lines);
+      if (askedLook) seat.prompt = null;
+      const mark = h.effects.length;
+      if (next) { h.B.onPrompt(seat, { promptId: 941, decidingPlayerId: "player-0", input: next }); await h.flush(); }
+      const chat = h.effects.slice(mark).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text);
+      harness.restore();
+      return { askedLook, acked, log, chat, held: seat.heldLook };
+    };
+    const pick = { type: "chooseCards", cards: [cards[0]], min: 0, max: 1, presentation: { title: "Choose an instant card" } };
+    let r = await run(DIG, pick);
+    ok("dig look: not asked, answered for the player", !r.askedLook && r.acked, JSON.stringify(r));
+    ok("dig look: the log still says a look happened, no names", JSON.stringify(r.log) === JSON.stringify(["Blue looked at 3 cards (their library)"]), JSON.stringify(r.log));
+    ok("dig look: a pick from those cards says nothing more", !r.chat.some((t) => /looked at the top/.test(t)) && r.held == null, JSON.stringify(r.chat));
+    r = await run(DIG, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }] });
+    ok("dig look: with no pick next, what was seen is said in chat", r.chat.includes("[MTG] You looked at the top 3 cards of your library: Opt, Island, Bear. None of them could be chosen."), JSON.stringify(r.chat));
+    r = await run("Look at the top three cards of your library, then put them back in any order.", null);
+    ok("dig look: Ponder's look (no pick from among them) is still asked", r.askedLook && !r.acked, JSON.stringify(r));
+    r = await run("Reveal the top card of your library and put that card into your hand.", null);
+    ok("dig look: a reveal isn't skipped", r.askedLook, JSON.stringify(r));
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();
