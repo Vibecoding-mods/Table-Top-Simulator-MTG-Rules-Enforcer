@@ -23,7 +23,7 @@ namespace MtgCompanion
         public static int Run(StringBuilder output)
         {
             sb = output; fails = 0; passes = 0;
-            Modes(); Docker(); Images(); Stack(); Ports(); Bridge(); GameLock(); Saves(); Tts(); Wsl(); Misc(); Update(); UpdateSafety();
+            Modes(); Sequence(); Docker(); Images(); Stack(); Ports(); Bridge(); GameLock(); Saves(); Tts(); Wsl(); Misc(); Update(); UpdateSafety();
             sb.AppendLine(passes + " passed, " + fails + " failed");
             return fails;
         }
@@ -133,6 +133,19 @@ namespace MtgCompanion
         }
 
         static ContainerInfo Up(string health) { return new ContainerInfo { Exists = true, State = "running", Health = health }; }
+
+        static void Sequence()
+        {
+            sb.AppendLine("-- the start sequence after a stop");
+            Check("no stop: a button starts where it asks", Logic.StartFrom(5, 0, false) == 5 && Logic.StartFrom(1, 0, false) == 1);
+            Check("Start the bridge after the engine stopped it (still red): the engine step again, not step 5", Logic.StartFrom(5, 3, false) == 3, Logic.StartFrom(5, 3, false));
+            Check("Start the bridge after the engine stopped it (green now): the save step, never skipped", Logic.StartFrom(5, 3, true) == 4, Logic.StartFrom(5, 3, true));
+            Check("a button at or before the stopped step: unchanged", Logic.StartFrom(3, 3, true) == 3 && Logic.StartFrom(2, 3, false) == 2 && Logic.StartFrom(4, 4, false) == 4);
+            Check("a button one past the stopped step that turned green: unchanged", Logic.StartFrom(4, 3, true) == 4);
+            Check("resume: the stopped step turned green, carry on from the next", Logic.ResumeAfterStop(3, true, false) == 4, Logic.ResumeAfterStop(3, true, false));
+            Check("resume: still red, or no stop, or observe mode: nothing", Logic.ResumeAfterStop(3, false, false) == 0 && Logic.ResumeAfterStop(0, true, false) == 0 && Logic.ResumeAfterStop(3, true, true) == 0);
+            Check("resume after the last step: past the end (the sequence just says Ready)", Logic.ResumeAfterStop(6, true, false) == 7);
+        }
 
         static void Stack()
         {

@@ -153,6 +153,25 @@ namespace MtgCompanion
             return null;
         }
 
+        // ───────────────────────────── the start sequence ─────────────────────────────
+
+        // The step a start-sequence run begins at. A button for a later step never skips the step the sequence
+        // stopped at, or the steps between: on the 2026-11-10 fresh install the engine timed out at step 3, Start the
+        // bridge ran steps 5-6, and the table save (step 4) was never installed. The stopped step runs again unless
+        // it has turned green since.
+        public static int StartFrom(int requested, int stoppedAt, bool stoppedNowGreen)
+        {
+            if (stoppedAt <= 0 || requested <= stoppedAt) return requested;
+            return stoppedNowGreen ? stoppedAt + 1 : stoppedAt;
+        }
+
+        // The step to carry on from once the step the sequence stopped at has turned green by itself (the engine got
+        // ready after the wait, Docker Desktop was started by hand); 0: nothing to do
+        public static int ResumeAfterStop(int stoppedAt, bool stoppedNowGreen, bool observe)
+        {
+            return stoppedAt > 0 && stoppedNowGreen && !observe ? stoppedAt + 1 : 0;
+        }
+
         // ───────────────────────────── game lock ─────────────────────────────
 
         public static Game DecideGame(HttpResult state, double? resumeAgeSec)

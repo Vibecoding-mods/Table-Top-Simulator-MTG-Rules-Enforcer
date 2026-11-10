@@ -68,6 +68,8 @@ namespace MtgCompanion
         Thread thread;
         volatile bool quit, cancel;
         int pendingFrom = 1, resumeFrom; // (resumeFrom: the step a button press interrupted)
+        int stoppedAt; // the step the start sequence last stopped at on a red light; 0 when it ran to the end
+        const int StackWaitSeconds = 300;
         readonly Dictionary<int, DateTime> busyLogged = new Dictionary<int, DateTime>();
         bool forceFresh, forceLoad, stopped, ttsLaunched;
         object version, deployed;
@@ -351,7 +353,7 @@ namespace MtgCompanion
                 }
                 if (pendingFrom > 0)
                 {
-                    int from = pendingFrom; pendingFrom = 0; cancel = false;
+                    int from = Logic.StartFrom(pendingFrom, stoppedAt, StepGreen(stoppedAt)); pendingFrom = 0; cancel = false;
                     Safe(() => RunSequence(from), "start sequence");
                     FirstPassDone = true;
                     Fire();
@@ -380,6 +382,8 @@ namespace MtgCompanion
             }
             return !(quit || cancel);
         }
+
+        bool StepGreen(int step) { return step > 0 && step <= 6 && Rows[step - 1].V != null && Rows[step - 1].V.Light == Light.Green; }
 
         void Fire() { var c = Changed; if (c != null) try { c(); } catch { } }
 
@@ -438,7 +442,7 @@ namespace MtgCompanion
 
         void RunSequence(int from)
         {
-            stopped = false;
+            stopped = false; stoppedAt = 0;
             bool fresh = forceFresh; forceFresh = false;
             for (int step = from; step <= 6 && !quit; step++)
             {
@@ -457,6 +461,7 @@ namespace MtgCompanion
                 if (cancel && !quit) { resumeFrom = step; SetPhase("Interrupted"); return; }
                 if (!ok && !Observe)
                 {
+                    stoppedAt = step;
                     SetPhase("Stopped at step " + step + " (" + Names[step - 1] + "): see the red light");
                     for (int k = step; k < 6; k++) Rows[k].V = new Verdict(Light.Grey, "Waiting for " + Names[step - 1] + ".");
                     if (!L.Friend) Rows[StepSave].V = new Verdict(Light.Grey, "Home mode: you keep your own save (" + saveName + ").");
@@ -676,7 +681,8 @@ namespace MtgCompanion
                     autoRestarts = 1;
                 }
             }
-            var until = DateTime.UtcNow.AddSeconds(120);
+            // (a cold Forge room took 2 min 15 s to open on 2 cores on 2026-11-10: wait 5 minutes)
+            var until = DateTime.UtcNow.AddSeconds(StackWaitSeconds);
             int loginFails = 0, busy = 0;
             while (!quit)
             {
@@ -703,12 +709,12 @@ namespace MtgCompanion
                     Set(StepStack, new Verdict(Light.Busy, "The relay didn't let this PC in; restarting relay and room."));
                     if (!RestartRelayRoom()) return false;
                     autoRestarts++; loginFails = 0; busy = 0;
-                    until = DateTime.UtcNow.AddSeconds(120);
+                    until = DateTime.UtcNow.AddSeconds(StackWaitSeconds);
                     continue;
                 }
                 if (DateTime.UtcNow > until)
                 {
-                    if (v.Light != Light.Red) v = new Verdict(Light.Red, "The engine didn't get ready within 2 minutes: " + v.Text).WithFix(Fixes.StackRestart, "Restart relay and room");
+                    if (v.Light != Light.Red) v = new Verdict(Light.Red, "The engine didn't get ready within " + (StackWaitSeconds / 60) + " minutes: " + v.Text).WithFix(Fixes.StackRestart, "Restart relay and room");
                     Set(StepStack, v);
                     return false;
                 }
@@ -1071,6 +1077,12 @@ namespace MtgCompanion
                 Set(StepBridge, v);
             }
             UpdateTts();
+            int resume = Logic.ResumeAfterStop(stoppedAt, StepGreen(stoppedAt), Observe);
+            if (resume > 0 && pendingFrom == 0)
+            {
+                Log.Write("step " + stoppedAt + " (" + Names[stoppedAt - 1] + ") is green now: carrying on from step " + resume);
+                pendingFrom = resume; wake.Set();
+            }
             if (!Observe && Phase.StartsWith("Ready")) SetPhase(Rows.Any(r => r.V.Light == Light.Red) ? "Ready, with a problem: see the red light" : "Ready");
         }
 
