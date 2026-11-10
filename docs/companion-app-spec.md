@@ -995,8 +995,8 @@ aborted after 6 s, the next one always armed): two misses in a row show "Compani
 10 s show "Companion not running", and a page from an earlier run shows "Reconnecting" and reloads itself at most once
 per 15 s. A button is disabled while its request is in flight; a script error shows a red "This page hit an error"
 banner and the polling goes on. The script is pure functions (status → view model, click plan, poll scheduling) plus a
-small shell, tested in Node by `tests/test_companion_page.js` with a stub DOM. `GET /api/status` (the shape is documented at the top of `WebUi.cs`; `update` is `null`,
-reserved for the self-update section) and `POST /api/action {id}` (`fix:<row>:<fix>`, `restart-engine`,
+small shell, tested in Node by `tests/test_companion_page.js` with a stub DOM. `GET /api/status` (the shape is
+documented at the top of `WebUi.cs`; `update` is `null`, reserved for the self-update section) and `POST /api/action {id}` (`fix:<row>:<fix>`, `restart-engine`,
 `stop-everything`, `open-logs`, `wsl-limits`) call the same `Controller` methods as the window, so the game lock and
 observe mode refuse exactly as there; a stale or hidden button is refused; Stop everything during a game needs a second
 confirmation (`confirmLocked`); pressing restart-engine, stop-everything or a fix again while the same one is still
