@@ -121,7 +121,7 @@ const M = [
   ["row opt: first single option not orange", "(e.primary or (p.mode == \"single\" and k == 1))", "(e.primary)"],
   // second batch, on the older core (placement, tapping, piles, glows, deck keys, the base table's guards)
   ["grid: column step 2.4 -> 2.5", "local GRID = { colStep = 2.4,", "local GRID = { colStep = 2.5,"],
-  ["rows: lands in the creature row", "local ROWS = { creature = 0, other = 2, land = 3 }", "local ROWS = { creature = 0, other = 2, land = 0 }"],
+  ["rows: lands in the creature row", "local ROWS = { creature = 0, other = 2, land = 4.7 }", "local ROWS = { creature = 0, other = 2, land = 0 }"],
   ["long rows not squeezed (> -> >=)", "local step = width > GRID.perRow and GRID.perRow / width or 1", "local step = width >= GRID.perRow and GRID.perRow / width or 1"],
   ["tapped cards not turned", "g.rotY + ((c.tap or engineHeldTapped(c.id)) and 90 or 0), c.fd and 180 or 0)", "g.rotY + 0, c.fd and 180 or 0)"],
   ["face-down cards face up", "(c.tap or engineHeldTapped(c.id)) and 90 or 0), c.fd and 180 or 0)", "(c.tap or engineHeldTapped(c.id)) and 90 or 0), 0)"],
