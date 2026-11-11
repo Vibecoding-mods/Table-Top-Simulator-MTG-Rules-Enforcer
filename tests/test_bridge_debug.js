@@ -15,7 +15,7 @@ const DIR = fs.mkdtempSync(path.join(os.tmpdir(), "mtg-scenarios-"));
 const SCEN = {
   plain: { lands: 20, keepHand: true },
   bare: { keepHand: 1 },
-  setup: { lands: { Island: 2 }, hand: ["Opt", { name: "Lightning Bolt" }], graveyard: ["Grizzly Bears"], exile: ["Llanowar Elves"],
+  setup: { lands: { Island: 2 }, keepHand: false, hand: ["Opt", { name: "Lightning Bolt" }], graveyard: ["Grizzly Bears"], exile: ["Llanowar Elves"],
     library: ["Brainstorm"], battlefield: [{ name: "Goblin Guide", tapped: true }], tokens: ["treasure"], life: 7, mana: 2,
     opponents: { battlefield: ["Llanowar Elves"], hand: ["Shock"], lands: 1, life: 3 } },
   "per-seat": { lands: 0, keepHand: true, opponents: { life: 5 }, White: { life: 9 } },
@@ -25,6 +25,8 @@ const SCEN = {
   "an-token": { lands: 0, keepHand: true, tokens: ["eldrazi spawn"] },
   badzone: { hand: "Opt" },
   badside: { lands: 0, opponents: 5 },
+  defaults: { hand: ["Opt"] },
+  "twenty-mid": { lands: 20 },
 };
 for (const [n, s] of Object.entries(SCEN)) fs.writeFileSync(path.join(DIR, `${n}.json`), JSON.stringify(s));
 fs.writeFileSync(path.join(DIR, "broken.json"), "{ not json");
@@ -79,7 +81,7 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     await say(h, "Blue", "../plain");
     await say(h, "Blue", "broken");
     const c = chats(h);
-    same("list: every scenario by name", c[0], "[MTG] Debug scenarios: an-token, badlands, badname, badside, badzone, bare, broken, nolands, nullfile, per-seat, plain, setup. Use  mtg debug <name>  (mtg debug off).");
+    same("list: every scenario by name", c[0], "[MTG] Debug scenarios: an-token, badlands, badname, badside, badzone, bare, broken, defaults, nolands, nullfile, per-seat, plain, setup, twenty-mid. Use  mtg debug <name>  (mtg debug off).");
     same("list: 'list' says the same", c[1], c[0]);
     ok("unknown: refused with the list", /^\[MTG\] No debug scenario "nosuch"\. Scenarios: an-token, badlands, badname/.test(c[2]), c[2]);
     ok("a path is no name", /^\[MTG\] No debug scenario "\.\.\/plain"/.test(c[3]), c[3]);
@@ -136,13 +138,38 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     ok("setup: a token by what the file says, not its script", lines.includes("Blue gets a treasure token") && !lines.some((l) => l.includes("c_a_treasure_sac")), JSON.stringify(lines));
   });
 
-  // no lands named: 20 for the caller; a truthy keepHand keeps the hand
+  // no lands named and no keepHand, during a game: no lands and the hand kept (live check 2026-11-11: a mid-game
+  // "mtg debug" bottomed the hand and added 20 lands, the defaults for a game's start)
+  await run(async (h) => {
+    const seat = setup(h);
+    h.B.onPrompt(seat, prompt("chooseAction", PASS)); await h.flush();
+    await say(h, "Blue", "defaults");
+    same("during a game: no lands, the hand kept, only the scenario's cards", applies(h)[0]?.ops, [{ op: "createCard", name: "Opt", player: "player-0", zone: "hand" }]);
+  });
+  await run(async (h) => {
+    const seat = setup(h);
+    h.B.onPrompt(seat, prompt("chooseAction", PASS)); await h.flush();
+    await say(h, "Blue", "twenty-mid");
+    const ops = applies(h)[0]?.ops || [];
+    same("during a game: lands the file names still come, the hand kept", [ops.length, ops.filter((o) => o.op === "createCard" && o.zone === "battlefield").length], [20, 20]);
+  });
+  // before a game: 20 lands for the caller and the dealt hand to the bottom, as before
+  await run(async (h) => {
+    setup(h, { started: false });
+    await say(h, "Blue", "defaults");
+    const seat = setup(h);
+    h.B.onPrompt(seat, prompt("chooseAction", { actions: [] }, 903)); await h.flush();
+    const ops = applies(h)[0]?.ops || [];
+    same("before a game: 20 lands, the dealt hand to the bottom, then the scenario's cards",
+      [ops.filter((o) => o.op === "createCard" && o.zone === "battlefield").length, ops.filter((o) => o.op === "move").map((o) => o.card), ops.at(-1)],
+      [20, HAND, { op: "createCard", name: "Opt", player: "player-0", zone: "hand" }]);
+  });
+  // a truthy keepHand keeps the hand
   await run(async (h) => {
     const seat = setup(h);
     h.B.onPrompt(seat, prompt("chooseAction", PASS)); await h.flush();
     await say(h, "Blue", "bare");
-    const ops = applies(h)[0]?.ops || [];
-    same("no lands named: 20 for you, none for the AI, the hand kept", [ops.length, ops.filter((o) => o.op === "createCard" && o.player === "player-0").length], [20, 20]);
+    same("keepHand 1 during a game: nothing at all to do", applies(h)[0]?.ops, undefined);
   });
 
   // a colour's own part goes before "opponents"
