@@ -7124,6 +7124,32 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
   // (two permanents of one name: which one Forge's number means is unknown, so the list is asked as before)
   add(promptCase("planeswalker by click: two of one name stay a list", withWalker({ ...clone(walker), id: "engine-card-976" }),
     attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (412)", "Chandra, Torch of Defiance (415)"]), [["1"]]));
+  // (a card of the same name in a graveyard: Forge's number may mean that one, so the list is asked as before)
+  add(promptCase("planeswalker by click: a name also in a graveyard stays a list", (() => {
+    const b = withWalker();
+    b.gameView.zones.find((z) => z.zone === "graveyard" && z.ownerId === "player-1").cards.push({ ...H(134), id: "engine-card-977" });
+    return b;
+  })(), prompt("chooseFromSelection", { minTotal: 1, maxTotal: 1, options: [{ label: "self-hosted-node-77-bot" }, { label: "Eclipsed Flamekin (88)" }], presentation: { title: "Zevlor, Elturel Exile" } },
+    { sourceCard: { id: "engine-card-975", identity: { name: "Zevlor, Elturel Exile" } } }), [["1"]]));
+  // (two of one name with only one of them offered: still unknown which, a list)
+  add(promptCase("planeswalker by click: two of one name, one offered, stays a list", withWalker({ ...clone(walker), id: "engine-card-976" }),
+    attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (412)"]), [["1"]]));
+  // (a name only in a graveyard: no permanent to click, a list)
+  add(promptCase("planeswalker by click: a card only in a graveyard stays a list", withWalker(),
+    prompt("chooseFromSelection", { minTotal: 1, maxTotal: 1, options: [{ label: "self-hosted-node-77-bot" }, { label: `${H(196).identity.name} (61)` }], presentation: { title: "Zevlor, Elturel Exile" } },
+      { sourceCard: { id: "engine-card-975", identity: { name: "Zevlor, Elturel Exile" } } }), [["1"]]));
+  // (players alone: Forge's "choose a player" lists stay as they were)
+  add(promptCase("planeswalker by click: players alone stay a list", withWalker(),
+    prompt("chooseFromSelection", { minTotal: 1, maxTotal: 1, options: [{ label: "tts-Blue-ab12" }, { label: "self-hosted-node-77-bot" }], presentation: { title: "Zevlor, Elturel Exile" } },
+      { sourceCard: { id: "engine-card-975", identity: { name: "Zevlor, Elturel Exile" } } }), [["1"]]));
+  // (the attack wording from the resolving ability's text, the source card's own text unknown)
+  add(promptCase("planeswalker by click: attack wording from the ability's text alone", withWalker(),
+    prompt("chooseFromSelection", { minTotal: 1, maxTotal: 1, options: [{ label: "self-hosted-node-77-bot" }, { label: "Chandra, Torch of Defiance (412)" }], presentation: { title: "Hero of Bladehold" } },
+      { sourceCard: { id: "engine-card-978", identity: { name: "Hero of Bladehold" } }, sourceAbilityText: "Whenever Hero of Bladehold attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking." }),
+    [["player|player-1"]]));
+  // (a card's label is "<name> (<a number>)"; anything else in the brackets is not one)
+  add(promptCase("planeswalker by click: a bracket without a number stays a list", withWalker(),
+    attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (x)"]), [["1"]]));
   // (a label that is neither a player nor a permanent: as before)
   add(promptCase("planeswalker by click: an unknown label stays a list", withWalker(),
     attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (412)", "Somebody Else"]), [["2"]]));

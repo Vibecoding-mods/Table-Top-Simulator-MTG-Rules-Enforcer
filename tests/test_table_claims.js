@@ -2319,8 +2319,16 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   {
     // offered with other cards but not this one ("target creature or planeswalker an opponent controls"): it says so
     const r = run([board, ask({ promptId: 9705, kind: "target", title: "Murder: destroy which creature or planeswalker?", mode: "single",
-      options: [{ id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), click(mine, "click")]);
+      options: [{ id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), hint, click(mine, "click")]);
+    // (planeswalkers alone, no player: the plain card hint, no life counter named)
+    ok("pw click: planeswalkers alone: the card hint, no life counter", /Click a glowing card\.$/.test(String(valueOf(r, "hint"))) && !/life counter/.test(String(valueOf(r, "hint"))), valueOf(r, "hint"));
     ok("pw click: a planeswalker the question leaves out says it can't be chosen", /That planeswalker can't be chosen for this\. Click a glowing card/.test(said(r, "click")) && !sent(r, "click").includes('"choice"'), said(r, "click") + " " + sent(r, "click").slice(0, 200));
+    // (players and cards, not this one: the card wording, not "it asks for a player"; a permanent that is no
+    // planeswalker still says "That card")
+    const r2 = run([board, ask({ promptId: 9707, kind: "target", title: "Chandra's Outrage: which player or planeswalker?", mode: "single",
+      options: [{ id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), click(mine, "walker"), click(blueList[0] && blueList[0].id, "other")]);
+    ok("pw click: players and cards offered, not this planeswalker: the card wording", /That planeswalker can't be chosen for this\. Click a glowing card, or a player's life counter/.test(said(r2, "walker")), said(r2, "walker"));
+    ok("pw click: a permanent that is no planeswalker still says That card", /That card can't be chosen for this\./.test(said(r2, "other")), said(r2, "other"));
   }
 }
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
