@@ -4587,7 +4587,8 @@ local function tapGesture(color, id)
       if pendingAttacker[color] then tell(color, "Attacking. Click a life counter or a planeswalker to change what it attacks.") end
       return true
     end
-    tell(color, "That creature can't attack right now.")
+    -- (the bridge's reason when it has one: "Hill Giant can't attack: summoning sick.", attack reminder spec part 2)
+    tell(color, (p and p.cantAttack and p.cantAttack[id]) or "That creature can't attack right now.")
     return true
   elseif kind == "action" then
     -- turning back a source whose mana you haven't spent: the mana goes back and it untaps
