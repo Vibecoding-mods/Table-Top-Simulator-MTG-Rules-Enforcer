@@ -20,7 +20,9 @@ local SURFACE_Y = 1.15 -- table top; cards are placed at this height, not at the
 local function onTable(v, lift) return Vector(v.x, SURFACE_Y + (lift or 0), v.z) end
 
 local GRID = { colStep = 2.4, colStart = 10.75, rowStep = 3.2, rowStart = -8, perRow = 10 }
-local ROWS = { creature = 0, other = 2, land = 3 }
+-- (lands: the centre of the mat's lower box, the mana zone, measured on the real table 2026-11-10: the box runs from
+-- 3.46 past the mat's centre to its near edge at 10.375, so a card's 3.06 fits with room; row 3 lay above it)
+local ROWS = { creature = 0, other = 2, land = 4.7 }
 
 local engineObjs = {}     -- engine card id -> object
 local engineSpawning = {} -- engine card id -> true while its object is being spawned
@@ -791,11 +793,14 @@ local function layoutRow(g, cards, row, seen, color, hosts)
     -- side: the spot its old controller arranged it at is on the other side of the table
     local was = engineMeta[c.id]
     if was ~= nil and was.color ~= nil and was.color ~= color then engineManual[c.id] = nil end
-    -- a card played by dragging it here lands in its row (a land in the land row, a creature with the creatures): the
-    -- spot it was dropped on only held it while it was being cast (playtest 2026-10-26: "it appears in the middle of
-    -- the battlefield instead of the lower mana box"; cards dropped near each other piled up). A permanent you moved
-    -- yourself on your mat stays where you put it.
-    if engineManualPlay[c.id] then engineManual[c.id] = nil engineManualPlay[c.id] = nil end
+    -- a LAND played by dragging it here lands in the mana box: the spot it was dropped on only held it while it was
+    -- played (playtest 2026-10-26: "it appears in the middle of the battlefield instead of the lower mana box"). Any
+    -- other card stays where it was dropped (2026-11-10: "I also don't want any other cards to snap to the play mat"),
+    -- like a permanent you moved yourself on your mat.
+    if engineManualPlay[c.id] then
+      if row == ROWS.land then engineManual[c.id] = nil end
+      engineManualPlay[c.id] = nil
+    end
     local pos = engineManual[c.id] or gridPos(g, col * step, row)
     col = col + 1 + ((hosts and hosts[c.id]) and ATTACH.extraCols or 0)
     place(c, pos, Vector(0, g.rotY + ((c.tap or engineHeldTapped(c.id)) and 90 or 0), c.fd and 180 or 0), seen, nil, { zone = "battlefield", color = color })
@@ -853,6 +858,7 @@ local function updateTrackers(m)
       for i, guid in ipairs(TAX_LABELS[color] or {}) do setTax(guid, (pl.tax or {})[i] or 0) end
     end
   end
+  if engineStatusPieces ~= nil then pcall(engineStatusPieces, m) end -- (the pieces for the marks: under the last box)
   if m.active ~= nil and m.active ~= lastTurnSet then
     lastTurnSet = m.active
     if Player[m.active] ~= nil and Player[m.active].seated and Turns.turn_color ~= m.active then
@@ -872,9 +878,10 @@ end
 engineStackGlow = {} -- engine card id -> "stack" / "atk" / "blk": the glow it has when no question is open
 engineBaseGlow = {}  -- object -> colour of that glow
 BASE_GLOW = { stack = {0.75, 0.35, 1}, atk = {1, 0.12, 0.08}, blk = {0.15, 0.45, 1}, playable = {0.35, 1, 0.45} }
--- A player's counters other than life (poison, energy) as one green label under their life counter, while there are
--- any (Skrelv's toxic gave the AI poison and nothing showed it, playtest 2026-10-27; energy was sent and shown nowhere,
--- structural review the same day). A button of the counter object, found again by its tooltip.
+-- A player's counters other than life (poison, energy) and their other marks as small green boxes in the corner of
+-- their mat under their life counter, while there are any (Skrelv's toxic gave the AI poison and nothing showed it,
+-- playtest 2026-10-27; energy was sent and shown nowhere, structural review the same day). Buttons of the counter
+-- object, found again by their tooltip.
 ENGINE_COUNTERS_TIP = "Poison (ten and that player loses), energy and the other player counters, the monarch (draws at their end step), the initiative, the city's blessing, an enduring story, the Ring's temptations, speed, a turn run by another player, an extra turn, damage prevention, hand size, and what protects or binds the player"
 engineCountersShown = {} -- counter object guid -> the label it shows (redrawn only on a change)
 -- (the label goes with the game: it stayed on the normal table after a reset, stage 3 review 2026-10-27)
@@ -889,124 +896,50 @@ function engineCountersReset()
     end
   end
   engineCountersShown = {}
+  if engineStatusParkAll ~= nil then pcall(engineStatusParkAll) end -- (the status pieces go back under the table)
 end
--- How the marks label fits its seat (live check 9, 2026-11-06: Red's "TURN RUN BY WHITE" ran into White's "RING
--- TEMPTED 2   SPEED 3" between the two life counters). The two trackers of a side are 7 world units apart, so a label
--- centred under its counter and wider than about 2,700 button units crossed into the next seat's. Now: a label reaches
--- at most `inner` button units from its counter towards the middle of the table, and no commander-damage icon is under
--- it (the checker's finding, 2026-11-07: the bottom icon of each column sat in the label's row, its digit over "SPEED");
--- a label that fits between the counter and its icon column stays there, a wider one starts just past the column (the
--- strip between the counters and the mats is empty out to the commander zones, ~40 units out; engineMarksStart). Its
--- lines are at most `max` wide; a label that needs more than two lines at one size is drawn smaller (`fonts`), and past
--- the smallest it is cut to two lines (engineMarksClamp). The bottom edge stays where a one-line label's is, just above
--- the mat (its zone's edge, 0.08 below it); a second line goes up, away from the mat (two lines are at least ~3,750
--- wide, so they always start past the icons and the heart is never under them). A short label stays as it was: centred, one line, font 300. perLocal: button units in one
--- local unit of the tracker, measured on the live crop (a 4500-wide label was 11.75 world units on a tracker scaled
--- 1.258; Red's 3275 and White's 4500 edges matched to a few pixels). icon: half the side of a commander-damage icon in
--- world units (1.16 a side on the live shot 9-ring-speed, at the save's scale 0.321); clear: the room kept around one.
-ENGINE_MARKS_FIT = { inner = 1150, max = 8000, perLocal = 480, fonts = { 300, 250, 210, 180 }, z = 1.45, icon = 0.6, clear = 0.1 }
--- the box a line of k marks needs at font f: as wide as its letters, and at least 640 a mark (a long mark such as
--- "YOU CAN'T LOSE THE GAME" ran past a box sized by the count of marks); at font 300, the width the label always had
-function engineMarksWidth(text, k, f)
-  return math.floor(math.max(640 * k + 300, 175 * #text + 300) * f / 300 + 0.5)
+-- Where the marks go: one small box a mark, stacked down the inner corner of the player's mat under the heart
+-- (2026-11-10, the user: "have it [in the] corner of your playmat under your heart"; "you can add multiple boxes if
+-- need be instead of cramming everything in one box"; before, one label ran along the strip between the counters and
+-- the mats, live check 9). The battlefield grid leaves the inner end of every row empty (column 0 is GRID.colStart
+-- 10.75 from the mat's centre, a tapped card reaching 12.28; the mat's inner edge is 18.5 out), so the boxes keep to
+-- that strip: each box's inner edge `inner` button units towards the middle from the counter's centre (world 1.04 from
+-- the middle line, the mat's edge at 0.9), at most `max` wide (to 6.94, the tapped card at 7.12); the first box's top
+-- edge at local `top` (world 5.26 from the middle line, the mat's edge at 5.03), the next `gap` under it. A box is
+-- drawn at the largest of `fonts` its mark fits in; a mark too long even at the smallest is cut, ending "...". Past
+-- `boxes` marks, the last box says "+n MORE". perLocal: button units in one local unit of the tracker, measured on the
+-- live crop (a 4500-wide label was 11.75 world units on a tracker scaled 1.258).
+ENGINE_MARKS_FIT = { inner = 940, max = 2250, boxes = 10, gap = 60, perLocal = 480, fonts = { 300, 260, 220, 190, 165, 150 }, top = 2.1 }
+-- the box a mark needs at font f: as wide as its letters (no floor: the shortest real mark, "RAD 1", is 1175 at 300)
+function engineMarksWidth(text, f)
+  return math.floor((175 * #text + 300) * f / 300 + 0.5)
 end
--- the marks packed into lines of at most ENGINE_MARKS_FIT.max at font f, in order, a mark never split: { text (the
--- lines joined by "\n"), lines, font, width (the widest line's), height }
-function engineMarksLines(parts, f)
-  local lines, counts, width = {}, {}, 0
-  for _, m in ipairs(parts) do
-    local n = #lines
-    if n > 0 and engineMarksWidth(lines[n] .. "   " .. m, counts[n] + 1, f) <= ENGINE_MARKS_FIT.max then
-      lines[n], counts[n] = lines[n] .. "   " .. m, counts[n] + 1
-    else
-      lines[n + 1], counts[n + 1] = m, 1
-    end
-  end
-  for i, l in ipairs(lines) do width = math.max(width, engineMarksWidth(l, counts[i], f)) end
-  return { text = table.concat(lines, "\n"), lines = #lines, font = f, width = width,
-    height = math.floor((380 * #lines - 40 * (#lines - 1)) * f / 300 + 0.5) }
+-- a mark cut to what one box holds at font f, ending "...", at a whole character
+function engineMarksCut(m, f)
+  local n = math.floor((ENGINE_MARKS_FIT.max * 300 / f - 300) / 175) - 3
+  -- (not inside a character: the byte after the cut is no UTF-8 continuation byte)
+  while n > 0 and (m:byte(n + 1) or 0) >= 128 and (m:byte(n + 1) or 0) < 192 do n = n - 1 end
+  return m:sub(1, n) .. "..."
 end
--- the largest font whose lines fit, two lines at most (the smallest font's lines cut to two otherwise)
-function engineMarksLayout(parts)
-  local fonts = ENGINE_MARKS_FIT.fonts
-  for _, f in ipairs(fonts) do
-    local fit = engineMarksLines(parts, f)
-    if fit.lines <= 2 and fit.width <= ENGINE_MARKS_FIT.max then return fit end
-  end
-  return engineMarksClamp(parts, fonts[#fonts])
-end
--- Marks too long for two lines of the smallest font (past ~150 letters): a mark longer than a line is cut to one, ending
--- "...", at a whole character; then the first marks that fit in two lines, in order, and "+n MORE" for the ones left out
-function engineMarksClamp(parts, f)
-  local max = ENGINE_MARKS_FIT.max
-  local room = math.floor((max * 300 / f - 300) / 175) -- the letters one line holds
-  local cut = {}
-  for i, m in ipairs(parts) do
-    if #m > room then
-      local n = room - 3
-      -- (not inside a character: the byte after the cut is no UTF-8 continuation byte)
-      while n > 0 and (m:byte(n + 1) or 0) >= 128 and (m:byte(n + 1) or 0) < 192 do n = n - 1 end
-      cut[i] = m:sub(1, n) .. "..."
-    else
-      cut[i] = m
-    end
-  end
-  local fit = engineMarksLines(cut, f)
-  if fit.lines <= 2 and fit.width <= max then return fit end
-  for k = #cut - 1, 0, -1 do
-    local some = {}
-    for i = 1, k do some[i] = cut[i] end
-    some[k + 1] = "+" .. tostring(#cut - k) .. " MORE"
-    fit = engineMarksLines(some, f)
-    if fit.lines <= 2 and fit.width <= max then return fit end
-  end
-  return fit
-end
--- The commander-damage icons beside a tracker's label, as stretches of the label's line: { lo, hi } in button units
--- outward from the counter (s: sign is engineMarksOutward's), for every icon (CMD_DAMAGE, read where it lies) whose box
--- with its room around it meets the rows vTop..vBot (button units along the label's +z, the counter's centre 0)
-function engineMarksIcons(o, sign, vTop, vBot)
+-- the marks' boxes, in order: { text, font, width, height } each; past `boxes` marks the last one is "+n MORE"
+function engineMarksBoxes(parts)
   local fitIn = ENGINE_MARKS_FIT
-  local p, r, sc = o.getPosition(), o.getRotation(), o.getScale()
-  local a = math.rad(r.y or 0)
-  local ku, kv = fitIn.perLocal / (sc.x or 1), fitIn.perLocal / (sc.z or 1)
-  local half = fitIn.icon + fitIn.clear
+  local fonts, list = fitIn.fonts, parts
+  if #parts > fitIn.boxes then
+    list = {}
+    for i = 1, fitIn.boxes - 1 do list[i] = parts[i] end
+    list[fitIn.boxes] = "+" .. tostring(#parts - fitIn.boxes + 1) .. " MORE"
+  end
   local out = {}
-  for _, seat in pairs(CMD_DAMAGE) do
-    for _, guid in pairs(seat) do
-      local i = getObjectFromGUID(guid)
-      if i ~= nil then
-        local q = i.getPosition()
-        local dx, dz = (q.x or 0) - (p.x or 0), (q.z or 0) - (p.z or 0)
-        local s = sign * (-dx * math.cos(a) + dz * math.sin(a)) * ku
-        local v = (dx * math.sin(a) + dz * math.cos(a)) * kv
-        if v + half * kv > vTop and v - half * kv < vBot then out[#out + 1] = { lo = s - half * ku, hi = s + half * ku } end
-      end
+  for i, m in ipairs(list) do
+    local f = fonts[#fonts]
+    for _, try in ipairs(fonts) do
+      if engineMarksWidth(m, try) <= fitIn.max then f = try break end
     end
+    if engineMarksWidth(m, f) > fitIn.max then m = engineMarksCut(m, f) end
+    out[i] = { text = m, font = f, width = engineMarksWidth(m, f), height = math.floor(380 * f / 300 + 0.5) }
   end
   return out
-end
--- Where a label w wide and h high starts along its line (s, as engineMarksIcons): the free place nearest the centred one
--- (-w/2, and at most `inner` towards the middle), so a label that fits between the counter and its icons stays there
--- and a wider one starts just past them; on a tie, the one further out
-function engineMarksStart(o, sign, w, h)
-  local fitIn = ENGINE_MARKS_FIT
-  local bottom = fitIn.z * fitIn.perLocal + 190
-  local icons = engineMarksIcons(o, sign, bottom - h, bottom)
-  local want = -math.min(w / 2, fitIn.inner)
-  local tries = { want }
-  for _, b in ipairs(icons) do
-    tries[#tries + 1] = b.lo - w
-    tries[#tries + 1] = b.hi
-  end
-  local best
-  for _, s in ipairs(tries) do
-    -- (touching is free: b.lo - w + w can come back a hair over b.lo)
-    local free = s >= -fitIn.inner - 0.001
-    for _, b in ipairs(icons) do if s < b.hi - 0.001 and s + w > b.lo + 0.001 then free = false end end
-    if free and (best == nil or math.abs(s - want) < math.abs(best - want) or (math.abs(s - want) == math.abs(best - want) and s > best)) then best = s end
-  end
-  return best or want
 end
 -- Which way along a tracker's label is away from the middle of the table, in button x: +1, -1, or 0 for a tracker on
 -- the middle line. TTS draws a button's +x on its reader's right (the tracker's own "+20" is at +x and shows on its
@@ -1027,33 +960,35 @@ function enginePlayerCounters(o, pl)
   if type(pl.allMarks) == "table" then
     for _, m in ipairs(pl.allMarks) do parts[#parts + 1] = tostring(m) end
   end
-  local fit = #parts > 0 and engineMarksLayout(parts) or { text = "" }
-  local label = fit.text
-  local at
-  for i, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then at = i - 1 end end
+  local boxes = engineMarksBoxes(parts)
+  local texts = {}
+  for i, b in ipairs(boxes) do texts[i] = b.text end
+  local label = table.concat(texts, "\n")
+  local at = {}
+  for i, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then at[#at + 1] = i - 1 end end
   -- (unchanged and still there: the tracker's own onload clears its buttons, stage 3 review 2026-10-27)
-  if engineCountersShown[o.getGUID()] == label and (at ~= nil) == (label ~= "") then return end
+  if engineCountersShown[o.getGUID()] == label and #at == #boxes then return end
   engineCountersShown[o.getGUID()] = label
-  if label == "" then
-    if at ~= nil then o.removeButton(at) end
-    return
-  end
-  -- (the inner edge kept off the next seat's half and off the icons: engineMarksStart; a second line grows away from the
-  -- mat, the bottom edge staying where a one-line label's is)
+  -- (boxes no longer needed go, from the last down as a removal moves the ones after it; the rest are edited in place)
+  for i = #at, #boxes + 1, -1 do o.removeButton(at[i]) end
+  -- (down the mat's inner corner under the heart: each box's inner edge `inner` towards the middle, the first box's top
+  -- edge at `top`, the next `gap` under it; ENGINE_MARKS_FIT)
   local fitIn = ENGINE_MARKS_FIT
   local sign = engineMarksOutward(o)
   if sign == 0 then sign = 1 end
-  local centre = engineMarksStart(o, sign, fit.width, fit.height) + fit.width / 2
-  local x = centre ~= 0 and sign * centre / fitIn.perLocal or 0
-  local look = { label = label, width = fit.width, height = fit.height, font_size = fit.font,
-    position = { x, 0.05, fitIn.z + (380 - fit.height) / 2 / fitIn.perLocal } }
-  if at ~= nil then
-    look.index = at
-    o.editButton(look)
-  else
-    look.click_function, look.function_owner, look.rotation, look.tooltip = "engineNoop", Global, { 0, 0, 0 }, ENGINE_COUNTERS_TIP
-    look.color, look.font_color = { 0.04, 0.2, 0.05, 0.92 }, { 0.45, 1, 0.45 }
-    o.createButton(look)
+  local top = fitIn.top
+  for i, b in ipairs(boxes) do
+    local look = { label = b.text, width = b.width, height = b.height, font_size = b.font,
+      position = { sign * (b.width / 2 - fitIn.inner) / fitIn.perLocal, 0.05, top + b.height / 2 / fitIn.perLocal } }
+    top = top + (b.height + fitIn.gap) / fitIn.perLocal
+    if at[i] ~= nil then
+      look.index = at[i]
+      o.editButton(look)
+    else
+      look.click_function, look.function_owner, look.rotation, look.tooltip = "engineNoop", Global, { 0, 0, 0 }, ENGINE_COUNTERS_TIP
+      look.color, look.font_color = { 0.04, 0.2, 0.05, 0.92 }, { 0.45, 1, 0.45 }
+      o.createButton(look)
+    end
   end
 end
 -- The extra turns a player has coming (the bridge's extraTurns, Forge's extra turn count) as a number beside the life
@@ -1087,6 +1022,203 @@ function engineExtraTurnBadge(o, pl)
     o.createButton(look)
   end
 end
+-- ───────── status pieces (docs/status-objects-spec.md, 2026-11-11) ─────────
+-- The original table's piece for a player status (the monarch's crown, Undercity for the initiative, the city's
+-- blessing, The Ring, the poison / energy / experience counters) lies on a player's mat while their marks say it, just
+-- under the last marks box (2026-11-10, the user: "if the box says monarch the crown spawns in on their mat. Also have
+-- relevant objects hidden under the table with opacity at 0"); Day // Night lies in the middle of the table while the
+-- engine says day or night. make-engine-copy keeps the pieces parked under the table (y -30), locked, faded, without
+-- their scripts, and writes ENGINE_STATUS_PIECES (each piece's mark, its object per seat or its one object, where it
+-- parks) and ENGINE_DAY_NIGHT. Moved, never spawned (live-spawning many objects crashed TTS); a piece is moved only
+-- when where it goes, or its count, changes. Parked when the game's counters go (engineCountersReset: a reset, a
+-- rematch), when engine mode goes off, on load, and, while no game runs, any piece no board put out.
+-- gap: world units between the last marks box and a piece, and between pieces; side: the margin each side of the
+-- strip (and before the mat's near edge, `matHalf` from its centre: the mat zone is 20.75 deep); parkY / above: the
+-- parked depth and the depth above which a piece counts as out; day: Day // Night's spot, x 0 and `edge + gap` towards
+-- White and Red from the middle (the middle tile's edge at 0.75, the mats' gap |x| < 0.9, so at most `width` wide),
+-- readable from that side
+ENGINE_STATUS_FIT = { gap = 0.3, side = 0.3, matHalf = 10.375, parkY = -30, above = -20, day = { edge = 0.75, gap = 0.2, width = 1.5, rotY = 180 } }
+engineStatusShown = {} -- object guid (or "day") -> how it is shown (spot, turn, size, count); nil while parked
+engineStatusUnit = {}  -- object guid -> its footprint { x, z } at scale 1, read once (getBoundsNormalized)
+-- the count a mark gives a piece: "" for the mark alone ("MONARCH"), "3" for "POISON 3"; nil when it isn't the piece's
+function engineStatusMatch(mark, want)
+  if mark == want then return "" end
+  if mark:sub(1, #want + 1) == want .. " " then return mark:sub(#want + 2) end
+  return nil
+end
+-- the object entry of piece p for seat `color` (its seat's own copy, or the one object)
+function engineStatusObj(p, color)
+  for _, e in ipairs(p.objs or {}) do if e.seat == nil or e.seat == color then return e end end
+  return nil
+end
+-- every object the table moves, each piece's per seat and Day // Night, as one list (made once): { key (its name in
+-- engineStatusShown), guids (Day // Night has one a state), fade, count, x / z (where it parks) }
+function engineStatusList()
+  if engineStatusItems == nil then
+    engineStatusItems = {}
+    for _, p in ipairs(type(ENGINE_STATUS_PIECES) == "table" and ENGINE_STATUS_PIECES or {}) do
+      for _, e in ipairs(p.objs or {}) do
+        engineStatusItems[#engineStatusItems + 1] = { key = e.g, guids = { e.g }, fade = p.fade, count = p.count, x = e.x, z = e.z }
+      end
+    end
+    local d = ENGINE_DAY_NIGHT
+    if type(d) == "table" then engineStatusItems[#engineStatusItems + 1] = { key = "day", guids = d.states, x = d.x, z = d.z } end
+  end
+  return engineStatusItems
+end
+function engineStatusObject(item)
+  for _, g in ipairs(item.guids) do
+    local o = getObjectFromGUID(g)
+    if o ~= nil then return o end
+  end
+  return nil
+end
+-- an object's footprint { x, z } at scale 1, by GUID (nil when there is no such object)
+function engineStatusFootprint(g, o)
+  if engineStatusUnit[g] == nil then
+    o = o or getObjectFromGUID(g)
+    if o == nil then return nil end
+    local b, s = o.getBoundsNormalized().size, o.getScale()
+    engineStatusUnit[g] = { x = b.x / math.max(s.x, 0.01), z = b.z / math.max(s.z, 0.01) }
+  end
+  return engineStatusUnit[g]
+end
+-- parked: under the table at its own spot, locked, hidden as at opacity 0: invisible to every colour (what hides a
+-- card) and, for a model or token, its tint's alpha 0; no count on it. Day // Night goes back to Day first, so the
+-- saved table normally has Day on top (one swap, only when it is on Night)
+function engineStatusPark(o, item)
+  if item.key == "day" and o.getStateId() ~= 1 then o = o.setState(1) or o end
+  o.setLock(true)
+  o.setInvisibleTo(engineEveryone())
+  if item.fade then local c = o.getColorTint() o.setColorTint({ c.r, c.g, c.b, 0 }) end
+  o.clearButtons()
+  o.setPosition({ item.x, ENGINE_STATUS_FIT.parkY, item.z })
+  engineStatusShown[item.key] = nil
+end
+-- item's object put at w = { at, rotY, scale, count, state } (nil: parked), only when that differs from how it is
+-- shown. From under the table it comes up at its spot while still hidden, then shows; from another mat it slides.
+function engineStatusPut(o, item, w)
+  local look = w and string.format("%.2f %.2f %.0f %.3f %s %s", w.at[1], w.at[3], w.rotY, w.scale[1], item.count and w.count or "", tostring(w.state))
+  if engineStatusShown[item.key] == look then return end
+  if w == nil then return engineStatusPark(o, item) end
+  if w.state ~= nil and o.getStateId() ~= w.state then o = o.setState(w.state) or o end
+  local wasOut = engineStatusShown[item.key] ~= nil
+  o.setLock(true)
+  o.setScale(w.scale)
+  o.setRotation({ 0, w.rotY, 0 })
+  if wasOut then o.setPositionSmooth(w.at, false, true) else o.setPosition(w.at) end
+  if item.fade then local c = o.getColorTint() o.setColorTint({ c.r, c.g, c.b, 1 }) end
+  o.setInvisibleTo({})
+  if item.count then
+    -- the count as the original token's script drew its 0: a shadow, then the number (labels only, no click area)
+    o.clearButtons()
+    for _, b in ipairs({ { { -0.1, 0.1, 0.3 }, { 0.1, 0.1, 0.1, 95 } }, { { 0, 0.15, 0.2 }, { 0.9, 0.9, 0.9, 100 } } }) do
+      o.createButton({ click_function = "engineNoop", function_owner = Global, label = w.count, position = b[1], rotation = { 0, 0, 0 },
+        width = 0, height = 0, scale = { 1.5, 1.5, 1.5 }, font_size = 800, font_color = b[2], color = { 0, 0, 0, 0 }, tooltip = "" })
+    end
+  end
+  engineStatusShown[item.key] = look
+end
+-- where seat pl's pieces go: down the corner strip of their mat, centred across it, under their last marks box, in
+-- ENGINE_STATUS_PIECES' order; each scaled down to the strip's width if wider. Written into want[guid].
+function engineStatusPlace(want, o, pl)
+  local marks = {}
+  for _, m in ipairs(pl.allMarks) do marks[#marks + 1] = tostring(m) end
+  local boxes = engineMarksBoxes(marks)
+  if #boxes == 0 then return end
+  local fitIn, fit = ENGINE_MARKS_FIT, ENGINE_STATUS_FIT
+  -- (the tracker's button frame, as the boxes are drawn: local z of the last box's bottom edge; the strip's middle in
+  -- button x, from the boxes' inner edge to the widest box's outer edge)
+  local bottom = fitIn.top - fitIn.gap / fitIn.perLocal
+  for _, b in ipairs(boxes) do bottom = bottom + (b.height + fitIn.gap) / fitIn.perLocal end
+  local sign = engineMarksOutward(o)
+  if sign == 0 then sign = 1 end
+  local cx = sign * (fitIn.max / 2 - fitIn.inner) / fitIn.perLocal
+  local p0, s = o.getPosition(), o.getScale()
+  local a = math.rad(o.getRotation().y or 0)
+  local room = fitIn.max / fitIn.perLocal * s.x - 2 * fit.side
+  local g = seatGeometry(pl.color)
+  local rotY = (g and g.rotY or (o.getRotation().y or 0)) % 360
+  local top = bottom + fit.gap / s.z -- (local z of the next piece's top edge)
+  -- the seat's pieces at the strip's width, and the depth they take with their gaps (world units)
+  local list, need = {}, 0
+  for _, p in ipairs(ENGINE_STATUS_PIECES) do
+    local count = nil -- (= nil: TTS reads a bare local in a for-in body as the looped table, tests/test_moonsharp_loop_locals.js)
+    for _, m in ipairs(marks) do count = count or engineStatusMatch(m, p.mark) end
+    local e = count and engineStatusObj(p, pl.color)
+    local unit = e and want[e.g] == nil and engineStatusFootprint(e.g)
+    if unit then
+      local k = math.min(1, room / math.max(unit.x * p.scale[1], 0.01))
+      list[#list + 1] = { e = e, p = p, k = k, depth = unit.z * p.scale[3] * k, count = count }
+      need = need + unit.z * p.scale[3] * k + fit.gap
+    end
+  end
+  -- (all of them down to what is left of the strip before the mat's near edge, `matHalf` past its centre along its
+  -- forward axis, less `side`: every piece at once ran off the mat)
+  if g ~= nil and #list > 0 then
+    local edge = g.mat + g.fwd * fit.matHalf
+    local left = ((edge.x - p0.x) * math.sin(a) + (edge.z - p0.z) * math.cos(a)) - top * s.z - fit.side
+    local gaps = fit.gap * (#list - 1)
+    if need - fit.gap > left and left > gaps then
+      local f = (left - gaps) / (need - fit.gap - gaps)
+      for _, x in ipairs(list) do x.k, x.depth = x.k * f, x.depth * f end
+    end
+  end
+  for _, x in ipairs(list) do
+    local p, k = x.p, x.k
+    local bz = top + x.depth / 2 / s.z
+    -- (button x is drawn on the reader's right, world (-cos ry, sin ry); local z at (sin ry, cos ry))
+    want[x.e.g] = { at = { p0.x + s.x * cx * -math.cos(a) + s.z * bz * math.sin(a), p.y, p0.z + s.x * cx * math.sin(a) + s.z * bz * math.cos(a) },
+      rotY = rotY, scale = { p.scale[1] * k, p.scale[2], p.scale[3] * k }, count = x.count }
+    top = top + (x.depth + fit.gap) / s.z
+  end
+end
+-- Day // Night's spot for the engine's day or night (state 1 day, state 2 night; TTS gives a card's other state its own
+-- GUID, so either is the card): want.day, nothing when it is neither
+function engineStatusDayPlace(want, day)
+  local d = ENGINE_DAY_NIGHT
+  local state = (day == "day" and 1) or (day == "night" and 2) or nil
+  if type(d) ~= "table" or state == nil then return end
+  local o = getObjectFromGUID(d.states[1]) or getObjectFromGUID(d.states[2])
+  local unit = o and engineStatusFootprint(o.getGUID(), o)
+  if unit == nil then return end
+  local fit = ENGINE_STATUS_FIT.day
+  local k = math.min(1, fit.width / math.max(unit.x * d.scale[1], 0.01))
+  want.day = { at = { 0, d.y, -(fit.edge + fit.gap + unit.z * d.scale[3] * k / 2) }, rotY = fit.rotY, scale = { d.scale[1] * k, d.scale[2], d.scale[3] * k }, state = state }
+end
+-- From each board (updateTrackers, beside the marks boxes): every piece to its holder's mat, or parked. A piece only
+-- one player can have (the monarch, the initiative) goes to the first row that has it. Each seat's placing and each
+-- piece's move runs in its own pcall: one that fails leaves the others to move or park.
+function engineStatusPieces(m)
+  if not ENGINE_MODE or type(ENGINE_STATUS_PIECES) ~= "table" then return end
+  local want = {}
+  for _, pl in ipairs(m.players or {}) do
+    local o = getObjectFromGUID(LIFE_TRACKERS[pl.color or ""] or "")
+    if o ~= nil and type(pl.allMarks) == "table" then pcall(engineStatusPlace, want, o, pl) end
+  end
+  pcall(engineStatusDayPlace, want, m.day)
+  for _, item in ipairs(engineStatusList()) do
+    pcall(engineStatusPutItem, item, want[item.key])
+  end
+end
+function engineStatusPutItem(item, w)
+  local o = (w ~= nil or engineStatusShown[item.key] ~= nil) and engineStatusObject(item)
+  if o then engineStatusPut(o, item, w) end
+end
+-- Every piece back under the table. mode nil: all of them; "unplaced": those no board put out (on load); "strays":
+-- those, when above the table (every 2 s while no game runs). One pcall a piece, as for the board.
+function engineStatusParkAll(mode)
+  for _, item in ipairs(engineStatusList()) do pcall(engineStatusParkItem, item, mode) end
+end
+function engineStatusParkItem(item, mode)
+  local o = not (mode ~= nil and engineStatusShown[item.key] ~= nil) and engineStatusObject(item)
+  if o and (mode ~= "strays" or o.getPosition().y > ENGINE_STATUS_FIT.above) then engineStatusPark(o, item) end
+end
+Wait.frames(function() pcall(engineStatusParkAll, "unplaced") end, 20)
+Wait.time(function()
+  local t = engineTable ~= nil and engineTable() or nil
+  if t == nil or t.gameOver then pcall(engineStatusParkAll, "strays") end
+end, 2, -1)
 -- true while a player's open question has its own glow on the object (it gives the base glow back afterwards)
 function engineGlowOwned(o)
   for _, set in pairs(engineGlowing or {}) do if set[o] then return true end end
@@ -1118,7 +1250,7 @@ local function mergeStatic(m)
   -- zones the bridge left out because they didn't change: reuse the last board's (already merged) lists
   for _, pl in ipairs(m.players or {}) do
     if pl.keep ~= nil then
-      local prev
+      local prev = nil
       for _, q in ipairs((lastTable and lastTable.players) or {}) do if q.color == pl.color then prev = q end end
       for _, z in ipairs(pl.keep) do pl[z] = prev and prev[z] or {} end
       pl.keep = nil
@@ -1755,9 +1887,11 @@ do
     if #engineSoundLog > 50 then table.remove(engineSoundLog, 1) end
     return true
   end
-  local function result(c, text, color, outline, hold)
+  local function result(c, text, color, outline, hold, size)
     if engineEffectsOff[c] or Player[c] == nil or not Player[c].seated then return end
     UI.setValue("eng_result_" .. c, text)
+    -- (a long line smaller: "<NAME> WINS THE GAME" ran past the 1600-wide banner at 120)
+    UI.setAttribute("eng_result_" .. c, "fontSize", tostring(size or 120))
     UI.setAttribute("eng_result_" .. c, "color", color)
     UI.setAttribute("eng_result_" .. c, "outline", outline)
     -- (not UI.show: it showed the text to every player, VICTORY over DEFEAT, playtest 2026-10-23)
@@ -1895,13 +2029,19 @@ do
         if life ~= nil and FX.dimmed[c] == nil then FX.dimmed[c] = life.getColorTint() life.setColorTint(FX.OUT) end
       end
     end
-    -- game over: VICTORY for the winner, DEFEAT for everyone else (2.5 s after the knock-out, as Arena)
+    -- game over: VICTORY for the winner, DEFEAT for everyone else (2.5 s after the knock-out, as Arena), for 2 s; then
+    -- who won, for 4 s, to everyone (the user, 2026-11-09, item 14); no winner: DRAW, then "THE GAME IS A DRAW"
     if m.gameOver and not prev.over then
       Wait.time(function()
         for _, viewer in ipairs(seatedColors(m)) do
-          if m.winner ~= nil and viewer == m.winner then result(viewer, "VICTORY", "#FFD27A", "#2a1600E0", 4)
-          else result(viewer, "DEFEAT", "#C9A3FF", "#1a0730E0", 4) end
+          if m.winner == nil then result(viewer, "DRAW", "#E8E2D0", "#1a1a1aE0", 2)
+          elseif viewer == m.winner then result(viewer, "VICTORY", "#FFD27A", "#2a1600E0", 2)
+          else result(viewer, "DEFEAT", "#C9A3FF", "#1a0730E0", 2) end
         end
+        Wait.time(function()
+          local said = m.winner ~= nil and (string.upper(engineNameOf(m.winner)) .. " WINS THE GAME") or "THE GAME IS A DRAW"
+          for _, viewer in ipairs(seatedColors(m)) do result(viewer, said, "#FFD27A", "#2a1600E0", 4, #said > 20 and 72 or 96) end
+        end, 2)
       end, 2.5)
     end
     -- step 4: the table effects and their sound (nothing found = no UI call at all)
@@ -2056,7 +2196,7 @@ function engineRender(m)
     local g = s.ctl and seatGeometry(s.ctl)
     local n = (perCaster[s.ctl or "?"] or 0) + 1
     perCaster[s.ctl or "?"] = n
-    local pos, rot
+    local pos, rot = nil, nil
     if g ~= nil then
       pos = g.mat + g.right * (1.4 * (n - 1) - 2) + Vector(0, 2.5 + 0.1 * i, 0)
       rot = Vector(0, g.rotY, 0)
@@ -2306,8 +2446,8 @@ end
 enginePrompts = {}        -- colour -> open prompt from the bridge
 local engineSelected = {} -- colour -> { [option index] = true }
 -- The panel is hidden unless something opened it (the player playtested it popping up on every card played):
--- "pin" = the player pressed Engine: show (stays until Engine: hide), "ask" = a question the table can't answer
--- itself (closes again once that question is gone), "browse" = Graveyards / exile was pressed.
+-- "pin" = the player pressed the Choices tab (stays until pressed again), "ask" = a question the table can't answer
+-- itself (closes again once that question is gone), "browse" = a side tab opened it (engineOpenTab).
 local engineShown = {}    -- colour -> nil | "pin" | "ask" | "browse"
 local engineFilter = {}   -- colour -> search text
 local engineVisible = {}  -- colour -> { [button slot] = option index }
@@ -2322,24 +2462,51 @@ local POOL = 30
 local function count(t) local n = 0 for _ in pairs(t or {}) do n = n + 1 end return n end
 
 -- Each UI change costs TTS about a millisecond, and a new prompt changes dozens, so every change is one call.
--- Setting a button's text (or showing it again) redraws its label in the default dark colour, and TTS ignores a
--- textColor equal to the stored one; alternating between two near-identical whites makes every set count, in
--- the same call (this used to take a second call a frame later).
-local whiteFlip = {}
-local function nextWhite(id)
-  whiteFlip[id] = not whiteFlip[id]
-  return whiteFlip[id] and "#FFFFFF" or "#FEFEFE"
+-- Any set on a Button redraws it from the attributes the element holds itself (docs/engine-ui-spec.md 2.1): its label
+-- goes back to TTS's dark grey unless the same call carries a textColor, and TTS ignores a textColor equal to the
+-- stored one; its background goes back to TTS's white when its colour lived only in a <Defaults> class (the ability
+-- panel was grey with dark text, Auto-resolve's text dim, 2026-11-10). So every call carries both: the colour as it is
+-- (once on the element, a redraw keeps it), the text colour alternating between two that look the same so it counts.
+-- ENGINE_THEME: the colours of the engine's screen UI, taken from the table's own buttons (#1A1A1A, white text).
+ENGINE_THEME = { window = "#161616F0", button = "#262626", dock = "#1A1A1A", tabOn = "#3A3022", muted = "#1C1C1C",
+  mutedText = "#8C9199", gold = "#FFD27A", text = "#FFFFFF" }
+engineBtnLook = {} -- Button id -> { bg, tc }: the colours its XML gives it (engineRenderPanels)
+engineColorFlip = {}
+function engineFlipColor(key, hex)
+  engineColorFlip[key] = not engineColorFlip[key]
+  hex = tostring(hex)
+  if not engineColorFlip[key] or not hex:find("^#%x+$") then return hex end
+  local last = tonumber(hex:sub(-1), 16)
+  return hex:sub(1, -2) .. string.format("%X", last - last % 2 + (1 - last % 2))
 end
-local function isButton(id)
-  return id:find("^eng_opt_") or id:find("^eng_confirm_") or id:find("^eng_cancel_") or id:find("^eng_toggle_")
-    or id:find("^eng_browse_") or id:find("^eng_logbtn_") or id:find("^eng_pace_") or id:find("^eng_fx_") or id:find("^eng_anim_") or id:find("^eng_snd_") or id:find("^eng_set_") or id:find("^eng_stop_")
-    or id:find("^eng_big_") or id:find("^eng_big2_") or id:find("^eng_rowopt_") or id:find("^eng_abp_%a+_%d")
-    or id:find("^eng_undo") or id:find("^eng_autores_") or id:find("^eng_voteyes_") or id:find("^eng_voteno_") or id:find("^eng_votego_") or id:find("^eng_scoop") or id:find("^eng_fixb") or id:find("^eng_fixcall_")
+-- (every Button of the screen XML, recorded as it is built: a list of id patterns had taken in panels too, "^eng_undo"
+-- the Undo list and "^eng_scoop" the Concede box, which would now get a button's colour)
+local function isButton(id) return engineBtnLook[id] ~= nil end
+-- The Buttons of a screen XML and their colours, by plain finds (no pattern with captures over 50 KB: MoonSharp's
+-- "pattern too complex"): engineBtnLook[id] = { bg = its color, tc = its textColor }
+function engineRecordButtons(xml)
+  local pos = 1
+  local function attr(tag, key)
+    local i = tag:find(" " .. key .. '="', 1, true)
+    if i == nil then return nil end
+    local s = i + #key + 3
+    return tag:sub(s, (tag:find('"', s, true) or #tag + 1) - 1)
+  end
+  while true do
+    local i = xml:find("<Button ", pos, true)
+    if i == nil then break end
+    local e = xml:find(">", i, true) or #xml
+    local tag = xml:sub(i, e)
+    local id = attr(tag, "id")
+    if id ~= nil then engineBtnLook[id] = { bg = attr(tag, "color"), tc = attr(tag, "textColor") } end
+    pos = e + 1
+  end
 end
 
--- Applies only the attributes that changed, in one call. attrs: { text = ..., color = ..., active = ... }
+-- Applies only the attributes that changed, in one call. attrs: { text = ..., color = ..., active = ... }; the call
+-- also carries the button's colour and text colour (see ENGINE_THEME above), except one that only hides it.
 local function setButton(id, attrs)
-  local changed, n, needWhite = {}, 0, false
+  local changed, n = {}, 0
   for k, v in pairs(attrs) do
     v = tostring(v)
     local key = k == "text" and id or (id .. "|" .. k)
@@ -2347,11 +2514,15 @@ local function setButton(id, attrs)
       uiCache[key] = v
       changed[k] = v
       n = n + 1
-      if k == "text" or (k == "active" and v == "true") then needWhite = true end
     end
   end
   if n == 0 then return end
-  if needWhite then changed.textColor = nextWhite(id) end
+  if not (n == 1 and changed.active == "false") then
+    local look = engineBtnLook[id] or {}
+    changed.textColor = engineFlipColor(id .. "|tc", uiCache[id .. "|textColor"] or look.tc or "#FFFFFF")
+    -- (the colour as it is: once set on the element itself, a redraw keeps it)
+    changed.color = uiCache[id .. "|color"] or look.bg or ENGINE_THEME.button
+  end
   if engineProfile then engineProfile.uiCalls = engineProfile.uiCalls + 1 end
   UI.setAttributes(id, changed)
 end
@@ -2409,7 +2580,7 @@ local function rowXml(c)
   for k = 1, ROW_BTNS do
     btns[#btns + 1] = '<Button id="eng_rowopt_' .. c .. '_' .. k .. '" onClick="onMtgRowOpt" preferredWidth="220" preferredHeight="44" color="#2e3a59" textColor="#ffffff" fontSize="17" fontStyle="Bold" active="false"> </Button>'
   end
-  return '<Panel id="eng_row_' .. c .. '" visibility="' .. c .. '" width="720" height="470" rectAlignment="MiddleCenter" offsetXY="0 60" color="#0A0C10E8" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
+  return '<Panel id="eng_row_' .. c .. '" visibility="' .. c .. '" width="720" height="470" rectAlignment="MiddleCenter" offsetXY="0 60" color="#161616E8" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
     -- (title and line sized to the panel: at 1300 px wide a long line ran off both edges, 2026-10-22)
     .. '<Text id="eng_rowtitle_' .. c .. '" width="700" height="34" rectAlignment="UpperCenter" offsetXY="0 -8" fontSize="22" resizeTextForBestFit="true" resizeTextMinSize="14" resizeTextMaxSize="22" fontStyle="Bold" color="#FFD27A" alignment="MiddleCenter"> </Text>'
     .. '<Text id="eng_rowsub_' .. c .. '" width="690" height="42" rectAlignment="UpperCenter" offsetXY="0 -42" fontSize="14" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="14" horizontalOverflow="Wrap" color="#D8DEE8" alignment="MiddleCenter"> </Text>'
@@ -2419,22 +2590,11 @@ local function rowXml(c)
     .. table.concat(btns) .. '</HorizontalLayout></Panel>\n'
 end
 
--- Rewind by vote (M4.5): "Undo..." lists the engine's restore points; a vote pop-up asks the other players.
-UNDO_MAX = 8
+-- Rewind by vote (M4.5): the Undo tab lists the engine's restore points (engineSidePrompt); a vote pop-up asks the
+-- other players. Auto-resolve sits in the dock's row, right of the tabs (docs/engine-ui-spec.md 3).
 local function rewindXml(c)
-  local opts = {}
-  for k = 1, UNDO_MAX do
-    opts[#opts + 1] = '<Button id="eng_undopt_' .. c .. '_' .. k .. '" onClick="onMtgUndoPick" preferredHeight="34" color="#2f3542" textColor="#ffffff" fontSize="15" active="false"> </Button>'
-  end
-  return '<Button id="eng_autores_' .. c .. '" onClick="onMtgAutoResolve" visibility="' .. c .. '" width="150" height="32" rectAlignment="UpperLeft" offsetXY="16 -178" color="#3a3f4b" textColor="#ffffff" fontSize="14" tooltip="Pass priority by itself: on other players\' turns, or until a phase you pick" active="false">Auto-resolve: off...</Button>\n'
-    .. '<Button id="eng_undo_' .. c .. '" onClick="onMtgUndo" visibility="' .. c .. '" width="110" height="32" rectAlignment="UpperLeft" offsetXY="292 -178" color="#3a3f4b" textColor="#ffffff" fontSize="15" active="false">Undo...</Button>\n'
-    .. '<Panel id="eng_undolist_' .. c .. '" visibility="' .. c .. '" width="380" height="380" rectAlignment="UpperLeft" offsetXY="292 -216" color="#0A0C10F0" active="false">'
-    .. '<VerticalLayout padding="8 8 8 8" spacing="4" childForceExpandHeight="false">'
-    .. '<Text preferredHeight="30" fontSize="16" fontStyle="Bold" color="#FFD27A" alignment="MiddleCenter">Rewind to... (the others vote)</Text>'
-    .. table.concat(opts)
-    .. '<Button id="eng_undoclose_' .. c .. '" onClick="onMtgUndo" preferredHeight="30" color="#5a1f1f" textColor="#ffffff" fontSize="14">Close</Button>'
-    .. '</VerticalLayout></Panel>\n'
-    .. '<Panel id="eng_vote_' .. c .. '" visibility="' .. c .. '" width="600" height="146" rectAlignment="UpperCenter" offsetXY="0 -120" color="#0A0C10F0" active="false">'
+  return '<Button id="eng_autores_' .. c .. '" onClick="onMtgAutoResolve" visibility="' .. c .. '" width="150" height="30" rectAlignment="UpperLeft" offsetXY="468 -140" color="#1A1A1A" textColor="#ffffff" fontSize="14" tooltip="Pass priority by itself: on other players\' turns, or until a phase you pick" active="false">Auto-resolve: off...</Button>\n'
+    .. '<Panel id="eng_vote_' .. c .. '" visibility="' .. c .. '" width="600" height="146" rectAlignment="UpperCenter" offsetXY="0 -120" color="#161616F0" active="false">'
     .. '<Text id="eng_votetext_' .. c .. '" width="580" height="84" rectAlignment="UpperCenter" offsetXY="0 -6" fontSize="18" color="#FFFFFF" alignment="MiddleCenter"> </Text>'
     .. '<HorizontalLayout width="440" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
     .. '<Button id="eng_voteyes_' .. c .. '" onClick="onMtgVote" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Rewind</Button>'
@@ -2447,7 +2607,7 @@ end
 -- it opens a big "Concede this game?" box with Scoop / Keep playing (screen UI: readable from any camera angle)
 local function scoopXml(c)
   return '<Button id="eng_scoop_' .. c .. '" onClick="onMtgScoopAsk" visibility="' .. c .. '" width="120" height="40" rectAlignment="UpperCenter" offsetXY="250 -118" color="#c62828" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Scoop</Button>\n'
-    .. '<Panel id="eng_scoopask_' .. c .. '" visibility="' .. c .. '" width="620" height="230" rectAlignment="MiddleCenter" offsetXY="0 40" color="#0A0C10F2" active="false">'
+    .. '<Panel id="eng_scoopask_' .. c .. '" visibility="' .. c .. '" width="620" height="230" rectAlignment="MiddleCenter" offsetXY="0 40" color="#161616F2" active="false">'
     .. '<Text width="600" height="110" rectAlignment="UpperCenter" offsetXY="0 -10" fontSize="30" fontStyle="Bold" color="#FFFFFF" alignment="MiddleCenter">Concede this game?</Text>'
     .. '<HorizontalLayout width="560" height="70" rectAlignment="LowerCenter" offsetXY="0 22" spacing="24" childForceExpandWidth="true">'
     .. '<Button id="eng_scoopyes_' .. c .. '" onClick="onMtgScoopYes" color="#c62828" textColor="#ffffff" fontSize="26" fontStyle="Bold">Scoop</Button>'
@@ -2459,7 +2619,7 @@ local function cornerXml(c)
   return rowXml(c) .. rewindXml(c) .. scoopXml(c) .. (engineFixXml ~= nil and engineFixXml(c) or "")
     -- M5: VICTORY / DEFEAT / "<NAME> IS OUT", big, in the middle of the screen
     .. '<Text id="eng_result_' .. c .. '" visibility="' .. c .. '" width="1600" height="200" rectAlignment="MiddleCenter" offsetXY="0 120" fontSize="120" fontStyle="Bold" color="#FFD27A" outline="#2a1600E0" outlineSize="4 -4" alignment="MiddleCenter" showAnimation="Grow" hideAnimation="FadeOut" animationDuration="0.35" active="false"> </Text>\n'
-    .. '<Panel id="eng_phasebg_' .. c .. '" visibility="' .. c .. '" width="900" height="46" rectAlignment="UpperCenter" offsetXY="0 -64" color="#0A0C10C8" active="false"></Panel>'
+    .. '<Panel id="eng_phasebg_' .. c .. '" visibility="' .. c .. '" width="900" height="46" rectAlignment="UpperCenter" offsetXY="0 -64" color="#161616C8" active="false"></Panel>'
     .. '<Text id="eng_phase_' .. c .. '" visibility="' .. c .. '" width="900" height="46" rectAlignment="UpperCenter" offsetXY="0 -64" fontSize="22" color="#B8C0CC" alignment="MiddleCenter" active="false"> </Text>\n'
     -- Arena-style instruction line above the corner buttons (at the top it ran into TTS's name tags): what the open question wants, in table terms
     .. '<Text id="eng_hint_' .. c .. '" visibility="' .. c .. '" width="620" height="130" rectAlignment="LowerRight" offsetXY="-20 196" fontSize="18" fontStyle="Italic" color="#F2F2F2" outline="#000000C0" outlineSize="1 -1" alignment="LowerRight" active="false"> </Text>\n'
@@ -2469,54 +2629,55 @@ local function cornerXml(c)
     .. '<Button id="eng_big_' .. c .. '" onClick="onMtgBig" visibility="' .. c .. '" width="280" height="64" rectAlignment="LowerRight" offsetXY="-20 70" color="#e8711a" textColor="#ffffff" fontSize="26" fontStyle="Bold" active="false"> </Button>\n'
     .. engineAbPanelXml(c)
 end
--- The abilities of the card you point at, as big buttons on the screen (engineAbPanelShow): the buttons on the card are
--- a few pixels tall at the usual camera, and its right-click menu opened under the top bars (hp-07, 2026-10-27).
+-- The actions of the card you point at, as big buttons on the screen (engineAbPanelShow): the buttons on the card are
+-- a few pixels tall at the usual camera, and its right-click menu opened under the top bars (hp-07, 2026-10-27). Since
+-- batch B every ability, greyed with its reason when it can't be used, ENGINE_AB_MAX a page with More (eng_abpg_) and a
+-- close X (eng_abpx_); the panel grows up from its foot to fit its lines.
 ENGINE_AB_MAX = 6
 function engineAbPanelXml(c)
   local rows = {}
   for k = 1, ENGINE_AB_MAX do
-    rows[#rows + 1] = '<Button id="eng_abp_' .. c .. '_' .. k .. '" onClick="onMtgAbPanel" preferredHeight="40" fontSize="15" color="#2f3542" textColor="#ffffff" active="false"> </Button>'
+    rows[#rows + 1] = '<Button id="eng_abp_' .. c .. '_' .. k .. '" onClick="onMtgAbPanel" preferredHeight="40" fontSize="14" textAlignment="MiddleLeft" color="#262626" textColor="#ffffff" active="false"> </Button>'
   end
-  return '<Panel id="eng_abp_' .. c .. '" visibility="' .. c .. '" width="440" height="320" rectAlignment="LowerRight" offsetXY="-20 272" color="#0A0C10E6" active="false">'
+  return '<Panel id="eng_abp_' .. c .. '" visibility="' .. c .. '" width="440" height="320" rectAlignment="LowerRight" offsetXY="-20 272" color="#161616F0" active="false">'
     .. '<VerticalLayout padding="8 8 6 6" spacing="4" childForceExpandHeight="false" childAlignment="LowerCenter">'
     .. '<Text id="eng_abpt_' .. c .. '" preferredHeight="24" fontSize="16" fontStyle="Bold" color="#FFD27A" alignment="MiddleLeft"> </Text>'
-    .. table.concat(rows) .. '</VerticalLayout></Panel>\n'
+    .. table.concat(rows)
+    .. '<Button id="eng_abpg_' .. c .. '" onClick="onMtgAbPanel" preferredHeight="30" fontSize="13" color="#333333" textColor="#ffffff" active="false"> </Button>'
+    .. '</VerticalLayout>'
+    .. '<Button id="eng_abpx_' .. c .. '" onClick="onMtgAbPanel" width="28" height="28" rectAlignment="UpperRight" offsetXY="-6 -6" color="#333333" textColor="#ffffff" fontSize="15" fontStyle="Bold" tooltip="Close">X</Button></Panel>\n'
 end
 
 -- A spell or ability going on the stack pops up for everyone, with its picture and text (Arena-style).
-local POPUP_XML = '<Panel id="eng_pop" width="300" height="500" rectAlignment="MiddleRight" offsetXY="-30 40" color="#0A0C10E8" active="false">'
+local POPUP_XML = '<Panel id="eng_pop" width="300" height="500" rectAlignment="MiddleRight" offsetXY="-30 40" color="#161616E8" active="false">'
   .. '<VerticalLayout padding="8 8 8 8" spacing="6" childForceExpandHeight="false">'
   .. '<Text id="eng_pop_who" fontSize="14" color="#FFD27A" alignment="MiddleCenter" preferredHeight="22"> </Text>'
   .. '<Image id="eng_pop_img" preferredHeight="390" preserveAspect="true" color="#FFFFFF"></Image>'
   .. '<Text id="eng_pop_text" fontSize="12" color="#FFFFFF" alignment="UpperLeft" preferredHeight="70"> </Text>'
   .. '</VerticalLayout>'
-  .. '<Button id="eng_pop_x" onClick="onMtgPopClose" width="34" height="34" rectAlignment="UpperRight" offsetXY="-4 -4" color="#3a3f4b" textColor="#ffffff" fontSize="20" fontStyle="Bold" tooltip="Close (only for you)">X</Button>'
+  .. '<Button id="eng_pop_x" onClick="onMtgPopClose" width="34" height="34" rectAlignment="UpperRight" offsetXY="-4 -4" color="#333333" textColor="#ffffff" fontSize="20" fontStyle="Bold" tooltip="Close (only for you)">X</Button>'
   .. '</Panel>'
 
 local function panelXml(color)
   local slots = {}
   for k = 1, POOL do
-    slots[#slots + 1] = string.format('<Button id="eng_opt_%s_%d" onClick="onMtgSlot" active="false" minHeight="32" fontSize="14" color="#2f3542" textColor="#ffffff"> </Button>', color, k)
+    slots[#slots + 1] = string.format('<Button id="eng_opt_%s_%d" onClick="onMtgSlot" active="false" minHeight="32" fontSize="14" color="#262626" textColor="#ffffff"> </Button>', color, k)
   end
   local c = color
-  -- (top left, a row above Auto-resolve / Fix / Undo, under TTS's own menu and clear of the turn bar: at the top right
-  -- these covered the first items of the cards' right-click menus, playtest 2026-10-26; at the bottom left they sat on
-  -- the hand and the chat, playtest 2026-10-31)
-  return '<Button id="eng_toggle_' .. c .. '" onClick="onMtgToggle" visibility="' .. c .. '" width="120" height="32" rectAlignment="UpperLeft" offsetXY="16 -140" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Engine: hide</Button>\n'
-    .. '<Button id="eng_browse_' .. c .. '" onClick="onMtgBrowse" visibility="' .. c .. '" width="170" height="32" rectAlignment="UpperLeft" offsetXY="144 -140" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Graveyards / exile</Button>\n'
-    .. '<Button id="eng_logbtn_' .. c .. '" onClick="onMtgLog" visibility="' .. c .. '" width="90" height="32" rectAlignment="UpperLeft" offsetXY="322 -140" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Log</Button>\n'
-    .. '<Button id="eng_pace_' .. c .. '" onClick="onMtgPace" visibility="' .. c .. '" width="150" height="32" rectAlignment="UpperLeft" offsetXY="420 -140" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Auto: off</Button>\n'
-    -- (2026-10-22) Settings: your own screen effects and sounds, and the host's switch for the table's shared animations
-    .. '<Button id="eng_set_' .. c .. '" onClick="onMtgSettings" visibility="' .. c .. '" width="100" height="32" rectAlignment="UpperLeft" offsetXY="578 -140" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Settings</Button>\n'
-    .. '<Panel id="eng_setpanel_' .. c .. '" visibility="' .. c .. '" width="290" height="150" rectAlignment="UpperLeft" offsetXY="420 -178" color="#0A0C10F0" active="false">'
-    .. '<VerticalLayout padding="8 8 8 8" spacing="6">'
-    .. '<Button id="eng_fx_' .. c .. '" onClick="onMtgFx" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Banners, the turn banner, the stack pop-up and table effects, for you only">My effects: on</Button>'
-    .. '<Button id="eng_snd_' .. c .. '" onClick="onMtgSnd" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Table sounds (shared by everyone: the host mutes them)">My sounds: on</Button>'
-    .. '<Button id="eng_anim_' .. c .. '" onClick="onMtgAnim" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Attack swings, mills and the graveyard flash: everyone sees them, so the host decides">Table animations: on</Button>'
-    .. '</VerticalLayout></Panel>\n'
-    .. '<Panel id="eng_log_' .. c .. '" visibility="' .. c .. '" width="430" height="290" rectAlignment="UpperRight" offsetXY="-10 -150" color="#0A0C10D0" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
+  -- The dock (batch B, docs/engine-ui-spec.md 3): the window's tabs and the log's switch in one row at the top left,
+  -- under TTS's own menu and right of its left tool bar (82 px wide); Auto-resolve and Fix follow at x 468 and 622. (At
+  -- the top right these covered the first items of the cards' right-click menus, playtest 2026-10-26; at the bottom
+  -- left they sat on the hand and the chat, playtest 2026-10-31.) Undo shows only with restore points; the row closes up.
+  local function tab(id, fn, w, label)
+    return '<Button id="' .. id .. c .. '" onClick="' .. fn .. '" preferredWidth="' .. w .. '" color="#1A1A1A" textColor="#ffffff" fontSize="14" active="false">' .. label .. '</Button>'
+  end
+  return '<HorizontalLayout id="eng_dock_' .. c .. '" visibility="' .. c .. '" width="364" height="30" rectAlignment="UpperLeft" offsetXY="96 -140" spacing="4" childAlignment="MiddleLeft" childForceExpandWidth="false" childForceExpandHeight="true">'
+    .. tab("eng_toggle_", "onMtgToggle", 76, "Choices") .. tab("eng_browse_", "onMtgBrowse", 92, "Graveyards")
+    .. tab("eng_undo_", "onMtgUndo", 56, "Undo") .. tab("eng_set_", "onMtgSettings", 76, "Settings")
+    .. tab("eng_logbtn_", "onMtgLog", 48, "Log") .. '</HorizontalLayout>\n'
+    .. '<Panel id="eng_log_' .. c .. '" visibility="' .. c .. '" width="430" height="290" rectAlignment="UpperRight" offsetXY="-10 -150" color="#161616D0" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
     .. '<Text id="eng_logtext_' .. c .. '" width="414" height="280" fontSize="13" color="#FFFFFF" alignment="LowerLeft"> </Text></Panel>\n'
-    .. '<Panel id="eng_panel_' .. c .. '" visibility="' .. c .. '" width="430" height="620" rectAlignment="MiddleLeft" offsetXY="95 -10" color="#0A0C10E8" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">\n'
+    .. '<Panel id="eng_panel_' .. c .. '" visibility="' .. c .. '" width="430" height="600" rectAlignment="UpperLeft" offsetXY="96 -176" color="#161616F0" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">\n'
     .. '  <VerticalLayout padding="8 8 8 8" spacing="5" childForceExpandHeight="false">\n'
     .. '    <Text id="eng_status_' .. c .. '" fontSize="13" color="#FFFFFF" alignment="UpperLeft" preferredHeight="44"> </Text>\n'
     .. '    <Text id="eng_title_' .. c .. '" fontSize="17" fontStyle="Bold" color="#FFFFFF" alignment="MiddleLeft" preferredHeight="26">Waiting for other players...</Text>\n'
@@ -2531,11 +2692,11 @@ local function panelXml(color)
     .. '      <Button id="eng_confirm_' .. c .. '" onClick="onMtgConfirm" active="false" color="#1e6f5c" textColor="#ffffff" fontSize="15">Done</Button>\n'
     .. '      <Button id="eng_cancel_' .. c .. '" onClick="onMtgCancel" active="false" color="#8b1e1e" textColor="#ffffff" fontSize="15">Cancel</Button>\n'
     .. '    </HorizontalLayout>\n'
-    .. '    <HorizontalLayout preferredHeight="30" spacing="4" childForceExpandWidth="true">'
-    .. '<Button id="eng_stop_start_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: start of turn</Button>'
-    .. '<Button id="eng_stop_combat_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: combat</Button>'
-    .. '<Button id="eng_stop_end_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: end of turn</Button>'
-    .. '<Button id="eng_stop_hold_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12" tooltip="Keep priority once after something goes on the stack">Hold</Button>'
+    .. '    <HorizontalLayout id="eng_stops_' .. c .. '" preferredHeight="30" spacing="4" childForceExpandWidth="true">'
+    .. '<Button id="eng_stop_start_' .. c .. '" onClick="onMtgStop" color="#262626" textColor="#ffffff" fontSize="12">Stop: start of turn</Button>'
+    .. '<Button id="eng_stop_combat_' .. c .. '" onClick="onMtgStop" color="#262626" textColor="#ffffff" fontSize="12">Stop: combat</Button>'
+    .. '<Button id="eng_stop_end_' .. c .. '" onClick="onMtgStop" color="#262626" textColor="#ffffff" fontSize="12">Stop: end of turn</Button>'
+    .. '<Button id="eng_stop_hold_' .. c .. '" onClick="onMtgStop" color="#262626" textColor="#ffffff" fontSize="12" tooltip="Keep priority once after something goes on the stack">Hold</Button>'
     .. '</HorizontalLayout>\n'
     .. '  </VerticalLayout>\n'
     .. '</Panel>'
@@ -2618,6 +2779,7 @@ end
 
 function optionColor(p, index, picked)
   local o = (p.options or {})[index] or {}
+  if o.tint ~= nil then return o.tint end -- (a side tab's line that sets its own, engineSidePrompt)
   local kind = describePrompt(p).kind
   if o.id == "__allattack" then return "#e84118" end
   if o.id == "__noattack" then return "#2e86de" end
@@ -2629,7 +2791,7 @@ function optionColor(p, index, picked)
   if o.id == "__endturn" then return "#2e3a59" end
   if o.id == "__resolve" then return "#b8860b" end -- yellow: pass until the stack is empty
   if p.mode == "single" and index == 1 then return "#e8711a" end
-  return "#2f3542"
+  return "#262626"
 end
 
 -- "Graveyards / exile" view: every player's graveyard and exile as a searchable, look-only list in the panel.
@@ -2651,6 +2813,28 @@ local function browsePrompt(color)
   return { title = "Graveyards and exile (look only)", mode = "browse",
     text = #list == 0 and "Nothing in any graveyard or exile yet." or "Click a card to read it. Search by name or by whose it is.",
     options = options }
+end
+-- The open side tab's list (engineOpenTab), shown in the window's answer buttons like a question of mode "browse":
+-- Undo's restore points, Settings' switches (each line says what it is now), else the graveyards. nosearch: no box.
+function engineSidePrompt(color)
+  local tab = engineBrowse[color]
+  if tab == "undo" then
+    local o = {}
+    for k, pt in ipairs((engineRewind and engineRewind.points) or {}) do o[k] = { id = "undo:" .. k, label = tostring(pt.label) } end
+    return { title = "Rewind to... (the others vote)", mode = "browse", nosearch = true, options = o,
+      text = #o == 0 and "No restore points yet." or "Pick a moment to go back to: the other players vote on it." }
+  elseif tab == "settings" then
+    -- (the host's switch: what moves on the table is the same for everyone; others see it greyed and can't press it)
+    local host = Player[color] ~= nil and Player[color].host
+    return { title = "Settings", mode = "browse", nosearch = true,
+      text = "My effects: banners, the stack pop-up and table effects, for you only. Sounds and animations are shared: the host's.",
+      options = {
+        { id = "fx", label = engineEffectsOff[color] and "My effects: off" or "My effects: on" },
+        { id = "snd", label = engineSoundOff[color] and "My sounds: off" or "My sounds: on" },
+        { id = "anim", label = "Table animations: " .. (engineAnimOff and "off" or "on") .. (host and "" or " (the host's)"), tint = not host and ENGINE_THEME.muted or nil },
+        { id = "pace", label = "Draw / mill / untap by itself: " .. (engineAutoOn(color) and ("on (" .. AUTO_PACE_DELAY .. " s)") or "off") } } }
+  end
+  return browsePrompt(color)
 end
 
 -- The corner's two buttons mirror the prompt: the first (default) choice big, a second useful one small.
@@ -2702,16 +2886,41 @@ function engineStepBanner(color, t)
   if since < 1.7 then Wait.time(show, 1.7 - since) else show() end
 end
 -- On screen when the game ends, like YOUR TURN (the board just stood still with its attack lines, playtest 2026-10-26)
+-- (the big VICTORY / DEFEAT, then "<NAME> WINS THE GAME", is the table effects' result banner; this step banner says the
+-- same for a player who turned the effects off, so nobody sees two at once (both showed together, item 14 2026-11-10))
 function engineGameOverBanner(m)
   for _, c in ipairs(getSeatedPlayers()) do
-    if Player[c] ~= nil then
-      setText("eng_banner_" .. c, m.winner == nil and "DRAW" or (m.winner == c and "VICTORY" or (string.upper(engineNameOf(m.winner)) .. " WINS")))
+    if Player[c] ~= nil and engineEffectsOff[c] then
+      -- (a step banner's own timer, shown just before the game ended, would hide this one: its key no longer matches)
+      engineStepSeen[c] = "over"
+      if engineBannerSeen ~= nil then engineBannerSeen[c] = "over" end
+      setText("eng_banner_" .. c, m.winner == nil and "DRAW" or (m.winner == c and "VICTORY" or "DEFEAT"))
       setAttr("eng_banner_" .. c, "color", m.winner == c and "#FFD27A" or "#D6E4FF")
       setAttr("eng_banner_" .. c, "outline", "#101010E0")
       setAttr("eng_banner_" .. c, "active", "true")
-      Wait.time(function() setAttr("eng_banner_" .. c, "active", "false") end, 4)
+      Wait.time(function()
+        setText("eng_banner_" .. c, m.winner == nil and "THE GAME IS A DRAW" or (string.upper(engineNameOf(m.winner)) .. " WINS THE GAME"))
+        Wait.time(function() setAttr("eng_banner_" .. c, "active", "false") end, 4)
+      end, 2)
     end
   end
+end
+-- What a target question offers: { cards, players, spells, walkers }, walkers true when it offers cards and every one
+-- is a planeswalker ("target player or planeswalker": the hint names both, item 24 2026-11-11). One reading for the
+-- hint and for the click on a card the question leaves out.
+function engineTargetSorts(q)
+  local s = { cards = false, players = false, spells = false, walkers = true }
+  for _, o in ipairs((q and q.options) or {}) do
+    local id = tostring(o.id)
+    if id:find("^player|") then s.players = true
+    elseif id:find("^spell|") then s.spells = true
+    elseif id:find("^card|") then
+      s.cards = true
+      if not hasType(engineStatic[id:sub(6)] or {}, "Planeswalker") then s.walkers = false end
+    end
+  end
+  s.walkers = s.cards and s.walkers
+  return s
 end
 function engineUpdateCorner(color, p)
   local t = lastTable
@@ -2751,23 +2960,24 @@ function engineUpdateCorner(color, p)
     elseif q.copies then
       hint = title .. "\nPick it in the card row or the Engine panel."
     elseif kind == "cards" and q.pileChoices ~= nil then
-      hint = title .. "\nRight-click that graveyard or exile pile -> Search, and drag the card out. Or Engine: show."
+      hint = title .. "\nRight-click that graveyard or exile pile -> Search, and drag the card out. Or Choices (top left)."
     elseif kind == "cards" and engineExactPick(q) then
       hint = title .. "\nClick " .. q.max .. " glowing card" .. (q.max == 1 and "" or "s") .. ": the last click answers." .. (q.cancel and " (Or Cancel.)" or "")
     elseif kind == "cards" then hint = title .. (q.cancel and "\nClick the glowing cards, then Done (or Cancel)." or "\nClick the glowing cards, then Done.")
     elseif kind == "target" then
-      local cards, players, spells = false, false, false
-      for _, o in ipairs(q.options or {}) do local id = tostring(o.id) if id:find("^player|") then players = true elseif id:find("^card|") then cards = true elseif id:find("^spell|") then spells = true end end
+      local sorts = engineTargetSorts(q)
+      local cards, players, spells = sorts.cards, sorts.players, sorts.spells
       -- (targets in a graveyard or exile come with a picture: more than the card row holds are picked in the Engine panel,
       -- which then opens; "Click a glowing card" showed with nothing glowing, hp-07 #41 2026-10-27)
       local pile = enginePileOnly(q)
       -- (spells on the stack have no card to click: Counterspell said "Click a glowing card" with nothing glowing, hp-01 #5)
-      if spells and not cards and not players then hint = title .. "\nPick the spell in the Engine panel (Engine: show)."
+      if spells and not cards and not players then hint = title .. "\nPick the spell in the Engine panel (Choices, top left)."
       elseif engineAnswerPlace(q) == "panel" then hint = title .. "\nThe cards are in a graveyard or exile: pick one in the Engine panel."
       -- (the cards pictures in the card row: nothing glows on the table, hp-07 re-test 2026-10-27; with players too, a
       -- life counter, suite review)
       elseif pile > 0 and pile == #(q.options or {}) then hint = title .. "\nClick its picture in the card row."
       elseif pile > 0 and players then hint = title .. "\nClick its picture in the card row or a player's life counter."
+      elseif cards and players and sorts.walkers then hint = title .. "\nClick a player's life counter or a glowing planeswalker."
       else hint = title .. ((cards and players) and "\nClick a glowing card or a life counter." or players and "\nClick a player's life counter." or "\nClick a glowing card.") end
     elseif kind == "attack" then hint = title .. "\nClick a creature, then who it attacks. Or All attack / No attacks."
     elseif kind == "block" then hint = title .. "\nClick your creature, then the attacker it blocks."
@@ -2878,7 +3088,12 @@ function engineUpdateCorner(color, p)
   setButton("eng_big_" .. color, { active = (big ~= nil or labelOnly) and "true" or "false", text = bigLabel or " " })
   setButton("eng_big2_" .. color, { active = small ~= nil and "true" or "false", text = smallLabel or " " })
   for _, g in ipairs({ "start", "combat", "end" }) do
-    setButton("eng_stop_" .. g .. "_" .. color, { color = engineStopsOf(color)[g] and "#b8860b" or "#2f3542" })
+    setButton("eng_stop_" .. g .. "_" .. color, { color = engineStopsOf(color)[g] and "#b8860b" or "#262626" })
+  end
+  -- (the ability panel follows the board too: a tap, a counter, priority moving on greys or brightens its lines)
+  if engineAbPanelFor ~= nil and engineAbPanelFor[color] ~= nil then
+    local ok, err = pcall(engineAbPanelShow, color, engineAbPanelFor[color])
+    if not ok then print("[MTG] ability panel: " .. tostring(err)) end
   end
 end
 engineStops = {} -- colour -> { start = true, combat = true, end = true }
@@ -2897,7 +3112,7 @@ end
 local function updateOptions(color)
   -- (a fix from hand: the engine is paused, and the panel lists the player's hand instead, M7 §12)
   if engineFixHandDraw ~= nil and engineFixHandDraw(color) then return end
-  local p = engineBrowse[color] and browsePrompt(color) or enginePrompts[color]
+  local p = engineBrowse[color] and engineSidePrompt(color) or enginePrompts[color]
   engineVisible[color] = {}
   if p == nil then
     setText("eng_title_" .. color, (lastTable and lastTable.gameOver) and "Game over" or "Waiting for other players...")
@@ -2913,7 +3128,7 @@ local function updateOptions(color)
   setText("eng_title_" .. color, p.title)
   setText("eng_text_" .. color, (p.text ~= nil and p.text ~= "") and p.text or " ")
   local all = optionList(p, string.lower(engineFilter[color] or ""))
-  setAttr("eng_search_" .. color, "active", (#all > 8 or p.mode == "browse") and "true" or "false")
+  setAttr("eng_search_" .. color, "active", (not p.nosearch and (#all > 8 or p.mode == "browse")) and "true" or "false")
   local filter = string.lower(engineFilter[color] or "")
   local sel = engineSelected[color] or {}
   local shown = {}
@@ -2945,7 +3160,7 @@ local function updateOptions(color)
   if per < POOL then
     engineVisible[color][POOL] = "more"
     setButton("eng_opt_" .. color .. "_" .. POOL, { text = string.format("More... (%d-%d of %d)", first, last, #shown),
-      color = "#3a3f4b", active = "true" })
+      color = "#333333", active = "true" })
   end
   engineUpdateCorner(color, p)
   if p.mode == "multi" then
@@ -3010,25 +3225,27 @@ local function pendingText(color)
   return "\nWaiting for you: " .. table.concat(parts, ", ")
 end
 
+-- the dock's tabs: button id prefix -> its tab (engineOpenTab); Undo's button shows only with restore points
+ENGINE_TABS = { { "eng_toggle_", "choices" }, { "eng_browse_", "browse" }, { "eng_undo_", "undo" }, { "eng_set_", "settings" } }
 local function updatePanel(color)
-  setAttr("eng_toggle_" .. color, "active", lastTable ~= nil and "true" or "false")
-  setText("eng_toggle_" .. color, engineShown[color] and "Engine: hide" or "Engine: show")
-  setAttr("eng_browse_" .. color, "active", lastTable ~= nil and "true" or "false")
-  setText("eng_browse_" .. color, engineBrowse[color] and "Back to choices" or "Graveyards / exile")
+  local inGame = lastTable ~= nil
   -- (also while a fix from hand lists this player's hand in it)
-  setAttr("eng_panel_" .. color, "active", (lastTable ~= nil and (engineShown[color] ~= nil or (engineFixHandWants ~= nil and engineFixHandWants(color)))) and "true" or "false")
-  setAttr("eng_logbtn_" .. color, "active", lastTable ~= nil and "true" or "false")
-  setAttr("eng_log_" .. color, "active", (lastTable ~= nil and not engineLogHidden[color]) and "true" or "false")
-  setAttr("eng_pace_" .. color, "active", lastTable ~= nil and "true" or "false")
-  setText("eng_pace_" .. color, engineAutoOn(color) and ("Auto: on (" .. AUTO_PACE_DELAY .. " s)") or "Auto: off")
-  setAttr("eng_set_" .. color, "active", lastTable ~= nil and "true" or "false")
-  setAttr("eng_setpanel_" .. color, "active", (lastTable ~= nil and engineSettingsOpen[color]) and "true" or "false")
-  setText("eng_fx_" .. color, engineEffectsOff[color] and "My effects: off" or "My effects: on")
-  setText("eng_snd_" .. color, engineSoundOff[color] and "My sounds: off" or "My sounds: on")
-  -- (the host's switch: what moves on the table is the same for everyone; others see it and can't press it)
-  local host = Player[color] ~= nil and Player[color].host
-  setText("eng_anim_" .. color, "Table animations: " .. (engineAnimOff and "off" or "on") .. (host and "" or " (host)"))
-  setAttr("eng_anim_" .. color, "interactable", host and "true" or "false")
+  local open = inGame and (engineShown[color] ~= nil or (engineFixHandWants ~= nil and engineFixHandWants(color)))
+  setAttr("eng_panel_" .. color, "active", open and "true" or "false")
+  -- the open tab gold on warm brown, the others white on the table's near-black
+  local on = open and (engineBrowse[color] or "choices") or nil
+  for _, t in ipairs(ENGINE_TABS) do
+    local look = { color = on == t[2] and ENGINE_THEME.tabOn or ENGINE_THEME.dock, textColor = on == t[2] and ENGINE_THEME.gold or ENGINE_THEME.text }
+    if t[2] ~= "undo" then look.active = inGame and "true" or "false" end
+    setButton(t[1] .. color, look)
+  end
+  -- (the stops belong to the answers: not under a side tab's list)
+  setAttr("eng_stops_" .. color, "active", engineBrowse[color] and "false" or "true")
+  setAttr("eng_logbtn_" .. color, "active", inGame and "true" or "false")
+  -- (hidden while the log is empty: an empty black box at the top right, 2026-11-10)
+  setAttr("eng_log_" .. color, "active", (inGame and not engineLogHidden[color] and #engineLog > 0) and "true" or "false")
+  -- (the Settings tab's lines say what each switch is now: a switch changed from the chat shows too)
+  if engineBrowse[color] == "settings" and panelReady then updateOptions(color) end
   setText("eng_status_" .. color, statusText() .. poolText(color) .. pendingText(color))
 end
 
@@ -3102,12 +3319,16 @@ function engineRenderPanels(promptColor)
     builtFor, panelReady, uiCache = key, false, {}
     if engineAbPanelFor ~= nil then engineAbPanelFor = {} end -- (rebuilt hidden: pointing at the card shows it again)
     if baseXml == nil then baseXml = engineXmlMinify(UI.getXml() or "") end
+    -- (no covers over TTS's tool bars any more: measured on one screen, they floated as black boxes on others,
+    -- docs/engine-ui-spec.md 2.2)
     local parts = {}
-    parts[1] = engineToolCoverXml() -- (first: the table's own buttons draw over it)
     for _, c in ipairs(seated) do parts[#parts + 1] = panelXml(c) parts[#parts + 1] = cornerXml(c) end
     parts[#parts + 1] = POPUP_XML
     parts[#parts + 1] = engineAutoListXml()
-    local ours, defaults = engineXmlCompact(table.concat(parts, "\n"))
+    local raw = table.concat(parts, "\n")
+    engineBtnLook = {}
+    engineRecordButtons(raw)
+    local ours, defaults = engineXmlCompact(raw)
     -- (without the table's Scryfall search and deck panels, the last thing in its UI: only an "MTG Importer" object opens
     -- them, and the table has none, docs/table-functions-global-importer.md 1.8. 3.8 KB of the 60 KB limit, 2026-10-30)
     local base = baseXml:sub(1, (baseXml:find('<Panel id="SearchPanel"', 1, true) or #baseXml + 1) - 1)
@@ -3188,7 +3409,21 @@ local function optimistic(color, o)
 end
 
 local function pick(color, i)
-  if engineBrowse[color] then
+  local tab = engineBrowse[color]
+  if tab == "undo" then
+    -- (asked: the tab shuts, as the Undo list did; the vote pop-up follows)
+    if i ~= nil and engineAskRewind(color, i) then engineOpenTab(color, "undo") end
+    return
+  elseif tab == "settings" then
+    local o = (engineSidePrompt(color).options or {})[i]
+    local pl, id = Player[color], o and o.id
+    if id == "fx" then onMtgFx(pl, nil, "eng_fx_" .. color)
+    elseif id == "snd" then onMtgSnd(pl, nil, "eng_snd_" .. color)
+    elseif id == "anim" then onMtgAnim(pl, nil, "eng_anim_" .. color)
+    elseif id == "pace" then onMtgPace(pl, nil, "eng_pace_" .. color) end
+    if panelReady then updateOptions(color) end
+    return
+  elseif tab then
     local e = (browseCards[color] or {})[i]
     if e ~= nil then
       local c = e.card
@@ -3451,8 +3686,7 @@ end
 function onMtgCancel(player, value, id) if player.color == idColor(id) then engineAnswer(player.color, { "__cancel" }) end end
 function onMtgToggle(player, value, id)
   if player.color ~= idColor(id) then return end
-  engineShown[player.color] = not engineShown[player.color] and "pin" or nil
-  updatePanel(player.color)
+  engineOpenTab(player.color, "choices")
 end
 -- ───────── game log (phase 3) ─────────
 engineLog = {}
@@ -3465,10 +3699,15 @@ function engineRenderLog()
   for _, c in ipairs(getSeatedPlayers()) do if data[c] then setText("eng_logtext_" .. c, text) end end
 end
 function engineOnLog(m)
+  local was = #engineLog
   if m.reset then engineLog = {} end
   for _, l in ipairs(m.lines or {}) do engineLog[#engineLog + 1] = l end
   while #engineLog > 200 do table.remove(engineLog, 1) end
   engineRenderLog()
+  -- (the log panel shows from its first line, and hides again with an emptied log)
+  if panelReady and (was == 0) ~= (#engineLog == 0) then
+    for _, c in ipairs(getSeatedPlayers()) do if data[c] then updatePanel(c) end end
+  end
 end
 function onMtgLog(player, value, id)
   if player.color ~= idColor(id) then return end
@@ -3489,17 +3728,7 @@ function onMtgBig(player, value, id) if id == "eng_big_" .. player.color then co
 
 -- ───────── rewind by vote (M4.5): the bridge sends `rewind` = { points = {{id,label}}, vote = {...} } with the board ─────────
 engineRewind = nil
-local undoOpen = {}   -- colour -> list shown
 local rewindSig = nil
-local function undoList(color)
-  local pts = (engineRewind and engineRewind.points) or {}
-  for k = 1, UNDO_MAX do
-    local pt = pts[k]
-    setAttr("eng_undopt_" .. color .. "_" .. k, "active", (undoOpen[color] and pt ~= nil) and "true" or "false")
-    if pt ~= nil then setText("eng_undopt_" .. color .. "_" .. k, pt.label) end
-  end
-  setAttr("eng_undolist_" .. color, "active", undoOpen[color] and "true" or "false")
-end
 function engineRewindUpdate(r, gameOver)
   engineRewind = r
   -- (a plain string, not JSON.encode: cheap, and nothing here can trip TTS's encoder)
@@ -3516,8 +3745,10 @@ function engineRewindUpdate(r, gameOver)
       if engineAutoResolveDraw ~= nil then engineAutoResolveDraw(c) end
       local has = r ~= nil and r.points ~= nil and #r.points > 0 and not gameOver
       setAttr("eng_undo_" .. c, "active", has and "true" or "false")
-      if not has then undoOpen[c] = nil end
-      undoList(c)
+      -- (the Undo tab follows the points: listed again, or shut once there are none)
+      if engineBrowse[c] == "undo" and panelReady then
+        if has then updateOptions(c) else engineOpenTab(c, "undo") end
+      end
       local pending = v ~= nil and v.status == "pending"
       local mine = false
       for _, w in ipairs((v and v.waiting) or {}) do if w == c then mine = true end end
@@ -3551,23 +3782,14 @@ engineAutoListOpen = {} -- colour -> true while that player has the list open
 engineAutoChoices = { { "off", "Off" }, { "others", "Other players' turns" }, { "upkeep", "Until upkeep" }, { "draw", "Until draw" },
   { "main", "Until main phase" }, { "combat", "Until combat" }, { "blockers", "Until blockers" }, { "damage", "Until damage" },
   { "main2", "Until main 2" }, { "end", "Until end step" }, { "mine", "Until my turn" } }
--- Tabletop Simulator's own buttons, covered while a game runs: a table can't remove them, and Lua can't reach the toolbar.
--- Rewind Time would put the table back without the engine; only Grab, Draw and Text stay in the tool bar (the player's
--- request, 2026-11-02). For the host and promoted players: their bars are the ones these sizes were measured on (1920x1080).
--- TTS scales the left bar from the corner and the top bar from the centre, so each cover is anchored the same way.
-function engineToolCoverXml()
-  local o = {}
-  for i, b in ipairs({ { 74, 260, "UpperLeft", "8 -141" }, { 74, 198, "UpperLeft", "8 -466" }, { 136, 66, "UpperCenter", "-505 -1" } }) do
-    o[i] = '<Panel id="eng_cover_' .. i .. '" visibility="Admin" width="' .. b[1] .. '" height="' .. b[2] .. '" rectAlignment="' .. b[3] .. '" offsetXY="' .. b[4] .. '" color="#14161CFF" raycastTarget="true" active="false"/>'
-  end
-  return table.concat(o)
-end
+-- (TTS's own tool bars were covered while a game ran, 2026-11-02, by panels measured on one 1920x1080 screen: on other
+-- screens and UI scales they floated as black boxes, the user's "floating black boxes", 2026-11-09; removed 2026-11-10)
 function engineAutoListXml()
   local o = {}
   for i, ch in ipairs(engineAutoChoices) do
-    o[i] = '<Button id="eng_auto_' .. ch[1] .. '" onClick="onMtgAutoPick" preferredHeight="26" color="#2f3542" textColor="#ffffff" fontSize="14">' .. ch[2] .. '</Button>'
+    o[i] = '<Button id="eng_auto_' .. ch[1] .. '" onClick="onMtgAutoPick" preferredHeight="26" color="#262626" textColor="#ffffff" fontSize="14">' .. ch[2] .. '</Button>'
   end
-  return '<Panel id="eng_autolist" width="176" height="' .. (#o * 28 + 10) .. '" rectAlignment="UpperLeft" offsetXY="16 -214" color="#0A0C10F0" active="false">'
+  return '<Panel id="eng_autolist" width="176" height="' .. (#o * 28 + 10) .. '" rectAlignment="UpperLeft" offsetXY="468 -174" color="#161616F0" active="false">'
     .. '<VerticalLayout padding="4 4 4 4" spacing="2" childForceExpandHeight="false">' .. table.concat(o) .. '</VerticalLayout></Panel>'
 end
 function engineAutoListDraw()
@@ -3584,7 +3806,7 @@ function engineAutoResolveDraw(c)
   for _, ch in ipairs(engineAutoChoices) do if ch[1] == skip then label = ch[2] end end
   setAttr("eng_autores_" .. c, "active", inGame and "true" or "false")
   setText("eng_autores_" .. c, label .. "...")
-  setAttr("eng_autores_" .. c, "color", (engineAutoResolve[c] or skip) and "#2e7d32" or "#3a3f4b")
+  setAttr("eng_autores_" .. c, "color", (engineAutoResolve[c] or skip) and "#2e7d32" or ENGINE_THEME.dock)
   if not inGame then engineAutoListOpen[c] = nil end
   engineAutoListDraw()
 end
@@ -3622,11 +3844,11 @@ function onMtgAutoPick(player, value, id)
   end
   engineAutoListDraw()
 end
+-- the Undo tab (its button shows while there are restore points)
 function onMtgUndo(player, value, id)
   local c = player.color
-  if id ~= "eng_undo_" .. c and id ~= "eng_undoclose_" .. c then return end
-  undoOpen[c] = (id == "eng_undo_" .. c) and not undoOpen[c] or nil
-  undoList(c)
+  if id ~= "eng_undo_" .. c then return end
+  engineOpenTab(c, "undo")
 end
 function engineAskRewind(color, k)
   local pt = engineRewind and engineRewind.points and engineRewind.points[k]
@@ -3634,12 +3856,13 @@ function engineAskRewind(color, k)
   engineSend("rewind", { color = color, checkpointId = pt.id })
   return true
 end
+-- (the old Undo list's buttons, "eng_undopt_<colour>_<k>": the tests still pick with them; the tab's lines are the
+-- window's answer buttons, picked in pick)
 function onMtgUndoPick(player, value, id)
   local c = player.color
   local k = tonumber(tostring(id):match("^eng_undopt_" .. c .. "_(%d+)$") or "")
   if k == nil then return end
-  undoOpen[c] = nil
-  undoList(c)
+  if engineBrowse[c] == "undo" then engineOpenTab(c, "undo") end
   engineAskRewind(c, k)
 end
 function onMtgVote(player, value, id)
@@ -3662,9 +3885,8 @@ function onMtgStop(player, value, id)
   engineUpdateCorner(color, enginePrompts[color])
 end
 
--- Settings (2026-10-22): one button opening My effects / My sounds / Table animations.
-engineSettingsOpen = {} -- colour -> true while that player's settings panel is open
-engineSoundOff = {}     -- colour -> true: that player asked for no sounds (the table's sounds are shared: the host's switch)
+-- Settings (2026-10-22): a tab of the window (batch B) listing My effects / My sounds / Table animations / held moves.
+engineSoundOff = {}    -- colour -> true: that player asked for no sounds (the table's sounds are shared: the host's switch)
 -- M5 step 4 sound picks (docs/m5-effects-design.md section 6, "Plugging in a sound"): nil = silent. A link to an
 -- .mp3 (https://...) plays through the table's music player, for everyone; a name plays that trigger effect of the
 -- sound object (an AssetBundle whose GM notes are "engine:sounds").
@@ -3685,8 +3907,7 @@ function engineSetSounds(player, on)
 end
 function onMtgSettings(player, value, id)
   if player.color ~= idColor(id) then return end
-  engineSettingsOpen[player.color] = not engineSettingsOpen[player.color] or nil
-  updatePanel(player.color)
+  engineOpenTab(player.color, "settings")
 end
 function onMtgSnd(player, value, id)
   if player.color ~= idColor(id) then return end
@@ -3726,13 +3947,29 @@ end
 
 function onMtgBrowse(player, value, id)
   if player.color ~= idColor(id) then return end
-  engineBrowse[player.color] = not engineBrowse[player.color] or nil
-  engineFilter[player.color] = nil
-  if engineBrowse[player.color] then engineShown[player.color] = engineShown[player.color] or "browse"
-  elseif engineShown[player.color] == "browse" then engineShown[player.color] = nil end
-  if panelReady then setText("eng_search_" .. player.color, "") end
-  updatePanel(player.color)
-  updateOptions(player.color)
+  engineOpenTab(player.color, "browse")
+end
+
+-- The window's tabs (docs/engine-ui-spec.md 3): "choices" (the open question's answers), or a side tab over them,
+-- engineBrowse[color] = "browse" (graveyards and exile), "undo" (restore points) or "settings". A side tab opens the
+-- window if it was shut ("browse" in engineShown); clicking the open side tab goes back to what was there before (the
+-- answers if they were open, else the window shuts). Choices opens the answers pinned, or shuts a pinned window.
+function engineOpenTab(color, tab)
+  local was = engineBrowse[color]
+  engineFilter[color] = nil
+  if tab == "choices" then
+    if was == nil then engineShown[color] = not engineShown[color] and "pin" or nil else engineShown[color] = "pin" end
+    engineBrowse[color] = nil
+  elseif was == tab then
+    engineBrowse[color] = nil
+    if engineShown[color] == "browse" then engineShown[color] = nil end
+  else
+    engineBrowse[color] = tab
+    engineShown[color] = engineShown[color] or "browse"
+  end
+  if panelReady then setText("eng_search_" .. color, "") end
+  updatePanel(color)
+  updateOptions(color)
 end
 
 -- Keeps an open graveyard/exile list current as cards come and go.
@@ -3755,7 +3992,7 @@ function onMtgClick(player, value, id)
   if kind == "o" or kind == "n" then pick(color, tonumber(arg))
   elseif kind == "confirm" then confirm(color)
   elseif kind == "cancel" then engineAnswer(color, { "__cancel" })
-  elseif kind == "toggle" then engineShown[color] = not engineShown[color] and "pin" or nil updatePanel(color) end
+  elseif kind == "toggle" then engineOpenTab(color, "choices") end
 end
 
 function engineOnPrompt(m)
@@ -3806,7 +4043,7 @@ function engineOnPrompt(m)
   else engineSelected[m.color] = nil engineFilter[m.color] = nil engineEnterPrompt(m.color, m) end
   -- The panel opens by itself only for questions the table can't answer (not priority, paying, combat, targets,
   -- cards on the table, the card row, two-button questions in the corner) and closes again once the next question
-  -- is one of those, or the question is gone. A panel the player opened (Engine: show) stays open.
+  -- is one of those, or the question is gone. A panel the player opened (the Choices tab) stays open.
   if engineShown[m.color] ~= "pin" and engineShown[m.color] ~= "browse" then
     local handled = true
     if m.promptId ~= nil then
@@ -3974,7 +4211,7 @@ function onObjectDrop(color, obj)
     if (meta.zone == "hand" or meta.zone == "command" or meta.zone == "playable") and area == "battlefield" then
       local real = id:match("^cast:%a+:(.+)$") or id -- (a stand-in for another player's hand card: engineCastId)
       engineManual[real] = onTable(obj.getPosition())
-      engineManualPlay[real] = true -- (held there while it is cast; it lands in its row)
+      engineManualPlay[real] = true -- (held there while it is cast; a land then goes to the mana box, layoutRow)
       request(color, "play", real, obj)
     elseif meta.zone == "hand" and area == "graveyard" then
       request(color, "discard", id, obj)
@@ -4380,7 +4617,8 @@ local function tapGesture(color, id)
       if pendingAttacker[color] then tell(color, "Attacking. Click a life counter or a planeswalker to change what it attacks.") end
       return true
     end
-    tell(color, "That creature can't attack right now.")
+    -- (the bridge's reason when it has one: "Hill Giant can't attack: summoning sick.", attack reminder spec part 2)
+    tell(color, (p and p.cantAttack and p.cantAttack[id]) or "That creature can't attack right now.")
     return true
   elseif kind == "action" then
     -- turning back a source whose mana you haven't spent: the mana goes back and it untaps
@@ -4464,9 +4702,13 @@ clickGesture = function(color, obj)
       enginePhase2Prompt(color)
       return true
     end
-    -- a permanent that can't be chosen says so (a click that did nothing looked like the table ignoring you)
+    -- a permanent that can't be chosen says so (a click that did nothing looked like the table ignoring you); a
+    -- planeswalker by that name, and a question of players only says so (item 24, 2026-11-11: planeswalkers by click)
     if id ~= nil and (engineMeta[id] or {}).zone == "battlefield" and firstClick(obj) then
-      tell(color, "That card can't be chosen for this. Click a glowing card, or a player's life counter if a player can be.")
+      local what = hasType(engineStatic[id] or {}, "Planeswalker") and "That planeswalker" or "That card"
+      local sorts = engineTargetSorts(p)
+      tell(color, what .. ((sorts.players and not sorts.cards and not sorts.spells) and " can't be chosen for this: it asks for a player. Click a glowing life counter."
+        or " can't be chosen for this. Click a glowing card, or a player's life counter if a player can be."))
     end
     return false
   elseif kind == "attack" and id ~= nil and findOption(color, function(o) return startsWith(o.id, id .. "|") end) ~= nil then
@@ -4669,13 +4911,16 @@ end
 -- Linked and playable exile (2026-10-23, needs our Forge build: reports/MTG linked exile and zone quirks.md).
 -- A card a seated player may play from exile or a graveyard (Tibalt, flashback, adventure, plot, foretell, Gonti,
 -- impulse draw...) leaves its pile for that player's playable row, as Arena puts them beside the hand: face-up ones in
--- a public row in the empty strip at the near edge of the player's own mat, glowing (in front of the small second hand
--- zone it was half hidden under the big buttons, playtest 2026-10-26); ones others may not see (foretold, Gonti's face-down
+-- a public row on the wood strip between the player's mat and hand, centred on the hand (PLAYABLE_DEPTH), glowing (in front of the
+-- small second hand zone it was half hidden under the big buttons, playtest 2026-10-26); ones others may not see (foretold, Gonti's face-down
 -- card) inside that second hand zone, where TTS shows a card's face to its owner only. An exiled card linked to a
 -- permanent still on the battlefield (Banishing Light, Valki, Arcane Bombardment, imprint) lies half-size under that
 -- permanent, as Forge shows it, instead of in the pile. Dragging a playable card onto the battlefield plays it.
 engineSpecial = {} -- engine card id -> "playable" | "linked" on the current board
-PLAYABLE_ROW = 4.25 -- (a grid row past the lands: the mat's near strip)
+-- (beside the hand, item 10 2026-11-10: the wood strip between the mat and the hand, measured on the real table: the
+-- mat's near edge is 10.38 past its centre, the hand counter screen starts at 14.07 (White's z -25.81 and -29.5), so a
+-- card 3.06 deep centred at 12.2 clears both; the row is centred on the hand, 2.3 apart, squeezed past 20.7 wide)
+PLAYABLE_DEPTH, PLAYABLE_STEP, PLAYABLE_SPAN = 12.2, 2.3, 20.7
 function engineMarkSpecial(m)
   engineSpecial = {}
   local onField = {}
@@ -4770,12 +5015,14 @@ function enginePlaceSpecial(m, seen)
       local base = side and side.position or (g.handPos or g.mat)
       local k, public = 0, 0
       for _, c in ipairs(row) do if not (faceDown[c.id] or c.fo) then public = public + 1 end end
-      local step = public > GRID.perRow and GRID.perRow / public or 1 -- (squeezed like a long row)
+      local lat = g.handPos and (g.handPos - g.mat):dot(g.right) or 0
+      local span = math.min(PLAYABLE_STEP * (public - 1), PLAYABLE_SPAN)
+      local step = public > 1 and span / (public - 1) or 0
       for _, c in ipairs(row) do
         if faceDown[c.id] or c.fo then
           place(c, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, color, { zone = "playable", color = color, hand2 = true })
         else
-          local spot = gridPos(g, k * step, PLAYABLE_ROW)
+          local spot = onTable(g.mat + g.fwd * PLAYABLE_DEPTH + g.right * (lat + span / 2 - k * step), 0)
           k = k + 1
           place(c, spot, Vector(0, g.rotY, 0), seen, nil, { zone = "playable", color = color })
         end
@@ -5006,11 +5253,38 @@ local function addToPile(deck, c)
   local single = engineObjs[c.id]
   engineObjs[c.id] = nil
   local pileId = (deck ~= nil and not deck.isDestroyed()) and tostring(deck.getGMNotes()):gsub("^engine:", "") or nil
+  -- (its zone now, for a drop of it before it is in: it read as a hand card, and Rancor dragged from beside the pile was
+  -- asked to be cast and then discarded, 2026-11-08 23:39 and 23:52)
+  local pz, pc = tostring(pileId):match("^(%a+):(%a+)$")
+  if pz ~= nil then engineMeta[c.id] = { zone = pz, color = pc } end
   -- a few frames later the card must be inside the pile; if the pile was replaced meanwhile or the put didn't take,
   -- redraw the pile from the engine's list so the card can't get lost (it once vanished with an old pile deck)
   -- (a check that can't decide yet looks again, up to 6 times half a second apart: giving up at the first "not yet"
   -- left a card missing for good when its pile was being redrawn or another repair had just run)
   local gen = engineGen
+  -- The object put in, still there once the card is in the pile: a stray copy nothing moves any more (Rancor lay beside
+  -- Blue's graveyard for 48 minutes, discarded while Blue was dragging it, 2026-11-08 23:39). Only one provably left
+  -- behind: alive, still its card's, not that card's object again, lying loose on the table (getObjectFromGUID finds no
+  -- object inside a container, so a reference real TTS kept to the card it merged is never it), in nobody's grip, and
+  -- seen so on two checks half a second apart. A held one is looked at again.
+  local seenStray = false
+  local function strayLeft(later)
+    if single == nil or single.isDestroyed() or engineObjs[c.id] == single then return false end
+    if tostring(single.getGMNotes()) ~= "engine:" .. c.id then return false end
+    if getObjectFromGUID(single.getGUID()) == nil then return false end
+    local held = single.held_by_color
+    if held ~= nil and held ~= "" then
+      seenStray = false
+      later()
+      return false
+    end
+    if not seenStray then
+      seenStray = true
+      later()
+      return false
+    end
+    return true
+  end
   local function verify(attempt)
     attempt = attempt or 1
     local function later() if attempt < 6 then Wait.frames(function() verify(attempt + 1) end, 30) end end
@@ -5022,7 +5296,16 @@ local function addToPile(deck, c)
       local d = engineObjs[pileId]
       if d == nil or d.isDestroyed() then later() return end
       if d.type ~= "Deck" then return end -- drawn another way (a one-card pile is the card itself)
-      for _, e in ipairs(d.getObjects() or {}) do if e.gm_notes == "engine:" .. c.id then return end end
+      for _, e in ipairs(d.getObjects() or {}) do
+        if e.gm_notes == "engine:" .. c.id then
+          -- in the pile: the object put in is disposed only if it was provably left behind (strayLeft)
+          if strayLeft(later) then
+            op("pileStray")
+            engineDispose(single)
+          end
+          return
+        end
+      end
       if engineObjs[c.id] ~= nil then return end -- it is drawn as its own object after all
       -- still in this pile in the engine's game? (it may have moved on since)
       local zone, color = pileId:match("^(%a+):(%a+)$")
@@ -5437,6 +5720,7 @@ function setEngineMode(on)
   setEngineModeWithoutButtons(on)
   engineTableButtons(false) -- (back for everyone; READY hides a player's own set again)
   engineHideForEngine(on)
+  if not on and engineStatusParkAll ~= nil then pcall(engineStatusParkAll) end -- (the normal table never shows them)
 end
 Wait.frames(function() engineTableButtons(false) engineHideForEngine(ENGINE_MODE) end, 20)
 
@@ -5675,7 +5959,7 @@ end
 -- playmat, near their life counter: yellow until their deck is checked, green when it's ready, red when the check
 -- found a problem (the chat says what). Start sits on a small tile between the life counters: yellow until every
 -- seated player is ready, then green, and anyone may press it. While a game runs both are hidden; after it ends the
--- middle button offers "New game" (anyone seated, as "mtg reset"). Only in engine mode.
+-- middle button offers "New game" (anyone, as "mtg reset"). Only in engine mode.
 do -- (its own scope: the main chunk is near the 200-locals limit of standard Lua, which the tests run on)
 engineReadyState = {} -- colour -> "ready" | "problem" (from the bridge's deck report)
 local SETUP = { tag = "mtgsetup", sig = nil, spawning = false, seats = { "White", "Red", "Yellow", "Blue" }, size = 2.5, tileW = 2.2, tileD = 1.5, -- (the tile fits the gap between the four life counters)
@@ -5693,6 +5977,7 @@ function engineSetupIntact()
   local want = SETUP.drawn.tile
   local have = tile ~= nil and (tile.getButtons() or {})[1] or nil
   if (want == nil) ~= (have == nil) or (have ~= nil and have.label ~= want) then return false end
+  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < 2 then return false end
   for c in pairs(SETUP.drawn.mats) do
     local mat = data[c] and data[c].playmat
     local any = false
@@ -5707,17 +5992,26 @@ local function seatedSetupColors()
   return out
 end
 
--- one button on `obj` at world position `at`, readable from the seat `facing` (nil: as the object lies)
-local function setupButton(obj, click, label, color, at, facing, width)
+-- one button on `obj` at world position `at`, readable from the seat `facing` (nil: as the object lies). tileTurn:
+-- the button is on the middle tile, where real TTS draws a button's x mirrored and turned half a turn (2026-11-10: a
+-- button meant at x -48 showed at x +48, upside down from White), so x is negated and tileTurn is its rotation there
+-- (180 reads from the White/Red side, 90 is that turned a quarter left, seen from White)
+local function setupButton(obj, click, label, color, at, facing, width, height, tileTurn)
   local s = obj.getScale()
-  local rotY = 0
+  local rotY = tileTurn or 0
   if facing ~= nil then
     local hand = Player[facing].getHandTransform()
     rotY = ((hand and hand.rotation.y or 0) + 180) - obj.getRotation().y
   end
-  obj.createButton({ click_function = click, function_owner = Global, label = label, position = obj.positionToLocal(at),
-    -- (the playmats are stretched objects: the scale undoes that, then makes the button readable from a seat)
-    rotation = { 0, rotY, 0 }, scale = { SETUP.size / s.x, 1 / s.y, SETUP.size / s.z }, width = width or 1300, height = 420, font_size = 220,
+  local pos = obj.positionToLocal(at)
+  if tileTurn ~= nil then pos.x = -pos.x end
+  -- (the playmats and the tile are stretched objects: the scale undoes that, then makes the button readable from a
+  -- seat. TTS stretches a button along its object's axes after turning it, so a quarter-turned one takes the other
+  -- axis's stretch: live 2026-11-10, the 90-turned mulligan button's text ran off its box on the 2.2 x 1.5 tile)
+  local sx, sz = s.x, s.z
+  if tileTurn ~= nil and tileTurn % 180 == 90 then sx, sz = s.z, s.x end
+  obj.createButton({ click_function = click, function_owner = Global, label = label, position = pos,
+    rotation = { 0, rotY, 0 }, scale = { SETUP.size / sx, 1 / s.y, SETUP.size / sz }, width = width or 1300, height = height or 420, font_size = 220,
     color = color, font_color = { 1, 1, 1 }, tooltip = "" })
 end
 
@@ -5740,7 +6034,7 @@ function engineSetupButtons()
   for _, pl in ipairs((game and game.players) or {}) do if pl.status == "playing" then alive[#alive + 1] = tostring(pl.color) end end
   table.sort(alive)
   local sig = table.concat({ tostring(ENGINE_MODE), tostring(running), tostring(over), table.concat(seated, ","), tostring(ready), table.concat(alive, ","),
-    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) .. ":" .. tostring(engineFriendlyVote[c]) end return table.concat(p, ",") end)() }, "|")
+    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly) }, "|")
   -- (unchanged, and the buttons are still there: TTS's own scripts or a reload can wipe an object's buttons, and after a
   -- game ended the READY buttons and the middle tile stayed gone or stale, "Engine: off" with engine mode on, playtest
   -- 2026-10-24; engineSetupHeal below looks every 2 s)
@@ -5777,7 +6071,7 @@ function engineSetupButtons()
       SETUP.drawn.tile = "Engine: off"
       tile.createButton({ click_function = "onMtgSetupEngine", function_owner = Global, label = "Engine: off", position = { 0, 0.6, 0 },
         rotation = { 0, 0, 0 }, scale = { 1 / SETUP.tileW, 1, 1 / SETUP.tileD }, width = 1100, height = 720, font_size = 260,
-        color = SETUP.color.idle, font_color = { 1, 1, 1 }, tooltip = "Turn the rules engine on (host)" })
+        color = SETUP.color.idle, font_color = { 1, 1, 1 }, tooltip = "Turn the rules engine on (anyone)" })
     end
     return
   end
@@ -5798,7 +6092,6 @@ function engineSetupButtons()
       SETUP.drawn.mats[c] = true
       setupButton(mat, "onMtgSetupReady", st == "ready" and "READY" or (st == "problem" and "FIX DECK" or "READY?"),
         st == "ready" and SETUP.color.go or (st == "problem" and SETUP.color.bad or SETUP.color.wait), at, c)
-      setupButton(mat, "onMtgSetupFriendly", engineFriendlyLabel(c), SETUP.color.wait, at + step * 1.4, c, 1700)
     end
   end
   if tile ~= nil then
@@ -5813,6 +6106,11 @@ function engineSetupButtons()
         rotation = { 0, 0, 0 }, scale = { 1 / SETUP.tileW, 1, 1 / SETUP.tileD }, width = 1100, height = 720,
         font_size = #label > 6 and 260 or 400, color = color, font_color = { 1, 1, 1 }, tooltip = "" })
     end
+    -- (after the middle button: engineSetupIntact reads the tile's first button)
+    if not running and not over then
+      SETUP.drawn.friendly = true
+      setupButton(tile, "onMtgSetupFriendly", engineFriendlyLabel(), SETUP.color.wait, FRIENDLY_SPOT, nil, 1700, 620, 90)
+    end
   end
   engineScoopRedraw()
 end
@@ -5823,18 +6121,18 @@ end
 function engineScoopRedraw()
   local game = engineTable ~= nil and engineTable() or nil
   local running = ENGINE_MODE and game ~= nil and not game.gameOver
-  for i = 1, 3 do UI.setAttribute("eng_cover_" .. i, "active", running and "true" or "false") end
   for _, c in ipairs(SETUP.seats) do
     local show = false
     if running and Player[c] ~= nil and Player[c].seated then
       for _, pl in ipairs(game.players or {}) do if pl.color == c and pl.status == "playing" then show = true end end
     end
-    UI.setAttribute("eng_scoop_" .. c, "active", show and "true" or "false")
+    -- (through setAttr: shown with a plain UI.setAttribute, its label was drawn dark red on red, 2026-11-10 screenshots)
+    setAttr("eng_scoop_" .. c, "active", show and "true" or "false")
     if not show then UI.setAttribute("eng_scoopask_" .. c, "active", "false") end
   end
 end
 
--- Engine mode on/off from the middle button (anyone seated, as "mtg engine on/off")
+-- Engine mode on/off from the middle button (anyone, seated or not, as "mtg engine on/off")
 function onMtgSetupEngine(obj, playerColor)
   local pl = Player[playerColor]
   if pl ~= nil then engineChat(ENGINE_MODE and "mtg engine off" or "mtg engine on", pl) end
@@ -5868,26 +6166,27 @@ function onMtgSetupReady(obj, playerColor)
   engineChat("mtg ready", Player[c])
 end
 
--- Friendly mulligans: each player's vote, under their READY button (none, 1, 2, none...). The bridge counts them at
--- Start. A rematch keeps them; a table reload clears them.
-engineFriendlyVote = {}
-function engineFriendlyLabel(c)
-  local n = engineFriendlyVote[c] or 0
-  return "Friendly: " .. (n == 0 and "none" or string.format("%d", n))
+-- Friendly mulligans: ONE count for the whole table (none, 1, 2, none...), the free mulligans each player has in
+-- all, the rules' multiplayer free one included (2026-11-10: "one button be the answer for everyone and anyone can
+-- click it"; "have it be one button"). One button, on the rim where the Pirate Cannon (540e21) sits outside engine
+-- mode (it's hidden in engine mode, the only time this button shows), turned a quarter left from White ("turn it 90
+-- left away from the camera, have it sit where the cannon would be"). Start sends the count. A rematch keeps it; a
+-- table reload clears it.
+engineFriendly = 0
+FRIENDLY_SPOT = Vector(-60, 1.1, 0) -- (the cannon's saved home, its memo "mtghome -60.000 0.732 0.000")
+function engineFriendlyLabel()
+  return "Free mulligans\n" .. (engineFriendly == 0 and "None" or tostring(engineFriendly))
 end
-function engineSetFriendly(c, n)
-  engineFriendlyVote[c] = n
+-- n: 0, 1 or 2; pl: who set it (everyone is told)
+function engineSetFriendly(n, pl)
+  engineFriendly = n
+  local who = pl ~= nil and (pl.steam_name or pl.color) or "Someone"
+  broadcastToAll("[MTG] " .. tostring(who) .. " set free mulligans for everyone: "
+    .. (n == 0 and "none" or string.format("%d each", n) .. " (the rules' free one in a 3+ player game included)") .. ".", { 1, 0.85, 0.4 })
   engineSetupButtons()
 end
 function onMtgSetupFriendly(obj, playerColor)
-  local c = nil
-  for _, col in ipairs(SETUP.seats) do if data[col] and data[col].playmat == obj then c = col end end
-  if c == nil then return end
-  if playerColor ~= c then
-    broadcastToColor("[MTG] That's " .. c .. "'s vote. Use the one on your own playmat.", playerColor, { 1, 0.65, 0.2 })
-    return
-  end
-  engineSetFriendly(c, ((engineFriendlyVote[c] or 0) + 1) % 3)
+  engineSetFriendly((engineFriendly + 1) % 3, Player[playerColor])
 end
 
 function onMtgSetupStart(obj, playerColor)
@@ -5895,8 +6194,8 @@ function onMtgSetupStart(obj, playerColor)
   local pl = Player[playerColor]
   if pl == nil then return end
   if game ~= nil and game.gameOver then
-    if pl.host or pl.admin or pl.promoted or pl.seated then engineKeepEngineMode = true end -- (back to READY, engine mode stays on)
-    engineChat("mtg reset", pl) -- (as typed: anyone seated once the game is over)
+    engineKeepEngineMode = true -- (back to READY, engine mode stays on)
+    engineChat("mtg reset", pl) -- (as typed: anyone once the game is over)
     return
   end
   if game ~= nil then return end
@@ -5942,8 +6241,8 @@ FIX_HOLD = { editing = true, review = true, applying = true }
 do
   local F = { sig = nil }
   function engineFixXml(c)
-    return '<Button id="eng_fixcall_' .. c .. '" onClick="onMtgFix" visibility="' .. c .. '" width="110" height="32" rectAlignment="UpperLeft" offsetXY="174 -178" color="#3a3f4b" textColor="#ffffff" fontSize="15" active="false">Fix...</Button>\n'
-      .. '<Panel id="eng_fixp_' .. c .. '" visibility="' .. c .. '" width="660" height="270" rectAlignment="UpperCenter" offsetXY="0 -250" color="#0A0C10F0" active="false">'
+    return '<Button id="eng_fixcall_' .. c .. '" onClick="onMtgFix" visibility="' .. c .. '" width="64" height="30" rectAlignment="UpperLeft" offsetXY="622 -140" color="#1A1A1A" textColor="#ffffff" fontSize="14" active="false">Fix...</Button>\n'
+      .. '<Panel id="eng_fixp_' .. c .. '" visibility="' .. c .. '" width="660" height="270" rectAlignment="UpperCenter" offsetXY="0 -250" color="#161616F0" active="false">'
       .. '<Text id="eng_fixtext_' .. c .. '" width="640" height="200" rectAlignment="UpperCenter" offsetXY="0 -8" fontSize="17" resizeTextForBestFit="true" resizeTextMinSize="11" resizeTextMaxSize="17" color="#FFFFFF" alignment="UpperCenter"> </Text>'
       .. '<HorizontalLayout width="560" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
       .. '<Button id="eng_fixbyes_' .. c .. '" onClick="onMtgFix" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Yes</Button>'
@@ -6424,7 +6723,7 @@ do
     for i, p in ipairs(F.picks) do
       picked[p.id] = true
       local mine, open = p.color == c, p.color == c and F.sel[c] == p.id
-      rows[#rows + 1] = { kind = "pick", id = p.id, label = (open and "> " or "") .. i .. ". " .. F.pickLine(p), color = open and "#8a7428" or (mine and "#6b5a1e" or "#3a3f4b") }
+      rows[#rows + 1] = { kind = "pick", id = p.id, label = (open and "> " or "") .. i .. ". " .. F.pickLine(p), color = open and "#8a7428" or (mine and "#6b5a1e" or "#333333") }
       if open then
         rows[#rows + 1] = { kind = "up", id = p.id, label = "      Move up", color = "#2e3a59" }
         rows[#rows + 1] = { kind = "down", id = p.id, label = "      Move down", color = "#2e3a59" }
@@ -6434,7 +6733,7 @@ do
     for _, e in ipairs(F.cards(c)) do
       if not picked[e.id] then
         for _, act in ipairs(e.acts) do
-          rows[#rows + 1] = { kind = "add", id = e.id, act = act, name = e.name, where = e.where, color = "#2f3542",
+          rows[#rows + 1] = { kind = "add", id = e.id, act = act, name = e.name, where = e.where, color = "#262626",
             label = F.ACT[act] .. ": " .. e.name .. (e.where == "battlefield" and " (on the battlefield)" or "") }
         end
       end
@@ -6472,7 +6771,7 @@ do
     for j = k + 1, per do setAttr("eng_opt_" .. c .. "_" .. j, "active", "false") end
     if per < POOL then
       slots[POOL] = { kind = "more" }
-      setButton("eng_opt_" .. c .. "_" .. POOL, { text = string.format("More... (%d-%d of %d)", first, last, #rows), color = "#3a3f4b", active = "true" })
+      setButton("eng_opt_" .. c .. "_" .. POOL, { text = string.format("More... (%d-%d of %d)", first, last, #rows), color = "#333333", active = "true" })
     end
     F.rows[c] = slots
     setText("eng_title_" .. c, "Fix from hand")
@@ -6847,6 +7146,7 @@ engineAbilityWant = {}
 function engineAbilityReset()
   for c in pairs(engineAbPanelFor or {}) do setAttr("eng_abp_" .. c, "active", "false") end
   engineAbilityWant, engineAbilityOn, engineAbPanelFor, engineRedrawSoon = {}, {}, {}, {}
+  engineAbShown, engineAbPage = {}, {}
 end
 -- one short line per ability: its cost and the start of what it does ("{1}{G}: Put a +1/+1…"); the button's tooltip
 -- has the whole text
@@ -6976,9 +7276,9 @@ function engineAbilityBoxes(color, p, kind)
     -- (a card that left the battlefield, bounced to a hand: its buttons go with the question, stage 3 review)
     elseif obj ~= nil and not obj.isDestroyed() and engineAbilityWant[id] == nil then obj.clearButtons() engineBadge[id] = nil end
   end
-  -- (the screen panel follows: other abilities now, or none)
+  -- (the screen panel follows the question: its lines answer this one now, offered or greyed)
   local shown = engineAbPanelFor and engineAbPanelFor[color]
-  if shown ~= nil and changed[shown] then engineAbPanelShow(color, shown) end
+  if shown ~= nil then engineAbPanelShow(color, shown) end
 end
 
 -- (by name, for tests and tools: "ab|<object guid>|<button number>")
@@ -7011,39 +7311,232 @@ function engineUseAbility(color, optionId, promptId)
   end
 end
 
--- The screen panel (engineAbPanelXml): pointing at one of your cards that has ability buttons shows them there, whole
--- and readable; it stays while you move to it, and goes when that card has no buttons any more.
+-- The screen panel (engineAbPanelXml): every action the engine offers for the card you point at, and every activated
+-- ability in its text that it doesn't offer now, greyed with the reason when the table can tell (docs/engine-ui-spec.md
+-- 5: "mimic the engine", the user 2026-11-10). ENGINE_AB_MAX lines a page, More turns it. It stays while you move to
+-- it, follows the board (engineUpdateCorner, engineAbilityBoxes) and goes when the card has nothing left to list.
 engineAbPanelFor = {} -- colour -> engine card id shown
+engineAbShown = {}    -- colour -> { id, rows, first, promptId }: what the panel's lines are now (a click reads it)
+engineAbPage = {}     -- colour -> { id, n }: the page shown for that card
+-- keyword abilities with a cost and no colon, used on the battlefield (as the fix's F.BF_WORDS)
+ENGINE_AB_KEYWORDS = { "Equip", "Crew", "Fortify", "Reconfigure", "Level up", "Outlast", "Station" }
+-- a cost's first word that makes "X: Y" an activated ability without a mana symbol in it
+ENGINE_AB_COSTWORDS = { Sacrifice = true, Discard = true, Pay = true, Exile = true, Remove = true, Tap = true, Untap = true,
+  Return = true, Put = true, Reveal = true, Mill = true, Collect = true, Forage = true }
+-- "+1", "−2" (U+2212), "-X", "0" -> the number (a minus is negative, X counts 0), else nil
+function engineLoyaltyCost(cost)
+  local s = tostring(cost):gsub("\226\136\146", "-")
+  s = s:gsub("^%s+", ""):gsub("%s+$", "")
+  if #s == 0 or #s > 4 then return nil end
+  local sign, n = s:sub(1, 1), s
+  if sign == "+" or sign == "-" then n = s:sub(2) else sign = "" end
+  if n ~= "X" and not n:find("^%d+$") then return nil end
+  local v = tonumber(n) or 0
+  return sign == "-" and -v or v
+end
+-- One line of rules text as an activated ability { text, cost, eff, loyalty, mana, keyword }, or nil. Reminder text
+-- (in brackets) goes first, so a basic land's "({T}: Add {G}.)" is none; a cost with a quote is a granted ability
+-- ("Enchanted land has "{T}: ..."), not the card's own. Plain finds only (MoonSharp's "pattern too complex").
+function engineTextAbility(line)
+  line = tostring(line or ""):gsub("%b()", ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if line == "" then return nil end
+  local at = line:find(":", 1, true)
+  for _, k in ipairs(ENGINE_AB_KEYWORDS) do
+    if at == nil and line:sub(1, #k + 1) == k .. " " then return { text = line, cost = line:sub(#k + 2), eff = k, keyword = k } end
+  end
+  if at == nil or at < 2 or at > 70 then return nil end
+  local cost, eff = line:sub(1, at - 1), (line:sub(at + 1):gsub("^%s+", ""))
+  if cost:find(".", 1, true) or cost:find('"', 1, true) then return nil end
+  local loyalty = engineLoyaltyCost(cost)
+  local first = cost:match("^(%a+)") or ""
+  if loyalty == nil and not cost:find("{", 1, true) and not ENGINE_AB_COSTWORDS[first] then return nil end
+  return { text = line, cost = cost, eff = eff, loyalty = loyalty, mana = eff:find("^Add ") ~= nil }
+end
+-- the activated abilities in a card's text, in its order
+function engineTextAbilities(tx)
+  local out = {}
+  for line in (tostring(tx or "") .. "\n"):gmatch("([^\n]*)\n") do
+    local a = engineTextAbility(line)
+    if a ~= nil then out[#out + 1] = a end
+  end
+  return out
+end
+function engineHasType(card, want)
+  for _, ty in ipairs((card and card.ty) or {}) do if ty == want then return true end end
+  return false
+end
+-- Why an ability in the card's text isn't offered now, as far as the table can tell. card: { ty, tx, tap, sick, ctr }
+-- (its battlefield entry with its static details); p: the player's open question; prio: it is a priority question.
+function engineAbWhy(color, card, a, p, prio)
+  local t = lastTable or {}
+  -- (Forge offers mana abilities while a cost is paid, not at priority)
+  if a.mana then return "Used while paying a cost (tap it with Q/E)" end
+  if p == nil then
+    if t.priority ~= nil and t.priority ~= color and not t.gameOver then return "Not your priority (waiting for " .. engineNameOf(t.priority) .. ")" end
+    return "Not your priority"
+  end
+  if not prio then return "Answer the open question first" end
+  local cost = tostring(a.cost or "")
+  if card ~= nil then
+    if cost:find("{T}", 1, true) and card.tap then return "Tapped" end
+    if cost:find("{Q}", 1, true) and not card.tap then return "Untapped ({Q} untaps it)" end
+    if cost:find("{T}", 1, true) and engineHasType(card, "Creature") and card.sick and not tostring(card.tx or ""):find("Haste", 1, true) then return "Summoning sickness" end
+  end
+  local main = t.active == color and (t.step == "main1" or t.step == "main2") and #(t.stack or {}) == 0
+  if a.loyalty ~= nil then
+    if not main then return "Loyalty: your main phase, empty stack" end
+    local have
+    for k, v in pairs((card and card.ctr) or {}) do if tostring(k):upper() == "LOYALTY" then have = tonumber(v) end end
+    if a.loyalty < 0 and have ~= nil and have < -a.loyalty then return "Needs " .. (-a.loyalty) .. " loyalty (has " .. have .. ")" end
+    return "Loyalty: once each turn"
+  end
+  local low = tostring(a.eff):lower()
+  local sorcery = low:find("activate only as a sorcery", 1, true) or a.keyword == "Equip" or a.keyword == "Fortify"
+    or a.keyword == "Reconfigure" or a.keyword == "Level up" or a.keyword == "Outlast"
+  if sorcery and not main then return "Only as a sorcery" end
+  if low:find("activate only once each turn", 1, true) then return "Once each turn" end
+  return "Can't be used now (its cost or a rule)"
+end
+-- The panel's lines for card id and player colour: { opt = the option id to answer with (nil: greyed), text, cost,
+-- why, mana }. First the ways to cast or play it, then its text's abilities in order (offered or greyed), then what
+-- the engine offers that the text doesn't name (a granted ability, its mana button, "Untap ... (mana back)").
+function engineAbList(color, id)
+  local p = enginePrompts[color]
+  local prio = p ~= nil and enginePromptKind ~= nil and enginePromptKind(p) == "action"
+  local sent = false -- (a bridge that sends "ab" sends it on every ability, engineAbilityBoxes)
+  for _, o in ipairs((prio and p.options) or {}) do if o.ab ~= nil then sent = true break end end
+  local casts, abils, others = {}, {}, {}
+  for _, o in ipairs((prio and p.options) or {}) do
+    if o.cardId == id then
+      local label = tostring(o.label or "")
+      if label:find("^Mana:") or label:find("^Untap ") then others[#others + 1] = o
+      elseif o.ab ~= nil or (not sent and not label:find("^Cast ") and not label:find("^Play ")) then abils[#abils + 1] = o
+      else casts[#casts + 1] = o end
+    end
+  end
+  local rows = {}
+  for _, o in ipairs(casts) do rows[#rows + 1] = { opt = o.id, text = tostring(o.label) } end
+  -- (the board's entry with its static details: a slim entry carries only what changes)
+  local entry, st = engineAbilityCard(id), engineStatic[id] or {}
+  local card = entry ~= nil and { ty = entry.ty or st.ty, tx = entry.ct or entry.tx or st.tx, tap = entry.tap, sick = entry.sick, ctr = entry.ctr } or nil
+  local function norm(s) return (tostring(s):lower():gsub("\226\136\146", "-"):gsub("[%s%.]", "")) end
+  local taken, manaUsed, manaOpt, greyMana = {}, false, nil, {}
+  for _, o in ipairs(others) do if tostring(o.label):find("^Mana:") then manaOpt = o end end
+  for _, a in ipairs(card ~= nil and engineTextAbilities(card.tx) or {}) do
+    local hit = nil
+    if a.mana then hit = manaOpt
+    else
+      -- (an option's ability text starts with the line's cost; of several, the one whose effect starts the same)
+      local head = a.keyword and norm(a.keyword) or (norm(a.cost) .. ":")
+      local want = a.keyword and "" or norm(a.eff):sub(1, 10)
+      for _, o in ipairs(abils) do
+        local ab = norm(engineAbilityText(o))
+        if not taken[o] and ab:sub(1, #head) == head then
+          if hit == nil then hit = o end
+          if want ~= "" and ab:sub(#head + 1, #head + #want) == want then hit = o break end
+        end
+      end
+      if hit ~= nil then taken[hit] = true end
+    end
+    if hit ~= nil and hit == manaOpt then manaUsed = true end
+    local r = { opt = hit and hit.id, text = a.text, cost = a.cost, mana = a.mana,
+      why = hit == nil and engineAbWhy(color, card, a, p, prio) or nil }
+    -- (a mana ability not offered goes last: it is used while paying, never from here)
+    if hit == nil and a.mana then greyMana[#greyMana + 1] = r else rows[#rows + 1] = r end
+  end
+  for _, o in ipairs(abils) do if not taken[o] then rows[#rows + 1] = { opt = o.id, text = engineAbilityText(o) } end end
+  for _, o in ipairs(others) do
+    if not (o == manaOpt and manaUsed) then rows[#rows + 1] = { opt = o.id, text = tostring(o.label), mana = true } end
+  end
+  for _, r in ipairs(greyMana) do rows[#rows + 1] = r end
+  return rows, card
+end
+-- The lines to show for that card, or nil when the panel shouldn't open for it: not yours, nothing to list, a hand
+-- card with one way to play it (the drag does that), a land with only its mana abilities
+function engineAbPanelRows(color, id)
+  local meta = id and engineMeta[id]
+  if meta == nil or meta.color ~= color then return nil end
+  local rows, card = engineAbList(color, id)
+  local land = engineHasType(card or engineStatic[id], "Land")
+  local offered, other = 0, false
+  for _, r in ipairs(rows) do
+    if r.opt ~= nil then offered = offered + 1 end
+    if not (r.mana and land) then other = true end
+  end
+  if not other or (meta.zone == "hand" and offered < 2) then return nil end
+  return rows
+end
+-- one line's words: the cost in gold, then the effect; a greyed line's reason after it in italics. Cut to fit two lines.
+function engineAbRowLabel(r)
+  local text = tostring(r.text)
+  local head, rest = r.cost, nil
+  if head ~= nil and text:sub(1, #head) == head then rest = (text:sub(#head + 1):gsub("^:%s*", ""))
+  else
+    local at = text:find(":", 1, true)
+    if at ~= nil and at > 1 and at <= 28 then head, rest = text:sub(1, at - 1), (text:sub(at + 1):gsub("^%s+", "")) else head, rest = nil, text end
+  end
+  local room = 92 - (head and #head + 2 or 0) - (r.why and #r.why + 4 or 0)
+  local cut = engineCut(rest, math.max(20, room))
+  if #cut < #rest then cut = cut:gsub("%s+%S*$", "") .. "…" end
+  if r.opt == nil then
+    return " " .. (head and (head .. ": ") or "") .. cut .. "  <i><color=#E0B060>" .. tostring(r.why or "") .. "</color></i>"
+  end
+  return " " .. (head and ("<b><color=#FFD27A>" .. head .. ":</color></b> ") or "") .. cut
+end
+function engineAbPanelHide(color)
+  if engineAbPanelFor[color] ~= nil then setAttr("eng_abp_" .. color, "active", "false") end
+  engineAbPanelFor[color], engineAbShown[color] = nil, nil
+end
+-- Shows card id's lines (on hover), or redraws them (a new question, a board update); hides the panel when the card
+-- it shows has nothing left to list
 function engineAbPanelShow(color, id)
-  local w = id and engineAbilityWant[id]
-  if w == nil or w.color ~= color then
-    if engineAbPanelFor[color] ~= nil then setAttr("eng_abp_" .. color, "active", "false") end
-    engineAbPanelFor[color] = nil
+  local rows = engineAbPanelRows(color, id)
+  if rows == nil then
+    if id ~= nil and engineAbPanelFor[color] == id then engineAbPanelHide(color) end
     return
   end
   engineAbPanelFor[color] = id
+  local pg = engineAbPage[color]
+  if pg == nil or pg.id ~= id then pg = { id = id, n = 0 } engineAbPage[color] = pg end
+  pg.n = pg.n % math.ceil(#rows / ENGINE_AB_MAX)
+  local first = pg.n * ENGINE_AB_MAX + 1
+  local p = enginePrompts[color]
+  engineAbShown[color] = { id = id, rows = rows, first = first, promptId = p and p.promptId }
   setText("eng_abpt_" .. color, tostring((engineStatic[id] or {}).n or "Abilities"))
+  local shown = 0
   for k = 1, ENGINE_AB_MAX do
-    local a = w.list[k]
-    setAttr("eng_abp_" .. color .. "_" .. k, "active", a ~= nil and "true" or "false")
-    -- (cut at a word with "…", the whole text on hover: Vraska's -2 ended "Sacrifice t", hp-22 re-test 2026-10-28)
-    if a ~= nil then
-      local full = tostring(a.text)
-      local shown = engineCut(full, 70)
-      if #shown < #full then shown = shown:gsub("%s+%S*$", "") .. "…" end
-      setText("eng_abp_" .. color .. "_" .. k, shown)
-      setAttr("eng_abp_" .. color .. "_" .. k, "tooltip", full)
+    local r = rows[first + k - 1]
+    if r == nil then setButton("eng_abp_" .. color .. "_" .. k, { active = "false" })
+    else
+      shown = shown + 1
+      -- (one call: the tooltip in a second call redrew the button grey with dark text, docs/engine-ui-spec.md 2.1)
+      setButton("eng_abp_" .. color .. "_" .. k, { active = "true", text = engineAbRowLabel(r),
+        tooltip = tostring(r.text) .. (r.why and ("\n" .. r.why) or ""),
+        color = r.opt and ENGINE_THEME.button or ENGINE_THEME.muted, textColor = r.opt and ENGINE_THEME.text or ENGINE_THEME.mutedText })
     end
   end
+  local more = #rows > ENGINE_AB_MAX
+  setButton("eng_abpg_" .. color, { active = more and "true" or "false",
+    text = more and string.format("More... (%d-%d of %d)", first, first + shown - 1, #rows) or " " })
+  -- (as tall as its lines: one ability was a tall black box with a button at its foot)
+  setAttr("eng_abp_" .. color, "height", tostring(44 + shown * 44 + (more and 34 or 0)))
   setAttr("eng_abp_" .. color, "active", "true")
 end
 function onMtgAbPanel(player, value, idAttr)
-  local c, k = tostring(idAttr):match("^eng_abp_(%a+)_(%d+)$")
-  if c == nil or c ~= player.color then return end
+  local c, id = player.color, tostring(idAttr)
+  if id == "eng_abpx_" .. c then return engineAbPanelHide(c) end
+  if id == "eng_abpg_" .. c then
+    if engineAbPage[c] ~= nil then engineAbPage[c].n = engineAbPage[c].n + 1 end
+    return engineAbPanelShow(c, engineAbPanelFor[c])
+  end
+  local cc, k = id:match("^eng_abp_(%a+)_(%d+)$")
+  if cc == nil or cc ~= c then return end
   -- (from the list the panel shows: the card's buttons may not be drawn yet; structural review 2026-10-27)
-  local w = engineAbPanelFor[c] and engineAbilityWant[engineAbPanelFor[c]]
-  local a = w and w.color == c and w.list[tonumber(k)]
-  if a then engineUseAbility(c, a.id, w.promptId) end
+  local s = engineAbShown[c]
+  local r = s and s.rows[s.first + tonumber(k) - 1]
+  if r == nil then return end
+  if r.opt ~= nil then return engineUseAbility(c, r.opt, s.promptId) end
+  engineTell(c, tostring((engineStatic[s.id] or {}).n or "That card") .. ": " .. tostring(r.text) .. " - " .. tostring(r.why) .. ".")
 end
 -- (chained to the table's own onObjectHover, which keeps hoveredObjs for "mtg commander" and the hover hotkeys:
 -- replacing it broke both, structural review 2026-10-27)
@@ -7051,10 +7544,10 @@ do
 local before = onObjectHover
 function onObjectHover(color, obj)
   if before ~= nil then before(color, obj) end
-  if not ENGINE_MODE or obj == nil or Player[color] == nil or next(engineAbilityWant) == nil then return end
-  local id = tostring(obj.getGMNotes()):match("^engine:(.+)$")
-  local w = id and engineAbilityWant[id]
-  if w ~= nil and w.color == color and engineAbPanelFor[color] ~= id then engineAbPanelShow(color, id) end
+  if not ENGINE_MODE or obj == nil or Player[color] == nil then return end
+  local id = tostring(obj.getGMNotes()):match("^engine:(engine%-card%-%d+)$")
+  -- (a card pointed at afresh starts at its first page)
+  if id ~= nil and engineAbPanelFor[color] ~= id then engineAbPage[color] = nil engineAbPanelShow(color, id) end
 end
 end
 
@@ -7133,6 +7626,18 @@ function engineSelfCheck()
     for _, id in ipairs(p.mill or {}) do heldNow[id] = true expected[id] = true end
   end
   local counts = {}
+  -- (a playable card lies in the row of the seat that may play it, which needn't be its owner's: Thief of Sanity's and
+  -- Mnemonic Betrayal's cards are the caster's to play, on the caster's mat or in the caster's second hand zone)
+  local rowOf = enginePlayableRows(m)
+  local handSets = {}
+  local function inHandOf(color, o, which)
+    local key = tostring(color) .. ":" .. which
+    if handSets[key] == nil then
+      handSets[key] = {}
+      for _, h in ipairs(Player[color].getHandObjects(which) or {}) do handSets[key][h.getGUID()] = true end
+    end
+    return handSets[key][o.getGUID()] == true
+  end
   for _, pl in ipairs(m.players or {}) do
     local c, d = pl.color, data[pl.color]
     counts[c] = { bf = #(pl.battlefield or {}), hand = pl.hand and #pl.hand or pl.handCount, gy = #(pl.graveyard or {}), ex = #(pl.exile or {}), cmd = #(pl.command or {}), lib = pl.library, life = pl.life }
@@ -7144,14 +7649,8 @@ function engineSelfCheck()
     for _, card in ipairs(pl.playable or {}) do expected[engineCastId(c, card.id)] = true end
     -- (a controlled player's hand, in the controller's second hand zone, or as stand-ins there: engineCtlHands)
     for _, card in ipairs(pl.ctlHand or {}) do expected[card.id] = true expected[engineCastId(pl.ctlBy, card.id)] = true end
-    local handSets, handY = {}, nil
-    local function inHand(o, which)
-      if handSets[which] == nil then
-        handSets[which] = {}
-        for _, h in ipairs(Player[c].getHandObjects(which) or {}) do handSets[which][h.getGUID()] = true end
-      end
-      return handSets[which][o.getGUID()] == true
-    end
+    local handY = nil
+    local function inHand(o, which) return inHandOf(c, o, which) end
     local function homeRotation()
       if handY == nil then
         local hand = Player[c].getHandTransform()
@@ -7176,7 +7675,9 @@ function engineSelfCheck()
           -- under its permanent: engineMarkSpecial. Face-Breaker's impulse-drawn cards read "wrong place", hp-03 sweep)
           local special = (engineSpecial or {})[card.id]
           if special == "playable" then -- map:playable
-            ok = inZone(d.playmat, p) or inHand(o, 2)
+            -- (or its row beside the hand, off the mat: enginePlaceSpecial; all of them the row's seat's, rowOf)
+            local rc = rowOf[card.id] or c
+            ok = inZone((data[rc] or d).playmat, p) or inHandOf(rc, o, 2) or (enginePlanned[card.id] ~= nil and near(p, enginePlanned[card.id], 1.6))
           elseif special == "linked" then -- map:linked
             local host = byId[card.ew]
             ok = host ~= nil and near(p, host.getPosition(), 2.5)

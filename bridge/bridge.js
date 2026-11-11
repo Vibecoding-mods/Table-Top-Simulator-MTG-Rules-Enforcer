@@ -43,6 +43,9 @@ let sending = false;
 const ZONE_KEYS = ["hand", "battlefield", "graveyard", "exile", "command", "playable", "revealed", "ctlHand"];
 // A reveal's pictures (the table pages through them, 7 at a time): 7 left out Animist's Awakening's 8th, 2026-10-30
 const REVEAL_PICTURES = 40;
+// How long a clash's log line waits for the other human seats to be shown the same clash (each acknowledges in turn,
+// so one player's slow OK delays the next one's question): see the clash in onPrompt
+const CLASH_SAME_MS = 120000;
 function toTTS(customMessage) {
   if (game?.autoplay) return; // CPU-contention test: TTS gets nothing
   // (the table log: each question shown, and the chat players are told)
@@ -150,6 +153,24 @@ const OPTIONAL_ASK = /^(?:Use (?:triggered ability of )?|Apply replacement effec
 // A spell that counters its target for sure: "Counter target ..." with no "unless" (Flusterstorm's copies, "unless its
 // controller pays {1}", were paid for, and "Chart a Course is countered" was logged as it resolved, hp-08 gap)
 const isCounterspell = (t) => /\bcounter target\b/i.test(t) && !/\bunless\b/i.test(t);
+// Why a spell on the stack can't be countered, as far as the table can read it: its own words ("This spell can't be
+// countered.", when Forge's stack text has them), or a permanent of its controller's ("Green spells you control can't be
+// countered.", Allosaurus Shepherd; "Creature and enchantment spells ...", Destiny Spinner). Returns null, or
+// { sure: true, said: "it can't be countered" }, or { card, sure, said: 'Destiny Spinner (AI 1): "..."' }, sure only
+// when the sentence names no kind of spell (the stack item says nothing of its types or colours).
+function cantBeCounteredWhy(gv, text, ctl) {
+  if (/\b(?:this spell|it) can't be countered\b/i.test(String(text || ""))) return { sure: true, said: "it can't be countered" };
+  for (const z of gv.zones || []) {
+    if (z.zone !== "battlefield") continue;
+    for (const c of z.cards || []) {
+      if (c.isFaceDown || c.phasedOut || !c.identity?.name || (c.controllerId || z.ownerId) !== ctl) continue;
+      const s = String(c.currentText ?? c.text ?? "").replace(/\([^)]*\)/g, "").split(/\n+|(?<=\.)\s+/)
+        .map((x) => x.trim()).find((x) => /^[A-Za-z, -]*?\bspells you control can't be countered\b/i.test(x) && !/\bthis turn\b/i.test(x));
+      if (s) return { card: c.identity.name, sure: /^spells you control\b/i.test(s), said: `${c.identity.name} (${nameOf(c.controllerId || z.ownerId)}): "${s}"` };
+    }
+  }
+  return null;
+}
 // An ability text that is only the way a spell was cast, its cost and that cost's reminder, nothing of what it does:
 // Forge's alternative-cost spell abilities, Wash Away's cleave "Cleave {1}{U}{U} (You may cast this spell for its cleave
 // cost. ...)" and Spider-Sense's "Web-Slinging {U} (You may cast this spell for {U} if ...)". What such a spell does is
@@ -925,16 +946,12 @@ function resendToTable() {
   for (const st of game.seats.values()) if (st.prompt?.ui) showPrompt(st, st.prompt.ui.allCards ? { cards: st.prompt.ui.allCards } : {});
 }
 
-// Friendly mulligans (SPEC "Friendly mulligans by vote"): the count most players voted for, a tie going to the lower one.
-// No vote, or anything but 1 or 2, is a vote for none.
-function friendlyCount(votes, humans) {
-  const tally = [0, 0, 0];
-  for (const c of humans) tally[votes?.[c] === 1 || votes?.[c] === 2 ? votes[c] : 0]++;
-  return tally.indexOf(Math.max(...tally));
-}
+// Friendly mulligans (SPEC "Friendly mulligans"): the table's one shared count, the free mulligans each player has in
+// all. Anything but 1 or 2 is none.
+const friendlyCount = (n) => (n === 1 || n === 2 ? n : 0);
 
 // fromTable: the group's table draws the game (default: games whose decks come from the table)
-function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], votes = null) {
+function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
   const notReady = requireReady ? seatList.filter((c) => !readyDecks[c]) : [];
   if (notReady.length) { chat(`[MTG] Not started: ${notReady.join(", ")} still need \"mtg ready\" (import your deck, put your commander on the command zone).`); return; }
@@ -947,7 +964,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
   const aiTable = aiSeats.filter((c) => readyDecks[c] && !preset.includes(c)).slice(0, bots - preset.length); // (empty seats' ready decks, in order: see below)
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
-    friendly: friendlyCount(votes, seatList), friendlyVoted: seatList.map((c) => `${c} voted ${votes?.[c] === 1 || votes?.[c] === 2 ? votes[c] : "none"}`).join(", "),
+    friendly: friendlyCount(friendly),
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
     // each came from, for its pictures (onGameStarted)
     aiTableDecks: aiTable.map((c) => engineDeckFromTable(readyDecks[c])), aiTableColors: aiTable,
@@ -1085,7 +1102,7 @@ function onGameStarted(msg) {
   for (const n of game.deckNames || []) pictureOf(n);
   chat(`[MTG] Game started! Seats in turn order: ${msg.player_order.map((_, i) => game.slotNames[`player-${i}`]).join(" → ")}. Life ${msg.starting_life}. A dice roll decides who goes first.`);
   log(`game started ${msg.game_id}: ${Object.values(game.slotNames).join(", ")}`);
-  if (game.friendly) friendlySay(`Friendly mulligans this game: ${game.friendly} each (${game.friendlyVoted}).`);
+  if (game.friendly) friendlySay(`Free mulligans this game: ${game.friendly} each${rulesFreeMulligans() ? " (the rules' free one included)" : ""}.`);
   saveResume();
 }
 // Each seat's deck pictures, keyed by the colour it sits at: a player's own readied deck; an AI's, the table deck it was
@@ -1576,7 +1593,9 @@ function playableOf(own, toCard, slot) {
     // the top of the library with nothing shown, hp-13 gap; the row is the owner's own second hand zone)
     const mine = z.ownerId === slot;
     if (z.zone !== "exile" && z.zone !== "graveyard" && !(z.zone === "library" && mine) && !(z.zone === "hand" && !mine)) continue;
-    for (const c of z.cards || []) if (c.mayPlay && c.visibility !== "hidden") out.push(toCard(c));
+    // (with its zone: a flashback card's entry carries "Flashback {cost}" as its graveyard entry does, or the table drew
+    // it without, and its self-check called the hover text wrong, Lingering Souls 2026-11-08)
+    for (const c of z.cards || []) if (c.mayPlay && c.visibility !== "hidden") out.push(toCard(c, z.zone));
   }
   return out;
 }
@@ -1965,7 +1984,7 @@ function engineFacts(events) {
   // off it, see logEvents)
   // (firstSeq: each moved card's first move by Forge's order, so what was moved to pay a cost before a draw is said
   // before it, see logEvents)
-  const facts = { moves: new Map(), firstSeq: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), drawsBy: new Map(), offStack: [] };
+  const facts = { moves: new Map(), firstSeq: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), drawsBy: new Map(), drawCause: {}, offStack: [] };
   for (const e of events) {
     if (e.seq <= seen) continue;
     if (e.from === "Stack" && e.cardId) facts.offStack.push({ id: e.cardId, to: e.to, owner: e.ownerId });
@@ -1976,7 +1995,12 @@ function engineFacts(events) {
         : e.to === "Exile" || (e.to === "Graveyard" && e.how !== "surveil") ? facts.mills : null;
       if (tally) tally[e.ownerId] = (tally[e.ownerId] || 0) + 1;
       if (tally === facts.tutors && e.cause === "Explore") facts.explored[e.ownerId] = e.causeName;
-      if (tally === facts.draws) facts.firstDraw[e.ownerId] ??= e.seq;
+      if (tally === facts.draws) {
+        facts.firstDraw[e.ownerId] ??= e.seq;
+        // (the one card all of a player's draws came from, else null: see updateLog's draw join)
+        const by = e.causeCardId || null;
+        facts.drawCause[e.ownerId] = e.ownerId in facts.drawCause && facts.drawCause[e.ownerId] !== by ? null : by;
+      }
     }
     if (e.how === "discard") facts.firstDiscard[e.ownerId] ??= e.seq;
     // (what an ability did, by the card whose ability it was: one that went on the stack and resolved between two boards
@@ -2562,6 +2586,21 @@ function logEvents(prev, cur, pub, facts = null) {
       || (onlyCounter && onlyCounter.id !== id ? onlyCounter.name : null);
     return name ? ` by ${name}` : "";
   };
+  // (a counterspell that resolved with its target still on the stack: that spell can't be countered (Carnage Tyrant,
+  // or a card such as Destiny Spinner), and Forge says nothing, so the counter looked broken; the user, 2026-11-10:
+  // "you can't counter spell something". Its targets: Forge's, else the player's own picks this turn when it is the
+  // only counterspell that resolved now. isCounterspell has no "unless", so a payment is no reason here.)
+  // (not one the engine's feed says left the stack: it was countered, and what's on the stack now is a recast or an
+  // old picture, test_bridge_events "one still on the stack under its own id")
+  const leftInFeed = new Set((facts?.offStack || []).map((o) => o.id));
+  for (const s of counterSpells) {
+    const hit = new Set(s.ctg?.length ? s.ctg : onlyCounter === s ? counterKept : []);
+    for (const x of Object.values(cur.stack)) {
+      if (x.ability || !prevSpellOf.has(x.id) || leftInFeed.has(x.id) || !x.sids.some((t) => hit.has(t))) continue;
+      const why = cantBeCounteredWhy(pub, x.text || x.desc, x.ctl);
+      out.push(`${x.name} can't be countered: ${s.name} did nothing to it${why && why.card ? ` (${why.said})` : ""}`);
+    }
+  }
   // (the targets the player picked for a stack item of theirs, kept on it while it stays: Forge's stack names no spell's
   // targets, Shock's and Counterspell's list is empty, so its own targets are the player's picks alone; picks asked for
   // these words only, see Seat.respond)
@@ -2820,9 +2859,13 @@ function logEvents(prev, cur, pub, facts = null) {
   // ("detain up to two target ...", Azorius Justiciar's, Lyev Decree's and Archon of the Triumvirate's, checker
   // 2026-11-07; not one countered, see resolved. One that fizzled, its targets made illegal but still there, the boards
   // can't tell.)
+  // (kept until that player's next turn, as goad is, for the attack question's "can't attack" list: attackReminder)
+  game.detained ??= new Map();
+  for (const [id, g] of game.detained) if ((cur.active === g.by && cur.turn > g.turn) || cur.cards[id]?.zone !== "battlefield") game.detained.delete(id);
   for (const g of [...resolved, ...unseen]) {
     if (!DETAIN_TARGET.test(g.text)) continue;
     const ids = g.cardTg.filter((id) => cur.cards[id]?.zone === "battlefield");
+    for (const id of ids) game.detained.set(id, { by: g.ctl, turn: cur.turn });
     if (ids.length) out.push(`${ids.map((id) => cur.cards[id].name).join(", ")} ${ids.length > 1 ? "are" : "is"} detained: until ${who(g.ctl)}'s next turn ${ids.length > 1 ? "they" : "it"} can't attack or block, and ${ids.length > 1 ? "their" : "its"} activated abilities can't be activated`);
   }
   // revolt (Forge shows none): the turn a permanent its controller had left the battlefield, for the question of a revolt
@@ -3495,6 +3538,13 @@ function logEvents(prev, cur, pub, facts = null) {
     const at = lines.indexOf(lines.manaSac.line), cast = lines.findIndex((l) => / casts /.test(l));
     if (cast >= 0 && cast < at) lines.splice(cast, 0, ...lines.splice(at, 1));
   }
+  // (each player's draw line, how many and by what, and whether that card is still on the stack: for updateLog to join
+  // the draws of one spell a question split over two boards)
+  lines.draws = {};
+  for (const [owner, line] of Object.entries(drawLines)) {
+    const by = facts?.drawCause[owner];
+    if (by) lines.draws[owner] = { line: sentence(line), n: facts.draws[owner], by, onStack: Object.keys(cur.stack).some((k) => k.startsWith(`${by}|`)) };
+  }
   return lines;
 }
 const sentence = (l) => (l ? l[0].toUpperCase() + l.slice(1) : l);
@@ -3557,9 +3607,31 @@ function updateLog(pub) {
     game.log[game.log.length - 1] = game.lastManaSac.line;
     lines.shift();
   }
+  // (one spell's draws split over two boards by a question between them, the spell still on the stack in the first: one
+  // line. Village Rites' two read "draws a card" twice when a Darkblast in the graveyard asked "dredge?" between them,
+  // live_events_check 2026-11-09. Only when nothing was logged after that board's lines (lastDraws.end, the log's
+  // length then): a line said in between, a choice or a reveal, came after the first draw, and a join would put the
+  // second above it.)
+  const lastDraws = game.lastDraws?.end === game.log.length ? game.lastDraws : null;
+  const draws = lines.draws || {};
+  let drawJoined = false;
+  for (const [owner, d] of Object.entries(draws)) {
+    const was = lastDraws?.draws[owner];
+    if (!was || !was.onStack || was.by !== d.by) continue;
+    const at = game.log.lastIndexOf(was.line);
+    const i = lines.indexOf(d.line);
+    if (at < 0 || i < 0) continue;
+    const n = was.n + d.n;
+    game.log[at] = sentence(HAND_WORDS.draw(nameOf(owner), n));
+    lines.splice(i, 1);
+    // (and joined again if a third board goes on drawing for it)
+    draws[owner] = { ...d, line: game.log[at], n };
+    drawJoined = true;
+  }
   game.log.push(...lines);
   if (game.log.length > 300) game.log.splice(0, game.log.length - 300);
-  toTTS(joined ? { t: "gamelog", lines: game.log.slice(-60), reset: true } : { t: "gamelog", lines });
+  game.lastDraws = { end: game.log.length, draws };
+  toTTS(joined || drawJoined ? { t: "gamelog", lines: game.log.slice(-60), reset: true } : { t: "gamelog", lines });
 }
 
 // Card rules texts trickle out ~1 KB at a time, 150 ms apart, so no single message makes TTS stall.
@@ -3660,8 +3732,9 @@ function sendTable() {
       exile: zoneOf(pub, "exile", p.id).cards.map((c) => tableCard(c, { blockers, zone: "exile" })),
       command: command.map(toCard),
     };
-    // (after the zones: the cards a seat may play from outside its hand, built once)
-    const playable = own ? playableOf(own, toCard, p.id) : [];
+    // (after the zones: the cards a seat may play from outside its hand, built once; none once the game is over: Sen
+    // Triplets' stand-ins kept glowing as playable under GAME OVER, real-table check 2026-11-10)
+    const playable = own && !pub.gameOver ? playableOf(own, (c, zone) => tableCard(c, { blockers, zone }), p.id) : [];
     if (playable.length) row.playable = playable;
     // (and the hand cards shown to everyone: the table lays them face up at the owner's seat)
     const revealed = revealedOf(p, seats, toCard);
@@ -3997,6 +4070,307 @@ function cardIndex(gv) {
   const byId = {};
   for (const z of gv.zones || []) for (const c of z.cards || []) byId[c.id] = c;
   return byId;
+}
+
+const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+// (reminder text is no rule: Defender's "(This creature can't attack.)" and exalted's "attacks alone" listed every
+// wall and exalted card as a limit; checked against Forge's 32,967 Oracle lines, 2026-11-10)
+const attackRulesText = (c) => String(c.currentText ?? c.text ?? "").replace(/\([^)]*\)/g, "");
+// The rules on the battlefield that limit or tax attacks, read from their text: Forge's attack question carries none of
+// them (docs/attack-reminder-spec.md parts 1 and 2; part 3, the engine sending its own, is not built). Face-down cards
+// have no text. Returns
+//   onField: [[card, its battlefield zone]]; ctlOf(card, zone): its controller; limiters: the names of cards whose text limits attacks at all;
+//   limits: [{ card, ctl, n, at }]: Silent Arbiter, Crawlspace, The Eternal Wanderer, Mirri while tapped (at: null for
+//     every attack, else the player's slot or the planeswalker's card id);
+//   taxes: [{ card, ctl, cost, pw, only }]: Propaganda's "{2} for each creature attacking you" (pw: Sphere of Safety's
+//     "or planeswalkers you control" too; only: the word before "creatures", Elephant Grass's "Nonblack", or "");
+//   costs: [{ card, on, cost, more }]: one creature's own price, Brainwash on it or Qal Sisma Behemoth's own (on: that
+//     creature's id; more: words after the cost, Cowed by Wisdom's "for each card in your hand");
+//   cants: [{ card, ctl, at, only, without }]: Blazing Archon's "Creatures can't attack you" (at: ctl) and Moat's
+//     "Creatures without flying can't attack" (at: null, without: "flying");
+//   others: [{ card, ctl, sentence }]: any other "can't attack ... unless" sentence (Reclamation's land), said as written.
+function attackRules(gv) {
+  const out = { onField: [], limiters: [], limits: [], taxes: [], costs: [], cants: [], others: [], ctlOf: (c, z) => c.controllerId || z.ownerId };
+  for (const z of gv.zones || []) if (z.zone === "battlefield") for (const c of z.cards || []) if (!c.isFaceDown && c.identity?.name) out.onField.push([c, z]);
+  const { ctlOf } = out;
+  for (const [c, z] of out.onField) {
+    const name = c.identity.name;
+    const text = attackRulesText(c);
+    const ctl = ctlOf(c, z);
+    if (/\bcan't attack\b|\bno more than \w+ creatures? can attack\b|\bcan only attack alone\b/i.test(text)) out.limiters.push(name);
+    // Silent Arbiter: "No more than one creature can attack each combat."; Crawlspace: "... can attack you each combat.";
+    // The Eternal Wanderer: "... can attack The Eternal Wanderer each combat." (attacks at it only)
+    const m = new RegExp(`\\bno more than (\\w+) creatures? can attack (?:(you|this planeswalker|${escapeRe(name)}) )?each combat\\b`, "i").exec(text);
+    const n = m ? NUMBER_WORDS[m[1].toLowerCase()] ?? Number(m[1]) : NaN;
+    // Mirri, Weatherlight Duelist: "As long as Mirri ... is tapped, no more than one creature ..."
+    if (Number.isFinite(n) && !(/\bas long as [^.]*? is tapped, no more than\b/i.test(text) && !c.tapped)) {
+      out.limits.push({ card: c, ctl, n, at: !m[2] ? null : /^you$/i.test(m[2]) ? ctl : c.id });
+    }
+    for (const sentence of text.split(/\n|(?<=\.)\s+/).map((s) => s.trim()).filter(Boolean)) {
+      // (Oracle wordings from Forge's cardsfolder, 2026-11-11: Propaganda, Ghostly Prison, Windborn Muse, Koskun Falls,
+      // Sphere of Safety, Norn's Annex, Baird, Archangel of Tithes while untapped, Collective Restraint's "Domain —")
+      const tax = /^(?:As long as [^,]+ is untapped, )?(?:[A-Z][a-z]+ — )?(?:([A-Za-z]+) )?creatures can't attack (you or planeswalkers you control|you) unless their controller pays ((?:\{[^}]+\})+|\d+ life) for each\b(.*)$/i.exec(sentence);
+      if (tax) {
+        if (/^As long as /i.test(sentence) && c.tapped) continue;
+        out.taxes.push({ card: c, ctl, cost: attackXWorked(tax[3], tax[4], out.onField.filter(([y, yz]) => ctlOf(y, yz) === ctl).map(([y]) => y)), pw: /planeswalkers/i.test(tax[2]), only: tax[1] && !/^creatures$/i.test(tax[1]) ? tax[1] : "" });
+        continue;
+      }
+      // Brainwash, Oppressive Rays, Cowed by Wisdom on the creature they enchant; Qal Sisma Behemoth's own
+      const aura = /^Enchanted creature can't attack(?: or block)? unless its controller pays ((?:\{[^}]+\})+)(.*?)\.?$/i.exec(sentence);
+      const own = new RegExp(`^${escapeRe(name)} can't attack(?: or block)? unless you pay ((?:\\{[^}]+\\})+)(.*?)\\.?$`, "i").exec(sentence);
+      if ((aura && c.attachedTo) || own) {
+        const x = aura || own;
+        out.costs.push({ card: c, on: aura ? c.attachedTo : c.id, cost: x[1], more: x[2].trim() });
+        continue;
+      }
+      // Blazing Archon, Elephant Grass's "Black creatures can't attack you."; Moat, Magus of the Moat
+      const cant = /^(?:([A-Za-z]+) )?creatures (?:without (\w+) )?can't attack( you)?\.?$/i.exec(sentence);
+      if (cant) { out.cants.push({ card: c, ctl, at: cant[3] ? ctl : null, only: cant[1] && !/^creatures$/i.test(cant[1]) ? cant[1] : "", without: cant[2] || "" }); continue; }
+      if (/\bcan't attack\b[^.]*\bunless\b/i.test(sentence)) out.others.push({ card: c, ctl, sentence: sentence.replace(/\.?$/, ".") });
+    }
+  }
+  return out;
+}
+// A tax's {X} worked out where the board can count it (Sphere of Safety: enchantments its controller controls;
+// Collective Restraint: basic land types among their lands), else left as {X}. mine: the face-up permanents the tax's
+// controller controls.
+function attackXWorked(cost, rest, mine) {
+  if (!/\{X\}/i.test(cost)) return cost;
+  let x = null;
+  if (/\bwhere X is the number of enchantments you control\b/i.test(rest)) x = mine.filter((c) => (c.types || []).includes("Enchantment")).length;
+  if (/\bwhere X is the number of basic land types among lands you control\b/i.test(rest)) {
+    x = ["Plains", "Island", "Swamp", "Mountain", "Forest"].filter((t) => mine.some((c) => (c.types || []).includes("Land") && (c.subtypes || []).includes(t))).length;
+  }
+  return x == null ? cost : cost.replace(/\{X\}/gi, `{${x}}`);
+}
+// Several costs paid as one (Forge adds every tax on one attacker into one payment): "{2}" + "{W/P}" -> "{2}{W/P}",
+// "{2}" + "{2}" -> "{4}", life after the mana ("{2} and 2 life")
+function attackCostSum(costs) {
+  let generic = 0, life = 0;
+  const other = [];
+  for (const cost of costs) {
+    const l = /^(\d+) life$/i.exec(cost);
+    if (l) { life += Number(l[1]); continue; }
+    for (const s of String(cost).match(/\{[^}]+\}/g) || []) { if (/^\{\d+\}$/.test(s)) generic += Number(s.slice(1, -1)); else other.push(s); }
+  }
+  const mana = `${generic ? `{${generic}}` : ""}${other.join("")}`;
+  return [mana, life ? `${life} life` : ""].filter(Boolean).join(" and ") || "{0}";
+}
+// Whether "Black", "Nonblack", "Green" ... names this creature (Elephant Grass, Reclamation): true, false, or null when
+// the word isn't a colour the bridge can read
+function attackWordFits(card, word) {
+  if (!word) return true;
+  const w = word.toLowerCase();
+  const letter = COLOR_LETTER[w.replace(/^non-?/, "")];
+  if (!letter) return null;
+  return String(card.color || "").includes(letter) !== /^non/.test(w);
+}
+
+// Why Forge refused an attack, from the rules text on the battlefield: Forge says only "Attack declaration invalid"
+// (Crawlspace allowed 2 attackers at White, Blue sent "All attack" with 3 eight times and was told nothing, live game
+// 2026-11-10; docs/attack-reminder-spec.md part 1). `attack` is the refused declaration, [{ attackerId, targetId }].
+// Returns { broken: sentences naming each limit the attack broke, limiters: "Cards on the table that limit attacks:
+// ..." when nothing was found broken but such cards are out, else "" }.
+function attackRefusalReason(gv, attack) {
+  const total = attack.length;
+  const atTarget = {};
+  for (const a of attack) atTarget[a.targetId] = (atTarget[a.targetId] || 0) + 1;
+  const said = [];
+  const { onField, limiters, limits } = attackRules(gv);
+  const textOf = attackRulesText;
+  for (const { card, ctl, n, at } of limits) {
+    const name = card.identity.name;
+    const chosen = at ? atTarget[at] || 0 : total;
+    if (chosen > n) said.push(`${name} (${nameOf(ctl)}): no more than ${n} creature${n === 1 ? "" : "s"} can attack ${at ? `${at === ctl ? nameOf(ctl) : name} ` : ""}each combat. You chose ${chosen}.`);
+  }
+  // Mogg Flunkies: "can't attack or block alone"; Master of Cruelties: "can only attack alone", Errantry's enchanted
+  // creature too
+  const rulesOf = (id) => [id, ...onField.filter(([c]) => c.attachedTo === id).map(([c]) => c.id)]
+    .map((cid) => onField.find(([c]) => c.id === cid)).filter(Boolean)
+    .map(([c]) => c.id === id ? textOf(c) : (textOf(c).match(/\benchanted creature [^.]*\./gi) || []).join(" ")).join(" ");
+  for (const a of attack) {
+    const me = onField.find(([c]) => c.id === a.attackerId)?.[0];
+    if (!me) continue;
+    if (total === 1 && /\bcan't attack(?: or block)? alone\b/i.test(rulesOf(me.id))) said.push(`${me.identity.name} can't attack alone.`);
+    if (total > 1 && /\bcan only attack alone\b/i.test(rulesOf(me.id))) said.push(`${me.identity.name} can only attack alone.`);
+  }
+  const names = said.length ? [] : [...new Set(limiters)];
+  return { broken: said, limiters: names.length ? `Cards on the table that limit attacks: ${names.slice(0, 6).join(", ")}${names.length > 6 ? ", ..." : ""}.` : "" };
+}
+
+// The taxes (attackRules) on attacking a defender: its controller's, at a planeswalker or battle only those that say
+// "or planeswalkers you control". ctl: the defender's controller (the player itself for a player).
+function attackTaxesAt(R, ctl, defenderId) { return R.taxes.filter((t) => t.ctl === ctl && (defenderId === ctl || t.pw)); }
+
+// A defender in words: a player by name, a planeswalker or battle with whose it is ("Teferi (AI 1's planeswalker)"),
+// by the question's attackTargets kind when it has one, else by the card's types
+function defenderWords(gv, input, id) {
+  if (String(id).startsWith("player-")) return nameOf(id);
+  const c = cardIndex(gv)[id];
+  const kind = (input.attackTargets || []).find((t) => t.id === id)?.kind || ((c?.types || []).includes("Battle") ? "battle" : "planeswalker");
+  const label = c?.identity?.name || (input.attackTargets || []).find((t) => t.id === id)?.label || id;
+  return c?.controllerId ? `${label} (${nameOf(c.controllerId)}'s ${kind})` : label;
+}
+
+// What the attack question reminds the player of before they pick (docs/attack-reminder-spec.md part 2; the user
+// 2026-11-10: "if there's a pay to attack or multiple creatures can't attack, a prompt should pop up to remind
+// players"): the taxes per defender, the limits, each creature's own price, the creatures that can't attack and why,
+// and who an offered creature can't attack. From the rules text (attackRules) and the board's flags; Forge's question
+// carries none of it. `slot`: the attacking player. Returns { lines: the full list for the panel, note: the one line for
+// the corner ("" when nothing applies), cantAttack: { cardId: "X can't attack: reason." } for Q/E on one not offered,
+// taxAt(defenderId): the taxes on attacking it, [{ card, cost }] }.
+function attackReminder(gv, input, slot) {
+  const R = attackRules(gv);
+  const byId = cardIndex(gv);
+  const offered = (input.attackers || []).filter((a) => (a.validTargetIds || []).length);
+  const offeredIds = new Set(offered.map((a) => a.attackerId));
+  const defenders = (input.attackTargets || []).length ? input.attackTargets.map((t) => t.id) : [...new Set(offered.flatMap((a) => a.validTargetIds))];
+  const ctlOf = (id) => (String(id).startsWith("player-") ? id : byId[id]?.controllerId);
+  const name = (c) => c.identity?.name || c.id;
+  const taxAt = (d) => attackTaxesAt(R, ctlOf(d), d).map((t) => ({ card: t.card, cost: t.cost, only: t.only }));
+  const mineOn = R.onField.filter(([c, z]) => R.ctlOf(c, z) === slot).map(([c]) => c);
+  const lines = [];
+  const notes = [];
+  // taxes, one line per taxing player whose taxes reach a defender (a player who can't be attacked here, only their
+  // planeswalker: only the taxes that say "or planeswalkers you control")
+  const taxNames = (ts) => ts.map((t) => `${name(t.card)}${t.only ? ` (${t.only.toLowerCase()} creatures)` : ""}`).join(" + ");
+  const taxed = [];
+  for (const p of new Set(defenders.map(ctlOf).filter(Boolean))) {
+    const all = R.taxes.filter((t) => t.ctl === p);
+    const pwTax = all.filter((t) => t.pw);
+    const isDefender = defenders.includes(p);
+    const hasPw = defenders.some((d) => d !== p && ctlOf(d) === p);
+    if (!(isDefender ? all : hasPw ? pwTax : []).length) continue;
+    taxed.push(p);
+    const cost = attackCostSum(all.map((t) => t.cost));
+    const pwCost = attackCostSum(pwTax.map((t) => t.cost));
+    if (!isDefender) {
+      lines.push(`${taxNames(pwTax)} (${nameOf(p)}): ${pwCost} for each creature attacking their planeswalkers.`);
+      notes.push(`${poss(nameOf(p))} planeswalkers ${pwCost} each`);
+      continue;
+    }
+    const pwWords = !hasPw || !pwTax.length ? "" : pwCost === cost ? " or their planeswalkers" : `; ${pwCost} for each attacking their planeswalkers`;
+    lines.push(`${taxNames(all)} (${nameOf(p)}): ${cost} for each creature attacking ${nameOf(p)}${pwWords}.`);
+    notes.push(`${nameOf(p)} ${cost} each`);
+  }
+  // one creature's own price (Brainwash, Qal Sisma Behemoth), for the offered ones
+  const own = R.costs.filter((x) => offeredIds.has(x.on));
+  for (const x of own) {
+    const who = name(byId[x.on] || { id: x.on });
+    lines.push(x.card.id === x.on ? `${who} can attack only if you pay ${x.cost}${x.more ? ` ${x.more}` : ""}.` : `${name(x.card)}: ${who} can attack only if you pay ${x.cost}${x.more ? ` ${x.more}` : ""}.`);
+  }
+  for (const x of R.others.slice(0, 3)) lines.push(`${name(x.card)} (${nameOf(x.ctl)}): ${x.sentence}`);
+  if (taxed.length || own.length) {
+    const me = gv.players?.find((p) => p.id === slot);
+    const pool = Object.values(me?.manaPool || {}).reduce((n, v) => n + Math.max(0, Number(v) || 0), 0);
+    const open = mineOn.filter((c) => !c.tapped && !c.phasedOut
+      && ((c.types || []).includes("Land") || /(?:^|\n)\{T\}(?:, [^:\n]*)?: Add\b/.test(attackRulesText(c)))).length;
+    lines.push(`You have about ${open + pool} mana open. Attackers tap before you pay, so an attacking mana creature can't help pay.`);
+  }
+  // limits, for every attack or at a defender
+  for (const l of R.limits) {
+    if (l.at && !defenders.includes(l.at)) continue;
+    const at = l.at ? ` ${l.at === l.ctl ? nameOf(l.ctl) : name(l.card)}` : "";
+    lines.push(`${name(l.card)} (${nameOf(l.ctl)}): at most ${l.n} creature${l.n === 1 ? "" : "s"} can attack${at || " each combat"}.`);
+    if (!taxed.length) notes.push(`at most ${l.n} can attack${at || ""} (${name(l.card)})`);
+  }
+  // the player's creatures that can't attack at all, with the reason (tapped ones are plain to see)
+  const cantAttack = {};
+  const groups = new Map();
+  const auras = (id) => R.onField.map(([c]) => c).filter((c) => c.attachedTo === id && /\benchanted creature can't attack\b(?![^.]*\bunless\b)/i.test(attackRulesText(c)));
+  const reasonOf = (c) => {
+    if (c.phasedOut) return "phased out";
+    if (c.summoningSick && !hasKeyword(c, "Haste")) return "summoning sick";
+    if (game?.detained?.has(c.id)) return "detained";
+    if (hasKeyword(c, "Defender")) return "defender";
+    const aura = auras(c.id)[0];
+    if (aura) return name(aura);
+    if (new RegExp(`(?:^|\\n|\\. )${escapeRe(name(c))} can't attack(?: or block)?\\.`, "i").test(attackRulesText(c)) || (c.keywords || []).some((k) => /^CARDNAME can't attack\b/i.test(String(k)))) return "its own text";
+    const rule = R.cants.find((r) => !r.at && attackWordFits(c, r.only) === true && (!r.without || !hasKeyword(c, r.without)));
+    return rule ? name(rule.card) : "an effect on the table";
+  };
+  for (const c of mineOn) {
+    if (!(c.types || []).includes("Creature") || c.tapped || offeredIds.has(c.id)) continue;
+    const why = reasonOf(c);
+    cantAttack[c.id] = `${name(c)} can't attack: ${why}.`;
+    const key = `${name(c)}|${!!c.identity?.isToken}|${why}`;
+    groups.set(key, { c, why, n: (groups.get(key)?.n || 0) + 1 });
+  }
+  const cantList = [...groups.values()].map(({ c, why, n }) => {
+    const token = !!c.identity?.isToken;
+    return `${n > 1 ? `${n} ${token ? `${tokenBase(name(c))} tokens` : name(c)}` : tokenWords(name(c), token)} (${why})`;
+  });
+  if (cantList.length) lines.push(`Can't attack: ${cantList.join(", ")}.`);
+  // (summoning sickness alone comes every turn: in the panel, not the corner)
+  if (cantList.length && [...groups.values()].some((g) => g.why !== "summoning sick")) notes.push(`can't attack: ${cantList.join(", ")}`);
+  // offered creatures that can't attack one defender: goad, Blazing Archon, or no reason the board shows
+  for (const d of defenders) {
+    const missing = offered.filter((a) => !a.validTargetIds.includes(d));
+    if (!missing.length) continue;
+    const why = (a) => {
+      const g = game?.goaded?.get(a.attackerId);
+      if (g && g.by === d) return `goaded by ${nameOf(d)}`;
+      const card = byId[a.attackerId] || {};
+      const rule = R.cants.find((r) => r.at === ctlOf(d) && attackWordFits(card, r.only) !== false && (!r.without || !hasKeyword(card, r.without)));
+      return rule ? name(rule.card) : "";
+    };
+    const reasons = missing.map(why);
+    if (missing.length === offered.length && new Set(reasons).size === 1) {
+      lines.push(`No creature of yours can attack ${defenderWords(gv, input, d)}${reasons[0] ? ` (${reasons[0]})` : ""}.`);
+    } else {
+      lines.push(`Can't attack ${defenderWords(gv, input, d)}: ${missing.map((a, i) => `${name(byId[a.attackerId] || { id: a.attackerId })}${reasons[i] ? ` (${reasons[i]})` : ""}`).join(", ")}.`);
+    }
+  }
+  const note = notes.length ? `${taxed.length ? "Attack tax: " : ""}${notes.join("; ")}.` : "";
+  return { lines, note: note.charAt(0).toUpperCase() + note.slice(1), cantAttack, taxAt };
+}
+
+// Whose attack tax a payment for an attacker is: "Propaganda (AI 1)", "Ghostly Prison + Norn's Annex (AI 1)",
+// "Brainwash" (its own price), or null when no tax the board shows covers it
+function attackTaxWords(gv, attackerId, targetId) {
+  const R = attackRules(gv);
+  const ctl = String(targetId).startsWith("player-") ? targetId : cardIndex(gv)[targetId]?.controllerId;
+  const at = attackTaxesAt(R, ctl, targetId).map((t) => t.card.identity.name);
+  const own = R.costs.filter((x) => x.on === attackerId).map((x) => x.card.identity.name);
+  if (!at.length && !own.length) return null;
+  return [...(at.length ? [`${at.join(" + ")} (${nameOf(ctl)})`] : []), ...own].join(", ");
+}
+
+// Whom the attackers left at "whom?" attack (item 25, the user 2026-11-10: "Attack" and "All attack" ask which player
+// or planeswalker to attack). One step for all of them: a button per player or planeswalker any of them can attack, its
+// tax said, "One by one" when there are several, and Back to the attack question. The options are "player|" and "card|"
+// ids, the table's target surface, so a click on a life counter or a planeswalker answers too. A creature that can't
+// attack the one picked is asked again with the rest. o: { asked: the attackers' options, byAttacker: attacker id ->
+// target id or "?", cname(id): an attacker's words (chooseAttackers' attackerLabel), defender(id): its words, taxAt(id): the taxes on attacking it, done(byAttacker): the answer
+// once none is left, back(): the attack question again }; each: one creature at a time.
+function attackWhom(o, each = false) {
+  const left = o.asked.filter((at) => o.byAttacker[at.attackerId] === "?");
+  if (!left.length) return o.done(o.byAttacker);
+  const group = each ? [left[0]] : left;
+  const targets = [...new Set(group.flatMap((at) => at.validTargetIds))];
+  const optId = (t) => (String(t).startsWith("player-") ? `player|${t}` : `card|${t}`);
+  // (no colon in a label: the corner cuts a long one at its colon)
+  const tax = (t) => { const x = o.taxAt(t); return x.length ? ` (tax ${attackCostSum(x.map((y) => y.cost))} each)` : ""; };
+  const names = group.map((at) => o.cname(at.attackerId));
+  const others = left.length < o.asked.length && !each;
+  const ui = {
+    title: group.length === 1 ? `Attack whom with ${names[0]}?` : `Attack whom with ${others ? "the other " : ""}${group.length} creatures?`, mode: "single", kind: "choice",
+    text: [group.length > 1 ? `Attacking: ${names.join(", ")}.` : "", "Click a life counter or a planeswalker, or a button.",
+      group.some((at) => targets.some((t) => !at.validTargetIds.includes(t))) ? "One that can't attack your pick is asked again." : ""].filter(Boolean).join(" "),
+    options: [...targets.map((t) => ({ id: optId(t), label: `${o.defender(t)}${tax(t)}` })),
+      ...(group.length > 1 ? [{ id: "__each", label: "One by one" }] : []), { id: "__back", label: "Back" }],
+    // (a timed-out player gets Forge's first target, not Back, which timeoutChoice takes first)
+    onTimeout: optId(targets[0]),
+  };
+  const toOutput = (a) => {
+    if (a[0] === "__back") return o.back();
+    if (a[0] === "__each") return attackWhom(o, true);
+    const t = String(a[0]).slice(String(a[0]).indexOf("|") + 1);
+    const byAttacker = { ...o.byAttacker };
+    for (const at of group) if (at.validTargetIds.includes(t)) byAttacker[at.attackerId] = t;
+    return attackWhom({ ...o, byAttacker }, each);
+  };
+  return next(ui, toOutput);
 }
 
 // Forge's own bookkeeping in a trigger's text is no words for a player: "... you control [Zone Changer: Deadeye
@@ -4802,6 +5176,31 @@ function scryPlaceSteps(cards, zones, label, done, placed = {}) {
   return { ui, toOutput };
 }
 
+// A choice among players and permanents that is no target (Forge's chooseSingleEntityForEffect over a mixed list, which
+// the harness asks as a chooseFromSelection of labels: Zevlor's copy over a player and their permanents, a creature put
+// onto the battlefield attacking choosing whom it attacks; a list of cards alone is asked as cards instead) names each
+// by Forge's toString: a player by its engine name, a card as "<name> (<Forge's number>)", a number that is not our
+// card id. So a card is known by its name, when the one card of that name the board shows anywhere (every zone and the
+// stack) is a face-up permanent on the battlefield. All of them known, with a card among them: the target ids, in the
+// options' order, that the table answers by clicking a life counter or the card (item 24, planeswalkers by click,
+// 2026-11-11); else null, and the list is asked as before.
+function entityChoiceIds(options, gv) {
+  const order = (game?.playerOrder || []).map((u) => String(u || "").toLowerCase());
+  const seen = [...(gv.zones || []).flatMap((z) => (z.cards || []).map((c) => ({ c, bf: z.zone === "battlefield" }))),
+    ...(gv.stack || []).map((s) => ({ c: s, bf: false }))];
+  const ids = [];
+  for (const o of options) {
+    const label = String(o.label ?? "").trim();
+    const k = label ? order.indexOf(label.toLowerCase()) : -1;
+    if (k >= 0) { ids.push(`player|player-${k}`); continue; }
+    const name = /^(.+) \(\d+\)$/.exec(label)?.[1];
+    const same = name ? seen.filter((x) => x.c.identity?.name === name) : [];
+    if (same.length !== 1 || !same[0].bf || same[0].c.isFaceDown) return null;
+    ids.push(`card|${same[0].c.id}`);
+  }
+  return ids.some((v) => v.startsWith("card|")) && new Set(ids).size === ids.length ? ids : null;
+}
+
 // What each engine question is, for the table: `kind` on every prompt message (plus `dest: "library"` when the chosen
 // cards go to the library). Steps of a question set their own kind ("order", "place", "number", "choice").
 const PROMPT_KIND = {
@@ -4840,6 +5239,11 @@ const QUEUED_PLAY_MS = 30000;
 const SKIP_PHASES = { upkeep: ["upkeep"], draw: ["draw"], main: ["main1"], combat: ["combatBegin", "combatDeclareAttackers"],
   blockers: ["combatDeclareBlockers"], damage: ["combatFirstStrikeDamage", "combatDamage"], main2: ["main2"], end: ["end", "endOfTurn"],
   mine: ["upkeep", "draw", "main1"] };
+// the list's own words for a skip (the table's engineAutoChoices), and where it stops
+const SKIP_SAID = { upkeep: "Until upkeep", draw: "Until draw", main: "Until main phase", combat: "Until combat", blockers: "Until blockers",
+  damage: "Until damage", main2: "Until main 2", end: "Until end step", mine: "Until my turn" };
+const SKIP_WHERE = { upkeep: "the upkeep", draw: "the draw step", main: "the first main phase", combat: "beginning of combat and declare attackers",
+  blockers: "the declare blockers step", damage: "the combat damage steps", main2: "the second main phase", end: "the end step" };
 // Forge's steps in the table's words, for what the chat says of one ("Skip ended: combatBegin" read so, live check 12)
 const STEP_WORDS = { untap: "untap step", upkeep: "upkeep", draw: "draw step", main1: "main phase", combatBegin: "beginning of combat",
   combatDeclareAttackers: "declare attackers step", combatDeclareBlockers: "declare blockers step", combatFirstStrikeDamage: "first-strike damage step",
@@ -4853,6 +5257,13 @@ function skipReached(skip, gv, slot) {
   const at = SKIP_ORDER.indexOf(gv.step), first = SKIP_ORDER.indexOf(SKIP_PHASES[skip.phase][0]);
   if (skip.phase === "mine") return gv.activePlayerId === slot && gv.turn > skip.turn;
   return at >= first && (gv.turn > skip.turn || SKIP_ORDER.indexOf(skip.step) < first);
+}
+// whether a skip stops at this step. "Until <phase>" stays on and stops at that phase in every turn, yours and the
+// others' (the user, 2026-11-09 item 3: "the button is undone when a new phase pops up", "'Until combat' stops at my
+// combat and my opponents'"); a phase Forge gives no priority in that turn (no attackers: no blockers step) is passed.
+// "Until my turn" is one stop, as before (the whole of every other turn passed is Auto-resolve's job).
+function skipStopsHere(skip, gv, slot) {
+  return skip.phase === "mine" ? skipReached(skip, gv, slot) : SKIP_PHASES[skip.phase].includes(gv.step);
 }
 // tells the table what this player's Auto-resolve list is set to: a skip's phase, or on / off (the bridge passes, so the
 // table only shows it; a skip ends here, not there)
@@ -5167,6 +5578,10 @@ function onPrompt(seat, prompt) {
   seat.lastRawPrompt = prompt;
   if (game?.fix?.state === "applying") game.fix.activeAt = Date.now(); // (the engine is playing a fix's free plays: fixWatchdog)
   if (prompt.input?.type === "chooseAction") seat.priorityPromptId = prompt.promptId ?? 0; // (the log's "priority came back")
+  // (the attack just declared is only the declaration's: its refusal and its tax payments come before any priority, so
+  // priority ends it. A payment after that, a pump on an attacker in the same step or an ability a turn later, is no
+  // attack tax: payManaCost)
+  if (prompt.input?.type === "chooseAction" || prompt.kind === "priority") seat.lastAttack = null;
   // MTG_RAW=1 (tests): every question as the engine sent it, to see what a prompt carries
   if (process.env.MTG_RAW) log(`raw ${seat.color}: ${JSON.stringify(prompt).slice(0, 4000)}`);
   if (prompt.kind === "priority") { seat.respond(0, "chooseAction", { type: "pass" }); return; }
@@ -5180,6 +5595,14 @@ function onPrompt(seat, prompt) {
   const type = input.type;
   const gv = seat.board?.state?.gameView || {};
   const byId = cardIndex(gv);
+  // (a look at the top cards, not shown (see revealCards): the pick from among them shows them; with no such pick next,
+  // nothing among them could be taken, and what was seen is said instead)
+  if (seat.heldLook) {
+    const held = seat.heldLook;
+    seat.heldLook = null;
+    const picks = ["chooseCards", "chooseFromSelection"].includes(type) ? [...(input.cards || []), ...(input.options || [])].map((c) => c.id) : [];
+    if (!picks.some((id) => held.ids.includes(id))) chat(`[MTG] You looked at the top ${countWords(held.n, held.n, "card").replace(/^an? /, "")} of your library: ${held.names.join(", ")}. None of them could be chosen.`, seat.color);
+  }
   // (whose question it is: a controlled player's, see actingFor; a new priority question ends what the last one played)
   const forP = actingFor(seat, prompt, gv);
   if (type === "chooseAction") { seat.actingFor = null; seat.splitAsk = null; }
@@ -5232,7 +5655,7 @@ function onPrompt(seat, prompt) {
       // (Arena: "Keep" / "Mulligan"; how many were taken goes below, not in the question)
       ui = { title: "Keep this hand?", mode: "single", options: [{ id: "keep", label: "Keep" }, { id: "mull", label: friendlyFreeLeft(seat) > 0 ? "Mulligan (free)" : "Mulligan" }],
         ...(game?.friendly ? { text: friendlyText(seat) } : input.mulliganCount ? { text: `Mulligans so far: ${input.mulliganCount}.` } : {}) };
-      toOutput = (a) => ({ type: "mulliganDecision", keep: a[0] === "keep", ...(game?.friendly ? { freeCards: game.friendly } : {}) });
+      toOutput = (a) => ({ type: "mulliganDecision", keep: a[0] === "keep", ...(friendlyExtra() ? { freeCards: friendlyExtra() } : {}) });
       break;
     case "mulliganPutBack":
       ui = { title: `Put ${countWords(input.count, input.count, "card")} on the bottom of your library`, mode: "multi", min: input.count, max: input.count,
@@ -5306,10 +5729,15 @@ function onPrompt(seat, prompt) {
       let skipStop = false;
       if (seat.skipTo) {
         const theirs = (gv.stack || []).find((x) => x.controllerId !== seat.slot);
-        if (theirs || skipReached(seat.skipTo, gv, seat.slot)) {
-          chat(`[MTG] Skip ended: ${theirs ? `${theirs.identity?.name || "something"} (${nameOf(theirs.controllerId)}) is on the stack` : `${STEP_WORDS[gv.step] || gv.step}, ${gv.activePlayerId === seat.slot ? "your" : `${nameOf(gv.activePlayerId)}'s`} turn`}.`, seat.color);
-          seat.skipTo = null;
-          autoNotice(seat);
+        if (theirs || skipStopsHere(seat.skipTo, gv, seat.slot)) {
+          // (said once per stop: each priority in that phase, or under that spell, asks without a second line)
+          const once = seat.skipTo.phase === "mine";
+          const key = theirs ? `stack|${theirs.id}` : `${gv.turn}|${gv.activePlayerId}|${seat.skipTo.phase}`;
+          if (seat.skipTo.said !== key) {
+            chat(`[MTG] ${once ? "Skip ended" : "Stopped"}: ${theirs ? `${theirs.identity?.name || "something"} (${nameOf(theirs.controllerId)}) is on the stack` : `${STEP_WORDS[gv.step] || gv.step}, ${gv.activePlayerId === seat.slot ? "your" : `${nameOf(gv.activePlayerId)}'s`} turn`}.${once ? "" : ` "${SKIP_SAID[seat.skipTo.phase]}" stays on.`}`, seat.color);
+            seat.skipTo.said = key;
+          }
+          if (once) { seat.skipTo = null; autoNotice(seat); }
           skipStop = true; // (stopped there, whatever the step stops say)
         } else {
           seat.respond(prompt.promptId, type, { type: "pass" });
@@ -5470,16 +5898,43 @@ function onPrompt(seat, prompt) {
       // (what is still owed once the pool's mana counts: Forge sends the cost before the pool is spent, and four Treasures
       // clicked one at a time each read "Pay {3}{U} for Inspiration" on the real table, 2026-11-05)
       const owes = owed !== input.manaCost && owed !== "{0}" ? `${owed} more` : input.manaCost;
+      // (a tap that can pay none of what is owed isn't offered, when every symbol owed is one the rank reads: a colour,
+      // generic, X, a hybrid of those or Phyrexian; a snow {S} or anything else keeps every tap. Viscera Seer's {B} offered
+      // only "Tap Mountain for {R}", and Yellow tapped and undid it in a loop until Cancel, 2026-11-09 00:51)
+      const plainOwed = [...owed.matchAll(/\{([^}]+)\}/g)].every((m) => m[1].toUpperCase().split("/").every((x) => /^(?:\d+|X|[WUBRGCP])$/.test(x)));
+      const useless = (a) => plainOwed && owed !== "{0}" && a.type !== "undoMana" && a !== lifeAct && !payKind
+        && (a.type === "activateManaAbility" || a.isManaAbility || /^tap:/.test(String(a.id))) && manaRank(owed, a) === 0;
+      const dropped = (input.actions || []).filter(useless);
       ui = { title: `Pay ${owes}${input.cardName || src ? ` for ${input.cardName || src}` : ""}`, mode: "single", options: [
         ...(input.canConfirmFromPool ? [{ id: "__pool", label: "Pay from mana pool" }] : autoFailed ? [] : [{ id: "__auto", label: "Auto-pay" }]),
         ...(lifeAct ? [{ id: lifeAct.id || "pay-life", label: `Pay ${lifeN ?? 2} life` }] : []),
-        ...(input.actions || []).filter((a) => a !== lifeAct).map((a) => ({ id: a.id, cardId: a.cardId, label: a.type === "undoMana" ? `Undo mana from ${cname(a.cardId)}`
+        ...(input.actions || []).filter((a) => a !== lifeAct && !useless(a)).map((a) => ({ id: a.id, cardId: a.cardId, label: a.type === "undoMana" ? `Undo mana from ${cname(a.cardId)}`
           : a.type === "useResource" || a.type === "releaseResource" ? resourceLabel(a, cname(a.cardId))
           : payKind && isResourceTap(a) ? resourceLabel({ ...a, type: "useResource", resource: payKind }, a.description || cname(a.cardId))
           : a.description ? `${!a.cost || /\{T\}/.test(a.cost) ? "Tap" : "Use"} ${a.description}${payManaText(a)}${/\bdamage to you\b/i.test(a.description) ? "" : manaPainText(a, byId[a.cardId]?.text, byId[a.cardId]?.identity?.name)}${manaCostExtra(a)}` : a.id, ...(a.type === "undoMana" ? {} : { rank: rankOf(a) }) })),
         { id: "__cancel", label: "Cancel" },
       ] };
       if (autoFailed && !input.canConfirmFromPool) ui.text = "Auto-pay couldn't finish this payment. Tap other sources, undo some taps, or Cancel.";
+      // an attack tax (Propaganda, Brainwash): Forge asks it per attacker once attackers are declared, as a plain
+      // payment for the creature; said whose tax it is, and that Cancel leaves only that creature out (seen live as
+      // "Pay {W/P} for Mother of Runes" with nothing naming Norn's Annex, 2026-11-10; docs/attack-reminder-spec.md part 2)
+      // (only before priority comes back: seat.lastAttack is cleared there, see onPrompt's top)
+      const attack = gv.step === "combatDeclareAttackers" && input.cardId ? (seat.lastAttack || []).find((x) => x.attackerId === input.cardId) : null;
+      const whose = attack ? attackTaxWords(gv, attack.attackerId, attack.targetId) : null;
+      const who = input.cardName || src || cname(input.cardId);
+      // (and said when nothing that is left can pay: the player otherwise sees only Cancel. Cancel as its button reads:
+      // "Don't attack with X" for an attack tax)
+      if (dropped.length && !input.canConfirmFromPool && !ui.options.some((o) => o.rank > 0 || o.id === "__auto" || o.id === (lifeAct?.id || "pay-life"))) {
+        const undo = (input.actions || []).some((a) => a.type === "undoMana");
+        const cancelSaid = whose ? (undo ? `Undo a tap, or choose "Don't attack with ${who}".` : `Choose "Don't attack with ${who}" to leave it out of the attack.`)
+          : undo ? "Undo a tap, or Cancel." : "Cancel to take it back.";
+        ui.text = `Nothing here can pay ${owed}: ${[...new Set(dropped.map((a) => cname(a.cardId)))].join(", ")} can't make that mana. ${cancelSaid}`;
+      }
+      if (whose) {
+        ui.title = `${whose}: pay ${owes} to attack with ${who}?`;
+        ui.note = `Cancel: ${who} doesn't attack.`;
+        ui.options = ui.options.map((o) => (o.id === "__cancel" ? { ...o, label: `Don't attack with ${who}` } : o));
+      }
       toOutput = (a) => {
         // remember a hand tap so the next prompt can finish paying by itself; any other answer forgets it
         seat.tappedFor = String(a[0]).startsWith("tap:") ? input.cardId : null;
@@ -5563,6 +6018,19 @@ function onPrompt(seat, prompt) {
       // (a face-down card you may see is named, and says it is face down: Bowmasters offered the manifested card as
       // "Brainstorm", hp-06)
       for (const o of ui.options) if (cardOf(o)?.isFaceDown && cardOf(o)?.identity) o.label += " (face down)";
+      // (a counterspell's target that can't be countered says so: countering it does nothing; the user 2026-11-10)
+      if (isCounterspell(String(prompt.sourceAbilityText || srcCardText))) {
+        const stuck = [];
+        for (const o of ui.options) {
+          if (!o.id.startsWith("spell|")) continue;
+          const s = (gv.stack || []).find((x) => x.id === o.id.slice(6));
+          const why = s && cantBeCounteredWhy(gv, `${s.text || ""}\n${s.sourceAbilityText || ""}`, s.controllerId);
+          if (!why) continue;
+          o.label += why.sure ? " (can't be countered)" : ` (maybe can't be countered: ${why.card})`;
+          stuck.push(`${s.identity?.name || o.label}: ${why.said}`);
+        }
+        if (stuck.length && !ui.text) ui.text = `Countering does nothing to a spell that can't be countered. ${stuck.join("; ")}.`;
+      }
       // (two creatures that still read alike get their power/toughness, then anything still alike a number: Coruscation
       // Mage's two token copies read "Coruscation Mage (token) / Coruscation Mage (token)", hp-14; two Treasures, two
       // Forests and two unseen face-down cards read alike too, relations review 2026-11-05)
@@ -6289,6 +6757,21 @@ function onPrompt(seat, prompt) {
         };
         break;
       }
+      // players and permanents to choose from, no target (see entityChoiceIds): asked as a target question, so a life
+      // counter or the card (a planeswalker) answers it by a click; the answer goes back as the options' numbers
+      const entity = input.options.length > 1 && entityChoiceIds(input.options, gv);
+      if (entity) {
+        const players = entity.some((v) => v.startsWith("player|"));
+        const walkers = entity.filter((v) => v.startsWith("card|")).every((v) => (byId[v.slice(5)]?.types || []).includes("Planeswalker"));
+        const what = `${players ? "player or " : ""}${walkers ? "planeswalker" : "permanent"}`;
+        // (a creature put onto the battlefield attacking chooses whom it attacks, CR 506.3b: Forge's own title, "Choose
+        // which defender to attack with ...", is not sent, only the card's name)
+        const attacks = players && walkers && /\battacking\b/i.test(String(prompt.sourceAbilityText || srcCardText));
+        ui = { kind: "target", title: `${src ? `${src}: ` : ""}${attacks ? "attack which" : "choose which"} ${what}?`, mode: "multi",
+          min: input.minTotal ?? 1, max: input.maxTotal ?? 1, options: entity.map((v) => ({ id: v, label: cname(v.split("|")[1]) })) };
+        toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map((v) => entity.indexOf(v)).filter((i) => i >= 0) });
+        break;
+      }
       const how = input.maxTotal === 1 && input.minTotal === 1 ? "one" : input.minTotal === 0 ? "any you want" : input.minTotal === input.maxTotal ? String(input.maxTotal) : `${input.minTotal} to ${input.maxTotal}`;
       // (Abundance's land or nonland, asked under the drawing card's name: "Kenrith, the Returned King: Abundance", hp-26)
       if (/^Abundance$/.test(String(title)) && labels.join("|") === "Land|Nonland") {
@@ -6359,21 +6842,78 @@ function onPrompt(seat, prompt) {
       }
       break;
     case "chooseAttackers": {
+      // A creature with more than one player or planeswalker to attack has "→ whom?" as its first option: a click on it
+      // picks that, and so does All attack, and whom it attacks is asked after (attackWhom) instead of Forge's first
+      // target for everyone (item 25, the user 2026-11-10). A life counter or planeswalker clicked, or a pair picked in
+      // the panel, still sets the target at once.
+      const many = (at) => at.validTargetIds.length > 1;
       const pairs = [];
-      for (const at of input.attackers) for (const tid of at.validTargetIds) pairs.push({ id: `${at.attackerId}|${tid}`, label: `${cname(at.attackerId)} → ${cname(tid)}` });
+      // (each attacker with its size and counters, and a number when that still reads the same: Lingering Souls' tokens
+      // read "Spirit Token → Blue" four times, 2026-11-08/09 game; in the "whom?" question after too)
+      const sized = new Map(input.attackers.map((at) => [at.attackerId, byId[at.attackerId] ? cardLabel(byId[at.attackerId]) : cname(at.attackerId)]));
+      const same = {};
+      for (const [id, l] of sized) (same[l] ??= []).push(id);
+      const attackerLabel = (id) => (same[sized.get(id)].length > 1 ? `${sized.get(id)} #${same[sized.get(id)].indexOf(id) + 1}` : sized.get(id));
+      // (A-Z as every list of pairs, by those labels, so tokens of one name and two sizes don't interleave, #9 before
+      // #10; each creature's "whom?" before its targets: the table's click takes the first option of the creature, so
+      // the question is kept in this order, keepOrder)
+      const az = (x, y) => String(x).localeCompare(String(y), undefined, { numeric: true });
+      for (const at of [...input.attackers].sort((x, y) => az(attackerLabel(x.attackerId), attackerLabel(y.attackerId)))) {
+        if (many(at)) pairs.push({ id: `${at.attackerId}|?`, label: `${attackerLabel(at.attackerId)} → whom? (asked next)` });
+        const targets = at.validTargetIds.map((tid) => ({ id: `${at.attackerId}|${tid}`, label: `${attackerLabel(at.attackerId)} → ${cname(tid)}` }));
+        pairs.push(...targets.sort((x, y) => az(x.label, y.label)));
+      }
       const must = input.attackers.filter((a) => a.mustAttack && a.validTargetIds.length);
-      // "All attack" sends every creature at its first target; "No attacks" none (except those that must attack).
+      // "All attack" sends every creature; "No attacks" none (except those that must attack, at their first target).
       const quick = pairs.length ? [{ id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" }] : [];
       // (who must attack, said on the question and again if the attack is refused: Kardur, Doomscourge sent four of Red's
       // Dragons in, and all they saw was "Attack declaration invalid", 15 times, game 2026-11-01)
       seat.mustAttack = must.map((m) => cname(m.attackerId));
-      ui = { title: "Choose attackers", mode: "multi", min: 0, max: pairs.length, options: [...quick, ...pairs], ...(must.length ? { text: `Must attack: ${seat.mustAttack.join(", ")}.` } : {}) };
+      // (the reason the last attack was refused stays on the question until it is answered: chat alone was missed)
+      const refused = seat.attackRefused;
+      const mustLine = must.length ? `Must attack: ${seat.mustAttack.join(", ")}.` : "";
+      const said = [refused, mustLine].filter(Boolean).join(" ");
+      // the taxes, limits and who can't attack, before any pick (attackReminder; the refusal keeps the corner)
+      const remind = attackReminder(gv, input, forP || seat.slot);
+      const text = [said, ...remind.lines].filter(Boolean).join("\n");
+      const note = refused || remind.note;
+      ui = { title: "Choose attackers", mode: "multi", min: 0, max: pairs.length, keepOrder: true, options: [...quick, ...pairs], ...(text ? { text } : {}), ...(note ? { note } : {}),
+        ...(Object.keys(remind.cantAttack).length ? { cantAttack: remind.cantAttack } : {}) };
+      const askUi = ui;
+      // the declaration once every attacker has its target. "All attack" over a limit the table can read (Crawlspace,
+      // Silent Arbiter, a creature that can only attack alone) is stopped here and the limit said, nothing sent: Forge
+      // would only refuse it (the user's pick (a), 2026-11-10). Creatures picked one by one still go to Forge, whose
+      // refusal is explained as before.
+      const declare = (byAttacker, all) => {
+        const assignments = Object.entries(byAttacker).map(([attackerId, targetId]) => ({ attackerId, targetId }));
+        if (all) {
+          const { broken } = attackRefusalReason(gv, assignments);
+          if (broken.length) {
+            const stop = `"All attack" would break a limit, so nothing was sent. ${broken.join(" ")} Pick the attackers yourself.`;
+            chat(`[MTG] ${stop}`, seat.color);
+            return next({ ...askUi, text: [[stop, mustLine].filter(Boolean).join(" "), ...remind.lines].join("\n"), note: stop }, toOutput);
+          }
+        }
+        seat.lastAttack = assignments;
+        seat.attackRefused = null;
+        return { type: "declareAttackers", assignments };
+      };
       toOutput = (a) => {
         const byAttacker = {};
-        for (const m of must) byAttacker[m.attackerId] = m.validTargetIds[0];
-        if (a.includes("__allattack")) for (const at of input.attackers) if (at.validTargetIds.length) byAttacker[at.attackerId] ??= at.validTargetIds[0];
-        for (const v of a) { if (v.startsWith("__")) continue; const [att, tgt] = v.split("|"); byAttacker[att] = tgt; }
-        return { type: "declareAttackers", assignments: Object.entries(byAttacker).map(([attackerId, targetId]) => ({ attackerId, targetId })) };
+        // (No attacks alone keeps a must-attack creature at its first target, as End turn does: nothing is asked then)
+        const none = !a.some((v) => v !== "__noattack");
+        for (const m of must) byAttacker[m.attackerId] = many(m) && !none ? "?" : m.validTargetIds[0];
+        if (a.includes("__allattack")) for (const at of input.attackers) if (at.validTargetIds.length) byAttacker[at.attackerId] ??= many(at) ? "?" : at.validTargetIds[0];
+        // (a target picked wins over "whom?" for the same creature, in any order)
+        for (const v of a) {
+          if (v.startsWith("__")) continue;
+          const [att, tgt] = v.split("|");
+          if (tgt !== "?" || byAttacker[att] == null) byAttacker[att] = tgt;
+        }
+        const asked = input.attackers.filter((at) => byAttacker[at.attackerId] === "?");
+        if (!asked.length) return declare(byAttacker, a.includes("__allattack"));
+        return attackWhom({ asked, byAttacker, cname: attackerLabel, defender: (id) => defenderWords(gv, input, id), taxAt: remind.taxAt,
+          done: (chosen) => declare(chosen, a.includes("__allattack")), back: () => next(askUi, toOutput) });
       };
       // "End turn" in your main phase skips the attack too, as on Arena (it stopped at "Choose attackers", hp-07
       // 2026-10-27); creatures that must attack still do
@@ -6474,11 +7014,34 @@ function onPrompt(seat, prompt) {
     case "revealCards":
       // Forge's warning about its own AI deck isn't meant for players.
       if (/^AI can't play/i.test(title)) { seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" }); return; }
+      // A look at the top cards that a pick from among them follows: "Look at these cards" (OK), then "choose an instant
+      // card" over the same cards (doubled prompts, the user 2026-11-09 item 5). Not shown: the pick has the cards. Held,
+      // and settled by the next question (heldLook): with no pick from them, what was seen is said in chat.
+      // (Forge's title is only "Look at these cards", zone "library": a top-card reveal (Dark Confidant) and Ponder's look
+      // come the same way, so only by the ability's words, "look at the top ... from among them". A search's look is
+      // settled further down, by what it seeks; Hideaway's too.)
+      {
+        const words = String((keywordOnly(prompt.sourceAbilityText) && srcCardText) || prompt.sourceAbilityText || srcCardText || "");
+        const own = String(input.ownerPlayerId || "").replace("-view", "") === seat.slot;
+        if (/^look at these cards$/i.test(String(title)) && input.zone === "library" && own && (input.cards || []).length
+          && /\blook at the top (?:\w+ )?cards? of your library\b/i.test(words) && /\bfrom among (?:them|those cards|the cards)\b/i.test(words)) {
+          seat.heldLook = { ids: input.cards.map((c) => c.id), names: input.cards.map((c) => cardLabel(c)), n: input.cards.length };
+          // (the table's log still says a look happened, as a shown look says it: private, so no names)
+          if (game) gameLogLine(`${seat.color} looked at ${countWords(input.cards.length, input.cards.length, "card")} (their library)`);
+          seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" });
+          return;
+        }
+      }
       // a notice with no cards ("White picked AI 1", "AI 1 vote Money"): told in chat and the game log, not asked (one
       // test game asked for OK 15 times; Arena shows such things in passing)
       if (/^Attack declaration invalid\b/i.test(title)) {
         const names = seat.mustAttack || [];
-        chat(`[MTG] That attack isn't legal. ${names.length ? `Must attack: ${names.join(", ")}. Any you don't choose are sent for you. Check the table too: an effect can also forbid attacking a player.` : "Something on the table limits who can attack, or who they can attack."}`, seat.color);
+        const { broken, limiters } = attackRefusalReason(gv, seat.lastAttack || []);
+        const why = broken.join(" ");
+        seat.attackRefused = why ? `That attack isn't legal. ${why}` : null;
+        const rest = names.length ? `Must attack: ${names.join(", ")}. Any you don't choose are sent for you. Check the table too: an effect can also forbid attacking a player.`
+          : why ? "" : `Something on the table limits who can attack, or who they can attack.${limiters ? ` ${limiters}` : ""}`;
+        chat(`[MTG] That attack isn't legal. ${[why, rest].filter(Boolean).join(" ")}`, seat.color);
         seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" });
         return;
       }
@@ -6507,17 +7070,27 @@ function onPrompt(seat, prompt) {
       }
       if (/ reveals: .*Mana Value=/i.test(title)) {
         // (Forge's clash: one line per player and the result; said as "You: Island (0), AI 1: Forest (0). Nobody wins.")
-        // (the engine's lines name players by their engine usernames: displayText first, then "You" for this seat)
+        // (the engine's lines name players by their engine usernames: displayText first, then this seat by its colour
+        // even where its engine name isn't in the player list; "You" in its own question)
         const me = nameOf(seat.slot);
-        const isMe = (p) => p === me || p === seat.username;
+        const named = (p) => (p === seat.username ? me : p);
         const lines = String(title).split(/[\r\n]+/).map((l) => displayText(l.trim())).filter(Boolean);
-        const who = lines.map((l) => l.match(/^(.+?) reveals: (.+?)\. Mana Value= ?(\d+)/)).filter(Boolean)
-          .map(([, p, c, v]) => `${isMe(p) ? "You" : p}: ${c} (${v})`);
+        const shown = lines.map((l) => l.match(/^(.+?) reveals: (.+?)\. Mana Value= ?(\d+)/)).filter(Boolean).map(([, p, c, v]) => ({ p: named(p), c, v }));
         const end = lines.find((l) => !/ reveals: /.test(l)) || "";
-        const won = end.match(/^(.+?) wins/i);
-        const result = /no winner/i.test(end) ? "Nobody wins." : won ? (isMe(won[1]) ? "You win." : `${won[1]} wins.`) : end.replace(/!$/, ".");
-        ui = { title: `${src ? `${src}: ` : ""}clash`, mode: "single", text: `${who.join(", ")}. ${result}`.trim(), options: [{ id: "ok", label: "OK" }],
-          show: input.cards.slice(0, REVEAL_PICTURES).map((c) => ({ n: cardLabel(c), img: imgOf(c) })) };
+        const winner = end.match(/^(.+?) wins/i)?.[1];
+        const result = (you) => (/no winner/i.test(end) ? "Nobody wins." : winner ? (you && named(winner) === me ? "You win." : `${named(winner)} wins.`) : end.replace(/!$/, "."));
+        ui = { title: `${src ? `${src}: ` : ""}clash`, mode: "single", text: `${shown.map(({ p, c, v }) => `${p === me ? "You" : p}: ${c} (${v})`).join(", ")}. ${result(true)}`.trim(),
+          options: [{ id: "ok", label: "OK" }], show: input.cards.slice(0, REVEAL_PICTURES).map((c) => ({ n: cardLabel(c), img: imgOf(c) })) };
+        // (and in the game log, by the players' table names: no line named the clash's cards or its winner, keyword sweep
+        // kw-07 "Lash Out: clash". Forge reveals it to every player (ClashEffect, revealTo all), so each human seat is
+        // asked, one after another: the same line from a seat that hasn't seen it yet is that clash again, said once; from
+        // a seat that has, a new clash with the same cards, as a card kept on top is revealed again)
+        if (game) {
+          const line = `Clash${src ? ` (${src})` : ""}: ${shown.map(({ p, c, v }) => `${p} reveals ${c} (mana value ${v})`).join(", ")}. ${result(false)}`.trim();
+          const last = game.lastClash;
+          if (last?.line === line && !last.seats.has(seat.color) && Date.now() - last.at < CLASH_SAME_MS) last.seats.add(seat.color);
+          else { gameLogLine(line); game.lastClash = { line, at: Date.now(), seats: new Set([seat.color]) }; }
+        }
         toOutput = () => ({ type: "revealCardsAcknowledged" });
         break;
       }
@@ -6919,32 +7492,189 @@ function cardNameIn(seat, cardId, fallback = "That card") {
 // The seat playing a slot (undefined for an AI's)
 function seatOfSlot(slot) { return game?.seats.get(game.slotColor[slot]); }
 
-function whyNot(seat, cardId) {
+// The rules on the battlefield that forbid what a player just tried, quoted with their card: Grand Abolisher's "Your
+// opponents can't cast spells during your turn.", Drannith Magistrate's "... from anywhere other than their hands.",
+// Null Rod's "Activated abilities of artifacts can't be activated." (the user, 2026-11-10: "you can't cast while not
+// your turn, you can't cast from anywhere except your hand"). kind: "cast", "land" or "activate"; `card` the card tried,
+// `zone` where it is, `who` the player trying. Only sentences that can apply now are kept: one aimed at opponents is
+// not quoted to its controller, "during your turn" only on that turn, a type, colour, mana value or zone it names has to
+// match. A sentence whose words can't be checked (Rule of Law's "more than one spell each turn") is kept: it may be why.
+// Returns ['Grand Abolisher (AI 1): "Your opponents can't cast spells during your turn."', ...]. Static text only:
+// abilities ("{T}: ...", "When ...") and one-turn effects ("this turn") are skipped, and an effect from a resolved spell
+// (Silence) is on no permanent, so it isn't found.
+const RESTRICTS = {
+  cast: /\bcan't cast\b|\bcan't be cast\b|\bcan cast (?:spells|no more than)\b|\bcan cast [^.]*\bonly\b/i,
+  land: /\bcan't play lands?\b|\bcan play lands? only\b/i,
+  activate: /\bcan't be activated\b|\bcan't activate\b/i,
+};
+const COLOR_LETTER = { white: "W", blue: "U", black: "B", red: "R", green: "G" };
+// does "noncreature", "instant and sorcery", "red", "multicolored", ... describe this card? (an unknown word: yes)
+function describesCard(words, card) {
+  const types = (card?.types || []).map((t) => t.toLowerCase());
+  const supers = (card?.supertypes || []).map((t) => t.toLowerCase());
+  const color = String(card?.color || "");
+  const has = (w) => w in COLOR_LETTER ? color.includes(COLOR_LETTER[w]) : w === "multicolored" ? color.length > 1 : w === "colorless" ? !color
+    : w === "monocolored" ? color.length === 1 : types.includes(w) || supers.includes(w) ? true
+    : /^(creature|artifact|enchantment|instant|sorcery|planeswalker|land|battle|kindred|legendary)$/.test(w) ? false : null;
+  const list = String(words).toLowerCase().split(/[\s,]+/).map((w) => w.replace(/(?<=[a-z])(?:s|ies)$/, (m) => (m === "ies" ? "y" : ""))).filter((w) => w && !/^(and|or|a|an)$/.test(w));
+  const pos = [];
+  for (const w of list) {
+    const neg = w.startsWith("non") ? w.slice(3).replace(/^-/, "") : null;
+    const r = has(neg || w);
+    if (r === null) return true;
+    if (neg) { if (r) return false; } else pos.push(r);
+  }
+  return !pos.length || pos.some(Boolean);
+}
+function restrictionLines(gv, kind, who, card, zone) {
+  const out = [];
+  const sorceryNow = gv.activePlayerId === who && /main/i.test(gv.step || "") && !(gv.stack || []).length;
+  for (const z of gv.zones || []) {
+    if (z.zone !== "battlefield") continue;
+    for (const c of z.cards || []) {
+      if (c.isFaceDown || c.phasedOut || !c.identity?.name) continue;
+      const ctl = c.controllerId || z.ownerId;
+      const lines = String(c.currentText ?? c.text ?? "").replace(/\([^)]*\)/g, "").split(/\n+/)
+        .filter((l) => !/^\s*(?:When|Whenever|At)\b/i.test(l) && !/^[^."]*(?:\{[^}]*\}|^\s*[+−-]?\d+|\])[^."]*:\s/.test(l));
+      for (const s of lines.flatMap((l) => l.split(/(?<=\.)\s+/)).map((x) => x.trim()).filter(Boolean)) {
+        if (!RESTRICTS[kind].test(s) || /\bthis turn\b/i.test(s)) continue;
+        const name = c.identity.name;
+        const self = new RegExp(`^(?:${escapeRe(name)}|this (?:creature|permanent|artifact))\\b`, "i");
+        if (/^(?:enchanted|equipped|fortified) /i.test(s)) { if (c.attachedTo !== card?.id) continue; }
+        else if (self.test(s)) { if (c.id !== card?.id) continue; }
+        else if (/\b(?:your opponents|each opponent|opponents)\b/i.test(s)) { if (who === ctl) continue; }
+        else if (/^you\b/i.test(s) && who !== ctl) continue;
+        if (/\bduring your turn\b/i.test(s) && gv.activePlayerId !== ctl) continue;
+        if (/\bduring combat\b/i.test(s) && !/combat|attack|block|damage/i.test(gv.step || "")) continue;
+        if (/\bonly (?:any time (?:they|you) could cast a sorcery|as a sorcery)\b/i.test(s) && sorceryNow) continue;
+        if (/\bonly during (?:their|your) own turns?\b/i.test(s) && gv.activePlayerId === who) continue;
+        if (/\bfrom anywhere other than (?:their|your) hands?\b/i.test(s)) { if (zone === "hand") continue; }
+        else if (/\bfrom (?:[a-z' ]*?)(?:graveyards?|librar(?:y|ies)|exile)\b/i.test(s)) {
+          const from = s.match(/\bfrom ([^.]*)/i)[1];
+          if (!(zone === "graveyard" && /graveyard/i.test(from) || zone === "library" && /librar/i.test(from) || zone === "exile" && /exile/i.test(from))) continue;
+        }
+        const parity = s.match(/\bwith (even|odd) mana values?\b/i)?.[1];
+        if (parity && Number.isFinite(card?.cmc) && (card.cmc % 2 === 0) !== (parity.toLowerCase() === "even")) continue;
+        const mv = s.match(/\bmana value (\d+) or (greater|more|less|fewer)\b/i);
+        if (mv && Number.isFinite(card?.cmc) && (/greater|more/i.test(mv[2]) ? card.cmc < Number(mv[1]) : card.cmc > Number(mv[1]))) continue;
+        const spellWords = kind === "cast" ? (s.match(/\bcan't cast ([a-z, -]*?)spells\b/i) || s.match(/^([a-z, -]*?)spells\b[^.]*\bcan't be cast\b/i))?.[1] : null;
+        if (spellWords && !describesCard(spellWords, card)) continue;
+        const of = kind === "activate" ? s.match(/\bactivated abilities of ([a-z, -]+?)(?: (?:you|your opponents|an opponent) controls?)?(?: with [^.]*?)? can't\b/i)?.[1] : null;
+        if (of && !/^sources?$/i.test(of.trim()) && !describesCard(of, card)) continue;
+        if (kind === "activate" && /\bwith the chosen name\b/i.test(s) && (c.choices || []).length && !(c.choices || []).some((x) => (x.values || []).includes(card?.identity?.name))) continue;
+        out.push(`${name} (${nameOf(ctl)}): "${s}"`);
+      }
+    }
+  }
+  return [...new Set(out)];
+}
+const onTheTable = (lines) => ` On the table: ${lines.slice(0, 3).join("; ")}${lines.length > 3 ? "; ..." : ""}.`;
+
+// The mana a player could make now, about: their pool, and each untapped permanent of theirs with a "{T}: Add" ability
+// (a basic land 1; a creature only once it can tap). Cost reducers, rituals and lands with other costs are not seen,
+// so it is said as "about", and only when the card costs more.
+function manaAvailable(gv, who) {
+  const p = (gv.players || []).find((x) => x.id === who);
+  let n = Object.values(p?.manaPool || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+  for (const z of gv.zones || []) {
+    if (z.zone !== "battlefield") continue;
+    for (const c of z.cards || []) {
+      if ((c.controllerId || z.ownerId) !== who || c.tapped || c.phasedOut) continue;
+      const types = c.types || [];
+      if (types.includes("Creature") && c.summoningSick && !hasKeyword(c, "Haste")) continue;
+      const add = String(c.text || "").match(/\{T\}(?:, [^:\n]*)?: Add ([^.\n]*)/);
+      if (add) n += (add[1].match(/\{[WUBRGC]\}/g) || []).length || (/\btwo\b/i.test(add[1]) ? 2 : /\bthree\b/i.test(add[1]) ? 3 : 1);
+      else if (types.includes("Land") && (c.supertypes || []).includes("Basic")) n += 1;
+    }
+  }
+  return n;
+}
+
+// The first target a spell must have and whether the table has one: "Counterspell needs a spell on the stack to
+// target, and there is none." Not for "up to" targets nor a modal spell ("Choose one —"), whose modes target apart.
+// Hexproof and shroud are counted for permanents; protection and other "can't be the target" rules are not.
+const TARGET_NOUNS = { spell: null, creature: "Creature", artifact: "Artifact", enchantment: "Enchantment", planeswalker: "Planeswalker", land: "Land", permanent: "" };
+function missingTarget(gv, who, card, name) {
+  const text = String(card?.currentText ?? card?.text ?? "").replace(/\([^)]*\)/g, "");
+  if (/^\s*Choose (?:one|two|three|any|up to)\b/im.test(text) || !/(Instant|Sorcery)/.test((card?.types || []).join(" "))) return null;
+  const re = /\btarget (spell|creature|artifact|enchantment|planeswalker|land|permanent)\b(?: (you control|an opponent controls|you don't control))?/gi;
+  let m;
+  while ((m = re.exec(text))) {
+    if (/\b(?:up to (?:one|two|three|four|five|X|\w+)|any number of)\s*(?:other )?$/i.test(text.slice(Math.max(0, m.index - 24), m.index))) continue;
+    const noun = m[1].toLowerCase();
+    if (noun === "spell") {
+      const spells = (gv.stack || []).filter((s) => !isAbilityOnStack(s, gv));
+      return spells.length ? null : `${name} needs a spell on the stack to target, and there is none.`;
+    }
+    const whose = m[2]?.toLowerCase();
+    const all = (gv.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => (z.cards || []).map((c) => [c, c.controllerId || z.ownerId]))
+      .filter(([c, ctl]) => !c.phasedOut && (TARGET_NOUNS[noun] ? (c.types || []).includes(TARGET_NOUNS[noun]) : true)
+        && (!whose || (whose === "you control" ? ctl === who : ctl !== who)));
+    const legal = all.filter(([c, ctl]) => !hasKeyword(c, "Shroud") && !(ctl !== who && hasKeyword(c, "Hexproof")));
+    if (legal.length) return null;
+    return `${name} needs a target (target ${noun}${whose ? ` ${whose}` : ""}), and there is ${all.length ? "none it can target: they have hexproof or shroud" : "none on the table"}.`;
+  }
+  return null;
+}
+
+// anyPriority: the reason it couldn't be played even at this seat's priority (a drag made out of priority, onIntent)
+function whyNot(seat, cardId, { anyPriority = false } = {}) {
   const gv = seat.board?.state?.gameView || {};
   const card = cardIndex(gv)[cardId];
   const name = card?.identity?.name || "That card";
   // (a card of a player this seat controls is played as that player: its turn and priority count, see actingFor)
-  const holder = (gv.zones || []).find((z) => (z.cards || []).some((c) => c.id === cardId))?.ownerId;
+  const where = (gv.zones || []).find((z) => (z.cards || []).some((c) => c.id === cardId));
+  const holder = where?.ownerId;
+  const zone = where?.zone;
   const who = ruledBy(gv, seat.slot).includes(holder) ? holder : seat.slot;
   const me = (gv.players || []).find((p) => p.id === who);
   const types = card?.types || [];
   const myMain = gv.activePlayerId === who && /main/i.test(gv.step || "") && !(gv.stack || []).length;
   if (card?.phasedOut) return `${name} is phased out: it counts as not there until it phases in.`;
-  if (gv.priorityPlayerId !== who) return `${name}: wait, it isn't ${who === seat.slot ? "your" : `${nameOf(who)}'s`} priority.`;
+  if (!anyPriority && gv.priorityPlayerId !== who) return `${name}: wait, it isn't ${who === seat.slot ? "your" : `${nameOf(who)}'s`} priority.`;
   // (a permanent already on the battlefield is not played: Arena of Glory, its one ability a mana ability, read "lands
   // can only be played in your main phase with an empty stack" in the main phase, hp-09)
-  if ((gv.zones || []).some((z) => z.zone === "battlefield" && (z.cards || []).some((c) => c.id === cardId))) {
-    const mana = /(?:^|\n)[^:\n]*:\s*Add (?:\{|one|two|three|X|an amount|that much|mana)/i.test(String(card?.text || ""));
+  if (zone === "battlefield") {
+    const text = String(card?.text || "");
+    const banned = restrictionLines(gv, "activate", who, card, zone);
+    if (banned.length) return `${name}: its abilities can't be used.${onTheTable(banned)}`;
+    // (summoning sickness: a creature's {T} abilities wait for its controller's next turn, haste aside)
+    if (types.includes("Creature") && card.summoningSick && !hasKeyword(card, "Haste") && /(?:^|\n)[^:\n]*\{T\}[^:\n]*:/.test(text)) {
+      return `${name} has summoning sickness: its {T} abilities work from your next turn (it came under your control this turn).`;
+    }
+    const mana = /(?:^|\n)[^:\n]*:\s*Add (?:\{|one|two|three|X|an amount|that much|mana)/i.test(text);
     return `${name}: none of its abilities can be used right now${mana ? " (a mana ability is used while paying a cost: tap it then)" : ""}.`;
+  }
+  // (a card somewhere it can't be played from, and nothing lets it: the hand and, for a commander, the command zone are
+  // the usual places; a graveyard, exile or a library only by a card's leave, said so. "Your graveyard" or AI 1's.)
+  const fromElsewhere = zone && zone !== "hand" && zone !== "command";
+  if (fromElsewhere) {
+    const banned = restrictionLines(gv, types.includes("Land") ? "land" : "cast", who, card, zone);
+    if (banned.length) return `${name} can't be ${types.includes("Land") ? "played" : "cast"} from there.${onTheTable(banned)}`;
+    const whose = holder === who ? "your" : `${nameOf(holder)}'s`;
+    const lets = zone === "graveyard" ? "something lets you (flashback, escape, unearth or a card's effect)" : "a card's effect lets you";
+    const own = zone === "graveyard" && /(?:^|\n)(?:Flashback|Escape|Retrace|Jump-start|Disturb|Embalm|Eternalize|Unearth|Aftermath|Harmonize|Mayhem)\b/i.test(String(card?.text || ""));
+    if (!own) return `${name} is in ${whose} ${ZONE_SAID[zone] || zone}: it can be ${types.includes("Land") ? "played" : "cast"} from there only if ${lets}.`;
   }
   if (types.includes("Land")) {
     if (gv.activePlayerId !== who) return `${name}: lands can only be played on ${who === seat.slot ? "your" : `${nameOf(who)}'s`} turn.`;
     if (me && me.landsPlayedThisTurn >= (me.maxLandPlaysPerTurn || 1)) return `${name}: you already played a land this turn.`;
+    const banned = restrictionLines(gv, "land", who, card, zone);
+    if (banned.length) return `${name}: you can't play lands right now.${onTheTable(banned)}`;
     return `${name}: lands can only be played in your main phase with an empty stack.`;
   }
   const instantSpeed = types.includes("Instant") || hasKeyword(card, "Flash");
   if (!instantSpeed && !myMain) return `${name}: only at sorcery speed (your main phase, empty stack).`;
-  return `${name}: can't be cast right now (not enough mana, no legal targets, or another restriction).`;
+  const banned = restrictionLines(gv, "cast", who, card, zone);
+  if (banned.length) return `${name} can't be cast right now.${onTheTable(banned)}`;
+  const target = missingTarget(gv, who, card, name);
+  if (target) return target;
+  // (the commander tax: {2} more for each earlier cast from the command zone)
+  const tax = zone === "command" ? 2 * (Number(me?.commanderCasts?.[cardId]) || 0) : 0;
+  const cost = (Number(card?.cmc) || 0) + tax;
+  const avail = manaAvailable(gv, who);
+  if (cost > avail) return `${name}: probably not enough mana. It costs ${card?.manaCost && card.manaCost !== "no cost" ? `${card.manaCost} (${card.cmc})` : cost}${tax ? ` plus {${tax}} commander tax` : ""}, and you have about ${avail} available.`;
+  return `${name}: can't be cast right now (not enough mana or the right colours, no legal targets, or another restriction).`;
 }
 
 // "If you cast it any time a sorcery couldn't have been cast, ... sacrifices it at the beginning of the next cleanup
@@ -6989,7 +7719,17 @@ function onIntent(m) {
   if (m.kind === "play") {
     if (!p || p.type !== "chooseAction") {
       // not this player's priority now: kept for their next one (see the chooseAction case), unless it is a land
-      const card = cardIndex(seat.board?.state?.gameView || {})[m.id];
+      const gv = seat.board?.state?.gameView || {};
+      const card = cardIndex(gv)[m.id];
+      // (a card in a graveyard, exile or a library only when the engine says this seat may play it. Rancor, discarded a
+      // moment before, was dragged from beside the graveyard and queued, and the next drag of it was read as a hand card
+      // again, 2026-11-08 23:39. A permanent's drag is kept as before: the next priority uses it for an equip, a
+      // loyalty or a {T} ability.)
+      const zone = (gv.zones || []).find((z) => (z.cards || []).some((c) => c.id === m.id))?.zone;
+      const offPlay = zone === "graveyard" || zone === "exile" || zone === "library";
+      if (card && !(card.types || []).includes("Land") && offPlay && !card.mayPlay) {
+        return refuse(seat, m.id, whyNot(seat, m.id, { anyPriority: true }));
+      }
       if (card && !(card.types || []).includes("Land")) {
         seat.queuedPlay = { id: m.id, at: Date.now() };
         refuse(seat, m.id, `${name}: you'll cast it at your next chance (it isn't your priority right now).`);
@@ -7268,7 +8008,7 @@ function onTTS(m) {
       noteStamp(m);
       warnIfOutOfStep();
       const go = () => {
-        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendlyVotes);
+        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly);
         if (game && m.autoplay) game.autoplay = true;
       };
       // the table's Start button (autoReset): a game left over from before is reset first, and a room that is still
@@ -7354,9 +8094,10 @@ function onTTS(m) {
       seat.skipTo = { phase, turn: gv.turn ?? 0, step: gv.step || "untap" };
       autoResolve[m.color] = undefined; // (or auto-resolve would pass the very stop this asks for)
       autoNotice(seat);
-      chat(`[MTG] Passing until ${phase === "mine" ? "your next turn" : `the next ${phase === "main" ? "main phase" : phase === "main2" ? "second main phase" : phase === "end" ? "end step" : `${phase} step`}`}; an opponent's spell stops it. (mtg skip off)`, m.color);
+      chat(phase === "mine" ? "[MTG] Passing until your next turn; an opponent's spell stops it. (mtg skip off)"
+        : `[MTG] "${SKIP_SAID[phase]}": you pass priority except in ${SKIP_WHERE[phase]} (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)`, m.color);
       // a priority already waiting goes at once
-      if (seat.prompt?.type === "chooseAction" && !skipReached(seat.skipTo, gv, seat.slot) && !(gv.stack || []).some((x) => x.controllerId !== seat.slot)) {
+      if (seat.prompt?.type === "chooseAction" && !skipStopsHere(seat.skipTo, gv, seat.slot) && !(gv.stack || []).some((x) => x.controllerId !== seat.slot)) {
         seat.respond(seat.prompt.promptId, "chooseAction", { type: "pass" }); closePrompt(seat);
       }
       break;
@@ -7415,8 +8156,12 @@ function isPlaying(gv, slot) { return gv?.players?.find((p) => p.id === slot)?.s
 // requestRestore opens gameView.restoreVote for the other live human seats; with nobody to ask (vs AI) it applies
 // at once. The table gets the points worth offering and the vote in each board update (`rewind`).
 const REWIND_STEPS = { upkeep: "upkeep", main1: "main phase", combatDeclareAttackers: "attacks", main2: "second main phase" };
+// (a step the list doesn't offer in the table's words too: a point asked for by its id, which onRewind takes from any of
+// Forge's checkpoints, said Forge's own step name in the chat and the log, the gap "Skip ended: combatBegin" had, live
+// check 12)
+const rewindStep = (step) => REWIND_STEPS[step] || STEP_WORDS[step] || step;
 function checkpointLabel(c) {
-  return `turn ${c.turn}, ${game.slotColor[c.activePlayerId] || nameOf(c.activePlayerId)}'s ${REWIND_STEPS[c.step] || c.step}`;
+  return `turn ${c.turn}, ${game.slotColor[c.activePlayerId] || nameOf(c.activePlayerId)}'s ${rewindStep(c.step)}`;
 }
 function rewindState(gv) {
   const points = (gv.checkpoints || []).filter((c) => REWIND_STEPS[c.step]).slice(-12).reverse()
@@ -8096,26 +8841,28 @@ function onWinner(color, by) {
 }
 
 // Friendly mulligans. The engine takes the count off what a kept hand owes (the Keep answer's freeCards); these say so
-// at the table. With 3 or more players the rules' free mulligan comes first (Forge does that one by itself).
+// at the table. game.friendly is the free mulligans in all: with 3 or more players the rules' free one (Forge gives it
+// by itself) is one of them, so the engine is asked only for the rest (friendlyExtra) and a count of 1 is the rules.
 const rulesFreeMulligans = () => (game.total > 2 ? 1 : 0);
+const friendlyExtra = () => (game?.friendly ? Math.max(0, game.friendly - rulesFreeMulligans()) : 0);
 const friendlySay = (line) => { chat(`[MTG] ${line}`); gameLogLine(line); };
 function friendlyFreeLeft(seat) {
-  return game?.friendly ? Math.max(0, rulesFreeMulligans() + game.friendly - seat.mullsTaken) : 0;
+  return game?.friendly ? Math.max(0, Math.max(game.friendly, rulesFreeMulligans()) - seat.mullsTaken) : 0;
 }
 function friendlyText(seat) {
   const left = friendlyFreeLeft(seat);
   if (left) return `Free mulligans left: ${left}.`;
-  const owed = Math.max(0, seat.mullsTaken - rulesFreeMulligans() - game.friendly);
+  const owed = Math.max(0, seat.mullsTaken - Math.max(game.friendly, rulesFreeMulligans()));
   return owed ? `Keeping puts ${owed} on the bottom.` : "No free mulligans left: the next one costs a card.";
 }
 function mulliganTaken(seat) {
   seat.mullsTaken++;
   if (!game?.friendly) return;
   saveResume(); // (a bridge restart between mulligans keeps the count)
-  const nth = seat.mullsTaken - rulesFreeMulligans();
-  if (nth < 1 || nth > game.friendly) return; // the rules' free one, or one that costs a card
-  friendlySay(`${seat.color} took a friendly mulligan (${nth} of ${game.friendly}).`);
-  if (nth === game.friendly) friendlySay(`That was ${seat.color}'s last friendly mulligan: their next one costs a card.`);
+  const nth = seat.mullsTaken, all = Math.max(game.friendly, rulesFreeMulligans());
+  if (nth > all) return; // one that costs a card
+  friendlySay(`${seat.color} took a free mulligan (${nth} of ${all}).`);
+  if (nth === all) friendlySay(`That was ${seat.color}'s last free mulligan: their next one costs a card.`);
 }
 function friendlyEnded(gv) {
   if (!game.friendly || game.friendlyOver || !(gv.turn >= 1)) return;
@@ -8171,7 +8918,7 @@ function checkRestored(seat) {
   seat.forget();
   game.pendingPlays = (game.pendingPlays || []).filter((e) => e.ctl !== seat.slot);
   if (seat === leadSeat()) {
-    chat(`[MTG] Rewound to turn ${gv.turn} (${REWIND_STEPS[gv.step] || gv.step}).`);
+    chat(`[MTG] Rewound to turn ${gv.turn} (${rewindStep(gv.step)}).`);
     game.sentZones = {}; // the next board update sends every zone in full
     game.fxJump = true; // (and says it is a jump: the table plays no death / damage effects for what the rewind undid)
     game.lastTableSig = null; // (and goes out even if it matches the last one sent)
@@ -8186,7 +8933,7 @@ function checkRestored(seat) {
     // (the turn as the log's headers count it, each player's own: "White's turn 4", suite review 2026-10-27)
     // (whose turn and which step: Forge's turn number counts every player's turns, unlike the log's headers, and the
     // per-player count isn't wound back, suite review 2026-10-27)
-    gameLogLine(`--- Rewound to ${nameOf(gv.activePlayerId)}'s turn (${REWIND_STEPS[gv.step] || gv.step}) ---`);
+    gameLogLine(`--- Rewound to ${nameOf(gv.activePlayerId)}'s turn (${rewindStep(gv.step)}) ---`);
   }
 }
 
@@ -8361,7 +9108,7 @@ if (require.main === module) {
   // Loaded by a test (tests/bridge-harness.js): the logic without servers. `game` is set through _setGame.
   module.exports = {
     alignment, tableCard, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
-    summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, cardIndex, nameOf, notePlay, hasKeyword,
+    summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,

@@ -237,7 +237,7 @@ function engineStartGame(pl, rest, cleared)
   if engineStartSentAt ~= nil and os.clock() - engineStartSentAt < 5 then return false end
   engineStartSentAt = os.clock()
   engineSendDecks(read, pl.color)
-  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendlyVotes = engineFriendlyVote })
+  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly })
 end
 
 -- All "mtg ..." chat commands. Returns false (hide the line) when handled, nil otherwise.
@@ -249,13 +249,11 @@ function engineChat(message, pl)
   local cmd, restAt = lower:match("^%s*mtg%s*(%a*)%s*()")
   local rest = (lower:sub(restAt):gsub("%s+$", ""))
   local isHost = pl.host or pl.admin or pl.promoted
-  -- engine mode, starting a game and clearing a finished one: anyone sitting at the table (playtest 2026-10-25:
-  -- "allow non host to turn the engine on and off and to start games"); ending a running game stays the host's
-  local atTable = isHost or pl.seated
+  -- engine mode, starting a game, friendly mulligans and clearing a finished one: anyone, seated or not (playtest
+  -- 2026-10-25: "allow non host to turn the engine on and off and to start games"; 2026-11-10: "allow anyone to
+  -- click engine on/off and start too"); ending a running game stays the host's
   if cmd == "engine" then
-    if not atTable then
-      pl.broadcast("[MTG] Sit at a colour to switch engine mode.")
-    elseif rest == "on" then setEngineMode(true)
+    if rest == "on" then setEngineMode(true)
     elseif rest == "off" and engineTable ~= nil and engineTable() ~= nil then
       -- mid-game the engine's cards would stay while the table's own tools came back: end the game instead
       pl.broadcast("[MTG] An engine game is running. Type  mtg reset  to end it (that also turns engine mode off).")
@@ -264,11 +262,8 @@ function engineChat(message, pl)
     end
   elseif cmd == "friendly" then
     local n = tonumber(rest)
-    if not (atTable and data[pl.color]) then pl.broadcast("[MTG] Sit at a colour to vote.")
-    elseif n == 0 or n == 1 or n == 2 then
-      engineSetFriendly(pl.color, n)
-      pl.broadcast("[MTG] Your friendly mulligan vote: " .. engineFriendlyLabel(pl.color):gsub("^Friendly: ", "") .. ".")
-    else pl.broadcast("[MTG] Use: mtg friendly 0 | 1 | 2") end
+    if n == 0 or n == 1 or n == 2 then engineSetFriendly(n, pl)
+    else pl.broadcast("[MTG] Use: mtg friendly 0 | 1 | 2  (free mulligans each, for everyone)") end
   elseif cmd == "ready" then
     if rest == "all" then
       if not isHost then pl.broadcast("[MTG] Only the host can check everyone's decks.") return false end
@@ -281,7 +276,6 @@ function engineChat(message, pl)
   elseif cmd == "commander" then
     engineMarkCommander(pl)
   elseif cmd == "start" then
-    if not atTable then pl.broadcast("[MTG] Sit at a colour to start an engine game.") return false end
     engineStartGame(pl, rest)
   elseif cmd == "undo" then
     -- rewind by vote: "mtg undo" lists the restore points, "mtg undo 3" asks to go back to the third
@@ -386,13 +380,13 @@ function engineChat(message, pl)
     engineSend("aiseat", { text = rest })
   elseif cmd == "reset" then
     local running = engineTable ~= nil and engineTable() or nil
-    if not (isHost or (atTable and (running == nil or running.gameOver))) then
+    if not (isHost or running == nil or running.gameOver) then
       pl.broadcast("[MTG] Only the host can end a game that is still going.") return false
     end
     engineSend("reset", {})
     if ENGINE_MODE then engineClear() end -- don't wait for the bridge's "clear" (it may be down)
   else
-    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg ai <colour> harmless|forge [deck] / mtg ai <colour> off (host) - who plays an empty seat, every game\\n mtg friendly 0|1|2 - vote for free mulligans\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <kind>; mtg animations on/off (host) - also under Settings")
+    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg ai <colour> harmless|forge [deck] / mtg ai <colour> off (host) - who plays an empty seat, every game\\n mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <kind>; mtg animations on/off (host) - also under Settings")
   end
   return false
 end
@@ -713,9 +707,32 @@ const CLUTTER_BOXES = [
   { x: [-56, -44], z: [-8.5, 32] }, // beside Yellow/Red
   { x: [44, 56], z: [-26, 8.5] },   // beside White/Blue
 ];
+// Status pieces (docs/status-objects-spec.md, 2026-11-11): the clutter's pieces for a player status come back, parked
+// under the table, and the table puts one on a player's mat while their marks say it (engineStatusPieces in
+// engine-renderer.lua). `mark`: the bridge's PLAYER_MARKS label it shows, alone or followed by a count ("POISON 3");
+// `perSeat`: more than one player can have it at once, so each seat has its own copy (White keeps the original, the
+// others are copies under new GUIDs); `fade`: a model or token, made see-through with its tint's alpha (a card's alpha
+// doesn't do that: every piece is also invisible to every colour while parked); `count`: the count is drawn on it.
+// Their scripts go (spec "Scripts", first option): Day // Night's, The Ring's and Undercity's buttons would change what
+// the engine owns, and the counters' only draw a 0 the table now draws itself.
+const STATUS_SEATS = ["White", "Red", "Yellow", "Blue"];
+const STATUS_PIECES = [
+  { mark: "MONARCH", guid: "8963ec", fade: true },          // the crown
+  { mark: "MONARCH", guid: "197ab6" },                      // The Monarch card, under it
+  { mark: "INITIATIVE", guid: "2db63a" },                   // Undercity
+  { mark: "CITY'S BLESSING", guid: "cb418b", perSeat: true },
+  { mark: "RING TEMPTED", guid: "d9fcbc", perSeat: true },  // The Ring
+  { mark: "POISON", guid: "94b67a", perSeat: true, fade: true, count: true },
+  { mark: "ENERGY", guid: "da1b48", perSeat: true, fade: true, count: true },
+  { mark: "EXPERIENCE", guid: "576ccd", perSeat: true, fade: true, count: true },
+];
+const DAY_NIGHT = "4e8c7b"; // Day, its second state Night: table-wide, in the middle of the table
+const STATUS_PARK_Y = -30;  // under the table top, as the Pirate Cannon in engine mode
+const STATUS_KEEP = new Set([...STATUS_PIECES.map((p) => p.guid), DAY_NIGHT]);
 {
   const removed = [];
   save.ObjectStates = save.ObjectStates.filter((o) => {
+    if (STATUS_KEEP.has(o.GUID)) return true; // (kept, parked below)
     const t = o.Transform || {};
     // also: both "Drafting tools" bags and the "Pie's MTG Enablers" bag (user request, 2026-10-18)
     // also: modules and extras that make Unity's clean-up pauses longer and that nothing in engine mode uses
@@ -727,6 +744,65 @@ const CLUTTER_BOXES = [
   });
   report.push(`${removed.length ? "OK  " : "FAIL"} side clutter removed (${removed.length}): ${removed.join(", ")}`);
   if (!removed.length) process.exitCode = 1;
+}
+// The status pieces, parked: at their own spot under the table, locked, faded, without scripts; a seat's copy under a
+// GUID made from the original's and the seat's (the same in every build, so a save that already has it isn't given a
+// second one), checked against every GUID in the table. The Global script gets the list it moves them by.
+{
+  // (the original's GUIDs too, the clutter's included: none of them is given out again)
+  const used = new Set([...allObjects(save.ObjectStates), ...allObjects(JSON.parse(fs.readFileSync(SRC, "utf8")).ObjectStates)].map((o) => o.GUID));
+  const byGuid = new Map(save.ObjectStates.map((o) => [o.GUID, o]));
+  const kept = [], problems = [];
+  const r2 = (n) => Math.round(Number(n) * 1000) / 1000;
+  const park = (o) => {
+    for (const s of [o, ...Object.values(o.States || {})]) {
+      s.Transform = { ...s.Transform, posY: STATUS_PARK_Y };
+      s.Locked = true;
+      s.LuaScript = ""; s.LuaScriptState = ""; s.XmlUI = "";
+    }
+  };
+  const fade = (o) => { o.ColorDiffuse = { ...(o.ColorDiffuse || { r: 1, g: 1, b: 1 }), a: 0 }; };
+  const copyGuid = (guid, seat) => {
+    for (let salt = 0; salt < 50; salt++) {
+      const g = require("crypto").createHash("sha1").update(`${guid}:${seat}${salt ? `:${salt}` : ""}`).digest("hex").slice(0, 6);
+      if (!used.has(g)) { used.add(g); return g; }
+    }
+    throw new Error(`no free GUID for ${guid} ${seat}`);
+  };
+  const lua = [];
+  for (const p of STATUS_PIECES) {
+    const o = byGuid.get(p.guid);
+    if (!o) { problems.push(`${p.mark} piece ${p.guid} not in the table`); continue; }
+    const t = o.Transform;
+    const objs = [];
+    (p.perSeat ? STATUS_SEATS : [null]).forEach((seat, i) => {
+      let x = o;
+      if (i > 0) {
+        x = JSON.parse(JSON.stringify(o));
+        x.GUID = copyGuid(o.GUID, seat);
+        x.Transform = { ...x.Transform, posZ: t.posZ + i * 1.2 }; // (beside the original, under the table)
+        save.ObjectStates.push(x);
+      }
+      park(x);
+      if (p.fade) fade(x);
+      objs.push(`{ g = ${JSON.stringify(x.GUID)}, x = ${r2(x.Transform.posX)}, z = ${r2(x.Transform.posZ)}${seat ? `, seat = "${seat}"` : ""} }`);
+      kept.push(`${String(o.Nickname || o.Name).replace(/\[\/?[a-z]+\]/gi, "").split("\n")[0]}${seat ? ` ${seat}` : ""} (${x.GUID})`);
+    });
+    lua.push(`  { mark = ${JSON.stringify(p.mark)}, y = ${r2(t.posY)}, scale = { ${r2(t.scaleX)}, ${r2(t.scaleY)}, ${r2(t.scaleZ)} }${p.fade ? ", fade = true" : ""}${p.count ? ", count = true" : ""},\n    objs = { ${objs.join(", ")} } },`);
+  }
+  const day = byGuid.get(DAY_NIGHT);
+  const night = day && Object.values(day.States || {})[0];
+  let dayLua = "";
+  if (!day || !night || Object.keys(day.States).join() !== "2") problems.push(`Day // Night ${DAY_NIGHT} with its Night state 2 not in the table`);
+  else {
+    const t = day.Transform;
+    park(day);
+    kept.push(`Day // Night (${day.GUID}, Night ${night.GUID})`);
+    dayLua = `ENGINE_DAY_NIGHT = { states = { ${JSON.stringify(day.GUID)}, ${JSON.stringify(night.GUID)} }, y = ${r2(t.posY)}, scale = { ${r2(t.scaleX)}, ${r2(t.scaleY)}, ${r2(t.scaleZ)} }, x = ${r2(t.posX)}, z = ${r2(t.posZ)} }\n`;
+  }
+  save.LuaScript += `\n\n${TAG} status pieces (docs/status-objects-spec.md): which object shows which mark, per seat, and where it\n-- parks; written by make-engine-copy from the objects it kept (engineStatusPieces in engine-renderer.lua moves them)\nENGINE_STATUS_PIECES = {\n${lua.join("\n")}\n}\n${dayLua}`;
+  report.push(`${problems.length ? "FAIL" : "OK  "} status pieces kept, parked under the table (${kept.length}): ${problems.length ? problems.join("; ") : kept.join(", ")}`);
+  if (problems.length) process.exitCode = 1;
 }
 
 // Leftover check: nothing that downloads-and-runs code should remain reachable.

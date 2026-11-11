@@ -153,6 +153,39 @@ namespace MtgCompanion
             return null;
         }
 
+        // ───────────────────────────── the start sequence ─────────────────────────────
+
+        // DoStack's wait for the engine (each of its two waits). A cold Forge room took 2 min 15 s to open on 2 WSL
+        // cores on 2026-11-10, one second after the old 2-minute wait ended.
+        public const int StackWaitSeconds = 300;
+
+        public static string StackTimedOut(string why)
+        {
+            return "The engine didn't get ready within " + (StackWaitSeconds / 60) + " minutes: " + why;
+        }
+
+        // The step a start-sequence run begins at: the requested step, but never past the first step not yet done.
+        // So a button for a later step never skips the step the sequence stopped at, or the steps between: on the
+        // 2026-11-10 fresh install the engine timed out at step 3, Start the bridge ran steps 5-6, and the table save
+        // (step 4) was never installed. The stopped step runs again unless it has turned green since.
+        // stoppedAt: the first step the last run didn't finish (a red stop, or a press interrupted it there, as when
+        // Start the bridge is pressed again during the engine wait); 0: none, the requested step as it is.
+        public static int StartFrom(int requested, int stoppedAt, bool stoppedNowGreen)
+        {
+            if (stoppedAt <= 0) return requested;
+            return Math.Min(requested, stoppedNowGreen ? stoppedAt + 1 : stoppedAt);
+        }
+
+        // The step to carry on from once the step the sequence stopped at has turned green by itself (the engine got
+        // ready after the wait, Docker Desktop was started by hand, the bridge came up); 0: nothing to do. The watcher
+        // re-reads steps 1, 2 (every 5 minutes), 3, 5 and 6, never the table save (step 4): a save stop waits for
+        // Try again. Step 6 stops only while the app quits (DoTts otherwise goes on), so 7 is only the arithmetic: a
+        // run from 7 runs no step.
+        public static int ResumeAfterStop(int stoppedAt, bool stoppedNowGreen, bool observe)
+        {
+            return stoppedAt > 0 && stoppedNowGreen && !observe ? stoppedAt + 1 : 0;
+        }
+
         // ───────────────────────────── game lock ─────────────────────────────
 
         public static Game DecideGame(HttpResult state, double? resumeAgeSec)

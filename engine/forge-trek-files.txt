@@ -7,7 +7,7 @@ cardsfolder/upcoming/captain_jean_luc_picard.txt
 cardsfolder/upcoming/command_subadjunct.txt
 cardsfolder/upcoming/conquest_mission.txt
 cardsfolder/upcoming/deanna_troi_psychic_counsel.txt
-cardsfolder/upcoming/dr_mccoy_surly_surgeon.txt
+cardsfolder/upcoming/dr_mccoy_surly_surgeon.txt <- cardsfolder/d/dr_mccoy_surly_surgeon.txt
 cardsfolder/upcoming/excalbian_gamemaster.txt
 cardsfolder/upcoming/federation_resupply.txt
 cardsfolder/upcoming/ghost_of_illyria.txt
@@ -174,7 +174,7 @@ cardsfolder/upcoming/hemmer_fixing_what_is_broken.txt
 cardsfolder/upcoming/hit_it.txt
 cardsfolder/upcoming/the_inner_light.txt
 cardsfolder/upcoming/kira_nerys_firebrand.txt
-cardsfolder/upcoming/kirk_commanding_officer.txt
+cardsfolder/upcoming/kirk_commanding_officer.txt <- cardsfolder/k/kirk_commanding_officer.txt
 cardsfolder/upcoming/live_long_and_prosper.txt
 cardsfolder/upcoming/locutus_the_one_who_speaks.txt
 cardsfolder/upcoming/lore_positronic_provocateur.txt
@@ -338,7 +338,7 @@ cardsfolder/upcoming/planet_killer.txt
 cardsfolder/upcoming/queens_diamond.txt
 cardsfolder/upcoming/reconnaissance_partition.txt
 cardsfolder/upcoming/s_s_botany_bay.txt
-cardsfolder/upcoming/starfleet_communicator.txt
+cardsfolder/upcoming/starfleet_communicator.txt <- cardsfolder/s/starfleet_communicator.txt
 cardsfolder/upcoming/starship_enterprise.txt
 cardsfolder/upcoming/the_sword_of_kahless.txt
 cardsfolder/upcoming/u_s_s_defiant_mirror_migrant.txt
@@ -365,6 +365,7 @@ cardsfolder/upcoming/jean_luc_mon_capitaine.txt
 cardsfolder/upcoming/troi_winging_it.txt
 cardsfolder/upcoming/borg_queen_perfection_manifest.txt
 cardsfolder/s/skycloud_expanse.txt
+cardsfolder/upcoming/cantankerous_captain.txt <- cardsfolder/c/cantankerous_captain.txt
 tokenscripts/murf.txt
 tokenscripts/porthos.txt
 tokenscripts/rg_2_2_worm_noblock.txt

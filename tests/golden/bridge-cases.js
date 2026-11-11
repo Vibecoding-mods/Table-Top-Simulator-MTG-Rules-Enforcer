@@ -360,6 +360,84 @@ add({ name: "attack: refused, names who must attack", run: async (h) => {
 // 2026-10-27: End turn pressed this turn skips the attack (the must-attack creature still attacks); another turn's doesn't
 add(promptCase("attack: End turn this turn skips it", D2.board, attackP, [], { seat: { endTurnAt: D2.board.gameView.turn } }));
 add(promptCase("attack: End turn from an earlier turn doesn't", D2.board, attackP, [], { seat: { endTurnAt: D2.board.gameView.turn - 1 } }));
+// 2026-11-11: the attack question reminds of attack taxes and of the creatures that can't attack (attack reminder spec
+// part 2), and asks whom creatures with several targets attack (item 25). Ids as the live table sent them (tts-stream
+// 2026-11-10: a player "player-0", Grist's card id "engine-card-13"); Oracle text from Forge's cardsfolder.
+{
+  const THREE = { game: { total: 3, bots: 2, playerOrder: ["tts-Blue-ab12", "self-hosted-node-77-bot", "self-hosted-node-88-bot"],
+    slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "AI 2" }, slotColor: { "player-0": "Blue", "player-1": "White", "player-2": "Red" } } };
+  // D2's board in declare attackers, Blue's turn, with these permanents added ([owner, card]); three: a second AI
+  const combatBoard = (cards, three = false) => {
+    const b = clone(D2.board);
+    const gv = b.gameView;
+    if (three) {
+      gv.players.push({ ...clone(gv.players.find((p) => p.id === "player-1")), id: "player-2" });
+      gv.zones.push({ zone: "battlefield", ownerId: "player-2", cards: [], count: 0 });
+    }
+    for (const [o, c] of cards) gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === o).cards.push({ controllerId: o, ownerId: o, keywords: [], tapped: false, summoningSick: false, ...c });
+    Object.assign(gv, { step: "combatDeclareAttackers", activePlayerId: "player-0", priorityPlayerId: "player-0" });
+    return b;
+  };
+  const bear = { id: "engine-card-601", identity: { name: "Grizzly Bears" }, types: ["Creature"], subtypes: ["Bear"], color: "G", text: "", power: 2, toughness: 2 };
+  const propaganda = { id: "engine-card-501", identity: { name: "Propaganda" }, types: ["Enchantment"], color: "U",
+    text: "Creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you." };
+  const taxBoard = combatBoard([["player-0", bear], ["player-1", propaganda]]);
+  const taxP = prompt("chooseAttackers", { attackers: [{ attackerId: "engine-card-601", validTargetIds: ["player-1"], mustAttack: false }], attackTargets: [{ id: "player-1", label: "AI 1", kind: "player" }] });
+  add(promptCase("attack reminder: Propaganda's tax said before the attack", taxBoard, taxP, []));
+  add(promptCase("attack reminder: Propaganda's payment names the tax", taxBoard, taxP, [["engine-card-601|player-1"]]));
+  add({ name: "attack reminder: Propaganda's payment, then Don't attack", run: async (h) => {
+    const seat = game(h, taxBoard);
+    h.B.onPrompt(seat, taxP); await h.flush();
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["engine-card-601|player-1"] }) }); await h.flush();
+    const pay = prompt("payManaCost", { cardId: "engine-card-601", cardName: "Grizzly Bears", manaCost: "{2}", canConfirmFromPool: false,
+      actions: [{ id: "tap:engine-card-64:0", type: "activateManaAbility", cardId: "engine-card-64", description: "Mountain: {T}: Add {R}.", isManaAbility: true }] }, { promptId: 901 });
+    h.B.onPrompt(seat, pay); await h.flush();
+    const asked = { title: seat.prompt.ui.title, note: seat.prompt.ui.note, options: seat.prompt.ui.options.map((o) => o.label) };
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 901, choice: ["__cancel"] }) }); await h.flush();
+    return asked;
+  } });
+  // (review 2026-11-11: after priority, a pump on the attacker, same step, then the next turn: plain payments)
+  add({ name: "attack reminder: a pump on an attacker after priority is no tax, nor its ability next turn", run: async (h) => {
+    const seat = game(h, taxBoard);
+    h.B.onPrompt(seat, taxP); await h.flush();
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["engine-card-601|player-1"] }) }); await h.flush();
+    const payFor = (promptId, manaCost) => prompt("payManaCost", { cardId: "engine-card-601", cardName: "Grizzly Bears", manaCost, canConfirmFromPool: false,
+      actions: [{ id: "tap:engine-card-64:0", type: "activateManaAbility", cardId: "engine-card-64", description: "Mountain: {T}: Add {R}.", isManaAbility: true }] }, { promptId });
+    const seen = (ui) => ({ title: ui.title, note: ui.note ?? null, cancel: ui.options.at(-1).label });
+    h.B.onPrompt(seat, payFor(901, "{2}")); await h.flush();
+    const tax = seen(seat.prompt.ui);
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 901, choice: ["__cancel"] }) }); await h.flush();
+    h.B.onPrompt(seat, prompt("chooseAction", { actions: [{ id: "pass", type: "pass", label: "Pass priority" }] }, { promptId: 902 })); await h.flush();
+    h.B.onPrompt(seat, payFor(903, "{1}{G}")); await h.flush();
+    const pump = seen(seat.prompt.ui);
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 903, choice: ["__cancel"] }) }); await h.flush();
+    seat.board.state.gameView.turn = (seat.board.state.gameView.turn || 1) + 4;
+    h.B.onPrompt(seat, payFor(904, "{1}{G}")); await h.flush();
+    return { tax, pump, nextTurn: seen(seat.prompt.ui) };
+  } });
+  const cantBoard = combatBoard([["player-0", bear],
+    ["player-0", { id: "engine-card-603", identity: { name: "Hill Giant" }, types: ["Creature"], color: "R", text: "", summoningSick: true }],
+    ["player-0", { id: "engine-card-604", identity: { name: "Wall of Omens" }, types: ["Creature"], color: "W", text: "Defender (This creature can't attack.)\nWhen Wall of Omens enters, draw a card.", keywords: ["Defender"] }],
+    ["player-0", { id: "engine-card-605", identity: { name: "Pacifism" }, types: ["Enchantment"], color: "W", text: "Enchant creature\nEnchanted creature can't attack or block.", attachedTo: "engine-card-606" }],
+    ["player-0", { id: "engine-card-606", identity: { name: "Serra Angel" }, types: ["Creature"], color: "W", text: "Flying, vigilance", keywords: ["Flying", "Vigilance"] }]]);
+  const cantP = prompt("chooseAttackers", { attackers: [{ attackerId: "engine-card-601", validTargetIds: ["player-1"], mustAttack: false }], attackTargets: [{ id: "player-1", label: "AI 1", kind: "player" }] });
+  // (the prompt carries cantAttack, the table's Q/E reason by card id)
+  add(promptCase("attack reminder: creatures that can't attack, with why", cantBoard, cantP, []));
+  // two opponents and a planeswalker
+  const teferi = { id: "engine-card-504", identity: { name: "Teferi, Hero of Dominaria" }, types: ["Planeswalker"], subtypes: ["Teferi"], color: "WU", text: "+1: Draw a card. Untap up to two lands at the beginning of the next end step.", counters: { LOYALTY: 4 } };
+  const angel = { id: "engine-card-602", identity: { name: "Serra Angel" }, types: ["Creature"], color: "W", text: "Flying, vigilance", keywords: ["Flying", "Vigilance"] };
+  const threeBoard = combatBoard([["player-0", bear], ["player-0", angel], ["player-2", teferi]], true);
+  const ALL3 = ["player-1", "player-2", "engine-card-504"];
+  const threeP = prompt("chooseAttackers", { attackers: [{ attackerId: "engine-card-601", validTargetIds: ALL3, mustAttack: false }, { attackerId: "engine-card-602", validTargetIds: ALL3, mustAttack: false }],
+    attackTargets: [{ id: "player-1", label: "AI 1", kind: "player" }, { id: "player-2", label: "AI 2", kind: "player" }, { id: "engine-card-504", label: "Teferi, Hero of Dominaria", kind: "planeswalker" }] });
+  add(promptCase("attack targets: two opponents and a planeswalker, whom? first", threeBoard, threeP, [], THREE));
+  add(promptCase("attack targets: All attack asks whom", threeBoard, threeP, [["__allattack"]], THREE));
+  add(promptCase("attack targets: All attack at the chosen player", threeBoard, threeP, [["__allattack"], ["player|player-2"]], THREE));
+  add(promptCase("attack targets: All attack at the planeswalker", threeBoard, threeP, [["__allattack"], ["card|engine-card-504"]], THREE));
+  add(promptCase("attack targets: All attack one by one", threeBoard, threeP, [["__allattack"], ["__each"], ["player|player-1"], ["card|engine-card-504"]], THREE));
+  add(promptCase("attack targets: whom? Back to the attack question", threeBoard, threeP, [["__allattack"], ["__back"]], THREE));
+  add(promptCase("attack targets: Attack (1) with whom? asks for it alone", threeBoard, threeP, [["engine-card-601|?", "engine-card-602|player-1"], ["player|player-2"]], THREE));
+}
 const blockP = prompt("chooseBlockers", { error: "", attackers: [
   { attackerId: "engine-card-134", validBlockerIds: ["engine-card-35", "engine-card-75"], minBlockers: 1 },
   { attackerId: "engine-card-200", validBlockerIds: ["engine-card-75"], minBlockers: 2, mustBeBlocked: true }] });
@@ -1756,13 +1834,10 @@ add({ name: "table: a copy of a card is marked cp", run: async (h) => {
   const of = (id) => (sent.match(new RegExp('"id":"' + id + '"[^}]*}')) || ["not sent"])[0];
   return { copy: of("engine-card-22"), other: of("engine-card-64") };
 } });
-// ── Friendly mulligans (SPEC "Friendly mulligans by vote") ──
-add({ name: "friendly: the vote's result", run: async (h) => {
-  const n = (v, who = ["White", "Blue"]) => h.B._friendlyCount(v, who);
-  const four = ["White", "Red", "Yellow", "Blue"];
-  return { noVotes: n(null), empty: n({}), emptyList: n([]), both1: n({ White: 1, Blue: 1 }), both2: n({ White: 2, Blue: 2 }), tieGoesLower: n({ White: 1, Blue: 2 }),
-    oneMissing: n({ White: 2 }), outOfRange: n({ White: 3, Blue: 3 }), text: n({ White: "1", Blue: "1" }), yes: n({ White: true, Blue: true }), stranger: n({ Red: 2 }),
-    mostWins: n({ White: 1, Red: 2, Yellow: 2, Blue: 0 }, four), fourTie: n({ White: 1, Red: 1, Yellow: 2, Blue: 2 }, four), noneBeats: n({ White: 0, Red: 0, Yellow: 2, Blue: 1 }, four) };
+// ── Friendly mulligans (SPEC "Friendly mulligans") ──
+add({ name: "friendly: the table's count", run: async (h) => {
+  const n = h.B._friendlyCount;
+  return { none: n(undefined), nul: n(null), zero: n(0), one: n(1), two: n(2), three: n(3), minus: n(-1), half: n(1.5), text: n("1"), yes: n(true), table: n({ White: 2 }) };
 } });
 {
   // every mulligan question in turn: what the player saw, what went to the engine, what the table was told
@@ -1790,8 +1865,12 @@ add({ name: "friendly: the vote's result", run: async (h) => {
     const seat = game(h, D2.board, { game: { friendly: 2 } });
     return askAll(h, seat, [[0, "mull"], [1, "mull"], [2, "keep"]]);
   } });
-  add({ name: "friendly: 4 players, 1 free comes after the rules' free one", run: async (h) => {
+  add({ name: "friendly: 4 players set to 1 is the rules' free one", run: async (h) => {
     const seat = game(h, D2.board, { game: { friendly: 1, total: 4 } });
+    return askAll(h, seat, [[0, "mull"], [0, "mull"], [1, "keep"]]);
+  } });
+  add({ name: "friendly: 4 players set to 2 is 2 in all, the rules' one included", run: async (h) => {
+    const seat = game(h, D2.board, { game: { friendly: 2, total: 4 } });
     return askAll(h, seat, [[0, "mull"], [0, "mull"], [1, "mull"], [2, "keep"]]);
   } });
   add({ name: "friendly: 3 players have the rules' free one too", run: async (h) => {
@@ -1843,29 +1922,29 @@ add({ name: "friendly: the vote's result", run: async (h) => {
       return { ok, friendly: g.friendly, over: g.friendlyOver, taken: st.mullsTaken, again };
     })() };
   } });
-  add({ name: "friendly: Start reads the votes and the game says so", run: async (h) => {
+  add({ name: "friendly: Start reads the count and the game says so", run: async (h) => {
     const start = (m) => h.B.onTTS({ t: "start", seats: ["White", "Blue"], bots: 0, ...m });
-    start({ friendlyVotes: { White: 2, Blue: 2, Red: 1 } }); await h.flush();
+    start({ friendly: 2 }); await h.flush();
     const g = h.B._getGame();
     const seat = g.seats.get("Blue"), other = g.seats.get("White");
     const mark = h.effects.length;
     seat.onRelay({ type: "GameStarted", player_order: [other.username, seat.username], game_id: "g1", starting_life: 40 });
     await h.flush();
-    return { friendly: g.friendly, said: h.effects.slice(mark).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text || e.tts.msg).filter((t) => /friendly/i.test(t)),
+    return { friendly: g.friendly, said: h.effects.slice(mark).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text || e.tts.msg).filter((t) => /friendly|mulligan/i.test(t)),
       log: h.effects.slice(mark).filter((e) => e.tts?.t === "gamelog").flatMap((e) => e.tts.lines) };
   } });
-  add({ name: "friendly: a vote for none says nothing at the start", run: async (h) => {
-    h.B.onTTS({ t: "start", seats: ["White", "Blue"], bots: 0, friendlyVotes: { White: 2 } }); await h.flush();
+  add({ name: "friendly: a count of none says nothing at the start", run: async (h) => {
+    h.B.onTTS({ t: "start", seats: ["White", "Blue"], bots: 0, friendly: 5 }); await h.flush();
     const g = h.B._getGame();
     const seat = g.seats.get("Blue"), other = g.seats.get("White");
     const mark = h.effects.length;
     seat.onRelay({ type: "GameStarted", player_order: [other.username, seat.username], game_id: "g1", starting_life: 40 });
     await h.flush();
-    return { friendly: g.friendly, said: h.effects.slice(mark).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text || e.tts.msg).filter((t) => /friendly/i.test(t)) };
+    return { friendly: g.friendly, said: h.effects.slice(mark).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text || e.tts.msg).filter((t) => /friendly|mulligan/i.test(t)) };
   } });
-  add({ name: "friendly: Start with a game running changes no vote", run: async (h) => {
+  add({ name: "friendly: Start with a game running changes no count", run: async (h) => {
     const seat = game(h, D2.board, { game: { friendly: 1 }, seat: { roomId: "r1" } });
-    h.B.onTTS({ t: "start", seats: ["Blue"], bots: 1, autoReset: true, friendlyVotes: { Blue: 2 } }); await h.flush();
+    h.B.onTTS({ t: "start", seats: ["Blue"], bots: 1, autoReset: true, friendly: 2 }); await h.flush();
     return { friendly: h.B._getGame().friendly, same: h.B._getGame().seats.get("Blue") === seat };
   } });
   add({ name: "friendly: the first turn ends them, said once", run: async (h) => {
@@ -7092,6 +7171,66 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
     }
     return out;
   } });
+}
+
+// Planeswalkers by click (item 24, 2026-11-11): a choice among players and permanents that is no target. Forge's
+// chooseSingleEntityForEffect over a mixed list reaches us as a chooseFromSelection of labels, a player by its engine
+// name and a card by CardView.toString, "<name> (<Forge's number>)", under the card's name alone (awaitModeChoice's
+// title). Each label known (a card by its one permanent of that name): asked as a target question, the answer back as
+// the option's number.
+{
+  const walker = { id: "engine-card-973", identity: { name: "Chandra, Torch of Defiance" }, types: ["Planeswalker"], ownerId: "player-1", controllerId: "player-1", text: "", counters: { LOYALTY: 4 } };
+  const hero = { id: "engine-card-974", identity: { name: "Hero of Bladehold" }, types: ["Creature"], ownerId: "player-0", controllerId: "player-0",
+    text: "Battle cry\nWhenever this creature attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking.", power: 3, toughness: 4 };
+  const withWalker = (...more) => {
+    const b = clone(D2.board);
+    b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards.push(clone(walker), ...more);
+    b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push(clone(hero));
+    return b;
+  };
+  const attackAsk = (labels) => prompt("chooseFromSelection", { minTotal: 1, maxTotal: 1, options: labels.map((label) => ({ label })), presentation: { title: "Hero of Bladehold" } },
+    { sourceCard: clone(hero), sourceAbilityText: "Whenever Hero of Bladehold attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking." });
+  add(promptCase("planeswalker by click: a token attacking chooses the AI or its planeswalker, the planeswalker's click", withWalker(),
+    attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (412)"]), [["card|engine-card-973"]]));
+  add(promptCase("planeswalker by click: a token attacking chooses the AI or its planeswalker, the life counter's click", withWalker(),
+    attackAsk(["Self-hosted-node-77-bot", "Chandra, Torch of Defiance (412)"]), [["player|player-1"]]));
+  // (Zevlor's copy: a player and their permanents, any kind: "player or permanent", no attack)
+  add(promptCase("planeswalker by click: a player or any of their permanents (Zevlor), a creature's click", withWalker(),
+    prompt("chooseFromSelection", { minTotal: 1, maxTotal: 1, options: [{ label: "self-hosted-node-77-bot" }, { label: "Chandra, Torch of Defiance (412)" }, { label: "Eclipsed Flamekin (88)" }], presentation: { title: "Zevlor, Elturel Exile" } },
+      { sourceCard: { id: "engine-card-975", identity: { name: "Zevlor, Elturel Exile" } } }),
+    [["card|engine-card-134"]]));
+  // (two permanents of one name: which one Forge's number means is unknown, so the list is asked as before)
+  add(promptCase("planeswalker by click: two of one name stay a list", withWalker({ ...clone(walker), id: "engine-card-976" }),
+    attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (412)", "Chandra, Torch of Defiance (415)"]), [["1"]]));
+  // (a card of the same name in a graveyard: Forge's number may mean that one, so the list is asked as before)
+  add(promptCase("planeswalker by click: a name also in a graveyard stays a list", (() => {
+    const b = withWalker();
+    b.gameView.zones.find((z) => z.zone === "graveyard" && z.ownerId === "player-1").cards.push({ ...H(134), id: "engine-card-977" });
+    return b;
+  })(), prompt("chooseFromSelection", { minTotal: 1, maxTotal: 1, options: [{ label: "self-hosted-node-77-bot" }, { label: "Eclipsed Flamekin (88)" }], presentation: { title: "Zevlor, Elturel Exile" } },
+    { sourceCard: { id: "engine-card-975", identity: { name: "Zevlor, Elturel Exile" } } }), [["1"]]));
+  // (two of one name with only one of them offered: still unknown which, a list)
+  add(promptCase("planeswalker by click: two of one name, one offered, stays a list", withWalker({ ...clone(walker), id: "engine-card-976" }),
+    attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (412)"]), [["1"]]));
+  // (a name only in a graveyard: no permanent to click, a list)
+  add(promptCase("planeswalker by click: a card only in a graveyard stays a list", withWalker(),
+    prompt("chooseFromSelection", { minTotal: 1, maxTotal: 1, options: [{ label: "self-hosted-node-77-bot" }, { label: `${H(196).identity.name} (61)` }], presentation: { title: "Zevlor, Elturel Exile" } },
+      { sourceCard: { id: "engine-card-975", identity: { name: "Zevlor, Elturel Exile" } } }), [["1"]]));
+  // (players alone: Forge's "choose a player" lists stay as they were)
+  add(promptCase("planeswalker by click: players alone stay a list", withWalker(),
+    prompt("chooseFromSelection", { minTotal: 1, maxTotal: 1, options: [{ label: "tts-Blue-ab12" }, { label: "self-hosted-node-77-bot" }], presentation: { title: "Zevlor, Elturel Exile" } },
+      { sourceCard: { id: "engine-card-975", identity: { name: "Zevlor, Elturel Exile" } } }), [["1"]]));
+  // (the attack wording from the resolving ability's text, the source card's own text unknown)
+  add(promptCase("planeswalker by click: attack wording from the ability's text alone", withWalker(),
+    prompt("chooseFromSelection", { minTotal: 1, maxTotal: 1, options: [{ label: "self-hosted-node-77-bot" }, { label: "Chandra, Torch of Defiance (412)" }], presentation: { title: "Hero of Bladehold" } },
+      { sourceCard: { id: "engine-card-978", identity: { name: "Hero of Bladehold" } }, sourceAbilityText: "Whenever Hero of Bladehold attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking." }),
+    [["player|player-1"]]));
+  // (a card's label is "<name> (<a number>)"; anything else in the brackets is not one)
+  add(promptCase("planeswalker by click: a bracket without a number stays a list", withWalker(),
+    attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (x)"]), [["1"]]));
+  // (a label that is neither a player nor a permanent: as before)
+  add(promptCase("planeswalker by click: an unknown label stays a list", withWalker(),
+    attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (412)", "Somebody Else"]), [["2"]]));
 }
 
 module.exports = cases;

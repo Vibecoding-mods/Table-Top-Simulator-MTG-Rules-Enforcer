@@ -24,9 +24,10 @@ To shut down: **Stop MTG.bat** in the same folder.
 4. Press **READY?** on your playmat. It checks every card against the engine:
    - **READY** (green): good to go;
    - **FIX DECK** (red): the chat says what's wrong (an unknown card, no commander, ...).
-   Under it is **Friendly: none**: click it to vote for 1 or 2 free mulligans each (or `mtg friendly 0|1|2`). At Start the count most
-   players voted for wins, a tie goes to the lower count, and no vote counts as none. A free mulligan is a new 7 with nothing put on
-   the bottom. The game says when a player has used theirs. With 3 or more players the vote adds to the rules' free first mulligan.
+   On the left rim of the table (where the cannon sits outside engine mode) is **Free mulligans / None**: anyone clicks it for 1,
+   2, then back to None (or `mtg friendly 0|1|2`); it's one count for the whole table and everyone is told who changed it. That's
+   the free mulligans each player has in all, the rules' free first one in a 3+ player game included. A free mulligan is a new 7
+   with nothing put on the bottom. The game says when a player has used theirs.
    AI players take normal mulligans. Your vote stays for a rematch.
 5. When everyone is ready, anyone seated presses **Start** on the middle tile.
    - Against the computer: `mtg start ai 1` (up to 3 AI players); `mtg aideck <deck>` (host) picks their deck.
@@ -133,7 +134,7 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 |---|---|
 | `mtg help` | the list of commands |
 | `mtg ready` | the same as the READY? button |
-| `mtg friendly 0\|1\|2` | your vote for free mulligans, the same as the Friendly button |
+| `mtg friendly 0\|1\|2` | free mulligans each, for everyone, the same as the Free mulligans button |
 | `mtg engine on` / `off` | anyone seated: the rules engine on or off |
 | `mtg start [ai N]` | anyone seated: start (optionally with N Forge AI players) |
 | `mtg reset` | host: end the game and give the imported decks back (anyone seated once the game is over) |

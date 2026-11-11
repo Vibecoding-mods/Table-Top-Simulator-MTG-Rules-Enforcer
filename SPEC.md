@@ -439,22 +439,22 @@ below are not built.
 - **AFK vote:** any player can start a vote to mark someone away. With a majority, that player's turns pass automatically (or a Forge AI covers the seat, chosen by the vote) until they press "I'm back" in their panel.
 - Both would use the same vote panel as the rewind and manual-fix votes (§10c).
 
-## Friendly mulligans by vote (built 2026-10-31, restored 2026-11-05)
+## Friendly mulligans (built 2026-10-31, restored 2026-11-05, one shared count 2026-11-10)
 
 Built on 2026-10-31, taken out on 2026-11-01 while the user chased a choppy PC, and put back on 2026-11-05 at the user's request ("the way it was before"). If the stutter comes back with it, that is looked at then.
 
-The table votes on how many free mulligans each player gets: none, 1 or 2. A free mulligan is a new 7 with nothing put on the bottom. When a player has used theirs, the game says so and that player's mulligans cost a card again.
+The table sets how many free mulligans each player gets: normal rules, 1 or 2. A free mulligan is a new 7 with nothing put on the bottom. When a player has used theirs, the game says so and that player's mulligans cost a card again.
 
 ### How it plays
 
-- **Vote:** a small button under each player's READY, on their own mat: **Friendly: none**, click for **1**, click for **2**, click for none. `mtg friendly 0|1|2` does the same. The vote can change until Start. AI seats don't vote.
-- **Result:** at Start, the count with the most votes wins, and a tie goes to the lower count. No vote counts as none, so with two players the lower of the two votes wins.
-- **Announced at the start:** `[MTG] Friendly mulligans this game: 1 each (White voted 1, Blue voted 2).` Nothing is said when the result is none.
-- **Each free mulligan:** `[MTG] White took a friendly mulligan (1 of 2).`
-- **Going back to normal:** `[MTG] That was White's last friendly mulligan: their next one costs a card.` When the first turn starts, after a game with friendly mulligans: `[MTG] Friendly mulligans are over: normal rules from here.`
+- **One count for everyone** (2026-11-10, the user: "one button be the answer for everyone and anyone can click it"): ONE button **Free mulligans / None** (then **1**, **2**; the user 2026-11-11: "should say None, 1, or 2 not normal") on the left rim where the Pirate Cannon sits when engine mode is off (the cannon is hidden in engine mode), turned a quarter left from White (the user: "turn it 90 left away from the camera, have it sit where the cannon would be"). Anyone, seated or not, clicks it for **1**, **2**, back to **None**. `mtg friendly 0|1|2` does the same. Each change is told to everyone: `[MTG] <name> set free mulligans for everyone: 2 each (the rules' free one in a 3+ player game included).` It can change until Start. (Before 2026-11-10 each player voted on their own mat and the most votes won.)
+- **The count is the free mulligans in all** (the user's option (a), 2026-11-10): with 3 or more players the rules' free one is one of them, so "1" is the normal rules there and "2" is two free, not three.
+- **Announced at the start:** `[MTG] Free mulligans this game: 2 each (the rules' free one included).` (the bracket only with 3 or more players). Nothing is said when the count is normal.
+- **Each free mulligan:** `[MTG] White took a free mulligan (1 of 2).`
+- **Going back to normal:** `[MTG] That was White's last free mulligan: their next one costs a card.` When the first turn starts, after a game with friendly mulligans: `[MTG] Friendly mulligans are over: normal rules from here.`
 - **On the question:** the button reads **Mulligan (free)** while the next one is free, and the panel says how many are left. When keeping costs cards it says how many go on the bottom. With no friendly mulligans voted the question reads as it always did.
 - **Counted per player**, not per table: White taking two doesn't use up Blue's.
-- **With 3 or more players**, the rules already make the first mulligan free, and Forge does this by itself. The vote adds to it: "none" is the normal rules, "1" means two free in a 4-player game. Friendly mulligans are spent after the rules' free one.
+- **With 3 or more players**, the rules already make the first mulligan free, and Forge does this by itself. The count includes it: the engine is asked only for the rest (`freeCards` = count − 1).
 - **AI players** take normal mulligans. Forge's AI doesn't go through our controller.
 
 ### How the engine stays involved
@@ -486,21 +486,21 @@ Only the node image needs the rebuild. The relay checks an answer by reading it 
 
 ### Bridge changes (`bridge/bridge.js`)
 
-- `case "start"`: passes `m.friendlyVotes` to `startGame` inside the `go` closure, so a Start that only resumes a running game changes nothing.
-- `startGame`: `game.friendly = friendlyCount(votes, humans)` (most votes, tie goes lower, a missing vote is 0, anything but 1 or 2 is 0). The crash-recovery snapshot lists its fields by hand, so `friendly` and `friendlyOver` are in its `game` part.
+- `case "start"`: passes `m.friendly` to `startGame` inside the `go` closure, so a Start that only resumes a running game changes nothing.
+- `startGame`: `game.friendly = friendlyCount(n)` (1 or 2, anything else is 0). The crash-recovery snapshot lists its fields by hand, so `friendly` and `friendlyOver` are in its `game` part.
 - `Seat`: new `mullsTaken`, counted in `Seat.respond` (every answer goes through it, the timer's too), and added to the snapshot's seat list the same way. `input.mulliganCount` can't be used for this: it's the cards owed, so it stays 0 after the free one in a 4-player game.
-- `rulesFreeMulligans()`: `game.total > 2 ? 1 : 0`. `friendlyFreeLeft(seat)`: `max(0, rulesFree + game.friendly - taken)`. `friendlyText(seat)`: the free ones left, or owed = `max(0, taken - rulesFree - game.friendly)`.
+- `rulesFreeMulligans()`: `game.total > 2 ? 1 : 0`. All free = `max(game.friendly, rulesFree)`. `friendlyFreeLeft(seat)`: `max(0, all - taken)`. `friendlyText(seat)`: the free ones left, or owed = `max(0, taken - all)`. `friendlyExtra()`: `max(0, game.friendly - rulesFree)`, what the engine adds.
 - `case "mulligan"` in `onPrompt`: the label and text above. Keep the option ids `keep` and `mull`, because the Mulligan tiles look for `mull`.
-- `toOutput`: add `freeCards: game.friendly` when it's above 0. The timer's automatic answer goes through the same `toOutput`, so it's covered.
+- `toOutput`: add `freeCards: friendlyExtra()` when it's above 0. The timer's automatic answer goes through the same `toOutput`, so it's covered.
 - Chat and game-log lines above: the start line in `startGame`'s announcement, the per-mulligan lines where `mullsTaken` goes up, the "over" line on the first turn.
 
 ### Table changes (`tools/engine-renderer.lua`, `tools/make-engine-copy.js`)
 
-- `engineFriendlyVote = {}` (colour -> 0, 1 or 2), a global: the main chunk has no locals to spare.
-- In the setup draw, beside the READY button: `setupButton(mat, "onMtgSetupFriendly", "Friendly: " .. label, SETUP.color.wait, spot, c)`, moved further along the same line from the Draw button. A mat button adds nothing to the 60 KB screen UI.
-- `onMtgSetupFriendly(obj, playerColor)`: finds the mat's colour as `onMtgSetupReady` does, refuses another player's click with the same message, moves to the next count and redraws.
-- `make-engine-copy.js`: `mtg friendly 0|1|2` in the chat commands and `mtg help` (anyone seated); `friendlyVotes = engineFriendlyVote` in the `start` message.
-- The vote carries over to the next game, so a rematch needs no clicks. A table reload clears it.
+- `engineFriendly = 0` (0, 1 or 2) and `FRIENDLY_SPOTS` (x ±17.5, read from White's and Yellow's side), globals: the main chunk has no locals to spare.
+- In the setup draw, after the middle tile's own button: one `setupButton(tile, "onMtgSetupFriendly", engineFriendlyLabel(), ...)` per spot. `engineSetupIntact` redraws when they're missing. A tile button adds nothing to the 60 KB screen UI.
+- `onMtgSetupFriendly(obj, playerColor)`: anyone; the next count, told to everyone (`engineSetFriendly(n, pl)`), and a redraw.
+- `make-engine-copy.js`: `mtg friendly 0|1|2` in the chat commands and `mtg help` (anyone); `friendly = engineFriendly` in the `start` message.
+- The count carries over to the next game, so a rematch needs no clicks. A table reload clears it.
 
 ### Tests and rollout
 
@@ -509,3 +509,64 @@ Only the node image needs the rebuild. The relay checks an answer by reading it 
 - **Engine, headless, on a second container** (room `tts-test`, the running table isn't touched): with 2 free, two mulligans keep 7; with 1 free, two mulligans put 1 on the bottom; a game with 3 players; `freeCards` absent behaves as today.
 - **Break it on purpose** (`jr-programmer-suite` §2b), then one real game with two people.
 - **Rollout:** convert `.sh` to LF, build `mtg-forge-node:<tag>` (about 20 minutes, most of it the native step), then `node tools/deploy.js --image <tag>` with TTS closed: it runs the gates and the live checks, retags the node as `:exile` and recreates the containers. The relay stays as it is. Only between games: never swap images mid-game, and the table push needs the decks off the table. Then HOW-TO-PLAY.md, README.md and the PLAN note.
+
+## Player marks and status objects on the mat (added 2026-11-10)
+
+- **Marks boxes (built in source 2026-11-10):** a player's marks (monarch, initiative, poison, the Ring, speed, an
+  extra turn, a turn run by another player, ...) show as small green boxes, one a mark, stacked down the inner corner
+  of their own mat right under their heart (the user: "corner of your playmat under your heart"; "you can add multiple
+  boxes if need be instead of cramming everything in one box"). They keep to the strip the battlefield grid leaves free
+  at the inner end of every row, so cards never land on them. Past ten marks the tenth box says "+n MORE".
+- **Status objects (built in source 2026-11-11, not yet seen live):** the original table's pieces for those statuses come back: the Monarch crown, the
+  initiative's Undercity, City's Blessing, the Ring, Day // Night and the poison / energy / experience tokens. They wait
+  under the table, locked and unseen (opacity 0), and the one for a status moves onto the holder's mat just under its
+  box when the box says so, e.g. "if the box says monarch the crown spawns in on their mat". Full spec:
+  [docs/status-objects-spec.md](docs/status-objects-spec.md).
+
+## Green glow on permanents with a usable ability (added 2026-11-11, spec only)
+
+The user: "have creatures, permanents and Planeswalkers on the battlefield highlight green when an ability can be
+used. Also have it only highlight for its controller if possible."
+
+**What it does.** When you have priority, each permanent you control whose ability you can activate right now gets the
+same green frame as a castable card in your hand. This covers creatures, planeswalkers (a loyalty ability not yet used
+this turn, at sorcery speed), artifacts, enchantments, battles and lands with a non-mana ability. The frame goes when
+the question changes (you pass, you use the ability, a target or payment question opens) and comes back at your next
+priority.
+
+**Only its controller sees it: possible, and already done for the hand.** A TTS highlight (`highlightOn`) is seen by
+everyone, so the glow is not a highlight. It is the green frame already drawn for playable hand cards
+(`enginePlayableGlow`, "playable cards glow green in your hand"): four bars in the card's own UI, with `visibility` set
+to one player's colour. On a battlefield card the colour is the card's **controller** (not its owner: a stolen
+creature glows for whoever has it). The frame belongs to the card, so a tapped card's frame turns with it.
+
+**Where the list comes from.** Only from the engine. The frame is shown exactly for the cards behind the priority
+question's ability options, the same list the on-card ability buttons and the ability panel use
+(`engineAbilityWant`). The table never decides on its own that an ability is usable.
+
+**Left out on purpose:**
+- **Mana abilities only.** A land or Sol Ring whose only usable ability makes mana does not glow at priority, or nearly
+  every land would glow every time. Mana sources keep glowing while you pay, as today. A permanent with a mana
+  ability *and* another usable ability glows.
+- **Other questions.** While you pick targets, attackers or blockers, or pay a cost, the existing table-wide glows
+  (green = pickable, gold = chosen) are the only ones shown, so the two never mix on one card.
+- **Phased-out cards** never glow (the engine offers nothing for them).
+
+**Details:**
+- A token stack glows when any token in it has a usable ability.
+- `mtg glow` (the existing switch) turns this glow off together with the hand glow, for that player only.
+- The card's UI may already hold other parts (the effects pool). The frame is added beside them, never by replacing
+  the card's whole UI. Like the hand glow, it is built once per card and then only shown or hidden. First builds are
+  spread over frames on a big board, so a 40-permanent turn doesn't stutter.
+
+**Checks** (`tests/test_table_claims.js`, on recorded boards with real Forge option text):
+- the frame's `visibility` is the controller's colour, and the other seats get none;
+- a stolen creature glows for its controller, not its owner;
+- a mana-only land has no frame at priority but glows when paying; a land with a non-mana ability does;
+- a planeswalker glows before its loyalty ability is used and not after;
+- the frame goes on pass, on use and when a target question opens, and comes back at the next priority;
+- a tapped card and a token stack get it;
+- `mtg glow` turns it off.
+
+Live check: two seats on the real table, through exec. The frame is seen on the controller's own creature, and its
+`visibility` names only that colour.

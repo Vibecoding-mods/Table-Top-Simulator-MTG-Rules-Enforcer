@@ -66,12 +66,14 @@ legal advice; the licence texts are what count.
   check that no longer crashes on Spider-Sense, and undoing a mana tap also undoing what that tap triggered; a
   controlled player's questions (Mindslaver) go to the seat controlling them, up a chain of control to the last seat
   that can answer; a rewind puts the extra-turn queue back, and `extraTurnCount` counts every extra turn queued for a
-  player.
+  player; Mayhem (discarded this turn), Harmonize, Beam me up and plotted cards get `mayPlay`; and a Forge AI seat
+  whose main deck is all lands (`ai_passive_lands`, the harmless bot) gets `PassiveLobbyPlayerAi`, which only plays
+  lands: no spells, no abilities, no opening-hand cards, no attack unless the rules force one.
 - **Forge card scripts:** 29 scripts that remembered cards and never cleared them, so a second use acted on old cards
   (`docs/reviews/forge-remembered-audit.md`).
 - **Forge rules code:** `TriggerHandler.removeWaitingTapsForMana`, used by that undo.
 - **Star Trek (TRK, TRC), 2026-11:** the two sets' card scripts, tokens, edition files and creature types from
   Card-Forge/forge `6d4a175`, plus the Java those cards need (assimilate, peace counters, and a few `Count$` and
-  property names). Every imported file is listed in `forge-trek-files.txt`; what and why in
+  property names), and four script fixes from `2549d11` (2026-11-10). Every imported file is listed in `forge-trek-files.txt`; what and why in
   `docs/forge-update-2026-11.md`. `checks/` holds the headless checks used for it and
   `harness-tests.sh`, the unit-test runner above.
