@@ -7,6 +7,17 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 ---
 
 ## 2026-11-11
+- ✅ Round 1 seen on the real table (live check, scenarios live-r1*.json): the Free mulligans button, the Day piece
+  mid-table, the flashback row card's hover, a planeswalker clicked as Lightning Bolt's target, "Attack whom with Hero
+  of Bladehold 3/4?" offering the AI's planeswalker (answered by clicking it), the Propaganda tax hint, attackers with
+  their sizes. The monarch's mat also showed Undercity, City's Blessing and The Ring: a bare `local` in a for-in body
+  is the looped table in TTS. Fixed with three more such locals (one dropped the ability panel's greyed reasons) and a
+  gate, test_moonsharp_loop_locals (f51b184), deployed and seen fixed.
+- ⬜ Found in that check, not fixed: a debug scenario's planeswalker enters with no loyalty and dies at once; a
+  player-or-permanent choice the bridge can't map (two cards of one name anywhere) still reads "choose one" with
+  "Jace Beleren (201)"; the log's "White attacks with Hero of Bladehold" doesn't name the planeswalker, and it put
+  the Giant Growth cast (declare-attackers step) after the combat damage; a mid-game `mtg debug` without keepHand
+  bottoms the hand and adds 20 lands. The pump-on-attacker payment title wasn't seen (the pool paid by itself).
 - 🔶 (source) Small queued bugs, bridge and table side (docs/next-features-2026-11-09.md "Also queued"), each
   reproduced by a test from its real report first: the flashback row card's hover-text alarm; a stray copy left
   beside a pile (Rancor) and plays queued for graveyard cards; payment taps that can't pay anything owed (Viscera
