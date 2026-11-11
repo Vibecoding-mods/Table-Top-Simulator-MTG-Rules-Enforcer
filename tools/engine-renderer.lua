@@ -2319,8 +2319,8 @@ end
 enginePrompts = {}        -- colour -> open prompt from the bridge
 local engineSelected = {} -- colour -> { [option index] = true }
 -- The panel is hidden unless something opened it (the player playtested it popping up on every card played):
--- "pin" = the player pressed Engine: show (stays until Engine: hide), "ask" = a question the table can't answer
--- itself (closes again once that question is gone), "browse" = Graveyards / exile was pressed.
+-- "pin" = the player pressed the Choices tab (stays until pressed again), "ask" = a question the table can't answer
+-- itself (closes again once that question is gone), "browse" = a side tab opened it (engineOpenTab).
 local engineShown = {}    -- colour -> nil | "pin" | "ask" | "browse"
 local engineFilter = {}   -- colour -> search text
 local engineVisible = {}  -- colour -> { [button slot] = option index }
@@ -2335,24 +2335,51 @@ local POOL = 30
 local function count(t) local n = 0 for _ in pairs(t or {}) do n = n + 1 end return n end
 
 -- Each UI change costs TTS about a millisecond, and a new prompt changes dozens, so every change is one call.
--- Setting a button's text (or showing it again) redraws its label in the default dark colour, and TTS ignores a
--- textColor equal to the stored one; alternating between two near-identical whites makes every set count, in
--- the same call (this used to take a second call a frame later).
-local whiteFlip = {}
-local function nextWhite(id)
-  whiteFlip[id] = not whiteFlip[id]
-  return whiteFlip[id] and "#FFFFFF" or "#FEFEFE"
+-- Any set on a Button redraws it from the attributes the element holds itself (docs/engine-ui-spec.md 2.1): its label
+-- goes back to TTS's dark grey unless the same call carries a textColor, and TTS ignores a textColor equal to the
+-- stored one; its background goes back to TTS's white when its colour lived only in a <Defaults> class (the ability
+-- panel was grey with dark text, Auto-resolve's text dim, 2026-11-10). So every call carries both: the colour as it is
+-- (once on the element, a redraw keeps it), the text colour alternating between two that look the same so it counts.
+-- ENGINE_THEME: the colours of the engine's screen UI, taken from the table's own buttons (#1A1A1A, white text).
+ENGINE_THEME = { window = "#161616F0", button = "#262626", dock = "#1A1A1A", tabOn = "#3A3022", muted = "#1C1C1C",
+  mutedText = "#8C9199", gold = "#FFD27A", text = "#FFFFFF" }
+engineBtnLook = {} -- Button id -> { bg, tc }: the colours its XML gives it (engineRenderPanels)
+engineColorFlip = {}
+function engineFlipColor(key, hex)
+  engineColorFlip[key] = not engineColorFlip[key]
+  hex = tostring(hex)
+  if not engineColorFlip[key] or not hex:find("^#%x+$") then return hex end
+  local last = tonumber(hex:sub(-1), 16)
+  return hex:sub(1, -2) .. string.format("%X", last - last % 2 + (1 - last % 2))
 end
-local function isButton(id)
-  return id:find("^eng_opt_") or id:find("^eng_confirm_") or id:find("^eng_cancel_") or id:find("^eng_toggle_")
-    or id:find("^eng_browse_") or id:find("^eng_logbtn_") or id:find("^eng_pace_") or id:find("^eng_fx_") or id:find("^eng_anim_") or id:find("^eng_snd_") or id:find("^eng_set_") or id:find("^eng_stop_")
-    or id:find("^eng_big_") or id:find("^eng_big2_") or id:find("^eng_rowopt_") or id:find("^eng_abp_%a+_%d")
-    or id:find("^eng_undo") or id:find("^eng_autores_") or id:find("^eng_voteyes_") or id:find("^eng_voteno_") or id:find("^eng_votego_") or id:find("^eng_scoop") or id:find("^eng_fixb") or id:find("^eng_fixcall_")
+-- (every Button of the screen XML, recorded as it is built: a list of id patterns had taken in panels too, "^eng_undo"
+-- the Undo list and "^eng_scoop" the Concede box, which would now get a button's colour)
+local function isButton(id) return engineBtnLook[id] ~= nil end
+-- The Buttons of a screen XML and their colours, by plain finds (no pattern with captures over 50 KB: MoonSharp's
+-- "pattern too complex"): engineBtnLook[id] = { bg = its color, tc = its textColor }
+function engineRecordButtons(xml)
+  local pos = 1
+  local function attr(tag, key)
+    local i = tag:find(" " .. key .. '="', 1, true)
+    if i == nil then return nil end
+    local s = i + #key + 3
+    return tag:sub(s, (tag:find('"', s, true) or #tag + 1) - 1)
+  end
+  while true do
+    local i = xml:find("<Button ", pos, true)
+    if i == nil then break end
+    local e = xml:find(">", i, true) or #xml
+    local tag = xml:sub(i, e)
+    local id = attr(tag, "id")
+    if id ~= nil then engineBtnLook[id] = { bg = attr(tag, "color"), tc = attr(tag, "textColor") } end
+    pos = e + 1
+  end
 end
 
--- Applies only the attributes that changed, in one call. attrs: { text = ..., color = ..., active = ... }
+-- Applies only the attributes that changed, in one call. attrs: { text = ..., color = ..., active = ... }; the call
+-- also carries the button's colour and text colour (see ENGINE_THEME above), except one that only hides it.
 local function setButton(id, attrs)
-  local changed, n, needWhite = {}, 0, false
+  local changed, n = {}, 0
   for k, v in pairs(attrs) do
     v = tostring(v)
     local key = k == "text" and id or (id .. "|" .. k)
@@ -2360,11 +2387,15 @@ local function setButton(id, attrs)
       uiCache[key] = v
       changed[k] = v
       n = n + 1
-      if k == "text" or (k == "active" and v == "true") then needWhite = true end
     end
   end
   if n == 0 then return end
-  if needWhite then changed.textColor = nextWhite(id) end
+  if not (n == 1 and changed.active == "false") then
+    local look = engineBtnLook[id] or {}
+    changed.textColor = engineFlipColor(id .. "|tc", uiCache[id .. "|textColor"] or look.tc or "#FFFFFF")
+    -- (the colour as it is: once set on the element itself, a redraw keeps it)
+    changed.color = uiCache[id .. "|color"] or look.bg or ENGINE_THEME.button
+  end
   if engineProfile then engineProfile.uiCalls = engineProfile.uiCalls + 1 end
   UI.setAttributes(id, changed)
 end
@@ -2422,7 +2453,7 @@ local function rowXml(c)
   for k = 1, ROW_BTNS do
     btns[#btns + 1] = '<Button id="eng_rowopt_' .. c .. '_' .. k .. '" onClick="onMtgRowOpt" preferredWidth="220" preferredHeight="44" color="#2e3a59" textColor="#ffffff" fontSize="17" fontStyle="Bold" active="false"> </Button>'
   end
-  return '<Panel id="eng_row_' .. c .. '" visibility="' .. c .. '" width="720" height="470" rectAlignment="MiddleCenter" offsetXY="0 60" color="#0A0C10E8" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
+  return '<Panel id="eng_row_' .. c .. '" visibility="' .. c .. '" width="720" height="470" rectAlignment="MiddleCenter" offsetXY="0 60" color="#161616E8" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
     -- (title and line sized to the panel: at 1300 px wide a long line ran off both edges, 2026-10-22)
     .. '<Text id="eng_rowtitle_' .. c .. '" width="700" height="34" rectAlignment="UpperCenter" offsetXY="0 -8" fontSize="22" resizeTextForBestFit="true" resizeTextMinSize="14" resizeTextMaxSize="22" fontStyle="Bold" color="#FFD27A" alignment="MiddleCenter"> </Text>'
     .. '<Text id="eng_rowsub_' .. c .. '" width="690" height="42" rectAlignment="UpperCenter" offsetXY="0 -42" fontSize="14" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="14" horizontalOverflow="Wrap" color="#D8DEE8" alignment="MiddleCenter"> </Text>'
@@ -2432,22 +2463,11 @@ local function rowXml(c)
     .. table.concat(btns) .. '</HorizontalLayout></Panel>\n'
 end
 
--- Rewind by vote (M4.5): "Undo..." lists the engine's restore points; a vote pop-up asks the other players.
-UNDO_MAX = 8
+-- Rewind by vote (M4.5): the Undo tab lists the engine's restore points (engineSidePrompt); a vote pop-up asks the
+-- other players. Auto-resolve sits in the dock's row, right of the tabs (docs/engine-ui-spec.md 3).
 local function rewindXml(c)
-  local opts = {}
-  for k = 1, UNDO_MAX do
-    opts[#opts + 1] = '<Button id="eng_undopt_' .. c .. '_' .. k .. '" onClick="onMtgUndoPick" preferredHeight="34" color="#2f3542" textColor="#ffffff" fontSize="15" active="false"> </Button>'
-  end
-  return '<Button id="eng_autores_' .. c .. '" onClick="onMtgAutoResolve" visibility="' .. c .. '" width="150" height="32" rectAlignment="UpperLeft" offsetXY="16 -178" color="#3a3f4b" textColor="#ffffff" fontSize="14" tooltip="Pass priority by itself: on other players\' turns, or until a phase you pick" active="false">Auto-resolve: off...</Button>\n'
-    .. '<Button id="eng_undo_' .. c .. '" onClick="onMtgUndo" visibility="' .. c .. '" width="110" height="32" rectAlignment="UpperLeft" offsetXY="292 -178" color="#3a3f4b" textColor="#ffffff" fontSize="15" active="false">Undo...</Button>\n'
-    .. '<Panel id="eng_undolist_' .. c .. '" visibility="' .. c .. '" width="380" height="380" rectAlignment="UpperLeft" offsetXY="292 -216" color="#0A0C10F0" active="false">'
-    .. '<VerticalLayout padding="8 8 8 8" spacing="4" childForceExpandHeight="false">'
-    .. '<Text preferredHeight="30" fontSize="16" fontStyle="Bold" color="#FFD27A" alignment="MiddleCenter">Rewind to... (the others vote)</Text>'
-    .. table.concat(opts)
-    .. '<Button id="eng_undoclose_' .. c .. '" onClick="onMtgUndo" preferredHeight="30" color="#5a1f1f" textColor="#ffffff" fontSize="14">Close</Button>'
-    .. '</VerticalLayout></Panel>\n'
-    .. '<Panel id="eng_vote_' .. c .. '" visibility="' .. c .. '" width="600" height="146" rectAlignment="UpperCenter" offsetXY="0 -120" color="#0A0C10F0" active="false">'
+  return '<Button id="eng_autores_' .. c .. '" onClick="onMtgAutoResolve" visibility="' .. c .. '" width="150" height="30" rectAlignment="UpperLeft" offsetXY="468 -140" color="#1A1A1A" textColor="#ffffff" fontSize="14" tooltip="Pass priority by itself: on other players\' turns, or until a phase you pick" active="false">Auto-resolve: off...</Button>\n'
+    .. '<Panel id="eng_vote_' .. c .. '" visibility="' .. c .. '" width="600" height="146" rectAlignment="UpperCenter" offsetXY="0 -120" color="#161616F0" active="false">'
     .. '<Text id="eng_votetext_' .. c .. '" width="580" height="84" rectAlignment="UpperCenter" offsetXY="0 -6" fontSize="18" color="#FFFFFF" alignment="MiddleCenter"> </Text>'
     .. '<HorizontalLayout width="440" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
     .. '<Button id="eng_voteyes_' .. c .. '" onClick="onMtgVote" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Rewind</Button>'
@@ -2460,7 +2480,7 @@ end
 -- it opens a big "Concede this game?" box with Scoop / Keep playing (screen UI: readable from any camera angle)
 local function scoopXml(c)
   return '<Button id="eng_scoop_' .. c .. '" onClick="onMtgScoopAsk" visibility="' .. c .. '" width="120" height="40" rectAlignment="UpperCenter" offsetXY="250 -118" color="#c62828" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Scoop</Button>\n'
-    .. '<Panel id="eng_scoopask_' .. c .. '" visibility="' .. c .. '" width="620" height="230" rectAlignment="MiddleCenter" offsetXY="0 40" color="#0A0C10F2" active="false">'
+    .. '<Panel id="eng_scoopask_' .. c .. '" visibility="' .. c .. '" width="620" height="230" rectAlignment="MiddleCenter" offsetXY="0 40" color="#161616F2" active="false">'
     .. '<Text width="600" height="110" rectAlignment="UpperCenter" offsetXY="0 -10" fontSize="30" fontStyle="Bold" color="#FFFFFF" alignment="MiddleCenter">Concede this game?</Text>'
     .. '<HorizontalLayout width="560" height="70" rectAlignment="LowerCenter" offsetXY="0 22" spacing="24" childForceExpandWidth="true">'
     .. '<Button id="eng_scoopyes_' .. c .. '" onClick="onMtgScoopYes" color="#c62828" textColor="#ffffff" fontSize="26" fontStyle="Bold">Scoop</Button>'
@@ -2472,7 +2492,7 @@ local function cornerXml(c)
   return rowXml(c) .. rewindXml(c) .. scoopXml(c) .. (engineFixXml ~= nil and engineFixXml(c) or "")
     -- M5: VICTORY / DEFEAT / "<NAME> IS OUT", big, in the middle of the screen
     .. '<Text id="eng_result_' .. c .. '" visibility="' .. c .. '" width="1600" height="200" rectAlignment="MiddleCenter" offsetXY="0 120" fontSize="120" fontStyle="Bold" color="#FFD27A" outline="#2a1600E0" outlineSize="4 -4" alignment="MiddleCenter" showAnimation="Grow" hideAnimation="FadeOut" animationDuration="0.35" active="false"> </Text>\n'
-    .. '<Panel id="eng_phasebg_' .. c .. '" visibility="' .. c .. '" width="900" height="46" rectAlignment="UpperCenter" offsetXY="0 -64" color="#0A0C10C8" active="false"></Panel>'
+    .. '<Panel id="eng_phasebg_' .. c .. '" visibility="' .. c .. '" width="900" height="46" rectAlignment="UpperCenter" offsetXY="0 -64" color="#161616C8" active="false"></Panel>'
     .. '<Text id="eng_phase_' .. c .. '" visibility="' .. c .. '" width="900" height="46" rectAlignment="UpperCenter" offsetXY="0 -64" fontSize="22" color="#B8C0CC" alignment="MiddleCenter" active="false"> </Text>\n'
     -- Arena-style instruction line above the corner buttons (at the top it ran into TTS's name tags): what the open question wants, in table terms
     .. '<Text id="eng_hint_' .. c .. '" visibility="' .. c .. '" width="620" height="130" rectAlignment="LowerRight" offsetXY="-20 196" fontSize="18" fontStyle="Italic" color="#F2F2F2" outline="#000000C0" outlineSize="1 -1" alignment="LowerRight" active="false"> </Text>\n'
@@ -2482,54 +2502,55 @@ local function cornerXml(c)
     .. '<Button id="eng_big_' .. c .. '" onClick="onMtgBig" visibility="' .. c .. '" width="280" height="64" rectAlignment="LowerRight" offsetXY="-20 70" color="#e8711a" textColor="#ffffff" fontSize="26" fontStyle="Bold" active="false"> </Button>\n'
     .. engineAbPanelXml(c)
 end
--- The abilities of the card you point at, as big buttons on the screen (engineAbPanelShow): the buttons on the card are
--- a few pixels tall at the usual camera, and its right-click menu opened under the top bars (hp-07, 2026-10-27).
+-- The actions of the card you point at, as big buttons on the screen (engineAbPanelShow): the buttons on the card are
+-- a few pixels tall at the usual camera, and its right-click menu opened under the top bars (hp-07, 2026-10-27). Since
+-- batch B every ability, greyed with its reason when it can't be used, ENGINE_AB_MAX a page with More (eng_abpg_) and a
+-- close X (eng_abpx_); the panel grows up from its foot to fit its lines.
 ENGINE_AB_MAX = 6
 function engineAbPanelXml(c)
   local rows = {}
   for k = 1, ENGINE_AB_MAX do
-    rows[#rows + 1] = '<Button id="eng_abp_' .. c .. '_' .. k .. '" onClick="onMtgAbPanel" preferredHeight="40" fontSize="15" color="#2f3542" textColor="#ffffff" active="false"> </Button>'
+    rows[#rows + 1] = '<Button id="eng_abp_' .. c .. '_' .. k .. '" onClick="onMtgAbPanel" preferredHeight="40" fontSize="14" textAlignment="MiddleLeft" color="#262626" textColor="#ffffff" active="false"> </Button>'
   end
-  return '<Panel id="eng_abp_' .. c .. '" visibility="' .. c .. '" width="440" height="320" rectAlignment="LowerRight" offsetXY="-20 272" color="#0A0C10E6" active="false">'
+  return '<Panel id="eng_abp_' .. c .. '" visibility="' .. c .. '" width="440" height="320" rectAlignment="LowerRight" offsetXY="-20 272" color="#161616F0" active="false">'
     .. '<VerticalLayout padding="8 8 6 6" spacing="4" childForceExpandHeight="false" childAlignment="LowerCenter">'
     .. '<Text id="eng_abpt_' .. c .. '" preferredHeight="24" fontSize="16" fontStyle="Bold" color="#FFD27A" alignment="MiddleLeft"> </Text>'
-    .. table.concat(rows) .. '</VerticalLayout></Panel>\n'
+    .. table.concat(rows)
+    .. '<Button id="eng_abpg_' .. c .. '" onClick="onMtgAbPanel" preferredHeight="30" fontSize="13" color="#333333" textColor="#ffffff" active="false"> </Button>'
+    .. '</VerticalLayout>'
+    .. '<Button id="eng_abpx_' .. c .. '" onClick="onMtgAbPanel" width="28" height="28" rectAlignment="UpperRight" offsetXY="-6 -6" color="#333333" textColor="#ffffff" fontSize="15" fontStyle="Bold" tooltip="Close">X</Button></Panel>\n'
 end
 
 -- A spell or ability going on the stack pops up for everyone, with its picture and text (Arena-style).
-local POPUP_XML = '<Panel id="eng_pop" width="300" height="500" rectAlignment="MiddleRight" offsetXY="-30 40" color="#0A0C10E8" active="false">'
+local POPUP_XML = '<Panel id="eng_pop" width="300" height="500" rectAlignment="MiddleRight" offsetXY="-30 40" color="#161616E8" active="false">'
   .. '<VerticalLayout padding="8 8 8 8" spacing="6" childForceExpandHeight="false">'
   .. '<Text id="eng_pop_who" fontSize="14" color="#FFD27A" alignment="MiddleCenter" preferredHeight="22"> </Text>'
   .. '<Image id="eng_pop_img" preferredHeight="390" preserveAspect="true" color="#FFFFFF"></Image>'
   .. '<Text id="eng_pop_text" fontSize="12" color="#FFFFFF" alignment="UpperLeft" preferredHeight="70"> </Text>'
   .. '</VerticalLayout>'
-  .. '<Button id="eng_pop_x" onClick="onMtgPopClose" width="34" height="34" rectAlignment="UpperRight" offsetXY="-4 -4" color="#3a3f4b" textColor="#ffffff" fontSize="20" fontStyle="Bold" tooltip="Close (only for you)">X</Button>'
+  .. '<Button id="eng_pop_x" onClick="onMtgPopClose" width="34" height="34" rectAlignment="UpperRight" offsetXY="-4 -4" color="#333333" textColor="#ffffff" fontSize="20" fontStyle="Bold" tooltip="Close (only for you)">X</Button>'
   .. '</Panel>'
 
 local function panelXml(color)
   local slots = {}
   for k = 1, POOL do
-    slots[#slots + 1] = string.format('<Button id="eng_opt_%s_%d" onClick="onMtgSlot" active="false" minHeight="32" fontSize="14" color="#2f3542" textColor="#ffffff"> </Button>', color, k)
+    slots[#slots + 1] = string.format('<Button id="eng_opt_%s_%d" onClick="onMtgSlot" active="false" minHeight="32" fontSize="14" color="#262626" textColor="#ffffff"> </Button>', color, k)
   end
   local c = color
-  -- (top left, a row above Auto-resolve / Fix / Undo, under TTS's own menu and clear of the turn bar: at the top right
-  -- these covered the first items of the cards' right-click menus, playtest 2026-10-26; at the bottom left they sat on
-  -- the hand and the chat, playtest 2026-10-31)
-  return '<Button id="eng_toggle_' .. c .. '" onClick="onMtgToggle" visibility="' .. c .. '" width="120" height="32" rectAlignment="UpperLeft" offsetXY="16 -140" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Engine: hide</Button>\n'
-    .. '<Button id="eng_browse_' .. c .. '" onClick="onMtgBrowse" visibility="' .. c .. '" width="170" height="32" rectAlignment="UpperLeft" offsetXY="144 -140" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Graveyards / exile</Button>\n'
-    .. '<Button id="eng_logbtn_' .. c .. '" onClick="onMtgLog" visibility="' .. c .. '" width="90" height="32" rectAlignment="UpperLeft" offsetXY="322 -140" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Log</Button>\n'
-    .. '<Button id="eng_pace_' .. c .. '" onClick="onMtgPace" visibility="' .. c .. '" width="150" height="32" rectAlignment="UpperLeft" offsetXY="420 -140" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Auto: off</Button>\n'
-    -- (2026-10-22) Settings: your own screen effects and sounds, and the host's switch for the table's shared animations
-    .. '<Button id="eng_set_' .. c .. '" onClick="onMtgSettings" visibility="' .. c .. '" width="100" height="32" rectAlignment="UpperLeft" offsetXY="578 -140" color="#1e272e" textColor="#ffffff" fontSize="14" active="false">Settings</Button>\n'
-    .. '<Panel id="eng_setpanel_' .. c .. '" visibility="' .. c .. '" width="290" height="150" rectAlignment="UpperLeft" offsetXY="420 -178" color="#0A0C10F0" active="false">'
-    .. '<VerticalLayout padding="8 8 8 8" spacing="6">'
-    .. '<Button id="eng_fx_' .. c .. '" onClick="onMtgFx" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Banners, the turn banner, the stack pop-up and table effects, for you only">My effects: on</Button>'
-    .. '<Button id="eng_snd_' .. c .. '" onClick="onMtgSnd" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Table sounds (shared by everyone: the host mutes them)">My sounds: on</Button>'
-    .. '<Button id="eng_anim_' .. c .. '" onClick="onMtgAnim" color="#2e3a59" textColor="#ffffff" fontSize="14" tooltip="Attack swings, mills and the graveyard flash: everyone sees them, so the host decides">Table animations: on</Button>'
-    .. '</VerticalLayout></Panel>\n'
-    .. '<Panel id="eng_log_' .. c .. '" visibility="' .. c .. '" width="430" height="290" rectAlignment="UpperRight" offsetXY="-10 -150" color="#0A0C10D0" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
+  -- The dock (batch B, docs/engine-ui-spec.md 3): the window's tabs and the log's switch in one row at the top left,
+  -- under TTS's own menu and right of its left tool bar (82 px wide); Auto-resolve and Fix follow at x 468 and 622. (At
+  -- the top right these covered the first items of the cards' right-click menus, playtest 2026-10-26; at the bottom
+  -- left they sat on the hand and the chat, playtest 2026-10-31.) Undo shows only with restore points; the row closes up.
+  local function tab(id, fn, w, label)
+    return '<Button id="' .. id .. c .. '" onClick="' .. fn .. '" preferredWidth="' .. w .. '" color="#1A1A1A" textColor="#ffffff" fontSize="14" active="false">' .. label .. '</Button>'
+  end
+  return '<HorizontalLayout id="eng_dock_' .. c .. '" visibility="' .. c .. '" width="364" height="30" rectAlignment="UpperLeft" offsetXY="96 -140" spacing="4" childAlignment="MiddleLeft" childForceExpandWidth="false" childForceExpandHeight="true">'
+    .. tab("eng_toggle_", "onMtgToggle", 76, "Choices") .. tab("eng_browse_", "onMtgBrowse", 92, "Graveyards")
+    .. tab("eng_undo_", "onMtgUndo", 56, "Undo") .. tab("eng_set_", "onMtgSettings", 76, "Settings")
+    .. tab("eng_logbtn_", "onMtgLog", 48, "Log") .. '</HorizontalLayout>\n'
+    .. '<Panel id="eng_log_' .. c .. '" visibility="' .. c .. '" width="430" height="290" rectAlignment="UpperRight" offsetXY="-10 -150" color="#161616D0" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">'
     .. '<Text id="eng_logtext_' .. c .. '" width="414" height="280" fontSize="13" color="#FFFFFF" alignment="LowerLeft"> </Text></Panel>\n'
-    .. '<Panel id="eng_panel_' .. c .. '" visibility="' .. c .. '" width="430" height="620" rectAlignment="MiddleLeft" offsetXY="95 -10" color="#0A0C10E8" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">\n'
+    .. '<Panel id="eng_panel_' .. c .. '" visibility="' .. c .. '" width="430" height="600" rectAlignment="UpperLeft" offsetXY="96 -176" color="#161616F0" allowDragging="true" returnToOriginalPositionWhenReleased="false" active="false">\n'
     .. '  <VerticalLayout padding="8 8 8 8" spacing="5" childForceExpandHeight="false">\n'
     .. '    <Text id="eng_status_' .. c .. '" fontSize="13" color="#FFFFFF" alignment="UpperLeft" preferredHeight="44"> </Text>\n'
     .. '    <Text id="eng_title_' .. c .. '" fontSize="17" fontStyle="Bold" color="#FFFFFF" alignment="MiddleLeft" preferredHeight="26">Waiting for other players...</Text>\n'
@@ -2544,11 +2565,11 @@ local function panelXml(color)
     .. '      <Button id="eng_confirm_' .. c .. '" onClick="onMtgConfirm" active="false" color="#1e6f5c" textColor="#ffffff" fontSize="15">Done</Button>\n'
     .. '      <Button id="eng_cancel_' .. c .. '" onClick="onMtgCancel" active="false" color="#8b1e1e" textColor="#ffffff" fontSize="15">Cancel</Button>\n'
     .. '    </HorizontalLayout>\n'
-    .. '    <HorizontalLayout preferredHeight="30" spacing="4" childForceExpandWidth="true">'
-    .. '<Button id="eng_stop_start_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: start of turn</Button>'
-    .. '<Button id="eng_stop_combat_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: combat</Button>'
-    .. '<Button id="eng_stop_end_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12">Stop: end of turn</Button>'
-    .. '<Button id="eng_stop_hold_' .. c .. '" onClick="onMtgStop" color="#2f3542" textColor="#ffffff" fontSize="12" tooltip="Keep priority once after something goes on the stack">Hold</Button>'
+    .. '    <HorizontalLayout id="eng_stops_' .. c .. '" preferredHeight="30" spacing="4" childForceExpandWidth="true">'
+    .. '<Button id="eng_stop_start_' .. c .. '" onClick="onMtgStop" color="#262626" textColor="#ffffff" fontSize="12">Stop: start of turn</Button>'
+    .. '<Button id="eng_stop_combat_' .. c .. '" onClick="onMtgStop" color="#262626" textColor="#ffffff" fontSize="12">Stop: combat</Button>'
+    .. '<Button id="eng_stop_end_' .. c .. '" onClick="onMtgStop" color="#262626" textColor="#ffffff" fontSize="12">Stop: end of turn</Button>'
+    .. '<Button id="eng_stop_hold_' .. c .. '" onClick="onMtgStop" color="#262626" textColor="#ffffff" fontSize="12" tooltip="Keep priority once after something goes on the stack">Hold</Button>'
     .. '</HorizontalLayout>\n'
     .. '  </VerticalLayout>\n'
     .. '</Panel>'
@@ -2631,6 +2652,7 @@ end
 
 function optionColor(p, index, picked)
   local o = (p.options or {})[index] or {}
+  if o.tint ~= nil then return o.tint end -- (a side tab's line that sets its own, engineSidePrompt)
   local kind = describePrompt(p).kind
   if o.id == "__allattack" then return "#e84118" end
   if o.id == "__noattack" then return "#2e86de" end
@@ -2642,7 +2664,7 @@ function optionColor(p, index, picked)
   if o.id == "__endturn" then return "#2e3a59" end
   if o.id == "__resolve" then return "#b8860b" end -- yellow: pass until the stack is empty
   if p.mode == "single" and index == 1 then return "#e8711a" end
-  return "#2f3542"
+  return "#262626"
 end
 
 -- "Graveyards / exile" view: every player's graveyard and exile as a searchable, look-only list in the panel.
@@ -2664,6 +2686,28 @@ local function browsePrompt(color)
   return { title = "Graveyards and exile (look only)", mode = "browse",
     text = #list == 0 and "Nothing in any graveyard or exile yet." or "Click a card to read it. Search by name or by whose it is.",
     options = options }
+end
+-- The open side tab's list (engineOpenTab), shown in the window's answer buttons like a question of mode "browse":
+-- Undo's restore points, Settings' switches (each line says what it is now), else the graveyards. nosearch: no box.
+function engineSidePrompt(color)
+  local tab = engineBrowse[color]
+  if tab == "undo" then
+    local o = {}
+    for k, pt in ipairs((engineRewind and engineRewind.points) or {}) do o[k] = { id = "undo:" .. k, label = tostring(pt.label) } end
+    return { title = "Rewind to... (the others vote)", mode = "browse", nosearch = true, options = o,
+      text = #o == 0 and "No restore points yet." or "Pick a moment to go back to: the other players vote on it." }
+  elseif tab == "settings" then
+    -- (the host's switch: what moves on the table is the same for everyone; others see it greyed and can't press it)
+    local host = Player[color] ~= nil and Player[color].host
+    return { title = "Settings", mode = "browse", nosearch = true,
+      text = "My effects: banners, the stack pop-up and table effects, for you only. Sounds and animations are shared: the host's.",
+      options = {
+        { id = "fx", label = engineEffectsOff[color] and "My effects: off" or "My effects: on" },
+        { id = "snd", label = engineSoundOff[color] and "My sounds: off" or "My sounds: on" },
+        { id = "anim", label = "Table animations: " .. (engineAnimOff and "off" or "on") .. (host and "" or " (the host's)"), tint = not host and ENGINE_THEME.muted or nil },
+        { id = "pace", label = "Draw / mill / untap by itself: " .. (engineAutoOn(color) and ("on (" .. AUTO_PACE_DELAY .. " s)") or "off") } } }
+  end
+  return browsePrompt(color)
 end
 
 -- The corner's two buttons mirror the prompt: the first (default) choice big, a second useful one small.
@@ -2772,7 +2816,7 @@ function engineUpdateCorner(color, p)
     elseif q.copies then
       hint = title .. "\nPick it in the card row or the Engine panel."
     elseif kind == "cards" and q.pileChoices ~= nil then
-      hint = title .. "\nRight-click that graveyard or exile pile -> Search, and drag the card out. Or Engine: show."
+      hint = title .. "\nRight-click that graveyard or exile pile -> Search, and drag the card out. Or Choices (top left)."
     elseif kind == "cards" and engineExactPick(q) then
       hint = title .. "\nClick " .. q.max .. " glowing card" .. (q.max == 1 and "" or "s") .. ": the last click answers." .. (q.cancel and " (Or Cancel.)" or "")
     elseif kind == "cards" then hint = title .. (q.cancel and "\nClick the glowing cards, then Done (or Cancel)." or "\nClick the glowing cards, then Done.")
@@ -2783,7 +2827,7 @@ function engineUpdateCorner(color, p)
       -- which then opens; "Click a glowing card" showed with nothing glowing, hp-07 #41 2026-10-27)
       local pile = enginePileOnly(q)
       -- (spells on the stack have no card to click: Counterspell said "Click a glowing card" with nothing glowing, hp-01 #5)
-      if spells and not cards and not players then hint = title .. "\nPick the spell in the Engine panel (Engine: show)."
+      if spells and not cards and not players then hint = title .. "\nPick the spell in the Engine panel (Choices, top left)."
       elseif engineAnswerPlace(q) == "panel" then hint = title .. "\nThe cards are in a graveyard or exile: pick one in the Engine panel."
       -- (the cards pictures in the card row: nothing glows on the table, hp-07 re-test 2026-10-27; with players too, a
       -- life counter, suite review)
@@ -2899,7 +2943,12 @@ function engineUpdateCorner(color, p)
   setButton("eng_big_" .. color, { active = (big ~= nil or labelOnly) and "true" or "false", text = bigLabel or " " })
   setButton("eng_big2_" .. color, { active = small ~= nil and "true" or "false", text = smallLabel or " " })
   for _, g in ipairs({ "start", "combat", "end" }) do
-    setButton("eng_stop_" .. g .. "_" .. color, { color = engineStopsOf(color)[g] and "#b8860b" or "#2f3542" })
+    setButton("eng_stop_" .. g .. "_" .. color, { color = engineStopsOf(color)[g] and "#b8860b" or "#262626" })
+  end
+  -- (the ability panel follows the board too: a tap, a counter, priority moving on greys or brightens its lines)
+  if engineAbPanelFor ~= nil and engineAbPanelFor[color] ~= nil then
+    local ok, err = pcall(engineAbPanelShow, color, engineAbPanelFor[color])
+    if not ok then print("[MTG] ability panel: " .. tostring(err)) end
   end
 end
 engineStops = {} -- colour -> { start = true, combat = true, end = true }
@@ -2918,7 +2967,7 @@ end
 local function updateOptions(color)
   -- (a fix from hand: the engine is paused, and the panel lists the player's hand instead, M7 §12)
   if engineFixHandDraw ~= nil and engineFixHandDraw(color) then return end
-  local p = engineBrowse[color] and browsePrompt(color) or enginePrompts[color]
+  local p = engineBrowse[color] and engineSidePrompt(color) or enginePrompts[color]
   engineVisible[color] = {}
   if p == nil then
     setText("eng_title_" .. color, (lastTable and lastTable.gameOver) and "Game over" or "Waiting for other players...")
@@ -2934,7 +2983,7 @@ local function updateOptions(color)
   setText("eng_title_" .. color, p.title)
   setText("eng_text_" .. color, (p.text ~= nil and p.text ~= "") and p.text or " ")
   local all = optionList(p, string.lower(engineFilter[color] or ""))
-  setAttr("eng_search_" .. color, "active", (#all > 8 or p.mode == "browse") and "true" or "false")
+  setAttr("eng_search_" .. color, "active", (not p.nosearch and (#all > 8 or p.mode == "browse")) and "true" or "false")
   local filter = string.lower(engineFilter[color] or "")
   local sel = engineSelected[color] or {}
   local shown = {}
@@ -2966,7 +3015,7 @@ local function updateOptions(color)
   if per < POOL then
     engineVisible[color][POOL] = "more"
     setButton("eng_opt_" .. color .. "_" .. POOL, { text = string.format("More... (%d-%d of %d)", first, last, #shown),
-      color = "#3a3f4b", active = "true" })
+      color = "#333333", active = "true" })
   end
   engineUpdateCorner(color, p)
   if p.mode == "multi" then
@@ -3031,25 +3080,27 @@ local function pendingText(color)
   return "\nWaiting for you: " .. table.concat(parts, ", ")
 end
 
+-- the dock's tabs: button id prefix -> its tab (engineOpenTab); Undo's button shows only with restore points
+ENGINE_TABS = { { "eng_toggle_", "choices" }, { "eng_browse_", "browse" }, { "eng_undo_", "undo" }, { "eng_set_", "settings" } }
 local function updatePanel(color)
-  setAttr("eng_toggle_" .. color, "active", lastTable ~= nil and "true" or "false")
-  setText("eng_toggle_" .. color, engineShown[color] and "Engine: hide" or "Engine: show")
-  setAttr("eng_browse_" .. color, "active", lastTable ~= nil and "true" or "false")
-  setText("eng_browse_" .. color, engineBrowse[color] and "Back to choices" or "Graveyards / exile")
+  local inGame = lastTable ~= nil
   -- (also while a fix from hand lists this player's hand in it)
-  setAttr("eng_panel_" .. color, "active", (lastTable ~= nil and (engineShown[color] ~= nil or (engineFixHandWants ~= nil and engineFixHandWants(color)))) and "true" or "false")
-  setAttr("eng_logbtn_" .. color, "active", lastTable ~= nil and "true" or "false")
-  setAttr("eng_log_" .. color, "active", (lastTable ~= nil and not engineLogHidden[color]) and "true" or "false")
-  setAttr("eng_pace_" .. color, "active", lastTable ~= nil and "true" or "false")
-  setText("eng_pace_" .. color, engineAutoOn(color) and ("Auto: on (" .. AUTO_PACE_DELAY .. " s)") or "Auto: off")
-  setAttr("eng_set_" .. color, "active", lastTable ~= nil and "true" or "false")
-  setAttr("eng_setpanel_" .. color, "active", (lastTable ~= nil and engineSettingsOpen[color]) and "true" or "false")
-  setText("eng_fx_" .. color, engineEffectsOff[color] and "My effects: off" or "My effects: on")
-  setText("eng_snd_" .. color, engineSoundOff[color] and "My sounds: off" or "My sounds: on")
-  -- (the host's switch: what moves on the table is the same for everyone; others see it and can't press it)
-  local host = Player[color] ~= nil and Player[color].host
-  setText("eng_anim_" .. color, "Table animations: " .. (engineAnimOff and "off" or "on") .. (host and "" or " (host)"))
-  setAttr("eng_anim_" .. color, "interactable", host and "true" or "false")
+  local open = inGame and (engineShown[color] ~= nil or (engineFixHandWants ~= nil and engineFixHandWants(color)))
+  setAttr("eng_panel_" .. color, "active", open and "true" or "false")
+  -- the open tab gold on warm brown, the others white on the table's near-black
+  local on = open and (engineBrowse[color] or "choices") or nil
+  for _, t in ipairs(ENGINE_TABS) do
+    local look = { color = on == t[2] and ENGINE_THEME.tabOn or ENGINE_THEME.dock, textColor = on == t[2] and ENGINE_THEME.gold or ENGINE_THEME.text }
+    if t[2] ~= "undo" then look.active = inGame and "true" or "false" end
+    setButton(t[1] .. color, look)
+  end
+  -- (the stops belong to the answers: not under a side tab's list)
+  setAttr("eng_stops_" .. color, "active", engineBrowse[color] and "false" or "true")
+  setAttr("eng_logbtn_" .. color, "active", inGame and "true" or "false")
+  -- (hidden while the log is empty: an empty black box at the top right, 2026-11-10)
+  setAttr("eng_log_" .. color, "active", (inGame and not engineLogHidden[color] and #engineLog > 0) and "true" or "false")
+  -- (the Settings tab's lines say what each switch is now: a switch changed from the chat shows too)
+  if engineBrowse[color] == "settings" and panelReady then updateOptions(color) end
   setText("eng_status_" .. color, statusText() .. poolText(color) .. pendingText(color))
 end
 
@@ -3123,12 +3174,16 @@ function engineRenderPanels(promptColor)
     builtFor, panelReady, uiCache = key, false, {}
     if engineAbPanelFor ~= nil then engineAbPanelFor = {} end -- (rebuilt hidden: pointing at the card shows it again)
     if baseXml == nil then baseXml = engineXmlMinify(UI.getXml() or "") end
+    -- (no covers over TTS's tool bars any more: measured on one screen, they floated as black boxes on others,
+    -- docs/engine-ui-spec.md 2.2)
     local parts = {}
-    parts[1] = engineToolCoverXml() -- (first: the table's own buttons draw over it)
     for _, c in ipairs(seated) do parts[#parts + 1] = panelXml(c) parts[#parts + 1] = cornerXml(c) end
     parts[#parts + 1] = POPUP_XML
     parts[#parts + 1] = engineAutoListXml()
-    local ours, defaults = engineXmlCompact(table.concat(parts, "\n"))
+    local raw = table.concat(parts, "\n")
+    engineBtnLook = {}
+    engineRecordButtons(raw)
+    local ours, defaults = engineXmlCompact(raw)
     -- (without the table's Scryfall search and deck panels, the last thing in its UI: only an "MTG Importer" object opens
     -- them, and the table has none, docs/table-functions-global-importer.md 1.8. 3.8 KB of the 60 KB limit, 2026-10-30)
     local base = baseXml:sub(1, (baseXml:find('<Panel id="SearchPanel"', 1, true) or #baseXml + 1) - 1)
@@ -3209,7 +3264,21 @@ local function optimistic(color, o)
 end
 
 local function pick(color, i)
-  if engineBrowse[color] then
+  local tab = engineBrowse[color]
+  if tab == "undo" then
+    -- (asked: the tab shuts, as the Undo list did; the vote pop-up follows)
+    if i ~= nil and engineAskRewind(color, i) then engineOpenTab(color, "undo") end
+    return
+  elseif tab == "settings" then
+    local o = (engineSidePrompt(color).options or {})[i]
+    local pl, id = Player[color], o and o.id
+    if id == "fx" then onMtgFx(pl, nil, "eng_fx_" .. color)
+    elseif id == "snd" then onMtgSnd(pl, nil, "eng_snd_" .. color)
+    elseif id == "anim" then onMtgAnim(pl, nil, "eng_anim_" .. color)
+    elseif id == "pace" then onMtgPace(pl, nil, "eng_pace_" .. color) end
+    if panelReady then updateOptions(color) end
+    return
+  elseif tab then
     local e = (browseCards[color] or {})[i]
     if e ~= nil then
       local c = e.card
@@ -3472,8 +3541,7 @@ end
 function onMtgCancel(player, value, id) if player.color == idColor(id) then engineAnswer(player.color, { "__cancel" }) end end
 function onMtgToggle(player, value, id)
   if player.color ~= idColor(id) then return end
-  engineShown[player.color] = not engineShown[player.color] and "pin" or nil
-  updatePanel(player.color)
+  engineOpenTab(player.color, "choices")
 end
 -- ───────── game log (phase 3) ─────────
 engineLog = {}
@@ -3486,10 +3554,15 @@ function engineRenderLog()
   for _, c in ipairs(getSeatedPlayers()) do if data[c] then setText("eng_logtext_" .. c, text) end end
 end
 function engineOnLog(m)
+  local was = #engineLog
   if m.reset then engineLog = {} end
   for _, l in ipairs(m.lines or {}) do engineLog[#engineLog + 1] = l end
   while #engineLog > 200 do table.remove(engineLog, 1) end
   engineRenderLog()
+  -- (the log panel shows from its first line, and hides again with an emptied log)
+  if panelReady and (was == 0) ~= (#engineLog == 0) then
+    for _, c in ipairs(getSeatedPlayers()) do if data[c] then updatePanel(c) end end
+  end
 end
 function onMtgLog(player, value, id)
   if player.color ~= idColor(id) then return end
@@ -3510,17 +3583,7 @@ function onMtgBig(player, value, id) if id == "eng_big_" .. player.color then co
 
 -- ───────── rewind by vote (M4.5): the bridge sends `rewind` = { points = {{id,label}}, vote = {...} } with the board ─────────
 engineRewind = nil
-local undoOpen = {}   -- colour -> list shown
 local rewindSig = nil
-local function undoList(color)
-  local pts = (engineRewind and engineRewind.points) or {}
-  for k = 1, UNDO_MAX do
-    local pt = pts[k]
-    setAttr("eng_undopt_" .. color .. "_" .. k, "active", (undoOpen[color] and pt ~= nil) and "true" or "false")
-    if pt ~= nil then setText("eng_undopt_" .. color .. "_" .. k, pt.label) end
-  end
-  setAttr("eng_undolist_" .. color, "active", undoOpen[color] and "true" or "false")
-end
 function engineRewindUpdate(r, gameOver)
   engineRewind = r
   -- (a plain string, not JSON.encode: cheap, and nothing here can trip TTS's encoder)
@@ -3537,8 +3600,10 @@ function engineRewindUpdate(r, gameOver)
       if engineAutoResolveDraw ~= nil then engineAutoResolveDraw(c) end
       local has = r ~= nil and r.points ~= nil and #r.points > 0 and not gameOver
       setAttr("eng_undo_" .. c, "active", has and "true" or "false")
-      if not has then undoOpen[c] = nil end
-      undoList(c)
+      -- (the Undo tab follows the points: listed again, or shut once there are none)
+      if engineBrowse[c] == "undo" and panelReady then
+        if has then updateOptions(c) else engineOpenTab(c, "undo") end
+      end
       local pending = v ~= nil and v.status == "pending"
       local mine = false
       for _, w in ipairs((v and v.waiting) or {}) do if w == c then mine = true end end
@@ -3572,23 +3637,14 @@ engineAutoListOpen = {} -- colour -> true while that player has the list open
 engineAutoChoices = { { "off", "Off" }, { "others", "Other players' turns" }, { "upkeep", "Until upkeep" }, { "draw", "Until draw" },
   { "main", "Until main phase" }, { "combat", "Until combat" }, { "blockers", "Until blockers" }, { "damage", "Until damage" },
   { "main2", "Until main 2" }, { "end", "Until end step" }, { "mine", "Until my turn" } }
--- Tabletop Simulator's own buttons, covered while a game runs: a table can't remove them, and Lua can't reach the toolbar.
--- Rewind Time would put the table back without the engine; only Grab, Draw and Text stay in the tool bar (the player's
--- request, 2026-11-02). For the host and promoted players: their bars are the ones these sizes were measured on (1920x1080).
--- TTS scales the left bar from the corner and the top bar from the centre, so each cover is anchored the same way.
-function engineToolCoverXml()
-  local o = {}
-  for i, b in ipairs({ { 74, 260, "UpperLeft", "8 -141" }, { 74, 198, "UpperLeft", "8 -466" }, { 136, 66, "UpperCenter", "-505 -1" } }) do
-    o[i] = '<Panel id="eng_cover_' .. i .. '" visibility="Admin" width="' .. b[1] .. '" height="' .. b[2] .. '" rectAlignment="' .. b[3] .. '" offsetXY="' .. b[4] .. '" color="#14161CFF" raycastTarget="true" active="false"/>'
-  end
-  return table.concat(o)
-end
+-- (TTS's own tool bars were covered while a game ran, 2026-11-02, by panels measured on one 1920x1080 screen: on other
+-- screens and UI scales they floated as black boxes, the user's "floating black boxes", 2026-11-09; removed 2026-11-10)
 function engineAutoListXml()
   local o = {}
   for i, ch in ipairs(engineAutoChoices) do
-    o[i] = '<Button id="eng_auto_' .. ch[1] .. '" onClick="onMtgAutoPick" preferredHeight="26" color="#2f3542" textColor="#ffffff" fontSize="14">' .. ch[2] .. '</Button>'
+    o[i] = '<Button id="eng_auto_' .. ch[1] .. '" onClick="onMtgAutoPick" preferredHeight="26" color="#262626" textColor="#ffffff" fontSize="14">' .. ch[2] .. '</Button>'
   end
-  return '<Panel id="eng_autolist" width="176" height="' .. (#o * 28 + 10) .. '" rectAlignment="UpperLeft" offsetXY="16 -214" color="#0A0C10F0" active="false">'
+  return '<Panel id="eng_autolist" width="176" height="' .. (#o * 28 + 10) .. '" rectAlignment="UpperLeft" offsetXY="468 -174" color="#161616F0" active="false">'
     .. '<VerticalLayout padding="4 4 4 4" spacing="2" childForceExpandHeight="false">' .. table.concat(o) .. '</VerticalLayout></Panel>'
 end
 function engineAutoListDraw()
@@ -3605,7 +3661,7 @@ function engineAutoResolveDraw(c)
   for _, ch in ipairs(engineAutoChoices) do if ch[1] == skip then label = ch[2] end end
   setAttr("eng_autores_" .. c, "active", inGame and "true" or "false")
   setText("eng_autores_" .. c, label .. "...")
-  setAttr("eng_autores_" .. c, "color", (engineAutoResolve[c] or skip) and "#2e7d32" or "#3a3f4b")
+  setAttr("eng_autores_" .. c, "color", (engineAutoResolve[c] or skip) and "#2e7d32" or ENGINE_THEME.dock)
   if not inGame then engineAutoListOpen[c] = nil end
   engineAutoListDraw()
 end
@@ -3643,11 +3699,11 @@ function onMtgAutoPick(player, value, id)
   end
   engineAutoListDraw()
 end
+-- the Undo tab (its button shows while there are restore points)
 function onMtgUndo(player, value, id)
   local c = player.color
-  if id ~= "eng_undo_" .. c and id ~= "eng_undoclose_" .. c then return end
-  undoOpen[c] = (id == "eng_undo_" .. c) and not undoOpen[c] or nil
-  undoList(c)
+  if id ~= "eng_undo_" .. c then return end
+  engineOpenTab(c, "undo")
 end
 function engineAskRewind(color, k)
   local pt = engineRewind and engineRewind.points and engineRewind.points[k]
@@ -3655,12 +3711,13 @@ function engineAskRewind(color, k)
   engineSend("rewind", { color = color, checkpointId = pt.id })
   return true
 end
+-- (the old Undo list's buttons, "eng_undopt_<colour>_<k>": the tests still pick with them; the tab's lines are the
+-- window's answer buttons, picked in pick)
 function onMtgUndoPick(player, value, id)
   local c = player.color
   local k = tonumber(tostring(id):match("^eng_undopt_" .. c .. "_(%d+)$") or "")
   if k == nil then return end
-  undoOpen[c] = nil
-  undoList(c)
+  if engineBrowse[c] == "undo" then engineOpenTab(c, "undo") end
   engineAskRewind(c, k)
 end
 function onMtgVote(player, value, id)
@@ -3683,9 +3740,8 @@ function onMtgStop(player, value, id)
   engineUpdateCorner(color, enginePrompts[color])
 end
 
--- Settings (2026-10-22): one button opening My effects / My sounds / Table animations.
-engineSettingsOpen = {} -- colour -> true while that player's settings panel is open
-engineSoundOff = {}     -- colour -> true: that player asked for no sounds (the table's sounds are shared: the host's switch)
+-- Settings (2026-10-22): a tab of the window (batch B) listing My effects / My sounds / Table animations / held moves.
+engineSoundOff = {}    -- colour -> true: that player asked for no sounds (the table's sounds are shared: the host's switch)
 -- M5 step 4 sound picks (docs/m5-effects-design.md section 6, "Plugging in a sound"): nil = silent. A link to an
 -- .mp3 (https://...) plays through the table's music player, for everyone; a name plays that trigger effect of the
 -- sound object (an AssetBundle whose GM notes are "engine:sounds").
@@ -3706,8 +3762,7 @@ function engineSetSounds(player, on)
 end
 function onMtgSettings(player, value, id)
   if player.color ~= idColor(id) then return end
-  engineSettingsOpen[player.color] = not engineSettingsOpen[player.color] or nil
-  updatePanel(player.color)
+  engineOpenTab(player.color, "settings")
 end
 function onMtgSnd(player, value, id)
   if player.color ~= idColor(id) then return end
@@ -3747,13 +3802,29 @@ end
 
 function onMtgBrowse(player, value, id)
   if player.color ~= idColor(id) then return end
-  engineBrowse[player.color] = not engineBrowse[player.color] or nil
-  engineFilter[player.color] = nil
-  if engineBrowse[player.color] then engineShown[player.color] = engineShown[player.color] or "browse"
-  elseif engineShown[player.color] == "browse" then engineShown[player.color] = nil end
-  if panelReady then setText("eng_search_" .. player.color, "") end
-  updatePanel(player.color)
-  updateOptions(player.color)
+  engineOpenTab(player.color, "browse")
+end
+
+-- The window's tabs (docs/engine-ui-spec.md 3): "choices" (the open question's answers), or a side tab over them,
+-- engineBrowse[color] = "browse" (graveyards and exile), "undo" (restore points) or "settings". A side tab opens the
+-- window if it was shut ("browse" in engineShown); clicking the open side tab goes back to what was there before (the
+-- answers if they were open, else the window shuts). Choices opens the answers pinned, or shuts a pinned window.
+function engineOpenTab(color, tab)
+  local was = engineBrowse[color]
+  engineFilter[color] = nil
+  if tab == "choices" then
+    if was == nil then engineShown[color] = not engineShown[color] and "pin" or nil else engineShown[color] = "pin" end
+    engineBrowse[color] = nil
+  elseif was == tab then
+    engineBrowse[color] = nil
+    if engineShown[color] == "browse" then engineShown[color] = nil end
+  else
+    engineBrowse[color] = tab
+    engineShown[color] = engineShown[color] or "browse"
+  end
+  if panelReady then setText("eng_search_" .. color, "") end
+  updatePanel(color)
+  updateOptions(color)
 end
 
 -- Keeps an open graveyard/exile list current as cards come and go.
@@ -3776,7 +3847,7 @@ function onMtgClick(player, value, id)
   if kind == "o" or kind == "n" then pick(color, tonumber(arg))
   elseif kind == "confirm" then confirm(color)
   elseif kind == "cancel" then engineAnswer(color, { "__cancel" })
-  elseif kind == "toggle" then engineShown[color] = not engineShown[color] and "pin" or nil updatePanel(color) end
+  elseif kind == "toggle" then engineOpenTab(color, "choices") end
 end
 
 function engineOnPrompt(m)
@@ -3827,7 +3898,7 @@ function engineOnPrompt(m)
   else engineSelected[m.color] = nil engineFilter[m.color] = nil engineEnterPrompt(m.color, m) end
   -- The panel opens by itself only for questions the table can't answer (not priority, paying, combat, targets,
   -- cards on the table, the card row, two-button questions in the corner) and closes again once the next question
-  -- is one of those, or the question is gone. A panel the player opened (Engine: show) stays open.
+  -- is one of those, or the question is gone. A panel the player opened (the Choices tab) stays open.
   if engineShown[m.color] ~= "pin" and engineShown[m.color] ~= "browse" then
     local handled = true
     if m.promptId ~= nil then
@@ -5829,13 +5900,13 @@ end
 function engineScoopRedraw()
   local game = engineTable ~= nil and engineTable() or nil
   local running = ENGINE_MODE and game ~= nil and not game.gameOver
-  for i = 1, 3 do UI.setAttribute("eng_cover_" .. i, "active", running and "true" or "false") end
   for _, c in ipairs(SETUP.seats) do
     local show = false
     if running and Player[c] ~= nil and Player[c].seated then
       for _, pl in ipairs(game.players or {}) do if pl.color == c and pl.status == "playing" then show = true end end
     end
-    UI.setAttribute("eng_scoop_" .. c, "active", show and "true" or "false")
+    -- (through setAttr: shown with a plain UI.setAttribute, its label was drawn dark red on red, 2026-11-10 screenshots)
+    setAttr("eng_scoop_" .. c, "active", show and "true" or "false")
     if not show then UI.setAttribute("eng_scoopask_" .. c, "active", "false") end
   end
 end
@@ -5949,8 +6020,8 @@ FIX_HOLD = { editing = true, review = true, applying = true }
 do
   local F = { sig = nil }
   function engineFixXml(c)
-    return '<Button id="eng_fixcall_' .. c .. '" onClick="onMtgFix" visibility="' .. c .. '" width="110" height="32" rectAlignment="UpperLeft" offsetXY="174 -178" color="#3a3f4b" textColor="#ffffff" fontSize="15" active="false">Fix...</Button>\n'
-      .. '<Panel id="eng_fixp_' .. c .. '" visibility="' .. c .. '" width="660" height="270" rectAlignment="UpperCenter" offsetXY="0 -250" color="#0A0C10F0" active="false">'
+    return '<Button id="eng_fixcall_' .. c .. '" onClick="onMtgFix" visibility="' .. c .. '" width="64" height="30" rectAlignment="UpperLeft" offsetXY="622 -140" color="#1A1A1A" textColor="#ffffff" fontSize="14" active="false">Fix...</Button>\n'
+      .. '<Panel id="eng_fixp_' .. c .. '" visibility="' .. c .. '" width="660" height="270" rectAlignment="UpperCenter" offsetXY="0 -250" color="#161616F0" active="false">'
       .. '<Text id="eng_fixtext_' .. c .. '" width="640" height="200" rectAlignment="UpperCenter" offsetXY="0 -8" fontSize="17" resizeTextForBestFit="true" resizeTextMinSize="11" resizeTextMaxSize="17" color="#FFFFFF" alignment="UpperCenter"> </Text>'
       .. '<HorizontalLayout width="560" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
       .. '<Button id="eng_fixbyes_' .. c .. '" onClick="onMtgFix" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Yes</Button>'
@@ -6431,7 +6502,7 @@ do
     for i, p in ipairs(F.picks) do
       picked[p.id] = true
       local mine, open = p.color == c, p.color == c and F.sel[c] == p.id
-      rows[#rows + 1] = { kind = "pick", id = p.id, label = (open and "> " or "") .. i .. ". " .. F.pickLine(p), color = open and "#8a7428" or (mine and "#6b5a1e" or "#3a3f4b") }
+      rows[#rows + 1] = { kind = "pick", id = p.id, label = (open and "> " or "") .. i .. ". " .. F.pickLine(p), color = open and "#8a7428" or (mine and "#6b5a1e" or "#333333") }
       if open then
         rows[#rows + 1] = { kind = "up", id = p.id, label = "      Move up", color = "#2e3a59" }
         rows[#rows + 1] = { kind = "down", id = p.id, label = "      Move down", color = "#2e3a59" }
@@ -6441,7 +6512,7 @@ do
     for _, e in ipairs(F.cards(c)) do
       if not picked[e.id] then
         for _, act in ipairs(e.acts) do
-          rows[#rows + 1] = { kind = "add", id = e.id, act = act, name = e.name, where = e.where, color = "#2f3542",
+          rows[#rows + 1] = { kind = "add", id = e.id, act = act, name = e.name, where = e.where, color = "#262626",
             label = F.ACT[act] .. ": " .. e.name .. (e.where == "battlefield" and " (on the battlefield)" or "") }
         end
       end
@@ -6479,7 +6550,7 @@ do
     for j = k + 1, per do setAttr("eng_opt_" .. c .. "_" .. j, "active", "false") end
     if per < POOL then
       slots[POOL] = { kind = "more" }
-      setButton("eng_opt_" .. c .. "_" .. POOL, { text = string.format("More... (%d-%d of %d)", first, last, #rows), color = "#3a3f4b", active = "true" })
+      setButton("eng_opt_" .. c .. "_" .. POOL, { text = string.format("More... (%d-%d of %d)", first, last, #rows), color = "#333333", active = "true" })
     end
     F.rows[c] = slots
     setText("eng_title_" .. c, "Fix from hand")
@@ -6854,6 +6925,7 @@ engineAbilityWant = {}
 function engineAbilityReset()
   for c in pairs(engineAbPanelFor or {}) do setAttr("eng_abp_" .. c, "active", "false") end
   engineAbilityWant, engineAbilityOn, engineAbPanelFor, engineRedrawSoon = {}, {}, {}, {}
+  engineAbShown, engineAbPage = {}, {}
 end
 -- one short line per ability: its cost and the start of what it does ("{1}{G}: Put a +1/+1…"); the button's tooltip
 -- has the whole text
@@ -6983,9 +7055,9 @@ function engineAbilityBoxes(color, p, kind)
     -- (a card that left the battlefield, bounced to a hand: its buttons go with the question, stage 3 review)
     elseif obj ~= nil and not obj.isDestroyed() and engineAbilityWant[id] == nil then obj.clearButtons() engineBadge[id] = nil end
   end
-  -- (the screen panel follows: other abilities now, or none)
+  -- (the screen panel follows the question: its lines answer this one now, offered or greyed)
   local shown = engineAbPanelFor and engineAbPanelFor[color]
-  if shown ~= nil and changed[shown] then engineAbPanelShow(color, shown) end
+  if shown ~= nil then engineAbPanelShow(color, shown) end
 end
 
 -- (by name, for tests and tools: "ab|<object guid>|<button number>")
@@ -7018,39 +7090,232 @@ function engineUseAbility(color, optionId, promptId)
   end
 end
 
--- The screen panel (engineAbPanelXml): pointing at one of your cards that has ability buttons shows them there, whole
--- and readable; it stays while you move to it, and goes when that card has no buttons any more.
+-- The screen panel (engineAbPanelXml): every action the engine offers for the card you point at, and every activated
+-- ability in its text that it doesn't offer now, greyed with the reason when the table can tell (docs/engine-ui-spec.md
+-- 5: "mimic the engine", the user 2026-11-10). ENGINE_AB_MAX lines a page, More turns it. It stays while you move to
+-- it, follows the board (engineUpdateCorner, engineAbilityBoxes) and goes when the card has nothing left to list.
 engineAbPanelFor = {} -- colour -> engine card id shown
+engineAbShown = {}    -- colour -> { id, rows, first, promptId }: what the panel's lines are now (a click reads it)
+engineAbPage = {}     -- colour -> { id, n }: the page shown for that card
+-- keyword abilities with a cost and no colon, used on the battlefield (as the fix's F.BF_WORDS)
+ENGINE_AB_KEYWORDS = { "Equip", "Crew", "Fortify", "Reconfigure", "Level up", "Outlast", "Station" }
+-- a cost's first word that makes "X: Y" an activated ability without a mana symbol in it
+ENGINE_AB_COSTWORDS = { Sacrifice = true, Discard = true, Pay = true, Exile = true, Remove = true, Tap = true, Untap = true,
+  Return = true, Put = true, Reveal = true, Mill = true, Collect = true, Forage = true }
+-- "+1", "−2" (U+2212), "-X", "0" -> the number (a minus is negative, X counts 0), else nil
+function engineLoyaltyCost(cost)
+  local s = tostring(cost):gsub("\226\136\146", "-")
+  s = s:gsub("^%s+", ""):gsub("%s+$", "")
+  if #s == 0 or #s > 4 then return nil end
+  local sign, n = s:sub(1, 1), s
+  if sign == "+" or sign == "-" then n = s:sub(2) else sign = "" end
+  if n ~= "X" and not n:find("^%d+$") then return nil end
+  local v = tonumber(n) or 0
+  return sign == "-" and -v or v
+end
+-- One line of rules text as an activated ability { text, cost, eff, loyalty, mana, keyword }, or nil. Reminder text
+-- (in brackets) goes first, so a basic land's "({T}: Add {G}.)" is none; a cost with a quote is a granted ability
+-- ("Enchanted land has "{T}: ..."), not the card's own. Plain finds only (MoonSharp's "pattern too complex").
+function engineTextAbility(line)
+  line = tostring(line or ""):gsub("%b()", ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if line == "" then return nil end
+  local at = line:find(":", 1, true)
+  for _, k in ipairs(ENGINE_AB_KEYWORDS) do
+    if at == nil and line:sub(1, #k + 1) == k .. " " then return { text = line, cost = line:sub(#k + 2), eff = k, keyword = k } end
+  end
+  if at == nil or at < 2 or at > 70 then return nil end
+  local cost, eff = line:sub(1, at - 1), (line:sub(at + 1):gsub("^%s+", ""))
+  if cost:find(".", 1, true) or cost:find('"', 1, true) then return nil end
+  local loyalty = engineLoyaltyCost(cost)
+  local first = cost:match("^(%a+)") or ""
+  if loyalty == nil and not cost:find("{", 1, true) and not ENGINE_AB_COSTWORDS[first] then return nil end
+  return { text = line, cost = cost, eff = eff, loyalty = loyalty, mana = eff:find("^Add ") ~= nil }
+end
+-- the activated abilities in a card's text, in its order
+function engineTextAbilities(tx)
+  local out = {}
+  for line in (tostring(tx or "") .. "\n"):gmatch("([^\n]*)\n") do
+    local a = engineTextAbility(line)
+    if a ~= nil then out[#out + 1] = a end
+  end
+  return out
+end
+function engineHasType(card, want)
+  for _, ty in ipairs((card and card.ty) or {}) do if ty == want then return true end end
+  return false
+end
+-- Why an ability in the card's text isn't offered now, as far as the table can tell. card: { ty, tx, tap, sick, ctr }
+-- (its battlefield entry with its static details); p: the player's open question; prio: it is a priority question.
+function engineAbWhy(color, card, a, p, prio)
+  local t = lastTable or {}
+  -- (Forge offers mana abilities while a cost is paid, not at priority)
+  if a.mana then return "Used while paying a cost (tap it with Q/E)" end
+  if p == nil then
+    if t.priority ~= nil and t.priority ~= color and not t.gameOver then return "Not your priority (waiting for " .. engineNameOf(t.priority) .. ")" end
+    return "Not your priority"
+  end
+  if not prio then return "Answer the open question first" end
+  local cost = tostring(a.cost or "")
+  if card ~= nil then
+    if cost:find("{T}", 1, true) and card.tap then return "Tapped" end
+    if cost:find("{Q}", 1, true) and not card.tap then return "Untapped ({Q} untaps it)" end
+    if cost:find("{T}", 1, true) and engineHasType(card, "Creature") and card.sick and not tostring(card.tx or ""):find("Haste", 1, true) then return "Summoning sickness" end
+  end
+  local main = t.active == color and (t.step == "main1" or t.step == "main2") and #(t.stack or {}) == 0
+  if a.loyalty ~= nil then
+    if not main then return "Loyalty: your main phase, empty stack" end
+    local have
+    for k, v in pairs((card and card.ctr) or {}) do if tostring(k):upper() == "LOYALTY" then have = tonumber(v) end end
+    if a.loyalty < 0 and have ~= nil and have < -a.loyalty then return "Needs " .. (-a.loyalty) .. " loyalty (has " .. have .. ")" end
+    return "Loyalty: once each turn"
+  end
+  local low = tostring(a.eff):lower()
+  local sorcery = low:find("activate only as a sorcery", 1, true) or a.keyword == "Equip" or a.keyword == "Fortify"
+    or a.keyword == "Reconfigure" or a.keyword == "Level up" or a.keyword == "Outlast"
+  if sorcery and not main then return "Only as a sorcery" end
+  if low:find("activate only once each turn", 1, true) then return "Once each turn" end
+  return "Can't be used now (its cost or a rule)"
+end
+-- The panel's lines for card id and player colour: { opt = the option id to answer with (nil: greyed), text, cost,
+-- why, mana }. First the ways to cast or play it, then its text's abilities in order (offered or greyed), then what
+-- the engine offers that the text doesn't name (a granted ability, its mana button, "Untap ... (mana back)").
+function engineAbList(color, id)
+  local p = enginePrompts[color]
+  local prio = p ~= nil and enginePromptKind ~= nil and enginePromptKind(p) == "action"
+  local sent = false -- (a bridge that sends "ab" sends it on every ability, engineAbilityBoxes)
+  for _, o in ipairs((prio and p.options) or {}) do if o.ab ~= nil then sent = true break end end
+  local casts, abils, others = {}, {}, {}
+  for _, o in ipairs((prio and p.options) or {}) do
+    if o.cardId == id then
+      local label = tostring(o.label or "")
+      if label:find("^Mana:") or label:find("^Untap ") then others[#others + 1] = o
+      elseif o.ab ~= nil or (not sent and not label:find("^Cast ") and not label:find("^Play ")) then abils[#abils + 1] = o
+      else casts[#casts + 1] = o end
+    end
+  end
+  local rows = {}
+  for _, o in ipairs(casts) do rows[#rows + 1] = { opt = o.id, text = tostring(o.label) } end
+  -- (the board's entry with its static details: a slim entry carries only what changes)
+  local entry, st = engineAbilityCard(id), engineStatic[id] or {}
+  local card = entry ~= nil and { ty = entry.ty or st.ty, tx = entry.ct or entry.tx or st.tx, tap = entry.tap, sick = entry.sick, ctr = entry.ctr } or nil
+  local function norm(s) return (tostring(s):lower():gsub("\226\136\146", "-"):gsub("[%s%.]", "")) end
+  local taken, manaUsed, manaOpt, greyMana = {}, false, nil, {}
+  for _, o in ipairs(others) do if tostring(o.label):find("^Mana:") then manaOpt = o end end
+  for _, a in ipairs(card ~= nil and engineTextAbilities(card.tx) or {}) do
+    local hit
+    if a.mana then hit = manaOpt
+    else
+      -- (an option's ability text starts with the line's cost; of several, the one whose effect starts the same)
+      local head = a.keyword and norm(a.keyword) or (norm(a.cost) .. ":")
+      local want = a.keyword and "" or norm(a.eff):sub(1, 10)
+      for _, o in ipairs(abils) do
+        local ab = norm(engineAbilityText(o))
+        if not taken[o] and ab:sub(1, #head) == head then
+          if hit == nil then hit = o end
+          if want ~= "" and ab:sub(#head + 1, #head + #want) == want then hit = o break end
+        end
+      end
+      if hit ~= nil then taken[hit] = true end
+    end
+    if hit ~= nil and hit == manaOpt then manaUsed = true end
+    local r = { opt = hit and hit.id, text = a.text, cost = a.cost, mana = a.mana,
+      why = hit == nil and engineAbWhy(color, card, a, p, prio) or nil }
+    -- (a mana ability not offered goes last: it is used while paying, never from here)
+    if hit == nil and a.mana then greyMana[#greyMana + 1] = r else rows[#rows + 1] = r end
+  end
+  for _, o in ipairs(abils) do if not taken[o] then rows[#rows + 1] = { opt = o.id, text = engineAbilityText(o) } end end
+  for _, o in ipairs(others) do
+    if not (o == manaOpt and manaUsed) then rows[#rows + 1] = { opt = o.id, text = tostring(o.label), mana = true } end
+  end
+  for _, r in ipairs(greyMana) do rows[#rows + 1] = r end
+  return rows, card
+end
+-- The lines to show for that card, or nil when the panel shouldn't open for it: not yours, nothing to list, a hand
+-- card with one way to play it (the drag does that), a land with only its mana abilities
+function engineAbPanelRows(color, id)
+  local meta = id and engineMeta[id]
+  if meta == nil or meta.color ~= color then return nil end
+  local rows, card = engineAbList(color, id)
+  local land = engineHasType(card or engineStatic[id], "Land")
+  local offered, other = 0, false
+  for _, r in ipairs(rows) do
+    if r.opt ~= nil then offered = offered + 1 end
+    if not (r.mana and land) then other = true end
+  end
+  if not other or (meta.zone == "hand" and offered < 2) then return nil end
+  return rows
+end
+-- one line's words: the cost in gold, then the effect; a greyed line's reason after it in italics. Cut to fit two lines.
+function engineAbRowLabel(r)
+  local text = tostring(r.text)
+  local head, rest = r.cost, nil
+  if head ~= nil and text:sub(1, #head) == head then rest = (text:sub(#head + 1):gsub("^:%s*", ""))
+  else
+    local at = text:find(":", 1, true)
+    if at ~= nil and at > 1 and at <= 28 then head, rest = text:sub(1, at - 1), (text:sub(at + 1):gsub("^%s+", "")) else head, rest = nil, text end
+  end
+  local room = 92 - (head and #head + 2 or 0) - (r.why and #r.why + 4 or 0)
+  local cut = engineCut(rest, math.max(20, room))
+  if #cut < #rest then cut = cut:gsub("%s+%S*$", "") .. "…" end
+  if r.opt == nil then
+    return " " .. (head and (head .. ": ") or "") .. cut .. "  <i><color=#E0B060>" .. tostring(r.why or "") .. "</color></i>"
+  end
+  return " " .. (head and ("<b><color=#FFD27A>" .. head .. ":</color></b> ") or "") .. cut
+end
+function engineAbPanelHide(color)
+  if engineAbPanelFor[color] ~= nil then setAttr("eng_abp_" .. color, "active", "false") end
+  engineAbPanelFor[color], engineAbShown[color] = nil, nil
+end
+-- Shows card id's lines (on hover), or redraws them (a new question, a board update); hides the panel when the card
+-- it shows has nothing left to list
 function engineAbPanelShow(color, id)
-  local w = id and engineAbilityWant[id]
-  if w == nil or w.color ~= color then
-    if engineAbPanelFor[color] ~= nil then setAttr("eng_abp_" .. color, "active", "false") end
-    engineAbPanelFor[color] = nil
+  local rows = engineAbPanelRows(color, id)
+  if rows == nil then
+    if id ~= nil and engineAbPanelFor[color] == id then engineAbPanelHide(color) end
     return
   end
   engineAbPanelFor[color] = id
+  local pg = engineAbPage[color]
+  if pg == nil or pg.id ~= id then pg = { id = id, n = 0 } engineAbPage[color] = pg end
+  pg.n = pg.n % math.ceil(#rows / ENGINE_AB_MAX)
+  local first = pg.n * ENGINE_AB_MAX + 1
+  local p = enginePrompts[color]
+  engineAbShown[color] = { id = id, rows = rows, first = first, promptId = p and p.promptId }
   setText("eng_abpt_" .. color, tostring((engineStatic[id] or {}).n or "Abilities"))
+  local shown = 0
   for k = 1, ENGINE_AB_MAX do
-    local a = w.list[k]
-    setAttr("eng_abp_" .. color .. "_" .. k, "active", a ~= nil and "true" or "false")
-    -- (cut at a word with "…", the whole text on hover: Vraska's -2 ended "Sacrifice t", hp-22 re-test 2026-10-28)
-    if a ~= nil then
-      local full = tostring(a.text)
-      local shown = engineCut(full, 70)
-      if #shown < #full then shown = shown:gsub("%s+%S*$", "") .. "…" end
-      setText("eng_abp_" .. color .. "_" .. k, shown)
-      setAttr("eng_abp_" .. color .. "_" .. k, "tooltip", full)
+    local r = rows[first + k - 1]
+    if r == nil then setButton("eng_abp_" .. color .. "_" .. k, { active = "false" })
+    else
+      shown = shown + 1
+      -- (one call: the tooltip in a second call redrew the button grey with dark text, docs/engine-ui-spec.md 2.1)
+      setButton("eng_abp_" .. color .. "_" .. k, { active = "true", text = engineAbRowLabel(r),
+        tooltip = tostring(r.text) .. (r.why and ("\n" .. r.why) or ""),
+        color = r.opt and ENGINE_THEME.button or ENGINE_THEME.muted, textColor = r.opt and ENGINE_THEME.text or ENGINE_THEME.mutedText })
     end
   end
+  local more = #rows > ENGINE_AB_MAX
+  setButton("eng_abpg_" .. color, { active = more and "true" or "false",
+    text = more and string.format("More... (%d-%d of %d)", first, first + shown - 1, #rows) or " " })
+  -- (as tall as its lines: one ability was a tall black box with a button at its foot)
+  setAttr("eng_abp_" .. color, "height", tostring(44 + shown * 44 + (more and 34 or 0)))
   setAttr("eng_abp_" .. color, "active", "true")
 end
 function onMtgAbPanel(player, value, idAttr)
-  local c, k = tostring(idAttr):match("^eng_abp_(%a+)_(%d+)$")
-  if c == nil or c ~= player.color then return end
+  local c, id = player.color, tostring(idAttr)
+  if id == "eng_abpx_" .. c then return engineAbPanelHide(c) end
+  if id == "eng_abpg_" .. c then
+    if engineAbPage[c] ~= nil then engineAbPage[c].n = engineAbPage[c].n + 1 end
+    return engineAbPanelShow(c, engineAbPanelFor[c])
+  end
+  local cc, k = id:match("^eng_abp_(%a+)_(%d+)$")
+  if cc == nil or cc ~= c then return end
   -- (from the list the panel shows: the card's buttons may not be drawn yet; structural review 2026-10-27)
-  local w = engineAbPanelFor[c] and engineAbilityWant[engineAbPanelFor[c]]
-  local a = w and w.color == c and w.list[tonumber(k)]
-  if a then engineUseAbility(c, a.id, w.promptId) end
+  local s = engineAbShown[c]
+  local r = s and s.rows[s.first + tonumber(k) - 1]
+  if r == nil then return end
+  if r.opt ~= nil then return engineUseAbility(c, r.opt, s.promptId) end
+  engineTell(c, tostring((engineStatic[s.id] or {}).n or "That card") .. ": " .. tostring(r.text) .. " - " .. tostring(r.why) .. ".")
 end
 -- (chained to the table's own onObjectHover, which keeps hoveredObjs for "mtg commander" and the hover hotkeys:
 -- replacing it broke both, structural review 2026-10-27)
@@ -7058,10 +7323,10 @@ do
 local before = onObjectHover
 function onObjectHover(color, obj)
   if before ~= nil then before(color, obj) end
-  if not ENGINE_MODE or obj == nil or Player[color] == nil or next(engineAbilityWant) == nil then return end
-  local id = tostring(obj.getGMNotes()):match("^engine:(.+)$")
-  local w = id and engineAbilityWant[id]
-  if w ~= nil and w.color == color and engineAbPanelFor[color] ~= id then engineAbPanelShow(color, id) end
+  if not ENGINE_MODE or obj == nil or Player[color] == nil then return end
+  local id = tostring(obj.getGMNotes()):match("^engine:(engine%-card%-%d+)$")
+  -- (a card pointed at afresh starts at its first page)
+  if id ~= nil and engineAbPanelFor[color] ~= id then engineAbPage[color] = nil engineAbPanelShow(color, id) end
 end
 end
 
