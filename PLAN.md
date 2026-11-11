@@ -21,6 +21,11 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   City's Blessing, the Ring, Day // Night and counter tokens come back parked under the table, hidden, and move onto
   the holder's mat beside their mark's box.
 
+## 2026-11-11
+- ⬜ Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on permanents
+  with a usable ability", the user 2026-11-11). It reuses the hand's per-player green frame; mana-only abilities are left
+  out at priority. Queued with round 2 (B: combat highlights).
+
 ## Monday 2026-11-09 (after the weekly usage reset)
 - ✅ **Update Forge for Star Trek: done and live 2026-11-09** (bfba2e0, docs/forge-update-2026-11.md: TRK 311/311, TRC 337/337). 2026-11-10: four upstream script fixes (Kirk, Commanding Officer; Dr. McCoy, Surly Surgeon; Cantankerous Captain; Starfleet Communicator) being taken into a new node image. Old note: Our Forge copy (`manabrew/forge`, through
   Manabrew's fork witchesofthehill/forge) is from 2026-09-21: Star Trek (TRK) has 92 cards and Star Trek Commander
