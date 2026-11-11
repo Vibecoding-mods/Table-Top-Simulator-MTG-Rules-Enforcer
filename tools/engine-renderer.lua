@@ -1925,12 +1925,13 @@ do
     local route
     if pick:find("^https?://") then
       if MusicPlayer == nil then return false end
-      -- (the players' own music is never cut: a clip of theirs, playing or paused, unless the player is stopped or
-      -- holds no clip; a clip of ours is titled "MTG effect: ...")
+      -- (the players' own music is never cut while it plays: a clip of theirs that is playing; a clip of ours is titled
+      -- "MTG effect: ..."; a paused one is replaced and stays in their music library. Live check 2026-11-11: TTS loads a
+      -- save's track paused, so keeping paused tracks silenced every table sound on the playgroup's own save)
       local okBusy, busy = pcall(function()
         local clip = MusicPlayer.getCurrentAudioclip() or {}
         local theirs = tostring(clip.url or "") ~= "" and tostring(clip.title or ""):sub(1, 10) ~= "MTG effect"
-        return theirs and MusicPlayer.player_status ~= "Stop"
+        return theirs and MusicPlayer.player_status == "Play"
       end)
       if not okBusy or busy then return false end
       -- (played once the player holds this very clip and has loaded it: right after setCurrentAudioclip, loaded can
@@ -4212,40 +4213,40 @@ engineSoundOff = {}    -- colour -> true: that player asked for no sounds (the t
 -- sound object (an AssetBundle whose GM notes are "engine:sounds"). The user's six sounds, on the host's TTS Cloud
 -- (docs/sounds.md, 2026-11-11); counter and knockout have none yet.
 engineSounds = engineSounds or {
-  death = "https://steamusercontent-a.akamaihd.net/ugc/13335260803010380839/1E14C1BED86C409D90C135F65EBDC64865EE933A/",    -- a permanent to the graveyard
-  wipe = "https://steamusercontent-a.akamaihd.net/ugc/17690707824716063746/6E5813D75AA66D8CD6810895220FAEB28E263475/",     -- 3 or more to graveyards on one board
-  damage = "https://steamusercontent-a.akamaihd.net/ugc/10138799039655438681/650E0A0D5A0BEBE37070522BB3800524F10D371E/",   -- damage to a creature or a player
-  exile = "https://steamusercontent-a.akamaihd.net/ugc/14014286229650325084/49ED44FAD77D7F67A1C341ABACE74BD605EF9105/",    -- a permanent exiled from the battlefield
-  instant = "https://steamusercontent-a.akamaihd.net/ugc/15164427569377747897/03BA2225589A63582420E6520B2A64610D7023DC/",  -- an instant cast (not abilities, not copies)
-  lifegain = "https://steamusercontent-a.akamaihd.net/ugc/16916532848789661739/9D8BF0DEB5A473A8542DA200400DE7F5BED9FD17/", -- a player's life goes up
+  death = "https://steamusercontent-a.akamaihd.net/ugc/13327121084153162136/0C977DB5060F3953980271BE4789081E6889FD46/",    -- a permanent to the graveyard
+  wipe = "https://steamusercontent-a.akamaihd.net/ugc/11479971636843136595/5C0FB88EC6DE1F473D4067207ADDB4CCC0540597/",     -- 3 or more to graveyards on one board
+  damage = "https://steamusercontent-a.akamaihd.net/ugc/10124521221080295893/E301DC2C50A312AB8C6C1EDBB7C295B3AC76B06E/",   -- damage to a creature or a player
+  exile = "https://steamusercontent-a.akamaihd.net/ugc/17507000918538872455/683F8320B4DB9EAF77CF1AF05D1205EF94F7BA65/",    -- a permanent exiled from the battlefield
+  instant = "https://steamusercontent-a.akamaihd.net/ugc/13908604519167356078/0E2D2096A9D13080B6AC9F2204F29D2B419AD00A/",  -- an instant cast (not abilities, not copies)
+  lifegain = "https://steamusercontent-a.akamaihd.net/ugc/18328296034120530417/099A768F25DE573194668B6ACDFC47C3BC4F0DE7/", -- a player's life goes up
   counter = nil, -- a counter put on a permanent
   knockout = nil, -- a player loses or concedes
   -- the bursts (docs/sounds.md "Bursts", 2026-11-11): the kind's sound stacked N times, for N or more of it on one board
   -- (FX.burst: the largest at or under the count, up to x8); wipe's plain sound is already its 3+ one, so it has no x2
-  damage_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10464557751799177862/6F604E2D78E13AB28FEBC5365863C687C796F239/",
-  damage_x3 = "https://steamusercontent-a.akamaihd.net/ugc/14646174326618084878/B7B9F21BC50D5E77C3081552AC58242841577AF8/",
-  damage_x4 = "https://steamusercontent-a.akamaihd.net/ugc/9351534476505836294/236EDE0011031CBB94EDF1613D761474A24A2D3E/",
-  damage_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13449254694931788186/FA9521F10BC3E7A46DA69BE4F431541FD2F39C16/",
-  damage_x8 = "https://steamusercontent-a.akamaihd.net/ugc/14737365083111146855/D2F838CEDC686E6D93F21C996574C33BB705AF3A/",
-  death_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10326323065763527521/EA38AB1FC609CE2C42F13FBAF79FD818B7BFCFD5/",
-  death_x3 = "https://steamusercontent-a.akamaihd.net/ugc/13313831614403357901/CF123A24123CF12F59427C21BCA3C9234733AC89/",
-  death_x4 = "https://steamusercontent-a.akamaihd.net/ugc/10465797950542334211/35EE9C33A9E836F9B15A40D8455859C5DCDAAFF0/",
-  death_x6 = "https://steamusercontent-a.akamaihd.net/ugc/11367279803241106197/7F36B299A54543D916642787DDB8066FF5488631/",
-  death_x8 = "https://steamusercontent-a.akamaihd.net/ugc/16534043275915652105/422141011FDF045A8A216AB280514DFB724BCBDB/",
-  exile_x2 = "https://steamusercontent-a.akamaihd.net/ugc/18134726240279761771/DDF33868C453B42AD07594906B14725741300E88/",
-  exile_x3 = "https://steamusercontent-a.akamaihd.net/ugc/17124698296492267129/D0629EEAB2E518B30F1B3AD6BA8DCF86913710B8/",
-  exile_x4 = "https://steamusercontent-a.akamaihd.net/ugc/14375190080245899306/BE4BCB4D6AE2B42B1FF3D1FBEB185F677B22D761/",
-  exile_x6 = "https://steamusercontent-a.akamaihd.net/ugc/12258183096129809973/EADEC21E0C1D9F290E2D10D02229B5DB47E61E93/",
-  exile_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15949197280932033623/D971BE8657ACAEB5DF3E706FC2792E8EC45EEA9A/",
-  lifegain_x2 = "https://steamusercontent-a.akamaihd.net/ugc/17398558531396792153/66093C9877C8157C9362369D52541BB6A734A11F/",
-  lifegain_x3 = "https://steamusercontent-a.akamaihd.net/ugc/10317449226036305238/4CF0CB7E864ADC8BD98C556D8DE3314208F3C3D1/",
-  lifegain_x4 = "https://steamusercontent-a.akamaihd.net/ugc/16471321033526055880/DC9083C8464614F3BB035BBE86E339F7CF66672D/",
-  lifegain_x6 = "https://steamusercontent-a.akamaihd.net/ugc/18356686289443692221/59BF083D94030A873E7BED102E6107285572167D/",
-  lifegain_x8 = "https://steamusercontent-a.akamaihd.net/ugc/10727762465393289889/3B94CA05E39CDF14444FA3BCE7F5859369C935A9/",
-  wipe_x3 = "https://steamusercontent-a.akamaihd.net/ugc/10435153874502213849/AA66275AB4AEB5700643BCE8DA9FD47B08C6136B/",
-  wipe_x4 = "https://steamusercontent-a.akamaihd.net/ugc/15470057286996991259/958B340B8F7631AFFAEB9B2EB2929CA0538D9731/",
-  wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13452053024172624536/F0F019A93DA593EE8EC97D29B264D2FFA2B7FD08/",
-  wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17828740702280774733/DBA473F3AFA40D27F786436729D47740B38441AE/",
+  damage_x2 = "https://steamusercontent-a.akamaihd.net/ugc/9466119173358429772/2E01C49BC2F53D6B93F512EA0A64749DDA634A13/",
+  damage_x3 = "https://steamusercontent-a.akamaihd.net/ugc/17172338814229470186/BA59E9063B3D8BCAB7189038A65371A54F7D222C/",
+  damage_x4 = "https://steamusercontent-a.akamaihd.net/ugc/13841800202556732767/F0038F1475AEFEC61821E465C78BC3EC21D80C35/",
+  damage_x6 = "https://steamusercontent-a.akamaihd.net/ugc/11502082504506897617/CF4A879844D92A2B54F7C750CD94BB636EE34ED4/",
+  damage_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15514955064335890272/27041620B6C22438F8CEE38F4DEA99C3F41E499F/",
+  death_x2 = "https://steamusercontent-a.akamaihd.net/ugc/15977504191754705363/9CB0EBE3DEB258B6EC662929F722AA63C1859207/",
+  death_x3 = "https://steamusercontent-a.akamaihd.net/ugc/10197623558912609913/8E8411F1BB726E5EC9E9DCCAF2BDA12DA8873A94/",
+  death_x4 = "https://steamusercontent-a.akamaihd.net/ugc/13749034421601130711/8C34460B16F3A2C67691C9CDB2648B3B4FC700DC/",
+  death_x6 = "https://steamusercontent-a.akamaihd.net/ugc/14981614231409099112/DFE78BFC666DAB2A2EF88031E551780A8AD4AF5A/",
+  death_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15294488810888848110/3E48CF911CB8DA8E2E91231BE0A3DA620D1AB5B5/",
+  exile_x2 = "https://steamusercontent-a.akamaihd.net/ugc/17186924497210315771/FE7A0190EFBB0DD9CF10187AC7F4A053FF1445A5/",
+  exile_x3 = "https://steamusercontent-a.akamaihd.net/ugc/16360686395485260339/33E0E7B8EE9466915355D652E0E2F53319E380E2/",
+  exile_x4 = "https://steamusercontent-a.akamaihd.net/ugc/10667382779559099124/73D0ED29786C7A9DBED6E09027F1BD86EA407F00/",
+  exile_x6 = "https://steamusercontent-a.akamaihd.net/ugc/17333791709913556002/D96572C923879FA41AA4FF78BABF33C230B7BE18/",
+  exile_x8 = "https://steamusercontent-a.akamaihd.net/ugc/16336440088589292350/C7421989BD48CF0D53217080BCD600880C9EABF3/",
+  lifegain_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10399168408910104955/AACB8F7F754DBFEC4CB9FA5E160B526C0B369D03/",
+  lifegain_x3 = "https://steamusercontent-a.akamaihd.net/ugc/14232928834878565003/0A18B59FCF2658F59C5946B812F153BC70EE8BB3/",
+  lifegain_x4 = "https://steamusercontent-a.akamaihd.net/ugc/15145076126188951042/48A9C18F2948F0AAF6BE76DCE1ADC5A4F9694697/",
+  lifegain_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13678081104005473403/478E8433DBE00A0525EA21D206CA4DEEAFB5CBBE/",
+  lifegain_x8 = "https://steamusercontent-a.akamaihd.net/ugc/12456025496901847800/D91EEE8A25C5F36EB72180F2363E38FC7B649D23/",
+  wipe_x3 = "https://steamusercontent-a.akamaihd.net/ugc/14397732191257991892/A2E4928820C613C1C7F795C4D22F39A951A14A0E/",
+  wipe_x4 = "https://steamusercontent-a.akamaihd.net/ugc/14089368148864425489/1B489E29E6BD0AA6026B4541D50135F5DF522F6B/",
+  wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/16706646390672856597/464A1F9ED5D5B2B15041BFDD9E6BF355867838D1/",
+  wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17471838172650004055/385D7FB6163AFE2C6DFD043DAE5036647530E63E/",
 }
 -- the sound kinds, most important first: one sound per board, the first of these on it that has a pick
 engineSoundKinds = { "knockout", "wipe", "death", "exile", "damage", "lifegain", "instant", "counter" }

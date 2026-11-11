@@ -1333,7 +1333,9 @@ const ttsImage = (u) => (u && SCRYFALL_CDN.test(u) ? u.replace(SCRYFALL_CDN, "ht
 // The running game's pictures (game.pictures, in the resume file), else the decks readied since.
 function imagesFor(name, ownerColor = null, id = null) {
   const decks = game?.pictures || Object.fromEntries(Object.entries(readyDecks).map(([c, r]) => [c, r.images]));
-  const order = [...new Set([ownerColor, ...TABLE_COLORS, ...Object.keys(decks)])].filter((c) => c != null);
+  // (an owner known: that deck's pictures only, else the lookup by name. Another deck's could be a custom picture: the
+  // AI's Mountain showed White's Lightning Bolt art on a Mountain, live check 2026-11-11. Owner unknown: any deck's)
+  const order = ownerColor != null ? [ownerColor] : [...new Set([...TABLE_COLORS, ...Object.keys(decks)])];
   const n = Number(/(\d+)\D*$/.exec(String(id ?? ""))?.[1] ?? 0);
   // (a deck card without its own picture, or with the card back as its face, uses the lookup by name: Fire // Ice
   // showed a card back, 2026-10-26)

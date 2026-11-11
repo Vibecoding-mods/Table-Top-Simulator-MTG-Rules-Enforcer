@@ -440,8 +440,8 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
 }
 
 // the music player (verifier, 2026-11-11): a sound plays once the player holds its own clip and has loaded it (loaded
-// can still be the last clip's), a newer sound replacing it first wins, and a clip of the players' own, paused or
-// playing, is never replaced
+// can still be the last clip's), a newer sound replacing it first wins, and a clip of the players' own is never
+// replaced while it plays; paused (as TTS loads a save's track, live check 2026-11-11) or stopped, the sound plays
 {
   const s0 = base();
   const s1 = clone(s0); s1.Blue.bf = s1.Blue.bf.filter((c) => c !== "b1"); s1.Blue.gy = ["b1"]; // death
@@ -449,14 +449,16 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const s3 = clone(s2); s3.Blue.bf = s3.Blue.bf.filter((c) => c !== "b2"); s3.Blue.ex = ["b2"]; // exile, 0.2 s later
   const s4 = clone(s3); s4.Blue.bf = s4.Blue.bf.filter((c) => c !== "b3"); s4.Blue.gy.push("b3"); // death
   const s5 = clone(s4); s5.Blue.bf = s5.Blue.bf.filter((c) => c !== "b4"); s5.Blue.gy.push("b4"); // death
+  const s6 = clone(s5); s6.Blue.bf = s6.Blue.bf.filter((c) => c !== "b5"); s6.Blue.gy.push("b5"); // death
   const L = (k) => `https://example.invalid/${k}.mp3`;
   const t = run([
     lua(`engineSounds.death = "${L("death")}" engineSounds.lifegain = "${L("lifegain")}" engineSounds.exile = "${L("exile")}" MusicPlayer.delay = 5 return "slow"`, "slow"),
     send(s0, "first board"), send(s1, "slow clip", 30),
     lua(`MusicPlayer.delay = 30 return "slower"`, "slower"), send(s2, "replaced", 12), send(s3, "newer sound", 60),
-    lua(`MusicPlayer.delay = 0 MusicPlayer.player_status = "Pause" MusicPlayer.clip = { title = "Song", url = "https://example.invalid/song.mp3" } return "paused"`, "paused"),
-    send(s4, "their track paused", 30),
-    lua(`MusicPlayer.player_status = "Stop" return "stopped"`, "stopped"), send(s5, "their track stopped", 30),
+    lua(`MusicPlayer.delay = 0 MusicPlayer.player_status = "Play" MusicPlayer.clip = { title = "Song", url = "https://example.invalid/song.mp3" } return "playing"`, "playing"),
+    send(s4, "their track playing", 30),
+    lua(`MusicPlayer.player_status = "Pause" return "paused"`, "paused"), send(s5, "their track paused", 30),
+    lua(`MusicPlayer.player_status = "Stop" MusicPlayer.clip = { title = "Song", url = "https://example.invalid/song.mp3" } return "stopped"`, "stopped"), send(s6, "their track stopped", 30),
   ]);
   ok("music player: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
   const plays = (marks) => marks.flatMap((m) => t.fx(m)).filter((l) => l.includes('"MusicPlayer.play"'));
@@ -464,8 +466,10 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("music player: a slow clip plays once it has arrived, as itself (not the last clip)", slow.length === 1 && slow[0].includes(`"${L("death")}"`), JSON.stringify(slow));
   const two = plays(["replaced", "newer sound"]);
   ok("music player: two sounds 0.2 s apart: only the newer plays, its own clip", two.length === 1 && two[0].includes(`"${L("exile")}"`), JSON.stringify(two));
-  const paused = t.fx("their track paused").filter((l) => l.includes("MusicPlayer."));
-  ok("music player: a paused track of theirs is never replaced", paused.length === 0, JSON.stringify(paused));
+  const playing = t.fx("their track playing").filter((l) => l.includes("MusicPlayer."));
+  ok("music player: a playing track of theirs is never replaced", playing.length === 0, JSON.stringify(playing));
+  const paused = t.fx("their track paused");
+  ok("music player: their track paused (as a save loads it): the sound plays", paused.some((l) => l.includes('"MusicPlayer.setCurrentAudioclip"')) && plays(["their track paused"]).length === 1, JSON.stringify(paused.filter((l) => l.includes("Music"))));
   const stopped = t.fx("their track stopped");
   ok("music player: their track stopped: the sound plays", stopped.some((l) => l.includes('"MusicPlayer.setCurrentAudioclip"')) && plays(["their track stopped"]).length === 1, JSON.stringify(stopped.filter((l) => l.includes("Music"))));
 }
