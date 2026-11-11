@@ -4705,24 +4705,26 @@ function scryPlaceSteps(cards, zones, label, done, placed = {}) {
 }
 
 // A choice among players and permanents that is no target (Forge's chooseSingleEntityForEffect over a mixed list, which
-// the harness asks as a chooseFromSelection of labels: Beamsplitter Mage's and Zevlor's copies, a creature put onto the
-// battlefield attacking choosing whom it attacks) names each by Forge's toString: a player by its engine name, a card as
-// "<name> (<Forge's number>)", a number that is not our card id. So a card is known by its name, when exactly one
-// permanent on the battlefield (face up) has it. All of them known, with a card among them: the target ids, in the
+// the harness asks as a chooseFromSelection of labels: Zevlor's copy over a player and their permanents, a creature put
+// onto the battlefield attacking choosing whom it attacks; a list of cards alone is asked as cards instead) names each
+// by Forge's toString: a player by its engine name, a card as "<name> (<Forge's number>)", a number that is not our
+// card id. So a card is known by its name, when the one card of that name the board shows anywhere (every zone and the
+// stack) is a face-up permanent on the battlefield. All of them known, with a card among them: the target ids, in the
 // options' order, that the table answers by clicking a life counter or the card (item 24, planeswalkers by click,
 // 2026-11-11); else null, and the list is asked as before.
 function entityChoiceIds(options, gv) {
   const order = (game?.playerOrder || []).map((u) => String(u || "").toLowerCase());
-  const bf = (gv.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => z.cards || []);
+  const seen = [...(gv.zones || []).flatMap((z) => (z.cards || []).map((c) => ({ c, bf: z.zone === "battlefield" }))),
+    ...(gv.stack || []).map((s) => ({ c: s, bf: false }))];
   const ids = [];
   for (const o of options) {
     const label = String(o.label ?? "").trim();
     const k = label ? order.indexOf(label.toLowerCase()) : -1;
     if (k >= 0) { ids.push(`player|player-${k}`); continue; }
     const name = /^(.+) \(\d+\)$/.exec(label)?.[1];
-    const same = name ? bf.filter((c) => !c.isFaceDown && c.identity?.name === name) : [];
-    if (same.length !== 1) return null;
-    ids.push(`card|${same[0].id}`);
+    const same = name ? seen.filter((x) => x.c.identity?.name === name) : [];
+    if (same.length !== 1 || !same[0].bf || same[0].c.isFaceDown) return null;
+    ids.push(`card|${same[0].c.id}`);
   }
   return ids.some((v) => v.startsWith("card|")) && new Set(ids).size === ids.length ? ids : null;
 }
