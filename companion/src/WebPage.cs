@@ -331,7 +331,18 @@ var MtgPage = (function () {
 
   // ── table tools: GET/POST /api/tools, the bridge's AI seats and debug tools passed through (WebUi.Tools) ──
   var KINDS = [['off', 'None'], ['harmless', 'Harmless bot'], ['forge', 'Forge AI']];
-  var LIST_CHOICE = '__list', MAX_LIST = 15000; // (the companion takes a body of at most 16 KB)
+  var LIST_CHOICE = '__list';
+  // (the companion reads a request body of at most 16 KB, MiniHttp.MaxBody: measured on the body as sent, in UTF-8
+  // with its JSON escapes, as 15,000 characters of list could still be over it)
+  var MAX_BODY = 16384;
+  function utf8Bytes(s) {
+    var n = 0;
+    for (var k = 0; k < s.length; k++) {
+      var c = s.charCodeAt(k);
+      n += c < 0x80 ? 1 : c < 0x800 ? 2 : c >= 0xd800 && c < 0xdc00 ? 4 : c >= 0xdc00 && c < 0xe000 ? 0 : 3;
+    }
+    return n;
+  }
 
   // GET /api/tools (or null, or a refusal) -> what the section shows
   function toolsView(t) {
@@ -360,9 +371,9 @@ var MtgPage = (function () {
     var b = { kind: 'ai-seat', color: color, seat: kind };
     if (deck === LIST_CHOICE) {
       if (!str(list).trim()) return { error: 'Paste a deck list, or pick a file, first.' };
-      if (str(list).length > MAX_LIST) return { error: 'That deck list is too long (over 15,000 characters).' };
       b.list = str(list);
       if (str(name).trim()) b.name = str(name).trim();
+      if (utf8Bytes(JSON.stringify(b)) > MAX_BODY) return { error: 'That deck list is too long: the page can send 16 KB at most.' };
     } else if (deck) b.preset = deck;
     else if (kind === 'forge') return { error: 'Pick a deck for the Forge AI.' };
     return b;
