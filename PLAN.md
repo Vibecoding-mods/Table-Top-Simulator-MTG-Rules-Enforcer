@@ -18,6 +18,9 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   "Jace Beleren (201)"; the log's "White attacks with Hero of Bladehold" doesn't name the planeswalker, and it put
   the Giant Growth cast (declare-attackers step) after the combat damage; a mid-game `mtg debug` without keepHand
   bottoms the hand and adds 20 lands. The pump-on-attacker payment title wasn't seen (the pool paid by itself).
+- 🔶 (source) Fixed: the "COUNTERED: <name>" pop-up never showed for a countered instant or sorcery (it needed the
+  stack item's `spell`, which is false for any spell with spell text). The bridge now marks those `sp`, and the
+  pop-up takes either (test_table_effects, red without the fix). Needs the bridge and table deployed together.
 - 🔶 (source) Reported by the user 2026-11-11: when a card is milled, its move to the graveyard sticks part-way until the
   player clicks the card in flight (the "pile" it is moving to the graveyard). Found: with Auto on, a seated player's
   mill was held face up in the air a quarter of the way to the graveyard until Auto let it go ~2 s later (a click on
@@ -550,6 +553,7 @@ Players drag and use the table normally; every move is a request the engine acce
 - [ ] Step 3: the 2-player sync test (do effects, highlights and bundle sounds show for everyone?), then one test AssetBundle (Unity 6000.0.62f1 vs the installed 6000.3) with a pooled effect
 - [ ] Step 4: pooled particle effects for death (smoke + shatter), countered spell, damage hit, player knocked out, with sound hooks; CC0 sounds (Kenney, Cockatrice set). Being specified 2026-11-05
   - [x] **The user's sounds in, and four new sound kinds (2026-11-11, source only, not heard on the real table):** the six TTS Cloud links of `docs/sounds.md` in `engineSounds` (death, wipe, damage, exile, instant, lifegain; counter and knockout still silent); new kinds wipe (3+ to graveyards on one board, instead of death), exile (a permanent from the battlefield to exile, tokens by the bridge's new `exd`), instant (an instant spell on the stack, by the bridge's new `ins`; not abilities, not copies), lifegain (a life total going up); one sound per board, knockout > wipe > death > exile > damage > lifegain > instant > counter, the first with a pick (docs/m5-effects-design.md §6); `mtg sounds test <kind>` takes all eight. Needs the bridge and table deployed together; real-table check 5 (music player delay) still open
+  - [x] **Sound bursts (2026-11-11, source only, not heard):** the 24 stacked clips of `docs/sounds.md` ("Bursts") as `engineSounds.<kind>_x<N>`; a board with several deaths, exiles, hits or gains plays the largest bucket at or under its count (×2 ×3 ×4 ×6 ×8, wipe from ×3, capped at ×8), still one clip per board under the same limits (docs/m5-effects-design.md §6, "Bursts"); `mtg sounds test <kind> [N]`
 - [x] ~~Camera shake~~ dropped: none in any Arena frame (video research)
 
 ### M6: 4–6 players (was 5–8; shrunk 2026-11-05 to fit the 6-player Workshop table 2293586471)

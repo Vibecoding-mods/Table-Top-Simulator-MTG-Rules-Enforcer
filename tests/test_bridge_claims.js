@@ -3288,6 +3288,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       item("engine-stack-3", "engine-card-904", "Censor", { sourceAbilityText: "Cycling {U} ({U}, Discard this card: Draw a card.)" }),
       item("casting-77", "engine-card-903", "Opt", { sourceAbilityText: "Scry 1. Draw a card.", isCasting: true }),
       item("engine-stack-4", "engine-card-905", "Shock", { sourceAbilityText: "Shock deals 2 damage to any target." }), // (a copy: by name; the table tells it)
+      item("engine-stack-5", "engine-card-906", "Fury", { sourceAbilityText: "When Fury enters, it deals 4 damage divided as you choose among any number of target creatures." }),
+      item("engine-stack-6", "engine-card-907", "Grizzly Bears", { isPermanentSpell: true }),
     ];
     gv.events = [{ seq: 1, id: "event-1", cardId: "engine-card-950", from: "Battlefield", to: "Exile", ownerId: "player-1" },
       { seq: 2, id: "event-2", cardId: "engine-card-951", from: "Graveyard", to: "Exile", ownerId: "player-1" }];
@@ -3301,6 +3303,11 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("sounds: an instant's ability (cycling) is not", ins["engine-stack-3"] === false, JSON.stringify(ins));
     ok("sounds: an instant still being cast is not", ins["casting-77"] === false, JSON.stringify(ins));
     ok("sounds: an unseen card by an instant's name is marked (copies are the table's to tell)", ins["engine-stack-4"] === true, JSON.stringify(ins));
+    // (sp, 2026-11-11: the table's COUNTERED pop-up took only `spell`, false for any spell with spell text)
+    const sp = Object.fromEntries((tb.stack || []).map((s) => [s.id, [!!s.spell, !!s.sp]]));
+    ok("countered: an instant and a sorcery are marked sp (spell false)", JSON.stringify([sp["engine-stack-1"], sp["engine-stack-2"], sp["engine-stack-4"]]) === "[[false,true],[false,true],[false,true]]", JSON.stringify(sp));
+    ok("countered: an activated ability (cycling) and a trigger are not", JSON.stringify([sp["engine-stack-3"], sp["engine-stack-5"]]) === "[[false,false],[false,false]]", JSON.stringify(sp));
+    ok("countered: a permanent spell stays spell, with no sp", JSON.stringify(sp["engine-stack-6"]) === "[true,false]", JSON.stringify(sp));
     ok("sounds: exd names the battlefield -> exile move only", JSON.stringify(tb.exd) === '["engine-card-950"]', JSON.stringify(tb.exd));
     gv.players.find((p) => p.id === "player-0").life -= 1;
     h.B.sendTable(); await h.flush();

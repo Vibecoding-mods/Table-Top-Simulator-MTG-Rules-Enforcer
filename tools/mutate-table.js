@@ -152,7 +152,7 @@ const M = [
   ["fx: deaths not counted","if now.bf[id] == nil and (now.gy[id] ~= nil or x.tok) then","if false then"],
   ["fx: no xN on a board wipe","      if n > 1 then\n        target.createButton","      if n > 99 then\n        target.createButton"],
   ["fx: countered without being aimed at","if t.k == \"s\" and not still[t.id] then countered[t.id] = true end","countered[t.id] = true"],
-  ["fx: COUNTERED never shown","if countered[st.id] and st.spell and panelReadyForPopup() then","if false then"],
+  ["fx: COUNTERED never shown","if countered[st.id] and (st.spell or st.sp) and panelReadyForPopup() then","if false then"],
   ["fx: knocked out not shown","if status == \"lost\" and prev.status[c] ~= nil and prev.status[c] ~= \"lost\" then","if false then"],
   ["fx: VICTORY for everyone","if m.winner ~= nil and viewer == m.winner then result(viewer, \"VICTORY\"","if true then result(viewer, \"VICTORY\""],
   ["fx: one banner mark for all players","FX.resultMark[c] = (FX.resultMark[c] or 0) + 1\n    local mark = FX.resultMark[c]\n    Wait.time(function() if FX.resultMark[c] == mark","FX.resultMark.all = (FX.resultMark.all or 0) + 1\n    local mark = FX.resultMark.all\n    Wait.time(function() if FX.resultMark.all == mark"],

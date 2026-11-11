@@ -442,5 +442,105 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("music player: their track stopped: the sound plays", stopped.some((l) => l.includes('"MusicPlayer.setCurrentAudioclip"')) && plays(["their track stopped"]).length === 1, JSON.stringify(stopped.filter((l) => l.includes("Music"))));
 }
 
+// the bursts (2026-11-11, docs/sounds.md "Bursts", design section 6): n of a kind on one board plays the largest
+// <kind>_x<N> at or under n (x2 x3 x4 x6 x8; wipe from x3), capped at x8; 1 plays the plain sound; still one clip per board
+{
+  const doc = require("fs").readFileSync(require("path").join(__dirname, "..", "docs", "sounds.md"), "utf8");
+  const burstDoc = {};
+  for (const m of doc.matchAll(/^\| mtg-(\w+)-x(\d+)\.mp3 \| (\w+) \| (\d+) \| (https:\/\/\S+) \|$/gm)) if (m[1] === m[3] && m[2] === m[4]) burstDoc[`${m[1]}_x${m[2]}`] = m[5];
+  const COUNTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 50];
+  const xs = Array.from({ length: 50 }, (_, i) => card(`x${i + 1}`, `Saproling ${i + 1}`, ["Creature"]));
+  // every kind and burst with a made-up link, and an x16 the cap must never reach (FX.BURST_MAX = 8)
+  const PICKS = (noWipe) => `for _, k in ipairs({ "death", "wipe", "damage", "exile", "lifegain", "instant" }) do
+      engineSounds[k] = "https://example.invalid/" .. k .. ".mp3"
+      for _, b in ipairs({ 2, 3, 4, 6, 8, 16 }) do if k ~= "instant" and not (k == "wipe" and b == 2) then engineSounds[k .. "_x" .. b] = "https://example.invalid/" .. k .. "_x" .. b .. ".mp3" end end
+    end
+    ${noWipe ? "engineSounds.wipe = nil" : ""} return "set"`;
+  const bucket = (n, from = 2) => { const top = Math.min(n, 8); const b = [8, 6, 4, 3, 2].find((x) => x <= top && x >= from); return b; };
+  const want = (kind, n, from) => { const b = bucket(n, from); return b ? `${kind}_x${b} music` : `${kind} music`; };
+  // a kind's run: for each count, a board with n Saprolings on Blue's battlefield, then one where they all went (edit)
+  const runKind = (picks, edit, setup) => {
+    const steps = [lua(picks, "picks")];
+    let cur = base();
+    for (const n of COUNTS) {
+      const before = clone(cur); before.Blue.bf = [...base().Blue.bf, ...xs.slice(0, n)]; before.Blue.gy = []; before.Blue.ex = []; before.Blue.more = {}; setup?.(before, n); delete before.exd;
+      const after = clone(before); edit(after, xs.slice(0, n));
+      steps.push(send(before, `before ${n}`, 30), LAST, send(after, `after ${n}`, 30), LAST);
+      cur = after;
+    }
+    const t = run(steps);
+    const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+    const news = vals.map((v, i) => (v.snd || []).slice(i === 0 ? 0 : (vals[i - 1].snd || []).length));
+    return { t, said: (n) => news[2 * COUNTS.indexOf(n) + 1] || [], before: (n) => news[2 * COUNTS.indexOf(n)] || [] };
+  };
+  const gone = (to) => (x, ids) => { x.Blue.bf = x.Blue.bf.filter((c) => !ids.includes(c)); x.Blue[to] = [...(x.Blue[to] || []), ...ids]; };
+  const deaths = runKind(PICKS(true), gone("gy"));
+  ok("bursts (death): the script ran", !deaths.t.r.errors.length, deaths.t.r.errors.slice(0, 2).join(" | "));
+  for (const n of COUNTS) ok(`bursts (death, no wipe pick): ${n} to the graveyard plays ${want("death", n)}`, JSON.stringify(deaths.said(n)) === JSON.stringify([want("death", n)]), JSON.stringify(deaths.said(n)));
+  ok("bursts: the cap: 50 at once plays x8, never the x16 link", JSON.stringify(deaths.said(50)) === '["death_x8 music"]', JSON.stringify(deaths.said(50)));
+  const huge = deaths.t.fx("after 50").filter((l) => l.includes('"MusicPlayer.setCurrentAudioclip"') || l.includes('"MusicPlayer.play"'));
+  ok("bursts: 50 at once is one clip, set and played once", huge.length === 2 && huge.every((l) => l.includes("death_x8.mp3")), JSON.stringify(huge));
+  ok("bursts: the boards between (cards back from the graveyard) play nothing", COUNTS.every((n) => deaths.before(n).length === 0), JSON.stringify(COUNTS.map((n) => deaths.before(n))));
+  const wipes = runKind(PICKS(false), gone("gy"));
+  for (const n of COUNTS) {
+    const w = n >= 3 ? want("wipe", n, 3) : want("death", n);
+    ok(`bursts (wipe): ${n} to the graveyard plays ${w}`, JSON.stringify(wipes.said(n)) === JSON.stringify([w]), JSON.stringify(wipes.said(n)));
+  }
+  const exiles = runKind(PICKS(false), gone("ex"));
+  for (const n of COUNTS) ok(`bursts (exile): ${n} exiled plays ${want("exile", n)}`, JSON.stringify(exiles.said(n)) === JSON.stringify([want("exile", n)]), JSON.stringify(exiles.said(n)));
+  // damage: n Saprolings hit (more than the 4 bursts shown), and with White's life down too, n + 1
+  const hurt = (x, ids) => { for (const id of ids) x.Blue.more[id] = { dmg: 1 }; };
+  const hits = runKind(PICKS(false), hurt);
+  for (const n of COUNTS) ok(`bursts (damage): ${n} creatures hit plays ${want("damage", n)}`, JSON.stringify(hits.said(n)) === JSON.stringify([want("damage", n)]), JSON.stringify(hits.said(n)));
+  const both = runKind(PICKS(false), (x, ids) => { hurt(x, ids); x.White.life = 39; }, (x) => { x.White.life = 40; });
+  for (const n of [1, 2, 3, 5, 7]) ok(`bursts (damage): ${n} creatures and a player hit plays ${want("damage", n + 1)}`, JSON.stringify(both.said(n)) === JSON.stringify([want("damage", n + 1)]), JSON.stringify(both.said(n)));
+  // lifegain: the players whose life went up (two seats here), and every bucket through mtg sounds test <kind> N
+  const s0 = base(), one = clone(s0), two = clone(one); one.White.life = 42; two.White.life = 43; two.Blue.life = 41;
+  const tests = COUNTS.map((n) => `engineChat("mtg sounds test lifegain ${n}", Player.Blue)`).join(" ");
+  const g = run([lua(PICKS(false), "picks"), send(s0, "first"), send(one, "one gains", 30), LAST, send(two, "two gain", 30), LAST,
+    lua(`${tests} return "t"`, "tests", 30), LAST, lua(`engineChat("mtg sounds test death 5", Player.Blue) return "t"`, "death 5", 30)]);
+  const gv = g.all("last").map((s) => JSON.parse(s.value || "{}").snd || []);
+  ok("bursts (lifegain): one player gaining plays the plain sound", JSON.stringify(gv[0]) === '["lifegain music"]', JSON.stringify(gv[0]));
+  ok("bursts (lifegain): two players gaining on one board plays x2", JSON.stringify(gv[1].slice(gv[0].length)) === '["lifegain_x2 music"]', JSON.stringify(gv[1]));
+  const testSaid = gv[2].slice(gv[1].length);
+  ok("bursts: mtg sounds test lifegain N plays each count's bucket", JSON.stringify(testSaid) === JSON.stringify(COUNTS.map((n) => want("lifegain", n))), JSON.stringify(testSaid));
+  ok("bursts: mtg sounds test says the count", g.fx("death 5").some((l) => l.includes("Playing the death sound for 5 at once.")), JSON.stringify(g.fx("death 5").filter((l) => l.includes("broadcast"))));
+  ok("bursts: the clip's title names the burst", g.fx("death 5").some((l) => l.includes('"MusicPlayer.setCurrentAudioclip"') && l.includes('"MTG effect: death_x4"')), JSON.stringify(g.fx("death 5").filter((l) => l.includes("Music"))));
+  // the spacing is the kind's: a death_x2 0.2 s after a death plays nothing
+  const k0 = base(), k1 = clone(k0), k2 = clone(k1);
+  gone("gy")(k1, ["b1"]); gone("gy")(k2, ["b2", "b3"]);
+  const sp = run([lua(PICKS(true), "picks"), send(k0, "first"), send(k1, "a death", 12), send(k2, "two more, 0.2 s later", 30), LAST]);
+  const spSaid = sp.all("last").map((s) => JSON.parse(s.value || "{}").snd || [])[0];
+  ok("bursts: a burst keeps its kind's 0.3 s spacing", JSON.stringify(spSaid) === '["death music"]', JSON.stringify(spSaid));
+  // the shipped links: the 24 of docs/sounds.md
+  const shipped = JSON.parse(run([lua(`return JSON.encode(engineSoundsShipped)`, "shipped")]).step("shipped").value || "{}");
+  const keys = Object.keys(burstDoc);
+  ok("bursts: the 24 links of docs/sounds.md are the shipped bursts", keys.length === 24 && keys.every((k) => shipped[k] === burstDoc[k])
+    && Object.keys(shipped).filter((k) => k.includes("_x")).length === 24 && !shipped.wipe_x2, JSON.stringify(keys.filter((k) => shipped[k] !== burstDoc[k])));
+}
+
+// the COUNTERED pop-up (2026-11-11): an instant or a sorcery countered shows it too. The bridge's `spell` is false for
+// any spell with spell text, so it marks those `sp`; before, the pop-up asked for `spell` alone and never showed for them
+{
+  const BOLT = { id: "engine-stack-30", n: "Lightning Bolt", tx: "Lightning Bolt deals 3 damage to any target.", ctl: "White", src: "c30", spell: false, sp: true, ins: true, tg: [{ k: "p", c: "Blue" }] };
+  const RAMP = { id: "engine-stack-32", n: "Farseek", tx: "Search your library for a land card.", ctl: "White", src: "c32", spell: false, sp: true, tg: [] };
+  const COUNTER = (id, target) => ({ id, n: "Counterspell", tx: "Counter target spell.", ctl: "Blue", src: id + "c", spell: false, sp: true, ins: true, tg: [{ k: "s", id: target }] });
+  const CYCLE = { id: "engine-stack-34", n: "Censor", tx: "Cycling {U}", ctl: "White", src: "c34", spell: false, tg: [] };
+  const s0 = base();
+  const a1 = clone(s0); a1.stack = [BOLT, COUNTER("engine-stack-31", BOLT.id)];
+  const a2 = clone(s0);
+  const b1 = clone(s0); b1.stack = [RAMP, COUNTER("engine-stack-33", RAMP.id)];
+  const b2 = clone(s0);
+  const c1 = clone(s0); c1.stack = [CYCLE, COUNTER("engine-stack-35", CYCLE.id)];
+  const c2 = clone(s0);
+  const t = run([send(s0, "first"), send(a1, "bolt cast", 30), send(a2, "bolt countered", 30), send(b1, "farseek cast", 30), send(b2, "farseek countered", 30),
+    send(c1, "an ability", 30), send(c2, "an ability countered", 30)]);
+  ok("countered: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const pop = (m) => t.fx(m).filter((l) => l.includes('"eng_pop_who"') && l.includes("COUNTERED"));
+  ok("countered: an instant countered shows COUNTERED: Lightning Bolt", pop("bolt countered").some((l) => l.includes("COUNTERED: Lightning Bolt")), JSON.stringify(t.fx("bolt countered").filter((l) => l.includes("eng_pop"))));
+  ok("countered: a sorcery countered shows COUNTERED: Farseek", pop("farseek countered").some((l) => l.includes("COUNTERED: Farseek")), JSON.stringify(t.fx("farseek countered").filter((l) => l.includes("eng_pop"))));
+  ok("countered: an ability (no sp, no spell) countered shows none", pop("an ability countered").length === 0, JSON.stringify(pop("an ability countered")));
+}
+
 console.log(failed ? `\n${failed} failed, ${passed} passed` : `all ${passed} passed`);
 process.exit(failed ? 1 : 0);
