@@ -12840,7 +12840,8 @@
      "f6175 \"spawnObjectData\" \"Deck\" obj:s00156 \"Library\" V(40.777,1.45,-18.755) 88 0 \"3007\"",
      "f6175 \"spawnObjectData\" \"Card\" obj:s00157 \"Dokuchi Silencer\\\nOn the stack\\\n0CMC\" V(17.4,3.4,15.4) 0 302200 \"3022\"",
      "f6175 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (13.3,13.8)->(19.4,-24.4) mid y1.9\"",
-     "f6175 \"createButton\" obj:395037 \"RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -10.79,0.05,1.45\"",
+     "f6175 \"createButton\" obj:395037 \"RING TEMPTED 2\" \"0.04,0.20,0.05\" \"at -0.14,0.05,2.39\"",
+     "f6175 \"createButton\" obj:395037 \"YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -0.29,0.05,3.00\"",
      "f6175 \"UI.setAttributes\" \"eng_toggle_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
      "f6175 \"UI.setAttributes\" \"eng_browse_Blue\" {active=\"true\",textColor=\"#FFFFFF\"}",
      "f6175 \"UI.setAttributes\" \"eng_logbtn_Blue\" {active=\"true\",textColor=\"#FEFEFE\"}",
@@ -12891,7 +12892,7 @@
    },
    {
     "step": "click: local o = getObjectFromGUID(\"395037\") for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then return b.label .. \" @\" .. tostring(b.width) end end return \"no label\"",
-    "value": "RING TEMPTED 2   YOU CAN'T LOSE THE GAME @7300",
+    "value": "RING TEMPTED 2 @2017",
     "fx": []
    },
    {
@@ -12911,6 +12912,7 @@
      "f6405 \"setDescription\" obj:s00158 \"149389411/88\"",
      "f6405 \"setDescription\" obj:s00153 \"904594286/38\"",
      "f6405 \"highlightOn\" obj:s00151 {1=1,2=0.12,3=0.08}",
+     "f6405 \"removeButton\" obj:395037 1",
      "f6405 \"removeButton\" obj:395037 0",
      "f6541 \"UI.setAttribute\" \"eng_result_Blue\" \"active\" \"false\""
     ]
@@ -12951,19 +12953,37 @@
    {
     "step": "marks: old fields and allMarks",
     "fx": [
-     "f6695 \"createButton\" obj:395037 \"POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING\\\nENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -11.06,0.05,1.32\"",
-     "f6695 \"createButton\" obj:23e485 \"POISON 1   ENDURING STORY   SPEED 1\" \"0.04,0.20,0.05\" \"at 9.87,0.05,1.45\""
+     "f6695 \"createButton\" obj:395037 \"POISON 3\" \"0.04,0.20,0.05\" \"at 0.19,0.05,2.50\"",
+     "f6695 \"createButton\" obj:395037 \"ENERGY 2\" \"0.04,0.20,0.05\" \"at 0.19,0.05,3.41\"",
+     "f6695 \"createButton\" obj:395037 \"MONARCH\" \"0.04,0.20,0.05\" \"at 0.37,0.05,4.33\"",
+     "f6695 \"createButton\" obj:395037 \"INITIATIVE\" \"0.04,0.20,0.05\" \"at -0.18,0.05,5.25\"",
+     "f6695 \"createButton\" obj:395037 \"CITY'S BLESSING\" \"0.04,0.20,0.05\" \"at -0.28,0.05,6.06\"",
+     "f6695 \"createButton\" obj:395037 \"ENDURING STORY\" \"0.04,0.20,0.05\" \"at -0.14,0.05,6.76\"",
+     "f6695 \"createButton\" obj:395037 \"RING TEMPTED 2\" \"0.04,0.20,0.05\" \"at -0.14,0.05,7.47\"",
+     "f6695 \"createButton\" obj:395037 \"YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -0.29,0.05,8.08\"",
+     "f6695 \"createButton\" obj:23e485 \"POISON 1\" \"0.04,0.20,0.05\" \"at -0.19,0.05,2.50\"",
+     "f6695 \"createButton\" obj:23e485 \"ENDURING STORY\" \"0.04,0.20,0.05\" \"at 0.14,0.05,3.31\"",
+     "f6695 \"createButton\" obj:23e485 \"SPEED 1\" \"0.04,0.20,0.05\" \"at -0.37,0.05,4.12\""
     ]
    },
    {
     "step": "click: local out = {} for _, g in ipairs({ \"395037\", \"23e485\" }) do local o, l = getObjectFromGUID(g), \"no label\" for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then l = b.label .. \" @\" .. tostring(b.width) end end out[#out + 1] = g .. \": \" .. l end return table.concat(out, \" | \")",
-    "value": "395037: POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING\nENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME @7560 | 23e485: POISON 1   ENDURING STORY   SPEED 1 @6425",
+    "value": "395037: YOU CAN'T LOSE THE GAME @2163 | 23e485: SPEED 1 @1525",
     "fx": []
    },
    {
     "step": "marks: none again",
     "fx": [
+     "f6731 \"removeButton\" obj:395037 7",
+     "f6731 \"removeButton\" obj:395037 6",
+     "f6731 \"removeButton\" obj:395037 5",
+     "f6731 \"removeButton\" obj:395037 4",
+     "f6731 \"removeButton\" obj:395037 3",
+     "f6731 \"removeButton\" obj:395037 2",
+     "f6731 \"removeButton\" obj:395037 1",
      "f6731 \"removeButton\" obj:395037 0",
+     "f6731 \"removeButton\" obj:23e485 2",
+     "f6731 \"removeButton\" obj:23e485 1",
      "f6731 \"removeButton\" obj:23e485 0"
     ]
    },
@@ -12975,13 +12995,22 @@
    {
     "step": "marks: allMarks alone",
     "fx": [
-     "f6767 \"createButton\" obj:395037 \"POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING\\\nENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -11.06,0.05,1.32\"",
-     "f6767 \"createButton\" obj:23e485 \"POISON 1   ENDURING STORY   SPEED 1\" \"0.04,0.20,0.05\" \"at 9.87,0.05,1.45\""
+     "f6767 \"createButton\" obj:395037 \"POISON 3\" \"0.04,0.20,0.05\" \"at 0.19,0.05,2.50\"",
+     "f6767 \"createButton\" obj:395037 \"ENERGY 2\" \"0.04,0.20,0.05\" \"at 0.19,0.05,3.41\"",
+     "f6767 \"createButton\" obj:395037 \"MONARCH\" \"0.04,0.20,0.05\" \"at 0.37,0.05,4.33\"",
+     "f6767 \"createButton\" obj:395037 \"INITIATIVE\" \"0.04,0.20,0.05\" \"at -0.18,0.05,5.25\"",
+     "f6767 \"createButton\" obj:395037 \"CITY'S BLESSING\" \"0.04,0.20,0.05\" \"at -0.28,0.05,6.06\"",
+     "f6767 \"createButton\" obj:395037 \"ENDURING STORY\" \"0.04,0.20,0.05\" \"at -0.14,0.05,6.76\"",
+     "f6767 \"createButton\" obj:395037 \"RING TEMPTED 2\" \"0.04,0.20,0.05\" \"at -0.14,0.05,7.47\"",
+     "f6767 \"createButton\" obj:395037 \"YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -0.29,0.05,8.08\"",
+     "f6767 \"createButton\" obj:23e485 \"POISON 1\" \"0.04,0.20,0.05\" \"at -0.19,0.05,2.50\"",
+     "f6767 \"createButton\" obj:23e485 \"ENDURING STORY\" \"0.04,0.20,0.05\" \"at 0.14,0.05,3.31\"",
+     "f6767 \"createButton\" obj:23e485 \"SPEED 1\" \"0.04,0.20,0.05\" \"at -0.37,0.05,4.12\""
     ]
    },
    {
     "step": "click: local out = {} for _, g in ipairs({ \"395037\", \"23e485\" }) do local o, l = getObjectFromGUID(g), \"no label\" for _, b in ipairs((o and o.getButtons()) or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then l = b.label .. \" @\" .. tostring(b.width) end end out[#out + 1] = g .. \": \" .. l end return table.concat(out, \" | \")",
-    "value": "395037: POISON 3   ENERGY 2   MONARCH   INITIATIVE   CITY'S BLESSING\nENDURING STORY   RING TEMPTED 2   YOU CAN'T LOSE THE GAME @7560 | 23e485: POISON 1   ENDURING STORY   SPEED 1 @6425",
+    "value": "395037: YOU CAN'T LOSE THE GAME @2163 | 23e485: SPEED 1 @1525",
     "fx": []
    }
   ]
