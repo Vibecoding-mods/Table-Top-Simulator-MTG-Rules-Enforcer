@@ -360,6 +360,65 @@ add({ name: "attack: refused, names who must attack", run: async (h) => {
 // 2026-10-27: End turn pressed this turn skips the attack (the must-attack creature still attacks); another turn's doesn't
 add(promptCase("attack: End turn this turn skips it", D2.board, attackP, [], { seat: { endTurnAt: D2.board.gameView.turn } }));
 add(promptCase("attack: End turn from an earlier turn doesn't", D2.board, attackP, [], { seat: { endTurnAt: D2.board.gameView.turn - 1 } }));
+// 2026-11-11: the attack question reminds of attack taxes and of the creatures that can't attack (attack reminder spec
+// part 2), and asks whom creatures with several targets attack (item 25). Ids as the live table sent them (tts-stream
+// 2026-11-10: a player "player-0", Grist's card id "engine-card-13"); Oracle text from Forge's cardsfolder.
+{
+  const THREE = { game: { total: 3, bots: 2, playerOrder: ["tts-Blue-ab12", "self-hosted-node-77-bot", "self-hosted-node-88-bot"],
+    slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "AI 2" }, slotColor: { "player-0": "Blue", "player-1": "White", "player-2": "Red" } } };
+  // D2's board in declare attackers, Blue's turn, with these permanents added ([owner, card]); three: a second AI
+  const combatBoard = (cards, three = false) => {
+    const b = clone(D2.board);
+    const gv = b.gameView;
+    if (three) {
+      gv.players.push({ ...clone(gv.players.find((p) => p.id === "player-1")), id: "player-2" });
+      gv.zones.push({ zone: "battlefield", ownerId: "player-2", cards: [], count: 0 });
+    }
+    for (const [o, c] of cards) gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === o).cards.push({ controllerId: o, ownerId: o, keywords: [], tapped: false, summoningSick: false, ...c });
+    Object.assign(gv, { step: "combatDeclareAttackers", activePlayerId: "player-0", priorityPlayerId: "player-0" });
+    return b;
+  };
+  const bear = { id: "engine-card-601", identity: { name: "Grizzly Bears" }, types: ["Creature"], subtypes: ["Bear"], color: "G", text: "", power: 2, toughness: 2 };
+  const propaganda = { id: "engine-card-501", identity: { name: "Propaganda" }, types: ["Enchantment"], color: "U",
+    text: "Creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you." };
+  const taxBoard = combatBoard([["player-0", bear], ["player-1", propaganda]]);
+  const taxP = prompt("chooseAttackers", { attackers: [{ attackerId: "engine-card-601", validTargetIds: ["player-1"], mustAttack: false }], attackTargets: [{ id: "player-1", label: "AI 1", kind: "player" }] });
+  add(promptCase("attack reminder: Propaganda's tax said before the attack", taxBoard, taxP, []));
+  add(promptCase("attack reminder: Propaganda's payment names the tax", taxBoard, taxP, [["engine-card-601|player-1"]]));
+  add({ name: "attack reminder: Propaganda's payment, then Don't attack", run: async (h) => {
+    const seat = game(h, taxBoard);
+    h.B.onPrompt(seat, taxP); await h.flush();
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["engine-card-601|player-1"] }) }); await h.flush();
+    const pay = prompt("payManaCost", { cardId: "engine-card-601", cardName: "Grizzly Bears", manaCost: "{2}", canConfirmFromPool: false,
+      actions: [{ id: "tap:engine-card-64:0", type: "activateManaAbility", cardId: "engine-card-64", description: "Mountain: {T}: Add {R}.", isManaAbility: true }] }, { promptId: 901 });
+    h.B.onPrompt(seat, pay); await h.flush();
+    const asked = { title: seat.prompt.ui.title, note: seat.prompt.ui.note, options: seat.prompt.ui.options.map((o) => o.label) };
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 901, choice: ["__cancel"] }) }); await h.flush();
+    return asked;
+  } });
+  const cantBoard = combatBoard([["player-0", bear],
+    ["player-0", { id: "engine-card-603", identity: { name: "Hill Giant" }, types: ["Creature"], color: "R", text: "", summoningSick: true }],
+    ["player-0", { id: "engine-card-604", identity: { name: "Wall of Omens" }, types: ["Creature"], color: "W", text: "Defender (This creature can't attack.)\nWhen Wall of Omens enters, draw a card.", keywords: ["Defender"] }],
+    ["player-0", { id: "engine-card-605", identity: { name: "Pacifism" }, types: ["Enchantment"], color: "W", text: "Enchant creature\nEnchanted creature can't attack or block.", attachedTo: "engine-card-606" }],
+    ["player-0", { id: "engine-card-606", identity: { name: "Serra Angel" }, types: ["Creature"], color: "W", text: "Flying, vigilance", keywords: ["Flying", "Vigilance"] }]]);
+  const cantP = prompt("chooseAttackers", { attackers: [{ attackerId: "engine-card-601", validTargetIds: ["player-1"], mustAttack: false }], attackTargets: [{ id: "player-1", label: "AI 1", kind: "player" }] });
+  // (the prompt carries cantAttack, the table's Q/E reason by card id)
+  add(promptCase("attack reminder: creatures that can't attack, with why", cantBoard, cantP, []));
+  // two opponents and a planeswalker
+  const teferi = { id: "engine-card-504", identity: { name: "Teferi, Hero of Dominaria" }, types: ["Planeswalker"], subtypes: ["Teferi"], color: "WU", text: "+1: Draw a card. Untap up to two lands at the beginning of the next end step.", counters: { LOYALTY: 4 } };
+  const angel = { id: "engine-card-602", identity: { name: "Serra Angel" }, types: ["Creature"], color: "W", text: "Flying, vigilance", keywords: ["Flying", "Vigilance"] };
+  const threeBoard = combatBoard([["player-0", bear], ["player-0", angel], ["player-2", teferi]], true);
+  const ALL3 = ["player-1", "player-2", "engine-card-504"];
+  const threeP = prompt("chooseAttackers", { attackers: [{ attackerId: "engine-card-601", validTargetIds: ALL3, mustAttack: false }, { attackerId: "engine-card-602", validTargetIds: ALL3, mustAttack: false }],
+    attackTargets: [{ id: "player-1", label: "AI 1", kind: "player" }, { id: "player-2", label: "AI 2", kind: "player" }, { id: "engine-card-504", label: "Teferi, Hero of Dominaria", kind: "planeswalker" }] });
+  add(promptCase("attack targets: two opponents and a planeswalker, whom? first", threeBoard, threeP, [], THREE));
+  add(promptCase("attack targets: All attack asks whom", threeBoard, threeP, [["__allattack"]], THREE));
+  add(promptCase("attack targets: All attack at the chosen player", threeBoard, threeP, [["__allattack"], ["player|player-2"]], THREE));
+  add(promptCase("attack targets: All attack at the planeswalker", threeBoard, threeP, [["__allattack"], ["card|engine-card-504"]], THREE));
+  add(promptCase("attack targets: All attack one by one", threeBoard, threeP, [["__allattack"], ["__each"], ["player|player-1"], ["card|engine-card-504"]], THREE));
+  add(promptCase("attack targets: whom? Back to the attack question", threeBoard, threeP, [["__allattack"], ["__back"]], THREE));
+  add(promptCase("attack targets: Attack (1) with whom? asks for it alone", threeBoard, threeP, [["engine-card-601|?", "engine-card-602|player-1"], ["player|player-2"]], THREE));
+}
 const blockP = prompt("chooseBlockers", { error: "", attackers: [
   { attackerId: "engine-card-134", validBlockerIds: ["engine-card-35", "engine-card-75"], minBlockers: 1 },
   { attackerId: "engine-card-200", validBlockerIds: ["engine-card-75"], minBlockers: 2, mustBeBlocked: true }] });
