@@ -19,7 +19,7 @@ find /src/src/test/java -name '*.java' > /tmp/test.txt
 javac -nowarn -encoding UTF-8 -proc:none -d /tmp/test -cp "/tmp/main:$jar" @/tmp/test.txt
 cd /build
 [ $# -gt 0 ] || set -- MindslaverControlTest ExtraTurnRewindTest OptionalCardChoiceTest ManaBrewEngineAdapterTest \
-  InteractiveSnapshotExtractorTest MayPlayVisibilityTest PassiveAiTest
+  InteractiveSnapshotExtractorTest MayPlayVisibilityTest PassiveAiTest ApplyStateCreateCardTest
 failed=""
 for c in "$@"; do
   echo "=== $c"
