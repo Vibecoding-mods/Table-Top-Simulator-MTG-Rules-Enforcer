@@ -793,11 +793,14 @@ local function layoutRow(g, cards, row, seen, color, hosts)
     -- side: the spot its old controller arranged it at is on the other side of the table
     local was = engineMeta[c.id]
     if was ~= nil and was.color ~= nil and was.color ~= color then engineManual[c.id] = nil end
-    -- a card played by dragging it here lands in its row (a land in the land row, a creature with the creatures): the
-    -- spot it was dropped on only held it while it was being cast (playtest 2026-10-26: "it appears in the middle of
-    -- the battlefield instead of the lower mana box"; cards dropped near each other piled up). A permanent you moved
-    -- yourself on your mat stays where you put it.
-    if engineManualPlay[c.id] then engineManual[c.id] = nil engineManualPlay[c.id] = nil end
+    -- a LAND played by dragging it here lands in the mana box: the spot it was dropped on only held it while it was
+    -- played (playtest 2026-10-26: "it appears in the middle of the battlefield instead of the lower mana box"). Any
+    -- other card stays where it was dropped (2026-11-10: "I also don't want any other cards to snap to the play mat"),
+    -- like a permanent you moved yourself on your mat.
+    if engineManualPlay[c.id] then
+      if row == ROWS.land then engineManual[c.id] = nil end
+      engineManualPlay[c.id] = nil
+    end
     local pos = engineManual[c.id] or gridPos(g, col * step, row)
     col = col + 1 + ((hosts and hosts[c.id]) and ATTACH.extraCols or 0)
     place(c, pos, Vector(0, g.rotY + ((c.tap or engineHeldTapped(c.id)) and 90 or 0), c.fd and 180 or 0), seen, nil, { zone = "battlefield", color = color })
@@ -3962,7 +3965,7 @@ function onObjectDrop(color, obj)
     if (meta.zone == "hand" or meta.zone == "command" or meta.zone == "playable") and area == "battlefield" then
       local real = id:match("^cast:%a+:(.+)$") or id -- (a stand-in for another player's hand card: engineCastId)
       engineManual[real] = onTable(obj.getPosition())
-      engineManualPlay[real] = true -- (held there while it is cast; it lands in its row)
+      engineManualPlay[real] = true -- (held there while it is cast; a land then goes to the mana box, layoutRow)
       request(color, "play", real, obj)
     elseif meta.zone == "hand" and area == "graveyard" then
       request(color, "discard", id, obj)

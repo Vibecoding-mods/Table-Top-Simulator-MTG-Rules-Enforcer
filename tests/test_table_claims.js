@@ -482,25 +482,27 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("long text: a 120-character token name for a seat", /New token for AI 1/.test(said("long token for")) && r.errors.length === 0, said("long token for").slice(0, 200) + " " + r.errors.join(" | "));
   ok("long text: ability labels split at the colon, a long one with none is cut", valueOf(r, "ability short") === "{1}{G}: Put a +1/+1 counter… | word word word word… | {T}:", valueOf(r, "ability short"));
 }
-// a card played by dragging it onto the mat lands in its row, not where it was dropped; a permanent the player moved
-// on their own mat stays there (2026-10-26: lands stayed in the middle of the battlefield)
-{
+// a LAND played by dragging it onto the mat goes to the mana box, not where it was dropped (2026-10-26: lands stayed in
+// the middle of the battlefield); any other card stays where it was dropped (2026-11-10: "I also don't want any other
+// cards to snap to the play mat"); a permanent the player moved on their own mat stays there
+for (const kind of ["Land", "Creature"]) {
   const setup = 'local t = engineTable() local pl for _, p in ipairs(t.players) do if p.color == "Blue" then pl = p end end ' +
     'local c = pl.hand[1] __playId = c.id local function objOf(id) for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. id then return x end end end local o = objOf(c.id) local m = data.Blue.playmat.getPosition() ' +
     '__dropAt = Vector(m.x, 1.5, m.z) o.setPosition(__dropAt) onObjectDrop("Blue", o) __sim.frames(5) ' +
     'return tostring(engineManualPlay[c.id])';
   const land = 'local t = engineTable() local pl for _, p in ipairs(t.players) do if p.color == "Blue" then pl = p end end ' +
-    'local idx for i, c in ipairs(pl.hand) do if c.id == __playId then idx = i end end local c = table.remove(pl.hand, idx) ' +
+    `local idx for i, c in ipairs(pl.hand) do if c.id == __playId then idx = i end end local c = table.remove(pl.hand, idx) c.ty = { "${kind}" } ` +
     'table.insert(pl.battlefield, c) pl.keep = {} engineRender(t) __sim.frames(60) local function objOf(id) for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. id then return x end end end local o = objOf(__playId) local p = o.getPosition() ' +
     'return string.format("%.1f", math.sqrt((p.x - __dropAt.x) ^ 2 + (p.z - __dropAt.z) ^ 2)) .. " " .. tostring(engineManualPlay[__playId] == nil)';
   const moveOwn = 'local function objOf(id) for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. id then return x end end end local o = objOf(__playId) local m = data.Blue.playmat.getPosition() __ownAt = Vector(m.x + 2, 1.5, m.z - 1) ' +
     'o.setPosition(__ownAt) onObjectDrop("Blue", o) __sim.frames(5) engineRender(engineTable()) __sim.frames(60) local p = o.getPosition() ' +
     'return string.format("%.1f", math.sqrt((p.x - __ownAt.x) ^ 2 + (p.z - __ownAt.z) ^ 2))';
   const r = run([q(setup, "dropped"), q(land, "landed"), q(moveOwn, "moved own")]);
-  ok("precondition: the drop is held as a play", String(valueOf(r, "dropped")) === "true", String(valueOf(r, "dropped")) + " " + r.errors.join(" | "));
+  ok(`precondition (${kind}): the drop is held as a play`, String(valueOf(r, "dropped")) === "true", String(valueOf(r, "dropped")) + " " + r.errors.join(" | "));
   const [dist, cleared] = String(valueOf(r, "landed")).split(" ");
-  ok("played by drag: on the battlefield it goes to its row, not the drop spot", Number(dist) > 1 && cleared === "true", String(valueOf(r, "landed")));
-  ok("moved by the player on their mat: it stays there", Number(valueOf(r, "moved own")) < 0.5, String(valueOf(r, "moved own")));
+  if (kind === "Land") ok("played by drag, a land: it goes to the mana box, not the drop spot", Number(dist) > 1 && cleared === "true", String(valueOf(r, "landed")));
+  else ok("played by drag, not a land: it stays where it was dropped", Number(dist) < 0.5 && cleared === "true", String(valueOf(r, "landed")));
+  ok(`moved by the player on their mat (${kind}): it stays there`, Number(valueOf(r, "moved own")) < 0.5, String(valueOf(r, "moved own")));
 }
 // a land, put down by the table or dragged from the hand, lies inside the mat's mana box (2026-11-10: "i want the mana
 // to snap to the mana zone properly"; row 3 lay above the box). The box runs along the mat's forward axis from 3.46
