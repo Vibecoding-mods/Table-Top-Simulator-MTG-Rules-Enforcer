@@ -2833,6 +2833,22 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ui = await pay(s, "engine-card-601");
     ok("tax payment: a payment outside the attack is the plain one", ui.title === "Pay {2} for Grizzly Bears" && ui.options.at(-1).label === "Cancel", JSON.stringify([ui.title, ui.options.at(-1)]));
     harness.restore();
+    // (review 2026-11-11: the declaration's attack was kept forever, so a pump on an attacker after priority, still in
+    // declare attackers, or an ability of it a turn later read "Propaganda (AI 1): pay ... to attack with ...")
+    const priority = async (s) => { s.h.B.onPrompt(s.seat, { promptId: 911, decidingPlayerId: "player-0", input: { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }] } }); await s.h.flush(); };
+    s = four([["player-1", "engine-card-501", "Propaganda", ["Enchantment"], PROP], BEAR]);
+    await ask(s, [["engine-card-601", ["player-1"]]], ["player-1"]);
+    s.seat.prompt.toOutput(["engine-card-601|player-1"]);
+    ui = await pay(s, "engine-card-601");
+    ok("tax payment: the declaration's payment names the tax (precondition)", ui.title === "Propaganda (AI 1): pay {2} to attack with Grizzly Bears?", ui.title);
+    await priority(s);
+    ui = await pay(s, "engine-card-601", { manaCost: "{1}{G}" });
+    ok("tax payment: a pump on the attacker after priority, same step, is the plain payment", ui.title === "Pay {1}{G} for Grizzly Bears" && ui.options.at(-1).label === "Cancel" && !ui.note, JSON.stringify([ui.title, ui.options.at(-1), ui.note]));
+    s.seat.board.state.gameView.turn = (s.seat.board.state.gameView.turn || 1) + 4;
+    ui = await pay(s, "engine-card-601", { manaCost: "{1}{G}" });
+    ok("tax payment: its ability in a later turn's declare attackers is the plain payment", ui.title === "Pay {1}{G} for Grizzly Bears" && ui.options.at(-1).label === "Cancel", JSON.stringify([ui.title, ui.options.at(-1)]));
+    ok("tax payment: priority forgets the declared attack", s.seat.lastAttack == null, JSON.stringify(s.seat.lastAttack));
+    harness.restore();
     // whom to attack (item 25)
     s = four([BEAR, ANGEL, TEFERI, ["player-0", "engine-card-614", "Goblin Guide", ["Creature"], "Haste"]]);
     ui = await ask(s, [["engine-card-601", ALL], ["engine-card-602", ALL], ["engine-card-614", ["player-1"]]], ALL);

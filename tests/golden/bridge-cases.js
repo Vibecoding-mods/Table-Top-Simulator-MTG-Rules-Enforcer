@@ -396,6 +396,25 @@ add(promptCase("attack: End turn from an earlier turn doesn't", D2.board, attack
     h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 901, choice: ["__cancel"] }) }); await h.flush();
     return asked;
   } });
+  // (review 2026-11-11: after priority, a pump on the attacker, same step, then the next turn: plain payments)
+  add({ name: "attack reminder: a pump on an attacker after priority is no tax, nor its ability next turn", run: async (h) => {
+    const seat = game(h, taxBoard);
+    h.B.onPrompt(seat, taxP); await h.flush();
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["engine-card-601|player-1"] }) }); await h.flush();
+    const payFor = (promptId, manaCost) => prompt("payManaCost", { cardId: "engine-card-601", cardName: "Grizzly Bears", manaCost, canConfirmFromPool: false,
+      actions: [{ id: "tap:engine-card-64:0", type: "activateManaAbility", cardId: "engine-card-64", description: "Mountain: {T}: Add {R}.", isManaAbility: true }] }, { promptId });
+    const seen = (ui) => ({ title: ui.title, note: ui.note ?? null, cancel: ui.options.at(-1).label });
+    h.B.onPrompt(seat, payFor(901, "{2}")); await h.flush();
+    const tax = seen(seat.prompt.ui);
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 901, choice: ["__cancel"] }) }); await h.flush();
+    h.B.onPrompt(seat, prompt("chooseAction", { actions: [{ id: "pass", type: "pass", label: "Pass priority" }] }, { promptId: 902 })); await h.flush();
+    h.B.onPrompt(seat, payFor(903, "{1}{G}")); await h.flush();
+    const pump = seen(seat.prompt.ui);
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 903, choice: ["__cancel"] }) }); await h.flush();
+    seat.board.state.gameView.turn = (seat.board.state.gameView.turn || 1) + 4;
+    h.B.onPrompt(seat, payFor(904, "{1}{G}")); await h.flush();
+    return { tax, pump, nextTurn: seen(seat.prompt.ui) };
+  } });
   const cantBoard = combatBoard([["player-0", bear],
     ["player-0", { id: "engine-card-603", identity: { name: "Hill Giant" }, types: ["Creature"], color: "R", text: "", summoningSick: true }],
     ["player-0", { id: "engine-card-604", identity: { name: "Wall of Omens" }, types: ["Creature"], color: "W", text: "Defender (This creature can't attack.)\nWhen Wall of Omens enters, draw a card.", keywords: ["Defender"] }],
