@@ -523,7 +523,7 @@ Only the node image needs the rebuild. The relay checks an answer by reading it 
   box when the box says so, e.g. "if the box says monarch the crown spawns in on their mat". Full spec:
   [docs/status-objects-spec.md](docs/status-objects-spec.md).
 
-## Green glow on permanents with a usable ability (added 2026-11-11, spec only)
+## Green glow on permanents with a usable ability (added 2026-11-11, built in source 2026-11-11, not yet seen live)
 
 The user: "have creatures, permanents and Planeswalkers on the battlefield highlight green when an ability can be
 used. Also have it only highlight for its controller if possible."
@@ -570,3 +570,19 @@ question's ability options, the same list the on-card ability buttons and the ab
 
 Live check: two seats on the real table, through exec. The frame is seen on the controller's own creature, and its
 `visibility` names only that colour.
+
+**As built (2026-11-11, tools/engine-renderer.lua).** `enginePermanentGlowIds` adds to `enginePlayableGlow`'s list the
+cards of `engineAbilityWant` drawn for the open priority question (entries made for an attack, block or target
+question, the stacks' Split boxes, never count); `engineAbilityBoxes` redraws the frames each time it runs, so they
+follow every question and board, and go at once when the question is answered. Decisions where the spec was silent:
+- A token folded into a stack has no object: its ability is filed under the stack's card (`engineGroupOf`), which
+  glows; the ability buttons read whose it is from that card too.
+- First builds wait in `engineFrameQueue` and go `ENGINE_FRAME_BUILDS` (4) a frame; showing or hiding a built frame is
+  one call at once. A hand card's first frame waits a frame now as well.
+- The frame is added to whatever the card's UI holds; a rebuild for another colour (a stolen permanent) cuts out only
+  the `eng_play` panel.
+- A face-down permanent gets the same frame, built for a face-up card; whether it shows on a card lying face down is
+  not checked (no face-down permanent has an ability option today: turning one up is a special action).
+- The `mtg glow` reply now says "Green glow on playable cards and usable permanents: on/off".
+- Tests: tests/test_table_claims.js "permanent glow" (each check of the list above, plus "beside the card's other UI",
+  "at most 4 a frame" and "a card you don't control never glows for you, even with an ability offered on it").

@@ -34978,7 +34978,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose blockers\": Hurloon Minotaur blocks Ashling, the Limitless (needs 2+ blockers) (must be blocked) | Hurloon Minotaur blocks Eclipsed Flamekin | Venomous Changeling blocks Eclipsed Flamekin\n"
+    "text": "[time] Blue   is asked #900 \"Choose blockers\": Hurloon Minotaur 2/3 blocks Ashling, the Limitless 2/3 (needs 2+ blockers) (must be blocked) | Hurloon Minotaur 2/3 blocks Eclipsed Flamekin 1/4 | Venomous Changeling 1/3 blocks Eclipsed Flamekin 1/4\n"
    },
    {
     "tts": {
@@ -34992,15 +34992,15 @@
      "options": [
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur blocks Ashling, the Limitless (needs 2+ blockers) (must be blocked)"
+       "label": "Hurloon Minotaur 2/3 blocks Ashling, the Limitless 2/3 (needs 2+ blockers) (must be blocked)"
       },
       {
        "id": "engine-card-75|engine-card-134",
-       "label": "Hurloon Minotaur blocks Eclipsed Flamekin"
+       "label": "Hurloon Minotaur 2/3 blocks Eclipsed Flamekin 1/4"
       },
       {
        "id": "engine-card-35|engine-card-134",
-       "label": "Venomous Changeling blocks Eclipsed Flamekin"
+       "label": "Venomous Changeling 1/3 blocks Eclipsed Flamekin 1/4"
       }
      ],
      "text": "",
@@ -35019,15 +35019,15 @@
      "options": [
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur blocks Ashling, the Limitless (needs 2+ blockers) (must be blocked)"
+       "label": "Hurloon Minotaur 2/3 blocks Ashling, the Limitless 2/3 (needs 2+ blockers) (must be blocked)"
       },
       {
        "id": "engine-card-75|engine-card-134",
-       "label": "Hurloon Minotaur blocks Eclipsed Flamekin"
+       "label": "Hurloon Minotaur 2/3 blocks Eclipsed Flamekin 1/4"
       },
       {
        "id": "engine-card-35|engine-card-134",
-       "label": "Venomous Changeling blocks Eclipsed Flamekin"
+       "label": "Venomous Changeling 1/3 blocks Eclipsed Flamekin 1/4"
       }
      ],
      "text": "",
@@ -35050,7 +35050,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose blockers\": Hurloon Minotaur blocks Ashling, the Limitless (needs 2+ blockers) (must be blocked) | Hurloon Minotaur blocks Eclipsed Flamekin | Venomous Changeling blocks Eclipsed Flamekin\n"
+    "text": "[time] Blue   is asked #900 \"Choose blockers\": Hurloon Minotaur 2/3 blocks Ashling, the Limitless 2/3 (needs 2+ blockers) (must be blocked) | Hurloon Minotaur 2/3 blocks Eclipsed Flamekin 1/4 | Venomous Changeling 1/3 blocks Eclipsed Flamekin 1/4\n"
    },
    {
     "tts": {
@@ -35064,15 +35064,15 @@
      "options": [
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur blocks Ashling, the Limitless (needs 2+ blockers) (must be blocked)"
+       "label": "Hurloon Minotaur 2/3 blocks Ashling, the Limitless 2/3 (needs 2+ blockers) (must be blocked)"
       },
       {
        "id": "engine-card-75|engine-card-134",
-       "label": "Hurloon Minotaur blocks Eclipsed Flamekin"
+       "label": "Hurloon Minotaur 2/3 blocks Eclipsed Flamekin 1/4"
       },
       {
        "id": "engine-card-35|engine-card-134",
-       "label": "Venomous Changeling blocks Eclipsed Flamekin"
+       "label": "Venomous Changeling 1/3 blocks Eclipsed Flamekin 1/4"
       }
      ],
      "text": "",
@@ -35087,7 +35087,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Choose blockers\": Hurloon Minotaur blocks Eclipsed Flamekin, Hurloon Minotaur blocks Ashling, the Limitless (needs 2+ blockers) (must be blocked)\n"
+    "text": "[time] Blue   answers #900 \"Choose blockers\": Hurloon Minotaur 2/3 blocks Eclipsed Flamekin 1/4, Hurloon Minotaur 2/3 blocks Ashling, the Limitless 2/3 (needs 2+ blockers) (must be blocked)\n"
    },
    {
     "relay": {
@@ -35137,7 +35137,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose blockers\": Hurloon Minotaur blocks Ashling, the Limitless (needs 2+ blockers) (must be blocked) | Hurloon Minotaur blocks Eclipsed Flamekin | Venomous Changeling blocks Eclipsed Flamekin\n"
+    "text": "[time] Blue   is asked #900 \"Choose blockers\": Hurloon Minotaur 2/3 blocks Ashling, the Limitless 2/3 (needs 2+ blockers) (must be blocked) | Hurloon Minotaur 2/3 blocks Eclipsed Flamekin 1/4 | Venomous Changeling 1/3 blocks Eclipsed Flamekin 1/4\n"
    },
    {
     "tts": {
@@ -35151,15 +35151,15 @@
      "options": [
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur blocks Ashling, the Limitless (needs 2+ blockers) (must be blocked)"
+       "label": "Hurloon Minotaur 2/3 blocks Ashling, the Limitless 2/3 (needs 2+ blockers) (must be blocked)"
       },
       {
        "id": "engine-card-75|engine-card-134",
-       "label": "Hurloon Minotaur blocks Eclipsed Flamekin"
+       "label": "Hurloon Minotaur 2/3 blocks Eclipsed Flamekin 1/4"
       },
       {
        "id": "engine-card-35|engine-card-134",
-       "label": "Venomous Changeling blocks Eclipsed Flamekin"
+       "label": "Venomous Changeling 1/3 blocks Eclipsed Flamekin 1/4"
       }
      ],
      "text": "",

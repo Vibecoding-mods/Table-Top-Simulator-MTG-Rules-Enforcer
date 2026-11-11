@@ -2470,6 +2470,10 @@ local function count(t) local n = 0 for _ in pairs(t or {}) do n = n + 1 end ret
 -- ENGINE_THEME: the colours of the engine's screen UI, taken from the table's own buttons (#1A1A1A, white text).
 ENGINE_THEME = { window = "#161616F0", button = "#262626", dock = "#1A1A1A", tabOn = "#3A3022", muted = "#1C1C1C",
   mutedText = "#8C9199", gold = "#FFD27A", text = "#FFFFFF" }
+-- The combat parts (docs/engine-ui-spec.md 9): attacking green, being attacked (blocking) red; "On" = picked, the button
+-- that attacks or blocks, the word COMBAT in the phase bar. word = the phase bar's rich-text colours.
+ENGINE_COMBAT = { attack = "#1F4D2B", attackOn = "#2E9E4F", block = "#5E1E1E", blockOn = "#C62828",
+  attackWord = "#7CFC9A", blockWord = "#FF6B6B" }
 engineBtnLook = {} -- Button id -> { bg, tc }: the colours its XML gives it (engineRenderPanels)
 engineColorFlip = {}
 function engineFlipColor(key, hex)
@@ -2683,6 +2687,7 @@ local function panelXml(color)
     .. '    <Text id="eng_title_' .. c .. '" fontSize="17" fontStyle="Bold" color="#FFFFFF" alignment="MiddleLeft" preferredHeight="26">Waiting for other players...</Text>\n'
     .. '    <Text id="eng_text_' .. c .. '" fontSize="13" color="#FFFFFF" alignment="UpperLeft" preferredHeight="46"> </Text>\n'
     .. '    <InputField id="eng_search_' .. c .. '" onValueChanged="onMtgSearch" placeholder="Search..." preferredHeight="30" fontSize="14" active="false"></InputField>\n'
+    .. engineCombatTabsXml(c)
     .. '    <VerticalScrollView id="eng_scroll_' .. c .. '" preferredHeight="318" flexibleHeight="0" color="#FFFFFF0A" scrollSensitivity="120">\n'
     .. '      <VerticalLayout contentSizeFitter="vertical" childForceExpandHeight="false" spacing="4" padding="4 14 4 4">\n'
     .. table.concat(slots, "\n") .. '\n'
@@ -2718,7 +2723,7 @@ local function optionList(p, filter)
   return list
 end
 
--- Button colours: the default answer green, End turn red, attackers red, blockers blue (brighter once picked).
+-- Button colours: the default answer orange, End turn navy, attackers green, blockers red (brighter once picked).
 local KIND_OLD_TITLES = { { "^Pay ", "mana" }, { "^Declare attackers", "attack" }, { "^Declare blockers", "block" },
   { "^Mulligan", "mulligan" }, { "^Put %d", "mulliganPutBack" }, { "^Dice", "dice" } }
 -- { kind = the engine's question type ("priority", "mana", "attack", "cards", "order", ...), toLibrary = the chosen
@@ -2781,10 +2786,12 @@ function optionColor(p, index, picked)
   local o = (p.options or {})[index] or {}
   if o.tint ~= nil then return o.tint end -- (a side tab's line that sets its own, engineSidePrompt)
   local kind = describePrompt(p).kind
-  if o.id == "__allattack" then return "#e84118" end
-  if o.id == "__noattack" then return "#2e86de" end
-  if kind == "attack" then return picked and "#e84118" or "#7a2323" end
-  if kind == "block" then return picked and "#2e86de" or "#1e3a6e" end
+  -- (combat clarity, the user 2026-11-09: the attack parts green, the block parts red, as you are the one attacked;
+  -- docs/engine-ui-spec.md 9)
+  if o.id == "__allattack" then return ENGINE_COMBAT.attackOn end
+  if o.id == "__noattack" then return "#2e3a59" end
+  if kind == "attack" then return picked and ENGINE_COMBAT.attackOn or ENGINE_COMBAT.attack end
+  if kind == "block" then return picked and ENGINE_COMBAT.blockOn or ENGINE_COMBAT.block end
   -- Arena-style, same colours as the corner buttons and the card row: orange main choice, blue alternative,
   -- red for what you picked
   if picked then return "#E53935" end
@@ -2922,6 +2929,20 @@ function engineTargetSorts(q)
   s.walkers = s.cards and s.walkers
   return s
 end
+-- Which side of the combat a player is on now: "attack" on their own turn, "block" while a creature attacks them or
+-- one of their planeswalkers (or a blockers question is theirs), else nil. Read from the board (atk / atkT).
+function engineCombatSide(color, t)
+  if t == nil or not tostring(t.step or ""):find("^combat") then return nil end
+  if t.active == color then return "attack" end
+  local q = enginePrompts[color]
+  if q ~= nil and describePrompt(q).kind == "block" then return "block" end
+  for _, pl in ipairs(t.players or {}) do
+    for _, c in ipairs(pl.battlefield or {}) do
+      if c.atk and c.atkT ~= nil and (c.atkT == color or (engineMeta[c.atkT] or {}).color == color) then return "block" end
+    end
+  end
+  return nil
+end
 function engineUpdateCorner(color, p)
   local t = lastTable
   local step = tostring(t and t.step or "")
@@ -2929,7 +2950,10 @@ function engineUpdateCorner(color, p)
   for _, ph in ipairs(PHASES) do
     local here = step == ph[1] or (ph[1] == "combat" and step:find("^combat")) or (ph[1] == "end" and (step == "end" or step == "cleanup" or step == "endOfTurn"))
     local name = (here and step == "cleanup") and "Cleanup" or ph[2]
-    parts[#parts + 1] = here and ("<b><color=#FFD27A>" .. string.upper(name) .. "</color></b>") or name
+    -- (COMBAT green on your own turn, red while you are the one attacked: combat clarity, docs/engine-ui-spec.md 9)
+    local side = (here and ph[1] == "combat") and engineCombatSide(color, t) or nil
+    local gold = side == "attack" and ENGINE_COMBAT.attackWord or side == "block" and ENGINE_COMBAT.blockWord or "#FFD27A"
+    parts[#parts + 1] = here and ("<b><color=" .. gold .. ">" .. string.upper(name) .. "</color></b>") or name
   end
   local whose = t and t.active and ((t.active == color) and "<b><color=#7CFC9A>YOUR TURN</color></b>" or ("<b>" .. string.upper(engineNameOf(t.active)) .. "'S TURN</b>")) or ""
   setAttr("eng_phase_" .. color, "active", t ~= nil and "true" or "false")
@@ -3085,8 +3109,15 @@ function engineUpdateCorner(color, p)
     shownAt = (asked ~= was.asked) and os.clock() or was.shownAt,
     bigAt = (fresh and was.bigLabel ~= nil and bigLabel ~= nil and was.bigLabel ~= bigLabel) and os.clock() or was.bigAt,
     smallAt = (fresh and was.smallLabel ~= nil and smallLabel ~= nil and was.smallLabel ~= smallLabel) and os.clock() or was.smallAt }
-  setButton("eng_big_" .. color, { active = (big ~= nil or labelOnly) and "true" or "false", text = bigLabel or " " })
-  setButton("eng_big2_" .. color, { active = small ~= nil and "true" or "false", text = smallLabel or " " })
+  -- (the attack question's buttons that attack green, the blockers question's Done red: combat clarity, engine-ui-spec 9)
+  local ck = p ~= nil and describePrompt(p).kind or nil
+  local bigColor, smallColor = "#e8711a", "#2e3a59"
+  if ck == "attack" then
+    bigColor = bigLabel == "No attacks" and "#2e3a59" or ENGINE_COMBAT.attackOn
+    smallColor = smallLabel == "No attacks" and "#2e3a59" or ENGINE_COMBAT.attackOn
+  elseif ck == "block" then bigColor = ENGINE_COMBAT.blockOn end
+  setButton("eng_big_" .. color, { active = (big ~= nil or labelOnly) and "true" or "false", text = bigLabel or " ", color = bigColor })
+  setButton("eng_big2_" .. color, { active = small ~= nil and "true" or "false", text = smallLabel or " ", color = smallColor })
   for _, g in ipairs({ "start", "combat", "end" }) do
     setButton("eng_stop_" .. g .. "_" .. color, { color = engineStopsOf(color)[g] and "#b8860b" or "#262626" })
   end
@@ -3109,10 +3140,104 @@ end
 function engineCountOk(p, n)
   return n >= (p.min or 0) and n <= (p.max or 99)
 end
+-- ───────── combat pickers under tabs (combat clarity, docs/engine-ui-spec.md 9) ─────────
+-- "Attacker and defender pickers organised under tabs, so a big token board doesn't need endless scrolling; same-named
+-- tokens (#1 to #20) under one tab" (the user, 2026-11-09). An attack or blockers question with more than
+-- ENGINE_CTAB_MIN creature lines and two or more names gets a row of tabs under the search box, one per name of the
+-- creature you choose with (the attacker, the blocker): the list shows that tab's lines, All attack / No attacks above
+-- them. ENGINE_CTABS buttons; with more names the last one turns the tabs' page. A search looks through every tab.
+ENGINE_CTABS, ENGINE_CTAB_MIN = 8, 8
+engineCombatTab = {} -- colour -> { prompt = promptId, key = the open tab's name, page = the tabs' page }
+function engineCombatTabsXml(c)
+  local rows = {}
+  for r = 0, 1 do
+    local b = {}
+    for k = r * 4 + 1, r * 4 + 4 do
+      b[#b + 1] = '<Button id="eng_ctab_' .. c .. '_' .. k .. '" onClick="onMtgCTab" color="#1A1A1A" textColor="#ffffff" fontSize="12" active="false"> </Button>'
+    end
+    rows[#rows + 1] = '<HorizontalLayout spacing="3" childForceExpandWidth="true">' .. table.concat(b) .. '</HorizontalLayout>'
+  end
+  return '    <VerticalLayout id="eng_ctabs_' .. c .. '" preferredHeight="56" spacing="3" childForceExpandHeight="true" active="false">' .. table.concat(rows) .. '</VerticalLayout>\n'
+end
+-- The name a combat line is filed under: its label's start, the bridge's name for the creature ("Spirit Token 1/1 #3 →
+-- Blue", "Wall of Omens 0/4 blocks ..."), without the number and size
+function engineCombatName(label)
+  local l = tostring(label or "")
+  local cut = l:find(" blocks ", 1, true) or l:find(" →", 1, true)
+  if cut ~= nil then l = l:sub(1, cut - 1) end
+  return (l:gsub(" #%d+$", ""):gsub(" %-?%d+/%-?%d+$", ""))
+end
+-- the question's tabs, in the order of its lines: { { key, n = creatures, picked = creatures picked, opts = { index = true } } },
+-- or nil when it gets none
+function engineCombatGroups(color, p)
+  local kind = p ~= nil and p.mode == "multi" and describePrompt(p).kind or nil
+  if kind ~= "attack" and kind ~= "block" then return nil end
+  local groups, byKey, lines = {}, {}, 0
+  local sel = engineSelected[color] or {}
+  for i, o in ipairs(p.options or {}) do
+    local id = tostring(o.id)
+    local bar = id:find("|", 1, true)
+    if bar ~= nil and id:sub(1, 2) ~= "__" then
+      lines = lines + 1
+      local own = id:sub(1, bar - 1)
+      local key = engineCombatName(o.label)
+      local g = byKey[key]
+      if g == nil then
+        g = { key = key, n = 0, picked = 0, opts = {}, own = {}, chose = {} }
+        byKey[key] = g
+        groups[#groups + 1] = g
+      end
+      g.opts[i] = true
+      if not g.own[own] then g.own[own] = true g.n = g.n + 1 end
+      if sel[i] and not g.chose[own] then g.chose[own] = true g.picked = g.picked + 1 end
+    end
+  end
+  if lines <= ENGINE_CTAB_MIN or #groups < 2 then return nil end
+  return groups
+end
+-- Draws the tab row for colour's open question p (nil hides it) and returns the open tab's group, or nil: then the
+-- list shows every line (no tabs, or a search under way)
+function engineCombatTabsDraw(color, p, filter)
+  local groups = p ~= nil and engineCombatGroups(color, p) or nil
+  if not panelReady then return nil end
+  -- (no UI call while there were and are no tabs: as the XML has it)
+  if groups == nil and uiCache["eng_ctabs_" .. color .. "|active"] ~= "true" then engineCombatTab[color] = nil return nil end
+  setAttr("eng_ctabs_" .. color, "active", groups and "true" or "false")
+  -- (the answers' list gives the tabs their room: the window keeps its height)
+  setAttr("eng_scroll_" .. color, "preferredHeight", groups and "258" or "318")
+  if groups == nil then engineCombatTab[color] = nil return nil end
+  local st = engineCombatTab[color]
+  if st == nil or st.prompt ~= p.promptId then st = { prompt = p.promptId, key = groups[1].key, page = 0 } engineCombatTab[color] = st end
+  local open = nil
+  for _, g in ipairs(groups) do if g.key == st.key then open = g end end
+  if open == nil then open = groups[1] st.key = open.key end
+  local paged = #groups > ENGINE_CTABS
+  local per = paged and ENGINE_CTABS - 1 or ENGINE_CTABS
+  local pages = math.ceil(#groups / per)
+  st.page = st.page % pages
+  local searching = filter ~= nil and filter ~= ""
+  for k = 1, ENGINE_CTABS do
+    local g = groups[st.page * per + k]
+    local id = "eng_ctab_" .. color .. "_" .. k
+    if paged and k == ENGINE_CTABS then
+      setButton(id, { text = "More tabs (" .. (st.page + 1) .. "/" .. pages .. ")", color = "#333333", textColor = ENGINE_THEME.text, active = "true" })
+    elseif g ~= nil and k <= per then
+      local on = g == open and not searching
+      setButton(id, { text = engineCut(g.key, 13) .. " (" .. (g.picked > 0 and (g.picked .. "/" .. g.n) or tostring(g.n)) .. ")",
+        color = on and ENGINE_THEME.tabOn or ENGINE_THEME.dock, textColor = on and ENGINE_THEME.gold or ENGINE_THEME.text, active = "true" })
+    else
+      setAttr(id, "active", "false")
+    end
+  end
+  if searching then return nil end
+  return open
+end
 local function updateOptions(color)
   -- (a fix from hand: the engine is paused, and the panel lists the player's hand instead, M7 §12)
-  if engineFixHandDraw ~= nil and engineFixHandDraw(color) then return end
+  if engineFixHandDraw ~= nil and engineFixHandDraw(color) then engineCombatTabsDraw(color, nil) return end
   local p = engineBrowse[color] and engineSidePrompt(color) or enginePrompts[color]
+  -- (the combat tabs: only for an open attack or blockers question, never under a side tab)
+  local tabGroup = engineCombatTabsDraw(color, not engineBrowse[color] and p or nil, string.lower(engineFilter[color] or ""))
   engineVisible[color] = {}
   if p == nil then
     setText("eng_title_" .. color, (lastTable and lastTable.gameOver) and "Game over" or "Waiting for other players...")
@@ -3133,14 +3258,16 @@ local function updateOptions(color)
   local sel = engineSelected[color] or {}
   local shown = {}
   for _, o in ipairs(all) do
-    if filter == "" or string.find(string.lower(o.label), filter, 1, true) then shown[#shown + 1] = o end
+    -- (under a combat tab: that tab's lines, and the quick buttons, All attack / No attacks)
+    local inTab = tabGroup == nil or tabGroup.opts[o.index] or tostring((p.options[o.index] or {}).id):sub(1, 2) == "__"
+    if inTab and (filter == "" or string.find(string.lower(o.label), filter, 1, true)) then shown[#shown + 1] = o end
   end
-  -- a longer list than the buttons: pages of POOL - 1, the last button turns the page (kept for the same question
-  -- and search; anything else starts at page one)
+  -- a longer list than the buttons: pages of POOL - 1, the last button turns the page (kept for the same question,
+  -- search and combat tab; anything else starts at page one)
   local per, first = POOL, 1
   if #shown > POOL then
     per = POOL - 1
-    local key = table.concat({ tostring(p.promptId), tostring(p.title), #all, filter, tostring(p.mode) }, "|")
+    local key = table.concat({ tostring(p.promptId), tostring(p.title), #all, filter, tostring(p.mode), tabGroup and tabGroup.key or "" }, "|")
     local pg = enginePage[color]
     if pg == nil or pg.key ~= key then pg = { key = key, n = 0 } enginePage[color] = pg end
     pg.n = pg.n % math.ceil(#shown / per)
@@ -3180,6 +3307,27 @@ local function updateOptions(color)
   end
 end
 
+-- a combat tab clicked: its lines in the list (from their first page); "More tabs" shows the next tabs
+function onMtgCTab(player, value, id)
+  local color, k = tostring(id):match("^eng_ctab_(%a+)_(%d+)$")
+  if color == nil or player.color ~= color then return end
+  local groups = engineCombatGroups(color, enginePrompts[color])
+  local st = engineCombatTab[color]
+  if groups == nil or st == nil then return end
+  k = tonumber(k)
+  local paged = #groups > ENGINE_CTABS
+  local per = paged and ENGINE_CTABS - 1 or ENGINE_CTABS
+  if paged and k == ENGINE_CTABS then st.page = st.page + 1
+  else
+    local g = groups[st.page * per + k]
+    if g == nil then return end
+    st.key = g.key
+    -- (a tab clicked during a search: the search ends, the tab's lines show)
+    if engineFilter[color] ~= nil and engineFilter[color] ~= "" then engineFilter[color] = nil setText("eng_search_" .. color, "") end
+  end
+  if panelReady then updateOptions(color) end
+end
+
 -- the panel's per-player question state, cleared when a game ends (engineClear)
 function engineResetUi()
   engineSkipTo, engineAutoListOpen = {}, {} -- (a skip ends with its game)
@@ -3193,6 +3341,7 @@ function engineResetUi()
   for k in pairs(engineFilter) do engineFilter[k] = nil end
   for k in pairs(engineBrowse) do engineBrowse[k] = nil end
   for k in pairs(enginePage) do enginePage[k] = nil end
+  for k in pairs(engineCombatTab) do engineCombatTab[k] = nil end
 end
 
 engineLogHidden = {} -- colour -> true when the player closed the game log
@@ -3676,6 +3825,12 @@ function onMtgSlot(player, value, id)
     return
   end
   pick(color, v)
+  -- a block picked in the window is confirmed in the chat too, as one picked on the table (combat clarity 2026-11-09)
+  local p = enginePrompts[color]
+  local o = p and type(v) == "number" and (p.options or {})[v]
+  if o ~= nil and not engineBrowse[color] and describePrompt(p).kind == "block" and engineTell ~= nil then
+    engineTell(color, engineSelectedFor(color, v) and (tostring(o.label) .. ". Done when finished.") or ("Taken back: " .. tostring(o.label) .. "."), true)
+  end
 end
 enginePage = {} -- colour -> { key, n }: the page of a long answer list (see updateOptions)
 function onMtgConfirm(player, value, id)
@@ -4094,9 +4249,11 @@ local function isEngineCard(o) return o ~= nil and tostring(o.getGMNotes()):find
 local function engineIdOf(o) return (tostring(o.getGMNotes()):gsub("^engine:", "")) end
 
 local toldAt = {}
-local function tell(color, text)
+-- always: said even when the same words were said in the last 3 s (a confirmation: "Now click the attacker to block."
+-- for a second blocker within 3 s said nothing, so the block looked ignored, combat clarity 2026-11-09)
+local function tell(color, text, always)
   local key = color .. text
-  if toldAt[key] and os.clock() - toldAt[key] < 3 then return end
+  if not always and toldAt[key] and os.clock() - toldAt[key] < 3 then return end
   toldAt[key] = os.clock()
   engineTableLog(color, "told: " .. text)
   if Player[color] ~= nil and Player[color].seated then broadcastToColor("[MTG] " .. text, color, {1, 0.65, 0.2}) end
@@ -4741,28 +4898,48 @@ clickGesture = function(color, obj)
     -- through to "You can only touch your own cards", and the next click on the creature took the block back:
     -- blocking looked broken, playtest 2026-10-24)
     if not firstClick(obj) then return true end
-    if pendingBlocker[color] == nil and unblock(color, id) then
-      tell(color, "Block removed.")
+    -- Every click says what it did, always (combat clarity 2026-11-09: "assigning a blocker sometimes gave no
+    -- confirmation": the same words within 3 s were dropped, and an attacker clicked after a block was taken back
+    -- did nothing). A blocker's name is the question's own ("Spirit Token 1/1 #3"), so two tokens read apart.
+    local function blockerName(b)
+      local _, o = findOption(color, function(x) return startsWith(x.id, b .. "|") end)
+      local l = o and tostring(o.label or ""):match("^(.-) blocks ") or nil
+      local x = engineObjs[b]
+      return l or (x ~= nil and not x.isDestroyed() and x.getName():match("^[^\n]*")) or "It"
+    end
+    if pendingBlocker[color] == id then
+      -- the creature waiting for its attacker, clicked again: it doesn't block
+      pendingBlocker[color] = nil
+      enginePhase2Prompt(color)
+      tell(color, blockerName(id) .. " won't block. Done when finished.", true)
       return true
     end
     if findOption(color, function(o) return startsWith(o.id, id .. "|") end) ~= nil then
-      pendingBlocker[color] = id -- one of your blockers: now click the attacker it blocks
+      -- one of your blockers: its block, if it has one, is taken back, and the attacker clicked next is the one it blocks
+      local had = unblock(color, id)
+      pendingBlocker[color] = id
+      enginePhase2Prompt(color)
       glowCard(color, id, GLOW.blockPick)
-      tell(color, "Now click the attacker to block.")
+      tell(color, (had and (blockerName(id) .. "'s block is taken back. ") or "") .. "Now click the attacker for " .. blockerName(id)
+        .. " to block (or click it again: no block).", true)
       return true
     end
     if pendingBlocker[color] ~= nil then
-      local i = findOption(color, function(o) return o.id == pendingBlocker[color] .. "|" .. id end)
+      local i, o = findOption(color, function(x) return x.id == pendingBlocker[color] .. "|" .. id end)
       if i ~= nil then
-        local blocker = engineObjs[pendingBlocker[color]]
-        local name = function(o) return o ~= nil and not o.isDestroyed() and (o.getName():match("^[^\n]*")) or "it" end
-        enginePick(color, i)
+        -- (the question's words, else the cards' names: a label without "blocks" is no bridge's)
+        local said = tostring(o.label or "")
+        if not said:find(" blocks ", 1, true) then
+          local name = function(x) return x ~= nil and not x.isDestroyed() and (x.getName():match("^[^\n]*")) or "It" end
+          said = name(engineObjs[pendingBlocker[color]]) .. " blocks " .. name(obj)
+        end
+        if not engineSelectedFor(color, i) then enginePick(color, i) end
         pendingBlocker[color] = nil
         enginePhase2Prompt(color)
-        tell(color, name(blocker) .. " blocks " .. name(obj) .. ". Click it again to take the block back; Done when finished.")
+        tell(color, said .. ". Click the blocker again to change it; Done when finished.", true)
         return true
       end
-      tell(color, "That blocker can't block that attacker.")
+      tell(color, blockerName(pendingBlocker[color]) .. " can't block that. Click an attacking creature, or the blocker again: no block.", true)
       return true
     end
   end
@@ -5848,7 +6025,8 @@ end
 
 -- ───────── playable cards glow green in your hand (only you see it) ─────────
 -- TTS highlights are seen by every player, so the glow is a frame drawn by the card's own UI with visibility set to
--- the hand's owner. Only cards you can cast or play right now ("Your priority" options) glow. "mtg glow" toggles it.
+-- the hand's owner. Only cards you can cast or play right now ("Your priority" options) glow, and since 2026-11-11 your
+-- permanents with an ability you can use now (enginePermanentGlowIds). "mtg glow" toggles both.
 engineGlowOff = engineGlowOff or {}  -- colour -> true when that player switched the green glow off
 local playableShown = {}            -- colour -> { card id = object } currently framed
 -- A green frame sticking out past the card's edges: the UI draws under the card, so a frame inside the card's
@@ -5858,12 +6036,41 @@ local PLAYABLE_XML = '<Panel id="eng_play" visibility="%s" position="0 0 -12" ro
   .. string.format(PLAYABLE_BAR, 266, 13, "UpperCenter") .. string.format(PLAYABLE_BAR, 266, 13, "LowerCenter")
   .. string.format(PLAYABLE_BAR, 13, 366, "MiddleLeft") .. string.format(PLAYABLE_BAR, 13, 366, "MiddleRight") .. '</Panel>'
 local playableBuilt = {} -- object -> owner colour its frame was built for (built once, then only shown/hidden)
+-- First builds wait in a queue and go ENGINE_FRAME_BUILDS a frame (a full UI build costs a frame: a 40-permanent priority
+-- built at once would stutter, SPEC.md "Green glow on permanents"). The frame is added beside whatever else the card's
+-- UI holds, never by replacing it; a rebuild (another colour: a stolen permanent) takes only its own panel out.
+ENGINE_FRAME_BUILDS = 4
+engineFrameQueue = { list = {}, want = {}, pumping = false } -- want: object -> { color, on } waiting for its build
+function engineFrameBuild(obj, color, on)
+  local x = tostring(obj.UI.getXml() or "")
+  local a = x:find('<Panel id="eng_play"', 1, true)
+  -- (ours ends at the first "</Panel>" after it: its four bars close themselves)
+  local _, b = x:find("</Panel>", a or 1, true)
+  if a ~= nil and b ~= nil then x = x:sub(1, a - 1) .. x:sub(b + 1) end
+  obj.UI.setXml(x .. string.format(PLAYABLE_XML, color, on and "true" or "false"))
+  playableBuilt[obj] = color
+end
+function engineFramePump()
+  local q = engineFrameQueue
+  local n = 0
+  while #q.list > 0 and n < ENGINE_FRAME_BUILDS do
+    local obj = table.remove(q.list, 1)
+    local w = q.want[obj]
+    q.want[obj] = nil
+    if w ~= nil and obj ~= nil and not obj.isDestroyed() then engineFrameBuild(obj, w.color, w.on) n = n + 1 end
+  end
+  q.pumping = #q.list > 0
+  if q.pumping then Wait.frames(engineFramePump, 1) end
+end
 local function frameOn(obj, color, on)
+  local q = engineFrameQueue
   if playableBuilt[obj] ~= color then
-    -- the first time: build it (a full UI build costs a frame); afterwards only the "active" switch changes
-    obj.UI.setXml(string.format(PLAYABLE_XML, color, on and "true" or "false"))
-    playableBuilt[obj] = color
+    -- the first time: queued for a build; afterwards only the "active" switch changes
+    if q.want[obj] == nil then q.list[#q.list + 1] = obj end
+    q.want[obj] = { color = color, on = on }
+    if not q.pumping then q.pumping = true Wait.frames(engineFramePump, 1) end
   else
+    q.want[obj] = nil -- (built already: a queued build for another colour is dropped by the pump)
     obj.UI.setAttribute("eng_play", "active", on and "true" or "false")
   end
 end
@@ -5890,6 +6097,8 @@ function enginePlayableGlow(color)
       local st, meta = engineStatic[id], engineMeta[id]
       if st and names[st.n] and meta and meta.color == color and meta.zone == "hand" then want[id] = true end
     end
+    -- and your permanents with an ability you can use now (the ability boxes' list, mana abilities left out there)
+    for id in pairs(enginePermanentGlowIds(color)) do want[id] = true end
   end
   local shown = playableShown[color] or {}
   for id, obj in pairs(shown) do
@@ -5914,6 +6123,23 @@ function enginePlayableGlow(color)
   end
 end
 playableRetry = {}
+-- The permanents of yours that glow at your priority (SPEC.md "Green glow on permanents with a usable ability", the user
+-- 2026-11-11): exactly the cards behind the question's ability options, engineAbilityWant (filled by engineAbilityBoxes
+-- for this question, mana abilities and "Untap ... (mana back)" left out there). A token folded into a stack glows on
+-- the stack's card; a phased-out card never glows. Only the controller's: engineAbilityBoxes lists only the cards on
+-- this colour's own battlefield (engineMeta: whose battlefield, not whose card), and it runs for every question, so the
+-- list is always the open question's.
+function enginePermanentGlowIds(color)
+  local out = {}
+  for id, w in pairs(engineAbilityWant or {}) do
+    if w.color == color then
+      local rep = (engineGroupOf or {})[id] or id
+      local c = engineAbilityCard(rep)
+      if c ~= nil and not c.po then out[rep] = true end
+    end
+  end
+  return out
+end
 -- after every board: the hand may have changed under an open question
 function enginePlayableGlowAll()
   for c in pairs(enginePrompts) do pcall(enginePlayableGlow, c) end
@@ -7209,7 +7435,8 @@ function engineAbilityBoxes(color, p, kind)
   for _, o in ipairs(options) do if o.ab ~= nil then sent = true break end end
   for _, o in ipairs(options) do
     local id, label = tostring(o.id), tostring(o.label or "")
-    local meta = o.cardId and engineMeta[o.cardId]
+    -- (a token folded into a stack has no object or place of its own: the stack's card says whose it is)
+    local meta = o.cardId and engineMeta[engineGroupOf[o.cardId] or o.cardId]
     -- (an ability: the bridge sends its text as "ab"; older messages are told apart by their label. "Untap X (mana
     -- back)" is not one: every land tapped for mana got a button, stage 3 review 2026-10-27)
     local ability = o.ab ~= nil or (not sent and not id:find("^tap:") and not id:find("^untap:") and not label:find("^Mana:")
@@ -7249,6 +7476,8 @@ function engineAbilityBoxes(color, p, kind)
   -- (the screen panel follows the question: its lines answer this one now, offered or greyed)
   local shown = engineAbPanelFor and engineAbPanelFor[color]
   if shown ~= nil then engineAbPanelShow(color, shown) end
+  -- (and the green frames of your permanents follow the same list: on at priority, gone with the question)
+  if enginePlayableGlow ~= nil then pcall(enginePlayableGlow, color) end
 end
 
 -- (by name, for tests and tools: "ab|<object guid>|<button number>")
