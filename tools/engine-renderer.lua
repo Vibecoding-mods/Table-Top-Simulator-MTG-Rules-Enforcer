@@ -858,6 +858,7 @@ local function updateTrackers(m)
       for i, guid in ipairs(TAX_LABELS[color] or {}) do setTax(guid, (pl.tax or {})[i] or 0) end
     end
   end
+  if engineStatusPieces ~= nil then pcall(engineStatusPieces, m) end -- (the pieces for the marks: under the last box)
   if m.active ~= nil and m.active ~= lastTurnSet then
     lastTurnSet = m.active
     if Player[m.active] ~= nil and Player[m.active].seated and Turns.turn_color ~= m.active then
@@ -895,6 +896,7 @@ function engineCountersReset()
     end
   end
   engineCountersShown = {}
+  if engineStatusParkAll ~= nil then pcall(engineStatusParkAll) end -- (the status pieces go back under the table)
 end
 -- Where the marks go: one small box a mark, stacked down the inner corner of the player's mat under the heart
 -- (2026-11-10, the user: "have it [in the] corner of your playmat under your heart"; "you can add multiple boxes if
@@ -1020,6 +1022,196 @@ function engineExtraTurnBadge(o, pl)
     o.createButton(look)
   end
 end
+-- ───────── status pieces (docs/status-objects-spec.md, 2026-11-11) ─────────
+-- The original table's piece for a player status (the monarch's crown, Undercity for the initiative, the city's
+-- blessing, The Ring, the poison / energy / experience counters) lies on a player's mat while their marks say it, just
+-- under the last marks box (2026-11-10, the user: "if the box says monarch the crown spawns in on their mat. Also have
+-- relevant objects hidden under the table with opacity at 0"); Day // Night lies in the middle of the table while the
+-- engine says day or night. make-engine-copy keeps the pieces parked under the table (y -30), locked, faded, without
+-- their scripts, and writes ENGINE_STATUS_PIECES (each piece's mark, its object per seat or its one object, where it
+-- parks) and ENGINE_DAY_NIGHT. Moved, never spawned (live-spawning many objects crashed TTS); a piece is moved only
+-- when where it goes, or its count, changes. Parked when the game's counters go (engineCountersReset: a reset, a
+-- rematch), when engine mode goes off, on load, and, while no game runs, any piece no board put out.
+-- gap: world units between the last marks box and a piece, and between pieces; side: the margin each side of the
+-- strip (and before the mat's near edge, `matHalf` from its centre: the mat zone is 20.75 deep); parkY / above: the
+-- parked depth and the depth above which a piece counts as out; day: Day // Night's spot, x 0 and `edge + gap` towards
+-- White and Red from the middle (the middle tile's edge at 0.75, the mats' gap |x| < 0.9, so at most `width` wide),
+-- readable from that side
+ENGINE_STATUS_FIT = { gap = 0.3, side = 0.3, matHalf = 10.375, parkY = -30, above = -20, day = { edge = 0.75, gap = 0.2, width = 1.5, rotY = 180 } }
+engineStatusShown = {} -- object guid (or "day") -> how it is shown (spot, turn, size, count); nil while parked
+engineStatusUnit = {}  -- object guid -> its footprint { x, z } at scale 1, read once (getBoundsNormalized)
+-- the count a mark gives a piece: "" for the mark alone ("MONARCH"), "3" for "POISON 3"; nil when it isn't the piece's
+function engineStatusMatch(mark, want)
+  if mark == want then return "" end
+  if mark:sub(1, #want + 1) == want .. " " then return mark:sub(#want + 2) end
+  return nil
+end
+-- the object entry of piece p for seat `color` (its seat's own copy, or the one object)
+function engineStatusObj(p, color)
+  for _, e in ipairs(p.objs or {}) do if e.seat == nil or e.seat == color then return e end end
+  return nil
+end
+-- every object the table moves, each piece's per seat and Day // Night, as one list (made once): { key (its name in
+-- engineStatusShown), guids (Day // Night has one a state), fade, count, x / z (where it parks) }
+function engineStatusList()
+  if engineStatusItems == nil then
+    engineStatusItems = {}
+    for _, p in ipairs(type(ENGINE_STATUS_PIECES) == "table" and ENGINE_STATUS_PIECES or {}) do
+      for _, e in ipairs(p.objs or {}) do
+        engineStatusItems[#engineStatusItems + 1] = { key = e.g, guids = { e.g }, fade = p.fade, count = p.count, x = e.x, z = e.z }
+      end
+    end
+    local d = ENGINE_DAY_NIGHT
+    if type(d) == "table" then engineStatusItems[#engineStatusItems + 1] = { key = "day", guids = d.states, x = d.x, z = d.z } end
+  end
+  return engineStatusItems
+end
+function engineStatusObject(item)
+  for _, g in ipairs(item.guids) do
+    local o = getObjectFromGUID(g)
+    if o ~= nil then return o end
+  end
+  return nil
+end
+-- an object's footprint { x, z } at scale 1, by GUID (nil when there is no such object)
+function engineStatusFootprint(g, o)
+  if engineStatusUnit[g] == nil then
+    o = o or getObjectFromGUID(g)
+    if o == nil then return nil end
+    local b, s = o.getBoundsNormalized().size, o.getScale()
+    engineStatusUnit[g] = { x = b.x / math.max(s.x, 0.01), z = b.z / math.max(s.z, 0.01) }
+  end
+  return engineStatusUnit[g]
+end
+-- parked: under the table at its own spot, locked, hidden as at opacity 0: invisible to every colour (what hides a
+-- card) and, for a model or token, its tint's alpha 0; no count on it
+function engineStatusPark(o, item)
+  o.setLock(true)
+  o.setInvisibleTo(engineEveryone())
+  if item.fade then local c = o.getColorTint() o.setColorTint({ c.r, c.g, c.b, 0 }) end
+  o.clearButtons()
+  o.setPosition({ item.x, ENGINE_STATUS_FIT.parkY, item.z })
+  engineStatusShown[item.key] = nil
+end
+-- item's object put at w = { at, rotY, scale, count, state } (nil: parked), only when that differs from how it is
+-- shown. From under the table it comes up at its spot while still hidden, then shows; from another mat it slides.
+function engineStatusPut(o, item, w)
+  local look = w and string.format("%.2f %.2f %.0f %.3f %s %s", w.at[1], w.at[3], w.rotY, w.scale[1], item.count and w.count or "", tostring(w.state))
+  if engineStatusShown[item.key] == look then return end
+  if w == nil then return engineStatusPark(o, item) end
+  if w.state ~= nil and o.getStateId() ~= w.state then o = o.setState(w.state) or o end
+  local wasOut = engineStatusShown[item.key] ~= nil
+  o.setLock(true)
+  o.setScale(w.scale)
+  o.setRotation({ 0, w.rotY, 0 })
+  if wasOut then o.setPositionSmooth(w.at, false, true) else o.setPosition(w.at) end
+  if item.fade then local c = o.getColorTint() o.setColorTint({ c.r, c.g, c.b, 1 }) end
+  o.setInvisibleTo({})
+  if item.count then
+    -- the count as the original token's script drew its 0: a shadow, then the number (labels only, no click area)
+    o.clearButtons()
+    for _, b in ipairs({ { { -0.1, 0.1, 0.3 }, { 0.1, 0.1, 0.1, 95 } }, { { 0, 0.15, 0.2 }, { 0.9, 0.9, 0.9, 100 } } }) do
+      o.createButton({ click_function = "engineNoop", function_owner = Global, label = w.count, position = b[1], rotation = { 0, 0, 0 },
+        width = 0, height = 0, scale = { 1.5, 1.5, 1.5 }, font_size = 800, font_color = b[2], color = { 0, 0, 0, 0 }, tooltip = "" })
+    end
+  end
+  engineStatusShown[item.key] = look
+end
+-- where seat pl's pieces go: down the corner strip of their mat, centred across it, under their last marks box, in
+-- ENGINE_STATUS_PIECES' order; each scaled down to the strip's width if wider. Written into want[guid].
+function engineStatusPlace(want, o, pl)
+  local marks = {}
+  for _, m in ipairs(pl.allMarks) do marks[#marks + 1] = tostring(m) end
+  local boxes = engineMarksBoxes(marks)
+  if #boxes == 0 then return end
+  local fitIn, fit = ENGINE_MARKS_FIT, ENGINE_STATUS_FIT
+  -- (the tracker's button frame, as the boxes are drawn: local z of the last box's bottom edge; the strip's middle in
+  -- button x, from the boxes' inner edge to the widest box's outer edge)
+  local bottom = fitIn.top - fitIn.gap / fitIn.perLocal
+  for _, b in ipairs(boxes) do bottom = bottom + (b.height + fitIn.gap) / fitIn.perLocal end
+  local sign = engineMarksOutward(o)
+  if sign == 0 then sign = 1 end
+  local cx = sign * (fitIn.max / 2 - fitIn.inner) / fitIn.perLocal
+  local p0, s = o.getPosition(), o.getScale()
+  local a = math.rad(o.getRotation().y or 0)
+  local room = fitIn.max / fitIn.perLocal * s.x - 2 * fit.side
+  local g = seatGeometry(pl.color)
+  local rotY = (g and g.rotY or (o.getRotation().y or 0)) % 360
+  local top = bottom + fit.gap / s.z -- (local z of the next piece's top edge)
+  -- the seat's pieces at the strip's width, and the depth they take with their gaps (world units)
+  local list, need = {}, 0
+  for _, p in ipairs(ENGINE_STATUS_PIECES) do
+    local count
+    for _, m in ipairs(marks) do count = count or engineStatusMatch(m, p.mark) end
+    local e = count and engineStatusObj(p, pl.color)
+    local unit = e and want[e.g] == nil and engineStatusFootprint(e.g)
+    if unit then
+      local k = math.min(1, room / math.max(unit.x * p.scale[1], 0.01))
+      list[#list + 1] = { e = e, p = p, k = k, depth = unit.z * p.scale[3] * k, count = count }
+      need = need + unit.z * p.scale[3] * k + fit.gap
+    end
+  end
+  -- (all of them down to what is left of the strip before the mat's near edge, `matHalf` past its centre along its
+  -- forward axis, less `side`: every piece at once ran off the mat)
+  if g ~= nil and #list > 0 then
+    local edge = g.mat + g.fwd * fit.matHalf
+    local left = ((edge.x - p0.x) * math.sin(a) + (edge.z - p0.z) * math.cos(a)) - top * s.z - fit.side
+    local gaps = fit.gap * (#list - 1)
+    if need - fit.gap > left and left > gaps then
+      local f = (left - gaps) / (need - fit.gap - gaps)
+      for _, x in ipairs(list) do x.k, x.depth = x.k * f, x.depth * f end
+    end
+  end
+  for _, x in ipairs(list) do
+    local p, k = x.p, x.k
+    local bz = top + x.depth / 2 / s.z
+    -- (button x is drawn on the reader's right, world (-cos ry, sin ry); local z at (sin ry, cos ry))
+    want[x.e.g] = { at = { p0.x + s.x * cx * -math.cos(a) + s.z * bz * math.sin(a), p.y, p0.z + s.x * cx * math.sin(a) + s.z * bz * math.cos(a) },
+      rotY = rotY, scale = { p.scale[1] * k, p.scale[2], p.scale[3] * k }, count = x.count }
+    top = top + (x.depth + fit.gap) / s.z
+  end
+end
+-- Day // Night's spot for the engine's day or night (state 1 day, state 2 night; TTS gives a card's other state its own
+-- GUID, so either is the card): want.day, nothing when it is neither
+function engineStatusDayPlace(want, day)
+  local d = ENGINE_DAY_NIGHT
+  local state = (day == "day" and 1) or (day == "night" and 2) or nil
+  if type(d) ~= "table" or state == nil then return end
+  local o = getObjectFromGUID(d.states[1]) or getObjectFromGUID(d.states[2])
+  local unit = o and engineStatusFootprint(o.getGUID(), o)
+  if unit == nil then return end
+  local fit = ENGINE_STATUS_FIT.day
+  local k = math.min(1, fit.width / math.max(unit.x * d.scale[1], 0.01))
+  want.day = { at = { 0, d.y, -(fit.edge + fit.gap + unit.z * d.scale[3] * k / 2) }, rotY = fit.rotY, scale = { d.scale[1] * k, d.scale[2], d.scale[3] * k }, state = state }
+end
+-- From each board (updateTrackers, beside the marks boxes): every piece to its holder's mat, or parked. A piece only
+-- one player can have (the monarch, the initiative) goes to the first row that has it.
+function engineStatusPieces(m)
+  if not ENGINE_MODE or type(ENGINE_STATUS_PIECES) ~= "table" then return end
+  local want = {}
+  for _, pl in ipairs(m.players or {}) do
+    local o = getObjectFromGUID(LIFE_TRACKERS[pl.color or ""] or "")
+    if o ~= nil and type(pl.allMarks) == "table" then engineStatusPlace(want, o, pl) end
+  end
+  engineStatusDayPlace(want, m.day)
+  for _, item in ipairs(engineStatusList()) do
+    local o = (want[item.key] ~= nil or engineStatusShown[item.key] ~= nil) and engineStatusObject(item)
+    if o then engineStatusPut(o, item, want[item.key]) end
+  end
+end
+-- Every piece back under the table. mode nil: all of them; "unplaced": those no board put out (on load); "strays":
+-- those, when above the table (every 2 s while no game runs)
+function engineStatusParkAll(mode)
+  for _, item in ipairs(engineStatusList()) do
+    local o = not (mode ~= nil and engineStatusShown[item.key] ~= nil) and engineStatusObject(item)
+    if o and (mode ~= "strays" or o.getPosition().y > ENGINE_STATUS_FIT.above) then engineStatusPark(o, item) end
+  end
+end
+Wait.frames(function() pcall(engineStatusParkAll, "unplaced") end, 20)
+Wait.time(function()
+  local t = engineTable ~= nil and engineTable() or nil
+  if t == nil or t.gameOver then pcall(engineStatusParkAll, "strays") end
+end, 2, -1)
 -- true while a player's open question has its own glow on the object (it gives the base glow back afterwards)
 function engineGlowOwned(o)
   for _, set in pairs(engineGlowing or {}) do if set[o] then return true end end
@@ -5432,6 +5624,7 @@ function setEngineMode(on)
   setEngineModeWithoutButtons(on)
   engineTableButtons(false) -- (back for everyone; READY hides a player's own set again)
   engineHideForEngine(on)
+  if not on and engineStatusParkAll ~= nil then pcall(engineStatusParkAll) end -- (the normal table never shows them)
 end
 Wait.frames(function() engineTableButtons(false) engineHideForEngine(ENGINE_MODE) end, 20)
 

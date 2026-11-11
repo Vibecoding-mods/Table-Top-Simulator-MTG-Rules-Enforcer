@@ -517,7 +517,7 @@ Only the node image needs the rebuild. The relay checks an answer by reading it 
   of their own mat right under their heart (the user: "corner of your playmat under your heart"; "you can add multiple
   boxes if need be instead of cramming everything in one box"). They keep to the strip the battlefield grid leaves free
   at the inner end of every row, so cards never land on them. Past ten marks the tenth box says "+n MORE".
-- **Status objects (spec only):** the original table's pieces for those statuses come back: the Monarch crown, the
+- **Status objects (built in source 2026-11-11, not yet seen live):** the original table's pieces for those statuses come back: the Monarch crown, the
   initiative's Undercity, City's Blessing, the Ring, Day // Night and the poison / energy / experience tokens. They wait
   under the table, locked and unseen (opacity 0), and the one for a status moves onto the holder's mat just under its
   box when the box says so, e.g. "if the box says monarch the crown spawns in on their mat". Full spec:

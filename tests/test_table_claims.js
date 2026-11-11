@@ -2243,5 +2243,227 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("zone lists: precondition, both lists found", !!keys && !!lists, `${keys} / ${lists}`);
   ok("zone lists: the table's mergeStatic fills in exactly the bridge's ZONE_KEYS", names(keys) === names(lists), `bridge ${names(keys)} / table ${names(lists)}`);
 }
+// Status pieces (docs/status-objects-spec.md "Checks to write", 2026-11-11): the original table's piece for a player
+// status lies on the holder's mat, in the corner strip under their last marks box, while their marks say it; moved,
+// never spawned; parked under the table (y -30), locked and hidden otherwise. The pieces, their GUIDs and the mats are
+// read from the save, the boxes from the tracker's buttons; the strip and the box geometry as in "marks fit" above.
+{
+  const SEATS = { White: "23e485", Red: "448880", Yellow: "37e533", Blue: "395037" };
+  const STATUS = ["8963ec", "197ab6", "2db63a", "cb418b", "d9fcbc", "94b67a", "da1b48", "576ccd"]; // (the spec's table)
+  const DAY = "4e8c7b", NIGHT = "cdf2d2";
+  const all = (list) => { const out = []; for (const o of list || []) { out.push(o); out.push(...all(o.ContainedObjects)); out.push(...all(Object.values(o.States || {}))); } return out; };
+  const byGuid = new Map(save.ObjectStates.map((o) => [o.GUID, o]));
+  // the Global script's list of which object shows which mark (make-engine-copy writes it from what it kept)
+  const listed = save.LuaScript.slice(save.LuaScript.indexOf("ENGINE_STATUS_PIECES = {"));
+  const pieceBlock = listed.slice(0, listed.indexOf("\n}\n") + 3);
+  const rows = [...pieceBlock.matchAll(/\{ mark = "([^"]+)",[^\n]*\n\s*objs = \{(.*)\} \},/g)].map((m) => ({ mark: m[1], objs: [...m[2].matchAll(/g = "(\w+)"[^}]*?(?:seat = "(\w+)")?\s*\}/g)].map((x) => ({ g: x[1], seat: x[2] || null })) }));
+  const seatObj = (mark, seat) => { const r = rows.filter((x) => x.mark === mark); for (const x of r) { const e = x.objs.find((o) => o.seat === null || o.seat === seat); if (e) return e.g; } return null; };
+  const ofMark = (mark) => rows.filter((x) => x.mark === mark).flatMap((x) => x.objs.map((o) => o.g));
+  const pieceGuids = rows.flatMap((x) => x.objs.map((o) => o.g));
+  ok("status pieces: precondition, the Global script lists every piece of the spec's table, each kind once, day // night apart",
+    STATUS.every((g) => pieceGuids.includes(g)) && rows.length === 8 && /ENGINE_DAY_NIGHT = \{ states = \{ "4e8c7b", "cdf2d2" \}/.test(listed),
+    JSON.stringify(rows.map((x) => `${x.mark}:${x.objs.length}`)));
+  ok("status pieces: one copy a seat of the city's blessing, the Ring and the three counters; one crown, one Monarch card, one Undercity",
+    ["CITY'S BLESSING", "RING TEMPTED", "POISON", "ENERGY", "EXPERIENCE"].every((m) => ["White", "Red", "Yellow", "Blue"].every((s) => rows.find((x) => x.mark === m).objs.some((o) => o.seat === s)) && ofMark(m).length === 4)
+      && ofMark("MONARCH").length === 2 && ofMark("INITIATIVE").length === 1, JSON.stringify(rows));
+  const guidCount = new Map();
+  for (const o of all(save.ObjectStates)) guidCount.set(o.GUID, (guidCount.get(o.GUID) || 0) + 1);
+  const pieces = [...pieceGuids, DAY].map((g) => byGuid.get(g));
+  ok("status pieces: precondition, every listed piece is an object in the save, its GUID used once in the whole save",
+    pieces.every(Boolean) && [...pieceGuids, DAY, NIGHT].every((g) => guidCount.get(g) === 1), [...pieceGuids, DAY, NIGHT].filter((g) => guidCount.get(g) !== 1).join(" "));
+  const badPark = pieces.filter(Boolean).flatMap((o) => [o, ...Object.values(o.States || {})]).filter((o) => !(o.Transform.posY === -30 && o.Locked === true && !o.LuaScript && !o.XmlUI));
+  ok("status pieces: in the copy each piece (and Night) is parked at y -30, locked, without a script", badPark.length === 0, badPark.map((o) => o.GUID).join(" "));
+  const fadeGuids = [...ofMark("MONARCH").slice(0, 1), ...ofMark("POISON"), ...ofMark("ENERGY"), ...ofMark("EXPERIENCE")];
+  ok("status pieces: in the copy the crown and the counter tokens are see-through (tint alpha 0)", fadeGuids.every((g) => byGuid.get(g) && byGuid.get(g).ColorDiffuse && byGuid.get(g).ColorDiffuse.a === 0), fadeGuids.filter((g) => !(byGuid.get(g) && byGuid.get(g).ColorDiffuse && byGuid.get(g).ColorDiffuse.a === 0)).join(" "));
+  ok("status pieces: the crown is a model and the counters tokens (the kinds a tint fades); the rest are cards",
+    byGuid.get("8963ec")?.Name === "Custom_Model" && ["94b67a", "da1b48", "576ccd"].every((g) => byGuid.get(g)?.Name === "Custom_Token") && ["197ab6", "2db63a", "cb418b", "d9fcbc", DAY].every((g) => byGuid.get(g)?.Name === "Card"), "");
+
+  const L = (a) => `{ ${a.map((x) => JSON.stringify(x)).join(", ")} }`;
+  const watch = [...pieceGuids, DAY, NIGHT];
+  const info = `local out = {} for _, g in ipairs(${L(watch)}) do local o = getObjectFromGUID(g) if o then local p, r, s, b = o.getPosition(), o.getRotation(), o.getScale(), o.getBoundsNormalized().size local labels = {} for i, x in ipairs(o.getButtons() or {}) do labels[i] = tostring(x.label) .. "@" .. tostring(x.click_function) end out[g] = { x = p.x, y = p.y, z = p.z, ry = r.y, w = b.x, d = b.z, lock = o.getLock(), inv = #(o.__d.invisibleTo or {}), a = o.getColorTint().a or 1, labels = table.concat(labels, "|"), state = o.getStateId() } end end out.everyone = #engineEveryone() return JSON.encode(out)`;
+  const boxes = `local out = {} for c, g in pairs(${"{ " + Object.entries(SEATS).map(([c, g]) => `${c} = "${g}"`).join(", ") + " }"}) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, boxes = {} } for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then row.boxes[#row.boxes + 1] = { w = b.width, h = b.height, bx = b.position[1] or b.position.x, bz = b.position[3] or b.position.z } end end out[c] = row end return JSON.encode(out)`;
+  const set = (marks, day) => `engineStatusPieces(JSON.decode([==[${JSON.stringify({ day, players: Object.keys(SEATS).map((c) => ({ color: c, allMarks: marks[c] || [] })) })}]==])) for c, g in pairs(${"{ " + Object.entries(SEATS).map(([c, g]) => `${c} = "${g}"`).join(", ") + " }"}) do enginePlayerCounters(getObjectFromGUID(g), { allMarks = JSON.decode([==[${JSON.stringify(marks)}]==])[c] or {} }) end return "set"`;
+  const look = (r, mark) => { try { return JSON.parse(String(valueOf(r, mark))); } catch (e) { return {}; } };
+  const mats = matZones();
+  const matOf = (t) => mats.find((m) => Math.sign(m.box[0] + m.box[1]) === Math.sign(t.x) && Math.sign(m.box[2] + m.box[3]) === Math.sign(t.z));
+  const COL0 = 10.75, TAPPED = 1.53;
+  const foot = (p) => [p.x - p.w / 2, p.x + p.w / 2, p.z - p.d / 2, p.z + p.d / 2];
+  const shown = (p, n) => !!p && p.y > 0.5 && p.inv === 0 && p.a === 1 && p.lock === true;
+  const parked = (p, n) => !!p && p.y === -30 && p.inv === n && p.inv >= 6 && (p.a === 0 || p.a === 1) && p.lock === true;
+  // where a shown piece lies: on `seat`'s mat, in the strip (|x| from the mat's inner edge to a tapped column-0 card),
+  // its near edge at least 0.3 under the last box's far edge, meeting no box
+  // first: the seat's first piece, whose near edge is exactly the gap (0.3) under the last box
+  const placeCheck = (name, seat, p, b, first) => {
+    const t = b[seat], m = t && matOf(t);
+    if (!p || !m) { ok(`${name}: precondition, the piece and ${seat}'s mat`, false, JSON.stringify({ p, t })); return; }
+    const f = foot(p), ax = [Math.abs(f[0]), Math.abs(f[1])].sort((x, y) => x - y), az = [Math.abs(f[2]), Math.abs(f[3])].sort((x, y) => x - y);
+    const cx = Math.abs((m.box[0] + m.box[1]) / 2), half = (m.box[1] - m.box[0]) / 2, inner = cx - half, outer = cx - COL0 - TAPPED;
+    const world = (t.boxes || []).map((x) => buttonBox(t, x));
+    const lastFar = Math.max(...world.map((w) => Math.max(Math.abs(w[2]), Math.abs(w[3]))));
+    ok(`${name}: on ${seat}'s mat`, f[0] >= m.box[0] && f[1] <= m.box[1] && f[2] >= m.box[2] && f[3] <= m.box[3], `${f.map((n) => n.toFixed(2))} mat ${m.box.map((n) => n.toFixed(2))}`);
+    ok(`${name}: in ${seat}'s corner strip, 0.3 in from each side`, ax[0] >= inner + 0.29 && ax[1] <= outer + 0.01 && Math.abs((ax[0] + ax[1]) / 2 - (1.04 + 6.94) / 2) < 0.05, `|x| ${ax.map((n) => n.toFixed(2))} strip ${inner.toFixed(2)}..${outer.toFixed(2)}`);
+    ok(`${name}: under ${seat}'s last marks box, 0.3 apart, meeting none`, world.length > 0 && az[0] >= lastFar + 0.29 && !world.some((w) => meets(w, f)), `near edge |z| ${az[0].toFixed(2)}, last box to ${lastFar.toFixed(2)}`);
+    if (first) ok(`${name}: the first piece just under ${seat}'s last box, 0.3 (not more)`, Math.abs(az[0] - lastFar - 0.3) < 0.01, `near edge |z| ${az[0].toFixed(3)}, last box to ${lastFar.toFixed(3)}`);
+    // (readable from the seat: its cards' turn, the hand's + 180, which is the seat's tracker's turn: 180 for White
+    // and Red, 0 for Yellow and Blue)
+    const off = Math.abs(((p.ry - t.ry) % 360 + 540) % 360 - 180);
+    ok(`${name}: turned to read from ${seat}`, off < 1, `ry ${p.ry} tracker ${t.ry}`);
+  };
+  const crown = "8963ec", card = "197ab6", under = "2db63a";
+  const r = run([
+    q(info, "start"),
+    q(set({ White: ["MONARCH"] }), "white monarch"), q(info, "W"), q(boxes, "W boxes"),
+    q(set({ White: ["MONARCH"] }), "same again"),
+    q(set({ Red: ["POISON 2", "MONARCH"] }), "red monarch"), q(info, "R"), q(boxes, "R boxes"),
+    q(set({}), "nobody"), q(info, "none"),
+    q(set({ Yellow: ["TURN RUN BY WHITE", "RING TEMPTED 2", "MONARCH", "INITIATIVE", "POISON 9", "CITY'S BLESSING", "ENERGY 12", "EXPERIENCE 5"] }), "everything"), q(info, "Y"), q(boxes, "Y boxes"),
+    q(set({ White: ["POISON 3"], Blue: ["POISON 5"] }), "two poisoned"), q(info, "P1"), q(boxes, "P boxes"),
+    q(set({ White: ["POISON 3"], Blue: ["POISON 6"] }), "blue's goes up"), q(info, "P2"),
+    q(set({ White: ["MONARCH"], Blue: ["MONARCH"] }), "two monarchs"), q(info, "two"),
+    q(set({}, "day"), "set day"), q(info, "day"),
+    q(set({}, "night"), "set night"), q(info, "night"),
+    q(set({}, "night"), "night again"),
+    q(set({}), "set no day"), q(info, "no day"),
+    q(set({ Blue: ["MONARCH", "POISON 4"] }, "day"), "before the clear"), q(info, "before clear"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" }, q(info, "cleared"),
+  ]);
+  ok("status pieces: precondition, no script error", !r.errors.length, r.errors.slice(0, 3).join(" | "));
+  const v = (m) => look(r, m);
+  const start = v("start"), n = start.everyone;
+  ok("status pieces: precondition, at the start every piece parked (y -30), locked and invisible to every colour, the faded ones at alpha 0",
+    n >= 6 && [...pieceGuids, DAY].every((g) => parked(start[g], n)) && fadeGuids.every((g) => start[g].a === 0), JSON.stringify(Object.entries(start).filter(([g, p]) => g !== "everyone" && !parked(p, n))).slice(0, 300));
+  const W = v("W"), Wb = look(r, "W boxes");
+  ok("status pieces: a row with MONARCH: the crown and the Monarch card are out, visible and locked", shown(W[crown]) && shown(W[card]), JSON.stringify([W[crown], W[card]]));
+  placeCheck("status pieces, White monarch: the crown", "White", W[crown], Wb, true);
+  placeCheck("status pieces, White monarch: the Monarch card", "White", W[card], Wb);
+  ok("status pieces: the Monarch card under the crown, 0.3 apart", !!W[crown] && !!W[card] && Math.abs((Math.abs(W[card].z) - W[card].d / 2) - (Math.abs(W[crown].z) + W[crown].d / 2) - 0.3) < 0.01, JSON.stringify([W[crown], W[card]]));
+  // (the fake TTS's bounds: 2 x 2 for a model at scale 1, a card 2.2 x 3.1)
+  ok("status pieces: pieces that fit keep their own size (the crown 0.6, the card 1)", !!W[crown] && Math.abs(W[crown].w - 1.2) < 1e-6 && !!W[card] && Math.abs(W[card].d - 3.1) < 1e-6, JSON.stringify([W[crown], W[card]]));
+  ok("status pieces: nothing else came out", [...pieceGuids, DAY].filter((g) => g !== crown && g !== card).every((g) => parked(W[g], n)), "");
+  const again = fxOf(r, "same again").filter((l) => watch.some((g) => l.includes(g)));
+  ok("status pieces: the same marks again move nothing", again.length === 0, again.slice(0, 3).join(" | "));
+  const spawned = r.steps.flatMap((s) => s.fx || []).filter((l) => /spawnObject|"destruct"/.test(l) && watch.some((g) => l.includes(g)));
+  ok("status pieces: never spawned or destroyed (moved)", spawned.length === 0, spawned.slice(0, 2).join(" | "));
+  // (from under the table it comes up hidden and shows at its spot: never seen rising through the table top)
+  const upFx = fxOf(r, "white monarch").filter((l) => l.includes(crown));
+  const moved = upFx.findIndex((l) => /"setPosition"/.test(l)), seen = upFx.findIndex((l) => /"setInvisibleTo" obj:\w+ \{\}/.test(l)), faded = upFx.findIndex((l) => /"setColorTint"/.test(l));
+  ok("status pieces: from under the table the crown moves to its spot first, then shows (not a smooth rise)", moved >= 0 && seen > moved && faded > moved && !upFx.some((l) => /setPositionSmooth/.test(l)), upFx.join(" | ").slice(0, 400));
+  const R = v("R"), Rb = look(r, "R boxes");
+  placeCheck("status pieces, the monarch moves to Red: the crown", "Red", R[crown], Rb, true);
+  // (one crown on the table: the one object, now on Red's side of the middle line, off White's)
+  ok("status pieces: the monarch moves: the crown is gone from White's mat, onto Red's", shown(R[crown]) && Math.sign(R[crown].x) === Math.sign(Rb.Red.x) && Math.sign(R[crown].x) !== Math.sign(Wb.White.x) && Math.sign(R[crown].z) === Math.sign(Rb.Red.z), JSON.stringify(R[crown]));
+  ok("status pieces: the monarch moves: so does the Monarch card", shown(R[card]) && Math.sign(R[card].x) === Math.sign(Rb.Red.x) && Math.sign(R[card].z) === Math.sign(Rb.Red.z), JSON.stringify(R[card]));
+  ok("status pieces: the monarch moves: it slides across (smooth), not through the table", fxOf(r, "red monarch").some((l) => l.includes(crown) && /setPositionSmooth/.test(l)), fxOf(r, "red monarch").filter((l) => l.includes(crown)).join(" | ").slice(0, 300));
+  placeCheck("status pieces, Red's poison under the monarch", "Red", R[seatObj("POISON", "Red")], Rb);
+  ok("status pieces: Red's poison token shows 2, its own seat's copy, after the crown and card (the table's order)", shown(R[seatObj("POISON", "Red")]) && /^2@engineNoop\|2@engineNoop$/.test(R[seatObj("POISON", "Red")].labels)
+    && Math.abs(R[seatObj("POISON", "Red")].z) > Math.abs(R[card].z), JSON.stringify(R[seatObj("POISON", "Red")]));
+  const none = v("none");
+  ok("status pieces: nobody has it: every piece parked and hidden again", [...pieceGuids, DAY].every((g) => parked(none[g], n)) && fadeGuids.every((g) => none[g].a === 0), JSON.stringify(Object.entries(none).filter(([g, p]) => g !== "everyone" && !parked(p, n))).slice(0, 300));
+  ok("status pieces: parked, the counter's number goes with it", none[seatObj("POISON", "Red")] && none[seatObj("POISON", "Red")].labels === "", JSON.stringify(none[seatObj("POISON", "Red")]));
+  // (every piece at once on one mat: in the table's order down the strip, none overlapping, none off the mat)
+  const Y = v("Y"), Yb = look(r, "Y boxes");
+  const order = [crown, card, under, seatObj("CITY'S BLESSING", "Yellow"), seatObj("RING TEMPTED", "Yellow"), seatObj("POISON", "Yellow"), seatObj("ENERGY", "Yellow"), seatObj("EXPERIENCE", "Yellow")];
+  for (const g of order) placeCheck(`status pieces, everything on Yellow: ${g}`, "Yellow", Y[g], Yb, g === order[0]);
+  const farther = order.every((g, i) => i === 0 || (Y[g] && Y[order[i - 1]] && Math.abs(Y[g].z) - Y[g].d / 2 >= Math.abs(Y[order[i - 1]].z) + Y[order[i - 1]].d / 2 + 0.29));
+  ok("status pieces, everything on Yellow: stacked down the strip in the spec's order, 0.3 apart", farther, JSON.stringify(order.map((g) => Y[g] && +Math.abs(Y[g].z).toFixed(2))));
+  ok("status pieces, everything on Yellow: the counts on the tokens, the Ring's and blessing's cards without", /^9@/.test(Y[seatObj("POISON", "Yellow")]?.labels) && /^12@/.test(Y[seatObj("ENERGY", "Yellow")]?.labels) && /^5@/.test(Y[seatObj("EXPERIENCE", "Yellow")]?.labels) && Y[seatObj("RING TEMPTED", "Yellow")]?.labels === "",
+    JSON.stringify(order.map((g) => Y[g] && Y[g].labels)));
+  // (two players poisoned: a token on each mat, each their own; one's count changing leaves the other where it was)
+  const P1 = v("P1"), P2 = v("P2"), Pb = look(r, "P boxes");
+  const wp = seatObj("POISON", "White"), bp = seatObj("POISON", "Blue");
+  placeCheck("status pieces, two poisoned: White's token", "White", P1[wp], Pb, true);
+  placeCheck("status pieces, two poisoned: Blue's token", "Blue", P1[bp], Pb, true);
+  ok("status pieces, two poisoned: two tokens, two seats' own, showing 3 and 5", wp !== bp && shown(P1[wp]) && shown(P1[bp]) && /^3@/.test(P1[wp].labels) && /^5@/.test(P1[bp].labels), JSON.stringify([P1[wp], P1[bp]]));
+  ok("status pieces, two poisoned: Blue's count goes up: Blue's token says 6, White's doesn't move or change",
+    /^6@/.test(P2[bp]?.labels) && JSON.stringify(P2[wp]) === JSON.stringify(P1[wp]) && !fxOf(r, "blue's goes up").some((l) => l.includes(wp)), JSON.stringify([P2[wp], P2[bp]]));
+  // (a broken board, two monarchs: one crown, at the first row that has it)
+  const two = v("two");
+  ok("status pieces: two rows say MONARCH: one crown, on the first row's (White's) mat", shown(two[crown]) && Math.sign(two[crown].z) === Math.sign(Pb.White.z) && Math.sign(two[crown].x) === Math.sign(Pb.White.x), JSON.stringify(two[crown]));
+  // (day then night: the same card, state 1 then 2, in the middle of the table between the hearts and the middle tile)
+  const D = v("day"), N = v("night");
+  const mid = (p) => !!p && Math.abs(p.x) + p.w / 2 <= 0.9 && Math.abs(p.z) - p.d / 2 >= 0.75 && Math.abs(p.z) + p.d / 2 <= 5.03;
+  ok("status pieces: day: Day // Night out in the middle (between the mats, off the middle tile), state 1, visible and locked", !!D[DAY] && !D[NIGHT] && D[DAY].state === 1 && mid(D[DAY]) && shown(D[DAY]), JSON.stringify([D[DAY], D[NIGHT]]));
+  const whiteTracker = save.ObjectStates.find((o) => o.GUID === SEATS.White);
+  ok("status pieces: day: readable from the White and Red side (White's cards' turn, its tracker's)", !!D[DAY] && !!whiteTracker && Math.abs(D[DAY].ry - whiteTracker.Transform.rotY) < 0.5 && D[DAY].z < 0, `${D[DAY] && D[DAY].ry} / ${whiteTracker && whiteTracker.Transform.rotY}`);
+  ok("status pieces: night: the same card turned to its Night state (2), at the same spot, visible", !!N[NIGHT] && !N[DAY] && N[NIGHT].state === 2 && mid(N[NIGHT]) && shown(N[NIGHT]) && Math.abs(N[NIGHT].x - D[DAY].x) < 0.01 && Math.abs(N[NIGHT].z - D[DAY].z) < 0.01, JSON.stringify([N[DAY], N[NIGHT]]));
+  ok("status pieces: night again changes nothing", !fxOf(r, "night again").some((l) => l.includes(DAY) || l.includes(NIGHT)), fxOf(r, "night again").filter((l) => l.includes(NIGHT)).join(" | ").slice(0, 200));
+  ok("status pieces: no day or night: the card parked and hidden", parked(v("no day")[NIGHT], n), JSON.stringify(v("no day")[NIGHT]));
+  const bc = v("before clear"), cl = v("cleared");
+  ok("status pieces: precondition, pieces out before the clear", shown(bc[crown]) && shown(bc[seatObj("POISON", "Blue")]) && shown(bc[DAY]), JSON.stringify([bc[crown], bc[DAY]]).slice(0, 200));
+  ok("status pieces: engineClear (reset, rematch) parks every piece", [...pieceGuids].every((g) => parked(cl[g], n)) && parked(cl[DAY] || cl[NIGHT], n), JSON.stringify(Object.entries(cl).filter(([g, p]) => g !== "everyone" && !parked(p, n))).slice(0, 300));
+}
+// Status pieces: engine mode off parks them; a reload (the script's state gone, the pieces where the save had them)
+// redraws from the rows; with no game, a piece no board put out is parked again by the 2 s check; clicking a shown
+// piece changes nothing, in the engine or in the piece; a piece too wide for the strip is scaled to fit it
+{
+  const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
+  const board = (marks) => { const t = JSON.parse(lastT.json); for (const p of t.players) p.allMarks = marks[p.color]; return { msg: { t: "table", json: JSON.stringify(t) }, frames: 10 }; };
+  const crown = "8963ec";
+  const at = `local o = getObjectFromGUID("${crown}") local p = o.getPosition() return string.format("%.2f %.2f %.2f %s %d %s", p.x, p.y, p.z, tostring(o.getLock()), #(o.__d.invisibleTo or {}), tostring(o.getColorTint().a))`;
+  const sent = (r, m) => fxOf(r, m).filter((l) => /WebRequest|sendExternalMessage/.test(l));
+  const r = run([
+    board({ Blue: ["MONARCH"] }), q(at, "shown"),
+    // (a reload: the script's memory of what it put out is gone, the pieces lie where they were; the load's park)
+    q('engineStatusShown = {} engineStatusParkAll("unplaced") return "reloaded"', "reload"), q(at, "after the reload"),
+    board({ Blue: ["MONARCH"] }), q(at, "redrawn"),
+    q(`local o = getObjectFromGUID("${crown}") onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) onPlayerAction(Player.White, Player.Action.Select, { o }) for _, b in ipairs(o.getButtons() or {}) do Global.call(b.click_function) end __sim.frames(30) return "clicked"`, "click"), q(at, "after the click"),
+    q('setEngineMode(false) return "off"', "engine off"), q(at, "after engine off")]);
+  const v = (m) => String(valueOf(r, m));
+  ok("status pieces, reload: precondition, the crown out on Blue's mat", !r.errors.length && /^[-\d.]+ 0\.98 [-\d.]+ true 0 1$/.test(v("shown")), `${v("shown")} ${r.errors.slice(0, 1).join("")}`);
+  ok("status pieces, reload: the load parks a piece no board has put out yet", /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(v("after the reload")), v("after the reload"));
+  ok("status pieces, reload: the next board puts it back where the rows say", v("redrawn") === v("shown"), v("redrawn"));
+  ok("status pieces: clicking a shown piece changes nothing in the piece", v("after the click") === v("redrawn"), v("after the click"));
+  ok("status pieces: clicking a shown piece sends the engine nothing", sent(r, "click").length === 0, sent(r, "click").slice(0, 2).join(" | "));
+  ok("status pieces: engine mode off parks them", /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(v("after engine off")), v("after engine off"));
+  // (no game: a piece someone took out, that no board put there, goes back within the 2 s check; one a board put out
+  // in a game that has ended stays with the final board)
+  const r2 = run([board({ Blue: ["MONARCH"] }),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 },
+    q(`local o = getObjectFromGUID("${crown}") o.setPosition({ 5, 1, 5 }) return "out"`, "taken out"), { frames: 150 }, q(at, "after 2 s")]);
+  ok("status pieces: with no game, a piece found above the table is parked again by the 2 s check", !r2.errors.length && /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(String(valueOf(r2, "after 2 s"))), `${valueOf(r2, "after 2 s")} ${r2.errors.slice(0, 1).join("")}`);
+  const over = board({ Blue: ["MONARCH"] }), ot = JSON.parse(over.msg.json);
+  ot.gameOver = true; over.msg.json = JSON.stringify(ot);
+  const r2b = run([over, q("return tostring(engineTable() and engineTable().gameOver)", "over"), q(at, "final board"), { frames: 180 }, q(at, "3 s later")]);
+  ok("status pieces: precondition, a final board (game over) puts the crown out", !r2b.errors.length && String(valueOf(r2b, "over")) === "true" && /^[-\d.]+ 0\.98 [-\d.]+ true 0 1$/.test(String(valueOf(r2b, "final board"))), `${valueOf(r2b, "over")} ${valueOf(r2b, "final board")} ${r2b.errors.slice(0, 1).join("")}`);
+  ok("status pieces: the 2 s check leaves a piece the final board put out where it is", String(valueOf(r2b, "3 s later")) === String(valueOf(r2b, "final board")), String(valueOf(r2b, "3 s later")));
+  // (a piece wider than the strip: scaled down to it, 5.9 less 0.3 each side)
+  const r3 = run([q(`engineStatusUnit["${crown}"] = { x = 20, z = 20 } return "wide"`, "wide"), board({ Blue: ["MONARCH"] }),
+    q(`local o = getObjectFromGUID("${crown}") return string.format("%.4f %.4f", o.getScale().x, 20 * o.getScale().x)`, "scale")]);
+  const [sc, width] = String(valueOf(r3, "scale")).split(" ").map(Number);
+  const room = 2250 / 480 * 1.258 - 0.6;
+  ok("status pieces: a piece wider than the strip is scaled to its width less 0.3 each side", Math.abs(width - room) < 0.01 && sc < 0.6, `scale ${sc}, ${width} wide, room ${room.toFixed(3)}`);
+  // (the NEW GAME rematch: the clear keeps engine mode on, so only the counters' reset parks them)
+  const r4 = run([board({ Blue: ["MONARCH"] }), q(at, "before"), q("engineKeepEngineMode = true return 'keep'", "keep"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 }, q(`return tostring(ENGINE_MODE)`, "mode"), q(at, "after")]);
+  ok("status pieces, rematch: precondition, the crown out and engine mode still on after the clear", /^[-\d.]+ 0\.98 /.test(String(valueOf(r4, "before"))) && String(valueOf(r4, "mode")) === "true", `${valueOf(r4, "before")} mode ${valueOf(r4, "mode")}`);
+  ok("status pieces, rematch: a clear that keeps engine mode on parks them too", /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(String(valueOf(r4, "after"))), String(valueOf(r4, "after")));
+}
+// Status pieces in the copy: their scripts are gone (Day // Night's, The Ring's, Undercity's, the counters'), and the
+// pieces the original table had on its surface beside them stay removed as clutter
+{
+  const orig = (() => { try { return JSON.parse(fs.readFileSync(process.env.MTG_TABLE_JSON || path.join(process.env.USERPROFILE || "", "Documents", "My Games", "Tabletop Simulator", "Mods", "Workshop", "2296042369.json"), "utf8")); } catch (e) { return null; } })();
+  if (orig) {
+    const had = (g) => (orig.ObjectStates.find((o) => o.GUID === g) || {}).LuaScript || "";
+    ok("status pieces: precondition, the original's Day // Night, The Ring and Undercity have scripts", ["4e8c7b", "d9fcbc", "2db63a"].every((g) => had(g).length > 1000), "");
+    const left = ["4e8c7b", "d9fcbc", "2db63a", "94b67a"].filter((g) => (save.ObjectStates.find((o) => o.GUID === g) || {}).LuaScript);
+    ok("status pieces: the copy strips their scripts", left.length === 0, left.join(" "));
+    const clutter = ["df09d5", "d075c6", "91aaed", "d3959e", "a043c2", "c0d19f"].filter((g) => save.ObjectStates.some((o) => o.GUID === g));
+    ok("status pieces: the dungeons, Foretell and On an Adventure stay removed (left out on purpose)", clutter.length === 0, clutter.join(" "));
+    // (a seat's copy never takes a GUID the original table used, the clutter's included; the originals keep theirs)
+    const origGuids = new Set();
+    const walk = (list) => { for (const o of list || []) { origGuids.add(o.GUID); walk(o.ContainedObjects); walk(Object.values(o.States || {})); } };
+    walk(orig.ObjectStates);
+    const listed = save.LuaScript.slice(save.LuaScript.indexOf("ENGINE_STATUS_PIECES = {"));
+    const copies = [...listed.slice(0, listed.indexOf("\n}\n")).matchAll(/g = "(\w+)"[^}]*seat = "(Red|Yellow|Blue)"/g)].map((m) => m[1]);
+    ok("status pieces: precondition, 15 seat copies (Red, Yellow, Blue of five pieces)", copies.length === 15, `${copies.length}`);
+    ok("status pieces: no seat copy takes a GUID the original table used", copies.every((g) => !origGuids.has(g)), copies.filter((g) => origGuids.has(g)).join(" "));
+    // (the same in every build, so the deploy's save patch never adds a second copy: sha1 of "<original>:<seat>")
+    const crypto = require("crypto");
+    const expect = [...listed.slice(0, listed.indexOf("\n}\n")).matchAll(/\{ mark = "[^"]+"[^\n]*\n\s*objs = \{ \{ g = "(\w+)"[^\n]*/g)]
+      .flatMap((m) => [...m[0].matchAll(/seat = "(Red|Yellow|Blue)"/g)].map((s) => crypto.createHash("sha1").update(`${m[1]}:${s[1]}`).digest("hex").slice(0, 6)));
+    ok("status pieces: each seat copy's GUID comes from its original's and its seat's alone", expect.length === 15 && expect.join() === copies.join(), `${expect.join()} / ${copies.join()}`);
+    ok("status pieces: the original pieces keep their own GUIDs", ["8963ec", "197ab6", "2db63a", "cb418b", "d9fcbc", "94b67a", "da1b48", "576ccd", "4e8c7b"].every((g) => origGuids.has(g) && save.ObjectStates.some((o) => o.GUID === g)), "");
+  }
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

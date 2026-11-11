@@ -702,9 +702,32 @@ const CLUTTER_BOXES = [
   { x: [-56, -44], z: [-8.5, 32] }, // beside Yellow/Red
   { x: [44, 56], z: [-26, 8.5] },   // beside White/Blue
 ];
+// Status pieces (docs/status-objects-spec.md, 2026-11-11): the clutter's pieces for a player status come back, parked
+// under the table, and the table puts one on a player's mat while their marks say it (engineStatusPieces in
+// engine-renderer.lua). `mark`: the bridge's PLAYER_MARKS label it shows, alone or followed by a count ("POISON 3");
+// `perSeat`: more than one player can have it at once, so each seat has its own copy (White keeps the original, the
+// others are copies under new GUIDs); `fade`: a model or token, made see-through with its tint's alpha (a card's alpha
+// doesn't do that: every piece is also invisible to every colour while parked); `count`: the count is drawn on it.
+// Their scripts go (spec "Scripts", first option): Day // Night's, The Ring's and Undercity's buttons would change what
+// the engine owns, and the counters' only draw a 0 the table now draws itself.
+const STATUS_SEATS = ["White", "Red", "Yellow", "Blue"];
+const STATUS_PIECES = [
+  { mark: "MONARCH", guid: "8963ec", fade: true },          // the crown
+  { mark: "MONARCH", guid: "197ab6" },                      // The Monarch card, under it
+  { mark: "INITIATIVE", guid: "2db63a" },                   // Undercity
+  { mark: "CITY'S BLESSING", guid: "cb418b", perSeat: true },
+  { mark: "RING TEMPTED", guid: "d9fcbc", perSeat: true },  // The Ring
+  { mark: "POISON", guid: "94b67a", perSeat: true, fade: true, count: true },
+  { mark: "ENERGY", guid: "da1b48", perSeat: true, fade: true, count: true },
+  { mark: "EXPERIENCE", guid: "576ccd", perSeat: true, fade: true, count: true },
+];
+const DAY_NIGHT = "4e8c7b"; // Day, its second state Night: table-wide, in the middle of the table
+const STATUS_PARK_Y = -30;  // under the table top, as the Pirate Cannon in engine mode
+const STATUS_KEEP = new Set([...STATUS_PIECES.map((p) => p.guid), DAY_NIGHT]);
 {
   const removed = [];
   save.ObjectStates = save.ObjectStates.filter((o) => {
+    if (STATUS_KEEP.has(o.GUID)) return true; // (kept, parked below)
     const t = o.Transform || {};
     // also: both "Drafting tools" bags and the "Pie's MTG Enablers" bag (user request, 2026-10-18)
     // also: modules and extras that make Unity's clean-up pauses longer and that nothing in engine mode uses
@@ -716,6 +739,65 @@ const CLUTTER_BOXES = [
   });
   report.push(`${removed.length ? "OK  " : "FAIL"} side clutter removed (${removed.length}): ${removed.join(", ")}`);
   if (!removed.length) process.exitCode = 1;
+}
+// The status pieces, parked: at their own spot under the table, locked, faded, without scripts; a seat's copy under a
+// GUID made from the original's and the seat's (the same in every build, so a save that already has it isn't given a
+// second one), checked against every GUID in the table. The Global script gets the list it moves them by.
+{
+  // (the original's GUIDs too, the clutter's included: none of them is given out again)
+  const used = new Set([...allObjects(save.ObjectStates), ...allObjects(JSON.parse(fs.readFileSync(SRC, "utf8")).ObjectStates)].map((o) => o.GUID));
+  const byGuid = new Map(save.ObjectStates.map((o) => [o.GUID, o]));
+  const kept = [], problems = [];
+  const r2 = (n) => Math.round(Number(n) * 1000) / 1000;
+  const park = (o) => {
+    for (const s of [o, ...Object.values(o.States || {})]) {
+      s.Transform = { ...s.Transform, posY: STATUS_PARK_Y };
+      s.Locked = true;
+      s.LuaScript = ""; s.LuaScriptState = ""; s.XmlUI = "";
+    }
+  };
+  const fade = (o) => { o.ColorDiffuse = { ...(o.ColorDiffuse || { r: 1, g: 1, b: 1 }), a: 0 }; };
+  const copyGuid = (guid, seat) => {
+    for (let salt = 0; salt < 50; salt++) {
+      const g = require("crypto").createHash("sha1").update(`${guid}:${seat}${salt ? `:${salt}` : ""}`).digest("hex").slice(0, 6);
+      if (!used.has(g)) { used.add(g); return g; }
+    }
+    throw new Error(`no free GUID for ${guid} ${seat}`);
+  };
+  const lua = [];
+  for (const p of STATUS_PIECES) {
+    const o = byGuid.get(p.guid);
+    if (!o) { problems.push(`${p.mark} piece ${p.guid} not in the table`); continue; }
+    const t = o.Transform;
+    const objs = [];
+    (p.perSeat ? STATUS_SEATS : [null]).forEach((seat, i) => {
+      let x = o;
+      if (i > 0) {
+        x = JSON.parse(JSON.stringify(o));
+        x.GUID = copyGuid(o.GUID, seat);
+        x.Transform = { ...x.Transform, posZ: t.posZ + i * 1.2 }; // (beside the original, under the table)
+        save.ObjectStates.push(x);
+      }
+      park(x);
+      if (p.fade) fade(x);
+      objs.push(`{ g = ${JSON.stringify(x.GUID)}, x = ${r2(x.Transform.posX)}, z = ${r2(x.Transform.posZ)}${seat ? `, seat = "${seat}"` : ""} }`);
+      kept.push(`${String(o.Nickname || o.Name).replace(/\[\/?[a-z]+\]/gi, "").split("\n")[0]}${seat ? ` ${seat}` : ""} (${x.GUID})`);
+    });
+    lua.push(`  { mark = ${JSON.stringify(p.mark)}, y = ${r2(t.posY)}, scale = { ${r2(t.scaleX)}, ${r2(t.scaleY)}, ${r2(t.scaleZ)} }${p.fade ? ", fade = true" : ""}${p.count ? ", count = true" : ""},\n    objs = { ${objs.join(", ")} } },`);
+  }
+  const day = byGuid.get(DAY_NIGHT);
+  const night = day && Object.values(day.States || {})[0];
+  let dayLua = "";
+  if (!day || !night || Object.keys(day.States).join() !== "2") problems.push(`Day // Night ${DAY_NIGHT} with its Night state 2 not in the table`);
+  else {
+    const t = day.Transform;
+    park(day);
+    kept.push(`Day // Night (${day.GUID}, Night ${night.GUID})`);
+    dayLua = `ENGINE_DAY_NIGHT = { states = { ${JSON.stringify(day.GUID)}, ${JSON.stringify(night.GUID)} }, y = ${r2(t.posY)}, scale = { ${r2(t.scaleX)}, ${r2(t.scaleY)}, ${r2(t.scaleZ)} }, x = ${r2(t.posX)}, z = ${r2(t.posZ)} }\n`;
+  }
+  save.LuaScript += `\n\n${TAG} status pieces (docs/status-objects-spec.md): which object shows which mark, per seat, and where it\n-- parks; written by make-engine-copy from the objects it kept (engineStatusPieces in engine-renderer.lua moves them)\nENGINE_STATUS_PIECES = {\n${lua.join("\n")}\n}\n${dayLua}`;
+  report.push(`${problems.length ? "FAIL" : "OK  "} status pieces kept, parked under the table (${kept.length}): ${problems.length ? problems.join("; ") : kept.join(", ")}`);
+  if (problems.length) process.exitCode = 1;
 }
 
 // Leftover check: nothing that downloads-and-runs code should remain reachable.

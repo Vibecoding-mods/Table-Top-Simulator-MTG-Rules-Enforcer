@@ -1,8 +1,9 @@
 // Brings the installed save's table script up to the source, without rebuilding the save: a rebuild would bring back
 // everything the save holds out on purpose, and a push wipes the table. It compares the save's script with a fresh build
 // line by line and takes every difference except those tools/deploy-holds.json keeps out, then stamps the script's version.
-// Only the script's text in the file is replaced: a script it can't find there as one exact string stops it. TTS must be
-// closed (a running TTS saves over the file).
+// Only the script's text in the file is replaced: a script it can't find there as one exact string stops it. The one
+// other change: the status pieces the built script moves (addPieces) are added when the save hasn't got them. TTS must
+// be closed (a running TTS saves over the file).
 //   node tools/patch-save.js              what would change
 //   node tools/patch-save.js --write      change it (a copy goes to tmp/backup first)
 const fs = require("fs");
@@ -84,12 +85,49 @@ function rewrite(raw, script) {
   return raw.split(oldJson).join(JSON.stringify(old.includes("\r\n") ? script.replace(/\n/g, "\r\n") : script));
 }
 
+// The status pieces (docs/status-objects-spec.md) the save lacks, from the built table: the objects the built script's
+// ENGINE_STATUS_PIECES and ENGINE_DAY_NIGHT name (make-engine-copy writes both). A save from before them has none, and
+// the script alone would move nothing. Each is put at the front of ObjectStates as text, every other byte as it was;
+// one the save already has is left alone, and a GUID the save uses for anything else stops it. Pure: the tests drive it.
+function statusGuids(script) {
+  const at = script.indexOf("ENGINE_STATUS_PIECES = {");
+  if (at < 0) return [];
+  const block = script.slice(at, script.indexOf("\n}\n", at));
+  const day = /ENGINE_DAY_NIGHT = \{ states = \{ "(\w+)"/.exec(script.slice(at));
+  return [...[...block.matchAll(/\bg = "(\w+)"/g)].map((m) => m[1]), ...(day ? [day[1]] : [])];
+}
+function addPieces(raw, built) {
+  const save = JSON.parse(raw);
+  const guidsIn = (list, out = new Set()) => { for (const o of list || []) { out.add(o.GUID); guidsIn(o.ContainedObjects, out); guidsIn(Object.values(o.States || {}), out); } return out; };
+  const top = new Set((save.ObjectStates || []).map((o) => o.GUID));
+  const everywhere = guidsIn(save.ObjectStates);
+  const add = [];
+  for (const g of statusGuids(built.LuaScript || "")) {
+    if (top.has(g)) continue;
+    const o = built.ObjectStates.find((x) => x.GUID === g);
+    if (!o) throw new Error(`the built table lists status piece ${g} but hasn't got it: nothing changed`);
+    const clash = [...guidsIn([o])].filter((x) => everywhere.has(x));
+    if (clash.length) throw new Error(`the save uses GUID ${clash.join(", ")} for something else: nothing changed`);
+    add.push(o);
+  }
+  if (!add.length) return { raw, added: [] };
+  const m = /("ObjectStates":\s*\[)(\s*)(\]?)/.exec(raw);
+  if (!m || raw.split(m[1]).length !== 2) throw new Error("ObjectStates isn't in the save's file once: nothing changed");
+  const text = add.map((o) => JSON.stringify(o, null, 2)).join(",\n");
+  const out = raw.slice(0, m.index) + m[1] + "\n" + text + (m[3] ? "\n" : ",") + raw.slice(m.index + m[1].length);
+  const back = JSON.parse(out);
+  if (JSON.stringify(back.ObjectStates.slice(add.length)) !== JSON.stringify(save.ObjectStates) || JSON.stringify({ ...back, ObjectStates: null }) !== JSON.stringify({ ...save, ObjectStates: null }))
+    throw new Error("adding the status pieces changed something else: nothing changed");
+  return { raw: out, added: add.map((o) => `${String(o.Nickname || o.Name).split("\n")[0]} (${o.GUID})`) };
+}
+
 function main(write) {
   const raw = fs.readFileSync(SAVE, "utf8");
   const save = JSON.parse(raw);
   const { buildSave } = require("../tests/golden/table-run");
   const holds = JSON.parse(fs.readFileSync(path.join(__dirname, "deploy-holds.json"), "utf8"));
-  const { script, stamp, taken, held } = patch(save.LuaScript, buildSave().LuaScript, holds);
+  const built = buildSave();
+  const { script, stamp, taken, held } = patch(save.LuaScript, built.LuaScript, holds);
 
   for (const h of taken) console.log(`take  line ${h.at + 1}: -${h.gone.length} +${h.added.length}  ${(h.added[0] || h.gone[0] || "").trim().slice(0, 90)}`);
   for (const h of held) {
@@ -97,7 +135,9 @@ function main(write) {
     console.log(`hold  line ${h.at + 1}: -${h.gone.length} +${h.added.length}  [${h.by}]${also.length ? `  and ${also.length} lines it doesn't name: ${also[0].trim().slice(0, 70)}` : ""}`);
   }
 
-  const out = rewrite(raw, script);
+  const pieces = addPieces(rewrite(raw, script), built);
+  const out = pieces.raw;
+  if (pieces.added.length) console.log(`add   ${pieces.added.length} status pieces, parked under the table: ${pieces.added.join(", ")}`);
 
   // what comes out has to load and start: a held hunk can leave something the taken ones need. This sees no board:
   // tools/deploy.js plays real ones on the file a dry run returns.
@@ -118,4 +158,4 @@ function main(write) {
 }
 
 if (require.main === module) main(process.argv.includes("--write"));
-module.exports = { patch, hunks, heldBy, unheld, apply, stamped, rewrite, ttsRunning, main, SAVE };
+module.exports = { patch, hunks, heldBy, unheld, apply, stamped, rewrite, statusGuids, addPieces, ttsRunning, main, SAVE };
