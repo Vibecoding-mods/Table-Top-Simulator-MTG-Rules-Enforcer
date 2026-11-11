@@ -2,6 +2,12 @@
 
 Status: design only, written 2026-11-11. No code changed. Source item: docs/next-features-2026-11-09.md, item 16.
 
+## Decisions (the user, 2026-11-11)
+
+- Yes to every default below: the `#link` syntax with an optional second link for a DFC back; one picture per name per deck, first link wins, basics may mix; the host switch `mtg art off`; https only, png/jpg/webp, at most 500 characters, bad links fall back with a chat message; no dead-link check.
+- Order: first check on the real table whether a plain card's link already keeps its picture in engine mode (Estimate, last line). Then build the plain-cards slice. DFC backs after that.
+- Art for game-made tokens and for the AI's decks: a later item, not dropped.
+
 ## What the user sees
 
 - You put your own picture on a card by adding a link to the end of its line in the deck list you paste into the Card Importer:

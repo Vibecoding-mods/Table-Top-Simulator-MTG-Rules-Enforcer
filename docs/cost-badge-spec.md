@@ -4,12 +4,13 @@ Status: design only, written 2026-11-11. No code changed. Source item: docs/next
 
 ## What the user sees
 
-- A card in your hand that costs more or less than its printed cost gets a small badge on the mana cost, over the grey generic-mana symbol.
-- Example: a card printed {2}{R}{R} under a "2 less" effect shows a highlighted 0 over the grey mana. The red symbols are untouched.
-- Cheaper than printed: the badge is green. Dearer than printed: the badge is red.
-- Same cost as printed: no badge at all.
-- Your commander in the command zone shows its tax the same way. Printed {2}{U}{R} after two casts shows a red 6 over the generic symbol.
-- A card with no generic symbol (printed {R}) under Thalia shows a red 1 just left of the red symbol.
+- The user's design (2026-11-11): the badge looks like a counter token, the way the Mindsplice app draws them (the user's reference). Until that look is matched, use the table's own counter box and font (the counters already on cards). It sits ON the grey colorless (generic) mana symbol and covers it, so the card reads as its new cost.
+- Examples, printed {2}{R}{R}: taxed by one, the counter over the 2 says 3 (taxed more: 4, 5 ...), so it reads 3 colorless red red. Cheapened by two, the counter says 0, so it reads 0 colorless red red. The red symbols are untouched.
+- The number is the whole new colorless amount, not the difference ("3", never "+1").
+- Cheaper or dearer is told by a thin green or red rim on the counter only; the box itself is the normal counter colour. (Default; drop the rim if it looks wrong on the real table.)
+- Same cost as printed: no counter at all.
+- Your commander in the command zone shows its tax the same way. Printed {2}{U}{R} after two casts shows a counter saying 6 over the 2.
+- A card with no colorless symbol (printed {R}) under Thalia: there is nothing to cover, so a counter saying 1 sits just left of the red symbol, where a colorless symbol would be.
 - A change to a coloured symbol (Emerald Medallion takes one {G} off a green spell) shows a small green chip left of the symbols: "-G". The generic badge is not touched.
 - Hover the badge or the card: the hover text says "Costs {2}{G} now (printed {2}{G}{G})".
 - The badge is display only. The engine still decides and asks for the real payment. If the badge and the payment prompt disagree, the prompt is right.
@@ -77,8 +78,8 @@ Status: design only, written 2026-11-11. No code changed. Source item: docs/next
 - Hand path in `place` (lines 499-506): after the early return was reached, call a small refresh (`engineCostBadge(o, c)`) that compares the signature and redraws only when it changed. This runs on every board but costs one string compare per hand card.
 - When the redraw needs `o.clearButtons()`: hand and command cards carry no other buttons today (ability buttons are drawn for the battlefield only; check `engineAbilitySig` and `engineAbilityButtons` for hand cards before relying on this). If a hand card does carry ability buttons, use `editButton` or remove only the cost button by index, as `engineGroupShown` does.
 - Where the badge sits. The mana cost is in the title bar at the top right, the same side as the age box but higher. The age/counter box is at z = -1.12 (just below the title bar). The title bar is at about z = -1.27 and the generic pip is the leftmost pip. Its x is about `0.85 - 0.12 x (number of pips)` minus half a pip. These numbers are estimates from the existing badge positions and must be measured on a real card with the shot tool (mtg-tts/tools/tts-shot.ps1). Put the numbers in the same `BADGE` table as `BADGE.cost`.
-- Size: about a third of the age box, 1-2 characters, the same font as the counters.
-- Colours: `BADGE.less = green`, `BADGE.more = red`, both with white text. Reuse `BADGE.up`/`BADGE.down` blue and red if green is not wanted (blue is for raised power in the existing badges, so green keeps the meanings apart).
+- Size: big enough to cover the generic pip completely (it must hide the printed number), 1-2 characters, the same font and box colour as the `ctr` counters.
+- Colours: the `ctr` counter box colour with white text, so it looks like the other counters. Direction is a thin rim only: `BADGE.less = green`, `BADGE.more = red` (a TTS button has no border, so the rim is a second, slightly larger button drawn under it in the rim colour).
 - A tapped or rotated card: hand and command cards are never tapped. Not an issue.
 - A card in the hand is drawn by TTS in a fan. Whether TTS draws a scripted button on a hand card at all is not proven here (fake TTS cannot say). Real-table check needed. Fallback if it does not: put the same information in the card name line shown on hover (`nickname(c)`/`description(c)`: "Costs {R}{R} now (printed {2}{R}{R})"). `description(c)` is already refreshed each board for hand cards (lines 491 and 213).
 
