@@ -2706,6 +2706,23 @@ function engineGameOverBanner(m)
     end
   end
 end
+-- What a target question offers: { cards, players, spells, walkers }, walkers true when it offers cards and every one
+-- is a planeswalker ("target player or planeswalker": the hint names both, item 24 2026-11-11). One reading for the
+-- hint and for the click on a card the question leaves out.
+function engineTargetSorts(q)
+  local s = { cards = false, players = false, spells = false, walkers = true }
+  for _, o in ipairs((q and q.options) or {}) do
+    local id = tostring(o.id)
+    if id:find("^player|") then s.players = true
+    elseif id:find("^spell|") then s.spells = true
+    elseif id:find("^card|") then
+      s.cards = true
+      if not hasType(engineStatic[id:sub(6)] or {}, "Planeswalker") then s.walkers = false end
+    end
+  end
+  s.walkers = s.cards and s.walkers
+  return s
+end
 function engineUpdateCorner(color, p)
   local t = lastTable
   local step = tostring(t and t.step or "")
@@ -2749,8 +2766,8 @@ function engineUpdateCorner(color, p)
       hint = title .. "\nClick " .. q.max .. " glowing card" .. (q.max == 1 and "" or "s") .. ": the last click answers." .. (q.cancel and " (Or Cancel.)" or "")
     elseif kind == "cards" then hint = title .. (q.cancel and "\nClick the glowing cards, then Done (or Cancel)." or "\nClick the glowing cards, then Done.")
     elseif kind == "target" then
-      local cards, players, spells = false, false, false
-      for _, o in ipairs(q.options or {}) do local id = tostring(o.id) if id:find("^player|") then players = true elseif id:find("^card|") then cards = true elseif id:find("^spell|") then spells = true end end
+      local sorts = engineTargetSorts(q)
+      local cards, players, spells = sorts.cards, sorts.players, sorts.spells
       -- (targets in a graveyard or exile come with a picture: more than the card row holds are picked in the Engine panel,
       -- which then opens; "Click a glowing card" showed with nothing glowing, hp-07 #41 2026-10-27)
       local pile = enginePileOnly(q)
@@ -2761,6 +2778,7 @@ function engineUpdateCorner(color, p)
       -- life counter, suite review)
       elseif pile > 0 and pile == #(q.options or {}) then hint = title .. "\nClick its picture in the card row."
       elseif pile > 0 and players then hint = title .. "\nClick its picture in the card row or a player's life counter."
+      elseif cards and players and sorts.walkers then hint = title .. "\nClick a player's life counter or a glowing planeswalker."
       else hint = title .. ((cards and players) and "\nClick a glowing card or a life counter." or players and "\nClick a player's life counter." or "\nClick a glowing card.") end
     elseif kind == "attack" then hint = title .. "\nClick a creature, then who it attacks. Or All attack / No attacks."
     elseif kind == "block" then hint = title .. "\nClick your creature, then the attacker it blocks."
@@ -4455,9 +4473,13 @@ clickGesture = function(color, obj)
       enginePhase2Prompt(color)
       return true
     end
-    -- a permanent that can't be chosen says so (a click that did nothing looked like the table ignoring you)
+    -- a permanent that can't be chosen says so (a click that did nothing looked like the table ignoring you); a
+    -- planeswalker by that name, and a question of players only says so (item 24, 2026-11-11: planeswalkers by click)
     if id ~= nil and (engineMeta[id] or {}).zone == "battlefield" and firstClick(obj) then
-      tell(color, "That card can't be chosen for this. Click a glowing card, or a player's life counter if a player can be.")
+      local what = hasType(engineStatic[id] or {}, "Planeswalker") and "That planeswalker" or "That card"
+      local sorts = engineTargetSorts(p)
+      tell(color, what .. ((sorts.players and not sorts.cards and not sorts.spells) and " can't be chosen for this: it asks for a player. Click a glowing life counter."
+        or " can't be chosen for this. Click a glowing card, or a player's life counter if a player can be."))
     end
     return false
   elseif kind == "attack" and id ~= nil and findOption(color, function(o) return startsWith(o.id, id .. "|") end) ~= nil then
