@@ -477,13 +477,24 @@ local function place(c, pos, rot, seen, handColor, meta)
     local gen = engineGen
     spawnObjectData({ data = engineCardData(c), position = arrive and meta.from or pos, rotation = arrive and Vector(rot.x, rot.y, 180) or rot, callback_function = function(obj)
       if engineSpawnStale(gen, obj, c.id) then return end -- (from before an "mtg reset" while the board was spawning)
-      if arrive then
+      -- (only while the mill is still held, when the card arrives and again when it turns over: one let go while it
+      -- spawned or waited its turn (the library clicked, a question naming it, a slow spawn) went to the fan anyway and
+      -- hung there beside its copy in the pile, or short of an empty graveyard, until the next board, 2026-11-11)
+      local heldMill = meta ~= nil and meta.zone == "heldmill"
+      local function stillHeld() return heldMill and heldInList((enginePending[meta.color] or {}).mill or {}, c.id) end
+      if arrive and stillHeld() then
         Wait.time(function()
-          if obj ~= nil and not obj.isDestroyed() then obj.setRotationSmooth(rot, false, true) obj.setPositionSmooth(pos, false, true) end
+          if obj ~= nil and not obj.isDestroyed() and engineObjs[c.id] == obj and stillHeld() then obj.setRotationSmooth(rot, false, true) obj.setPositionSmooth(pos, false, true) end
         end, math.max(0.01, ((meta.k or 1) - 1) * MILL_GAP))
       end
       -- (unlocked on the hand position: a card spawned there joins that hand)
       engineCardEntry(c.id, obj, c, { zone = meta and meta.zone, lock = handColor == nil and not free })
+      -- let go already: the board is drawn again, which sends it where the card is now (into its pile, enginePileStrays,
+      -- or onto the graveyard's spot); one redraw for every card of the mill that arrives in the same frame
+      if heldMill and not stillHeld() and not engineMillRedrawDue then
+        engineMillRedrawDue = true
+        Wait.frames(function() engineMillRedrawDue = nil if lastTable ~= nil then engineRender(lastTable) end end, 1)
+      end
     end })
     return
   end
@@ -569,11 +580,13 @@ end
 -- The engine draws, mills and untaps the moment the rules say so. On the table those moves wait for the player:
 -- the drawn card stays on top of the library until you click the library, drag it or press Draw; milled cards
 -- until you drag them or press Mill; your permanents stay tapped until you press Untap. With "Auto" on in your
--- panel they go by themselves after 15 seconds. Anything a decision needs is released at once.
+-- panel draws and untaps go by themselves after AUTO_DELAY and mills aren't held at all. Anything a decision needs
+-- is released at once.
 enginePending = {}  -- colour -> { draw = { ids }, mill = { ids }, untap = { [id] = true } }
--- colour -> false: that player turned Auto off. Auto is on by default (2026-10-22): draws, mills and untaps held on
--- the table finish by themselves after AUTO_DELAY (Arena has no holding; a held mill fanned beside the library and a
--- tutored card waiting on top of it looked like glitches to the player). Click the library / pile to take them sooner.
+-- colour -> false: that player turned Auto off. Auto is on by default (2026-10-22): draws and untaps held on the
+-- table finish by themselves after AUTO_DELAY (Arena has no holding; a held mill fanned beside the library and a
+-- tutored card waiting on top of it looked like glitches to the player), and mills go straight to the graveyard
+-- (detectPending, 2026-11-11). Click the library / pile to take them sooner.
 engineAutoPace = {}
 function engineAutoOn(color) return engineAutoPace[color] ~= false end
 local AUTO_DELAY = 2
@@ -681,11 +694,17 @@ local function detectPending(m)
             if held[(tostring(o.cardId or o.id or ""):gsub("^card|", ""))] then p.draw = {} break end
           end
         end
-        -- mills: new cards in the graveyard that weren't anywhere public before, while the library shrank
-        for _, c in ipairs(diff.fresh) do
-          if libDrop <= 0 then break end
-          p.mill[#p.mill + 1] = c.id
-          libDrop = libDrop - 1
+        -- mills: new cards in the graveyard that weren't anywhere public before, while the library shrank. Held only
+        -- for a player doing it themselves (Auto off). With Auto on they fly face up from the library into the graveyard
+        -- as an AI's do (engineMillDetect): held, each one hung face up in the air a quarter of the way to the graveyard
+        -- until Auto let it go 2 s later (and longer while boards kept coming), which read as a mill animation stuck
+        -- half-way that only a click finished (the player, 2026-11-11).
+        if not engineAutoOn(color) then
+          for _, c in ipairs(diff.fresh) do
+            if libDrop <= 0 then break end
+            p.mill[#p.mill + 1] = c.id
+            libDrop = libDrop - 1
+          end
         end
         -- a big mill (more than 5) goes straight into the graveyard deck: 20 loose face-up cards would be 20 live
         -- objects, each one making Unity's clean-up pauses longer
@@ -5069,9 +5088,9 @@ function engineRevealStrip(m, seen)
 end
 -- Mills, as the table's own Mill button does them (its mill1: each card turns face up and slides to the graveyard, a
 -- moment apart; the player, 2026-10-22). A mill is a new card in a graveyard that wasn't anywhere public before,
--- while that player's library shrank. Cards held for the player (enginePending, up to 5, Auto) come off the library
+-- while that player's library shrank. Cards held for the player (enginePending, up to 5, Auto off) come off the library
 -- turning face up onto the fan (place) and slide into the graveyard pile when released (engineZonePile takes them in);
--- the others (bigger mills, AI players) fly face up from the library to the graveyard as stand-ins, the first
+-- the others (Auto on, bigger mills, AI players) fly face up from the library to the graveyard as stand-ins, the first
 -- MILL_FLY of them, MILL_GAP apart, while the graveyard pile already holds them.
 engineMillNow = {}   -- colour -> cards milled on this board (the library takes as many off without flying them)
 MILL_FLY, MILL_GAP, MILL_TIME = 5, 0.25, 0.6
