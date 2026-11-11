@@ -28,9 +28,15 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   extra turns coming + 1 (one extra turn shows 2). Engine and relay field, so build it with the Star Trek update.
 - ⬜ **See and cast a card's other side** (Valki // Tibalt, Exdeath), with TTS object states
   ([docs/card-other-side-spec.md](docs/card-other-side-spec.md)): readable in your hand too, cast from the side shown.
-- ⬜ Small sweep bugs: the second AI named "AI 1 2" in questions and votes; persist's -1/-1 counter missing from the
-  return line; Halflingcycling's question naming a basic land; the log gaps in tmp/kw-runs/SUMMARY.md.
-- ⬜ Live-check bugs (2026-11-07, tmp/live-checks/RESULTS.md):
+- ✅ Small sweep bugs (fixed 2026-11-07 in 33ffb05; checked again 2026-11-10, each with a claim check): the second AI
+  named "AI 1 2" in questions and votes; persist's -1/-1 counter missing from the return line; Halflingcycling's
+  question naming a basic land; the log gaps in tmp/kw-runs/SUMMARY.md. 2026-11-10 added the clash's cards and winner
+  to the log. Left: cipher's free copy reads "casts" (no recorded board shows the copy on the stack), kw-03's damage
+  questions read the printed amount (not wrong).
+- Live-check bugs (2026-11-07, tmp/live-checks/RESULTS.md). The bridge ones were fixed 2026-11-07 (33ffb05, 133f619)
+  and checked again 2026-11-10: the turn header, "Skip ended" (and a rewind's step, fixed 2026-11-10), "Game over"
+  twice, forage's order, the Ring-bearer question, the timer warning, Done with too few cards (the renderer). Still
+  open: the mark labels' overlap and the Auto-resolve text (renderer), Mindslaver (harness).
   - a turn header lost after a cleanup discard: in `logEvents` the discard is put at index 0 but `attackAt` isn't
     shifted, so the attack splice deletes the header (`White discards Blasphemous Act`, "", `AI 1 draws a card`);
   - two players' mark labels overlap under the life counters (TURN RUN BY WHITE over RING TEMPTED 2 SPEED 3);
