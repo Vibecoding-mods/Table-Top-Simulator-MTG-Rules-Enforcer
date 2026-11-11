@@ -251,10 +251,11 @@ Any other question gives the corner its own orange and navy back.
 more than `ENGINE_CTAB_MIN` (8) creature lines and two or more names gets a row of tabs in the window under the search
 box (`eng_ctabs_<C>`, two rows of four buttons `eng_ctab_<C>_<k>`). One tab per name of the creature you choose with:
 the attacker in an attack, the blocker in a blockers question (the start of the bridge's line, its name for the
-creature without the "#3" and the size, so tokens of one name and two sizes share a tab). A tab reads "Spirit Token (20)", "(3/20)" once 3 of them are picked. The first tab opens with the
+creature without the "#3", the size, the counters and the damage, so tokens of one name and two sizes, or one with a
+counter on it, share a tab). A tab reads "Spirit Token (20)", "(3/20)" once 3 of them are picked. The first tab opens with the
 question; the open tab is gold on warm brown as the dock's. The list shows the open tab's lines with All attack / No
 attacks above them; the answer list pages within a tab as before. More than 8 names: 7 tabs and "More tabs (1/2)",
-which shows the next ones. A search looks through every tab (no tab is gold then); clicking a tab ends the search.
+which shows the next ones and opens the first of them. A search looks through every tab (no tab is gold then); clicking a tab ends the search.
 The answer list is 258 high while the tabs show (318 without), so the window keeps its height. Smaller questions look as
 before. The bridge numbers the blockers question's creatures as it does the attackers' ("Spirit Token 1/1 #3 blocks
 Goblin Token 1/1 #5", `numberedLabels`): twenty identical lines couldn't be told apart.
@@ -264,11 +265,14 @@ before, so a second blocker's "Now click the attacker to block." within 3 s said
 after a block was taken back did nothing at all. Now every click of a blockers question on the table says what it did,
 always (`tell(..., always)`), naming the creatures as the question does:
 - a blocker: "Now click the attacker for Wall of Omens 0/4 #1 to block (or click it again: no block)."; a blocker that
-  had a block has it taken back first, said, and the attacker clicked next is its new block;
+  had a block has it taken back at once, said as "Wall of Omens 0/4 #1's block is taken back: it won't block unless
+  you click an attacker for it now.", and the attacker clicked next is its new block;
 - an attacker: "Wall of Omens 0/4 #1 blocks Spirit Token 1/1 #2. Click the blocker again to change it; Done when
-  finished.";
+  finished."; an attacker with no blocker waiting: "Click one of your creatures first, then this attacker.";
 - the waiting blocker again: "Wall of Omens 0/4 #1 won't block."; an attacker it can't block: says so;
-- a line picked in the window: the same "X blocks Y. Done when finished." (or "Taken back: ...").
+- the card's right-click "Don't block with this": "Wall of Omens 0/4 #1 won't block.";
+- a line picked in the window: the same "X blocks Y. Done when finished." (with "(It no longer blocks Z.)" when it
+  replaced that creature's other block), or "Taken back: ..." when it was picked before.
 
 **Tests** (tests/test_table_claims.js): the colours of the lines, the corner and the phase bar on both sides; the
 tabs of a 22-line attack (20 tokens, two others), a tab's lines, a pick under a tab, a search, a small question

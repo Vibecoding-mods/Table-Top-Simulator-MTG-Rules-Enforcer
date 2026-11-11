@@ -578,11 +578,15 @@ follow every question and board, and go at once when the question is answered. D
 - A token folded into a stack has no object: its ability is filed under the stack's card (`engineGroupOf`), which
   glows; the ability buttons read whose it is from that card too.
 - First builds wait in `engineFrameQueue` and go `ENGINE_FRAME_BUILDS` (4) a frame; showing or hiding a built frame is
-  one call at once. A hand card's first frame waits a frame now as well.
+  one call at once. A hand card's first frame waits a frame now as well. A frame hidden before its build is never
+  built, and a card whose UI can't be built is skipped (said in the log) without stopping the queue.
 - The frame is added to whatever the card's UI holds; a rebuild for another colour (a stolen permanent) cuts out only
-  the `eng_play` panel.
+  the `eng_play` panel (found by counting its Panels, so bars that come back written out in full go with it).
+- A permanent that changes controller while its old controller's question is open stops glowing for them at the next
+  board (`engineMeta` is read again, not only when the question came).
 - A face-down permanent gets the same frame, built for a face-up card; whether it shows on a card lying face down is
   not checked (no face-down permanent has an ability option today: turning one up is a special action).
 - The `mtg glow` reply now says "Green glow on playable cards and usable permanents: on/off".
 - Tests: tests/test_table_claims.js "permanent glow" (each check of the list above, plus "beside the card's other UI",
-  "at most 4 a frame" and "a card you don't control never glows for you, even with an ability offered on it").
+  "at most 4 a frame" and "a card you don't control never glows for you, even with an ability offered on it") and
+  "frame queue" (a card that can't take UI, a change of sides, frames hidden before their build, rebuilds).
