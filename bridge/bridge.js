@@ -3847,6 +3847,9 @@ function sendTable() {
     id: s.id, n: s.identity?.name || "?", tx: displayText(s.text || "").replace(/^[^\n]{0,100}?\(\d+\) - /, "").replace(/([A-Za-z'’,]) \(\d+\)/g, "$1"), ctl: game.slotColor[s.controllerId] || null,
     src: s.sourceId || null, spell: !s.sourceAbilityText, // a spell's card is its source: the table moves that card
     ...(isInstantCast(s, pub) ? { ins: true } : {}), // (an instant spell: the table's instant sound)
+    // (a spell that isn't `spell`, its spell text read as an ability's: an instant or a sorcery; the table's COUNTERED
+    // pop-up takes either)
+    ...(s.sourceAbilityText && !isAbilityOnStack(s, pub) ? { sp: true } : {}),
     // what it targets, for the target lines: a player's colour, a card id or another stack item's id
     tg: (s.targets || []).map((t) => (t.kind === "player" ? { k: "p", c: game.slotColor[t.id] || null } : { k: t.kind === "spell" ? "s" : "c", id: t.id }))
       .filter((t) => t.c || t.id),

@@ -305,7 +305,8 @@ engineSounds = engineSounds or { death = "https://...", wipe = "https://...", da
   exile = "https://...", instant = "https://...", lifegain = "https://...", counter = nil, knockout = nil }
 engineSoundKinds = { "knockout", "wipe", "death", "exile", "damage", "lifegain", "instant", "counter" }
 engineSoundsMuted = false -- the host's switch for the whole table
-function engineSoundPlay(kind, force)   -- true if it played
+-- (plus the bursts: death_x2 ... death_x8 and the like, see "Bursts" below)
+function engineSoundPlay(kind, force, n)   -- true if it played; n: the board's count for that kind (bursts)
 ```
 
 **The user's sounds are in (2026-11-11):** `engineSounds` holds the six TTS Cloud links of `docs/sounds.md` (death,
@@ -329,6 +330,25 @@ wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not
   death, and a knock-out with no knockout pick plays the damage that did it. Each kind at most once every 0.3 s, and
   any two sounds at least 0.15 s apart. It plays at that kind's first event's start time (lunge hit, knock-out
   600 ms, a wipe's first death); exile, lifegain and instant at once.
+- **Bursts (2026-11-11):** a kind with a count can play a stacked clip instead of its plain one. The links are keys
+  `<kind>_x<N>` in `engineSounds` (the 24 of `docs/sounds.md`, "Bursts"): damage, death, exile, lifegain ×2 ×3 ×4
+  ×6 ×8; wipe ×3 ×4 ×6 ×8 (wipe's plain sound stays the 3+ one, so a wipe of 3 plays `wipe_x3`).
+  - `FX.burst(kind, n)` picks the largest bucket with a link at or under the count, capped at `FX.BURST_MAX` = 8 (a
+    `_x16` link is never used); a count of 1, or no bucket link under it, plays the plain kind. So 5 plays ×4, 7
+    plays ×6, 50 plays ×8.
+  - The counts, all on one board: death and wipe = the permanents that went to a graveyard (the same `diedIds` the
+    wipe rule counts); exile = the permanents exiled from the battlefield (the exile zones' new ids plus `exd`);
+    damage = the creatures that took damage (before the 4-burst visual cap) plus the players whose life went down;
+    lifegain = the players whose life went up. The engine's own feed has no separate gain events for the table (the
+    bridge only rebuilds gains for its log lines), and a board carries life totals only, so two gains by one player
+    on one board count once.
+  - Still one clip per board, by the order above, under the same limits: the spacing is kept per kind (`death_x4`
+    and `death` share the 0.3 s), so a runaway turn plays at most one clip per update. `engineSoundLog` names the
+    clip played (`death_x4 music`); the music player's title is `MTG effect: death_x4`.
+  - `mtg sounds test <kind> [N]` plays the clip a count of N would.
+- **Countered (fixed 2026-11-11):** the "COUNTERED: <name>" pop-up shows for an instant or a sorcery too. The
+  bridge's `spell` (no `sourceAbilityText`: the table moves that card) is false for them, so it marks a stack item
+  that is a spell with spell text, not an ability (`isAbilityOnStack`), `sp: true`; the pop-up takes `spell` or `sp`.
 - **Not when:** `engineSoundsMuted`, no pick for that kind, a jump board, or (route A) the music player is busy with
   the players' own music: the current clip has a link, its title doesn't start with "MTG effect", and
   `MusicPlayer.player_status` isn't "Stop" (a paused track of theirs counts; before 2026-11-11 only "Play" did).
@@ -359,10 +379,10 @@ wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not
   - `mtg sounds off` / `on` from the host: sets `engineSoundsMuted` and tells everyone. From another player: keeps
     their `engineSoundOff` flag and tells them "Table sounds are shared: ask the host, or turn down Music / Effects in
     TTS's settings."
-  - `mtg sounds test <kind>` (host), any of `engineSoundKinds`: plays that pick now, so the user can try sounds; an
-    unknown kind lists them.
+  - `mtg sounds test <kind> [N]` (host), any of `engineSoundKinds`: plays that pick now (with N, the burst a count
+    of N picks), so the user can try sounds; an unknown kind lists them.
 - **Bridge fields** (`bridge/bridge.js`, `sendTable`): `ins: true` on a stack item (`isInstantCast`, types from
-  `noteTypes`), and `exd: [card ids]` on the board (from `updateLog`'s engine facts; out of the board's signature like
+  `noteTypes`), `sp: true` on a spell that isn't `spell` (an instant or a sorcery: the countered pop-up), and `exd: [card ids]` on the board (from `updateLog`'s engine facts; out of the board's signature like
   `jump`, cleared once sent). A bridge without them: no instant sound, and an exiled token reads as a death.
 ### Plugging in a sound (the user)
 
