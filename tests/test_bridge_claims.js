@@ -205,7 +205,13 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("/state: a game in play is running", (await started()) === true);
     h.B._setGame({ seats: new Map(), started: true, over: true });
     ok("/state: a finished game isn't", (await started()) === false);
+    // (the companion's banner counts everyone and the AI seats: one person and two AI read "1 seats.", live check 2026-11-11)
+    const state = () => new Promise((resolve) => require("http").get({ host: "127.0.0.1", port: 48991, path: "/state" }, (res) => { let t = ""; res.on("data", (d) => { t += d; }); res.on("end", () => resolve(JSON.parse(t))); }));
+    h.B._setGame({ seats: new Map([["Blue", {}]]), started: true, bots: 2, total: 3 });
+    const st = await state();
+    ok("/state: everyone in the game and the AI seats among them", st.players === 3 && st.ai === 2 && st.seats.length === 1, JSON.stringify(st));
     h.B._setGame(null);
+    ok("/state: no game, no counts", (await state()).players === null, "counts");
     h.B.debugServer.close();
     delete process.env.MTG_DEBUG_PORT;
   }
@@ -977,8 +983,34 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       h.B.sendTable(); await h.flush();
       // (nobody left to ask, so Forge's vote is agreed at once: "Rewind to <point>: Agreed: rewinding...")
       const said = h.effects.filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text).filter((t) => /Rewind to/.test(t));
-      ok("rewind: the vote names a step outside the list in the table's words", said.length === 1 && said[0].startsWith("[MTG] Rewind to turn 5, White's beginning of combat:"), JSON.stringify(said));
+      // (AI 1's turn, as the game log names that seat: seatWords, live check 2026-11-11)
+      ok("rewind: the vote names a step outside the list in the table's words", said.length === 1 && said[0].startsWith("[MTG] Rewind to turn 5, AI 1's beginning of combat:"), JSON.stringify(said));
       harness.restore();
+    }
+    // an AI seat is named as the game log names it in the rewind list and the vote, and a bot isn't waited for: it votes
+    // by itself (live check 2026-11-11: "Yellow's attacks", "Waiting for Yellow: vote in the pop-up" for AI 2)
+    {
+      const vote = async (awaiting) => {
+        const h = harness.load();
+        const b = clone(F.board);
+        const point = { checkpointId: 31, turn: 5, step: "combatDeclareAttackers", activePlayerId: "player-1" };
+        Object.assign(b.gameView, { turn: 6, step: "main2", stack: [], checkpoints: [point, { checkpointId: 32, turn: 5, step: "main2", activePlayerId: "player-1" }],
+          restoreVote: { voteId: 4, checkpoint: point, requestedByPlayerId: "player-0", awaitingPlayerIds: awaiting, status: { type: "pending" } } });
+        b.gameView.players.push({ ...clone(b.gameView.players.find((p) => p.id === "player-1")), id: "player-2" });
+        setup(h, b, { slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "Red" }, slotColor: { "player-0": "Blue", "player-1": "Yellow", "player-2": "Red" },
+          harmless: [{ slot: "player-1", color: "Yellow", directive() {} }] });
+        h.B.sendTable(); await h.flush();
+        const said = h.effects.filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text).filter((t) => /rewind/i.test(t));
+        const table = sent(h, "table")[0] || {};
+        harness.restore();
+        return { said, rewind: table.rewind };
+      };
+      let r = await vote(["player-1"]);
+      ok("rewind names: the list says AI 1's turn, not Yellow's", JSON.stringify((r.rewind?.points || []).map((p) => p.label)) === JSON.stringify(["turn 5, AI 1's second main phase", "turn 5, AI 1's attacks"]), JSON.stringify(r.rewind?.points));
+      ok("rewind names: only a bot left to vote: the chat waits for nobody and names no pop-up", JSON.stringify(r.said) === JSON.stringify(["[MTG] Blue asks to rewind to turn 5, AI 1's attacks."]), JSON.stringify(r.said));
+      ok("rewind names: the table still gets the colours to match its seats, and no names to wait for", JSON.stringify(r.rewind?.vote?.waiting) === JSON.stringify(["Yellow"]) && JSON.stringify(r.rewind?.vote?.waitingNames) === "[]", JSON.stringify(r.rewind?.vote));
+      r = await vote(["player-2", "player-1"]);
+      ok("rewind names: a person left to vote is waited for by name, the bot isn't", JSON.stringify(r.said) === JSON.stringify(["[MTG] Blue asks to rewind to turn 5, AI 1's attacks. Waiting for Red: vote in the pop-up (or type  mtg vote yes / mtg vote no)."]), JSON.stringify(r.said));
     }
     // a clash's cards and winner in the game log, once for the table (kw-07: no line named them). Forge's own words,
     // ClashEffect: "<player> reveals: <card>. Mana Value= <n>" a line each (lblReveals, lblCMC), then "<player> wins

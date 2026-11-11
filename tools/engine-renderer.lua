@@ -3881,11 +3881,61 @@ function onMtgToggle(player, value, id)
 end
 -- ───────── game log (phase 3) ─────────
 engineLog = {}
+-- The panel's Text (414x280, fontSize 13, LowerLeft) holds about 19 rows of 60-62 characters, and TTS clips what
+-- overflows at the BOTTOM: 16 entries with a wrapped one (the debug-setup line is ~9 rows, a mill of 10 cards 2-3) hid
+-- the newest lines (live check 2026-11-11: the panel stopped at 14:49, the log ran to 14:52). So entries are taken from
+-- the newest back while their estimated rows fit, erring on fewer (58 a row, 18 rows; bytes, so é and → count more).
+ENGINE_LOG_ROWS, ENGINE_LOG_ROW_CHARS = 18, 58
+-- an entry's lines (split with plain find: no pattern for MoonSharp to give up on)
+function engineLogLines(entry)
+  local s, out, at = tostring(entry), {}, 1
+  while true do
+    local nl = s:find("\n", at, true)
+    if nl == nil then out[#out + 1] = s:sub(at) return out end
+    out[#out + 1] = s:sub(at, nl - 1)
+    at = nl + 1
+  end
+end
+-- rows one entry takes: each of its lines wraps every perRow characters
+function engineLogRows(entry, perRow)
+  local rows = 0
+  for _, line in ipairs(engineLogLines(entry)) do rows = rows + math.max(1, math.ceil(#line / perRow)) end
+  return rows
+end
+-- an entry taller than `rows` rows, cut to fit with "…" (a row kept for the "…"; cut at a character's first byte, as
+-- a UTF-8 character split in two shows as junk)
+function engineLogCut(entry, rows, perRow)
+  local kept, left = {}, rows - 1
+  for _, line in ipairs(engineLogLines(entry)) do
+    local n = math.max(1, math.ceil(#line / perRow))
+    if n > left then
+      local cut = math.max(0, left * perRow)
+      while cut > 0 and (line:byte(cut + 1) or 0) >= 128 and (line:byte(cut + 1) or 0) < 192 do cut = cut - 1 end
+      kept[#kept + 1] = line:sub(1, cut) .. "…"
+      break
+    end
+    kept[#kept + 1] = line
+    left = left - n
+  end
+  return table.concat(kept, "\n")
+end
+-- the newest entries of `log` that fit `rows` rows, oldest first; the newest always, cut if it alone is taller
+function engineLogFit(log, rows, perRow)
+  local out, used = {}, 0
+  for i = #log, 1, -1 do
+    local n = engineLogRows(log[i], perRow)
+    if used + n > rows then
+      if #out == 0 then out[1] = engineLogCut(log[i], rows, perRow) end
+      break
+    end
+    table.insert(out, 1, log[i])
+    used = used + n
+  end
+  return out
+end
 function engineRenderLog()
   if not panelReady then return end
-  local from = math.max(1, #engineLog - 15)
-  local lines = {}
-  for i = from, #engineLog do lines[#lines + 1] = engineLog[i] end
+  local lines = engineLogFit(engineLog, ENGINE_LOG_ROWS, ENGINE_LOG_ROW_CHARS)
   local text = #lines > 0 and table.concat(lines, "\n") or "Nothing has happened yet."
   for _, c in ipairs(getSeatedPlayers()) do if data[c] then setText("eng_logtext_" .. c, text) end end
 end
@@ -3946,8 +3996,10 @@ function engineRewindUpdate(r, gameOver)
       setAttr("eng_vote_" .. c, "active", pending and "true" or "false")
       if pending then
         -- (everyone has voted and the engine waits for a priority question: v.note says who it waits for)
+        -- (the people still to vote by name; a bot votes by itself, so it isn't waited for: waitingNames, the bridge's)
+        local names = v.waitingNames or v.waiting or {}
         setText("eng_votetext_" .. c, tostring(v.by or "A player") .. " asks to rewind to " .. tostring(v.to) .. "."
-          .. (v.note ~= nil and ("\n" .. tostring(v.note)) or mine and "" or ("\nWaiting for " .. table.concat(v.waiting or {}, ", ") .. "...")))
+          .. (v.note ~= nil and ("\n" .. tostring(v.note)) or (mine or #names == 0) and "" or ("\nWaiting for " .. table.concat(names, ", ") .. "...")))
       end
       setAttr("eng_voteyes_" .. c, "active", (pending and mine) and "true" or "false")
       setAttr("eng_voteno_" .. c, "active", (pending and mine) and "true" or "false")
@@ -4782,6 +4834,25 @@ function engineBlockerName(color, b)
   local x = engineObjs[b]
   return (at and l:sub(1, at - 1)) or (x ~= nil and not x.isDestroyed() and x.getName():match("^[^\n]*")) or "It"
 end
+-- What an attack's target reads as in the chat that confirms it: a player by name ("AI 1"), a planeswalker by its name
+-- and its controller's ("Jace Beleren (AI 1)"), from the board last drawn
+function engineAttackTargetName(target)
+  local players = (lastTable and lastTable.players) or {}
+  for _, pl in ipairs(players) do
+    if pl.slot == target then return tostring(pl.name or pl.color) end
+  end
+  for _, pl in ipairs(players) do
+    for _, c in ipairs(pl.battlefield or {}) do
+      if c.id == target then
+        local ctl = c.ctl or pl.color
+        local owner = ctl
+        for _, q in ipairs(players) do if q.color == ctl then owner = q.name or q.color end end
+        return tostring((engineStatic[target] or {}).n or c.n or "That planeswalker") .. " (" .. tostring(owner) .. ")"
+      end
+    end
+  end
+  return tostring((engineStatic[target] or {}).n or "it")
+end
 
 -- Q/E on one of your cards: pay with it, or attack with it.
 local function tapGesture(color, id)
@@ -4954,9 +5025,14 @@ clickGesture = function(color, obj)
     end
     if target == nil then return false end
     local set = 0
+    local who = {}
     for _, att in ipairs(engineGroupMembers(pendingAttacker[color])) do
       local j = findOption(color, function(o) return o.id == att .. "|" .. target end)
       if j ~= nil then
+        -- (the attacker's words as the question says them, "Soldier Token 1/1 #2", before its " → target")
+        local l = tostring(((p and p.options or {})[j] or {}).label or "")
+        local cut = l:find(" → ", 1, true) or l:find(" attacks ", 1, true)
+        who[#who + 1] = (cut and cut > 1) and l:sub(1, cut - 1) or tostring((engineStatic[att] or {}).n or "A creature")
         -- one target per attacker: drop its other pick, then pick this one
         for k, o in ipairs((p and p.options) or {}) do
           if k ~= j and startsWith(o.id, att .. "|") and engineSelectedFor(color, k) then enginePick(color, k) end
@@ -4967,7 +5043,10 @@ clickGesture = function(color, obj)
     end
     if set == 0 then return false end
     enginePhase2Prompt(color)
-    tell(color, "Target set.")
+    -- what was set, not just that something was (live check 2026-11-11: "Target set." said nothing)
+    -- (a stack of tokens is counted, not listed six times)
+    local names = (#who > 3 and (#who .. " creatures")) or (#who > 1 and (table.concat(who, ", ", 1, #who - 1) .. " and " .. who[#who])) or who[1]
+    tell(color, names .. (#who > 1 and " attack " or " attacks ") .. engineAttackTargetName(target) .. ".")
     return true
   elseif kind == "block" and id ~= nil then
     -- (one click arrives as select + pick up: the second one did the click again. After a block was set it fell

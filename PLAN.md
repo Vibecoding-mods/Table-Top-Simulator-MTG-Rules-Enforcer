@@ -18,6 +18,23 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   "Jace Beleren (201)"; the log's "White attacks with Hero of Bladehold" doesn't name the planeswalker, and it put
   the Giant Growth cast (declare-attackers step) after the combat damage; a mid-game `mtg debug` without keepHand
   bottoms the hand and adds 20 lands. The pump-on-attacker payment title wasn't seen (the pool paid by itself).
+- 🔶 (source, live check fixes) The side game log shows the newest entries that fit its box by estimated rows (58 a
+  row, 18 rows), the newest always, a giant one cut with "…" (engineLogFit): wrapped lines no longer push the newest
+  out of the bottom.
+- 🔶 (source) A life counter or planeswalker clicked for an attacker says what it set: "Hero of Bladehold 3/4 attacks
+  AI 1." / "... attacks Jace Beleren (AI 1).", not "Target set."
+- 🔶 (source) The attacking player gets priority after blockers when something blocks and they hold a non-mana action
+  (attackerStop), as Arena: Craw Wurm blocking Hero of Bladehold passed White's Giant Growth by.
+- ✅ Tests can't reach the live table: tests/no-live-ports.js refuses and records every connection to 39999, 39998,
+  48787 and 9443 (and the harness's decoy TTS port 1), failing the run; the All attack check that put its chat into a
+  real game twice now runs before restore().
+- ⬜ Hero of Bladehold's per-token "attack which player or planeswalker?" can't name the token: Forge's harness passes
+  only "Choose which defender to attack with Soldier Token" (chooseSingleEntityForEffect drops its Attacker param).
+- 🔶 (source) The companion's TTS light goes green only for a table heard since this TTS started (/versions
+  tableHeardMs against the TTS process start time), not for the last session's stamp.
+- 🔶 (source) AI seats are named as the game log names them in the rewind list and vote ("AI 2's attacks"), and a
+  harmless bot isn't "waited for" in the vote chat or banner (it votes by itself).
+- 🔶 (source) The companion's game banner says "turn 6, 3 players (2 AI)." (/state players and ai), not "1 seats.".
 - 🔶 (source) Reported by the user 2026-11-11: when a card is milled, its move to the graveyard sticks part-way until the
   player clicks the card in flight (the "pile" it is moving to the graveyard). Found: with Auto on, a seated player's
   mill was held face up in the air a quarter of the way to the graveyard until Auto let it go ~2 s later (a click on

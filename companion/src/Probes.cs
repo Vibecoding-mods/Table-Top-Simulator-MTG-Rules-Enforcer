@@ -211,6 +211,23 @@ namespace MtgCompanion
             catch { return false; }
         }
 
+        // When the oldest process by that name started (UTC); null: none, or Windows wouldn't say
+        public static DateTime? ProcessStartUtc(string name)
+        {
+            try
+            {
+                var ps = Process.GetProcessesByName(name);
+                DateTime? first = null;
+                foreach (var p in ps)
+                {
+                    try { var t = p.StartTime.ToUniversalTime(); if (!first.HasValue || t < first.Value) first = t; } catch { }
+                    p.Dispose();
+                }
+                return first;
+            }
+            catch { return null; }
+        }
+
         // One container by compose project + service, through the engine pipe (labels, so container_name doesn't matter)
         public static ContainerInfo Container(string project, string service, out string error)
         {

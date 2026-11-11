@@ -1232,7 +1232,7 @@
    {
     "step": "67 gamelog",
     "fx": [
-     "f432 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws 7 cards\\\nAI 2 draws 7 cards\\\nAI 3 draws 7 cards\\\n--- AI 3's turn 1 ---\\\nAI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\""
+     "f432 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws 7 cards\\\nAI 1 draws 7 cards\\\nAI 2 draws 7 cards\\\nAI 3 draws 7 cards\\\n--- AI 3's turn 1 ---\\\nAI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\""
     ]
    },
    {
@@ -1246,7 +1246,7 @@
    {
     "step": "69 gamelog",
     "fx": [
-     "f444 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 draws 7 cards\\\nAI 3 draws 7 cards\\\n--- AI 3's turn 1 ---\\\nAI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\"",
+     "f444 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws 7 cards\\\nAI 1 draws 7 cards\\\nAI 2 draws 7 cards\\\nAI 3 draws 7 cards\\\n--- AI 3's turn 1 ---\\\nAI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\"",
      "f450 \"UI.setAttribute\" \"eng_pop\" \"active\" \"false\""
     ]
    },
@@ -1311,7 +1311,7 @@
    {
     "step": "77 gamelog",
     "fx": [
-     "f492 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 draws 7 cards\\\n--- AI 3's turn 1 ---\\\nAI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\""
+     "f492 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws 7 cards\\\nAI 2 draws 7 cards\\\nAI 3 draws 7 cards\\\n--- AI 3's turn 1 ---\\\nAI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\""
     ]
    },
    {
@@ -1325,7 +1325,7 @@
    {
     "step": "79 gamelog",
     "fx": [
-     "f504 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 3's turn 1 ---\\\nAI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\""
+     "f504 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 draws 7 cards\\\nAI 3 draws 7 cards\\\n--- AI 3's turn 1 ---\\\nAI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\""
     ]
    },
    {
@@ -1339,7 +1339,7 @@
    {
     "step": "81 gamelog",
     "fx": [
-     "f516 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\""
+     "f516 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 draws 7 cards\\\n--- AI 3's turn 1 ---\\\nAI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\""
     ]
    },
    {
@@ -1403,7 +1403,7 @@
    {
     "step": "89 gamelog",
     "fx": [
-     "f564 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\""
+     "f564 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 3's turn 1 ---\\\nAI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\""
     ]
    },
    {
@@ -1426,7 +1426,7 @@
    {
     "step": "92 gamelog",
     "fx": [
-     "f582 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\""
+     "f582 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 draws a card\\\nAI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\""
     ]
    },
    {
@@ -1522,19 +1522,19 @@
    {
     "step": "103 gamelog",
     "fx": [
-     "f648 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\""
+     "f648 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 plays Island\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\""
     ]
    },
    {
     "step": "104 gamelog",
     "fx": [
-     "f654 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\""
+     "f654 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\""
     ]
    },
    {
     "step": "105 gamelog",
     "fx": [
-     "f660 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\"",
+     "f660 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nBlue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\"",
      "f666 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"false\""
     ]
    },
@@ -1604,7 +1604,7 @@
    {
     "step": "113 gamelog",
     "fx": [
-     "f708 \"UI.setValue\" \"eng_logtext_Blue\" \"Thousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\""
+     "f708 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue plays Island\\\nBlue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\""
     ]
    },
    {
@@ -1619,7 +1619,7 @@
    {
     "step": "115 gamelog",
     "fx": [
-     "f720 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\""
+     "f720 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Thousand-Faced Shadow\\\nThousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\""
     ]
    },
    {
@@ -1633,7 +1633,7 @@
    {
     "step": "117 gamelog",
     "fx": [
-     "f732 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\""
+     "f732 \"UI.setValue\" \"eng_logtext_Blue\" \"Thousand-Faced Shadow enters the battlefield (Blue)\\\n--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\""
     ]
    },
    {
@@ -1684,13 +1684,13 @@
    {
     "step": "123 gamelog",
     "fx": [
-     "f768 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\""
+     "f768 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 1 ---\\\nAI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\""
     ]
    },
    {
     "step": "124 gamelog",
     "fx": [
-     "f774 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\""
+     "f774 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\""
     ]
    },
    {
@@ -1711,7 +1711,7 @@
    {
     "step": "127 gamelog",
     "fx": [
-     "f792 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\""
+     "f792 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Forest\\\n--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\""
     ]
    },
    {
@@ -1726,7 +1726,7 @@
    {
     "step": "129 gamelog",
     "fx": [
-     "f804 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\""
+     "f804 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 2's turn 1 ---\\\nAI 2 draws a card\\\nAI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\""
     ]
    },
    {
@@ -1740,7 +1740,7 @@
    {
     "step": "131 gamelog",
     "fx": [
-     "f816 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\""
+     "f816 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 plays Drowned Catacomb\\\n--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\""
     ]
    },
    {
@@ -1813,7 +1813,7 @@
    {
     "step": "138 gamelog",
     "fx": [
-     "f858 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\""
+     "f858 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 3's turn 2 ---\\\nAI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\""
     ]
    },
    {
@@ -1836,7 +1836,7 @@
    {
     "step": "140 gamelog",
     "fx": [
-     "f870 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\""
+     "f870 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 draws a card\\\nAI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\""
     ]
    },
    {
@@ -1873,7 +1873,7 @@
    {
     "step": "144 gamelog",
     "fx": [
-     "f894 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\""
+     "f894 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 plays Fetid Pools\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\""
     ]
    },
    {
@@ -1896,7 +1896,7 @@
    {
     "step": "147 gamelog",
     "fx": [
-     "f912 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\""
+     "f912 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 3 ---\\\nBlue draws a card\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\""
     ]
    },
    {
@@ -2060,7 +2060,7 @@
    {
     "step": "160 gamelog",
     "fx": [
-     "f990 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\"",
+     "f990 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\"",
      "f996 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"false\""
     ]
    },
@@ -2084,7 +2084,7 @@
    {
     "step": "162 gamelog",
     "fx": [
-     "f1002 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \""
+     "f1002 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Plains\\\n--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \""
     ]
    },
    {
@@ -2135,7 +2135,7 @@
    {
     "step": "164 gamelog",
     "fx": [
-     "f1014 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\"",
+     "f1014 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 2's turn 2 ---\\\nAI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\"",
      "f1015 \"UI.setAttribute\" \"eng_pop\" \"active\" \"false\""
     ]
    },
@@ -2161,7 +2161,7 @@
    {
     "step": "167 gamelog",
     "fx": [
-     "f1032 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\""
+     "f1032 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 draws a card\\\nAI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\""
     ]
    },
    {
@@ -2212,13 +2212,13 @@
    {
     "step": "173 gamelog",
     "fx": [
-     "f1068 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\""
+     "f1068 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 plays Shipwreck Marsh\\\nAI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\""
     ]
    },
    {
     "step": "174 gamelog",
     "fx": [
-     "f1074 \"UI.setValue\" \"eng_logtext_Blue\" \"Slither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\"",
+     "f1074 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 casts Slither Blade\\\nSlither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\"",
      "f1080 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue takes the held all\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\""
     ]
    },
@@ -2250,7 +2250,7 @@
    {
     "step": "178 gamelog",
     "fx": [
-     "f1098 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\""
+     "f1098 \"UI.setValue\" \"eng_logtext_Blue\" \"Slither Blade enters the battlefield (AI 2)\\\n--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\""
     ]
    },
    {
@@ -2269,7 +2269,7 @@
    {
     "step": "180 gamelog",
     "fx": [
-     "f1110 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\""
+     "f1110 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 3's turn 3 ---\\\nAI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\""
     ]
    },
    {
@@ -2283,7 +2283,7 @@
    {
     "step": "182 gamelog",
     "fx": [
-     "f1122 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\""
+     "f1122 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 draws a card\\\nAI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\""
     ]
    },
    {
@@ -2310,7 +2310,7 @@
    {
     "step": "186 gamelog",
     "fx": [
-     "f1146 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\""
+     "f1146 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 uses Bojuka Bog's ability\\\nAI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\""
     ]
    },
    {
@@ -2341,7 +2341,7 @@
    {
     "step": "189 gamelog",
     "fx": [
-     "f1164 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\""
+     "f1164 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 plays Bojuka Bog\\\nAI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\""
     ]
    },
    {
@@ -2384,7 +2384,7 @@
    {
     "step": "194 gamelog",
     "fx": [
-     "f1194 \"UI.setValue\" \"eng_logtext_Blue\" \"Arcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\"",
+     "f1194 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 casts Arcane Signet\\\nArcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\"",
      "f1197 \"setPositionSmooth\" obj:s00060 V(-30.15,1.15,-7.4)",
      "f1200 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"false\""
     ]
@@ -2392,7 +2392,7 @@
    {
     "step": "195 gamelog",
     "fx": [
-     "f1200 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\"",
+     "f1200 \"UI.setValue\" \"eng_logtext_Blue\" \"Arcane Signet enters the battlefield (AI 3)\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\"",
      "f1206 \"objUI.setAttribute\" obj:23e485 \"eng_fx_1\" \"active\" \"false\""
     ]
    },
@@ -2429,13 +2429,13 @@
    {
     "step": "198 gamelog",
     "fx": [
-     "f1218 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\""
+     "f1218 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 4 ---\\\nBlue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\""
     ]
    },
    {
     "step": "199 gamelog",
     "fx": [
-     "f1224 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\""
+     "f1224 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\n--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\""
     ]
    },
    {
@@ -2496,7 +2496,7 @@
    {
     "step": "205 gamelog",
     "fx": [
-     "f1260 \"UI.setValue\" \"eng_logtext_Blue\" \"Commit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\""
+     "f1260 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 3 ---\\\nCommit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\""
     ]
    },
    {
@@ -2519,7 +2519,7 @@
    {
     "step": "207 gamelog",
     "fx": [
-     "f1272 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\""
+     "f1272 \"UI.setValue\" \"eng_logtext_Blue\" \"Commit // Memory is put into Blue's graveyard\\\nBlue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\""
     ]
    },
    {
@@ -2555,7 +2555,7 @@
    {
     "step": "211 gamelog",
     "fx": [
-     "f1296 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\"",
+     "f1296 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue saw: Self-hosted-node-cac3b805-81bb-48a2-911a-c76954e886a5-bot picked Elemental (Blue's library): \\\nAI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\"",
      "f1302 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"false\""
     ]
    },
@@ -2568,7 +2568,7 @@
    {
     "step": "213 gamelog",
     "fx": [
-     "f1308 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\""
+     "f1308 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\""
     ]
    },
    {
@@ -2632,7 +2632,7 @@
    {
     "step": "219 gamelog",
     "fx": [
-     "f1344 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\""
+     "f1344 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\""
     ]
    },
    {
@@ -2724,7 +2724,7 @@
    {
     "step": "228 gamelog",
     "fx": [
-     "f1398 \"UI.setValue\" \"eng_logtext_Blue\" \"Tireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\""
+     "f1398 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Secluded Courtyard\\\nAI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\""
     ]
    },
    {
@@ -2743,7 +2743,7 @@
    {
     "step": "230 gamelog",
     "fx": [
-     "f1410 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\"",
+     "f1410 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 casts Tireless Provisioner\\\nTireless Provisioner enters the battlefield (AI 1)\\\n--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\"",
      "f1416 \"UI.setValue\" \"eng_banner_Blue\" \"MAIN PHASE 1\"",
      "f1416 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFFFFF\"",
      "f1416 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#101010E0\""
@@ -2761,7 +2761,7 @@
    {
     "step": "232 gamelog",
     "fx": [
-     "f1422 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\""
+     "f1422 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 2's turn 3 ---\\\nAI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\""
     ]
    },
    {
@@ -2771,7 +2771,7 @@
    {
     "step": "234 gamelog",
     "fx": [
-     "f1434 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\"",
+     "f1434 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 draws a card\\\nAI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\"",
      "f1440 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue takes the held all\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\""
     ]
    },
@@ -2811,7 +2811,7 @@
    {
     "step": "238 gamelog",
     "fx": [
-     "f1458 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\""
+     "f1458 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 plays Choked Estuary\\\nAI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\""
     ]
    },
    {
@@ -2868,7 +2868,7 @@
    {
     "step": "244 gamelog",
     "fx": [
-     "f1494 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\""
+     "f1494 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 attacks with Slither Blade\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\""
     ]
    },
    {
@@ -2893,7 +2893,7 @@
    {
     "step": "247 gamelog",
     "fx": [
-     "f1512 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\""
+     "f1512 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 3's turn 4 ---\\\nAI 3 draws a card\\\nAI 3 uses Farseek's ability\\\nAI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\""
     ]
    },
    {
@@ -2903,7 +2903,7 @@
    {
     "step": "249 gamelog",
     "fx": [
-     "f1524 \"UI.setValue\" \"eng_logtext_Blue\" \"Lightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\"",
+     "f1524 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 uses Counterspell's ability\\\nAI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\"",
      "f1527 \"setPositionSmooth\" obj:s00072 V(8.65,1.15,-7.4)"
     ]
    },
@@ -2937,7 +2937,7 @@
    {
     "step": "252 gamelog",
     "fx": [
-     "f1542 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\""
+     "f1542 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 casts Lightning Greaves\\\nLightning Greaves enters the battlefield (AI 3)\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\""
     ]
    },
    {
@@ -2969,14 +2969,14 @@
    {
     "step": "254 gamelog",
     "fx": [
-     "f1554 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\"",
+     "f1554 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nBlue plays Sunken Hollow\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\"",
      "f1558 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}"
     ]
    },
    {
     "step": "255 gamelog",
     "fx": [
-     "f1560 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\""
+     "f1560 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\""
     ]
    },
    {
@@ -2986,13 +2986,13 @@
    {
     "step": "257 gamelog",
     "fx": [
-     "f1572 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\""
+     "f1572 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Tireless Provisioner's ability\\\nAI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\""
     ]
    },
    {
     "step": "258 gamelog",
     "fx": [
-     "f1578 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\"",
+     "f1578 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Path of Ancestry\\\nAI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\"",
      "f1584 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"main2\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":15}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -3041,7 +3041,7 @@
    {
     "step": "260 gamelog",
     "fx": [
-     "f1590 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\"",
+     "f1590 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 creates Treasure Token\\\nAI 1 attacks with Tireless Provisioner\\\nBlue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\"",
      "f1594 \"objUI.setAttributes\" obj:23e485 \"eng_fx_2_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}",
      "f1595 \"objUI.setAttributes\" obj:23e485 \"eng_fx_4\" {active=\"true\",height=262,position=\"-409 889 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=262}",
      "f1595 \"objUI.setAttributes\" obj:23e485 \"eng_fx_4_txt\" {color=\"#FFFFFF\",text=\" \"}",
@@ -3060,7 +3060,7 @@
    {
     "step": "262 gamelog",
     "fx": [
-     "f1602 \"UI.setValue\" \"eng_logtext_Blue\" \"Incandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\"",
+     "f1602 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue: 40 -> 37 life (-3)\\\nAI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\"",
      "f1603 \"objUI.setAttribute\" obj:23e485 \"eng_fx_1\" \"active\" \"false\"",
      "f1604 \"objUI.setAttributes\" obj:23e485 \"eng_fx_4_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}"
     ]
@@ -3120,7 +3120,7 @@
    {
     "step": "265 gamelog",
     "fx": [
-     "f1620 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\"",
+     "f1620 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 casts Fury\\\nIncandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\"",
      "f1621 \"setHiddenFrom\" obj:s00013 {}",
      "f1621 \"setHiddenFrom\" obj:s00015 {}",
      "f1621 \"setHiddenFrom\" obj:s00077 {}",
@@ -3236,7 +3236,7 @@
    {
     "step": "273 gamelog",
     "fx": [
-     "f1668 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\"",
+     "f1668 \"UI.setValue\" \"eng_logtext_Blue\" \"Incandescent Soulstoke is exiled\\\nAI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\"",
      "f1669 \"highlightOn\" obj:s00098 {1=0.62,2=0.25,3=0.95}"
     ]
    },
@@ -3255,7 +3255,7 @@
    {
     "step": "275 gamelog",
     "fx": [
-     "f1680 \"UI.setValue\" \"eng_logtext_Blue\" \"Fury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\"",
+     "f1680 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Fury's ability\\\nAI 1 uses Fury's ability\\\nFury enters the battlefield (AI 1)\\\nFury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\"",
      "f1681 \"objUI.setAttribute\" obj:23e485 \"eng_fx_1\" \"active\" \"false\""
     ]
    },
@@ -3270,7 +3270,7 @@
    {
     "step": "277 gamelog",
     "fx": [
-     "f1692 \"UI.setValue\" \"eng_logtext_Blue\" \"Thousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\""
+     "f1692 \"UI.setValue\" \"eng_logtext_Blue\" \"Fury dies\\\nAI 1 casts Beza, the Bounding Spring\\\nThousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\""
     ]
    },
    {
@@ -3318,7 +3318,7 @@
    {
     "step": "280 gamelog",
     "fx": [
-     "f1710 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\""
+     "f1710 \"UI.setValue\" \"eng_logtext_Blue\" \"Thousand-Faced Shadow dies\\\nSlither Blade dies\\\nAI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\""
     ]
    },
    {
@@ -3367,7 +3367,7 @@
    {
     "step": "284 gamelog",
     "fx": [
-     "f1734 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\""
+     "f1734 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Beza, the Bounding Spring's ability\\\nBeza, the Bounding Spring enters the battlefield (AI 1)\\\nAI 1 draws a card\\\nAI 1: 39 -> 43 life (+4)\\\n--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\""
     ]
    },
    {
@@ -3389,7 +3389,7 @@
    {
     "step": "286 gamelog",
     "fx": [
-     "f1746 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nDiviner of Mist is put into AI 3's graveyard\\\nColossal Grave-Reaver is put into AI 3's graveyard\\\nAI 3 plays Contaminated Aquifer\""
+     "f1746 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 2's turn 4 ---\\\nAI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nDiviner of Mist is put into AI 3's graveyard\\\nColossal Grave-Reaver is put into AI 3's graveyard\\\nAI 3 plays Contaminated Aquifer\""
     ]
    },
    {
@@ -3437,7 +3437,7 @@
    {
     "step": "289 gamelog",
     "fx": [
-     "f1764 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nDiviner of Mist is put into AI 3's graveyard\\\nColossal Grave-Reaver is put into AI 3's graveyard\\\nAI 3 plays Contaminated Aquifer\\\nAI 3 creates Zombie Druid Token\"",
+     "f1764 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 draws a card\\\nAI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nDiviner of Mist is put into AI 3's graveyard\\\nColossal Grave-Reaver is put into AI 3's graveyard\\\nAI 3 plays Contaminated Aquifer\\\nAI 3 creates Zombie Druid Token\"",
      "f1767 \"spawnObjectData\" \"Card\" obj:s00106 \"Colossal Grave-Reaver\\\nCreature — Dragon\\\n8CMC\" V(-40.76,4,18.74) 0 304000 \"3040\"",
      "f1768 \"setRotationSmooth\" obj:s00106 V(0,360,0)",
      "f1768 \"setPositionSmooth\" obj:s00106 V(-40.76,3.6,22.884)",
@@ -3484,7 +3484,7 @@
    {
     "step": "293 gamelog",
     "fx": [
-     "f1788 \"UI.setValue\" \"eng_logtext_Blue\" \"Tireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nDiviner of Mist is put into AI 3's graveyard\\\nColossal Grave-Reaver is put into AI 3's graveyard\\\nAI 3 plays Contaminated Aquifer\\\nAI 3 creates Zombie Druid Token\\\nAI 1: 43 -> 39 life (-4)\"",
+     "f1788 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 uses Rush of Dread's ability\\\nAI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nDiviner of Mist is put into AI 3's graveyard\\\nColossal Grave-Reaver is put into AI 3's graveyard\\\nAI 3 plays Contaminated Aquifer\\\nAI 3 creates Zombie Druid Token\\\nAI 1: 43 -> 39 life (-4)\"",
      "f1789 \"setHiddenFrom\" obj:s00078 {}",
      "f1789 \"setGMNotes\" obj:s00104 \"enginetrash\"",
      "f1789 \"highlightOff\" obj:s00104",
@@ -3546,7 +3546,7 @@
    {
     "step": "298 gamelog",
     "fx": [
-     "f1818 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nDiviner of Mist is put into AI 3's graveyard\\\nColossal Grave-Reaver is put into AI 3's graveyard\\\nAI 3 plays Contaminated Aquifer\\\nAI 3 creates Zombie Druid Token\\\nAI 1: 43 -> 39 life (-4)\\\n--- Blue's turn 6 ---\"",
+     "f1818 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 2 plays Swamp\\\nTireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nDiviner of Mist is put into AI 3's graveyard\\\nColossal Grave-Reaver is put into AI 3's graveyard\\\nAI 3 plays Contaminated Aquifer\\\nAI 3 creates Zombie Druid Token\\\nAI 1: 43 -> 39 life (-4)\\\n--- Blue's turn 6 ---\"",
      "f1821 \"setPositionSmooth\" obj:s00008 V(-8.65,1.15,7.4)",
      "f1822 \"setGMNotes\" obj:s00106 \"enginetrash\"",
      "f1822 \"highlightOff\" obj:s00106",
@@ -3581,7 +3581,7 @@
    {
     "step": "301 gamelog",
     "fx": [
-     "f1836 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nDiviner of Mist is put into AI 3's graveyard\\\nColossal Grave-Reaver is put into AI 3's graveyard\\\nAI 3 plays Contaminated Aquifer\\\nAI 3 creates Zombie Druid Token\\\nAI 1: 43 -> 39 life (-4)\\\n--- Blue's turn 6 ---\\\nBlue draws a card\""
+     "f1836 \"UI.setValue\" \"eng_logtext_Blue\" \"Tireless Provisioner dies\\\n--- AI 3's turn 5 ---\\\nAI 3 draws a card\\\nAI 3 casts Teval, the Balanced Scale\\\nAI 3 plays Watery Grave\\\nAI 3: 40 -> 38 life (-2)\\\nAI 3 uses Lightning Greaves's ability\\\nTeval, the Balanced Scale enters the battlefield (AI 3)\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nAI 3 attacks with Teval, the Balanced Scale\\\nAI 3 uses Teval, the Balanced Scale's ability\\\nDiviner of Mist is put into AI 3's graveyard\\\nColossal Grave-Reaver is put into AI 3's graveyard\\\nAI 3 plays Contaminated Aquifer\\\nAI 3 creates Zombie Druid Token\\\nAI 1: 43 -> 39 life (-4)\\\n--- Blue's turn 6 ---\\\nBlue draws a card\""
     ]
    },
    {
@@ -5230,7 +5230,7 @@
    {
     "step": "75 gamelog",
     "fx": [
-     "f480 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Mountain\\\nAI 1 casts Sol Ring\\\nSol Ring enters the battlefield (AI 1)\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\""
+     "f480 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 1 ---\\\nAI 1 plays Mountain\\\nAI 1 casts Sol Ring\\\nSol Ring enters the battlefield (AI 1)\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\""
     ]
    },
    {
@@ -5263,7 +5263,7 @@
    {
     "step": "80 gamelog",
     "fx": [
-     "f510 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 casts Sol Ring\\\nSol Ring enters the battlefield (AI 1)\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\"",
+     "f510 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 1 ---\\\nAI 1 plays Mountain\\\nAI 1 casts Sol Ring\\\nSol Ring enters the battlefield (AI 1)\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\"",
      "f511 \"setGMNotes\" obj:s00019 \"enginetrash\"",
      "f511 \"highlightOff\" obj:s00019",
      "f511 \"setInvisibleTo\" obj:s00019 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -5307,7 +5307,7 @@
    {
     "step": "82 gamelog",
     "fx": [
-     "f522 \"UI.setValue\" \"eng_logtext_Blue\" \"Sol Ring enters the battlefield (AI 1)\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\""
+     "f522 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Mountain\\\nAI 1 casts Sol Ring\\\nSol Ring enters the battlefield (AI 1)\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\""
     ]
    },
    {
@@ -5334,7 +5334,7 @@
    {
     "step": "86 gamelog",
     "fx": [
-     "f546 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nBlue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\""
+     "f546 \"UI.setValue\" \"eng_logtext_Blue\" \"Sol Ring enters the battlefield (AI 1)\\\n--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\""
     ]
    },
    {
@@ -5477,7 +5477,7 @@
    {
     "step": "93 gamelog",
     "fx": [
-     "f588 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\""
+     "f588 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 2 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\""
     ]
    },
    {
@@ -5567,7 +5567,7 @@
    {
     "step": "98 gamelog",
     "fx": [
-     "f618 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\""
+     "f618 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nBlue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\""
     ]
    },
    {
@@ -5623,7 +5623,7 @@
    {
     "step": "103 gamelog",
     "fx": [
-     "f648 \"UI.setValue\" \"eng_logtext_Blue\" \"Sol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\"",
+     "f648 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue plays Island\\\nBlue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\"",
      "f654 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"main1\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":4}\\\",\\\"t\\\":\\\"check\\\"}\"",
      "f654 \"UI.setValue\" \"eng_banner_Blue\" \"MAIN PHASE 1\"",
      "f654 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFFFFF\"",
@@ -5697,7 +5697,7 @@
    {
     "step": "110 gamelog",
     "fx": [
-     "f690 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\""
+     "f690 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Sol Ring\\\nSol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\""
     ]
    },
    {
@@ -5719,7 +5719,7 @@
    {
     "step": "113 gamelog",
     "fx": [
-     "f708 \"UI.setValue\" \"eng_logtext_Blue\" \"Arcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\""
+     "f708 \"UI.setValue\" \"eng_logtext_Blue\" \"Sol Ring enters the battlefield (Blue)\\\nBlue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\""
     ]
    },
    {
@@ -5756,7 +5756,7 @@
    {
     "step": "117 gamelog",
     "fx": [
-     "f732 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\""
+     "f732 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Arcane Signet\\\nArcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\""
     ]
    },
    {
@@ -5777,7 +5777,7 @@
    {
     "step": "119 gamelog",
     "fx": [
-     "f744 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\""
+     "f744 \"UI.setValue\" \"eng_logtext_Blue\" \"Arcane Signet enters the battlefield (Blue)\\\nBlue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\""
     ]
    },
    {
@@ -5813,7 +5813,7 @@
    {
     "step": "123 gamelog",
     "fx": [
-     "f768 \"UI.setValue\" \"eng_logtext_Blue\" \"Faerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\""
+     "f768 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Faerie Seer\\\nBlue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\""
     ]
    },
    {
@@ -5860,7 +5860,7 @@
    {
     "step": "127 gamelog",
     "fx": [
-     "f792 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\""
+     "f792 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Faerie Seer's ability\\\nFaerie Seer enters the battlefield (Blue)\\\n--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\""
     ]
    },
    {
@@ -5878,7 +5878,7 @@
    {
     "step": "129 gamelog",
     "fx": [
-     "f804 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\"",
+     "f804 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\"",
      "f807 \"setPositionSmooth\" obj:s00011 V(18.54,2.05,21.819)",
      "f808 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f808 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
@@ -5915,7 +5915,7 @@
    {
     "step": "132 gamelog",
     "fx": [
-     "f822 \"UI.setValue\" \"eng_logtext_Blue\" \"Ashling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\"",
+     "f822 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\"",
      "f825 \"setPositionSmooth\" obj:s00011 V(8.65,1.15,-7.4)"
     ]
    },
@@ -5950,7 +5950,7 @@
    {
     "step": "134 gamelog",
     "fx": [
-     "f834 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\"",
+     "f834 \"UI.setValue\" \"eng_logtext_Blue\" \"Ashling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\"",
      "f835 \"objUI.setAttribute\" obj:23e485 \"eng_fx_1\" \"active\" \"false\"",
      "f838 \"objUI.setAttributes\" obj:23e485 \"eng_fx_2_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}"
     ]
@@ -5981,7 +5981,7 @@
    {
     "step": "137 gamelog",
     "fx": [
-     "f852 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\""
+     "f852 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\""
     ]
    },
    {
@@ -6036,7 +6036,7 @@
    {
     "step": "140 gamelog",
     "fx": [
-     "f870 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\"",
+     "f870 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\"",
      "f874 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}",
      "f876 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"endOfTurn\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":5}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
@@ -6065,7 +6065,7 @@
    {
     "step": "143 gamelog",
     "fx": [
-     "f888 \"UI.setValue\" \"eng_logtext_Blue\" \"Dokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\""
+     "f888 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\""
     ]
    },
    {
@@ -6195,7 +6195,7 @@
    {
     "step": "150 gamelog",
     "fx": [
-     "f930 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\""
+     "f930 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\""
     ]
    },
    {
@@ -6285,7 +6285,7 @@
    {
     "step": "155 gamelog",
     "fx": [
-     "f960 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\""
+     "f960 \"UI.setValue\" \"eng_logtext_Blue\" \"Dokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\""
     ]
    },
    {
@@ -6429,7 +6429,7 @@
    {
     "step": "162 gamelog",
     "fx": [
-     "f1002 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\""
+     "f1002 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\""
     ]
    },
    {
@@ -6516,7 +6516,7 @@
    {
     "step": "170 gamelog",
     "fx": [
-     "f1050 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\"",
+     "f1050 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\"",
      "f1056 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatDeclareAttackers\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":6}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -6656,7 +6656,7 @@
    {
     "step": "182 gamelog",
     "fx": [
-     "f1122 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\"",
+     "f1122 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\"",
      "f1128 \"UI.setAttribute\" \"eng_pop\" \"active\" \"false\"",
      "f1128 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"false\""
     ]
@@ -6682,7 +6682,7 @@
    {
     "step": "184 gamelog",
     "fx": [
-     "f1134 \"UI.setValue\" \"eng_logtext_Blue\" \"Greenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\""
+     "f1134 \"UI.setValue\" \"eng_logtext_Blue\" \"Greenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\""
     ]
    },
    {
@@ -6750,7 +6750,7 @@
    {
     "step": "190 gamelog",
     "fx": [
-     "f1170 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\"",
+     "f1170 \"UI.setValue\" \"eng_logtext_Blue\" \"Greenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\"",
      "f1176 \"objUI.setAttribute\" obj:23e485 \"eng_fx_1\" \"active\" \"false\""
     ]
    },
@@ -6793,7 +6793,7 @@
    {
     "step": "195 gamelog",
     "fx": [
-     "f1200 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\"",
+     "f1200 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\"",
      "f1204 \"objUI.setAttribute\" obj:23e485 \"eng_fx_1\" \"active\" \"false\""
     ]
    },
@@ -6815,7 +6815,7 @@
    {
     "step": "197 gamelog",
     "fx": [
-     "f1212 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\""
+     "f1212 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\""
     ]
    },
    {
@@ -6836,7 +6836,7 @@
    {
     "step": "200 gamelog",
     "fx": [
-     "f1230 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\"",
+     "f1230 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\"",
      "f1236 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatBegin\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":7}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -6859,7 +6859,7 @@
    {
     "step": "203 gamelog",
     "fx": [
-     "f1248 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\""
+     "f1248 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 4 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\""
     ]
    },
    {
@@ -6896,7 +6896,7 @@
    {
     "step": "206 gamelog",
     "fx": [
-     "f1266 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\""
+     "f1266 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nBlue plays Island\\\nBlue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\""
     ]
    },
    {
@@ -6922,7 +6922,7 @@
    {
     "step": "208 gamelog",
     "fx": [
-     "f1278 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\"",
+     "f1278 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Arcane Adaptation\\\nArcane Adaptation enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\"",
      "f1281 \"setPositionSmooth\" obj:s00011 V(8.65,1.15,-7.4)"
     ]
    },
@@ -6944,7 +6944,7 @@
    {
     "step": "210 gamelog",
     "fx": [
-     "f1290 \"UI.setValue\" \"eng_logtext_Blue\" \"Dokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\""
+     "f1290 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue attacks with Faerie Seer, Dokuchi Silencer\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nDokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\""
     ]
    },
    {
@@ -6969,7 +6969,7 @@
    {
     "step": "212 gamelog",
     "fx": [
-     "f1302 \"UI.setValue\" \"eng_logtext_Blue\" \"Yuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\"",
+     "f1302 \"UI.setValue\" \"eng_logtext_Blue\" \"Dokuchi Silencer leaves the battlefield\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\"",
      "f1306 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}",
      "f1308 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/5/9/5924c01f-2815-4e37-b700-3ba6cc81e0e4.jpg\""
     ]
@@ -7000,7 +7000,7 @@
    {
     "step": "215 gamelog",
     "fx": [
-     "f1320 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\""
+     "f1320 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Yuriko, the Tiger's Shadow's ability\\\nYuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\""
     ]
    },
    {
@@ -7056,7 +7056,7 @@
    {
     "step": "218 gamelog",
     "fx": [
-     "f1338 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\"",
+     "f1338 \"UI.setValue\" \"eng_logtext_Blue\" \"Yuriko, the Tiger's Shadow enters the battlefield (Blue)\\\nBlue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\"",
      "f1342 \"objUI.setAttributes\" obj:23e485 \"eng_fx_2_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}"
     ]
    },
@@ -7087,7 +7087,7 @@
    {
     "step": "221 gamelog",
     "fx": [
-     "f1356 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\""
+     "f1356 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue attacks with Yuriko, the Tiger's Shadow\\\nAI 1: 39 -> 37 life (-2)\\\nBlue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\""
     ]
    },
    {
@@ -7212,7 +7212,7 @@
    {
     "step": "228 gamelog",
     "fx": [
-     "f1398 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\""
+     "f1398 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nAI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\""
     ]
    },
    {
@@ -7301,7 +7301,7 @@
    {
     "step": "233 gamelog",
     "fx": [
-     "f1428 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\""
+     "f1428 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1: 37 -> 34 life (-3)\\\n--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\""
     ]
    },
    {
@@ -7389,7 +7389,7 @@
    {
     "step": "238 gamelog",
     "fx": [
-     "f1458 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\""
+     "f1458 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 4 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\""
     ]
    },
    {
@@ -7450,7 +7450,7 @@
    {
     "step": "243 gamelog",
     "fx": [
-     "f1488 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\""
+     "f1488 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\""
     ]
    },
    {
@@ -7533,7 +7533,7 @@
    {
     "step": "250 gamelog",
     "fx": [
-     "f1530 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\""
+     "f1530 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 attacks with Ashling, the Limitless\\\nBlue: 38 -> 36 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\""
     ]
    },
    {
@@ -7678,7 +7678,7 @@
    {
     "step": "262 gamelog",
     "fx": [
-     "f1602 \"UI.setValue\" \"eng_logtext_Blue\" \"Greenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\"",
+     "f1602 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\"",
      "f1608 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"false\""
     ]
    },
@@ -7750,7 +7750,7 @@
    {
     "step": "266 gamelog",
     "fx": [
-     "f1626 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\""
+     "f1626 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 uses Ashling, the Limitless's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\""
     ]
    },
    {
@@ -7842,7 +7842,7 @@
    {
     "step": "273 gamelog",
     "fx": [
-     "f1668 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\""
+     "f1668 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\""
     ]
    },
    {
@@ -7898,7 +7898,7 @@
    {
     "step": "279 gamelog",
     "fx": [
-     "f1704 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\""
+     "f1704 \"UI.setValue\" \"eng_logtext_Blue\" \"--- Blue's turn 5 ---\\\nBlue draws a card\\\nBlue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\""
     ]
    },
    {
@@ -7930,7 +7930,7 @@
    {
     "step": "284 gamelog",
     "fx": [
-     "f1734 \"UI.setValue\" \"eng_logtext_Blue\" \"Island leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\"",
+     "f1734 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Dimir Aqueduct's ability\\\nBlue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\"",
      "f1738 \"objUI.setAttribute\" obj:23e485 \"eng_fx_1\" \"active\" \"false\""
     ]
    },
@@ -8056,7 +8056,7 @@
    {
     "step": "296 gamelog",
     "fx": [
-     "f1806 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\""
+     "f1806 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue plays Dimir Aqueduct\\\nIsland leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\""
     ]
    },
    {
@@ -8134,7 +8134,7 @@
    {
     "step": "302 gamelog",
     "fx": [
-     "f1842 \"UI.setValue\" \"eng_logtext_Blue\" \"Crystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\""
+     "f1842 \"UI.setValue\" \"eng_logtext_Blue\" \"Island leaves the battlefield\\\nBlue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\""
     ]
    },
    {
@@ -8155,7 +8155,7 @@
    {
     "step": "304 gamelog",
     "fx": [
-     "f1854 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\""
+     "f1854 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue casts Crystal Ball\\\nCrystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\""
     ]
    },
    {
@@ -8183,7 +8183,7 @@
    {
     "step": "308 gamelog",
     "fx": [
-     "f1878 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\""
+     "f1878 \"UI.setValue\" \"eng_logtext_Blue\" \"Crystal Ball enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\""
     ]
    },
    {
@@ -8205,7 +8205,7 @@
    {
     "step": "311 gamelog",
     "fx": [
-     "f1896 \"UI.setValue\" \"eng_logtext_Blue\" \"Faerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\"",
+     "f1896 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue attacks with Faerie Seer, Yuriko, the Tiger's Shadow\\\nBlue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\"",
      "f1897 \"setGMNotes\" obj:s00038 \"enginetrash\"",
      "f1897 \"highlightOff\" obj:s00038",
      "f1897 \"setInvisibleTo\" obj:s00038 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -8242,7 +8242,7 @@
    {
     "step": "314 gamelog",
     "fx": [
-     "f1914 \"UI.setValue\" \"eng_logtext_Blue\" \"Skullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\""
+     "f1914 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Skullsnatcher's ability\\\nFaerie Seer leaves the battlefield\\\nSkullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\""
     ]
    },
    {
@@ -8268,7 +8268,7 @@
    {
     "step": "316 gamelog",
     "fx": [
-     "f1926 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\"",
+     "f1926 \"UI.setValue\" \"eng_logtext_Blue\" \"Skullsnatcher enters the battlefield (Blue)\\\nBlue attacks with Skullsnatcher\\\nAI 1: 34 -> 31 life (-3)\\\nBlue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\"",
      "f1929 \"setPositionSmooth\" obj:s00011 V(8.65,1.15,-7.4)"
     ]
    },
@@ -8289,7 +8289,7 @@
    {
     "step": "318 gamelog",
     "fx": [
-     "f1938 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\"",
+     "f1938 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Skullsnatcher's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\"",
      "f1944 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"false\""
     ]
    },
@@ -8319,7 +8319,7 @@
    {
     "step": "321 gamelog",
     "fx": [
-     "f1956 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\""
+     "f1956 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Yuriko, the Tiger's Shadow's ability\\\nBlue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\""
     ]
    },
    {
@@ -8345,7 +8345,7 @@
    {
     "step": "324 gamelog",
     "fx": [
-     "f1974 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\""
+     "f1974 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nAI 1: 31 -> 28 life (-3)\\\nBlue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\""
     ]
    },
    {
@@ -8400,7 +8400,7 @@
    {
     "step": "327 gamelog",
     "fx": [
-     "f1992 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 6 ---\\\nGreenwarden of Murasa is put into AI 1's graveyard\"",
+     "f1992 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws a card\\\nAI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 6 ---\\\nGreenwarden of Murasa is put into AI 1's graveyard\"",
      "f1996 \"objUI.setAttributes\" obj:23e485 \"eng_fx_2_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}",
      "f1998 \"UI.setAttribute\" \"eng_rowimg_Blue_1\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/1/6/16185c50-f7b8-4cea-a129-dfad8e9df781.jpg\"",
      "f1998 \"UI.setAttribute\" \"eng_rowimg_Blue_2\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/7/a/7a59d4b1-6cf4-44ec-8a96-1bb7094fea21.jpg\""
@@ -8436,7 +8436,7 @@
    {
     "step": "330 gamelog",
     "fx": [
-     "f2010 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 6 ---\\\nGreenwarden of Murasa is put into AI 1's graveyard\\\nBlue draws a card\""
+     "f2010 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1: 28 -> 25 life (-3)\\\nBlue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 6 ---\\\nGreenwarden of Murasa is put into AI 1's graveyard\\\nBlue draws a card\""
     ]
    },
    {
@@ -8608,7 +8608,7 @@
    {
     "step": "337 gamelog",
     "fx": [
-     "f2052 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 6 ---\\\nGreenwarden of Murasa is put into AI 1's graveyard\\\nBlue draws a card\\\nBlue plays Island\""
+     "f2052 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue uses Crystal Ball's ability\\\n--- AI 1's turn 5 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 6 ---\\\nGreenwarden of Murasa is put into AI 1's graveyard\\\nBlue draws a card\\\nBlue plays Island\""
     ]
    },
    {
@@ -8728,7 +8728,7 @@
    {
     "step": "344 gamelog",
     "fx": [
-     "f2094 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 6 ---\\\nGreenwarden of Murasa is put into AI 1's graveyard\\\nBlue draws a card\\\nBlue plays Island\\\nBlue attacks with Yuriko, the Tiger's Shadow, Skullsnatcher\"",
+     "f2094 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 6 ---\\\nGreenwarden of Murasa is put into AI 1's graveyard\\\nBlue draws a card\\\nBlue plays Island\\\nBlue attacks with Yuriko, the Tiger's Shadow, Skullsnatcher\"",
      "f2100 \"UI.setValue\" \"eng_banner_Blue\" \"MAIN PHASE 1\"",
      "f2100 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFFFFF\"",
      "f2100 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#101010E0\"",
@@ -8959,7 +8959,7 @@
    {
     "step": "359 gamelog",
     "fx": [
-     "f2184 \"UI.setValue\" \"eng_logtext_Blue\" \"AI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 6 ---\\\nGreenwarden of Murasa is put into AI 1's graveyard\\\nBlue draws a card\\\nBlue plays Island\\\nBlue attacks with Yuriko, the Tiger's Shadow, Skullsnatcher\\\nBlue uses Dokuchi Silencer's ability\\\nYuriko, the Tiger's Shadow returns to the command zone\""
+     "f2184 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue: 36 -> 34 life (-2)\\\nAI 1 casts Greenwarden of Murasa\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\\\nAI 1 uses Ashling, the Limitless's ability\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa dies\\\nAI 1 uses Greenwarden of Murasa's ability\\\nAI 1 creates Greenwarden of Murasa\\\nAI 1 uses Ashling, the Limitless's ability\\\n--- Blue's turn 6 ---\\\nGreenwarden of Murasa is put into AI 1's graveyard\\\nBlue draws a card\\\nBlue plays Island\\\nBlue attacks with Yuriko, the Tiger's Shadow, Skullsnatcher\\\nBlue uses Dokuchi Silencer's ability\\\nYuriko, the Tiger's Shadow returns to the command zone\""
     ]
    },
    {
@@ -9769,7 +9769,7 @@
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2964 \"broadcastToColor\" \"Blue\" \"[MTG] Target set.\""
+     "f2964 \"broadcastToColor\" \"Blue\" \"[MTG] 6 creatures attack AI 1.\""
     ]
    },
    {
@@ -9804,7 +9804,7 @@
      "f2978 \"highlightOn\" obj:s00058 {1=1,2=0.12,3=0.08}",
      "f2978 \"highlightOn\" obj:s00059 {1=1,2=0.12,3=0.08}",
      "f2978 \"highlightOn\" obj:s00059 {1=1,2=0.12,3=0.08}",
-     "f3000 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue told: All 6 attacking (Split picks some). Click a life counter or a planeswalker to choose what they attack; click it again to cancel.\\\\\\\\n2026-10-20 12:00:00 Blue told: Target set.\\\\\\\\n2026-10-20 12:00:00 Blue split a stack of 6\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\"",
+     "f3000 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue told: All 6 attacking (Split picks some). Click a life counter or a planeswalker to choose what they attack; click it again to cancel.\\\\\\\\n2026-10-20 12:00:00 Blue told: 6 creatures attack AI 1.\\\\\\\\n2026-10-20 12:00:00 Blue split a stack of 6\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\"",
      "f3012 \"highlightOff\" obj:s00051",
      "f3012 \"highlightOff\" obj:s00055",
      "f3012 \"highlightOff\" obj:s00056",
