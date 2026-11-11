@@ -298,6 +298,12 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("queued play: a hand card still is kept", hand.queued && hand.queued.id === "engine-card-36", JSON.stringify(hand));
     const fb = await drag("graveyard", { mayPlay: true });
     ok("queued play: a graveyard card the engine lets you cast is kept", fb.queued && fb.queued.id === "engine-card-36", JSON.stringify(fb));
+    // (a permanent dragged out of priority, to equip it on an opponent's turn: kept for the next priority as before,
+    // not refused with "none of its abilities can be used", verifier 2026-11-11)
+    const sword = await drag("battlefield", { identity: { name: "Sword of Fire and Ice" }, types: ["Artifact"], subtypes: ["Equipment"], text: "Equipped creature gets +2/+2.\nEquip {2}" });
+    ok("queued play: an equipment on the battlefield is kept for the next priority", sword.queued && sword.queued.id === "engine-card-36" && !sword.told.includes("none of its abilities"), JSON.stringify(sword));
+    const exiled = await drag("exile");
+    ok("queued play: an exiled card nothing lets you cast isn't kept, and says where", !exiled.queued && exiled.told.includes("Rancor is in your exile"), JSON.stringify(exiled));
   }
   // "a token beside a card of its name says so" (chooseBoardTargets)
   {

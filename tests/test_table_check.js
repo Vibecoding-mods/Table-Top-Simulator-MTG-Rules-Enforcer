@@ -187,6 +187,31 @@ broken("the life tracker", "getObjectFromGUID('395037').setVar('count', 12345)",
   ok("stray: no copy of the discarded card is left on the table", (r.steps.find((s) => s.step === "left") || {}).value === "false", r.errors.join(" | ") || (r.steps.find((s) => s.step === "left") || {}).value);
   ok("stray: and no alarm", !after.some((x) => x.includes(rancor.n)), after.join(" | "));
   ok("stray: the card reads as a graveyard card, not a hand card", / zone=graveyard /.test((r.steps.find((s) => s.step === "meta") || {}).value || ""), (r.steps.find((s) => s.step === "meta") || {}).value);
+
+  // pileStray (addToPile's verify) disposes only an object provably left behind, never the card the put took in: every
+  // pile add runs it, and a reference real TTS kept alive to the merged card would otherwise be disposed with the card
+  // already in the deck (verifier 2026-11-11). Counted at engineDispose, by the card's GM notes.
+  const countDisposed = `strayDisposed = 0 local d0 = engineDispose engineDispose = function(o) if o ~= nil and not o.isDestroyed() and o.getGMNotes() == 'engine:${rancor.id}' then strayDisposed = strayDisposed + 1 end return d0(o) end`;
+  const inDeck = `local n = 0 for _, d in ipairs(getObjects()) do if d.getGMNotes() == 'engine:graveyard:Blue' and d.type == 'Deck' then for _, e in ipairs(d.getObjects()) do if e.gm_notes == 'engine:${rancor.id}' then n = n + 1 end end end end`;
+  const tally = (mark) => ({ lua: `${inDeck} return tostring(strayDisposed) .. ' ' .. n`, mark });
+  const stray = (between, after = []) => simulate({ save, steps: [...prefix, send({ t: "table", json: JSON.stringify(b1) }), { frames: 200 }, { lua: countDisposed }, ...between,
+    send({ t: "table", json: JSON.stringify(b2) }), ...after, { frames: 200 }, tally("end")] });
+  const told = (r, mark) => `${(r.steps.find((s) => s.step === mark) || {}).value} ${r.errors.join(" | ")}`.trim();
+  const plain = stray([]);
+  ok("pileStray: a put the table took in disposes nothing, and the card is in the pile once", told(plain, "end") === "0 1", told(plain, "end"));
+  // (the put's object still alive with its card's notes, but inside the deck: getObjectFromGUID finds nothing for it)
+  const merged = stray([{ lua: keepObject }, { lua: `local g0 = getObjectFromGUID getObjectFromGUID = function(g) local o = g0(g) if o ~= nil and o.getGMNotes() == 'engine:${rancor.id}' then return nil end return o end` }]);
+  ok("pileStray: an object of the card's that isn't loose on the table is never disposed", told(merged, "end") === "0 1", told(merged, "end"));
+  // (left behind while held: looked at again, disposed once it is let go)
+  const held = stray([{ lua: keepObject }], [{ frames: 2 }, { lua: `${find} if o then o.held_by_color = 'Blue' end return tostring(o ~= nil)`, mark: "grab" },
+    { frames: 70 }, tally("held"), { lua: `${find} if o then o.held_by_color = nil end return tostring(o ~= nil)`, mark: "let go" }]);
+  ok("pileStray: a left-behind object in a player's grip isn't disposed", told(held, "grab") === "true" && told(held, "held") === "0 1", `${told(held, "grab")} / ${told(held, "held")}`);
+  ok("pileStray: and is once it is let go", told(held, "end") === "1 1", told(held, "end"));
+  // (the object made that card's own again before the second check, as a pick out of the pile does: kept)
+  const retaken = stray([{ lua: keepObject }], [{ frames: 2 }, { lua: `${find} if o then engineCardEntry('${rancor.id}', o) end return tostring(o ~= nil)`, mark: "taken" }]);
+  ok("pileStray: an object that is its card's own again is never disposed", told(retaken, "taken") === "true" && told(retaken, "end").startsWith("0 "), `${told(retaken, "taken")} / ${told(retaken, "end")}`);
+  const loose = stray([{ lua: keepObject }]);
+  ok("pileStray: a left-behind object loose on the table is disposed once", told(loose, "end") === "1 1", told(loose, "end"));
 }
 
 // Another player's card this seat may play lies in this seat's row, never its owner's (Thief of Sanity's face-down card

@@ -7193,11 +7193,13 @@ function onIntent(m) {
       // not this player's priority now: kept for their next one (see the chooseAction case), unless it is a land
       const gv = seat.board?.state?.gameView || {};
       const card = cardIndex(gv)[m.id];
-      // (only a card it could be cast from where it lies: from a hand or the command zone, or one the engine says this
-      // seat may play. Rancor, discarded a moment before, was dragged from beside the graveyard and queued, and the next
-      // drag of it was read as a hand card again, 2026-11-08 23:39)
+      // (a card in a graveyard, exile or a library only when the engine says this seat may play it. Rancor, discarded a
+      // moment before, was dragged from beside the graveyard and queued, and the next drag of it was read as a hand card
+      // again, 2026-11-08 23:39. A permanent's drag is kept as before: the next priority uses it for an equip, a
+      // loyalty or a {T} ability.)
       const zone = (gv.zones || []).find((z) => (z.cards || []).some((c) => c.id === m.id))?.zone;
-      if (card && !(card.types || []).includes("Land") && !(zone === "hand" || zone === "command" || card.mayPlay)) {
+      const offPlay = zone === "graveyard" || zone === "exile" || zone === "library";
+      if (card && !(card.types || []).includes("Land") && offPlay && !card.mayPlay) {
         return refuse(seat, m.id, whyNot(seat, m.id, { anyPriority: true }));
       }
       if (card && !(card.types || []).includes("Land")) {
