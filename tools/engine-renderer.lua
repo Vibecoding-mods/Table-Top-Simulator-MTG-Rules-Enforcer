@@ -477,13 +477,24 @@ local function place(c, pos, rot, seen, handColor, meta)
     local gen = engineGen
     spawnObjectData({ data = engineCardData(c), position = arrive and meta.from or pos, rotation = arrive and Vector(rot.x, rot.y, 180) or rot, callback_function = function(obj)
       if engineSpawnStale(gen, obj, c.id) then return end -- (from before an "mtg reset" while the board was spawning)
-      if arrive then
+      -- (only while the mill is still held, when the card arrives and again when it turns over: one let go while it
+      -- spawned or waited its turn (the library clicked, a question naming it, a slow spawn) went to the fan anyway and
+      -- hung there beside its copy in the pile, or short of an empty graveyard, until the next board, 2026-11-11)
+      local heldMill = meta ~= nil and meta.zone == "heldmill"
+      local function stillHeld() return heldMill and heldInList((enginePending[meta.color] or {}).mill or {}, c.id) end
+      if arrive and stillHeld() then
         Wait.time(function()
-          if obj ~= nil and not obj.isDestroyed() then obj.setRotationSmooth(rot, false, true) obj.setPositionSmooth(pos, false, true) end
+          if obj ~= nil and not obj.isDestroyed() and engineObjs[c.id] == obj and stillHeld() then obj.setRotationSmooth(rot, false, true) obj.setPositionSmooth(pos, false, true) end
         end, math.max(0.01, ((meta.k or 1) - 1) * MILL_GAP))
       end
       -- (unlocked on the hand position: a card spawned there joins that hand)
       engineCardEntry(c.id, obj, c, { zone = meta and meta.zone, lock = handColor == nil and not free })
+      -- let go already: the board is drawn again, which sends it where the card is now (into its pile, enginePileStrays,
+      -- or onto the graveyard's spot); one redraw for every card of the mill that arrives in the same frame
+      if heldMill and not stillHeld() and not engineMillRedrawDue then
+        engineMillRedrawDue = true
+        Wait.frames(function() engineMillRedrawDue = nil if lastTable ~= nil then engineRender(lastTable) end end, 1)
+      end
     end })
     return
   end
