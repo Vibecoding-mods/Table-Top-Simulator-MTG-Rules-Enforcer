@@ -1111,11 +1111,11 @@ for (const kind of ["Land", "Creature"]) {
   const v = (m) => String(valueOf(r, m));
   ok("poison: shown under the life counter", v("poison 3").split("|").includes("POISON 3"), v("poison 3") + " " + r.errors.join(" | "));
   ok("poison: the label follows the count (one label)", v("poison 4").split("|").filter((x) => x.startsWith("POISON")).join() === "POISON 4", v("poison 4"));
-  ok("counters: energy joins the same label", v("energy 2").split("|").filter((x) => /POISON|ENERGY/.test(x)).join() === "POISON 4   ENERGY 2", v("energy 2"));
+  ok("counters: energy joins the same label", v("energy 2").split("|").filter((x) => /POISON|ENERGY/.test(x)).join() === "POISON 4,ENERGY 2", v("energy 2"));
   // (hp-17 gap: the monarch and the initiative in the same label; gone with the flags)
-  ok("counters: the monarch and the initiative shown", v("monarch").split("|").includes("MONARCH   INITIATIVE"), v("monarch"));
+  ok("counters: the monarch and the initiative shown", v("monarch").split("|").includes("MONARCH") && v("monarch").split("|").includes("INITIATIVE"), v("monarch"));
   // (hp-21 gap: the city's blessing and an enduring story too)
-  ok("counters: the city's blessing and an enduring story shown", v("story").split("|").includes("CITY'S BLESSING   ENDURING STORY"), v("story"));
+  ok("counters: the city's blessing and an enduring story shown", v("story").split("|").includes("CITY'S BLESSING") && v("story").split("|").includes("ENDURING STORY"), v("story"));
   ok("poison: gone at 0", !v("poison 0").includes("POISON") && !v("poison 0").includes("ENERGY") && !v("poison 0").includes("MONARCH"), v("poison 0"));
   const fdT = JSON.parse(lastT.json);
   const blue = fdT.players.find((x) => x.color === "Blue");
@@ -1580,7 +1580,7 @@ for (const kind of ["Land", "Creature"]) {
 {
   const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
   const white = (fields) => { const t = JSON.parse(lastT.json); for (const p of t.players) if (p.color === "White") Object.assign(p, fields); return { msg: { t: "table", json: JSON.stringify(t) } }; };
-  const label = 'local l = "no label" for _, b in ipairs(getObjectFromGUID("23e485").getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then l = b.label .. " @" .. tostring(b.width) end end return l';
+  const label = 'local out = {} for _, b in ipairs(getObjectFromGUID("23e485").getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then out[#out + 1] = b.label .. " @" .. tostring(b.width) end end return #out == 0 and "no label" or table.concat(out, "|")';
   const OLD = { poison: 3, energy: 2, monarch: true, initiative: true, blessed: true, story: true, marks: ["SPEED 1"] };
   const r = run([
     white({ allMarks: ["POISON 3", "ENERGY 2", "MONARCH", "SPEED 1"] }), { frames: 10 }, q(label, "allMarks"),
@@ -1599,12 +1599,12 @@ for (const kind of ["Land", "Creature"]) {
     white({ allMarks: ["POISON 2"] }), { frames: 10 }, q(label, "drawn before the number"),
     white({ allMarks: 7 }), { frames: 10 }, q(label, "allMarks a number")]);
   const v = (m) => String(valueOf(r, m));
-  ok("trackMarks: precondition: allMarks drew its label", v("allMarks") === "POISON 3   ENERGY 2   MONARCH   SPEED 1 @7125", v("allMarks") + " " + r.errors.join(" | "));
+  ok("trackMarks: precondition: allMarks drew its label", v("allMarks") === "POISON 3 @1700|ENERGY 2 @1700|MONARCH @1525|SPEED 1 @1525", v("allMarks") + " " + r.errors.join(" | "));
   ok("trackMarks: the old fields alone draw nothing (step 6)", v("old fields") === "no label", v("old fields"));
   ok("trackMarks: precondition: no marks, no label", v("none") === "no label", v("none"));
   ok("trackMarks: allMarks with the old fields: allMarks' label and width, once", v("both") === v("allMarks"), v("both"));
-  ok("trackMarks: allMarks is the label, not the old fields", v("allMarks wins") === "POISON 5   SPEED 1 @3450", v("allMarks wins"));
-  ok("trackMarks: allMarks alone is drawn", v("allMarks alone") === "CITY'S BLESSING   RING TEMPTED 1 @5900", v("allMarks alone"));
+  ok("trackMarks: allMarks is the label, not the old fields", v("allMarks wins") === "POISON 5 @1700|SPEED 1 @1525", v("allMarks wins"));
+  ok("trackMarks: allMarks alone is drawn", v("allMarks alone") === "CITY'S BLESSING @2145|RING TEMPTED 1 @2017", v("allMarks alone"));
   ok("trackMarks: a row without allMarks takes the label away (step 6)", v("back to old fields") === "no label", v("back to old fields"));
   ok("trackMarks: precondition: allMarks drew a label before the empty one", v("drawn again") === "POISON 2 @1700", v("drawn again"));
   ok("trackMarks: an empty allMarks is no label", v("empty allMarks") === "no label", v("empty allMarks"));
@@ -1613,7 +1613,7 @@ for (const kind of ["Land", "Creature"]) {
   const r2 = run([white({ allMarks: ["POISON 3", "MONARCH"] }), { frames: 10 }, q(label, "before the reload"),
     q('getObjectFromGUID("23e485").clearButtons() return "cleared"', "tracker reloaded"),
     white({ allMarks: ["POISON 3", "MONARCH"] }), { frames: 10 }, q(label, "same marks after the reload")]);
-  ok("trackMarks: precondition: the label was drawn before the tracker reloaded", String(valueOf(r2, "before the reload")) === "POISON 3   MONARCH @3450", String(valueOf(r2, "before the reload")));
+  ok("trackMarks: precondition: the label was drawn before the tracker reloaded", String(valueOf(r2, "before the reload")) === "POISON 3 @1700|MONARCH @1525", String(valueOf(r2, "before the reload")));
   ok("trackMarks: a tracker that lost its buttons gets the same label back", String(valueOf(r2, "same marks after the reload")) === String(valueOf(r2, "before the reload")), String(valueOf(r2, "same marks after the reload")));
   ok("trackMarks: precondition: allMarks drew a label before the number", v("drawn before the number") === "POISON 2 @1700", v("drawn before the number"));
   ok("trackMarks: an allMarks that is a number takes the label away", v("allMarks a number") === "no label", v("allMarks a number"));
@@ -1638,28 +1638,32 @@ const cmdIcons = (half) => save.ObjectStates.filter((o) => o.Nickname === "Comma
 // the save's four playmat zones (the scripting zones the size of a mat, 37 x 20.75)
 const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrigger" && o.Transform.scaleX > 30)
   .map((o) => { const t = o.Transform; return { g: o.GUID, box: [t.posX - t.scaleX / 2, t.posX + t.scaleX / 2, t.posZ - t.scaleZ / 2, t.posZ + t.scaleZ / 2] }; });
-// Marks label fit (live check 9, 2026-11-06: Red's "TURN RUN BY WHITE" ran into White's "RING TEMPTED 2   SPEED 3"
-// between the two life counters). For all four seats' trackers, as they lie in the save, and long realistic marks: each
-// label stays on its own seat's half of the table (off the middle line, so never on the next seat's label) and inside
-// the mats' strip, in at most two lines, every mark in order; a short label stays as it was. The geometry is TTS's as
-// measured on the live crop: a button's +x is on its reader's right; 480 button units to a local unit.
-// (checker, 2026-11-07) No label's box meets a commander-damage icon's (the bottom icon of each column sat in the label's
-// row: "SPE0D 3" on the live crop 9-crop-label-overlap) or a mat (two lines at font 300 ran 0.8 into it), and past what
-// two lines hold the label is cut to two (marks in order, "+n MORE"). The icons and the mats' zones are read from the
-// save, not from the renderer's own list; an icon's box is 1.2 a side (1.16 on the live shot 9-ring-speed).
+// Marks boxes: one small box a mark, stacked down the inner corner of the player's mat under the heart (2026-11-10, the
+// user: "have it [in the] corner of your playmat under your heart"; "you can add multiple boxes if need be instead of
+// cramming everything in one box"; before, one label ran along the strip between the counters and the mats, where live
+// check 9 had Red's "TURN RUN BY WHITE" run into White's "RING TEMPTED 2   SPEED 3"). For all four seats' trackers, as
+// they lie in the save, and long realistic marks: every box stays inside its own player's mat, in the empty strip at the
+// inner end of the battlefield rows (from the mat's inner edge to a tapped card in column 0, 10.75 from the mat's centre
+// and 1.53 half-wide); the first box's top edge is at the same place for every seat and each next one 60 under the last,
+// none overlapping; one mark a box, in order; past ten marks the tenth box says "+n MORE". The mats' zones and the
+// commander-damage icons are read from the save, not from the renderer; the geometry is TTS's as measured on the live
+// crop: a button's +x is on its reader's right, 480 button units to a local unit.
 {
   const SEATS = { "23e485": "White", "448880": "Red", "37e533": "Yellow", "395037": "Blue" };
-  const PER = 480, ICON = 0.6;
-  const geo = 'local out = {} for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z } for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then row.label, row.w, row.h, row.f, row.bx, row.bz = b.label, b.width, b.height, b.font_size, b.position[1] or b.position.x, b.position[3] or b.position.z end end out[#out + 1] = row end return JSON.encode(out)';
+  const PER = 480, ICON = 0.6, TOP = 2.1, GAP = 60, COL0 = 10.75, TAPPED = 1.53;
+  const geo = 'local out = {} for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, boxes = {} } for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then row.boxes[#row.boxes + 1] = { label = b.label, w = b.width, h = b.height, f = b.font_size, bx = b.position[1] or b.position.x, bz = b.position[3] or b.position.z } end end out[#out + 1] = row end return JSON.encode(out)';
   const setAll = (marks) => `for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do enginePlayerCounters(getObjectFromGUID(g), JSON.decode([==[${JSON.stringify({ allMarks: marks })}]==])) end return "set"`;
-  const marksBox = (t) => buttonBox(t, { bx: t.bx, bz: t.bz, w: t.w, h: t.h });
-  // the label's world x span
-  const span = (t) => { const b = marksBox(t); return [b[0], b[1]]; };
+  const worldBox = (t, b) => buttonBox(t, { bx: b.bx, bz: b.bz, w: b.w, h: b.h });
   const icons = cmdIcons(ICON), mats = matZones();
-  ok("marks fit: precondition, the save's twelve commander-damage icons and four mat zones (top edges at |z| 5.03)",
-    icons.length === 12 && mats.length === 4 && mats.every((m) => Math.abs(Math.min(Math.abs(m.box[2]), Math.abs(m.box[3])) - 5.025) < 0.01),
+  // the seat's own mat: the zone on the tracker's side of both middle lines
+  const matOf = (t) => mats.find((m) => Math.sign(m.box[0] + m.box[1]) === Math.sign(t.x) && Math.sign(m.box[2] + m.box[3]) === Math.sign(t.z));
+  // the strip the boxes keep to, as |x|: from the mat's inner edge to a tapped column-0 card
+  const strip = (m) => { const cx = Math.abs((m.box[0] + m.box[1]) / 2), half = (m.box[1] - m.box[0]) / 2; return [cx - half, cx - COL0 - TAPPED]; };
+  const absSpan = (lo, hi) => [Math.abs(lo), Math.abs(hi)].sort((a, b) => a - b);
+  ok("marks fit: precondition, the save's twelve commander-damage icons and four mat zones (37 wide, inner edges at |x| 0.9)",
+    icons.length === 12 && mats.length === 4 && mats.every((m) => Math.abs(m.box[1] - m.box[0] - 37) < 0.01 && Math.abs(Math.min(Math.abs(m.box[0]), Math.abs(m.box[1])) - 0.9) < 0.01),
     `${icons.length} icons, mats ${JSON.stringify(mats.map((m) => m.box.map((n) => n.toFixed(2))))}`);
-  // (the longest real labels: every PLAYER_MARKS row at once, keywords cut to 32 letters by the bridge; past two lines)
+  // (the longest real labels: every PLAYER_MARKS row at once, keywords cut to 32 letters by the bridge; past ten)
   const EVERY = ["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "EXTRA TURN", "MONARCH", "INITIATIVE", "POISON 9", "ENERGY 12",
     "EXPERIENCE 5", "RAD 7", "TICKETS 3", "CITY'S BLESSING", "ENDURING STORY", "PREVENT 3", "NO MAX HAND SIZE", "YOU CAN'T LOSE THE GAME",
     "YOUR OPPONENTS CAN'T WIN THE GA…", "HEXPROOF", "SHROUD", "PROTECTION FROM EVERYTHING"];
@@ -1668,15 +1672,13 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     "Ring and speed (live check 9)": ["RING TEMPTED 2", "SPEED 3"],
     "every mark at once": ["TURN RUN BY WHITE", "RING TEMPTED 4", "SPEED 4 (MAX)", "EXTRA TURN", "MONARCH", "INITIATIVE", "POISON 9", "CITY'S BLESSING"],
     "long keywords": ["YOU CAN'T LOSE THE GAME", "HEXPROOF", "CONTROLLED BY YELLOW", "RING TEMPTED 4"],
-    "just fits before the icons": ["TICKETS 10"],
-    "two lines at font 300": ["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"],
-    "every player mark (past two lines)": EVERY,
-    "one mark longer than a line": ["THIS PLAYER CAN'T BE THE TARGET OF SPELLS OR ABILITIES YOUR OPPONENTS CONTROL AND CAN'T LOSE"],
+    "ten marks": EVERY.slice(0, 10),
+    "every player mark (past ten)": EVERY,
+    "one mark longer than a box": ["THIS PLAYER CAN'T BE THE TARGET OF SPELLS OR ABILITIES YOUR OPPONENTS CONTROL AND CAN'T LOSE"],
     "short": ["POISON 2"],
-    // (jr suite 2026-11-07) two-byte letters, so the cut at 71 bytes falls inside one: "not inside a character"
-    "one accented mark longer than a line": ["É".repeat(60)],
+    // (jr suite 2026-11-07) two-byte letters, so the cut falls inside one: "not inside a character"
+    "one accented mark longer than a box": ["É".repeat(60)],
   };
-  const CUT = new Set(["every player mark (past two lines)", "one mark longer than a line", "one accented mark longer than a line"]);
   const steps = [];
   for (const [name, marks] of Object.entries(COMBOS)) steps.push(q(setAll(marks), `set ${name}`), q(geo, `geo ${name}`));
   const r = run(steps);
@@ -1684,47 +1686,47 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   for (const [name, marks] of Object.entries(COMBOS)) {
     let rows = [];
     try { rows = JSON.parse(String(valueOf(r, `geo ${name}`))); } catch (e) { /* checked below */ }
-    ok(`marks fit, ${name}: precondition, four trackers, each with its label`, rows.length === 4 && rows.every((t) => typeof t.label === "string" && t.w > 0), String(valueOf(r, `geo ${name}`)).slice(0, 200));
+    ok(`marks fit, ${name}: precondition, four trackers, each with its boxes`, rows.length === 4 && rows.every((t) => Array.isArray(t.boxes) && t.boxes.length > 0 && t.boxes.every((b) => typeof b.label === "string" && b.w > 0)), String(valueOf(r, `geo ${name}`)).slice(0, 200));
     for (const t of rows) {
       const seat = `${name}, ${SEATS[t.g]}`;
-      const box = marksBox(t);
-      const [lo, hi] = [box[0], box[1]];
-      // (the middle line is x = 0; the trackers of a side are 7 apart, so 0.25 off it leaves the next label 0.5 away)
-      ok(`marks fit, ${seat}: the label stays on its own half of the table`, t.x < 0 ? hi <= -0.25 : lo >= 0.25, `x ${lo.toFixed(2)}..${hi.toFixed(2)}, tracker at ${t.x}`);
-      ok(`marks fit, ${seat}: the label stays inside the mats' strip (commander zones at 39.5)`, Math.max(Math.abs(lo), Math.abs(hi)) <= 30, `x ${lo.toFixed(2)}..${hi.toFixed(2)}`);
-      const lines = String(t.label).split("\n");
-      if (!CUT.has(name)) ok(`marks fit, ${seat}: at most two lines, every mark in order`, lines.length <= 2 && lines.join("   ") === marks.join("   "), JSON.stringify(t.label));
-      else {
-        // (cut: the marks kept, in order, a mark too long for a line ending "..."; then "+n MORE" for the n left out)
-        const items = lines.join("   ").split("   ");
-        const more = /^\+(\d+) MORE$/.exec(items[items.length - 1]);
-        const kept = more ? items.slice(0, -1) : items;
-        const same = kept.every((k, i) => k === marks[i] || (k.endsWith("...") && k.length > 3 && marks[i].startsWith(k.slice(0, -3))));
-        ok(`marks fit, ${seat}: cut to two lines, the marks kept in order and "+n MORE" for the rest`, lines.length <= 2 && kept.length >= 1 && same
-          && kept.length + (more ? Number(more[1]) : 0) === marks.length, JSON.stringify(t.label));
-        ok(`marks fit, ${seat}: cut at a whole character (no broken UTF-8)`, !String(t.label).includes("�") && Buffer.from(String(t.label), "utf8").toString("utf8") === String(t.label), JSON.stringify(t.label));
-      }
-      ok(`marks fit, ${seat}: no line wider than 8000`, t.w <= 8000, `width ${t.w}`);
-      ok(`marks fit, ${seat}: a readable font, and its bottom edge where a one-line label's is`, t.f >= 180 && Math.abs(t.bz + t.h / 2 / PER - (1.45 + 380 / 2 / PER)) < 1e-6, `font ${t.f}, z ${t.bz}, height ${t.h}`);
-      const hit = icons.filter((c) => meets(box, c.box)).map((c) => c.g);
-      ok(`marks fit, ${seat}: no commander-damage icon under the label`, hit.length === 0, `label x ${lo.toFixed(2)}..${hi.toFixed(2)} z ${box[2].toFixed(2)}..${box[3].toFixed(2)} meets ${hit.join(" ")}`);
-      const onMat = mats.filter((m) => meets(box, m.box)).map((m) => m.g);
-      ok(`marks fit, ${seat}: the label stays off every mat`, onMat.length === 0, `label z ${box[2].toFixed(2)}..${box[3].toFixed(2)} meets the mat zone ${onMat.join(" ")}`);
+      const m = matOf(t), [inner, outer] = m ? strip(m) : [NaN, NaN];
+      const boxes = t.boxes || [], world = boxes.map((b) => worldBox(t, b));
+      const bad = (test) => world.map((w, i) => (test(w, boxes[i]) ? null : `${boxes[i].label}: ${w.map((n) => n.toFixed(2))}`)).filter(Boolean);
+      const outMat = bad((w) => !!m && w[0] >= m.box[0] && w[1] <= m.box[1] && w[2] >= m.box[2] && w[3] <= m.box[3]);
+      ok(`marks fit, ${seat}: every box lies inside its own player's mat`, !!m && boxes.length > 0 && outMat.length === 0, outMat.join(" | ") || "no mat");
+      const offStrip = bad((w) => { const ax = absSpan(w[0], w[1]); return ax[0] >= inner && ax[1] <= outer; });
+      ok(`marks fit, ${seat}: every box in the strip at the inner end of the rows, clear of a tapped card in column 0`, boxes.length > 0 && offStrip.length === 0, `${offStrip.join(" | ")} strip ${inner.toFixed(2)}..${outer.toFixed(2)}`);
+      const first = world[0] || [NaN, NaN, NaN, NaN], fx = absSpan(first[0], first[1]), fz = absSpan(first[2], first[3]);
+      ok(`marks fit, ${seat}: the first box in the corner under the heart (the mat's inner edge within 0.25, its top edge within 0.3)`, !!m && fx[0] - inner <= 0.25 && fz[0] - Math.min(Math.abs(m.box[2]), Math.abs(m.box[3])) <= 0.3,
+        `|x| from ${fx[0].toFixed(2)}, |z| from ${fz[0].toFixed(2)}`);
+      // (in local units: the first top edge at TOP, each next top edge GAP under the last box's bottom; so none overlap)
+      const tops = boxes.map((b) => b.bz - b.h / 2 / PER);
+      const stacked = boxes.every((b, i) => Math.abs(tops[i] - (i === 0 ? TOP : boxes[i - 1].bz + boxes[i - 1].h / 2 / PER + GAP / PER)) < 1e-6);
+      ok(`marks fit, ${seat}: stacked down from the corner, ${GAP} apart, none overlapping`, boxes.length > 0 && stacked, JSON.stringify(tops.map((n) => +n.toFixed(4))));
+      const labels = boxes.map((b) => String(b.label));
+      if (marks.length <= 10 && !/longer than a box/.test(name)) ok(`marks fit, ${seat}: one box a mark, every mark in order`, labels.join("|") === marks.join("|"), JSON.stringify(labels));
+      const tooWide = boxes.filter((b) => !(b.w <= 2250 && b.f >= 150 && b.h === Math.floor(380 * b.f / 300 + 0.5)));
+      ok(`marks fit, ${seat}: no box wider than 2250, font at least 150, its height the font's`, boxes.length > 0 && tooWide.length === 0, JSON.stringify(tooWide));
+      const hit = icons.filter((c) => world.some((w) => meets(w, c.box))).map((c) => c.g);
+      ok(`marks fit, ${seat}: no commander-damage icon under a box`, hit.length === 0, `meets ${hit.join(" ")}`);
     }
-    // (a label that fits between the counter and its icon column stays there, by the counter; 2050 wide: 0.73..6.10)
-    if (name === "just fits before the icons") ok("marks fit, just fits before the icons: it stays between the middle and its icon column on every seat",
-      rows.length === 4 && rows.every((t) => { const b = marksBox(t); return Math.max(Math.abs(b[0]), Math.abs(b[1])) <= 6.79 - ICON; }), JSON.stringify(rows.map((t) => span(t).map((n) => +n.toFixed(2)))));
-    if (name === "short") ok("marks fit, short: a short label is as it was, centred under its counter, one line at font 300", rows.every((t) => t.label === "POISON 2" && t.w === 1700 && t.h === 380 && t.f === 300 && t.bx === 0 && t.bz === 1.45), JSON.stringify(rows.map((t) => [t.w, t.h, t.f, t.bx, t.bz])));
+    const labelsOf = (t) => (t.boxes || []).map((b) => String(b.label));
+    if (name === "every player mark (past ten)") ok("marks fit, past ten: nine marks in order, then \"+11 MORE\"", rows.length === 4 && rows.every((t) => labelsOf(t).join("|") === [...EVERY.slice(0, 9), "+11 MORE"].join("|")), JSON.stringify(rows.map(labelsOf)));
+    if (name === "ten marks") ok("marks fit, ten marks: all ten shown, no \"MORE\"", rows.length === 4 && rows.every((t) => labelsOf(t).length === 10 && !labelsOf(t).some((l) => /MORE/.test(l))), JSON.stringify(rows.map(labelsOf)));
+    // (cut: a mark too long for a box at the smallest font ends "...", at a whole character)
+    if (/longer than a box/.test(name)) ok(`marks fit, ${name}: cut to one box ending "...", at a whole character`, rows.length === 4 && rows.every((t) => { const l = labelsOf(t); return l.length === 1 && l[0].endsWith("...") && marks[0].startsWith(l[0].slice(0, -3)) && l[0].length > 3 && !l[0].includes("�") && Buffer.from(l[0], "utf8").toString("utf8") === l[0]; }), JSON.stringify(rows.map(labelsOf)));
+    // (a real mark as long as Platinum Angel's fits whole, at the smallest font)
+    if (name === "long keywords") ok("marks fit, long keywords: YOU CAN'T LOSE THE GAME is shown whole", rows.length === 4 && rows.every((t) => labelsOf(t).includes("YOU CAN'T LOSE THE GAME")), JSON.stringify(rows.map(labelsOf)));
+    if (name === "short") ok("marks fit, short: a short mark is one box at font 300, 1700 wide", rows.length === 4 && rows.every((t) => t.boxes.length === 1 && t.boxes[0].label === "POISON 2" && t.boxes[0].w === 1700 && t.boxes[0].h === 380 && t.boxes[0].f === 300), JSON.stringify(rows.map((t) => t.boxes)));
   }
-  // (the live case end to end: Red's and White's labels as two table boards send them, the White row's own)
+  // (the live case end to end: White's marks as two table boards send them, the White row's own)
   const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
   const board = (marks) => { const t = JSON.parse(lastT.json); for (const p of t.players) if (p.color === "White") p.allMarks = marks; return { msg: { t: "table", json: JSON.stringify(t) }, frames: 10 }; };
   const r2 = run([board(["RING TEMPTED 2", "SPEED 3"]), q(geo, "board long"), board(["POISON 2"]), q(geo, "board short")]);
   const white = (m) => { try { return JSON.parse(String(valueOf(r2, m))).find((t) => t.g === "23e485"); } catch (e) { return null; } };
   const wl = white("board long"), ws = white("board short");
-  ok("marks fit, table board: White's long label is pushed off the middle and past its icons", !!wl && wl.label === "RING TEMPTED 2   SPEED 3" && span(wl)[0] >= 0.25
-    && !icons.some((c) => meets(marksBox(wl), c.box)), JSON.stringify(wl));
-  ok("marks fit, table board: the next, short label goes back under the counter (the button is edited, not left where it was)", !!ws && ws.label === "POISON 2" && ws.bx === 0 && ws.w === 1700 && ws.h === 380, JSON.stringify(ws));
+  ok("marks fit, table board: White's two marks are two boxes in the corner", !!wl && wl.boxes.map((b) => b.label).join("|") === "RING TEMPTED 2|SPEED 3", JSON.stringify(wl));
+  ok("marks fit, table board: one mark next leaves one box, at its own size (the other box goes)", !!ws && ws.boxes.length === 1 && ws.boxes[0].label === "POISON 2" && ws.boxes[0].w === 1700 && ws.boxes[0].h === 380, JSON.stringify(ws));
 }
 // Extra-turn counter (docs/extra-turn-counter-spec.md, 2026-11-06): the row's extraTurns as a number beside the life
 // counter, the count + 1 (one extra turn shows 2), hover text "<name> has n extra turn(s) coming", none at 0, with no
@@ -1793,25 +1795,26 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const btns = `local out = {} for _, g in ipairs(${four}) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, marks = {}, badges = {} } for _, b in ipairs(o.getButtons() or {}) do local q = b.position or {} local e = { label = b.label, w = b.width, h = b.height, bx = q[1] or q.x, bz = q[3] or q.z } if b.tooltip == ENGINE_COUNTERS_TIP then row.marks[#row.marks + 1] = e elseif engineExtraTurnTip(b.tooltip) then row.badges[#row.badges + 1] = e end end out[#out + 1] = row end return JSON.encode(out)`;
   const CASES = {
     "one digit, a short label": [["POISON 2"], 1, "2"],
-    "two digits, a two-line label": [["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"], 9, "10"],
+    "two digits, seven marks": [["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"], 9, "10"],
   };
   const steps = [];
   for (const [name, [marks, n]] of Object.entries(CASES)) steps.push(q(set(marks, n), `set ${name}`), q(btns, `buttons ${name}`));
   const r = run(steps);
   ok("badge fit: precondition, no script error", !r.errors.length, r.errors.slice(0, 2).join(" | "));
   const list = (v) => (Array.isArray(v) ? v : []);
-  for (const [name, [, , digits]] of Object.entries(CASES)) {
+  for (const [name, [marks, , digits]] of Object.entries(CASES)) {
     let rows = [];
     try { rows = JSON.parse(String(valueOf(r, `buttons ${name}`))); } catch (e) { /* checked below */ }
-    ok(`badge fit, ${name}: precondition, four trackers, each with one badge "${digits}" and one label`,
-      rows.length === 4 && rows.every((t) => list(t.badges).length === 1 && list(t.badges)[0].label === digits && list(t.marks).length === 1), String(valueOf(r, `buttons ${name}`)).slice(0, 300));
+    ok(`badge fit, ${name}: precondition, four trackers, each with one badge "${digits}" and a box a mark`,
+      rows.length === 4 && rows.every((t) => list(t.badges).length === 1 && list(t.badges)[0].label === digits && list(t.marks).length === marks.length), String(valueOf(r, `buttons ${name}`)).slice(0, 300));
     for (const t of rows) {
-      const seat = `${name}, ${SEATS[t.g]}`, b = list(t.badges)[0], m = list(t.marks)[0];
-      if (!b || !m || !own[t.g]) continue;
+      const seat = `${name}, ${SEATS[t.g]}`, b = list(t.badges)[0], ms = list(t.marks);
+      if (!b || !ms.length || !own[t.g]) continue;
       ok(`badge fit, ${seat}: at local (-1, -1.45), the counter's top-left lobe`, b.bx === -1 && b.bz === -1.45, `at ${b.bx}, ${b.bz}`);
       const box = buttonBox(t, b);
       for (const [what, o] of Object.entries(own[t.g])) ok(`badge fit, ${seat}: clear of ${what}`, !meets(box, buttonBox(t, o)), `badge ${JSON.stringify(box.map((n) => +n.toFixed(2)))} ${what} ${JSON.stringify(buttonBox(t, o).map((n) => +n.toFixed(2)))}`);
-      ok(`badge fit, ${seat}: clear of the marks label`, !meets(box, buttonBox(t, m)), `badge ${JSON.stringify(box.map((n) => +n.toFixed(2)))} label ${JSON.stringify(buttonBox(t, m).map((n) => +n.toFixed(2)))}`);
+      const under = ms.filter((m) => meets(box, buttonBox(t, m))).map((m) => m.label);
+      ok(`badge fit, ${seat}: clear of every marks box`, under.length === 0, `badge ${JSON.stringify(box.map((n) => +n.toFixed(2)))} meets ${JSON.stringify(under)}`);
       const hit = icons.filter((c) => meets(box, c.box)).map((c) => c.g);
       ok(`badge fit, ${seat}: clear of every commander-damage icon`, hit.length === 0, `meets ${hit.join(" ")}`);
     }

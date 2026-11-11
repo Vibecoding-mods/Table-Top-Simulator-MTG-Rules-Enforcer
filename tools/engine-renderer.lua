@@ -877,9 +877,10 @@ end
 engineStackGlow = {} -- engine card id -> "stack" / "atk" / "blk": the glow it has when no question is open
 engineBaseGlow = {}  -- object -> colour of that glow
 BASE_GLOW = { stack = {0.75, 0.35, 1}, atk = {1, 0.12, 0.08}, blk = {0.15, 0.45, 1}, playable = {0.35, 1, 0.45} }
--- A player's counters other than life (poison, energy) as one green label under their life counter, while there are
--- any (Skrelv's toxic gave the AI poison and nothing showed it, playtest 2026-10-27; energy was sent and shown nowhere,
--- structural review the same day). A button of the counter object, found again by its tooltip.
+-- A player's counters other than life (poison, energy) and their other marks as small green boxes in the corner of
+-- their mat under their life counter, while there are any (Skrelv's toxic gave the AI poison and nothing showed it,
+-- playtest 2026-10-27; energy was sent and shown nowhere, structural review the same day). Buttons of the counter
+-- object, found again by their tooltip.
 ENGINE_COUNTERS_TIP = "Poison (ten and that player loses), energy and the other player counters, the monarch (draws at their end step), the initiative, the city's blessing, an enduring story, the Ring's temptations, speed, a turn run by another player, an extra turn, damage prevention, hand size, and what protects or binds the player"
 engineCountersShown = {} -- counter object guid -> the label it shows (redrawn only on a change)
 -- (the label goes with the game: it stayed on the normal table after a reset, stage 3 review 2026-10-27)
@@ -895,123 +896,48 @@ function engineCountersReset()
   end
   engineCountersShown = {}
 end
--- How the marks label fits its seat (live check 9, 2026-11-06: Red's "TURN RUN BY WHITE" ran into White's "RING
--- TEMPTED 2   SPEED 3" between the two life counters). The two trackers of a side are 7 world units apart, so a label
--- centred under its counter and wider than about 2,700 button units crossed into the next seat's. Now: a label reaches
--- at most `inner` button units from its counter towards the middle of the table, and no commander-damage icon is under
--- it (the checker's finding, 2026-11-07: the bottom icon of each column sat in the label's row, its digit over "SPEED");
--- a label that fits between the counter and its icon column stays there, a wider one starts just past the column (the
--- strip between the counters and the mats is empty out to the commander zones, ~40 units out; engineMarksStart). Its
--- lines are at most `max` wide; a label that needs more than two lines at one size is drawn smaller (`fonts`), and past
--- the smallest it is cut to two lines (engineMarksClamp). The bottom edge stays where a one-line label's is, just above
--- the mat (its zone's edge, 0.08 below it); a second line goes up, away from the mat (two lines are at least ~3,750
--- wide, so they always start past the icons and the heart is never under them). A short label stays as it was: centred, one line, font 300. perLocal: button units in one
--- local unit of the tracker, measured on the live crop (a 4500-wide label was 11.75 world units on a tracker scaled
--- 1.258; Red's 3275 and White's 4500 edges matched to a few pixels). icon: half the side of a commander-damage icon in
--- world units (1.16 a side on the live shot 9-ring-speed, at the save's scale 0.321); clear: the room kept around one.
-ENGINE_MARKS_FIT = { inner = 1150, max = 8000, perLocal = 480, fonts = { 300, 250, 210, 180 }, z = 1.45, icon = 0.6, clear = 0.1 }
--- the box a line of k marks needs at font f: as wide as its letters, and at least 640 a mark (a long mark such as
--- "YOU CAN'T LOSE THE GAME" ran past a box sized by the count of marks); at font 300, the width the label always had
-function engineMarksWidth(text, k, f)
-  return math.floor(math.max(640 * k + 300, 175 * #text + 300) * f / 300 + 0.5)
+-- Where the marks go: one small box a mark, stacked down the inner corner of the player's mat under the heart
+-- (2026-11-10, the user: "have it [in the] corner of your playmat under your heart"; "you can add multiple boxes if
+-- need be instead of cramming everything in one box"; before, one label ran along the strip between the counters and
+-- the mats, live check 9). The battlefield grid leaves the inner end of every row empty (column 0 is GRID.colStart
+-- 10.75 from the mat's centre, a tapped card reaching 12.28; the mat's inner edge is 18.5 out), so the boxes keep to
+-- that strip: each box's inner edge `inner` button units towards the middle from the counter's centre (world 1.04 from
+-- the middle line, the mat's edge at 0.9), at most `max` wide (to 6.94, the tapped card at 7.12); the first box's top
+-- edge at local `top` (world 5.26 from the middle line, the mat's edge at 5.03), the next `gap` under it. A box is
+-- drawn at the largest of `fonts` its mark fits in; a mark too long even at the smallest is cut, ending "...". Past
+-- `boxes` marks, the last box says "+n MORE". perLocal: button units in one local unit of the tracker, measured on the
+-- live crop (a 4500-wide label was 11.75 world units on a tracker scaled 1.258).
+ENGINE_MARKS_FIT = { inner = 940, max = 2250, boxes = 10, gap = 60, perLocal = 480, fonts = { 300, 260, 220, 190, 165, 150 }, top = 2.1 }
+-- the box a mark needs at font f: as wide as its letters (no floor: the shortest real mark, "RAD 1", is 1175 at 300)
+function engineMarksWidth(text, f)
+  return math.floor((175 * #text + 300) * f / 300 + 0.5)
 end
--- the marks packed into lines of at most ENGINE_MARKS_FIT.max at font f, in order, a mark never split: { text (the
--- lines joined by "\n"), lines, font, width (the widest line's), height }
-function engineMarksLines(parts, f)
-  local lines, counts, width = {}, {}, 0
-  for _, m in ipairs(parts) do
-    local n = #lines
-    if n > 0 and engineMarksWidth(lines[n] .. "   " .. m, counts[n] + 1, f) <= ENGINE_MARKS_FIT.max then
-      lines[n], counts[n] = lines[n] .. "   " .. m, counts[n] + 1
-    else
-      lines[n + 1], counts[n + 1] = m, 1
-    end
-  end
-  for i, l in ipairs(lines) do width = math.max(width, engineMarksWidth(l, counts[i], f)) end
-  return { text = table.concat(lines, "\n"), lines = #lines, font = f, width = width,
-    height = math.floor((380 * #lines - 40 * (#lines - 1)) * f / 300 + 0.5) }
+-- a mark cut to what one box holds at font f, ending "...", at a whole character
+function engineMarksCut(m, f)
+  local n = math.floor((ENGINE_MARKS_FIT.max * 300 / f - 300) / 175) - 3
+  -- (not inside a character: the byte after the cut is no UTF-8 continuation byte)
+  while n > 0 and (m:byte(n + 1) or 0) >= 128 and (m:byte(n + 1) or 0) < 192 do n = n - 1 end
+  return m:sub(1, n) .. "..."
 end
--- the largest font whose lines fit, two lines at most (the smallest font's lines cut to two otherwise)
-function engineMarksLayout(parts)
-  local fonts = ENGINE_MARKS_FIT.fonts
-  for _, f in ipairs(fonts) do
-    local fit = engineMarksLines(parts, f)
-    if fit.lines <= 2 and fit.width <= ENGINE_MARKS_FIT.max then return fit end
-  end
-  return engineMarksClamp(parts, fonts[#fonts])
-end
--- Marks too long for two lines of the smallest font (past ~150 letters): a mark longer than a line is cut to one, ending
--- "...", at a whole character; then the first marks that fit in two lines, in order, and "+n MORE" for the ones left out
-function engineMarksClamp(parts, f)
-  local max = ENGINE_MARKS_FIT.max
-  local room = math.floor((max * 300 / f - 300) / 175) -- the letters one line holds
-  local cut = {}
-  for i, m in ipairs(parts) do
-    if #m > room then
-      local n = room - 3
-      -- (not inside a character: the byte after the cut is no UTF-8 continuation byte)
-      while n > 0 and (m:byte(n + 1) or 0) >= 128 and (m:byte(n + 1) or 0) < 192 do n = n - 1 end
-      cut[i] = m:sub(1, n) .. "..."
-    else
-      cut[i] = m
-    end
-  end
-  local fit = engineMarksLines(cut, f)
-  if fit.lines <= 2 and fit.width <= max then return fit end
-  for k = #cut - 1, 0, -1 do
-    local some = {}
-    for i = 1, k do some[i] = cut[i] end
-    some[k + 1] = "+" .. tostring(#cut - k) .. " MORE"
-    fit = engineMarksLines(some, f)
-    if fit.lines <= 2 and fit.width <= max then return fit end
-  end
-  return fit
-end
--- The commander-damage icons beside a tracker's label, as stretches of the label's line: { lo, hi } in button units
--- outward from the counter (s: sign is engineMarksOutward's), for every icon (CMD_DAMAGE, read where it lies) whose box
--- with its room around it meets the rows vTop..vBot (button units along the label's +z, the counter's centre 0)
-function engineMarksIcons(o, sign, vTop, vBot)
+-- the marks' boxes, in order: { text, font, width, height } each; past `boxes` marks the last one is "+n MORE"
+function engineMarksBoxes(parts)
   local fitIn = ENGINE_MARKS_FIT
-  local p, r, sc = o.getPosition(), o.getRotation(), o.getScale()
-  local a = math.rad(r.y or 0)
-  local ku, kv = fitIn.perLocal / (sc.x or 1), fitIn.perLocal / (sc.z or 1)
-  local half = fitIn.icon + fitIn.clear
+  local fonts, list = fitIn.fonts, parts
+  if #parts > fitIn.boxes then
+    list = {}
+    for i = 1, fitIn.boxes - 1 do list[i] = parts[i] end
+    list[fitIn.boxes] = "+" .. tostring(#parts - fitIn.boxes + 1) .. " MORE"
+  end
   local out = {}
-  for _, seat in pairs(CMD_DAMAGE) do
-    for _, guid in pairs(seat) do
-      local i = getObjectFromGUID(guid)
-      if i ~= nil then
-        local q = i.getPosition()
-        local dx, dz = (q.x or 0) - (p.x or 0), (q.z or 0) - (p.z or 0)
-        local s = sign * (-dx * math.cos(a) + dz * math.sin(a)) * ku
-        local v = (dx * math.sin(a) + dz * math.cos(a)) * kv
-        if v + half * kv > vTop and v - half * kv < vBot then out[#out + 1] = { lo = s - half * ku, hi = s + half * ku } end
-      end
+  for i, m in ipairs(list) do
+    local f = fonts[#fonts]
+    for _, try in ipairs(fonts) do
+      if engineMarksWidth(m, try) <= fitIn.max then f = try break end
     end
+    if engineMarksWidth(m, f) > fitIn.max then m = engineMarksCut(m, f) end
+    out[i] = { text = m, font = f, width = engineMarksWidth(m, f), height = math.floor(380 * f / 300 + 0.5) }
   end
   return out
-end
--- Where a label w wide and h high starts along its line (s, as engineMarksIcons): the free place nearest the centred one
--- (-w/2, and at most `inner` towards the middle), so a label that fits between the counter and its icons stays there
--- and a wider one starts just past them; on a tie, the one further out
-function engineMarksStart(o, sign, w, h)
-  local fitIn = ENGINE_MARKS_FIT
-  local bottom = fitIn.z * fitIn.perLocal + 190
-  local icons = engineMarksIcons(o, sign, bottom - h, bottom)
-  local want = -math.min(w / 2, fitIn.inner)
-  local tries = { want }
-  for _, b in ipairs(icons) do
-    tries[#tries + 1] = b.lo - w
-    tries[#tries + 1] = b.hi
-  end
-  local best
-  for _, s in ipairs(tries) do
-    -- (touching is free: b.lo - w + w can come back a hair over b.lo)
-    local free = s >= -fitIn.inner - 0.001
-    for _, b in ipairs(icons) do if s < b.hi - 0.001 and s + w > b.lo + 0.001 then free = false end end
-    if free and (best == nil or math.abs(s - want) < math.abs(best - want) or (math.abs(s - want) == math.abs(best - want) and s > best)) then best = s end
-  end
-  return best or want
 end
 -- Which way along a tracker's label is away from the middle of the table, in button x: +1, -1, or 0 for a tracker on
 -- the middle line. TTS draws a button's +x on its reader's right (the tracker's own "+20" is at +x and shows on its
@@ -1032,33 +958,35 @@ function enginePlayerCounters(o, pl)
   if type(pl.allMarks) == "table" then
     for _, m in ipairs(pl.allMarks) do parts[#parts + 1] = tostring(m) end
   end
-  local fit = #parts > 0 and engineMarksLayout(parts) or { text = "" }
-  local label = fit.text
-  local at
-  for i, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then at = i - 1 end end
+  local boxes = engineMarksBoxes(parts)
+  local texts = {}
+  for i, b in ipairs(boxes) do texts[i] = b.text end
+  local label = table.concat(texts, "\n")
+  local at = {}
+  for i, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then at[#at + 1] = i - 1 end end
   -- (unchanged and still there: the tracker's own onload clears its buttons, stage 3 review 2026-10-27)
-  if engineCountersShown[o.getGUID()] == label and (at ~= nil) == (label ~= "") then return end
+  if engineCountersShown[o.getGUID()] == label and #at == #boxes then return end
   engineCountersShown[o.getGUID()] = label
-  if label == "" then
-    if at ~= nil then o.removeButton(at) end
-    return
-  end
-  -- (the inner edge kept off the next seat's half and off the icons: engineMarksStart; a second line grows away from the
-  -- mat, the bottom edge staying where a one-line label's is)
+  -- (boxes no longer needed go, from the last down as a removal moves the ones after it; the rest are edited in place)
+  for i = #at, #boxes + 1, -1 do o.removeButton(at[i]) end
+  -- (down the mat's inner corner under the heart: each box's inner edge `inner` towards the middle, the first box's top
+  -- edge at `top`, the next `gap` under it; ENGINE_MARKS_FIT)
   local fitIn = ENGINE_MARKS_FIT
   local sign = engineMarksOutward(o)
   if sign == 0 then sign = 1 end
-  local centre = engineMarksStart(o, sign, fit.width, fit.height) + fit.width / 2
-  local x = centre ~= 0 and sign * centre / fitIn.perLocal or 0
-  local look = { label = label, width = fit.width, height = fit.height, font_size = fit.font,
-    position = { x, 0.05, fitIn.z + (380 - fit.height) / 2 / fitIn.perLocal } }
-  if at ~= nil then
-    look.index = at
-    o.editButton(look)
-  else
-    look.click_function, look.function_owner, look.rotation, look.tooltip = "engineNoop", Global, { 0, 0, 0 }, ENGINE_COUNTERS_TIP
-    look.color, look.font_color = { 0.04, 0.2, 0.05, 0.92 }, { 0.45, 1, 0.45 }
-    o.createButton(look)
+  local top = fitIn.top
+  for i, b in ipairs(boxes) do
+    local look = { label = b.text, width = b.width, height = b.height, font_size = b.font,
+      position = { sign * (b.width / 2 - fitIn.inner) / fitIn.perLocal, 0.05, top + b.height / 2 / fitIn.perLocal } }
+    top = top + (b.height + fitIn.gap) / fitIn.perLocal
+    if at[i] ~= nil then
+      look.index = at[i]
+      o.editButton(look)
+    else
+      look.click_function, look.function_owner, look.rotation, look.tooltip = "engineNoop", Global, { 0, 0, 0 }, ENGINE_COUNTERS_TIP
+      look.color, look.font_color = { 0.04, 0.2, 0.05, 0.92 }, { 0.45, 1, 0.45 }
+      o.createButton(look)
+    end
   end
 end
 -- The extra turns a player has coming (the bridge's extraTurns, Forge's extra turn count) as a number beside the life
