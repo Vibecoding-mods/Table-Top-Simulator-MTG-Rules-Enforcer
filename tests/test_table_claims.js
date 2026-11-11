@@ -995,13 +995,62 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     q('onMtgAbPanel(Player.Blue, nil, "eng_abp_Blue_1") __sim.frames(30) return "clicked"', "panel click")]);
   const sent = (m) => fxOf(r, m).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
   const [active, first, second] = String(valueOf(r, "hover")).split("|");
-  ok("ability panel: pointing at your card shows its ability", active === "true" && first.includes("Scry 1") && second === "false", String(valueOf(r, "hover")) + " " + r.errors.join(" | "));
+  // (since batch B the card's own text shows too: Sol Ring's mana ability, greyed, after the one offered)
+  ok("ability panel: pointing at your card shows its ability", active === "true" && first.includes("Scry 1") && second === "true", String(valueOf(r, "hover")) + " " + r.errors.join(" | "));
   ok("hover: the table's own handler still runs (hoveredObjs, for mtg commander and the hover hotkeys)", String(valueOf(r, "table hover")) === "true", String(valueOf(r, "table hover")));
   ok("ability panel: a right-click on the card's button does nothing", !sent("right click").includes("prompt-action-0"), sent("right click").slice(0, 200));
   ok("ability panel: another player's click does nothing", !sent("white click").includes("prompt-action-0"), sent("white click").slice(0, 200));
   const menus = fxOf(r, "asked").filter((l) => l.includes("menu+")).join(" ");
   ok("card menu: the ability without the card's name in front", menus.includes('"{2}: Scry 1."') && !menus.includes("Activate Thing"), menus.slice(0, 300));
   ok("ability panel: clicking it uses the ability", sent("panel click").includes('"choice":["prompt-action-0"]'), sent("panel click").slice(0, 200));
+}
+// The ability panel mimics the engine (batch B, docs/engine-ui-spec.md 5): every option for the card you point at and
+// every activated ability in its text, the offered ones bright, the rest greyed with the reason; 6 lines a page, More
+// turns it; a click on page 2 uses that line's ability; X shuts it; the panel is as tall as its lines.
+{
+  const more = s1.slice(40, 44).filter((m) => m.t !== "prompt").map((m) => ({ msg: { t: m.t, json: m.json } }));
+  const objOf = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-1" then o = x end end ';
+  // the card's text and state on the board (the fixture's Sol Ring), and the panel to be drawn afresh
+  const setCard = (fields, mark) => q(`local t = engineTable() for _, pl in ipairs(t.players) do for _, c in ipairs(pl.battlefield or {}) do if c.id == "engine-card-1" then ${fields} end end end engineAbPanelFor.Blue = nil`, mark);
+  const rowsOf = (hover, mark) => q((hover ? objOf + 'onObjectHover("Blue", o) ' : "") + 'local a = function(id, k) return tostring(UI.getAttribute(id, k)) end local out = { a("eng_abp_Blue", "active"), a("eng_abpg_Blue", "active"), a("eng_abpg_Blue", "text"), a("eng_abp_Blue", "height") } for k = 1, 6 do out[#out + 1] = a("eng_abp_Blue_" .. k, "active") .. "~" .. a("eng_abp_Blue_" .. k, "text") .. "~" .. a("eng_abp_Blue_" .. k, "textColor") end return table.concat(out, "|")', mark);
+  const nine = Array.from({ length: 9 }, (_, i) => `{${i + 1}}: Scry ${i + 1}.`).join("\\n");
+  const opts = Array.from({ length: 9 }, (_, i) => ({ id: `prompt-action-${i}`, cardId: "engine-card-1", label: `Activate Sol Ring: {${i + 1}}: Scry ${i + 1}.` }));
+  const r = run([...more, { frames: 30 }, ask({ promptId: 990, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, ...opts] }), { frames: 30 },
+    setCard(`c.tx = "${nine}"`, "nine"), rowsOf(true, "page 1"),
+    q('onMtgAbPanel(Player.Blue, nil, "eng_abpg_Blue")', "more"), rowsOf(false, "page 2"),
+    q('onMtgAbPanel(Player.Blue, nil, "eng_abpx_Blue") return tostring(UI.getAttribute("eng_abp_Blue", "active"))', "x"),
+    q(objOf + 'engineAbPanelFor.Blue = nil onObjectHover("Blue", o) onMtgAbPanel(Player.Blue, nil, "eng_abpg_Blue") onMtgAbPanel(Player.Blue, nil, "eng_abp_Blue_2") __sim.frames(30) return "clicked"', "page 2 click")]);
+  const row = (m, k) => (String(valueOf(r, m)).split("|")[3 + k] || "").split("~");
+  const head = (m) => String(valueOf(r, m)).split("|");
+  const white = (c) => /^#F[EF]F[EF]F[EF]$/i.test(c);
+  ok("ability panel+: no errors", r.errors.length === 0, r.errors.join(" | "));
+  ok("ability panel+: nine abilities show six and More", head("page 1")[0] === "true" && head("page 1")[1] === "true" && head("page 1")[2] === "More... (1-6 of 9)" && [1, 2, 3, 4, 5, 6].every((k) => row("page 1", k)[0] === "true"), String(valueOf(r, "page 1")));
+  ok("ability panel+: a line is its cost in gold, then the effect, white", row("page 1", 1)[1].includes('<color=#FFD27A>{1}:</color>') && row("page 1", 1)[1].includes("Scry 1.") && white(row("page 1", 1)[2]), row("page 1", 1).join("~"));
+  ok("ability panel+: as tall as its lines (6 and More)", head("page 1")[3] === String(44 + 6 * 44 + 34), head("page 1")[3]);
+  ok("ability panel+: More shows the last three, the rest hidden", head("page 2")[2] === "More... (7-9 of 9)" && row("page 2", 1)[1].includes("Scry 7.") && row("page 2", 3)[1].includes("Scry 9.") && [4, 5, 6].every((k) => row("page 2", k)[0] === "false") && head("page 2")[3] === String(44 + 3 * 44 + 34), String(valueOf(r, "page 2")));
+  ok("ability panel+: X shuts it", valueOf(r, "x") === "false", String(valueOf(r, "x")));
+  const sent = fxOf(r, "page 2 click").filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  ok("ability panel+: a click on page 2 uses that ability", sent.includes('"choice":["prompt-action-7"]'), sent.slice(0, 200));
+
+  // greyed lines and their reasons: tapped, summoning sickness, a minus loyalty ability it can't pay, no priority
+  const r2 = run([...more, { frames: 30 }, ask({ promptId: 991, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "prompt-action-0", cardId: "engine-card-1", label: "Activate Sol Ring: {2}: Scry 1." }] }), { frames: 30 },
+    setCard('c.tx = "{T}: Draw a card.\\n{2}: Scry 1." c.tap = true', "tap it"), rowsOf(true, "tapped"), q('return __sim.drawn("eng_abp_Blue_1")', "grey drawn"),
+    setCard('c.tap = false c.sick = true c.ty = { "Creature" }', "set sick"), rowsOf(true, "sick"),
+    setCard('c.sick = false c.ty = { "Planeswalker" } c.ctr = { LOYALTY = 2 } c.tx = "+1: Scry 1.\\n\\226\\136\\1463: Destroy target creature." t.active = "Blue" t.step = "main1" t.stack = {}', "set walker"), rowsOf(true, "walker"),
+    ask({ promptId: null }), { frames: 10 },
+    setCard('c.ty = { "Artifact" } c.ctr = nil c.tx = "{T}: Draw a card." t.priority = "White"', "set no prio"), rowsOf(true, "no prio"),
+    q('onMtgAbPanel(Player.Blue, nil, "eng_abp_Blue_1")', "grey click")]);
+  const row2 = (m, k) => (String(valueOf(r2, m)).split("|")[3 + k] || "").split("~");
+  const muted = (c) => /^#8C919[89]$/i.test(c);
+  ok("ability panel+: greyed: no errors", r2.errors.length === 0, r2.errors.join(" | "));
+  ok("ability panel+: a tapped card's {T} ability is greyed: Tapped", row2("tapped", 1)[0] === "true" && row2("tapped", 1)[1].includes("Tapped") && muted(row2("tapped", 1)[2]), row2("tapped", 1).join("~"));
+  ok("ability panel+: the offered ability beside it is bright", row2("tapped", 2)[1].includes("Scry 1.") && white(row2("tapped", 2)[2]) && row2("tapped", 3)[0] === "false", String(valueOf(r2, "tapped")));
+  ok("ability panel+: a greyed line is drawn grey on dark, not TTS's dark label", /^#1C1C1C\|#8C919[89]$/i.test(String(valueOf(r2, "grey drawn"))), String(valueOf(r2, "grey drawn")));
+  ok("ability panel+: a creature that just came: Summoning sickness", row2("sick", 1)[1].includes("Summoning sickness"), row2("sick", 1).join("~"));
+  ok("ability panel+: a minus ability it can't pay: Needs 3 loyalty (has 2)", row2("walker", 2)[1].includes("Needs 3 loyalty (has 2)") && row2("walker", 1)[1].includes("Loyalty: once each turn"), String(valueOf(r2, "walker")));
+  ok("ability panel+: with no question for you: Not your priority (waiting for ...)", row2("no prio", 1)[1].includes("Not your priority (waiting for "), row2("no prio", 1).join("~"));
+  const told = fxOf(r2, "grey click").join(" ").split("\\").join("");
+  ok("ability panel+: a click on a greyed line says why, uses nothing", told.includes("Not your priority") && !told.includes('"choice"'), told.slice(0, 300));
 }
 // a card whose object arrives after the question that names it glows too (the legend rule's token didn't, hp-07)
 {

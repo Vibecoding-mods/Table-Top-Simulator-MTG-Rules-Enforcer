@@ -170,7 +170,7 @@ and every activated ability its text has, even when it can't be used now:
 | Needs N loyalty (has L) | a minus ability the card can't pay |
 | Loyalty: once each turn | a loyalty ability at the right time but not offered (one was used) |
 | Only as a sorcery | the text says so and it isn't your main phase with an empty stack |
-| Used while paying a cost (tap with Q/E) | a land's mana ability |
+| Used while paying a cost (tap it with Q/E) | a mana ability not offered (Forge offers them while a cost is paid, not at priority); these lines go last |
 | Can't be used now (its cost or a rule) | anything else |
 
 A click on a greyed line says its reason in your chat. The bridge's own `whyNot` is still what the card's drag or
@@ -181,8 +181,15 @@ at least one option; hand cards with two or more ways to play them (a modal doub
 Lands whose only abilities are mana abilities don't open it. It stays until you point at another such card, close it
 (X), or the card leaves you. It follows the board: new questions and taps redraw it.
 
-**No cap.** 6 lines a page; a seventh button "More (1-6 of 9)" turns the page. The panel's height fits its lines
-(an ability list of one was a tall black box with one button).
+**No cap.** 6 lines a page; a seventh button "More... (1-6 of 9)" (`eng_abpg_<C>`) turns the page; a card pointed
+at afresh starts on page 1. The panel's height fits its lines, 44 + 44 a line + 34 with More (an ability list of one
+was a tall black box with one button). The X is `eng_abpx_<C>`.
+
+**Code.** `engineAbList` (the lines), `engineAbWhy` (the reasons), `engineTextAbilities` / `engineTextAbility` /
+`engineLoyaltyCost` (the card's text, plain finds), `engineAbPanelRows` (whether it opens), `engineAbRowLabel` (rich
+text), `engineAbPanelShow` / `engineAbPanelHide` / `onMtgAbPanel`; `engineAbShown` holds what a click reads,
+`engineAbPage` the page. Redrawn by `engineAbilityBoxes` (each question) and at the end of `engineUpdateCorner` (each
+board).
 
 **Look.** Window colour, the card's name in gold with a close X. Each line is one button, left-aligned: the cost in
 gold bold, then the effect, white on #262626. A greyed line is #8C9199 on #1C1C1C with its reason in italics.
