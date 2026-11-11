@@ -8,7 +8,23 @@
 //   attempts()   what was refused so far: [{ port, host, from }]
 //   block(port)  refuse one more port too (the harness's decoy TTS ports; the guard's self-test uses a spare port)
 //   forget(port, from) drop that port's attempts from index `from` on (only a check that made them on purpose)
+// The live game's log files too (2026-11-11: a harness bridge driven after restore() put "[MTG] The host switched debug
+// tools on" into the real tmp/table-log.log, where the playgroup's games are kept): a write or append to one of
+// LIVE_FILES is dropped (the callback still gets no error) and recorded, and at exit it prints FAIL the same way.
+//   fileAttempts()   the dropped writes so far: [{ file, from }]
 const net = require("net");
+const fs = require("fs");
+const path = require("path");
+
+const REPO = path.join(__dirname, "..");
+const LIVE_FILES = Object.freeze(["tmp/table-log.log", "tmp/table-check.log", "tmp/guess-log.log", "tmp/bridge-game.json",
+  "bridge/game-log.txt", "bridge/tts-console.log"].map((f) => path.resolve(REPO, f)));
+const liveFile = (f) => {
+  if (typeof f !== "string" && !(f instanceof URL)) return false; // (a file descriptor: not opened by name here)
+  const p = path.resolve(f instanceof URL ? require("url").fileURLToPath(f) : f).toLowerCase();
+  return LIVE_FILES.some((l) => l.toLowerCase() === p);
+};
+const wrote = [];
 
 const LIVE_PORTS = Object.freeze([39999, 39998, 48787, 9443]);
 const refused = new Set(LIVE_PORTS);
@@ -36,9 +52,27 @@ if (!net.Socket.prototype.connect[KEY]) {
   };
   guarded[KEY] = true;
   net.Socket.prototype.connect = guarded;
+  const stackFrom = () => (new Error().stack || "").split("\n").slice(3).filter((l) => !/node:|no-live-ports/.test(l)).slice(0, 4).map((l) => l.trim()).join(" | ");
+  for (const name of ["appendFile", "writeFile"]) {
+    const real = fs[name];
+    fs[name] = function guardedWrite(file, data, ...rest) {
+      if (!liveFile(file)) return real.call(this, file, data, ...rest);
+      wrote.push({ file: path.relative(REPO, path.resolve(String(file))), from: stackFrom() });
+      const cb = rest.find((a) => typeof a === "function");
+      if (cb) process.nextTick(cb, null);
+    };
+  }
+  for (const name of ["appendFileSync", "writeFileSync"]) {
+    const real = fs[name];
+    fs[name] = function guardedWriteSync(file, data, ...rest) {
+      if (!liveFile(file)) return real.call(this, file, data, ...rest);
+      wrote.push({ file: path.relative(REPO, path.resolve(String(file))), from: stackFrom() });
+    };
+  }
   process.on("exit", () => {
-    if (!tried.length) return;
+    if (!tried.length && !wrote.length) return;
     for (const t of tried) process.stdout.write(`FAIL a test tried to reach the live table on ${t.host}:${t.port} (refused): ${t.from}\n`);
+    for (const w of wrote) process.stdout.write(`FAIL a test tried to write the live game's ${w.file} (dropped): ${w.from}\n`);
     process.exitCode = 1;
   });
 }
@@ -46,6 +80,9 @@ if (!net.Socket.prototype.connect[KEY]) {
 module.exports = {
   LIVE_PORTS,
   attempts: () => tried.slice(),
+  LIVE_FILES,
+  fileAttempts: () => wrote.slice(),
+  forgetFiles: (from = 0) => { wrote.splice(from); },
   block: (port) => { refused.add(Number(port)); },
   unblock: (port) => { if (!LIVE_PORTS.includes(Number(port))) refused.delete(Number(port)); },
   forget: (port, from = 0) => { for (let i = tried.length - 1; i >= from; i--) if (tried[i].port === Number(port)) tried.splice(i, 1); },

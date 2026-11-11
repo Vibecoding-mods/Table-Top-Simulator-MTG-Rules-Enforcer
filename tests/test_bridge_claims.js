@@ -2900,6 +2900,25 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("live ports guard: nothing reached the listener", accepted === 0, `${accepted} accepted`);
     ok("live ports guard: each try is recorded with its port", seen.length === 3 && seen.every((t) => t.port === spare), JSON.stringify(seen));
     ok("live ports guard: the live ports are always refused", [39999, 39998, 48787, 9443].every((p) => guard.LIVE_PORTS.includes(p)) && harness.DECOY_PORT !== 39999);
+    // the live game's logs: an append (callback and sync, by a / or \ path in any case) is dropped and recorded; the file
+    // is left byte for byte; another file is written as normal. (No writeFile here: with the guard broken it would
+    // empty the real file. The game log's append is of "", harmless either way)
+    const fs = require("fs"), path = require("path"), os = require("os");
+    const live = path.join(__dirname, "..", "tmp", "table-log.log");
+    const size = () => { try { return fs.statSync(live).size; } catch { return -1; } };
+    const s0 = size(), w0 = guard.fileAttempts().length;
+    const cbErr = await new Promise((r) => fs.appendFile(live, "guard self-check\n", (e) => r(e)));
+    fs.appendFileSync(live.replace(/\\/g, "/").toUpperCase(), "guard self-check\n");
+    await new Promise((r) => fs.appendFile(path.join(__dirname, "..", "bridge", "game-log.txt"), "", r));
+    const other = path.join(os.tmpdir(), `mtg-guard-other-${process.pid}.txt`);
+    fs.appendFileSync(other, "kept");
+    const otherKept = fs.readFileSync(other, "utf8") === "kept";
+    fs.unlinkSync(other);
+    const wrote = guard.fileAttempts().slice(w0);
+    guard.forgetFiles(w0);
+    ok("live files guard: the appends are dropped, the callback gets no error", cbErr === null && size() === s0, `${s0} -> ${size()}, ${cbErr}`);
+    ok("live files guard: each is recorded with its file", JSON.stringify(wrote.map((w) => w.file.replace(/\\/g, "/").toLowerCase())) === JSON.stringify(["tmp/table-log.log", "tmp/table-log.log", "bridge/game-log.txt"]), JSON.stringify(wrote));
+    ok("live files guard: any other file is written as normal", otherKept);
   }
   // the attack question's reminders (attackReminder, docs/attack-reminder-spec.md part 2; the user 2026-11-10: "if there's
   // a pay to attack or multiple creatures can't attack, a prompt should pop up to remind players") and whom each attacker
