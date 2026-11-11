@@ -5689,7 +5689,7 @@ function engineSetupIntact()
   local want = SETUP.drawn.tile
   local have = tile ~= nil and (tile.getButtons() or {})[1] or nil
   if (want == nil) ~= (have == nil) or (have ~= nil and have.label ~= want) then return false end
-  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < 1 + #FRIENDLY_SPOTS then return false end
+  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < 2 then return false end
   for c in pairs(SETUP.drawn.mats) do
     local mat = data[c] and data[c].playmat
     local any = false
@@ -5704,17 +5704,22 @@ local function seatedSetupColors()
   return out
 end
 
--- one button on `obj` at world position `at`, readable from the seat `facing` (nil: as the object lies)
-local function setupButton(obj, click, label, color, at, facing, width)
+-- one button on `obj` at world position `at`, readable from the seat `facing` (nil: as the object lies). tileTurn:
+-- the button is on the middle tile, where real TTS draws a button's x mirrored and turned half a turn (2026-11-10: a
+-- button meant at x -48 showed at x +48, upside down from White), so x is negated and tileTurn is its rotation there
+-- (180 reads from the White/Red side, 90 is that turned a quarter left, seen from White)
+local function setupButton(obj, click, label, color, at, facing, width, height, tileTurn)
   local s = obj.getScale()
-  local rotY = 0
+  local rotY = tileTurn or 0
   if facing ~= nil then
     local hand = Player[facing].getHandTransform()
     rotY = ((hand and hand.rotation.y or 0) + 180) - obj.getRotation().y
   end
-  obj.createButton({ click_function = click, function_owner = Global, label = label, position = obj.positionToLocal(at),
+  local pos = obj.positionToLocal(at)
+  if tileTurn ~= nil then pos.x = -pos.x end
+  obj.createButton({ click_function = click, function_owner = Global, label = label, position = pos,
     -- (the playmats are stretched objects: the scale undoes that, then makes the button readable from a seat)
-    rotation = { 0, rotY, 0 }, scale = { SETUP.size / s.x, 1 / s.y, SETUP.size / s.z }, width = width or 1300, height = 420, font_size = 220,
+    rotation = { 0, rotY, 0 }, scale = { SETUP.size / s.x, 1 / s.y, SETUP.size / s.z }, width = width or 1300, height = height or 420, font_size = 220,
     color = color, font_color = { 1, 1, 1 }, tooltip = "" })
 end
 
@@ -5812,9 +5817,7 @@ function engineSetupButtons()
     -- (after the middle button: engineSetupIntact reads the tile's first button)
     if not running and not over then
       SETUP.drawn.friendly = true
-      for _, f in ipairs(FRIENDLY_SPOTS) do
-        setupButton(tile, "onMtgSetupFriendly", engineFriendlyLabel(), SETUP.color.wait, Vector(f.x, 1.1, 0), f.facing, 2100)
-      end
+      setupButton(tile, "onMtgSetupFriendly", engineFriendlyLabel(), SETUP.color.wait, FRIENDLY_SPOT, nil, 1250, 700, 90)
     end
   end
   engineScoopRedraw()
@@ -5873,12 +5876,14 @@ end
 
 -- Friendly mulligans: ONE count for the whole table (none, 1, 2, none...), the free mulligans each player has in
 -- all, the rules' multiplayer free one included (2026-11-10: "one button be the answer for everyone and anyone can
--- click it"). The button lies where the "Screen bar keys" boxes were (FRIENDLY_SPOTS; they are hidden in engine mode).
--- Start sends it. A rematch keeps it; a table reload clears it.
+-- click it"; "have it be one button"). One button, on the rim where the Pirate Cannon (540e21) sits outside engine
+-- mode (it's hidden in engine mode, the only time this button shows), turned a quarter left from White ("turn it 90
+-- left away from the camera, have it sit where the cannon would be"). Start sends the count. A rematch keeps it; a
+-- table reload clears it.
 engineFriendly = 0
-FRIENDLY_SPOTS = { { x = 17.5, facing = "White" }, { x = -17.5, facing = "Yellow" } }
+FRIENDLY_SPOT = Vector(-60, 1.1, 0) -- (the cannon's saved home, its memo "mtghome -60.000 0.732 0.000")
 function engineFriendlyLabel()
-  return "Free mulligans: " .. (engineFriendly == 0 and "normal" or string.format("%d", engineFriendly))
+  return "Free mulligans\n" .. (engineFriendly == 0 and "normal" or string.format("%d each", engineFriendly))
 end
 -- n: 0, 1 or 2; pl: who set it (everyone is told)
 function engineSetFriendly(n, pl)
