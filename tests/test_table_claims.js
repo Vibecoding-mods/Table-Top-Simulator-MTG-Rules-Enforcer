@@ -2243,5 +2243,85 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("zone lists: precondition, both lists found", !!keys && !!lists, `${keys} / ${lists}`);
   ok("zone lists: the table's mergeStatic fills in exactly the bridge's ZONE_KEYS", names(keys) === names(lists), `bridge ${names(keys)} / table ${names(lists)}`);
 }
+// Planeswalkers by click (item 24, 2026-11-11): a planeswalker on the battlefield is a card target like a creature
+// (Forge's chooseBoardTargets offers it as { kind: "card" }, players first for "any target"): offered, it is unlocked
+// even when it is the AI's, glows, and its click answers with its option; not offered, the click answers nothing and
+// says why. A question of players and planeswalkers only says to click either.
+{
+  const pw = "engine-card-9701", mine = "engine-card-9702";
+  // White's (the AI's) battlefield as the prefix left it, plus a planeswalker; Blue gets one too (its own, unlocked)
+  let whiteBf = [], blueList = [];
+  for (const m of s1.slice(0, 40)) if (m.t === "table") {
+    const j = JSON.parse(m.json);
+    const w = j.players.find((p) => p.color === "White"), b = j.players.find((p) => p.color === "Blue");
+    if (w && w.battlefield) whiteBf = w.battlefield;
+    if (b && b.battlefield) blueList = b.battlefield;
+  }
+  const last = JSON.parse([...s1.slice(0, 40)].reverse().find((m) => m.t === "table").json);
+  for (const pl of last.players) {
+    if (pl.color === "White") pl.battlefield = [...whiteBf, { s: 1, id: pw, ctl: "White", ctr: { LOYALTY: 4 } }];
+    if (pl.color === "Blue") pl.battlefield = [...blueList, { s: 1, id: mine, ctl: "Blue", ctr: { LOYALTY: 3 } }];
+    pl.keep = (pl.keep || []).filter((z) => z !== "battlefield");
+  }
+  last.cards = { ...(last.cards || {}), [pw]: { n: "Chandra, Torch of Defiance", tl: "Legendary Planeswalker — Chandra", cmc: 4, ty: ["Planeswalker"] },
+    [mine]: { n: "Teferi, Hero of Dominaria", tl: "Legendary Planeswalker — Teferi", cmc: 5, ty: ["Planeswalker"] } };
+  const board = { msg: { t: "table", json: JSON.stringify(last) }, frames: 30, mark: "board" };
+  const objOf = (id) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end`;
+  const click = (id, mark) => q(objOf(id) + ' onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) __sim.frames(30) return "clicked"', mark);
+  const look = (id, mark) => q(objOf(id) + ' if not o then return "none" end local h = o.__d.highlight '
+    + 'return tostring(o.getLock()) .. "|" .. tostring((engineGlowing.Blue or {})[o] == true) .. "|" .. (h and string.format("%.2f,%.2f,%.2f", h[1] or h.r, h[2] or h.g, h[3] or h.b) or "none")', mark);
+  const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest") && l.includes("answer")).join(" ").split("\\").join("");
+  const said = (r, mark) => fxOf(r, mark).filter((l) => l.includes("broadcastToColor")).join(" | ");
+  const hint = q('return tostring(UI.getValue("eng_hint_Blue"))', "hint");
+  // "any target" (Lightning Bolt): players first, then the cards, as Forge's choose_target_any sends them
+  const anyTarget = (pid) => ask({ promptId: pid, kind: "target", title: "Lightning Bolt: deal 3 damage to which target?", mode: "single",
+    options: [{ id: "player|player-0", label: "Blue" }, { id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" },
+      { id: `card|${mine}`, label: "Teferi, Hero of Dominaria" }, { id: `card|${blueList[0] && blueList[0].id}`, label: "a permanent" }] });
+  {
+    const r = run([board, look(pw, "before"), anyTarget(9701), look(pw, "offered"), hint, click(pw, "click")]);
+    ok("pw click: precondition: Blue has a permanent of its own to offer beside them", blueList.length > 0);
+    ok("pw click: precondition: the AI's planeswalker is on the table, locked",String(valueOf(r, "before")).startsWith("true|"), valueOf(r, "before") + " " + r.errors.join(" | "));
+    const [lock, glowing, rgb] = String(valueOf(r, "offered")).split("|");
+    ok("pw click: an offered planeswalker of the AI's is unlocked (TTS reports no click on a locked one)", lock === "false", valueOf(r, "offered"));
+    ok("pw click: it glows as a target, the colour of every target", glowing === "true" && rgb === "0.30,1.00,0.40", valueOf(r, "offered"));
+    ok("pw click: clicking it answers with its option", sent(r, "click").includes(`"choice":["card|${pw}"]`), sent(r, "click").slice(0, 300) + " " + said(r, "click"));
+    ok("pw click: a card target hint still says card or life counter", /Click a glowing card or a life counter\./.test(String(valueOf(r, "hint"))), valueOf(r, "hint"));
+  }
+  {
+    // the life counter still answers the same question with the player (the pattern the planeswalker follows)
+    const r = run([board, anyTarget(9702), q(`engineLifeTrackerClick({ guid = "23e485", color = "Blue" }) __sim.frames(30) return "life"`, "life")]);
+    ok("pw click: the same question's life counter answers with the player", sent(r, "life").includes('"choice":["player|player-1"]'), sent(r, "life").slice(0, 300));
+  }
+  {
+    // "target player or planeswalker" (Forge: players, then the planeswalkers): the hint names both
+    const r = run([board, ask({ promptId: 9703, kind: "target", title: "Chandra's Outrage: which player or planeswalker?", mode: "single",
+      options: [{ id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), hint, click(pw, "click")]);
+    ok("pw click: a player-or-planeswalker hint names both", /Click a player's life counter or a glowing planeswalker\./.test(String(valueOf(r, "hint"))), valueOf(r, "hint"));
+    ok("pw click: player-or-planeswalker: the planeswalker's click answers", sent(r, "click").includes(`"choice":["card|${pw}"]`), sent(r, "click").slice(0, 300));
+  }
+  {
+    // a question that doesn't offer it ("target player"): your own planeswalker's click answers nothing and says why;
+    // the AI's stays locked (TTS reports no click on it: nothing happens)
+    const r = run([board, ask({ promptId: 9704, kind: "target", title: "Mind Rot: which player discards?", mode: "single",
+      options: [{ id: "player|player-0", label: "Blue" }, { id: "player|player-1", label: "AI 1" }] }), look(pw, "not offered"), click(mine, "click")]);
+    ok("pw click: not offered, the AI's planeswalker stays locked and unlit", String(valueOf(r, "not offered")).startsWith("true|false|"), valueOf(r, "not offered"));
+    ok("pw click: not offered, its click answers nothing", !sent(r, "click").includes('"choice"'), sent(r, "click").slice(0, 300));
+    ok("pw click: not offered, its click says why: this asks for a player", /That planeswalker can't be chosen for this: it asks for a player\. Click a glowing life counter\./.test(said(r, "click")), said(r, "click"));
+  }
+  {
+    // the bridge's other shape: a choice of players and permanents that is no target (a token put onto the battlefield
+    // attacking chooses whom, bridge entityChoiceIds) comes as this same target question; the planeswalker answers it
+    const r = run([board, ask({ promptId: 9706, kind: "target", title: "Hero of Bladehold: attack which player or planeswalker?", mode: "multi", min: 1, max: 1,
+      options: [{ id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), look(pw, "offered"), click(pw, "click")]);
+    ok("pw click: a no-target choice of player or planeswalker: it glows", String(valueOf(r, "offered")).startsWith("false|true|"), valueOf(r, "offered"));
+    ok("pw click: a no-target choice of player or planeswalker: its click answers", sent(r, "click").includes(`"choice":["card|${pw}"]`), sent(r, "click").slice(0, 300));
+  }
+  {
+    // offered with other cards but not this one ("target creature or planeswalker an opponent controls"): it says so
+    const r = run([board, ask({ promptId: 9705, kind: "target", title: "Murder: destroy which creature or planeswalker?", mode: "single",
+      options: [{ id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), click(mine, "click")]);
+    ok("pw click: a planeswalker the question leaves out says it can't be chosen", /That planeswalker can't be chosen for this\. Click a glowing card/.test(said(r, "click")) && !sent(r, "click").includes('"choice"'), said(r, "click") + " " + sent(r, "click").slice(0, 200));
+  }
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);
