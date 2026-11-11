@@ -854,6 +854,98 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       harness.restore();
     }
   }
+  // sweep and live-check batch, checked 2026-11-10 (PLAN "Small sweep bugs" / "Live-check bugs"): the log fixes the
+  // events test pinned alone, pinned here too, and the two gaps left (a rewind's step, a clash's result)
+  {
+    const ZONES = ["library", "hand", "graveyard", "exile", "battlefield", "command"];
+    const blank = () => ({ turn: 3, step: "main1", activePlayerId: "player-0", priorityPlayerId: "player-0", stack: [],
+      zones: ["player-0", "player-1"].flatMap((ownerId) => ZONES.map((zone) => ({ zone, ownerId, cards: [], count: 0 }))) });
+    const board = (fill) => { const b = blank(); fill(b); return b; };
+    const zoneOf = (b, zone, ownerId) => b.zones.find((x) => x.zone === zone && x.ownerId === ownerId);
+    const put = (b, zone, c, ownerId = "player-0") => { const z = zoneOf(b, zone, ownerId); z.cards.push(c); z.count = z.cards.length; };
+    const counts = (b, hand, library, ownerId = "player-0") => { zoneOf(b, "hand", ownerId).count = hand; zoneOf(b, "library", ownerId).count = library; };
+    const card = (n, name, types, extra = {}) => ({ id: `engine-card-${n}`, identity: { name }, types, controllerId: "player-0", ...extra });
+    const ev = (seq, from, to, cardId, how, ownerId = "player-0", cause = {}) => ({ seq, ...(cardId ? { cardId } : {}), ...(from ? { from } : {}), to, ownerId, ...(how ? { how } : {}), ...cause });
+    // two boards and Forge's events between them, as updateLog feeds logEvents
+    const between = (before, after, events) => {
+      const h = harness.load();
+      setup(h, clone(F.board), { eventSeq: 10 });
+      const lines = h.B.logEvents(h.B.logSnapshot(before), h.B.logSnapshot(after), after, h.B.engineFacts(events));
+      harness.restore();
+      return lines;
+    };
+    const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+    // persist's -1/-1 counter on its return line (kw-10: "Kitchen Finks returns to the battlefield from White's graveyard
+    // (White)"; undying's line names its +1/+1)
+    const FINKS = card(1100, "Kitchen Finks", ["Creature"]);
+    same("sweep: persist's return names its -1/-1 counter",
+      between(board((b) => put(b, "graveyard", FINKS)), board((b) => put(b, "battlefield", { ...FINKS, counters: { M1M1: 1 } })), [ev(11, "Graveyard", "Battlefield", FINKS.id)]),
+      ["Kitchen Finks returns to the battlefield from Blue's graveyard with a -1/-1 counter (Blue)"]);
+    // the turn's header kept after the last turn's cleanup discard (live check 2026-11-07: "White discards Blasphemous
+    // Act", "", "AI 1 draws a card"), with and without an attack on the same board
+    const BEAR = card(1101, "Grizzly Bears", ["Creature"]);
+    const atk = card(1102, "Hill Giant", ["Creature"], { controllerId: "player-1" });
+    const nextTurn = (b, step) => Object.assign(b, { turn: 4, step, activePlayerId: "player-1", priorityPlayerId: "player-1" });
+    const cleanup = [ev(11, "Hand", "Graveyard", BEAR.id, "discard"), ev(12, "Library", "Hand", null, "draw", "player-1")];
+    same("live check: a cleanup discard on the next turn's board keeps that turn's header",
+      between(board((b) => { counts(b, 8, 50); counts(b, 3, 50, "player-1"); put(b, "hand", BEAR); }),
+        board((b) => { nextTurn(b, "draw"); counts(b, 7, 50); counts(b, 4, 49, "player-1"); put(b, "graveyard", BEAR); }), cleanup),
+      ["Blue discards Grizzly Bears", "--- AI 1's turn 1 ---", "AI 1 draws a card"]);
+    same("live check: a cleanup discard and an attack on the next turn's board keep the header and the attack",
+      between(board((b) => { counts(b, 8, 50); counts(b, 3, 50, "player-1"); put(b, "hand", BEAR); put(b, "battlefield", atk, "player-1"); }),
+        board((b) => { nextTurn(b, "declareAttackers"); counts(b, 7, 50); counts(b, 4, 49, "player-1"); put(b, "graveyard", BEAR); put(b, "battlefield", { ...atk, isAttacking: true, tapped: true }, "player-1"); }), cleanup),
+      ["Blue discards Grizzly Bears", "--- AI 1's turn 1 ---", "AI 1 attacks with Hill Giant", "AI 1 draws a card"]);
+    // forage's exile, its cost, before the draw it paid for, the card named once (live check 11: "White draws a card",
+    // then "Island, Island, Island are exiled from White's graveyard (to pay for Treetop Sentries) with Treetop Sentries").
+    // The cause is the harness's for a cost, "Cost:<part>", Forage's CostForage.
+    const SENTRIES = card(1103, "Treetop Sentries", ["Creature"]);
+    const ISLES = [1104, 1105, 1106].map((n) => card(n, "Island", ["Land"]));
+    const forage = { cause: "Cost:Forage", causeName: "Treetop Sentries", causeCardId: SENTRIES.id };
+    same("live check: forage's exile goes before its draw and names Treetop Sentries once",
+      between(board((b) => { counts(b, 3, 50); put(b, "battlefield", SENTRIES); for (const c of ISLES) put(b, "graveyard", c); }),
+        board((b) => { counts(b, 4, 49); put(b, "battlefield", SENTRIES); for (const c of ISLES) put(b, "exile", { ...c, exiledWith: SENTRIES.id }); }),
+        [...ISLES.map((c, k) => ev(11 + k, "Graveyard", "Exile", c.id, null, "player-0", forage)), ev(14, "Library", "Hand", null, "draw")]),
+      ["Island, Island, Island are exiled from Blue's graveyard (to pay for Treetop Sentries)", "Blue draws a card"]);
+    // a rewind to a step the list doesn't offer says it in the table's words: onRewind takes any checkpoint's id, and the
+    // chat read Forge's step name ("combatBegin"), the gap "Skip ended: combatBegin" had (live check 12)
+    {
+      const h = harness.load();
+      const b = clone(F.board);
+      Object.assign(b.gameView, { turn: 6, step: "main2", activePlayerId: "player-0", priorityPlayerId: "player-0", stack: [], checkpoints: [{ checkpointId: 40, turn: 6, step: "main1", activePlayerId: "player-0" }] });
+      const seat = setup(h, b);
+      seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(b), fingerprint: "r1" }); await h.flush();
+      const back = clone(b);
+      Object.assign(back.gameView, { turn: 5, step: "combatBegin", activePlayerId: "player-1", priorityPlayerId: "player-1", checkpoints: [{ checkpointId: 30, turn: 5, step: "combatBegin", activePlayerId: "player-1" }] });
+      const from = h.effects.length;
+      seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: back, fingerprint: "r2" }); await h.flush();
+      const said = h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text).filter((t) => /Rewound/.test(t));
+      const logLines = h.effects.slice(from).filter((e) => e.tts && e.tts.t === "gamelog").flatMap((e) => e.tts.lines || []).filter((l) => /Rewound/.test(l));
+      ok("rewind: a step outside the list is said in the table's words in the chat", JSON.stringify(said) === JSON.stringify(["[MTG] Rewound to turn 5 (beginning of combat)."]), JSON.stringify(said));
+      ok("rewind: and in the log's line", JSON.stringify(logLines) === JSON.stringify(["--- Rewound to AI 1's turn (beginning of combat) ---"]), JSON.stringify(logLines));
+      harness.restore();
+    }
+    // a clash's cards and winner in the game log, once for the table (kw-07: no line named them). Forge's own words,
+    // ClashEffect: "<player> reveals: <card>. Mana Value= <n>" a line each (lblReveals, lblCMC), then "<player> wins
+    // clash." (lblWinsClash) or "No Winner!" (lblNoWinner); players by their engine names.
+    {
+      const h = harness.load();
+      const seat = setup(h, clone(F.board));
+      const white = new h.B.Seat("White", "neheb_minotaur_commander");
+      white.slot = "player-1"; white.board = { state: clone(F.board), fingerprint: null };
+      h.B._getGame().seats.set("White", white);
+      const clash = (s, n, title) => { h.B.onPrompt(s, { promptId: n, decidingPlayerId: s.slot, sourceCard: { id: "engine-card-1107", identity: { name: "Lash Out" } },
+        input: { type: "revealCards", zone: "library", ownerPlayerId: "player-0", cards: [card(1108, "Craw Wurm", ["Creature"])], presentation: { title } } }); return h.flush(); };
+      const won = "tts-Blue-ab12 reveals: Craw Wurm. Mana Value= 6\nself-hosted-node-77-bot reveals: Forest. Mana Value= 0\ntts-Blue-ab12 wins clash.";
+      await clash(seat, 910, won);
+      await clash(white, 911, won);
+      const logged = () => h.effects.filter((e) => e.tts && e.tts.t === "gamelog").flatMap((e) => e.tts.lines || []).filter((l) => /^Clash/.test(l));
+      ok("clash: the cards and the winner are logged, once for two seats", JSON.stringify(logged()) === JSON.stringify(["Clash (Lash Out): Blue reveals Craw Wurm (mana value 6), AI 1 reveals Forest (mana value 0). Blue wins."]), JSON.stringify(logged()));
+      ok("clash: the question still says it to the player as \"You\"", seat.prompt?.ui?.text === "You: Craw Wurm (6), AI 1: Forest (0). You win.", seat.prompt?.ui?.text);
+      await clash(seat, 912, "tts-Blue-ab12 reveals: Island. Mana Value= 0\nself-hosted-node-77-bot reveals: Forest. Mana Value= 0\nNo Winner!");
+      ok("clash: a tie says nobody wins", logged()[1] === "Clash (Lash Out): Blue reveals Island (mana value 0), AI 1 reveals Forest (mana value 0). Nobody wins.", JSON.stringify(logged()));
+      harness.restore();
+    }
+  }
   // Kykar UI batch 2026-11-07 (docs/HAND-TEST-KYKAR.md; the engine's words from the ability probe, Kykar probe 2026-11-07)
   {
     const chats = (h, from = 0) => h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text);

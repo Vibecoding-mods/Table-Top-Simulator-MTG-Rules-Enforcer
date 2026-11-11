@@ -196390,6 +196390,14 @@
    },
    {
     "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Clash (Pestilence): Blue reveals Island (mana value 0), AI 1 reveals Vraska's Fall (mana value 4). AI 1 wins."
+     ]
+    }
+   },
+   {
+    "tts": {
      "t": "prompt",
      "color": "Blue",
      "promptId": 900,
@@ -197441,6 +197449,14 @@
       {
        "name": "Vraska's Fall"
       }
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Clash (Pestilence): Blue reveals Island (mana value 0), AI 1 reveals Island (mana value 0). Nobody wins."
      ]
     }
    },
@@ -211378,6 +211394,14 @@
       {
        "name": "Vraska's Fall"
       }
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Clash (Pestilence): Blue reveals Island (mana value 3), AI 1 reveals Island (mana value 0). Blue wins."
      ]
     }
    },
