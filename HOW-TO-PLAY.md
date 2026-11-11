@@ -74,7 +74,8 @@ To shut down: **Stop MTG.bat** in the same folder.
 - **Equip:** drag the equipment onto your creature (or use its Equip button). It works when equipping is legal (your
   main phase, empty stack, mana available); otherwise the table says why.
 - **Copies:** a permanent that copies another (Phantasmal Image as your commander) has a purple **COPY** label.
-- **Draws and mills wait for you:** click your library (or the table's Draw button) to take the card.
+- **Draws and mills wait for you:** click your library (or the table's Draw button) to take the card. With **Auto**
+  on (the default) a draw goes by itself after 2 s and a milled card flies straight to your graveyard.
 - **Cards you may play from exile or your graveyard** (flashback, foretell, Tibalt, adventure...) sit in a glowing
   row on the near strip of your own mat (below your lands); private ones (foretold) are in the small second hand zone. Drag one onto the battlefield to
   play it.
