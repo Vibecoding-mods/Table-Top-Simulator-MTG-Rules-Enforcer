@@ -759,18 +759,84 @@ for (const kind of ["Land", "Creature"]) {
   ok("rewind go: pressing it sends rewindGo", fxOf(r, "press").join(" ").split("\\").join("").includes("rewindGo"), fxOf(r, "press").join(" ").slice(0, 200));
   ok("rewind go: hidden while a vote is still open", valueOf(r, "waiting") === "false", String(valueOf(r, "waiting")));
 }
-// TTS's own rewind arrows and spare tools are covered while a game runs, under the table's buttons, for those whose bars they fit
+// The "floating black boxes" (2026-11-09): the covers over TTS's tool bars, measured on one screen, floated on others.
+// None in the screen UI, and nothing sets one. The log panel is no empty black box either: hidden until the first line.
 {
-  const cover = (mark) => q('return tostring(UI.getAttribute("eng_cover_1", "active")) .. tostring(UI.getAttribute("eng_cover_2", "active")) .. tostring(UI.getAttribute("eng_cover_3", "active"))', mark);
-  const r = run([q('engineScoopRedraw()', "draw"), cover("running"), q('engineTable().gameOver = true engineScoopRedraw()', "end it"), cover("over"),
-    q('engineTable().gameOver = false engineScoopRedraw()', "restart"), cover("again"), q('return tostring(engineToolCoverXml():find("^<Panel id=\\"eng_cover_1\\" visibility=\\"Admin\\"") ~= nil)', "xml")]);
-  ok("covers: on while a game runs", valueOf(r, "running") === "truetruetrue", String(valueOf(r, "running")) + " " + r.errors.join(" | "));
-  ok("covers: off when it ends", valueOf(r, "over") === "falsefalsefalse", String(valueOf(r, "over")));
-  ok("covers: back on with a game", valueOf(r, "again") === "truetruetrue", String(valueOf(r, "again")));
-  ok("covers: for the host and promoted players only", valueOf(r, "xml") === "true", String(valueOf(r, "xml")));
-  // TTS scales the top bar from the screen's centre, so the arrows' cover has to hang from there (1920x1009 left the forward arrow bare)
-  const a = run([q('return tostring(engineToolCoverXml():find(\'id="eng_cover_3" visibility="Admin" width="136" height="66" rectAlignment="UpperCenter" offsetXY="-505 -1"\', 1, true) ~= nil)', "arrows xml")]);
-  ok("covers: the arrows' cover is anchored to the screen's centre", valueOf(a, "arrows xml") === "true", String(valueOf(a, "arrows xml")) + " " + a.errors.join(" | "));
+  const r = run([q('engineScoopRedraw()', "draw"), q('local x = UI.getXml() return tostring(x:find("eng_cover", 1, true) ~= nil) .. "|" .. tostring(engineToolCoverXml)', "xml"),
+    q('engineLog = {} engineRenderPanels("none") return tostring(UI.getAttribute("eng_log_Blue", "active"))', "empty log"),
+    q('engineOnLog({ lines = { "Blue casts Opt" } }) return tostring(UI.getAttribute("eng_log_Blue", "active"))', "first line")]);
+  ok("black boxes: no tool covers in the screen UI", valueOf(r, "xml") === "false|nil", String(valueOf(r, "xml")) + " " + r.errors.join(" | "));
+  ok("black boxes: nothing sets a cover", !r.steps.some((st) => (st.fx || []).some((l) => l.includes("eng_cover"))), "a cover was set");
+  ok("black boxes: the log panel is hidden while the log is empty", valueOf(r, "empty log") === "false", String(valueOf(r, "empty log")));
+  ok("black boxes: the log panel shows with its first line", valueOf(r, "first line") === "true", String(valueOf(r, "first line")));
+}
+// TTS redraws a Button at every set (docs/engine-ui-spec.md 2.1; the fake TTS copies it, __sim.drawn): the label goes dark
+// without a new textColor, the background white without a colour of the element's own. Every engine button is drawn
+// dark with a light label: Auto-resolve after its colour changes (its text was dim), Scoop (dark red on red), the
+// ability panel after its tooltip (grey with black text, the user 2026-11-10).
+{
+  const drawn = (ids, mark) => q(`local o = {} for _, id in ipairs({ ${ids.map((i) => JSON.stringify(i)).join(", ")} }) do o[#o + 1] = id .. "=" .. __sim.drawn(id) end return table.concat(o, ";")`, mark);
+  const more = s1.slice(40, 44).filter((m) => m.t !== "prompt").map((m) => ({ msg: { t: m.t, json: m.json } }));
+  const objOf = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-1" then o = x end end ';
+  const r = run([...more, { frames: 30 }, q('engineAutoResolveDraw("Blue") engineOnAutoState({ color = "Blue", phase = "end", on = false }) engineOnAutoState({ color = "Blue", phase = "", on = false })', "auto"),
+    q('engineScoopRedraw()', "scoop"),
+    { ...ask({ promptId: 976, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "prompt-action-0", cardId: "engine-card-1", label: "Activate Thing: {2}: Scry 1." }] }), mark: "asked" },
+    { frames: 30 }, q(objOf + 'onObjectHover("Blue", o)', "hover"),
+    drawn(["eng_autores_Blue", "eng_scoop_Blue", "eng_abp_Blue_1", "eng_big_Blue", "eng_big2_Blue", "eng_toggle_Blue", "eng_fixcall_Blue"], "drawn")]);
+  const light = (fg) => /^#F[EF]F[EF]F[EF]$/i.test(fg);
+  // (dark: the three channels average below 0x90; TTS's own white is #FFFFFF)
+  const dark = (bg) => { const m = /^#(..)(..)(..)/.exec(bg); return !!m && (parseInt(m[1], 16) + parseInt(m[2], 16) + parseInt(m[3], 16)) / 3 < 0x90; };
+  const parts = String(valueOf(r, "drawn")).split(";").map((s) => s.split(/=|\|/));
+  ok("button colours: no errors", r.errors.length === 0, r.errors.join(" | "));
+  for (const [id, bg, fg] of parts) {
+    if (!id) continue;
+    ok(`button colours: ${id} keeps a light label`, light(fg), `${id} ${bg} ${fg}`);
+    ok(`button colours: ${id} keeps its own dark background`, dark(bg), `${id} ${bg} ${fg}`);
+  }
+  ok("button colours: every button checked", parts.length === 7, String(valueOf(r, "drawn")));
+}
+// The dock and the tabbed window (batch B, docs/engine-ui-spec.md 3): Choices, Graveyards, Undo, Settings are tabs of one
+// window, the open one gold; clicking the open side tab goes back to what was open before; Undo and Settings are lists in
+// the window's answer buttons (their own panels are gone); only the open tab's content shows.
+{
+  const st = (mark) => q('local a = function(id, k) return tostring(UI.getAttribute(id, k)) end return table.concat({ a("eng_panel_Blue", "active"), tostring(engineBrowse.Blue), tostring(UI.getValue("eng_title_Blue")), a("eng_toggle_Blue", "textColor"), a("eng_browse_Blue", "textColor"), a("eng_set_Blue", "textColor"), a("eng_undo_Blue", "textColor"), a("eng_stops_Blue", "active"), a("eng_search_Blue", "active"), a("eng_opt_Blue_1", "text"), a("eng_opt_Blue_2", "text") }, "|")', mark);
+  const slot = (k, mark) => q(`onMtgSlot(Player.Blue, nil, "eng_opt_Blue_${k}")`, mark);
+  const pts = '{ points = { { id = 84, label = "turn 11, White\'s upkeep" }, { id = 82, label = "turn 10, Blue\'s main" } } }';
+  const r = run([q('engineShown = engineShown', "start"), st("closed"),
+    q('onMtgSettings(Player.Blue, nil, "eng_set_Blue")', "open settings"), st("settings"),
+    slot(1, "fx line"), st("effects off"), q('return tostring(engineEffectsOff.Blue)', "fx flag"), slot(1, "effects on"),
+    slot(4, "pace"), q('return tostring(engineAutoOn("Blue"))', "pace flag"), slot(4, "pace back"),
+    q('onMtgSettings(Player.Red, nil, "eng_set_Blue")', "stranger"), st("after stranger"),
+    q('onMtgBrowse(Player.Blue, nil, "eng_browse_Blue")', "open graveyards"), st("graveyards"),
+    q('onMtgBrowse(Player.Blue, nil, "eng_browse_Blue")', "close graveyards"), st("closed again"),
+    q('onMtgToggle(Player.Blue, nil, "eng_toggle_Blue")', "open choices"), st("choices"),
+    q(`engineRewindUpdate(${pts}, false) return tostring(UI.getAttribute("eng_undo_Blue", "active"))`, "points"),
+    q('onMtgUndo(Player.Blue, nil, "eng_undo_Blue")', "open undo"), st("undo"),
+    slot(2, "undo pick"), st("after undo pick"),
+    q('onMtgUndo(Player.Blue, nil, "eng_undo_Blue")', "undo again"), q('engineRewindUpdate(nil, false)', "points gone"), st("no points"),
+    q('local x = UI.getXml() local o = {} for _, id in ipairs({ "eng_setpanel_", "eng_undolist_", "eng_undopt_", "eng_pace_", "eng_dock_Blue" }) do o[#o + 1] = tostring(x:find(id, 1, true) ~= nil) end return table.concat(o, "|")', "xml")]);
+  const v = (m) => String(valueOf(r, m)).split("|");
+  const gold = (c) => /^#FFD27[AB]$/i.test(c), white = (c) => /^#F[EF]F[EF]F[EF]$/i.test(c);
+  ok("tabs: no errors", r.errors.length === 0, r.errors.join(" | "));
+  ok("tabs: the window is shut at first, no tab gold", v("closed")[0] === "false" && [3, 4, 5].every((k) => white(v("closed")[k])), v("closed").join("|"));
+  const s = v("settings");
+  ok("tabs: Settings opens the window on its tab, gold", s[0] === "true" && s[1] === "settings" && s[2] === "Settings" && gold(s[5]) && white(s[3]) && white(s[4]), s.join("|"));
+  ok("tabs: Settings lists its switches in the window, no stops, no search", s[9] === "My effects: on" && /^My sounds/.test(s[10]) && s[7] === "false" && s[8] === "false", s.join("|"));
+  ok("tabs: a Settings line switches it and says so", valueOf(r, "fx flag") === "true" && v("effects off")[9] === "My effects: off", v("effects off").join("|"));
+  ok("tabs: the held-moves switch (was Auto: off) is a Settings line", valueOf(r, "pace flag") === "false", String(valueOf(r, "pace flag")));
+  ok("tabs: another colour's click changes nothing", v("after stranger")[1] === "settings", v("after stranger").join("|"));
+  const g = v("graveyards");
+  ok("tabs: Graveyards switches the tab, gold, with the search", g[1] === "browse" && /^Graveyards and exile/.test(g[2]) && gold(g[4]) && white(g[5]) && g[8] === "true" && g[7] === "false", g.join("|"));
+  ok("tabs: clicking the open tab shuts what it opened", v("closed again")[0] === "false" && v("closed again")[1] === "nil", v("closed again").join("|"));
+  const c = v("choices");
+  ok("tabs: Choices opens the answers, gold, with the stops", c[0] === "true" && c[1] === "nil" && gold(c[3]) && white(c[4]) && c[7] === "true", c.join("|"));
+  ok("tabs: Undo shows with restore points", valueOf(r, "points") === "true", String(valueOf(r, "points")));
+  const u = v("undo");
+  ok("tabs: Undo lists the restore points in the window", u[1] === "undo" && /^Rewind to/.test(u[2]) && u[9] === "turn 11, White's upkeep" && u[10] === "turn 10, Blue's main" && gold(u[6]), u.join("|"));
+  const sent = fxOf(r, "undo pick").filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  ok("tabs: an Undo pick asks for that point and goes back to the answers", sent.includes('"checkpointId":82') && v("after undo pick")[1] === "nil" && v("after undo pick")[0] === "true", sent.slice(0, 200) + " " + v("after undo pick").join("|"));
+  ok("tabs: the Undo tab shuts when the points go", v("no points")[1] === "nil", v("no points").join("|"));
+  ok("tabs: the old Settings / Undo panels and Auto button are gone, the dock is there", valueOf(r, "xml") === "false|false|false|false|true", String(valueOf(r, "xml")));
 }
 // a deck stashed for a game is invisible to everyone while it is under the table, and visible again when it comes back
 {
@@ -787,14 +853,12 @@ for (const kind of ["Land", "Creature"]) {
   ok("stash: the deck is back on the table", Number(valueOf(r, "stash home")) === 2, String(valueOf(r, "stash home")));
   ok("stash: visible again once it is back", shows.length === 1 && !/White|Grey|Black/.test(shows[0]), shows.join(" ; "));
 }
-// every Button that setText names is one isButton knows: real TTS ignores UI.setValue on a Button, so a label set that way never shows
+// every Button that setText names is one isButton knows: real TTS ignores UI.setValue on a Button, so a label set that way
+// never shows. isButton is every Button of the built screen XML (engineBtnLook, 2026-11-10), so: every one is recorded.
 {
-  const src = fs.readFileSync(path.join(__dirname, "..", "tools", "engine-renderer.lua"), "utf8");
-  const known = [...src.slice(src.indexOf("local function isButton"), src.indexOf("-- Applies only the attributes that changed")).matchAll(/\^(eng_[a-z0-9_]+)/g)].map((m) => m[1]);
-  const buttons = [...src.matchAll(/<Button id="(eng_[a-z0-9_]+)/g)].map((m) => m[1]);
-  const named = [...src.matchAll(/setText\("(eng_[a-z0-9_]+)"/g)].map((m) => m[1]);
-  const missing = [...new Set(named)].filter((id) => buttons.includes(id) && !known.some((k) => id.startsWith(k)));
-  ok("setText: every Button it names sets the text attribute", named.length > 5 && buttons.length > 5 && known.length > 5 && missing.length === 0, missing.join(", "));
+  const r = run([q('local x = UI.getXml() local n, miss = 0, {} for id in x:gmatch(\'<Button id="([^"]+)"\') do n = n + 1 if engineBtnLook[id] == nil then miss[#miss + 1] = id end end return n .. "|" .. table.concat(miss, ",")', "buttons")]);
+  const [n, missing] = String(valueOf(r, "buttons")).split("|");
+  ok("setText: every Button of the screen UI sets the text attribute", Number(n) > 50 && missing === "", `${n} buttons, missing: ${missing} ${r.errors.join(" | ")}`);
 }
 // day and night show on the phase bar once it is one (2026-10-26)
 {
@@ -842,15 +906,23 @@ for (const kind of ["Land", "Creature"]) {
   ok("ability buttons: they sit on the card", /@0#/.test(gv), gv);
   ok("ability buttons: the tooltip has the whole text", gv.endsWith("#" + long), gv);
 }
-// the Engine / Graveyards / Log / Auto / Settings buttons are a row at the top left, under TTS's own menu (2026-10-31): at
-// the top right they covered the first items of the cards' right-click menus (2026-10-26, #35). (The fake TTS keeps no
-// layout: read from the XML text.)
+// the engine's buttons are one row at the top left, under TTS's own menu (2026-10-31): at the top right they covered the
+// first items of the cards' right-click menus (2026-10-26, #35). Since batch B one dock of tabs, then Auto-resolve and
+// Fix, all at y -140 and right of TTS's left tool bar (82 px), the window under them. (The fake TTS keeps no layout:
+// read from the built XML.)
 {
-  const lua = String(save.LuaScript || "");
-  for (const id of ["eng_toggle_", "eng_browse_", "eng_logbtn_", "eng_pace_", "eng_set_", "eng_setpanel_", "eng_autores_", "eng_fixcall_", "eng_undo_", "eng_undolist_"]) {
-    const tag = (lua.match(new RegExp(`<(?:Button|Panel) id="${id}' \\.\\. c \\.\\. '"[^>]*>`)) || [""])[0];
-    ok(`top-left row: ${id} sits at the top left`, /rectAlignment="UpperLeft"/.test(tag) && /offsetXY="\d+ -\d+"/.test(tag), tag.slice(0, 200) || "not found");
+  const r = run([q('return UI.getXml()', "xml")]);
+  const xml = String(valueOf(r, "xml"));
+  const tagOf = (id) => (xml.match(new RegExp(`<\\w+ id="${id}"[^>]*>`)) || [""])[0];
+  const cls = (tag) => { const m = /class="(\w+)"/.exec(tag); return m ? (xml.match(new RegExp(`<\\w+ class="${m[1]}"[^>]*>`)) || [""])[0] : ""; };
+  const look = (id) => tagOf(id) + " " + cls(tagOf(id));
+  for (const [id, x] of [["eng_dock_Blue", 96], ["eng_autores_Blue", 468], ["eng_fixcall_Blue", 622]]) {
+    ok(`top-left row: ${id} sits at the top left, x ${x}`, /rectAlignment="UpperLeft"/.test(look(id)) && look(id).includes(`offsetXY="${x} -140"`), look(id).slice(0, 300) || "not found");
   }
+  ok("top-left row: the window hangs under the dock", /rectAlignment="UpperLeft"/.test(look("eng_panel_Blue")) && look("eng_panel_Blue").includes('offsetXY="96 -176"'), look("eng_panel_Blue").slice(0, 300));
+  const dock = xml.slice(xml.indexOf('id="eng_dock_Blue"'), xml.indexOf("</HorizontalLayout>", xml.indexOf('id="eng_dock_Blue"')));
+  const order = [...dock.matchAll(/<Button id="(eng_\w+?)_Blue"/g)].map((m) => m[1]).join(",");
+  ok("top-left row: the dock's tabs in order", order === "eng_toggle,eng_browse,eng_undo,eng_set,eng_logbtn", order);
 }
 // the Auto-resolve button opens one list shared by every seat (2026-10-31): only the players who opened it see it, a pick
 // goes to the bridge, and the button shows what the bridge says, which ends a skip by itself. One choice at a time.
@@ -884,7 +956,7 @@ for (const kind of ["Land", "Creature"]) {
     { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" }, list("after clear"), q('return tostring(engineSkipTo.Blue)', "skip after clear")] });
   const v = (m) => String(valueOf(r, m));
   ok("auto list: no errors", r.errors.length === 0, r.errors.join(" | "));
-  ok("auto list: the button says off and hints at a list", v("start").startsWith("Auto-resolve: off...|#3a3f4b"), v("start"));
+  ok("auto list: the button says off and hints at a list", v("start").startsWith("Auto-resolve: off...|#1A1A1A"), v("start"));
   ok("auto list: shut at the start", v("closed").startsWith("false"), v("closed"));
   ok("auto list: only the player who opened it sees it", v("Blue open") === "true|Blue", v("Blue open"));
   ok("auto list: a second player joins the first", v("both open") === "true|Blue|White", v("both open"));
@@ -899,10 +971,10 @@ for (const kind of ["Land", "Creature"]) {
   ok("auto list: step banners come back after", v("banner after") === "true|MAIN PHASE 2", v("banner after"));
   ok("auto list: game over shuts it", v("after game over").startsWith("false"), v("after game over"));
   ok("auto list: Off ends the skip at the bridge", sent(r, "pick off").includes('"phase":"off"'), sent(r, "pick off").slice(0, 200));
-  ok("auto list: back to off, grey", v("off again").startsWith("Auto-resolve: off...|#3a3f4b"), v("off again"));
+  ok("auto list: back to off, grey", v("off again").startsWith("Auto-resolve: off...|#1A1A1A"), v("off again"));
   ok("auto list: Other players' turns is the old auto-resolve", v("others").startsWith("Auto-resolve: on...|#2e7d32|true") && sent(r, "pick others").includes('"on":true'), v("others"));
   ok("auto list: a skip typed in the chat shows, and takes over from auto-resolve", v("typed").startsWith("Until combat...|#2e7d32|nil"), v("typed"));
-  ok("auto list: the skip ending by itself puts the button back", v("ended").startsWith("Auto-resolve: off...|#3a3f4b|nil"), v("ended"));
+  ok("auto list: the skip ending by itself puts the button back", v("ended").startsWith("Auto-resolve: off...|#1A1A1A|nil"), v("ended"));
   ok("auto list: Off turns auto-resolve off", sent(r, "off from others").includes('"on":false') && v("button after off").startsWith("Auto-resolve: off..."), sent(r, "off from others").slice(0, 200));
   ok("auto list: Off sends no skip message with no skip on", !sent(r, "off from others").includes("skipto"), sent(r, "off from others").slice(0, 200));
   ok("auto list: my next turn fits a short label", v("mine").startsWith("Until my turn..."), v("mine"));
@@ -928,13 +1000,62 @@ for (const kind of ["Land", "Creature"]) {
     q('onMtgAbPanel(Player.Blue, nil, "eng_abp_Blue_1") __sim.frames(30) return "clicked"', "panel click")]);
   const sent = (m) => fxOf(r, m).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
   const [active, first, second] = String(valueOf(r, "hover")).split("|");
-  ok("ability panel: pointing at your card shows its ability", active === "true" && first.includes("Scry 1") && second === "false", String(valueOf(r, "hover")) + " " + r.errors.join(" | "));
+  // (since batch B the card's own text shows too: Sol Ring's mana ability, greyed, after the one offered)
+  ok("ability panel: pointing at your card shows its ability", active === "true" && first.includes("Scry 1") && second === "true", String(valueOf(r, "hover")) + " " + r.errors.join(" | "));
   ok("hover: the table's own handler still runs (hoveredObjs, for mtg commander and the hover hotkeys)", String(valueOf(r, "table hover")) === "true", String(valueOf(r, "table hover")));
   ok("ability panel: a right-click on the card's button does nothing", !sent("right click").includes("prompt-action-0"), sent("right click").slice(0, 200));
   ok("ability panel: another player's click does nothing", !sent("white click").includes("prompt-action-0"), sent("white click").slice(0, 200));
   const menus = fxOf(r, "asked").filter((l) => l.includes("menu+")).join(" ");
   ok("card menu: the ability without the card's name in front", menus.includes('"{2}: Scry 1."') && !menus.includes("Activate Thing"), menus.slice(0, 300));
   ok("ability panel: clicking it uses the ability", sent("panel click").includes('"choice":["prompt-action-0"]'), sent("panel click").slice(0, 200));
+}
+// The ability panel mimics the engine (batch B, docs/engine-ui-spec.md 5): every option for the card you point at and
+// every activated ability in its text, the offered ones bright, the rest greyed with the reason; 6 lines a page, More
+// turns it; a click on page 2 uses that line's ability; X shuts it; the panel is as tall as its lines.
+{
+  const more = s1.slice(40, 44).filter((m) => m.t !== "prompt").map((m) => ({ msg: { t: m.t, json: m.json } }));
+  const objOf = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-1" then o = x end end ';
+  // the card's text and state on the board (the fixture's Sol Ring), and the panel to be drawn afresh
+  const setCard = (fields, mark) => q(`local t = engineTable() for _, pl in ipairs(t.players) do for _, c in ipairs(pl.battlefield or {}) do if c.id == "engine-card-1" then ${fields} end end end engineAbPanelFor.Blue = nil`, mark);
+  const rowsOf = (hover, mark) => q((hover ? objOf + 'onObjectHover("Blue", o) ' : "") + 'local a = function(id, k) return tostring(UI.getAttribute(id, k)) end local out = { a("eng_abp_Blue", "active"), a("eng_abpg_Blue", "active"), a("eng_abpg_Blue", "text"), a("eng_abp_Blue", "height") } for k = 1, 6 do out[#out + 1] = a("eng_abp_Blue_" .. k, "active") .. "~" .. a("eng_abp_Blue_" .. k, "text") .. "~" .. a("eng_abp_Blue_" .. k, "textColor") end return table.concat(out, "|")', mark);
+  const nine = Array.from({ length: 9 }, (_, i) => `{${i + 1}}: Scry ${i + 1}.`).join("\\n");
+  const opts = Array.from({ length: 9 }, (_, i) => ({ id: `prompt-action-${i}`, cardId: "engine-card-1", label: `Activate Sol Ring: {${i + 1}}: Scry ${i + 1}.` }));
+  const r = run([...more, { frames: 30 }, ask({ promptId: 990, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, ...opts] }), { frames: 30 },
+    setCard(`c.tx = "${nine}"`, "nine"), rowsOf(true, "page 1"),
+    q('onMtgAbPanel(Player.Blue, nil, "eng_abpg_Blue")', "more"), rowsOf(false, "page 2"),
+    q('onMtgAbPanel(Player.Blue, nil, "eng_abpx_Blue") return tostring(UI.getAttribute("eng_abp_Blue", "active"))', "x"),
+    q(objOf + 'engineAbPanelFor.Blue = nil onObjectHover("Blue", o) onMtgAbPanel(Player.Blue, nil, "eng_abpg_Blue") onMtgAbPanel(Player.Blue, nil, "eng_abp_Blue_2") __sim.frames(30) return "clicked"', "page 2 click")]);
+  const row = (m, k) => (String(valueOf(r, m)).split("|")[3 + k] || "").split("~");
+  const head = (m) => String(valueOf(r, m)).split("|");
+  const white = (c) => /^#F[EF]F[EF]F[EF]$/i.test(c);
+  ok("ability panel+: no errors", r.errors.length === 0, r.errors.join(" | "));
+  ok("ability panel+: nine abilities show six and More", head("page 1")[0] === "true" && head("page 1")[1] === "true" && head("page 1")[2] === "More... (1-6 of 9)" && [1, 2, 3, 4, 5, 6].every((k) => row("page 1", k)[0] === "true"), String(valueOf(r, "page 1")));
+  ok("ability panel+: a line is its cost in gold, then the effect, white", row("page 1", 1)[1].includes('<color=#FFD27A>{1}:</color>') && row("page 1", 1)[1].includes("Scry 1.") && white(row("page 1", 1)[2]), row("page 1", 1).join("~"));
+  ok("ability panel+: as tall as its lines (6 and More)", head("page 1")[3] === String(44 + 6 * 44 + 34), head("page 1")[3]);
+  ok("ability panel+: More shows the last three, the rest hidden", head("page 2")[2] === "More... (7-9 of 9)" && row("page 2", 1)[1].includes("Scry 7.") && row("page 2", 3)[1].includes("Scry 9.") && [4, 5, 6].every((k) => row("page 2", k)[0] === "false") && head("page 2")[3] === String(44 + 3 * 44 + 34), String(valueOf(r, "page 2")));
+  ok("ability panel+: X shuts it", valueOf(r, "x") === "false", String(valueOf(r, "x")));
+  const sent = fxOf(r, "page 2 click").filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  ok("ability panel+: a click on page 2 uses that ability", sent.includes('"choice":["prompt-action-7"]'), sent.slice(0, 200));
+
+  // greyed lines and their reasons: tapped, summoning sickness, a minus loyalty ability it can't pay, no priority
+  const r2 = run([...more, { frames: 30 }, ask({ promptId: 991, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "prompt-action-0", cardId: "engine-card-1", label: "Activate Sol Ring: {2}: Scry 1." }] }), { frames: 30 },
+    setCard('c.tx = "{T}: Draw a card.\\n{2}: Scry 1." c.tap = true', "tap it"), rowsOf(true, "tapped"), q('return __sim.drawn("eng_abp_Blue_1")', "grey drawn"),
+    setCard('c.tap = false c.sick = true c.ty = { "Creature" }', "set sick"), rowsOf(true, "sick"),
+    setCard('c.sick = false c.ty = { "Planeswalker" } c.ctr = { LOYALTY = 2 } c.tx = "+1: Scry 1.\\n\\226\\136\\1463: Destroy target creature." t.active = "Blue" t.step = "main1" t.stack = {}', "set walker"), rowsOf(true, "walker"),
+    ask({ promptId: null }), { frames: 10 },
+    setCard('c.ty = { "Artifact" } c.ctr = nil c.tx = "{T}: Draw a card." t.priority = "White"', "set no prio"), rowsOf(true, "no prio"),
+    q('onMtgAbPanel(Player.Blue, nil, "eng_abp_Blue_1")', "grey click")]);
+  const row2 = (m, k) => (String(valueOf(r2, m)).split("|")[3 + k] || "").split("~");
+  const muted = (c) => /^#8C919[89]$/i.test(c);
+  ok("ability panel+: greyed: no errors", r2.errors.length === 0, r2.errors.join(" | "));
+  ok("ability panel+: a tapped card's {T} ability is greyed: Tapped", row2("tapped", 1)[0] === "true" && row2("tapped", 1)[1].includes("Tapped") && muted(row2("tapped", 1)[2]), row2("tapped", 1).join("~"));
+  ok("ability panel+: the offered ability beside it is bright", row2("tapped", 2)[1].includes("Scry 1.") && white(row2("tapped", 2)[2]) && row2("tapped", 3)[0] === "false", String(valueOf(r2, "tapped")));
+  ok("ability panel+: a greyed line is drawn grey on dark, not TTS's dark label", /^#1C1C1C\|#8C919[89]$/i.test(String(valueOf(r2, "grey drawn"))), String(valueOf(r2, "grey drawn")));
+  ok("ability panel+: a creature that just came: Summoning sickness", row2("sick", 1)[1].includes("Summoning sickness"), row2("sick", 1).join("~"));
+  ok("ability panel+: a minus ability it can't pay: Needs 3 loyalty (has 2)", row2("walker", 2)[1].includes("Needs 3 loyalty (has 2)") && row2("walker", 1)[1].includes("Loyalty: once each turn"), String(valueOf(r2, "walker")));
+  ok("ability panel+: with no question for you: Not your priority (waiting for ...)", row2("no prio", 1)[1].includes("Not your priority (waiting for "), row2("no prio", 1).join("~"));
+  const told = fxOf(r2, "grey click").join(" ").split("\\").join("");
+  ok("ability panel+: a click on a greyed line says why, uses nothing", told.includes("Not your priority") && !told.includes('"choice"'), told.slice(0, 300));
 }
 // a card whose object arrives after the question that names it glows too (the legend rule's token didn't, hp-07)
 {

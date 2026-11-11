@@ -569,11 +569,63 @@ function SIM.webDone(id, isError)
 end
 
 -- ───────── screen UI ─────────
+-- How real TTS draws a Button after a script changes it (docs/engine-ui-spec.md 2.1): every setAttribute(s) call redraws
+-- the button from the attributes the element holds itself. Its label goes back to TTS's dark grey unless that call
+-- carries a textColor different from the stored one, and its background is its own color, or TTS's plain white when
+-- the colour came only from a <Defaults> class. SIM.btn[id] = { own = { color, textColor }, bg, fg }: own = written on
+-- the element (or set since), bg / fg = what TTS shows now. __sim.drawn(id) -> "<background>|<label>".
+local TTS_LABEL, TTS_BUTTON = "#323232", "#FFFFFF"
+local function attrOf(tag, key)
+  local i = tag:find(" " .. key .. '="', 1, true)
+  if i == nil then return nil end
+  local s = i + #key + 3
+  return tag:sub(s, tag:find('"', s, true) - 1)
+end
+local function readButtons(x)
+  SIM.btn, SIM.classLook = {}, {}
+  local d1, d2 = x:find("<Defaults>", 1, true), x:find("</Defaults>", 1, true)
+  local pos = d1 or 1
+  while d1 and d2 do -- the classes: their colours are what TTS draws when it builds the XML
+    local i = x:find("<Button class=\"", pos, true)
+    if i == nil or i > d2 then break end
+    local e = x:find(">", i, true)
+    local tag = x:sub(i, e)
+    SIM.classLook[attrOf(tag, "class")] = { color = attrOf(tag, "color"), textColor = attrOf(tag, "textColor") }
+    pos = e
+  end
+  pos = 1
+  while true do
+    local i = x:find("<Button ", pos, true)
+    if i == nil then break end
+    local e = x:find(">", i, true)
+    local tag = x:sub(i, e)
+    local id = attrOf(tag, "id")
+    if id ~= nil then
+      local own = { color = attrOf(tag, "color"), textColor = attrOf(tag, "textColor") }
+      local cl = SIM.classLook[attrOf(tag, "class") or ""] or {}
+      SIM.btn[id] = { own = own, bg = own.color or cl.color or TTS_BUTTON, fg = own.textColor or cl.textColor or TTS_LABEL }
+    end
+    pos = e
+  end
+end
+local function redraw(id, t)
+  local b = SIM.btn and SIM.btn[id]
+  if b == nil then return end
+  local tc = t.textColor ~= nil and tostring(t.textColor) or nil
+  b.fg = (tc ~= nil and tc ~= b.own.textColor) and tc or TTS_LABEL
+  if tc ~= nil then b.own.textColor = tc end
+  if t.color ~= nil then b.own.color = tostring(t.color) end
+  b.bg = b.own.color or TTS_BUTTON
+end
+function SIM.drawn(id)
+  local b = SIM.btn and SIM.btn[id]
+  return b and (b.bg .. "|" .. b.fg) or "nil"
+end
 UI = {
-  setXml = function(x) SIM.xml = x fx("UI.setXml", hash(x)) end,
+  setXml = function(x) SIM.xml = x readButtons(x) fx("UI.setXml", hash(x)) end,
   getXml = function() return SIM.xml end,
-  setAttribute = function(id, k, v) SIM.attrs[id .. "|" .. k] = tostring(v) fx("UI.setAttribute", id, k, tostring(v)) end,
-  setAttributes = function(id, t) for k, v in pairs(t) do SIM.attrs[id .. "|" .. k] = tostring(v) end fx("UI.setAttributes", id, t) end,
+  setAttribute = function(id, k, v) SIM.attrs[id .. "|" .. k] = tostring(v) redraw(id, { [k] = v }) fx("UI.setAttribute", id, k, tostring(v)) end,
+  setAttributes = function(id, t) for k, v in pairs(t) do SIM.attrs[id .. "|" .. k] = tostring(v) end redraw(id, t) fx("UI.setAttributes", id, t) end,
   getAttribute = function(id, k) return SIM.attrs[id .. "|" .. k] end,
   setValue = function(id, v) SIM.values[id] = v fx("UI.setValue", id, v) end,
   getValue = function(id) return SIM.values[id] end,
