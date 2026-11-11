@@ -84123,6 +84123,7 @@
        "ctl": "Blue",
        "src": "engine-card-43",
        "spell": false,
+       "ins": true,
        "tg": [],
        "f": null
       }
@@ -84249,6 +84250,7 @@
        "ctl": "Blue",
        "src": "engine-card-43",
        "spell": false,
+       "ins": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/e/a/ea1ea4aa-d4af-db77-520f-ec16000404b9.webp"
       }
