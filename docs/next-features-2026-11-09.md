@@ -3,6 +3,17 @@
 The user's list, in their order. Most items need a running TTS table in debug mode to fix and confirm.
 
 1. **Moving cards.** Before the game starts, any player can move any card, and not only before the engine is turned on. After a game ends, players can't touch other players' cards.
+   - **Built 2026-11-11 (round 2 C), decided where the list was silent.** The rule follows the game, not engine mode
+     (`onPlayerAction` in engine-renderer.lua, `engineSeatOf`):
+     - no engine game on the table (engine mode off; on but before the first Start; after New game cleared the last
+       one): anyone moves any card;
+     - a game being played: unchanged, your own cards as the engine allows;
+     - a game over, its board still lying there until New game: nobody touches another player's cards, not even a
+       click. That covers the engine's cards and any other card or deck lying on that player's mat, piles or command
+       zone. Your own can still be picked up and flipped. The refusal says "The game is over: those are X's cards."
+   - What the playtest actually hit isn't known. The fake TTS showed the old rule already let anyone touch anything
+     with no engine board, and already kept others' engine cards from being picked up after GAME OVER (clicks and
+     loose cards went through). Check on the real table which case it was.
 2. **Combat clarity.**
    - Attack/block parts are highlighted green, and turn red when you're the one being attacked.
    - Attacker and defender pickers are organised under tabs, so a big token board doesn't need endless scrolling.

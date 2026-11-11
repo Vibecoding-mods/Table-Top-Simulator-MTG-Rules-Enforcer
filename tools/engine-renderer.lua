@@ -3891,8 +3891,38 @@ local function dropArea(color, pos)
   return "elsewhere"
 end
 
+-- Whose card an object is: an engine card's player, an engine pile's ("library:Blue"), or for any other card or deck the
+-- player whose mat, piles or command zone it lies in. nil: nobody's (the middle of the table, a token bag).
+function engineSeatOf(o)
+  if o == nil then return nil end
+  if isEngineCard(o) then
+    local id = engineIdOf(o)
+    return (engineMeta[id] or {}).color or id:match("^%a+:(%a+)$")
+  end
+  for c in pairs(data or {}) do
+    if Player[c] ~= nil and dropArea(c, o.getPosition()) ~= "elsewhere" then return c end
+  end
+  return nil
+end
+
+-- Who may touch which card (docs/next-features-2026-11-09.md item 1). The rule follows the game, not engine mode:
+-- - no engine game on the table (engine mode off, or on before the first Start, or after New game cleared the last
+--   one): anyone moves any card, as on the table without the engine (setting up seats, a deck for an empty AI seat);
+-- - a game being played: your own cards, as the engine allows (below);
+-- - a game over, its board still lying there until New game: nobody touches another player's cards, engine cards or
+--   not, not even a click; your own only to pick up and flip as in the game.
 function onPlayerAction(player, action, targets)
-  if not ENGINE_MODE or lastTable == nil or action == Player.Action.Select then return true end
+  if not ENGINE_MODE or lastTable == nil then return true end
+  if lastTable.gameOver then
+    for _, o in ipairs(targets or {}) do
+      local seat = engineSeatOf(o)
+      if seat ~= nil and seat ~= player.color then
+        tell(player.color, "The game is over: those are " .. engineNameOf(seat) .. "'s cards.")
+        return false
+      end
+    end
+  end
+  if action == Player.Action.Select then return true end
   for _, o in ipairs(targets or {}) do
     if isEngineCard(o) then
       local meta = engineMeta[engineIdOf(o)] or {}
