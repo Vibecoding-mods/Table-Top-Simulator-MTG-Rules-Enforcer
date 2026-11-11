@@ -1,11 +1,25 @@
-# Status objects on the mat (spec, not built)
+# Status objects on the mat
 
 **Asked 2026-11-10, the user:** "Add to the spec to add back in objects removed from the original board but they pop up
 in with player status box too: if the box says monarch the crown spawns in on their mat. Also have relevant objects
 hidden under the table with opacity at 0."
 
-**Status:** spec only. Nothing below is built. It builds on the marks boxes (one small green box a mark, stacked down
-the inner corner of each mat under the heart, `enginePlayerCounters`, 2026-11-10).
+**Status:** built in source 2026-11-11 (`engineStatusPieces` in tools/engine-renderer.lua, the status-piece step in
+tools/make-engine-copy.js, `addPieces` in tools/patch-save.js), not yet seen on the real table. It builds on the marks
+boxes (one small green box a mark, stacked down the inner corner of each mat under the heart, `enginePlayerCounters`,
+2026-11-10). Decisions taken while building:
+- One copy a seat (copies of the original under new GUIDs, parked) for the poison, energy and experience counters, and
+  also for City's Blessing and The Ring: the rules let several players have each of those at once. One crown, one
+  Monarch card, one Undercity (one holder at a time). 23 pieces and Day // Night in all.
+- The counters' own scripts go too (they only drew a 0); the table draws the count on the token itself.
+- A seat's stack that would run past the mat's near edge (every piece at once under ten boxes does) is scaled down
+  together to fit.
+- A piece is hidden both ways: invisible to every colour, and the crown and tokens also at tint alpha 0.
+- Day // Night lies at x 0 between the middle tile and White and Red's hearts, readable from that side, scaled to the
+  1.8-wide gap between the mats. Its Night state is its own object in TTS (GUID cdf2d2); the table switches with
+  `setState`, which costs one object swap a change of day or night.
+- The deploy's save patch (`tools/patch-save.js`) only replaced the script, so it now also adds the pieces a save
+  lacks; `tools/make-user-save.js` already carries every object of the engine table.
 
 ## What the user sees
 
