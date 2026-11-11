@@ -31662,7 +31662,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → whom? (asked next) | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
    },
    {
     "tts": {
@@ -31672,7 +31672,8 @@
      "title": "Choose attackers",
      "mode": "multi",
      "min": 0,
-     "max": 3,
+     "max": 4,
+     "keepOrder": true,
      "options": [
       {
        "id": "__allattack",
@@ -31681,6 +31682,10 @@
       {
        "id": "__noattack",
        "label": "No attacks"
+      },
+      {
+       "id": "engine-card-75|?",
+       "label": "Hurloon Minotaur → whom? (asked next)"
       },
       {
        "id": "engine-card-75|player-1",
@@ -31695,7 +31700,7 @@
        "label": "Venomous Changeling → AI 1"
       }
      ],
-     "text": "Must attack: Hurloon Minotaur.",
+     "text": "Must attack: Hurloon Minotaur.\nCan't attack Ashling, the Limitless (AI 1's planeswalker): Venomous Changeling.",
      "kind": "attack"
     }
    }
@@ -31707,7 +31712,8 @@
      "title": "Choose attackers",
      "mode": "multi",
      "min": 0,
-     "max": 3,
+     "max": 4,
+     "keepOrder": true,
      "options": [
       {
        "id": "__allattack",
@@ -31716,6 +31722,10 @@
       {
        "id": "__noattack",
        "label": "No attacks"
+      },
+      {
+       "id": "engine-card-75|?",
+       "label": "Hurloon Minotaur → whom? (asked next)"
       },
       {
        "id": "engine-card-75|player-1",
@@ -31730,7 +31740,7 @@
        "label": "Venomous Changeling → AI 1"
       }
      ],
-     "text": "Must attack: Hurloon Minotaur.",
+     "text": "Must attack: Hurloon Minotaur.\nCan't attack Ashling, the Limitless (AI 1's planeswalker): Venomous Changeling.",
      "kind": "attack"
     }
    },
@@ -31750,7 +31760,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → whom? (asked next) | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
    },
    {
     "tts": {
@@ -31760,7 +31770,8 @@
      "title": "Choose attackers",
      "mode": "multi",
      "min": 0,
-     "max": 3,
+     "max": 4,
+     "keepOrder": true,
      "options": [
       {
        "id": "__allattack",
@@ -31769,6 +31780,10 @@
       {
        "id": "__noattack",
        "label": "No attacks"
+      },
+      {
+       "id": "engine-card-75|?",
+       "label": "Hurloon Minotaur → whom? (asked next)"
       },
       {
        "id": "engine-card-75|player-1",
@@ -31783,7 +31798,7 @@
        "label": "Venomous Changeling → AI 1"
       }
      ],
-     "text": "Must attack: Hurloon Minotaur.",
+     "text": "Must attack: Hurloon Minotaur.\nCan't attack Ashling, the Limitless (AI 1's planeswalker): Venomous Changeling.",
      "kind": "attack"
     }
    },
@@ -31797,41 +31812,66 @@
     "text": "[time] Blue   answers #900 \"Choose attackers\": All attack\n"
    },
    {
-    "relay": {
-     "type": "BroadcastState",
-     "state": {
-      "kind": "response",
-      "fromPlayer": "player-0",
-      "promptId": 900,
-      "action": {
-       "type": "chooseAttackers",
-       "output": {
-        "type": "declareAttackers",
-        "assignments": [
-         {
-          "attackerId": "engine-card-75",
-          "targetId": "player-1"
-         },
-         {
-          "attackerId": "engine-card-35",
-          "targetId": "player-1"
-         }
-        ]
-       }
-      }
-     }
-    }
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Attack whom with Hurloon Minotaur?\": AI 1 | Ashling, the Limitless (AI 1's planeswalker) | Back\n"
    },
    {
     "tts": {
      "t": "prompt",
      "color": "Blue",
-     "promptId": null
+     "promptId": 900,
+     "step": 0,
+     "title": "Attack whom with Hurloon Minotaur?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "Click a life counter or a planeswalker, or a button.",
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "card|engine-card-200",
+       "label": "Ashling, the Limitless (AI 1's planeswalker)"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "onTimeout": "player|player-1",
+     "min": 1,
+     "max": 1
     }
    }
   ],
   "result": {
-   "open": null,
+   "open": {
+    "type": "chooseAttackers",
+    "ui": {
+     "title": "Attack whom with Hurloon Minotaur?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "Click a life counter or a planeswalker, or a button.",
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "card|engine-card-200",
+       "label": "Ashling, the Limitless (AI 1's planeswalker)"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "onTimeout": "player|player-1",
+     "min": 1,
+     "max": 1
+    }
+   },
    "endTurnAt": null,
    "resolveStack": null,
    "autoPayCard": null
@@ -31848,7 +31888,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → whom? (asked next) | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
    },
    {
     "tts": {
@@ -31858,7 +31898,8 @@
      "title": "Choose attackers",
      "mode": "multi",
      "min": 0,
-     "max": 3,
+     "max": 4,
+     "keepOrder": true,
      "options": [
       {
        "id": "__allattack",
@@ -31867,6 +31908,10 @@
       {
        "id": "__noattack",
        "label": "No attacks"
+      },
+      {
+       "id": "engine-card-75|?",
+       "label": "Hurloon Minotaur → whom? (asked next)"
       },
       {
        "id": "engine-card-75|player-1",
@@ -31881,7 +31926,7 @@
        "label": "Venomous Changeling → AI 1"
       }
      ],
-     "text": "Must attack: Hurloon Minotaur.",
+     "text": "Must attack: Hurloon Minotaur.\nCan't attack Ashling, the Limitless (AI 1's planeswalker): Venomous Changeling.",
      "kind": "attack"
     }
    },
@@ -31942,7 +31987,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → whom? (asked next) | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
    },
    {
     "tts": {
@@ -31952,7 +31997,8 @@
      "title": "Choose attackers",
      "mode": "multi",
      "min": 0,
-     "max": 3,
+     "max": 4,
+     "keepOrder": true,
      "options": [
       {
        "id": "__allattack",
@@ -31961,6 +32007,10 @@
       {
        "id": "__noattack",
        "label": "No attacks"
+      },
+      {
+       "id": "engine-card-75|?",
+       "label": "Hurloon Minotaur → whom? (asked next)"
       },
       {
        "id": "engine-card-75|player-1",
@@ -31975,7 +32025,7 @@
        "label": "Venomous Changeling → AI 1"
       }
      ],
-     "text": "Must attack: Hurloon Minotaur.",
+     "text": "Must attack: Hurloon Minotaur.\nCan't attack Ashling, the Limitless (AI 1's planeswalker): Venomous Changeling.",
      "kind": "attack"
     }
    },
@@ -32047,6 +32097,7 @@
      "mode": "multi",
      "min": 0,
      "max": 0,
+     "keepOrder": true,
      "options": [],
      "kind": "attack",
      "text": ""
@@ -33124,7 +33175,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → whom? (asked next) | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
    },
    {
     "tts": {
@@ -33134,7 +33185,8 @@
      "title": "Choose attackers",
      "mode": "multi",
      "min": 0,
-     "max": 3,
+     "max": 4,
+     "keepOrder": true,
      "options": [
       {
        "id": "__allattack",
@@ -33143,6 +33195,10 @@
       {
        "id": "__noattack",
        "label": "No attacks"
+      },
+      {
+       "id": "engine-card-75|?",
+       "label": "Hurloon Minotaur → whom? (asked next)"
       },
       {
        "id": "engine-card-75|player-1",
@@ -33157,7 +33213,7 @@
        "label": "Venomous Changeling → AI 1"
       }
      ],
-     "text": "Must attack: Hurloon Minotaur.",
+     "text": "Must attack: Hurloon Minotaur.\nCan't attack Ashling, the Limitless (AI 1's planeswalker): Venomous Changeling.",
      "kind": "attack"
     }
    },
@@ -33242,7 +33298,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → whom? (asked next) | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
    },
    {
     "tts": {
@@ -33252,7 +33308,8 @@
      "title": "Choose attackers",
      "mode": "multi",
      "min": 0,
-     "max": 3,
+     "max": 4,
+     "keepOrder": true,
      "options": [
       {
        "id": "__allattack",
@@ -33261,6 +33318,10 @@
       {
        "id": "__noattack",
        "label": "No attacks"
+      },
+      {
+       "id": "engine-card-75|?",
+       "label": "Hurloon Minotaur → whom? (asked next)"
       },
       {
        "id": "engine-card-75|player-1",
@@ -33275,7 +33336,7 @@
        "label": "Venomous Changeling → AI 1"
       }
      ],
-     "text": "Must attack: Hurloon Minotaur.",
+     "text": "Must attack: Hurloon Minotaur.\nCan't attack Ashling, the Limitless (AI 1's planeswalker): Venomous Changeling.",
      "kind": "attack"
     }
    }
@@ -33287,7 +33348,8 @@
      "title": "Choose attackers",
      "mode": "multi",
      "min": 0,
-     "max": 3,
+     "max": 4,
+     "keepOrder": true,
      "options": [
       {
        "id": "__allattack",
@@ -33296,6 +33358,10 @@
       {
        "id": "__noattack",
        "label": "No attacks"
+      },
+      {
+       "id": "engine-card-75|?",
+       "label": "Hurloon Minotaur → whom? (asked next)"
       },
       {
        "id": "engine-card-75|player-1",
@@ -33310,10 +33376,1988 @@
        "label": "Venomous Changeling → AI 1"
       }
      ],
-     "text": "Must attack: Hurloon Minotaur.",
+     "text": "Must attack: Hurloon Minotaur.\nCan't attack Ashling, the Limitless (AI 1's planeswalker): Venomous Changeling.",
      "kind": "attack"
     }
    },
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
+  "name": "attack reminder: Propaganda's tax said before the attack",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → AI 1\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 1,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      }
+     ],
+     "text": "Propaganda (AI 1): {2} for each creature attacking AI 1.\nYou have about 4 mana open. Attackers tap before you pay, so an attacking mana creature can't help pay.",
+     "note": "Attack tax: AI 1 {2} each.",
+     "kind": "attack"
+    }
+   }
+  ],
+  "result": {
+   "open": {
+    "type": "chooseAttackers",
+    "ui": {
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 1,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      }
+     ],
+     "text": "Propaganda (AI 1): {2} for each creature attacking AI 1.\nYou have about 4 mana open. Attackers tap before you pay, so an attacking mana creature can't help pay.",
+     "note": "Attack tax: AI 1 {2} each.",
+     "kind": "attack"
+    }
+   },
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
+  "name": "attack reminder: Propaganda's payment names the tax",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → AI 1\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 1,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      }
+     ],
+     "text": "Propaganda (AI 1): {2} for each creature attacking AI 1.\nYou have about 4 mana open. Attackers tap before you pay, so an attacking mana creature can't help pay.",
+     "note": "Attack tax: AI 1 {2} each.",
+     "kind": "attack"
+    }
+   },
+   {
+    "answer": [
+     "engine-card-601|player-1"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Choose attackers\": Grizzly Bears → AI 1\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 900,
+      "action": {
+       "type": "chooseAttackers",
+       "output": {
+        "type": "declareAttackers",
+        "assignments": [
+         {
+          "attackerId": "engine-card-601",
+          "targetId": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   }
+  ],
+  "result": {
+   "open": null,
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
+  "name": "attack reminder: Propaganda's payment, then Don't attack",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → AI 1\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 1,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      }
+     ],
+     "text": "Propaganda (AI 1): {2} for each creature attacking AI 1.\nYou have about 4 mana open. Attackers tap before you pay, so an attacking mana creature can't help pay.",
+     "note": "Attack tax: AI 1 {2} each.",
+     "kind": "attack"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Choose attackers\": Grizzly Bears → AI 1\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 900,
+      "action": {
+       "type": "chooseAttackers",
+       "output": {
+        "type": "declareAttackers",
+        "assignments": [
+         {
+          "attackerId": "engine-card-601",
+          "targetId": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #901: payManaCost \"Propaganda (AI 1): pay {2} to attack with Grizzly Bears?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #901 \"Propaganda (AI 1): pay {2} to attack with Grizzly Bears?\": Auto-pay | Tap Mountain: {T}: Add {R}. | Don't attack with Grizzly Bears\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 901,
+     "title": "Propaganda (AI 1): pay {2} to attack with Grizzly Bears?",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__auto",
+       "label": "Auto-pay"
+      },
+      {
+       "id": "tap:engine-card-64:0",
+       "cardId": "engine-card-64",
+       "label": "Tap Mountain: {T}: Add {R}.",
+       "rank": 1
+      },
+      {
+       "id": "__cancel",
+       "label": "Don't attack with Grizzly Bears"
+      }
+     ],
+     "note": "Cancel: Grizzly Bears doesn't attack.",
+     "kind": "mana",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #901 \"Propaganda (AI 1): pay {2} to attack with Grizzly Bears?\": Don't attack with Grizzly Bears\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 901,
+      "action": {
+       "type": "payManaCost",
+       "output": {
+        "type": "cancel"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   }
+  ],
+  "result": {
+   "title": "Propaganda (AI 1): pay {2} to attack with Grizzly Bears?",
+   "note": "Cancel: Grizzly Bears doesn't attack.",
+   "options": [
+    "Auto-pay",
+    "Tap Mountain: {T}: Add {R}.",
+    "Don't attack with Grizzly Bears"
+   ]
+  }
+ },
+ {
+  "name": "attack reminder: a pump on an attacker after priority is no tax, nor its ability next turn",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → AI 1\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 1,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      }
+     ],
+     "text": "Propaganda (AI 1): {2} for each creature attacking AI 1.\nYou have about 4 mana open. Attackers tap before you pay, so an attacking mana creature can't help pay.",
+     "note": "Attack tax: AI 1 {2} each.",
+     "kind": "attack"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Choose attackers\": Grizzly Bears → AI 1\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 900,
+      "action": {
+       "type": "chooseAttackers",
+       "output": {
+        "type": "declareAttackers",
+        "assignments": [
+         {
+          "attackerId": "engine-card-601",
+          "targetId": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #901: payManaCost \"Propaganda (AI 1): pay {2} to attack with Grizzly Bears?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #901 \"Propaganda (AI 1): pay {2} to attack with Grizzly Bears?\": Auto-pay | Tap Mountain: {T}: Add {R}. | Don't attack with Grizzly Bears\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 901,
+     "title": "Propaganda (AI 1): pay {2} to attack with Grizzly Bears?",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__auto",
+       "label": "Auto-pay"
+      },
+      {
+       "id": "tap:engine-card-64:0",
+       "cardId": "engine-card-64",
+       "label": "Tap Mountain: {T}: Add {R}.",
+       "rank": 1
+      },
+      {
+       "id": "__cancel",
+       "label": "Don't attack with Grizzly Bears"
+      }
+     ],
+     "note": "Cancel: Grizzly Bears doesn't attack.",
+     "kind": "mana",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #901 \"Propaganda (AI 1): pay {2} to attack with Grizzly Bears?\": Don't attack with Grizzly Bears\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 901,
+      "action": {
+       "type": "payManaCost",
+       "output": {
+        "type": "cancel"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 902,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "log": "prompt Blue #903: payManaCost \"Pay {1}{G} for Grizzly Bears\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #903 \"Pay {1}{G} for Grizzly Bears\": Auto-pay | Tap Mountain: {T}: Add {R}. | Cancel\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 903,
+     "title": "Pay {1}{G} for Grizzly Bears",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__auto",
+       "label": "Auto-pay"
+      },
+      {
+       "id": "tap:engine-card-64:0",
+       "cardId": "engine-card-64",
+       "label": "Tap Mountain: {T}: Add {R}.",
+       "rank": 1
+      },
+      {
+       "id": "__cancel",
+       "label": "Cancel"
+      }
+     ],
+     "kind": "mana",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #903 \"Pay {1}{G} for Grizzly Bears\": Cancel\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 903,
+      "action": {
+       "type": "payManaCost",
+       "output": {
+        "type": "cancel"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #904: payManaCost \"Pay {1}{G} for Grizzly Bears\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #904 \"Pay {1}{G} for Grizzly Bears\": Auto-pay | Tap Mountain: {T}: Add {R}. | Cancel\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 904,
+     "title": "Pay {1}{G} for Grizzly Bears",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__auto",
+       "label": "Auto-pay"
+      },
+      {
+       "id": "tap:engine-card-64:0",
+       "cardId": "engine-card-64",
+       "label": "Tap Mountain: {T}: Add {R}.",
+       "rank": 1
+      },
+      {
+       "id": "__cancel",
+       "label": "Cancel"
+      }
+     ],
+     "kind": "mana",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   }
+  ],
+  "result": {
+   "tax": {
+    "title": "Propaganda (AI 1): pay {2} to attack with Grizzly Bears?",
+    "note": "Cancel: Grizzly Bears doesn't attack.",
+    "cancel": "Don't attack with Grizzly Bears"
+   },
+   "pump": {
+    "title": "Pay {1}{G} for Grizzly Bears",
+    "note": null,
+    "cancel": "Cancel"
+   },
+   "nextTurn": {
+    "title": "Pay {1}{G} for Grizzly Bears",
+    "note": null,
+    "cancel": "Cancel"
+   }
+  }
+ },
+ {
+  "name": "attack reminder: creatures that can't attack, with why",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → AI 1\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 1,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      }
+     ],
+     "text": "Can't attack: Hill Giant (summoning sick), Wall of Omens (defender), Serra Angel (Pacifism).",
+     "note": "Can't attack: Hill Giant (summoning sick), Wall of Omens (defender), Serra Angel (Pacifism).",
+     "cantAttack": {
+      "engine-card-603": "Hill Giant can't attack: summoning sick.",
+      "engine-card-604": "Wall of Omens can't attack: defender.",
+      "engine-card-606": "Serra Angel can't attack: Pacifism."
+     },
+     "kind": "attack"
+    }
+   }
+  ],
+  "result": {
+   "open": {
+    "type": "chooseAttackers",
+    "ui": {
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 1,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      }
+     ],
+     "text": "Can't attack: Hill Giant (summoning sick), Wall of Omens (defender), Serra Angel (Pacifism).",
+     "note": "Can't attack: Hill Giant (summoning sick), Wall of Omens (defender), Serra Angel (Pacifism).",
+     "cantAttack": {
+      "engine-card-603": "Hill Giant can't attack: summoning sick.",
+      "engine-card-604": "Wall of Omens can't attack: defender.",
+      "engine-card-606": "Serra Angel can't attack: Pacifism."
+     },
+     "kind": "attack"
+    }
+   },
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
+  "name": "attack targets: two opponents and a planeswalker, whom? first",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → whom? (asked next) | Grizzly Bears → AI 1 | Grizzly Bears → AI 2 | Grizzly Bears → Teferi, Hero of Dominaria | Serra Angel → whom? (asked next) | Serra Angel → AI 1 | ... (10)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 8,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|?",
+       "label": "Grizzly Bears → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      },
+      {
+       "id": "engine-card-601|player-2",
+       "label": "Grizzly Bears → AI 2"
+      },
+      {
+       "id": "engine-card-601|engine-card-504",
+       "label": "Grizzly Bears → Teferi, Hero of Dominaria"
+      },
+      {
+       "id": "engine-card-602|?",
+       "label": "Serra Angel → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-602|player-1",
+       "label": "Serra Angel → AI 1"
+      },
+      {
+       "id": "engine-card-602|player-2",
+       "label": "Serra Angel → AI 2"
+      },
+      {
+       "id": "engine-card-602|engine-card-504",
+       "label": "Serra Angel → Teferi, Hero of Dominaria"
+      }
+     ],
+     "kind": "attack",
+     "text": ""
+    }
+   }
+  ],
+  "result": {
+   "open": {
+    "type": "chooseAttackers",
+    "ui": {
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 8,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|?",
+       "label": "Grizzly Bears → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      },
+      {
+       "id": "engine-card-601|player-2",
+       "label": "Grizzly Bears → AI 2"
+      },
+      {
+       "id": "engine-card-601|engine-card-504",
+       "label": "Grizzly Bears → Teferi, Hero of Dominaria"
+      },
+      {
+       "id": "engine-card-602|?",
+       "label": "Serra Angel → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-602|player-1",
+       "label": "Serra Angel → AI 1"
+      },
+      {
+       "id": "engine-card-602|player-2",
+       "label": "Serra Angel → AI 2"
+      },
+      {
+       "id": "engine-card-602|engine-card-504",
+       "label": "Serra Angel → Teferi, Hero of Dominaria"
+      }
+     ],
+     "kind": "attack",
+     "text": ""
+    }
+   },
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
+  "name": "attack targets: All attack asks whom",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → whom? (asked next) | Grizzly Bears → AI 1 | Grizzly Bears → AI 2 | Grizzly Bears → Teferi, Hero of Dominaria | Serra Angel → whom? (asked next) | Serra Angel → AI 1 | ... (10)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 8,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|?",
+       "label": "Grizzly Bears → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      },
+      {
+       "id": "engine-card-601|player-2",
+       "label": "Grizzly Bears → AI 2"
+      },
+      {
+       "id": "engine-card-601|engine-card-504",
+       "label": "Grizzly Bears → Teferi, Hero of Dominaria"
+      },
+      {
+       "id": "engine-card-602|?",
+       "label": "Serra Angel → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-602|player-1",
+       "label": "Serra Angel → AI 1"
+      },
+      {
+       "id": "engine-card-602|player-2",
+       "label": "Serra Angel → AI 2"
+      },
+      {
+       "id": "engine-card-602|engine-card-504",
+       "label": "Serra Angel → Teferi, Hero of Dominaria"
+      }
+     ],
+     "kind": "attack",
+     "text": ""
+    }
+   },
+   {
+    "answer": [
+     "__allattack"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Choose attackers\": All attack\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Attack whom with 2 creatures?\": AI 1 | AI 2 | Teferi, Hero of Dominaria (AI 2's planeswalker) | One by one | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Attack whom with 2 creatures?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "Attacking: Grizzly Bears, Serra Angel. Click a life counter or a planeswalker, or a button.",
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "player|player-2",
+       "label": "AI 2"
+      },
+      {
+       "id": "card|engine-card-504",
+       "label": "Teferi, Hero of Dominaria (AI 2's planeswalker)"
+      },
+      {
+       "id": "__each",
+       "label": "One by one"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "onTimeout": "player|player-1",
+     "min": 1,
+     "max": 1
+    }
+   }
+  ],
+  "result": {
+   "open": {
+    "type": "chooseAttackers",
+    "ui": {
+     "title": "Attack whom with 2 creatures?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "Attacking: Grizzly Bears, Serra Angel. Click a life counter or a planeswalker, or a button.",
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "player|player-2",
+       "label": "AI 2"
+      },
+      {
+       "id": "card|engine-card-504",
+       "label": "Teferi, Hero of Dominaria (AI 2's planeswalker)"
+      },
+      {
+       "id": "__each",
+       "label": "One by one"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "onTimeout": "player|player-1",
+     "min": 1,
+     "max": 1
+    }
+   },
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
+  "name": "attack targets: All attack at the chosen player",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → whom? (asked next) | Grizzly Bears → AI 1 | Grizzly Bears → AI 2 | Grizzly Bears → Teferi, Hero of Dominaria | Serra Angel → whom? (asked next) | Serra Angel → AI 1 | ... (10)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 8,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|?",
+       "label": "Grizzly Bears → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      },
+      {
+       "id": "engine-card-601|player-2",
+       "label": "Grizzly Bears → AI 2"
+      },
+      {
+       "id": "engine-card-601|engine-card-504",
+       "label": "Grizzly Bears → Teferi, Hero of Dominaria"
+      },
+      {
+       "id": "engine-card-602|?",
+       "label": "Serra Angel → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-602|player-1",
+       "label": "Serra Angel → AI 1"
+      },
+      {
+       "id": "engine-card-602|player-2",
+       "label": "Serra Angel → AI 2"
+      },
+      {
+       "id": "engine-card-602|engine-card-504",
+       "label": "Serra Angel → Teferi, Hero of Dominaria"
+      }
+     ],
+     "kind": "attack",
+     "text": ""
+    }
+   },
+   {
+    "answer": [
+     "__allattack"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Choose attackers\": All attack\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Attack whom with 2 creatures?\": AI 1 | AI 2 | Teferi, Hero of Dominaria (AI 2's planeswalker) | One by one | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Attack whom with 2 creatures?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "Attacking: Grizzly Bears, Serra Angel. Click a life counter or a planeswalker, or a button.",
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "player|player-2",
+       "label": "AI 2"
+      },
+      {
+       "id": "card|engine-card-504",
+       "label": "Teferi, Hero of Dominaria (AI 2's planeswalker)"
+      },
+      {
+       "id": "__each",
+       "label": "One by one"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "onTimeout": "player|player-1",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "answer": [
+     "player|player-2"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Attack whom with 2 creatures?\": AI 2\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 900,
+      "action": {
+       "type": "chooseAttackers",
+       "output": {
+        "type": "declareAttackers",
+        "assignments": [
+         {
+          "attackerId": "engine-card-601",
+          "targetId": "player-2"
+         },
+         {
+          "attackerId": "engine-card-602",
+          "targetId": "player-2"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   }
+  ],
+  "result": {
+   "open": null,
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
+  "name": "attack targets: All attack at the planeswalker",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → whom? (asked next) | Grizzly Bears → AI 1 | Grizzly Bears → AI 2 | Grizzly Bears → Teferi, Hero of Dominaria | Serra Angel → whom? (asked next) | Serra Angel → AI 1 | ... (10)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 8,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|?",
+       "label": "Grizzly Bears → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      },
+      {
+       "id": "engine-card-601|player-2",
+       "label": "Grizzly Bears → AI 2"
+      },
+      {
+       "id": "engine-card-601|engine-card-504",
+       "label": "Grizzly Bears → Teferi, Hero of Dominaria"
+      },
+      {
+       "id": "engine-card-602|?",
+       "label": "Serra Angel → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-602|player-1",
+       "label": "Serra Angel → AI 1"
+      },
+      {
+       "id": "engine-card-602|player-2",
+       "label": "Serra Angel → AI 2"
+      },
+      {
+       "id": "engine-card-602|engine-card-504",
+       "label": "Serra Angel → Teferi, Hero of Dominaria"
+      }
+     ],
+     "kind": "attack",
+     "text": ""
+    }
+   },
+   {
+    "answer": [
+     "__allattack"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Choose attackers\": All attack\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Attack whom with 2 creatures?\": AI 1 | AI 2 | Teferi, Hero of Dominaria (AI 2's planeswalker) | One by one | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Attack whom with 2 creatures?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "Attacking: Grizzly Bears, Serra Angel. Click a life counter or a planeswalker, or a button.",
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "player|player-2",
+       "label": "AI 2"
+      },
+      {
+       "id": "card|engine-card-504",
+       "label": "Teferi, Hero of Dominaria (AI 2's planeswalker)"
+      },
+      {
+       "id": "__each",
+       "label": "One by one"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "onTimeout": "player|player-1",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "answer": [
+     "card|engine-card-504"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Attack whom with 2 creatures?\": Teferi, Hero of Dominaria (AI 2's planeswalker)\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 900,
+      "action": {
+       "type": "chooseAttackers",
+       "output": {
+        "type": "declareAttackers",
+        "assignments": [
+         {
+          "attackerId": "engine-card-601",
+          "targetId": "engine-card-504"
+         },
+         {
+          "attackerId": "engine-card-602",
+          "targetId": "engine-card-504"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   }
+  ],
+  "result": {
+   "open": null,
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
+  "name": "attack targets: All attack one by one",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → whom? (asked next) | Grizzly Bears → AI 1 | Grizzly Bears → AI 2 | Grizzly Bears → Teferi, Hero of Dominaria | Serra Angel → whom? (asked next) | Serra Angel → AI 1 | ... (10)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 8,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|?",
+       "label": "Grizzly Bears → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      },
+      {
+       "id": "engine-card-601|player-2",
+       "label": "Grizzly Bears → AI 2"
+      },
+      {
+       "id": "engine-card-601|engine-card-504",
+       "label": "Grizzly Bears → Teferi, Hero of Dominaria"
+      },
+      {
+       "id": "engine-card-602|?",
+       "label": "Serra Angel → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-602|player-1",
+       "label": "Serra Angel → AI 1"
+      },
+      {
+       "id": "engine-card-602|player-2",
+       "label": "Serra Angel → AI 2"
+      },
+      {
+       "id": "engine-card-602|engine-card-504",
+       "label": "Serra Angel → Teferi, Hero of Dominaria"
+      }
+     ],
+     "kind": "attack",
+     "text": ""
+    }
+   },
+   {
+    "answer": [
+     "__allattack"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Choose attackers\": All attack\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Attack whom with 2 creatures?\": AI 1 | AI 2 | Teferi, Hero of Dominaria (AI 2's planeswalker) | One by one | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Attack whom with 2 creatures?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "Attacking: Grizzly Bears, Serra Angel. Click a life counter or a planeswalker, or a button.",
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "player|player-2",
+       "label": "AI 2"
+      },
+      {
+       "id": "card|engine-card-504",
+       "label": "Teferi, Hero of Dominaria (AI 2's planeswalker)"
+      },
+      {
+       "id": "__each",
+       "label": "One by one"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "onTimeout": "player|player-1",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "answer": [
+     "__each"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Attack whom with 2 creatures?\": One by one\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Attack whom with Grizzly Bears?\": AI 1 | AI 2 | Teferi, Hero of Dominaria (AI 2's planeswalker) | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Attack whom with Grizzly Bears?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "Click a life counter or a planeswalker, or a button.",
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "player|player-2",
+       "label": "AI 2"
+      },
+      {
+       "id": "card|engine-card-504",
+       "label": "Teferi, Hero of Dominaria (AI 2's planeswalker)"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "onTimeout": "player|player-1",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "answer": [
+     "player|player-1"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Attack whom with Grizzly Bears?\": AI 1\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Attack whom with Serra Angel?\": AI 1 | AI 2 | Teferi, Hero of Dominaria (AI 2's planeswalker) | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Attack whom with Serra Angel?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "Click a life counter or a planeswalker, or a button.",
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "player|player-2",
+       "label": "AI 2"
+      },
+      {
+       "id": "card|engine-card-504",
+       "label": "Teferi, Hero of Dominaria (AI 2's planeswalker)"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "onTimeout": "player|player-1",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "answer": [
+     "card|engine-card-504"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Attack whom with Serra Angel?\": Teferi, Hero of Dominaria (AI 2's planeswalker)\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 900,
+      "action": {
+       "type": "chooseAttackers",
+       "output": {
+        "type": "declareAttackers",
+        "assignments": [
+         {
+          "attackerId": "engine-card-601",
+          "targetId": "player-1"
+         },
+         {
+          "attackerId": "engine-card-602",
+          "targetId": "engine-card-504"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   }
+  ],
+  "result": {
+   "open": null,
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
+  "name": "attack targets: whom? Back to the attack question",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → whom? (asked next) | Grizzly Bears → AI 1 | Grizzly Bears → AI 2 | Grizzly Bears → Teferi, Hero of Dominaria | Serra Angel → whom? (asked next) | Serra Angel → AI 1 | ... (10)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 8,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|?",
+       "label": "Grizzly Bears → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      },
+      {
+       "id": "engine-card-601|player-2",
+       "label": "Grizzly Bears → AI 2"
+      },
+      {
+       "id": "engine-card-601|engine-card-504",
+       "label": "Grizzly Bears → Teferi, Hero of Dominaria"
+      },
+      {
+       "id": "engine-card-602|?",
+       "label": "Serra Angel → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-602|player-1",
+       "label": "Serra Angel → AI 1"
+      },
+      {
+       "id": "engine-card-602|player-2",
+       "label": "Serra Angel → AI 2"
+      },
+      {
+       "id": "engine-card-602|engine-card-504",
+       "label": "Serra Angel → Teferi, Hero of Dominaria"
+      }
+     ],
+     "kind": "attack",
+     "text": ""
+    }
+   },
+   {
+    "answer": [
+     "__allattack"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Choose attackers\": All attack\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Attack whom with 2 creatures?\": AI 1 | AI 2 | Teferi, Hero of Dominaria (AI 2's planeswalker) | One by one | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Attack whom with 2 creatures?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "Attacking: Grizzly Bears, Serra Angel. Click a life counter or a planeswalker, or a button.",
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "player|player-2",
+       "label": "AI 2"
+      },
+      {
+       "id": "card|engine-card-504",
+       "label": "Teferi, Hero of Dominaria (AI 2's planeswalker)"
+      },
+      {
+       "id": "__each",
+       "label": "One by one"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "onTimeout": "player|player-1",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "answer": [
+     "__back"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Attack whom with 2 creatures?\": Back\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → whom? (asked next) | Grizzly Bears → AI 1 | Grizzly Bears → AI 2 | Grizzly Bears → Teferi, Hero of Dominaria | Serra Angel → whom? (asked next) | Serra Angel → AI 1 | ... (10)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 8,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|?",
+       "label": "Grizzly Bears → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      },
+      {
+       "id": "engine-card-601|player-2",
+       "label": "Grizzly Bears → AI 2"
+      },
+      {
+       "id": "engine-card-601|engine-card-504",
+       "label": "Grizzly Bears → Teferi, Hero of Dominaria"
+      },
+      {
+       "id": "engine-card-602|?",
+       "label": "Serra Angel → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-602|player-1",
+       "label": "Serra Angel → AI 1"
+      },
+      {
+       "id": "engine-card-602|player-2",
+       "label": "Serra Angel → AI 2"
+      },
+      {
+       "id": "engine-card-602|engine-card-504",
+       "label": "Serra Angel → Teferi, Hero of Dominaria"
+      }
+     ],
+     "kind": "attack",
+     "text": ""
+    }
+   }
+  ],
+  "result": {
+   "open": {
+    "type": "chooseAttackers",
+    "ui": {
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 8,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|?",
+       "label": "Grizzly Bears → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      },
+      {
+       "id": "engine-card-601|player-2",
+       "label": "Grizzly Bears → AI 2"
+      },
+      {
+       "id": "engine-card-601|engine-card-504",
+       "label": "Grizzly Bears → Teferi, Hero of Dominaria"
+      },
+      {
+       "id": "engine-card-602|?",
+       "label": "Serra Angel → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-602|player-1",
+       "label": "Serra Angel → AI 1"
+      },
+      {
+       "id": "engine-card-602|player-2",
+       "label": "Serra Angel → AI 2"
+      },
+      {
+       "id": "engine-card-602|engine-card-504",
+       "label": "Serra Angel → Teferi, Hero of Dominaria"
+      }
+     ],
+     "kind": "attack",
+     "text": ""
+    }
+   },
+   "endTurnAt": null,
+   "resolveStack": null,
+   "autoPayCard": null
+  }
+ },
+ {
+  "name": "attack targets: Attack (1) with whom? asks for it alone",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → whom? (asked next) | Grizzly Bears → AI 1 | Grizzly Bears → AI 2 | Grizzly Bears → Teferi, Hero of Dominaria | Serra Angel → whom? (asked next) | Serra Angel → AI 1 | ... (10)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 8,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|?",
+       "label": "Grizzly Bears → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      },
+      {
+       "id": "engine-card-601|player-2",
+       "label": "Grizzly Bears → AI 2"
+      },
+      {
+       "id": "engine-card-601|engine-card-504",
+       "label": "Grizzly Bears → Teferi, Hero of Dominaria"
+      },
+      {
+       "id": "engine-card-602|?",
+       "label": "Serra Angel → whom? (asked next)"
+      },
+      {
+       "id": "engine-card-602|player-1",
+       "label": "Serra Angel → AI 1"
+      },
+      {
+       "id": "engine-card-602|player-2",
+       "label": "Serra Angel → AI 2"
+      },
+      {
+       "id": "engine-card-602|engine-card-504",
+       "label": "Serra Angel → Teferi, Hero of Dominaria"
+      }
+     ],
+     "kind": "attack",
+     "text": ""
+    }
+   },
+   {
+    "answer": [
+     "engine-card-601|?",
+     "engine-card-602|player-1"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Choose attackers\": Grizzly Bears → whom? (asked next), Serra Angel → AI 1\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Attack whom with Grizzly Bears?\": AI 1 | AI 2 | Teferi, Hero of Dominaria (AI 2's planeswalker) | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Attack whom with Grizzly Bears?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "Click a life counter or a planeswalker, or a button.",
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "AI 1"
+      },
+      {
+       "id": "player|player-2",
+       "label": "AI 2"
+      },
+      {
+       "id": "card|engine-card-504",
+       "label": "Teferi, Hero of Dominaria (AI 2's planeswalker)"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "onTimeout": "player|player-1",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "answer": [
+     "player|player-2"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Attack whom with Grizzly Bears?\": AI 2\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 900,
+      "action": {
+       "type": "chooseAttackers",
+       "output": {
+        "type": "declareAttackers",
+        "assignments": [
+         {
+          "attackerId": "engine-card-601",
+          "targetId": "player-2"
+         },
+         {
+          "attackerId": "engine-card-602",
+          "targetId": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   }
+  ],
+  "result": {
+   "open": null,
    "endTurnAt": null,
    "resolveStack": null,
    "autoPayCard": null

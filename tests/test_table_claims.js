@@ -281,6 +281,18 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("attack corner: one chosen says Attack (1) / No attacks", valueOf(r, "one chosen") === "Attack (1)|No attacks", valueOf(r, "one chosen"));
   ok("attack corner: Attack sends the chosen attacker", sent("press attack").includes('"choice":["engine-card-1|player-1"]'), sent("press attack").slice(0, 200));
 }
+// Q/E on a creature the attack question doesn't offer says the bridge's reason, cantAttack (attack reminder spec part
+// 2: "Hill Giant can't attack: summoning sick." instead of "That creature can't attack right now.")
+{
+  const id = blueBf[0];
+  const qe = (mark) => q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end onPlayerAction(Player.Blue, Player.Action.RotateIncrementalRight, { o })`, mark);
+  const attackAsk = (promptId, extra) => ask({ promptId, kind: "attack", title: "Choose attackers", mode: "multi", min: 0, max: 1, options: [
+    { id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" }, { id: "engine-card-99998|player-1", label: "Other → White" }], ...extra });
+  const r = run([attackAsk(874, { cantAttack: { [id]: "Hill Giant can't attack: summoning sick." } }), qe("reason"), attackAsk(875, {}), qe("plain")]);
+  const said = (mark) => fxOf(r, mark).filter((l) => l.includes("broadcastToColor")).join(" | ");
+  ok("attack Q/E: a creature not offered says the bridge's reason", said("reason").includes("Hill Giant can't attack: summoning sick.") && !said("reason").includes("right now"), said("reason") + " " + r.errors.join(" | "));
+  ok("attack Q/E: without a reason the old line stays", said("plain").includes("That creature can't attack right now."), said("plain"));
+}
 // scry the table's way (2026-10-24): the cards go into the second hand zone; dragged onto the library they stay on top,
 // the last one dragged on top; clicked, a card goes to the bottom; the last one out of the zone answers
 {
