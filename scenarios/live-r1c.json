@@ -1,0 +1,6 @@
+{
+  "label": "round 1 live check, part 3: Lightning Bolt (a target question with a planeswalker: the hint wording) and Giant Growth (a pump on an attacker), keeping the hand and adding no lands",
+  "keepHand": true,
+  "lands": 0,
+  "hand": ["Lightning Bolt", "Giant Growth"]
+}
