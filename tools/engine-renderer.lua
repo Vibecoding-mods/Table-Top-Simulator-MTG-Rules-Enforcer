@@ -1742,7 +1742,7 @@ do
     local t0 = os.clock()
     local hits = (engineLungeHits ~= nil and engineLungeHits.board == m) and engineLungeHits or {}
     local last = engineFxLast or {}
-    last.fx, last.dropped, last.sound = last.fx or {}, last.dropped or 0, kind
+    last.fx, last.dropped = last.fx or {}, last.dropped or 0
     if visual and (FX.car == nil or FX.car.isDestroyed()) then FX.car = FX.carrier() end
     local started, deaths, soundAt = 0, 0, nil
     local soundOf = kind == "wipe" and "death" or kind
@@ -1775,13 +1775,13 @@ do
     if S ~= nil then S.fx = (S.fx or 0) + (os.clock() - t0) * 1000 end
   end
   -- The board's events, most important first: knock-outs, deaths, damage to players, damage to creatures, counters.
-  -- prev/now are engineEffects' snapshots, diedIds its deaths, exiledIds the permanents exiled. Returns how many
-  -- (visual) events it found.
+  -- prev/now are engineEffects' snapshots, diedIds its deaths, exiledIds the permanents exiled. Picks the board's one
+  -- sound by its counts per kind (FX.dispatch plays it). Returns how many (visual) events it found.
   function engineFxBoard(m, prev, now, diedIds, exiledIds)
-    local ev = {}
+    local ev, nOut = {}, 0
     local sortedKeys = function(t) local ks = {} for k in pairs(t) do ks[#ks + 1] = k end table.sort(ks) return ks end
     for _, c in ipairs(sortedKeys(now.status)) do
-      if now.status[c] ~= "playing" and prev.status[c] == "playing" then ev[#ev + 1] = { kind = "knockout", seat = c } end
+      if now.status[c] ~= "playing" and prev.status[c] == "playing" then ev[#ev + 1] = { kind = "knockout", seat = c } nOut = nOut + 1 end
     end
     -- deaths by the battlefield they left; more than 3 on one = one bigger cloud with "×N" in the middle of them
     local bySeat = {}
@@ -1843,22 +1843,18 @@ do
         if n < list[2] and not at[key] then at[key], n = true, n + 1 ev[#ev + 1] = e end
       end
     end
-    -- the board's sound kinds (design section 6): the visual events' own, a wipe (3 or more permanents to graveyards on
-    -- this board, all seats together), an exile from the battlefield, life gained, an instant cast
-    local kinds, nDied = {}, 0
-    for _, e in ipairs(ev) do kinds[FX.SOUND_OF[e.kind]] = true end
+    -- the board's sound kinds (design section 6), each by its count on this board, the one record of both whether it
+    -- is on the board (over 0) and its burst (FX.burst): players out; permanents to graveyards (a wipe: 3 or more, all
+    -- seats together; one with no spot to smoke at still counts); permanents exiled from the battlefield; creatures hit
+    -- (all, not only the 4 shown) plus players hit; players whose life went up (a board has life totals only: two gains
+    -- by one player count once); an instant cast (1 at most); permanents given counters
+    local nDied = 0
     for _, ids in pairs(diedIds) do nDied = nDied + #ids end
-    if nDied > 0 then kinds.death = true end -- (one with no spot to smoke at still sounds)
-    if nDied >= FX.WIPE then kinds.wipe = true end
-    if exiledIds ~= nil and #exiledIds > 0 then kinds.exile = true end
-    if nGained > 0 then kinds.lifegain = true end
-    if FX.instantCast(prev, now) then kinds.instant = true end
-    -- one sound: the most important kind on this board that has a pick, with its count for the bursts (FX.burst):
-    -- permanents to graveyards, permanents exiled, creatures hit (all, not only the 4 shown) plus players hit, players
-    -- whose life went up (a board has life totals only: two gains by one player count once)
+    local counts = { knockout = nOut, wipe = nDied >= FX.WIPE and nDied or 0, death = nDied, exile = exiledIds and #exiledIds or 0,
+      damage = #hitsAt + nHurt, lifegain = nGained, instant = FX.instantCast(prev, now) and 1 or 0, counter = #rings }
+    -- one sound: the most important kind on this board that has a pick
     local kind = nil
-    for _, k in ipairs(engineSoundKinds or {}) do if kind == nil and kinds[k] and FX.picked(k) then kind = k end end
-    local counts = { death = nDied, wipe = nDied, exile = exiledIds and #exiledIds or 0, damage = #hitsAt + nHurt, lifegain = nGained }
+    for _, k in ipairs(engineSoundKinds or {}) do if kind == nil and (counts[k] or 0) > 0 and FX.picked(k) then kind = k end end
     local n = kind and counts[kind] or 1
     if #ev == 0 and kind == nil then return 0 end
     local visual = #ev > 0 and FX.visualsOn()
@@ -1916,9 +1912,9 @@ do
     return "shown"
   end
   -- M5 sounds (design section 6), at most one per board: each kind at most every 0.3 s, any two 0.15 s apart.
-  -- engineSounds[kind]: nil = silent; a link (https://...) plays through the table's music player (route A, shared by
-  -- everyone); a name plays that trigger effect of the sound object whose GM notes are "engine:sounds" (route B).
-  -- force (mtg sounds test) skips the spacing. n: how many at once, for the bursts (FX.burst: death_x4 for 5 deaths;
+  -- engineSounds[kind]: nil or "" = silent (FX.picked); a link (https://...) plays through the table's music player
+  -- (route A, shared by everyone); a name plays that trigger effect of the sound object whose GM notes are
+  -- "engine:sounds" (route B). force (mtg sounds test) skips the spacing. n: how many at once, for the bursts (FX.burst: death_x4 for 5 deaths;
   -- the spacing stays the kind's). True if it played. engineSoundLog: "clip route" (death_x4 music), for the tests.
   function engineSoundPlay(kind, force, n)
     if not FX.picked(kind) then return false end

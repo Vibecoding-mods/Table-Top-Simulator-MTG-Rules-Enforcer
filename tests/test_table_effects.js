@@ -38,15 +38,26 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 const PRELUDE = `
 engineSoundsShipped = engineSounds
 engineSounds = {}
-MusicPlayer = { player_status = "Stop", loaded = true, clip = { title = "", url = "" }, delay = 0 }
+MusicPlayer = { player_status = "Stop", loaded = true, clip = { title = "", url = "" }, delay = 0, loadDelay = 0 }
 -- (delay > 0: the new clip takes that many frames to arrive, and until then the player still holds the last clip with
--- loaded still true, as a slow download would leave it)
+-- loaded still true, as a slow download would leave it; loadDelay > 0: once there, it is loaded that many frames later)
 MusicPlayer.setCurrentAudioclip = function(t)
   __sim.fx("MusicPlayer.setCurrentAudioclip", t.url, t.title)
-  if MusicPlayer.delay > 0 then Wait.frames(function() MusicPlayer.clip = t MusicPlayer.loaded = true end, MusicPlayer.delay) else MusicPlayer.clip = t end
+  local function arrive()
+    MusicPlayer.clip = t
+    if MusicPlayer.loadDelay > 0 then
+      MusicPlayer.loaded = false
+      Wait.frames(function() if MusicPlayer.clip == t then MusicPlayer.loaded = true end end, MusicPlayer.loadDelay)
+    else MusicPlayer.loaded = true end
+  end
+  if MusicPlayer.delay > 0 then Wait.frames(arrive, MusicPlayer.delay) else arrive() end
 end
-MusicPlayer.getCurrentAudioclip = function() return MusicPlayer.clip end
-MusicPlayer.play = function() __sim.fx("MusicPlayer.play", MusicPlayer.clip.url) end
+-- (respell: the player hands the link back spelled another way, the title as set)
+MusicPlayer.getCurrentAudioclip = function()
+  if MusicPlayer.respell and (MusicPlayer.clip.url or "") ~= "" then return { url = MusicPlayer.clip.url .. "?respelled", title = MusicPlayer.clip.title } end
+  return MusicPlayer.clip
+end
+MusicPlayer.play = function() MusicPlayer.player_status = "Play" __sim.fx("MusicPlayer.play", MusicPlayer.clip.url) end
 local car = getObjectFromGUID("${CARRIER}")
 car.UI.show = function(id) __sim.fx("objUI.show", id) end
 car.UI.hide = function(id) __sim.fx("objUI.hide", id) end
@@ -251,6 +262,23 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const p = (v.fx || []).find((e) => e.kind === "player");
   ok("combat: the player burst starts at the first swing's hit (about 0.15 s), not at once", p && p.at > 0.1 && p.at < 0.2, JSON.stringify(v));
   ok("combat: its slot is not on in the board's frame", !activeOn(t.fx("combat damage")).length && activeOn(t.fx("after")).length >= 1, JSON.stringify(onCarrier(t.fx("after")).slice(0, 3)));
+}
+
+// "a wipe's [sound] with the first death": three blockers dying in combat, the wipe sound at the first hit, not at once
+{
+  const s0 = base();
+  const atk = clone(s0); atk.step = "combatDeclareBlockers";
+  atk.Blue.more = { b1: { atk: true, atkT: "White" }, b2: { atk: true, atkT: "White" }, b3: { atk: true, atkT: "White" } };
+  atk.White.more = { w1: { blkOf: ["b1"] }, w2: { blkOf: ["b2"] }, w3: { blkOf: ["b3"] } };
+  const dmg = clone(atk); dmg.step = "combatDamage"; dmg.White.bf = ["w4", "wl1"]; dmg.White.gy = ["w1", "w2", "w3"]; dmg.White.more = {};
+  const t = run([lua(`engineSounds.wipe = "https://example.invalid/wipe.mp3" engineSounds.death = "https://example.invalid/death.mp3" return "x"`, "picks"),
+    send(s0, "first board"), send(atk, "attackers"), send(dmg, "combat damage", 1), LAST, lua(`return "x"`, "after", 30), LAST]);
+  ok("combat wipe: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const [now, later] = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  const first = Math.min(...(now.fx || []).filter((e) => e.kind === "death").map((e) => e.at));
+  ok("combat wipe: the first death starts at a hit, not at once", first > 0.1 && first < 0.3, JSON.stringify(now.fx));
+  ok("combat wipe: no sound at once", JSON.stringify(now.snd) === "[]", JSON.stringify(now.snd));
+  ok("combat wipe: the wipe sound with the first death", JSON.stringify(later.snd) === '["wipe music"]', JSON.stringify(later.snd));
 }
 
 // 8: jumps are not plays
@@ -540,6 +568,92 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("countered: an instant countered shows COUNTERED: Lightning Bolt", pop("bolt countered").some((l) => l.includes("COUNTERED: Lightning Bolt")), JSON.stringify(t.fx("bolt countered").filter((l) => l.includes("eng_pop"))));
   ok("countered: a sorcery countered shows COUNTERED: Farseek", pop("farseek countered").some((l) => l.includes("COUNTERED: Farseek")), JSON.stringify(t.fx("farseek countered").filter((l) => l.includes("eng_pop"))));
   ok("countered: an ability (no sp, no spell) countered shows none", pop("an ability countered").length === 0, JSON.stringify(pop("an ability countered")));
+}
+
+// claims audit (jr-programmer-suite, 2026-11-11): promises of design section 6 that the blocks above don't pin
+{
+  const s0 = base(); s0.Blue.gy = ["b8"];
+  // "a knock-out with no knockout pick plays the damage that did it", at the damage's start (not the knock-out's 0.6 s)
+  const ko = clone(s0); ko.White.status = "lost"; ko.White.life = 0;
+  // "a flicker that is back on the battlefield by the next board doesn't" play exile, though the engine's exd names it
+  const flick = clone(ko); flick.exd = ["b1"];
+  // "a card exiled from a hand, a library or a graveyard doesn't"
+  const gyEx = clone(ko); gyEx.Blue.gy = []; gyEx.Blue.ex = ["b8"];
+  // an empty pick is silent: it doesn't take the board's sound from the kind under it (a death and an exile, death "")
+  const both = clone(gyEx); both.Blue.bf = both.Blue.bf.filter((c) => c !== "b2" && c !== "b3"); both.Blue.gy = ["b2"]; both.Blue.ex.push("b3");
+  // "any two sounds at least 0.15 s apart": a damage 0.1 s after an exile plays nothing
+  const ex2 = clone(both); ex2.Blue.bf = ex2.Blue.bf.filter((c) => c !== "b4"); ex2.Blue.ex.push("b4");
+  const hit = clone(ex2); hit.Blue.life = 39;
+  // counter, the last kind: a counter put on a permanent plays it once it has a pick
+  const ctr = clone(hit); ctr.Blue.more.b5 = { ctr: { P1P1: 1 } };
+  const t = run([
+    lua(`for _, k in ipairs({ "death", "damage", "exile" }) do engineSounds[k] = "https://example.invalid/" .. k .. ".mp3" end return "set"`, "picks"),
+    send(s0, "first board"), send(ko, "knock-out, no pick", 4), LAST, lua(`return "x"`, "later", 60), LAST,
+    send(flick, "flicker", 30), LAST, send(gyEx, "graveyard to exile", 30), LAST,
+    lua(`engineSounds.death = "" return "x"`, "empty death pick"), send(both, "death and exile", 30), LAST,
+    send(ex2, "exile again", 6), LAST, send(hit, "damage 0.1 s later", 30), LAST,
+    lua(`engineSounds.counter = "https://example.invalid/counter.mp3" return "x"`, "counter pick"), send(ctr, "a counter", 30), LAST,
+  ]);
+  ok("claims: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  const news = vals.map((v, i) => (v.snd || []).slice(i === 0 ? 0 : (vals[i - 1].snd || []).length));
+  const said = (i) => JSON.stringify(news[i]);
+  ok("knock-out with no pick: the damage that did it plays, at once (not 0.6 s in)", said(0) === '["damage music"]', said(0));
+  ok("knock-out with no pick: once", said(1) === "[]", said(1));
+  ok("exile: a flicker (exd names a card still on the battlefield) plays nothing", said(2) === "[]", said(2));
+  ok("exile: a card exiled from a graveyard plays nothing", said(3) === "[]", said(3));
+  ok("an empty pick is silent: the exile under the death plays", said(4) === '["exile music"]', said(4));
+  ok("spacing: an exile plays (0.5 s after the last)", said(5) === '["exile music"]', said(5));
+  ok("spacing: a damage 0.1 s after it plays nothing (any two 0.15 s apart)", said(6) === "[]", said(6));
+  ok("counter: a counter put on a permanent plays counter once picked", said(7) === '["counter music"]', said(7));
+  // "knock-out 600 ms" in: with a knockout pick, its sound waits for the burst
+  const k = run([lua(`engineSounds.knockout = "https://example.invalid/knockout.mp3" engineSounds.damage = "https://example.invalid/damage.mp3" return "x"`, "picks"),
+    send(s0, "first board"), send(ko, "knock-out", 4), LAST, lua(`return "x"`, "later", 60), LAST]);
+  const kv = k.all("last").map((s) => JSON.parse(s.value || "{}").snd || []);
+  ok("knock-out: its sound not at once", JSON.stringify(kv[0]) === "[]", JSON.stringify(kv[0]));
+  ok("knock-out: its sound 0.6 s in, once, not the damage's", JSON.stringify(kv[1]) === '["knockout music"]', JSON.stringify(kv[1]));
+}
+
+// the music player loading (claims audit 2026-11-11): "plays once the player holds this very clip and loaded is true",
+// and "a newer sound set before it plays wins; the older one never plays" while the older clip is there but loading
+{
+  const L = (k) => `https://example.invalid/${k}.mp3`;
+  const s0 = base();
+  const s1 = clone(s0); s1.Blue.bf = s1.Blue.bf.filter((c) => c !== "b1"); s1.Blue.gy = ["b1"]; // death
+  // (an exile: not the clip the player already holds, which would be there and loaded at once)
+  const s3 = clone(s1); s3.Blue.bf = s3.Blue.bf.filter((c) => c !== "b2"); s3.Blue.ex = ["b2"];
+  const s4 = clone(s3); s4.White.life = 47; // lifegain, 0.5 s later
+  const t = run([
+    lua(`engineSounds.death = "${L("death")}" engineSounds.exile = "${L("exile")}" engineSounds.lifegain = "${L("lifegain")}" MusicPlayer.loadDelay = 20 return "x"`, "loading"),
+    send(s0, "first board"), send(s1, "still loading", 10), lua(`return "x"`, "loaded", 30),
+    lua(`MusicPlayer.delay = 20 MusicPlayer.loadDelay = 30 return "x"`, "slow"), send(s3, "older", 30), send(s4, "newer", 90),
+  ]);
+  ok("music loading: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const plays = (marks) => marks.flatMap((m) => t.fx(m)).filter((l) => l.includes('"MusicPlayer.play"'));
+  ok("music loading: not played while its clip is still loading", plays(["still loading"]).length === 0, JSON.stringify(plays(["still loading"])));
+  ok("music loading: played once loaded, as itself", plays(["loaded"]).length === 1 && plays(["loaded"])[0].includes(L("death")), JSON.stringify(plays(["loaded"])));
+  const two = plays(["older", "newer"]);
+  ok("music loading: an older clip there but loading when a newer sound comes never plays; the newer does", two.length === 1 && two[0].includes(L("lifegain")), JSON.stringify(two));
+}
+
+// "the players' own music is never cut ... unless the player is stopped or holds no clip": a player holding no clip
+// takes a sound whatever its status, and our own clip, once played (the player then says "Play"), is never theirs
+{
+  const L = (k) => `https://example.invalid/${k}.mp3`;
+  const s0 = base();
+  const s1 = clone(s0); s1.Blue.bf = s1.Blue.bf.filter((c) => c !== "b1"); s1.Blue.gy = ["b1"]; // death
+  const s2 = clone(s1); s2.Blue.bf = s2.Blue.bf.filter((c) => c !== "b2"); s2.Blue.ex = ["b2"]; // exile, 0.5 s later
+  const s3 = clone(s2); s3.White.life = 44; // lifegain
+  const t = run([
+    lua(`engineSounds.death = "${L("death")}" engineSounds.exile = "${L("exile")}" engineSounds.lifegain = "${L("lifegain")}" MusicPlayer.player_status = "Pause" MusicPlayer.clip = { title = "", url = "" } return "x"`, "empty"),
+    send(s0, "first board"), send(s1, "an empty player", 30), send(s2, "after our own clip", 30),
+    lua(`MusicPlayer.respell = true return "x"`, "respell"), send(s3, "link spelled another way", 30),
+  ]);
+  ok("music player (empty): the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const played = (m) => t.fx(m).filter((l) => l.includes('"MusicPlayer.play"'));
+  ok("music player: a player holding no clip (paused) takes the sound", played("an empty player").length === 1 && played("an empty player")[0].includes(L("death")), JSON.stringify(t.fx("an empty player").filter((l) => l.includes("Music"))));
+  ok("music player: our own clip, played, isn't the players' music", played("after our own clip").length === 1 && played("after our own clip")[0].includes(L("exile")), JSON.stringify(t.fx("after our own clip").filter((l) => l.includes("Music"))));
+  ok("music player: a clip handed back with its link spelled another way is still ours, by its title", played("link spelled another way").length === 1 && played("link spelled another way")[0].includes(L("lifegain")), JSON.stringify(t.fx("link spelled another way").filter((l) => l.includes("Music"))));
 }
 
 console.log(failed ? `\n${failed} failed, ${passed} passed` : `all ${passed} passed`);

@@ -149,7 +149,7 @@ const M = [
   ["sy held draws: never handed over", "for _, id in ipairs(list) do if wanted[id] then engineReleasePending(m.color, \"all\") break end end", "for _, id in ipairs(list) do if false then engineReleasePending(m.color, \"all\") break end end"],
   ["sy held draws: handed over for any question", "wanted[id:gsub(\"^card|\", \"\")] = true", "wanted[id:gsub(\"^card|\", \"\")] = true for _, x in ipairs(p.draw) do wanted[x] = true end"],
   ["sy race: drawn cards held while a question asks about them","if held[(tostring(o.cardId or o.id or \"\"):gsub(\"^card|\", \"\"))] then p.draw = {} break end","if false then p.draw = {} break end"],
-  ["fx: deaths not counted","if now.bf[id] == nil and (now.gy[id] ~= nil or x.tok) then","if false then"],
+  ["fx: deaths not counted","if now.bf[id] == nil and (now.gy[id] ~= nil or (x.tok and not exd[id] and now.ex[id] == nil)) then","if false then"],
   ["fx: no xN on a board wipe","      if n > 1 then\n        target.createButton","      if n > 99 then\n        target.createButton"],
   ["fx: countered without being aimed at","if t.k == \"s\" and not still[t.id] then countered[t.id] = true end","countered[t.id] = true"],
   ["fx: COUNTERED never shown","if countered[st.id] and (st.spell or st.sp) and panelReadyForPopup() then","if false then"],
