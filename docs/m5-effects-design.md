@@ -341,7 +341,10 @@ wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not
     damage = the creatures that took damage (before the 4-burst visual cap) plus the players whose life went down;
     lifegain = the players whose life went up. The engine's own feed has no separate gain events for the table (the
     bridge only rebuilds gains for its log lines), and a board carries life totals only, so two gains by one player
-    on one board count once.
+    on one board count once. Knockout, instant and counter are counted the same way (players out, 1, permanents given
+    counters) but have no burst links. In `engineFxBoard` this one `counts` table is both the board's kinds (a count
+    over 0; wipe's is 0 under 3) and their bursts (suite review 2026-11-11: it replaced a separate set of kinds fed
+    from the visual events, which could disagree with the counts).
   - Still one clip per board, by the order above, under the same limits: the spacing is kept per kind (`death_x4`
     and `death` share the 0.3 s), so a runaway turn plays at most one clip per update. `engineSoundLog` names the
     clip played (`death_x4 music`); the music player's title is `MTG effect: death_x4`.
@@ -349,16 +352,20 @@ wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not
 - **Countered (fixed 2026-11-11):** the "COUNTERED: <name>" pop-up shows for an instant or a sorcery too. The
   bridge's `spell` (no `sourceAbilityText`: the table moves that card) is false for them, so it marks a stack item
   that is a spell with spell text, not an ability (`isAbilityOnStack`), `sp: true`; the pop-up takes `spell` or `sp`.
-- **Not when:** `engineSoundsMuted`, no pick for that kind, a jump board, or (route A) the music player is busy with
+- **Not when:** `engineSoundsMuted`, no pick for that kind (nil or `""`: an empty pick is no pick, so it never takes
+  the board's sound from the kind under it), a jump board, or (route A) the music player is busy with
   the players' own music: the current clip has a link, its title doesn't start with "MTG effect", and
   `MusicPlayer.player_status` isn't "Stop" (a paused track of theirs counts; before 2026-11-11 only "Play" did).
 - **Route A, MusicPlayer (works today, no Unity):**
-  - `MusicPlayer.setCurrentAudioclip({ url = pick, title = "MTG effect: " .. kind })`, then a `Wait.condition` (up
-    to 2 s) that plays once the player holds this very clip (its link, or its title) and `loaded` is true: right
-    after the set, `loaded` can still be the last clip's. A newer sound set before it plays wins; the older one
-    never plays (2026-11-11, verifier).
-  - Not over the players' own music: no sound while the player holds a clip not titled "MTG effect ..." unless the
-    player is stopped (playing or paused, their track stays).
+  - `MusicPlayer.setCurrentAudioclip({ url = pick, title = "MTG effect: " .. key })` (key: the clip, `death_x4` for
+    a burst), then a `Wait.condition` (up to 2 s; past that the sound is dropped) that plays once the player holds
+    this very clip (its link, or its title should TTS hand the link back spelled another way) and `loaded` is true:
+    right after the set, `loaded` can still be the last clip's. A newer route A sound set before it plays wins; the
+    older one never plays, even when its clip is there and still loading (2026-11-11, verifier; the loading case
+    tested in the suite review). A route B sound doesn't cancel one waiting: the bundle plays apart from the player.
+  - Not over the players' own music: no sound while the player holds a clip of theirs (a link, not titled "MTG
+    effect ...") unless the player is stopped (playing or paused, their track stays). A player holding no clip takes
+    the sound whatever its status, and our own clip, playing or not, is never theirs.
   - Limits (MusicPlayer API):
     - one clip at a time, so a new sound cuts the last one;
     - it waits until **every** player has loaded the clip, so the delay is unknown (real-table check 5: if it is

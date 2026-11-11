@@ -4065,7 +4065,9 @@ function notePrinted(gv) {
 function noteBoard(gv) { noteOuts(gv); notePrinted(gv); harmlessVotes(gv); }
 // The card types seen face up, by card id and by name, from every seat's view (sendTable): Forge's stack item carries
 // no types, and the table's instant sound needs them (isInstantCast). Not the battlefield, where effects change types
-// (an animated land) and no instant ever is; not tokens or copies by name.
+// (an animated land) and no instant ever is; not tokens or copies by name (defensive: outside the battlefield neither
+// is known to carry an instant's name without its type). Face-down and hidden cards are skipped: their types aren't
+// the card's, and the first types seen stick.
 function noteTypes(gv) {
   if (!game || !gv) return;
   const byId = (game.typesById ??= new Map()), byName = (game.typesByName ??= new Map());
