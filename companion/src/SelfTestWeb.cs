@@ -287,6 +287,39 @@ namespace MtgCompanion
                 && !J.Bool(J.Arr(J.Parse(Send(ow, Get(ow, "/api/status", ow.Token)).Body), "menu")[1], "enabled"));
             Check("observe: every change refused (restart, stop, a fix, show-program, wsl)", new[] { "restart-engine", "stop-everything", "fix:2:stack-restart", "fix:4:show-program", "wsl-limits" }.All(id => !J.Bool(Act(ow, id), "ok")) && oe.Count == 0, string.Join("|", oe));
 
+            sb.AppendLine("-- status page: table tools (/api/tools)");
+            var calls = new List<string>();
+            HttpResult bridgeAnswer = HttpResult.Ok("{\"seats\":[],\"debug\":{\"on\":false}}");
+            w.BridgeCall = (m, p, j) => { calls.Add(m + " " + p + " " + j); return bridgeAnswer; };
+            Func<string, string> postTools = json => Send(w, Post(w, json, w.Token).Replace("POST /api/action ", "POST /api/tools ")).Body;
+            var tg = Send(w, Get(w, "/api/tools", w.Token));
+            Check("tools: GET passes the bridge's GET /tools through", tg.Status == 200 && tg.Body == bridgeAnswer.Body && calls.Count == 1 && calls[0] == "GET /tools ", string.Join("|", calls));
+            Check("tools: GET without the token: 403, the bridge not asked", Send(w, Get(w, "/api/tools", null)).Status == 403 && calls.Count == 1);
+            bridgeAnswer = HttpResult.Ok("{\"ok\":true,\"message\":\"Red: Harmless bot playing X.\",\"extra\":1}");
+            var tp = J.Parse(postTools("{ \"kind\" : \"ai-seat\", \"color\": \"Red\", \"seat\": \"harmless\", \"junk\": [1] }"));
+            Check("tools: POST a known kind: passed on as parsed (written again), answered {ok, message} only", J.Bool(tp, "ok") && J.Str(tp, "message") == "Red: Harmless bot playing X." && !J.Has(tp, "extra")
+                && calls.Count == 2 && calls[1] == "POST /tools {\"kind\":\"ai-seat\",\"color\":\"Red\",\"seat\":\"harmless\",\"junk\":[1]}", string.Join("|", calls));
+            var tpBad = Send(w, Post(w, "{\"kind\":\"format-c\"}", w.Token).Replace("POST /api/action ", "POST /api/tools "));
+            Check("tools: POST an unknown kind: 400, the bridge not asked", tpBad.Status == 400 && ErrorId(tpBad) == "bad-body" && calls.Count == 2, tpBad.Body);
+            Check("tools: POST not JSON: 400; the wrong type: 415", Send(w, Post(w, "kind=debug", w.Token).Replace("POST /api/action ", "POST /api/tools ")).Status == 400
+                && Send(w, Post(w, "{\"kind\":\"debug\"}", w.Token, "", "text/plain").Replace("POST /api/action ", "POST /api/tools ")).Status == 415 && calls.Count == 2);
+            bridgeAnswer = HttpResult.Of(HttpKind.Refused);
+            var tDown = Send(w, Get(w, "/api/tools", w.Token));
+            Check("tools: no bridge: 502, saying to start the engine", tDown.Status == 502 && ErrorId(tDown) == "no-bridge" && J.Str(J.Parse(tDown.Body), "message").Contains("isn't running"), tDown.Body);
+            bridgeAnswer = new HttpResult { Kind = HttpKind.Ok, Status = 404, Body = "" };
+            var tOldGet = Send(w, Get(w, "/api/tools", w.Token));
+            bridgeAnswer = HttpResult.Ok("<html>not json</html>");
+            var tJunk = Send(w, Get(w, "/api/tools", w.Token));
+            Check("tools: GET: a 404 or an answer that isn't a JSON object is no state: 502", tOldGet.Status == 502 && J.Str(J.Parse(tOldGet.Body), "message").Contains("no table tools") && tJunk.Status == 502, tOldGet.Body + " " + tJunk.Body);
+            bridgeAnswer = new HttpResult { Kind = HttpKind.Ok, Status = 404, Body = "" };
+            var tOld =Send(w, Post(w, "{\"kind\":\"debug-mode\",\"on\":true}", w.Token).Replace("POST /api/action ", "POST /api/tools "));
+            Check("tools: an older bridge without /tools: 502, saying so", tOld.Status == 502 && J.Str(J.Parse(tOld.Body), "message").Contains("no table tools"), tOld.Body);
+            var ocalls = new List<string>();
+            ow.BridgeCall = (m, p, j) => { ocalls.Add(m + " " + p); return HttpResult.Ok("{\"ok\":true,\"message\":\"x\"}"); };
+            var oTool = J.Parse(Send(ow, Post(ow, "{\"kind\":\"debug\",\"tool\":\"life\",\"color\":\"Red\",\"n\":5}", ow.Token).Replace("POST /api/action ", "POST /api/tools ")).Body);
+            Check("tools: observe: every POST refused, the bridge not asked; GET still shows", !J.Bool(oTool, "ok") && J.Str(oTool, "message") == "Observe mode: nothing is changed." && ocalls.Count == 0
+                && Send(ow, Get(ow, "/api/tools", ow.Token)).Status == 200 && ocalls.Count == 1, string.Join("|", ocalls));
+
             sb.AppendLine("-- status page: the update section");
             var st0 = J.Parse(Send(w, Get(w, "/api/status", w.Token)).Body);
             var up0 = J.Get(st0, "update");

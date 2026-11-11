@@ -98,6 +98,20 @@ summary:hover { color: var(--text); }
 .logfile { padding: 0 16px; margin: 0 0 6px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 pre.log { margin: 0; padding: 12px 16px; max-height: 340px; overflow: auto; border-top: 1px solid var(--line); font: 12.5px/1.45 Consolas, 'Cascadia Mono', ui-monospace, monospace; color: #c9cdd3; white-space: pre-wrap; overflow-wrap: anywhere; }
 
+.tt { padding: 0 16px 14px; }
+.tt h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
+.tt-note { margin: 4px 0 8px; color: var(--muted); overflow-wrap: anywhere; }
+.tt-seat { padding: 10px 0; border-top: 1px solid var(--line); }
+.tt-seat:first-child { border-top: 0; }
+.tt-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 6px; }
+.tt-line:first-child { margin-top: 0; }
+.tt-status { color: var(--muted); overflow-wrap: anywhere; }
+.tt-list { display: grid; gap: 6px; margin-top: 8px; }
+.tt select, .tt input[type='text'], .tt input[type='number'], .tt textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--panel2); border: 1px solid #3a414c; border-radius: 8px; padding: 6px 10px; max-width: 100%; }
+.tt textarea { width: 100%; font: 13px/1.45 Consolas, 'Cascadia Mono', ui-monospace, monospace; resize: vertical; }
+.tt input[type='number'] { width: 6em; }
+.tt label { display: inline-flex; align-items: center; gap: 8px; }
+
 footer { margin-top: 20px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; }
 body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; filter: grayscale(1); }
 
@@ -137,6 +151,36 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
   <h2 id='tools-h'>Actions</h2>
   <div class='tools' id='tools' role='group' aria-labelledby='tools-h'></div>
   <p class='toast' id='toast' role='status' aria-live='polite'></p>
+
+  <details id='tablebox'>
+    <summary>Table tools: AI seats and debug tools</summary>
+    <div class='tt'>
+      <p class='tt-note' id='tt-state'>Open to ask the bridge.</p>
+      <h3>AI seats</h3>
+      <p class='tt-note'>Who plays an empty seat in every game, while nobody sits there. A harmless bot keeps its hand, passes and never attacks or blocks; a Forge AI is a real opponent. The deck: one of the engine’s, or a pasted deck list (the commander under a Commander line, or marked *CMDR*), or a file.</p>
+      <div id='tt-seats'></div>
+      <h3>Debug tools</h3>
+      <label><input type='checkbox' id='tt-debug'> Debug tools on (the table is told)</label>
+      <p class='tt-note' id='tt-debug-note'></p>
+      <div id='tt-dbg' hidden>
+        <div class='tt-line'>
+          <label>Player <select id='tt-player'></select></label>
+          <label>Number <input type='number' id='tt-n' min='0' max='999' value='1'></label>
+          <label>Mana <select id='tt-mana'><option value='W'>W</option><option value='U'>U</option><option value='B'>B</option><option value='R'>R</option><option value='G'>G</option><option value='C'>C</option></select></label>
+          <label>Card <input type='text' id='tt-name' placeholder='Card or token name' autocomplete='off'></label>
+        </div>
+        <div class='tools' id='tt-tools'>
+          <button type='button' class='btn' id='tt-mana-btn'>Add mana</button>
+          <button type='button' class='btn' id='tt-hand-btn'>Add to hand</button>
+          <button type='button' class='btn' id='tt-battlefield-btn'>Put on battlefield</button>
+          <button type='button' class='btn' id='tt-life-btn'>Set life</button>
+          <button type='button' class='btn' id='tt-untap-btn'>Untap all</button>
+        </div>
+        <p class='tt-note'>Add mana: Number of the Mana colour, until the end of the turn. Set life: to Number. Draw and mill aren’t here yet (they need an engine update).</p>
+      </div>
+      <p class='toast' id='tt-toast' role='status' aria-live='polite'></p>
+    </div>
+  </details>
 
   <details id='logbox'>
     <summary>Log: the last lines of companion.log</summary>
@@ -285,8 +329,64 @@ var MtgPage = (function () {
     return h;
   }
 
+  // ── table tools: GET/POST /api/tools, the bridge's AI seats and debug tools passed through (WebUi.Tools) ──
+  var KINDS = [['off', 'None'], ['harmless', 'Harmless bot'], ['forge', 'Forge AI']];
+  var LIST_CHOICE = '__list', MAX_LIST = 15000; // (the companion takes a body of at most 16 KB)
+
+  // GET /api/tools (or null, or a refusal) -> what the section shows
+  function toolsView(t) {
+    if (!t || typeof t !== 'object' || !t.seats) {
+      return { ok: false, state: str(t && t.message) || 'The bridge isn’t answering: start the engine first.', seats: [], presets: [], debug: { on: false, usable: false, players: [], note: '' } };
+    }
+    var seats = t.seats.map(function (s) {
+      var ai = s.ai || null;
+      var status = ai ? str(ai.kindLabel) + ', playing ' + str(ai.deckName) : 'No AI set: Start’s AI count decides.';
+      if (s.person) status = 'A person plays it this game' + (ai ? ' (' + str(ai.kindLabel) + ' set for when it’s empty)' : '') + '.';
+      return { color: str(s.color), kind: ai ? str(ai.kind) : 'off', deck: ai ? (ai.source === 'list' ? LIST_CHOICE : str(ai.source)) : '', status: status };
+    });
+    var d = t.debug || {};
+    var note = !d.on ? 'Off. Switch them on to change the running game.' : !d.game ? 'On. No table game is running.'
+      : d.fix ? 'On. A manual fix is under way: wait for it to end.' : 'On. Each change pauses the game as a manual fix, and the other players vote on it.';
+    return {
+      ok: true, state: 'Read from the bridge. An AI seat applies from the next game.', seats: seats, presets: (t.presets || []).map(str),
+      debug: { on: !!d.on, usable: !!(d.on && d.game && !d.fix), players: (d.players || []).map(function (p) { return { color: str(p.color), name: str(p.name) }; }), note: note }
+    };
+  }
+
+  // one AI seat's Set -> the POST body, or { error }
+  function seatRequest(color, kind, deck, list, name) {
+    if (kind === 'off') return { kind: 'ai-seat', color: color, seat: 'off' };
+    if (kind !== 'harmless' && kind !== 'forge') return { error: 'Pick who plays it.' };
+    var b = { kind: 'ai-seat', color: color, seat: kind };
+    if (deck === LIST_CHOICE) {
+      if (!str(list).trim()) return { error: 'Paste a deck list, or pick a file, first.' };
+      if (str(list).length > MAX_LIST) return { error: 'That deck list is too long (over 15,000 characters).' };
+      b.list = str(list);
+      if (str(name).trim()) b.name = str(name).trim();
+    } else if (deck) b.preset = deck;
+    else if (kind === 'forge') return { error: 'Pick a deck for the Forge AI.' };
+    return b;
+  }
+
+  // a debug tool's button -> the POST body, or { error }
+  function debugRequest(tool, color, n, name, mana) {
+    if (!color) return { error: 'Pick a player.' };
+    var b = { kind: 'debug', tool: tool, color: color };
+    if (tool === 'mana' || tool === 'life') {
+      var k = Number(n);
+      if (str(n).trim() === '' || isNaN(k) || k !== Math.floor(k)) return { error: 'Type a whole number in Number.' };
+      b.n = k;
+    }
+    if (tool === 'mana') b.mana = str(mana);
+    if (tool === 'hand' || tool === 'battlefield') {
+      if (!str(name).trim()) return { error: 'Type a card name in Card.' };
+      b.name = str(name).trim();
+    }
+    return b;
+  }
+
   // env: { document, fetch, setTimeout, clearTimeout, now, hidden, confirm, reload, storage: { get, set },
-  //        onVisible, AbortController }
+  //        onVisible, AbortController, readFile (file, done(text)) }
   function start(env) {
     var doc = env.document;
     var st = {
@@ -461,19 +561,117 @@ var MtgPage = (function () {
         $('pageerr').hidden = true;
       } catch (e) { showError(e); }
       finally { st.timer = env.setTimeout(poll, delay); }
+      if (tt.open) toolsLoad(); // (while the table tools are open, they follow the status poll)
     }
+
+    // ── table tools ── (asked only while their section is open: a closed page never calls the bridge)
+    var tt = { open: false, seq: 0, rows: {}, presets: null, players: null, busy: false };
+    function ttSay(text, kind) { var t = $('tt-toast'); t.className = 'toast' + (kind ? ' ' + kind : ''); set(t, text); }
+    function opt(sel, value, label) { var o = el('option', null, label); o.value = value; sel.appendChild(o); return o; }
+    // a select's options from [value, label] pairs, keeping the choice when it is still there
+    function fillSelect(sel, pairs) {
+      var was = sel.value;
+      sel.textContent = '';
+      pairs.forEach(function (p) { opt(sel, p[0], p[1]); });
+      if (pairs.some(function (p) { return p[0] === was; })) sel.value = was;
+    }
+    function deckPairs(presets) { return [['', 'Deck: pick one']].concat(presets.map(function (p) { return [p, p]; }), [[LIST_CHOICE, 'Deck list or file…']]); }
+    function showList(r) {
+      r.deck.hidden = r.kind.value === 'off';
+      r.listBox.hidden = r.kind.value === 'off' || r.deck.value !== LIST_CHOICE;
+    }
+    function seatRow(s, presets) {
+      var r = { color: s.color }, box = el('div', 'tt-seat');
+      var l1 = el('div', 'tt-line'), l2 = el('div', 'tt-line');
+      r.status = el('span', 'tt-status');
+      l1.appendChild(el('strong', null, s.color)); l1.appendChild(r.status);
+      r.kind = el('select'); r.kind.setAttribute('aria-label', s.color + ': who plays it');
+      KINDS.forEach(function (k) { opt(r.kind, k[0], k[1]); });
+      r.kind.value = s.kind;
+      r.deck = el('select'); r.deck.setAttribute('aria-label', s.color + ': deck');
+      fillSelect(r.deck, deckPairs(presets));
+      r.deck.value = s.deck;
+      r.set = el('button', 'btn', 'Set'); r.set.type = 'button'; r.set.setAttribute('aria-label', 'Set ' + s.color);
+      l2.appendChild(r.kind); l2.appendChild(r.deck); l2.appendChild(r.set);
+      r.listBox = el('div', 'tt-list');
+      r.list = el('textarea'); r.list.rows = 7; r.list.setAttribute('aria-label', s.color + ': deck list');
+      r.list.placeholder = 'Commander\n1 Neheb, the Worthy\n\nDeck\n1 Lightning Bolt\n...';
+      r.name = el('input'); r.name.type = 'text'; r.name.placeholder = 'Deck name (optional)'; r.name.setAttribute('aria-label', s.color + ': deck name');
+      r.file = el('input'); r.file.type = 'file'; r.file.accept = '.txt,.dek,.dck,text/plain'; r.file.setAttribute('aria-label', s.color + ': deck list file');
+      r.listBox.appendChild(r.list); r.listBox.appendChild(r.name); r.listBox.appendChild(r.file);
+      box.appendChild(l1); box.appendChild(l2); box.appendChild(r.listBox);
+      r.kind.addEventListener('change', function () { showList(r); });
+      r.deck.addEventListener('change', function () { showList(r); });
+      r.file.addEventListener('change', function () {
+        var f = r.file.files && r.file.files[0];
+        if (!f || !env.readFile) return;
+        env.readFile(f, function (text) { r.list.value = str(text); if (!r.name.value) r.name.value = str(f.name).replace(/\.[^.]*$/, ''); });
+      });
+      r.set.addEventListener('click', function () { toolsPost(seatRequest(r.color, r.kind.value, r.deck.value, r.list.value, r.name.value)); });
+      showList(r);
+      $('tt-seats').appendChild(box);
+      return r;
+    }
+    function toolsDraw(v) {
+      set($('tt-state'), v.state);
+      var key = v.presets.join('|');
+      v.seats.forEach(function (s) {
+        var r = tt.rows[s.color] || (tt.rows[s.color] = seatRow(s, v.presets));
+        set(r.status, s.status);
+        if (tt.presets !== null && tt.presets !== key) { fillSelect(r.deck, deckPairs(v.presets)); showList(r); }
+      });
+      tt.presets = key;
+      $('tt-debug').checked = v.debug.on;
+      $('tt-debug').disabled = !v.ok;
+      set($('tt-debug-note'), v.debug.note);
+      $('tt-dbg').hidden = !v.debug.on;
+      var pkey = v.debug.players.map(function (p) { return p.color + ':' + p.name; }).join('|');
+      if (pkey !== tt.players) { fillSelect($('tt-player'), v.debug.players.map(function (p) { return [p.color, p.name === p.color ? p.color : p.name + ' (' + p.color + ')']; })); tt.players = pkey; }
+      TOOL_IDS.forEach(function (id) { $('tt-' + id + '-btn').setAttribute('aria-disabled', v.debug.usable && !tt.busy ? 'false' : 'true'); });
+    }
+    function toolsLoad() {
+      var my = ++tt.seq;
+      new Promise(function (ok) { ok(env.fetch('/api/tools', { headers: headers(st.token, false), cache: 'no-store', credentials: 'same-origin' })); })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (my === tt.seq) toolsDraw(toolsView(j)); }, function () { if (my === tt.seq) toolsDraw(toolsView(null)); })
+        .then(null, showError);
+    }
+    function toolsPost(body) {
+      if (body.error) { ttSay(body.error, 'warn'); return; }
+      if (tt.busy) { ttSay('Already sent; waiting for the bridge.', ''); return; }
+      tt.busy = true;
+      ttSay('Working…', '');
+      new Promise(function (ok) {
+        ok(env.fetch('/api/tools', { method: 'POST', cache: 'no-store', credentials: 'same-origin', headers: headers(st.token, true), body: JSON.stringify(body) }));
+      }).then(function (r) { return r.json(); }).then(function (res) {
+        tt.busy = false;
+        var a = answerPlan(res);
+        ttSay(a.text, a.kind);
+        toolsLoad();
+      }, function () { tt.busy = false; ttSay('The companion didn’t answer.', 'bad'); });
+    }
+    var TOOL_IDS = ['mana', 'hand', 'battlefield', 'life', 'untap'];
+    TOOL_IDS.forEach(function (id) {
+      $('tt-' + id + '-btn').addEventListener('click', function () {
+        if ($('tt-' + id + '-btn').getAttribute('aria-disabled') === 'true') { ttSay($('tt-debug-note').textContent || 'Not available now.', 'warn'); return; }
+        toolsPost(debugRequest(id, $('tt-player').value, $('tt-n').value, $('tt-name').value, $('tt-mana').value));
+      });
+    });
+    $('tt-debug').addEventListener('change', function () { toolsPost({ kind: 'debug-mode', on: !!$('tt-debug').checked }); });
+    $('tablebox').addEventListener('toggle', function () { tt.open = !!$('tablebox').open; if (tt.open) toolsLoad(); });
 
     NAMES.forEach(function (n, i) { addRow(i); });
     draw();
     env.onVisible(poll);
     poll();
-    return { poll: poll, state: st };
+    return { poll: poll, state: st, tools: tt };
   }
 
   return {
     T: T, NAMES: NAMES, stateOf: stateOf, connView: connView, lightButton: lightButton, menuButton: menuButton,
     lightView: lightView, gameView: gameView, updateView: updateView, viewModel: viewModel, clickPlan: clickPlan,
-    answerPlan: answerPlan, afterPoll: afterPoll, reloadAllowed: reloadAllowed, headers: headers, start: start
+    answerPlan: answerPlan, afterPoll: afterPoll, reloadAllowed: reloadAllowed, headers: headers, start: start,
+    toolsView: toolsView, seatRequest: seatRequest, debugRequest: debugRequest, LIST_CHOICE: LIST_CHOICE
   };
 })();
 
@@ -492,7 +690,13 @@ if (typeof document !== 'undefined' && document.getElementById('mtg-token')) {
       set: function (k, v) { try { window.sessionStorage.setItem(k, v); } catch (e) { } }
     },
     onVisible: function (f) { document.addEventListener('visibilitychange', function () { if (!document.hidden) f(); }); },
-    AbortController: window.AbortController
+    AbortController: window.AbortController,
+    readFile: function (file, done) {
+      if (!window.FileReader) return;
+      var fr = new window.FileReader();
+      fr.onload = function () { done(fr.result); };
+      fr.readAsText(file);
+    }
   });
 }
 </script>

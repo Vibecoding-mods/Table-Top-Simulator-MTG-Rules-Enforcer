@@ -1014,7 +1014,7 @@ again. Later starts (and home mode) open it only when the first pass ends with a
 `StatusForm` stays as the fallback (`--no-web`, `--shot`, no free port, or no browser opens); `--web-port N`,
 `--no-browser` for tests.
 
-**Test modes:** `--selftest` (376 canned cases, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
+**Test modes:** `--selftest` (404 canned cases on 2026-11-11, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
 `--shot FILE` for a PNG of the window), `--home DIR`, `--saves DIR`, `--state DIR`, `--log FILE`, `--steps 4,5`,
 `--bridge-url URL`, `--probe-login URL`, `--bridge-stop`.
 
@@ -1211,3 +1211,28 @@ release signed with the OLD key whose companion carries BOTH lines; installed ap
 are signed with the new key. Then the old line can go. A leaked key that can't sign that bridge release: friends
 download a full package again. Packages made before signing (no line in their exe) can't self-update: they take the
 first signed package by hand.
+
+## 19. Table tools: AI seats and debug tools (built 2026-11-11, round 2 C)
+
+The status page's "Table tools" section (collapsed by default) sets what `docs/next-features-2026-11-09.md` items 17,
+18, 20 and 21 asked for. The bridge owns the state; the companion only passes it through.
+
+- `GET /api/tools` is the bridge's `GET /tools` (debug port 48787): `{seats: [{color, person, inGame, ai: {kind,
+  kindLabel, deckName, source} | null}], presets, debug: {on, game, fix, players: [{color, name}]}, tools}`. No bridge,
+  a timeout, a 404 (a bridge older than this) or an answer that isn't a JSON object: 502 `no-bridge` with a sentence.
+- `POST /api/tools {kind, ...}`: `kind` is `ai-seat` (`color`, `seat`: `harmless`|`forge`|`off`, and `preset` or
+  `list` + `name`), `debug-mode` (`on`) or `debug` (`tool`: `mana`|`hand`|`battlefield`|`life`|`untap`, `color`, `n`,
+  `name`, `mana`). Any other kind: 400, the bridge isn't asked. The body is passed on as parsed (written again, never
+  the raw bytes), and the answer is cut down to `{ok, message}`. Observe mode refuses every POST (`ok: false`); GET
+  still shows. The bridge answers a refusal as 200 with `ok: false`, so its reason reaches the page.
+- The page asks only while the section is open: once on opening, after every POST, and with each status poll
+  (every 2.5 s). A closed section never calls the bridge.
+- **Host only** is the page itself: it opens only on the host's PC, with that run's token. The bridge also refuses a
+  debug tool while debug tools are off.
+- **Debug tools on/off** is a switch of the bridge's own. It is off at every bridge start, and each change is said to
+  the whole table in chat. While on, each tool is a manual fix of one change: the game pauses, the other players vote,
+  and then `applyState` runs.
+
+Tests: `tests/test_companion_page.js` (the pure parts, plus the section's shell against a stub fetch),
+`--selftest` "table tools", and `tests/test_bridge_ai_tools.js` for the bridge side, including its HTTP routes over a
+real socket.

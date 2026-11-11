@@ -62,8 +62,14 @@ The user's list, in their order. Most items need a running TTS table in debug mo
     - The images must be hosted online (TTS loads faces by URL).
 
 17. **In-table chat commands to pick what decks the AI opponents play.**
+    - **Built 2026-11-11 (round 2 C)**, with item 20. The host types `mtg ai <colour> harmless|forge [deck]`,
+      `mtg ai <colour> off`, `mtg ai clear`, or plain `mtg ai` for the list. A Forge AI needs a deck name; a harmless
+      bot with none plays `ai_passive_lands`. Pasted deck lists come only from the companion page: chat can't carry a
+      100-line list.
 18. **More debugging commands inside TTS.**
     - Debug mode (`mtg debug`) exists; this means more of it.
+    - **Built 2026-11-11 (round 2 C)** as the companion page's debug tools (item 21). No new chat commands:
+      `mtg debug` scenarios and `mtg mana` already cover chat.
 
 20. **AI seat presets in the companion page** (asked 2026-11-10). This merges with item 17.
     - For each empty seat, pick one of:
@@ -71,11 +77,52 @@ The user's list, in their order. Most items need a running TTS table in debug mo
       - **Forge AI:** a real opponent, with an AI profile.
     - Each AI seat gets its own imported deck, from a deck list or a file.
     - Rough size: 8–12 h.
+    - **Built 2026-11-11 (round 2 C). Decisions where the list was silent:**
+      - A colour set as an AI seat is an AI player in every game while nobody sits there, whatever count Start asks
+        for. The total is the larger of the two; extra AI players take the colours left. A person sitting at that colour
+        plays it as usual. The choice is kept until changed, like `mtg aideck`, and is lost when the bridge restarts.
+      - The seat's deck comes before `mtg aideck` and before a deck lying in that seat. Forge AI seat k gets the k-th
+        bot deck, and the bridge seats that bot at its colour (`clockwiseOrder`, `game.colorOfUser`).
+      - **Harmless bot.** The engine has no passive AI, so the bridge plays the seat itself (`HarmlessSeat`). It logs in
+        like a person once every person's seat is in the room, and answers every question at once (`harmlessAnswer`):
+        - keeps its hand, passes, cancels a cost;
+        - says no to every "may";
+        - makes the fewest picks a question allows (the first ones), and keeps a scry on top;
+        - attacks only with creatures that must, and blocks only an attacker that must be blocked (when the engine
+          refuses no blocks).
+        - It is an AI player to the table ("AI n"), takes no vote and has no prompts on the table.
+        - A restarted bridge logs it back in; a dropped link isn't retried, so the engine concedes that seat.
+        - Its default deck is `ai_passive_lands`, and any deck can be given.
+      - **Forge AI** is the node's own Forge AI. The node has one AI profile; picking a profile would need a node change.
+      - **Deck lists.** Pasted or loaded from a .txt/.dek/.dck file on the page. Arena/Moxfield style: `1 Name`,
+        `1x Name`, `Name (SET) 123 *F*`, tags; the commander under `Commander` or marked `*CMDR*`; `Sideboard`,
+        `Maybeboard` and `Companion` parts aren't played. Every card must be known to the engine. The deck size isn't
+        checked: an AI's deck is the host's business.
+      - **Needs a live check on the real table:** a game with a harmless bot and a Forge AI seat (who sits where, the
+        mats, the bot never stalling a question type the tests don't have).
 21. **Debug tools in the companion page** (asked 2026-11-10). This merges with item 18.
     - Add X mana, add card X to a hand, draw, set life, mill, put a card on the battlefield, and untap.
     - Host only, and only in debug mode.
     - Builds on `mtg debug` and the M7 createCard/applyState ops. Adding mana may need a harness op and an image rebuild.
     - Rough size: 8–14 h.
+    - **Built 2026-11-11 (round 2 C). Decisions where the list was silent:**
+      - "Only in debug mode" means a debug-tools switch on the page, a bridge setting that is off at every bridge start
+        and is said to the whole table both ways. "Host only" means the page, which opens only on the host's PC with
+        that run's token.
+      - Each tool is one manual fix: the game pauses at a moment with nothing on the stack, the other people vote
+        (nobody does vs AI), and `applyState` runs. It is made in the name of the player it's for when a person sits
+        there, else of the first person still playing.
+      - Tools:
+        - Add mana: n (1–99) of one colour, until the end of the turn.
+        - Add card to hand: `createCard`.
+        - Put on battlefield: `createCard`, or a token by its words, as `mtg fix token` takes them.
+        - Set life: 0–999.
+        - Untap all: every tapped permanent that player controls.
+        - Mana needed no harness op: the `mana` op already exists.
+      - **Draw and mill aren't built.** The engine's board never shows library cards (the library zone is empty in
+        every view), so no fix op can move one. They need a new harness StateOp (`draw`/`mill` with player and n) in
+        manabrew, and then an engine image rebuild (node and relay both parse directives strictly).
+      - **Needs a live check on the real table:** each tool once in a game with a second person (the vote) and vs AI.
 22. **Monte Carlo simulation: CUT** (the user, 2026-11-10).
     - Too slow on an ordinary PC: about 30 s to 2 min a game on 2 cores, so 1,000 games takes overnight.
     - The user already runs deck tests in separate sessions.

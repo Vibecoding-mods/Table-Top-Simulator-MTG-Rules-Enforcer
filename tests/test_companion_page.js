@@ -269,8 +269,9 @@ function boot(body) {
       if (h.mode === "500") return resp(500, { error: "error", message: "The companion hit an error." });
       return resp(200, h.body);
     }
+    if (url === "/api/tools" && !opts.method) return h.toolsFail ? Promise.reject(new TypeError("Failed to fetch")) : resp(h.toolsStatus || 200, h.tools);
     const body = JSON.parse(opts.body);
-    h.posts.push({ body, headers: opts.headers, method: opts.method });
+    h.posts.push({ body, headers: opts.headers, method: opts.method, url });
     if (h.postFail) return Promise.reject(new TypeError("Failed to fetch"));
     if (h.hold) return new Promise((r) => h.releases.push(() => r({ status: 200, ok: true, json: () => Promise.resolve(h.answer(body)) })));
     return resp(200, h.answer(body));
@@ -463,6 +464,97 @@ function boot(body) {
     for (let i = 0; i < 4; i++) await flush();
     same("shell: downloading: the new title and line, Update now gone, Check disabled", [h.$("update-title").textContent, h.$("update-text").textContent, box.children.filter((b) => !b.hidden).map((b) => [b.textContent, b.getAttribute("aria-disabled")])],
       ["Downloading update (40%)", "Downloading app.zip: 40%.", [["Check for updates", "true"]]]);
+  }
+
+  // ───────────────────────────── table tools (GET/POST /api/tools) ─────────────────────────────
+  const TOOLS = () => ({
+    seats: [{ color: "White", person: false, ai: null }, { color: "Red", person: false, ai: { kind: "harmless", kindLabel: "Harmless bot", deckName: "Passive AI (lands only)", source: "ai_passive_lands" } },
+      { color: "Yellow", person: false, ai: { kind: "forge", kindLabel: "Forge AI", deckName: "My Neheb", source: "list" } }, { color: "Blue", person: true, ai: null }],
+    presets: ["ai_passive_lands", "kykar_winds_fury"],
+    debug: { on: true, game: true, fix: false, players: [{ color: "Blue", name: "Blue" }, { color: "White", name: "AI 1" }] }, tools: ["mana", "hand", "battlefield", "life", "untap"],
+  });
+  {
+    const v = P.toolsView(TOOLS());
+    same("tools: seats with their kind, deck choice and words", v.seats.map((s) => [s.color, s.kind, s.deck, s.status]), [
+      ["White", "off", "", "No AI set: Start’s AI count decides."], ["Red", "harmless", "ai_passive_lands", "Harmless bot, playing Passive AI (lands only)"],
+      ["Yellow", "forge", P.LIST_CHOICE, "Forge AI, playing My Neheb"], ["Blue", "off", "", "A person plays it this game."]]);
+    same("tools: debug on, usable, the players", [v.ok, v.debug.on, v.debug.usable, v.debug.players], [true, true, true, [{ color: "Blue", name: "Blue" }, { color: "White", name: "AI 1" }]]);
+    const off = TOOLS(); off.debug.on = false;
+    const fix = TOOLS(); fix.debug.fix = true;
+    const nog = TOOLS(); nog.debug.game = false;
+    same("tools: off / a fix under way / no game: not usable, each said", [P.toolsView(off).debug, P.toolsView(fix).debug.usable, P.toolsView(fix).debug.note, P.toolsView(nog).debug.note].map((x) => (typeof x === "object" ? [x.on, x.usable, x.note] : x)),
+      [[false, false, "Off. Switch them on to change the running game."], false, "On. A manual fix is under way: wait for it to end.", "On. No table game is running."]);
+    const down = P.toolsView({ error: "no-bridge", message: "The bridge isn't running: start the engine first (the Bridge light)." });
+    same("tools: the companion's refusal: its words, nothing to set", [down.ok, down.state, down.seats.length], [false, "The bridge isn't running: start the engine first (the Bridge light).", 0]);
+    same("tools: nothing at all: a plain line", P.toolsView(null).state, "The bridge isn’t answering: start the engine first.");
+    const S = P.seatRequest;
+    same("seat: None clears it", S("Red", "off", "x", "y", "z"), { kind: "ai-seat", color: "Red", seat: "off" });
+    same("seat: a preset", S("Red", "forge", "kykar_winds_fury", "", ""), { kind: "ai-seat", color: "Red", seat: "forge", preset: "kykar_winds_fury" });
+    same("seat: harmless with no deck picked: the bridge's own", S("Red", "harmless", "", "", ""), { kind: "ai-seat", color: "Red", seat: "harmless" });
+    same("seat: a list, its name trimmed", S("Red", "forge", P.LIST_CHOICE, "1 Shock", "  Mine "), { kind: "ai-seat", color: "Red", seat: "forge", list: "1 Shock", name: "Mine" });
+    same("seat: refusals", [S("Red", "forge", "", "", "").error, S("Red", "forge", P.LIST_CHOICE, "  ", "").error, S("Red", "forge", P.LIST_CHOICE, "x".repeat(15001), "").error, S("Red", "?", "", "", "").error],
+      ["Pick a deck for the Forge AI.", "Paste a deck list, or pick a file, first.", "That deck list is too long (over 15,000 characters).", "Pick who plays it."]);
+    const D = P.debugRequest;
+    same("debug: mana", D("mana", "Blue", "3", "", "R"), { kind: "debug", tool: "mana", color: "Blue", n: 3, mana: "R" });
+    same("debug: a card", D("hand", "Blue", "", " Opt ", "R"), { kind: "debug", tool: "hand", color: "Blue", name: "Opt" });
+    same("debug: untap needs only the player", D("untap", "White", "x", "", ""), { kind: "debug", tool: "untap", color: "White" });
+    same("debug: refusals", [D("life", "", "3").error, D("life", "Blue", "2.5").error, D("life", "Blue", "").error, D("battlefield", "Blue", "", " ").error],
+      ["Pick a player.", "Type a whole number in Number.", "Type a whole number in Number.", "Type a card name in Card."]);
+  }
+  {
+    const h = boot();
+    h.tools = TOOLS();
+    await h.clock.advance(0);
+    ok("tools: closed: the bridge is never asked", !h.calls.some((c) => c.url === "/api/tools"));
+    h.$("tablebox").open = true;
+    h.$("tablebox").listeners.toggle.forEach((f) => f());
+    for (let i = 0; i < 4; i++) await flush();
+    const get = h.calls.find((c) => c.url === "/api/tools");
+    same("tools: opened: GET /api/tools with the token", [get && get.opts.headers["X-MTG-Token"], get && get.opts.method], [TOKEN, undefined]);
+    const rows = h.$("tt-seats").children;
+    same("tools: a row per seat, its colour and words", rows.map((r) => [r.children[0].children[0].textContent, r.children[0].children[1].textContent]),
+      [["White", "No AI set: Start’s AI count decides."], ["Red", "Harmless bot, playing Passive AI (lands only)"], ["Yellow", "Forge AI, playing My Neheb"], ["Blue", "A person plays it this game."]]);
+    const yellow = rows[2], kind = yellow.children[1].children[0], deck = yellow.children[1].children[1], setBtn = yellow.children[1].children[2], listBox = yellow.children[2];
+    same("tools: the seat's current choice is selected; a list's box shown", [kind.value, deck.value, listBox.hidden, deck.children.map((o) => o.value)], ["forge", P.LIST_CHOICE, false, ["", "ai_passive_lands", "kykar_winds_fury", P.LIST_CHOICE]]);
+    same("tools: debug on: the box and the players", [h.$("tt-debug").checked, h.$("tt-dbg").hidden, h.$("tt-player").children.map((o) => [o.value, o.textContent]), h.$("tt-mana-btn").getAttribute("aria-disabled")],
+      [true, false, [["Blue", "Blue"], ["White", "AI 1 (White)"]], "false"]);
+    setBtn.click();
+    await flush();
+    same("tools: Set with an empty list: said, nothing sent", [h.$("tt-toast").textContent, h.posts.length], ["Paste a deck list, or pick a file, first.", 0]);
+    listBox.children[0].value = "Commander\n1 Neheb, the Worthy\n1 Shock";
+    listBox.children[1].value = "Mine";
+    h.answer = () => ({ ok: true, message: "Yellow: Forge AI playing Mine." });
+    setBtn.click();
+    for (let i = 0; i < 4; i++) await flush();
+    same("tools: Set: POST /api/tools with the list, the answer said, the tools asked again", [h.posts[0] && h.posts[0].url, h.posts[0] && h.posts[0].body, h.$("tt-toast").textContent, h.calls.filter((c) => c.url === "/api/tools" && !c.opts.method).length],
+      ["/api/tools", { kind: "ai-seat", color: "Yellow", seat: "forge", list: "Commander\n1 Neheb, the Worthy\n1 Shock", name: "Mine" }, "Yellow: Forge AI playing Mine.", 2]);
+    h.$("tt-player").value = "White"; h.$("tt-n").value = "7";
+    h.answer = () => ({ ok: false, message: "A manual fix is already under way: finish it first." });
+    h.$("tt-life-btn").click();
+    for (let i = 0; i < 4; i++) await flush();
+    same("tools: Set life: the debug body; a refusal said as a warning", [h.posts[1] && h.posts[1].body, h.$("tt-toast").textContent, h.$("tt-toast").className], [{ kind: "debug", tool: "life", color: "White", n: 7 }, "A manual fix is already under way: finish it first.", "toast warn"]);
+    h.$("tt-debug").checked = false;
+    h.$("tt-debug").listeners.change.forEach((f) => f());
+    for (let i = 0; i < 4; i++) await flush();
+    same("tools: the switch posts debug-mode", h.posts[2] && h.posts[2].body, { kind: "debug-mode", on: false });
+    const t2 = TOOLS(); t2.debug.on = false; h.tools = t2;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("tools: while open they follow the status poll; off hides the tools", [h.$("tt-dbg").hidden, h.$("tt-mana-btn").getAttribute("aria-disabled")], [true, "true"]);
+    const n = h.posts.length;
+    h.$("tt-mana-btn").click();
+    await flush();
+    same("tools: a tool pressed while off: says why, sends nothing", [h.$("tt-toast").textContent, h.posts.length], ["Off. Switch them on to change the running game.", n]);
+    h.toolsFail = true;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("tools: no answer: said, the switch disabled", [h.$("tt-state").textContent, h.$("tt-debug").disabled], ["The bridge isn’t answering: start the engine first.", true]);
+    h.$("tablebox").open = false;
+    h.$("tablebox").listeners.toggle.forEach((f) => f());
+    const asked = h.calls.filter((c) => c.url === "/api/tools").length;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    ok("tools: closed again: no more asking", h.calls.filter((c) => c.url === "/api/tools").length === asked);
   }
 
   {
