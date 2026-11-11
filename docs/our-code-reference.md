@@ -765,16 +765,16 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 - Number of keys.
 
 #### `setText(id, text)` — er:369
-- Skips values already in `uiCache`. For buttons (`eng_opt_`, `eng_confirm_`, `eng_cancel_`, `eng_toggle_`): `UI.setAttributes(text, textColor #FEFEFE)`, then `textColor #FFFFFF` one frame later (works around TTS's dark default label). Others: `UI.setValue`.
+- Skips values already in `uiCache`. A Button (every Button of the built XML, `engineBtnLook`) goes through `setButton`, which sends one `UI.setAttributes` carrying the colour as last set (or the XML's) and a text colour flipped between two that look the same (`engineFlipColor`): TTS redraws a Button at every set, dark label without a new textColor, white without a colour of its own (batch B, docs/engine-ui-spec.md 2.1). Others: `UI.setValue`.
 
 #### `setAttr(id, attr, value)` — er:384
-- Cached `UI.setAttribute`.
+- Cached `UI.setAttribute`; a Button's goes through `setButton` (see `setText`).
 
 #### `statusText()` — er:392
 - Empty without `lastTable`. "<active>'s Nth turn (game turn T) - step - priority: X" with the right ordinal suffix; stack names top first; "GAME OVER - winner" line first when the game is over.
 
 #### `panelXml(color)` — er:409
-- XML for the toggle button (upper right) and the panel (lower right, 430×620): status, title, text, search input, scroll view with `POOL` option buttons, Confirm/Cancel. Every element is visible only to that colour, starts inactive, and is named `eng_*_<color>`.
+- XML for the dock `eng_dock_<color>` (batch B: the tabs Choices `eng_toggle_`, Graveyards `eng_browse_`, Undo `eng_undo_`, Settings `eng_set_` and the Log switch `eng_logbtn_`, UpperLeft x 96 y -140), the log panel, and the window `eng_panel_<color>` (UpperLeft x 96 y -176, 430×600): status, title, text, search input, scroll view with `POOL` option buttons, Confirm/Cancel, the stops row `eng_stops_<color>`. Every element is visible only to that colour, starts inactive, and is named `eng_*_<color>`.
 
 #### `optionList(p)` — er:436
 - Number mode: `min..min(max, min+59)` as `{index = n, label}`. Else `{index = i, label}` per option.
@@ -784,7 +784,7 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 - Else: title, text (" " when empty); search shown when there are more than 8 options. Applies the filter (plain substring, case-insensitive). Fills up to 60 slots: label prefixed `[x] `/`[  ] ` in multi mode; colour blue when picked, green for the first single option, else grey. Hides the remaining slots. Multi: Confirm text "Confirm (n selected, need m)", interactable only within min..max. Cancel shown when `p.cancel`.
 
 #### `updatePanel(color)` — er:490
-- Toggle shown while a game exists; its text says hide/show. The panel is active when a game exists and it isn't hidden. Updates the status text.
+- The tabs (`ENGINE_TABS`) shown while a game exists, the open one gold on `ENGINE_THEME.tabOn`; Undo's shown state is `engineRewindUpdate`'s. The window is active when a game exists and something opened it. The stops row hides under a side tab; an open Settings tab is listed again. Updates the status text.
 
 #### `engineRenderPanels(promptColor)` — er:499 (global)
 - `seated` = seated colours that have `data`. If the set changed: reset the cache, capture `baseXml` once, `UI.setXml(base + panels)`, and 3 frames later mark ready and update every panel. Return.
@@ -796,7 +796,7 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 - Note: the panel clears locally even if the bridge later ignores the answer (promptId mismatch).
 
 #### `pick(color, i)` — er:533
-- No prompt or `i` → return. Number mode → answer `{i}`. Single → answer `{options[i].id}` (returns if missing). Multi → toggles `i`, adding only below `max`; refreshes the options.
+- A side tab open (`engineBrowse[color]`): Undo → `engineAskRewind(color, i)` and the tab shuts; Settings → the line's switch (`onMtgFx` / `onMtgSnd` / `onMtgAnim` / `onMtgPace`) and the list again; Graveyards → the card's text in the chat. Else: no prompt or `i` → return. Number mode → answer `{i}`. Single → answer `{options[i].id}` (returns if missing). Multi → toggles `i`, adding only below `max`; refreshes the options.
 - Also exported as `enginePick` (er:557).
 
 #### `engineSelectedFor(color, i)` — er:547 (global)
@@ -819,7 +819,13 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 - Own colour only → `confirm`, or answer `{"__cancel"}`.
 
 #### `onMtgToggle` — er:575
-- Own colour only: open → closed (any reason), closed → pinned ("pin"); calls `updatePanel`.
+- Own colour only: `engineOpenTab(color, "choices")`: from a side tab → the answers, pinned; else open → closed (any reason), closed → pinned ("pin"). `onMtgBrowse`, `onMtgUndo`, `onMtgSettings` open their tabs the same way.
+
+#### `engineOpenTab(color, tab)` (global, batch B)
+- `tab` "choices", "browse", "undo" or "settings". A side tab sets `engineBrowse[color]` (and `engineShown` "browse" if the window was shut); the open side tab clicked again goes back (`engineShown` "browse" → shut). Clears the search; `updatePanel`, `updateOptions`.
+
+#### `engineSidePrompt(color)` (global, batch B)
+- The open side tab's look-only list for the answer buttons (mode "browse", `nosearch` for Undo and Settings): restore points; the four switches with their state (Table animations tinted `ENGINE_THEME.muted` for anyone but the host, `o.tint` read by `optionColor`); else `browsePrompt`.
 
 #### `onMtgSearch(player, value, id)` — er:580
 - Own colour only: sets the filter and calls `updateOptions` (even before the panels are ready).
@@ -1039,10 +1045,10 @@ Bridge (2026-10-21): turning a card (Q/E) that has no mana ability uses its `{T}
 
 | Function / element | Details |
 |---|---|
-| `rewindXml(c)` | per colour: `eng_undo_<c>` (Undo..., bottom right), `eng_undolist_<c>` with `UNDO_MAX` = 8 buttons `eng_undopt_<c>_<k>` and Close, `eng_vote_<c>` pop-up with `eng_votetext_<c>`, `eng_voteyes_<c>` (Rewind), `eng_voteno_<c>` (Keep playing) |
-| `engineRewindUpdate(r, gameOver)` | called from `engineRender` (pcall) with `m.rewind`; skips when its string signature (`rewindSig`) is unchanged. Per seated colour: Undo shown while points exist and the game isn't over; the list refreshed; the vote pop-up shown while pending, the buttons only for awaited colours, others see "Waiting for ..." |
+| `rewindXml(c)` | per colour: Auto-resolve `eng_autores_<c>` (dock row, x 468), `eng_vote_<c>` pop-up with `eng_votetext_<c>`, `eng_voteyes_<c>` (Rewind), `eng_voteno_<c>` (Keep playing). The Undo button is a dock tab since batch B (`panelXml`); the `eng_undolist_<c>` panel and `UNDO_MAX` are gone |
+| `engineRewindUpdate(r, gameOver)` | called from `engineRender` (pcall) with `m.rewind`; skips when its string signature (`rewindSig`) is unchanged. Per seated colour: the Undo tab shown while points exist and the game isn't over; an open Undo tab listed again, or shut with no points; the vote pop-up shown while pending, the buttons only for awaited colours, others see "Waiting for ..." |
 | `engineRewindRedraw()` | after the panels are rebuilt (someone sat down): clears `rewindSig` and draws the rewind UI again |
-| `undoList(color)`, `onMtgUndo`, `onMtgUndoPick`, `engineAskRewind(color, k)` | the list toggles open/closed (`undoOpen`); a pick closes it and sends `rewind` with point k's id; `engineAskRewind` returns false for a missing point (used by `mtg undo N`) |
+| `onMtgUndo`, `onMtgUndoPick`, `engineAskRewind(color, k)` | `onMtgUndo` opens / shuts the Undo tab (`engineOpenTab`); a pick in it (`pick`) or `onMtgUndoPick` (old ids `eng_undopt_<c>_<k>`, kept for the tests) shuts it and sends `rewind` with point k's id; `engineAskRewind` returns false for a missing point (used by `mtg undo N`) |
 | `onMtgVote` | `rewindVote` accept true/false from the clicking player's colour |
 | `engineResetUi` (changed) | also hides the rewind UI (`engineRewindUpdate(nil, true)`), so "mtg reset" doesn't leave Undo or a vote on screen |
 | `sect(name)` | profiling only: adds the time since the previous mark to `engineProfile.sect[name]` (ms). Marks in `engineRender`: status, takeFromPiles, keepStashed, battlefield, attached, piles, commandHand, library, popups, stack, glow, dispose, trackers, browse, panels. No effect on the table |
@@ -1227,7 +1233,7 @@ counted once for every click kind; per-item auto-pace timers; labels never nil; 
 | `playerSpot(color)` | the back centre of a player's board (just behind the land row, in the mana box): where attacks, attack lines and spell target lines aim at a player |
 | `engineMillDetect(m)` | per board, every player: new graveyard cards that weren't public before while the library shrank are mills; `engineMillNow[color]` tells the library deck to drop that many backs without flying them; unheld ones (up to `MILL_FLY` = 5, `MILL_GAP` 0.25 s apart) get `engineMillFly` stand-ins (GMNotes `enginefx`), face down on the library turning face up onto the graveyard |
 | held mills | `place()` spawns a `heldmill` card on the library face down and turns it onto its fan spot; when let go, `engineZonePile` slides the object into the graveyard pile |
-| Settings | `eng_set_<colour>` opens `eng_setpanel_<colour>`: `onMtgFx` (`engineEffectsOff`: result banners, turn banner, stack pop-up visibility), `onMtgSnd` (`engineSoundOff`, for the coming sounds), `onMtgAnim` (host only, `engineSetAnimations` / `engineAnimOff`: swing, mill stand-ins and held-mill turn-over, death flash) |
+| Settings | `eng_set_<colour>` opens the window's Settings tab (batch B; the `eng_setpanel_<colour>` panel is gone), whose lines call `onMtgFx` (`engineEffectsOff`: result banners, turn banner, stack pop-up visibility), `onMtgSnd` (`engineSoundOff`, for the coming sounds), `onMtgAnim` (host only, `engineSetAnimations` / `engineAnimOff`: swing, mill stand-ins and held-mill turn-over, death flash) |
 
 
 ### Linked and playable exile, manual fix (2026-10-23)
@@ -1307,7 +1313,7 @@ Needs our engine build: `stack/compose.yml` runs `mtg-forge-node:exile` and `mtg
 | bridge | game log plays | `notePlay` → `game.pendingPlays` (a land play, which Forge sends as a cast, is not one); `logEvents` says each once: from the stack (spell or ability by the player's record), from a public zone, or after priority came back (`game.saidEarly` keeps the stack from saying it again) |
 | bridge | `lossReasons(gv)`, `noteOuts`, `outLast` | life, poison, 21 commander damage, for the players who lost last only (`game.outOrder`, stamped as each board shows them out). `noteOuts` also keeps, per player, where they went out (`game.outWhere` {step, active, turn}), their library on the last board that showed them playing (`game.inLibrary`), and where it was first seen empty (`game.emptyAt` {turn, step}): `deckedPlayers` says "drew from an empty library" only for a player out in their own draw step whose library was empty before that draw step. All four are in the resume file |
 | table | `enginePlaceSpecial` | the public playable row: on the wood strip between the mat and the hand, `PLAYABLE_DEPTH` 12.2 along the mat's forward axis, centred on the hand, `PLAYABLE_STEP` 2.3 apart, squeezed past `PLAYABLE_SPAN` 20.7 (measured 2026-11-10: mat edge 10.38, hand counter screen from 14.07); the table check accepts a playable card within 1.6 of its planned spot; `onObjectDrop` puts a playable card dropped within 1.8 of its spot back instead of playing it |
-| table | top-left row | `eng_toggle`, `eng_browse`, `eng_logbtn`, `eng_pace`, `eng_set` (UpperLeft, y -140: above Auto-resolve / Fix / Undo); the Settings panel opens above its button; the Log panel stays top right |
+| table | top-left row | since batch B (2026-11-10) one row at y -140: the dock `eng_dock_<c>` (Choices, Graveyards, Undo, Settings tabs and the Log switch, x 96), Auto-resolve (x 468) and Fix (x 622); the window under it (x 96, y -176); the Log panel stays top right. See "Batch B" below |
 
 ### hp-07 re-test additions (2026-10-27)
 | side | name | what |
@@ -1515,3 +1521,14 @@ Pinned by the bridge golden's "askUnder: ...", "review askUnder: ...", "trackMar
 | table | `enginePlayerCounters(o, pl)` | `pl.allMarks` when it is a table; anything else (no `allMarks`, an empty one, one that isn't a list, the old six fields and `marks`) draws nothing (the fallback went in trackMarks step 6) |
 
 Pinned by the table golden's "card entry: every way a card object is made" game (sections 1-6, its "ce: ..." reports) and the last steps of the 1v1 game ("marks: ..."), and by `tests/test_table_claims.js` (the engineCardEntry, libAdd, sweep, remainder, "one way" and trackMarks checks). The golden's fake TTS merges a deck put into a deck, as TTS does (`withDeckMerge` in `tests/golden/table-run.js`).
+
+### Batch B: engine screen UI cleanup, tabs and the ability panel (2026-11-10, docs/engine-ui-spec.md)
+| side | name | what |
+|---|---|---|
+| table | `ENGINE_THEME` | the engine UI's colours, from the table's own buttons: window #161616F0, button #262626, dock #1A1A1A, tab on #3A3022 with gold #FFD27A, muted #1C1C1C with #8C9199 text; second level #333333 (More..., X) |
+| table | `setButton(id, attrs)`, `engineBtnLook`, `engineRecordButtons(xml)`, `engineFlipColor(key, hex)` | every call on a Button that doesn't only hide it carries `color` (as last set, else the XML's, recorded by `engineRecordButtons` at build) and a `textColor` that alternates between two that look the same: TTS redraws a Button at every set, dark label without a new text colour, white without a colour of its own (the grey ability panel with black text, the dim Auto-resolve, Scoop's dark-red label). `isButton(id)` = recorded in `engineBtnLook` |
+| table | tool covers removed | `engineToolCoverXml` and `eng_cover_1..3` are gone (measured on one screen, they floated as black boxes on others); `engineScoopRedraw` sets Scoop through `setAttr` |
+| table | `updatePanel` log | the log panel shows only once the log has a line; `engineOnLog` redraws the panels when it goes from empty to not |
+| table | the dock and the window | `panelXml`: `eng_dock_<c>` with the tabs; `engineOpenTab`, `engineSidePrompt`, `ENGINE_TABS`; `engineBrowse[c]` is the open side tab ("browse", "undo", "settings"); `optionColor` reads an option's `tint`; `updateOptions` hides the search for `nosearch` lists |
+| table | removed | `eng_pace_<c>` (now the Settings line "Draw / mill / untap by itself"), `eng_setpanel_<c>` with `eng_fx_/eng_snd_/eng_anim_<c>` (Settings lines), `eng_undolist_<c>` with `eng_undopt_<c>_<k>` / `eng_undoclose_<c>` (Undo lines), `undoList`, `undoOpen`, `UNDO_MAX`, `engineSettingsOpen` |
+| tests | `tests/lua/tts-sim.lua` | the fake TTS redraws a Button as real TTS does (`__sim.drawn(id)` = "background|label"); claims "button colours", "black boxes", "tabs", "top-left row" |

@@ -790,6 +790,49 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   }
   ok("button colours: every button checked", parts.length === 7, String(valueOf(r, "drawn")));
 }
+// The dock and the tabbed window (batch B, docs/engine-ui-spec.md 3): Choices, Graveyards, Undo, Settings are tabs of one
+// window, the open one gold; clicking the open side tab goes back to what was open before; Undo and Settings are lists in
+// the window's answer buttons (their own panels are gone); only the open tab's content shows.
+{
+  const st = (mark) => q('local a = function(id, k) return tostring(UI.getAttribute(id, k)) end return table.concat({ a("eng_panel_Blue", "active"), tostring(engineBrowse.Blue), tostring(UI.getValue("eng_title_Blue")), a("eng_toggle_Blue", "textColor"), a("eng_browse_Blue", "textColor"), a("eng_set_Blue", "textColor"), a("eng_undo_Blue", "textColor"), a("eng_stops_Blue", "active"), a("eng_search_Blue", "active"), a("eng_opt_Blue_1", "text"), a("eng_opt_Blue_2", "text") }, "|")', mark);
+  const slot = (k, mark) => q(`onMtgSlot(Player.Blue, nil, "eng_opt_Blue_${k}")`, mark);
+  const pts = '{ points = { { id = 84, label = "turn 11, White\'s upkeep" }, { id = 82, label = "turn 10, Blue\'s main" } } }';
+  const r = run([q('engineShown = engineShown', "start"), st("closed"),
+    q('onMtgSettings(Player.Blue, nil, "eng_set_Blue")', "open settings"), st("settings"),
+    slot(1, "fx line"), st("effects off"), q('return tostring(engineEffectsOff.Blue)', "fx flag"), slot(1, "effects on"),
+    slot(4, "pace"), q('return tostring(engineAutoOn("Blue"))', "pace flag"), slot(4, "pace back"),
+    q('onMtgSettings(Player.Red, nil, "eng_set_Blue")', "stranger"), st("after stranger"),
+    q('onMtgBrowse(Player.Blue, nil, "eng_browse_Blue")', "open graveyards"), st("graveyards"),
+    q('onMtgBrowse(Player.Blue, nil, "eng_browse_Blue")', "close graveyards"), st("closed again"),
+    q('onMtgToggle(Player.Blue, nil, "eng_toggle_Blue")', "open choices"), st("choices"),
+    q(`engineRewindUpdate(${pts}, false) return tostring(UI.getAttribute("eng_undo_Blue", "active"))`, "points"),
+    q('onMtgUndo(Player.Blue, nil, "eng_undo_Blue")', "open undo"), st("undo"),
+    slot(2, "undo pick"), st("after undo pick"),
+    q('onMtgUndo(Player.Blue, nil, "eng_undo_Blue")', "undo again"), q('engineRewindUpdate(nil, false)', "points gone"), st("no points"),
+    q('local x = UI.getXml() local o = {} for _, id in ipairs({ "eng_setpanel_", "eng_undolist_", "eng_undopt_", "eng_pace_", "eng_dock_Blue" }) do o[#o + 1] = tostring(x:find(id, 1, true) ~= nil) end return table.concat(o, "|")', "xml")]);
+  const v = (m) => String(valueOf(r, m)).split("|");
+  const gold = (c) => /^#FFD27[AB]$/i.test(c), white = (c) => /^#F[EF]F[EF]F[EF]$/i.test(c);
+  ok("tabs: no errors", r.errors.length === 0, r.errors.join(" | "));
+  ok("tabs: the window is shut at first, no tab gold", v("closed")[0] === "false" && [3, 4, 5].every((k) => white(v("closed")[k])), v("closed").join("|"));
+  const s = v("settings");
+  ok("tabs: Settings opens the window on its tab, gold", s[0] === "true" && s[1] === "settings" && s[2] === "Settings" && gold(s[5]) && white(s[3]) && white(s[4]), s.join("|"));
+  ok("tabs: Settings lists its switches in the window, no stops, no search", s[9] === "My effects: on" && /^My sounds/.test(s[10]) && s[7] === "false" && s[8] === "false", s.join("|"));
+  ok("tabs: a Settings line switches it and says so", valueOf(r, "fx flag") === "true" && v("effects off")[9] === "My effects: off", v("effects off").join("|"));
+  ok("tabs: the held-moves switch (was Auto: off) is a Settings line", valueOf(r, "pace flag") === "false", String(valueOf(r, "pace flag")));
+  ok("tabs: another colour's click changes nothing", v("after stranger")[1] === "settings", v("after stranger").join("|"));
+  const g = v("graveyards");
+  ok("tabs: Graveyards switches the tab, gold, with the search", g[1] === "browse" && /^Graveyards and exile/.test(g[2]) && gold(g[4]) && white(g[5]) && g[8] === "true" && g[7] === "false", g.join("|"));
+  ok("tabs: clicking the open tab shuts what it opened", v("closed again")[0] === "false" && v("closed again")[1] === "nil", v("closed again").join("|"));
+  const c = v("choices");
+  ok("tabs: Choices opens the answers, gold, with the stops", c[0] === "true" && c[1] === "nil" && gold(c[3]) && white(c[4]) && c[7] === "true", c.join("|"));
+  ok("tabs: Undo shows with restore points", valueOf(r, "points") === "true", String(valueOf(r, "points")));
+  const u = v("undo");
+  ok("tabs: Undo lists the restore points in the window", u[1] === "undo" && /^Rewind to/.test(u[2]) && u[9] === "turn 11, White's upkeep" && u[10] === "turn 10, Blue's main" && gold(u[6]), u.join("|"));
+  const sent = fxOf(r, "undo pick").filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  ok("tabs: an Undo pick asks for that point and goes back to the answers", sent.includes('"checkpointId":82') && v("after undo pick")[1] === "nil" && v("after undo pick")[0] === "true", sent.slice(0, 200) + " " + v("after undo pick").join("|"));
+  ok("tabs: the Undo tab shuts when the points go", v("no points")[1] === "nil", v("no points").join("|"));
+  ok("tabs: the old Settings / Undo panels and Auto button are gone, the dock is there", valueOf(r, "xml") === "false|false|false|false|true", String(valueOf(r, "xml")));
+}
 // a deck stashed for a game is invisible to everyone while it is under the table, and visible again when it comes back
 {
   const r = run([q(`stashTestDeck = spawnObject({ type = "Deck" }) stashTestDeck.setPosition(Vector(40, 2, 10))
@@ -858,15 +901,23 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("ability buttons: they sit on the card", /@0#/.test(gv), gv);
   ok("ability buttons: the tooltip has the whole text", gv.endsWith("#" + long), gv);
 }
-// the Engine / Graveyards / Log / Auto / Settings buttons are a row at the top left, under TTS's own menu (2026-10-31): at
-// the top right they covered the first items of the cards' right-click menus (2026-10-26, #35). (The fake TTS keeps no
-// layout: read from the XML text.)
+// the engine's buttons are one row at the top left, under TTS's own menu (2026-10-31): at the top right they covered the
+// first items of the cards' right-click menus (2026-10-26, #35). Since batch B one dock of tabs, then Auto-resolve and
+// Fix, all at y -140 and right of TTS's left tool bar (82 px), the window under them. (The fake TTS keeps no layout:
+// read from the built XML.)
 {
-  const lua = String(save.LuaScript || "");
-  for (const id of ["eng_toggle_", "eng_browse_", "eng_logbtn_", "eng_pace_", "eng_set_", "eng_setpanel_", "eng_autores_", "eng_fixcall_", "eng_undo_", "eng_undolist_"]) {
-    const tag = (lua.match(new RegExp(`<(?:Button|Panel) id="${id}' \\.\\. c \\.\\. '"[^>]*>`)) || [""])[0];
-    ok(`top-left row: ${id} sits at the top left`, /rectAlignment="UpperLeft"/.test(tag) && /offsetXY="\d+ -\d+"/.test(tag), tag.slice(0, 200) || "not found");
+  const r = run([q('return UI.getXml()', "xml")]);
+  const xml = String(valueOf(r, "xml"));
+  const tagOf = (id) => (xml.match(new RegExp(`<\\w+ id="${id}"[^>]*>`)) || [""])[0];
+  const cls = (tag) => { const m = /class="(\w+)"/.exec(tag); return m ? (xml.match(new RegExp(`<\\w+ class="${m[1]}"[^>]*>`)) || [""])[0] : ""; };
+  const look = (id) => tagOf(id) + " " + cls(tagOf(id));
+  for (const [id, x] of [["eng_dock_Blue", 96], ["eng_autores_Blue", 468], ["eng_fixcall_Blue", 622]]) {
+    ok(`top-left row: ${id} sits at the top left, x ${x}`, /rectAlignment="UpperLeft"/.test(look(id)) && look(id).includes(`offsetXY="${x} -140"`), look(id).slice(0, 300) || "not found");
   }
+  ok("top-left row: the window hangs under the dock", /rectAlignment="UpperLeft"/.test(look("eng_panel_Blue")) && look("eng_panel_Blue").includes('offsetXY="96 -176"'), look("eng_panel_Blue").slice(0, 300));
+  const dock = xml.slice(xml.indexOf('id="eng_dock_Blue"'), xml.indexOf("</HorizontalLayout>", xml.indexOf('id="eng_dock_Blue"')));
+  const order = [...dock.matchAll(/<Button id="(eng_\w+?)_Blue"/g)].map((m) => m[1]).join(",");
+  ok("top-left row: the dock's tabs in order", order === "eng_toggle,eng_browse,eng_undo,eng_set,eng_logbtn", order);
 }
 // the Auto-resolve button opens one list shared by every seat (2026-10-31): only the players who opened it see it, a pick
 // goes to the bridge, and the button shows what the bridge says, which ends a skip by itself. One choice at a time.
@@ -900,7 +951,7 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" }, list("after clear"), q('return tostring(engineSkipTo.Blue)', "skip after clear")] });
   const v = (m) => String(valueOf(r, m));
   ok("auto list: no errors", r.errors.length === 0, r.errors.join(" | "));
-  ok("auto list: the button says off and hints at a list", v("start").startsWith("Auto-resolve: off...|#3a3f4b"), v("start"));
+  ok("auto list: the button says off and hints at a list", v("start").startsWith("Auto-resolve: off...|#1A1A1A"), v("start"));
   ok("auto list: shut at the start", v("closed").startsWith("false"), v("closed"));
   ok("auto list: only the player who opened it sees it", v("Blue open") === "true|Blue", v("Blue open"));
   ok("auto list: a second player joins the first", v("both open") === "true|Blue|White", v("both open"));
@@ -915,10 +966,10 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("auto list: step banners come back after", v("banner after") === "true|MAIN PHASE 2", v("banner after"));
   ok("auto list: game over shuts it", v("after game over").startsWith("false"), v("after game over"));
   ok("auto list: Off ends the skip at the bridge", sent(r, "pick off").includes('"phase":"off"'), sent(r, "pick off").slice(0, 200));
-  ok("auto list: back to off, grey", v("off again").startsWith("Auto-resolve: off...|#3a3f4b"), v("off again"));
+  ok("auto list: back to off, grey", v("off again").startsWith("Auto-resolve: off...|#1A1A1A"), v("off again"));
   ok("auto list: Other players' turns is the old auto-resolve", v("others").startsWith("Auto-resolve: on...|#2e7d32|true") && sent(r, "pick others").includes('"on":true'), v("others"));
   ok("auto list: a skip typed in the chat shows, and takes over from auto-resolve", v("typed").startsWith("Until combat...|#2e7d32|nil"), v("typed"));
-  ok("auto list: the skip ending by itself puts the button back", v("ended").startsWith("Auto-resolve: off...|#3a3f4b|nil"), v("ended"));
+  ok("auto list: the skip ending by itself puts the button back", v("ended").startsWith("Auto-resolve: off...|#1A1A1A|nil"), v("ended"));
   ok("auto list: Off turns auto-resolve off", sent(r, "off from others").includes('"on":false') && v("button after off").startsWith("Auto-resolve: off..."), sent(r, "off from others").slice(0, 200));
   ok("auto list: Off sends no skip message with no skip on", !sent(r, "off from others").includes("skipto"), sent(r, "off from others").slice(0, 200));
   ok("auto list: my next turn fits a short label", v("mine").startsWith("Until my turn..."), v("mine"));
