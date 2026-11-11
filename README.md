@@ -127,7 +127,7 @@ node bridge/bridge.js
 |---|---|
 | `mtg engine on` | rules engine on (anyone; also the button in the middle of the table) |
 | `mtg ready` / `mtg ready all` | check your deck (or everyone's) against the engine's card list |
-| `mtg friendly 0\|1\|2` | free mulligans each, for everyone (also the **Free mulligans** button in the middle of each side of the table) |
+| `mtg friendly 0\|1\|2` | free mulligans each, for everyone (also the **Free mulligans** button on the left rim, where the cannon sits outside engine mode) |
 | `mtg start` / `mtg start ai 2` | start the game, optionally with Forge AI players (anyone) |
 | `mtg undo` / `mtg undo N` | rewind to an earlier point; the other players vote |
 | `mtg vote yes` / `mtg vote no` | answer a rewind vote |
