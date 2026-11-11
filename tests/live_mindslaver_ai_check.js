@@ -141,10 +141,11 @@ class Client {
       case "chooseCards": return this.respond(p, type, { type: "chooseCardsDecision", chosenCardIds: (input.cards || []).slice(0, input.min || 0).map((c) => c.id) });
       case "chooseFromSelection": return this.respond(p, type, { type: "selectionDecision", chosenIndices: [0] });
       case "chooseAttackers": {
-        const giant = (input.attackers || []).find((a) => a.attackerId === S.giantId);
+        // (either Giant: the Bolt kills the first one unless the AI counters it)
+        const giant = (input.attackers || []).find((a) => (S.giantIds || []).includes(a.attackerId));
         if (controlled && giant && (giant.validTargetIds || []).includes(S.C)) {
           S.attacked = true;
-          return this.respond(p, type, { type: "declareAttackers", assignments: [{ attackerId: S.giantId, targetId: S.C }] });
+          return this.respond(p, type, { type: "declareAttackers", assignments: [{ attackerId: giant.attackerId, targetId: S.C }] });
         }
         return this.respond(p, type, { type: "declareAttackers", assignments: [] });
       }
@@ -190,6 +191,8 @@ function priority(c, p, g, input) {
       // Mountains, whichever of them Mindslaver's {4} takes)
       ...["Plains", "Mountain"].flatMap((name) => [1, 2, 3, 4, 5, 6].map(() => ({ op: "createCard", name, player: S.C, zone: "battlefield" }))),
       { op: "mana", player: S.C, mana: "R" },
+      // (two Giants: the first is the Bolt's target, the other attacks in the controlled turn)
+      { op: "createCard", name: GIANT, player: S.T, zone: "battlefield" },
       { op: "createCard", name: GIANT, player: S.T, zone: "battlefield" },
       { op: "createCard", name: COUNTER, player: S.T, zone: "hand" },
       { op: "createCard", name: SHOCK, player: S.T, zone: "hand" },
@@ -204,6 +207,7 @@ function priority(c, p, g, input) {
     S.reflectId = named(g, "hand", S.C, REFLECT)?.id;
     S.boltId = named(g, "hand", S.C, BOLT)?.id;
     S.giantId = named(g, "battlefield", S.T, GIANT)?.id;
+    S.giantIds = zone(g, "battlefield", S.T).filter((x) => cname(x) === GIANT).map((x) => x.id);
     S.counterId = named(g, "hand", S.T, COUNTER)?.id;
     if (!S.slaverId || !S.reflectId || !S.boltId || !S.giantId) return finish("set-up incomplete");
     const bolt = castOf(S.boltId);
@@ -244,12 +248,13 @@ function judge(g) {
   check(blockers.some((x) => x.reflect), `there ${S.C} may cast ${REFLECT} (${JSON.stringify(blockers)})`);
   const onShock = S.own.filter((x) => x.stack.some((s) => s.startsWith(`${SHOCK}:`)));
   check(onShock.length > 0 && onShock.some((x) => x.reflect), `${S.C} gets its own priority with ${S.T}'s ${SHOCK} on the stack and may cast ${REFLECT} (${JSON.stringify(onShock)})`);
-  check(!S.tStack.length, `the harmless AI put nothing on the stack on its own turns (${JSON.stringify(S.tStack)})`);
+  check(!S.tStack.length, `the harmless AI put nothing on the stack while nobody controlled it (${JSON.stringify(S.tStack)})`);
   const tHand = zone(g, "hand", S.T);
   check(!tHand.some((x) => x.visibility === "visible"), `${S.C} no longer sees ${S.T}'s hand afterwards`);
   const tBattle = zone(g, "battlefield", S.T).map(cname);
   check(!tBattle.includes(ELVES), `the harmless AI never cast its ${ELVES} (battlefield: ${tBattle.filter((n) => !/^(Island|Mountain|Forest|Plains)$/.test(n)).join(", ")})`);
-  check(!zone(g, "graveyard", S.T).some((x) => cname(x) === COUNTER), `its ${COUNTER} never went to its graveyard (graveyard: ${zone(g, "graveyard", S.T).map(cname).join(", ")})`);
+  // (not "Counterspell stayed out of the graveyard": with 10 cards in hand T discards at cleanup)
+  check(zone(g, "graveyard", S.T).some((x) => cname(x) === GIANT), `${S.C}'s ${BOLT} resolved and killed the ${GIANT} it targeted (graveyard: ${zone(g, "graveyard", S.T).map(cname).join(", ")})`);
   finish();
 }
 
