@@ -69,7 +69,8 @@ function scenarios() {
   // 2026-10-22 playtest ("Engine keeps popping up"): the panel is hidden unless the player pins it (Engine: show) or a
   // question the table can't answer is open; such a question opens it and the next one the table answers closes it.
   // The stack pop-up's X closes it for that player only, until the next card pops up.
-  const panel = click('return tostring(UI.getAttribute("eng_panel_Blue", "active")) .. " " .. tostring(UI.getAttribute("eng_toggle_Blue", "text"))');
+  // (batch B: the Choices tab's words stay; the side tab open, if any)
+  const panel = click('return tostring(UI.getAttribute("eng_panel_Blue", "active")) .. " " .. tostring(engineBrowse.Blue)');
   const prio = (id) => ask({ promptId: id, kind: "priority", title: "Your priority", mode: "single", min: 1, max: 1, options: [{ id: "__pass", label: "Pass priority" }] });
   one.push(click('onMtgToggle(Player.Blue, nil, "eng_toggle_Blue")'), panel, // pinned by the click above: unpinned
     ask({ promptId: 1201, title: "Choose modes", mode: "multi", min: 1, max: 2, options: [{ id: "m1", label: "Mode A" }, { id: "m2", label: "Mode B" }, { id: "m3", label: "Mode C" }] }),
@@ -192,8 +193,9 @@ function scenarios() {
       ask({ promptId: 997, kind: "target", title: "Choose target", mode: "single", min: 1, max: 1,
         options: [{ id: `card|${bf[1].id}`, label: "a creature" }] }),
       click(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${bf[0].id}" then o = x end end if o then onPlayerAction(Player.Blue, Player.Action.Select, { o }) end`),
-      // a card in your hand (looking at it): no hint
-      click(`__sim.frames(200) local o for _, x in ipairs(getObjects()) do local id = tostring(x.getGMNotes()):match("^engine:(engine%-card%-%d+)$") if id and x.getPosition().z > 20 then o = x end end if o then onPlayerAction(Player.Blue, Player.Action.Select, { o }) return o.getGMNotes() end return "no hand card"`));
+      // a card in your hand (looking at it): no hint (z > 28: Blue's hand starts at 31.9, past the mat's edge at 25.8;
+      // "z > 20" took a land once lands moved into the mana box at 22.4, 2026-11-10)
+      click(`__sim.frames(200) local o for _, x in ipairs(getObjects()) do local id = tostring(x.getGMNotes()):match("^engine:(engine%-card%-%d+)$") if id and x.getPosition().z > 28 then o = x end end if o then onPlayerAction(Player.Blue, Player.Action.Select, { o }) return o.getGMNotes() end return "no hand card"`));
   }
   // 2026-10-21 sweep fixes
   {
@@ -356,7 +358,8 @@ function scenarios() {
     // (2026-10-22) Settings: My effects hides the stack pop-up for that player only; Table animations (host) off: the
     // next combat doesn't swing; a player who isn't the host can't switch it
     const nextTurn = (step) => { const st = fight(step); const b = JSON.parse(st.msg.json); b.turn = (b.turn || 0) + 1; return { ...st, msg: { t: "table", json: JSON.stringify(b) }, mark: st.mark + " next turn" }; };
-    const setState = click('return tostring(UI.getAttribute("eng_setpanel_Blue", "active")) .. " | " .. tostring(UI.getAttribute("eng_fx_Blue", "text")) .. " | " .. tostring(UI.getAttribute("eng_anim_Blue", "text")) .. " | anim off: " .. tostring(engineAnimOff)');
+    // (batch B: Settings is a tab of the window; its lines are the window's answer buttons 1-3)
+    const setState = click('return tostring(engineBrowse.Blue) .. " | " .. tostring(UI.getAttribute("eng_opt_Blue_1", "text")) .. " | " .. tostring(UI.getAttribute("eng_opt_Blue_3", "text")) .. " | anim off: " .. tostring(engineAnimOff)');
     one.push(click('onMtgSettings(Player.Blue, nil, "eng_set_Blue")'), setState,
       click('onMtgFx(Player.Blue, nil, "eng_fx_Blue") enginePopOpen() return tostring(UI.getAttribute("eng_pop", "visibility"))'), setState,
       click('onMtgFx(Player.Blue, nil, "eng_fx_Blue") return "settings: open, effects back on"'),

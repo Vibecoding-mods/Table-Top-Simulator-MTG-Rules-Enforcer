@@ -1,0 +1,9 @@
+{
+  "label": "round 1 live check (2026-11-11): monarch crown (cast Palace Jailer on Hill Giant), Day piece (Brutal Cathar), planeswalker targets (Bolt Jace; Hero of Bladehold attacks), attack tax (Propaganda), pump on an attacker (Giant Growth), flashback hover (Faithless Looting), equip (Bonesplitter), token attacker sizes",
+  "mana": 20,
+  "hand": ["Palace Jailer", "Brutal Cathar", "Lightning Bolt", "Giant Growth"],
+  "battlefield": ["Hero of Bladehold", "Bonesplitter", "Grizzly Bears"],
+  "graveyard": ["Faithless Looting"],
+  "tokens": ["2/2 red goblin shaman"],
+  "opponents": { "battlefield": ["Jace Beleren", "Propaganda", "Hill Giant"] }
+}

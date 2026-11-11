@@ -1,0 +1,7 @@
+{
+  "label": "release-check2: Clone as Serra Angel, then Control Magic's list must tell the two Serra Angels apart by owner",
+  "lands": 0,
+  "keepHand": true,
+  "hand": ["Clone", "Control Magic"],
+  "mana": 99
+}

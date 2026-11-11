@@ -159,3 +159,27 @@ Known and not fixed here:
 - `PhaseHandler.extraPhases` (an extra combat added by an effect) is not kept by a restore point.
 - An extra turn's delayed triggers (`ExtraTurn.getDelayedTriggers`) come back with the queue as the same objects; whether
   Forge's snapshot also unregisters ones that already fired after the point was not checked.
+
+## Top-up from Card-Forge `2549d11` (2026-11-10)
+
+Card-Forge `master` checked again: `2549d11cbc299960af3b9e942328839aca0c85f6` (2026-11-10, 81 commits past `6d4a175`).
+The Star Trek edition files, tokens and `TypeLists.txt` are unchanged since `6d4a175`; most TRK/TRC script changes
+are moves out of `upcoming/` with the same bytes. Four scripts got real fixes, each one line and no new Java; they are
+copied byte for byte from `2549d11` over our copy in place (still in `upcoming/`, listed in `forge-trek-files.txt` with
+upstream's new path):
+
+| card | fix | upstream |
+|---|---|---|
+| Kirk, Commanding Officer | the destroy ability costs `2 Sac<...>` (ours had no {2}) | 723b215 |
+| Dr. McCoy, Surly Surgeon | `ActiveZones$ Battlefield` on its replacement | 77e54cf |
+| Cantankerous Captain | the pump targets `Creature.YouCtrl` (ours: any creature) | 311dd77 |
+| Starfleet Communicator | `AttachedBy Valid Communicator` in its count | 9056e0c |
+
+Left out on purpose: Spock, Always Your Friend and Rutherford, Upgraded Ensign (they only drop
+`ForceRevealToController` after a DigEffect change, 45cd35c; ours still reveal), and Fevered Visions (a reprint, changed
+for Two-Headed Giant, 54353f6).
+
+Built `mtg-forge-node:trek2` (`7d14533e3b79`) from a clean tree with both patches; no protocol change, so the relay
+stays `mtg-relay:exile`. Every file under `/build` in it matches `mtg-forge-node:exile` (`a8c9de3ee222`, the
+2026-11-09 build) except the four scripts, which are upstream's. `TrekCardsLoadCheck` (in `mtg-harness-test:trek2`):
+TRK 311 of 311, 27 of 27 tokens, TRC 337 of 337, 12 of 12, `PASS`; `harness-tests.sh`: all five classes pass.

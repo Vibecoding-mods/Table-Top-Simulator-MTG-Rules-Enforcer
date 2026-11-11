@@ -1,0 +1,6 @@
+{
+  "label": "round 1 live check, part 4: another Jace Beleren and Harmless Offering for the AI's planeswalker (attack targets), keeping the hand and adding no lands",
+  "keepHand": true,
+  "lands": 0,
+  "hand": ["Jace Beleren", "Harmless Offering"]
+}

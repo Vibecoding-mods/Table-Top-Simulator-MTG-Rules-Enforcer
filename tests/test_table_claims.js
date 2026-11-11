@@ -281,6 +281,18 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("attack corner: one chosen says Attack (1) / No attacks", valueOf(r, "one chosen") === "Attack (1)|No attacks", valueOf(r, "one chosen"));
   ok("attack corner: Attack sends the chosen attacker", sent("press attack").includes('"choice":["engine-card-1|player-1"]'), sent("press attack").slice(0, 200));
 }
+// Q/E on a creature the attack question doesn't offer says the bridge's reason, cantAttack (attack reminder spec part
+// 2: "Hill Giant can't attack: summoning sick." instead of "That creature can't attack right now.")
+{
+  const id = blueBf[0];
+  const qe = (mark) => q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end onPlayerAction(Player.Blue, Player.Action.RotateIncrementalRight, { o })`, mark);
+  const attackAsk = (promptId, extra) => ask({ promptId, kind: "attack", title: "Choose attackers", mode: "multi", min: 0, max: 1, options: [
+    { id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" }, { id: "engine-card-99998|player-1", label: "Other → White" }], ...extra });
+  const r = run([attackAsk(874, { cantAttack: { [id]: "Hill Giant can't attack: summoning sick." } }), qe("reason"), attackAsk(875, {}), qe("plain")]);
+  const said = (mark) => fxOf(r, mark).filter((l) => l.includes("broadcastToColor")).join(" | ");
+  ok("attack Q/E: a creature not offered says the bridge's reason", said("reason").includes("Hill Giant can't attack: summoning sick.") && !said("reason").includes("right now"), said("reason") + " " + r.errors.join(" | "));
+  ok("attack Q/E: without a reason the old line stays", said("plain").includes("That creature can't attack right now."), said("plain"));
+}
 // scry the table's way (2026-10-24): the cards go into the second hand zone; dragged onto the library they stay on top,
 // the last one dragged on top; clicked, a card goes to the bottom; the last one out of the zone answers
 {
@@ -346,8 +358,11 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     q('data.Blue.playmat.clearButtons() for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then o.clearButtons() o.createButton({ click_function = "engineNoop", function_owner = Global, label = "Engine: off" }) end end', "wiped"),
     { frames: 200 }, q(labels, "after"),
     q('for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then o.clearButtons() o.createButton({ click_function = "engineNoop", function_owner = Global, label = "Engine: off" }) end end', "tile only"),
-    { frames: 200 }, q(labels, "after tile")] });
-  ok("precondition: READY? on Blue's mat and the tile drawn", /READY\?/.test(String(valueOf(r, "drawn"))) && /\|Engine: on$/.test(String(valueOf(r, "drawn"))), String(valueOf(r, "drawn")));
+    { frames: 200 }, q(labels, "after tile"),
+    q('for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then o.clearButtons() o.createButton({ click_function = "onMtgSetupEngine", function_owner = Global, label = "Engine: on" }) end end', "friendly wiped"),
+    { frames: 200 }, q(labels, "after friendly")] });
+  ok("precondition: READY? on Blue's mat and the tile drawn", /READY\?/.test(String(valueOf(r, "drawn"))) && /\|Engine: on,Free mulligans\nNone$/.test(String(valueOf(r, "drawn"))), String(valueOf(r, "drawn")));
+  ok("setup buttons: the free-mulligan buttons wiped (the middle one right) are drawn again", valueOf(r, "after friendly") === valueOf(r, "drawn"), String(valueOf(r, "after friendly")));
   ok("setup buttons: a stale middle tile alone is drawn again", valueOf(r, "after tile") === valueOf(r, "drawn"), String(valueOf(r, "after tile")));
   ok("setup buttons: wiped or stale, they are drawn again within 2 s", valueOf(r, "after") === valueOf(r, "drawn"), `${valueOf(r, "drawn")} -> ${valueOf(r, "after")}`);
 }
@@ -364,29 +379,32 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("waiting flash: a rainbow colour after 5 s, and it changes", rainbow.includes(c("at 6 s")) && rainbow.includes(c("at 6.3 s")) && c("at 6 s") !== c("at 6.3 s"), c("at 6 s") + " / " + c("at 6.3 s"));
   ok("waiting flash: back to normal when the wait ends", c("after") === "#F2F2F2", c("after"));
 }
-// anyone seated switches engine mode, starts a game and clears a finished one; nobody unseated does; ending a game
-// that is still going stays the host's (2026-10-25: "allow non host to turn the engine on and off and to start games")
+// anyone, seated or not, switches engine mode, starts a game and clears a finished one; ending a game that is still
+// going stays the host's (2026-10-25: "allow non host to turn the engine on and off and to start games"; 2026-11-10:
+// "allow anyone to click engine on/off and start too")
 {
   const mode = (mark) => q("return tostring(ENGINE_MODE)", mark);
   const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
   const r = simulate({ save, seated: ["Blue", "White"], host: "Blue", steps: [{ lua: "setEngineMode(true)", frames: 60 }, mode("on"),
     q('engineChat("mtg engine off", Player.White)', "White off"), mode("after White off"),
     q('engineChat("mtg engine on", Player.Red)', "Red on"), mode("after Red on"),
-    q('engineChat("mtg engine on", Player.White)', "White on"), mode("after White on"),
+    q('engineChat("mtg engine off", Player.White)', "White off 2"), q('engineChat("mtg engine on", Player.White)', "White on"), mode("after White on"),
     q('engineChat("mtg start ai 1", Player.White)', "White start"),
     q('engineStartSentAt = nil engineChat("mtg start ai 1", Player.Red)', "Red start"),
     q('engineTable = function() return { gameOver = false } end engineChat("mtg reset", Player.White)', "White reset mid-game"),
     q('engineTable = function() return { gameOver = true } end engineChat("mtg reset", Player.White)', "White reset after"),
-    q('engineTable = function() return { gameOver = true } end engineChat("mtg reset", Player.Red)', "Red reset after")] });
+    q('engineTable = function() return { gameOver = true } end engineChat("mtg reset", Player.Red)', "Red reset after"),
+    q('engineTable = function() return { gameOver = false } end engineChat("mtg reset", Player.Red)', "Red reset mid-game")] });
   ok("precondition: engine mode on", valueOf(r, "on") === "true", String(valueOf(r, "on")));
   ok("non-host: seated White turns engine mode off", valueOf(r, "after White off") === "false", String(valueOf(r, "after White off")));
-  ok("non-host: unseated Red can't turn it on", valueOf(r, "after Red on") === "false" && fxOf(r, "Red on").some((l) => /Sit at a colour/.test(l)), String(valueOf(r, "after Red on")));
+  ok("non-host: unseated Red turns it on", valueOf(r, "after Red on") === "true", String(valueOf(r, "after Red on")));
   ok("non-host: seated White turns it on again", valueOf(r, "after White on") === "true", String(valueOf(r, "after White on")));
   ok("non-host: seated White starts a game", /"start"|start/.test(sent(r, "White start")) && /seats/.test(sent(r, "White start")), sent(r, "White start").slice(0, 200));
-  ok("non-host: unseated Red can't start", !/seats/.test(sent(r, "Red start")) && fxOf(r, "Red start").some((l) => /Sit at a colour/.test(l)), sent(r, "Red start").slice(0, 200));
+  ok("non-host: unseated Red starts a game", /seats/.test(sent(r, "Red start")) && !fxOf(r, "Red start").some((l) => /Sit at a colour/.test(l)), sent(r, "Red start").slice(0, 200));
   ok("non-host: White can't end a game that is still going", !/reset/.test(sent(r, "White reset mid-game")) && fxOf(r, "White reset mid-game").some((l) => /still going/.test(l)), sent(r, "White reset mid-game").slice(0, 200));
   ok("non-host: White clears a finished game", /reset/.test(sent(r, "White reset after")), JSON.stringify(fxOf(r, "White reset after").slice(0, 3)));
-  ok("non-host: unseated Red can't clear it", !/reset/.test(sent(r, "Red reset after")), sent(r, "Red reset after").slice(0, 200));
+  ok("non-host: unseated Red clears a finished game too", /reset/.test(sent(r, "Red reset after")), sent(r, "Red reset after").slice(0, 200));
+  ok("non-host: unseated Red can't end a game that is still going", !/reset/.test(sent(r, "Red reset mid-game")) && fxOf(r, "Red reset mid-game").some((l) => /still going/.test(l)), sent(r, "Red reset mid-game").slice(0, 200));
 }
 // a question closing leaves its hand cards unlocked: a locked card drops out of its hand zone and shows to everyone
 // until the next redraw (Nicol Bolas, the Ravager, each opponent discards: the hands of the players who had answered lay
@@ -409,32 +427,39 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("hand cards: a Cast option going away leaves the card unlocked", valueOf(r, "cast gone") === "false", valueOf(r, "cast gone"));
   ok("hand cards: an opponent's permanent still locks again", valueOf(r, "target open") === "false" && valueOf(r, "target closed") === "true", `${valueOf(r, "target open")} / ${valueOf(r, "target closed")}`);
 }
-// Friendly mulligans: the vote button under READY, "mtg friendly", and Start sending the votes
+// Friendly mulligans: ONE shared count (one button beside the Deck Importer, anyone may click it), "mtg friendly"
+// (anyone), Start sending the count; Engine on/off and Start for anyone, seated or not
 {
-  const vote = (mark) => q('return tostring(engineFriendlyVote.Blue) .. "|" .. tostring(engineFriendlyVote.White)', mark);
-  const click = (who, mark) => q(`onMtgSetupFriendly(data.Blue.playmat, "${who}")`, mark);
-  const label = (r, mark) => fxOf(r, mark).filter((l) => /createButton/.test(l) && /Friendly:/.test(l)).map((l) => l.match(/"Friendly: [^"]*"/)[0]).join(" ");
+  const val = (mark) => q('return tostring(engineFriendly)', mark);
+  const click = (who, mark) => q(`onMtgSetupFriendly(nil, "${who}")`, mark);
+  // (the label's second line: the count; a newline may be printed as \n, \010 or a backslash and a newline)
+  const labels = (r, mark) => fxOf(r, mark).filter((l) => /createButton/.test(l) && /Free mulligans/.test(l)).map((l) => (l.match(/"Free mulligans(?:\\n|\\010|\\\n|\n)([^"]*)"/) || [, "?"])[1]);
   const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
-  const r = simulate({ save, seated: ["Blue", "White"], host: "Blue", steps: [{ lua: "setEngineMode(true)", frames: 60 }, q('SETUP_probe = 1', "drawn"),
-    click("Blue", "one"), vote("after one"), click("White", "stranger"), vote("after stranger"), click("Blue", "two"), click("Blue", "back"), vote("after back"),
-    q('engineChat("mtg friendly 2", Player.White)', "typed"), vote("after typed"), q('engineChat("mtg friendly 5", Player.White)', "typed bad"), vote("after bad"),
-    q('engineChat("mtg friendly", Player.White)', "typed nothing"), vote("after nothing"),
-    q('engineChat("mtg friendly 1", Player.Red)', "unseated"), q('return tostring(engineFriendlyVote.Red)', "red vote"),
-    q('engineChat("mtg friendly 0", Player.Blue)', "typed none"), vote("after none"),
-    q('engineSetFriendly("Blue", 1)', "blue 1"),
-    q('engineChat("mtg start ai 1", Player.White)', "start"),
-    q('engineClear()', "cleared"), vote("after clear")] });
+  const r = simulate({ save, seated: ["Blue", "White"], host: "Blue", steps: [
+    q('engineChat("mtg engine on", Player.Red)', "grey engine on"), { lua: "", frames: 60 }, q('return tostring(ENGINE_MODE)', "mode after grey"),
+    q('engineSetupButtons()', "drawn"),
+    q('local out = {} for _, c in ipairs({ "White", "Blue", "Red", "Yellow" }) do for _, b in ipairs((data[c] and data[c].playmat and data[c].playmat.getButtons()) or {}) do if b.click_function == "onMtgSetupFriendly" then out[#out + 1] = c end end end local t = nil for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then t = o end end local n, xs = 0, {} local sp = FRIENDLY_SPOT for _, b in ipairs((t and t.getButtons()) or {}) do if b.click_function == "onMtgSetupFriendly" then n = n + 1 local w = t.positionToWorld(b.position) local r = b.rotation or {} xs[#xs + 1] = string.format("%.2f,%.2f,%s", w.x + sp.x, w.z - sp.z, tostring(r.y or r[2])) local sc, ts = b.scale or {}, t.getScale() xs[#xs + 1] = string.format("%.2f,%.2f", (sc.x or sc[1]) * ts.z, (sc.z or sc[3]) * ts.x) end end local c = getObjectFromGUID("540e21") local hx, hz = string.match((c and c.memo) or "", "^mtghome (%S+) %S+ (%S+)") return table.concat(out, ",") .. "|" .. n .. "|" .. table.concat(xs, ";") .. "|" .. string.format("%.2f,%.2f", sp.x - (tonumber(hx) or 0), sp.z - (tonumber(hz) or 99))', "where"),
+    click("Blue", "one"), val("after one"), click("White", "two"), val("after two"), click("Red", "back"), val("after back"),
+    q('engineChat("mtg friendly 2", Player.White)', "typed"), val("after typed"), q('engineChat("mtg friendly 5", Player.White)', "typed bad"), val("after bad"),
+    q('engineChat("mtg friendly", Player.White)', "typed nothing"), val("after nothing"),
+    q('engineChat("mtg friendly 1", Player.Red)', "unseated"), val("after unseated"),
+    q('engineChat("mtg start ai 1", Player.Red)', "start"),
+    q('engineClear()', "cleared"), val("after clear")] });
   ok("friendly: no errors", r.errors.length === 0, r.errors.join(" | "));
-  ok("friendly: a click votes 1 and the button says so", valueOf(r, "after one") === "1|nil" && label(r, "one").includes('"Friendly: 1"'), `${valueOf(r, "after one")} ${label(r, "one")}`);
-  ok("friendly: another player's click is refused", valueOf(r, "after stranger") === "1|nil" && fxOf(r, "stranger").some((l) => /Blue's vote/.test(l)), JSON.stringify(fxOf(r, "stranger").slice(0, 2)));
-  ok("friendly: 2, then back to none", label(r, "two").includes('"Friendly: 2"') && label(r, "back").includes('"Friendly: none"') && valueOf(r, "after back").startsWith("0|"), `${label(r, "two")} ${label(r, "back")} ${valueOf(r, "after back")}`);
-  ok("friendly: typed vote", valueOf(r, "after typed") === "0|2" && fxOf(r, "typed").some((l) => /vote: 2/.test(l)), `${valueOf(r, "after typed")} ${JSON.stringify(fxOf(r, "typed").slice(0, 3))}`);
-  ok("friendly: a bad number changes nothing and says how", valueOf(r, "after bad") === "0|2" && fxOf(r, "typed bad").some((l) => /Use: mtg friendly/.test(l)), valueOf(r, "after bad"));
-  ok("friendly: no number changes nothing", valueOf(r, "after nothing") === "0|2" && fxOf(r, "typed nothing").some((l) => /Use: mtg friendly/.test(l)), valueOf(r, "after nothing"));
-  ok("friendly: typed none reads none", fxOf(r, "typed none").some((l) => /vote: none/.test(l)) && valueOf(r, "after none") === "0|2", `${valueOf(r, "after none")} ${JSON.stringify(fxOf(r, "typed none").slice(0, 3))}`);
-  ok("friendly: someone not seated can't vote", valueOf(r, "red vote") === "nil" && fxOf(r, "unseated").some((l) => /Sit at a colour/.test(l)), String(valueOf(r, "red vote")));
-  ok("friendly: Start sends the votes", /"friendlyVotes":\{/.test(sent(r, "start")) && /"Blue":1/.test(sent(r, "start")) && /"White":2/.test(sent(r, "start")), sent(r, "start").slice(0, 300));
-  ok("friendly: a rematch keeps the votes", valueOf(r, "after clear") === "1|2", valueOf(r, "after clear"));
+  ok("setup: someone not seated can turn engine mode on", valueOf(r, "mode after grey") === "true" && !fxOf(r, "grey engine on").some((l) => /Sit at a colour/.test(l)), String(valueOf(r, "mode after grey")));
+  // (where: none on a playmat | how many | x stored mirrored (world x + spot x = 0), same z, turned 90; the tile's stretch undone on the turned axes (TTS stretches after turning) | the spot is
+  // the Pirate Cannon's saved home; real TTS draws a tile button's x mirrored, see setupButton)
+  ok("friendly: one shared button, where the Pirate Cannon sits, turned a quarter, none on a playmat", valueOf(r, "where") === "|1|0.00,0.00,90;2.50,2.50|0.00,0.00", String(valueOf(r, "where")));
+  ok("friendly: a click sets 1 for everyone and the button says so", valueOf(r, "after one") === "1" && labels(r, "one").length === 1 && labels(r, "one").every((l) => l === "1"), `${valueOf(r, "after one")} ${labels(r, "one")}`);
+  ok("friendly: everyone is told who set it", fxOf(r, "one").some((l) => /broadcastToAll/.test(l) && /set free mulligans for everyone: 1 each/.test(l)), JSON.stringify(fxOf(r, "one").slice(0, 3)));
+  ok("friendly: another player's click moves the same count", valueOf(r, "after two") === "2" && labels(r, "two").length === 1 && labels(r, "two").every((l) => l === "2"),`${valueOf(r, "after two")} ${labels(r, "two")}`);
+  ok("friendly: someone not seated may click, and 2 goes back to None", valueOf(r, "after back") === "0" && labels(r, "back").every((l) => l === "None") && labels(r, "back").length === 1,`${valueOf(r, "after back")} ${labels(r, "back")}`);
+  ok("friendly: typed count", valueOf(r, "after typed") === "2" && fxOf(r, "typed").some((l) => /for everyone: 2 each/.test(l)), `${valueOf(r, "after typed")} ${JSON.stringify(fxOf(r, "typed").slice(0, 3))}`);
+  ok("friendly: a bad number changes nothing and says how", valueOf(r, "after bad") === "2" && fxOf(r, "typed bad").some((l) => /Use: mtg friendly/.test(l)), valueOf(r, "after bad"));
+  ok("friendly: no number changes nothing", valueOf(r, "after nothing") === "2" && fxOf(r, "typed nothing").some((l) => /Use: mtg friendly/.test(l)), valueOf(r, "after nothing"));
+  ok("friendly: someone not seated may type it", valueOf(r, "after unseated") === "1" && !fxOf(r, "unseated").some((l) => /Sit at a colour/.test(l)), String(valueOf(r, "after unseated")));
+  ok("friendly: Start (by someone not seated) sends the one count", /"friendly":1[,}]/.test(sent(r, "start")) && !/friendlyVotes/.test(sent(r, "start")) && !fxOf(r, "start").some((l) => /Sit at a colour/.test(l)), sent(r, "start").slice(0, 300));
+  ok("friendly: a rematch keeps the count", valueOf(r, "after clear") === "1", valueOf(r, "after clear"));
 }
 // "mtg mana <n>": the manual fix in one line (call; once the game is paused for its caller, the mana and Done);
 // 1-99 only; a pause that comes long after the call (someone else's fix later) adds nothing
@@ -472,25 +497,46 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("long text: a 120-character token name for a seat", /New token for AI 1/.test(said("long token for")) && r.errors.length === 0, said("long token for").slice(0, 200) + " " + r.errors.join(" | "));
   ok("long text: ability labels split at the colon, a long one with none is cut", valueOf(r, "ability short") === "{1}{G}: Put a +1/+1 counter… | word word word word… | {T}:", valueOf(r, "ability short"));
 }
-// a card played by dragging it onto the mat lands in its row, not where it was dropped; a permanent the player moved
-// on their own mat stays there (2026-10-26: lands stayed in the middle of the battlefield)
-{
+// a LAND played by dragging it onto the mat goes to the mana box, not where it was dropped (2026-10-26: lands stayed in
+// the middle of the battlefield); any other card stays where it was dropped (2026-11-10: "I also don't want any other
+// cards to snap to the play mat"); a permanent the player moved on their own mat stays there
+for (const kind of ["Land", "Creature"]) {
   const setup = 'local t = engineTable() local pl for _, p in ipairs(t.players) do if p.color == "Blue" then pl = p end end ' +
     'local c = pl.hand[1] __playId = c.id local function objOf(id) for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. id then return x end end end local o = objOf(c.id) local m = data.Blue.playmat.getPosition() ' +
     '__dropAt = Vector(m.x, 1.5, m.z) o.setPosition(__dropAt) onObjectDrop("Blue", o) __sim.frames(5) ' +
     'return tostring(engineManualPlay[c.id])';
   const land = 'local t = engineTable() local pl for _, p in ipairs(t.players) do if p.color == "Blue" then pl = p end end ' +
-    'local idx for i, c in ipairs(pl.hand) do if c.id == __playId then idx = i end end local c = table.remove(pl.hand, idx) ' +
+    `local idx for i, c in ipairs(pl.hand) do if c.id == __playId then idx = i end end local c = table.remove(pl.hand, idx) c.ty = { "${kind}" } ` +
     'table.insert(pl.battlefield, c) pl.keep = {} engineRender(t) __sim.frames(60) local function objOf(id) for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. id then return x end end end local o = objOf(__playId) local p = o.getPosition() ' +
     'return string.format("%.1f", math.sqrt((p.x - __dropAt.x) ^ 2 + (p.z - __dropAt.z) ^ 2)) .. " " .. tostring(engineManualPlay[__playId] == nil)';
   const moveOwn = 'local function objOf(id) for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. id then return x end end end local o = objOf(__playId) local m = data.Blue.playmat.getPosition() __ownAt = Vector(m.x + 2, 1.5, m.z - 1) ' +
     'o.setPosition(__ownAt) onObjectDrop("Blue", o) __sim.frames(5) engineRender(engineTable()) __sim.frames(60) local p = o.getPosition() ' +
     'return string.format("%.1f", math.sqrt((p.x - __ownAt.x) ^ 2 + (p.z - __ownAt.z) ^ 2))';
   const r = run([q(setup, "dropped"), q(land, "landed"), q(moveOwn, "moved own")]);
-  ok("precondition: the drop is held as a play", String(valueOf(r, "dropped")) === "true", String(valueOf(r, "dropped")) + " " + r.errors.join(" | "));
+  ok(`precondition (${kind}): the drop is held as a play`, String(valueOf(r, "dropped")) === "true", String(valueOf(r, "dropped")) + " " + r.errors.join(" | "));
   const [dist, cleared] = String(valueOf(r, "landed")).split(" ");
-  ok("played by drag: on the battlefield it goes to its row, not the drop spot", Number(dist) > 1 && cleared === "true", String(valueOf(r, "landed")));
-  ok("moved by the player on their mat: it stays there", Number(valueOf(r, "moved own")) < 0.5, String(valueOf(r, "moved own")));
+  if (kind === "Land") ok("played by drag, a land: it goes to the mana box, not the drop spot", Number(dist) > 1 && cleared === "true", String(valueOf(r, "landed")));
+  else ok("played by drag, not a land: it stays where it was dropped", Number(dist) < 0.5 && cleared === "true", String(valueOf(r, "landed")));
+  ok(`moved by the player on their mat (${kind}): it stays there`, Number(valueOf(r, "moved own")) < 0.5, String(valueOf(r, "moved own")));
+}
+// a land, put down by the table or dragged from the hand, lies inside the mat's mana box (2026-11-10: "i want the mana
+// to snap to the mana zone properly"; row 3 lay above the box). The box runs along the mat's forward axis from 3.46
+// to the near edge at 10.375 (measured on the real table), and a card is 3.06 deep, so its centre must be in 4.99-8.84.
+{
+  const objOf = 'local function objOf(id) for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. id then return x end end end ';
+  const blue = 'local t = engineTable() local pl for _, p in ipairs(t.players) do if p.color == "Blue" then pl = p end end ';
+  const depth = 'local p, m, f = o.getPosition(), data.Blue.playmat.getPosition(), data.Blue.playmat.getTransformForward() return string.format("%.2f", (p - m):dot(f))';
+  const put = blue + 'engineStoreStatic("engine-card-881", { n = "Forest", f = "https://img.example/forest.jpg", ty = { "Land" } }) ' +
+    'table.insert(pl.battlefield, { s = 1, id = "engine-card-881" }) pl.keep = {} engineRender(t) __sim.frames(60) ' + objOf + 'local o = objOf("engine-card-881") ' + depth;
+  const drag = blue + 'engineStoreStatic("engine-card-882", { n = "Island", f = "https://img.example/island.jpg", ty = { "Land" } }) ' +
+    'table.insert(pl.hand, { s = 1, id = "engine-card-882" }) pl.keep = {} engineRender(t) __sim.frames(30) ' + objOf + 'local o = objOf("engine-card-882") ' +
+    'local m = data.Blue.playmat.getPosition() o.setPosition(Vector(m.x, 1.5, m.z)) onObjectDrop("Blue", o) __sim.frames(5) ' +
+    'local idx for i, c in ipairs(pl.hand) do if c.id == "engine-card-882" then idx = i end end table.insert(pl.battlefield, table.remove(pl.hand, idx)) ' +
+    'engineRender(t) __sim.frames(60) ' + depth;
+  const r = run([q(put, "put"), q(drag, "dragged")]);
+  const inBox = (v) => Number(v) >= 4.99 && Number(v) <= 8.84;
+  ok("mana box: a land the table puts down lies inside it", inBox(valueOf(r, "put")), String(valueOf(r, "put")) + " " + r.errors.join(" | "));
+  ok("mana box: a land dragged from the hand ends inside it", inBox(valueOf(r, "dragged")), String(valueOf(r, "dragged")) + " " + r.errors.join(" | "));
 }
 // a card you may play from a graveyard shows its face in the playable row (2026-10-26: they lay as card backs)
 {
@@ -501,15 +547,19 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     'if o == nil then return "no object" end local face for _, d in pairs(o.getData().CustomDeck or {}) do face = d.FaceURL end return tostring(face)';
   // (on the near strip of your own mat, past the land row; under the big buttons it was half hidden, 2026-10-26)
   const objOf = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-777" then o = x end end ';
-  const where = objOf + 'local p, m, f = o.getPosition(), data.Blue.playmat.getPosition(), data.Blue.playmat.getTransformForward() ' +
-    'return string.format("%.1f", (p - m):dot(f))';
+  const where = objOf + 'local p, m, f, rt = o.getPosition(), data.Blue.playmat.getPosition(), data.Blue.playmat.getTransformForward(), data.Blue.playmat.getTransformRight() ' +
+    'local h = Player.Blue.getHandTransform().position ' +
+    'return string.format("%.2f|%.2f", (p - m):dot(f), (p - h):dot(rt))';
   const sent = (mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
   const r = run([q(setup, "playable"), q(where, "where"),
     q(objOf + 'o.setPosition(o.getPosition() + Vector(0.6, 1, 0.4)) onObjectDrop("Blue", o) __sim.frames(90) return "put back"', "put back"),
     q(objOf + 'local m = data.Blue.playmat.getPosition() o.setPosition(Vector(m.x, 1.5, m.z)) onObjectDrop("Blue", o) __sim.frames(90) return "dragged in"', "dragged in")]);
   ok("playable row: the card shows its picture, not a card back", String(valueOf(r, "playable")) === "https://img.example/lunarch.jpg", String(valueOf(r, "playable")) + " " + r.errors.join(" | "));
-  // (rows lie along the mat's forward axis: the land row 3 at 1.6, the playable row 4.25 at 5.6)
-  ok("playable row: on your mat, past the land row", Number(valueOf(r, "where")) > 4 && Number(valueOf(r, "where")) < 7, String(valueOf(r, "where")));
+  // (rows lie along the mat's forward axis: the mat's near edge is 10.375 past its centre and the hand counter screen
+  // starts at 14.07, so a card 3.06 deep lies between them centred from 11.91 to 12.54; a lone card centred on the hand)
+  const [depth, side] = String(valueOf(r, "where")).split("|").map(Number);
+  ok("playable row: on the strip between your mat and your hand", depth > 11.91 && depth < 12.54, String(valueOf(r, "where")));
+  ok("playable row: a lone card in front of your hand's middle", Math.abs(side) < 0.05, String(valueOf(r, "where")));
   ok("playable row: put down where it lies, it isn't played", !sent("put back").includes('"kind":"play"'), sent("put back").slice(0, 200));
   ok("playable row: dragged into the battlefield, it is played", sent("dragged in").split("\\").join("").includes('"kind":"play"'), sent("dragged in").slice(0, 200));
 }
@@ -563,7 +613,9 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     q(setStep("main2", 42) + 'engineAutoResolve.Blue = nil', "main2"), ask({ promptId: 904, kind: "target", title: "Choose target", mode: "single", min: 1, max: 1, options: [{ id: "player|player-1", label: "White" }] }), { frames: 3 }, banner("main2 target"),
     q(setStep("cleanup", 42), "cleanup"), ask({ promptId: 905, title: "Discard 2 cards (hand size)", mode: "multi", min: 2, max: 2, options: [{ id: "card|x1", label: "A" }, { id: "card|x2", label: "B" }, { id: "card|x3", label: "C" }] }), { frames: 3 }, banner("cleanup discard"),
     q('return tostring(UI.getValue("eng_phase_Blue"))', "cleanup bar"),
-    q('engineGameOverBanner({ winner = "Blue" }) return "over"', "game over"), banner("victory")]);
+    q('engineEffectsOff.Blue = true engineGameOverBanner({ winner = "Blue" }) return "over"', "game over"), banner("victory"),
+    { frames: 150 }, banner("wins"), { frames: 260 }, banner("gone"),
+    q('engineEffectsOff.Blue = nil UI.setAttribute("eng_banner_Blue", "active", "false") engineGameOverBanner({ winner = "White" }) return "over2"', "game over, effects on"), banner("effects on")]);
   const b = (m) => String(valueOf(r, m));
   ok("step banner: a priority question in main 1 shows MAIN PHASE 1", b("main1 priority") === "true|MAIN PHASE 1", b("main1 priority") + " " + r.errors.join(" | "));
   ok("step banner: a second question in the same step shows nothing new", b("main1 again").startsWith("false"), b("main1 again"));
@@ -571,7 +623,10 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("step banner: not for a target question", !/MAIN PHASE 2/.test(b("main2 target")), b("main2 target"));
   ok("step banner: the cleanup discard question shows CLEANUP", b("cleanup discard") === "true|CLEANUP", b("cleanup discard"));
   ok("step banner: the phase bar names cleanup", /CLEANUP/.test(b("cleanup bar")) && !/>END</.test(b("cleanup bar")), b("cleanup bar"));
-  ok("game over: VICTORY for the winner", b("victory") === "true|VICTORY", b("victory"));
+  ok("game over: VICTORY for the winner (effects off: the step banner)", b("victory") === "true|VICTORY", b("victory"));
+  ok("game over: then who won, after 2 s", b("wins") === "true|PLAYERBLUE WINS THE GAME", b("wins"));
+  ok("game over: gone 4 s later", b("gone").startsWith("false"), b("gone"));
+  ok("game over: with effects on the step banner stays off (the result banner says it)", b("effects on").startsWith("false"), b("effects on"));
 }
 // the big button ignores clicks for 0.6 s after a new question changed its words (Resolve -> Next under the pointer
 // passed a main phase, playtest 2026-10-26); your own picks changing it are covered by "attack corner" above
@@ -716,18 +771,84 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("rewind go: pressing it sends rewindGo", fxOf(r, "press").join(" ").split("\\").join("").includes("rewindGo"), fxOf(r, "press").join(" ").slice(0, 200));
   ok("rewind go: hidden while a vote is still open", valueOf(r, "waiting") === "false", String(valueOf(r, "waiting")));
 }
-// TTS's own rewind arrows and spare tools are covered while a game runs, under the table's buttons, for those whose bars they fit
+// The "floating black boxes" (2026-11-09): the covers over TTS's tool bars, measured on one screen, floated on others.
+// None in the screen UI, and nothing sets one. The log panel is no empty black box either: hidden until the first line.
 {
-  const cover = (mark) => q('return tostring(UI.getAttribute("eng_cover_1", "active")) .. tostring(UI.getAttribute("eng_cover_2", "active")) .. tostring(UI.getAttribute("eng_cover_3", "active"))', mark);
-  const r = run([q('engineScoopRedraw()', "draw"), cover("running"), q('engineTable().gameOver = true engineScoopRedraw()', "end it"), cover("over"),
-    q('engineTable().gameOver = false engineScoopRedraw()', "restart"), cover("again"), q('return tostring(engineToolCoverXml():find("^<Panel id=\\"eng_cover_1\\" visibility=\\"Admin\\"") ~= nil)', "xml")]);
-  ok("covers: on while a game runs", valueOf(r, "running") === "truetruetrue", String(valueOf(r, "running")) + " " + r.errors.join(" | "));
-  ok("covers: off when it ends", valueOf(r, "over") === "falsefalsefalse", String(valueOf(r, "over")));
-  ok("covers: back on with a game", valueOf(r, "again") === "truetruetrue", String(valueOf(r, "again")));
-  ok("covers: for the host and promoted players only", valueOf(r, "xml") === "true", String(valueOf(r, "xml")));
-  // TTS scales the top bar from the screen's centre, so the arrows' cover has to hang from there (1920x1009 left the forward arrow bare)
-  const a = run([q('return tostring(engineToolCoverXml():find(\'id="eng_cover_3" visibility="Admin" width="136" height="66" rectAlignment="UpperCenter" offsetXY="-505 -1"\', 1, true) ~= nil)', "arrows xml")]);
-  ok("covers: the arrows' cover is anchored to the screen's centre", valueOf(a, "arrows xml") === "true", String(valueOf(a, "arrows xml")) + " " + a.errors.join(" | "));
+  const r = run([q('engineScoopRedraw()', "draw"), q('local x = UI.getXml() return tostring(x:find("eng_cover", 1, true) ~= nil) .. "|" .. tostring(engineToolCoverXml)', "xml"),
+    q('engineLog = {} engineRenderPanels("none") return tostring(UI.getAttribute("eng_log_Blue", "active"))', "empty log"),
+    q('engineOnLog({ lines = { "Blue casts Opt" } }) return tostring(UI.getAttribute("eng_log_Blue", "active"))', "first line")]);
+  ok("black boxes: no tool covers in the screen UI", valueOf(r, "xml") === "false|nil", String(valueOf(r, "xml")) + " " + r.errors.join(" | "));
+  ok("black boxes: nothing sets a cover", !r.steps.some((st) => (st.fx || []).some((l) => l.includes("eng_cover"))), "a cover was set");
+  ok("black boxes: the log panel is hidden while the log is empty", valueOf(r, "empty log") === "false", String(valueOf(r, "empty log")));
+  ok("black boxes: the log panel shows with its first line", valueOf(r, "first line") === "true", String(valueOf(r, "first line")));
+}
+// TTS redraws a Button at every set (docs/engine-ui-spec.md 2.1; the fake TTS copies it, __sim.drawn): the label goes dark
+// without a new textColor, the background white without a colour of the element's own. Every engine button is drawn
+// dark with a light label: Auto-resolve after its colour changes (its text was dim), Scoop (dark red on red), the
+// ability panel after its tooltip (grey with black text, the user 2026-11-10).
+{
+  const drawn = (ids, mark) => q(`local o = {} for _, id in ipairs({ ${ids.map((i) => JSON.stringify(i)).join(", ")} }) do o[#o + 1] = id .. "=" .. __sim.drawn(id) end return table.concat(o, ";")`, mark);
+  const more = s1.slice(40, 44).filter((m) => m.t !== "prompt").map((m) => ({ msg: { t: m.t, json: m.json } }));
+  const objOf = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-1" then o = x end end ';
+  const r = run([...more, { frames: 30 }, q('engineAutoResolveDraw("Blue") engineOnAutoState({ color = "Blue", phase = "end", on = false }) engineOnAutoState({ color = "Blue", phase = "", on = false })', "auto"),
+    q('engineScoopRedraw()', "scoop"),
+    { ...ask({ promptId: 976, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "prompt-action-0", cardId: "engine-card-1", label: "Activate Thing: {2}: Scry 1." }] }), mark: "asked" },
+    { frames: 30 }, q(objOf + 'onObjectHover("Blue", o)', "hover"),
+    drawn(["eng_autores_Blue", "eng_scoop_Blue", "eng_abp_Blue_1", "eng_big_Blue", "eng_big2_Blue", "eng_toggle_Blue", "eng_fixcall_Blue"], "drawn")]);
+  const light = (fg) => /^#F[EF]F[EF]F[EF]$/i.test(fg);
+  // (dark: the three channels average below 0x90; TTS's own white is #FFFFFF)
+  const dark = (bg) => { const m = /^#(..)(..)(..)/.exec(bg); return !!m && (parseInt(m[1], 16) + parseInt(m[2], 16) + parseInt(m[3], 16)) / 3 < 0x90; };
+  const parts = String(valueOf(r, "drawn")).split(";").map((s) => s.split(/=|\|/));
+  ok("button colours: no errors", r.errors.length === 0, r.errors.join(" | "));
+  for (const [id, bg, fg] of parts) {
+    if (!id) continue;
+    ok(`button colours: ${id} keeps a light label`, light(fg), `${id} ${bg} ${fg}`);
+    ok(`button colours: ${id} keeps its own dark background`, dark(bg), `${id} ${bg} ${fg}`);
+  }
+  ok("button colours: every button checked", parts.length === 7, String(valueOf(r, "drawn")));
+}
+// The dock and the tabbed window (batch B, docs/engine-ui-spec.md 3): Choices, Graveyards, Undo, Settings are tabs of one
+// window, the open one gold; clicking the open side tab goes back to what was open before; Undo and Settings are lists in
+// the window's answer buttons (their own panels are gone); only the open tab's content shows.
+{
+  const st = (mark) => q('local a = function(id, k) return tostring(UI.getAttribute(id, k)) end return table.concat({ a("eng_panel_Blue", "active"), tostring(engineBrowse.Blue), tostring(UI.getValue("eng_title_Blue")), a("eng_toggle_Blue", "textColor"), a("eng_browse_Blue", "textColor"), a("eng_set_Blue", "textColor"), a("eng_undo_Blue", "textColor"), a("eng_stops_Blue", "active"), a("eng_search_Blue", "active"), a("eng_opt_Blue_1", "text"), a("eng_opt_Blue_2", "text") }, "|")', mark);
+  const slot = (k, mark) => q(`onMtgSlot(Player.Blue, nil, "eng_opt_Blue_${k}")`, mark);
+  const pts = '{ points = { { id = 84, label = "turn 11, White\'s upkeep" }, { id = 82, label = "turn 10, Blue\'s main" } } }';
+  const r = run([q('engineShown = engineShown', "start"), st("closed"),
+    q('onMtgSettings(Player.Blue, nil, "eng_set_Blue")', "open settings"), st("settings"),
+    slot(1, "fx line"), st("effects off"), q('return tostring(engineEffectsOff.Blue)', "fx flag"), slot(1, "effects on"),
+    slot(4, "pace"), q('return tostring(engineAutoOn("Blue"))', "pace flag"), slot(4, "pace back"),
+    q('onMtgSettings(Player.Red, nil, "eng_set_Blue")', "stranger"), st("after stranger"),
+    q('onMtgBrowse(Player.Blue, nil, "eng_browse_Blue")', "open graveyards"), st("graveyards"),
+    q('onMtgBrowse(Player.Blue, nil, "eng_browse_Blue")', "close graveyards"), st("closed again"),
+    q('onMtgToggle(Player.Blue, nil, "eng_toggle_Blue")', "open choices"), st("choices"),
+    q(`engineRewindUpdate(${pts}, false) return tostring(UI.getAttribute("eng_undo_Blue", "active"))`, "points"),
+    q('onMtgUndo(Player.Blue, nil, "eng_undo_Blue")', "open undo"), st("undo"),
+    slot(2, "undo pick"), st("after undo pick"),
+    q('onMtgUndo(Player.Blue, nil, "eng_undo_Blue")', "undo again"), q('engineRewindUpdate(nil, false)', "points gone"), st("no points"),
+    q('local x = UI.getXml() local o = {} for _, id in ipairs({ "eng_setpanel_", "eng_undolist_", "eng_undopt_", "eng_pace_", "eng_dock_Blue" }) do o[#o + 1] = tostring(x:find(id, 1, true) ~= nil) end return table.concat(o, "|")', "xml")]);
+  const v = (m) => String(valueOf(r, m)).split("|");
+  const gold = (c) => /^#FFD27[AB]$/i.test(c), white = (c) => /^#F[EF]F[EF]F[EF]$/i.test(c);
+  ok("tabs: no errors", r.errors.length === 0, r.errors.join(" | "));
+  ok("tabs: the window is shut at first, no tab gold", v("closed")[0] === "false" && [3, 4, 5].every((k) => white(v("closed")[k])), v("closed").join("|"));
+  const s = v("settings");
+  ok("tabs: Settings opens the window on its tab, gold", s[0] === "true" && s[1] === "settings" && s[2] === "Settings" && gold(s[5]) && white(s[3]) && white(s[4]), s.join("|"));
+  ok("tabs: Settings lists its switches in the window, no stops, no search", s[9] === "My effects: on" && /^My sounds/.test(s[10]) && s[7] === "false" && s[8] === "false", s.join("|"));
+  ok("tabs: a Settings line switches it and says so", valueOf(r, "fx flag") === "true" && v("effects off")[9] === "My effects: off", v("effects off").join("|"));
+  ok("tabs: the held-moves switch (was Auto: off) is a Settings line", valueOf(r, "pace flag") === "false", String(valueOf(r, "pace flag")));
+  ok("tabs: another colour's click changes nothing", v("after stranger")[1] === "settings", v("after stranger").join("|"));
+  const g = v("graveyards");
+  ok("tabs: Graveyards switches the tab, gold, with the search", g[1] === "browse" && /^Graveyards and exile/.test(g[2]) && gold(g[4]) && white(g[5]) && g[8] === "true" && g[7] === "false", g.join("|"));
+  ok("tabs: clicking the open tab shuts what it opened", v("closed again")[0] === "false" && v("closed again")[1] === "nil", v("closed again").join("|"));
+  const c = v("choices");
+  ok("tabs: Choices opens the answers, gold, with the stops", c[0] === "true" && c[1] === "nil" && gold(c[3]) && white(c[4]) && c[7] === "true", c.join("|"));
+  ok("tabs: Undo shows with restore points", valueOf(r, "points") === "true", String(valueOf(r, "points")));
+  const u = v("undo");
+  ok("tabs: Undo lists the restore points in the window", u[1] === "undo" && /^Rewind to/.test(u[2]) && u[9] === "turn 11, White's upkeep" && u[10] === "turn 10, Blue's main" && gold(u[6]), u.join("|"));
+  const sent = fxOf(r, "undo pick").filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  ok("tabs: an Undo pick asks for that point and goes back to the answers", sent.includes('"checkpointId":82') && v("after undo pick")[1] === "nil" && v("after undo pick")[0] === "true", sent.slice(0, 200) + " " + v("after undo pick").join("|"));
+  ok("tabs: the Undo tab shuts when the points go", v("no points")[1] === "nil", v("no points").join("|"));
+  ok("tabs: the old Settings / Undo panels and Auto button are gone, the dock is there", valueOf(r, "xml") === "false|false|false|false|true", String(valueOf(r, "xml")));
 }
 // a deck stashed for a game is invisible to everyone while it is under the table, and visible again when it comes back
 {
@@ -744,14 +865,12 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("stash: the deck is back on the table", Number(valueOf(r, "stash home")) === 2, String(valueOf(r, "stash home")));
   ok("stash: visible again once it is back", shows.length === 1 && !/White|Grey|Black/.test(shows[0]), shows.join(" ; "));
 }
-// every Button that setText names is one isButton knows: real TTS ignores UI.setValue on a Button, so a label set that way never shows
+// every Button that setText names is one isButton knows: real TTS ignores UI.setValue on a Button, so a label set that way
+// never shows. isButton is every Button of the built screen XML (engineBtnLook, 2026-11-10), so: every one is recorded.
 {
-  const src = fs.readFileSync(path.join(__dirname, "..", "tools", "engine-renderer.lua"), "utf8");
-  const known = [...src.slice(src.indexOf("local function isButton"), src.indexOf("-- Applies only the attributes that changed")).matchAll(/\^(eng_[a-z0-9_]+)/g)].map((m) => m[1]);
-  const buttons = [...src.matchAll(/<Button id="(eng_[a-z0-9_]+)/g)].map((m) => m[1]);
-  const named = [...src.matchAll(/setText\("(eng_[a-z0-9_]+)"/g)].map((m) => m[1]);
-  const missing = [...new Set(named)].filter((id) => buttons.includes(id) && !known.some((k) => id.startsWith(k)));
-  ok("setText: every Button it names sets the text attribute", named.length > 5 && buttons.length > 5 && known.length > 5 && missing.length === 0, missing.join(", "));
+  const r = run([q('local x = UI.getXml() local n, miss = 0, {} for id in x:gmatch(\'<Button id="([^"]+)"\') do n = n + 1 if engineBtnLook[id] == nil then miss[#miss + 1] = id end end return n .. "|" .. table.concat(miss, ",")', "buttons")]);
+  const [n, missing] = String(valueOf(r, "buttons")).split("|");
+  ok("setText: every Button of the screen UI sets the text attribute", Number(n) > 50 && missing === "", `${n} buttons, missing: ${missing} ${r.errors.join(" | ")}`);
 }
 // day and night show on the phase bar once it is one (2026-10-26)
 {
@@ -799,15 +918,23 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("ability buttons: they sit on the card", /@0#/.test(gv), gv);
   ok("ability buttons: the tooltip has the whole text", gv.endsWith("#" + long), gv);
 }
-// the Engine / Graveyards / Log / Auto / Settings buttons are a row at the top left, under TTS's own menu (2026-10-31): at
-// the top right they covered the first items of the cards' right-click menus (2026-10-26, #35). (The fake TTS keeps no
-// layout: read from the XML text.)
+// the engine's buttons are one row at the top left, under TTS's own menu (2026-10-31): at the top right they covered the
+// first items of the cards' right-click menus (2026-10-26, #35). Since batch B one dock of tabs, then Auto-resolve and
+// Fix, all at y -140 and right of TTS's left tool bar (82 px), the window under them. (The fake TTS keeps no layout:
+// read from the built XML.)
 {
-  const lua = String(save.LuaScript || "");
-  for (const id of ["eng_toggle_", "eng_browse_", "eng_logbtn_", "eng_pace_", "eng_set_", "eng_setpanel_", "eng_autores_", "eng_fixcall_", "eng_undo_", "eng_undolist_"]) {
-    const tag = (lua.match(new RegExp(`<(?:Button|Panel) id="${id}' \\.\\. c \\.\\. '"[^>]*>`)) || [""])[0];
-    ok(`top-left row: ${id} sits at the top left`, /rectAlignment="UpperLeft"/.test(tag) && /offsetXY="\d+ -\d+"/.test(tag), tag.slice(0, 200) || "not found");
+  const r = run([q('return UI.getXml()', "xml")]);
+  const xml = String(valueOf(r, "xml"));
+  const tagOf = (id) => (xml.match(new RegExp(`<\\w+ id="${id}"[^>]*>`)) || [""])[0];
+  const cls = (tag) => { const m = /class="(\w+)"/.exec(tag); return m ? (xml.match(new RegExp(`<\\w+ class="${m[1]}"[^>]*>`)) || [""])[0] : ""; };
+  const look = (id) => tagOf(id) + " " + cls(tagOf(id));
+  for (const [id, x] of [["eng_dock_Blue", 96], ["eng_autores_Blue", 468], ["eng_fixcall_Blue", 622]]) {
+    ok(`top-left row: ${id} sits at the top left, x ${x}`, /rectAlignment="UpperLeft"/.test(look(id)) && look(id).includes(`offsetXY="${x} -140"`), look(id).slice(0, 300) || "not found");
   }
+  ok("top-left row: the window hangs under the dock", /rectAlignment="UpperLeft"/.test(look("eng_panel_Blue")) && look("eng_panel_Blue").includes('offsetXY="96 -176"'), look("eng_panel_Blue").slice(0, 300));
+  const dock = xml.slice(xml.indexOf('id="eng_dock_Blue"'), xml.indexOf("</HorizontalLayout>", xml.indexOf('id="eng_dock_Blue"')));
+  const order = [...dock.matchAll(/<Button id="(eng_\w+?)_Blue"/g)].map((m) => m[1]).join(",");
+  ok("top-left row: the dock's tabs in order", order === "eng_toggle,eng_browse,eng_undo,eng_set,eng_logbtn", order);
 }
 // the Auto-resolve button opens one list shared by every seat (2026-10-31): only the players who opened it see it, a pick
 // goes to the bridge, and the button shows what the bridge says, which ends a skip by itself. One choice at a time.
@@ -841,7 +968,7 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" }, list("after clear"), q('return tostring(engineSkipTo.Blue)', "skip after clear")] });
   const v = (m) => String(valueOf(r, m));
   ok("auto list: no errors", r.errors.length === 0, r.errors.join(" | "));
-  ok("auto list: the button says off and hints at a list", v("start").startsWith("Auto-resolve: off...|#3a3f4b"), v("start"));
+  ok("auto list: the button says off and hints at a list", v("start").startsWith("Auto-resolve: off...|#1A1A1A"), v("start"));
   ok("auto list: shut at the start", v("closed").startsWith("false"), v("closed"));
   ok("auto list: only the player who opened it sees it", v("Blue open") === "true|Blue", v("Blue open"));
   ok("auto list: a second player joins the first", v("both open") === "true|Blue|White", v("both open"));
@@ -856,10 +983,10 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("auto list: step banners come back after", v("banner after") === "true|MAIN PHASE 2", v("banner after"));
   ok("auto list: game over shuts it", v("after game over").startsWith("false"), v("after game over"));
   ok("auto list: Off ends the skip at the bridge", sent(r, "pick off").includes('"phase":"off"'), sent(r, "pick off").slice(0, 200));
-  ok("auto list: back to off, grey", v("off again").startsWith("Auto-resolve: off...|#3a3f4b"), v("off again"));
+  ok("auto list: back to off, grey", v("off again").startsWith("Auto-resolve: off...|#1A1A1A"), v("off again"));
   ok("auto list: Other players' turns is the old auto-resolve", v("others").startsWith("Auto-resolve: on...|#2e7d32|true") && sent(r, "pick others").includes('"on":true'), v("others"));
   ok("auto list: a skip typed in the chat shows, and takes over from auto-resolve", v("typed").startsWith("Until combat...|#2e7d32|nil"), v("typed"));
-  ok("auto list: the skip ending by itself puts the button back", v("ended").startsWith("Auto-resolve: off...|#3a3f4b|nil"), v("ended"));
+  ok("auto list: the skip ending by itself puts the button back", v("ended").startsWith("Auto-resolve: off...|#1A1A1A|nil"), v("ended"));
   ok("auto list: Off turns auto-resolve off", sent(r, "off from others").includes('"on":false') && v("button after off").startsWith("Auto-resolve: off..."), sent(r, "off from others").slice(0, 200));
   ok("auto list: Off sends no skip message with no skip on", !sent(r, "off from others").includes("skipto"), sent(r, "off from others").slice(0, 200));
   ok("auto list: my next turn fits a short label", v("mine").startsWith("Until my turn..."), v("mine"));
@@ -885,13 +1012,62 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     q('onMtgAbPanel(Player.Blue, nil, "eng_abp_Blue_1") __sim.frames(30) return "clicked"', "panel click")]);
   const sent = (m) => fxOf(r, m).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
   const [active, first, second] = String(valueOf(r, "hover")).split("|");
-  ok("ability panel: pointing at your card shows its ability", active === "true" && first.includes("Scry 1") && second === "false", String(valueOf(r, "hover")) + " " + r.errors.join(" | "));
+  // (since batch B the card's own text shows too: Sol Ring's mana ability, greyed, after the one offered)
+  ok("ability panel: pointing at your card shows its ability", active === "true" && first.includes("Scry 1") && second === "true", String(valueOf(r, "hover")) + " " + r.errors.join(" | "));
   ok("hover: the table's own handler still runs (hoveredObjs, for mtg commander and the hover hotkeys)", String(valueOf(r, "table hover")) === "true", String(valueOf(r, "table hover")));
   ok("ability panel: a right-click on the card's button does nothing", !sent("right click").includes("prompt-action-0"), sent("right click").slice(0, 200));
   ok("ability panel: another player's click does nothing", !sent("white click").includes("prompt-action-0"), sent("white click").slice(0, 200));
   const menus = fxOf(r, "asked").filter((l) => l.includes("menu+")).join(" ");
   ok("card menu: the ability without the card's name in front", menus.includes('"{2}: Scry 1."') && !menus.includes("Activate Thing"), menus.slice(0, 300));
   ok("ability panel: clicking it uses the ability", sent("panel click").includes('"choice":["prompt-action-0"]'), sent("panel click").slice(0, 200));
+}
+// The ability panel mimics the engine (batch B, docs/engine-ui-spec.md 5): every option for the card you point at and
+// every activated ability in its text, the offered ones bright, the rest greyed with the reason; 6 lines a page, More
+// turns it; a click on page 2 uses that line's ability; X shuts it; the panel is as tall as its lines.
+{
+  const more = s1.slice(40, 44).filter((m) => m.t !== "prompt").map((m) => ({ msg: { t: m.t, json: m.json } }));
+  const objOf = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-1" then o = x end end ';
+  // the card's text and state on the board (the fixture's Sol Ring), and the panel to be drawn afresh
+  const setCard = (fields, mark) => q(`local t = engineTable() for _, pl in ipairs(t.players) do for _, c in ipairs(pl.battlefield or {}) do if c.id == "engine-card-1" then ${fields} end end end engineAbPanelFor.Blue = nil`, mark);
+  const rowsOf = (hover, mark) => q((hover ? objOf + 'onObjectHover("Blue", o) ' : "") + 'local a = function(id, k) return tostring(UI.getAttribute(id, k)) end local out = { a("eng_abp_Blue", "active"), a("eng_abpg_Blue", "active"), a("eng_abpg_Blue", "text"), a("eng_abp_Blue", "height") } for k = 1, 6 do out[#out + 1] = a("eng_abp_Blue_" .. k, "active") .. "~" .. a("eng_abp_Blue_" .. k, "text") .. "~" .. a("eng_abp_Blue_" .. k, "textColor") end return table.concat(out, "|")', mark);
+  const nine = Array.from({ length: 9 }, (_, i) => `{${i + 1}}: Scry ${i + 1}.`).join("\\n");
+  const opts = Array.from({ length: 9 }, (_, i) => ({ id: `prompt-action-${i}`, cardId: "engine-card-1", label: `Activate Sol Ring: {${i + 1}}: Scry ${i + 1}.` }));
+  const r = run([...more, { frames: 30 }, ask({ promptId: 990, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, ...opts] }), { frames: 30 },
+    setCard(`c.tx = "${nine}"`, "nine"), rowsOf(true, "page 1"),
+    q('onMtgAbPanel(Player.Blue, nil, "eng_abpg_Blue")', "more"), rowsOf(false, "page 2"),
+    q('onMtgAbPanel(Player.Blue, nil, "eng_abpx_Blue") return tostring(UI.getAttribute("eng_abp_Blue", "active"))', "x"),
+    q(objOf + 'engineAbPanelFor.Blue = nil onObjectHover("Blue", o) onMtgAbPanel(Player.Blue, nil, "eng_abpg_Blue") onMtgAbPanel(Player.Blue, nil, "eng_abp_Blue_2") __sim.frames(30) return "clicked"', "page 2 click")]);
+  const row = (m, k) => (String(valueOf(r, m)).split("|")[3 + k] || "").split("~");
+  const head = (m) => String(valueOf(r, m)).split("|");
+  const white = (c) => /^#F[EF]F[EF]F[EF]$/i.test(c);
+  ok("ability panel+: no errors", r.errors.length === 0, r.errors.join(" | "));
+  ok("ability panel+: nine abilities show six and More", head("page 1")[0] === "true" && head("page 1")[1] === "true" && head("page 1")[2] === "More... (1-6 of 9)" && [1, 2, 3, 4, 5, 6].every((k) => row("page 1", k)[0] === "true"), String(valueOf(r, "page 1")));
+  ok("ability panel+: a line is its cost in gold, then the effect, white", row("page 1", 1)[1].includes('<color=#FFD27A>{1}:</color>') && row("page 1", 1)[1].includes("Scry 1.") && white(row("page 1", 1)[2]), row("page 1", 1).join("~"));
+  ok("ability panel+: as tall as its lines (6 and More)", head("page 1")[3] === String(44 + 6 * 44 + 34), head("page 1")[3]);
+  ok("ability panel+: More shows the last three, the rest hidden", head("page 2")[2] === "More... (7-9 of 9)" && row("page 2", 1)[1].includes("Scry 7.") && row("page 2", 3)[1].includes("Scry 9.") && [4, 5, 6].every((k) => row("page 2", k)[0] === "false") && head("page 2")[3] === String(44 + 3 * 44 + 34), String(valueOf(r, "page 2")));
+  ok("ability panel+: X shuts it", valueOf(r, "x") === "false", String(valueOf(r, "x")));
+  const sent = fxOf(r, "page 2 click").filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  ok("ability panel+: a click on page 2 uses that ability", sent.includes('"choice":["prompt-action-7"]'), sent.slice(0, 200));
+
+  // greyed lines and their reasons: tapped, summoning sickness, a minus loyalty ability it can't pay, no priority
+  const r2 = run([...more, { frames: 30 }, ask({ promptId: 991, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "prompt-action-0", cardId: "engine-card-1", label: "Activate Sol Ring: {2}: Scry 1." }] }), { frames: 30 },
+    setCard('c.tx = "{T}: Draw a card.\\n{2}: Scry 1." c.tap = true', "tap it"), rowsOf(true, "tapped"), q('return __sim.drawn("eng_abp_Blue_1")', "grey drawn"),
+    setCard('c.tap = false c.sick = true c.ty = { "Creature" }', "set sick"), rowsOf(true, "sick"),
+    setCard('c.sick = false c.ty = { "Planeswalker" } c.ctr = { LOYALTY = 2 } c.tx = "+1: Scry 1.\\n\\226\\136\\1463: Destroy target creature." t.active = "Blue" t.step = "main1" t.stack = {}', "set walker"), rowsOf(true, "walker"),
+    ask({ promptId: null }), { frames: 10 },
+    setCard('c.ty = { "Artifact" } c.ctr = nil c.tx = "{T}: Draw a card." t.priority = "White"', "set no prio"), rowsOf(true, "no prio"),
+    q('onMtgAbPanel(Player.Blue, nil, "eng_abp_Blue_1")', "grey click")]);
+  const row2 = (m, k) => (String(valueOf(r2, m)).split("|")[3 + k] || "").split("~");
+  const muted = (c) => /^#8C919[89]$/i.test(c);
+  ok("ability panel+: greyed: no errors", r2.errors.length === 0, r2.errors.join(" | "));
+  ok("ability panel+: a tapped card's {T} ability is greyed: Tapped", row2("tapped", 1)[0] === "true" && row2("tapped", 1)[1].includes("Tapped") && muted(row2("tapped", 1)[2]), row2("tapped", 1).join("~"));
+  ok("ability panel+: the offered ability beside it is bright", row2("tapped", 2)[1].includes("Scry 1.") && white(row2("tapped", 2)[2]) && row2("tapped", 3)[0] === "false", String(valueOf(r2, "tapped")));
+  ok("ability panel+: a greyed line is drawn grey on dark, not TTS's dark label", /^#1C1C1C\|#8C919[89]$/i.test(String(valueOf(r2, "grey drawn"))), String(valueOf(r2, "grey drawn")));
+  ok("ability panel+: a creature that just came: Summoning sickness", row2("sick", 1)[1].includes("Summoning sickness"), row2("sick", 1).join("~"));
+  ok("ability panel+: a minus ability it can't pay: Needs 3 loyalty (has 2)", row2("walker", 2)[1].includes("Needs 3 loyalty (has 2)") && row2("walker", 1)[1].includes("Loyalty: once each turn"), String(valueOf(r2, "walker")));
+  ok("ability panel+: with no question for you: Not your priority (waiting for ...)", row2("no prio", 1)[1].includes("Not your priority (waiting for "), row2("no prio", 1).join("~"));
+  const told = fxOf(r2, "grey click").join(" ").split("\\").join("");
+  ok("ability panel+: a click on a greyed line says why, uses nothing", told.includes("Not your priority") && !told.includes('"choice"'), told.slice(0, 300));
 }
 // a card whose object arrives after the question that names it glows too (the legend rule's token didn't, hp-07)
 {
@@ -947,11 +1123,11 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   const v = (m) => String(valueOf(r, m));
   ok("poison: shown under the life counter", v("poison 3").split("|").includes("POISON 3"), v("poison 3") + " " + r.errors.join(" | "));
   ok("poison: the label follows the count (one label)", v("poison 4").split("|").filter((x) => x.startsWith("POISON")).join() === "POISON 4", v("poison 4"));
-  ok("counters: energy joins the same label", v("energy 2").split("|").filter((x) => /POISON|ENERGY/.test(x)).join() === "POISON 4   ENERGY 2", v("energy 2"));
+  ok("counters: energy joins the same label", v("energy 2").split("|").filter((x) => /POISON|ENERGY/.test(x)).join() === "POISON 4,ENERGY 2", v("energy 2"));
   // (hp-17 gap: the monarch and the initiative in the same label; gone with the flags)
-  ok("counters: the monarch and the initiative shown", v("monarch").split("|").includes("MONARCH   INITIATIVE"), v("monarch"));
+  ok("counters: the monarch and the initiative shown", v("monarch").split("|").includes("MONARCH") && v("monarch").split("|").includes("INITIATIVE"), v("monarch"));
   // (hp-21 gap: the city's blessing and an enduring story too)
-  ok("counters: the city's blessing and an enduring story shown", v("story").split("|").includes("CITY'S BLESSING   ENDURING STORY"), v("story"));
+  ok("counters: the city's blessing and an enduring story shown", v("story").split("|").includes("CITY'S BLESSING") && v("story").split("|").includes("ENDURING STORY"), v("story"));
   ok("poison: gone at 0", !v("poison 0").includes("POISON") && !v("poison 0").includes("ENERGY") && !v("poison 0").includes("MONARCH"), v("poison 0"));
   const fdT = JSON.parse(lastT.json);
   const blue = fdT.players.find((x) => x.color === "Blue");
@@ -1416,7 +1592,7 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
 {
   const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
   const white = (fields) => { const t = JSON.parse(lastT.json); for (const p of t.players) if (p.color === "White") Object.assign(p, fields); return { msg: { t: "table", json: JSON.stringify(t) } }; };
-  const label = 'local l = "no label" for _, b in ipairs(getObjectFromGUID("23e485").getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then l = b.label .. " @" .. tostring(b.width) end end return l';
+  const label = 'local out = {} for _, b in ipairs(getObjectFromGUID("23e485").getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then out[#out + 1] = b.label .. " @" .. tostring(b.width) end end return #out == 0 and "no label" or table.concat(out, "|")';
   const OLD = { poison: 3, energy: 2, monarch: true, initiative: true, blessed: true, story: true, marks: ["SPEED 1"] };
   const r = run([
     white({ allMarks: ["POISON 3", "ENERGY 2", "MONARCH", "SPEED 1"] }), { frames: 10 }, q(label, "allMarks"),
@@ -1435,12 +1611,12 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     white({ allMarks: ["POISON 2"] }), { frames: 10 }, q(label, "drawn before the number"),
     white({ allMarks: 7 }), { frames: 10 }, q(label, "allMarks a number")]);
   const v = (m) => String(valueOf(r, m));
-  ok("trackMarks: precondition: allMarks drew its label", v("allMarks") === "POISON 3   ENERGY 2   MONARCH   SPEED 1 @7125", v("allMarks") + " " + r.errors.join(" | "));
+  ok("trackMarks: precondition: allMarks drew its label", v("allMarks") === "POISON 3 @1700|ENERGY 2 @1700|MONARCH @1525|SPEED 1 @1525", v("allMarks") + " " + r.errors.join(" | "));
   ok("trackMarks: the old fields alone draw nothing (step 6)", v("old fields") === "no label", v("old fields"));
   ok("trackMarks: precondition: no marks, no label", v("none") === "no label", v("none"));
   ok("trackMarks: allMarks with the old fields: allMarks' label and width, once", v("both") === v("allMarks"), v("both"));
-  ok("trackMarks: allMarks is the label, not the old fields", v("allMarks wins") === "POISON 5   SPEED 1 @3450", v("allMarks wins"));
-  ok("trackMarks: allMarks alone is drawn", v("allMarks alone") === "CITY'S BLESSING   RING TEMPTED 1 @5900", v("allMarks alone"));
+  ok("trackMarks: allMarks is the label, not the old fields", v("allMarks wins") === "POISON 5 @1700|SPEED 1 @1525", v("allMarks wins"));
+  ok("trackMarks: allMarks alone is drawn", v("allMarks alone") === "CITY'S BLESSING @2145|RING TEMPTED 1 @2017", v("allMarks alone"));
   ok("trackMarks: a row without allMarks takes the label away (step 6)", v("back to old fields") === "no label", v("back to old fields"));
   ok("trackMarks: precondition: allMarks drew a label before the empty one", v("drawn again") === "POISON 2 @1700", v("drawn again"));
   ok("trackMarks: an empty allMarks is no label", v("empty allMarks") === "no label", v("empty allMarks"));
@@ -1449,7 +1625,7 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   const r2 = run([white({ allMarks: ["POISON 3", "MONARCH"] }), { frames: 10 }, q(label, "before the reload"),
     q('getObjectFromGUID("23e485").clearButtons() return "cleared"', "tracker reloaded"),
     white({ allMarks: ["POISON 3", "MONARCH"] }), { frames: 10 }, q(label, "same marks after the reload")]);
-  ok("trackMarks: precondition: the label was drawn before the tracker reloaded", String(valueOf(r2, "before the reload")) === "POISON 3   MONARCH @3450", String(valueOf(r2, "before the reload")));
+  ok("trackMarks: precondition: the label was drawn before the tracker reloaded", String(valueOf(r2, "before the reload")) === "POISON 3 @1700|MONARCH @1525", String(valueOf(r2, "before the reload")));
   ok("trackMarks: a tracker that lost its buttons gets the same label back", String(valueOf(r2, "same marks after the reload")) === String(valueOf(r2, "before the reload")), String(valueOf(r2, "same marks after the reload")));
   ok("trackMarks: precondition: allMarks drew a label before the number", v("drawn before the number") === "POISON 2 @1700", v("drawn before the number"));
   ok("trackMarks: an allMarks that is a number takes the label away", v("allMarks a number") === "no label", v("allMarks a number"));
@@ -1474,28 +1650,32 @@ const cmdIcons = (half) => save.ObjectStates.filter((o) => o.Nickname === "Comma
 // the save's four playmat zones (the scripting zones the size of a mat, 37 x 20.75)
 const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrigger" && o.Transform.scaleX > 30)
   .map((o) => { const t = o.Transform; return { g: o.GUID, box: [t.posX - t.scaleX / 2, t.posX + t.scaleX / 2, t.posZ - t.scaleZ / 2, t.posZ + t.scaleZ / 2] }; });
-// Marks label fit (live check 9, 2026-11-06: Red's "TURN RUN BY WHITE" ran into White's "RING TEMPTED 2   SPEED 3"
-// between the two life counters). For all four seats' trackers, as they lie in the save, and long realistic marks: each
-// label stays on its own seat's half of the table (off the middle line, so never on the next seat's label) and inside
-// the mats' strip, in at most two lines, every mark in order; a short label stays as it was. The geometry is TTS's as
-// measured on the live crop: a button's +x is on its reader's right; 480 button units to a local unit.
-// (checker, 2026-11-07) No label's box meets a commander-damage icon's (the bottom icon of each column sat in the label's
-// row: "SPE0D 3" on the live crop 9-crop-label-overlap) or a mat (two lines at font 300 ran 0.8 into it), and past what
-// two lines hold the label is cut to two (marks in order, "+n MORE"). The icons and the mats' zones are read from the
-// save, not from the renderer's own list; an icon's box is 1.2 a side (1.16 on the live shot 9-ring-speed).
+// Marks boxes: one small box a mark, stacked down the inner corner of the player's mat under the heart (2026-11-10, the
+// user: "have it [in the] corner of your playmat under your heart"; "you can add multiple boxes if need be instead of
+// cramming everything in one box"; before, one label ran along the strip between the counters and the mats, where live
+// check 9 had Red's "TURN RUN BY WHITE" run into White's "RING TEMPTED 2   SPEED 3"). For all four seats' trackers, as
+// they lie in the save, and long realistic marks: every box stays inside its own player's mat, in the empty strip at the
+// inner end of the battlefield rows (from the mat's inner edge to a tapped card in column 0, 10.75 from the mat's centre
+// and 1.53 half-wide); the first box's top edge is at the same place for every seat and each next one 60 under the last,
+// none overlapping; one mark a box, in order; past ten marks the tenth box says "+n MORE". The mats' zones and the
+// commander-damage icons are read from the save, not from the renderer; the geometry is TTS's as measured on the live
+// crop: a button's +x is on its reader's right, 480 button units to a local unit.
 {
   const SEATS = { "23e485": "White", "448880": "Red", "37e533": "Yellow", "395037": "Blue" };
-  const PER = 480, ICON = 0.6;
-  const geo = 'local out = {} for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z } for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then row.label, row.w, row.h, row.f, row.bx, row.bz = b.label, b.width, b.height, b.font_size, b.position[1] or b.position.x, b.position[3] or b.position.z end end out[#out + 1] = row end return JSON.encode(out)';
+  const PER = 480, ICON = 0.6, TOP = 2.1, GAP = 60, COL0 = 10.75, TAPPED = 1.53;
+  const geo = 'local out = {} for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, boxes = {} } for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then row.boxes[#row.boxes + 1] = { label = b.label, w = b.width, h = b.height, f = b.font_size, bx = b.position[1] or b.position.x, bz = b.position[3] or b.position.z } end end out[#out + 1] = row end return JSON.encode(out)';
   const setAll = (marks) => `for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do enginePlayerCounters(getObjectFromGUID(g), JSON.decode([==[${JSON.stringify({ allMarks: marks })}]==])) end return "set"`;
-  const marksBox = (t) => buttonBox(t, { bx: t.bx, bz: t.bz, w: t.w, h: t.h });
-  // the label's world x span
-  const span = (t) => { const b = marksBox(t); return [b[0], b[1]]; };
+  const worldBox = (t, b) => buttonBox(t, { bx: b.bx, bz: b.bz, w: b.w, h: b.h });
   const icons = cmdIcons(ICON), mats = matZones();
-  ok("marks fit: precondition, the save's twelve commander-damage icons and four mat zones (top edges at |z| 5.03)",
-    icons.length === 12 && mats.length === 4 && mats.every((m) => Math.abs(Math.min(Math.abs(m.box[2]), Math.abs(m.box[3])) - 5.025) < 0.01),
+  // the seat's own mat: the zone on the tracker's side of both middle lines
+  const matOf = (t) => mats.find((m) => Math.sign(m.box[0] + m.box[1]) === Math.sign(t.x) && Math.sign(m.box[2] + m.box[3]) === Math.sign(t.z));
+  // the strip the boxes keep to, as |x|: from the mat's inner edge to a tapped column-0 card
+  const strip = (m) => { const cx = Math.abs((m.box[0] + m.box[1]) / 2), half = (m.box[1] - m.box[0]) / 2; return [cx - half, cx - COL0 - TAPPED]; };
+  const absSpan = (lo, hi) => [Math.abs(lo), Math.abs(hi)].sort((a, b) => a - b);
+  ok("marks fit: precondition, the save's twelve commander-damage icons and four mat zones (37 wide, inner edges at |x| 0.9)",
+    icons.length === 12 && mats.length === 4 && mats.every((m) => Math.abs(m.box[1] - m.box[0] - 37) < 0.01 && Math.abs(Math.min(Math.abs(m.box[0]), Math.abs(m.box[1])) - 0.9) < 0.01),
     `${icons.length} icons, mats ${JSON.stringify(mats.map((m) => m.box.map((n) => n.toFixed(2))))}`);
-  // (the longest real labels: every PLAYER_MARKS row at once, keywords cut to 32 letters by the bridge; past two lines)
+  // (the longest real labels: every PLAYER_MARKS row at once, keywords cut to 32 letters by the bridge; past ten)
   const EVERY = ["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "EXTRA TURN", "MONARCH", "INITIATIVE", "POISON 9", "ENERGY 12",
     "EXPERIENCE 5", "RAD 7", "TICKETS 3", "CITY'S BLESSING", "ENDURING STORY", "PREVENT 3", "NO MAX HAND SIZE", "YOU CAN'T LOSE THE GAME",
     "YOUR OPPONENTS CAN'T WIN THE GA…", "HEXPROOF", "SHROUD", "PROTECTION FROM EVERYTHING"];
@@ -1504,15 +1684,13 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     "Ring and speed (live check 9)": ["RING TEMPTED 2", "SPEED 3"],
     "every mark at once": ["TURN RUN BY WHITE", "RING TEMPTED 4", "SPEED 4 (MAX)", "EXTRA TURN", "MONARCH", "INITIATIVE", "POISON 9", "CITY'S BLESSING"],
     "long keywords": ["YOU CAN'T LOSE THE GAME", "HEXPROOF", "CONTROLLED BY YELLOW", "RING TEMPTED 4"],
-    "just fits before the icons": ["TICKETS 10"],
-    "two lines at font 300": ["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"],
-    "every player mark (past two lines)": EVERY,
-    "one mark longer than a line": ["THIS PLAYER CAN'T BE THE TARGET OF SPELLS OR ABILITIES YOUR OPPONENTS CONTROL AND CAN'T LOSE"],
+    "ten marks": EVERY.slice(0, 10),
+    "every player mark (past ten)": EVERY,
+    "one mark longer than a box": ["THIS PLAYER CAN'T BE THE TARGET OF SPELLS OR ABILITIES YOUR OPPONENTS CONTROL AND CAN'T LOSE"],
     "short": ["POISON 2"],
-    // (jr suite 2026-11-07) two-byte letters, so the cut at 71 bytes falls inside one: "not inside a character"
-    "one accented mark longer than a line": ["É".repeat(60)],
+    // (jr suite 2026-11-07) two-byte letters, so the cut falls inside one: "not inside a character"
+    "one accented mark longer than a box": ["É".repeat(60)],
   };
-  const CUT = new Set(["every player mark (past two lines)", "one mark longer than a line", "one accented mark longer than a line"]);
   const steps = [];
   for (const [name, marks] of Object.entries(COMBOS)) steps.push(q(setAll(marks), `set ${name}`), q(geo, `geo ${name}`));
   const r = run(steps);
@@ -1520,47 +1698,47 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   for (const [name, marks] of Object.entries(COMBOS)) {
     let rows = [];
     try { rows = JSON.parse(String(valueOf(r, `geo ${name}`))); } catch (e) { /* checked below */ }
-    ok(`marks fit, ${name}: precondition, four trackers, each with its label`, rows.length === 4 && rows.every((t) => typeof t.label === "string" && t.w > 0), String(valueOf(r, `geo ${name}`)).slice(0, 200));
+    ok(`marks fit, ${name}: precondition, four trackers, each with its boxes`, rows.length === 4 && rows.every((t) => Array.isArray(t.boxes) && t.boxes.length > 0 && t.boxes.every((b) => typeof b.label === "string" && b.w > 0)), String(valueOf(r, `geo ${name}`)).slice(0, 200));
     for (const t of rows) {
       const seat = `${name}, ${SEATS[t.g]}`;
-      const box = marksBox(t);
-      const [lo, hi] = [box[0], box[1]];
-      // (the middle line is x = 0; the trackers of a side are 7 apart, so 0.25 off it leaves the next label 0.5 away)
-      ok(`marks fit, ${seat}: the label stays on its own half of the table`, t.x < 0 ? hi <= -0.25 : lo >= 0.25, `x ${lo.toFixed(2)}..${hi.toFixed(2)}, tracker at ${t.x}`);
-      ok(`marks fit, ${seat}: the label stays inside the mats' strip (commander zones at 39.5)`, Math.max(Math.abs(lo), Math.abs(hi)) <= 30, `x ${lo.toFixed(2)}..${hi.toFixed(2)}`);
-      const lines = String(t.label).split("\n");
-      if (!CUT.has(name)) ok(`marks fit, ${seat}: at most two lines, every mark in order`, lines.length <= 2 && lines.join("   ") === marks.join("   "), JSON.stringify(t.label));
-      else {
-        // (cut: the marks kept, in order, a mark too long for a line ending "..."; then "+n MORE" for the n left out)
-        const items = lines.join("   ").split("   ");
-        const more = /^\+(\d+) MORE$/.exec(items[items.length - 1]);
-        const kept = more ? items.slice(0, -1) : items;
-        const same = kept.every((k, i) => k === marks[i] || (k.endsWith("...") && k.length > 3 && marks[i].startsWith(k.slice(0, -3))));
-        ok(`marks fit, ${seat}: cut to two lines, the marks kept in order and "+n MORE" for the rest`, lines.length <= 2 && kept.length >= 1 && same
-          && kept.length + (more ? Number(more[1]) : 0) === marks.length, JSON.stringify(t.label));
-        ok(`marks fit, ${seat}: cut at a whole character (no broken UTF-8)`, !String(t.label).includes("�") && Buffer.from(String(t.label), "utf8").toString("utf8") === String(t.label), JSON.stringify(t.label));
-      }
-      ok(`marks fit, ${seat}: no line wider than 8000`, t.w <= 8000, `width ${t.w}`);
-      ok(`marks fit, ${seat}: a readable font, and its bottom edge where a one-line label's is`, t.f >= 180 && Math.abs(t.bz + t.h / 2 / PER - (1.45 + 380 / 2 / PER)) < 1e-6, `font ${t.f}, z ${t.bz}, height ${t.h}`);
-      const hit = icons.filter((c) => meets(box, c.box)).map((c) => c.g);
-      ok(`marks fit, ${seat}: no commander-damage icon under the label`, hit.length === 0, `label x ${lo.toFixed(2)}..${hi.toFixed(2)} z ${box[2].toFixed(2)}..${box[3].toFixed(2)} meets ${hit.join(" ")}`);
-      const onMat = mats.filter((m) => meets(box, m.box)).map((m) => m.g);
-      ok(`marks fit, ${seat}: the label stays off every mat`, onMat.length === 0, `label z ${box[2].toFixed(2)}..${box[3].toFixed(2)} meets the mat zone ${onMat.join(" ")}`);
+      const m = matOf(t), [inner, outer] = m ? strip(m) : [NaN, NaN];
+      const boxes = t.boxes || [], world = boxes.map((b) => worldBox(t, b));
+      const bad = (test) => world.map((w, i) => (test(w, boxes[i]) ? null : `${boxes[i].label}: ${w.map((n) => n.toFixed(2))}`)).filter(Boolean);
+      const outMat = bad((w) => !!m && w[0] >= m.box[0] && w[1] <= m.box[1] && w[2] >= m.box[2] && w[3] <= m.box[3]);
+      ok(`marks fit, ${seat}: every box lies inside its own player's mat`, !!m && boxes.length > 0 && outMat.length === 0, outMat.join(" | ") || "no mat");
+      const offStrip = bad((w) => { const ax = absSpan(w[0], w[1]); return ax[0] >= inner && ax[1] <= outer; });
+      ok(`marks fit, ${seat}: every box in the strip at the inner end of the rows, clear of a tapped card in column 0`, boxes.length > 0 && offStrip.length === 0, `${offStrip.join(" | ")} strip ${inner.toFixed(2)}..${outer.toFixed(2)}`);
+      const first = world[0] || [NaN, NaN, NaN, NaN], fx = absSpan(first[0], first[1]), fz = absSpan(first[2], first[3]);
+      ok(`marks fit, ${seat}: the first box in the corner under the heart (the mat's inner edge within 0.25, its top edge within 0.3)`, !!m && fx[0] - inner <= 0.25 && fz[0] - Math.min(Math.abs(m.box[2]), Math.abs(m.box[3])) <= 0.3,
+        `|x| from ${fx[0].toFixed(2)}, |z| from ${fz[0].toFixed(2)}`);
+      // (in local units: the first top edge at TOP, each next top edge GAP under the last box's bottom; so none overlap)
+      const tops = boxes.map((b) => b.bz - b.h / 2 / PER);
+      const stacked = boxes.every((b, i) => Math.abs(tops[i] - (i === 0 ? TOP : boxes[i - 1].bz + boxes[i - 1].h / 2 / PER + GAP / PER)) < 1e-6);
+      ok(`marks fit, ${seat}: stacked down from the corner, ${GAP} apart, none overlapping`, boxes.length > 0 && stacked, JSON.stringify(tops.map((n) => +n.toFixed(4))));
+      const labels = boxes.map((b) => String(b.label));
+      if (marks.length <= 10 && !/longer than a box/.test(name)) ok(`marks fit, ${seat}: one box a mark, every mark in order`, labels.join("|") === marks.join("|"), JSON.stringify(labels));
+      const tooWide = boxes.filter((b) => !(b.w <= 2250 && b.f >= 150 && b.h === Math.floor(380 * b.f / 300 + 0.5)));
+      ok(`marks fit, ${seat}: no box wider than 2250, font at least 150, its height the font's`, boxes.length > 0 && tooWide.length === 0, JSON.stringify(tooWide));
+      const hit = icons.filter((c) => world.some((w) => meets(w, c.box))).map((c) => c.g);
+      ok(`marks fit, ${seat}: no commander-damage icon under a box`, hit.length === 0, `meets ${hit.join(" ")}`);
     }
-    // (a label that fits between the counter and its icon column stays there, by the counter; 2050 wide: 0.73..6.10)
-    if (name === "just fits before the icons") ok("marks fit, just fits before the icons: it stays between the middle and its icon column on every seat",
-      rows.length === 4 && rows.every((t) => { const b = marksBox(t); return Math.max(Math.abs(b[0]), Math.abs(b[1])) <= 6.79 - ICON; }), JSON.stringify(rows.map((t) => span(t).map((n) => +n.toFixed(2)))));
-    if (name === "short") ok("marks fit, short: a short label is as it was, centred under its counter, one line at font 300", rows.every((t) => t.label === "POISON 2" && t.w === 1700 && t.h === 380 && t.f === 300 && t.bx === 0 && t.bz === 1.45), JSON.stringify(rows.map((t) => [t.w, t.h, t.f, t.bx, t.bz])));
+    const labelsOf = (t) => (t.boxes || []).map((b) => String(b.label));
+    if (name === "every player mark (past ten)") ok("marks fit, past ten: nine marks in order, then \"+11 MORE\"", rows.length === 4 && rows.every((t) => labelsOf(t).join("|") === [...EVERY.slice(0, 9), "+11 MORE"].join("|")), JSON.stringify(rows.map(labelsOf)));
+    if (name === "ten marks") ok("marks fit, ten marks: all ten shown, no \"MORE\"", rows.length === 4 && rows.every((t) => labelsOf(t).length === 10 && !labelsOf(t).some((l) => /MORE/.test(l))), JSON.stringify(rows.map(labelsOf)));
+    // (cut: a mark too long for a box at the smallest font ends "...", at a whole character)
+    if (/longer than a box/.test(name)) ok(`marks fit, ${name}: cut to one box ending "...", at a whole character`, rows.length === 4 && rows.every((t) => { const l = labelsOf(t); return l.length === 1 && l[0].endsWith("...") && marks[0].startsWith(l[0].slice(0, -3)) && l[0].length > 3 && !l[0].includes("�") && Buffer.from(l[0], "utf8").toString("utf8") === l[0]; }), JSON.stringify(rows.map(labelsOf)));
+    // (a real mark as long as Platinum Angel's fits whole, at the smallest font)
+    if (name === "long keywords") ok("marks fit, long keywords: YOU CAN'T LOSE THE GAME is shown whole", rows.length === 4 && rows.every((t) => labelsOf(t).includes("YOU CAN'T LOSE THE GAME")), JSON.stringify(rows.map(labelsOf)));
+    if (name === "short") ok("marks fit, short: a short mark is one box at font 300, 1700 wide", rows.length === 4 && rows.every((t) => t.boxes.length === 1 && t.boxes[0].label === "POISON 2" && t.boxes[0].w === 1700 && t.boxes[0].h === 380 && t.boxes[0].f === 300), JSON.stringify(rows.map((t) => t.boxes)));
   }
-  // (the live case end to end: Red's and White's labels as two table boards send them, the White row's own)
+  // (the live case end to end: White's marks as two table boards send them, the White row's own)
   const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
   const board = (marks) => { const t = JSON.parse(lastT.json); for (const p of t.players) if (p.color === "White") p.allMarks = marks; return { msg: { t: "table", json: JSON.stringify(t) }, frames: 10 }; };
   const r2 = run([board(["RING TEMPTED 2", "SPEED 3"]), q(geo, "board long"), board(["POISON 2"]), q(geo, "board short")]);
   const white = (m) => { try { return JSON.parse(String(valueOf(r2, m))).find((t) => t.g === "23e485"); } catch (e) { return null; } };
   const wl = white("board long"), ws = white("board short");
-  ok("marks fit, table board: White's long label is pushed off the middle and past its icons", !!wl && wl.label === "RING TEMPTED 2   SPEED 3" && span(wl)[0] >= 0.25
-    && !icons.some((c) => meets(marksBox(wl), c.box)), JSON.stringify(wl));
-  ok("marks fit, table board: the next, short label goes back under the counter (the button is edited, not left where it was)", !!ws && ws.label === "POISON 2" && ws.bx === 0 && ws.w === 1700 && ws.h === 380, JSON.stringify(ws));
+  ok("marks fit, table board: White's two marks are two boxes in the corner", !!wl && wl.boxes.map((b) => b.label).join("|") === "RING TEMPTED 2|SPEED 3", JSON.stringify(wl));
+  ok("marks fit, table board: one mark next leaves one box, at its own size (the other box goes)", !!ws && ws.boxes.length === 1 && ws.boxes[0].label === "POISON 2" && ws.boxes[0].w === 1700 && ws.boxes[0].h === 380, JSON.stringify(ws));
 }
 // Extra-turn counter (docs/extra-turn-counter-spec.md, 2026-11-06): the row's extraTurns as a number beside the life
 // counter, the count + 1 (one extra turn shows 2), hover text "<name> has n extra turn(s) coming", none at 0, with no
@@ -1629,25 +1807,26 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const btns = `local out = {} for _, g in ipairs(${four}) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, marks = {}, badges = {} } for _, b in ipairs(o.getButtons() or {}) do local q = b.position or {} local e = { label = b.label, w = b.width, h = b.height, bx = q[1] or q.x, bz = q[3] or q.z } if b.tooltip == ENGINE_COUNTERS_TIP then row.marks[#row.marks + 1] = e elseif engineExtraTurnTip(b.tooltip) then row.badges[#row.badges + 1] = e end end out[#out + 1] = row end return JSON.encode(out)`;
   const CASES = {
     "one digit, a short label": [["POISON 2"], 1, "2"],
-    "two digits, a two-line label": [["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"], 9, "10"],
+    "two digits, seven marks": [["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"], 9, "10"],
   };
   const steps = [];
   for (const [name, [marks, n]] of Object.entries(CASES)) steps.push(q(set(marks, n), `set ${name}`), q(btns, `buttons ${name}`));
   const r = run(steps);
   ok("badge fit: precondition, no script error", !r.errors.length, r.errors.slice(0, 2).join(" | "));
   const list = (v) => (Array.isArray(v) ? v : []);
-  for (const [name, [, , digits]] of Object.entries(CASES)) {
+  for (const [name, [marks, , digits]] of Object.entries(CASES)) {
     let rows = [];
     try { rows = JSON.parse(String(valueOf(r, `buttons ${name}`))); } catch (e) { /* checked below */ }
-    ok(`badge fit, ${name}: precondition, four trackers, each with one badge "${digits}" and one label`,
-      rows.length === 4 && rows.every((t) => list(t.badges).length === 1 && list(t.badges)[0].label === digits && list(t.marks).length === 1), String(valueOf(r, `buttons ${name}`)).slice(0, 300));
+    ok(`badge fit, ${name}: precondition, four trackers, each with one badge "${digits}" and a box a mark`,
+      rows.length === 4 && rows.every((t) => list(t.badges).length === 1 && list(t.badges)[0].label === digits && list(t.marks).length === marks.length), String(valueOf(r, `buttons ${name}`)).slice(0, 300));
     for (const t of rows) {
-      const seat = `${name}, ${SEATS[t.g]}`, b = list(t.badges)[0], m = list(t.marks)[0];
-      if (!b || !m || !own[t.g]) continue;
+      const seat = `${name}, ${SEATS[t.g]}`, b = list(t.badges)[0], ms = list(t.marks);
+      if (!b || !ms.length || !own[t.g]) continue;
       ok(`badge fit, ${seat}: at local (-1, -1.45), the counter's top-left lobe`, b.bx === -1 && b.bz === -1.45, `at ${b.bx}, ${b.bz}`);
       const box = buttonBox(t, b);
       for (const [what, o] of Object.entries(own[t.g])) ok(`badge fit, ${seat}: clear of ${what}`, !meets(box, buttonBox(t, o)), `badge ${JSON.stringify(box.map((n) => +n.toFixed(2)))} ${what} ${JSON.stringify(buttonBox(t, o).map((n) => +n.toFixed(2)))}`);
-      ok(`badge fit, ${seat}: clear of the marks label`, !meets(box, buttonBox(t, m)), `badge ${JSON.stringify(box.map((n) => +n.toFixed(2)))} label ${JSON.stringify(buttonBox(t, m).map((n) => +n.toFixed(2)))}`);
+      const under = ms.filter((m) => meets(box, buttonBox(t, m))).map((m) => m.label);
+      ok(`badge fit, ${seat}: clear of every marks box`, under.length === 0, `badge ${JSON.stringify(box.map((n) => +n.toFixed(2)))} meets ${JSON.stringify(under)}`);
       const hit = icons.filter((c) => meets(box, c.box)).map((c) => c.g);
       ok(`badge fit, ${seat}: clear of every commander-damage icon`, hit.length === 0, `meets ${hit.join(" ")}`);
     }
@@ -2119,6 +2298,331 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const names = (s) => [...String(s || "").matchAll(/"([A-Za-z]+)"/g)].map((x) => x[1]).sort().join(",");
   ok("zone lists: precondition, both lists found", !!keys && !!lists, `${keys} / ${lists}`);
   ok("zone lists: the table's mergeStatic fills in exactly the bridge's ZONE_KEYS", names(keys) === names(lists), `bridge ${names(keys)} / table ${names(lists)}`);
+}
+// Planeswalkers by click (item 24, 2026-11-11): a planeswalker on the battlefield is a card target like a creature
+// (Forge's chooseBoardTargets offers it as { kind: "card" }, players first for "any target"): offered, it is unlocked
+// even when it is the AI's, glows, and its click answers with its option; not offered, the click answers nothing and
+// says why. A question of players and planeswalkers only says to click either.
+{
+  const pw = "engine-card-9701", mine = "engine-card-9702";
+  // White's (the AI's) battlefield as the prefix left it, plus a planeswalker; Blue gets one too (its own, unlocked)
+  let whiteBf = [], blueList = [];
+  for (const m of s1.slice(0, 40)) if (m.t === "table") {
+    const j = JSON.parse(m.json);
+    const w = j.players.find((p) => p.color === "White"), b = j.players.find((p) => p.color === "Blue");
+    if (w && w.battlefield) whiteBf = w.battlefield;
+    if (b && b.battlefield) blueList = b.battlefield;
+  }
+  const last = JSON.parse([...s1.slice(0, 40)].reverse().find((m) => m.t === "table").json);
+  for (const pl of last.players) {
+    if (pl.color === "White") pl.battlefield = [...whiteBf, { s: 1, id: pw, ctl: "White", ctr: { LOYALTY: 4 } }];
+    if (pl.color === "Blue") pl.battlefield = [...blueList, { s: 1, id: mine, ctl: "Blue", ctr: { LOYALTY: 3 } }];
+    pl.keep = (pl.keep || []).filter((z) => z !== "battlefield");
+  }
+  last.cards = { ...(last.cards || {}), [pw]: { n: "Chandra, Torch of Defiance", tl: "Legendary Planeswalker — Chandra", cmc: 4, ty: ["Planeswalker"] },
+    [mine]: { n: "Teferi, Hero of Dominaria", tl: "Legendary Planeswalker — Teferi", cmc: 5, ty: ["Planeswalker"] } };
+  const board = { msg: { t: "table", json: JSON.stringify(last) }, frames: 30, mark: "board" };
+  const objOf = (id) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end`;
+  const click = (id, mark) => q(objOf(id) + ' onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) __sim.frames(30) return "clicked"', mark);
+  const look = (id, mark) => q(objOf(id) + ' if not o then return "none" end local h = o.__d.highlight '
+    + 'return tostring(o.getLock()) .. "|" .. tostring((engineGlowing.Blue or {})[o] == true) .. "|" .. (h and string.format("%.2f,%.2f,%.2f", h[1] or h.r, h[2] or h.g, h[3] or h.b) or "none")', mark);
+  const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest") && l.includes("answer")).join(" ").split("\\").join("");
+  const said = (r, mark) => fxOf(r, mark).filter((l) => l.includes("broadcastToColor")).join(" | ");
+  const hint = q('return tostring(UI.getValue("eng_hint_Blue"))', "hint");
+  // "any target" (Lightning Bolt): players first, then the cards, as Forge's choose_target_any sends them
+  const anyTarget = (pid) => ask({ promptId: pid, kind: "target", title: "Lightning Bolt: deal 3 damage to which target?", mode: "single",
+    options: [{ id: "player|player-0", label: "Blue" }, { id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" },
+      { id: `card|${mine}`, label: "Teferi, Hero of Dominaria" }, { id: `card|${blueList[0] && blueList[0].id}`, label: "a permanent" }] });
+  {
+    const r = run([board, look(pw, "before"), anyTarget(9701), look(pw, "offered"), hint, click(pw, "click")]);
+    ok("pw click: precondition: Blue has a permanent of its own to offer beside them", blueList.length > 0);
+    ok("pw click: precondition: the AI's planeswalker is on the table, locked",String(valueOf(r, "before")).startsWith("true|"), valueOf(r, "before") + " " + r.errors.join(" | "));
+    const [lock, glowing, rgb] = String(valueOf(r, "offered")).split("|");
+    ok("pw click: an offered planeswalker of the AI's is unlocked (TTS reports no click on a locked one)", lock === "false", valueOf(r, "offered"));
+    ok("pw click: it glows as a target, the colour of every target", glowing === "true" && rgb === "0.30,1.00,0.40", valueOf(r, "offered"));
+    ok("pw click: clicking it answers with its option", sent(r, "click").includes(`"choice":["card|${pw}"]`), sent(r, "click").slice(0, 300) + " " + said(r, "click"));
+    ok("pw click: a card target hint still says card or life counter", /Click a glowing card or a life counter\./.test(String(valueOf(r, "hint"))), valueOf(r, "hint"));
+  }
+  {
+    // the life counter still answers the same question with the player (the pattern the planeswalker follows)
+    const r = run([board, anyTarget(9702), q(`engineLifeTrackerClick({ guid = "23e485", color = "Blue" }) __sim.frames(30) return "life"`, "life")]);
+    ok("pw click: the same question's life counter answers with the player", sent(r, "life").includes('"choice":["player|player-1"]'), sent(r, "life").slice(0, 300));
+  }
+  {
+    // "target player or planeswalker" (Forge: players, then the planeswalkers): the hint names both
+    const r = run([board, ask({ promptId: 9703, kind: "target", title: "Chandra's Outrage: which player or planeswalker?", mode: "single",
+      options: [{ id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), hint, click(pw, "click")]);
+    ok("pw click: a player-or-planeswalker hint names both", /Click a player's life counter or a glowing planeswalker\./.test(String(valueOf(r, "hint"))), valueOf(r, "hint"));
+    ok("pw click: player-or-planeswalker: the planeswalker's click answers", sent(r, "click").includes(`"choice":["card|${pw}"]`), sent(r, "click").slice(0, 300));
+  }
+  {
+    // a question that doesn't offer it ("target player"): your own planeswalker's click answers nothing and says why;
+    // the AI's stays locked (TTS reports no click on it: nothing happens)
+    const r = run([board, ask({ promptId: 9704, kind: "target", title: "Mind Rot: which player discards?", mode: "single",
+      options: [{ id: "player|player-0", label: "Blue" }, { id: "player|player-1", label: "AI 1" }] }), look(pw, "not offered"), click(mine, "click")]);
+    ok("pw click: not offered, the AI's planeswalker stays locked and unlit", String(valueOf(r, "not offered")).startsWith("true|false|"), valueOf(r, "not offered"));
+    ok("pw click: not offered, its click answers nothing", !sent(r, "click").includes('"choice"'), sent(r, "click").slice(0, 300));
+    ok("pw click: not offered, its click says why: this asks for a player", /That planeswalker can't be chosen for this: it asks for a player\. Click a glowing life counter\./.test(said(r, "click")), said(r, "click"));
+  }
+  {
+    // the bridge's other shape: a choice of players and permanents that is no target (a token put onto the battlefield
+    // attacking chooses whom, bridge entityChoiceIds) comes as this same target question; the planeswalker answers it
+    const r = run([board, ask({ promptId: 9706, kind: "target", title: "Hero of Bladehold: attack which player or planeswalker?", mode: "multi", min: 1, max: 1,
+      options: [{ id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), look(pw, "offered"), click(pw, "click")]);
+    ok("pw click: a no-target choice of player or planeswalker: it glows", String(valueOf(r, "offered")).startsWith("false|true|"), valueOf(r, "offered"));
+    ok("pw click: a no-target choice of player or planeswalker: its click answers", sent(r, "click").includes(`"choice":["card|${pw}"]`), sent(r, "click").slice(0, 300));
+  }
+  {
+    // offered with other cards but not this one ("target creature or planeswalker an opponent controls"): it says so
+    const r = run([board, ask({ promptId: 9705, kind: "target", title: "Murder: destroy which creature or planeswalker?", mode: "single",
+      options: [{ id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), hint, click(mine, "click")]);
+    // (planeswalkers alone, no player: the plain card hint, no life counter named)
+    ok("pw click: planeswalkers alone: the card hint, no life counter", /Click a glowing card\.$/.test(String(valueOf(r, "hint"))) && !/life counter/.test(String(valueOf(r, "hint"))), valueOf(r, "hint"));
+    ok("pw click: a planeswalker the question leaves out says it can't be chosen", /That planeswalker can't be chosen for this\. Click a glowing card/.test(said(r, "click")) && !sent(r, "click").includes('"choice"'), said(r, "click") + " " + sent(r, "click").slice(0, 200));
+    // (players and cards, not this one: the card wording, not "it asks for a player"; a permanent that is no
+    // planeswalker still says "That card")
+    const r2 = run([board, ask({ promptId: 9707, kind: "target", title: "Chandra's Outrage: which player or planeswalker?", mode: "single",
+      options: [{ id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), click(mine, "walker"), click(blueList[0] && blueList[0].id, "other")]);
+    ok("pw click: players and cards offered, not this planeswalker: the card wording", /That planeswalker can't be chosen for this\. Click a glowing card, or a player's life counter/.test(said(r2, "walker")), said(r2, "walker"));
+    ok("pw click: a permanent that is no planeswalker still says That card", /That card can't be chosen for this\./.test(said(r2, "other")), said(r2, "other"));
+  }
+}
+// Status pieces (docs/status-objects-spec.md "Checks to write", 2026-11-11): the original table's piece for a player
+// status lies on the holder's mat, in the corner strip under their last marks box, while their marks say it; moved,
+// never spawned; parked under the table (y -30), locked and hidden otherwise. The pieces, their GUIDs and the mats are
+// read from the save, the boxes from the tracker's buttons; the strip and the box geometry as in "marks fit" above.
+{
+  const SEATS = { White: "23e485", Red: "448880", Yellow: "37e533", Blue: "395037" };
+  const STATUS = ["8963ec", "197ab6", "2db63a", "cb418b", "d9fcbc", "94b67a", "da1b48", "576ccd"]; // (the spec's table)
+  const DAY = "4e8c7b", NIGHT = "cdf2d2";
+  const all = (list) => { const out = []; for (const o of list || []) { out.push(o); out.push(...all(o.ContainedObjects)); out.push(...all(Object.values(o.States || {}))); } return out; };
+  const byGuid = new Map(save.ObjectStates.map((o) => [o.GUID, o]));
+  // the Global script's list of which object shows which mark (make-engine-copy writes it from what it kept)
+  const listed = save.LuaScript.slice(save.LuaScript.indexOf("ENGINE_STATUS_PIECES = {"));
+  const pieceBlock = listed.slice(0, listed.indexOf("\n}\n") + 3);
+  const rows = [...pieceBlock.matchAll(/\{ mark = "([^"]+)",[^\n]*\n\s*objs = \{(.*)\} \},/g)].map((m) => ({ mark: m[1], objs: [...m[2].matchAll(/g = "(\w+)"[^}]*?(?:seat = "(\w+)")?\s*\}/g)].map((x) => ({ g: x[1], seat: x[2] || null })) }));
+  const seatObj = (mark, seat) => { const r = rows.filter((x) => x.mark === mark); for (const x of r) { const e = x.objs.find((o) => o.seat === null || o.seat === seat); if (e) return e.g; } return null; };
+  const ofMark = (mark) => rows.filter((x) => x.mark === mark).flatMap((x) => x.objs.map((o) => o.g));
+  const pieceGuids = rows.flatMap((x) => x.objs.map((o) => o.g));
+  ok("status pieces: precondition, the Global script lists every piece of the spec's table, each kind once, day // night apart",
+    STATUS.every((g) => pieceGuids.includes(g)) && rows.length === 8 && /ENGINE_DAY_NIGHT = \{ states = \{ "4e8c7b", "cdf2d2" \}/.test(listed),
+    JSON.stringify(rows.map((x) => `${x.mark}:${x.objs.length}`)));
+  ok("status pieces: one copy a seat of the city's blessing, the Ring and the three counters; one crown, one Monarch card, one Undercity",
+    ["CITY'S BLESSING", "RING TEMPTED", "POISON", "ENERGY", "EXPERIENCE"].every((m) => ["White", "Red", "Yellow", "Blue"].every((s) => rows.find((x) => x.mark === m).objs.some((o) => o.seat === s)) && ofMark(m).length === 4)
+      && ofMark("MONARCH").length === 2 && ofMark("INITIATIVE").length === 1, JSON.stringify(rows));
+  const guidCount = new Map();
+  for (const o of all(save.ObjectStates)) guidCount.set(o.GUID, (guidCount.get(o.GUID) || 0) + 1);
+  const pieces = [...pieceGuids, DAY].map((g) => byGuid.get(g));
+  ok("status pieces: precondition, every listed piece is an object in the save, its GUID used once in the whole save",
+    pieces.every(Boolean) && [...pieceGuids, DAY, NIGHT].every((g) => guidCount.get(g) === 1), [...pieceGuids, DAY, NIGHT].filter((g) => guidCount.get(g) !== 1).join(" "));
+  const badPark = pieces.filter(Boolean).flatMap((o) => [o, ...Object.values(o.States || {})]).filter((o) => !(o.Transform.posY === -30 && o.Locked === true && !o.LuaScript && !o.XmlUI));
+  ok("status pieces: in the copy each piece (and Night) is parked at y -30, locked, without a script", badPark.length === 0, badPark.map((o) => o.GUID).join(" "));
+  const fadeGuids = [...ofMark("MONARCH").slice(0, 1), ...ofMark("POISON"), ...ofMark("ENERGY"), ...ofMark("EXPERIENCE")];
+  ok("status pieces: in the copy the crown and the counter tokens are see-through (tint alpha 0)", fadeGuids.every((g) => byGuid.get(g) && byGuid.get(g).ColorDiffuse && byGuid.get(g).ColorDiffuse.a === 0), fadeGuids.filter((g) => !(byGuid.get(g) && byGuid.get(g).ColorDiffuse && byGuid.get(g).ColorDiffuse.a === 0)).join(" "));
+  ok("status pieces: the crown is a model and the counters tokens (the kinds a tint fades); the rest are cards",
+    byGuid.get("8963ec")?.Name === "Custom_Model" && ["94b67a", "da1b48", "576ccd"].every((g) => byGuid.get(g)?.Name === "Custom_Token") && ["197ab6", "2db63a", "cb418b", "d9fcbc", DAY].every((g) => byGuid.get(g)?.Name === "Card"), "");
+
+  const L = (a) => `{ ${a.map((x) => JSON.stringify(x)).join(", ")} }`;
+  const watch = [...pieceGuids, DAY, NIGHT];
+  const info = `local out = {} for _, g in ipairs(${L(watch)}) do local o = getObjectFromGUID(g) if o then local p, r, s, b = o.getPosition(), o.getRotation(), o.getScale(), o.getBoundsNormalized().size local labels = {} for i, x in ipairs(o.getButtons() or {}) do labels[i] = tostring(x.label) .. "@" .. tostring(x.click_function) end out[g] = { x = p.x, y = p.y, z = p.z, ry = r.y, w = b.x, d = b.z, lock = o.getLock(), inv = #(o.__d.invisibleTo or {}), a = o.getColorTint().a or 1, labels = table.concat(labels, "|"), state = o.getStateId() } end end out.everyone = #engineEveryone() return JSON.encode(out)`;
+  const boxes = `local out = {} for c, g in pairs(${"{ " + Object.entries(SEATS).map(([c, g]) => `${c} = "${g}"`).join(", ") + " }"}) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, boxes = {} } for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then row.boxes[#row.boxes + 1] = { w = b.width, h = b.height, bx = b.position[1] or b.position.x, bz = b.position[3] or b.position.z } end end out[c] = row end return JSON.encode(out)`;
+  const set = (marks, day) => `engineStatusPieces(JSON.decode([==[${JSON.stringify({ day, players: Object.keys(SEATS).map((c) => ({ color: c, allMarks: marks[c] || [] })) })}]==])) for c, g in pairs(${"{ " + Object.entries(SEATS).map(([c, g]) => `${c} = "${g}"`).join(", ") + " }"}) do enginePlayerCounters(getObjectFromGUID(g), { allMarks = JSON.decode([==[${JSON.stringify(marks)}]==])[c] or {} }) end return "set"`;
+  const look = (r, mark) => { try { return JSON.parse(String(valueOf(r, mark))); } catch (e) { return {}; } };
+  const mats = matZones();
+  const matOf = (t) => mats.find((m) => Math.sign(m.box[0] + m.box[1]) === Math.sign(t.x) && Math.sign(m.box[2] + m.box[3]) === Math.sign(t.z));
+  const COL0 = 10.75, TAPPED = 1.53;
+  const foot = (p) => [p.x - p.w / 2, p.x + p.w / 2, p.z - p.d / 2, p.z + p.d / 2];
+  const shown = (p, n) => !!p && p.y > 0.5 && p.inv === 0 && p.a === 1 && p.lock === true;
+  const parked = (p, n) => !!p && p.y === -30 && p.inv === n && p.inv >= 6 && (p.a === 0 || p.a === 1) && p.lock === true;
+  // where a shown piece lies: on `seat`'s mat, in the strip (|x| from the mat's inner edge to a tapped column-0 card),
+  // its near edge at least 0.3 under the last box's far edge, meeting no box
+  // first: the seat's first piece, whose near edge is exactly the gap (0.3) under the last box
+  const placeCheck = (name, seat, p, b, first) => {
+    const t = b[seat], m = t && matOf(t);
+    if (!p || !m) { ok(`${name}: precondition, the piece and ${seat}'s mat`, false, JSON.stringify({ p, t })); return; }
+    const f = foot(p), ax = [Math.abs(f[0]), Math.abs(f[1])].sort((x, y) => x - y), az = [Math.abs(f[2]), Math.abs(f[3])].sort((x, y) => x - y);
+    const cx = Math.abs((m.box[0] + m.box[1]) / 2), half = (m.box[1] - m.box[0]) / 2, inner = cx - half, outer = cx - COL0 - TAPPED;
+    const world = (t.boxes || []).map((x) => buttonBox(t, x));
+    const lastFar = Math.max(...world.map((w) => Math.max(Math.abs(w[2]), Math.abs(w[3]))));
+    ok(`${name}: on ${seat}'s mat`, f[0] >= m.box[0] && f[1] <= m.box[1] && f[2] >= m.box[2] && f[3] <= m.box[3], `${f.map((n) => n.toFixed(2))} mat ${m.box.map((n) => n.toFixed(2))}`);
+    ok(`${name}: in ${seat}'s corner strip, 0.3 in from each side`, ax[0] >= inner + 0.29 && ax[1] <= outer + 0.01 && Math.abs((ax[0] + ax[1]) / 2 - (1.04 + 6.94) / 2) < 0.05, `|x| ${ax.map((n) => n.toFixed(2))} strip ${inner.toFixed(2)}..${outer.toFixed(2)}`);
+    ok(`${name}: under ${seat}'s last marks box, 0.3 apart, meeting none`, world.length > 0 && az[0] >= lastFar + 0.29 && !world.some((w) => meets(w, f)), `near edge |z| ${az[0].toFixed(2)}, last box to ${lastFar.toFixed(2)}`);
+    if (first) ok(`${name}: the first piece just under ${seat}'s last box, 0.3 (not more)`, Math.abs(az[0] - lastFar - 0.3) < 0.01, `near edge |z| ${az[0].toFixed(3)}, last box to ${lastFar.toFixed(3)}`);
+    // (readable from the seat: its cards' turn, the hand's + 180, which is the seat's tracker's turn: 180 for White
+    // and Red, 0 for Yellow and Blue)
+    const off = Math.abs(((p.ry - t.ry) % 360 + 540) % 360 - 180);
+    ok(`${name}: turned to read from ${seat}`, off < 1, `ry ${p.ry} tracker ${t.ry}`);
+  };
+  const crown = "8963ec", card = "197ab6", under = "2db63a";
+  const r = run([
+    q(info, "start"),
+    q(set({ White: ["MONARCH"] }), "white monarch"), q(info, "W"), q(boxes, "W boxes"),
+    q(set({ White: ["MONARCH"] }), "same again"),
+    q(set({ Red: ["POISON 2", "MONARCH"] }), "red monarch"), q(info, "R"), q(boxes, "R boxes"),
+    q(set({}), "nobody"), q(info, "none"),
+    q(set({ Yellow: ["TURN RUN BY WHITE", "RING TEMPTED 2", "MONARCH", "INITIATIVE", "POISON 9", "CITY'S BLESSING", "ENERGY 12", "EXPERIENCE 5"] }), "everything"), q(info, "Y"), q(boxes, "Y boxes"),
+    q(set({ White: ["POISON 3"], Blue: ["POISON 5"] }), "two poisoned"), q(info, "P1"), q(boxes, "P boxes"),
+    q(set({ White: ["POISON 3"], Blue: ["POISON 6"] }), "blue's goes up"), q(info, "P2"),
+    q(set({ White: ["MONARCH"], Blue: ["MONARCH"] }), "two monarchs"), q(info, "two"),
+    q(set({}, "day"), "set day"), q(info, "day"),
+    q(set({}, "night"), "set night"), q(info, "night"),
+    q(set({}, "night"), "night again"),
+    q(set({}), "set no day"), q(info, "no day"),
+    q(set({ Blue: ["MONARCH", "POISON 4"] }, "day"), "before the clear"), q(info, "before clear"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" }, q(info, "cleared"),
+  ]);
+  ok("status pieces: precondition, no script error", !r.errors.length, r.errors.slice(0, 3).join(" | "));
+  const v = (m) => look(r, m);
+  const start = v("start"), n = start.everyone;
+  ok("status pieces: precondition, at the start every piece parked (y -30), locked and invisible to every colour, the faded ones at alpha 0",
+    n >= 6 && [...pieceGuids, DAY].every((g) => parked(start[g], n)) && fadeGuids.every((g) => start[g].a === 0), JSON.stringify(Object.entries(start).filter(([g, p]) => g !== "everyone" && !parked(p, n))).slice(0, 300));
+  const W = v("W"), Wb = look(r, "W boxes");
+  ok("status pieces: a row with MONARCH: the crown and the Monarch card are out, visible and locked", shown(W[crown]) && shown(W[card]), JSON.stringify([W[crown], W[card]]));
+  placeCheck("status pieces, White monarch: the crown", "White", W[crown], Wb, true);
+  placeCheck("status pieces, White monarch: the Monarch card", "White", W[card], Wb);
+  ok("status pieces: the Monarch card under the crown, 0.3 apart", !!W[crown] && !!W[card] && Math.abs((Math.abs(W[card].z) - W[card].d / 2) - (Math.abs(W[crown].z) + W[crown].d / 2) - 0.3) < 0.01, JSON.stringify([W[crown], W[card]]));
+  // (the fake TTS's bounds: 2 x 2 for a model at scale 1, a card 2.2 x 3.1)
+  ok("status pieces: pieces that fit keep their own size (the crown 0.6, the card 1)", !!W[crown] && Math.abs(W[crown].w - 1.2) < 1e-6 && !!W[card] && Math.abs(W[card].d - 3.1) < 1e-6, JSON.stringify([W[crown], W[card]]));
+  ok("status pieces: nothing else came out", [...pieceGuids, DAY].filter((g) => g !== crown && g !== card).every((g) => parked(W[g], n)), "");
+  const again = fxOf(r, "same again").filter((l) => watch.some((g) => l.includes(g)));
+  ok("status pieces: the same marks again move nothing", again.length === 0, again.slice(0, 3).join(" | "));
+  const spawned = r.steps.flatMap((s) => s.fx || []).filter((l) => /spawnObject|"destruct"/.test(l) && watch.some((g) => l.includes(g)));
+  ok("status pieces: never spawned or destroyed (moved)", spawned.length === 0, spawned.slice(0, 2).join(" | "));
+  // (from under the table it comes up hidden and shows at its spot: never seen rising through the table top)
+  const upFx = fxOf(r, "white monarch").filter((l) => l.includes(crown));
+  const moved = upFx.findIndex((l) => /"setPosition"/.test(l)), seen = upFx.findIndex((l) => /"setInvisibleTo" obj:\w+ \{\}/.test(l)), faded = upFx.findIndex((l) => /"setColorTint"/.test(l));
+  ok("status pieces: from under the table the crown moves to its spot first, then shows (not a smooth rise)", moved >= 0 && seen > moved && faded > moved && !upFx.some((l) => /setPositionSmooth/.test(l)), upFx.join(" | ").slice(0, 400));
+  const R = v("R"), Rb = look(r, "R boxes");
+  placeCheck("status pieces, the monarch moves to Red: the crown", "Red", R[crown], Rb, true);
+  // (one crown on the table: the one object, now on Red's side of the middle line, off White's)
+  ok("status pieces: the monarch moves: the crown is gone from White's mat, onto Red's", shown(R[crown]) && Math.sign(R[crown].x) === Math.sign(Rb.Red.x) && Math.sign(R[crown].x) !== Math.sign(Wb.White.x) && Math.sign(R[crown].z) === Math.sign(Rb.Red.z), JSON.stringify(R[crown]));
+  ok("status pieces: the monarch moves: so does the Monarch card", shown(R[card]) && Math.sign(R[card].x) === Math.sign(Rb.Red.x) && Math.sign(R[card].z) === Math.sign(Rb.Red.z), JSON.stringify(R[card]));
+  ok("status pieces: the monarch moves: it slides across (smooth), not through the table", fxOf(r, "red monarch").some((l) => l.includes(crown) && /setPositionSmooth/.test(l)), fxOf(r, "red monarch").filter((l) => l.includes(crown)).join(" | ").slice(0, 300));
+  placeCheck("status pieces, Red's poison under the monarch", "Red", R[seatObj("POISON", "Red")], Rb);
+  ok("status pieces: Red's poison token shows 2, its own seat's copy, after the crown and card (the table's order)", shown(R[seatObj("POISON", "Red")]) && /^2@engineNoop\|2@engineNoop$/.test(R[seatObj("POISON", "Red")].labels)
+    && Math.abs(R[seatObj("POISON", "Red")].z) > Math.abs(R[card].z), JSON.stringify(R[seatObj("POISON", "Red")]));
+  const none = v("none");
+  ok("status pieces: nobody has it: every piece parked and hidden again", [...pieceGuids, DAY].every((g) => parked(none[g], n)) && fadeGuids.every((g) => none[g].a === 0), JSON.stringify(Object.entries(none).filter(([g, p]) => g !== "everyone" && !parked(p, n))).slice(0, 300));
+  ok("status pieces: parked, the counter's number goes with it", none[seatObj("POISON", "Red")] && none[seatObj("POISON", "Red")].labels === "", JSON.stringify(none[seatObj("POISON", "Red")]));
+  // (every piece at once on one mat: in the table's order down the strip, none overlapping, none off the mat)
+  const Y = v("Y"), Yb = look(r, "Y boxes");
+  const order = [crown, card, under, seatObj("CITY'S BLESSING", "Yellow"), seatObj("RING TEMPTED", "Yellow"), seatObj("POISON", "Yellow"), seatObj("ENERGY", "Yellow"), seatObj("EXPERIENCE", "Yellow")];
+  for (const g of order) placeCheck(`status pieces, everything on Yellow: ${g}`, "Yellow", Y[g], Yb, g === order[0]);
+  const farther = order.every((g, i) => i === 0 || (Y[g] && Y[order[i - 1]] && Math.abs(Y[g].z) - Y[g].d / 2 >= Math.abs(Y[order[i - 1]].z) + Y[order[i - 1]].d / 2 + 0.29));
+  ok("status pieces, everything on Yellow: stacked down the strip in the spec's order, 0.3 apart", farther, JSON.stringify(order.map((g) => Y[g] && +Math.abs(Y[g].z).toFixed(2))));
+  ok("status pieces, everything on Yellow: the counts on the tokens, the Ring's and blessing's cards without", /^9@/.test(Y[seatObj("POISON", "Yellow")]?.labels) && /^12@/.test(Y[seatObj("ENERGY", "Yellow")]?.labels) && /^5@/.test(Y[seatObj("EXPERIENCE", "Yellow")]?.labels) && Y[seatObj("RING TEMPTED", "Yellow")]?.labels === "",
+    JSON.stringify(order.map((g) => Y[g] && Y[g].labels)));
+  // (two players poisoned: a token on each mat, each their own; one's count changing leaves the other where it was)
+  const P1 = v("P1"), P2 = v("P2"), Pb = look(r, "P boxes");
+  const wp = seatObj("POISON", "White"), bp = seatObj("POISON", "Blue");
+  placeCheck("status pieces, two poisoned: White's token", "White", P1[wp], Pb, true);
+  placeCheck("status pieces, two poisoned: Blue's token", "Blue", P1[bp], Pb, true);
+  ok("status pieces, two poisoned: two tokens, two seats' own, showing 3 and 5", wp !== bp && shown(P1[wp]) && shown(P1[bp]) && /^3@/.test(P1[wp].labels) && /^5@/.test(P1[bp].labels), JSON.stringify([P1[wp], P1[bp]]));
+  ok("status pieces, two poisoned: Blue's count goes up: Blue's token says 6, White's doesn't move or change",
+    /^6@/.test(P2[bp]?.labels) && JSON.stringify(P2[wp]) === JSON.stringify(P1[wp]) && !fxOf(r, "blue's goes up").some((l) => l.includes(wp)), JSON.stringify([P2[wp], P2[bp]]));
+  // (a broken board, two monarchs: one crown, at the first row that has it)
+  const two = v("two");
+  ok("status pieces: two rows say MONARCH: one crown, on the first row's (White's) mat", shown(two[crown]) && Math.sign(two[crown].z) === Math.sign(Pb.White.z) && Math.sign(two[crown].x) === Math.sign(Pb.White.x), JSON.stringify(two[crown]));
+  // (day then night: the same card, state 1 then 2, in the middle of the table between the hearts and the middle tile)
+  const D = v("day"), N = v("night");
+  const mid = (p) => !!p && Math.abs(p.x) + p.w / 2 <= 0.9 && Math.abs(p.z) - p.d / 2 >= 0.75 && Math.abs(p.z) + p.d / 2 <= 5.03;
+  ok("status pieces: day: Day // Night out in the middle (between the mats, off the middle tile), state 1, visible and locked", !!D[DAY] && !D[NIGHT] && D[DAY].state === 1 && mid(D[DAY]) && shown(D[DAY]), JSON.stringify([D[DAY], D[NIGHT]]));
+  const whiteTracker = save.ObjectStates.find((o) => o.GUID === SEATS.White);
+  ok("status pieces: day: readable from the White and Red side (White's cards' turn, its tracker's)", !!D[DAY] && !!whiteTracker && Math.abs(D[DAY].ry - whiteTracker.Transform.rotY) < 0.5 && D[DAY].z < 0, `${D[DAY] && D[DAY].ry} / ${whiteTracker && whiteTracker.Transform.rotY}`);
+  ok("status pieces: night: the same card turned to its Night state (2), at the same spot, visible", !!N[NIGHT] && !N[DAY] && N[NIGHT].state === 2 && mid(N[NIGHT]) && shown(N[NIGHT]) && Math.abs(N[NIGHT].x - D[DAY].x) < 0.01 && Math.abs(N[NIGHT].z - D[DAY].z) < 0.01, JSON.stringify([N[DAY], N[NIGHT]]));
+  ok("status pieces: night again changes nothing", !fxOf(r, "night again").some((l) => l.includes(DAY) || l.includes(NIGHT)), fxOf(r, "night again").filter((l) => l.includes(NIGHT)).join(" | ").slice(0, 200));
+  ok("status pieces: no day or night: the card parked and hidden", parked(v("no day")[DAY], n), JSON.stringify(v("no day")[DAY]));
+  ok("status pieces: parked from Night, the card goes back to Day (state 1), so the saved table has Day on top", !!v("no day")[DAY] && !v("no day")[NIGHT] && v("no day")[DAY].state === 1, JSON.stringify([v("no day")[DAY], v("no day")[NIGHT]]));
+  ok("status pieces: parking an already-Day card swaps nothing", !fxOf(r, "cleared").concat(fxOf(r, "clear")).some((l) => /setState/.test(l)), fxOf(r, "clear").filter((l) => /setState/.test(l)).join(" | ").slice(0, 200));
+  const bc = v("before clear"), cl = v("cleared");
+  ok("status pieces: precondition, pieces out before the clear", shown(bc[crown]) && shown(bc[seatObj("POISON", "Blue")]) && shown(bc[DAY]), JSON.stringify([bc[crown], bc[DAY]]).slice(0, 200));
+  ok("status pieces: engineClear (reset, rematch) parks every piece", [...pieceGuids].every((g) => parked(cl[g], n)) && parked(cl[DAY] || cl[NIGHT], n), JSON.stringify(Object.entries(cl).filter(([g, p]) => g !== "everyone" && !parked(p, n))).slice(0, 300));
+}
+// Status pieces: engine mode off parks them; a reload (the script's state gone, the pieces where the save had them)
+// redraws from the rows; with no game, a piece no board put out is parked again by the 2 s check; clicking a shown
+// piece changes nothing, in the engine or in the piece; a piece too wide for the strip is scaled to fit it
+{
+  const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
+  const board = (marks) => { const t = JSON.parse(lastT.json); for (const p of t.players) p.allMarks = marks[p.color]; return { msg: { t: "table", json: JSON.stringify(t) }, frames: 10 }; };
+  const crown = "8963ec";
+  const at = `local o = getObjectFromGUID("${crown}") local p = o.getPosition() return string.format("%.2f %.2f %.2f %s %d %s", p.x, p.y, p.z, tostring(o.getLock()), #(o.__d.invisibleTo or {}), tostring(o.getColorTint().a))`;
+  const sent = (r, m) => fxOf(r, m).filter((l) => /WebRequest|sendExternalMessage/.test(l));
+  const r = run([
+    board({ Blue: ["MONARCH"] }), q(at, "shown"),
+    // (a reload: the script's memory of what it put out is gone, the pieces lie where they were; the load's park)
+    q('engineStatusShown = {} engineStatusParkAll("unplaced") return "reloaded"', "reload"), q(at, "after the reload"),
+    board({ Blue: ["MONARCH"] }), q(at, "redrawn"),
+    q(`local o = getObjectFromGUID("${crown}") onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) onPlayerAction(Player.White, Player.Action.Select, { o }) for _, b in ipairs(o.getButtons() or {}) do Global.call(b.click_function) end __sim.frames(30) return "clicked"`, "click"), q(at, "after the click"),
+    q('setEngineMode(false) return "off"', "engine off"), q(at, "after engine off")]);
+  const v = (m) => String(valueOf(r, m));
+  ok("status pieces, reload: precondition, the crown out on Blue's mat", !r.errors.length && /^[-\d.]+ 0\.98 [-\d.]+ true 0 1$/.test(v("shown")), `${v("shown")} ${r.errors.slice(0, 1).join("")}`);
+  ok("status pieces, reload: the load parks a piece no board has put out yet", /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(v("after the reload")), v("after the reload"));
+  ok("status pieces, reload: the next board puts it back where the rows say", v("redrawn") === v("shown"), v("redrawn"));
+  ok("status pieces: clicking a shown piece changes nothing in the piece", v("after the click") === v("redrawn"), v("after the click"));
+  ok("status pieces: clicking a shown piece sends the engine nothing", sent(r, "click").length === 0, sent(r, "click").slice(0, 2).join(" | "));
+  ok("status pieces: engine mode off parks them", /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(v("after engine off")), v("after engine off"));
+  // (no game: a piece someone took out, that no board put there, goes back within the 2 s check; one a board put out
+  // in a game that has ended stays with the final board)
+  const r2 = run([board({ Blue: ["MONARCH"] }),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 },
+    q(`local o = getObjectFromGUID("${crown}") o.setPosition({ 5, 1, 5 }) return "out"`, "taken out"), { frames: 150 }, q(at, "after 2 s")]);
+  ok("status pieces: with no game, a piece found above the table is parked again by the 2 s check", !r2.errors.length && /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(String(valueOf(r2, "after 2 s"))), `${valueOf(r2, "after 2 s")} ${r2.errors.slice(0, 1).join("")}`);
+  const over = board({ Blue: ["MONARCH"] }), ot = JSON.parse(over.msg.json);
+  ot.gameOver = true; over.msg.json = JSON.stringify(ot);
+  const r2b = run([over, q("return tostring(engineTable() and engineTable().gameOver)", "over"), q(at, "final board"), { frames: 180 }, q(at, "3 s later")]);
+  ok("status pieces: precondition, a final board (game over) puts the crown out", !r2b.errors.length && String(valueOf(r2b, "over")) === "true" && /^[-\d.]+ 0\.98 [-\d.]+ true 0 1$/.test(String(valueOf(r2b, "final board"))), `${valueOf(r2b, "over")} ${valueOf(r2b, "final board")} ${r2b.errors.slice(0, 1).join("")}`);
+  ok("status pieces: the 2 s check leaves a piece the final board put out where it is", String(valueOf(r2b, "3 s later")) === String(valueOf(r2b, "final board")), String(valueOf(r2b, "3 s later")));
+  // (a piece wider than the strip: scaled down to it, 5.9 less 0.3 each side)
+  const r3 = run([q(`engineStatusUnit["${crown}"] = { x = 20, z = 20 } return "wide"`, "wide"), board({ Blue: ["MONARCH"] }),
+    q(`local o = getObjectFromGUID("${crown}") return string.format("%.4f %.4f", o.getScale().x, 20 * o.getScale().x)`, "scale")]);
+  const [sc, width] = String(valueOf(r3, "scale")).split(" ").map(Number);
+  const room = 2250 / 480 * 1.258 - 0.6;
+  ok("status pieces: a piece wider than the strip is scaled to its width less 0.3 each side", Math.abs(width - room) < 0.01 && sc < 0.6, `scale ${sc}, ${width} wide, room ${room.toFixed(3)}`);
+  // (the NEW GAME rematch: the clear keeps engine mode on, so only the counters' reset parks them)
+  const r4 = run([board({ Blue: ["MONARCH"] }), q(at, "before"), q("engineKeepEngineMode = true return 'keep'", "keep"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 }, q(`return tostring(ENGINE_MODE)`, "mode"), q(at, "after")]);
+  ok("status pieces, rematch: precondition, the crown out and engine mode still on after the clear", /^[-\d.]+ 0\.98 /.test(String(valueOf(r4, "before"))) && String(valueOf(r4, "mode")) === "true", `${valueOf(r4, "before")} mode ${valueOf(r4, "mode")}`);
+  ok("status pieces, rematch: a clear that keeps engine mode on parks them too", /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(String(valueOf(r4, "after"))), String(valueOf(r4, "after")));
+  // (one piece or seat that fails leaves the rest: the crown's move and park throw, White's placing and Day // Night's
+  // throw; Blue's poison, after the crown in the list, still comes out and still parks)
+  const ys = 'local out = {} for _, p in ipairs(ENGINE_STATUS_PIECES) do for _, e in ipairs(p.objs) do if (p.mark == "POISON" and e.seat == "Blue") or e.g == "8963ec" then out[#out + 1] = string.format("%s %.2f", p.mark, getObjectFromGUID(e.g).getPosition().y) end end end return table.concat(out, ", ")';
+  const r5 = run([
+    q('local put, park, place = engineStatusPut, engineStatusPark, engineStatusPlace ' +
+      'engineStatusPut = function(o, item, w) if item.key == "8963ec" then error("boom") end return put(o, item, w) end ' +
+      'engineStatusPark = function(o, item) if item.key == "8963ec" then error("boom") end return park(o, item) end ' +
+      'engineStatusPlace = function(want, o, pl) if pl.color == "White" then error("boom") end return place(want, o, pl) end ' +
+      'engineStatusDayPlace = function() error("boom") end return "broken"', "break"),
+    board({ White: ["POISON 2"], Blue: ["MONARCH", "POISON 4"] }), q(ys, "out"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 }, q(ys, "parked")]);
+  ok("status pieces: a piece whose move fails leaves the next one to move (crown fails, Blue's poison out)", /^MONARCH -30\.00, POISON (?!-30)[-\d.]+$/.test(String(valueOf(r5, "out"))), `${valueOf(r5, "out")} ${r5.errors.slice(0, 1).join("")}`);
+  ok("status pieces: a piece whose park fails leaves the next one to park (Blue's poison back under)", /POISON -30\.00$/.test(String(valueOf(r5, "parked"))), String(valueOf(r5, "parked")));
+}
+// Status pieces in the copy: their scripts are gone (Day // Night's, The Ring's, Undercity's, the counters'), and the
+// pieces the original table had on its surface beside them stay removed as clutter
+{
+  const orig = (() => { try { return JSON.parse(fs.readFileSync(process.env.MTG_TABLE_JSON || path.join(process.env.USERPROFILE || "", "Documents", "My Games", "Tabletop Simulator", "Mods", "Workshop", "2296042369.json"), "utf8")); } catch (e) { return null; } })();
+  if (orig) {
+    const had = (g) => (orig.ObjectStates.find((o) => o.GUID === g) || {}).LuaScript || "";
+    ok("status pieces: precondition, the original's Day // Night, The Ring and Undercity have scripts", ["4e8c7b", "d9fcbc", "2db63a"].every((g) => had(g).length > 1000), "");
+    const left = ["4e8c7b", "d9fcbc", "2db63a", "94b67a"].filter((g) => (save.ObjectStates.find((o) => o.GUID === g) || {}).LuaScript);
+    ok("status pieces: the copy strips their scripts", left.length === 0, left.join(" "));
+    const clutter = ["df09d5", "d075c6", "91aaed", "d3959e", "a043c2", "c0d19f"].filter((g) => save.ObjectStates.some((o) => o.GUID === g));
+    ok("status pieces: the dungeons, Foretell and On an Adventure stay removed (left out on purpose)", clutter.length === 0, clutter.join(" "));
+    // (a seat's copy never takes a GUID the original table used, the clutter's included; the originals keep theirs)
+    const origGuids = new Set();
+    const walk = (list) => { for (const o of list || []) { origGuids.add(o.GUID); walk(o.ContainedObjects); walk(Object.values(o.States || {})); } };
+    walk(orig.ObjectStates);
+    const listed = save.LuaScript.slice(save.LuaScript.indexOf("ENGINE_STATUS_PIECES = {"));
+    const copies = [...listed.slice(0, listed.indexOf("\n}\n")).matchAll(/g = "(\w+)"[^}]*seat = "(Red|Yellow|Blue)"/g)].map((m) => m[1]);
+    ok("status pieces: precondition, 15 seat copies (Red, Yellow, Blue of five pieces)", copies.length === 15, `${copies.length}`);
+    ok("status pieces: no seat copy takes a GUID the original table used", copies.every((g) => !origGuids.has(g)), copies.filter((g) => origGuids.has(g)).join(" "));
+    // (the same in every build, so the deploy's save patch never adds a second copy: sha1 of "<original>:<seat>")
+    const crypto = require("crypto");
+    const expect = [...listed.slice(0, listed.indexOf("\n}\n")).matchAll(/\{ mark = "[^"]+"[^\n]*\n\s*objs = \{ \{ g = "(\w+)"[^\n]*/g)]
+      .flatMap((m) => [...m[0].matchAll(/seat = "(Red|Yellow|Blue)"/g)].map((s) => crypto.createHash("sha1").update(`${m[1]}:${s[1]}`).digest("hex").slice(0, 6)));
+    ok("status pieces: each seat copy's GUID comes from its original's and its seat's alone", expect.length === 15 && expect.join() === copies.join(), `${expect.join()} / ${copies.join()}`);
+    ok("status pieces: the original pieces keep their own GUIDs", ["8963ec", "197ab6", "2db63a", "cb418b", "d9fcbc", "94b67a", "da1b48", "576ccd", "4e8c7b"].every((g) => origGuids.has(g) && save.ObjectStates.some((o) => o.GUID === g)), "");
+  }
 }
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

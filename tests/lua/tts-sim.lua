@@ -331,7 +331,8 @@ function M.setScale(o, s) o.__d.scale = vec(s) fx("setScale", o, o.__d.scale) en
 function M.getLock(o) return o.__d.lock end
 function M.setLock(o, b) if o.__d.lock ~= b then fx("setLock", o, b) end o.__d.lock = b end
 function M.setColorTint(o, c) o.__d.tint = c fx("setColorTint", o, c) end
-function M.getColorTint(o) local c = o.__d.tint or { 1, 1, 1 } return { r = c.r or c[1], g = c.g or c[2], b = c.b or c[3] } end
+-- (the alpha only when one was set: TTS's Color has one, a = 1 when none was given)
+function M.getColorTint(o) local c = o.__d.tint or { 1, 1, 1 } return { r = c.r or c[1], g = c.g or c[2], b = c.b or c[3], a = c.a or c[4] } end
 function M.isDestroyed(o) return o.__d.destroyed == true end
 function M.destruct(o) if not o.__d.destroyed then kill(o) fx("destruct", o) end return true end
 function M.isSmoothMoving(o) return false end
@@ -378,7 +379,44 @@ end
 function M.getTags(o) return o.__d.tags end
 function M.hasTag(o, t) for _, x in ipairs(o.__d.tags) do if x == t then return true end end return false end
 function M.setHiddenFrom(o, c) fx("setHiddenFrom", o, c) end
-function M.setInvisibleTo(o, c) fx("setInvisibleTo", o, c) end
+-- (kept, for the checks: TTS has no getter, __d.invisibleTo is the sim's own)
+function M.setInvisibleTo(o, c) o.__d.invisibleTo = c fx("setInvisibleTo", o, c) end
+-- States as TTS has them (2026-11-11): the other states are in the object's data (States, keyed by their id); its own
+-- id is the one missing there. setState replaces the object by that state's object, under that state's GUID, at the
+-- same spot and turn, and returns it; the old object is gone.
+function M.getStateId(o)
+  local ids = {}
+  for k in pairs(o.__d.data.States or {}) do ids[tonumber(k)] = true end
+  if next(ids) == nil then return -1 end
+  local i = 1
+  while ids[i] do i = i + 1 end
+  return o.__d.stateId or i
+end
+function M.getStates(o)
+  local out = {}
+  for k, s in pairs(o.__d.data.States or {}) do out[#out + 1] = { id = tonumber(k), guid = s.GUID, name = s.Nickname or "", description = s.Description or "" } end
+  table.sort(out, function(a, b) return a.id < b.id end)
+  return out
+end
+function M.setState(o, id)
+  local states = o.__d.data.States or {}
+  local s = states[tostring(id)]
+  -- (a state it hasn't, its own included, does nothing; the call is kept for the checks)
+  if s == nil then fx("setState", o, id, "none") return nil end
+  local mine = M.getStateId(o)
+  local me = {}
+  for k, v in pairs(o.__d.data) do if k ~= "States" then me[k] = v end end
+  local others = { [tostring(mine)] = me }
+  for k, v in pairs(states) do if k ~= tostring(id) then others[k] = v end end
+  local d = {}
+  for k, v in pairs(s) do d[k] = v end
+  d.States = others
+  local n = makeObj(d)
+  n.__d.pos, n.__d.rot, n.__d.scale, n.__d.stateId = o.__d.pos:copy(), o.__d.rot:copy(), o.__d.scale:copy(), id
+  kill(o)
+  fx("setState", o, id, n)
+  return n
+end
 function M.flip(o) local r = o.__d.rot r.z = (r.z + 180) % 360 fx("flip", o) end
 function M.getTransformForward(o) local a = math.rad(o.__d.rot.y) return vec(math.sin(a), 0, math.cos(a)) end
 function M.getTransformRight(o) local a = math.rad(o.__d.rot.y) return vec(math.cos(a), 0, -math.sin(a)) end
@@ -386,7 +424,11 @@ function M.positionToWorld(o, p) p = vec(p) local f, r = M.getTransformForward(o
   return o.__d.pos + r * (p.x * s.x) + vec(0, p.y * s.y, 0) + f * (p.z * s.z) end
 function M.positionToLocal(o, p) p = vec(p) - o.__d.pos local f, r = M.getTransformForward(o), M.getTransformRight(o) local s = o.__d.scale
   return vec(V.dot(p, r) / s.x, p.y / s.y, V.dot(p, f) / s.z) end
-function M.getBoundsNormalized(o) return { center = o.__d.pos:copy(), size = vec(2.2, 0.2, 3.1), offset = vec(0, 0, 0) } end
+-- (as scaled, as TTS's: a card 2.2 x 3.1 at scale 1, anything else 2 x 2; the real crown and counters may differ)
+function M.getBoundsNormalized(o)
+  local s, card = o.__d.scale, o.type == "Card"
+  return { center = o.__d.pos:copy(), size = vec((card and 2.2 or 2) * s.x, 0.2 * s.y, (card and 3.1 or 2) * s.z), offset = vec(0, 0, 0) }
+end
 function M.getBounds(o) return M.getBoundsNormalized(o) end
 function M.getData(o)
   local d = o.__d.data
@@ -569,11 +611,63 @@ function SIM.webDone(id, isError)
 end
 
 -- ───────── screen UI ─────────
+-- How real TTS draws a Button after a script changes it (docs/engine-ui-spec.md 2.1): every setAttribute(s) call redraws
+-- the button from the attributes the element holds itself. Its label goes back to TTS's dark grey unless that call
+-- carries a textColor different from the stored one, and its background is its own color, or TTS's plain white when
+-- the colour came only from a <Defaults> class. SIM.btn[id] = { own = { color, textColor }, bg, fg }: own = written on
+-- the element (or set since), bg / fg = what TTS shows now. __sim.drawn(id) -> "<background>|<label>".
+local TTS_LABEL, TTS_BUTTON = "#323232", "#FFFFFF"
+local function attrOf(tag, key)
+  local i = tag:find(" " .. key .. '="', 1, true)
+  if i == nil then return nil end
+  local s = i + #key + 3
+  return tag:sub(s, tag:find('"', s, true) - 1)
+end
+local function readButtons(x)
+  SIM.btn, SIM.classLook = {}, {}
+  local d1, d2 = x:find("<Defaults>", 1, true), x:find("</Defaults>", 1, true)
+  local pos = d1 or 1
+  while d1 and d2 do -- the classes: their colours are what TTS draws when it builds the XML
+    local i = x:find("<Button class=\"", pos, true)
+    if i == nil or i > d2 then break end
+    local e = x:find(">", i, true)
+    local tag = x:sub(i, e)
+    SIM.classLook[attrOf(tag, "class")] = { color = attrOf(tag, "color"), textColor = attrOf(tag, "textColor") }
+    pos = e
+  end
+  pos = 1
+  while true do
+    local i = x:find("<Button ", pos, true)
+    if i == nil then break end
+    local e = x:find(">", i, true)
+    local tag = x:sub(i, e)
+    local id = attrOf(tag, "id")
+    if id ~= nil then
+      local own = { color = attrOf(tag, "color"), textColor = attrOf(tag, "textColor") }
+      local cl = SIM.classLook[attrOf(tag, "class") or ""] or {}
+      SIM.btn[id] = { own = own, bg = own.color or cl.color or TTS_BUTTON, fg = own.textColor or cl.textColor or TTS_LABEL }
+    end
+    pos = e
+  end
+end
+local function redraw(id, t)
+  local b = SIM.btn and SIM.btn[id]
+  if b == nil then return end
+  local tc = t.textColor ~= nil and tostring(t.textColor) or nil
+  b.fg = (tc ~= nil and tc ~= b.own.textColor) and tc or TTS_LABEL
+  if tc ~= nil then b.own.textColor = tc end
+  if t.color ~= nil then b.own.color = tostring(t.color) end
+  b.bg = b.own.color or TTS_BUTTON
+end
+function SIM.drawn(id)
+  local b = SIM.btn and SIM.btn[id]
+  return b and (b.bg .. "|" .. b.fg) or "nil"
+end
 UI = {
-  setXml = function(x) SIM.xml = x fx("UI.setXml", hash(x)) end,
+  setXml = function(x) SIM.xml = x readButtons(x) fx("UI.setXml", hash(x)) end,
   getXml = function() return SIM.xml end,
-  setAttribute = function(id, k, v) SIM.attrs[id .. "|" .. k] = tostring(v) fx("UI.setAttribute", id, k, tostring(v)) end,
-  setAttributes = function(id, t) for k, v in pairs(t) do SIM.attrs[id .. "|" .. k] = tostring(v) end fx("UI.setAttributes", id, t) end,
+  setAttribute = function(id, k, v) SIM.attrs[id .. "|" .. k] = tostring(v) redraw(id, { [k] = v }) fx("UI.setAttribute", id, k, tostring(v)) end,
+  setAttributes = function(id, t) for k, v in pairs(t) do SIM.attrs[id .. "|" .. k] = tostring(v) end redraw(id, t) fx("UI.setAttributes", id, t) end,
   getAttribute = function(id, k) return SIM.attrs[id .. "|" .. k] end,
   setValue = function(id, v) SIM.values[id] = v fx("UI.setValue", id, v) end,
   getValue = function(id) return SIM.values[id] end,

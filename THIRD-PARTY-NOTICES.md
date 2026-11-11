@@ -1,5 +1,8 @@
 # Third-party notices
 
+This project was made with [Claude Code](https://claude.com/claude-code), Anthropic's AI coding assistant: it wrote our
+code, tests and docs, and our patches to Manabrew and Forge. It is a tool, not a component: nothing of it ships.
+
 | Component | Used how | Licence | Notes |
 |---|---|---|---|
 | [Manabrew](https://github.com/witchesofthehill/manabrew) relay, web client and self-hosted node | Our modified builds of the relay and node (`mtg-relay:exile`, `mtg-forge-node:exile`) plus the stock web image `ghcr.io/witchesofthehill/manabrew-web`, run as separate processes | AGPL-3.0-or-later / GPL-3.0-or-later (see its LICENSE.md) | Pinned by digest in `stack/compose.yml` |

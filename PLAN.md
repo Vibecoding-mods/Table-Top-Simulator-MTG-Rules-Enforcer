@@ -1,13 +1,65 @@
 # Project plan: rules-enforced MTG Commander in TTS
 
-Last updated: 2026-11-06. The design is in [SPEC.md](SPEC.md); test results and how to rerun them are in [TESTING.md](TESTING.md).
+Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and how to rerun them are in [TESTING.md](TESTING.md).
 
 **Status key:** ✅ done · 🔶 built, needs testing in TTS · ⬜ to do · 💡 idea, not scheduled
 
 ---
 
+## 2026-11-11
+- ✅ Round 1 seen on the real table (live check, scenarios live-r1*.json): the Free mulligans button, the Day piece
+  mid-table, the flashback row card's hover, a planeswalker clicked as Lightning Bolt's target, "Attack whom with Hero
+  of Bladehold 3/4?" offering the AI's planeswalker (answered by clicking it), the Propaganda tax hint, attackers with
+  their sizes. The monarch's mat also showed Undercity, City's Blessing and The Ring: a bare `local` in a for-in body
+  is the looped table in TTS. Fixed with three more such locals (one dropped the ability panel's greyed reasons) and a
+  gate, test_moonsharp_loop_locals (f51b184), deployed and seen fixed.
+- ⬜ Found in that check, not fixed: a debug scenario's planeswalker enters with no loyalty and dies at once; a
+  player-or-permanent choice the bridge can't map (two cards of one name anywhere) still reads "choose one" with
+  "Jace Beleren (201)"; the log's "White attacks with Hero of Bladehold" doesn't name the planeswalker, and it put
+  the Giant Growth cast (declare-attackers step) after the combat damage; a mid-game `mtg debug` without keepHand
+  bottoms the hand and adds 20 lands. The pump-on-attacker payment title wasn't seen (the pool paid by itself).
+- 🔶 (source) Small queued bugs, bridge and table side (docs/next-features-2026-11-09.md "Also queued"), each
+  reproduced by a test from its real report first: the flashback row card's hover-text alarm; a stray copy left
+  beside a pile (Rancor) and plays queued for graveyard cards; payment taps that can't pay anything owed (Viscera
+  Seer's loop); attackers listed with their size and numbered; one spell's draws split by a dredge question joined into
+  one log line; the self-check's playable cards judged on the caster's mat and hand. Not changed: the rewind vote (the
+  only open one in the logs waited on Blue, who never voted), "#10 after #1" (already fixed 2026-11-09, Kykar #9), the
+  cipher copy's "casts" (still no recorded board of it).
+- 🔶 (source) Attack reminders, spec part 2 (item 23): taxes per defender, each creature's own price and the limits
+  are listed on the attack question, with "Can't attack: X (reason)" and the reason on Q/E. The tax payment names
+  the tax and its Cancel is "Don't attack with X". Part 3 (engine) is not built.
+- 🔶 (source) Attack targets (item 25): "Attack" and "All attack" ask whom when there is more than one player or
+  planeswalker to attack: a life counter or planeswalker click, the buttons, One by one, or Back.
+
+## 2026-11-10
+- ✅ "All attack" over a limit stops and says the limit (d3bbd18); refused plays say why (0858382).
+- ✅ Batch A in source: Victory/Defeat banner (b852a65), resolve-until stays on (133f619), dig looks not asked twice
+  (3e399ba), play-from cards beside the hand (547f3da).
+- ✅ Free mulligans: one shared count anyone sets, total including the rules' free one (8dbde25); anyone may switch
+  the engine and start. Only lands snap; other dragged cards stay put (39dff3d).
+- 🔶 Batch B (engine UI with tabs, the ability panel restyled and complete): being built, spec docs/engine-ui-spec.md.
+- 🔶 Bridge sweep of the 2026-11-09 small bugs: being fixed.
+- ✅ (source) The Free mulligans button where the Pirate Cannon sits, turned a quarter left (721d091).
+- ✅ (source) Player marks as small boxes, one a mark, stacked down the inner corner of the mat under the heart (the
+  user: "corner of your playmat under your heart"; "multiple boxes ... instead of cramming everything in one box").
+- 🔶 Planeswalkers by click (docs/next-features-2026-11-09.md item 24, 2026-11-11): a planeswalker answers a target
+  question by a click as a creature does (Forge offers it as a card target, so the table's one target path already
+  unlocked, lit and answered it; now with tests); "player or planeswalker" questions say to click either, a refused
+  click says why; and a choice of players and permanents that is no target (Hero of Bladehold's attacking tokens when
+  there is a planeswalker to attack, Zevlor's copies) is asked as a target question, so a life counter or the card answers it. Needs a look on
+  the real table.
+- ✅ (source, 2026-11-11, not yet on the real table) Status objects (spec docs/status-objects-spec.md, the user
+  2026-11-10): the original table's crown, initiative, City's Blessing, the Ring, Day // Night and counter tokens come
+  back parked under the table, hidden, and move onto the holder's mat under their mark's box. One copy a seat of the
+  blessing, the Ring and the three counters; the deploy's save patch adds the pieces to the user's save.
+
+## 2026-11-11
+- ⬜ Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on permanents
+  with a usable ability", the user 2026-11-11). It reuses the hand's per-player green frame; mana-only abilities are left
+  out at priority. Queued with round 2 (B: combat highlights).
+
 ## Monday 2026-11-09 (after the weekly usage reset)
-- ⬜ **Update Forge for Star Trek before the set's release (2026-11-13).** Our Forge copy (`manabrew/forge`, through
+- ✅ **Update Forge for Star Trek: done and live 2026-11-09** (bfba2e0, docs/forge-update-2026-11.md: TRK 311/311, TRC 337/337). 2026-11-10: four upstream script fixes (Kirk, Commanding Officer; Dr. McCoy, Surly Surgeon; Cantankerous Captain; Starfleet Communicator) being taken into a new node image. Old note: Our Forge copy (`manabrew/forge`, through
   Manabrew's fork witchesofthehill/forge) is from 2026-09-21: Star Trek (TRK) has 92 cards and Star Trek Commander
   (TRC) 40, with Borg Queen, Perfection Manifest missing and ~76 cards still preview scripts in `upcoming/`. The
   official Card-Forge/forge has ~311 TRK and ~337 TRC cards (checked 2026-11-06) and 15 Star Trek edition commits since
@@ -19,13 +71,27 @@ Last updated: 2026-11-06. The design is in [SPEC.md](SPEC.md); test results and 
   extra turns coming + 1 (one extra turn shows 2). Engine and relay field, so build it with the Star Trek update.
 - ⬜ **See and cast a card's other side** (Valki // Tibalt, Exdeath), with TTS object states
   ([docs/card-other-side-spec.md](docs/card-other-side-spec.md)): readable in your hand too, cast from the side shown.
-- ⬜ Small sweep bugs: the second AI named "AI 1 2" in questions and votes; persist's -1/-1 counter missing from the
-  return line; Halflingcycling's question naming a basic land; the log gaps in tmp/kw-runs/SUMMARY.md.
-- ⬜ Live-check bugs (2026-11-07, tmp/live-checks/RESULTS.md):
+- ✅ Small sweep bugs (fixed 2026-11-07 in 33ffb05; checked again 2026-11-10, each with a claim check): the second AI
+  named "AI 1 2" in questions and votes; persist's -1/-1 counter missing from the return line; Halflingcycling's
+  question naming a basic land; the log gaps in tmp/kw-runs/SUMMARY.md. 2026-11-10 added the clash's cards and winner
+  to the log. Left: cipher's free copy reads "casts" (no recorded board shows the copy on the stack), kw-03's damage
+  questions read the printed amount (not wrong).
+- Live-check bugs (2026-11-07, tmp/live-checks/RESULTS.md). The bridge ones were fixed 2026-11-07 (33ffb05, 133f619)
+  and checked again 2026-11-10: the turn header, "Skip ended" (and a rewind's step, fixed 2026-11-10), "Game over"
+  twice, forage's order, the Ring-bearer question, the timer warning, Done with too few cards (the renderer). Still
+  open: the mark labels' overlap and the Auto-resolve text (renderer), Mindslaver (harness).
   - a turn header lost after a cleanup discard: in `logEvents` the discard is put at index 0 but `attackAt` isn't
     shifted, so the attack splice deletes the header (`White discards Blasphemous Act`, "", `AI 1 draws a card`);
   - two players' mark labels overlap under the life counters (TURN RUN BY WHITE over RING TEMPTED 2 SPEED 3);
-  - Mindslaver: the log and label say White controls AI 1's turn, but the AI still made AI 1's choices (harness);
+  - ✅ Mindslaver: the log and label say White controls AI 1's turn, but the AI still made AI 1's choices (harness);
+    fixed by the controlling-seat routing (trek), confirmed live 2026-11-11 against a Forge AI: all 17 of the AI's
+    questions in the controlled turn went to the controller (tests/live_mindslaver_ai_check.js). The release check's
+    "White's own priority passed in the blockers step and after the Shock" was no bug: White's lands were Islands and
+    Mountains and its {W} debug mana empties at cleanup, so Reflect Damage was not castable; with a Plains the engine
+    offers it and the bridge stops there (live boards in tests/golden/fixtures/mindslaver-ai-live.json);
+  - ✅ the harmless AI (`ai_passive_lands`) cast a Counterspell and a Llanowar Elves a scenario gave it: an AI seat with a
+    lands-only deck now plays lands only, never casts, activates or attacks (harness `PassiveLobbyPlayerAi`,
+    2026-11-11, image `bugs1111`);
   - small: "Skip ended: combatBegin" uses Forge step names; "Game over" printed twice; forage log order and "with
     Treetop Sentries" twice; "Claim the Precious: choose a card"; the timer warning told to everyone; Done with too
     few cards gives no message; the Auto-resolve button's text dim next to "Fix...".
