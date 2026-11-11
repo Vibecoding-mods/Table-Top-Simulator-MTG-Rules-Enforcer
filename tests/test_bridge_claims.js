@@ -1119,6 +1119,20 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("attackers: a creature alone has no number, and its counters", got.includes("Grizzly Bears 2/2 [1 +1/+1 counter] → AI 1"), JSON.stringify(got));
       harness.restore();
     }
+    // blockers numbered as the attackers (combat clarity 2026-11-11): two Spirit tokens blocking two Goblin tokens read
+    // "Spirit Token 1/1 blocks Goblin Token" four times, and the table's confirmation of each read the same
+    {
+      const spirits = [0, 1].map((k) => one(`engine-card-${1870 + k}`, "Spirit Token", { identity: { name: "Spirit Token", isToken: true } }));
+      const goblins = [0, 1].map((k) => one(`engine-card-${1875 + k}`, "Goblin Token", { identity: { name: "Goblin Token", isToken: true } }));
+      const { h, seat } = fresh((gv) => mine(gv).push(...spirits, ...goblins, one("engine-card-1879", "Hill Giant", { power: 3, toughness: 3 })));
+      await asked(h, seat, { type: "chooseBlockers", error: "", attackers: [...goblins.map((g) => ({ attackerId: g.id, validBlockerIds: spirits.map((s) => s.id), minBlockers: 0, mustBeBlocked: false })),
+        { attackerId: "engine-card-1879", validBlockerIds: [spirits[0].id], minBlockers: 0, mustBeBlocked: false }] });
+      const got = labels(seat);
+      ok("blockers: same-named tokens are numbered on both sides, with their size", got.includes("Spirit Token 1/1 #1 blocks Goblin Token 1/1 #1") && got.includes("Spirit Token 1/1 #2 blocks Goblin Token 1/1 #2") && got.includes("Spirit Token 1/1 #2 blocks Goblin Token 1/1 #1"), JSON.stringify(got));
+      ok("blockers: a creature alone has no number", got.includes("Spirit Token 1/1 #1 blocks Hill Giant 3/3"), JSON.stringify(got));
+      ok("blockers: every line reads apart", new Set(got).size === got.length, JSON.stringify(got));
+      harness.restore();
+    }
     // #18: Forge's doubled plural is undone (Mondrak's live cost "creatureses")
     {
       const h = harness.load();
@@ -3293,6 +3307,74 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     const later = sent(h, "table").slice(mark + 1);
     ok("sounds: exd goes once", later.length > 0 && later.every((t) => t.exd === undefined), JSON.stringify(later.map((t) => t.exd)));
     harness.restore();
+  }
+  // whom Hero of Bladehold's attacking tokens attack, asked over Forge's labels (entityChoiceIds, entityWords; live check
+  // 2026-11-11: a dead Jace Beleren in a graveyard left the live one unmapped, and the list came as "Hero of Bladehold:
+  // choose one" over "self-hosted-node-77-bot", "Jace Beleren (201)")
+  {
+    const HERO = "Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)\nWhenever Hero of Bladehold attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking.";
+    const JACE = (id) => ({ id, identity: { name: "Jace Beleren" }, types: ["Planeswalker"], controllerId: "player-1", ownerId: "player-1", loyalty: 3, text: "+2: Each player draws a card." });
+    const HERO_TRIGGER = "Whenever Hero of Bladehold attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking.";
+    const hero = async (edit, labels = ["self-hosted-node-77-bot", "Jace Beleren (201)"], text = HERO_TRIGGER) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      const gv = b.gameView;
+      for (const z of gv.zones) if (z.zone === "battlefield") z.cards = [];
+      Object.assign(gv, { activePlayerId: "player-0", priorityPlayerId: "player-0", step: "combatDeclareAttackers", stack: [] });
+      gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push({ id: "engine-card-1301", identity: { name: "Hero of Bladehold" }, types: ["Creature"], power: 3, toughness: 4, controllerId: "player-0", ownerId: "player-0", text: HERO, isAttacking: true });
+      edit(gv);
+      const seat = setup(h, b);
+      h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", sourceAbilityText: text,
+        sourceCard: { id: "engine-card-1301", identity: { name: "Hero of Bladehold" } },
+        input: { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose which defender to attack with Soldier Token", targets: [] }, options: labels.map((label) => ({ label, weight: 1 })) } });
+      await h.flush();
+      return { h, seat };
+    };
+    const theirs = (gv, z) => gv.zones.find((x) => x.zone === z && x.ownerId === "player-1");
+    const relayed = (h) => h.effects.filter((e) => e.relay && /selectionDecision/.test(JSON.stringify(e.relay))).map((e) => JSON.stringify(e.relay));
+    // the one on the battlefield, another in the graveyard: the target question, the planeswalker clicked
+    let { h, seat } = await hero((gv) => { theirs(gv, "battlefield").cards.push(JACE("engine-card-1302")); theirs(gv, "graveyard").cards.push(JACE("engine-card-1303")); });
+    const ui = seat.prompt?.ui || {};
+    ok("hero: a dead Jace in the graveyard leaves the live one mapped", ui.kind === "target" && JSON.stringify((ui.options || []).map((o) => o.id)) === JSON.stringify(["player|player-1", "card|engine-card-1302"]), JSON.stringify(ui));
+    ok("hero: the mapped question says what it is for", ui.title === "Hero of Bladehold: attack which player or planeswalker?", ui.title);
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: ["card|engine-card-1302"] }) }); await h.flush(5);
+    ok("hero: the clicked planeswalker goes back as its option's number", relayed(h).some((r) => /"chosenIndices":\[1\]/.test(r)), JSON.stringify(relayed(h)));
+    harness.restore();
+    // two on the battlefield: asked in words, no Forge numbers, whose they are said, the two numbered
+    ({ h, seat } = await hero((gv) => theirs(gv, "battlefield").cards.push(JACE("engine-card-1302"), JACE("engine-card-1304"))));
+    const words = seat.prompt?.ui || {};
+    const said = (words.options || []).map((o) => o.label);
+    ok("hero: two Jaces: the question says the token attacks", words.title === "Hero of Bladehold: the token attacks whom?", words.title);
+    ok("hero: two Jaces: the player by table name, the Jace by whose it is, never \"(201)\"", JSON.stringify(said) === JSON.stringify(["AI 1", "Jace Beleren (AI 1's planeswalker)"]), JSON.stringify(said));
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 900, choice: [String((words.options || [])[1]?.id)] }) }); await h.flush(5);
+    ok("hero: two Jaces: the answer goes back as the option's number", relayed(h).some((r) => /"chosenIndices":\[1\]/.test(r)), JSON.stringify(relayed(h)));
+    harness.restore();
+    // (both offered: numbered apart)
+    ({ h, seat } = await hero((gv) => theirs(gv, "battlefield").cards.push(JACE("engine-card-1302"), JACE("engine-card-1304")), ["self-hosted-node-77-bot", "Jace Beleren (201)", "Jace Beleren (204)"]));
+    const both = (seat.prompt?.ui?.options || []).map((o) => o.label);
+    ok("hero: two Jaces offered are numbered apart", JSON.stringify(both) === JSON.stringify(["AI 1", "Jace Beleren (AI 1's planeswalker) #1", "Jace Beleren (AI 1's planeswalker) #2"]), JSON.stringify(both));
+    harness.restore();
+    // "whom it attacks" only for a defender's choice: what can be attacked (a battle too), from a card that puts creatures
+    // onto the battlefield attacking. "attacking" alone, or a list of creatures, is no such choice (verify 2026-11-11)
+    const askedUi = async (edit, labels, text) => { const r = await hero(edit, labels, text); const ui = r.seat.prompt?.ui || {}; harness.restore(); return ui; };
+    const titled = async (edit, labels, text) => (await askedUi(edit, labels, text)).title;
+    const BATTLE = (id) => ({ id, identity: { name: "Invasion of Zendikar" }, types: ["Battle"], controllerId: "player-1", ownerId: "player-1", text: "" });
+    const BEARS = (id) => ({ id, identity: { name: "Grizzly Bears" }, types: ["Creature"], controllerId: "player-1", ownerId: "player-1", text: "" });
+    const twoJaces = (gv) => theirs(gv, "battlefield").cards.push(JACE("engine-card-1302"), JACE("engine-card-1304"));
+    const battles = await askedUi((gv) => theirs(gv, "battlefield").cards.push(BATTLE("engine-card-1305"), BATTLE("engine-card-1306")), ["self-hosted-node-77-bot", "Invasion of Zendikar (205)"]);
+    ok("hero: two battles: the token attacks whom", battles.title === "Hero of Bladehold: the token attacks whom?", battles.title);
+    ok("hero: two battles: a battle said as one", JSON.stringify((battles.options || []).map((o) => o.label)) === JSON.stringify(["AI 1", "Invasion of Zendikar (AI 1's battle)"]), JSON.stringify(battles.options));
+    const noPlayer = await titled(twoJaces, ["Jace Beleren (201)", "Jace Beleren (204)"]);
+    ok("hero: no player among them is no defender's choice", noPlayer === "Hero of Bladehold: choose which planeswalker?", noPlayer);
+    // (a face-down permanent of that name is no click: Forge's number may mean it, and the table can't show it)
+    const hidden = await askedUi((gv) => theirs(gv, "battlefield").cards.push({ ...JACE("engine-card-1302"), isFaceDown: true }));
+    ok("hero: a face-down one of that name is not clicked", hidden.kind !== "target" && hidden.title === "Hero of Bladehold: choose which player or card?", JSON.stringify(hidden));
+    const bears = await titled((gv) => theirs(gv, "battlefield").cards.push(BEARS("engine-card-1307"), BEARS("engine-card-1308")), ["self-hosted-node-77-bot", "Grizzly Bears (207)"]);
+    ok("hero: a list of creatures is no defender's choice", bears === "Hero of Bladehold: choose which player or permanent?", bears);
+    const dealt = await titled(twoJaces, undefined, "Each attacking creature you control deals 1 damage to a player or planeswalker of your choice.");
+    ok("hero: \"attacking\" with nothing put onto the battlefield is no defender's choice", dealt === "Hero of Bladehold: choose which player or planeswalker?", dealt);
+    const put = await titled(twoJaces, undefined, "Put a creature card from your hand onto the battlefield tapped and attacking.");
+    ok("hero: a card put onto the battlefield attacking: attack whom", put === "Hero of Bladehold: attack whom?", put);
   }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);

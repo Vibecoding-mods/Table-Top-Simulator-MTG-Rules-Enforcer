@@ -82,7 +82,7 @@ function load({ imageCache = {}, scryfall = "up" } = {}) {
   const cbOf = (args) => args.find((f) => typeof f === "function");
   fs.writeFile = (p, d, ...rest) => { effects.push({ writeFile: path.basename(String(p)), bytes: String(d).length }); const cb = cbOf(rest); if (cb) cb(null); };
   fs.writeFileSync = (p, d) => { effects.push({ writeFileSync: path.basename(String(p)), bytes: String(d).length }); };
-  fs.appendFile = (p, d, ...rest) => { effects.push({ appendFile: path.basename(String(p)), text: String(d).replace(/^\[\d\d:\d\d:\d\d\]/, "[time]") }); const cb = cbOf(rest); if (cb) cb(null); };
+  fs.appendFile = (p, d, ...rest) => { effects.push({ appendFile: path.basename(String(p)), text: String(d).replace(/^\[\d\d:\d\d:\d\d\]/gm, "[time]") }); const cb = cbOf(rest); if (cb) cb(null); };
   fs.rename = (a, b, cb) => { effects.push({ rename: [path.basename(String(a)), path.basename(String(b))] }); if (cb) cb(null); };
   fs.unlink = (p, cb) => { effects.push({ unlink: path.basename(String(p)) }); if (cb) cb(null); };
   fs.mkdir = (p, o, cb) => { if (typeof o === "function") o(null); else if (cb) cb(null); };

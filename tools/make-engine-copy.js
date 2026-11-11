@@ -372,10 +372,15 @@ function engineChat(message, pl)
     if rest == "yes" or rest == "no" then engineSend("rewindVote", { color = pl.color, accept = rest == "yes" })
     else pl.broadcast("[MTG] Use:  mtg vote yes  or  mtg vote no") end
   elseif cmd == "glow" then
-    if engineToggleGlow ~= nil then pl.broadcast("[MTG] Green glow on playable cards: " .. engineToggleGlow(pl.color)) end
+    if engineToggleGlow ~= nil then pl.broadcast("[MTG] Green glow on playable cards and usable permanents: " .. engineToggleGlow(pl.color)) end
   elseif cmd == "aideck" then
     if not isHost then pl.broadcast("[MTG] Only the host can choose the AI decks.") return false end
     engineSend("aideck", { deck = rest })
+  elseif cmd == "ai" then
+    -- mtg ai <colour> harmless|forge [deck] / <colour> off / clear / list: who plays an empty seat (the bridge's
+    -- aiSeatChoice; the companion page sets the same, with a pasted deck list too)
+    if not isHost then pl.broadcast("[MTG] Only the host can set the AI seats.") return false end
+    engineSend("aiseat", { text = rest })
   elseif cmd == "reset" then
     local running = engineTable ~= nil and engineTable() or nil
     if not (isHost or running == nil or running.gameOver) then
@@ -384,7 +389,7 @@ function engineChat(message, pl)
     engineSend("reset", {})
     if ENGINE_MODE then engineClear() end -- don't wait for the bridge's "clear" (it may be down)
   else
-    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <knockout|wipe|death|exile|damage|lifegain|instant|counter>; mtg animations on/off (host) - also under Settings")
+    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg ai <colour> harmless|forge [deck] / mtg ai <colour> off (host) - who plays an empty seat, every game\\n mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <knockout|wipe|death|exile|damage|lifegain|instant|counter>; mtg animations on/off (host) - also under Settings")
   end
   return false
 end
