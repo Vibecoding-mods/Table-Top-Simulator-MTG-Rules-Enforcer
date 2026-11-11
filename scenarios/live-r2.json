@@ -1,0 +1,7 @@
+{
+  "label": "round 2 live check (2026-11-11): planeswalker loyalty in a scenario (the AI's Jace Beleren), green glow (Prodigal Pyromancer, Llanowar Elves), a seated player's mill with Auto on (Thought Scour on yourself), attack whom + the log line naming the planeswalker (Hero of Bladehold), Giant Growth during combat (log order), combat colours and tabs, block confirmations (the AI's Craw Wurm attacks into Grizzly Bears)",
+  "mana": 20,
+  "hand": ["Thought Scour", "Lightning Bolt", "Giant Growth", "Glimpse the Unthinkable"],
+  "battlefield": ["Hero of Bladehold", "Grizzly Bears", "Prodigal Pyromancer", "Llanowar Elves"],
+  "opponents": { "battlefield": ["Jace Beleren", "Hill Giant", "Craw Wurm"] }
+}
