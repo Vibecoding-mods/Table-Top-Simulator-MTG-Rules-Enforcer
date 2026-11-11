@@ -178,12 +178,36 @@ function cantBeCounteredWhy(gv, text, ctl) {
 // its Divinations read no "is countered", keyword sweep kw-20. Only the whole text: a way with more words after its
 // reminder is read as it stands, by isCounterspell.
 const castWayOnly = (t) => /^(?:[A-Z][\w-]*(?: [^(\n]*?)? )?\(You may cast this spell\b[^)]*\)\.?$/.test(String(t || "").trim());
+// The game log on disk, as the table's log panel shows it: game-log.txt beside the bridge (a friend package's logs
+// folder). It was only ever written from Forge's "log" envelopes, which our node never sends, so no game-log.txt
+// existed anywhere (live check 2026-11-11). Each line has its own time. One write at a time, the next call's lines
+// waiting for it: separate fs.appendFile calls run on libuv's thread pool and can land in any order, so a header, a
+// rewritten line and the lines after it came out of order.
+const GAME_LOG = home.beside("game-log.txt");
+let gameLogWaiting = "", gameLogWriting = false;
+function gameLogFile(lines) {
+  if (!game.logFileStarted) {
+    game.logFileStarted = true;
+    gameLogWaiting += `[${clockNow()}] === Game: ${Object.keys(game.slotNames || {}).map(nameOf).join(", ")} ===\n`;
+  }
+  for (const line of lines) gameLogWaiting += `[${clockNow()}] ${line}\n`;
+  gameLogWrite();
+}
+function gameLogWrite() {
+  if (gameLogWriting || !gameLogWaiting) return;
+  const text = gameLogWaiting;
+  gameLogWaiting = "";
+  gameLogWriting = true;
+  // (a failed write is dropped, as the other logs' are; the next one still goes)
+  fs.appendFile(GAME_LOG, text, () => { gameLogWriting = false; gameLogWrite(); });
+}
 // a line in the game log, and to the table's log panel
 function gameLogLine(line) {
   // (players by their table names, whatever the caller built the line from: a reveal's raw title put "self-hosted-node-
   // …-bot's Battlefield" in the log, hp-20 gap)
   line = displayText(line);
   (game.log ??= []).push(line);
+  gameLogFile([line]);
   toTTS({ t: "gamelog", lines: [line] });
 }
 // a line said after the next board's lines, or in 2 s: a reveal comes as a prompt in the middle of its spell, before the
@@ -1499,6 +1523,9 @@ function logSnapshot(pub, prev = null) {
         // (the player it attacks, by Forge's attack target alone: attackingPlayerId names the defending player when it
         // attacks their planeswalker too)
         ...(c.isAttacking && /^player-/.test(String(c.attackTargetId || "")) ? { atp: c.attackTargetId } : {}),
+        // (and the planeswalker or battle it attacks, for the attack line: "White attacks with Hero of Bladehold" didn't
+        // say it attacked Jace, live check 2026-11-11)
+        ...(c.isAttacking && c.attackTargetId && !/^player-/.test(String(c.attackTargetId)) ? { atc: c.attackTargetId } : {}),
         // (a creature's keywords, for the ones a spell gives: see tapNews)
         ...(z.zone === "battlefield" && c.keywords?.length && (c.types || []).includes("Creature") ? { kw: c.keywords.map(String) } : {}),
         land: (c.types || []).includes("Land"), creature: (c.types || []).includes("Creature"), token: !!c.identity.isToken, attacking: !!c.isAttacking, tapped: !!c.tapped,
@@ -2973,7 +3000,11 @@ function logEvents(prev, cur, pub, facts = null) {
     const was = prev.cards[id];
     // (one put onto the battlefield attacking was never declared: its arrival line says so instead; Hero of Bladehold's
     // Soldiers read "White attacks with Soldier Token, Soldier Token", hp-16 gap)
-    if (c.attacking && was?.zone === "battlefield" && !was.attacking) (attackers[c.ctl] ||= []).push(tokenWords(c.name, c.token));
+    // (by whom each attacks: a planeswalker or battle always, a player when there are more than two players)
+    if (c.attacking && was?.zone === "battlefield" && !was.attacking) {
+      const target = c.atc || ((pub.players || []).length > 2 && c.atp) || "";
+      (attackers[`${c.ctl}|${target}`] ||= { ctl: c.ctl, target, names: [] }).names.push(tokenWords(c.name, c.token));
+    }
     if (was && was.zone === c.zone && was.fd && !c.fd) out.push(`${c.name} is turned face up (${who(c.ctl)})`);
     // (the same card under another name on the battlefield: it transformed or became a copy; Growing Rites of Itlimoc becoming Itlimoc,
     // Cradle of the Sun logged nothing, hp-03 #3)
@@ -3234,7 +3265,18 @@ function logEvents(prev, cur, pub, facts = null) {
   }
   // (day and night: Brutal Cathar made it day with nothing shown or logged, playtest 2026-10-26)
   if (cur.day !== prev.day && (cur.day === "day" || cur.day === "night")) out.push(`It becomes ${cur.day}`);
-  const attackLines = Object.entries(attackers).map(([ctl, names]) => `${who(ctl)} attacks with ${names.join(", ")}`);
+  // ("White attacks Jace Beleren (AI 1) with Hero of Bladehold"; whom by the attack target Forge names, a planeswalker or
+  // battle by its name and controller, a player only in a game of more than two, where it isn't the only one)
+  const attacked = (id) => {
+    if (!id) return null;
+    if (/^player-/.test(id)) return who(id);
+    const d = cur.cards[id] || prev.cards[id];
+    return d ? `${d.name} (${who(d.ctl)})` : null;
+  };
+  const attackLines = Object.values(attackers).map(({ ctl, target, names }) => {
+    const whom = attacked(target);
+    return `${who(ctl)} attacks ${whom ? `${whom} ` : ""}with ${names.join(", ")}`;
+  });
   // blocks, which the table draws as lines and the log never said (Fog Bank blocking Cavalry Master, hp-10 gap): each
   // attacker's new blockers, one line per attacker
   const newBlocks = {};
@@ -3422,10 +3464,13 @@ function updateLog(pub) {
   const last = game.lastManaSac;
   game.lastManaSac = lines.manaSac || null;
   const joined = last && lines.manaSac && lines[0] === lines.manaSac.line && game.log.at(-1) === last.line;
+  // (the file can't take a line back: a joined line is written again, saying which one it stands for)
+  const rewritten = [];
   if (joined) {
     const names = [...last.names, ...lines.manaSac.names];
     game.lastManaSac = { names, line: sentence(LEAVE_WORDS.sacrificed("", names, { label: " for mana" })) };
     game.log[game.log.length - 1] = game.lastManaSac.line;
+    rewritten.push(`${game.lastManaSac.line} (in place of "${last.line}")`);
     lines.shift();
   }
   // (one spell's draws split over two boards by a question between them, the spell still on the stack in the first: one
@@ -3444,12 +3489,14 @@ function updateLog(pub) {
     if (at < 0 || i < 0) continue;
     const n = was.n + d.n;
     game.log[at] = sentence(HAND_WORDS.draw(nameOf(owner), n));
+    rewritten.push(`${game.log[at]} (in place of "${was.line}")`);
     lines.splice(i, 1);
     // (and joined again if a third board goes on drawing for it)
     draws[owner] = { ...d, line: game.log[at], n };
     drawJoined = true;
   }
   game.log.push(...lines);
+  gameLogFile([...rewritten, ...lines]);
   if (game.log.length > 300) game.log.splice(0, game.log.length - 300);
   game.lastDraws = { end: game.log.length, draws };
   toTTS(joined || drawJoined ? { t: "gamelog", lines: game.log.slice(-60), reset: true } : { t: "gamelog", lines });
@@ -5001,25 +5048,60 @@ function scryPlaceSteps(cards, zones, label, done, placed = {}) {
 // the harness asks as a chooseFromSelection of labels: Zevlor's copy over a player and their permanents, a creature put
 // onto the battlefield attacking choosing whom it attacks; a list of cards alone is asked as cards instead) names each
 // by Forge's toString: a player by its engine name, a card as "<name> (<Forge's number>)", a number that is not our
-// card id. So a card is known by its name, when the one card of that name the board shows anywhere (every zone and the
-// stack) is a face-up permanent on the battlefield. All of them known, with a card among them: the target ids, in the
+// card id. So a card is known by its name, when exactly one card of that name is on the battlefield, face up (one of
+// that name in another zone doesn't count: the list is of players and permanents, and a dead Jace Beleren in a graveyard
+// left the live Jace unmapped, live check 2026-11-11). All of them known, with a card among them: the target ids, in the
 // options' order, that the table answers by clicking a life counter or the card (item 24, planeswalkers by click,
 // 2026-11-11); else null, and the list is asked as before.
 function entityChoiceIds(options, gv) {
-  const order = (game?.playerOrder || []).map((u) => String(u || "").toLowerCase());
-  const seen = [...(gv.zones || []).flatMap((z) => (z.cards || []).map((c) => ({ c, bf: z.zone === "battlefield" }))),
-    ...(gv.stack || []).map((s) => ({ c: s, bf: false }))];
   const ids = [];
   for (const o of options) {
-    const label = String(o.label ?? "").trim();
-    const k = label ? order.indexOf(label.toLowerCase()) : -1;
-    if (k >= 0) { ids.push(`player|player-${k}`); continue; }
-    const name = /^(.+) \(\d+\)$/.exec(label)?.[1];
-    const same = name ? seen.filter((x) => x.c.identity?.name === name) : [];
-    if (same.length !== 1 || !same[0].bf || same[0].c.isFaceDown) return null;
-    ids.push(`card|${same[0].c.id}`);
+    const e = entityLabel(o, gv);
+    if (e?.slot) { ids.push(`player|${e.slot}`); continue; }
+    if (!e || e.field.length !== 1 || e.field[0].isFaceDown) return null;
+    ids.push(`card|${e.field[0].id}`);
   }
   return ids.some((v) => v.startsWith("card|")) && new Set(ids).size === ids.length ? ids : null;
+}
+// One option of such a list, read from Forge's label: { slot } for a player (by engine name), { name, field: every card
+// of that name on the battlefield } for "<name> (<Forge's number>)", else null. (entityChoiceIds and entityWords)
+function entityLabel(o, gv) {
+  const label = String(o.label ?? "").trim();
+  const k = label ? (game?.playerOrder || []).map((u) => String(u || "").toLowerCase()).indexOf(label.toLowerCase()) : -1;
+  if (k >= 0) return { slot: `player-${k}` };
+  const name = /^(.+) \(\d+\)$/.exec(label)?.[1];
+  if (!name) return null;
+  return { name, field: (gv.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => z.cards || []).filter((c) => c.identity?.name === name) };
+}
+// The same list in words, when entityChoiceIds can't map it (two permanents of one name): a player by table name, a
+// card by its name and whose it is ("Jace Beleren (AI 1's planeswalker)"), never Forge's number ("Jace Beleren (201)",
+// live check 2026-11-11); several alike are numbered. { labels, players: any player among them, walkers: every card a
+// planeswalker on the battlefield, defenders: every card a planeswalker or battle on the battlefield (what a creature
+// can attack), onField: every card on the battlefield }, or null for a list that isn't players and "<name> (<number>)"
+// cards.
+function entityWords(options, gv) {
+  let cards = 0, players = false, walkers = true, defenders = true, onField = true;
+  const words = options.map((o) => {
+    const e = entityLabel(o, gv);
+    if (!e) return null;
+    if (e.slot) { players = true; return nameOf(e.slot); }
+    const { name } = e;
+    cards++;
+    const these = e.field.filter((c) => !c.isFaceDown);
+    const each = (...types) => these.length > 0 && these.every((c) => types.some((t) => (c.types || []).includes(t)));
+    if (!these.length) onField = false;
+    if (!each("Planeswalker")) walkers = false;
+    if (!each("Planeswalker", "Battle")) defenders = false;
+    const ctls = new Set(these.map((c) => c.controllerId));
+    if (ctls.size !== 1 || !these[0].controllerId) return name;
+    const types = these[0].types || [];
+    const kind = types.includes("Planeswalker") ? "planeswalker" : types.includes("Battle") ? "battle" : types.includes("Creature") ? "creature" : "permanent";
+    return `${name} (${nameOf(these[0].controllerId)}'s ${kind})`;
+  });
+  if (!cards || words.includes(null)) return null;
+  const nth = {};
+  const labels = words.map((w) => (words.filter((x) => x === w).length > 1 ? `${w} #${(nth[w] = (nth[w] || 0) + 1)}` : w));
+  return { labels, players, walkers, defenders, onField };
 }
 
 // What each engine question is, for the table: `kind` on every prompt message (plus `dest: "library"` when the chosen
@@ -6593,6 +6675,22 @@ function onPrompt(seat, prompt) {
         toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map((v) => entity.indexOf(v)).filter((i) => i >= 0) });
         break;
       }
+      // one the board can't map is asked from the panel, in words, and titled by what it is for: an attacking token's
+      // defender read "Hero of Bladehold: choose one" over "AI 1", "Jace Beleren (201)" (live check 2026-11-11)
+      // (whom it attacks only for a list of what can be attacked, players and planeswalkers or battles, from a card that
+      // puts creatures onto the battlefield attacking: "attacking" alone, as in "target attacking creature", is no
+      // defender's choice)
+      const words = input.options.length > 1 && entityWords(input.options, gv);
+      if (words) {
+        const rules = String(prompt.sourceAbilityText || srcCardText);
+        const what = `${words.players ? "player or " : ""}${words.walkers ? "planeswalker" : words.onField ? "permanent" : "card"}`;
+        const attacks = words.players && words.defenders && /\b(?:create|put|return)s?\b[^.]*\battacking\b/i.test(rules);
+        const token = attacks && /\btokens?\b[^.]*\battacking\b/i.test(rules);
+        ui = { title: `${src ? `${src}: ` : ""}${token ? "the token attacks whom?" : attacks ? "attack whom?" : `choose which ${what}?`}`, mode: "multi",
+          min: input.minTotal ?? 1, max: input.maxTotal ?? 1, options: opts(words.labels.map((label, i) => ({ id: i, label }))) };
+        toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map(Number) });
+        break;
+      }
       const how = input.maxTotal === 1 && input.minTotal === 1 ? "one" : input.minTotal === 0 ? "any you want" : input.minTotal === input.maxTotal ? String(input.maxTotal) : `${input.minTotal} to ${input.maxTotal}`;
       // (Abundance's land or nonland, asked under the drawing card's name: "Kenrith, the Returned King: Abundance", hp-26)
       if (/^Abundance$/.test(String(title)) && labels.join("|") === "Land|Nonland") {
@@ -7717,12 +7815,12 @@ function onIntent(m) {
   seat.respond(p.promptId, p.type, p.type === "mulliganPutBack" ? { type: "mulliganPutBackDecision", cardIds: picks } : { type: "chooseCardsDecision", chosenCardIds: picks });
 }
 
-const GAME_LOG = home.beside("game-log.txt");
+// Forge's own log entries, a "log" envelope each: none come from our self-hosted node (manabrew-rs never makes one,
+// checked 2026-11-11), so the game log file is the bridge's own log (gameLogFile); one that did come would go there too
 function onGameLog(entry) {
   if (!entry?.message) return;
   const text = displayText(entry.message);
-  fs.appendFile(GAME_LOG, `[${new Date().toISOString().slice(11, 19)}] ${entry.entryType}: ${text}
-`, () => {});
+  gameLogFile([`(Forge, ${entry.entryType}) ${text}`]);
   if (entry.entryType === "action" || entry.entryType === "stack") toTTS({ t: "log", text });
 }
 
@@ -8299,7 +8397,7 @@ function fixHeld(f) {
   if (!f.debug) return fixBackToEditing(f, null, FIX_PAUSED);
   // (built now, from the board the pause stopped at: the dealt hand it moves away is the one in hand now)
   const pub = game.seats.get(f.by)?.board?.state?.gameView || f.held.seat.board?.state?.gameView;
-  const r = fixOps(debugList(f.debug.scenario, f.by, pub), pub, true);
+  const r = fixOps(debugList(f.debug.scenario, f.by, pub, f.debug.midGame), pub, true);
   if (r.error) { chat(`[MTG] Debug "${f.debug.name}": ${r.error}`, f.by); return endFix(); }
   Object.assign(f, { ops: r.ops, lines: r.lines, message: null });
   chat(`[MTG] Debug "${f.debug.name}": ${r.lines.join("; ")}.`);
@@ -8462,12 +8560,14 @@ function scenarioProblem(scenario) {
   }
   return null;
 }
-// one player's part of a scenario as manual-fix changes (the table's form: players by colour)
-function debugSide(side, color, pub, you) {
+// one player's part of a scenario as manual-fix changes (the table's form: players by colour). midGame: typed during a
+// game, where the caller's hand stays and no lands come unless the file says so (the 20 lands and the hand to the
+// bottom are for a game's start: a mid-game "mtg debug" without keepHand bottomed the hand, live check 2026-11-11)
+function debugSide(side, color, pub, you, midGame = false) {
   const out = [];
   if (!side || typeof side !== "object") return out;
   const slot = slotOfColor(color);
-  let lands = side.lands ?? (you ? 20 : 0);
+  let lands = side.lands ?? (you && !midGame ? 20 : 0);
   if (Number.isInteger(lands)) {
     // (the commander's colours; with none, colourless: Wastes)
     const command = (pub.zones || []).find((z) => z.zone === "command" && z.ownerId === slot)?.cards || [];
@@ -8479,7 +8579,7 @@ function debugSide(side, color, pub, you) {
     lands = Object.entries(lands).flatMap(([name, k]) => Array(Math.max(0, Math.min(Number(k) || 0, 60))).fill(name));
   }
   for (const name of Array.isArray(lands) ? lands : []) out.push({ op: "createCard", name, player: color, zone: "battlefield" });
-  if (you && !side.keepHand) {
+  if (you && !(side.keepHand ?? midGame)) {
     const hand = (pub.zones || []).find((z) => z.zone === "hand" && z.ownerId === slot)?.cards || [];
     for (const c of hand) if (c.id) out.push({ op: "move", card: c.id, zone: "library", position: "bottom", shown: `${poss(nameOf(slot))} dealt hand: to the bottom of the library` });
   }
@@ -8502,8 +8602,8 @@ function debugSide(side, color, pub, you) {
   }
   return out;
 }
-function debugList(scenario, color, pub) {
-  const list = debugSide(scenario.you || scenario, color, pub, true);
+function debugList(scenario, color, pub, midGame = false) {
+  const list = debugSide(scenario.you || scenario, color, pub, true, midGame);
   for (const other of Object.values(game.slotColor)) {
     if (other === color || !isPlaying(pub, slotOfColor(other))) continue;
     list.push(...debugSide(scenario[other] || scenario.opponents, other, pub, false));
@@ -8525,7 +8625,7 @@ function onDebug(m) {
   }
   const no = fixRefusal(seat, pub);
   if (no) return chat(no, color);
-  openFix(color, pub, { name, scenario: r.scenario });
+  openFix(color, pub, { name, scenario: r.scenario, midGame: true });
 }
 // (onPrompt) a debug game: the opening hand is kept, and the first priority on the caller's own turn with nothing on the
 // stack starts the setup (the board is there for their first turn, whoever went first; it applied on the AI's turn 1 and

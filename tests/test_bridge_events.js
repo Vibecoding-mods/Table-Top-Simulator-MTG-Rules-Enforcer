@@ -93,8 +93,9 @@ const id = (n) => `engine-card-${n}`;
       }
       await h.flush();
       const sentLogs = h.effects.filter((e) => e.tts && e.tts.t === "gamelog").map((e) => e.tts);
+      const file = h.effects.filter((e) => e.appendFile === "game-log.txt").flatMap((e) => e.text.split("\n")).filter((l) => l && !/ === Game: /.test(l)).map((l) => l.replace(/^\[time\] /, ""));
       harness.restore();
-      return { log: g.log ?? [], last: sentLogs.at(-1) };
+      return { log: g.log ?? [], last: sentLogs.at(-1), file };
     };
     const at = (hand, lib, stack, gy = []) => (b) => { count(b, "hand", hand); count(b, "library", lib); b.stack = stack; for (const c of gy) put(b, "graveyard", c); };
     const first = [[], at(3, 50, [onStack])];
@@ -102,6 +103,13 @@ const id = (n) => `engine-card-${n}`;
     const split = await run([first, mid, [[draw(11, 31), draw(12, 32), ev(13, "Stack", "Graveyard", id(20), null)], at(5, 48, [], [RITES])]]);
     ok("draws split by a question: one line for the spell's two", split.log.includes("Blue draws 2 cards") && !split.log.includes("Blue draws a card"), JSON.stringify(split.log));
     ok("draws split by a question: the table's log is sent again", split.last && split.last.reset === true && split.last.lines.includes("Blue draws 2 cards"), JSON.stringify(split.last));
+    same("draws split by a question: game-log.txt says the joined line again, in place of the first", split.file,
+      ["Blue draws a card", "Blue draws 2 cards (in place of \"Blue draws a card\")"]);
+    // (and a new line on the board that joins it comes after the joined line, as in the table's log)
+    const splitAndBear = await run([first, mid, [[draw(11, 31), draw(12, 32), ev(13, "Stack", "Graveyard", id(20), null)], (b) => { at(5, 48, [], [RITES])(b); put(b, "battlefield", BEAR()); }]]);
+    same("draws split by a question, a creature with them: the joined line before the new one in game-log.txt", splitAndBear.file,
+      ["Blue draws a card", "Blue draws 2 cards (in place of \"Blue draws a card\")", ...splitAndBear.log.slice(splitAndBear.log.indexOf("Blue draws 2 cards") + 1)]);
+    ok("draws split by a question, a creature with them: a line after the joined one", splitAndBear.file.length > 2, JSON.stringify(splitAndBear.file));
     // (three draws over three boards, two questions between them: one line again)
     const three = await run([first, mid, [[draw(11, 31), draw(12, 32)], at(5, 48, [onStack])], [[draw(12, 32), draw(13, 33), ev(14, "Stack", "Graveyard", id(20), null)], at(6, 47, [], [RITES])]]);
     ok("draws split by two questions: one line for the three", three.log.includes("Blue draws 3 cards") && !three.log.some((l) => /^Blue draws (?:a card|2 cards)$/.test(l)), JSON.stringify(three.log));
@@ -1108,6 +1116,25 @@ const id = (n) => `engine-card-${n}`;
       ["Blue attacks with Goblin Shaman token", "Blue creates a Treasure token"]);
     same("a: an attack alone is still said",
       between(board((b) => put(b, "battlefield", SHAMAN())), board((b) => put(b, "battlefield", SHAMAN({ isAttacking: true }))), []), ["Blue attacks with Goblin Shaman token"]);
+    // whom an attack is at (live check 2026-11-11: "White attacks with Hero of Bladehold" when it attacked Jace)
+    {
+      const HERO = (extra = {}) => ({ ...card(53, "Hero of Bladehold", ["Creature"]), ...extra });
+      const BEARS = (extra = {}) => ({ ...BEAR(55), ...extra });
+      const JACE = { ...card(54, "Jace Beleren", ["Planeswalker"]), controllerId: "player-1", counters: { LOYALTY: 3 } };
+      const fight = (attacking, more = () => {}) => board((b) => { put(b, "battlefield", JACE, "player-1"); for (const c of attacking) put(b, "battlefield", c); more(b); });
+      same("attack: a planeswalker attacked is named, with its controller",
+        between(fight([HERO()]), fight([HERO({ isAttacking: true, attackTargetId: id(54) })]), []), ["Blue attacks Jace Beleren (AI 1) with Hero of Bladehold"]);
+      // (the board says its two players, as Forge's does: with no players at all, any count rule passes)
+      const two = (b) => { b.players = ["player-0", "player-1"].map((p) => ({ id: p })); };
+      same("attack: the only other player of two isn't named",
+        between(fight([HERO()], two), fight([HERO({ isAttacking: true, attackTargetId: "player-1" })], two), []), ["Blue attacks with Hero of Bladehold"]);
+      same("attack: at the player and at the planeswalker, one line each",
+        between(fight([HERO(), BEARS()]), fight([HERO({ isAttacking: true, attackTargetId: id(54) }), BEARS({ isAttacking: true, attackTargetId: "player-1" })]), []),
+        ["Blue attacks Jace Beleren (AI 1) with Hero of Bladehold", "Blue attacks with Grizzly Bears"]);
+      const three = (b) => { b.players = ["player-0", "player-1", "player-2"].map((p) => ({ id: p })); };
+      same("attack: in a game of three, the player attacked is named",
+        between(fight([HERO()], three), fight([HERO({ isAttacking: true, attackTargetId: "player-1" })], three), []), ["Blue attacks AI 1 with Hero of Bladehold"]);
+    }
     same("d: a token Forge names \"... Token\" is \"a ... token\"",
       between(board(() => {}), board((b) => put(b, "battlefield", TREASURE(52))), []), ["Blue creates a Treasure token"]);
     same("d: a token whose name starts with a vowel is \"an\"",
@@ -1205,7 +1232,12 @@ const id = (n) => `engine-card-${n}`;
     same("c: the table's log is sent again with the line rewritten", [reset?.reset, reset?.lines?.at(-1)], [true, "Treasure token ×2 are sacrificed for mana"]);
     h.B.updateLog(pubWith([], [sac(13, 62)]));
     same("c: a third click joins the same line", g.log, ["Treasure token ×3 are sacrificed for mana"]);
-    const T2 = [64, 65, 66, 67].map(TREASURE);
+    // (game-log.txt can't take a line back: each joined line is written again, saying which it stands for)
+    await h.flush();
+    same("c: the file says each joined line again in place of the last", h.effects.filter((e) => e.appendFile === "game-log.txt").flatMap((e) => e.text.split(/(?<=\n)/)).slice(1),
+      ["[time] Treasure token is sacrificed for mana\n", "[time] Treasure token ×2 are sacrificed for mana (in place of \"Treasure token is sacrificed for mana\")\n",
+        "[time] Treasure token ×3 are sacrificed for mana (in place of \"Treasure token ×2 are sacrificed for mana\")\n"]);
+    const T2 =[64, 65, 66, 67].map(TREASURE);
     h.B.updateLog(board((b) => { for (const t of T2) put(b, "battlefield", t); put(b, "battlefield", BEAR(63)); b.events = []; }));
     h.B.updateLog(board((b) => { for (const t of T2.slice(1)) put(b, "battlefield", t); put(b, "battlefield", BEAR(63)); b.events = [sac(14, 64)]; }));
     same("c: another line between: a new line", g.log.slice(-1), ["Treasure token is sacrificed for mana"]);
@@ -3255,6 +3287,52 @@ const id = (n) => `engine-card-${n}`;
         between(both(false), both(true), [drawBy(11, "player-0", 336, "Howling Mine"), drawBy(12, "player-1", 332, "Make It So"), drawBy(13, "player-1", 332, "Make It So"), ev(14, "Stack", "Graveyard", id(332))]),
         ["Blue draws a card", "AI 1 draws 2 cards", "Make It So untaps Karn's Bastion"]);
     }
+  }
+
+  // the game log on disk (live check 2026-11-11: no game-log.txt anywhere; only Forge's "log" envelopes, which the node
+  // never sends, wrote it): each line the table's log gets, in order, a joined line written again
+  {
+    const h = harness.load();
+    setup(h);
+    const file = () => h.effects.filter((e) => e.appendFile === "game-log.txt").flatMap((e) => e.text.split(/(?<=\n)/));
+    h.B.gameLogLine("Blue's debug setup \"x\": Blue gets Opt (hand)");
+    const bears = (where) => board((b) => { put(b, where, BEAR()); count(b, "library", 50); });
+    h.B.updateLog(bears("hand"));
+    h.B.updateLog(bears("battlefield"));
+    same("game log file: a header once, then each line as the table's log has it", file(),
+      ["[time] === Game: Blue, AI 1 ===\n", "[time] Blue's debug setup \"x\": Blue gets Opt (hand)\n", "[time] Grizzly Bears enters the battlefield (Blue)\n"]);
+    h.effects.length = 0;
+    h.B.gameLogLine("Blue concedes");
+    same("game log file: no second header", file(), ["[time] Blue concedes\n"]);
+    // (Forge's own "log" envelope, which our node doesn't send today, goes to the same file)
+    h.effects.length = 0;
+    [...h.B._getGame().seats.values()][0].onEnvelope({ kind: "log", entry: { entryType: "action", message: "Blue casts Opt" } });
+    same("game log file: a Forge log entry is written there too", file(), ["[time] (Forge, action) Blue casts Opt\n"]);
+    harness.restore();
+  }
+  // (fs.appendFile calls run on libuv's thread pool and finish in any order: here the write started last finishes
+  // first. The file must still read in order, the header first, a joined line's "in place of" after the line it joins)
+  {
+    const h = harness.load();
+    setup(h);
+    const fs = require("fs");
+    const inFlight = [], disk = [];
+    fs.appendFile = (p, d, ...rest) => { if (/game-log\.txt$/.test(String(p))) inFlight.push({ text: String(d), cb: rest.find((f) => typeof f === "function") }); };
+    const settle = () => { while (inFlight.length) { const w = inFlight.pop(); disk.push(w.text); if (w.cb) w.cb(null); } };
+    const T = [70, 71].map((n) => ({ ...card(n, "Treasure Token", ["Artifact"], { token: true }), text: "{T}, Sacrifice this artifact: Add one mana of any color." }));
+    const sac = (seq, n) => ev(seq, "Battlefield", "Graveyard", id(n), "sacrificed", "player-0", { cause: "Cost:Sacrifice", causeName: "Treasure Token" });
+    h.B.gameLogLine("one");
+    h.B.gameLogLine("two");
+    h.B.updateLog(board((b) => { for (const t of T) put(b, "battlefield", t); b.events = []; }));
+    h.B.updateLog(board((b) => { put(b, "battlefield", T[1]); b.events = [sac(11, 70)]; }));
+    h.B.updateLog(board((b) => { b.events = [sac(12, 71)]; }));
+    h.B.gameLogLine("three");
+    settle();
+    const lines = disk.join("").split("\n").filter(Boolean).map((l) => l.replace(/^\[\d\d:\d\d:\d\d\] /, ""));
+    same("game log file: in order when the writes finish out of order", lines,
+      ["=== Game: Blue, AI 1 ===", "one", "two", "Treasure token is sacrificed for mana",
+        "Treasure token ×2 are sacrificed for mana (in place of \"Treasure token is sacrificed for mana\")", "three"]);
+    harness.restore();
   }
 
   process.stdout.write(`${failed ? "FAILED" : "PASSED"}: ${passed} passed, ${failed} failed\n`);
