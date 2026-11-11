@@ -201,7 +201,7 @@ namespace MtgCompanion
                 object[] seats = J.Arr(o, "seats");
                 int turn = 0;
                 if (seats != null) foreach (var s in seats) turn = Math.Max(turn, J.Int(s, "turn"));
-                if (started) return Game.On("Game on: turn " + turn + ", " + (seats == null ? 0 : seats.Length) + " seats.", turn);
+                if (started) return Game.On("Game on: turn " + turn + ", " + PlayersText(o, seats) + ".", turn);
                 if (seats != null)
                     return Game.On("A game is set up or just finished. Restarts unlock after it is cleared: type \"mtg reset\" in TTS chat.", turn);
                 if (fresh) return Game.On("The bridge just restarted and is bringing a game back.", 0);
@@ -212,6 +212,17 @@ namespace MtgCompanion
                              : Game.None("No game (the bridge isn't running).");
             return fresh ? Game.On("A game is on (the bridge is slow to answer).", 0)
                          : Game.CantTell("Can't tell whether a game is on: the bridge didn't answer (" + (state.Error ?? state.Kind.ToString()) + ").");
+        }
+
+        // Who plays, for the game banner: "3 players (2 AI)". /state's "players" and "ai" count everyone and the AI seats
+        // ("seats" is only the people at the table: live check 2026-11-11 read "1 seats." for one person and two AI); a
+        // bridge from before them gives only the people's seats.
+        public static string PlayersText(object state, object[] seats)
+        {
+            int people = seats == null ? 0 : seats.Length;
+            int players = J.Has(state, "players") ? J.Int(state, "players") : people;
+            int ai = J.Int(state, "ai");
+            return players + (players == 1 ? " player" : " players") + (ai > 0 ? " (" + ai + " AI)" : "");
         }
 
         public static bool Locked(Game g) { return g == null || g.Kind != GameKind.None; }
@@ -518,6 +529,11 @@ namespace MtgCompanion
             }
             if (!f.VersionsOk) return new Verdict(Light.Amber, "TTS is running. The table can be checked once the bridge runs.").WithHint(how);
             if (!f.TableHeard) return new Verdict(Light.Amber, "TTS is running. Load the table: " + how + ".").WithHint(how);
+            // (the stamp the bridge holds is the last table it heard: from an earlier TTS when this one started after it,
+            // as a relaunched TTS on its main menu was shown "Connected", live check 2026-11-11. 5 s for the two clocks'
+            // reading times.)
+            if (f.TableHeardAgoSec.HasValue && f.TtsUpSec.HasValue && f.TableHeardAgoSec.Value > f.TtsUpSec.Value + 5)
+                return new Verdict(Light.Amber, "TTS is running, the table isn't loaded in it yet. Load the table: " + how + ".").WithHint(how);
             if (f.Table == null) return new Verdict(Light.Red, "Old table loaded (it has no version): load " + (f.SaveName ?? DefaultSaveName) + " again.").WithHint(how);
             if (f.Table == "dev") return new Verdict(Light.Amber, "Connected; the table was built from source, not deployed.");
             if (f.WantTable != null && f.Table != f.WantTable)
@@ -662,6 +678,9 @@ namespace MtgCompanion
     {
         public bool Running, VersionsOk, TableHeard, SteamFound, Home;
         public string Table, WantTable, SaveName;
+        // seconds since the table last spoke to the bridge, and since this TTS started (null: unknown, e.g. an older
+        // bridge): a table heard before this TTS started is the last session's, not a table loaded now
+        public double? TableHeardAgoSec, TtsUpSec;
     }
 
     public class SaveEntry { public string Name; public long Size; public SaveEntry(string n, long s) { Name = n; Size = s; } }

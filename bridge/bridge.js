@@ -8315,16 +8315,23 @@ const REWIND_STEPS = { upkeep: "upkeep", main1: "main phase", combatDeclareAttac
 // Forge's checkpoints, said Forge's own step name in the chat and the log, the gap "Skip ended: combatBegin" had, live
 // check 12)
 const rewindStep = (step) => REWIND_STEPS[step] || STEP_WORDS[step] || step;
+// (every seat as the game log names it: an AI seat is "AI 2", not its colour "Yellow"; live check 2026-11-11, the rewind
+// list said "Yellow's attacks" and the vote "Waiting for Yellow" while the log said AI 2)
+const seatWords = (slot) => (game.slotColor[slot] ? nameOf(slot) : null);
 function checkpointLabel(c) {
-  return `turn ${c.turn}, ${game.slotColor[c.activePlayerId] || nameOf(c.activePlayerId)}'s ${rewindStep(c.step)}`;
+  return `turn ${c.turn}, ${nameOf(c.activePlayerId)}'s ${rewindStep(c.step)}`;
 }
 function rewindState(gv) {
   const points = (gv.checkpoints || []).filter((c) => REWIND_STEPS[c.step]).slice(-12).reverse()
     .map((c) => ({ id: c.checkpointId, label: checkpointLabel(c) }));
   const v = gv.restoreVote;
-  const vote = v ? { id: v.voteId, to: v.checkpoint ? checkpointLabel(v.checkpoint) : "?", by: game.slotColor[v.requestedByPlayerId] || null,
-    waiting: (v.awaitingPlayerIds || []).map((id) => game.slotColor[id]).filter(Boolean), status: v.status?.type || "pending",
-    declinedBy: v.status?.playerId ? game.slotColor[v.status.playerId] || null : null } : null;
+  // (waiting: the colours still to vote, which the table matches against its own seats; waitingNames: the people among
+  // them, by name. A harmless bot votes by itself at once (harmlessVotes), so the table isn't told it waits for one)
+  const bots = new Set((game.harmless || []).map((h) => h.slot));
+  const awaiting = (v?.awaitingPlayerIds || []).filter((id) => game.slotColor[id]);
+  const vote = v ? { id: v.voteId, to: v.checkpoint ? checkpointLabel(v.checkpoint) : "?", by: seatWords(v.requestedByPlayerId),
+    waiting: awaiting.map((id) => game.slotColor[id]), waitingNames: awaiting.filter((id) => !bots.has(id)).map(nameOf), status: v.status?.type || "pending",
+    declinedBy: v.status?.playerId ? seatWords(v.status.playerId) : null } : null;
   // Everyone has voted yes, but Forge rewinds only at a priority question: while a player is answering something else
   // ("Unclaimed Territory: choose a creature type") it waits, and the table said "Waiting for ..." with no name for
   // as long as that took (playtest 2026-10-24). Say who and what.
@@ -8345,7 +8352,7 @@ function rewindNews(pub) {
   if (!v || key === game.lastVoteKey) return r;
   game.lastVoteKey = key;
   if (v.note) chat(`[MTG] Rewind to ${v.to}: ${v.note}`);
-  else if (v.status === "pending") chat(`[MTG] ${v.by || "A player"} asks to rewind to ${v.to}. Waiting for ${v.waiting.join(", ") || "nobody"}: vote in the pop-up (or type  mtg vote yes / mtg vote no).`);
+  else if (v.status === "pending") chat(`[MTG] ${v.by || "A player"} asks to rewind to ${v.to}.${v.waitingNames.length ? ` Waiting for ${v.waitingNames.join(", ")}: vote in the pop-up (or type  mtg vote yes / mtg vote no).` : ""}`);
   else if (v.status === "declined") chat(`[MTG] Rewind declined${v.declinedBy ? ` by ${v.declinedBy}` : ""}.`);
   else if (v.status === "unavailable") chat("[MTG] That point is no longer kept, so the rewind was cancelled.");
   return r;
@@ -9245,7 +9252,11 @@ const debugServer = http.createServer((req, res) => {
     versionsNow((now) => {
       const deployed = versions.readManifest();
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ now, deployed, outOfStep: versions.outOfStep(now, deployed), waiting: versions.waiting(deployed), alignment }, null, 1));
+      // tableHeardMs: how long ago the table last spoke (null: not since the bridge started). now.table is the stamp the
+      // table said then, which outlives that TTS: the companion's light was green while a relaunched TTS sat on its main
+      // menu (live check 2026-11-11), so it compares this with how long TTS has been running
+      res.end(JSON.stringify({ now, deployed, outOfStep: versions.outOfStep(now, deployed), waiting: versions.waiting(deployed), alignment,
+        tableHeardMs: ttsLink.tableAt ? Date.now() - ttsLink.tableAt : null }, null, 1));
     });
   } else if (req.url === "/state") {
     const seats = game ? [...game.seats.values()].map((st) => {
@@ -9254,7 +9265,8 @@ const debugServer = http.createServer((req, res) => {
       return { color: st.color, slot: st.slot, turn: gv?.turn, step: gv?.step, battlefield: bf, manaPool: gv?.players?.find((p) => p.id === st.slot)?.manaPool, rawPrompt: st.lastRawPrompt };
     }) : null;
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ started: !!game?.started && !game.over, seats }, null, 1));
+    // (players: everyone in the game, ai: the AI seats among them, for the companion's banner: "seats" is only the people)
+    res.end(JSON.stringify({ started: !!game?.started && !game.over, seats, players: game ? game.total ?? null : null, ai: game ? game.bots ?? null : null }, null, 1));
   } else if (req.url.startsWith("/card/")) {
     // a card as the engine sends it, from the lead seat's view: GET /card/<name or engine id> (debugging what Forge says)
     let want = "";

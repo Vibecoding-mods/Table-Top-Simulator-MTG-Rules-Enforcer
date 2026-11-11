@@ -293,6 +293,27 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("attack Q/E: a creature not offered says the bridge's reason", said("reason").includes("Hill Giant can't attack: summoning sick.") && !said("reason").includes("right now"), said("reason") + " " + r.errors.join(" | "));
   ok("attack Q/E: without a reason the old line stays", said("plain").includes("That creature can't attack right now."), said("plain"));
 }
+// the target an attacker was given by a click says what was set (live check 2026-11-11: only "[MTG] Target set."):
+// a life counter names the player, a planeswalker names itself and its controller
+{
+  const id = blueBf[0], PW = "engine-card-99950";
+  const objOf = (x) => `local o for _, y in ipairs(getObjects()) do if y.getGMNotes() == "engine:${x}" then o = y end end`;
+  const clickCard = (x, mark) => q(objOf(x) + ' onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) __sim.frames(30) return "clicked"', mark);
+  // (AI 1's life counter: the table's LIFE_TRACKERS guids by colour)
+  const lifeOfAi = (mark) => q('local G = { White = "23e485", Red = "448880", Yellow = "37e533", Blue = "395037" } local c ' +
+    'for _, p in ipairs(engineTable().players) do if p.slot == "player-1" then c = p.color end end engineLifeTrackerClick({ guid = G[c], color = "Blue" }) return tostring(c)', mark);
+  const walker = q('local t = engineTable() local ai for _, p in ipairs(t.players) do if p.slot == "player-1" then ai = p end end ' +
+    `engineStoreStatic("${PW}", { n = "Jace Beleren", f = "https://img.example/99950.jpg", ty = { "Planeswalker" } }) ai.battlefield = ai.battlefield or {} ` +
+    `table.insert(ai.battlefield, { s = 1, id = "${PW}", ctl = ai.color }) engineRender(t) __sim.frames(60) return "walker"`, "walker");
+  const attackAsk = (promptId) => ask({ promptId, kind: "attack", title: "Choose attackers", mode: "multi", min: 0, max: 2, keepOrder: true, options: [
+    { id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" },
+    { id: `${id}|?`, label: "Hero of Bladehold 3/4 → whom? (asked next)" }, { id: `${id}|${PW}`, label: "Hero of Bladehold 3/4 → Jace Beleren" }, { id: `${id}|player-1`, label: "Hero of Bladehold 3/4 → AI 1" }] });
+  const r = run([walker, attackAsk(876), { frames: 10 }, clickCard(id, "attacker"), lifeOfAi("life"), { frames: 30 }, clickCard(PW, "walker click")]);
+  const said = (mark) => fxOf(r, mark).filter((l) => l.includes("broadcastToColor")).join(" | ");
+  ok("attack target: precondition, no errors and the attacker clicked", !r.errors.length && /Click a life counter or a planeswalker/.test(said("attacker")), r.errors.join(" | ") + " " + said("attacker"));
+  ok("attack target: a life counter clicked names the attacker and the player", said("life").includes("[MTG] Hero of Bladehold 3/4 attacks AI 1.") && !said("life").includes("Target set"), said("life"));
+  ok("attack target: a planeswalker clicked names it and its controller", said("walker click").includes("[MTG] Hero of Bladehold 3/4 attacks Jace Beleren (AI 1)."), said("walker click"));
+}
 // scry the table's way (2026-10-24): the cards go into the second hand zone; dragged onto the library they stay on top,
 // the last one dragged on top; clicked, a card goes to the bottom; the last one out of the zone answers
 {
@@ -781,6 +802,29 @@ for (const kind of ["Land", "Creature"]) {
   ok("black boxes: nothing sets a cover", !r.steps.some((st) => (st.fx || []).some((l) => l.includes("eng_cover"))), "a cover was set");
   ok("black boxes: the log panel is hidden while the log is empty", valueOf(r, "empty log") === "false", String(valueOf(r, "empty log")));
   ok("black boxes: the log panel shows with its first line", valueOf(r, "first line") === "true", String(valueOf(r, "first line")));
+}
+// The log panel keeps its newest line in view (engineLogFit; live check 2026-11-11: a 9-row debug-setup line and 2-3-row
+// mills overflowed the 280 px box, TTS clipped the bottom and the panel stopped at 14:49 while the log ran to 14:52)
+{
+  const setup = "[14:47:58] Debug setup: " + "White gets Hero of Bladehold, Giant Growth, Lightning Bolt, Prodigal Pyromancer and twelve lands; ".repeat(5);
+  const mill = "[14:50:02] White mills 10 cards: Forest, Forest, Craw Wurm, Giant Growth, Island, Mountain, Lightning Bolt, Plains, Swamp, Opt";
+  const lines = [setup, ...Array.from({ length: 8 }, (_, i) => `[14:49:${10 + i}] Blue casts Opt`), mill, mill, "[14:52:40] White attacks AI 1 with Hero of Bladehold"];
+  const lua = lines.map((l) => JSON.stringify(l)).join(", ");
+  const panel = 'return tostring(UI.getValue("eng_logtext_Blue"))';
+  const r = run([q(`engineLog = {} engineOnLog({ lines = { ${lua} } }) ${panel}`, "panel"),
+    q(`local t = engineLogFit({ ${JSON.stringify("x".repeat(3000))} }, 18, 58) return #t .. "|" .. tostring(engineLogRows(t[1], 58)) .. "|" .. t[1]:sub(-3)`, "giant"),
+    q('local t = engineLogFit({ "a", "b", "c" }, 18, 58) return table.concat(t, ",")', "small"),
+    q(`local t = engineLogFit({ "old", ${JSON.stringify("a" + "é".repeat(40) + "\n" + "y".repeat(10))} }, 2, 58) return #t .. "|" .. t[1]`, "utf8")]);
+  const shown = String(valueOf(r, "panel"));
+  // (rows as TTS wraps them, at the 60 characters a row the panel measured live: the box holds about 19)
+  const rows = shown.split("\n").reduce((n, l) => n + Math.max(1, Math.ceil([...l].length / 60)), 0);
+  ok("log panel: precondition, no errors", !r.errors.length, r.errors.join(" | "));
+  ok("log panel: the newest line is shown", shown.endsWith("White attacks AI 1 with Hero of Bladehold"), shown.slice(-120));
+  ok("log panel: what is shown fits the box (19 rows at most)", rows <= 19, `${rows} rows: ${shown.slice(0, 200)}`);
+  ok("log panel: the 9-row setup line makes room, the lines after it stay", !shown.includes("Debug setup") && shown.includes("White mills 10 cards"), shown.slice(0, 200));
+  ok("log panel: a giant newest entry alone is cut with an ellipsis to fit", /^1\|18\|…$/.test(String(valueOf(r, "giant"))), String(valueOf(r, "giant")));
+  ok("log panel: short entries all show, oldest first", valueOf(r, "small") === "a,b,c", String(valueOf(r, "small")));
+  ok("log panel: a cut never splits a character (é is two bytes)", /^1\|a(é){28}…$/.test(String(valueOf(r, "utf8"))), String(valueOf(r, "utf8")));
 }
 // TTS redraws a Button at every set (docs/engine-ui-spec.md 2.1; the fake TTS copies it, __sim.drawn): the label goes dark
 // without a new textColor, the background white without a colour of the element's own. Every engine button is drawn

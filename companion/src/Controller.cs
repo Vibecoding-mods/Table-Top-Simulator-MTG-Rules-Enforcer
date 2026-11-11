@@ -1038,11 +1038,16 @@ namespace MtgCompanion
         void UpdateTts()
         {
             var vers = versionsCache != null && (DateTime.UtcNow - versionsAt).TotalSeconds < 90 ? versionsCache : null;
-            var now = vers == null ? null : J.Get(J.Parse(vers.Body), "now");
+            var body = vers == null ? null : J.Parse(vers.Body);
+            var now = J.Get(body, "now");
+            // (when the table last spoke, as of now: the bridge's answer is up to 90 s old)
+            double? heardAgo = J.Get(body, "tableHeardMs") == null ? (double?)null : J.Int(body, "tableHeardMs") / 1000.0 + (DateTime.UtcNow - versionsAt).TotalSeconds;
+            var ttsStart = Probes.ProcessStartUtc("Tabletop Simulator");
             var f = new TtsFacts
             {
                 Running = TtsRunning(), VersionsOk = vers != null, TableHeard = J.Has(now, "table"), Table = J.Str(now, "table"),
                 WantTable = Want("table"), SaveName = saveName, SteamFound = Probes.SteamFound(), Home = !L.Friend,
+                TableHeardAgoSec = heardAgo, TtsUpSec = ttsStart.HasValue ? (DateTime.UtcNow - ttsStart.Value).TotalSeconds : (double?)null,
             };
             Set(StepTts, Logic.DecideTts(f));
         }

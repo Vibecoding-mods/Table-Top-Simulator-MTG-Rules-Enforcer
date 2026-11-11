@@ -339,6 +339,13 @@ namespace MtgCompanion
             sb.AppendLine("-- game lock");
             var g = Logic.DecideGame(State("{\"started\":true,\"seats\":[{\"turn\":6},{\"turn\":6}]}"), null);
             Check("/state started:true: game on, turn 6", g.Kind == GameKind.On && g.Turn == 6 && Logic.Locked(g), g.Text);
+            // (the banner: everyone and the AI seats, not "1 seats." for one person and two AI; live check 2026-11-11)
+            g = Logic.DecideGame(State("{\"started\":true,\"seats\":[{\"turn\":6}],\"players\":3,\"ai\":2}"), null);
+            Check("banner: one person and two AI: 3 players (2 AI)", g.Text == "Game on: turn 6, 3 players (2 AI).", g.Text);
+            g = Logic.DecideGame(State("{\"started\":true,\"seats\":[{\"turn\":6},{\"turn\":6}],\"players\":2,\"ai\":0}"), null);
+            Check("banner: two people, no AI: no AI part", g.Text == "Game on: turn 6, 2 players.", g.Text);
+            g = Logic.DecideGame(State("{\"started\":true,\"seats\":[{\"turn\":4}]}"), null);
+            Check("banner: an older bridge without the counts: its seats, singular for one", g.Text == "Game on: turn 4, 1 player.", g.Text);
             g = Logic.DecideGame(State("{\"started\":false,\"seats\":[{\"color\":\"White\"}]}"), null);
             Check("seated but not started (setup or just over): locked", g.Kind == GameKind.On && Logic.Locked(g), g.Text);
             g = Logic.DecideGame(State("{\"started\":false,\"seats\":null}"), null);
@@ -449,6 +456,16 @@ namespace MtgCompanion
             Check("a table older than stamps: red", v.Light == Light.Red, v);
             v = Logic.DecideTts(new TtsFacts { Running = true, VersionsOk = true, TableHeard = true, Table = "0fa50b21", WantTable = "0fa50b21" });
             Check("the package's table: green", v.Light == Light.Green && v.Text.Contains("0fa50b21"), v);
+            // (live check 2026-11-11: TTS relaunched 30 s ago, still on its main menu; the stamp the bridge holds was said
+            // 10 minutes ago by the previous TTS: not green)
+            v = Logic.DecideTts(new TtsFacts { Running = true, VersionsOk = true, TableHeard = true, Table = "0fa50b21", WantTable = "0fa50b21", TableHeardAgoSec = 600, TtsUpSec = 30, SaveName = "MTG Table (rules engine)" });
+            Check("a table heard before this TTS started: amber, load the table", v.Light == Light.Amber && v.Text.Contains("isn't loaded") && v.Text.Contains("Save & Load"), v);
+            v = Logic.DecideTts(new TtsFacts { Running = true, VersionsOk = true, TableHeard = true, Table = "0fa50b21", WantTable = "0fa50b21", TableHeardAgoSec = 20, TtsUpSec = 90 });
+            Check("a table heard since this TTS started: green", v.Light == Light.Green, v);
+            v = Logic.DecideTts(new TtsFacts { Running = true, VersionsOk = true, TableHeard = true, Table = "0fa50b21", WantTable = "0fa50b21", TableHeardAgoSec = 600, TtsUpSec = null });
+            Check("TTS start time unknown: the stamp decides, as before", v.Light == Light.Green, v);
+            v = Logic.DecideTts(new TtsFacts { Running = true, VersionsOk = true, TableHeard = true, Table = "0fa50b21", WantTable = "0fa50b21", TableHeardAgoSec = 92, TtsUpSec = 90 });
+            Check("heard just as TTS started (the two readings seconds apart): green", v.Light == Light.Green, v);
             v = Logic.DecideTts(new TtsFacts { Running = true, VersionsOk = false });
             Check("bridge down: amber, can't check the table", v.Light == Light.Amber, v);
             var now = J.Get(J.Parse("{\"now\":{\"bridge\":\"x\",\"node\":null}}"), "now");
