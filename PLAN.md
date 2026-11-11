@@ -1,13 +1,22 @@
 # Project plan: rules-enforced MTG Commander in TTS
 
-Last updated: 2026-11-06. The design is in [SPEC.md](SPEC.md); test results and how to rerun them are in [TESTING.md](TESTING.md).
+Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and how to rerun them are in [TESTING.md](TESTING.md).
 
 **Status key:** ✅ done · 🔶 built, needs testing in TTS · ⬜ to do · 💡 idea, not scheduled
 
 ---
 
+## 2026-11-10
+- ✅ "All attack" over a limit stops and says the limit (d3bbd18); refused plays say why (0858382).
+- ✅ Batch A in source: Victory/Defeat banner (b852a65), resolve-until stays on (133f619), dig looks not asked twice
+  (3e399ba), play-from cards beside the hand (547f3da).
+- ✅ Free mulligans: one shared count anyone sets, total including the rules' free one (8dbde25); anyone may switch
+  the engine and start. Only lands snap; other dragged cards stay put (39dff3d).
+- 🔶 Batch B (engine UI with tabs, the ability panel restyled and complete): being built, spec docs/engine-ui-spec.md.
+- 🔶 Bridge sweep of the 2026-11-09 small bugs: being fixed.
+
 ## Monday 2026-11-09 (after the weekly usage reset)
-- ⬜ **Update Forge for Star Trek before the set's release (2026-11-13).** Our Forge copy (`manabrew/forge`, through
+- ✅ **Update Forge for Star Trek: done and live 2026-11-09** (bfba2e0, docs/forge-update-2026-11.md: TRK 311/311, TRC 337/337). 2026-11-10: four upstream script fixes (Kirk, Commanding Officer; Dr. McCoy, Surly Surgeon; Cantankerous Captain; Starfleet Communicator) being taken into a new node image. Old note: Our Forge copy (`manabrew/forge`, through
   Manabrew's fork witchesofthehill/forge) is from 2026-09-21: Star Trek (TRK) has 92 cards and Star Trek Commander
   (TRC) 40, with Borg Queen, Perfection Manifest missing and ~76 cards still preview scripts in `upcoming/`. The
   official Card-Forge/forge has ~311 TRK and ~337 TRC cards (checked 2026-11-06) and 15 Star Trek edition commits since

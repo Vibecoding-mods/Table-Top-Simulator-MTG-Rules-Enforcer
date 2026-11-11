@@ -2401,10 +2401,13 @@ function logEvents(prev, cur, pub, facts = null) {
   // or a card such as Destiny Spinner), and Forge says nothing, so the counter looked broken; the user, 2026-11-10:
   // "you can't counter spell something". Its targets: Forge's, else the player's own picks this turn when it is the
   // only counterspell that resolved now. isCounterspell has no "unless", so a payment is no reason here.)
+  // (not one the engine's feed says left the stack: it was countered, and what's on the stack now is a recast or an
+  // old picture, test_bridge_events "one still on the stack under its own id")
+  const leftInFeed = new Set((facts?.offStack || []).map((o) => o.id));
   for (const s of counterSpells) {
     const hit = new Set(s.ctg?.length ? s.ctg : onlyCounter === s ? counterKept : []);
     for (const x of Object.values(cur.stack)) {
-      if (x.ability || !prevSpellOf.has(x.id) || !x.sids.some((t) => hit.has(t))) continue;
+      if (x.ability || !prevSpellOf.has(x.id) || leftInFeed.has(x.id) || !x.sids.some((t) => hit.has(t))) continue;
       const why = cantBeCounteredWhy(pub, x.text || x.desc, x.ctl);
       out.push(`${x.name} can't be countered: ${s.name} did nothing to it${why && why.card ? ` (${why.said})` : ""}`);
     }
