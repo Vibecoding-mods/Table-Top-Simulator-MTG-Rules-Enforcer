@@ -33700,6 +33700,279 @@
   }
  },
  {
+  "name": "attack reminder: a pump on an attacker after priority is no tax, nor its ability next turn",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #900: chooseAttackers \"Choose attackers\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Grizzly Bears → AI 1\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Choose attackers",
+     "mode": "multi",
+     "min": 0,
+     "max": 1,
+     "keepOrder": true,
+     "options": [
+      {
+       "id": "__allattack",
+       "label": "All attack"
+      },
+      {
+       "id": "__noattack",
+       "label": "No attacks"
+      },
+      {
+       "id": "engine-card-601|player-1",
+       "label": "Grizzly Bears → AI 1"
+      }
+     ],
+     "text": "Propaganda (AI 1): {2} for each creature attacking AI 1.\nYou have about 4 mana open. Attackers tap before you pay, so an attacking mana creature can't help pay.",
+     "note": "Attack tax: AI 1 {2} each.",
+     "kind": "attack"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #900 \"Choose attackers\": Grizzly Bears → AI 1\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 900,
+      "action": {
+       "type": "chooseAttackers",
+       "output": {
+        "type": "declareAttackers",
+        "assignments": [
+         {
+          "attackerId": "engine-card-601",
+          "targetId": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #901: payManaCost \"Propaganda (AI 1): pay {2} to attack with Grizzly Bears?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #901 \"Propaganda (AI 1): pay {2} to attack with Grizzly Bears?\": Auto-pay | Tap Mountain: {T}: Add {R}. | Don't attack with Grizzly Bears\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 901,
+     "title": "Propaganda (AI 1): pay {2} to attack with Grizzly Bears?",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__auto",
+       "label": "Auto-pay"
+      },
+      {
+       "id": "tap:engine-card-64:0",
+       "cardId": "engine-card-64",
+       "label": "Tap Mountain: {T}: Add {R}.",
+       "rank": 1
+      },
+      {
+       "id": "__cancel",
+       "label": "Don't attack with Grizzly Bears"
+      }
+     ],
+     "note": "Cancel: Grizzly Bears doesn't attack.",
+     "kind": "mana",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #901 \"Propaganda (AI 1): pay {2} to attack with Grizzly Bears?\": Don't attack with Grizzly Bears\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 901,
+      "action": {
+       "type": "payManaCost",
+       "output": {
+        "type": "cancel"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 902,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "log": "prompt Blue #903: payManaCost \"Pay {1}{G} for Grizzly Bears\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #903 \"Pay {1}{G} for Grizzly Bears\": Auto-pay | Tap Mountain: {T}: Add {R}. | Cancel\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 903,
+     "title": "Pay {1}{G} for Grizzly Bears",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__auto",
+       "label": "Auto-pay"
+      },
+      {
+       "id": "tap:engine-card-64:0",
+       "cardId": "engine-card-64",
+       "label": "Tap Mountain: {T}: Add {R}.",
+       "rank": 1
+      },
+      {
+       "id": "__cancel",
+       "label": "Cancel"
+      }
+     ],
+     "kind": "mana",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #903 \"Pay {1}{G} for Grizzly Bears\": Cancel\n"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 903,
+      "action": {
+       "type": "payManaCost",
+       "output": {
+        "type": "cancel"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #904: payManaCost \"Pay {1}{G} for Grizzly Bears\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #904 \"Pay {1}{G} for Grizzly Bears\": Auto-pay | Tap Mountain: {T}: Add {R}. | Cancel\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 904,
+     "title": "Pay {1}{G} for Grizzly Bears",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__auto",
+       "label": "Auto-pay"
+      },
+      {
+       "id": "tap:engine-card-64:0",
+       "cardId": "engine-card-64",
+       "label": "Tap Mountain: {T}: Add {R}.",
+       "rank": 1
+      },
+      {
+       "id": "__cancel",
+       "label": "Cancel"
+      }
+     ],
+     "kind": "mana",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   }
+  ],
+  "result": {
+   "tax": {
+    "title": "Propaganda (AI 1): pay {2} to attack with Grizzly Bears?",
+    "note": "Cancel: Grizzly Bears doesn't attack.",
+    "cancel": "Don't attack with Grizzly Bears"
+   },
+   "pump": {
+    "title": "Pay {1}{G} for Grizzly Bears",
+    "note": null,
+    "cancel": "Cancel"
+   },
+   "nextTurn": {
+    "title": "Pay {1}{G} for Grizzly Bears",
+    "note": null,
+    "cancel": "Cancel"
+   }
+  }
+ },
+ {
   "name": "attack reminder: creatures that can't attack, with why",
   "effects": [
    {

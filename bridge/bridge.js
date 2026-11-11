@@ -5338,6 +5338,10 @@ function onPrompt(seat, prompt) {
   seat.lastRawPrompt = prompt;
   if (game?.fix?.state === "applying") game.fix.activeAt = Date.now(); // (the engine is playing a fix's free plays: fixWatchdog)
   if (prompt.input?.type === "chooseAction") seat.priorityPromptId = prompt.promptId ?? 0; // (the log's "priority came back")
+  // (the attack just declared is only the declaration's: its refusal and its tax payments come before any priority, so
+  // priority ends it. A payment after that, a pump on an attacker in the same step or an ability a turn later, is no
+  // attack tax: payManaCost)
+  if (prompt.input?.type === "chooseAction" || prompt.kind === "priority") seat.lastAttack = null;
   // MTG_RAW=1 (tests): every question as the engine sent it, to see what a prompt carries
   if (process.env.MTG_RAW) log(`raw ${seat.color}: ${JSON.stringify(prompt).slice(0, 4000)}`);
   if (prompt.kind === "priority") { seat.respond(0, "chooseAction", { type: "pass" }); return; }
@@ -5668,6 +5672,7 @@ function onPrompt(seat, prompt) {
         // an attack tax (Propaganda, Brainwash): Forge asks it per attacker once attackers are declared, as a plain
         // payment for the creature; said whose tax it is, and that Cancel leaves only that creature out (seen live as
         // "Pay {W/P} for Mother of Runes" with nothing naming Norn's Annex, 2026-11-10; docs/attack-reminder-spec.md part 2)
+        // (only before priority comes back: seat.lastAttack is cleared there, see onPrompt's top)
         const attack = gv.step === "combatDeclareAttackers" && input.cardId ? (seat.lastAttack || []).find((x) => x.attackerId === input.cardId) : null;
         const whose = attack ? attackTaxWords(gv, attack.attackerId, attack.targetId) : null;
         const who = input.cardName || src || cname(input.cardId);
