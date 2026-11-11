@@ -2765,8 +2765,11 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const chatColors = h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.color);
       const lastAfterStop = seat.lastAttack;
       const then = sent && sent.__next && opts.then ? sent.__next.toOutput(opts.then) : null;
+      // (All attack again, on the loaded bridge: after restore() its chat went to the real TTS, live check 2026-11-11)
+      const twice = sent && sent.__next && opts.again ? sent.__next.toOutput(["__allattack"]) : null;
+      await h.flush();
       harness.restore();
-      return { first, sent, chat, chatColors, then, lastAttack: lastAfterStop, seatColor: seat.color };
+      return { first, sent, chat, chatColors, then, twice, lastAttack: lastAfterStop, seatColor: seat.color };
     };
     const STOP = "\"All attack\" would break a limit, so nothing was sent. Crawlspace (AI 1): no more than 2 creatures can attack AI 1 each combat. You chose 3. Pick the attackers yourself.";
     r = await allAttack({ limiter: crawl, then: ["engine-card-22|player-1", "engine-card-64|player-1"] });
@@ -2796,11 +2799,34 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("all attack: a face-down limiter doesn't stop it", r.sent?.type === "declareAttackers" && r.sent.assignments.length === 3, JSON.stringify(r.sent).slice(0, 160));
     r = await allAttack({});
     ok("all attack: with no limit it is sent as before", r.sent?.type === "declareAttackers" && r.sent.assignments.length === 3 && !r.chat, JSON.stringify(r.sent));
-    r = await allAttack({ limiter: crawl, then: null });
-    const again = r.sent?.__next;
-    ok("all attack: All attack again after the stop is stopped again", !!again && !!again.toOutput(["__allattack"])?.__next, "sent");
+    r = await allAttack({ limiter: crawl, then: null, again: true });
+    ok("all attack: All attack again after the stop is stopped again", !!r.sent?.__next && !!r.twice?.__next, "sent");
     r = await allAttack({ limiter: ["The Eternal Wanderer", "No more than one creature can attack The Eternal Wanderer each combat."] });
     ok("all attack: a limit it doesn't break doesn't stop it", r.sent?.type === "declareAttackers" && r.sent.assignments.length === 3, JSON.stringify(r.sent));
+    // (live check 2026-11-11: this block's chat reached a real game's TTS twice; the harness's guard records any try)
+    ok("live ports: the refusal and All attack checks tried no connection to TTS, the bridge or the relay", harness.liveAttempts().length === 0, JSON.stringify(harness.liveAttempts()));
+  }
+  // the guard itself (tests/no-live-ports.js), on a spare port with a real listener, never a live one: a connection by
+  // net.connect, http and fetch is refused before it leaves the process, and recorded
+  {
+    const net = require("net"), guard = require("./no-live-ports");
+    let accepted = 0;
+    const srv = net.createServer((s) => { accepted++; s.destroy(); });
+    await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+    const spare = srv.address().port;
+    guard.block(spare);
+    const n0 = guard.attempts().length;
+    const viaNet = await new Promise((r) => { const s = net.connect(spare, "127.0.0.1", () => r("connected")); s.on("error", (e) => r(e.code)); });
+    const viaHttp = await new Promise((r) => { const q = require("http").get({ host: "127.0.0.1", port: spare, path: "/" }, () => r("answered")); q.on("error", (e) => r(e.code)); });
+    const viaFetch = await fetch(`http://127.0.0.1:${spare}/`).then(() => "answered", (e) => e.cause?.code || e.message);
+    await new Promise((r) => setTimeout(r, 50));
+    const seen = guard.attempts().slice(n0);
+    guard.forget(spare, n0); guard.unblock(spare);
+    await new Promise((r) => srv.close(r));
+    ok("live ports guard: net, http and fetch are all refused", JSON.stringify([viaNet, viaHttp, viaFetch]) === JSON.stringify(["ECONNREFUSED", "ECONNREFUSED", "ECONNREFUSED"]), JSON.stringify([viaNet, viaHttp, viaFetch]));
+    ok("live ports guard: nothing reached the listener", accepted === 0, `${accepted} accepted`);
+    ok("live ports guard: each try is recorded with its port", seen.length === 3 && seen.every((t) => t.port === spare), JSON.stringify(seen));
+    ok("live ports guard: the live ports are always refused", [39999, 39998, 48787, 9443].every((p) => guard.LIVE_PORTS.includes(p)) && harness.DECOY_PORT !== 39999);
   }
   // the attack question's reminders (attackReminder, docs/attack-reminder-spec.md part 2; the user 2026-11-10: "if there's
   // a pay to attack or multiple creatures can't attack, a prompt should pop up to remind players") and whom each attacker

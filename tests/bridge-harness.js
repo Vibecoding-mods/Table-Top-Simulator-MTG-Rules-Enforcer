@@ -6,6 +6,13 @@ const fs = require("fs");
 const path = require("path");
 const net = require("net");
 const cp = require("child_process");
+// (first: from here on nothing in this process can connect to the live table's ports, even after restore())
+const livePorts = require("./no-live-ports");
+// A loaded bridge's TTS ports are these, never 39999/39998: net.connect is stubbed only until restore(), and a test that
+// still drives that bridge afterwards (a deferred chat) would otherwise send to the running TTS (live check 2026-11-11).
+// Port 1: nothing listens there, and the guard refuses it too, so such a send is recorded and fails the run.
+const DECOY_PORT = 1;
+livePorts.block(DECOY_PORT);
 
 // BRIDGE_PATH: load another copy (the mutation pass edits a copy, never the live bridge)
 // resolved, so the key matches require.cache (a path given with / slashes would never be reloaded fresh)
@@ -95,7 +102,13 @@ function load({ imageCache = {}, scryfall = "up" } = {}) {
   process.env.MTG_RESUME_FILE = path.join(require("os").tmpdir(), "mtg-bridge-game-test.json");
   process.env.MTG_TRACE = "1";
   delete require.cache[BRIDGE];
-  const B = require(BRIDGE);
+  // (only while the bridge reads its ports: child processes a test starts later get the environment it had)
+  const had = { MTG_TTS_OUT: process.env.MTG_TTS_OUT, MTG_TTS_IN: process.env.MTG_TTS_IN };
+  process.env.MTG_TTS_OUT = process.env.MTG_TTS_IN = String(DECOY_PORT);
+  let B;
+  try { B = require(BRIDGE); } finally {
+    for (const [k, v] of Object.entries(had)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
 
   async function flush(limit = 400) {
     for (let k = 0; k < limit; k++) {
@@ -122,4 +135,5 @@ function restore() {
   Math.random = real.random;
 }
 
-module.exports = { load, restore };
+// liveAttempts(): every connection this process tried to the live table's ports or the decoy (refused; see no-live-ports.js)
+module.exports = { load, restore, DECOY_PORT, liveAttempts: livePorts.attempts };

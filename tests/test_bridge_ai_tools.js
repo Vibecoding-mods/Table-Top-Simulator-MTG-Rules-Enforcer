@@ -459,7 +459,9 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
   // ── the HTTP routes on the debug port, over a real socket ──
   {
     process.env.MTG_DEBUG_PORT = "48992";
-    process.env.MTG_TTS_OUT = "48993"; // (the chat that debug-mode says goes nowhere: never to a running TTS)
+    // (the chat that debug-mode says goes to the harness's decoy TTS port, refused there: never to a running TTS)
+    const guard = require("./no-live-ports");
+    const tried0 = harness.liveAttempts().length;
     const h = harness.load();
     harness.restore(); // (real network for the requests below)
     await new Promise((r) => h.B.debugServer.listen(48992, "127.0.0.1", r));
@@ -484,8 +486,10 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     } finally {
       h.B.debugServer.close();
       delete process.env.MTG_DEBUG_PORT;
-      delete process.env.MTG_TTS_OUT;
     }
+    const tried = harness.liveAttempts().slice(tried0);
+    ok("debug-mode's chat, sent on real sockets, went only to the decoy port (refused)", tried.length >= 1 && tried.every((t) => t.port === harness.DECOY_PORT), JSON.stringify(tried));
+    guard.forget(harness.DECOY_PORT, tried0); // (expected here, so not a failure at exit)
   }
 
   process.stdout.write(failed ? `FAILED: ${failed} failed, ${passed} passed\n` : `PASSED: ${passed} passed, 0 failed\n`);
