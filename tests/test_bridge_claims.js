@@ -3252,6 +3252,48 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     r = await run("Reveal the top card of your library and put that card into your hand.", null);
     ok("dig look: a reveal isn't skipped", r.askedLook, JSON.stringify(r));
   }
+  // the table's sounds (docs/m5-effects-design.md section 6): "ins" on an instant spell only (isInstantCast: not an
+  // ability, not a sorcery, not one still being cast), and "exd" for battlefield -> exile by the engine's word, once
+  {
+    const h = harness.load();
+    const seat = setup(h, F.board);
+    const gv = seat.board.state.gameView;
+    const hand = gv.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0");
+    const inst = (id, name, types, text) => ({ id, identity: { name }, types, text, controllerId: "player-0", ownerId: "player-0" });
+    hand.cards.push(inst("engine-card-901", "Shock", ["Instant"], "Shock deals 2 damage to any target."), inst("engine-card-902", "Farseek", ["Sorcery"], "Search your library for a land."),
+      inst("engine-card-903", "Opt", ["Instant"], "Scry 1. Draw a card."));
+    gv.events = [];
+    h.B.sendTable(); await h.flush(); // (seen in Blue's hand)
+    hand.cards = hand.cards.filter((c) => !/^engine-card-90[123]$/.test(c.id));
+    const gy = gv.zones.find((z) => z.zone === "graveyard" && z.ownerId === "player-0");
+    gy.cards.push(inst("engine-card-904", "Censor", ["Instant"], "Counter target spell unless its controller pays {1}.\nCycling {U}"));
+    const item = (id, src, name, extra) => ({ id, sourceId: src, controllerId: "player-0", ownerId: "player-0", identity: { name }, isPermanentSpell: false, isCasting: false, targets: [], text: name, ...extra });
+    gv.stack = [
+      item("engine-stack-1", "engine-card-901", "Shock", { sourceAbilityText: "Shock deals 2 damage to any target." }),
+      item("engine-stack-2", "engine-card-902", "Farseek", { sourceAbilityText: "Search your library for a Plains, Island, Swamp, or Mountain card." }),
+      item("engine-stack-3", "engine-card-904", "Censor", { sourceAbilityText: "Cycling {U} ({U}, Discard this card: Draw a card.)" }),
+      item("casting-77", "engine-card-903", "Opt", { sourceAbilityText: "Scry 1. Draw a card.", isCasting: true }),
+      item("engine-stack-4", "engine-card-905", "Shock", { sourceAbilityText: "Shock deals 2 damage to any target." }), // (a copy: by name; the table tells it)
+    ];
+    gv.events = [{ seq: 1, id: "event-1", cardId: "engine-card-950", from: "Battlefield", to: "Exile", ownerId: "player-1" },
+      { seq: 2, id: "event-2", cardId: "engine-card-951", from: "Graveyard", to: "Exile", ownerId: "player-1" }];
+    const mark = sent(h, "table").length;
+    h.B.sendTable(); await h.flush();
+    // (the board this sendTable sent: a picture arriving during the flush sends another after it)
+    const tb = sent(h, "table")[mark] || {};
+    const ins = Object.fromEntries((tb.stack || []).map((s) => [s.id, !!s.ins]));
+    ok("sounds: an instant spell on the stack is marked ins", ins["engine-stack-1"] === true, JSON.stringify(ins));
+    ok("sounds: a sorcery is not", ins["engine-stack-2"] === false, JSON.stringify(ins));
+    ok("sounds: an instant's ability (cycling) is not", ins["engine-stack-3"] === false, JSON.stringify(ins));
+    ok("sounds: an instant still being cast is not", ins["casting-77"] === false, JSON.stringify(ins));
+    ok("sounds: an unseen card by an instant's name is marked (copies are the table's to tell)", ins["engine-stack-4"] === true, JSON.stringify(ins));
+    ok("sounds: exd names the battlefield -> exile move only", JSON.stringify(tb.exd) === '["engine-card-950"]', JSON.stringify(tb.exd));
+    gv.players.find((p) => p.id === "player-0").life -= 1;
+    h.B.sendTable(); await h.flush();
+    const later = sent(h, "table").slice(mark + 1);
+    ok("sounds: exd goes once", later.length > 0 && later.every((t) => t.exd === undefined), JSON.stringify(later.map((t) => t.exd)));
+    harness.restore();
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();

@@ -213,7 +213,7 @@ Zones the bridge left out because they didn't change (`keep`) are carried over, 
 - **Timing with combat:** if the card was a blocker swung at this board, start at its `engineLungeHits[id]` time;
   else at once. Two or more deaths: each one 80 ms after the one before (Arena's overlap, kept short).
 - **Unchanged:** the violet graveyard flash with "xN" (`deathFlash`) stays.
-- **Sound:** `death` (once per board, however many died).
+- **Sound:** `death` (once per board, however many died); `wipe` instead when 3 or more died on the board (section 6).
 
 ### 4.2 Counter put on a permanent
 
@@ -301,14 +301,34 @@ board.
 ```lua
 -- M5 sound picks: nil = silent. A link (http...) plays through the table's music player (route A); a name plays
 -- that trigger effect of the sound object (an AssetBundle whose GM notes are "engine:sounds", route B).
-engineSounds = engineSounds or { death = nil, counter = nil, damage = nil, knockout = nil }
+engineSounds = engineSounds or { death = "https://...", wipe = "https://...", damage = "https://...",
+  exile = "https://...", instant = "https://...", lifegain = "https://...", counter = nil, knockout = nil }
+engineSoundKinds = { "knockout", "wipe", "death", "exile", "damage", "lifegain", "instant", "counter" }
 engineSoundsMuted = false -- the host's switch for the whole table
-function engineSoundPlay(kind)   -- true if it played
+function engineSoundPlay(kind, force)   -- true if it played
 ```
 
-- **When:** at most one sound per board, the most important event's: knockout > death > damage > counter. Each kind
-  at most once every 0.3 s, and any two sounds at least 0.15 s apart. It plays at that event's start time (lunge hit,
-  knock-out 600 ms).
+**The user's sounds are in (2026-11-11):** `engineSounds` holds the six TTS Cloud links of `docs/sounds.md` (death,
+wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not yet heard on the real table.
+
+**The eight kinds** (four added 2026-11-11, sound only: no table effect of their own):
+
+| Kind | When | Notes |
+|---|---|---|
+| `knockout` | a player loses or concedes | 600 ms in, with the burst |
+| `wipe` | 3 or more permanents go to graveyards on one board, all seats together (a token that leaves the battlefield counts, as for death) | plays instead of death, with the first death; the visual "×N" cloud is still per seat and from 4 |
+| `death` | a permanent goes to a graveyard (dies, sacrificed, destroyed), or a token leaves the battlefield other than to exile | |
+| `exile` | a permanent leaves the battlefield for exile: it is in an exile zone now, or the bridge's `exd` names it | tokens count: a token exiled ceases to exist and no board shows it in exile, so the bridge sends the engine's word on the move (`exd`, the battlefield → exile moves since the last board sent, once); without the engine's event feed a token exiled still reads as a death. A card exiled from a hand, a library or a graveyard doesn't count; a flicker that is back on the battlefield by the next board doesn't either |
+| `damage` | damage to a creature or a player (life down, life paid reads the same) | with the first lunge hit |
+| `lifegain` | a player's life goes up on a board | a life loss never plays it |
+| `instant` | an instant spell appears on the stack | the bridge marks the stack item `ins`: a spell, not an ability (`isAbilityOnStack`), no longer being cast, whose card it has seen as an Instant (its stack name first, else its card id, from every seat's view outside the battlefield). Forge's stack item has no card types, so an instant whose card no seat has seen face up (an AI's first of that name, from a hand nobody sees) plays nothing. The table plays it once per card (`src`), and not for a copy: a stack item with the name of an instant already on the stack while its controller's hand didn't shrink (Twincast's copy, storm's). Never for a sorcery, an ability, a Flash creature |
+| `counter` | a counter put on a permanent | |
+
+- **When:** at most one sound per board: the first kind of `engineSoundKinds` (knockout > wipe > death > exile >
+  damage > lifegain > instant > counter) that is on this board **and has a pick**, so a wipe with no wipe pick plays
+  death, and a knock-out with no knockout pick plays the damage that did it. Each kind at most once every 0.3 s, and
+  any two sounds at least 0.15 s apart. It plays at that kind's first event's start time (lunge hit, knock-out
+  600 ms, a wipe's first death); exile, lifegain and instant at once.
 - **Not when:** `engineSoundsMuted`, no pick for that kind, a jump board, or (route A) the music player is busy with
   the players' own music: `MusicPlayer.player_status == "Play"` and `getCurrentAudioclip().title` doesn't start with
   "MTG effect".
@@ -335,7 +355,11 @@ function engineSoundPlay(kind)   -- true if it played
   - `mtg sounds off` / `on` from the host: sets `engineSoundsMuted` and tells everyone. From another player: keeps
     their `engineSoundOff` flag and tells them "Table sounds are shared: ask the host, or turn down Music / Effects in
     TTS's settings."
-  - `mtg sounds test <death|counter|damage|knockout>` (host): plays that pick now, so the user can try sounds.
+  - `mtg sounds test <kind>` (host), any of `engineSoundKinds`: plays that pick now, so the user can try sounds; an
+    unknown kind lists them.
+- **Bridge fields** (`bridge/bridge.js`, `sendTable`): `ins: true` on a stack item (`isInstantCast`, types from
+  `noteTypes`), and `exd: [card ids]` on the board (from `updateLog`'s engine facts; out of the board's signature like
+  `jump`, cleared once sent). A bridge without them: no instant sound, and an exiled token reads as a death.
 ### Plugging in a sound (the user)
 
 1. Get the sound as an **.mp3** file. The TTS music player docs give only .mp3 links in their examples and list no
@@ -344,7 +368,8 @@ function engineSoundPlay(kind)   -- true if it played
    A direct `https://` link to the .mp3 elsewhere also goes in. Unchecked: whether the music player takes a Cloud
    Manager link (it has no ".mp3" at its end); try it with `mtg sounds test` (real-table check 5).
 3. In `tools/engine-renderer.lua`, find the line that starts with `engineSounds = engineSounds or`, and fill in the
-   links, one line per event:
+   links, one line per event (done 2026-11-11 for six of the eight kinds, `docs/sounds.md`; the block below is the
+   original four-kind example):
 
    ```lua
    engineSounds = engineSounds or {
@@ -356,8 +381,8 @@ function engineSoundPlay(kind)   -- true if it played
    ```
 
    Leave an event as `nil` (or leave it out) to keep it silent.
-4. The lead deploys the table as usual. Then, as the host, type `mtg sounds test death` (or `counter`, `damage`,
-   `knockout`) to hear it.
+4. The lead deploys the table as usual. Then, as the host, type `mtg sounds test death` (or any other kind: knockout,
+   wipe, exile, damage, lifegain, instant, counter) to hear it.
 
 - `mtg sounds off` / `on` (host) mutes or unmutes the table. Nothing plays while the players' own music is playing.
 - Pictures work the same way: the line `engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }`

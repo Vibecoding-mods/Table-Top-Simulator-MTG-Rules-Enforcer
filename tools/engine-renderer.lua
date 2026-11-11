@@ -1584,7 +1584,7 @@ do
     slotUntil = {}, slotOn = {}, slotText = {}, gen = 0, built = false, jumpNext = false, sndAt = {}, sndLast = -100,
     UNIT = 100, AX = 1, AY = 1, ROT0 = 180, LIFT = 0.7, CARD = 2.2, SHOW = false, SLOTS = 6, PER_BOARD = 6, MAX_RINGS = 4, MAX_HITS = 4,
     COLOURS = { "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" },
-    SOUND_OF = { knockout = "knockout", death = "death", player = "damage", damage = "damage", counter = "counter" } }
+    SOUND_OF = { knockout = "knockout", death = "death", player = "damage", damage = "damage", counter = "counter" }, WIPE = 3 }
   local TRACK = { White = "23e485", Red = "448880", Yellow = "37e533", Blue = "395037" }
   -- the carrier of the effect panels: White's life counter, else the first other one there is
   function FX.carrier()
@@ -1716,19 +1716,22 @@ do
     if delay > 0 then Wait.time(go, delay) else go() end
   end
   -- one frame after the board (engineCombatLunge has stamped its hit times by then): start what fits, drop the rest
-  function FX.dispatch(m, ev, visual, gen)
+  -- kind: the board's sound (engineFxBoard picked it), played when the first event of that kind starts (a wipe's with
+  -- the first death; a sound-only kind, exile, lifegain, instant, at once)
+  function FX.dispatch(m, ev, visual, gen, kind)
     if FX.gen ~= gen then return end
     local t0 = os.clock()
     local hits = (engineLungeHits ~= nil and engineLungeHits.board == m) and engineLungeHits or {}
     local last = engineFxLast or {}
-    last.fx, last.dropped = last.fx or {}, last.dropped or 0
+    last.fx, last.dropped, last.sound = last.fx or {}, last.dropped or 0, kind
     if visual and (FX.car == nil or FX.car.isDestroyed()) then FX.car = FX.carrier() end
     local started, deaths, soundAt = 0, 0, nil
+    local soundOf = kind == "wipe" and "death" or kind
     for _, e in ipairs(ev) do
       local hit = hits[e.id or e.seat]
       local delay = hit ~= nil and math.max(0, hit - os.clock()) or 0
       if e.kind == "death" then delay = delay + 0.08 * deaths deaths = deaths + 1 end
-      if soundAt == nil then soundAt = delay + (e.kind == "knockout" and 0.6 or 0) end
+      if soundAt == nil and FX.SOUND_OF[e.kind] == soundOf then soundAt = delay + (e.kind == "knockout" and 0.6 or 0) end
       if visual then
         local spot = e.spot
         if e.kind == "knockout" then local life = getObjectFromGUID(TRACK[e.seat] or "") spot = life and life.getPosition() end
@@ -1745,16 +1748,17 @@ do
         else last.dropped = last.dropped + 1 end
       end
     end
-    local kind = ev[1] and FX.SOUND_OF[ev[1].kind]
-    if kind ~= nil and soundAt ~= nil then
+    if kind ~= nil then
+      soundAt = soundAt or 0
       if soundAt <= 0 then engineSoundPlay(kind) else Wait.time(function() if FX.gen == gen then engineSoundPlay(kind) end end, soundAt) end
     end
     local S = engineProfile and engineProfile.sect
     if S ~= nil then S.fx = (S.fx or 0) + (os.clock() - t0) * 1000 end
   end
   -- The board's events, most important first: knock-outs, deaths, damage to players, damage to creatures, counters.
-  -- prev/now are engineEffects' snapshots, diedIds its deaths. Returns how many events it found.
-  function engineFxBoard(m, prev, now, diedIds)
+  -- prev/now are engineEffects' snapshots, diedIds its deaths, exiledIds the permanents exiled. Returns how many
+  -- (visual) events it found.
+  function engineFxBoard(m, prev, now, diedIds, exiledIds)
     local ev = {}
     local sortedKeys = function(t) local ks = {} for k in pairs(t) do ks[#ks + 1] = k end table.sort(ks) return ks end
     for _, c in ipairs(sortedKeys(now.status)) do
@@ -1784,12 +1788,13 @@ do
         end
       end
     end
-    -- damage to players: life went down (life paid reads the same)
+    -- damage to players: life went down (life paid reads the same); a player's life going up is the lifegain sound
+    local gained = false
     for _, c in ipairs(sortedKeys(now.life)) do
       local was, life = tonumber(prev.life[c]), tonumber(now.life[c])
       if was ~= nil and life ~= nil and life < was and enginePlayerSpot ~= nil then
         ev[#ev + 1] = { kind = "player", seat = c, n = was - life, spot = enginePlayerSpot(c) }
-      end
+      elseif was ~= nil and life ~= nil and life > was then gained = true end
     end
     -- damage to creatures and counters put on permanents: only cards on the battlefield in both boards, one per spot
     -- (grouped tokens share one)
@@ -1817,15 +1822,48 @@ do
         if n < list[2] and not at[key] then at[key], n = true, n + 1 ev[#ev + 1] = e end
       end
     end
-    if #ev == 0 then return 0 end
-    local visual = FX.visualsOn()
-    local kind = FX.SOUND_OF[ev[1].kind]
-    local sound = not engineSoundsMuted and engineSounds ~= nil and engineSounds[kind] ~= nil
-    if not visual and not sound then return #ev end
+    -- the board's sound kinds (design section 6): the visual events' own, a wipe (3 or more permanents to graveyards on
+    -- this board, all seats together), an exile from the battlefield, life gained, an instant cast
+    local kinds, nDied = {}, 0
+    for _, e in ipairs(ev) do kinds[FX.SOUND_OF[e.kind]] = true end
+    for _, ids in pairs(diedIds) do nDied = nDied + #ids end
+    if nDied > 0 then kinds.death = true end -- (one with no spot to smoke at still sounds)
+    if nDied >= FX.WIPE then kinds.wipe = true end
+    if exiledIds ~= nil and #exiledIds > 0 then kinds.exile = true end
+    if gained then kinds.lifegain = true end
+    if FX.instantCast(prev, now) then kinds.instant = true end
+    -- one sound: the most important kind on this board that has a pick
+    local kind = nil
+    for _, k in ipairs(engineSoundKinds or {}) do if kind == nil and kinds[k] and FX.picked(k) then kind = k end end
+    if #ev == 0 and kind == nil then return 0 end
+    local visual = #ev > 0 and FX.visualsOn()
+    if not visual and kind == nil then return #ev end
     if visual and not FX.built then FX.build() end
     local gen = FX.gen
-    Wait.frames(function() FX.dispatch(m, ev, visual, gen) end, 1)
+    Wait.frames(function() FX.dispatch(m, ev, visual, gen, kind) end, 1)
     return #ev
+  end
+  -- a sound kind with something to play (engineSounds: a link or a bundle name) and the table's sounds on
+  function FX.picked(k)
+    local pick = engineSounds ~= nil and engineSounds[k]
+    return not engineSoundsMuted and type(pick) == "string" and pick ~= ""
+  end
+  -- an instant cast on this board: a stack item the bridge marks as an instant spell (ins: never an ability, never one
+  -- still being cast) that wasn't on the stack before. A copy is one with the name of an instant already on the stack
+  -- while its controller's hand didn't shrink (Twincast's copy, storm's); the same name cast from a hand counts.
+  function FX.instantCast(prev, now)
+    local was, names = {}, {}
+    for _, st in ipairs(prev.stack or {}) do
+      if st.ins then was[st.src or st.id] = true names[tostring(st.n)] = true end
+    end
+    for _, st in ipairs(now.stack) do
+      if st.ins and not was[st.src or st.id] then
+        local hcNow, hcWas = now.hc and now.hc[st.ctl], prev.hc and prev.hc[st.ctl]
+        local fromHand = hcNow ~= nil and hcWas ~= nil and hcNow < hcWas
+        if not names[tostring(st.n)] or fromHand then return true end
+      end
+    end
+    return false
   end
   -- a jump, not a play: the next board only gives the effects a new start (the table was sent again, "started")
   function engineEffectsJump() FX.jumpNext = true end
@@ -1933,18 +1971,20 @@ do
   function engineEffects(m)
     if not engineBoardNew then return end -- (a redraw of the same board: nothing happened)
     local prev = FX.prev
-    local now = { bf = {}, gy = {}, stack = {}, status = {}, life = {}, turn = tonumber(m.turn) }
+    local now = { bf = {}, gy = {}, ex = {}, stack = {}, status = {}, life = {}, hc = {}, turn = tonumber(m.turn) }
     for _, pl in ipairs(m.players or {}) do
       local c = pl.color
       if c ~= nil then
         now.status[c] = pl.status
         now.life[c] = pl.life
+        now.hc[c] = tonumber(pl.handCount) -- (a spell cast from a hand takes a card from it; a copy doesn't: the instant sound)
         -- (its spot on this board, for the effects; a token drawn as part of a group has its group's spot)
         for _, card in ipairs(pl.battlefield or {}) do
           now.bf[card.id] = { owner = c, tok = card.tok, pos = enginePlanned[card.id] or (engineGroupOf[card.id] ~= nil and enginePlanned[engineGroupOf[card.id]]) or nil,
             dmg = tonumber(card.dmg) or 0, ctr = card.ctr }
         end
         for _, card in ipairs(pl.graveyard or {}) do now.gy[card.id] = c end
+        for _, card in ipairs(pl.exile or {}) do now.ex[card.id] = c end
       end
     end
     for i, st in ipairs(m.stack or {}) do now.stack[i] = st end
@@ -1954,6 +1994,7 @@ do
       if c ~= nil and prev ~= nil then
         if pl.battlefield == nil then for id, x in pairs(prev.bf) do if x.owner == c then now.bf[id] = x end end end
         if pl.graveyard == nil then for id, x in pairs(prev.gy) do if x == c then now.gy[id] = x end end end
+        if pl.exile == nil then for id, x in pairs(prev.ex or {}) do if x == c then now.ex[id] = x end end end
       end
     end
     -- a rewind, a bridge resume or a table resend is a jump, not a play: the bridge says so (jump), and until it does
@@ -1978,10 +2019,17 @@ do
       engineFxLast = { died = {}, fx = {}, dropped = 0, jump = true }
       return
     end
-    -- deaths: battlefield -> its owner's graveyard, and tokens that left the battlefield (they go nowhere)
+    -- exiled: battlefield -> exile, by the exile zone or by the bridge's exd (the engine's word on the move: a token
+    -- exiled ceases to exist, and no board shows it in exile). Sound only (design section 6).
+    local exd, exiledIds = {}, {}
+    for _, id in ipairs(m.exd or {}) do exd[id] = true end
+    for id in pairs(prev.bf) do
+      if now.bf[id] == nil and (now.ex[id] ~= nil or exd[id]) then exiledIds[#exiledIds + 1] = id end
+    end
+    -- deaths: battlefield -> its owner's graveyard, and tokens that left the battlefield (they go nowhere) but not to exile
     local died, diedIds = {}, {}
     for id, x in pairs(prev.bf) do
-      if now.bf[id] == nil and (now.gy[id] ~= nil or x.tok) then
+      if now.bf[id] == nil and (now.gy[id] ~= nil or (x.tok and not exd[id] and now.ex[id] == nil)) then
         local c = now.gy[id] or x.owner
         died[c] = (died[c] or 0) + 1
         diedIds[c] = diedIds[c] or {}
@@ -2045,7 +2093,7 @@ do
       end, 2.5)
     end
     -- step 4: the table effects and their sound (nothing found = no UI call at all)
-    local okFx, errFx = pcall(engineFxBoard, m, prev, now, diedIds)
+    local okFx, errFx = pcall(engineFxBoard, m, prev, now, diedIds, exiledIds)
     if not okFx then print("[MTG] table effects: " .. tostring(errFx)) end
   end
   -- a new game: the life counters light up again, nothing carried over (an effect still showing goes off)
@@ -3889,8 +3937,20 @@ end
 engineSoundOff = {}    -- colour -> true: that player asked for no sounds (the table's sounds are shared: the host's switch)
 -- M5 step 4 sound picks (docs/m5-effects-design.md section 6, "Plugging in a sound"): nil = silent. A link to an
 -- .mp3 (https://...) plays through the table's music player, for everyone; a name plays that trigger effect of the
--- sound object (an AssetBundle whose GM notes are "engine:sounds").
-engineSounds = engineSounds or { death = nil, counter = nil, damage = nil, knockout = nil }
+-- sound object (an AssetBundle whose GM notes are "engine:sounds"). The user's six sounds, on the host's TTS Cloud
+-- (docs/sounds.md, 2026-11-11); counter and knockout have none yet.
+engineSounds = engineSounds or {
+  death = "https://steamusercontent-a.akamaihd.net/ugc/13335260803010380839/1E14C1BED86C409D90C135F65EBDC64865EE933A/",    -- a permanent to the graveyard
+  wipe = "https://steamusercontent-a.akamaihd.net/ugc/17690707824716063746/6E5813D75AA66D8CD6810895220FAEB28E263475/",     -- 3 or more to graveyards on one board
+  damage = "https://steamusercontent-a.akamaihd.net/ugc/10138799039655438681/650E0A0D5A0BEBE37070522BB3800524F10D371E/",   -- damage to a creature or a player
+  exile = "https://steamusercontent-a.akamaihd.net/ugc/14014286229650325084/49ED44FAD77D7F67A1C341ABACE74BD605EF9105/",    -- a permanent exiled from the battlefield
+  instant = "https://steamusercontent-a.akamaihd.net/ugc/15164427569377747897/03BA2225589A63582420E6520B2A64610D7023DC/",  -- an instant cast (not abilities, not copies)
+  lifegain = "https://steamusercontent-a.akamaihd.net/ugc/16916532848789661739/9D8BF0DEB5A473A8542DA200400DE7F5BED9FD17/", -- a player's life goes up
+  counter = nil, -- a counter put on a permanent
+  knockout = nil, -- a player loses or concedes
+}
+-- the sound kinds, most important first: one sound per board, the first of these on it that has a pick
+engineSoundKinds = { "knockout", "wipe", "death", "exile", "damage", "lifegain", "instant", "counter" }
 engineSoundsMuted = false -- the host's switch for the whole table
 -- the three pictures of the table effects (links from TTS's Cloud Manager); nil = a coloured "●" stands in
 engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }

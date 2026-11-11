@@ -22,20 +22,23 @@ card("tok1", "Goblin", ["Creature"]);
 function board(st) {
   const pl = (color, slot, s) => ({
     color, slot, name: color, ai: color === "White", life: s.life ?? 40, status: s.status || "playing", pool: {}, poison: 0, energy: 0,
-    cmdDamage: {}, tax: [0], library: 50, handCount: 0, hand: color === "Blue" ? [] : null,
+    cmdDamage: {}, tax: [0], library: 50, handCount: s.hc ?? 0, hand: color === "Blue" ? [] : null,
     battlefield: s.bf.map((id) => ({ s: 1, id, ctl: color, p: "2", t: "2", dmg: 0, ctr: {}, ...(id === "tok1" ? { tok: true } : {}), ...((s.more || {})[id] || {}) })),
-    graveyard: (s.gy || []).map((id) => ({ s: 1, id, ctl: color })), exile: [], command: [],
+    graveyard: (s.gy || []).map((id) => ({ s: 1, id, ctl: color })), exile: (s.ex || []).map((id) => ({ s: 1, id, ctl: color })), command: [],
   });
   return JSON.stringify({ t: "table", turn: st.turn ?? 3, step: st.step || "main1", active: "Blue", activeTurnNo: 2, priority: "Blue", gameOver: !!st.gameOver,
-    winner: st.winner || null, players: [pl("Blue", "player-0", st.Blue), pl("White", "player-1", st.White)], stack: [], cards,
-    ...(st.rewind ? { rewind: st.rewind } : {}), ...(st.jump ? { jump: true } : {}), ...(st.overWhy ? { overWhy: st.overWhy } : {}) });
+    winner: st.winner || null, players: [pl("Blue", "player-0", st.Blue), pl("White", "player-1", st.White)], stack: st.stack || [], cards,
+    ...(st.rewind ? { rewind: st.rewind } : {}), ...(st.jump ? { jump: true } : {}), ...(st.overWhy ? { overWhy: st.overWhy } : {}), ...(st.exd ? { exd: st.exd } : {}) });
 }
 const base = () => ({ Blue: { bf: [...blueC.slice(0, 7), "bl1"], gy: [], more: {} }, White: { bf: [...whiteC, "wl1"], gy: [], more: {} } });
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
 // the fake TTS has no music player, no Object UI show/hide and no AssetBundle: stand-ins that record their calls
+// (the user's own picks are kept aside in engineSoundsShipped; each scenario sets the picks it needs)
 const PRELUDE = `
-MusicPlayer = { player_status = "Stop", loaded = true, clip = { title = "", url = "" } }
+engineSoundsShipped = engineSounds
+engineSounds = {}
+MusicPlayer ={ player_status = "Stop", loaded = true, clip = { title = "", url = "" } }
 MusicPlayer.setCurrentAudioclip = function(t) MusicPlayer.clip = t __sim.fx("MusicPlayer.setCurrentAudioclip", t.url, t.title) end
 MusicPlayer.getCurrentAudioclip = function() return MusicPlayer.clip end
 MusicPlayer.play = function() __sim.fx("MusicPlayer.play") end
@@ -330,6 +333,77 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const m = dot && dot.match(/fontSize=(\d+).*height=(\d+)|height=(\d+).*fontSize=(\d+)/);
   const [font, height] = m ? (m[1] ? [Number(m[1]), Number(m[2])] : [Number(m[4]), Number(m[3])]) : [NaN, NaN];
   ok("dot: the stand-in's font fits its box", font > 0 && font <= height, dot);
+}
+
+// the user's sounds (docs/sounds.md) and the four kinds added 2026-11-11: wipe, exile, instant, lifegain (design section
+// 6). One sound per board, the first of knockout > wipe > death > exile > damage > lifegain > instant > counter with a pick.
+{
+  const doc = require("fs").readFileSync(require("path").join(__dirname, "..", "docs", "sounds.md"), "utf8");
+  const docLinks = {};
+  for (const m of doc.matchAll(/^\| mtg-\w+\.mp3 \|[^|]*\(`(\w+)`[^|]*\|.*\| (https:\/\/\S+) \|$/gm)) docLinks[m[1]] = m[2];
+  const PICKS = `for _, k in ipairs({ "death", "wipe", "damage", "exile", "instant", "lifegain" }) do engineSounds[k] = "https://example.invalid/" .. k .. ".mp3" end return "set"`;
+  const SHOCK = (id, src, ctl = "Blue") => ({ id, n: "Shock", tx: "Shock deals 2 damage to any target.", ctl, src, spell: false, ins: true, tg: [] });
+  const s0 = base(); s0.Blue.bf.push("tok1"); s0.Blue.hc = 5; s0.White.hc = 5;
+  const step = (from, edit) => { const x = clone(from); delete x.exd; delete x.jump; edit(x); return x; };
+  const exile = step(s0, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "b1"); x.Blue.ex = ["b1"]; });
+  const tokEx = step(exile, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "tok1"); x.exd = ["tok1"]; });
+  const back = step(tokEx, (x) => { x.Blue.bf.push("tok1"); }); // (a new token under the same id, for the next board)
+  const tokGone = step(back, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "tok1"); });
+  const wipe = step(tokGone, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "b2" && c !== "b3"); x.Blue.gy = ["b2", "b3"]; x.White.bf = x.White.bf.filter((c) => c !== "w1"); x.White.gy = ["w1"]; });
+  const two = step(wipe, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "b4" && c !== "b5"); x.Blue.gy.push("b4", "b5"); });
+  const gain = step(two, (x) => { x.White.life = 43; });
+  const loss = step(gain, (x) => { x.White.life = 41; });
+  const cast = step(loss, (x) => { x.stack = [SHOCK("engine-stack-1", "i1")]; x.Blue.hc = 4; });
+  const still = step(cast, (x) => { x.step = "main2"; x.Blue.hc = 3; }); // (its hand shrinks for something else: a Flash creature)
+  const copy = step(still, (x) => { x.stack.push(SHOCK("engine-stack-2", "i2")); });
+  const again = step(copy, (x) => { x.stack.push(SHOCK("engine-stack-3", "i3", "White")); x.White.hc = 4; });
+  const sorcery = step(again, (x) => { x.stack = [{ id: "engine-stack-4", n: "Farseek", tx: "Farseek - search for a land", ctl: "Blue", src: "s1", spell: false, tg: [] }]; x.Blue.hc = 3; });
+  const ability = step(sorcery, (x) => { x.stack.push({ id: "engine-stack-5", n: "Fury", tx: "When Fury enters, it deals 4 damage divided as you choose", ctl: "Blue", src: "b6", spell: false, tg: [] }); });
+  const mixed = step(ability, (x) => { x.stack = [SHOCK("engine-stack-6", "i4")]; x.Blue.hc = 2; x.White.life = 45; x.White.bf = x.White.bf.filter((c) => c !== "w2"); x.White.ex = ["w2"]; x.Blue.life = 38; });
+  const quiet = step(mixed, (x) => { x.stack = [SHOCK("engine-stack-7", "i5")]; x.Blue.hc = 1; x.White.life = 50; x.White.bf = x.White.bf.filter((c) => c !== "w3"); x.White.ex.push("w3"); x.jump = true; });
+  const gainCast = step(quiet, (x) => { x.stack = [SHOCK("engine-stack-8", "i6")]; x.Blue.hc = 0; x.White.life = 52; });
+  const t = run([
+    lua(`return JSON.encode(engineSoundsShipped)`, "shipped"),
+    lua(PICKS, "picks"),
+    send(s0, "first board"),
+    send(exile, "exiled", 30), LAST, send(tokEx, "token exiled", 30), LAST, send(back, "token back", 30), send(tokGone, "token gone", 30), LAST,
+    send(wipe, "three die", 30), LAST, send(two, "two die", 30), LAST,
+    send(gain, "life up", 30), LAST, lua(`engineSounds.damage = nil return "x"`, "no damage pick"), send(loss, "life down", 30), LAST,
+    lua(`engineSounds.damage = "https://example.invalid/damage.mp3" return "x"`, "damage pick again"),
+    send(cast, "instant cast", 30), LAST, send(still, "instant still there", 30), LAST, send(copy, "a copy", 30), LAST, send(again, "the same name from a hand", 30), LAST,
+    send(sorcery, "a sorcery", 30), LAST, send(ability, "an ability", 30), LAST,
+    send(mixed, "exile, damage, lifegain and instant", 30), LAST, send(quiet, "a jump board", 30), LAST,
+    lua(`engineSounds.lifegain = nil return "x"`, "no lifegain pick"), send(gainCast, "lifegain without a pick", 30), LAST,
+    lua(`engineChat("mtg sounds test exile", Player.Blue) engineChat("mtg sounds test instant", Player.Blue) engineChat("mtg sounds test boom", Player.Blue) return "t"`, "tests", 30), LAST,
+  ]);
+  ok("new sounds: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const shipped = t.value("shipped");
+  ok("the user's sounds: the six links of docs/sounds.md are the shipped picks", Object.keys(docLinks).length === 6
+    && Object.entries(docLinks).every(([k, url]) => shipped[k] === url), JSON.stringify({ docLinks, shipped }));
+  ok("the user's sounds: counter and knockout stay silent", shipped.counter == null && shipped.knockout == null, JSON.stringify(shipped));
+  const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  // each board's new log lines
+  const news = vals.map((v, i) => (v.snd || []).slice(i === 0 ? 0 : (vals[i - 1].snd || []).length));
+  const said = (i) => JSON.stringify(news[i]);
+  ok("exile: a permanent exiled from the battlefield plays exile once", said(0) === '["exile music"]', said(0));
+  ok("exile: sound only, no effect slot, no death", (vals[0].fx || []).length === 0 && JSON.stringify(vals[0].died) === "[]", JSON.stringify(vals[0]));
+  ok("exile: a token exiled (the bridge's exd) plays exile, not death", said(1) === '["exile music"]' && JSON.stringify(vals[1].died) === "[]", JSON.stringify([news[1], vals[1].died]));
+  ok("exile: a token gone with no exd is still a death", said(2) === '["death music"]', said(2));
+  ok("wipe: 3 to graveyards on one board (two seats) plays wipe, once, not death", said(3) === '["wipe music"]', said(3));
+  ok("wipe: 2 to the graveyard is a death", said(4) === '["death music"]', said(4));
+  ok("lifegain: a player's life going up plays lifegain once", said(5) === '["lifegain music"]', said(5));
+  ok("lifegain: not for a life loss (with no damage pick, nothing plays)", said(6) === "[]", said(6));
+  ok("instant: an instant on the stack plays instant once", said(7) === '["instant music"]', said(7));
+  ok("instant: the same instant still on the stack plays nothing", said(8) === "[]", said(8));
+  ok("instant: a copy (same name on the stack, no card from a hand) plays nothing", said(9) === "[]", said(9));
+  ok("instant: the same name cast from another hand plays again", said(10) === '["instant music"]', said(10));
+  ok("instant: not for a sorcery", said(11) === "[]", said(11));
+  ok("instant: not for an ability", said(12) === "[]", said(12));
+  ok("order: exile beats damage, lifegain and instant on one board", said(13) === '["exile music"]', said(13));
+  ok("jump: a jump board plays none of the new sounds", said(14) === "[]" && vals[14].jump === true, JSON.stringify(vals[14]));
+  ok("order: with no lifegain pick, the instant under it plays", said(15) === '["instant music"]', said(15));
+  ok("mtg sounds test: the new kinds play", said(16) === '["exile music","instant music"]', said(16));
+  ok("mtg sounds test: an unknown kind lists the kinds", t.fx("tests").some((l) => l.includes("The sounds are: knockout, wipe, death, exile, damage, lifegain, instant, counter.")), JSON.stringify(t.fx("tests").filter((l) => l.includes("broadcast"))));
 }
 
 console.log(failed ? `\n${failed} failed, ${passed} passed` : `all ${passed} passed`);

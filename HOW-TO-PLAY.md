@@ -145,6 +145,7 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg fix` (`yes` / `no` / `done` / `cancel`) | the manual fix, as the Fix... button |
 | `mtg concede` | leave the game (twice within 15 s) |
 | `mtg effects on/off`, `mtg sounds on/off` | your own effects and sounds |
+| `mtg sounds test <kind>` | host: play one table sound now; kinds: knockout, wipe, death, exile, damage, lifegain, instant, counter (counter and knockout have no sound yet) |
 | `mtg mana 99` | (testing) a manual fix in one line: 99 of each mana until the end of the turn |
 | `mtg debug <scenario>` / `list` / `off` | (testing) a test board from `scenarios/<name>.json`: 20 lands out (the commander's colours, or the lands the file names) and the scenario's cards in hand, plus anything it puts in other zones for you or the opponents. Typed before a game, it is set up at your first priority on your own turn (your opening hand is kept by itself); during one, at the next moment with nothing on the stack. Other players vote as for any fix |
 | `mtg aideck <name>[, <name>...]` | host: the deck(s) the Forge AI players get (one name per AI; a new list replaces the old) |

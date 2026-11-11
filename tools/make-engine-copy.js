@@ -297,16 +297,19 @@ function engineChat(message, pl)
     pl.broadcast("[MTG] Your screen effects (banners, turn banner, stack pop-up and table effects): " .. (engineEffectsOff[pl.color] and "off" or "on") .. ". Type  mtg effects on  or  mtg effects off  (or Settings) to change.", {1, 0.85, 0.4})
   elseif cmd == "sounds" then
     -- M5 step 4: the table's sounds are shared, so on/off is the host's switch (engineSetSounds; Settings → My sounds
-    -- too); "mtg sounds test <death|counter|damage|knockout>" (host) plays that pick now
+    -- too); "mtg sounds test <kind>" (host) plays that pick now, any of engineSoundKinds (knockout, wipe, death, exile,
+    -- damage, lifegain, instant, counter)
     local kind = rest:match("^test%s+(%a+)$")
+    local known = false
+    for _, k in ipairs(engineSoundKinds) do if k == kind then known = true end end
     if kind ~= nil then
       if not pl.host then pl.broadcast("[MTG] Only the host can test the table's sounds (everyone hears them).")
-      elseif kind ~= "death" and kind ~= "counter" and kind ~= "damage" and kind ~= "knockout" then pl.broadcast("[MTG] The sounds are: death, counter, damage, knockout.")
+      elseif not known then pl.broadcast("[MTG] The sounds are: " .. table.concat(engineSoundKinds, ", ") .. ".")
       elseif engineSounds[kind] == nil then pl.broadcast("[MTG] No sound picked for " .. kind .. " yet (engineSounds." .. kind .. ", docs/m5-effects-design.md section 6).")
       elseif engineSoundPlay(kind, true) then pl.broadcast("[MTG] Playing the " .. kind .. " sound.")
       else pl.broadcast("[MTG] The " .. kind .. " sound didn't play (table sounds off, the players' own music is playing, or the pick isn't found).") end
     elseif rest == "on" or rest == "off" then engineSetSounds(pl, rest == "on")
-    else pl.broadcast("[MTG] Table sounds: " .. (engineSoundsMuted and "off" or "on") .. ". Type  mtg sounds on  or  mtg sounds off  (host), or  mtg sounds test death .", {1, 0.85, 0.4}) end
+    else pl.broadcast("[MTG] Table sounds: " .. (engineSoundsMuted and "off" or "on") .. ". Type  mtg sounds on  or  mtg sounds off  (host), or  mtg sounds test <kind>  with one of " .. table.concat(engineSoundKinds, ", ") .. ".", {1, 0.85, 0.4}) end
   elseif cmd == "animations" then
     -- the table's shared animations (attack swings, mills, the graveyard flash): the host's switch (Settings too)
     if not pl.host then pl.broadcast("[MTG] Only the host can turn the table's animations on or off (everyone sees them).")
@@ -381,7 +384,7 @@ function engineChat(message, pl)
     engineSend("reset", {})
     if ENGINE_MODE then engineClear() end -- don't wait for the bridge's "clear" (it may be down)
   else
-    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <kind>; mtg animations on/off (host) - also under Settings")
+    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <knockout|wipe|death|exile|damage|lifegain|instant|counter>; mtg animations on/off (host) - also under Settings")
   end
   return false
 end

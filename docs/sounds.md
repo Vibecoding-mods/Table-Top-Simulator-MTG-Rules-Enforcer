@@ -13,4 +13,7 @@ Six sounds the user supplied on 2026-11-11, from OpenGameArt. Each was trimmed t
 
 No sound yet for `counter` and `knockout`.
 
+The links are in `engineSounds` in `tools/engine-renderer.lua` (2026-11-11); when each kind plays and which wins on a
+busy board: `docs/m5-effects-design.md` section 6. `tests/test_table_effects.js` checks the two lists match.
+
 Licence: OpenGameArt items each carry their own licence (CC0, CC-BY, CC-BY-SA, GPL ...). Before the repo or the table goes public, record each sound's OpenGameArt page, author and licence here and in THIRD-PARTY-NOTICES.md.
