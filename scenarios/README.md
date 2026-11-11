@@ -8,7 +8,11 @@ triggers, state-based actions after, a restore point before). Names are lower ca
   is kept by itself). That first priority is usually your upkeep, so a sorcery-speed card waits until you pass to your
   main phase. Typed during one: at the next moment with nothing on the stack, whoever's turn it is. Against the AI it
   applies at once; other people vote.
-- Every card put on the battlefield is ready (no summoning sickness), untapped unless `"tapped": true`.
+- Every card put on the battlefield is ready (no summoning sickness), untapped unless `"tapped": true`. A planeswalker
+  or battle there gets its printed loyalty or defense (an engine image from 2026-11-11 on; before it, it had none and
+  died at once). Nothing else a card enters with is applied (Spike Feeder's +1/+1 counters, a Saga's lore counter, an
+  "as this enters, choose" choice): the engine adds the card straight to the battlefield, as Forge's own "no triggers"
+  dev-mode add does. Add counters afterwards with the manual fix.
 
 ```json
 {
@@ -27,9 +31,10 @@ triggers, state-based actions after, a restore point before). Names are lower ca
 ```
 
 - `lands`: a number (that many basics in your commander's colours, in turn; Wastes when it has none), a list of land
-  names, or counts by name (`{ "Mountain": 10, "Island": 10 }`). Yours default to 20, the opponents' to none. At most
-  60 (of each name).
-- `keepHand`: without it your dealt hand goes to the bottom of your library, so the hand is just the scenario's cards.
+  names, or counts by name (`{ "Mountain": 10, "Island": 10 }`). Yours default to 20 when typed before a game and to
+  none during one; the opponents' to none. At most 60 (of each name).
+- `keepHand`: before a game, without it your dealt hand goes to the bottom of your library, so the hand is just the
+  scenario's cards. During a game your hand is kept unless the file says `"keepHand": false`.
 - `library`: each card goes on top, the last one named ends up first.
 - `tokens`: as `mtg fix token` takes them (Forge's token scripts by colour, size and words).
 - `mana`: that many of each colour (W U B R G C) until the end of the turn, as `mtg mana` (at most 99).
@@ -39,4 +44,4 @@ A file of the wrong shape (not an object, `lands` of another kind, a zone or `to
 when typed, saying what is wrong. A choice made before a game is dropped (and said) if that colour isn't in it.
 The engine refuses a name it doesn't know ("no card named ..."); the setup then goes back to editing as an ordinary
 manual fix (Done applies what the table shows, Cancel ends it).
-Tests: `node tests/test_bridge_debug.js` (47 checks).
+Tests: `node tests/test_bridge_debug.js` (50 checks).
