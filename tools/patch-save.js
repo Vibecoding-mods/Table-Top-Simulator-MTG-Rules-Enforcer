@@ -106,7 +106,10 @@ function addPieces(raw, built) {
     if (top.has(g)) continue;
     const o = built.ObjectStates.find((x) => x.GUID === g);
     if (!o) throw new Error(`the built table lists status piece ${g} but hasn't got it: nothing changed`);
-    const clash = [...guidsIn([o])].filter((x) => everywhere.has(x));
+    // (a piece with states is there when any state is: a table saved at night has Night on top, Day in its States)
+    const own = [...guidsIn([o])];
+    if (own.some((x) => top.has(x))) continue;
+    const clash = own.filter((x) => everywhere.has(x));
     if (clash.length) throw new Error(`the save uses GUID ${clash.join(", ")} for something else: nothing changed`);
     add.push(o);
   }

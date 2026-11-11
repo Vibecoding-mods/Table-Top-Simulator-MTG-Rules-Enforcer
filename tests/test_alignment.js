@@ -109,6 +109,24 @@ const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringif
   ok("pieces: a GUID the save uses for something else stops it (Night's, inside a deck)", refuses(`{"ObjectStates": [{"GUID": "deck01", "ContainedObjects": [{"GUID": "eee555"}]}]}`, built, "something else"));
   ok("pieces: a piece the script names and the build hasn't got stops it", refuses(raw, { ...built, ObjectStates: built.ObjectStates.slice(1) }, "hasn't got it"));
   same("pieces: a built script without the list adds nothing", addPieces(raw, { LuaScript: "x", ObjectStates: built.ObjectStates }).raw, raw);
+  // (a table saved at night: TTS writes Night on top with Day in its States; the piece is there, nothing is added)
+  const night = JSON.parse(r.raw);
+  night.ObjectStates = night.ObjectStates.map((o) => (o.GUID === "ddd444" ? obj("eee555", { States: { 1: obj("ddd444") } }) : o));
+  const nightRaw = JSON.stringify(night, null, 2);
+  const n1 = safe(() => addPieces(nightRaw, built));
+  ok("pieces: a save with Day // Night saved at night (Night on top, Day in its States) doesn't throw", !n1.threw, n1.threw);
+  same("pieces: ... and adds nothing, every byte as it was", [n1.added.length, n1.raw === nightRaw], [0, true]);
+  // (the same with the real build: every piece there, Day // Night turned to Night by its own States)
+  const realAll = buildSave();
+  const dn = realAll.ObjectStates.findIndex((o) => o.GUID === "4e8c7b");
+  const dayObj = realAll.ObjectStates[dn];
+  const nightKey = Object.keys(dayObj.States || {})[0];
+  const nightObj = { ...dayObj.States[nightKey], States: { 1: { ...dayObj, States: undefined } } };
+  realAll.ObjectStates[dn] = nightObj;
+  const realNightRaw = JSON.stringify(realAll, null, 2);
+  const n2 = safe(() => addPieces(realNightRaw, buildSave()));
+  ok("pieces: precondition, the real Day // Night has a Night state (cdf2d2)", !!nightObj && nightObj.GUID === "cdf2d2", nightObj && nightObj.GUID);
+  same("pieces: the real build saved at night: no throw, nothing added", [n2.threw || "", n2.added.length], ["", 0]);
   // (the real build: the user's kind of save is the engine table from before the pieces, with a deck of their own)
   const real = buildSave();
   const names = statusGuids(real.LuaScript);

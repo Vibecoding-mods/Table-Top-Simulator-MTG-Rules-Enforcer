@@ -401,7 +401,8 @@ end
 function M.setState(o, id)
   local states = o.__d.data.States or {}
   local s = states[tostring(id)]
-  if s == nil then return nil end
+  -- (a state it hasn't, its own included, does nothing; the call is kept for the checks)
+  if s == nil then fx("setState", o, id, "none") return nil end
   local mine = M.getStateId(o)
   local me = {}
   for k, v in pairs(o.__d.data) do if k ~= "States" then me[k] = v end end

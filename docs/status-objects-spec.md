@@ -15,11 +15,14 @@ boxes (one small green box a mark, stacked down the inner corner of each mat und
 - A seat's stack that would run past the mat's near edge (every piece at once under ten boxes does) is scaled down
   together to fit.
 - A piece is hidden both ways: invisible to every colour, and the crown and tokens also at tint alpha 0.
-- Day // Night lies at x 0 between the middle tile and White and Red's hearts, readable from that side, scaled to the
-  1.8-wide gap between the mats. Its Night state is its own object in TTS (GUID cdf2d2); the table switches with
-  `setState`, which costs one object swap a change of day or night.
+- Day // Night lies at x 0 between the middle tile and White and Red's hearts, readable from that side, scaled to at most
+  1.5 wide (`ENGINE_STATUS_FIT.day.width`; the gap between the mats is 1.8). Its Night state is its own object in TTS
+  (GUID cdf2d2); the table switches with `setState`, which costs one object swap a change of day or night. Parking
+  turns it back to Day (one more swap, only when it was on Night), so the saved table normally has Day on top.
 - The deploy's save patch (`tools/patch-save.js`) only replaced the script, so it now also adds the pieces a save
-  lacks; `tools/make-user-save.js` already carries every object of the engine table.
+  lacks; `tools/make-user-save.js` already carries every object of the engine table. A piece counts as there when any
+  of its states is on the table: a table saved at night has Night on top with Day inside it, and is left alone.
+- Each seat's placing and each piece's move or park runs in its own `pcall`, so one that fails leaves the rest.
 
 ## What the user sees
 

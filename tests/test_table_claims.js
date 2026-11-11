@@ -2387,7 +2387,9 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("status pieces: day: readable from the White and Red side (White's cards' turn, its tracker's)", !!D[DAY] && !!whiteTracker && Math.abs(D[DAY].ry - whiteTracker.Transform.rotY) < 0.5 && D[DAY].z < 0, `${D[DAY] && D[DAY].ry} / ${whiteTracker && whiteTracker.Transform.rotY}`);
   ok("status pieces: night: the same card turned to its Night state (2), at the same spot, visible", !!N[NIGHT] && !N[DAY] && N[NIGHT].state === 2 && mid(N[NIGHT]) && shown(N[NIGHT]) && Math.abs(N[NIGHT].x - D[DAY].x) < 0.01 && Math.abs(N[NIGHT].z - D[DAY].z) < 0.01, JSON.stringify([N[DAY], N[NIGHT]]));
   ok("status pieces: night again changes nothing", !fxOf(r, "night again").some((l) => l.includes(DAY) || l.includes(NIGHT)), fxOf(r, "night again").filter((l) => l.includes(NIGHT)).join(" | ").slice(0, 200));
-  ok("status pieces: no day or night: the card parked and hidden", parked(v("no day")[NIGHT], n), JSON.stringify(v("no day")[NIGHT]));
+  ok("status pieces: no day or night: the card parked and hidden", parked(v("no day")[DAY], n), JSON.stringify(v("no day")[DAY]));
+  ok("status pieces: parked from Night, the card goes back to Day (state 1), so the saved table has Day on top", !!v("no day")[DAY] && !v("no day")[NIGHT] && v("no day")[DAY].state === 1, JSON.stringify([v("no day")[DAY], v("no day")[NIGHT]]));
+  ok("status pieces: parking an already-Day card swaps nothing", !fxOf(r, "cleared").concat(fxOf(r, "clear")).some((l) => /setState/.test(l)), fxOf(r, "clear").filter((l) => /setState/.test(l)).join(" | ").slice(0, 200));
   const bc = v("before clear"), cl = v("cleared");
   ok("status pieces: precondition, pieces out before the clear", shown(bc[crown]) && shown(bc[seatObj("POISON", "Blue")]) && shown(bc[DAY]), JSON.stringify([bc[crown], bc[DAY]]).slice(0, 200));
   ok("status pieces: engineClear (reset, rematch) parks every piece", [...pieceGuids].every((g) => parked(cl[g], n)) && parked(cl[DAY] || cl[NIGHT], n), JSON.stringify(Object.entries(cl).filter(([g, p]) => g !== "everyone" && !parked(p, n))).slice(0, 300));
@@ -2437,6 +2439,19 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 }, q(`return tostring(ENGINE_MODE)`, "mode"), q(at, "after")]);
   ok("status pieces, rematch: precondition, the crown out and engine mode still on after the clear", /^[-\d.]+ 0\.98 /.test(String(valueOf(r4, "before"))) && String(valueOf(r4, "mode")) === "true", `${valueOf(r4, "before")} mode ${valueOf(r4, "mode")}`);
   ok("status pieces, rematch: a clear that keeps engine mode on parks them too", /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(String(valueOf(r4, "after"))), String(valueOf(r4, "after")));
+  // (one piece or seat that fails leaves the rest: the crown's move and park throw, White's placing and Day // Night's
+  // throw; Blue's poison, after the crown in the list, still comes out and still parks)
+  const ys = 'local out = {} for _, p in ipairs(ENGINE_STATUS_PIECES) do for _, e in ipairs(p.objs) do if (p.mark == "POISON" and e.seat == "Blue") or e.g == "8963ec" then out[#out + 1] = string.format("%s %.2f", p.mark, getObjectFromGUID(e.g).getPosition().y) end end end return table.concat(out, ", ")';
+  const r5 = run([
+    q('local put, park, place = engineStatusPut, engineStatusPark, engineStatusPlace ' +
+      'engineStatusPut = function(o, item, w) if item.key == "8963ec" then error("boom") end return put(o, item, w) end ' +
+      'engineStatusPark = function(o, item) if item.key == "8963ec" then error("boom") end return park(o, item) end ' +
+      'engineStatusPlace = function(want, o, pl) if pl.color == "White" then error("boom") end return place(want, o, pl) end ' +
+      'engineStatusDayPlace = function() error("boom") end return "broken"', "break"),
+    board({ White: ["POISON 2"], Blue: ["MONARCH", "POISON 4"] }), q(ys, "out"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 }, q(ys, "parked")]);
+  ok("status pieces: a piece whose move fails leaves the next one to move (crown fails, Blue's poison out)", /^MONARCH -30\.00, POISON (?!-30)[-\d.]+$/.test(String(valueOf(r5, "out"))), `${valueOf(r5, "out")} ${r5.errors.slice(0, 1).join("")}`);
+  ok("status pieces: a piece whose park fails leaves the next one to park (Blue's poison back under)", /POISON -30\.00$/.test(String(valueOf(r5, "parked"))), String(valueOf(r5, "parked")));
 }
 // Status pieces in the copy: their scripts are gone (Day // Night's, The Ring's, Undercity's, the counters'), and the
 // pieces the original table had on its surface beside them stay removed as clutter
