@@ -23,9 +23,10 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   click says why; and a choice of players and permanents that is no target (Hero of Bladehold's attacking tokens when
   there is a planeswalker to attack, Zevlor's copies) is asked as a target question, so a life counter or the card answers it. Needs a look on
   the real table.
-- ⬜ Status objects (spec docs/status-objects-spec.md, the user 2026-11-10): the original table's crown, initiative,
-  City's Blessing, the Ring, Day // Night and counter tokens come back parked under the table, hidden, and move onto
-  the holder's mat beside their mark's box.
+- ✅ (source, 2026-11-11, not yet on the real table) Status objects (spec docs/status-objects-spec.md, the user
+  2026-11-10): the original table's crown, initiative, City's Blessing, the Ring, Day // Night and counter tokens come
+  back parked under the table, hidden, and move onto the holder's mat under their mark's box. One copy a seat of the
+  blessing, the Ring and the three counters; the deploy's save patch adds the pieces to the user's save.
 
 ## 2026-11-11
 - ⬜ Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on permanents
