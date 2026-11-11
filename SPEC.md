@@ -509,3 +509,16 @@ Only the node image needs the rebuild. The relay checks an answer by reading it 
 - **Engine, headless, on a second container** (room `tts-test`, the running table isn't touched): with 2 free, two mulligans keep 7; with 1 free, two mulligans put 1 on the bottom; a game with 3 players; `freeCards` absent behaves as today.
 - **Break it on purpose** (`jr-programmer-suite` §2b), then one real game with two people.
 - **Rollout:** convert `.sh` to LF, build `mtg-forge-node:<tag>` (about 20 minutes, most of it the native step), then `node tools/deploy.js --image <tag>` with TTS closed: it runs the gates and the live checks, retags the node as `:exile` and recreates the containers. The relay stays as it is. Only between games: never swap images mid-game, and the table push needs the decks off the table. Then HOW-TO-PLAY.md, README.md and the PLAN note.
+
+## Player marks and status objects on the mat (added 2026-11-10)
+
+- **Marks boxes (built in source 2026-11-10):** a player's marks (monarch, initiative, poison, the Ring, speed, an
+  extra turn, a turn run by another player, ...) show as small green boxes, one a mark, stacked down the inner corner
+  of their own mat right under their heart (the user: "corner of your playmat under your heart"; "you can add multiple
+  boxes if need be instead of cramming everything in one box"). They keep to the strip the battlefield grid leaves free
+  at the inner end of every row, so cards never land on them. Past ten marks the tenth box says "+n MORE".
+- **Status objects (spec only):** the original table's pieces for those statuses come back: the Monarch crown, the
+  initiative's Undercity, City's Blessing, the Ring, Day // Night and the poison / energy / experience tokens. They wait
+  under the table, locked and unseen (opacity 0), and the one for a status moves onto the holder's mat just under its
+  box when the box says so, e.g. "if the box says monarch the crown spawns in on their mat". Full spec:
+  [docs/status-objects-spec.md](docs/status-objects-spec.md).
