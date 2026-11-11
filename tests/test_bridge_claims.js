@@ -924,6 +924,19 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("rewind: and in the log's line", JSON.stringify(logLines) === JSON.stringify(["--- Rewound to AI 1's turn (beginning of combat) ---"]), JSON.stringify(logLines));
       harness.restore();
     }
+    // (and the vote's point, which the chat names to everyone: checkpointLabel)
+    {
+      const h = harness.load();
+      const b = clone(F.board);
+      Object.assign(b.gameView, { turn: 6, step: "main2", stack: [], checkpoints: [{ checkpointId: 30, turn: 5, step: "combatBegin", activePlayerId: "player-1" }],
+        restoreVote: { voteId: 3, checkpoint: { checkpointId: 30, turn: 5, step: "combatBegin", activePlayerId: "player-1" }, requestedByPlayerId: "player-0", awaitingPlayerIds: [], status: { type: "pending" } } });
+      setup(h, b);
+      h.B.sendTable(); await h.flush();
+      // (nobody left to ask, so Forge's vote is agreed at once: "Rewind to <point>: Agreed: rewinding...")
+      const said = h.effects.filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text).filter((t) => /Rewind to/.test(t));
+      ok("rewind: the vote names a step outside the list in the table's words", said.length === 1 && said[0].startsWith("[MTG] Rewind to turn 5, White's beginning of combat:"), JSON.stringify(said));
+      harness.restore();
+    }
     // a clash's cards and winner in the game log, once for the table (kw-07: no line named them). Forge's own words,
     // ClashEffect: "<player> reveals: <card>. Mana Value= <n>" a line each (lblReveals, lblCMC), then "<player> wins
     // clash." (lblWinsClash) or "No Winner!" (lblNoWinner); players by their engine names.
@@ -937,12 +950,25 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
         input: { type: "revealCards", zone: "library", ownerPlayerId: "player-0", cards: [card(1108, "Craw Wurm", ["Creature"])], presentation: { title } } }); return h.flush(); };
       const won = "tts-Blue-ab12 reveals: Craw Wurm. Mana Value= 6\nself-hosted-node-77-bot reveals: Forest. Mana Value= 0\ntts-Blue-ab12 wins clash.";
       await clash(seat, 910, won);
+      const blueText = seat.prompt?.ui?.text;
+      // (Forge asks each player in turn, ClashEffect -> GameAction.revealTo's loop: White's comes once Blue said OK, here
+      // 10 s later)
+      h.B._getGame().lastClash.at -= 10000;
       await clash(white, 911, won);
       const logged = () => h.effects.filter((e) => e.tts && e.tts.t === "gamelog").flatMap((e) => e.tts.lines || []).filter((l) => /^Clash/.test(l));
-      ok("clash: the cards and the winner are logged, once for two seats", JSON.stringify(logged()) === JSON.stringify(["Clash (Lash Out): Blue reveals Craw Wurm (mana value 6), AI 1 reveals Forest (mana value 0). Blue wins."]), JSON.stringify(logged()));
-      ok("clash: the question still says it to the player as \"You\"", seat.prompt?.ui?.text === "You: Craw Wurm (6), AI 1: Forest (0). You win.", seat.prompt?.ui?.text);
+      const WON = "Clash (Lash Out): Blue reveals Craw Wurm (mana value 6), AI 1 reveals Forest (mana value 0). Blue wins.";
+      ok("clash: the cards and the winner are logged, once for two seats asked 10 s apart", JSON.stringify(logged()) === JSON.stringify([WON]), JSON.stringify(logged()));
+      ok("clash: the question still says it to the player as \"You\"", blueText === "You: Craw Wurm (6), AI 1: Forest (0). You win.", blueText);
+      // (the second seat sits in slot player-1, whose table name here is "AI 1")
+      ok("clash: and to the other player, the winner by name", white.prompt?.ui?.text === "Blue: Craw Wurm (6), You: Forest (0). Blue wins.", white.prompt?.ui?.text);
+      // (a seat shown the same clash again: a new clash, the card kept on top revealed once more)
+      await clash(seat, 913, won);
+      ok("clash: the same cards again for the same seat are a new clash, logged", JSON.stringify(logged()) === JSON.stringify([WON, WON]), JSON.stringify(logged()));
       await clash(seat, 912, "tts-Blue-ab12 reveals: Island. Mana Value= 0\nself-hosted-node-77-bot reveals: Forest. Mana Value= 0\nNo Winner!");
-      ok("clash: a tie says nobody wins", logged()[1] === "Clash (Lash Out): Blue reveals Island (mana value 0), AI 1 reveals Forest (mana value 0). Nobody wins.", JSON.stringify(logged()));
+      ok("clash: a tie says nobody wins", logged()[2] === "Clash (Lash Out): Blue reveals Island (mana value 0), AI 1 reveals Forest (mana value 0). Nobody wins.", JSON.stringify(logged()));
+      // (the newest clash is the one remembered: White shown that tie next is the same clash, not logged again)
+      await clash(white, 914, "tts-Blue-ab12 reveals: Island. Mana Value= 0\nself-hosted-node-77-bot reveals: Forest. Mana Value= 0\nNo Winner!");
+      ok("clash: the newest clash is remembered for the next seat", logged().length === 3, JSON.stringify(logged()));
       harness.restore();
     }
   }

@@ -43,6 +43,9 @@ let sending = false;
 const ZONE_KEYS = ["hand", "battlefield", "graveyard", "exile", "command", "playable", "revealed", "ctlHand"];
 // A reveal's pictures (the table pages through them, 7 at a time): 7 left out Animist's Awakening's 8th, 2026-10-30
 const REVEAL_PICTURES = 40;
+// How long a clash's log line waits for the other human seats to be shown the same clash (each acknowledges in turn,
+// so one player's slow OK delays the next one's question): see the clash in onPrompt
+const CLASH_SAME_MS = 120000;
 function toTTS(customMessage) {
   if (game?.autoplay) return; // CPU-contention test: TTS gets nothing
   // (the table log: each question shown, and the chat players are told)
@@ -6483,27 +6486,26 @@ function onPrompt(seat, prompt) {
       }
       if (/ reveals: .*Mana Value=/i.test(title)) {
         // (Forge's clash: one line per player and the result; said as "You: Island (0), AI 1: Forest (0). Nobody wins.")
-        // (the engine's lines name players by their engine usernames: displayText first, then "You" for this seat)
+        // (the engine's lines name players by their engine usernames: displayText first, then this seat by its colour
+        // even where its engine name isn't in the player list; "You" in its own question)
         const me = nameOf(seat.slot);
-        const isMe = (p) => p === me || p === seat.username;
+        const named = (p) => (p === seat.username ? me : p);
         const lines = String(title).split(/[\r\n]+/).map((l) => displayText(l.trim())).filter(Boolean);
-        const who = lines.map((l) => l.match(/^(.+?) reveals: (.+?)\. Mana Value= ?(\d+)/)).filter(Boolean)
-          .map(([, p, c, v]) => `${isMe(p) ? "You" : p}: ${c} (${v})`);
+        const shown = lines.map((l) => l.match(/^(.+?) reveals: (.+?)\. Mana Value= ?(\d+)/)).filter(Boolean).map(([, p, c, v]) => ({ p: named(p), c, v }));
         const end = lines.find((l) => !/ reveals: /.test(l)) || "";
-        const won = end.match(/^(.+?) wins/i);
-        const result = /no winner/i.test(end) ? "Nobody wins." : won ? (isMe(won[1]) ? "You win." : `${won[1]} wins.`) : end.replace(/!$/, ".");
-        ui = { title: `${src ? `${src}: ` : ""}clash`, mode: "single", text: `${who.join(", ")}. ${result}`.trim(), options: [{ id: "ok", label: "OK" }],
-          show: input.cards.slice(0, REVEAL_PICTURES).map((c) => ({ n: cardLabel(c), img: imgOf(c) })) };
+        const winner = end.match(/^(.+?) wins/i)?.[1];
+        const result = (you) => (/no winner/i.test(end) ? "Nobody wins." : winner ? (you && named(winner) === me ? "You win." : `${named(winner)} wins.`) : end.replace(/!$/, "."));
+        ui = { title: `${src ? `${src}: ` : ""}clash`, mode: "single", text: `${shown.map(({ p, c, v }) => `${p === me ? "You" : p}: ${c} (${v})`).join(", ")}. ${result(true)}`.trim(),
+          options: [{ id: "ok", label: "OK" }], show: input.cards.slice(0, REVEAL_PICTURES).map((c) => ({ n: cardLabel(c), img: imgOf(c) })) };
         // (and in the game log, by the players' table names: no line named the clash's cards or its winner, keyword sweep
         // kw-07 "Lash Out: clash". Forge reveals it to every player (ClashEffect, revealTo all), so each human seat is
-        // asked: said once, as a reveal is)
+        // asked, one after another: the same line from a seat that hasn't seen it yet is that clash again, said once; from
+        // a seat that has, a new clash with the same cards, as a card kept on top is revealed again)
         if (game) {
-          // (this seat by its colour even where the engine's name for it isn't in the player list: as isMe reads it)
-          const named = (p) => (isMe(p) ? me : p);
-          const shown = lines.map((l) => l.match(/^(.+?) reveals: (.+?)\. Mana Value= ?(\d+)/)).filter(Boolean).map(([, p, c, v]) => `${named(p)} reveals ${c} (mana value ${v})`);
-          const line = `Clash${src ? ` (${src})` : ""}: ${shown.join(", ")}. ${/no winner/i.test(end) ? "Nobody wins." : won ? `${named(won[1])} wins.` : end.replace(/!$/, ".")}`.trim();
-          if (!(game.lastClash?.line === line && Date.now() - game.lastClash.at < 5000)) gameLogLine(line);
-          game.lastClash = { line, at: Date.now() };
+          const line = `Clash${src ? ` (${src})` : ""}: ${shown.map(({ p, c, v }) => `${p} reveals ${c} (mana value ${v})`).join(", ")}. ${result(false)}`.trim();
+          const last = game.lastClash;
+          if (last?.line === line && !last.seats.has(seat.color) && Date.now() - last.at < CLASH_SAME_MS) last.seats.add(seat.color);
+          else { gameLogLine(line); game.lastClash = { line, at: Date.now(), seats: new Set([seat.color]) }; }
         }
         toOutput = () => ({ type: "revealCardsAcknowledged" });
         break;
