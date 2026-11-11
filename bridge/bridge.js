@@ -4704,6 +4704,31 @@ function scryPlaceSteps(cards, zones, label, done, placed = {}) {
   return { ui, toOutput };
 }
 
+// A choice among players and permanents that is no target (Forge's chooseSingleEntityForEffect over a mixed list, which
+// the harness asks as a chooseFromSelection of labels: Zevlor's copy over a player and their permanents, a creature put
+// onto the battlefield attacking choosing whom it attacks; a list of cards alone is asked as cards instead) names each
+// by Forge's toString: a player by its engine name, a card as "<name> (<Forge's number>)", a number that is not our
+// card id. So a card is known by its name, when the one card of that name the board shows anywhere (every zone and the
+// stack) is a face-up permanent on the battlefield. All of them known, with a card among them: the target ids, in the
+// options' order, that the table answers by clicking a life counter or the card (item 24, planeswalkers by click,
+// 2026-11-11); else null, and the list is asked as before.
+function entityChoiceIds(options, gv) {
+  const order = (game?.playerOrder || []).map((u) => String(u || "").toLowerCase());
+  const seen = [...(gv.zones || []).flatMap((z) => (z.cards || []).map((c) => ({ c, bf: z.zone === "battlefield" }))),
+    ...(gv.stack || []).map((s) => ({ c: s, bf: false }))];
+  const ids = [];
+  for (const o of options) {
+    const label = String(o.label ?? "").trim();
+    const k = label ? order.indexOf(label.toLowerCase()) : -1;
+    if (k >= 0) { ids.push(`player|player-${k}`); continue; }
+    const name = /^(.+) \(\d+\)$/.exec(label)?.[1];
+    const same = name ? seen.filter((x) => x.c.identity?.name === name) : [];
+    if (same.length !== 1 || !same[0].bf || same[0].c.isFaceDown) return null;
+    ids.push(`card|${same[0].c.id}`);
+  }
+  return ids.some((v) => v.startsWith("card|")) && new Set(ids).size === ids.length ? ids : null;
+}
+
 // What each engine question is, for the table: `kind` on every prompt message (plus `dest: "library"` when the chosen
 // cards go to the library). Steps of a question set their own kind ("order", "place", "number", "choice").
 const PROMPT_KIND = {
@@ -6227,6 +6252,21 @@ function onPrompt(seat, prompt) {
           if (game && damageOrder) game.orderAnswer = { turn: gv.turn, step: gv.step, first: labels[Number(a[0])] == null ? null : whose(labels[Number(a[0])]) };
           return { type: "selectionDecision", chosenIndices: a.map(Number) };
         };
+        break;
+      }
+      // players and permanents to choose from, no target (see entityChoiceIds): asked as a target question, so a life
+      // counter or the card (a planeswalker) answers it by a click; the answer goes back as the options' numbers
+      const entity = input.options.length > 1 && entityChoiceIds(input.options, gv);
+      if (entity) {
+        const players = entity.some((v) => v.startsWith("player|"));
+        const walkers = entity.filter((v) => v.startsWith("card|")).every((v) => (byId[v.slice(5)]?.types || []).includes("Planeswalker"));
+        const what = `${players ? "player or " : ""}${walkers ? "planeswalker" : "permanent"}`;
+        // (a creature put onto the battlefield attacking chooses whom it attacks, CR 506.3b: Forge's own title, "Choose
+        // which defender to attack with ...", is not sent, only the card's name)
+        const attacks = players && walkers && /\battacking\b/i.test(String(prompt.sourceAbilityText || srcCardText));
+        ui = { kind: "target", title: `${src ? `${src}: ` : ""}${attacks ? "attack which" : "choose which"} ${what}?`, mode: "multi",
+          min: input.minTotal ?? 1, max: input.maxTotal ?? 1, options: entity.map((v) => ({ id: v, label: cname(v.split("|")[1]) })) };
+        toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map((v) => entity.indexOf(v)).filter((i) => i >= 0) });
         break;
       }
       const how = input.maxTotal === 1 && input.minTotal === 1 ? "one" : input.minTotal === 0 ? "any you want" : input.minTotal === input.maxTotal ? String(input.maxTotal) : `${input.minTotal} to ${input.maxTotal}`;
