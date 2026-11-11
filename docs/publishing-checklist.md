@@ -101,3 +101,13 @@ Draft message to the table's author, for a Workshop comment on 2296042369 or the
   > link to your table. Are you okay with that, or is there anything you'd like changed?
 
 - [ ] Read the repository through once on GitHub, then change it to public.
+
+## The itch.io page (decided 2026-11-11: GitHub + itch.io; the Steam Workshop optional)
+
+- [ ] The repository is public before (or as) the page goes up: the engine in `images.tar` is GPL/AGPL, so its source
+  must be reachable. The release also carries `LICENSES/SOURCE.txt` and the patches.
+- [ ] Pricing: free, no payments (the Fan Content Policy forbids selling).
+- [ ] The page links the GitHub repository and repeats the Wizards notice from README.md "Credits and legal".
+- [ ] The page says it was **made with Claude Code** (the AI tool that wrote it), as README.md does. itch.io asks for
+  honest metadata; Nexus Mods, if ever used, requires a generative-AI disclosure.
+- [ ] Every file is under itch's 1 GB per-file limit (release 1418: largest 336 MB).
