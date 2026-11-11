@@ -2243,6 +2243,50 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("controller away: the card Blue may cast is Blue's row's own, no stand-in", /^Blue nil nil /.test(String(valueOf(r, "away"))), String(valueOf(r, "away")));
   ok("controller away: nothing of the controlled hand is laid", valueOf(r, "laid") === "0", String(valueOf(r, "laid")) + " " + r.errors.join(" | "));
 }
+// who may touch which card (next-features item 1): anyone anything before a game (engine mode on too); during a game
+// your own; once it is over nobody touches another player's cards, engine card or not, not even a click
+{
+  const base = JSON.parse(s1[38].json);
+  const card = (id, n, ctl) => ({ id: `engine-card-${id}`, n, ty: ["Creature"], tx: "", tl: "Creature", cmc: 1, ctl, p: 2, t: 2 });
+  const board = (over) => {
+    const b = JSON.parse(JSON.stringify(base));
+    for (const p of b.players) {
+      p.keep = ["graveyard", "exile", "command"];
+      if (p.color === "Blue") p.battlefield = [card(9901, "Grizzly Bears", "Blue")];
+      if (p.color === "White") p.battlefield = [card(9902, "Hill Giant", "White")];
+    }
+    if (over) { b.gameOver = true; b.winner = "Blue"; }
+    return { msg: { t: "table", json: JSON.stringify(b) }, frames: 60 };
+  };
+  const act = (who, gm, action, mark) => q(`for _, x in ipairs(getObjects()) do if x.getGMNotes() == "${gm}" then return tostring(onPlayerAction(Player.${who}, Player.Action.${action}, { x })) end end return "none"`, mark);
+  // a plain card (not the engine's) lying on White's mat
+  const spawnLoose = q('local p = data.White.playmat.getPosition() spawnObject({ type = "Card", position = { p.x, 2, p.z }, callback_function = function(o) o.setGMNotes("loose-white") end }) __sim.frames(5) return "spawned"', "loose");
+  const before = simulate({ save, seated: ["Blue", "White"], steps: [q('engineChat("mtg engine on", Player.Blue)', "on"), spawnLoose,
+    act("Blue", "loose-white", "PickUp", "before: Blue takes White's card")] });
+  ok("touch: before a game, with engine mode on, anyone may pick up another seat's card", valueOf(before, "before: Blue takes White's card") === "true", String(valueOf(before, "before: Blue takes White's card")) + " " + before.errors.join(" | "));
+  const r = simulate({ save, seated: ["Blue", "White"], steps: [...prefix, board(false),
+    act("Blue", "engine:engine-card-9902", "PickUp", "play: Blue takes White's"), act("Blue", "engine:engine-card-9901", "PickUp", "play: Blue takes own"),
+    act("Blue", "engine:engine-card-9902", "Select", "play: Blue clicks White's"),
+    spawnLoose, act("Blue", "loose-white", "PickUp", "play: Blue takes White's loose card"),
+    board(true),
+    act("Blue", "engine:engine-card-9902", "PickUp", "over: Blue takes White's"), act("Blue", "engine:engine-card-9902", "Select", "over: Blue clicks White's"),
+    act("Blue", "engine:engine-card-9902", "FlipOver", "over: Blue flips White's"), act("White", "engine:engine-card-9901", "PickUp", "over: White takes Blue's"),
+    act("Blue", "loose-white", "PickUp", "over: Blue takes White's loose card"), act("White", "loose-white", "PickUp", "over: White takes own loose card"),
+    act("Blue", "engine:engine-card-9901", "PickUp", "over: Blue takes own"), act("Blue", "engine:engine-card-9901", "FlipOver", "over: Blue flips own")] });
+  const v = (mark) => String(valueOf(r, mark));
+  ok("touch: precondition, the board was drawn", v("play: Blue takes own") === "true" && !r.errors.length, v("play: Blue takes own") + " " + r.errors.join(" | "));
+  ok("touch: during a game, another player's card can't be picked up", v("play: Blue takes White's") === "false", v("play: Blue takes White's"));
+  ok("touch: during a game, a click on another player's card still goes through (targets, blocks)", v("play: Blue clicks White's") === "true", v("play: Blue clicks White's"));
+  ok("touch: during a game, a plain card on another mat is left to the table", v("play: Blue takes White's loose card") === "true", v("play: Blue takes White's loose card"));
+  ok("touch: game over, another player's engine card can't be picked up, clicked or flipped",
+    ["over: Blue takes White's", "over: Blue clicks White's", "over: Blue flips White's", "over: White takes Blue's"].every((k) => v(k) === "false"),
+    ["over: Blue takes White's", "over: Blue clicks White's", "over: Blue flips White's", "over: White takes Blue's"].map(v).join(","));
+  ok("touch: game over, a plain card on another player's mat is theirs too", v("over: Blue takes White's loose card") === "false" && v("over: White takes own loose card") === "true",
+    `${v("over: Blue takes White's loose card")} ${v("over: White takes own loose card")}`);
+  ok("touch: game over, your own cards can still be picked up and flipped", v("over: Blue takes own") === "true" && v("over: Blue flips own") === "true", `${v("over: Blue takes own")} ${v("over: Blue flips own")}`);
+  const said = fxOf(r, "over: Blue takes White's").filter((l) => l.includes("broadcastToColor")).join(" | ");
+  ok("touch: game over, the refusal says whose cards they are", /The game is over: those are (White|PlayerWhite)'s cards/.test(said), said);
+}
 // (suite review 2026-11-10) the bridge slims every list in its ZONE_KEYS, and the table's mergeStatic fills in exactly
 // those lists (each says so of the other): a list on one side only arrives as bare ids, or is filled for nothing
 {

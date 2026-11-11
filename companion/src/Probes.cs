@@ -276,6 +276,47 @@ namespace MtgCompanion
             catch (Exception e) { return new HttpResult { Kind = HttpKind.Error, Error = e.Message, Ms = sw.ElapsedMilliseconds }; }
         }
 
+        // A POST of a JSON body. Unlike HttpGet, an answer with an error status keeps its body (the bridge's /tools says
+        // why it refused).
+        public static HttpResult HttpPost(string url, string json, int timeoutMs)
+        {
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                var req = (HttpWebRequest)WebRequest.Create(url);
+                req.Proxy = null;
+                req.Method = "POST";
+                req.ContentType = "application/json";
+                req.Timeout = timeoutMs;
+                req.ReadWriteTimeout = timeoutMs;
+                req.KeepAlive = false;
+                var bytes = Encoding.UTF8.GetBytes(json ?? "");
+                req.ContentLength = bytes.Length;
+                using (var s = req.GetRequestStream()) s.Write(bytes, 0, bytes.Length);
+                using (var resp = (HttpWebResponse)req.GetResponse())
+                using (var rd = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                    return new HttpResult { Kind = HttpKind.Ok, Status = (int)resp.StatusCode, Body = rd.ReadToEnd(), Ms = sw.ElapsedMilliseconds };
+            }
+            catch (WebException e)
+            {
+                var hr = e.Response as HttpWebResponse;
+                if (hr != null)
+                {
+                    string body = "";
+                    try { using (var rd = new StreamReader(hr.GetResponseStream(), Encoding.UTF8)) body = rd.ReadToEnd(); } catch { }
+                    int code = (int)hr.StatusCode; hr.Close();
+                    return new HttpResult { Kind = HttpKind.Ok, Status = code, Body = body, Ms = sw.ElapsedMilliseconds };
+                }
+                var se = FindSocketError(e);
+                if (e.Status == WebExceptionStatus.ConnectFailure && (se == null || se.SocketErrorCode == SocketError.ConnectionRefused))
+                    return new HttpResult { Kind = HttpKind.Refused, Error = "nothing listens", Ms = sw.ElapsedMilliseconds };
+                if (e.Status == WebExceptionStatus.Timeout)
+                    return new HttpResult { Kind = HttpKind.Timeout, Error = "no answer in " + timeoutMs / 1000 + " s", Ms = sw.ElapsedMilliseconds };
+                return new HttpResult { Kind = HttpKind.Error, Error = e.Message, Ms = sw.ElapsedMilliseconds };
+            }
+            catch (Exception e) { return new HttpResult { Kind = HttpKind.Error, Error = e.Message, Ms = sw.ElapsedMilliseconds }; }
+        }
+
         static SocketException FindSocketError(Exception e)
         {
             for (var x = e; x != null; x = x.InnerException) { var s = x as SocketException; if (s != null) return s; }
