@@ -1333,7 +1333,7 @@ index fb82e6d..d166616 100644
  
      @Override
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..7c4f888 100644
+index 643e5de..16d918c 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,12 +6,14 @@ import forge.harness.common.ParityCardMap;
@@ -1971,7 +1971,7 @@ index 643e5de..7c4f888 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2431,369 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2431,368 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2282,7 +2282,6 @@ index 643e5de..7c4f888 100644
 +        }
 +    }
 +
-+    // A card from no zone enters by GameAction.changeZone's dev-mode path, which skips the ETB counter replacements.
 +    private static void putPrintedCounters(final Card card) {
 +        if (card.isPlaneswalker() && card.getCurrentLoyalty() == 0) {
 +            card.setCounters(CounterType.getType("LOYALTY"),
@@ -2341,7 +2340,7 @@ index 643e5de..7c4f888 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +2826,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +2825,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -2358,7 +2357,7 @@ index 643e5de..7c4f888 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +2870,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +2869,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -2367,7 +2366,7 @@ index 643e5de..7c4f888 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +2913,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +2912,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -2390,7 +2389,7 @@ index 643e5de..7c4f888 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +2957,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +2956,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -2421,7 +2420,7 @@ index 643e5de..7c4f888 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,11 +3221,16 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,11 +3220,16 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -2439,7 +2438,7 @@ index 643e5de..7c4f888 100644
              }
              final boolean mustAttack =
                      a.isGoaded() || !StaticAbilityMustAttack.entitiesMustAttack(a).isEmpty();
-@@ -2918,7 +3565,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +3564,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2449,7 +2448,7 @@ index 643e5de..7c4f888 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +3576,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +3575,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -2475,7 +2474,7 @@ index 643e5de..7c4f888 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +3608,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +3607,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -2486,7 +2485,7 @@ index 643e5de..7c4f888 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +3636,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +3635,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }

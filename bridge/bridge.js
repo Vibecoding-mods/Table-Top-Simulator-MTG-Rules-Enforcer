@@ -180,14 +180,26 @@ function cantBeCounteredWhy(gv, text, ctl) {
 const castWayOnly = (t) => /^(?:[A-Z][\w-]*(?: [^(\n]*?)? )?\(You may cast this spell\b[^)]*\)\.?$/.test(String(t || "").trim());
 // The game log on disk, as the table's log panel shows it: game-log.txt beside the bridge (a friend package's logs
 // folder). It was only ever written from Forge's "log" envelopes, which our node never sends, so no game-log.txt
-// existed anywhere (live check 2026-11-11). One line a call, so each line has its own time.
+// existed anywhere (live check 2026-11-11). Each line has its own time. One write at a time, the next call's lines
+// waiting for it: separate fs.appendFile calls run on libuv's thread pool and can land in any order, so a header, a
+// rewritten line and the lines after it came out of order.
 const GAME_LOG = home.beside("game-log.txt");
+let gameLogWaiting = "", gameLogWriting = false;
 function gameLogFile(lines) {
   if (!game.logFileStarted) {
     game.logFileStarted = true;
-    fs.appendFile(GAME_LOG, `[${clockNow()}] === Game: ${Object.keys(game.slotNames || {}).map(nameOf).join(", ")} ===\n`, () => {});
+    gameLogWaiting += `[${clockNow()}] === Game: ${Object.keys(game.slotNames || {}).map(nameOf).join(", ")} ===\n`;
   }
-  for (const line of lines) fs.appendFile(GAME_LOG, `[${clockNow()}] ${line}\n`, () => {});
+  for (const line of lines) gameLogWaiting += `[${clockNow()}] ${line}\n`;
+  gameLogWrite();
+}
+function gameLogWrite() {
+  if (gameLogWriting || !gameLogWaiting) return;
+  const text = gameLogWaiting;
+  gameLogWaiting = "";
+  gameLogWriting = true;
+  // (a failed write is dropped, as the other logs' are; the next one still goes)
+  fs.appendFile(GAME_LOG, text, () => { gameLogWriting = false; gameLogWrite(); });
 }
 // a line in the game log, and to the table's log panel
 function gameLogLine(line) {
@@ -2989,7 +3001,10 @@ function logEvents(prev, cur, pub, facts = null) {
     // (one put onto the battlefield attacking was never declared: its arrival line says so instead; Hero of Bladehold's
     // Soldiers read "White attacks with Soldier Token, Soldier Token", hp-16 gap)
     // (by whom each attacks: a planeswalker or battle always, a player when there are more than two players)
-    if (c.attacking && was?.zone === "battlefield" && !was.attacking) (attackers[`${c.ctl}|${c.atc || ((pub.players || []).length > 2 && c.atp) || ""}`] ||= []).push(tokenWords(c.name, c.token));
+    if (c.attacking && was?.zone === "battlefield" && !was.attacking) {
+      const target = c.atc || ((pub.players || []).length > 2 && c.atp) || "";
+      (attackers[`${c.ctl}|${target}`] ||= { ctl: c.ctl, target, names: [] }).names.push(tokenWords(c.name, c.token));
+    }
     if (was && was.zone === c.zone && was.fd && !c.fd) out.push(`${c.name} is turned face up (${who(c.ctl)})`);
     // (the same card under another name on the battlefield: it transformed or became a copy; Growing Rites of Itlimoc becoming Itlimoc,
     // Cradle of the Sun logged nothing, hp-03 #3)
@@ -3258,8 +3273,7 @@ function logEvents(prev, cur, pub, facts = null) {
     const d = cur.cards[id] || prev.cards[id];
     return d ? `${d.name} (${who(d.ctl)})` : null;
   };
-  const attackLines = Object.entries(attackers).map(([key, names]) => {
-    const [ctl, target] = key.split("|");
+  const attackLines = Object.values(attackers).map(({ ctl, target, names }) => {
     const whom = attacked(target);
     return `${who(ctl)} attacks ${whom ? `${whom} ` : ""}with ${names.join(", ")}`;
   });
@@ -5034,47 +5048,50 @@ function scryPlaceSteps(cards, zones, label, done, placed = {}) {
 // the harness asks as a chooseFromSelection of labels: Zevlor's copy over a player and their permanents, a creature put
 // onto the battlefield attacking choosing whom it attacks; a list of cards alone is asked as cards instead) names each
 // by Forge's toString: a player by its engine name, a card as "<name> (<Forge's number>)", a number that is not our
-// card id. So a card is known by its name, when the one card of that name the board shows anywhere (every zone and the
-// stack) is a face-up permanent on the battlefield. All of them known, with a card among them: the target ids, in the
+// card id. So a card is known by its name, when exactly one card of that name is on the battlefield, face up (one of
+// that name in another zone doesn't count: the list is of players and permanents, and a dead Jace Beleren in a graveyard
+// left the live Jace unmapped, live check 2026-11-11). All of them known, with a card among them: the target ids, in the
 // options' order, that the table answers by clicking a life counter or the card (item 24, planeswalkers by click,
 // 2026-11-11); else null, and the list is asked as before.
 function entityChoiceIds(options, gv) {
-  const order = (game?.playerOrder || []).map((u) => String(u || "").toLowerCase());
-  const seen = [...(gv.zones || []).flatMap((z) => (z.cards || []).map((c) => ({ c, bf: z.zone === "battlefield" }))),
-    ...(gv.stack || []).map((s) => ({ c: s, bf: false }))];
   const ids = [];
   for (const o of options) {
-    const label = String(o.label ?? "").trim();
-    const k = label ? order.indexOf(label.toLowerCase()) : -1;
-    if (k >= 0) { ids.push(`player|player-${k}`); continue; }
-    const name = /^(.+) \(\d+\)$/.exec(label)?.[1];
-    // (the one of that name on the battlefield, whatever else of that name is in other zones: the list is of players
-    // and permanents, and a dead Jace Beleren in a graveyard left the live Jace unmapped, live check 2026-11-11)
-    const field = name ? seen.filter((x) => x.bf && x.c.identity?.name === name) : [];
-    if (field.length !== 1 || field[0].c.isFaceDown) return null;
-    ids.push(`card|${field[0].c.id}`);
+    const e = entityLabel(o, gv);
+    if (e?.slot) { ids.push(`player|${e.slot}`); continue; }
+    if (!e || e.field.length !== 1 || e.field[0].isFaceDown) return null;
+    ids.push(`card|${e.field[0].id}`);
   }
   return ids.some((v) => v.startsWith("card|")) && new Set(ids).size === ids.length ? ids : null;
+}
+// One option of such a list, read from Forge's label: { slot } for a player (by engine name), { name, field: every card
+// of that name on the battlefield } for "<name> (<Forge's number>)", else null. (entityChoiceIds and entityWords)
+function entityLabel(o, gv) {
+  const label = String(o.label ?? "").trim();
+  const k = label ? (game?.playerOrder || []).map((u) => String(u || "").toLowerCase()).indexOf(label.toLowerCase()) : -1;
+  if (k >= 0) return { slot: `player-${k}` };
+  const name = /^(.+) \(\d+\)$/.exec(label)?.[1];
+  if (!name) return null;
+  return { name, field: (gv.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => z.cards || []).filter((c) => c.identity?.name === name) };
 }
 // The same list in words, when entityChoiceIds can't map it (two permanents of one name): a player by table name, a
 // card by its name and whose it is ("Jace Beleren (AI 1's planeswalker)"), never Forge's number ("Jace Beleren (201)",
 // live check 2026-11-11); several alike are numbered. { labels, players: any player among them, walkers: every card a
-// planeswalker on the battlefield, onField: every card on the battlefield }, or null for a list that isn't players and
-// "<name> (<number>)" cards.
+// planeswalker on the battlefield, defenders: every card a planeswalker or battle on the battlefield (what a creature
+// can attack), onField: every card on the battlefield }, or null for a list that isn't players and "<name> (<number>)"
+// cards.
 function entityWords(options, gv) {
-  const order = (game?.playerOrder || []).map((u) => String(u || "").toLowerCase());
-  const field = (gv.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => z.cards || []);
-  let cards = 0, players = false, walkers = true, onField = true;
+  let cards = 0, players = false, walkers = true, defenders = true, onField = true;
   const words = options.map((o) => {
-    const label = String(o.label ?? "").trim();
-    const k = label ? order.indexOf(label.toLowerCase()) : -1;
-    if (k >= 0) { players = true; return nameOf(`player-${k}`); }
-    const name = /^(.+) \(\d+\)$/.exec(label)?.[1];
-    if (!name) return null;
+    const e = entityLabel(o, gv);
+    if (!e) return null;
+    if (e.slot) { players = true; return nameOf(e.slot); }
+    const { name } = e;
     cards++;
-    const these = field.filter((c) => c.identity?.name === name && !c.isFaceDown);
+    const these = e.field.filter((c) => !c.isFaceDown);
+    const each = (...types) => these.length > 0 && these.every((c) => types.some((t) => (c.types || []).includes(t)));
     if (!these.length) onField = false;
-    if (!these.length || !these.every((c) => (c.types || []).includes("Planeswalker"))) walkers = false;
+    if (!each("Planeswalker")) walkers = false;
+    if (!each("Planeswalker", "Battle")) defenders = false;
     const ctls = new Set(these.map((c) => c.controllerId));
     if (ctls.size !== 1 || !these[0].controllerId) return name;
     const types = these[0].types || [];
@@ -5084,7 +5101,7 @@ function entityWords(options, gv) {
   if (!cards || words.includes(null)) return null;
   const nth = {};
   const labels = words.map((w) => (words.filter((x) => x === w).length > 1 ? `${w} #${(nth[w] = (nth[w] || 0) + 1)}` : w));
-  return { labels, players, walkers, onField };
+  return { labels, players, walkers, defenders, onField };
 }
 
 // What each engine question is, for the table: `kind` on every prompt message (plus `dest: "library"` when the chosen
@@ -6660,11 +6677,14 @@ function onPrompt(seat, prompt) {
       }
       // one the board can't map is asked from the panel, in words, and titled by what it is for: an attacking token's
       // defender read "Hero of Bladehold: choose one" over "AI 1", "Jace Beleren (201)" (live check 2026-11-11)
+      // (whom it attacks only for a list of what can be attacked, players and planeswalkers or battles, from a card that
+      // puts creatures onto the battlefield attacking: "attacking" alone, as in "target attacking creature", is no
+      // defender's choice)
       const words = input.options.length > 1 && entityWords(input.options, gv);
       if (words) {
         const rules = String(prompt.sourceAbilityText || srcCardText);
         const what = `${words.players ? "player or " : ""}${words.walkers ? "planeswalker" : words.onField ? "permanent" : "card"}`;
-        const attacks = /\battacking\b/i.test(rules);
+        const attacks = words.players && words.defenders && /\b(?:create|put|return)s?\b[^.]*\battacking\b/i.test(rules);
         const token = attacks && /\btokens?\b[^.]*\battacking\b/i.test(rules);
         ui = { title: `${src ? `${src}: ` : ""}${token ? "the token attacks whom?" : attacks ? "attack whom?" : `choose which ${what}?`}`, mode: "multi",
           min: input.minTotal ?? 1, max: input.maxTotal ?? 1, options: opts(words.labels.map((label, i) => ({ id: i, label }))) };

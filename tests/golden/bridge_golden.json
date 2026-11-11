@@ -12846,11 +12846,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue saw: Look: (face-down), Hurloon Minotaur 2/3\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue saw: Look: (face-down), Hurloon Minotaur 2/3\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Look\""
@@ -24487,11 +24483,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Rewound to Blue's turn (main phase) ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Rewound to Blue's turn (main phase) ---\n"
    },
    {
     "tts": {
@@ -30221,11 +30213,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue saw: AI 1 picked (AI 1's library): Vraska's Fall, Hurloon Minotaur 2/3\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue saw: AI 1 picked (AI 1's library): Vraska's Fall, Hurloon Minotaur 2/3\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"AI 1 picked (AI 1's library)\""
@@ -36238,11 +36226,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue scries 3: a card on the bottom\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue scries 3: a card on the bottom\n"
    },
    {
     "appendFile": "table-log.log",
@@ -37342,11 +37326,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue scries 3: all on top\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue scries 3: all on top\n"
    },
    {
     "appendFile": "table-log.log",
@@ -38504,11 +38484,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue scries 1: a card on the bottom\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue scries 1: a card on the bottom\n"
    },
    {
     "relay": {
@@ -40628,11 +40604,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue scries 3: a card on the bottom\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue scries 3: a card on the bottom\n"
    },
    {
     "relay": {
@@ -41710,11 +41682,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue scries 1: all on top\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue scries 1: all on top\n"
    },
    {
     "relay": {
@@ -43845,11 +43813,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue scries 2: all on top\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue scries 2: all on top\n"
    },
    {
     "relay": {
@@ -61487,11 +61451,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looks at the top 3 cards of their library (Mirri's Guile)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looks at the top 3 cards of their library (Mirri's Guile)\n"
    },
    {
     "log": "prompt Blue #900: reorder \"Mirri's Guile: click the card to put on top\""
@@ -63711,11 +63671,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looks at the top 3 cards of their library (Mirri's Guile)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looks at the top 3 cards of their library (Mirri's Guile)\n"
    },
    {
     "log": "prompt Blue #900: reorder \"Mirri's Guile: click the card to put on top\""
@@ -73231,11 +73187,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Game over\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Game over\n"
    },
    {
     "unlink": "mtg-bridge-game-test.json"
@@ -75869,11 +75821,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hurloon Minotaur enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Hurloon Minotaur enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -77347,15 +77295,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Hurloon Minotaur\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hurloon Minotaur enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Hurloon Minotaur\n[time] Hurloon Minotaur enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -78660,11 +78600,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -81377,11 +81313,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -83032,15 +82964,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Evolving Wilds' ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Evolving Wilds goes to the graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Evolving Wilds' ability\n[time] Evolving Wilds goes to the graveyard\n"
    },
    {
     "tts": {
@@ -84192,11 +84116,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Constant Mists\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Constant Mists\n"
    },
    {
     "tts": {
@@ -85475,11 +85395,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Look at these cards (your library)\""
@@ -87048,11 +86964,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue discards Vraska's Fall, Venomous Changeling, Fire-Belly Changeling\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue discards Vraska's Fall, Venomous Changeling, Fire-Belly Changeling\n"
    },
    {
     "tts": {
@@ -88294,15 +88206,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue discards Vraska's Fall, Venomous Changeling\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- AI 1's turn 1 ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue discards Vraska's Fall, Venomous Changeling\n[time] --- AI 1's turn 1 ---\n"
    },
    {
     "tts": {
@@ -89546,15 +89450,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 1 ---\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue discards Vraska's Fall, Venomous Changeling\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Blue's turn 1 ---\n[time] Blue discards Vraska's Fall, Venomous Changeling\n"
    },
    {
     "tts": {
@@ -90735,15 +90631,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue discards Venomous Changeling\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Vraska's Fall is put into Blue's graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue discards Venomous Changeling\n[time] Vraska's Fall is put into Blue's graveyard\n"
    },
    {
     "tts": {
@@ -91924,11 +91812,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts a card onto the battlefield face down\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts a card onto the battlefield face down\n"
    },
    {
     "tts": {
@@ -93340,11 +93224,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Farseek returns to the battlefield from AI 1's graveyard (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Farseek returns to the battlefield from AI 1's graveyard (Blue)\n"
    },
    {
     "tts": {
@@ -94821,11 +94701,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] It becomes day\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] It becomes day\n"
    },
    {
     "tts": {
@@ -96198,19 +96074,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Lightning Bolt\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Gilded Goose's ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Tenacious Underdog's ability triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Lightning Bolt\n[time] Blue uses Gilded Goose's ability\n[time] Tenacious Underdog's ability triggers (Blue)\n"
    },
    {
     "tts": {
@@ -97539,11 +97403,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Mulldrifter\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Mulldrifter\n"
    },
    {
     "tts": {
@@ -98822,11 +98682,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hurloon Minotaur enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Hurloon Minotaur enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -105167,11 +105023,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts a card from their hand on top of their library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts a card from their hand on top of their library\n"
    },
    {
     "relay": {
@@ -125670,11 +125522,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue's manual fix: Farseek: AI 1's graveyard → AI 1's battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue's manual fix: Farseek: AI 1's graveyard → AI 1's battlefield\n"
    },
    {
     "tts": {
@@ -138400,11 +138248,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hurloon Minotaur enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Hurloon Minotaur enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -160644,11 +160488,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- AI 1's turn 2 ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- AI 1's turn 2 ---\n"
    },
    {
     "tts": {
@@ -164759,11 +164599,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hurloon Minotaur enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Hurloon Minotaur enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -166040,11 +165876,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue took a free mulligan (1 of 1).\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue took a free mulligan (1 of 1).\n"
    },
    {
     "appendFile": "table-log.log",
@@ -166318,11 +166150,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue took a free mulligan (1 of 2).\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue took a free mulligan (1 of 2).\n"
    },
    {
     "relay": {
@@ -166623,11 +166451,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue took a free mulligan (1 of 1).\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue took a free mulligan (1 of 1).\n"
    },
    {
     "appendFile": "table-log.log",
@@ -166898,11 +166722,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue took a free mulligan (1 of 2).\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue took a free mulligan (1 of 2).\n"
    },
    {
     "relay": {
@@ -167277,11 +167097,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue took a free mulligan (1 of 1).\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue took a free mulligan (1 of 1).\n"
    },
    {
     "appendFile": "table-log.log",
@@ -167552,11 +167368,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue took a free mulligan (1 of 1).\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue took a free mulligan (1 of 1).\n"
    },
    {
     "appendFile": "table-log.log",
@@ -168013,11 +167825,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue took a free mulligan (1 of 1).\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue took a free mulligan (1 of 1).\n"
    },
    {
     "appendFile": "table-log.log",
@@ -168290,11 +168098,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue took a free mulligan (1 of 2).\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue took a free mulligan (1 of 2).\n"
    },
    {
     "relay": {
@@ -169595,11 +169399,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: White, Blue ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Free mulligans this game: 2 each.\n"
+    "text": "[time] === Game: White, Blue ===\n[time] Free mulligans this game: 2 each.\n"
    },
    {
     "writeFile": "mtg-bridge-game-test.json.tmp",
@@ -171772,11 +171572,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Friendly mulligans are over: normal rules from here.\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Friendly mulligans are over: normal rules from here.\n"
    },
    {
     "tts": {
@@ -177737,11 +177533,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Game over: AI 1 has 10 poison counters\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Game over: AI 1 has 10 poison counters\n"
    },
    {
     "unlink": "mtg-bridge-game-test.json"
@@ -177781,11 +177573,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Game over\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Game over\n"
    },
    {
     "unlink": "mtg-bridge-game-test.json"
@@ -178812,11 +178600,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Game over: AI 1 has 10 poison counters\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Game over: AI 1 has 10 poison counters\n"
    },
    {
     "unlink": "mtg-bridge-game-test.json"
@@ -194052,11 +193836,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Look at these cards (your library)\""
@@ -198528,11 +198308,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Clash (Pestilence): Blue reveals Island (mana value 0), AI 1 reveals Vraska's Fall (mana value 4). AI 1 wins.\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Clash (Pestilence): Blue reveals Island (mana value 0), AI 1 reveals Vraska's Fall (mana value 4). AI 1 wins.\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Pestilence: clash\""
@@ -199600,11 +199376,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Clash (Pestilence): Blue reveals Island (mana value 0), AI 1 reveals Island (mana value 0). Nobody wins.\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Clash (Pestilence): Blue reveals Island (mana value 0), AI 1 reveals Island (mana value 0). Nobody wins.\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Pestilence: clash\""
@@ -207172,11 +206944,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue chooses AI 1 (Pestilence)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue chooses AI 1 (Pestilence)\n"
    },
    {
     "relay": {
@@ -210387,11 +210155,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue saw: Pestilence: AI 1 voted for Vraska's Fall. Votes: Vraska's Fall: Blue, AI 1\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue saw: Pestilence: AI 1 voted for Vraska's Fall. Votes: Vraska's Fall: Blue, AI 1\n"
    },
    {
     "relay": {
@@ -213569,11 +213333,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Clash (Pestilence): Blue reveals Island (mana value 3), AI 1 reveals Island (mana value 0). Blue wins.\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Clash (Pestilence): Blue reveals Island (mana value 3), AI 1 reveals Island (mana value 0). Blue wins.\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Pestilence: clash\""
@@ -217926,11 +217686,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue foretells a card\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue foretells a card\n"
    },
    {
     "tts": {
@@ -219147,11 +218903,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Hurloon Minotaur's ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Hurloon Minotaur's ability\n"
    },
    {
     "tts": {
@@ -220368,11 +220120,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue suspends Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue suspends Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -221589,11 +221337,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue unearths Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue unearths Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -222810,11 +222554,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue crews Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue crews Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -224031,11 +223771,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue saddles Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue saddles Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -226455,11 +226191,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue levels up Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue levels up Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -227676,11 +227408,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue embalms Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue embalms Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -228897,11 +228625,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue eternalizes Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue eternalizes Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -230118,11 +229842,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue renews Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue renews Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -231339,11 +231059,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue scavenges Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue scavenges Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -232560,11 +232276,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue cycles Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue cycles Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -233781,11 +233493,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue cycles Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue cycles Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -235002,11 +234710,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue bloodrushes Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue bloodrushes Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -236223,11 +235927,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue forecasts Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue forecasts Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -237371,11 +237071,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hurloon Minotaur goes on an adventure (Stomp)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Hurloon Minotaur goes on an adventure (Stomp)\n"
    },
    {
     "tts": {
@@ -237617,11 +237313,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Hurloon Minotaur from exile\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hurloon Minotaur enters the battlefield (Blue)\n"
+    "text": "[time] Blue casts Hurloon Minotaur from exile\n[time] Hurloon Minotaur enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -238839,15 +238531,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue discards Vraska's Fall\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue draws a card\n[time] Blue discards Vraska's Fall\n"
    },
    {
     "tts": {
@@ -240028,15 +239712,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Vraska's Fall is put into Blue's graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue draws a card\n[time] Vraska's Fall is put into Blue's graveyard\n"
    },
    {
     "tts": {
@@ -241275,15 +240951,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Taniwha phases out\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Grizzly Bears leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Taniwha phases out\n[time] Grizzly Bears leaves the battlefield\n"
    },
    {
     "tts": {
@@ -241442,11 +241110,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Taniwha phases in\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Grizzly Bears enters the battlefield (Blue)\n"
+    "text": "[time] Taniwha phases in\n[time] Grizzly Bears enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -249685,11 +249349,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Taniwha's ability triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Taniwha's ability triggers (Blue)\n"
    },
    {
     "tts": {
@@ -250307,15 +249967,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Mountain phases out\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Forest phases out\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Plateau leaves the battlefield\n"
+    "text": "[time] Mountain phases out\n[time] Forest phases out\n[time] Plateau leaves the battlefield\n"
    },
    {
     "tts": {
@@ -250525,11 +250177,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Mountain phases in\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Forest phases in\n"
+    "text": "[time] Mountain phases in\n[time] Forest phases in\n"
    },
    {
     "tts": {
@@ -251714,19 +251362,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Sensei's Divining Top's ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Sensei's Divining Top is put on top of Blue's library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Sensei's Divining Top's ability\n[time] Blue draws a card\n[time] Sensei's Divining Top is put on top of Blue's library\n"
    },
    {
     "tts": {
@@ -252899,11 +252535,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Sensei's Divining Top returns to Blue's hand\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Sensei's Divining Top returns to Blue's hand\n"
    },
    {
     "tts": {
@@ -254072,11 +253704,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Sensei's Divining Top's ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Sensei's Divining Top's ability\n"
    },
    {
     "tts": {
@@ -254214,11 +253842,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Sensei's Divining Top is put on top of Blue's library\n"
+    "text": "[time] Blue draws a card\n[time] Sensei's Divining Top is put on top of Blue's library\n"
    },
    {
     "tts": {
@@ -255390,11 +255014,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Sensei's Divining Top's ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Sensei's Divining Top's ability\n"
    },
    {
     "tts": {
@@ -256724,11 +256344,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Sensei's Divining Top returns to Blue's hand\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Sensei's Divining Top returns to Blue's hand\n"
    },
    {
     "tts": {
@@ -257930,11 +257546,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Sensei's Divining Top is put into Blue's hand from the graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Sensei's Divining Top is put into Blue's hand from the graveyard\n"
    },
    {
     "tts": {
@@ -259129,11 +258741,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts a face-down spell\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts a face-down spell\n"
    },
    {
     "tts": {
@@ -260376,11 +259984,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -261626,11 +261230,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Hurloon Minotaur (flashback)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Hurloon Minotaur (flashback)\n"
    },
    {
     "tts": {
@@ -262876,11 +262476,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Hurloon Minotaur (web slinging)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Hurloon Minotaur (web slinging)\n"
    },
    {
     "tts": {
@@ -264093,11 +263689,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Hurloon Minotaur from the top of their library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Hurloon Minotaur from the top of their library\n"
    },
    {
     "tts": {
@@ -265417,11 +265009,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Hurloon Minotaur (flashback)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Hurloon Minotaur (flashback)\n"
    },
    {
     "tts": {
@@ -266755,11 +266343,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
    },
    {
     "tts": {
@@ -268391,11 +267975,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Swarmyard's ability targeting Drudge Skeletons\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Swarmyard's ability targeting Drudge Skeletons\n"
    },
    {
     "tts": {
@@ -270032,11 +269612,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Murder\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Murder\n"
    },
    {
     "tts": {
@@ -271543,15 +271119,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Eclipsed Flamekin, Ashling, the Limitless, Kird Ape, Typhoid Rats are goaded by Blue: they attack each combat, a player other than Blue if able, until Blue's next turn\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Disrupt Decorum is put into Blue's graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Eclipsed Flamekin, Ashling, the Limitless, Kird Ape, Typhoid Rats are goaded by Blue: they attack each combat, a player other than Blue if able, until Blue's next turn\n[time] Disrupt Decorum is put into Blue's graveyard\n"
    },
    {
     "tts": {
@@ -273205,11 +272773,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 uses Typhoid Rats' ability targeting Grizzly Bears\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 uses Typhoid Rats' ability targeting Grizzly Bears\n"
    },
    {
     "tts": {
@@ -274747,11 +274311,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Divination is put into Blue's graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Divination is put into Blue's graveyard\n"
    },
    {
     "tts": {
@@ -278466,11 +278026,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Tolarian Scholar gets a -1/-1 counter\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Tolarian Scholar gets a -1/-1 counter\n"
    },
    {
     "tts": {
@@ -279987,11 +279543,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Phyrexian Mite token dies\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Phyrexian Mite token dies\n"
    },
    {
     "tts": {
@@ -281289,11 +280841,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Phyrexian Mite token leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Phyrexian Mite token leaves the battlefield\n"
    },
    {
     "tts": {
@@ -282589,11 +282137,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Treasure token leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Treasure token leaves the battlefield\n"
    },
    {
     "tts": {
@@ -283733,11 +283277,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue gets the city's blessing\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue gets the city's blessing\n"
    },
    {
     "tts": {
@@ -285396,11 +284936,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue attacks with Cavalry Master, Herald of Hoofbeats\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue attacks with Cavalry Master, Herald of Hoofbeats\n"
    },
    {
     "tts": {
@@ -285560,11 +285096,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Fog Bank blocks Cavalry Master\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Wall of Air, Coral Barrier block Herald of Hoofbeats\n"
+    "text": "[time] Fog Bank blocks Cavalry Master\n[time] Wall of Air, Coral Barrier block Herald of Hoofbeats\n"
    },
    {
     "tts": {
@@ -287839,11 +287371,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Case of the Locked Hothouse's ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Case of the Locked Hothouse's ability\n"
    },
    {
     "tts": {
@@ -289450,11 +288978,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Relic Seeker's renown triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Relic Seeker's renown triggers (Blue)\n"
    },
    {
     "tts": {
@@ -289592,11 +289116,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Relic Seeker becomes renowned\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Relic Seeker gets a +1/+1 counter\n"
+    "text": "[time] Relic Seeker becomes renowned\n[time] Relic Seeker gets a +1/+1 counter\n"
    },
    {
     "tts": {
@@ -291860,11 +291380,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Frontline Medic's battalion triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Frontline Medic's battalion triggers (Blue)\n"
    },
    {
     "tts": {
@@ -293422,11 +292938,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] The Tenth Doctor's allons-y triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] The Tenth Doctor's allons-y triggers (Blue)\n"
    },
    {
     "tts": {
@@ -293564,19 +293076,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Diabolic Tutor is exiled suspended with 3 time counters: Blue may cast it without paying its mana cost when the last is removed\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Island is exiled\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Rift Bolt is exiled suspended with 1 time counter: Blue may cast it without paying its mana cost when the last is removed\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Dust of Moments is exiled\n"
+    "text": "[time] Diabolic Tutor is exiled suspended with 3 time counters: Blue may cast it without paying its mana cost when the last is removed\n[time] Island is exiled\n[time] Rift Bolt is exiled suspended with 1 time counter: Blue may cast it without paying its mana cost when the last is removed\n[time] Dust of Moments is exiled\n"
    },
    {
     "tts": {
@@ -294992,19 +294492,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Ponder is exiled\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Preordain is exiled and plotted: AI 1 may cast it without paying its mana cost on a later turn, as a sorcery\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Island ×2, Opt are exiled from AI 1's library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Ponder is exiled\n[time] Preordain is exiled and plotted: AI 1 may cast it without paying its mana cost on a later turn, as a sorcery\n[time] Island ×2, Opt are exiled from AI 1's library\n"
    },
    {
     "tts": {
@@ -296413,11 +295901,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hexing Squelcher's ward triggers (AI 1)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Hexing Squelcher's ward triggers (AI 1)\n"
    },
    {
     "tts": {
@@ -297565,11 +297049,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] A face-down permanent's ward triggers (AI 1)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] A face-down permanent's ward triggers (AI 1)\n"
    },
    {
     "tts": {
@@ -298875,11 +298355,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
    },
    {
     "tts": {
@@ -300356,11 +299832,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Drudge Skeletons regenerates\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Drudge Skeletons regenerates\n"
    },
    {
     "tts": {
@@ -301535,11 +301007,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
    },
    {
     "tts": {
@@ -302842,11 +302310,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
    },
    {
     "tts": {
@@ -304150,11 +303614,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
    },
    {
     "tts": {
@@ -305444,11 +304904,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
    },
    {
     "tts": {
@@ -307149,15 +306605,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Garruk's Companion is suspected: menace, and can't block\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Garruk's Companion is goaded by Blue: it attacks each combat, a player other than Blue if able, until Blue's next turn\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Garruk's Companion is suspected: menace, and can't block\n[time] Garruk's Companion is goaded by Blue: it attacks each combat, a player other than Blue if able, until Blue's next turn\n"
    },
    {
     "tts": {
@@ -308488,11 +307936,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Nelly Borca, Impulsive Accuser's ability targeting Garruk's Companion\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Nelly Borca, Impulsive Accuser's ability targeting Garruk's Companion\n"
    },
    {
     "tts": {
@@ -308635,11 +308079,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Garruk's Companion is suspected: menace, and can't block\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Garruk's Companion is goaded by Blue: it attacks each combat, a player other than Blue if able, until Blue's next turn\n"
+    "text": "[time] Garruk's Companion is suspected: menace, and can't block\n[time] Garruk's Companion is goaded by Blue: it attacks each combat, a player other than Blue if able, until Blue's next turn\n"
    },
    {
     "tts": {
@@ -309971,11 +309411,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Garruk's Companion leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Garruk's Companion leaves the battlefield\n"
    },
    {
     "tts": {
@@ -311292,15 +310728,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Garruk's Companion is suspected: menace, and can't block\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Garruk's Companion is goaded by Blue: it attacks each combat, a player other than Blue if able, until Blue's next turn\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Garruk's Companion is suspected: menace, and can't block\n[time] Garruk's Companion is goaded by Blue: it attacks each combat, a player other than Blue if able, until Blue's next turn\n"
    },
    {
     "tts": {
@@ -311549,11 +310977,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Elvish Warrior is suspected: menace, and can't block\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Garruk's Companion, Elvish Warrior are goaded by Blue: they attack each combat, a player other than Blue if able, until Blue's next turn\n"
+    "text": "[time] Elvish Warrior is suspected: menace, and can't block\n[time] Garruk's Companion, Elvish Warrior are goaded by Blue: they attack each combat, a player other than Blue if able, until Blue's next turn\n"
    },
    {
     "tts": {
@@ -312931,23 +312355,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Changing Loyalty enters the battlefield, attached to Garruk's Companion (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue creates a Changing Loyalty token, attached to Goblin Token\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue creates a Changing Loyalty token, attached to Garruk's Companion\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue creates a Changing Loyalty token\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Changing Loyalty enters the battlefield, attached to Garruk's Companion (Blue)\n[time] Blue creates a Changing Loyalty token, attached to Goblin Token\n[time] Blue creates a Changing Loyalty token, attached to Garruk's Companion\n[time] Blue creates a Changing Loyalty token\n"
    },
    {
     "tts": {
@@ -314471,23 +313879,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Tangle Wire enters the battlefield with 4 fade counters (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Aeon Engine enters the battlefield with 2 +1/+1 counters and a time counter (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Chandra, Torch of Defiance enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Vanishing Wurm enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Tangle Wire enters the battlefield with 4 fade counters (Blue)\n[time] Aeon Engine enters the battlefield with 2 +1/+1 counters and a time counter (Blue)\n[time] Chandra, Torch of Defiance enters the battlefield (Blue)\n[time] Vanishing Wurm enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -316077,11 +315469,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Tangle Wire's ability triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Tangle Wire's ability triggers (Blue)\n"
    },
    {
     "tts": {
@@ -316414,15 +315802,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Tangle Wire loses a fade counter (3 left)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Aeon Engine gets 2 time counters (3 in all)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 taps Taiga, Garruk's Companion (Tangle Wire)\n"
+    "text": "[time] Tangle Wire loses a fade counter (3 left)\n[time] Aeon Engine gets 2 time counters (3 in all)\n[time] AI 1 taps Taiga, Garruk's Companion (Tangle Wire)\n"
    },
    {
     "tts": {
@@ -316851,15 +316231,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Tangle Wire's ability triggers (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Aeon Engine's ability triggers (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blastoderm's ability triggers (Blue)\n"
+    "text": "[time] Tangle Wire's ability triggers (Blue)\n[time] Aeon Engine's ability triggers (Blue)\n[time] Blastoderm's ability triggers (Blue)\n"
    },
    {
     "tts": {
@@ -317019,15 +316391,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Tangle Wire is sacrificed\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Aeon Engine goes to the graveyard\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blastoderm is sacrificed\n"
+    "text": "[time] Tangle Wire is sacrificed\n[time] Aeon Engine goes to the graveyard\n[time] Blastoderm is sacrificed\n"
    },
    {
     "tts": {
@@ -321896,19 +321260,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts Command Tower, Forest, Exotic Orchard onto the battlefield tapped\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts Island onto the battlefield\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 puts Taiga onto the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts Command Tower, Forest, Exotic Orchard onto the battlefield tapped\n[time] Blue puts Island onto the battlefield\n[time] AI 1 puts Taiga onto the battlefield\n"
    },
    {
     "tts": {
@@ -323468,11 +322820,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Evolving Wilds leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Evolving Wilds leaves the battlefield\n"
    },
    {
     "tts": {
@@ -324905,11 +324253,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Llanowar Elves leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Llanowar Elves leaves the battlefield\n"
    },
    {
     "tts": {
@@ -326469,11 +325813,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hexplate Wallbreaker is attached to Rebel Token\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Hexplate Wallbreaker is attached to Rebel Token\n"
    },
    {
     "tts": {
@@ -327972,11 +327312,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Wanderwine Prophets' champion triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Wanderwine Prophets' champion triggers (Blue)\n"
    },
    {
     "tts": {
@@ -329135,15 +328471,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue attacks with Hero of Bladehold\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hero of Bladehold's battle cry triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue attacks with Hero of Bladehold\n[time] Hero of Bladehold's battle cry triggers (Blue)\n"
    },
    {
     "tts": {
@@ -330834,19 +330162,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue gets 4 energy (4 in all)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 gains control of Volatile Stormdrake\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue gains control of Precinct Captain\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue gets 4 energy (4 in all)\n[time] AI 1 gains control of Volatile Stormdrake\n[time] Blue gains control of Precinct Captain\n"
    },
    {
     "tts": {
@@ -332224,11 +331540,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Bear Umbra is destroyed instead of Elegy Acolyte (umbra armor)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Bear Umbra is destroyed instead of Elegy Acolyte (umbra armor)\n"
    },
    {
     "tts": {
@@ -333440,15 +332752,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Elegy Acolyte dies\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Bear Umbra goes to the graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Elegy Acolyte dies\n[time] Bear Umbra goes to the graveyard\n"
    },
    {
     "tts": {
@@ -334662,11 +333966,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Bear Umbra goes to the graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Bear Umbra goes to the graveyard\n"
    },
    {
     "tts": {
@@ -335842,11 +335142,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue becomes the monarch\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue becomes the monarch\n"
    },
    {
     "tts": {
@@ -335976,11 +335272,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] AI 1 becomes the monarch\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue takes the initiative\n"
+    "text": "[time] AI 1 becomes the monarch\n[time] Blue takes the initiative\n"
    },
    {
     "tts": {
@@ -337354,11 +336646,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts Skyhunter Strike Force into their graveyard from their library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts Skyhunter Strike Force into their graveyard from their library\n"
    },
    {
     "tts": {
@@ -338500,11 +337788,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue mills Skyhunter Strike Force\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue mills Skyhunter Strike Force\n"
    },
    {
     "tts": {
@@ -340096,15 +339380,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Izoni, Thousand-Eyed, Moseo, Vein's New Dean, Wind Drake are exiled\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Insect token ×2, Survivor token leave the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Izoni, Thousand-Eyed, Moseo, Vein's New Dean, Wind Drake are exiled\n[time] Insect token ×2, Survivor token leave the battlefield\n"
    },
    {
     "tts": {
@@ -341494,15 +340770,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Izoni, Thousand-Eyed is exiled\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Insect token leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Izoni, Thousand-Eyed is exiled\n[time] Insect token leaves the battlefield\n"
    },
    {
     "tts": {
@@ -342650,15 +341918,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Unexplained Absence is put into Blue's graveyard\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 cloaks a card: a face-down 2/2 with ward {2}\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Unexplained Absence is put into Blue's graveyard\n[time] AI 1 cloaks a card: a face-down 2/2 with ward {2}\n"
    },
    {
     "tts": {
@@ -344027,15 +343287,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Opt is put into Blue's graveyard\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 puts a card onto the battlefield face down\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Opt is put into Blue's graveyard\n[time] AI 1 puts a card onto the battlefield face down\n"
    },
    {
     "tts": {
@@ -345404,11 +344656,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue saw: A face-down card left AI 1's battlefield: Garruk's Companion\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue saw: A face-down card left AI 1's battlefield: Garruk's Companion\n"
    },
    {
     "log": "prompt Blue #976: revealCards \"Go for the Throat: A face-down card left AI 1's battlefield\""
@@ -346702,11 +345950,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blind Hunter is exiled haunting Sisay, Weatherlight Captain\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blind Hunter is exiled haunting Sisay, Weatherlight Captain\n"
    },
    {
     "tts": {
@@ -348292,15 +347536,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue gets the city's blessing\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue has an enduring story\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue gets the city's blessing\n[time] Blue has an enduring story\n"
    },
    {
     "tts": {
@@ -349675,15 +348911,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Munda's Vanguard, Goat Token ×2 each get a +1/+1 counter\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Scourge of the Throne gets 2 +1/+1 counters\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Munda's Vanguard, Goat Token ×2 each get a +1/+1 counter\n[time] Scourge of the Throne gets 2 +1/+1 counters\n"
    },
    {
     "tts": {
@@ -350857,11 +350085,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue creates an Everywhere token\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue creates an Everywhere token\n"
    },
    {
     "tts": {
@@ -352357,11 +351581,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue plays Fire-Belly Changeling with a +1/+1 counter\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue plays Fire-Belly Changeling with a +1/+1 counter\n"
    },
    {
     "tts": {
@@ -353620,15 +352840,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue plays Fire-Belly Changeling\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Fire-Belly Changeling's hideaway triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue plays Fire-Belly Changeling\n[time] Fire-Belly Changeling's hideaway triggers (Blue)\n"
    },
    {
     "tts": {
@@ -354897,11 +354109,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue plays Fire-Belly Changeling\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue plays Fire-Belly Changeling\n"
    },
    {
     "tts": {
@@ -356752,15 +355960,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 discards Deep Analysis\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 1 ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 discards Deep Analysis\n[time] --- Blue's turn 1 ---\n"
    },
    {
     "tts": {
@@ -358058,15 +357258,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 1 ---\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Deep Analysis is put into AI 1's graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Blue's turn 1 ---\n[time] Deep Analysis is put into AI 1's graveyard\n"
    },
    {
     "tts": {
@@ -359396,11 +358588,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur 2/3 from their library (Goblin Guide)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur 2/3 from their library (Goblin Guide)\n"
    },
    {
     "tts": {
@@ -360602,11 +359790,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur 2/3, Pestilence, Vraska's Fall, Venomous Changeling 1/3 from their library (Satyr Wayfinder)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur 2/3, Pestilence, Vraska's Fall, Venomous Changeling 1/3 from their library (Satyr Wayfinder)\n"
    },
    {
     "tts": {
@@ -361791,15 +360975,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur 2/3 from their library (Dark Confidant)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts Hurloon Minotaur into their hand\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur 2/3 from their library (Dark Confidant)\n[time] Blue puts Hurloon Minotaur into their hand\n"
    },
    {
     "tts": {
@@ -362977,11 +362153,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hurloon Minotaur's prowess triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Hurloon Minotaur's prowess triggers (Blue)\n"
    },
    {
     "relay": {
@@ -365430,11 +364602,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 reveals Hurloon Minotaur 2/3 from their library (Goblin Guide)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 reveals Hurloon Minotaur 2/3 from their library (Goblin Guide)\n"
    },
    {
     "tts": {
@@ -366624,11 +365792,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur 2/3 from their graveyard (Goblin Guide)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur 2/3 from their graveyard (Goblin Guide)\n"
    },
    {
     "tts": {
@@ -367818,11 +366982,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur 2/3 from their library (Goblin Guide)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur 2/3 from their library (Goblin Guide)\n"
    },
    {
     "tts": {
@@ -369142,11 +368302,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue cancels Silvergill Adept\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue cancels Silvergill Adept\n"
    },
    {
     "relay": {
@@ -369196,11 +368352,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue chooses AI 1 (Incarnation Technique)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue chooses AI 1 (Incarnation Technique)\n"
    },
    {
     "relay": {
@@ -369250,11 +368402,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue saw: Incarnation Technique: Red picked Blue\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue saw: Incarnation Technique: Red picked Blue\n"
    },
    {
     "relay": {
@@ -370316,11 +369464,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts AI 1's Urborg, Tomb of Yawgmoth onto the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts AI 1's Urborg, Tomb of Yawgmoth onto the battlefield\n"
    },
    {
     "tts": {
@@ -371657,11 +370801,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts Urborg, Tomb of Yawgmoth onto the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts Urborg, Tomb of Yawgmoth onto the battlefield\n"
    },
    {
     "tts": {
@@ -372998,11 +372138,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts Urborg, Tomb of Yawgmoth onto the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts Urborg, Tomb of Yawgmoth onto the battlefield\n"
    },
    {
     "tts": {
@@ -374454,11 +373590,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Tibalt, Cosmic Impostor\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Tibalt, Cosmic Impostor\n"
    },
    {
     "tts": {
@@ -374596,11 +373728,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue plays Plains from exile\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Island returns to the battlefield from exile (Blue)\n"
+    "text": "[time] Blue plays Plains from exile\n[time] Island returns to the battlefield from exile (Blue)\n"
    },
    {
     "tts": {
@@ -375863,19 +374991,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue ninjutsus Vraska's Fall\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Yuriko, the Tiger's Shadow enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Dryad Sophisticate returns to Blue's hand\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue ninjutsus Vraska's Fall\n[time] Yuriko, the Tiger's Shadow enters the battlefield (Blue)\n[time] Dryad Sophisticate returns to Blue's hand\n"
    },
    {
     "tts": {
@@ -377288,19 +376404,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue swaps Vraska's Fall (aura swap)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Yuriko, the Tiger's Shadow enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Dryad Sophisticate returns to Blue's hand\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue swaps Vraska's Fall (aura swap)\n[time] Yuriko, the Tiger's Shadow enters the battlefield (Blue)\n[time] Dryad Sophisticate returns to Blue's hand\n"
    },
    {
     "tts": {
@@ -378713,19 +377817,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue fortifies with Vraska's Fall\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Yuriko, the Tiger's Shadow enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Dryad Sophisticate leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue fortifies with Vraska's Fall\n[time] Yuriko, the Tiger's Shadow enters the battlefield (Blue)\n[time] Dryad Sophisticate leaves the battlefield\n"
    },
    {
     "tts": {
@@ -380058,19 +379150,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue fortifies with Some Card\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Yuriko, the Tiger's Shadow enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Dryad Sophisticate leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue fortifies with Some Card\n[time] Yuriko, the Tiger's Shadow enters the battlefield (Blue)\n[time] Dryad Sophisticate leaves the battlefield\n"
    },
    {
     "tts": {
@@ -381403,19 +380483,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 ninjutsus Some Card\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Yuriko, the Tiger's Shadow enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Dryad Sophisticate leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 ninjutsus Some Card\n[time] Yuriko, the Tiger's Shadow enters the battlefield (Blue)\n[time] Dryad Sophisticate leaves the battlefield\n"
    },
    {
     "tts": {
@@ -382748,19 +381816,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue ninjutsus Some Card\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue creates a Goblin token\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Dryad Sophisticate leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue ninjutsus Some Card\n[time] Blue creates a Goblin token\n[time] Dryad Sophisticate leaves the battlefield\n"
    },
    {
     "tts": {
@@ -384278,11 +383334,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue ninjutsus Vraska's Fall\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue ninjutsus Vraska's Fall\n"
    },
    {
     "tts": {
@@ -385737,15 +384789,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Elvish Visionary\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Elvish Visionary enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Elvish Visionary\n[time] Elvish Visionary enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -387151,11 +386195,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue ninjutsus Vraska's Fall\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue ninjutsus Vraska's Fall\n"
    },
    {
     "tts": {
@@ -388643,15 +387683,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Evolving Wilds' ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Evolving Wilds goes to the graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Evolving Wilds' ability\n[time] Evolving Wilds goes to the graveyard\n"
    },
    {
     "tts": {
@@ -390073,15 +389105,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Hurloon Minotaur\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hurloon Minotaur enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Hurloon Minotaur\n[time] Hurloon Minotaur enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -391407,15 +390431,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Evolving Wilds' ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Evolving Wilds' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Evolving Wilds' ability\n[time] Blue uses Evolving Wilds' ability\n"
    },
    {
     "tts": {
@@ -392753,15 +391769,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Neheb, the Worthy\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Neheb, the Worthy enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Neheb, the Worthy\n[time] Neheb, the Worthy enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -393870,11 +392878,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Rewound to Blue's turn (main phase) ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Rewound to Blue's turn (main phase) ---\n"
    },
    {
     "tts": {
@@ -395234,11 +394238,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Rewound to Blue's turn (main phase) ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Rewound to Blue's turn (main phase) ---\n"
    },
    {
     "tts": {
@@ -396527,11 +395527,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Rewound to Blue's turn (main phase) ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Rewound to Blue's turn (main phase) ---\n"
    },
    {
     "tts": {
@@ -397791,11 +396787,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue: 30 -> 0 life (-30)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue: 30 -> 0 life (-30)\n"
    },
    {
     "tts": {
@@ -402333,11 +401325,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Look at these cards (your library)\""
@@ -402412,11 +401400,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 2 ---\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
+    "text": "[time] --- Blue's turn 2 ---\n[time] Blue draws a card\n"
    },
    {
     "tts": {
@@ -478462,11 +477446,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Vraska's Fall from their library (Selvala, Explorer Returned)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Vraska's Fall from their library (Selvala, Explorer Returned)\n"
    },
    {
     "writeFile": "image-cache-klrmngr.json.tmp",
@@ -479696,11 +478676,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 reveals Hurloon Minotaur 2/3 from their library (Selvala, Explorer Returned)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 reveals Hurloon Minotaur 2/3 from their library (Selvala, Explorer Returned)\n"
    },
    {
     "writeFile": "image-cache-klrmngr.json.tmp",
@@ -479768,11 +478744,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (their library)\n"
    },
    {
     "relay": {
@@ -479823,11 +478795,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Look at these cards (your library)\""
@@ -489521,11 +488489,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue saw: Pestilence: AI 1 voted for Money. Votes: Money: Blue, AI 1\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue saw: Pestilence: AI 1 voted for Money. Votes: Money: Blue, AI 1\n"
    },
    {
     "relay": {
@@ -492702,11 +491666,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts Swamp onto the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts Swamp onto the battlefield\n"
    },
    {
     "tts": {
@@ -499416,11 +498376,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at 2 cards (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at 2 cards (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Alisaie Leveilleur: no Alphinaud Leveilleur in your library\""
@@ -500482,11 +499438,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at 2 cards (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at 2 cards (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Alisaie Leveilleur: look at these cards (your library)\""
@@ -501560,11 +500512,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at 2 cards (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at 2 cards (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Alisaie Leveilleur: no Alphinaud Leveilleur in your library\""
@@ -506467,11 +505415,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Kodama's Reach (spliced: Venomous Changeling, Vraska's Fall)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Kodama's Reach (spliced: Venomous Changeling, Vraska's Fall)\n"
    },
    {
     "tts": {
@@ -509107,11 +508051,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Flusterstorm\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Flusterstorm\n"
    },
    {
     "tts": {
@@ -509426,11 +508366,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue copies Flusterstorm\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue copies Flusterstorm\n"
+    "text": "[time] Blue copies Flusterstorm\n[time] Blue copies Flusterstorm\n"
    },
    {
     "tts": {
@@ -509614,11 +508550,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] AI 1 draws 2 cards\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 discards Island\n"
+    "text": "[time] AI 1 draws 2 cards\n[time] AI 1 discards Island\n"
    },
    {
     "tts": {
@@ -510959,23 +509891,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws 2 cards\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 draws 7 cards\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue discards Swamp, Thran Dynamo\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 discards Elvish Mystic, Plains\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue draws 2 cards\n[time] AI 1 draws 7 cards\n[time] Blue discards Swamp, Thran Dynamo\n[time] AI 1 discards Elvish Mystic, Plains\n"
    },
    {
     "tts": {
@@ -512393,15 +511309,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 draws 7 cards\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 discards Elvish Mystic, Plains\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 draws 7 cards\n[time] AI 1 discards Elvish Mystic, Plains\n"
    },
    {
     "tts": {
@@ -513748,11 +512656,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Lightning Bolt\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Lightning Bolt\n"
    },
    {
     "tts": {
@@ -515178,15 +514082,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Lightning Bolt\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue copies Lightning Bolt\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Lightning Bolt\n[time] Blue copies Lightning Bolt\n"
    },
    {
     "tts": {
@@ -516510,15 +515406,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Preordain is exiled and plotted: AI 1 may cast it without paying its mana cost on a later turn, as a sorcery\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Opt is exiled\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Preordain is exiled and plotted: AI 1 may cast it without paying its mana cost on a later turn, as a sorcery\n[time] Opt is exiled\n"
    },
    {
     "tts": {
@@ -520427,11 +519315,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Sleight of Hand is put into AI 1's graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Sleight of Hand is put into AI 1's graveyard\n"
    },
    {
     "tts": {
@@ -521727,11 +520611,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 mills Sleight of Hand\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 mills Sleight of Hand\n"
    },
    {
     "tts": {
@@ -523027,11 +521907,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 mills Island\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 mills Island\n"
    },
    {
     "tts": {
@@ -524327,11 +523203,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 mills Sleight of Hand, Opt\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 mills Sleight of Hand, Opt\n"
    },
    {
     "tts": {
@@ -525654,11 +524526,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue mills Swamp, Reality Shift\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue mills Swamp, Reality Shift\n"
    },
    {
     "tts": {
@@ -526279,11 +525147,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Forest is put into Blue's graveyard\n"
+    "text": "[time] Blue draws a card\n[time] Forest is put into Blue's graveyard\n"
    },
    {
     "tts": {
@@ -527663,11 +526527,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Evolving Wilds' echo: pay its echo cost, or it is sacrificed\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Evolving Wilds' echo: pay its echo cost, or it is sacrificed\n"
    },
    {
     "tts": {
@@ -535538,11 +534398,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Evolving Wilds gets a +1/+1 counter\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Evolving Wilds gets a +1/+1 counter\n"
    },
    {
     "tts": {
@@ -536575,11 +535431,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue saw: Revealed for Explore (your library): Hurloon Minotaur 2/3\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue saw: Revealed for Explore (your library): Hurloon Minotaur 2/3\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Map Token: revealed for Explore (your library)\""
@@ -539717,11 +538569,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Vraska's Fall from their library (Hermit Druid)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Vraska's Fall from their library (Hermit Druid)\n"
    },
    {
     "writeFile": "image-cache-klrmngr.json.tmp",
@@ -539799,11 +538647,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Verdant Catacombs: no Swamp or Forest card in your library\""
@@ -541889,11 +540733,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at 2 cards (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at 2 cards (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Cultivate: no basic land card in your library\""
@@ -546028,11 +544868,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts 2 cards from their hand on top of their library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts 2 cards from their hand on top of their library\n"
    },
    {
     "appendFile": "table-log.log",
@@ -547128,11 +545964,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts 2 cards from their hand on top of their library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts 2 cards from their hand on top of their library\n"
    },
    {
     "appendFile": "table-log.log",
@@ -548238,11 +547070,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts 2 cards from their hand on top of their library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts 2 cards from their hand on top of their library\n"
    },
    {
     "appendFile": "table-log.log",
@@ -551568,11 +550396,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Growing Rites of Itlimoc becomes Itlimoc, Cradle of the Sun\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Growing Rites of Itlimoc becomes Itlimoc, Cradle of the Sun\n"
    },
    {
     "tts": {
@@ -553055,11 +551879,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Rancor is put into Blue's hand from exile\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Rancor is put into Blue's hand from exile\n"
    },
    {
     "tts": {
@@ -553556,11 +552376,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Raise Dead is put into Blue's graveyard\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Gravedigger is put into Blue's graveyard\n"
+    "text": "[time] Raise Dead is put into Blue's graveyard\n[time] Gravedigger is put into Blue's graveyard\n"
    },
    {
     "tts": {
@@ -553898,15 +552714,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Lotus Field enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Raise Dead is put into Blue's hand from the graveyard\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Gravedigger is put into Blue's hand from the graveyard\n"
+    "text": "[time] Lotus Field enters the battlefield (Blue)\n[time] Raise Dead is put into Blue's hand from the graveyard\n[time] Gravedigger is put into Blue's hand from the graveyard\n"
    },
    {
     "tts": {
@@ -557418,11 +556226,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Rancor is put into Blue's hand from the graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Rancor is put into Blue's hand from the graveyard\n"
    },
    {
     "tts": {
@@ -558917,11 +557721,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Gemrazer mutates onto Eidolon of Blossoms\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Gemrazer mutates onto Eidolon of Blossoms\n"
    },
    {
     "tts": {
@@ -559821,11 +558621,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Gemrazer mutates under Eidolon of Blossoms\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Gemrazer mutates under Eidolon of Blossoms\n"
    },
    {
     "tts": {
@@ -561046,11 +559842,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur (Tooth and Nail)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur (Tooth and Nail)\n"
    },
    {
     "tts": {
@@ -563106,11 +561898,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Tooth and Nail\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Tooth and Nail\n"
    },
    {
     "tts": {
@@ -564687,11 +563475,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Ephemerate is exiled with rebound: Blue may cast it at their next upkeep\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Ephemerate is exiled with rebound: Blue may cast it at their next upkeep\n"
    },
    {
     "tts": {
@@ -565546,11 +564330,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Swords to Plowshares is exiled\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Swords to Plowshares is exiled\n"
    },
    {
     "tts": {
@@ -566244,11 +565024,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Ephemerate is exiled\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Ephemerate is exiled\n"
    },
    {
     "tts": {
@@ -594289,11 +593065,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Reforge the Soul (miracle)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Reforge the Soul (miracle)\n"
    },
    {
     "tts": {
@@ -595727,11 +594499,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -596958,11 +595726,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue shuffles and puts a card on top of their library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue shuffles and puts a card on top of their library\n"
    },
    {
     "relay": {
@@ -597049,11 +595813,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looks at the top 3 cards of their library (Ponder)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looks at the top 3 cards of their library (Ponder)\n"
    },
    {
     "log": "prompt Blue #900: reorder \"Ponder: click the card to put on top\""
@@ -609606,11 +608366,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Swamp is exiled from Blue's graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Swamp is exiled from Blue's graveyard\n"
    },
    {
     "tts": {
@@ -609765,11 +608521,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Plains, Island, Forest are exiled from Blue's graveyard\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Mountain is exiled\n"
+    "text": "[time] Plains, Island, Forest are exiled from Blue's graveyard\n[time] Mountain is exiled\n"
    },
    {
     "tts": {
@@ -610974,11 +609726,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] A face-down creature enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] A face-down creature enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -613251,11 +611999,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue exiles from the top of their library (Chimil, the Inner Sun): Hurloon Minotaur 2/3, Venomous Changeling 1/3\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue exiles from the top of their library (Chimil, the Inner Sun): Hurloon Minotaur 2/3, Venomous Changeling 1/3\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Chimil, the Inner Sun: discover 5: cards exiled from the top of your library\""
@@ -615314,11 +614058,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Gudul Lurker is turned face up (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Gudul Lurker is turned face up (Blue)\n"
    },
    {
     "tts": {
@@ -616194,15 +614934,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Gudul Lurker's ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Gudul Lurker is turned face up (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Gudul Lurker's ability\n[time] Gudul Lurker is turned face up (Blue)\n"
    },
    {
     "tts": {
@@ -616944,15 +615676,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue unearths Gudul Lurker\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Gudul Lurker is turned face up (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue unearths Gudul Lurker\n[time] Gudul Lurker is turned face up (Blue)\n"
    },
    {
     "tts": {
@@ -617149,11 +615873,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue exiles from the top of their library (Throes of Chaos): Hurloon Minotaur 2/3, Venomous Changeling 1/3\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue exiles from the top of their library (Throes of Chaos): Hurloon Minotaur 2/3, Venomous Changeling 1/3\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Throes of Chaos: cascade: cards exiled from the top of your library\""
@@ -618215,11 +616935,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue exiles from the top of their library (Throes of Chaos): Hurloon Minotaur 2/3, Venomous Changeling 1/3\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue exiles from the top of their library (Throes of Chaos): Hurloon Minotaur 2/3, Venomous Changeling 1/3\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Throes of Chaos: cascade: cards exiled from the top of your library\""
@@ -621412,11 +620128,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur 2/3, Venomous Changeling 1/3 from their library (Surging Dementia)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur 2/3, Venomous Changeling 1/3 from their library (Surging Dementia)\n"
    },
    {
     "writeFile": "image-cache-klrmngr.json.tmp",
@@ -622501,11 +621213,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur 2/3, Venomous Changeling 1/3 from their library (Surging Dementia)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur 2/3, Venomous Changeling 1/3 from their library (Surging Dementia)\n"
    },
    {
     "tts": {
@@ -623088,11 +621796,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looks at the top 2 cards of their library (Surging Dementia)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looks at the top 2 cards of their library (Surging Dementia)\n"
    },
    {
     "log": "prompt Blue #900: reorder \"Surging Dementia: click the card to put on top\""
@@ -629887,11 +628591,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 reveals Hurloon Minotaur 2/3 from their hand (Sylvan Scrying)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 reveals Hurloon Minotaur 2/3 from their hand (Sylvan Scrying)\n"
    },
    {
     "writeFile": "image-cache-klrmngr.json.tmp",
@@ -629924,11 +628624,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (AI 1's hand)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (AI 1's hand)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Sylvan Scrying: look at these cards (AI 1's hand)\""
@@ -633063,11 +631759,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 copies Lightning Bolt\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 copies Lightning Bolt\n"
    },
    {
     "tts": {
@@ -634232,11 +632924,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 casts Lightning Bolt\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 casts Lightning Bolt\n"
    },
    {
     "tts": {
@@ -635396,11 +634084,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue draws a card\n"
    },
    {
     "tts": {
@@ -636539,11 +635223,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts a card from their library into their hand\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts a card from their library into their hand\n"
    },
    {
     "tts": {
@@ -637662,11 +636342,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue exiles from the top of their library (Throes of Chaos): Hurloon Minotaur 2/3\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue exiles from the top of their library (Throes of Chaos): Hurloon Minotaur 2/3\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Throes of Chaos: cascade: cards exiled from the top of your library\""
@@ -639001,11 +637677,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Incarnation Technique\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Incarnation Technique\n"
    },
    {
     "tts": {
@@ -641279,11 +639951,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Surging Dementia targeting AI 1\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Eternal Dominion targeting AI 1\n"
+    "text": "[time] Blue casts Surging Dementia targeting AI 1\n[time] Blue casts Eternal Dominion targeting AI 1\n"
    },
    {
     "tts": {
@@ -641975,19 +640643,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue can't cast spells for the rest of the game (epic); at each of their upkeeps, Eternal Dominion is copied\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Improvisation Capstone is exiled (paradigm): at the start of each of their first main phases, Blue may cast a copy of it without paying its mana cost\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts AI 1's Gaea's Cradle onto the battlefield\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts AI 1's Island onto the battlefield tapped\n"
+    "text": "[time] Blue can't cast spells for the rest of the game (epic); at each of their upkeeps, Eternal Dominion is copied\n[time] Improvisation Capstone is exiled (paradigm): at the start of each of their first main phases, Blue may cast a copy of it without paying its mana cost\n[time] Blue puts AI 1's Gaea's Cradle onto the battlefield\n[time] Blue puts AI 1's Island onto the battlefield tapped\n"
    },
    {
     "tts": {
@@ -647928,11 +646584,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur, shuffles and puts it on top of their library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur, shuffles and puts it on top of their library\n"
    },
    {
     "relay": {
@@ -648661,11 +647313,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (their library)\n"
    },
    {
     "log": "prompt Blue #960: revealCards \"Sensei's Divining Top: look at these cards (your library)\""
@@ -651269,11 +649917,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur, shuffles and puts it on top of their library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur, shuffles and puts it on top of their library\n"
    },
    {
     "relay": {
@@ -652334,11 +650978,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur, shuffles and puts it on top of their library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur, shuffles and puts it on top of their library\n"
    },
    {
     "relay": {
@@ -653399,11 +652039,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue shuffles and puts a card on top of their library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue shuffles and puts a card on top of their library\n"
    },
    {
     "relay": {
@@ -655588,11 +654224,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur 2/3 from their library (Abundance)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur 2/3 from their library (Abundance)\n"
    },
    {
     "tts": {
@@ -655705,11 +654337,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur 2/3 from their library (Abundance)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur 2/3 from their library (Abundance)\n"
    },
    {
     "tts": {
@@ -655724,11 +654352,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (their library)\n"
    },
    {
     "log": "prompt Blue #951: revealCards \"Kenrith, the Returned King: look at these cards (your library)\""
@@ -660263,11 +658887,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts a card on the bottom of AI 1's library (Mesmeric Sliver)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue puts a card on the bottom of AI 1's library (Mesmeric Sliver)\n"
    },
    {
     "relay": {
@@ -676223,15 +674843,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Throes of Chaos\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Throes of Chaos' cascade triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Throes of Chaos\n[time] Throes of Chaos' cascade triggers (Blue)\n"
    },
    {
     "tts": {
@@ -682942,11 +681554,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at 2 cards (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at 2 cards (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Mosswort Bridge: look at these cards (your library)\""
@@ -689552,11 +688160,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue encodes Whispering Madness onto Hurloon Minotaur\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue encodes Whispering Madness onto Hurloon Minotaur\n"
    },
    {
     "tts": {
@@ -690590,15 +689194,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue mills Forest, Forest, Plains\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Life from the Loam is put into Blue's hand from the graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue mills Forest, Forest, Plains\n[time] Life from the Loam is put into Blue's hand from the graveyard\n"
    },
    {
     "tts": {
@@ -691918,11 +690514,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue mills 7 cards: Relentless Rats, Swamp ×6\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue mills 7 cards: Relentless Rats, Swamp ×6\n"
    },
    {
     "tts": {
@@ -692858,11 +691450,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue mills Relentless Rats, Swamp, Swamp, Swamp, Swamp, Swamp\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue mills Relentless Rats, Swamp, Swamp, Swamp, Swamp, Swamp\n"
    },
    {
     "tts": {
@@ -694084,11 +692672,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Cut Your Losses\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Cut Your Losses\n"
    },
    {
     "tts": {
@@ -694636,11 +693220,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Cut Your Losses\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue copies Cut Your Losses\n"
+    "text": "[time] Blue casts Cut Your Losses\n[time] Blue copies Cut Your Losses\n"
    },
    {
     "tts": {
@@ -694803,11 +693383,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (AI 1's library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (AI 1's library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Chimil, the Inner Sun: look at these cards (AI 1's library)\""
@@ -698982,15 +697558,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Splinter's Technique\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Champions of the Perfect returns to Blue's hand\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Splinter's Technique\n[time] Champions of the Perfect returns to Blue's hand\n"
    },
    {
     "tts": {
@@ -700000,15 +698568,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Splinter's Technique\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Champions of the Perfect token leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Splinter's Technique\n[time] Champions of the Perfect token leaves the battlefield\n"
    },
    {
     "tts": {
@@ -700733,19 +699293,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Grizzly Bears\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Grizzly Bears enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Champions of the Perfect returns to Blue's hand\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Grizzly Bears\n[time] Grizzly Bears enters the battlefield (Blue)\n[time] Champions of the Perfect returns to Blue's hand\n"
    },
    {
     "tts": {
@@ -701780,11 +700328,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Champions of the Perfect leaves the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Champions of the Perfect leaves the battlefield\n"
    },
    {
     "tts": {
@@ -705078,11 +703622,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at 2 cards (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at 2 cards (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Splinter's Technique: look at these cards (your library)\""
@@ -718329,15 +716869,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Indoraptor, the Perfect Hybrid returns to the battlefield from Blue's graveyard with a +1/+1 counter (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Grizzly Bears returns to the battlefield from exile (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Indoraptor, the Perfect Hybrid returns to the battlefield from Blue's graveyard with a +1/+1 counter (Blue)\n[time] Grizzly Bears returns to the battlefield from exile (Blue)\n"
    },
    {
     "tts": {
@@ -726194,15 +724726,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Lizard Blades enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Evolving Wilds' ability triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Lizard Blades enters the battlefield (Blue)\n[time] Evolving Wilds' ability triggers (Blue)\n"
    },
    {
     "tts": {
@@ -727136,11 +725660,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Grizzly Bears dies\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Evolving Wilds' ability triggers (Blue)\n"
+    "text": "[time] Grizzly Bears dies\n[time] Evolving Wilds' ability triggers (Blue)\n"
    },
    {
     "tts": {
@@ -727438,11 +725958,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Evolving Wilds' ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Llanowar Elves enters the battlefield (Blue)\n"
+    "text": "[time] Blue uses Evolving Wilds' ability\n[time] Llanowar Elves enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -728820,15 +727336,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Sowing Mycospawn enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Lórien Revealed is put into Blue's hand from the graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Sowing Mycospawn enters the battlefield (Blue)\n[time] Lórien Revealed is put into Blue's hand from the graveyard\n"
    },
    {
     "tts": {
@@ -729305,11 +727813,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Sowing Mycospawn enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
+    "text": "[time] Sowing Mycospawn enters the battlefield (Blue)\n[time] Blue draws a card\n"
    },
    {
     "tts": {
@@ -729467,15 +727971,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue casts Sowing Mycospawn\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Lórien Revealed is put into Blue's graveyard\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Sowing Mycospawn leaves the battlefield\n"
+    "text": "[time] Blue casts Sowing Mycospawn\n[time] Lórien Revealed is put into Blue's graveyard\n[time] Sowing Mycospawn leaves the battlefield\n"
    },
    {
     "tts": {
@@ -729655,15 +728151,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Sowing Mycospawn enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Lórien Revealed is put into Blue's hand from the graveyard\n"
+    "text": "[time] Sowing Mycospawn enters the battlefield (Blue)\n[time] Blue draws a card\n[time] Lórien Revealed is put into Blue's hand from the graveyard\n"
    },
    {
     "tts": {
@@ -729829,11 +728317,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] A face-down card is exiled\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Sowing Mycospawn leaves the battlefield\n"
+    "text": "[time] A face-down card is exiled\n[time] Sowing Mycospawn leaves the battlefield\n"
    },
    {
     "tts": {
@@ -730006,11 +728490,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Sowing Mycospawn enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
+    "text": "[time] Sowing Mycospawn enters the battlefield (Blue)\n[time] Blue draws a card\n"
    },
    {
     "tts": {
@@ -731172,15 +729652,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Asceticism enters the battlefield (Blue)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Asceticism enters the battlefield (Blue)\n[time] Blue draws a card\n"
    },
    {
     "tts": {
@@ -732041,15 +730513,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Asceticism enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue draws a card\n[time] Asceticism enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -732764,15 +731228,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue draws a card\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue puts Forest onto the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue draws a card\n[time] Blue puts Forest onto the battlefield\n"
    },
    {
     "tts": {
@@ -732959,11 +731415,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Tutor: look at these cards (your library)\""
@@ -735049,11 +733501,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looked at a card (their library)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looked at a card (their library)\n"
    },
    {
     "log": "prompt Blue #900: revealCards \"Tutor: look at these cards (your library)\""
@@ -737102,15 +735550,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue discards Forest\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Island is put into Blue's graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue discards Forest\n[time] Island is put into Blue's graveyard\n"
    },
    {
     "tts": {
@@ -739634,11 +738074,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Cut // Ribbons is exiled\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Cut // Ribbons is exiled\n"
    },
    {
     "tts": {
@@ -740920,15 +739356,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 plays Swamp\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 puts Swamp onto the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 plays Swamp\n[time] AI 1 puts Swamp onto the battlefield\n"
    },
    {
     "tts": {
@@ -743271,11 +741699,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Relentless Rats is countered\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Relentless Rats is countered\n"
    },
    {
     "tts": {
@@ -753244,15 +751668,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Opt is countered by An Offer You Can't Refuse\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 creates 2 Treasure tokens\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Opt is countered by An Offer You Can't Refuse\n[time] AI 1 creates 2 Treasure tokens\n"
    },
    {
     "tts": {
@@ -754848,11 +753264,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 creates a Treasure token\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 creates a Treasure token\n"
    },
    {
     "tts": {
@@ -756446,11 +754858,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Divination is countered\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Divination is countered\n"
    },
    {
     "tts": {
@@ -757684,11 +756092,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Divination is countered\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Divination is countered\n"
    },
    {
     "tts": {
@@ -760142,15 +758546,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Daring Skyjek is countered\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 2 ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Daring Skyjek is countered\n[time] --- Blue's turn 2 ---\n"
    },
    {
     "tts": {
@@ -761315,11 +759711,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- AI 1's turn 1 ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- AI 1's turn 1 ---\n"
    },
    {
     "tts": {
@@ -762722,11 +761114,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Relentless Rats goes to the graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Relentless Rats goes to the graveyard\n"
    },
    {
     "tts": {
@@ -763520,11 +761908,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 2 ---\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 plays Swamp\n"
+    "text": "[time] --- Blue's turn 2 ---\n[time] AI 1 plays Swamp\n"
    },
    {
     "tts": {
@@ -763751,11 +762135,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue wins the flip (Pestilence)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue wins the flip (Pestilence)\n"
    },
    {
     "relay": {
@@ -764804,11 +763184,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 reveals Vraska's Fall from their library (Pestilence)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 reveals Vraska's Fall from their library (Pestilence)\n"
    },
    {
     "writeFile": "image-cache-klrmngr.json.tmp",
@@ -767064,11 +765440,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue looks at the top 3 cards of their library (Ponder)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue looks at the top 3 cards of their library (Ponder)\n"
    },
    {
     "log": "prompt Blue #900: reorder \"Ponder: click the card to put on top\""
@@ -769207,11 +767579,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur (Foreboding Ruins)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur (Foreboding Ruins)\n"
    },
    {
     "tts": {
@@ -770272,11 +768640,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue reveals Hurloon Minotaur (Foreboding Ruins)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue reveals Hurloon Minotaur (Foreboding Ruins)\n"
    },
    {
     "tts": {
@@ -771358,11 +769722,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 reveals Vraska's Fall from their library (Pestilence)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 reveals Vraska's Fall from their library (Pestilence)\n"
    },
    {
     "writeFile": "image-cache-klrmngr.json.tmp",
@@ -772444,15 +770804,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Island leaves the battlefield\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 reveals Island from their library (Chaos Warp)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Island leaves the battlefield\n[time] AI 1 reveals Island from their library (Chaos Warp)\n"
    },
    {
     "tts": {
@@ -773705,11 +772057,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 reveals Island from their library (Chaos Warp)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 reveals Island from their library (Chaos Warp)\n"
    },
    {
     "tts": {
@@ -786400,11 +784748,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Rewound to Blue's turn (main phase) ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Rewound to Blue's turn (main phase) ---\n"
    },
    {
     "tts": {
@@ -787888,11 +786232,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Rewound to Blue's turn (main phase) ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Rewound to Blue's turn (main phase) ---\n"
    },
    {
     "tts": {
@@ -789356,11 +787696,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 2 ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Blue's turn 2 ---\n"
    },
    {
     "tts": {
@@ -791301,11 +789637,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hurloon Minotaur enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Hurloon Minotaur enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -795131,11 +793463,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Hurloon Minotaur enters the battlefield (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Hurloon Minotaur enters the battlefield (Blue)\n"
    },
    {
     "tts": {
@@ -798021,11 +796349,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue's manual fix: Blue puts Vraska's Fall into their graveyard (no effect); Blue plays Fire-Belly Changeling for free (the land drop stays unused); Blue activates Evolving Wilds' ability for free; Blue casts Hurloon Minotaur for free; Note (Blue): Teferi's Protection should have resolved first\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue's manual fix: Blue puts Vraska's Fall into their graveyard (no effect); Blue plays Fire-Belly Changeling for free (the land drop stays unused); Blue activates Evolving Wilds' ability for free; Blue casts Hurloon Minotaur for free; Note (Blue): Teferi's Protection should have resolved first\n"
    },
    {
     "log": "fix #1: Not played in the fix: Hurloon Minotaur (Blue): a choice was cancelled, or there was no legal target or a cost that could be paid"
@@ -804383,11 +802707,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue's manual fix: Blue plays Fire-Belly Changeling for free (the land drop stays unused)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue's manual fix: Blue plays Fire-Belly Changeling for free (the land drop stays unused)\n"
    },
    {
     "relay": {
@@ -809263,11 +807583,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, White ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue's manual fix: Blue casts Hurloon Minotaur for free; White casts Counterspell for free\n"
+    "text": "[time] === Game: Blue, White ===\n[time] Blue's manual fix: Blue casts Hurloon Minotaur for free; White casts Counterspell for free\n"
    },
    {
     "log": "fix #1: Not played in the fix: Counterspell (White): a choice was cancelled, or there was no legal target or a cost that could be paid"
@@ -810512,23 +808828,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue loses 3 poison counters (0 in all)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 pays 5 energy (0 left)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 becomes the monarch\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue takes the initiative\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue loses 3 poison counters (0 in all)\n[time] AI 1 pays 5 energy (0 left)\n[time] AI 1 becomes the monarch\n[time] Blue takes the initiative\n"
    },
    {
     "tts": {
@@ -810684,15 +808984,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] AI 1 loses a poison counter (0 in all)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue pays 2 energy (0 left)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1's control of Blue's turn ends\n"
+    "text": "[time] AI 1 loses a poison counter (0 in all)\n[time] Blue pays 2 energy (0 left)\n[time] AI 1's control of Blue's turn ends\n"
    },
    {
     "tts": {
@@ -811920,51 +810212,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue gets 2 poison counters (2 in all)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 gets a poison counter (1 in all)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue gets 3 energy (3 in all)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 gets 1 energy (1 in all)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue becomes the monarch\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 takes the initiative\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue gets the city's blessing\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 gets the city's blessing\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue has an enduring story\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 has an enduring story\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue ventures into Goblin Lair (Lost Mine of Phandelver)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue gets 2 poison counters (2 in all)\n[time] AI 1 gets a poison counter (1 in all)\n[time] Blue gets 3 energy (3 in all)\n[time] AI 1 gets 1 energy (1 in all)\n[time] Blue becomes the monarch\n[time] AI 1 takes the initiative\n[time] Blue gets the city's blessing\n[time] AI 1 gets the city's blessing\n[time] Blue has an enduring story\n[time] AI 1 has an enduring story\n[time] Blue ventures into Goblin Lair (Lost Mine of Phandelver)\n"
    },
    {
     "tts": {
@@ -812134,27 +810382,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue loses a poison counter (1 in all)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 gets 3 poison counters (4 in all)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue pays 2 energy (1 left)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 becomes the monarch\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue takes the initiative\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue ventures into Temple of Dumathoin (Lost Mine of Phandelver)\n"
+    "text": "[time] Blue loses a poison counter (1 in all)\n[time] AI 1 gets 3 poison counters (4 in all)\n[time] Blue pays 2 energy (1 left)\n[time] AI 1 becomes the monarch\n[time] Blue takes the initiative\n[time] Blue ventures into Temple of Dumathoin (Lost Mine of Phandelver)\n"
    },
    {
     "tts": {
@@ -814089,11 +812317,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 gets 2 energy (7 in all)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 gets 2 energy (7 in all)\n"
    },
    {
     "tts": {
@@ -815352,11 +813576,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 2 (extra turn) ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Blue's turn 2 (extra turn) ---\n"
    },
    {
     "tts": {
@@ -818820,15 +817040,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue is tempted by the Ring (1)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 starts their engines (speed 1)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue is tempted by the Ring (1)\n[time] AI 1 starts their engines (speed 1)\n"
    },
    {
     "tts": {
@@ -818962,11 +817174,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue is tempted by the Ring 2 times (3)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1's speed goes up to 2\n"
+    "text": "[time] Blue is tempted by the Ring 2 times (3)\n[time] AI 1's speed goes up to 2\n"
    },
    {
     "tts": {
@@ -819100,11 +817308,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] AI 1's speed goes up to 4 (max speed)\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 takes control of Blue's turn\n"
+    "text": "[time] AI 1's speed goes up to 4 (max speed)\n[time] AI 1 takes control of Blue's turn\n"
    },
    {
     "tts": {
@@ -819239,11 +817443,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] AI 1's speed goes down to 3\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1's control of Blue's turn ends\n"
+    "text": "[time] AI 1's speed goes down to 3\n[time] AI 1's control of Blue's turn ends\n"
    },
    {
     "tts": {
@@ -820662,15 +818862,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 3 ---\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 takes control of Blue's turn\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Blue's turn 3 ---\n[time] AI 1 takes control of Blue's turn\n"
    },
    {
     "tts": {
@@ -820801,11 +818993,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Polluted Delta's ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Polluted Delta is put into Blue's graveyard\n"
+    "text": "[time] Blue uses Polluted Delta's ability\n[time] Polluted Delta is put into Blue's graveyard\n"
    },
    {
     "tts": {
@@ -821271,11 +819459,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- AI 1's turn 4 ---\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1's control of Blue's turn ends\n"
+    "text": "[time] --- AI 1's turn 4 ---\n[time] AI 1's control of Blue's turn ends\n"
    },
    {
     "tts": {
@@ -822513,19 +820697,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 uses Polluted Delta's ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Polluted Delta is put into AI 1's graveyard\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue controls AI 1 for now\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 uses Polluted Delta's ability\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
    },
    {
     "tts": {
@@ -823017,19 +821189,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 3 ---\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 uses Polluted Delta's ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Polluted Delta is put into AI 1's graveyard\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue controls AI 1 for now\n"
+    "text": "[time] --- Blue's turn 3 ---\n[time] AI 1 uses Polluted Delta's ability\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
    },
    {
     "tts": {
@@ -824432,23 +822592,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- AI 1's turn 3 ---\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 uses Polluted Delta's ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Polluted Delta is put into AI 1's graveyard\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue controls AI 1 for now\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- AI 1's turn 3 ---\n[time] AI 1 uses Polluted Delta's ability\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
    },
    {
     "tts": {
@@ -824941,15 +823085,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] AI 1 uses Polluted Delta's ability\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Polluted Delta is put into AI 1's graveyard\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue controls AI 1 for now\n"
+    "text": "[time] AI 1 uses Polluted Delta's ability\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
    },
    {
     "tts": {
@@ -825112,11 +823248,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 3 ---\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Blue no longer controls AI 1\n"
+    "text": "[time] --- Blue's turn 3 ---\n[time] Blue no longer controls AI 1\n"
    },
    {
     "tts": {
@@ -826357,19 +824489,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 3 ---\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1 controls Blue for now\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] Phyrexian Arena's ability triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Blue's turn 3 ---\n[time] AI 1 controls Blue for now\n[time] Phyrexian Arena's ability triggers (Blue)\n"
    },
    {
     "tts": {
@@ -826630,11 +824750,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- AI 1's turn 4 ---\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] AI 1's control of Blue's turn ends\n"
+    "text": "[time] --- AI 1's turn 4 ---\n[time] AI 1's control of Blue's turn ends\n"
    },
    {
     "tts": {
@@ -827893,11 +826009,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1, AI 2, AI 3 ===\n"
-   },
-   {
-    "appendFile": "game-log.txt",
-    "text": "[time] --- AI 1's turn 2 (extra turn) ---\n"
+    "text": "[time] === Game: Blue, AI 1, AI 2, AI 3 ===\n[time] --- AI 1's turn 2 (extra turn) ---\n"
    },
    {
     "tts": {

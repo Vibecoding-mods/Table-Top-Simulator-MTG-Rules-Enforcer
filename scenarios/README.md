@@ -10,7 +10,9 @@ triggers, state-based actions after, a restore point before). Names are lower ca
   applies at once; other people vote.
 - Every card put on the battlefield is ready (no summoning sickness), untapped unless `"tapped": true`. A planeswalker
   or battle there gets its printed loyalty or defense (an engine image from 2026-11-11 on; before it, it had none and
-  died at once).
+  died at once). Nothing else a card enters with is applied (Spike Feeder's +1/+1 counters, a Saga's lore counter, an
+  "as this enters, choose" choice): the engine adds the card straight to the battlefield, as Forge's own "no triggers"
+  dev-mode add does. Add counters afterwards with the manual fix.
 
 ```json
 {

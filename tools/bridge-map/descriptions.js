@@ -169,6 +169,8 @@ module.exports = {
   onIntent: "Handles a drag or click on the table (cast, play, attack, tap) and turns it into an answer.",
   onGameLog: "Writes Forge's own game log entries to disk (our node sends none).",
   gameLogFile: "Writes the game log, as the table shows it, to game-log.txt.",
+  gameLogWrite: "Appends the waiting game log lines to game-log.txt, one write at a time so they stay in order.",
+  entityLabel: "Reads one of Forge's player-or-permanent labels: a player, or a card name and the cards of that name on the battlefield.",
   answerProblem: "Checks an answer fits the question before it is sent.",
   onAnswer: "Handles a button answer from the table and sends it to the engine.",
   restartRoom: "Restarts the Forge room for a fresh engine.",

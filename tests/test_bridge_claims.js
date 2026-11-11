@@ -3258,7 +3258,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
   {
     const HERO = "Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)\nWhenever Hero of Bladehold attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking.";
     const JACE = (id) => ({ id, identity: { name: "Jace Beleren" }, types: ["Planeswalker"], controllerId: "player-1", ownerId: "player-1", loyalty: 3, text: "+2: Each player draws a card." });
-    const hero = async (edit, labels = ["self-hosted-node-77-bot", "Jace Beleren (201)"]) => {
+    const HERO_TRIGGER = "Whenever Hero of Bladehold attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking.";
+    const hero = async (edit, labels = ["self-hosted-node-77-bot", "Jace Beleren (201)"], text = HERO_TRIGGER) => {
       const h = harness.load();
       const b = clone(F.board);
       const gv = b.gameView;
@@ -3267,7 +3268,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push({ id: "engine-card-1301", identity: { name: "Hero of Bladehold" }, types: ["Creature"], power: 3, toughness: 4, controllerId: "player-0", ownerId: "player-0", text: HERO, isAttacking: true });
       edit(gv);
       const seat = setup(h, b);
-      h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", sourceAbilityText: "Whenever Hero of Bladehold attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking.",
+      h.B.onPrompt(seat, { promptId: 900, decidingPlayerId: "player-0", sourceAbilityText: text,
         sourceCard: { id: "engine-card-1301", identity: { name: "Hero of Bladehold" } },
         input: { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Choose which defender to attack with Soldier Token", targets: [] }, options: labels.map((label) => ({ label, weight: 1 })) } });
       await h.flush();
@@ -3297,6 +3298,27 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     const both = (seat.prompt?.ui?.options || []).map((o) => o.label);
     ok("hero: two Jaces offered are numbered apart", JSON.stringify(both) === JSON.stringify(["AI 1", "Jace Beleren (AI 1's planeswalker) #1", "Jace Beleren (AI 1's planeswalker) #2"]), JSON.stringify(both));
     harness.restore();
+    // "whom it attacks" only for a defender's choice: what can be attacked (a battle too), from a card that puts creatures
+    // onto the battlefield attacking. "attacking" alone, or a list of creatures, is no such choice (verify 2026-11-11)
+    const askedUi = async (edit, labels, text) => { const r = await hero(edit, labels, text); const ui = r.seat.prompt?.ui || {}; harness.restore(); return ui; };
+    const titled = async (edit, labels, text) => (await askedUi(edit, labels, text)).title;
+    const BATTLE = (id) => ({ id, identity: { name: "Invasion of Zendikar" }, types: ["Battle"], controllerId: "player-1", ownerId: "player-1", text: "" });
+    const BEARS = (id) => ({ id, identity: { name: "Grizzly Bears" }, types: ["Creature"], controllerId: "player-1", ownerId: "player-1", text: "" });
+    const twoJaces = (gv) => theirs(gv, "battlefield").cards.push(JACE("engine-card-1302"), JACE("engine-card-1304"));
+    const battles = await askedUi((gv) => theirs(gv, "battlefield").cards.push(BATTLE("engine-card-1305"), BATTLE("engine-card-1306")), ["self-hosted-node-77-bot", "Invasion of Zendikar (205)"]);
+    ok("hero: two battles: the token attacks whom", battles.title === "Hero of Bladehold: the token attacks whom?", battles.title);
+    ok("hero: two battles: a battle said as one", JSON.stringify((battles.options || []).map((o) => o.label)) === JSON.stringify(["AI 1", "Invasion of Zendikar (AI 1's battle)"]), JSON.stringify(battles.options));
+    const noPlayer = await titled(twoJaces, ["Jace Beleren (201)", "Jace Beleren (204)"]);
+    ok("hero: no player among them is no defender's choice", noPlayer === "Hero of Bladehold: choose which planeswalker?", noPlayer);
+    // (a face-down permanent of that name is no click: Forge's number may mean it, and the table can't show it)
+    const hidden = await askedUi((gv) => theirs(gv, "battlefield").cards.push({ ...JACE("engine-card-1302"), isFaceDown: true }));
+    ok("hero: a face-down one of that name is not clicked", hidden.kind !== "target" && hidden.title === "Hero of Bladehold: choose which player or card?", JSON.stringify(hidden));
+    const bears = await titled((gv) => theirs(gv, "battlefield").cards.push(BEARS("engine-card-1307"), BEARS("engine-card-1308")), ["self-hosted-node-77-bot", "Grizzly Bears (207)"]);
+    ok("hero: a list of creatures is no defender's choice", bears === "Hero of Bladehold: choose which player or permanent?", bears);
+    const dealt = await titled(twoJaces, undefined, "Each attacking creature you control deals 1 damage to a player or planeswalker of your choice.");
+    ok("hero: \"attacking\" with nothing put onto the battlefield is no defender's choice", dealt === "Hero of Bladehold: choose which player or planeswalker?", dealt);
+    const put = await titled(twoJaces, undefined, "Put a creature card from your hand onto the battlefield tapped and attacking.");
+    ok("hero: a card put onto the battlefield attacking: attack whom", put === "Hero of Bladehold: attack whom?", put);
   }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
