@@ -82,6 +82,67 @@ const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringif
   ok("rewrite: the same text twice stops it", refuses(`{"Note": "same", "LuaScript": "same"}`));
 }
 
+// the status pieces (docs/status-objects-spec.md): a save from before them gets the built table's pieces, at the front
+// of ObjectStates, every other byte as it was; once they are there nothing more is added; a GUID the save uses for
+// something else stops it. And the real path: the user's kind of save (the built table without its pieces, plus a deck
+// of their own) gets every piece the built script names, parked and locked, and loads with them parked and hidden.
+{
+  const { statusGuids, addPieces } = require("../tools/patch-save");
+  const script = 'x\nENGINE_STATUS_PIECES = {\n  { mark = "MONARCH", objs = { { g = "aaa111", x = 1, z = 2 } } },\n  { mark = "POISON", objs = { { g = "bbb222", x = 1, z = 2, seat = "White" }, { g = "ccc333", x = 1, z = 3, seat = "Red" } } },\n}\nENGINE_DAY_NIGHT = { states = { "ddd444", "eee555" }, y = 1 }\n';
+  same("pieces: the GUIDs the built script names, Day // Night by its first state", statusGuids(script), ["aaa111", "bbb222", "ccc333", "ddd444"]);
+  same("pieces: a script without the list names none", statusGuids("x\n"), []);
+  const obj = (g, more = {}) => ({ GUID: g, Name: "Card", Nickname: `n ${g}`, Transform: { posY: -30 }, ...more });
+  const built = { LuaScript: script, ObjectStates: [obj("aaa111"), obj("bbb222"), obj("ccc333"), obj("ddd444", { States: { 2: obj("eee555") } }), obj("zzz999")] };
+  const raw = `{\n  "SaveName": "mine",\n  "Note": "spaced  \\u00e9",\n  "ObjectStates": [\n    {\n      "GUID": "deck01",\n      "Name": "Deck"\n    }\n  ],\n  "LuaScript": "s"\n}\n`;
+  // (a throw is a named failure, not a crash that takes the later checks with it)
+  const safe = (fn) => { try { return fn(); } catch (e) { return { raw: JSON.stringify({ ObjectStates: [] }), added: [], threw: e.message }; } };
+  const r = safe(() => addPieces(raw, built));
+  ok("pieces: precondition, adding them to a save from before doesn't throw", !r.threw, r.threw);
+  const back = JSON.parse(r.raw);
+  same("pieces: the four missing pieces go in at the front, the save's own objects after them", back.ObjectStates.map((o) => o.GUID), ["aaa111", "bbb222", "ccc333", "ddd444", "deck01"]);
+  ok("pieces: every other byte as it was", r.raw.startsWith(raw.slice(0, raw.indexOf("[") + 1)) && r.raw.endsWith(raw.slice(raw.indexOf("    {\n      \"GUID\": \"deck01\""))), r.raw.slice(0, 200));
+  same("pieces: what was added is said", r.added.length, 4);
+  same("pieces: run again, nothing more", safe(() => addPieces(r.raw, built)).raw, r.raw);
+  // (a throw is a named failure here, not a crash that takes the later checks with it)
+  same("pieces: a save with no objects gets them too", JSON.parse(safe(() => addPieces(`{"ObjectStates": [], "LuaScript": "s"}`, built)).raw).ObjectStates.length, 4);
+  const refuses = (text, b, word) => { try { addPieces(text, b); return false; } catch (e) { return e.message.includes(word); } };
+  ok("pieces: a GUID the save uses for something else stops it (Night's, inside a deck)", refuses(`{"ObjectStates": [{"GUID": "deck01", "ContainedObjects": [{"GUID": "eee555"}]}]}`, built, "something else"));
+  ok("pieces: a piece the script names and the build hasn't got stops it", refuses(raw, { ...built, ObjectStates: built.ObjectStates.slice(1) }, "hasn't got it"));
+  same("pieces: a built script without the list adds nothing", addPieces(raw, { LuaScript: "x", ObjectStates: built.ObjectStates }).raw, raw);
+  // (a table saved at night: TTS writes Night on top with Day in its States; the piece is there, nothing is added)
+  const night = JSON.parse(r.raw);
+  night.ObjectStates = night.ObjectStates.map((o) => (o.GUID === "ddd444" ? obj("eee555", { States: { 1: obj("ddd444") } }) : o));
+  const nightRaw = JSON.stringify(night, null, 2);
+  const n1 = safe(() => addPieces(nightRaw, built));
+  ok("pieces: a save with Day // Night saved at night (Night on top, Day in its States) doesn't throw", !n1.threw, n1.threw);
+  same("pieces: ... and adds nothing, every byte as it was", [n1.added.length, n1.raw === nightRaw], [0, true]);
+  // (the same with the real build: every piece there, Day // Night turned to Night by its own States)
+  const realAll = buildSave();
+  const dn = realAll.ObjectStates.findIndex((o) => o.GUID === "4e8c7b");
+  const dayObj = realAll.ObjectStates[dn];
+  const nightKey = Object.keys(dayObj.States || {})[0];
+  const nightObj = { ...dayObj.States[nightKey], States: { 1: { ...dayObj, States: undefined } } };
+  realAll.ObjectStates[dn] = nightObj;
+  const realNightRaw = JSON.stringify(realAll, null, 2);
+  const n2 = safe(() => addPieces(realNightRaw, buildSave()));
+  ok("pieces: precondition, the real Day // Night has a Night state (cdf2d2)", !!nightObj && nightObj.GUID === "cdf2d2", nightObj && nightObj.GUID);
+  same("pieces: the real build saved at night: no throw, nothing added", [n2.threw || "", n2.added.length], ["", 0]);
+  // (the real build: the user's kind of save is the engine table from before the pieces, with a deck of their own)
+  const real = buildSave();
+  const names = statusGuids(real.LuaScript);
+  ok("pieces: precondition, the built script names 23 pieces and Day // Night, all in the build", names.length === 24 && names.every((g) => real.ObjectStates.some((o) => o.GUID === g)), `${names.length}`);
+  const older = { ...real, ObjectStates: [...real.ObjectStates.filter((o) => !names.includes(o.GUID)), { GUID: "deck77", Name: "Deck", Nickname: "my deck", Transform: { posX: 20, posY: 1, posZ: -20 } }] };
+  const olderRaw = JSON.stringify(older, null, 2);
+  const up = safe(() => addPieces(olderRaw, real));
+  const upSave = JSON.parse(up.raw);
+  const got = upSave.ObjectStates.filter((o) => names.includes(o.GUID));
+  ok("pieces: the user's kind of save gets every piece, parked at y -30 and locked, their deck kept", got.length === 24 && got.every((o) => o.Transform.posY === -30 && o.Locked) && upSave.ObjectStates.some((o) => o.GUID === "deck77"), `${got.length}`);
+  same("pieces: the user's save is unchanged but for them", JSON.stringify(upSave.ObjectStates.slice(24)), JSON.stringify(older.ObjectStates));
+  const { simulate } = require("./lua/run-sim");
+  const t = simulate({ save: upSave, steps: [{ frames: 40 }, { lua: `local n, bad = 0, {} for _, g in ipairs({ "${names.join('", "')}" }) do local o = getObjectFromGUID(g) if o then n = n + 1 if o.getPosition().y ~= -30 or #(o.__d.invisibleTo or {}) < 6 then bad[#bad + 1] = g end end end return n .. " " .. table.concat(bad, ",")`, mark: "loaded" }] });
+  same("pieces: the patched save loads with every piece parked and invisible to every colour", [t.errors.length, String((t.steps.find((s) => s.step === "loaded") || {}).value)], [0, "24 "]);
+}
+
 // deploy: only a line saying it passed is a pass, and every table and bridge gate on disk is in the list
 {
   ok("deploy: a passed live test counts", livePassed("pass: x\nPASSED: 3 of 3 checks\n"));
