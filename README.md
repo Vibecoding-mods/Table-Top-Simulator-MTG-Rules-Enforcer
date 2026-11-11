@@ -8,6 +8,9 @@ click your library, use the table's buttons), while the **Forge** rules engine r
 
 Think MTG Arena's rules on a free-form tabletop.
 
+Made with [Claude Code](https://claude.com/claude-code): the code, tests and docs in this repository were written with
+Anthropic's AI coding assistant, directed and play-tested by the project's owner.
+
 > Status (October 2026): playable. 1v1 played over TTS multiplayer; 4-player games against Forge AI played to the end.
 > Rules checks pass for commander tax, 21 commander damage, the command-zone choice, 4-player priority and turn order.
 > 27 hand-test decks were played through the table, then every keyword they missed. See [PLAN.md](PLAN.md) for what's
@@ -35,6 +38,32 @@ TTS table (Lua, "ENGINE MODE")  ⇄  bridge (Node.js)  ⇄  Manabrew relay  ⇄ 
 
 A move, end to end: you drag a card, the table's Lua asks the bridge to play it, the bridge sends that to the relay,
 Forge checks it and updates the game, and the new board comes back the same way and is redrawn as real TTS cards.
+
+### Forge and Manabrew: who does what
+
+The two names often get used as one ("the engine"), because they ship together in one Docker image. They are two
+layers:
+
+- **[Forge](https://github.com/Card-Forge/forge) is the brain.** An open-source Magic program (Java, GPL-3.0), around
+  since about 2007. It knows the rules: the stack, priority, triggers, combat, layers and state-based actions. It has
+  scripts for nearly every card ever printed, and it plays the AI opponents. On its own it is a desktop app for one person
+  against the computer, with no network play another program could plug into.
+- **[Manabrew](https://github.com/witchesofthehill/manabrew) is the server around it** (AGPL-3.0). It runs Forge
+  without its screens and puts it on the network:
+  - the **node** hosts a Forge game, and its harness turns each of Forge's questions ("choose targets", "declare
+    blockers") into a message and each answer back into Forge's choice;
+  - the **relay** is the meeting point, where the players' clients and the node connect, games are set up and messages
+    are routed;
+  - the **protocol** is the published message format: the board as small change patches, questions out, answers back.
+
+  Manabrew also has its own web client, which this project doesn't use: TTS is the client.
+- **Our bridge** translates between Manabrew's messages and TTS (a question becomes glowing cards and buttons; your
+  drag or click becomes the answer), and **our table script** draws it all.
+
+Our changes to each live in [engine/](engine/README.md): `forge.patch` holds rules-level fixes inside Forge, and
+`manabrew.patch` holds harness changes (what is asked and how, and the extra board details the table needs, such as
+debug mode, the manual fix and rewind). As a rule of thumb, a wrong rules outcome is usually Forge, while a missing or
+odd question, or a missing board detail, is usually Manabrew's harness.
 
 ### What it uses
 
@@ -196,6 +225,8 @@ How each test works and what it can't see: [TESTING.md](TESTING.md).
 
 ## Credits and legal
 
+- Made with [Claude Code](https://claude.com/claude-code) (Anthropic's AI coding assistant): it wrote this
+  repository's code, tests and docs, including our changes to Manabrew and Forge.
 - Rules engine: [Forge](https://github.com/Card-Forge/forge) (GPL-3.0) through
   [Manabrew](https://github.com/witchesofthehill/manabrew) (AGPL-3.0), run as separate programs, with our changes to
   both. Those changes stay under their licences and their source must be published with any build we share.

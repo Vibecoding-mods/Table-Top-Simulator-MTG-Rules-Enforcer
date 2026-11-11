@@ -281,6 +281,18 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("attack corner: one chosen says Attack (1) / No attacks", valueOf(r, "one chosen") === "Attack (1)|No attacks", valueOf(r, "one chosen"));
   ok("attack corner: Attack sends the chosen attacker", sent("press attack").includes('"choice":["engine-card-1|player-1"]'), sent("press attack").slice(0, 200));
 }
+// Q/E on a creature the attack question doesn't offer says the bridge's reason, cantAttack (attack reminder spec part
+// 2: "Hill Giant can't attack: summoning sick." instead of "That creature can't attack right now.")
+{
+  const id = blueBf[0];
+  const qe = (mark) => q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end onPlayerAction(Player.Blue, Player.Action.RotateIncrementalRight, { o })`, mark);
+  const attackAsk = (promptId, extra) => ask({ promptId, kind: "attack", title: "Choose attackers", mode: "multi", min: 0, max: 1, options: [
+    { id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" }, { id: "engine-card-99998|player-1", label: "Other → White" }], ...extra });
+  const r = run([attackAsk(874, { cantAttack: { [id]: "Hill Giant can't attack: summoning sick." } }), qe("reason"), attackAsk(875, {}), qe("plain")]);
+  const said = (mark) => fxOf(r, mark).filter((l) => l.includes("broadcastToColor")).join(" | ");
+  ok("attack Q/E: a creature not offered says the bridge's reason", said("reason").includes("Hill Giant can't attack: summoning sick.") && !said("reason").includes("right now"), said("reason") + " " + r.errors.join(" | "));
+  ok("attack Q/E: without a reason the old line stays", said("plain").includes("That creature can't attack right now."), said("plain"));
+}
 // scry the table's way (2026-10-24): the cards go into the second hand zone; dragged onto the library they stay on top,
 // the last one dragged on top; clicked, a card goes to the bottom; the last one out of the zone answers
 {
@@ -2242,6 +2254,331 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const names = (s) => [...String(s || "").matchAll(/"([A-Za-z]+)"/g)].map((x) => x[1]).sort().join(",");
   ok("zone lists: precondition, both lists found", !!keys && !!lists, `${keys} / ${lists}`);
   ok("zone lists: the table's mergeStatic fills in exactly the bridge's ZONE_KEYS", names(keys) === names(lists), `bridge ${names(keys)} / table ${names(lists)}`);
+}
+// Planeswalkers by click (item 24, 2026-11-11): a planeswalker on the battlefield is a card target like a creature
+// (Forge's chooseBoardTargets offers it as { kind: "card" }, players first for "any target"): offered, it is unlocked
+// even when it is the AI's, glows, and its click answers with its option; not offered, the click answers nothing and
+// says why. A question of players and planeswalkers only says to click either.
+{
+  const pw = "engine-card-9701", mine = "engine-card-9702";
+  // White's (the AI's) battlefield as the prefix left it, plus a planeswalker; Blue gets one too (its own, unlocked)
+  let whiteBf = [], blueList = [];
+  for (const m of s1.slice(0, 40)) if (m.t === "table") {
+    const j = JSON.parse(m.json);
+    const w = j.players.find((p) => p.color === "White"), b = j.players.find((p) => p.color === "Blue");
+    if (w && w.battlefield) whiteBf = w.battlefield;
+    if (b && b.battlefield) blueList = b.battlefield;
+  }
+  const last = JSON.parse([...s1.slice(0, 40)].reverse().find((m) => m.t === "table").json);
+  for (const pl of last.players) {
+    if (pl.color === "White") pl.battlefield = [...whiteBf, { s: 1, id: pw, ctl: "White", ctr: { LOYALTY: 4 } }];
+    if (pl.color === "Blue") pl.battlefield = [...blueList, { s: 1, id: mine, ctl: "Blue", ctr: { LOYALTY: 3 } }];
+    pl.keep = (pl.keep || []).filter((z) => z !== "battlefield");
+  }
+  last.cards = { ...(last.cards || {}), [pw]: { n: "Chandra, Torch of Defiance", tl: "Legendary Planeswalker — Chandra", cmc: 4, ty: ["Planeswalker"] },
+    [mine]: { n: "Teferi, Hero of Dominaria", tl: "Legendary Planeswalker — Teferi", cmc: 5, ty: ["Planeswalker"] } };
+  const board = { msg: { t: "table", json: JSON.stringify(last) }, frames: 30, mark: "board" };
+  const objOf = (id) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end`;
+  const click = (id, mark) => q(objOf(id) + ' onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) __sim.frames(30) return "clicked"', mark);
+  const look = (id, mark) => q(objOf(id) + ' if not o then return "none" end local h = o.__d.highlight '
+    + 'return tostring(o.getLock()) .. "|" .. tostring((engineGlowing.Blue or {})[o] == true) .. "|" .. (h and string.format("%.2f,%.2f,%.2f", h[1] or h.r, h[2] or h.g, h[3] or h.b) or "none")', mark);
+  const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest") && l.includes("answer")).join(" ").split("\\").join("");
+  const said = (r, mark) => fxOf(r, mark).filter((l) => l.includes("broadcastToColor")).join(" | ");
+  const hint = q('return tostring(UI.getValue("eng_hint_Blue"))', "hint");
+  // "any target" (Lightning Bolt): players first, then the cards, as Forge's choose_target_any sends them
+  const anyTarget = (pid) => ask({ promptId: pid, kind: "target", title: "Lightning Bolt: deal 3 damage to which target?", mode: "single",
+    options: [{ id: "player|player-0", label: "Blue" }, { id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" },
+      { id: `card|${mine}`, label: "Teferi, Hero of Dominaria" }, { id: `card|${blueList[0] && blueList[0].id}`, label: "a permanent" }] });
+  {
+    const r = run([board, look(pw, "before"), anyTarget(9701), look(pw, "offered"), hint, click(pw, "click")]);
+    ok("pw click: precondition: Blue has a permanent of its own to offer beside them", blueList.length > 0);
+    ok("pw click: precondition: the AI's planeswalker is on the table, locked",String(valueOf(r, "before")).startsWith("true|"), valueOf(r, "before") + " " + r.errors.join(" | "));
+    const [lock, glowing, rgb] = String(valueOf(r, "offered")).split("|");
+    ok("pw click: an offered planeswalker of the AI's is unlocked (TTS reports no click on a locked one)", lock === "false", valueOf(r, "offered"));
+    ok("pw click: it glows as a target, the colour of every target", glowing === "true" && rgb === "0.30,1.00,0.40", valueOf(r, "offered"));
+    ok("pw click: clicking it answers with its option", sent(r, "click").includes(`"choice":["card|${pw}"]`), sent(r, "click").slice(0, 300) + " " + said(r, "click"));
+    ok("pw click: a card target hint still says card or life counter", /Click a glowing card or a life counter\./.test(String(valueOf(r, "hint"))), valueOf(r, "hint"));
+  }
+  {
+    // the life counter still answers the same question with the player (the pattern the planeswalker follows)
+    const r = run([board, anyTarget(9702), q(`engineLifeTrackerClick({ guid = "23e485", color = "Blue" }) __sim.frames(30) return "life"`, "life")]);
+    ok("pw click: the same question's life counter answers with the player", sent(r, "life").includes('"choice":["player|player-1"]'), sent(r, "life").slice(0, 300));
+  }
+  {
+    // "target player or planeswalker" (Forge: players, then the planeswalkers): the hint names both
+    const r = run([board, ask({ promptId: 9703, kind: "target", title: "Chandra's Outrage: which player or planeswalker?", mode: "single",
+      options: [{ id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), hint, click(pw, "click")]);
+    ok("pw click: a player-or-planeswalker hint names both", /Click a player's life counter or a glowing planeswalker\./.test(String(valueOf(r, "hint"))), valueOf(r, "hint"));
+    ok("pw click: player-or-planeswalker: the planeswalker's click answers", sent(r, "click").includes(`"choice":["card|${pw}"]`), sent(r, "click").slice(0, 300));
+  }
+  {
+    // a question that doesn't offer it ("target player"): your own planeswalker's click answers nothing and says why;
+    // the AI's stays locked (TTS reports no click on it: nothing happens)
+    const r = run([board, ask({ promptId: 9704, kind: "target", title: "Mind Rot: which player discards?", mode: "single",
+      options: [{ id: "player|player-0", label: "Blue" }, { id: "player|player-1", label: "AI 1" }] }), look(pw, "not offered"), click(mine, "click")]);
+    ok("pw click: not offered, the AI's planeswalker stays locked and unlit", String(valueOf(r, "not offered")).startsWith("true|false|"), valueOf(r, "not offered"));
+    ok("pw click: not offered, its click answers nothing", !sent(r, "click").includes('"choice"'), sent(r, "click").slice(0, 300));
+    ok("pw click: not offered, its click says why: this asks for a player", /That planeswalker can't be chosen for this: it asks for a player\. Click a glowing life counter\./.test(said(r, "click")), said(r, "click"));
+  }
+  {
+    // the bridge's other shape: a choice of players and permanents that is no target (a token put onto the battlefield
+    // attacking chooses whom, bridge entityChoiceIds) comes as this same target question; the planeswalker answers it
+    const r = run([board, ask({ promptId: 9706, kind: "target", title: "Hero of Bladehold: attack which player or planeswalker?", mode: "multi", min: 1, max: 1,
+      options: [{ id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), look(pw, "offered"), click(pw, "click")]);
+    ok("pw click: a no-target choice of player or planeswalker: it glows", String(valueOf(r, "offered")).startsWith("false|true|"), valueOf(r, "offered"));
+    ok("pw click: a no-target choice of player or planeswalker: its click answers", sent(r, "click").includes(`"choice":["card|${pw}"]`), sent(r, "click").slice(0, 300));
+  }
+  {
+    // offered with other cards but not this one ("target creature or planeswalker an opponent controls"): it says so
+    const r = run([board, ask({ promptId: 9705, kind: "target", title: "Murder: destroy which creature or planeswalker?", mode: "single",
+      options: [{ id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), hint, click(mine, "click")]);
+    // (planeswalkers alone, no player: the plain card hint, no life counter named)
+    ok("pw click: planeswalkers alone: the card hint, no life counter", /Click a glowing card\.$/.test(String(valueOf(r, "hint"))) && !/life counter/.test(String(valueOf(r, "hint"))), valueOf(r, "hint"));
+    ok("pw click: a planeswalker the question leaves out says it can't be chosen", /That planeswalker can't be chosen for this\. Click a glowing card/.test(said(r, "click")) && !sent(r, "click").includes('"choice"'), said(r, "click") + " " + sent(r, "click").slice(0, 200));
+    // (players and cards, not this one: the card wording, not "it asks for a player"; a permanent that is no
+    // planeswalker still says "That card")
+    const r2 = run([board, ask({ promptId: 9707, kind: "target", title: "Chandra's Outrage: which player or planeswalker?", mode: "single",
+      options: [{ id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), click(mine, "walker"), click(blueList[0] && blueList[0].id, "other")]);
+    ok("pw click: players and cards offered, not this planeswalker: the card wording", /That planeswalker can't be chosen for this\. Click a glowing card, or a player's life counter/.test(said(r2, "walker")), said(r2, "walker"));
+    ok("pw click: a permanent that is no planeswalker still says That card", /That card can't be chosen for this\./.test(said(r2, "other")), said(r2, "other"));
+  }
+}
+// Status pieces (docs/status-objects-spec.md "Checks to write", 2026-11-11): the original table's piece for a player
+// status lies on the holder's mat, in the corner strip under their last marks box, while their marks say it; moved,
+// never spawned; parked under the table (y -30), locked and hidden otherwise. The pieces, their GUIDs and the mats are
+// read from the save, the boxes from the tracker's buttons; the strip and the box geometry as in "marks fit" above.
+{
+  const SEATS = { White: "23e485", Red: "448880", Yellow: "37e533", Blue: "395037" };
+  const STATUS = ["8963ec", "197ab6", "2db63a", "cb418b", "d9fcbc", "94b67a", "da1b48", "576ccd"]; // (the spec's table)
+  const DAY = "4e8c7b", NIGHT = "cdf2d2";
+  const all = (list) => { const out = []; for (const o of list || []) { out.push(o); out.push(...all(o.ContainedObjects)); out.push(...all(Object.values(o.States || {}))); } return out; };
+  const byGuid = new Map(save.ObjectStates.map((o) => [o.GUID, o]));
+  // the Global script's list of which object shows which mark (make-engine-copy writes it from what it kept)
+  const listed = save.LuaScript.slice(save.LuaScript.indexOf("ENGINE_STATUS_PIECES = {"));
+  const pieceBlock = listed.slice(0, listed.indexOf("\n}\n") + 3);
+  const rows = [...pieceBlock.matchAll(/\{ mark = "([^"]+)",[^\n]*\n\s*objs = \{(.*)\} \},/g)].map((m) => ({ mark: m[1], objs: [...m[2].matchAll(/g = "(\w+)"[^}]*?(?:seat = "(\w+)")?\s*\}/g)].map((x) => ({ g: x[1], seat: x[2] || null })) }));
+  const seatObj = (mark, seat) => { const r = rows.filter((x) => x.mark === mark); for (const x of r) { const e = x.objs.find((o) => o.seat === null || o.seat === seat); if (e) return e.g; } return null; };
+  const ofMark = (mark) => rows.filter((x) => x.mark === mark).flatMap((x) => x.objs.map((o) => o.g));
+  const pieceGuids = rows.flatMap((x) => x.objs.map((o) => o.g));
+  ok("status pieces: precondition, the Global script lists every piece of the spec's table, each kind once, day // night apart",
+    STATUS.every((g) => pieceGuids.includes(g)) && rows.length === 8 && /ENGINE_DAY_NIGHT = \{ states = \{ "4e8c7b", "cdf2d2" \}/.test(listed),
+    JSON.stringify(rows.map((x) => `${x.mark}:${x.objs.length}`)));
+  ok("status pieces: one copy a seat of the city's blessing, the Ring and the three counters; one crown, one Monarch card, one Undercity",
+    ["CITY'S BLESSING", "RING TEMPTED", "POISON", "ENERGY", "EXPERIENCE"].every((m) => ["White", "Red", "Yellow", "Blue"].every((s) => rows.find((x) => x.mark === m).objs.some((o) => o.seat === s)) && ofMark(m).length === 4)
+      && ofMark("MONARCH").length === 2 && ofMark("INITIATIVE").length === 1, JSON.stringify(rows));
+  const guidCount = new Map();
+  for (const o of all(save.ObjectStates)) guidCount.set(o.GUID, (guidCount.get(o.GUID) || 0) + 1);
+  const pieces = [...pieceGuids, DAY].map((g) => byGuid.get(g));
+  ok("status pieces: precondition, every listed piece is an object in the save, its GUID used once in the whole save",
+    pieces.every(Boolean) && [...pieceGuids, DAY, NIGHT].every((g) => guidCount.get(g) === 1), [...pieceGuids, DAY, NIGHT].filter((g) => guidCount.get(g) !== 1).join(" "));
+  const badPark = pieces.filter(Boolean).flatMap((o) => [o, ...Object.values(o.States || {})]).filter((o) => !(o.Transform.posY === -30 && o.Locked === true && !o.LuaScript && !o.XmlUI));
+  ok("status pieces: in the copy each piece (and Night) is parked at y -30, locked, without a script", badPark.length === 0, badPark.map((o) => o.GUID).join(" "));
+  const fadeGuids = [...ofMark("MONARCH").slice(0, 1), ...ofMark("POISON"), ...ofMark("ENERGY"), ...ofMark("EXPERIENCE")];
+  ok("status pieces: in the copy the crown and the counter tokens are see-through (tint alpha 0)", fadeGuids.every((g) => byGuid.get(g) && byGuid.get(g).ColorDiffuse && byGuid.get(g).ColorDiffuse.a === 0), fadeGuids.filter((g) => !(byGuid.get(g) && byGuid.get(g).ColorDiffuse && byGuid.get(g).ColorDiffuse.a === 0)).join(" "));
+  ok("status pieces: the crown is a model and the counters tokens (the kinds a tint fades); the rest are cards",
+    byGuid.get("8963ec")?.Name === "Custom_Model" && ["94b67a", "da1b48", "576ccd"].every((g) => byGuid.get(g)?.Name === "Custom_Token") && ["197ab6", "2db63a", "cb418b", "d9fcbc", DAY].every((g) => byGuid.get(g)?.Name === "Card"), "");
+
+  const L = (a) => `{ ${a.map((x) => JSON.stringify(x)).join(", ")} }`;
+  const watch = [...pieceGuids, DAY, NIGHT];
+  const info = `local out = {} for _, g in ipairs(${L(watch)}) do local o = getObjectFromGUID(g) if o then local p, r, s, b = o.getPosition(), o.getRotation(), o.getScale(), o.getBoundsNormalized().size local labels = {} for i, x in ipairs(o.getButtons() or {}) do labels[i] = tostring(x.label) .. "@" .. tostring(x.click_function) end out[g] = { x = p.x, y = p.y, z = p.z, ry = r.y, w = b.x, d = b.z, lock = o.getLock(), inv = #(o.__d.invisibleTo or {}), a = o.getColorTint().a or 1, labels = table.concat(labels, "|"), state = o.getStateId() } end end out.everyone = #engineEveryone() return JSON.encode(out)`;
+  const boxes = `local out = {} for c, g in pairs(${"{ " + Object.entries(SEATS).map(([c, g]) => `${c} = "${g}"`).join(", ") + " }"}) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, boxes = {} } for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then row.boxes[#row.boxes + 1] = { w = b.width, h = b.height, bx = b.position[1] or b.position.x, bz = b.position[3] or b.position.z } end end out[c] = row end return JSON.encode(out)`;
+  const set = (marks, day) => `engineStatusPieces(JSON.decode([==[${JSON.stringify({ day, players: Object.keys(SEATS).map((c) => ({ color: c, allMarks: marks[c] || [] })) })}]==])) for c, g in pairs(${"{ " + Object.entries(SEATS).map(([c, g]) => `${c} = "${g}"`).join(", ") + " }"}) do enginePlayerCounters(getObjectFromGUID(g), { allMarks = JSON.decode([==[${JSON.stringify(marks)}]==])[c] or {} }) end return "set"`;
+  const look = (r, mark) => { try { return JSON.parse(String(valueOf(r, mark))); } catch (e) { return {}; } };
+  const mats = matZones();
+  const matOf = (t) => mats.find((m) => Math.sign(m.box[0] + m.box[1]) === Math.sign(t.x) && Math.sign(m.box[2] + m.box[3]) === Math.sign(t.z));
+  const COL0 = 10.75, TAPPED = 1.53;
+  const foot = (p) => [p.x - p.w / 2, p.x + p.w / 2, p.z - p.d / 2, p.z + p.d / 2];
+  const shown = (p, n) => !!p && p.y > 0.5 && p.inv === 0 && p.a === 1 && p.lock === true;
+  const parked = (p, n) => !!p && p.y === -30 && p.inv === n && p.inv >= 6 && (p.a === 0 || p.a === 1) && p.lock === true;
+  // where a shown piece lies: on `seat`'s mat, in the strip (|x| from the mat's inner edge to a tapped column-0 card),
+  // its near edge at least 0.3 under the last box's far edge, meeting no box
+  // first: the seat's first piece, whose near edge is exactly the gap (0.3) under the last box
+  const placeCheck = (name, seat, p, b, first) => {
+    const t = b[seat], m = t && matOf(t);
+    if (!p || !m) { ok(`${name}: precondition, the piece and ${seat}'s mat`, false, JSON.stringify({ p, t })); return; }
+    const f = foot(p), ax = [Math.abs(f[0]), Math.abs(f[1])].sort((x, y) => x - y), az = [Math.abs(f[2]), Math.abs(f[3])].sort((x, y) => x - y);
+    const cx = Math.abs((m.box[0] + m.box[1]) / 2), half = (m.box[1] - m.box[0]) / 2, inner = cx - half, outer = cx - COL0 - TAPPED;
+    const world = (t.boxes || []).map((x) => buttonBox(t, x));
+    const lastFar = Math.max(...world.map((w) => Math.max(Math.abs(w[2]), Math.abs(w[3]))));
+    ok(`${name}: on ${seat}'s mat`, f[0] >= m.box[0] && f[1] <= m.box[1] && f[2] >= m.box[2] && f[3] <= m.box[3], `${f.map((n) => n.toFixed(2))} mat ${m.box.map((n) => n.toFixed(2))}`);
+    ok(`${name}: in ${seat}'s corner strip, 0.3 in from each side`, ax[0] >= inner + 0.29 && ax[1] <= outer + 0.01 && Math.abs((ax[0] + ax[1]) / 2 - (1.04 + 6.94) / 2) < 0.05, `|x| ${ax.map((n) => n.toFixed(2))} strip ${inner.toFixed(2)}..${outer.toFixed(2)}`);
+    ok(`${name}: under ${seat}'s last marks box, 0.3 apart, meeting none`, world.length > 0 && az[0] >= lastFar + 0.29 && !world.some((w) => meets(w, f)), `near edge |z| ${az[0].toFixed(2)}, last box to ${lastFar.toFixed(2)}`);
+    if (first) ok(`${name}: the first piece just under ${seat}'s last box, 0.3 (not more)`, Math.abs(az[0] - lastFar - 0.3) < 0.01, `near edge |z| ${az[0].toFixed(3)}, last box to ${lastFar.toFixed(3)}`);
+    // (readable from the seat: its cards' turn, the hand's + 180, which is the seat's tracker's turn: 180 for White
+    // and Red, 0 for Yellow and Blue)
+    const off = Math.abs(((p.ry - t.ry) % 360 + 540) % 360 - 180);
+    ok(`${name}: turned to read from ${seat}`, off < 1, `ry ${p.ry} tracker ${t.ry}`);
+  };
+  const crown = "8963ec", card = "197ab6", under = "2db63a";
+  const r = run([
+    q(info, "start"),
+    q(set({ White: ["MONARCH"] }), "white monarch"), q(info, "W"), q(boxes, "W boxes"),
+    q(set({ White: ["MONARCH"] }), "same again"),
+    q(set({ Red: ["POISON 2", "MONARCH"] }), "red monarch"), q(info, "R"), q(boxes, "R boxes"),
+    q(set({}), "nobody"), q(info, "none"),
+    q(set({ Yellow: ["TURN RUN BY WHITE", "RING TEMPTED 2", "MONARCH", "INITIATIVE", "POISON 9", "CITY'S BLESSING", "ENERGY 12", "EXPERIENCE 5"] }), "everything"), q(info, "Y"), q(boxes, "Y boxes"),
+    q(set({ White: ["POISON 3"], Blue: ["POISON 5"] }), "two poisoned"), q(info, "P1"), q(boxes, "P boxes"),
+    q(set({ White: ["POISON 3"], Blue: ["POISON 6"] }), "blue's goes up"), q(info, "P2"),
+    q(set({ White: ["MONARCH"], Blue: ["MONARCH"] }), "two monarchs"), q(info, "two"),
+    q(set({}, "day"), "set day"), q(info, "day"),
+    q(set({}, "night"), "set night"), q(info, "night"),
+    q(set({}, "night"), "night again"),
+    q(set({}), "set no day"), q(info, "no day"),
+    q(set({ Blue: ["MONARCH", "POISON 4"] }, "day"), "before the clear"), q(info, "before clear"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" }, q(info, "cleared"),
+  ]);
+  ok("status pieces: precondition, no script error", !r.errors.length, r.errors.slice(0, 3).join(" | "));
+  const v = (m) => look(r, m);
+  const start = v("start"), n = start.everyone;
+  ok("status pieces: precondition, at the start every piece parked (y -30), locked and invisible to every colour, the faded ones at alpha 0",
+    n >= 6 && [...pieceGuids, DAY].every((g) => parked(start[g], n)) && fadeGuids.every((g) => start[g].a === 0), JSON.stringify(Object.entries(start).filter(([g, p]) => g !== "everyone" && !parked(p, n))).slice(0, 300));
+  const W = v("W"), Wb = look(r, "W boxes");
+  ok("status pieces: a row with MONARCH: the crown and the Monarch card are out, visible and locked", shown(W[crown]) && shown(W[card]), JSON.stringify([W[crown], W[card]]));
+  placeCheck("status pieces, White monarch: the crown", "White", W[crown], Wb, true);
+  placeCheck("status pieces, White monarch: the Monarch card", "White", W[card], Wb);
+  ok("status pieces: the Monarch card under the crown, 0.3 apart", !!W[crown] && !!W[card] && Math.abs((Math.abs(W[card].z) - W[card].d / 2) - (Math.abs(W[crown].z) + W[crown].d / 2) - 0.3) < 0.01, JSON.stringify([W[crown], W[card]]));
+  // (the fake TTS's bounds: 2 x 2 for a model at scale 1, a card 2.2 x 3.1)
+  ok("status pieces: pieces that fit keep their own size (the crown 0.6, the card 1)", !!W[crown] && Math.abs(W[crown].w - 1.2) < 1e-6 && !!W[card] && Math.abs(W[card].d - 3.1) < 1e-6, JSON.stringify([W[crown], W[card]]));
+  ok("status pieces: nothing else came out", [...pieceGuids, DAY].filter((g) => g !== crown && g !== card).every((g) => parked(W[g], n)), "");
+  const again = fxOf(r, "same again").filter((l) => watch.some((g) => l.includes(g)));
+  ok("status pieces: the same marks again move nothing", again.length === 0, again.slice(0, 3).join(" | "));
+  const spawned = r.steps.flatMap((s) => s.fx || []).filter((l) => /spawnObject|"destruct"/.test(l) && watch.some((g) => l.includes(g)));
+  ok("status pieces: never spawned or destroyed (moved)", spawned.length === 0, spawned.slice(0, 2).join(" | "));
+  // (from under the table it comes up hidden and shows at its spot: never seen rising through the table top)
+  const upFx = fxOf(r, "white monarch").filter((l) => l.includes(crown));
+  const moved = upFx.findIndex((l) => /"setPosition"/.test(l)), seen = upFx.findIndex((l) => /"setInvisibleTo" obj:\w+ \{\}/.test(l)), faded = upFx.findIndex((l) => /"setColorTint"/.test(l));
+  ok("status pieces: from under the table the crown moves to its spot first, then shows (not a smooth rise)", moved >= 0 && seen > moved && faded > moved && !upFx.some((l) => /setPositionSmooth/.test(l)), upFx.join(" | ").slice(0, 400));
+  const R = v("R"), Rb = look(r, "R boxes");
+  placeCheck("status pieces, the monarch moves to Red: the crown", "Red", R[crown], Rb, true);
+  // (one crown on the table: the one object, now on Red's side of the middle line, off White's)
+  ok("status pieces: the monarch moves: the crown is gone from White's mat, onto Red's", shown(R[crown]) && Math.sign(R[crown].x) === Math.sign(Rb.Red.x) && Math.sign(R[crown].x) !== Math.sign(Wb.White.x) && Math.sign(R[crown].z) === Math.sign(Rb.Red.z), JSON.stringify(R[crown]));
+  ok("status pieces: the monarch moves: so does the Monarch card", shown(R[card]) && Math.sign(R[card].x) === Math.sign(Rb.Red.x) && Math.sign(R[card].z) === Math.sign(Rb.Red.z), JSON.stringify(R[card]));
+  ok("status pieces: the monarch moves: it slides across (smooth), not through the table", fxOf(r, "red monarch").some((l) => l.includes(crown) && /setPositionSmooth/.test(l)), fxOf(r, "red monarch").filter((l) => l.includes(crown)).join(" | ").slice(0, 300));
+  placeCheck("status pieces, Red's poison under the monarch", "Red", R[seatObj("POISON", "Red")], Rb);
+  ok("status pieces: Red's poison token shows 2, its own seat's copy, after the crown and card (the table's order)", shown(R[seatObj("POISON", "Red")]) && /^2@engineNoop\|2@engineNoop$/.test(R[seatObj("POISON", "Red")].labels)
+    && Math.abs(R[seatObj("POISON", "Red")].z) > Math.abs(R[card].z), JSON.stringify(R[seatObj("POISON", "Red")]));
+  const none = v("none");
+  ok("status pieces: nobody has it: every piece parked and hidden again", [...pieceGuids, DAY].every((g) => parked(none[g], n)) && fadeGuids.every((g) => none[g].a === 0), JSON.stringify(Object.entries(none).filter(([g, p]) => g !== "everyone" && !parked(p, n))).slice(0, 300));
+  ok("status pieces: parked, the counter's number goes with it", none[seatObj("POISON", "Red")] && none[seatObj("POISON", "Red")].labels === "", JSON.stringify(none[seatObj("POISON", "Red")]));
+  // (every piece at once on one mat: in the table's order down the strip, none overlapping, none off the mat)
+  const Y = v("Y"), Yb = look(r, "Y boxes");
+  const order = [crown, card, under, seatObj("CITY'S BLESSING", "Yellow"), seatObj("RING TEMPTED", "Yellow"), seatObj("POISON", "Yellow"), seatObj("ENERGY", "Yellow"), seatObj("EXPERIENCE", "Yellow")];
+  for (const g of order) placeCheck(`status pieces, everything on Yellow: ${g}`, "Yellow", Y[g], Yb, g === order[0]);
+  const farther = order.every((g, i) => i === 0 || (Y[g] && Y[order[i - 1]] && Math.abs(Y[g].z) - Y[g].d / 2 >= Math.abs(Y[order[i - 1]].z) + Y[order[i - 1]].d / 2 + 0.29));
+  ok("status pieces, everything on Yellow: stacked down the strip in the spec's order, 0.3 apart", farther, JSON.stringify(order.map((g) => Y[g] && +Math.abs(Y[g].z).toFixed(2))));
+  ok("status pieces, everything on Yellow: the counts on the tokens, the Ring's and blessing's cards without", /^9@/.test(Y[seatObj("POISON", "Yellow")]?.labels) && /^12@/.test(Y[seatObj("ENERGY", "Yellow")]?.labels) && /^5@/.test(Y[seatObj("EXPERIENCE", "Yellow")]?.labels) && Y[seatObj("RING TEMPTED", "Yellow")]?.labels === "",
+    JSON.stringify(order.map((g) => Y[g] && Y[g].labels)));
+  // (two players poisoned: a token on each mat, each their own; one's count changing leaves the other where it was)
+  const P1 = v("P1"), P2 = v("P2"), Pb = look(r, "P boxes");
+  const wp = seatObj("POISON", "White"), bp = seatObj("POISON", "Blue");
+  placeCheck("status pieces, two poisoned: White's token", "White", P1[wp], Pb, true);
+  placeCheck("status pieces, two poisoned: Blue's token", "Blue", P1[bp], Pb, true);
+  ok("status pieces, two poisoned: two tokens, two seats' own, showing 3 and 5", wp !== bp && shown(P1[wp]) && shown(P1[bp]) && /^3@/.test(P1[wp].labels) && /^5@/.test(P1[bp].labels), JSON.stringify([P1[wp], P1[bp]]));
+  ok("status pieces, two poisoned: Blue's count goes up: Blue's token says 6, White's doesn't move or change",
+    /^6@/.test(P2[bp]?.labels) && JSON.stringify(P2[wp]) === JSON.stringify(P1[wp]) && !fxOf(r, "blue's goes up").some((l) => l.includes(wp)), JSON.stringify([P2[wp], P2[bp]]));
+  // (a broken board, two monarchs: one crown, at the first row that has it)
+  const two = v("two");
+  ok("status pieces: two rows say MONARCH: one crown, on the first row's (White's) mat", shown(two[crown]) && Math.sign(two[crown].z) === Math.sign(Pb.White.z) && Math.sign(two[crown].x) === Math.sign(Pb.White.x), JSON.stringify(two[crown]));
+  // (day then night: the same card, state 1 then 2, in the middle of the table between the hearts and the middle tile)
+  const D = v("day"), N = v("night");
+  const mid = (p) => !!p && Math.abs(p.x) + p.w / 2 <= 0.9 && Math.abs(p.z) - p.d / 2 >= 0.75 && Math.abs(p.z) + p.d / 2 <= 5.03;
+  ok("status pieces: day: Day // Night out in the middle (between the mats, off the middle tile), state 1, visible and locked", !!D[DAY] && !D[NIGHT] && D[DAY].state === 1 && mid(D[DAY]) && shown(D[DAY]), JSON.stringify([D[DAY], D[NIGHT]]));
+  const whiteTracker = save.ObjectStates.find((o) => o.GUID === SEATS.White);
+  ok("status pieces: day: readable from the White and Red side (White's cards' turn, its tracker's)", !!D[DAY] && !!whiteTracker && Math.abs(D[DAY].ry - whiteTracker.Transform.rotY) < 0.5 && D[DAY].z < 0, `${D[DAY] && D[DAY].ry} / ${whiteTracker && whiteTracker.Transform.rotY}`);
+  ok("status pieces: night: the same card turned to its Night state (2), at the same spot, visible", !!N[NIGHT] && !N[DAY] && N[NIGHT].state === 2 && mid(N[NIGHT]) && shown(N[NIGHT]) && Math.abs(N[NIGHT].x - D[DAY].x) < 0.01 && Math.abs(N[NIGHT].z - D[DAY].z) < 0.01, JSON.stringify([N[DAY], N[NIGHT]]));
+  ok("status pieces: night again changes nothing", !fxOf(r, "night again").some((l) => l.includes(DAY) || l.includes(NIGHT)), fxOf(r, "night again").filter((l) => l.includes(NIGHT)).join(" | ").slice(0, 200));
+  ok("status pieces: no day or night: the card parked and hidden", parked(v("no day")[DAY], n), JSON.stringify(v("no day")[DAY]));
+  ok("status pieces: parked from Night, the card goes back to Day (state 1), so the saved table has Day on top", !!v("no day")[DAY] && !v("no day")[NIGHT] && v("no day")[DAY].state === 1, JSON.stringify([v("no day")[DAY], v("no day")[NIGHT]]));
+  ok("status pieces: parking an already-Day card swaps nothing", !fxOf(r, "cleared").concat(fxOf(r, "clear")).some((l) => /setState/.test(l)), fxOf(r, "clear").filter((l) => /setState/.test(l)).join(" | ").slice(0, 200));
+  const bc = v("before clear"), cl = v("cleared");
+  ok("status pieces: precondition, pieces out before the clear", shown(bc[crown]) && shown(bc[seatObj("POISON", "Blue")]) && shown(bc[DAY]), JSON.stringify([bc[crown], bc[DAY]]).slice(0, 200));
+  ok("status pieces: engineClear (reset, rematch) parks every piece", [...pieceGuids].every((g) => parked(cl[g], n)) && parked(cl[DAY] || cl[NIGHT], n), JSON.stringify(Object.entries(cl).filter(([g, p]) => g !== "everyone" && !parked(p, n))).slice(0, 300));
+}
+// Status pieces: engine mode off parks them; a reload (the script's state gone, the pieces where the save had them)
+// redraws from the rows; with no game, a piece no board put out is parked again by the 2 s check; clicking a shown
+// piece changes nothing, in the engine or in the piece; a piece too wide for the strip is scaled to fit it
+{
+  const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
+  const board = (marks) => { const t = JSON.parse(lastT.json); for (const p of t.players) p.allMarks = marks[p.color]; return { msg: { t: "table", json: JSON.stringify(t) }, frames: 10 }; };
+  const crown = "8963ec";
+  const at = `local o = getObjectFromGUID("${crown}") local p = o.getPosition() return string.format("%.2f %.2f %.2f %s %d %s", p.x, p.y, p.z, tostring(o.getLock()), #(o.__d.invisibleTo or {}), tostring(o.getColorTint().a))`;
+  const sent = (r, m) => fxOf(r, m).filter((l) => /WebRequest|sendExternalMessage/.test(l));
+  const r = run([
+    board({ Blue: ["MONARCH"] }), q(at, "shown"),
+    // (a reload: the script's memory of what it put out is gone, the pieces lie where they were; the load's park)
+    q('engineStatusShown = {} engineStatusParkAll("unplaced") return "reloaded"', "reload"), q(at, "after the reload"),
+    board({ Blue: ["MONARCH"] }), q(at, "redrawn"),
+    q(`local o = getObjectFromGUID("${crown}") onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) onPlayerAction(Player.White, Player.Action.Select, { o }) for _, b in ipairs(o.getButtons() or {}) do Global.call(b.click_function) end __sim.frames(30) return "clicked"`, "click"), q(at, "after the click"),
+    q('setEngineMode(false) return "off"', "engine off"), q(at, "after engine off")]);
+  const v = (m) => String(valueOf(r, m));
+  ok("status pieces, reload: precondition, the crown out on Blue's mat", !r.errors.length && /^[-\d.]+ 0\.98 [-\d.]+ true 0 1$/.test(v("shown")), `${v("shown")} ${r.errors.slice(0, 1).join("")}`);
+  ok("status pieces, reload: the load parks a piece no board has put out yet", /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(v("after the reload")), v("after the reload"));
+  ok("status pieces, reload: the next board puts it back where the rows say", v("redrawn") === v("shown"), v("redrawn"));
+  ok("status pieces: clicking a shown piece changes nothing in the piece", v("after the click") === v("redrawn"), v("after the click"));
+  ok("status pieces: clicking a shown piece sends the engine nothing", sent(r, "click").length === 0, sent(r, "click").slice(0, 2).join(" | "));
+  ok("status pieces: engine mode off parks them", /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(v("after engine off")), v("after engine off"));
+  // (no game: a piece someone took out, that no board put there, goes back within the 2 s check; one a board put out
+  // in a game that has ended stays with the final board)
+  const r2 = run([board({ Blue: ["MONARCH"] }),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 },
+    q(`local o = getObjectFromGUID("${crown}") o.setPosition({ 5, 1, 5 }) return "out"`, "taken out"), { frames: 150 }, q(at, "after 2 s")]);
+  ok("status pieces: with no game, a piece found above the table is parked again by the 2 s check", !r2.errors.length && /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(String(valueOf(r2, "after 2 s"))), `${valueOf(r2, "after 2 s")} ${r2.errors.slice(0, 1).join("")}`);
+  const over = board({ Blue: ["MONARCH"] }), ot = JSON.parse(over.msg.json);
+  ot.gameOver = true; over.msg.json = JSON.stringify(ot);
+  const r2b = run([over, q("return tostring(engineTable() and engineTable().gameOver)", "over"), q(at, "final board"), { frames: 180 }, q(at, "3 s later")]);
+  ok("status pieces: precondition, a final board (game over) puts the crown out", !r2b.errors.length && String(valueOf(r2b, "over")) === "true" && /^[-\d.]+ 0\.98 [-\d.]+ true 0 1$/.test(String(valueOf(r2b, "final board"))), `${valueOf(r2b, "over")} ${valueOf(r2b, "final board")} ${r2b.errors.slice(0, 1).join("")}`);
+  ok("status pieces: the 2 s check leaves a piece the final board put out where it is", String(valueOf(r2b, "3 s later")) === String(valueOf(r2b, "final board")), String(valueOf(r2b, "3 s later")));
+  // (a piece wider than the strip: scaled down to it, 5.9 less 0.3 each side)
+  const r3 = run([q(`engineStatusUnit["${crown}"] = { x = 20, z = 20 } return "wide"`, "wide"), board({ Blue: ["MONARCH"] }),
+    q(`local o = getObjectFromGUID("${crown}") return string.format("%.4f %.4f", o.getScale().x, 20 * o.getScale().x)`, "scale")]);
+  const [sc, width] = String(valueOf(r3, "scale")).split(" ").map(Number);
+  const room = 2250 / 480 * 1.258 - 0.6;
+  ok("status pieces: a piece wider than the strip is scaled to its width less 0.3 each side", Math.abs(width - room) < 0.01 && sc < 0.6, `scale ${sc}, ${width} wide, room ${room.toFixed(3)}`);
+  // (the NEW GAME rematch: the clear keeps engine mode on, so only the counters' reset parks them)
+  const r4 = run([board({ Blue: ["MONARCH"] }), q(at, "before"), q("engineKeepEngineMode = true return 'keep'", "keep"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 }, q(`return tostring(ENGINE_MODE)`, "mode"), q(at, "after")]);
+  ok("status pieces, rematch: precondition, the crown out and engine mode still on after the clear", /^[-\d.]+ 0\.98 /.test(String(valueOf(r4, "before"))) && String(valueOf(r4, "mode")) === "true", `${valueOf(r4, "before")} mode ${valueOf(r4, "mode")}`);
+  ok("status pieces, rematch: a clear that keeps engine mode on parks them too", /^[-\d.]+ -30\.00 [-\d.]+ true \d+ 0$/.test(String(valueOf(r4, "after"))), String(valueOf(r4, "after")));
+  // (one piece or seat that fails leaves the rest: the crown's move and park throw, White's placing and Day // Night's
+  // throw; Blue's poison, after the crown in the list, still comes out and still parks)
+  const ys = 'local out = {} for _, p in ipairs(ENGINE_STATUS_PIECES) do for _, e in ipairs(p.objs) do if (p.mark == "POISON" and e.seat == "Blue") or e.g == "8963ec" then out[#out + 1] = string.format("%s %.2f", p.mark, getObjectFromGUID(e.g).getPosition().y) end end end return table.concat(out, ", ")';
+  const r5 = run([
+    q('local put, park, place = engineStatusPut, engineStatusPark, engineStatusPlace ' +
+      'engineStatusPut = function(o, item, w) if item.key == "8963ec" then error("boom") end return put(o, item, w) end ' +
+      'engineStatusPark = function(o, item) if item.key == "8963ec" then error("boom") end return park(o, item) end ' +
+      'engineStatusPlace = function(want, o, pl) if pl.color == "White" then error("boom") end return place(want, o, pl) end ' +
+      'engineStatusDayPlace = function() error("boom") end return "broken"', "break"),
+    board({ White: ["POISON 2"], Blue: ["MONARCH", "POISON 4"] }), q(ys, "out"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 }, q(ys, "parked")]);
+  ok("status pieces: a piece whose move fails leaves the next one to move (crown fails, Blue's poison out)", /^MONARCH -30\.00, POISON (?!-30)[-\d.]+$/.test(String(valueOf(r5, "out"))), `${valueOf(r5, "out")} ${r5.errors.slice(0, 1).join("")}`);
+  ok("status pieces: a piece whose park fails leaves the next one to park (Blue's poison back under)", /POISON -30\.00$/.test(String(valueOf(r5, "parked"))), String(valueOf(r5, "parked")));
+}
+// Status pieces in the copy: their scripts are gone (Day // Night's, The Ring's, Undercity's, the counters'), and the
+// pieces the original table had on its surface beside them stay removed as clutter
+{
+  const orig = (() => { try { return JSON.parse(fs.readFileSync(process.env.MTG_TABLE_JSON || path.join(process.env.USERPROFILE || "", "Documents", "My Games", "Tabletop Simulator", "Mods", "Workshop", "2296042369.json"), "utf8")); } catch (e) { return null; } })();
+  if (orig) {
+    const had = (g) => (orig.ObjectStates.find((o) => o.GUID === g) || {}).LuaScript || "";
+    ok("status pieces: precondition, the original's Day // Night, The Ring and Undercity have scripts", ["4e8c7b", "d9fcbc", "2db63a"].every((g) => had(g).length > 1000), "");
+    const left = ["4e8c7b", "d9fcbc", "2db63a", "94b67a"].filter((g) => (save.ObjectStates.find((o) => o.GUID === g) || {}).LuaScript);
+    ok("status pieces: the copy strips their scripts", left.length === 0, left.join(" "));
+    const clutter = ["df09d5", "d075c6", "91aaed", "d3959e", "a043c2", "c0d19f"].filter((g) => save.ObjectStates.some((o) => o.GUID === g));
+    ok("status pieces: the dungeons, Foretell and On an Adventure stay removed (left out on purpose)", clutter.length === 0, clutter.join(" "));
+    // (a seat's copy never takes a GUID the original table used, the clutter's included; the originals keep theirs)
+    const origGuids = new Set();
+    const walk = (list) => { for (const o of list || []) { origGuids.add(o.GUID); walk(o.ContainedObjects); walk(Object.values(o.States || {})); } };
+    walk(orig.ObjectStates);
+    const listed = save.LuaScript.slice(save.LuaScript.indexOf("ENGINE_STATUS_PIECES = {"));
+    const copies = [...listed.slice(0, listed.indexOf("\n}\n")).matchAll(/g = "(\w+)"[^}]*seat = "(Red|Yellow|Blue)"/g)].map((m) => m[1]);
+    ok("status pieces: precondition, 15 seat copies (Red, Yellow, Blue of five pieces)", copies.length === 15, `${copies.length}`);
+    ok("status pieces: no seat copy takes a GUID the original table used", copies.every((g) => !origGuids.has(g)), copies.filter((g) => origGuids.has(g)).join(" "));
+    // (the same in every build, so the deploy's save patch never adds a second copy: sha1 of "<original>:<seat>")
+    const crypto = require("crypto");
+    const expect = [...listed.slice(0, listed.indexOf("\n}\n")).matchAll(/\{ mark = "[^"]+"[^\n]*\n\s*objs = \{ \{ g = "(\w+)"[^\n]*/g)]
+      .flatMap((m) => [...m[0].matchAll(/seat = "(Red|Yellow|Blue)"/g)].map((s) => crypto.createHash("sha1").update(`${m[1]}:${s[1]}`).digest("hex").slice(0, 6)));
+    ok("status pieces: each seat copy's GUID comes from its original's and its seat's alone", expect.length === 15 && expect.join() === copies.join(), `${expect.join()} / ${copies.join()}`);
+    ok("status pieces: the original pieces keep their own GUIDs", ["8963ec", "197ab6", "2db63a", "cb418b", "d9fcbc", "94b67a", "da1b48", "576ccd", "4e8c7b"].every((g) => origGuids.has(g) && save.ObjectStates.some((o) => o.GUID === g)), "");
+  }
 }
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

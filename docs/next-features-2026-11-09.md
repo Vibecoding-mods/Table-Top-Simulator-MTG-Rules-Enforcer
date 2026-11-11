@@ -90,11 +90,23 @@ The user's list, in their order. Most items need a running TTS table in debug mo
       attack alone" and "can only attack alone" (Errantry too). Otherwise it lists the cards whose text limits
       attacks, reminder text ignored. Wording checked against all of Forge's Oracle lines. Not deployed.
       Still open: the "All attack" pre-check (needs the user's answer), parts 2 and 3 of the spec.
+    - The "All attack" pre-check is done (d3bbd18). **Part 2 done in source 2026-11-11** (bridge `attackReminder`):
+      the attack question lists each tax per defender ("Propaganda (AI 1): {2} for each creature attacking AI 1."),
+      summed when there are several, with the planeswalkers' share. It also lists each creature's own price
+      (Brainwash), the open mana, the limits, and "Can't attack: Hill Giant (summoning sick), ..." with the reason.
+      Pressing Q/E on such a creature says the reason. The tax payment says "pay {2} to attack with Grizzly Bears?"
+      and its Cancel is "Don't attack with Grizzly Bears". Part 3 (engine) is not built: it is needed for effects
+      with no text on the board (War Tax, emblems, resolved spells).
 
 24. **Planeswalkers by click** (asked 2026-11-10): click a planeswalker card to target it with a spell or ability,
     the way a life counter picks a player.
 25. **Attack targets** (asked 2026-11-10): "Attack" and "All attack" ask which player or planeswalker to attack
     when there is more than one choice, instead of taking Forge's first target for everyone.
+    - **Done in source 2026-11-11** (bridge `attackWhom`): a creature with several targets has "X → whom? (asked
+      next)" first. "Attack" with it, or "All attack", then asks "Attack whom with ...?". You can click a life
+      counter or a planeswalker, or use the row buttons (each with its tax), "One by one", or "Back". A creature that
+      can't attack the one you picked is asked again. The defender ids are `player|` / `card|`, the same ones item 24
+      clicks.
 26. **Lands snap into the mana box** (asked 2026-11-10: "i want the mana to snap to the mana zone properly"; first
     read as "stay where dropped", reverted). Measured on the real table with test cards: the mat's lower box runs
     from 3.46 past the mat's centre to its near edge at 10.375; the land row (3, at 1.6) lay above it, and the
@@ -123,7 +135,7 @@ Also queued from earlier work:
     voted before White conceded 43 s later; Yellow's yes reached the bridge. Nothing shows a fault; it needs a report
     of what was on screen.
   - #10 sorting after #1 in option lists: fixed 2026-11-09 (Kykar #9, live PASS); attack lists are checked for it too.
-- Mayhem, Harmonize, Beam me up and Plot cards never get mayPlay, so they aren't playable from the row (e.g. Rocket-Powered Goblin Glider). Harness: add the keywords to the graveyard clause and isPlotted() to exile; engine image rebuild.
+- ✅ Mayhem, Harmonize, Beam me up and Plot cards never get mayPlay, so they aren't playable from the row (e.g. Rocket-Powered Goblin Glider). Harness: add the keywords to the graveyard clause and isPlotted() to exile; engine image rebuild. Done 2026-11-11 (image `bugs1111`; Mayhem only for a card discarded this turn; MayPlayVisibilityTest).
 - ~~The table self-check false-alarms "wrong place" on a card in an opponent's graveyard or exile that you may play (Mnemonic Betrayal, Thief of Sanity)~~: fixed in source 2026-11-11; the check reads the caster's mat and second hand zone (reproduced with Thief of Sanity's face-down card in the caster's hand zone).
 - ~~Reveal stand-in tests (S11, S12, S16)~~: done in f1e2a16.
 - From the 2026-11-10 real-table check (docs/release-check-2026-11-10/):

@@ -14,6 +14,11 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   one log line; the self-check's playable cards judged on the caster's mat and hand. Not changed: the rewind vote (the
   only open one in the logs waited on Blue, who never voted), "#10 after #1" (already fixed 2026-11-09, Kykar #9), the
   cipher copy's "casts" (still no recorded board of it).
+- 🔶 (source) Attack reminders, spec part 2 (item 23): taxes per defender, each creature's own price and the limits
+  are listed on the attack question, with "Can't attack: X (reason)" and the reason on Q/E. The tax payment names
+  the tax and its Cancel is "Don't attack with X". Part 3 (engine) is not built.
+- 🔶 (source) Attack targets (item 25): "Attack" and "All attack" ask whom when there is more than one player or
+  planeswalker to attack: a life counter or planeswalker click, the buttons, One by one, or Back.
 
 ## 2026-11-10
 - ✅ "All attack" over a limit stops and says the limit (d3bbd18); refused plays say why (0858382).
@@ -26,9 +31,21 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 - ✅ (source) The Free mulligans button where the Pirate Cannon sits, turned a quarter left (721d091).
 - ✅ (source) Player marks as small boxes, one a mark, stacked down the inner corner of the mat under the heart (the
   user: "corner of your playmat under your heart"; "multiple boxes ... instead of cramming everything in one box").
-- ⬜ Status objects (spec docs/status-objects-spec.md, the user 2026-11-10): the original table's crown, initiative,
-  City's Blessing, the Ring, Day // Night and counter tokens come back parked under the table, hidden, and move onto
-  the holder's mat beside their mark's box.
+- 🔶 Planeswalkers by click (docs/next-features-2026-11-09.md item 24, 2026-11-11): a planeswalker answers a target
+  question by a click as a creature does (Forge offers it as a card target, so the table's one target path already
+  unlocked, lit and answered it; now with tests); "player or planeswalker" questions say to click either, a refused
+  click says why; and a choice of players and permanents that is no target (Hero of Bladehold's attacking tokens when
+  there is a planeswalker to attack, Zevlor's copies) is asked as a target question, so a life counter or the card answers it. Needs a look on
+  the real table.
+- ✅ (source, 2026-11-11, not yet on the real table) Status objects (spec docs/status-objects-spec.md, the user
+  2026-11-10): the original table's crown, initiative, City's Blessing, the Ring, Day // Night and counter tokens come
+  back parked under the table, hidden, and move onto the holder's mat under their mark's box. One copy a seat of the
+  blessing, the Ring and the three counters; the deploy's save patch adds the pieces to the user's save.
+
+## 2026-11-11
+- ⬜ Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on permanents
+  with a usable ability", the user 2026-11-11). It reuses the hand's per-player green frame; mana-only abilities are left
+  out at priority. Queued with round 2 (B: combat highlights).
 
 ## Monday 2026-11-09 (after the weekly usage reset)
 - ✅ **Update Forge for Star Trek: done and live 2026-11-09** (bfba2e0, docs/forge-update-2026-11.md: TRK 311/311, TRC 337/337). 2026-11-10: four upstream script fixes (Kirk, Commanding Officer; Dr. McCoy, Surly Surgeon; Cantankerous Captain; Starfleet Communicator) being taken into a new node image. Old note: Our Forge copy (`manabrew/forge`, through
@@ -55,7 +72,15 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   - a turn header lost after a cleanup discard: in `logEvents` the discard is put at index 0 but `attackAt` isn't
     shifted, so the attack splice deletes the header (`White discards Blasphemous Act`, "", `AI 1 draws a card`);
   - two players' mark labels overlap under the life counters (TURN RUN BY WHITE over RING TEMPTED 2 SPEED 3);
-  - Mindslaver: the log and label say White controls AI 1's turn, but the AI still made AI 1's choices (harness);
+  - ✅ Mindslaver: the log and label say White controls AI 1's turn, but the AI still made AI 1's choices (harness);
+    fixed by the controlling-seat routing (trek), confirmed live 2026-11-11 against a Forge AI: all 17 of the AI's
+    questions in the controlled turn went to the controller (tests/live_mindslaver_ai_check.js). The release check's
+    "White's own priority passed in the blockers step and after the Shock" was no bug: White's lands were Islands and
+    Mountains and its {W} debug mana empties at cleanup, so Reflect Damage was not castable; with a Plains the engine
+    offers it and the bridge stops there (live boards in tests/golden/fixtures/mindslaver-ai-live.json);
+  - ✅ the harmless AI (`ai_passive_lands`) cast a Counterspell and a Llanowar Elves a scenario gave it: an AI seat with a
+    lands-only deck now plays lands only, never casts, activates or attacks (harness `PassiveLobbyPlayerAi`,
+    2026-11-11, image `bugs1111`);
   - small: "Skip ended: combatBegin" uses Forge step names; "Game over" printed twice; forage log order and "with
     Treetop Sentries" twice; "Claim the Precious: choose a card"; the timer warning told to everyone; Done with too
     few cards gives no message; the Auto-resolve button's text dim next to "Fix...".

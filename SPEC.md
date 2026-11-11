@@ -517,8 +517,56 @@ Only the node image needs the rebuild. The relay checks an answer by reading it 
   of their own mat right under their heart (the user: "corner of your playmat under your heart"; "you can add multiple
   boxes if need be instead of cramming everything in one box"). They keep to the strip the battlefield grid leaves free
   at the inner end of every row, so cards never land on them. Past ten marks the tenth box says "+n MORE".
-- **Status objects (spec only):** the original table's pieces for those statuses come back: the Monarch crown, the
+- **Status objects (built in source 2026-11-11, not yet seen live):** the original table's pieces for those statuses come back: the Monarch crown, the
   initiative's Undercity, City's Blessing, the Ring, Day // Night and the poison / energy / experience tokens. They wait
   under the table, locked and unseen (opacity 0), and the one for a status moves onto the holder's mat just under its
   box when the box says so, e.g. "if the box says monarch the crown spawns in on their mat". Full spec:
   [docs/status-objects-spec.md](docs/status-objects-spec.md).
+
+## Green glow on permanents with a usable ability (added 2026-11-11, spec only)
+
+The user: "have creatures, permanents and Planeswalkers on the battlefield highlight green when an ability can be
+used. Also have it only highlight for its controller if possible."
+
+**What it does.** When you have priority, each permanent you control whose ability you can activate right now gets the
+same green frame as a castable card in your hand. This covers creatures, planeswalkers (a loyalty ability not yet used
+this turn, at sorcery speed), artifacts, enchantments, battles and lands with a non-mana ability. The frame goes when
+the question changes (you pass, you use the ability, a target or payment question opens) and comes back at your next
+priority.
+
+**Only its controller sees it: possible, and already done for the hand.** A TTS highlight (`highlightOn`) is seen by
+everyone, so the glow is not a highlight. It is the green frame already drawn for playable hand cards
+(`enginePlayableGlow`, "playable cards glow green in your hand"): four bars in the card's own UI, with `visibility` set
+to one player's colour. On a battlefield card the colour is the card's **controller** (not its owner: a stolen
+creature glows for whoever has it). The frame belongs to the card, so a tapped card's frame turns with it.
+
+**Where the list comes from.** Only from the engine. The frame is shown exactly for the cards behind the priority
+question's ability options, the same list the on-card ability buttons and the ability panel use
+(`engineAbilityWant`). The table never decides on its own that an ability is usable.
+
+**Left out on purpose:**
+- **Mana abilities only.** A land or Sol Ring whose only usable ability makes mana does not glow at priority, or nearly
+  every land would glow every time. Mana sources keep glowing while you pay, as today. A permanent with a mana
+  ability *and* another usable ability glows.
+- **Other questions.** While you pick targets, attackers or blockers, or pay a cost, the existing table-wide glows
+  (green = pickable, gold = chosen) are the only ones shown, so the two never mix on one card.
+- **Phased-out cards** never glow (the engine offers nothing for them).
+
+**Details:**
+- A token stack glows when any token in it has a usable ability.
+- `mtg glow` (the existing switch) turns this glow off together with the hand glow, for that player only.
+- The card's UI may already hold other parts (the effects pool). The frame is added beside them, never by replacing
+  the card's whole UI. Like the hand glow, it is built once per card and then only shown or hidden. First builds are
+  spread over frames on a big board, so a 40-permanent turn doesn't stutter.
+
+**Checks** (`tests/test_table_claims.js`, on recorded boards with real Forge option text):
+- the frame's `visibility` is the controller's colour, and the other seats get none;
+- a stolen creature glows for its controller, not its owner;
+- a mana-only land has no frame at priority but glows when paying; a land with a non-mana ability does;
+- a planeswalker glows before its loyalty ability is used and not after;
+- the frame goes on pass, on use and when a target question opens, and comes back at the next priority;
+- a tapped card and a token stack get it;
+- `mtg glow` turns it off.
+
+Live check: two seats on the real table, through exec. The frame is seen on the controller's own creature, and its
+`visibility` names only that colour.
