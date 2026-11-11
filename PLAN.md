@@ -22,7 +22,7 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   row, 18 rows), the newest always, a giant one cut with "…" (engineLogFit): wrapped lines no longer push the newest
   out of the bottom.
 - 🔶 (source) A life counter or planeswalker clicked for an attacker says what it set: "Hero of Bladehold 3/4 attacks
-  AI 1." / "... attacks Jace Beleren (AI 1).", not "Target set."
+  AI 1." / "... attacks Jace Beleren (AI 1).", "6 creatures attack AI 1." for a stack, not "Target set."
 - 🔶 (source) The attacking player gets priority after blockers when something blocks and they hold a non-mana action
   (attackerStop), as Arena: Craw Wurm blocking Hero of Bladehold passed White's Giant Growth by.
 - ✅ Tests can't reach the live table: tests/no-live-ports.js refuses and records every connection to 39999, 39998,
@@ -35,6 +35,9 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 - 🔶 (source) AI seats are named as the game log names them in the rewind list and vote ("AI 2's attacks"), and a
   harmless bot isn't "waited for" in the vote chat or banner (it votes by itself).
 - 🔶 (source) The companion's game banner says "turn 6, 3 players (2 AI)." (/state players and ai), not "1 seats.".
+- 🔶 (source) Fixed: the "COUNTERED: <name>" pop-up never showed for a countered instant or sorcery (it needed the
+  stack item's `spell`, which is false for any spell with spell text). The bridge now marks those `sp`, and the
+  pop-up takes either (test_table_effects, red without the fix). Needs the bridge and table deployed together.
 - 🔶 (source) Reported by the user 2026-11-11: when a card is milled, its move to the graveyard sticks part-way until the
   player clicks the card in flight (the "pile" it is moving to the graveyard). Found: with Auto on, a seated player's
   mill was held face up in the air a quarter of the way to the graveyard until Auto let it go ~2 s later (a click on
@@ -566,6 +569,8 @@ Players drag and use the table normally; every move is a request the engine acce
   - [x] "Resolve" stops: 292 logged stops sampled 2026-10-31, each with something to respond with; `mtg hold` covers your own spell
 - [ ] Step 3: the 2-player sync test (do effects, highlights and bundle sounds show for everyone?), then one test AssetBundle (Unity 6000.0.62f1 vs the installed 6000.3) with a pooled effect
 - [ ] Step 4: pooled particle effects for death (smoke + shatter), countered spell, damage hit, player knocked out, with sound hooks; CC0 sounds (Kenney, Cockatrice set). Being specified 2026-11-05
+  - [x] **The user's sounds in, and four new sound kinds (2026-11-11, source only, not heard on the real table):** the six TTS Cloud links of `docs/sounds.md` in `engineSounds` (death, wipe, damage, exile, instant, lifegain; counter and knockout still silent); new kinds wipe (3+ to graveyards on one board, instead of death), exile (a permanent from the battlefield to exile, tokens by the bridge's new `exd`), instant (an instant spell on the stack, by the bridge's new `ins`; not abilities, not copies), lifegain (a life total going up); one sound per board, knockout > wipe > death > exile > damage > lifegain > instant > counter, the first with a pick (docs/m5-effects-design.md §6); `mtg sounds test <kind>` takes all eight. Needs the bridge and table deployed together; real-table check 5 (music player delay) still open
+  - [x] **Sound bursts (2026-11-11, source only, not heard):** the 24 stacked clips of `docs/sounds.md` ("Bursts") as `engineSounds.<kind>_x<N>`; a board with several deaths, exiles, hits or gains plays the largest bucket at or under its count (×2 ×3 ×4 ×6 ×8, wipe from ×3, capped at ×8), still one clip per board under the same limits (docs/m5-effects-design.md §6, "Bursts"); `mtg sounds test <kind> [N]`
 - [x] ~~Camera shake~~ dropped: none in any Arena frame (video research)
 
 ### M6: 4–6 players (was 5–8; shrunk 2026-11-05 to fit the 6-player Workshop table 2293586471)

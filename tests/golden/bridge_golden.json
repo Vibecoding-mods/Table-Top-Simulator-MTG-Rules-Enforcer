@@ -84203,6 +84203,8 @@
        "ctl": "Blue",
        "src": "engine-card-43",
        "spell": false,
+       "ins": true,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -84329,6 +84331,8 @@
        "ctl": "Blue",
        "src": "engine-card-43",
        "spell": false,
+       "ins": true,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/e/a/ea1ea4aa-d4af-db77-520f-ec16000404b9.webp"
       }
@@ -96169,6 +96173,7 @@
        "ctl": "Blue",
        "src": "engine-card-9999",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       },
@@ -96315,6 +96320,7 @@
        "ctl": "Blue",
        "src": "engine-card-9999",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/e/4/e45a65a6-435d-3da8-0978-6d633da32c4a.webp"
       },
@@ -97490,6 +97496,7 @@
        "ctl": "Blue",
        "src": "engine-card-9997",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -97616,6 +97623,7 @@
        "ctl": "Blue",
        "src": "engine-card-9997",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/9/3/934fdc4d-35b9-7065-0ca1-14c2b0338d1d.webp"
       }
@@ -266586,6 +266594,7 @@
        "ctl": "Blue",
        "src": "engine-card-9990",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -266712,6 +266721,7 @@
        "ctl": "Blue",
        "src": "engine-card-9990",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/d/d/dde4296c-71af-1ea4-2222-e8be6fd84768.webp"
       }
@@ -268223,6 +268233,7 @@
        "ctl": "Blue",
        "src": "engine-card-9990",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -268349,6 +268360,7 @@
        "ctl": "Blue",
        "src": "engine-card-9990",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/d/d/dde4296c-71af-1ea4-2222-e8be6fd84768.webp"
       }
@@ -269717,6 +269729,7 @@
        "ctl": "Blue",
        "src": "engine-card-9990",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -269843,6 +269856,7 @@
        "ctl": "Blue",
        "src": "engine-card-9990",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/d/d/dde4296c-71af-1ea4-2222-e8be6fd84768.webp"
       }
@@ -293793,6 +293807,7 @@
        "ctl": "White",
        "src": "engine-card-944",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -294157,6 +294172,7 @@
        "ctl": "White",
        "src": "engine-card-944",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/d/d/dd3967c5-44e9-a189-150a-6a1a4a36a137.webp"
       }
@@ -368755,6 +368771,7 @@
        "ctl": "Blue",
        "src": "engine-card-956",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -369124,6 +369141,7 @@
        "ctl": "Blue",
        "src": "engine-card-956",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -370092,6 +370110,7 @@
        "ctl": "Blue",
        "src": "engine-card-956",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -370461,6 +370480,7 @@
        "ctl": "Blue",
        "src": "engine-card-956",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -371429,6 +371449,7 @@
        "ctl": "Blue",
        "src": "engine-card-956",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -371798,6 +371819,7 @@
        "ctl": "Blue",
        "src": "engine-card-956",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -505567,6 +505589,7 @@
        "ctl": "Blue",
        "src": "engine-card-75",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -505693,6 +505716,7 @@
        "ctl": "Blue",
        "src": "engine-card-75",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/a/6/a667dc64-7ce2-15a9-a901-5df9c3a8f3cb.webp"
       }
@@ -507356,6 +507380,7 @@
        "ctl": "White",
        "src": "engine-card-961",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -507720,6 +507745,7 @@
        "ctl": "White",
        "src": "engine-card-961",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/2/a/2ae70f3c-a453-7d40-2d13-0e61a0b86c3f.webp"
       }
@@ -508160,6 +508186,7 @@
        "ctl": "White",
        "src": "engine-card-961",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/2/a/2ae70f3c-a453-7d40-2d13-0e61a0b86c3f.webp"
       },
@@ -508170,6 +508197,7 @@
        "ctl": "Blue",
        "src": "engine-card-144",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "s",
@@ -508301,6 +508329,7 @@
        "ctl": "White",
        "src": "engine-card-961",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/2/a/2ae70f3c-a453-7d40-2d13-0e61a0b86c3f.webp"
       },
@@ -508311,6 +508340,7 @@
        "ctl": "Blue",
        "src": "engine-card-144",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "s",
@@ -508465,6 +508495,7 @@
        "ctl": "White",
        "src": "engine-card-961",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/2/a/2ae70f3c-a453-7d40-2d13-0e61a0b86c3f.webp"
       },
@@ -508475,6 +508506,7 @@
        "ctl": "Blue",
        "src": "engine-card-144",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "s",
@@ -508490,6 +508522,7 @@
        "ctl": "Blue",
        "src": "engine-card-145",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "s",
@@ -508505,6 +508538,7 @@
        "ctl": "Blue",
        "src": "engine-card-146",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "s",
@@ -509196,6 +509230,7 @@
        "ctl": "Blue",
        "src": "engine-card-990",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -509560,6 +509595,7 @@
        "ctl": "Blue",
        "src": "engine-card-990",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/5/6/56b6815e-cb0b-ba02-6b4e-ca873c075a95.webp"
       }
@@ -510614,6 +510650,7 @@
        "ctl": "Blue",
        "src": "engine-card-990",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -510978,6 +511015,7 @@
        "ctl": "Blue",
        "src": "engine-card-990",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/5/6/56b6815e-cb0b-ba02-6b4e-ca873c075a95.webp"
       }
@@ -512765,6 +512803,7 @@
        "ctl": "Blue",
        "src": "engine-card-971",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -512891,6 +512930,7 @@
        "ctl": "Blue",
        "src": "engine-card-971",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/e/4/e45a65a6-435d-3da8-0978-6d633da32c4a.webp"
       }
@@ -513039,6 +513079,7 @@
        "ctl": "Blue",
        "src": "engine-card-971",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/e/4/e45a65a6-435d-3da8-0978-6d633da32c4a.webp"
       },
@@ -513049,6 +513090,7 @@
        "ctl": "Blue",
        "src": "engine-card-972",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/e/4/e45a65a6-435d-3da8-0978-6d633da32c4a.webp"
       }
@@ -514192,6 +514234,7 @@
        "ctl": "Blue",
        "src": "engine-card-971",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       },
@@ -514202,6 +514245,7 @@
        "ctl": "Blue",
        "src": "engine-card-972",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -514328,6 +514372,7 @@
        "ctl": "Blue",
        "src": "engine-card-971",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/e/4/e45a65a6-435d-3da8-0978-6d633da32c4a.webp"
       },
@@ -514338,6 +514383,7 @@
        "ctl": "Blue",
        "src": "engine-card-972",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/e/4/e45a65a6-435d-3da8-0978-6d633da32c4a.webp"
       }
@@ -514711,6 +514757,7 @@
        "ctl": "White",
        "src": "engine-card-997",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -515075,6 +515122,7 @@
        "ctl": "White",
        "src": "engine-card-997",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/3/0/304ec072-00f1-32fd-544d-98e71c4dba1e.webp"
       }
@@ -562007,6 +562055,7 @@
        "ctl": "Blue",
        "src": "engine-card-996",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -562133,6 +562182,7 @@
        "ctl": "Blue",
        "src": "engine-card-996",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/d/8/d8ecfd78-f92a-6e92-299b-1879d43aa1fd.webp"
       }
@@ -562269,6 +562319,7 @@
        "ctl": "Blue",
        "src": "engine-card-996",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/d/8/d8ecfd78-f92a-6e92-299b-1879d43aa1fd.webp"
       }
@@ -562407,6 +562458,7 @@
        "ctl": "Blue",
        "src": "engine-card-996",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/d/8/d8ecfd78-f92a-6e92-299b-1879d43aa1fd.webp"
       },
@@ -583657,6 +583709,7 @@
        "ctl": "Blue",
        "src": "engine-card-963",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "c",
@@ -583672,6 +583725,7 @@
        "ctl": "White",
        "src": "engine-card-965",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "c",
@@ -584041,6 +584095,7 @@
        "ctl": "Blue",
        "src": "engine-card-963",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "c",
@@ -584056,6 +584111,7 @@
        "ctl": "White",
        "src": "engine-card-965",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "c",
@@ -584791,6 +584847,7 @@
        "ctl": "White",
        "src": "engine-card-965",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "c",
@@ -585160,6 +585217,7 @@
        "ctl": "White",
        "src": "engine-card-965",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "c",
@@ -621544,6 +621602,7 @@
        "ctl": "Blue",
        "src": "engine-card-17",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/9/8/987447fd-f447-e772-a85a-b126aed0cdf2.webp"
       }
@@ -621682,6 +621741,7 @@
        "ctl": "Blue",
        "src": "engine-card-18",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/9/8/987447fd-f447-e772-a85a-b126aed0cdf2.webp"
       },
@@ -621692,6 +621752,7 @@
        "ctl": "Blue",
        "src": "engine-card-17",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/9/8/987447fd-f447-e772-a85a-b126aed0cdf2.webp"
       }
@@ -640061,6 +640122,7 @@
        "ctl": "Blue",
        "src": "card-d1",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -640076,6 +640138,7 @@
        "ctl": "Blue",
        "src": "engine-card-952",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -640207,6 +640270,7 @@
        "ctl": "Blue",
        "src": "card-d1",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -640222,6 +640286,7 @@
        "ctl": "Blue",
        "src": "engine-card-952",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -640406,6 +640471,7 @@
        "ctl": "Blue",
        "src": "card-d1",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -640421,6 +640487,7 @@
        "ctl": "Blue",
        "src": "engine-card-952",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -640562,6 +640629,7 @@
        "ctl": "Blue",
        "src": "card-d1",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -640577,6 +640645,7 @@
        "ctl": "Blue",
        "src": "engine-card-952",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "p",
@@ -704995,6 +705064,7 @@
        "ctl": "Blue",
        "src": "engine-card-982",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -705359,6 +705429,7 @@
        "ctl": "Blue",
        "src": "engine-card-982",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/e/b/eb334dca-00e3-90e0-d3eb-f52d205807d7.webp"
       }
@@ -742257,6 +742328,7 @@
        "ctl": "White",
        "src": "engine-card-990",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "c",
@@ -742626,6 +742698,7 @@
        "ctl": "White",
        "src": "engine-card-990",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "c",
@@ -744446,6 +744519,7 @@
        "ctl": "Blue",
        "src": "engine-card-6",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "c",
@@ -744833,6 +744907,7 @@
        "ctl": "Blue",
        "src": "engine-card-6",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "c",
@@ -750943,6 +751018,7 @@
        "ctl": "White",
        "src": "engine-card-980",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       },
@@ -750953,6 +751029,7 @@
        "ctl": "Blue",
        "src": "engine-card-981",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "s",
@@ -751322,6 +751399,7 @@
        "ctl": "White",
        "src": "engine-card-980",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/9/0/903a033e-59d9-70c9-c97a-e0bee21b7e3b.webp"
       },
@@ -751332,6 +751410,7 @@
        "ctl": "Blue",
        "src": "engine-card-981",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "s",
@@ -752539,6 +752618,7 @@
        "ctl": "White",
        "src": "engine-card-980",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       },
@@ -752549,6 +752629,7 @@
        "ctl": "Blue",
        "src": "engine-card-981",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "s",
@@ -752918,6 +752999,7 @@
        "ctl": "White",
        "src": "engine-card-980",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/9/0/903a033e-59d9-70c9-c97a-e0bee21b7e3b.webp"
       },
@@ -752928,6 +753010,7 @@
        "ctl": "Blue",
        "src": "engine-card-981",
        "spell": false,
+       "sp": true,
        "tg": [
         {
          "k": "s",
@@ -754104,6 +754187,7 @@
        "ctl": "White",
        "src": "engine-card-985",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -754468,6 +754552,7 @@
        "ctl": "White",
        "src": "engine-card-985",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/8/9/893b324f-f905-aef3-c245-e8d1913af5e8.webp"
       }
@@ -755338,6 +755423,7 @@
        "ctl": "White",
        "src": "engine-card-985",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -755702,6 +755788,7 @@
        "ctl": "White",
        "src": "engine-card-985",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/8/9/893b324f-f905-aef3-c245-e8d1913af5e8.webp"
       }
@@ -756572,6 +756659,7 @@
        "ctl": "White",
        "src": "engine-card-985",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": null
       }
@@ -756936,6 +757024,7 @@
        "ctl": "White",
        "src": "engine-card-985",
        "spell": false,
+       "sp": true,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/8/9/893b324f-f905-aef3-c245-e8d1913af5e8.webp"
       }
