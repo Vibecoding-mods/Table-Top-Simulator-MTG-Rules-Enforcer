@@ -7202,13 +7202,15 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
   // (two permanents of one name: which one Forge's number means is unknown, so the list is asked as before)
   add(promptCase("planeswalker by click: two of one name stay a list", withWalker({ ...clone(walker), id: "engine-card-976" }),
     attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (412)", "Chandra, Torch of Defiance (415)"]), [["1"]]));
-  // (a card of the same name in a graveyard: Forge's number may mean that one, so the list is asked as before)
-  add(promptCase("planeswalker by click: a name also in a graveyard stays a list", (() => {
+  // (a card of the same name in a graveyard: the list is of players and permanents, so the one on the battlefield is
+  // clicked; a dead Jace Beleren left the live one a list, live check 2026-11-11. The answer is the option's number
+  // either way, so even a list that did mean the dead one would get the option chosen)
+  add(promptCase("planeswalker by click: a name also in a graveyard is the battlefield one's click", (() => {
     const b = withWalker();
     b.gameView.zones.find((z) => z.zone === "graveyard" && z.ownerId === "player-1").cards.push({ ...H(134), id: "engine-card-977" });
     return b;
   })(), prompt("chooseFromSelection", { minTotal: 1, maxTotal: 1, options: [{ label: "self-hosted-node-77-bot" }, { label: "Eclipsed Flamekin (88)" }], presentation: { title: "Zevlor, Elturel Exile" } },
-    { sourceCard: { id: "engine-card-975", identity: { name: "Zevlor, Elturel Exile" } } }), [["1"]]));
+    { sourceCard: { id: "engine-card-975", identity: { name: "Zevlor, Elturel Exile" } } }), [["card|engine-card-134"]]));
   // (two of one name with only one of them offered: still unknown which, a list)
   add(promptCase("planeswalker by click: two of one name, one offered, stays a list", withWalker({ ...clone(walker), id: "engine-card-976" }),
     attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (412)"]), [["1"]]));

@@ -3,11 +3,25 @@
 The user's list, in their order. Most items need a running TTS table in debug mode to fix and confirm.
 
 1. **Moving cards.** Before the game starts, any player can move any card, and not only before the engine is turned on. After a game ends, players can't touch other players' cards.
+   - **Built 2026-11-11 (round 2 C), decided where the list was silent.** The rule follows the game, not engine mode
+     (`onPlayerAction` in engine-renderer.lua, `engineSeatOf`):
+     - no engine game on the table (engine mode off; on but before the first Start; after New game cleared the last
+       one): anyone moves any card;
+     - a game being played: unchanged, your own cards as the engine allows;
+     - a game over, its board still lying there until New game: nobody touches another player's cards, not even a
+       click. That covers the engine's cards and any other card or deck lying on that player's mat, piles or command
+       zone. Your own can still be picked up and flipped. The refusal says "The game is over: those are X's cards."
+   - What the playtest actually hit isn't known. The fake TTS showed the old rule already let anyone touch anything
+     with no engine board, and already kept others' engine cards from being picked up after GAME OVER (clicks and
+     loose cards went through). Check on the real table which case it was.
 2. **Combat clarity.**
    - Attack/block parts are highlighted green, and turn red when you're the one being attacked.
    - Attacker and defender pickers are organised under tabs, so a big token board doesn't need endless scrolling.
      - Same-named tokens (e.g. #1 to #20) sit under one tab.
    - Assigning a blocker to an attacker sometimes gives no confirmation. Always confirm.
+   - **Done in source 2026-11-11** (docs/engine-ui-spec.md 9): the colours, the tabs and the confirmations (the cause:
+     a chat line said in the last 3 s was dropped, and an attacker clicked after a block was taken back did nothing).
+     Not yet seen on the real table.
 3. **Resolve until X.**
    - The button is undone when a new phase pops up.
    - It should also apply on the opponent's turn. "Until combat" stops at my combat and my opponents'.
@@ -52,8 +66,14 @@ The user's list, in their order. Most items need a running TTS table in debug mo
     - The images must be hosted online (TTS loads faces by URL).
 
 17. **In-table chat commands to pick what decks the AI opponents play.**
+    - **Built 2026-11-11 (round 2 C)**, with item 20. The host types `mtg ai <colour> harmless|forge [deck]`,
+      `mtg ai <colour> off`, `mtg ai clear`, or plain `mtg ai` for the list. A Forge AI needs a deck name; a harmless
+      bot with none plays `ai_passive_lands`. Pasted deck lists come only from the companion page: chat can't carry a
+      100-line list.
 18. **More debugging commands inside TTS.**
     - Debug mode (`mtg debug`) exists; this means more of it.
+    - **Built 2026-11-11 (round 2 C)** as the companion page's debug tools (item 21). No new chat commands:
+      `mtg debug` scenarios and `mtg mana` already cover chat.
 
 20. **AI seat presets in the companion page** (asked 2026-11-10). This merges with item 17.
     - For each empty seat, pick one of:
@@ -61,11 +81,56 @@ The user's list, in their order. Most items need a running TTS table in debug mo
       - **Forge AI:** a real opponent, with an AI profile.
     - Each AI seat gets its own imported deck, from a deck list or a file.
     - Rough size: 8–12 h.
+    - **Built 2026-11-11 (round 2 C). Decisions where the list was silent:**
+      - A colour set as an AI seat is an AI player in every game while nobody sits there, whatever count Start asks
+        for. The total is the larger of the two; extra AI players take the colours left. A person sitting at that colour
+        plays it as usual. The choice is kept until changed, like `mtg aideck`, and is lost when the bridge restarts.
+      - The seat's deck comes before `mtg aideck` and before a deck lying in that seat. Forge AI seat k gets the k-th
+        bot deck, and the bridge seats that bot at its colour (`clockwiseOrder`, `game.colorOfUser`).
+      - **Harmless bot.** The engine has no passive AI, so the bridge plays the seat itself (`HarmlessSeat`). It logs in
+        like a person once every person's seat is in the room, and answers every question at once (`harmlessAnswer`):
+        - keeps its hand, passes, cancels a cost;
+        - says no to every "may";
+        - makes the fewest picks a question allows (the first ones), and keeps a scry on top;
+        - attacks only with creatures that must, and blocks only an attacker that must be blocked (when the engine
+          refuses no blocks).
+        - It is an AI player to the table ("AI n"), takes no manual-fix vote and has no prompts on the table.
+        - The engine counts it as a person, so it is asked in every rewind vote; it says yes at once (`harmlessVotes`).
+          Without that, a rewind in a game with one waited for it for ever.
+        - A restarted bridge logs it back in. A dropped link isn't retried, so the engine concedes that seat; the table
+          is told. A link lost while setting up is said too ("mtg reset", then "mtg start"), as for a person's seat.
+        - Its default deck is `ai_passive_lands`, and any deck can be given.
+      - **Forge AI** is the node's own Forge AI. The node has one AI profile; picking a profile would need a node change.
+      - **Deck lists.** Pasted or loaded from a .txt/.dek/.dck file on the page. Arena/Moxfield style: `1 Name`,
+        `1x Name`, `Name (SET) 123 *F*`, tags; the commander under `Commander` or marked `*CMDR*`; `Sideboard`,
+        `Maybeboard` and `Companion` parts aren't played. Every card must be known to the engine. The deck size isn't
+        checked: an AI's deck is the host's business. The page sends at most 16 KB (the companion's body limit), and a
+        deck name loses any TTS colour codes in brackets, since it is said in chat.
+      - **Needs a live check on the real table:** a game with a harmless bot and a Forge AI seat (who sits where, the
+        mats, the bot never stalling a question type the tests don't have).
 21. **Debug tools in the companion page** (asked 2026-11-10). This merges with item 18.
     - Add X mana, add card X to a hand, draw, set life, mill, put a card on the battlefield, and untap.
     - Host only, and only in debug mode.
     - Builds on `mtg debug` and the M7 createCard/applyState ops. Adding mana may need a harness op and an image rebuild.
     - Rough size: 8–14 h.
+    - **Built 2026-11-11 (round 2 C). Decisions where the list was silent:**
+      - "Only in debug mode" means a debug-tools switch on the page, a bridge setting that is off at every bridge start
+        and is said to the whole table both ways. "Host only" means the page, which opens only on the host's PC with
+        that run's token. Switching it off cancels a debug tool still waiting for its pause or votes.
+      - Each tool is one manual fix: the game pauses at a moment with nothing on the stack, the other people vote
+        (nobody does vs AI), and `applyState` runs. It is made in the name of the player it's for when a person sits
+        there, else of the first person still playing.
+      - Tools:
+        - Add mana: n (1–99) of one colour, until the end of the turn.
+        - Add card to hand: `createCard`.
+        - Put on battlefield: `createCard`, or a token by its words, as `mtg fix token` takes them.
+        - Set life: 0–999.
+        - Untap all: every tapped permanent that player controls.
+        - Mana needed no harness op: the `mana` op already exists.
+      - **Draw and mill aren't built.** The engine's board never shows library cards (the library zone is empty in
+        every view), so no fix op can move one. They need a new harness StateOp (`draw`/`mill` with player and n) in
+        manabrew, and then an engine image rebuild (node and relay both parse directives strictly).
+      - **Needs a live check on the real table:** each tool once in a game with a second person (the vote) and vs AI.
 22. **Monte Carlo simulation: CUT** (the user, 2026-11-10).
     - Too slow on an ordinary PC: about 30 s to 2 min a game on 2 cores, so 1,000 games takes overnight.
     - The user already runs deck tests in separate sessions.

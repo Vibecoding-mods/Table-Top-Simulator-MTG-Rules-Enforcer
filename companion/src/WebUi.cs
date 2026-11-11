@@ -6,6 +6,8 @@
 //   GET  /              the page, with this run's token and a CSP nonce put in
 //   GET  /api/status    the lights, the game lock, the menu, versions, the log tail (shape: Status() below)
 //   POST /api/action    {"id": "...", "confirmLocked": bool}: the same Controller calls and game lock as the window
+//   GET  /api/tools     the bridge's table tools (AI seats, debug tools), passed through from the bridge's GET /tools
+//   POST /api/tools     {"kind": "ai-seat"|"debug-mode"|"debug", ...}: one change, passed to the bridge (Tools() below)
 //
 // /api/status, version 1 ("api": 1):
 //   app, at, mode ("friend"|"home"), home, observe, phase
@@ -523,6 +525,8 @@ namespace MtgCompanion
                         if (string.IsNullOrEmpty(id)) return Refuse(400, "bad-body", "Send {\"id\": \"...\"}.");
                         var res = Act(id, J.Bool(body, "confirmLocked"));
                         return new HttpResp(res.Known ? 200 : 400, J.Write(res.ToJson()));
+                    case "/api/tools":
+                        return Tools(r);
                     default:
                         return Refuse(404, "not-found", "Nothing here.");
                 }
@@ -839,6 +843,48 @@ namespace MtgCompanion
             if (refused != null) return No(refused);
             lastAccepted = id;
             return Done(v.FixLabel + ": started.");
+        }
+
+        // ───────────────────────────── table tools ─────────────────────────────
+        // The bridge's own AI seats and debug tools (bridge GET/POST /tools; docs/next-features-2026-11-09.md items 17,
+        // 18, 20, 21), passed through: GET /api/tools is the bridge's state, POST /api/tools one change, answered
+        // {ok, message}. Only a body of a known kind is passed on, rewritten from what was parsed; observe mode refuses
+        // every POST. The page is the host's (it opens only on this PC, with this run's token), which is what "host only"
+        // means here; the bridge itself refuses a debug tool while debug tools are off.
+        public static readonly string[] ToolKinds = { "ai-seat", "debug-mode", "debug" };
+        // (method, path on the bridge, JSON body or null) -> the bridge's answer; tests replace it
+        public Func<string, string, string, HttpResult> BridgeCall = (method, path, json) =>
+            method == "GET" ? Probes.HttpGet(Controller.BridgeUrl + path, 5000) : Probes.HttpPost(Controller.BridgeUrl + path, json, 10000);
+
+        HttpResp Tools(HttpReq r)
+        {
+            if (r.Method == "GET")
+            {
+                var got = BridgeCall("GET", "/tools", null);
+                if (got.Kind != HttpKind.Ok || got.Status != 200 || !(J.Parse(got.Body) is Dictionary<string, object>))
+                    return Refuse(502, "no-bridge", NoBridge(got));
+                return new HttpResp(200, got.Body);
+            }
+            if (r.Method != "POST") return Refuse(405, "method", "GET or POST only.");
+            if (!JsonType(r.Header("Content-Type"))) return Refuse(415, "content-type", "Send application/json.");
+            var body = J.Parse(r.Body) as Dictionary<string, object>;
+            string kind = J.Str(body, "kind");
+            if (body == null || !ToolKinds.Contains(kind)) return Refuse(400, "bad-body", "Send {\"kind\": \"ai-seat\" | \"debug-mode\" | \"debug\", ...}.");
+            if (c.Observe) return new HttpResp(200, J.Write(new Dictionary<string, object> { { "ok", false }, { "message", ObserveText } }));
+            var sent = J.Write(body);
+            var res = BridgeCall("POST", "/tools", sent);
+            var answer = res.Kind == HttpKind.Ok ? J.Parse(res.Body) as Dictionary<string, object> : null;
+            if (answer == null) return Refuse(502, "no-bridge", NoBridge(res));
+            Log.Write("status page: tools " + kind + ": " + (J.Bool(answer, "ok") ? "" : "refused: ") + Logic.Clip(J.Str(answer, "message") ?? "", 120));
+            return new HttpResp(200, J.Write(new Dictionary<string, object> { { "ok", J.Bool(answer, "ok") }, { "message", J.Str(answer, "message") ?? "" } }));
+        }
+
+        static string NoBridge(HttpResult h)
+        {
+            return h.Kind == HttpKind.Refused ? "The bridge isn't running: start the engine first (the Bridge light)."
+                : h.Kind == HttpKind.Timeout ? "The bridge didn't answer in time."
+                : h.Kind == HttpKind.Ok && h.Status == 404 ? "This bridge has no table tools yet: restart the engine to run the new one."
+                : "The bridge couldn't be asked (" + (h.Error ?? ("HTTP " + h.Status)) + ").";
         }
 
         ActResult Wsl()

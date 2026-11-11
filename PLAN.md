@@ -18,9 +18,11 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   "Jace Beleren (201)"; the log's "White attacks with Hero of Bladehold" doesn't name the planeswalker, and it put
   the Giant Growth cast (declare-attackers step) after the combat damage; a mid-game `mtg debug` without keepHand
   bottoms the hand and adds 20 lands. The pump-on-attacker payment title wasn't seen (the pool paid by itself).
-- ⬜ Reported by the user 2026-11-11: when a card is milled, its move to the graveyard sticks part-way until the
-  player clicks the card in flight (the "pile" it is moving to the graveyard). Investigate in source, then see it on
-  the next real-table session.
+- 🔶 (source) Reported by the user 2026-11-11: when a card is milled, its move to the graveyard sticks part-way until the
+  player clicks the card in flight (the "pile" it is moving to the graveyard). Found: with Auto on, a seated player's
+  mill was held face up in the air a quarter of the way to the graveyard until Auto let it go ~2 s later (a click on
+  it let it go at once). Now, with Auto on, mills aren't held: they fly to the graveyard as stand-ins, like an AI's;
+  Auto off keeps the hold. To see on the next real-table session.
 - ⬜ Custom card art (docs/custom-art-spec.md): the user said yes to every default (2026-11-11). Order: first check on
   the real table whether a plain card's link already keeps its picture in engine mode; then the plain-cards slice;
   DFC backs later. Art for game-made tokens and the AI's decks: a later item.
@@ -62,9 +64,16 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   blessing, the Ring and the three counters; the deploy's save patch adds the pieces to the user's save.
 
 ## 2026-11-11
-- ⬜ Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on permanents
-  with a usable ability", the user 2026-11-11). It reuses the hand's per-player green frame; mana-only abilities are left
-  out at priority. Queued with round 2 (B: combat highlights).
+- 🔶 (source) Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on
+  permanents with a usable ability", the user 2026-11-11). It reuses the hand's per-player green frame, from the ability
+  boxes' list; mana-only abilities are left out at priority; token stacks glow; first builds go 4 a frame. Needs the
+  live check in SPEC.md.
+- 🔶 (source) Combat clarity (docs/next-features-2026-11-09.md item 2, docs/engine-ui-spec.md 9): attack lines and
+  buttons green, blockers lines and Done red, COMBAT green / red in the phase bar; attack and blockers questions of
+  more than 8 lines under tabs by name (20 Spirit tokens one tab); every block click confirms in the chat, and the
+  blockers' lines are numbered. Needs a look on the real table. Suite-reviewed 2026-11-11 (tabs by name without
+  counters or damage, More tabs opens its first tab, the frame queue survives a bad card, a card that changes sides
+  stops glowing for its old controller).
 
 ## Monday 2026-11-09 (after the weekly usage reset)
 - ✅ **Update Forge for Star Trek: done and live 2026-11-09** (bfba2e0, docs/forge-update-2026-11.md: TRK 311/311, TRC 337/337). 2026-11-10: four upstream script fixes (Kirk, Commanding Officer; Dr. McCoy, Surly Surgeon; Cantankerous Captain; Starfleet Communicator) being taken into a new node image. Old note: Our Forge copy (`manabrew/forge`, through
