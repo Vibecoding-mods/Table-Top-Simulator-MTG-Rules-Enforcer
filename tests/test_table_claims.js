@@ -2622,5 +2622,53 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const off = mill(false);
   ok("mill, Auto off: still held for the player to take", /^1 1 0 false$/.test(String(valueOf(off, "flying"))), String(valueOf(off, "flying")) + " " + off.errors.slice(0, 2).join(" | "));
 }
+// (2026-11-11) an Auto-off held mill let go before its card has spawned (the library clicked at once; a slow spawn):
+// the card arriving late doesn't go to the fan and hang there; it goes where the card is now, into the pile (no stray
+// copy beside it) or onto an empty graveyard's spot
+{
+  const lastB = JSON.parse([...s1.slice(0, 40)].reverse().find((m) => m.t === "table").json);
+  const milled = "engine-card-9719";
+  const boards = (oldIds) => {
+    const statics = {};
+    for (const id of [...oldIds, milled]) statics[id] = { n: `Card ${id.slice(-4)}`, f: `https://img.example/${id}.jpg`, ty: ["Sorcery"], tl: "Sorcery" };
+    const b0 = JSON.parse(JSON.stringify(lastB));
+    b0.cards = { ...(b0.cards || {}), ...statics };
+    const blue0 = b0.players.find((x) => x.color === "Blue");
+    blue0.graveyard = oldIds.map((id) => ({ id, s: 1 }));
+    blue0.keep = (blue0.keep || []).filter((z) => z !== "graveyard");
+    const b1 = JSON.parse(JSON.stringify(b0));
+    const blue1 = b1.players.find((x) => x.color === "Blue");
+    blue1.graveyard.push({ id: milled, s: 1 });
+    blue1.library = (blue1.library || 40) - 1;
+    return [b0, b1];
+  };
+  // held mills, loose objects of the milled card, the loose one's distance from where the board wants it, in the pile
+  const where = `local loose, off, inPile = 0, -1, false
+    for _, x in ipairs(getObjects()) do
+      local gm = tostring(x.getGMNotes())
+      if gm == "engine:${milled}" then
+        loose = loose + 1
+        local p, want = x.getPosition(), engineContainHome("${milled}")
+        if want ~= nil then off = math.floor(math.sqrt((p.x - want.x) ^ 2 + (p.z - want.z) ^ 2) * 100 + 0.5) / 100 end
+      end
+      if gm == "engine:graveyard:Blue" and x.type == "Deck" then for _, e in ipairs(x.getObjects()) do if e.gm_notes == "engine:${milled}" then inPile = true end end end
+    end
+    return #((enginePending.Blue or {}).mill or {}) .. " " .. loose .. " " .. off .. " " .. tostring(inPile)`;
+  const lateRelease = (oldIds) => {
+    const [b0, b1] = boards(oldIds);
+    // (the held card's own spawn is slow: 40 frames; the pile's copy of it is not)
+    return run([q(`paceArmed = paceArmed or {} paceArmed.Blue = true engineAutoPace.Blue = false
+      __sim.spawnDelay = function(d) if d.GMNotes == "engine:${milled}" and d.Locked then return 40 end return 1 end return "x"`, "pace"),
+      { msg: { t: "table", json: JSON.stringify(b0) }, frames: 60, mark: "before" },
+      { msg: { t: "table", json: JSON.stringify(b1) }, frames: 2, mark: "mill" }, q(where, "held"),
+      q("engineReleasePending('Blue', 'mill') return 'x'", "let go"), { frames: 120 }, q(where, "after")]);
+  };
+  const pile = lateRelease(["engine-card-9710", "engine-card-9711", "engine-card-9712"]);
+  ok("late mill card: precondition, held until let go", /^1 /.test(String(valueOf(pile, "held"))) && !pile.errors.length, String(valueOf(pile, "held")) + " " + pile.errors.slice(0, 2).join(" | "));
+  ok("late mill card, into a pile: no stray copy at the fan, and the pile holds it", /^0 0 -1 true$/.test(String(valueOf(pile, "after"))), String(valueOf(pile, "after")));
+  const empty = lateRelease([]);
+  const [, n, off] = String(valueOf(empty, "after")).split(" ");
+  ok("late mill card, onto an empty graveyard: it lies on the graveyard's spot, not at the fan", n === "1" && Number(off) >= 0 && Number(off) < 0.1, String(valueOf(empty, "after")) + " " + empty.errors.slice(0, 2).join(" | "));
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);
