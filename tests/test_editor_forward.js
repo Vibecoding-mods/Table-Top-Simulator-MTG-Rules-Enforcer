@@ -4,6 +4,7 @@
 //   node tests/test_editor_forward.js
 // (EDITOR_FORWARD_MODULE=<path> runs the same checks against another copy of the module: mutation testing)
 const net = require("net");
+require("./no-live-ports"); // (a forwarder made without ttsPort sends to 39999: refused and failed here, never TTS)
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
