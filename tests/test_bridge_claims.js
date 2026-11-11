@@ -1662,14 +1662,15 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("live bug 2: a stolen card keeps its owner's printing", stolen === blue[0], JSON.stringify([stolen, blue[0]]));
       const copy = h.B.tableCard(plains("engine-card-30", "player-1", { identity: { name: "Plains", isToken: true } })).f;
       ok("live bug 2: a token copy shows its owner's printing", copy === W1, copy);
-      // (an owner's deck without the card falls back to another deck's)
+      // (an owner with no seat colour (player-2 here) may use any deck's; a known owner, only its own deck's)
       const neheb = h.B.tableCard({ id: "engine-card-40", identity: { name: "Neheb, the Eternal" }, types: ["Creature"], controllerId: "player-1", ownerId: "player-1" }).f;
       ok("live bug 2: a card in the owner's deck only, from the owner's deck", neheb === cmd, neheb);
       const fall = h.B.tableCard({ id: "engine-card-41", identity: { name: "Plains" }, types: ["Land"], controllerId: "player-2", ownerId: "player-2" }).f;
       ok("live bug 2: an owner with no deck of it falls back to a deck that has it", fall === W1 || fall === B1 || fall === B2, fall);
-      // (White's deck has no Island; Blue's does)
+      // (White's deck has no Island; Blue's does. Live check 2026-11-11: a deck's picture can be custom art, White's Bolt
+      // art showed on the AI's Mountain, so a known owner's card never takes another deck's; the lookup by name draws it)
       const island = h.B.tableCard({ id: "engine-card-42", identity: { name: "Island" }, types: ["Land"], controllerId: "player-1", ownerId: "player-1" }).f;
-      ok("live bug 2: a card the owner's deck lacks comes from another deck", island === B2, island);
+      ok("custom art: a card the owner's deck lacks never shows another deck's picture", ![W1, B1, B2].includes(island), island);
       // (a question shows the card as the table does)
       ok("live bug 2: a question's picture is the table's printing", h.B.imgOf(plains("engine-card-11", "player-0")) === blue[1], h.B.imgOf(plains("engine-card-11", "player-0")));
       // (and a spell on the stack shows its card's: Blue's engine-card-11, not the first deck's; the stack item's own id
@@ -1757,6 +1758,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok(`verify #2: precondition, the AI with Yellow's deck ${label}`, g.slotColor[yellowsDeck] === (label.includes("Red") ? "Red" : "Yellow"), JSON.stringify(g.slotColor));
       ok(`verify #2: the AI that ${label} with Yellow's deck shows its printing`, face(yellowsDeck) === Y1, face(yellowsDeck));
       ok(`verify #2: the AI with a built-in deck shows neither Yellow's nor the unused Red deck's (${label})`, ![Y1, R1].includes(face(preset)), face(preset));
+      // (live check 2026-11-11: nor a player's: a deck's picture can be custom art, White's Bolt art showed on the AI's Mountain)
+      ok(`custom art: the AI with a built-in deck shows no player's picture either (${label})`, ![W1, B1].includes(face(preset)), face(preset));
       ok(`verify #2: the players keep their own (${label})`, face(slotOf(white.username)) === W1 && face(slotOf(blue.username)) === B1, JSON.stringify([face(slotOf(white.username)), face(slotOf(blue.username))]));
       ok(`verify #2: no pictures for a deck nobody plays (${label})`, Object.values(g.pictures || {}).every((d) => d.Plains?.[0]?.face !== R1) && Object.keys(g.pictures || {}).length === 3, JSON.stringify(Object.keys(g.pictures || {})));
       harness.restore();

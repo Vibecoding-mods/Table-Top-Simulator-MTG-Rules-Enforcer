@@ -355,7 +355,8 @@ wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not
 - **Not when:** `engineSoundsMuted`, no pick for that kind (nil or `""`: an empty pick is no pick, so it never takes
   the board's sound from the kind under it), a jump board, or (route A) the music player is busy with
   the players' own music: the current clip has a link, its title doesn't start with "MTG effect", and
-  `MusicPlayer.player_status` isn't "Stop" (a paused track of theirs counts; before 2026-11-11 only "Play" did).
+  `MusicPlayer.player_status` is "Play" (a paused track of theirs is replaced: TTS loads a save's track paused, so
+  counting paused ones, as the table did for part of 2026-11-11, silenced every sound on the playgroup's save).
 - **Route A, MusicPlayer (works today, no Unity):**
   - `MusicPlayer.setCurrentAudioclip({ url = pick, title = "MTG effect: " .. key })` (key: the clip, `death_x4` for
     a burst), then a `Wait.condition` (up to 2 s; past that the sound is dropped) that plays once the player holds
@@ -364,7 +365,7 @@ wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not
     older one never plays, even when its clip is there and still loading (2026-11-11, verifier; the loading case
     tested in the suite review). A route B sound doesn't cancel one waiting: the bundle plays apart from the player.
   - Not over the players' own music: no sound while the player holds a clip of theirs (a link, not titled "MTG
-    effect ...") unless the player is stopped (playing or paused, their track stays). A player holding no clip takes
+    effect ...") while it plays (paused or stopped, the sound replaces it; it stays in their music library). A player holding no clip takes
     the sound whatever its status, and our own clip, playing or not, is never theirs.
   - Limits (MusicPlayer API):
     - one clip at a time, so a new sound cuts the last one;
