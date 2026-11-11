@@ -2662,15 +2662,63 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("permanent glow: a card you don't control never glows for you, even with an ability offered on it", v("not controlled") === "false", v("not controlled"));
   ok("permanent glow: no errors", r.errors.length === 0, r.errors.join(" | "));
 }
+// The frames' queue and sides (jr suite 2026-11-11): a card whose UI can't be built doesn't stop the others; a card that
+// changes sides under the open question stops glowing for its old controller; a frame hidden before its build is never
+// built; a rebuild cuts out our panel whole (its bars as written, or written out in full) and keeps the rest
+{
+  const both = (steps) => simulate({ save, seated: ["Blue", "White"], steps: [...prefix, ...steps] });
+  const C = (n) => `engine-card-${n}`;
+  const find = (n) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(n)}" then o = x end end `;
+  const ids = [921, 922, 923, 924, 925, 926, 931, 932, 933, 934, 935, 936, 937, 938];
+  const board = 'local t = engineTable() local blue for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p end end blue.battlefield = blue.battlefield or {} ' +
+    ids.map((n) => `engineStoreStatic("${C(n)}", { n = "Elf ${n}", f = "https://img.example/${n}.jpg", ty = { "Creature" } }) table.insert(blue.battlefield, { s = 1, id = "${C(n)}", ctl = "Blue" }) `).join("") +
+    'GLOWQ = t engineRender(t) __sim.frames(90) return "laid"';
+  const ab = (pid, n) => ({ id: `ab-${pid}-${n}`, cardId: C(n), label: `{T}: Elf ${n} pings.`, ab: `{T}: Elf ${n} pings.` });
+  const prio = (pid, list, frames, mark) => ({ msg: { t: "prompt", json: JSON.stringify({ t: "prompt", color: "Blue", promptId: pid, kind: "priority", title: "Your priority", mode: "single",
+    options: [{ id: "__pass", label: "Next" }, { id: "__endturn", label: "End turn" }, ...list.map((n) => ab(pid, n))] }) }, frames: frames ?? 30, mark });
+  const lit = (n, mark) => q(find(n) + 'if o == nil then return "none" end local x = o.UI.getXml() or "" if not x:find(\'id="eng_play" visibility="Blue"\', 1, true) then return "false" end ' +
+    'return tostring(o.UI.getAttribute("eng_play", "active") or (x:find(\'active="true"\', 1, true) and "true" or "false"))', mark);
+  const builds = (r, marks) => marks.reduce((s, m) => s + fxOf(r, m).filter((l) => /objUI\.setXml/.test(l)).length, 0);
+  const r = both([q(board, "board"), q(find(921) + 'o.UI.setXml = function() error("no UI here") end return "broken"', "break 921"),
+    prio(1901, [921, 922, 923, 924, 925, 926]), lit(921, "921"), lit(922, "922"), lit(926, "926"), q("return tostring(engineFrameQueue.pumping)", "pumping"),
+    // Elf 922 changes sides, the question stays open
+    q('local blue, white for _, p in ipairs(GLOWQ.players) do if p.color == "Blue" then blue = p elseif p.color == "White" then white = p end end ' +
+      `for i, c in ipairs(blue.battlefield) do if c.id == "${C(922)}" then table.remove(blue.battlefield, i) break end end white.battlefield = white.battlefield or {} ` +
+      `table.insert(white.battlefield, { s = 1, id = "${C(922)}", ctl = "White" }) engineRender(GLOWQ) return "moved"`, "move 922"), lit(922, "922 moved"), lit(923, "923 kept"),
+    // eight new frames, and a pass in the same frame they were asked for: none of them is built
+    prio(1902, [931, 932, 933, 934, 935, 936, 937, 938], 0, "asked"), q('enginePick("Blue", 1) return "passed"', "passed at once"), { frames: 30, mark: "after pass" },
+    lit(931, "931"),
+    // a rebuild (another colour) of a frame as written, and of one whose bars came back written out in full
+    q(find(923) + 'engineFrameBuild(o, "White", true) local x = o.UI.getXml() local n = select(2, x:gsub(\'id="eng_play"\', "")) return n .. " " .. tostring(x:find(\'visibility="White"\', 1, true) ~= nil)', "rebuild"),
+    q(find(924) + 'o.UI.setXml(\'<Panel id="eng_other"></Panel><Panel id="eng_play" visibility="Blue" active="true"><Panel color="#3dff6e"></Panel><Panel color="#3dff6e"></Panel></Panel><Text id="eng_after">x</Text>\') ' +
+      'engineFrameBuild(o, "White", true) local x = o.UI.getXml() return x:sub(1, (x:find(\'<Panel id="eng_play"\', 1, true) or 0) - 1) .. " | " .. select(2, x:gsub(\'id="eng_play"\', ""))', "long form"),
+    // Blue's frame on Elf 925 hidden while a build for White waits in the queue: the hide leaves White's build alone
+    // (no board reaches this today, as two players never want one card at once: it pins frameOn's rule)
+    prio(1903, [925]), lit(925, "925 shown"),
+    q(find(925) + 'local fq = engineFrameQueue fq.list[#fq.list + 1] = o fq.want[o] = { color = "White", on = true } ' +
+      'if not fq.pumping then fq.pumping = true Wait.frames(engineFramePump, 1) end engineChat("mtg glow", Player.Blue) return "hidden"', "hide with white queued"),
+    q(find(925) + 'local x = o.UI.getXml() or "" return tostring(x:find(\'visibility="White"\', 1, true) ~= nil)', "white built")]);
+  const v = (mark) => String(valueOf(r, mark));
+  ok("frame queue: precondition, the board is laid", v("board") === "laid", r.errors.join(" | "));
+  ok("frame queue: a card whose UI can't be built doesn't stop the others", v("921") === "false" && v("922") === "true" && v("926") === "true" && v("pumping") === "false", `${v("921")} ${v("922")} ${v("926")} pumping=${v("pumping")}`);
+  ok("frame queue: no error escapes the pump", r.errors.length === 0, r.errors.join(" | "));
+  ok("frame queue: a card that changes sides under the open question stops glowing for its old controller", v("922 moved") === "false" && v("923 kept") === "true", `${v("922 moved")} ${v("923 kept")}`);
+  ok("frame queue: frames hidden before they were built are never built", builds(r, ["asked", "passed at once", "after pass"]) === 0 && v("931") === "false", `${builds(r, ["asked", "passed at once", "after pass"])} builds, 931=${v("931")}`);
+  ok("frame queue: a rebuild leaves one frame, the new colour's", v("rebuild") === "1 true", v("rebuild"));
+  ok("frame queue: hiding one colour's frame leaves another colour's queued build", v("925 shown") === "true" && v("white built") === "true", `${v("925 shown")} ${v("white built")}`);
+  ok("frame queue: a rebuild cuts out a frame whose bars came back written out in full, and keeps the rest", v("long form") === '<Panel id="eng_other"></Panel><Text id="eng_after">x</Text> | 1', v("long form"));
+}
 // Combat clarity (docs/next-features-2026-11-09.md item 2, docs/engine-ui-spec.md 9): the attack parts green, the block
 // parts red for the player being attacked; the word COMBAT in the phase bar likewise
 {
   const both = (steps) => simulate({ save, seated: ["Blue", "White"], steps: [...prefix, ...steps] });
   const C = (n) => `engine-card-${n}`;
-  const board = (active, step, attacking) => 'local t = engineTable() local blue, white for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p elseif p.color == "White" then white = p end end ' +
+  // (target: whom the Hill Giant attacks, Blue or Blue's planeswalker Jace)
+  const board = (active, step, attacking, target = '"Blue"') => 'local t = engineTable() local blue, white for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p elseif p.color == "White" then white = p end end ' +
     `engineStoreStatic("${C(941)}", { n = "Hill Giant", f = "https://img.example/941.jpg", ty = { "Creature" } }) engineStoreStatic("${C(942)}", { n = "Wall of Omens", f = "https://img.example/942.jpg", ty = { "Creature" } }) ` +
-    `white.battlefield = white.battlefield or {} blue.battlefield = blue.battlefield or {} table.insert(white.battlefield, { s = 1, id = "${C(941)}", ctl = "White", atk = ${attacking}, atkT = ${attacking ? '"Blue"' : "nil"} }) ` +
-    `table.insert(blue.battlefield, { s = 1, id = "${C(942)}", ctl = "Blue" }) t.active = "${active}" t.step = "${step}" engineRender(t) __sim.frames(60) return "laid"`;
+    `engineStoreStatic("${C(943)}", { n = "Jace Beleren", f = "https://img.example/943.jpg", ty = { "Planeswalker" } }) ` +
+    `white.battlefield = white.battlefield or {} blue.battlefield = blue.battlefield or {} table.insert(white.battlefield, { s = 1, id = "${C(941)}", ctl = "White", atk = ${attacking}, atkT = ${attacking ? target : "nil"} }) ` +
+    `table.insert(blue.battlefield, { s = 1, id = "${C(942)}", ctl = "Blue" }) table.insert(blue.battlefield, { s = 1, id = "${C(943)}", ctl = "Blue" }) t.active = "${active}" t.step = "${step}" engineRender(t) __sim.frames(60) return "laid"`;
   const attr = (id, k, mark) => q(`return tostring(UI.getAttribute("${id}", "${k}"))`, mark);
   const phase = (c, mark) => q(`return tostring(UI.getValue("eng_phase_${c}"))`, mark);
   const block = ask({ promptId: 1601, kind: "block", title: "Choose blockers", mode: "multi", min: 0, max: 1, options: [{ id: `${C(942)}|${C(941)}`, label: "Wall of Omens 0/4 blocks Hill Giant 3/3" }] });
@@ -2678,6 +2726,8 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     attr("eng_opt_Blue_1", "color", "block line"), attr("eng_big_Blue", "color", "block done"), phase("Blue", "attacked bar"), phase("White", "attacker bar"),
     q('onMtgSlot(Player.Blue, nil, "eng_opt_Blue_1") return "picked"', "pick block"), attr("eng_opt_Blue_1", "color", "block picked")]);
   const r2 = both([q(board("White", "combatBeginning", false), "board"), phase("Blue", "not attacked bar")]);
+  // attacked through a planeswalker, before any blockers question: still red
+  const r2b = both([q(board("White", "combatDeclareAttackers", true, `"${C(943)}"`), "board"), phase("Blue", "walker attacked bar")]);
   const r3 = both([q(board("Blue", "combatDeclareAttackers", false), "board"),
     ask({ promptId: 1602, kind: "attack", title: "Choose attackers", mode: "multi", min: 0, max: 1, keepOrder: true,
       options: [{ id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" }, { id: `${C(942)}|player-1`, label: "Wall of Omens 0/4 → AI 1" }] }), { frames: 10 },
@@ -2695,6 +2745,7 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("combat colours: COMBAT is red in the phase bar of the player attacked", v(r, "attacked bar").includes("<COLOR=#FF6B6B>COMBAT"), v(r, "attacked bar"));
   ok("combat colours: and green in the attacking player's", v(r, "attacker bar").includes("<COLOR=#7CFC9A>COMBAT"), v(r, "attacker bar"));
   ok("combat colours: COMBAT stays gold for a player nobody attacks", v(r2, "not attacked bar").includes("<COLOR=#FFD27A>COMBAT"), v(r2, "not attacked bar"));
+  ok("combat colours: COMBAT is red for a player whose planeswalker is attacked", !r2b.errors.length && v(r2b, "walker attacked bar").includes("<COLOR=#FF6B6B>COMBAT"), `${v(r2b, "walker attacked bar")} ${r2b.errors.join(" | ")}`);
   ok("combat colours: an attack line is green, brighter once picked", v(r3, "attack line") === "#1F4D2B" && v(r3, "attack picked") === "#2E9E4F", `${v(r3, "attack line")} / ${v(r3, "attack picked")}`);
   ok("combat colours: All attack green, No attacks navy", v(r3, "all attack") === "#2E9E4F" && v(r3, "no attacks") === "#2E3A59", `${v(r3, "all attack")} / ${v(r3, "no attacks")}`);
   ok("combat colours: the corner's No attacks navy and All attack green", v(r3, "big none") === "#2E3A59" && v(r3, "small all") === "#2E9E4F", `${v(r3, "big none")} / ${v(r3, "small all")}`);
@@ -2723,11 +2774,15 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     q('onMtgSlot(Player.Blue, nil, "eng_opt_Blue_3") return "picked"', "pick bears"), tabs("tabs picked"), q('return tostring(engineSelectedFor("Blue", 23))', "bears selected"),
     q('onMtgSearch(Player.Blue, "hill", "eng_search_Blue") return "searched"', "search"), opts("list search"), gold("gold search"),
     // a small question: no tabs
-    attack(1702, [...quick, lines[0], lines[20], lines[21]]), { frames: 10 }, q('return tostring(UI.getAttribute("eng_ctabs_Blue", "active"))', "small tabs")]);
+    q('return tostring(UI.getAttribute("eng_scroll_Blue", "preferredHeight"))', "height tabs"),
+    attack(1702, [...quick, lines[0], lines[20], lines[21]]), { frames: 10 }, q('return tostring(UI.getAttribute("eng_ctabs_Blue", "active"))', "small tabs"),
+    q('return tostring(UI.getAttribute("eng_scroll_Blue", "preferredHeight"))', "height small"),
+    // a question with no tabs after one without: no UI call for them at all
+    { ...attack(1707, [...quick, lines[0]]), mark: "no tabs again" }]);
   // nine names: seven tabs and "More tabs"
   const nine = Array.from({ length: 9 }, (_, i) => [973 + i, `Creature ${String.fromCharCode(65 + i)}`]);
   const r2 = run([q(statics(nine), "statics"), attack(1703, [...quick, ...nine.map(([n, name]) => ({ id: `${C(n)}|player-1`, label: `${name} 1/1 → AI 1` }))]), { frames: 10 },
-    tabs("nine"), q('onMtgCTab(Player.Blue, nil, "eng_ctab_Blue_8") return "more"', "more"), tabs("nine page 2"),
+    tabs("nine"), q('onMtgCTab(Player.Blue, nil, "eng_ctab_Blue_8") return "more"', "more"), tabs("nine page 2"), opts("list more"), gold("gold more"),
     q('onMtgCTab(Player.Blue, nil, "eng_ctab_Blue_1") return "h"', "click h"), opts("list h")]);
   // a blockers question gets them too, by the blocker's name
   const r3 = run([q(statics([...spirits.slice(0, 10), [971, "Grizzly Bears"], [990, "Hill Giant"]]), "statics"),
@@ -2736,14 +2791,42 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     tabs("block tabs")]);
   // creatures the table holds no name for yet: filed by the line's own words, without the number and the size
   const unknown = Array.from({ length: 10 }, (_, i) => C(99001 + i));
-  const r4 = run([attack(1705, [...quick, ...unknown.map((id, i) => ({ id: `${id}|player-1`, label: `Spirit Token 1/1 #${i + 1} → AI 1` })), { id: `${C(99020)}|player-1`, label: "Goblin Token 1/1 → AI 1" }]), { frames: 10 },
+  // (two of them as the bridge's cardLabel writes a creature with counters, and one with damage: still one tab)
+  const size = (i) => (i === 2 ? "2/2 [1 +1/+1 counter]" : i === 5 ? "1/1 (1 dmg)" : i === 7 ? "3/3 [2 +1/+1 counters, 1 shield counter] (2 dmg)" : "1/1");
+  const r4 = run([attack(1705, [...quick, ...unknown.map((id, i) => ({ id: `${id}|player-1`, label: `Spirit Token ${size(i)} #${i + 1} → AI 1` })), { id: `${C(99020)}|player-1`, label: "Goblin Token 1/1 → AI 1" }]), { frames: 10 },
     tabs("unnamed attack"),
     ask({ promptId: 1706, kind: "block", title: "Choose blockers", mode: "multi", min: 0, max: 11,
-      options: [...unknown.map((id, i) => ({ id: `${id}|${C(99030)}`, label: `Spirit Token 1/1 #${i + 1} blocks Hill Giant 3/3` })), { id: `${C(99021)}|${C(99030)}`, label: "Wall of Omens 0/4 blocks Hill Giant 3/3" }] }), { frames: 10 },
-    tabs("unnamed block")]);
+      options: [...unknown.map((id, i) => ({ id: `${id}|${C(99030)}`, label: `Spirit Token ${size(i)} #${i + 1} blocks Hill Giant 3/3` })), { id: `${C(99021)}|${C(99030)}`, label: "Wall of Omens 0/4 blocks Hill Giant 3/3" }] }), { frames: 10 },
+    tabs("unnamed block"),
+    // relation (an equivalence): whatever cardLabel / numberedLabels / the question add to a creature's name, its tab is
+    // the name. Precondition: the bare name is its own tab.
+    q('local base = "Spirit Token" local bad = {} if engineCombatName(base .. " → AI 1") ~= base then return "precondition failed" end ' +
+      'for _, deco in ipairs({ " 1/1", " 2/2", " -1/0", " 0/0 #3", " 1/1 [1 +1/+1 counter]", " 4/4 [3 +1/+1 counters, 1 shield counter]", " 1/1 (2 dmg)", ' +
+      '" 2/2 [1 +1/+1 counter] (1 dmg) #12", " #2", "" }) do ' +
+      'for _, tail in ipairs({ " → AI 1", " → whom? (asked next)", " blocks Hill Giant 3/3 #2", " blocks Hill Giant 3/3 (needs 2+ blockers)", " blocks Goblin Token 1/1 [1 +1/+1 counter] (must be blocked)" }) do ' +
+      'local got = engineCombatName(base .. deco .. tail) if got ~= base then bad[#bad + 1] = deco .. tail .. " -> " .. got end end end ' +
+      'return #bad == 0 and "none" or table.concat(bad, " | ")', "name relation")]);
+  // the edges (jr suite 2026-11-11): exactly 8 lines get no tabs and 9 do; one name alone gets none; a creature with
+  // two targets is one creature in its tab's count, picked or not; a tab clicked during a search ends the search
+  const sp = (k, to) => ({ id: `${C(951 + k)}|${to}`, label: `Spirit Token 1/1 #${k + 1} → ${to === "player-1" ? "AI 1" : "AI 2"}` });
+  const bears = { id: `${C(971)}|player-1`, label: "Grizzly Bears 2/2 → AI 1" };
+  const r5 = run([q(statics([...spirits, ...others]), "statics"),
+    attack(1711, [...quick, ...[0, 1, 2, 3, 4, 5, 6].map((k) => sp(k, "player-1")), bears]), { frames: 10 }, q('return tostring(UI.getAttribute("eng_ctabs_Blue", "active"))', "eight"),
+    attack(1712, [...quick, ...[0, 1, 2, 3, 4, 5, 6, 7].map((k) => sp(k, "player-1")), bears]), { frames: 10 }, q('return tostring(UI.getAttribute("eng_ctabs_Blue", "active"))', "nine"),
+    attack(1713, [...quick, ...spirits.map((_, k) => sp(k, "player-1"))]), { frames: 10 }, q('return tostring(UI.getAttribute("eng_ctabs_Blue", "active"))', "one name"),
+    attack(1714, [...quick, ...[0, 1, 2, 3, 4].flatMap((k) => [sp(k, "player-1"), sp(k, "player-2")]), bears]), { frames: 10 }, tabs("two targets"),
+    q('onMtgSlot(Player.Blue, nil, "eng_opt_Blue_3") onMtgSlot(Player.Blue, nil, "eng_opt_Blue_4") return "both"', "pick both"), tabs("two targets picked"),
+    q('onMtgSearch(Player.Blue, "bears", "eng_search_Blue") return "searched"', "search bears"),
+    q('onMtgCTab(Player.Blue, nil, "eng_ctab_Blue_1") return "tab"', "tab in search"), q('return "[" .. tostring(UI.getValue("eng_search_Blue")) .. "]"', "filter after"), opts("list after"), gold("gold after")]);
+  const v5 = (mark) => String(valueOf(r5, mark));
+  ok("combat tabs: exactly 8 lines get no tabs, 9 do", v5("eight") !== "true" && v5("nine") === "true", `${v5("eight")} / ${v5("nine")}`);
+  ok("combat tabs: one name alone gets no tabs", v5("one name") === "false", v5("one name"));
+  ok("combat tabs: a creature with two targets counts once, picked or not", v5("two targets") === "Spirit Token (5)|Grizzly Bears (1)|-|-|-|-|-|-" && v5("two targets picked").startsWith("Spirit Token (1/5)|"), `${v5("two targets")} / ${v5("two targets picked")}`);
+  ok("combat tabs: a tab clicked during a search ends it and opens the tab", v5("filter after") === "[]" && v5("list after").split("|")[2] === "[x] Spirit Token 1/1 #1 → AI 1" && v5("gold after") === "gold:1", `${v5("filter after")} ${v5("list after").split("|").slice(0, 3).join(" / ")} ${v5("gold after")}`);
   const v = (res, mark) => String(valueOf(res, mark));
-  ok("combat tabs: precondition, no errors", !r.errors.length && !r2.errors.length && !r3.errors.length && !r4.errors.length, [...r.errors, ...r2.errors, ...r3.errors, ...r4.errors].join(" | "));
-  ok("combat tabs: a creature with no name on the table yet is filed by its line's words", v(r4, "unnamed attack") === "Spirit Token (10)|Goblin Token (1)|-|-|-|-|-|-" && v(r4, "unnamed block") === "Spirit Token (10)|Wall of Omens (1)|-|-|-|-|-|-", `${v(r4, "unnamed attack")} / ${v(r4, "unnamed block")}`);
+  ok("combat tabs: precondition, no errors", !r.errors.length && !r2.errors.length && !r3.errors.length && !r4.errors.length && !r5.errors.length, [...r.errors, ...r2.errors, ...r3.errors, ...r4.errors, ...r5.errors].join(" | "));
+  ok("combat tabs: a creature with no name on the table yet is filed by its line's words, counters and damage left out", v(r4, "unnamed attack") === "Spirit Token (10)|Goblin Token (1)|-|-|-|-|-|-" && v(r4, "unnamed block") === "Spirit Token (10)|Wall of Omens (1)|-|-|-|-|-|-", `${v(r4, "unnamed attack")} / ${v(r4, "unnamed block")}`);
+  ok("combat tabs: relation, a creature's tab is its name whatever its line adds to it", v(r4, "name relation") === "none", v(r4, "name relation"));
   ok("combat tabs: a big attack question shows the tabs", v(r, "tabs on") === "true", v(r, "tabs on"));
   ok("combat tabs: one tab per name, the twenty tokens under one", v(r, "tabs") === "Spirit Token (20)|Grizzly Bears (1)|Hill Giant (1)|-|-|-|-|-", v(r, "tabs"));
   ok("combat tabs: the first tab is open (gold)", v(r, "gold 1") === "gold:1", v(r, "gold 1"));
@@ -2755,8 +2838,11 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const ls = v(r, "list search").split("|");
   ok("combat tabs: a search looks through every tab, no tab open", ls.includes("[  ] Hill Giant 3/3 → AI 1") && v(r, "gold search") === "gold:", `${ls.slice(0, 3).join(" / ")} ${v(r, "gold search")}`);
   ok("combat tabs: a small attack question has none", v(r, "small tabs") === "false", v(r, "small tabs"));
+  ok("combat tabs: the list is 258 high under the tabs, 318 without", v(r, "height tabs") === "258" && v(r, "height small") === "318", `${v(r, "height tabs")} / ${v(r, "height small")}`);
+  ok("combat tabs: no UI call for the tabs while there were and are none", fxOf(r, "no tabs again").length > 0 && !fxOf(r, "no tabs again").some((l) => /eng_ctab|eng_scroll/.test(l)), fxOf(r, "no tabs again").filter((l) => /eng_ctab|eng_scroll/.test(l)).join(" || ").slice(0, 300));
   ok("combat tabs: nine names: seven tabs and More tabs", v(r2, "nine") === "Creature A (1)|Creature B (1)|Creature C (1)|Creature D (1)|Creature E (1)|Creature F (1)|Creature G (1)|More tabs (1/2)", v(r2, "nine"));
   ok("combat tabs: More tabs shows the next names", v(r2, "nine page 2") === "Creature H (1)|Creature I (1)|-|-|-|-|-|More tabs (2/2)", v(r2, "nine page 2"));
+  ok("combat tabs: and opens the first of them (its line listed, its tab gold)", v(r2, "list more").split("|")[2] === "[  ] Creature H 1/1 → AI 1" && v(r2, "list more").split("|")[3] === "-" && v(r2, "gold more") === "gold:1", `${v(r2, "list more").split("|").slice(0, 4).join(" / ")} ${v(r2, "gold more")}`);
   ok("combat tabs: a tab of the second page shows its line", v(r2, "list h").split("|")[2] === "[  ] Creature H 1/1 → AI 1", v(r2, "list h").split("|").slice(0, 4).join(" / "));
   ok("combat tabs: a blockers question has them too, by the blocker", v(r3, "block tabs") === "Spirit Token (10)|Grizzly Bears (1)|-|-|-|-|-|-", v(r3, "block tabs"));
 }
@@ -2779,8 +2865,21 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     click(981, "e"), click(984, "f"), picks("after f"),
     click(982, "g"), click(982, "h"), picks("after h"),
     q('onMtgSlot(Player.Blue, nil, "eng_opt_Blue_4") return "panel"', "i"),
+    // the same blocker picked in the window for another attacker: its first block goes, said
+    q('onMtgSlot(Player.Blue, nil, "eng_opt_Blue_3") return "panel"', "i2"), picks("after i2"),
+    // a button with no line on it (a click that arrives after the list changed) does nothing, and raises nothing
+    q('onMtgSlot(Player.Blue, nil, "eng_opt_Blue_29") return "empty"', "empty slot"),
     // the same words twice within 3 s: said twice (k and m are both "... won't block")
-    click(981, "j"), click(981, "k"), click(981, "l"), click(981, "m")]);
+    click(981, "j"), click(981, "k"), click(981, "l"), click(981, "m"),
+    // an attacker clicked with no blocker waiting
+    click(984, "n"), click(984, "n2"),
+    // the right-click "Don't block with this" says which creature, every time
+    q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(982)}" then o = x end end local n = 0 ` +
+      'for _, m in ipairs(o.__d.menu) do if m.label == "Don\'t block with this" then n = n + 1 if n == 1 then m.fn("Blue") end end end return tostring(n)', "menu"), picks("after menu"),
+    // one blocker waiting, then another clicked: the first one's "picked" glow goes back to "can block"
+    click(981, "o"), click(982, "p"),
+    q(`local s = {} for _, n in ipairs({ 981, 982 }) do local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-" .. n then o = x end end ` +
+      's[#s + 1] = o and o.__d.highlight and table.concat(o.__d.highlight, ",") or "none" end return table.concat(s, " ")', "glows")]);
   const told = (mark) => fxOf(r, mark).filter((l) => /broadcastToColor/.test(l) && /Blue/.test(l)).join(" || ");
   ok("block confirm: precondition, no errors", !r.errors.length, r.errors.join(" | "));
   ok("block confirm: a blocker clicked asks for its attacker, by its numbered name", told("a").includes("Now click the attacker for Wall of Omens 0/4 #1"), told("a"));
@@ -2792,6 +2891,14 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("block confirm: the waiting blocker clicked again blocks nothing, said", told("h").includes("Wall of Omens 0/4 #2 won't block") && valueOf(r, "after h") === ".x..", `${told("h")} ${valueOf(r, "after h")}`);
   ok("block confirm: a block picked in the window is confirmed in the chat", told("i").includes("Wall of Omens 0/4 #2 blocks Spirit Token 1/1 #2. Done when finished."), told("i"));
   ok("block confirm: the same words again within 3 s are said again", told("k").includes("Wall of Omens 0/4 #1 won't block") && told("m").includes("Wall of Omens 0/4 #1 won't block"), `${told("k")} / ${told("m")}`);
+  ok("block confirm: a block taken back by a click says it stays gone unless an attacker is clicked", told("e").includes("won't block unless you click an attacker for it now"), told("e"));
+  ok("block confirm: a blocker picked in the window for another attacker says which block it no longer has",
+    told("i2").includes("Wall of Omens 0/4 #2 blocks Spirit Token 1/1 #1. (It no longer blocks Spirit Token 1/1 #2.)") && valueOf(r, "after i2") === ".xx.", `${told("i2")} ${valueOf(r, "after i2")}`);
+  ok("block confirm: an empty answer button does nothing and says nothing", told("empty slot") === "" && !r.errors.some((e) => /empty/.test(e)), `${told("empty slot")} ${r.errors.join(" | ")}`);
+  ok("block confirm: an attacker clicked with no blocker waiting says what to do, each time", told("n").includes("Click one of your creatures first") && told("n2").includes("Click one of your creatures first"), `${told("n")} / ${told("n2")}`);
+  ok("block confirm: a second blocker clicked while one waits: the first glows as a blocker again, the second as picked",
+    String(valueOf(r, "glows")).split(" ")[0] !== "0.15,0.45,1" && String(valueOf(r, "glows")).split(" ")[1] === "0.15,0.45,1" && String(valueOf(r, "glows")).split(" ")[0] !== "none", String(valueOf(r, "glows")));
+  ok("block confirm: Don't block with this says which creature", valueOf(r, "menu") !== "0" && told("menu").includes("Wall of Omens 0/4 #2 won't block") && valueOf(r, "after menu") === "....", `${valueOf(r, "menu")} ${told("menu")} ${valueOf(r, "after menu")}`);
 }
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);
