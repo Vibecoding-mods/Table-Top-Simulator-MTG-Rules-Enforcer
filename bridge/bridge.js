@@ -1414,7 +1414,9 @@ function playableOf(own, toCard, slot) {
     // the top of the library with nothing shown, hp-13 gap; the row is the owner's own second hand zone)
     const mine = z.ownerId === slot;
     if (z.zone !== "exile" && z.zone !== "graveyard" && !(z.zone === "library" && mine) && !(z.zone === "hand" && !mine)) continue;
-    for (const c of z.cards || []) if (c.mayPlay && c.visibility !== "hidden") out.push(toCard(c));
+    // (with its zone: a flashback card's entry carries "Flashback {cost}" as its graveyard entry does, or the table drew
+    // it without, and its self-check called the hover text wrong, Lingering Souls 2026-11-08)
+    for (const c of z.cards || []) if (c.mayPlay && c.visibility !== "hidden") out.push(toCard(c, z.zone));
   }
   return out;
 }
@@ -1803,7 +1805,7 @@ function engineFacts(events) {
   // off it, see logEvents)
   // (firstSeq: each moved card's first move by Forge's order, so what was moved to pay a cost before a draw is said
   // before it, see logEvents)
-  const facts = { moves: new Map(), firstSeq: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), drawsBy: new Map(), offStack: [] };
+  const facts = { moves: new Map(), firstSeq: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), drawsBy: new Map(), drawCause: {}, offStack: [] };
   for (const e of events) {
     if (e.seq <= seen) continue;
     if (e.from === "Stack" && e.cardId) facts.offStack.push({ id: e.cardId, to: e.to, owner: e.ownerId });
@@ -1814,7 +1816,12 @@ function engineFacts(events) {
         : e.to === "Exile" || (e.to === "Graveyard" && e.how !== "surveil") ? facts.mills : null;
       if (tally) tally[e.ownerId] = (tally[e.ownerId] || 0) + 1;
       if (tally === facts.tutors && e.cause === "Explore") facts.explored[e.ownerId] = e.causeName;
-      if (tally === facts.draws) facts.firstDraw[e.ownerId] ??= e.seq;
+      if (tally === facts.draws) {
+        facts.firstDraw[e.ownerId] ??= e.seq;
+        // (the one card all of a player's draws came from, else null: see updateLog's draw join)
+        const by = e.causeCardId || null;
+        facts.drawCause[e.ownerId] = e.ownerId in facts.drawCause && facts.drawCause[e.ownerId] !== by ? null : by;
+      }
     }
     if (e.how === "discard") facts.firstDiscard[e.ownerId] ??= e.seq;
     // (what an ability did, by the card whose ability it was: one that went on the stack and resolved between two boards
@@ -3348,6 +3355,13 @@ function logEvents(prev, cur, pub, facts = null) {
     const at = lines.indexOf(lines.manaSac.line), cast = lines.findIndex((l) => / casts /.test(l));
     if (cast >= 0 && cast < at) lines.splice(cast, 0, ...lines.splice(at, 1));
   }
+  // (each player's draw line, how many and by what, and whether that card is still on the stack: for updateLog to join
+  // the draws of one spell a question split over two boards)
+  lines.draws = {};
+  for (const [owner, line] of Object.entries(drawLines)) {
+    const by = facts?.drawCause[owner];
+    if (by) lines.draws[owner] = { line: sentence(line), n: facts.draws[owner], by, onStack: Object.keys(cur.stack).some((k) => k.startsWith(`${by}|`)) };
+  }
   return lines;
 }
 const sentence = (l) => (l ? l[0].toUpperCase() + l.slice(1) : l);
@@ -3410,9 +3424,31 @@ function updateLog(pub) {
     game.log[game.log.length - 1] = game.lastManaSac.line;
     lines.shift();
   }
+  // (one spell's draws split over two boards by a question between them, the spell still on the stack in the first: one
+  // line. Village Rites' two read "draws a card" twice when a Darkblast in the graveyard asked "dredge?" between them,
+  // live_events_check 2026-11-09. Only when nothing was logged after that board's lines (lastDraws.end, the log's
+  // length then): a line said in between, a choice or a reveal, came after the first draw, and a join would put the
+  // second above it.)
+  const lastDraws = game.lastDraws?.end === game.log.length ? game.lastDraws : null;
+  const draws = lines.draws || {};
+  let drawJoined = false;
+  for (const [owner, d] of Object.entries(draws)) {
+    const was = lastDraws?.draws[owner];
+    if (!was || !was.onStack || was.by !== d.by) continue;
+    const at = game.log.lastIndexOf(was.line);
+    const i = lines.indexOf(d.line);
+    if (at < 0 || i < 0) continue;
+    const n = was.n + d.n;
+    game.log[at] = sentence(HAND_WORDS.draw(nameOf(owner), n));
+    lines.splice(i, 1);
+    // (and joined again if a third board goes on drawing for it)
+    draws[owner] = { ...d, line: game.log[at], n };
+    drawJoined = true;
+  }
   game.log.push(...lines);
   if (game.log.length > 300) game.log.splice(0, game.log.length - 300);
-  toTTS(joined ? { t: "gamelog", lines: game.log.slice(-60), reset: true } : { t: "gamelog", lines });
+  game.lastDraws = { end: game.log.length, draws };
+  toTTS(joined || drawJoined ? { t: "gamelog", lines: game.log.slice(-60), reset: true } : { t: "gamelog", lines });
 }
 
 // Card rules texts trickle out ~1 KB at a time, 150 ms apart, so no single message makes TTS stall.
@@ -3515,7 +3551,7 @@ function sendTable() {
     };
     // (after the zones: the cards a seat may play from outside its hand, built once; none once the game is over: Sen
     // Triplets' stand-ins kept glowing as playable under GAME OVER, real-table check 2026-11-10)
-    const playable = own && !pub.gameOver ? playableOf(own, toCard, p.id) : [];
+    const playable = own && !pub.gameOver ? playableOf(own, (c, zone) => tableCard(c, { blockers, zone }), p.id) : [];
     if (playable.length) row.playable = playable;
     // (and the hand cards shown to everyone: the table lays them face up at the owner's seat)
     const revealed = revealedOf(p, seats, toCard);
@@ -5397,16 +5433,27 @@ function onPrompt(seat, prompt) {
       // (what is still owed once the pool's mana counts: Forge sends the cost before the pool is spent, and four Treasures
       // clicked one at a time each read "Pay {3}{U} for Inspiration" on the real table, 2026-11-05)
       const owes = owed !== input.manaCost && owed !== "{0}" ? `${owed} more` : input.manaCost;
+      // (a tap that can pay none of what is owed isn't offered, when every symbol owed is one the rank reads: a colour,
+      // generic, X, a hybrid of those or Phyrexian; a snow {S} or anything else keeps every tap. Viscera Seer's {B} offered
+      // only "Tap Mountain for {R}", and Yellow tapped and undid it in a loop until Cancel, 2026-11-09 00:51)
+      const plainOwed = [...owed.matchAll(/\{([^}]+)\}/g)].every((m) => m[1].toUpperCase().split("/").every((x) => /^(?:\d+|X|[WUBRGCP])$/.test(x)));
+      const useless = (a) => plainOwed && owed !== "{0}" && a.type !== "undoMana" && a !== lifeAct && !payKind
+        && (a.type === "activateManaAbility" || a.isManaAbility || /^tap:/.test(String(a.id))) && manaRank(owed, a) === 0;
+      const dropped = (input.actions || []).filter(useless);
       ui = { title: `Pay ${owes}${input.cardName || src ? ` for ${input.cardName || src}` : ""}`, mode: "single", options: [
         ...(input.canConfirmFromPool ? [{ id: "__pool", label: "Pay from mana pool" }] : autoFailed ? [] : [{ id: "__auto", label: "Auto-pay" }]),
         ...(lifeAct ? [{ id: lifeAct.id || "pay-life", label: `Pay ${lifeN ?? 2} life` }] : []),
-        ...(input.actions || []).filter((a) => a !== lifeAct).map((a) => ({ id: a.id, cardId: a.cardId, label: a.type === "undoMana" ? `Undo mana from ${cname(a.cardId)}`
+        ...(input.actions || []).filter((a) => a !== lifeAct && !useless(a)).map((a) => ({ id: a.id, cardId: a.cardId, label: a.type === "undoMana" ? `Undo mana from ${cname(a.cardId)}`
           : a.type === "useResource" || a.type === "releaseResource" ? resourceLabel(a, cname(a.cardId))
           : payKind && isResourceTap(a) ? resourceLabel({ ...a, type: "useResource", resource: payKind }, a.description || cname(a.cardId))
           : a.description ? `${!a.cost || /\{T\}/.test(a.cost) ? "Tap" : "Use"} ${a.description}${payManaText(a)}${/\bdamage to you\b/i.test(a.description) ? "" : manaPainText(a, byId[a.cardId]?.text, byId[a.cardId]?.identity?.name)}${manaCostExtra(a)}` : a.id, ...(a.type === "undoMana" ? {} : { rank: rankOf(a) }) })),
         { id: "__cancel", label: "Cancel" },
       ] };
       if (autoFailed && !input.canConfirmFromPool) ui.text = "Auto-pay couldn't finish this payment. Tap other sources, undo some taps, or Cancel.";
+      // (and said when nothing that is left can pay: the player otherwise sees only Cancel)
+      if (dropped.length && !input.canConfirmFromPool && !ui.options.some((o) => o.rank > 0 || o.id === "__auto" || o.id === (lifeAct?.id || "pay-life"))) {
+        ui.text = `Nothing here can pay ${owed}: ${[...new Set(dropped.map((a) => cname(a.cardId)))].join(", ")} can't make that mana. ${(input.actions || []).some((a) => a.type === "undoMana") ? "Undo a tap, or Cancel." : "Cancel to take it back."}`;
+      }
       toOutput = (a) => {
         // remember a hand tap so the next prompt can finish paying by itself; any other answer forgets it
         seat.tappedFor = String(a[0]).startsWith("tap:") ? input.cardId : null;
@@ -6300,7 +6347,13 @@ function onPrompt(seat, prompt) {
       break;
     case "chooseAttackers": {
       const pairs = [];
-      for (const at of input.attackers) for (const tid of at.validTargetIds) pairs.push({ id: `${at.attackerId}|${tid}`, label: `${cname(at.attackerId)} → ${cname(tid)}` });
+      // (each attacker with its size and counters, and a number when that still reads the same: Lingering Souls' tokens
+      // read "Spirit Token → Blue" four times, 2026-11-08/09 game)
+      const sized = new Map(input.attackers.map((at) => [at.attackerId, byId[at.attackerId] ? cardLabel(byId[at.attackerId]) : cname(at.attackerId)]));
+      const same = {};
+      for (const [id, l] of sized) (same[l] ??= []).push(id);
+      const attackerLabel = (id) => (same[sized.get(id)].length > 1 ? `${sized.get(id)} #${same[sized.get(id)].indexOf(id) + 1}` : sized.get(id));
+      for (const at of input.attackers) for (const tid of at.validTargetIds) pairs.push({ id: `${at.attackerId}|${tid}`, label: `${attackerLabel(at.attackerId)} → ${cname(tid)}` });
       const must = input.attackers.filter((a) => a.mustAttack && a.validTargetIds.length);
       // "All attack" sends every creature at its first target; "No attacks" none (except those that must attack).
       const quick = pairs.length ? [{ id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" }] : [];
@@ -7036,7 +7089,8 @@ function missingTarget(gv, who, card, name) {
   return null;
 }
 
-function whyNot(seat, cardId) {
+// anyPriority: the reason it couldn't be played even at this seat's priority (a drag made out of priority, onIntent)
+function whyNot(seat, cardId, { anyPriority = false } = {}) {
   const gv = seat.board?.state?.gameView || {};
   const card = cardIndex(gv)[cardId];
   const name = card?.identity?.name || "That card";
@@ -7049,7 +7103,7 @@ function whyNot(seat, cardId) {
   const types = card?.types || [];
   const myMain = gv.activePlayerId === who && /main/i.test(gv.step || "") && !(gv.stack || []).length;
   if (card?.phasedOut) return `${name} is phased out: it counts as not there until it phases in.`;
-  if (gv.priorityPlayerId !== who) return `${name}: wait, it isn't ${who === seat.slot ? "your" : `${nameOf(who)}'s`} priority.`;
+  if (!anyPriority && gv.priorityPlayerId !== who) return `${name}: wait, it isn't ${who === seat.slot ? "your" : `${nameOf(who)}'s`} priority.`;
   // (a permanent already on the battlefield is not played: Arena of Glory, its one ability a mana ability, read "lands
   // can only be played in your main phase with an empty stack" in the main phase, hp-09)
   if (zone === "battlefield") {
@@ -7137,7 +7191,15 @@ function onIntent(m) {
   if (m.kind === "play") {
     if (!p || p.type !== "chooseAction") {
       // not this player's priority now: kept for their next one (see the chooseAction case), unless it is a land
-      const card = cardIndex(seat.board?.state?.gameView || {})[m.id];
+      const gv = seat.board?.state?.gameView || {};
+      const card = cardIndex(gv)[m.id];
+      // (only a card it could be cast from where it lies: from a hand or the command zone, or one the engine says this
+      // seat may play. Rancor, discarded a moment before, was dragged from beside the graveyard and queued, and the next
+      // drag of it was read as a hand card again, 2026-11-08 23:39)
+      const zone = (gv.zones || []).find((z) => (z.cards || []).some((c) => c.id === m.id))?.zone;
+      if (card && !(card.types || []).includes("Land") && !(zone === "hand" || zone === "command" || card.mayPlay)) {
+        return refuse(seat, m.id, whyNot(seat, m.id, { anyPriority: true }));
+      }
       if (card && !(card.types || []).includes("Land")) {
         seat.queuedPlay = { id: m.id, at: Date.now() };
         refuse(seat, m.id, `${name}: you'll cast it at your next chance (it isn't your priority right now).`);
@@ -8407,7 +8469,7 @@ if (require.main === module) {
   // Loaded by a test (tests/bridge-harness.js): the logic without servers. `game` is set through _setGame.
   module.exports = {
     alignment, tableCard, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
-    summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, cardIndex, nameOf, notePlay, hasKeyword,
+    summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
   };

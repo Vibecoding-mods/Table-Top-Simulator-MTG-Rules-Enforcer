@@ -271,6 +271,34 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     const none = await click([{ id: "pass", type: "pass", label: "Pass priority" }]);
     ok("mana click: with no mana button it is still refused with why", none.told.includes("none of its abilities") && !none.relay.includes("tap:engine-card-36"), none.told.slice(0, 300));
   }
+  // "only a card it could be cast from where it lies" is kept for the next priority (onIntent's play): Rancor, discarded
+  // a moment before, was dragged out of priority and queued (2026-11-08 23:39, table-session.log); a hand card still is
+  {
+    const drag = async (zoneKind, extra = {}) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      Object.assign(b.gameView, { activePlayerId: "player-1", priorityPlayerId: "player-1", step: "main1", stack: [] });
+      const from = b.gameView.zones.find((z) => (z.cards || []).some((c) => c.id === "engine-card-36"));
+      const card = from.cards.find((c) => c.id === "engine-card-36");
+      from.cards = from.cards.filter((c) => c !== card);
+      Object.assign(card, { identity: { name: "Rancor" }, types: ["Enchantment"], subtypes: ["Aura"], text: "Enchant creature\nEnchanted creature gets +2/+0 and has trample.", ...extra });
+      let to = b.gameView.zones.find((z) => z.zone === zoneKind && z.ownerId === "player-0");
+      if (!to) { to = { zone: zoneKind, ownerId: "player-0", cards: [], count: 0 }; b.gameView.zones.push(to); }
+      to.cards.push(card);
+      const seat = setup(h, b);
+      h.B.onTTS({ t: "intent", json: JSON.stringify({ color: "Blue", kind: "play", id: "engine-card-36" }) }); await h.flush();
+      const out = { queued: seat.queuedPlay, told: h.effects.filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text).join(" | ") };
+      harness.restore();
+      return out;
+    };
+    const gy = await drag("graveyard");
+    ok("queued play: a graveyard card nothing lets you cast isn't kept", !gy.queued, JSON.stringify(gy));
+    ok("queued play: and the player is told where it is", gy.told.includes("Rancor is in your graveyard: it can be cast from there only if"), gy.told);
+    const hand = await drag("hand");
+    ok("queued play: a hand card still is kept", hand.queued && hand.queued.id === "engine-card-36", JSON.stringify(hand));
+    const fb = await drag("graveyard", { mayPlay: true });
+    ok("queued play: a graveyard card the engine lets you cast is kept", fb.queued && fb.queued.id === "engine-card-36", JSON.stringify(fb));
+  }
   // "a token beside a card of its name says so" (chooseBoardTargets)
   {
     const h = harness.load();
@@ -1064,6 +1092,18 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("kykar #9: #9 comes before #10", got.indexOf("Spirit Token 1/1 #9") >= 0 && got.indexOf("Spirit Token 1/1 #9") < got.indexOf("Spirit Token 1/1 #10") && got.indexOf("Spirit Token 1/1 #2") < got.indexOf("Spirit Token 1/1 #10"), JSON.stringify(got));
       harness.restore();
     }
+    // token attackers with their size, numbered when they still read the same, #9 before #10: "Spirit Token → Blue" four
+    // times in the attack list, 2026-11-08/09 game (table-session.log)
+    {
+      const toks = Array.from({ length: 11 }, (_, k) => one(`engine-card-${1850 + k}`, "Spirit Token", { identity: { name: "Spirit Token", isToken: true } }));
+      const { h, seat } = fresh((gv) => mine(gv).push(...toks, one("engine-card-1849", "Grizzly Bears", { power: 2, toughness: 2, counters: { P1P1: 1 } })));
+      await asked(h, seat, { type: "chooseAttackers", attackers: [...toks, { id: "engine-card-1849" }].map((t) => ({ attackerId: t.id, validTargetIds: ["player-1"], mustAttack: false })) });
+      const got = labels(seat);
+      ok("attackers: a token says its size", got.includes("Spirit Token 1/1 #1 → AI 1"), JSON.stringify(got));
+      ok("attackers: #9 comes before #10", got.indexOf("Spirit Token 1/1 #9 → AI 1") >= 0 && got.indexOf("Spirit Token 1/1 #9 → AI 1") < got.indexOf("Spirit Token 1/1 #10 → AI 1"), JSON.stringify(got));
+      ok("attackers: a creature alone has no number, and its counters", got.includes("Grizzly Bears 2/2 [1 +1/+1 counter] → AI 1"), JSON.stringify(got));
+      harness.restore();
+    }
     // #18: Forge's doubled plural is undone (Mondrak's live cost "creatureses")
     {
       const h = harness.load();
@@ -1342,6 +1382,38 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("verify #4: Tarnished Citadel's {C} has no damage, whatever its ability number", got.includes("Tap Tarnished Citadel for {C}"), JSON.stringify(got));
       ok("verify #4: another card's 'a creature becomes tapped' isn't this card's", got.includes("Tap Arcane Spyglass for {U}"), JSON.stringify(got));
       harness.restore();
+    }
+    // a tap that can pay none of what is owed isn't offered: Viscera Seer's {B} offered only "Tap Mountain for {R}" after
+    // Auto-pay, and Yellow tapped and undid it in a loop until Cancel (2026-11-09 00:51, table-session.log #695-#699);
+    // Treasure for {W} was offered for it too (#701). Real action shapes (dump2's fixtures).
+    {
+      const land = (id, name, text) => ({ id, identity: { name }, types: ["Land"], controllerId: "player-0", text });
+      const tap = (id, color, extra = {}) => ({ id: `tap:${id}:0${extra.suffix || ""}`, type: "activateManaAbility", isManaAbility: true, cardId: id, abilityIndex: 0, description: extra.name || "Mountain", cost: extra.cost || "{T}", producedMana: [{ amount: 1, color }] });
+      const pay = async (manaCost, actions, extra = {}) => {
+        const { h, seat } = fresh((gv) => mine(gv).push(land("engine-card-1460", "Mountain", "{T}: Add {R}."),
+          { id: "engine-card-1461", identity: { name: "Treasure", isToken: true }, types: ["Artifact"], controllerId: "player-0", text: "{T}, Sacrifice this artifact: Add one mana of any color." },
+          land("engine-card-1462", "Snow-Covered Mountain", "{T}: Add {R}.")));
+        seat.autoPayCard = extra.autoRan ? "engine-card-1470" : null;
+        await asked(h, seat, { type: "payManaCost", cardId: "engine-card-1470", cardName: "Viscera Seer", manaCost, canConfirmFromPool: false, actions },
+          { sourceCard: { id: "engine-card-1470", identity: { name: "Viscera Seer" } } });
+        const out = { got: labels(seat), text: seat.prompt?.ui?.text || "" };
+        harness.restore();
+        return out;
+      };
+      const mountain = tap("engine-card-1460", "R");
+      let r = await pay("{B}", [mountain], { autoRan: true });
+      ok("useless tap: Mountain's {R} isn't offered for {B}", !r.got.some((l) => /Mountain/.test(l)) && r.got.includes("Cancel"), JSON.stringify(r.got));
+      ok("useless tap: and the player is told why", r.text === "Nothing here can pay {B}: Mountain can't make that mana. Cancel to take it back.", r.text);
+      const treasure = ["W", "B"].map((c) => tap("engine-card-1461", c, { name: "Treasure", cost: "{T}, Sacrifice this artifact", suffix: `:${c}` }));
+      r = await pay("{B}", [mountain, ...treasure]);
+      ok("useless tap: Treasure for {W} isn't offered for {B}, its {B} is", !r.got.some((l) => /for \{W\}/.test(l)) && r.got.some((l) => /Treasure for \{B\}/.test(l)), JSON.stringify(r.got));
+      ok("useless tap: nothing said while something can pay", !r.text.startsWith("Nothing here"), r.text);
+      r = await pay("{1}{B}", [mountain]);
+      ok("useless tap: a generic part keeps it", r.got.some((l) => /Mountain/.test(l)), JSON.stringify(r.got));
+      r = await pay("{S}", [tap("engine-card-1462", "R", { name: "Snow-Covered Mountain" })]);
+      ok("useless tap: a snow cost keeps every tap", r.got.some((l) => /Snow-Covered Mountain/.test(l)), JSON.stringify(r.got));
+      r = await pay("{R/W}", [mountain]);
+      ok("useless tap: a hybrid half it makes keeps it", r.got.some((l) => /Mountain/.test(l)), JSON.stringify(r.got));
     }
     // #18: "halflingses" against Saradoc's "Halflings"; a singular in -us ("Fungus") keeps its plural "Funguses"; a -ses
     // word the card's own text has stays (no printed card has both forms, Forge's cardsfolder: a made-up card for the guard)
@@ -1948,6 +2020,22 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("Thief of Sanity: the exiled card is in its caster's row", ids(rowOf(t, "Blue").playable).includes("engine-card-950"), JSON.stringify(rowOf(t, "Blue").playable));
       ok("Thief of Sanity: not in its owner's", !ids(rowOf(t, "White").playable).includes("engine-card-950"), JSON.stringify(rowOf(t, "White").playable));
       ok("Thief of Sanity: its name doesn't reach the table", !JSON.stringify(t).includes("Counterspell"));
+    }
+    // Faithless Looting in its owner's graveyard, castable by flashback: its playable entry says "Flashback {2}{R}" as its
+    // graveyard entry does (it said nothing, and the table's self-check called its hover text wrong all game: Lingering
+    // Souls and Faithless Looting, 2026-11-08/09 game, tmp/table-check.log)
+    {
+      const looting = () => C("engine-card-1201", "Faithless Looting", "player-0", { types: ["Sorcery"], mayPlay: true, visibility: "visible",
+        text: "Draw two cards, then discard two cards.\nFlashback {2}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)", flashbackCost: "2 R" });
+      const bv = view("player-0"), wv = view("player-1");
+      for (const v of [bv, wv]) { zone(v.gameView, "graveyard", "player-0").cards = [looting()]; zone(v.gameView, "graveyard", "player-0").count = 1; }
+      zone(wv.gameView, "graveyard", "player-0").cards[0].mayPlay = false;
+      const t = await board(bv, wv);
+      const gy = (rowOf(t, "Blue").graveyard || []).find((c) => c.id === "engine-card-1201");
+      const row = (rowOf(t, "Blue").playable || []).find((c) => c.id === "engine-card-1201");
+      ok("flashback: precondition, the card is in the graveyard and the row", !!gy && !!row, JSON.stringify([gy, row]));
+      ok("flashback: the graveyard entry says its cost", JSON.stringify(gy && gy.nt) === JSON.stringify(["Flashback {2}{R}"]), JSON.stringify(gy));
+      ok("flashback: the playable entry says the same", JSON.stringify(row && row.nt) === JSON.stringify(gy && gy.nt), JSON.stringify(row));
     }
     // Revelation, both seated: each hand is shown to the other seat, so each goes into its owner's revealed list
     {
