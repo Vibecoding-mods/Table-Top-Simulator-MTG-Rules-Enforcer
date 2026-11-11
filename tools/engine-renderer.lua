@@ -1143,7 +1143,7 @@ function engineStatusPlace(want, o, pl)
   -- the seat's pieces at the strip's width, and the depth they take with their gaps (world units)
   local list, need = {}, 0
   for _, p in ipairs(ENGINE_STATUS_PIECES) do
-    local count
+    local count = nil -- (= nil: TTS reads a bare local in a for-in body as the looped table, tests/test_moonsharp_loop_locals.js)
     for _, m in ipairs(marks) do count = count or engineStatusMatch(m, p.mark) end
     local e = count and engineStatusObj(p, pl.color)
     local unit = e and want[e.g] == nil and engineStatusFootprint(e.g)
@@ -1250,7 +1250,7 @@ local function mergeStatic(m)
   -- zones the bridge left out because they didn't change: reuse the last board's (already merged) lists
   for _, pl in ipairs(m.players or {}) do
     if pl.keep ~= nil then
-      local prev
+      local prev = nil
       for _, q in ipairs((lastTable and lastTable.players) or {}) do if q.color == pl.color then prev = q end end
       for _, z in ipairs(pl.keep) do pl[z] = prev and prev[z] or {} end
       pl.keep = nil
@@ -2196,7 +2196,7 @@ function engineRender(m)
     local g = s.ctl and seatGeometry(s.ctl)
     local n = (perCaster[s.ctl or "?"] or 0) + 1
     perCaster[s.ctl or "?"] = n
-    local pos, rot
+    local pos, rot = nil, nil
     if g ~= nil then
       pos = g.mat + g.right * (1.4 * (n - 1) - 2) + Vector(0, 2.5 + 0.1 * i, 0)
       rot = Vector(0, g.rotY, 0)
@@ -7393,7 +7393,7 @@ function engineAbList(color, id)
   local taken, manaUsed, manaOpt, greyMana = {}, false, nil, {}
   for _, o in ipairs(others) do if tostring(o.label):find("^Mana:") then manaOpt = o end end
   for _, a in ipairs(card ~= nil and engineTextAbilities(card.tx) or {}) do
-    local hit
+    local hit = nil
     if a.mana then hit = manaOpt
     else
       -- (an option's ability text starts with the line's cost; of several, the one whose effect starts the same)
