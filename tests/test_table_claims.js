@@ -2580,5 +2580,218 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     ok("status pieces: the original pieces keep their own GUIDs", ["8963ec", "197ab6", "2db63a", "cb418b", "d9fcbc", "94b67a", "da1b48", "576ccd", "4e8c7b"].every((g) => origGuids.has(g) && save.ObjectStates.some((o) => o.GUID === g)), "");
   }
 }
+// Green glow on permanents with a usable ability (SPEC.md, the user 2026-11-11): the hand's per-player frame on each
+// permanent behind the priority question's ability options (engineAbilityWant), only for its controller. Option text as
+// the bridge sends it (an ability's "ab", "Mana: tap X" for a mana rock, "Untap X (mana back)").
+{
+  const both = (steps) => simulate({ save, seated: ["Blue", "White"], steps: [...prefix, ...steps] });
+  const C = (n) => `engine-card-${n}`;
+  // Blue: Prodigal Sorcerer, Jace Beleren, Mishra's Factory, Ghave (tapped), five Clue tokens (one stack), a phased-out
+  // Tarmogoyf, Sol Ring, its Island; White: Royal Assassin, Blue's own card, stolen
+  const board = 'local t = engineTable() local blue, white for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p elseif p.color == "White" then white = p end end ' +
+    'local function card(pl, id, n, ty, extra) engineStoreStatic(id, { n = n, f = "https://img.example/" .. id .. ".jpg", ty = ty, tok = extra and extra.tok or nil }) ' +
+    'local c = { s = 1, id = id, ctl = pl.color } for k, v in pairs(extra or {}) do c[k] = v end pl.battlefield = pl.battlefield or {} table.insert(pl.battlefield, c) end ' +
+    `card(blue, "${C(901)}", "Prodigal Sorcerer", { "Creature" }) card(blue, "${C(902)}", "Jace Beleren", { "Planeswalker" }) ` +
+    `card(blue, "${C(903)}", "Mishra's Factory", { "Land" }) card(blue, "${C(904)}", "Ghave, Guru of Spores", { "Creature" }, { tap = true }) ` +
+    [911, 912, 913, 914, 915].map((n) => `card(blue, "${C(n)}", "Clue", { "Artifact" }, { tok = true }) `).join("") +
+    `card(blue, "${C(905)}", "Tarmogoyf", { "Creature" }, { po = true }) card(blue, "${C(907)}", "Sol Ring", { "Artifact" }) ` +
+    `card(white, "${C(906)}", "Royal Assassin", { "Creature" }) ` +
+    'GLOWT = t engineRender(t) __sim.frames(90) return tostring(engineGroupOf["' + C(913) + '"])';
+  const ab = (pid, n, text) => ({ id: `ab-${pid}-${n}`, cardId: C(n), label: `${text.split(":")[0]}: ${text}`, ab: text });
+  const prio = (color, pid, list, frames) => ({ msg: { t: "prompt", json: JSON.stringify({ t: "prompt", color, promptId: pid, kind: "priority", title: "Your priority", mode: "single",
+    options: [{ id: "__pass", label: "Next" }, { id: "__endturn", label: "End turn" }, ...list] }) }, frames: frames ?? 10 });
+  const blueAbilities = (pid, jace = true) => [ab(pid, 901, "{T}: Prodigal Sorcerer deals 1 damage to any target."),
+    ...(jace ? [ab(pid, 902, "+2: Each player draws a card.")] : []),
+    ab(pid, 903, "{1}: Mishra's Factory becomes a 2/2 Assembly-Worker artifact creature until end of turn."),
+    ab(pid, 904, "{1}, Remove a +1/+1 counter from a creature you control: Create a 1/1 green Saproling creature token."),
+    ab(pid, 913, "{2}, Sacrifice this artifact: Draw a card."),
+    ab(pid, 905, "{1}: Tarmogoyf gets +1/+1."),
+    { id: `__mana:${C(907)}`, cardId: C(907), label: "Mana: tap Sol Ring" },
+    { id: `undo-${pid}`, cardId: C(6), label: "Untap Island (mana back)" }];
+  // "true" / "false" (no frame for that colour, or switched off) / "none" (no object); and the frame's visibility
+  const lit = (n, color, mark) => q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(n)}" then o = x end end if o == nil then return "none" end ` +
+    `local x = o.UI.getXml() or "" if not x:find('id="eng_play" visibility="${color}"', 1, true) then return "false" end ` +
+    'local a = o.UI.getAttribute("eng_play", "active") if a ~= nil then return a end return x:find(\'active="true"\', 1, true) and "true" or "false"', mark);
+  const states = (ns, color, mark) => q(`local out = {} for _, n in ipairs({ ${ns.join(", ")} }) do local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-" .. n then o = x end end ` +
+    `if o == nil then out[#out + 1] = n .. "=none" else local x = o.UI.getXml() or "" local on = "false" if x:find('id="eng_play" visibility="${color}"', 1, true) then on = o.UI.getAttribute("eng_play", "active") or (x:find('active="true"', 1, true) and "true" or "false") end out[#out + 1] = n .. "=" .. on end end return table.concat(out, " ")`, mark);
+  const ALL = [901, 902, 903, 904, 911, 905, 907, 6];
+  const other = q(`for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(901)}" then x.UI.setXml('<Panel id="eng_other" active="false"></Panel>') end end return "set"`, "other ui");
+  const xmlOf = (n, mark) => q(`for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(n)}" then return x.UI.getXml() end end return "none"`, mark);
+  const r = both([q(board, "board"), other, prio("Blue", 1501, blueAbilities(1501), 1), { frames: 1, mark: "frame 2" }, { frames: 20, mark: "built" },
+    states(ALL, "Blue", "priority"), lit(901, "White", "seen by White"), xmlOf(901, "xml 901"),
+    // the planeswalker's loyalty ability used: the next priority doesn't offer it
+    prio("Blue", 1502, blueAbilities(1502, false)), states(ALL, "Blue", "after loyalty"),
+    // a target question opens: every frame goes; the next priority brings them back
+    ask({ promptId: 1503, kind: "target", title: "Prodigal Sorcerer: choose a target", mode: "multi", min: 1, max: 1, options: [{ id: "player|player-1", label: "AI 1" }] }), { frames: 10 },
+    states(ALL, "Blue", "target"), prio("Blue", 1504, blueAbilities(1504)), states(ALL, "Blue", "back"),
+    // paying: no frames; the Island is lit the table's way (gold) as before
+    ask({ promptId: 1505, kind: "mana", title: "Pay {1}", mode: "single", options: [{ id: `tap:${C(6)}`, cardId: C(6), label: "Tap Island" }, { id: "__cancel", label: "Cancel" }] }), { frames: 10 },
+    states(ALL, "Blue", "paying"), q(`for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(6)}" then return tostring(engineGlowOwned(x)) end end return "none"`, "island lit"),
+    // pass, use
+    prio("Blue", 1506, blueAbilities(1506)), q('enginePick("Blue", 1) return "passed"', "pass"), states(ALL, "Blue", "passed"),
+    prio("Blue", 1507, blueAbilities(1507)), q(`engineUseAbility("Blue", "ab-1507-901", 1507) return "used"`, "use"), states(ALL, "Blue", "used"),
+    // mtg glow: off for Blue, on again
+    prio("Blue", 1508, blueAbilities(1508)), q('engineChat("mtg glow", Player.Blue) return "off"', "glow off"), states(ALL, "Blue", "switched off"),
+    q('engineChat("mtg glow", Player.Blue) return "on"', "glow on"), states(ALL, "Blue", "switched on"),
+    // White's priority: its stolen Royal Assassin glows for White, Blue's question never framed it
+    prio("White", 1509, [ab(1509, 906, "{T}: Destroy target tapped creature.")]), lit(906, "White", "stolen White"), lit(906, "Blue", "stolen Blue"),
+    // an ability of White's card offered to Blue (one any player may use): only the controller's cards glow
+    prio("Blue", 1510, [ab(1510, 906, "{T}: Destroy target tapped creature.")]), lit(906, "Blue", "not controlled")]);
+  const v = (mark) => String(valueOf(r, mark));
+  const on = (mark, n) => v(mark).split(" ").includes(`${n}=true`);
+  const builds = {};
+  for (const s of r.steps) for (const l of s.fx) if (/objUI\.setXml/.test(l)) { const f = l.split(" ")[0]; builds[f] = (builds[f] || 0) + 1; }
+  const most = Math.max(0, ...Object.values(builds));
+  ok("permanent glow: precondition, the five Clues are one stack", v("board") !== "nil", v("board") + " " + r.errors.join(" | "));
+  ok("permanent glow: a creature, a planeswalker, a land with a non-mana ability and a tapped creature glow at priority",
+    [901, 902, 903, 904].every((n) => on("priority", n)), v("priority"));
+  ok("permanent glow: a token stack glows when a token in it has a usable ability", on("priority", 911), v("priority"));
+  ok("permanent glow: a mana rock and an Island (mana only, Untap) don't glow at priority", !on("priority", 907) && !on("priority", 6), v("priority"));
+  ok("permanent glow: a phased-out card never glows", !on("priority", 905), v("priority"));
+  ok("permanent glow: the frame is Blue's alone (no frame for White)", v("seen by White") === "false" && /id="eng_play" visibility="Blue"/.test(v("xml 901")), v("seen by White"));
+  ok("permanent glow: the frame is added beside the card's other UI, not over it", v("xml 901").includes('id="eng_other"') && v("xml 901").includes('id="eng_play"'), v("xml 901").slice(0, 200));
+  ok("permanent glow: first builds are spread over frames (at most 4 a frame)", most > 0 && most <= 4, JSON.stringify(builds));
+  ok("permanent glow: the planeswalker's frame goes once its loyalty ability is used, the rest stay", !on("after loyalty", 902) && on("after loyalty", 901), v("after loyalty"));
+  ok("permanent glow: a target question takes every frame away", ALL.every((n) => !on("target", n)), v("target"));
+  ok("permanent glow: and the next priority brings them back", [901, 902, 903, 904, 911].every((n) => on("back", n)), v("back"));
+  ok("permanent glow: paying shows no frame, the Island glows the table's way", ALL.every((n) => !on("paying", n)) && v("island lit") === "true", `${v("paying")} / ${v("island lit")}`);
+  ok("permanent glow: passing takes the frames away", ALL.every((n) => !on("passed", n)), v("passed"));
+  ok("permanent glow: using an ability takes the frames away", ALL.every((n) => !on("used", n)), v("used"));
+  ok("permanent glow: mtg glow turns it off and on again", ALL.every((n) => !on("switched off", n)) && on("switched on", 901) && on("switched on", 911), `${v("switched off")} / ${v("switched on")}`);
+  ok("permanent glow: a stolen creature glows for its controller, not its owner", v("stolen White") === "true" && v("stolen Blue") === "false", `${v("stolen White")} / ${v("stolen Blue")}`);
+  ok("permanent glow: a card you don't control never glows for you, even with an ability offered on it", v("not controlled") === "false", v("not controlled"));
+  ok("permanent glow: no errors", r.errors.length === 0, r.errors.join(" | "));
+}
+// Combat clarity (docs/next-features-2026-11-09.md item 2, docs/engine-ui-spec.md 9): the attack parts green, the block
+// parts red for the player being attacked; the word COMBAT in the phase bar likewise
+{
+  const both = (steps) => simulate({ save, seated: ["Blue", "White"], steps: [...prefix, ...steps] });
+  const C = (n) => `engine-card-${n}`;
+  const board = (active, step, attacking) => 'local t = engineTable() local blue, white for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p elseif p.color == "White" then white = p end end ' +
+    `engineStoreStatic("${C(941)}", { n = "Hill Giant", f = "https://img.example/941.jpg", ty = { "Creature" } }) engineStoreStatic("${C(942)}", { n = "Wall of Omens", f = "https://img.example/942.jpg", ty = { "Creature" } }) ` +
+    `white.battlefield = white.battlefield or {} blue.battlefield = blue.battlefield or {} table.insert(white.battlefield, { s = 1, id = "${C(941)}", ctl = "White", atk = ${attacking}, atkT = ${attacking ? '"Blue"' : "nil"} }) ` +
+    `table.insert(blue.battlefield, { s = 1, id = "${C(942)}", ctl = "Blue" }) t.active = "${active}" t.step = "${step}" engineRender(t) __sim.frames(60) return "laid"`;
+  const attr = (id, k, mark) => q(`return tostring(UI.getAttribute("${id}", "${k}"))`, mark);
+  const phase = (c, mark) => q(`return tostring(UI.getValue("eng_phase_${c}"))`, mark);
+  const block = ask({ promptId: 1601, kind: "block", title: "Choose blockers", mode: "multi", min: 0, max: 1, options: [{ id: `${C(942)}|${C(941)}`, label: "Wall of Omens 0/4 blocks Hill Giant 3/3" }] });
+  const r = both([q(board("White", "combatDeclareBlockers", true), "board"), block, { frames: 10 },
+    attr("eng_opt_Blue_1", "color", "block line"), attr("eng_big_Blue", "color", "block done"), phase("Blue", "attacked bar"), phase("White", "attacker bar"),
+    q('onMtgSlot(Player.Blue, nil, "eng_opt_Blue_1") return "picked"', "pick block"), attr("eng_opt_Blue_1", "color", "block picked")]);
+  const r2 = both([q(board("White", "combatBeginning", false), "board"), phase("Blue", "not attacked bar")]);
+  const r3 = both([q(board("Blue", "combatDeclareAttackers", false), "board"),
+    ask({ promptId: 1602, kind: "attack", title: "Choose attackers", mode: "multi", min: 0, max: 1, keepOrder: true,
+      options: [{ id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" }, { id: `${C(942)}|player-1`, label: "Wall of Omens 0/4 → AI 1" }] }), { frames: 10 },
+    attr("eng_opt_Blue_1", "color", "all attack"), attr("eng_opt_Blue_2", "color", "no attacks"), attr("eng_opt_Blue_3", "color", "attack line"),
+    attr("eng_big_Blue", "color", "big none"), attr("eng_big2_Blue", "color", "small all"), phase("Blue", "attacking bar"),
+    q('onMtgSlot(Player.Blue, nil, "eng_opt_Blue_3") return "picked"', "pick attack"), attr("eng_opt_Blue_3", "color", "attack picked"),
+    attr("eng_big_Blue", "color", "big attack"), attr("eng_big_Blue", "text", "big attack text"),
+    // the next question (priority) gives the corner back its own colours
+    ask({ promptId: 1603, kind: "priority", title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "__endturn", label: "End turn" }] }), { frames: 10 },
+    attr("eng_big_Blue", "color", "big after"), attr("eng_big2_Blue", "color", "small after")]);
+  const v = (res, mark) => String(valueOf(res, mark)).toUpperCase();
+  ok("combat colours: precondition, no errors", !r.errors.length && !r2.errors.length && !r3.errors.length, [...r.errors, ...r2.errors, ...r3.errors].join(" | "));
+  ok("combat colours: a blockers line is red, brighter once picked", v(r, "block line") === "#5E1E1E" && v(r, "block picked") === "#C62828", `${v(r, "block line")} / ${v(r, "block picked")}`);
+  ok("combat colours: the blockers question's Done is red", v(r, "block done") === "#C62828", v(r, "block done"));
+  ok("combat colours: COMBAT is red in the phase bar of the player attacked", v(r, "attacked bar").includes("<COLOR=#FF6B6B>COMBAT"), v(r, "attacked bar"));
+  ok("combat colours: and green in the attacking player's", v(r, "attacker bar").includes("<COLOR=#7CFC9A>COMBAT"), v(r, "attacker bar"));
+  ok("combat colours: COMBAT stays gold for a player nobody attacks", v(r2, "not attacked bar").includes("<COLOR=#FFD27A>COMBAT"), v(r2, "not attacked bar"));
+  ok("combat colours: an attack line is green, brighter once picked", v(r3, "attack line") === "#1F4D2B" && v(r3, "attack picked") === "#2E9E4F", `${v(r3, "attack line")} / ${v(r3, "attack picked")}`);
+  ok("combat colours: All attack green, No attacks navy", v(r3, "all attack") === "#2E9E4F" && v(r3, "no attacks") === "#2E3A59", `${v(r3, "all attack")} / ${v(r3, "no attacks")}`);
+  ok("combat colours: the corner's No attacks navy and All attack green", v(r3, "big none") === "#2E3A59" && v(r3, "small all") === "#2E9E4F", `${v(r3, "big none")} / ${v(r3, "small all")}`);
+  ok("combat colours: Attack (1) green", v(r3, "big attack") === "#2E9E4F" && v(r3, "big attack text") === "ATTACK (1)", `${v(r3, "big attack")} / ${v(r3, "big attack text")}`);
+  ok("combat colours: COMBAT is green on your own turn", v(r3, "attacking bar").includes("<COLOR=#7CFC9A>COMBAT"), v(r3, "attacking bar"));
+  ok("combat colours: the next question's corner is orange and navy again", v(r3, "big after") === "#E8711A" && v(r3, "small after") === "#2E3A59", `${v(r3, "big after")} / ${v(r3, "small after")}`);
+}
+// Combat pickers under tabs (item 2): an attack question with 20 Spirit tokens, a Grizzly Bears and a Hill Giant has one
+// tab per name; a tab shows its lines (and All attack / No attacks); a search looks through every tab
+{
+  const C = (n) => `engine-card-${n}`;
+  const statics = (list) => list.map(([n, name]) => `engineStoreStatic("${C(n)}", { n = "${name}", f = "https://img.example/${n}.jpg", ty = { "Creature" } }) `).join("") + 'return "stored"';
+  const spirits = Array.from({ length: 20 }, (_, i) => [951 + i, "Spirit Token"]);
+  const others = [[971, "Grizzly Bears"], [972, "Hill Giant"]];
+  const quick = [{ id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" }];
+  const lines = [...spirits.map(([n], i) => ({ id: `${C(n)}|player-1`, label: `Spirit Token 1/1 #${i + 1} → AI 1` })),
+    { id: `${C(971)}|player-1`, label: "Grizzly Bears 2/2 → AI 1" }, { id: `${C(972)}|player-1`, label: "Hill Giant 3/3 → AI 1" }];
+  const attack = (pid, options) => ask({ promptId: pid, kind: "attack", title: "Choose attackers", mode: "multi", min: 0, max: options.length, keepOrder: true, options });
+  const texts = (mark, prefixId, n) => q(`local s = {} for k = 1, ${n} do local id = "${prefixId}" .. k if UI.getAttribute(id, "active") == "true" then s[#s + 1] = tostring(UI.getAttribute(id, "text")) else s[#s + 1] = "-" end end return table.concat(s, "|")`, mark);
+  const tabs = (mark) => texts(mark, "eng_ctab_Blue_", 8);
+  const opts = (mark) => texts(mark, "eng_opt_Blue_", 30);
+  const gold = (mark) => q('local s = {} for k = 1, 8 do s[#s + 1] = (UI.getAttribute("eng_ctab_Blue_" .. k, "color") == ENGINE_THEME.tabOn) and tostring(k) or nil end return "gold:" .. table.concat(s, ",")', mark);
+  const r = run([q(statics([...spirits, ...others]), "statics"), attack(1701, [...quick, ...lines]), { frames: 10 },
+    q('return tostring(UI.getAttribute("eng_ctabs_Blue", "active"))', "tabs on"), tabs("tabs"), gold("gold 1"), opts("list 1"),
+    q('onMtgCTab(Player.Blue, nil, "eng_ctab_Blue_2") return "tab 2"', "click 2"), opts("list 2"), gold("gold 2"),
+    q('onMtgSlot(Player.Blue, nil, "eng_opt_Blue_3") return "picked"', "pick bears"), tabs("tabs picked"), q('return tostring(engineSelectedFor("Blue", 23))', "bears selected"),
+    q('onMtgSearch(Player.Blue, "hill", "eng_search_Blue") return "searched"', "search"), opts("list search"), gold("gold search"),
+    // a small question: no tabs
+    attack(1702, [...quick, lines[0], lines[20], lines[21]]), { frames: 10 }, q('return tostring(UI.getAttribute("eng_ctabs_Blue", "active"))', "small tabs")]);
+  // nine names: seven tabs and "More tabs"
+  const nine = Array.from({ length: 9 }, (_, i) => [973 + i, `Creature ${String.fromCharCode(65 + i)}`]);
+  const r2 = run([q(statics(nine), "statics"), attack(1703, [...quick, ...nine.map(([n, name]) => ({ id: `${C(n)}|player-1`, label: `${name} 1/1 → AI 1` }))]), { frames: 10 },
+    tabs("nine"), q('onMtgCTab(Player.Blue, nil, "eng_ctab_Blue_8") return "more"', "more"), tabs("nine page 2"),
+    q('onMtgCTab(Player.Blue, nil, "eng_ctab_Blue_1") return "h"', "click h"), opts("list h")]);
+  // a blockers question gets them too, by the blocker's name
+  const r3 = run([q(statics([...spirits.slice(0, 10), [971, "Grizzly Bears"], [990, "Hill Giant"]]), "statics"),
+    ask({ promptId: 1704, kind: "block", title: "Choose blockers", mode: "multi", min: 0, max: 11,
+      options: [...spirits.slice(0, 10).map(([n], i) => ({ id: `${C(n)}|${C(990)}`, label: `Spirit Token 1/1 #${i + 1} blocks Hill Giant 3/3` })), { id: `${C(971)}|${C(990)}`, label: "Grizzly Bears 2/2 blocks Hill Giant 3/3" }] }), { frames: 10 },
+    tabs("block tabs")]);
+  // creatures the table holds no name for yet: filed by the line's own words, without the number and the size
+  const unknown = Array.from({ length: 10 }, (_, i) => C(99001 + i));
+  const r4 = run([attack(1705, [...quick, ...unknown.map((id, i) => ({ id: `${id}|player-1`, label: `Spirit Token 1/1 #${i + 1} → AI 1` })), { id: `${C(99020)}|player-1`, label: "Goblin Token 1/1 → AI 1" }]), { frames: 10 },
+    tabs("unnamed attack"),
+    ask({ promptId: 1706, kind: "block", title: "Choose blockers", mode: "multi", min: 0, max: 11,
+      options: [...unknown.map((id, i) => ({ id: `${id}|${C(99030)}`, label: `Spirit Token 1/1 #${i + 1} blocks Hill Giant 3/3` })), { id: `${C(99021)}|${C(99030)}`, label: "Wall of Omens 0/4 blocks Hill Giant 3/3" }] }), { frames: 10 },
+    tabs("unnamed block")]);
+  const v = (res, mark) => String(valueOf(res, mark));
+  ok("combat tabs: precondition, no errors", !r.errors.length && !r2.errors.length && !r3.errors.length && !r4.errors.length, [...r.errors, ...r2.errors, ...r3.errors, ...r4.errors].join(" | "));
+  ok("combat tabs: a creature with no name on the table yet is filed by its line's words", v(r4, "unnamed attack") === "Spirit Token (10)|Goblin Token (1)|-|-|-|-|-|-" && v(r4, "unnamed block") === "Spirit Token (10)|Wall of Omens (1)|-|-|-|-|-|-", `${v(r4, "unnamed attack")} / ${v(r4, "unnamed block")}`);
+  ok("combat tabs: a big attack question shows the tabs", v(r, "tabs on") === "true", v(r, "tabs on"));
+  ok("combat tabs: one tab per name, the twenty tokens under one", v(r, "tabs") === "Spirit Token (20)|Grizzly Bears (1)|Hill Giant (1)|-|-|-|-|-", v(r, "tabs"));
+  ok("combat tabs: the first tab is open (gold)", v(r, "gold 1") === "gold:1", v(r, "gold 1"));
+  const l1 = v(r, "list 1").split("|");
+  ok("combat tabs: the open tab lists its lines under All attack / No attacks", l1[0] === "[  ] All attack" && l1[1] === "[  ] No attacks" && l1[2] === "[  ] Spirit Token 1/1 #1 → AI 1" && l1[21] === "[  ] Spirit Token 1/1 #20 → AI 1" && l1[22] === "-", l1.slice(0, 4).join(" / ") + " ... " + l1.slice(20, 24).join(" / "));
+  const l2 = v(r, "list 2").split("|");
+  ok("combat tabs: another tab shows only its own lines", l2[2] === "[  ] Grizzly Bears 2/2 → AI 1" && l2[3] === "-" && v(r, "gold 2") === "gold:2", `${l2.slice(0, 4).join(" / ")} ${v(r, "gold 2")}`);
+  ok("combat tabs: a line picked under a tab picks that option, and its tab counts it", v(r, "bears selected") === "true" && v(r, "tabs picked").startsWith("Spirit Token (20)|Grizzly Bears (1/1)|"), `${v(r, "bears selected")} ${v(r, "tabs picked")}`);
+  const ls = v(r, "list search").split("|");
+  ok("combat tabs: a search looks through every tab, no tab open", ls.includes("[  ] Hill Giant 3/3 → AI 1") && v(r, "gold search") === "gold:", `${ls.slice(0, 3).join(" / ")} ${v(r, "gold search")}`);
+  ok("combat tabs: a small attack question has none", v(r, "small tabs") === "false", v(r, "small tabs"));
+  ok("combat tabs: nine names: seven tabs and More tabs", v(r2, "nine") === "Creature A (1)|Creature B (1)|Creature C (1)|Creature D (1)|Creature E (1)|Creature F (1)|Creature G (1)|More tabs (1/2)", v(r2, "nine"));
+  ok("combat tabs: More tabs shows the next names", v(r2, "nine page 2") === "Creature H (1)|Creature I (1)|-|-|-|-|-|More tabs (2/2)", v(r2, "nine page 2"));
+  ok("combat tabs: a tab of the second page shows its line", v(r2, "list h").split("|")[2] === "[  ] Creature H 1/1 → AI 1", v(r2, "list h").split("|").slice(0, 4).join(" / "));
+  ok("combat tabs: a blockers question has them too, by the blocker", v(r3, "block tabs") === "Spirit Token (10)|Grizzly Bears (1)|-|-|-|-|-|-", v(r3, "block tabs"));
+}
+// Assigning a blocker always confirms (item 2: "sometimes gives no confirmation"): every click on the table says what
+// it did, a second blocker's "Now click the attacker" within 3 s included, and an attacker clicked after a block was
+// taken back sets the new block
+{
+  const both = (steps) => simulate({ save, seated: ["Blue", "White"], steps: [...prefix, ...steps] });
+  const C = (n) => `engine-card-${n}`;
+  const board = 'local t = engineTable() local blue, white for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p elseif p.color == "White" then white = p end end ' +
+    `for _, n in ipairs({ 981, 982 }) do engineStoreStatic("engine-card-" .. n, { n = "Wall of Omens", f = "https://img.example/w.jpg", ty = { "Creature" } }) table.insert(blue.battlefield, { s = 1, id = "engine-card-" .. n, ctl = "Blue" }) end ` +
+    `for _, n in ipairs({ 983, 984 }) do engineStoreStatic("engine-card-" .. n, { n = "Spirit Token", f = "https://img.example/s.jpg", ty = { "Creature" }, tok = true }) table.insert(white.battlefield, { s = 1, id = "engine-card-" .. n, ctl = "White", atk = true, atkT = "Blue" }) end ` +
+    't.active = "White" t.step = "combatDeclareBlockers" engineRender(t) __sim.frames(60) return "laid"';
+  const pair = (b, a, bi, ai) => ({ id: `${C(b)}|${C(a)}`, label: `Wall of Omens 0/4 #${bi} blocks Spirit Token 1/1 #${ai}` });
+  const block = ask({ promptId: 1801, kind: "block", title: "Choose blockers", mode: "multi", min: 0, max: 4, options: [pair(981, 983, 1, 1), pair(981, 984, 1, 2), pair(982, 983, 2, 1), pair(982, 984, 2, 2)] });
+  const click = (n, mark) => ({ lua: `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(n)}" then o = x end end if o == nil then return "none" end onPlayerAction(Player.Blue, Player.Action.Select, { o }) return "clicked"`, mark, frames: 30 });
+  const picks = (mark) => q('local s = {} for i = 1, 4 do s[#s + 1] = engineSelectedFor("Blue", i) and "x" or "." end return table.concat(s)', mark);
+  const r = both([q(board, "board"), block, { frames: 10 },
+    click(981, "a"), click(983, "b"), click(982, "c"), click(983, "d"), picks("after d"),
+    click(981, "e"), click(984, "f"), picks("after f"),
+    click(982, "g"), click(982, "h"), picks("after h"),
+    q('onMtgSlot(Player.Blue, nil, "eng_opt_Blue_4") return "panel"', "i"),
+    // the same words twice within 3 s: said twice (k and m are both "... won't block")
+    click(981, "j"), click(981, "k"), click(981, "l"), click(981, "m")]);
+  const told = (mark) => fxOf(r, mark).filter((l) => /broadcastToColor/.test(l) && /Blue/.test(l)).join(" || ");
+  ok("block confirm: precondition, no errors", !r.errors.length, r.errors.join(" | "));
+  ok("block confirm: a blocker clicked asks for its attacker, by its numbered name", told("a").includes("Now click the attacker for Wall of Omens 0/4 #1"), told("a"));
+  ok("block confirm: the attacker clicked confirms the block", told("b").includes("Wall of Omens 0/4 #1 blocks Spirit Token 1/1 #1."), told("b"));
+  ok("block confirm: a second blocker within 3 s is asked too", told("c").includes("Now click the attacker for Wall of Omens 0/4 #2"), told("c"));
+  ok("block confirm: and its block is confirmed", told("d").includes("Wall of Omens 0/4 #2 blocks Spirit Token 1/1 #1.") && valueOf(r, "after d") === "x.x.", `${told("d")} ${valueOf(r, "after d")}`);
+  ok("block confirm: a blocking creature clicked has its block taken back, said", told("e").includes("Wall of Omens 0/4 #1's block is taken back"), told("e"));
+  ok("block confirm: and the attacker clicked next is its new block, confirmed", told("f").includes("Wall of Omens 0/4 #1 blocks Spirit Token 1/1 #2.") && valueOf(r, "after f") === ".xx.", `${told("f")} ${valueOf(r, "after f")}`);
+  ok("block confirm: the waiting blocker clicked again blocks nothing, said", told("h").includes("Wall of Omens 0/4 #2 won't block") && valueOf(r, "after h") === ".x..", `${told("h")} ${valueOf(r, "after h")}`);
+  ok("block confirm: a block picked in the window is confirmed in the chat", told("i").includes("Wall of Omens 0/4 #2 blocks Spirit Token 1/1 #2. Done when finished."), told("i"));
+  ok("block confirm: the same words again within 3 s are said again", told("k").includes("Wall of Omens 0/4 #1 won't block") && told("m").includes("Wall of Omens 0/4 #1 won't block"), `${told("k")} / ${told("m")}`);
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

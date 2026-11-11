@@ -350,7 +350,7 @@
      "f72 \"editButton\" obj:dc9c6d 7 \"0\"",
      "f72 \"editButton\" obj:dc9c6d 8 \"0\"",
      "f72 \"editButton\" obj:dc9c6d 9 \"0\"",
-     "f72 \"UI.setXml\" \"1352515610/24438\"",
+     "f72 \"UI.setXml\" \"671223335/25396\"",
      "f72 \"setPosition\" obj:e2f7ae V(27,-18.97,27)",
      "f72 \"setPosition\" obj:c489e1 V(19,-19,27)",
      "f72 \"setPosition\" obj:b49d50 V(25,-18.97,27)",
@@ -917,7 +917,7 @@
      "f228 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"Pass priority\",textColor=\"#ffffff\"}",
      "f228 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"End turn\",textColor=\"#ffffff\"}",
      "f228 \"menu+\" obj:s00014 \"Play Island\"",
-     "f228 \"objUI.setXml\" obj:s00014 \"1503888588/555\""
+     "f229 \"objUI.setXml\" obj:s00014 \"1503888588/555\""
     ]
    },
    {
@@ -931,6 +931,7 @@
     "step": "35 prompt",
     "fx": [
      "f240 \"menu clear\" obj:s00014",
+     "f240 \"objUI.setAttribute\" obj:s00014 \"eng_play\" \"active\" \"false\"",
      "f240 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f240 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f240 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -938,8 +939,7 @@
      "f240 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f240 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f240 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}",
-     "f240 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}",
-     "f240 \"objUI.setAttribute\" obj:s00014 \"eng_play\" \"active\" \"false\""
+     "f240 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}"
     ]
    },
    {
@@ -954,7 +954,7 @@
      "f246 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"Pass priority\",textColor=\"#ffffff\"}",
      "f246 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"End turn\",textColor=\"#ffffff\"}",
      "f246 \"menu+\" obj:s00015 \"Cast Thousand-Faced Shadow\"",
-     "f246 \"objUI.setXml\" obj:s00015 \"1503888588/555\"",
+     "f247 \"objUI.setXml\" obj:s00015 \"1503888588/555\"",
      "f252 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"main1\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":2}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -985,6 +985,7 @@
     "step": "39 prompt",
     "fx": [
      "f264 \"menu clear\" obj:s00015",
+     "f264 \"objUI.setAttribute\" obj:s00015 \"eng_play\" \"active\" \"false\"",
      "f264 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f264 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f264 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -992,8 +993,7 @@
      "f264 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f264 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f264 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}",
-     "f264 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}",
-     "f264 \"objUI.setAttribute\" obj:s00015 \"eng_play\" \"active\" \"false\""
+     "f264 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}"
     ]
    },
    {
@@ -1090,7 +1090,7 @@
     "step": "48 table",
     "fx": [
      "f318 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 2nd turn (game turn 2) - combatBegin - priority: Blue\"",
-     "f318 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f318 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1454,21 +1454,21 @@
     "step": "96 table",
     "fx": [
      "f606 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 3rd turn (game turn 6) - combatBegin - priority: Blue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f606 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f606 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
    },
    {
     "step": "97 prompt",
     "fx": [
      "f612 \"UI.setValue\" \"eng_title_Blue\" \"Declare attackers (select none to skip)\"",
-     "f612 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#e84118\",text=\"[  ] All attack\",textColor=\"#fffffE\"}",
-     "f612 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e86de\",text=\"[  ] No attacks\",textColor=\"#fffffE\"}",
-     "f612 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Thousand-Faced Shadow → AI 1\",textColor=\"#ffffff\"}",
-     "f612 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Thousand-Faced Shadow → AI 2\",textColor=\"#fffffE\"}",
-     "f612 \"UI.setAttributes\" \"eng_opt_Blue_5\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Thousand-Faced Shadow → AI 3\",textColor=\"#fffffE\"}",
+     "f612 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#2E9E4F\",text=\"[  ] All attack\",textColor=\"#fffffE\"}",
+     "f612 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e3a59\",text=\"[  ] No attacks\",textColor=\"#fffffE\"}",
+     "f612 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Thousand-Faced Shadow → AI 1\",textColor=\"#ffffff\"}",
+     "f612 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Thousand-Faced Shadow → AI 2\",textColor=\"#fffffE\"}",
+     "f612 \"UI.setAttributes\" \"eng_opt_Blue_5\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Thousand-Faced Shadow → AI 3\",textColor=\"#fffffE\"}",
      "f612 \"UI.setValue\" \"eng_hint_Blue\" \"Declare attackers (select none to skip)\\\nClick a creature, then who it attacks. Or All attack / No attacks.\"",
-     "f612 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"No attacks\",textColor=\"#ffffff\"}",
-     "f612 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"All attack\",textColor=\"#ffffff\"}",
+     "f612 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"No attacks\",textColor=\"#ffffff\"}",
+     "f612 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2E9E4F\",text=\"All attack\",textColor=\"#ffffff\"}",
      "f612 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (0 chosen)\",textColor=\"#fffffE\"}",
      "f612 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",interactable=\"true\",textColor=\"#ffffff\"}",
      "f612 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#fffffE\"}",
@@ -1921,14 +1921,14 @@
     "step": "151 prompt",
     "fx": [
      "f936 \"UI.setValue\" \"eng_title_Blue\" \"Declare attackers (select none to skip)\"",
-     "f936 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#e84118\",textColor=\"#ffffff\"}",
-     "f936 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e86de\",textColor=\"#ffffff\"}",
-     "f936 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#7a2323\",textColor=\"#fffffE\"}",
-     "f936 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#7a2323\",textColor=\"#ffffff\"}",
-     "f936 \"UI.setAttributes\" \"eng_opt_Blue_5\" {active=\"true\",color=\"#7a2323\",textColor=\"#ffffff\"}",
+     "f936 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#2E9E4F\",textColor=\"#ffffff\"}",
+     "f936 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e3a59\",textColor=\"#ffffff\"}",
+     "f936 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#1F4D2B\",textColor=\"#fffffE\"}",
+     "f936 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#1F4D2B\",textColor=\"#ffffff\"}",
+     "f936 \"UI.setAttributes\" \"eng_opt_Blue_5\" {active=\"true\",color=\"#1F4D2B\",textColor=\"#ffffff\"}",
      "f936 \"UI.setValue\" \"eng_hint_Blue\" \"Declare attackers (select none to skip)\\\nClick a creature, then who it attacks. Or All attack / No attacks.\"",
-     "f936 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"No attacks\",textColor=\"#ffffff\"}",
-     "f936 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"All attack\",textColor=\"#ffffff\"}",
+     "f936 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"No attacks\",textColor=\"#ffffff\"}",
+     "f936 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2E9E4F\",text=\"All attack\",textColor=\"#ffffff\"}",
      "f936 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#ffffff\"}",
      "f936 \"highlightOn\" obj:s00015 {1=0.3,2=1,3=0.4}",
      "f936 \"highlightOn\" obj:s00015 {1=0.3,2=1,3=0.4}",
@@ -1939,7 +1939,7 @@
     "step": "152 table",
     "fx": [
      "f942 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 4th turn (game turn 10) - combatDeclareAttackers - priority: Blue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f942 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f942 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2603,6 +2603,7 @@
      "f1326 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"End turn\",textColor=\"#ffffff\"}",
      "f1327 \"setLock\" obj:s00081 false",
      "f1328 \"menu+\" obj:s00081 \"Play Sunken Hollow\"",
+     "f1329 \"objUI.setXml\" obj:s00081 \"1503888588/555\"",
      "f1332 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"draw\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":14}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -2610,14 +2611,14 @@
     "step": "217 table",
     "fx": [
      "f1332 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 5th turn (game turn 14) - main1 - priority: Blue\"",
-     "f1332 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
-     "f1332 \"objUI.setXml\" obj:s00081 \"1503888588/555\""
+     "f1332 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
     "step": "218 prompt",
     "fx": [
      "f1338 \"menu clear\" obj:s00081",
+     "f1338 \"objUI.setAttribute\" obj:s00081 \"eng_play\" \"active\" \"false\"",
      "f1338 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f1338 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f1338 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -2625,8 +2626,7 @@
      "f1338 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f1338 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f1338 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}",
-     "f1338 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}",
-     "f1338 \"objUI.setAttribute\" obj:s00081 \"eng_play\" \"active\" \"false\""
+     "f1338 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}"
     ]
    },
    {
@@ -2646,21 +2646,21 @@
     "step": "221 table",
     "fx": [
      "f1356 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 5th turn (game turn 14) - combatBegin - priority: Blue\"",
-     "f1356 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1356 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
    },
    {
     "step": "222 prompt",
     "fx": [
      "f1362 \"UI.setValue\" \"eng_title_Blue\" \"Declare attackers (select none to skip)\"",
-     "f1362 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#e84118\",text=\"[  ] All attack\",textColor=\"#ffffff\"}",
-     "f1362 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e86de\",text=\"[  ] No attacks\",textColor=\"#fffffE\"}",
-     "f1362 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Thousand-Faced Shadow → AI 1\",textColor=\"#ffffff\"}",
-     "f1362 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Thousand-Faced Shadow → AI 2\",textColor=\"#ffffff\"}",
-     "f1362 \"UI.setAttributes\" \"eng_opt_Blue_5\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Thousand-Faced Shadow → AI 3\",textColor=\"#ffffff\"}",
+     "f1362 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#2E9E4F\",text=\"[  ] All attack\",textColor=\"#ffffff\"}",
+     "f1362 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e3a59\",text=\"[  ] No attacks\",textColor=\"#fffffE\"}",
+     "f1362 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Thousand-Faced Shadow → AI 1\",textColor=\"#ffffff\"}",
+     "f1362 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Thousand-Faced Shadow → AI 2\",textColor=\"#ffffff\"}",
+     "f1362 \"UI.setAttributes\" \"eng_opt_Blue_5\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Thousand-Faced Shadow → AI 3\",textColor=\"#ffffff\"}",
      "f1362 \"UI.setValue\" \"eng_hint_Blue\" \"Declare attackers (select none to skip)\\\nClick a creature, then who it attacks. Or All attack / No attacks.\"",
-     "f1362 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"No attacks\",textColor=\"#ffffff\"}",
-     "f1362 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"All attack\",textColor=\"#ffffff\"}",
+     "f1362 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"No attacks\",textColor=\"#ffffff\"}",
+     "f1362 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2E9E4F\",text=\"All attack\",textColor=\"#ffffff\"}",
      "f1362 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (0 chosen)\",textColor=\"#fffffE\"}",
      "f1362 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#ffffff\"}",
      "f1362 \"highlightOn\" obj:s00015 {1=0.3,2=1,3=0.4}",
@@ -2820,7 +2820,8 @@
      "f1464 \"setRotationSmooth\" obj:s00072 V(0,270,0)",
      "f1464 \"highlightOn\" obj:s00072 {1=1,2=0.12,3=0.08}",
      "f1464 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,24.4) mid y1.9\"",
-     "f1464 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 15) - combatDeclareAttackers - priority: Blue\""
+     "f1464 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 15) - combatDeclareAttackers - priority: Blue\"",
+     "f1464 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FF6B6B>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2828,9 +2829,9 @@
     "fx": [
      "f1470 \"setLock\" obj:s00072 false",
      "f1470 \"UI.setValue\" \"eng_title_Blue\" \"Declare blockers (select none for no blocks)\"",
-     "f1470 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#1e3a6e\",text=\"[  ] Thousand-Faced Shadow blocks Tireless Provisioner\",textColor=\"#fffffE\"}",
+     "f1470 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#5E1E1E\",text=\"[  ] Thousand-Faced Shadow blocks Tireless Provisioner\",textColor=\"#fffffE\"}",
      "f1470 \"UI.setValue\" \"eng_hint_Blue\" \"Declare blockers (select none for no blocks)\\\nClick your creature, then the attacker it blocks.\"",
-     "f1470 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"Done\",textColor=\"#ffffff\"}",
+     "f1470 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#C62828\",text=\"Done\",textColor=\"#ffffff\"}",
      "f1470 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#fffffE\"}",
      "f1470 \"highlightOn\" obj:s00015 {1=0.3,2=1,3=0.4}",
      "f1470 \"menu+\" obj:s00015 \"Don't block with this\""
@@ -3618,11 +3619,11 @@
      "f1854 \"menu+\" obj:s00012 \"Cast Dokuchi Silencer\"",
      "f1854 \"menu+\" obj:s00010 \"Cast Far\"",
      "f1854 \"menu+\" obj:s00048 \"Cast Price of Fame\"",
-     "f1854 \"objUI.setXml\" obj:s00066 \"1503888588/555\"",
-     "f1854 \"objUI.setXml\" obj:s00012 \"1503888588/555\"",
-     "f1854 \"objUI.setXml\" obj:s00010 \"1503888588/555\"",
-     "f1854 \"objUI.setXml\" obj:s00048 \"1503888588/555\"",
      "f1855 \"setLock\" obj:s00110 false",
+     "f1855 \"objUI.setXml\" obj:s00066 \"1503888588/555\"",
+     "f1855 \"objUI.setXml\" obj:s00012 \"1503888588/555\"",
+     "f1855 \"objUI.setXml\" obj:s00010 \"1503888588/555\"",
+     "f1855 \"objUI.setXml\" obj:s00048 \"1503888588/555\"",
      "f1856 \"menu clear\" obj:s00066",
      "f1856 \"menu clear\" obj:s00012",
      "f1856 \"menu clear\" obj:s00010",
@@ -3631,15 +3632,15 @@
      "f1856 \"menu+\" obj:s00110 \"Cast Discovery\"",
      "f1856 \"menu+\" obj:s00012 \"Cast Dokuchi Silencer\"",
      "f1856 \"menu+\" obj:s00010 \"Cast Far\"",
-     "f1856 \"menu+\" obj:s00048 \"Cast Price of Fame\""
+     "f1856 \"menu+\" obj:s00048 \"Cast Price of Fame\"",
+     "f1857 \"objUI.setXml\" obj:s00110 \"1503888588/555\""
     ]
    },
    {
     "step": "305 table",
     "fx": [
      "f1860 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 18) - main1 - priority: Blue\"",
-     "f1860 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
-     "f1860 \"objUI.setXml\" obj:s00110 \"1503888588/555\""
+     "f1860 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -4348,7 +4349,7 @@
    {
     "step": "7 prompt",
     "fx": [
-     "f72 \"UI.setXml\" \"1352515610/24438\"",
+     "f72 \"UI.setXml\" \"671223335/25396\"",
      "f75 \"UI.setAttribute\" \"eng_panel_Blue\" \"active\" \"false\"",
      "f75 \"UI.setAttributes\" \"eng_toggle_Blue\" {active=\"false\",color=\"#1A1A1A\",textColor=\"#FFFFFE\"}",
      "f75 \"UI.setAttributes\" \"eng_browse_Blue\" {active=\"false\",color=\"#1A1A1A\",textColor=\"#FFFFFE\"}",
@@ -4714,9 +4715,9 @@
      "f216 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"End turn\",textColor=\"#fffffE\"}",
      "f216 \"menu+\" obj:s00007 \"Play Dimir Aqueduct\"",
      "f216 \"menu+\" obj:s00008 \"Play Island\"",
-     "f216 \"objUI.setXml\" obj:s00007 \"1503888588/555\"",
-     "f216 \"objUI.setXml\" obj:s00008 \"1503888588/555\"",
-     "f216 \"objUI.setXml\" obj:s00009 \"1503888588/555\""
+     "f217 \"objUI.setXml\" obj:s00007 \"1503888588/555\"",
+     "f217 \"objUI.setXml\" obj:s00008 \"1503888588/555\"",
+     "f217 \"objUI.setXml\" obj:s00009 \"1503888588/555\""
     ]
    },
    {
@@ -4738,6 +4739,9 @@
     "fx": [
      "f234 \"menu clear\" obj:s00007",
      "f234 \"menu clear\" obj:s00008",
+     "f234 \"objUI.setAttribute\" obj:s00007 \"eng_play\" \"active\" \"false\"",
+     "f234 \"objUI.setAttribute\" obj:s00008 \"eng_play\" \"active\" \"false\"",
+     "f234 \"objUI.setAttribute\" obj:s00009 \"eng_play\" \"active\" \"false\"",
      "f234 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f234 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f234 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -4746,10 +4750,7 @@
      "f234 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f234 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f234 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#ffffff\"}",
-     "f234 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}",
-     "f234 \"objUI.setAttribute\" obj:s00007 \"eng_play\" \"active\" \"false\"",
-     "f234 \"objUI.setAttribute\" obj:s00008 \"eng_play\" \"active\" \"false\"",
-     "f234 \"objUI.setAttribute\" obj:s00009 \"eng_play\" \"active\" \"false\""
+     "f234 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}"
     ]
    },
    {
@@ -4766,8 +4767,6 @@
      "f240 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"End turn\",textColor=\"#fffffE\"}",
      "f240 \"menu+\" obj:s00004 \"Cast Faerie Seer\"",
      "f240 \"menu+\" obj:s00003 \"Cast Sol Ring\"",
-     "f240 \"objUI.setXml\" obj:s00004 \"1503888588/555\"",
-     "f240 \"objUI.setXml\" obj:s00003 \"1503888588/555\"",
      "f241 \"setGMNotes\" obj:s00018 \"enginetrash\"",
      "f241 \"highlightOff\" obj:s00018",
      "f241 \"setInvisibleTo\" obj:s00018 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -4776,6 +4775,8 @@
      "f241 \"setLock\" obj:s00016 false",
      "f241 \"setLock\" obj:s00018 false",
      "f241 \"putObject\" obj:s00016 obj:s00018",
+     "f241 \"objUI.setXml\" obj:s00004 \"1503888588/555\"",
+     "f241 \"objUI.setXml\" obj:s00003 \"1503888588/555\"",
      "f242 \"setHiddenFrom\" obj:s00018 {}",
      "f242 \"setLock\" obj:s00016 true"
     ]
@@ -4799,6 +4800,8 @@
     "fx": [
      "f258 \"menu clear\" obj:s00004",
      "f258 \"menu clear\" obj:s00003",
+     "f258 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"false\"",
+     "f258 \"objUI.setAttribute\" obj:s00003 \"eng_play\" \"active\" \"false\"",
      "f258 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f258 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f258 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -4807,9 +4810,7 @@
      "f258 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f258 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f258 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#ffffff\"}",
-     "f258 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}",
-     "f258 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"false\"",
-     "f258 \"objUI.setAttribute\" obj:s00003 \"eng_play\" \"active\" \"false\""
+     "f258 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}"
     ]
    },
    {
@@ -4897,7 +4898,7 @@
      "f300 \"UI.setAttributes\" \"eng_big2_Blue\" {color=\"#2e3a59\",text=\"End turn\",textColor=\"#ffffff\"}",
      "f300 \"menu+\" obj:s00006 \"Cast Arcane Signet\"",
      "f300 \"menu+\" obj:s00003 \"Mana: tap Sol Ring\"",
-     "f300 \"objUI.setXml\" obj:s00006 \"1503888588/555\""
+     "f301 \"objUI.setXml\" obj:s00006 \"1503888588/555\""
     ]
    },
    {
@@ -4918,6 +4919,7 @@
     "fx": [
      "f318 \"menu clear\" obj:s00006",
      "f318 \"menu clear\" obj:s00003",
+     "f318 \"objUI.setAttribute\" obj:s00006 \"eng_play\" \"active\" \"false\"",
      "f318 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f318 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f318 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -4926,8 +4928,7 @@
      "f318 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f318 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f318 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}",
-     "f318 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}",
-     "f318 \"objUI.setAttribute\" obj:s00006 \"eng_play\" \"active\" \"false\""
+     "f318 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}"
     ]
    },
    {
@@ -5023,6 +5024,7 @@
     "fx": [
      "f372 \"menu clear\" obj:s00004",
      "f372 \"menu clear\" obj:s00006",
+     "f372 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"false\"",
      "f372 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f372 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f372 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -5031,8 +5033,7 @@
      "f372 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f372 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f372 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#ffffff\"}",
-     "f372 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}",
-     "f372 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"false\""
+     "f372 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}"
     ]
    },
    {
@@ -5184,7 +5185,7 @@
     "fx": [
      "f444 \"highlightOff\" obj:s00004",
      "f444 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 2nd turn (game turn 2) - combatBegin - priority: Blue\"",
-     "f444 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f444 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -5384,10 +5385,10 @@
      "f564 \"menu+\" obj:s00003 \"Mana: tap Sol Ring\"",
      "f564 \"objUI.setAttribute\" obj:s00007 \"eng_play\" \"active\" \"true\"",
      "f564 \"objUI.setAttribute\" obj:s00009 \"eng_play\" \"active\" \"true\"",
-     "f564 \"objUI.setXml\" obj:s00005 \"1503888588/555\"",
-     "f564 \"objUI.setXml\" obj:s00017 \"1503888588/555\"",
-     "f564 \"objUI.setXml\" obj:s00002 \"1503888588/555\"",
      "f565 \"setLock\" obj:s00021 false",
+     "f565 \"objUI.setXml\" obj:s00005 \"1503888588/555\"",
+     "f565 \"objUI.setXml\" obj:s00017 \"1503888588/555\"",
+     "f565 \"objUI.setXml\" obj:s00002 \"1503888588/555\"",
      "f566 \"menu clear\" obj:s00007",
      "f566 \"menu clear\" obj:s00009",
      "f566 \"menu clear\" obj:s00005",
@@ -5402,15 +5403,15 @@
      "f566 \"menu+\" obj:s00017 \"Cast Dokuchi Silencer\"",
      "f566 \"menu+\" obj:s00002 \"Cast Yuriko, the Tiger's Shadow\"",
      "f566 \"menu+\" obj:s00006 \"Mana: tap Arcane Signet\"",
-     "f566 \"menu+\" obj:s00003 \"Mana: tap Sol Ring\""
+     "f566 \"menu+\" obj:s00003 \"Mana: tap Sol Ring\"",
+     "f567 \"objUI.setXml\" obj:s00021 \"1503888588/555\""
     ]
    },
    {
     "step": "90 table",
     "fx": [
      "f570 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 3rd turn (game turn 4) - main1 - priority: Blue\"",
-     "f570 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
-     "f570 \"objUI.setXml\" obj:s00021 \"1503888588/555\""
+     "f570 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -5424,6 +5425,12 @@
      "f576 \"menu clear\" obj:s00002",
      "f576 \"menu clear\" obj:s00006",
      "f576 \"menu clear\" obj:s00003",
+     "f576 \"objUI.setAttribute\" obj:s00007 \"eng_play\" \"active\" \"false\"",
+     "f576 \"objUI.setAttribute\" obj:s00009 \"eng_play\" \"active\" \"false\"",
+     "f576 \"objUI.setAttribute\" obj:s00005 \"eng_play\" \"active\" \"false\"",
+     "f576 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
+     "f576 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
+     "f576 \"objUI.setAttribute\" obj:s00021 \"eng_play\" \"active\" \"false\"",
      "f576 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f576 \"UI.setAttribute\" \"eng_search_Blue\" \"active\" \"false\"",
      "f576 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
@@ -5439,13 +5446,7 @@
      "f576 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f576 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f576 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#ffffff\"}",
-     "f576 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}",
-     "f576 \"objUI.setAttribute\" obj:s00007 \"eng_play\" \"active\" \"false\"",
-     "f576 \"objUI.setAttribute\" obj:s00009 \"eng_play\" \"active\" \"false\"",
-     "f576 \"objUI.setAttribute\" obj:s00005 \"eng_play\" \"active\" \"false\"",
-     "f576 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
-     "f576 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
-     "f576 \"objUI.setAttribute\" obj:s00021 \"eng_play\" \"active\" \"false\""
+     "f576 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}"
     ]
    },
    {
@@ -5497,6 +5498,9 @@
      "f600 \"menu clear\" obj:s00002",
      "f600 \"menu clear\" obj:s00006",
      "f600 \"menu clear\" obj:s00003",
+     "f600 \"objUI.setAttribute\" obj:s00005 \"eng_play\" \"active\" \"false\"",
+     "f600 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
+     "f600 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
      "f600 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f600 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f600 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -5509,9 +5513,6 @@
      "f600 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f600 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#ffffff\"}",
      "f600 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}",
-     "f600 \"objUI.setAttribute\" obj:s00005 \"eng_play\" \"active\" \"false\"",
-     "f600 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
-     "f600 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
      "f601 \"setGMNotes\" obj:s00022 \"enginetrash\"",
      "f601 \"highlightOff\" obj:s00022",
      "f601 \"setInvisibleTo\" obj:s00022 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -5643,6 +5644,7 @@
     "step": "105 prompt",
     "fx": [
      "f660 \"menu clear\" obj:s00005",
+     "f660 \"objUI.setAttribute\" obj:s00005 \"eng_play\" \"active\" \"false\"",
      "f660 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f660 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f660 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -5650,20 +5652,19 @@
      "f660 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f660 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f660 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}",
-     "f660 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}",
-     "f660 \"objUI.setAttribute\" obj:s00005 \"eng_play\" \"active\" \"false\""
+     "f660 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}"
     ]
    },
    {
     "step": "106 prompt",
     "fx": [
      "f666 \"UI.setValue\" \"eng_title_Blue\" \"Declare attackers (select none to skip)\"",
-     "f666 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#e84118\",text=\"[  ] All attack\",textColor=\"#fffffE\"}",
-     "f666 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e86de\",text=\"[  ] No attacks\",textColor=\"#ffffff\"}",
-     "f666 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Faerie Seer → AI 1\",textColor=\"#ffffff\"}",
+     "f666 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#2E9E4F\",text=\"[  ] All attack\",textColor=\"#fffffE\"}",
+     "f666 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e3a59\",text=\"[  ] No attacks\",textColor=\"#ffffff\"}",
+     "f666 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Faerie Seer → AI 1\",textColor=\"#ffffff\"}",
      "f666 \"UI.setValue\" \"eng_hint_Blue\" \"Declare attackers (select none to skip)\\\nClick a creature, then who it attacks. Or All attack / No attacks.\"",
-     "f666 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"No attacks\",textColor=\"#ffffff\"}",
-     "f666 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"All attack\",textColor=\"#ffffff\"}",
+     "f666 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"No attacks\",textColor=\"#ffffff\"}",
+     "f666 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2E9E4F\",text=\"All attack\",textColor=\"#ffffff\"}",
      "f666 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (0 chosen)\",textColor=\"#fffffE\"}",
      "f666 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#ffffff\"}",
      "f666 \"highlightOn\" obj:s00004 {1=0.3,2=1,3=0.4}"
@@ -5686,7 +5687,7 @@
     "step": "108 table",
     "fx": [
      "f678 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 3rd turn (game turn 4) - combatDeclareAttackers - priority: Blue\"",
-     "f678 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f678 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -5800,9 +5801,10 @@
     "fx": [
      "f762 \"setLock\" obj:s00011 false",
      "f762 \"UI.setValue\" \"eng_title_Blue\" \"Declare blockers (select none for no blocks)\"",
-     "f762 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#1e3a6e\",text=\"[  ] Dokuchi Silencer blocks Ashling, the Limitless\",textColor=\"#ffffff\"}",
+     "f762 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#5E1E1E\",text=\"[  ] Dokuchi Silencer blocks Ashling, the Limitless\",textColor=\"#ffffff\"}",
+     "f762 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FF6B6B>COMBAT</color></b>   ›   Main 2   ›   End\"",
      "f762 \"UI.setValue\" \"eng_hint_Blue\" \"Declare blockers (select none for no blocks)\\\nClick your creature, then the attacker it blocks.\"",
-     "f762 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"Done\",textColor=\"#ffffff\"}",
+     "f762 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#C62828\",text=\"Done\",textColor=\"#ffffff\"}",
      "f762 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#fffffE\"}",
      "f762 \"highlightOn\" obj:s00017 {1=0.3,2=1,3=0.4}",
      "f762 \"menu+\" obj:s00017 \"Don't block with this\""
@@ -6123,7 +6125,8 @@
      "f908 \"menu+\" obj:s00005 \"Cast Arcane Adaptation\"",
      "f908 \"menu+\" obj:s00002 \"Cast Yuriko, the Tiger's Shadow\"",
      "f908 \"menu+\" obj:s00006 \"Mana: tap Arcane Signet\"",
-     "f908 \"menu+\" obj:s00003 \"Mana: tap Sol Ring\""
+     "f908 \"menu+\" obj:s00003 \"Mana: tap Sol Ring\"",
+     "f909 \"objUI.setXml\" obj:s00028 \"1503888588/555\""
     ]
    },
    {
@@ -6131,7 +6134,6 @@
     "fx": [
      "f912 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 4th turn (game turn 6) - main1 - priority: Blue\"",
      "f912 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
-     "f912 \"objUI.setXml\" obj:s00028 \"1503888588/555\"",
      "f918 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"main1\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":6}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -6145,6 +6147,11 @@
      "f918 \"menu clear\" obj:s00002",
      "f918 \"menu clear\" obj:s00006",
      "f918 \"menu clear\" obj:s00003",
+     "f918 \"objUI.setAttribute\" obj:s00007 \"eng_play\" \"active\" \"false\"",
+     "f918 \"objUI.setAttribute\" obj:s00021 \"eng_play\" \"active\" \"false\"",
+     "f918 \"objUI.setAttribute\" obj:s00005 \"eng_play\" \"active\" \"false\"",
+     "f918 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
+     "f918 \"objUI.setAttribute\" obj:s00028 \"eng_play\" \"active\" \"false\"",
      "f918 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f918 \"UI.setAttribute\" \"eng_search_Blue\" \"active\" \"false\"",
      "f918 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
@@ -6160,11 +6167,6 @@
      "f918 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f918 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}",
      "f918 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}",
-     "f918 \"objUI.setAttribute\" obj:s00007 \"eng_play\" \"active\" \"false\"",
-     "f918 \"objUI.setAttribute\" obj:s00021 \"eng_play\" \"active\" \"false\"",
-     "f918 \"objUI.setAttribute\" obj:s00005 \"eng_play\" \"active\" \"false\"",
-     "f918 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
-     "f918 \"objUI.setAttribute\" obj:s00028 \"eng_play\" \"active\" \"false\"",
      "f919 \"objUI.setAttribute\" obj:23e485 \"eng_fx_1\" \"active\" \"false\""
     ]
    },
@@ -6210,6 +6212,8 @@
      "f942 \"menu clear\" obj:s00002",
      "f942 \"menu clear\" obj:s00006",
      "f942 \"menu clear\" obj:s00003",
+     "f942 \"objUI.setAttribute\" obj:s00005 \"eng_play\" \"active\" \"false\"",
+     "f942 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
      "f942 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f942 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f942 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -6221,8 +6225,6 @@
      "f942 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f942 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}",
      "f942 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}",
-     "f942 \"objUI.setAttribute\" obj:s00005 \"eng_play\" \"active\" \"false\"",
-     "f942 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
      "f943 \"setGMNotes\" obj:s00029 \"enginetrash\"",
      "f943 \"highlightOff\" obj:s00029",
      "f943 \"setInvisibleTo\" obj:s00029 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -6454,6 +6456,7 @@
     "fx": [
      "f1020 \"menu clear\" obj:s00002",
      "f1020 \"menu clear\" obj:s00006",
+     "f1020 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
      "f1020 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f1020 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f1020 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -6462,21 +6465,20 @@
      "f1020 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f1020 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f1020 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#ffffff\"}",
-     "f1020 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}",
-     "f1020 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\""
+     "f1020 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}"
     ]
    },
    {
     "step": "166 prompt",
     "fx": [
      "f1026 \"UI.setValue\" \"eng_title_Blue\" \"Declare attackers (select none to skip)\"",
-     "f1026 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#e84118\",text=\"[  ] All attack\",textColor=\"#ffffff\"}",
-     "f1026 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e86de\",text=\"[  ] No attacks\",textColor=\"#ffffff\"}",
-     "f1026 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Dokuchi Silencer → AI 1\",textColor=\"#ffffff\"}",
-     "f1026 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Faerie Seer → AI 1\",textColor=\"#fffffE\"}",
+     "f1026 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#2E9E4F\",text=\"[  ] All attack\",textColor=\"#ffffff\"}",
+     "f1026 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e3a59\",text=\"[  ] No attacks\",textColor=\"#ffffff\"}",
+     "f1026 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Dokuchi Silencer → AI 1\",textColor=\"#ffffff\"}",
+     "f1026 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Faerie Seer → AI 1\",textColor=\"#fffffE\"}",
      "f1026 \"UI.setValue\" \"eng_hint_Blue\" \"Declare attackers (select none to skip)\\\nClick a creature, then who it attacks. Or All attack / No attacks.\"",
-     "f1026 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"No attacks\",textColor=\"#fffffE\"}",
-     "f1026 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"All attack\",textColor=\"#ffffff\"}",
+     "f1026 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"No attacks\",textColor=\"#fffffE\"}",
+     "f1026 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2E9E4F\",text=\"All attack\",textColor=\"#ffffff\"}",
      "f1026 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (0 chosen)\",textColor=\"#ffffff\"}",
      "f1026 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#fffffE\"}",
      "f1026 \"highlightOn\" obj:s00017 {1=0.3,2=1,3=0.4}",
@@ -6502,7 +6504,7 @@
     "step": "168 table",
     "fx": [
      "f1038 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 4th turn (game turn 6) - combatDeclareAttackers - priority: Blue\"",
-     "f1038 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1038 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -6844,7 +6846,8 @@
      "f1236 \"setRotationSmooth\" obj:s00011 V(0,270,0)",
      "f1236 \"highlightOn\" obj:s00011 {1=1,2=0.12,3=0.08}",
      "f1236 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,24.4) mid y1.9\"",
-     "f1236 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 7) - combatDeclareAttackers - priority: Blue\\\nWaiting for you: draw 1 (click your library or press Draw)\""
+     "f1236 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 7) - combatDeclareAttackers - priority: Blue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
+     "f1236 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FF6B6B>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -7142,7 +7145,9 @@
      "f1376 \"menu+\" obj:s00017 \"Cast Dokuchi Silencer\"",
      "f1376 \"menu+\" obj:s00035 \"Cast Skullsnatcher\"",
      "f1376 \"menu+\" obj:s00006 \"Mana: tap Arcane Signet\"",
-     "f1376 \"menu+\" obj:s00003 \"Mana: tap Sol Ring\""
+     "f1376 \"menu+\" obj:s00003 \"Mana: tap Sol Ring\"",
+     "f1377 \"objUI.setXml\" obj:s00034 \"1503888588/555\"",
+     "f1377 \"objUI.setXml\" obj:s00035 \"1503888588/555\""
     ]
    },
    {
@@ -7150,8 +7155,6 @@
     "fx": [
      "f1380 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 5th turn (game turn 8) - main1 - priority: Blue\"",
      "f1380 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
-     "f1380 \"objUI.setXml\" obj:s00034 \"1503888588/555\"",
-     "f1380 \"objUI.setXml\" obj:s00035 \"1503888588/555\"",
      "f1386 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"main1\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":8}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -7165,6 +7168,11 @@
      "f1386 \"menu clear\" obj:s00035",
      "f1386 \"menu clear\" obj:s00006",
      "f1386 \"menu clear\" obj:s00003",
+     "f1386 \"objUI.setAttribute\" obj:s00007 \"eng_play\" \"active\" \"false\"",
+     "f1386 \"objUI.setAttribute\" obj:s00021 \"eng_play\" \"active\" \"false\"",
+     "f1386 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
+     "f1386 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\"",
+     "f1386 \"objUI.setAttribute\" obj:s00035 \"eng_play\" \"active\" \"false\"",
      "f1386 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f1386 \"UI.setAttribute\" \"eng_search_Blue\" \"active\" \"false\"",
      "f1386 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
@@ -7180,11 +7188,6 @@
      "f1386 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f1386 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}",
      "f1386 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}",
-     "f1386 \"objUI.setAttribute\" obj:s00007 \"eng_play\" \"active\" \"false\"",
-     "f1386 \"objUI.setAttribute\" obj:s00021 \"eng_play\" \"active\" \"false\"",
-     "f1386 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
-     "f1386 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\"",
-     "f1386 \"objUI.setAttribute\" obj:s00035 \"eng_play\" \"active\" \"false\"",
      "f1387 \"objUI.setAttribute\" obj:23e485 \"eng_fx_2\" \"active\" \"false\""
     ]
    },
@@ -7323,6 +7326,9 @@
      "f1440 \"menu clear\" obj:s00035",
      "f1440 \"menu clear\" obj:s00006",
      "f1440 \"menu clear\" obj:s00003",
+     "f1440 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\"",
+     "f1440 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
+     "f1440 \"objUI.setAttribute\" obj:s00035 \"eng_play\" \"active\" \"false\"",
      "f1440 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f1440 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f1440 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -7335,9 +7341,6 @@
      "f1440 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f1440 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}",
      "f1440 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}",
-     "f1440 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\"",
-     "f1440 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
-     "f1440 \"objUI.setAttribute\" obj:s00035 \"eng_play\" \"active\" \"false\"",
      "f1446 \"UI.setValue\" \"eng_banner_Blue\" \"MAIN PHASE 1\"",
      "f1446 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFFFFF\"",
      "f1446 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#101010E0\"",
@@ -7455,6 +7458,7 @@
     "fx": [
      "f1494 \"setPositionSmooth\" obj:s00034 V(22.95,1.15,13.8)",
      "f1494 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 5th turn (game turn 8) - main1 - priority: Blue\"",
+     "f1494 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"true\"",
      "f1495 \"createButton\" obj:s00034 \"{1}, {T}: Scry 2. (Look at…\" \"0.12,0.13,0.16\" \"at 0.00,0.31,-0.85\""
     ]
    },
@@ -7465,6 +7469,9 @@
      "f1500 \"menu clear\" obj:s00017",
      "f1500 \"menu clear\" obj:s00035",
      "f1500 \"menu clear\" obj:s00006",
+     "f1500 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
+     "f1500 \"objUI.setAttribute\" obj:s00035 \"eng_play\" \"active\" \"false\"",
+     "f1500 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\"",
      "f1500 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f1500 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f1500 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -7475,22 +7482,20 @@
      "f1500 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f1500 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f1500 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#ffffff\"}",
-     "f1500 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}",
-     "f1500 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
-     "f1500 \"objUI.setAttribute\" obj:s00035 \"eng_play\" \"active\" \"false\""
+     "f1500 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#fffffE\"}"
     ]
    },
    {
     "step": "246 prompt",
     "fx": [
      "f1506 \"UI.setValue\" \"eng_title_Blue\" \"Declare attackers (select none to skip)\"",
-     "f1506 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#e84118\",text=\"[  ] All attack\",textColor=\"#ffffff\"}",
-     "f1506 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e86de\",text=\"[  ] No attacks\",textColor=\"#fffffE\"}",
-     "f1506 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Faerie Seer → AI 1\",textColor=\"#ffffff\"}",
-     "f1506 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Yuriko, the Tiger's Shadow → AI 1\",textColor=\"#fffffE\"}",
+     "f1506 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#2E9E4F\",text=\"[  ] All attack\",textColor=\"#ffffff\"}",
+     "f1506 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e3a59\",text=\"[  ] No attacks\",textColor=\"#fffffE\"}",
+     "f1506 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Faerie Seer → AI 1\",textColor=\"#ffffff\"}",
+     "f1506 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Yuriko, the Tiger's Shadow → AI 1\",textColor=\"#fffffE\"}",
      "f1506 \"UI.setValue\" \"eng_hint_Blue\" \"Declare attackers (select none to skip)\\\nClick a creature, then who it attacks. Or All attack / No attacks.\"",
-     "f1506 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"No attacks\",textColor=\"#fffffE\"}",
-     "f1506 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"All attack\",textColor=\"#ffffff\"}",
+     "f1506 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"No attacks\",textColor=\"#fffffE\"}",
+     "f1506 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2E9E4F\",text=\"All attack\",textColor=\"#ffffff\"}",
      "f1506 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (0 chosen)\",textColor=\"#fffffE\"}",
      "f1506 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#ffffff\"}",
      "f1506 \"highlightOn\" obj:s00004 {1=0.3,2=1,3=0.4}",
@@ -7517,7 +7522,7 @@
     "step": "248 table",
     "fx": [
      "f1518 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 5th turn (game turn 8) - combatDeclareAttackers - priority: Blue\"",
-     "f1518 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f1518 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\"",
      "f1524 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatDeclareAttackers\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":8}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -7561,6 +7566,7 @@
      "f1542 \"menu+\" obj:s00017 \"Ninjutsu {1}{B} ({1}{B}, Return an unb…\"",
      "f1542 \"menu+\" obj:s00035 \"Ninjutsu {B} ({B}, Return an unblocked…\"",
      "f1542 \"menu+\" obj:s00006 \"Mana: tap Arcane Signet\"",
+     "f1542 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"true\"",
      "f1543 \"createButton\" obj:s00034 \"{1}, {T}: Scry 2. (Look at…\" \"0.12,0.13,0.16\" \"at 0.00,0.31,-0.85\""
     ]
    },
@@ -7577,6 +7583,7 @@
      "f1554 \"menu clear\" obj:s00017",
      "f1554 \"menu clear\" obj:s00035",
      "f1554 \"menu clear\" obj:s00006",
+     "f1554 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\"",
      "f1554 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f1554 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f1554 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -7971,6 +7978,7 @@
      "f1764 \"menu+\" obj:s00034 \"{1}, {T}: Scry 2. (Look at the top two…\"",
      "f1764 \"menu+\" obj:s00004 \"Cast Faerie Seer\"",
      "f1764 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"true\"",
+     "f1764 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"true\"",
      "f1765 \"createButton\" obj:s00034 \"{1}, {T}: Scry 2. (Look at…\" \"0.12,0.13,0.16\" \"at 0.00,0.31,-0.85\"",
      "f1768 \"objUI.setAttribute\" obj:23e485 \"eng_fx_1\" \"active\" \"false\""
     ]
@@ -7992,6 +8000,8 @@
     "fx": [
      "f1776 \"menu clear\" obj:s00034",
      "f1776 \"menu clear\" obj:s00004",
+     "f1776 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"false\"",
+     "f1776 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\"",
      "f1776 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f1776 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f1776 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -8000,8 +8010,7 @@
      "f1776 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f1776 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f1776 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}",
-     "f1776 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}",
-     "f1776 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"false\""
+     "f1776 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}"
     ]
    },
    {
@@ -8183,7 +8192,8 @@
      "f1884 \"setRotationSmooth\" obj:s00011 V(0,270,0)",
      "f1884 \"highlightOn\" obj:s00011 {1=1,2=0.12,3=0.08}",
      "f1884 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,24.4) mid y1.9\"",
-     "f1884 \"UI.setValue\" \"eng_status_Blue\" \"White's 5th turn (game turn 9) - combatDeclareAttackers - priority: Blue\\\nWaiting for you: draw 2 (click your library or press Draw)\""
+     "f1884 \"UI.setValue\" \"eng_status_Blue\" \"White's 5th turn (game turn 9) - combatDeclareAttackers - priority: Blue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
+     "f1884 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FF6B6B>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -8481,6 +8491,7 @@
      "f2028 \"objUI.setAttribute\" obj:s00021 \"eng_play\" \"active\" \"true\"",
      "f2028 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"true\"",
      "f2028 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"true\"",
+     "f2028 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"true\"",
      "f2029 \"setLock\" obj:s00043 false",
      "f2029 \"setLock\" obj:s00044 false",
      "f2029 \"setLock\" obj:s00045 false",
@@ -8501,7 +8512,10 @@
      "f2030 \"menu+\" obj:s00043 \"Cast Satoru Umezawa\"",
      "f2030 \"menu+\" obj:s00045 \"Cast Tetsuko Umezawa, Fugitive\"",
      "f2030 \"menu+\" obj:s00006 \"Mana: tap Arcane Signet\"",
-     "f2030 \"menu+\" obj:s00003 \"Mana: tap Sol Ring\""
+     "f2030 \"menu+\" obj:s00003 \"Mana: tap Sol Ring\"",
+     "f2031 \"objUI.setXml\" obj:s00044 \"1503888588/555\"",
+     "f2031 \"objUI.setXml\" obj:s00043 \"1503888588/555\"",
+     "f2031 \"objUI.setXml\" obj:s00045 \"1503888588/555\""
     ]
    },
    {
@@ -8509,9 +8523,6 @@
     "fx": [
      "f2034 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - main1 - priority: Blue\"",
      "f2034 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
-     "f2034 \"objUI.setXml\" obj:s00044 \"1503888588/555\"",
-     "f2034 \"objUI.setXml\" obj:s00043 \"1503888588/555\"",
-     "f2034 \"objUI.setXml\" obj:s00045 \"1503888588/555\"",
      "f2040 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue drew 1: held on the library until the library or Draw is clicked (Auto off)\\\\\\\\n2026-10-20 12:00:00 Blue takes the held all\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\""
     ]
    },
@@ -8528,6 +8539,14 @@
      "f2040 \"menu clear\" obj:s00045",
      "f2040 \"menu clear\" obj:s00006",
      "f2040 \"menu clear\" obj:s00003",
+     "f2040 \"objUI.setAttribute\" obj:s00008 \"eng_play\" \"active\" \"false\"",
+     "f2040 \"objUI.setAttribute\" obj:s00021 \"eng_play\" \"active\" \"false\"",
+     "f2040 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
+     "f2040 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"false\"",
+     "f2040 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\"",
+     "f2040 \"objUI.setAttribute\" obj:s00044 \"eng_play\" \"active\" \"false\"",
+     "f2040 \"objUI.setAttribute\" obj:s00043 \"eng_play\" \"active\" \"false\"",
+     "f2040 \"objUI.setAttribute\" obj:s00045 \"eng_play\" \"active\" \"false\"",
      "f2040 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f2040 \"UI.setAttribute\" \"eng_search_Blue\" \"active\" \"false\"",
      "f2040 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
@@ -8546,13 +8565,6 @@
      "f2040 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f2040 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#ffffff\"}",
      "f2040 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}",
-     "f2040 \"objUI.setAttribute\" obj:s00008 \"eng_play\" \"active\" \"false\"",
-     "f2040 \"objUI.setAttribute\" obj:s00021 \"eng_play\" \"active\" \"false\"",
-     "f2040 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
-     "f2040 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"false\"",
-     "f2040 \"objUI.setAttribute\" obj:s00044 \"eng_play\" \"active\" \"false\"",
-     "f2040 \"objUI.setAttribute\" obj:s00043 \"eng_play\" \"active\" \"false\"",
-     "f2040 \"objUI.setAttribute\" obj:s00045 \"eng_play\" \"active\" \"false\"",
      "f2041 \"objUI.setAttribute\" obj:23e485 \"eng_fx_2\" \"active\" \"false\"",
      "f2044 \"highlightOn\" obj:s00042 {1=0.62,2=0.25,3=0.95}"
     ]
@@ -8589,6 +8601,7 @@
      "f2046 \"objUI.setAttribute\" obj:s00044 \"eng_play\" \"active\" \"true\"",
      "f2046 \"objUI.setAttribute\" obj:s00043 \"eng_play\" \"active\" \"true\"",
      "f2046 \"objUI.setAttribute\" obj:s00045 \"eng_play\" \"active\" \"true\"",
+     "f2046 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"true\"",
      "f2047 \"createButton\" obj:s00034 \"{1}, {T}: Scry 2. (Look at…\" \"0.12,0.13,0.16\" \"at 0.00,0.31,-0.85\""
     ]
    },
@@ -8617,6 +8630,12 @@
      "f2064 \"menu clear\" obj:s00045",
      "f2064 \"menu clear\" obj:s00006",
      "f2064 \"menu clear\" obj:s00003",
+     "f2064 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
+     "f2064 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"false\"",
+     "f2064 \"objUI.setAttribute\" obj:s00044 \"eng_play\" \"active\" \"false\"",
+     "f2064 \"objUI.setAttribute\" obj:s00043 \"eng_play\" \"active\" \"false\"",
+     "f2064 \"objUI.setAttribute\" obj:s00045 \"eng_play\" \"active\" \"false\"",
+     "f2064 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\"",
      "f2064 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f2064 \"UI.setAttribute\" \"eng_search_Blue\" \"active\" \"false\"",
      "f2064 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
@@ -8633,11 +8652,6 @@
      "f2064 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f2064 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#ffffff\"}",
      "f2064 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"false\",color=\"#2e3a59\",text=\" \",textColor=\"#ffffff\"}",
-     "f2064 \"objUI.setAttribute\" obj:s00017 \"eng_play\" \"active\" \"false\"",
-     "f2064 \"objUI.setAttribute\" obj:s00004 \"eng_play\" \"active\" \"false\"",
-     "f2064 \"objUI.setAttribute\" obj:s00044 \"eng_play\" \"active\" \"false\"",
-     "f2064 \"objUI.setAttribute\" obj:s00043 \"eng_play\" \"active\" \"false\"",
-     "f2064 \"objUI.setAttribute\" obj:s00045 \"eng_play\" \"active\" \"false\"",
      "f2065 \"setGMNotes\" obj:s00046 \"enginetrash\"",
      "f2065 \"highlightOff\" obj:s00046",
      "f2065 \"setInvisibleTo\" obj:s00046 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -8670,13 +8684,13 @@
     "step": "340 prompt",
     "fx": [
      "f2070 \"UI.setValue\" \"eng_title_Blue\" \"Declare attackers (select none to skip)\"",
-     "f2070 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#e84118\",text=\"[  ] All attack\",textColor=\"#fffffE\"}",
-     "f2070 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e86de\",text=\"[  ] No attacks\",textColor=\"#ffffff\"}",
-     "f2070 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Skullsnatcher → AI 1\",textColor=\"#fffffE\"}",
-     "f2070 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Yuriko, the Tiger's Shadow → AI 1\",textColor=\"#ffffff\"}",
+     "f2070 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#2E9E4F\",text=\"[  ] All attack\",textColor=\"#fffffE\"}",
+     "f2070 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#2e3a59\",text=\"[  ] No attacks\",textColor=\"#ffffff\"}",
+     "f2070 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Skullsnatcher → AI 1\",textColor=\"#fffffE\"}",
+     "f2070 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Yuriko, the Tiger's Shadow → AI 1\",textColor=\"#ffffff\"}",
      "f2070 \"UI.setValue\" \"eng_hint_Blue\" \"Declare attackers (select none to skip)\\\nClick a creature, then who it attacks. Or All attack / No attacks.\"",
-     "f2070 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"No attacks\",textColor=\"#fffffE\"}",
-     "f2070 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"All attack\",textColor=\"#fffffE\"}",
+     "f2070 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"No attacks\",textColor=\"#fffffE\"}",
+     "f2070 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2E9E4F\",text=\"All attack\",textColor=\"#fffffE\"}",
      "f2070 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#fffffE\"}",
      "f2070 \"highlightOn\" obj:s00035 {1=0.3,2=1,3=0.4}",
      "f2070 \"highlightOn\" obj:s00002 {1=0.3,2=1,3=0.4}"
@@ -8701,7 +8715,7 @@
     "step": "342 table",
     "fx": [
      "f2082 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareAttackers - priority: Blue\"",
-     "f2082 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f2082 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -8752,6 +8766,7 @@
      "f2106 \"menu+\" obj:s00044 \"Ninjutsu {1}{U} ({1}{U}, Return an unb…\"",
      "f2106 \"menu+\" obj:s00006 \"Mana: tap Arcane Signet\"",
      "f2106 \"menu+\" obj:s00003 \"Mana: tap Sol Ring\"",
+     "f2106 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"true\"",
      "f2107 \"createButton\" obj:s00034 \"{1}, {T}: Scry 2. (Look at…\" \"0.12,0.13,0.16\" \"at 0.00,0.31,-0.85\""
     ]
    },
@@ -8769,6 +8784,7 @@
      "f2118 \"menu clear\" obj:s00044",
      "f2118 \"menu clear\" obj:s00006",
      "f2118 \"menu clear\" obj:s00003",
+     "f2118 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\"",
      "f2118 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f2118 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f2118 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -8934,6 +8950,8 @@
      "f2178 \"menu+\" obj:s00017 \"Ninjutsu {1}{B} ({1}{B}, Return an unb…\"",
      "f2178 \"menu+\" obj:s00044 \"Ninjutsu {1}{U} ({1}{U}, Return an unb…\"",
      "f2178 \"menu+\" obj:s00002 \"Commander Ninjutsu {U}{B} ({U}{B}, Ret…\"",
+     "f2178 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"true\"",
+     "f2178 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"true\"",
      "f2179 \"createButton\" obj:s00034 \"{1}, {T}: Scry 2. (Look at…\" \"0.12,0.13,0.16\" \"at 0.00,0.31,-0.85\"",
      "f2179 \"createButton\" obj:s00002 \"Commander…\" \"0.12,0.13,0.16\" \"at 0.85,0.31,0.00\""
     ]
@@ -8960,6 +8978,7 @@
      "f2190 \"highlightOn\" obj:s00017 {1=0.75,2=0.35,3=1}",
      "f2190 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
      "f2190 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
+     "f2190 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
      "f2192 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/a/2/a24d5664-e214-466d-bb53-4e8f6f75a009.jpg\""
     ]
    },
@@ -8977,12 +8996,16 @@
    {
     "step": "click: return tostring(engineToggleGlow(\"Blue\"))",
     "value": "off",
-    "fx": []
+    "fx": [
+     "f2208 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\""
+    ]
    },
    {
     "step": "click: return tostring(engineToggleGlow(\"Blue\"))",
     "value": "on",
-    "fx": []
+    "fx": [
+     "f2214 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"true\""
+    ]
    },
    {
     "step": "365 prompt",
@@ -9002,7 +9025,8 @@
      "f2220 \"menu clear\" obj:s00034",
      "f2220 \"menu clear\" obj:s00017",
      "f2220 \"menu clear\" obj:s00044",
-     "f2220 \"menu clear\" obj:s00002"
+     "f2220 \"menu clear\" obj:s00002",
+     "f2220 \"objUI.setAttribute\" obj:s00034 \"eng_play\" \"active\" \"false\""
     ]
    },
    {
@@ -9598,22 +9622,27 @@
    {
     "step": "415 prompt",
     "fx": [
+     "f2922 \"UI.setAttribute\" \"eng_ctabs_Blue\" \"active\" \"true\"",
+     "f2922 \"UI.setAttribute\" \"eng_scroll_Blue\" \"preferredHeight\" \"258\"",
+     "f2922 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {active=\"true\",color=\"#3A3022\",text=\"Soldier attac (6)\",textColor=\"#FFD27B\"}",
+     "f2922 \"UI.setAttributes\" \"eng_ctab_Blue_2\" {active=\"true\",color=\"#1A1A1A\",text=\"Soldier attac (6)\",textColor=\"#FFFFFE\"}",
+     "f2922 \"UI.setAttributes\" \"eng_ctab_Blue_3\" {active=\"false\"}",
+     "f2922 \"UI.setAttributes\" \"eng_ctab_Blue_4\" {active=\"false\"}",
+     "f2922 \"UI.setAttributes\" \"eng_ctab_Blue_5\" {active=\"false\"}",
+     "f2922 \"UI.setAttributes\" \"eng_ctab_Blue_6\" {active=\"false\"}",
+     "f2922 \"UI.setAttributes\" \"eng_ctab_Blue_7\" {active=\"false\"}",
+     "f2922 \"UI.setAttributes\" \"eng_ctab_Blue_8\" {active=\"false\"}",
      "f2922 \"UI.setValue\" \"eng_title_Blue\" \"Declare attackers\"",
      "f2922 \"UI.setAttribute\" \"eng_search_Blue\" \"active\" \"true\"",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks White\",textColor=\"#ffffff\"}",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks White\",textColor=\"#ffffff\"}",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_5\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_6\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks White\",textColor=\"#ffffff\"}",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_7\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_8\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks White\",textColor=\"#ffffff\"}",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_9\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_10\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks White\",textColor=\"#ffffff\"}",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_11\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
-     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_12\" {active=\"true\",color=\"#7a2323\",text=\"[  ] Soldier attacks White\",textColor=\"#ffffff\"}",
+     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
+     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
+     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
+     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
+     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_5\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
+     "f2922 \"UI.setAttributes\" \"eng_opt_Blue_6\" {active=\"true\",color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
      "f2922 \"UI.setValue\" \"eng_hint_Blue\" \"Declare attackers\\\nClick a creature, then who it attacks. Or All attack / No attacks.\"",
-     "f2922 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"Done\",textColor=\"#ffffff\"}",
+     "f2922 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#2E9E4F\",text=\"Done\",textColor=\"#ffffff\"}",
+     "f2922 \"UI.setAttributes\" \"eng_big2_Blue\" {color=\"#2E9E4F\",textColor=\"#fffffE\"}",
      "f2922 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#ffffff\"}",
      "f2922 \"highlightOn\" obj:s00051 {1=0.3,2=1,3=0.4}",
      "f2922 \"highlightOn\" obj:s00051 {1=0.3,2=1,3=0.4}",
@@ -9625,32 +9654,38 @@
     "step": "click: local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == \"engine:engine-card-901\" then o = x end end onPlayerAction(Player.Blue, Player.Action.Select, { o }) local n = 0 for k = 1, 12 do if engineSelectedFor(\"Blue\", k) then n = n + 1 end end return n",
     "value": "6",
     "fx": [
-     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_1\" {color=\"#e84118\",text=\"[x] Soldier attacks AI\",textColor=\"#ffffff\"}",
+     "f2928 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (1/6)\",textColor=\"#FFD27A\"}",
+     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_1\" {color=\"#2E9E4F\",text=\"[x] Soldier attacks AI\",textColor=\"#ffffff\"}",
      "f2928 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (1 chosen)\",textColor=\"#fffffE\"}",
      "f2928 \"highlightOff\" obj:s00051",
      "f2928 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2928 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_3\" {color=\"#e84118\",text=\"[x] Soldier attacks AI\",textColor=\"#fffffE\"}",
+     "f2928 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (2/6)\",textColor=\"#FFD27B\"}",
+     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_2\" {color=\"#2E9E4F\",text=\"[x] Soldier attacks AI\",textColor=\"#fffffE\"}",
      "f2928 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (2 chosen)\",textColor=\"#ffffff\"}",
      "f2928 \"highlightOff\" obj:s00051",
      "f2928 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2928 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_5\" {color=\"#e84118\",text=\"[x] Soldier attacks AI\",textColor=\"#ffffff\"}",
+     "f2928 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (3/6)\",textColor=\"#FFD27A\"}",
+     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_3\" {color=\"#2E9E4F\",text=\"[x] Soldier attacks AI\",textColor=\"#fffffE\"}",
      "f2928 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (3 chosen)\",textColor=\"#fffffE\"}",
      "f2928 \"highlightOff\" obj:s00051",
      "f2928 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2928 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_7\" {color=\"#e84118\",text=\"[x] Soldier attacks AI\",textColor=\"#ffffff\"}",
+     "f2928 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (4/6)\",textColor=\"#FFD27B\"}",
+     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_4\" {color=\"#2E9E4F\",text=\"[x] Soldier attacks AI\",textColor=\"#fffffE\"}",
      "f2928 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (4 chosen)\",textColor=\"#ffffff\"}",
      "f2928 \"highlightOff\" obj:s00051",
      "f2928 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2928 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_9\" {color=\"#e84118\",text=\"[x] Soldier attacks AI\",textColor=\"#ffffff\"}",
+     "f2928 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (5/6)\",textColor=\"#FFD27A\"}",
+     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_5\" {color=\"#2E9E4F\",text=\"[x] Soldier attacks AI\",textColor=\"#ffffff\"}",
      "f2928 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (5 chosen)\",textColor=\"#fffffE\"}",
      "f2928 \"highlightOff\" obj:s00051",
      "f2928 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2928 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_11\" {color=\"#e84118\",text=\"[x] Soldier attacks AI\",textColor=\"#fffffE\"}",
+     "f2928 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (6/6)\",textColor=\"#FFD27B\"}",
+     "f2928 \"UI.setAttributes\" \"eng_opt_Blue_6\" {color=\"#2E9E4F\",text=\"[x] Soldier attacks AI\",textColor=\"#fffffE\"}",
      "f2928 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (6 chosen)\",textColor=\"#ffffff\"}",
      "f2928 \"highlightOff\" obj:s00051",
      "f2928 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
@@ -9665,62 +9700,68 @@
     "step": "click: __sim.frames(30) onPlayerAction(Player.Blue, Player.Action.Select, { getObjectFromGUID(\"23e485\") }) local n = 0 for k = 1, 12 do if engineSelectedFor(\"Blue\", k) then n = n + 1 end end local w = 0 for k = 2, 12, 2 do if engineSelectedFor(\"Blue\", k) then w = w + 1 end end return n .. \" picked, \" .. w .. \" at White\"",
     "value": "6 picked, 6 at White",
     "fx": [
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_1\" {color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (5/6)\",textColor=\"#FFD27A\"}",
+     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_1\" {color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (5 chosen)\",textColor=\"#fffffE\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=0.3,2=1,3=0.4}",
      "f2964 \"highlightOn\" obj:s00051 {1=0.3,2=1,3=0.4}",
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_2\" {color=\"#e84118\",text=\"[x] Soldier attacks White\",textColor=\"#fffffE\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_2\" {color=\"#1A1A1A\",text=\"Soldier attac (1/6)\",textColor=\"#FFFFFF\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (6 chosen)\",textColor=\"#ffffff\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_3\" {color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (4/6)\",textColor=\"#FFD27B\"}",
+     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_2\" {color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (5 chosen)\",textColor=\"#fffffE\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_4\" {color=\"#e84118\",text=\"[x] Soldier attacks White\",textColor=\"#fffffE\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_2\" {color=\"#1A1A1A\",text=\"Soldier attac (2/6)\",textColor=\"#FFFFFE\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (6 chosen)\",textColor=\"#ffffff\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_5\" {color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (3/6)\",textColor=\"#FFD27A\"}",
+     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_3\" {color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (5 chosen)\",textColor=\"#fffffE\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_6\" {color=\"#e84118\",text=\"[x] Soldier attacks White\",textColor=\"#fffffE\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_2\" {color=\"#1A1A1A\",text=\"Soldier attac (3/6)\",textColor=\"#FFFFFF\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (6 chosen)\",textColor=\"#ffffff\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_7\" {color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (2/6)\",textColor=\"#FFD27B\"}",
+     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_4\" {color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (5 chosen)\",textColor=\"#fffffE\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_8\" {color=\"#e84118\",text=\"[x] Soldier attacks White\",textColor=\"#fffffE\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_2\" {color=\"#1A1A1A\",text=\"Soldier attac (4/6)\",textColor=\"#FFFFFE\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (6 chosen)\",textColor=\"#ffffff\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_9\" {color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (1/6)\",textColor=\"#FFD27A\"}",
+     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_5\" {color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#fffffE\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (5 chosen)\",textColor=\"#fffffE\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_10\" {color=\"#e84118\",text=\"[x] Soldier attacks White\",textColor=\"#fffffE\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_2\" {color=\"#1A1A1A\",text=\"Soldier attac (5/6)\",textColor=\"#FFFFFF\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (6 chosen)\",textColor=\"#ffffff\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_11\" {color=\"#7a2323\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_1\" {color=\"#3A3022\",text=\"Soldier attac (6)\",textColor=\"#FFD27B\"}",
+     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_6\" {color=\"#1F4D2B\",text=\"[  ] Soldier attacks AI\",textColor=\"#ffffff\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (5 chosen)\",textColor=\"#fffffE\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
-     "f2964 \"UI.setAttributes\" \"eng_opt_Blue_12\" {color=\"#e84118\",text=\"[x] Soldier attacks White\",textColor=\"#fffffE\"}",
+     "f2964 \"UI.setAttributes\" \"eng_ctab_Blue_2\" {color=\"#1A1A1A\",text=\"Soldier attac (6/6)\",textColor=\"#FFFFFE\"}",
      "f2964 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (6 chosen)\",textColor=\"#ffffff\"}",
      "f2964 \"highlightOff\" obj:s00051",
      "f2964 \"highlightOn\" obj:s00051 {1=1,2=0.12,3=0.08}",
@@ -9808,7 +9849,7 @@
      "f3102 \"highlightOn\" obj:s00059 {1=1,2=0.12,3=0.08}",
      "f3102 \"broadcastToColor\" \"Blue\" \"[MTG] Attacking. Click a life counter or a planeswalker to choose what it attacks; click it again to cancel.\"",
      "f3120 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue told: Attacking. Click a life counter or a planeswalker to choose what it attacks; click it again to cancel.\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\"",
-     "f3132 \"UI.setAttributes\" \"eng_opt_Blue_8\" {color=\"#7a2323\",text=\"[  ] Soldier attacks White\",textColor=\"#ffffff\"}",
+     "f3132 \"UI.setAttributes\" \"eng_ctab_Blue_2\" {color=\"#1A1A1A\",text=\"Soldier attac (5/6)\",textColor=\"#FFFFFF\"}",
      "f3132 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (5 chosen)\",textColor=\"#fffffE\"}",
      "f3132 \"highlightOff\" obj:s00051",
      "f3132 \"highlightOff\" obj:s00055",
@@ -9858,6 +9899,8 @@
      "f3138 \"highlightOff\" obj:s00057",
      "f3138 \"highlightOff\" obj:s00058",
      "f3138 \"highlightOff\" obj:s00059",
+     "f3138 \"UI.setAttribute\" \"eng_ctabs_Blue\" \"active\" \"false\"",
+     "f3138 \"UI.setAttribute\" \"eng_scroll_Blue\" \"preferredHeight\" \"318\"",
      "f3138 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f3138 \"UI.setAttribute\" \"eng_search_Blue\" \"active\" \"false\"",
      "f3138 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"false\"}",
@@ -9867,14 +9910,9 @@
      "f3138 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"false\"}",
      "f3138 \"UI.setAttributes\" \"eng_opt_Blue_5\" {active=\"false\"}",
      "f3138 \"UI.setAttributes\" \"eng_opt_Blue_6\" {active=\"false\"}",
-     "f3138 \"UI.setAttributes\" \"eng_opt_Blue_7\" {active=\"false\"}",
-     "f3138 \"UI.setAttributes\" \"eng_opt_Blue_8\" {active=\"false\"}",
-     "f3138 \"UI.setAttributes\" \"eng_opt_Blue_9\" {active=\"false\"}",
-     "f3138 \"UI.setAttributes\" \"eng_opt_Blue_10\" {active=\"false\"}",
-     "f3138 \"UI.setAttributes\" \"eng_opt_Blue_11\" {active=\"false\"}",
-     "f3138 \"UI.setAttributes\" \"eng_opt_Blue_12\" {active=\"false\"}",
      "f3138 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f3138 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}",
+     "f3138 \"UI.setAttributes\" \"eng_big2_Blue\" {color=\"#2e3a59\",textColor=\"#ffffff\"}",
      "f3140 \"setGMNotes\" obj:s00055 \"enginetrash\"",
      "f3140 \"highlightOff\" obj:s00055",
      "f3140 \"setInvisibleTo\" obj:s00055 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -10158,9 +10196,9 @@
     "fx": [
      "f3826 \"UI.setValue\" \"eng_title_Blue\" \"Pay {B} for Feed the Swarm\"",
      "f3826 \"UI.setAttributes\" \"eng_opt_Blue_1\" {color=\"#e8711a\",text=\"Auto-pay\",textColor=\"#ffffff\"}",
-     "f3826 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",text=\"Tap City of Brass for {W}\",textColor=\"#ffffff\"}",
+     "f3826 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",text=\"Tap City of Brass for {W}\",textColor=\"#fffffE\"}",
      "f3826 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#262626\",text=\"Tap City of Brass for {B}\",textColor=\"#fffffE\"}",
-     "f3826 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#262626\",text=\"Cancel\",textColor=\"#ffffff\"}",
+     "f3826 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#262626\",text=\"Cancel\",textColor=\"#fffffE\"}",
      "f3826 \"UI.setValue\" \"eng_hint_Blue\" \"Pay {B} for Feed the Swarm\\\nTap lands (Q/E), or Auto-pay.\"",
      "f3826 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"Auto-pay\",textColor=\"#ffffff\"}",
      "f3826 \"UI.setAttributes\" \"eng_big2_Blue\" {active=\"true\",color=\"#2e3a59\",text=\"Cancel\",textColor=\"#fffffE\"}",
@@ -10188,7 +10226,7 @@
     "fx": [
      "f3838 \"UI.setValue\" \"eng_title_Blue\" \"Pay {G} for Llanowar Elves\"",
      "f3838 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#e8711a\",textColor=\"#fffffE\"}",
-     "f3838 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",text=\"Tap for {W}\",textColor=\"#fffffE\"}",
+     "f3838 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",text=\"Tap for {W}\",textColor=\"#ffffff\"}",
      "f3838 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#262626\",text=\"Cancel\",textColor=\"#ffffff\"}",
      "f3838 \"UI.setValue\" \"eng_hint_Blue\" \"Pay {G} for Llanowar Elves\\\nTap lands (Q/E), or Auto-pay.\"",
      "f3838 \"highlightOn\" obj:s00006 {1=1,2=0.85,3=0.2}"
@@ -10206,7 +10244,7 @@
     "fx": [
      "f3880 \"UI.setValue\" \"eng_title_Blue\" \"Discard (2)\"",
      "f3880 \"UI.setAttributes\" \"eng_opt_Blue_1\" {color=\"#262626\",text=\"[  ] one\",textColor=\"#ffffff\"}",
-     "f3880 \"UI.setAttributes\" \"eng_opt_Blue_2\" {color=\"#262626\",text=\"[  ] two\",textColor=\"#ffffff\"}",
+     "f3880 \"UI.setAttributes\" \"eng_opt_Blue_2\" {color=\"#262626\",text=\"[  ] two\",textColor=\"#fffffE\"}",
      "f3880 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"false\"}",
      "f3880 \"UI.setValue\" \"eng_hint_Blue\" \"Discard (2)\\\nClick the glowing cards, then Done.\"",
      "f3880 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"Done\",textColor=\"#fffffE\"}",
@@ -10221,7 +10259,7 @@
    {
     "step": "picked by drag",
     "fx": [
-     "f3886 \"UI.setAttributes\" \"eng_opt_Blue_2\" {color=\"#E53935\",text=\"[x] two\",textColor=\"#fffffE\"}",
+     "f3886 \"UI.setAttributes\" \"eng_opt_Blue_2\" {color=\"#E53935\",text=\"[x] two\",textColor=\"#ffffff\"}",
      "f3886 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (1 of 2)\",textColor=\"#ffffff\"}",
      "f3886 \"highlightOff\" obj:s00003",
      "f3886 \"highlightOff\" obj:s00009",
@@ -11347,9 +11385,9 @@
      "f5287 \"UI.setValue\" \"eng_title_Blue\" \"Settings\"",
      "f5287 \"UI.setValue\" \"eng_text_Blue\" \"My effects: banners, the stack pop-up and table effects, for you only. Sounds and animations are shared: the host's.\"",
      "f5287 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#262626\",text=\"My effects: on\",textColor=\"#fffffE\"}",
-     "f5287 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",text=\"My sounds: on\",textColor=\"#ffffff\"}",
+     "f5287 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",text=\"My sounds: on\",textColor=\"#fffffE\"}",
      "f5287 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#262626\",text=\"Table animations: on\",textColor=\"#fffffE\"}",
-     "f5287 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#262626\",text=\"Draw / mill / untap by itself: off\",textColor=\"#fffffE\"}"
+     "f5287 \"UI.setAttributes\" \"eng_opt_Blue_4\" {active=\"true\",color=\"#262626\",text=\"Draw / mill / untap by itself: off\",textColor=\"#ffffff\"}"
     ]
    },
    {
@@ -11569,7 +11607,7 @@
      "f5426 \"spawnObjectData\" \"Card\" obj:s00135 \"Face-down card\" V(27.75,1.13,14.9) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00136 \"Face-down card\" V(28.1,1.11,15.25) 0 300700 \"3007\"",
      "f5426 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
-     "f5426 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f5426 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\"",
      "f5427 \"setLock\" obj:s00050 false",
      "f5427 \"putObject\" obj:s00050 obj:s00128",
      "f5427 \"setLock\" obj:s00016 true",
@@ -12463,7 +12501,7 @@
     "fx": [
      "f5881 \"UI.setValue\" \"eng_title_Blue\" \"Your priority\"",
      "f5881 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#e8711a\",text=\"Cast the commander\",textColor=\"#ffffff\"}",
-     "f5881 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",text=\"Pass priority\",textColor=\"#fffffE\"}",
+     "f5881 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",text=\"Pass priority\",textColor=\"#ffffff\"}",
      "f5881 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#262626\",text=\"Untap it (mana back)\",textColor=\"#ffffff\"}",
      "f5881 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"false\"",
      "f5881 \"UI.setValue\" \"eng_hint_Blue\" \" \"",
@@ -12480,6 +12518,7 @@
      "f5887 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"choice\\\\\\\":[\\\\\\\"untap:engine-card-7\\\\\\\"],\\\\\\\"color\\\\\\\":\\\\\\\"Blue\\\\\\\",\\\\\\\"promptId\\\\\\\":1401,\\\\\\\"t\\\\\\\":\\\\\\\"answer\\\\\\\"}\\\",\\\"t\\\":\\\"answer\\\"}\"",
      "f5887 \"menu clear\" obj:s00002",
      "f5887 \"menu clear\" obj:s00106",
+     "f5887 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
      "f5887 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f5887 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f5887 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
@@ -12495,9 +12534,7 @@
    },
    {
     "step": "600 prompt",
-    "fx": [
-     "f5899 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\""
-    ]
+    "fx": []
    },
    {
     "step": "click: engineChat(\"mtg undo\", Player.Blue)",
@@ -12527,7 +12564,7 @@
      "f5917 \"UI.setValue\" \"eng_title_Blue\" \"Rewind to... (the others vote)\"",
      "f5917 \"UI.setValue\" \"eng_text_Blue\" \"Pick a moment to go back to: the other players vote on it.\"",
      "f5917 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#262626\",text=\"turn 11, White's upkeep\",textColor=\"#fffffE\"}",
-     "f5917 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",text=\"turn 10, Blue's second main phase\",textColor=\"#ffffff\"}",
+     "f5917 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",text=\"turn 10, Blue's second main phase\",textColor=\"#fffffE\"}",
      "f5917 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#262626\",text=\"turn 10, Blue's upkeep\",textColor=\"#fffffE\"}",
      "f5920 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#fffffE\"}"
     ]
@@ -12558,7 +12595,7 @@
      "f5935 \"UI.setValue\" \"eng_title_Blue\" \"Rewind to... (the others vote)\"",
      "f5935 \"UI.setValue\" \"eng_text_Blue\" \"Pick a moment to go back to: the other players vote on it.\"",
      "f5935 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#262626\",textColor=\"#ffffff\"}",
-     "f5935 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",textColor=\"#fffffE\"}",
+     "f5935 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",textColor=\"#ffffff\"}",
      "f5935 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#262626\",textColor=\"#ffffff\"}"
     ]
    },
@@ -12735,7 +12772,7 @@
      "f6079 \"UI.setAttributes\" \"eng_voteyes_Blue\" {active=\"true\",color=\"#2e7d32\",textColor=\"#ffffff\"}",
      "f6079 \"UI.setAttributes\" \"eng_voteno_Blue\" {active=\"true\",color=\"#8e2a2a\",textColor=\"#ffffff\"}",
      "f6079 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
-     "f6079 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f6079 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\"",
      "f6079 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f6079 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f6079 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
@@ -13163,7 +13200,7 @@
      "f6175 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
      "f6175 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"true\"",
      "f6175 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"true\"",
-     "f6175 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f6175 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\"",
      "f6175 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f6175 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f6175 \"createButton\" obj:s00001 \"Engine: off\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
@@ -13683,7 +13720,7 @@
      "f96 \"editButton\" obj:ce8ea5 7 \"0\"",
      "f96 \"editButton\" obj:ce8ea5 8 \"0\"",
      "f96 \"editButton\" obj:ce8ea5 9 \"0\"",
-     "f96 \"UI.setXml\" \"2082224888/35159\"",
+     "f96 \"UI.setXml\" \"1355314707/36905\"",
      "f96 \"UI.setAttributes\" \"eng_scoop_White\" {active=\"true\",color=\"#c62828\",textColor=\"#fffffE\"}",
      "f96 \"UI.setAttribute\" \"eng_scoop_Red\" \"active\" \"false\"",
      "f96 \"UI.setAttribute\" \"eng_scoopask_Red\" \"active\" \"false\"",
@@ -14793,7 +14830,7 @@
    {
     "step": "7 prompt",
     "fx": [
-     "f72 \"UI.setXml\" \"1352515610/24438\"",
+     "f72 \"UI.setXml\" \"671223335/25396\"",
      "f75 \"UI.setAttribute\" \"eng_panel_Blue\" \"active\" \"false\"",
      "f75 \"UI.setAttributes\" \"eng_toggle_Blue\" {active=\"false\",color=\"#1A1A1A\",textColor=\"#FFFFFE\"}",
      "f75 \"UI.setAttributes\" \"eng_browse_Blue\" {active=\"false\",color=\"#1A1A1A\",textColor=\"#FFFFFE\"}",
@@ -15010,7 +15047,8 @@
      "f162 \"UI.setValue\" \"eng_hint_Blue\" \" \"",
      "f162 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"Royal Assassin\",textColor=\"#fffffE\"}",
      "f162 \"menu+\" obj:s00016 \"{T}: Destroy target tapped creature.\"",
-     "f163 \"createButton\" obj:s00016 \"{T}: Destroy target…\" \"0.12,0.13,0.16\" \"at 0.00,0.31,-0.85\""
+     "f163 \"createButton\" obj:s00016 \"{T}: Destroy target…\" \"0.12,0.13,0.16\" \"at 0.00,0.31,-0.85\"",
+     "f163 \"objUI.setXml\" obj:s00016 \"1503888588/555\""
     ]
    },
    {
@@ -15026,6 +15064,7 @@
      "f174 \"putObject\" obj:s00018 obj:s00014",
      "f174 \"putObject\" obj:s00018 obj:s00015",
      "f174 \"putObject\" obj:s00018 obj:s00016",
+     "f174 \"objUI.setAttribute\" obj:s00016 \"eng_play\" \"active\" \"false\"",
      "f175 \"setLock\" obj:s00018 true",
      "f175 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=384,position=\"-1833 -797 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=384}",
      "f175 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_txt\" {color=\"#FFFFFF\",text=\"×4\"}",
@@ -15109,7 +15148,9 @@
      "f330 \"menu+\" obj:s00015 \"{T}: Prodigal Sorcerer deals 1 damage …\"",
      "f330 \"menu+\" obj:s00016 \"{T}: Destroy target tapped creature.\"",
      "f331 \"createButton\" obj:s00015 \"{T}: Prodigal…\" \"0.12,0.13,0.16\" \"at 0.00,0.31,-0.85\"",
-     "f331 \"createButton\" obj:s00016 \"{T}: Destroy target…\" \"0.12,0.13,0.16\" \"at 0.00,0.31,-0.85\""
+     "f331 \"createButton\" obj:s00016 \"{T}: Destroy target…\" \"0.12,0.13,0.16\" \"at 0.00,0.31,-0.85\"",
+     "f331 \"objUI.setXml\" obj:s00015 \"1503888588/555\"",
+     "f331 \"objUI.setXml\" obj:s00016 \"1503888588/555\""
     ]
    },
    {
@@ -15122,6 +15163,8 @@
     "fx": [
      "f342 \"menu clear\" obj:s00015",
      "f342 \"menu clear\" obj:s00016",
+     "f342 \"objUI.setAttribute\" obj:s00015 \"eng_play\" \"active\" \"false\"",
+     "f342 \"objUI.setAttribute\" obj:s00016 \"eng_play\" \"active\" \"false\"",
      "f342 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f342 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
      "f342 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",

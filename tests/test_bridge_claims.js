@@ -1119,6 +1119,20 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("attackers: a creature alone has no number, and its counters", got.includes("Grizzly Bears 2/2 [1 +1/+1 counter] → AI 1"), JSON.stringify(got));
       harness.restore();
     }
+    // blockers numbered as the attackers (combat clarity 2026-11-11): two Spirit tokens blocking two Goblin tokens read
+    // "Spirit Token 1/1 blocks Goblin Token" four times, and the table's confirmation of each read the same
+    {
+      const spirits = [0, 1].map((k) => one(`engine-card-${1870 + k}`, "Spirit Token", { identity: { name: "Spirit Token", isToken: true } }));
+      const goblins = [0, 1].map((k) => one(`engine-card-${1875 + k}`, "Goblin Token", { identity: { name: "Goblin Token", isToken: true } }));
+      const { h, seat } = fresh((gv) => mine(gv).push(...spirits, ...goblins, one("engine-card-1879", "Hill Giant", { power: 3, toughness: 3 })));
+      await asked(h, seat, { type: "chooseBlockers", error: "", attackers: [...goblins.map((g) => ({ attackerId: g.id, validBlockerIds: spirits.map((s) => s.id), minBlockers: 0, mustBeBlocked: false })),
+        { attackerId: "engine-card-1879", validBlockerIds: [spirits[0].id], minBlockers: 0, mustBeBlocked: false }] });
+      const got = labels(seat);
+      ok("blockers: same-named tokens are numbered on both sides, with their size", got.includes("Spirit Token 1/1 #1 blocks Goblin Token 1/1 #1") && got.includes("Spirit Token 1/1 #2 blocks Goblin Token 1/1 #2") && got.includes("Spirit Token 1/1 #2 blocks Goblin Token 1/1 #1"), JSON.stringify(got));
+      ok("blockers: a creature alone has no number", got.includes("Spirit Token 1/1 #1 blocks Hill Giant 3/3"), JSON.stringify(got));
+      ok("blockers: every line reads apart", new Set(got).size === got.length, JSON.stringify(got));
+      harness.restore();
+    }
     // #18: Forge's doubled plural is undone (Mondrak's live cost "creatureses")
     {
       const h = harness.load();

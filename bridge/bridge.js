@@ -3672,6 +3672,14 @@ function cardLabel(c) {
   if (c.damage) s += ` (${c.damage} dmg)`;
   return s;
 }
+// Labels for a list of creatures, each its cardLabel (cname when the view lacks it), with " #n" in the list's order
+// when that still reads the same as another's: id -> label (the attackers' and blockers' lists)
+function numberedLabels(ids, byId, cname) {
+  const sized = new Map(ids.map((id) => [id, byId[id] ? cardLabel(byId[id]) : cname(id)]));
+  const same = {};
+  for (const [id, l] of sized) (same[l] ??= []).push(id);
+  return (id) => (same[sized.get(id)]?.length > 1 ? `${sized.get(id)} #${same[sized.get(id)].indexOf(id) + 1}` : sized.get(id) ?? cname(id));
+}
 
 // A player's zone in a game view (an empty one when the view doesn't have it).
 function zoneOf(gv, kind, owner) {
@@ -6671,10 +6679,7 @@ function onPrompt(seat, prompt) {
       const pairs = [];
       // (each attacker with its size and counters, and a number when that still reads the same: Lingering Souls' tokens
       // read "Spirit Token → Blue" four times, 2026-11-08/09 game; in the "whom?" question after too)
-      const sized = new Map(input.attackers.map((at) => [at.attackerId, byId[at.attackerId] ? cardLabel(byId[at.attackerId]) : cname(at.attackerId)]));
-      const same = {};
-      for (const [id, l] of sized) (same[l] ??= []).push(id);
-      const attackerLabel = (id) => (same[sized.get(id)].length > 1 ? `${sized.get(id)} #${same[sized.get(id)].indexOf(id) + 1}` : sized.get(id));
+      const attackerLabel = numberedLabels(input.attackers.map((at) => at.attackerId), byId, cname);
       // (A-Z as every list of pairs, by those labels, so tokens of one name and two sizes don't interleave, #9 before
       // #10; each creature's "whom?" before its targets: the table's click takes the first option of the creature, so
       // the question is kept in this order, keepOrder)
@@ -6746,8 +6751,13 @@ function onPrompt(seat, prompt) {
     }
     case "chooseBlockers": {
       const pairs = [];
+      // (each blocker and attacker with its size and a number when that still reads the same, as the attackers' list:
+      // twenty "Spirit Token blocks Goblin Token" lines couldn't be told apart, and the table's confirmation of each
+      // read the same, combat clarity 2026-11-11)
+      const blockerLabel = numberedLabels([...new Set(input.attackers.flatMap((at) => at.validBlockerIds))], byId, cname);
+      const attackerLabel = numberedLabels(input.attackers.map((at) => at.attackerId), byId, cname);
       for (const at of input.attackers) for (const b of at.validBlockerIds) pairs.push({ id: `${b}|${at.attackerId}`,
-        label: `${cname(b)} blocks ${cname(at.attackerId)}${at.minBlockers > 1 ? ` (needs ${at.minBlockers}+ blockers)` : ""}${at.mustBeBlocked ? " (must be blocked)" : ""}` });
+        label: `${blockerLabel(b)} blocks ${attackerLabel(at.attackerId)}${at.minBlockers > 1 ? ` (needs ${at.minBlockers}+ blockers)` : ""}${at.mustBeBlocked ? " (must be blocked)" : ""}` });
       ui = { title: "Choose blockers", mode: "multi", min: 0, max: pairs.length, options: pairs, text: input.error };
       toOutput = (a) => {
         const byBlocker = {};
