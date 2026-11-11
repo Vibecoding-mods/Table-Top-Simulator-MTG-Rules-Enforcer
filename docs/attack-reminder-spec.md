@@ -3,7 +3,11 @@
 Asked 2026-11-10: "If there's a pay to attack or multiple creatures can't attack, a prompt should pop up to remind
 players." Tracked as item 23 in `docs/next-features-2026-11-09.md`.
 
-This is a spec only. Nothing here is built yet. Line numbers are from the source on 2026-11-10.
+Status 2026-11-11: part 1 and part 2 are built in the bridge (source only, not deployed). Part 2 reads every rule
+from the cards' text on the board, so nothing new from the harness was needed. Part 3 (engine) is not built: it is
+still needed for effects that leave no text on the board (War Tax, Forbidding Spirit's trigger, Sivitri's +1,
+emblems, keywords from spells that have resolved), for Forge's exact reasons and costs, and for Dain's condition.
+Line numbers below are from the source on 2026-11-10.
 
 Short names used below:
 

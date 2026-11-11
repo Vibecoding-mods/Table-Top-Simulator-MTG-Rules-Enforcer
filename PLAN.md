@@ -6,6 +6,13 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 
 ---
 
+## 2026-11-11
+- 🔶 (source) Attack reminders, spec part 2 (item 23): taxes per defender, each creature's own price and the limits
+  are listed on the attack question, with "Can't attack: X (reason)" and the reason on Q/E. The tax payment names
+  the tax and its Cancel is "Don't attack with X". Part 3 (engine) is not built.
+- 🔶 (source) Attack targets (item 25): "Attack" and "All attack" ask whom when there is more than one player or
+  planeswalker to attack: a life counter or planeswalker click, the buttons, One by one, or Back.
+
 ## 2026-11-10
 - ✅ "All attack" over a limit stops and says the limit (d3bbd18); refused plays say why (0858382).
 - ✅ Batch A in source: Victory/Defeat banner (b852a65), resolve-until stays on (133f619), dig looks not asked twice
