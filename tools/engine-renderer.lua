@@ -5010,6 +5010,29 @@ local function addToPile(deck, c)
   -- (a check that can't decide yet looks again, up to 6 times half a second apart: giving up at the first "not yet"
   -- left a card missing for good when its pile was being redrawn or another repair had just run)
   local gen = engineGen
+  -- The object put in, still there once the card is in the pile: a stray copy nothing moves any more (Rancor lay beside
+  -- Blue's graveyard for 48 minutes, discarded while Blue was dragging it, 2026-11-08 23:39). Only one provably left
+  -- behind: alive, still its card's, not that card's object again, lying loose on the table (getObjectFromGUID finds no
+  -- object inside a container, so a reference real TTS kept to the card it merged is never it), in nobody's grip, and
+  -- seen so on two checks half a second apart. A held one is looked at again.
+  local seenStray = false
+  local function strayLeft(later)
+    if single == nil or single.isDestroyed() or engineObjs[c.id] == single then return false end
+    if tostring(single.getGMNotes()) ~= "engine:" .. c.id then return false end
+    if getObjectFromGUID(single.getGUID()) == nil then return false end
+    local held = single.held_by_color
+    if held ~= nil and held ~= "" then
+      seenStray = false
+      later()
+      return false
+    end
+    if not seenStray then
+      seenStray = true
+      later()
+      return false
+    end
+    return true
+  end
   local function verify(attempt)
     attempt = attempt or 1
     local function later() if attempt < 6 then Wait.frames(function() verify(attempt + 1) end, 30) end end
@@ -5023,9 +5046,8 @@ local function addToPile(deck, c)
       if d.type ~= "Deck" then return end -- drawn another way (a one-card pile is the card itself)
       for _, e in ipairs(d.getObjects() or {}) do
         if e.gm_notes == "engine:" .. c.id then
-          -- in the pile, and the object put there still lies on the table: a stray copy nothing moves any more (Rancor lay
-          -- beside Blue's graveyard for 48 minutes, discarded while Blue was dragging it, 2026-11-08 23:39)
-          if single ~= nil and not single.isDestroyed() and engineObjs[c.id] ~= single and tostring(single.getGMNotes()) == "engine:" .. c.id then
+          -- in the pile: the object put in is disposed only if it was provably left behind (strayLeft)
+          if strayLeft(later) then
             op("pileStray")
             engineDispose(single)
           end
