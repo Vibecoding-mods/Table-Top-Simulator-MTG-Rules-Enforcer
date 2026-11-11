@@ -1084,8 +1084,10 @@ function engineStatusFootprint(g, o)
   return engineStatusUnit[g]
 end
 -- parked: under the table at its own spot, locked, hidden as at opacity 0: invisible to every colour (what hides a
--- card) and, for a model or token, its tint's alpha 0; no count on it
+-- card) and, for a model or token, its tint's alpha 0; no count on it. Day // Night goes back to Day first, so the
+-- saved table normally has Day on top (one swap, only when it is on Night)
 function engineStatusPark(o, item)
+  if item.key == "day" and o.getStateId() ~= 1 then o = o.setState(1) or o end
   o.setLock(true)
   o.setInvisibleTo(engineEveryone())
   if item.fade then local c = o.getColorTint() o.setColorTint({ c.r, c.g, c.b, 0 }) end
@@ -1185,27 +1187,32 @@ function engineStatusDayPlace(want, day)
   want.day = { at = { 0, d.y, -(fit.edge + fit.gap + unit.z * d.scale[3] * k / 2) }, rotY = fit.rotY, scale = { d.scale[1] * k, d.scale[2], d.scale[3] * k }, state = state }
 end
 -- From each board (updateTrackers, beside the marks boxes): every piece to its holder's mat, or parked. A piece only
--- one player can have (the monarch, the initiative) goes to the first row that has it.
+-- one player can have (the monarch, the initiative) goes to the first row that has it. Each seat's placing and each
+-- piece's move runs in its own pcall: one that fails leaves the others to move or park.
 function engineStatusPieces(m)
   if not ENGINE_MODE or type(ENGINE_STATUS_PIECES) ~= "table" then return end
   local want = {}
   for _, pl in ipairs(m.players or {}) do
     local o = getObjectFromGUID(LIFE_TRACKERS[pl.color or ""] or "")
-    if o ~= nil and type(pl.allMarks) == "table" then engineStatusPlace(want, o, pl) end
+    if o ~= nil and type(pl.allMarks) == "table" then pcall(engineStatusPlace, want, o, pl) end
   end
-  engineStatusDayPlace(want, m.day)
+  pcall(engineStatusDayPlace, want, m.day)
   for _, item in ipairs(engineStatusList()) do
-    local o = (want[item.key] ~= nil or engineStatusShown[item.key] ~= nil) and engineStatusObject(item)
-    if o then engineStatusPut(o, item, want[item.key]) end
+    pcall(engineStatusPutItem, item, want[item.key])
   end
 end
+function engineStatusPutItem(item, w)
+  local o = (w ~= nil or engineStatusShown[item.key] ~= nil) and engineStatusObject(item)
+  if o then engineStatusPut(o, item, w) end
+end
 -- Every piece back under the table. mode nil: all of them; "unplaced": those no board put out (on load); "strays":
--- those, when above the table (every 2 s while no game runs)
+-- those, when above the table (every 2 s while no game runs). One pcall a piece, as for the board.
 function engineStatusParkAll(mode)
-  for _, item in ipairs(engineStatusList()) do
-    local o = not (mode ~= nil and engineStatusShown[item.key] ~= nil) and engineStatusObject(item)
-    if o and (mode ~= "strays" or o.getPosition().y > ENGINE_STATUS_FIT.above) then engineStatusPark(o, item) end
-  end
+  for _, item in ipairs(engineStatusList()) do pcall(engineStatusParkItem, item, mode) end
+end
+function engineStatusParkItem(item, mode)
+  local o = not (mode ~= nil and engineStatusShown[item.key] ~= nil) and engineStatusObject(item)
+  if o and (mode ~= "strays" or o.getPosition().y > ENGINE_STATUS_FIT.above) then engineStatusPark(o, item) end
 end
 Wait.frames(function() pcall(engineStatusParkAll, "unplaced") end, 20)
 Wait.time(function()
