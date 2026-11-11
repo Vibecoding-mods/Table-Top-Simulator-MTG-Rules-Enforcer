@@ -123,15 +123,20 @@ The user's list, in their order. Most items need a running TTS table in debug mo
     - Being built in parallel on branches friend-pkg and companion, then tested as a fresh install.
 
 Also queued from earlier work:
-- The graveyard-castable hover-text alarm.
-- Rancor sitting off the graveyard pile.
-- Viscera Seer's cancel loop.
-- A hanging rewind vote.
-- Token attackers listed with no size.
-- #10 sorting after #1 in option lists.
-- Dredge splitting "draws two cards" into two lines.
+- Fixed in source 2026-11-11 (not deployed), each reproduced by a test first:
+  - ~~The graveyard-castable hover-text alarm~~: the row's entry now carries its zone's notes ("Flashback {2}{R}").
+  - ~~Rancor sitting off the graveyard pile~~: a stray object left beside a pile goes; a pile card's drag reads as a
+    graveyard card; a graveyard card with nothing letting it be cast isn't queued as a play.
+  - ~~Viscera Seer's cancel loop~~: taps that can pay none of the cost aren't offered (Mountain's {R} for {B}).
+  - ~~Token attackers listed with no size~~: "Spirit Token 1/1 #3 → Blue".
+  - ~~Dredge splitting "draws two cards" into two lines~~: one spell's draws over two boards are joined.
+- Not changed 2026-11-11:
+  - A hanging rewind vote: the only vote in the logs left open (2026-11-09 01:18, turn 8) waited on Blue, who never
+    voted before White conceded 43 s later; Yellow's yes reached the bridge. Nothing shows a fault; it needs a report
+    of what was on screen.
+  - #10 sorting after #1 in option lists: fixed 2026-11-09 (Kykar #9, live PASS); attack lists are checked for it too.
 - ✅ Mayhem, Harmonize, Beam me up and Plot cards never get mayPlay, so they aren't playable from the row (e.g. Rocket-Powered Goblin Glider). Harness: add the keywords to the graveyard clause and isPlotted() to exile; engine image rebuild. Done 2026-11-11 (image `bugs1111`; Mayhem only for a card discarded this turn; MayPlayVisibilityTest).
-- The table self-check false-alarms "wrong place" on a card in an opponent's graveyard or exile that you may play (Mnemonic Betrayal, Thief of Sanity). The check uses the owner's mat, but the card lies on the caster's (engine-renderer.lua ~7090). Seen only from reading the code.
+- ~~The table self-check false-alarms "wrong place" on a card in an opponent's graveyard or exile that you may play (Mnemonic Betrayal, Thief of Sanity)~~: fixed in source 2026-11-11; the check reads the caster's mat and second hand zone (reproduced with Thief of Sanity's face-down card in the caster's hand zone).
 - ~~Reveal stand-in tests (S11, S12, S16)~~: done in f1e2a16.
 - From the 2026-11-10 real-table check (docs/release-check-2026-11-10/):
   - ~~under GAME OVER, Sen Triplets' stand-ins in the playable row still glow~~: fixed in source 287a12b (no playable

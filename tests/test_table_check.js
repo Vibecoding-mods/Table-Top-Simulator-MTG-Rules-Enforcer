@@ -143,6 +143,104 @@ broken("the life tracker", "getObjectFromGUID('395037').setVar('count', 12345)",
   ok("a foretold card its owner may play: no alarm, and no name in the log", !told.some((x) => x.includes("is named") || x.includes("hover text")), told.join(" | "));
 }
 
+// A flashback card in its owner's graveyard, in the row: its hover text is the graveyard entry's, notes and all. The
+// bridge sent the row's copy without its "Flashback {cost}" note, and the check called the hover text wrong all game
+// (Lingering Souls, Faithless Looting, 2026-11-08/09 game, tmp/table-check.log): the bridge's half is in
+// test_bridge_claims ("flashback: ..."); this is the table's half, quiet when both say the same.
+{
+  const board = JSON.parse(s1[boardAt].json);
+  const looting = (nt) => ({ id: "engine-card-9006", n: "Faithless Looting", tl: "Sorcery", cmc: 1, tx: "Draw two cards, then discard two cards.", ty: ["Sorcery"], ctl: "Blue", ...(nt ? { nt } : {}) });
+  const steps = (rowNt) => {
+    const b = JSON.parse(JSON.stringify(board)), p = b.players.find((x) => x.color === "Blue");
+    p.graveyard = [looting(["Flashback {2}{R}"])];
+    p.playable = [looting(rowNt)];
+    p.keep = (p.keep || []).filter((z) => z !== "graveyard");
+    return [...prefix, send({ t: "table", json: JSON.stringify(b) }), { frames: 200 }, check("after")];
+  };
+  const same = valueOf(simulate({ save, steps: steps(["Flashback {2}{R}"]) }), "after").problems || [];
+  ok("flashback in the row: quiet when the row's entry has its note", !same.length, same.join(" | "));
+  const without = valueOf(simulate({ save, steps: steps(null) }), "after").problems || [];
+  ok("flashback in the row: the old board (no note on the row's entry) is what raised the alarm", without.some((x) => x.includes("Faithless Looting (Blue graveyard) has the wrong hover text")), without.join(" | "));
+}
+
+// A hand card discarded into a pile while its object stays on the table (a put TTS made into the deck and the object
+// still there: Rancor, discarded while Blue was dragging it, lay beside Blue's graveyard for 48 minutes as "wrong place",
+// and its drags read as a hand card's, 2026-11-08 23:39 to 00:27, tmp/table-check.log). The fake TTS always takes the
+// object in, so the put here keeps it, as that one did.
+{
+  const board = JSON.parse(s1[boardAt].json);
+  const gy = (n) => ({ id: `engine-card-${9010 + n}`, n: `Old Card ${n}`, tl: "Creature", cmc: 2, tx: "A card.", ty: ["Creature"], ctl: "Blue" });
+  const rancor = { id: "engine-card-9019", n: "Rancor", tl: "Enchantment — Aura", cmc: 1, tx: "Enchant creature", ty: ["Enchantment"], ctl: "Blue" };
+  const b1 = JSON.parse(JSON.stringify(board)), p1 = b1.players.find((x) => x.color === "Blue");
+  p1.hand = [...(p1.hand || []), rancor];
+  p1.graveyard = [gy(1), gy(2)];
+  p1.keep = (p1.keep || []).filter((z) => z !== "graveyard" && z !== "hand");
+  const b2 = JSON.parse(JSON.stringify(b1)), p2 = b2.players.find((x) => x.color === "Blue");
+  p2.hand = p2.hand.filter((c) => c.id !== rancor.id);
+  p2.graveyard = [gy(1), gy(2), rancor];
+  const keepObject = "enginePutInDeck = function(deck, obj) local d = {} for k, v in pairs(obj.getData()) do d[k] = v end d.Name = 'Card' table.insert(deck.__d.contained, 1, d) end";
+  const find = `local o = nil for _, x in ipairs(getObjects()) do if x.getGMNotes() == 'engine:${rancor.id}' then o = x end end`;
+  const r = simulate({ save, steps: [...prefix, send({ t: "table", json: JSON.stringify(b1) }), { frames: 200 }, { lua: keepObject }, send({ t: "table", json: JSON.stringify(b2) }), { frames: 200 },
+    { lua: `${find} if o then o.setPosition(Vector(90, 2, 90)) end return tostring(o ~= nil)`, mark: "left" }, check("after"),
+    { lua: `return engineDebugCard('${rancor.id}')`, mark: "meta" }] });
+  const after = valueOf(r, "after").problems || [];
+  ok("stray: no copy of the discarded card is left on the table", (r.steps.find((s) => s.step === "left") || {}).value === "false", r.errors.join(" | ") || (r.steps.find((s) => s.step === "left") || {}).value);
+  ok("stray: and no alarm", !after.some((x) => x.includes(rancor.n)), after.join(" | "));
+  ok("stray: the card reads as a graveyard card, not a hand card", / zone=graveyard /.test((r.steps.find((s) => s.step === "meta") || {}).value || ""), (r.steps.find((s) => s.step === "meta") || {}).value);
+
+  // pileStray (addToPile's verify) disposes only an object provably left behind, never the card the put took in: every
+  // pile add runs it, and a reference real TTS kept alive to the merged card would otherwise be disposed with the card
+  // already in the deck (verifier 2026-11-11). Counted at engineDispose, by the card's GM notes.
+  const countDisposed = `strayDisposed = 0 local d0 = engineDispose engineDispose = function(o) if o ~= nil and not o.isDestroyed() and o.getGMNotes() == 'engine:${rancor.id}' then strayDisposed = strayDisposed + 1 end return d0(o) end`;
+  const inDeck = `local n = 0 for _, d in ipairs(getObjects()) do if d.getGMNotes() == 'engine:graveyard:Blue' and d.type == 'Deck' then for _, e in ipairs(d.getObjects()) do if e.gm_notes == 'engine:${rancor.id}' then n = n + 1 end end end end`;
+  const tally = (mark) => ({ lua: `${inDeck} return tostring(strayDisposed) .. ' ' .. n`, mark });
+  const stray = (between, after = []) => simulate({ save, steps: [...prefix, send({ t: "table", json: JSON.stringify(b1) }), { frames: 200 }, { lua: countDisposed }, ...between,
+    send({ t: "table", json: JSON.stringify(b2) }), ...after, { frames: 200 }, tally("end")] });
+  const told = (r, mark) => `${(r.steps.find((s) => s.step === mark) || {}).value} ${r.errors.join(" | ")}`.trim();
+  const plain = stray([]);
+  ok("pileStray: a put the table took in disposes nothing, and the card is in the pile once", told(plain, "end") === "0 1", told(plain, "end"));
+  // (the put's object still alive with its card's notes, but inside the deck: getObjectFromGUID finds nothing for it)
+  const merged = stray([{ lua: keepObject }, { lua: `local g0 = getObjectFromGUID getObjectFromGUID = function(g) local o = g0(g) if o ~= nil and o.getGMNotes() == 'engine:${rancor.id}' then return nil end return o end` }]);
+  ok("pileStray: an object of the card's that isn't loose on the table is never disposed", told(merged, "end") === "0 1", told(merged, "end"));
+  // (left behind while held: looked at again, disposed once it is let go)
+  const held = stray([{ lua: keepObject }], [{ frames: 2 }, { lua: `${find} if o then o.held_by_color = 'Blue' end return tostring(o ~= nil)`, mark: "grab" },
+    { frames: 70 }, tally("held"), { lua: `${find} if o then o.held_by_color = nil end return tostring(o ~= nil)`, mark: "let go" }]);
+  ok("pileStray: a left-behind object in a player's grip isn't disposed", told(held, "grab") === "true" && told(held, "held") === "0 1", `${told(held, "grab")} / ${told(held, "held")}`);
+  ok("pileStray: and is once it is let go", told(held, "end") === "1 1", told(held, "end"));
+  // (the object made that card's own again before the second check, as a pick out of the pile does: kept)
+  const retaken = stray([{ lua: keepObject }], [{ frames: 2 }, { lua: `${find} if o then engineCardEntry('${rancor.id}', o) end return tostring(o ~= nil)`, mark: "taken" }]);
+  ok("pileStray: an object that is its card's own again is never disposed", told(retaken, "taken") === "true" && told(retaken, "end").startsWith("0 "), `${told(retaken, "taken")} / ${told(retaken, "end")}`);
+  const loose = stray([{ lua: keepObject }]);
+  ok("pileStray: a left-behind object loose on the table is disposed once", told(loose, "end") === "1 1", told(loose, "end"));
+}
+
+// Another player's card this seat may play lies in this seat's row, never its owner's (Thief of Sanity's face-down card
+// in the caster's second hand zone, Mnemonic Betrayal's on the caster's mat). The check read the owner's mat and hand,
+// and called such a card out of place once it wasn't on its exact spot (found by reading the code, 2026-11-11).
+{
+  const board = JSON.parse(s1[boardAt].json);
+  const run = (card, move) => {
+    const b = JSON.parse(JSON.stringify(board)), white = b.players.find((x) => x.color === "White"), blue = b.players.find((x) => x.color === "Blue");
+    white[card.zone] = [card.c];
+    white.keep = (white.keep || []).filter((z) => z !== card.zone);
+    blue.playable = [card.row || card.c];
+    return valueOf(simulate({ save, steps: [...prefix, send({ t: "table", json: JSON.stringify(b) }), { frames: 200 }, { lua: `for _, x in ipairs(getObjects()) do if x.getGMNotes() == 'engine:${card.c.id}' then ${move} end end` }, check("after")] }), "after").problems || [];
+  };
+  // (Thief of Sanity: White's card exiled face down, Blue may look at it and cast it; the row's copy shows its face)
+  const thief = { zone: "exile", c: { id: "engine-card-9007", fd: true, n: "Face-down card", tl: "", cmc: 0, ty: [], ctl: "White" },
+    row: { id: "engine-card-9007", n: "Counterspell", tl: "Instant", cmc: 2, tx: "Counter target spell.", ty: ["Instant"], ctl: "White" } };
+  const hand2 = "local h = Player.Blue.getHandTransform(2) x.setPosition(h.position + Vector(2.5, 0, 0))";
+  const t1 = run(thief, hand2);
+  ok("Thief of Sanity's card in its caster's second hand zone: no alarm", !t1.some((x) => x.includes("wrong place")), t1.join(" | "));
+  const t0 = run(thief, "x.setPosition(Vector(90, 2, 90))");
+  ok("Thief of Sanity's card off its row: the check says so", t0.some((x) => x.includes("wrong place: Face-down card (White exile)")), t0.join(" | "));
+  // (Mnemonic Betrayal: White's graveyard card, face up, castable by Blue, nudged on Blue's mat as a player may)
+  const betrayal = { zone: "graveyard", c: { id: "engine-card-9008", n: "Lightning Bolt", tl: "Instant", cmc: 1, tx: "Lightning Bolt deals 3 damage to any target.", ty: ["Instant"], ctl: "White" } };
+  const nudge = "local g = seatGeometry('Blue') x.setPosition(Vector(g.mat.x + 1, 1.1, g.mat.z))";
+  const m1 = run(betrayal, nudge);
+  ok("Mnemonic Betrayal's card moved on its caster's mat: no alarm", !m1.some((x) => x.includes("wrong place")), m1.join(" | "));
+}
+
 // a held mill lies on its fan, not in the graveyard
 {
   const b = JSON.parse(JSON.stringify(JSON.parse(s1[boardAt].json))), p = b.players.find((x) => x.color === "Blue");

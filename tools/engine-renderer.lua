@@ -5223,11 +5223,38 @@ local function addToPile(deck, c)
   local single = engineObjs[c.id]
   engineObjs[c.id] = nil
   local pileId = (deck ~= nil and not deck.isDestroyed()) and tostring(deck.getGMNotes()):gsub("^engine:", "") or nil
+  -- (its zone now, for a drop of it before it is in: it read as a hand card, and Rancor dragged from beside the pile was
+  -- asked to be cast and then discarded, 2026-11-08 23:39 and 23:52)
+  local pz, pc = tostring(pileId):match("^(%a+):(%a+)$")
+  if pz ~= nil then engineMeta[c.id] = { zone = pz, color = pc } end
   -- a few frames later the card must be inside the pile; if the pile was replaced meanwhile or the put didn't take,
   -- redraw the pile from the engine's list so the card can't get lost (it once vanished with an old pile deck)
   -- (a check that can't decide yet looks again, up to 6 times half a second apart: giving up at the first "not yet"
   -- left a card missing for good when its pile was being redrawn or another repair had just run)
   local gen = engineGen
+  -- The object put in, still there once the card is in the pile: a stray copy nothing moves any more (Rancor lay beside
+  -- Blue's graveyard for 48 minutes, discarded while Blue was dragging it, 2026-11-08 23:39). Only one provably left
+  -- behind: alive, still its card's, not that card's object again, lying loose on the table (getObjectFromGUID finds no
+  -- object inside a container, so a reference real TTS kept to the card it merged is never it), in nobody's grip, and
+  -- seen so on two checks half a second apart. A held one is looked at again.
+  local seenStray = false
+  local function strayLeft(later)
+    if single == nil or single.isDestroyed() or engineObjs[c.id] == single then return false end
+    if tostring(single.getGMNotes()) ~= "engine:" .. c.id then return false end
+    if getObjectFromGUID(single.getGUID()) == nil then return false end
+    local held = single.held_by_color
+    if held ~= nil and held ~= "" then
+      seenStray = false
+      later()
+      return false
+    end
+    if not seenStray then
+      seenStray = true
+      later()
+      return false
+    end
+    return true
+  end
   local function verify(attempt)
     attempt = attempt or 1
     local function later() if attempt < 6 then Wait.frames(function() verify(attempt + 1) end, 30) end end
@@ -5239,7 +5266,16 @@ local function addToPile(deck, c)
       local d = engineObjs[pileId]
       if d == nil or d.isDestroyed() then later() return end
       if d.type ~= "Deck" then return end -- drawn another way (a one-card pile is the card itself)
-      for _, e in ipairs(d.getObjects() or {}) do if e.gm_notes == "engine:" .. c.id then return end end
+      for _, e in ipairs(d.getObjects() or {}) do
+        if e.gm_notes == "engine:" .. c.id then
+          -- in the pile: the object put in is disposed only if it was provably left behind (strayLeft)
+          if strayLeft(later) then
+            op("pileStray")
+            engineDispose(single)
+          end
+          return
+        end
+      end
       if engineObjs[c.id] ~= nil then return end -- it is drawn as its own object after all
       -- still in this pile in the engine's game? (it may have moved on since)
       local zone, color = pileId:match("^(%a+):(%a+)$")
@@ -7560,6 +7596,18 @@ function engineSelfCheck()
     for _, id in ipairs(p.mill or {}) do heldNow[id] = true expected[id] = true end
   end
   local counts = {}
+  -- (a playable card lies in the row of the seat that may play it, which needn't be its owner's: Thief of Sanity's and
+  -- Mnemonic Betrayal's cards are the caster's to play, on the caster's mat or in the caster's second hand zone)
+  local rowOf = enginePlayableRows(m)
+  local handSets = {}
+  local function inHandOf(color, o, which)
+    local key = tostring(color) .. ":" .. which
+    if handSets[key] == nil then
+      handSets[key] = {}
+      for _, h in ipairs(Player[color].getHandObjects(which) or {}) do handSets[key][h.getGUID()] = true end
+    end
+    return handSets[key][o.getGUID()] == true
+  end
   for _, pl in ipairs(m.players or {}) do
     local c, d = pl.color, data[pl.color]
     counts[c] = { bf = #(pl.battlefield or {}), hand = pl.hand and #pl.hand or pl.handCount, gy = #(pl.graveyard or {}), ex = #(pl.exile or {}), cmd = #(pl.command or {}), lib = pl.library, life = pl.life }
@@ -7571,14 +7619,8 @@ function engineSelfCheck()
     for _, card in ipairs(pl.playable or {}) do expected[engineCastId(c, card.id)] = true end
     -- (a controlled player's hand, in the controller's second hand zone, or as stand-ins there: engineCtlHands)
     for _, card in ipairs(pl.ctlHand or {}) do expected[card.id] = true expected[engineCastId(pl.ctlBy, card.id)] = true end
-    local handSets, handY = {}, nil
-    local function inHand(o, which)
-      if handSets[which] == nil then
-        handSets[which] = {}
-        for _, h in ipairs(Player[c].getHandObjects(which) or {}) do handSets[which][h.getGUID()] = true end
-      end
-      return handSets[which][o.getGUID()] == true
-    end
+    local handY = nil
+    local function inHand(o, which) return inHandOf(c, o, which) end
     local function homeRotation()
       if handY == nil then
         local hand = Player[c].getHandTransform()
@@ -7603,8 +7645,9 @@ function engineSelfCheck()
           -- under its permanent: engineMarkSpecial. Face-Breaker's impulse-drawn cards read "wrong place", hp-03 sweep)
           local special = (engineSpecial or {})[card.id]
           if special == "playable" then -- map:playable
-            -- (or its row beside the hand, off the mat: enginePlaceSpecial)
-            ok = inZone(d.playmat, p) or inHand(o, 2) or (enginePlanned[card.id] ~= nil and near(p, enginePlanned[card.id], 1.6))
+            -- (or its row beside the hand, off the mat: enginePlaceSpecial; all of them the row's seat's, rowOf)
+            local rc = rowOf[card.id] or c
+            ok = inZone((data[rc] or d).playmat, p) or inHandOf(rc, o, 2) or (enginePlanned[card.id] ~= nil and near(p, enginePlanned[card.id], 1.6))
           elseif special == "linked" then -- map:linked
             local host = byId[card.ew]
             ok = host ~= nil and near(p, host.getPosition(), 2.5)

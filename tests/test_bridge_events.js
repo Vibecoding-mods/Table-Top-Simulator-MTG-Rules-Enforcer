@@ -73,6 +73,68 @@ const id = (n) => `engine-card-${n}`;
     same("rewind: the next move is a fact, and only it", g.log, ["Grizzly Bears is sacrificed"]);
   }
 
+  // one spell's draws split over two boards by a question between them (the spell still on the stack in the first): one
+  // line. Village Rites' "draw two cards" read "draws a card" twice when a Darkblast in the graveyard asked "dredge?"
+  // between the draws, live_events_check 2026-11-09. Events as EngineEventLog sends them (markCause: the ApiType name,
+  // the host's name and id).
+  {
+    const RITES = card(20, "Village Rites", ["Instant"]);
+    const onStack = { id: "stack-20", sourceId: id(20), identity: { name: "Village Rites" }, controllerId: "player-0", text: "As an additional cost to cast this spell, sacrifice a creature.\nDraw two cards." };
+    const draw = (seq, n, by = { cause: "Draw", causeName: "Village Rites", causeCardId: id(20) }) => ev(seq, "Library", "Hand", id(n), "draw", "player-0", by);
+    const run = async (boards) => {
+      const h = harness.load();
+      setup(h);
+      const g = h.B._getGame();
+      // (a string between the boards: a line said in between, as an answer's own line is)
+      for (const step of boards) {
+        if (typeof step === "string") { h.B.gameLogLine(step); continue; }
+        const [events, fill] = step;
+        h.B.updateLog(Object.assign(board(fill), { events }));
+      }
+      await h.flush();
+      const sentLogs = h.effects.filter((e) => e.tts && e.tts.t === "gamelog").map((e) => e.tts);
+      harness.restore();
+      return { log: g.log ?? [], last: sentLogs.at(-1) };
+    };
+    const at = (hand, lib, stack, gy = []) => (b) => { count(b, "hand", hand); count(b, "library", lib); b.stack = stack; for (const c of gy) put(b, "graveyard", c); };
+    const first = [[], at(3, 50, [onStack])];
+    const mid = [[draw(11, 31)], at(4, 49, [onStack])];
+    const split = await run([first, mid, [[draw(11, 31), draw(12, 32), ev(13, "Stack", "Graveyard", id(20), null)], at(5, 48, [], [RITES])]]);
+    ok("draws split by a question: one line for the spell's two", split.log.includes("Blue draws 2 cards") && !split.log.includes("Blue draws a card"), JSON.stringify(split.log));
+    ok("draws split by a question: the table's log is sent again", split.last && split.last.reset === true && split.last.lines.includes("Blue draws 2 cards"), JSON.stringify(split.last));
+    // (three draws over three boards, two questions between them: one line again)
+    const three = await run([first, mid, [[draw(11, 31), draw(12, 32)], at(5, 48, [onStack])], [[draw(12, 32), draw(13, 33), ev(14, "Stack", "Graveyard", id(20), null)], at(6, 47, [], [RITES])]]);
+    ok("draws split by two questions: one line for the three", three.log.includes("Blue draws 3 cards") && !three.log.some((l) => /^Blue draws (?:a card|2 cards)$/.test(l)), JSON.stringify(three.log));
+    // (a line said between the two boards came after the first draw: two lines, in their order)
+    const said = await run([first, mid, "Blue chooses Island (Village Rites)", [[draw(11, 31), draw(12, 32), ev(13, "Stack", "Graveyard", id(20), null)], at(5, 48, [], [RITES])]]);
+    const firstDraw = said.log.indexOf("Blue draws a card");
+    ok("draws with a line said between: not joined, and in their order", !said.log.includes("Blue draws 2 cards") && firstDraw >= 0 && said.log.indexOf("Blue chooses Island (Village Rites)") > firstDraw && said.log.lastIndexOf("Blue draws a card") > firstDraw, JSON.stringify(said.log));
+    // (and a board of its own lines after the first, with none of the spell's draws: the line is not joined later)
+    const withBear = (f) => (b) => { f(b); put(b, "battlefield", BEAR()); };
+    const bearDies = ev(12, "Battlefield", "Graveyard", id(1), "destroyed");
+    const between2 = await run([[[], withBear(at(3, 50, [onStack]))], [[draw(11, 31)], withBear(at(4, 49, [onStack]))], [[draw(11, 31), bearDies], at(4, 49, [onStack], [BEAR()])],
+      [[draw(11, 31), bearDies, draw(13, 32), ev(14, "Stack", "Graveyard", id(20), null)], at(5, 48, [], [BEAR(), RITES])]]);
+    ok("draws with another board's lines between: that board's line is logged", between2.log.includes("Grizzly Bears dies"), JSON.stringify(between2.log));
+    ok("draws with another board's lines between: not joined", !between2.log.includes("Blue draws 2 cards") && between2.log.filter((l) => l === "Blue draws a card").length === 2, JSON.stringify(between2.log));
+    // (dredged instead: the second draw is replaced, the card comes from the graveyard; one card drawn, said so)
+    const DARK = card(40, "Darkblast", ["Instant"]);
+    const dredged = await run([first, [[draw(11, 31)], at(4, 49, [onStack], [DARK])],
+      [[draw(11, 31), ev(12, "Library", "Graveyard", id(33), "mill", "player-0", { cause: "Darkblast - Dredge 1" }), ev(13, "Graveyard", "Hand", id(40), null, "player-0", { cause: "Darkblast - Dredge 1" }), ev(14, "Stack", "Graveyard", id(20), null)],
+        at(5, 47, [], [RITES, card(33, "Island", ["Land"])])]]);
+    ok("dredged instead: the one draw stays one card", dredged.log.includes("Blue draws a card") && !dredged.log.includes("Blue draws 2 cards"), JSON.stringify(dredged.log));
+    // (two draws of the same card's, the first already resolved: two lines)
+    const twice = await run([first, [[draw(11, 31)], at(4, 49, [])], [[draw(11, 31), draw(12, 32)], at(5, 48, [])]]);
+    ok("draws of a spell already off the stack: not joined", twice.log.filter((l) => l === "Blue draws a card").length === 2, JSON.stringify(twice.log));
+    // (a board whose draws had two causes, the spell's last: its line isn't the spell's, so not joined)
+    const plainDraw = (seq, n) => ev(seq, "Library", "Hand", id(n), "draw");
+    const mixed = await run([first, [[plainDraw(11, 30), draw(12, 31)], at(5, 48, [onStack])], [[plainDraw(11, 30), draw(12, 31), draw(13, 32), ev(14, "Stack", "Graveyard", id(20), null)], at(6, 47, [], [RITES])]]);
+    ok("draws of two causes in one board: not joined to the next", mixed.log.includes("Blue draws 2 cards") && mixed.log.includes("Blue draws a card") && !mixed.log.includes("Blue draws 3 cards"), JSON.stringify(mixed.log));
+    // (a draw step's draw has no cause card: never joined)
+    const plain = (seq, n) => ev(seq, "Library", "Hand", id(n), "draw");
+    const steps = await run([[[], at(3, 50, [onStack])], [[plain(11, 31)], at(4, 49, [onStack])], [[plain(11, 31), plain(12, 32)], at(5, 48, [onStack])]]);
+    ok("draws with no cause card: not joined", steps.log.filter((l) => l === "Blue draws a card").length === 2, JSON.stringify(steps.log));
+  }
+
   // a card gone from every public zone: the boards can't tell where to
   const gone = (c, events, after = () => {}) => between(board((b) => put(b, "battlefield", c)), board(after), events);
   same("token: sacrificed", gone(TOKEN(), [ev(11, "Battlefield", "Graveyard", id(5), "sacrificed")]), ["Goblin token is sacrificed"]);
