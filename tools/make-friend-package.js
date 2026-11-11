@@ -361,6 +361,11 @@ LICENCES
 See the LICENSES folder. The rules engine is built from Forge (GPL-3.0) and Manabrew (AGPL-3.0-or-later); its
 source is described in LICENSES\\SOURCE.txt. Magic: The Gathering is (c) Wizards of the Coast; this is unofficial Fan
 Content permitted under the Wizards of the Coast Fan Content Policy, not approved or endorsed by Wizards.
+
+
+MADE WITH CLAUDE CODE
+This project was made with Claude Code (https://claude.com/claude-code), Anthropic's AI coding assistant: it wrote
+the code, the tests and these instructions.
 `;
 
 const sourceText = (v) => `Source of the rules engine in images/mtg-images.tar

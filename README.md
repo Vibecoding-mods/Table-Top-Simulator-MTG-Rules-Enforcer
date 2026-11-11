@@ -8,6 +8,9 @@ click your library, use the table's buttons), while the **Forge** rules engine r
 
 Think MTG Arena's rules on a free-form tabletop.
 
+Made with [Claude Code](https://claude.com/claude-code): the code, tests and docs in this repository were written with
+Anthropic's AI coding assistant, directed and play-tested by the project's owner.
+
 > Status (October 2026): playable. 1v1 played over TTS multiplayer; 4-player games against Forge AI played to the end.
 > Rules checks pass for commander tax, 21 commander damage, the command-zone choice, 4-player priority and turn order.
 > 27 hand-test decks were played through the table, then every keyword they missed. See [PLAN.md](PLAN.md) for what's
@@ -196,6 +199,8 @@ How each test works and what it can't see: [TESTING.md](TESTING.md).
 
 ## Credits and legal
 
+- Made with [Claude Code](https://claude.com/claude-code) (Anthropic's AI coding assistant): it wrote this
+  repository's code, tests and docs, including our changes to Manabrew and Forge.
 - Rules engine: [Forge](https://github.com/Card-Forge/forge) (GPL-3.0) through
   [Manabrew](https://github.com/witchesofthehill/manabrew) (AGPL-3.0), run as separate programs, with our changes to
   both. Those changes stay under their licences and their source must be published with any build we share.
