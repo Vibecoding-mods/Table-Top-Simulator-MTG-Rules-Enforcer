@@ -106,18 +106,23 @@ bar (82 px wide), now that nothing covers it.
  └──────────────────────────────────────────────┘
 ```
 
-- The dock is one row, y -140, height 30. The tabs are a group on the left; Auto-resolve and Fix... stay apart on
-  the right (they act at once or open their own list, they are not tabs).
-- Clicking a tab opens the window on that tab; clicking the open tab closes the window. The open tab is drawn
-  gold on warm brown, the others white on near-black.
-- The window hangs under the dock (x 96, y -176), 410 wide, draggable as before.
+- The dock (`eng_dock_<C>`, a HorizontalLayout) is one row at x 96, y -140, height 30. Auto-resolve (x 468, 150
+  wide) and Fix... (x 622, 64 wide) follow on the same row, apart from the tabs (they act at once or open their own
+  list, they are not tabs); Auto-resolve's list opens under it (x 468, y -174).
+- Clicking a tab opens the window on that tab. Clicking the open Choices tab shuts the window; clicking the open side
+  tab (Graveyards, Undo, Settings) goes back to what was open before it: the answers if they were open, else the window
+  shuts. A question that isn't priority closes a side tab (as Graveyards did). The open tab is drawn gold on warm
+  brown, the others white on near-black (`engineOpenTab`, styled in `updatePanel`).
+- The window (`eng_panel_<C>`) hangs under the dock (x 96, y -176), 430 x 600, draggable as before.
+- The side tabs reuse the window's 30 answer buttons: `engineSidePrompt` builds a look-only list (mode "browse") for
+  each, and `pick` answers it (`engineBrowse[C]` is the open side tab: "browse", "undo" or "settings").
 
 | Tab | Button (id kept) | Content |
 |---|---|---|
-| Choices | `eng_toggle_<C>` | today's answer panel: status, the question, search, answers, Done / Cancel, the four stops. Opens by itself when a question can only be answered there (as today). |
+| Choices | `eng_toggle_<C>` | today's answer panel: status, the question, search, answers, Done / Cancel, the four stops (`eng_stops_<C>`). Opens by itself when a question can only be answered there (as today). |
 | Graveyards | `eng_browse_<C>` | the same list, filled with every graveyard and exile (today's "Graveyards / exile"); the stops row hides |
-| Undo | `eng_undo_<C>` | the restore points (`eng_undolist_<C>`, now inside the window); a pick asks the others to vote |
-| Settings | `eng_set_<C>` | My effects, My sounds, Table animations (host), Auto for held draws/mills/untaps (`eng_pace_<C>`, moved here) |
+| Undo | `eng_undo_<C>` | shown only with restore points; lists them (the old `eng_undolist_<C>` panel and its 8 buttons are gone); a pick asks the others to vote and the tab shuts |
+| Settings | `eng_set_<C>` | My effects, My sounds, Table animations (greyed for anyone but the host), "Draw / mill / untap by itself" (the old `eng_pace_<C>` button "Auto: off"); the old `eng_setpanel_<C>` is gone |
 | Log | `eng_logbtn_<C>` | not a tab: shows or hides the game log at the top right (it is wanted beside the other tabs) |
 
 Unchanged: the corner buttons, hint line, card row, phase bar, banners, Scoop, the vote, the fix panel and the stack
@@ -131,7 +136,8 @@ Taken from the table's own buttons (section 1) and Arena's accents already in us
 |---|---|---|
 | window | #161616F0 | the engine window, the ability panel, the log, lists (was #0A0C10E8, a blue-black) |
 | button | #262626 | ordinary buttons and answers (was #2f3542 slate) |
-| dock | #1A1A1A | dock buttons, the table's own button colour (was #1e272e / #3a3f4b) |
+| dock | #1A1A1A | dock buttons, Auto-resolve (off) and Fix, the table's own button colour (was #1e272e / #3a3f4b) |
+| second | #333333 | More..., the pop-up's X, the ability panel's pager and X (was #3a3f4b) |
 | tab on | #3A3022 with gold text | the open tab |
 | muted | #1C1C1C with #8C9199 text | an ability that can't be used now |
 | gold | #FFD27A | titles, the open tab, ability costs (as today's titles) |
