@@ -106,7 +106,7 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     await h.flush();
     const g = h.B._getGame();
     same("start: the AI seats count as AI players", { bots: g.bots, total: g.total }, { bots: 2, total: 3 });
-    ok("start: said, by kind", chats(h).includes("[MTG] Setting up: Blue + 1 Forge AI + 1 harmless bot...") && chats(h).includes("[MTG] AI seats: Red Harmless bot (Passive AI (lands only)), Yellow Forge AI (My Neheb)."), JSON.stringify(chats(h)));
+    ok("start: said, by kind", chats(h).includes("[MTG] Setting up: Blue + 1 Forge AI + 1 harmless bot...") && chats(h).includes("[MTG] AI seats: Red: Harmless bot (Passive AI (lands only)); Yellow: Forge AI (My Neheb)."), JSON.stringify(chats(h)));
     const blue = g.seats.get("Blue");
     ok("only the person's seat logs in first", h.sockets.length === 1 && !g.harmless, String(h.sockets.length));
     blue.heartbeat = () => {}; // (flush runs the clock on: no 45 s silence check here)
@@ -151,6 +151,28 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     same("its answers: keep, pass; none for another seat's question or the game's end", relay(h).slice(before).filter((r) => r.state?.kind === "response").map((r) => [r.state.fromPlayer, r.state.promptId, r.state.action.type, r.state.action.output]),
       [["player-0", 4, "mulligan", { type: "mulliganDecision", keep: true }], ["player-0", 0, "chooseAction", { type: "pass" }]]);
     ok("its questions never reach the table", !h.effects.some((e) => e.tts?.t === "prompt"), "a prompt went to the table");
+    const logs = () => h.effects.filter((e) => e.log != null).map((e) => e.log).join("\n");
+    frame(red.ws, { type: "StateUpdate", state: { kind: "prompt", forPlayer: "player-0", prompt: { promptId: 9, input: { type: "somethingNew" } } } });
+    await h.flush();
+    ok("precondition: a question it has no answer for is logged (the log is read)", /Red \(harmless\): no answer for a somethingNew question/.test(logs()), logs().slice(-300));
+    ok("the game's end isn't a question it answers or logs as unknown", !/no answer for a gameOver/.test(logs()), logs().slice(-300));
+    // the engine counts it as a person in a rewind vote (not a bot seat): it says yes, once a vote, only when asked
+    const voteBoard = (v) => { const b = myMain(); b.gameView.restoreVote = v; return { type: "StateUpdate", state: { kind: "state", forPlayer: "player-2", state: b, fingerprint: `f${Math.random()}` } }; };
+    const votes = () => relay(h).filter((r) => r.state?.directive?.type === "restoreVote").map((r) => [r.state.fromPlayer, r.state.directive.voteId, r.state.directive.accept]);
+    frame(blue.ws, voteBoard({ voteId: 3, status: { type: "pending" }, awaitingPlayerIds: ["player-1"] }));
+    await h.flush();
+    same("rewind vote not waiting for it: no vote", votes(), []);
+    frame(blue.ws, voteBoard({ voteId: 4, status: { type: "pending" }, awaitingPlayerIds: ["player-0"] }));
+    frame(blue.ws, voteBoard({ voteId: 4, status: { type: "pending" }, awaitingPlayerIds: ["player-0"] }));
+    frame(blue.ws, voteBoard({ voteId: 5, status: { type: "declined" }, awaitingPlayerIds: ["player-0"] }));
+    await h.flush();
+    same("rewind vote waiting for it: yes, from its own slot, once", votes(), [["player-0", 4, true]]);
+    // the game's end and the relay's errors are the people's seats' to say
+    const said = chats(h).length;
+    frame(red.ws, { type: "GameAborted" });
+    frame(red.ws, { type: "Error", code: "x", message: "something" });
+    await h.flush();
+    ok("its GameAborted and Error say nothing to the table", chats(h).length === said && !g.abortSaid && /Red \(harmless\): relay error x: something/.test(logs()), JSON.stringify(chats(h).slice(said)));
     // pictures: the Forge bot is still bot 0 with a harmless bot in the game (its deck from a table seat shows that seat's pictures)
     h.B._readyDecks.White = { images: { Forest: [{ face: "f.jpg" }] } };
     g.botDeckColors = ["White"];
@@ -180,6 +202,11 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     await h.flush(1);
     same("resumed: logs in as itself, asks for the game, answers", relay(h).slice(n0).map((r) => r.type === "Authenticate" ? `auth ${r.username === red.username}` : r.state?.kind === "response" ? `answer ${r.state.promptId} ${r.state.action.output.value}` : r.type),
       ["auth true", "RequestResync", "answer 8 false"]);
+    const nSock = h.sockets.length;
+    back.heartbeat = () => {};
+    back.ws.emit("close");
+    await h.flush();
+    ok("a link that drops mid-game: said, not retried", h.sockets.length === nSock && chats(h).includes("[MTG] The harmless bot at Red lost the engine connection; the engine concedes its seat."), `${h.sockets.length - nSock} new, ${JSON.stringify(chats(h).slice(-3))}`);
     await fs.promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
   });
 
@@ -204,6 +231,82 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     const g = h.B._getGame();
     same("a seated colour isn't an AI seat", { bots: g.bots, harmless: g.harmlessWanted.length, forge: g.forgeSeats.length }, { bots: 1, harmless: 0, forge: 0 });
   });
+  await run(async (h) => {
+    h.B.setAiSeat("Blue", "harmless");
+    h.B.setAiSeat("Red", "harmless");
+    h.B.startGame(["Blue"], 0, false, true);
+    await h.flush();
+    same("the start names only the AI seats of this game, not one a person sits at", chats(h).filter((t) => t.startsWith("[MTG] AI seats:")), ["[MTG] AI seats: Red: Harmless bot (Passive AI (lands only))."]);
+  });
+
+  // ── a harmless bot whose link drops while setting up: said, as a person's seat says it (the start waits for it) ──
+  await run(async (h) => {
+    h.B.setAiSeat("Red", "harmless");
+    h.B.startGame(["Blue"], 0, false, true);
+    const g = h.B._getGame();
+    const blue = g.seats.get("Blue");
+    blue.joined = true; blue.roomId = "room-1";
+    h.B.onRoomUpdate(blue, { room_id: "room-1", status: "Lobby", max_players: 4, players: [{ username: blue.username, ready: true, connected: true }] });
+    const red = g.harmless?.[0];
+    red.ws.emit("close");
+    await h.flush();
+    same("closed in the lobby: said", chats(h).at(-1), '[MTG] The harmless bot at Red lost the engine connection while setting up. Type "mtg reset", then "mtg start".');
+    const n = chats(h).length;
+    h.B.onTTS({ t: "reset", json: "{}" });
+    await h.flush();
+    ok("closed on purpose (reset): nothing said for it", !chats(h).slice(n).some((t) => /harmless bot at Red/.test(t)), JSON.stringify(chats(h).slice(n)));
+  });
+
+  // ── an AI seat's deck comes before "mtg aideck" and before a deck lying in that seat ──
+  await run(async (h) => {
+    h.B.onTTS({ t: "aideck", json: JSON.stringify({ deck: "kykar_winds_fury" }) });
+    h.B._readyDecks.Yellow = { deckName: "Lying in Yellow", cards: ["Mountain"], commanders: ["Neheb, the Worthy"], images: {} };
+    h.B._readyDecks.White = { deckName: "Lying in White", cards: ["Forest"], commanders: ["Neheb, the Worthy"], images: {} };
+    h.B.setAiSeat("Yellow", "forge", { preset: "ai_passive_lands" });
+    h.B.startGame(["Blue"], 3, false, true, ["White", "Yellow"]);
+    const g = h.B._getGame();
+    const blue = g.seats.get("Blue");
+    blue.joined = true; blue.roomId = "room-1";
+    h.B.onRoomUpdate(blue, { room_id: "room-1", status: "Lobby", max_players: 4, players: [{ username: blue.username, ready: true, connected: true }] });
+    await h.flush();
+    const spawn = relay(h).find((r) => r.state?.payload?.type === "spawnBot");
+    same("the bots' decks: the AI seat's, then mtg aideck's, then a deck lying in another empty seat", (spawn?.state.payload.decks || []).map((d) => d.deckName),
+      ["Passive AI (lands only)", "Kykar, Wind's Fury (the user's deck, 2026-11-07)", "Lying in White"]);
+    same("the deck lying in the AI seat's own colour isn't played", g.aiTableColors, ["White"]);
+    delete h.B._readyDecks.Yellow; delete h.B._readyDecks.White;
+  });
+
+  // ── Forge bots whose names say no index (no "<name>", "<name> 2" pattern) still get a colour each: the plain colours
+  // first, then the Forge AI seat's, rather than one left out of the seat order ──
+  await run(async (h) => {
+    // (the Forge AI seat at Red, before the plain Yellow in turn order: the plain colour is still given first)
+    h.B.setAiSeat("Red", "forge", { preset: "ai_passive_lands" });
+    h.B.startGame(["White", "Blue"], 2, false, true);
+    const g = h.B._getGame();
+    const ppl = [...g.seats.values()].map((s) => ({ username: s.username, ready: true, connected: true }));
+    const bots = [{ username: "odd-a", ready: true, connected: true, is_bot: true }, { username: "odd-b", ready: true, connected: true, is_bot: true }];
+    const order = h.B.clockwiseOrder({ players: [...ppl, ...bots] });
+    same("seat order: everyone; the first odd bot at the plain Yellow, the second at the Forge AI seat's Red", order, [g.seats.get("White").username, "odd-b", "odd-a", g.seats.get("Blue").username]);
+  });
+
+  // ── names that are an Object's own (a plain object's lookups found them): never cards, kinds or tools ──
+  await run(async (h) => {
+    const r1 = h.B.aiSeatDeck({ list: "Commander\n1 Neheb, the Worthy\nDeck\n1 constructor\n1 toString\n1 __proto__\n1 hasOwnProperty" });
+    ok("a list naming constructor, toString, __proto__: refused, each named", !!r1.error && /doesn't know 4 card\(s\): constructor, toString, __proto__, hasOwnProperty/.test(r1.error), JSON.stringify(r1));
+    const r2 = h.B.aiSeatDeck({ list: "Commander\n1 constructor\nDeck\n1 Mountain" });
+    ok("a commander called constructor: refused", !!r2.error && /doesn't know 1 card/.test(r2.error), JSON.stringify(r2));
+    ok("a seat kind called constructor: refused", !h.B.setAiSeat("Red", "constructor", { preset: "ai_passive_lands" }).ok && !h.B._aiSeatChoice.Red);
+    ok("a seat kind called toString: refused", !h.B.setAiSeat("Red", "toString", { preset: "ai_passive_lands" }).ok && !h.B._aiSeatChoice.Red);
+  });
+
+  // ── chat: the deck id is the rest of the line; a deck name's TTS colour codes go ──
+  await run(async (h) => {
+    h.B.onTTS({ t: "aiseat", json: JSON.stringify({ text: "red forge ai_passive_lands extra words" }) });
+    await h.flush();
+    same("mtg ai: the whole rest of the line is the deck asked for", chats(h).at(-1), '[MTG] Red: no Commander deck "ai_passive_lands extra words".');
+    const r = h.B.setAiSeat("Red", "forge", { list: LIST, name: "[ff0000]Red[-] [b]deck[/b]" });
+    same("a deck name's colour codes are taken out", [r.ok, h.B._aiSeatChoice.Red?.deck.deckName], [true, "Red deck"]);
+  });
 
   // ── debug tools ──
   const setup = (h) => {
@@ -215,7 +318,8 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     h.B.onPrompt(seat, prompt("chooseAction", PASS));
     return seat;
   };
-  const tool = async (h, m) => { const r = h.B.onToolsPost({ kind: "debug", ...m }); await h.flush(); return r; };
+  // (a throw is an answer too, named, so one tool's crash fails its own check and not the whole file)
+  const tool = async (h, m) => { let r; try { r = h.B.onToolsPost({ kind: "debug", ...m }); } catch (e) { r = { ok: false, message: `THREW ${e.message}` }; } await h.flush(); return r; };
   const endFix = async (h, seat) => { const a = applies(h).pop(); const b = myMain(); b.gameView.stateFix = { fixId: a?.fixId, applied: true }; seat.board.state = b; h.B._getGame().lastTableSig = null; h.B.sendTable(); await h.flush(); };
   await run(async (h) => {
     const seat = setup(h);
@@ -233,6 +337,7 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     ok("while a fix is under way: refused", !busy.ok && /already under way/.test(busy.message), JSON.stringify(busy));
     await endFix(h, seat);
     same("applied: the fix is over", h.B._getGame().fix, null);
+    ok("applied: said as a debug tool", chats(h).some((t) => /^\[MTG\] Debug tool "add 3 R mana to Blue's pool" applied: /.test(t)), JSON.stringify(chats(h).slice(-3)));
     h.B.onPrompt(seat, prompt("chooseAction", PASS, 901)); await h.flush();
     await tool(h, { tool: "hand", color: "Blue", name: "lightning bolt" });
     same("hand: createCard by the engine's own name", applies(h).pop()?.ops, [{ op: "createCard", name: "Lightning Bolt", player: "player-0", zone: "hand" }]);
@@ -259,10 +364,27 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     same("refusals: each with its reason", bad.map((r) => r.ok ? "ok" : r.message), ['The engine has no card called "Notacard Atall".', "Name a card.", "Say 1 to 99 mana.",
       "Pick a mana colour: W, U, B, R, G or C.", "Say a life total from 0 to 999.", "Red isn't in this game.", 'No debug tool "draw".']);
     same("refusals: nothing sent", applies(h).length, n0);
+    const proto = [await tool(h, { tool: "constructor", color: "Blue" }), await tool(h, { tool: "hand", color: "Blue", name: "toString" }),
+      await tool(h, { tool: "battlefield", color: "Blue", name: "constructor" }), await tool(h, { tool: "hand", color: "Blue", name: "__proto__" })];
+    same("Object's own names: no tool, no card", proto.map((r) => r.ok ? "ok" : r.message), ['No debug tool "constructor".', 'The engine has no card called "toString".',
+      'The engine has no card called "constructor".', 'The engine has no card called "__proto__".']);
+    same("Object's own names: nothing sent", applies(h).length, n0);
+    // a game the bridge knows is over, though the board doesn't say so yet
+    h.B._getGame().over = true;
+    const over = await tool(h, { tool: "life", color: "Blue", n: 5 });
+    same("game over (the bridge's word): refused, and the page told no game", [over.message, h.B.toolsState().debug.game], ["The game is over.", false]);
+    h.B._getGame().over = false;
+    // a rewind vote open: no new fix (fixBusy, as for "mtg fix")
+    seat.board.state.gameView.restoreVote = { voteId: 1, status: { type: "pending" }, awaitingPlayerIds: ["player-1"] };
+    const rv = await tool(h, { tool: "life", color: "Blue", n: 5 });
+    same("a rewind vote open: refused, nothing sent", [rv.message, applies(h).length], ["Finish the rewind vote first.", n0]);
+    delete seat.board.state.gameView.restoreVote;
     const st = h.B.toolsState();
     same("GET: players and tools", { on: st.debug.on, game: st.debug.game, players: st.debug.players, tools: st.tools }, { on: true, game: true, players: [{ color: "Blue", name: "Blue" }, { color: "White", name: "AI 1" }], tools: ["mana", "hand", "battlefield", "life", "untap"] });
     same("GET: four seats", st.seats.map((s) => [s.color, s.person, s.ai]), [["White", false, null], ["Red", false, null], ["Yellow", false, null], ["Blue", true, null]]);
     h.B.onToolsPost({ kind: "debug-mode", on: false });
+    await h.flush();
+    same("off: said to the whole table too", chats(h).at(-1), "[MTG] The host switched debug tools off.");
     const off = await tool(h, { tool: "life", color: "Blue", n: 5 });
     ok("off again: refused", !off.ok && /off/.test(off.message));
     ok("an unknown kind is refused", !h.B.onToolsPost({ kind: "nope" }).ok && !h.B.onToolsPost(null).ok && !h.B.onToolsPost([1]).ok);
@@ -301,6 +423,37 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     await h.flush();
     await tool(h, { tool: "life", color: "Red", n: 9 });
     ok("for a person: asked in that person's name, the others vote", g.fix?.by === "Red" && JSON.stringify(g.fix.waiting) === '["Blue"]', JSON.stringify(g.fix));
+  });
+  // switched off while one waits for its votes: it goes, and the votes then change nothing
+  await run(async (h) => {
+    const g = two(h);
+    await h.flush();
+    await tool(h, { tool: "life", color: "White", n: 9 });
+    h.B.onTTS({ t: "fix", json: JSON.stringify({ color: "Red", action: "vote", accept: true }) });
+    await h.flush();
+    ok("precondition: at the review vote", g.fix?.state === "review", JSON.stringify(g.fix));
+    h.B.setDebugTools(false);
+    await h.flush();
+    ok("switched off: the debug tool is cancelled, said", g.fix === null && chats(h).at(-1) === '[MTG] Debug tool "set White\'s life to 9" cancelled: debug tools are off.', JSON.stringify(chats(h).slice(-2)));
+    h.B.onTTS({ t: "fix", json: JSON.stringify({ color: "Red", action: "vote", accept: true }) });
+    await h.flush();
+    same("switched off: nothing applied", applies(h).length, 0);
+  });
+  // a scenario's debug setup (mtg debug) is not a debug tool: switching the tools off leaves it
+  await run(async (h) => {
+    const g = two(h);
+    await h.flush();
+    g.fix = { id: 1, by: "Blue", state: "voting", waiting: ["Red"], debug: { name: "x", scenario: {} } };
+    h.B.setDebugTools(false);
+    ok("switched off: a scenario's setup stays", g.fix?.debug?.name === "x");
+  });
+  // one the engine is already applying is past stopping (as a manual fix's Cancel is then)
+  await run(async (h) => {
+    const g = two(h);
+    await h.flush();
+    g.fix = { id: 1, by: "Blue", state: "applying", waiting: [], debug: { name: "y", tool: true } };
+    h.B.setDebugTools(false);
+    ok("switched off while applying: the debug tool goes on", g.fix?.debug?.name === "y" && g.fix.state === "applying");
   });
 
   // ── the HTTP routes on the debug port, over a real socket ──

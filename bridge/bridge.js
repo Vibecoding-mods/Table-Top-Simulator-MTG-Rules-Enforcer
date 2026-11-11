@@ -296,8 +296,11 @@ function loadPreset(id) {
 let forgeCards = null;
 function forgeIndex() {
   if (!forgeCards) {
-    try { forgeCards = JSON.parse(fs.readFileSync(path.join(__dirname, "forge-cards.json"), "utf8")).index; }
-    catch { forgeCards = {}; log("forge-cards.json missing: run node tools/build-forge-card-index.js"); }
+    // (with no prototype: a lookup by any typed name reads only the file's own names; "constructor" or "toString"
+    // found Object's and passed as a card, verifier 2026-11-11)
+    forgeCards = Object.create(null);
+    try { Object.assign(forgeCards, JSON.parse(fs.readFileSync(path.join(__dirname, "forge-cards.json"), "utf8")).index); }
+    catch { log("forge-cards.json missing: run node tools/build-forge-card-index.js"); }
   }
   return forgeCards;
 }
@@ -428,7 +431,8 @@ function aiSeatDeck({ preset, list, name } = {}) {
   if (!cmd.length) return { error: "no commander: put it under a line that says Commander, or mark it *CMDR*" };
   if (!rest.length) return { error: "the list has no cards besides the commander" };
   for (const c of cmd) { const i = rest.indexOf(c); if (i >= 0) rest.splice(i, 1); } // (a commander listed in the deck too)
-  const deckName = String(name || "").trim().slice(0, 60) || `${cmd.join(" & ")} (deck list)`;
+  // (the name is said in chat: TTS would draw a "[ff0000]" in it as a colour, so codes in brackets go)
+  const deckName = String(name || "").replace(/\[[^\]]*\]/g, "").trim().slice(0, 60) || `${cmd.join(" & ")} (deck list)`;
   return { deck: engineDeckFromTable({ deckName, cards: rest, commanders: cmd }), source: "list" };
 }
 
@@ -437,17 +441,20 @@ function setAiSeat(color, kind, spec = {}) {
   const c = TABLE_COLORS.find((x) => x.toLowerCase() === String(color || "").toLowerCase());
   if (!c) return { ok: false, message: `No seat "${String(color || "").slice(0, 20)}": the seats are ${TABLE_COLORS.join(", ")}.` };
   if (kind === "off") { delete aiSeatChoice[c]; return { ok: true, message: `${c}: no AI set.` }; }
-  if (!AI_KINDS[kind]) return { ok: false, message: `${c}: say harmless, forge or off.` };
+  if (!Object.hasOwn(AI_KINDS, kind)) return { ok: false, message: `${c}: say harmless, forge or off.` };
   const r = aiSeatDeck(kind === "harmless" && !spec.preset && !spec.list ? { preset: HARMLESS_DECK } : spec);
   if (r.error) return { ok: false, message: `${c}: ${r.error}.` };
   aiSeatChoice[c] = { kind, deck: r.deck, source: r.source };
   return { ok: true, message: `${c}: ${AI_KINDS[kind]} playing ${r.deck.deckName}${game?.started ? " (from the next game)" : ""}.` };
 }
-const aiSeatsText = () => TABLE_COLORS.filter((c) => aiSeatChoice[c]).map((c) => `${c}: ${AI_KINDS[aiSeatChoice[c].kind]} (${aiSeatChoice[c].deck.deckName})`).join("; ");
+// the AI seats set among `colors`, in words ("mtg ai", and the start's line)
+const aiSeatsText = (colors = TABLE_COLORS) => colors.filter((c) => aiSeatChoice[c]).map((c) => `${c}: ${AI_KINDS[aiSeatChoice[c].kind]} (${aiSeatChoice[c].deck.deckName})`).join("; ");
 
-// "mtg ai" (host): list; "mtg ai clear"; "mtg ai <colour> off"; "mtg ai <colour> harmless|forge [deck id]"
+// "mtg ai" (host): list; "mtg ai clear"; "mtg ai <colour> off"; "mtg ai <colour> harmless|forge [deck id]" (the deck id
+// is the rest of the line)
 function onAiSeatChat(text) {
-  const [color, kind, preset] = String(text || "").trim().split(/\s+/);
+  const [color, kind, ...more] = String(text || "").trim().split(/\s+/);
+  const preset = more.join(" ");
   if (!color || color === "list") return chat(`[MTG] AI seats: ${aiSeatsText() || "none set"}. Use  mtg ai <colour> harmless|forge [deck]  or  mtg ai <colour> off  (decks: ${listCommanderPresets().join(", ")}).`);
   if (color === "clear") { for (const c of Object.keys(aiSeatChoice)) delete aiSeatChoice[c]; return chat("[MTG] AI seats cleared."); }
   if (kind === "forge" && !preset) return chat(`[MTG] Name the Forge AI's deck:  mtg ai ${color} forge <deck>  (decks: ${listCommanderPresets().join(", ")}).`);
@@ -815,10 +822,10 @@ class Seat {
 }
 
 // A "harmless" AI seat (aiSeatChoice): the bridge logs it in and seats it like a person, so the engine asks it every
-// question, and answers each at once (harmlessAnswer) without showing anything. It isn't in game.seats: the table, the
-// votes and the fixes see an AI player (onGameStarted names it "AI n"). A restarted bridge logs it back in with the
-// people's seats (resume: saveResume), but a link that drops while the bridge runs isn't retried: the engine then
-// concedes that seat.
+// question, and answers each at once (harmlessAnswer) without showing anything. It isn't in game.seats: the table and
+// the manual fixes see an AI player (onGameStarted names it "AI n"). The engine, though, counts it as a person, so it is
+// asked in every rewind vote: it says yes (harmlessVotes). A restarted bridge logs it back in with the people's seats
+// (resume: saveResume), but a link that drops while the bridge runs isn't retried: the engine then concedes that seat.
 class HarmlessSeat extends Seat {
   constructor(color, deck, resume = null) {
     super(color, null, resume);
@@ -827,7 +834,21 @@ class HarmlessSeat extends Seat {
   }
   onClosed() {
     clearTimeout(this.pingTimer);
-    if (!this.closed && game && !game.closing) log(`${this.color} (harmless): relay connection closed; not reconnected (the engine concedes the seat)`);
+    if (this.closed || !game || game.closing || !(game.harmless || []).includes(this)) return;
+    // (said, as a person's seat says it: while setting up, the start waits for this seat for ever, verifier 2026-11-11)
+    if (!game.started || !this.slot) {
+      log(`${this.color} (harmless): relay connection closed before the game started`);
+      return chat(`[MTG] The harmless bot at ${this.color} lost the engine connection while setting up. Type "mtg reset", then "mtg start".`);
+    }
+    log(`${this.color} (harmless): relay connection closed; not reconnected (the engine concedes the seat)`);
+    chat(`[MTG] The harmless bot at ${this.color} lost the engine connection; the engine concedes its seat.`);
+  }
+  // (the people's seats say a game's end and the relay's errors: this seat reads no board, so its "Game over" had no
+  // reason and could win the race to the table, and an error was said to a colour nobody sits at)
+  onRelay(msg) {
+    if (msg?.type === "GameAborted") return;
+    if (msg?.type === "Error" && !(this.rejoinUntil && Date.now() < this.rejoinUntil)) return log(`${this.color} (harmless): relay error ${msg.code}: ${msg.message}`);
+    super.onRelay(msg);
   }
   onEnvelope(env) {
     if (!env || !this.slot || env.forPlayer !== this.slot) return;
@@ -842,6 +863,20 @@ class HarmlessSeat extends Seat {
   }
   answer(promptId, type, output) {
     this.send({ type: "BroadcastState", state: { kind: "response", fromPlayer: this.slot, promptId: promptId ?? 0, action: { type, output } } });
+  }
+}
+// Every relay link of the game: the people's seats and the harmless bots (game.harmless, never in game.seats).
+const allSeats = () => (game ? [...game.seats.values(), ...(game.harmless || [])] : []);
+// The engine asks every seat that isn't its own bot in a rewind vote (ManaBrewInteractiveSession's voters), harmless
+// bots too, and a vote waits for all of them: each says yes, once per vote, as a Forge AI is never asked. Read from the
+// people's boards (noteBoard): a harmless bot reads none.
+function harmlessVotes(gv) {
+  const v = gv?.restoreVote;
+  if (!v || v.status?.type !== "pending") return;
+  for (const h of game?.harmless || []) {
+    if (!h.slot || h.votedOn === v.voteId || !(v.awaitingPlayerIds || []).includes(h.slot)) continue;
+    h.votedOn = v.voteId;
+    h.directive({ type: "restoreVote", voteId: v.voteId, accept: true });
   }
 }
 // What a harmless seat answers, in the engine's answer shapes (the ones onPrompt's toOutput makes): keep the hand, pass,
@@ -950,6 +985,9 @@ function resendToTable() {
 // all. Anything but 1 or 2 is none.
 const friendlyCount = (n) => (n === 1 || n === 2 ? n : 0);
 
+// The Forge AI players the node is asked for: every AI player but the harmless bots the bridge plays itself
+const forgeBotCount = () => game.bots - (game.harmlessWanted || []).length;
+
 // fromTable: the group's table draws the game (default: games whose decks come from the table)
 function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
@@ -975,9 +1013,9 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   seatList.forEach((color, i) => game.seats.set(color, new Seat(color, deckChoice[color] || DEFAULT_DECKS[i % DEFAULT_DECKS.length])));
   // (a debug setup waits for its player's next game: one not in this game is dropped, not kept for a later one)
   for (const c of Object.keys(debugChoice)) if (!seatList.includes(c)) { chat(`[MTG] Debug "${debugChoice[c].name}" dropped: ${c} isn't in this game.`); delete debugChoice[c]; }
-  const harmlessN = game.harmlessWanted.length;
-  chat(`[MTG] Setting up: ${seatList.join(", ")}${bots - harmlessN ? ` + ${bots - harmlessN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
-  if (preset.length) chat(`[MTG] AI seats: ${preset.map((c) => `${c} ${AI_KINDS[aiSeatChoice[c].kind]} (${aiSeatChoice[c].deck.deckName})`).join(", ")}.`);
+  const harmlessN = game.harmlessWanted.length, forgeN = forgeBotCount();
+  chat(`[MTG] Setting up: ${seatList.join(", ")}${forgeN ? ` + ${forgeN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
+  if (preset.length) chat(`[MTG] AI seats: ${aiSeatsText(preset)}.`);
   log(`setup: seats ${seatList.join(", ")}, bots ${bots}, relay ${RELAY}`);
 }
 
@@ -1012,7 +1050,7 @@ function onRoomUpdate(seat, room) {
     game.maxSet = true;
     controllerOf(room, seats).send({ type: "SetMaxPlayers", max_players: game.total });
   }
-  const forgeBots = game.bots - (game.harmlessWanted || []).length;
+  const forgeBots = forgeBotCount();
   if (!game.botsRequested && forgeBots > 0 && seats.every((s) => s.joined)) {
     game.botsRequested = true;
     const used = new Set(seats.map((s) => s.deckId));
@@ -1050,8 +1088,7 @@ function onRoomUpdate(seat, room) {
 // onGameStarted, only in a game with AI seats (without them the colours are given exactly as before).
 function clockwiseOrder(room) {
   const byColor = {};
-  for (const st of game.seats.values()) byColor[st.color] = st.username;
-  for (const h of game.harmless || []) byColor[h.color] = h.username;
+  for (const st of allSeats()) byColor[st.color] = st.username;
   const humans = new Set(Object.values(byColor));
   const forge = game.forgeSeats || [];
   const others = room.players.filter((p) => !humans.has(p.username));
@@ -1060,7 +1097,10 @@ function clockwiseOrder(room) {
     for (const p of others) { const f = forge[k(p.username) ?? -1]; if (f && !byColor[f.color]) byColor[f.color] = p.username; }
   }
   const placed = new Set(Object.values(byColor));
-  const free = TABLE_COLORS.filter((c) => !byColor[c] && !forge.some((f) => f.color === c));
+  // (the colours left, a Forge AI seat's last: kept for its own bot, but one whose name says no index still gets a
+  // colour, rather than be left out of the seat order)
+  const isForge = (c) => forge.some((f) => f.color === c);
+  const free = [...TABLE_COLORS.filter((c) => !byColor[c] && !isForge(c)), ...TABLE_COLORS.filter((c) => !byColor[c] && isForge(c))];
   for (const p of others) if (!placed.has(p.username) && free.length) byColor[free.shift()] = p.username;
   if ((game.harmless || []).length || forge.length) game.colorOfUser = Object.fromEntries(Object.entries(byColor).map(([c, u]) => [u, c]));
   return TABLE_COLORS.filter((c) => byColor[c]).map((c) => byColor[c]);
@@ -1111,7 +1151,7 @@ function onGameStarted(msg) {
 // The relay's node names the bot given decks[k] "<name>" for k = 0 and "<name> <k+1>" after that (self-hosted-node
 // spawn_bots), and the bots join in any order; an AI whose name doesn't say which it is gets none.
 function gamePictures(order) {
-  const ai = order.filter((u) => ![...game.seats.values(), ...(game.harmless || [])].some((s) => s.username === u));
+  const ai = order.filter((u) => !allSeats().some((s) => s.username === u));
   const botIndex = botIndexOf(ai);
   const pictures = {};
   order.forEach((u, i) => {
@@ -3805,7 +3845,7 @@ function sendTable() {
 }
 
 function resetGame(reason) {
-  if (game) { game.closing = true; for (const s of [...game.seats.values(), ...(game.harmless || [])]) s.close(); }
+  if (game) { game.closing = true; for (const s of allSeats()) s.close(); }
   clearResume(); // (a reset game is never rejoined)
   if (game) for (const seat of game.seats.values()) stopTimer(seat, true);
   game = null;
@@ -3955,7 +3995,7 @@ function notePrinted(gv) {
   }
 }
 // What the bridge records from each board the engine sends, before it is drawn
-function noteBoard(gv) { noteOuts(gv); notePrinted(gv); }
+function noteBoard(gv) { noteOuts(gv); notePrinted(gv); harmlessVotes(gv); }
 // Not out before the last players to go (still playing, or among them)
 function outLast(p) { const at = game?.outOrder?.[p.id]; return at == null || at === game.outStamp; }
 // (a conceded player's reason is the concession, whatever the board shows: concededPlayers)
@@ -8269,7 +8309,7 @@ function tokenScript(text) {
   let colours = "", pt = null;
   const rest = [];
   for (const w of words) {
-    if (TOKEN_COLOURS[w]) colours += TOKEN_COLOURS[w];
+    if (Object.hasOwn(TOKEN_COLOURS, w)) colours += TOKEN_COLOURS[w];
     else if (/^\d+\/\d+$/.test(w)) pt = w.replace("/", "_");
     else if (w !== "token" && w !== "tokens" && w !== "creature") rest.push(w);
   }
@@ -8412,8 +8452,8 @@ function fixNews(pub) {
   if (!f || f.state !== "applying" || !r || r.fixId !== f.applyId) return;
   if (r.applied) {
     log(`fix #${f.id} applied (${f.applyId})`);
-    const what = f.debug ? `debug setup "${f.debug.name}"` : "manual fix";
-    chat(`[MTG] ${f.debug ? `Debug setup "${f.debug.name}"` : "Manual fix"} applied: ${f.lines.join("; ")}.`);
+    const what = f.debug ? `debug ${f.debug.tool ? "tool" : "setup"} "${f.debug.name}"` : "manual fix";
+    chat(`[MTG] ${what[0].toUpperCase()}${what.slice(1)} applied: ${f.lines.join("; ")}.`);
     // (and in the game log, which said nothing of King Macar put on top of the library by hand, hp-14 gap)
     gameLogLine(`${f.by}'s ${what}: ${f.lines.join("; ")}`);
     // (free plays the engine couldn't make: a choice cancelled, no legal target, a cost that couldn't be paid. The rest
@@ -8533,12 +8573,18 @@ function fixRefusal(seat, pub) {
   return null;
 }
 // A new fix, a manual one or a debug setup (`debug`: { name, scenario }): the others vote on the pause, else it pauses.
+// why no new fix can start now (one is under way, or a rewind vote is open), or null: openFix's and runDebugTool's
+function fixBusy(pub) {
+  if (game.fix) return "A manual fix is already under way.";
+  if (pub.restoreVote?.status?.type === "pending") return "Finish the rewind vote first.";
+  return null;
+}
 function openFix(color, pub, debug = null) {
-  if (game.fix) return chat("[MTG] A manual fix is already under way.", color);
-  if (pub.restoreVote?.status?.type === "pending") return chat("[MTG] Finish the rewind vote first.", color);
+  const busy = fixBusy(pub);
+  if (busy) return chat(`[MTG] ${busy}`, color);
   const nf = { id: (game.fixCount = (game.fixCount || 0) + 1), by: color, held: null, ...(debug ? { debug } : {}) };
   game.fix = nf;
-  log(debug ? `${color} sets up the debug scenario ${debug.name} (#${nf.id})` : `${color} calls a manual fix (#${nf.id})`);
+  log(debug ? `${color} ${debug.tool ? "uses the debug tool" : "sets up the debug scenario"} ${debug.name} (#${nf.id})` : `${color} calls a manual fix (#${nf.id})`);
   const what = debug ? `asks to pause the game ${debug.tool ? "for the debug tool" : "to set up the debug scenario"} "${debug.name}"` : "asks to pause the game for a manual fix";
   if (!fixAsk(nf, pub, color, "voting", what)) fixPaused(nf);
   scheduleTable();
@@ -8749,17 +8795,20 @@ function cardNameProblem(name) {
   if (!n) return "name a card";
   return forgeIndex()[normName(n)] ? null : `the engine has no card called "${n.slice(0, 60)}"`;
 }
-// The running game a debug tool can change, with its board, or { error }
-function debugToolGame() {
-  if (!debugTools) return { error: "Debug tools are off: switch them on first." };
+// The running table game, with its board, or { error }: what a debug tool can change (debugToolGame) and what the
+// page is told it can (toolsState), one test for both
+function runningTableGame() {
   const pub = leadSeat()?.board?.state?.gameView;
   if (!game?.started || !game.fromTable || !pub) return { error: "No table game is running." };
   if (pub.gameOver || game.over) return { error: "The game is over." };
   return { pub };
 }
+function debugToolGame() {
+  return debugTools ? runningTableGame() : { error: "Debug tools are off: switch them on first." };
+}
 // m: { tool, color, n, name, mana } -> { ok, message }
 function runDebugTool(m) {
-  const t = DEBUG_TOOLS[m?.tool];
+  const t = Object.hasOwn(DEBUG_TOOLS, m?.tool) ? DEBUG_TOOLS[m.tool] : null;
   if (!t) return { ok: false, message: `No debug tool "${String(m?.tool || "").slice(0, 20)}".` };
   const g = debugToolGame();
   if (g.error) return { ok: false, message: g.error };
@@ -8767,8 +8816,8 @@ function runDebugTool(m) {
   const slot = color && slotOfColor(color);
   if (!slot) return { ok: false, message: `${String(m.color || "That colour").slice(0, 20)} isn't in this game.` };
   if (!isPlaying(g.pub, slot)) return { ok: false, message: `${color} is out of the game.` };
-  if (game.fix) return { ok: false, message: "A manual fix is already under way: finish it first." };
-  if (g.pub.restoreVote?.status?.type === "pending") return { ok: false, message: "Finish the rewind vote first." };
+  const busy = fixBusy(g.pub);
+  if (busy) return { ok: false, message: busy };
   const n = m.n == null || m.n === "" ? null : Number(m.n);
   const name = String(m.name || "").trim(), mana = String(m.mana || "").trim().toUpperCase();
   const bad = t.check(n, name, mana);
@@ -8784,6 +8833,14 @@ function setDebugTools(on) {
   if (debugTools === !!on) return { ok: true, message: `Debug tools are already ${on ? "on" : "off"}.` };
   debugTools = !!on;
   chat(debugTools ? "[MTG] The host switched debug tools on (companion page): changes to the game come as debug setups, voted on as a manual fix." : "[MTG] The host switched debug tools off.");
+  // (off means off: a debug tool still waiting for its pause or its votes goes too; one the engine is applying is past
+  // stopping, as a manual fix's Cancel is then)
+  const f = game?.fix;
+  if (!debugTools && f?.debug?.tool && f.state !== "applying") {
+    log(`fix #${f.id}: debug tool cancelled, debug tools switched off`);
+    chat(`[MTG] Debug tool "${f.debug.name}" cancelled: debug tools are off.`);
+    endFix();
+  }
   return { ok: true, message: `Debug tools ${debugTools ? "on" : "off"}.` };
 }
 
@@ -8798,7 +8855,7 @@ function toolsState() {
         ai: a ? { kind: a.kind, kindLabel: AI_KINDS[a.kind], deckName: a.deck.deckName, source: a.source } : null };
     }),
     presets: listCommanderPresets(),
-    debug: { on: debugTools, game: !!(game?.started && game.fromTable && pub && !pub.gameOver && !game.over), fix: !!game?.fix,
+    debug: { on: debugTools, game: !runningTableGame().error, fix: !!game?.fix,
       players: game?.started ? Object.keys(game.slotColor).filter((s) => game.slotColor[s] && isPlaying(pub, s)).map((s) => ({ color: game.slotColor[s], name: nameOf(s) })) : [] },
     tools: Object.keys(DEBUG_TOOLS),
   };
@@ -9101,7 +9158,7 @@ if (require.main === module) {
   debugServer.listen(DEBUG_PORT, "127.0.0.1").on("error", (e) => log(`debug port ${DEBUG_PORT} unavailable: ${e.message}`));
   server.listen(TTS_IN, "127.0.0.1", () => log(`Bridge listening for TTS on ${TTS_IN}; relay ${RELAY}, room "${ROOM}". Load tts/mtg-board.lua in TTS.`));
   editorForward.start();
-  process.on("SIGINT", () => { if (game) { game.closing = true; for (const s of [...game.seats.values(), ...(game.harmless || [])]) s.close(); } setTimeout(() => process.exit(0), 200); });
+  process.on("SIGINT", () => { if (game) { game.closing = true; for (const s of allSeats()) s.close(); } setTimeout(() => process.exit(0), 200); });
   resumeGame();
   setInterval(() => { guarded("save game", saveResume); guarded("fix watchdog", fixWatchdog); }, 5000);
 } else {

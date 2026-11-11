@@ -492,8 +492,19 @@ function boot(body) {
     same("seat: a preset", S("Red", "forge", "kykar_winds_fury", "", ""), { kind: "ai-seat", color: "Red", seat: "forge", preset: "kykar_winds_fury" });
     same("seat: harmless with no deck picked: the bridge's own", S("Red", "harmless", "", "", ""), { kind: "ai-seat", color: "Red", seat: "harmless" });
     same("seat: a list, its name trimmed", S("Red", "forge", P.LIST_CHOICE, "1 Shock", "  Mine "), { kind: "ai-seat", color: "Red", seat: "forge", list: "1 Shock", name: "Mine" });
-    same("seat: refusals", [S("Red", "forge", "", "", "").error, S("Red", "forge", P.LIST_CHOICE, "  ", "").error, S("Red", "forge", P.LIST_CHOICE, "x".repeat(15001), "").error, S("Red", "?", "", "", "").error],
-      ["Pick a deck for the Forge AI.", "Paste a deck list, or pick a file, first.", "That deck list is too long (over 15,000 characters).", "Pick who plays it."]);
+    const TOO_LONG = "That deck list is too long: the page can send 16 KB at most.";
+    same("seat: refusals", [S("Red", "forge", "", "", "").error, S("Red", "forge", P.LIST_CHOICE, "  ", "").error, S("Red", "?", "", "", "").error],
+      ["Pick a deck for the Forge AI.", "Paste a deck list, or pick a file, first.", "Pick who plays it."]);
+    // (the companion reads 16,384 body bytes at most: the body as sent, UTF-8 and JSON escapes, is what is measured)
+    const room = 16384 - Buffer.byteLength(JSON.stringify({ kind: "ai-seat", color: "Red", seat: "forge", list: "" }));
+    same("seat: a list whose body is exactly 16 KB is sent; one byte more is refused", [S("Red", "forge", P.LIST_CHOICE, "x".repeat(room), "").error, S("Red", "forge", P.LIST_CHOICE, "x".repeat(room + 1), "").error],
+      [undefined, TOO_LONG]);
+    same("seat: the deck name counts too", S("Red", "forge", P.LIST_CHOICE, "x".repeat(room - 10), "Mine").error, TOO_LONG);
+    same("seat: under 15,000 characters but over 16 KB sent (line breaks escaped, accents two bytes): refused",
+      [S("Red", "forge", P.LIST_CHOICE, "1 Opt\r\n".repeat(2000), "").error, S("Red", "forge", P.LIST_CHOICE, "é".repeat(9000), "").error, S("Red", "forge", P.LIST_CHOICE, "🂡".repeat(4200), "").error], [TOO_LONG, TOO_LONG, TOO_LONG]);
+    same("seat: accents just under 16 KB sent: accepted", S("Red", "forge", P.LIST_CHOICE, "é".repeat(Math.floor(room / 2)), "").error, undefined);
+    same("seat: a 4-byte character (a surrogate pair) counts 4: just under 16 KB accepted, one more refused",
+      [S("Red", "forge", P.LIST_CHOICE, "🂡".repeat(Math.floor(room / 4)), "").error, S("Red", "forge", P.LIST_CHOICE, "🂡".repeat(Math.floor(room / 4) + 1), "").error], [undefined, TOO_LONG]);
     const D = P.debugRequest;
     same("debug: mana", D("mana", "Blue", "3", "", "R"), { kind: "debug", tool: "mana", color: "Blue", n: 3, mana: "R" });
     same("debug: a card", D("hand", "Blue", "", " Opt ", "R"), { kind: "debug", tool: "hand", color: "Blue", name: "Opt" });

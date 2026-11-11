@@ -91,14 +91,18 @@ The user's list, in their order. Most items need a running TTS table in debug mo
         - makes the fewest picks a question allows (the first ones), and keeps a scry on top;
         - attacks only with creatures that must, and blocks only an attacker that must be blocked (when the engine
           refuses no blocks).
-        - It is an AI player to the table ("AI n"), takes no vote and has no prompts on the table.
-        - A restarted bridge logs it back in; a dropped link isn't retried, so the engine concedes that seat.
+        - It is an AI player to the table ("AI n"), takes no manual-fix vote and has no prompts on the table.
+        - The engine counts it as a person, so it is asked in every rewind vote; it says yes at once (`harmlessVotes`).
+          Without that, a rewind in a game with one waited for it for ever.
+        - A restarted bridge logs it back in. A dropped link isn't retried, so the engine concedes that seat; the table
+          is told. A link lost while setting up is said too ("mtg reset", then "mtg start"), as for a person's seat.
         - Its default deck is `ai_passive_lands`, and any deck can be given.
       - **Forge AI** is the node's own Forge AI. The node has one AI profile; picking a profile would need a node change.
       - **Deck lists.** Pasted or loaded from a .txt/.dek/.dck file on the page. Arena/Moxfield style: `1 Name`,
         `1x Name`, `Name (SET) 123 *F*`, tags; the commander under `Commander` or marked `*CMDR*`; `Sideboard`,
         `Maybeboard` and `Companion` parts aren't played. Every card must be known to the engine. The deck size isn't
-        checked: an AI's deck is the host's business.
+        checked: an AI's deck is the host's business. The page sends at most 16 KB (the companion's body limit), and a
+        deck name loses any TTS colour codes in brackets, since it is said in chat.
       - **Needs a live check on the real table:** a game with a harmless bot and a Forge AI seat (who sits where, the
         mats, the bot never stalling a question type the tests don't have).
 21. **Debug tools in the companion page** (asked 2026-11-10). This merges with item 18.
@@ -109,7 +113,7 @@ The user's list, in their order. Most items need a running TTS table in debug mo
     - **Built 2026-11-11 (round 2 C). Decisions where the list was silent:**
       - "Only in debug mode" means a debug-tools switch on the page, a bridge setting that is off at every bridge start
         and is said to the whole table both ways. "Host only" means the page, which opens only on the host's PC with
-        that run's token.
+        that run's token. Switching it off cancels a debug tool still waiting for its pause or votes.
       - Each tool is one manual fix: the game pauses at a moment with nothing on the stack, the other people vote
         (nobody does vs AI), and `applyState` runs. It is made in the name of the player it's for when a person sits
         there, else of the first person still playing.
