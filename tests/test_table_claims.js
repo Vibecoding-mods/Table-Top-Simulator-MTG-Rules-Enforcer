@@ -754,18 +754,41 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("rewind go: pressing it sends rewindGo", fxOf(r, "press").join(" ").split("\\").join("").includes("rewindGo"), fxOf(r, "press").join(" ").slice(0, 200));
   ok("rewind go: hidden while a vote is still open", valueOf(r, "waiting") === "false", String(valueOf(r, "waiting")));
 }
-// TTS's own rewind arrows and spare tools are covered while a game runs, under the table's buttons, for those whose bars they fit
+// The "floating black boxes" (2026-11-09): the covers over TTS's tool bars, measured on one screen, floated on others.
+// None in the screen UI, and nothing sets one. The log panel is no empty black box either: hidden until the first line.
 {
-  const cover = (mark) => q('return tostring(UI.getAttribute("eng_cover_1", "active")) .. tostring(UI.getAttribute("eng_cover_2", "active")) .. tostring(UI.getAttribute("eng_cover_3", "active"))', mark);
-  const r = run([q('engineScoopRedraw()', "draw"), cover("running"), q('engineTable().gameOver = true engineScoopRedraw()', "end it"), cover("over"),
-    q('engineTable().gameOver = false engineScoopRedraw()', "restart"), cover("again"), q('return tostring(engineToolCoverXml():find("^<Panel id=\\"eng_cover_1\\" visibility=\\"Admin\\"") ~= nil)', "xml")]);
-  ok("covers: on while a game runs", valueOf(r, "running") === "truetruetrue", String(valueOf(r, "running")) + " " + r.errors.join(" | "));
-  ok("covers: off when it ends", valueOf(r, "over") === "falsefalsefalse", String(valueOf(r, "over")));
-  ok("covers: back on with a game", valueOf(r, "again") === "truetruetrue", String(valueOf(r, "again")));
-  ok("covers: for the host and promoted players only", valueOf(r, "xml") === "true", String(valueOf(r, "xml")));
-  // TTS scales the top bar from the screen's centre, so the arrows' cover has to hang from there (1920x1009 left the forward arrow bare)
-  const a = run([q('return tostring(engineToolCoverXml():find(\'id="eng_cover_3" visibility="Admin" width="136" height="66" rectAlignment="UpperCenter" offsetXY="-505 -1"\', 1, true) ~= nil)', "arrows xml")]);
-  ok("covers: the arrows' cover is anchored to the screen's centre", valueOf(a, "arrows xml") === "true", String(valueOf(a, "arrows xml")) + " " + a.errors.join(" | "));
+  const r = run([q('engineScoopRedraw()', "draw"), q('local x = UI.getXml() return tostring(x:find("eng_cover", 1, true) ~= nil) .. "|" .. tostring(engineToolCoverXml)', "xml"),
+    q('engineLog = {} engineRenderPanels("none") return tostring(UI.getAttribute("eng_log_Blue", "active"))', "empty log"),
+    q('engineOnLog({ lines = { "Blue casts Opt" } }) return tostring(UI.getAttribute("eng_log_Blue", "active"))', "first line")]);
+  ok("black boxes: no tool covers in the screen UI", valueOf(r, "xml") === "false|nil", String(valueOf(r, "xml")) + " " + r.errors.join(" | "));
+  ok("black boxes: nothing sets a cover", !r.steps.some((st) => (st.fx || []).some((l) => l.includes("eng_cover"))), "a cover was set");
+  ok("black boxes: the log panel is hidden while the log is empty", valueOf(r, "empty log") === "false", String(valueOf(r, "empty log")));
+  ok("black boxes: the log panel shows with its first line", valueOf(r, "first line") === "true", String(valueOf(r, "first line")));
+}
+// TTS redraws a Button at every set (docs/engine-ui-spec.md 2.1; the fake TTS copies it, __sim.drawn): the label goes dark
+// without a new textColor, the background white without a colour of the element's own. Every engine button is drawn
+// dark with a light label: Auto-resolve after its colour changes (its text was dim), Scoop (dark red on red), the
+// ability panel after its tooltip (grey with black text, the user 2026-11-10).
+{
+  const drawn = (ids, mark) => q(`local o = {} for _, id in ipairs({ ${ids.map((i) => JSON.stringify(i)).join(", ")} }) do o[#o + 1] = id .. "=" .. __sim.drawn(id) end return table.concat(o, ";")`, mark);
+  const more = s1.slice(40, 44).filter((m) => m.t !== "prompt").map((m) => ({ msg: { t: m.t, json: m.json } }));
+  const objOf = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-1" then o = x end end ';
+  const r = run([...more, { frames: 30 }, q('engineAutoResolveDraw("Blue") engineOnAutoState({ color = "Blue", phase = "end", on = false }) engineOnAutoState({ color = "Blue", phase = "", on = false })', "auto"),
+    q('engineScoopRedraw()', "scoop"),
+    { ...ask({ promptId: 976, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "prompt-action-0", cardId: "engine-card-1", label: "Activate Thing: {2}: Scry 1." }] }), mark: "asked" },
+    { frames: 30 }, q(objOf + 'onObjectHover("Blue", o)', "hover"),
+    drawn(["eng_autores_Blue", "eng_scoop_Blue", "eng_abp_Blue_1", "eng_big_Blue", "eng_big2_Blue", "eng_toggle_Blue", "eng_fixcall_Blue"], "drawn")]);
+  const light = (fg) => /^#F[EF]F[EF]F[EF]$/i.test(fg);
+  // (dark: the three channels average below 0x90; TTS's own white is #FFFFFF)
+  const dark = (bg) => { const m = /^#(..)(..)(..)/.exec(bg); return !!m && (parseInt(m[1], 16) + parseInt(m[2], 16) + parseInt(m[3], 16)) / 3 < 0x90; };
+  const parts = String(valueOf(r, "drawn")).split(";").map((s) => s.split(/=|\|/));
+  ok("button colours: no errors", r.errors.length === 0, r.errors.join(" | "));
+  for (const [id, bg, fg] of parts) {
+    if (!id) continue;
+    ok(`button colours: ${id} keeps a light label`, light(fg), `${id} ${bg} ${fg}`);
+    ok(`button colours: ${id} keeps its own dark background`, dark(bg), `${id} ${bg} ${fg}`);
+  }
+  ok("button colours: every button checked", parts.length === 7, String(valueOf(r, "drawn")));
 }
 // a deck stashed for a game is invisible to everyone while it is under the table, and visible again when it comes back
 {
@@ -782,14 +805,12 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("stash: the deck is back on the table", Number(valueOf(r, "stash home")) === 2, String(valueOf(r, "stash home")));
   ok("stash: visible again once it is back", shows.length === 1 && !/White|Grey|Black/.test(shows[0]), shows.join(" ; "));
 }
-// every Button that setText names is one isButton knows: real TTS ignores UI.setValue on a Button, so a label set that way never shows
+// every Button that setText names is one isButton knows: real TTS ignores UI.setValue on a Button, so a label set that way
+// never shows. isButton is every Button of the built screen XML (engineBtnLook, 2026-11-10), so: every one is recorded.
 {
-  const src = fs.readFileSync(path.join(__dirname, "..", "tools", "engine-renderer.lua"), "utf8");
-  const known = [...src.slice(src.indexOf("local function isButton"), src.indexOf("-- Applies only the attributes that changed")).matchAll(/\^(eng_[a-z0-9_]+)/g)].map((m) => m[1]);
-  const buttons = [...src.matchAll(/<Button id="(eng_[a-z0-9_]+)/g)].map((m) => m[1]);
-  const named = [...src.matchAll(/setText\("(eng_[a-z0-9_]+)"/g)].map((m) => m[1]);
-  const missing = [...new Set(named)].filter((id) => buttons.includes(id) && !known.some((k) => id.startsWith(k)));
-  ok("setText: every Button it names sets the text attribute", named.length > 5 && buttons.length > 5 && known.length > 5 && missing.length === 0, missing.join(", "));
+  const r = run([q('local x = UI.getXml() local n, miss = 0, {} for id in x:gmatch(\'<Button id="([^"]+)"\') do n = n + 1 if engineBtnLook[id] == nil then miss[#miss + 1] = id end end return n .. "|" .. table.concat(miss, ",")', "buttons")]);
+  const [n, missing] = String(valueOf(r, "buttons")).split("|");
+  ok("setText: every Button of the screen UI sets the text attribute", Number(n) > 50 && missing === "", `${n} buttons, missing: ${missing} ${r.errors.join(" | ")}`);
 }
 // day and night show on the phase bar once it is one (2026-10-26)
 {
