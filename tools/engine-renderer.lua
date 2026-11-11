@@ -2332,24 +2332,51 @@ local POOL = 30
 local function count(t) local n = 0 for _ in pairs(t or {}) do n = n + 1 end return n end
 
 -- Each UI change costs TTS about a millisecond, and a new prompt changes dozens, so every change is one call.
--- Setting a button's text (or showing it again) redraws its label in the default dark colour, and TTS ignores a
--- textColor equal to the stored one; alternating between two near-identical whites makes every set count, in
--- the same call (this used to take a second call a frame later).
-local whiteFlip = {}
-local function nextWhite(id)
-  whiteFlip[id] = not whiteFlip[id]
-  return whiteFlip[id] and "#FFFFFF" or "#FEFEFE"
+-- Any set on a Button redraws it from the attributes the element holds itself (docs/engine-ui-spec.md 2.1): its label
+-- goes back to TTS's dark grey unless the same call carries a textColor, and TTS ignores a textColor equal to the
+-- stored one; its background goes back to TTS's white when its colour lived only in a <Defaults> class (the ability
+-- panel was grey with dark text, Auto-resolve's text dim, 2026-11-10). So every call carries both: the colour as it is
+-- (once on the element, a redraw keeps it), the text colour alternating between two that look the same so it counts.
+-- ENGINE_THEME: the colours of the engine's screen UI, taken from the table's own buttons (#1A1A1A, white text).
+ENGINE_THEME = { window = "#161616F0", button = "#262626", dock = "#1A1A1A", tabOn = "#3A3022", muted = "#1C1C1C",
+  mutedText = "#8C9199", gold = "#FFD27A", text = "#FFFFFF" }
+engineBtnLook = {} -- Button id -> { bg, tc }: the colours its XML gives it (engineRenderPanels)
+engineColorFlip = {}
+function engineFlipColor(key, hex)
+  engineColorFlip[key] = not engineColorFlip[key]
+  hex = tostring(hex)
+  if not engineColorFlip[key] or not hex:find("^#%x+$") then return hex end
+  local last = tonumber(hex:sub(-1), 16)
+  return hex:sub(1, -2) .. string.format("%X", last - last % 2 + (1 - last % 2))
 end
-local function isButton(id)
-  return id:find("^eng_opt_") or id:find("^eng_confirm_") or id:find("^eng_cancel_") or id:find("^eng_toggle_")
-    or id:find("^eng_browse_") or id:find("^eng_logbtn_") or id:find("^eng_pace_") or id:find("^eng_fx_") or id:find("^eng_anim_") or id:find("^eng_snd_") or id:find("^eng_set_") or id:find("^eng_stop_")
-    or id:find("^eng_big_") or id:find("^eng_big2_") or id:find("^eng_rowopt_") or id:find("^eng_abp_%a+_%d")
-    or id:find("^eng_undo") or id:find("^eng_autores_") or id:find("^eng_voteyes_") or id:find("^eng_voteno_") or id:find("^eng_votego_") or id:find("^eng_scoop") or id:find("^eng_fixb") or id:find("^eng_fixcall_")
+-- (every Button of the screen XML, recorded as it is built: a list of id patterns had taken in panels too, "^eng_undo"
+-- the Undo list and "^eng_scoop" the Concede box, which would now get a button's colour)
+local function isButton(id) return engineBtnLook[id] ~= nil end
+-- The Buttons of a screen XML and their colours, by plain finds (no pattern with captures over 50 KB: MoonSharp's
+-- "pattern too complex"): engineBtnLook[id] = { bg = its color, tc = its textColor }
+function engineRecordButtons(xml)
+  local pos = 1
+  local function attr(tag, key)
+    local i = tag:find(" " .. key .. '="', 1, true)
+    if i == nil then return nil end
+    local s = i + #key + 3
+    return tag:sub(s, (tag:find('"', s, true) or #tag + 1) - 1)
+  end
+  while true do
+    local i = xml:find("<Button ", pos, true)
+    if i == nil then break end
+    local e = xml:find(">", i, true) or #xml
+    local tag = xml:sub(i, e)
+    local id = attr(tag, "id")
+    if id ~= nil then engineBtnLook[id] = { bg = attr(tag, "color"), tc = attr(tag, "textColor") } end
+    pos = e + 1
+  end
 end
 
--- Applies only the attributes that changed, in one call. attrs: { text = ..., color = ..., active = ... }
+-- Applies only the attributes that changed, in one call. attrs: { text = ..., color = ..., active = ... }; the call
+-- also carries the button's colour and text colour (see ENGINE_THEME above), except one that only hides it.
 local function setButton(id, attrs)
-  local changed, n, needWhite = {}, 0, false
+  local changed, n = {}, 0
   for k, v in pairs(attrs) do
     v = tostring(v)
     local key = k == "text" and id or (id .. "|" .. k)
@@ -2357,11 +2384,15 @@ local function setButton(id, attrs)
       uiCache[key] = v
       changed[k] = v
       n = n + 1
-      if k == "text" or (k == "active" and v == "true") then needWhite = true end
     end
   end
   if n == 0 then return end
-  if needWhite then changed.textColor = nextWhite(id) end
+  if not (n == 1 and changed.active == "false") then
+    local look = engineBtnLook[id] or {}
+    changed.textColor = engineFlipColor(id .. "|tc", uiCache[id .. "|textColor"] or look.tc or "#FFFFFF")
+    -- (the colour as it is: once set on the element itself, a redraw keeps it)
+    changed.color = uiCache[id .. "|color"] or look.bg or ENGINE_THEME.button
+  end
   if engineProfile then engineProfile.uiCalls = engineProfile.uiCalls + 1 end
   UI.setAttributes(id, changed)
 end
@@ -3036,7 +3067,8 @@ local function updatePanel(color)
   -- (also while a fix from hand lists this player's hand in it)
   setAttr("eng_panel_" .. color, "active", (lastTable ~= nil and (engineShown[color] ~= nil or (engineFixHandWants ~= nil and engineFixHandWants(color)))) and "true" or "false")
   setAttr("eng_logbtn_" .. color, "active", lastTable ~= nil and "true" or "false")
-  setAttr("eng_log_" .. color, "active", (lastTable ~= nil and not engineLogHidden[color]) and "true" or "false")
+  -- (hidden while the log is empty: an empty black box at the top right, 2026-11-10)
+  setAttr("eng_log_" .. color, "active", (lastTable ~= nil and not engineLogHidden[color] and #engineLog > 0) and "true" or "false")
   setAttr("eng_pace_" .. color, "active", lastTable ~= nil and "true" or "false")
   setText("eng_pace_" .. color, engineAutoOn(color) and ("Auto: on (" .. AUTO_PACE_DELAY .. " s)") or "Auto: off")
   setAttr("eng_set_" .. color, "active", lastTable ~= nil and "true" or "false")
@@ -3120,12 +3152,16 @@ function engineRenderPanels(promptColor)
     builtFor, panelReady, uiCache = key, false, {}
     if engineAbPanelFor ~= nil then engineAbPanelFor = {} end -- (rebuilt hidden: pointing at the card shows it again)
     if baseXml == nil then baseXml = engineXmlMinify(UI.getXml() or "") end
+    -- (no covers over TTS's tool bars any more: measured on one screen, they floated as black boxes on others,
+    -- docs/engine-ui-spec.md 2.2)
     local parts = {}
-    parts[1] = engineToolCoverXml() -- (first: the table's own buttons draw over it)
     for _, c in ipairs(seated) do parts[#parts + 1] = panelXml(c) parts[#parts + 1] = cornerXml(c) end
     parts[#parts + 1] = POPUP_XML
     parts[#parts + 1] = engineAutoListXml()
-    local ours, defaults = engineXmlCompact(table.concat(parts, "\n"))
+    local raw = table.concat(parts, "\n")
+    engineBtnLook = {}
+    engineRecordButtons(raw)
+    local ours, defaults = engineXmlCompact(raw)
     -- (without the table's Scryfall search and deck panels, the last thing in its UI: only an "MTG Importer" object opens
     -- them, and the table has none, docs/table-functions-global-importer.md 1.8. 3.8 KB of the 60 KB limit, 2026-10-30)
     local base = baseXml:sub(1, (baseXml:find('<Panel id="SearchPanel"', 1, true) or #baseXml + 1) - 1)
@@ -3483,10 +3519,15 @@ function engineRenderLog()
   for _, c in ipairs(getSeatedPlayers()) do if data[c] then setText("eng_logtext_" .. c, text) end end
 end
 function engineOnLog(m)
+  local was = #engineLog
   if m.reset then engineLog = {} end
   for _, l in ipairs(m.lines or {}) do engineLog[#engineLog + 1] = l end
   while #engineLog > 200 do table.remove(engineLog, 1) end
   engineRenderLog()
+  -- (the log panel shows from its first line, and hides again with an emptied log)
+  if panelReady and (was == 0) ~= (#engineLog == 0) then
+    for _, c in ipairs(getSeatedPlayers()) do if data[c] then updatePanel(c) end end
+  end
 end
 function onMtgLog(player, value, id)
   if player.color ~= idColor(id) then return end
@@ -3569,17 +3610,8 @@ engineAutoListOpen = {} -- colour -> true while that player has the list open
 engineAutoChoices = { { "off", "Off" }, { "others", "Other players' turns" }, { "upkeep", "Until upkeep" }, { "draw", "Until draw" },
   { "main", "Until main phase" }, { "combat", "Until combat" }, { "blockers", "Until blockers" }, { "damage", "Until damage" },
   { "main2", "Until main 2" }, { "end", "Until end step" }, { "mine", "Until my turn" } }
--- Tabletop Simulator's own buttons, covered while a game runs: a table can't remove them, and Lua can't reach the toolbar.
--- Rewind Time would put the table back without the engine; only Grab, Draw and Text stay in the tool bar (the player's
--- request, 2026-11-02). For the host and promoted players: their bars are the ones these sizes were measured on (1920x1080).
--- TTS scales the left bar from the corner and the top bar from the centre, so each cover is anchored the same way.
-function engineToolCoverXml()
-  local o = {}
-  for i, b in ipairs({ { 74, 260, "UpperLeft", "8 -141" }, { 74, 198, "UpperLeft", "8 -466" }, { 136, 66, "UpperCenter", "-505 -1" } }) do
-    o[i] = '<Panel id="eng_cover_' .. i .. '" visibility="Admin" width="' .. b[1] .. '" height="' .. b[2] .. '" rectAlignment="' .. b[3] .. '" offsetXY="' .. b[4] .. '" color="#14161CFF" raycastTarget="true" active="false"/>'
-  end
-  return table.concat(o)
-end
+-- (TTS's own tool bars were covered while a game ran, 2026-11-02, by panels measured on one 1920x1080 screen: on other
+-- screens and UI scales they floated as black boxes, the user's "floating black boxes", 2026-11-09; removed 2026-11-10)
 function engineAutoListXml()
   local o = {}
   for i, ch in ipairs(engineAutoChoices) do
@@ -5823,13 +5855,13 @@ end
 function engineScoopRedraw()
   local game = engineTable ~= nil and engineTable() or nil
   local running = ENGINE_MODE and game ~= nil and not game.gameOver
-  for i = 1, 3 do UI.setAttribute("eng_cover_" .. i, "active", running and "true" or "false") end
   for _, c in ipairs(SETUP.seats) do
     local show = false
     if running and Player[c] ~= nil and Player[c].seated then
       for _, pl in ipairs(game.players or {}) do if pl.color == c and pl.status == "playing" then show = true end end
     end
-    UI.setAttribute("eng_scoop_" .. c, "active", show and "true" or "false")
+    -- (through setAttr: shown with a plain UI.setAttribute, its label was drawn dark red on red, 2026-11-10 screenshots)
+    setAttr("eng_scoop_" .. c, "active", show and "true" or "false")
     if not show then UI.setAttribute("eng_scoopask_" .. c, "active", "false") end
   end
 end

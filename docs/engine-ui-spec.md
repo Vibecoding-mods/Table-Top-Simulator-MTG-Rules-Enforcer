@@ -73,9 +73,10 @@ own comments, and the dim Auto-resolve in the 2026-11-10 screenshots); the backg
 symptom (grey is exactly TTS's undecorated Button) and from which buttons have it, and is confirmed by the live check.
 The fix covers both whatever the exact rule is.
 
-**Fix:** every `setButton` call carries both a `color` and a `textColor`, each flipped between two values that look
-the same (#FFFFFF / #FEFEFE; any colour's last hex digit ±1), so TTS never skips them. The colour is the one the
-script last set, else the one written in the XML (recorded per button id when the XML is built). The fake TTS now
+**Fix:** every `setButton` call carries both a `color` and a `textColor`. The text colour is flipped between two values
+that look the same (#FFFFFF / #FFFFFE; any colour's last hex digit ±1), so TTS never skips it. The colour is the one
+the script last set, else the one written in the XML (recorded per button id when the XML is built); once it is on
+the element itself, later redraws keep it. Buttons set directly with `UI.setAttribute` (Scoop) go through `setButton`. The fake TTS now
 copies the behaviour (section 6), so a button drawn grey or with a dark label fails a test.
 
 ### 2.2 The floating black boxes

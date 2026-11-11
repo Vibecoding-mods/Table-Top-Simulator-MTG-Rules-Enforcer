@@ -63,11 +63,10 @@ const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringif
   // built, first: a hold of a line that isn't there would pass these for nothing.)
   const dropdown = (t) => heldBy({ gone: [], added: [t] }, holds);
   const tableLines = buildSave().LuaScript.split("\n");
-  const dropdownLines = ["function engineAutoListXml()", '  elseif m.t == "autostate" then engineOnAutoState(m)', "function engineToolCoverXml()"];
-  same("the table as built has the dropdown and the tool cover", dropdownLines.filter((l) => !tableLines.includes(l)), []);
-  same("the real holds let the dropdown through", dropdownLines.slice(0, 2).filter(dropdown), []);
-  // (engineToolCoverXml moves in the same change: held alone, the push would lose it)
-  same("the real holds let the tool cover through", dropdown("function engineToolCoverXml()"), null);
+  // (the tool cover that moved with it is gone: it floated as black boxes, docs/engine-ui-spec.md 2.2)
+  const dropdownLines = ["function engineAutoListXml()", '  elseif m.t == "autostate" then engineOnAutoState(m)'];
+  same("the table as built has the dropdown", dropdownLines.filter((l) => !tableLines.includes(l)), []);
+  same("the real holds let the dropdown through", dropdownLines.filter(dropdown), []);
   same("the real holds keep no line of the table out", tableLines.filter(dropdown).slice(0, 3), []);
   ok("the real holds let the rest through", dropdown("function engineSelfCheck()") === null);
 }
