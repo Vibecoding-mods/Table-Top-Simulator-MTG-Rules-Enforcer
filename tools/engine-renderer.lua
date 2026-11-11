@@ -2499,18 +2499,23 @@ local function cornerXml(c)
     .. '<Button id="eng_big_' .. c .. '" onClick="onMtgBig" visibility="' .. c .. '" width="280" height="64" rectAlignment="LowerRight" offsetXY="-20 70" color="#e8711a" textColor="#ffffff" fontSize="26" fontStyle="Bold" active="false"> </Button>\n'
     .. engineAbPanelXml(c)
 end
--- The abilities of the card you point at, as big buttons on the screen (engineAbPanelShow): the buttons on the card are
--- a few pixels tall at the usual camera, and its right-click menu opened under the top bars (hp-07, 2026-10-27).
+-- The actions of the card you point at, as big buttons on the screen (engineAbPanelShow): the buttons on the card are
+-- a few pixels tall at the usual camera, and its right-click menu opened under the top bars (hp-07, 2026-10-27). Since
+-- batch B every ability, greyed with its reason when it can't be used, ENGINE_AB_MAX a page with More (eng_abpg_) and a
+-- close X (eng_abpx_); the panel grows up from its foot to fit its lines.
 ENGINE_AB_MAX = 6
 function engineAbPanelXml(c)
   local rows = {}
   for k = 1, ENGINE_AB_MAX do
-    rows[#rows + 1] = '<Button id="eng_abp_' .. c .. '_' .. k .. '" onClick="onMtgAbPanel" preferredHeight="40" fontSize="15" color="#262626" textColor="#ffffff" active="false"> </Button>'
+    rows[#rows + 1] = '<Button id="eng_abp_' .. c .. '_' .. k .. '" onClick="onMtgAbPanel" preferredHeight="40" fontSize="14" textAlignment="MiddleLeft" color="#262626" textColor="#ffffff" active="false"> </Button>'
   end
-  return '<Panel id="eng_abp_' .. c .. '" visibility="' .. c .. '" width="440" height="320" rectAlignment="LowerRight" offsetXY="-20 272" color="#161616E6" active="false">'
+  return '<Panel id="eng_abp_' .. c .. '" visibility="' .. c .. '" width="440" height="320" rectAlignment="LowerRight" offsetXY="-20 272" color="#161616F0" active="false">'
     .. '<VerticalLayout padding="8 8 6 6" spacing="4" childForceExpandHeight="false" childAlignment="LowerCenter">'
     .. '<Text id="eng_abpt_' .. c .. '" preferredHeight="24" fontSize="16" fontStyle="Bold" color="#FFD27A" alignment="MiddleLeft"> </Text>'
-    .. table.concat(rows) .. '</VerticalLayout></Panel>\n'
+    .. table.concat(rows)
+    .. '<Button id="eng_abpg_' .. c .. '" onClick="onMtgAbPanel" preferredHeight="30" fontSize="13" color="#333333" textColor="#ffffff" active="false"> </Button>'
+    .. '</VerticalLayout>'
+    .. '<Button id="eng_abpx_' .. c .. '" onClick="onMtgAbPanel" width="28" height="28" rectAlignment="UpperRight" offsetXY="-6 -6" color="#333333" textColor="#ffffff" fontSize="15" fontStyle="Bold" tooltip="Close">X</Button></Panel>\n'
 end
 
 -- A spell or ability going on the stack pops up for everyone, with its picture and text (Arena-style).
@@ -2936,6 +2941,11 @@ function engineUpdateCorner(color, p)
   setButton("eng_big2_" .. color, { active = small ~= nil and "true" or "false", text = smallLabel or " " })
   for _, g in ipairs({ "start", "combat", "end" }) do
     setButton("eng_stop_" .. g .. "_" .. color, { color = engineStopsOf(color)[g] and "#b8860b" or "#262626" })
+  end
+  -- (the ability panel follows the board too: a tap, a counter, priority moving on greys or brightens its lines)
+  if engineAbPanelFor ~= nil and engineAbPanelFor[color] ~= nil then
+    local ok, err = pcall(engineAbPanelShow, color, engineAbPanelFor[color])
+    if not ok then print("[MTG] ability panel: " .. tostring(err)) end
   end
 end
 engineStops = {} -- colour -> { start = true, combat = true, end = true }
@@ -6907,6 +6917,7 @@ engineAbilityWant = {}
 function engineAbilityReset()
   for c in pairs(engineAbPanelFor or {}) do setAttr("eng_abp_" .. c, "active", "false") end
   engineAbilityWant, engineAbilityOn, engineAbPanelFor, engineRedrawSoon = {}, {}, {}, {}
+  engineAbShown, engineAbPage = {}, {}
 end
 -- one short line per ability: its cost and the start of what it does ("{1}{G}: Put a +1/+1…"); the button's tooltip
 -- has the whole text
@@ -7036,9 +7047,9 @@ function engineAbilityBoxes(color, p, kind)
     -- (a card that left the battlefield, bounced to a hand: its buttons go with the question, stage 3 review)
     elseif obj ~= nil and not obj.isDestroyed() and engineAbilityWant[id] == nil then obj.clearButtons() engineBadge[id] = nil end
   end
-  -- (the screen panel follows: other abilities now, or none)
+  -- (the screen panel follows the question: its lines answer this one now, offered or greyed)
   local shown = engineAbPanelFor and engineAbPanelFor[color]
-  if shown ~= nil and changed[shown] then engineAbPanelShow(color, shown) end
+  if shown ~= nil then engineAbPanelShow(color, shown) end
 end
 
 -- (by name, for tests and tools: "ab|<object guid>|<button number>")
@@ -7071,39 +7082,232 @@ function engineUseAbility(color, optionId, promptId)
   end
 end
 
--- The screen panel (engineAbPanelXml): pointing at one of your cards that has ability buttons shows them there, whole
--- and readable; it stays while you move to it, and goes when that card has no buttons any more.
+-- The screen panel (engineAbPanelXml): every action the engine offers for the card you point at, and every activated
+-- ability in its text that it doesn't offer now, greyed with the reason when the table can tell (docs/engine-ui-spec.md
+-- 5: "mimic the engine", the user 2026-11-10). ENGINE_AB_MAX lines a page, More turns it. It stays while you move to
+-- it, follows the board (engineUpdateCorner, engineAbilityBoxes) and goes when the card has nothing left to list.
 engineAbPanelFor = {} -- colour -> engine card id shown
+engineAbShown = {}    -- colour -> { id, rows, first, promptId }: what the panel's lines are now (a click reads it)
+engineAbPage = {}     -- colour -> { id, n }: the page shown for that card
+-- keyword abilities with a cost and no colon, used on the battlefield (as the fix's F.BF_WORDS)
+ENGINE_AB_KEYWORDS = { "Equip", "Crew", "Fortify", "Reconfigure", "Level up", "Outlast", "Station" }
+-- a cost's first word that makes "X: Y" an activated ability without a mana symbol in it
+ENGINE_AB_COSTWORDS = { Sacrifice = true, Discard = true, Pay = true, Exile = true, Remove = true, Tap = true, Untap = true,
+  Return = true, Put = true, Reveal = true, Mill = true, Collect = true, Forage = true }
+-- "+1", "−2" (U+2212), "-X", "0" -> the number (a minus is negative, X counts 0), else nil
+function engineLoyaltyCost(cost)
+  local s = tostring(cost):gsub("\226\136\146", "-")
+  s = s:gsub("^%s+", ""):gsub("%s+$", "")
+  if #s == 0 or #s > 4 then return nil end
+  local sign, n = s:sub(1, 1), s
+  if sign == "+" or sign == "-" then n = s:sub(2) else sign = "" end
+  if n ~= "X" and not n:find("^%d+$") then return nil end
+  local v = tonumber(n) or 0
+  return sign == "-" and -v or v
+end
+-- One line of rules text as an activated ability { text, cost, eff, loyalty, mana, keyword }, or nil. Reminder text
+-- (in brackets) goes first, so a basic land's "({T}: Add {G}.)" is none; a cost with a quote is a granted ability
+-- ("Enchanted land has "{T}: ..."), not the card's own. Plain finds only (MoonSharp's "pattern too complex").
+function engineTextAbility(line)
+  line = tostring(line or ""):gsub("%b()", ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if line == "" then return nil end
+  local at = line:find(":", 1, true)
+  for _, k in ipairs(ENGINE_AB_KEYWORDS) do
+    if at == nil and line:sub(1, #k + 1) == k .. " " then return { text = line, cost = line:sub(#k + 2), eff = k, keyword = k } end
+  end
+  if at == nil or at < 2 or at > 70 then return nil end
+  local cost, eff = line:sub(1, at - 1), (line:sub(at + 1):gsub("^%s+", ""))
+  if cost:find(".", 1, true) or cost:find('"', 1, true) then return nil end
+  local loyalty = engineLoyaltyCost(cost)
+  local first = cost:match("^(%a+)") or ""
+  if loyalty == nil and not cost:find("{", 1, true) and not ENGINE_AB_COSTWORDS[first] then return nil end
+  return { text = line, cost = cost, eff = eff, loyalty = loyalty, mana = eff:find("^Add ") ~= nil }
+end
+-- the activated abilities in a card's text, in its order
+function engineTextAbilities(tx)
+  local out = {}
+  for line in (tostring(tx or "") .. "\n"):gmatch("([^\n]*)\n") do
+    local a = engineTextAbility(line)
+    if a ~= nil then out[#out + 1] = a end
+  end
+  return out
+end
+function engineHasType(card, want)
+  for _, ty in ipairs((card and card.ty) or {}) do if ty == want then return true end end
+  return false
+end
+-- Why an ability in the card's text isn't offered now, as far as the table can tell. card: { ty, tx, tap, sick, ctr }
+-- (its battlefield entry with its static details); p: the player's open question; prio: it is a priority question.
+function engineAbWhy(color, card, a, p, prio)
+  local t = lastTable or {}
+  -- (Forge offers mana abilities while a cost is paid, not at priority)
+  if a.mana then return "Used while paying a cost (tap it with Q/E)" end
+  if p == nil then
+    if t.priority ~= nil and t.priority ~= color and not t.gameOver then return "Not your priority (waiting for " .. engineNameOf(t.priority) .. ")" end
+    return "Not your priority"
+  end
+  if not prio then return "Answer the open question first" end
+  local cost = tostring(a.cost or "")
+  if card ~= nil then
+    if cost:find("{T}", 1, true) and card.tap then return "Tapped" end
+    if cost:find("{Q}", 1, true) and not card.tap then return "Untapped ({Q} untaps it)" end
+    if cost:find("{T}", 1, true) and engineHasType(card, "Creature") and card.sick and not tostring(card.tx or ""):find("Haste", 1, true) then return "Summoning sickness" end
+  end
+  local main = t.active == color and (t.step == "main1" or t.step == "main2") and #(t.stack or {}) == 0
+  if a.loyalty ~= nil then
+    if not main then return "Loyalty: your main phase, empty stack" end
+    local have
+    for k, v in pairs((card and card.ctr) or {}) do if tostring(k):upper() == "LOYALTY" then have = tonumber(v) end end
+    if a.loyalty < 0 and have ~= nil and have < -a.loyalty then return "Needs " .. (-a.loyalty) .. " loyalty (has " .. have .. ")" end
+    return "Loyalty: once each turn"
+  end
+  local low = tostring(a.eff):lower()
+  local sorcery = low:find("activate only as a sorcery", 1, true) or a.keyword == "Equip" or a.keyword == "Fortify"
+    or a.keyword == "Reconfigure" or a.keyword == "Level up" or a.keyword == "Outlast"
+  if sorcery and not main then return "Only as a sorcery" end
+  if low:find("activate only once each turn", 1, true) then return "Once each turn" end
+  return "Can't be used now (its cost or a rule)"
+end
+-- The panel's lines for card id and player colour: { opt = the option id to answer with (nil: greyed), text, cost,
+-- why, mana }. First the ways to cast or play it, then its text's abilities in order (offered or greyed), then what
+-- the engine offers that the text doesn't name (a granted ability, its mana button, "Untap ... (mana back)").
+function engineAbList(color, id)
+  local p = enginePrompts[color]
+  local prio = p ~= nil and enginePromptKind ~= nil and enginePromptKind(p) == "action"
+  local sent = false -- (a bridge that sends "ab" sends it on every ability, engineAbilityBoxes)
+  for _, o in ipairs((prio and p.options) or {}) do if o.ab ~= nil then sent = true break end end
+  local casts, abils, others = {}, {}, {}
+  for _, o in ipairs((prio and p.options) or {}) do
+    if o.cardId == id then
+      local label = tostring(o.label or "")
+      if label:find("^Mana:") or label:find("^Untap ") then others[#others + 1] = o
+      elseif o.ab ~= nil or (not sent and not label:find("^Cast ") and not label:find("^Play ")) then abils[#abils + 1] = o
+      else casts[#casts + 1] = o end
+    end
+  end
+  local rows = {}
+  for _, o in ipairs(casts) do rows[#rows + 1] = { opt = o.id, text = tostring(o.label) } end
+  -- (the board's entry with its static details: a slim entry carries only what changes)
+  local entry, st = engineAbilityCard(id), engineStatic[id] or {}
+  local card = entry ~= nil and { ty = entry.ty or st.ty, tx = entry.ct or entry.tx or st.tx, tap = entry.tap, sick = entry.sick, ctr = entry.ctr } or nil
+  local function norm(s) return (tostring(s):lower():gsub("\226\136\146", "-"):gsub("[%s%.]", "")) end
+  local taken, manaUsed, manaOpt, greyMana = {}, false, nil, {}
+  for _, o in ipairs(others) do if tostring(o.label):find("^Mana:") then manaOpt = o end end
+  for _, a in ipairs(card ~= nil and engineTextAbilities(card.tx) or {}) do
+    local hit
+    if a.mana then hit = manaOpt
+    else
+      -- (an option's ability text starts with the line's cost; of several, the one whose effect starts the same)
+      local head = a.keyword and norm(a.keyword) or (norm(a.cost) .. ":")
+      local want = a.keyword and "" or norm(a.eff):sub(1, 10)
+      for _, o in ipairs(abils) do
+        local ab = norm(engineAbilityText(o))
+        if not taken[o] and ab:sub(1, #head) == head then
+          if hit == nil then hit = o end
+          if want ~= "" and ab:sub(#head + 1, #head + #want) == want then hit = o break end
+        end
+      end
+      if hit ~= nil then taken[hit] = true end
+    end
+    if hit ~= nil and hit == manaOpt then manaUsed = true end
+    local r = { opt = hit and hit.id, text = a.text, cost = a.cost, mana = a.mana,
+      why = hit == nil and engineAbWhy(color, card, a, p, prio) or nil }
+    -- (a mana ability not offered goes last: it is used while paying, never from here)
+    if hit == nil and a.mana then greyMana[#greyMana + 1] = r else rows[#rows + 1] = r end
+  end
+  for _, o in ipairs(abils) do if not taken[o] then rows[#rows + 1] = { opt = o.id, text = engineAbilityText(o) } end end
+  for _, o in ipairs(others) do
+    if not (o == manaOpt and manaUsed) then rows[#rows + 1] = { opt = o.id, text = tostring(o.label), mana = true } end
+  end
+  for _, r in ipairs(greyMana) do rows[#rows + 1] = r end
+  return rows, card
+end
+-- The lines to show for that card, or nil when the panel shouldn't open for it: not yours, nothing to list, a hand
+-- card with one way to play it (the drag does that), a land with only its mana abilities
+function engineAbPanelRows(color, id)
+  local meta = id and engineMeta[id]
+  if meta == nil or meta.color ~= color then return nil end
+  local rows, card = engineAbList(color, id)
+  local land = engineHasType(card or engineStatic[id], "Land")
+  local offered, other = 0, false
+  for _, r in ipairs(rows) do
+    if r.opt ~= nil then offered = offered + 1 end
+    if not (r.mana and land) then other = true end
+  end
+  if not other or (meta.zone == "hand" and offered < 2) then return nil end
+  return rows
+end
+-- one line's words: the cost in gold, then the effect; a greyed line's reason after it in italics. Cut to fit two lines.
+function engineAbRowLabel(r)
+  local text = tostring(r.text)
+  local head, rest = r.cost, nil
+  if head ~= nil and text:sub(1, #head) == head then rest = (text:sub(#head + 1):gsub("^:%s*", ""))
+  else
+    local at = text:find(":", 1, true)
+    if at ~= nil and at > 1 and at <= 28 then head, rest = text:sub(1, at - 1), (text:sub(at + 1):gsub("^%s+", "")) else head, rest = nil, text end
+  end
+  local room = 92 - (head and #head + 2 or 0) - (r.why and #r.why + 4 or 0)
+  local cut = engineCut(rest, math.max(20, room))
+  if #cut < #rest then cut = cut:gsub("%s+%S*$", "") .. "…" end
+  if r.opt == nil then
+    return " " .. (head and (head .. ": ") or "") .. cut .. "  <i><color=#E0B060>" .. tostring(r.why or "") .. "</color></i>"
+  end
+  return " " .. (head and ("<b><color=#FFD27A>" .. head .. ":</color></b> ") or "") .. cut
+end
+function engineAbPanelHide(color)
+  if engineAbPanelFor[color] ~= nil then setAttr("eng_abp_" .. color, "active", "false") end
+  engineAbPanelFor[color], engineAbShown[color] = nil, nil
+end
+-- Shows card id's lines (on hover), or redraws them (a new question, a board update); hides the panel when the card
+-- it shows has nothing left to list
 function engineAbPanelShow(color, id)
-  local w = id and engineAbilityWant[id]
-  if w == nil or w.color ~= color then
-    if engineAbPanelFor[color] ~= nil then setAttr("eng_abp_" .. color, "active", "false") end
-    engineAbPanelFor[color] = nil
+  local rows = engineAbPanelRows(color, id)
+  if rows == nil then
+    if id ~= nil and engineAbPanelFor[color] == id then engineAbPanelHide(color) end
     return
   end
   engineAbPanelFor[color] = id
+  local pg = engineAbPage[color]
+  if pg == nil or pg.id ~= id then pg = { id = id, n = 0 } engineAbPage[color] = pg end
+  pg.n = pg.n % math.ceil(#rows / ENGINE_AB_MAX)
+  local first = pg.n * ENGINE_AB_MAX + 1
+  local p = enginePrompts[color]
+  engineAbShown[color] = { id = id, rows = rows, first = first, promptId = p and p.promptId }
   setText("eng_abpt_" .. color, tostring((engineStatic[id] or {}).n or "Abilities"))
+  local shown = 0
   for k = 1, ENGINE_AB_MAX do
-    local a = w.list[k]
-    setAttr("eng_abp_" .. color .. "_" .. k, "active", a ~= nil and "true" or "false")
-    -- (cut at a word with "…", the whole text on hover: Vraska's -2 ended "Sacrifice t", hp-22 re-test 2026-10-28)
-    if a ~= nil then
-      local full = tostring(a.text)
-      local shown = engineCut(full, 70)
-      if #shown < #full then shown = shown:gsub("%s+%S*$", "") .. "…" end
-      setText("eng_abp_" .. color .. "_" .. k, shown)
-      setAttr("eng_abp_" .. color .. "_" .. k, "tooltip", full)
+    local r = rows[first + k - 1]
+    if r == nil then setButton("eng_abp_" .. color .. "_" .. k, { active = "false" })
+    else
+      shown = shown + 1
+      -- (one call: the tooltip in a second call redrew the button grey with dark text, docs/engine-ui-spec.md 2.1)
+      setButton("eng_abp_" .. color .. "_" .. k, { active = "true", text = engineAbRowLabel(r),
+        tooltip = tostring(r.text) .. (r.why and ("\n" .. r.why) or ""),
+        color = r.opt and ENGINE_THEME.button or ENGINE_THEME.muted, textColor = r.opt and ENGINE_THEME.text or ENGINE_THEME.mutedText })
     end
   end
+  local more = #rows > ENGINE_AB_MAX
+  setButton("eng_abpg_" .. color, { active = more and "true" or "false",
+    text = more and string.format("More... (%d-%d of %d)", first, first + shown - 1, #rows) or " " })
+  -- (as tall as its lines: one ability was a tall black box with a button at its foot)
+  setAttr("eng_abp_" .. color, "height", tostring(44 + shown * 44 + (more and 34 or 0)))
   setAttr("eng_abp_" .. color, "active", "true")
 end
 function onMtgAbPanel(player, value, idAttr)
-  local c, k = tostring(idAttr):match("^eng_abp_(%a+)_(%d+)$")
-  if c == nil or c ~= player.color then return end
+  local c, id = player.color, tostring(idAttr)
+  if id == "eng_abpx_" .. c then return engineAbPanelHide(c) end
+  if id == "eng_abpg_" .. c then
+    if engineAbPage[c] ~= nil then engineAbPage[c].n = engineAbPage[c].n + 1 end
+    return engineAbPanelShow(c, engineAbPanelFor[c])
+  end
+  local cc, k = id:match("^eng_abp_(%a+)_(%d+)$")
+  if cc == nil or cc ~= c then return end
   -- (from the list the panel shows: the card's buttons may not be drawn yet; structural review 2026-10-27)
-  local w = engineAbPanelFor[c] and engineAbilityWant[engineAbPanelFor[c]]
-  local a = w and w.color == c and w.list[tonumber(k)]
-  if a then engineUseAbility(c, a.id, w.promptId) end
+  local s = engineAbShown[c]
+  local r = s and s.rows[s.first + tonumber(k) - 1]
+  if r == nil then return end
+  if r.opt ~= nil then return engineUseAbility(c, r.opt, s.promptId) end
+  engineTell(c, tostring((engineStatic[s.id] or {}).n or "That card") .. ": " .. tostring(r.text) .. " - " .. tostring(r.why) .. ".")
 end
 -- (chained to the table's own onObjectHover, which keeps hoveredObjs for "mtg commander" and the hover hotkeys:
 -- replacing it broke both, structural review 2026-10-27)
@@ -7111,10 +7315,10 @@ do
 local before = onObjectHover
 function onObjectHover(color, obj)
   if before ~= nil then before(color, obj) end
-  if not ENGINE_MODE or obj == nil or Player[color] == nil or next(engineAbilityWant) == nil then return end
-  local id = tostring(obj.getGMNotes()):match("^engine:(.+)$")
-  local w = id and engineAbilityWant[id]
-  if w ~= nil and w.color == color and engineAbPanelFor[color] ~= id then engineAbPanelShow(color, id) end
+  if not ENGINE_MODE or obj == nil or Player[color] == nil then return end
+  local id = tostring(obj.getGMNotes()):match("^engine:(engine%-card%-%d+)$")
+  -- (a card pointed at afresh starts at its first page)
+  if id ~= nil and engineAbPanelFor[color] ~= id then engineAbPage[color] = nil engineAbPanelShow(color, id) end
 end
 end
 
