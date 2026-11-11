@@ -17,7 +17,7 @@ index b363b43..024629b 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..c97c996 100644
+index 54173c6..8e46b5e 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
 @@ -74,18 +74,24 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
@@ -53,7 +53,7 @@ index 54173c6..c97c996 100644
  `publishAgentPrompt` resolves an omitted source from the currently resolving stack item. It emits `sourceAbilityText` from that stack ability, or from `castingAbility` during cast-time prompts, only when the ability host matches an explicit source. Keep this centralized fallback: Forge callbacks such as `arrangeForScry`, `arrangeForSurveil`, and `reveal` do not receive the originating `SpellAbility`, but their prompts still need the source card and ability in the envelope. Prompts outside stack resolution remain source-less unless their caller provides a source explicitly, and unmatched abilities remain absent rather than being misattributed.
  
 -Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see.
-+Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see. Phased-out permanents stay in the battlefield zone with `phasedOut` set (`getCardsIn(Battlefield, false)`): phasing is not a zone change, and a client that hides them can't tell them from cards that left. `mayPlay` marks a card outside the viewer's hand that the viewer may really play: `getCardsActivatableInExternalZones` also lists cards the viewer may only look at (Courser of Kruphix's revealed top card, an opponent's hand under Revelation), and `mayPlayOutsideHand` drops those.
++Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see. Phased-out permanents stay in the battlefield zone with `phasedOut` set (`getCardsIn(Battlefield, false)`): phasing is not a zone change, and a client that hides them can't tell them from cards that left. `mayPlay` marks a card outside the viewer's hand that the viewer may really play: `getCardsActivatableInExternalZones` also lists cards the viewer may only look at (Courser of Kruphix's revealed top card, an opponent's hand under Revelation), and `mayPlayOutsideHand` drops those. The viewer's own graveyard and exile are checked whole as well: `PlayerZone`'s own-card filter only knows the graveyard keywords up to Disturb, and Mayhem, Harmonize, Beam me up and a plotted card get their spell from `GameActionUtil.getAlternativeCosts` at cast time, so they never reach Forge's list. Mayhem counts only for a card discarded this turn, as `getAlternativeCosts` requires.
 +
 +`GameViewDto.events` is a ring of the last 256 zone changes, from `EngineEventLog`, which the session subscribes to the game in `attach`. The same ring goes to every seat and each entry has a rising `seq`, so a client that misses a snapshot loses nothing and a gap shows it fell behind. Each entry also carries an `id`: the relay's state patches key an array by `id`, and without one every new entry resends the whole ring. Forge fires no draw or discard event, so one entry carries `how`, set from the event order: `sacrificed` from the event just before the move, `destroyed` from `CardView.wasDestroyed` (`GameAction` sets it on a destroy and on a state-based death but fires `GameEventCardDestroyed` only on the first, and sets it on a sacrifice too, so `sacrificed` is checked first), `played`, `discard` and `surveil` from the event just after it, and `draw` from `Card.getDrawnThisTurn`, read at the next move, phase or snapshot because Forge sets it after the move (at the next move, or a card drawn and then discarded in one resolution, as Faithless Looting does, moves before its draw is read and loses it); `mill` likewise from `Card.wasMilled`, read at the next move or snapshot because `Player.mill` sets it after `moveTo`; and, the same way, `foretell`, `plot` and `suspend` for a card still in exile with `isForetold`, `isPlotted` or `hasSuspend` (special actions resolve off the stack, so no ability names them). `GameEventCardChangeZone` carries no cause, so `cause` is read from the game at the move: a move made while `ReplacementHandler.isReplacing()` takes the next `EFFECT_REPLACED` log message (Dredge's reads `<card> - Dredge N`); a move made while `game.costPaymentStack` holds a cost part takes `Cost:<name>`, the name being `Delve` for a card exiled while the mana part of a delve card is paid, else the paying ability's keyword (`Cycling`, `TypeCycling`), else its alternative cost (`Escape`, `Emerge`), else the cost part's class without `Cost` (`Sacrifice`, `Discard`, `Exile`), with the ability's host as `causeName`; and otherwise a move made while the stack resolves takes the resolving ability's `ApiType` name (`Explore`, `Mill`, `Surveil`), with its host as `causeName`/`causeCardId`. Moves off the stack never get a cause. Moves onto the stack and moves before `GameStage.Play` are skipped. An entry names its card only when a public zone is involved and the card isn't face down; foretell turns its card face down after the move, so an exile entry whose card is face down in exile when the move settles loses its name too; a draw stays a count. Moves made by a restore are ignored. `EngineEventLog` is named in `native/extra-config/reflect-config.json` like `GameLogFormatter` in the frozen config: Guava finds `@Subscribe` by reflection, so a subscriber missing from that file receives nothing in the native image while working on a JVM.
  
@@ -923,12 +923,14 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..e836ceb 100644
+index 713e1ef..20bd951 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-@@ -29,19 +29,24 @@ import forge.game.GameEntity;
+@@ -28,20 +28,26 @@ import forge.game.Game;
+ import forge.game.GameEntity;
  import forge.ai.ComputerUtilCombat;
  import forge.game.card.Card;
++import forge.game.card.CardCollection;
  import forge.game.card.CardCollectionView;
 +import forge.game.card.CardLists;
  import forge.game.card.CounterEnumType;
@@ -951,7 +953,7 @@ index 713e1ef..e836ceb 100644
  import forge.item.IPaperCard;
  import forge.item.PaperToken;
  
-@@ -97,6 +102,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -97,6 +103,7 @@ public final class InteractiveSnapshotExtractor {
      }
  
      private static final Gson GSON = new GsonBuilder().create();
@@ -959,7 +961,7 @@ index 713e1ef..e836ceb 100644
  
      public static String snapshotJson(
              final Game game,
-@@ -106,18 +112,57 @@ public final class InteractiveSnapshotExtractor {
+@@ -106,18 +113,61 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -984,8 +986,10 @@ index 713e1ef..e836ceb 100644
  
 +    private static CardCollectionView playableOutsideHand(final Player player) {
 +        try {
-+            return CardLists.filter(player.getCardsActivatableInExternalZones(true),
-+                    card -> mayPlayOutsideHand(card, player));
++            final CardCollection candidates = new CardCollection(player.getCardsActivatableInExternalZones(true));
++            candidates.addAll(player.getCardsIn(ZoneType.Graveyard));
++            candidates.addAll(player.getCardsIn(ZoneType.Exile));
++            return CardLists.filter(candidates, card -> mayPlayOutsideHand(card, player));
 +        } catch (RuntimeException failure) {
 +            System.err.println("[mana-brew] playable cards outside the hand unavailable: " + failure);
 +            return null;
@@ -1002,10 +1006,12 @@ index 713e1ef..e836ceb 100644
 +        }
 +        if (zone.is(ZoneType.Graveyard) && (card.hasKeyword(Keyword.FLASHBACK) || card.hasKeyword(Keyword.RETRACE)
 +                || card.hasKeyword(Keyword.JUMP_START) || card.hasKeyword(Keyword.ESCAPE)
-+                || card.hasKeyword(Keyword.DISTURB))) {
++                || card.hasKeyword(Keyword.DISTURB) || card.hasKeyword(Keyword.HARMONIZE)
++                || card.hasKeyword(Keyword.BEAM_ME_UP)
++                || (card.hasKeyword(Keyword.MAYHEM) && card.wasDiscarded() && card.enteredThisTurn()))) {
 +            return true;
 +        }
-+        if (zone.is(ZoneType.Exile) && (card.isForetold() || card.isOnAdventure())) {
++        if (zone.is(ZoneType.Exile) && (card.isForetold() || card.isOnAdventure() || card.isPlotted())) {
 +            return true;
 +        }
 +        for (final SpellAbility sa : card.getSpellAbilities()) {
@@ -1019,7 +1025,7 @@ index 713e1ef..e836ceb 100644
      private static Map<String, Object> buildGameView(
              final Game game,
              final SpellAbility castingAbility,
-@@ -126,7 +171,9 @@ public final class InteractiveSnapshotExtractor {
+@@ -126,7 +176,9 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -1030,7 +1036,7 @@ index 713e1ef..e836ceb 100644
      ) {
          final Map<String, Object> base = SnapshotExtractor.extractSnapshot(game);
  
-@@ -171,7 +218,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -171,7 +223,7 @@ public final class InteractiveSnapshotExtractor {
          final Map<String, List<JsonObject>> battlefieldByController = new LinkedHashMap<>();
          for (final Player player : game.getRegisteredPlayers()) {
              final int ownerIndex = SnapshotExtractor.playerIndex(game, player);
@@ -1039,7 +1045,7 @@ index 713e1ef..e836ceb 100644
                  final String controllerId =
                          "player-" + SnapshotExtractor.playerIndex(game, card.getController());
                  final CardDto dto = toCard(
-@@ -224,9 +271,13 @@ public final class InteractiveSnapshotExtractor {
+@@ -224,9 +276,13 @@ public final class InteractiveSnapshotExtractor {
          view.put("dayTime", dayTime(game));
          view.put("checkpoints", checkpoints);
          view.put("snapshotRecording", snapshotRecording);
@@ -1053,7 +1059,7 @@ index 713e1ef..e836ceb 100644
          final List<String> activePlaneNames = activePlaneNames(game);
          if (!activePlaneNames.isEmpty()) {
              view.put("activePlaneNames", activePlaneNames);
-@@ -285,7 +336,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -285,7 +341,7 @@ public final class InteractiveSnapshotExtractor {
          out.put("cardsDrawnThisTurn", player.getNumDrawnThisTurn());
          out.put("damagePrevention", player.getPreventNextDamageTotalShields());
          out.put("isExtraTurn", player.isExtraTurn());
@@ -1062,7 +1068,7 @@ index 713e1ef..e836ceb 100644
          final Player controller = player.getControllingPlayer();
          if (controller != null && controller != player) {
              out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
-@@ -685,6 +736,22 @@ public final class InteractiveSnapshotExtractor {
+@@ -685,6 +741,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -1085,7 +1091,7 @@ index 713e1ef..e836ceb 100644
      private static CardDto toCard(
              final Game game,
              final Card card,
-@@ -714,6 +781,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -714,6 +786,11 @@ public final class InteractiveSnapshotExtractor {
              dto.toughness = String.valueOf(card.getNetToughness());
              dto.basePower = card.getBasePower();
              dto.baseToughness = card.getBaseToughness();
@@ -1097,7 +1103,7 @@ index 713e1ef..e836ceb 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -752,6 +824,29 @@ public final class InteractiveSnapshotExtractor {
+@@ -752,6 +829,29 @@ public final class InteractiveSnapshotExtractor {
          dto.isMadnessExiled = card.isMadness();
          dto.isPlotted = card.isPlotted();
          dto.isWarpExiled = card.isWarped();
@@ -1127,7 +1133,7 @@ index 713e1ef..e836ceb 100644
          dto.foil = card.hasPaperFoil();
  
          final Card attachedTo = card.getAttachedTo();
-@@ -1078,12 +1173,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -1078,12 +1178,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -1142,7 +1148,7 @@ index 713e1ef..e836ceb 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1228,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1233,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -1150,7 +1156,7 @@ index 713e1ef..e836ceb 100644
          return stackItem;
      }
  
-@@ -1163,6 +1261,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1266,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -1176,6 +1182,21 @@ index 713e1ef..e836ceb 100644
      private static int stackFaceIndex(final Card source, final SpellAbility ability) {
          if (source == null) {
              return 0;
+diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
+index c69b549..f46c7ca 100644
+--- a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
++++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
+@@ -115,7 +115,9 @@ public final class ManaBrewEngineAdapter {
+             RegisteredPlayer registeredPlayer = RegisteredPlayer.forVariants(
+                     playerCount, variants, deck, null, false, null, null);
+             if (playerConfig.isAi()) {
+-                registeredPlayer.setPlayer(new LobbyPlayerAi(playerConfig.getName(), null));
++                registeredPlayer.setPlayer(PassiveLobbyPlayerAi.isLandsOnly(deck)
++                        ? new PassiveLobbyPlayerAi(playerConfig.getName())
++                        : new LobbyPlayerAi(playerConfig.getName(), null));
+             } else {
+                 registeredPlayer.setPlayer(new ManaBrewInteractiveLobbyPlayer(
+                         playerConfig.getName(), session));
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 index fb82e6d..d166616 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
@@ -2494,6 +2515,95 @@ index 18db021..195090f 100644
              default:
                  throw new UnsupportedOperationException("unsupported directive: " + kind);
          }
+diff --git a/forge-harness/src/main/java/forge/harness/host/PassiveLobbyPlayerAi.java b/forge-harness/src/main/java/forge/harness/host/PassiveLobbyPlayerAi.java
+new file mode 100644
+index 0000000..cc4e7ba
+--- /dev/null
++++ b/forge-harness/src/main/java/forge/harness/host/PassiveLobbyPlayerAi.java
+@@ -0,0 +1,83 @@
++package forge.harness.host;
++
++import forge.ai.ComputerUtilAbility;
++import forge.ai.LobbyPlayerAi;
++import forge.ai.PlayerControllerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.card.Card;
++import forge.game.card.CardCollection;
++import forge.game.combat.Combat;
++import forge.game.combat.CombatUtil;
++import forge.game.player.Player;
++import forge.game.player.PlayerController;
++import forge.game.spellability.SpellAbility;
++import forge.item.PaperCard;
++
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Map;
++
++public final class PassiveLobbyPlayerAi extends LobbyPlayerAi {
++    public PassiveLobbyPlayerAi(final String name) {
++        super(name, null);
++    }
++
++    static boolean isLandsOnly(final Deck deck) {
++        if (deck.getMain().isEmpty()) {
++            return false;
++        }
++        for (final Map.Entry<PaperCard, Integer> entry : deck.getMain()) {
++            if (!entry.getKey().getRules().getType().isLand()) {
++                return false;
++            }
++        }
++        return true;
++    }
++
++    @Override
++    public Player createIngamePlayer(final Game game, final int id) {
++        final Player ai = new Player(getName(), game, id);
++        ai.setFirstController(new Controller(game, ai, this));
++        return ai;
++    }
++
++    @Override
++    public PlayerController createMindSlaveController(final Player master, final Player slave) {
++        return new Controller(slave.getGame(), slave, this);
++    }
++
++    static final class Controller extends PlayerControllerAi {
++        Controller(final Game game, final Player player, final PassiveLobbyPlayerAi lobbyPlayer) {
++            super(game, player, lobbyPlayer);
++        }
++
++        @Override
++        public List<SpellAbility> chooseSpellAbilityToPlay() {
++            final CardCollection lands = ComputerUtilAbility.getAvailableLandsToPlay(getGame(), player);
++            if (lands == null) {
++                return null;
++            }
++            for (final Card land : lands) {
++                final List<SpellAbility> abilities = new ArrayList<>(land.getAllPossibleAbilities(player, true));
++                abilities.removeIf(sa -> !sa.isLandAbility());
++                if (!abilities.isEmpty()) {
++                    return abilities;
++                }
++            }
++            return null;
++        }
++
++        @Override
++        public List<SpellAbility> chooseSaToActivateFromOpeningHand(final List<SpellAbility> usableFromOpeningHand) {
++            return new ArrayList<>();
++        }
++
++        @Override
++        public void declareAttackers(final Player attacker, final Combat combat) {
++            if (!CombatUtil.validateAttackers(combat)) {
++                super.declareAttackers(attacker, combat);
++            }
++        }
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ExtraTurnRewindTest.java b/forge-harness/src/test/java/forge/harness/host/ExtraTurnRewindTest.java
 new file mode 100644
 index 0000000..a109449
@@ -2727,10 +2837,10 @@ index 0000000..a109449
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java b/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java
 new file mode 100644
-index 0000000..16050e0
+index 0000000..f2e34a9
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java
-@@ -0,0 +1,252 @@
+@@ -0,0 +1,316 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonElement;
@@ -2783,6 +2893,13 @@ index 0000000..16050e0
 +        check("flashbackInOwnGraveyardIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::flashbackInOwnGraveyardIsPlayableForItsOwnerOnly);
 +        check("unearthInOwnGraveyardIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::unearthInOwnGraveyardIsPlayableForItsOwnerOnly);
 +        check("foretoldCardInExileIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::foretoldCardInExileIsPlayableForItsOwnerOnly);
++        check("mayhemCardDiscardedThisTurnIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::mayhemCardDiscardedThisTurnIsPlayableForItsOwnerOnly);
++        check("mayhemCardNotDiscardedIsNotPlayable", MayPlayVisibilityTest::mayhemCardNotDiscardedIsNotPlayable);
++        check("mayhemCardDiscardedOnAnEarlierTurnIsNotPlayable", MayPlayVisibilityTest::mayhemCardDiscardedOnAnEarlierTurnIsNotPlayable);
++        check("harmonizeInOwnGraveyardIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::harmonizeInOwnGraveyardIsPlayableForItsOwnerOnly);
++        check("beamMeUpInOwnGraveyardIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::beamMeUpInOwnGraveyardIsPlayableForItsOwnerOnly);
++        check("plottedCardInExileIsPlayableForItsOwnerOnly", MayPlayVisibilityTest::plottedCardInExileIsPlayableForItsOwnerOnly);
++        check("unplottedCardInExileIsNotPlayable", MayPlayVisibilityTest::unplottedCardInExileIsNotPlayable);
 +        System.out.println(failed == 0 ? "PASS MayPlayVisibilityTest" : "FAIL MayPlayVisibilityTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
 +    }
@@ -2907,6 +3024,63 @@ index 0000000..16050e0
 +        f.settle();
 +        expect(mayPlay(f.card(0, "exile", 0, spell)), "a foretold card in its owner's exile is not playable");
 +        expect(!mayPlay(f.card(1, "exile", 0, spell)), "a foretold card is playable for the opponent");
++    }
++
++    private static void mayhemCardDiscardedThisTurnIsPlayableForItsOwnerOnly() {
++        final Fixture f = new Fixture();
++        final Card glider = f.add("Rocket-Powered Goblin Glider", f.p0, ZoneType.Graveyard);
++        glider.setDiscarded(true);
++        f.settle();
++        expect(mayPlay(f.card(0, "graveyard", 0, glider)), "a mayhem card discarded this turn is not playable for its owner");
++        expect(!mayPlay(f.card(1, "graveyard", 0, glider)), "a mayhem card is playable from the opponent's graveyard");
++    }
++
++    private static void mayhemCardNotDiscardedIsNotPlayable() {
++        final Fixture f = new Fixture();
++        final Card glider = f.add("Rocket-Powered Goblin Glider", f.p0, ZoneType.Graveyard);
++        f.settle();
++        expect(!mayPlay(f.card(0, "graveyard", 0, glider)), "a mayhem card that was not discarded is playable");
++    }
++
++    private static void mayhemCardDiscardedOnAnEarlierTurnIsNotPlayable() {
++        final Fixture f = new Fixture();
++        final Card glider = f.add("Rocket-Powered Goblin Glider", f.p0, ZoneType.Graveyard);
++        glider.setDiscarded(true);
++        glider.setTurnInZone(f.game.getPhaseHandler().getTurn() - 1);
++        f.settle();
++        expect(!mayPlay(f.card(0, "graveyard", 0, glider)), "a mayhem card discarded on an earlier turn is playable");
++    }
++
++    private static void harmonizeInOwnGraveyardIsPlayableForItsOwnerOnly() {
++        final Fixture f = new Fixture();
++        final Card spell = f.add("Channeled Dragonfire", f.p0, ZoneType.Graveyard);
++        f.settle();
++        expect(mayPlay(f.card(0, "graveyard", 0, spell)), "a harmonize card in its owner's graveyard is not playable");
++        expect(!mayPlay(f.card(1, "graveyard", 0, spell)), "a harmonize card is playable from the opponent's graveyard");
++    }
++
++    private static void beamMeUpInOwnGraveyardIsPlayableForItsOwnerOnly() {
++        final Fixture f = new Fixture();
++        final Card spell = f.add("Energize", f.p0, ZoneType.Graveyard);
++        f.settle();
++        expect(mayPlay(f.card(0, "graveyard", 0, spell)), "a beam me up card in its owner's graveyard is not playable");
++        expect(!mayPlay(f.card(1, "graveyard", 0, spell)), "a beam me up card is playable from the opponent's graveyard");
++    }
++
++    private static void plottedCardInExileIsPlayableForItsOwnerOnly() {
++        final Fixture f = new Fixture();
++        final Card plotted = f.add("Slickshot Show-Off", f.p0, ZoneType.Exile);
++        plotted.setPlotted(true);
++        f.settle();
++        expect(mayPlay(f.card(0, "exile", 0, plotted)), "a plotted card in its owner's exile is not playable");
++        expect(!mayPlay(f.card(1, "exile", 0, plotted)), "a plotted card is playable for the opponent");
++    }
++
++    private static void unplottedCardInExileIsNotPlayable() {
++        final Fixture f = new Fixture();
++        final Card exiled = f.add("Slickshot Show-Off", f.p0, ZoneType.Exile);
++        f.settle();
++        expect(!mayPlay(f.card(0, "exile", 0, exiled)), "an exiled plot card that was never plotted is playable");
 +    }
 +
 +    private static StaticAbility firstStatic(final Card card) {
@@ -3551,6 +3725,277 @@ index 0000000..cea5051
 +        card.setGameTimestamp(p.getGame().getNextTimestamp());
 +        p.getZone(zone).add(card);
 +        return card;
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/PassiveAiTest.java b/forge-harness/src/test/java/forge/harness/host/PassiveAiTest.java
+new file mode 100644
+index 0000000..4758982
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/PassiveAiTest.java
+@@ -0,0 +1,265 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.deck.DeckSection;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.card.Card;
++import forge.game.combat.Combat;
++import forge.game.keyword.KeywordInterface;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.item.PaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.util.ArrayList;
++import java.util.List;
++
++public final class PassiveAiTest {
++    private PassiveAiTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++
++        check("aLandsOnlyDeckIsPassive", PassiveAiTest::aLandsOnlyDeckIsPassive);
++        check("aDeckWithASpellIsNotPassive", PassiveAiTest::aDeckWithASpellIsNotPassive);
++        check("anEmptyDeckIsNotPassive", PassiveAiTest::anEmptyDeckIsNotPassive);
++        check("theAiCastsWhatThePassiveAiHolds", PassiveAiTest::theAiCastsWhatThePassiveAiHolds);
++        check("thePassiveAiCastsNothing", PassiveAiTest::thePassiveAiCastsNothing);
++        check("thePassiveAiStillPlaysItsLand", PassiveAiTest::thePassiveAiStillPlaysItsLand);
++        check("thePassiveAiCastsNothingOnceItsLandIsPlayed", PassiveAiTest::thePassiveAiCastsNothingOnceItsLandIsPlayed);
++        check("theAiCountersTheOtherPlayersSpell", PassiveAiTest::theAiCountersTheOtherPlayersSpell);
++        check("thePassiveAiLetsTheOtherPlayersSpellResolve", PassiveAiTest::thePassiveAiLetsTheOtherPlayersSpellResolve);
++        check("thePassiveAiPlaysACyclingLandOnlyAsALand", PassiveAiTest::thePassiveAiPlaysACyclingLandOnlyAsALand);
++        check("theAiStartsWithItsLeyline", PassiveAiTest::theAiStartsWithItsLeyline);
++        check("thePassiveAiActivatesNothingFromItsOpeningHand", PassiveAiTest::thePassiveAiActivatesNothingFromItsOpeningHand);
++        check("thePassiveAiDeclaresNoAttack", PassiveAiTest::thePassiveAiDeclaresNoAttack);
++        System.out.println(failed == 0 ? "PASS PassiveAiTest" : "FAIL PassiveAiTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void aLandsOnlyDeckIsPassive() {
++        final Deck deck = deckOf("Plains", "Island", "Mountain");
++        deck.getOrCreate(DeckSection.Commander).add(paper("Pramikon, Sky Rampart"), 1);
++        expect(PassiveLobbyPlayerAi.isLandsOnly(deck), "a deck of lands with a commander is not passive");
++    }
++
++    private static void aDeckWithASpellIsNotPassive() {
++        expect(!PassiveLobbyPlayerAi.isLandsOnly(deckOf("Plains", "Island", "Counterspell")), "a deck with a spell is passive");
++    }
++
++    private static void anEmptyDeckIsNotPassive() {
++        expect(!PassiveLobbyPlayerAi.isLandsOnly(new Deck()), "an empty deck is passive");
++    }
++
++    private static void theAiCastsWhatThePassiveAiHolds() {
++        for (int attempt = 0; attempt < 10; attempt++) {
++            final Fixture f = new Fixture(new LobbyPlayerAi("p1", null));
++            f.armed();
++            final List<SpellAbility> chosen = f.ai.getController().chooseSpellAbilityToPlay();
++            if (chosen != null && chosen.stream().anyMatch(sa -> !sa.isLandAbility())) {
++                return;
++            }
++        }
++        throw new AssertionError("the plain AI cast nothing in this state in 10 tries, so the passive test proves nothing");
++    }
++
++    private static void thePassiveAiCastsNothing() {
++        final Fixture f = new Fixture(new PassiveLobbyPlayerAi("p1"));
++        f.armed();
++        final List<SpellAbility> chosen = f.ai.getController().chooseSpellAbilityToPlay();
++        expect(chosen == null, "the passive AI chose " + chosen);
++    }
++
++    private static void thePassiveAiStillPlaysItsLand() {
++        final Fixture f = new Fixture(new PassiveLobbyPlayerAi("p1"));
++        f.armed();
++        final Card forest = f.add("Forest", f.ai, ZoneType.Hand);
++        final List<SpellAbility> chosen = f.ai.getController().chooseSpellAbilityToPlay();
++        expect(chosen != null && !chosen.isEmpty() && chosen.stream().allMatch(SpellAbility::isLandAbility)
++                && chosen.get(0).getHostCard() == forest, "the passive AI does not play its Forest: " + chosen);
++    }
++
++    private static void thePassiveAiCastsNothingOnceItsLandIsPlayed() {
++        final Fixture f = new Fixture(new PassiveLobbyPlayerAi("p1"));
++        f.armed();
++        f.add("Forest", f.ai, ZoneType.Hand);
++        f.ai.setLandsPlayedThisTurn(1);
++        final List<SpellAbility> chosen = f.ai.getController().chooseSpellAbilityToPlay();
++        expect(chosen == null, "the passive AI chose " + chosen);
++    }
++
++    private static List<SpellAbility> chosenAgainstTheOtherPlayersSpell(final LobbyPlayerAi lobbyPlayer) {
++        final Fixture f = new Fixture(lobbyPlayer);
++        f.armed();
++        f.add("Counterspell", f.ai, ZoneType.Hand);
++        f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, f.other);
++        final Card angel = f.add("Serra Angel", f.other, ZoneType.Hand);
++        final SpellAbility cast = angel.getFirstSpellAbility();
++        cast.setActivatingPlayer(f.other);
++        cast.setHostCard(f.game.getAction().moveToStack(angel, cast));
++        f.game.getStack().add(cast);
++        f.game.getPhaseHandler().setPriority(f.ai);
++        return f.ai.getController().chooseSpellAbilityToPlay();
++    }
++
++    private static void theAiCountersTheOtherPlayersSpell() {
++        for (int attempt = 0; attempt < 10; attempt++) {
++            final List<SpellAbility> chosen = chosenAgainstTheOtherPlayersSpell(new LobbyPlayerAi("p1", null));
++            if (chosen != null && chosen.stream().anyMatch(sa -> !sa.isLandAbility())) {
++                return;
++            }
++        }
++        throw new AssertionError("the plain AI never answered the other player's Serra Angel in 10 tries, so the passive test proves nothing");
++    }
++
++    private static void thePassiveAiLetsTheOtherPlayersSpellResolve() {
++        final List<SpellAbility> chosen = chosenAgainstTheOtherPlayersSpell(new PassiveLobbyPlayerAi("p1"));
++        expect(chosen == null, "the passive AI chose " + chosen);
++    }
++
++    private static void thePassiveAiPlaysACyclingLandOnlyAsALand() {
++        final Fixture f = new Fixture(new PassiveLobbyPlayerAi("p1"));
++        f.armed();
++        final Card sandbar = f.add("Lonely Sandbar", f.ai, ZoneType.Hand);
++        expect(sandbar.getAllPossibleAbilities(f.ai, true).stream().anyMatch(sa -> !sa.isLandAbility()),
++                "Lonely Sandbar offers no cycling in this state, so the check proves nothing");
++        final List<SpellAbility> chosen = f.ai.getController().chooseSpellAbilityToPlay();
++        expect(chosen != null && !chosen.isEmpty() && chosen.stream().allMatch(SpellAbility::isLandAbility),
++                "the passive AI chose " + chosen);
++    }
++
++    private static List<SpellAbility> openingHandEffects(final Player player) {
++        final List<SpellAbility> effects = new ArrayList<>();
++        for (final Card card : player.getCardsIn(ZoneType.Hand)) {
++            for (final KeywordInterface keyword : card.getKeywords()) {
++                final String text = keyword.getOriginal();
++                if (text.startsWith("MayEffectFromOpeningHand")) {
++                    final SpellAbility effect = AbilityFactory.getAbility(card.getSVar(text.split(":")[1]), card);
++                    effect.setActivatingPlayer(player);
++                    effects.add(effect);
++                }
++            }
++        }
++        return effects;
++    }
++
++    private static void theAiStartsWithItsLeyline() {
++        final Fixture f = new Fixture(new LobbyPlayerAi("p1", null));
++        f.add("Leyline of Sanctity", f.ai, ZoneType.Hand);
++        final List<SpellAbility> offered = openingHandEffects(f.ai);
++        expect(!offered.isEmpty() && !f.ai.getController().chooseSaToActivateFromOpeningHand(offered).isEmpty(),
++                "the plain AI starts without its Leyline, so the passive test proves nothing: " + offered);
++    }
++
++    private static void thePassiveAiActivatesNothingFromItsOpeningHand() {
++        final Fixture f = new Fixture(new PassiveLobbyPlayerAi("p1"));
++        f.add("Leyline of Sanctity", f.ai, ZoneType.Hand);
++        final List<SpellAbility> offered = openingHandEffects(f.ai);
++        expect(!offered.isEmpty() && f.ai.getController().chooseSaToActivateFromOpeningHand(offered).isEmpty(),
++                "the passive AI starts with a card from its opening hand: " + offered);
++    }
++
++    private static void thePassiveAiDeclaresNoAttack() {
++        final Fixture f = new Fixture(new PassiveLobbyPlayerAi("p1"));
++        f.add("Hill Giant", f.ai, ZoneType.Battlefield).setSickness(false);
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.ai);
++        final Combat combat = new Combat(f.ai);
++        f.ai.getController().declareAttackers(f.ai, combat);
++        expect(combat.getAttackers().isEmpty(), "the passive AI attacks with " + combat.getAttackers());
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static PaperCard paper(final String name) {
++        IPaperCard card = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (card == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            card = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        return (PaperCard) card;
++    }
++
++    private static Deck deckOf(final String... names) {
++        final Deck deck = new Deck();
++        for (final String name : names) {
++            deck.getMain().add(paper(name), 1);
++        }
++        return deck;
++    }
++
++    private static final class Fixture {
++        final Game game;
++        final Player ai;
++        final Player other;
++
++        Fixture(final LobbyPlayerAi aiPlayer) {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(aiPlayer));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("p2", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            game = new Game(players, rules, new Match(rules, players, "PassiveAiTest"));
++            game.setAge(GameStage.Play);
++            ai = game.getPlayers().get(0);
++            other = game.getPlayers().get(1);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN2, ai);
++            game.getPhaseHandler().onStackResolved();
++        }
++
++        void armed() {
++            for (int i = 0; i < 4; i++) {
++                add("Forest", ai, ZoneType.Battlefield);
++                add("Island", ai, ZoneType.Battlefield);
++            }
++            add("Grizzly Bears", ai, ZoneType.Hand);
++            add("Llanowar Elves", ai, ZoneType.Hand);
++            add("Divination", ai, ZoneType.Hand);
++            game.getAction().checkStaticAbilities();
++        }
++
++        Card add(final String name, final Player p, final ZoneType zone) {
++            final Card card = Card.fromPaperCard(paper(name), p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(zone).add(card);
++            return card;
++        }
 +    }
 +}
 diff --git a/manabrew-rs/crates/loadgen/src/main.rs b/manabrew-rs/crates/loadgen/src/main.rs
