@@ -84,6 +84,6 @@ Also queued from earlier work:
 - Token attackers listed with no size.
 - #10 sorting after #1 in option lists.
 - Dredge splitting "draws two cards" into two lines.
-- Mayhem, Harmonize, Beam me up and Plot cards never get mayPlay, so they aren't playable from the row (e.g. Rocket-Powered Goblin Glider). Harness: add the keywords to the graveyard clause and isPlotted() to exile; engine image rebuild.
+- ✅ Mayhem, Harmonize, Beam me up and Plot cards never get mayPlay, so they aren't playable from the row (e.g. Rocket-Powered Goblin Glider). Harness: add the keywords to the graveyard clause and isPlotted() to exile; engine image rebuild. Done 2026-11-11 (image `bugs1111`; Mayhem only for a card discarded this turn; MayPlayVisibilityTest).
 - The table self-check false-alarms "wrong place" on a card in an opponent's graveyard or exile that you may play (Mnemonic Betrayal, Thief of Sanity). The check uses the owner's mat, but the card lies on the caster's (engine-renderer.lua ~7090). Seen only from reading the code.
 - Reveal stand-in tests: priority-frame own-player condition, stand-in frame, stand-in hover text (mutants S11, S12, S16 escape).

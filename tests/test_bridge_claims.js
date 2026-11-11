@@ -1907,6 +1907,41 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("reveal pictures: all 9 go to the table", p && (p.show || []).length === 9, JSON.stringify(p && p.show && p.show.length));
     }
   }
+  // Release check 2026-11-10: on the turn White ran for AI 1 (Mindslaver), White's own priority in the blockers step and
+  // with AI 1's Shock on the stack passed by itself. Live boards and prompts from tests/live_mindslaver_ai_check.js on
+  // the engine (2026-11-11): the engine asks the controlling seat its own priority there, with Reflect Damage when it
+  // can be paid, and then the bridge stops (the defender's combat stop, the opponent's spell). In the release check
+  // White's lands were Islands and Mountains and the {W} was debug mana gone at cleanup, so Reflect Damage
+  // ({3}{R}{W}) was not offered and passing was right.
+  {
+    const LIVE = require("./golden/fixtures/mindslaver-ai-live.json");
+    const rec = (id) => LIVE.find((x) => x.prompt.promptId === id);
+    const live = async (id, edit) => {
+      const h = harness.load();
+      const r = clone(rec(id));
+      if (edit) edit(r);
+      const seat = setup(h, r.board);
+      h.B.onPrompt(seat, r.prompt);
+      await h.flush();
+      const relayed = h.effects.filter((e) => e.relay).length;
+      const out = { title: seat.prompt?.ui?.title ?? null, options: (seat.prompt?.ui?.options || []).map((o) => o.label), relayed };
+      harness.restore();
+      return out;
+    };
+    const noReflect = (r) => { r.prompt.input.actions = r.prompt.input.actions.filter((a) => a.type !== "cast"); };
+    const blockers = await live(35);
+    ok("Mindslaver live: precondition, the engine asks White's own priority in the blockers step of AI 1's controlled turn",
+      rec(35).board.gameView.step === "combatDeclareBlockers" && rec(35).board.gameView.priorityPlayerId === "player-0"
+      && rec(35).board.gameView.players.find((p) => p.id === "player-1").controlledBy === "player-0");
+    ok("Mindslaver live: there White is asked, as itself, with Reflect Damage", blockers.title === "Your priority" && blockers.options.includes("Cast Reflect Damage"), JSON.stringify(blockers));
+    const onShock = await live(45);
+    ok("Mindslaver live: precondition, AI 1's Shock is on the stack at White's own priority", (rec(45).board.gameView.stack || []).some((s) => s.controllerId === "player-1" && /^Shock/.test(s.text || "")));
+    ok("Mindslaver live: with AI 1's Shock on the stack White is asked, with Reflect Damage", onShock.title === "Your priority" && onShock.options.includes("Cast Reflect Damage"), JSON.stringify(onShock));
+    const blockersDry = await live(35, noReflect);
+    const shockDry = await live(45, noReflect);
+    ok("Mindslaver live: with nothing castable (the release check's lands) both pass by themselves",
+      blockersDry.title === null && shockDry.title === null && blockersDry.relayed > 0 && shockDry.relayed > 0, JSON.stringify({ blockersDry, shockDry }));
+  }
   // Kykar re-test 2026-11-09 (docs/HAND-TEST-KYKAR.md "Re-test", new bugs 1, 2, 4, 5, 8, 10): the questions
   {
     const fresh = (edit, gvExtra = {}) => {
