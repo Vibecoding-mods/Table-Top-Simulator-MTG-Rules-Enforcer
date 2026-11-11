@@ -3797,8 +3797,9 @@ function noteTypes(gv) {
     for (const c of z.cards || []) {
       const name = c.identity?.name;
       if (!c.id || !name || c.isFaceDown || c.visibility === "hidden" || !Array.isArray(c.types) || !c.types.length) continue;
-      if (byId.get(c.id) !== c.types) byId.set(c.id, c.types);
-      if (!c.identity.isToken && !c.isCopy && byName.get(name) !== c.types) byName.set(name, c.types);
+      // (set once: each view's card brings a new array, and a card's printed types don't change outside the battlefield)
+      if (!byId.has(c.id)) byId.set(c.id, c.types);
+      if (!c.identity.isToken && !c.isCopy && !byName.has(name)) byName.set(name, c.types);
     }
   }
 }

@@ -330,11 +330,15 @@ wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not
   any two sounds at least 0.15 s apart. It plays at that kind's first event's start time (lunge hit, knock-out
   600 ms, a wipe's first death); exile, lifegain and instant at once.
 - **Not when:** `engineSoundsMuted`, no pick for that kind, a jump board, or (route A) the music player is busy with
-  the players' own music: `MusicPlayer.player_status == "Play"` and `getCurrentAudioclip().title` doesn't start with
-  "MTG effect".
+  the players' own music: the current clip has a link, its title doesn't start with "MTG effect", and
+  `MusicPlayer.player_status` isn't "Stop" (a paused track of theirs counts; before 2026-11-11 only "Play" did).
 - **Route A, MusicPlayer (works today, no Unity):**
-  - `MusicPlayer.setCurrentAudioclip({ url = pick, title = "MTG effect: " .. kind })`, then
-    `Wait.condition(function() MusicPlayer.play() end, function() return MusicPlayer.loaded end, 2)`.
+  - `MusicPlayer.setCurrentAudioclip({ url = pick, title = "MTG effect: " .. kind })`, then a `Wait.condition` (up
+    to 2 s) that plays once the player holds this very clip (its link, or its title) and `loaded` is true: right
+    after the set, `loaded` can still be the last clip's. A newer sound set before it plays wins; the older one
+    never plays (2026-11-11, verifier).
+  - Not over the players' own music: no sound while the player holds a clip not titled "MTG effect ..." unless the
+    player is stopped (playing or paused, their track stays).
   - Limits (MusicPlayer API):
     - one clip at a time, so a new sound cuts the last one;
     - it waits until **every** player has loaded the clip, so the delay is unknown (real-table check 5: if it is

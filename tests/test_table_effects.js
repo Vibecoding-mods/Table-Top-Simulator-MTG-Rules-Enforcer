@@ -38,10 +38,15 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 const PRELUDE = `
 engineSoundsShipped = engineSounds
 engineSounds = {}
-MusicPlayer ={ player_status = "Stop", loaded = true, clip = { title = "", url = "" } }
-MusicPlayer.setCurrentAudioclip = function(t) MusicPlayer.clip = t __sim.fx("MusicPlayer.setCurrentAudioclip", t.url, t.title) end
+MusicPlayer = { player_status = "Stop", loaded = true, clip = { title = "", url = "" }, delay = 0 }
+-- (delay > 0: the new clip takes that many frames to arrive, and until then the player still holds the last clip with
+-- loaded still true, as a slow download would leave it)
+MusicPlayer.setCurrentAudioclip = function(t)
+  __sim.fx("MusicPlayer.setCurrentAudioclip", t.url, t.title)
+  if MusicPlayer.delay > 0 then Wait.frames(function() MusicPlayer.clip = t MusicPlayer.loaded = true end, MusicPlayer.delay) else MusicPlayer.clip = t end
+end
 MusicPlayer.getCurrentAudioclip = function() return MusicPlayer.clip end
-MusicPlayer.play = function() __sim.fx("MusicPlayer.play") end
+MusicPlayer.play = function() __sim.fx("MusicPlayer.play", MusicPlayer.clip.url) end
 local car = getObjectFromGUID("${CARRIER}")
 car.UI.show = function(id) __sim.fx("objUI.show", id) end
 car.UI.hide = function(id) __sim.fx("objUI.hide", id) end
@@ -404,6 +409,37 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("order: with no lifegain pick, the instant under it plays", said(15) === '["instant music"]', said(15));
   ok("mtg sounds test: the new kinds play", said(16) === '["exile music","instant music"]', said(16));
   ok("mtg sounds test: an unknown kind lists the kinds", t.fx("tests").some((l) => l.includes("The sounds are: knockout, wipe, death, exile, damage, lifegain, instant, counter.")), JSON.stringify(t.fx("tests").filter((l) => l.includes("broadcast"))));
+}
+
+// the music player (verifier, 2026-11-11): a sound plays once the player holds its own clip and has loaded it (loaded
+// can still be the last clip's), a newer sound replacing it first wins, and a clip of the players' own, paused or
+// playing, is never replaced
+{
+  const s0 = base();
+  const s1 = clone(s0); s1.Blue.bf = s1.Blue.bf.filter((c) => c !== "b1"); s1.Blue.gy = ["b1"]; // death
+  const s2 = clone(s1); s2.White.life = 45; // lifegain
+  const s3 = clone(s2); s3.Blue.bf = s3.Blue.bf.filter((c) => c !== "b2"); s3.Blue.ex = ["b2"]; // exile, 0.2 s later
+  const s4 = clone(s3); s4.Blue.bf = s4.Blue.bf.filter((c) => c !== "b3"); s4.Blue.gy.push("b3"); // death
+  const s5 = clone(s4); s5.Blue.bf = s5.Blue.bf.filter((c) => c !== "b4"); s5.Blue.gy.push("b4"); // death
+  const L = (k) => `https://example.invalid/${k}.mp3`;
+  const t = run([
+    lua(`engineSounds.death = "${L("death")}" engineSounds.lifegain = "${L("lifegain")}" engineSounds.exile = "${L("exile")}" MusicPlayer.delay = 5 return "slow"`, "slow"),
+    send(s0, "first board"), send(s1, "slow clip", 30),
+    lua(`MusicPlayer.delay = 30 return "slower"`, "slower"), send(s2, "replaced", 12), send(s3, "newer sound", 60),
+    lua(`MusicPlayer.delay = 0 MusicPlayer.player_status = "Pause" MusicPlayer.clip = { title = "Song", url = "https://example.invalid/song.mp3" } return "paused"`, "paused"),
+    send(s4, "their track paused", 30),
+    lua(`MusicPlayer.player_status = "Stop" return "stopped"`, "stopped"), send(s5, "their track stopped", 30),
+  ]);
+  ok("music player: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const plays = (marks) => marks.flatMap((m) => t.fx(m)).filter((l) => l.includes('"MusicPlayer.play"'));
+  const slow = plays(["slow clip"]);
+  ok("music player: a slow clip plays once it has arrived, as itself (not the last clip)", slow.length === 1 && slow[0].includes(`"${L("death")}"`), JSON.stringify(slow));
+  const two = plays(["replaced", "newer sound"]);
+  ok("music player: two sounds 0.2 s apart: only the newer plays, its own clip", two.length === 1 && two[0].includes(`"${L("exile")}"`), JSON.stringify(two));
+  const paused = t.fx("their track paused").filter((l) => l.includes("MusicPlayer."));
+  ok("music player: a paused track of theirs is never replaced", paused.length === 0, JSON.stringify(paused));
+  const stopped = t.fx("their track stopped");
+  ok("music player: their track stopped: the sound plays", stopped.some((l) => l.includes('"MusicPlayer.setCurrentAudioclip"')) && plays(["their track stopped"]).length === 1, JSON.stringify(stopped.filter((l) => l.includes("Music"))));
 }
 
 console.log(failed ? `\n${failed} failed, ${passed} passed` : `all ${passed} passed`);

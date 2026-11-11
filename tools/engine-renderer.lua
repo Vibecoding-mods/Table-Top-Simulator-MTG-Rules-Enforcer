@@ -1892,14 +1892,27 @@ do
     local route
     if pick:find("^https?://") then
       if MusicPlayer == nil then return false end
+      -- (the players' own music is never cut: a clip of theirs, playing or paused, unless the player is stopped or
+      -- holds no clip; a clip of ours is titled "MTG effect: ...")
       local okBusy, busy = pcall(function()
         local clip = MusicPlayer.getCurrentAudioclip() or {}
-        return MusicPlayer.player_status == "Play" and not tostring(clip.title or ""):find("^MTG effect")
+        local theirs = tostring(clip.url or "") ~= "" and tostring(clip.title or ""):sub(1, 10) ~= "MTG effect"
+        return theirs and MusicPlayer.player_status ~= "Stop"
       end)
-      if not okBusy or busy then return false end -- (the players' own music is playing: never cut it)
+      if not okBusy or busy then return false end
+      -- (played once the player holds this very clip and has loaded it: right after setCurrentAudioclip, loaded can
+      -- still be the last clip's; and only if no newer sound has replaced it since, the newest wins)
+      -- (by its link, or by its title should TTS hand the link back spelled another way)
+      FX.sndSeq = (FX.sndSeq or 0) + 1
+      local seq, title = FX.sndSeq, "MTG effect: " .. kind
+      local function ours()
+        local okClip, clip = pcall(MusicPlayer.getCurrentAudioclip)
+        return FX.sndSeq == seq and okClip and clip ~= nil and (clip.url == pick or clip.title == title)
+      end
       local ok = pcall(function()
-        MusicPlayer.setCurrentAudioclip({ url = pick, title = "MTG effect: " .. kind })
-        Wait.condition(function() MusicPlayer.play() end, function() return MusicPlayer.loaded end, 2)
+        MusicPlayer.setCurrentAudioclip({ url = pick, title = title })
+        Wait.condition(function() if ours() then MusicPlayer.play() end end,
+          function() return FX.sndSeq ~= seq or (ours() and MusicPlayer.loaded == true) end, 2)
       end)
       if not ok then return false end
       route = "music"
