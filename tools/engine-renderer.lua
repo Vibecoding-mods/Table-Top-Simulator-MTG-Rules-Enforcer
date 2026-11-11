@@ -5716,9 +5716,13 @@ local function setupButton(obj, click, label, color, at, facing, width, height, 
   end
   local pos = obj.positionToLocal(at)
   if tileTurn ~= nil then pos.x = -pos.x end
+  -- (the playmats and the tile are stretched objects: the scale undoes that, then makes the button readable from a
+  -- seat. TTS stretches a button along its object's axes after turning it, so a quarter-turned one takes the other
+  -- axis's stretch: live 2026-11-10, the 90-turned mulligan button's text ran off its box on the 2.2 x 1.5 tile)
+  local sx, sz = s.x, s.z
+  if tileTurn ~= nil and tileTurn % 180 == 90 then sx, sz = s.z, s.x end
   obj.createButton({ click_function = click, function_owner = Global, label = label, position = pos,
-    -- (the playmats are stretched objects: the scale undoes that, then makes the button readable from a seat)
-    rotation = { 0, rotY, 0 }, scale = { SETUP.size / s.x, 1 / s.y, SETUP.size / s.z }, width = width or 1300, height = height or 420, font_size = 220,
+    rotation = { 0, rotY, 0 }, scale = { SETUP.size / sx, 1 / s.y, SETUP.size / sz }, width = width or 1300, height = height or 420, font_size = 220,
     color = color, font_color = { 1, 1, 1 }, tooltip = "" })
 end
 
@@ -5816,7 +5820,7 @@ function engineSetupButtons()
     -- (after the middle button: engineSetupIntact reads the tile's first button)
     if not running and not over then
       SETUP.drawn.friendly = true
-      setupButton(tile, "onMtgSetupFriendly", engineFriendlyLabel(), SETUP.color.wait, FRIENDLY_SPOT, nil, 1250, 700, 90)
+      setupButton(tile, "onMtgSetupFriendly", engineFriendlyLabel(), SETUP.color.wait, FRIENDLY_SPOT, nil, 1700, 620, 90)
     end
   end
   engineScoopRedraw()
@@ -5882,14 +5886,14 @@ end
 engineFriendly = 0
 FRIENDLY_SPOT = Vector(-60, 1.1, 0) -- (the cannon's saved home, its memo "mtghome -60.000 0.732 0.000")
 function engineFriendlyLabel()
-  return "Free mulligans\n" .. (engineFriendly == 0 and "normal" or string.format("%d each", engineFriendly))
+  return "Free mulligans\n" .. (engineFriendly == 0 and "None" or tostring(engineFriendly))
 end
 -- n: 0, 1 or 2; pl: who set it (everyone is told)
 function engineSetFriendly(n, pl)
   engineFriendly = n
   local who = pl ~= nil and (pl.steam_name or pl.color) or "Someone"
   broadcastToAll("[MTG] " .. tostring(who) .. " set free mulligans for everyone: "
-    .. (n == 0 and "normal rules" or string.format("%d each", n) .. " (the rules' free one in a 3+ player game included)") .. ".", { 1, 0.85, 0.4 })
+    .. (n == 0 and "none" or string.format("%d each", n) .. " (the rules' free one in a 3+ player game included)") .. ".", { 1, 0.85, 0.4 })
   engineSetupButtons()
 end
 function onMtgSetupFriendly(obj, playerColor)

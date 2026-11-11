@@ -24,8 +24,8 @@ To shut down: **Stop MTG.bat** in the same folder.
 4. Press **READY?** on your playmat. It checks every card against the engine:
    - **READY** (green): good to go;
    - **FIX DECK** (red): the chat says what's wrong (an unknown card, no commander, ...).
-   On the left rim of the table (where the cannon sits outside engine mode) is **Free mulligans / normal**: anyone clicks it for 1,
-   2, then back to normal (or `mtg friendly 0|1|2`); it's one count for the whole table and everyone is told who changed it. That's
+   On the left rim of the table (where the cannon sits outside engine mode) is **Free mulligans / None**: anyone clicks it for 1,
+   2, then back to None (or `mtg friendly 0|1|2`); it's one count for the whole table and everyone is told who changed it. That's
    the free mulligans each player has in all, the rules' free first one in a 3+ player game included. A free mulligan is a new 7
    with nothing put on the bottom. The game says when a player has used theirs.
    AI players take normal mulligans. Your vote stays for a rematch.
