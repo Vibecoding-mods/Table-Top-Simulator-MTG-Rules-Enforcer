@@ -72,6 +72,6 @@ legal advice; the licence texts are what count.
 - **Forge rules code:** `TriggerHandler.removeWaitingTapsForMana`, used by that undo.
 - **Star Trek (TRK, TRC), 2026-11:** the two sets' card scripts, tokens, edition files and creature types from
   Card-Forge/forge `6d4a175`, plus the Java those cards need (assimilate, peace counters, and a few `Count$` and
-  property names). Every imported file is listed in `forge-trek-files.txt`; what and why in
+  property names), and four script fixes from `2549d11` (2026-11-10). Every imported file is listed in `forge-trek-files.txt`; what and why in
   `docs/forge-update-2026-11.md`. `checks/` holds the headless checks used for it and
   `harness-tests.sh`, the unit-test runner above.
