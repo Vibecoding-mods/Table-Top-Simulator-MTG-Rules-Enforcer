@@ -24,9 +24,20 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 - ✅ (source) The Free mulligans button where the Pirate Cannon sits, turned a quarter left (721d091).
 - ✅ (source) Player marks as small boxes, one a mark, stacked down the inner corner of the mat under the heart (the
   user: "corner of your playmat under your heart"; "multiple boxes ... instead of cramming everything in one box").
+- 🔶 Planeswalkers by click (docs/next-features-2026-11-09.md item 24, 2026-11-11): a planeswalker answers a target
+  question by a click as a creature does (Forge offers it as a card target, so the table's one target path already
+  unlocked, lit and answered it; now with tests); "player or planeswalker" questions say to click either, a refused
+  click says why; and a choice of players and permanents that is no target (Hero of Bladehold's attacking tokens when
+  there is a planeswalker to attack, Zevlor's copies) is asked as a target question, so a life counter or the card answers it. Needs a look on
+  the real table.
 - ⬜ Status objects (spec docs/status-objects-spec.md, the user 2026-11-10): the original table's crown, initiative,
   City's Blessing, the Ring, Day // Night and counter tokens come back parked under the table, hidden, and move onto
   the holder's mat beside their mark's box.
+
+## 2026-11-11
+- ⬜ Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on permanents
+  with a usable ability", the user 2026-11-11). It reuses the hand's per-player green frame; mana-only abilities are left
+  out at priority. Queued with round 2 (B: combat highlights).
 
 ## Monday 2026-11-09 (after the weekly usage reset)
 - ✅ **Update Forge for Star Trek: done and live 2026-11-09** (bfba2e0, docs/forge-update-2026-11.md: TRK 311/311, TRC 337/337). 2026-11-10: four upstream script fixes (Kirk, Commanding Officer; Dr. McCoy, Surly Surgeon; Cantankerous Captain; Starfleet Communicator) being taken into a new node image. Old note: Our Forge copy (`manabrew/forge`, through
