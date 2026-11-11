@@ -461,7 +461,7 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     process.env.MTG_DEBUG_PORT = "48992";
     // (the chat that debug-mode says goes to the harness's decoy TTS port, refused there: never to a running TTS)
     const guard = require("./no-live-ports");
-    const tried0 = harness.liveAttempts().length;
+    const tried0 = harness.liveAttempts().length, wrote0 = guard.fileAttempts().length;
     const h = harness.load();
     harness.restore(); // (real network for the requests below)
     await new Promise((r) => h.B.debugServer.listen(48992, "127.0.0.1", r));
@@ -490,6 +490,10 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     const tried = harness.liveAttempts().slice(tried0);
     ok("debug-mode's chat, sent on real sockets, went only to the decoy port (refused)", tried.length >= 1 && tried.every((t) => t.port === harness.DECOY_PORT), JSON.stringify(tried));
     guard.forget(harness.DECOY_PORT, tried0); // (expected here, so not a failure at exit)
+    // (and its table-log line, written with the real fs after restore(), was dropped, never put in the playgroup's log)
+    const wrote = guard.fileAttempts().slice(wrote0);
+    ok("debug-mode's table-log line, written after restore(), was dropped, not put in the live tmp/table-log.log", wrote.length >= 1 && wrote.every((w) => /table-log\.log$/.test(w.file)), JSON.stringify(wrote));
+    guard.forgetFiles(wrote0);
   }
 
   process.stdout.write(failed ? `FAILED: ${failed} failed, ${passed} passed\n` : `PASSED: ${passed} passed, 0 failed\n`);
