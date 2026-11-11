@@ -2216,6 +2216,47 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("Mindslaver live: with nothing castable (the release check's lands) both pass by themselves",
       blockersDry.title === null && shockDry.title === null && blockersDry.relayed > 0 && shockDry.relayed > 0, JSON.stringify({ blockersDry, shockDry }));
   }
+  // the attacker is asked after blockers when something blocks and they can act (attackerStop; live check 2026-11-11:
+  // Craw Wurm blocked Hero of Bladehold and White, holding Giant Growth, Lightning Bolt and Prodigal Pyromancer, was
+  // passed through blockers and damage with the Combat stop off). Blue attacks AI 1 with engine-card-22; the defender's
+  // stop (combatStop) is unchanged.
+  {
+    const GROWTH = { id: "cast:1801", type: "cast", cardId: "engine-card-1801", label: "Cast Giant Growth", mode: { type: "normal" } };
+    const MANA = { id: "tap:engine-card-36:0", type: "activateManaAbility", cardId: "engine-card-36", isManaAbility: true, description: "Mountain" };
+    const prio = async ({ step = "combatDeclareBlockers", active = "player-0", blocks = true, viaCard = false, actions = [GROWTH, MANA] } = {}) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      const gv = b.gameView;
+      Object.assign(gv, { activePlayerId: active, priorityPlayerId: "player-0", step, stack: [] });
+      const bf = (p) => gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === p).cards;
+      const [atk, blk] = active === "player-0" ? [bf("player-0")[0], bf("player-1")[0]] : [bf("player-1")[0], bf("player-0")[0]];
+      Object.assign(atk, { types: ["Creature"], identity: { name: "Hero of Bladehold" }, isAttacking: true });
+      Object.assign(blk, { types: ["Creature"], identity: { name: "Craw Wurm" } });
+      gv.combatAssignments = blocks && !viaCard ? [{ blockerId: blk.id, attackerId: atk.id }] : [];
+      if (blocks && viaCard) blk.isBlocking = true;
+      const seat = setup(h, b);
+      seat.stops = new Set(); // (the Combat stop off, as in the live game)
+      h.B.onPrompt(seat, { promptId: 34, decidingPlayerId: "player-0", input: { type: "chooseAction", actions } });
+      await h.flush();
+      const out = { asked: seat.prompt?.ui?.title ?? null, options: (seat.prompt?.ui?.options || []).map((o) => o.label), passed: h.effects.some((e) => e.relay && JSON.stringify(e.relay).includes("\"pass\"")) };
+      harness.restore();
+      return out;
+    };
+    let r = await prio();
+    ok("attacker after blocks: asked with Giant Growth when a blocker is declared", r.asked === "Your priority" && r.options.includes("Cast Giant Growth") && !r.passed, JSON.stringify(r));
+    r = await prio({ viaCard: true });
+    ok("attacker after blocks: a blocker marked on the card (isBlocking) counts too", r.asked === "Your priority" && !r.passed, JSON.stringify(r));
+    r = await prio({ blocks: false });
+    ok("attacker after blocks: nothing blocked passes by itself, as before", r.asked === null && r.passed, JSON.stringify(r));
+    r = await prio({ actions: [MANA] });
+    ok("attacker after blocks: only mana to tap passes by itself", r.asked === null && r.passed, JSON.stringify(r));
+    r = await prio({ step: "combatDamage" });
+    ok("attacker after blocks: the damage step isn't a new stop (asked once, after blockers)", r.asked === null && r.passed, JSON.stringify(r));
+    r = await prio({ step: "combatDeclareAttackers", blocks: false });
+    ok("attacker after blocks: the declare attackers step passes for the attacker, as before", r.asked === null && r.passed, JSON.stringify(r));
+    r = await prio({ active: "player-1", blocks: false });
+    ok("attacker after blocks: the defender's stop is unchanged (attacked, holding a trick: asked)", r.asked === "Your priority" && !r.passed, JSON.stringify(r));
+  }
   // Kykar re-test 2026-11-09 (docs/HAND-TEST-KYKAR.md "Re-test", new bugs 1, 2, 4, 5, 8, 10): the questions
   {
     const fresh = (edit, gvExtra = {}) => {

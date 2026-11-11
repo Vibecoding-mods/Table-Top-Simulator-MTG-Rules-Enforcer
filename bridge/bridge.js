@@ -5851,6 +5851,13 @@ function onPrompt(seat, prompt) {
       // the chance while Yellow attacked)
       const attacking = (gv.zones || []).some((z) => z.zone === "battlefield" && (z.cards || []).some((c) => c.isAttacking));
       const combatStop = gv.activePlayerId !== who && attacking && ["combatDeclareAttackers", "combatDeclareBlockers"].includes(gv.step);
+      // the attacker too, once blockers are declared and something blocks, as Arena does: the pump spell or the ping
+      // for the blocker (live check 2026-11-11: Craw Wurm blocked Hero of Bladehold, and White, holding Giant Growth,
+      // Lightning Bolt and Prodigal Pyromancer, was passed through blockers and damage). The blocks are Forge's
+      // combatAssignments (blockerId, attackerId); a board that marks blockers on the card says isBlocking.
+      const blocked = (gv.combatAssignments || []).some((a) => a.blockerId && a.attackerId)
+        || (gv.zones || []).some((z) => z.zone === "battlefield" && (z.cards || []).some((c) => c.isBlocking));
+      const attackerStop = gv.activePlayerId === who && attacking && blocked && gv.step === "combatDeclareBlockers";
       const ninjaStop = ["combatDeclareBlockers", "combatFirstStrikeDamage", "combatDamage"].includes(gv.step) && actions.some((a) =>
         (a.type === "activateAbility" && /ninjutsu/i.test(`${a.description || ""} ${a.label || ""}`)) ||
         (a.type === "cast" && a.mode?.type === "alternative" && a.mode.cost === "sneak"));
@@ -5893,7 +5900,7 @@ function onPrompt(seat, prompt) {
       // passed by itself in your main phase, so Flusterstorm on your own Bolt had no moment (2026-10-29 request)
       const holdStop = seat.hold === gv.turn && (gv.stack || []).length > 0 && actions.length > 0;
       if (holdStop) seat.hold = null;
-      const worthStopping = (myMain && !(gv.stack || []).length && actions.length > 0) || (actions.length && (opponentsStack || stepStop || ninjaStop || combatStop))
+      const worthStopping = (myMain && !(gv.stack || []).length && actions.length > 0) || (actions.length && (opponentsStack || stepStop || ninjaStop || combatStop || attackerStop))
         || undos.length > 0 || skipStop || holdStop;
       // what a stop on someone else's spell offered (to see why "Resolve" came up)
       if (worthStopping && opponentsStack) log(`${seat.color} may respond to the stack with: ${actions.map((a) => a.label || a.description || a.id).join(" | ") || "(nothing)"}`);
