@@ -22211,7 +22211,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Pay {B} for Dreg Mangler\": Auto-pay | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap W for {W} | Tap W for {W} | ... (12)\n"
+    "text": "[time] Blue   is asked #900 \"Pay {B} for Dreg Mangler\": Auto-pay | Tap B for {B} | Cancel\n"
    },
    {
     "tts": {
@@ -22224,60 +22224,6 @@
       {
        "id": "__auto",
        "label": "Auto-pay"
-      },
-      {
-       "id": "tap:engine-card-981:0",
-       "cardId": "engine-card-981",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-982:0",
-       "cardId": "engine-card-982",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-983:0",
-       "cardId": "engine-card-983",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-984:0",
-       "cardId": "engine-card-984",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-985:0",
-       "cardId": "engine-card-985",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-986:0",
-       "cardId": "engine-card-986",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-987:0",
-       "cardId": "engine-card-987",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-988:0",
-       "cardId": "engine-card-988",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-989:0",
-       "cardId": "engine-card-989",
-       "label": "Tap W for {W}",
-       "rank": 0
       },
       {
        "id": "tap:engine-card-990:0",
@@ -22867,7 +22813,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Pay {B} for Dreg Mangler\": Auto-pay | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap W for {W} | Tap W for {W} | ... (12)\n"
+    "text": "[time] Blue   is asked #900 \"Pay {B} for Dreg Mangler\": Auto-pay | Tap B for {B} | Cancel\n"
    },
    {
     "tts": {
@@ -22880,60 +22826,6 @@
       {
        "id": "__auto",
        "label": "Auto-pay"
-      },
-      {
-       "id": "tap:engine-card-981:0",
-       "cardId": "engine-card-981",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-982:0",
-       "cardId": "engine-card-982",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-983:0",
-       "cardId": "engine-card-983",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-984:0",
-       "cardId": "engine-card-984",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-985:0",
-       "cardId": "engine-card-985",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-986:0",
-       "cardId": "engine-card-986",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-987:0",
-       "cardId": "engine-card-987",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-988:0",
-       "cardId": "engine-card-988",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-989:0",
-       "cardId": "engine-card-989",
-       "label": "Tap W for {W}",
-       "rank": 0
       },
       {
        "id": "tap:engine-card-990:0",
@@ -22963,60 +22855,6 @@
       {
        "id": "__auto",
        "label": "Auto-pay"
-      },
-      {
-       "id": "tap:engine-card-981:0",
-       "cardId": "engine-card-981",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-982:0",
-       "cardId": "engine-card-982",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-983:0",
-       "cardId": "engine-card-983",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-984:0",
-       "cardId": "engine-card-984",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-985:0",
-       "cardId": "engine-card-985",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-986:0",
-       "cardId": "engine-card-986",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-987:0",
-       "cardId": "engine-card-987",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-988:0",
-       "cardId": "engine-card-988",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-989:0",
-       "cardId": "engine-card-989",
-       "label": "Tap W for {W}",
-       "rank": 0
       },
       {
        "id": "tap:engine-card-990:0",
@@ -23140,7 +22978,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Pay {C} for Dreg Mangler\": Auto-pay | Tap W for {W} | Tap C for {C} | Cancel\n"
+    "text": "[time] Blue   is asked #900 \"Pay {C} for Dreg Mangler\": Auto-pay | Tap C for {C} | Cancel\n"
    },
    {
     "tts": {
@@ -23153,12 +22991,6 @@
       {
        "id": "__auto",
        "label": "Auto-pay"
-      },
-      {
-       "id": "tap:engine-card-986:0",
-       "cardId": "engine-card-986",
-       "label": "Tap W for {W}",
-       "rank": 0
       },
       {
        "id": "tap:engine-card-993:0",
@@ -23550,7 +23382,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Pay {B} for Dreg Mangler\": Auto-pay | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap W for {W} | Tap W for {W} | ... (12)\n"
+    "text": "[time] Blue   is asked #900 \"Pay {B} for Dreg Mangler\": Auto-pay | Tap B for {B} | Cancel\n"
    },
    {
     "tts": {
@@ -23563,60 +23395,6 @@
       {
        "id": "__auto",
        "label": "Auto-pay"
-      },
-      {
-       "id": "tap:engine-card-981:0",
-       "cardId": "engine-card-981",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-982:0",
-       "cardId": "engine-card-982",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-983:0",
-       "cardId": "engine-card-983",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-984:0",
-       "cardId": "engine-card-984",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-985:0",
-       "cardId": "engine-card-985",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-986:0",
-       "cardId": "engine-card-986",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-987:0",
-       "cardId": "engine-card-987",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-988:0",
-       "cardId": "engine-card-988",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-989:0",
-       "cardId": "engine-card-989",
-       "label": "Tap W for {W}",
-       "rank": 0
       },
       {
        "id": "tap:engine-card-990:0",
@@ -23675,7 +23453,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Pay {B} for Dreg Mangler\": Auto-pay | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap W for {W} | Tap W for {W} | ... (12)\n"
+    "text": "[time] Blue   is asked #900 \"Pay {B} for Dreg Mangler\": Auto-pay | Tap B for {B} | Cancel\n"
    },
    {
     "tts": {
@@ -23688,60 +23466,6 @@
       {
        "id": "__auto",
        "label": "Auto-pay"
-      },
-      {
-       "id": "tap:engine-card-981:0",
-       "cardId": "engine-card-981",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-982:0",
-       "cardId": "engine-card-982",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-983:0",
-       "cardId": "engine-card-983",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-984:0",
-       "cardId": "engine-card-984",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-985:0",
-       "cardId": "engine-card-985",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-986:0",
-       "cardId": "engine-card-986",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-987:0",
-       "cardId": "engine-card-987",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-988:0",
-       "cardId": "engine-card-988",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-989:0",
-       "cardId": "engine-card-989",
-       "label": "Tap W for {W}",
-       "rank": 0
       },
       {
        "id": "tap:engine-card-990:0",
@@ -23880,7 +23604,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Pay {G} for Dreg Mangler\": Auto-pay | Tap {T}: Add {C}. for {C} | Tap {T}: Add {B} or {G}. Llanowar Wastes deals 1 damage to you. for {G} | Cancel\n"
+    "text": "[time] Blue   is asked #900 \"Pay {G} for Dreg Mangler\": Auto-pay | Tap {T}: Add {B} or {G}. Llanowar Wastes deals 1 damage to you. for {G} | Cancel\n"
    },
    {
     "tts": {
@@ -23893,12 +23617,6 @@
       {
        "id": "__auto",
        "label": "Auto-pay"
-      },
-      {
-       "id": "tap:engine-card-994:0",
-       "cardId": "engine-card-994",
-       "label": "Tap {T}: Add {C}. for {C}",
-       "rank": 0
       },
       {
        "id": "tap:engine-card-994:1:G",
@@ -24997,7 +24715,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Pay {B} for Dreg Mangler\": Auto-pay | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap G for {G} | Tap W for {W} | Tap W for {W} | ... (12)\n"
+    "text": "[time] Blue   is asked #900 \"Pay {B} for Dreg Mangler\": Auto-pay | Tap B for {B} | Cancel\n"
    },
    {
     "tts": {
@@ -25010,60 +24728,6 @@
       {
        "id": "__auto",
        "label": "Auto-pay"
-      },
-      {
-       "id": "tap:engine-card-981:0",
-       "cardId": "engine-card-981",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-982:0",
-       "cardId": "engine-card-982",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-983:0",
-       "cardId": "engine-card-983",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-984:0",
-       "cardId": "engine-card-984",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-985:0",
-       "cardId": "engine-card-985",
-       "label": "Tap G for {G}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-986:0",
-       "cardId": "engine-card-986",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-987:0",
-       "cardId": "engine-card-987",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-988:0",
-       "cardId": "engine-card-988",
-       "label": "Tap W for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-989:0",
-       "cardId": "engine-card-989",
-       "label": "Tap W for {W}",
-       "rank": 0
       },
       {
        "id": "tap:engine-card-990:0",
@@ -25773,7 +25437,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Pay {B} for Feed the Swarm\": Auto-pay | Tap City of Brass for {W} | Tap City of Brass for {U} | Tap City of Brass for {B} | Tap City of Brass for {R} | Tap City of Brass for {G} | Cancel\n"
+    "text": "[time] Blue   is asked #900 \"Pay {B} for Feed the Swarm\": Auto-pay | Tap City of Brass for {B} | Cancel\n"
    },
    {
     "tts": {
@@ -25788,34 +25452,10 @@
        "label": "Auto-pay"
       },
       {
-       "id": "tap:engine-card-65:0",
-       "cardId": "engine-card-65",
-       "label": "Tap City of Brass for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-65:1",
-       "cardId": "engine-card-65",
-       "label": "Tap City of Brass for {U}",
-       "rank": 0
-      },
-      {
        "id": "tap:engine-card-65:2",
        "cardId": "engine-card-65",
        "label": "Tap City of Brass for {B}",
        "rank": 3
-      },
-      {
-       "id": "tap:engine-card-65:3",
-       "cardId": "engine-card-65",
-       "label": "Tap City of Brass for {R}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-65:4",
-       "cardId": "engine-card-65",
-       "label": "Tap City of Brass for {G}",
-       "rank": 0
       },
       {
        "id": "__cancel",
@@ -25841,34 +25481,10 @@
        "label": "Auto-pay"
       },
       {
-       "id": "tap:engine-card-65:0",
-       "cardId": "engine-card-65",
-       "label": "Tap City of Brass for {W}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-65:1",
-       "cardId": "engine-card-65",
-       "label": "Tap City of Brass for {U}",
-       "rank": 0
-      },
-      {
        "id": "tap:engine-card-65:2",
        "cardId": "engine-card-65",
        "label": "Tap City of Brass for {B}",
        "rank": 3
-      },
-      {
-       "id": "tap:engine-card-65:3",
-       "cardId": "engine-card-65",
-       "label": "Tap City of Brass for {R}",
-       "rank": 0
-      },
-      {
-       "id": "tap:engine-card-65:4",
-       "cardId": "engine-card-65",
-       "label": "Tap City of Brass for {G}",
-       "rank": 0
       },
       {
        "id": "__cancel",
@@ -26021,7 +25637,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Pay {G} more for X\": Auto-pay | Tap Forest for {G} | Tap Mountain for {R} | Cancel\n"
+    "text": "[time] Blue   is asked #900 \"Pay {G} more for X\": Auto-pay | Tap Forest for {G} | Cancel\n"
    },
    {
     "tts": {
@@ -26040,12 +25656,6 @@
        "cardId": "engine-card-96",
        "label": "Tap Forest for {G}",
        "rank": 3
-      },
-      {
-       "id": "tap:engine-card-97:0",
-       "cardId": "engine-card-97",
-       "label": "Tap Mountain for {R}",
-       "rank": 0
       },
       {
        "id": "__cancel",
@@ -26075,12 +25685,6 @@
        "cardId": "engine-card-96",
        "label": "Tap Forest for {G}",
        "rank": 3
-      },
-      {
-       "id": "tap:engine-card-97:0",
-       "cardId": "engine-card-97",
-       "label": "Tap Mountain for {R}",
-       "rank": 0
       },
       {
        "id": "__cancel",
@@ -31662,7 +31266,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur 2/3 → AI 1 | Hurloon Minotaur 2/3 → Ashling, the Limitless | Venomous Changeling 1/3 → AI 1\n"
    },
    {
     "tts": {
@@ -31684,15 +31288,15 @@
       },
       {
        "id": "engine-card-75|player-1",
-       "label": "Hurloon Minotaur → AI 1"
+       "label": "Hurloon Minotaur 2/3 → AI 1"
       },
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur → Ashling, the Limitless"
+       "label": "Hurloon Minotaur 2/3 → Ashling, the Limitless"
       },
       {
        "id": "engine-card-35|player-1",
-       "label": "Venomous Changeling → AI 1"
+       "label": "Venomous Changeling 1/3 → AI 1"
       }
      ],
      "text": "Must attack: Hurloon Minotaur.",
@@ -31719,15 +31323,15 @@
       },
       {
        "id": "engine-card-75|player-1",
-       "label": "Hurloon Minotaur → AI 1"
+       "label": "Hurloon Minotaur 2/3 → AI 1"
       },
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur → Ashling, the Limitless"
+       "label": "Hurloon Minotaur 2/3 → Ashling, the Limitless"
       },
       {
        "id": "engine-card-35|player-1",
-       "label": "Venomous Changeling → AI 1"
+       "label": "Venomous Changeling 1/3 → AI 1"
       }
      ],
      "text": "Must attack: Hurloon Minotaur.",
@@ -31750,7 +31354,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur 2/3 → AI 1 | Hurloon Minotaur 2/3 → Ashling, the Limitless | Venomous Changeling 1/3 → AI 1\n"
    },
    {
     "tts": {
@@ -31772,15 +31376,15 @@
       },
       {
        "id": "engine-card-75|player-1",
-       "label": "Hurloon Minotaur → AI 1"
+       "label": "Hurloon Minotaur 2/3 → AI 1"
       },
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur → Ashling, the Limitless"
+       "label": "Hurloon Minotaur 2/3 → Ashling, the Limitless"
       },
       {
        "id": "engine-card-35|player-1",
-       "label": "Venomous Changeling → AI 1"
+       "label": "Venomous Changeling 1/3 → AI 1"
       }
      ],
      "text": "Must attack: Hurloon Minotaur.",
@@ -31848,7 +31452,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur 2/3 → AI 1 | Hurloon Minotaur 2/3 → Ashling, the Limitless | Venomous Changeling 1/3 → AI 1\n"
    },
    {
     "tts": {
@@ -31870,15 +31474,15 @@
       },
       {
        "id": "engine-card-75|player-1",
-       "label": "Hurloon Minotaur → AI 1"
+       "label": "Hurloon Minotaur 2/3 → AI 1"
       },
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur → Ashling, the Limitless"
+       "label": "Hurloon Minotaur 2/3 → Ashling, the Limitless"
       },
       {
        "id": "engine-card-35|player-1",
-       "label": "Venomous Changeling → AI 1"
+       "label": "Venomous Changeling 1/3 → AI 1"
       }
      ],
      "text": "Must attack: Hurloon Minotaur.",
@@ -31942,7 +31546,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur 2/3 → AI 1 | Hurloon Minotaur 2/3 → Ashling, the Limitless | Venomous Changeling 1/3 → AI 1\n"
    },
    {
     "tts": {
@@ -31964,15 +31568,15 @@
       },
       {
        "id": "engine-card-75|player-1",
-       "label": "Hurloon Minotaur → AI 1"
+       "label": "Hurloon Minotaur 2/3 → AI 1"
       },
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur → Ashling, the Limitless"
+       "label": "Hurloon Minotaur 2/3 → Ashling, the Limitless"
       },
       {
        "id": "engine-card-35|player-1",
-       "label": "Venomous Changeling → AI 1"
+       "label": "Venomous Changeling 1/3 → AI 1"
       }
      ],
      "text": "Must attack: Hurloon Minotaur.",
@@ -31986,7 +31590,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Choose attackers\": Hurloon Minotaur → Ashling, the Limitless\n"
+    "text": "[time] Blue   answers #900 \"Choose attackers\": Hurloon Minotaur 2/3 → Ashling, the Limitless\n"
    },
    {
     "relay": {
@@ -33124,7 +32728,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur 2/3 → AI 1 | Hurloon Minotaur 2/3 → Ashling, the Limitless | Venomous Changeling 1/3 → AI 1\n"
    },
    {
     "tts": {
@@ -33146,15 +32750,15 @@
       },
       {
        "id": "engine-card-75|player-1",
-       "label": "Hurloon Minotaur → AI 1"
+       "label": "Hurloon Minotaur 2/3 → AI 1"
       },
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur → Ashling, the Limitless"
+       "label": "Hurloon Minotaur 2/3 → Ashling, the Limitless"
       },
       {
        "id": "engine-card-35|player-1",
-       "label": "Venomous Changeling → AI 1"
+       "label": "Venomous Changeling 1/3 → AI 1"
       }
      ],
      "text": "Must attack: Hurloon Minotaur.",
@@ -33242,7 +32846,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur → AI 1 | Hurloon Minotaur → Ashling, the Limitless | Venomous Changeling → AI 1\n"
+    "text": "[time] Blue   is asked #900 \"Choose attackers\": All attack | No attacks | Hurloon Minotaur 2/3 → AI 1 | Hurloon Minotaur 2/3 → Ashling, the Limitless | Venomous Changeling 1/3 → AI 1\n"
    },
    {
     "tts": {
@@ -33264,15 +32868,15 @@
       },
       {
        "id": "engine-card-75|player-1",
-       "label": "Hurloon Minotaur → AI 1"
+       "label": "Hurloon Minotaur 2/3 → AI 1"
       },
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur → Ashling, the Limitless"
+       "label": "Hurloon Minotaur 2/3 → Ashling, the Limitless"
       },
       {
        "id": "engine-card-35|player-1",
-       "label": "Venomous Changeling → AI 1"
+       "label": "Venomous Changeling 1/3 → AI 1"
       }
      ],
      "text": "Must attack: Hurloon Minotaur.",
@@ -33299,15 +32903,15 @@
       },
       {
        "id": "engine-card-75|player-1",
-       "label": "Hurloon Minotaur → AI 1"
+       "label": "Hurloon Minotaur 2/3 → AI 1"
       },
       {
        "id": "engine-card-75|engine-card-200",
-       "label": "Hurloon Minotaur → Ashling, the Limitless"
+       "label": "Hurloon Minotaur 2/3 → Ashling, the Limitless"
       },
       {
        "id": "engine-card-35|player-1",
-       "label": "Venomous Changeling → AI 1"
+       "label": "Venomous Changeling 1/3 → AI 1"
       }
      ],
      "text": "Must attack: Hurloon Minotaur.",
@@ -675217,7 +674821,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #901 \"Pay {W/B} for Blind Obedience\": Pay from mana pool | Tap Mountain for {R} | Undo mana from Mountain | Tap Swamp | Cancel\n"
+    "text": "[time] Blue   is asked #901 \"Pay {W/B} for Blind Obedience\": Pay from mana pool | Undo mana from Mountain | Tap Swamp | Cancel\n"
    },
    {
     "tts": {
@@ -675230,12 +674834,6 @@
       {
        "id": "__pool",
        "label": "Pay from mana pool"
-      },
-      {
-       "id": "tap:engine-card-36:0",
-       "cardId": "engine-card-36",
-       "label": "Tap Mountain for {R}",
-       "rank": 0
       },
       {
        "id": "undo:engine-card-64",

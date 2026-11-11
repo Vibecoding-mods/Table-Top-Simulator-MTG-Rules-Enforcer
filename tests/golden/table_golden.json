@@ -14324,7 +14324,7 @@
    },
    {
     "step": "ce: in the pile",
-    "value": "7001 obj=nil spawning=nil inPile=true held=nil inHand=nil zone=battlefield manual=false copies=0 | 7002 obj=nil spawning=nil inPile=true held=nil inHand=nil zone=battlefield manual=false copies=0 | 7004 obj=nil spawning=nil inPile=true held=nil inHand=nil zone=battlefield manual=false copies=0 | 7005 obj=nil spawning=nil inPile=true held=nil inHand=nil zone=battlefield manual=false copies=0",
+    "value": "7001 obj=nil spawning=nil inPile=true held=nil inHand=nil zone=graveyard manual=false copies=0 | 7002 obj=nil spawning=nil inPile=true held=nil inHand=nil zone=graveyard manual=false copies=0 | 7004 obj=nil spawning=nil inPile=true held=nil inHand=nil zone=graveyard manual=false copies=0 | 7005 obj=nil spawning=nil inPile=true held=nil inHand=nil zone=graveyard manual=false copies=0",
     "fx": []
    },
    {
@@ -14636,7 +14636,7 @@
    },
    {
     "step": "ce: the creature in the pile after its late callback",
-    "value": "7042 obj=s00029@18,7 spawning=nil inPile=true held=nil inHand=nil zone=battlefield manual=false copies=1",
+    "value": "7042 obj=s00029@18,7 spawning=nil inPile=true held=nil inHand=nil zone=graveyard manual=false copies=1",
     "fx": []
    },
    {
@@ -14662,7 +14662,7 @@
    },
    {
     "step": "ce: the late creature, next board",
-    "value": "7042 obj=nil spawning=nil inPile=true held=nil inHand=nil zone=battlefield manual=false copies=0",
+    "value": "7042 obj=nil spawning=nil inPile=true held=nil inHand=nil zone=graveyard manual=false copies=0",
     "fx": []
    },
    {

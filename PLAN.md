@@ -6,6 +6,15 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 
 ---
 
+## 2026-11-11
+- 🔶 (source) Small queued bugs, bridge and table side (docs/next-features-2026-11-09.md "Also queued"), each
+  reproduced by a test from its real report first: the flashback row card's hover-text alarm; a stray copy left
+  beside a pile (Rancor) and plays queued for graveyard cards; payment taps that can't pay anything owed (Viscera
+  Seer's loop); attackers listed with their size and numbered; one spell's draws split by a dredge question joined into
+  one log line; the self-check's playable cards judged on the caster's mat and hand. Not changed: the rewind vote (the
+  only open one in the logs waited on Blue, who never voted), "#10 after #1" (already fixed 2026-11-09, Kykar #9), the
+  cipher copy's "casts" (still no recorded board of it).
+
 ## 2026-11-10
 - ✅ "All attack" over a limit stops and says the limit (d3bbd18); refused plays say why (0858382).
 - ✅ Batch A in source: Victory/Defeat banner (b852a65), resolve-until stays on (133f619), dig looks not asked twice
