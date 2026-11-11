@@ -369,7 +369,7 @@ function engineChat(message, pl)
     if rest == "yes" or rest == "no" then engineSend("rewindVote", { color = pl.color, accept = rest == "yes" })
     else pl.broadcast("[MTG] Use:  mtg vote yes  or  mtg vote no") end
   elseif cmd == "glow" then
-    if engineToggleGlow ~= nil then pl.broadcast("[MTG] Green glow on playable cards: " .. engineToggleGlow(pl.color)) end
+    if engineToggleGlow ~= nil then pl.broadcast("[MTG] Green glow on playable cards and usable permanents: " .. engineToggleGlow(pl.color)) end
   elseif cmd == "aideck" then
     if not isHost then pl.broadcast("[MTG] Only the host can choose the AI decks.") return false end
     engineSend("aideck", { deck = rest })

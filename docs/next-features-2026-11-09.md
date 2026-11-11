@@ -19,6 +19,9 @@ The user's list, in their order. Most items need a running TTS table in debug mo
    - Attacker and defender pickers are organised under tabs, so a big token board doesn't need endless scrolling.
      - Same-named tokens (e.g. #1 to #20) sit under one tab.
    - Assigning a blocker to an attacker sometimes gives no confirmation. Always confirm.
+   - **Done in source 2026-11-11** (docs/engine-ui-spec.md 9): the colours, the tabs and the confirmations (the cause:
+     a chat line said in the last 3 s was dropped, and an attacker clicked after a block was taken back did nothing).
+     Not yet seen on the real table.
 3. **Resolve until X.**
    - The button is undone when a new phase pops up.
    - It should also apply on the opponent's turn. "Until combat" stops at my combat and my opponents'.

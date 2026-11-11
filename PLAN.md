@@ -64,9 +64,16 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   blessing, the Ring and the three counters; the deploy's save patch adds the pieces to the user's save.
 
 ## 2026-11-11
-- ⬜ Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on permanents
-  with a usable ability", the user 2026-11-11). It reuses the hand's per-player green frame; mana-only abilities are left
-  out at priority. Queued with round 2 (B: combat highlights).
+- 🔶 (source) Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on
+  permanents with a usable ability", the user 2026-11-11). It reuses the hand's per-player green frame, from the ability
+  boxes' list; mana-only abilities are left out at priority; token stacks glow; first builds go 4 a frame. Needs the
+  live check in SPEC.md.
+- 🔶 (source) Combat clarity (docs/next-features-2026-11-09.md item 2, docs/engine-ui-spec.md 9): attack lines and
+  buttons green, blockers lines and Done red, COMBAT green / red in the phase bar; attack and blockers questions of
+  more than 8 lines under tabs by name (20 Spirit tokens one tab); every block click confirms in the chat, and the
+  blockers' lines are numbered. Needs a look on the real table. Suite-reviewed 2026-11-11 (tabs by name without
+  counters or damage, More tabs opens its first tab, the frame queue survives a bad card, a card that changes sides
+  stops glowing for its old controller).
 
 ## Monday 2026-11-09 (after the weekly usage reset)
 - ✅ **Update Forge for Star Trek: done and live 2026-11-09** (bfba2e0, docs/forge-update-2026-11.md: TRK 311/311, TRC 337/337). 2026-11-10: four upstream script fixes (Kirk, Commanding Officer; Dr. McCoy, Surly Surgeon; Cantankerous Captain; Starfleet Communicator) being taken into a new node image. Old note: Our Forge copy (`manabrew/forge`, through
