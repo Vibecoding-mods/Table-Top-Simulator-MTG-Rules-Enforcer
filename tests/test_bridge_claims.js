@@ -3365,6 +3365,84 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     r = await run("Reveal the top card of your library and put that card into your hand.", null);
     ok("dig look: a reveal isn't skipped", r.askedLook, JSON.stringify(r));
   }
+  // the table's sounds (docs/m5-effects-design.md section 6): "ins" on an instant spell only (isInstantCast: not an
+  // ability, not a sorcery, not one still being cast), and "exd" for battlefield -> exile by the engine's word, once
+  {
+    const h = harness.load();
+    const seat = setup(h, F.board);
+    const gv = seat.board.state.gameView;
+    const hand = gv.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0");
+    const inst = (id, name, types, text) => ({ id, identity: { name }, types, text, controllerId: "player-0", ownerId: "player-0" });
+    // (noteTypes, "seen face up": a face-down card and a hidden one seen first, with types no card of theirs has, stand
+    // for neither the card nor its name; the same cards seen face up later do. Types set once, so a read here would stick)
+    const ex = gv.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0");
+    ex.cards.push({ ...inst("engine-card-908", "Brainstorm", ["Creature"], ""), isFaceDown: true }, { ...inst("engine-card-909", "Mystical Dispute", ["Creature"], ""), visibility: "hidden" });
+    gv.events = [];
+    h.B.sendTable(); await h.flush();
+    ex.cards = [];
+    hand.cards.push(inst("engine-card-901", "Shock", ["Instant"], "Shock deals 2 damage to any target."), inst("engine-card-902", "Farseek", ["Sorcery"], "Search your library for a land."),
+      inst("engine-card-903", "Opt", ["Instant"], "Scry 1. Draw a card."), inst("engine-card-908", "Brainstorm", ["Instant"], "Draw three cards, then put two cards from your hand on top of your library in any order."),
+      inst("engine-card-909", "Mystical Dispute", ["Instant"], "Counter target spell unless its controller pays {3}."),
+      // (a split card: its card's name is both halves', the stack item's the half cast, so it is known by its card)
+      inst("engine-card-910", "Fire // Ice", ["Instant"], "Fire deals 2 damage divided as you choose among one or two targets. // Tap target permanent. Draw a card."));
+    h.B.sendTable(); await h.flush(); // (seen in Blue's hand)
+    hand.cards = hand.cards.filter((c) => !/^engine-card-9(0[1-389]|10)$/.test(c.id));
+    const gy = gv.zones.find((z) => z.zone === "graveyard" && z.ownerId === "player-0");
+    gy.cards.push(inst("engine-card-904", "Censor", ["Instant"], "Counter target spell unless its controller pays {1}.\nCycling {U}"),
+      // (first seen on the board its namesake is cast on: the types are noted before the stack is read)
+      inst("engine-card-911", "Lightning Bolt", ["Instant"], "Lightning Bolt deals 3 damage to any target."));
+    const item = (id, src, name, extra) => ({ id, sourceId: src, controllerId: "player-0", ownerId: "player-0", identity: { name }, isPermanentSpell: false, isCasting: false, targets: [], text: name, ...extra });
+    gv.stack = [
+      item("engine-stack-1", "engine-card-901", "Shock", { sourceAbilityText: "Shock deals 2 damage to any target." }),
+      item("engine-stack-2", "engine-card-902", "Farseek", { sourceAbilityText: "Search your library for a Plains, Island, Swamp, or Mountain card." }),
+      item("engine-stack-3", "engine-card-904", "Censor", { sourceAbilityText: "Cycling {U} ({U}, Discard this card: Draw a card.)" }),
+      item("casting-77", "engine-card-903", "Opt", { sourceAbilityText: "Scry 1. Draw a card.", isCasting: true }),
+      item("engine-stack-4", "engine-card-905", "Shock", { sourceAbilityText: "Shock deals 2 damage to any target." }), // (a copy: by name; the table tells it)
+      item("engine-stack-5", "engine-card-906", "Fury", { sourceAbilityText: "When Fury enters, it deals 4 damage divided as you choose among any number of target creatures." }),
+      item("engine-stack-6", "engine-card-907", "Grizzly Bears", { isPermanentSpell: true }),
+      item("engine-stack-7", "engine-card-908", "Brainstorm", { sourceAbilityText: "Draw three cards, then put two cards from your hand on top of your library in any order." }),
+      item("engine-stack-8", "engine-card-909", "Mystical Dispute", { sourceAbilityText: "Counter target spell unless its controller pays {3}." }),
+      item("engine-stack-9", "engine-card-910", "Fire", { sourceAbilityText: "Fire deals 2 damage divided as you choose among one or two targets." }),
+      item("engine-stack-10", "engine-card-912", "Lightning Bolt", { sourceAbilityText: "Lightning Bolt deals 3 damage to any target." }),
+    ];
+    gv.events = [{ seq: 1, id: "event-1", cardId: "engine-card-950", from: "Battlefield", to: "Exile", ownerId: "player-1" },
+      { seq: 2, id: "event-2", cardId: "engine-card-951", from: "Graveyard", to: "Exile", ownerId: "player-1" }];
+    const mark = sent(h, "table").length;
+    h.B.sendTable(); await h.flush();
+    // (the board this sendTable sent: a picture arriving during the flush sends another after it)
+    const tb = sent(h, "table")[mark] || {};
+    const ins = Object.fromEntries((tb.stack || []).map((s) => [s.id, !!s.ins]));
+    ok("sounds: an instant spell on the stack is marked ins", ins["engine-stack-1"] === true, JSON.stringify(ins));
+    ok("sounds: a sorcery is not", ins["engine-stack-2"] === false, JSON.stringify(ins));
+    ok("sounds: an instant's ability (cycling) is not", ins["engine-stack-3"] === false, JSON.stringify(ins));
+    ok("sounds: an instant still being cast is not", ins["casting-77"] === false, JSON.stringify(ins));
+    ok("sounds: an unseen card by an instant's name is marked (copies are the table's to tell)", ins["engine-stack-4"] === true, JSON.stringify(ins));
+    ok("sounds: a card seen face down first is known by its face-up types", ins["engine-stack-7"] === true, JSON.stringify(ins));
+    ok("sounds: a card seen hidden first is known by its face-up types", ins["engine-stack-8"] === true, JSON.stringify(ins));
+    ok("sounds: a split card's half is known by its card (the half's name was never seen)", ins["engine-stack-9"] === true, JSON.stringify(ins));
+    ok("sounds: types first seen on the same board count (noted before the stack)", ins["engine-stack-10"] === true, JSON.stringify(ins));
+    // (sp, 2026-11-11: the table's COUNTERED pop-up took only `spell`, false for any spell with spell text)
+    const sp = Object.fromEntries((tb.stack || []).map((s) => [s.id, [!!s.spell, !!s.sp]]));
+    ok("countered: an instant and a sorcery are marked sp (spell false)", JSON.stringify([sp["engine-stack-1"], sp["engine-stack-2"], sp["engine-stack-4"]]) === "[[false,true],[false,true],[false,true]]", JSON.stringify(sp));
+    ok("countered: an activated ability (cycling) and a trigger are not", JSON.stringify([sp["engine-stack-3"], sp["engine-stack-5"]]) === "[[false,false],[false,false]]", JSON.stringify(sp));
+    ok("countered: a permanent spell stays spell, with no sp", JSON.stringify(sp["engine-stack-6"]) === "[true,false]", JSON.stringify(sp));
+    ok("sounds: exd names the battlefield -> exile move only", JSON.stringify(tb.exd) === '["engine-card-950"]', JSON.stringify(tb.exd));
+    gv.players.find((p) => p.id === "player-0").life -= 1;
+    h.B.sendTable(); await h.flush();
+    const later = sent(h, "table").slice(mark + 1);
+    ok("sounds: exd goes once", later.length > 0 && later.every((t) => t.exd === undefined), JSON.stringify(later.map((t) => t.exd)));
+    // "cleared after the send, not before the same-board check: a board skipped as identical keeps it for the next"
+    gv.events = [...gv.events, { seq: 3, id: "event-3", cardId: "engine-card-952", from: "Battlefield", to: "Exile", ownerId: "player-1" }];
+    const mark2 = sent(h, "table").length;
+    h.B.sendTable(); await h.flush();
+    const skipped = sent(h, "table").length === mark2;
+    gv.players.find((p) => p.id === "player-0").life -= 1;
+    h.B.sendTable(); await h.flush();
+    const next = sent(h, "table").slice(mark2);
+    ok("sounds: exd of a board skipped as identical goes with the next one", skipped && next.length > 0 && JSON.stringify(next[0].exd) === '["engine-card-952"]',
+      JSON.stringify({ skipped, exd: next.map((t) => t.exd) }));
+    harness.restore();
+  }
   // whom Hero of Bladehold's attacking tokens attack, asked over Forge's labels (entityChoiceIds, entityWords; live check
   // 2026-11-11: a dead Jace Beleren in a graveyard left the live one unmapped, and the list came as "Hero of Bladehold:
   // choose one" over "self-hosted-node-77-bot", "Jace Beleren (201)")

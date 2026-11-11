@@ -213,7 +213,7 @@ Zones the bridge left out because they didn't change (`keep`) are carried over, 
 - **Timing with combat:** if the card was a blocker swung at this board, start at its `engineLungeHits[id]` time;
   else at once. Two or more deaths: each one 80 ms after the one before (Arena's overlap, kept short).
 - **Unchanged:** the violet graveyard flash with "xN" (`deathFlash`) stays.
-- **Sound:** `death` (once per board, however many died).
+- **Sound:** `death` (once per board, however many died); `wipe` instead when 3 or more died on the board (section 6).
 
 ### 4.2 Counter put on a permanent
 
@@ -301,20 +301,71 @@ board.
 ```lua
 -- M5 sound picks: nil = silent. A link (http...) plays through the table's music player (route A); a name plays
 -- that trigger effect of the sound object (an AssetBundle whose GM notes are "engine:sounds", route B).
-engineSounds = engineSounds or { death = nil, counter = nil, damage = nil, knockout = nil }
+engineSounds = engineSounds or { death = "https://...", wipe = "https://...", damage = "https://...",
+  exile = "https://...", instant = "https://...", lifegain = "https://...", counter = nil, knockout = nil }
+engineSoundKinds = { "knockout", "wipe", "death", "exile", "damage", "lifegain", "instant", "counter" }
 engineSoundsMuted = false -- the host's switch for the whole table
-function engineSoundPlay(kind)   -- true if it played
+-- (plus the bursts: death_x2 ... death_x8 and the like, see "Bursts" below)
+function engineSoundPlay(kind, force, n)   -- true if it played; n: the board's count for that kind (bursts)
 ```
 
-- **When:** at most one sound per board, the most important event's: knockout > death > damage > counter. Each kind
-  at most once every 0.3 s, and any two sounds at least 0.15 s apart. It plays at that event's start time (lunge hit,
-  knock-out 600 ms).
-- **Not when:** `engineSoundsMuted`, no pick for that kind, a jump board, or (route A) the music player is busy with
-  the players' own music: `MusicPlayer.player_status == "Play"` and `getCurrentAudioclip().title` doesn't start with
-  "MTG effect".
+**The user's sounds are in (2026-11-11):** `engineSounds` holds the six TTS Cloud links of `docs/sounds.md` (death,
+wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not yet heard on the real table.
+
+**The eight kinds** (four added 2026-11-11, sound only: no table effect of their own):
+
+| Kind | When | Notes |
+|---|---|---|
+| `knockout` | a player loses or concedes | 600 ms in, with the burst |
+| `wipe` | 3 or more permanents go to graveyards on one board, all seats together (a token that leaves the battlefield counts, as for death) | plays instead of death, with the first death; the visual "×N" cloud is still per seat and from 4 |
+| `death` | a permanent goes to a graveyard (dies, sacrificed, destroyed), or a token leaves the battlefield other than to exile | |
+| `exile` | a permanent leaves the battlefield for exile: it is in an exile zone now, or the bridge's `exd` names it | tokens count: a token exiled ceases to exist and no board shows it in exile, so the bridge sends the engine's word on the move (`exd`, the battlefield → exile moves since the last board sent, once); without the engine's event feed a token exiled still reads as a death. A card exiled from a hand, a library or a graveyard doesn't count; a flicker that is back on the battlefield by the next board doesn't either |
+| `damage` | damage to a creature or a player (life down, life paid reads the same) | with the first lunge hit |
+| `lifegain` | a player's life goes up on a board | a life loss never plays it |
+| `instant` | an instant spell appears on the stack | the bridge marks the stack item `ins`: a spell, not an ability (`isAbilityOnStack`), no longer being cast, whose card it has seen as an Instant (its stack name first, else its card id, from every seat's view outside the battlefield). Forge's stack item has no card types, so an instant whose card no seat has seen face up (an AI's first of that name, from a hand nobody sees) plays nothing. The table plays it once per card (`src`), and not for a copy: a stack item with the name of an instant already on the stack while its controller's hand didn't shrink (Twincast's copy, storm's). Never for a sorcery, an ability, a Flash creature |
+| `counter` | a counter put on a permanent | |
+
+- **When:** at most one sound per board: the first kind of `engineSoundKinds` (knockout > wipe > death > exile >
+  damage > lifegain > instant > counter) that is on this board **and has a pick**, so a wipe with no wipe pick plays
+  death, and a knock-out with no knockout pick plays the damage that did it. Each kind at most once every 0.3 s, and
+  any two sounds at least 0.15 s apart. It plays at that kind's first event's start time (lunge hit, knock-out
+  600 ms, a wipe's first death); exile, lifegain and instant at once.
+- **Bursts (2026-11-11):** a kind with a count can play a stacked clip instead of its plain one. The links are keys
+  `<kind>_x<N>` in `engineSounds` (the 24 of `docs/sounds.md`, "Bursts"): damage, death, exile, lifegain ×2 ×3 ×4
+  ×6 ×8; wipe ×3 ×4 ×6 ×8 (wipe's plain sound stays the 3+ one, so a wipe of 3 plays `wipe_x3`).
+  - `FX.burst(kind, n)` picks the largest bucket with a link at or under the count, capped at `FX.BURST_MAX` = 8 (a
+    `_x16` link is never used); a count of 1, or no bucket link under it, plays the plain kind. So 5 plays ×4, 7
+    plays ×6, 50 plays ×8.
+  - The counts, all on one board: death and wipe = the permanents that went to a graveyard (the same `diedIds` the
+    wipe rule counts); exile = the permanents exiled from the battlefield (the exile zones' new ids plus `exd`);
+    damage = the creatures that took damage (before the 4-burst visual cap) plus the players whose life went down;
+    lifegain = the players whose life went up. The engine's own feed has no separate gain events for the table (the
+    bridge only rebuilds gains for its log lines), and a board carries life totals only, so two gains by one player
+    on one board count once. Knockout, instant and counter are counted the same way (players out, 1, permanents given
+    counters) but have no burst links. In `engineFxBoard` this one `counts` table is both the board's kinds (a count
+    over 0; wipe's is 0 under 3) and their bursts (suite review 2026-11-11: it replaced a separate set of kinds fed
+    from the visual events, which could disagree with the counts).
+  - Still one clip per board, by the order above, under the same limits: the spacing is kept per kind (`death_x4`
+    and `death` share the 0.3 s), so a runaway turn plays at most one clip per update. `engineSoundLog` names the
+    clip played (`death_x4 music`); the music player's title is `MTG effect: death_x4`.
+  - `mtg sounds test <kind> [N]` plays the clip a count of N would.
+- **Countered (fixed 2026-11-11):** the "COUNTERED: <name>" pop-up shows for an instant or a sorcery too. The
+  bridge's `spell` (no `sourceAbilityText`: the table moves that card) is false for them, so it marks a stack item
+  that is a spell with spell text, not an ability (`isAbilityOnStack`), `sp: true`; the pop-up takes `spell` or `sp`.
+- **Not when:** `engineSoundsMuted`, no pick for that kind (nil or `""`: an empty pick is no pick, so it never takes
+  the board's sound from the kind under it), a jump board, or (route A) the music player is busy with
+  the players' own music: the current clip has a link, its title doesn't start with "MTG effect", and
+  `MusicPlayer.player_status` isn't "Stop" (a paused track of theirs counts; before 2026-11-11 only "Play" did).
 - **Route A, MusicPlayer (works today, no Unity):**
-  - `MusicPlayer.setCurrentAudioclip({ url = pick, title = "MTG effect: " .. kind })`, then
-    `Wait.condition(function() MusicPlayer.play() end, function() return MusicPlayer.loaded end, 2)`.
+  - `MusicPlayer.setCurrentAudioclip({ url = pick, title = "MTG effect: " .. key })` (key: the clip, `death_x4` for
+    a burst), then a `Wait.condition` (up to 2 s; past that the sound is dropped) that plays once the player holds
+    this very clip (its link, or its title should TTS hand the link back spelled another way) and `loaded` is true:
+    right after the set, `loaded` can still be the last clip's. A newer route A sound set before it plays wins; the
+    older one never plays, even when its clip is there and still loading (2026-11-11, verifier; the loading case
+    tested in the suite review). A route B sound doesn't cancel one waiting: the bundle plays apart from the player.
+  - Not over the players' own music: no sound while the player holds a clip of theirs (a link, not titled "MTG
+    effect ...") unless the player is stopped (playing or paused, their track stays). A player holding no clip takes
+    the sound whatever its status, and our own clip, playing or not, is never theirs.
   - Limits (MusicPlayer API):
     - one clip at a time, so a new sound cuts the last one;
     - it waits until **every** player has loaded the clip, so the delay is unknown (real-table check 5: if it is
@@ -335,7 +386,11 @@ function engineSoundPlay(kind)   -- true if it played
   - `mtg sounds off` / `on` from the host: sets `engineSoundsMuted` and tells everyone. From another player: keeps
     their `engineSoundOff` flag and tells them "Table sounds are shared: ask the host, or turn down Music / Effects in
     TTS's settings."
-  - `mtg sounds test <death|counter|damage|knockout>` (host): plays that pick now, so the user can try sounds.
+  - `mtg sounds test <kind> [N]` (host), any of `engineSoundKinds`: plays that pick now (with N, the burst a count
+    of N picks), so the user can try sounds; an unknown kind lists them.
+- **Bridge fields** (`bridge/bridge.js`, `sendTable`): `ins: true` on a stack item (`isInstantCast`, types from
+  `noteTypes`), `sp: true` on a spell that isn't `spell` (an instant or a sorcery: the countered pop-up), and `exd: [card ids]` on the board (from `updateLog`'s engine facts; out of the board's signature like
+  `jump`, cleared once sent). A bridge without them: no instant sound, and an exiled token reads as a death.
 ### Plugging in a sound (the user)
 
 1. Get the sound as an **.mp3** file. The TTS music player docs give only .mp3 links in their examples and list no
@@ -344,7 +399,8 @@ function engineSoundPlay(kind)   -- true if it played
    A direct `https://` link to the .mp3 elsewhere also goes in. Unchecked: whether the music player takes a Cloud
    Manager link (it has no ".mp3" at its end); try it with `mtg sounds test` (real-table check 5).
 3. In `tools/engine-renderer.lua`, find the line that starts with `engineSounds = engineSounds or`, and fill in the
-   links, one line per event:
+   links, one line per event (done 2026-11-11 for six of the eight kinds, `docs/sounds.md`; the block below is the
+   original four-kind example):
 
    ```lua
    engineSounds = engineSounds or {
@@ -356,8 +412,8 @@ function engineSoundPlay(kind)   -- true if it played
    ```
 
    Leave an event as `nil` (or leave it out) to keep it silent.
-4. The lead deploys the table as usual. Then, as the host, type `mtg sounds test death` (or `counter`, `damage`,
-   `knockout`) to hear it.
+4. The lead deploys the table as usual. Then, as the host, type `mtg sounds test death` (or any other kind: knockout,
+   wipe, exile, damage, lifegain, instant, counter) to hear it.
 
 - `mtg sounds off` / `on` (host) mutes or unmutes the table. Nothing plays while the players' own music is playing.
 - Pictures work the same way: the line `engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }`

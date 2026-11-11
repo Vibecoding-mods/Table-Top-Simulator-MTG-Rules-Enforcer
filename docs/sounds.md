@@ -13,6 +13,8 @@ Six sounds the user supplied on 2026-11-11, from OpenGameArt. Each was trimmed t
 
 No sound yet for `counter` and `knockout`.
 
+The links are in `engineSounds` in `tools/engine-renderer.lua` (2026-11-11); when each kind plays and which wins on a
+busy board: `docs/m5-effects-design.md` section 6. `tests/test_table_effects.js` checks the two lists match.
 ## Bursts (stacked copies)
 
 TTS's music player plays one clip at a time, so a sound can't overlap itself live. For drama when many things happen at once, each burst below is the same sound stacked N times, pre-mixed offline (files in assets/sounds/stack, gitignored). The table picks the largest bucket that is no more than the count, capped at ×8, and still plays one sound per board, so a runaway turn (exponential life gain or damage) never plays more than one ×8 clip per update.

@@ -3671,6 +3671,8 @@ function updateLog(pub) {
   const prev = game.logPrev;
   game.logPrev = cur;
   const facts = engineFacts(pub.events);
+  // (battlefield to exile, for the table's exile sound: see sendTable's exd)
+  for (const [id, mv] of facts?.moves || []) if (mv.from === "Battlefield" && mv.to === "Exile") (game.fxExiled ??= new Set()).add(id);
   if (!prev) return;
   const lines = logEvents(prev, cur, pub, facts);
   flashNews(prev, cur, pub);
@@ -3792,6 +3794,7 @@ function sendTable() {
   fixNews(pub);
   const byId = cardIndex(pub);
   const views = seats.map((s) => cardIndex(s.board.state.gameView));
+  for (const s of seats) noteTypes(s.board.state.gameView); // (before the stack below: its instants)
   const players = (pub.players || []).map((p) => {
     const own = seats.find((s) => s.slot === p.id)?.board.state.gameView;
     const command = zoneOf(pub, "command", p.id).cards;
@@ -3843,6 +3846,10 @@ function sendTable() {
     // ("Ponder (18) - " in front, which the table's pop-up also cuts, goes first)
     id: s.id, n: s.identity?.name || "?", tx: displayText(s.text || "").replace(/^[^\n]{0,100}?\(\d+\) - /, "").replace(/([A-Za-z'’,]) \(\d+\)/g, "$1"), ctl: game.slotColor[s.controllerId] || null,
     src: s.sourceId || null, spell: !s.sourceAbilityText, // a spell's card is its source: the table moves that card
+    ...(isInstantCast(s, pub) ? { ins: true } : {}), // (an instant spell: the table's instant sound)
+    // (a spell that isn't `spell`, its spell text read as an ability's: an instant or a sorcery; the table's COUNTERED
+    // pop-up takes either)
+    ...(s.sourceAbilityText && !isAbilityOnStack(s, pub) ? { sp: true } : {}),
     // what it targets, for the target lines: a player's colour, a card id or another stack item's id
     tg: (s.targets || []).map((t) => (t.kind === "player" ? { k: "p", c: game.slotColor[t.id] || null } : { k: t.kind === "spell" ? "s" : "c", id: t.id }))
       .filter((t) => t.c || t.id),
@@ -3867,6 +3874,10 @@ function sendTable() {
   // (after a rewind or a resend: the table plays no effects for this board. Left out of the signature: the board after
   // it, the same but for the flag, would go out again for nothing)
   if (game.fxJump) tableMsg.jump = true;
+  // (and the cards gone from the battlefield to exile since the last board sent, by the engine's word: a token exiled
+  // ceases to exist and no board shows it in exile, so the table's exile sound would read it as a death. Out of the
+  // signature too; cleared once sent)
+  if (game.fxExiled?.size) tableMsg.exd = [...game.fxExiled];
   // Zones identical to the last board sent are left out and named in `keep`: the table reuses its copy. A board
   // update was 1.5-4.7 KB and cost TTS 45-120 ms to decode; most updates change one or two zones.
   game.sentZones ??= {};
@@ -3888,6 +3899,7 @@ function sendTable() {
   toTTS(tableMsg);
   // (cleared after the send, not before the same-board check: a board skipped as identical keeps it for the next)
   game.fxJump = false;
+  game.fxExiled?.clear();
   flushTexts();
 }
 
@@ -4051,6 +4063,34 @@ function notePrinted(gv) {
 }
 // What the bridge records from each board the engine sends, before it is drawn
 function noteBoard(gv) { noteOuts(gv); notePrinted(gv); harmlessVotes(gv); }
+// The card types seen face up, by card id and by name, from every seat's view (sendTable): Forge's stack item carries
+// no types, and the table's instant sound needs them (isInstantCast). Not the battlefield, where effects change types
+// (an animated land) and no instant ever is; not tokens or copies by name (defensive: outside the battlefield neither
+// is known to carry an instant's name without its type). Face-down and hidden cards are skipped: their types aren't
+// the card's, and the first types seen stick.
+function noteTypes(gv) {
+  if (!game || !gv) return;
+  const byId = (game.typesById ??= new Map()), byName = (game.typesByName ??= new Map());
+  for (const z of gv.zones || []) {
+    if (z.zone === "battlefield") continue;
+    for (const c of z.cards || []) {
+      const name = c.identity?.name;
+      if (!c.id || !name || c.isFaceDown || c.visibility === "hidden" || !Array.isArray(c.types) || !c.types.length) continue;
+      // (set once: each view's card brings a new array, and a card's printed types don't change outside the battlefield)
+      if (!byId.has(c.id)) byId.set(c.id, c.types);
+      if (!c.identity.isToken && !c.isCopy && !byName.has(name)) byName.set(name, c.types);
+    }
+  }
+}
+// A stack item that is an instant spell, for the table's instant sound (`ins`, docs/m5-effects-design.md section 6):
+// a spell, not an ability, no longer being cast, whose card was seen as an Instant (by its stack name first, a split
+// card's half; else by its card). One never seen face up (an AI's first, from a hand no seat sees) isn't known, and
+// sounds nothing. A copy is told on the table, by the stack before it.
+function isInstantCast(s, pub) {
+  if (!game || s.isCasting || s.isPermanentSpell || isAbilityOnStack(s, pub)) return false;
+  const types = game.typesByName?.get(s.identity?.name) || game.typesById?.get(s.sourceId);
+  return Array.isArray(types) && types.includes("Instant");
+}
 // Not out before the last players to go (still playing, or among them)
 function outLast(p) { const at = game?.outOrder?.[p.id]; return at == null || at === game.outStamp; }
 // (a conceded player's reason is the concession, whatever the board shows: concededPlayers)
