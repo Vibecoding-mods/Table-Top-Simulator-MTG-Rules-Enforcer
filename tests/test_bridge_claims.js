@@ -3127,6 +3127,117 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("tax payment: its ability in a later turn's declare attackers is the plain payment", ui.title === "Pay {1}{G} for Grizzly Bears" && ui.options.at(-1).label === "Cancel", JSON.stringify([ui.title, ui.options.at(-1)]));
     ok("tax payment: priority forgets the declared attack", s.seat.lastAttack == null, JSON.stringify(s.seat.lastAttack));
     harness.restore();
+    // part 3: the engine's own answers (docs/attack-reminder-spec.md part 3). The harness sends each attacker's tax per
+    // defender (Forge's CombatUtil.getAttackCost, its text ManaCost.getSimpleString: "{2}", "{2}{W/P}", Sphere's "{X}{3}"
+    // with X paid as 0), the creatures that can't attack and why, and the attack limits, with the cards that set them.
+    // An engine that sends them always sends `unavailable` and `limits`, empty or not; an older engine sends neither and
+    // the text reading above stays. Effects with no text on the board (War Tax, an emblem) are only known this way.
+    const askE = async (s, attackers, targets, extra = {}) => {
+      const input = { type: "chooseAttackers", attackers: attackers.map(([id, valid, costs]) => ({ attackerId: id, validTargetIds: valid, mustAttack: false, costs: costs || [] })),
+        attackTargets: targets.map((id) => ({ id, label: id, kind: id.startsWith("player-") ? "player" : "planeswalker" })), unavailable: [], limits: [], ...extra };
+      s.h.B.onPrompt(s.seat, { promptId: 900, decidingPlayerId: "player-0", input }); await s.h.flush();
+      return s.seat.prompt.ui;
+    };
+    const taxE = (d, cost, ...names) => ({ defenderId: d, cost, sourceIds: names.map((_, i) => `engine-card-79${i}`), sourceNames: names });
+    s = four([BEAR]);
+    ui = await askE(s, [["engine-card-601", ["player-1"], [taxE("player-1", "{1}", "War Tax")]]], ["player-1"]);
+    ok("engine: a tax with no text on the board (War Tax) is said", ui.text?.split("\n")[0] === "War Tax (AI 1): {1} for each creature attacking AI 1." && ui.note === "Attack tax: AI 1 {1} each.", JSON.stringify([ui.text, ui.note]));
+    ok("engine: the mana open line comes with an engine tax too", /\nYou have about \d+ mana open\./.test(ui.text || ""), ui.text);
+    harness.restore();
+    s = four([["player-1", "engine-card-501", "Propaganda", ["Enchantment"], PROP], BEAR]);
+    ui = await askE(s, [["engine-card-601", ["player-1"]]], ["player-1"]);
+    ok("engine: no tax from the engine means none is said, whatever the text reads", !ui.text && !ui.note, JSON.stringify([ui.text, ui.note]));
+    harness.restore();
+    s = four([BEAR]);
+    ui = await askE(s, [["engine-card-601", ["player-1"], [taxE("player-1", "{X}{3}", "Sphere of Safety")]]], ["player-1"]);
+    ok("engine: Sphere of Safety's {X}{3} is said as {3} (Forge pays X as 0)", ui.text?.split("\n")[0] === "Sphere of Safety (AI 1): {3} for each creature attacking AI 1.", ui.text);
+    harness.restore();
+    // (Forge's sum starts from a {0} mana part, Cost.toSimpleString joins parts with ", ", CostPayLife says "Pay 2 life")
+    s = four([BEAR]);
+    ui = await askE(s, [["engine-card-601", ["player-1"], [taxE("player-1", "{0}, Pay 2 life", "Sivitri, Dragon Master")]]], ["player-1"]);
+    ok("engine: a life tax (Sivitri's +1) drops Forge's {0} and says the life", ui.text?.split("\n")[0] === "Sivitri, Dragon Master (AI 1): 2 life for each creature attacking AI 1.", ui.text);
+    harness.restore();
+    s = four([BEAR]);
+    ui = await askE(s, [["engine-card-601", ["player-1"], [taxE("player-1", "{2}, Pay 2 life", "Propaganda", "Sivitri, Dragon Master")]]], ["player-1"]);
+    ok("engine: mana and life together read '{2} and 2 life'", ui.text?.split("\n")[0] === "Propaganda + Sivitri, Dragon Master (AI 1): {2} and 2 life for each creature attacking AI 1.", ui.text);
+    harness.restore();
+    s = four([["player-2", "engine-card-505", "Jace Beleren", ["Planeswalker"], "+2: Each player draws a card."], BEAR]);
+    ui = await askE(s, [["engine-card-601", ["player-2", "engine-card-505"], [taxE("player-2", "{2}{W/P}", "Ghostly Prison", "Norn's Annex"), taxE("engine-card-505", "{W/P}", "Norn's Annex")]]], ["player-2", "engine-card-505"]);
+    const lE = (ui.text || "").split("\n");
+    ok("engine: several taxes on one defender are named together with Forge's total", lE[0] === "Ghostly Prison + Norn's Annex (AI 2): {2}{W/P} for each creature attacking AI 2.", ui.text);
+    ok("engine: a planeswalker's tax is its own line", lE[1] === "Norn's Annex (AI 2): {W/P} for each creature attacking Jace Beleren (AI 2's planeswalker).", ui.text);
+    ok("engine: the note says each taxed defender", ui.note === "Attack tax: AI 2 {2}{W/P} each; Jace Beleren (AI 2's planeswalker) {W/P} each.", ui.note);
+    harness.restore();
+    s = four([BEAR, ANGEL]);
+    ui = await askE(s, [["engine-card-601", ["player-1"], [taxE("player-1", "{5}", "Propaganda", "Brainwash")]], ["engine-card-602", ["player-1"], [taxE("player-1", "{2}", "Propaganda")]]], ["player-1"]);
+    ok("engine: taxes that differ by creature are said per creature", ui.text?.split("\n")[0] === "Attacking AI 1: Grizzly Bears {5} (Propaganda + Brainwash), Serra Angel {2} (Propaganda).", ui.text);
+    ok("engine: and the note gives each price", ui.note === "Attack tax: AI 1 {5} or {2} each.", ui.note);
+    harness.restore();
+    // who can't attack, with Forge's reason (tapped ones are still left out of the list)
+    s = four([BEAR, ["player-0", "engine-card-603", "Hill Giant", ["Creature"], "", { summoningSick: true }],
+      ["player-0", "engine-card-604", "Wall of Omens", ["Creature"], "Defender", { keywords: ["Defender"] }],
+      ["player-0", "engine-card-609", "Stuck", ["Creature"], ""], ["player-0", "engine-card-607", "Llanowar Elves", ["Creature"], "", { tapped: true }],
+      ["player-0", "engine-card-612", "Ox", ["Creature"], ""], ["player-0", "engine-card-613", "Bat", ["Creature"], ""],
+      ["player-0", "engine-card-614", "Imp", ["Creature"], "", { phasedOut: true }], ["player-0", "engine-card-615", "Elk", ["Creature"], ""]]);
+    ui = await askE(s, [["engine-card-601", ["player-1"]]], ["player-1"], { unavailable: [
+      { cardId: "engine-card-603", reason: "summoningSick" }, { cardId: "engine-card-604", reason: "defender", sourceId: "engine-card-604", sourceName: "Wall of Omens" },
+      { cardId: "engine-card-609", reason: "static", sourceId: "engine-card-793", sourceName: "Ensnaring Bridge" }, { cardId: "engine-card-607", reason: "tapped" },
+      { cardId: "engine-card-612", reason: "keyword" }, { cardId: "engine-card-613", reason: "detained" }, { cardId: "engine-card-614", reason: "phasedOut" },
+      { cardId: "engine-card-615", reason: "other" }] });
+    ok("engine: the can't-attack list gives Forge's reason for each", ui.text === "Can't attack: Hill Giant (summoning sick), Wall of Omens (defender), Stuck (Ensnaring Bridge), Ox (its own text), Bat (detained), Imp (phased out), Elk (an effect on the table).", ui.text);
+    ok("engine: Q/E's reason is the engine's", ui.cantAttack?.["engine-card-609"] === "Stuck can't attack: Ensnaring Bridge." && !ui.cantAttack["engine-card-607"], JSON.stringify(ui.cantAttack));
+    harness.restore();
+    s = four([BEAR, ANGEL]);
+    ui = await askE(s, [["engine-card-601", ["player-2", "player-3"]], ["engine-card-602", ["player-1", "player-2", "player-3"]]], ["player-1", "player-2", "player-3"],
+      { unavailable: [{ cardId: "engine-card-601", defenderId: "player-1", reason: "goaded" }] });
+    ok("engine: goad from the engine names who goaded it", ui.text === "Can't attack AI 1: Grizzly Bears (goaded by AI 1).", ui.text);
+    harness.restore();
+    // (a goaded creature can't attack a planeswalker either while a player it may attack is there: no "by" for that)
+    s = four([BEAR, ANGEL, TEFERI]);
+    ui = await askE(s, [["engine-card-601", ["player-1"]], ["engine-card-602", ["player-1", "engine-card-504"]]], ["player-1", "engine-card-504"],
+      { unavailable: [{ cardId: "engine-card-601", defenderId: "engine-card-504", reason: "goaded" }] });
+    ok("engine: goad at a planeswalker is said as goaded", ui.text === "Can't attack Teferi, Hero of Dominaria (AI 3's planeswalker): Grizzly Bears (goaded).", ui.text);
+    harness.restore();
+    s = four([BEAR, ANGEL]);
+    ui = await askE(s, [["engine-card-601", ["player-2"]], ["engine-card-602", ["player-2"]]], ["player-1", "player-2"],
+      { unavailable: ["engine-card-601", "engine-card-602"].map((cardId) => ({ cardId, defenderId: "player-1", reason: "static", sourceId: "engine-card-794", sourceName: "Blazing Archon" })) });
+    ok("engine: nobody can attack one player, said once with the card", ui.text === "No creature of yours can attack AI 1 (Blazing Archon).", ui.text);
+    harness.restore();
+    // limits, with no text on the board to read
+    s = four([BEAR, ["player-1", "engine-card-513", "Crawlspace", ["Artifact"], ""]]);
+    ui = await askE(s, [["engine-card-601", ["player-1"]]], ["player-1"], { limits: [{ max: 2, defenderId: "player-1", sourceId: "engine-card-513", sourceName: "Crawlspace" }] });
+    ok("engine: a limit at a player is said from the engine", ui.text === "Crawlspace (AI 1): at most 2 creatures can attack AI 1." && ui.note === "At most 2 can attack AI 1 (Crawlspace).", JSON.stringify([ui.text, ui.note]));
+    harness.restore();
+    s = four([BEAR]);
+    ui = await askE(s, [["engine-card-601", ["player-1"]]], ["player-1"], { limits: [{ max: 1, sourceId: "engine-card-795", sourceName: "Silent Arbiter" }] });
+    ok("engine: a limit on every attack, its card off the board", ui.text === "Silent Arbiter: at most 1 creature can attack each combat." && ui.note === "At most 1 can attack (Silent Arbiter).", JSON.stringify([ui.text, ui.note]));
+    harness.restore();
+    // the refusal and the All attack stop count against the engine's limits
+    const HILL = ["player-0", "engine-card-610", "Hill Giant", ["Creature"], ""];
+    const crawlE = { limits: [{ max: 2, defenderId: "player-1", sourceId: "engine-card-513", sourceName: "Crawlspace" }] };
+    s = four([BEAR, ANGEL, HILL, ["player-1", "engine-card-513", "Crawlspace", ["Artifact"], ""]]);
+    await askE(s, [["engine-card-601", ["player-1"]], ["engine-card-602", ["player-1"]], ["engine-card-610", ["player-1"]]], ["player-1"], crawlE);
+    let sentE = s.seat.prompt.toOutput(["engine-card-601|player-1", "engine-card-602|player-1", "engine-card-610|player-1"]);
+    const fromE = s.h.effects.length;
+    s.h.B.onPrompt(s.seat, { promptId: 901, decidingPlayerId: "player-0", input: { type: "revealCards", presentation: { title: "Attack declaration invalid" }, cards: [] } }); await s.h.flush();
+    const chatE = s.h.effects.slice(fromE).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text).join(" | ");
+    ok("engine: a refusal names the engine's limit", sentE?.type === "declareAttackers" && chatE === "[MTG] That attack isn't legal. Crawlspace (AI 1): no more than 2 creatures can attack AI 1 each combat. You chose 3.", chatE);
+    await askE(s, [["engine-card-601", ["player-1"]], ["engine-card-602", ["player-1"]], ["engine-card-610", ["player-1"]]], ["player-1"], crawlE);
+    sentE = s.seat.prompt.toOutput(["__allattack"]);
+    ok("engine: All attack over the engine's limit is stopped", !!sentE?.__next && /^"All attack" would break a limit, so nothing was sent\. Crawlspace \(AI 1\): no more than 2 creatures/.test(sentE.__next.ui.note), JSON.stringify(sentE).slice(0, 300));
+    harness.restore();
+    // the tax payment names the engine's source; whom's buttons carry the engine's tax
+    s = four([BEAR]);
+    await askE(s, [["engine-card-601", ["player-1"], [taxE("player-1", "{1}", "War Tax")]]], ["player-1"]);
+    s.seat.prompt.toOutput(["engine-card-601|player-1"]);
+    ui = await pay(s, "engine-card-601", { manaCost: "{1}" });
+    ok("engine: the tax payment names the engine's tax", ui.title === "War Tax (AI 1): pay {1} to attack with Grizzly Bears?" && ui.options.at(-1).label === "Don't attack with Grizzly Bears", JSON.stringify([ui.title, ui.options.at(-1)]));
+    harness.restore();
+    s = four([BEAR]);
+    await askE(s, [["engine-card-601", ["player-1", "player-2"], [taxE("player-1", "{2}", "Propaganda")]]], ["player-1", "player-2"]);
+    const whomE = s.seat.prompt.toOutput(["__allattack"])?.__next?.ui;
+    ok("engine: whom's buttons say the engine's tax", JSON.stringify(whomE?.options.slice(0, 2).map((o) => o.label)) === JSON.stringify(["AI 1 (tax {2} each)", "AI 2"]), JSON.stringify(whomE?.options));
+    harness.restore();
     // whom to attack (item 25)
     s = four([BEAR, ANGEL, TEFERI, ["player-0", "engine-card-614", "Goblin Guide", ["Creature"], "Haste"]]);
     ui = await ask(s, [["engine-card-601", ALL], ["engine-card-602", ALL], ["engine-card-614", ["player-1"]]], ALL);
