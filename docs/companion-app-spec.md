@@ -1,1251 +1,524 @@
-# Companion app spec: one double-click for game night
+# MTG Companion: what is built (spec rewritten from the code, 2026-11-11)
 
-Status: spec, rewritten 2026-11-05 (first version 2026-10-20). Replaces the idea in SPEC.md §10b. Builds on
-docs/server-setup-spec.md (A–Z steps). Nothing here is built yet.
+Status: **built and in use** (Windows only). This replaces the 2026-10-20 and 2026-11-05 versions, which described an
+app that did not exist yet. Every statement below was read from the code on branch `main` at 71f6557; `file:line`
+points at it. Where something is *planned but not built* it is said so in capitals and collected in §14. The earlier
+text (a 12-light design, a build plan, a Tauri and a "scripts only" decision) is in git: `git show 71f6557:docs/companion-app-spec.md`.
 
-What changed from the 2026-10-20 version:
-- **Technology:** a small C# tray app compiled with the `csc.exe` already in Windows, not Tauri (§9 has the reasons).
-- **Scope:** Home mode first, with a status light for every failure we have actually hit (GPU resets, the stale relay
-  port after `wsl --shutdown`, the OMEN memory leak, a port held by the VS Code plugin, an old table save).
-- **Cloud Forge** (DigitalOcean) moves to a later phase: full hosting was paused by the user on 2026-11-02 (§14).
+Not re-run for this rewrite: the app was not built or started, and `--selftest` and the two Node test files were not
+run (docs-only task). Test counts quoted from the earlier spec are marked as such.
 
-## 1. Goal
+## 1. What it is
 
-The host double-clicks one program, **MTG Companion.exe**. It:
-1. starts everything the table needs, in the right order;
-2. shows one status light per part, each with a plain reason and, when red, one button that fixes it;
-3. never restarts or changes anything while a game is running.
+**MTG Companion.exe** is a small Windows program, written in C# 5 and compiled with the `csc.exe` that ships with
+Windows (`companion/build.cmd:1-29`; no SDK, no NuGet, .NET Framework 4.8, `/target:winexe`). Double-click it and it:
 
-It replaces `Start MTG.bat`, `Stop MTG.bat`, `tools/start-bridge.ps1` run by hand, and the habit of checking the
-Windows event log after a crash. The two `.bat` files stay as a fallback.
+1. runs a six-step start sequence, one status light per step: Docker, Engine images, Engine stack, Table save, Bridge,
+   TTS (`Controller.cs:48-49`);
+2. then keeps watching and keeps the lights current (`Controller.cs:340-344`, `1057-1111`);
+3. never restarts or replaces anything while a game is on, or while it cannot tell whether one is (§6);
+4. shows everything as a **status page in the default browser** on `127.0.0.1:48790`, plus a tray icon (§8, §9);
+5. in the friend package, updates itself from signed GitHub releases (§11).
 
-Friends who join need nothing but TTS and a Steam invite. The app is only for the host.
+It is for the **host** only. Friends join the host's TTS game and need nothing of ours.
 
-## 2. What "everything" is today
+Source (7,697 lines in `companion/src/*.cs`, counted 2026-11-11):
 
-Read from the repo on 2026-11-05.
-
-| Part | How it starts today | How we know it works | Known failure |
-|---|---|---|---|
-| Docker Desktop (WSL2) | `Start MTG.bat` runs `C:\Program Files\Docker\Docker\Docker Desktop.exe`, polls `docker info` for 3 min | `docker info` exits 0 | slow start; WSL not on 2 cores |
-| WSL limits | `%USERPROFILE%\.wslconfig`: `processors=2`, `memory=8GB` | `docker info --format {{.NCPU}}` says 2 | a change needs `wsl --shutdown`; on 3 cores TTS crashed |
-| Engine images | `bash engine/build-images.sh` (about 20 min) | `docker image inspect mtg-forge-node:exile mtg-relay:exile` | missing; container still on an old image after a retag |
-| Relay (`stack-relay-1`) | `docker compose -f stack/compose.yml up -d` | the image's own health check (`curl -fsS http://localhost:9444/health` inside the container, every 15 s; it is in the image, not in `compose.yml`). The room container has none | after `wsl --shutdown` the Windows-side `127.0.0.1:9443` forward goes stale: health stays "healthy" but games fail at setup; fix `docker restart stack-relay-1` |
-| Forge room (`stack-forge-room-1`) | same compose file | relay's room list shows `tts-commander` in `Lobby` | a room left from an earlier game refuses a new start; `Start MTG.bat` restarts relay and room every time |
-| Web client (`stack-web-1`) | same compose file | not needed for TTS | none; ignored by the app |
-| Bridge (`bridge/bridge.js`) | `tools/start-bridge.ps1`: a hidden `cmd` loop (`tmp\bridge-loop.cmd`) that restarts node 3 s after it exits; logs to `tmp\bridge-live.log` | `GET http://127.0.0.1:48787/versions` | port 39998 taken (VS Code / Atom TTS plugin): node exits at once and the loop retries forever |
-| TTS | `steam://rungameid/286160` | process `Tabletop Simulator.exe`; it listens on `127.0.0.1:39999` (seen with a table loaded; at the main menu: not checked) | GPU driver resets (130+ since 09-12), hangs, crash past ~78k loaded objects |
-| The table | the host loads **Mock MTGA 4 player** (`Saves\TS_Save_1.json`) by hand: TTS has no way to open a save from outside | the table's `engineStamp()` matches `stack/deployed.json` `table` | an older save, or a Save from a session opened before a deploy |
-| Deploy record | `node tools/deploy.js` (TTS closed, no game) writes `stack/deployed.json` | `GET /versions` → `outOfStep` | parts built separately drift apart |
-| PC health | nothing | — | HP OMEN background process leaking to ~100 GB; NVIDIA resets (`nvlddmkm` 153) |
-
-Ports, all on `127.0.0.1`:
-- **39998:** the bridge listens; TTS sends to it (TTS's External Editor API).
-- **39999:** TTS listens; the bridge sends Lua and messages to it.
-- **48787:** the bridge's debug HTTP (refuses any request with an `Origin` header or a foreign `Host`).
-- **9443:** the relay, forwarded by `com.docker.backend.exe`.
-- **8080:** Manabrew's web client (optional, not watched).
-
-## 3. Lights
-
-One row per light. Colours:
-- **Green:** works.
-- **Amber:** works, but something is off or unknown. Play is possible. The row says what and why.
-- **Red:** this part is down or will make games fail. The row offers one fix button.
-- **Grey:** not checked yet, or not started on purpose (after "End game night").
-
-Every fix button that restarts, rewrites or kills something is **locked while a game is running** (§5) and asks
-once before it acts (one sentence: what it does, how long, what it touches). Read-only buttons (open log, open folder,
-explain) are never locked.
-
-All probes run on one background thread with their own timer. A probe never overlaps itself; a probe that times out
-counts as a failed read, not as red, until it fails twice in a row. Light changes are logged (§10).
-
-Two rules every probe follows (added in review):
-- **Slow is not down.** Only "connection refused" (nothing listens) or "no such process" means a part is down. A
-  timeout means "can't tell". On 2026-11-05, with a game on, PowerShell's `Invoke-WebRequest` took 35–41 s for
-  `/stats`, `/state` and `/log`, while `curl` a minute later took 0.01–0.04 s. The cause wasn't pinned (PowerShell's
-  client or a busy bridge). Either way, one slow answer must never unlock a fix.
-- **No proxy.** Every `HttpWebRequest` sets `Proxy = null`. With the default proxy the first request took 352 ms,
-  with `null` 3 ms (measured here).
-
-### 3.1 Docker
-
-- **Checks:** the Docker engine answers.
-- **Probe:** `GET /info` on Docker's engine API over the named pipe `\\.\pipe\dockerDesktopLinuxEngine` (the
-  `desktop-linux` context), 10 s timeout. It gives `ServerVersion`, `NCPU` and `MemTotal`, like
-  `docker info --format "{{.ServerVersion}} {{.NCPU}} {{.MemTotal}}"` (which printed `29.8.2 2 8330964992` here), but
-  with no child process. Checked 2026-11-05: the pipe answers a plain `HTTP/1.0` request from a normal user
-  (`/_ping`, `/info`, `/containers/<name>/json`, `/images/<name>/json`). The CLI is the fallback if the pipe is missing.
-  Also whether a `Docker Desktop` process exists.
-- **Never probe with `docker desktop status`:** on 2026-11-05 it hung for over 2 minutes here.
-- **Every:** 15 s (60 s once green for 5 minutes; back to 15 s on any failure).
-- **Green:** exit 0.
-- **Amber:** exit not 0 but the `Docker Desktop` process exists ("Docker is starting").
-- **Red:** exit not 0 and no `Docker Desktop` process, or still not answering 180 s after the app started it.
-- **Fix:** **Start Docker Desktop.** Runs the Docker Desktop exe (§11 finds it), then polls `docker info` every 3 s for
-  up to 180 s. Not locked: Docker being down means no game is running on it.
-
-### 3.2 WSL cores
-
-- **Checks:** Docker's VM has the cores and memory we chose (default 2 cores, 8 GB) so Forge can't take CPU from TTS.
-- **Probe:**
-  - read `%USERPROFILE%\.wslconfig`: the `[wsl2]` section's `processors=` and `memory=` (on file change, and every 60 s);
-  - the `NCPU` from the Docker probe.
-- **Every:** 60 s.
-- **Green:** file says 2 and Docker reports 2.
-- **Amber:** file says 2 but Docker reports another number: "the setting is saved but WSL hasn't restarted yet".
-- **Red:** no file, no `processors=` line, or a number other than 2.
-- **Fix (red):** **Set 2 cores.** Copies the file to `.wslconfig.bak-YYYYMMDD-HHMM`, sets `processors=2` and
-  `memory=8GB` in `[wsl2]` (other lines kept), then offers the amber fix.
-- **Fix (amber):** **Restart WSL now** (about 2 minutes). Locked during a game. Warns that it stops every WSL
-  program, not only Docker, including a `docker build` in progress (§3.14 shows one). On 2026-11-05 the containers
-  came back by themselves after `wsl --shutdown` (`restart: unless-stopped`); how Docker Desktop reacts each time (it
-  may restart its VM or show an error) is not checked, so step 3 just waits for `docker info` either way. Steps:
-  1. stop the bridge;
-  2. `wsl --shutdown`;
-  3. start Docker Desktop and wait for `docker info` (180 s);
-  4. `docker compose -f stack/compose.yml up -d`;
-  5. `docker restart stack-relay-1` (the stale-forward trap, §3.4);
-  6. restart the room and the bridge (start sequence steps 6–8, §4).
-
-### 3.3 Engine images
-
-- **Checks:** the two images exist, the containers run them, and they match the last deploy and the source.
-- **Probe:**
-  - `GET /images/mtg-forge-node:exile/json` and `GET /images/mtg-relay:exile/json` over the pipe (§3.1), 10 s; read
-    `Id`, `Created` and `Config.Labels` from the JSON. CLI fallback:
-    `docker image inspect --format "{{.Id}} {{.Created}} {{json .Config}}" mtg-forge-node:exile mtg-relay:exile`.
-    Checked 2026-11-05: `{{.Config.Labels}}` and `{{json .Config.Labels}}` both fail ("map has no entry for key
-    Labels") on our images, which have no labels; `{{json .Config}}` works;
-  - the container image ids from the container probe (§3.4);
-  - `stack/deployed.json` `node` and `relay`;
-  - the source stamp: see the proposal below.
-- **Every:** 5 minutes, and at once when `stack/deployed.json` or `engine/*.patch` changes (file watcher).
-- **Green:** both images exist; each container runs the image its tag points at; both match `deployed.json`.
-- **Amber**, each with its own sentence:
-  - "a container runs an older image than its tag": the tag was moved but the container wasn't recreated;
-  - "the engine isn't the deployed one": the image differs from `deployed.json`;
-  - "the engine source changed since this image was built": source stamp mismatch;
-  - "can't tell whether the image matches the source": no stamp label, which is every image today.
-- **Red:** an image is missing.
-- **Fix (red):** **Build the engine** (about 20 minutes, several GB of disk). Opens a visible Git Bash window running
-  `bash engine/build-images.sh` (the default tag `exile`). Locked during a game. Never runs by itself.
-- **Fix ("older image than its tag"):** **Recreate the engine containers** (about 30 s):
-  `docker compose -f stack/compose.yml up -d --force-recreate relay forge-room`. Locked during a game. The confirm
-  says plainly: "this switches to an engine that `deploy.js` hasn't tested. **Deploy…** is the safe way." A tag moves
-  when someone runs `engine/build-images.sh` with the default tag `exile`: the build itself never touches the running
-  containers, but the next recreate does.
-- **Fix ("not deployed" / "source changed"):** **Deploy…** explains that `node tools/deploy.js` needs TTS closed and
-  takes several minutes for its test gates, then runs it in a visible window. Locked during a game and while TTS runs.
-- **Proposal, needed for the source stamp:** `engine/build-images.sh` adds `--label org.mtgtts.source=<sha8>` to both
-  `docker build` lines, where sha8 is the first 8 hex of SHA-256 over `MANABREW_COMMIT`, `FORGE_COMMIT`,
-  `manabrew.patch` and `forge.patch`. The app computes the same over the same four things. Images built straight from
-  the `manabrew/` checkout (the developer's way) carry no label and stay at "can't tell".
-
-### 3.4 Relay
-
-- **Checks:** the relay container runs, and a client on Windows can log in through `127.0.0.1:9443`. The second part
-  catches the stale port forward after `wsl --shutdown`: the container's own health check stays "healthy" while every
-  connection from Windows drops at once.
-- **Probe:**
-  1. Containers (shared with §3.3 and §3.5), 8 s timeout:
-     `docker inspect --format "{{.Name}}|{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{end}}|{{.Image}}|{{.RestartCount}}|{{.State.StartedAt}}" stack-relay-1 stack-forge-room-1`.
-     A missing container makes `docker inspect` exit 1 but still print the other line: parse per line (checked
-     2026-11-05: "error: no such object", exit 1, the other lines printed). Preferred: `GET /containers/<name>/json`
-     over the pipe (§3.1), one per container, 404 when missing. `stack-forge-room-1` has no health check, so its
-     health field is empty.
-  2. Login from Windows: a WebSocket to `ws://127.0.0.1:9443` (3 s to open), send
-     `{"type":"Authenticate","username":"companion-<4 random>","password":<key>,"service":false,"client_platform":"unknown","engine_gate":"unknown","client_version":"3.56.0"}`,
-     wait for `AuthResult` with `success: true` (3 s), send `{"type":"ListRooms"}`, wait for `RoomList` (3 s), close.
-     The key is `MANABREW_SERVER_KEY` from `stack/.env` if that file exists, else `tts-local` (the compose default).
-     These are the same messages the bridge sends (`Seat.connect`, `bridge.js`; checked).
-     Leftover sessions, from reading the relay source (`manabrew-server/src/cleanup.rs`, not tried live): a player who
-     closes while in no room is removed at once ("removed (was not in a room)"). Each login and close also sends a
-     player list to every client in the lobby, and writes an `[auth]` and a `[disconnect]` line to the relay log: about
-     240 lines an hour at one probe per 30 s. If the socket drops without a close, the relay marks it gone after 180 s.
-     Always send a proper close.
-- **Every:** containers 10 s. Login 30 s when no game runs. During a game the login probe is skipped: the bridge's own
-  seat links prove the relay (§3.6, from `/health`), and we add no traffic to a live game.
-- **Green:** container `running` and `healthy`, login and room list within 9 s.
-- **Amber:** health `starting`; or the restart count rose since the app started ("the relay restarted by itself").
-- **Red:**
-  - container missing or not running → fix **Start the engine**: `docker compose -f stack/compose.yml up -d` (120 s);
-  - container healthy but the login fails (refused, closed, or no `AuthResult`) → "Relay is up but games will fail at
-    setup" → fix **Restart relay and room** (about 20 s):
-    `docker compose -f stack/compose.yml restart relay forge-room`, then the room wait of §4 step 6. Restarting the room
-    alone leaves the old room on the relay, so both go together, as `Start MTG.bat` already does.
-  - `AuthResult` with `success: false` → "the relay refused the key": no fix button; the row names `stack/.env`.
-- Both fixes are locked during a game.
-- Also red, from the bridge log: "relay connection closed before the game started" in `tmp\bridge-live.log` in the
-  last 5 minutes means the same stale forward. Same fix. That line comes during setup, which locks fixes (§5), so the
-  row says: "type `mtg reset` in TTS chat, then press the fix". After the reset there is no game object and the button
-  unlocks.
-
-### 3.5 Forge room
-
-- **Checks:** the room `tts-commander` exists on the relay and is free for a new game.
-- **Probe:** the `RoomList` from the relay login (§3.4), plus the room container line. The bridge picks the room
-  by `room_name` and wants `status: "Lobby"` (`bridge.js`, `RoomList` handler). Manabrew's `RoomStatus` has `Lobby`
-  and `InGame`; anything else counts as busy.
-- **Every:** with the relay login (30 s, skipped during a game).
-- **Green:** `Lobby`; or `InGame` while the bridge says a game is running (that is our game).
-- **Amber:** container restarted by itself since the app started (restart count rose).
-- **Red:**
-  - room missing for 60 s while the container runs → fix **Restart the room**:
-    `docker compose -f stack/compose.yml restart relay forge-room`;
-  - `InGame` while the bridge says no game → "a room left over from an earlier game; a new start will be refused" →
-    same fix.
-- Locked during a game.
-- The node's log line "self-hosted-node is OUT OF DATE" (Manabrew's own updater, every 5 minutes) is about upstream
-  builds. Our image is a custom build on purpose: the app ignores that line.
-
-### 3.6 Bridge
-
-- **Checks:** the bridge process runs, answers on 48787, is the deployed code, and isn't crash-looping.
-- **Probe:**
-  - process: WMI `SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name='node.exe'`, kept if the command line
-    has `bridge.js` as a whole file name (`bridge.js` after a space, quote, `\` or `/`), every 15 s. Stricter than
-    `tools/stop-bridge.ps1`, whose `*bridge.js*` also matches `bridge/echo-bridge.js` and any `*-bridge.js` test fake.
-    A WMI query that fails or times out means "can't tell", never "no process";
-  - liveness: `GET http://127.0.0.1:48787/stats`, 5 s timeout, every 5 s. Cheap: it returns a small counter object
-    (8–42 ms with `curl` on 2026-11-05);
-  - game and seats: `GET /health` once the bridge has it (proposal, §8); until then `GET /state` (5 s), whose
-    `started` is what `tools/deploy.js` already uses to tell a game is running;
-  - version: `GET /versions`, 15 s timeout (60 s). Not more often: each call runs `docker inspect` (with its own 8 s
-    timeout in `bridge/versions.js`); it took 3.1–3.7 s with `curl` on 2026-11-05. It gives
-    `now.bridge` and `deployed.bridge`, `outOfStep` (the bridge's own sentences) and `waiting` (source edited since
-    the deploy);
-  - crash count: reads new lines of `tmp\bridge-live.log` since the last read (shared read, from the last offset) and
-    counts `[bridge exited with code` lines. The log is appended forever (4.75 MB, 135 exit lines on 2026-11-05),
-    so at app start read only the last 1 MB; if the file got smaller, start again from 0.
-- **Every:** as above.
-- **Green:** `/stats` answers, no exits in the last 10 minutes, `now.bridge` equals `deployed.bridge`.
-- **Amber:**
-  - `outOfStep` or `waiting` not empty: the row shows the bridge's own sentence, e.g. "The bridge isn't the deployed
-    one: restart it between games";
-  - 1–2 exits in the last 10 minutes ("restarted itself; the game resumes if it was back within 50 s").
-- **Red:**
-  - no process → fix **Start the bridge**: runs `powershell -NoProfile -ExecutionPolicy Bypass -File
-    tools\start-bridge.ps1` (as `Start MTG.bat` does), then waits up to 20 s for `/stats`. Not locked: a dead
-    bridge can't be hurt. **But `start-bridge.ps1` runs `stop-bridge.ps1` first**, so it kills any bridge that is in
-    fact alive. Right before it runs, the app checks again, all three: no bridge `node.exe` (WMI answered), nothing
-    listening on 39998 or 48787 (TCP table), and `/stats` refused. Any "can't tell" cancels it;
-  - process but `/stats` times out on every try for 60 s → "bridge hung" → fix **Restart the bridge**
-    (`tools\stop-bridge.ps1`, then start). During a game (§5) it asks with: "the game is lost unless the bridge is back
-    within 50 s of its last save". A hung bridge stops saving, so after a minute the game is usually lost already;
-  - 3 or more exits in 10 minutes → "crash loop", with the last 5 log lines shown. If port 39998 is held by another
-    program, that is the cause (§3.7) and the row says so.
-- **Restart rule:** the restart loop in `bridge-loop.cmd` brings a crashed bridge back by itself, and the bridge
-  rejoins a running game if it is back within 50 s (`resumeGame`). The app does not add a second loop. It never
-  restarts a bridge that answers, during a game.
-- **Caution, shown in the amber text:** a bridge restart mid-game redraws the whole table. Above ~80k loaded objects
-  that redraw was followed by an NVIDIA reset (2026-10-28).
-
-### 3.7 Ports
-
-- **Checks:** each port is held by the right program.
-- **Probe:** `GetExtendedTcpTable` (iphlpapi.dll, listeners with owner PID, no child process), PID → process name.
-- **Every:** 10 s.
-- **Expected owners:**
-  - 39998 and 48787: the bridge's `node.exe` (same PID);
-  - 39999: `Tabletop Simulator.exe` (only while TTS runs);
-  - 9443: `com.docker.backend.exe` (seen 2026-11-05) or `wslrelay.exe`.
-- **Green:** every listener present is the expected owner.
-- **Amber:** 39999 not listening while TTS runs. Seen on 2026-11-05: `Tabletop Simulator` holds 39999 with a table
-  loaded. **Not checked:** whether the main menu alone opens it (checking needs leaving the table). The bridge's own
-  log line "TTS not reachable on 39999 (is a game loaded?)" suggests only a loaded game does. Until checked, this is
-  amber only after TTS has run for 2 minutes, and its text says "or no table is loaded yet".
-- **Red:** 39998 or 48787 held by any other program. The row names it, e.g. "`Code.exe` holds 39998: close the VS Code
-  TTS extension". Button **Show the program** (opens Task Manager details). No kill button: it is the host's program.
-
-### 3.8 TTS
-
-- **Checks:** TTS runs and responds.
-- **Probe:**
-  - `Process.GetProcessesByName("Tabletop Simulator")`: PID, working set, `Responding` (5 s);
-  - loaded objects: the last "Loaded Objects now: N" in
-    `%USERPROFILE%\AppData\LocalLow\Berserk Games\Tabletop Simulator\Player.log`, read from the last offset
-    (30 s), as `tools/gpu-watch.ps1` does. TTS starts a new `Player.log` at each launch (13 KB, 30 such lines on
-    2026-11-05 evening): when the file is smaller than the offset, read from 0. The number is Unity's loaded-object
-    count, not TTS's object count;
-  - crashes: Application log, events 1000 (crash) and 1002 (hang) whose message has "Tabletop", in the last hour (60 s),
-    as the crash watcher does.
-  - focus thieves: a `SetWinEventHook(EVENT_SYSTEM_FOREGROUND)` callback (no polling). When TTS loses the foreground
-    to a window of `Razer*`, `Omen*` or `NVIDIA*` processes (the list is in the config), log it with the process name.
-- **Every:** as above.
-- **`Responding` flickers:** on 2026-11-05 one sample said `False` and the next four, 2 s apart, said `True`. TTS's
-  main thread stalls for a moment on big redraws (and about 360 ms per exec). Count "not responding" only when every
-  sample over the whole window says so.
-- **Green:** running and responding.
-- **Amber:**
-  - not running (TTS closed is normal) → button **Open TTS** (`steam://rungameid/286160`);
-  - not responding for 15 s;
-  - loaded objects above 78,000: "past the point where the GPU resets came; save, then quit and reopen TTS after
-    this game". TTS starts at about 60k on the user's table; resets came at 81.7k–84k, one with the table idle
-    (memory note, 2026-10-28). On 2026-11-05 evening it read 81,386;
-  - a focus thief took the screen from TTS in the last 10 minutes: "Razer Central popped up over TTS (3 times
-    tonight): turn off its notifications". No button: it is the host's program. Not in the repo's notes; added from
-    the lead's list of past trouble.
-- **Red:**
-  - not responding for 60 s → fix **End TTS and open it again**. Kills the process, waits until it is gone (the Steam
-    link is ignored while the old process lives), runs the Steam link, then tells the host to load Mock MTGA 4 player.
-    Not locked during a game: a hung TTS has already stopped the game for everyone; the bridge sends the running game
-    back to the table when TTS says "game loaded". Asks first, and the question says: "Anything added to the table
-    since your last save (an imported deck) is lost. TTS can't save while hung." Not offered in the first 3 minutes
-    after TTS starts or after "game loaded": loading a big table stalls TTS for a while (how long: not measured);
-  - a crash or hang event in the last 10 minutes and no TTS process → **Open TTS**, with the same load hint.
-
-### 3.9 Table
-
-- **Checks:** the table loaded in TTS is the engine table, at the deployed version, and talking to the bridge.
-- **Probe:**
-  - the table's version stamp: `now.table` from `GET /versions` (60 s), or `table.stamp` from `/health` (§8);
-  - the console lines from `GET /log` (30 s): the last `TTS: game loaded` time. The lines start with a UTC time of
-    day and no date (`[00:24:44.093] TTS: game loaded` on 2026-11-05 at 19:24 local), so parse them as UTC and
-    roll back a day when the time is ahead of now.
-- **Green:** the stamp equals `deployed.table`.
-- **Amber:**
-  - TTS loaded a game over 60 s ago and the bridge has no stamp: "no engine table loaded, or it hasn't spoken yet:
-    load **Mock MTGA 4 player**". The table sends its stamp at load and with each check, so a bridge restarted under a
-    loaded table doesn't know it until the next one. Button **Ask the table**: one `POST /exec` of
-    `return engineStamp and engineStamp() or "none"`. Only on click, never polled: each exec freezes TTS about 360 ms;
-  - stamp `"dev"`: "built from source, not deployed".
-- **Red:** stamp `null` (older than stamps) or a stamp other than `deployed.table`: "this table isn't the deployed one:
-  load the save again, and don't save over it from an older session" (the bridge's own words).
-- **Fix:** none can load a save from outside TTS. The row says how: Create → Multiplayer (or Singleplayer) →
-  Games → Saved Games → Mock MTGA 4 player.
-
-### 3.10 Table save on disk
-
-- **Checks:** the save file holds the deployed script, so loading it gives the right table.
-- **Probe:** on file change (watcher on `Saves\`), and at start: read `TS_Save_1.json` and find
-  `function engineStamp() return "<stamp>" end` in its Global `LuaScript`. In the raw file the quotes are escaped,
-  because the script is a JSON string: the text is `function engineStamp() return \"f9208197\" end` (checked
-  2026-11-05). Either parse the JSON first or match the escaped form. The file is about 1.1 MB. Compare with
-  `deployed.table`. Also its sha8 against
-  `deployed.save`: informative only, since any Save in TTS changes the file.
-- **Green:** stamps equal.
-- **Amber:** the file changed since the deploy but the stamp is still equal (the host saved their table: fine).
-- **Red:**
-  - file missing → "the table save is gone". Button **Open the backups folder** (`tmp\backup`);
-  - stamp differs → "the save on disk is older or newer than the deploy". Fix **Deploy…**, as in §3.3.
-
-### 3.11 GPU resets
-
-- **Checks:** NVIDIA driver resets and blue screens, which crash TTS on this PC (130+ resets since 09-12; card RTX 4060).
-- **Probe:** `EventLogReader` on the System log (works without admin; checked 2026-11-05):
-  - provider `nvlddmkm`, ids 153 (reset), 13 and 14 (engine exceptions);
-  - `Display` id 4101 (driver stopped responding);
-  - `Microsoft-Windows-WER-SystemErrorReporting` id 1001 (blue screen, logged after the reboot).
-  Filter by provider, not by id alone: id 153 alone also matches Kernel-Boot events.
-- **Every:** 60 s, the last 24 hours.
-- **Green:** none in 24 hours.
-- **Amber:** id 13/14 in the last hour, or any reset in the last 24 hours (with count and last time).
-- **Red:** a 153, 4101 or 1001 in the last hour.
-- **Fix:** no button can fix a driver. The row gives:
-  - **What helps:** cap TTS's frame rate; relaunch TTS between games once past ~78k objects; save before risky moves;
-  - **Start GPU logger:** runs `tools/gpu-watch.ps1` hidden, so the next reset shows what led up to it;
-  - **Copy the events:** the event lines to the clipboard.
-- Grey on PCs without an `nvlddmkm` provider.
-
-### 3.12 Memory
-
-- **Checks:** Windows has commit memory left, and HP OMEN's background process isn't leaking (it reached ~98 GB on
-  2026-10-22; programs then failed to start and test tables died silently).
-- **Probe:**
-  - `GlobalMemoryStatusEx`: used share of commit (page file total minus free);
-  - `OmenCommandCenterBackground` private bytes (222 MB on 2026-11-05);
-  - System event 2004 (Resource-Exhaustion-Detector) in the last hour;
-  - free space on the drive holding Docker's disk image and the repo (`GetDiskFreeSpaceEx`): an engine build needs
-    several GB.
-- **Every:** 30 s.
-- **Green:** commit under 85%, OMEN under 4 GB.
-- **Amber:** commit 85–95%, OMEN 4–16 GB, or under 10 GB of free disk.
-- **Red:** commit over 95%, OMEN over 16 GB, or event 2004 in the last hour.
-- **Fix:** **Stop the OMEN background process.** Asks every time: it is the host's software, and it comes back at the
-  next boot. Not locked during a game: running out of memory ends the game anyway. If OMEN isn't the biggest process,
-  the row names the top three by private memory instead, with no button.
-
-### 3.13 Game (not a light)
-
-A readout at the top: "No game", "Setting up", "Game on: turn 6, 4 seats (2 AI)", "Game over". It drives the lock in §5.
-
-### 3.14 Readouts (no colours)
-
-- TTS: memory (MB), CPU %, loaded objects.
-- Engine: CPU % of the `vmmem` / `VmmemWSL` process (`vmmemWSL` here, 3.6 GB private on 2026-11-05), and
-  "a `docker build` is running" when a `docker.exe` with `build` in its command line exists: a build shares the 2
-  WSL cores with Forge. One was running on 2026-11-05 evening while a game was on.
-- Upload while a game runs: sum of `Network Interface \ Bytes Sent/sec` every 1 s, shown as Mbps (average and peak
-  over 5 minutes), the logic of `tools/net-upload-meter.ps1`.
-- Bridge: uptime, restarts tonight.
-
-### 3.15 The app's own cost
-
-TTS's CPU is the scarce thing on this PC (6 cores, TTS crashed with the engine on 3 WSL cores). Targets:
-- average CPU under 0.5% of one core;
-- no more than one child process (`docker`, `powershell`) every 10 s on average. With the CLI, the Docker and
-  container probes alone would start about 7 a minute; over the engine pipe (§3.1) they start none, so the pipe is
-  the plan and the CLI only the fallback;
-- no TTS exec while polling;
-- polls back off to their slow interval when the window is hidden and everything is green.
-
-## 4. Start
-
-Double-clicking the exe starts the sequence by itself (setting `startOnLaunch`, default on). Pressing **Start game
-night** runs it again; each step skips what is already fine.
-
-| Step | Does | Timeout | On failure |
-|---|---|---|---|
-| 1. Preflight | Finds the repo, Node 22+, Docker CLI; reads the config; checks memory (§3.12) | 5 s | stop; red row with the missing piece and a download link |
-| 2. Docker | `docker info`; if down, start Docker Desktop and poll every 3 s | 180 s | stop; Docker red |
-| 3. WSL cores | §3.2 check only; never changes anything here | 5 s | go on; amber or red stays shown |
-| 4. Images | both images exist | 10 s | stop; Images red, **Build the engine** offered |
-| 5. Engine up | `docker compose -f stack/compose.yml up -d --no-recreate`, then wait for relay `healthy`. `--no-recreate` because a plain `up -d` replaces a container whose tag has moved, which would quietly start an engine `deploy.js` never tested (§3.3) | 120 s + 60 s | stop; Relay red |
-| 6. Fresh room | Only if no game runs **and** (room not `Lobby` **or** the login fails): `docker compose ... restart relay forge-room`; then ask for the room list every 2 s until `Lobby` | 60 s + 90 s | stop; Forge room red |
-| 7. Relay from Windows | the login probe (§3.4), 3 tries 2 s apart. If it fails and no game runs: restart relay and room once by itself, probe again | 30 s | stop; Relay red, "games will fail at setup" |
-| 8. Bridge | `/stats` answers, or a bridge process exists, or 39998/48787 are held → keep it. Only when all three say "none" (§3.6): `tools\start-bridge.ps1`, then wait for `/stats`. Never decide on `/versions`: it can take seconds | 20 s | stop; Bridge red with the last 5 log lines |
-| 9. TTS | running → keep it; else the Steam link, wait for the process | 120 s | go on; TTS amber, **Open TTS** |
-| 10. Hint | "Load Mock MTGA 4 player in TTS"; the Table light turns green when the table speaks | — | — |
-
-- A cold start is about 2–4 minutes, mostly Docker. A warm start (all up) is under 10 s.
-- `Start MTG.bat` restarts the relay and room every time and then waits 15 s. Step 6 does it only when needed, and
-  waits for `Lobby` instead of a fixed time.
-- **Started while a game runs** (e.g. the app was closed and reopened mid-game): steps 5–7 become checks only. Nothing
-  restarts; the app only takes over watching.
-- **A bridge started elsewhere** (`Start MTG.bat`, a terminal): step 8 keeps it. Port 39998 is single-owner, so a
-  second bridge would only crash-loop.
-- A step that fails stops the steps after it. The window shows the failed step in red, its fix button, and **Try again
-  from here**.
-- Cancel is allowed at any step. A cancelled step is left as it is (e.g. Docker keeps starting).
-
-## 5. During a game: what never happens by itself
-
-**How the app knows a game is running.** Three answers, not two: **Game on**, **No game**, **Can't tell**. Can't tell
-locks exactly like Game on.
-
-"Game on" if any of:
-1. the bridge answers and says so: `/health` `phase` is `setup` or `running` (proposal, §8). Until then, from
-   `/state`: `started` true, **or** `seats` not `null`. `/state` gives `started: false` both while a game is being set
-   up and after it ends; `seats` is `null` only when there is no game object at all (checked in `bridge.js`). Without
-   `/health`, setup and over look alike (a hint: in setup no seat has a `turn` yet), so both lock until "mtg reset";
-2. the bridge doesn't answer, but `tmp\bridge-game.json` was written in the last 60 s. The bridge rewrites it every
-   5 s while a game runs (`saveResume`), so a bridge that just crashed mid-game still counts as a game. Read its
-   `savedAt` inside the file as well as the file time, and use the newer;
-3. the last room list showed `tts-commander` `InGame` and the bridge has not answered since.
-
-"Can't tell" when the bridge process exists (or 48787 is held) but `/stats` and `/state` time out, and rules 2–3 don't
-say "Game on". A hung bridge stops writing `bridge-game.json`, so after 60 s rule 2 no longer fires; that must not turn
-into "No game".
-
-"No game" only when the bridge answers `/state` with `seats: null`, or when there is no bridge process, nothing on
-48787 (refused) and no fresh `bridge-game.json`. This matches `tools/deploy.js` (`mustBeIdle`: only a refused
-connection means no bridge; any other error stops it with "can't tell").
-
-What `bridge-game.json` does not cover (from `saveResume`): games still in setup, finished games, and test games
-started with `autoplay`. It is never written for those, so for them only rules 1 and 3 count. A stale file from an old
-crash stays on disk until the next "mtg reset"; the 60 s age rule ignores it.
-
-**While a game is on, the app never by itself:**
-- restarts Docker, WSL, the relay, the room or a bridge that answers;
-- runs `tools/deploy.js`, builds or retags images, or recreates containers;
-- edits `.wslconfig`, a save, or anything in the repo;
-- kills or relaunches TTS;
-- sends Lua to TTS (`/exec`) or reloads the table (no Save & Play, ever);
-- stops another program (OMEN, VS Code).
-
-The lock covers both the app's own steps and the fix buttons. A locked button shows "A game is on (turn 6). Do this
-after the game."
-
-**Allowed during a game:**
-- every probe except the relay login;
-- the bridge's own restart loop bringing back a crashed bridge (it rejoins within 50 s);
-- after asking: **End TTS and open it again** for a TTS that has been hung 60 s; **Stop the OMEN background process**
-  when memory is red. Both are already ending the game if left alone.
-
-**After a game:** when the phase becomes "over" or "none", fixes that waited are listed once: "Game over. 2 things
-are waiting: restart the bridge (deployed version); TTS is at 81,200 objects: save, quit and reopen it. [Restart the
-bridge now]". Nothing runs without that click. The app never kills a TTS that responds: closing it loses anything not
-saved, so that one stays a reminder for the host to do.
-
-**What can never reach the table:** the app never connects to 39999 itself and never sends External Editor message 1
-("Save & Play", which reloads the table and saves the live table over `TS_Save_1.json`; memory note
-tts-push-wipes-table). It never runs `tools/tts-push-*.js`. Its only Lua is the one-line **Ask the table** through the
-bridge's `/exec` (message 3, execute only). `deploy.js` writes the save on disk only, and refuses while TTS runs.
-
-## 6. Stop
-
-**End game night** (button and tray menu):
-1. If a game is on: "A game is running (turn 6). Ending stops it for everyone." Cancel is the default.
-2. Stop the bridge: `tools\stop-bridge.ps1` (the loop first, then node). Once `POST /shutdown` exists (§8): call it
-   first, so each seat leaves its room cleanly, then the script.
-3. `docker compose -f stack/compose.yml stop` (60 s). Containers are kept; the next start is quick.
-4. If the setting `stopDockerOnEnd` is on: `docker desktop stop --timeout 120`. Checked 2026-11-05: Docker Desktop
-   4.95.0 has `docker desktop start` and `stop` (both take `--detach` and `--timeout`; `stop` also `--force`). Only
-   the help was read; neither was run. If the command is missing (older Docker Desktop), leave Docker running.
-   Default off.
-5. TTS is left alone, as `Stop MTG.bat` does.
-6. All lights grey except PC health (§3.11, §3.12), which keep running.
-
-**Quitting the app** (tray → Quit):
-- with nothing running, it just closes;
-- otherwise it asks: **Leave everything running** (default) / **End game night, then quit** / Cancel.
-
-The bridge doesn't depend on the app. It runs in its own hidden `cmd` loop, so closing or updating the app never
-touches a game. The next app start finds the bridge again (§4 step 8).
-
-Windows signing out or shutting down: the app logs it and exits at once. No stop steps: Windows ends the processes.
-
-## 7. Screens
-
-### 7.1 Main window (about 560 × 600, resizable; closing it hides it to the tray)
-
-```
-+---------------------------------------------------------------+
-| MTG Companion                                      [_] [x]    |
-+---------------------------------------------------------------+
-|  GAME ON: turn 6, White's main phase, 4 seats (2 AI)          |
-|  Fixes that restart things are locked until the game ends.    |
-+---------------------------------------------------------------+
-|  ( ) Docker        up, 2 CPUs                                 |
-|  ( ) WSL cores     2 of 2                                     |
-|  (!) Engine        can't tell whether it matches the source   |
-|  ( ) Relay         reachable, 1.2 s login                     |
-|  ( ) Forge room    in game                                    |
-|  ( ) Bridge        3e533e72 (deployed), up 2 h 14 min         |
-|  ( ) Ports         39998 bridge, 39999 TTS, 9443 Docker       |
-|  ( ) TTS           1,512 MB, 62,400 objects                   |
-|  ( ) Table         f9208197 (deployed)                        |
-|  ( ) Table save    f9208197 (deployed)                        |
-|  (X) GPU           driver reset 14 min ago (3 today)  [Help]  |
-|  ( ) Memory        commit 64%, OMEN 222 MB                    |
-+---------------------------------------------------------------+
-|  Upload 3.1 Mbps (peak 9.8)   TTS CPU 38%   Engine CPU 21%    |
-+---------------------------------------------------------------+
-| [Start game night] [End game night] [Open TTS]                |
-| [Logs] [Save a bug report]                     [Settings]     |
-+---------------------------------------------------------------+
-```
-
-- `( )` is a filled coloured dot in the real window; `(!)` amber, `(X)` red. The colour is never the only sign: each
-  row's text says the state, for colour-blind hosts.
-- Clicking a row opens its detail under it: what was checked, the raw probe result, when, and the fix button.
-
-### 7.2 A red row opened
-
-```
-|  (X) Relay         up, but games will fail at setup           |
-|      The relay container is healthy, but a login from this    |
-|      PC was closed after 19 ms. This happens after WSL or     |
-|      Docker restarts.                                         |
-|      [Restart relay and room]  about 20 s, no game is on      |
-|      Last checked 20:41:07. [Copy details]                    |
-```
-
-### 7.3 Starting
-
-```
-|  Starting game night                          [Cancel]        |
-|  [done]  1 Preflight                                          |
-|  [done]  2 Docker            (started it, 74 s)               |
-|  [done]  3 WSL cores                                          |
-|  [done]  4 Engine images                                      |
-|  [ .. ]  5 Engine up         waiting for the relay, 12 s      |
-|  [    ]  6 Fresh room                                         |
-|  ...                                                          |
-```
-
-### 7.4 Settings
-
-The fields of §11's config file that a host would change: start on launch, open TTS on start, stop Docker on end,
-WSL cores and memory, save file, notifications on/off, and "Start with Windows" (a shortcut in the user's Startup
-folder; off by default).
-
-### 7.5 Tray icon
-
-A 16 × 16 icon drawn at run time (no image files): a card shape with a coloured dot.
-
-| Icon | Means | Tooltip |
+| File | Lines | Holds |
 |---|---|---|
-| grey dot | stopped | "MTG: stopped" |
-| blue dot, turning | starting or running a fix | "MTG: starting (step 5 of 10)" |
-| green dot | all green | "MTG: ready" or "MTG: game on, turn 6" |
-| amber dot | at least one amber, no red | "MTG: 1 warning: Engine" |
-| red dot | at least one red | "MTG: Relay down" |
+| `Logic.cs` | 712 | pure decisions, no I/O: lights, game lock, save plan, layout detection (`Logic.cs:1-3`) |
+| `Controller.cs` | 1190 | the worker thread, start sequence, watcher, fixes and menu actions |
+| `Probes.cs` | 581 | the I/O: Docker engine pipe, HTTP, relay login, TCP table, processes |
+| `WebUi.cs` | 933 | the status page server and its JSON API, table-tools passthrough |
+| `WebPage.cs` | 718 | the page itself (HTML, CSS, ES5 script) as one C# string |
+| `StatusForm.cs` | 489 | tray icon and menu, the old window (fallback), dialogs, shutdown block |
+| `Update.cs`, `Updater.cs` | 517, 751 | self-update: pure rules, then check, download, apply, undo |
+| `Program.cs` | 369 | command line, single instance, the bridge loop process |
+| `SelfTest.cs`, `SelfTestWeb.cs` | 782, 554 | `--selftest`: the logic against canned inputs |
 
-Tray menu: Open · Start game night · End game night · Open TTS · Open logs · Quit. A left click opens the window.
+Also: `companion/app.manifest` (asInvoker, so it never asks for admin), `companion/app.ico`,
+`companion/release-keys.txt` (public update keys, built into the exe, `build.cmd:19-21`).
 
-### 7.6 Notifications
+## 2. Two layouts
 
-Windows notifications (balloon tips) only for:
-- a light turning red (one per light per 10 minutes);
-- a GPU reset or TTS crash event (always);
-- the bridge restarting itself during a game ("the game resumed" or "the game did not come back");
-- the start sequence finishing or failing while the window is hidden;
-- "Game over: N things are waiting".
+`Logic.DetectLayout` (`Logic.cs:122-138`) picks one:
 
-Amber never notifies. A setting turns all notifications off.
+| | **Friend mode** | **Home mode** |
+|---|---|---|
+| Chosen when | `version.json` sits beside the exe | no `version.json`, but `bridge\bridge.js` and `Start MTG.bat` are in the exe's folder or up to 4 above it (so `companion\bin\` works) |
+| Package root (`MTG_HOME`) | the exe's folder | the repo |
+| Node | `runtime\node\node.exe` | `node` on PATH |
+| Compose project | `mtg-table` | `stack` |
+| Logs | `logs\companion.log`, `logs\bridge.log` | `tmp\companion.log`, `tmp\bridge-live.log` |
+| Starts the bridge by | `MTG Companion.exe --bridge-loop` (§5.5) | `tools\start-bridge.ps1` |
+| Table save step | installs the save into TTS's Saves folder | skipped, grey: "you keep your own save" |
+| Self-update | yes (§11) | no: "the repo updates with git" (`Controller.cs:211-215`) |
+| Compose up | `up -d` | `up -d --no-recreate` (`Controller.cs:696`) |
+| Expected versions from | `version.json` | `stack\deployed.json` (`Controller.cs:169`) |
 
-## 8. Bridge changes the app needs (proposed; `bridge/bridge.js` isn't owned by this spec)
+All paths: `Layout.Make` (`Logic.cs:76-110`). `--home DIR` overrides the folder (`Logic.cs:124-129`).
 
-1. ~~Heartbeat and reconnect to the relay.~~ Done 2026-10-20.
-2. **`GET /health`**: cheap, no `docker` call, so it can be polled every 5 s:
-   ```json
-   { "bridge": "3e533e72", "uptimeS": 8040, "phase": "running", "turn": 6, "room": "tts-commander",
-     "seats": [{ "color": "White", "ai": false, "relay": "up" }, { "color": "Red", "ai": true, "relay": "lost" }],
-     "table": { "stamp": "f9208197", "lastHeardMs": 2100 }, "resumed": false }
-   ```
-   `phase`: `none` (no game object), `setup` (game set up, not started), `running`, `over`. `relay`: `up`, `lost`
-   (reconnecting), `closed`. `lastHeardMs`: time since the last message from the table.
-3. **`POST /shutdown`**: closes every seat as the `SIGINT` handler does (`LeaveRoom`, close), then exits 0. Called only
-   after the restart loop is stopped, or the loop starts it again.
-4. Tests for both in `tests/test_bridge_debug.js`.
+## 3. Command line
 
-Until 2 exists, the app uses `/stats` (alive), `/state` (`started`), `/versions` (`now.table`) and `/log`.
+From the header of `Program.cs:3-17`, checked against `Main` (`Program.cs:120-292`):
 
-Other proposals outside this spec:
-- `engine/build-images.sh`: the source label (§3.3).
-- `tools/start-bridge.ps1`: check in `tools/bridge-loop.cmd` instead of writing it each time, so the app can run it
-  directly with `cmd` and no PowerShell hop (§9, antivirus).
-- `tools/stop-bridge.ps1`: match `bridge.js` as a whole file name, as §3.6 does. Today `*bridge.js*` also kills
-  `node echo-bridge.js` and any `*-bridge.js` test fake.
-- `Start MTG.bat`: its last hint still says to load "MTG 4 player table - ENGINE MODE", a save that was deleted; it
-  should say **Mock MTGA 4 player**.
-- `/health` and `/shutdown` reach the live bridge only through a deploy between games, like any bridge change.
+| Flag | Does |
+|---|---|
+| (none) | start sequence, then watch; status page and tray |
+| `--observe` | reads and shows only; no start, no fix, no update, no single-instance lock (`Program.cs:236`). `--dump FILE` writes the lights after one pass and exits; `--shot FILE` (with `--observe`) writes a PNG of the old window |
+| `--no-web`, `--web-port N`, `--no-browser` | status page switches (`WebUi.cs:283-293`) |
+| `--home DIR`, `--saves DIR`, `--state DIR`, `--log FILE`, `--bridge-url URL`, `--steps 4,5` | test overrides (`Program.cs:144-250`) |
+| `--selftest [--out FILE]` | the decision logic against canned inputs; exit code = failures (`Program.cs:125-131`) |
+| `--bridge-loop --home DIR` | internal: the hidden process that runs and restarts the bridge (§5.5) |
+| `--bridge-stop` | stops this package's loop and bridge only (`Program.cs:210-218`) |
+| `--probe-login URL [KEY]` | one relay login, printed (`Program.cs:137-143`) |
+| `--update-check`, `--update-now`, `--update-base`, `--test-*`, `--fake-effects`, `--fake-fail` | headless update and its test hooks (§11, `Program.cs:68-117`) |
+| `--set-token` | reads a GitHub token from stdin and stores it with DPAPI (`Program.cs:196-202`) |
+| `--replace-old PID PATH --old-start TICKS --part-version V` | internal: the new exe takes over from the old (§11.5) |
+| `--write-icon FILE` | writes the app icon |
 
-## 9. Technology
+Single instance: mutex `Local\MtgTtsCompanion`; a second start signals the first to show itself and exits
+(`Program.cs:236-242`).
 
-**Superseded 2026-11-06: the app must run on Windows, Mac and Linux (see §15, "Decided"), so the WinForms
-recommendation below no longer stands; Tauri v2 is the proposed choice.** Kept for the record:
+## 4. The lights
 
-**Recommendation (2026-11-05): a C# WinForms tray app on .NET Framework 4.8, compiled with the `csc.exe` that ships with Windows.**
+Colours (`Light` enum, `Logic.cs:14`): green, amber, red, grey (not checked or stopped), and **busy** (working; shown blue
+in the page and as amber with `busy:true` in the JSON, `WebUi.cs:553-563`). `Verdict` = colour + one plain sentence + at
+most one fix button + an internal next action + an optional longer hint (`Logic.cs:17-31`). The header shows the
+worst light, and a red light is named: "Problem: Bridge" (`WebUi.cs:596-607`).
 
-| Option | Size | Build needs | Good | Bad |
-|---|---|---|---|---|
-| **C# WinForms, `csc.exe`** (recommended) | ~150–300 KB exe | nothing: `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe` is on every Windows 10/11 (present here: compiler 4.8.9221.0, .NET Framework 4.8.1) | real tray icon, notifications, `ClientWebSocket`, event log reader, WMI, P/Invoke for ports and memory; starts in under 1 s; one file | C# 5 at most (`/langversion` takes only ISO-1, ISO-2, 3, 4, 5): no `$"..."`, no `?.`, no `=>` members, no `nameof`, no `out var`, no tuples, no `catch when`, no auto-property initialisers; use `string.Format`. WinForms looks plain |
-| C# on .NET 8 | ~150 KB plus runtime, or ~60 MB self-contained | the .NET SDK, which this PC doesn't have (only runtimes 6.0 and 8.0) | modern C# | an SDK install; the runtime must be on each host or bundled |
-| Node + a small UI | Node is already needed | none extra | same language as the bridge | no tray icon or notifications without npm packages (the repo has none on purpose); the UI would be a browser page; no event log or WMI without shelling out |
-| PowerShell + WinForms | a .ps1 | none | quick to write | 2–4 s start; a console window flashes; `-ExecutionPolicy Bypass` and ps2exe wrappers are a common antivirus flag; hard to keep single-instance |
-| Tauri v2 (the 2026-10-20 choice; Manabrew uses it) | ~10 MB | Rust toolchain, WebView2, Node for the UI | nice UI; the old spec's sidecar plan | the most build setup by far, for a window of 12 rows; Rust and web code for one dialog |
+The six lights and what turns each colour (all pure functions in `Logic.cs`, so `--selftest` can feed them canned facts):
 
-Why the recommendation:
-- Builds on any Windows PC with nothing installed, from the repo, in a few seconds.
-- Everything the lights need is in the framework: `System.Net.WebSockets.ClientWebSocket` (relay login),
-  `HttpWebRequest` (bridge; it sends no `Origin` and the right `Host`, so the bridge's guard lets it in),
-  `System.Diagnostics.Eventing.Reader` (GPU events), `System.Management` (process command lines),
-  `System.Web.Script.Serialization` (JSON), P/Invoke `GetExtendedTcpTable` and `GlobalMemoryStatusEx`.
-- Smallest CPU and memory cost next to TTS (§3.15).
+| # | Light | Decided by | Green | Amber | Red (button) |
+|---|---|---|---|---|---|
+| 1 | Docker | `DecideDocker` `Logic.cs:239` | engine answers (`GET /info` on the Docker pipe), Linux containers | (watcher) Desktop runs but engine silent | Windows containers, not installed (address as text, no download), pipe refuses this account ("sign out and back in"), 180 s without an answer (**Start Docker Desktop**) |
+| 2 | Engine images | `DecideImages` `Logic.cs:311` | `mtg-relay:exile` and `mtg-forge-node:exile` exist and match the expected ids | friend: a newer engine waits for the game to end; ids differ after a load (games probably fine); home: present but not the deployed ids | missing (friend: **Load the engine again** or **Try again** when the tar is missing; home: "run build-images.sh") |
+| 3 | Engine stack | `DecideStack` `Logic.cs:344` | relay and room containers running, relay healthy, login works, room `tts-commander` in `Lobby` (or in a game while locked) | - | no relay or room container (**Start the engine**), unhealthy, login fails or room busy while no game (**Restart relay and room**), relay refuses the key (**Try again**), 5-minute wait ran out |
+| 4 | Table save | `DoSave` `Controller.cs:834`, `PlanSave` `Logic.cs:413` | installed, adopted, or already up to date | a newer table waits for the game to end | `table\MTG Table.json` missing, or the write failed (**Try again**) |
+| 5 | Bridge | `DecideBridge` `Logic.cs:487`, `DecidePorts` `Logic.cs:466` | `/versions` answers and `now.bridge` equals the expected hash | runs but is not the package's/deployed bridge, or did not answer in time (**Restart the bridge**) | another program holds 39998 or 48787 (**Show the program**), another MTG bridge holds them, unwritable folder, 45 s without starting (**Start the bridge**) |
+| 6 | TTS | `DecideTts` `Logic.cs:521` | TTS runs and the table spoke to the bridge since this TTS started, with the expected stamp | TTS not running (**Open TTS**), table not loaded yet, table stamp `"dev"`, bridge not up yet | table has no version, or a different stamp than expected ("load it again") |
 
-Build command (`companion\build.cmd`):
-```
-%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /target:winexe /optimize+ ^
-  /out:"MTG Companion.exe" /win32manifest:companion\app.manifest ^
-  /r:System.Management.dll /r:System.Web.Extensions.dll /r:System.Windows.Forms.dll ^
-  /r:System.Drawing.dll /r:System.Core.dll companion\src\*.cs
-```
-`build.cmd` first writes `companion\src\BuildInfo.cs` with the build time and the sha8 of `companion\src\*.cs` (for
-updates, below).
+Rules that apply to all of them:
 
-Checked 2026-11-05: a C# 5 test file using `ClientWebSocket`, `JavaScriptSerializer`, `EventLogReader` (nvlddmkm
-query on the System log, unelevated), `ManagementObjectSearcher`, `HttpWebRequest` and `NotifyIcon` compiled with these
-exact `/r:` options (`System.Net.WebSockets` is in `System.dll`, referenced by default) and ran, exit 0. Two settings
-to keep: `HttpWebRequest.Proxy = null` (§3), and `JavaScriptSerializer.MaxJsonLength = int.MaxValue` (the default is
-about 2 MB; the save is 1.1 MB and grows).
+- **Slow is not down.** Only "connection refused" counts as "nothing listens" (`HttpKind.Refused`, `Logic.cs:642`); a
+  timeout is "can't tell" (`DecideBridge` returns amber, `Logic.cs:503`; `DecideGame` returns CantTell, `Logic.cs:213`).
+- Every `HttpWebRequest` has `Proxy = null` (`Probes.cs:274, 304, 360`).
+- A light that turns red raises a tray balloon, at most once per light per 10 minutes, not in observe mode and not while the
+  window is visible (`Controller.cs:426-434`, `StatusForm.cs:243`).
+- A light change is written to `companion.log`; busy progress text is logged at most every 15 s (`Controller.cs:415-437`).
+- Tray tooltip: "MTG: <light> problem", "N to check", "stopped", "game on" or "ready" (`StatusForm.cs:366-371`).
 
-Source layout: `companion\src\` (one file per area: `App.cs`, `Probes.cs`, `Lights.cs`, `Start.cs`, `Fixes.cs`,
-`Tray.cs`, `Config.cs`, `Native.cs`), `companion\tests\`, `companion\app.manifest`, `companion\build.cmd`. The exe goes
-to the repo root, beside `Start MTG.bat`, and is not committed (`.gitignore`).
+### 4.1 The TTS light, in detail
 
-**No admin rights.** The manifest says `asInvoker`. Everything the app does works as a normal user: the Docker CLI
-(works unelevated here today), `wsl --shutdown`, reading the System and Application logs (checked on this PC
-2026-11-05), stopping the user's own processes. It can't stop an elevated process; it says so if that happens.
+The light is the only place where the app learns what TTS has loaded, and it does so **without ever talking to TTS**: the
+app has no connection to port 39999 (grep of `companion/src` finds no `39999`; the only port numbers used are 9443 for the
+relay, 39998/48787 for the bridge's ports, 48787 for the bridge, and its own 48790).
 
-**Single instance.** A named mutex `Local\MtgTtsCompanion`. A second start signals the first (named event) to show
-its window, then exits.
+Facts it combines (`Controller.cs:1038-1053`):
 
-**Signing, SmartScreen, antivirus.**
-- Built on the host's own PC from the repo, the exe has no "downloaded from the internet" mark, so SmartScreen
-  doesn't ask.
-- Downloaded from a GitHub release, an unsigned exe gets "Windows protected your PC" → More info → Run anyway, every
-  new version. Signing removes that, but costs money every year; not worth it while only the user hosts. Revisit if
-  others host (§15).
-- Antivirus: a small unsigned exe that starts hidden processes and stops others can be flagged by heuristics. To keep
-  that low: no obfuscation, no self-elevation, no downloads, a version resource and manifest, visible windows for long
-  jobs (build, deploy), and `cmd` rather than hidden PowerShell once `bridge-loop.cmd` is checked in. Test against
-  Defender and Malwarebytes (installed here 2026-10-28) in phase 5.
+- `Running`: a process named `Tabletop Simulator` (`Probes.ProcessRunning`).
+- `now.table` from the bridge's `GET /versions` (cache up to 90 s): the stamp the table sent the bridge; absent means the
+  table has not spoken (`J.Has(now,"table")`).
+- `tableHeardMs` from the same answer (`bridge.js:9300-9301`): how long ago the table last spoke. Compared with how long
+  TTS has been running (`Probes.ProcessStartUtc`): a table heard *before* this TTS started is the last session's stamp,
+  so the light stays amber, "TTS is running, the table isn't loaded in it yet" (`Logic.cs:532-536`). This was added after a
+  live check on 2026-11-11 where a relaunched TTS on its main menu was shown as "Connected" (`Logic.cs:532-534`, `PLAN.md:33`).
+- The expected stamp: `version.json` `table` (friend) or `stack\deployed.json` `table` (home).
 
-**Updates.**
-- The app compares its `BuildInfo` sha8 with the current `companion\src\*.cs` at start and every 10 minutes. On a
-  difference: amber row "Companion: a newer version is in the repo" → **Rebuild**.
-- Rebuild runs `build.cmd` to `MTG Companion.new.exe`, renames the running exe to `.old` (Windows allows renaming a
-  running exe), puts the new one in place, starts it, and exits. The bridge doesn't depend on the app (§6), but the
-  compile takes CPU from TTS for a few seconds, so **Rebuild** waits until the game ends like the other fixes.
-- Getting new source is `git pull`, done by the host. The app never pulls.
+Start behaviour: `DoTts` opens TTS through `steam://rungameid/286160` only if it is not running, Steam is in the registry,
+and the app has not already launched it this run; it waits up to 120 s for the process and **always lets the sequence
+finish** (`Controller.cs:1025-1036`). The hint, in an amber light, says how to load the table:
+"In TTS: Create → Singleplayer (or Multiplayer) → Games → Save & Load → <save name>" (`Logic.cs:516-519`).
+No TTS crash, hang, object-count or GPU watching exists (§14).
 
-## 10. Files
+## 5. The start sequence
 
-**Reads**
-- Repo: `stack\compose.yml`, `stack\deployed.json`, `stack\.env` (key only, never logged), `bridge\bridge.js`
-  (exists check), `tmp\bridge-live.log`, `tmp\bridge-game.json` (age only), `engine\*.patch` and
-  `engine\build-images.sh` (source stamp), `companion\src\*.cs` (update check).
-- TTS: `Documents\My Games\Tabletop Simulator\Saves\TS_Save_1.json` (stamp), `Player.log` (loaded objects).
-- Windows: `%USERPROFILE%\.wslconfig`, the System and Application event logs, the process list, TCP listeners,
-  memory status, disk free space, the foreground-window event (§3.8), `HKCU\Software\Valve\Steam` `SteamPath`, the
-  Docker Desktop uninstall key (§11).
-- Docker: the engine API over its named pipe, read-only `GET`s only (§3.1). Every change goes through the CLI.
+`RunSequence(from)` runs steps `from..6` (`Controller.cs:468-499`). Each step is a method that sets its light and returns
+true to go on. A false stops the sequence there, greys the steps after it with "Waiting for <step>", and records
+`stoppedAt`. Phase text: "Starting: step N of 6", "Ready", "Stopped at step N (...)".
 
-**Writes**
-- `%LOCALAPPDATA%\MTG Companion\config.json` (settings, §11).
-- `%LOCALAPPDATA%\MTG Companion\logs\companion-YYYY-MM-DD.log`: one line per light change, step, fix and button, with
-  the probe's raw result for reds. Kept 14 days.
-- `%LOCALAPPDATA%\MTG Companion\state.json`: last lights, restart counts tonight, waiting fixes, window position.
-- `<repo>\tmp\bug-reports\bug-YYYYMMDD-HHMM.zip` from **Save a bug report**: `tmp\bridge-live.log` (last 5 MB),
-  `bridge\tts-console.log`, `tmp\table-check.log`, `tmp\guess-log.log`, `tmp\tts-stream.jsonl` (last 20 MB),
-  `stack\deployed.json`, `/versions` and `/state` output, `docker logs --tail 2000` of both containers, `Player.log`,
-  the GPU and crash events of the last 24 hours, and the app's log. Saved locally only, never uploaded. It can hold
-  Steam names and deck lists; the dialog says so.
-- Only by a fix the host clicked: `%USERPROFILE%\.wslconfig` (backup first). Through the scripts it runs:
-  `tmp\bridge-loop.cmd` and the bridge's logs (`start-bridge.ps1`), `stack\deployed.json` and the save
-  (`tools/deploy.js`).
-- Never: the save directly, `compose.yml`, anything under `manabrew\`, the registry.
+### 5.1 Docker (`DoDocker`, `Controller.cs:540`)
+Reads `GET /info` over the named pipe `dockerDesktopLinuxEngine`, then `docker_engine`, as plain HTTP/1.0, no child
+process, 10 s (`Probes.cs:86-130`, `Controller.cs:505`). The Docker CLI is only a fallback when the pipe does not answer, at
+most every 30 s (`Controller.cs:514-526`). `UnauthorizedAccessException` on the pipe sets `PipeDenied`: "not in docker-users
+yet" (`Probes.cs:107`, `Logic.cs:253-255`). If Docker is down, it starts `Docker Desktop.exe` (found via the uninstall key or the
+default path) and polls every 3 s for 180 s (`Controller.cs:553-555`, `Logic.cs:261`).
 
-## 11. Config and discovery
+### 5.2 Engine images (`DoImages`, `Controller.cs:581`)
+Image ids by `GET /images/<tag>/json` on the pipe (`Probes.ImageId`). Friend mode compares with `version.json`
+`relay`/`node`, or with the ids Docker reported after an earlier load of this same package, remembered in
+`%LOCALAPPDATA%\MTG Companion\state.json` `images` (Docker's containerd store reports other ids than `docker save`'s,
+`Controller.cs:784-821`). Missing or different: `docker load -i images\mtg-images.tar` with a percentage read from the
+docker process's I/O counters, 90-minute limit (`Controller.cs:638-652`), then, if this Docker's ids differ, they are written into
+the package's `stack\deployed.json` as `node`/`relay` with the package's own kept as `nodePackage`/`relayPackage`
+(`Logic.DeployedAfterLoad` `Logic.cs:287-302`, `RewriteDeployed` `Controller.cs:796-810`) so the bridge's `/versions` agrees.
+While a game runs this step is amber and loads afterwards (`Logic.cs:337-338`). Home mode never loads.
 
-`%LOCALAPPDATA%\MTG Companion\config.json` (written with defaults on first run; a missing key means the default):
+### 5.3 Engine stack (`DoStack`, `Controller.cs:687`)
+1. Not while locked: `docker compose -p <project> -f stack\compose.yml up -d` (friend; `--no-recreate` in home), 180 s.
+2. Friend mode always, home mode only after **Restart engine** or a stack fix (`forceFresh`): `restart relay forge-room`,
+   so the room is fresh (as `Start MTG.bat` does) (`Controller.cs:703-708`).
+3. Waits up to `Logic.StackWaitSeconds` = 300 s (`Logic.cs:160`; a cold room took 2 min 15 s on 2026-11-10) polling every 2 s: containers
+   by compose labels (`Probes.Container`), then a **WebSocket login** to `ws://127.0.0.1:9443` as `companion-xxxx` with
+   `Authenticate`, then `ListRooms`, expecting `tts-commander` in `Lobby`, always closed properly (`Probes.cs:353-405`). The key
+   is `MANABREW_SERVER_KEY` from `stack\.env` or `tts-local` (`Logic.RelayKey` `Logic.cs:598`).
+4. Login failing 3 times on a healthy relay (the stale 9443 forward after `wsl --shutdown`), or a room busy 5 times, restarts relay
+   and room once by itself (at most twice), unless a game is on (`Controller.cs:727-739`).
+5. "port is already allocated" is turned into a sentence naming the other engine (`Logic.ComposeFailure` `Logic.cs:391`).
 
-```json
-{
-  "version": 1,
-  "repo": "C:\\Users\\<you>\\mtg-tts",
-  "node": "node",
-  "docker": "docker",
-  "dockerDesktop": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe",
-  "ttsSave": "C:\\Users\\<you>\\Documents\\My Games\\Tabletop Simulator\\Saves\\TS_Save_1.json",
-  "ttsSaveName": "Mock MTGA 4 player",
-  "wsl": { "cores": 2, "memory": "8GB" },
-  "ports": { "ttsIn": 39998, "ttsOut": 39999, "bridgeDebug": 48787, "relay": 9443 },
-  "room": "tts-commander",
-  "startOnLaunch": true,
-  "openTtsOnStart": true,
-  "stopDockerOnEnd": false,
-  "notifications": true,
-  "limits": { "objectsWarn": 78000, "omenAmberMB": 4096, "omenRedMB": 16384, "commitAmberPct": 85, "commitRedPct": 95 }
-}
-```
+### 5.4 Table save (`DoSave`, `Controller.cs:834`; friend only)
+`Logic.PlanSave` (`Logic.cs:413-443`) never writes over a file the app did not install:
+- the file in `state.json` (`saveFile`, `saveHash`): update it **only** if the package's save hash changed **and** the file still
+  hashes to what the app installed; if the player has saved over it, the new table goes to a new number beside it;
+- a byte-identical save is adopted (no write);
+- otherwise `TS_Save_N.json`, N one past every number in use (`.json` or `.png`), written with a move that refuses an existing file
+  (`Controller.cs:866-873`).
+The Saves folder is `Documents\My Games\Tabletop Simulator\Saves` (`Program.cs:231`). An update keeps the last 5 backups in
+`%LOCALAPPDATA%\MTG Companion\backup` (`Controller.cs:874-882`). During a game an update to the save waits (amber).
 
-How it finds things (first that works; the result is written back to the config):
-- **Repo:** the exe's own folder if it has `stack\compose.yml` and `bridge\bridge.js`; else `repo` from the config;
-  else each parent folder of the exe; else a folder picker.
-- **Node:** `node` from the config; else `where node`. Version from `node --version`, must be 22 or newer.
-- **Docker CLI:** `docker` on `PATH`; else `C:\Program Files\Docker\Docker\resources\bin\docker.exe` (where `PATH`
-  points here).
-- **Docker engine pipe:** the endpoint of the current context (`docker context ls`: `desktop-linux` →
-  `npipe:////./pipe/dockerDesktopLinuxEngine` here), read once at start; else `\\.\pipe\docker_engine`.
-- **Docker Desktop:** `dockerDesktop` from the config; else the `InstallLocation` of the uninstall key
-  `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Docker Desktop` (checked 2026-11-05: `InstallLocation`
-  `C:\Program Files\Docker\Docker`, `DisplayVersion` 4.95.0; readable unelevated), + `Docker Desktop.exe`; else the
-  default path above. `docker desktop start` (§6) is the other way to start it; the exe is what `Start MTG.bat` uses
-  and is the tested one.
-- **TTS:** `HKCU\Software\Valve\Steam` `SteamPath` (here `c:/program files (x86)/steam`), then
-  `steamapps\libraryfolders.vdf` for the library holding app 286160. Launch is always `steam://rungameid/286160`;
-  the exe path is only for "is TTS installed".
-- **TTS saves:** `Documents` from `Environment.GetFolderPath(MyDocuments)` (follows OneDrive moves) +
-  `My Games\Tabletop Simulator\Saves`.
-- **Relay key:** `MANABREW_SERVER_KEY` in `stack\.env` if present (a server set up by `tools/setup-server.sh`), else
-  `tts-local`.
-- Container names `stack-relay-1` and `stack-forge-room-1` come from the compose project name `stack` (the folder).
-  `bridge/versions.js` uses the same names.
+### 5.5 Bridge (`DoBridge`, `Controller.cs:922`)
+Reads `GET <bridge>/versions` (15 s). If nothing answers and no `bridge.js` node process exists and no other program holds the
+ports, it starts the bridge and waits up to 45 s (`Controller.cs:938-958`). Before it starts, friend mode test-writes the
+`logs` and `bridge` folders: unwritable gives one red "move the folder, e.g. C:\Games\MTG-Table" instead of a crash loop
+(`Logic.WriteProblem` `Logic.cs:379`).
 
-## 12. Modes
+How it starts it (`Controller.cs:979-994`): friend mode launches `MTG Companion.exe --bridge-loop --home <folder>` hidden. That
+process, a separate one so closing or updating the app never touches a game, runs
+`cmd /c node.exe --report-on-fatalerror ... bridge\bridge.js >> logs\bridge.log` with `MTG_HOME` and `MTG_LOG_DIR=logs`, and
+**restarts it 3 s after any exit** (`Program.cs:298-368`; one loop at a time via mutex `Local\MtgTtsCompanionBridgeLoop`;
+`bridge.log` rotated to `.1` at 20 MB). Home mode runs `tools\start-bridge.ps1`. The bridge itself rejoins a running game if
+it is back in time (bridge `resumeGame`, `bridge.js:9333`).
 
-| Mode | Forge + relay run on | Needs | Phase |
+Ports: `Probes.Listeners` reads the TCP table (`GetExtendedTcpTable`, `Probes.cs:446-483`) for 39998 and 48787 and the owner's
+command line (WMI). `DecidePorts` (`Logic.cs:466`) says red for a foreign owner (e.g. the VS Code TTS extension), and for a
+node running another `bridge.js` ("Another MTG bridge is already running"); a node whose command line cannot be read is
+"can't tell" and left to `/versions`. A command line counts as a bridge only for a file named exactly `bridge.js`
+(`Logic.cs:457-460`).
+
+### 5.6 TTS (`DoTts`, §4.1)
+
+### 5.7 After a stop, and button order
+- `stoppedAt` remembers the first step a run did not finish. **Carry on by itself**: when the watcher sees that step's light turn
+  green, the sequence resumes from the next step, except the table-save step (the watcher never re-reads it) and not in observe
+  mode (`Logic.ResumeAfterStop` `Logic.cs:184-187`, `Controller.cs:402-408`).
+- **Never skip a step**: a button for a later step starts at the earlier of "its step" and "the first step not done"
+  (`Logic.StartFrom` `Logic.cs:173-177`). Origin: on the 2026-11-10 fresh install the engine timed out at step 3, Start the
+  bridge ran 5-6, and the table save (4) was never installed.
+
+## 6. The game lock
+
+`Logic.DecideGame` (`Logic.cs:191-215`) turns the bridge's `GET /state` (5 s) and the age of the bridge's resume file into one of
+three answers, **Game on**, **No game**, **Can't tell**:
+
+| Bridge says | Result |
+|---|---|
+| `/state` 200 with `started: true` | Game on, "turn N, M players (K AI)" |
+| `/state` 200 with `seats` not null, not started | Game on ("set up or just finished: restarts unlock after `mtg reset`") |
+| `/state` 200, no seats | No game (unless the resume file is under 60 s old: "bringing a game back") |
+| connection refused | No game; but Game on if `bridge-game.json` is under 60 s old (the bridge just crashed mid-game) |
+| timeout or error | Can't tell, or Game on if the file is fresh |
+
+The resume files are `logs\bridge-game.json` and `tmp\bridge-game.json` (friend), `tmp\bridge-game.json` (home)
+(`Logic.cs:97, 106`). Can't tell locks exactly like Game on (`Logic.Locked` `Logic.cs:228`).
+
+Locked: `images-load`, `stack-restart`, `bridge-restart` (`Fixes.LocksDuringGame`, `Logic.cs:45-48`), the **Restart engine**
+menu item, an update's install, the save update, the image load. Never locked: Start Docker Desktop, Open TTS, Start the
+bridge (it only runs when nothing runs), Try again, Show the program, the logs folder, Limit Docker's CPU use. **Stop everything**
+is allowed during a game only after a second confirmation (`confirmLocked`, `WebUi.cs:783-790`).
+
+"Players" in the banner come from `/state` `players` and `ai` (`Logic.PlayersText` `Logic.cs:220`; the bridge's side is
+`bridge.js:9311`), because `seats` lists only people.
+
+## 7. The watcher
+
+After the first pass the worker loops: a queued press, else a queued sequence run, else one watcher tick, then waits 5 s (15 s
+when nobody is looking) (`Controller.cs:340-373`). One thread, so two actions never overlap. A tick (`MonitorTick`,
+`Controller.cs:1057-1111`):
+
+| Reads | How often | Notes |
+|---|---|---|
+| bridge `/state` (game lock) | every tick | |
+| Docker `/info` | every tick | not answering: amber if Desktop runs, red otherwise, with **Start Docker Desktop** |
+| image ids | every 5 minutes | |
+| containers | every tick | |
+| relay login + room | every 60 s | skipped while locked |
+| bridge `/versions` | every 30 s (retry after 5 s on failure) | each call runs `docker inspect` inside the bridge, 3-4 s |
+| TTS light | every tick | from the cached `/versions` |
+| update install | every tick | a downloaded update installs 2 minutes after the game ends |
+
+"Nobody is looking": the page sends polls; if none came for 20 s (`IdleSec`, `WebUi.cs:227, 446-450`) the watcher slows to 15 s;
+the next poll restores it and nudges an immediate tick (`WebUi.cs:452-456`).
+
+## 8. The status page (`WebUi.cs`, `WebPage.cs`)
+
+A `TcpListener` on `127.0.0.1:48790` (any free port if taken) with a hand-written HTTP/1.1 parser, because `HttpListener` can
+need a URL ACL or admin rights (`WebUi.cs:1-5, 348-371`). `ExclusiveAddressUse` is set. One request per connection.
+
+### 8.1 Endpoints
+
+| Route | Does | Source |
+|---|---|---|
+| `GET /` | the page; the run's token and a CSP nonce are put in | `WebUi.cs:513-515, 541-549` |
+| `GET /api/status` | the whole status (below) | `WebUi.cs:516-519, 655-695` |
+| `POST /api/action {id, confirmLocked?}` | the same Controller calls as the old window; answers `{ok, message, needConfirm}` | `WebUi.cs:520-527, 756-846` |
+| `GET /api/tools` | the bridge's `GET /tools`, passed through (§10) | `WebUi.cs:528, 859-867` |
+| `POST /api/tools {kind, ...}` | one change, passed to the bridge's `POST /tools` | `WebUi.cs:868-880` |
+
+`/api/status` (`"api": 1`): `app, at, mode, home, observe, phase`, `worst {state,busy,text}`, `game {kind, text, turn, locked,
+lockText}`, `lights[]` (six: `step, name, state, busy, word, text, hint, at, action`), `menu[]`, `hint`, `versions {text, companion,
+table, bridge, save}`, `log {file, lines}` (last 60 lines of `companion.log`), `update` (friend mode only, else null)
+(`WebUi.cs:12-27`).
+
+Action ids (`WebUi.cs:770-821`): `fix:<row>:<fix>`, `restart-engine`, `stop-everything`, `open-logs`, `wsl-limits`, `update-check`,
+`update-now`, `update-later`. A fix id must match the button the row currently shows, or it is refused ("That button has
+changed"). Pressing the action last accepted again while it is still queued or running is "Already running"
+(`WebUi.cs:767-768`). **Show the program** opens Task Manager's Details tab and re-queues the Bridge step (`WebUi.cs:835-841`).
+**Limit Docker's CPU use** writes `processors=2`, `memory=8GB` into `[wsl2]` of `%USERPROFILE%\.wslconfig` after copying it to
+`.wslconfig.bak-<stamp>`; it never restarts WSL (`WebUi.cs:890-901`, `Logic.SetWslLimits` `Logic.cs:547`).
+
+### 8.2 Guards
+Host must be `127.0.0.1:<port>` or `localhost:<port>` (DNS rebinding); an Origin, when sent, must be that origin;
+`/api/*` needs `X-MTG-Token` (16 random bytes per run, compared in constant time, written only into the served page) and
+refuses `Sec-Fetch-Site` other than same-origin/none; POST needs `application/json` (optional `charset=utf-8`)
+(`WebUi.cs:460-509`). Parser limits: head 8 KB, body 16 KB, 50 headers, no chunked bodies, bare LF, folded headers or duplicate
+Host/token headers refused; a request must arrive within 10 s; at most 16 connections, past that the oldest one still waiting for
+its request is closed (`WebUi.cs:74-76, 226-228, 380-407`). Answers carry `no-store`, `nosniff`, frame deny, no referrer and a
+nonce CSP with `default-src 'none'` (`WebUi.cs:195-210, 541-549`).
+
+### 8.3 The page
+Dark theme, no CDN or fonts, inline script and style. Layout (`WebPage.cs:126-191`): header with the worst light in words;
+banners (companion not running, busy, page error, **Game in progress**, observe, update); **Start steps** (the six rows: dot, name,
+word, sentence, time, the row's one button); a hint line; **Actions** (the menu: Restart engine, Stop everything, Open logs folder,
+Limit Docker's CPU use…); **Table tools: AI seats and debug tools** (collapsed, §10); a collapsible **Log** tail; a footer with
+versions. Polls `/api/status` every 2.5 s (30 s in a hidden tab), aborts a poll after 6 s; two misses in a row show "Companion
+busy, retrying", misses past 10 s show "Companion not running"; a stale token reloads the page at most once per 15 s
+(`WebPage.cs:201-204`). Buttons are disabled while their request is in flight. A script error shows a red banner and polling
+continues. The script is ES5 pure functions plus a shell, tested in Node with a stub DOM (`tests/test_companion_page.js`).
+
+### 8.4 When the page opens by itself
+First start of a package ever (`state.json` `statusPageShown` unset, friend, not observe): once, then the flag is written.
+If no browser opens, the old window shows and the flag is **not** written so the next start tries again. Later starts and home
+mode: only when the first pass ends with a red light (`WebUi.cs:303-331`). The tray's "Open status" and a click on the icon or
+on a balloon open it (`StatusForm.cs:217, 241-242`).
+
+## 9. Tray, window, quit
+
+- **Tray icon** (drawn at run time, colour = worst light; tooltip as in §4). Menu: Open status, Open logs folder, the version
+  line, **Check for updates**, **GitHub token…**, Restart engine, Stop everything, Quit (`StatusForm.cs:217-231`).
+- **Restart engine**: confirm, then stop bridge → `forceFresh` → run steps 1-6 (`Controller.cs:1134-1149`). Locked during a game.
+- **Stop everything**: stops the bridge loop and the bridge, then `docker compose ... down` (friend) or `stop` (home); Docker
+  Desktop and TTS keep running; all other lights go grey; the watcher pauses until Restart engine (`Controller.cs:1152-1168`).
+- **Quit** asks: Yes = quit and leave engine and bridge running; No = stop everything, then quit; Cancel. While an update installs,
+  Quit says to wait (`StatusForm.cs:458-465`).
+- **Old window** (`StatusForm`, 760 × 520): the same six rows with the same buttons. Fallback only: `--no-web`, `--shot`, no free
+  port, or no browser opens (`WebUi.cs:271-279`). Closing it hides it to the tray (`StatusForm.cs:299-311`).
+- While an update moves files the app blocks Windows shutdown ("Finishing update…") (`StatusForm.cs:145-147, 284-289`).
+
+## 10. Table tools: AI seats and debug tools
+
+The companion only passes these through; **the bridge owns the state** and refuses what is not allowed. The page asks only while
+its section is open (once on open, after every POST, and with each status poll) (`WebPage.cs:575, 643-672`).
+
+### 10.1 Companion side (`WebUi.Tools`, `WebUi.cs:854-888`)
+- `GET /api/tools` = the bridge's `GET /tools` body. Bridge down or slow, a 404 (a bridge older than the feature) or a non-object
+  answer: 502 `no-bridge` with a sentence (`WebUi.cs:864-866, 882-888`).
+- `POST /api/tools`: `kind` must be `ai-seat`, `debug-mode` or `debug`, else 400 and the bridge is not asked. The body is parsed
+  and written again (never the raw bytes) and the answer cut down to `{ok, message}`. Observe mode refuses every POST. The bridge
+  answers a refusal as HTTP 200 with `ok:false` so its reason reaches the page (`WebUi.cs:868-880`; bridge `bridge.js:9277-9283`).
+- The page limits a pasted deck list so the whole POST is at most 16 KB (the companion's body limit), measured in UTF-8 with
+  JSON escapes (`WebPage.cs:335-345, 376`).
+- "Host only" means the page itself: it opens only on the host's PC, with that run's token.
+
+### 10.2 AI seats (bridge `bridge.js:407-487`)
+Per empty table colour, kept from game to game (until the bridge restarts): `kind` `forge` (Forge AI), `harmless` (a seat the
+bridge plays itself, `HarmlessSeat` `bridge.js:853`: keeps its hand, passes every priority, never attacks or blocks) or `off`.
+A colour set here is an AI in every game while nobody sits there, and its deck beats `mtg aideck` and any deck lying in that
+seat. Deck:
+- **preset**: one of `listCommanderPresets()`: our decks in `decks/` then Manabrew's in `manabrew/public/preset_decks`, ours winning
+  a clash (`bridge/presets.js:1-30`);
+- **list**: a pasted deck list, parsed by `parseDeckList` (`bridge.js:420`): `1 Sol Ring`, `1x Sol Ring`, `Sol Ring (CMM) 410 *F*`,
+  commander under a `Commander` line or marked `*CMDR*`, `Sideboard`/`Maybeboard`/`Companion` parts skipped, `//` and `#` comments.
+  Validated: a commander, every card known to the engine, at least one non-commander card; the deck size is **not** checked
+  (`bridge.js:442-461`);
+- a harmless bot with no deck plays `ai_passive_lands` (`bridge.js:415`).
+A Forge AI needs a deck (`bridge.js:484`, page check `WebPage.cs:378`). The same is available in chat: `mtg ai ...`
+(`bridge.js:479-487`). The page shows each seat: `person`, `inGame`, and `ai {kind, kindLabel, deckName, source}`
+(`toolsState`, `bridge.js:9014-9028`).
+
+### 10.3 Debug tools (bridge `bridge.js:8936-9011`)
+A switch the bridge owns: **off at every bridge start**, and every change is said to the whole table in chat (`setDebugTools`).
+While on, each tool is one **manual fix**: the game pauses, the other players vote, then `applyState` runs
+(`bridge.js:8940-8941, 8995`). Tools (`DEBUG_TOOLS` `bridge.js:8944`): `mana` (1-99 of W/U/B/R/G/C until end of turn), `hand`
+(a card into hand), `battlefield` (a card or token script onto the battlefield), `life` (0-999), `untap` (everything the player
+controls). Refused when: tools off, no running table game, game over, the colour not playing, a fix already in progress, a bad
+number or card name (`runDebugTool` `bridge.js:8976-8997`). **Draw and mill are not available** (the engine's board does not show
+library cards; they would need a harness op and an image rebuild, `bridge.js:8941-8942`; page note `WebPage.cs:179`).
+
+## 11. Install and release flow (friend package)
+
+### 11.1 What the friend does (README.md:82-96; `README-FRIEND.txt` generated at `tools/make-friend-package.js:296-345`)
+Install Docker Desktop, start it once, sign out and in (the install adds the account to `docker-users`); download the zip from the
+repository's Releases page (**the repository is private and invite-only**, README.md:89); right-click the zip → Properties →
+Unblock; unzip to a plain folder (not OneDrive, Documents or Program Files); double-click `MTG Companion.exe` (**not code-signed**:
+SmartScreen "More info → Run anyway"; Smart App Control may block it outright). First start loads the engine (a few minutes) and
+copies the table into the TTS saves. Then in TTS: Create → Multiplayer → Games → Save & Load → "MTG Table (rules engine)".
+
+### 11.2 Package contents (`tools/make-friend-package.js:20-34`)
+`MTG Companion.exe`, `version.json` (`bridge, table, save, node, relay, built, gitCommit, nodeVersion, ...`), `runtime\node\node.exe`,
+`bridge\`, `decks\`, `manabrew\public\preset_decks\`, `scenarios\`, `stack\compose.yml` (project `mtg-table`),
+`stack\deployed.json`, `images\mtg-images.tar` (docker save of both images), `table\MTG Table.json` + `.png`, an empty `logs\`,
+`README-FRIEND.txt`, `LICENSES\`. The packager refuses when `deployed.json` disagrees with the images it would ship, the running
+containers or the save (`make-friend-package.js:11, 172`). `--no-images`, `--allow-undeployed-bridge`, `--allow-changed-save`
+exist for quick local runs, and are refused with `--release`.
+
+### 11.3 A release (`node tools/make-friend-package.js --release [--tag T] [--previous update-manifest.json]`)
+Writes `dist/release-<tag>/` (tag `v<yyyy.mm.dd-HHMM>`) and prints the files to attach; **the user creates the GitHub release
+and uploads by hand**, nothing here pushes or publishes. Parts (`make-friend-package.js:186-191`):
+
+| Part | Asset | Holds | "Changed" means |
 |---|---|---|---|
-| **Home** (default) | the host's PC, in Docker Desktop | Docker Desktop (WSL2) | 1–5 |
-| **Own server** | any server the user runs (`tools/setup-server.sh`) | relay address + key | 6: the Docker, WSL, Images and container lights go grey; the relay login probe points at the server |
-| **Cloud Forge** | a DigitalOcean droplet made each night and deleted after, over Tailscale | DigitalOcean token, Tailscale | later (§14); paused |
+| `app` | `app.zip` | bridge, decks, preset decks, scenarios, compose, deployed, README, LICENSES, version.json | sha8 over files, minus `version.json`, `stack\deployed.json`, `README-FRIEND.txt` and the picture cache |
+| `table` | `table.zip` | the save | the save's sha8 |
+| `images` | `images.tar` | both images | sha8 of the two ids |
+| `runtime` | `runtime.zip` | `node.exe` | the Node version |
+| `companion` | `MTG.Companion.exe` | the app | sha8 of `companion/src/*.cs`, manifest, `build.cmd`, `release-keys.txt` |
 
-The bridge always runs on the host's PC, because TTS only talks to localhost (SPEC §2).
+plus `update-manifest.json`, `update-manifest.json.sig` and the full zip (for new friends; the updater never downloads it). A part
+whose version equals the previous release's is not rebuilt: its manifest entry points at the release that carries it. Manifest:
+`{format, version, built, gitCommit, minCompanion, parts{file,sha256,size,version,release}, full, versionJson, deployedJson}`
+(`make-friend-package.js:262-270`).
+
+**Signing**: ECDSA P-256 over the manifest's exact bytes (64-byte r||s, base64). The private key is
+`%USERPROFILE%\.mtg-release\release-key.pem` (`MTG_RELEASE_KEY` overrides; refused inside the repo; made on first use) and must be
+backed up by the user. The public half is a line of `companion/release-keys.txt`, built into the exe, checked with `ECDsaCng`
+against every line (`Update.cs:160-200`, `make-friend-package.js:241-260, 619-630`). Key change: ship one release signed with the
+old key whose companion carries both lines (`release-keys.txt` header).
+
+### 11.4 Checking and downloading (`Update.cs`, `Updater.cs`)
+- At start (friend, not observe) at most every 6 h (`Updates.CheckEvery` `Update.cs:133`), and from the tray: `GET
+  https://api.github.com/repos/Vibecoding-mods/Table-Top-Simulator-Mock-MTGA/releases/latest` with `User-Agent: MTG-Companion`
+  (`Update.cs:127-129`). 404 (private repo or no release) → the quiet line "Updates will work once the project is public"
+  (`Update.cs:132`); never a red light.
+- The signature is checked over the manifest bytes **before** the manifest is parsed; a missing or foreign signature, or a manifest
+  whose `version` is not the release's tag, is not used, with the sentence "The update manifest of <tag> isn't signed by this project's release key: not used." in the update line (`Updater.cs:165`). No downgrades: a manifest whose `built` is older
+  than the package's is refused (`Update.cs:282`).
+- Optional GitHub token (needed while the repository is private): tray **GitHub token…** or `--set-token`; stored with DPAPI
+  (CurrentUser) in `%LOCALAPPDATA%\MTG Companion\github-token.bin`; sent only to `api.github.com`, never to a redirect target or
+  a test server, never logged (`Update.cs:496-517`, `Update.cs:317`).
+- Download only the changed parts to `<package>\updates\<tag>\`. Every URL and redirect (followed by hand, 5 at most) must be
+  `https` on `api.github.com`, `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com`
+  (`Update.cs:297`). Partial files resume with `Range`, a 206 counts only if `Content-Range` is right (`Update.cs:322`); size and
+  sha256 are checked, mismatch deletes the file (`Updater.cs:214-330`).
+
+### 11.5 Applying (`Updater.Apply` `Updater.cs:331`, `Recover` `585`, `ReplaceOld` `670`)
+Never during a game: the update waits, is remembered in `updates.json` `pending`, and installs 2 minutes after the lock clears
+(`Updates.IdleBeforeInstall` `Update.cs:134`, `InstallNow` `Update.cs:363`). Under mutex `Local\MtgTtsCompanionUpdate`:
+1. write `update-journal.json` before the first move and after every move; stop the bridge loop and bridge;
+2. **move** (not copy) what the update replaces into `backup\<old version>\` (last 2 kept, engine images only in the newest,
+   `Updater.cs:628-629`);
+3. extract zips into the package, each entry under the part's own folders (no `..`, no trailing dot/space segments, no colon);
+   write `version.json` and `stack\deployed.json` from the manifest;
+4. new images: `docker load` + `compose up -d`; new table: the same hash-guarded save install; start the bridge and wait for
+   `/versions`;
+5. any failure: undo from the journal (only paths that were moved or created are touched), say "The update failed and was undone";
+6. a new companion last: `MTG Companion.new.exe` starts with `--replace-old`, the old app exits, the new one renames itself into
+   place (`MTG Companion.old.exe` is deleted at the next clean start).
+An install killed half way is finished or undone by `Updater.Recover` at the next start, before the package is read
+(`Program.cs:147-160`). State and UI: one `UpdateState` snapshot (`Controller.cs:143-149`) with status idle, checking, up-to-date,
+not-public, available, downloading, ready, installing, restarting, updated, failed, interrupted; the page's update banner has
+**Update now**, **Later**, **Check for updates** (`WebUi.cs:724-744`).
+
+## 12. Files the app reads and writes
+
+| File | Where | Holds |
+|---|---|---|
+| `state.json` | `%LOCALAPPDATA%\MTG Companion\` | `saveFile`, `saveHash`, `savesDir`, `images{...}`, `statusPageShown`, `package` (`Controller.cs:765-832`, `WebUi.cs:908-915`) |
+| `updates.json`, `github-token.bin`, `backup\` | same | check time, pending update, DPAPI token, save backups |
+| `companion.log` (5 MB then `.1`) | `logs\` or `tmp\` | lights, buttons, update steps (`Controller.cs:20-44`) |
+| `bridge.log` (20 MB then `.1`) | `logs\` or `tmp\bridge-live.log` | the bridge's stdout/stderr, `[bridge exited with code N; restarting in 3 s]` lines |
+| `update-journal.json`, `updates\`, `backup\` | package folder | update bookkeeping |
+| `.wslconfig` (+ `.bak-<stamp>`) | `%USERPROFILE%` | only on the **Limit Docker's CPU use** button |
+| `TS_Save_N.json` (+ `.png`) | TTS Saves folder | only the table save step |
 
 ## 13. Tests
 
-**Unit, headless** (`companion\tests\`, built with the same `csc` into `CompanionTests.exe`, exit code 0 = pass):
-- Each light is a pure function: probe results + "game on" + time → colour, sentence, fix. Fixture cases for every
-  green, amber and red in §3, about 70 cases. Example: relay `healthy` + login closed after 19 ms → red, "games will
-  fail at setup", fix "Restart relay and room".
-- The game lock: every combination of bridge answer / `bridge-game.json` age / room status in §5, and every fix button
-  against it. A locked fix must stay locked in all "game on" rows.
-- Parsers: `docker inspect` output with one container missing, `.wslconfig` with and without `[wsl2]`, CRLF and LF,
-  `Player.log` tail, the `engineStamp` line in a save, event-log XML.
+- `--selftest`: the decision logic against canned inputs, in `SelfTest.cs` and `SelfTestWeb.cs`. The earlier spec counted 433
+  cases on 2026-11-11; not re-run for this rewrite. Includes the start sequence after a stop through `Controller.WorkOnce` with a
+  fake watcher.
+- `tests/test_companion_page.js`: the page script in Node with a stub DOM, including the table-tools section against a stub fetch.
+- `tests/test_companion_update.js`: a fake GitHub (Node `http`) and the built exe in a temp package, driven by the hidden flags in
+  §3, covering kill points during install, tampered signatures, resumed downloads, off-host URLs, token leaks and the
+  self-update swap.
+- `tests/test_friend_package.js`: the packager's release rules. `tests/test_bridge_ai_tools.js`: the bridge side of §10.
+- `tests/no-live-ports.js` refuses and records every connection to 39999, 39998, 48787 and 9443 during tests (`PLAN.md:28`).
 
-**Against fakes, no real Docker or TTS:**
-- A fake bridge (`tests/fake-companion-http.js`, Node, no dependencies; not named `*bridge.js`, or
-  `stop-bridge.ps1` and the process match would take it for the real one) serving `/stats`, `/state`, `/versions`,
-  `/log`, `/health` from switchable fixtures, on another port.
-- A fake `docker.cmd` set as `docker` in a test config, printing fixture output and exit codes.
-- The relay login against a test relay on 9444 (the existing recipe:
-  `docker run --name mtg-test-relay --network stack_default -p 127.0.0.1:9444:9443 mtg-relay:exile`) with
-  `ports.relay` 9444, so the real stack is never touched.
-- The whole start sequence against the fakes: each step's failure stops the right steps, and **Try again from here**
-  resumes.
+Not covered by any automated test, from the sources: a whole friend-mode start on a PC without the repo's stack (ports 9443,
+39998 and 48787 are the repo's on the development PC); whether TTS lists a `TS_Save_N.json` that has no entry in
+`Saves\SaveFileInfos.json`; how long a real ~1 GB `docker load` takes (a 36 MB tar took 94 s). These are carried over from the
+earlier spec, not re-checked.
 
-**Live, on the host's PC, only with no game and with the user's OK for each:**
+## 14. Planned but NOT built
 
-| Red to cause | How | Expected |
-|---|---|---|
-| Docker down | quit Docker Desktop | red, then **Start Docker Desktop** brings it back under 180 s |
-| Relay container down | `docker stop stack-relay-1` | red, **Start the engine** fixes it |
-| Stale relay forward | `wsl --shutdown` (only when the user says so) | Relay red "games will fail at setup"; the fix makes a debug game set up |
-| Leftover room | start a debug game, kill the bridge, wait past 50 s | Forge room red; the fix brings `Lobby` |
-| Bridge down | `tools\stop-bridge.ps1` | red, **Start the bridge** fixes it |
-| Port taken | `node -e "require('net').createServer().listen(39998,'127.0.0.1')"` before the bridge starts | Ports red, names `node.exe` and its PID |
-| Old table | load a backup save with an older stamp | Table red |
-| WSL cores | a test config pointing at a copy of `.wslconfig` with `processors=3` | red; **Set 2 cores** edits the copy, keeps a backup |
-| GPU reset | can't be caused; the fixture covers it, plus waiting for the next real one | red within 60 s |
+Everything here was in the earlier spec or in other specs and has **no code** in `companion/src`:
 
-- **Game-lock test:** start a debug game (`mtg debug`). Every locked button greys out, a second **Start game night**
-  only checks, and the relay login probe stops. Repeat in setup (players seated, not started) and with the bridge
-  hung (fake bridge that accepts and never answers): both must lock.
-- **Crash test:** with a game on the headless table (`tests/lua/headless-tts.js`), kill the bridge's `node.exe`. The
-  app shows "restarted itself", the game comes back, and the app does nothing else.
-- **Own cost:** 30 minutes with everything green and a game on: the app's CPU time under 0.5% of one core, child
-  processes counted.
-- **Clean account:** a second Windows user with no Docker and no Node: each missing piece is red with a link.
-- **Antivirus and SmartScreen:** Defender scan (`MpCmdRun -Scan -ScanType 3 -File`), Malwarebytes scan, and the exe
-  downloaded through a browser from a test release to see the SmartScreen prompt.
+1. **Lights and probes**: WSL cores (the fix button exists only as an optional menu action, not a light), ports as a light,
+   GPU resets (`nvlddmkm` events), memory and the HP OMEN process, TTS crash/hang events, TTS loaded-object count and
+   "focus thieves", disk space, upload meter, `vmmem` CPU, "a docker build is running". None is in `Controller.Names`
+   (`Controller.cs:49`).
+2. **Engine source-stamp label** (`engine/build-images.sh` `org.mtgtts.source`): not added; the app compares image ids only.
+3. **Use of `/health` and `POST /shutdown`**: the bridge now has `GET /health` (`bridge.js:9286-9291`), but the companion reads
+   `/state` and `/versions` only; `POST /shutdown` does not exist.
+4. **"Ask the table"** (a single `/exec` of `engineStamp()`), reading `Player.log`, and reading the table save's stamp on disk.
+5. **Bug-report zip**, notifications beyond the red-light balloon, "Start with Windows", a settings dialog, `startOnLaunch` and the
+   other config-file fields of the old design: there is no config file; behaviour is fixed in code.
+6. **Own-server mode** and **Cloud mode** for the companion. `docs/cloud-aws-spec.md` §8 budgets 8-12 h for Start / Stop / Status /
+   Open DCV / cost readout with SigV4-signed AWS calls and an IAM key stored with DPAPI. Not started, and AWS hosting is paused
+   (no AWS account yet).
+7. **Mac and Linux.** The user decided cross-platform on 2026-11-06, then "scripts plus a browser page" later that day; neither was
+   built. The app is Windows-only (WinForms, Windows named pipes, WMI, registry, `GetExtendedTcpTable`, DPAPI).
+8. **Code signing** of the exe, and Apple notarization: not done (`README-FRIEND.txt` tells friends to Unblock).
+9. **Updates against a private repository without a token** do not work; with the token they do. Working updates for friends need
+   either the repository public or each friend entering a token (decision pending, `docs/release-fix-plan-2026-11-10.md`).
+10. **Draw and mill debug tools** (§10.3) need an engine change.
+11. `docs/publishing-checklist.md:59` still calls the companion "a later release"; the friend package already ships it.
 
-## 14. Build plan
+## 15. Changed from the earlier spec
 
-| Phase | Delivers | Hours | Ships |
-|---|---|---|---|
-| 0 | Bridge `/health` and `POST /shutdown` with tests (§8); build-images source label. Live only after a deploy between games | 2–3 | — |
-| 1 | Skeleton: `build.cmd`, manifest, single instance, tray icon, config, discovery, logs, main window with rows fed by fake probes | 4–6 | — |
-| 2 | All probes and lights (§3), the game lock (§5) with its three answers, the fake bridge and fake `docker` (§13), unit tests | 12–16 | **A: the Watcher.** Lights, readouts, notifications; no fix buttons, no start, nothing that changes anything. Zero risk, and it already catches the stale relay forward, GPU resets, OMEN, the wrong table and 78k objects |
-| 3 | Start sequence (§4), stop and quit (§6), adopting a running bridge | 5–7 | **B: replaces `Start MTG.bat`** |
-| 4 | Fix buttons with their confirmations, "waiting until the game ends" list | 5–7 | **C: one-click fixes** |
-| 5 | Live tests (§13; each needs the user's OK and a time with no game), antivirus check, own-cost check | 4–6 | — |
-| **MVP** | **Home mode, every light** | **32–45** | |
-| 6 | Bug-report zip, upload readout, self-rebuild update, Own server mode, first-run checks (TTS installed, save present, Node and Docker links) | 6–8 | |
-| 7 | Cloud Forge (the 2026-10-20 plan below), only if the user un-pauses hosting | 12–16 | |
+1. **"Nothing here is built yet" was true on 2026-11-05 and is false now.** The code is 7,697 lines (§1).
+2. **Technology:** the spec first said C# `csc` (11-05), then Tauri / cross-platform (11-06), then "no app, no signing: Node scripts
+   plus a browser status page" (§15 of the old text). **Built: a `csc` WinForms exe that serves a browser status page.** All three
+   decisions are partly true; the Node supervisor `tools/start-mtg.js` and the Mac/Linux wrappers do not exist.
+3. **Lights:** the old spec had 12 lights plus readouts (§3.1-3.15). **Built: 6 start steps** (Docker, Engine images, Engine stack,
+   Table save, Bridge, TTS). WSL cores, ports, GPU, memory and TTS health are not lights (§14.1). Ports are only checked inside the
+   Bridge step (`Controller.cs:910`).
+4. **Table save** moved from "a light that reads the stamp on disk" to an **installer step** (friend mode) with hash-guarded
+   writes into `Saves\`.
+5. **Table light** (old §3.9) reads `now.table` and `tableHeardMs` from `/versions` and compares with TTS's start time; no "Ask the
+   table" `/exec` button.
+6. **Bridge restart loop** is the companion exe itself in `--bridge-loop` mode (friend), not `tools\start-bridge.ps1` plus
+   `bridge-loop.cmd`; the `.ps1` path remains for home mode.
+7. **Engine start** in friend mode always restarts relay and room after `up -d`, rather than only "when needed", and waits 300 s
+   (old: 120 s + 60 s + 90 s).
+8. **Game lock**: the old spec proposed `/health` (`phase`); built uses `/state` `started`/`seats` plus the resume-file age
+   (`Logic.cs:191-215`), the same answers as the old text's fallback. The old rule 3 (last room list showed `InGame`) is not used.
+9. **Fix locking** is by fix id, not per row; **Show the program** and **Open TTS** are never locked.
+10. **Stop everything** is `compose down` in friend mode (containers removed), not the old `compose stop`; Docker Desktop is never
+    stopped (the old `stopDockerOnEnd` setting does not exist).
+11. **Notifications**: red-light balloons only (old: GPU, TTS crash, bridge restart, game over).
+12. **Status page and table tools** (old §17, §19) are built as described there; their guards are in §8.2.
+13. **Self-update, signing, journal and undo** (old §18) are built as described there; the release-fix of 2026-11-10 (300 s engine
+    wait, carry-on after a stop, never skip a step) is in (§5.7).
+14. The old build plan and hour estimates (§14 of the old text) and its test plan (live red-causing tests, antivirus scan) are
+    dropped; the tests that exist are in §13.
+15. The "bridge changes the app needs" list (old §8): `/health` was added to the bridge but is unused; `/shutdown` was not.
+16. The earlier §17 menu paragraph omitted "Check for updates" and "GitHub token…", which the tray menu has (`StatusForm.cs:221-224`).
 
-Order: 0 can run beside 1. Each phase ends with the tests of what it added. The 2026-11-05 review raised the MVP from
-26–36 h: phase 2 is the bulk (12 lights, about 70 cases, the pipe client, three-state game detection), and the fakes
-move into it because the lock can't be tested without them. Live tests wait for windows with no game, which on this
-project has been the slow part.
+## 16. Open questions for the user
 
-**Cloud Forge, kept from the 2026-10-20 version (phase 7):**
-- Build once: a DigitalOcean droplet with cloud-init (Docker, Tailscale joined with an auth key tagged `tag:forge`,
-  our compose file with the relay on the Tailscale address, images pinned by digest), a 2-turn headless smoke game
-  (`rules-check`), a snapshot "golden", the droplet deleted.
-- Each night: a droplet from the newest golden; wait for Tailscale and the health check; bridge started with
-  `MTG_RELAY=ws://<droplet>:9443`; at the end, bridge stopped and droplet deleted.
-- Safety nets: a droplet left past the auto-shutdown time (default 03:00) or idle 45 minutes is deleted, with a
-  notification first; at start, any `mtg-forge-*` droplet still running is listed with **Delete now**.
-- Secrets (DigitalOcean token, Tailscale key, relay key) in Windows Credential Manager (`CredWrite` / `CredRead`
-  through P/Invoke), never in files or logs.
-- A new engine image means rebuilding the golden snapshot.
-
-Licence: the app is our code, under the repo's licence. It starts Manabrew's images and talks to the relay over its
-published protocol, unmodified by the app (SPEC §9).
-
-## 15. Open questions for the user
-
-1. **Tauri → C# `csc`:** OK to drop the Tauri plan for a plain WinForms tray app? (§9)
-2. **Start on double-click:** should opening the app start everything at once, or wait for **Start game night**?
-   Proposed: start at once.
-3. **Relay login probe:** every 30 s outside games, the app logs into the relay as `companion-xxxx` and asks for the
-   room list. Fine? The relay source removes such a session when it closes, but it adds about 240 log lines an hour
-   (§3.4). Phase 2 checks the relay log live for leftovers.
-4. **Bridge restart mid-game:** the restart loop brings a crashed bridge back by itself, even past 80k objects, where
-   the full redraw once came before a GPU reset. Keep it? (Without it the seats are lost after 65 s.)
-5. **End game night:** stop Docker Desktop too, or leave it running? Proposed: leave it (setting).
-6. **OMEN:** a button that stops it after asking each time: OK, or show the warning only?
-7. **Who else will host?** If only you, the exe is built from the repo and needs no signing. If friends host, signing
-   and a GitHub release come back into scope.
-8. **Exe name and place:** `MTG Companion.exe` in the repo root, beside `Start MTG.bat`?
-9. **Image source label:** OK to add it to `engine/build-images.sh` (§3.3)? Without it, "images out of date vs
-   source" can only say "can't tell".
-
-**Answers (the user, 2026-11-06):** 1–6, 8 and 9 as proposed (WinForms tray app; start on open; relay probe every
-30 s; keep the bridge restart loop; leave Docker running, with a setting; OMEN button that asks each time;
-`MTG Companion.exe` beside `Start MTG.bat`; add the image source label). **7: anyone may host, Mac included.** So
-signing and a GitHub release are in scope, and this conflicts with 1: a WinForms app runs only on Windows, and
-`Start MTG.bat`, the `.ps1` tools and the WSL setup are Windows-only too.
-
-**Decided (the user, 2026-11-06, later): cross-platform, Windows, Mac and Linux.** This replaces answer 1: the
-WinForms/`csc` plan in §9 is dropped. Proposed instead: Tauri v2 (the 2026-10-20 choice, which Manabrew already uses),
-which gives a tray icon and notifications on all three. What has to change for it (not yet specced in detail):
-- `Start MTG.bat` and the `.ps1` tools (`start-bridge.ps1`, `tts-shot.ps1`, the WSL steps) become Node scripts or
-  get Mac/Linux twins; Node is already required.
-- Docker: WSL2 is Windows-only. Mac runs Docker Desktop; Linux runs Docker Engine natively. The memory and
-  `vmmemWSL` lights are Windows-only and need per-OS versions or are hidden.
-- Engine images are built for x86-64. Apple-silicon Macs need arm64 builds of mtg-relay and mtg-forge-node (or run
-  them slowly under emulation); to be measured.
-- Windows-only lights are hidden elsewhere: OMEN button, GPU reset events (Windows event log), `GetExtendedTcpTable`.
-- TTS itself runs on all three; its save and log folders differ per OS (Player.log path, Saves folder).
-- Signing: Windows code signing, Apple notarization (needs an Apple developer account, the user's to create), and a
-  Linux AppImage or .deb; the GitHub release carries all three.
-
-**Decided (the user, 2026-11-06, later still): no app, no signing. Scripts plus a browser status page.** This
-replaces the Tauri proposal above.
-- `tools/start-mtg.js` (Node, already required) does what `Start MTG.bat` does today and stays running as the
-  supervisor: it starts Docker and the stack, starts the bridge, keeps the bridge restart loop (answer 4), and runs
-  the checks behind the lights (§3).
-- Double-click wrappers only call it: `Start MTG.bat` (Windows), `Start MTG.command` (Mac, executable bit set in git),
-  `start-mtg.sh` (Linux). Run from a `git clone` they carry no download flag, so nothing needs signing; a ZIP download
-  needs one Unblock (Windows) or one `xattr -d com.apple.quarantine` / Open Anyway (Mac).
-- The status page: `start-mtg.js` serves `http://127.0.0.1:<port>/` (bound to the loopback address only, so only the
-  host's own PC can open it) and opens it in the default browser at start. The page shows the lights and refreshes
-  every few seconds; its buttons (Restart relay and room, End game night, the OMEN button on Windows) post back to
-  the same script, under the same game lock (§5). The launcher serves it, not the bridge, so the page can still say
-  "bridge down" when the bridge is down. No npm packages: Node's built-in `http` module. Closing the browser tab
-  changes nothing; closing the terminal window ends game night as the End button does.
-- Lost against the app: tray icon and system notifications (the page can play a sound and change its tab title
-  instead).
-
-## 16. Review 2026-11-05
-
-A second agent checked this spec against the repo and this PC, with read-only probes only. A game was on during the
-review (`/state` `started: true`, turn 4), so nothing that talks to the relay or TTS was tried.
-
-**Changed:**
-- **Game lock (§5):** three answers: Game on, No game, Can't tell. A hung bridge, a timed-out probe or a failed WMI
-  query is "Can't tell" and locks. Setup and game over count as a game (`/state` `seats` not `null`); before, `/state`
-  `started: false` during setup would have unlocked "Restart relay and room" while players were seated.
-- **Start the bridge (§3.6, §4 step 8):** `start-bridge.ps1` kills any running bridge first. It now runs only when the
-  process list, the ports and `/stats` all say "none". Step 8 no longer decides on `/versions`, which takes 3–4 s.
-- **Slow is not down (§3):** only "refused" means down. Measured: 35–41 s answers through PowerShell, 0.01–0.04 s
-  with `curl`. `Proxy = null` on every request.
-- **Engine swap (§3.3, §4 step 5):** `up -d --no-recreate`, so starting never quietly switches to an untested engine;
-  the recreate fix says so.
-- **Table safety (§5, §3.8):** the app never talks to 39999 and never sends Save & Play. Killing a hung TTS warns that
-  unsaved table changes are lost. The 78k-object "relaunch" is a reminder, never a kill.
-- **Docker probes over the engine pipe (§3.1):** no child processes; works unelevated (checked).
-- **Image labels (§3.3):** `{{json .Config.Labels}}` fails on our images too; use `{{json .Config}}`.
-- **Save stamp (§3.10):** the quotes are escaped in the file. `/log` times are UTC (§3.9).
-- **New checks:** focus thieves (Razer) in §3.8, disk space in §3.12, a running `docker build` in §3.14.
-- **Rebuild** waits for the game to end. Fake bridge renamed so `stop-bridge.ps1` can't kill it.
-- **Plan (§14):** MVP 32–45 h, not 26–36. Ships in three steps; the first is a read-only Watcher after phase 2.
-
-**Checked and true:** csc 4.8.9221.0, C# 5 at most, .NET Framework 4.8.1, no .NET SDK; a C# 5 test using every
-framework part §9 names compiled and ran. Docker Desktop 4.95.0 at `C:\Program Files\Docker\Docker` (uninstall key);
-`docker desktop start` / `stop` exist. Ports 39998 and 48787 held by the bridge's `node`, 39999 by TTS (table loaded),
-9443 by `com.docker.backend`. Relay health check is in the image. `/health` and `/shutdown` don't exist yet (404).
-`.wslconfig` says 2 cores and 8GB; Docker reports 2 CPUs. `docker inspect` with a missing container exits 1 and prints
-the rest. The relay login messages match the bridge's.
-
-**Still not checked:**
-- whether TTS opens 39999 at the main menu (needs leaving the table);
-- relay probe leftovers live (the source says a closed lobby session is removed at once);
-- how Docker Desktop reacts to `wsl --shutdown` from the app, and `docker desktop stop` (only the help was read);
-  `docker desktop status` hung over 2 minutes, so it is never used;
-- how long a big table load keeps TTS "not responding";
-- why PowerShell's requests to the bridge took 35–41 s;
-- Razer focus stealing: no record of it in the repo or memory notes; the check is built from the lead's report.
-
-## 17. Friend mode: built 2026-11-09 (branch `companion`)
-
-The user hands the build to a friend: install Docker Desktop, unzip the package, double-click **MTG Companion.exe**.
-This revives the §9 WinForms/`csc` plan for that one job; §15's cross-platform decision still stands for the general
-host app.
-
-**Source:** `companion\src\*.cs` (C# 5), `companion\app.manifest` (asInvoker), `companion\app.ico` (made by
-`--write-icon`), `companion\build.cmd` → `companion\bin\MTG Companion.exe` (not committed). No NuGet.
-
-**Where it runs from** (`Logic.DetectLayout`):
-- **Friend mode:** `version.json` beside the exe. Package root = `MTG_HOME`; bundled `runtime\node\node.exe`; compose
-  project `mtg-table`; logs in `logs\` (`companion.log`, `bridge.log`).
-- **Home mode:** no `version.json`, but `bridge\bridge.js` + `Start MTG.bat` in the exe's folder or up to 4 above it
-  (so `companion\bin\` works). Node on PATH, project `stack`, logs in `tmp\`, bridge via `tools\start-bridge.ps1`, no
-  save step, `up -d --no-recreate`, and relay/room restarted only when the room isn't free or the login fails.
-
-**Start sequence** (one light each; a red stops the steps after it; every red has one button):
-
-| # | Light | Checks | Does (friend mode) |
-|---|---|---|---|
-| 1 | Docker | `GET /info` over the engine pipe (`dockerDesktopLinuxEngine`, then `docker_engine`); CLI `docker info` fallback every 30 s; `OSType` | not installed: red "Install Docker Desktop" + docker.com address as text, no download. Installed: starts `Docker Desktop.exe` (uninstall key, else default path), waits up to 180 s. Windows containers: red, says switch. The pipe refusing this account (`UnauthorizedAccessException`: not yet in `docker-users`) → red "sign out of Windows and back in", not 3 minutes of "starting" |
-| 2 | Engine images | `GET /images/mtg-relay:exile/json`, `mtg-forge-node:exile` ids vs `version.json` `relay`/`node` | missing or different: `docker load -i images\mtg-images.tar(.gz)` with % from the docker process's read bytes; 90 min timeout. Ids after a load are remembered in `state.json` (Docker's containerd store reports other ids than `docker save`'s), so it doesn't load again each start, and written into the package's `stackdeployed.json` as `node`/`relay` (the package's own kept as `nodePackage`/`relayPackage`) when they are neither its ids nor its `nodeConfig`/`relayConfig` (the classic store's ids, which the packager records), so the bridge's `/versions` agrees. During a game: amber, loads after |
-| 3 | Engine stack | containers by compose labels (project + service), relay `State.Health`; WebSocket login to `ws://127.0.0.1:9443` as `companion-xxxx` (the bridge's messages), `RoomList` → `tts-commander` `Lobby`; login skipped while locked | `docker compose -p mtg-table -f stack\compose.yml up -d`, `restart relay forge-room` (fresh room, as Start MTG.bat), then waits ≤300 s (`Logic.StackWaitSeconds`; a cold room took 2 min 15 s on 2026-11-10). Login failing 3 times on a healthy relay (the stale 9443 forward after `wsl --shutdown`) or a room stuck busy: one more restart by itself, then red **Restart relay and room**. "port is already allocated" → red naming the other engine |
-| 4 | Table save | `%LOCALAPPDATA%\MTG Companion\state.json` (`saveFile`, `saveHash`), the Saves folder (`MyDocuments\My Games\Tabletop Simulator\Saves`) | `Logic.PlanSave`: our recorded file → update only when `version.json` `save` changed **and** the file still hashes to what we installed (`state.json` `saveHash`); a file the player saved over gets a new number instead (backup to `%LOCALAPPDATA%\MTG Companion\backup`, last 5); a byte-identical save → adopt; else a new `TS_Save_N.json` past every number in use (`.json` or `.png`), written with a move that refuses an existing file. Never touches a file it didn't install. Home mode: skipped |
-| 5 | Bridge | `GET /versions` (15 s); TCP listeners on 39998/48787 with owner (`GetExtendedTcpTable`) and command line (WMI) | starts `MTG Companion.exe --bridge-loop` (hidden, own process: closing the app never touches a game). The loop runs `cmd /c node.exe … bridge\bridge.js >> logs\bridge.log 2>&1` with `MTG_HOME` and `MTG_LOG_DIR=logs`, and restarts it 3 s after any exit. Before starting it, a write test on `logs` and `bridge`: unwritable → one red "move the folder, e.g. C:GamesMTG-Table" (no restart loop). A port held by another program → red naming it (e.g. `Code.exe`, the VS Code/Atom TTS plugin); held by another `bridge.js` (e.g. the repo's) → red "another MTG bridge" |
-| 6 | TTS | `Tabletop Simulator` process; `/versions` `now.table` (absent = the table hasn't spoken) vs `version.json` `table` | `steam://rungameid/286160` if not running. Amber with "In TTS: Create → Singleplayer (or Multiplayer) → Games → Save & Load → MTG Table (rules engine)" until the table speaks; green when the stamp matches; red "Old table loaded … load it again" when not |
-
-After the sequence, a watcher re-reads every 5 s (15 s when the window is hidden): Docker, containers, the login every
-60 s (never during a game), images every 5 minutes, `/versions` every 30 s, TTS.
-
-**After a stop** (added 2026-11-10, after the fresh-install test): the run remembers the first step it didn't finish
-(`stoppedAt`): the step it stopped at on a red light, or the step a press interrupted. Two rules, both in `Logic` and
-checked in the self-test's "start sequence after a stop" group (the wiring through the worker's turn,
-`Controller.WorkOnce`, with a fake watcher):
-- **Carry on by itself** (`Logic.ResumeAfterStop`): when the watcher sees the stopped step's light turn green (the
-  engine got ready after the wait, Docker Desktop was started by hand, the bridge came up), the sequence carries on
-  from the next step. The watcher never re-reads the table save, so a save stop waits for **Try again**. Not in
-  observe mode; not after **Stop everything** (the watcher pauses and the stop is forgotten).
-- **Never skip a step** (`Logic.StartFrom`): a button starts at the step it names or at the first step not yet done,
-  whichever is earlier: the stopped step while it is still red, the step after it once it is green. So **Start the
-  bridge** after an engine stop runs save → bridge → TTS, and while the engine is still red it runs the engine step
-  (and its wait) again first.
-
-**Game lock** (`Logic.DecideGame`): locked when `/state` has `started:true` **or** `seats` not null (setup, or a
-finished game not yet `mtg reset`), when the bridge is refused but `bridge-game.json` (under `MTG_HOME\tmp` or
-`\logs`) is under 60 s old, and when the bridge doesn't answer (can't tell). Locked: Restart engine, Restart relay and
-room, Restart the bridge, Load the engine images, the save update. Never locked: Open TTS, Start Docker Desktop,
-Start the bridge (only when nothing runs), Try again.
-
-**Menu:** tray icon (worst light) with Open status, Open logs folder, Restart engine (locked during a game), Stop
-everything (bridge loop + bridge, then `docker compose -p mtg-table down`; Docker Desktop keeps running), Quit (asks:
-leave running, or stop first). Single instance (`Local\MtgTtsCompanion`; a second start shows the first window).
-**Limit Docker's CPU use…** is an opt-in button: writes `processors=2`, `memory=8GB` into `[wsl2]` of
-`%USERPROFILE%\.wslconfig` (backup first), never restarts WSL.
-
-**Status page** (branch `companion-html`, `companion\src\WebUi.cs` + `WebPage.cs`): the status screen is a page in the
-default browser; the exe and the tray icon stay. A `TcpListener` on `127.0.0.1:48790` (any free port if that one is
-taken) with its own small HTTP/1.1 parser, because `HttpListener` can need a URL ACL or admin rights; it runs unelevated.
-The page is a C# string (one exe, no `build.cmd` change), inline CSS/JS only, no CDN or fonts, dark theme: a header with
-the worst light in words, a "Game in progress" banner while locked, six rows (dot, word, sentence, the row's one
-button), the hint, the menu buttons, and a collapsible log tail. It polls every 2.5 s (30 s in a hidden tab, each poll
-aborted after 6 s, the next one always armed): two misses in a row show "Companion busy, retrying", misses lasting
-10 s show "Companion not running", and a page from an earlier run shows "Reconnecting" and reloads itself at most once
-per 15 s. A button is disabled while its request is in flight; a script error shows a red "This page hit an error"
-banner and the polling goes on. The script is pure functions (status → view model, click plan, poll scheduling) plus a
-small shell, tested in Node by `tests/test_companion_page.js` with a stub DOM. `GET /api/status` (the shape is
-documented at the top of `WebUi.cs`; `update` is the self-update section in friend mode, §18.5, else `null`) and `POST /api/action {id}` (`fix:<row>:<fix>`, `restart-engine`,
-`stop-everything`, `open-logs`, `wsl-limits`, `update-check`, `update-now`, `update-later`) call the same `Controller` methods as the window, so the game lock and
-observe mode refuse exactly as there; a stale or hidden button is refused; Stop everything during a game needs a second
-confirmation (`confirmLocked`); pressing restart-engine, stop-everything or a fix again while the same one is still
-queued or running is a no-op ("Already running"). Guards: Host must be `127.0.0.1:<port>` or `localhost:<port>` (DNS rebinding); an Origin,
-when sent, must be that origin; `/api/*` needs `X-MTG-Token`, 16 random bytes per run written only into the served page
-(a page from an earlier run reloads itself); `Sec-Fetch-Site` other than same-origin/none is refused; POST needs
-exactly `application/json` (an optional `charset=utf-8`); head ≤ 8 KB, body ≤ 16 KB, no chunked bodies, bare LF or
-duplicate Host/token headers; a request must arrive within 10 s (5 s of silence closes the socket); at most 16
-connections, and past that the oldest one still waiting for its request is closed, so idle sockets can't lock the page
-out; answers carry a nonce CSP, `X-Frame-Options: DENY`, `no-store`, `Referrer-Policy: no-referrer`; only a known
-action id is logged. Tray: "Open status", a click on the icon and a click on a balloon open the page (a double-click
-opens it once, not twice). The first start of a package opens the page once and then writes `state.json`
-`statusPageShown`; if no browser opens, the window shows instead and the flag is not written, so the next start tries
-again. Later starts (and home mode) open it only when the first pass ends with a red light (the window if no browser).
-`StatusForm` stays as the fallback (`--no-web`, `--shot`, no free port, or no browser opens); `--web-port N`,
-`--no-browser` for tests.
-
-**Test modes:** `--selftest` (433 canned cases on 2026-11-11, exit code = failures), `--observe` (reads only; `--dump FILE` for text,
-`--shot FILE` for a PNG of the window), `--home DIR`, `--saves DIR`, `--state DIR`, `--log FILE`, `--steps 4,5`,
-`--bridge-url URL`, `--probe-login URL`, `--bridge-stop`.
-
-**Not yet seen live:** a whole friend-mode start (needs a PC without the repo's stack: ports 9443/39998/48787 are the
-repo's here); whether TTS lists a new `TS_Save_N.json` without an entry in `Saves\SaveFileInfos.json`; how long a
-real ~1 GB `docker load` takes (a 36 MB tar took 94 s here with the stack running on 2 WSL cores).
-
-## 18. Self-update through GitHub Releases (friend mode)
-
-A friend's package updates itself from the releases of `Vibecoding-mods/Table-Top-Simulator-Mock-MTGA`. The user
-cuts a release on this PC and uploads it by hand; nothing here creates releases or pushes.
-
-### 18.1 A release (`node tools/make-friend-package.js --release`)
-
-Builds the package as usual, then `dist/release-<tag>/` (tag `v<yyyy.mm.dd-HHMM>` local time, `--tag` overrides) and
-prints the tag and the files to attach. Asset names have no spaces (GitHub turns a space into a dot):
-
-| Part | Asset | Holds | Version (what "changed" means) |
-|---|---|---|---|
-| `app` | `app.zip` | `bridge/` (without the picture cache `image-cache-klrmngr.json`: an update keeps the friend's own), `decks/`, `manabrew/public/preset_decks/`, `scenarios/`, `stack/compose.yml`, `stack/deployed.json`, `README-FRIEND.txt`, `LICENSES/`, `version.json` | sha8 over every file's path and bytes, without `version.json`, `stack/deployed.json`, `README-FRIEND.txt` (they change with every release) and the picture cache |
-| `table` | `table.zip` | `table/MTG Table.json` (+ `.png`) | the save's sha8 (`version.json` `save`) |
-| `images` | `images.tar` | the docker save of both images | sha8 of `node` + `relay` ids |
-| `runtime` | `runtime.zip` | `runtime/node/node.exe` | the Node version (`nodeVersion`) |
-| `companion` | `MTG.Companion.exe` | the app | sha8 of `companion/src/*.cs`, `app.manifest`, `build.cmd`, `release-keys.txt` |
-
-plus `update-manifest.json`, its signature `update-manifest.json.sig` (§18.7) and the full zip (for new friends; the
-updater never downloads it). A part whose version equals the previous release's isn't built again: its entry points at
-the release that carries the file (`release: <older tag>`), so a 300 MB `images.tar` is uploaded only when the engine
-changes. The previous release is `--previous <update-manifest.json>`: the PUBLISHED latest release's manifest, trusted
-as published. Without it, the newest other `dist/release-*/` is used, and a part is reused only when its file is in
-`dist/release-<its tag>/` with the manifest's sha256 (else it is built again). The packager prints "keep release X
-published" for every older release the new manifest points at. Without a previous manifest every part is built.
-`--release` refuses `--allow-undeployed-bridge` and `--allow-changed-save` (a release ships only what ran live), new
-images without the tar (`--no-images`), and a tag that isn't word characters, dots and dashes (or is only dots).
-
-`update-manifest.json`: `{ format: 1, version: <tag>, built, gitCommit, minCompanion, parts: { <part>: { file,
-sha256, size, version, release } }, full: { file, sha256, size }, versionJson, deployedJson }`. `versionJson` and
-`deployedJson` are the package's `version.json` (with `release: <tag>` and `parts: { <part>: version }`) and
-`stack/deployed.json`: the updater writes both after any update, since a table-only update must still move them.
-`minCompanion` is the oldest update format (`Updates.Format` in the app, now 1) that can apply this release.
-
-### 18.2 Checking
-
-- At startup (friend mode, not `--observe`) at most once per 6 hours (`%LOCALAPPDATA%\MTG Companion\updates.json` `lastCheck`), and from the
-  tray: **Check for updates**. The tray shows the version (`release`, else the build date) and the last result.
-- `GET https://api.github.com/repos/<repo>/releases/latest`, `User-Agent: MTG-Companion`, nothing else about the PC or
-  the user. 404 (the repo is private, or has no release) → the quiet line "Updates will work once the project is
-  public." and nothing else; other failures → "Couldn't check for updates (…)". Never a red light.
-- `update-manifest.json` and `update-manifest.json.sig` from that release's assets; the signature is checked over the
-  manifest's bytes (with its tag and `minCompanion`) BEFORE the manifest is parsed. Missing or not by a trusted key →
-  "The update manifest of <tag> isn't signed by this project's release key: not used." and nothing else (no dialog,
-  no red light). A manifest whose `version` isn't the release's tag is not used either.
-- each part's version against the local one (`version.json`
-  `parts`, else derived: `save`, the image ids, `nodeVersion`; app and companion unknown = changed). Same everywhere →
-  "Up to date". Otherwise a dialog: **Update available** with what changes and the download size, **Update now** /
-  **Later**.
-- No downgrades (`Updates.Downgrade`, in the plan): a manifest whose `built` is older than the package's
-  `version.json` `built` (both ISO times with a zone, compared as instants) is refused and never offered: "The latest
-  release (<tag>) is older than this package; not installing it." (whoever can move GitHub's "latest" could otherwise
-  serve an older, validly signed release). The same instant is no downgrade: the parts decide (all the same: up to
-  date). No usable `built` on either side is refused too (fail safe: every package and manifest the packager makes
-  has one).
-- Optional token (tray: **GitHub token…**, or `--set-token` reading stdin): stored with DPAPI (CurrentUser) in
-  `%LOCALAPPDATA%\MTG Companion\github-token.bin`, sent only in requests to `api.github.com` (the release lookups and
-  the asset downloads, both reads; a private repo needs it for both), never to a redirect target, never to a test
-  server (`--update-base`), never logged.
-
-### 18.3 Downloading
-
-Only the changed parts, into `<package>\updates\<tag>\`, through the asset API (`Accept: application/octet-stream`;
-a part in an older release is looked up with `releases/tags/<tag>`). Every URL, including each redirect (followed by
-hand, at most 5), must be `https://` on `api.github.com`, `github.com`, `objects.githubusercontent.com` or
-`release-assets.githubusercontent.com` (GitHub's current asset host); anything else is refused before a request is
-made. A partial file (`.part`) resumes with `Range`; a 206 counts only when its `Content-Range` starts where the
-partial file ends and names the part's size, else the partial file is deleted and the download starts again from 0;
-3 tries per part. The sha256 is checked; a mismatch deletes the file and refuses the update. The size must match too.
-The parts are checked again at the start of the install (a download that waited for a game, or `--apply-update`).
-
-### 18.4 Applying
-
-Never during a game (the game lock, §17): "Update ready — will install after this game" (kept in `updates.json`
-`pending`, so a restart still waits for it); the watcher applies it 2 minutes after the lock clears (`Updates.InstallNow`:
-not while the next game is being set up). Then, on the worker, holding the mutex `Local\MtgTtsCompanionUpdate`:
-
-0. A journal already there (an earlier undo that couldn't finish, e.g. an antivirus holding a file in the backup) is
-   finished first, the bridge stopped meanwhile. If it still can't be finished, the install is refused ("Not
-   installing <tag>: an earlier update isn't fully undone yet. …", the status page's line) and the old journal is
-   never written over: it alone says where the old files are. With such a journal the release isn't judged before
-   this (the package may be half put back: no version.json, or the new one); only the game lock comes first. Then,
-   journal or not, the plan is always made again under the mutex from the package as it is (the caller's plan is
-   never trusted: a stale offer, or a newer build installed meanwhile, meets the downgrade and up-to-date rules
-   again), and every refusal after the bridge was stopped here starts it again. The Controller's offer (what
-   **Update now** installs) is dropped after an install and after a check that offers nothing.
-
-1. Write `<package>\update-journal.json` (`target`, `backup`, `replaced`, `existed`, `moved`, `placed`, `phase`;
-   written whole to a `.tmp` and moved over) before the first move, and again after every move. Stop the bridge loop
-   and the bridge.
-2. Move what the update replaces and is there into `<package>\backup\<old version>\` (moves, not copies); keep the
-   last 2 backups, the engine images only in the newest. The backup a journal on disk points at is never pruned (an
-   unreadable journal: nothing is).
-3. Extract each zip into the package: an entry must be under the part's own folders, with no segment that a trailing
-   dot or space trim changes (`bridge/.. /x` is `bridge/../x` to Windows) and no colon, and its full path must be
-   inside the part's folder. Move (not copy) `images.tar` to `images\mtg-images.tar`. An app update copies the old
-   picture cache back. Write `version.json` and `stack\deployed.json` from the manifest (the `companion` part's
-   version stays the old one until the new exe has taken over; without new images, the image ids this Docker gave
-   them, `Controller.RewriteDeployed`, stay). Journal phase `placed`.
-4. New images: `docker load` and `compose up -d` (the engine is idle: the lock was checked). New table: the
-   hash-guarded save install (§17 step 4: the player's own saves are never overwritten). Then start the bridge and
-   wait for `/versions`, except when the companion is part of the update: the bridge loop runs from the exe, so the
-   new exe starts it after the swap (started from the old one, it would hold the file being renamed).
-5. Any failure in 1–4: undo from the journal. Only a path that was moved to the backup, or that didn't exist before
-   (the update created it), is deleted; a path that was there and wasn't moved is never touched. What sits in the
-   backup decides what goes back (the journal can lag the last move by one). A placed `images.tar` goes back to the
-   download folder. Then load the old images again if new ones were loaded, start the bridge, and say "The update
-   failed and was undone: …" (or "… before anything changed"). When something can't be put back, the message names
-   it and the backup folder, and the journal stays, so the next start tries again. The download stays for another try.
-6. A new companion last: `MTG Companion.new.exe` (verified at the install's start) starts with `--replace-old <pid>
-   <old path> --old-start <ticks>`, the old app exits; the new one waits for that process, renames the old exe to `MTG Companion.old.exe` and itself to
-   `MTG Companion.exe`, records its part version, and starts from that name. The next clean start deletes the
-   `.old.exe`. If the new exe can't start, the old one stays, starts the bridge and says so. A release whose `minCompanion` is newer than
-   the running app swaps the companion first and passes `--apply-update <tag>` so the new one applies the rest.
-
-Interrupted (a kill, a power cut, Windows ending the app): at the next start, BEFORE the package is read (its
-`version.json` may be in the backup), `Updater.Recover` reads the journal. Phase `placed`: every file is in place, the
-journal goes and the start sequence loads the images, installs the save and starts the bridge as usual. Any other
-phase: undone as in step 5. Not in `--observe`, the bridge loop or the swap, and not while another app holds the mutex.
-While files move, the app holds Windows' shutdown (`ShutdownBlockReasonCreate`, "Finishing update…", and refuses
-`WM_QUERYENDSESSION`), the window can't be closed by Windows, Quit says to wait, and `Controller.Quit` waits for the
-install to end. The swap's new exe waits only for the old app's own process (its pid and start time, `--old-start`); if
-that is still running after a minute it says so (quit it from the tray, start again) instead of renaming a live exe.
-
-### 18.5 State and actions (for the window, the tray and the status page)
-
-The Controller keeps the update in one snapshot, `Controller.Update` (`UpdateState`: `Status` = idle, checking,
-up-to-date, not-public, available, downloading, ready, installing, restarting, updated, failed or interrupted (the
-start finished or undid an interrupted install: `Text` says which); `Current`,
-`Available`, `Notes`, `Progress` 0-100 or -1, `DeferredUntilGameEnds`, `Later`, `Error`, `LastCheck`, `Text`),
-changed only through `SetUpdate`. The actions are named methods any front end calls: `CheckNow()`, `UpdateNow()`
-(installs the release the last check offered), `Later()` (no dialog again for that release until asked). The window
-reads `Update.Text`. The status page serves it as `/api/status` `update` (`WebUi.UpdateSection`, friend mode only, null
-in home mode and observe): `{title, line, status, current, available, progress, deferred, error, lastCheck, actions}`,
-the actions in the menu's shape: `update-now` (a release is offered: available, or failed with one; asks first),
-`update-later` (offered and not put off yet), `update-check` (disabled while checking, downloading or installing).
-They go through `POST /api/action` to the same named methods, which return why they refused (observe, nothing
-offered, already busy); a second press while the same one runs is "Already running".
-
-### 18.6 Tests
-
-`tests/test_companion_update.js`: a fake GitHub (Node `http`: `releases/latest`, `releases/tags/<tag>`, asset
-downloads with a redirect to a second host name, `Range`, a first-try 500, `/state` for the game lock) and the built
-exe in a temp package, driven by hidden flags: `--update-base <url>` (the fake instead of `api.github.com`, only
-`http://` on 127.0.0.1 or localhost; its own host and `localhost` are then the allowed hosts, and no token is sent),
-`--test-public-key <key>` (the fake's signing key, only with that base), `--test-die-at move|place|written|placed` (the
-process kills itself there; `written`: the new version.json in place, the journal not yet `placed`), `--test-format
-<n>` (an older app, for the companion-first path), `--test-skip-recover` (the start leaves a journal to the install,
-which must finish it first), `--test-journal-fail` (the install's journal can't be written), `--update-check`,
-`--update-now`, `--fake-effects <file>` (bridge, docker and save steps written to a file instead of done),
-`--fake-fail <step>`. More cases: a table, images or runtime update; a failed save install undone with version.json;
-a held file that stops a move half way (every file as it was); killed after one move, after placing the tar (the
-package without version.json until the next start), and with every file in place; trailing-dot and trailing-space
-zip names and a stream name; a missing, foreign or tampered signature; a manifest of another tag; a 206 with a wrong
-`Content-Range`; a download that runs past the part's size (reading stops there); a changed download refused at the
-install; the companion first, then the rest without a second check; the bridge started by the old app only when its
-swap fails; the swap not waiting for a pid another process now has, and giving up on an old app still running after
-a minute; an undo that can't delete a held new file (named once, the journal kept, finished at the next start); an undo that
-can't put `runtime\` back, then a new install (refused, the old journal byte for byte and `backup\v1` kept; once the
-file is free, the install finishes the old undo itself and installs; the companion-first path refused before the
-swap); after that undo, a journal that can't be written and a re-made plan that refuses (the bridge started again
-both times); an undo that left the new version.json (the undo tried and named, never "Up to date"); a stale offer
-(the package newer by the time the download ends: refused at the install); an older signed release (refused, not
-offered), the same build written another way (up to date), a millisecond newer (offered), a package with no `built`
-(refused); an
-`--update-base` off this PC refused (exit 2). Cases: up to date; new app only; new
-images only (only the tar downloaded, from the older release); sha mismatch refused; 404 quiet; game running defers;
-failed apply rolls back; self-update swap (and the `.old.exe` removed at the next start); off-host URL refused; the
-token only to the API host and never in the log; a resumed download. The pure parts (plan, URL rule, manifest
-parsing, backups to prune, check interval, the zip-name and containment rules, `Content-Range`, the undo plan, the
-journal, the deployed.json merge, the swap's renames with failing file operations, the signature with a vector from
-the packager's Node code, DPAPI CurrentUser) are `--selftest` cases; the packager's release rules (refusals, the app
-version, reuse, the key and the signature) are in `tests/test_friend_package.js`.
-
-### 18.7 The release key
-
-`update-manifest.json` is signed with ECDSA P-256 over its exact bytes (`crypto.sign("sha256", …, { dsaEncoding:
-"ieee-p1363" })`: 64 bytes r || s, base64 in `update-manifest.json.sig`). The private key is
-`%USERPROFILE%\.mtg-release\release-key.pem` (`MTG_RELEASE_KEY` overrides; refused inside the repo; `.gitignore` has
-`.mtg-release/` and `*.pem`); the first `--release` makes it and prints where it is: back it up, never share or commit
-it. The public half (base64 of X || Y) is a line of `companion/release-keys.txt`, which `build.cmd` builds into the exe
-(`/resource`); the first `--release` adds the line before it builds the exe, and the file is committed. The app checks
-the signature with `ECDsaCng` against every line.
-
-Key change (a lost or leaked key): make a new key, add its line to `release-keys.txt` beside the old one, and ship one
-release signed with the OLD key whose companion carries BOTH lines; installed apps take it, and from then on releases
-are signed with the new key. Then the old line can go. A leaked key that can't sign that bridge release: friends
-download a full package again. Packages made before signing (no line in their exe) can't self-update: they take the
-first signed package by hand.
-
-## 19. Table tools: AI seats and debug tools (built 2026-11-11, round 2 C)
-
-The status page's "Table tools" section (collapsed by default) sets what `docs/next-features-2026-11-09.md` items 17,
-18, 20 and 21 asked for. The bridge owns the state; the companion only passes it through.
-
-- `GET /api/tools` is the bridge's `GET /tools` (debug port 48787): `{seats: [{color, person, inGame, ai: {kind,
-  kindLabel, deckName, source} | null}], presets, debug: {on, game, fix, players: [{color, name}]}, tools}`. No bridge,
-  a timeout, a 404 (a bridge older than this) or an answer that isn't a JSON object: 502 `no-bridge` with a sentence.
-- `POST /api/tools {kind, ...}`: `kind` is `ai-seat` (`color`, `seat`: `harmless`|`forge`|`off`, and `preset` or
-  `list` + `name`), `debug-mode` (`on`) or `debug` (`tool`: `mana`|`hand`|`battlefield`|`life`|`untap`, `color`, `n`,
-  `name`, `mana`). Any other kind: 400, the bridge isn't asked. The body is passed on as parsed (written again, never
-  the raw bytes), and the answer is cut down to `{ok, message}`. Observe mode refuses every POST (`ok: false`); GET
-  still shows. The bridge answers a refusal as 200 with `ok: false`, so its reason reaches the page.
-- The page asks only while the section is open: once on opening, after every POST, and with each status poll
-  (every 2.5 s). A closed section never calls the bridge.
-- **Host only** is the page itself: it opens only on the host's PC, with that run's token. The bridge also refuses a
-  debug tool while debug tools are off.
-- **Debug tools on/off** is a switch of the bridge's own. It is off at every bridge start, and each change is said to
-  the whole table in chat. While on, each tool is a manual fix of one change: the game pauses, the other players vote,
-  and then `applyState` runs.
-
-Tests: `tests/test_companion_page.js` (the pure parts, plus the section's shell against a stub fetch),
-`--selftest` "table tools", and `tests/test_bridge_ai_tools.js` for the bridge side, including its HTTP routes over a
-real socket.
+1. Should the six lights stay six, or is the Watcher (GPU / memory / ports / TTS health lights, §14.1) still wanted? The 2026-10-28 and
+   2026-11-04 GPU resets, the OMEN leak and the 80k-object limit are the reasons it was designed.
+2. Mac and Linux: still wanted, given the exe is WinForms-only and the engine images are x86-64 only? (A Mac host would need arm64
+   images and a different supervisor.)
+3. Updates for friends while the repository is private: token per friend, make the repository public, or manual zips?
+4. Is Cloud mode (§14.6) the first thing to build when AWS hosting un-pauses, or does the exe stay home-only?
+5. Should `/health` replace `/state` in the game lock now it exists? It is cheaper (no board build) but is a bridge-version dependency.
