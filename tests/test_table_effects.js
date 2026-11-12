@@ -58,6 +58,8 @@ MusicPlayer.getCurrentAudioclip = function()
   return MusicPlayer.clip
 end
 MusicPlayer.play = function() MusicPlayer.player_status = "Play" __sim.fx("MusicPlayer.play", MusicPlayer.clip.url) end
+MusicPlayer.repeat_track = false
+MusicPlayer.pause = function() MusicPlayer.player_status = "Pause" __sim.fx("MusicPlayer.pause", MusicPlayer.clip.url) end
 local car = getObjectFromGUID("${CARRIER}")
 car.UI.show = function(id) __sim.fx("objUI.show", id) end
 car.UI.hide = function(id) __sim.fx("objUI.hide", id) end
@@ -472,6 +474,42 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("music player: their track paused (as a save loads it): the sound plays", paused.some((l) => l.includes('"MusicPlayer.setCurrentAudioclip"')) && plays(["their track paused"]).length === 1, JSON.stringify(paused.filter((l) => l.includes("Music"))));
   const stopped = t.fx("their track stopped");
   ok("music player: their track stopped: the sound plays", stopped.some((l) => l.includes('"MusicPlayer.setCurrentAudioclip"')) && plays(["their track stopped"]).length === 1, JSON.stringify(stopped.filter((l) => l.includes("Music"))));
+}
+
+// a clip's end (live check 2026-11-11): when a clip ends TTS goes on to the players' next track and plays it, so ours
+// plays with repeat on and is paused just before its length (engineSoundLen, else 2 s) runs out; the players' repeat
+// setting comes back after; a clip loaded more than 2 s late isn't played, and is paused once TTS starts it by itself
+{
+  const s0 = base();
+  const s1 = clone(s0); s1.Blue.bf = s1.Blue.bf.filter((c) => c !== "b1"); s1.Blue.gy = ["b1"]; // death
+  const s2 = clone(s1); s2.Blue.bf = s2.Blue.bf.filter((c) => c !== "b2"); s2.Blue.ex = ["b2"]; // exile
+  const s3 = clone(s2); s3.Blue.bf = s3.Blue.bf.filter((c) => c !== "b3"); s3.Blue.gy.push("b3"); // death
+  const s4 = clone(s3); s4.White.life = 45; // lifegain
+  const L = (k) => `https://example.invalid/${k}.mp3`;
+  const t = run([
+    lua(`engineSounds.death = "${L("death")}" engineSounds.exile = "${L("exile")}" engineSounds.lifegain = "${L("lifegain")}" engineSoundLen.exile = 3 MusicPlayer.repeat_track = false return "picks"`, "picks"),
+    send(s0, "first board"),
+    send(s1, "plays", 30), lua(`return tostring(MusicPlayer.repeat_track) .. " " .. MusicPlayer.player_status`, "during", 150),
+    lua(`return tostring(MusicPlayer.repeat_track) .. " " .. MusicPlayer.player_status`, "after"),
+    send(s2, "longer clip", 220),
+    lua(`MusicPlayer.repeat_track = true return "x"`, "repeat set"), send(s3, "repeat kept", 150),
+    lua(`return tostring(MusicPlayer.repeat_track)`, "repeat after"),
+    lua(`MusicPlayer.delay = 150 return "x"`, "slow"), send(s4, "late", 200),
+    lua(`MusicPlayer.player_status = "Play" return tostring(MusicPlayer.repeat_track)`, "tts starts it", 5),
+    lua(`return MusicPlayer.player_status .. " " .. tostring(MusicPlayer.repeat_track)`, "late after"),
+  ]);
+  ok("clip end: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const at = (mark, call) => t.fx(mark).filter((l) => l.includes(`"MusicPlayer.${call}"`)).map((l) => Number(/^f(\d+)/.exec(l)?.[1]));
+  const v = (mark) => String(t.step(mark).value);
+  const [play1] = at("plays", "play"), [pause1] = at("during", "pause");
+  ok("clip end: repeat is on while ours plays", v("during").startsWith("true Play"), v("during"));
+  ok("clip end: ours is paused 1.85 s after it starts (a 2 s clip)", play1 > 0 && pause1 - play1 >= 109 && pause1 - play1 <= 113, JSON.stringify([play1, pause1]));
+  ok("clip end: then repeat is off again, as the players had it, and the player paused", v("after") === "false Pause", v("after"));
+  const [play2] = at("longer clip", "play"), [pause2] = at("longer clip", "pause");
+  ok("clip end: a 3 s clip (engineSoundLen) is paused 2.85 s after it starts", play2 > 0 && pause2 - play2 >= 169 && pause2 - play2 <= 173, JSON.stringify([play2, pause2]));
+  ok("clip end: the players' repeat on comes back on", v("repeat after") === "true" && at("repeat kept", "pause").length === 1, JSON.stringify([v("repeat after"), at("repeat kept", "pause")]));
+  ok("clip end: a clip loaded more than 2 s late isn't played", at("late", "play").length === 0 && at("late", "setCurrentAudioclip").length === 1, JSON.stringify(t.fx("late").filter((l) => l.includes("Music"))));
+  ok("clip end: once TTS starts the late clip itself, it is paused and repeat given back", at("tts starts it", "pause").length === 1 && v("late after") === "Pause true", JSON.stringify([at("tts starts it", "pause"), v("late after")]));
 }
 
 // the bursts (2026-11-11, docs/sounds.md "Bursts", design section 6): n of a kind on one board plays the largest

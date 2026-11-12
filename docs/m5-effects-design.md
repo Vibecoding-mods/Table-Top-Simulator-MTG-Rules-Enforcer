@@ -359,7 +359,7 @@ wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not
   counting paused ones, as the table did for part of 2026-11-11, silenced every sound on the playgroup's save).
 - **Route A, MusicPlayer (works today, no Unity):**
   - `MusicPlayer.setCurrentAudioclip({ url = pick, title = "MTG effect: " .. key })` (key: the clip, `death_x4` for
-    a burst), then a `Wait.condition` (up to 2 s; past that the sound is dropped) that plays once the player holds
+    a burst), with `repeat_track` on (the players' setting kept aside), then a `Wait.condition` (a clip loaded more than 2 s after the set isn't played; TTS starts a loaded clip by itself, so it is paused once it does) that plays once the player holds
     this very clip (its link, or its title should TTS hand the link back spelled another way) and `loaded` is true:
     right after the set, `loaded` can still be the last clip's. A newer route A sound set before it plays wins; the
     older one never plays, even when its clip is there and still loading (2026-11-11, verifier; the loading case
@@ -369,6 +369,10 @@ wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not
     the sound whatever its status, and our own clip, playing or not, is never theirs.
   - Limits (MusicPlayer API):
     - one clip at a time, so a new sound cuts the last one;
+    - when a clip ends, TTS goes on to the next track in the players' music library and plays it (live check
+      2026-11-11: "Simian zoo" started after a death sound). So ours plays with `repeat_track` on, and is paused 0.15 s
+      before its length runs out (`engineSoundLen`, else 2 s, the padded minimum). TTS gives no sign when a clip loops,
+      so it has to be timed. The players' repeat setting comes back once the newest sound is done;
     - it waits until **every** player has loaded the clip, so the delay is unknown (real-table check 5: if it is
       over about 0.3 s after the effect, use route B);
     - no volume from Lua: each player's Music slider sets it;

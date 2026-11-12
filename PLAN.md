@@ -84,6 +84,22 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   blessing, the Ring and the three counters; the deploy's save patch adds the pieces to the user's save.
 
 ## 2026-11-11
+- ✅ Live check of deploy 9d8e0f2a (48a8bdc), White vs a Forge AI, turn 4:
+  - passed: the log panel fits and shows the newest line; "Hero of Bladehold 3/4 attacks Jace Beleren (AI 1)."; the
+    attacker gets priority after blocks; Giant Growth cast on Hero; burst picks by count (death 5 → x4, exile 6 → x6,
+    wipe 9 → x8, damage 2 → x2, lifegain 3 → x3, by title and link); a deck card's own picture kept in hand and on the
+    battlefield.
+  - found and fixed in 6ea2ff2:
+    - No sound ever played: TTS rejected the VLC mp3s and anything under ~1.5 s. All 30 were re-encoded (ffmpeg, 2 s)
+      and re-uploaded.
+    - The save's paused music blocked every sound; only a playing track blocks now.
+    - Custom art leaked by name to the AI's Mountain; a known owner now uses only its own deck's pictures.
+  - open:
+    - A prompt option shows the raw AI id "self-hosted-node-…-bot" (Hero's defender choice).
+    - COUNTERED not seen live: the AI deck had no counterspell; the tests cover it.
+    - The touch rule needs a second human.
+  - pending: hear the new clips on the real table, including a burst. Check that the players' own track doesn't start
+    by itself after one of our clips ends.
 - 🔶 (source) Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on
   permanents with a usable ability", the user 2026-11-11). It reuses the hand's per-player green frame, from the ability
   boxes' list; mana-only abilities are left out at priority; token stacks glow; first builds go 4 a frame. Needs the
