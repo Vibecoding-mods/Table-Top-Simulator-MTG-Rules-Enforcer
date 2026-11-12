@@ -5993,7 +5993,9 @@ end
 
 local tableObjectSpawn = onObjectSpawn
 function onObjectSpawn(obj)
-  if ENGINE_MODE and lastTable ~= nil and isEngineCard(obj) then
+  -- (not the effect and sound bundles, which are the table's: their rigs were deleted a frame after they spawned, live
+  -- check batch 2 2026-11-12)
+  if ENGINE_MODE and lastTable ~= nil and isEngineCard(obj) and not engineIsBundleObject(obj.getGMNotes()) then
     local id = engineIdOf(obj)
     local deckId = id:find("^library:") or id:find("^graveyard:") or id:find("^exile:") or id == "trash"
     if not deckId and not engineSpawning[id] and engineObjs[id] ~= obj and not (engineSearchIds or {})[id] and not (engineInPile or {})[id] then

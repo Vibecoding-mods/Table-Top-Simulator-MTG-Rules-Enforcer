@@ -42,14 +42,20 @@ triggers, state-based actions after, a restore point before). Names are lower ca
 - `dungeon`: `{ "name": "Lost Mine of Phandelver", "room": "Goblin Lair" }`, in your part or a player's: that player
   is in the dungeon, in that room (no `room`: none yet, the next venture enters its first room). Room names as Forge's
   dungeon scripts have them. `completedDungeons`: a list of dungeon names that player has completed already.
-- `initiative`: `"you"` or a colour (top level only): that player takes the initiative (Undercity's first room, as
-  Forge's take-the-initiative does). These three need an engine image with the dungeon ops (from the planechase-1111
-  build on, relay and node included); an older relay or node drops the whole change list unread, and the setup
+  The engine refuses a `dungeon` naming the one that player is already in ("White is already in Lost Mine of
+  Phandelver"): to move to another room mid-game, venture instead, or start a new game with the scenario.
+- `initiative`: `"you"` or a colour (top level only): that player takes the initiative, but doesn't venture into
+  Undercity: the engine applies a scenario with triggers off, and Forge ventures by the initiative's trigger (live
+  check batch 2 2026-11-12). Their upkeep venture and a steal by combat damage work as usual. These three need an
+  engine image with the dungeon ops (from the planechase-1111 build on, relay and node included); an older relay or node drops the whole change list unread, and the setup
   goes back to editing after 20 s with no answer.
 - `planeswalk`: a plane's name (top level, yours): in a game with Planechase on (`mtg planechase on` before it), you
   planeswalk to that plane from any planar deck, with its "when you planeswalk to" triggers. `chaos`: `true`, chaos
   ensues on the plane in play, for you. Both run after the rest, with triggers on (as the free plays do); outside
   Planechase the engine refuses them. Same engine image as the dungeon fields.
+  The plane must be in one of the game's planar decks, and those are random planes by default (10 a player), so a
+  named plane is usually absent and refused ("no plane named Interplanar Tunnel in a planar deck"): name it in the
+  pool first, `mtg planes Interplanar Tunnel; <more planes>` (a plane for every player), then `mtg planechase on`.
 
 A file of the wrong shape (not an object, `lands` of another kind, a zone or `tokens` that isn't a list) is refused
 when typed, saying what is wrong. A choice made before a game is dropped (and said) if that colour isn't in it.
