@@ -757,9 +757,16 @@ end
 -- clean-up pass slower, and token-heavy boards were the worst case. The first token of a group stands for all of
 -- them: clicking it to attack sends the whole stack (engineGroupMembers), and in an attack, block or target question
 -- the box beside it splits the stack so each token can be picked (engineSplit, until the question closes).
+-- The Arena way (docs/token-stacks-spec.md, the user 2026-11-06): one stack per kind, no size cap. In combat a kind's
+-- tokens are drawn as one stack per part they play, the board's or the open question's (engineCombatSubs): the ones
+-- picked to attack (by target), those blocking (by attacker), each attacker blocked. So picking one token out of a
+-- stack of 20 draws a stack of 19 and a card of 1, two objects, never the 20 a split lays out.
 ENGINE_GROUP_MIN = 5
 engineGroupOf = {} -- engine card id -> representative id while it is drawn as part of a group
-engineGroupKey = {} -- representative id -> its group's key
+engineGroupKey = {} -- representative id -> its group's key (the kind's: a split splits every stack of the kind)
+engineGroupList = {} -- representative id -> the ids of its stack in board order, the representative first
+engineSubDrawn = {} -- engine card id of a token in a group -> the combat part its stack was drawn with ("" for none)
+engineCombatHeld = {} -- colour -> { kind, ids }: the picks of its combat answer, drawn until the next board
 engineSplit = {} -- group key -> the colour whose question split it
 function engineTokenKey(c)
   local ctr = {}
@@ -768,30 +775,40 @@ function engineTokenKey(c)
   -- (kw too: the first token's status box speaks for the stack, so a new Goblin doesn't call the old five summoning sick)
   return table.concat({ tostring(c.n), tostring(c.ctl), tostring(c.tap), tostring(c.p), tostring(c.t), tostring(c.dmg or 0), table.concat(ctr, ","), tostring(c.fd), tostring(c.po), table.concat(c.kw or {}, ",") }, "|")
 end
+-- the ids of the stack this card leads, in board order (just its own for a card that leads none)
 function engineGroupMembers(id)
-  local out = { id }
-  for member, rep in pairs(engineGroupOf) do if rep == id then out[#out + 1] = member end end
+  local out = {}
+  for _, m in ipairs(engineGroupList[id] or { id }) do out[#out + 1] = m end
   return out
 end
 function groupTokens(list, seen, hosts)
   local out, byKey, count = {}, {}, {}
   local groupable = function(c) return c.tok and c.att == nil and not (hosts and hosts[c.id]) end
+  local subs = engineCombatSubs ~= nil and engineCombatSubs() or {}
   for _, c in ipairs(list) do
     if groupable(c) then local key = engineTokenKey(c) count[key] = (count[key] or 0) + 1 end
   end
   for _, c in ipairs(list) do
     local key = groupable(c) and engineTokenKey(c) or nil
     if key ~= nil and count[key] >= ENGINE_GROUP_MIN and engineSplit[key] == nil then
-      local rep = byKey[key]
+      -- (whether a kind stacks is its whole count's call; the combat parts only cut it into stacks)
+      local sub = subs[c.id] or ""
+      engineSubDrawn[c.id] = sub
+      local rep = byKey[key .. "#" .. sub]
       if rep == nil then
-        byKey[key] = c
+        byKey[key .. "#" .. sub] = c
         c.groupN = 1
         engineGroupOf[c.id] = nil
         engineGroupKey[c.id] = key
+        engineGroupList[c.id] = { c.id }
         out[#out + 1] = c
       else
         rep.groupN = rep.groupN + 1
         engineGroupOf[c.id] = rep.id
+        engineGroupKey[c.id] = nil -- (it led a stack on an earlier draw)
+        engineGroupList[c.id] = nil
+        local l = engineGroupList[rep.id]
+        l[#l + 1] = c.id
         seen[c.id] = true -- part of the group: no object of its own
         local o = engineObjs[c.id]
         if o ~= nil then
@@ -802,6 +819,8 @@ function groupTokens(list, seen, hosts)
     else
       engineGroupOf[c.id] = nil
       engineGroupKey[c.id] = nil
+      engineGroupList[c.id] = nil
+      engineSubDrawn[c.id] = nil
       c.groupN = nil -- (a redraw of the same board after a split: this card led the stack last time)
       out[#out + 1] = c
     end
@@ -1448,6 +1467,9 @@ local function cardSpot(id)
   if enginePlanned[id] ~= nil then return enginePlanned[id] end -- where it is going (it may still be moving)
   local o = engineObjs[id]
   if o ~= nil and not o.isDestroyed() then return o.getPosition() end
+  -- (a token drawn in a stack: the stack's card)
+  local rep = engineGroupOf[id]
+  if rep ~= nil and rep ~= id then return cardSpot(rep) end
   return nil
 end
 -- a raised arc from a to b, 11 points
@@ -1525,11 +1547,19 @@ end
 function engineDrawLines(m, stackSpot)
   if m ~= nil and m.gameOver then m = nil end -- (the game is over: no attack or target lines stay on the table)
   local ours = {}
+  local drawn = {} -- (one line per pair of spots: twenty tokens in one stack attacking one player are one line)
   local function add(a, b, style, lift)
     if a == nil or b == nil then return end
+    local key = string.format("%.2f,%.2f,%.2f,%.2f,%.4f", a.x, a.z, b.x, b.z, style.thickness)
+    if drawn[key] then return end
+    drawn[key] = true
     ours[#ours + 1] = { points = arc(a, b, lift), color = style.color, thickness = style.thickness }
   end
   if m ~= nil then
+    engineLinesSpot = stackSpot -- (for the block lines a question's clicks draw: engineQuestionBlocks)
+    -- the blocks picked in an open blockers question, and an answered one's until the next board (token stacks spec:
+    -- "a block shows only a blue outline on the blocker: there is no line to the attacker it blocks")
+    for _, pair in ipairs(engineQuestionBlocks ~= nil and engineQuestionBlocks() or {}) do add(cardSpot(pair[1]), cardSpot(pair[2]), LINE_STYLE.block, 0.3) end
     for _, s in ipairs(m.stack or {}) do
       for _, t in ipairs(s.tg or {}) do
         local to = nil
@@ -2210,6 +2240,8 @@ function engineRender(m)
   detectPending(m)
   if engineMarkSpecial ~= nil then pcall(engineMarkSpecial, m) end
   if engineMillDetect ~= nil then pcall(engineMillDetect, m) end
+  -- (an answered combat question's picks are drawn until the engine's next board says what came of them)
+  if m ~= lastTable then engineCombatHeld = {} end
   lastTable = m
   if engineCheckDue ~= nil then pcall(engineCheckDue, m) end
   -- losses and the winner are announced to everyone ("you win the game" cards and "can't lose" effects are the
@@ -2242,6 +2274,7 @@ function engineRender(m)
   sect("keepStashed")
   local seen = {}
   enginePlanned = {}
+  engineGroupList, engineSubDrawn = {}, {} -- (groupTokens draws them again; a token gone from the board leaves them)
   -- every card something is attached to, on any battlefield (an aura can sit on another player's token)
   local allHosts = {}
   for _, pl in ipairs(m.players or {}) do for _, c in ipairs(pl.battlefield or {}) do if c.att ~= nil then allHosts[c.att] = true end end end
@@ -3663,6 +3696,7 @@ local function engineAnswer(color, choice)
   engineAnsweredAt[color] = os.clock()
   engineActedAt[color] = os.clock()
   engineSend("answer", { color = color, promptId = p.promptId, choice = choice })
+  if engineHoldCombat ~= nil then engineHoldCombat(color, p, choice) end
   enginePrompts[color] = nil
   if engineExitPrompt ~= nil then engineExitPrompt(color) end
   if panelReady then setText("eng_search_" .. color, "") updateOptions(color) end
@@ -4863,11 +4897,21 @@ function engineEnterPrompt(color, m)
   pendingBlocker[color] = nil
   -- the same attack question sent again (a refused answer) keeps the attacker that waits for its target
   if describePrompt(m).kind ~= "attack" then pendingAttacker[color] = nil end
+  -- (a combat question asked again, a refused answer: its held picks are no longer the answer)
+  local kind = describePrompt(m).kind
+  if kind == "attack" or kind == "block" then engineCombatHeld[color] = nil end
 end
 function engineExitPrompt(color)
   local split = false
   for key, by in pairs(engineSplit) do if by == color then engineSplit[key] = nil split = true end end
   if split then Wait.frames(snapBack, 2) end -- the stacks split for this question go back together
+  -- (stacks cut by picks of a question withdrawn unanswered go back together; an answer's picks are held)
+  if not split and engineRestackSoon ~= nil then Wait.frames(function() if engineCombatStale() then engineRestackSoon() end end, 1) end
+  -- (and the lines of its blocks: an answer's are held, a withdrawn question's go)
+  if (engineBlockLinesFor or {})[color] then
+    engineBlockLinesFor[color] = nil
+    Wait.frames(function() if lastTable ~= nil and engineDrawLines ~= nil then pcall(engineDrawLines, lastTable, engineLinesSpot) end end, 1)
+  end
   engineSelected[color] = nil
   engineFilter[color] = nil
   pendingBlocker[color] = nil
@@ -4964,6 +5008,19 @@ function enginePhase2Prompt(color)
       end
     end
   end
+  if kind == "attack" or kind == "block" then
+    -- token stacks: the menus of an attack question's stacks; the stacks drawn again when the picks cut them otherwise;
+    -- a blocker waiting for its attacker glows in its stack; the blocks picked so far are drawn as lines
+    if kind == "attack" then engineStackMenus(color, p) end
+    if engineCombatStale() then engineRestackSoon() end
+    local waiting = pendingBlocker[color]
+    if kind == "block" and waiting ~= nil then glowCard(color, engineGroupOf[waiting] or waiting, GLOW.blockPick) end
+    if kind == "block" and lastTable ~= nil and engineDrawLines ~= nil then
+      engineBlockLinesFor = engineBlockLinesFor or {}
+      engineBlockLinesFor[color] = true
+      pcall(engineDrawLines, lastTable, engineLinesSpot)
+    end
+  end
   if engineAbilityBoxes ~= nil then pcall(engineAbilityBoxes, color, p, kind) end
 end
 
@@ -5007,6 +5064,189 @@ function engineAttackTargetName(target)
     end
   end
   return tostring((engineStatic[target] or {}).n or "it")
+end
+
+-- ───────── token stacks the Arena way (docs/token-stacks-spec.md) ─────────
+-- The combat part of each token's stack (see groupTokens), by engine card id: "a>" what it attacks, "b>" the attacker it
+-- blocks, "B<" itself when it is blocked (each blocked attacker is drawn on its own, so a block's line ends on it). From
+-- the board's combat, the open combat questions' picks, and an answered one's picks until the next board.
+function engineCombatSubs()
+  local attack, blocker, blocked = {}, {}, {}
+  local function fromPicks(kind, ids)
+    for _, oid in ipairs(ids or {}) do
+      local x, y = tostring(oid):match("^(.-)|(.+)$")
+      if x ~= nil and kind == "attack" then attack[x] = attack[x] or y
+      elseif x ~= nil and kind == "block" then blocker[x] = blocker[x] or y blocked[y] = true end
+    end
+  end
+  for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+    for _, c in ipairs(pl.battlefield or {}) do
+      if c.atk then attack[c.id] = tostring(c.atkT) end
+      if c.blkOf ~= nil and #c.blkOf > 0 then
+        local of = {}
+        for _, a in ipairs(c.blkOf) do of[#of + 1] = tostring(a) blocked[tostring(a)] = true end
+        table.sort(of)
+        blocker[c.id] = table.concat(of, ",")
+      end
+    end
+  end
+  for color, p in pairs(enginePrompts or {}) do
+    local kind = promptKind(p)
+    if kind == "attack" or kind == "block" then
+      local ids = {}
+      for i, o in ipairs(p.options or {}) do if engineSelectedFor(color, i) then ids[#ids + 1] = o.id end end
+      fromPicks(kind, ids)
+    end
+  end
+  for _, h in pairs(engineCombatHeld) do fromPicks(h.kind, h.ids) end
+  local out = {}
+  local function part(id)
+    out[id] = (attack[id] and ("a>" .. attack[id]) or "") .. "/" .. (blocker[id] and ("b>" .. blocker[id]) or "") .. "/" .. (blocked[id] and ("B<" .. id) or "")
+  end
+  for id in pairs(attack) do part(id) end
+  for id in pairs(blocker) do part(id) end
+  for id in pairs(blocked) do part(id) end
+  return out
+end
+-- the blocks picked in the open blockers questions and held from answered ones: { { blocker id, attacker id }, ... }
+function engineQuestionBlocks()
+  local out = {}
+  local function add(ids)
+    for _, oid in ipairs(ids or {}) do
+      local b, a = tostring(oid):match("^(.-)|(.+)$")
+      if b ~= nil then out[#out + 1] = { b, a } end
+    end
+  end
+  for color, p in pairs(enginePrompts or {}) do
+    if promptKind(p) == "block" then
+      local ids = {}
+      for i, o in ipairs(p.options or {}) do if engineSelectedFor(color, i) then ids[#ids + 1] = o.id end end
+      add(ids)
+    end
+  end
+  for _, h in pairs(engineCombatHeld) do if h.kind == "block" then add(h.ids) end end
+  return out
+end
+-- true when a stack on the table was drawn for picks that have changed since
+function engineCombatStale()
+  local subs = engineCombatSubs()
+  for id, drawn in pairs(engineSubDrawn) do if (subs[id] or "") ~= drawn then return true end end
+  return false
+end
+-- the stacks are drawn again on the next frame (at most once a frame), and the combat questions' menus and glows with them
+function engineRestackSoon()
+  if engineRestacking then return end
+  engineRestacking = true
+  Wait.frames(function()
+    engineRestacking = nil
+    if not engineCombatStale() then return end
+    snapBack()
+    for color, p in pairs(enginePrompts) do
+      local kind = promptKind(p)
+      if kind == "attack" or kind == "block" then enginePhase2Prompt(color) end
+    end
+  end, 1)
+end
+-- an answered attack or block question: its picks stay drawn until the engine's next board (no stack merging back for
+-- the moment before the attackers are on it)
+function engineHoldCombat(color, p, choice)
+  local kind = promptKind(p)
+  if kind == "attack" or kind == "block" then engineCombatHeld[color] = { kind = kind, ids = choice } end
+end
+
+-- A stack in an attack question: "all" (a click on it: all of it attacks, or a second click: none), "one" (its next
+-- token attacks; the attacking ones are drawn as their own stack), "back" (an attacking stack's last token doesn't),
+-- "none", "split" (laid out to pick one by one: the Split box's)
+function engineStackAttack(color, id, how)
+  local p = enginePrompts[color]
+  if p == nil or promptKind(p) ~= "attack" then return end
+  if how == "split" then return engineUseAbility(color, "__split:" .. id) end
+  local members = {}
+  for _, m in ipairs(engineGroupMembers(id)) do
+    if findOption(color, function(o) return startsWith(o.id, m .. "|") end) ~= nil then members[#members + 1] = m end
+  end
+  local picks = function(m)
+    local out = {}
+    for k, o in ipairs(p.options or {}) do if startsWith(o.id, m .. "|") and engineSelectedFor(color, k) then out[#out + 1] = k end end
+    return out
+  end
+  local unpick = function(m) for _, k in ipairs(picks(m)) do enginePick(color, k) end end
+  local attacking = function()
+    local n = 0
+    for k, o in ipairs(p.options or {}) do if tostring(o.id):find("|", 1, true) and engineSelectedFor(color, k) then n = n + 1 end end
+    return n
+  end
+  -- (a token's words as the question says them, "Soldier Token 1/1 #2", before its " → AI 1")
+  local nameOf = function(m)
+    local _, o = findOption(color, function(x) return startsWith(x.id, m .. "|") end)
+    local l = tostring((o or {}).label or "")
+    local cut = l:find(" → ", 1, true) or l:find(" attacks ", 1, true)
+    return (cut and cut > 1) and l:sub(1, cut - 1) or tostring((engineStatic[m] or {}).n or "A creature")
+  end
+  if how == "one" then
+    -- (the stack's own card goes last, so the stack keeps its object while it has tokens left)
+    local order = {}
+    for k = 2, #members do order[#order + 1] = members[k] end
+    order[#order + 1] = members[1]
+    for _, m in ipairs(order) do
+      if #picks(m) == 0 then
+        local i, o = findOption(color, function(x) return startsWith(x.id, m .. "|") end)
+        enginePick(color, i)
+        enginePhase2Prompt(color)
+        pendingAttacker[color] = m
+        tell(color, nameOf(m) .. " attacks " .. engineAttackTargetName(tostring(o.id):match("|(.+)$")) .. " (" .. attacking() .. " attacking in all). "
+          .. "Right-click the stack for another; click a life counter or a planeswalker to change what it attacks.")
+        return
+      end
+    end
+    return tell(color, "Every token in that stack is attacking already.")
+  end
+  if how == "back" then
+    local last = members[#members]
+    if last == nil then return end
+    unpick(last)
+    if pendingAttacker[color] == last then pendingAttacker[color] = nil end
+    enginePhase2Prompt(color)
+    return tell(color, nameOf(last) .. " won't attack (" .. attacking() .. " attacking in all).")
+  end
+  if how == "none" or (pendingAttacker[color] == id and #picks(id) > 0) then
+    for _, m in ipairs(members) do unpick(m) end
+    pendingAttacker[color] = nil
+    enginePhase2Prompt(color)
+    return tell(color, "Not attacking.")
+  end
+  for _, m in ipairs(members) do
+    if #picks(m) == 0 then enginePick(color, (findOption(color, function(o) return startsWith(o.id, m .. "|") end))) end
+  end
+  enginePhase2Prompt(color)
+  pendingAttacker[color] = id
+  tell(color, (#members > 1 and ("All " .. #members .. " attacking (right-click the stack to send fewer). ") or "Attacking. ")
+    .. "Click a life counter or a planeswalker to choose what " .. (#members > 1 and "they attack" or "it attacks") .. "; click it again to cancel.")
+end
+-- the right-click menu of each stack in an attack question (cleared with the question's other menus)
+function engineStackMenus(color, p)
+  local done = {}
+  for _, o in ipairs(p.options or {}) do
+    local rep = tostring(o.id):match("^(.-)|")
+    local obj = rep and engineObjs[rep]
+    local list = rep and engineGroupList[rep]
+    if list ~= nil and #list > 1 and not done[rep] and obj ~= nil and not obj.isDestroyed() and not (menued[color] or {})[obj] then
+      done[rep] = true
+      local picked = false
+      for k, x in ipairs(p.options) do if startsWith(x.id, rep .. "|") and engineSelectedFor(color, k) then picked = true end end
+      local item = function(label, how) obj.addContextMenuItem(label, function(playerColor) if playerColor == color then engineStackAttack(color, rep, how) end end) end
+      if picked then
+        item("Don't attack with these " .. #list, "none")
+        item("Take one back", "back")
+      else
+        item("Attack with all " .. #list, "all")
+        item("Attack with one", "one")
+        item("Pick one by one", "split")
+      end
+      menued[color] = menued[color] or {}
+      menued[color][obj] = true
+    end
+  end
 end
 
 -- Q/E on one of your cards: pay with it, or attack with it.
@@ -5142,34 +5382,9 @@ clickGesture = function(color, obj)
     return false
   elseif kind == "attack" and id ~= nil and findOption(color, function(o) return startsWith(o.id, id .. "|") end) ~= nil then
     -- one of your creatures: click = attack (the first opponent, then click a life counter / planeswalker to change).
-    -- A stack of tokens attacks as a whole ("full swing"); its Split box lets them be picked one by one.
+    -- A stack of tokens attacks as a whole ("full swing"); its right-click menu sends fewer (engineStackAttack).
     if not firstClick(obj) then return true end
-    local members = {}
-    for _, m in ipairs(engineGroupMembers(id)) do
-      if findOption(color, function(o) return startsWith(o.id, m .. "|") end) ~= nil then members[#members + 1] = m end
-    end
-    local picked = function(m)
-      for k, o in ipairs((p and p.options) or {}) do if startsWith(o.id, m .. "|") and engineSelectedFor(color, k) then return true end end
-      return false
-    end
-    if picked(id) and pendingAttacker[color] == id then
-      for _, m in ipairs(members) do
-        for k, o in ipairs((p and p.options) or {}) do
-          if startsWith(o.id, m .. "|") and engineSelectedFor(color, k) then enginePick(color, k) end
-        end
-      end
-      pendingAttacker[color] = nil
-      enginePhase2Prompt(color)
-      tell(color, "Not attacking.")
-      return true
-    end
-    for _, m in ipairs(members) do
-      if not picked(m) then enginePick(color, (findOption(color, function(o) return startsWith(o.id, m .. "|") end))) end
-    end
-    enginePhase2Prompt(color)
-    pendingAttacker[color] = id
-    tell(color, (#members > 1 and ("All " .. #members .. " attacking (Split picks some). ") or "Attacking. ")
-      .. "Click a life counter or a planeswalker to choose what " .. (#members > 1 and "they attack" or "it attacks") .. "; click it again to cancel.")
+    engineStackAttack(color, id, "all")
     return true
   elseif kind == "attack" and pendingAttacker[color] ~= nil then
     local target = id
@@ -5211,34 +5426,64 @@ clickGesture = function(color, obj)
     -- Every click says what it did, always (combat clarity 2026-11-09: "assigning a blocker sometimes gave no
     -- confirmation": the same words within 3 s were dropped, and an attacker clicked after a block was taken back
     -- did nothing). A blocker's name is the question's own (engineBlockerName), so two tokens read apart.
-    if pendingBlocker[color] == id then
-      -- the creature waiting for its attacker, clicked again: it doesn't block
+    -- A stack of tokens blocks one token at a time, without laying the army out (token stacks spec): a click on your
+    -- stack takes its next token with no block, a click on an attacking stack blocks its next attacker nobody blocks yet,
+    -- and a click on a stack whose tokens all block takes the last one's block back. A card alone is a stack of one.
+    -- (the stack's own card is taken last, so the stack keeps its object while it has tokens left)
+    local members = engineGroupMembers(id)
+    local order = {}
+    for k = 2, #members do order[#order + 1] = members[k] end
+    order[#order + 1] = members[1]
+    local waiting = pendingBlocker[color]
+    local waitsHere = false
+    for _, m in ipairs(members) do if m == waiting then waitsHere = true end end
+    if waitsHere then
+      -- the creature waiting for its attacker (its stack), clicked again: it doesn't block
       pendingBlocker[color] = nil
       enginePhase2Prompt(color)
-      tell(color, engineBlockerName(color, id) .. " won't block. Done when finished.", true)
+      tell(color, engineBlockerName(color, waiting) .. " won't block. Done when finished.", true)
       return true
     end
-    if findOption(color, function(o) return startsWith(o.id, id .. "|") end) ~= nil then
+    local canBlock = function(b) return findOption(color, function(o) return startsWith(o.id, b .. "|") end) ~= nil end
+    local blocking = function(b)
+      for k, o in ipairs((p and p.options) or {}) do if startsWith(o.id, b .. "|") and engineSelectedFor(color, k) then return true end end
+      return false
+    end
+    local who = nil
+    for _, m in ipairs(order) do if who == nil and canBlock(m) and not blocking(m) then who = m end end
+    for k = #members, 1, -1 do if who == nil and canBlock(members[k]) then who = members[k] end end
+    if who ~= nil then
       -- one of your blockers: its block, if it has one, is taken back, and the attacker clicked next is the one it blocks
       -- (unblock redraws the question when it takes one back)
-      local had = unblock(color, id)
-      pendingBlocker[color] = id
+      pendingBlocker[color] = who -- (before unblock's redraw, which glows the one waiting)
+      local had = unblock(color, who)
       if not had then enginePhase2Prompt(color) end
       glowCard(color, id, GLOW.blockPick)
-      local name = engineBlockerName(color, id)
+      local name = engineBlockerName(color, who)
+      local free = 0
+      for _, m in ipairs(members) do if canBlock(m) and not blocking(m) and m ~= who then free = free + 1 end end
       -- (said as it is: the block is gone now, and stays gone unless an attacker is clicked, verifier 2026-11-11)
       tell(color, had and (name .. "'s block is taken back: it won't block unless you click an attacker for it now.")
-        or ("Now click the attacker for " .. name .. " to block (or click it again: no block)."), true)
+        or ("Now click the attacker for " .. name .. " to block (or click it again: no block)."
+          .. (#members > 1 and (" " .. free .. " more in this stack have no block.") or "")), true)
       return true
     end
     if pendingBlocker[color] ~= nil then
-      local i, o = findOption(color, function(x) return x.id == pendingBlocker[color] .. "|" .. id end)
+      -- (an attacking stack: its next attacker nobody blocks yet, else the next this blocker can block)
+      local b = pendingBlocker[color]
+      local blocked = function(a)
+        for k, x in ipairs((p and p.options) or {}) do if tostring(x.id):sub(-#a - 1) == "|" .. a and engineSelectedFor(color, k) then return true end end
+        return false
+      end
+      local i, o = nil, nil
+      for _, a in ipairs(order) do if i == nil and not blocked(a) then i, o = findOption(color, function(x) return x.id == b .. "|" .. a end) end end
+      for _, a in ipairs(order) do if i == nil then i, o = findOption(color, function(x) return x.id == b .. "|" .. a end) end end
       if i ~= nil then
         -- (the question's words, else the cards' names: a label without "blocks" is no bridge's)
         local said = tostring(o.label or "")
         if not said:find(" blocks ", 1, true) then
           local name = function(x) return x ~= nil and not x.isDestroyed() and (x.getName():match("^[^\n]*")) or "It" end
-          said = name(engineObjs[pendingBlocker[color]]) .. " blocks " .. name(obj)
+          said = name(engineObjs[engineGroupOf[b] or b]) .. " blocks " .. name(obj)
         end
         if not engineSelectedFor(color, i) then enginePick(color, i) end
         pendingBlocker[color] = nil
@@ -5976,6 +6221,9 @@ function enginePileReset()
   engineInPile = {}
   engineGroupOf = {}
   engineGroupKey = {}
+  engineGroupList = {}
+  engineSubDrawn = {}
+  engineCombatHeld = {}
   engineSplit = {}
   engineAutoMana = nil
   engineStackGlow = {}
