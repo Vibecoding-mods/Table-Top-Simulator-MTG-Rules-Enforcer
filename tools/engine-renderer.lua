@@ -506,9 +506,9 @@ local function updateBadge(o, c, zone)
   -- Its base is the rules' 2/2, bridge tableCard, so a plain morph has none. "=under" in the text redraws it with the next board after a flip.)
   -- (a card in a hand, a command zone, a playable row or a revealed strip shows only its cost badge, and none while its
   -- owner has it turned over: engineCostParts; a dungeon in the command zone shows its room badge instead)
-  local costZone = ENGINE_COST_ZONES[zone] == true and not engineFlipped[c.id]
-  local text = (zone == "battlefield" or (zone == "command" and type(c.dg) == "string" and c.dg ~= "")) and badgeText(c)
-    or (costZone and engineCostText(c)) or ""
+  local room = zone == "command" and type(c.dg) == "string" and c.dg ~= ""
+  local costZone = ENGINE_COST_ZONES[zone] == true and not engineFlipped[c.id] and not room
+  local text = (zone == "battlefield" or room) and badgeText(c) or (costZone and engineCostText(c)) or ""
   if text ~= "" and (c.fd == true) ~= (engineFlipped[c.id] == true) then text = text .. "=under" end
   -- (the card's ability buttons are drawn with its badges: one set of buttons per card, engineAbilityButtons)
   local ab = engineAbilitySig ~= nil and engineAbilitySig(c) or ""
