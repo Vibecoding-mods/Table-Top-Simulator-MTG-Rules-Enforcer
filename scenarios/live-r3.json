@@ -1,0 +1,7 @@
+{
+  "label": "round 3 live check (2026-11-12): section 1 of the open list. Green glow (Prodigal Pyromancer, Llanowar Elves), mill with Auto on (Thought Scour on yourself), Glimpse the Unthinkable on the AI (mill on another seat), COUNTERED (Counterspell on your own Lightning Bolt), attack whom + log naming the planeswalker (Hero of Bladehold at Jace Beleren), combat colours and token tabs, block confirmations (the AI's Craw Wurm into Grizzly Bears), table sounds and bursts (Hero's tokens, deaths)",
+  "mana": 20,
+  "hand": ["Thought Scour", "Lightning Bolt", "Counterspell", "Giant Growth", "Glimpse the Unthinkable"],
+  "battlefield": ["Hero of Bladehold", "Grizzly Bears", "Prodigal Pyromancer", "Llanowar Elves"],
+  "opponents": { "battlefield": ["Jace Beleren", "Hill Giant", "Craw Wurm"] }
+}

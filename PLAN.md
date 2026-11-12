@@ -7,6 +7,32 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 ---
 
 ## 2026-11-11
+- ✅ Round 3 live check (deploy 05641398 / 71f6557, scenarios/live-r3.json, White vs a Forge AI, 21:36–22:01):
+  - passed:
+    - Green glow: on Prodigal Pyromancer only, not on Llanowar Elves (its ability makes mana).
+    - Mill with Auto on: Thought Scour on White, nothing held in the air, 3 cards in the graveyard.
+    - Glimpse on the AI: 10 cards in the AI's graveyard, all named in the log.
+    - "attacks Jace Beleren (AI 1)" for Hero and a token.
+    - The per-token "attack which player or planeswalker?" reads "AI 1" on the table.
+    - The attacker gets priority after blocks.
+    - Giant Growth logged before combat damage.
+    - Counterspell on your own Giant Growth ("is countered by Counterspell").
+    - COMBAT green on your turn, red on the AI's; All attack green, Done red.
+    - Blocks: Grizzly Bears blocks Craw Wurm.
+    - Sounds: death played and paused; 4 deaths gave wipe_x4.
+    - Game over: banner, chat, "you can only touch your own cards".
+    - After reset, the music player stays paused.
+    - The debug Jace had its loyalty (1 → 3 on +2).
+  - not seen:
+    - The COUNTERED pop-up: it shows for 1.8 s and the capture came later.
+    - The chat confirmation on a block click: the game was driven by script because a Razer pop-up blocked clicks.
+    - Custom art, and the companion's presets and debug tools.
+  - found, sent to the bug fixes:
+    - No priority stop after your own Lightning Bolt in main 1, but there was one after Giant Growth in combat.
+    - "White attacks with Soldier token" and "AI 1 attacks with Craw Wurm" don't name the player attacked.
+    - Fury's 4 deaths were logged after the next action (Jace +2), 23 s late.
+    - "Sneak Attack is exiled" for Fury's evoke cost doesn't say why.
+    - The AI's attack line ends on White's lands row, not the heart.
 - ✅ Round 1 seen on the real table (live check, scenarios live-r1*.json): the Free mulligans button, the Day piece
   mid-table, the flashback row card's hover, a planeswalker clicked as Lightning Bolt's target, "Attack whom with Hero
   of Bladehold 3/4?" offering the AI's planeswalker (answered by clicking it), the Propaganda tax hint, attackers with
@@ -23,7 +49,7 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   out of the bottom.
 - 🔶 (source) A life counter or planeswalker clicked for an attacker says what it set: "Hero of Bladehold 3/4 attacks
   AI 1." / "... attacks Jace Beleren (AI 1).", "6 creatures attack AI 1." for a stack, not "Target set."
-- 🔶 (source) The attacking player gets priority after blockers when something blocks and they hold a non-mana action
+- ✅ (seen live 2026-11-11 round 3) The attacking player gets priority after blockers when something blocks and they hold a non-mana action
   (attackerStop), as Arena: Craw Wurm blocking Hero of Bladehold passed White's Giant Growth by.
 - ✅ Tests can't reach the live table: tests/no-live-ports.js refuses and records every connection to 39999, 39998,
   48787 and 9443 (and the harness's decoy TTS port 1), failing the run; the All attack check that put its chat into a
@@ -38,7 +64,7 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 - 🔶 (source) Fixed: the "COUNTERED: <name>" pop-up never showed for a countered instant or sorcery (it needed the
   stack item's `spell`, which is false for any spell with spell text). The bridge now marks those `sp`, and the
   pop-up takes either (test_table_effects, red without the fix). Needs the bridge and table deployed together.
-- 🔶 (source) Reported by the user 2026-11-11: when a card is milled, its move to the graveyard sticks part-way until the
+- ✅ (seen live 2026-11-11 round 3) Reported by the user 2026-11-11: when a card is milled, its move to the graveyard sticks part-way until the
   player clicks the card in flight (the "pile" it is moving to the graveyard). Found: with Auto on, a seated player's
   mill was held face up in the air a quarter of the way to the graveyard until Auto let it go ~2 s later (a click on
   it let it go at once). Now, with Auto on, mills aren't held: they fly to the graveyard as stand-ins, like an AI's;
@@ -67,8 +93,8 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   (3e399ba), play-from cards beside the hand (547f3da).
 - ✅ Free mulligans: one shared count anyone sets, total including the rules' free one (8dbde25); anyone may switch
   the engine and start. Only lands snap; other dragged cards stay put (39dff3d).
-- 🔶 Batch B (engine UI with tabs, the ability panel restyled and complete): being built, spec docs/engine-ui-spec.md.
-- 🔶 Bridge sweep of the 2026-11-09 small bugs: being fixed.
+- ✅ Batch B (engine UI with tabs, the ability panel restyled and complete): merged 5cfae03, deployed with 9ab42d3 (2026-11-10 23:08), spec docs/engine-ui-spec.md.
+- ✅ Bridge sweep of the 2026-11-09 small bugs: fixed (a20e36a) and deployed with 9ab42d3.
 - ✅ (source) The Free mulligans button where the Pirate Cannon sits, turned a quarter left (721d091).
 - ✅ (source) Player marks as small boxes, one a mark, stacked down the inner corner of the mat under the heart (the
   user: "corner of your playmat under your heart"; "multiple boxes ... instead of cramming everything in one box").
@@ -100,11 +126,11 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
     - The touch rule needs a second human.
   - pending: hear the new clips on the real table, including a burst. Check that the players' own track doesn't start
     by itself after one of our clips ends.
-- 🔶 (source) Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on
+- ✅ (seen live 2026-11-11 round 3) Green glow on permanents with a usable ability, seen only by their controller (SPEC.md "Green glow on
   permanents with a usable ability", the user 2026-11-11). It reuses the hand's per-player green frame, from the ability
   boxes' list; mana-only abilities are left out at priority; token stacks glow; first builds go 4 a frame. Needs the
   live check in SPEC.md.
-- 🔶 (source) Combat clarity (docs/next-features-2026-11-09.md item 2, docs/engine-ui-spec.md 9): attack lines and
+- 🔶 (colours seen live 2026-11-11 round 3; tabs and click confirmations not yet) Combat clarity (docs/next-features-2026-11-09.md item 2, docs/engine-ui-spec.md 9): attack lines and
   buttons green, blockers lines and Done red, COMBAT green / red in the phase bar; attack and blockers questions of
   more than 8 lines under tabs by name (20 Spirit tokens one tab); every block click confirms in the chat, and the
   blockers' lines are numbered. Needs a look on the real table. Suite-reviewed 2026-11-11 (tabs by name without
@@ -617,7 +643,7 @@ Players drag and use the table normally; every move is a request the engine acce
 - [x] From the table (2026-10-23): drop an aura/equipment onto its permanent (attach; put down alone = off), right-click "top / bottom of its library", the life and commander-damage counters work while editing and are read at Done, `mtg fix token <what> [for <colour>] [tapped]` (Forge's token scripts, `bridge/token-scripts.json`)
 - [x] `createCard` op (2026-11-04), used by `mtg debug <scenario>` to build test boards
 - [ ] Snap points (not needed so far: `dropArea` reads the zones)
-- [ ] Fix from hand (spec only, 2026-11-05, m7-manual-fix-spec §12): the fix panel offers your hand's cards: Cast free / Activate free / Play land / To graveyard, plus a "what should have happened" note; no card moved by hand; new ops `freeCast` / `freeActivate` / `freeLand` (Forge's dev-mode free cast)
+- [x] Fix from hand (built and live 2026-11-06, committed 8d75957; m7-manual-fix-spec §12): the fix panel offers your hand's cards: Cast free / Activate free / Play land / To graveyard, plus a "what should have happened" note; no card moved by hand; new ops `freeCast` / `freeActivate` / `freeLand` (Forge's dev-mode free cast)
 - [ ] Live test with 2 people
 
 ---
