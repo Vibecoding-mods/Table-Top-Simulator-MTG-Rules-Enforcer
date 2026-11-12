@@ -1,4 +1,4 @@
-// Self-update, the doing (docs/companion-app-spec.md §18): the network, the files and the order of an update.
+// Self-update, the doing (docs/companion-app-spec.md §11): the network, the files and the order of an update.
 // Update.cs has the data and the pure rules; what an update does to the bridge, Docker and the save goes through
 // IUpdateEffects (the Controller's steps, or FakeEffects in tests). Every file move is in update-journal.json first,
 // so a kill or a power cut mid-install is finished or undone at the next start (Recover).

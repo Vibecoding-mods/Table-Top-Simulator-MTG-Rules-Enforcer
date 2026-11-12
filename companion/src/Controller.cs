@@ -80,7 +80,7 @@ namespace MtgCompanion
         LoginResult loginCache;
         readonly Dictionary<int, DateTime> notified = new Dictionary<int, DateTime>();
 
-        // self-update (friend mode, docs/companion-app-spec.md §18)
+        // self-update (friend mode, docs/companion-app-spec.md §11)
         public static string UpdateBase; // (--update-base: tests point it at a fake GitHub)
         public string ApplyAfterSwap; // (--apply-update <tag>: the rest of a release the previous app couldn't apply)
         readonly object updGate = new object();
