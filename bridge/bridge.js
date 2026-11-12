@@ -8453,8 +8453,15 @@ const FIX_OPS = {
   // ops, with triggers on and no mana; `ability` is never sent by the table (the engine asks when there are several)
   freeCast: { card: "card", player: "player" }, freeLand: { card: "card", player: "player" },
   freeActivate: { card: "card", player: "player", ability: "count?" },
+  // the engine's own draw and mill (Forge's Player.drawCards and mill), made after the plain ops with triggers on, like
+  // the free plays: the companion's debug tools only (fixOps refuses them in a list the table sent), as no fix op can
+  // reach a library card (the board shows none).
+  // Engine images built before 2026-11-11 drop a directive with these unread (fixWatchdog says so).
+  draw: { player: "player", n: "count" }, mill: { player: "player", n: "count" },
 };
 const FREE_OPS = new Set(["freeCast", "freeLand", "freeActivate"]);
+const LIBRARY_OPS = new Set(["draw", "mill"]);
+const nCards = (n) => `${n} card${n === 1 ? "" : "s"}`;
 const FIX_KINDS = { hand: "fix from hand", board: "edit the board" };
 // Forge's token scripts by name (tools/make-token-list.js), for "mtg fix token ...": what a player types ("treasure",
 // "1/1 green saproling", "2/2 black zombie") becomes the script with that colour and size whose name has every other
@@ -8546,6 +8553,7 @@ function fixOps(list, pub, ownWords = false, kind = null) {
   for (const raw of list) {
     const want = FIX_OPS[raw?.op];
     if (!want) return { error: `Can't read the change ${JSON.stringify(raw)}.` };
+    if (LIBRARY_OPS.has(raw.op) && !ownWords) return { error: "Draw and mill come only from the companion page's debug tools." };
     const op = { op: raw.op };
     for (const [k, kind] of Object.entries(want)) {
       const v = raw[k];
@@ -8600,6 +8608,8 @@ function fixOps(list, pub, ownWords = false, kind = null) {
       freeCast: () => `${nameOf(op.player)} casts ${cardName(op.card)} for free`,
       freeActivate: () => `${nameOf(op.player)} activates ${poss(cardName(op.card))} ability for free`,
       freeLand: () => `${nameOf(op.player)} plays ${cardName(op.card)} for free (the land drop stays unused)`,
+      draw: () => `${nameOf(op.player)} draws ${nCards(op.n)}`,
+      mill: () => `${nameOf(op.player)} mills ${nCards(op.n)}`,
     }[op.op]());
     ops.push(op);
   }
@@ -8659,7 +8669,9 @@ function fixWatchdog() {
   if (f.activeAt && [...game.seats.values()].some((st) => st.prompt)) return;
   if (Date.now() - Math.max(f.appliedAt, f.activeAt || 0) < FIX_ANSWER_MS) return;
   log(`fix #${f.id}: no answer from the engine to ${f.applyId}`);
-  fixBackToEditing(f, "no answer from the engine", "[MTG] The engine didn't answer the fix. Back to editing: press Done to try again, or Cancel.");
+  // (a draw or a mill: the likeliest reason is an engine built before those ops, which drops the directive unread)
+  const old = (f.ops || []).some((op) => LIBRARY_OPS.has(op.op)) ? " Draw and mill need the engine image built with them: an engine built before draw and mill drops the change unread." : "";
+  fixBackToEditing(f, "no answer from the engine", `[MTG] The engine didn't answer the fix.${old} Back to editing: press Done to try again, or Cancel.`);
 }
 // the fix is over: a question held for it goes to its player again
 function endFix() {
@@ -8938,11 +8950,15 @@ function debugPrompt(seat, type, prompt, gv) {
 // built from the board the pause stopped at (f.debug.build). Only while the host has switched debug tools on (the
 // companion page; off at every bridge start), said to the whole table both ways. The change is made in the name of the
 // player it is for when a person sits there (the others vote, as for "mtg debug"), else of the first person's seat.
-// Draw and mill aren't here: the engine's board doesn't show library cards, so no fix op can move them (they need a
-// harness op and an engine image rebuild).
+// Draw and mill are the engine's own (the draw/mill ops, LIBRARY_OPS): the board shows no library card for a fix op to
+// move, and Forge drawing or milling itself counts the draw, fires the triggers and logs the move as in play.
 let debugTools = false;
+// a player's library count, as the board shows it (the cards stay hidden), or null
+const libraryCount = (pub, color) => (pub.zones || []).find((z) => z.zone === "library" && z.ownerId === slotOfColor(color))?.count ?? null;
+const cardCountProblem = (n) => (Number.isInteger(n) && n >= 1 && n <= 99 ? null : "say 1 to 99 cards");
 const DEBUG_TOOLS = {
-  // { what it says, (n, name, mana) -> a check's refusal or null, (color, pub, n, name, mana) -> the fix list }
+  // { (color, n, name, mana, pub) -> what it says, (n, name, mana) -> a check's refusal or null, (color, pub, n, name,
+  // mana) -> the fix list, optionally (color, pub) -> a refusal from the board or null }
   mana: { words: (c, n, name, mana) => `add ${n} ${mana} mana to ${c}'s pool`,
     check: (n, name, mana) => (!/^[WUBRGC]$/.test(mana || "") ? "pick a mana colour: W, U, B, R, G or C" : !(Number.isInteger(n) && n >= 1 && n <= 99) ? "say 1 to 99 mana" : null),
     build: (c, pub, n, name, mana) => [{ op: "mana", player: c, mana: Array(n).fill(mana).join(" ") }] },
@@ -8954,7 +8970,14 @@ const DEBUG_TOOLS = {
     build: (c, pub, n) => [{ op: "life", player: c, n }] },
   untap: { words: (c) => `untap everything ${c} controls`, check: () => null,
     build: (c, pub) => (pub.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => z.cards || [])
-      .filter((x) => x.tapped && (x.controllerId ?? x.ownerId) === slotOfColor(c)).map((x) => ({ op: "tap", card: x.id, tapped: false })) },
+      .filter((x) => x.tapped && (x.controllerId ?? x.ownerId) === slotOfColor(c)).map((x) => ({ op: "tap", card: x.id, tapped: false })),
+    refuse: (c, pub) => (DEBUG_TOOLS.untap.build(c, pub).length ? null : `${c} has nothing tapped.`) },
+  // (past the library's end is allowed, as running out is a thing to test, and said)
+  draw: { words: (c, n, name, mana, pub) => { const k = libraryCount(pub, c); return `make ${c} draw ${nCards(n)}${k != null && n > k ? ` (${k} in the library: drawing from an empty library loses the game)` : ""}`; },
+    check: cardCountProblem, build: (c, pub, n) => [{ op: "draw", player: c, n }] },
+  mill: { words: (c, n, name, mana, pub) => { const k = libraryCount(pub, c); return `mill ${nCards(n)} from ${c}'s library${k != null && n > k ? ` (${k} in it)` : ""}`; },
+    check: cardCountProblem, build: (c, pub, n) => [{ op: "mill", player: c, n }],
+    refuse: (c, pub) => (libraryCount(pub, c) === 0 ? `${c}'s library is empty: there is nothing to mill.` : null) },
 };
 function cardNameProblem(name) {
   const n = String(name || "").trim();
@@ -8988,10 +9011,11 @@ function runDebugTool(m) {
   const name = String(m.name || "").trim(), mana = String(m.mana || "").trim().toUpperCase();
   const bad = t.check(n, name, mana);
   if (bad) return { ok: false, message: `${bad[0].toUpperCase()}${bad.slice(1)}.` };
-  if (m.tool === "untap" && !t.build(color, g.pub).length) return { ok: false, message: `${color} has nothing tapped.` };
+  const no = t.refuse?.(color, g.pub);
+  if (no) return { ok: false, message: no };
   const by = game.seats.has(color) ? color : [...game.seats.values()].find((s) => isPlaying(g.pub, s.slot))?.color;
   if (!by) return { ok: false, message: "Nobody at the table is still in the game." };
-  const words = t.words(color, n, name, mana);
+  const words = t.words(color, n, name, mana, g.pub);
   openFix(by, g.pub, { name: words, tool: true, build: (pub) => t.build(color, pub, n, name, mana) });
   return { ok: true, message: `Debug tool: ${words}.` };
 }

@@ -511,6 +511,10 @@ function boot(body) {
     same("debug: untap needs only the player", D("untap", "White", "x", "", ""), { kind: "debug", tool: "untap", color: "White" });
     same("debug: refusals", [D("life", "", "3").error, D("life", "Blue", "2.5").error, D("life", "Blue", "").error, D("battlefield", "Blue", "", " ").error],
       ["Pick a player.", "Type a whole number in Number.", "Type a whole number in Number.", "Type a card name in Card."]);
+    same("debug: draw and mill take Number", [D("draw", "Blue", "2", "x", "R"), D("mill", "White", " 5 ", "", "")],
+      [{ kind: "debug", tool: "draw", color: "Blue", n: 2 }, { kind: "debug", tool: "mill", color: "White", n: 5 }]);
+    same("debug: draw and mill refusals", [D("draw", "Blue", "").error, D("mill", "Blue", "1.5").error], ["Type a whole number in Number.", "Type a whole number in Number."]);
+    same("tools: the bridge's tool list is kept", P.toolsView(TOOLS()).debug.tools, ["mana", "hand", "battlefield", "life", "untap"]);
   }
   {
     const h = boot();
@@ -566,6 +570,28 @@ function boot(body) {
     await h.clock.advance(2500);
     for (let i = 0; i < 4; i++) await flush();
     ok("tools: closed again: no more asking", h.calls.filter((c) => c.url === "/api/tools").length === asked);
+  }
+  {
+    // Draw and Mill: shown only when the bridge lists them (a bridge from before them would refuse them by name)
+    const h = boot();
+    h.tools = TOOLS();
+    h.$("tablebox").open = true;
+    h.$("tablebox").listeners.toggle.forEach((f) => f());
+    for (let i = 0; i < 4; i++) await flush();
+    same("tools: an older bridge's list: Draw and Mill hidden, the others shown", ["draw", "mill", "mana", "untap"].map((id) => h.$(`tt-${id}-btn`).hidden), [true, true, false, false]);
+    const t2 = TOOLS(); t2.tools = t2.tools.concat(["draw", "mill"]); h.tools = t2;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("tools: a list with draw and mill: both shown and usable", ["draw", "mill"].map((id) => [h.$(`tt-${id}-btn`).hidden, h.$(`tt-${id}-btn`).getAttribute("aria-disabled")]), [[false, "false"], [false, "false"]]);
+    h.$("tt-player").value = "Blue"; h.$("tt-n").value = "3";
+    h.answer = () => ({ ok: true, message: "Debug tool: make Blue draw 3 cards." });
+    h.$("tt-draw-btn").click();
+    for (let i = 0; i < 4; i++) await flush();
+    same("tools: Draw: the debug body, the answer said", [h.posts[0] && h.posts[0].body, h.$("tt-toast").textContent], [{ kind: "debug", tool: "draw", color: "Blue", n: 3 }, "Debug tool: make Blue draw 3 cards."]);
+    h.$("tt-player").value = "White"; h.$("tt-n").value = "4";
+    h.$("tt-mill-btn").click();
+    for (let i = 0; i < 4; i++) await flush();
+    same("tools: Mill: the debug body", h.posts[1] && h.posts[1].body, { kind: "debug", tool: "mill", color: "White", n: 4 });
   }
 
   {

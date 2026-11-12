@@ -360,9 +360,9 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     const n0 = applies(h).length;
     const bad = [await tool(h, { tool: "hand", color: "Blue", name: "Notacard Atall" }), await tool(h, { tool: "hand", color: "Blue", name: "" }),
       await tool(h, { tool: "mana", color: "Blue", n: 0, mana: "R" }), await tool(h, { tool: "mana", color: "Blue", n: 3, mana: "X" }),
-      await tool(h, { tool: "life", color: "Blue", n: 1000 }), await tool(h, { tool: "life", color: "Red", n: 5 }), await tool(h, { tool: "draw", color: "Blue", n: 1 })];
+      await tool(h, { tool: "life", color: "Blue", n: 1000 }), await tool(h, { tool: "life", color: "Red", n: 5 }), await tool(h, { tool: "scry", color: "Blue", n: 1 })];
     same("refusals: each with its reason", bad.map((r) => r.ok ? "ok" : r.message), ['The engine has no card called "Notacard Atall".', "Name a card.", "Say 1 to 99 mana.",
-      "Pick a mana colour: W, U, B, R, G or C.", "Say a life total from 0 to 999.", "Red isn't in this game.", 'No debug tool "draw".']);
+      "Pick a mana colour: W, U, B, R, G or C.", "Say a life total from 0 to 999.", "Red isn't in this game.", 'No debug tool "scry".']);
     same("refusals: nothing sent", applies(h).length, n0);
     const proto = [await tool(h, { tool: "constructor", color: "Blue" }), await tool(h, { tool: "hand", color: "Blue", name: "toString" }),
       await tool(h, { tool: "battlefield", color: "Blue", name: "constructor" }), await tool(h, { tool: "hand", color: "Blue", name: "__proto__" })];
@@ -380,7 +380,7 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     same("a rewind vote open: refused, nothing sent", [rv.message, applies(h).length], ["Finish the rewind vote first.", n0]);
     delete seat.board.state.gameView.restoreVote;
     const st = h.B.toolsState();
-    same("GET: players and tools", { on: st.debug.on, game: st.debug.game, players: st.debug.players, tools: st.tools }, { on: true, game: true, players: [{ color: "Blue", name: "Blue" }, { color: "White", name: "AI 1" }], tools: ["mana", "hand", "battlefield", "life", "untap"] });
+    same("GET: players and tools", { on: st.debug.on, game: st.debug.game, players: st.debug.players, tools: st.tools }, { on: true, game: true, players: [{ color: "Blue", name: "Blue" }, { color: "White", name: "AI 1" }], tools: ["mana", "hand", "battlefield", "life", "untap", "draw", "mill"] });
     same("GET: four seats", st.seats.map((s) => [s.color, s.person, s.ai]), [["White", false, null], ["Red", false, null], ["Yellow", false, null], ["Blue", true, null]]);
     h.B.onToolsPost({ kind: "debug-mode", on: false });
     await h.flush();
@@ -446,6 +446,85 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     g.fix = { id: 1, by: "Blue", state: "voting", waiting: ["Red"], debug: { name: "x", scenario: {} } };
     h.B.setDebugTools(false);
     ok("switched off: a scenario's setup stays", g.fix?.debug?.name === "x");
+  });
+  // draw and mill: the engine's own draw and mill (the harness's draw/mill ops, made after the other changes with
+  // triggers on), never a card moved by the bridge. The board shows no library card, only the library's count.
+  await run(async (h) => {
+    const seat = setup(h);
+    h.B.setDebugTools(true);
+    await h.flush();
+    const r1 = await tool(h, { tool: "draw", color: "Blue", n: 2 });
+    same("draw: started, worded", [r1.ok, r1.message], [true, "Debug tool: make Blue draw 2 cards."]);
+    same("draw: one applyState with the engine's draw op, by slot", applies(h).map((a) => a.ops), [[{ op: "draw", player: "player-0", n: 2 }]]);
+    await endFix(h, seat);
+    ok("draw: applied, said as the engine's draw", chats(h).includes('[MTG] Debug tool "make Blue draw 2 cards" applied: Blue draws 2 cards.'), JSON.stringify(chats(h).slice(-3)));
+    h.B.onPrompt(seat, prompt("chooseAction", PASS, 901)); await h.flush();
+    const r2 = await tool(h, { tool: "mill", color: "White", n: 3 });
+    same("mill: for the AI, its slot", [r2.message, applies(h).pop()?.ops], ["Debug tool: mill 3 cards from White's library.", [{ op: "mill", player: "player-1", n: 3 }]]);
+    await endFix(h, seat);
+    ok("mill: applied, said", chats(h).includes('[MTG] Debug tool "mill 3 cards from White\'s library" applied: AI 1 mills 3 cards.'), JSON.stringify(chats(h).slice(-3)));
+    h.B.onPrompt(seat, prompt("chooseAction", PASS, 902)); await h.flush();
+    const r3 = await tool(h, { tool: "draw", color: "Blue", n: 1 });
+    same("draw 1: one card", [r3.message, applies(h).pop()?.ops], ["Debug tool: make Blue draw 1 card.", [{ op: "draw", player: "player-0", n: 1 }]]);
+    await endFix(h, seat); h.B.onPrompt(seat, prompt("chooseAction", PASS, 903)); await h.flush();
+    // (more than the library holds: allowed, it is how running out is tested, but said)
+    const r4 = await tool(h, { tool: "draw", color: "Blue", n: 90 });
+    same("draw past the library: allowed, the loss said", r4.message, "Debug tool: make Blue draw 90 cards (87 in the library: drawing from an empty library loses the game).");
+    await endFix(h, seat); h.B.onPrompt(seat, prompt("chooseAction", PASS, 904)); await h.flush();
+    const r5 = await tool(h, { tool: "mill", color: "White", n: 99 });
+    same("mill past the library: allowed, the count said", r5.message, "Debug tool: mill 99 cards from White's library (86 in it).");
+    await endFix(h, seat); h.B.onPrompt(seat, prompt("chooseAction", PASS, 905)); await h.flush();
+    // (exactly the library: no note, as drawing the last card loses nothing)
+    const r6 = await tool(h, { tool: "draw", color: "Blue", n: 87 });
+    same("draw the whole library: no note", r6.message, "Debug tool: make Blue draw 87 cards.");
+    await endFix(h, seat); h.B.onPrompt(seat, prompt("chooseAction", PASS, 906)); await h.flush();
+    const r7 = await tool(h, { tool: "mill", color: "White", n: 86 });
+    same("mill the whole library: no note", r7.message, "Debug tool: mill 86 cards from White's library.");
+    await endFix(h, seat); h.B.onPrompt(seat, prompt("chooseAction", PASS, 907)); await h.flush();
+    const n0 = applies(h).length;
+    const bad = [await tool(h, { tool: "draw", color: "Blue", n: 0 }), await tool(h, { tool: "draw", color: "Blue", n: 100 }), await tool(h, { tool: "mill", color: "Blue" }),
+      await tool(h, { tool: "mill", color: "Blue", n: "x" }), await tool(h, { tool: "draw", color: "Blue", n: 2.5 }), await tool(h, { tool: "mill", color: "Red", n: 2 })];
+    same("draw/mill refusals: each with its reason", bad.map((r) => r.ok ? "ok" : r.message), ["Say 1 to 99 cards.", "Say 1 to 99 cards.", "Say 1 to 99 cards.", "Say 1 to 99 cards.", "Say 1 to 99 cards.", "Red isn't in this game."]);
+    seat.board.state.gameView.zones.find((z) => z.zone === "library" && z.ownerId === "player-1").count = 0;
+    const empty = await tool(h, { tool: "mill", color: "White", n: 2 });
+    same("mill from an empty library: refused (nothing would happen)", empty.message, "White's library is empty: there is nothing to mill.");
+    same("draw/mill refusals: nothing sent", applies(h).length, n0);
+  });
+  // the deployed engine may be older than the draw and mill ops: the relay and the node drop a directive they can't
+  // read, unanswered, so the watchdog's words say why
+  await run(async (h) => {
+    setup(h);
+    h.B.setDebugTools(true);
+    await h.flush();
+    await tool(h, { tool: "draw", color: "Blue", n: 1 });
+    const g = h.B._getGame();
+    ok("precondition: applying", g.fix?.state === "applying", JSON.stringify(g.fix));
+    if (g.fix) g.fix.appliedAt = Date.now() - 60000;
+    h.B.fixWatchdog();
+    await h.flush();
+    ok("no answer to a draw: back to editing, saying an older engine can't draw or mill", g.fix?.state === "editing" && /an engine built before draw and mill/.test(chats(h).at(-1) || ""), JSON.stringify(chats(h).slice(-2)));
+    // (back to editing it is an ordinary fix: the table's own list can't draw or mill, only the bridge's debug tools)
+    const n0 = applies(h).length;
+    for (const op of ["draw", "mill"]) {
+      h.B.onTTS({ t: "fix", json: JSON.stringify({ color: "Blue", action: "done", ops: [{ op, player: "Blue", n: 2 }] }) });
+      await h.flush();
+      same(`a table list with ${op}: refused, said, nothing sent`, [chats(h).at(-1), applies(h).length, g.fix?.state],
+        ["[MTG] Draw and mill come only from the companion page's debug tools.", n0, "editing"]);
+    }
+    h.B.onTTS({ t: "fix", json: JSON.stringify({ color: "Blue", action: "done", ops: [{ op: "life", player: "Blue", n: 5 }] }) });
+    await h.flush();
+    same("precondition: the same table list with a life change is sent", applies(h).slice(n0).map((a) => a.ops), [[{ op: "life", player: "player-0", n: 5 }]]);
+  });
+  await run(async (h) => {
+    setup(h);
+    h.B.setDebugTools(true);
+    await h.flush();
+    await tool(h, { tool: "life", color: "Blue", n: 9 });
+    const g = h.B._getGame();
+    if (g.fix) g.fix.appliedAt = Date.now() - 60000;
+    h.B.fixWatchdog();
+    await h.flush();
+    same("no answer to any other fix: the words as before", chats(h).at(-1), "[MTG] The engine didn't answer the fix. Back to editing: press Done to try again, or Cancel.");
   });
   // one the engine is already applying is past stopping (as a manual fix's Cancel is then)
   await run(async (h) => {

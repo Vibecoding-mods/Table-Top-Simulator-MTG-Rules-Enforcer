@@ -61,7 +61,9 @@ legal advice; the licence texts are what count.
 ## What the patches do
 
 - **Protocol and relay:** the exile links the table draws (`exiledWith`, `mayPlay`), the manual fix directive
-  (`applyState`, `stateFix`), cost Cancel, seat order, and persistent mana for the fix tools.
+  (`applyState`, `stateFix`), cost Cancel, seat order, and persistent mana for the fix tools; the fix's `draw` and
+  `mill` ops (Forge's own draw and mill, made after the other changes with triggers on: the debug tools' Draw and
+  Mill, `ApplyStateDrawMillTest`).
 - **Forge harness:** filter-land playability, rewind zone order, Treasure ranked last in auto-pay, a stack-target
   check that no longer crashes on Spider-Sense, and undoing a mana tap also undoing what that tap triggered; a
   controlled player's questions (Mindslaver) go to the seat controlling them, up a chain of control to the last seat
