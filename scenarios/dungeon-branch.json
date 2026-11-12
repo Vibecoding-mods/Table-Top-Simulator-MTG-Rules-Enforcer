@@ -1,0 +1,6 @@
+{
+  "label": "dungeon D4/D7: Lost Mine of Phandelver in Goblin Lair; Nadaar ventures: the room question (Storeroom or Dark Pool), then the room box on the dungeon card",
+  "lands": { "Plains": 20 },
+  "dungeon": { "name": "Lost Mine of Phandelver", "room": "Goblin Lair" },
+  "hand": ["Nadaar, Selfless Paladin"]
+}

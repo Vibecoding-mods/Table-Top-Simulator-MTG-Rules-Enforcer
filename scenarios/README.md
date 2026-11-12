@@ -39,9 +39,16 @@ triggers, state-based actions after, a restore point before). Names are lower ca
 - `tokens`: as `mtg fix token` takes them (Forge's token scripts by colour, size and words).
 - `mana`: that many of each colour (W U B R G C) until the end of the turn, as `mtg mana` (at most 99).
 - `opponents`: every other player still in the game; a colour (`"Red"`) has its own part instead.
+- `dungeon`: `{ "name": "Lost Mine of Phandelver", "room": "Goblin Lair" }`, in your part or a player's: that player
+  is in the dungeon, in that room (no `room`: none yet, the next venture enters its first room). Room names as Forge's
+  dungeon scripts have them. `completedDungeons`: a list of dungeon names that player has completed already.
+- `initiative`: `"you"` or a colour (top level only): that player takes the initiative (Undercity's first room, as
+  Forge's take-the-initiative does). These three need an engine image with the dungeon ops (from the planechase-1111
+  build on, relay and node included); an older relay or node drops the whole change list unread, and the setup
+  goes back to editing after 20 s with no answer.
 
 A file of the wrong shape (not an object, `lands` of another kind, a zone or `tokens` that isn't a list) is refused
 when typed, saying what is wrong. A choice made before a game is dropped (and said) if that colour isn't in it.
 The engine refuses a name it doesn't know ("no card named ..."); the setup then goes back to editing as an ordinary
 manual fix (Done applies what the table shows, Cancel ends it).
-Tests: `node tests/test_bridge_debug.js` (50 checks).
+Tests: `node tests/test_bridge_debug.js` (55 checks).

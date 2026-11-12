@@ -261,7 +261,7 @@ function engineNoop() end
 -- One string per card (engineBadge) decides whether anything changed; then its buttons are drawn again.
 local BADGE = { pt = { 0.62, 0.3, 1.18 }, ctr = { 0.6, 0.3, -1.12 }, grp = { -0.62, 0.3, -1.12 }, cp = { -0.55, 0.3, 1.18 }, cpBg = { 0.42, 0.18, 0.55, 0.95 },
   kw = { 0, 0.3, 0.1 }, kwBg = { 0.05, 0.32, 0.12, 0.95 }, tb = { 0, 0.29, 0.74 }, tbBg = { 0.95, 0.92, 0.84, 0.98 },
-  poBg = { 0.1, 0.16, 0.42, 0.95 }, poTint = { 0.38, 0.42, 0.62 },
+  poBg = { 0.1, 0.16, 0.42, 0.95 }, poTint = { 0.38, 0.42, 0.62 }, room = { 0, 0.3, 0.55 }, roomBg = { 0.36, 0.2, 0.05, 0.95 },
   black = { 0, 0, 0, 0.85 }, grew = { 0.8, 0.55, 0.05, 0.95 }, up = { 0.1, 0.35, 0.8, 0.95 }, down = { 0.62, 0.08, 0.08, 0.95 }, ctrBg = { 0.06, 0.16, 0.42, 0.95 } }
 local function badgeParts(c)
   local parts = {}
@@ -274,6 +274,9 @@ local function badgeParts(c)
     if cur ~= "" then lines[#lines + 1] = cur end
     return lines
   end
+  -- a dungeon's room, where it leads and the dungeons completed, the bridge's words (dungeonLabel), the room's text as
+  -- its tooltip (docs/planechase-dungeon-engine-spec.md D7)
+  if type(c.dg) == "string" and c.dg ~= "" then parts[#parts + 1] = { "room", c.dg, BADGE.roomBg, type(c.dgt) == "string" and c.dgt or "" } end
   if (c.groupN or 1) > 1 then parts[#parts + 1] = { "grp", "x" .. c.groupN, BADGE.black } end
   -- a copy of another card (Phantasmal Image as Kenrith): which of two alike is the copy (legend rule, playtest 2026-10-26)
   if c.cp then parts[#parts + 1] = { "cp", "COPY", BADGE.cpBg } end
@@ -359,7 +362,7 @@ local function updateBadge(o, c, zone)
   end
   -- (a face-down permanent has badges too, drawn on the side that faces up, its back: one pumped or damaged said nothing.
   -- Its base is the rules' 2/2, bridge tableCard, so a plain morph has none. "=under" in the text redraws it with the next board after a flip.)
-  local text = zone == "battlefield" and badgeText(c) or ""
+  local text = (zone == "battlefield" or (zone == "command" and type(c.dg) == "string" and c.dg ~= "")) and badgeText(c) or ""
   if text ~= "" and (c.fd == true) ~= (engineFlipped[c.id] == true) then text = text .. "=under" end
   -- (the card's ability buttons are drawn with its badges: one set of buttons per card, engineAbilityButtons)
   local ab = engineAbilitySig ~= nil and engineAbilitySig(c) or ""
@@ -382,7 +385,7 @@ local function updateBadge(o, c, zone)
     for line in (b[2] .. "\n"):gmatch("([^\n]*)\n") do longest = math.max(longest, #line) lines = lines + 1 end
     lines = lines - 1
     local pos = BADGE[b[1]]
-    local kwb, tbb = b[1] == "kw", b[1] == "tb"
+    local kwb, tbb = b[1] == "kw" or b[1] == "room", b[1] == "tb"
     -- (the status box: smaller, card-wide at most, its bottom edge fixed, growing upward; the changed text box: smaller
     -- still, card-wide, centred on the card's text box)
     local fs, lineH = tbb and 64 or kwb and 90 or 180, tbb and 78 or kwb and 102 or 165
@@ -2283,9 +2286,20 @@ function engineRender(m)
       engineZonePile(color, "exile", engineWithoutSpecial(pl.exile or {}), g.lib + g.libFwd * 4.16, g.rotY, seen)
       sect("piles")
       local labels = TAX_LABELS[color] or {}
-      for i, c in ipairs(pl.command or {}) do
-        local label = getObjectFromGUID(labels[i] or labels[1] or "")
-        local base = label and label.getPosition() or g.lib
+      local k = 0
+      for _, c in ipairs(pl.command or {}) do
+        local base = nil
+        -- (a dungeon has its own spot past the second tax label, the way from the first to the second once more: on a
+        -- label it covered a partner commander, docs/planechase-dungeon-engine-spec.md D7)
+        if hasType(c, "Dungeon") then
+          local first, second = getObjectFromGUID(labels[1] or ""), getObjectFromGUID(labels[2] or "")
+          if first ~= nil and second ~= nil then base = second.getPosition() + (second.getPosition() - first.getPosition())
+          else base = g.lib - g.libFwd * 2.6 end
+        else
+          k = k + 1
+          local label = getObjectFromGUID(labels[k] or labels[1] or "")
+          base = label and label.getPosition() or g.lib
+        end
         -- (the dropped spot only while it is being cast; a commander that came back goes to its command zone,
         -- playtest 2026-10-26: Kenrith back in the command zone was still drawn where it had been on the battlefield)
         place(c, (engineManualPlay[c.id] and engineManual[c.id]) or onTable(base), Vector(0, g.rotY, 0), seen, nil, { zone = "command", color = color })
