@@ -65,6 +65,62 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("changed text: an emptied text box shows as (no text)", at("engine-card-905")?.ct === "(no text)", JSON.stringify(at("engine-card-905")));
     ok("changed text: a card never changed has no box", !!at("engine-card-906") && at("engine-card-906").ct === undefined, JSON.stringify(at("engine-card-906")));
   }
+  // the cost badge's data (docs/cost-badge-spec.md, tableCard's costNow): Forge's effectiveManaCost reaches the table as
+  // ec, with the printed cost as mc, only when the two differ; the commander tax is worked out from the card's
+  // commanderTax only while the engine has sent no effectiveManaCost in this game
+  {
+    const board = (edit) => { const b = clone(F.board); edit(b.gameView); return b; };
+    const zone = (gv, z, owner) => gv.zones.find((x) => x.zone === z && x.ownerId === owner);
+    const card = (gv, z, owner, name) => zone(gv, z, owner).cards.find((c) => c.identity?.name === name);
+    const tableOf = async (edit, slot = "player-0") => {
+      const h = harness.load();
+      setup(h, board(edit));
+      h.B.sendTable(); await h.flush();
+      const t = sent(h, "table")[0] || { players: [] };
+      harness.restore();
+      return t.players.find((p) => p.slot === slot) || {};
+    };
+    const pick = (list, id) => { const c = (list || []).find((x) => x.id === id) || {}; return JSON.stringify({ ec: c.ec, mc: c.mc }); };
+    const ids = {};
+    const gv0 = clone(F.board).gameView;
+    for (const [z, owner, name] of [["hand", "player-0", "Vraska's Fall"], ["hand", "player-0", "Pestilence"], ["command", "player-0", "Neheb, the Worthy"], ["battlefield", "player-0", "Mountain"], ["battlefield", "player-1", "Ashling, the Limitless"]]) ids[name] = card(gv0, z, owner, name)?.id;
+    ok("cost data: precondition, the fixture's cards were found", Object.values(ids).every(Boolean), JSON.stringify(ids));
+    // a Thalia tax on Vraska's Fall ({2}{B} -> {3}{B}); Pestilence left as printed (Forge sends no effective cost then)
+    const taxed = await tableOf((gv) => { card(gv, "hand", "player-0", "Vraska's Fall").effectiveManaCost = "{3}{B}"; });
+    ok("cost data: a hand card whose cost changed carries ec and mc", pick(taxed.hand, ids["Vraska's Fall"]) === JSON.stringify({ ec: "{3}{B}", mc: "{2}{B}" }), pick(taxed.hand, ids["Vraska's Fall"]));
+    ok("cost data: a hand card as printed carries neither", pick(taxed.hand, ids.Pestilence) === "{}", pick(taxed.hand, ids.Pestilence));
+    // the same string as printed is no change
+    const same = await tableOf((gv) => { card(gv, "hand", "player-0", "Pestilence").effectiveManaCost = "{2}{B}{B}"; });
+    ok("cost data: an effective cost equal to the printed one is no change", pick(same.hand, ids.Pestilence) === "{}", pick(same.hand, ids.Pestilence));
+    // the commander in the command zone: the engine's word first
+    const cmdEngine = await tableOf((gv) => { const n = card(gv, "command", "player-0", "Neheb, the Worthy"); n.commanderTax = 4; n.effectiveManaCost = "{5}{B}{R}"; });
+    ok("cost data: a commander's effective cost from the engine is sent as it is", pick(cmdEngine.command, ids["Neheb, the Worthy"]) === JSON.stringify({ ec: "{5}{B}{R}", mc: "{1}{B}{R}" }), pick(cmdEngine.command, ids["Neheb, the Worthy"]));
+    // fallback: no effectiveManaCost anywhere in the game, tax 4 -> {1}{B}{R} costs {5}{B}{R}
+    const cmdFallback = await tableOf((gv) => { card(gv, "command", "player-0", "Neheb, the Worthy").commanderTax = 4; });
+    ok("cost data: with no engine cost in the game, the commander's tax is added to its generic", pick(cmdFallback.command, ids["Neheb, the Worthy"]) === JSON.stringify({ ec: "{5}{B}{R}", mc: "{1}{B}{R}" }), pick(cmdFallback.command, ids["Neheb, the Worthy"]));
+    // the engine sends effective costs in this game (a hand card has one), and none for the commander: its cost is as
+    // printed by the engine's word (a reduction that cancels the tax), so no fallback
+    const cmdTrusted = await tableOf((gv) => { card(gv, "command", "player-0", "Neheb, the Worthy").commanderTax = 2; card(gv, "hand", "player-0", "Vraska's Fall").effectiveManaCost = "{3}{B}"; });
+    ok("cost data: once the engine sends effective costs, a commander without one has no badge", pick(cmdTrusted.command, ids["Neheb, the Worthy"]) === "{}", pick(cmdTrusted.command, ids["Neheb, the Worthy"]));
+    const noTax = await tableOf(() => {});
+    ok("cost data: a commander with no tax and no engine cost carries none", pick(noTax.command, ids["Neheb, the Worthy"]) === "{}", pick(noTax.command, ids["Neheb, the Worthy"]));
+    // a commander on the battlefield has its tax on the card, and nothing to cast: no cost
+    const onField = await tableOf(() => {});
+    const ashling = await tableOf((gv) => { card(gv, "battlefield", "player-1", "Ashling, the Limitless").commanderTax = 2; }, "player-1");
+    ok("cost data: precondition, the battlefield boards were sent", !!onField.battlefield && !!ashling.battlefield);
+    ok("cost data: a commander on the battlefield carries no cost", pick(ashling.battlefield, ids["Ashling, the Limitless"]) === "{}", pick(ashling.battlefield, ids["Ashling, the Limitless"]));
+    // a land's "no cost" is no printed cost: a land never carries one (Forge sends none for it)
+    ok("cost data: a land carries none", pick(onField.battlefield, ids.Mountain) === "{}", pick(onField.battlefield, ids.Mountain));
+    // a card with no printed mana cost that costs something now (Forge's "no cost") is sent with mc ""
+    const none = await tableOf((gv) => { const c = card(gv, "hand", "player-0", "Pestilence"); c.manaCost = "no cost"; c.effectiveManaCost = "{1}"; });
+    ok("cost data: \"no cost\" printed goes as an empty mc", pick(none.hand, ids.Pestilence) === JSON.stringify({ ec: "{1}", mc: "" }), pick(none.hand, ids.Pestilence));
+    // a tax on a cost with no generic part, by the fallback: {U} + 2 -> {2}{U}; the engine's own string is kept as sent
+    const h = harness.load();
+    setup(h, F.board);
+    const sum = typeof h.B.costNow === "function" ? JSON.stringify(h.B.costNow({ manaCost: "{U}", commanderTax: 2 }, "command")) : "costNow isn't exported";
+    ok("cost data: the fallback's sum puts the generic first ({U} taxed 2 is {2}{U})", sum === JSON.stringify({ ec: "{2}{U}", mc: "{U}" }), sum);
+    harness.restore();
+  }
   // "Hidden cards are never named" in the game log (logSnapshot / logEvents)
   {
     const h = harness.load();

@@ -675,6 +675,117 @@ for (const kind of ["Land", "Creature"]) {
   ok("copy badge: none before it is a copy", !String(valueOf(r, "before")).includes("COPY"), String(valueOf(r, "before")) + " " + r.errors.join(" | "));
   ok("copy badge: a copy shows COPY", String(valueOf(r, "after")).split("|").includes("COPY"), String(valueOf(r, "after")) + " " + r.errors.join(" | "));
 }
+// The cost badge (docs/cost-badge-spec.md): engineCostChange compares the printed cost (mc) with the engine's (ec)
+{
+  const cases = [
+    // [printed, now, what it says] g: the new generic sum (nil: unchanged), chip: the coloured change
+    ["{2}{R}{R}", "{R}{R}", "g=0 dir=less chip=nil pips=3 had=true"],
+    ["{2}{R}{R}", "{3}{R}{R}", "g=3 dir=more chip=nil pips=3 had=true"],
+    ["{R}", "{1}{R}", "g=1 dir=more chip=nil pips=1 had=false"], // Thalia on a one-pip spell
+    ["{2}{G}{G}", "{2}{G}", "g=nil dir=less chip=-G pips=3 had=true"], // Emerald Medallion
+    ["{X}{R}", "{1}{X}{R}", "g=1 dir=more chip=nil pips=2 had=false"], // a tax on an X spell: X is no generic
+    ["{X}{R}", "{X}{R}", "nil"],
+    ["{2}{U}{R}", "{6}{U}{R}", "g=6 dir=more chip=nil pips=3 had=true"], // commander tax after two casts
+    ["{2/W}{2/W}", "{1}{2/W}{2/W}", "g=1 dir=more chip=nil pips=2 had=false"], // a monocoloured hybrid is no generic
+    ["{W/U}{W/U}", "{W/U}", "g=nil dir=less chip=-W/U pips=2 had=false"],
+    ["{1}{W/P}", "{W/P}", "g=0 dir=less chip=nil pips=2 had=true"], // Phyrexian
+    ["{X}{X}{G}", "{1}{X}{X}{G}", "g=1 dir=more chip=nil pips=3 had=false"],
+    ["{0}", "{1}", "g=1 dir=more chip=nil pips=1 had=true"],
+    ["{R}{2}", "{2}{R}", "nil"], // the same pips in another order
+    ["{1}{2}{R}", "{3}{R}", "nil"], ["{1}{2}{R}", "{4}{R}", "g=4 dir=more chip=nil pips=3 had=true"], // generic pips are summed
+    ["{2}{r}", "{2}{R}", "nil"],
+    ["{2}{G}{G}", "{1}{G}{G}{G}", "g=1 dir=more chip=+G pips=3 had=true"], // cheaper generic, dearer colour: red wins
+    ["{1}{G}{G}", "{G}", "g=0 dir=less chip=-G pips=3 had=true"],
+    ["{2}{B}{B}", "{2}{B}{B}{B}{B}", "g=nil dir=more chip=+BB pips=3 had=true"],
+    ["", "{1}", "g=1 dir=more chip=nil pips=0 had=false"], // no printed mana cost
+    [null, "{1}", "nil"], ["{1}", null, "nil"], ["", "", "nil"], ["{1}{R}", "", "nil"], ["{3}{B}", "{3}{B}", "nil"],
+  ];
+  const lit = (s) => (s == null ? "nil" : JSON.stringify(s));
+  const say = 'local function say(r) if r == nil then return "nil" end return "g=" .. tostring(r.generic) .. " dir=" .. tostring(r.dir) .. " chip=" .. tostring(r.chip) .. " pips=" .. tostring(r.pips) .. " had=" .. tostring(r.hadGeneric) end ';
+  const r = run(cases.map(([a, b], i) => q(`${say} return say(engineCostChange(${lit(a)}, ${lit(b)}))`, `case ${i}`)).concat([
+    // (half-written costs never raise)
+    q('local ok1 = pcall(engineCostChange, "{2}{R", "{3}{R}") local ok2 = pcall(engineCostChange, "}{", "{{1}") local ok3 = pcall(engineCostChange, 5, {}) return tostring(ok1 and ok2 and ok3)', "nasty")]));
+  ok("cost compare: precondition, no script error", !r.errors.length, r.errors.slice(0, 2).join(" | "));
+  cases.forEach(([a, b, want], i) => ok(`cost compare: ${a} -> ${b}: ${want}`, valueOf(r, `case ${i}`) === want, String(valueOf(r, `case ${i}`))));
+  ok("cost compare: half-written or odd costs raise nothing", valueOf(r, "nasty") === "true", String(valueOf(r, "nasty")));
+}
+// The cost badge on the table: a counter over the generic pip with the new number, a thin rim saying cheaper (green) or
+// dearer (red); a colour change as a chip left of the pips; on hand and command cards only, redrawn only when it changes.
+// Geometry: the pips' centres are PIP_X - PIP_STEP x (pips counted from the right), at PIP_Z (estimates to calibrate on
+// the real table, BADGE.cost); 480 button units to a local unit.
+{
+  const PIP_X = 0.85, PIP_STEP = 0.125, PIP_Z = -1.28, PIP = 0.115, PER = 480;
+  const pipX = (i, n) => PIP_X - PIP_STEP * (n - i); // pip i of n, from the left
+  const find = (v) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. tostring(${v}) then o = x end end if o == nil then return "no card" end `;
+  // every badge button: label@x@z@w@h@colour
+  const btns = (v, mark) => q(find(v) + 'local out = {} for _, b in ipairs(o.getButtons() or {}) do if b.click_function == "engineNoop" then local p, c = b.position or {}, b.color or {} ' +
+    'out[#out + 1] = tostring(b.label) .. "@" .. string.format("%.4f@%.4f@%d@%d@%.2f,%.2f,%.2f", p[1] or p.x or 0, p[3] or p.z or 0, b.width or 0, b.height or 0, c[1] or c.r or -1, c[2] or c.g or -1, c[3] or c.b or -1) end end return #out == 0 and "none" or table.concat(out, "|")', mark);
+  const desc = (v, mark) => q(find(v) + 'return tostring(o.getDescription())', mark);
+  const pick = 'local t = engineTable() local b = t.players[1] for _, p in ipairs(t.players) do if p.color == "Blue" then b = p end end ' +
+    '__hId = b.hand and b.hand[1] and b.hand[1].id __cId = b.command and b.command[1] and b.command[1].id ' +
+    'for _, x in ipairs(b.battlefield or {}) do if __bId == nil and x.att == nil and not x.fd then __bId = x.id end end return tostring(__hId) .. "," .. tostring(__cId) .. "," .. tostring(__bId)';
+  // set mc/ec on one card of Blue's (zone list name, id variable), then draw the board again
+  const set = (zone, v, mc, ec, mark) => q(`local t = engineTable() for _, p in ipairs(t.players) do for _, x in ipairs(p.${zone} or {}) do if x.id == ${v} then x.mc = ${mc == null ? "nil" : JSON.stringify(mc)} x.ec = ${ec == null ? "nil" : JSON.stringify(ec)} end end end engineRender(t) __sim.frames(30)`, `set: ${mark}`);
+  const r = run([{ frames: 30 }, q(pick, "pick"),
+    btns("__hId", "plain"),
+    set("hand", "__hId", "{2}{R}{R}", "{3}{R}{R}", "taxed"), btns("__hId", "taxed"), desc("__hId", "taxed desc"),
+    q('local p = engineSelfCheck().problems or {} local out = {} for _, s in ipairs(p) do if tostring(s):find("cost", 1, true) then out[#out + 1] = tostring(s) end end return #out == 0 and "none" or table.concat(out, " || ")', "check ok"),
+    set("hand", "__hId", "{2}{R}{R}", "{3}{R}{R}", "taxed again"), btns("__hId", "taxed again"),
+    // (the check sees a badge the table lost)
+    q(find("__hId") + 'o.clearButtons() local p = engineSelfCheck().problems or {} local out = {} for _, s in ipairs(p) do if tostring(s):find("cost", 1, true) then out[#out + 1] = tostring(s) end end return #out == 0 and "none" or table.concat(out, " || ")', "check lost"),
+    set("hand", "__hId", "{2}{R}{R}", "{R}{R}", "cheaper"), btns("__hId", "cheaper"),
+    set("hand", "__hId", "{R}", "{1}{R}", "thalia"), btns("__hId", "thalia"),
+    set("hand", "__hId", "{2}{G}{G}", "{2}{G}", "medallion"), btns("__hId", "medallion"),
+    set("hand", "__hId", "{2}{G}{G}", "{1}{G}{G}{G}", "both"), btns("__hId", "both"),
+    set("hand", "__hId", "{2}{U}{R}", "{12}{U}{R}", "two digits"), btns("__hId", "two digits"),
+    set("hand", "__hId", "{2}{R}{R}", null, "printed again"), btns("__hId", "printed again"), desc("__hId", "printed desc"),
+    set("command", "__cId", "{2}{U}{R}", "{6}{U}{R}", "commander"), btns("__cId", "commander"),
+    // (with a counter on it, so it has battlefield badges to draw)
+    q('local t = engineTable() for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if x.id == __bId then x.ctr = { P1P1 = 1 } end end end return "counter"', "a counter"),
+    set("battlefield", "__bId", "{2}{R}{R}", "{3}{R}{R}", "battlefield"), btns("__bId", "battlefield"),
+    q('local t = engineTable() for _, p in ipairs(t.players) do for _, x in ipairs(p.battlefield or {}) do if x.id == __bId then x.ctr = {} end end end return "no counter"', "no counter"),
+    set("battlefield", "__bId", null, null, "battlefield back")]);
+  const v = (m) => String(valueOf(r, m));
+  const parse = (m) => (v(m) === "none" ? [] : v(m).split("|").map((s) => { const [label, x, z, w, h, col] = s.split("@"); return { label, x: +x, z: +z, w: +w, h: +h, col }; }));
+  const BOX = "0.06,0.16,0.42", GREEN = "0.15,0.62,0.20", RED = "0.75,0.12,0.10";
+  const edges = (b) => [b.x - b.w / 2 / PER, b.x + b.w / 2 / PER, b.z - b.h / 2 / PER, b.z + b.h / 2 / PER];
+  // the counter (the box with the number) and its rim (the larger box under it, no label)
+  const counter = (m) => { const bs = parse(m); return { box: bs.find((b) => /^\d+$/.test(b.label)), rim: bs.find((b) => b.label === "" ), chip: bs.find((b) => /^[-+]/.test(b.label)), n: bs.length }; };
+  const covers = (b, x, z, half) => { const [x0, x1, z0, z1] = edges(b); return x0 <= x - half + 1e-6 && x1 >= x + half - 1e-6 && z0 <= z - half + 1e-6 && z1 >= z + half - 1e-6; };
+  const ids = v("pick").split(",");
+  ok("cost badge: precondition, Blue has a hand card, a commander and a permanent", ids.every((s) => s !== "nil"), v("pick") + " " + r.errors.join(" | "));
+  ok("cost badge: precondition, no script error", !r.errors.length, r.errors.slice(0, 2).join(" | "));
+  ok("cost badge: a card as printed has no counter", v("plain") === "none", v("plain"));
+  const t = counter("taxed");
+  ok("cost badge: taxed {2}{R}{R} -> {3}{R}{R}: one counter saying 3 and its rim, nothing else", t.n === 2 && t.box && t.rim, v("taxed"));
+  ok("cost badge: the counter is the counters' box colour, its rim red (dearer)", t.box?.col === BOX && t.rim?.col === RED, v("taxed"));
+  ok("cost badge: the rim covers the generic pip whole, the box its middle (the printed 2)", t.rim && covers(t.rim, pipX(1, 3), PIP_Z, PIP / 2) && covers(t.box, pipX(1, 3), PIP_Z, PIP * 0.35), v("taxed"));
+  ok("cost badge: it leaves the first red pip alone (at most a sliver of its edge)", t.rim && edges(t.rim)[1] <= pipX(2, 3) - PIP / 2 + 0.005, v("taxed"));
+  ok("cost badge: the rim lies under the box (larger, the box drawn over it)", t.rim && t.rim.w > t.box.w && t.rim.h > t.box.h, v("taxed"));
+  ok("cost badge: the hover text says the cost now and the printed one", v("taxed desc").includes("Costs {3}{R}{R} now (printed {2}{R}{R})"), v("taxed desc"));
+  ok("cost badge: the self-check finds nothing wrong with it", v("check ok") === "none", v("check ok"));
+  ok("cost badge: the same board twice draws the same two buttons, no duplicates", counter("taxed again").n === 2 && v("taxed again") === v("taxed"), v("taxed again"));
+  ok("cost badge: the same board twice makes no new button", !fxOf(r, "set: taxed again").some((l) => /createButton/.test(l)), fxOf(r, "set: taxed again").filter((l) => /createButton/.test(l)).slice(0, 2).join(" "));
+  ok("cost badge: the self-check reports a counter the table lost", /cost/.test(v("check lost")) && v("check lost") !== "none", v("check lost"));
+  const c = counter("cheaper");
+  ok("cost badge: cheaper {2}{R}{R} -> {R}{R}: a counter saying 0, its rim green", c.box?.label === "0" && c.rim?.col === GREEN && c.n === 2, v("cheaper"));
+  const th = counter("thalia");
+  ok("cost badge: Thalia on {R}: a counter saying 1, red rim", th.box?.label === "1" && th.rim?.col === RED && th.n === 2, v("thalia"));
+  ok("cost badge: with no generic pip it sits where one would be, left of the red one", th.rim && covers(th.rim, pipX(1, 1) - PIP_STEP, PIP_Z, PIP / 2) && edges(th.rim)[1] <= pipX(1, 1) - PIP / 2 + 0.005, v("thalia"));
+  const md = counter("medallion");
+  ok("cost badge: Emerald Medallion: no counter, a green chip -G", !md.box && !md.rim && md.chip?.label === "-G" && md.chip?.col === GREEN && md.n === 1, v("medallion"));
+  ok("cost badge: the chip sits left of the pips", md.chip && edges(md.chip)[1] <= pipX(1, 3) - PIP / 2 + 1e-6 && md.chip.z === t.box.z, v("medallion"));
+  const both = counter("both");
+  ok("cost badge: a cheaper generic and a dearer colour: the counter says 1 with a red rim, the chip +G", both.box?.label === "1" && both.rim?.col === RED && both.chip?.label === "+G" && both.chip?.col === RED, v("both"));
+  ok("cost badge: the chip sits left of the counter's rim", both.chip && both.rim && edges(both.chip)[1] <= edges(both.rim)[0] + 1e-6, v("both"));
+  const two = counter("two digits");
+  ok("cost badge: two digits widen the counter to the left, its right edge kept", two.box?.label === "12" && two.box.w > t.box.w && Math.abs(edges(two.rim)[1] - edges(t.rim)[1]) < 1e-3, v("two digits"));
+  ok("cost badge: back to the printed cost, no counter at all", v("printed again") === "none", v("printed again"));
+  ok("cost badge: and no cost line in the hover text", !v("printed desc").includes("Costs "), v("printed desc"));
+  const cm = counter("commander");
+  ok("cost badge: a commander taxed after two casts shows 6 over its 2", cm.box?.label === "6" && cm.rim?.col === RED && cm.n === 2, v("commander"));
+  ok("cost badge: never on the battlefield (the counters box is there)", parse("battlefield").length > 0 &&!parse("battlefield").some((b) => b.label === "3" || (b.label === "" && b.col === RED)), v("battlefield"));
+}
 // the power/toughness badge (live 2026-11-08: a 6/6 X/X Dinosaur Beast showed no number): shown whenever the card's
 // numbers differ from its picture's (bp/bt), and always when the picture shows none (bp nil), in black; a face-down
 // permanent's on its back, against the rules' 2/2

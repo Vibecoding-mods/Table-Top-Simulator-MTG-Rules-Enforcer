@@ -46,8 +46,15 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 - ⬜ Custom card art (docs/custom-art-spec.md): the user said yes to every default (2026-11-11). Order: first check on
   the real table whether a plain card's link already keeps its picture in engine mode; then the plain-cards slice;
   DFC backs later. Art for game-made tokens and the AI's decks: a later item.
-- ⬜ Cost badge (docs/cost-badge-spec.md): the user's design, a counter-token look (like the Mindsplice app's
-  counters) covering the colorless number with the new total. Ready to build.
+- 🔶 (source) Cost badge (docs/cost-badge-spec.md): the user's design, a counter-token look (like the Mindsplice app's
+  counters) covering the colorless number with the new total. Phase 1 built 2026-11-11, no engine change: the bridge
+  passes Forge's effectiveManaCost as ec (with the printed mc; a commander's tax from commanderTax while no
+  effectiveManaCost has come), the table draws a counter in the counters' colour with a green/red rim over the generic
+  pip (left of the first pip when there is none), a "-G" chip for a coloured change, on hand, command-zone, playable-row
+  and revealed cards, and says "Costs {3}{R}{R} now (printed {2}{R}{R})" in the hover text. To see on the real table:
+  that effectiveManaCost reaches the bridge (Thalia + a noncreature spell, a commander cast once), that TTS draws
+  buttons on hand cards (else the hover text carries it), and the badge's place over the pip (BADGE.cost are estimates).
+  Phase 2 (graveyard/exile casts, a cost reduced to nothing) needs a harness change.
 - 🔶 (source) Small queued bugs, bridge and table side (docs/next-features-2026-11-09.md "Also queued"), each
   reproduced by a test from its real report first: the flashback row card's hover-text alarm; a stray copy left
   beside a pile (Rancor) and plays queued for graveyard cards; payment taps that can't pay anything owed (Viscera
