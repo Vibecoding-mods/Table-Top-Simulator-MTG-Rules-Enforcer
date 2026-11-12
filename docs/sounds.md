@@ -24,7 +24,7 @@ Since that day, only a track of the players' own that is *playing* holds off the
 | mtg-instant.mp3 | an instant is cast, instants only (`instant`, new) | 0.90 s | Instant_spell_cast.ogg (really a WAV) | https://steamusercontent-a.akamaihd.net/ugc/13908604519167356078/0E2D2096A9D13080B6AC9F2204F29D2B419AD00A/ |
 | mtg-lifegain.mp3 | a player gains life (`lifegain`, new) | 1.80 s | Health_gain.aif | https://steamusercontent-a.akamaihd.net/ugc/18328296034120530417/099A768F25DE573194668B6ACDFC47C3BC4F0DE7/ |
 
-No sound yet for `counter` and `knockout`.
+`counter` and `knockout` have clips (below, "Counter and knockout") but no link yet, so they stay silent.
 
 The links are in `engineSounds` in `tools/engine-renderer.lua` (2026-11-11); when each kind plays and which wins on a
 busy board: `docs/m5-effects-design.md` section 6. `tests/test_table_effects.js` checks the two lists match.
@@ -65,4 +65,86 @@ Uploaded 2026-11-11 (re-encoded, mtg2-*); each link was downloaded back and matc
 | mtg-wipe-x6.mp3 | wipe | 6 | https://steamusercontent-a.akamaihd.net/ugc/16706646390672856597/464A1F9ED5D5B2B15041BFDD9E6BF355867838D1/ |
 | mtg-wipe-x8.mp3 | wipe | 8 | https://steamusercontent-a.akamaihd.net/ugc/17471838172650004055/385D7FB6163AFE2C6DFD043DAE5036647530E63E/ |
 
-Licence: OpenGameArt items each carry their own licence (CC0, CC-BY, CC-BY-SA, GPL ...). Before the repo or the table goes public, record each sound's OpenGameArt page, author and licence here and in THIRD-PARTY-NOTICES.md.
+## Counter and knockout (made 2026-11-11, not uploaded yet)
+
+Made with ffmpeg's own generators by `tools/make-effect-sounds.js`: no downloaded or third-party audio, so they are this
+project's work and public domain like the code (`LICENSE`). The noise seeds are fixed: a run makes the same files, byte
+for byte. Levelled like the six (-20 dBFS RMS over the sound, peaks under -1 dBFS, 80 ms fade-out), then the TTS recipe
+above (padded to 2 s, libmp3lame 192 kbps, ID3v2.3, titles "MTG effect counter" / "MTG effect knockout"). The same
+recipe as the 30 that load in TTS, but these two have not been loaded in TTS yet.
+
+| File (assets/sounds/tts/) | Kind | Sound | File length | sha256 | Link |
+|---|---|---|---|---|---|
+| mtg2-counter.mp3 | a counter put on a permanent (`counter`) | 0.62 s: a soft tick, then two rising bell notes (E6, B6) | 2.00 s (49,601 bytes) | `0b21690e0d7c5373fd082dc8fc0d81dd7a7e9018dd0187a47d2ef5ea8ebbc71a` | none yet |
+| mtg2-knockout.mp3 | a player loses or concedes (`knockout`) | 1.60 s: an explosion (a noise crack, a low rumble, a sub thump falling 80 to 30 Hz) | 2.00 s (49,602 bytes) | `5f45e58c0e0c4f22a57f12b3f2c6e81924f600983ee5ccdb68f8f5653fed1103` | none yet |
+
+Both files are 2.0 s, so neither needs an `engineSoundLen` entry (the table pauses a clip at its length minus 0.25 s,
+1.75 s, after both sounds have ended).
+
+**Where the links go**, once the lead has uploaded the two files (TTS → Modding → Cloud Manager) and downloaded each
+link back to check its sha256 against the table above:
+
+1. `tools/engine-renderer.lua`, the `engineSounds = engineSounds or {` table: replace `nil` in the lines
+   `counter = nil, -- a counter put on a permanent` and `knockout = nil, -- a player loses or concedes` with the quoted
+   links (`counter = "https://steamusercontent-a.akamaihd.net/ugc/.../",`). Until then both stay `nil`, which plays
+   nothing (`FX.picked`), so a board with only a counter or a knock-out is silent and the next kind down plays instead.
+   Update the comment above the table ("counter and knockout have none yet").
+2. This file: move the two rows into the first table as `mtg-counter.mp3` / `mtg-knockout.mp3` with ``(`counter`)`` /
+   ``(`knockout`)`` in the "Plays when" column and the link last, the way the six are written: `tests/test_table_effects.js`
+   reads that table.
+3. `tests/test_table_effects.js`, the "the user's sounds" block: the check that the doc has 6 links becomes 8, and
+   "counter and knockout stay silent" becomes a check that they are the doc's links. Its `PICKS` lists and the design
+   doc's "six of the eight kinds" (`docs/m5-effects-design.md` section 6) change with them.
+4. Run the gates, deploy as usual, then as the host `mtg sounds test counter` and `mtg sounds test knockout`.
+
+## Licences and sources (checked 2026-11-11)
+
+The user supplied the six as files, with no source pages (session uploads `Health_gain.aif`,
+`Board_wipe_to_graveyard_sound_effect.ogg`, `Permanent_and_creature_removal_sound_effect.wav`,
+`Instant_spell_cast.ogg`, `Exile_sound_effect.ogg`, `hit01.mp3.flac`; most names are descriptive, not the authors').
+The sources below were found from the files' own metadata and the OpenGameArt pages; none was confirmed by comparing
+the audio (that would need the packs downloaded). **The user should confirm each page, and name the two unknown ones.**
+
+| Our sound (and its bursts) | Source (OpenGameArt) | Author | Licence | How sure | Public repo / Workshop |
+|---|---|---|---|---|---|
+| wipe, wipe_x3..x8 (also mixes in death) | [Spell Sounds Starter Pack](https://opengameart.org/content/spell-sounds-starter-pack) | p0ss | CC-BY-SA 3.0, GPL 3.0, GPL 2.0 (pick one: CC-BY-SA 3.0) | probable: the file is a WAV named `.ogg`, a fault the page's comments report for this pack, and all three of these uploads are 3.43 s | allowed, with attribution and share-alike (below) |
+| instant | Spell Sounds Starter Pack (as above) | p0ss | as above | probable: a WAV named `.ogg`, 3.43 s | as above |
+| exile, exile_x2..x8 | Spell Sounds Starter Pack (as above) | p0ss | as above | probable: a real Ogg whose tag says it was made in Linux MultiMedia Studio, as the pack says, 3.43 s | as above |
+| damage, damage_x2..x8 | [37 hits/punches](https://opengameart.org/content/37-hitspunches) (submitted by qubodup); an mp3 re-upload of it, "Hit Sound Effects" by KonitaTutorials, names its files `hitNN.mp3.<ext>` like our `hit01.mp3.flac` (that page now answers 403) | Independent.nu | CC0 | likely | allowed, no attribution required (credit is a courtesy) |
+| death, death_x2..x8 (and the death under wipe_x3..x8) | **unknown**: a 1.85 s WAV whose tag says FL Studio's Edison made it | ? | ? | — | **not cleared** |
+| lifegain, lifegain_x2..x8 | **unknown**: a 3.20 s AIFF. A guess, nothing more: [Level up, power up, Coin get (13 Sounds)](https://opengameart.org/content/level-up-power-up-coin-get-13-sounds) by wobbleboxx (CC0) ships .aif files | ? | ? | — | **not cleared** |
+| counter, knockout | ours (`tools/make-effect-sounds.js`) | this project | public domain (`LICENSE`) | certain | allowed |
+
+**Flags.**
+
+- **death and lifegain (and wipe_x3..x8, which mix the death sound in) are not cleared** for a public repo, an itch.io
+  release or a Workshop upload: their source and licence are unknown. The table plays them from the host's Steam Cloud
+  links, and those links are in the table's script, so publishing the table publishes them. Before going public,
+  either the user names their OpenGameArt pages (then check each licence like the rows above), or they are replaced
+  with clips made like counter and knockout. The audio files themselves are gitignored (`assets/`), so the repo
+  holds only the links.
+- **The p0ss sounds are CC-BY-SA 3.0 (share-alike).** Redistribution, edits and commercial use are allowed, but:
+  credit the author and title with a link, link the licence, say they were changed, and offer our changed versions
+  (the trimmed, levelled, padded clips and every burst made from them) under CC-BY-SA 3.0 too. So they are **not**
+  public domain like our code: README's licence line must exclude them. Their Steam Cloud links are public, which keeps
+  the changed files available. Nothing in CC-BY-SA forbids a Workshop upload; the attribution has to travel with it
+  (the Workshop or itch.io description). The GPL options add nothing for audio, so CC-BY-SA 3.0 is the one to cite.
+- **CC0 (damage)**: no conditions.
+
+**Attribution text to add** (once death and lifegain are settled; add their lines the same way):
+
+- `README.md`, "Credits and legal", a new bullet:
+  > Sounds: the wipe, instant and exile sounds come from "Spell Sounds Starter Pack" by p0ss
+  > (https://opengameart.org/content/spell-sounds-starter-pack), licensed CC-BY-SA 3.0
+  > (https://creativecommons.org/licenses/by-sa/3.0/); we trimmed, levelled, padded and stacked them, and our versions
+  > are CC-BY-SA 3.0 too. The damage sound comes from "37 hits/punches" by Independent.nu
+  > (https://opengameart.org/content/37-hitspunches), CC0. The counter and knockout sounds are ours. See
+  > docs/sounds.md.
+
+  and the licence line after it: "That covers our code only, not Manabrew, Forge (or our changes to them), the
+  Workshop table, the table's sound effects or Magic's cards (see the notices)."
+- The Workshop and itch.io descriptions:
+  > Sound effects: "Spell Sounds Starter Pack" by p0ss, CC-BY-SA 3.0, https://opengameart.org/content/spell-sounds-starter-pack
+  > (edited: trimmed, levelled, stacked; the edited clips are CC-BY-SA 3.0). Hits from "37 hits/punches" by
+  > Independent.nu, CC0, https://opengameart.org/content/37-hitspunches.
+- `THIRD-PARTY-NOTICES.md`: the rows are in (2026-11-11).
