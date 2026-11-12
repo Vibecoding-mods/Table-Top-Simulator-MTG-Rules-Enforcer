@@ -687,6 +687,26 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("extra turns: precondition, every pair was logged, some with a line and some without", pairs === COUNTS.length ** 2 && said > 0 && said < pairs, `${said} of ${pairs}`);
     await h.flush();
     harness.restore();
+    // (2026-11-12, counted from 1) on the extra turn itself with more still queued, the two say different things: the
+    // label under the life total is this turn's, plain "EXTRA TURN" once with no number, and the row's extraTurns (the
+    // badge) is only the ones still to come, Forge's count having dropped as the turn began
+    let onTurn = 0;
+    for (const left of [0, 1, 2]) {
+      const b = clone(F.board);
+      const ai = b.gameView.players.find((p) => p.id === b.gameView.activePlayerId);
+      Object.assign(ai, { isExtraTurn: true, extraTurnCount: left });
+      const h2 = harness.load();
+      setup(h2, b);
+      h2.B.sendTable(); await h2.flush();
+      const r = sent(h2, "table").pop()?.players.find((p) => p.slot === ai.id);
+      harness.restore();
+      if (!r) continue;
+      onTurn++;
+      const extraMarks = (r.allMarks || []).filter((m) => /EXTRA TURN/.test(m));
+      ok(`extra turns: on an extra turn with ${left} more coming, the label is one plain EXTRA TURN and the row's extraTurns ${left || "absent"}`,
+        extraMarks.length === 1 && extraMarks[0] === "EXTRA TURN" && (left ? r.extraTurns === left : !("extraTurns" in r)), JSON.stringify({ allMarks: r.allMarks, extraTurns: r.extraTurns }));
+    }
+    ok("extra turns: precondition, three boards on an extra turn made a row each", onTurn === 3, String(onTurn));
   }
   // turnRuns and controlledBy's say (verifier finding 1, 2026-11-06): "a control is a turn's once a board shows it on
   // the active player with an empty stack, and stays one while the same player keeps it"; the line says "turn" exactly

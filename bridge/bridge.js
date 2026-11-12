@@ -4449,8 +4449,9 @@ const playerCounter = (p, name) => (p.counters || {})[name.toUpperCase()] || (p.
 // life total in order (left out when there is none). The old fields (poison, energy, monarch, initiative, blessed,
 // story, marks) went once both halves were live (docs/core-moves-cleanup-plan.md "2. trackMarks" step 6).
 // A PLAYER_MARKS row with a `row` key is sent under that key too, its value as read, left out when it shows nothing:
-// `extraTurns`, the extra turns the player has coming, drawn as a number beside the life counter rather than in the
-// label; left out at 0 and from an engine that doesn't send the count.
+// `extraTurns`, the extra turns the player has coming, drawn beside the life counter rather than in the label ("EXTRA
+// TURN" for one, "EXTRA TURN nx" for n, engineExtraTurnBadge); left out at 0 and from an engine that doesn't send the
+// count.
 function playerMarks(p, pub) {
   // (updateLog has just read this board: game.logPrev is its log snapshot)
   const { values, labels } = trackMarks(p, pub, { turnRun: game.logPrev?.turnRun?.[p.id] });
@@ -4516,7 +4517,8 @@ const PLAYER_MARKS = [
     } },
   // (while it is theirs: Forge keeps the flag on the player after the turn. The value is Forge's own flag for the
   // active player, true only when the flag is true: the turn header reads it too, extraTurn, so the label and the
-  // header agree on a flag of 1 or "true", which neither takes as one)
+  // header agree on a flag of 1 or "true", which neither takes as one. No number: it says this turn is one; more still
+  // queued are the extraTurns row's, beside the life counter, 2026-11-12)
   { key: "extraTurn", read: (p, pub) => pub.activePlayerId === p.id && p.isExtraTurn === true, label: () => "EXTRA TURN" },
   { key: "prevention", read: (p) => positive(p.damagePrevention), label: (n) => `PREVENT ${n}` },
   // (as text: a maximum of 0 is shown)
@@ -4524,8 +4526,8 @@ const PLAYER_MARKS = [
     label: (n) => (n === "none" ? "NO MAX HAND SIZE" : `MAX HAND ${n}`) },
   { key: "keywords", read: playerKeywordLabels, label: (list) => list },
   // (Forge's extra turn count, up when Time Walk resolves and down as each turn starts: no label, the table draws it
-  // as a number beside the life counter, the row's extraTurns, see playerMarks; the log says each one added, the count
-  // after it)
+  // beside the life counter, counted from 1, "EXTRA TURN" then "EXTRA TURN 2x", the row's extraTurns, see playerMarks;
+  // the log says each one added, the count after it)
   { key: "extraTurns", row: "extraTurns", read: (p) => positive(p.extraTurnCount), label: () => [],
     say: (who, n, was) => (n > was ? `${who} will take ${n - was > 1 ? `${n - was} extra turns` : "an extra turn"} (${n} coming)` : null) },
 ];

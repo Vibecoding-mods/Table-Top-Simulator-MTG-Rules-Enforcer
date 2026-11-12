@@ -118,7 +118,7 @@ const PLAYER_FACTS = {
   cardsDrawnThisTurn: { skip: "the log says each draw" },
   damagePrevention: { to: ["allMarks"], show: "PREVENT 3" },
   isExtraTurn: { to: ["allMarks"], show: "EXTRA TURN on the player taking it; the turn header's \"(extra turn)\"" },
-  extraTurnCount: { to: ["extraTurns"], show: "a number beside the life counter while extra turns are coming: the count + 1 (2 for one), hover \"AI 1 has 1 extra turn coming\"; the log says each one added, \"White will take an extra turn (1 coming)\"" },
+  extraTurnCount: { to: ["extraTurns"], show: "a badge beside the life counter while extra turns are coming, counted from 1: EXTRA TURN for one, EXTRA TURN 2x for two, hover \"AI 1 has 1 extra turn coming\"; the log says each one added, \"White will take an extra turn (1 coming)\"" },
   controlledBy: { to: ["allMarks"], show: "TURN RUN BY BLUE (Mindslaver), CONTROLLED BY BLUE (Opposition Agent's search); the log says when it starts and ends" },
   playerKeywords: { to: ["allMarks"], show: "HEXPROOF, YOU CAN'T LOSE THE GAME" },
   commanderCasts: { to: ["tax"], show: "the commander tax counter" },

@@ -1184,12 +1184,16 @@ function enginePlayerCounters(o, pl)
     end
   end
 end
--- The extra turns a player has coming (the bridge's extraTurns, Forge's extra turn count) as a number beside the life
--- counter: the count + 1, so one extra turn shows 2, "two turns in a row" (docs/extra-turn-counter-spec.md); none at 0
--- or with no count (an engine from before it). On the counter's top-left lobe, the side away from its [R]: local
--- (-1, -1.45), 320 high, so its box (z -1.78..-1.12) is clear of the life number's button (to -1.08), the -20 under it
--- (from -0.95) and the [R] (x from 0.61), checked in tests/test_table_claims.js "extra-turn badge fit"; the hover text
--- names the count, "AI 1 has 2 extra turns coming", and finds the button again (engineExtraTurnTip)
+-- The extra turns a player has coming (the bridge's extraTurns, Forge's extra turn count, the ones still to come: it
+-- drops as each begins) as a label beside the life counter, counted from 1: one is "EXTRA TURN", two "EXTRA TURN 2x",
+-- n "EXTRA TURN nx" (2026-11-12, the user; it was a lone number, the count + 1, so one extra turn read "2", live check
+-- batch 1 item 4; docs/extra-turn-counter-spec.md); none at 0 or with no count (an engine from before it). Across the
+-- counter's top-left lobe, the side away from its [R]: centred at local z -1.45, its right edge at x 0.55 (the [R] from
+-- 0.61) and growing to the left, at most to -2 (a commander-damage icon from -2.13 on two seats), at the largest of
+-- `fonts` it fits in (engineMarksWidth, as the marks boxes); at its largest, 175 for one extra turn, 222 high, its box (z -1.68..-1.22) stays
+-- clear of the life number's button (to -1.08) and the -20 under it (from -0.95), checked in
+-- tests/test_table_claims.js "extra-turn badge fit". The hover text names the count, "AI 1 has 2 extra turns coming",
+-- and finds the button again (engineExtraTurnTip)
 function engineExtraTurnTip(t)
   return type(t) == "string" and t:sub(-7) == " coming" and t:find(" extra turn", 1, true) ~= nil
 end
@@ -1202,15 +1206,22 @@ function engineExtraTurnBadge(o, pl)
     if at ~= nil then o.removeButton(at) end
     return
   end
-  local label = tostring(n + 1)
+  local label = n == 1 and "EXTRA TURN" or ("EXTRA TURN " .. tostring(n) .. "x")
   local tip = tostring(pl.name or pl.color) .. " has " .. tostring(n) .. (n == 1 and " extra turn" or " extra turns") .. " coming"
   if now ~= nil and now.label == label and now.tooltip == tip then return end
-  local look = { label = label, tooltip = tip, width = 200 + 160 * #label, height = 320, font_size = 280 }
+  local right, left, fonts = 0.55, -2, { 175, 150, 135, 120 }
+  local f = fonts[#fonts]
+  for _, try in ipairs(fonts) do
+    if engineMarksWidth(label, try) <= (right - left) * 480 then f = try break end
+  end
+  local w = engineMarksWidth(label, f)
+  local look = { label = label, tooltip = tip, width = w, height = math.floor(380 * f / 300 + 0.5), font_size = f,
+    position = { right - w / 960, 0.06, -1.45 } }
   if at ~= nil then
     look.index = at
     o.editButton(look)
   else
-    look.click_function, look.function_owner, look.position, look.rotation = "engineNoop", Global, { -1, 0.06, -1.45 }, { 0, 0, 0 }
+    look.click_function, look.function_owner, look.rotation = "engineNoop", Global, { 0, 0, 0 }
     look.color, look.font_color = { 0.95, 0.72, 0.15, 0.95 }, { 0.12, 0.06, 0 }
     o.createButton(look)
   end

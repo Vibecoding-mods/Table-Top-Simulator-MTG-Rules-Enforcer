@@ -1910,10 +1910,12 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("marks fit, table board: White's two marks are two boxes in the corner", !!wl && wl.boxes.map((b) => b.label).join("|") === "RING TEMPTED 2|SPEED 3", JSON.stringify(wl));
   ok("marks fit, table board: one mark next leaves one box, at its own size (the other box goes)", !!ws && ws.boxes.length === 1 && ws.boxes[0].label === "POISON 2" && ws.boxes[0].w === 1700 && ws.boxes[0].h === 380, JSON.stringify(ws));
 }
-// Extra-turn counter (docs/extra-turn-counter-spec.md, 2026-11-06): the row's extraTurns as a number beside the life
-// counter, the count + 1 (one extra turn shows 2), hover text "<name> has n extra turn(s) coming", none at 0, with no
-// count (an engine from before) or a count that isn't a number; one button, edited as the count changes; gone with the
-// game (engineCountersReset) and back after the tracker's own onload clears its buttons
+// Extra-turn counter (docs/extra-turn-counter-spec.md, 2026-11-06; counted from 1 since 2026-11-12, the user: one
+// extra turn is plain "EXTRA TURN", two "EXTRA TURN 2x", n "EXTRA TURN nx"; it showed the count + 1, "2" for one, live
+// check batch 1 item 4): the row's extraTurns as that label beside the life counter, hover text "<name> has n extra
+// turn(s) coming", none at 0, with no count (an engine from before) or a count that isn't a number; one button, edited
+// as the count changes; gone with the game (engineCountersReset) and back after the tracker's own onload clears its
+// buttons
 {
   const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
   const whiteName = (JSON.parse(lastT.json).players.find((p) => p.color === "White") || {}).name;
@@ -1934,12 +1936,12 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const at = (s) => (s.match(/@(.*)$/) || [])[1];
   ok("extra turns: precondition, no script error, and White has a name", !r.errors.length && !!whiteName, `${whiteName} ${r.errors.slice(0, 2).join(" | ")}`);
   ok("extra turns: no count (an engine from before), no badge", v("missing") === "no badge", v("missing"));
-  ok("extra turns: one extra turn shows 2, \"has 1 extra turn coming\"", v("one").startsWith(`2 | ${whiteName} has 1 extra turn coming @`), v("one"));
-  ok("extra turns: two show 3, \"has 2 extra turns coming\", one button", v("two").startsWith(`3 | ${whiteName} has 2 extra turns coming @`) && !v("two").includes("||"), v("two"));
+  ok("extra turns: one extra turn shows EXTRA TURN, no number, \"has 1 extra turn coming\"", v("one").startsWith(`EXTRA TURN | ${whiteName} has 1 extra turn coming @`), v("one"));
+  ok("extra turns: two show EXTRA TURN 2x, \"has 2 extra turns coming\", one button", v("two").startsWith(`EXTRA TURN 2x | ${whiteName} has 2 extra turns coming @`) && !v("two").includes("||"), v("two"));
   ok("extra turns: unchanged, the same one button", v("two again") === v("two"), v("two again"));
   ok("extra turns: a turn taken lowers it", v("one taken") === v("one"), v("one taken"));
   ok("extra turns: none left, no badge", v("zero") === "no badge", v("zero"));
-  ok("extra turns: a tracker that lost its buttons gets it back", v("after the reload").startsWith(`4 | ${whiteName} has 3 extra turns coming @`), v("after the reload"));
+  ok("extra turns: a tracker that lost its buttons gets it back, three show EXTRA TURN 3x", v("after the reload").startsWith(`EXTRA TURN 3x | ${whiteName} has 3 extra turns coming @`), v("after the reload"));
   ok("extra turns: a count that isn't a number shows nothing", v("a string") === "no badge", v("a string"));
   ok("extra turns: the end of the game takes it away", v("after the reset") === "no badge", v("after the reset"));
   // (beside the life counter, on its own half: the counter's top-left lobe, off the marks label under it)
@@ -1947,9 +1949,11 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("extra turns: the badge sits on the counter, above the marks label", Math.abs(bx) <= 1.2 && bz < 0 && bz > -1.6, `at ${at(v("one"))}`);
 }
 // Extra-turn badge fit (checker, 2026-11-07: moving it from local x -1 to +1, onto the [R] lobe, passed every test). On
-// all four trackers, with one digit ("2") and two ("10"), beside a short label and a two-line one: the badge is at local
-// (-1, -1.45), and its box meets none of the tracker's own life number, -20 or [R] buttons (read from the tracker's
-// script in the save), its marks label, or a commander-damage icon (as the marks fit above)
+// all four trackers, with one extra turn ("EXTRA TURN"), two ("EXTRA TURN 2x") and ten ("EXTRA TURN 10x"; 2026-11-12,
+// a label, no longer a lone number), beside a short label and a long list: the badge lies across the counter's top-left
+// lobe at local z -1.45, its right edge at most at x 0.55 and its left edge at least at -2, its font at least 120, and
+// its box meets none of the tracker's own life number, -20 or [R] buttons (read from the tracker's script in the save),
+// its marks label, or a commander-damage icon (as the marks fit above)
 {
   const SEATS = { "23e485": "White", "448880": "Red", "37e533": "Yellow", "395037": "Blue" };
   const icons = cmdIcons(0.6);
@@ -1974,25 +1978,28 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   }
   const four = '{ "23e485", "448880", "37e533", "395037" }';
   const set = (marks, n) => `for _, g in ipairs(${four}) do local o = getObjectFromGUID(g) enginePlayerCounters(o, JSON.decode([==[${JSON.stringify({ allMarks: marks })}]==])) engineExtraTurnBadge(o, { extraTurns = ${n}, name = "P" }) end return "set"`;
-  const btns = `local out = {} for _, g in ipairs(${four}) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, marks = {}, badges = {} } for _, b in ipairs(o.getButtons() or {}) do local q = b.position or {} local e = { label = b.label, w = b.width, h = b.height, bx = q[1] or q.x, bz = q[3] or q.z } if b.tooltip == ENGINE_COUNTERS_TIP then row.marks[#row.marks + 1] = e elseif engineExtraTurnTip(b.tooltip) then row.badges[#row.badges + 1] = e end end out[#out + 1] = row end return JSON.encode(out)`;
+  const btns = `local out = {} for _, g in ipairs(${four}) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, marks = {}, badges = {} } for _, b in ipairs(o.getButtons() or {}) do local q = b.position or {} local e = { label = b.label, w = b.width, h = b.height, f = b.font_size, bx = q[1] or q.x, bz = q[3] or q.z } if b.tooltip == ENGINE_COUNTERS_TIP then row.marks[#row.marks + 1] = e elseif engineExtraTurnTip(b.tooltip) then row.badges[#row.badges + 1] = e end end out[#out + 1] = row end return JSON.encode(out)`;
   const CASES = {
-    "one digit, a short label": [["POISON 2"], 1, "2"],
-    "two digits, seven marks": [["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"], 9, "10"],
+    "one extra turn, a short label": [["POISON 2"], 1, "EXTRA TURN"],
+    "two extra turns, a short label": [["POISON 2"], 2, "EXTRA TURN 2x"],
+    "ten extra turns, seven marks": [["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"], 10, "EXTRA TURN 10x"],
   };
   const steps = [];
   for (const [name, [marks, n]] of Object.entries(CASES)) steps.push(q(set(marks, n), `set ${name}`), q(btns, `buttons ${name}`));
   const r = run(steps);
   ok("badge fit: precondition, no script error", !r.errors.length, r.errors.slice(0, 2).join(" | "));
   const list = (v) => (Array.isArray(v) ? v : []);
-  for (const [name, [marks, , digits]] of Object.entries(CASES)) {
+  for (const [name, [marks, , label]] of Object.entries(CASES)) {
     let rows = [];
     try { rows = JSON.parse(String(valueOf(r, `buttons ${name}`))); } catch (e) { /* checked below */ }
-    ok(`badge fit, ${name}: precondition, four trackers, each with one badge "${digits}" and a box a mark`,
-      rows.length === 4 && rows.every((t) => list(t.badges).length === 1 && list(t.badges)[0].label === digits && list(t.marks).length === marks.length), String(valueOf(r, `buttons ${name}`)).slice(0, 300));
+    ok(`badge fit, ${name}: precondition, four trackers, each with one badge "${label}" and a box a mark`,
+      rows.length === 4 && rows.every((t) => list(t.badges).length === 1 && list(t.badges)[0].label === label && list(t.marks).length === marks.length), String(valueOf(r, `buttons ${name}`)).slice(0, 300));
     for (const t of rows) {
       const seat = `${name}, ${SEATS[t.g]}`, b = list(t.badges)[0], ms = list(t.marks);
       if (!b || !ms.length || !own[t.g]) continue;
-      ok(`badge fit, ${seat}: at local (-1, -1.45), the counter's top-left lobe`, b.bx === -1 && b.bz === -1.45, `at ${b.bx}, ${b.bz}`);
+      const lx = b.bx - b.w / 960, rx = b.bx + b.w / 960;
+      ok(`badge fit, ${seat}: across the counter's top-left lobe, z -1.45, x from -2 to 0.55, font at least 120`,
+        b.bz === -1.45 && lx >= -2 - 1e-9 && rx <= 0.55 + 1e-9 && b.f >= 120, `at ${b.bx}, ${b.bz}, x ${lx.toFixed(3)}..${rx.toFixed(3)}, font ${b.f}`);
       const box = buttonBox(t, b);
       for (const [what, o] of Object.entries(own[t.g])) ok(`badge fit, ${seat}: clear of ${what}`, !meets(box, buttonBox(t, o)), `badge ${JSON.stringify(box.map((n) => +n.toFixed(2)))} ${what} ${JSON.stringify(buttonBox(t, o).map((n) => +n.toFixed(2)))}`);
       const under = ms.filter((m) => meets(box, buttonBox(t, m))).map((m) => m.label);

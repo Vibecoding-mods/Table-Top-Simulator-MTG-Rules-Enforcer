@@ -12,12 +12,17 @@ fix 3), not the turn-order guess. Left: the real-table check under Tests.
 
 ## Behaviour
 
-- A small number badge beside the player's life counter, shown only while that player has extra turns coming.
-- The number is **extra turns coming + 1**: one extra turn shows **2**, two show **3**, and so on (read as "2 turns
-  in a row"). Each extra turn added raises it by one; each one taken lowers it; at no extra turns left it disappears.
-  (Interpretation to confirm with the user: "starts at 2" read as turns in a row, not as a count of 2 extra turns.)
-- The turn being played as an extra turn still shows the existing " (extra turn)" header and EXTRA TURN label; the
-  badge counts only the ones still to come.
+- A small badge beside the player's life counter, shown only while that player has extra turns coming.
+- **Changed 2026-11-12** (the user, after live check batch 1 item 4 showed "2" for one extra turn): the count starts
+  at 1 and counts the extra turns. One extra turn shows **EXTRA TURN**, two **EXTRA TURN 2x**, n **EXTRA TURN nx**.
+  Each extra turn added raises it by one; each one taken lowers it; at no extra turns left it disappears. (Before, it
+  was a lone number, extra turns coming + 1, the "starts at 2" read as turns in a row; that reading was wrong.)
+- The turn being played as an extra turn still shows the existing " (extra turn)" header and a plain EXTRA TURN label
+  under the life total, with no number: it says this turn is one. The badge counts only the ones still to come (Forge's
+  count drops as each extra turn begins), so with Time Walk twice the first extra turn shows the label EXTRA TURN and
+  the badge EXTRA TURN (one more coming), and the second shows the label alone.
+- The badge lies across the counter's top-left lobe, its right edge clear of the [R], growing to the left, at the
+  largest font it fits in (175 for one, 135 for "2x", 120 for "10x").
 - Hover text: "AI 1 has 1 extra turn coming" / "… 2 extra turns coming".
 - Log: the existing extra-turn lines stay; when the count goes up, "White will take an extra turn (2 coming)".
 
@@ -37,10 +42,10 @@ Time Walk resolves and falls when the turn begins.
 
 ## Tests
 
-- Bridge cases: 0 → no badge; 1 → "2"; 2 → "3"; a turn taken lowers it; a rewind past Time Walk removes it; a missing
-  field (old engine) shows nothing.
+- Bridge cases: 0 → no badge; 1 → "EXTRA TURN"; 2 → "EXTRA TURN 2x"; a turn taken lowers it; a rewind past Time Walk
+  removes it; a missing field (old engine) shows nothing.
 - Headless engine check: Time Walk twice in one turn gives 2, then 1, then 0 over the next turns.
-- Real table: cast Time Walk, see "2" by your life, take the extra turn, see it go.
+- Real table: cast Time Walk, see "EXTRA TURN" by your life, take the extra turn, see it go.
 
 ## Size
 
