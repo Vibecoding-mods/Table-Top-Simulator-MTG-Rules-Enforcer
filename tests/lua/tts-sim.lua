@@ -304,6 +304,33 @@ local function makeObj(d)
     setAttributes = function(id, t) for k, v in pairs(t) do o.__d.uiAttrs[id .. "|" .. k] = tostring(v) end fx("objUI.setAttributes", o, id, t) end,
     setValue = function(id, v) fx("objUI.setValue", o, id, v) end,
   })
+  -- an AssetBundle object (Custom_Assetbundle, or any with CustomAssetbundle data) has obj.AssetBundle, as in TTS; others
+  -- have none (nil). The trigger effects live in the bundle file, not the save, so the fake takes their names from
+  -- CustomAssetbundle.SimTriggerEffects, else from __sim.bundleEffects[AssetbundleURL] (what the bundle file at that
+  -- link would hold: a spawned object), index 0, 1, ... in that order, as TTS numbers them. o.__d.bundleLoaded =
+  -- false makes getTriggerEffects answer {} (a bundle still loading). Both calls are recorded.
+  if d.Name == "Custom_Assetbundle" or d.CustomAssetbundle ~= nil then
+    local cab = d.CustomAssetbundle or {}
+    o.__d.triggers = cab.SimTriggerEffects or (SIM.bundleEffects and SIM.bundleEffects[cab.AssetbundleURL or ""]) or {}
+    o.__d.bundleLoaded = true
+    rawset(o, "AssetBundle", {
+      getTriggerEffects = function()
+        fx("AssetBundle.getTriggerEffects", o)
+        if not o.__d.bundleLoaded then return {} end
+        local out = {}
+        for i, n in ipairs(o.__d.triggers) do out[i] = { index = i - 1, name = n } end
+        return out
+      end,
+      playTriggerEffect = function(i)
+        fx("AssetBundle.playTriggerEffect", o, i)
+        o.__d.played = o.__d.played or {}
+        o.__d.played[#o.__d.played + 1] = { index = i, frame = SIM.frame, pos = o.__d.pos:copy() }
+      end,
+      getLoopingEffects = function() return {} end,
+      playLoopingEffect = function(i) fx("AssetBundle.playLoopingEffect", o, i) end,
+      getLoopingEffectIndex = function() return 0 end,
+    })
+  end
   SIM.objects[o.__guid] = o
   SIM.order[#SIM.order + 1] = o
   return o
@@ -540,7 +567,7 @@ end
 function spawnObjectData(p)
   local d = p.data
   local o = makeObj({ Name = d.Name, Nickname = d.Nickname, Description = d.Description, GMNotes = d.GMNotes, ContainedObjects = d.ContainedObjects,
-    CustomDeck = d.CustomDeck, CardID = d.CardID, Locked = d.Locked,
+    CustomDeck = d.CustomDeck, CardID = d.CardID, Locked = d.Locked, CustomAssetbundle = d.CustomAssetbundle,
     Transform = { posX = p.position and vec(p.position).x or 0, posY = p.position and vec(p.position).y or 0, posZ = p.position and vec(p.position).z or 0,
       rotX = p.rotation and vec(p.rotation).x or 0, rotY = p.rotation and vec(p.rotation).y or 0, rotZ = p.rotation and vec(p.rotation).z or 0, scaleX = 1, scaleY = 1, scaleZ = 1 } })
   o.__d.data = d
