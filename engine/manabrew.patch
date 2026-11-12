@@ -3975,10 +3975,10 @@ index 0000000..c11442b
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/DungeonStateTest.java b/forge-harness/src/test/java/forge/harness/host/DungeonStateTest.java
 new file mode 100644
-index 0000000..9fb6cd8
+index 0000000..4dd0af7
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/DungeonStateTest.java
-@@ -0,0 +1,249 @@
+@@ -0,0 +1,260 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -4023,6 +4023,7 @@ index 0000000..9fb6cd8
 +        check("dungeonStateNamesTheCardAndItsRooms", DungeonStateTest::dungeonStateNamesTheCardAndItsRooms);
 +        check("aLastRoomLeadsNowhere", DungeonStateTest::aLastRoomLeadsNowhere);
 +        check("aDungeonEnteredWithNoRoomHasAnEmptyRoom", DungeonStateTest::aDungeonEnteredWithNoRoomHasAnEmptyRoom);
++        check("aDungeonSetAtItsLastRoomIsCompleted", DungeonStateTest::aDungeonSetAtItsLastRoomIsCompleted);
 +        check("completedDungeonsAreListedByName", DungeonStateTest::completedDungeonsAreListedByName);
 +        check("initiativeOpGivesTheInitiativeWithoutVenturing", DungeonStateTest::initiativeOpGivesTheInitiativeWithoutVenturing);
 +        check("anUnknownDungeonIsRefused", DungeonStateTest::anUnknownDungeonIsRefused);
@@ -4081,11 +4082,21 @@ index 0000000..9fb6cd8
 +
 +    private static void aLastRoomLeadsNowhere() throws Exception {
 +        final Fixture f = new Fixture();
-+        f.apply("{\"op\":\"dungeon\",\"player\":\"player-0\",\"name\":\"Lost Mine of Phandelver\",\"room\":\"Temple of Dumathoin\"}");
++        f.apply("{\"op\":\"dungeon\",\"player\":\"player-0\",\"name\":\"Lost Mine of Phandelver\",\"room\":\"Cave Entrance\"}");
 +        expectApplied(f);
 +        final JsonObject temple = room(f.player(0).getAsJsonObject("dungeonState").getAsJsonArray("rooms"), "Temple of Dumathoin");
 +        expect(temple.getAsJsonArray("next").isEmpty(), "Temple of Dumathoin leads to " + temple.get("next"));
 +        expect("Draw a card.".equals(temple.get("text").getAsString()), "Temple of Dumathoin text " + temple.get("text"));
++    }
++
++    private static void aDungeonSetAtItsLastRoomIsCompleted() throws Exception {
++        final Fixture f = new Fixture();
++        f.apply("{\"op\":\"dungeon\",\"player\":\"player-0\",\"name\":\"Lost Mine of Phandelver\",\"room\":\"Temple of Dumathoin\"}");
++        expectApplied(f);
++        final JsonObject white = f.player(0);
++        expect(!white.has("dungeonState") || white.get("dungeonState").isJsonNull(), "dungeon still in progress: " + white.get("dungeonState"));
++        expect(names(white.getAsJsonArray("completedDungeons")).equals(List.of("Lost Mine of Phandelver")),
++                "completedDungeons " + white.get("completedDungeons"));
 +    }
 +
 +    private static void aDungeonEnteredWithNoRoomHasAnEmptyRoom() throws Exception {
