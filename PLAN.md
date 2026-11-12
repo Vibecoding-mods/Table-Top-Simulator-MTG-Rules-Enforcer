@@ -57,7 +57,9 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   cipher copy's "casts" (still no recorded board of it).
 - 🔶 (source) Attack reminders, spec part 2 (item 23): taxes per defender, each creature's own price and the limits
   are listed on the attack question, with "Can't attack: X (reason)" and the reason on Q/E. The tax payment names
-  the tax and its Cancel is "Don't attack with X". Part 3 (engine) is not built.
+  the tax and its Cancel is "Don't attack with X". Part 3 (engine) in source 2026-11-11: Forge's own taxes,
+  reasons and limits on the attackers prompt (War Tax, Sivitri, emblems), text reading kept as the fallback; needs a
+  node image build from engine/manabrew.patch.
 - 🔶 (source) Attack targets (item 25): "Attack" and "All attack" ask whom when there is more than one player or
   planeswalker to attack: a life counter or planeswalker click, the buttons, One by one, or Back.
 

@@ -1333,7 +1333,7 @@ index fb82e6d..d166616 100644
  
      @Override
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..16d918c 100644
+index 643e5de..e66f8bd 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,12 +6,14 @@ import forge.harness.common.ParityCardMap;
@@ -1359,13 +1359,17 @@ index 643e5de..16d918c 100644
  import forge.game.combat.Combat;
  import forge.game.combat.CombatUtil;
  import forge.game.cost.Cost;
-@@ -28,11 +31,16 @@ import forge.game.player.Player;
+@@ -28,11 +31,20 @@ import forge.game.player.Player;
  import forge.game.player.PlayerView;
  import forge.game.spellability.AbilityManaPart;
  import forge.game.spellability.AlternativeCost;
 +import forge.game.spellability.OptionalCost;
  import forge.game.spellability.SpellAbility;
++import forge.game.keyword.Keyword;
++import forge.game.staticability.StaticAbility;
++import forge.game.staticability.StaticAbilityAttackRestrict;
  import forge.game.staticability.StaticAbilityCantAttackBlock;
++import forge.game.staticability.StaticAbilityMode;
  import forge.game.staticability.StaticAbilityMustAttack;
 +import forge.game.zone.Zone;
  import forge.game.zone.ZoneType;
@@ -1376,7 +1380,7 @@ index 643e5de..16d918c 100644
  import org.apache.commons.lang3.tuple.ImmutablePair;
  import org.apache.commons.lang3.tuple.Pair;
  
-@@ -45,6 +53,7 @@ import java.util.HashSet;
+@@ -45,6 +57,7 @@ import java.util.HashSet;
  import java.util.List;
  import java.util.LinkedHashMap;
  import java.util.Locale;
@@ -1384,7 +1388,7 @@ index 643e5de..16d918c 100644
  import java.util.Map;
  import java.util.Objects;
  import java.util.Random;
-@@ -52,6 +61,7 @@ import java.util.Set;
+@@ -52,6 +65,7 @@ import java.util.Set;
  import java.util.TreeSet;
  import java.util.concurrent.BlockingQueue;
  import java.util.concurrent.LinkedBlockingQueue;
@@ -1392,7 +1396,7 @@ index 643e5de..16d918c 100644
  
  public final class ManaBrewInteractiveSession {
  
-@@ -59,9 +69,11 @@ public final class ManaBrewInteractiveSession {
+@@ -59,9 +73,11 @@ public final class ManaBrewInteractiveSession {
      private Match match;
      private Game game;
      private final BlockingQueue<JsonObject> actions = new LinkedBlockingQueue<>();
@@ -1404,7 +1408,7 @@ index 643e5de..16d918c 100644
      private volatile boolean closed;
      private volatile Thread gameThread;
      private static volatile InteractiveBridge bridge;
-@@ -70,16 +82,24 @@ public final class ManaBrewInteractiveSession {
+@@ -70,16 +86,24 @@ public final class ManaBrewInteractiveSession {
      private final InteractiveSnapshotExtractor.SecretChoiceVisibility secretChoiceVisibility =
              new InteractiveSnapshotExtractor.SecretChoiceVisibility();
      private static final int CHECKPOINT_TURNS = 3;
@@ -1429,7 +1433,7 @@ index 643e5de..16d918c 100644
      private boolean checkpointMetricsEnabled;
      private final List<long[]> checkpointTimings = new ArrayList<>();
      private boolean priorityPromptOpen;
-@@ -91,7 +111,7 @@ public final class ManaBrewInteractiveSession {
+@@ -91,7 +115,7 @@ public final class ManaBrewInteractiveSession {
          private final PhaseType phase;
          private final Player activePlayer;
          private final Player priorityPlayer;
@@ -1438,7 +1442,7 @@ index 643e5de..16d918c 100644
  
          private Checkpoint(
                  final int id,
-@@ -99,16 +119,43 @@ public final class ManaBrewInteractiveSession {
+@@ -99,16 +123,43 @@ public final class ManaBrewInteractiveSession {
                  final PhaseType phase,
                  final Player activePlayer,
                  final Player priorityPlayer,
@@ -1483,7 +1487,7 @@ index 643e5de..16d918c 100644
      private enum RestoreVoteStatus { PENDING, APPROVED, DECLINED, UNAVAILABLE }
  
      private static final class RestoreVote {
-@@ -136,6 +183,8 @@ public final class ManaBrewInteractiveSession {
+@@ -136,6 +187,8 @@ public final class ManaBrewInteractiveSession {
          this.game = Objects.requireNonNull(game, "game");
          this.botSeats = Set.copyOf(botSeats);
          this.snapshotRecording = snapshotRecording;
@@ -1492,7 +1496,7 @@ index 643e5de..16d918c 100644
      }
  
      public String getSessionId() {
-@@ -155,26 +204,26 @@ public final class ManaBrewInteractiveSession {
+@@ -155,26 +208,26 @@ public final class ManaBrewInteractiveSession {
          requireAttached();
          Objects.requireNonNull(rng, "rng");
          if (bridge != null) {
@@ -1533,7 +1537,7 @@ index 643e5de..16d918c 100644
      public void close() {
          closed = true;
          JsonObject action = new JsonObject();
-@@ -216,9 +265,14 @@ public final class ManaBrewInteractiveSession {
+@@ -216,9 +269,14 @@ public final class ManaBrewInteractiveSession {
  
      public String getSnapshotJson(final int viewer) {
          requireAttached();
@@ -1551,7 +1555,7 @@ index 643e5de..16d918c 100644
      }
  
      void rememberSecretNumberViewer(final String sourceCardId, final Player viewer) {
-@@ -266,7 +320,7 @@ public final class ManaBrewInteractiveSession {
+@@ -266,7 +324,7 @@ public final class ManaBrewInteractiveSession {
  
      static final String TRIGGER_ORDER_TITLE = "Order triggered abilities";
  
@@ -1560,7 +1564,7 @@ index 643e5de..16d918c 100644
  
      static final class PriorityChoice {
          private final PriorityActionKind kind;
-@@ -362,6 +416,11 @@ public final class ManaBrewInteractiveSession {
+@@ -362,6 +420,11 @@ public final class ManaBrewInteractiveSession {
              if (isRestoreDirective(action)) {
                  return new PriorityChoice(PriorityActionKind.RESTORE, null, null, null);
              }
@@ -1572,7 +1576,7 @@ index 643e5de..16d918c 100644
              try {
                  return interpretPriorityAction(action, actionsForPrompt, untappableCards);
              } catch (IllegalArgumentException | UnsupportedOperationException | NullPointerException invalid) {
-@@ -823,6 +882,9 @@ public final class ManaBrewInteractiveSession {
+@@ -823,6 +886,9 @@ public final class ManaBrewInteractiveSession {
                  }
                  return chosen;
              }
@@ -1582,7 +1586,7 @@ index 643e5de..16d918c 100644
              throw new UnsupportedOperationException("unsupported action kind: " + actionKind);
          }
          return new ArrayList<>();
-@@ -881,6 +943,12 @@ public final class ManaBrewInteractiveSession {
+@@ -881,6 +947,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -1595,7 +1599,7 @@ index 643e5de..16d918c 100644
      boolean awaitMulliganDecision(final int playerId, final int cardsToReturn) {
          requireAttached();
          final List<Card> cards = new ArrayList<Card>(
-@@ -896,6 +964,7 @@ public final class ManaBrewInteractiveSession {
+@@ -896,6 +968,7 @@ public final class ManaBrewInteractiveSession {
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
              if ("mulligan_decision".equals(actionKind)) {
@@ -1603,7 +1607,7 @@ index 643e5de..16d918c 100644
                  return action.has("keep") && action.get("keep").getAsBoolean();
              }
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
-@@ -1104,14 +1173,31 @@ public final class ManaBrewInteractiveSession {
+@@ -1104,14 +1177,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -1638,7 +1642,7 @@ index 643e5de..16d918c 100644
      }
  
      void awaitRevealCards(
-@@ -1762,24 +1848,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +1852,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -1670,7 +1674,7 @@ index 643e5de..16d918c 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +1912,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +1916,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -1680,7 +1684,7 @@ index 643e5de..16d918c 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +1926,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +1930,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -1693,7 +1697,7 @@ index 643e5de..16d918c 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +1978,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +1982,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -1710,7 +1714,7 @@ index 643e5de..16d918c 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +1998,12 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +2002,12 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -1723,7 +1727,7 @@ index 643e5de..16d918c 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1911,10 +2023,10 @@ public final class ManaBrewInteractiveSession {
+@@ -1911,10 +2027,10 @@ public final class ManaBrewInteractiveSession {
                      }
                  }
              }
@@ -1737,7 +1741,7 @@ index 643e5de..16d918c 100644
                  throw new IllegalArgumentException("selected card count out of range: " + selected.size());
              }
              return selected;
-@@ -1940,10 +2052,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,10 +2056,16 @@ public final class ManaBrewInteractiveSession {
  
      private JsonObject takeAction() throws InterruptedException {
          while (true) {
@@ -1755,7 +1759,7 @@ index 643e5de..16d918c 100644
              if (action == null) {
                  if (closed || game.isGameOver()) {
                      return syntheticPass();
-@@ -1966,6 +2084,14 @@ public final class ManaBrewInteractiveSession {
+@@ -1966,6 +2088,14 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -1770,7 +1774,7 @@ index 643e5de..16d918c 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2113,15 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2117,15 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -1786,7 +1790,7 @@ index 643e5de..16d918c 100644
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2145,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2149,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -1795,7 +1799,7 @@ index 643e5de..16d918c 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2073,16 +2210,9 @@ public final class ManaBrewInteractiveSession {
+@@ -2073,16 +2214,9 @@ public final class ManaBrewInteractiveSession {
          checkpointTurn = handler.getTurn();
          checkpointPhase = handler.getPhase();
          final long started = checkpointMetricsEnabled ? System.nanoTime() : 0;
@@ -1814,7 +1818,7 @@ index 643e5de..16d918c 100644
          if (checkpointMetricsEnabled) {
              final long finished = System.nanoTime();
              synchronized (checkpointTimings) {
-@@ -2091,6 +2221,132 @@ public final class ManaBrewInteractiveSession {
+@@ -2091,6 +2225,132 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -1947,7 +1951,7 @@ index 643e5de..16d918c 100644
      private void publishCheckpointViews() {
          final List<Map<String, Object>> views = new ArrayList<>();
          for (final Checkpoint checkpoint : checkpoints) {
-@@ -2124,6 +2380,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2384,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -1958,7 +1962,7 @@ index 643e5de..16d918c 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2157,11 +2417,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2157,11 +2421,7 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void restore(final Checkpoint target) {
@@ -1971,7 +1975,7 @@ index 643e5de..16d918c 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2431,368 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2435,368 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2340,7 +2344,7 @@ index 643e5de..16d918c 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +2825,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +2829,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -2357,7 +2361,7 @@ index 643e5de..16d918c 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +2869,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +2873,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -2366,7 +2370,7 @@ index 643e5de..16d918c 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +2912,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +2916,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -2389,7 +2393,7 @@ index 643e5de..16d918c 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +2956,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +2960,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -2420,7 +2424,7 @@ index 643e5de..16d918c 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,11 +3220,16 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,16 +3224,21 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -2438,7 +2442,129 @@ index 643e5de..16d918c 100644
              }
              final boolean mustAttack =
                      a.isGoaded() || !StaticAbilityMustAttack.entitiesMustAttack(a).isEmpty();
-@@ -2918,7 +3564,8 @@ public final class ManaBrewInteractiveSession {
+             attackers.add(new AttackerOptionDto(
+-                    SnapshotExtractor.javaCardId(a), validTargetIds, mustAttack));
++                    SnapshotExtractor.javaCardId(a), validTargetIds, mustAttack, attackCosts(a, combat)));
+         }
+         final List<AttackTargetDto> attackTargets = new java.util.ArrayList<>();
+         for (final GameEntity defender : combat.getDefenders()) {
+@@ -2596,7 +3246,114 @@ public final class ManaBrewInteractiveSession {
+                     defenderId(defender), defender.getName(),
+                     enumFromWire(defenderKind(defender), AttackTargetKind.class)));
+         }
+-        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
++        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets,
++                attackRefusals(combat, availableAttackers), attackLimits(combat)));
++    }
++
++    private List<AttackCostDto> attackCosts(final Card attacker, final Combat combat) {
++        final List<AttackCostDto> out = new java.util.ArrayList<>();
++        for (final GameEntity defender : CombatChoiceSpace.legalDefendersForAttacker(attacker, combat)) {
++            final Cost total = CombatUtil.getAttackCost(game, attacker, defender);
++            if (total == null) {
++                continue;
++            }
++            final List<String> sourceIds = new java.util.ArrayList<>();
++            final List<String> sourceNames = new java.util.ArrayList<>();
++            for (final Card card : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
++                for (final StaticAbility stAb : card.getStaticAbilities()) {
++                    if (stAb.getAttackCost(attacker, defender, List.of()) != null) {
++                        final Card source = attackRuleSource(card);
++                        sourceIds.add(SnapshotExtractor.javaCardId(source));
++                        sourceNames.add(source.getName());
++                    }
++                }
++            }
++            out.add(new AttackCostDto(defenderId(defender), total.toSimpleString(), sourceIds, sourceNames));
++        }
++        return out;
++    }
++
++    private List<AttackRefusalDto> attackRefusals(final Combat combat, final List<Card> availableAttackers) {
++        final List<AttackRefusalDto> out = new java.util.ArrayList<>();
++        final List<GameEntity> defenders = new java.util.ArrayList<>(combat.getDefenders());
++        if (defenders.isEmpty()) {
++            return out;
++        }
++        for (final Card creature : combat.getAttackingPlayer().getCreaturesInPlay()) {
++            if (!availableAttackers.contains(creature)) {
++                out.add(attackRefusal(creature, defenders.get(0), null));
++                continue;
++            }
++            for (final GameEntity defender : defenders) {
++                if (!CombatUtil.canAttack(creature, defender)) {
++                    out.add(attackRefusal(creature, defender, defenderId(defender)));
++                }
++            }
++        }
++        return out;
++    }
++
++    private AttackRefusalDto attackRefusal(final Card attacker, final GameEntity defender, final String defenderId) {
++        final String cardId = SnapshotExtractor.javaCardId(attacker);
++        if (attacker.isTapped()) {
++            return new AttackRefusalDto(cardId, defenderId, "tapped", null, null);
++        }
++        if (attacker.isPhasedOut()) {
++            return new AttackRefusalDto(cardId, defenderId, "phasedOut", null, null);
++        }
++        if (CombatUtil.isAttackerSick(attacker, defender)) {
++            return new AttackRefusalDto(cardId, defenderId, "summoningSick", null, null);
++        }
++        if (attacker.isGoaded() && (!(defender instanceof Player) || attacker.isGoadedBy((Player) defender))) {
++            return new AttackRefusalDto(cardId, defenderId, "goaded", null, null);
++        }
++        if (attacker.hasKeyword("CARDNAME can't attack.") || attacker.hasKeyword("CARDNAME can't attack or block.")) {
++            return new AttackRefusalDto(cardId, defenderId, "keyword", null, null);
++        }
++        if (attacker.isDetained()) {
++            return new AttackRefusalDto(cardId, defenderId, "detained", null, null);
++        }
++        for (final Card card : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
++            for (final StaticAbility stAb : card.getStaticAbilities()) {
++                if (stAb.checkConditions(StaticAbilityMode.CantAttack)
++                        && StaticAbilityCantAttackBlock.applyCantAttackAbility(stAb, attacker, defender)) {
++                    final Card source = attackRuleSource(stAb.getHostCard());
++                    return new AttackRefusalDto(cardId, defenderId,
++                            stAb.isKeyword(Keyword.DEFENDER) ? "defender" : "static",
++                            SnapshotExtractor.javaCardId(source), source.getName());
++                }
++            }
++        }
++        return new AttackRefusalDto(cardId, defenderId, "other", null, null);
++    }
++
++    private List<AttackLimitDto> attackLimits(final Combat combat) {
++        final List<AttackLimitDto> out = new java.util.ArrayList<>();
++        for (final Card card : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
++            for (final StaticAbility stAb : card.getStaticAbilities()) {
++                if (!stAb.checkConditions(StaticAbilityMode.AttackRestrict)) {
++                    continue;
++                }
++                final int max = AbilityUtils.calculateAmount(stAb.getHostCard(),
++                        stAb.getParamOrDefault("MaxAttackers", "1"), stAb);
++                final Card source = attackRuleSource(stAb.getHostCard());
++                final String sourceId = SnapshotExtractor.javaCardId(source);
++                if (!stAb.hasParam("ValidDefender")) {
++                    out.add(new AttackLimitDto(max, null, sourceId, source.getName()));
++                    continue;
++                }
++                for (final GameEntity defender : combat.getDefenders()) {
++                    if (StaticAbilityAttackRestrict.attackRestrict(stAb, defender)) {
++                        out.add(new AttackLimitDto(max, defenderId(defender), sourceId, source.getName()));
++                    }
++                }
++            }
++        }
++        return out;
++    }
++
++    private static Card attackRuleSource(final Card host) {
++        return host.isImmutable() && host.getEffectSource() != null ? host.getEffectSource() : host;
+     }
+ 
+     private void publishBlockersPrompt(
+@@ -2918,7 +3675,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2448,7 +2574,7 @@ index 643e5de..16d918c 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +3575,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +3686,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -2474,7 +2600,7 @@ index 643e5de..16d918c 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +3607,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +3718,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -2485,7 +2611,7 @@ index 643e5de..16d918c 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +3635,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +3746,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -4237,6 +4363,27 @@ index c778de5..a8a9364 100644
          }),
          None,
      );
+diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
+index 358c48f..e4d66e6 100644
+--- a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
++++ b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
+@@ -44,6 +44,7 @@ pub(super) fn choose_attackers<T: Responder>(
+             attacker_id,
+             valid_target_ids: all_target_ids.clone(),
+             must_attack: false,
++            costs: Vec::new(),
+         })
+         .collect();
+     agent.send_prompt(
+@@ -51,6 +52,8 @@ pub(super) fn choose_attackers<T: Responder>(
+             manabrew_protocol::prompts::choose_attackers::ChooseAttackersInput {
+                 attackers,
+                 attack_targets,
++                unavailable: Vec::new(),
++                limits: Vec::new(),
+             },
+         ),
+         None,
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/library.rs b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/library.rs
 index 35a1b62..ac4f860 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/library.rs
@@ -4274,10 +4421,19 @@ index bac285e..a8e0d58 100644
          };
          match action {
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs b/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs
-index 3385214..8cd1501 100644
+index 3385214..b68e2c9 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs
-@@ -250,6 +250,7 @@ fn main() {
+@@ -87,6 +87,8 @@ fn main() {
+         ChooseAttackers(choose_attackers::ChooseAttackersInput {
+             attackers: vec![],
+             attack_targets: vec![],
++            unavailable: vec![],
++            limits: vec![],
+         }),
+         ChooseBlockers(choose_blockers::ChooseBlockersInput {
+             attackers: vec![],
+@@ -250,6 +252,7 @@ fn main() {
              cards: vec![],
              min: 0,
              max: 0,
@@ -4457,6 +4613,69 @@ index 0f579af..849e7db 100644
          };
  
          let value = serde_json::to_value(stack_object).unwrap();
+diff --git a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs
+index 7df4820..561562b 100644
+--- a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs
++++ b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs
+@@ -10,6 +10,47 @@ pub struct AttackerOptionDto {
+     pub attacker_id: String,
+     pub valid_target_ids: Vec<String>,
+     pub must_attack: bool,
++    #[serde(default)]
++    pub costs: Vec<AttackCostDto>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "prompts/chooseAttackers.ts")]
++pub struct AttackCostDto {
++    pub defender_id: String,
++    pub cost: String,
++    pub source_ids: Vec<String>,
++    pub source_names: Vec<String>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "prompts/chooseAttackers.ts")]
++pub struct AttackRefusalDto {
++    pub card_id: String,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub defender_id: Option<String>,
++    pub reason: String,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub source_id: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub source_name: Option<String>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "prompts/chooseAttackers.ts")]
++pub struct AttackLimitDto {
++    pub max: u32,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub defender_id: Option<String>,
++    pub source_id: String,
++    pub source_name: String,
+ }
+ 
+ #[derive(Debug, Clone, Serialize, Deserialize, TS)]
+@@ -18,6 +59,10 @@ pub struct AttackerOptionDto {
+ pub struct ChooseAttackersInput {
+     pub attackers: Vec<AttackerOptionDto>,
+     pub attack_targets: Vec<AttackTargetDto>,
++    #[serde(default)]
++    pub unavailable: Vec<AttackRefusalDto>,
++    #[serde(default)]
++    pub limits: Vec<AttackLimitDto>,
+ }
+ 
+ #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_cards.rs b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_cards.rs
 index 41bcd1f..91a01ed 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_cards.rs
