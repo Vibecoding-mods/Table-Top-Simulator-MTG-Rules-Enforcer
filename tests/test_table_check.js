@@ -62,6 +62,13 @@ quiet("an attached card with counters", "local o, c = attackerObject() c.att = c
 quiet("a face-down card with counters, drawn", "local o, c = attackerObject() c.fd = true c.ctr = { charge = 3 } engineRender(engineTable())", "shows badges", [{ frames: 200 }]);
 quiet("a scry's cards", "engineScryOpen = function() return { gone = {}, menu = {} }, { options = { { id = 'engine-card-99998', label = 'Looked at', img = '' } }, scry = { move = 'graveyard' } } end enginePrompts.Blue = {} engineScryPlace({}) enginePrompts.Blue = nil", "leftover object");
 
+// (the cost badge on Blue's first hand card, docs/cost-badge-spec.md: drawn, quiet; the engine's cost changed with no
+// redraw, or a counter the engine never asked for, an alarm)
+const costOn = 'local t = engineTable() for _, p in ipairs(t.players) do if p.color == "Blue" and p.hand and p.hand[1] then p.hand[1].mc = "{2}{R}" p.hand[1].ec = "{3}{R}" end end';
+const handObj = 'local o for _, p in ipairs(engineTable().players) do if p.color == "Blue" and p.hand and p.hand[1] then for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. p.hand[1].id then o = x end end end end';
+quiet("a cost badge drawn", `${costOn} engineRender(t)`, "cost badge", [{ frames: 200 }]);
+broken("a cost badge gone", costOn, "the engine's cost says [ | 3]");
+broken("a cost badge that shouldn't be there", `${handObj} o.createButton({ click_function = "engineNoop", function_owner = Global, label = "5" })`, "shows cost badge [5]");
 broken("hover name", `${first} o.setName("Wrong name")`, "is named [Wrong name]");
 broken("hover text", `${first} o.setDescription("wrong")`, "wrong hover text");
 broken("a badge that shouldn't be there", `${first} o.createButton({ click_function = "engineNoop", function_owner = Global, label = "9/9" })`, "shows badges [9/9");
@@ -327,7 +334,7 @@ broken("the life tracker", "getObjectFromGUID('395037').setVar('count', 12345)",
 // every "map:" line in the check has its case here, and a new one fails until it does
 {
   const COVERED = { badges: "a badge gone", attack: "attacker with no glow", attackLine: "attacker with no line", phased: "phased out, and not shown", faceDown: "face up and should be down", attached: "attached to nothing",
-    counters: "a counter not shown", present: "a card that isn't there", playable: "playable: the check sees it out of its row", linked: "linked: the check sees it away from its card", place: "wrong place", tapped: "tapped", hoverName: "hover name", hoverText: "hover text" };
+    counters: "a counter not shown", present: "a card that isn't there", playable: "playable: the check sees it out of its row", linked: "linked: the check sees it away from its card", place: "wrong place", tapped: "tapped", hoverName: "hover name", hoverText: "hover text", cost: "a cost badge gone" };
   const lua = fs.readFileSync(path.join(__dirname, "..", "tools", "engine-renderer.lua"), "utf8");
   const tags = [...lua.slice(lua.indexOf("function engineSelfCheck()"), lua.indexOf("function engineCheckRun()")).matchAll(/map:(\w+)/g)].map((m) => m[1]);
   ok("each map: line has a case", tags.length > 10 && tags.every((t) => COVERED[t]), tags.filter((t) => !COVERED[t]).join(" "));

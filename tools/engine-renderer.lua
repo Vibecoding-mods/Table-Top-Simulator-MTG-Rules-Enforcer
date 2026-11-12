@@ -76,6 +76,12 @@ local function description(c)
   -- (what it can still do from a graveyard or exile, and its counters there: flashback, madness, warp, plot, suspend's
   -- time counters, from the bridge's cardNotes)
   for _, line in ipairs(c.nt or {}) do s = s .. (s == "" and "" or "\n") .. "[i]" .. tostring(line) .. "[/i]" end
+  -- (what it costs now, when the engine says it isn't its printed cost: the cost badge's words, there too for a hand
+  -- TTS might draw no badge on, docs/cost-badge-spec.md)
+  if c.ec ~= nil then
+    local ch = engineCostChange(c.mc, c.ec)
+    if ch ~= nil then s = s .. (s == "" and "" or "\n") .. "[b]" .. ch.text .. "[/b]" end
+  end
   return (s:gsub('"', "'"))
 end
 
@@ -358,6 +364,111 @@ local function badgeText(c)
   for _, b in ipairs(badgeParts(c)) do out[#out + 1] = b[1] .. "=" .. b[2] .. "=" .. table.concat(b[3], ",") .. ((b[1] == "kw" and c.tap) and "=tapped" or "") end
   return table.concat(out, ";")
 end
+-- The cost badge (docs/cost-badge-spec.md, 2026-11-11): what a card in a hand, a command zone, a playable row or a
+-- revealed strip costs now, when the engine says it isn't its printed cost (the bridge's ec beside the printed mc:
+-- Forge's own sum of every reduction, increase and the commander tax). A counter like the table's other counters (their
+-- box colour, a white number) covers the generic pip with the whole new generic amount ("3", never "+1"); a thin rim
+-- under it says cheaper (green) or dearer (red). A change to a coloured symbol (Emerald Medallion's {G} off) is a chip
+-- left of the pips ("-G"). Display only: the payment question says what is paid. Never on the battlefield (the counters
+-- box sits there). Places: the pips' centres along the title bar, the rightmost at x, one step apart, at z; the counter
+-- a little left of the pip's centre so its rim stops at the next pip. Estimates from a real card's proportions (63 x 88
+-- mm on a 2.19 x 3.06 card, 480 button units to a local unit), to calibrate on the real table with tools/tts-shot.ps1.
+BADGE.cost = { x = 0.85, step = 0.125, y = 0.3, z = -1.28, pip = 0.115, w = 80, h = 80, per = 30, rim = 8, dx = -0.03, fs = 64,
+  chipW = 40, chipPer = 30, chipH = 66, chipFs = 52, gap = 0.02, unit = 480 }
+BADGE.less, BADGE.more = { 0.15, 0.62, 0.2, 0.95 }, { 0.75, 0.12, 0.1, 0.95 }
+ENGINE_COST_ZONES = { hand = true, command = true, playable = true, revealed = true }
+-- A mana cost's symbols, "{2}{R}{W/P}" -> { "2", "R", "W/P" } (upper case). Plain find, no pattern: MoonSharp's.
+function engineCostPips(s)
+  local out, i = {}, 1
+  s = tostring(s or "")
+  while true do
+    local a = string.find(s, "{", i, true)
+    if a == nil then break end
+    local b = string.find(s, "}", a + 1, true)
+    if b == nil then break end
+    out[#out + 1] = string.upper(string.sub(s, a + 1, b - 1))
+    i = b + 1
+  end
+  return out
+end
+-- The printed cost mc against the cost now ec: nil when they say the same (or either is missing), else { generic = the
+-- new generic sum or nil when it didn't change, hadGeneric = the printed cost has a generic pip, pips = how many
+-- symbols the printed cost has, chip = "-G" / "+BB" / "-W/U +R" or nil, dir = "less" or "more" (dearer anywhere wins),
+-- text = the hover words }. Generic is the {N} symbols only: X, hybrid ({2/W}, {W/U}), Phyrexian and {C} are symbols.
+function engineCostChange(mc, ec)
+  if type(mc) ~= "string" or type(ec) ~= "string" or ec == "" or mc == ec then return nil end
+  local function split(s)
+    local r = { generic = 0, has = false, sym = {}, n = 0 }
+    for _, p in ipairs(engineCostPips(s)) do
+      r.n = r.n + 1
+      if string.find(p, "^%d+$") then r.generic = r.generic + tonumber(p) r.has = true
+      else r.sym[p] = (r.sym[p] or 0) + 1 end
+    end
+    return r
+  end
+  local a, b = split(mc), split(ec)
+  if b.n == 0 then return nil end
+  local out, more, less = { pips = a.n, hadGeneric = a.has }, false, false
+  if a.generic ~= b.generic then
+    out.generic = b.generic
+    if b.generic > a.generic then more = true else less = true end
+  end
+  local keys, chip = {}, {}
+  for k in pairs(a.sym) do keys[#keys + 1] = k end
+  for k in pairs(b.sym) do if a.sym[k] == nil then keys[#keys + 1] = k end end
+  table.sort(keys)
+  for _, k in ipairs(keys) do
+    local d = (b.sym[k] or 0) - (a.sym[k] or 0)
+    if d ~= 0 then
+      chip[#chip + 1] = (d > 0 and "+" or "-") .. (#k == 1 and string.rep(k, math.abs(d)) or (k .. (math.abs(d) > 1 and ("x" .. math.abs(d)) or "")))
+      if d > 0 then more = true else less = true end
+    end
+  end
+  if not more and not less then return nil end
+  out.chip = #chip > 0 and table.concat(chip, " ") or nil
+  out.dir = more and "more" or "less"
+  out.text = "Costs " .. ec .. " now (printed " .. (mc ~= "" and mc or "no mana cost") .. ")"
+  return out
+end
+-- The cost badge's buttons for card c, in drawing order: { name, label, colour, tooltip, font colour, { x, y, z, w, h,
+-- fs } }. The rim first, a little below the counter, which is drawn over it; the chip last.
+function engineCostParts(c)
+  local ch = engineCostChange(c.mc, c.ec)
+  if ch == nil then return {} end
+  local B = BADGE.cost
+  local parts = {}
+  local first = B.x - B.step * (ch.pips - 1) -- (the leftmost pip's centre)
+  local left = first - B.pip / 2 -- (the left edge of what the badge covers so far: the chip goes left of it)
+  if ch.generic ~= nil then
+    -- (over the generic pip, or where one would be: left of the first symbol of a cost with none, Thalia on {R})
+    local slot = ch.hadGeneric and first or (first - B.step)
+    local label = tostring(ch.generic)
+    local w = B.w + B.per * (#label - 1)
+    local x = slot + B.dx - (w - B.w) / 2 / B.unit -- (wider to the left: its right edge stays short of the next pip)
+    parts[#parts + 1] = { "costRim", "", ch.dir == "more" and BADGE.more or BADGE.less, ch.text, nil, { x = x, y = B.y - 0.01, z = B.z, w = w + 2 * B.rim, h = B.h + 2 * B.rim, fs = 10 } }
+    parts[#parts + 1] = { "cost", label, BADGE.ctrBg, ch.text, { 1, 1, 1 }, { x = x, y = B.y, z = B.z, w = w, h = B.h, fs = B.fs } }
+    left = math.min(left, x - (w / 2 + B.rim) / B.unit)
+  end
+  if ch.chip ~= nil then
+    local w = B.chipW + B.chipPer * #ch.chip
+    local dearer = string.find(ch.chip, "+", 1, true) ~= nil
+    parts[#parts + 1] = { "costChip", ch.chip, dearer and BADGE.more or BADGE.less, ch.text, { 1, 1, 1 }, { x = left - B.gap - w / 2 / B.unit, y = B.y, z = B.z, w = w, h = B.chipH, fs = B.chipFs } }
+  end
+  return parts
+end
+-- The one string that says whether the cost badge changed (updateBadge's engineBadge)
+function engineCostText(c)
+  local out = {}
+  for _, b in ipairs(engineCostParts(c)) do out[#out + 1] = b[1] .. "=" .. b[2] .. "=" .. table.concat(b[3], ",") .. "=" .. string.format("%.3f", b[6].x) end
+  return table.concat(out, ";")
+end
+function engineCostDraw(o, c)
+  for _, b in ipairs(engineCostParts(c)) do
+    local g = b[6]
+    o.createButton({ click_function = "engineNoop", function_owner = Global, label = b[2], position = { g.x, g.y, g.z }, rotation = { 0, 0, 0 },
+      width = g.w, height = g.h, font_size = g.fs, color = b[3], font_color = b[5] or { 1, 1, 1 }, tooltip = b[4] or "" })
+  end
+end
 local function updateBadge(o, c, zone)
   if o == nil or o.isDestroyed() then return end
   if zone == "battlefield" and c.po then
@@ -369,7 +480,10 @@ local function updateBadge(o, c, zone)
   end
   -- (a face-down permanent has badges too, drawn on the side that faces up, its back: one pumped or damaged said nothing.
   -- Its base is the rules' 2/2, bridge tableCard, so a plain morph has none. "=under" in the text redraws it with the next board after a flip.)
-  local text = zone == "battlefield" and badgeText(c) or ""
+  -- (a card in a hand, a command zone, a playable row or a revealed strip shows only its cost badge, and none while its
+  -- owner has it turned over: engineCostParts)
+  local costZone = ENGINE_COST_ZONES[zone] == true and not engineFlipped[c.id]
+  local text = zone == "battlefield" and badgeText(c) or (costZone and engineCostText(c)) or ""
   if text ~= "" and (c.fd == true) ~= (engineFlipped[c.id] == true) then text = text .. "=under" end
   -- (the card's ability buttons are drawn with its badges: one set of buttons per card, engineAbilityButtons)
   local ab = engineAbilitySig ~= nil and engineAbilitySig(c) or ""
@@ -383,6 +497,7 @@ local function updateBadge(o, c, zone)
   local grew = (c.groupN or 1) > (engineGroupShown[c.id] or 1)
   engineGroupShown[c.id] = c.groupN or 1
   if text == "" then return end
+  if costZone then engineCostDraw(o, c) return end
   for k, b in ipairs(badgeParts(c)) do
     if b[1] == "grp" and grew then
       local mark = text .. "#" .. ab
@@ -517,6 +632,8 @@ local function place(c, pos, rot, seen, handColor, meta)
   if handColor ~= nil then
     engineInHand[c.id] = true
     if not isInHand(o, handColor, meta and meta.hand2 and 2 or 1, seen) then o.setLock(false) o.setPosition(pos) o.setRotation(rot) end
+    -- (its cost badge, each board: one string compare when nothing changed)
+    updateBadge(o, c, meta and meta.zone)
     return
   end
   if engineInHand[c.id] then
@@ -525,6 +642,8 @@ local function place(c, pos, rot, seen, handColor, meta)
     o.setLock(not free)
     o.setPosition(pos)
     o.setRotation(rot)
+    -- (a cost badge doesn't leave the hand with its card: a spell cast showed its cost on the stack)
+    if tostring(engineBadge[c.id] or ""):find("^cost") then updateBadge(o, c, meta and meta.zone) end
     return
   end
   if o.getLock() ~= (not free) then op("lock") o.setLock(not free) end
@@ -8505,6 +8624,15 @@ function engineSelfCheck()
             local tapped = math.abs(((o.getRotation().y - homeRotation() + 540) % 360) - 180) > 45
             -- (an untap waiting for its player is the player's to do: enginePending)
             if tapped ~= card.tap and not (tapped and engineHeldTapped(card.id)) then add(label .. (card.tap and " should be tapped" or " should be untapped")) end
+          end
+          -- map:cost (a hand or command card's cost badge, engineCostParts; none on a card its owner turned over)
+          if (zone == "hand" or zone == "command") and not moving and not engineFlipped[card.id] then
+            local want, have = {}, {}
+            for _, b in ipairs(engineCostParts(card)) do want[#want + 1] = b[2] end
+            for _, b in ipairs(o.getButtons() or {}) do if b.click_function == "engineNoop" then have[#have + 1] = tostring(b.label) end end
+            table.sort(want) table.sort(have)
+            local w, h = table.concat(want, " | "), table.concat(have, " | ")
+            if w ~= h then add(label .. " shows cost badge [" .. h .. "], the engine's cost says [" .. w .. "]") end
           end
         end
       end

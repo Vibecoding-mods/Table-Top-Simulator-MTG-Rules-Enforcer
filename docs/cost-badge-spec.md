@@ -1,6 +1,8 @@
 # Cost-change counter on cards (spec, item 13)
 
-Status: design only, written 2026-11-11. No code changed. Source item: docs/next-features-2026-11-09.md, item 13.
+Status: written 2026-11-11. Phase 1 built the same day, in source only (bridge `costNow`, table `engineCostChange` / `engineCostParts`, self-check `map:cost`; tests in tests/test_bridge_claims.js "cost data" and tests/test_table_claims.js "cost compare" / "cost badge"). Not yet seen on the real table: Step 0 (the field on a real board), the hand-button question and the badge's place (`BADGE.cost` are estimates) are the live checks. Phase 2 not started. Source item: docs/next-features-2026-11-09.md, item 13.
+
+Built differently from the plan below: the fallback when no `effectiveManaCost` arrives is the commander tax only (printed cost plus the card's `commanderTax`, while no `effectiveManaCost` has come in the game); there is nothing to fall back on for a hand card, whose hover text and badge stay as printed. The badge also shows on the playable row's cards and the revealed strip (both drawn from the same card data). The self-check's new line compares the cost buttons on hand and command cards with `engineCostParts`.
 
 ## What the user sees
 
