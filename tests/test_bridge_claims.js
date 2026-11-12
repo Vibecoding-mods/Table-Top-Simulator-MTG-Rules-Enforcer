@@ -3533,6 +3533,82 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     const put = await titled(twoJaces, undefined, "Put a creature card from your hand onto the battlefield tapped and attacking.");
     ok("hero: a card put onto the battlefield attacking: attack whom", put === "Hero of Bladehold: attack whom?", put);
   }
+  // "Everything kept for the player between questions, dropped at once when a rewind undoes the turns it was for"
+  // (Seat.clearFollowUps, from checkRestored). The fields are named here, not read from Seat.FOLLOW_UPS: a field left out
+  // of that list must fail this check.
+  {
+    const h = harness.load();
+    const seat = setup(h, F.board);
+    const fields = ["endTurnAt", "resolveStack", "queuedPlay", "attachTo", "targetPicks", "cardsDone", "unless", "autoPayCard",
+      "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack"];
+    const now = clone(F.board); now.gameView.turn = 9;
+    seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(now), fingerprint: "t9" }); await h.flush();
+    for (const f of fields) seat[f] = { set: f };
+    seat.note("activate", "engine-card-1", "X");
+    const back = clone(now); back.gameView.turn = 7;
+    seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(back), fingerprint: "t7" }); await h.flush();
+    const left = fields.filter((f) => seat[f] != null);
+    ok("precondition: the rewind was seen", h.effects.some((e) => /the game was rewound/.test(e.log || "")));
+    ok("rewind: every follow-up kept for the player is dropped", !left.length, JSON.stringify(left));
+    ok("rewind: and the follow-up memory (lately)", !seat.justDid("activate", 60000), JSON.stringify(seat.lately));
+    // (and only on a rewind: a board that moves on keeps them)
+    for (const f of fields) seat[f] = { set: f };
+    const on = clone(back); on.gameView.turn = 8;
+    seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(on), fingerprint: "t8" }); await h.flush();
+    ok("no rewind: the follow-ups stay", fields.every((f) => seat[f]?.set === f), JSON.stringify(fields.filter((f) => seat[f]?.set !== f)));
+    harness.restore();
+  }
+  // "A question (or its close) goes ahead of the boards, log lines and rules texts waiting in line ... It never passes
+  // another prompt, a chat line, a refusal or a clear" (toTTS). The harness's TTS takes a message only when the timers
+  // run, so everything sent in one go waits behind the first.
+  {
+    const h = harness.load();
+    setup(h, F.board);
+    const q = (t, extra = {}) => h.B.toTTS({ t, ...extra });
+    q("table", { n: 1, players: [] }); // (in flight)
+    q("chat", { text: "a" }); q("gamelog", { lines: ["l1"] }); q("texts", { texts: { x: "t" } }); q("refused", { id: "c" }); q("table", { n: 2, players: [] }); q("gamelog", { lines: ["l2"] });
+    q("prompt", { color: "Blue", promptId: 5 });
+    q("prompt", { color: "Blue", promptId: null }); q("prompt", { color: "Blue", promptId: 6 });
+    q("clear"); q("gamelog", { lines: ["l3"] }); q("prompt", { color: "Blue", promptId: 7 }); q("chat", { text: "b" }); q("prompt", { color: "Blue", promptId: 9 });
+    await h.flush();
+    const order = h.effects.filter((e) => e.tts).map((e) => e.tts).map((m) => m.t === "prompt" ? `prompt ${m.promptId}` : m.t === "table" ? `table ${m.n}` : m.t === "gamelog" ? `gamelog ${m.lines[0]}` : m.t);
+    const want = ["table 1", "chat", "gamelog l1", "texts", "refused", "prompt 5", "prompt null", "prompt 6", "table 2", "gamelog l2", "clear", "prompt 7", "gamelog l3", "chat", "prompt 9"];
+    ok("outbox: questions pass waiting boards, log lines and texts, nothing else, in their own order", JSON.stringify(order) === JSON.stringify(want), JSON.stringify(order));
+    // (a newer board still replaces a waiting one, now behind the question)
+    h.effects.length = 0;
+    q("table", { n: 3, players: [] }); q("table", { n: 4, players: [] }); q("prompt", { color: "Blue", promptId: 8 }); q("table", { n: 5, players: [] });
+    await h.flush();
+    const order2 = h.effects.filter((e) => e.tts).map((e) => e.tts).map((m) => m.t === "prompt" ? `prompt ${m.promptId}` : `table ${m.n}`);
+    ok("outbox: a newer board replaces the one waiting, after the question", JSON.stringify(order2) === JSON.stringify(["table 3", "prompt 8", "table 5"]), JSON.stringify(order2));
+    harness.restore();
+  }
+  // GET /stats: "wait" per message kind, "engine" per question type, "trips" per question shown after an answer
+  {
+    const h = harness.load();
+    const main = clone(F.board); Object.assign(main.gameView, { activePlayerId: "player-0", priorityPlayerId: "player-0", step: "main1", stack: [] });
+    const upkeep = clone(F.board); Object.assign(upkeep.gameView, { activePlayerId: "player-1", priorityPlayerId: "player-0", step: "upkeep", stack: [] });
+    const seat = setup(h, main);
+    // (a priority with a card to cast: the main phase stops for it, their upkeep doesn't)
+    const priority = (id, can) => ({ promptId: id, decidingPlayerId: "player-0", input: { type: "chooseAction", actions: can ? [{ id: "a-cast", type: "cast", cardId: "engine-card-43", label: "Cast it" }] : [] } });
+    const ask = async (board, id, ms) => { seat.board = { state: clone(board), fingerprint: null }; seat.onEnvelope({ kind: "prompt", forPlayer: "player-0", engineMs: ms, prompt: priority(id, board === main) }); await h.flush(); };
+    await ask(main, 50, 120);
+    const shown50 = seat.prompt?.promptId === 50;
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 50, choice: ["__pass"] }) }); await h.flush();
+    await ask(upkeep, 51, 40); // (passed by itself: their upkeep, nothing on the stack)
+    const passed51 = !seat.prompt;
+    await ask(main, 52, 2000);
+    ok("precondition: #50 and #52 shown, #51 passed by the bridge", shown50 && passed51 && seat.prompt?.promptId === 52, JSON.stringify([shown50, passed51, seat.prompt?.promptId]));
+    const s = await new Promise((resolve) => {
+      const req = { url: "/stats", method: "GET", headers: { host: "127.0.0.1:48787" } };
+      h.B.debugServer?.emit?.("request", req, { writeHead() {}, setHeader() {}, end: (b2) => resolve(JSON.parse(b2)) });
+      if (!h.B.debugServer?.emit) resolve(null);
+    });
+    const ca = s?.engine?.chooseAction;
+    ok("stats: engine time per question type", ca && ca.n === 3 && ca.sum === 2160 && ca.max === 2000 && JSON.stringify(ca.hist) === JSON.stringify([0, 1, 0, 1, 0, 0, 1, 0]), JSON.stringify(s?.engine));
+    ok("stats: trips counts the bridge's own pass between an answer and the next question shown", s && s.trips["after an answer"]?.n === 1 && s.trips["after an answer"].sum === 2, JSON.stringify(s?.trips));
+    ok("stats: wait per message kind, the close apart", s && s.wait.prompt?.n >= 2 && s.wait.close?.n >= 1 && Object.values(s.wait).every((x) => x.hist.reduce((a, c) => a + c, 0) === x.n), JSON.stringify(s?.wait));
+    harness.restore();
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();

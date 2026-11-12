@@ -220,8 +220,18 @@ end
 
 local function firstLine(s) return (tostring(s or ""):match("^[^\n]*") or "") end
 
-local function isInHand(o, color, index)
-  for _, h in ipairs(Player[color].getHandObjects(index or 1) or {}) do if h == o then return true end end
+-- seen: a board's render (its `seen` table), whose hand lists are asked once each and kept in engineHandCache until
+-- the next render. A render places each card once, so no card's hand changes before it is asked about; asking TTS
+-- again for every hand card made a hand of n cards cost n getHandObjects lists of n (slow tail, docs/slow-tail-2026-11.md).
+local function isInHand(o, color, index, seen)
+  local hand
+  if seen ~= nil then
+    if engineHandCache == nil or engineHandCache.seen ~= seen then engineHandCache = { seen = seen, lists = {} } end
+    local key = color .. "|" .. tostring(index or 1)
+    hand = engineHandCache.lists[key]
+    if hand == nil then hand = Player[color].getHandObjects(index or 1) or {} engineHandCache.lists[key] = hand end
+  else hand = Player[color].getHandObjects(index or 1) or {} end
+  for _, h in ipairs(hand) do if h == o then return true end end
   return false
 end
 
@@ -506,7 +516,7 @@ local function place(c, pos, rot, seen, handColor, meta)
   if math.abs(o.getScale().x - wantScale) > 0.01 then op("scale") o.setScale(Vector(wantScale, 1, wantScale)) end
   if handColor ~= nil then
     engineInHand[c.id] = true
-    if not isInHand(o, handColor, meta and meta.hand2 and 2 or 1) then o.setLock(false) o.setPosition(pos) o.setRotation(rot) end
+    if not isInHand(o, handColor, meta and meta.hand2 and 2 or 1, seen) then o.setLock(false) o.setPosition(pos) o.setRotation(rot) end
     return
   end
   if engineInHand[c.id] then
