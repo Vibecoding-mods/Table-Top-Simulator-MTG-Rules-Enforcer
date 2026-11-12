@@ -537,9 +537,11 @@ class Seat {
   // - our own auto-pay (left set, the same card's payment asked again after the rewind would be tapped without asking,
   //   suite review 2026-11-05): smartPay, tappedFor, payingCost;
   // - a text change's first word (the redone first question, within 3 prompt ids, read as the second) and the
-  //   creatures that must attack (core-moves cleanup plan): textWord, mustAttack.
+  //   creatures that must attack (core-moves cleanup plan): textWord, mustAttack;
+  // - the undone attack's engine data, refusal and picks (a rewind back into declare attackers showed the undone
+  //   attempt's "isn't legal", batch 1 review 2026-11-12): attackData, attackRefused, lastAttack.
   static FOLLOW_UPS = ["endTurnAt", "resolveStack", "queuedPlay", "attachTo", "targetPicks", "cardsDone", "unless", "autoPayCard",
-    "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack"];
+    "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack"];
   // resume: { username, slot, roomId } of a seat saved before the bridge stopped (resumeGame): it logs in again under
   // the same name as a reconnect (AuthResult below), so the relay hands back its seat and RequestResync the game
   constructor(color, deckId, resume = null) {

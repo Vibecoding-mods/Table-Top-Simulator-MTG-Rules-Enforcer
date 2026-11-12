@@ -3789,7 +3789,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     const h = harness.load();
     const seat = setup(h, F.board);
     const fields = ["endTurnAt", "resolveStack", "queuedPlay", "attachTo", "targetPicks", "cardsDone", "unless", "autoPayCard",
-      "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack"];
+      "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack"];
     const now = clone(F.board); now.gameView.turn = 9;
     seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(now), fingerprint: "t9" }); await h.flush();
     for (const f of fields) seat[f] = { set: f };

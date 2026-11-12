@@ -2447,6 +2447,23 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     ok("attacker light: the next question puts it out", /^[a-z]+\|false\|/.test(String(valueOf(r, "after"))), valueOf(r, "after"));
   }
   {
+    // the token folded into a stack (five alike or more: the stack's card stands for them all, token stacks): the stack's
+    // card lights, not nothing (batch 1 review 2026-11-12)
+    const soldiers = ["s1", "s2", "s3", "s4", "s5", "s6"].map((n) => `engine-card-97${n.slice(1)}0`);
+    const stacked = JSON.parse(JSON.stringify(last));
+    for (const pl of stacked.players) if (pl.color === "Blue") pl.battlefield = [...pl.battlefield, ...soldiers.map((id) => ({ s: 1, id, ctl: "Blue" }))];
+    for (const id of soldiers) stacked.cards[id] = { n: "Soldier", tok: true, ty: ["Creature"], tl: "Token Creature — Soldier" };
+    const token = soldiers[5];
+    const rep = q(`local rep = engineGroupOf["${token}"] if rep == nil then return "unfolded" end `
+      + 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. rep then o = x end end'
+      + ' if not o then return "none" end local h = o.__d.highlight return tostring((engineGlowing.Blue or {})[o] == true) .. "|" .. (h and string.format("%.2f,%.2f,%.2f", h[1] or h.r, h[2] or h.g, h[3] or h.b) or "none")', "rep lit");
+    const r = run([{ msg: { t: "table", json: JSON.stringify(stacked) }, frames: 30, mark: "stacked" },
+      ask({ promptId: 9711, kind: "target", title: "Hero of Bladehold: Soldier Token 1/1 attacks which player or planeswalker?", mode: "multi", min: 1, max: 1,
+        attacker: token, options: [{ id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), rep]);
+    ok("attacker light: precondition, the named token is folded into a stack", !/^(unfolded|none)$/.test(String(valueOf(r, "rep lit"))), `${valueOf(r, "rep lit")} ${r.errors.join(" | ")}`);
+    ok("attacker light: a folded token lights its stack's card red", /^true\|1\.00,0\.12,0\.08$/.test(String(valueOf(r, "rep lit"))), valueOf(r, "rep lit"));
+  }
+  {
     // offered with other cards but not this one ("target creature or planeswalker an opponent controls"): it says so
     const r = run([board, ask({ promptId: 9705, kind: "target", title: "Murder: destroy which creature or planeswalker?", mode: "single",
       options: [{ id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), hint, click(mine, "click")]);
