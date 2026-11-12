@@ -175,8 +175,10 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
           <button type='button' class='btn' id='tt-battlefield-btn'>Put on battlefield</button>
           <button type='button' class='btn' id='tt-life-btn'>Set life</button>
           <button type='button' class='btn' id='tt-untap-btn'>Untap all</button>
+          <button type='button' class='btn' id='tt-draw-btn'>Draw</button>
+          <button type='button' class='btn' id='tt-mill-btn'>Mill</button>
         </div>
-        <p class='tt-note'>Add mana: Number of the Mana colour, until the end of the turn. Set life: to Number. Draw and mill aren’t here yet (they need an engine update).</p>
+        <p class='tt-note'>Add mana: Number of the Mana colour, until the end of the turn. Set life: to Number. Draw and Mill: Number cards, drawn or milled by the engine itself, so its triggers fire as in play.</p>
       </div>
       <p class='toast' id='tt-toast' role='status' aria-live='polite'></p>
     </div>
@@ -347,7 +349,7 @@ var MtgPage = (function () {
   // GET /api/tools (or null, or a refusal) -> what the section shows
   function toolsView(t) {
     if (!t || typeof t !== 'object' || !t.seats) {
-      return { ok: false, state: str(t && t.message) || 'The bridge isn’t answering: start the engine first.', seats: [], presets: [], debug: { on: false, usable: false, players: [], note: '' } };
+      return { ok: false, state: str(t && t.message) || 'The bridge isn’t answering: start the engine first.', seats: [], presets: [], debug: { on: false, usable: false, players: [], note: '', tools: [] } };
     }
     var seats = t.seats.map(function (s) {
       var ai = s.ai || null;
@@ -360,7 +362,8 @@ var MtgPage = (function () {
       : d.fix ? 'On. A manual fix is under way: wait for it to end.' : 'On. Each change pauses the game as a manual fix, and the other players vote on it.';
     return {
       ok: true, state: 'Read from the bridge. An AI seat applies from the next game.', seats: seats, presets: (t.presets || []).map(str),
-      debug: { on: !!d.on, usable: !!(d.on && d.game && !d.fix), players: (d.players || []).map(function (p) { return { color: str(p.color), name: str(p.name) }; }), note: note }
+      debug: { on: !!d.on, usable: !!(d.on && d.game && !d.fix), players: (d.players || []).map(function (p) { return { color: str(p.color), name: str(p.name) }; }), note: note,
+        tools: (Array.isArray(t.tools) ? t.tools : []).map(str) }
     };
   }
 
@@ -383,7 +386,7 @@ var MtgPage = (function () {
   function debugRequest(tool, color, n, name, mana) {
     if (!color) return { error: 'Pick a player.' };
     var b = { kind: 'debug', tool: tool, color: color };
-    if (tool === 'mana' || tool === 'life') {
+    if (tool === 'mana' || tool === 'life' || tool === 'draw' || tool === 'mill') {
       var k = Number(n);
       if (str(n).trim() === '' || isNaN(k) || k !== Math.floor(k)) return { error: 'Type a whole number in Number.' };
       b.n = k;
@@ -638,7 +641,12 @@ var MtgPage = (function () {
       $('tt-dbg').hidden = !v.debug.on;
       var pkey = v.debug.players.map(function (p) { return p.color + ':' + p.name; }).join('|');
       if (pkey !== tt.players) { fillSelect($('tt-player'), v.debug.players.map(function (p) { return [p.color, p.name === p.color ? p.color : p.name + ' (' + p.color + ')']; })); tt.players = pkey; }
-      TOOL_IDS.forEach(function (id) { $('tt-' + id + '-btn').setAttribute('aria-disabled', v.debug.usable && !tt.busy ? 'false' : 'true'); });
+      // (only the tools this bridge lists: one from before Draw and Mill refuses them by name)
+      TOOL_IDS.forEach(function (id) {
+        var b = $('tt-' + id + '-btn');
+        b.hidden = v.debug.tools.indexOf(id) < 0;
+        b.setAttribute('aria-disabled', v.debug.usable && !tt.busy ? 'false' : 'true');
+      });
     }
     function toolsLoad() {
       var my = ++tt.seq;
@@ -661,7 +669,7 @@ var MtgPage = (function () {
         toolsLoad();
       }, function () { tt.busy = false; ttSay('The companion didn’t answer.', 'bad'); });
     }
-    var TOOL_IDS = ['mana', 'hand', 'battlefield', 'life', 'untap'];
+    var TOOL_IDS = ['mana', 'hand', 'battlefield', 'life', 'untap', 'draw', 'mill'];
     TOOL_IDS.forEach(function (id) {
       $('tt-' + id + '-btn').addEventListener('click', function () {
         if ($('tt-' + id + '-btn').getAttribute('aria-disabled') === 'true') { ttSay($('tt-debug-note').textContent || 'Not available now.', 'warn'); return; }
