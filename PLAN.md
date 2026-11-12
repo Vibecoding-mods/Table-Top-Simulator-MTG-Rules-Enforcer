@@ -13,8 +13,8 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   their sizes. The monarch's mat also showed Undercity, City's Blessing and The Ring: a bare `local` in a for-in body
   is the looped table in TTS. Fixed with three more such locals (one dropped the ability panel's greyed reasons) and a
   gate, test_moonsharp_loop_locals (f51b184), deployed and seen fixed.
-- ⬜ Found in that check, not fixed: a debug scenario's planeswalker enters with no loyalty and dies at once; a
-  player-or-permanent choice the bridge can't map (two cards of one name anywhere) still reads "choose one" with
+- ⬜ Found in that check, not fixed: a debug scenario's planeswalker enters with no loyalty and dies at once (✅ fixed
+  in 8fb86e6, live in c9295fcc); a player-or-permanent choice the bridge can't map (two cards of one name anywhere) still reads "choose one" with
   "Jace Beleren (201)"; the log's "White attacks with Hero of Bladehold" doesn't name the planeswalker, and it put
   the Giant Growth cast (declare-attackers step) after the combat damage; a mid-game `mtg debug` without keepHand
   bottoms the hand and adds 20 lands. The pump-on-attacker payment title wasn't seen (the pool paid by itself).
@@ -28,8 +28,17 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 - ✅ Tests can't reach the live table: tests/no-live-ports.js refuses and records every connection to 39999, 39998,
   48787 and 9443 (and the harness's decoy TTS port 1), failing the run; the All attack check that put its chat into a
   real game twice now runs before restore().
-- ⬜ Hero of Bladehold's per-token "attack which player or planeswalker?" can't name the token: Forge's harness passes
-  only "Choose which defender to attack with Soldier Token" (chooseSingleEntityForEffect drops its Attacker param).
+- 🔶 (source, needs the next node image) Hero of Bladehold's per-token "attack which player or planeswalker?" names
+  the token: the harness sends Forge's question ("Choose which defender to attack with Soldier Token") as the
+  description and the token (chooseSingleEntityForEffect's Attacker param) as the question's one target
+  (AttackDefenderChoiceTest); the bridge titles it "Hero of Bladehold: Soldier Token 1/1 attacks which player or
+  planeswalker?" (or "... attacks whom?" in words) and the table lights the token red (ui.attacker). Bridge and table
+  need deploying with that image.
+- Checked 2026-11-11 (engine bugs pass): the debug planeswalker's loyalty (8fb86e6) is in the deployed engine
+  c9295fcc and seen live (scenarios/live-r3.json, Jace kept 3); no failing case found (either side, mid-game, four
+  walkers: ApplyStateCreateCardTest). The Mindslaver auto-pass (no defect: on the controlled turn White had no Plains
+  on the battlefield, so Reflect Damage was not castable; table-log #45-#76) and the passive AI's Counterspell
+  (PassiveLobbyPlayerAi, in c9295fcc) stay as under "Live-check bugs" below.
 - 🔶 (source) The companion's TTS light goes green only for a table heard since this TTS started (/versions
   tableHeardMs against the TTS process start time), not for the last session's stamp.
 - 🔶 (source) AI seats are named as the game log names them in the rewind list and vote ("AI 2's attacks"), and a
