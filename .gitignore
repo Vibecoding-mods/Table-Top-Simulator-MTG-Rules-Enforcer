@@ -37,3 +37,4 @@ companion/bin/
 # The release signing key (tools/make-friend-package.js --release): it lives in %USERPROFILE%\.mtg-release, never here
 .mtg-release/
 *.pem
+docs/fx-research/img/
