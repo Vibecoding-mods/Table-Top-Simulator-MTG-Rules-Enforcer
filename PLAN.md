@@ -177,7 +177,7 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   - small: "Skip ended: combatBegin" uses Forge step names; "Game over" printed twice; forage log order and "with
     Treetop Sentries" twice; "Claim the Precious: choose a card"; the timer warning told to everyone; Done with too
     few cards gives no message; the Auto-resolve button's text dim next to "Fix...".
-- ⬜ Slow-tail re-measure on a quiet PC.
+- ⬜ Slow-tail re-measure on a quiet PC. Offline findings and the live questions left: `docs/slow-tail-2026-11.md`.
 
 ## From the first friends game: done 2026-10-19 (tested live in single player)
 - **Opening hand visible:** draws are only held after a player's first real decision (mulligans are no longer "draws"); one click takes every held card. Tested: 7 cards in hand right away.
@@ -296,9 +296,11 @@ Still to move onto the core moves, in this order (checked 2026-11-05; the last t
   merging zones the bridge left out, life changes), and one `engineSlideAway` for the three "slide there and go" moves
   (mill stand-ins, strays joining a pile, cards a new pile is built from). The attack lunge and the held-mill arrival
   are different moves and stay.
-- ⬜ `askUnder` for prompts asked while another is open.
-- ⬜ `trackMarks` for player marks.
-- ⬜ `engineCardEntry` (one way a card object is made).
+- ✅ `askUnder` for prompts asked while another is open (2026-11-06, `docs/core-moves/askunder.md`). Its plan's step 4
+  done 2026-11-11: one `Seat.clearFollowUps()` holds the list a rewind clears (`checkRestored`), now with `textWord` and
+  `mustAttack` too; a claims check names every field.
+- ✅ `trackMarks` for player marks (2026-11-06, steps 1-7, `docs/core-moves/trackmarks.md`).
+- ✅ `engineCardEntry` (one way a card object is made) (2026-11-06, `docs/core-moves/cardentry.md`).
 
 ## Copy engine experiment (2026-11-02): closed 2026-11-03, not worth continuing
 
@@ -332,10 +334,11 @@ Details per day: `docs/changes-2026-10-31-to-11-05.md`. Everything up to `980aec
 - **Being specified 2026-11-05 (open):**
   - ✅ Companion .exe: built (six start lights, browser status page, table tools, friend-package self-update); the spec was rewritten from the code 2026-11-11 (`docs/companion-app-spec.md`, §14 lists what is not built).
   - ⬜ Own engine: refreshed plan 2026-11-11 (`docs/spec-own-engine.md`); its new Phase 0 (people-only speed, fixes-in-one-place comparison, native engine without Docker) has not started.
-  - ⬜ Core-moves cleanups: `askUnder`, `trackMarks`, `engineCardEntry`.
+  - ✅ Core-moves cleanups: `askUnder`, `trackMarks`, `engineCardEntry` (2026-11-06; askUnder's `clearFollowUps` 2026-11-11).
   - ⬜ M5 step 4: particle effects with sound hooks.
   - ⬜ Planechase plane and dungeon room: engine changes.
-  - ⬜ Investigations: the engine's p95 slow tail, External Editor message size.
+  - ⬜ Investigations: the engine's p95 slow tail (offline part done 2026-11-11, `docs/slow-tail-2026-11.md`; the live
+    part waits for a game on the new bridge's GET /stats), External Editor message size.
 - **Left after that:** things that need other people (4 humans, hand privacy, M7's 2-person test, M5's sync test, remote
   players' gestures, the host's upload with `tools/net-upload-meter.ps1`) or are optional (effects, sounds, game modes, 6 seats).
 
@@ -668,7 +671,7 @@ Players drag and use the table normally; every move is a request the engine acce
 - **Forge Commander rules:** confirmed headless on 2026-10-20 (M0.5): tax, 21 commander damage, command-zone choice, 4-player priority, turn order after elimination.
 - **TTS render speed on a big board:** answered 2026-10-20: fine at 125 permanents (avg update 36 ms, worst 152 ms).
 - **External Editor message size:** does TTS cut off very large messages? Patches keep them small (~1 KB), but the first full state is ~25 KB. Investigation being specified 2026-11-05.
-- **Slow tail in the engine:** p95 ~90 ms. Check whether it's the engine or CPU contention by running clients on another machine. Investigation being specified 2026-11-05 (the engine has run on 2 WSL cores since 2026-11-05).
+- **Slow tail in the engine:** p95 ~90 ms. Check whether it's the engine or CPU contention by running clients on another machine. Investigation being specified 2026-11-05 (the engine has run on 2 WSL cores since 2026-11-05). 2026-11-11: in live play the tail is engine time (84% of a reply's wall time) times the priority stops the bridge passes one round trip at a time; `docs/slow-tail-2026-11.md`..
 - **Manabrew is pre-release and changes fast:** relay and node are our own builds (`mtg-relay:exile`, `mtg-forge-node:exile`, from Manabrew `fd16e2f` plus `engine/manabrew.patch`); the web client is pinned by digest in `stack/compose.yml`. A newer Manabrew means bringing the patch forward and rerunning the rules checks and golden tests.
 - **Licensing:** fine for private play. Before publishing on the Workshop or running a public server, review §9 (AGPL obligations if Manabrew is modified, e.g. for M7).
 
