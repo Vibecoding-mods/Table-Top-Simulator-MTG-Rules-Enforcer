@@ -1,322 +1,218 @@
-# Spec: our own copy of the rules, in Lua inside Tabletop Simulator
+# Own engine: the rules in one place (plan refreshed 2026-11-11)
 
-Status: **closed 2026-11-03, not worth continuing.** Written 2026-11-02, then built the same day as an experiment on the
-`copy-engine` branch (commit ddcc69a, folder `engine-lua/`; its worktree `../mtg-tts-copy-engine` is gone). The Lua copy
-played a whole correct game inside real TTS, but 906 s for one AI game with single freezes up to 43 s, and no runtime fix
-bought more than about 4 times (PLAN "Copy engine experiment"). The current build stays the game. What the build found
-and the comparison with this build are on that branch: `docs/spec-own-engine.md`, `docs/compare-current-vs-copy.md`,
-`docs/engine-compare-map.html`. The plan below is kept as written. Numbers
-marked *measured* were taken that day from the Forge copy in `manabrew/forge` (Manabrew snapshot fd16e2f, 2026-10-16) and
-from TTS's own Lua interpreter.
+Status: **plan, nothing scheduled.** The first version (2026-11-02) planned a Java-to-Lua copy of Forge running inside
+Tabletop Simulator and began with a "Phase 0" of five cheap tests. That Phase 0 was never run as written, because the same day
+the whole translator was built as an experiment on the `copy-engine` branch (`engine-lua/`, commit ddcc69a), and the experiment
+answered the question Phase 0 asked. It was **closed 2026-11-03**: the copy plays a correct game inside real TTS but 4.4 times
+slower than outside it (PLAN.md "Copy engine experiment"). So "Phase 0 not started" in older notes is stale in one way and true in
+another: the *old* Phase 0 is superseded; the **new Phase 0 in §6 has not started**.
 
-## Why the copy engine exists, and what it hasn't proved yet
+The first version, with its translator design, runtime rules and licence reading, stays in git
+(`git show 71f6557:docs/spec-own-engine.md`) and, with the build's findings, on the branch
+(`git show copy-engine:docs/spec-own-engine.md`, `docs/compare-current-vs-copy.md`, `docs/research-tts-speed.md`,
+`engine-lua/DRIFT.md`). This file does not repeat them. It says what is still undecided and how to settle it cheaply.
 
-**The user's reason (2026-11-02): big fixes should be easier and better.** In this build a deep bug can need changes in
-up to four places (Forge or the harness in Java, a new image build, the bridge in JS, the table in Lua, then a save
-patch), and the bridge only sees Forge through board snapshots, so it has to guess what happened. The copy engine was
-meant to put the rules and the table in one place, where the table calls the engine's own functions and a fix is made
-once.
+Numbers in this file are from the repo on 2026-11-11 or from those branch documents; anything I estimated is marked **(estimate)**
+and anything I propose rather than know is marked **(proposal)**.
 
-**Not proved yet.** The build so far proved only that Forge translates and plays a game in Lua; speed was the measured
-part. No bug has been fixed in both builds and compared. The test that would prove it, or not, is to take the same bugs
-(phasing shown as gone, the rewind race, Kardur's must-attack, Bloodline Keeper leaving target lists) to both builds and
-record, for each: where the fix lives, how many files and languages it touched, the rebuild and redeploy time, and
-whether it changed Forge's own code. Until then, "fixes are easier in the copy" is the hope, not a finding.
+## 1. What the user wants, split into three goals
 
-## TLDR
+From the user's 2026-11-02 requests (spec history, PLAN.md:282-284): "big fixes should be easier and better", and "drop the
+bridge and Forge" so that friends need no Docker or server. Those are three different goals and a plan can reach one without the
+others:
 
-- **Can it be done?** Probably yes for games between people. The rules code is about 156,000 lines of Java, and its Java
-  is plain enough to translate by machine. The unknown is speed: Lua inside TTS runs on one thread on the host's PC, and
-  nobody has measured a Forge-sized engine there. So the first step is a small test that can kill the idea cheaply.
-- **How:** don't hand-write a Lua Forge. Write a translator that turns Forge's Java into Lua, one file for one file, same
-  names, same logic. Card scripts are copied unchanged. A new Forge version then means running the translator again, which
-  is what keeps it updatable. Hand-written code stays small and in named places.
-- **What you get:** no Docker, no bridge, no relay, no server to host. Friends join the TTS game and it just works.
-- **What you pay:** a slower engine, TTS pauses on the host when a board gets big, and the AI comes last or not at all.
-- **Next step, when you want it:** Phase 0, about one sitting of work, on a table with no game running.
+| Goal | Meaning | Reached today? |
+|---|---|---|
+| **G1 Fixes in one place** | a rules bug is fixed once, where the table can see the engine's own objects, not across Forge/harness Java, an image rebuild, the bridge and the table | No (§2) |
+| **G2 No Docker, no hosting** | the host needs TTS only; no WSL, relay, ports, GPU/CPU contention with Forge | No. Docker, WSL cores and the relay are the source of three of the companion's six lights (docs/companion-app-spec.md §4) |
+| **G3 No bridge guessing** | the table reads the engine's events instead of comparing boards | Partly: the engine now sends an event feed (`GameViewDto.events`, 2026-11-02) that the bridge uses for the game log; the table is still drawn from boards, with the old guessing as fallback (`docs/engine-interface-reference.md:23`, `SPEC.md:101`, `tests/live_events_check.js`) |
 
-## What was asked, and how each part is met
+## 2. The architecture today (measured 2026-11-11)
 
-| You said | How this spec does it |
-|---|---|
-| Drop the bridge and Forge | The engine runs in the table's Lua. Bridge duties are split up in "What replaces the bridge" |
-| Works in Lua/Unity | Lua inside TTS. TTS mods can't load C#, so "Unity" isn't open to us without leaving TTS |
-| Can be updated from the original Forge | Re-run the translator on the new Forge, copy the new card scripts |
-| Drift is okay if it works | Allowed, and written down: every difference is a small patch file with a reason |
-| We understand the core code | Output keeps Forge's names and shape, and the 14 core files get a plain-English walkthrough |
-| No super functions or files | One Lua file per Java file, enforced by a test, with a cap on hand-written code |
+TTS table (Lua) ⇄ HTTP :48787 / External Editor :39999 ⇄ **bridge** (Node) ⇄ WebSocket :9443 ⇄ **relay** (Rust) ⇄ **node**
+(Rust host + Java Forge harness, GraalVM native image) (docs/ARCHITECTURE.md §1; `stack/compose.yml`).
 
-## Where it would run
+| Piece | Size | Where it lives |
+|---|---|---|
+| Bridge | 9,345 lines JS (`bridge/bridge.js`); it was 7,207 on 2026-11-02 | main |
+| Table renderer | 8,300 lines Lua (`tools/engine-renderer.lua`); it was 5,993 on 2026-11-02 | main |
+| Our engine changes | `engine/forge.patch` 8,412 lines, `engine/manabrew.patch` 4,739 lines, on Forge `e7d2b93` (the Manabrew fork of 2026-09-21) and Manabrew `fd16e2f` (`engine/build-images.sh:8-11`) | main |
+| Images | `mtg-relay:exile`, `mtg-forge-node:exile`; rebuild about 20 minutes, both when the protocol changes (`engine/README.md`) | local Docker |
+| Companion | 7,697 lines C# (docs/companion-app-spec.md) | main |
+| Tests that matter here | bridge golden (926 scenarios on 2026-11-05, PLAN.md), `tests/test_table_*`, `tests/live_*_check.js` against a test node, 27 hand-test decks (`docs/HAND-TEST-*.md`), `tests/lua/tts-sim.lua` on fengari | main |
 
-TTS gives a mod exactly one place to run code: Lua on the host, in MoonSharp, a Lua interpreter written in C#. There is
-no C#, no threads and no native code for mods. A standalone Unity app could run C#, but that means leaving TTS, which is
-this project's required front end, and rebuilding the whole table. So this spec means MoonSharp in the table's Global
-script. Only the host's PC does the rules work. Other players' TTS just shows the result, as it does now.
+Why G1 fails today: a deep bug can touch Forge or the harness (Java, `forge.patch`), a rebuilt node and often relay image,
+the bridge, the table script and a save patch (`tools/deploy.js`). The compare doc's bug table (branch `docs/compare-current-vs-copy.md`, "To test")
+lists fixes in the harness alone (rewind phasing, the snapshot race), in harness + bridge (Kardur) and in harness + bridge + table
+(phased creatures shown as gone); the fifth was never traced. Every Java-side fix also needs an image rebuild. What softens it today: the harness unit tests
+recompile without an image rebuild (`engine/README.md`), `tools/live-check.sh` plays a real game against a test node beside the
+running stack, and `deploy.js` updates the table with a version stamp and a check.
 
-## Measured facts
+## 3. What the experiment found (branch `copy-engine`, 2026-11-02/03)
 
-| What | Number |
-|---|---|
-| Rules code: forge-game | 811 files, 127,738 lines of Java |
-| Base code: forge-core | 152 files, 27,070 lines |
-| AI: forge-ai | 191 files, 57,257 lines |
-| Card scripts | 33,977 files, 23.6 MB, 727 bytes each on average |
-| Effect verbs in scripts | 192; 42 of them cover 90% of uses, 114 cover 99% |
-| Biggest files | Card 8,136; CardFactoryUtil 4,148; Player 4,100; AbilityUtils 3,967; GameAction 2,960 |
-| Manabrew's Rust port, for scale | 155,419 lines, and its own docs still call it incomplete |
-| Java features, forge-core + forge-game | 860 lambdas, 371 stream calls, 74 enums, 858 inner classes, 18 uses of reflection, 38 uses of threads |
-| Outside libraries | Guava in 430 files, Apache Commons in 176 |
+- **Translating works.** All 1,152 Java files of forge-core, forge-game and forge-ai become 169,904 lines of Lua in 3.3 s and run on
+  TTS's own MoonSharp DLL. Hand-written: runtime 4,269 lines, translator 2,535 lines of Node, **4 hand patches** to Forge (DRIFT.md).
+- **A whole AI-against-AI game is correct**: Red wins on turn 18, no Lua errors, set up in 0.8 s and 63-65 MB. Outside TTS it takes
+  191 s (about 11 s a turn, single AI decisions up to 3.5 s).
+- **Inside real TTS it takes 4.4 times as long**: 846 s of engine time, worst single step 46 s; the full save-driven run 906 s elapsed,
+  worst 43 s, TTS memory 0.8 to 1.67 GB. A step that runs without yielding freezes TTS for its whole length, and a long freeze got
+  TTS closed through Windows' "Not Responding" prompt (event 1002).
+- **The cost is spread thin.** 77% of profile samples are in our runtime (list iteration through iterator objects, run-time overload
+  choice, enum maps as sorted trees), 20% in translated Forge. The two cheapest fixes bought 6% (203 s to 191 s). Even a perfect
+  runtime is about 4 times faster, not 100.
+- **Forge itself is heavy**: its replacement-effect check walks every card on every event (33% inclusive), and the AI's attack and
+  block prediction is about 30%.
+- **No tool can speed up Lua inside TTS.** TTS runs mod Lua in MoonSharp (Lua 5.2, no JIT); no `load`, `io`, `require`, DLL or
+  native code is available to a mod; the documented route to a fast engine is outside TTS over `WebRequest`, which is the bridge
+  design (`docs/research-tts-speed.md`, 19 sources, 3 claims thrown out).
+- **MoonSharp traps found** (all in `engine-lua/` history and now in this repo's tests): a `goto` out of a nested block with locals
+  crashes uncatchably; `error(table)` arrives as a string; recursion past about 20,000 deep kills the script; `select("#")` of an
+  empty `...` is 1; `math.fmod` has the divisor's sign; `gmatch` on a long string can fail with "pattern too complex"
+  (`tests/test_moonsharp_patterns.js`, `tests/test_moonsharp_loop_locals.js`, `tests/lua/moonsharp-patterns.js`).
+- **Not measured, so not known** (the branch closed on speed): (a) a **people-only** game with no AI code running, on real 4-seat
+  Commander boards (hypothesis, not a measurement: about 0.2 to 0.7 s a click outside TTS, 1 to 3 s inside); (b) Java Forge on the
+  same game (the image is a native build and this PC has no `javac`); (c) the **same bugs fixed in both builds**, which is the only
+  test of G1.
 
-TTS's own `MoonSharp.Interpreter.dll`, timed under .NET 8 on this PC while tests were also running. **Not yet timed inside
-TTS** (TTS was hung that evening), where it runs under Unity and is likely slower. `tools/moonsharp-bench.lua` is the test.
+## 4. Routes
 
-| Operation | Per millisecond |
-|---|---|
-| Plain loop step | 6,300 |
-| Function call | 2,000 |
-| Method call through a class | 2,100 |
-| Table field read and write | 2,700 |
-| New small table | 1,000 |
-| Pattern match on a card script line | 229 |
-| Compile 12,000 lines (266 KB) | 112 ms |
-| Compile 240,000 lines (5.4 MB) | 2.1 s |
-
-What that means: compiling is not the problem. Running might be. At about 2,000 calls per millisecond, a TTS frame (16 ms)
-holds about 30,000 calls on this measure. My estimate, not a measurement: one pass of state-based actions and continuous
-effects on a late Commander board could take 50,000 to 100,000 calls, so 25 to 50 ms here, and perhaps 100 to 250 ms inside
-TTS. That's a visible hitch at each priority pass unless the work is spread over frames, and Phase 0 replaces this guess
-with a number.
-
-## Three ways to do it
-
-| | Hand port to Lua | Translate the Java by machine | Keep Java, drop only the bridge |
+| Route | Reaches | Evidence so far | Verdict |
 |---|---|---|---|
-| Work | 150,000+ lines by hand | One translator plus a small runtime | Small |
-| After a Forge update | Re-read every change by hand | Re-run it, fix what the parity test finds | Nothing |
-| Drift over time | Grows without limit | Stays at the patch list | None |
-| Drops Docker and hosting | Yes | Yes | No |
-| Matches "no super functions" | Depends on discipline | By construction | Yes |
+| **A. Lua copy in TTS, with AI** (the first plan) | G1, G2, G3 | 4.4 times slower in TTS, 906 s per AI game, 43 s freezes, no runtime fix beyond about 4x | **Closed** (user, 2026-11-03). Do not resume unless asked |
+| **B. Lua copy in TTS, people only** ("the middle way" of the branch's compare doc) | G1 and G3 for human games; G2 only for human games (AI seats still need Docker + bridge) | untested; hypothesis 1 to 3 s a click inside TTS | **Open: this is the one thing worth a cheap test** (Phase 0A) |
+| **C. The same Forge engine, no Docker** (the node run natively on the host) | G2 only | none. Forge runs in the node as a GraalVM native shared library called in-process, with no JVM (`docs/engine-interface-reference.md:37, 44`), so a Windows build of the Rust node and relay plus a Windows native-image of the harness may be possible; **not verified** | **Open, unknown**. Phase 0C is a feasibility check |
+| **D. A new rules engine we write** (Node or Rust, outside TTS) | G1, G2, G3 | Manabrew's own Rust port is 155,419 lines and its docs still call it incomplete (branch spec); Forge's rules are about 156,000 lines Java | **Not recommended**: the largest option by far, no evidence it beats the patched Forge |
+| **E. Keep the current build, make fixes cheaper** | part of G1, G3 | the harness unit-test path and `live-check.sh` exist; the event feed exists | **The default** if Phase 0 closes B and C. Possible work in §8 |
 
-Choice: **translate by machine.** Manabrew shows what the hand route costs: 155,000 lines of Rust and still chasing
-parity. Its rule of "same file names, same symbol names, same control flow" is the right rule, and a translator keeps
-that rule for free. A translated file is also honest about where it came from, so reading it teaches the Java.
+A consequence for planning: **B would not remove the companion**. AI seats are now a built feature (harmless bot, Forge AI with
+deck presets or a pasted list, docs/companion-app-spec.md §10); the *harmless* bot needs no Forge (the bridge plays it, `bridge.js:853`)
+and could run in Lua, but a **Forge AI seat needs forge-ai** (57,257 lines, the 30% of the profile). So B is a hybrid: engine in
+TTS for human-only games, Docker and bridge kept for AI games.
 
-Rust to Lua isn't an option: TTS can't run WASM, and the port is incomplete anyway.
+## 5. Scope
 
-## Layout
+In scope for the next step: the three measurements in §6 and a go/no-go.
 
-```
-engine-lua/
-  forge-pin.txt       the Forge commit we are built from
-  translator/         Java -> Lua. Ours. Node script on a real Java parser
-  runtime/            the hand-written part: one file per Java class it stands for
-  patches/            our drift: small diffs on translated output, each with a reason
-  out/                generated. Never edited by hand. One .lua per .java, same path and name
-  DRIFT.md            every patch and every left-out package, in a line or two
-tools/forge-sync.js   the update command
-tests/parity/         the same games on Java Forge and on the Lua engine
-```
+Out of scope until Phase 0 says go: any translator or runtime work, any change to `main`, any change to the live table, the 6-seat
+table (parked; the engine does not care about seats, the UI does, docs/m6-six-seat-spec.md), cloud hosting (docs/cloud-aws-spec.md;
+note that route B would remove its `forge` machine for human-only games, while route C would keep the same two-machine design
+without Docker on it, **(estimate)**).
 
-The table's script keeps what it has now (`engine-renderer.lua`, the map, the check) and calls the engine instead of
-the bridge.
+## 6. Phase 0: three measurements, each stand-alone
 
-## The translator
+Rules for all three (they come from standing project rules): no code on `main`; work in a worktree; **never touch ports 39999, 39998,
+48787 or 9443 of the user's running stack** (use the test node on 9444, as `engine/README.md` and `tools/live-check.sh` do, and the
+fake TTS in `tests/lua`); anything that must run inside real TTS needs the user's table cleared and no game running (the 2026-11-02
+run used an empty Classic table, then cleared and closed TTS); never push a script onto the user's table.
 
-Input is Forge's Java, output is plain Lua that a person can read beside the Java. It keeps method names, argument order,
-branch order and local variable names, and drops nothing but type names. What it has to handle, from the scan above:
+### 0A. People-only speed (answers route B)
+1. From `copy-engine`, make a worktree. Use `engine-lua/host` (H.cs, modes compile, run, watch, profile) and `engine-lua/tts/`
+   (the in-TTS harness, 5.1 MB sent through `/exec`).
+2. Replace Forge's human controller with a scripted player that passes, or takes the first legal play, so **no AI code runs**.
+3. Play the hand-test decks, 4 seats, to a late busy board. Time each engine step and the "what can each player play" query the
+   table needs for its highlights. Record the median and worst step per turn.
+4. Repeat inside real TTS on an empty table (the 4.4 times factor was measured for AI play; people-only may differ).
+- **Exit (proposal, thresholds are mine):** *go* if, inside TTS on a late 4-seat board, the median click is at most 0.25 s and the
+  worst at most 1 s, with no freeze past 5 s. The branch's compare doc said "under about 0.1 s a click makes people-only games a real
+  option" without saying where; I relax it for a first pass because the user said slower is acceptable, but wrong or frozen is not
+  (spec history). *Stop route B* if the median is over 1 s or any step freezes TTS over 10 s.
+- **Cost (estimate):** one to two sittings; mostly reusing the branch tooling.
 
-| Java | Lua |
-|---|---|
-| Class, inheritance, interface default methods | A table with a metatable; methods copied or chained |
-| Overloads (458 names in the scan) | Name plus argument count or type: `addCounter_3`. Stable, and listed in a generated map |
-| Inner and anonymous classes | Closures or small local classes |
-| Lambdas and method references | Lua functions |
-| Streams | Plain loops, or the `Stream` shim in `runtime/` |
-| Enums | Tables of frozen objects, with `ordinal` and `name` |
-| `int` and `long` maths | Lua has only doubles: `/` on ints becomes truncation, `%` keeps Java's sign, overflow only where a hash needs it |
-| `switch`, labelled `break`, `continue` | `if` chains, plus `goto` if MoonSharp has it (a Phase 0 check), flags if not |
-| Exceptions | `error` and `pcall`; only 116 catch sites |
-| Reflection (18 uses) | Generated lookup tables, e.g. effect verb to class |
-| Threads (38 uses) | Left out: the game loop becomes one coroutine |
-| `String.format`, regexes (862 uses) | Shims. A Java regex that Lua patterns can't express gets a hand-written matcher in `runtime/` |
+### 0B. Are fixes easier in the copy? (answers G1)
+The branch's compare doc lists the test and never ran it. Take five bugs the current build really had (phased-out creatures shown as
+gone; phasing lost on rewind; the rewind snapshot race; Kardur's must-attack refusal; Bloodline Keeper left in target lists after a
+rewind; `docs/compare-current-vs-copy.md` "To test") and, for each, record in both builds: where the fix lives, files and languages
+touched, rebuild and redeploy time, and whether Forge's own code changed. Board setup: Forge's `GameState` text (the branch's compare
+doc says the harness already uses it; our debug boards in `scenarios/` go through the `createCard` op instead), because seeds cannot match across the two builds (HashMap order).
+- **Exit (proposal):** *G1 is real* if the copy needs one language and no image rebuild for at least 4 of the 5 and the redeploy is
+  under a minute; otherwise G1 is not a reason to continue. This test needs only the plain engine outside TTS, so it can run
+  **without** 0A's result and costs no TTS time.
 
-**The 200-locals limit** that bites `engine-renderer.lua` doesn't apply: each file is its own chunk and returns one table.
+### 0C. Native engine without Docker (answers route C)
+1. From `engine/build-images.sh` and the Dockerfiles (`manabrew-rs/crates/self-hosted-node/Dockerfile`, `.../manabrew-server/Dockerfile`)
+   list what the node needs at run time: the GraalVM native binary, `res/` data, the harness jar, environment variables
+   (the `forge-room` environment in `stack/compose.yml`).
+2. Find out whether the relay and node build for Windows (MSVC Rust toolchain, GraalVM native-image on Windows). **Unknown today.**
+3. If a Windows build exists: run it beside the Docker stack on a test port, play `bridge/rules-check.js` to turn 5, and compare memory
+   and CPU against the container on its 2 WSL cores.
+- **Exit (proposal):** *go* if the native node and relay run the rules-check scenarios with identical results and the host needs no
+  WSL. *Stop* if native-image on Windows cannot build the Forge harness (the harness uses reflection configured in
+  `forge-harness/native/extra-config/reflect-config.json`, which `engine/manabrew.patch` edits).
+- Value if it works: the companion's Docker, Engine images and Engine stack lights shrink to "engine process runs"; WSL cores, port
+  forward after `wsl --shutdown` and the `docker-users` sign-out all disappear.
 
-## The runtime: the only hand-written engine code
+### Decision after Phase 0 (a table the user fills in)
 
-One Lua file per Java class it stands in for: `ArrayList`, `HashMap`, `TreeMap`, `Iterables`, `Lists`, `Multimap`,
-`StringUtils`, `Random` and so on. Rules:
+| 0A | 0B | 0C | Do |
+|---|---|---|---|
+| go | G1 real | any | Route B, §7 |
+| go | G1 not real | any | B only if G2 for human games is worth a hybrid; else E |
+| stop | any | go | Route C, §7 |
+| stop | any | stop | E, §8, and close this spec |
 
-- Nothing in `runtime/` knows anything about Magic.
-- Each file does what the Java class does, nothing more, and has the same method names.
-- **Cap: 8,000 lines in total.** Going over means something belongs in the translator.
-- `java.util.Random` is reproduced exactly (its 48-bit maths has to be split across doubles), or parity tests can't work.
-- `List.sort` is a stable Lua merge sort: Java's is stable and `table.sort` isn't, and a yield can't cross into `table.sort`.
-- `HashMap` iteration order is the known hard one: rules code that loops over a `HashMap` depends on Java's hash order.
-  Plan: reproduce `String.hashCode` and Java's bucket order for the maps where parity finds it matters, insertion order
-  everywhere else, and list each one in `DRIFT.md`.
+## 7. Phases after a "go"
 
-## What stays out of the engine
+### Route B (Lua copy for human-only games)
+Each phase has a stop test. Any stop returns to E having spent only that phase.
 
-Left out, listed in `DRIFT.md`: forge-gui, adventure mode, limited and draft, net play, Sentry reporting, `CardView` and the
-view layer (the table reads the engine's objects directly), and localisation beyond English. Every other forge-game file
-stays, including ones no deck uses today, so that the one-to-one rule stays simple.
+| Phase | Delivers | Exit criterion |
+|---|---|---|
+| B1 | Rebuild the translator and runtime on a current Forge pin (the branch was translated from `e7d2b93`, the commit `main`'s `engine/build-images.sh` still pins, but `main` has since gained the Star Trek cards and Java through `engine/forge.patch`, docs/forge-update-2026-11.md, so the pin must be re-checked). Fold the branch's profile fixes into the translator, not the output | the same seeded 1-v-1 game as 0A runs to the end with no errors; hand-patched files stay at most 5% of files used |
+| B2 | Runtime for people play: no AI, human controller that waits on a coroutine yield for the table's answer; engine steps spread over frames with a time budget (the branch plan: loop-head budget, yield past 8 ms) | no engine step over 1 s freezes on the 27-deck set; memory under 1 GB |
+| B3 | Parity: the same decks and choices on Java Forge (the oracle, in Docker, for testing only) and the Lua engine, outcome-level, not move-for-move (HashMap order), plus the existing hand-test decks, golden tables and `test_table_*` suites running unchanged against the new engine | all 27 hand-test decks play to the end with the same winners-or-states as the oracle on scripted lines; 0 known parity regressions open |
+| B4 | On the table: renderer and prompts read engine objects directly (`bridge/table-map.js` is the contract, 136 lines); a switch per game "engine: Lua / Forge" so Forge stays as the fallback and for AI games | four people play it for a night; stop if they find it worse to play than the bridge version |
+| B5 | Decide what retires: only the bridge/Docker for human-only games; AI games keep them | none: a decision, not code |
 
-## Card scripts
+### Route C (native engine, no Docker)
+| Phase | Delivers | Exit criterion |
+|---|---|---|
+| C1 | A reproducible Windows build of relay and node (script beside `engine/build-images.sh`, same pinned commits and patches) | the 0C scenarios pass on it |
+| C2 | The companion starts it as processes instead of `docker compose` (the Docker, Images and Stack steps become one step); package grows by the binaries (about the size of the images, **(estimate)**) | fresh-install test (docs/release-fix-plan-2026-11-10.md step 4 recipe) passes on a PC with no Docker |
+| C3 | Retire the Docker path for friends, keep it for the cloud `forge` machine (Linux) | one game night on it, no new red lights |
 
-Copied byte for byte from Forge, never edited. Parsed by the translated `CardFactory` code, so our parser is Forge's parser.
+## 8. Route E: cheaper fixes without a new engine
+**(proposal)** Candidate work if both routes close: (1) extend the event feed so the table draws from events and the bridge's board
+comparison and `guess-log` shrink (G3); (2) keep adding harness unit tests that need no image rebuild (`engine/checks/harness-tests.sh`)
+so a Java fix is a minutes-long loop; (3) cut the number of places a protocol change touches: today BOTH images must be rebuilt for any
+new directive because the stock relay drops unknown ones (memory note on the images; `engine/README.md`); (4) a `deploy.js` mode that
+rebuilds only the node. None is scheduled.
 
-They can't all live in the save (23.6 MB). A game needs only its decks: at most 400 cards, about 290 KB. At deck import the host
-fetches each script from Forge's public repository at the pinned commit, by TTS's WebRequest, and keeps them in the save for
-next time. An engine update changes the pin. Whether TTS is happy with that many requests is a Phase 0 question; if not, a
-single file per deck.
+## 9. What to reuse
 
-## Speed plan
+| Asset | Where | Use |
+|---|---|---|
+| Translator, runtime, DRIFT.md, host `H.cs`, in-TTS harness `engine-lua/tts/`, `tests/tts_save_test.lua` | branch `copy-engine` | 0A, B1-B3 |
+| Profile and the speed ideas | branch spec "Speed pass", `docs/research-tts-speed.md` | B2; do not re-research (3 claims already thrown out) |
+| `bridge/table-map.js` and its test | main | the engine-object-to-table contract for B4 |
+| `tools/engine-renderer.lua` (8,300 lines) | main | unchanged; B4 changes only where its data comes from |
+| 27 hand-test decks, `docs/HAND-TEST-*.md`, `scenarios/` (debug boards) | main | B3 parity and 0B board setup |
+| Bridge golden and table golden tests, `tests/test_table_*` | main | must pass unchanged against any new engine |
+| `tests/lua/tts-sim.lua` (fengari), `moonsharp-patterns.js`, `test_moonsharp_*` | main | fast Lua tests and the MoonSharp traps |
+| `tools/moonsharp-bench.lua` | main | the original Phase 0 benchmark, still valid for a sanity run |
+| Engine harness tests, `tools/live-check.sh`, test node on 9444 | main | 0B, 0C, B3 oracle |
+| `docs/engine-interface-reference.md`, `docs/our-code-reference.md` | main | where the engine's messages and our code are described |
+| Forge licence reading (GPL-3.0 for translated code and scripts; Manabrew AGPL-3.0) | `git show 71f6557:docs/spec-own-engine.md` ("Licence") | before publishing anything translated; not legal advice |
 
-- **The engine is one coroutine** started by `startLuaCoroutine`. This replaces Forge's game thread. Where Java blocks
-  waiting for a player, the coroutine yields until the table has an answer. That fits Forge's shape well.
-- **A time budget:** the translator puts a budget check at loop heads in hot files, and past 8 ms the coroutine yields to the next
-  frame. Nobody else touches the game state, so yielding in the middle of a rules action is safe.
-- **Lazy loading:** each `out/` file is compiled on first use. A game touches maybe 60 of the 206 effect files.
-- **Caching is allowed drift:** Manabrew's rule applies. Anything that can't change a result may differ from Java.
-- Long waits show on the table as a small "thinking" mark, as a slow AI does now.
+## 10. Risks
 
-### Speed pass: go through the entire code base and remake it for speed (requested 2026-11-02)
+- **Speed on big boards** (route B). The experiment's biggest finding and still unmeasured for people-only play. Late Commander boards
+  are the worst case for an interpreter. Mitigation: 0A first.
+- **Host-only pauses**. A heavy pass stalls the host's TTS in steps, and a freeze past the OS threshold gets TTS closed. Budgeting
+  helps and does not remove it.
+- **Two engines to support during B3-B4**, and parity cannot be move-for-move (HashMap order, English keys, no event log in the copy).
+- **Reload during a game**: a coroutine does not survive a table reload; resume has to go through `GameState` serialised as whole-number
+  lists and text (TTS's `JSON.encode` freezes on tables keyed by fractional numbers, branch spec).
+- **AI games stay on the old stack** under route B, so the companion and Docker stay: the user must accept a hybrid.
+- **Native build unknown** (route C): GraalVM native-image needs a reflection config for classes reached by name (`reflect-config.json`), and a Windows native-image build of the harness has not been tried.
+- **Forge drift**: `main` already moved off `e7d2b93` plus patch for Star Trek (docs/forge-update-2026-11.md); the branch pins the older
+  tree, so B1 begins with a re-pin.
+- **Size and competition**: B is a project of weeks; the open list on `main` (hand tests with people, 6-seat table, cloud hosting) competes.
 
-The first whole game on MoonSharp (2026-11-02, two Forge AIs, simple decks) plays correctly but slowly: set up 0.8 s and
-63 MB, then about 5 s per turn, with single AI decisions up to 3.5 s. Those runs had debug tracing on, which costs some of
-that. Java Forge has not yet been timed on the same game; it is expected in milliseconds. Before this way is chosen, every
-part of the code gets a speed pass:
+## 11. Open questions for the user
 
-- **Profile first, then rewrite.** Count calls and time per function over whole games and fix the top of the list,
-  repeating until a turn fits the frame budget above. No guessing at hot spots.
-- **The translator's output, file by file:** overloads named at translate time instead of checked at run time (each
-  call now tests every argument's type), plain numeric `for` loops instead of iterator objects over lists, streams turned
-  into loops, `try` blocks without a closure where nothing can throw, string building without a builder object.
-- **The runtime:** collections on plain Lua tables with no extra layer, hashing and equality short-cuts, fewer
-  tables made per call.
-- **Forge's own hot paths,** chiefly the AI: combat simulation, card copies for "last known information", and checking
-  every ability of every card again and again. These are the parts Java runs fast and an interpreter doesn't.
-- **The rule that limits it:** a speed change goes in the translator or runtime wherever it can, so the next Forge update
-  re-translates with it. A hand rewrite of a Forge file is one more file to redo on every update (see "Updating from the
-  original Forge"), so each one is listed in DRIFT.md with the time it saves; if those grow past the 5% patch limit, that
-  is a stop test for this way.
-
-## What replaces the bridge
-
-| The bridge's job today | After |
-|---|---|
-| Talking to Forge, the relay, Docker | Gone |
-| Turning Forge's prompts into table questions | Moves to Lua, and gets simpler: it reads Forge's own objects |
-| The game log (`logEvents`, boards compared) | Moves to Lua, reads the engine's events directly. All the guessing goes |
-| Sending boards to the table | Gone: the renderer reads the engine's state and draws what changed |
-| Card pictures from Scryfall | Moves to Lua through WebRequest |
-| Deck import and presets | Moves to Lua |
-| Saving a game to resume | `GameState` (translated) into the save, as whole-number lists and text: TTS's `JSON.encode` freezes on tables keyed by fractional numbers |
-| Rewind, manual fix | Same `GameState` route as today's `applyState` |
-| Debug port, /exec | Kept for development only, as a small optional tool |
-
-Roughly 5,500 lines of `bridge.js` shrink to the part that is table logic rather than plumbing, and `table-map.js` stays as
-it is. Its point gets stronger: the map becomes engine objects to table, with nothing in between.
-
-## Updating from the original Forge
-
-`node tools/forge-sync.js <commit>`:
-
-1. Check out that Forge commit, and diff it against `forge-pin.txt`.
-2. Re-run the translator on every changed file. New card scripts come along by moving the pin.
-3. Re-apply `patches/`. A patch that no longer fits stops the run and names itself.
-4. Run the parity suite against Java Forge at the same commit. Differences list as work.
-5. If green, move the pin. If not, the old pin stays live: nothing has to ship the day Forge changes.
-
-A new set usually means new card scripts, and now and then a new effect or keyword. Scripts need nothing. A new Java file
-translates like the rest. The one thing that needs a person is new Java syntax or a new library call: the translator stops and
-says so.
-
-## How we keep to "no super functions"
-
-A test in the style of `tests/test_table_map.js`, failing by name when:
-
-- an `out/` file has no matching Java file, or a Java file has neither an `out/` file nor a `DRIFT.md` line
-- a method in the Java is missing from its Lua file
-- `out/` differs from what the translator produces from the pin (a hand edit)
-- `runtime/` passes its line cap, or a runtime file mentions a Card, Player or Game
-- a patch has no reason, or is over 40 changed lines
-
-## Understanding the core
-
-Translated code is readable, but 150,000 lines doesn't get read. These 14 files are the rules: `Game`, `GameAction`,
-`phase/PhaseHandler`, `zone/MagicStack`, `spellability/SpellAbility`, `card/Card`, `card/CardFactoryUtil`,
-`ability/AbilityUtils`, `trigger/TriggerHandler`, `replacement/ReplacementHandler`,
-`staticability/StaticAbilityContinuous`, `combat/Combat`, `cost/CostPayment`, `player/Player`. Each gets a plain-English
-page in `docs/engine/`: what it owns, its order of operations, what it calls. A mechanic bug starts from those pages.
-
-## Testing
-
-- **Parity:** same decks, same seed, same choices, on Java Forge and on Lua, compared state by state after each action. Manabrew
-  has built this for Rust (`manabrew-rs/crates/parity`, 21,129 lines, with its `regression.json` and an ignore list for Java's
-  own bugs). We keep Java Forge in Docker as the oracle, for testing only. Players never need it.
-- **Everything we already have still counts:** the 27 hand-test decks, the golden tables, the table check, and the rules
-  scenarios all run the same on the new engine, and that's what shows it's playable.
-- **Lua runs in the test harness too:** `tests/lua/tts-sim.lua` runs on fengari in Node. Parity should run there for speed, with a
-  smaller suite on real MoonSharp, since the two differ (`moonsharp-loop-var-bug` is one example).
-
-## Phases
-
-Each phase has a stop test. If it fails, we stop, having spent only that phase.
-
-**Phase 0: can it run?** (one sitting, no translator)
-- `tools/moonsharp-bench.lua` inside real TTS: how much slower than .NET 8?
-- A 5 MB script through `load`, and in the save. Does the save still open and stay fast?
-- 1,000 hand-built Card-sized tables in Lua: memory and speed of a layers-style pass over 80 permanents.
-- Coroutine yields through `pcall`, metatables and `goto`, on MoonSharp.
-- 100 WebRequests to raw.githubusercontent.com at once.
-- **Stop if** the estimated state-pass on a big board is over 1 second, or a big script won't load.
-
-**Phase 1: translator on forge-core.** 27,000 lines, no rules, plenty of Java. The runtime grows here.
-- **Stop if** the runtime passes its cap, or more than 5% of files need hand patches.
-
-**Phase 2: a game with no prompts.** forge-game translated, two decks of vanilla creatures and lands, seeded,
-auto-choices, played to the end against Java.
-- **Stop if** a turn on a modest board takes over 5 seconds.
-
-**Phase 3: parity.** The 14 core files first, then effects in order of use: 42 verbs cover 90% of the scripts.
-- **Done when** the parity suite passes for the 27 hand-test decks.
-
-**Phase 4: on the table.** Renderer and prompts on the Lua engine, behind a switch, with Forge still there to fall back to. The
-bridge stays until this phase has been played for real by four people.
-- **Stop if** the group finds it worse to play than the bridge version. Slower is acceptable; wrong or frozen isn't.
-
-**Phase 5: drop the bridge.** Docker stack and bridge retire. The save is published.
-
-**Phase 6, optional: the AI.** forge-ai through the same translator, 57,000 lines, with the same coroutine. Not needed for games
-between friends. Until then, AI seats need the Java version, so the two would live side by side.
-
-## Risks
-
-- **Speed on big boards.** The biggest risk, and why Phase 0 exists. Commander late-game boards are the worst case for a slow
-  interpreter.
-- **Slow pauses on the host only.** During a heavy pass, the host's TTS stalls in small steps. Budgeting helps; it doesn't
-  remove it.
-- **HashMap order and floating-point details.** Small differences from Java turn up as parity failures that are slow to trace.
-- **Memory.** MoonSharp values are heavier than Java's. 400 cards with their abilities, triggers and history could reach
-  hundreds of MB. Phase 0 gives a figure.
-- **Reload during a game.** A coroutine doesn't survive a table reload. Resume has to go through `GameState`, a reload can
-  land in the middle of an action, and it would rewind to the last priority point.
-- **Upstream refactors.** A large Java rewrite passes through unchanged, but patches can stop fitting, which is why they stay few.
-- **TTS script limits nobody has tested.** The 60 KB XML limit bit this project already. Nothing says script size has none.
-- **Two engines during the change.** Phases 3 and 4 mean supporting both. The table map is what keeps that sane.
-- **Size.** This is a large project, and it competes with everything else on the list.
-
-## Licence
-
-Forge is GPL-3.0-or-later, so translated code and card scripts are derivative and must stay GPL, with Forge credited.
-Manabrew is AGPL-3.0-or-later: anything taken from Manabrew's code, parity harness included, carries AGPL. The cleanest split
-is a translator of our own (ours to license, but its output GPL), and parity tooling kept out of what gets published on the
-Workshop. Worth one more look before going public, alongside the message to the table's author. This is a reading of the
-licence files, not legal advice.
-
-## Not decided here
-
-- ~~Whether to start.~~ Decided 2026-11-03: built as an experiment, then closed (see Status).
-- 6-player: nothing here blocks it or helps it. The engine doesn't care about seats; the UI does.
+1. Is a hybrid acceptable (engine in TTS for human-only games, Docker and bridge for AI games), or is "no Docker for anyone" the only
+   interesting version? If the latter, route B is pointless and only C (or A, closed) reach it.
+2. Are the proposed thresholds in 0A right (median click 0.25 s, worst 1 s)? The branch doc said 0.1 s.
+3. Is one TTS session with an empty table allowed for 0A's inside-TTS run, and when (no game running)?
+4. Should 0B run first on its own? It needs no TTS and decides whether G1 is even a reason to continue.
+5. Is 0C worth a try before the cloud-hosting work, since route C and the AWS `forge` machine overlap?

@@ -387,9 +387,8 @@ The current build feels like "a pocket universe inside the game": the engine dra
 ## 10b. Companion app (.exe), added 2026-10-17
 
 A small Windows app that the TTS host runs instead of terminal commands: self-host (Docker on the host's PC) or the
-engine on a server. Spec only, not built. **Full spec (rewritten 2026-11-05): [docs/companion-app-spec.md](docs/companion-app-spec.md)**
-(a small C# tray app; Home mode first, with a status light for each failure we have hit; Own server and Cloud Forge
-later). The server side: [docs/server-setup-spec.md](docs/server-setup-spec.md).
+engine on a server. **Built** (Windows only): a C# exe with six start lights and a browser status page; Own server and Cloud
+modes are not built. **Spec rewritten from the code 2026-11-11: [docs/companion-app-spec.md](docs/companion-app-spec.md).** The server side: [docs/server-setup-spec.md](docs/server-setup-spec.md).
 
 **Why the bridge always stays on the host's PC:** TTS only talks to `localhost` through the External Editor API (§2). So
 with a server, only the engine moves off the PC; the bridge connects to the remote relay instead of `ws://127.0.0.1:9443`.
