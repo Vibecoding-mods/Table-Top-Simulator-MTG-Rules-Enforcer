@@ -4321,6 +4321,31 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
     add(promptCase("hp-08: the initiative's next room", myMain(D2.board), { ...venture(["Forge — Put two +1/+1 counters on target creature.", "Lost Well — Scry 2."], "Some Raider"),
       sourceCard: src("Some Raider", "When this creature enters, you take the initiative."), sourceAbilityText: "you take the initiative." }, [["1"]]));
     add(promptCase("hp-08: a venturing card's other choice: unchanged", myMain(D2.board), venture(["Draw a card.", "Goblin Lair — Create a 1/1 red Goblin creature token."], "Acererak the Archlich"), [["0"]]));
+    // (the engine's dungeonState and completedDungeons on the table, docs/planechase-dungeon-engine-spec.md D5-D7: the
+    // player row's dungeon and count, the dungeon card's room box, the DUNGEONS mark; and an engine that sends neither)
+    const LOST_ROOMS = [
+      { name: "Cave Entrance", next: ["Goblin Lair", "Mine Tunnels"], text: "Scry 1." },
+      { name: "Goblin Lair", next: ["Storeroom", "Dark Pool"], text: "Create a 1/1 red Goblin creature token." },
+      { name: "Temple of Dumathoin", next: [], text: "Draw a card." }];
+    const dungeonTable = (state, done) => async (h) => {
+      const b = withDungeon();
+      const me = b.gameView.players.find((p) => p.id === "player-0");
+      if (state) me.dungeonState = state;
+      if (done) me.completedDungeons = done;
+      game(h, b);
+      h.B.sendTable(); await h.flush();
+      // (the last update that sent Blue's zones: a later one may only say "keep")
+      const t = h.effects.filter((e) => e.tts && e.tts.t === "table" && e.tts.players.some((p) => p.color === "Blue" && p.command)).pop()?.tts;
+      const row = t?.players.find((p) => p.color === "Blue") || {};
+      return { dungeon: row.dungeon ?? null, dungeonsDone: row.dungeonsDone ?? null, marks: row.allMarks ?? null,
+        card: (row.command || []).find((c) => c.id === "engine-card-300") || null };
+    };
+    add({ name: "dungeon: the room, where it leads and the dungeons completed on the table", run: dungeonTable(
+      { name: "Lost Mine of Phandelver", room: "Goblin Lair", cardId: "engine-card-300", rooms: LOST_ROOMS }, ["Tomb of Annihilation"]) });
+    add({ name: "dungeon: no room yet: its first room", run: dungeonTable({ name: "Lost Mine of Phandelver", room: "", cardId: "engine-card-300", rooms: LOST_ROOMS }) });
+    add({ name: "dungeon: the last room", run: dungeonTable({ name: "Lost Mine of Phandelver", room: "Temple of Dumathoin", cardId: "engine-card-300", rooms: LOST_ROOMS }, ["Tomb of Annihilation", "Undercity"]) });
+    add({ name: "dungeon: an engine with no card id nor rooms: found by name, the room only", run: dungeonTable({ name: "Lost Mine of Phandelver", room: "Goblin Lair" }) });
+    add({ name: "dungeon: an engine with no dungeonState: unchanged", run: dungeonTable(null) });
     add(promptCase("hp-08: a modal card that doesn't venture: unchanged", myMain(D2.board), { ...venture(["Goblin Lair — Create a token.", "Mine Tunnels — Create a Treasure."], "Some Charm"),
       sourceCard: src("Some Charm", "Choose one —\n• Create a token.\n• Create a Treasure."), sourceAbilityText: "Choose one." }, [["0"]]));
     add({ name: "purpose: Chrome Mox tapped for a cost asks which mana", run: async (h) => {

@@ -623,6 +623,10 @@ Players drag and use the table normally; every move is a request the engine acce
 
 ### Later (decided 2026-10-17): Planechase and dungeons
 - [ ] Drive the Eternities Map centre plane and the dungeon room markers (one per player) from the engine; turn off their manual moves and token spawns. See `table-review/notes-variants.md`. The engine changes are being specified 2026-11-05.
+  - Built 2026-11-12 (branch planechase-1111, spec `docs/planechase-dungeon-engine-spec.md`), source and tests only, not yet in an engine image or on the real table:
+    - dungeons D1-D7: harness `dungeonState` with card id and rooms, `completedDungeons`, debug ops `dungeon` / `completedDungeon` / `initiative`; bridge room from Forge's state, "completes" line, `DUNGEONS n` mark, the player row's dungeon; table spot past the second tax label and a room box on the card; scenarios dungeon-branch, dungeon-last-room, initiative-steal.
+    - Planechase P1-P9 in part: `mtg planechase on|off`, `mtg planes random [N]` / names (`bridge/forge-planes.json`, `tools/build-forge-plane-list.js`), the pool in the first seated player's deck, the harness's planar decks and `planar` block, no Undo points in a Planechase game, debug ops `planeswalk` / `chaos`; bridge planes out of the command zones, the planar block, roll / planeswalk / encounter lines, the roll relabelled once on the plane with its cost; table plane at the centre (larger, turned), PLANE on the corner bar, the roll's banner.
+    - Left: a live spike (`rules-check planechase`: rolls offered per seat, the {0} payment, the AI with no deck, 901.10), the chaos trigger's label on the stack, the "<plane> leaves the game" line (901.10), Interplanar Tunnel's and "planeswalk now?" question wording, a pre-game `"planechase"` scenario field, plane pictures ahead and the full rewind of planes (P6, refused for now).
 
 ### M4.5: rewind by vote ✅ (built 2026-10-20; 2-person vote test pending)
 - [x] Engine side checked headless (`bash tools/rules-check.sh rewind`): checkpoints ~8 per turn, last 25 kept; a restore to "turn 6 upkeep" from turn 8 brings back life, commander casts and every zone exactly (3 of 3 runs)
