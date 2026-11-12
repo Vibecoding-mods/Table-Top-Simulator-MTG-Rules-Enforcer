@@ -1425,12 +1425,11 @@ local function lifeSpot(color)
   local g = seatGeometry(color)
   return g and g.mat or nil
 end
--- Where a player is aimed at (the player, 2026-10-22, as Arena's player portraits): the back centre of their board,
--- just behind the land row, not their life counter. Attack lines, spell/ability target lines and the attack lunge.
-local BACK_ROW = ROWS.land + 0.6
+-- Where a player is aimed at: their life counter, the heart clicked to attack or target them. Attack lines, spell/ability
+-- target lines, the attack lunge and a burst at a player. (It was the back centre of their board, behind the land row,
+-- 2026-10-22; with the land row moved down the mat that spot was its bottom edge, and Craw Wurm's line at White read
+-- as aimed at White's lands, live game 2026-11-11.)
 local function playerSpot(color)
-  local g = seatGeometry(color)
-  if g ~= nil then return onTable(g.mat + g.fwd * (BACK_ROW * GRID.rowStep + GRID.rowStart), 0) end
   return lifeSpot(color)
 end
 enginePlayerSpot = playerSpot -- (the table effects' burst for damage to a player lands here too)
@@ -4077,7 +4076,7 @@ function engineRewindUpdate(r, gameOver)
   local parts = { tostring(gameOver) }
   for _, pt in ipairs((r and r.points) or {}) do parts[#parts + 1] = tostring(pt.id) .. "=" .. tostring(pt.label) end
   local v0 = r and r.vote
-  if v0 ~= nil then parts[#parts + 1] = table.concat({ tostring(v0.id), tostring(v0.status), tostring(v0.by), tostring(v0.to), table.concat(v0.waiting or {}, ","), tostring(v0.note), tostring(v0.go) }, "|") end
+  if v0 ~= nil then parts[#parts + 1] = table.concat({ tostring(v0.id), tostring(v0.status), tostring(v0.by), tostring(v0.byColor), tostring(v0.to), table.concat(v0.waiting or {}, ","), tostring(v0.note), tostring(v0.go) }, "|") end
   local sig = table.concat(parts, ";")
   if sig == rewindSig then return end
   rewindSig = sig
@@ -4094,16 +4093,20 @@ function engineRewindUpdate(r, gameOver)
       local pending = v ~= nil and v.status == "pending"
       local mine = false
       for _, w in ipairs((v and v.waiting) or {}) do if w == c then mine = true end end
+      -- (the asker's Keep playing takes the vote back while someone is still to vote: a voter who never answered held
+      -- the game until a concession, table log 2026-11-12 01:18; the bridge's byColor)
+      local asker = pending and not mine and v.byColor == c and v.waiting ~= nil and #v.waiting > 0
       setAttr("eng_vote_" .. c, "active", pending and "true" or "false")
       if pending then
         -- (everyone has voted and the engine waits for a priority question: v.note says who it waits for)
         -- (the people still to vote by name; a bot votes by itself, so it isn't waited for: waitingNames, the bridge's)
         local names = v.waitingNames or v.waiting or {}
         setText("eng_votetext_" .. c, tostring(v.by or "A player") .. " asks to rewind to " .. tostring(v.to) .. "."
-          .. (v.note ~= nil and ("\n" .. tostring(v.note)) or (mine or #names == 0) and "" or ("\nWaiting for " .. table.concat(names, ", ") .. "...")))
+          .. (v.note ~= nil and ("\n" .. tostring(v.note)) or (mine or #names == 0) and "" or ("\nWaiting for " .. table.concat(names, ", ") .. "..."))
+          .. (asker and "\nKeep playing takes it back." or ""))
       end
       setAttr("eng_voteyes_" .. c, "active", (pending and mine) and "true" or "false")
-      setAttr("eng_voteno_" .. c, "active", (pending and mine) and "true" or "false")
+      setAttr("eng_voteno_" .. c, "active", (pending and (mine or asker)) and "true" or "false")
       -- (everyone agreed but a question is open: the button says where to, and goes there without answering it)
       local go = pending and v.go == true
       setAttr("eng_votego_" .. c, "active", go and "true" or "false")

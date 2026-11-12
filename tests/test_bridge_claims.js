@@ -1012,6 +1012,54 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       r = await vote(["player-2", "player-1"]);
       ok("rewind names: a person left to vote is waited for by name, the bot isn't", JSON.stringify(r.said) === JSON.stringify(["[MTG] Blue asks to rewind to turn 5, AI 1's attacks. Waiting for Red: vote in the pop-up (or type  mtg vote yes / mtg vote no)."]), JSON.stringify(r.said));
     }
+    // a vote nobody answers: the asker can take it back, and a vote that ended holds no clock (table log 2026-11-12 01:18:
+    // White asked, Yellow voted, Blue never did, and only a concession ended it; Forge lets only an awaited voter decline,
+    // and keeps the vote's record on the board once it has ended)
+    {
+      const twoHumans = () => {
+        const h = harness.load();
+        const b = clone(F.board);
+        const point = { checkpointId: 33, turn: 5, step: "main1", activePlayerId: "player-0" };
+        Object.assign(b.gameView, { turn: 6, step: "main2", stack: [], checkpoints: [point],
+          restoreVote: { voteId: 5, checkpoint: point, requestedByPlayerId: "player-0", awaitingPlayerIds: ["player-1"], status: { type: "pending" } } });
+        const blue = setup(h, b, { bots: 0, playerOrder: ["tts-Blue-ab12", "tts-White-cd34"], slotNames: { "player-0": "Blue", "player-1": "White" } });
+        const white = new h.B.Seat("White", "neheb_minotaur_commander");
+        white.slot = "player-1"; white.board = { state: clone(b), fingerprint: null };
+        h.B._getGame().seats.set("White", white);
+        return { h, b, blue, white };
+      };
+      const votes = (h) => h.effects.filter((e) => e.relay?.state?.directive?.type === "restoreVote").map((e) => ({ from: e.relay.state.fromPlayer, accept: e.relay.state.directive.accept }));
+      const chats = (h) => h.effects.filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text).filter((t) => /rewind|vote/i.test(t));
+      let { h, b, blue, white } = twoHumans();
+      h.B.sendTable(); await h.flush();
+      ok("rewind vote: the table is told who asked, by colour (its Keep playing button)", sent(h, "table").at(-1)?.rewind?.vote?.byColor === "Blue", JSON.stringify(sent(h, "table").at(-1)?.rewind?.vote));
+      h.B.onTTS({ t: "rewindVote", json: JSON.stringify({ t: "rewindVote", color: "Blue", accept: false }) }); await h.flush();
+      ok("rewind vote: the asker's no takes the vote back, through a voter Forge waits for", JSON.stringify(votes(h)) === JSON.stringify([{ from: "player-1", accept: false }]), JSON.stringify(votes(h)));
+      const ended = clone(b);
+      ended.gameView.restoreVote = { ...ended.gameView.restoreVote, awaitingPlayerIds: [], status: { type: "declined", playerId: "player-1" } };
+      blue.board = { state: ended, fingerprint: null }; white.board = { state: clone(ended), fingerprint: null };
+      h.B.sendTable(); await h.flush();
+      ok("rewind vote: and the chat says it was withdrawn, not declined by the voter", chats(h).at(-1) === "[MTG] Blue withdrew the rewind.", JSON.stringify(chats(h)));
+      harness.restore();
+      ({ h, b, blue, white } = twoHumans());
+      h.B.onTTS({ t: "rewindVote", json: JSON.stringify({ t: "rewindVote", color: "Blue", accept: true }) }); await h.flush();
+      ok("rewind vote: the asker's yes is no vote", votes(h).length === 0 && /isn't needed/.test(chats(h).at(-1) || ""), JSON.stringify(chats(h)));
+      harness.restore();
+      // (the clock: held while the vote is open, running again once it has ended)
+      for (const [status, held] of [["pending", true], ["declined", false]]) {
+        ({ h, b, blue, white } = twoHumans());
+        const G = h.B._getGame();
+        G.timer = { on: true, seconds: 90 };
+        const gv = white.board.state.gameView;
+        gv.priorityPlayerId = "player-1";
+        gv.restoreVote.status = { type: status, ...(status === "declined" ? { playerId: "player-1" } : {}) };
+        h.B.onPrompt(white, { promptId: 70, decidingPlayerId: "player-1", input: { type: "mulligan", mulliganCount: 0 } }); await h.flush();
+        h.B._timerExpired(white, 70); await h.flush();
+        ok(`rewind vote: a vote ${status} ${held ? "holds" : "doesn't hold"} the clock`, (white.prompt?.promptId === 70) === held, JSON.stringify(white.prompt?.promptId ?? null));
+        h.B._stopTimer(white, true);
+        harness.restore();
+      }
+    }
     // a clash's cards and winner in the game log, once for the table (kw-07: no line named them). Forge's own words,
     // ClashEffect: "<player> reveals: <card>. Mana Value= <n>" a line each (lblReveals, lblCMC), then "<player> wins
     // clash." (lblWinsClash) or "No Winner!" (lblNoWinner); players by their engine names.
@@ -2292,6 +2340,39 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     r = await prio({ active: "player-1", blocks: false });
     ok("attacker after blocks: the defender's stop is unchanged (attacked, holding a trick: asked)", r.asked === "Your priority" && !r.passed, JSON.stringify(r));
   }
+  // the caster gets a stop over their own spell when they hold a spell to answer with (ownSpellStop; live game 2026-11-11:
+  // White's Lightning Bolt in main 1 resolved with no stop while Counterspell was castable, prompts #21 to #25, but over
+  // Giant Growth in combat White was asked, #37). Not over their own trigger, and not with only an ability or mana.
+  {
+    const COUNTER = { id: "cast:1802", type: "cast", cardId: "engine-card-1802", label: "Cast Counterspell", mode: { type: "normal" } };
+    const PING = { id: "act:1803", type: "activateAbility", cardId: "engine-card-1803", label: "Prodigal Pyromancer: {T}: deals 1 damage to any target." };
+    const MANA = { id: "tap:engine-card-36:0", type: "activateManaAbility", cardId: "engine-card-36", isManaAbility: true, description: "Mountain" };
+    const BOLT = { id: "engine-stack-25", sourceId: "engine-card-1804", controllerId: "player-0", identity: { name: "Lightning Bolt" }, sourceAbilityText: "Lightning Bolt deals 3 damage to any target." };
+    const HERO = { id: "engine-stack-26", sourceId: "engine-card-1805", controllerId: "player-0", identity: { name: "Hero of Bladehold" }, isTrigger: true, sourceAbilityText: "Whenever Hero of Bladehold attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking." };
+    const prio = async ({ stack = [BOLT], actions = [COUNTER, PING, MANA], step = "main1", resolving = false } = {}) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      Object.assign(b.gameView, { activePlayerId: "player-0", priorityPlayerId: "player-0", step, stack });
+      const seat = setup(h, b);
+      seat.stops = new Set();
+      if (resolving) seat.resolveStack = new Set(stack.map((s) => s.id));
+      h.B.onPrompt(seat, { promptId: 22, decidingPlayerId: "player-0", input: { type: "chooseAction", actions } });
+      await h.flush();
+      const out = { asked: seat.prompt?.ui?.title ?? null, passed: h.effects.some((e) => e.relay && JSON.stringify(e.relay).includes("\"pass\"")) };
+      harness.restore();
+      return out;
+    };
+    let r = await prio();
+    ok("own spell: asked over your own Lightning Bolt in main 1 while Counterspell is castable", r.asked === "Your priority" && !r.passed, JSON.stringify(r));
+    r = await prio({ step: "end" });
+    ok("own spell: and on your end step, the Combat and End stops off", r.asked === "Your priority" && !r.passed, JSON.stringify(r));
+    r = await prio({ actions: [PING, MANA] });
+    ok("own spell: only an ability and mana to answer with passes by itself, as before", r.asked === null && r.passed, JSON.stringify(r));
+    r = await prio({ stack: [HERO] });
+    ok("own spell: your own trigger passes by itself, as before", r.asked === null && r.passed, JSON.stringify(r));
+    r = await prio({ resolving: true });
+    ok("own spell: after Resolve, the spell already there passes", r.asked === null && r.passed, JSON.stringify(r));
+  }
   // Kykar re-test 2026-11-09 (docs/HAND-TEST-KYKAR.md "Re-test", new bugs 1, 2, 4, 5, 8, 10): the questions
   {
     const fresh = (edit, gvExtra = {}) => {
@@ -3511,6 +3592,13 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     const both = (seat.prompt?.ui?.options || []).map((o) => o.label);
     ok("hero: two Jaces offered are numbered apart", JSON.stringify(both) === JSON.stringify(["AI 1", "Jace Beleren (AI 1's planeswalker) #1", "Jace Beleren (AI 1's planeswalker) #2"]), JSON.stringify(both));
     harness.restore();
+    // (and a card off the battlefield by whose zone it is in: two Jaces in play and a third offered that is only in a
+    // graveyard read "Jace Beleren", a name with nothing to tell it by, item 2 of the 2026-11-11 list)
+    ({ h, seat } = await hero((gv) => { theirs(gv, "battlefield").cards.push(JACE("engine-card-1302"), JACE("engine-card-1304")); theirs(gv, "graveyard").cards.push({ ...JACE("engine-card-1305"), identity: { name: "Ral Zarek" } }); },
+      ["self-hosted-node-77-bot", "Jace Beleren (201)", "Jace Beleren (204)", "Ral Zarek (205)"]));
+    const zoned = (seat.prompt?.ui?.options || []).map((o) => o.label);
+    ok("hero: a card only in a graveyard says whose graveyard", zoned[3] === "Ral Zarek (in AI 1's graveyard)", JSON.stringify(zoned));
+    harness.restore();
     // "whom it attacks" only for a defender's choice: what can be attacked (a battle too), from a card that puts creatures
     // onto the battlefield attacking. "attacking" alone, or a list of creatures, is no such choice (verify 2026-11-11)
     const askedUi = async (edit, labels, text) => { const r = await hero(edit, labels, text); const ui = r.seat.prompt?.ui || {}; harness.restore(); return ui; };
@@ -3532,6 +3620,27 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("hero: \"attacking\" with nothing put onto the battlefield is no defender's choice", dealt === "Hero of Bladehold: choose which player or planeswalker?", dealt);
     const put = await titled(twoJaces, undefined, "Put a creature card from your hand onto the battlefield tapped and attacking.");
     ok("hero: a card put onto the battlefield attacking: attack whom", put === "Hero of Bladehold: attack whom?", put);
+  }
+  // every player the table is shown is named as the game log names them (tableNames, the net in pump): Gisela's granted
+  // "Protection from self-hosted-node-…-bot" reached the table's keyword box (recorded stream, 2026-11-06 game), and the
+  // live check 2026-11-11 saw the raw id on a prompt
+  {
+    const h = harness.load();
+    const b = clone(F.board);
+    b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push({ id: "engine-card-1233", identity: { name: "Gisela, the Broken Blade" },
+      types: ["Creature"], power: 4, toughness: 3, controllerId: "player-0", ownerId: "player-0", text: "Flying, first strike, lifelink",
+      keywords: ["Flying", "First Strike", "Lifelink", "Protection:Player.self-hosted-node-77-bot:self-hosted-node-77-bot"] });
+    setup(h, b);
+    h.B.sendTable(); await h.flush();
+    const gisela = (sent(h, "table")[0]?.players || []).flatMap((p) => p.battlefield || []).find((c) => c.id === "engine-card-1233");
+    ok("names: a keyword naming a player names the table's player", (gisela?.kw || []).includes("Protection from AI 1"), JSON.stringify(gisela));
+    h.B.toTTS({ t: "chat", text: "[MTG] Dice roll: tts-Blue-ab12 rolled 3, Self-hosted-node-77-bot rolled 19.", color: null }); await h.flush();
+    const chats = sent(h, "chat").map((c) => c.text);
+    ok("names: a chat line built from usernames reaches the table with the table's names", chats.includes("[MTG] Dice roll: Blue rolled 3, AI 1 rolled 19."), JSON.stringify(chats));
+    const tableLog = h.effects.filter((e) => e.appendFile === "table-log.log").map((e) => e.text).join("");
+    ok("names: and the table log says what was shown", /told: \[MTG\] Dice roll: Blue rolled 3, AI 1 rolled 19\./.test(tableLog) && !/self-hosted|tts-Blue/i.test(tableLog), tableLog);
+    ok("names: no username anywhere in what the table got", !/self-hosted-node|tts-Blue-ab12/i.test(JSON.stringify(h.effects.filter((e) => e.tts))));
+    harness.restore();
   }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);

@@ -74659,26 +74659,53 @@
     "text": "[time] Blue   told: [MTG] Vraska's Fall not cast: cast now, it would be sacrificed at the next cleanup step. Cast it in your main phase, or drag it again to cast it anyway.\n"
    },
    {
-    "relay": {
-     "type": "BroadcastState",
-     "state": {
-      "kind": "response",
-      "fromPlayer": "player-0",
-      "promptId": 900,
-      "action": {
-       "type": "chooseAction",
-       "output": {
-        "type": "pass"
-       }
-      }
-     }
-    }
+    "log": "prompt Blue #900: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Necromancy | Pass priority: ability\n"
    },
    {
     "tts": {
      "t": "chat",
      "text": "[MTG] Vraska's Fall not cast: cast now, it would be sacrificed at the next cleanup step. Cast it in your main phase, or drag it again to cast it anyway.",
      "color": "Blue"
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-necro",
+       "cardId": "engine-card-43",
+       "label": "Cast Necromancy"
+      },
+      {
+       "id": "pass",
+       "label": "Pass priority: ability"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
     }
    }
   ],
@@ -157357,6 +157384,7 @@
        "id": 5,
        "to": "turn 10, AI 1's upkeep",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [
         "White"
        ],
@@ -157456,6 +157484,7 @@
        "id": 5,
        "to": "turn 10, AI 1's upkeep",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [
         "White"
        ],
@@ -157566,6 +157595,7 @@
        "id": 5,
        "to": "turn 10, AI 1's upkeep",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [
         "White"
        ],
@@ -157676,6 +157706,7 @@
        "id": 5,
        "to": "turn 10, AI 1's upkeep",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [
         "White"
        ],
@@ -157786,6 +157817,7 @@
        "id": 5,
        "to": "turn 10, AI 1's upkeep",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [
         "White"
        ],
@@ -158899,6 +158931,7 @@
        "id": 5,
        "to": "turn 10, AI 1's upkeep",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [],
        "waitingNames": [],
        "status": "pending",
@@ -158996,6 +159029,7 @@
        "id": 5,
        "to": "turn 10, AI 1's upkeep",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [],
        "waitingNames": [],
        "status": "approved",
@@ -159102,6 +159136,7 @@
        "id": 5,
        "to": "turn 10, AI 1's upkeep",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [],
        "waitingNames": [],
        "status": "pending",
@@ -354409,25 +354444,48 @@
     }
    },
    {
-    "relay": {
-     "type": "BroadcastState",
-     "state": {
-      "kind": "response",
-      "fromPlayer": "player-0",
-      "promptId": 901,
-      "action": {
-       "type": "chooseAction",
-       "output": {
-        "type": "pass"
-       }
+    "log": "prompt Blue #901: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #901 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Flusterstorm\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 901,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-fs",
+       "cardId": "engine-card-43",
+       "label": "Cast Flusterstorm"
       }
-     }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
     }
    }
   ],
   "result": [
    "Your priority",
-   "passed"
+   "Your priority"
   ]
  },
  {
@@ -354437,41 +354495,87 @@
     "wsOpen": "ws://127.0.0.1:9443"
    },
    {
-    "relay": {
-     "type": "BroadcastState",
-     "state": {
-      "kind": "response",
-      "fromPlayer": "player-0",
-      "promptId": 900,
-      "action": {
-       "type": "chooseAction",
-       "output": {
-        "type": "pass"
-       }
+    "log": "prompt Blue #900: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Flusterstorm\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-fs",
+       "cardId": "engine-card-43",
+       "label": "Cast Flusterstorm"
       }
-     }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
     }
    },
    {
-    "relay": {
-     "type": "BroadcastState",
-     "state": {
-      "kind": "response",
-      "fromPlayer": "player-0",
-      "promptId": 901,
-      "action": {
-       "type": "chooseAction",
-       "output": {
-        "type": "pass"
-       }
+    "log": "prompt Blue #901: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #901 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Flusterstorm\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 901,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-fs",
+       "cardId": "engine-card-43",
+       "label": "Cast Flusterstorm"
       }
-     }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
     }
    }
   ],
   "result": [
-   "passed",
-   "passed"
+   "Your priority",
+   "Your priority"
   ]
  },
  {
@@ -354570,41 +354674,87 @@
     }
    },
    {
-    "relay": {
-     "type": "BroadcastState",
-     "state": {
-      "kind": "response",
-      "fromPlayer": "player-0",
-      "promptId": 900,
-      "action": {
-       "type": "chooseAction",
-       "output": {
-        "type": "pass"
-       }
+    "log": "prompt Blue #900: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Flusterstorm\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-fs",
+       "cardId": "engine-card-43",
+       "label": "Cast Flusterstorm"
       }
-     }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
     }
    },
    {
-    "relay": {
-     "type": "BroadcastState",
-     "state": {
-      "kind": "response",
-      "fromPlayer": "player-0",
-      "promptId": 901,
-      "action": {
-       "type": "chooseAction",
-       "output": {
-        "type": "pass"
-       }
+    "log": "prompt Blue #901: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #901 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Flusterstorm\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 901,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-fs",
+       "cardId": "engine-card-43",
+       "label": "Cast Flusterstorm"
       }
-     }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
     }
    }
   ],
   "result": [
-   "passed",
-   "passed"
+   "Your priority",
+   "Your priority"
   ]
  },
  {
@@ -354629,41 +354779,87 @@
     }
    },
    {
-    "relay": {
-     "type": "BroadcastState",
-     "state": {
-      "kind": "response",
-      "fromPlayer": "player-0",
-      "promptId": 900,
-      "action": {
-       "type": "chooseAction",
-       "output": {
-        "type": "pass"
-       }
+    "log": "prompt Blue #900: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Flusterstorm\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-fs",
+       "cardId": "engine-card-43",
+       "label": "Cast Flusterstorm"
       }
-     }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
     }
    },
    {
-    "relay": {
-     "type": "BroadcastState",
-     "state": {
-      "kind": "response",
-      "fromPlayer": "player-0",
-      "promptId": 901,
-      "action": {
-       "type": "chooseAction",
-       "output": {
-        "type": "pass"
-       }
+    "log": "prompt Blue #901: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #901 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Flusterstorm\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 901,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-fs",
+       "cardId": "engine-card-43",
+       "label": "Cast Flusterstorm"
       }
-     }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
     }
    }
   ],
   "result": [
-   "passed",
-   "passed"
+   "Your priority",
+   "Your priority"
   ]
  },
  {
@@ -395058,6 +395254,7 @@
        "id": 1,
        "to": "?",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [],
        "waitingNames": [],
        "status": "approved",
@@ -395406,6 +395603,7 @@
        "id": 1,
        "to": "?",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [],
        "waitingNames": [],
        "status": "approved",
@@ -395553,6 +395751,7 @@
        "id": 1,
        "to": "?",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [],
        "waitingNames": [],
        "status": "approved",
@@ -395824,6 +396023,7 @@
        "id": 2,
        "to": "?",
        "by": "Blue",
+       "byColor": "Blue",
        "waiting": [],
        "waitingNames": [],
        "status": "approved",
@@ -829647,7 +829847,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Zevlor, Elturel Exile: choose which player or card?\": AI 1 | Farseek\n"
+    "text": "[time] Blue   is asked #900 \"Zevlor, Elturel Exile: choose which player or card?\": AI 1 | Farseek (in AI 1's graveyard)\n"
    },
    {
     "fetch": "https://api.scryfall.com/cards/collection",
@@ -829676,7 +829876,7 @@
       },
       {
        "id": "1",
-       "label": "Farseek"
+       "label": "Farseek (in AI 1's graveyard)"
       }
      ],
      "kind": "modal",
@@ -830731,7 +830931,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Zevlor, Elturel Exile: choose which player or card?\": Farseek\n"
+    "text": "[time] Blue   answers #900 \"Zevlor, Elturel Exile: choose which player or card?\": Farseek (in AI 1's graveyard)\n"
    },
    {
     "relay": {

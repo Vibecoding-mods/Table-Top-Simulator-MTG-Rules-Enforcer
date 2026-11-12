@@ -3479,7 +3479,8 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
   // ninjutsu is an ability whose card is in the hand: the stack alone called it a cast; and an ability logged from the
   // record before a board showed it on the stack was logged again when one did
   // ("mtg hold": priority kept once with your own spell on the stack; without it, or with nothing to respond with, or a turn
-  // later, it passes as before; "mtg hold off" takes it back)
+  // later, it passes as before; "mtg hold off" takes it back. Since 2026-11-11 a spell to cast (Flusterstorm here) asks
+  // over your own spell held or not, ownSpellStop: only "nothing to respond with" passes)
   for (const [how, cmds, actions, later, empty] of [["held", [{}], true, false], ["not held", [], true, false], ["nothing to respond with", [{}], false, false],
     ["taken back", [{}, { on: false }], true, false], ["a turn later", [{}], true, true], ["an empty stack", [{}], true, false, true]]) {
     add({ name: `hold priority: ${how}`, run: async (h) => {
