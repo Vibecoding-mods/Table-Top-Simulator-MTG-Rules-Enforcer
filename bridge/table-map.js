@@ -8,7 +8,7 @@
 // engineSelfCheck (absent: nothing compares it on the live table yet) }, or { gap: what is missing }, or { skip: why not }.
 const CARD_FACTS = {
   id: { to: ["id"], show: "the card object's GM note, engine:<id>", check: "present" },
-  identity: { to: ["n", "f", "b", "tok"], show: "name, picture, back; a token's picture", check: "hoverName" },
+  identity: { to: ["n", "f", "b", "o2", "n2", "tok"], show: "name, picture, back; a token's picture; a two-faced card's other face and its name, its second state (docs/card-other-side-spec.md)", check: "hoverName" },
   color: { skip: "in the picture" },
   manaCost: { skip: "in the picture" },
   cmc: { to: ["cmc"], show: "sorts the battlefield and the hand; the hover name", check: "hoverName" },
@@ -89,7 +89,7 @@ const ZONES = {
 
 // What a gesture asks. The engine answers: the table moves a card only once the engine's next board says it moved.
 const GESTURES = {
-  play: "a card dragged onto the mat: the matching cast or land action, or a question when there are several",
+  play: "a card dragged onto the mat: the matching cast or land action, or a question when there are several (a two-faced card: the side its object shows, side)",
   discard: "a card dragged to the graveyard: the answer to a discard question",
   sacrifice: "a permanent dragged to the graveyard: the answer to a sacrifice question or its ability",
   bottom: "a card dragged onto the library: the answer to a put-back question",

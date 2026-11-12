@@ -69,6 +69,32 @@ hovering). Each state is a full object of its own, with its own picture and back
 - Real table: Valki // Tibalt in hand, switch to Tibalt and cast it (7 mana); Exdeath in the command zone and
   transformed on the battlefield, read the other side; a second seat sees only Magic backs.
 
+## Built (2026-11-11), not yet seen in real TTS
+
+- **Bridge** (`otherSide`, `actionSide` in bridge/bridge.js): a card has two faces when Scryfall's cached picture has a
+  back (the engine's `isDoubleFaced` is false for a modal double-faced card: Forge's `Card.isDoubleFaced` is transform
+  or meld only). Tokens and copies have one. Such a card goes out with `o2` (the other face's picture, in a hand too) and
+  `n2` (its name, from Scryfall's `card_faces`; a cache entry from before names were kept asks Scryfall once per bridge
+  run and keeps its picture). Each priority option of such a card carries `side`: Forge's harness names the face in the
+  label ("Cast Tibalt, Cosmic Impostor", "Play Emeria, Shattered Skyclave", mode `normal` for both faces), so a label
+  naming the card's own name is side 1 and any other side 2 (`backFaceLand` mode is 2). A drag with `side` plays that
+  side's ways (with any of no side, cycling); none: "Tibalt, Cosmic Impostor can't be cast right now. Valki, God of Lies
+  can: show that side and drag it again." A drag without `side` (an older table) asks among them all as before. A drag
+  kept for the next priority keeps its side and never casts the other one.
+- **Table** (tools/engine-renderer.lua): a card on its own with `o2` is spawned with `States["2"]` (`engineCardData`):
+  the other face, the plain back behind it where state 1 has it (a hand), else state 1's face. Both states carry the
+  same GM notes, tag, lock and name line ("Valki, God of Lies // Tibalt, Cosmic Impostor"). A player's state change is
+  adopted (`engineAdoptState`, from `onObjectStateChange` and, should TTS fire only a spawn, from the spawn watcher):
+  the new object becomes the card's, nothing is respawned, badges, glow and the right-click list are drawn again.
+  The drop sends `side` (`engineShownSide`: state 2, or state 1 turned over in the command zone or battlefield), and the
+  right-click list puts the shown side's ways first (`engineSideFirst`). Pile and library members keep one state; a
+  card taken out of one onto the table is replaced to get its second state.
+- **No engine change.** Graveyard, exile and stack cards are piles or the pop-up, unchanged (the back is the other face).
+- **Tests:** `node tests/test_card_other_side.js` (a gate).
+- **To check in real TTS:** the risks above, in particular that `onObjectStateChange` fires and a hand card in state 2
+  stays in the hand; Valki in hand → state 2 → drag casts Tibalt; Exdeath in the command zone and transformed on the
+  battlefield, state 2 reads the other side; a second seat sees only Magic backs.
+
 ## Size
 
 About 3–4 h with the checker, the code review and a real-table run. Renderer and a little bridge (the play option per
