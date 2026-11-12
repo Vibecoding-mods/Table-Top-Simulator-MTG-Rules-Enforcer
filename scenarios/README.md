@@ -46,9 +46,13 @@ triggers, state-based actions after, a restore point before). Names are lower ca
   Forge's take-the-initiative does). These three need an engine image with the dungeon ops (from the planechase-1111
   build on, relay and node included); an older relay or node drops the whole change list unread, and the setup
   goes back to editing after 20 s with no answer.
+- `planeswalk`: a plane's name (top level, yours): in a game with Planechase on (`mtg planechase on` before it), you
+  planeswalk to that plane from any planar deck, with its "when you planeswalk to" triggers. `chaos`: `true`, chaos
+  ensues on the plane in play, for you. Both run after the rest, with triggers on (as the free plays do); outside
+  Planechase the engine refuses them. Same engine image as the dungeon fields.
 
 A file of the wrong shape (not an object, `lands` of another kind, a zone or `tokens` that isn't a list) is refused
 when typed, saying what is wrong. A choice made before a game is dropped (and said) if that colour isn't in it.
 The engine refuses a name it doesn't know ("no card named ..."); the setup then goes back to editing as an ordinary
 manual fix (Done applies what the table shows, Cancel ends it).
-Tests: `node tests/test_bridge_debug.js` (55 checks).
+Tests: `node tests/test_bridge_debug.js` (59 checks).

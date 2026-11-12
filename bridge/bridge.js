@@ -315,6 +315,96 @@ function loadPreset(id) {
   return { deckName: p.label, deck, commanderName: p.commander || null };
 }
 
+// ───────────────────────── Planechase (docs/planechase-dungeon-engine-spec.md P1, P8) ─────────────────────────
+// The host's switch for the next games ("mtg planechase on|off", shown to everyone) and the planar pool ("mtg planes
+// random [N]", N planes and phenomena a player, or "mtg planes <name>; <name>; ..."). The pool goes in the first seated
+// player's deck as its planes; the engine (our Forge build, Planechase.planarDecks) deals it to every player's planar
+// deck, planes first, and turns Planechase on when a deck has planes. AI decks bring none.
+const planechase = { on: false, names: null, per: 10 };
+let forgePlaneList = null;
+function forgePlanes() {
+  if (!forgePlaneList) {
+    try { const j = JSON.parse(fs.readFileSync(path.join(__dirname, "forge-planes.json"), "utf8")); forgePlaneList = { planes: j.planes || [], phenomena: j.phenomena || [] }; }
+    catch { forgePlaneList = { planes: [], phenomena: [] }; log("forge-planes.json missing: run node tools/build-forge-plane-list.js"); }
+  }
+  return forgePlaneList;
+}
+// a typed name as Forge spells it, and whether it is a phenomenon, or null
+function planeNamed(typed) {
+  const { planes, phenomena } = forgePlanes();
+  const k = normName(typed);
+  const plane = planes.find((n) => normName(n) === k);
+  if (plane) return { name: plane, phenomenon: false };
+  const phen = phenomena.find((n) => normName(n) === k);
+  return phen ? { name: phen, phenomenon: true } : null;
+}
+const shuffled = (list) => { const a = [...list]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+// The pool for a game of n players: the host's names, or per x n at random with no repeats and at most 2 phenomena in
+// 10 (the official deck rule). { names } or { error } (the engine needs a plane for every player).
+function planarPool(n) {
+  if (planechase.names) {
+    const planesIn = planechase.names.filter((x) => !planeNamed(x)?.phenomenon).length;
+    return planesIn < n ? { error: `Planechase needs a plane for every player: the list has ${planesIn} for ${n} players (mtg planes random, or name more).` } : { names: [...planechase.names] };
+  }
+  const { planes, phenomena } = forgePlanes();
+  const size = planechase.per * n;
+  const phen = Math.min(phenomena.length, Math.floor(size / 5));
+  const picked = [...shuffled(planes).slice(0, size - phen), ...shuffled(phenomena).slice(0, phen)];
+  return picked.filter((x) => planes.includes(x)).length < n ? { error: "Planechase needs a plane for every player, and the bridge's plane list is empty (node tools/build-forge-plane-list.js)." } : { names: picked };
+}
+const planarWords = () => (planechase.names ? `${planechase.names.length} chosen planes and phenomena` : `${planechase.per} random planes and phenomena a player`);
+function onPlanechase(m) {
+  planechase.on = m.on !== false;
+  chat(`[MTG] Planechase ${planechase.on ? `on for the next games (${planarWords()}; mtg planes to choose)` : "off"}.`);
+}
+function onPlanes(m) {
+  const text = String(m.text || "").trim();
+  const r = /^random(?:\s+(\d+))?$/i.exec(text);
+  if (r || text === "") {
+    const k = r?.[1] ? Number(r[1]) : 10;
+    if (!(k >= 1 && k <= 30)) return chat("[MTG] Use:  mtg planes random [1-30]  (planes and phenomena a player)", m.color);
+    Object.assign(planechase, { names: null, per: k });
+    return chat(`[MTG] Planar decks: ${planarWords()}.${planechase.on ? "" : " (Planechase is off: mtg planechase on)"}`);
+  }
+  const typed = text.split(/\s*;\s*/).filter(Boolean);
+  const found = typed.map((t) => planeNamed(t));
+  const unknown = typed.filter((t, i) => !found[i]);
+  if (unknown.length) return chat(`[MTG] Not planes Forge knows: ${unknown.join("; ")}. Separate names with ;`, m.color);
+  const names = [...new Set(found.map((x) => x.name))];
+  Object.assign(planechase, { names });
+  chat(`[MTG] Planar decks: ${names.join(", ")}.${planechase.on ? "" : " (Planechase is off: mtg planechase on)"}`);
+}
+// a plane for the deck sent to the engine (as a preset's cards are, loadPreset)
+const planeDeckCard = (name) => ({ identity: { name, setCode: "", cardNumber: "" }, manaCost: "", cmc: 0, types: [planeNamed(name)?.phenomenon ? "Phenomenon" : "Plane"],
+  subtypes: [], supertypes: [], colorIdentity: [], text: "", uris: {} });
+const isPlanarCard = (c) => (c.types || []).some((t) => t === "Plane" || t === "Phenomenon");
+// The planar block of a table board: who controls the planes, what the next roll costs, that player's planar deck size
+// and the last roll (the table's banner), or null in a game without Planechase
+function planarRow(pub) {
+  const p = pub.planar;
+  if (!p) return null;
+  const ctl = p.controllerId || pub.activePlayerId;
+  return { controller: game.slotColor[ctl] || null, rollCost: Number(p.dieRollsThisTurn) || 0, deckCount: p.deckCounts?.[ctl] ?? null,
+    ...(p.lastRoll ? { last: { who: game.slotColor[p.lastRoll.playerId] || null, result: String(p.lastRoll.result || ""), seq: p.lastRoll.seq ?? 0 } } : {}) };
+}
+// The planar die's special action (Forge's "Planar Dice" effect card, kept out of the board: every player has one, any
+// of them rolls the one die) once, on the plane, with what it costs now: free, then {1}, {2} for the rolls taken.
+// `planarAb`: the words on the plane's own button, which holds 16 characters (engineAbilityShort)
+function planarActions(actions, gv, cname) {
+  const isRoll = (a) => a.type === "activateAbility" && (cname(a.cardId) === "Planar Dice" || /\broll the planar dic?e\b/i.test(String(a.description || a.label || "")));
+  if (!actions.some(isRoll)) return actions;
+  const n = Number(gv.planar?.dieRollsThisTurn) || 0;
+  const plane = gv.planar?.planeIds?.[0] || null;
+  let first = true;
+  return actions.flatMap((a) => {
+    if (!isRoll(a)) return [a];
+    if (!first) return [];
+    first = false;
+    return [{ ...a, ...(plane ? { cardId: plane } : {}), description: `Roll the planar die (${n ? `{${n}}` : "free"})`, planarRoll: true,
+      planarAb: `Planar die: ${n ? `{${n}}` : "free"}` }];
+  });
+}
+
 // ───────────────────────── Decks imported on the table ("mtg ready") ─────────────────────────
 // Forge's card names, built by tools/build-forge-card-index.js from the engine container.
 let forgeCards = null;
@@ -1025,8 +1115,12 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   // the table has a playmat per colour (TABLE_COLORS); a 5th player had no colour and no zones (5-8 players: PLAN M6)
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
   const aiTable = aiSeats.filter((c) => readyDecks[c] && !preset.includes(c)).slice(0, bots - preset.length); // (empty seats' ready decks, in order: see below)
+  const pool = planechase.on ? planarPool(total) : null;
+  if (pool?.error) { chat(`[MTG] Not started: ${pool.error}`); return; }
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
     friendly: friendlyCount(friendly),
+    // (Planechase: the planar pool, sent in the first seated player's deck, onRoomUpdate)
+    planes: pool?.names || null, planeSeat: pool ? seatList[0] : null,
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
     // each came from, for its pictures (onGameStarted)
     aiTableDecks: aiTable.map((c) => engineDeckFromTable(readyDecks[c])), aiTableColors: aiTable,
@@ -1058,7 +1152,9 @@ function onRoomUpdate(seat, room) {
   if (me && !seat.joined) {
     seat.joined = true;
     const d = seat.deck || (readyDecks[seat.color] ? engineDeckFromTable(readyDecks[seat.color]) : loadPreset(seat.deckId));
-    seat.send({ type: "SetDeckSelection", deck_name: d.deckName, deck: d.deck, commander_name: d.commanderName });
+    const planes = game.planes && seat.color === game.planeSeat && !seat.harmless ? game.planes : null;
+    seat.send({ type: "SetDeckSelection", deck_name: d.deckName, deck: planes ? { ...d.deck, planes: planes.map(planeDeckCard) } : d.deck, commander_name: d.commanderName });
+    if (planes) { chat(`[MTG] Planechase: ${planes.length} planes and phenomena dealt to the planar decks.`); for (const n of planes) cachedImage(n); }
     seat.commanderNames = (d.deck.commanders || []).map((c) => c.identity?.name || c.name).filter(Boolean);
     (game.deckNames ??= new Set());
     for (const c of [...(d.deck.cards || []), ...(d.deck.commanders || [])]) game.deckNames.add(c.identity?.name || c.name);
@@ -1745,6 +1841,8 @@ function logSnapshot(pub, prev = null) {
       // (its owner by noteOwners: a battlefield card's own ownerId is its controller's, Kykar #12)
       if (c.identity) cards[c.id] = { zone: z.zone, name: c.isFaceDown ? "a face-down card" : c.identity.name, fd: !!c.isFaceDown,
         owner: ownerOf(c, z), ctl: c.controllerId || z.ownerId,
+        // (a plane or a phenomenon in a command zone: Planechase's lines)
+        ...(z.zone === "command" && (c.types || []).includes("Plane") ? { planar: "plane" } : z.zone === "command" && (c.types || []).includes("Phenomenon") ? { planar: "phenomenon" } : {}),
         // (what a creature can deal and has been dealt, for the damage lines: see damageNews)
         ...(c.damage > 0 ? { dmg: c.damage } : {}), ...((c.types || []).includes("Creature") && /^\d+$/.test(String(c.power ?? "")) ? { pw: Number(c.power) } : {}),
         ...(hasKeyword(c, "Lifelink") ? { ll: true } : {}), ...(hasKeyword(c, "Double Strike") ? { ds: true } : {}), ...(hasKeyword(c, "First Strike") ? { fs: true } : {}),
@@ -1881,7 +1979,9 @@ function logSnapshot(pub, prev = null) {
   const lands = Object.fromEntries((pub.players || []).map((p) => [p.id, p.landsPlayedThisTurn ?? null]));
   // (each player's marks, PLAYER_MARKS' values: the log says some when they change)
   const marks = Object.fromEntries((pub.players || []).map((p) => [p.id, trackMarks(p, pub).values]));
-  return { cards, counts, life, lands, stack, blocks, marks, turnRun: turnRuns(prev, marks, pub), turn: pub.turn, step: pub.step, active: pub.activePlayerId, day: pub.dayTime };
+  // (Planechase: the planes in play and the planar die's last roll, Forge's planar block; null in other games)
+  const planar = pub.planar ? { ids: (pub.planar.planeIds || []).map(String), controller: pub.planar.controllerId || null, roll: pub.planar.lastRoll || null } : null;
+  return { cards, counts, life, lands, stack, blocks, marks, turnRun: turnRuns(prev, marks, pub), turn: pub.turn, step: pub.step, active: pub.activePlayerId, day: pub.dayTime, planar };
 }
 // Whose turn another player runs: player id -> the controller, for a control that is a turn's (the TURN RUN BY label
 // and the "takes control of ...'s turn" line; any other control is said plainly, see PLAYER_MARKS' controlledBy). Forge
@@ -3492,6 +3592,19 @@ function logEvents(prev, cur, pub, facts = null) {
     const line = `${who(c.owner)} ventures into ${c.room} (${c.name})`;
     if (!out.includes(line) && !triggered.includes(line)) out.push(line);
   }
+  // (Planechase: the die's roll once, by its sequence number, whichever seat's board brings it; then the planeswalk it
+  // caused, or any other: by the planes in play changing, not by the plane card's zone, which follows the active
+  // player's command zone every turn)
+  if (cur.planar?.roll && cur.planar.roll.seq !== prev.planar?.roll?.seq) out.push(`${who(cur.planar.roll.playerId)} rolls the planar die: ${cur.planar.roll.result}`);
+  if (cur.planar && prev.planar && cur.planar.ids.join("|") !== prev.planar.ids.join("|")) {
+    const name = (id) => cur.cards[id]?.name || prev.cards[id]?.name || game.namesSeen?.get(id) || "a plane";
+    const left = prev.planar.ids.filter((id) => !cur.planar.ids.includes(id) && prev.cards[id]?.planar === "plane");
+    for (const id of cur.planar.ids.filter((x) => !prev.planar.ids.includes(x))) {
+      const by = who(cur.planar.controller || cur.active);
+      out.push(cur.cards[id]?.planar === "phenomenon" ? `${by} encounters ${name(id)}`
+        : `${by} planeswalks to ${name(id)}${left.length ? ` (from ${left.map(name).join(" and ")})` : ""}`);
+    }
+  }
   // (day and night: Brutal Cathar made it day with nothing shown or logged, playtest 2026-10-26)
   if (cur.day !== prev.day && (cur.day === "day" || cur.day === "night")) out.push(`It becomes ${cur.day}`);
   // ("White attacks Jace Beleren (AI 1) with Hero of Bladehold"; whom by the attack target Forge names, a planeswalker or
@@ -3834,6 +3947,10 @@ function sendTable() {
   const byId = cardIndex(pub);
   const views = seats.map((s) => cardIndex(s.board.state.gameView));
   for (const s of seats) noteTypes(s.board.state.gameView); // (before the stack below: its instants)
+  // (Planechase: the planes and phenomena in play come out of the command zones, which they follow the active player
+  // through, into the board's own planes list; the table draws them at its centre)
+  const planeCards = (pub.zones || []).filter((z) => z.zone === "command").flatMap((z) => (z.cards || []).filter(isPlanarCard));
+  const planeIds = new Set(planeCards.map((c) => c.id));
   const players = (pub.players || []).map((p) => {
     const own = seats.find((s) => s.slot === p.id)?.board.state.gameView;
     const command = zoneOf(pub, "command", p.id).cards;
@@ -3859,7 +3976,7 @@ function sendTable() {
       battlefield: zoneOf(pub, "battlefield", p.id).cards.map((c) => tableCard(c, { blockers, active: pub.activePlayerId, zone: "battlefield", views })),
       graveyard: zoneOf(pub, "graveyard", p.id).cards.map((c) => tableCard(c, { blockers, zone: "graveyard" })),
       exile: zoneOf(pub, "exile", p.id).cards.map((c) => tableCard(c, { blockers, zone: "exile" })),
-      command: command.map(toCard),
+      command: command.filter((c) => !planeIds.has(c.id)).map(toCard),
       ...dungeonRow(p, command),
     };
     // (the dungeon card's own label, its room, where it leads and the dungeons completed: dungeonRow)
@@ -3883,6 +4000,8 @@ function sendTable() {
   // counters, damage, ...) plus s:1 meaning "details as sent before". A reload (hello) or new game resends all.
   const { slim, statics } = slimmer(game);
   for (const pl of players) for (const z of ZONE_KEYS) if (pl[z]) pl[z] = pl[z].map(slim);
+  const planar = planarRow(pub);
+  const planes = planeCards.map((c) => slim({ ...toCard(c), ctl: planar?.controller || game.slotColor[c.controllerId] || null }));
   const stack = (pub.stack || []).map((s) => ({
     // (Forge's stack text names cards with its own number: "Change the text of Goblin King (37) by ...", hp-25 T5)
     // ("Ponder (18) - " in front, which the table's pop-up also cuts, goes first)
@@ -3907,6 +4026,7 @@ function sendTable() {
     ...(pub.dayTime === "day" || pub.dayTime === "night" ? { day: pub.dayTime } : {}), // (shown beside the turn on the table)
     winner: pub.winnerId ? game.slotColor[pub.winnerId] || nameOf(pub.winnerId) : null, players, stack, cards: statics,
     rewind, // restore points and the open vote (in the board update: a message of its own doubled the traffic)
+    ...(planes.length || planar ? { planes, planar } : {}), // (Planechase: planarRow)
     ...(game.fix ? { fix: fixState() } : {}), // (a manual fix under way, PLAN M7)
   };
   // An update identical to the last one costs TTS a decode and a redraw for nothing (and feeds its GC pauses).
@@ -5884,7 +6004,7 @@ function onPrompt(seat, prompt) {
       toOutput = (a) => ({ type: "mulliganPutBackDecision", cardIds: a });
       break;
     case "chooseAction": {
-      const actions = (input.actions || []).filter((a) => a.type !== "undoMana" && !a.isManaAbility);
+      const actions = planarActions((input.actions || []).filter((a) => a.type !== "undoMana" && !a.isManaAbility), gv, cname);
       if (process.env.MTG_TRACE) {
         const special = actions.filter((a) => (a.type === "cast" && a.mode?.type && a.mode.type !== "normal") || (a.type === "activateAbility" && /ninjutsu|web/i.test(a.description || "")));
         if (special.length) log(`special actions ${seat.color} (${gv.step}): ${special.map((a) => `${a.label || a.description} ${JSON.stringify(a.mode || {})}`).join(" | ")}`);
@@ -6033,10 +6153,10 @@ function onPrompt(seat, prompt) {
       ui = { title: forP ? `${nameOf(forP)}'s priority (you control)` : "Your priority", mode: "single", options: [{ id: "__pass", label: stackIds.length ? "Resolve" : "Next" },
         ...(stackIds.length ? [{ id: "__resolve", label: `Resolve all (${stackIds.length})` }] : []),
         { id: "__endturn", label: "End turn" }, ...actions.map((a) => ({
-        id: a.id, cardId: a.cardId, label: numbered(a.type === "cast" ? castLabel(a) : `${cname(a.cardId) || a.label || "Ability"}: ${undoublePlural(a.description || "ability", byId[a.cardId]?.text)}`, a.cardId, a.type === "activateAbility" && onBattlefield.has(a.cardId)),
+        id: a.id, cardId: a.cardId, label: numbered(a.type === "cast" ? castLabel(a) : a.planarRoll ? a.description : `${cname(a.cardId) || a.label || "Ability"}: ${undoublePlural(a.description || "ability", byId[a.cardId]?.text)}`, a.cardId, a.type === "activateAbility" && onBattlefield.has(a.cardId)),
         // (the ability alone, for the card's own buttons and menu: the table cut the name back off the label in two
         // places, structural review 2026-10-27)
-        ...(a.type === "activateAbility" ? { ab: displayText(undoublePlural(a.description || "ability", byId[a.cardId]?.text)) } : {}),
+        ...(a.type === "activateAbility" ? { ab: a.planarAb || displayText(undoublePlural(a.description || "ability", byId[a.cardId]?.text)) } : {}),
       })).filter((o) => o.label !== null), ...[...new Set(manaButtons.map((a) => a.cardId))].map((cid) => ({ id: `__mana:${cid}`, cardId: cid,
         label: manaButtonLabel(cname(cid), manaButtons.filter((m) => m.cardId === cid)) })), ...undos.map((a) => ({ id: a.id, cardId: a.cardId, label: `Untap ${cname(a.cardId)} (mana back)` }))] };
       toOutput = (a) => (a[0] === "__pass" ? { type: "pass" } : a[0] === "__endturn" ? (seat.endTurnAt = gv.turn, { type: "pass" })
@@ -8386,6 +8506,12 @@ function onTTS(m) {
     case "debug":
       onDebug(m);
       break;
+    case "planechase":
+      onPlanechase(m);
+      break;
+    case "planes":
+      onPlanes(m);
+      break;
     case "winner":
       onWinner(m.color, m.by);
       break;
@@ -8505,6 +8631,8 @@ const FIX_OPS = {
   // dungeons in a debug setup (docs/planechase-dungeon-engine-spec.md D4): no triggers, as every op here
   dungeon: { player: "player", name: "cardName", room: "cardName?" }, completedDungeon: { player: "player", name: "cardName" },
   initiative: { player: "player" },
+  // Planechase (spec P7): run after the plain ops, with triggers on, as the free plays are
+  planeswalk: { player: "player", name: "cardName" }, chaos: { player: "player" },
 };
 const FREE_OPS = new Set(["freeCast", "freeLand", "freeActivate"]);
 const FIX_KINDS = { hand: "fix from hand", board: "edit the board" };
@@ -8655,6 +8783,8 @@ function fixOps(list, pub, ownWords = false, kind = null) {
       dungeon: () => `${nameOf(op.player)} is in ${op.name}, ${op.room ? `room ${op.room}` : "no room yet"}`,
       completedDungeon: () => `${nameOf(op.player)} has completed ${op.name}`,
       initiative: () => `${nameOf(op.player)} takes the initiative`,
+      planeswalk: () => `${nameOf(op.player)} planeswalks to ${op.name}`,
+      chaos: () => `Chaos ensues for ${nameOf(op.player)}`,
     }[op.op]());
     ops.push(op);
   }
@@ -8910,6 +9040,7 @@ function scenarioProblem(scenario) {
     if (side.dungeon !== undefined && !(isPlain(side.dungeon) && typeof side.dungeon.name === "string" && (side.dungeon.room == null || typeof side.dungeon.room === "string"))) return `${who === "you" ? "" : `${who}: `}"dungeon" must be { "name": ..., "room": ... }.`;
   }
   if (scenario.initiative !== undefined && scenario.initiative !== "you" && !TABLE_COLORS.includes(scenario.initiative)) return '"initiative" must be "you" or a colour.';
+  if (scenario.planeswalk !== undefined && !(typeof scenario.planeswalk === "string" && scenario.planeswalk.trim())) return '"planeswalk" must be the name of a plane.';
   return null;
 }
 // one player's part of a scenario as manual-fix changes (the table's form: players by colour). midGame: typed during a
@@ -8966,6 +9097,9 @@ function debugList(scenario, color, pub, midGame = false) {
   // (who has the initiative: "you" or a colour at the table)
   const takes = scenario.initiative === "you" ? color : scenario.initiative;
   if (takes && Object.values(game.slotColor).includes(takes) && isPlaying(pub, slotOfColor(takes))) list.push({ op: "initiative", player: takes });
+  // (Planechase, the caller's: to a plane from a planar deck, by its name as Forge spells it; chaos on the plane in play)
+  if (typeof scenario.planeswalk === "string") list.push({ op: "planeswalk", player: color, name: planeNamed(scenario.planeswalk)?.name || scenario.planeswalk.trim() });
+  if (scenario.chaos === true) list.push({ op: "chaos", player: color });
   return list;
 }
 function onDebug(m) {

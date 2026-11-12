@@ -1,0 +1,6 @@
+{
+  "label": "Planechase P7 (a game with mtg planechase on): planeswalk to Interplanar Tunnel from a planar deck: its pick of five planes, then the planeswalk line and the new plane at the centre",
+  "lands": 0,
+  "keepHand": true,
+  "planeswalk": "Interplanar Tunnel"
+}

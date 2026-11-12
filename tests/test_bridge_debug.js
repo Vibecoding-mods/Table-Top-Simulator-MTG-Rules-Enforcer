@@ -32,6 +32,10 @@ const SCEN = {
     opponents: { dungeon: { name: "Dungeon of the Mad Mage" } } },
   "initiative-steal": { lands: 0, keepHand: true, initiative: "White" },
   "initiative-mine": { lands: 0, keepHand: true, initiative: "you" },
+  // (Planechase, spec P7: walk to a plane from a planar deck, make chaos happen; for a game with Planechase on)
+  "planes-walk": { lands: 0, keepHand: true, planeswalk: "Interplanar Tunnel" },
+  "planes-chaos": { lands: 0, keepHand: true, chaos: true },
+  badplaneswalk: { lands: 0, planeswalk: ["Akoum"] },
   baddungeon: { lands: 0, dungeon: "Lost Mine of Phandelver" },
   badcompleted: { lands: 0, completedDungeons: "Tomb of Annihilation" },
   badinitiative: { lands: 0, initiative: "Purple" },
@@ -89,7 +93,7 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     await say(h, "Blue", "../plain");
     await say(h, "Blue", "broken");
     const c = chats(h);
-    same("list: every scenario by name", c[0], "[MTG] Debug scenarios: an-token, badcompleted, baddungeon, badinitiative, badlands, badname, badside, badzone, bare, broken, defaults, dungeon-branch, initiative-mine, initiative-steal, nolands, nullfile, per-seat, plain, setup, twenty-mid. Use  mtg debug <name>  (mtg debug off).");
+    same("list: every scenario by name", c[0], "[MTG] Debug scenarios: an-token, badcompleted, baddungeon, badinitiative, badlands, badname, badplaneswalk, badside, badzone, bare, broken, defaults, dungeon-branch, initiative-mine, initiative-steal, nolands, nullfile, per-seat, plain, planes-chaos, planes-walk, setup, twenty-mid. Use  mtg debug <name>  (mtg debug off).");
     same("list: 'list' says the same", c[1], c[0]);
     ok("unknown: refused with the list", /^\[MTG\] No debug scenario "nosuch"\. Scenarios: an-token, badcompleted, baddungeon/.test(c[2]), c[2]);
     ok("a path is no name", /^\[MTG\] No debug scenario "\.\.\/plain"/.test(c[3]), c[3]);
@@ -186,6 +190,21 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     h.B.onPrompt(seat, prompt("chooseAction", PASS)); await h.flush();
     await say(h, "Blue", "initiative-mine");
     same("initiative: \"you\" is the caller", applies(h)[0]?.ops, [{ op: "initiative", player: "player-0" }]);
+  });
+  await run(async (h) => {
+    const seat = setup(h);
+    h.B.onPrompt(seat, prompt("chooseAction", PASS)); await h.flush();
+    await say(h, "Blue", "planes-walk");
+    await say(h, "Blue", "planes-chaos");
+    same("planes: a planeswalk, then chaos, as the caller", applies(h).map((a) => a.ops), [[{ op: "planeswalk", player: "player-0", name: "Interplanar Tunnel" }]]);
+    same("planes: said in chat", chats(h).filter((t) => t.startsWith("[MTG] Debug")).slice(0, 1), ['[MTG] Debug "planes-walk": Blue planeswalks to Interplanar Tunnel.']);
+  });
+  await run(async (h) => {
+    const seat = setup(h);
+    h.B.onPrompt(seat, prompt("chooseAction", PASS)); await h.flush();
+    await say(h, "Blue", "planes-chaos");
+    same("planes: chaos for the caller", applies(h)[0]?.ops, [{ op: "chaos", player: "player-0" }]);
+    same("planes: chaos said", chats(h).find((t) => t.startsWith("[MTG] Debug")), '[MTG] Debug "planes-chaos": Chaos ensues for Blue.');
   });
   // before a game: 20 lands for the caller and the dealt hand to the bottom, as before
   await run(async (h) => {
@@ -292,7 +311,7 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
   // a scenario of the wrong shape: refused when typed, never half set up (a "null" file left the fix stuck at pausing)
   await run(async (h) => {
     setup(h, { started: false });
-    for (const n of ["nullfile", "badlands", "badzone", "badside", "baddungeon", "badcompleted", "badinitiative"]) await say(h, "Blue", n);
+    for (const n of ["nullfile", "badlands", "badzone", "badside", "baddungeon", "badcompleted", "badinitiative", "badplaneswalk"]) await say(h, "Blue", n);
     same("wrong shapes: refused when typed, saying what", chats(h), [
       '[MTG] Scenario "nullfile": it must be one { ... } object.',
       '[MTG] Scenario "badlands": "lands" must be a number, a list of names, or counts by name.',
@@ -300,7 +319,8 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
       '[MTG] Scenario "badside": "opponents" must be a { ... } object.',
       '[MTG] Scenario "baddungeon": "dungeon" must be { "name": ..., "room": ... }.',
       '[MTG] Scenario "badcompleted": "completedDungeons" must be a list.',
-      '[MTG] Scenario "badinitiative": "initiative" must be "you" or a colour.']);
+      '[MTG] Scenario "badinitiative": "initiative" must be "you" or a colour.',
+      '[MTG] Scenario "badplaneswalk": "planeswalk" must be the name of a plane.']);
     const seat = setup(h);
     h.B.onPrompt(seat, prompt("mulligan", { mulliganCount: 0 }, 901)); await h.flush();
     same("wrong shapes: nothing waits for the next game", [responses(h).length, seat.prompt?.type], [0, "mulligan"]);
