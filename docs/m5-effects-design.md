@@ -370,7 +370,7 @@ wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not
   - Limits (MusicPlayer API):
     - one clip at a time, so a new sound cuts the last one;
     - when a clip ends, TTS goes on to the next track in the players' music library and plays it (live check
-      2026-11-11: "Simian zoo" started after a death sound). So ours plays with `repeat_track` on, and is paused 0.15 s
+      2026-11-11: "Simian zoo" started after a death sound). So ours plays with `repeat_track` on, and is paused 0.25 s (live, the pause came 0.18 s late)
       before its length runs out (`engineSoundLen`, else 2 s, the padded minimum). TTS gives no sign when a clip loops,
       so it has to be timed. The players' repeat setting comes back once the newest sound is done;
     - it waits until **every** player has loaded the clip, so the delay is unknown (real-table check 5: if it is

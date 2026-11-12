@@ -1966,7 +1966,8 @@ do
           if not ours() then return end
           if os.clock() - setAt > 2 then whenStarted() return end
           MusicPlayer.play()
-          Wait.time(finish, (engineSoundLen[key] or 2) - 0.15)
+          -- (0.25 s early: live, the pause came 0.18 s late, and past the end repeat starts the clip again)
+          Wait.time(finish, (engineSoundLen[key] or 2) - 0.25)
         end, function() return FX.sndSeq ~= seq or (ours() and MusicPlayer.loaded == true) end, 30, whenStarted)
       end)
       -- (a set that failed still gives the players' repeat setting back, verifier 2026-11-11)

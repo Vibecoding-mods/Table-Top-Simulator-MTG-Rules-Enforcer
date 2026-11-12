@@ -503,10 +503,10 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const v = (mark) => String(t.step(mark).value);
   const [play1] = at("plays", "play"), [pause1] = at("during", "pause");
   ok("clip end: repeat is on while ours plays", v("during").startsWith("true Play"), v("during"));
-  ok("clip end: ours is paused 1.85 s after it starts (a 2 s clip)", play1 > 0 && pause1 - play1 >= 109 && pause1 - play1 <= 113, JSON.stringify([play1, pause1]));
+  ok("clip end: ours is paused 1.75 s after it starts (a 2 s clip)", play1 > 0 && pause1 - play1 >= 103 && pause1 - play1 <= 107, JSON.stringify([play1, pause1]));
   ok("clip end: then repeat is off again, as the players had it, and the player paused", v("after") === "false Pause", v("after"));
   const [play2] = at("longer clip", "play"), [pause2] = at("longer clip", "pause");
-  ok("clip end: a 3 s clip (engineSoundLen) is paused 2.85 s after it starts", play2 > 0 && pause2 - play2 >= 169 && pause2 - play2 <= 173, JSON.stringify([play2, pause2]));
+  ok("clip end: a 3 s clip (engineSoundLen) is paused 2.75 s after it starts", play2 > 0 && pause2 - play2 >= 163 && pause2 - play2 <= 167, JSON.stringify([play2, pause2]));
   ok("clip end: the players' repeat on comes back on", v("repeat after") === "true" && at("repeat kept", "pause").length === 1, JSON.stringify([v("repeat after"), at("repeat kept", "pause")]));
   ok("clip end: a clip loaded more than 2 s late isn't played", at("late", "play").length === 0 && at("late", "setCurrentAudioclip").length === 1, JSON.stringify(t.fx("late").filter((l) => l.includes("Music"))));
   ok("clip end: once TTS starts the late clip itself, it is paused and repeat given back", at("tts starts it", "pause").length === 1 && v("late after") === "Pause true", JSON.stringify([at("tts starts it", "pause"), v("late after")]));
