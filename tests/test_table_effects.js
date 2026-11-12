@@ -511,6 +511,36 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("clip end: a clip loaded more than 2 s late isn't played", at("late", "play").length === 0 && at("late", "setCurrentAudioclip").length === 1, JSON.stringify(t.fx("late").filter((l) => l.includes("Music"))));
   ok("clip end: once TTS starts the late clip itself, it is paused and repeat given back", at("tts starts it", "pause").length === 1 && v("late after") === "Pause true", JSON.stringify([at("tts starts it", "pause"), v("late after")]));
 }
+// (verifier 2026-11-11) a set that throws still gives repeat back; a newer sound mid-play keeps the players' setting and
+// is the one paused; a clip still loading after the 30 s wait is paused once TTS starts it
+{
+  const s0 = base();
+  const s1 = clone(s0); s1.Blue.bf = s1.Blue.bf.filter((c) => c !== "b1"); s1.Blue.gy = ["b1"]; // death
+  const s2 = clone(s1); s2.White.life = 45; // lifegain, 1 s into the death sound
+  const s3 = clone(s2); s3.Blue.bf = s3.Blue.bf.filter((c) => c !== "b2"); s3.Blue.ex = ["b2"]; // exile
+  const s4 = clone(s3); s4.Blue.bf = s4.Blue.bf.filter((c) => c !== "b3"); s4.Blue.gy.push("b3"); // death
+  const L = (k) => `https://example.invalid/${k}.mp3`;
+  const t = run([
+    lua(`engineSounds.death = "${L("death")}" engineSounds.exile = "${L("exile")}" engineSounds.lifegain = "${L("lifegain")}" MusicPlayer.repeat_track = false return "picks"`, "picks"),
+    send(s0, "first board"),
+    send(s1, "older", 60), send(s2, "newer", 200),
+    lua(`return tostring(MusicPlayer.repeat_track) .. " " .. MusicPlayer.player_status`, "both done"),
+    lua(`MusicPlayer.realSet = MusicPlayer.setCurrentAudioclip MusicPlayer.setCurrentAudioclip = function() error("no player") end return "x"`, "broken"),
+    send(s3, "set throws", 30),
+    lua(`MusicPlayer.setCurrentAudioclip = MusicPlayer.realSet return tostring(MusicPlayer.repeat_track)`, "after throw"),
+    lua(`MusicPlayer.delay = 2000 return "x"`, "very slow"), send(s4, "still loading", 2100),
+    lua(`MusicPlayer.player_status = "Play" return tostring(MusicPlayer.repeat_track)`, "starts at last", 5),
+    lua(`return MusicPlayer.player_status .. " " .. tostring(MusicPlayer.repeat_track)`, "very late after"),
+  ]);
+  ok("clip end+: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const calls = (marks, call) => marks.flatMap((m) => t.fx(m)).filter((l) => l.includes(`"MusicPlayer.${call}"`));
+  const v = (mark) => String(t.step(mark).value);
+  const paused = calls(["older", "newer"], "pause");
+  ok("clip end+: a newer sound mid-play: only it is paused, once, on its own clip", paused.length === 1 && paused[0].includes(L("lifegain")), JSON.stringify(paused));
+  ok("clip end+: a newer sound mid-play: the players' repeat off comes back", v("both done") === "false Pause", v("both done"));
+  ok("clip end+: a set that throws gives repeat back", v("after throw") === "false", v("after throw"));
+  ok("clip end+: a clip still loading after 30 s is paused once TTS starts it, repeat given back", calls(["starts at last"], "pause").length === 1 && v("very late after") === "Pause false" && calls(["still loading"], "play").length === 0, JSON.stringify([calls(["starts at last"], "pause"), v("very late after"), calls(["still loading"], "play")]));
+}
 
 // the bursts (2026-11-11, docs/sounds.md "Bursts", design section 6): n of a kind on one board plays the largest
 // <kind>_x<N> at or under n (x2 x3 x4 x6 x8; wipe from x3), capped at x8; 1 plays the plain sound; still one clip per board
