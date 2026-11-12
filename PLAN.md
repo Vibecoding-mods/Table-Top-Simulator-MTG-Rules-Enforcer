@@ -205,11 +205,15 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   since 2026-11-11 (kw-17's boards did show it: the trigger, then the copy).
 - Live-check bugs (2026-11-07, tmp/live-checks/RESULTS.md). The bridge ones were fixed 2026-11-07 (33ffb05, 133f619)
   and checked again 2026-11-10: the turn header, "Skip ended" (and a rewind's step, fixed 2026-11-10), "Game over"
-  twice, forage's order, the Ring-bearer question, the timer warning, Done with too few cards (the renderer). Still
-  open: the mark labels' overlap and the Auto-resolve text (renderer), Mindslaver (harness).
+  twice, forage's order, the Ring-bearer question, the timer warning, Done with too few cards (the renderer). The mark
+  labels' overlap and the Auto-resolve text (renderer) are fixed in source, not yet seen live (below); Mindslaver
+  (harness) fixed.
   - a turn header lost after a cleanup discard: in `logEvents` the discard is put at index 0 but `attackAt` isn't
     shifted, so the attack splice deletes the header (`White discards Blasphemous Act`, "", `AI 1 draws a card`);
-  - two players' mark labels overlap under the life counters (TURN RUN BY WHITE over RING TEMPTED 2 SPEED 3);
+  - ✅ (in source) two players' mark labels overlap under the life counters (TURN RUN BY WHITE over RING TEMPTED 2 SPEED
+    3): since 56d7427 (2026-11-10) each mark is its own box down the inner corner of its owner's mat, inside that mat;
+    2026-11-12 tests/test_table_claims.js "marks fit" also checks every box of all four seats against every other in
+    world units, with the live case per seat. Not yet seen live with two seats' marks at once;
   - ✅ Mindslaver: the log and label say White controls AI 1's turn, but the AI still made AI 1's choices (harness);
     fixed by the controlling-seat routing (trek), confirmed live 2026-11-11 against a Forge AI: all 17 of the AI's
     questions in the controlled turn went to the controller (tests/live_mindslaver_ai_check.js). The release check's
@@ -221,7 +225,9 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
     2026-11-11, image `bugs1111`);
   - small: "Skip ended: combatBegin" uses Forge step names; "Game over" printed twice; forage log order and "with
     Treetop Sentries" twice; "Claim the Precious: choose a card"; the timer warning told to everyone; Done with too
-    few cards gives no message; the Auto-resolve button's text dim next to "Fix...".
+    few cards gives no message; ✅ the Auto-resolve button's text dim next to "Fix..." (fixed 9286aa0, seen white live
+    2026-11-12 batch 1). Batch 2's game showed no Auto-resolve button at all (no restore points, so no redraw after
+    the first board); fixed in source 2026-11-12 with a reset hiding it, test "Auto-resolve shown", not yet seen live.
 - ⬜ Slow-tail re-measure on a quiet PC. Offline findings and the live questions left: `docs/slow-tail-2026-11.md`.
 
 ## From the first friends game: done 2026-10-19 (tested live in single player)
