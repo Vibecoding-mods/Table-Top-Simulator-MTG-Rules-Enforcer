@@ -62,7 +62,8 @@ end
 -- ───────── card objects ─────────
 local function nickname(c)
   if c.n == nil then return "Face-down card" end
-  return c.n .. "\n" .. (c.tl or "") .. "\n" .. tostring(c.cmc or 0) .. "CMC"
+  -- (a two-faced card names both its faces, the one it shows first: docs/card-other-side-spec.md)
+  return c.n .. (c.n2 and (" // " .. c.n2) or "") .. "\n" .. (c.tl or "") .. "\n" .. tostring(c.cmc or 0) .. "CMC"
 end
 
 COMES_BACK = "Comes back when the card that exiled it leaves."
@@ -217,14 +218,34 @@ local function engineCardData(c, how)
   local face, back = hidden and ENGINE_BACK or (c.f or ENGINE_BACK), how == "search" and ENGINE_BACK or (c.b or ENGINE_BACK)
   local key = engineDeckKey(face, back)
   local own = how == nil
-  return {
+  local d = {
     Name = "Card", Nickname = nickname(c), Description = description(c), GMNotes = "engine:" .. tostring(c.id),
     Transform = FLAT, CardID = key * 100, Locked = own or nil, Tags = own and { "engine" } or nil,
     CustomDeck = { [key] = deckEntry(face, back) },
   }
+  -- A two-faced card on its own has a second TTS state, its other face (c.o2), to read and cast by
+  -- (docs/card-other-side-spec.md): behind it the plain back where state 1 has it (a hand: other players see only the
+  -- Magic back, either state), else state 1's face (its back is the other face, so flipping either shows the other).
+  -- Changing state is looking: the engine's card stays as it is. A member of a pile or the library has one state.
+  if own and not hidden and c.o2 ~= nil and c.o2 ~= face then
+    local back2 = back == c.o2 and face or back
+    local key2 = engineDeckKey(c.o2, back2)
+    d.States = { ["2"] = { Name = "Card", Nickname = d.Nickname, Description = d.Description, GMNotes = d.GMNotes, Transform = FLAT,
+      CardID = key2 * 100, Locked = d.Locked, Tags = { "engine" }, CustomDeck = { [key2] = deckEntry(c.o2, back2) } } }
+  end
+  return d
 end
 
 local function firstLine(s) return (tostring(s or ""):match("^[^\n]*") or "") end
+-- Is object o still the picture of board card c? Its name line as c's, or c's own name: the other face's name (n2)
+-- arriving after the card was drawn renames it, it doesn't replace it. A two-faced card drawn before its other side was
+-- known (or taken out of a pile, where cards have one state) is replaced to get its second state.
+function engineSameCard(o, c)
+  local line = firstLine(o.getName())
+  if line ~= firstLine(nickname(c)) and line ~= tostring(c.n) then return false end
+  if c.o2 ~= nil and c.o2 ~= c.f and c.n ~= nil and o.getStateId() == -1 then return false end
+  return true
+end
 
 -- seen: a board's render (its `seen` table), whose hand lists are asked once each and kept in engineHandCache until
 -- the next render. A render places each card once, so no card's hand changes before it is asked about; asking TTS
@@ -585,7 +606,7 @@ local function place(c, pos, rot, seen, handColor, meta)
     engineHeld[c.id] = nil
   end
   local o = engineObjs[c.id]
-  if o ~= nil and (o.isDestroyed() or firstLine(o.getName()) ~= firstLine(nickname(c)) or (c.f ~= nil and engineFace[c.id] ~= engineFaceKey(c))) then
+  if o ~= nil and (o.isDestroyed() or not engineSameCard(o, c) or (c.f ~= nil and engineFace[c.id] ~= engineFaceKey(c))) then
     -- the card changed identity (transformed, turned face up, ...) or its back (a double-faced card shows the plain
     -- back in a hand and its other face elsewhere): replace it
     if not o.isDestroyed() then engineDispose(o) end
@@ -1404,7 +1425,7 @@ function engineExpandUrl(u)
 end
 function engineFaceKey(c) return tostring(c.f) .. "|" .. tostring(c.b) end
 function engineStoreStatic(id, st)
-  st.f, st.b = engineExpandUrl(st.f), engineExpandUrl(st.b)
+  st.f, st.b, st.o2 = engineExpandUrl(st.f), engineExpandUrl(st.b), engineExpandUrl(st.o2)
   local old = engineStatic[id]
   if old ~= nil and old.tx ~= nil and st.tx == nil then st.tx = old.tx end
   engineStatic[id] = st
@@ -4929,10 +4950,19 @@ local function snapBack()
   if lastTable ~= nil then engineRender(lastTable) end
 end
 
-local function request(color, kind, id, obj)
+local function request(color, kind, id, obj, side)
   engineHeld[id] = os.clock()
   engineActedAt[color] = os.clock()
-  engineSend("intent", { color = color, kind = kind, id = id })
+  engineSend("intent", { color = color, kind = kind, id = id, side = side })
+end
+-- The side of a two-faced card its object shows (docs/card-other-side-spec.md): 1 the engine's face, 2 its other face,
+-- in state 2 or turned over (a card on its own shows its other face on its back, but in a hand); nil for a card with one
+-- face (no states). The bridge plays that side's way.
+function engineShownSide(obj, id)
+  if obj == nil or obj.isDestroyed() or obj.getStateId() == -1 then return nil end
+  local side = obj.getStateId() == 2 and 2 or 1
+  if engineFlipped[id] then side = 3 - side end
+  return side
 end
 
 function onObjectDrop(color, obj)
@@ -4955,7 +4985,7 @@ function onObjectDrop(color, obj)
       local real = id:match("^cast:%a+:(.+)$") or id -- (a stand-in for another player's hand card: engineCastId)
       engineManual[real] = onTable(obj.getPosition())
       engineManualPlay[real] = true -- (held there while it is cast; a land then goes to the mana box, layoutRow)
-      request(color, "play", real, obj)
+      request(color, "play", real, obj, engineShownSide(obj, id))
     elseif meta.zone == "hand" and area == "graveyard" then
       request(color, "discard", id, obj)
     elseif meta.zone == "hand" and area == "library" then
@@ -5275,7 +5305,9 @@ function enginePhase2Prompt(color)
   -- (no kind the table draws: the last question's ability buttons go, a click on one answered this question with an
   -- option of the same id, stage 3 review 2026-10-27)
   if kind == nil then if engineAbilityBoxes ~= nil then pcall(engineAbilityBoxes, color, nil, nil) end return end
-  for i, o in ipairs(p.options or {}) do
+  -- (a card's right-click list: a two-faced card's ways for the side it shows first, engineSideFirst; i is only read by
+  -- the other kinds, in the question's own order)
+  for i, o in ipairs(kind == "action" and engineSideFirst(p.options or {}) or (p.options or {})) do
     local id = tostring(o.id)
     if kind == "mana" and o.cardId ~= nil and startsWith(id, "tap:") then glowCard(color, o.cardId, GLOW.mana)
     elseif kind == "mana" and o.cardId ~= nil and startsWith(id, "untap:") then glowCard(color, o.cardId, GLOW.picked)
@@ -5847,6 +5879,50 @@ local function resyncSoon()
   Wait.frames(function() resyncQueued = false snapBack() end, 5)
 end
 
+-- ───────── a card's other side (docs/card-other-side-spec.md) ─────────
+-- A player turning a two-faced card to its other state (right-click, States) replaces its object: TTS destroys the old
+-- one and makes the state's. The new one becomes the card's object (no copy to throw away, nothing to spawn again),
+-- keeping the face recorded for it; its badges, lock, glow and right-click list are drawn again. Only for a card the
+-- table knows whose object is gone (or is the one TTS names as the old state): a pasted copy beside it is not adopted.
+-- True when obj is the card's object now.
+function engineAdoptState(obj, oldGuid)
+  if obj == nil or obj.isDestroyed() or not isEngineCard(obj) or obj.getStateId() == -1 then return false end
+  local id = engineIdOf(obj)
+  local old = engineObjs[id]
+  if old == obj then return true end
+  local meta = engineMeta[id]
+  if meta == nil or (old ~= nil and not old.isDestroyed() and (oldGuid == nil or old.getGUID() ~= oldGuid)) then return false end
+  local face = engineFace[id]
+  engineCardEntry(id, obj, nil)
+  engineFace[id] = face
+  Wait.frames(function()
+    if lastTable ~= nil then engineRender(lastTable) end
+    if meta.color ~= nil and enginePlayableGlow ~= nil then enginePlayableGlow(meta.color) end
+  end, 1)
+  return true
+end
+do
+  local before = onObjectStateChange
+  function onObjectStateChange(obj, oldGuid)
+    if ENGINE_MODE and lastTable ~= nil then engineAdoptState(obj, oldGuid) end
+    if before ~= nil then return before(obj, oldGuid) end
+  end
+end
+-- The options in the order a card's right-click list shows them: a two-faced card's ways for the side its object shows
+-- first (option.side, from the bridge), the others after; the list itself when no option names a side.
+function engineSideFirst(options)
+  local any = false
+  for _, o in ipairs(options) do if o.side ~= nil then any = true end end
+  if not any then return options end
+  local first, rest = {}, {}
+  for _, o in ipairs(options) do
+    local shown = o.side ~= nil and o.cardId ~= nil and engineShownSide(engineObjs[o.cardId], o.cardId) or nil
+    if shown ~= nil and shown ~= o.side then rest[#rest + 1] = o else first[#first + 1] = o end
+  end
+  for _, o in ipairs(rest) do first[#first + 1] = o end
+  return first
+end
+
 local tableObjectSpawn = onObjectSpawn
 function onObjectSpawn(obj)
   if ENGINE_MODE and lastTable ~= nil and isEngineCard(obj) then
@@ -5854,7 +5930,8 @@ function onObjectSpawn(obj)
     local deckId = id:find("^library:") or id:find("^graveyard:") or id:find("^exile:") or id == "trash"
     if not deckId and not engineSpawning[id] and engineObjs[id] ~= obj and not (engineSearchIds or {})[id] and not (engineInPile or {})[id] then
       Wait.frames(function()
-        if obj ~= nil and not obj.isDestroyed() and engineObjs[id] ~= obj then engineDispose(obj) end
+        -- (a card a player turned to its other state is kept, should TTS not say so itself: engineAdoptState)
+        if obj ~= nil and not obj.isDestroyed() and engineObjs[id] ~= obj and not engineAdoptState(obj) then engineDispose(obj) end
         resyncSoon()
       end, 1)
     end
