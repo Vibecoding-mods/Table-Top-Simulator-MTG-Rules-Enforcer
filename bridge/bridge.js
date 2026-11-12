@@ -460,16 +460,102 @@ const BASICS = new Set(["plains", "island", "swamp", "mountain", "forest", "wast
 const readyDecks = {}; // color → { deckName, cards, commanders, images }
 const asList = (x) => (Array.isArray(x) ? x : x && typeof x === "object" ? Object.values(x) : []);
 
+// Cards printed in another language (2026-11-12: a deck's "アクローマの意志" and "嵐の伝導者、ラル" were unknown to the
+// engine, which has English names only). Scryfall gives the English name: by the printing's id, which the card's face
+// picture link holds (the importer's img.klrmngr.com and Scryfall's own CDN both name the picture by it), else by a
+// search on the printed name in any language. Found names are kept in foreign-names.json, a miss for this run only.
+const FOREIGN_FILE = path.join(__dirname, "foreign-names.json");
+let foreignNames = null; // "id:<printing id>" or "name:<normName of the printed name>" → English name
+const foreignMissed = new Set(); // keys Scryfall answered with no card, this run
+let foreignQueue = Promise.resolve(); // one lookup at a time: a second Ready finds the first one's answers
+const PRINTING_ID = /\/(?:front|back)\/[0-9a-f]\/[0-9a-f]\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.[a-z]+(?:\?|$)/i;
+function foreignCache() {
+  if (!foreignNames) {
+    foreignNames = Object.create(null); // (no prototype: see forgeIndex)
+    try { Object.assign(foreignNames, JSON.parse(fs.readFileSync(FOREIGN_FILE, "utf8"))); }
+    catch (e) { if (e.code !== "ENOENT") log(`foreign-names.json unreadable, starting empty: ${e.message}`); }
+  }
+  return foreignNames;
+}
+function foreignKeys(c) {
+  const id = PRINTING_ID.exec(String(c.f || ""))?.[1];
+  return { id: id ? `id:${id.toLowerCase()}` : null, name: `name:${normName(c.n)}` };
+}
+function englishName(c) {
+  const cache = foreignCache(), k = foreignKeys(c);
+  return (k.id && cache[k.id]) || cache[k.name] || null;
+}
+// the decks' cards the engine doesn't know that Scryfall can still be asked about
+function foreignToAsk(seats) {
+  const index = forgeIndex(), out = [];
+  for (const entry of Object.values(seats)) {
+    for (const c of [...asList(entry?.commander), ...asList(entry?.library)]) {
+      if (!c?.n || index[normName(c.n)] || englishName(c)) continue;
+      const k = foreignKeys(c);
+      if ((k.id && !foreignMissed.has(k.id)) || !foreignMissed.has(k.name)) out.push(c);
+    }
+  }
+  return out;
+}
+// Asks Scryfall for the English names of `cards`: the ids in batches of 75, then the rest by printed name one at a time,
+// ~8 requests a second. A request that fails (no network, 429, 5xx) stops the lookup and remembers nothing, so the next
+// Ready asks again; the deck check then says what it said before.
+async function lookUpForeign(cards) {
+  const cache = foreignCache();
+  const headers = { Accept: "application/json", "User-Agent": "mtg-tts-bridge" };
+  const pause = () => new Promise((r) => setTimeout(r, 120));
+  const ask = (url, o = {}) => fetch(url, { ...o, headers: { ...headers, ...o.headers }, signal: AbortSignal.timeout(10000) }).catch(() => null);
+  let found = 0;
+  const ids = [...new Set(cards.map((c) => foreignKeys(c).id).filter((k) => k && !cache[k] && !foreignMissed.has(k)))];
+  for (let i = 0; i < ids.length; i += 75) {
+    const batch = ids.slice(i, i + 75);
+    const res = await ask("https://api.scryfall.com/cards/collection", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifiers: batch.map((k) => ({ id: k.slice(3) })) }) });
+    await pause();
+    // (400: a link's id that is no Scryfall id spoils the batch; those cards are asked by name below)
+    if (!res || (!res.ok && res.status !== 400)) { log(`Scryfall foreign names: ${res ? `HTTP ${res.status}` : "unreachable"}`); return found; }
+    const data = res.ok ? (await res.json()).data || [] : [];
+    for (const card of data) if (card?.id && card.name) { cache[`id:${String(card.id).toLowerCase()}`] = card.name; found++; }
+    for (const k of batch) if (!cache[k]) foreignMissed.add(k);
+  }
+  const byName = new Map();
+  for (const c of cards) { const k = foreignKeys(c).name; if (!englishName(c) && !foreignMissed.has(k)) byName.set(k, String(c.n)); }
+  for (const [k, printed] of byName) {
+    const q = `!"${printed.replace(/["\\]/g, "")}" lang:any`;
+    const res = await ask(`https://api.scryfall.com/cards/search?include_multilingual=true&q=${encodeURIComponent(q)}`);
+    await pause();
+    // (404: no such card; 400: a name Scryfall's search can't read. Either way not this name again this run)
+    if (res && (res.status === 404 || res.status === 400)) { foreignMissed.add(k); continue; }
+    if (!res || !res.ok) { log(`Scryfall foreign names: ${res ? `HTTP ${res.status}` : "unreachable"}`); break; }
+    const card = (await res.json()).data?.[0];
+    if (card?.name) { cache[k] = card.name; found++; } else foreignMissed.add(k);
+  }
+  if (found) {
+    const tmp = `${FOREIGN_FILE}.tmp`;
+    fs.writeFile(tmp, JSON.stringify(cache, null, 1), (e) => {
+      if (e) return log(`foreign-names.json not saved: ${e.message}`);
+      fs.rename(tmp, FOREIGN_FILE, (e2) => { if (e2) log(`foreign-names.json not saved: ${e2.message}`); });
+    });
+  }
+  return found;
+}
+
 function checkDeck(color, entry) {
   const index = forgeIndex();
   const unknown = [];
   const commanders = [];
   const cards = [];
+  const translated = new Map(); // printed name → engine name (foreign printings, see foreignKeys)
   // engine name → the table's own pictures of it, one per printing in the deck (a deck with three Plains printings keeps
   // all three; imagesFor gives each engine card one of them)
   const images = {};
   const resolve = (c) => {
-    const name = index[normName(c.n)];
+    let name = index[normName(c.n)];
+    if (!name) {
+      const english = englishName(c);
+      name = english ? index[normName(english)] : null;
+      if (name) translated.set(String(c.n), name);
+    }
     if (!name) { unknown.push(c.n || "(unnamed card)"); return null; }
     const list = (images[name] ??= []);
     if (!list.some((i) => i.face === (c.f || null))) list.push({ face: c.f || null, back: c.b || null });
@@ -492,21 +578,41 @@ function checkDeck(color, entry) {
   if (extras.length) warnings.push(`more than one copy of: ${extras.slice(0, 5).join(", ")}${extras.length > 5 ? " ..." : ""} (fine only if the card allows it)`);
 
   const label = `${color}${entry.deckName ? ` (${entry.deckName})` : ""}`;
+  const names = [...translated].map(([p, n]) => `${p} → ${n}`);
+  const foreign = names.length ? `\nForeign names: ${names.slice(0, 8).join(", ")}${names.length > 8 ? `, and ${names.length - 8} more` : ""}` : "";
   if (problems.length) {
     delete readyDecks[color];
-    chat(`[MTG] ${label}: not ready.\n- ${problems.join("\n- ")}${warnings.length ? `\nAlso: ${warnings.join("; ")}` : ""}`, color);
+    chat(`[MTG] ${label}: not ready.\n- ${problems.join("\n- ")}${warnings.length ? `\nAlso: ${warnings.join("; ")}` : ""}${foreign}`, color);
     return false;
   }
   readyDecks[color] = { deckName: entry.deckName || `${color}'s deck`, cards, commanders, images };
   checkDeckImages(images);
-  chat(`[MTG] ${label}: ready. ${cards.length} cards + commander ${commanders.join(" & ")}; every card is known to the engine.${warnings.length ? `\nCheck: ${warnings.join("; ")}` : ""}`, color);
+  chat(`[MTG] ${label}: ready. ${cards.length} cards + commander ${commanders.join(" & ")}; every card is known to the engine.${warnings.length ? `\nCheck: ${warnings.join("; ")}` : ""}${foreign}`, color);
   log(`${color} deck ready: ${total} cards, commander ${commanders.join(" & ")}`);
   return true;
 }
 
-function onDecks(m) {
-  const seats = m.seats && typeof m.seats === "object" ? m.seats : {};
+// colour → how many deck checks it has had: a check waiting on Scryfall is dropped for a colour checked since (another
+// deck readied meanwhile) or reset (mtg reset), so it never puts back a deck that is no longer the one on the table
+const deckGen = {};
+function onDecks(m, looked = false) {
+  let seats = m.seats && typeof m.seats === "object" ? m.seats : {};
+  if (looked) seats = Object.fromEntries(Object.entries(seats).filter(([c]) => deckGen[c] === looked[c]));
+  else for (const c of Object.keys(seats)) deckGen[c] = (deckGen[c] || 0) + 1;
   const colors = Object.keys(seats);
+  if (looked && !colors.length) return;
+  // cards the engine doesn't know may be foreign printings: Scryfall is asked first, then the decks are checked. The
+  // table is answered now (its "no answer from the bridge" warning comes after 4 s), the Ready buttons after the check.
+  const ask = looked ? [] : foreignToAsk(seats);
+  if (ask.length) {
+    chat(`[MTG] Looking up ${ask.length} card name(s) the engine doesn't know on Scryfall (printed in another language?)...`, colors.length === 1 ? colors[0] : null);
+    for (const c of colors) delete readyDecks[c]; // (a deck readied before isn't the one being checked: not for a Start meanwhile)
+    toTTS({ t: "deckReport", request: m.request, ready: [], checked: [] });
+    const gens = Object.fromEntries(colors.map((c) => [c, deckGen[c]]));
+    foreignQueue = foreignQueue.then(() => lookUpForeign(ask)).catch((e) => log(`Scryfall foreign names: ${e.message}`))
+      .then(() => guarded("decks after the name lookup", () => onDecks({ ...m, seats, request: -1 }, gens)));
+    return;
+  }
   const ok = colors.filter((c) => checkDeck(c, seats[c]));
   if (colors.length > 1) chat(`[MTG] Decks ready: ${ok.length}/${colors.length}${ok.length ? ` (${ok.join(", ")})` : ""}.`);
   toTTS({ t: "deckReport", request: m.request, ready: ok, checked: colors });
@@ -8689,9 +8795,26 @@ function restartRoom(then) {
 }
 
 // ───────────────────────── TTS commands ─────────────────────────
+// A card name the table read can arrive as its UTF-8 bytes, one character each: "アクローマの意志" came as
+// "ã\u0082¢ã\u0082¯…" (2026-11-12; tmp/table-log.log holds those characters, UTF-8 encoded once more). Both of the
+// bridge's ports decode UTF-8 correctly (tests/test_foreign_names.js), so the bytes were made characters inside TTS,
+// whose Lua strings are UTF-16: its JSON.lua turns a \uXXXX escape into UTF-8 bytes, one character each.
+// A string of only U+0000-U+00FF whose bytes are valid UTF-8 with a multi-byte character is read as that UTF-8; a
+// real Latin-1 name ("Séance": é followed by a letter) is not valid UTF-8 and stays as it is.
+const UTF8_AS_LATIN1 = /[Â-ô][\u0080-¿]/;
+const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+function fromUtf8Bytes(s) {
+  if (!UTF8_AS_LATIN1.test(s) || /[^\u0000-ÿ]/.test(s)) return s;
+  try { return utf8Decoder.decode(Buffer.from(s, "latin1")); } catch { return s; }
+}
+const tableText = (k, v) => (typeof v === "string" ? fromUtf8Bytes(v) : v);
 function onTTS(m) {
   ttsSaw(true); ttsLink.tableAt = Date.now();
-  if (typeof m.json === "string") { try { m = { ...JSON.parse(m.json), t: m.t }; } catch { return log(`bad json payload for ${m.t}`); } }
+  if (typeof m.json === "string") {
+    // (the reviver only for a text that may hold such characters, raw or escaped)
+    const latin = /[\u0080-ÿ]|\\u00[89a-f]/i.test(m.json);
+    try { m = { ...JSON.parse(m.json, latin ? tableText : undefined), t: m.t }; } catch { return log(`bad json payload for ${m.t}`); }
+  }
   const said = tlogIn(m);
   if (said) tlog(m.color, said);
   switch (m.t) {
@@ -8763,6 +8886,7 @@ function onTTS(m) {
       break;
     case "reset":
       for (const c of Object.keys(readyDecks)) delete readyDecks[c]; // the next game reads decks from the table again
+      for (const c of Object.keys(deckGen)) deckGen[c]++; // (and a check waiting on Scryfall is dropped)
       if (roomRestarting) { chat("[MTG] Already restarting the Forge room, one moment..."); break; }
       resetGame("Resetting: restarting the Forge room, ~10 s...");
       restartRoom(null);

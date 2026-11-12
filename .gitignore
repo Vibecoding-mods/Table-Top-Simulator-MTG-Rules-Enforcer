@@ -9,6 +9,7 @@ research_notes/
 
 # Bridge caches (rebuilt automatically on first use)
 bridge/image-cache*.json
+bridge/foreign-names.json*
 bridge/tts-console.log
 bridge/*.mutant.js
 bridge/latency-*.csv
