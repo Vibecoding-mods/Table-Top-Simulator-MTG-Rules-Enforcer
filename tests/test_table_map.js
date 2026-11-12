@@ -10,7 +10,11 @@ let failed = 0, passed = 0;
 const ok = (name, cond, why) => { if (cond) passed++; else { failed++; console.log(`FAIL ${name}${why ? `: ${why}` : ""}`); } };
 
 const camel = (s) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-const protocol = read("manabrew/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs");
+// (MTG_MANABREW: the manabrew tree the engine going out was built from, when the shared checkout is older than it;
+// the protocol's fields are the engine's, so the map is held to that engine's)
+const protocol = process.env.MTG_MANABREW
+  ? fs.readFileSync(path.join(process.env.MTG_MANABREW, "manabrew-rs/crates/manabrew-protocol/src/game/mod.rs"), "utf8").replace(/\r\n/g, "\n")
+  : read("manabrew/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs");
 const struct = (name) => {
   const at = protocol.indexOf(`pub struct ${name} `);
   return at < 0 ? "" : protocol.slice(at, protocol.indexOf("\n}\n", at));
