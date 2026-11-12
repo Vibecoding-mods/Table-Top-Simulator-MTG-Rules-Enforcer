@@ -98,9 +98,14 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   mill was held face up in the air a quarter of the way to the graveyard until Auto let it go ~2 s later (a click on
   it let it go at once). Now, with Auto on, mills aren't held: they fly to the graveyard as stand-ins, like an AI's;
   Auto off keeps the hold. To see on the next real-table session.
-- ⬜ Custom card art (docs/custom-art-spec.md): the user said yes to every default (2026-11-11). Order: first check on
-  the real table whether a plain card's link already keeps its picture in engine mode; then the plain-cards slice;
-  DFC backs later. Art for game-made tokens and the AI's decks: a later item.
+- 🔶 (source) Custom card art (docs/custom-art-spec.md): the user said yes to every default (2026-11-11). The
+  plain-cards slice is built in source 2026-11-12, not deployed, not seen live: one picture per card name per owner
+  (the first link; basics mix), the link checks (https, png/jpg/jpeg/webp, 500 characters, no quotes or spaces; a bad
+  one falls back with a chat line naming the card), the `mtg ready` lines ("Sol Ring: your picture on all 1 copies"),
+  the host's `mtg art off|on` (kept in the resume file), tests/test_bridge_custom_art.js and a table claim. Still to
+  do: the real-table check (a plain card's link in engine mode, every zone, another seat), then DFC backs; art for
+  game-made tokens and the AI's decks is a later item. The importer itself is unchanged (no second link, no import-time
+  checks).
 - 🔶 (source) Cost badge (docs/cost-badge-spec.md): the user's design, a counter-token look (like the Mindsplice app's
   counters) covering the colorless number with the new total. Phase 1 built 2026-11-11, no engine change: the bridge
   passes Forge's effectiveManaCost as ec (with the printed mc; a commander's tax from commanderTax while no

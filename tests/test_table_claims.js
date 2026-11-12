@@ -3392,5 +3392,23 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("token stacks: four Soldiers free in one stack, two blocking on their own; four Zombies free, two blocked", v(r2, "soldiers 3") === "3:1,1,4" && v(r2, "zombies 3") === "3:1,1,4", `${v(r2, "soldiers 3")} / ${v(r2, "zombies 3")}`);
   ok("token stacks: the answer's blocks and lines stay until the next board", v(r2, "lines held") === "2" && v(r2, "soldiers held") === "3:1,1,4", `${v(r2, "lines held")} ${v(r2, "soldiers held")}`);
 }
+// "mtg art off|on": the players' own card pictures for everyone, the host's switch (docs/custom-art-spec.md; the bridge's
+// customArt). Anyone else is told it's the host's, and nothing goes to the bridge.
+{
+  const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  const told = (r, mark) => fxOf(r, mark).filter((l) => !l.includes("WebRequest")).join(" ");
+  const r = simulate({ save, seated: ["Blue", "White"], host: "Blue", steps: [{ lua: "setEngineMode(true)", frames: 30 },
+    q('return tostring(engineChat("mtg art off", Player.White))', "White off"),
+    q('return tostring(engineChat("mtg art off", Player.Blue))', "host off"),
+    q('return tostring(engineChat("mtg art on", Player.Blue))', "host on"),
+    q('return tostring(engineChat("mtg art maybe", Player.Blue))', "host other")] });
+  ok("precondition: no errors", !r.errors.length, r.errors.join(" | "));
+  ok("art switch: a non-host is told it's the host's, and nothing is sent", /Only the host can switch custom card art/.test(told(r, "White off")) && !/"art"|t=art|art/.test(sent(r, "White off")),
+    JSON.stringify(fxOf(r, "White off").slice(0, 3)));
+  ok("art switch: the host's off goes to the bridge", /art/.test(sent(r, "host off")) && /false/.test(sent(r, "host off")), sent(r, "host off").slice(0, 300));
+  ok("art switch: the host's on goes to the bridge", /art/.test(sent(r, "host on")) && /true/.test(sent(r, "host on")), sent(r, "host on").slice(0, 300));
+  ok("art switch: anything else says how, and sends nothing", /mtg art off/.test(told(r, "host other")) && !/art/.test(sent(r, "host other")), JSON.stringify(fxOf(r, "host other").slice(0, 3)));
+  ok("art switch: the chat line is hidden (handled)", ["White off", "host off", "host on", "host other"].every((m) => valueOf(r, m) === "false"), JSON.stringify(["White off", "host off"].map((m) => valueOf(r, m))));
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);
