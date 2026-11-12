@@ -17,10 +17,10 @@ index b363b43..024629b 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..8e46b5e 100644
+index 54173c6..dc27066 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
-@@ -74,18 +74,24 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
+@@ -74,18 +74,28 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
  The node can opt into `checkpointMetrics` on its internal start request. `recordCheckpoint` records copy and bookkeeping nanoseconds only for successful checkpoints. The session owns the samples; `drainCheckpointMetrics` serializes and clears them under the same lock used to append. WASM games also enable collection: `WasmMain` supplies a session drain to `SabTransport`, which posts `forge:checkpoints` before each new prompt and at game end. `forge:decision.checkpointMs` accumulates checkpoints across bot prompts within the same human-response window. Keep checkpoint instrumentation separate from per-viewer board snapshot timing.
  
  
@@ -45,10 +45,14 @@ index 54173c6..8e46b5e 100644
 +
 +`Player.addController` gives a controlled player a controller made by the controlling player's lobby player, so an interactive seat that takes control of a Forge AI seat (Mindslaver) answers through `ManaBrewInteractiveController` under the AI's seat index. `publishAgentPrompt` therefore names the seat that decides, not the seat the question is about: `controllingSeat` follows `getControllingPlayer` up the chain (A controls B who controls C: C's questions go to A, since A makes every decision B would make) and stops at a controller whose original lobby player is not a `ManaBrewInteractiveLobbyPlayer` (a Forge AI cannot answer a prompt, so the question stays with the last interactive seat) or at a player it has already visited (two players controlling each other). `promptedPlayerIndex` follows `decidingPlayerId`: the browser bridge exchanges with the controlling seat, and it is the controlling seat's concede, not the controlled player's, that turns the open prompt into a pass. `MindslaverControlTest` pins one-level, nested, AI-topped and looping control.
 +
++### The attackers prompt carries Forge's taxes, refusals and limits
++
++`publishAttackersPrompt` fills, from Forge's own combat rules rather than card text: each attacker's `costs`, one per legal defender with a cost (`CombatUtil.getAttackCost`'s total as `Cost.toSimpleString`, plus the statics whose `getAttackCost` is not null as `sourceIds`/`sourceNames`); `unavailable`, one entry per creature that can't attack at all (no `defenderId`) or can't attack one defender, with the first reason in `CombatUtil.canAttack`'s own order (`tapped`, `phasedOut`, `summoningSick`, `goaded`, `keyword`, `detained`, `defender`, `static` with its source, else `other`); and `limits`, one per `AttackRestrict` static (`max`, and `defenderId` when it has `ValidDefender`). A rule hosted on an immutable effect card is named after `getEffectSource`, so War Tax's effect reads War Tax. `unavailable` and `limits` are always serialized, even empty, so a client can tell this engine from one that sends neither.
++
  ## Typed prompt emission (compile-time protocol check)
  
  The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the source of truth: `scripts/gen-harness-prompts.mjs` reads its generated TS bindings and emits one Java class per prompt input + referenced shared type into `forge-harness/src/main/java/forge/harness/protocol/` (package `forge.harness.protocol.*`), each baking in its own `type` discriminator. `scripts/harness.mjs` regenerates them before every build. The package is generated, gitignored (`forge-harness/.gitignore`), and lives under the standard `src/main/java` root on purpose: m2e/JDTLS has no build-helper connector, so an out-of-tree generated-sources dir never lands on the IDE classpath. Never hand-edit anything in this package.
-@@ -94,7 +100,9 @@ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the
+@@ -94,7 +104,9 @@ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the
  
  `publishAgentPrompt` resolves an omitted source from the currently resolving stack item. It emits `sourceAbilityText` from that stack ability, or from `castingAbility` during cast-time prompts, only when the ability host matches an explicit source. Keep this centralized fallback: Forge callbacks such as `arrangeForScry`, `arrangeForSurveil`, and `reveal` do not receive the originating `SpellAbility`, but their prompts still need the source card and ability in the envelope. Prompts outside stack resolution remain source-less unless their caller provides a source explicitly, and unmatched abilities remain absent rather than being misattributed.
  
