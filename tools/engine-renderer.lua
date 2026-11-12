@@ -4566,8 +4566,10 @@ engineRewind = nil
 local rewindSig = nil
 function engineRewindUpdate(r, gameOver)
   engineRewind = r
-  -- (a plain string, not JSON.encode: cheap, and nothing here can trip TTS's encoder)
-  local parts = { tostring(gameOver) }
+  -- (a plain string, not JSON.encode: cheap, and nothing here can trip TTS's encoder. With whether a board has come:
+  -- the Auto-resolve button drawn here shows only in a game, and a redraw of the panels before the first board read
+  -- gameOver false too, so a game without restore points never showed it, live check batch 2, 2026-11-12)
+  local parts = { tostring(gameOver) .. "|" .. tostring(lastTable ~= nil) }
   for _, pt in ipairs((r and r.points) or {}) do parts[#parts + 1] = tostring(pt.id) .. "=" .. tostring(pt.label) end
   local v0 = r and r.vote
   if v0 ~= nil then parts[#parts + 1] = table.concat({ tostring(v0.id), tostring(v0.status), tostring(v0.by), tostring(v0.byColor), tostring(v0.to), table.concat(v0.waiting or {}, ","), tostring(v0.note), tostring(v0.go) }, "|") end
@@ -4577,7 +4579,8 @@ function engineRewindUpdate(r, gameOver)
   local v = r and r.vote
   for c in pairs(engineColors) do
     if Player[c] ~= nil and Player[c].seated then
-      if engineAutoResolveDraw ~= nil then engineAutoResolveDraw(c) end
+      -- (gameOver too: a reset draws this while lastTable is still the ended game's)
+      if engineAutoResolveDraw ~= nil then engineAutoResolveDraw(c, gameOver) end
       local has = r ~= nil and r.points ~= nil and #r.points > 0 and not gameOver
       setAttr("eng_undo_" .. c, "active", has and "true" or "false")
       -- (the Undo tab follows the points: listed again, or shut once there are none)
@@ -4641,8 +4644,9 @@ function engineAutoListDraw()
   if #v > 0 then setAttr("eng_autolist", "visibility", table.concat(v, "|")) end
   setAttr("eng_autolist", "active", #v > 0 and "true" or "false")
 end
-function engineAutoResolveDraw(c)
-  local inGame, skip = lastTable ~= nil and not lastTable.gameOver, engineSkipTo[c]
+-- (over: the caller knows the game is over, engineRewindUpdate at a reset)
+function engineAutoResolveDraw(c, over)
+  local inGame, skip = lastTable ~= nil and not lastTable.gameOver and not over, engineSkipTo[c]
   local label = engineAutoResolve[c] and "Auto-resolve: on" or "Auto-resolve: off"
   for _, ch in ipairs(engineAutoChoices) do if ch[1] == skip then label = ch[2] end end
   setAttr("eng_autores_" .. c, "active", inGame and "true" or "false")

@@ -80,6 +80,14 @@ the script last set, else the one written in the XML (recorded per button id whe
 the element itself, later redraws keep it. Buttons set directly with `UI.setAttribute` (Scoop) go through `setButton`. The fake TTS now
 copies the behaviour (section 6), so a button drawn grey or with a dark label fails a test.
 
+Seen live: on the 2026-11-12 batch 1 table (shots/b1-01-start.jpg) Auto-resolve's label is as white as Fix's, on the
+same #1A1A1A. The same day's batch 2 game showed no Auto-resolve button at all: it is drawn from
+`engineRewindUpdate`, which redraws only when its signature changes, and the panels' redraw before the first board
+left the signature a board without restore points has (`false`), so a game whose bridge sent no restore points never
+showed it. Since 2026-11-12 the signature also says whether a board has come, and a reset hides the button (it was
+drawn while `lastTable` was still the ended game's). Checked in tests/test_table_claims.js "Auto-resolve shown"; not
+yet seen live.
+
 ### 2.2 The floating black boxes
 
 `eng_cover_1..3` are near-black panels (#14161C) the table puts over TTS's own tool bars while a game runs, so the
