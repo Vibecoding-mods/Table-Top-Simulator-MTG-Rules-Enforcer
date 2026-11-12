@@ -1008,6 +1008,20 @@ for (const kind of ["Land", "Creature"]) {
   }
   ok("button colours: every button checked", parts.length === 7, String(valueOf(r, "drawn")));
 }
+// Auto-resolve shows by itself in a game with no restore points, read as clearly as Fix beside it, and goes with a reset
+// (live check batch 2, 2026-11-12: a game whose bridge sent no restore points never showed it, as the panels' redraw
+// before the first board left the rewind signature the first board had; a reset mid-game left it showing). No
+// engineAutoResolveDraw by hand here: the 1v1 prefix's boards carry no rewind.
+{
+  const st = (mark) => q('return tostring(UI.getAttribute("eng_autores_Blue", "active")) .. "|" .. __sim.drawn("eng_autores_Blue") .. "|" .. tostring(UI.getAttribute("eng_fixcall_Blue", "active")) .. "|" .. __sim.drawn("eng_fixcall_Blue")', mark);
+  const r = run([{ frames: 30 }, st("in game"), { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 90 }, st("after reset")]);
+  const [act, bg, fg, fixAct, fixBg, fixFg] = String(valueOf(r, "in game")).split("|");
+  const light = (c) => /^#F[EF]F[EF]F[EF]$/i.test(c);
+  ok("Auto-resolve shown: no errors", r.errors.length === 0, r.errors.join(" | "));
+  ok("Auto-resolve shown: in a game without restore points, beside Fix", act === "true" && fixAct === "true", String(valueOf(r, "in game")));
+  ok("Auto-resolve shown: drawn like Fix, a light label on the same dark background", light(fg) && light(fixFg) && bg === fixBg, String(valueOf(r, "in game")));
+  ok("Auto-resolve shown: gone after a reset in the middle of the game", String(valueOf(r, "after reset")).split("|")[0] === "false", String(valueOf(r, "after reset")));
+}
 // The dock and the tabbed window (batch B, docs/engine-ui-spec.md 3): Choices, Graveyards, Undo, Settings are tabs of one
 // window, the open one gold; clicking the open side tab goes back to what was open before; Undo and Settings are lists in
 // the window's answer buttons (their own panels are gone); only the open tab's content shows.
@@ -1865,7 +1879,9 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const SEATS = { "23e485": "White", "448880": "Red", "37e533": "Yellow", "395037": "Blue" };
   const PER = 480, ICON = 0.6, TOP = 2.1, GAP = 60, COL0 = 10.75, TAPPED = 1.53;
   const geo = 'local out = {} for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, boxes = {} } for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then row.boxes[#row.boxes + 1] = { label = b.label, w = b.width, h = b.height, f = b.font_size, bx = b.position[1] or b.position.x, bz = b.position[3] or b.position.z } end end out[#out + 1] = row end return JSON.encode(out)';
-  const setAll = (marks) => `for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do enginePlayerCounters(getObjectFromGUID(g), JSON.decode([==[${JSON.stringify({ allMarks: marks })}]==])) end return "set"`;
+  // (marks: one list for every seat, or { seat colour: list } for each its own)
+  const marksOf = (marks, g) => (Array.isArray(marks) ? marks : marks[SEATS[g]] || []);
+  const setAll = (marks) => Object.keys(SEATS).map((g) => `enginePlayerCounters(getObjectFromGUID("${g}"), JSON.decode([==[${JSON.stringify({ allMarks: marksOf(marks, g) })}]==]))`).join(" ") + ' return "set"';
   const worldBox = (t, b) => buttonBox(t, { bx: b.bx, bz: b.bz, w: b.w, h: b.h });
   const icons = cmdIcons(ICON), mats = matZones();
   // the seat's own mat: the zone on the tracker's side of both middle lines
@@ -1883,6 +1899,11 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const COMBOS = {
     "Mindslaver (live check 9)": ["TURN RUN BY WHITE"],
     "Ring and speed (live check 9)": ["RING TEMPTED 2", "SPEED 3"],
+    // (the live case itself, each seat its own: Red's turn run by White beside White's Ring and speed, the other two
+    // neighbours full)
+    "live check 9, each seat its own": { Red: ["TURN RUN BY WHITE"], White: ["RING TEMPTED 2", "SPEED 3"],
+      Yellow: ["CONTROLLED BY YELLOW", "YOU CAN'T LOSE THE GAME", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH"],
+      Blue: ["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "EXTRA TURN", "MONARCH", "INITIATIVE", "POISON 9", "CITY'S BLESSING", "ENERGY 12", "EXPERIENCE 5"] },
     "every mark at once": ["TURN RUN BY WHITE", "RING TEMPTED 4", "SPEED 4 (MAX)", "EXTRA TURN", "MONARCH", "INITIATIVE", "POISON 9", "CITY'S BLESSING"],
     "long keywords": ["YOU CAN'T LOSE THE GAME", "HEXPROOF", "CONTROLLED BY YELLOW", "RING TEMPTED 4"],
     "ten marks": EVERY.slice(0, 10),
@@ -1917,12 +1938,19 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
       const stacked = boxes.every((b, i) => Math.abs(tops[i] - (i === 0 ? TOP : boxes[i - 1].bz + boxes[i - 1].h / 2 / PER + GAP / PER)) < 1e-6);
       ok(`marks fit, ${seat}: stacked down from the corner, ${GAP} apart, none overlapping`, boxes.length > 0 && stacked, JSON.stringify(tops.map((n) => +n.toFixed(4))));
       const labels = boxes.map((b) => String(b.label));
-      if (marks.length <= 10 && !/longer than a box/.test(name)) ok(`marks fit, ${seat}: one box a mark, every mark in order`, labels.join("|") === marks.join("|"), JSON.stringify(labels));
+      const own = marksOf(marks, t.g);
+      if (own.length <= 10 && !/longer than a box/.test(name)) ok(`marks fit, ${seat}: one box a mark, every mark in order`, labels.join("|") === own.join("|"), JSON.stringify(labels));
       const tooWide = boxes.filter((b) => !(b.w <= 2250 && b.f >= 150 && b.h === Math.floor(380 * b.f / 300 + 0.5)));
       ok(`marks fit, ${seat}: no box wider than 2250, font at least 150, its height the font's`, boxes.length > 0 && tooWide.length === 0, JSON.stringify(tooWide));
       const hit = icons.filter((c) => world.some((w) => meets(w, c.box))).map((c) => c.g);
       ok(`marks fit, ${seat}: no commander-damage icon under a box`, hit.length === 0, `meets ${hit.join(" ")}`);
     }
+    // (live check 9 itself, on the table: no two boxes meet, one seat's or two neighbours', every box of all four seats
+    // against every other, in world units)
+    const all = rows.flatMap((t) => (t.boxes || []).map((b) => ({ who: `${SEATS[t.g]} ${b.label}`, w: worldBox(t, b) })));
+    const clash = [];
+    for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) if (meets(all[i].w, all[j].w)) clash.push(`${all[i].who} / ${all[j].who}`);
+    ok(`marks fit, ${name}: no two boxes meet on the table, one seat's or two seats'`, all.length >= 4 && clash.length === 0, clash.slice(0, 4).join(" | "));
     const labelsOf = (t) => (t.boxes || []).map((b) => String(b.label));
     if (name === "every player mark (past ten)") ok("marks fit, past ten: nine marks in order, then \"+11 MORE\"", rows.length === 4 && rows.every((t) => labelsOf(t).join("|") === [...EVERY.slice(0, 9), "+11 MORE"].join("|")), JSON.stringify(rows.map(labelsOf)));
     if (name === "ten marks") ok("marks fit, ten marks: all ten shown, no \"MORE\"", rows.length === 4 && rows.every((t) => labelsOf(t).length === 10 && !labelsOf(t).some((l) => /MORE/.test(l))), JSON.stringify(rows.map(labelsOf)));
