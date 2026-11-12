@@ -1943,10 +1943,30 @@ do
         local okClip, clip = pcall(MusicPlayer.getCurrentAudioclip)
         return FX.sndSeq == seq and okClip and clip ~= nil and (clip.url == pick or clip.title == title)
       end
+      -- (live check 2026-11-11: when a clip ends, TTS goes on to the next track in the players' music library and plays
+      -- it. So ours plays with repeat on, which keeps TTS on it, and is paused just before its length (engineSoundLen)
+      -- runs out; TTS gives no sign when a clip loops. The players' repeat setting comes back afterwards. A clip
+      -- loaded too late to go with its board (2 s) isn't played; TTS starts a loaded clip by itself, so it is paused
+      -- once it does, in the same way)
+      local setAt = os.clock()
+      local function finish()
+        if FX.sndSeq ~= seq then return end
+        if ours() then MusicPlayer.pause() end
+        if FX.sndRepeat ~= nil then MusicPlayer.repeat_track = FX.sndRepeat FX.sndRepeat = nil end
+      end
       local ok = pcall(function()
+        if FX.sndRepeat == nil then FX.sndRepeat = MusicPlayer.repeat_track == true end
+        MusicPlayer.repeat_track = true
         MusicPlayer.setCurrentAudioclip({ url = pick, title = title })
-        Wait.condition(function() if ours() then MusicPlayer.play() end end,
-          function() return FX.sndSeq ~= seq or (ours() and MusicPlayer.loaded == true) end, 2)
+        Wait.condition(function()
+          if not ours() then return end
+          if os.clock() - setAt > 2 then
+            Wait.condition(finish, function() return FX.sndSeq ~= seq or MusicPlayer.player_status == "Play" end, 30, finish)
+            return
+          end
+          MusicPlayer.play()
+          Wait.time(finish, (engineSoundLen[key] or 2) - 0.15)
+        end, function() return FX.sndSeq ~= seq or (ours() and MusicPlayer.loaded == true) end, 30, finish)
       end)
       if not ok then return false end
       route = "music"
@@ -4248,6 +4268,9 @@ engineSounds = engineSounds or {
   wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/16706646390672856597/464A1F9ED5D5B2B15041BFDD9E6BF355867838D1/",
   wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17471838172650004055/385D7FB6163AFE2C6DFD043DAE5036647530E63E/",
 }
+-- each clip's length in seconds, where it isn't 2 (docs/sounds.md: every clip is padded to at least 2 s; a clip is
+-- paused just before its length runs out, engineSoundPlay)
+engineSoundLen = engineSoundLen or { exile_x6 = 2.04, exile_x8 = 2.25, lifegain_x8 = 2.25 }
 -- the sound kinds, most important first: one sound per board, the first of these on it that has a pick
 engineSoundKinds = { "knockout", "wipe", "death", "exile", "damage", "lifegain", "instant", "counter" }
 engineSoundsMuted = false -- the host's switch for the whole table
