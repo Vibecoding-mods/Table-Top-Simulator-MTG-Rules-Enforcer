@@ -1288,6 +1288,41 @@ function cachedImage(name) {
   if (name) { imageWanted.add(name); setImmediate(fetchImages); }
   return null;
 }
+// A lookup's answer into the cache. A card already pictured keeps its picture and only gains its face names: a card
+// asked again for its names (otherSide) must not change printing, which would replace it on the table.
+function putImage(name, entry) {
+  const k = normName(name);
+  const old = imageCache[k];
+  imageCache[k] = old?.face ? { ...old, ...(entry.faces ? { faces: entry.faces } : {}) } : entry;
+}
+// A two-faced card's other side, by Scryfall's pictures (the engine says isDoubleFaced only for transform and meld, not
+// for a modal double-faced card): { pic, name }, the name null until known. An entry from before names were kept asks
+// Scryfall once per bridge run; the board is sent again when it answers. null for a card with one face (an adventure,
+// a split or a flip card has one picture), a token or a copy (Clone as Valki has Valki's face only).
+const facesAsked = new Set();
+function otherSide(c, name) {
+  if (!name || c.identity?.isToken || c.isCopy) return null;
+  const hit = imageCache[normName(name)];
+  if (!hit?.back) return null;
+  if (!hit.faces && !facesAsked.has(normName(name))) { facesAsked.add(normName(name)); imageWanted.add(name); setImmediate(fetchImages); }
+  const own = normName(name);
+  const other = (hit.faces || []).find((n) => normName(n) !== own) || null;
+  return { pic: hit.back, name: other };
+}
+// The side of a two-faced card an action plays: 1 the face the card shows (its name), 2 its other face; null for an
+// action of no one side (an ability, cycling) or a card with one face. Forge's harness names the face in the label,
+// "Cast Tibalt, Cosmic Impostor" for Valki's back, "Play Emeria, Shattered Skyclave" for Emeria's Call's, both in mode
+// "normal"; the relay protocol's backFaceLand mode is a back face too.
+function actionSide(a, card) {
+  if (!a || !card) return null;
+  const own = card.identity?.name || "";
+  if (!otherSide(card, own)) return null;
+  if (a.mode?.type === "backFaceLand") return 2;
+  if (a.type !== "cast" && a.type !== "playLand") return null;
+  const said = /^(?:Cast|Play) (.+)$/.exec(String(a.label || ""))?.[1];
+  if (!said) return null;
+  return said === own || said.startsWith(`${own} (`) ? 1 : 2;
+}
 
 // When Scryfall says "too many requests" (429), fails, or can't be reached, wait before asking again (5 s, doubling
 // up to 2 min); retrying at once hammered it many times a second. Only a definite "not found" is remembered as
@@ -1339,12 +1374,14 @@ async function fetchImages() {
         const face = id ? `https://img.klrmngr.com/display/front/${id[0]}/${id[1]}/${id}.webp` : null;
         const back = id && hasBack ? `https://img.klrmngr.com/display/back/${id[0]}/${id[1]}/${id}.webp` : null;
         if (!face) continue;
-        const entry = { face, back };
-        imageCache[normName(card.name)] = entry;
-        if (faces[0]?.name) imageCache[normName(faces[0].name)] = entry;
+        // (a two-faced card's face names, its own first: the table names both, docs/card-other-side-spec.md)
+        const names = back && faces[0]?.name && faces[1]?.name ? [faces[0].name, faces[1].name] : null;
+        const entry = { face, back, ...(names ? { faces: names } : {}) };
+        putImage(card.name, entry);
+        if (faces[0]?.name) putImage(faces[0].name, entry);
         // the back face under its own name, showing the back: a transformed card is named after its back face
         // (before this, that name was never found and was asked for again and again)
-        if (faces[1]?.name && back) imageCache[normName(faces[1].name)] = { face: back, back: face };
+        if (faces[1]?.name && back) putImage(faces[1].name, { face: back, back: face, ...(names ? { faces: [names[1], names[0]] } : {}) });
       }
       // Scryfall's batch lookup misses split and Room cards ("Alive // Well"); its exact-name lookup finds them
       for (const miss of body.not_found || []) {
@@ -1531,10 +1568,14 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
   // hp-08 #2 2026-10-28. A card that ventures or takes the initiative asks for them all ahead.)
   if (/\bventure into\b|\binitiative\b/i.test(c.text || "")) for (const d of DUNGEON_NAMES) cachedImage(d);
   const typeLine = [...(c.supertypes || []), ...(c.types || [])].join(" ") + ((c.subtypes || []).length ? ` — ${c.subtypes.join(" ")}` : "");
+  const other = otherSide(c, name);
   return {
     // a double-faced card's back is its other face (the imported deck's back is the plain card back): flipping it
     // on the table shows the other side, as the table's own state button did
     id: c.id, n: name, f: face, b: imageCache[normName(name)]?.back || img?.back || DEFAULT_BACK,
+    // (and its other side again, kept where the back is the plain one, a hand: the table gives such a card a second
+    // state to read and cast it by, docs/card-other-side-spec.md; n2 that side's name)
+    ...(other ? { o2: other.pic, ...(other.name ? { n2: other.name } : {}) } : {}),
     tl: typeLine, cmc: c.cmc || 0, tx: c.text || "", ty: c.types || [],
     tap: !!c.tapped, fd: !!c.isFaceDown, p: c.power ?? null, t: c.toughness ?? null,
     bp, bt,
@@ -3860,7 +3901,7 @@ function slimmer(game) {
   const slim = (c) => {
     if (c.n == null) return c; // hidden card: nothing to share
     // rules text is the bulk of a card and TTS decodes ~15 ms per KB: it follows separately in small pieces
-    const st = { n: c.n, f: shortUrl(c.f), b: shortUrl(c.b), tl: c.tl, cmc: c.cmc, ty: c.ty, tok: c.tok, bp: c.bp, bt: c.bt };
+    const st = { n: c.n, f: shortUrl(c.f), b: shortUrl(c.b), o2: shortUrl(c.o2), n2: c.n2, tl: c.tl, cmc: c.cmc, ty: c.ty, tok: c.tok, bp: c.bp, bt: c.bt };
     for (const k of Object.keys(st)) if (st[k] == null || st[k] === false) delete st[k];
     const key = JSON.stringify(st) + "|" + (c.tx || "");
     if (game.sentStatic[c.id] !== key) {
@@ -3871,7 +3912,7 @@ function slimmer(game) {
       // named from it, hp-12 re-test 2026-10-27)
       if (c.tx) (game.cardText ??= {})[c.id] = c.tx;
     }
-    const { n, f, b, tl, cmc, tx, ty, tok, bp, bt, ...dyn } = c;
+    const { n, f, b, o2, n2, tl, cmc, tx, ty, tok, bp, bt, ...dyn } = c;
     const out = { s: 1 };
     for (const [k, v] of Object.entries(dyn)) {
       // leave out defaults (untapped, no counters, ...); power/toughness 0 is real information
@@ -6067,7 +6108,11 @@ function onPrompt(seat, prompt) {
       // Galadriel's Dismissal while blocking, was told "wait", and combat passed by without asking)
       if (seat.queuedPlay) {
         const q = seat.queuedPlay;
-        let act = Date.now() - q.at < QUEUED_PLAY_MS && actions.find((a) => a.cardId === q.id && a.type !== "undoMana" && !a.isManaAbility);
+        // (a two-faced card dragged showing one side: that side, never the other, docs/card-other-side-spec.md)
+        const mine = actions.filter((a) => a.cardId === q.id && a.type !== "undoMana" && !a.isManaAbility);
+        const sides = q.side ? mine.map((a) => actionSide(a, cardIndex(gv)[q.id])) : [];
+        const queued = !q.side ? mine[0] : mine.find((a, i) => sides[i] === q.side) || (sides.some((s) => s != null) ? null : mine[0]);
+        let act = Date.now() - q.at < QUEUED_PLAY_MS && queued;
         if (Date.now() - q.at >= QUEUED_PLAY_MS) seat.queuedPlay = null;
         if (act && act.type === "cast" && sacrificedIfInstant(cardIndex(gv)[q.id]) && !sorceryTime(seat, gv)) {
           seat.queuedPlay = null;
@@ -6213,6 +6258,8 @@ function onPrompt(seat, prompt) {
         // (the ability alone, for the card's own buttons and menu: the table cut the name back off the label in two
         // places, structural review 2026-10-27)
         ...(a.type === "activateAbility" ? { ab: displayText(undoublePlural(a.description || "ability", byId[a.cardId]?.text)) } : {}),
+        // (which side of a two-faced card it plays: the card's menu lists the side it shows first)
+        ...(actionSide(a, byId[a.cardId]) ? { side: actionSide(a, byId[a.cardId]) } : {}),
       })).filter((o) => o.label !== null), ...[...new Set(manaButtons.map((a) => a.cardId))].map((cid) => ({ id: `__mana:${cid}`, cardId: cid,
         label: manaButtonLabel(cname(cid), manaButtons.filter((m) => m.cardId === cid)) })), ...undos.map((a) => ({ id: a.id, cardId: a.cardId, label: `Untap ${cname(a.cardId)} (mana back)` }))] };
       toOutput = (a) => (a[0] === "__pass" ? { type: "pass" } : a[0] === "__endturn" ? (seat.endTurnAt = gv.turn, { type: "pass" })
@@ -8171,7 +8218,7 @@ function onIntent(m) {
         return refuse(seat, m.id, whyNot(seat, m.id, { anyPriority: true }));
       }
       if (card && !(card.types || []).includes("Land")) {
-        seat.queuedPlay = { id: m.id, at: Date.now() };
+        seat.queuedPlay = { id: m.id, at: Date.now(), ...(m.side === 1 || m.side === 2 ? { side: m.side } : {}) };
         refuse(seat, m.id, `${name}: you'll cast it at your next chance (it isn't your priority right now).`);
         return;
       }
@@ -8190,6 +8237,23 @@ function onIntent(m) {
     // with "none of its abilities can be used right now", mechanic run hp-01 2026-11-05)
     if (!acts.length && (seat.prompt?.ui?.options || []).some((o) => o.id === `__mana:${m.id}`)) return onAnswer(seat.color, seat.prompt.promptId, [`__mana:${m.id}`]);
     if (!acts.length) return refuse(seat, m.id, whyNot(seat, m.id));
+    // A two-faced card plays the side the table shows (its state, or turned over: docs/card-other-side-spec.md): only
+    // that side's ways, with the ways of no one side (cycling). A side it can't play now is said, the other side is not
+    // played instead. A table that sends no side asks among them all, as before.
+    const shown = m.side === 1 || m.side === 2 ? m.side : null;
+    if (shown) {
+      const card = cardIndex(seat.board?.state?.gameView || {})[m.id];
+      const sideOf = (a) => actionSide(a, card);
+      const theirs = acts.filter((a) => sideOf(a) === shown);
+      if (!theirs.length && acts.some((a) => sideOf(a) != null)) {
+        const other = otherSide(card, name)?.name;
+        const face = shown === 1 ? name : other || `${name}'s other side`;
+        const can = shown === 1 ? other || "Its other side" : name;
+        const verb = shown === 1 && (card?.types || []).includes("Land") ? "played" : "cast";
+        return refuse(seat, m.id, `${face} can't be ${verb} right now. ${can} can: show that side and drag it again.`);
+      }
+      if (theirs.length) acts = acts.filter((a) => sideOf(a) === shown || sideOf(a) == null);
+    }
     // (a controlled player's card: what it asks next is that player's, see actingFor)
     if (p.forP) seat.actingFor = { p: p.forP, card: acts[0].cardId, turn: seat.board?.state?.gameView?.turn };
     // A card that can be played more than one way (a modal double-faced card: cast the spell or play the land; an

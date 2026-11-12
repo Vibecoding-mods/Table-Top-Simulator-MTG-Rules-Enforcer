@@ -24,7 +24,8 @@ const real = {
 };
 
 // scryfall: "up" (answers everything), "down" (no network: every request rejects), "busy" (HTTP 503)
-function load({ imageCache = {}, scryfall = "up" } = {}) {
+// cardFaces: name -> [front, back] for the cards Scryfall answers as two-faced (its card_faces, each with its own picture)
+function load({ imageCache = {}, scryfall = "up", cardFaces = {} } = {}) {
   const effects = [];
   const timers = [];
   let clock = 0, seq = 0;
@@ -61,7 +62,8 @@ function load({ imageCache = {}, scryfall = "up" } = {}) {
     if (scryfall === "busy") return { ok: false, status: 503, json: async () => ({}), arrayBuffer: async () => new ArrayBuffer(0) };
     if (u.includes("/cards/collection")) {
       const ids = body?.identifiers || [];
-      return okJson({ data: ids.filter((i) => i.name !== "Ghost").map((i) => ({ id: fakeId(i.name), name: i.name })),
+      const two = (i) => cardFaces[i.name] && { name: cardFaces[i.name].join(" // "), card_faces: cardFaces[i.name].map((n) => ({ name: n, image_uris: {} })) };
+      return okJson({ data: ids.filter((i) => i.name !== "Ghost").map((i) => ({ id: fakeId(i.name), name: i.name, ...two(i) })),
         not_found: ids.filter((i) => i.name === "Ghost") });
     }
     if (u.includes("/cards/named")) return okJson({ id: fakeId(decodeURIComponent(u.split("exact=")[1] || "")), name: "named" });
