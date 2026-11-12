@@ -28,7 +28,7 @@ for (const [kw, p] of Object.entries(picks)) {
   const name = p.card;
   const mine = lines.filter((s) => s.includes(name) && /^White /.test(s));
   const any = lines.filter((s) => s.includes(name));
-  const used = mine.find((s) => / (casts|plays|uses|activates|attacks with)/.test(s)) || any.find((s) => /enters the battlefield \(White\)/.test(s));
+  const used = mine.find((s) => / (casts|plays|uses|activates|attacks (?:.+ )?with)/.test(s)) || any.find((s) => /enters the battlefield \(White\)/.test(s));
   const probs = problems.filter((s) => s.includes(name));
   rows.push({ kw, card: name, status: probs.length ? "PROBLEM" : used ? "played" : any.length ? "seen" : "not drawn", note: probs[0] || used || any[0] || "" });
 }

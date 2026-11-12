@@ -139,8 +139,8 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg engine on` / `off` | anyone seated: the rules engine on or off |
 | `mtg start [ai N]` | anyone seated: start (optionally with N Forge AI players) |
 | `mtg reset` | host: end the game and give the imported decks back (anyone seated once the game is over) |
-| `mtg undo [N]` / `mtg vote yes/no` | rewind, and the vote on it |
-| `mtg hold` / `mtg hold off` | keep priority once after something goes on the stack, to respond to your own spell (or press Hold) |
+| `mtg undo [N]` / `mtg vote yes/no` | rewind, and the vote on it (the player who asked: `mtg vote no` takes it back) |
+| `mtg hold` / `mtg hold off` | keep priority once after something goes on the stack, to respond to your own trigger or with an ability (or press Hold); over your own spell you are asked anyway when you hold a spell to cast |
 | `mtg skip <phase>` / `mtg skip off` | the Auto-resolve list's "Until" choices, typed: upkeep, draw, main, combat, blockers, damage, main2, end, mine |
 | `mtg timer [seconds]` / `mtg timer off` | turn timers for everyone (host) |
 | `mtg fix` (`yes` / `no` / `done` / `cancel`) | the manual fix, as the Fix... button |

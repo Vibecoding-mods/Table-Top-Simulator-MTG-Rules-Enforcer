@@ -2318,7 +2318,7 @@
     "fx": [
      "f1152 \"setRotationSmooth\" obj:s00060 V(0,270,0)",
      "f1152 \"highlightOn\" obj:s00060 {1=1,2=0.12,3=0.08}",
-     "f1152 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (-30.2,-7.4)->(19.4,-24.4) mid y1.9\"",
+     "f1152 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (-30.2,-7.4)->(3.5,-2.6) mid y1.8\"",
      "f1152 \"UI.setValue\" \"eng_status_Blue\" \"Red's 3rd turn (game turn 12) - combatDeclareAttackers - priority: Blue\"",
      "f1153 \"setGMNotes\" obj:s00073 \"enginetrash\"",
      "f1153 \"highlightOff\" obj:s00073",
@@ -2347,7 +2347,7 @@
    {
     "step": "190 table",
     "fx": [
-     "f1170 \"setPositionSmooth\" obj:s00060 V(-30.907,2.05,-7.141)",
+     "f1170 \"setPositionSmooth\" obj:s00060 V(-30.942,2.05,-7.513)",
      "f1170 \"call\" obj:23e485 \"sL\" \"39\"",
      "f1170 \"call\" obj:23e485 \"updateSave\"",
      "f1170 \"UI.setValue\" \"eng_status_Blue\" \"Red's 3rd turn (game turn 12) - combatDamage - priority: Blue\"",
@@ -2358,8 +2358,8 @@
     "step": "191 table",
     "fx": [
      "f1176 \"UI.setValue\" \"eng_status_Blue\" \"Red's 3rd turn (game turn 12) - combatEnd - priority: Blue\"",
-     "f1179 \"setPositionSmooth\" obj:s00060 V(15.436,2.05,-23.003)",
-     "f1179 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1179 \"setPositionSmooth\" obj:s00060 V(0.808,2.05,-3.002)",
+     "f1179 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 0 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1179 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_txt\" {color=\"#FFFFFF\",text=\" \"}",
      "f1179 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1179 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
@@ -2819,7 +2819,7 @@
     "fx": [
      "f1464 \"setRotationSmooth\" obj:s00072 V(0,270,0)",
      "f1464 \"highlightOn\" obj:s00072 {1=1,2=0.12,3=0.08}",
-     "f1464 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,24.4) mid y1.9\"",
+     "f1464 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(3.5,2.6) mid y1.8\"",
      "f1464 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 15) - combatDeclareAttackers - priority: Blue\"",
      "f1464 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FF6B6B>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
@@ -2874,7 +2874,7 @@
    {
     "step": "245 table",
     "fx": [
-     "f1500 \"setPositionSmooth\" obj:s00072 V(8.393,2.05,-8.158)",
+     "f1500 \"setPositionSmooth\" obj:s00072 V(9.016,2.05,-8.112)",
      "f1500 \"call\" obj:395037 \"sL\" \"37\"",
      "f1500 \"call\" obj:395037 \"updateSave\"",
      "f1500 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 15) - combatDamage - priority: Blue\""
@@ -2884,8 +2884,8 @@
     "step": "246 table",
     "fx": [
      "f1506 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 15) - combatEnd - priority: Blue\"",
-     "f1509 \"setPositionSmooth\" obj:s00072 V(18.54,2.05,21.819)",
-     "f1509 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1509 \"setPositionSmooth\" obj:s00072 V(3.912,2.05,1.821)",
+     "f1509 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 -417 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1509 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1509 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
     ]
@@ -3303,7 +3303,7 @@
      "f1698 \"editButton\" obj:baffa9 9 \"2\"",
      "f1698 \"UI.setValue\" \"eng_status_Blue\" \"Yellow's 5th turn (game turn 17) - main1 - priority: Blue\\\nStack (top first): Teval, the Balanced Scale\"",
      "f1698 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
-     "f1699 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"1821 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1699 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"557 -417 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1699 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1699 \"highlightOn\" obj:37e533 {1=1,2=0.2,3=0.15}",
      "f1700 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/b/5/b5d1955a-9ff0-4f8b-9af8-341371957299.jpg\""
@@ -3381,7 +3381,7 @@
      "f1740 \"UI.setAttribute\" \"eng_pop\" \"active\" \"true\"",
      "f1740 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FFFFFF\"",
      "f1740 \"highlightOn\" obj:s00008 {1=0.75,2=0.35,3=1}",
-     "f1740 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (-8.7,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f1740 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (-8.7,7.4)->(3.5,-2.6) mid y1.8\"",
      "f1740 \"UI.setValue\" \"eng_status_Blue\" \"Yellow's 5th turn (game turn 17) - combatDeclareAttackers - priority: Blue\\\nStack (top first): Teval, the Balanced Scale\"",
      "f1742 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/b/5/b5d1955a-9ff0-4f8b-9af8-341371957299.jpg\""
     ]
@@ -3500,7 +3500,7 @@
    {
     "step": "294 table",
     "fx": [
-     "f1794 \"setPositionSmooth\" obj:s00008 V(-9.18,2.05,8)",
+     "f1794 \"setPositionSmooth\" obj:s00008 V(-9.267,2.05,7.909)",
      "f1794 \"call\" obj:23e485 \"sL\" \"39\"",
      "f1794 \"call\" obj:23e485 \"updateSave\"",
      "f1794 \"call\" obj:0f6598 \"updateVal\"",
@@ -3512,8 +3512,8 @@
     "step": "295 table",
     "fx": [
      "f1800 \"UI.setValue\" \"eng_status_Blue\" \"Yellow's 5th turn (game turn 17) - combatEnd - priority: Blue\"",
-     "f1803 \"setPositionSmooth\" obj:s00008 V(17.156,2.05,-21.819)",
-     "f1803 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1803 \"setPositionSmooth\" obj:s00008 V(2.528,2.05,-1.818)",
+     "f1803 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 0 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1803 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1803 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
     ]
@@ -5705,7 +5705,7 @@
     "fx": [
      "f696 \"setRotationSmooth\" obj:s00004 V(0,450,0)",
      "f696 \"highlightOn\" obj:s00004 {1=1,2=0.12,3=0.08}",
-     "f696 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\""
+     "f696 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\""
     ]
    },
    {
@@ -5725,7 +5725,7 @@
    {
     "step": "114 table",
     "fx": [
-     "f714 \"setPositionSmooth\" obj:s00004 V(30.406,2.05,8.158)",
+     "f714 \"setPositionSmooth\" obj:s00004 V(30.899,2.05,7.681)",
      "f714 \"call\" obj:23e485 \"sL\" \"39\"",
      "f714 \"call\" obj:23e485 \"updateSave\"",
      "f714 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 3rd turn (game turn 4) - combatDamage - priority: Blue\"",
@@ -5739,8 +5739,8 @@
      "f720 \"Global.setVectorLines\" 0 \"\"",
      "f720 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 3rd turn (game turn 4) - main2 - priority: Blue\"",
      "f720 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
-     "f723 \"setPositionSmooth\" obj:s00004 V(20.26,2.05,-21.819)",
-     "f724 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f723 \"setPositionSmooth\" obj:s00004 V(5.632,2.05,-1.818)",
+     "f724 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 0 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f724 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_txt\" {color=\"#FFFFFF\",text=\" \"}",
      "f724 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f724 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
@@ -5821,7 +5821,7 @@
     "fx": [
      "f774 \"setRotationSmooth\" obj:s00011 V(0,270,0)",
      "f774 \"highlightOn\" obj:s00011 {1=1,2=0.12,3=0.08}",
-     "f774 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,24.4) mid y1.9\"",
+     "f774 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(3.5,2.6) mid y1.8\"",
      "f774 \"UI.setValue\" \"eng_status_Blue\" \"White's 3rd turn (game turn 5) - combatDeclareBlockers - priority: White\""
     ]
    },
@@ -5866,7 +5866,7 @@
    {
     "step": "128 table",
     "fx": [
-     "f798 \"setPositionSmooth\" obj:s00011 V(8.393,2.05,-8.158)",
+     "f798 \"setPositionSmooth\" obj:s00011 V(9.016,2.05,-8.112)",
      "f798 \"call\" obj:395037 \"sL\" \"38\"",
      "f798 \"call\" obj:395037 \"updateSave\"",
      "f798 \"call\" obj:bfcf4a \"updateVal\"",
@@ -5879,8 +5879,8 @@
     "step": "129 gamelog",
     "fx": [
      "f804 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 2 ---\\\nAI 1 draws a card\\\nAI 1 plays Rockfall Vale\\\nAI 1 casts Ashling, the Limitless\\\nAshling, the Limitless enters the battlefield (AI 1)\\\n--- Blue's turn 3 ---\\\nBlue draws a card\\\nBlue plays Island\\\nBlue casts Dokuchi Silencer\\\nDokuchi Silencer enters the battlefield (Blue)\\\nBlue attacks with Faerie Seer\\\nAI 1: 40 -> 39 life (-1)\\\n--- AI 1's turn 3 ---\\\nAI 1 draws a card\\\nAI 1 attacks with Ashling, the Limitless\\\nBlue: 40 -> 38 life (-2)\\\nAI 1 uses Greenwarden of Murasa's ability\\\nGreenwarden of Murasa enters the battlefield (AI 1)\"",
-     "f807 \"setPositionSmooth\" obj:s00011 V(18.54,2.05,21.819)",
-     "f808 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f807 \"setPositionSmooth\" obj:s00011 V(3.912,2.05,1.821)",
+     "f808 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 -417 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f808 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f808 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
     ]
@@ -6527,7 +6527,7 @@
      "f1056 \"setRotationSmooth\" obj:s00017 V(0,450,0)",
      "f1056 \"highlightOn\" obj:s00004 {1=1,2=0.12,3=0.08}",
      "f1056 \"highlightOn\" obj:s00017 {1=1,2=0.12,3=0.08}",
-     "f1056 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-24.4) mid y1.9\""
+     "f1056 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(3.5,-2.6) mid y1.8\""
     ]
    },
    {
@@ -6674,7 +6674,7 @@
      "f1128 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FEFEFE\"",
      "f1128 \"highlightOn\" obj:s00002 {1=0.75,2=0.35,3=1}",
      "f1128 \"highlightOff\" obj:s00017",
-     "f1128 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f1128 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
      "f1128 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 4th turn (game turn 6) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Yuriko, the Tiger's Shadow\"",
      "f1130 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/f/e/fe9be3e0-076c-4703-9750-2a6b0a178bc9.jpg\""
     ]
@@ -6695,8 +6695,8 @@
      "f1140 \"UI.setAttribute\" \"eng_pop\" \"visibility\" \"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\"",
      "f1140 \"UI.setAttribute\" \"eng_pop\" \"active\" \"true\"",
      "f1140 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FFFFFF\"",
-     "f1140 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-24.4) mid y1.9\"",
-     "f1140 \"setPositionSmooth\" obj:s00004 V(30.406,2.05,8.158)",
+     "f1140 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(3.5,-2.6) mid y1.8\"",
+     "f1140 \"setPositionSmooth\" obj:s00004 V(30.899,2.05,7.681)",
      "f1140 \"call\" obj:23e485 \"sL\" \"37\"",
      "f1140 \"call\" obj:23e485 \"updateSave\"",
      "f1140 \"call\" obj:b748df \"updateVal\"",
@@ -6720,8 +6720,8 @@
      "f1146 \"UI.setAttribute\" \"eng_rowslot_Blue_1\" \"active\" \"false\"",
      "f1146 \"UI.setAttribute\" \"eng_rowslot_Blue_2\" \"active\" \"false\"",
      "f1146 \"UI.setAttributes\" \"eng_rowopt_Blue_1\" {color=\"#e8711a\",text=\"OK\",textColor=\"#fffffE\"}",
-     "f1149 \"setPositionSmooth\" obj:s00004 V(20.26,2.05,-21.819)",
-     "f1149 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1149 \"setPositionSmooth\" obj:s00004 V(5.632,2.05,-1.818)",
+     "f1149 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 0 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1149 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1149 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
     ]
@@ -6761,7 +6761,7 @@
      "f1176 \"call\" obj:23e485 \"sL\" \"34\"",
      "f1176 \"call\" obj:23e485 \"updateSave\"",
      "f1176 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 4th turn (game turn 6) - combatDamage - priority: Blue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1177 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1177 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 0 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1177 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1177 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
     ]
@@ -6845,7 +6845,7 @@
     "fx": [
      "f1236 \"setRotationSmooth\" obj:s00011 V(0,270,0)",
      "f1236 \"highlightOn\" obj:s00011 {1=1,2=0.12,3=0.08}",
-     "f1236 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,24.4) mid y1.9\"",
+     "f1236 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(3.5,2.6) mid y1.8\"",
      "f1236 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 7) - combatDeclareAttackers - priority: Blue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
      "f1236 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FF6B6B>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
@@ -6865,7 +6865,7 @@
    {
     "step": "204 table",
     "fx": [
-     "f1254 \"setPositionSmooth\" obj:s00011 V(8.393,2.05,-8.158)",
+     "f1254 \"setPositionSmooth\" obj:s00011 V(9.016,2.05,-8.112)",
      "f1254 \"call\" obj:395037 \"sL\" \"36\"",
      "f1254 \"call\" obj:395037 \"updateSave\"",
      "f1254 \"call\" obj:bfcf4a \"updateVal\"",
@@ -6887,8 +6887,8 @@
     "step": "205 table",
     "fx": [
      "f1260 \"UI.setValue\" \"eng_status_Blue\" \"White's 4th turn (game turn 7) - combatEnd - priority: Blue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1263 \"setPositionSmooth\" obj:s00011 V(18.54,2.05,21.819)",
-     "f1263 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1263 \"setPositionSmooth\" obj:s00011 V(3.912,2.05,1.821)",
+     "f1263 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 -417 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1263 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1263 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
     ]
@@ -7543,7 +7543,7 @@
      "f1536 \"setRotationSmooth\" obj:s00002 V(0,450,0)",
      "f1536 \"highlightOn\" obj:s00002 {1=1,2=0.12,3=0.08}",
      "f1536 \"highlightOn\" obj:s00004 {1=1,2=0.12,3=0.08}",
-     "f1536 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-24.4) mid y1.9\""
+     "f1536 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(3.5,-2.6) mid y1.8\""
     ]
    },
    {
@@ -7696,7 +7696,7 @@
      "f1608 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FEFEFE\"",
      "f1608 \"highlightOff\" obj:s00004",
      "f1608 \"highlightOn\" obj:s00035 {1=0.75,2=0.35,3=1}",
-     "f1608 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f1608 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
      "f1608 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 5th turn (game turn 8) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Skullsnatcher\"",
      "f1610 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/6/c/6cb76fa1-a930-468d-bfd4-dd06c2a9fe9e.jpg\""
     ]
@@ -7759,8 +7759,8 @@
      "f1632 \"setPosition\" obj:s00035 V(27.75,1.15,7.4)",
      "f1632 \"setRotation\" obj:s00035 V(0,450,0)",
      "f1632 \"highlightOn\" obj:s00035 {1=1,2=0.12,3=0.08}",
-     "f1632 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-24.4) mid y1.9\"",
-     "f1632 \"setPositionSmooth\" obj:s00002 V(30.406,2.05,8.158)",
+     "f1632 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(3.5,-2.6) mid y1.8\"",
+     "f1632 \"setPositionSmooth\" obj:s00002 V(30.899,2.05,7.681)",
      "f1632 \"call\" obj:23e485 \"sL\" \"31\"",
      "f1632 \"call\" obj:23e485 \"updateSave\"",
      "f1632 \"call\" obj:b748df \"updateVal\"",
@@ -7783,8 +7783,8 @@
      "f1638 \"UI.setValue\" \"eng_rowname_Blue_2\" \"Skullsnatcher 2/1: Whenever Skullsnatcher deals combat damage to a pla\"",
      "f1638 \"UI.setAttribute\" \"eng_rowslot_Blue_3\" \"active\" \"false\"",
      "f1640 \"UI.setAttribute\" \"eng_rowimg_Blue_2\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/6/c/6cb76fa1-a930-468d-bfd4-dd06c2a9fe9e.jpg\"",
-     "f1641 \"setPositionSmooth\" obj:s00002 V(20.26,2.05,-21.819)",
-     "f1641 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1641 \"setPositionSmooth\" obj:s00002 V(5.632,2.05,-1.818)",
+     "f1641 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 0 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1641 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1641 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
     ]
@@ -7907,7 +7907,7 @@
      "f1710 \"call\" obj:23e485 \"sL\" \"28\"",
      "f1710 \"call\" obj:23e485 \"updateSave\"",
      "f1710 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 5th turn (game turn 8) - combatDamage - priority: Blue\\\nStack (top first): Yuriko, the Tiger's Shadow, Skullsnatcher\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1711 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1711 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 0 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1711 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1711 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}",
      "f1716 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatDamage\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":8}\\\",\\\"t\\\":\\\"check\\\"}\""
@@ -7941,7 +7941,7 @@
      "f1740 \"call\" obj:23e485 \"sL\" \"25\"",
      "f1740 \"call\" obj:23e485 \"updateSave\"",
      "f1740 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 5th turn (game turn 8) - combatDamage - priority: Blue\\\nStack (top first): Skullsnatcher\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1741 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 1729 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1741 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 0 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1741 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1741 \"highlightOn\" obj:23e485 {1=1,2=0.2,3=0.15}"
     ]
@@ -8191,7 +8191,7 @@
     "fx": [
      "f1884 \"setRotationSmooth\" obj:s00011 V(0,270,0)",
      "f1884 \"highlightOn\" obj:s00011 {1=1,2=0.12,3=0.08}",
-     "f1884 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(19.4,24.4) mid y1.9\"",
+     "f1884 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(3.5,2.6) mid y1.8\"",
      "f1884 \"UI.setValue\" \"eng_status_Blue\" \"White's 5th turn (game turn 9) - combatDeclareAttackers - priority: Blue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
      "f1884 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FF6B6B>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
@@ -8221,7 +8221,7 @@
    {
     "step": "312 table",
     "fx": [
-     "f1902 \"setPositionSmooth\" obj:s00011 V(8.393,2.05,-8.158)",
+     "f1902 \"setPositionSmooth\" obj:s00011 V(9.016,2.05,-8.112)",
      "f1902 \"call\" obj:395037 \"sL\" \"34\"",
      "f1902 \"call\" obj:395037 \"updateSave\"",
      "f1902 \"call\" obj:bfcf4a \"updateVal\"",
@@ -8233,8 +8233,8 @@
     "step": "313 table",
     "fx": [
      "f1908 \"UI.setValue\" \"eng_status_Blue\" \"White's 5th turn (game turn 9) - combatEnd - priority: Blue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1911 \"setPositionSmooth\" obj:s00011 V(18.54,2.05,21.819)",
-     "f1911 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f1911 \"setPositionSmooth\" obj:s00011 V(3.912,2.05,1.821)",
+     "f1911 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 -417 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1911 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1911 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
     ]
@@ -8742,7 +8742,7 @@
      "f2100 \"setRotationSmooth\" obj:s00035 V(0,450,0)",
      "f2100 \"highlightOn\" obj:s00002 {1=1,2=0.12,3=0.08}",
      "f2100 \"highlightOn\" obj:s00035 {1=1,2=0.12,3=0.08}",
-     "f2100 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(19.4,-24.4) mid y1.9\""
+     "f2100 \"Global.setVectorLines\" 2 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8 | 1.00,0.32,0.40 t0.220 n11 (27.7,7.4)->(3.5,-2.6) mid y1.8\""
     ]
    },
    {
@@ -8976,7 +8976,7 @@
      "f2190 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FEFEFE\"",
      "f2190 \"highlightOff\" obj:s00002",
      "f2190 \"highlightOn\" obj:s00017 {1=0.75,2=0.35,3=1}",
-     "f2190 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f2190 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
      "f2190 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
      "f2190 \"objUI.setAttribute\" obj:s00002 \"eng_play\" \"active\" \"false\"",
      "f2192 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/a/2/a24d5664-e214-466d-bb53-4e8f6f75a009.jpg\""
@@ -9541,7 +9541,7 @@
     "fx": [
      "f2478 \"call\" obj:395037 \"engineLifeChange\" \"delta=-3,life=31\"",
      "f2478 \"call\" obj:395037 \"updateSave\"",
-     "f2479 \"objUI.setAttributes\" obj:23e485 \"eng_fx_4\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f2479 \"objUI.setAttributes\" obj:23e485 \"eng_fx_4\" {active=\"true\",height=349,position=\"0 -417 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f2479 \"objUI.setAttributes\" obj:23e485 \"eng_fx_4_txt\" {color=\"#FFFFFF\",text=\" \"}",
      "f2479 \"objUI.setAttributes\" obj:23e485 \"eng_fx_4_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f2479 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
@@ -9552,7 +9552,7 @@
     "fx": [
      "f2484 \"call\" obj:395037 \"engineLifeChange\" \"delta=-5,life=29\"",
      "f2484 \"call\" obj:395037 \"updateSave\"",
-     "f2485 \"objUI.setAttributes\" obj:23e485 \"eng_fx_5\" {active=\"true\",height=349,position=\"-1264 -2145 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
+     "f2485 \"objUI.setAttributes\" obj:23e485 \"eng_fx_5\" {active=\"true\",height=349,position=\"0 -417 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f2485 \"objUI.setAttributes\" obj:23e485 \"eng_fx_5_txt\" {color=\"#FFFFFF\",text=\" \"}",
      "f2485 \"objUI.setAttributes\" obj:23e485 \"eng_fx_5_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f2485 \"highlightOn\" obj:395037 {1=1,2=0.2,3=0.15}"
@@ -10103,7 +10103,7 @@
      "f3378 \"setPosition\" obj:s00062 V(52,4.5,33)",
      "f3378 \"setLock\" obj:s00062 false",
      "f3378 \"putObject\" obj:s00016 obj:s00062",
-     "f3378 \"Global.setVectorLines\" 7 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(19.4,24.4) mid y7.9 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(27.7,13.8) mid y6.7 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 0.35,0.85,1.00 t0.300 n11 (30.1,13.8)->(19.4,-24.4) mid y6.7 | 1.00,0.80,0.25 t0.160 n11 (30.2,22.4)->(8.7,-22.4) mid y1.8 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f3378 \"Global.setVectorLines\" 7 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(3.5,2.6) mid y6.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(27.7,13.8) mid y6.7 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 0.35,0.85,1.00 t0.300 n11 (30.1,13.8)->(3.5,-2.6) mid y5.6 | 1.00,0.80,0.25 t0.160 n11 (30.2,22.4)->(8.7,-22.4) mid y1.8 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
      "f3378 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Ability, Shock, Opt\\\nYour mana pool: C\"",
      "f3379 \"setHiddenFrom\" obj:s00061 {}",
      "f3379 \"setHiddenFrom\" obj:s00062 {}",
@@ -10134,7 +10134,7 @@
      "f3390 \"setPosition\" obj:s00064 V(52,4.5,33)",
      "f3390 \"setLock\" obj:s00064 false",
      "f3390 \"putObject\" obj:s00016 obj:s00064",
-     "f3390 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f3390 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
      "f3390 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nYour mana pool: C\"",
      "f3391 \"setHiddenFrom\" obj:s00063 {}",
      "f3391 \"setHiddenFrom\" obj:s00064 {}",
@@ -10572,7 +10572,7 @@
      "f4030 \"spawnObjectData\" \"Card\" obj:s00077 \"Opt\\\nOn the stack\\\n0CMC\" V(17.4,3.4,15.4) 0 300700 \"3007\"",
      "f4030 \"spawnObjectData\" \"Card\" obj:s00078 \"Counterspell\\\nOn the stack\\\n0CMC\" V(21.4,3.498,-15.4) 0 300700 \"3007\"",
      "f4030 \"highlightOff\" obj:s00067",
-     "f4030 \"Global.setVectorLines\" 3 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f4030 \"Global.setVectorLines\" 3 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
      "f4030 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Counterspell, Opt\\\nYour mana pool: C\"",
      "f4031 \"setGMNotes\" obj:s00073 \"enginetrash\"",
      "f4031 \"highlightOff\" obj:s00073",
@@ -10616,7 +10616,7 @@
      "f4036 \"setPosition\" obj:s00078 V(52,4.5,33)",
      "f4036 \"setLock\" obj:s00078 false",
      "f4036 \"putObject\" obj:s00016 obj:s00078",
-     "f4036 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f4036 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
      "f4036 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nYour mana pool: C\"",
      "f4037 \"setHiddenFrom\" obj:s00077 {}",
      "f4037 \"setHiddenFrom\" obj:s00078 {}",
@@ -10731,7 +10731,7 @@
      "f4266 \"spawnObjectData\" \"Card\" obj:s00084 \"Counterspell\\\nOn the stack\\\n0CMC\" V(21.4,3.498,-15.4) 0 300700 \"3007\"",
      "f4266 \"spawnObjectData\" \"Card\" obj:s00085 \"Negate\\\nOn the stack\\\n0CMC\" V(18.8,3.6,15.4) 0 300700 \"3007\"",
      "f4266 \"highlightOff\" obj:s00067",
-     "f4266 \"Global.setVectorLines\" 4 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 0.35,0.85,1.00 t0.300 n11 (18.8,15.4)->(21.4,-15.4) mid y8.1 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f4266 \"Global.setVectorLines\" 4 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 0.35,0.85,1.00 t0.300 n11 (21.4,-15.4)->(17.4,15.4) mid y8.0 | 0.35,0.85,1.00 t0.300 n11 (18.8,15.4)->(21.4,-15.4) mid y8.1 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
      "f4266 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Negate, Counterspell, Opt\\\nYour mana pool: C\"",
      "f4267 \"setLock\" obj:s00080 false",
      "f4267 \"setLock\" obj:s00081 false",
@@ -10773,7 +10773,7 @@
      "f4272 \"setPosition\" obj:s00085 V(52,4.5,33)",
      "f4272 \"setLock\" obj:s00085 false",
      "f4272 \"putObject\" obj:s00016 obj:s00085",
-     "f4272 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f4272 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
      "f4272 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nStack (top first): Opt\\\nYour mana pool: C\"",
      "f4273 \"setHiddenFrom\" obj:s00084 {}",
      "f4273 \"setHiddenFrom\" obj:s00085 {}",
@@ -11323,7 +11323,7 @@
      "f5110 \"spawnObjectData\" \"Deck\" obj:s00120 \"Library card\" V(40.777,3.45,-18.755) 3 0 \"3007\"",
      "f5110 \"highlightOn\" obj:s00102 {1=0.15,2=0.45,3=1}",
      "f5110 \"highlightOn\" obj:s00104 {1=1,2=0.12,3=0.08}",
-     "f5110 \"Global.setVectorLines\" 4 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,13.8)->(19.4,-24.4) mid y1.9 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9 | 1.00,0.80,0.25 t0.160 n11 (8.7,-22.4)->(30.1,13.8) mid y1.8\"",
+     "f5110 \"Global.setVectorLines\" 4 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,13.8)->(3.5,-2.6) mid y1.8 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8 | 1.00,0.80,0.25 t0.160 n11 (8.7,-22.4)->(30.1,13.8) mid y1.8\"",
      "f5111 \"setLock\" obj:s00050 false",
      "f5111 \"putObject\" obj:s00050 obj:s00119",
      "f5111 \"setLock\" obj:s00012 false",
@@ -11366,8 +11366,8 @@
     "step": "click: __sim.frames(120) return 'back'",
     "value": "back",
     "fx": [
-     "f5156 \"setPositionSmooth\" obj:s00035 V(30.406,2.05,8.158)",
-     "f5165 \"setPositionSmooth\" obj:s00035 V(20.26,2.05,-21.819)",
+     "f5156 \"setPositionSmooth\" obj:s00035 V(30.899,2.05,7.681)",
+     "f5165 \"setPositionSmooth\" obj:s00035 V(5.632,2.05,-1.818)",
      "f5183 \"setPositionSmooth\" obj:s00035 V(30.15,1.15,7.4)"
     ]
    },
@@ -11487,7 +11487,7 @@
      "f5382 \"takeObject\" obj:s00012 obj:s00127 V(20,6,-34.5)",
      "f5382 \"highlightOff\" obj:s00102",
      "f5382 \"highlightOff\" obj:s00104",
-     "f5382 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f5382 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
      "f5382 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f5382 \"UI.setValue\" \"eng_status_Blue\" \"White's 6th turn (game turn 15) - upkeep - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
      "f5383 \"setLock\" obj:s00117 false",
@@ -12764,7 +12764,7 @@
    {
     "step": "rewind pending",
     "fx": [
-     "f6079 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(19.4,-24.4) mid y1.9\"",
+     "f6079 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
      "f6079 \"UI.setAttributes\" \"eng_autores_Blue\" {active=\"true\",color=\"#1A1A1A\",textColor=\"#ffffff\"}",
      "f6079 \"UI.setAttributes\" \"eng_undo_Blue\" {active=\"true\",color=\"#1A1A1A\",textColor=\"#FFFFFE\"}",
      "f6079 \"UI.setAttribute\" \"eng_vote_Blue\" \"active\" \"true\"",
@@ -13189,7 +13189,7 @@
      "f6175 \"spawnObjectData\" \"Deck\" obj:s00155 \"Library\" V(40.762,1.45,18.74) 84 0 \"3007\"",
      "f6175 \"spawnObjectData\" \"Deck\" obj:s00156 \"Library\" V(40.777,1.45,-18.755) 88 0 \"3007\"",
      "f6175 \"spawnObjectData\" \"Card\" obj:s00157 \"Dokuchi Silencer\\\nOn the stack\\\n0CMC\" V(17.4,3.4,15.4) 0 302200 \"3022\"",
-     "f6175 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (13.3,13.8)->(19.4,-24.4) mid y1.9\"",
+     "f6175 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (13.3,13.8)->(3.5,-2.6) mid y1.8\"",
      "f6175 \"createButton\" obj:395037 \"RING TEMPTED 2\" \"0.04,0.20,0.05\" \"at -0.14,0.05,2.39\"",
      "f6175 \"createButton\" obj:395037 \"YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -0.29,0.05,3.00\"",
      "f6175 \"UI.setAttributes\" \"eng_toggle_Blue\" {active=\"true\",color=\"#1A1A1A\",textColor=\"#FFFFFE\"}",

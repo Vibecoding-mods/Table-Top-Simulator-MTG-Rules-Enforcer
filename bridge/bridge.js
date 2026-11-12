@@ -77,7 +77,9 @@ function toTTS(customMessage) {
 function pump() {
   const next = outbox.shift();
   if (!next) { sending = false; return; }
-  const msg = { t: next.t, json: JSON.stringify(next.msg) };
+  // (players by their table names in everything the table is sent, whatever built it: see tableNames. A username is
+  // letters, digits and hyphens, so a JSON string can be read as text here)
+  const msg = { t: next.t, json: tableNames(JSON.stringify(next.msg)) };
   // MTG_RECORD=file: keep every message sent to TTS, with its time, for replaying into TTS (stutter hunting)
   if (process.env.MTG_RECORD) fs.appendFile(process.env.MTG_RECORD, JSON.stringify({ at: Date.now(), msg }) + "\n", () => {});
   ttsStats.n++; ttsStats.bytes += msg.json.length; ttsStats.max = Math.max(ttsStats.max, msg.json.length);
@@ -106,7 +108,8 @@ const chat = (text, color) => toTTS({ t: "chat", text, color: color || null });
 const TABLE_LOG = home.tmp("table-log.log");
 const clockNow = () => { const d = new Date(); return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":"); };
 function tlog(color, text) {
-  fs.appendFile(TABLE_LOG, `[${clockNow()}] ${String(color || "-").padEnd(6)} ${text}\n`, () => {});
+  // (the players as the table names them: the log says what each was shown, see tableNames)
+  fs.appendFile(TABLE_LOG, `[${clockNow()}] ${String(color || "-").padEnd(6)} ${tableNames(text)}\n`, () => {});
 }
 
 // Keeping the three aligned, seen on GET /versions and in a chat warning. Nothing here changes the game.
@@ -2103,7 +2106,7 @@ function libraryKind(m) {
 // A move made to pay a cost (the harness's cause "Cost:<keyword, alternative cost or cost part>": cycling's discard,
 // delve's exile, a sacrifice for Fling), as words after the move's own line: the cost's keyword and the card it paid
 // for. Empty for any other move, and for a card that paid for itself with no keyword (a Treasure's sacrifice).
-const COST_KEYWORDS = { Cycling: "cycling", TypeCycling: "cycling", Delve: "delve", Escape: "escape", Emerge: "emerge", Embalm: "embalm", Eternalize: "eternalize", Encore: "encore", Scavenge: "scavenge", Transmute: "transmute", Reinforce: "reinforce" };
+const COST_KEYWORDS = { Cycling: "cycling", TypeCycling: "cycling", Delve: "delve", Escape: "escape", Emerge: "emerge", Embalm: "embalm", Eternalize: "eternalize", Encore: "encore", Scavenge: "scavenge", Transmute: "transmute", Reinforce: "reinforce", Evoke: "evoke" };
 function costWords(m, name) {
   const k = /^Cost:(\w+)$/.exec(m?.cause || "")?.[1];
   if (!k) return "";
@@ -2160,6 +2163,7 @@ const EXILE_WORDS = {
   rebound: (w, names) => `${names[0]} is exiled with rebound: ${w} may cast it at their next upkeep`,
   plotted: (w, names) => `${names[0]} is exiled and plotted: ${w} may cast it without paying its mana cost on a later turn, as a sorcery`,
   paradigm: (w, names) => `${names[0]} is exiled (paradigm): at the start of each of their first main phases, ${w} may cast a copy of it without paying its mana cost`,
+  hand: (w, names, k) => `${w} exiles ${names[0]} from their hand ${k.cast ? "to cast" : "to pay for"} ${k.card}${k.kw ? ` (${k.kw})` : ""}`,
   plain: (w, names, k) => `${names[0]} is exiled${k.label || ""}`,
 };
 const EXILE_GROUPED = new Set(["graveyard", "battlefield", "library"]);
@@ -2753,6 +2757,11 @@ function logEvents(prev, cur, pub, facts = null) {
   // is still in the graveyard on the casting board, so an ability there, and a spell once it left; "casts" twice, keyword sweep)
   // (Forge never gives a stack id twice: "engine-stack-<n>" counts up, "casting-<n>" is the ability being cast)
   const prevSids = new Set(Object.values(prev.stack).flatMap((s) => s.sids));
+  // (an item gone from the stack in this board resolved (or was countered) before anything new went on it: a spell or
+  // activation new now is said after what that did, after its triggers too. Fury's damage trigger killed four creatures,
+  // then the AI activated Jace, and the deaths read after "AI 1 activates Jace Beleren's +2", live game 2026-11-11)
+  const resolvedHere = Object.values(prev.stack).some((s) => s.sids.length > 0 && s.sids.every((x) => !curSids.has(x)));
+  const afterResolved = [];
   for (const [key, s] of Object.entries(cur.stack)) {
     // (a spell back under a new stack id left the stack and was cast again, Forge giving no stack id twice: countered, if a
     // counterspell had it, and recast in one board; Niv-Mizzet read as never countered nor recast, rebuilt re-test 2.
@@ -2793,9 +2802,12 @@ function logEvents(prev, cur, pub, facts = null) {
       // (or made by its own card's effect: epic's upkeep copy read "White casts Eternal Dominion", hp-23 gap)
       const copyOf = !ability && !mine && (spellsSeen.has(`${s.ctl}|${s.name}`)
         || (namesSeen.has(s.name) && !((cur.counts[`hand:${s.ctl}`] ?? 0) < (prev.counts[`hand:${s.ctl}`] ?? 0)))
-        || Object.values(prev.stack).some((x) => x.effect && x.name === s.name));
+        || Object.values(prev.stack).some((x) => x.effect && x.name === s.name)
+        // (or by the trigger that casts it: cipher's "may cast a copy of Last Thoughts", whose copy Forge makes a card of
+        // its own with no copy flag; it read "White casts Last Thoughts", kw-17 2026-11-06)
+        || Object.values(prev.stack).some((x) => x.ability && `${x.text} ${x.desc}`.includes(`cast a copy of ${s.name}`)));
       if (!ability) { spellsSeen.add(`${s.ctl}|${s.name}`); namesSeen.add(s.name); }
-      (!mine && ability && (s.trigger || s.kwTrigger || s.upkeepCost) ? triggered : !mine && ability && entered ? afterEntries : out).push(s.upkeepCost ? `${poss(s.name)} ${s.upkeepCost}, or it is sacrificed`
+      (!mine && ability && (s.trigger || s.kwTrigger || s.upkeepCost) ? triggered : !mine && ability && entered ? afterEntries : resolvedHere ? afterResolved : out).push(s.upkeepCost ? `${poss(s.name)} ${s.upkeepCost}, or it is sacrificed`
         : ability && s.room ? `${who(s.ctl)} ventures into ${s.room} (${s.name})`
         : ability ? keywordLine(mine ? mine.kind : !s.trigger && !s.kwTrigger ? keywordKind(s.text) : null, s.ctl, s.name) || (!mine && s.kwTrigger ? `${poss(s.name)} ${s.kwTrigger} triggers (${who(s.ctl)})` : !mine && s.trigger ? `${poss(s.name)} ability triggers (${who(s.ctl)})` : activationLine(s, mine))
         : k >= 1 || copyOf ? `${who(s.ctl)} copies ${s.name}` : `${who(s.ctl)} casts ${mine ? mine.name : s.name}${optionalWords(s.opt, mine?.name)}${targetWords(s)}`);
@@ -3207,6 +3219,12 @@ function logEvents(prev, cur, pub, facts = null) {
     if (c.plotted) return { kind: "plotted", owner: c.owner };
     // (a paradigm spell, exiled as it resolves: Improvisation Capstone read "is exiled", hp-23 gap)
     if (!from && /(?:^|\n)Paradigm \(/.test(pubIndex[id]?.text || "")) return { kind: "paradigm", owner: c.owner };
+    // (from a hand to pay for another card: Fury's evoke read only "Sneak Attack is exiled", live game 2026-11-11. "To
+    // cast" while that card is a spell on the stack; the keyword when the harness names one, not a cost part's class)
+    if (!from && moved?.from === "Hand" && /^Cost:/.test(moved.cause || "") && moved.causeName && moved.causeName !== c.name) {
+      const cast = [...Object.values(prev.stack), ...Object.values(cur.stack)].some((s) => !s.ability && s.name === moved.causeName);
+      return { kind: "hand", owner: c.owner, card: moved.causeName, cast, kw: COST_KEYWORDS[moved.cause.slice(5)] || null };
+    }
     return { kind: "plain", owner: c.owner };
   };
   const toGraveyard = (c) => out.push(`${c.name} is put into ${who(c.owner)}'s graveyard`);
@@ -3221,9 +3239,10 @@ function logEvents(prev, cur, pub, facts = null) {
     const was = prev.cards[id];
     // (one put onto the battlefield attacking was never declared: its arrival line says so instead; Hero of Bladehold's
     // Soldiers read "White attacks with Soldier Token, Soldier Token", hp-16 gap)
-    // (by whom each attacks: a planeswalker or battle always, a player when there are more than two players)
+    // (by whom each attacks, a planeswalker, a battle or a player: in a game of two too, where "White attacks with Soldier
+    // token" didn't say at whom, live game 2026-11-11)
     if (c.attacking && was?.zone === "battlefield" && !was.attacking) {
-      const target = c.atc || ((pub.players || []).length > 2 && c.atp) || "";
+      const target = c.atc || c.atp || "";
       (attackers[`${c.ctl}|${target}`] ||= { ctl: c.ctl, target, names: [] }).names.push(tokenWords(c.name, c.token));
     }
     if (was && was.zone === c.zone && was.fd && !c.fd) out.push(`${c.name} is turned face up (${who(c.ctl)})`);
@@ -3487,7 +3506,7 @@ function logEvents(prev, cur, pub, facts = null) {
   // (day and night: Brutal Cathar made it day with nothing shown or logged, playtest 2026-10-26)
   if (cur.day !== prev.day && (cur.day === "day" || cur.day === "night")) out.push(`It becomes ${cur.day}`);
   // ("White attacks Jace Beleren (AI 1) with Hero of Bladehold"; whom by the attack target Forge names, a planeswalker or
-  // battle by its name and controller, a player only in a game of more than two, where it isn't the only one)
+  // battle by its name and controller, a player by name)
   const attacked = (id) => {
     if (!id) return null;
     if (/^player-/.test(id)) return who(id);
@@ -3575,7 +3594,7 @@ function logEvents(prev, cur, pub, facts = null) {
     const why = parts.length && parts.reduce((a, x) => a + x.n, 0) === l - before ? `, ${lifeWords(parts)}` : "";
     out.push(`${who(p)}: ${before} -> ${l} life (${l > before ? "+" : ""}${l - before}${why})`);
   }
-  out.push(...triggered);
+  out.push(...triggered, ...afterResolved);
   // (each group's line made once and kept on it, for the moves after the cuts below to find)
   for (const g of Object.values(groups)) out[g.at] = g.line = g.words[g.k.kind](who(g.owner), g.names, g.k);
   for (const [n, g] of Object.entries(p1Gains)) {
@@ -4598,18 +4617,27 @@ function undoublePlural(text, cardText = "") {
 // Engine text names players by relay username; show TTS colors / "AI n" instead.
 function displayText(text) {
   if (!game || !text) return text;
-  const out = undoublePlural(withoutForgeNotes(String(text)));
+  return tableNames(undoublePlural(withoutForgeNotes(String(text))));
+}
+// Every relay username in a text as the game log names that player ("White", "AI 1"), nothing else changed: displayText's
+// last step, and the net every message to the table goes through (pump), so no path can show "self-hosted-node-…-bot"
+// (a creature's "Protection from self-hosted-node-…-bot" reached the table's keyword box, 2026-11-06 game; the live
+// check 2026-11-11 saw the raw id on a prompt). Before a game, or with no player list yet, the text as it is.
+function tableNames(text) {
+  if (!game?.playerOrder?.length || !text) return text;
   // (every name in one pass, the longest first: the second AI is "<node>-bot 2", which holds the first's "<node>-bot",
   // and name by name it read "AI 1 2", keyword sweep kw-15 "Mob Verdict: choose one :: AI 1 / AI 1 2")
   // (case-insensitive: the engine sometimes capitalises names, "Self-hosted-node-…-bot picked …")
   // (made once per player list, game.nameMatch: every prompt's text comes through here)
   const key = game.playerOrder.join("\n");
   if (game.nameMatch?.key !== key) {
-    const names = game.playerOrder.map((username, i) => [String(username || ""), i]).filter(([u]) => u).sort((a, b) => b[0].length - a[0].length);
-    game.nameMatch = { key, slotOf: new Map(names.map(([u, i]) => [u.toLowerCase(), i])), any: names.length ? new RegExp(names.map(([u]) => escapeRe(u)).join("|"), "gi") : null };
+    // (only the relay's own forms, "tts-<colour>-<4>" and "…-bot", whole: this runs over whole JSON messages too (pump),
+    // where a short name would hit keys and words; a test game's "ai" turned the "ai" key and "AI 1" into "AI 1 1")
+    const names = game.playerOrder.map((username, i) => [String(username || ""), i]).filter(([u]) => /^tts-\w+-|-bot(?: \d+)?$/i.test(u)).sort((a, b) => b[0].length - a[0].length);
+    game.nameMatch = { key, slotOf: new Map(names.map(([u, i]) => [u.toLowerCase(), i])), any: names.length ? new RegExp(`(?<![\\w-])(?:${names.map(([u]) => escapeRe(u)).join("|")})(?![\\w-])`, "gi") : null };
   }
   const { slotOf, any } = game.nameMatch;
-  return any ? out.replace(any, (m) => nameOf(`player-${slotOf.get(m.toLowerCase())}`)) : out;
+  return any ? String(text).replace(any, (m) => nameOf(`player-${slotOf.get(m.toLowerCase())}`)) : text;
 }
 
 // Forge's question titles in plain words (the player playtested them: "keep the text simple when asking questions").
@@ -5361,6 +5389,12 @@ function entityWords(options, gv) {
     if (!these.length) onField = false;
     if (!each("Planeswalker")) walkers = false;
     if (!each("Planeswalker", "Battle")) defenders = false;
+    // (none on the battlefield: by whose zone it is in, when all of that name are in one, "Ral Zarek (in AI 1's
+    // graveyard)"; it read the bare name, nothing to tell it by, item 2 of the 2026-11-11 list)
+    if (!these.length) {
+      const where = (gv.zones || []).filter((z) => z.zone !== "battlefield" && (z.cards || []).some((c) => c.identity?.name === name && !c.isFaceDown));
+      return where.length === 1 && where[0].ownerId ? `${name} (in ${nameOf(where[0].ownerId)}'s ${ZONE_SAID[where[0].zone] || where[0].zone})` : name;
+    }
     const ctls = new Set(these.map((c) => c.controllerId));
     if (ctls.size !== 1 || !these[0].controllerId) return name;
     const types = these[0].types || [];
@@ -5883,8 +5917,8 @@ function onPrompt(seat, prompt) {
       // stack you could answer, or in a step you switched a stop on for (panel: Start of turn / Combat / End of turn).
       const opponentsStack = (gv.stack || []).some((x) => x.controllerId !== who);
       const stepStop = [...(seat.stops || DEFAULT_STOPS)].some((group) => (STOP_STEPS[group] || []).includes(gv.step));
-      // your own spell waiting to resolve in your main phase passes by itself, like Arena
-      // and your own main phase only when you can actually do something there (Arena passes it otherwise)
+      // your own main phase only when you can actually do something there (Arena passes it otherwise); your own spell
+      // waiting to resolve only when you hold a spell to answer it with (ownSpellStop, below)
       // ninjutsu (and sneak) only work after blockers are declared (Forge skips that step when nobody can block, so the
       // damage steps count too): always stop there when you can use one, even with
       // the Combat stop off (otherwise Arena-style passing skipped the only moment it is allowed)
@@ -5938,11 +5972,16 @@ function onPrompt(seat, prompt) {
       const pool = gv.players?.find((p) => p.id === who)?.manaPool;
       const floating = !pool || Object.values(pool).some((n) => n > 0);
       const undos = floating ? (input.actions || []).filter((a) => a.type === "undoMana" && a.cardId) : [];
-      // "mtg hold": priority kept once this turn with something on the stack you could respond with: your own spell
-      // passed by itself in your main phase, so Flusterstorm on your own Bolt had no moment (2026-10-29 request)
+      // "mtg hold": priority kept once this turn with something on the stack you could respond with (2026-10-29 request:
+      // Flusterstorm on your own Bolt had no moment). Your own spell with a spell in hand stops by itself now
+      // (ownSpellStop); hold still keeps it over your own trigger, or with only an ability to answer with.
       const holdStop = seat.hold === gv.turn && (gv.stack || []).length > 0 && actions.length > 0;
       if (holdStop) seat.hold = null;
-      const worthStopping = (myMain && !(gv.stack || []).length && actions.length > 0) || (actions.length && (opponentsStack || stepStop || ninjaStop || combatStop || attackerStop))
+      // your own spell on the stack while you hold a spell to answer it with: asked, in every step (live game 2026-11-11:
+      // White's Lightning Bolt in main 1 resolved with no stop while Counterspell was castable, but over Giant Growth in
+      // combat White was asked, by attackerStop). Not your own trigger, and not for an ability or mana alone.
+      const ownSpellStop = (gv.stack || []).some((x) => x.controllerId === who && !isAbilityOnStack(x, gv)) && actions.some((a) => a.type === "cast");
+      const worthStopping = (myMain && !(gv.stack || []).length && actions.length > 0) || (actions.length && (opponentsStack || stepStop || ninjaStop || combatStop || attackerStop || ownSpellStop))
         || undos.length > 0 || skipStop || holdStop;
       // what a stop on someone else's spell offered (to see why "Resolve" came up)
       if (worthStopping && opponentsStack) log(`${seat.color} may respond to the stack with: ${actions.map((a) => a.label || a.description || a.id).join(" | ") || "(nothing)"}`);
@@ -7645,7 +7684,9 @@ function timerExpired(seat, promptId) {
   if (seat.prompt?.promptId !== promptId) return;
   // (a manual fix or a rewind vote holds the game: everyone's clock waits)
   // (but a fix being applied is the engine playing its free plays: their questions are timed like any other)
-  if ((game?.fix && game.fix.state !== "applying") || seat.board?.state?.gameView?.restoreVote) { armTimer(seat); return; }
+  // (an open vote only: Forge keeps the vote's record on the board once it has ended, and every clock stopped for good
+  // after the first rewind vote of a game)
+  if ((game?.fix && game.fix.state !== "applying") || seat.board?.state?.gameView?.restoreVote?.status?.type === "pending") { armTimer(seat); return; }
   seat.timeBank = 0; seat.timerFrom = null;
   chat(`[MTG] ${seat.color} ran out of time: ${seat.prompt.ui?.title || "the question"} took its default answer.`);
   // (a question of several steps keeps its id: each step answered in turn)
@@ -8371,7 +8412,8 @@ function rewindState(gv) {
   // them, by name. A harmless bot votes by itself at once (harmlessVotes), so the table isn't told it waits for one)
   const bots = new Set((game.harmless || []).map((h) => h.slot));
   const awaiting = (v?.awaitingPlayerIds || []).filter((id) => game.slotColor[id]);
-  const vote = v ? { id: v.voteId, to: v.checkpoint ? checkpointLabel(v.checkpoint) : "?", by: seatWords(v.requestedByPlayerId),
+  // (byColor: the asker's seat, whose Keep playing button takes the vote back, onRewindVote)
+  const vote = v ? { id: v.voteId, to: v.checkpoint ? checkpointLabel(v.checkpoint) : "?", by: seatWords(v.requestedByPlayerId), byColor: game.slotColor[v.requestedByPlayerId] || null,
     waiting: awaiting.map((id) => game.slotColor[id]), waitingNames: awaiting.filter((id) => !bots.has(id)).map(nameOf), status: v.status?.type || "pending",
     declinedBy: v.status?.playerId ? seatWords(v.status.playerId) : null } : null;
   // Everyone has voted yes, but Forge rewinds only at a priority question: while a player is answering something else
@@ -8395,6 +8437,7 @@ function rewindNews(pub) {
   game.lastVoteKey = key;
   if (v.note) chat(`[MTG] Rewind to ${v.to}: ${v.note}`);
   else if (v.status === "pending") chat(`[MTG] ${v.by || "A player"} asks to rewind to ${v.to}.${v.waitingNames.length ? ` Waiting for ${v.waitingNames.join(", ")}: vote in the pop-up (or type  mtg vote yes / mtg vote no).` : ""}`);
+  else if (v.status === "declined" && game.voteWithdrawn === v.id) chat(`[MTG] ${v.by || "The player who asked"} withdrew the rewind.`);
   else if (v.status === "declined") chat(`[MTG] Rewind declined${v.declinedBy ? ` by ${v.declinedBy}` : ""}.`);
   else if (v.status === "unavailable") chat("[MTG] That point is no longer kept, so the rewind was cancelled.");
   return r;
@@ -8427,6 +8470,17 @@ function onRewindVote(color, accept) {
   const seat = game?.seats.get(color);
   const v = seat?.board?.state?.gameView?.restoreVote;
   if (!v || v.status?.type !== "pending") return chat("[MTG] No rewind vote is open.", color);
+  // (the asker's no takes it back. Forge lets only a voter it waits for decline, so the no goes through one of those
+  // seats; the chat then says it was withdrawn (rewindNews). A voter who never answers held the game until someone
+  // conceded, table log 2026-11-12 01:18)
+  if (!accept && v.requestedByPlayerId === seat.slot && !(v.awaitingPlayerIds || []).includes(seat.slot)) {
+    const voter = [...game.seats.values()].find((st) => (v.awaitingPlayerIds || []).includes(st.slot));
+    if (!voter) return chat("[MTG] Nobody is left to vote: the rewind goes ahead.", color);
+    log(`${color} withdraws the rewind (vote ${v.voteId}), declined through ${voter.color}'s seat`);
+    game.voteWithdrawn = v.voteId;
+    voter.directive({ type: "restoreVote", voteId: v.voteId, accept: false });
+    return;
+  }
   if (!(v.awaitingPlayerIds || []).includes(seat.slot)) return chat("[MTG] Your vote isn't needed for this one.", color);
   seat.directive({ type: "restoreVote", voteId: v.voteId, accept: !!accept });
 }
