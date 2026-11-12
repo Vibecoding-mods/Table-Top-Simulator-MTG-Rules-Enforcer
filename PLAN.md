@@ -279,7 +279,7 @@ TTS closed through Windows' Not Responding prompt. The profile says no runtime f
 it was never wired to the table. The current build stays the game. Kept on the `copy-engine` branch, not merged (its
 worktree folder `../mtg-tts-copy-engine` is gone; git lists it as prunable).
 
-What it was for: one place for the rules and the table (spec: `docs/spec-own-engine.md`), so that big fixes would not
+What it was for: one place for the rules and the table (spec: `docs/spec-own-engine.md`, refreshed 2026-11-11 with what is still open), so that big fixes would not
 be spread across Forge/harness Java, the bridge and the table with an image rebuild in between. That was never proved:
 the planned same-bugs-in-both-builds comparison and the people-only speed test (`docs/compare-current-vs-copy.md` on
 the branch) were not run before it closed on speed.
@@ -301,7 +301,8 @@ Details per day: `docs/changes-2026-10-31-to-11-05.md`. Everything up to `980aec
 - **Fix from hand:** specified in M7 §12 (`docs/m7-manual-fix-spec.md`), not built.
 - **Tests:** bridge golden 926 scenarios, `test_bridge_events` 221 checks, both passing.
 - **Being specified 2026-11-05 (open):**
-  - ⬜ Companion .exe: a deeper spec (`docs/companion-app-spec.md`).
+  - ✅ Companion .exe: built (six start lights, browser status page, table tools, friend-package self-update); the spec was rewritten from the code 2026-11-11 (`docs/companion-app-spec.md`, §14 lists what is not built).
+  - ⬜ Own engine: refreshed plan 2026-11-11 (`docs/spec-own-engine.md`); its new Phase 0 (people-only speed, fixes-in-one-place comparison, native engine without Docker) has not started.
   - ⬜ Core-moves cleanups: `askUnder`, `trackMarks`, `engineCardEntry`.
   - ⬜ M5 step 4: particle effects with sound hooks.
   - ⬜ Planechase plane and dungeon room: engine changes.
@@ -626,7 +627,7 @@ Players drag and use the table normally; every move is a request the engine acce
 
 | Idea | Spec | Notes |
 |---|---|---|
-| Companion .exe: choose self-host or dedicated server | §10b, `docs/companion-app-spec.md` | The bridge always stays on the host's PC. Self-host also starts Docker. Status lights, latency readout. Deeper spec being written 2026-11-05 |
+| Companion .exe: choose self-host or dedicated server | §10b, `docs/companion-app-spec.md` | The bridge always stays on the host's PC. Self-host also starts Docker. Status lights, latency readout. Built (Windows only, 6 lights, browser status page); spec rewritten from the code 2026-11-11. Own server and Cloud modes not built |
 | Dedicated server | §10b, `docs/server-setup-spec.md` | TLS relay, strong server key, measure the internet round-trip cost (~62 ms measured by Manabrew). Full AWS hosting paused by the user 2026-11-02 |
 | Bridge forwards editor messages to VSCode | §8 | Lets the host use the VSCode TTS plugin while the bridge runs |
 | Decklist import | §11 | Paste an Arena/Moxfield list as well as importing with the table's Card Importer (`mtg ready`) |
