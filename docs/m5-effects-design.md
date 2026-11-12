@@ -311,6 +311,8 @@ function engineSoundPlay(kind, force, n)   -- true if it played; n: the board's 
 
 **The user's sounds are in (2026-11-11):** `engineSounds` holds the six TTS Cloud links of `docs/sounds.md` (death,
 wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not yet heard on the real table.
+Their clips exist (made 2026-11-11 by `tools/make-effect-sounds.js`, not uploaded): `docs/sounds.md` "Counter and
+knockout" says where the two links go.
 
 **The eight kinds** (four added 2026-11-11, sound only: no table effect of their own):
 
