@@ -482,6 +482,56 @@ const id = (n) => `engine-card-${n}`;
   const GRIP = (sid) => ({ id: sid, sourceId: id(9), identity: { name: "Dream's Grip" }, controllerId: "player-1", sourceAbilityText: "Tap target permanent.", optionalCosts: ["Kicker1"] });
   same("stack: a copy of a kicked spell is said once kicked, on the cast",
     between(board(() => {}), board((b) => { b.stack.push(GRIP("stack-4")); b.stack.push(GRIP("stack-5")); }), []), ["AI 1 casts Dream's Grip (kicked)", "AI 1 copies Dream's Grip"]);
+  // a card exiled from the hand to pay a cost says what it paid for: Fury's evoke, "Exile a red card from your hand", read
+  // only "Sneak Attack is exiled" (live game 2026-11-11 21:58; the cause as the harness writes it, EngineEventLog costName:
+  // the ability's keyword, then its alternative cost, then the cost part's class)
+  {
+    const FURY = { id: "engine-stack-30", sourceId: id(300), identity: { name: "Fury" }, controllerId: "player-1", isPermanentSpell: true,
+      sourceAbilityText: "Double strike", text: "Fury (300) - Fury" };
+    const pitch = (cause) => between(board((b) => { count(b, "hand", 5, "player-1"); }),
+      board((b) => { count(b, "hand", 3, "player-1"); b.stack.push(FURY); put(b, "exile", { ...card(301, "Sneak Attack", ["Enchantment"]), controllerId: "player-1" }, "player-1"); }),
+      [ev(11, "Hand", "Stack", id(300), null, "player-1"), ev(12, "Hand", "Exile", id(301), null, "player-1", cause)]);
+    same("exiled from the hand: an evoke cost names the spell it paid for",
+      pitch({ cause: "Cost:Evoke", causeName: "Fury", causeCardId: id(300) }), ["AI 1 casts Fury", "AI 1 exiles Sneak Attack from their hand to cast Fury (evoke)"]);
+    same("exiled from the hand: a cost with no keyword, by the cost part, still names the spell",
+      pitch({ cause: "Cost:Exile", causeName: "Fury", causeCardId: id(300) }), ["AI 1 casts Fury", "AI 1 exiles Sneak Attack from their hand to cast Fury"]);
+    same("exiled from the hand: by an effect, not a cost, stays as it was",
+      pitch({ cause: "ChangeZone", causeName: "Fury", causeCardId: id(300) }), ["AI 1 casts Fury", "Sneak Attack is exiled"]);
+  }
+  // what a resolved item did comes before what was put on the stack after it: Fury's damage killed four creatures and then
+  // the AI activated Jace, all in one board, and the deaths read after "AI 1 activates Jace Beleren's +2" (live game
+  // 2026-11-11 22:00:16, White's "Resolve" #57)
+  {
+    const FURY_ETB = { id: "engine-stack-31", sourceId: id(300), identity: { name: "Fury" }, controllerId: "player-1", isTrigger: true,
+      sourceAbilityText: "When Fury enters, it deals 4 damage divided as you choose among any number of target creatures and/or planeswalkers.", text: "Fury (300) - Fury deals 4 damage divided as you choose." };
+    const JACE = (loyalty) => ({ ...card(310, "Jace Beleren", ["Planeswalker"]), controllerId: "player-1", counters: { LOYALTY: loyalty } });
+    const JACE_UP = { id: "engine-stack-32", sourceId: id(310), identity: { name: "Jace Beleren" }, controllerId: "player-1",
+      sourceAbilityText: "+2: Each player draws a card.", text: "Jace Beleren (310) - Each player draws a card." };
+    const victims = [card(311, "Prodigal Pyromancer", ["Creature"]), card(312, "Llanowar Elves", ["Creature"])];
+    same("order: the deaths a resolved trigger caused come before the next activation",
+      between(board((b) => { b.stack.push(FURY_ETB); put(b, "battlefield", JACE(1), "player-1"); for (const v of victims) put(b, "battlefield", v); }),
+        board((b) => { b.stack.push(JACE_UP); put(b, "battlefield", JACE(3), "player-1"); for (const v of victims) put(b, "graveyard", v); }),
+        victims.map((v, i) => ev(11 + i, "Battlefield", "Graveyard", v.id, "destroyed"))),
+      ["Prodigal Pyromancer dies", "Llanowar Elves dies", "AI 1 activates Jace Beleren's +2 (loyalty 1 -> 3)"]);
+    same("order: a spell cast in answer to one still on the stack stays where it was",
+      between(board((b) => { b.stack.push(FURY_ETB); for (const v of victims) put(b, "battlefield", v); }),
+        board((b) => { b.stack.push(FURY_ETB, { ...SPELL, id: "engine-stack-33" }); put(b, "graveyard", victims[0]); put(b, "battlefield", victims[1]); }),
+        [ev(11, "Battlefield", "Graveyard", victims[0].id, "sacrificed")]),
+      ["AI 1 casts Lightning Bolt", "Prodigal Pyromancer is sacrificed"]);
+  }
+  // cipher: the encoded creature's trigger casts a copy of the exiled card. Forge gives the copy a card of its own and no
+  // copy flag, so it read "White casts Last Thoughts" (keyword sweep kw-17, 2026-11-06; boards as the table got them:
+  // the trigger "engine-stack-14" from Grizzly Bears engine-card-230, then "engine-stack-15" Last Thoughts from engine-card-236)
+  {
+    const CIPHER = "Whenever Grizzly Bears deals combat damage to a player, its controller may cast a copy of Last Thoughts without paying its mana cost.";
+    const encoded = (b) => { put(b, "battlefield", BEAR(230)); put(b, "exile", card(229, "Last Thoughts", ["Sorcery"])); b.step = "combatDamage"; };
+    same("stack: a cipher copy is a copy, not a cast",
+      between(board((b) => { encoded(b); b.stack.push({ id: "engine-stack-14", sourceId: id(230), identity: { name: "Grizzly Bears" }, controllerId: "player-0", isTrigger: true,
+        sourceAbilityText: CIPHER, text: `Grizzly Bears (230) - ${CIPHER}` }); }),
+      board((b) => { encoded(b); b.stack.push({ id: "engine-stack-15", sourceId: id(236), identity: { name: "Last Thoughts" }, controllerId: "player-0",
+        sourceAbilityText: "Draw a card.", text: "Last Thoughts (236) - Blue draws a card. " }); }), []),
+      ["Blue copies Last Thoughts"]);
+  }
 
   // every keyword the sweep found by its stack text (Forge's own strings, keyword sweep 2026-11-03), and its cost's label
   for (const [kw, text, line] of [
@@ -1126,11 +1176,15 @@ const id = (n) => `engine-card-${n}`;
         between(fight([HERO()]), fight([HERO({ isAttacking: true, attackTargetId: id(54) })]), []), ["Blue attacks Jace Beleren (AI 1) with Hero of Bladehold"]);
       // (the board says its two players, as Forge's does: with no players at all, any count rule passes)
       const two = (b) => { b.players = ["player-0", "player-1"].map((p) => ({ id: p })); };
-      same("attack: the only other player of two isn't named",
-        between(fight([HERO()], two), fight([HERO({ isAttacking: true, attackTargetId: "player-1" })], two), []), ["Blue attacks with Hero of Bladehold"]);
+      // (named in a game of two as well: "White attacks with Soldier token" and "AI 1 attacks with Craw Wurm" didn't say
+      // at whom, live game 2026-11-11 21:36)
+      same("attack: the only other player of two is named too",
+        between(fight([HERO()], two), fight([HERO({ isAttacking: true, attackTargetId: "player-1" })], two), []), ["Blue attacks AI 1 with Hero of Bladehold"]);
+      same("attack: and the AI's attack names the table's player",
+        between(fight([{ ...BEAR(56), controllerId: "player-1" }], two), fight([{ ...BEAR(56), controllerId: "player-1", isAttacking: true, attackTargetId: "player-0" }], two), []), ["AI 1 attacks Blue with Grizzly Bears"]);
       same("attack: at the player and at the planeswalker, one line each",
         between(fight([HERO(), BEARS()]), fight([HERO({ isAttacking: true, attackTargetId: id(54) }), BEARS({ isAttacking: true, attackTargetId: "player-1" })]), []),
-        ["Blue attacks Jace Beleren (AI 1) with Hero of Bladehold", "Blue attacks with Grizzly Bears"]);
+        ["Blue attacks Jace Beleren (AI 1) with Hero of Bladehold", "Blue attacks AI 1 with Grizzly Bears"]);
       const three = (b) => { b.players = ["player-0", "player-1", "player-2"].map((p) => ({ id: p })); };
       same("attack: in a game of three, the player attacked is named",
         between(fight([HERO()], three), fight([HERO({ isAttacking: true, attackTargetId: "player-1" })], three), []), ["Blue attacks AI 1 with Hero of Bladehold"]);
