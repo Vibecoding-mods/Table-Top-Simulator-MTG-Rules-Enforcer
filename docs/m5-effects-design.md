@@ -302,8 +302,10 @@ board.
 -- M5 sound picks: nil = silent. A link (http...) plays through the table's music player (route A); a name plays
 -- that trigger effect of the sound object (an AssetBundle whose GM notes are "engine:sounds", route B).
 engineSounds = engineSounds or { death = "https://...", wipe = "https://...", damage = "https://...",
-  exile = "https://...", instant = "https://...", lifegain = "https://...", counter = nil, knockout = nil }
-engineSoundKinds = { "knockout", "wipe", "death", "exile", "damage", "lifegain", "instant", "counter" }
+  exile = "https://...", instant = "https://...", lifegain = "https://...", counter = nil, knockout = nil,
+  countered = nil, playerhit = nil, bighit = nil, sorcery = nil }
+engineSoundKinds = { "knockout", "wipe", "bighit", "death", "exile", "countered", "playerhit", "damage", "lifegain",
+  "sorcery", "instant", "counter" }
 engineSoundsMuted = false -- the host's switch for the whole table
 -- (plus the bursts: death_x2 ... death_x8 and the like, see "Bursts" below)
 function engineSoundPlay(kind, force, n)   -- true if it played; n: the board's count for that kind (bursts)
@@ -314,37 +316,57 @@ wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not
 Their clips exist (made 2026-11-11 by `tools/make-effect-sounds.js`, not uploaded): `docs/sounds.md` "Counter and
 knockout" says where the two links go.
 
-**The eight kinds** (four added 2026-11-11, sound only: no table effect of their own):
+**2026-11-12:** four more kinds (countered, playerhit, bighit, sorcery), the user's own counter sound, and death and
+instant x1.5 louder (`docs/sounds.md`, "Added and changed 2026-11-12"). All made, none uploaded: until the links are
+in, the new kinds have no pick and the table plays what it did on 2026-11-11.
+
+**The twelve kinds** (wipe, exile, lifegain, instant added 2026-11-11 and countered, playerhit, bighit, sorcery
+2026-11-12, sound only: no table effect of their own), in their order:
 
 | Kind | When | Notes |
 |---|---|---|
 | `knockout` | a player loses or concedes | 600 ms in, with the burst |
 | `wipe` | 3 or more permanents go to graveyards on one board, all seats together (a token that leaves the battlefield counts, as for death) | plays instead of death, with the first death; the visual "×N" cloud is still per seat and from 4 |
+| `bighit` | one hit of more than 5 (`FX.BIG_HIT`): a player's life down by 6 or more on a board, or a creature's damage up by 6 or more | with its first hit; with no bighit pick it is a damage (below), never a playerhit: a player hit of 6 or more is not counted as one |
 | `death` | a permanent goes to a graveyard (dies, sacrificed, destroyed), or a token leaves the battlefield other than to exile | |
 | `exile` | a permanent leaves the battlefield for exile: it is in an exile zone now, or the bridge's `exd` names it | tokens count: a token exiled ceases to exist and no board shows it in exile, so the bridge sends the engine's word on the move (`exd`, the battlefield → exile moves since the last board sent, once); without the engine's event feed a token exiled still reads as a death. A card exiled from a hand, a library or a graveyard doesn't count; a flicker that is back on the battlefield by the next board doesn't either |
-| `damage` | damage to a creature or a player (life down, life paid reads the same) | with the first lunge hit |
+| `countered` | a spell countered: the spells the COUNTERED pop-up takes (a stack item of the last board whose card the bridge's `ctrd` names, `spell` or `sp`, never an ability) | at once |
+| `playerhit` | 1 to 5 damage to a player (life down by 1 to 5; life paid reads the same) | with the first lunge hit on a player; with no playerhit pick it is a damage |
+| `damage` | damage of 5 or less to a creature; it still counts every hit (creatures and players, any size), so it is the fallback of playerhit and bighit: with neither picked every hit plays it, as before 2026-11-12 | with the first lunge hit |
 | `lifegain` | a player's life goes up on a board | a life loss never plays it |
+| `sorcery` | a sorcery spell appears on the stack | as instant, by the bridge's `sor` (the same rule as `ins`: a spell, not an ability, not still being cast, whose card was seen as a Sorcery); not for a copy (storm's Grapeshot copies), not for an ability |
 | `instant` | an instant spell appears on the stack | the bridge marks the stack item `ins`: a spell, not an ability (`isAbilityOnStack`), no longer being cast, whose card it has seen as an Instant (its stack name first, else its card id, from every seat's view outside the battlefield). Forge's stack item has no card types, so an instant whose card no seat has seen face up (an AI's first of that name, from a hand nobody sees) plays nothing. The table plays it once per card (`src`), and not for a copy: a stack item with the name of an instant already on the stack while its controller's hand didn't shrink (Twincast's copy, storm's). Never for a sorcery, an ability, a Flash creature |
 | `counter` | a counter put on a permanent | |
 
-- **When:** at most one sound per board: the first kind of `engineSoundKinds` (knockout > wipe > death > exile >
-  damage > lifegain > instant > counter) that is on this board **and has a pick**, so a wipe with no wipe pick plays
-  death, and a knock-out with no knockout pick plays the damage that did it. Each kind at most once every 0.3 s, and
-  any two sounds at least 0.15 s apart. It plays at that kind's first event's start time (lunge hit, knock-out
-  600 ms, a wipe's first death); exile, lifegain and instant at once.
+- **When:** at most one sound per board: the first kind of `engineSoundKinds` (knockout > wipe > bighit > death > exile >
+  countered > playerhit > damage > lifegain > sorcery > instant > counter) that is on this board **and has a pick**, so a
+  wipe with no wipe pick plays death, and a knock-out with no knockout pick plays the hit that did it (bighit or playerhit, else
+  damage).
+- **Why that order (2026-11-12):** the rarer and bigger event wins. A hit of more than 5 is about a player's game or a
+  big creature, so it goes above a single death (a wipe of 3+ and a knock-out still beat it); a countered spell is
+  one card lost, with death and exile; a player hit of 5 or less goes just above damage, as hitting a player matters
+  more than a creature; the casts stay at the bottom with instant (a sorcery is cast at sorcery speed, so it shares a
+  board with an instant only when the instant answers it in the same update; the sorcery, the bigger spell, wins).
+  playerhit and bighit each sit above damage, which counts every hit: with no pick for them, damage plays as on
+  2026-11-11, as death does for wipe.
+- **Spacing and timing:** each kind at most once every 0.3 s, and any two sounds at least 0.15 s apart. It plays at
+  that kind's first event's start time (lunge hit, knock-out 600 ms, a wipe's first death; a hit sound with its first
+  hit of that kind, damage with any hit: `FX.ofSound`); exile, lifegain, countered, sorcery and instant at once.
 - **Bursts (2026-11-11):** a kind with a count can play a stacked clip instead of its plain one. The links are keys
   `<kind>_x<N>` in `engineSounds` (the 24 of `docs/sounds.md`, "Bursts"): damage, death, exile, lifegain ×2 ×3 ×4
-  ×6 ×8; wipe ×3 ×4 ×6 ×8 (wipe's plain sound stays the 3+ one, so a wipe of 3 plays `wipe_x3`).
+  ×6 ×8; wipe ×3 ×4 ×6 ×8 (wipe's plain sound stays the 3+ one, so a wipe of 3 plays `wipe_x3`). Made 2026-11-12, no
+  link yet: playerhit and bighit ×2 ×3 ×4 ×6 ×8 (they take over part of damage, so they have its buckets).
   - `FX.burst(kind, n)` picks the largest bucket with a link at or under the count, capped at `FX.BURST_MAX` = 8 (a
     `_x16` link is never used); a count of 1, or no bucket link under it, plays the plain kind. So 5 plays ×4, 7
     plays ×6, 50 plays ×8.
   - The counts, all on one board: death and wipe = the permanents that went to a graveyard (the same `diedIds` the
     wipe rule counts); exile = the permanents exiled from the battlefield (the exile zones' new ids plus `exd`);
     damage = the creatures that took damage (before the 4-burst visual cap) plus the players whose life went down;
+    bighit = those of them hit by more than 5; playerhit = the players whose life went down by 5 or less;
     lifegain = the players whose life went up. The engine's own feed has no separate gain events for the table (the
     bridge only rebuilds gains for its log lines), and a board carries life totals only, so two gains by one player
-    on one board count once. Knockout, instant and counter are counted the same way (players out, 1, permanents given
-    counters) but have no burst links. In `engineFxBoard` this one `counts` table is both the board's kinds (a count
+    on one board count once. Knockout, instant, sorcery, countered and counter are counted the same way (players out, 1,
+    1, the spells countered, permanents given counters) but have no burst links. In `engineFxBoard` this one `counts` table is both the board's kinds (a count
     over 0; wipe's is 0 under 3) and their bursts (suite review 2026-11-11: it replaced a separate set of kinds fed
     from the visual events, which could disagree with the counts).
   - Still one clip per board, by the order above, under the same limits: the spacing is kept per kind (`death_x4`
@@ -397,9 +419,9 @@ knockout" says where the two links go.
     TTS's settings."
   - `mtg sounds test <kind> [N]` (host), any of `engineSoundKinds`: plays that pick now (with N, the burst a count
     of N picks), so the user can try sounds; an unknown kind lists them.
-- **Bridge fields** (`bridge/bridge.js`, `sendTable`): `ins: true` on a stack item (`isInstantCast`, types from
-  `noteTypes`), `sp: true` on a spell that isn't `spell` (an instant or a sorcery: the countered pop-up), and `exd: [card ids]` on the board (from `updateLog`'s engine facts; out of the board's signature like
-  `jump`, cleared once sent). A bridge without them: no instant sound, and an exiled token reads as a death.
+- **Bridge fields** (`bridge/bridge.js`, `sendTable`): `ins: true` on a stack item (`isSpellOfType(s, pub, "Instant")`, types from
+  `noteTypes`), `sor: true` the same for a sorcery (2026-11-12), `sp: true` on a spell that isn't `spell` (an instant or a sorcery: the countered pop-up), and `exd: [card ids]` on the board (from `updateLog`'s engine facts; out of the board's signature like
+  `jump`, cleared once sent). A bridge without them: no instant (or sorcery) sound, and an exiled token reads as a death.
 ### Plugging in a sound (the user)
 
 1. Get the sound as an **.mp3** file. The TTS music player docs give only .mp3 links in their examples and list no
@@ -422,7 +444,7 @@ knockout" says where the two links go.
 
    Leave an event as `nil` (or leave it out) to keep it silent.
 4. The lead deploys the table as usual. Then, as the host, type `mtg sounds test death` (or any other kind: knockout,
-   wipe, exile, damage, lifegain, instant, counter) to hear it.
+   wipe, bighit, exile, countered, playerhit, damage, lifegain, sorcery, instant, counter) to hear it.
 
 - `mtg sounds off` / `on` (host) mutes or unmutes the table. Nothing plays while the players' own music is playing.
 - Pictures work the same way: the line `engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }`

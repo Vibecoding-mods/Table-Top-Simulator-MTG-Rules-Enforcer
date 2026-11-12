@@ -372,7 +372,7 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
 }
 
 // the user's sounds (docs/sounds.md) and the four kinds added 2026-11-11: wipe, exile, instant, lifegain (design section
-// 6). One sound per board, the first of knockout > wipe > death > exile > damage > lifegain > instant > counter with a pick.
+// 6). One sound per board, the first kind with a pick (the order, with the 2026-11-12 kinds: the block after the bursts).
 {
   const doc = require("fs").readFileSync(require("path").join(__dirname, "..", "docs", "sounds.md"), "utf8");
   const docLinks = {};
@@ -439,7 +439,7 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("jump: a jump board plays none of the new sounds", said(14) === "[]" && vals[14].jump === true, JSON.stringify(vals[14]));
   ok("order: with no lifegain pick, the instant under it plays", said(15) === '["instant music"]', said(15));
   ok("mtg sounds test: the new kinds play", said(16) === '["exile music","instant music"]', said(16));
-  ok("mtg sounds test: an unknown kind lists the kinds", t.fx("tests").some((l) => l.includes("The sounds are: knockout, wipe, death, exile, damage, lifegain, instant, counter.")), JSON.stringify(t.fx("tests").filter((l) => l.includes("broadcast"))));
+  ok("mtg sounds test: an unknown kind lists the kinds", t.fx("tests").some((l) => l.includes("The sounds are: knockout, wipe, bighit, death, exile, countered, playerhit, damage, lifegain, sorcery, instant, counter.")), JSON.stringify(t.fx("tests").filter((l) => l.includes("broadcast"))));
 }
 
 // the music player (verifier, 2026-11-11): a sound plays once the player holds its own clip and has loaded it (loaded
@@ -618,6 +618,99 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const keys = Object.keys(burstDoc);
   ok("bursts: the 24 links of docs/sounds.md are the shipped bursts", keys.length === 24 && keys.every((k) => shipped[k] === burstDoc[k])
     && Object.keys(shipped).filter((k) => k.includes("_x")).length === 24 && !shipped.wipe_x2, JSON.stringify(keys.filter((k) => shipped[k] !== burstDoc[k])));
+}
+
+// the kinds added 2026-11-12 (docs/sounds.md, design section 6): countered, sorcery, playerhit (1 to 5 damage to a
+// player) and bighit (one hit of more than 5, a player or a creature); damage keeps the creatures' hits of 5 or less and
+// stays the fallback of both. Order: knockout > wipe > bighit > death > exile > countered > playerhit > damage >
+// lifegain > sorcery > instant > counter.
+{
+  const ORDER = ["knockout", "wipe", "bighit", "death", "exile", "countered", "playerhit", "damage", "lifegain", "sorcery", "instant", "counter"];
+  const PICKS = (kinds) => `for _, k in ipairs({ "${kinds.join('", "')}" }) do engineSounds[k] = "https://example.invalid/" .. k .. ".mp3"
+      for _, b in ipairs({ 2, 3, 4, 6, 8 }) do engineSounds[k .. "_x" .. b] = "https://example.invalid/" .. k .. "_x" .. b .. ".mp3" end end return "set"`;
+  const ALL = ORDER.filter((k) => k !== "knockout");
+  const SORC = (id, src, ctl = "Blue") => ({ id, n: "Farseek", tx: "Search your library for a land card.", ctl, src, spell: false, sp: true, sor: true, tg: [] });
+  const SHOCK = (id, src, ctl = "Blue") => ({ id, n: "Shock", tx: "Shock deals 2 damage to any target.", ctl, src, spell: false, sp: true, ins: true, tg: [] });
+  const s0 = base(); s0.Blue.hc = 5; s0.White.hc = 5;
+  const step = (from, edit) => { const x = clone(from); delete x.ctrd; edit(x); return x; };
+  const ping = step(s0, (x) => { x.White.life = 37; }); // 3 to a player
+  const five = step(ping, (x) => { x.White.life = 32; }); // 5: still a playerhit
+  const six = step(five, (x) => { x.White.life = 26; }); // 6: a big hit
+  const small = step(six, (x) => { x.White.more.w1 = { dmg: 5 }; }); // 5 to a creature: damage
+  const bigC = step(small, (x) => { x.White.more.w2 = { dmg: 6 }; }); // 6 to a creature: a big hit
+  const twoP = step(bigC, (x) => { x.White.life = 24; x.Blue.life = 38; }); // two players hit, 2 each: playerhit_x2
+  const bigs = step(twoP, (x) => { x.White.more.w3 = { dmg: 7 }; x.White.more.w4 = { dmg: 9 }; x.Blue.life = 30; }); // three hits over 5: bighit_x3
+  const bigDeath = step(bigs, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "b1"); x.Blue.gy = ["b1"]; x.White.life = 10; }); // a death and a big hit
+  const deathP = step(bigDeath, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "b2"); x.Blue.gy.push("b2"); x.White.life = 8; }); // a death and a ping
+  const sorc = step(deathP, (x) => { x.stack = [SORC("engine-stack-40", "s40")]; x.Blue.hc = 4; });
+  const still = step(sorc, (x) => { x.step = "main2"; });
+  const copy = step(still, (x) => { x.stack.push(SORC("engine-stack-41", "s41")); }); // (storm's copy: same name, no card from a hand)
+  const inst = step(copy, (x) => { x.stack = [SHOCK("engine-stack-42", "i42")]; x.Blue.hc = 3; });
+  const both = step(inst, (x) => { x.stack = [SORC("engine-stack-43", "s43"), SHOCK("engine-stack-44", "i44", "White")]; x.Blue.hc = 2; x.White.hc = 4; });
+  const cast = step(both, (x) => { x.stack = [SHOCK("engine-stack-45", "i45", "White")]; x.White.hc = 3; });
+  const ctrd = step(cast, (x) => { x.stack = []; x.ctrd = ["i45"]; });
+  const ctrdPing = step(ctrd, (x) => { x.stack = [SORC("engine-stack-46", "s46")]; x.Blue.hc = 1; });
+  const ctrd2 = step(ctrdPing, (x) => { x.stack = []; x.ctrd = ["s46"]; x.White.life = 6; }); // a countered sorcery and a ping
+  const t = run([
+    lua(`return JSON.encode({ kinds = engineSoundKinds, shipped = engineSoundsShipped, len = engineSoundLen })`, "shipped"),
+    lua(PICKS(ALL), "picks"),
+    send(s0, "first board"),
+    send(ping, "ping", 30), LAST, send(five, "five", 30), LAST, send(six, "six", 30), LAST, send(small, "creature 5", 30), LAST, send(bigC, "creature 6", 30), LAST,
+    send(twoP, "two players", 30), LAST, send(bigs, "three big", 30), LAST, send(bigDeath, "big and death", 30), LAST, send(deathP, "death and ping", 30), LAST,
+    send(sorc, "sorcery", 30), LAST, send(still, "sorcery still there", 30), LAST, send(copy, "sorcery copy", 30), LAST, send(inst, "instant", 30), LAST,
+    send(both, "sorcery and instant", 30), LAST, send(cast, "instant to counter", 30), LAST, send(ctrd, "countered", 30), LAST,
+    send(ctrdPing, "sorcery to counter", 30), LAST, send(ctrd2, "countered and ping", 30), LAST,
+    lua(`engineChat("mtg sounds test boom", Player.Blue) return "t"`, "tests", 30),
+  ]);
+  ok("2026-11-12 kinds: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const sh = t.value("shipped");
+  ok("2026-11-12 kinds: the order", JSON.stringify(sh.kinds) === JSON.stringify(ORDER), JSON.stringify(sh.kinds));
+  ok("2026-11-12 kinds: no link until the user uploads (countered, sorcery, playerhit, bighit, counter)",
+    ["countered", "sorcery", "playerhit", "bighit", "counter"].every((k) => sh.shipped[k] == null && Object.keys(sh.shipped).every((x) => !x.startsWith(k + "_x"))), JSON.stringify(Object.keys(sh.shipped)));
+  // (bighit-x8 is 1.94 s of sound in a 2.2 s file: paused at 1.95 s, after it, not at 1.75 s inside it)
+  ok("2026-11-12 kinds: bighit_x8 is 2.2 s long (engineSoundLen)", sh.len.bighit_x8 === 2.2, JSON.stringify(sh.len));
+  const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  const news = vals.map((v, i) => (v.snd || []).slice(i === 0 ? 0 : (vals[i - 1].snd || []).length));
+  const said = (i) => JSON.stringify(news[i]);
+  ok("playerhit: 3 damage to a player", said(0) === '["playerhit music"]', said(0));
+  ok("playerhit: 5 to a player is still a playerhit", said(1) === '["playerhit music"]', said(1));
+  ok("bighit: 6 to a player", said(2) === '["bighit music"]', said(2));
+  ok("damage: 5 to a creature keeps the damage hit", said(3) === '["damage music"]', said(3));
+  ok("bighit: 6 to a creature", said(4) === '["bighit music"]', said(4));
+  ok("playerhit: two players hit on one board plays its x2", said(5) === '["playerhit_x2 music"]', said(5));
+  ok("bighit: three hits over 5 (two creatures, a player) plays its x3", said(6) === '["bighit_x3 music"]', said(6));
+  ok("order: bighit beats death", said(7) === '["bighit music"]', said(7));
+  ok("order: death beats playerhit", said(8) === '["death music"]', said(8));
+  ok("sorcery: a sorcery cast plays sorcery once", said(9) === '["sorcery music"]', said(9));
+  ok("sorcery: still on the stack plays nothing", said(10) === "[]", said(10));
+  ok("sorcery: a copy plays nothing", said(11) === "[]", said(11));
+  ok("instant: an instant plays instant, not sorcery", said(12) === '["instant music"]', said(12));
+  ok("order: sorcery beats instant", said(13) === '["sorcery music"]', said(13));
+  ok("countered: an instant countered plays countered", said(15) === '["countered music"]', said(15));
+  ok("order: countered beats playerhit", said(17) === '["countered music"]', said(17));
+  ok("mtg sounds test: an unknown kind lists the 2026-11-12 kinds", t.fx("tests").some((l) => l.includes(`The sounds are: ${ORDER.join(", ")}.`)), JSON.stringify(t.fx("tests").filter((l) => l.includes("broadcast"))));
+
+  // the fallback: with no playerhit or bighit pick, every hit is damage again (the table before 2026-11-12), and a
+  // countered spell with no countered pick plays nothing
+  const f = run([lua(PICKS(["damage", "death"]), "picks"), send(s0, "first board"), send(ping, "ping", 30), LAST, send(six, "six", 30), LAST, send(bigC, "creature 6", 30), LAST,
+    send(cast, "instant to counter", 30), LAST, send(ctrd, "countered", 30), LAST]);
+  const fv = f.all("last").map((s) => JSON.parse(s.value || "{}").snd || []);
+  const fn = fv.map((v, i) => JSON.stringify(v.slice(i === 0 ? 0 : fv[i - 1].length)));
+  ok("fallback: a ping with no playerhit pick plays damage", fn[0] === '["damage music"]', fn[0]);
+  ok("fallback: a big hit to a player with no bighit pick plays damage", fn[1] === '["damage music"]', fn[1]);
+  ok("fallback: a big hit to a creature with no bighit pick plays damage (its x2: the 5 and the 6)", fn[2] === '["damage_x2 music"]', fn[2]);
+  ok("fallback: a countered spell with no countered pick plays nothing", fn[4] === "[]", fn[4]);
+
+  // timing: the player's hit sound waits for the swing's hit, as damage did (playerhit; damage as its fallback)
+  const atk = clone(base()); atk.step = "combatDeclareBlockers"; atk.Blue.more = { b1: { atk: true, atkT: "White" } };
+  const dmg = clone(atk); dmg.step = "combatDamage"; dmg.White.life = 38;
+  const big = clone(dmg); big.White.life = 34; big.White.more = { w1: { dmg: 1 } }; // (6 to the player, 1 to a creature)
+  for (const kinds of [["playerhit", "damage"], ["damage"], ["bighit", "damage"]]) {
+    const c = run([lua(PICKS(kinds), "picks"), send(base(), "first board"), send(atk, "attackers"), send(kinds[0] === "bighit" ? big : dmg, "combat damage", 1), LAST, lua(`return "x"`, "after", 30), LAST]);
+    const [now, later] = c.all("last").map((s) => JSON.parse(s.value || "{}").snd || []);
+    ok(`timing (${kinds[0]}): no sound at once`, JSON.stringify(now) === "[]", JSON.stringify(now));
+    ok(`timing (${kinds[0]}): the sound with the hit`, JSON.stringify(later) === `["${kinds[0]} music"]`, JSON.stringify(later));
+  }
 }
 
 // the COUNTERED pop-up (2026-11-11): an instant or a sorcery countered shows it too. The bridge's `spell` is false for
