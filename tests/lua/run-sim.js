@@ -1,12 +1,13 @@
 // Runs the table's Global script (from a save) on fengari with the fake TTS (tts-sim.lua) and returns what it did.
-//   const { simulate } = require("./run-sim");  simulate({ save, seated, steps })
+//   const { simulate } = require("./run-sim");  simulate({ save, seated, steps, prelude })
 // steps: [{ msg: { t, json } } | { frames: n } | { lua: "code" } | { mark: "label" }]
+// prelude: Lua run before the Global script loads (sets a global the script keeps: `x = x or default`)
 const fs = require("fs");
 const path = require("path");
 require("./moonsharp-patterns"); // (fails on the patterns TTS fails on)
 const { lua, lauxlib, lualib, to_luastring, to_jsstring } = require("fengari");
 
-function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPerMsg = 6 }) {
+function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPerMsg = 6, prelude = "" }) {
   const L = lauxlib.luaL_newstate();
   lualib.luaL_openlibs(L);
   const errors = [];
@@ -40,6 +41,7 @@ function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPe
   const out = [];
   const record = (label, extra) => { const e = fx(); out.push({ step: label, ...(extra || {}), fx: e }); };
 
+  if (prelude) { const p = run(prelude, "=prelude"); if (p.error) errors.push(`prelude: ${p.error}`); }
   const loaded = run(save.LuaScript, "=Global");
   if (loaded.error) errors.push(`Global script: ${loaded.error}`);
   // TTS calls onLoad, and the older lowercase onload (the base table script uses that one)

@@ -302,8 +302,9 @@ board.
 -- M5 sound picks: nil = silent. A link (http...) plays through the table's music player (route A); a name plays
 -- that trigger effect of the sound object (an AssetBundle whose GM notes are "engine:sounds", route B).
 engineSounds = engineSounds or { death = "https://...", wipe = "https://...", damage = "https://...",
-  exile = "https://...", instant = "https://...", lifegain = "https://...", counter = nil, knockout = nil,
-  countered = nil, playerhit = nil, bighit = nil, sorcery = nil }
+  exile = "https://...", instant = "https://...", lifegain = "https://...", counter = "https://...",
+  knockout = "https://...", countered = "https://...", playerhit = "https://...", bighit = "https://...",
+  sorcery = "https://..." }
 engineSoundKinds = { "knockout", "wipe", "bighit", "death", "exile", "countered", "playerhit", "damage", "lifegain",
   "sorcery", "instant", "counter" }
 engineSoundsMuted = false -- the host's switch for the whole table
@@ -311,14 +312,13 @@ engineSoundsMuted = false -- the host's switch for the whole table
 function engineSoundPlay(kind, force, n)   -- true if it played; n: the board's count for that kind (bursts)
 ```
 
-**The user's sounds are in (2026-11-11):** `engineSounds` holds the six TTS Cloud links of `docs/sounds.md` (death,
-wipe, damage, exile, instant, lifegain); counter and knockout have none yet. Not yet heard on the real table.
-Their clips exist (made 2026-11-11 by `tools/make-effect-sounds.js`, not uploaded): `docs/sounds.md` "Counter and
-knockout" says where the two links go.
+**The user's sounds are in (2026-11-11):** `engineSounds` held the six TTS Cloud links of `docs/sounds.md` (death,
+wipe, damage, exile, instant, lifegain).
 
-**2026-11-12:** four more kinds (countered, playerhit, bighit, sorcery), the user's own counter sound, and death and
-instant x1.5 louder (`docs/sounds.md`, "Added and changed 2026-11-12"). All made, none uploaded: until the links are
-in, the new kinds have no pick and the table plays what it did on 2026-11-11.
+**2026-11-12:** four more kinds (countered, playerhit, bighit, sorcery), the user's own counter sound, our knockout,
+and death and instant x1.5 louder (`docs/sounds.md`, "Added and changed 2026-11-12"). Uploaded the same day and
+matched by sha256: all twelve kinds now have a link (12 plain sounds, 34 bursts). Not yet heard
+on the real table.
 
 **The twelve kinds** (wipe, exile, lifegain, instant added 2026-11-11 and countered, playerhit, bighit, sorcery
 2026-11-12, sound only: no table effect of their own), in their order:
@@ -430,7 +430,7 @@ in, the new kinds have no pick and the table plays what it did on 2026-11-11.
    A direct `https://` link to the .mp3 elsewhere also goes in. Unchecked: whether the music player takes a Cloud
    Manager link (it has no ".mp3" at its end); try it with `mtg sounds test` (real-table check 5).
 3. In `tools/engine-renderer.lua`, find the line that starts with `engineSounds = engineSounds or`, and fill in the
-   links, one line per event (done 2026-11-11 for six of the eight kinds, `docs/sounds.md`; the block below is the
+   links, one line per event (done for all twelve kinds by 2026-11-12, `docs/sounds.md`; the block below is the
    original four-kind example):
 
    ```lua

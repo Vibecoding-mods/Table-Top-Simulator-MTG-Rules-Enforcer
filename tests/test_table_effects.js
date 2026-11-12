@@ -151,7 +151,8 @@ const near = (a, b) => Math.abs(a - b) < 0.01;
   const kill = (s, id, color) => { const x = clone(s); x[color].bf = x[color].bf.filter((c) => c !== id); x[color].gy.push(id); return x; };
   const s1 = kill(s0, "b1", "Blue"), s2 = kill(s1, "b2", "Blue"), s3 = kill(s2, "b3", "Blue"), s4 = kill(s3, "b4", "Blue");
   const t = run([
-    lua(`engineSounds.death = "https://example.invalid/poof.mp3" return "set"`, "pick"),
+    // (no effect bundle: the shipped fx link's rigs would make AssetBundle calls of their own at each death)
+    lua(`engineFxBundle = { fx = nil, sounds = nil } engineSounds.death = "https://example.invalid/poof.mp3" return "set"`, "pick"),
     send(s0, "first board"), send(s1, "death with a link", 30), LAST,
     lua(`MusicPlayer.player_status = "Play" MusicPlayer.clip = { title = "Song", url = "x" } return "busy"`, "music busy"),
     send(s2, "death while music plays", 30), LAST,
@@ -414,9 +415,10 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ]);
   ok("new sounds: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
   const shipped = t.value("shipped");
-  ok("the user's sounds: the six links of docs/sounds.md are the shipped picks", Object.keys(docLinks).length === 6
+  ok("the user's sounds: the 12 links of docs/sounds.md are the shipped picks", Object.keys(docLinks).length === 12
     && Object.entries(docLinks).every(([k, url]) => shipped[k] === url), JSON.stringify({ docLinks, shipped }));
-  ok("the user's sounds: counter and knockout stay silent", shipped.counter == null && shipped.knockout == null, JSON.stringify(shipped));
+  ok("the user's sounds: counter and knockout are the doc's links (uploaded 2026-11-12)", /^https:/.test(docLinks.counter || "") && /^https:/.test(docLinks.knockout || "")
+    && shipped.counter === docLinks.counter && shipped.knockout === docLinks.knockout, JSON.stringify([shipped.counter, shipped.knockout]));
   const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
   // each board's new log lines
   const news = vals.map((v, i) => (v.snd || []).slice(i === 0 ? 0 : (vals[i - 1].snd || []).length));
@@ -613,11 +615,11 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const sp = run([lua(PICKS(true), "picks"), send(k0, "first"), send(k1, "a death", 12), send(k2, "two more, 0.2 s later", 30), LAST]);
   const spSaid = sp.all("last").map((s) => JSON.parse(s.value || "{}").snd || [])[0];
   ok("bursts: a burst keeps its kind's 0.3 s spacing", JSON.stringify(spSaid) === '["death music"]', JSON.stringify(spSaid));
-  // the shipped links: the 24 of docs/sounds.md
+  // the shipped links: the 34 of docs/sounds.md
   const shipped = JSON.parse(run([lua(`return JSON.encode(engineSoundsShipped)`, "shipped")]).step("shipped").value || "{}");
   const keys = Object.keys(burstDoc);
-  ok("bursts: the 24 links of docs/sounds.md are the shipped bursts", keys.length === 24 && keys.every((k) => shipped[k] === burstDoc[k])
-    && Object.keys(shipped).filter((k) => k.includes("_x")).length === 24 && !shipped.wipe_x2, JSON.stringify(keys.filter((k) => shipped[k] !== burstDoc[k])));
+  ok("bursts: the 34 links of docs/sounds.md are the shipped bursts", keys.length === 34 && keys.every((k) => shipped[k] === burstDoc[k])
+    && Object.keys(shipped).filter((k) => k.includes("_x")).length === 34 && !shipped.wipe_x2, JSON.stringify(keys.filter((k) => shipped[k] !== burstDoc[k])));
 }
 
 // the kinds added 2026-11-12 (docs/sounds.md, design section 6): countered, sorcery, playerhit (1 to 5 damage to a
@@ -665,8 +667,16 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("2026-11-12 kinds: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
   const sh = t.value("shipped");
   ok("2026-11-12 kinds: the order", JSON.stringify(sh.kinds) === JSON.stringify(ORDER), JSON.stringify(sh.kinds));
-  ok("2026-11-12 kinds: no link until the user uploads (countered, sorcery, playerhit, bighit, counter)",
-    ["countered", "sorcery", "playerhit", "bighit", "counter"].every((k) => sh.shipped[k] == null && Object.keys(sh.shipped).every((x) => !x.startsWith(k + "_x"))), JSON.stringify(Object.keys(sh.shipped)));
+  // (uploaded 2026-11-12: the doc's links, plain and bursts; only playerhit and bighit have bursts)
+  const doc = require("fs").readFileSync(require("path").join(__dirname, "..", "docs", "sounds.md"), "utf8");
+  const docAll = {};
+  for (const m of doc.matchAll(/^\| mtg-\w+\.mp3 \|[^|]*\(`(\w+)`[^|]*\|.*\| (https:\/\/\S+) \|$/gm)) docAll[m[1]] = m[2];
+  for (const m of doc.matchAll(/^\| mtg-(\w+)-x(\d+)\.mp3 \| (\w+) \| (\d+) \| (https:\/\/\S+) \|$/gm)) if (m[1] === m[3] && m[2] === m[4]) docAll[`${m[1]}_x${m[2]}`] = m[5];
+  const NEW = ["countered", "sorcery", "playerhit", "bighit", "counter"];
+  const newKeys = Object.keys(sh.shipped).filter((x) => NEW.some((k) => x === k || x.startsWith(k + "_x")));
+  ok("2026-11-12 kinds: the doc's links are shipped (countered, sorcery, playerhit, bighit, counter, and the playerhit / bighit bursts)",
+    newKeys.length === 15 && NEW.every((k) => /^https:/.test(sh.shipped[k] || "")) && newKeys.every((x) => sh.shipped[x] === docAll[x])
+    && ["playerhit", "bighit"].every((k) => [2, 3, 4, 6, 8].every((b) => sh.shipped[`${k}_x${b}`] === docAll[`${k}_x${b}`])), JSON.stringify(newKeys.filter((x) => sh.shipped[x] !== docAll[x])));
   // (bighit-x8 is 1.94 s of sound in a 2.2 s file: paused at 1.95 s, after it, not at 1.75 s inside it)
   ok("2026-11-12 kinds: bighit_x8 is 2.2 s long (engineSoundLen)", sh.len.bighit_x8 === 2.2, JSON.stringify(sh.len));
   const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
@@ -871,14 +881,22 @@ const playedSince = (before, after, names) => {
 const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
 
 // no bundle on the table: nothing new happens (no AssetBundle call, the slots as before, exile / lifegain / countered
-// have no effect of their own)
+// have no effect of their own). The table ships the mtg-fx link (2026-11-12), so the test clears it first; the shipped
+// link must be the one docs/m5-assetbundle-build.md section 1 names.
 {
   const s0 = base();
   const d = clone(s0); d.Blue.bf = d.Blue.bf.filter((c) => c !== "b1"); d.Blue.gy = ["b1"];
   const ex = clone(d); ex.Blue.bf = ex.Blue.bf.filter((c) => c !== "b2"); ex.Blue.ex = ["b2"];
   const gain = clone(ex); gain.White.life = 44;
-  const t = run([send(s0, "first board"), send(d, "death", 60), LAST, send(ex, "exile", 60), LAST, send(gain, "lifegain", 60), LAST]);
+  const t = run([lua(`return JSON.encode({ fx = engineFxBundle.fx or "", sounds = engineFxBundle.sounds or "" })`, "shipped bundle"),
+    lua(`engineFxBundle = { fx = nil, sounds = nil } return "x"`, "no links"),
+    send(s0, "first board"), send(d, "death", 60), LAST, send(ex, "exile", 60), LAST, send(gain, "lifegain", 60), LAST]);
   const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  const bdoc = require("fs").readFileSync(require("path").join(__dirname, "..", "docs", "m5-assetbundle-build.md"), "utf8");
+  const fxDoc = (bdoc.match(/^- `engineFxBundle\.fx` \(shipped[^\n]*`mtg-fx\.unity3d`[^\n]*?: (https:\/\/\S+\/)$/m) || [])[1];
+  const sb = t.value("shipped bundle");
+  ok("fx bundle: the shipped engineFxBundle.fx is the mtg-fx link of docs/m5-assetbundle-build.md", /^https:\/\/steamusercontent/.test(fxDoc || "")
+    && sb.fx === fxDoc && sb.sounds === "", JSON.stringify({ fxDoc, sb }));
   ok("no bundle: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
   ok("no bundle: no AssetBundle call at all", t.r.steps.every((s) => abLines(s.fx || []).length === 0));
   ok("no bundle: a death takes a slot, as before", (vals[0].fx || []).length === 1 && vals[0].fx[0].slot === 1 && vals[0].fx[0].rig === undefined && activeOn(t.fx("death")).length === 1, JSON.stringify(vals[0]));
