@@ -119,7 +119,10 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   2026-10-09, Borg Queen included. Steps: bring the official Forge changes into our copy (two months of other Forge
   changes come with it), rebuild mtg-forge-node and mtg-relay (one build at a time), rules checks + a test game,
   deploy, then a debug game with Beam me up, Federation and Borg Queen. About 2–3 h plus build time.
-- ⬜ **Token stacks the Arena way** ([docs/token-stacks-spec.md](docs/token-stacks-spec.md)), held until the reset.
+- 🔶 (source) **Token stacks the Arena way** ([docs/token-stacks-spec.md](docs/token-stacks-spec.md)), built 2026-11-11:
+  right-click menu on a stack in the attack question (all / one / pick one by one), picked tokens drawn as their own
+  stack, blocks one token at a time from a stack, block lines while blocking, counted log lines. Needs the live check
+  in the spec.
 - ⬜ **Extra-turn counter by a player's life** ([docs/extra-turn-counter-spec.md](docs/extra-turn-counter-spec.md)):
   extra turns coming + 1 (one extra turn shows 2). Engine and relay field, so build it with the Star Trek update.
 - ⬜ **See and cast a card's other side** (Valki // Tibalt, Exdeath), with TTS object states

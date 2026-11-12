@@ -3078,5 +3078,106 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     String(valueOf(r, "glows")).split(" ")[0] !== "0.15,0.45,1" && String(valueOf(r, "glows")).split(" ")[1] === "0.15,0.45,1" && String(valueOf(r, "glows")).split(" ")[0] !== "none", String(valueOf(r, "glows")));
   ok("block confirm: Don't block with this says which creature", valueOf(r, "menu") !== "0" && told("menu").includes("Wall of Omens 0/4 #2 won't block") && valueOf(r, "after menu") === "....", `${valueOf(r, "menu")} ${told("menu")} ${valueOf(r, "after menu")}`);
 }
+// Token stacks the Arena way (docs/token-stacks-spec.md): one stack per kind; in an attack question a stack's right-click
+// menu sends all, one, or lays it out, and the picked tokens are drawn as their own stack (two objects, not twenty); in a
+// blockers question a click on a stack takes its next token and a click on an attacking stack its next unblocked
+// attacker; each block picked is drawn as a line
+{
+  const C = (n) => `engine-card-${n}`;
+  const find = (n) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(n)}" then o = x end end`;
+  // the objects of one kind's tokens (ids from..to): how many, and each one's xN, sorted
+  const objs = (from, to, mark) => q(`local n, shown = 0, {} for _, x in ipairs(getObjects()) do local id = tostring(x.getGMNotes()):match("^engine:engine%-card%-(%d+)$") ` +
+    `if id ~= nil and tonumber(id) >= ${from} and tonumber(id) <= ${to} then n = n + 1 shown[#shown + 1] = tostring(engineGroupShown["engine-card-" .. id] or 1) end end ` +
+    'table.sort(shown) return n .. ":" .. table.concat(shown, ",")', mark);
+  const menu = (n, mark) => q(`${find(n)} if o == nil then return "none" end local s = {} for _, m in ipairs(o.__d.menu) do s[#s + 1] = m.label end return "[" .. table.concat(s, "|") .. "]"`, mark);
+  const choose = (n, label, mark) => ({ lua: `${find(n)} if o == nil then return "none" end for _, m in ipairs(o.__d.menu) do if m.label == "${label}" then m.fn("Blue") return "chosen" end end return "no item"`, mark, frames: 10 });
+  const click = (n, mark) => ({ lua: `${find(n)} if o == nil then return "none" end onPlayerAction(Player.Blue, Player.Action.Select, { o }) return "clicked"`, mark, frames: 30 });
+  const guid = (n, mark) => q(`${find(n)} return o and o.getGUID() or "none"`, mark);
+  const glow = (n, mark) => q(`${find(n)} return o and o.__d.highlight and table.concat(o.__d.highlight, ",") or "none"`, mark);
+  const sel = (n, mark) => q(`local s = {} for i = 1, ${n} do if engineSelectedFor("Blue", i) then s[#s + 1] = tostring(i) end end return "[" .. table.concat(s, ",") .. "]"`, mark);
+  const statics = (from, to, name, pt) => `for n = ${from}, ${to} do engineStoreStatic("engine-card-" .. n, { n = "${name}", f = "https://img.example/${from}.jpg", ty = { "Creature" }, tok = true, p = ${pt}, t = ${pt} }) end `;
+  const seatOf = (who) => `local ${who} for _, p in ipairs(t.players) do if p.color == "${who === "blue" ? "Blue" : "White"}" then ${who} = p end end `;
+  // Attack: 20 Soldier tokens (2001..2020); options 1 and 2 are All attack / No attacks, Soldier k is option k + 2
+  const laid = q('local t = engineTable() ' + seatOf("blue") + statics(2001, 2020, "Soldier Token", 1) +
+    'for n = 2001, 2020 do table.insert(blue.battlefield, { s = 1, id = "engine-card-" .. n, ctl = "Blue" }) end engineRender(t) __sim.frames(60) return "laid"', "laid");
+  const quick = [{ id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" }];
+  const attack = (pid) => ask({ promptId: pid, kind: "attack", title: "Choose attackers", mode: "multi", min: 0, max: 20, keepOrder: true,
+    options: [...quick, ...Array.from({ length: 20 }, (_, k) => ({ id: `${C(2001 + k)}|player-1`, label: `Soldier Token 1/1 #${k + 1} → AI 1` }))] });
+  // the engine's next board: the two picked attack AI 1 (untapped, as with vigilance), on a new board message
+  const attacked = q('local t = engineTable() local m = {} for k, v in pairs(t) do m[k] = v end ' + seatOf("blue").replace("t.players", "m.players") +
+    'for _, c in ipairs(blue.battlefield) do if c.id == "engine-card-2002" or c.id == "engine-card-2003" then c.atk = true c.atkT = "player-1" end end engineRender(m) __sim.frames(60) return "board"', "attacked board");
+  const r = run([laid, objs(2001, 2020, "one stack"), guid(2001, "stack guid"), attack(1901), { frames: 10 },
+    menu(2001, "menu"),
+    choose(2001, "Attack with one", "one 1"), choose(2001, "Attack with one", "one 2"), choose(2001, "Attack with one", "one 3"), { frames: 10 },
+    sel(22, "three picked"), objs(2001, 2020, "two stacks"), guid(2001, "stack guid after"), menu(2001, "menu 17"), menu(2002, "menu picked"),
+    glow(2001, "glow stack"), glow(2002, "glow picked"),
+    choose(2002, "Take one back", "back"), { frames: 10 }, sel(22, "two picked"), objs(2001, 2020, "after back"),
+    click(2001, "all"), { frames: 10 }, sel(22, "all picked"), objs(2001, 2020, "merged"), guid(2001, "stack guid merged"),
+    click(2001, "none"), { frames: 10 }, sel(22, "none picked"), objs(2001, 2020, "merged again"),
+    choose(2001, "Attack with one", "one 4"), choose(2001, "Attack with one", "one 5"), { frames: 10 }, guid(2002, "picked guid"),
+    q('engineConfirm("Blue") return "answered"', "answer"), { frames: 30 }, objs(2001, 2020, "held"), menu(2001, "menu gone"),
+    attacked, objs(2001, 2020, "engine board"), guid(2002, "picked guid on board"), q('return tostring(engineCombatHeld.Blue)', "hold gone"),
+    attack(1902), { frames: 10 }, choose(2001, "Pick one by one", "one by one"), { frames: 60 }, objs(2001, 2020, "laid out")]);
+  const v = (res, mark) => String(valueOf(res, mark));
+  const told = (res, mark) => fxOf(res, mark).filter((l) => /broadcastToColor/.test(l) && /Blue/.test(l)).join(" || ");
+  ok("token stacks: precondition, the attack run raised no errors", !r.errors.length, r.errors.slice(0, 3).join(" | "));
+  ok("token stacks: twenty identical tokens are one card, x20", v(r, "one stack") === "1:20", v(r, "one stack"));
+  ok("token stacks: in an attack question the stack's right-click menu offers all, one, one by one", v(r, "menu") === "[Attack with all 20|Attack with one|Pick one by one]", v(r, "menu"));
+  ok("token stacks: Attack with one picks one token at a time, never the stack's own card first", v(r, "three picked") === "[4,5,6]", v(r, "three picked"));
+  ok("token stacks: Attack with one says which token and how many attack", told(r, "one 1").includes("Soldier Token 1/1 #2 attacks AI 1 (1 attacking in all)") && told(r, "one 3").includes("(3 attacking in all)"), `${told(r, "one 1")} / ${told(r, "one 3")}`);
+  ok("token stacks: the picked ones are drawn as their own stack: x17 and x3, two objects", v(r, "two stacks") === "2:17,3", v(r, "two stacks"));
+  ok("token stacks: the stack keeps its object while tokens leave it", v(r, "stack guid after") === v(r, "stack guid") && v(r, "stack guid") !== "none", `${v(r, "stack guid")} / ${v(r, "stack guid after")}`);
+  ok("token stacks: the menus follow the stacks (17 left; the attacking stack offers to take back)", v(r, "menu 17") === "[Attack with all 17|Attack with one|Pick one by one]" && v(r, "menu picked") === "[Don't attack with these 3|Take one back]", `${v(r, "menu 17")} / ${v(r, "menu picked")}`);
+  ok("token stacks: the attacking stack glows as picked, the other as can attack", v(r, "glow picked") === "1,0.12,0.08" && v(r, "glow stack") !== "1,0.12,0.08" && v(r, "glow stack") !== "none", `${v(r, "glow picked")} / ${v(r, "glow stack")}`);
+  ok("token stacks: Take one back takes the attacking stack's last token back", v(r, "two picked") === "[4,5]" && v(r, "after back") === "2:18,2", `${v(r, "two picked")} ${v(r, "after back")}`);
+  ok("token stacks: a click on the stack sends the rest: one stack of 20 again, on the same object", v(r, "all picked").split(",").length === 20 && v(r, "all picked").startsWith("[3,") && v(r, "merged") === "1:20" && v(r, "stack guid merged") === v(r, "stack guid"), `${v(r, "all picked")} ${v(r, "merged")} ${v(r, "stack guid merged")}`);
+  ok("token stacks: a second click: none attack", v(r, "none picked") === "[]" && v(r, "merged again") === "1:20", `${v(r, "none picked")} ${v(r, "merged again")}`);
+  ok("token stacks: an answer's picks stay drawn until the next board (no merging back first)", v(r, "held") === "2:18,2", v(r, "held"));
+  ok("token stacks: the menus go with the question", v(r, "menu gone") === "[]", v(r, "menu gone"));
+  ok("token stacks: the engine's board with them attacking draws the same two stacks, on the same objects", v(r, "engine board") === "2:18,2" && v(r, "picked guid on board") === v(r, "picked guid") && v(r, "picked guid") !== "none" && v(r, "hold gone") === "nil",
+    `${v(r, "engine board")} ${v(r, "picked guid")} / ${v(r, "picked guid on board")} hold ${v(r, "hold gone")}`);
+  ok("token stacks: Pick one by one lays the kind out (the Split box's way)", v(r, "laid out") === "20:1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1", v(r, "laid out"));
+
+  // Block: six Soldier tokens (2101..2106, Blue) against six attacking Zombie tokens (2111..2116, White). Option for
+  // Soldier i blocking Zombie j is (i - 1) * 6 + j.
+  const both = (steps) => simulate({ save, seated: ["Blue", "White"], steps: [...prefix, ...steps] });
+  const board = q('local t = engineTable() ' + seatOf("blue") + seatOf("white") + statics(2101, 2106, "Soldier Token", 1) + statics(2111, 2116, "Zombie Token", 2) +
+    'for n = 2101, 2106 do table.insert(blue.battlefield, { s = 1, id = "engine-card-" .. n, ctl = "Blue" }) end ' +
+    'for n = 2111, 2116 do table.insert(white.battlefield, { s = 1, id = "engine-card-" .. n, ctl = "White", atk = true, atkT = "Blue" }) end ' +
+    't.active = "White" t.step = "combatDeclareBlockers" engineRender(t) __sim.frames(60) return "laid"', "board");
+  const opts = [];
+  for (let i = 1; i <= 6; i++) for (let j = 1; j <= 6; j++) opts.push({ id: `${C(2100 + i)}|${C(2110 + j)}`, label: `Soldier Token 1/1 #${i} blocks Zombie Token 2/2 #${j}` });
+  const block = ask({ promptId: 1903, kind: "block", title: "Choose blockers", mode: "multi", min: 0, max: 6, options: opts });
+  const lines = (mark) => q('local n = 0 for _, l in ipairs(Global.getVectorLines() or {}) do if math.abs((tonumber(l.thickness) or 0) - 0.1601) < 0.00005 then n = n + 1 end end return tostring(n)', mark);
+  // a block line runs from the blocker's object to the attacker's: true when one does
+  const lineFrom = (b, a, mark) => q(`local function at(n) for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:engine-card-" .. n then return x.getPosition() end end end ` +
+    `local p, q2 = at(${b}), at(${a}) if p == nil or q2 == nil then return "no object" end for _, l in ipairs(Global.getVectorLines() or {}) do local s, e = l.points[1], l.points[#l.points] ` +
+    'if math.abs(s[1] - p.x) < 0.01 and math.abs(s[3] - p.z) < 0.01 and math.abs(e[1] - q2.x) < 0.01 and math.abs(e[3] - q2.z) < 0.01 then return "yes" end end return "no"', mark);
+  const pickedBlocks = sel(36, "picks");
+  const r2 = both([board, objs(2101, 2106, "soldiers"), objs(2111, 2116, "zombies"), block, { frames: 10 },
+    click(2101, "stack 1"), click(2111, "zombies 1"), { frames: 10 }, { ...pickedBlocks, mark: "picks 1" },
+    objs(2101, 2106, "soldiers 1"), objs(2111, 2116, "zombies 1 drawn"), lines("lines 1"), lineFrom(2102, 2112, "line 1"),
+    // a second Soldier on the Zombie already blocked (its own card now): a double block
+    click(2101, "stack 2"), click(2112, "zombie 2"), { frames: 10 }, { ...pickedBlocks, mark: "picks 2" }, objs(2101, 2106, "soldiers 2"),
+    // the next token waiting, its stack clicked again: it doesn't block
+    click(2101, "stack 3"), click(2101, "stack 3 again"), { ...pickedBlocks, mark: "picks 3" },
+    // the stack of the two blocking the same Zombie: its last one's block is taken back, and it blocks the next free Zombie
+    click(2102, "blocking stack"), { frames: 10 }, { ...pickedBlocks, mark: "picks 4" }, click(2111, "zombies 2"), { frames: 10 }, { ...pickedBlocks, mark: "picks 5" },
+    lines("lines 2"), objs(2101, 2106, "soldiers 3"), objs(2111, 2116, "zombies 3"),
+    q('engineConfirm("Blue") return "answered"', "answer"), { frames: 30 }, lines("lines held"), objs(2101, 2106, "soldiers held")]);
+  ok("token stacks: precondition, the block run raised no errors", !r2.errors.length, r2.errors.slice(0, 3).join(" | "));
+  ok("token stacks: both armies are one stack each", v(r2, "soldiers") === "1:6" && v(r2, "zombies") === "1:6", `${v(r2, "soldiers")} / ${v(r2, "zombies")}`);
+  ok("token stacks: a click on your stack takes its next token with no block (not the stack's own card)", told(r2, "stack 1").includes("Now click the attacker for Soldier Token 1/1 #2") && told(r2, "stack 1").includes("5 more in this stack have no block"), told(r2, "stack 1"));
+  ok("token stacks: a click on the attacking stack blocks its next attacker, said by number", told(r2, "zombies 1").includes("Soldier Token 1/1 #2 blocks Zombie Token 2/2 #2.") && v(r2, "picks 1") === "[8]", `${told(r2, "zombies 1")} ${v(r2, "picks 1")}`);
+  ok("token stacks: the blocker and the blocked attacker are drawn on their own: two objects a side", v(r2, "soldiers 1") === "2:1,5" && v(r2, "zombies 1 drawn") === "2:1,5", `${v(r2, "soldiers 1")} / ${v(r2, "zombies 1 drawn")}`);
+  ok("token stacks: the block picked is drawn as a line from the blocker to its attacker", v(r2, "lines 1") === "1" && v(r2, "line 1") === "yes", `${v(r2, "lines 1")} ${v(r2, "line 1")}`);
+  ok("token stacks: the blocked attacker's own card clicked: a double block, the two blockers one stack", told(r2, "zombie 2").includes("Soldier Token 1/1 #3 blocks Zombie Token 2/2 #2.") && v(r2, "picks 2") === "[8,14]" && v(r2, "soldiers 2") === "2:2,4", `${told(r2, "zombie 2")} ${v(r2, "picks 2")} ${v(r2, "soldiers 2")}`);
+  ok("token stacks: the stack clicked again while its token waits: that one won't block", told(r2, "stack 3 again").includes("Soldier Token 1/1 #4 won't block") && v(r2, "picks 3") === "[8,14]", `${told(r2, "stack 3 again")} ${v(r2, "picks 3")}`);
+  ok("token stacks: a stack whose tokens all block, clicked: the last one's block is taken back", told(r2, "blocking stack").includes("Soldier Token 1/1 #3's block is taken back") && v(r2, "picks 4") === "[8]", `${told(r2, "blocking stack")} ${v(r2, "picks 4")}`);
+  ok("token stacks: and the attacking stack clicked next: the next attacker nobody blocks", told(r2, "zombies 2").includes("Soldier Token 1/1 #3 blocks Zombie Token 2/2 #3.") && v(r2, "picks 5") === "[8,15]", `${told(r2, "zombies 2")} ${v(r2, "picks 5")}`);
+  ok("token stacks: one line per block", v(r2, "lines 2") === "2", v(r2, "lines 2"));
+  ok("token stacks: four Soldiers free in one stack, two blocking on their own; four Zombies free, two blocked", v(r2, "soldiers 3") === "3:1,1,4" && v(r2, "zombies 3") === "3:1,1,4", `${v(r2, "soldiers 3")} / ${v(r2, "zombies 3")}`);
+  ok("token stacks: the answer's blocks and lines stay until the next board", v(r2, "lines held") === "2" && v(r2, "soldiers held") === "3:1,1,4", `${v(r2, "lines held")} ${v(r2, "soldiers held")}`);
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

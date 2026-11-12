@@ -41,3 +41,31 @@ Arena reference: youtu.be/ZQh7yPdkpaw, around 8:25–8:40. Arena draws identical
 - `obj.addContextMenuItem` on the stack's representative, added when the question opens and cleared when it closes.
 - Draw a line from each blocker to its attacker; log lines that count ("2 Soldier tokens block a Zombie token").
 - No new main-chunk locals in the renderer.
+
+## Built (2026-11-11, source only)
+
+- A kind still stacks from 5 on its whole count (today's grouping). In combat it is cut into one stack per part it plays:
+  the tokens picked to attack (one stack per target), the tokens blocking (one stack per attacker), and each blocked
+  attacker on its own card, so a block's line ends on the attacker it blocks. Picking 1 of 20 draws x19 + 1: one more
+  object, never the 20 a split lays out. The stack's own card is always taken last, so it keeps its object.
+- Attack question: right-click a stack: "Attack with all N", "Attack with one", "Pick one by one" (the Split box's
+  layout, which stays). An attacking stack offers "Don't attack with these N" and "Take one back". A click is still all.
+- Blockers question: a click on your stack takes its next token with no block; a click on an attacking stack blocks its
+  next attacker nobody blocks yet; the stack clicked again while its token waits: that one doesn't block; a click on a
+  stack whose tokens all block takes the last one's block back (it waits for a new attacker). A double block: click the
+  blocked attacker's own card.
+- Each block picked is drawn as a gold line while you block; an answered question's picks stay drawn until the next
+  board, so stacks don't merge back before the engine's board comes.
+- Log: "AI 1 attacks with 20 Zombie tokens"; "2 Soldier tokens block a Zombie token"; "3 Zombie tokens are blocked by
+  a Soldier token each". Lines without tokens read as before.
+- Not built: Arena's 250-token cap; menus in the blockers question (the existing "Don't block with this" stays).
+
+## Live check (real table)
+
+1. Token swarm scenario (tmp/wt-head/scenarios/token-swarm.json): one x20 stack a side.
+2. Attack: right-click your stack: three items. "Attack with one" three times: an x17 and an x3 stack, the x3 red; the
+   chat names each token. Click a life counter: the last one picked changes target. Click the x17: one x20 again.
+3. Answer with some attacking: the attacking stack doesn't flash back into the other before the engine's board.
+4. Block: click your stack, then their stack: one Soldier and one Zombie come out, with a gold line between them.
+   Click your stack and the single Zombie: a double block (x2 Soldiers on it). Watch the frame rate while clicking.
+5. The log: counted lines, as above.
