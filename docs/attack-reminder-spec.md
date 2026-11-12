@@ -4,9 +4,14 @@ Asked 2026-11-10: "If there's a pay to attack or multiple creatures can't attack
 players." Tracked as item 23 in `docs/next-features-2026-11-09.md`.
 
 Status 2026-11-11: part 1 and part 2 are built in the bridge (source only, not deployed). Part 2 reads every rule
-from the cards' text on the board, so nothing new from the harness was needed. Part 3 (engine) is not built: it is
-still needed for effects that leave no text on the board (War Tax, Forbidding Spirit's trigger, Sivitri's +1,
-emblems, keywords from spells that have resolved), for Forge's exact reasons and costs, and for Dain's condition.
+from the cards' text on the board, so nothing new from the harness was needed. Part 3 (engine) is built in source
+2026-11-11 (engine/manabrew.patch and the bridge, not deployed, needs a node image build): the attackers prompt now
+carries each attacker's `costs` per defender (Forge's total from `CombatUtil.getAttackCost`, with the rules that set
+it), `unavailable` (each creature that can't attack, or can't attack one defender, with Forge's reason and the rule's
+source; an effect card is named after the card that made it, so "War Tax's Effect" reads "War Tax") and `limits`
+(each AttackRestrict rule: at most N, globally or at one defender). The bridge uses them when they are there and
+falls back to reading text when they are not (an older engine sends neither `unavailable` nor `limits`). Not built:
+the controller's refusal loop (an `error` field on a refused declaration); the bridge still names the limit itself.
 Line numbers below are from the source on 2026-11-10.
 
 Short names used below:

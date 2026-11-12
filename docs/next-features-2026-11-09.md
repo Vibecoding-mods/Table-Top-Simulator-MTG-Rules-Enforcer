@@ -160,8 +160,10 @@ The user's list, in their order. Most items need a running TTS table in debug mo
       summed when there are several, with the planeswalkers' share. It also lists each creature's own price
       (Brainwash), the open mana, the limits, and "Can't attack: Hill Giant (summoning sick), ..." with the reason.
       Pressing Q/E on such a creature says the reason. The tax payment says "pay {2} to attack with Grizzly Bears?"
-      and its Cancel is "Don't attack with Grizzly Bears". Part 3 (engine) is not built: it is needed for effects
-      with no text on the board (War Tax, emblems, resolved spells).
+      and its Cancel is "Don't attack with Grizzly Bears". **Part 3 (engine) done in source 2026-11-11**: the
+      harness sends Forge's taxes per defender with their sources, why each creature can't attack, and the attack
+      limits, so War Tax, emblems and resolved spells show too; the bridge reads text only when an older engine
+      sends none of it. Needs a node image build.
 
 24. **Planeswalkers by click** (asked 2026-11-10): click a planeswalker card to target it with a spell or ability,
     the way a life counter picks a player.

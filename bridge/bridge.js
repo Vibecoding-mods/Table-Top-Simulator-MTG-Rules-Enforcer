@@ -4350,22 +4350,62 @@ function attackWordFits(card, word) {
   return String(card.color || "").includes(letter) !== /^non/.test(w);
 }
 
+// The engine's own attack data (docs/attack-reminder-spec.md part 3), when it sends it: the harness puts Forge's tax per
+// defender on each attacker (`costs`: [{ defenderId, cost, sourceIds, sourceNames }]), the creatures that can't attack
+// all or one defender and why (`unavailable`: [{ cardId, defenderId?, reason, sourceId?, sourceName? }]) and the attack
+// limits (`limits`: [{ max, defenderId?, sourceId, sourceName }]). Such an engine always sends `unavailable` and
+// `limits`, empty or not; an older one sends neither and the text reading (attackRules) stays. Effects with no text on
+// the board (War Tax, Sivitri's +1, an emblem) are known only this way. Returns null, or { costs: { attackerId: [...] },
+// unavailable, limits }.
+function engineAttackData(input) {
+  if (!Array.isArray(input?.unavailable) && !Array.isArray(input?.limits)) return null;
+  const costs = {};
+  for (const a of input.attackers || []) costs[a.attackerId] = (a.costs || []).map((c) => ({ ...c, cost: engineCostWords(c.cost), sourceNames: c.sourceNames || [] }));
+  return { costs, unavailable: input.unavailable || [], limits: input.limits || [] };
+}
+// Forge's cost text (Cost.toSimpleString: its parts joined by ", ") in the words attackCostSum uses: a worked-out X's
+// shard is left out ("{X}{3}" for Sphere of Safety with 3 enchantments, ManaCost.getSimpleString; Forge pays the X as 0,
+// CombatUtil.checkPropagandaEffects), so is the {0} mana part a sum starts from ("{0}, Pay 2 life", Sivitri's +1), and
+// CostPayLife's "Pay 2 life" is "2 life": "{2}, Pay 2 life" -> "{2} and 2 life"
+function engineCostWords(cost) {
+  const parts = String(cost || "").split(", ").map((p) => p.replace(/\{X\}/g, "").replace(/^Pay (\d+ life)$/, "$1")).filter(Boolean);
+  const said = parts.length > 1 ? parts.filter((p) => p !== "{0}") : parts;
+  return said.join(" and ") || "{0}";
+}
+// the harness's reason words for a creature that can't attack (host ManaBrewInteractiveSession.attackRefusal); "static"
+// is said by the card that forbids it, "goaded" by who goaded it (attackReminder)
+const ENGINE_CANT_WORDS = { tapped: "tapped", phasedOut: "phased out", summoningSick: "summoning sick", detained: "detained", defender: "defender", keyword: "its own text" };
+const engineCantWords = (u) => (u.reason === "static" && u.sourceName ? u.sourceName : ENGINE_CANT_WORDS[u.reason] || "an effect on the table");
+// The attack limits as [{ card, ctl, n, at }] (attackRules' shape): the engine's when it sends them (`card` then has only
+// the source's id and name, `ctl` its controller when the board shows the card, else null), else the text's
+function attackLimits(gv, E, R) {
+  if (!E) return R.limits;
+  const byId = cardIndex(gv);
+  return E.limits.map((l) => ({ card: { id: l.sourceId, identity: { name: l.sourceName } }, ctl: byId[l.sourceId]?.controllerId || null, n: l.max, at: l.defenderId || null }));
+}
+// a limit's card with whose it is ("Crawlspace (AI 1)"; one the board doesn't show by name alone), and whom it covers
+// in words: a player by name, the planeswalker that limits attacks on itself by its name (The Eternal Wanderer), another
+// defender as defenderWords says it
+const limitWho = (l) => `${l.card.identity.name}${l.ctl ? ` (${nameOf(l.ctl)})` : ""}`;
+const limitAt = (gv, input, l) => (String(l.at).startsWith("player-") ? nameOf(l.at) : l.at === l.card.id ? l.card.identity.name : defenderWords(gv, input, l.at));
+
 // Why Forge refused an attack, from the rules text on the battlefield: Forge says only "Attack declaration invalid"
 // (Crawlspace allowed 2 attackers at White, Blue sent "All attack" with 3 eight times and was told nothing, live game
-// 2026-11-10; docs/attack-reminder-spec.md part 1). `attack` is the refused declaration, [{ attackerId, targetId }].
+// 2026-11-10; docs/attack-reminder-spec.md part 1). `attack` is the refused declaration, [{ attackerId, targetId }];
+// E: the attack question's engine data (engineAttackData), whose limits are used instead of the text's.
 // Returns { broken: sentences naming each limit the attack broke, limiters: "Cards on the table that limit attacks:
 // ..." when nothing was found broken but such cards are out, else "" }.
-function attackRefusalReason(gv, attack) {
+function attackRefusalReason(gv, attack, E = null) {
   const total = attack.length;
   const atTarget = {};
   for (const a of attack) atTarget[a.targetId] = (atTarget[a.targetId] || 0) + 1;
   const said = [];
-  const { onField, limiters, limits } = attackRules(gv);
+  const R = attackRules(gv);
+  const { onField, limiters } = R;
   const textOf = attackRulesText;
-  for (const { card, ctl, n, at } of limits) {
-    const name = card.identity.name;
-    const chosen = at ? atTarget[at] || 0 : total;
-    if (chosen > n) said.push(`${name} (${nameOf(ctl)}): no more than ${n} creature${n === 1 ? "" : "s"} can attack ${at ? `${at === ctl ? nameOf(ctl) : name} ` : ""}each combat. You chose ${chosen}.`);
+  for (const l of attackLimits(gv, E, R)) {
+    const chosen = l.at ? atTarget[l.at] || 0 : total;
+    if (chosen > l.n) said.push(`${limitWho(l)}: no more than ${l.n} creature${l.n === 1 ? "" : "s"} can attack ${l.at ? `${limitAt(gv, {}, l)} ` : ""}each combat. You chose ${chosen}.`);
   }
   // Mogg Flunkies: "can't attack or block alone"; Master of Cruelties: "can only attack alone", Errantry's enchanted
   // creature too
@@ -4399,51 +4439,75 @@ function defenderWords(gv, input, id) {
 // What the attack question reminds the player of before they pick (docs/attack-reminder-spec.md part 2; the user
 // 2026-11-10: "if there's a pay to attack or multiple creatures can't attack, a prompt should pop up to remind
 // players"): the taxes per defender, the limits, each creature's own price, the creatures that can't attack and why,
-// and who an offered creature can't attack. From the rules text (attackRules) and the board's flags; Forge's question
-// carries none of it. `slot`: the attacking player. Returns { lines: the full list for the panel, note: the one line for
-// the corner ("" when nothing applies), cantAttack: { cardId: "X can't attack: reason." } for Q/E on one not offered,
-// taxAt(defenderId): the taxes on attacking it, [{ card, cost }] }.
+// and who an offered creature can't attack. From the engine's own data when it sends it (engineAttackData, part 3),
+// else from the rules text (attackRules) and the board's flags. `slot`: the attacking player. Returns { lines: the full
+// list for the panel, note: the one line for the corner ("" when nothing applies), cantAttack: { cardId: "X can't
+// attack: reason." } for Q/E on one not offered, taxAt(defenderId): the taxes on attacking it, [{ card, cost, summed }]
+// (summed: cost is already the whole price, as the engine's is) }.
 function attackReminder(gv, input, slot) {
   const R = attackRules(gv);
+  const E = engineAttackData(input);
   const byId = cardIndex(gv);
   const offered = (input.attackers || []).filter((a) => (a.validTargetIds || []).length);
   const offeredIds = new Set(offered.map((a) => a.attackerId));
   const defenders = (input.attackTargets || []).length ? input.attackTargets.map((t) => t.id) : [...new Set(offered.flatMap((a) => a.validTargetIds))];
   const ctlOf = (id) => (String(id).startsWith("player-") ? id : byId[id]?.controllerId);
   const name = (c) => c.identity?.name || c.id;
-  const taxAt = (d) => attackTaxesAt(R, ctlOf(d), d).map((t) => ({ card: t.card, cost: t.cost, only: t.only }));
+  // (engine: each offered creature's tax at d, [{ a, t }], t null for one that pays nothing there)
+  const engineTaxAt = (d) => offered.filter((a) => a.validTargetIds.includes(d)).map((a) => ({ a, t: (E.costs[a.attackerId] || []).find((x) => x.defenderId === d) || null }));
+  const taxAt = E ? (d) => {
+    const paid = engineTaxAt(d).filter((x) => x.t);
+    return paid.length ? [{ card: { identity: { name: paid[0].t.sourceNames.join(" + ") } }, cost: [...new Set(paid.map((x) => x.t.cost))].join(" or "), summed: true }] : [];
+  } : (d) => attackTaxesAt(R, ctlOf(d), d).map((t) => ({ card: t.card, cost: t.cost, only: t.only }));
   const mineOn = R.onField.filter(([c, z]) => R.ctlOf(c, z) === slot).map(([c]) => c);
   const lines = [];
   const notes = [];
-  // taxes, one line per taxing player whose taxes reach a defender (a player who can't be attacked here, only their
-  // planeswalker: only the taxes that say "or planeswalkers you control")
-  const taxNames = (ts) => ts.map((t) => `${name(t.card)}${t.only ? ` (${t.only.toLowerCase()} creatures)` : ""}`).join(" + ");
   const taxed = [];
-  for (const p of new Set(defenders.map(ctlOf).filter(Boolean))) {
-    const all = R.taxes.filter((t) => t.ctl === p);
-    const pwTax = all.filter((t) => t.pw);
-    const isDefender = defenders.includes(p);
-    const hasPw = defenders.some((d) => d !== p && ctlOf(d) === p);
-    if (!(isDefender ? all : hasPw ? pwTax : []).length) continue;
-    taxed.push(p);
-    const cost = attackCostSum(all.map((t) => t.cost));
-    const pwCost = attackCostSum(pwTax.map((t) => t.cost));
-    if (!isDefender) {
-      lines.push(`${taxNames(pwTax)} (${nameOf(p)}): ${pwCost} for each creature attacking their planeswalkers.`);
-      notes.push(`${poss(nameOf(p))} planeswalkers ${pwCost} each`);
-      continue;
+  let own = [];
+  if (E) {
+    // the engine's taxes, one line per defender: its sources and Forge's total when every creature that can attack it
+    // pays the same, else each creature's price ("Attacking AI 1: Grizzly Bears {5} (Propaganda + Brainwash), ...")
+    for (const d of defenders) {
+      const at = engineTaxAt(d);
+      const paid = at.filter((x) => x.t);
+      if (!paid.length) continue;
+      taxed.push(d);
+      const who = defenderWords(gv, input, d);
+      const same = paid.length === at.length && new Set(paid.map((x) => `${x.t.cost}|${x.t.sourceNames.join("|")}`)).size === 1;
+      lines.push(same ? `${paid[0].t.sourceNames.join(" + ")} (${nameOf(ctlOf(d))}): ${paid[0].t.cost} for each creature attacking ${who}.`
+        : `Attacking ${who}: ${paid.map((x) => `${name(byId[x.a.attackerId] || { id: x.a.attackerId })} ${x.t.cost} (${x.t.sourceNames.join(" + ")})`).join(", ")}.`);
+      notes.push(`${who} ${[...new Set(paid.map((x) => x.t.cost))].join(" or ")} each`);
     }
-    const pwWords = !hasPw || !pwTax.length ? "" : pwCost === cost ? " or their planeswalkers" : `; ${pwCost} for each attacking their planeswalkers`;
-    lines.push(`${taxNames(all)} (${nameOf(p)}): ${cost} for each creature attacking ${nameOf(p)}${pwWords}.`);
-    notes.push(`${nameOf(p)} ${cost} each`);
+  } else {
+    // taxes, one line per taxing player whose taxes reach a defender (a player who can't be attacked here, only their
+    // planeswalker: only the taxes that say "or planeswalkers you control")
+    const taxNames = (ts) => ts.map((t) => `${name(t.card)}${t.only ? ` (${t.only.toLowerCase()} creatures)` : ""}`).join(" + ");
+    for (const p of new Set(defenders.map(ctlOf).filter(Boolean))) {
+      const all = R.taxes.filter((t) => t.ctl === p);
+      const pwTax = all.filter((t) => t.pw);
+      const isDefender = defenders.includes(p);
+      const hasPw = defenders.some((d) => d !== p && ctlOf(d) === p);
+      if (!(isDefender ? all : hasPw ? pwTax : []).length) continue;
+      taxed.push(p);
+      const cost = attackCostSum(all.map((t) => t.cost));
+      const pwCost = attackCostSum(pwTax.map((t) => t.cost));
+      if (!isDefender) {
+        lines.push(`${taxNames(pwTax)} (${nameOf(p)}): ${pwCost} for each creature attacking their planeswalkers.`);
+        notes.push(`${poss(nameOf(p))} planeswalkers ${pwCost} each`);
+        continue;
+      }
+      const pwWords = !hasPw || !pwTax.length ? "" : pwCost === cost ? " or their planeswalkers" : `; ${pwCost} for each attacking their planeswalkers`;
+      lines.push(`${taxNames(all)} (${nameOf(p)}): ${cost} for each creature attacking ${nameOf(p)}${pwWords}.`);
+      notes.push(`${nameOf(p)} ${cost} each`);
+    }
+    // one creature's own price (Brainwash, Qal Sisma Behemoth), for the offered ones (the engine's costs carry it)
+    own = R.costs.filter((x) => offeredIds.has(x.on));
+    for (const x of own) {
+      const who = name(byId[x.on] || { id: x.on });
+      lines.push(x.card.id === x.on ? `${who} can attack only if you pay ${x.cost}${x.more ? ` ${x.more}` : ""}.` : `${name(x.card)}: ${who} can attack only if you pay ${x.cost}${x.more ? ` ${x.more}` : ""}.`);
+    }
+    for (const x of R.others.slice(0, 3)) lines.push(`${name(x.card)} (${nameOf(x.ctl)}): ${x.sentence}`);
   }
-  // one creature's own price (Brainwash, Qal Sisma Behemoth), for the offered ones
-  const own = R.costs.filter((x) => offeredIds.has(x.on));
-  for (const x of own) {
-    const who = name(byId[x.on] || { id: x.on });
-    lines.push(x.card.id === x.on ? `${who} can attack only if you pay ${x.cost}${x.more ? ` ${x.more}` : ""}.` : `${name(x.card)}: ${who} can attack only if you pay ${x.cost}${x.more ? ` ${x.more}` : ""}.`);
-  }
-  for (const x of R.others.slice(0, 3)) lines.push(`${name(x.card)} (${nameOf(x.ctl)}): ${x.sentence}`);
   if (taxed.length || own.length) {
     const me = gv.players?.find((p) => p.id === slot);
     const pool = Object.values(me?.manaPool || {}).reduce((n, v) => n + Math.max(0, Number(v) || 0), 0);
@@ -4452,10 +4516,10 @@ function attackReminder(gv, input, slot) {
     lines.push(`You have about ${open + pool} mana open. Attackers tap before you pay, so an attacking mana creature can't help pay.`);
   }
   // limits, for every attack or at a defender
-  for (const l of R.limits) {
+  for (const l of attackLimits(gv, E, R)) {
     if (l.at && !defenders.includes(l.at)) continue;
-    const at = l.at ? ` ${l.at === l.ctl ? nameOf(l.ctl) : name(l.card)}` : "";
-    lines.push(`${name(l.card)} (${nameOf(l.ctl)}): at most ${l.n} creature${l.n === 1 ? "" : "s"} can attack${at || " each combat"}.`);
+    const at = l.at ? ` ${limitAt(gv, input, l)}` : "";
+    lines.push(`${limitWho(l)}: at most ${l.n} creature${l.n === 1 ? "" : "s"} can attack${at || " each combat"}.`);
     if (!taxed.length) notes.push(`at most ${l.n} can attack${at || ""} (${name(l.card)})`);
   }
   // the player's creatures that can't attack at all, with the reason (tapped ones are plain to see)
@@ -4463,6 +4527,8 @@ function attackReminder(gv, input, slot) {
   const groups = new Map();
   const auras = (id) => R.onField.map(([c]) => c).filter((c) => c.attachedTo === id && /\benchanted creature can't attack\b(?![^.]*\bunless\b)/i.test(attackRulesText(c)));
   const reasonOf = (c) => {
+    const u = E?.unavailable.find((x) => x.cardId === c.id && !x.defenderId);
+    if (u) return engineCantWords(u);
     if (c.phasedOut) return "phased out";
     if (c.summoningSick && !hasKeyword(c, "Haste")) return "summoning sick";
     if (game?.detained?.has(c.id)) return "detained";
@@ -4492,6 +4558,12 @@ function attackReminder(gv, input, slot) {
     const missing = offered.filter((a) => !a.validTargetIds.includes(d));
     if (!missing.length) continue;
     const why = (a) => {
+      if (E) {
+        const u = E.unavailable.find((x) => x.cardId === a.attackerId && x.defenderId === d);
+        // (goad: by this player, or, at a planeswalker, "goaded" alone: it must attack a player it may attack instead)
+        if (u?.reason === "goaded") return String(d).startsWith("player-") ? `goaded by ${nameOf(d)}` : "goaded";
+        return u?.reason === "static" && u.sourceName ? u.sourceName : "";
+      }
       const g = game?.goaded?.get(a.attackerId);
       if (g && g.by === d) return `goaded by ${nameOf(d)}`;
       const card = byId[a.attackerId] || {};
@@ -4510,10 +4582,15 @@ function attackReminder(gv, input, slot) {
 }
 
 // Whose attack tax a payment for an attacker is: "Propaganda (AI 1)", "Ghostly Prison + Norn's Annex (AI 1)",
-// "Brainwash" (its own price), or null when no tax the board shows covers it
-function attackTaxWords(gv, attackerId, targetId) {
-  const R = attackRules(gv);
+// "Brainwash" (its own price), or null when no tax the board shows covers it. E: the attack question's engine data
+// (engineAttackData), whose sources for this attacker and defender are said instead ("War Tax (AI 1)")
+function attackTaxWords(gv, attackerId, targetId, E = null) {
   const ctl = String(targetId).startsWith("player-") ? targetId : cardIndex(gv)[targetId]?.controllerId;
+  if (E) {
+    const t = (E.costs[attackerId] || []).find((x) => x.defenderId === targetId);
+    return t && t.sourceNames.length ? `${t.sourceNames.join(" + ")} (${nameOf(ctl)})` : null;
+  }
+  const R = attackRules(gv);
   const at = attackTaxesAt(R, ctl, targetId).map((t) => t.card.identity.name);
   const own = R.costs.filter((x) => x.on === attackerId).map((x) => x.card.identity.name);
   if (!at.length && !own.length) return null;
@@ -4534,7 +4611,7 @@ function attackWhom(o, each = false) {
   const targets = [...new Set(group.flatMap((at) => at.validTargetIds))];
   const optId = (t) => (String(t).startsWith("player-") ? `player|${t}` : `card|${t}`);
   // (no colon in a label: the corner cuts a long one at its colon)
-  const tax = (t) => { const x = o.taxAt(t); return x.length ? ` (tax ${attackCostSum(x.map((y) => y.cost))} each)` : ""; };
+  const tax = (t) => { const x = o.taxAt(t); return x.length ? ` (tax ${x[0].summed ? x[0].cost : attackCostSum(x.map((y) => y.cost))} each)` : ""; };
   const names = group.map((at) => o.cname(at.attackerId));
   const others = left.length < o.asked.length && !each;
   const ui = {
@@ -6156,7 +6233,7 @@ function onPrompt(seat, prompt) {
       // "Pay {W/P} for Mother of Runes" with nothing naming Norn's Annex, 2026-11-10; docs/attack-reminder-spec.md part 2)
       // (only before priority comes back: seat.lastAttack is cleared there, see onPrompt's top)
       const attack = gv.step === "combatDeclareAttackers" && input.cardId ? (seat.lastAttack || []).find((x) => x.attackerId === input.cardId) : null;
-      const whose = attack ? attackTaxWords(gv, attack.attackerId, attack.targetId) : null;
+      const whose = attack ? attackTaxWords(gv, attack.attackerId, attack.targetId, seat.attackData) : null;
       const who = input.cardName || src || cname(input.cardId);
       // (and said when nothing that is left can pay: the player otherwise sees only Cancel. Cancel as its button reads:
       // "Don't attack with X" for an attack tax)
@@ -7130,6 +7207,9 @@ function onPrompt(seat, prompt) {
       const said = [refused, mustLine].filter(Boolean).join(" ");
       // the taxes, limits and who can't attack, before any pick (attackReminder; the refusal keeps the corner)
       const remind = attackReminder(gv, input, forP || seat.slot);
+      // (the engine's own attack data, kept for this declaration's refusal and tax payments; null from an older engine)
+      seat.attackData = engineAttackData(input);
+      const attackData = seat.attackData;
       const text = [said, ...remind.lines].filter(Boolean).join("\n");
       const note = refused || remind.note;
       ui = { title: "Choose attackers", mode: "multi", min: 0, max: pairs.length, keepOrder: true, options: [...quick, ...pairs], ...(text ? { text } : {}), ...(note ? { note } : {}),
@@ -7142,7 +7222,7 @@ function onPrompt(seat, prompt) {
       const declare = (byAttacker, all) => {
         const assignments = Object.entries(byAttacker).map(([attackerId, targetId]) => ({ attackerId, targetId }));
         if (all) {
-          const { broken } = attackRefusalReason(gv, assignments);
+          const { broken } = attackRefusalReason(gv, assignments, attackData);
           if (broken.length) {
             const stop = `"All attack" would break a limit, so nothing was sent. ${broken.join(" ")} Pick the attackers yourself.`;
             chat(`[MTG] ${stop}`, seat.color);
@@ -7296,7 +7376,7 @@ function onPrompt(seat, prompt) {
       // test game asked for OK 15 times; Arena shows such things in passing)
       if (/^Attack declaration invalid\b/i.test(title)) {
         const names = seat.mustAttack || [];
-        const { broken, limiters } = attackRefusalReason(gv, seat.lastAttack || []);
+        const { broken, limiters } = attackRefusalReason(gv, seat.lastAttack || [], seat.attackData);
         const why = broken.join(" ");
         seat.attackRefused = why ? `That attack isn't legal. ${why}` : null;
         const rest = names.length ? `Must attack: ${names.join(", ")}. Any you don't choose are sent for you. Check the table too: an effect can also forbid attacking a player.`
