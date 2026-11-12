@@ -146,8 +146,11 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   changes come with it), rebuild mtg-forge-node and mtg-relay (one build at a time), rules checks + a test game,
   deploy, then a debug game with Beam me up, Federation and Borg Queen. About 2–3 h plus build time.
 - ⬜ **Token stacks the Arena way** ([docs/token-stacks-spec.md](docs/token-stacks-spec.md)), held until the reset.
-- ⬜ **Extra-turn counter by a player's life** ([docs/extra-turn-counter-spec.md](docs/extra-turn-counter-spec.md)):
-  extra turns coming + 1 (one extra turn shows 2). Engine and relay field, so build it with the Star Trek update.
+- ✅ **Extra-turn counter by a player's life: built and live** ([docs/extra-turn-counter-spec.md](docs/extra-turn-counter-spec.md)):
+  extra turns coming + 1 (one extra turn shows 2). Bridge row, log line and table badge 7c33b9f (2026-11-07); the
+  engine's count of every queued extra turn in the Star Trek update (bfba2e0, `ExtraTurnState.queuedFor`,
+  `live_extra_turn_check` 10 of 10); the turn header reads Forge's `isExtraTurn`. Not yet seen on the real table:
+  cast Time Walk, see "2" beside your life, take the turn, see it go.
 - ⬜ **See and cast a card's other side** (Valki // Tibalt, Exdeath), with TTS object states
   ([docs/card-other-side-spec.md](docs/card-other-side-spec.md)): readable in your hand too, cast from the side shown.
 - ✅ Small sweep bugs (fixed 2026-11-07 in 33ffb05; checked again 2026-11-10, each with a claim check): the second AI

@@ -3,6 +3,13 @@
 The user's words: "If someone has an extra turn put a number counter next to their health that increases based off
 how many extra turns they have, it starts at 2."
 
+**Status 2026-11-11: built and deployed.** Bridge, log line and table badge in 7c33b9f; the engine half in the Star
+Trek update (bfba2e0). No protocol change was needed: `PlayerDto.extra_turn_count` was already upstream, but it sent
+Forge's `getExtraTurnCount`, which counts only the unbroken run at the bottom of Forge's queue (wrong once two
+players have extra turns queued, Time Walk then Nexus of Fate; tests/live_extra_turn_check.js), so the harness sends `ExtraTurnState.queuedFor` instead, every extra turn queued for the
+player, and a rewind puts the queue back. The turn header's " (extra turn)" reads Forge's `isExtraTurn` (core-moves
+fix 3), not the turn-order guess. Left: the real-table check under Tests.
+
 ## Behaviour
 
 - A small number badge beside the player's life counter, shown only while that player has extra turns coming.
