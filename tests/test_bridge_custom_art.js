@@ -62,6 +62,8 @@ const ids = (k, from) => Array.from({ length: k }, (_, i) => `engine-card-${from
     ok("custom: the importer's own pictures and the card back are not a player's", ![CMD, "https://cards.scryfall.io/normal/front/a/b/ab.jpg",
       "https://wsrv.nl/?url=cards.scryfall.io/x.jpg", "https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/", null, ""].some(h.B.isCustomArt));
     ok("custom: any other host is a player's", [SOL, RAT1, BAD_HTTP].every(h.B.isCustomArt));
+    ok("custom: wsrv.nl proxying another site is a player's", ["https://wsrv.nl/?url=evil.example/x.png",
+      "https://wsrv.nl/x.png"].every(h.B.isCustomArt));
     harness.restore();
   }
 

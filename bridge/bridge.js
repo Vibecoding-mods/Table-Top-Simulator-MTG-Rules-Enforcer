@@ -545,7 +545,8 @@ async function lookUpForeign(cards) {
 // and "mtg ready" sends it as the card's face. A face from any other host than the importer's own card pictures is such
 // a picture (a link to another Scryfall printing is a printing like any other). The table never marks which lines had a
 // link, so the host is the only sign.
-const NORMAL_ART = /^https?:\/\/(?:img\.klrmngr\.com|(?:[a-z0-9-]+\.)*scryfall\.(?:io|com)|wsrv\.nl)\//i;
+// wsrv.nl is a public proxy for any picture, so it counts as a normal printing only when it proxies Scryfall's CDN
+const NORMAL_ART = /^https?:\/\/(?:img\.klrmngr\.com\/|(?:[a-z0-9-]+\.)*scryfall\.(?:io|com)\/|wsrv\.nl\/\?url=(?:https?:\/\/)?cards\.scryfall\.io\/)/i;
 const isCustomArt = (u) => typeof u === "string" && u !== "" && u !== DEFAULT_BACK && !NORMAL_ART.test(u);
 const ART_MAX = 500;
 // Why a player's link can't be used, or null. The link goes into JSON and the table's Lua tables, so no quotes,
