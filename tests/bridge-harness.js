@@ -100,8 +100,14 @@ function load({ imageCache = {}, scryfall = "up", cardFaces = {} } = {}) {
   console.log = (...a) => effects.push({ log: a.map(String).join(" ").replace(/^\[\s*[\d.]+s\]\s*/, "")
     .replace(/\(?(?:[A-Za-z]:)?[\\/][^\s()]*?\.js:\d+:\d+\)?/g, "<file>").replace(/node:internal[^\s)]*/g, "<node>") });
   delete process.env.MTG_RECORD;
-  // (the saved game for crash recovery: never the live bridge's file)
-  process.env.MTG_RESUME_FILE = path.join(require("os").tmpdir(), "mtg-bridge-game-test.json");
+  // (the saved game for crash recovery: never the live bridge's file, and one folder per test process so two runs
+  // side by side never read each other's game; the file name stays the same because the golden records it)
+  const resumeDir = path.join(require("os").tmpdir(), "mtg-bridge-test-" + process.pid);
+  if (!fs.existsSync(resumeDir)) {
+    fs.mkdirSync(resumeDir, { recursive: true });
+    process.once("exit", () => { try { fs.rmSync(resumeDir, { recursive: true, force: true }); } catch (e) { /* best effort */ } });
+  }
+  process.env.MTG_RESUME_FILE = path.join(resumeDir, "mtg-bridge-game-test.json");
   process.env.MTG_TRACE = "1";
   delete require.cache[BRIDGE];
   // (only while the bridge reads its ports: child processes a test starts later get the environment it had)
