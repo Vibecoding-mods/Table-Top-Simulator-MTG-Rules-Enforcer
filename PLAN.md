@@ -190,10 +190,11 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   stack, blocks one token at a time from a stack, block lines while blocking, counted log lines. Needs the live check
   in the spec.
 - ✅ **Extra-turn counter by a player's life: built and live** ([docs/extra-turn-counter-spec.md](docs/extra-turn-counter-spec.md)):
-  extra turns coming + 1 (one extra turn shows 2). Bridge row, log line and table badge 7c33b9f (2026-11-07); the
+  counted from 1 since 2026-11-12: "EXTRA TURN" for one, "EXTRA TURN 2x" for two (it was the count + 1, "2" for one, live
+  check batch 1 item 4). Bridge row, log line and table badge 7c33b9f (2026-11-07); the
   engine's count of every queued extra turn in the Star Trek update (bfba2e0, `ExtraTurnState.queuedFor`,
   `live_extra_turn_check` 10 of 10); the turn header reads Forge's `isExtraTurn`. Not yet seen on the real table:
-  cast Time Walk, see "2" beside your life, take the turn, see it go.
+  cast Time Walk, see "EXTRA TURN" beside your life, take the turn, see it go.
 - ⬜ **See and cast a card's other side** (Valki // Tibalt, Exdeath), with TTS object states
   ([docs/card-other-side-spec.md](docs/card-other-side-spec.md)): readable in your hand too, cast from the side shown.
   Built 2026-11-11 (bridge + table, no engine change; tests/test_card_other_side.js), not yet seen in real TTS.
