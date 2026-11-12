@@ -1234,12 +1234,15 @@ The status page's "Table tools" section (collapsed by default) sets what `docs/n
   kindLabel, deckName, source} | null}], presets, debug: {on, game, fix, players: [{color, name}]}, tools}`. No bridge,
   a timeout, a 404 (a bridge older than this) or an answer that isn't a JSON object: 502 `no-bridge` with a sentence.
 - `POST /api/tools {kind, ...}`: `kind` is `ai-seat` (`color`, `seat`: `harmless`|`forge`|`off`, and `preset` or
-  `list` + `name`), `debug-mode` (`on`) or `debug` (`tool`: `mana`|`hand`|`battlefield`|`life`|`untap`, `color`, `n`,
+  `list` + `name`), `debug-mode` (`on`) or `debug` (`tool`: `mana`|`hand`|`battlefield`|`life`|`untap`|`draw`|`mill`, `color`, `n`,
   `name`, `mana`). Any other kind: 400, the bridge isn't asked. The body is passed on as parsed (written again, never
   the raw bytes), and the answer is cut down to `{ok, message}`. Observe mode refuses every POST (`ok: false`); GET
   still shows. The bridge answers a refusal as 200 with `ok: false`, so its reason reaches the page.
 - The page asks only while the section is open: once on opening, after every POST, and with each status poll
   (every 2.5 s). A closed section never calls the bridge.
+- A debug tool's button shows only when the bridge's `tools` lists it: a bridge from before Draw and Mill (2026-11-11)
+  refuses them by name. Draw and Mill take Number (1–99) and are the engine's own draw and mill (the fix's `draw` and
+  `mill` ops), so they need an engine image built with those ops.
 - **Host only** is the page itself: it opens only on the host's PC, with that run's token. The bridge also refuses a
   debug tool while debug tools are off.
 - **Debug tools on/off** is a switch of the bridge's own. It is off at every bridge start, and each change is said to
