@@ -22,7 +22,7 @@ Windows (`companion/build.cmd:1-29`; no SDK, no NuGet, .NET Framework 4.8, `/tar
 
 It is for the **host** only. Friends join the host's TTS game and need nothing of ours.
 
-Source (7,697 lines in `companion/src/*.cs`, counted 2026-11-11):
+Source (7,596 lines in `companion/src/*.cs`, counted 2026-11-11):
 
 | File | Lines | Holds |
 |---|---|---|
@@ -102,7 +102,8 @@ Rules that apply to all of them:
 
 - **Slow is not down.** Only "connection refused" counts as "nothing listens" (`HttpKind.Refused`, `Logic.cs:642`); a
   timeout is "can't tell" (`DecideBridge` returns amber, `Logic.cs:503`; `DecideGame` returns CantTell, `Logic.cs:213`).
-- Every `HttpWebRequest` has `Proxy = null` (`Probes.cs:274, 304, 360`).
+- The probes' `HttpWebRequest`s (`Probes.cs:274, 304`) and the relay WebSocket (`Probes.cs:360`) set `Proxy = null`. The updater does
+  **not**: `Updater.cs:84` sets it only when a test base URL is given, so real GitHub requests use the system's default proxy.
 - A light that turns red raises a tray balloon, at most once per light per 10 minutes, not in observe mode and not while the
   window is visible (`Controller.cs:426-434`, `StatusForm.cs:243`).
 - A light change is written to `companion.log`; busy progress text is logged at most every 15 s (`Controller.cs:415-437`).
@@ -122,7 +123,7 @@ Facts it combines (`Controller.cs:1038-1053`):
 - `tableHeardMs` from the same answer (`bridge.js:9300-9301`): how long ago the table last spoke. Compared with how long
   TTS has been running (`Probes.ProcessStartUtc`): a table heard *before* this TTS started is the last session's stamp,
   so the light stays amber, "TTS is running, the table isn't loaded in it yet" (`Logic.cs:532-536`). This was added after a
-  live check on 2026-11-11 where a relaunched TTS on its main menu was shown as "Connected" (`Logic.cs:532-534`, `PLAN.md:33`).
+  live check on 2026-11-11 where a relaunched TTS on its main menu was shown as "Connected" (`Logic.cs:532-534`).
 - The expected stamp: `version.json` `table` (friend) or `stack\deployed.json` `table` (home).
 
 Start behaviour: `DoTts` opens TTS through `steam://rungameid/286160` only if it is not running, Steam is in the registry,
@@ -212,6 +213,7 @@ three answers, **Game on**, **No game**, **Can't tell**:
 
 | Bridge says | Result |
 |---|---|
+| `/state` 200 but the body cannot be read | Game on if the resume file is fresh, otherwise Can't tell (`Logic.cs:196-199`) |
 | `/state` 200 with `started: true` | Game on, "turn N, M players (K AI)" |
 | `/state` 200 with `seats` not null, not started | Game on ("set up or just finished: restarts unlock after `mtg reset`") |
 | `/state` 200, no seats | No game (unless the resume file is under 60 s old: "bringing a game back") |
@@ -272,7 +274,7 @@ table, bridge, save}`, `log {file, lines}` (last 60 lines of `companion.log`), `
 Action ids (`WebUi.cs:770-821`): `fix:<row>:<fix>`, `restart-engine`, `stop-everything`, `open-logs`, `wsl-limits`, `update-check`,
 `update-now`, `update-later`. A fix id must match the button the row currently shows, or it is refused ("That button has
 changed"). Pressing the action last accepted again while it is still queued or running is "Already running"
-(`WebUi.cs:767-768`). **Show the program** opens Task Manager's Details tab and re-queues the Bridge step (`WebUi.cs:835-841`).
+(`WebUi.cs:767-768`). **Show the program** runs `taskmgr.exe /0 /startup` and re-queues the Bridge step (`WebUi.cs:835-841`).
 **Limit Docker's CPU use** writes `processors=2`, `memory=8GB` into `[wsl2]` of `%USERPROFILE%\.wslconfig` after copying it to
 `.wslconfig.bak-<stamp>`; it never restarts WSL (`WebUi.cs:890-901`, `Logic.SetWslLimits` `Logic.cs:547`).
 
@@ -306,7 +308,7 @@ on a balloon open it (`StatusForm.cs:217, 241-242`).
 - **Tray icon** (drawn at run time, colour = worst light; tooltip as in §4). Menu: Open status, Open logs folder, the version
   line, **Check for updates**, **GitHub token…**, Restart engine, Stop everything, Quit (`StatusForm.cs:217-231`).
 - **Restart engine**: confirm, then stop bridge → `forceFresh` → run steps 1-6 (`Controller.cs:1134-1149`). Locked during a game.
-- **Stop everything**: stops the bridge loop and the bridge, then `docker compose ... down` (friend) or `stop` (home); Docker
+- **Stop everything**: stops the bridge loop and the bridge, then, only if the Docker light is green, `docker compose ... down` (friend) or `stop` (home) (`Controller.cs:1161`); Docker
   Desktop and TTS keep running; all other lights go grey; the watcher pauses until Restart engine (`Controller.cs:1152-1168`).
 - **Quit** asks: Yes = quit and leave engine and bridge running; No = stop everything, then quit; Cancel. While an update installs,
   Quit says to wait (`StatusForm.cs:458-465`).
@@ -335,7 +337,7 @@ bridge plays itself, `HarmlessSeat` `bridge.js:853`: keeps its hand, passes ever
 A colour set here is an AI in every game while nobody sits there, and its deck beats `mtg aideck` and any deck lying in that
 seat. Deck:
 - **preset**: one of `listCommanderPresets()`: our decks in `decks/` then Manabrew's in `manabrew/public/preset_decks`, ours winning
-  a clash (`bridge/presets.js:1-30`);
+  a clash (`listCommanderPresets`, `bridge/bridge.js:401`, built on `presetIds` and the two folders in `bridge/presets.js`);
 - **list**: a pasted deck list, parsed by `parseDeckList` (`bridge.js:420`): `1 Sol Ring`, `1x Sol Ring`, `Sol Ring (CMM) 410 *F*`,
   commander under a `Commander` line or marked `*CMDR*`, `Sideboard`/`Maybeboard`/`Companion` parts skipped, `//` and `#` comments.
   Validated: a commander, every card known to the engine, at least one non-commander card; the deck size is **not** checked
@@ -450,7 +452,7 @@ not-public, available, downloading, ready, installing, restarting, updated, fail
   §3, covering kill points during install, tampered signatures, resumed downloads, off-host URLs, token leaks and the
   self-update swap.
 - `tests/test_friend_package.js`: the packager's release rules. `tests/test_bridge_ai_tools.js`: the bridge side of §10.
-- `tests/no-live-ports.js` refuses and records every connection to 39999, 39998, 48787 and 9443 during tests (`PLAN.md:28`).
+- `tests/no-live-ports.js` refuses and records every connection to 39999, 39998, 48787 and 9443 during tests (`PLAN.md:54`).
 
 Not covered by any automated test, from the sources: a whole friend-mode start on a PC without the repo's stack (ports 9443,
 39998 and 48787 are the repo's on the development PC); whether TTS lists a `TS_Save_N.json` that has no entry in
@@ -484,7 +486,7 @@ Everything here was in the earlier spec or in other specs and has **no code** in
 
 ## 15. Changed from the earlier spec
 
-1. **"Nothing here is built yet" was true on 2026-11-05 and is false now.** The code is 7,697 lines (§1).
+1. **"Nothing here is built yet" was true on 2026-11-05 and is false now.** The code is 7,596 lines (§1).
 2. **Technology:** the spec first said C# `csc` (11-05), then Tauri / cross-platform (11-06), then "no app, no signing: Node scripts
    plus a browser status page" (§15 of the old text). **Built: a `csc` WinForms exe that serves a browser status page.** All three
    decisions are partly true; the Node supervisor `tools/start-mtg.js` and the Mac/Linux wrappers do not exist.

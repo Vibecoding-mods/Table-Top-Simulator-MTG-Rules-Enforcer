@@ -1,4 +1,4 @@
-// Self-update from the project's GitHub releases (friend mode; docs/companion-app-spec.md §18): the data, the state
+// Self-update from the project's GitHub releases (friend mode; docs/companion-app-spec.md §11): the data, the state
 // snapshot and the pure rules (--selftest). Updater.cs has the network, the files and the order of an update.
 using System;
 using System.Collections.Generic;

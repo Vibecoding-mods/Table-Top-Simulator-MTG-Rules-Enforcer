@@ -9,7 +9,7 @@
 //   --companion <dir>           the tree that holds companion/build.cmd (default: this repo)
 //   --out <dir>                 where the package goes (default: dist/)
 //   --release [--tag T] [--previous update-manifest.json]   also dist/release-<tag>/: the parts the companion's
-//                               self-update downloads (docs/companion-app-spec.md §18); it prints what to attach to the
+//                               self-update downloads (docs/companion-app-spec.md §11); it prints what to attach to the
 //                               GitHub release, which the user creates by hand. --previous: the PUBLISHED latest
 //                               release's manifest (else a reused part must be in dist/release-<its tag>/ with its sha).
 //                               Signs update-manifest.json with the release key, %USERPROFILE%\.mtg-release\release-key.pem
@@ -180,7 +180,7 @@ function deployedRecord(deployed, { bridge, save, at, images }) {
   return out;
 }
 
-// ── a release for the companion's self-update (docs/companion-app-spec.md §18)
+// ── a release for the companion's self-update (docs/companion-app-spec.md §11)
 
 // The parts of a release, their assets and what each holds (paths in the package)
 const RELEASE_PARTS = {
@@ -601,7 +601,7 @@ async function main() {
   if (release) releaseFinish(release, pkg, zip, info, signing);
 }
 
-// ── --release: dist/release-<tag>/ (docs/companion-app-spec.md §18.1)
+// ── --release: dist/release-<tag>/ (docs/companion-app-spec.md §11.3)
 
 const sha256 = (file) => require("crypto").createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 function filesUnder(root, rel) {
@@ -621,7 +621,7 @@ function releaseSigning() {
   const file = process.env.MTG_RELEASE_KEY || path.join(process.env.USERPROFILE || require("os").homedir(), ".mtg-release", "release-key.pem");
   let k;
   try { k = releaseKey(file, ROOT); } catch (e) { stop(e.message); }
-  if (k.made) console.log(`\n  NEW RELEASE KEY: ${file}\n  Back it up somewhere safe and never share it or commit it. Every installed companion trusts only\n  this key: lose it and friends must download a full package again (key change: docs/companion-app-spec.md §18.7).\n`);
+  if (k.made) console.log(`\n  NEW RELEASE KEY: ${file}\n  Back it up somewhere safe and never share it or commit it. Every installed companion trusts only\n  this key: lose it and friends must download a full package again (key change: docs/companion-app-spec.md §11.3).\n`);
   const pub = publicKeyText(k.key);
   const keysFile = path.join(path.resolve(option("companion", ROOT)), "companion", "release-keys.txt");
   const have = fs.existsSync(keysFile) ? fs.readFileSync(keysFile, "utf8") : "";

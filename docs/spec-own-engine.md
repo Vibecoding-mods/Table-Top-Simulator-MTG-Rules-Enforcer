@@ -17,7 +17,7 @@ and anything I propose rather than know is marked **(proposal)**.
 
 ## 1. What the user wants, split into three goals
 
-From the user's 2026-11-02 requests (spec history, PLAN.md:282-284): "big fixes should be easier and better", and "drop the
+From the user's 2026-11-02 requests (spec history, kept in the PLAN "Copy engine experiment" section): "big fixes should be easier and better", and "drop the
 bridge and Forge" so that friends need no Docker or server. Those are three different goals and a plan can reach one without the
 others:
 
@@ -38,7 +38,7 @@ TTS table (Lua) ⇄ HTTP :48787 / External Editor :39999 ⇄ **bridge** (Node) �
 | Table renderer | 8,300 lines Lua (`tools/engine-renderer.lua`); it was 5,993 on 2026-11-02 | main |
 | Our engine changes | `engine/forge.patch` 8,412 lines, `engine/manabrew.patch` 4,739 lines, on Forge `e7d2b93` (the Manabrew fork of 2026-09-21) and Manabrew `fd16e2f` (`engine/build-images.sh:8-11`) | main |
 | Images | `mtg-relay:exile`, `mtg-forge-node:exile`; rebuild about 20 minutes, both when the protocol changes (`engine/README.md`) | local Docker |
-| Companion | 7,697 lines C# (docs/companion-app-spec.md) | main |
+| Companion | 7,596 lines C# (docs/companion-app-spec.md) | main |
 | Tests that matter here | bridge golden (926 scenarios on 2026-11-05, PLAN.md), `tests/test_table_*`, `tests/live_*_check.js` against a test node, 27 hand-test decks (`docs/HAND-TEST-*.md`), `tests/lua/tts-sim.lua` on fengari | main |
 
 Why G1 fails today: a deep bug can touch Forge or the harness (Java, `forge.patch`), a rebuilt node and often relay image,
@@ -54,7 +54,7 @@ running stack, and `deploy.js` updates the table with a version stamp and a chec
   TTS's own MoonSharp DLL. Hand-written: runtime 4,269 lines, translator 2,535 lines of Node, **4 hand patches** to Forge (DRIFT.md).
 - **A whole AI-against-AI game is correct**: Red wins on turn 18, no Lua errors, set up in 0.8 s and 63-65 MB. Outside TTS it takes
   191 s (about 11 s a turn, single AI decisions up to 3.5 s).
-- **Inside real TTS it takes 4.4 times as long**: 846 s of engine time, worst single step 46 s; the full save-driven run 906 s elapsed,
+- **Inside real TTS it takes 4.4 times as long** (906 s, 43 s freezes and the Not Responding close are recorded in `PLAN.md:303-304`): 846 s of engine time, worst single step 46 s; the full save-driven run 906 s elapsed,
   worst 43 s, TTS memory 0.8 to 1.67 GB. A step that runs without yielding freezes TTS for its whole length, and a long freeze got
   TTS closed through Windows' "Not Responding" prompt (event 1002).
 - **The cost is spread thin.** 77% of profile samples are in our runtime (list iteration through iterator objects, run-time overload
@@ -78,7 +78,7 @@ running stack, and `deploy.js` updates the table with a version stamp and a chec
 
 | Route | Reaches | Evidence so far | Verdict |
 |---|---|---|---|
-| **A. Lua copy in TTS, with AI** (the first plan) | G1, G2, G3 | 4.4 times slower in TTS, 906 s per AI game, 43 s freezes, no runtime fix beyond about 4x | **Closed** (user, 2026-11-03). Do not resume unless asked |
+| **A. Lua copy in TTS, with AI** (the first plan) | G1, G2, G3 | 4.4 times slower in TTS, 906 s per AI game, 43 s freezes (`PLAN.md:303-304`), no runtime fix beyond about 4x | **Closed** (user, 2026-11-03). Do not resume unless asked |
 | **B. Lua copy in TTS, people only** ("the middle way" of the branch's compare doc) | G1 and G3 for human games; G2 only for human games (AI seats still need Docker + bridge) | untested; hypothesis 1 to 3 s a click inside TTS | **Open: this is the one thing worth a cheap test** (Phase 0A) |
 | **C. The same Forge engine, no Docker** (the node run natively on the host) | G2 only | none. Forge runs in the node as a GraalVM native shared library called in-process, with no JVM (`docs/engine-interface-reference.md:37, 44`), so a Windows build of the Rust node and relay plus a Windows native-image of the harness may be possible; **not verified** | **Open, unknown**. Phase 0C is a feasibility check |
 | **D. A new rules engine we write** (Node or Rust, outside TTS) | G1, G2, G3 | Manabrew's own Rust port is 155,419 lines and its docs still call it incomplete (branch spec); Forge's rules are about 156,000 lines Java | **Not recommended**: the largest option by far, no evidence it beats the patched Forge |

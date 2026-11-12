@@ -12,7 +12,7 @@ if not exist "%CSC%" (
 if not exist "%HERE%bin" mkdir "%HERE%bin"
 set "ICON="
 if exist "%HERE%app.ico" set ICON=/win32icon:"%HERE%app.ico"
-rem the release signing keys the self-update trusts (docs/companion-app-spec.md §18.7)
+rem the release signing keys the self-update trusts (docs/companion-app-spec.md §11.3)
 set "KEYS="
 if exist "%HERE%release-keys.txt" set KEYS=/resource:"%HERE%release-keys.txt",release-keys.txt
 "%CSC%" /nologo /target:winexe /optimize+ /langversion:5 /platform:anycpu /utf8output ^

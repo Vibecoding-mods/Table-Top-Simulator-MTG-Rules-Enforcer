@@ -20,7 +20,7 @@
 //   hint     the help line (the first hint of an amber/red light, else how to load the table in TTS)
 //   versions {text, companion, table, bridge, save}
 //   log      {file, lines}                   the last lines of companion.log
-//   update   the self-update (docs/companion-app-spec.md §18), friend mode only (null in home mode and observe):
+//   update   the self-update (docs/companion-app-spec.md §11), friend mode only (null in home mode and observe):
 //            {title, line, status, current, available, progress, deferred, error, lastCheck, actions}; actions in the
 //            menu's shape: update-now (when a release is offered), update-later, update-check. Built from the
 //            Controller's one UpdateState snapshot (UpdateSection). The page shows the section only when it is an object.

@@ -9,7 +9,7 @@
 //   MTG Companion.exe --bridge-loop --home DIR  (internal) the hidden loop that runs and restarts the bridge
 //   MTG Companion.exe --write-icon FILE         writes the app icon (.ico)
 //   MTG Companion.exe --probe-login URL [KEY]   one relay login, printed (for testing against a fake relay)
-//   MTG Companion.exe --update-check | --update-now   self-update without the window (docs/companion-app-spec.md §18):
+//   MTG Companion.exe --update-check | --update-now   self-update without the window (docs/companion-app-spec.md §11):
 //       [--update-base URL] (a fake GitHub on this PC: http://127.0.0.1:PORT only; then also --test-public-key KEY,
 //       --test-die-at move|place|written|placed, --test-format N, --test-skip-recover, --test-journal-fail) [--fake-effects FILE [--fake-fail STEP,...]] (--update-now needs it)
 //       [--bridge-url URL] [--state DIR] [--log FILE]; exit 0 up to date or done, 10 update available, 3 deferred, 1 failed
