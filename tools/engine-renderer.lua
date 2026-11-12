@@ -1787,6 +1787,7 @@ do
   -- the save, inactive). A marker panel says which kind of pool it is, so setting the picture links rebuilds it once.
   function FX.build()
     FX.built = true
+    FX.findRigs() -- (the effect bundle's rigs: once a game too)
     local o = FX.carrier()
     FX.car = o
     if o == nil then return end
@@ -1892,6 +1893,140 @@ do
     local go = function() if FX.gen == gen and not life.isDestroyed() and not engineGlowOwned(life) then life.highlightOn(rgb, len) end end
     if delay > 0 then Wait.time(go, delay) else go() end
   end
+  -- ── the effect bundle (step 4's particles, docs/m5-assetbundle-build.md) ──
+  -- Rigs: copies of one AssetBundle whose GM notes are "engine:fx", parked under the table in the save (nothing is
+  -- spawned: destruct costs ~360 ms here). For an effect, a free rig is moved to the spot and plays the trigger effect of
+  -- that name (AssetBundle.playTriggerEffect, the index from getTriggerEffects), then goes back under the table. No rig,
+  -- none free, or no effect of that name in the bundle: the Object UI slot as before. Particles are seen by everyone;
+  -- a player with "mtg effects off" gets the rig made invisible to them (setInvisibleTo: whether that hides particles
+  -- is the build doc's two-client test). RIG_NAME: our kind -> the trigger effect's name in the bundle; RIG_ELSE: the
+  -- kind whose effect stands in when the bundle lacks one; RIG_LEN: how long each plays (s); RIG_AT: its start after
+  -- the event (the knock-out's burst and sound are 0.6 s in); RIG_LEAD: the least time between the move and the
+  -- trigger; RIG_TAIL: time for the last particles to fade before the rig goes back; RIG_LIFT: above the spot.
+  FX.RIG_NAME = { death = "death", wipe = "death_wipe", exile = "exile", countered = "countered", damage = "damage",
+    player = "player_hit", counter = "counter", counter_minus = "counter_minus", lifegain = "lifegain", knockout = "knockout" }
+  FX.RIG_ELSE = { wipe = "death", player = "damage", counter_minus = "counter" }
+  FX.RIG_LEN = { death = 1.0, wipe = 1.5, exile = 1.0, countered = 1.5, damage = 0.4, player = 0.5, counter = 0.6,
+    counter_minus = 0.6, lifegain = 1.0, knockout = 1.5 }
+  FX.RIG_AT = { knockout = 0.6 }
+  FX.RIG_LEAD, FX.RIG_TAIL, FX.RIG_LIFT, FX.RIG_PARK_Y = 0.1, 0.6, 0.3, -30
+  -- the rigs, looked for once a game (FX.build) and by engineFxTest: every "engine:fx" object with an AssetBundle. One
+  -- found above the table (a reload cut its effect short) goes back under it. The same look finds the sound object.
+  -- None there and a link in engineFxBundle: they are spawned (FX.RIGS rigs, one sound object), once.
+  FX.RIGS = 6
+  function FX.addRig(o)
+    local p = o.getPosition()
+    local home = p
+    if p.y > FX.RIG_PARK_Y / 2 then home = Vector(p.x, FX.RIG_PARK_Y, p.z) o.setPosition(home) end
+    o.interactable = false -- (over a card for a second: it mustn't take the clicks meant for the card)
+    FX.rigs[#FX.rigs + 1] = { o = o, home = home, busy = 0, use = 0 }
+  end
+  function FX.findRigs()
+    FX.rigs, FX.rigIdx = {}, nil
+    local snd = nil
+    for _, o in ipairs(getObjects()) do
+      local gm = o.getGMNotes()
+      if gm == "engine:fx" then FX.addRig(o)
+      elseif gm == "engine:sounds" then snd = o end
+    end
+    if snd ~= nil and FX.sndObj ~= snd then FX.sndObj, FX.sndIdx = snd, nil end
+    local links = engineFxBundle or {}
+    if #FX.rigs == 0 and FX.bundleLink(links.fx) and not FX.spawnedFx then
+      FX.spawnedFx = true
+      for i = 1, FX.RIGS do FX.spawnBundle(links.fx, "engine:fx", i, function(o) if FX.rigs ~= nil then FX.addRig(o) end end) end
+    end
+    if snd == nil and FX.bundleLink(links.sounds) and not FX.spawnedSnd then
+      FX.spawnedSnd = true
+      FX.spawnBundle(links.sounds, "engine:sounds", 0, function(o) FX.sndObj, FX.sndIdx = o, nil end)
+    end
+  end
+  -- a usable bundle link (engineFxBundle): a non-empty string
+  function FX.bundleLink(url) return type(url) == "string" and url ~= "" end
+  -- one bundle object, locked and parked under the table (the n-th a little along x, so none overlaps)
+  function FX.spawnBundle(url, gm, n, done)
+    spawnObjectData({
+      data = { Name = "Custom_Assetbundle", Nickname = "", GMNotes = gm, Locked = true,
+        CustomAssetbundle = { AssetbundleURL = url, AssetbundleSecondaryURL = "", MaterialIndex = 0, TypeIndex = 0, LoopingEffectIndex = 0 } },
+      position = Vector(-40 + 1.5 * n, FX.RIG_PARK_Y, 30), rotation = Vector(0, 0, 0),
+      callback_function = done })
+  end
+  -- trigger effect name -> index, from the first rig whose bundle answers (they are copies of one bundle); asked again
+  -- while the bundle is still loading (no AssetBundle yet, or an empty list), nil until then
+  function FX.rigIndex()
+    if FX.rigIdx ~= nil then return FX.rigIdx end
+    for _, r in ipairs(FX.rigs or {}) do
+      local ab = not r.o.isDestroyed() and r.o.AssetBundle or nil
+      if ab ~= nil then
+        local ok, list = pcall(ab.getTriggerEffects)
+        if ok and type(list) == "table" and #list > 0 then
+          FX.rigIdx = {}
+          for _, t in ipairs(list) do if t.name ~= nil then FX.rigIdx[t.name] = t.index end end
+        end
+        break
+      end
+    end
+    return FX.rigIdx
+  end
+  -- the kind of rig effect an event is: a wipe's cloud and a -1/-1 counter's ring have their own
+  function FX.rigKind(e)
+    if e.kind == "death" and e.wipe then return "wipe" end
+    if e.kind == "counter" and e.m1 then return "counter_minus" end
+    return e.kind
+  end
+  -- the bundle's trigger effect for a kind (its own, else its stand-in's), or nil: no rig, a bundle still loading, or
+  -- no such effect in it
+  function FX.rigName(k)
+    if FX.rigs == nil or #FX.rigs == 0 then return nil end
+    local idx = FX.rigIndex()
+    if idx == nil then return nil end
+    for _, kk in ipairs({ k, FX.RIG_ELSE[k] or "" }) do
+      local name = FX.RIG_NAME[kk]
+      if name ~= nil and idx[name] ~= nil then return name end
+    end
+    return nil
+  end
+  -- one effect on a free rig, `delay` s from now: the rig moves there at once (so other players have its new spot
+  -- before the trigger arrives), plays at least RIG_LEAD later, and goes back under the table once it is over (never
+  -- reused before). The trigger effect's name, or nil (no rig free, or none for it): the caller falls back to a slot.
+  function FX.rigPlay(e, spot, delay, gen)
+    local k = FX.rigKind(e)
+    local name = FX.rigName(k)
+    if name == nil then return nil end
+    local now, rig = os.clock(), nil
+    for _, r in ipairs(FX.rigs) do if rig == nil and now >= r.busy and not r.o.isDestroyed() then rig = r end end
+    if rig == nil then return nil end
+    local at = math.max(delay + (FX.RIG_AT[k] or 0), FX.RIG_LEAD)
+    local over = at + (FX.RIG_LEN[k] or 1) + FX.RIG_TAIL
+    rig.busy, rig.use = now + over, rig.use + 1
+    local use, o, idx = rig.use, rig.o, FX.rigIdx[name]
+    -- (who mustn't see it: the players with effects off, one setInvisibleTo when that changes)
+    local off = {}
+    for _, c in ipairs(FX.COLOURS) do if engineEffectsOff[c] then off[#off + 1] = c end end
+    local offKey = table.concat(off, "|")
+    if rig.off ~= offKey then rig.off = offKey o.setInvisibleTo(off) end
+    local g = e.seat and seatGeometry(e.seat)
+    local rotY = g and g.rotY or 0
+    if rig.rotY ~= rotY then rig.rotY = rotY o.setRotation(Vector(0, rotY, 0)) end
+    o.setPosition(Vector(spot.x, spot.y + FX.RIG_LIFT, spot.z))
+    Wait.time(function()
+      local ab = FX.gen == gen and rig.use == use and not o.isDestroyed() and o.AssetBundle or nil
+      if ab ~= nil then pcall(ab.playTriggerEffect, idx) end
+    end, at)
+    Wait.time(function() if rig.use == use and not o.isDestroyed() then o.setPosition(rig.home) end end, over)
+    return name
+  end
+  -- a new game: every rig still out goes back under the table, and the next game looks for them again
+  function FX.rigsReset()
+    for _, r in ipairs(FX.rigs or {}) do
+      r.use = r.use + 1
+      if r.busy > os.clock() and not r.o.isDestroyed() then r.o.setPosition(r.home) end
+      r.busy = 0
+    end
+    FX.rigs, FX.rigIdx = nil, nil
+  end
+  -- the bundle objects belong to the table, not to a game: the sweep of engine objects, "mtg start" and the table's
+  -- own check leave them alone
+  function engineIsBundleObject(gm) return gm == "engine:fx" or gm == "engine:sounds" end
   -- one frame after the board (engineCombatLunge has stamped its hit times by then): start what fits, drop the rest
   -- kind: the board's sound (engineFxBoard picked it), played when the first event of that kind starts (a wipe's with
   -- the first death; a sound-only kind, exile, lifegain, instant, at once); n: the board's count for it (its burst)
@@ -1912,14 +2047,18 @@ do
       if visual then
         local spot = e.spot
         if e.kind == "knockout" then local life = getObjectFromGUID(TRACK[e.seat] or "") spot = life and life.getPosition() end
-        local key = (started < FX.PER_BOARD and spot ~= nil and FX.car ~= nil) and FX.slot(e.kind == "knockout") or nil
+        -- (a rig of the effect bundle when there is one for it, else a slot; a bundle-only kind has no slot look)
+        local rig = (started < FX.PER_BOARD and spot ~= nil) and FX.rigPlay(e, spot, delay, gen) or nil
+        local key = (rig == nil and not e.rigOnly and started < FX.PER_BOARD and spot ~= nil and FX.car ~= nil) and FX.slot(e.kind == "knockout") or nil
         if key ~= nil then
           local look = FX.look(e)
           look.spot, look.seat = spot, e.seat
           FX.start("eng_fx_" .. key, look, delay)
           FX.slotUntil[key] = os.clock() + delay + look.stop
+        end
+        if key ~= nil or rig ~= nil then
           started = started + 1
-          last.fx[#last.fx + 1] = { kind = e.kind, seat = e.seat, at = delay, x = spot.x, z = spot.z, n = e.n, slot = key }
+          last.fx[#last.fx + 1] = { kind = e.kind, seat = e.seat, at = delay, x = spot.x, z = spot.z, n = e.n, slot = key, rig = rig }
           if e.kind == "player" then FX.glowLife(e.seat, { 1, 0.2, 0.15 }, 0.5, delay)
           elseif e.kind == "knockout" then FX.glowLife(e.seat, { 1, 0.15, 0.1 }, 0.7, delay) end
         else last.dropped = last.dropped + 1 end
@@ -1932,10 +2071,11 @@ do
     local S = engineProfile and engineProfile.sect
     if S ~= nil then S.fx = (S.fx or 0) + (os.clock() - t0) * 1000 end
   end
-  -- The board's events, most important first: knock-outs, deaths, damage to players, damage to creatures, counters.
-  -- prev/now are engineEffects' snapshots, diedIds its deaths, exiledIds the permanents exiled. Picks the board's one
-  -- sound by its counts per kind (FX.dispatch plays it). Returns how many (visual) events it found.
-  function engineFxBoard(m, prev, now, diedIds, exiledIds)
+  -- The board's events, most important first: knock-outs, deaths, damage to players, damage to creatures, counters
+  -- (then, with the effect bundle, exiles, countered spells and life gained). prev/now are engineEffects' snapshots,
+  -- diedIds its deaths, exiledIds the permanents exiled, countered the last board's stack items countered. Picks the
+  -- board's one sound by its counts per kind (FX.dispatch plays it). Returns how many (visual) events it found.
+  function engineFxBoard(m, prev, now, diedIds, exiledIds, countered)
     local ev, nOut = {}, 0
     local sortedKeys = function(t) local ks = {} for k in pairs(t) do ks[#ks + 1] = k end table.sort(ks) return ks end
     for _, c in ipairs(sortedKeys(now.status)) do
@@ -2001,6 +2141,32 @@ do
         if n < list[2] and not at[key] then at[key], n = true, n + 1 ev[#ev + 1] = e end
       end
     end
+    -- with the effect bundle only (FX.rigName; no slot look of their own, rigOnly): permanents exiled (one per spot),
+    -- a countered spell where it stood on the stack (engineFxStackSpot, the last board's), a player's life going up at
+    -- their life counter
+    if FX.rigName("exile") ~= nil then
+      local list, at = {}, {}
+      for _, id in ipairs(exiledIds or {}) do if prev.bf[id] ~= nil and prev.bf[id].pos ~= nil then list[#list + 1] = id end end
+      table.sort(list)
+      for _, id in ipairs(list) do
+        local p = prev.bf[id].pos
+        local key = string.format("%.1f,%.1f", p.x, p.z)
+        if not at[key] then at[key] = true ev[#ev + 1] = { kind = "exile", seat = prev.bf[id].owner, id = id, spot = p, n = 1, rigOnly = true } end
+      end
+    end
+    if FX.rigName("countered") ~= nil then
+      for _, st in ipairs(countered or {}) do
+        local p = engineFxStackSpot and engineFxStackSpot[st.id]
+        if p ~= nil then ev[#ev + 1] = { kind = "countered", seat = st.ctl, id = st.id, spot = p, n = 1, rigOnly = true } end
+      end
+    end
+    if FX.rigName("lifegain") ~= nil then
+      for _, c in ipairs(sortedKeys(now.life)) do
+        local was, life = tonumber(prev.life[c]), tonumber(now.life[c])
+        local tr = getObjectFromGUID(TRACK[c] or "")
+        if was ~= nil and life ~= nil and life > was and tr ~= nil then ev[#ev + 1] = { kind = "lifegain", seat = c, spot = tr.getPosition(), n = life - was, rigOnly = true } end
+      end
+    end
     -- the board's sound kinds (design section 6), each by its count on this board, the one record of both whether it
     -- is on the board (over 0) and its burst (FX.burst): players out; permanents to graveyards (a wipe: 3 or more, all
     -- seats together; one with no spot to smoke at still counts); permanents exiled from the battlefield; creatures hit
@@ -2057,14 +2223,20 @@ do
   -- a jump, not a play: the next board only gives the effects a new start (the table was sent again, "started")
   function engineEffectsJump() FX.jumpNext = true end
   -- for calibrating on the real table (real-table check 2): one slot on a card (engine id) or a player's spot (a
-  -- colour) for 3 s; kind = "ring", "burst" or "smoke"
+  -- colour) for 3 s; kind = "ring", "burst" or "smoke"; or a kind of the effect bundle (FX.RIG_NAME: "death", "wipe",
+  -- "exile", ...) plays that on a rig (looked for again first, so a bundle put on the table mid-game shows)
   function engineFxTest(kind, id)
     if not FX.built then FX.build() end
-    if FX.car == nil then return "no life counter to carry the effects" end
     local spot = enginePlanned[id] or (engineObjs[id] ~= nil and not engineObjs[id].isDestroyed() and engineObjs[id].getPosition())
       or (enginePlayerSpot ~= nil and LIFE_TRACKERS[id] ~= nil and enginePlayerSpot(id)) or nil
     if not spot then return "no such card or colour on the table" end
     local seat = (engineMeta[id] and engineMeta[id].color) or (LIFE_TRACKERS[id] ~= nil and id) or nil
+    if FX.RIG_NAME[kind] ~= nil then
+      if FX.rigs == nil or #FX.rigs == 0 or FX.rigIdx == nil then FX.findRigs() end
+      if FX.rigPlay({ kind = kind, seat = seat }, spot, 0, FX.gen) == nil then return "no free effect bundle rig with " .. kind end
+      return "shown"
+    end
+    if FX.car == nil then return "no life counter to carry the effects" end
     FX.slotUntil[1] = os.clock() + 3
     FX.start("eng_fx_1", { spot = spot, seat = seat, phases = { { t = 0, img = kind or "ring", col = "#FFFFFFE6", size = 1.0 } }, stop = 3, text = "×3" }, 0)
     return "shown"
@@ -2132,18 +2304,25 @@ do
       if not ok then pcall(finish) return false end
       route = "music"
     else
+      -- (a name with no sound object on the table: one look over every object each 5 s at most, not one per board)
       if FX.sndObj == nil or FX.sndObj.isDestroyed() then
         FX.sndObj, FX.sndIdx = nil, nil
-        for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:sounds" then FX.sndObj = o end end
+        if force or now - (FX.sndScanAt or -100) >= 5 then
+          FX.sndScanAt = now
+          for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:sounds" then FX.sndObj = o end end
+        end
       end
       local o = FX.sndObj
       if o == nil or o.AssetBundle == nil then return false end
+      -- (an empty list is a bundle still loading: asked again with the next sound, not kept as "no effects")
       if FX.sndIdx == nil then
-        FX.sndIdx = {}
         local okList, list = pcall(o.AssetBundle.getTriggerEffects)
-        for _, t in ipairs(okList and list or {}) do if t.name ~= nil then FX.sndIdx[t.name] = t.index end end
+        if okList and type(list) == "table" and #list > 0 then
+          FX.sndIdx = {}
+          for _, t in ipairs(list) do if t.name ~= nil then FX.sndIdx[t.name] = t.index end end
+        end
       end
-      local idx = FX.sndIdx[pick]
+      local idx = FX.sndIdx and FX.sndIdx[pick]
       if idx == nil or not pcall(o.AssetBundle.playTriggerEffect, idx) then return false end
       route = "bundle"
     end
@@ -2323,7 +2502,9 @@ do
       end, 2.5)
     end
     -- step 4: the table effects and their sound (nothing found = no UI call at all)
-    local okFx, errFx = pcall(engineFxBoard, m, prev, now, diedIds, exiledIds)
+    local counteredSt = {} -- (the spells countered, as the pop-up takes them: for the bundle's "countered" effect)
+    for _, st in ipairs(prev.stack) do if countered[st.id] and (st.spell or st.sp) then counteredSt[#counteredSt + 1] = st end end
+    local okFx, errFx = pcall(engineFxBoard, m, prev, now, diedIds, exiledIds, counteredSt)
     if not okFx then print("[MTG] table effects: " .. tostring(errFx)) end
   end
   -- a new game: the life counters light up again, nothing carried over (an effect still showing goes off)
@@ -2336,6 +2517,7 @@ do
     FX.gen = FX.gen + 1
     for id in pairs(FX.slotOn) do FX.toggle(id, false) end
     FX.slotOn, FX.slotUntil, FX.slotText, FX.built, FX.jumpNext = {}, {}, {}, false, false
+    FX.rigsReset()
   end
 end
 
@@ -2473,6 +2655,7 @@ function engineRender(m)
   local perCaster = {}
   local stackGlow = {}
   local stackSpot = {} -- stack item id -> where its target lines start
+  engineFxStackSpot = {} -- stack item id -> its spot on the stack (the next board's effects: where a countered spell stood)
   for i, s in ipairs(m.stack or {}) do
     local g = s.ctl and seatGeometry(s.ctl)
     local n = (perCaster[s.ctl or "?"] or 0) + 1
@@ -2484,6 +2667,7 @@ function engineRender(m)
     else
       pos, rot = Vector(-3 + 1.2 * (i - 1), 3 + 0.1 * i, 0), Vector(0, 180, 0)
     end
+    engineFxStackSpot[s.id] = pos
     -- an ability's lines start at its source card, a spell's at its spot on the stack
     local srcObj = s.src and engineObjs[s.src]
     stackSpot[s.id] = (not s.spell and s.src and (enginePlanned[s.src] or (srcObj ~= nil and not srcObj.isDestroyed() and srcObj.getPosition()))) or pos
@@ -2658,6 +2842,7 @@ local function sweepEngineCards()
     if gm == "engine:trash" then
       if o ~= current then o.setGMNotes("enginetrash-old") Wait.frames(function() if not o.isDestroyed() then o.destruct() end end, 2) end
     -- library placeholders too: one left lying on the library spot got merged into the player's deck put back there
+    elseif engineIsBundleObject(gm) then -- (the effect and sound bundles are the table's: kept)
     elseif gm:find("^engine:") or gm == "enginetrash" or gm == "libcard" then engineDispose(o)
     elseif o.type == "Deck" then
       -- and a deck of nothing but library placeholders, which has no GM notes of its own: TTS made one of cards added
@@ -4445,6 +4630,11 @@ engineSoundKinds = { "knockout", "wipe", "death", "exile", "damage", "lifegain",
 engineSoundsMuted = false -- the host's switch for the whole table
 -- the three pictures of the table effects (links from TTS's Cloud Manager); nil = a coloured "●" stands in
 engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }
+-- the effect and sound AssetBundles (M5 step 4, docs/m5-assetbundle-build.md): their links (TTS Cloud Manager). With
+-- a link and no such object on the table, a game's first board spawns them once, parked under the table (fx: the
+-- pool of rigs, GM notes "engine:fx"; sounds: one object, "engine:sounds"); they then stay in the save. nil or "" =
+-- nothing spawned (rigs or a sound object already in the save are still used); with none, the effects are today's.
+engineFxBundle = engineFxBundle or { fx = nil, sounds = nil }
 -- "mtg sounds on/off" and Settings → My sounds: the host mutes the table; anyone else is told it's shared
 function engineSetSounds(player, on)
   engineSoundOff[player.color] = (not on) or nil
@@ -8482,7 +8672,7 @@ function engineSelfCheck()
   local byId, inPile = {}, {}
   for _, o in ipairs(getObjects()) do
     local gm = tostring(o.getGMNotes())
-    if gm:find("^engine:") then
+    if gm:find("^engine:") and not engineIsBundleObject(gm) then -- (the effect and sound bundles aren't a game's)
       local id = gm:sub(8)
       if byId[id] then add("duplicate object for " .. id) end
       byId[id] = o

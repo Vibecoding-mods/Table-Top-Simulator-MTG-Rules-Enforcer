@@ -728,5 +728,265 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("music player: a clip handed back with its link spelled another way is still ours, by its title", played("link spelled another way").length === 1 && played("link spelled another way")[0].includes(L("lifegain")), JSON.stringify(t.fx("link spelled another way").filter((l) => l.includes("Music"))));
 }
 
+// ───────── the effect bundle (M5 step 4, docs/m5-assetbundle-build.md) ─────────
+// Particle rigs: copies of one AssetBundle whose GM notes are "engine:fx", parked under the table. One is moved to where
+// something happened and plays the trigger effect of that name (AssetBundle.playTriggerEffect, index from
+// getTriggerEffects), then goes back under the table. No rig, or no effect of that name: today's Object UI slot.
+const RIG_NAMES = ["death", "death_wipe", "exile", "countered", "damage", "player_hit", "counter", "counter_minus", "lifegain", "knockout"];
+const rigs = (n, names, extra = "") => lua(`for i = 1, ${n} do __sim.makeObj({ Name = "Custom_Assetbundle", GUID = "rig00" .. i, GMNotes = "engine:fx", Locked = true,
+  Transform = { posX = 20 + i, posY = -30, posZ = 0 }, CustomAssetbundle = { AssetbundleURL = "https://example.invalid/fx.unity3d", SimTriggerEffects = { "${names.join('", "')}" } } }) end
+  ${extra} return "rigs"`, "rigs");
+// every rig: where it is now, the trigger effects it played (index, frame, where it was then), who it is invisible to
+const RIGQ = lua(`local out = {} for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:fx" then local p = o.getPosition() local pl = {}
+  for _, x in ipairs(o.__d.played or {}) do pl[#pl + 1] = { i = x.index, f = x.frame, x = x.pos.x, y = x.pos.y, z = x.pos.z } end
+  out[#out + 1] = { g = o.getGUID(), x = p.x, y = p.y, z = p.z, played = pl, inv = table.concat(o.__d.invisibleTo or {}, "|") } end end return JSON.encode(out)`, "rigq", 1);
+const arr = (x) => (Array.isArray(x) ? x : []);
+// the trigger effects played between two RIGQ answers, oldest first: { name, x, y, z, f }
+const playedSince = (before, after, names) => {
+  const out = [];
+  for (const r of arr(after)) {
+    const was = arr(arr(before).find((b) => b.g === r.g)?.played).length;
+    for (const p of arr(r.played).slice(was)) out.push({ name: names[p.i], x: p.x, y: p.y, z: p.z, f: p.f, g: r.g });
+  }
+  return out.sort((a, b) => a.f - b.f);
+};
+const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
+
+// no bundle on the table: nothing new happens (no AssetBundle call, the slots as before, exile / lifegain / countered
+// have no effect of their own)
+{
+  const s0 = base();
+  const d = clone(s0); d.Blue.bf = d.Blue.bf.filter((c) => c !== "b1"); d.Blue.gy = ["b1"];
+  const ex = clone(d); ex.Blue.bf = ex.Blue.bf.filter((c) => c !== "b2"); ex.Blue.ex = ["b2"];
+  const gain = clone(ex); gain.White.life = 44;
+  const t = run([send(s0, "first board"), send(d, "death", 60), LAST, send(ex, "exile", 60), LAST, send(gain, "lifegain", 60), LAST]);
+  const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  ok("no bundle: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  ok("no bundle: no AssetBundle call at all", t.r.steps.every((s) => abLines(s.fx || []).length === 0));
+  ok("no bundle: a death takes a slot, as before", (vals[0].fx || []).length === 1 && vals[0].fx[0].slot === 1 && vals[0].fx[0].rig === undefined && activeOn(t.fx("death")).length === 1, JSON.stringify(vals[0]));
+  ok("no bundle: an exile and a life gain show nothing", (vals[1].fx || []).length === 0 && (vals[2].fx || []).length === 0 && objUI(t.fx("exile")).length === 0, JSON.stringify([vals[1], vals[2]]));
+  ok("no bundle: no link set, nothing spawned", !t.r.steps.some((s) => (s.fx || []).some((l) => l.includes('"spawnObjectData" "Custom_Assetbundle"'))));
+}
+
+// the links (engineFxBundle): with no rig and no sound object on the table, a game's first board spawns 6 rigs and one
+// sound object, parked under the table and locked; they play; the next game spawns no more
+{
+  const s0 = base();
+  const d = clone(s0); d.Blue.bf = d.Blue.bf.filter((c) => c !== "b1"); d.Blue.gy = ["b1"];
+  const FXL = "https://example.invalid/mtg-fx.unity3d", SNDL = "https://example.invalid/mtg-sounds.unity3d";
+  const t = run([
+    lua(`__sim.bundleEffects = { ["${FXL}"] = { "${RIG_NAMES.join('", "')}" }, ["${SNDL}"] = { "death", "wipe" } }
+      engineFxBundle = { fx = "${FXL}", sounds = "${SNDL}" } engineSounds.death = "death" return "x"`, "links"),
+    send(s0, "first board", 5), RIGQ,
+    lua(`local s = nil for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:sounds" then s = o end end
+      return s and JSON.encode({ y = s.getPosition().y, lock = s.getLock() }) or "{}"`, "sound object", 1),
+    send(d, "death", 150), RIGQ, LAST,
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" },
+    { msg: { t: "started", json: STARTED }, mark: "started 2" }, send(s0, "second game's first board", 5), RIGQ,
+  ]);
+  ok("links: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("rigq").map((s) => JSON.parse(s.value || "[]"));
+  const spawns = (m) => t.fx(m).filter((l) => l.includes('"spawnObjectData" "Custom_Assetbundle"'));
+  ok("links: 7 bundle objects spawned at the first board (6 rigs, 1 sound object)", spawns("first board").length === 7, JSON.stringify(spawns("first board")));
+  ok("links: the 6 rigs parked under the table", q[0].length === 6 && q[0].every((r) => near(r.y, -30)), JSON.stringify(q[0]));
+  const so = t.value("sound object");
+  ok("links: the sound object parked under the table, locked", near(so.y, -30) && so.lock === true, JSON.stringify(so));
+  ok("links: a spawned rig plays the death", JSON.stringify(playedSince(q[0], q[1], RIG_NAMES).map((p) => p.name)) === '["death"]', JSON.stringify(q[1]));
+  const v = t.value("last");
+  ok("links: the death sound through the spawned sound object (index 0)", JSON.stringify(v.snd) === '["death bundle"]' && abLines(t.fx("death")).some((l) => /"AssetBundle.playTriggerEffect" obj:\S+ 0$/.test(l)), JSON.stringify([v.snd, abLines(t.fx("death"))]));
+  ok("links: the next game spawns none, and finds all 6", spawns("second game's first board").length === 0 && q[2].length === 6, JSON.stringify(q[2].length));
+}
+
+// a full bundle, 3 rigs: each event plays its own trigger effect at its spot, and the rig goes back under the table
+{
+  const s0 = base(); s0.Blue.gy = [];
+  const d = clone(s0); d.Blue.bf = d.Blue.bf.filter((c) => c !== "b1"); d.Blue.gy = ["b1"];
+  const ex = clone(d); ex.Blue.bf = ex.Blue.bf.filter((c) => c !== "b2"); ex.Blue.ex = ["b2"];
+  const gain = clone(ex); gain.White.life = 44;
+  const m1 = clone(gain); m1.Blue.more.b3 = { ctr: { M1M1: 1 } };
+  const p1 = clone(m1); p1.Blue.more.b4 = { ctr: { P1P1: 1 } };
+  const hurt = clone(p1); hurt.White.life = 40;
+  const crd = clone(hurt); crd.White.more.w1 = { dmg: 2 };
+  const BOLT = { id: "engine-stack-30", n: "Lightning Bolt", tx: "Lightning Bolt deals 3 damage to any target.", ctl: "White", src: "c30", spell: false, sp: true, ins: true, tg: [{ k: "p", c: "Blue" }] };
+  const CS = { id: "engine-stack-31", n: "Counterspell", tx: "Counter target spell.", ctl: "Blue", src: "c31", spell: false, sp: true, ins: true, tg: [{ k: "s", id: BOLT.id }] };
+  const cast = clone(crd); cast.stack = [BOLT, CS];
+  const gone = clone(crd);
+  const wipe = clone(gone); wipe.Blue.bf = ["b8", "bl1"].filter((c) => wipe.Blue.bf.includes(c)); wipe.Blue.gy = ["b1", "b3", "b4", "b5", "b6", "b7"];
+  const ko = clone(wipe); ko.White.status = "lost";
+  const jumped = clone(ko); jumped.White.bf = jumped.White.bf.filter((c) => c !== "w2"); jumped.White.gy = ["w2"]; jumped.jump = true;
+  const t = run([
+    rigs(3, RIG_NAMES),
+    send(s0, "first board"), RIGQ, posOf(["b1", "b2", "b3", "b4", "w1"]), lua(`local p = getObjectFromGUID("23e485").getPosition() return JSON.encode({ x = p.x, y = p.y, z = p.z })`, "life", 1),
+    send(d, "death", 3), RIGQ, LAST, lua(`return "x"`, "death later", 150), RIGQ, posOf(["b2"]),
+    send(ex, "exile", 150), RIGQ, LAST,
+    send(gain, "lifegain", 150), RIGQ, LAST, posOf(["b3", "b4"]),
+    send(m1, "minus counter", 150), RIGQ, LAST,
+    send(p1, "plus counter", 150), RIGQ, LAST,
+    send(hurt, "player hit", 150), RIGQ, LAST,
+    send(crd, "creature hit", 150), RIGQ, LAST,
+    send(cast, "cast", 10), lua(`local p = engineFxStackSpot and engineFxStackSpot["${BOLT.id}"] return p and JSON.encode({ x = p.x, z = p.z }) or "{}"`, "stack spot", 1),
+    send(gone, "countered", 150), RIGQ, LAST,
+    send(wipe, "wipe", 150), RIGQ, LAST,
+    send(ko, "knock-out", 20), RIGQ, LAST, lua(`return "x"`, "knock-out later", 130), RIGQ,
+    send(jumped, "jump", 150), RIGQ, LAST,
+    lua(`return engineFxTest("exile", "w3")`, "fx test", 10), RIGQ,
+  ]);
+  ok("rigs: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("rigq").map((s) => JSON.parse(s.value || "[]"));
+  const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  const [pos, pos2, pos3] = t.all("pos").map((s) => JSON.parse(s.value || "{}")), life = t.value("life"); // (the cards close up after a death: each spot as it was just before)
+  const since = (i) => playedSince(q[i - 1], q[i], RIG_NAMES);
+  ok("rigs: three found, all under the table, none played at the first board", q[0].length === 3 && q[0].every((r) => near(r.y, -30) && arr(r.played).length === 0), JSON.stringify(q[0]));
+  ok("rigs: the trigger effects' names are asked for", t.r.steps.some((s) => (s.fx || []).some((l) => l.includes('"AssetBundle.getTriggerEffects"'))));
+  // death (q[1]: 4 frames after the board, q[2]: 2.5 s later)
+  const dp = playedSince(q[0], q[2], RIG_NAMES);
+  ok("rig death: one \"death\" trigger effect", dp.length === 1 && dp[0].name === "death", JSON.stringify(dp));
+  ok("rig death: at the card's spot, a little above the table", dp[0] && near(dp[0].x, pos.b1.x) && near(dp[0].z, pos.b1.z) && dp[0].y > -5, JSON.stringify({ dp, b1: pos.b1 }));
+  const moved = t.fx("death").find((l) => /"setPosition" obj:rig00\d/.test(l));
+  ok("rig death: moved there at once, triggered later (other players get the spot first)", moved !== undefined && q[1].some((r) => r.y > -5)
+    && playedSince(q[0], q[1], RIG_NAMES).length === 0 && dp[0] && dp[0].f > Number(moved.split(" ")[0].slice(1)), JSON.stringify({ moved, dp }));
+  ok("rig death: no Object UI slot for it", activeOn(t.fx("death").concat(t.fx("death later"))).length === 0, JSON.stringify(activeOn(t.fx("death"))));
+  ok("rig death: engineFxLast says which effect", (vals[0].fx || []).length === 1 && vals[0].fx[0].rig === "death" && vals[0].fx[0].slot === undefined, JSON.stringify(vals[0]));
+  ok("rig death: back under the table once it is over", q[2].every((r) => near(r.y, -30)), JSON.stringify(q[2].map((r) => [r.g, r.x, r.y])));
+  ok("rig death: the graveyard flash as before", vals[0].died && vals[0].died.Blue === 1, JSON.stringify(vals[0].died));
+  // exile, lifegain, counters, damage
+  const one = (i) => since(i).map((p) => p.name);
+  ok("rig exile: an \"exile\" effect at the card's spot (with the bundle, exile has a look)", JSON.stringify(one(3)) === '["exile"]' && near(since(3)[0].x, pos2.b2.x) && near(since(3)[0].z, pos2.b2.z), JSON.stringify({ p: since(3), b2: pos2.b2 }));
+  ok("rig lifegain: a \"lifegain\" effect at White's life counter", JSON.stringify(one(4)) === '["lifegain"]' && near(since(4)[0].x, life.x) && near(since(4)[0].z, life.z), JSON.stringify({ p: since(4), life }));
+  ok("rig counters: a -1/-1 counter plays \"counter_minus\"", JSON.stringify(one(5)) === '["counter_minus"]' && near(since(5)[0].x, pos3.b3.x), JSON.stringify(since(5)));
+  ok("rig counters: a +1/+1 counter plays \"counter\"", JSON.stringify(one(6)) === '["counter"]' && near(since(6)[0].x, pos3.b4.x), JSON.stringify(since(6)));
+  ok("rig player hit: \"player_hit\", and the life counter still flashes red", JSON.stringify(one(7)) === '["player_hit"]' && t.fx("player hit").some((l) => l.includes('"highlightOn" obj:23e485')), JSON.stringify(since(7)));
+  ok("rig creature hit: \"damage\" at the creature", JSON.stringify(one(8)) === '["damage"]' && near(since(8)[0].x, pos.w1.x) && near(since(8)[0].z, pos.w1.z), JSON.stringify(since(8)));
+  // countered: at the countered spell's spot on the stack (the board before), the pop-up as before
+  const spot = t.value("stack spot");
+  ok("rig countered: a \"countered\" effect where the spell was on the stack", JSON.stringify(one(9)) === '["countered"]' && spot.x !== undefined && near(since(9)[0].x, spot.x) && near(since(9)[0].z, spot.z), JSON.stringify({ p: since(9), spot }));
+  ok("rig countered: the COUNTERED pop-up as before", t.fx("countered").some((l) => l.includes("COUNTERED: Lightning Bolt")));
+  // a wipe: one bigger cloud
+  ok("rig wipe: one \"death_wipe\" for 5 deaths on one battlefield", JSON.stringify(one(10)) === '["death_wipe"]', JSON.stringify(since(10)));
+  // knock-out: 0.6 s in, as its slot burst and its sound
+  ok("rig knock-out: not at once", since(11).length === 0, JSON.stringify(since(11)));
+  ok("rig knock-out: \"knockout\" 0.6 s in, at the life counter", JSON.stringify(one(12)) === '["knockout"]' && near(since(12)[0].x, life.x), JSON.stringify(since(12)));
+  ok("rig jump: a jump board plays nothing", since(13).length === 0 && (vals[10].fx || []).length === 0, JSON.stringify(since(13)));
+  ok("rig engineFxTest: plays the named effect on a rig", t.step("fx test").value === "shown" && JSON.stringify(one(14)) === '["exile"]', JSON.stringify([t.step("fx test").value, since(14)]));
+}
+
+// a bundle with only "death": the rest fall back (a wipe plays "death"; a counter takes a slot; an exile shows nothing)
+{
+  const s0 = base();
+  const wipe = clone(s0); wipe.Blue.bf = ["b6", "b7", "bl1"]; wipe.Blue.gy = ["b1", "b2", "b3", "b4", "b5"];
+  const ctr = clone(wipe); ctr.Blue.more.b6 = { ctr: { P1P1: 1 } };
+  const ex = clone(ctr); ex.Blue.bf = ex.Blue.bf.filter((c) => c !== "b7"); ex.Blue.ex = ["b7"];
+  const t = run([rigs(2, ["death"]), send(s0, "first board"), RIGQ, send(wipe, "wipe", 150), RIGQ, LAST, send(ctr, "counter", 60), RIGQ, LAST, send(ex, "exile", 60), RIGQ, LAST]);
+  ok("death only: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("rigq").map((s) => JSON.parse(s.value || "[]"));
+  const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  const names = ["death"];
+  ok("death only: a wipe plays \"death\" (no death_wipe in the bundle)", JSON.stringify(playedSince(q[0], q[1], names).map((p) => p.name)) === '["death"]' && vals[0].fx[0].rig === "death", JSON.stringify(vals[0]));
+  ok("death only: a counter takes a slot as before", playedSince(q[1], q[2], names).length === 0 && vals[1].fx.length === 1 && vals[1].fx[0].slot !== undefined && activeOn(t.fx("counter")).length === 1, JSON.stringify(vals[1]));
+  ok("death only: an exile shows nothing", playedSince(q[2], q[3], names).length === 0 && (vals[2].fx || []).length === 0, JSON.stringify(vals[2]));
+}
+
+// one rig, a death and an exile on one board: the death takes the rig; the exile, a bundle-only kind, is dropped
+// rather than shown in a slot (it has no slot look)
+{
+  const s0 = base();
+  const both = clone(s0); both.Blue.bf = both.Blue.bf.filter((c) => c !== "b1" && c !== "b2"); both.Blue.gy = ["b1"]; both.Blue.ex = ["b2"];
+  const t = run([rigs(1, RIG_NAMES), send(s0, "first board"), send(both, "death and exile", 60), LAST]);
+  ok("bundle-only kinds: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const v = t.value("last");
+  ok("bundle-only kinds: the death on the rig, the exile dropped, no slot", (v.fx || []).length === 1 && v.fx[0].rig === "death" && v.dropped === 1 && activeOn(t.fx("death and exile")).length === 0, JSON.stringify(v));
+}
+
+// the pool: 2 rigs and 4 creatures hit at once: 2 on rigs, 2 in slots; a rig is never reused before its effect ends
+{
+  const s0 = base();
+  const many = clone(s0); many.White.more = { w1: { dmg: 1 }, w2: { dmg: 2 }, w3: { dmg: 3 }, w4: { dmg: 4 } };
+  const more = clone(many); more.Blue.more.b1 = { dmg: 1 };
+  const t = run([rigs(2, RIG_NAMES), send(s0, "first board"), RIGQ, send(many, "four hits", 2), LAST, send(more, "one more at once", 2), LAST, RIGQ]);
+  ok("pool: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  const fx = vals[0].fx || [];
+  ok("pool: 2 on rigs, 2 in slots", fx.length === 4 && fx.filter((e) => e.rig === "damage").length === 2 && fx.filter((e) => e.slot !== undefined).length === 2, JSON.stringify(fx));
+  ok("pool: the next one while both rigs are busy takes a slot", (vals[1].fx || []).length === 1 && vals[1].fx[0].slot !== undefined && vals[1].fx[0].rig === undefined, JSON.stringify(vals[1]));
+}
+
+// the switches: "mtg effects off" makes the rigs invisible to that player; "mtg animations off" (host) stops them
+{
+  const s0 = base();
+  const k1 = clone(s0); k1.Blue.bf = k1.Blue.bf.filter((x) => x !== "b1"); k1.Blue.gy = ["b1"];
+  const k2 = clone(k1); k2.Blue.bf = k2.Blue.bf.filter((x) => x !== "b2"); k2.Blue.gy.push("b2");
+  const k3 = clone(k2); k3.Blue.bf = k3.Blue.bf.filter((x) => x !== "b3"); k3.Blue.gy.push("b3");
+  const t = run([
+    lua(`__sim.seated.White = true return "x"`, "seat"), rigs(1, RIG_NAMES), send(s0, "first board"), RIGQ,
+    lua(`engineChat("mtg effects off", Player.Blue) return "off"`, "blue off"), send(k1, "blue has effects off", 150), RIGQ,
+    lua(`engineChat("mtg effects on", Player.Blue) engineChat("mtg animations off", Player.Blue) return "anim"`, "anim off"), send(k2, "animations off", 150), RIGQ,
+    lua(`engineChat("mtg animations on", Player.Blue) return "on"`, "anim on"), send(k3, "all on again", 150), RIGQ,
+  ]);
+  ok("rig switches: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("rigq").map((s) => JSON.parse(s.value || "[]"));
+  const p1 = playedSince(q[0], q[1], RIG_NAMES);
+  ok("effects off: the rig plays, invisible to Blue only", p1.length === 1 && q[1][0].inv === "Blue", JSON.stringify(q[1]));
+  ok("animations off: no rig moves and none plays", playedSince(q[1], q[2], RIG_NAMES).length === 0 && !t.fx("animations off").some((l) => l.includes("obj:rig00")), JSON.stringify(t.fx("animations off").filter((l) => l.includes("rig00"))));
+  ok("effects on again: the rig is seen by everyone again", playedSince(q[2], q[3], RIG_NAMES).length === 1 && q[3][0].inv === "", JSON.stringify(q[3]));
+}
+
+// a bundle still loading (getTriggerEffects answers {}): slots meanwhile, the rigs once it has loaded
+{
+  const s0 = base();
+  const k1 = clone(s0); k1.Blue.bf = k1.Blue.bf.filter((x) => x !== "b1"); k1.Blue.gy = ["b1"];
+  const k2 = clone(k1); k2.Blue.bf = k2.Blue.bf.filter((x) => x !== "b2"); k2.Blue.gy.push("b2");
+  const loaded = (b) => `for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:fx" then o.__d.bundleLoaded = ${b} end end`;
+  const t = run([rigs(2, RIG_NAMES, loaded("false")), send(s0, "first board"), RIGQ, send(k1, "still loading", 150), RIGQ, LAST,
+    lua(`${loaded("true")} return "x"`, "loaded"), send(k2, "loaded now", 150), RIGQ, LAST]);
+  ok("loading: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("rigq").map((s) => JSON.parse(s.value || "[]"));
+  const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  ok("loading: a slot while the bundle can't say its effects", playedSince(q[0], q[1], RIG_NAMES).length === 0 && vals[0].fx[0].slot !== undefined, JSON.stringify(vals[0]));
+  ok("loading: the rig once it can", JSON.stringify(playedSince(q[1], q[2], RIG_NAMES).map((p) => p.name)) === '["death"]', JSON.stringify(vals[1]));
+}
+
+// the bundle objects are the table's, not a game's: a new game (the sweep of engine objects) and the table's own check
+// leave the rigs and the sound object alone; an effect still playing at a reset goes back under the table
+{
+  const s0 = base();
+  const k1 = clone(s0); k1.Blue.bf = k1.Blue.bf.filter((x) => x !== "b1"); k1.Blue.gy = ["b1"];
+  const t = run([
+    rigs(2, RIG_NAMES, `__sim.makeObj({ Name = "Custom_Assetbundle", GUID = "snd001", GMNotes = "engine:sounds", Transform = { posY = -30 }, CustomAssetbundle = { SimTriggerEffects = { "death" } } })`),
+    send(s0, "first board"), lua(`local r = engineSelfCheck() return JSON.encode(r.problems or {})`, "self check", 1),
+    send(k1, "death", 3), RIGQ,
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" }, RIGQ,
+    { msg: { t: "started", json: STARTED }, mark: "started 2" }, send(s0, "second game's first board", 10), RIGQ,
+    lua(`local n = 0 for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:sounds" then n = n + 1 end end return tostring(n)`, "sound object", 1),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear 2" },
+    lua(`engineChat("mtg start ai 1", Player.Blue) return "x"`, "mtg start again", 120),
+  ]);
+  ok("kept: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("rigq").map((s) => JSON.parse(s.value || "[]"));
+  const probs = t.step("self check").value || "";
+  ok("kept: the table's check doesn't call the bundle objects leftovers or duplicates", !/\[fx\]|\[sounds\]|object for fx|object for sounds/.test(probs), probs);
+  ok("kept: a rig was out playing the death", q[0].some((r) => r.y > -5), JSON.stringify(q[0]));
+  ok("kept: the reset puts it back under the table", q[1].length === 2 && q[1].every((r) => near(r.y, -30)), JSON.stringify(q[1]));
+  ok("kept: a new game's sweep leaves both rigs", q[2].length === 2 && !t.r.steps.some((s) => (s.fx || []).some((l) => /"destruct" obj:(rig00|snd001)/.test(l))), JSON.stringify(q[2]));
+  ok("kept: and the sound object", t.step("sound object").value === "1", t.step("sound object").value);
+  ok("kept: \"mtg start\" doesn't take them for the last game's cards", !t.fx("mtg start again").some((l) => l.includes("Cards from the last engine game")), JSON.stringify(t.fx("mtg start again").filter((l) => l.includes("broadcast")).slice(0, 3)));
+}
+
+// route B sounds: a sound bundle still loading isn't asked once and forgotten: the next sound finds its effects
+{
+  const s0 = base();
+  const k1 = clone(s0); k1.Blue.bf = k1.Blue.bf.filter((x) => x !== "b1"); k1.Blue.gy = ["b1"];
+  const k2 = clone(k1); k2.Blue.bf = k2.Blue.bf.filter((x) => x !== "b2"); k2.Blue.gy.push("b2");
+  const t = run([
+    lua(`local o = __sim.makeObj({ Name = "Custom_Assetbundle", GUID = "snd001", GMNotes = "engine:sounds", Transform = { posY = -30 }, CustomAssetbundle = { SimTriggerEffects = { "poof", "death" } } })
+      o.__d.bundleLoaded = false engineSounds.death = "death" return "x"`, "sound bundle"),
+    send(s0, "first board"), send(k1, "still loading", 60), LAST,
+    lua(`getObjectFromGUID("snd001").__d.bundleLoaded = true return "x"`, "loaded"), send(k2, "loaded now", 60), LAST,
+  ]);
+  ok("route B loading: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  ok("route B loading: nothing while it loads", (vals[0].snd || []).length === 0 && !abLines(t.fx("still loading")).some((l) => l.includes("playTriggerEffect")), JSON.stringify(vals[0].snd));
+  ok("route B loading: the death sound once it has loaded (index 1)", JSON.stringify(vals[1].snd) === '["death bundle"]' && abLines(t.fx("loaded now")).some((l) => l.includes('"AssetBundle.playTriggerEffect" obj:snd001 1')), JSON.stringify(abLines(t.fx("loaded now"))));
+}
+
 console.log(failed ? `\n${failed} failed, ${passed} passed` : `all ${passed} passed`);
 process.exit(failed ? 1 : 0);

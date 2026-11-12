@@ -196,7 +196,9 @@ function engineStartGame(pl, rest, cleared)
   -- would be read as the player's deck. Clear them (engine mode stays on), then start a moment later; the bridge
   -- resets its side of that game too (autoReset).
   for _, o in ipairs(getObjects()) do
-    if tostring(o.getGMNotes()):find("^engine:") and tostring(o.getGMNotes()) ~= "engine:trash" then -- (the hidden trash deck is fine)
+    local gm = tostring(o.getGMNotes())
+    -- (the hidden trash deck is fine, and so are the effect and sound bundles: the table's, engineIsBundleObject)
+    if gm:find("^engine:") and gm ~= "engine:trash" and not (engineIsBundleObject ~= nil and engineIsBundleObject(gm)) then
       if cleared then
         pl.broadcast("[MTG] Cards from the last engine game are still on the table. Type  mtg reset , wait for 'Forge room restarted', then  mtg start  again.", {1, 0.6, 0.3})
         return false
