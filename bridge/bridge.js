@@ -3543,13 +3543,28 @@ function logEvents(prev, cur, pub, facts = null) {
   };
   const attackLines = Object.values(attackers).map(({ ctl, target, names }) => {
     const whom = attacked(target);
-    return `${who(ctl)} attacks ${whom ? `${whom} ` : ""}with ${names.join(", ")}`;
+    return `${who(ctl)} attacks ${whom ? `${whom} ` : ""}with ${tokensCounted(names)}`;
   });
   // blocks, which the table draws as lines and the log never said (Fog Bank blocking Cavalry Master, hp-10 gap): each
-  // attacker's new blockers, one line per attacker
+  // attacker's new blockers, one line per attacker. Tokens are counted ("2 Soldier tokens block a Zombie token", token
+  // stacks spec: the real table read "Soldier Token, Soldier Token block Zombie Token"), and the same block on several
+  // tokens of one kind is one line ("2 Zombie tokens are blocked by a Soldier token each").
   const newBlocks = {};
-  for (const [b, at] of Object.entries(cur.blocks || {})) for (const a of at) if (!(prev.blocks?.[b] || []).includes(a) && cur.cards[b] && cur.cards[a]) (newBlocks[a] ||= []).push(cur.cards[b].name);
-  for (const [a, names] of Object.entries(newBlocks)) out.push(`${names.join(", ")} ${names.length > 1 ? "block" : "blocks"} ${cur.cards[a].name}`);
+  for (const [b, at] of Object.entries(cur.blocks || {})) for (const a of at) if (!(prev.blocks?.[b] || []).includes(a) && cur.cards[b] && cur.cards[a]) (newBlocks[a] ||= []).push(b);
+  const blockLines = new Map(); // what is said of one attacker -> { n: how many attackers it is said of, line, subject, a }
+  for (const [a, bs] of Object.entries(newBlocks)) {
+    const at = cur.cards[a];
+    const tokens = at.token || bs.some((b) => cur.cards[b].token);
+    // (no token in it: the line as it always read, "Wall of Air, Coral Barrier block Herald of Hoofbeats")
+    const subject = tokens ? tokensCounted(bs.map((b) => tokenWords(cur.cards[b].name, cur.cards[b].token)), true) : bs.map((b) => cur.cards[b].name).join(", ");
+    const line = `${subject} ${bs.length > 1 ? "block" : "blocks"} ${at.token ? tokensCounted([tokenWords(at.name, true)], true) : at.name}`;
+    const key = at.token ? `${subject}|${at.name}` : `${line}|${a}`;
+    const was = blockLines.get(key);
+    if (was) was.n++; else blockLines.set(key, { n: 1, line: line.charAt(0).toUpperCase() + line.slice(1), subject, a });
+  }
+  for (const { n, line, subject, a } of blockLines.values()) {
+    out.push(n === 1 ? line : `${n} ${tokenWords(cur.cards[a].name, true)}s are blocked by ${subject} each`);
+  }
   // (+1/+1 counters a permanent gains: Amass put Bowmasters' counter on Realmwalker, a changeling and so an Army, and the
   // log said nothing, so no Army token showed and nothing told why, hp-06 2026-10-28)
   // (the same number on several at once, one line with counts: Munda's Vanguard's cohort read sixteen lines, hp-21 gap)
@@ -4668,6 +4683,22 @@ function altCostWords(gv, cardId) {
 function tokenBase(name) { return String(name).replace(/ tokens?$/i, ""); }
 // a card as the log names it: a token as "Goblin Shaman token"
 function tokenWords(name, token) { return token ? `${tokenBase(name)} token` : name; }
+// a list of names with each kind of token counted, in the order first seen: "Fog Bank, 2 Soldier tokens" (token stacks
+// spec: twenty tokens read as twenty names). Other cards are listed as they are; with `article`, one token reads "a
+// Soldier token". Takes names as tokenWords writes them.
+function tokensCounted(names, article = false) {
+  const counts = new Map();
+  for (const n of names) if (/ token$/.test(n)) counts.set(n, (counts.get(n) || 0) + 1);
+  const out = [];
+  for (const n of names) {
+    if (!counts.has(n)) { out.push(n); continue; }
+    const k = counts.get(n);
+    if (k === 0) continue; // (said already, counted)
+    out.push(k > 1 ? `${k} ${n}s` : article ? `${/^[aeiou]/i.test(n) ? "an" : "a"} ${n}` : n);
+    counts.set(n, 0);
+  }
+  return out.join(", ");
+}
 // a card's possessive: "Exchange of Words' ability", not "Exchange of Words's" (re-test 2 bug f)
 function poss(name) { return /s$/i.test(String(name)) ? `${name}'` : `${name}'s`; }
 
