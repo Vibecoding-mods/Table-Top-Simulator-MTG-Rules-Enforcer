@@ -116,7 +116,12 @@ the mill line seen live. Explore had no card of its own in the kit: the Map toke
     it; the table needs a per-player view to show it to its controller only.
 19. (open, table) After Madness's "To graveyard", the table said "Look only: the engine moves cards out of the exile
     when an effect lets you" — the engine had moved it; the exile guard took that for the player's move.
-20. (open, log) Prepared logged only "Reanimate is exiled".
+20. (fixed in source 2026-11-12, not seen live) Prepared logged only "Reanimate is exiled", and nothing on Grave
+    Researcher said it was prepared. The bridge now ties the exiled spell copy to its creature (`notePrepared`: Forge's
+    copy is a token from the creature's own paper card, same set and number; no engine change). The log reads "Grave
+    Researcher becomes prepared (Reanimate)" and "White casts Reanimate (prepared by Grave Researcher)"; the creature's
+    status box says "Prepared: Reanimate — White may cast a copy" until the copy leaves exile; the copy lies under the
+    creature as linked exile when it isn't in the playable row, and its hover names the creature.
 
 Not tested: Delirium (Shifting Woodland was the last library card both games; Kenrith's draws took the deck).
 

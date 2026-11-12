@@ -1867,6 +1867,9 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
     ...(c.exiledWith ? { ew: c.exiledWith, rl: !!c.returnsWhenHostLeaves } : {}),
     // a cipher card encoded on a creature: shown with it, as a linked exile (hp-25 T10)
     ...(c.encodedOn && !c.exiledWith ? { ew: c.encodedOn, enc: true } : {}),
+    // a prepared creature's spell copy (notePrepared): shown with its creature, as a linked exile, when it isn't in a
+    // seated player's playable row (HAND-TEST-HP06 #20)
+    ...(!c.exiledWith && !c.encodedOn && game?.prepared?.has(c.id) ? { ew: game.prepared.get(c.id).host } : {}),
     // its text as changed (Mind Bend, Exchange of Words, Deadpool, Volrath's Shapeshifter: Forge's current text, sent
     // only when changed) and its printed name when a text effect renamed it (hp-25 T0 T13)
     // (each line once: Forge's text repeats a replacement's line, "As Deadpool enters, ..." twice on the Shapeshifter)
@@ -1884,6 +1887,8 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
       ...hauntedBy(c.id).map((n) => `Haunted by ${n}`),
       ...(c.summoningSick && active === c.controllerId && c.types?.includes("Creature") ? ["Summoning sick"] : []),
       ...(c.isCrewed ? ["Crewed"] : []), ...(c.isBestowed ? ["Bestowed"] : []), ...(c.isRingBearer ? ["Ring-bearer"] : []),
+      // (prepared, which Forge's card view doesn't say: its spell copy in exile, notePrepared; HAND-TEST-HP06 #20)
+      ...(zone === "battlefield" && preparedBy(c.id) ? [`Prepared: ${preparedBy(c.id).spell} — ${nameOf(c.controllerId) || "its controller"} may cast a copy`] : []),
       ...(c.finalChapter ? [`Chapter ${loreOf(c)} of ${c.finalChapter}`, ...nextChapter(c)] : []),
       ...(c.classLevel ? [`Level ${c.classLevel}`, ...nextLevel(c)] : []),
       // (Forge's own combat sums, as the attackers and blockers stand; a trick can still change it)
@@ -1916,6 +1921,10 @@ function cardNotes(c, zone) {
     if (c.isMadnessExiled) nt.push(`Exiled for madness: its owner may cast it for ${keywordCostText(c, "Madness", c.madnessCost) || "its madness cost"}, or it goes to the graveyard`);
     if (c.isWarpExiled) nt.push("Warped: its owner may cast it from exile on a later turn");
     if (c.isPlotted) nt.push("Plotted: its owner may cast it without paying its mana cost on a later turn, as a sorcery");
+    // (a prepared creature's spell copy, notePrepared: not a card of anyone's deck; Forge lets the creature's controller
+    // cast it, and it ceases to exist when the creature leaves the battlefield)
+    const prep = game?.prepared?.get(c.id);
+    if (prep) nt.push(`Prepared by ${prep.hostName}: a copy of its spell, not a card. ${(prep.ctl && nameOf(prep.ctl)) || "Its controller"} may cast it; doing so unprepares ${prep.hostName}. It ceases to exist if ${prep.hostName} leaves the battlefield.`);
     // (exile only: counters leave a card that moves (CR 122.2), and nothing reads counters in a graveyard)
     for (const [k, n] of Object.entries(c.counters || {})) if (n) nt.push(`${n} ${counterWords(k.toUpperCase()) || `${k.toLowerCase()} counter`}${n === 1 ? "" : "s"}`);
   }
@@ -2126,6 +2135,47 @@ function noteOwners(pub) {
 }
 // (a card's owner by noteOwners, else what its zone says)
 function ownerOf(c, z) { return game?.owners?.get(c.id) || c.ownerId || z?.ownerId; }
+// Prepared creatures (Grave Researcher, Emeritus of Conflict; HAND-TEST-HP06 #20), read from the board alone. Forge's
+// AlterAttributeEffect ("Prepared") makes a copy of the creature's prepare spell in the preparing player's exile, from
+// the creature's own paper card (CopyPermanentEffect.getProtoType: a token, so identity.isToken, with the creature's set
+// and collector number and the spell's name, no token script), and an effect card that lets the creature's controller
+// cast it. The effect card is immutable, so the harness leaves it out of the command zone, and the harness sends no
+// prepared flag: the copy is the one sign. Casting the copy unprepares the creature, and its leaving play (or "becomes
+// unprepared") makes the copy cease to exist, so a creature is prepared while its copy is in exile. A copy keeps the
+// creature it was first matched with while both are there; a new one takes a creature of that printing with another
+// name, first one not already prepared and controlled by the copy's owner (two alike prepared at once: either may be
+// named, the one gap). -> game.prepared: copy id -> { host: the creature's id, hostName, ctl: its controller, spell:
+// the copy's name }.
+function notePrepared(pub) {
+  if (!game) return new Map();
+  const field = [];
+  for (const z of pub.zones || []) if (z.zone === "battlefield") for (const c of z.cards || []) if (c.identity?.name && !c.isFaceDown) field.push(c);
+  const copies = [];
+  for (const z of pub.zones || []) {
+    if (z.zone !== "exile") continue;
+    for (const c of z.cards || []) if (c.identity?.isToken && !c.identity.tokenScript && !c.isFaceDown && c.identity.setCode && c.identity.name) copies.push({ c, owner: z.ownerId });
+  }
+  const was = game.prepared || new Map(), now = new Map(), hosting = new Set();
+  const link = (c, h) => { now.set(c.id, { host: h.id, hostName: h.identity.name, ctl: h.controllerId || null, spell: c.identity.name }); hosting.add(h.id); };
+  for (const { c } of copies) {
+    const h = field.find((f) => f.id === was.get(c.id)?.host);
+    if (h) link(c, h);
+  }
+  for (const { c, owner } of copies) {
+    if (now.has(c.id)) continue;
+    const alike = field.filter((f) => !hosting.has(f.id) && f.identity.name !== c.identity.name && f.identity.setCode === c.identity.setCode
+      && String(f.identity.cardNumber || "") === String(c.identity.cardNumber || ""));
+    const h = alike.find((f) => (f.controllerId || owner) === owner) || alike[0];
+    if (h) link(c, h);
+  }
+  game.prepared = now;
+  return now;
+}
+// the prepared copy whose creature is this one (notePrepared), or null
+function preparedBy(hostId) {
+  for (const p of game?.prepared?.values() || []) if (p.host === hostId) return p;
+  return null;
+}
 // The room a dungeon card is in, by Forge's player dungeonState: the card by its cardId, or, from an engine that sends no
 // id, the dungeon of that name in its owner's command zone. Null when no player's state names it or it is in no room yet.
 function dungeonPlayerOf(pub, c, owner) {
@@ -2136,6 +2186,7 @@ function dungeonRoomOf(pub, c, owner) { return dungeonPlayerOf(pub, c, owner)?.d
 function logSnapshot(pub, prev = null) {
   const cards = {}, counts = {};
   noteOwners(pub);
+  const prepared = notePrepared(pub);
   for (const z of pub.zones || []) {
     if (PUBLIC_ZONES.includes(z.zone)) for (const c of z.cards || []) {
       // (a face-down card is named in nobody's log: the board comes from one seat's view, which may know what it is)
@@ -2158,6 +2209,8 @@ function logSnapshot(pub, prev = null) {
         land: (c.types || []).includes("Land"), creature: (c.types || []).includes("Creature"), token: !!c.identity.isToken, attacking: !!c.isAttacking, tapped: !!c.tapped,
         ...(c.isPlotted ? { plotted: true } : {}), ...(c.attachedTo ? { att: c.attachedTo } : {}),
         ...(c.exiledWith ? { ew: c.exiledWith, rl: !!c.returnsWhenHostLeaves } : {}),
+        // (a prepared creature's spell copy: its creature, for the prepare and cast lines; notePrepared)
+        ...(z.zone === "exile" && prepared.has(c.id) ? { prep: prepared.get(c.id).host, prepBy: prepared.get(c.id).hostName } : {}),
         // (its own name when it is a copy or renamed: Clone as Bloodline Keeper, rebuilt hand test #10)
         ...(c.printedName && !c.isFaceDown && c.printedName !== c.identity.name ? { pn: c.printedName } : {}),
         spell: (c.types || []).some((t) => t === "Instant" || t === "Sorcery"), p1: c.counters?.P1P1 || 0, m1: c.counters?.M1M1 || 0,
@@ -2570,6 +2623,9 @@ const EXILE_WORDS = {
   plotted: (w, names) => `${names[0]} is exiled and plotted: ${w} may cast it without paying its mana cost on a later turn, as a sorcery`,
   paradigm: (w, names) => `${names[0]} is exiled (paradigm): at the start of each of their first main phases, ${w} may cast a copy of it without paying its mana cost`,
   hand: (w, names, k) => `${w} exiles ${names[0]} from their hand ${k.cast ? "to cast" : "to pay for"} ${k.card}${k.kw ? ` (${k.kw})` : ""}`,
+  // (a prepared creature's spell copy, made in exile: not a card exiled; Grave Researcher's read "Reanimate is exiled",
+  // HAND-TEST-HP06 #20)
+  prepared: (w, names, k) => `${k.card} becomes prepared (${names[0]})`,
   plain: (w, names, k) => `${names[0]} is exiled${k.label || ""}`,
 };
 const EXILE_GROUPED = new Set(["graveyard", "battlefield", "library"]);
@@ -3120,6 +3176,17 @@ function logEvents(prev, cur, pub, facts = null) {
     }).filter(Boolean);
     return names.length ? ` targeting ${andList(names)}` : "";
   };
+  // (a cast of a prepared creature's spell copy names the creature, the copy having been in exile on the last board:
+  // notePrepared, HAND-TEST-HP06 #20)
+  const prepWords = (id) => (prev.cards[id]?.prepBy ? ` (prepared by ${prev.cards[id].prepBy})` : "");
+  // (and that cast's line when no board showed the copy on the stack: cast and resolved between two boards, an AI's.
+  // Its caster is the creature's controller, Forge's MayPlayPlayer$ EffectSourceController; the copy is in the exile of
+  // the player who prepared it.)
+  const prepCast = (id) => {
+    const h = prev.cards[id].prep;
+    if (!castNow.has(id)) out.push(`${who(cur.cards[h]?.ctl || prev.cards[h]?.ctl || prev.cards[id].owner)} casts ${prev.cards[id].name}${prepWords(id)}`);
+  };
+  const onStack = (st, id) => Object.values(st).some((s) => s.id === id && !s.ability);
   // (an activation's line, by its stack item or the player's record of it: an equip names what it equips, Skullclamp's
   // read "White uses Skullclamp's ability", Kykar #3; a planeswalker's says which ability and the loyalty it cost,
   // "White uses Ral Zarek's ability", #13; any other, its targets)
@@ -3231,7 +3298,7 @@ function logEvents(prev, cur, pub, facts = null) {
       (!mine && ability && (s.trigger || s.kwTrigger || s.upkeepCost) ? triggered : !mine && ability && entered ? afterEntries : resolvedHere ? afterResolved : out).push(s.upkeepCost ? `${poss(s.name)} ${s.upkeepCost}, or it is sacrificed`
         : ability && s.room ? `${who(s.ctl)} ventures into ${s.room} (${s.name})`
         : ability ? keywordLine(mine ? mine.kind : !s.trigger && !s.kwTrigger ? keywordKind(s.text) : null, s.ctl, s.name) || (!mine && s.kwTrigger ? `${poss(s.name)} ${s.kwTrigger} triggers (${who(s.ctl)})` : !mine && s.trigger ? `${poss(s.name)} ability triggers (${who(s.ctl)})` : activationLine(s, mine))
-        : k >= 1 || copyOf ? `${who(s.ctl)} copies ${s.name}` : `${who(s.ctl)} casts ${mine ? mine.name : s.name}${optionalWords(s.opt, mine?.name)}${targetWords(s)}`);
+        : k >= 1 || copyOf ? `${who(s.ctl)} copies ${s.name}` : `${who(s.ctl)} casts ${mine ? mine.name : s.name}${prepWords(s.id)}${optionalWords(s.opt, mine?.name)}${targetWords(s)}`);
     }
   }
   for (const e of pending) {
@@ -3245,7 +3312,7 @@ function logEvents(prev, cur, pub, facts = null) {
     if (e.kind === "cast" && cur.cards[e.id]?.land) { e.said = true; landPlays.add(e.id); }
     // (newly public, or moved from a public zone: a commander cast from the command zone was seen there already, and its
     // cast went unlogged, hp-07 #39 2026-10-27)
-    else if (e.kind === "cast" && cur.cards[e.id] && (!prev.cards[e.id] || prev.cards[e.id].zone !== cur.cards[e.id].zone)) { out.push(`${who(e.ctl)} casts ${e.name}${targetWords(null, e.id)}`); e.said = true; castNow.add(e.id); game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
+    else if (e.kind === "cast" && cur.cards[e.id] && (!prev.cards[e.id] || prev.cards[e.id].zone !== cur.cards[e.id].zone)) { out.push(`${who(e.ctl)} casts ${e.name}${prepWords(e.id)}${targetWords(null, e.id)}`); e.said = true; castNow.add(e.id); game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
     else if (e.kind === "faceup" && back) e.said = true;
     else if (e.kind !== "cast" && back) { out.push(keywordLine(e.kind, e.ctl, e.name) || activationLine(null, e)); e.said = true; game.saidEarly.push({ id: e.id, kind: e.kind, at: Date.now() }); }
   }
@@ -3618,6 +3685,8 @@ function logEvents(prev, cur, pub, facts = null) {
   };
   // What put a card into exile, decided once: its kind (EXILE_WORDS), whose line it is, and what the line names
   const exileKind = (id, c, from, was, moved) => {
+    // (a prepared creature's spell copy: made there, never moved there; notePrepared)
+    if (!from && c.prep) return { kind: "prepared", owner: c.owner, card: c.prepBy };
     // (its adventure resolved: the stack had it under the adventure's name, Stomp; read "is exiled", hp-02 #1)
     // (not a split or aftermath card, cast by its half's name, nor a face-down spell, suite review)
     const adventure = !c.name.includes("//") && !c.fd && Object.values(prev.stack).find((x) => x.id === id && x.name !== c.name && x.name !== "a face-down spell");
@@ -3770,6 +3839,8 @@ function logEvents(prev, cur, pub, facts = null) {
       // Umbra goes to the graveyard", hp-17 gap)
       const armored = from === "battlefield" && was.att && cur.cards[was.att]?.zone === "battlefield" && /\b(?:Umbra|Totem) armor\b/i.test(pubIndex[id]?.text || "") ? cur.cards[was.att].name : null;
       if (armored) out.push(`${c.name} is destroyed instead of ${armored} (umbra armor)`);
+      // (a prepared creature's spell copy, from exile to the graveyard: cast and resolved unseen, prepCast)
+      else if (from === "exile" && was.prep) prepCast(id);
       else if (from === "battlefield") {
         const kind = (moved ? moved.how === "sacrificed" : ownSacrifice) ? "sacrificed" : was.creature ? "dies" : moved?.how === "destroyed" ? "destroyed" : "graveyard";
         // (by what it was on the battlefield, a copy with its own name: "Clone dies" for a Bloodline Keeper, "Fable of the
@@ -3883,6 +3954,16 @@ function logEvents(prev, cur, pub, facts = null) {
   const handRoom = {};
   for (const [id, was] of Object.entries(prev.cards)) {
     if (cur.cards[id]) continue;
+    // (a prepared creature's spell copy gone from exile is no card leaving it: cast (the stack's line, or prepCast's when
+    // no board showed it there), gone with its creature, which ceased its copy, or unprepared with the creature still
+    // there, Infinite Coursework's "It becomes unprepared"; notePrepared, HAND-TEST-HP06 #20)
+    if (was.zone === "exile" && was.prep) {
+      const mv = facts?.moves.get(id);
+      if (onStack(cur.stack, id) || castNow.has(id) || cur.cards[was.prep]?.zone !== "battlefield") continue;
+      if (mv?.from === "Stack" || mv?.to === "Stack") prepCast(id);
+      else out.push(`${was.prepBy} becomes unprepared`);
+      continue;
+    }
     // (its owner by Forge's move first: the battlefield's view names the controller, see noteOwners)
     const o = facts?.moves.get(id)?.owner || was.owner;
     // (the hand's gain counts the cards cast or played from it just now: Splinter's Technique cast while Champions of the
