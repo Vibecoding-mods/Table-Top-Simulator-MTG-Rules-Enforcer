@@ -34,7 +34,8 @@ Per seat (`<C>` is the colour). "Top-left rows" are at x 16, y -140 (row 1) and 
 | `eng_log_<C>` | the game log, last 16 lines | top right, draggable |
 | `eng_row_<C>` | the card row: up to 7 card pictures and 5 buttons | middle |
 | `eng_big_<C>`, `eng_big2_<C>` | the corner buttons (Next / End turn, Done, ...) | bottom right |
-| `eng_hint_<C>` | the instruction line above the corner buttons | bottom right |
+| `eng_big3_<C>` | the third corner button, purple, only while "Resolve N× <name>" (`__group`) is offered | bottom right, above `eng_big2_<C>` |
+| `eng_hint_<C>` | the instruction line above the corner buttons (up one row while `eng_big3_<C>` shows) | bottom right |
 | `eng_abp_<C>` | the ability panel: the card's name and 6 ability buttons (`eng_abp_<C>_<k>`) | bottom right, above the corner |
 | `eng_phase_<C>`, `eng_phasebg_<C>` | whose turn and the phases | top centre |
 | `eng_banner_<C>` | YOUR TURN, step banners | middle |
