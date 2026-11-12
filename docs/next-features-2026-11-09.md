@@ -127,9 +127,15 @@ The user's list, in their order. Most items need a running TTS table in debug mo
         - Set life: 0–999.
         - Untap all: every tapped permanent that player controls.
         - Mana needed no harness op: the `mana` op already exists.
-      - **Draw and mill aren't built.** The engine's board never shows library cards (the library zone is empty in
-        every view), so no fix op can move one. They need a new harness StateOp (`draw`/`mill` with player and n) in
-        manabrew, and then an engine image rebuild (node and relay both parse directives strictly).
+      - **Draw and mill: built 2026-11-11 in source, need an engine image rebuild.** The engine's board never shows
+        library cards (the library zone is empty in every view), so no fix op can move one. They are new harness
+        StateOps, `draw` and `mill` (`player`, `n`: 1–99 from the page), in engine/manabrew.patch: applyState makes
+        them after its other ops with triggers on, as it does the free plays, through Forge's own `Player.drawCards`
+        and `GameAction.mill`. So a draw counts as a draw (draw triggers, "cards drawn this turn", drawing from an
+        empty library loses) and a mill as a mill (mill and graveyard triggers), and the event log calls them `draw`
+        and `mill`. The page shows Draw and Mill only when the bridge lists them. A mill from an empty library is
+        refused; more than the library holds is allowed and said. An engine built before them drops the directive
+        unread (node and relay parse directives strictly): the fix watchdog then says so after 20 s.
       - **Needs a live check on the real table:** each tool once in a game with a second person (the vote) and vs AI.
 22. **Monte Carlo simulation: CUT** (the user, 2026-11-10).
     - Too slow on an ordinary PC: about 30 s to 2 min a game on 2 cores, so 1,000 games takes overnight.

@@ -353,8 +353,10 @@ While on, each tool is one **manual fix**: the game pauses, the other players vo
 (`bridge.js:8940-8941, 8995`). Tools (`DEBUG_TOOLS` `bridge.js:8944`): `mana` (1-99 of W/U/B/R/G/C until end of turn), `hand`
 (a card into hand), `battlefield` (a card or token script onto the battlefield), `life` (0-999), `untap` (everything the player
 controls). Refused when: tools off, no running table game, game over, the colour not playing, a fix already in progress, a bad
-number or card name (`runDebugTool` `bridge.js:8976-8997`). **Draw and mill are not available** (the engine's board does not show
-library cards; they would need a harness op and an image rebuild, `bridge.js:8941-8942`; page note `WebPage.cs:179`).
+number or card name (`runDebugTool` `bridge.js:9151`). **Draw and mill** (built 2026-11-12, `draw`|`mill`, Number 1-99) are the
+engine's own draw and mill: the fix's `draw` and `mill` ops, run by the harness's `applyState` with triggers on, so they need an
+engine image (node and relay) built with those ops. A draw or mill op in a fix the table sends is refused; a mill from an empty
+library is refused, a draw from one is allowed (it is how decking is tested). A button shows only when the bridge's `tools` lists it.
 
 ## 11. Install and release flow (friend package)
 
@@ -481,7 +483,7 @@ Everything here was in the earlier spec or in other specs and has **no code** in
 8. **Code signing** of the exe, and Apple notarization: not done (`README-FRIEND.txt` tells friends to Unblock).
 9. **Updates against a private repository without a token** do not work; with the token they do. Working updates for friends need
    either the repository public or each friend entering a token (decision pending, `docs/release-fix-plan-2026-11-10.md`).
-10. **Draw and mill debug tools** (§10.3) need an engine change.
+10. **Draw and mill debug tools** (§10.3): built 2026-11-12; they work once the engine images are rebuilt with the `draw`/`mill` ops.
 11. `docs/publishing-checklist.md:59` still calls the companion "a later release"; the friend package already ships it.
 
 ## 15. Changed from the earlier spec
