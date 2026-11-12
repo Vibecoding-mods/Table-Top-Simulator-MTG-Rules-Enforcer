@@ -29,6 +29,16 @@ To shut down: **Stop MTG.bat** in the same folder.
    the free mulligans each player has in all, the rules' free first one in a 3+ player game included. A free mulligan is a new 7
    with nothing put on the bottom. The game says when a player has used theirs.
    AI players take normal mulligans. Your vote stays for a rematch.
+
+   **Your own card art.** Add a picture link to the end of a card's line in the deck list you paste into the Card
+   Importer: `1 Sol Ring #https://i.imgur.com/your-picture.png`. Every copy of that card in your deck wears it, in
+   every zone (two different links for one card: the first one; basic lands can mix several). The link must be a
+   direct https link to a .png, .jpg, .jpeg or .webp file, at most 500 characters, with no spaces or quotes. Pressing
+   READY? names the cards wearing your picture, and any link it could not use (that card shows its normal picture).
+   Only the picture changes: the name, rules and hover text stay the real card's. Everyone at the table downloads your
+   picture from that site, so it must open for everyone, not only you. The host can switch custom art off for everyone
+   with `mtg art off` (`mtg art on` brings it back). For now a double-faced card's back and the tokens the game makes
+   keep their normal pictures.
 5. When everyone is ready, anyone seated presses **Start** on the middle tile.
    - Against the computer: `mtg start ai 1` (up to 3 AI players); `mtg aideck <deck>` (host) picks their deck.
    - **Turn order goes clockwise round the table: White → Red → Yellow → Blue.** A dice roll picks who goes first;
@@ -143,6 +153,7 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg hold` / `mtg hold off` | keep priority once after something goes on the stack, to respond to your own trigger or with an ability (or press Hold); over your own spell you are asked anyway when you hold a spell to cast |
 | `mtg skip <phase>` / `mtg skip off` | the Auto-resolve list's "Until" choices, typed: upkeep, draw, main, combat, blockers, damage, main2, end, mine |
 | `mtg timer [seconds]` / `mtg timer off` | turn timers for everyone (host) |
+| `mtg art off` / `mtg art on` | host: everyone sees the normal card pictures / the pictures players linked in their deck lists (`1 Sol Ring #https://...`) |
 | `mtg fix` (`yes` / `no` / `done` / `cancel`) | the manual fix, as the Fix... button |
 | `mtg concede` | leave the game (twice within 15 s) |
 | `mtg effects on/off`, `mtg sounds on/off` | your own effects and sounds |

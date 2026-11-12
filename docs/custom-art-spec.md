@@ -1,6 +1,41 @@
 # Custom card art, player-made (spec, item 16)
 
-Status: design only, written 2026-11-11. No code changed. Source item: docs/next-features-2026-11-09.md, item 16.
+Status: written 2026-11-11. Plain-cards slice BUILT IN SOURCE 2026-11-12 (bridge + table chat command), not deployed,
+not seen live. DFC backs, game-made tokens and the AI's decks are not built. Source item:
+docs/next-features-2026-11-09.md, item 16.
+
+## Built: the plain-cards slice (2026-11-12)
+
+- Where: bridge/bridge.js (`isCustomArt`, `artProblem`, `customArt` / `onArt`, `artNotes`, `checkDeck`, `imagesFor`,
+  the resume file's `artOff`) and the `mtg art` chat command in tools/make-engine-copy.js (the table's Global
+  `engineChat`). tools/engine-renderer.lua is unchanged: it already draws any face link it is sent.
+- Which pictures are a player's: the importer does not mark the lines that had a link, so the bridge goes by the host.
+  A face from img.klrmngr.com, any *.scryfall.io / *.scryfall.com host or wsrv.nl is a normal printing (a `#link` to
+  another Scryfall printing is treated as one, with today's mixing); the card back is not a face; any other host is a
+  player's picture.
+- Rule for copies: as below. A non-basic name with a usable link keeps one picture, marked `every`, ahead of the deck's
+  normal printings, and `imagesFor` returns it for every copy. Basic lands keep every distinct link, the player's
+  marked `custom`, and the pick by id number.
+- Checks (bridge only, the importer is unchanged): https, the path (before any `?`) ends in .png/.jpg/.jpeg/.webp, at
+  most 500 characters, no whitespace, quotes, backtick, backslash, angle brackets or control characters. A bad link is
+  left out of the deck's pictures, so the card shows the deck's normal printing if it has one, else the lookup by name.
+  No fetch of a player's link.
+- `mtg ready` adds a "Your card art:" list to the deck's chat line: "Sol Ring: your picture on all 1 copies", "Relentless
+  Rats: 2 different picture links; every copy wears the first", "Farseek: the picture link was not used (the link must
+  start with https://); it shows its normal picture", "Plains: your 2 pictures among its 4 copies" (12 lines at most,
+  then "and N more"). With art off the list says so.
+- `mtg art off` / `mtg art on`: host, admin or promoted (as `mtg planechase`); anyone else is told it's the host's.
+  Off: `imagesFor` passes over every picture marked custom (the deck's normal printing, else the lookup by name, which
+  is asked for at once); the board is sent again. It stays as set across games until switched back and is kept in the
+  resume file (`artOff`, written only when off).
+- The known-owner rule holds: a known owner's card uses only its own deck's pictures, so another deck's custom picture
+  never shows on it.
+- Tests: tests/test_bridge_custom_art.js (checks, rule for copies, basics mixing, chat lines, every zone through
+  `sendTable`, owner rule, art off/on, resume) and a block in tests/test_table_claims.js (the host gate).
+- Not yet: the real-table check below (Estimate, last line), the importer's own checks and second link, DFC backs,
+  tokens made by the game, the AI's decks (an AI given a table deck from an empty seat shows that deck's pictures,
+  custom ones included, as before). A Steam Cloud link (steamusercontent, no file extension) is refused by the
+  extension rule; ask the user whether to allow that host.
 
 ## Decisions (the user, 2026-11-11)
 

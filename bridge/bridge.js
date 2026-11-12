@@ -540,6 +540,56 @@ async function lookUpForeign(cards) {
   return found;
 }
 
+// ───── Player-made card art (docs/custom-art-spec.md, plain cards) ─────
+// A deck-list line "1 Sol Ring #https://.../sol.png" makes the Card Importer give that card the link as its picture,
+// and "mtg ready" sends it as the card's face. A face from any other host than the importer's own card pictures is such
+// a picture (a link to another Scryfall printing is a printing like any other). The table never marks which lines had a
+// link, so the host is the only sign.
+// wsrv.nl is a public proxy for any picture, so it counts as a normal printing only when it proxies Scryfall's CDN
+const NORMAL_ART = /^https?:\/\/(?:img\.klrmngr\.com\/|(?:[a-z0-9-]+\.)*scryfall\.(?:io|com)\/|wsrv\.nl\/\?url=(?:https?:\/\/)?cards\.scryfall\.io\/)/i;
+const isCustomArt = (u) => typeof u === "string" && u !== "" && u !== DEFAULT_BACK && !NORMAL_ART.test(u);
+const ART_MAX = 500;
+// Why a player's link can't be used, or null. The link goes into JSON and the table's Lua tables, so no quotes,
+// backslashes, angle brackets, spaces or control characters (the bridge checks again: the table's text is not trusted).
+// No fetch: the bridge never visits a player's link (it could point into the host's own network).
+function artProblem(u) {
+  if (u.length > ART_MAX) return `the link is longer than ${ART_MAX} characters`;
+  if (!/^https:\/\//i.test(u)) return "the link must start with https://";
+  if (/[\s"'`\\<>\x00-\x1f\x7f]/.test(u)) return "the link has a space, quote, backslash or angle bracket in it";
+  if (!/\.(?:png|jpe?g|webp)$/i.test(u.split("?")[0])) return "the link must end in .png, .jpg, .jpeg or .webp";
+  return null;
+}
+// The host's switch, "mtg art off|on" (every player's table): off, every card shows its normal picture (imagesFor). It
+// stays as set until switched back, and a restarted bridge keeps it (the resume file).
+const customArt = { off: false };
+function onArt(m) {
+  customArt.off = m.on === false;
+  if (customArt.off) {
+    // (the normal pictures of the cards that wore a player's, asked for now: they had no need of the lookup by name)
+    const decks = game?.pictures || Object.fromEntries(Object.entries(readyDecks).map(([c, r]) => [c, r.images]));
+    for (const deck of Object.values(decks)) for (const [name, list] of Object.entries(deck || {})) if (list.some((i) => i.custom)) cachedImage(name);
+  }
+  chat(customArt.off ? "[MTG] Custom card art off: everyone sees the normal card pictures. (mtg art on, host)"
+    : "[MTG] Custom card art on: cards wear the pictures their players linked in the deck list (1 Sol Ring #https://...). (mtg art off, host)");
+  if (game?.started) { saveResume(); scheduleTable(); }
+}
+// The "mtg ready" lines about a deck's own pictures: which cards wear the player's, which links were not used, and a
+// name given two links. `art`: engine name → { links (usable, in deck order), bad (the first reason one was not) }
+function artNotes(art, copies) {
+  const lines = [];
+  for (const [name, a] of Object.entries(art)) {
+    if (a.bad) lines.push(`${name}: the picture link was not used (${a.bad})${a.links.length ? "" : "; it shows its normal picture"}`);
+    if (!a.links.length) continue;
+    if (BASICS.has(normName(name))) lines.push(`${name}: your ${a.links.length === 1 ? "picture" : `${a.links.length} pictures`} among its ${copies(name)} copies`);
+    else {
+      lines.push(`${name}: your picture on all ${copies(name)} copies`);
+      if (a.links.length > 1) lines.push(`${name}: ${a.links.length} different picture links; every copy wears the first`);
+    }
+  }
+  const MAX = 12;
+  return lines.length > MAX ? [...lines.slice(0, MAX), `and ${lines.length - MAX} more`] : lines;
+}
+
 function checkDeck(color, entry) {
   const index = forgeIndex();
   const unknown = [];
@@ -547,8 +597,10 @@ function checkDeck(color, entry) {
   const cards = [];
   const translated = new Map(); // printed name → engine name (foreign printings, see foreignKeys)
   // engine name → the table's own pictures of it, one per printing in the deck (a deck with three Plains printings keeps
-  // all three; imagesFor gives each engine card one of them)
+  // all three; imagesFor gives each engine card one of them). A player's own picture is marked custom; for any name but
+  // a basic land it is the only one of its kind, the first link given (every: every copy wears it), and goes first.
   const images = {};
+  const art = {};
   const resolve = (c) => {
     let name = index[normName(c.n)];
     if (!name) {
@@ -558,7 +610,18 @@ function checkDeck(color, entry) {
     }
     if (!name) { unknown.push(c.n || "(unnamed card)"); return null; }
     const list = (images[name] ??= []);
-    if (!list.some((i) => i.face === (c.f || null))) list.push({ face: c.f || null, back: c.b || null });
+    const face = c.f || null;
+    if (isCustomArt(face)) {
+      const a = (art[name] ??= { links: [], bad: null });
+      const why = artProblem(face);
+      if (why) { a.bad ??= why; return name; } // (left out: the card shows its normal picture)
+      if (!a.links.includes(face)) a.links.push(face);
+      const basic = BASICS.has(normName(name));
+      if (basic && !list.some((i) => i.face === face)) list.push({ face, back: c.b || null, custom: true });
+      else if (!basic && a.links.length === 1) list.unshift({ face, back: c.b || null, custom: true, every: true });
+      return name;
+    }
+    if (!list.some((i) => i.face === face)) list.push({ face, back: c.b || null });
     return name;
   };
   for (const c of asList(entry.commander)) { const n = resolve(c); if (n) commanders.push(n); }
@@ -568,6 +631,8 @@ function checkDeck(color, entry) {
   for (const n of cards) counts[n] = (counts[n] || 0) + 1;
   const extras = Object.entries(counts).filter(([n, k]) => k > 1 && !BASICS.has(normName(n))).map(([n, k]) => `${k}× ${n}`);
   const total = cards.length + commanders.length;
+  const notes = artNotes(art, (n) => (counts[n] || 0) + commanders.filter((x) => x === n).length);
+  const artSaid = notes.length ? `\nYour card art${customArt.off ? " (the host has custom art off for now: everyone sees the normal pictures)" : ""}:\n- ${notes.join("\n- ")}` : "";
 
   const problems = [];
   if (!asList(entry.library).length) problems.push("no deck found in your library zone; put your imported deck there");
@@ -582,12 +647,12 @@ function checkDeck(color, entry) {
   const foreign = names.length ? `\nForeign names: ${names.slice(0, 8).join(", ")}${names.length > 8 ? `, and ${names.length - 8} more` : ""}` : "";
   if (problems.length) {
     delete readyDecks[color];
-    chat(`[MTG] ${label}: not ready.\n- ${problems.join("\n- ")}${warnings.length ? `\nAlso: ${warnings.join("; ")}` : ""}${foreign}`, color);
+    chat(`[MTG] ${label}: not ready.\n- ${problems.join("\n- ")}${warnings.length ? `\nAlso: ${warnings.join("; ")}` : ""}${foreign}${artSaid}`, color);
     return false;
   }
   readyDecks[color] = { deckName: entry.deckName || `${color}'s deck`, cards, commanders, images };
   checkDeckImages(images);
-  chat(`[MTG] ${label}: ready. ${cards.length} cards + commander ${commanders.join(" & ")}; every card is known to the engine.${warnings.length ? `\nCheck: ${warnings.join("; ")}` : ""}${foreign}`, color);
+  chat(`[MTG] ${label}: ready. ${cards.length} cards + commander ${commanders.join(" & ")}; every card is known to the engine.${warnings.length ? `\nCheck: ${warnings.join("; ")}` : ""}${foreign}${artSaid}`, color);
   log(`${color} deck ready: ${total} cards, commander ${commanders.join(" & ")}`);
   return true;
 }
@@ -1207,7 +1272,7 @@ function saveResume() {
       // (who had which turn: "White's 6th turn" read "2nd" after a resume without it)
       turnOwners: game.turnOwners || {}, friendly: game.friendly, friendlyOver: game.friendlyOver,
       // (each deck's own pictures: every Plains keeps its printing after a restart, imagesFor)
-      pictures: game.pictures,
+      pictures: game.pictures, ...(customArt.off ? { artOff: true } : {}), // (and the host's "mtg art off", onArt)
       // (who went out when, and each library as last seen in the game: a true deck-out is still said after a restart,
       // noteOuts; and the printed P/T seen for each name, so a copy's badge stays as it was, notePrinted)
       outOrder: game.outOrder, outStamp: game.outStamp, outWhere: game.outWhere, inLibrary: game.inLibrary, emptyAt: game.emptyAt, printedPT: game.printedPT },
@@ -1231,6 +1296,7 @@ function resumeGame(now = Date.now()) {
   }
   game = { ...snap.game, deckNames: new Set(snap.game.deckNames || []), seats: new Map(), started: true, closing: false,
     maxSet: true, botsRequested: true, startSent: true, resumed: true };
+  customArt.off = snap.game.artOff === true;
   for (const st of snap.seats) game.seats.set(st.color, new Seat(st.color, st.deckId, st));
   if (snap.harmless?.length) game.harmless = snap.harmless.map((h) => new HarmlessSeat(h.color, null, h));
   log(`resuming the game saved ${Math.round(age / 1000)} s ago: ${snap.seats.map((st) => `${st.color} as ${st.username}`).join(", ")}`);
@@ -1634,9 +1700,15 @@ function imagesFor(name, ownerColor = null, id = null) {
   const n = Number(/(\d+)\D*$/.exec(String(id ?? ""))?.[1] ?? 0);
   // (a deck card without its own picture, or with the card back as its face, uses the lookup by name: Fire // Ice
   // showed a card back, 2026-10-26)
-  const usable = (i) => i.face && i.face !== DEFAULT_BACK && !deadImages.has(i.face);
+  // (a player's own picture only while the host has custom art on, "mtg art off"; passed over, the card shows the deck's
+  // normal printing of it if it has one, else the lookup by name)
+  const usable = (i) => i.face && i.face !== DEFAULT_BACK && !deadImages.has(i.face) && !(i.custom && customArt.off);
   for (const color of order) {
     const all = decks[color]?.[name] || [];
+    // (a card other than a basic land wears its player's picture on every copy, docs/custom-art-spec.md "Rule for
+    // copies": not one printing by the id's number. As given, never rewritten: ttsImage changes Scryfall's links only)
+    const every = all.find((i) => i.every && usable(i));
+    if (every) return { face: every.face, back: every.back };
     const k = n % (all.length || 1);
     const img = [...all.slice(k), ...all.slice(0, k)].find(usable);
     if (img) return { ...img, face: ttsImage(img.face), back: ttsImage(img.back) };
@@ -9052,6 +9124,9 @@ function onTTS(m) {
     case "planes":
       onPlanes(m);
       break;
+    case "art": // "mtg art on|off" (host, checked on the table)
+      onArt(m);
+      break;
     case "winner":
       onWinner(m.color, m.by);
       break;
@@ -10096,6 +10171,6 @@ if (require.main === module) {
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
-    _aiSeatChoice: aiSeatChoice, _startResolving: startResolving,
+    _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
   };
 }
