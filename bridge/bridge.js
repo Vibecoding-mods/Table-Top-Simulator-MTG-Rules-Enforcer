@@ -1729,6 +1729,13 @@ function noteOwners(pub) {
 }
 // (a card's owner by noteOwners, else what its zone says)
 function ownerOf(c, z) { return game?.owners?.get(c.id) || c.ownerId || z?.ownerId; }
+// The room a dungeon card is in, by Forge's player dungeonState: the card by its cardId, or, from an engine that sends no
+// id, the dungeon of that name in its owner's command zone. Null when no player's state names it or it is in no room yet.
+function dungeonPlayerOf(pub, c, owner) {
+  return (pub.players || []).find((p) => p.dungeonState && (p.dungeonState.cardId ? p.dungeonState.cardId === c.id
+    : p.id === owner && p.dungeonState.name === c.identity?.name)) || null;
+}
+function dungeonRoomOf(pub, c, owner) { return dungeonPlayerOf(pub, c, owner)?.dungeonState.room || null; }
 function logSnapshot(pub, prev = null) {
   const cards = {}, counts = {};
   noteOwners(pub);
@@ -1764,8 +1771,9 @@ function logSnapshot(pub, prev = null) {
         ...(hasKeyword(c, "Suspend") ? { suspend: true } : {}),
         // (phasing is no zone change, so it stays "battlefield" here: Forge says which, the log no longer guesses)
         ...(c.phasedOut ? { po: true } : {}),
-        // (a dungeon's room, Forge's "[Room: Cave Entrance]" note: venturing read only its effect, "+1 life", mechanic run hp-08)
-        ...((r) => (z.zone === "command" && r ? { room: r[1] } : {}))(/\[Room: ([^\]]+)\]/.exec(String(c.currentText ?? c.text ?? ""))),
+        // (a dungeon's room, Forge's "[Room: Cave Entrance]" note: venturing read only its effect, "+1 life", mechanic run hp-08;
+        // Forge's own dungeonState first, docs/planechase-dungeon-engine-spec.md D5)
+        ...((r) => (z.zone === "command" && r ? { room: r } : {}))(z.zone === "command" ? dungeonRoomOf(pub, c, z.ownerId) ?? /\[Room: ([^\]]+)\]/.exec(String(c.currentText ?? c.text ?? ""))?.[1] : null),
         // (its text as it reads now, for a text box swap: Exchange of Words was in no log, rebuilt hand test #11)
         ...(z.zone === "battlefield" && !c.isFaceDown ? { tx: String(c.currentText ?? c.text ?? "").replace(/\r\n/g, "\n").trim() } : {}),
         // (it gives mana by sacrificing itself: a Treasure's sacrifice, see sacrificeWords)
@@ -3781,6 +3789,35 @@ function slimmer(game) {
   return { slim, statics };
 }
 
+// A player row's dungeon, from Forge's dungeonState (docs/planechase-dungeon-engine-spec.md D5-D7): `dungeon` {id, name,
+// room, next, text}, the room's text and the rooms it leads to from the state's room list (the first room when it is in
+// none yet), and `dungeonsDone`, the dungeons completed (left out at 0). The card's id from the state, else the dungeon
+// of that name in the player's command zone (an engine that sends no id, nor rooms: then next and text are empty).
+function dungeonRow(p, command) {
+  const out = {};
+  const ds = p.dungeonState;
+  if (ds?.name) {
+    const rooms = Array.isArray(ds.rooms) ? ds.rooms.filter((r) => r && r.name) : [];
+    const room = String(ds.room || "");
+    const here = room ? rooms.find((r) => r.name === room) : null;
+    const id = ds.cardId || (command || []).find((c) => c.identity?.name === ds.name)?.id || null;
+    out.dungeon = { id, name: String(ds.name), room, next: (room ? here?.next || [] : rooms.length ? [rooms[0].name] : []).map(String),
+      text: String(here?.text || "") };
+  }
+  const done = Array.isArray(p.completedDungeons) ? p.completedDungeons.length : 0;
+  if (done > 0) out.dungeonsDone = done;
+  return out;
+}
+// The words on the dungeon card itself (the table's room box, `dg`; its tooltip `dgt`, the room's text):
+// "ROOM: Goblin Lair" / "NEXT: Storeroom or Dark Pool" (or "LAST ROOM") / "COMPLETED: 1"
+function dungeonLabel(d, done) {
+  const lines = [d.room ? `ROOM: ${d.room}` : "NO ROOM YET"];
+  if (d.next.length) lines.push(`${d.room ? "NEXT" : "FIRST"}: ${d.next.join(" or ")}`);
+  else if (d.room && d.text) lines.push("LAST ROOM");
+  if (done > 0) lines.push(`COMPLETED: ${done}`);
+  return { dg: lines.join("\n"), ...(d.text ? { dgt: `${d.room} — ${d.text}` } : {}) };
+}
+
 function sendTable() {
   if (!game?.started || game.autoplay || !game.fromTable) return; // (other games get the text board, sendView)
   const seats = [...game.seats.values()].filter((s) => s.board?.state?.gameView);
@@ -3823,7 +3860,10 @@ function sendTable() {
       graveyard: zoneOf(pub, "graveyard", p.id).cards.map((c) => tableCard(c, { blockers, zone: "graveyard" })),
       exile: zoneOf(pub, "exile", p.id).cards.map((c) => tableCard(c, { blockers, zone: "exile" })),
       command: command.map(toCard),
+      ...dungeonRow(p, command),
     };
+    // (the dungeon card's own label, its room, where it leads and the dungeons completed: dungeonRow)
+    if (row.dungeon?.id) row.command = row.command.map((c) => (c.id === row.dungeon.id ? { ...c, ...dungeonLabel(row.dungeon, row.dungeonsDone) } : c));
     // (after the zones: the cards a seat may play from outside its hand, built once; none once the game is over: Sen
     // Triplets' stand-ins kept glowing as playable under GAME OVER, real-table check 2026-11-10)
     const playable = own && !pub.gameOver ? playableOf(own, (c, zone) => tableCard(c, { blockers, zone }), p.id) : [];
@@ -4149,6 +4189,15 @@ const PLAYER_MARKS = [
   { key: "experience", read: counterOf("experience"), label: (n) => `EXPERIENCE ${n}` },
   { key: "radiation", read: counterOf("radiation"), label: (n) => `RAD ${n}` },
   { key: "ticket", read: counterOf("ticket"), label: (n) => `TICKETS ${n}` },
+  // (the dungeons Forge lists as completed, as one string so two boards compare by value: a line for each one added,
+  // nothing when a rewind shortens it; left out by an engine that doesn't send the list. Before the rooms' lines in the
+  // log, so a venture past a last room reads "completes", then "ventures into", spec D6)
+  { key: "dungeons", read: (p) => (Array.isArray(p.completedDungeons) ? p.completedDungeons.map(String).join("\n") : ""),
+    label: (v) => `DUNGEONS ${v.split("\n").length}`,
+    say: (who, now, was) => {
+      const all = now ? now.split("\n") : [], before = was ? was.split("\n") : [];
+      return all.length > before.length ? `${who} completes ${all[all.length - 1]} (${all.length} dungeon${all.length === 1 ? "" : "s"} completed)` : null;
+    } },
   // (Forge's count of temptations only goes up in play, getNumRingTemptedYou: a rewind or a restarted game lowers it,
   // and that says nothing)
   { key: "ring", read: (p) => positive(p.ringLevel), label: (n) => `RING TEMPTED ${n}`,
@@ -8453,6 +8502,9 @@ const FIX_OPS = {
   // ops, with triggers on and no mana; `ability` is never sent by the table (the engine asks when there are several)
   freeCast: { card: "card", player: "player" }, freeLand: { card: "card", player: "player" },
   freeActivate: { card: "card", player: "player", ability: "count?" },
+  // dungeons in a debug setup (docs/planechase-dungeon-engine-spec.md D4): no triggers, as every op here
+  dungeon: { player: "player", name: "cardName", room: "cardName?" }, completedDungeon: { player: "player", name: "cardName" },
+  initiative: { player: "player" },
 };
 const FREE_OPS = new Set(["freeCast", "freeLand", "freeActivate"]);
 const FIX_KINDS = { hand: "fix from hand", board: "edit the board" };
@@ -8600,6 +8652,9 @@ function fixOps(list, pub, ownWords = false, kind = null) {
       freeCast: () => `${nameOf(op.player)} casts ${cardName(op.card)} for free`,
       freeActivate: () => `${nameOf(op.player)} activates ${poss(cardName(op.card))} ability for free`,
       freeLand: () => `${nameOf(op.player)} plays ${cardName(op.card)} for free (the land drop stays unused)`,
+      dungeon: () => `${nameOf(op.player)} is in ${op.name}, ${op.room ? `room ${op.room}` : "no room yet"}`,
+      completedDungeon: () => `${nameOf(op.player)} has completed ${op.name}`,
+      initiative: () => `${nameOf(op.player)} takes the initiative`,
     }[op.op]());
     ops.push(op);
   }
@@ -8851,8 +8906,10 @@ function scenarioProblem(scenario) {
     if (!isPlain(side)) return `"${who}" must be a { ... } object.`;
     const lands = side.lands;
     if (lands !== undefined && !Number.isInteger(lands) && !Array.isArray(lands) && !isPlain(lands)) return `${who === "you" ? "" : `${who}: `}"lands" must be a number, a list of names, or counts by name.`;
-    for (const k of [...DEBUG_ZONES, "tokens"]) if (side[k] !== undefined && !Array.isArray(side[k])) return `${who === "you" ? "" : `${who}: `}"${k}" must be a list.`;
+    for (const k of [...DEBUG_ZONES, "tokens", "completedDungeons"]) if (side[k] !== undefined && !Array.isArray(side[k])) return `${who === "you" ? "" : `${who}: `}"${k}" must be a list.`;
+    if (side.dungeon !== undefined && !(isPlain(side.dungeon) && typeof side.dungeon.name === "string" && (side.dungeon.room == null || typeof side.dungeon.room === "string"))) return `${who === "you" ? "" : `${who}: `}"dungeon" must be { "name": ..., "room": ... }.`;
   }
+  if (scenario.initiative !== undefined && scenario.initiative !== "you" && !TABLE_COLORS.includes(scenario.initiative)) return '"initiative" must be "you" or a colour.';
   return null;
 }
 // one player's part of a scenario as manual-fix changes (the table's form: players by colour). midGame: typed during a
@@ -8895,6 +8952,9 @@ function debugSide(side, color, pub, you, midGame = false) {
     const k = Math.min(side.mana, 99);
     out.push({ op: "mana", player: color, mana: ["W", "U", "B", "R", "G", "C"].flatMap((m) => Array(k).fill(m)).join(" ") });
   }
+  // (a dungeon with its room, or none yet: the next venture goes to its first room; dungeons already completed)
+  if (isPlain(side.dungeon) && side.dungeon.name) out.push({ op: "dungeon", player: color, name: side.dungeon.name, ...(side.dungeon.room ? { room: side.dungeon.room } : {}) });
+  for (const name of Array.isArray(side.completedDungeons) ? side.completedDungeons : []) out.push({ op: "completedDungeon", player: color, name });
   return out;
 }
 function debugList(scenario, color, pub, midGame = false) {
@@ -8903,6 +8963,9 @@ function debugList(scenario, color, pub, midGame = false) {
     if (other === color || !isPlaying(pub, slotOfColor(other))) continue;
     list.push(...debugSide(scenario[other] || scenario.opponents, other, pub, false));
   }
+  // (who has the initiative: "you" or a colour at the table)
+  const takes = scenario.initiative === "you" ? color : scenario.initiative;
+  if (takes && Object.values(game.slotColor).includes(takes) && isPlaying(pub, slotOfColor(takes))) list.push({ op: "initiative", player: takes });
   return list;
 }
 function onDebug(m) {

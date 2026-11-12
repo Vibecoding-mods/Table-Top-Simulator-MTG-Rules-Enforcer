@@ -1,0 +1,6 @@
+{
+  "label": "dungeon D4/D6: Lost Mine of Phandelver in its last room (Temple of Dumathoin); Nadaar ventures: completes it (1 dungeon completed, DUNGEONS 1), then the new dungeon question",
+  "lands": { "Plains": 20 },
+  "dungeon": { "name": "Lost Mine of Phandelver", "room": "Temple of Dumathoin" },
+  "hand": ["Nadaar, Selfless Paladin"]
+}

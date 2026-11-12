@@ -1069,6 +1069,35 @@ const id = (n) => `engine-card-${n}`;
     ["Blue ventures into Yawning Portal (Dungeon of the Mad Mage)"]);
   same("venture: an ability word's trigger is no room", between(board(() => {}), board((b) => b.stack.push({ ...ROOM("Battalion — Whenever this creature and at least two other creatures attack, draw a card."), identity: { name: "Frontline Medic" }, sourceId: id(61) })), []),
     ["Frontline Medic's battalion triggers (Blue)"]);
+  // (Forge's own dungeonState names the room, docs/planechase-dungeon-engine-spec.md D5/D6: the card by its id, or by its
+  // name and owner from an engine that sends no id; the text guess stays the fallback)
+  const players = (b, p0 = {}, p1 = {}) => { b.players = [{ id: "player-0", ...p0 }, { id: "player-1", ...p1 }]; return b; };
+  const MAD = (room, extra = {}) => ({ dungeonState: { name: "Dungeon of the Mad Mage", room, cardId: id(60), ...extra } });
+  same("dungeonState: the room from Forge's state alone", between(players(board(() => {})), players(board((b) => put(b, "command", BARE())), MAD("Yawning Portal")), []),
+    ["Blue ventures into Yawning Portal (Dungeon of the Mad Mage)"]);
+  same("dungeonState: the next room", between(players(board((b) => put(b, "command", BARE())), MAD("Yawning Portal")), players(board((b) => put(b, "command", BARE())), MAD("Dungeon Level")), []),
+    ["Blue ventures into Dungeon Level (Dungeon of the Mad Mage)"]);
+  same("dungeonState: by name and owner when there is no card id", between(players(board(() => {})), players(board((b) => put(b, "command", BARE())), { dungeonState: { name: "Dungeon of the Mad Mage", room: "Yawning Portal" } }), []),
+    ["Blue ventures into Yawning Portal (Dungeon of the Mad Mage)"]);
+  same("dungeonState: another player's dungeon of that name is not this one", between(players(board(() => {})), players(board((b) => put(b, "command", BARE())), {}, { dungeonState: { name: "Dungeon of the Mad Mage", room: "Yawning Portal" } }), []),
+    []);
+  same("dungeonState: no room yet is no line", between(players(board(() => {})), players(board((b) => put(b, "command", BARE())), MAD("")), []),
+    []);
+  same("dungeonState: said once with the room's ability on the stack", between(players(board(() => {})), players(board((b) => { put(b, "command", BARE()); b.stack.push(ROOM("Yawning Portal — You gain 1 life.  (Leads to: Dungeon Level)")); }), MAD("Yawning Portal")), []),
+    ["Blue ventures into Yawning Portal (Dungeon of the Mad Mage)"]);
+  same("dungeonState: Forge's room over a stale note", between(players(board((b) => put(b, "command", DUNGEON("Yawning Portal"))), MAD("Yawning Portal")), players(board((b) => put(b, "command", DUNGEON("Yawning Portal"))), MAD("Dungeon Level")), []),
+    ["Blue ventures into Dungeon Level (Dungeon of the Mad Mage)"]);
+  const LOST = () => ({ ...card(62, "Lost Mine of Phandelver", ["Dungeon"]), text: "" });
+  same("completedDungeons: a completion is said with the count", between(players(board((b) => put(b, "command", LOST())), { dungeonState: { name: "Lost Mine of Phandelver", room: "Temple of Dumathoin", cardId: id(62) }, completedDungeons: [] }),
+    players(board(() => {}), { completedDungeons: ["Lost Mine of Phandelver"] }), []),
+    ["Blue completes Lost Mine of Phandelver (1 dungeon completed)"]);
+  same("completedDungeons: completes, then ventures into the next dungeon on one board", between(players(board((b) => put(b, "command", LOST())), { dungeonState: { name: "Lost Mine of Phandelver", room: "Temple of Dumathoin", cardId: id(62) }, completedDungeons: ["Tomb of Annihilation"] }),
+    players(board((b) => put(b, "command", BARE())), { ...MAD("Yawning Portal"), completedDungeons: ["Tomb of Annihilation", "Lost Mine of Phandelver"] }), []),
+    ["Blue completes Lost Mine of Phandelver (2 dungeons completed)", "Blue ventures into Yawning Portal (Dungeon of the Mad Mage)"]);
+  same("completedDungeons: the same list is no line", between(players(board(() => {}), { completedDungeons: ["Lost Mine of Phandelver"] }), players(board(() => {}), { completedDungeons: ["Lost Mine of Phandelver"] }), []),
+    []);
+  same("completedDungeons: a shorter list (a rewind) is no line", between(players(board(() => {}), { completedDungeons: ["Lost Mine of Phandelver"] }), players(board(() => {}), { completedDungeons: [] }), []),
+    []);
   same("#11 re-test: two texts changed otherwise are no swap",
     between(board((b) => { put(b, "battlefield", ASSN(RA)); put(b, "battlefield", KEEP(BK)); }), board((b) => { put(b, "battlefield", ASSN(RA, "Flying")); put(b, "battlefield", KEEP(BK, RA)); }), []),
     []);
