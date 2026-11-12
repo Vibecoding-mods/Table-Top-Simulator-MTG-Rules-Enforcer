@@ -663,6 +663,37 @@ for (const kind of ["Land", "Creature"]) {
   ok("main button: after your own answer the next question's button answers at once", sentOf(r, "after acting").includes("__auto"), sentOf(r, "after acting").slice(0, 200));
   ok("main button: a new question with the same words answers at once", sentOf(r, "same words").includes("__x954"), sentOf(r, "same words").slice(0, 200));
 }
+// "Resolve N× <name>" (__group) gets the corner's third button, only while the bridge offers it (the user 2026-11-12);
+// without it the corner is Resolve / Resolve all as before. Its press answers __group as the Choices panel's line does,
+// and it keeps the 0.6 s guard against words that just changed under the pointer.
+{
+  const stackPrio = (id, group) => ask({ promptId: id, title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Resolve" },
+    ...(group ? [{ id: "__group", label: group }] : []), { id: "__resolve", label: "Resolve all (9)" }, { id: "__endturn", label: "End turn" }] });
+  const third = (mark) => q('local id = "eng_big3_Blue" return tostring(UI.getAttribute(id, "active")) .. "|" .. tostring(UI.getAttribute(id, "text")) .. "|" .. tostring(UI.getAttribute(id, "tooltip")) .. "|" .. tostring(UI.getAttribute(id, "color")) .. "|" .. tostring(UI.getAttribute("eng_big2_Blue", "text")) .. "|" .. tostring(UI.getAttribute("eng_hint_Blue", "offsetXY"))', mark);
+  const sentOf = (r, m) => fxOf(r, m).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  const r = run([stackPrio(961), { frames: 2 }, third("without"),
+    stackPrio(962, "Resolve 8× Monk Token"), { frames: 60 }, third("with"),
+    q('onMtgBig3(Player.Blue, nil, "eng_big3_Blue")', "press"),
+    stackPrio(963, "Resolve 12× Spirit Warrior Token of the Long Night"), { frames: 60 }, third("long"),
+    stackPrio(964, "Resolve 7× Monk Token"), { frames: 2 }, q('onMtgBig3(Player.Blue, nil, "eng_big3_Blue") return "clicked"', "at once"),
+    { frames: 40 }, q('onMtgBig3(Player.Blue, nil, "eng_big3_Blue") return "clicked"', "later"),
+    stackPrio(965), { frames: 2 }, third("gone"),
+    q('onMtgBig3(Player.Blue, nil, "eng_big3_Blue") return "clicked"', "press gone")]);
+  const v = (m) => String(valueOf(r, m)).split("|");
+  ok("group corner: no errors", r.errors.length === 0, r.errors.join(" | "));
+  // (nil: never set, as the XML has it, hidden; the fake TTS answers only what was set)
+  ok("group corner: no third button without __group, the second still Resolve all", v("without")[0] === "nil" && v("without")[5] === "nil" && v("without")[4] === "Resolve all (9)", String(valueOf(r, "without")));
+  ok("group corner: the third button shows with __group", v("with")[0] === "true" && v("with")[1] === "Resolve 8× Monk Token" && v("with")[4] === "Resolve all (9)", String(valueOf(r, "with")));
+  ok("group corner: purple, apart from Resolve all", String(v("with")[3]).toUpperCase().startsWith("#6A3D9"), String(valueOf(r, "with")));
+  ok("group corner: the hint moves up a row over it", v("with")[5] === "-20 246" && v("gone")[5] === "-20 196", `${valueOf(r, "with")} / ${valueOf(r, "gone")}`);
+  ok("group corner: pressing it answers __group", sentOf(r, "press").includes('"choice":["__group"]'), sentOf(r, "press").slice(0, 200));
+  ok("group corner: a long name drops Resolve and is cut, the tooltip keeps it all", v("long")[1].startsWith("12× Spirit Warrior") && v("long")[1].endsWith("…")
+    && v("long")[2] === "Resolve 12× Spirit Warrior Token of the Long Night", String(valueOf(r, "long")));
+  ok("group corner: a click just after its words changed is ignored", !sentOf(r, "at once").includes("__group"), sentOf(r, "at once").slice(0, 200));
+  ok("group corner: the same click 0.7 s later answers", sentOf(r, "later").includes('"choice":["__group"]'), sentOf(r, "later").slice(0, 200));
+  ok("group corner: gone again without __group", v("gone")[0] === "false", String(valueOf(r, "gone")));
+  ok("group corner: a press with no group offered sends nothing", !sentOf(r, "press gone").includes("choice"), sentOf(r, "press gone").slice(0, 200));
+}
 // a copy (Phantasmal Image as Kenrith) carries a COPY badge; the card it copies doesn't (legend rule, 2026-10-26)
 {
   const last = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
