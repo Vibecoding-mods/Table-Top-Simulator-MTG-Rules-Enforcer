@@ -71,15 +71,29 @@ function toTTS(customMessage) {
       outbox.splice(i, 1);
     }
   }
-  outbox.push({ t: customMessage.t, msg: customMessage });
+  const entry = { t: customMessage.t, msg: customMessage, queuedAt: performance.now() };
+  // A question (or its close) goes ahead of the boards, log lines and rules texts waiting in line: TTS takes one
+  // message at a time (a board 50-120 ms, slow-tail doc), and the player waits for the question, not for a board
+  // that a newer one may replace anyway. It never passes another prompt, a chat line, a refusal or a clear, so
+  // what those say keeps its order. (A question already reaches TTS before its own board, scheduleTable's 40 ms.)
+  if (customMessage.t === "prompt") {
+    let at = outbox.length;
+    while (at > 0 && QUESTION_PASSES.has(outbox[at - 1].t)) at--;
+    outbox.splice(at, 0, entry);
+  } else outbox.push(entry);
   if (!sending) pump();
 }
+// what a question may go ahead of in the outbox (see toTTS)
+const QUESTION_PASSES = new Set(["table", "gamelog", "texts"]);
 function pump() {
   const next = outbox.shift();
   if (!next) { sending = false; return; }
   const msg = { t: next.t, json: JSON.stringify(next.msg) };
+  // how long it waited for TTS to take the messages ahead of it (GET /stats "wait", and q in the recording)
+  const waited = Math.round(performance.now() - next.queuedAt);
+  noteWait(next.t === "prompt" && next.msg.promptId == null ? "close" : next.t, waited);
   // MTG_RECORD=file: keep every message sent to TTS, with its time, for replaying into TTS (stutter hunting)
-  if (process.env.MTG_RECORD) fs.appendFile(process.env.MTG_RECORD, JSON.stringify({ at: Date.now(), msg }) + "\n", () => {});
+  if (process.env.MTG_RECORD) fs.appendFile(process.env.MTG_RECORD, JSON.stringify({ at: Date.now(), q: waited, msg }) + "\n", () => {});
   ttsStats.n++; ttsStats.bytes += msg.json.length; ttsStats.max = Math.max(ttsStats.max, msg.json.length);
   if (next.t === "table") { ttsStats.tables++; ttsStats.tableBytes += msg.json.length; }
   ttsStats.maxByType[next.t] = Math.max(ttsStats.maxByType[next.t] || 0, msg.json.length);
@@ -90,7 +104,21 @@ function pump() {
   sock.setTimeout(10000, () => { log(`TTS didn't take a ${next.t} message within 10 s; moving on`); sock.destroy(); });
   sock.on("error", (e) => { if (e.code === "ECONNREFUSED") { ttsSaw(false); log("TTS not reachable on 39999 (is a game loaded?)"); } else log(`sending to TTS: ${e.message}`); });
 }
-const ttsStats = { n: 0, bytes: 0, max: 0, tables: 0, tableBytes: 0, maxByType: {} };
+// (GET /stats, since this bridge started) wait: per message kind, how long messages waited in the outbox for TTS;
+// engine: per engine question type, the engine's own time (engineMs); trips: engine questions per question shown to a
+// player after their answer (the ones between were answered by the bridge itself: passes, End turn, auto-pay).
+// Each is { n, sum, max, hist } with hist counting samples under each SLOW_BUCKETS bound (ms; the last is the rest).
+// The slow tail's live questions (docs/slow-tail-2026-11.md) read these after a game.
+const ttsStats = { n: 0, bytes: 0, max: 0, tables: 0, tableBytes: 0, maxByType: {}, wait: {}, engine: {}, trips: {} };
+const SLOW_BUCKETS = [16, 50, 100, 250, 500, 1000, 3000];
+function noteSample(group, key, v) {
+  if (!Number.isFinite(v)) return;
+  const s = (group[key] ??= { n: 0, sum: 0, max: 0, hist: new Array(SLOW_BUCKETS.length + 1).fill(0) });
+  s.n++; s.sum += v; s.max = Math.max(s.max, v);
+  const b = SLOW_BUCKETS.findIndex((x) => v < x);
+  s.hist[b < 0 ? SLOW_BUCKETS.length : b]++;
+}
+const noteWait = (kind, ms) => noteSample(ttsStats.wait, kind, ms);
 // For GET /health: whether TTS answered last (a send connected, or a message came: true; a send refused: false; null
 // until either), and when the table last spoke
 const ttsLink = { up: null, tableAt: 0 };
@@ -498,6 +526,17 @@ const ANSWER_MS = 60000;
 const fresh = (r) => !!r && Date.now() - r.at < ANSWER_MS;
 
 class Seat {
+  // The follow-ups clearFollowUps drops, besides the `lately` memory:
+  // - what the player asked for before the rewind (End turn answered the redone turn's priority by itself, stage 3
+  //   review 2026-10-27): endTurnAt, resolveStack, queuedPlay, attachTo;
+  // - the other answers kept for the player (the next target, a search's Done, an unless round, a payment in progress;
+  //   the rewind kept them, suite review 2026-10-27): targetPicks, cardsDone, unless, autoPayCard, autoPayFailedFor;
+  // - our own auto-pay (left set, the same card's payment asked again after the rewind would be tapped without asking,
+  //   suite review 2026-11-05): smartPay, tappedFor, payingCost;
+  // - a text change's first word (the redone first question, within 3 prompt ids, read as the second) and the
+  //   creatures that must attack (core-moves cleanup plan): textWord, mustAttack.
+  static FOLLOW_UPS = ["endTurnAt", "resolveStack", "queuedPlay", "attachTo", "targetPicks", "cardsDone", "unless", "autoPayCard",
+    "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack"];
   // resume: { username, slot, roomId } of a seat saved before the bridge stopped (resumeGame): it logs in again under
   // the same name as a reconnect (AuthResult below), so the relay hands back its seat and RequestResync the game
   constructor(color, deckId, resume = null) {
@@ -590,6 +629,12 @@ class Seat {
   note(kind, id, name = null, text = "") { (this.lately ??= {})[kind] = { id, name, text, at: Date.now() }; }
   justDid(kind, ms) { const r = this.lately?.[kind]; return r && Date.now() - r.at < ms ? r : null; }
   forget(kind) { if (kind) delete this.lately?.[kind]; else this.lately = {}; }
+  // Everything kept for the player between questions, dropped at once when a rewind undoes the turns it was for
+  // (checkRestored). One list, so a new follow-up field is cleared by adding it here (core-moves cleanup plan, step 4).
+  clearFollowUps() {
+    for (const k of Seat.FOLLOW_UPS) this[k] = null;
+    this.forget();
+  }
   respond(promptId, type, output) {
     if (game?.fix?.state === "applying" && game.fix.activeAt) game.fix.activeAt = Date.now();
     if (type === "mulligan" && output?.keep === false) mulliganTaken(this);
@@ -820,6 +865,8 @@ class Seat {
           // (the engine's own time since our last answer, and its time to build the message: tells a slow engine from a
           // busy TTS in any game's log, tmp/slow-tail/logs.md)
           log(`${this.color} prompt #${env.prompt?.promptId} ${env.prompt?.input?.type || "?"}: engine ${env.engineMs ?? "-"} ms, emit ${env.emitMs ?? "-"} ms`);
+          noteSample(ttsStats.engine, env.prompt?.input?.type || "?", env.engineMs);
+          this.trips = (this.trips || 0) + 1;
           const ok = guarded(`${this.color} prompt ${env.prompt?.input?.type}`, () => (onPrompt(this, env.prompt), true));
           if (!ok) chat(`[MTG] Couldn't show the engine's question (${env.prompt?.input?.type || "?"}); see the bridge log. Try "mtg reset" if the game is stuck.`, this.color);
         }
@@ -7597,6 +7644,7 @@ function onPrompt(seat, prompt) {
   }
   seat.prompt = { promptId: prompt.promptId, type, toOutput, input, sentAt: performance.now(), picks: [], ui, forP };
   if (process.env.MTG_TRACE) log(`prompt ${seat.color} #${prompt.promptId}: ${type} "${ui.title}"`);
+  if (seat.tripsOpen) { seat.tripsOpen = false; noteSample(ttsStats.trips, "after an answer", seat.trips); }
   toTTS({ t: "prompt", color: seat.color, promptId: prompt.promptId, ...ui });
   armTimer(seat);
 }
@@ -7884,6 +7932,12 @@ function sacrificedIfInstant(card) {
 // is open, one this seat controls: see actingFor)
 function sorceryTime(seat, gv) {
   return gv.activePlayerId === (seat.prompt?.forP || seat.slot) && /main/i.test(gv.step || "") && !(gv.stack || []).length;
+}
+
+// A player's answer or gesture starts a count of the engine questions until the next one shown to them (GET /stats trips)
+function startTrips(color) {
+  const seat = game?.seats?.get(color);
+  if (seat) { seat.trips = 0; seat.tripsOpen = true; }
 }
 
 function onIntent(m) {
@@ -8262,6 +8316,7 @@ function onTTS(m) {
       onDecks(m);
       break;
     case "intent":
+      startTrips(m.color);
       onIntent(m);
       break;
     case "autoresolve": {
@@ -8317,6 +8372,7 @@ function onTTS(m) {
       break;
     }
     case "answer":
+      startTrips(m.color);
       onAnswer(m.color, m.promptId, m.choice);
       break;
     case "rewind":
@@ -9120,25 +9176,7 @@ function checkRestored(seat) {
   if (!turnBack && !pointsBack && !voteBack) return;
   log(`${seat.color}: the game was rewound (turn ${wasTurn} -> ${turn} ${gv.step}${pointsBack ? `, restore points ${wasNewest} -> ${newest}` : ""}${voteBack ? `, vote ${approved} approved` : ""})`);
   if (seat.prompt) closePrompt(seat);
-  // (what the player asked for before the rewind is undone with it: End turn answered the redone turn's priority by
-  // itself, stage 3 review 2026-10-27)
-  seat.endTurnAt = null;
-  seat.resolveStack = null;
-  seat.queuedPlay = null;
-  seat.attachTo = null;
-  // (and the other answers kept for the player: the next target, a search's Done, an unless round, a payment in
-  // progress; the rewind kept them, suite review 2026-10-27)
-  seat.targetPicks = null;
-  seat.cardsDone = null;
-  seat.unless = null;
-  seat.autoPayCard = null;
-  seat.autoPayFailedFor = null;
-  // (and our own auto-pay: left set, the same card's payment asked again after the rewind would be tapped without
-  // asking, suite review 2026-11-05)
-  seat.smartPay = null;
-  seat.tappedFor = null;
-  seat.payingCost = null;
-  seat.forget();
+  seat.clearFollowUps();
   game.pendingPlays = (game.pendingPlays || []).filter((e) => e.ctl !== seat.slot);
   if (seat === leadSeat()) {
     chat(`[MTG] Rewound to turn ${gv.turn} (${rewindStep(gv.step)}).`);

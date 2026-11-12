@@ -190,12 +190,15 @@ Seat fields: `color, deckId, username, slot, board{state,fingerprint}, prompt{pr
 - Console log with seconds since `t0`. No return.
 
 #### `toTTS(customMessage)` — br:33
-- Pushes `{t, json: JSON.stringify(customMessage)}` onto `outbox`. If `!sending`, calls `pump()`.
+- Pushes `{t, msg, queuedAt}` onto `outbox`; a prompt (a question or its close) goes in ahead of the waiting messages
+  in `QUESTION_PASSES` (boards, log lines, rules texts) at the end of the line, never ahead of another prompt, a chat,
+  a refusal or a clear (2026-11-11, `docs/slow-tail-2026-11.md`). If `!sending`, calls `pump()`.
 - Reads/writes `outbox`, `sending`. Called by everything that talks to TTS.
 
 #### `pump()` — br:37
 - Shifts one message. If none: `sending = false` and returns.
-- Else `sending = true`; opens TCP to `TTS_OUT`, writes `{messageID:2, customMessage}` and ends. On `close`, calls `pump` again (one message at a time, in order). On `error` with `ECONNREFUSED`, logs "TTS not reachable".
+- Records how long it waited (`ttsStats.wait`, GET /stats; `q` in an MTG_RECORD line).
+- Else `sending = true`; opens TCP to `TTS_OUT`, writes `{messageID:2, customMessage}` and ends. On `close`, calls `pump` again (one message at a time, in outbox order). On `error` with `ECONNREFUSED`, logs "TTS not reachable".
 - Notes: a message that fails to send is dropped; the queue moves on because `close` follows `error`. If TTS is down, every message logs one line.
 
 #### `chat(text, color)` — br:45
@@ -692,8 +695,10 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 #### `firstLine(s)` — er:82
 - The text up to the first newline.
 
-#### `isInHand(o, color)` — er:84
-- True if `o` is among that player's hand objects.
+#### `isInHand(o, color, index, seen)` — er:84
+- True if `o` is among that player's hand objects (hand `index`, 1 by default).
+- With `seen` (a board's render, from `place`): each hand's list is asked once per board and kept in the global
+  `engineHandCache` until the next board's `seen` (2026-11-11: it was one `getHandObjects` per hand card).
 
 #### `keepOnly(id, obj)` — er:92
 - Destroys every other object whose GMNotes equal `engine:<id>`. Scans all objects.
@@ -1336,7 +1341,7 @@ Needs our engine build: `stack/compose.yml` runs `mtg-forge-node:exile` and `mtg
 |---|---|---|
 | bridge | `cardKeywords(c)` → `statusLists` → `kw`, `ow` | `kw`: keywords a card has that its own text doesn't name, in words ("Toxic 1", "Hexproof from red", "Swampwalk", "Protection from black"), plus goaded, exerted and the like. `ow`: its own always-on keywords (`ALWAYS_ON`), sent only when the card has a `kw` or is phased out. Forge's internal names left out (`NOT_KEYWORD`) |
 | table | `badgeParts` `kw` | the status box: one box at the bottom edge of the art, every status, `kw` then `ow`, wrapped at 20 characters, growing up the card, PHASED OUT on top. Turned to stay upright on a tapped card. Ability buttons stay separate, above it |
-| bridge | `checkRestored` | a rewind is told by the turn going down, the newest restore point going down, or a newly seen approved vote (`seat.lastApprovedVote`); it clears End turn and the records, the answers kept for the log (`game.picked`, `game.answers`, `game.sourceShields`, `game.painTaps`, `game.declaredBlocks`) and how a player it brought back went out (`outOrder`, `outWhere`), says "[MTG] Rewound to turn N (step)." in chat, logs one "--- Rewound to <player>'s turn (step) ---" line (the step in the table's words, `rewindStep`: the rewind list's own, else `STEP_WORDS`, never Forge's name such as "combatBegin") and makes the board it went back to the log's new start (`game.logPrev = null`) |
+| bridge | `checkRestored` | a rewind is told by the turn going down, the newest restore point going down, or a newly seen approved vote (`seat.lastApprovedVote`); it clears End turn and the records (`seat.clearFollowUps()`, the list in `Seat.FOLLOW_UPS`, and `lately`), the answers kept for the log (`game.picked`, `game.answers`, `game.sourceShields`, `game.painTaps`, `game.declaredBlocks`) and how a player it brought back went out (`outOrder`, `outWhere`), says "[MTG] Rewound to turn N (step)." in chat, logs one "--- Rewound to <player>'s turn (step) ---" line (the step in the table's words, `rewindStep`: the rewind list's own, else `STEP_WORDS`, never Forge's name such as "combatBegin") and makes the board it went back to the log's new start (`game.logPrev = null`) |
 | bridge | `chooseBoardTargets` `seat.targetPicks` | the player's picks for a whole target question; Forge's one-at-a-time follow-ups for the same card are answered from them (the rest, then Done) |
 | bridge | `CONFIRMS` | the "Sacrifice X" / "pay N life" auto-yes also matches Forge's bare title (no "?") |
 | table | `engineLifePayOption(p)`, `engineRowUpdate` | a cost payable with life puts Auto-pay / Pay N life / Cancel in the card row; the hint names it |
