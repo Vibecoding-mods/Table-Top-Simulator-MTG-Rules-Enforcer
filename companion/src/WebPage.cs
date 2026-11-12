@@ -107,6 +107,7 @@ pre.log { margin: 0; padding: 12px 16px; max-height: 340px; overflow: auto; bord
 .tt-line:first-child { margin-top: 0; }
 .tt-status { color: var(--muted); overflow-wrap: anywhere; }
 .tt-list { display: grid; gap: 6px; margin-top: 8px; }
+.tt-list[hidden] { display: none; }
 .tt select, .tt input[type='text'], .tt input[type='number'], .tt textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--panel2); border: 1px solid #3a414c; border-radius: 8px; padding: 6px 10px; max-width: 100%; }
 .tt textarea { width: 100%; font: 13px/1.45 Consolas, 'Cascadia Mono', ui-monospace, monospace; resize: vertical; }
 .tt input[type='number'] { width: 6em; }

@@ -127,7 +127,13 @@ The user's list, in their order. Most items need a running TTS table in debug mo
         - Set life: 0–999.
         - Untap all: every tapped permanent that player controls.
         - Mana needed no harness op: the `mana` op already exists.
-      - **Draw and mill: built 2026-11-11 in source, need an engine image rebuild.** The engine's board never shows
+      - **Draw and mill: built 2026-11-11 in source; in every engine image since `batch1112` (2026-11-12), so the
+        deployed `batch2-1112` (node 975d62f6279e, relay 57aa07a9b314) has them.** Checked 2026-11-12 on that image:
+        harness-tests.sh 12 of 12 classes (ApplyStateDrawMillTest included), and a headless live check (the bridge's
+        own debug tool building the directive from the live board, sent to the engine) 20 of 20: draw 2 (library -2,
+        hand +2, two `draw` events, which name no card since both zones are hidden), mill 3 and mill the whole
+        library (library to 0, graveyard up by as many, one `mill` event each), the bridge refusing a mill from the
+        empty library, and a raw engine mill from it applied with nothing moved. The engine's board never shows
         library cards (the library zone is empty in every view), so no fix op can move one. They are new harness
         StateOps, `draw` and `mill` (`player`, `n`: 1–99 from the page), in engine/manabrew.patch: applyState makes
         them after its other ops with triggers on, as it does the free plays, through Forge's own `Player.drawCards`
