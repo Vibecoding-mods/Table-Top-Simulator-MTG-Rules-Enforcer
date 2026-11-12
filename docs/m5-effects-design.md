@@ -383,7 +383,9 @@ knockout" says where the two links go.
   - One object with one trigger effect per sound, named `death`, `counter`, `damage`, `knockout`, each a
     `TTSSound` with `Positional3D` off.
   - `engineSoundPlay` finds the object by GM notes once, maps names to indexes with `AssetBundle.getTriggerEffects()`
-    (cached), and calls `playTriggerEffect(index)`.
+    (cached), and calls `playTriggerEffect(index)`. (2026-11-11: an empty list, a bundle still loading, is asked again
+    with the next sound instead of kept; with no sound object on the table, a name looks over the objects at most every
+    5 s. The bundle's contents and build: `docs/m5-assetbundle-build.md`.)
   - Limits:
     - needs Unity 6000.0.62f1 and the step 3 test (do other players hear it?);
     - no volume from Lua (`TTSSound` has only `Audio` and `Positional3D`), so loudness is set in the clip (−16 to −18

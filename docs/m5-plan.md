@@ -102,6 +102,13 @@ How:
 
 ## Step 4 (earlier plan): the effect bundle (about 3–5 days, after step 3)
 
+**Lua side built 2026-11-11** (the bundle itself waits for Unity 6000.0.62f1): rigs are `engine:fx` objects found at a
+game's first board, moved and triggered by name, falling back to the Object UI slots; route B sounds by name from the
+`engine:sounds` object. What the Unity build must contain, the command-line build and the two-client test:
+`docs/m5-assetbundle-build.md`. With the bundle links in `engineFxBundle` and none on the table, a game's first board
+spawns the 6 rigs and the sound object once; they stay in the save after that (never destroyed: `destruct` costs
+~360 ms here). No link: nothing changes.
+
 One small AssetBundle, under ~5 MB, made from CC0 textures (Kenney particle pack) with Unity's standard particle system (Shuriken). No Asset Store packs, since they can't be redistributed in a public mod. At load, a pool of rigs is spawned under the table, then moved and triggered when needed:
 
 | Rig | Used for | Look (from the Arena frames) | Length |
