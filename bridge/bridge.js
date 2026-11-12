@@ -5420,6 +5420,16 @@ function entityWords(options, gv) {
   return { labels, players, walkers, defenders, onField };
 }
 
+// The creature such a list chooses a defender for (CR 506.3b, a creature put onto the battlefield attacking: Forge's
+// addToCombat passes it as the chooser's "Attacker"): the harness sends Forge's own question, "Choose which defender to
+// attack with <name>", as the description and the creature as the question's one target. { id, name }, or null for any
+// other list, or from an engine that doesn't send it.
+function defenderChoiceAttacker(input) {
+  const asked = /^Choose which defender to attack with (.+)$/.exec(String(input.presentation?.description || "").trim());
+  const targets = input.presentation?.targets || [];
+  return asked && targets.length === 1 && targets[0].kind === "card" && targets[0].id ? { id: targets[0].id, name: asked[1] } : null;
+}
+
 // What each engine question is, for the table: `kind` on every prompt message (plus `dest: "library"` when the chosen
 // cards go to the library). Steps of a question set their own kind ("order", "place", "number", "choice").
 const PROMPT_KIND = {
@@ -6986,15 +6996,20 @@ function onPrompt(seat, prompt) {
       // players and permanents to choose from, no target (see entityChoiceIds): asked as a target question, so a life
       // counter or the card (a planeswalker) answers it by a click; the answer goes back as the options' numbers
       const entity = input.options.length > 1 && entityChoiceIds(input.options, gv);
+      // (a creature put onto the battlefield attacking chooses whom it attacks, CR 506.3b: the harness names it, see
+      // defenderChoiceAttacker, so the title says which creature and the table lights it, ui.attacker; Hero of Bladehold's
+      // two tokens, asked one by one, read alike, live check 2026-11-11)
+      const attacker = defenderChoiceAttacker(input);
+      const who = attacker && (byId[attacker.id] ? cardLabel(byId[attacker.id]) : attacker.name);
       if (entity) {
         const players = entity.some((v) => v.startsWith("player|"));
         const walkers = entity.filter((v) => v.startsWith("card|")).every((v) => (byId[v.slice(5)]?.types || []).includes("Planeswalker"));
         const what = `${players ? "player or " : ""}${walkers ? "planeswalker" : "permanent"}`;
-        // (a creature put onto the battlefield attacking chooses whom it attacks, CR 506.3b: Forge's own title, "Choose
-        // which defender to attack with ...", is not sent, only the card's name)
+        // (from an engine that doesn't name the creature: whom it attacks is read from the card's words)
         const attacks = players && walkers && /\battacking\b/i.test(String(prompt.sourceAbilityText || srcCardText));
-        ui = { kind: "target", title: `${src ? `${src}: ` : ""}${attacks ? "attack which" : "choose which"} ${what}?`, mode: "multi",
-          min: input.minTotal ?? 1, max: input.maxTotal ?? 1, options: entity.map((v) => ({ id: v, label: cname(v.split("|")[1]) })) };
+        ui = { kind: "target", title: `${src ? `${src}: ` : ""}${who ? `${who} attacks which` : attacks ? "attack which" : "choose which"} ${what}?`, mode: "multi",
+          min: input.minTotal ?? 1, max: input.maxTotal ?? 1, options: entity.map((v) => ({ id: v, label: cname(v.split("|")[1]) })),
+          ...(attacker ? { attacker: attacker.id } : {}) };
         toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map((v) => entity.indexOf(v)).filter((i) => i >= 0) });
         break;
       }
@@ -7009,8 +7024,9 @@ function onPrompt(seat, prompt) {
         const what = `${words.players ? "player or " : ""}${words.walkers ? "planeswalker" : words.onField ? "permanent" : "card"}`;
         const attacks = words.players && words.defenders && /\b(?:create|put|return)s?\b[^.]*\battacking\b/i.test(rules);
         const token = attacks && /\btokens?\b[^.]*\battacking\b/i.test(rules);
-        ui = { title: `${src ? `${src}: ` : ""}${token ? "the token attacks whom?" : attacks ? "attack whom?" : `choose which ${what}?`}`, mode: "multi",
-          min: input.minTotal ?? 1, max: input.maxTotal ?? 1, options: opts(words.labels.map((label, i) => ({ id: i, label }))) };
+        ui = { title: `${src ? `${src}: ` : ""}${who ? `${who} attacks whom?` : token ? "the token attacks whom?" : attacks ? "attack whom?" : `choose which ${what}?`}`, mode: "multi",
+          min: input.minTotal ?? 1, max: input.maxTotal ?? 1, options: opts(words.labels.map((label, i) => ({ id: i, label }))),
+          ...(attacker ? { attacker: attacker.id } : {}) };
         toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map(Number) });
         break;
       }
