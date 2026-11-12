@@ -1383,7 +1383,7 @@ index fb82e6d..0d51968 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..5f4cc7e 100644
+index 643e5de..ed64afe 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,12 +6,15 @@ import forge.harness.common.ParityCardMap;
@@ -2079,7 +2079,7 @@ index 643e5de..5f4cc7e 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2464,402 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2464,403 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2233,6 +2233,7 @@ index 643e5de..5f4cc7e 100644
 +        final CardZoneTable table = AbilityKey.addCardZoneTableParams(moveParams, mill);
 +        game.getAction().mill(new PlayerCollection(player), n, ZoneType.Graveyard, mill, moveParams);
 +        table.triggerChangesZoneAll(game, mill);
++        game.getTriggerHandler().runWaitingTriggers();
 +    }
 +
 +    private Card stateOpHost(final Player owner) {
@@ -2482,7 +2483,7 @@ index 643e5de..5f4cc7e 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +2892,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +2893,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -2499,7 +2500,7 @@ index 643e5de..5f4cc7e 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +2936,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +2937,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -2508,7 +2509,7 @@ index 643e5de..5f4cc7e 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +2979,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +2980,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -2531,7 +2532,7 @@ index 643e5de..5f4cc7e 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3023,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3024,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -2562,7 +2563,7 @@ index 643e5de..5f4cc7e 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,16 +3287,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,16 +3288,21 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -2586,7 +2587,7 @@ index 643e5de..5f4cc7e 100644
          }
          final List<AttackTargetDto> attackTargets = new java.util.ArrayList<>();
          for (final GameEntity defender : combat.getDefenders()) {
-@@ -2596,7 +3309,114 @@ public final class ManaBrewInteractiveSession {
+@@ -2596,7 +3310,114 @@ public final class ManaBrewInteractiveSession {
                      defenderId(defender), defender.getName(),
                      enumFromWire(defenderKind(defender), AttackTargetKind.class)));
          }
@@ -2702,7 +2703,7 @@ index 643e5de..5f4cc7e 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2918,7 +3738,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +3739,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2712,7 +2713,7 @@ index 643e5de..5f4cc7e 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +3749,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +3750,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -2738,7 +2739,7 @@ index 643e5de..5f4cc7e 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +3781,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +3782,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -2749,7 +2750,7 @@ index 643e5de..5f4cc7e 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +3809,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +3810,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
