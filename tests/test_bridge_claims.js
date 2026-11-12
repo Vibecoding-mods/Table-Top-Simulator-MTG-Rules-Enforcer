@@ -4265,6 +4265,84 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("names: no username anywhere in what the table got", !/self-hosted-node|tts-Blue-ab12/i.test(JSON.stringify(h.effects.filter((e) => e.tts))));
     harness.restore();
   }
+  // Prepared (HAND-TEST-HP06 #20, notePrepared): Forge's AlterAttributeEffect puts a token copy of the creature's prepare
+  // spell, made from the creature's own paper card (CopyPermanentEffect.getProtoType: its set and collector number, the
+  // spell's name), into the preparer's exile; the harness sends no prepared flag. Grave Researcher // Reanimate, SOS 85,
+  // Forge's own text.
+  {
+    const RESEARCHER_TEXT = "At the beginning of your upkeep, surveil 1. Then if there are three or more creature cards in your graveyard, this creature becomes prepared. (While it's prepared, you may cast a copy of its spell. Doing so unprepares it.)";
+    const ZONES = ["library", "hand", "graveyard", "exile", "battlefield", "command"];
+    const blank = () => ({ turn: 3, step: "upkeep", activePlayerId: "player-0", priorityPlayerId: "player-0", stack: [],
+      zones: ["player-0", "player-1"].flatMap((ownerId) => ZONES.map((zone) => ({ zone, ownerId, cards: [], count: 0 }))) });
+    const board = (fill) => { const b = blank(); fill(b); return b; };
+    const zoneOf = (b, zone, ownerId) => b.zones.find((x) => x.zone === zone && x.ownerId === ownerId);
+    const put = (b, zone, c, ownerId = "player-0") => { const z = zoneOf(b, zone, ownerId); z.cards.push(c); z.count = z.cards.length; };
+    const RESEARCHER = { id: "engine-card-1300", identity: { name: "Grave Researcher", setCode: "SOS", cardNumber: "85", isToken: false }, types: ["Creature"], subtypes: ["Troll", "Warlock"],
+      power: "3", toughness: "3", controllerId: "player-0", ownerId: "player-0", text: RESEARCHER_TEXT, visibility: "visible" };
+    const COPY = { id: "engine-card-1301", identity: { name: "Reanimate", setCode: "SOS", cardNumber: "85", isToken: true }, types: ["Sorcery"], manaCost: "{B}",
+      text: "Put target creature card from a graveyard onto the battlefield under your control. You lose life equal to its mana value.", controllerId: "player-0", ownerId: "player-0", mayPlay: true, visibility: "visible" };
+    // (a token of no prepare: Forge's token script, so never a copy, though its printing matches nothing anyway)
+    const ZOMBIE = { id: "engine-card-1302", identity: { name: "Zombie Token", setCode: "SOS", cardNumber: "", isToken: true, tokenScript: "b_2_2_zombie" }, types: ["Creature"], controllerId: "player-0", visibility: "visible" };
+    const between = (before, after, events) => {
+      const h = harness.load();
+      setup(h, clone(F.board), { eventSeq: 10 });
+      const lines = h.B.logEvents(h.B.logSnapshot(before), h.B.logSnapshot(after), after, h.B.engineFacts(events));
+      harness.restore();
+      return lines;
+    };
+    const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+    const ev = (seq, from, to, cardId) => ({ seq, cardId, ...(from ? { from } : {}), to, ownerId: "player-0" });
+    const bare = (b) => { put(b, "battlefield", RESEARCHER); };
+    const prepared = (b) => { put(b, "battlefield", RESEARCHER); put(b, "exile", COPY); put(b, "exile", ZOMBIE); };
+    // (Forge's move list as the copy appears: Zone.add fires no change-zone event, so only an earlier move is in the ring)
+    const ring = [ev(11, "Library", "Graveyard", "engine-card-1399")];
+    same("prepared: the copy's arrival reads as the creature becoming prepared, not as a card exiled",
+      between(board(bare), board(prepared), ring).filter((l) => /Reanimate|Researcher/.test(l)), ["Grave Researcher becomes prepared (Reanimate)"]);
+    // the cast: the copy on the stack, from Blue's priority
+    const cast = (b) => { bare(b); put(b, "exile", ZOMBIE); b.stack = [{ id: "engine-stack-40", controllerId: "player-0", ownerId: "player-0", sourceId: COPY.id, identity: { name: "Reanimate", isToken: true }, text: COPY.text, isCasting: false }]; };
+    same("prepared: casting the copy names the creature that was prepared",
+      between(board(prepared), board(cast), ring), ["Blue casts Reanimate (prepared by Grave Researcher)"]);
+    // cast and resolved between two boards (an AI's): Forge's move off the stack into the graveyard
+    const resolved = (b) => { bare(b); put(b, "exile", ZOMBIE); };
+    same("prepared: a copy cast unseen still reads as its cast, not as a card leaving exile",
+      between(board(prepared), board(resolved), [ev(11, "Stack", "Graveyard", COPY.id)]), ["Blue casts Reanimate (prepared by Grave Researcher)"]);
+    same("prepared: a copy gone with its creature still there and no cast reads as unprepared",
+      between(board(prepared), board(resolved), ring), ["Grave Researcher becomes unprepared"]);
+    // the creature leaving: its own line only, the copy ceasing to exist with it says nothing
+    const died = (b) => { put(b, "graveyard", RESEARCHER); put(b, "exile", ZOMBIE); };
+    same("prepared: the creature dying takes its copy with it, unsaid",
+      between(board(prepared), board(died), [ev(11, "Battlefield", "Graveyard", RESEARCHER.id)]), ["Grave Researcher dies"]);
+    // the table: the badge on the creature, the copy tied to it, both gone once the copy is
+    {
+      const h = harness.load();
+      const b = clone(F.board);
+      const gv = b.gameView;
+      gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push(clone(RESEARCHER));
+      gv.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0").cards.push(clone(COPY), clone(ZOMBIE));
+      const seat = setup(h, b);
+      h.B.sendTable(); await h.flush();
+      const table = sent(h, "table")[0] || { players: [] };
+      const blue = table.players.find((p) => p.slot === "player-0") || {};
+      const host = (blue.battlefield || []).find((c) => c.id === RESEARCHER.id);
+      const copy = (blue.exile || []).find((c) => c.id === COPY.id);
+      const zombie = (blue.exile || []).find((c) => c.id === ZOMBIE.id);
+      ok("prepared: the creature's status box says it is prepared, its spell and who may cast it",
+        (host?.kw || []).includes("Prepared: Reanimate — Blue may cast a copy"), JSON.stringify(host));
+      ok("prepared: the copy in exile is tied to its creature (linked exile)", copy?.ew === RESEARCHER.id, JSON.stringify(copy));
+      ok("prepared: the copy's hover says it is the creature's copy, not a card", (copy?.nt || []).some((n) => n.startsWith("Prepared by Grave Researcher: a copy of its spell, not a card.")), JSON.stringify(copy));
+      ok("prepared: and so does its entry in the playable row", ((blue.playable || []).find((c) => c.id === COPY.id)?.nt || []).some((n) => n.startsWith("Prepared by Grave Researcher")), JSON.stringify(blue.playable));
+      ok("prepared: a token with a token script is no copy", zombie && zombie.ew === undefined && !zombie.nt, JSON.stringify(zombie));
+      // cast: the copy left exile, the creature is unprepared
+      const after = clone(b);
+      after.gameView.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0").cards = [clone(ZOMBIE)];
+      seat.board = { state: after, fingerprint: null };
+      h.B.sendTable(); await h.flush();
+      const t2 = sent(h, "table").at(-1) || { players: [] };
+      const host2 = (t2.players.find((p) => p.slot === "player-0")?.battlefield || []).find((c) => c.id === RESEARCHER.id);
+      ok("prepared: the badge clears once the copy is gone (cast, or unprepared)", t2 !== table && host2 && !(host2.kw || []).some((k) => /^Prepared/.test(k)), JSON.stringify(host2));
+      harness.restore();
+    }
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();

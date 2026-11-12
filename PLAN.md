@@ -6,6 +6,19 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 
 ---
 
+## 2026-11-12
+- 🔶 (in source, not seen live) Prepared readable on the table (docs/HAND-TEST-HP06.md #20; Grave Researcher, Emeritus
+  of Conflict). No engine change: the harness sends no prepared flag and leaves Forge's immutable "<card>'s Prepared
+  Spell" effect out of the command zone, but the spell copy Forge makes in exile is a token built from the creature's
+  own paper card (same set and collector number, the spell's name, no token script), so the bridge's `notePrepared`
+  ties it to its creature. The creature's status box says "Prepared: Reanimate — White may cast a copy" (cleared when
+  the copy leaves exile: cast, the creature gone, or "becomes unprepared"); the copy is a linked exile under the
+  creature (`ew`) when it isn't in a seated player's playable row, and its hover says it is the creature's copy, not a
+  card. Log: "Grave Researcher becomes prepared (Reanimate)" in place of "Reanimate is exiled", "White casts
+  Reanimate (prepared by Grave Researcher)", "Grave Researcher becomes unprepared"; the copy ceasing with its creature
+  says nothing. Gap: two prepared creatures of one printing at once may swap names. Tests: tests/test_bridge_claims.js
+  "prepared:" (11 checks). Needs a look on the real table.
+
 ## 2026-11-11
 - ✅ Round 3 live check (deploy 05641398 / 71f6557, scenarios/live-r3.json, White vs a Forge AI, 21:36–22:01):
   - passed:
