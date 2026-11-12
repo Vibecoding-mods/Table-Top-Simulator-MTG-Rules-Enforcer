@@ -16,7 +16,7 @@ bash engine/build-images.sh
 
 ## Testing a build
 
-The harness unit tests (`MindslaverControlTest`, `ExtraTurnRewindTest` and the others under
+The harness unit tests (`MindslaverControlTest`, `ExtraTurnRewindTest`, `AttackDefenderChoiceTest` and the others under
 `forge-harness/src/test/java`) run in a throwaway container. `checks/harness-tests.sh` recompiles the harness's main and
 test sources from the tree you mount, against the Forge jar of a `java-builder` image, so the image only has to be rebuilt
 when Forge's own Java changes, not for a new harness class or test:
@@ -68,7 +68,9 @@ legal advice; the licence texts are what count.
   that can answer; a rewind puts the extra-turn queue back, and `extraTurnCount` counts every extra turn queued for a
   player; Mayhem (discarded this turn), Harmonize, Beam me up and plotted cards get `mayPlay`; and a Forge AI seat
   whose main deck is all lands (`ai_passive_lands`, the harmless bot) gets `PassiveLobbyPlayerAi`, which only plays
-  lands: no spells, no abilities, no opening-hand cards, no attack unless the rules force one.
+  lands: no spells, no abilities, no opening-hand cards, no attack unless the rules force one; and a creature put onto
+  the battlefield attacking (Hero of Bladehold's tokens) is named in its "attack whom?" question (Forge's question as
+  the description, the creature as its one target).
 - **Forge card scripts:** 29 scripts that remembered cards and never cleared them, so a second use acted on old cards
   (`docs/reviews/forge-remembered-audit.md`).
 - **Forge rules code:** `TriggerHandler.removeWaitingTapsForMana`, used by that undo.

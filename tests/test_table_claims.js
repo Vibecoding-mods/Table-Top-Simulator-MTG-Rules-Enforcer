@@ -2417,6 +2417,21 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     ok("pw click: a no-target choice of player or planeswalker: its click answers", sent(r, "click").includes(`"choice":["card|${pw}"]`), sent(r, "click").slice(0, 300));
   }
   {
+    // the creature that defender is for (the bridge's ui.attacker, the harness's named token): lit red, as a picked
+    // attacker, on the target question and on the panel's question in words; the next question puts it out
+    const token = blueList[0] && blueList[0].id;
+    const r = run([board, ask({ promptId: 9708, kind: "target", title: "Hero of Bladehold: Soldier Token 1/1 attacks which player or planeswalker?", mode: "multi", min: 1, max: 1,
+      attacker: token, options: [{ id: "player|player-1", label: "AI 1" }, { id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), look(token, "lit"), look(pw, "walker"),
+    ask({ promptId: 9709, title: "Hero of Bladehold: Soldier Token 1/1 attacks whom?", mode: "multi", min: 1, max: 1, attacker: token,
+      options: [{ id: 0, label: "AI 1" }, { id: 1, label: "Chandra, Torch of Defiance (AI 1's planeswalker) #1" }, { id: 2, label: "Chandra, Torch of Defiance (AI 1's planeswalker) #2" }] }), look(token, "panel"),
+    ask({ promptId: 9710, kind: "target", title: "Lightning Bolt: deal 3 damage to which target?", mode: "single", options: [{ id: "player|player-1", label: "AI 1" }] }), look(token, "after")]);
+    ok("attacker light: precondition, the attacker is on the table", !!token && valueOf(r, "lit") !== "none", valueOf(r, "lit"));
+    ok("attacker light: the attacker glows red on the target question", /^[a-z]+\|true\|1\.00,0\.12,0\.08$/.test(String(valueOf(r, "lit"))), valueOf(r, "lit"));
+    ok("attacker light: the planeswalker it may attack still glows as a target", /\|true\|0\.30,1\.00,0\.40$/.test(String(valueOf(r, "walker"))), valueOf(r, "walker"));
+    ok("attacker light: the attacker glows red on the question in words", /^[a-z]+\|true\|1\.00,0\.12,0\.08$/.test(String(valueOf(r, "panel"))), valueOf(r, "panel"));
+    ok("attacker light: the next question puts it out", /^[a-z]+\|false\|/.test(String(valueOf(r, "after"))), valueOf(r, "after"));
+  }
+  {
     // offered with other cards but not this one ("target creature or planeswalker an opponent controls"): it says so
     const r = run([board, ask({ promptId: 9705, kind: "target", title: "Murder: destroy which creature or planeswalker?", mode: "single",
       options: [{ id: `card|${pw}`, label: "Chandra, Torch of Defiance" }] }), hint, click(mine, "click")]);
