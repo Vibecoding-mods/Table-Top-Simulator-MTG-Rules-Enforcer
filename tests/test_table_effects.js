@@ -816,7 +816,10 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   const q = t.all("rigq").map((s) => JSON.parse(s.value || "[]"));
   const spawns = (m) => t.fx(m).filter((l) => l.includes('"spawnObjectData" "Custom_Assetbundle"'));
   ok("links: 7 bundle objects spawned at the first board (6 rigs, 1 sound object)", spawns("first board").length === 7, JSON.stringify(spawns("first board")));
-  ok("links: the 6 rigs parked under the table", q[0].length === 6 && q[0].every((r) => near(r.y, -30)), JSON.stringify(q[0]));
+  // (the fake calls onObjectSpawn as TTS does; the stray-card watcher there deleted every rig a frame after its spawn,
+  // live check batch 2 2026-11-12, bug A2)
+  ok("links: the spawned bundle objects survive onObjectSpawn's stray-card watcher", q[0].length === 6 && t.value("sound object").lock === true, JSON.stringify(q[0].length));
+  ok("links: the 6 rigs parked under the table",q[0].length === 6 && q[0].every((r) => near(r.y, -30)), JSON.stringify(q[0]));
   const so = t.value("sound object");
   ok("links: the sound object parked under the table, locked", near(so.y, -30) && so.lock === true, JSON.stringify(so));
   ok("links: a spawned rig plays the death", JSON.stringify(playedSince(q[0], q[1], RIG_NAMES).map((p) => p.name)) === '["death"]', JSON.stringify(q[1]));

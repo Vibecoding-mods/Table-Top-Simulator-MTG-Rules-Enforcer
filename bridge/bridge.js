@@ -1823,7 +1823,8 @@ function choiceWords(c, views) {
 // "Toxic:1" -> "Toxic 1", "Hexproof:Red" -> "Hexproof from red", "Landwalk:Swamp" -> "Swampwalk",
 // "Protection:Card.Black:black" -> "Protection from black". Its internal ones are left out: "ETBReplacement:...", and
 // the run-together names ("MayFlashSac", "AlternateAdditionalCost") and the few plain words that aren't keywords
-// ("Chapter:3:DBSacrifice,..." read "Chapter from DBSacrifice,..." on a Saga, Ur-Dragon game 2026-11-01).
+// ("Chapter:3:DBSacrifice,..." read "Chapter from DBSacrifice,..." on a Saga, Ur-Dragon game 2026-11-01; a dungeon's
+// "Dungeon:DBEntrance,..." boxed its room list, live check batch 2 2026-11-12).
 // Its own keywords are returned too, those that are always on: Equip or Cycling on a permanent is no status.
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // The ids of one kind in a player's target picks ("card|engine-card-5", "player|player-1": the boardTargets answer's)
@@ -1832,7 +1833,7 @@ const pickedIds = (ids, kind) => (ids || []).filter((t) => t.startsWith(`${kind}
 // source " or its zone headings): titled so, and never offered as a library search. Seat.respond's own looser test of
 // the raw words only adds the "chooses" line.
 const isSourceChoice = (input) => !!input.sourceHeadings || /^Choose a source\b/i.test(String(input.presentation?.description || "").trim());
-const NOT_KEYWORD = /Replacement|^ETB|^Hidden|^Static|^Trigger|^[A-Z][a-z]+[A-Z]|^(Chapter|Class|Visit|Prize|Piracy)$/;
+const NOT_KEYWORD = /Replacement|^ETB|^Hidden|^Static|^Trigger|^[A-Z][a-z]+[A-Z]|^(Chapter|Class|Visit|Prize|Piracy|Dungeon)$/;
 const ALWAYS_ON = /^(Flying|First Strike|Double Strike|Deathtouch|Lifelink|Trample|Vigilance|Haste|Reach|Menace|Hexproof|Indestructible|Defender|Shroud|Ward|Protection|Fear|Intimidate|Skulk|Shadow|Horsemanship|Flanking|Banding|Infect|Wither|Toxic|Afflict|Annihilator|Exalted|Prowess|Bushido|Rampage|Battle Cry|Dethrone|Undying|Persist|Absorb|Melee|Mentor|Training|Riot|Backup|Changeling|\w+walk)\b/i;
 // Whether a card has a keyword: Forge's keyword string starts with it and no more letters follow ("Suspend 1—{R}",
 // "Suspend:3:..." are Suspend; Flashback is not Flash). One reader for every such check: "/flash/i" matched Flashback,
@@ -2892,6 +2893,9 @@ function logEvents(prev, cur, pub, facts = null) {
       || (onlyCounter && onlyCounter.id !== id ? onlyCounter.name : null);
     return name ? ` by ${name}` : "";
   };
+  // (a countered spell by the face cast, its stack item's name: Valki cast as Tibalt, Cosmic Impostor read "Valki, God of
+  // Lies is countered", live check batch 2 2026-11-12)
+  const castName = (id, c) => prevSpellOf.get(id)?.name ?? c.name;
   // (a counterspell that resolved with its target still on the stack: that spell can't be countered (Carnage Tyrant,
   // or a card such as Destiny Spinner), and Forge says nothing, so the counter looked broken; the user, 2026-11-10:
   // "you can't counter spell something". Its targets: Forge's, else the player's own picks this turn when it is the
@@ -3596,12 +3600,12 @@ function logEvents(prev, cur, pub, facts = null) {
         const gone = was.fd ? c.name : was.pn ? `${was.name} (${was.pn})` : tokenWords(was.name, was.token);
         leave(c.owner, gone, { kind, label: kind === "sacrificed" ? sacrificeWords(moved, was) : costWords(moved, c.name) });
       }
-      else if (countered) out.push(`${c.name} is countered${counteredBy(id)}`);
+      else if (countered) out.push(`${castName(id, c)} is countered${counteredBy(id)}`);
       // (by one no board showed on the stack, or by an ability: said after that spell's cast, below)
       else if (!from && counteredOff(id, c, moved)) {
         if (moved?.from === "Stack" && !fromStack(id, c)) out.push(`${who(c.owner)} casts ${c.name}`);
         // (by the face cast: "Tibalt, Cosmic Impostor is countered", not its card's front, Valki)
-        sayAfter(false, id, `${prevSpellOf.get(id)?.name ?? c.name} is countered${counteredBy(id)}`);
+        sayAfter(false, id, `${castName(id, c)} is countered${counteredBy(id)}`);
       }
       // (an epic spell resolved: its player's spells are gone for good, shown nowhere; Eternal Dominion, hp-23 gap)
       else if (!from && fromStack(id, c) && /(?:^|\n)Epic \(/.test(pubIndex[id]?.text || "")) out.push(`${who(c.owner)} can't cast spells for the rest of the game (epic); at each of their upkeeps, ${c.name} is copied`);
@@ -3629,7 +3633,7 @@ function logEvents(prev, cur, pub, facts = null) {
       // (a spell countered into exile, Dissipate's "exile it instead", or one with flashback: read "Craw Wurm is exiled",
       // keyword sweep kw-14. By a counterspell only: one that exiles a spell, Mindbreak Trap, doesn't counter it.)
       if (moved?.from === "Stack" && !fromStack(id, c)) out.push(`${who(c.owner)} casts ${c.name}`);
-      sayAfter(exileCountered, id, `${c.name} is countered${counteredBy(id)} and exiled`);
+      sayAfter(exileCountered, id, `${castName(id, c)} is countered${counteredBy(id)} and exiled`);
     } else if (c.zone === "exile") {
       const k = exileKind(id, c, from, was, moved);
       // (exiled with a permanent, its counters and whether it comes back: Mairsil's cage read "Ancient Copper Dragon is
@@ -3655,8 +3659,8 @@ function logEvents(prev, cur, pub, facts = null) {
       const how = from !== "battlefield" || !moved ? null : moved.how === "sacrificed" ? "is sacrificed"
         : moved.how === "destroyed" ? (was.creature ? "dies" : "is destroyed") : moved.through === "Graveyard" ? (was.creature ? "dies" : null)
         : moved.through === "Exile" ? "is exiled" : null;
-      out.push(countered ? `${c.name} is countered${counteredBy(id)} and returns to the command zone` : `${c.name} ${how ? `${how} and returns` : "returns"} to the command zone`);
-    } else if (c.zone === "command" && takenOff.get(id)?.how === "counter") sayAfter(false, id, `${c.name} is countered${counteredBy(id)} and returns to the command zone`);
+      out.push(countered ? `${castName(id, c)} is countered${counteredBy(id)} and returns to the command zone` : `${c.name} ${how ? `${how} and returns` : "returns"} to the command zone`);
+    } else if (c.zone === "command" && takenOff.get(id)?.how === "counter") sayAfter(false, id, `${castName(id, c)} is countered${counteredBy(id)} and returns to the command zone`);
     // (a spell that resolved in the turn just ended, on the board that began the next: its line before the turn header;
     // and one that took a spell seen on the stack then, cast in that turn too)
     if (turnBegan && out.length > n0 && !castNow.has(id) && (fromStack(id, c) || answeredOld.has(id))) oldTurn.push([n0, out.length]);

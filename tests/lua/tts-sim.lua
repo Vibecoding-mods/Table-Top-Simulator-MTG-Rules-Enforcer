@@ -575,6 +575,9 @@ function spawnObjectData(p)
     Transform = { posX = p.position and vec(p.position).x or 0, posY = p.position and vec(p.position).y or 0, posZ = p.position and vec(p.position).z or 0,
       rotX = p.rotation and vec(p.rotation).x or 0, rotY = p.rotation and vec(p.rotation).y or 0, rotZ = p.rotation and vec(p.rotation).z or 0, scaleX = 1, scaleY = 1, scaleZ = 1 } })
   o.__d.data = d
+  -- (TTS calls the script's onObjectSpawn for every object spawned: the stray-card watcher there deleted the effect
+  -- bundle's rigs a frame after they spawned, live check batch 2 2026-11-12, which a fake that never called it hid)
+  if type(_G.onObjectSpawn) == "function" then onObjectSpawn(o) end
   -- the picture numbers matter (big CustomDeck keys slow TTS's snapshots): record the card's and the deck's
   local keys = {}
   for k in pairs(d.CustomDeck or {}) do keys[#keys + 1] = tostring(k) end

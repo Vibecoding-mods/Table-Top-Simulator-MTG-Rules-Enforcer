@@ -880,6 +880,12 @@ const id = (n) => `engine-card-${n}`;
     const f = countered(FURY, card(68, "Fury", ["Creature"]));
     same("countered: Fury, as live", f, ["Fury is countered by Counterspell"]);
     same("countered: its card named too", f.countered, [id(68)]);
+    // (and by the face cast when the counterspell's target is known: White's own Counterspell on its Tibalt read "Valki,
+    // God of Lies is countered by Counterspell", live check batch 2 2026-11-12)
+    const aimed = between(board((b) => b.stack.push(TIBALT, { ...CS_ON("Tibalt, Cosmic Impostor"), targets: [{ kind: "spell", id: "engine-stack-3" }] })),
+      board((b) => { put(b, "graveyard", card(67, "Valki, God of Lies", ["Creature"])); put(b, "graveyard", COUNTERSPELL, "player-1"); }),
+      [ev(11, "Stack", "Graveyard", id(67)), ev(12, "Stack", "Graveyard", id(72), null, "player-1")]);
+    same("countered: a modal DFC's face countered by a targeted counterspell, by the face cast", aimed, ["Tibalt, Cosmic Impostor is countered by Counterspell"]);
     same("countered: a spell that resolved names nothing", between(board((b) => b.stack.push(FURY)), board((b) => put(b, "battlefield", card(68, "Fury", ["Creature"]))),
       [ev(11, "Stack", "Battlefield", id(68))]).countered, []);
   }

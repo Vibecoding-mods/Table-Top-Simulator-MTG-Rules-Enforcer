@@ -354,6 +354,9 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("status: phased out is a box, so its own keywords go too", phased?.po === true && JSON.stringify(phased?.ow) === '["Flying","Trample"]', JSON.stringify(phased?.ow));
     const junk = await look(["Chapter:3:DBSacrifice,DBDiscard,DBChangeZone", "MayFlashSac", "AlternateAdditionalCost:1:Sac", "Class:2:Foo", "Visit:Bar"]);
     ok("status: Forge's internal names are no status", junk?.kw === undefined, JSON.stringify(junk?.kw));
+    // (a dungeon's rooms list: "Dungeon DBEntrance,..." boxed on Lost Mine of Phandelver, live check batch 2 2026-11-12)
+    const rooms = await look(["Dungeon:DBEntrance,DBGoblinLair,DBMineTunnels,DBStoreroom,DBDarkPool,DBFungiCavern,DBTempleofDumathoin"]);
+    ok("status: a dungeon's room list is no status", rooms?.kw === undefined, JSON.stringify(rooms?.kw));
     harness.restore();
   }
   // "a click on a mana rock or creature at priority taps it, as its Mana: tap button does" (the play intent)
