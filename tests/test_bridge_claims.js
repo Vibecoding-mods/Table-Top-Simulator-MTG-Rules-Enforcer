@@ -179,6 +179,18 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("outbox: a waiting board is replaced, not sent twice", tables.length === 1, `${tables.length} boards`);
     ok("outbox: the replaced board's card details are kept", tables[0] && tables[0].cards.a && tables[0].cards.b, JSON.stringify(tables[0] && tables[0].cards));
   }
+  // "the exiled and countered ids are sent once too: ... the replaced board's go along" (toTTS outbox merge)
+  {
+    const h = harness.load();
+    setup(h, F.board);
+    h.B.toTTS({ t: "chat", text: "first" }); // in flight
+    h.B.toTTS({ t: "table", players: [], cards: {}, ctrd: ["c1"], exd: ["x1"] });
+    h.B.toTTS({ t: "table", players: [], cards: {}, ctrd: ["c2", "c1"] }); // replaces the waiting one
+    await h.flush();
+    const t = sent(h, "table")[0] || {};
+    ok("outbox: the replaced board's countered ids go along", JSON.stringify(t.ctrd) === '["c1","c2"]', JSON.stringify(t.ctrd));
+    ok("outbox: the replaced board's exiled ids go along", JSON.stringify(t.exd) === '["x1"]', JSON.stringify(t.exd));
+  }
   // "exactly one pick for a single choice" (answerProblem)
   {
     const h = harness.load();

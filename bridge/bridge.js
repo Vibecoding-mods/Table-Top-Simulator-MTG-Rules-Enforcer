@@ -68,6 +68,10 @@ function toTTS(customMessage) {
         if (!pl.keep.length) delete pl.keep;
       }
       customMessage = { ...customMessage, cards: { ...older.cards, ...customMessage.cards } };
+      // (the exiled and countered ids are sent once too: sendTable has already cleared them, so the replaced board's go along)
+      for (const k of ["exd", "ctrd"]) {
+        if (older[k]?.length) customMessage[k] = [...new Set([...older[k], ...(customMessage[k] || [])])];
+      }
       outbox.splice(i, 1);
     }
   }
