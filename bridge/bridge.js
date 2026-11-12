@@ -4283,9 +4283,8 @@ function sendTable() {
   const planar = planarRow(pub);
   const planes = planeCards.map((c) => slim({ ...toCard(c), ctl: planar?.controller || game.slotColor[c.controllerId] || null }));
   const stack = (pub.stack || []).map((s) => ({
-    // (Forge's stack text names cards with its own number: "Change the text of Goblin King (37) by ...", hp-25 T5)
-    // ("Ponder (18) - " in front, which the table's pop-up also cuts, goes first)
-    id: s.id, n: s.identity?.name || "?", tx: displayText(s.text || "").replace(/^[^\n]{0,100}?\(\d+\) - /, "").replace(/([A-Za-z'’,]) \(\d+\)/g, "$1"), ctl: game.slotColor[s.controllerId] || null,
+    // (its text without Forge's card numbers: stackText)
+    id: s.id, n: s.identity?.name || "?", tx: stackText(s), ctl: game.slotColor[s.controllerId] || null,
     src: s.sourceId || null, spell: !s.sourceAbilityText, // a spell's card is its source: the table moves that card
     ...(isSpellOfType(s, pub, "Instant") ? { ins: true } : {}), // (an instant spell: the table's instant sound)
     ...(isSpellOfType(s, pub, "Sorcery") ? { sor: true } : {}), // (a sorcery spell: the table's sorcery sound)
@@ -6286,6 +6285,60 @@ function endTurnHolds(seat, gv) {
   seat.endTurnAt = null;
   return false;
 }
+// "Resolve all" and "Resolve N× <name>" (seat.resolveStack): the seat's own priority passes while the stack resolves.
+// One round trip per stack item was most of a big stack's wait (3 games 2026-11-12: 49 Resolve and 43 Resolve all
+// presses, 26 of those cut short by the player's own new triggers, 450 ms a pass at one item and 1800 ms at 11+). Only
+// this seat's priority is passed: every other player, the AI and a second person, is still asked by the engine on each
+// item as usual, and a question (a target, a choice, an order) is asked as usual and the passing goes on after it.
+//   { ids: the stack items there at the press, by: whose priority was passed (forP or the seat), turn, step,
+//     passes: passes made, seen: stack signature -> times seen, group: the run's key ("Resolve N×") or null, left,
+//     label: the button's words, for the chat line }
+// A run of the same trigger on top of the stack (same controller, same source name, same text, no targets): Monk
+// Token's prowess from eight different tokens is one run.
+const RESOLVE_ALL_CAP = 200; // passes in a row, then it stops and says so
+const RESOLVE_LOOP_REPEATS = 4; // the same stack (names, texts, controllers) seen this often: a loop, it stops
+// A stack item's text as the table shows it (its tx) and as a run compares it: Forge's stack text names cards with its
+// own number ("Change the text of Goblin King (37) by ...", hp-25 T5; "Monk Token (281)" from each token), and
+// "Ponder (18) - " in front, which the table's pop-up also cuts, goes first.
+const stackText =(s) => displayText(s.text || "").replace(/^[^\n]{0,100}?\(\d+\) - /, "").replace(/([A-Za-z'’,]) \(\d+\)/g, "$1");
+const stackRunKey = (s) => `${s.controllerId}\u0001${s.identity?.name || "?"}\u0001${stackText(s)}`;
+// how many items on top of the stack make one run of `who`'s untargeted abilities alike, and its key (abilities only:
+// a spell is one press each, and a spell's targets may not all be listed)
+function stackRun(stack, who, gv) {
+  const top = stack[stack.length - 1];
+  const alike = (s) => s && s.controllerId === who && !(s.targets || []).length && isAbilityOnStack(s, gv) && stackRunKey(s) === stackRunKey(top);
+  let n = 0;
+  while (alike(stack[stack.length - 1 - n])) n++;
+  return { n, key: n ? stackRunKey(top) : null, name: top?.identity?.name || "?" };
+}
+function startResolving(gv, who, group) {
+  const stack = gv.stack || [];
+  const run = group ? stackRun(stack, who, gv) : null;
+  return { ids: new Set(stack.map((x) => x.id)), by: who, turn: gv.turn ?? null, step: gv.step ?? null, passes: 0, seen: new Map(),
+    group: run?.key || null, left: run ? run.n - 1 : 0, label: run ? `Resolve ${run.n}× ${run.name}` : "Resolve all" };
+}
+// The reason "Resolve all" ends at this priority: null to pass on, "" to stop without a word (the stack is empty, the
+// run is done), or the words said when the question then shows. Ending it hands the priority back to the usual stops
+// (worthStopping): one with nothing to stop for still passes by itself, and then nothing is said, the cap's and the
+// loop's words included (only your own triggers left and no stop on: Arena-style passing, as without Resolve all).
+function resolvingStops(seat, gv) {
+  const rs = seat.resolveStack;
+  const stack = gv.stack || [];
+  if (!stack.length) return "";
+  if ((rs.turn != null && gv.turn !== rs.turn) || (rs.step != null && gv.step !== rs.step)) return `${rs.label} stopped: ${gv.turn !== rs.turn ? "a new turn began" : "the step changed"}.`;
+  // (someone else answered: a new item that isn't this player's; an item there at the press is passed as before)
+  const theirs = stack.find((x) => !rs.ids.has(x.id) && x.controllerId !== seat.slot && x.controllerId !== rs.by);
+  if (theirs) return `${rs.label} stopped: ${nameOf(theirs.controllerId)} put ${theirs.identity?.name || "something"} on the stack.`;
+  if (rs.group) {
+    if (rs.left <= 0 || stackRunKey(stack[stack.length - 1]) !== rs.group || (stack[stack.length - 1].targets || []).length) return "";
+  }
+  if (rs.passes >= RESOLVE_ALL_CAP) return `${rs.label} stopped after passing ${RESOLVE_ALL_CAP} times by itself. Press it again to go on.`;
+  const sig = stack.map(stackRunKey).join("\u0002");
+  const seen = (rs.seen.get(sig) || 0) + 1;
+  rs.seen.set(sig, seen);
+  if (seen >= RESOLVE_LOOP_REPEATS) return `${rs.label} stopped: the same stack came back ${seen} times (a loop?). Press it again to go on.`;
+  return null;
+}
 // The players a seat controls now (Forge's controlledBy: Mindslaver's turn, Opposition Agent's search).
 function ruledBy(gv, slot) {
   return (gv.players || []).filter((p) => p.id !== slot && p.controlledBy === slot).map((p) => p.id);
@@ -6445,12 +6498,20 @@ function onPrompt(seat, prompt) {
         seat.respond(prompt.promptId, type, { type: "pass" });
         return;
       }
-      // "Resolve the stack": keep passing while only what was there when you asked is left; anything new stops it
+      // "Resolve all" / "Resolve N×": keep passing through what was there and this player's own new triggers; another
+      // player's new item, a new step or turn, an empty stack, the end of the run or the cap stops it (resolvingStops)
       const stackIds = (gv.stack || []).map((x) => x.id);
+      let resolveSaid = "";
       if (seat.resolveStack) {
-        const onlyOld = stackIds.length > 0 && stackIds.every((id) => seat.resolveStack.has(id));
-        if (onlyOld) { seat.respond(prompt.promptId, type, { type: "pass" }); return; }
+        const why = resolvingStops(seat, gv);
+        if (why === null) {
+          seat.resolveStack.passes++;
+          if (seat.resolveStack.group) seat.resolveStack.left--;
+          seat.respond(prompt.promptId, type, { type: "pass" });
+          return;
+        }
         seat.resolveStack = null;
+        resolveSaid = why;
       }
       // Your own main phase waits for you when you can do something there (Pass / End turn); with nothing to do it
       // passes by itself, like Arena (see worthStopping).
@@ -6524,7 +6585,10 @@ function onPrompt(seat, prompt) {
       // your own spell on the stack while you hold a spell to answer it with: asked, in every step (live game 2026-11-11:
       // White's Lightning Bolt in main 1 resolved with no stop while Counterspell was castable, but over Giant Growth in
       // combat White was asked, by attackerStop). Not your own trigger, and not for an ability or mana alone.
-      const ownSpellStop = (gv.stack || []).some((x) => x.controllerId === who && !isAbilityOnStack(x, gv)) && actions.some((a) => a.type === "cast");
+      // (the top item only, the one that resolves next: Time Warp at the bottom stopped every one of the 22 triggers
+      // above it, each its own press, 2026-11-12 prompt #643)
+      const topItem = (gv.stack || [])[(gv.stack || []).length - 1];
+      const ownSpellStop = !!topItem && topItem.controllerId === who && !isAbilityOnStack(topItem, gv) && actions.some((a) => a.type === "cast");
       const worthStopping = (myMain && !(gv.stack || []).length && actions.length > 0) || (actions.length && (opponentsStack || stepStop || ninjaStop || combatStop || attackerStop || ownSpellStop))
         || undos.length > 0 || skipStop || holdStop;
       // what a stop on someone else's spell offered (to see why "Resolve" came up)
@@ -6534,6 +6598,8 @@ function onPrompt(seat, prompt) {
         if (seat.prompt) closePrompt(seat);
         return;
       }
+      // (why a "Resolve all" ended here, said only when it does stop: a stop that passes on by itself says nothing)
+      if (resolveSaid) chat(`[MTG] ${resolveSaid}`, seat.color);
       // the way a spell is cast (web-slinging, flashback, back face, ...) and identical labels numbered
       const castLabel = (a) => {
         const m = a.mode || {};
@@ -6563,8 +6629,11 @@ function onPrompt(seat, prompt) {
         return labelCount[label] > 1 ? `${label} (option ${labelCount[label]})` : label;
       };
       // (Arena's pass button: "Resolve" while something is on the stack, "Next" otherwise; "Resolve all" passes until
-      // the stack is empty)
+      // the stack is empty; "Resolve N× <name>" the run of the same trigger on top, two or more, the user's idea
+      // 2026-11-12: 8 Monk Token prowess triggers in one press)
+      const run = stackRun(gv.stack || [], who, gv);
       ui = { title: forP ? `${nameOf(forP)}'s priority (you control)` : "Your priority", mode: "single", options: [{ id: "__pass", label: stackIds.length ? "Resolve" : "Next" },
+        ...(run.n >= 2 ? [{ id: "__group", label: `Resolve ${run.n}× ${run.name}` }] : []),
         ...(stackIds.length ? [{ id: "__resolve", label: `Resolve all (${stackIds.length})` }] : []),
         { id: "__endturn", label: "End turn" }, ...actions.map((a) => ({
         id: a.id, cardId: a.cardId, label: numbered(a.type === "cast" ? castLabel(a) : a.planarRoll ? a.description : `${cname(a.cardId) || a.label || "Ability"}: ${undoublePlural(a.description || "ability", byId[a.cardId]?.text)}`, a.cardId, a.type === "activateAbility" && onBattlefield.has(a.cardId)),
@@ -6576,7 +6645,7 @@ function onPrompt(seat, prompt) {
       })).filter((o) => o.label !== null), ...[...new Set(manaButtons.map((a) => a.cardId))].map((cid) => ({ id: `__mana:${cid}`, cardId: cid,
         label: manaButtonLabel(cname(cid), manaButtons.filter((m) => m.cardId === cid)) })), ...undos.map((a) => ({ id: a.id, cardId: a.cardId, label: `Untap ${cname(a.cardId)} (mana back)` }))] };
       toOutput = (a) => (a[0] === "__pass" ? { type: "pass" } : a[0] === "__endturn" ? (seat.endTurnAt = gv.turn, { type: "pass" })
-        : a[0] === "__resolve" ? (seat.resolveStack = new Set(stackIds), { type: "pass" })
+        : a[0] === "__resolve" || a[0] === "__group" ? (seat.resolveStack = startResolving(gv, who, a[0] === "__group"), { type: "pass" })
         : String(a[0]).startsWith("__mana:") ? manaChoice(String(a[0]).slice(7)) : { type: "act", actionId: a[0] });
       // one button per mana creature/artifact; if it can make several kinds of mana, a question under this one asks
       // which (Back and a timeout return to priority and turn the card back: the table turns it at the button press,
@@ -10027,6 +10096,6 @@ if (require.main === module) {
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
-    _aiSeatChoice: aiSeatChoice,
+    _aiSeatChoice: aiSeatChoice, _startResolving: startResolving,
   };
 }

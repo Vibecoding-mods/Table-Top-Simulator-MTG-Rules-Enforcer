@@ -2480,7 +2480,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       Object.assign(b.gameView, { activePlayerId: "player-0", priorityPlayerId: "player-0", step, stack });
       const seat = setup(h, b);
       seat.stops = new Set();
-      if (resolving) seat.resolveStack = new Set(stack.map((s) => s.id));
+      if (resolving) seat.resolveStack = h.B._startResolving(b.gameView, "player-0", false);
       h.B.onPrompt(seat, { promptId: 22, decidingPlayerId: "player-0", input: { type: "chooseAction", actions } });
       await h.flush();
       const out = { asked: seat.prompt?.ui?.title ?? null, passed: h.effects.some((e) => e.relay && JSON.stringify(e.relay).includes("\"pass\"")) };
@@ -2497,6 +2497,254 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("own spell: your own trigger passes by itself, as before", r.asked === null && r.passed, JSON.stringify(r));
     r = await prio({ resolving: true });
     ok("own spell: after Resolve, the spell already there passes", r.asked === null && r.passed, JSON.stringify(r));
+  }
+  // Big stacks, 2026-11-12 (3 games: one press per stack item, 49 Resolve and 43 Resolve all, 26 of those cut short by
+  // the player's own new triggers): "Resolve all" goes on through your own new triggers (resolvingStops), the stop over
+  // your own spell is the top item's only (ownSpellStop), and "Resolve N× <name>" resolves the run of one trigger on top.
+  {
+    const P0 = "player-0", P1 = "player-1";
+    let n = 0;
+    const trig = (name, text, ctl = P0, extra = {}) => ({ id: `engine-stack-${9000 + ++n}`, sourceId: extra.src || `engine-card-src-${name}`, controllerId: ctl,
+      identity: { name, ...(extra.token ? { isToken: true } : {}) }, text, sourceAbilityText: text, isTrigger: true, targets: extra.targets || [] });
+    const spell = (name, text, ctl = P0, targets = []) => ({ id: `engine-stack-${9000 + ++n}`, sourceId: `engine-card-${9000 + n}`, controllerId: ctl, identity: { name }, text, targets });
+    const WEAR = { id: "cast:1901", type: "cast", cardId: "engine-card-1901", label: "Cast Wear", mode: { type: "normal" } };
+    const BOLT_ACT = { id: "cast:1902", type: "cast", cardId: "engine-card-1902", label: "Cast Lightning Bolt", mode: { type: "normal" } };
+    const KYKAR = "Whenever you cast a noncreature spell, create a 1/1 white Spirit creature token with flying.";
+    const KD = "Whenever a creature you control of the chosen type enters or attacks, draw a card.";
+    const PROWESS = (num) => `Prowess (Whenever you cast a noncreature spell, Monk Token (${num}) gets +1/+1 until end of turn.)`;
+    // one seat (Blue, player-0) against AI 1, or a second person at player-1 (two: true)
+    const table = ({ gv = {}, two = false } = {}) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      Object.assign(b.gameView, { activePlayerId: P0, priorityPlayerId: P0, step: "main1", turn: 25, stack: [] }, gv);
+      const seat = setup(h, b, two ? { slotNames: { [P0]: "Blue", [P1]: "Red" }, slotColor: { [P0]: "Blue", [P1]: "Red" } } : {});
+      seat.stops = new Set();
+      let other = null;
+      if (two) {
+        other = new h.B.Seat("Red", "neheb_minotaur_commander");
+        other.slot = P1;
+        other.board = { state: clone(b), fingerprint: null };
+        other.stops = new Set();
+        h.B._getGame().seats.set("Red", other);
+      }
+      let pid = 700;
+      const said = (from) => h.effects.slice(from).filter((e) => e.tts && e.tts.t === "chat").map((e) => e.tts.text);
+      const passesOf = (id) => h.effects.filter((e) => e.relay && JSON.stringify(e.relay).includes("\"pass\"") && JSON.stringify(e.relay).includes(`"promptId":${id}`)).length;
+      // a priority question for `who` (Blue or Red's seat) over `stack`
+      const prio = async (stack, { actions = [WEAR], at = seat, more = {} } = {}) => {
+        for (const s of [seat, other].filter(Boolean)) Object.assign(s.board.state.gameView, { stack: clone(stack), priorityPlayerId: at.slot }, more);
+        const id = ++pid, from = h.effects.length;
+        h.B.onPrompt(at, { promptId: id, decidingPlayerId: at.slot, input: { type: "chooseAction", actions } });
+        await h.flush();
+        const ui = at.prompt?.promptId === id ? at.prompt.ui : null;
+        return { id, asked: ui?.title ?? null, options: (ui?.options || []).map((o) => o.label), ids: (ui?.options || []).map((o) => o.id), passed: passesOf(id) > 0, said: said(from) };
+      };
+      const answer = async (id, choice, color = "Blue") => { h.B.onTTS({ t: "answer", json: JSON.stringify({ color, promptId: id, choice }) }); await h.flush(5); return passesOf(id) > 0; };
+      return { h, seat, other, prio, answer, b };
+    };
+    const done = () => harness.restore();
+
+    // the logged 23-item stack (2026-11-12 prompt #643): Time Warp at the bottom, 22 of White's triggers above it, main 1,
+    // no mana floating, Wear // Tear castable. Only ownSpellStop could stop it there: no step stop in main 1, no opponent's
+    // item, no undo. Each of the 22 triggers was its own stop.
+    const logged = () => {
+      n = 0;
+      const s = [spell("Time Warp", "Blue takes an extra turn after this one.", P0, [{ kind: "player", id: P0 }])];
+      for (const src of [281, 281, 280, 280, 279, 279, 278, 278]) s.push(trig("Monk Token", PROWESS(src), P0, { src: `engine-card-${src}`, token: true }));
+      s.push(trig("Monastery Mentor", "Prowess (Whenever you cast a noncreature spell, Monastery Mentor (65) gets +1/+1 until end of turn.)"), trig("Monastery Mentor", "Prowess (Whenever you cast a noncreature spell, Monastery Mentor (65) gets +1/+1 until end of turn.)"));
+      s.push(trig("Monastery Mentor", "Whenever you cast a noncreature spell, create a 1/1 white Monk creature token with prowess."), trig("Monastery Mentor", "Whenever you cast a noncreature spell, create a 1/1 white Monk creature token with prowess."));
+      for (const [nm, tx] of [["Young Pyromancer", "Whenever you cast an instant or sorcery spell, create a 1/1 red Elemental creature token."],
+        ["Third Path Iconoclast", "Whenever you cast a noncreature spell, create a 1/1 colorless Soldier artifact creature token."],
+        ["Whirlwind of Thought", "Whenever you cast a noncreature spell, draw a card."], ["Kykar, Wind's Fury", KYKAR],
+        ["Veyran, Voice of Duality", "Magecraft — Whenever you cast or copy an instant or sorcery spell, Veyran, Voice of Duality (42) gets +1/+1 until end of turn."]]) s.push(trig(nm, tx), trig(nm, tx));
+      return s;
+    };
+    {
+      const t = table();
+      const stack = logged();
+      ok("big stack: precondition, the logged stack is 23 items, Time Warp at the bottom", stack.length === 23 && stack[0].identity.name === "Time Warp");
+      let r = await t.prio(stack);
+      ok("ownSpellStop: your own triggers over your own Time Warp pass by themselves (prompt #643 was asked)", r.asked === null && r.passed, JSON.stringify(r));
+      // Kykar resolved: two Kindred Discovery triggers on top, still nothing to stop for
+      r = await t.prio([...stack.slice(0, 20), trig("Kindred Discovery", KD), trig("Kindred Discovery", KD)]);
+      ok("ownSpellStop: and the Kindred Discovery triggers Kykar's Spirit brings", r.asked === null && r.passed, JSON.stringify(r));
+      r = await t.prio(stack.slice(0, 1));
+      ok("ownSpellStop: Time Warp itself on top, Wear castable: asked", r.asked === "Your priority" && !r.passed, JSON.stringify(r));
+      r = await t.prio(stack.slice(0, 1), { actions: [] });
+      ok("ownSpellStop: Time Warp on top and nothing to cast: passes, as before", r.asked === null && r.passed, JSON.stringify(r));
+      // (your own spell on top of an opponent's: still asked, as before)
+      r = await t.prio([spell("Shock", "Shock deals 2 damage to any target.", P1), spell("Opt", "Scry 1. Draw a card.")], { more: { activePlayerId: P1 } });
+      ok("ownSpellStop: your Opt on top of AI 1's Shock is asked", r.asked === "Your priority", JSON.stringify(r));
+      done();
+    }
+    // Resolve all through your own new triggers: AI 1's Shock at the bottom, your Opt and its triggers above (Kykar,
+    // Whirlwind of Thought), on AI 1's turn; each Kykar trigger brings two Kindred Discovery triggers (Mondrak's two
+    // Spirits). Before, each new trigger stopped it: the log's #647 and #651.
+    {
+      n = 0;
+      const t = table({ gv: { activePlayerId: P1 } });
+      const shock = spell("Shock", "Shock deals 2 damage to any target.", P1, [{ kind: "card", id: "engine-card-77" }]);
+      const opt = spell("Opt", "Scry 1. Draw a card.");
+      const k1 = trig("Kykar, Wind's Fury", KYKAR), k2 = trig("Kykar, Wind's Fury", KYKAR), w1 = trig("Whirlwind of Thought", "Whenever you cast a noncreature spell, draw a card.");
+      let r = await t.prio([shock, opt, k1, k2, w1], { actions: [BOLT_ACT] });
+      ok("resolve all: precondition, asked over AI 1's Shock with Resolve all (5)", r.asked === "Your priority" && r.options.includes("Resolve all (5)"), JSON.stringify(r));
+      await t.answer(r.id, ["__resolve"]);
+      const steps = [[shock, opt, k1, k2], [shock, opt, k1, trig("Kindred Discovery", KD), trig("Kindred Discovery", KD)]];
+      steps.push(steps[1].slice(0, 4), [shock, opt, k1], [shock, opt, trig("Kindred Discovery", KD), trig("Kindred Discovery", KD)], [shock, opt], [shock]);
+      const seen = [];
+      for (const s of steps) { r = await t.prio(s, { actions: [BOLT_ACT] }); seen.push(r.passed && r.asked === null && !r.said.length); }
+      ok("resolve all: passes on through Kykar's new Kindred Discovery triggers, the Opt and AI 1's Shock under them", seen.every(Boolean), JSON.stringify(seen));
+      // (every board still reaches the table while it passes: the new trigger is seen there)
+      const from = t.h.effects.length;
+      const st = clone(t.seat.board.state);
+      st.gameView.stack = [shock, opt, k1, trig("Kindred Discovery", KD)];
+      t.seat.onEnvelope({ kind: "state", forPlayer: P0, state: st });
+      r = await t.prio(st.gameView.stack, { actions: [BOLT_ACT] });
+      const boards = t.h.effects.slice(from).filter((e) => e.tts && e.tts.t === "table").map((e) => e.tts);
+      ok("resolve all: the board with the new trigger still reaches the table while it passes", r.passed && boards.some((x) => (x.stack || []).some((s) => s.n === "Kindred Discovery")), JSON.stringify({ passed: r.passed, boards: boards.length }));
+      ok("resolve all: still on while the stack has something", !!t.seat.resolveStack);
+      t.seat.board.state.gameView.activePlayerId = P0;
+      r = await t.prio([], { actions: [BOLT_ACT] });
+      ok("resolve all: an empty stack ends it, without a word (your main asks as usual)", r.asked === "Your priority" && !r.said.length && t.seat.resolveStack === null, JSON.stringify(r));
+      done();
+    }
+    // an opponent answers mid-run: their new item stops it, and the chat says why
+    {
+      n = 0;
+      const t = table();
+      const opt = spell("Opt", "Scry 1. Draw a card."), k1 = trig("Kykar, Wind's Fury", KYKAR), k2 = trig("Kykar, Wind's Fury", KYKAR);
+      // (only your own items, in your main: "mtg hold" is what asks you over your own triggers here)
+      t.seat.hold = 25;
+      let r = await t.prio([opt, k1, k2], { actions: [BOLT_ACT] });
+      ok("resolve all: precondition, held priority asks over your own Kykar triggers", r.asked === "Your priority", JSON.stringify(r));
+      await t.answer(r.id, ["__resolve"]);
+      r = await t.prio([opt, k1, spell("Lightning Bolt", "Lightning Bolt deals 3 damage to any target.", P1, [{ kind: "player", id: P0 }])], { actions: [BOLT_ACT] });
+      ok("resolve all: AI 1's Lightning Bolt in answer stops it, asked", r.asked === "Your priority" && !r.passed && t.seat.resolveStack === null, JSON.stringify(r));
+      ok("resolve all: and says why", r.said.some((x) => /Resolve all stopped: AI 1 put Lightning Bolt on the stack/.test(x)), JSON.stringify(r.said));
+      done();
+    }
+    // a question mid-run is asked as usual, and the run goes on after the answer
+    {
+      n = 0;
+      const t = table({ gv: { activePlayerId: P1 } });
+      const shock = spell("Shock", "Shock deals 2 damage to any target.", P1), tutor = spell("Idyllic Tutor", "Search your library for an enchantment card.");
+      const k1 = trig("Kykar, Wind's Fury", KYKAR);
+      let r = await t.prio([shock, tutor, k1], { actions: [BOLT_ACT] });
+      await t.answer(r.id, ["__resolve"]);
+      r = await t.prio([shock, tutor, trig("Kindred Discovery", KD)], { actions: [BOLT_ACT] });
+      const before = r.passed;
+      t.seat.board.state.gameView.stack = [shock];
+      t.h.B.onPrompt(t.seat, { promptId: 800, decidingPlayerId: P0, input: { type: "chooseCards", min: 1, max: 1, cards: [{ id: "engine-card-1950", identity: { name: "Kindred Discovery" }, types: ["Enchantment"] }, { id: "engine-card-1951", identity: { name: "Sanctum of Eternity" }, types: ["Enchantment"] }], presentation: { title: "Choose an enchantment card" } }, sourceCard: { id: tutor.sourceId, identity: { name: "Idyllic Tutor" } } });
+      await t.h.flush();
+      const asked = t.seat.prompt?.promptId === 800;
+      ok("resolve all: a choice mid-run is asked", before && asked && !!t.seat.resolveStack, JSON.stringify({ before, asked, rs: !!t.seat.resolveStack }));
+      await t.answer(800, ["engine-card-1950"]);
+      r = await t.prio([shock, trig("Kindred Discovery", KD)], { actions: [BOLT_ACT] });
+      ok("resolve all: and the run goes on after the answer", r.passed && r.asked === null, JSON.stringify(r));
+      done();
+    }
+    // the cap: 200 passes in a row, then it stops and says so; and a stack that keeps coming back the same is a loop
+    {
+      n = 0;
+      const t = table({ gv: { activePlayerId: P1 } });
+      const shock = spell("Shock", "Shock deals 2 damage to any target.", P1);
+      let r = await t.prio([shock, trig("Kykar, Wind's Fury", KYKAR)], { actions: [BOLT_ACT] });
+      await t.answer(r.id, ["__resolve"]);
+      let passes = 0, stop = null;
+      for (let i = 0; i < 260 && !stop; i++) {
+        // (a stack that grows by one new trigger each time: never the same twice, so only the cap can stop it)
+        const s = [shock]; for (let k = 0; k <= i; k++) s.push(trig(`Trigger ${k}`, `Whenever trigger ${k}, something.`));
+        r = await t.prio(s, { actions: [BOLT_ACT] });
+        if (r.passed) passes++; else stop = r;
+      }
+      ok("resolve all cap: stops after 200 passes in a row", passes === 200 && stop?.asked === "Your priority", JSON.stringify({ passes, stop: stop && stop.asked }));
+      ok("resolve all cap: and says so", !!stop && stop.said.some((x) => /stopped after passing 200 times by itself/.test(x)), JSON.stringify(stop && stop.said));
+      done();
+      const l = table({ gv: { activePlayerId: P1 } });
+      r = await l.prio([shock, trig("Kykar, Wind's Fury", KYKAR)], { actions: [BOLT_ACT] });
+      await l.answer(r.id, ["__resolve"]);
+      passes = 0; stop = null;
+      for (let i = 0; i < 20 && !stop; i++) {
+        r = await l.prio([shock, trig("Ouroboros", "Whenever Ouroboros resolves, it triggers again.")], { actions: [BOLT_ACT] });
+        if (r.passed) passes++; else stop = r;
+      }
+      ok("resolve all loop: the same stack a 4th time stops it, and says so", passes === 3 && !!stop && stop.said.some((x) => /same stack came back 4 times/.test(x)), JSON.stringify({ passes, said: stop && stop.said }));
+      done();
+    }
+    // a new step or turn ends it
+    {
+      n = 0;
+      const t = table({ gv: { activePlayerId: P1 } });
+      const shock = spell("Shock", "Shock deals 2 damage to any target.", P1);
+      let r = await t.prio([shock, trig("Kykar, Wind's Fury", KYKAR)], { actions: [BOLT_ACT] });
+      await t.answer(r.id, ["__resolve"]);
+      r = await t.prio([shock], { actions: [BOLT_ACT], more: { step: "combatBegin" } });
+      ok("resolve all: a new step stops it, and says so", r.asked === "Your priority" && r.said.some((x) => /stopped: the step changed/.test(x)), JSON.stringify(r));
+      done();
+    }
+    // a second person at the table: Blue's Resolve all never answers Red's priority; Red is asked on Blue's new trigger,
+    // and Red's answer stops Blue's run
+    {
+      n = 0;
+      const t = table({ two: true, gv: { activePlayerId: P1 } });
+      const shock = spell("Shock", "Shock deals 2 damage to any target.", P1), k1 = trig("Kykar, Wind's Fury", KYKAR), k2 = trig("Kykar, Wind's Fury", KYKAR);
+      let r = await t.prio([shock, k1, k2], { actions: [BOLT_ACT] });
+      await t.answer(r.id, ["__resolve"]);
+      const mid = [shock, k1, trig("Kindred Discovery", KD), trig("Kindred Discovery", KD)];
+      r = await t.prio(mid, { actions: [BOLT_ACT] });
+      const red = await t.prio(mid, { actions: [BOLT_ACT], at: t.other });
+      ok("two people: Blue's Resolve all passes Blue's own priority", r.passed && r.asked === null, JSON.stringify(r));
+      ok("two people: Red is still asked on Blue's new trigger", red.asked === "Your priority" && !red.passed, JSON.stringify(red));
+      await t.answer(red.id, ["cast:1902"], "Red");
+      r = await t.prio([...mid, spell("Lightning Bolt", "Lightning Bolt deals 3 damage to any target.", P1)], { actions: [BOLT_ACT] });
+      ok("two people: Red's Lightning Bolt stops Blue's run, and says so", r.asked === "Your priority" && r.said.some((x) => /Red put Lightning Bolt on the stack/.test(x)), JSON.stringify(r));
+      done();
+    }
+    // Resolve N× <name>: the run of one trigger on top, tokens of different cards with the same name one run
+    {
+      n = 0;
+      const t = table({ gv: { activePlayerId: P1 } });
+      const shock = spell("Shock", "Shock deals 2 damage to any target.", P1);
+      const k1 = trig("Kykar, Wind's Fury", KYKAR);
+      const monks = [281, 281, 280, 280, 279].map((src) => trig("Monk Token", PROWESS(src), P0, { src: `engine-card-${src}`, token: true }));
+      let r = await t.prio([shock, k1, ...monks], { actions: [BOLT_ACT] });
+      ok("group: offered for the five Monk Token triggers of three tokens", r.options.includes("Resolve 5× Monk Token"), JSON.stringify(r.options));
+      ok("group: next to Resolve and Resolve all", r.ids.slice(0, 3).join(",") === "__pass,__group,__resolve", JSON.stringify(r.ids));
+      // (the table's corner takes, after the first option, the first __resolve or __endturn: engine-renderer.lua
+      // engineUpdateCorner; __group is neither, so the corner stays Resolve / Resolve all)
+      ok("group: option order, Resolve all still before End turn", r.ids.indexOf("__resolve") > r.ids.indexOf("__group") && r.ids.indexOf("__resolve") < r.ids.indexOf("__endturn"), JSON.stringify(r.ids));
+      await t.answer(r.id, ["__group"]);
+      const seen = [];
+      for (let k = 4; k >= 1; k--) { r = await t.prio([shock, k1, ...monks.slice(0, k)], { actions: [BOLT_ACT] }); seen.push(r.passed && r.asked === null); }
+      ok("group: the other four pass by themselves", seen.every(Boolean), JSON.stringify(seen));
+      r = await t.prio([shock, k1], { actions: [BOLT_ACT] });
+      ok("group: Kykar's trigger on top ends it, asked, without a word", r.asked === "Your priority" && !r.said.length && t.seat.resolveStack === null, JSON.stringify(r));
+      done();
+    }
+    {
+      n = 0;
+      const t = table({ gv: { activePlayerId: P1 } });
+      const shock = spell("Shock", "Shock deals 2 damage to any target.", P1);
+      const monk = (src) => trig("Monk Token", PROWESS(src), P0, { src: `engine-card-${src}`, token: true });
+      let r = await t.prio([shock, monk(281)], { actions: [BOLT_ACT] });
+      ok("group: one trigger alone is no group", !r.ids.includes("__group"), JSON.stringify(r.options));
+      r = await t.prio([shock, monk(281), trig("Monk Token", PROWESS(280), P0, { targets: [{ kind: "player", id: P1 }] })], { actions: [BOLT_ACT] });
+      ok("group: a targeted trigger on top is no group", !r.ids.includes("__group"), JSON.stringify(r.options));
+      r = await t.prio([shock, monk(281), trig("Monk Token", "Whenever this attacks, something else.")], { actions: [BOLT_ACT] });
+      ok("group: the same name with other words is no group", !r.ids.includes("__group"), JSON.stringify(r.options));
+      r = await t.prio([trig("Goblin Token", "Whenever a Goblin enters, it deals 1 damage.", P1), trig("Goblin Token", "Whenever a Goblin enters, it deals 1 damage.", P1)], { actions: [BOLT_ACT] });
+      ok("group: AI 1's run is no group of yours", !r.ids.includes("__group"), JSON.stringify(r.options));
+      // (abilities only: two copies of your own untargeted spell are a press each)
+      r = await t.prio([shock, spell("Opt", "Scry 1. Draw a card."), spell("Opt", "Scry 1. Draw a card.")], { actions: [BOLT_ACT] });
+      ok("group: two of your own spells alike are no group", !r.ids.includes("__group"), JSON.stringify(r.options));
+      // an opponent's answer during the run stops it, and says so
+      r = await t.prio([shock, monk(281), monk(280), monk(279)], { actions: [BOLT_ACT] });
+      ok("group: precondition, Resolve 3× Monk Token", r.options.includes("Resolve 3× Monk Token"), JSON.stringify(r.options));
+      await t.answer(r.id, ["__group"]);
+      r = await t.prio([shock, monk(281), monk(280), spell("Lightning Bolt", "Lightning Bolt deals 3 damage to any target.", P1)], { actions: [BOLT_ACT] });
+      ok("group: AI 1's Lightning Bolt stops it, and says so", r.asked === "Your priority" && r.said.some((x) => /Resolve 3× Monk Token stopped: AI 1 put Lightning Bolt/.test(x)), JSON.stringify(r));
+      done();
+    }
   }
   // Kykar re-test 2026-11-09 (docs/HAND-TEST-KYKAR.md "Re-test", new bugs 1, 2, 4, 5, 8, 10): the questions
   {

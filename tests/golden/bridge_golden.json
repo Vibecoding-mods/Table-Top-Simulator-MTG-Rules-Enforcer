@@ -11629,11 +11629,22 @@
     "log": "Blue may respond to the stack with: Play Fire-Belly Changeling | Cast Hurloon Minotaur | Cast Hurloon Minotaur (WebSlinging) | Cast Hurloon Minotaur | Cast Heated Debate | Cast Vraska's Fall | Ninjutsu {1}{B}"
    },
    {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Resolve all stopped: AI 1 put something on the stack.\n"
+   },
+   {
     "log": "prompt Blue #900: chooseAction \"Your priority\""
    },
    {
     "appendFile": "table-log.log",
     "text": "[time] Blue   is asked #900 \"Your priority\": Resolve | Resolve all (2) | End turn | Fire-Belly Changeling: ability | Cast Hurloon Minotaur | Cast Hurloon Minotaur — web slinging | Cast Hurloon Minotaur (option 2) | Cast Heated Debate — back face | ... (12)\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Resolve all stopped: AI 1 put something on the stack.",
+     "color": "Blue"
+    }
    },
    {
     "tts": {
