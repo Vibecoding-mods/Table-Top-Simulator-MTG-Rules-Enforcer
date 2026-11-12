@@ -3033,6 +3033,8 @@ ENGINE_THEME = { window = "#161616F0", button = "#262626", dock = "#1A1A1A", tab
 -- that attacks or blocks, the word COMBAT in the phase bar. word = the phase bar's rich-text colours.
 ENGINE_COMBAT = { attack = "#1F4D2B", attackOn = "#2E9E4F", block = "#5E1E1E", blockOn = "#C62828",
   attackWord = "#7CFC9A", blockWord = "#FF6B6B" }
+-- "Resolve N× <name>" (__group): the corner's third button and its line in the Choices panel
+ENGINE_GROUP_COLOR = "#6A3D9A"
 engineBtnLook = {} -- Button id -> { bg, tc }: the colours its XML gives it (engineRenderPanels)
 engineColorFlip = {}
 function engineFlipColor(key, hex)
@@ -3188,6 +3190,9 @@ local function cornerXml(c)
     .. '<Text id="eng_hint_' .. c .. '" visibility="' .. c .. '" width="620" height="130" rectAlignment="LowerRight" offsetXY="-20 196" fontSize="18" fontStyle="Italic" color="#F2F2F2" outline="#000000C0" outlineSize="1 -1" alignment="LowerRight" active="false"> </Text>\n'
     -- big turn banner in the middle of the screen when the turn changes
     .. '<Text id="eng_banner_' .. c .. '" visibility="' .. c .. '" width="1200" height="120" rectAlignment="MiddleCenter" offsetXY="0 80" fontSize="64" fontStyle="Bold" color="#FFD27A" outline="#2a1600E0" outlineSize="3 -3" alignment="MiddleCenter" showAnimation="FadeIn" hideAnimation="FadeOut" animationDuration="0.25" active="false"> </Text>\n'
+    -- the third, above the second, only while the bridge offers "Resolve N× <name>" (__group: the run of the same
+    -- trigger on top of the stack, the user 2026-11-12); purple, apart from the orange Resolve and navy Resolve all
+    .. '<Button id="eng_big3_' .. c .. '" onClick="onMtgBig3" visibility="' .. c .. '" width="280" height="44" rectAlignment="LowerRight" offsetXY="-20 190" color="' .. ENGINE_GROUP_COLOR .. '" textColor="#ffffff" fontSize="18" active="false"> </Button>\n'
     .. '<Button id="eng_big2_' .. c .. '" onClick="onMtgBig2" visibility="' .. c .. '" width="280" height="44" rectAlignment="LowerRight" offsetXY="-20 140" color="#2e3a59" textColor="#ffffff" fontSize="18" active="false"> </Button>\n'
     .. '<Button id="eng_big_' .. c .. '" onClick="onMtgBig" visibility="' .. c .. '" width="280" height="64" rectAlignment="LowerRight" offsetXY="-20 70" color="#e8711a" textColor="#ffffff" fontSize="26" fontStyle="Bold" active="false"> </Button>\n'
     .. engineAbPanelXml(c)
@@ -3356,6 +3361,7 @@ function optionColor(p, index, picked)
   if picked then return "#E53935" end
   if o.id == "__endturn" then return "#2e3a59" end
   if o.id == "__resolve" then return "#b8860b" end -- yellow: pass until the stack is empty
+  if o.id == "__group" then return ENGINE_GROUP_COLOR end -- purple, as its corner button
   if p.mode == "single" and index == 1 then return "#e8711a" end
   return "#262626"
 end
@@ -3405,7 +3411,7 @@ end
 
 -- The corner's two buttons mirror the prompt: the first (default) choice big, a second useful one small.
 local PHASES = { { "upkeep", "Upkeep" }, { "draw", "Draw" }, { "main1", "Main 1" }, { "combat", "Combat" }, { "main2", "Main 2" }, { "end", "End" } }
-engineCorner = {} -- colour -> { big = option index or "confirm", small = option index }
+engineCorner = {} -- colour -> { big = option index or "confirm", small = option index, group = __group's index }
 -- A question that puts cards on top or at the bottom of your library ("Put 1 on the bottom"): whole words only, so a
 -- card named "Treetop Village" in the title doesn't count.
 function engineToLibrary(title)
@@ -3633,6 +3639,7 @@ function engineUpdateCorner(color, p)
     end
   end
   local big, small, bigLabel, smallLabel, labelOnly
+  local group, groupLabel, groupTip = nil, nil, nil -- the third button: "Resolve N× <name>" (__group), when offered
   if p ~= nil and p.mode == "browse" then p = enginePrompts[color] end
   -- (a finished game asks nothing: Next and End turn stayed under GAME OVER after a concession, Kykar re-test new bug 8)
   local over = t ~= nil and t.gameOver
@@ -3648,6 +3655,15 @@ function engineUpdateCorner(color, p)
       if i > 1 and (o.id == "__endturn" or o.id == "__resolve" or o.id == "no" or o.id == "mull") then small, smallLabel = i, o.label break end
       -- (Cancel takes a spell back while paying for it: it was only in the Engine panel, playtest 2026-10-24)
       if i > 1 and o.id == "__cancel" and small == nil then small, smallLabel = i, "Cancel" end
+    end
+    for i, o in ipairs(p.options) do
+      if i > 1 and o.id == "__group" then group, groupTip = i, tostring(o.label) break end
+    end
+    -- (the whole label when it fits, "Resolve 12× Spirit Token"; else without "Resolve ", then cut; the tooltip keeps it all)
+    if group ~= nil then
+      groupLabel = groupTip
+      if #groupLabel > 28 and groupLabel:sub(1, 8) == "Resolve " then groupLabel = groupLabel:sub(9) end
+      if #groupLabel > 28 then groupLabel = engineCut(groupLabel, 27) .. "…" end
     end
   elseif p ~= nil and p.mode == "multi" then
     big, bigLabel = "confirm", "Done"
@@ -3698,9 +3714,21 @@ function engineUpdateCorner(color, p)
   engineCorner[color] = { big = big, small = small, bigLabel = bigLabel, smallLabel = smallLabel, asked = asked,
     shownAt = (asked ~= was.asked) and os.clock() or was.shownAt,
     bigAt = (fresh and was.bigLabel ~= nil and bigLabel ~= nil and was.bigLabel ~= bigLabel) and os.clock() or was.bigAt,
-    smallAt = (fresh and was.smallLabel ~= nil and smallLabel ~= nil and was.smallLabel ~= smallLabel) and os.clock() or was.smallAt }
+    smallAt = (fresh and was.smallLabel ~= nil and smallLabel ~= nil and was.smallLabel ~= smallLabel) and os.clock() or was.smallAt,
+    group = group, groupLabel = groupLabel,
+    groupAt = (fresh and was.groupLabel ~= nil and groupLabel ~= nil and was.groupLabel ~= groupLabel) and os.clock() or was.groupAt }
   setButton("eng_big_" .. color, { active = (big ~= nil or labelOnly) and "true" or "false", text = bigLabel or " ", color = bigColor })
   setButton("eng_big2_" .. color, { active = small ~= nil and "true" or "false", text = smallLabel or " ", color = smallColor })
+  -- (no call while it was never shown: the XML has it hidden, and the hint at its usual place)
+  if group ~= nil then
+    setButton("eng_big3_" .. color, { active = "true", text = groupLabel, tooltip = groupTip })
+  elseif uiCache["eng_big3_" .. color .. "|active"] == "true" then
+    setButton("eng_big3_" .. color, { active = "false" })
+  end
+  -- (the instruction line sits above the corner's top button: up one row while the third shows)
+  if group ~= nil or uiCache["eng_hint_" .. color .. "|offsetXY"] ~= nil then
+    setAttr("eng_hint_" .. color, "offsetXY", group ~= nil and "-20 246" or "-20 196")
+  end
   for _, g in ipairs({ "start", "combat", "end" }) do
     setButton("eng_stop_" .. g .. "_" .. color, { color = engineStopsOf(color)[g] and "#b8860b" or "#262626" })
   end
@@ -4685,6 +4713,7 @@ function onMtgVote(player, value, id)
   elseif id == "eng_votego_" .. c then engineSend("rewindGo", { color = c }) end
 end
 function onMtgBig2(player, value, id) if id == "eng_big2_" .. player.color then cornerPress(player.color, "small") end end
+function onMtgBig3(player, value, id) if id == "eng_big3_" .. player.color then cornerPress(player.color, "group") end end
 
 function onMtgStop(player, value, id)
   local g, color = id:match("^eng_stop_(%a+)_(%a+)$")
