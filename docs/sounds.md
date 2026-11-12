@@ -111,14 +111,16 @@ the audio (that would need the packs downloaded). **The user should confirm each
 | instant | Spell Sounds Starter Pack (as above) | p0ss | as above | probable: a WAV named `.ogg`, 3.43 s | as above |
 | exile, exile_x2..x8 | Spell Sounds Starter Pack (as above) | p0ss | as above | probable: a real Ogg whose tag says it was made in Linux MultiMedia Studio, as the pack says, 3.43 s | as above |
 | damage, damage_x2..x8 | [37 hits/punches](https://opengameart.org/content/37-hitspunches) (submitted by qubodup); an mp3 re-upload of it, "Hit Sound Effects" by KonitaTutorials, names its files `hitNN.mp3.<ext>` like our `hit01.mp3.flac` (that page now answers 403) | Independent.nu | CC0 | likely | allowed, no attribution required (credit is a courtesy) |
-| death, death_x2..x8 (and the death under wipe_x3..x8) | **unknown**: a 1.85 s WAV whose tag says FL Studio's Edison made it | ? | ? | — | **not cleared** |
-| lifegain, lifegain_x2..x8 | **unknown**: a 3.20 s AIFF. A guess, nothing more: [Level up, power up, Coin get (13 Sounds)](https://opengameart.org/content/level-up-power-up-coin-get-13-sounds) by wobbleboxx (CC0) ships .aif files | ? | ? | — | **not cleared** |
+| death, death_x2..x8 (and the death under wipe_x3..x8) | **unknown**: a 1.85 s WAV whose tag says FL Studio's Edison made it. Searched 2026-11-12 (OpenGameArt web searches for the filename, "creature removal", FL Studio/Edison, card-game death/destroy): no page offers it | ? | ? | — (not found) | **not cleared** |
+| lifegain, lifegain_x2..x8 | **unknown**: a 3.20 s AIFF. Unconfirmed guess: [Level up, power up, Coin get (13 Sounds)](https://opengameart.org/content/level-up-power-up-coin-get-13-sounds) by wobbleboxx, CC0 (per search snippets; the page returned 403 to our fetch, so its file list and licence text were not read; a commenter names a `Rise03.aif` in it, but no `Health_gain` file is listed anywhere we could see) | wobbleboxx (if the guess holds) | CC0 (if the guess holds; unverified) | — (guess only; no page found offering `Health_gain.aif`) | **not cleared** |
 | counter, knockout | ours (`tools/make-effect-sounds.js`) | this project | public domain (`LICENSE`) | certain | allowed |
 
 **Flags.**
 
 - **death and lifegain (and wipe_x3..x8, which mix the death sound in) are not cleared** for a public repo, an itch.io
-  release or a Workshop upload: their source and licence are unknown. The table plays them from the host's Steam Cloud
+  release or a Workshop upload: their source and licence are unknown (a 2026-11-12 search of OpenGameArt found no page
+  for either filename; the wobbleboxx pack for lifegain stays an unverified guess, CC0 if right, no attribution needed;
+  the original files were not found on disk to compare). The table plays them from the host's Steam Cloud
   links, and those links are in the table's script, so publishing the table publishes them. Before going public,
   either the user names their OpenGameArt pages (then check each licence like the rows above), or they are replaced
   with clips made like counter and knockout. The audio files themselves are gitignored (`assets/`), so the repo
