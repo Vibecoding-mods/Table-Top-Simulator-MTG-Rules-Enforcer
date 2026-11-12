@@ -77,6 +77,30 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("precondition: the draw is in the log", lines.some((l) => /draws/.test(l)), JSON.stringify(lines));
     ok("log: a card drawn into a hand isn't named", !lines.join(" ").includes("SecretDraw"), JSON.stringify(lines));
   }
+  // Token stacks the Arena way (docs/token-stacks-spec.md): the attack and block lines count tokens. The real table read
+  // "Soldier Token, Soldier Token block Zombie Token", which says neither how many nor which Zombie.
+  {
+    const h = harness.load();
+    setup(h, F.board);
+    const bfOf = (gv, owner) => gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === owner);
+    const tok = (id, name, owner, extra) => ({ id, identity: { name, isToken: true }, types: ["Creature"], power: 1, toughness: 1, controllerId: owner, ownerId: owner, ...extra });
+    const S = [0, 1, 2, 3, 4].map((k) => `engine-card-${1950 + k}`), Z = [0, 1, 2, 3, 4].map((k) => `engine-card-${1960 + k}`);
+    const before = clone(F.board.gameView);
+    bfOf(before, "player-0").cards.push(...S.map((id) => tok(id, "Soldier Token", "player-0")), { id: "engine-card-1959", identity: { name: "Fog Bank" }, types: ["Creature"], power: 0, toughness: 2, controllerId: "player-0", ownerId: "player-0" });
+    bfOf(before, "player-1").cards.push(...Z.map((id) => tok(id, "Zombie Token", "player-1", { power: 2, toughness: 2 })), { id: "engine-card-1969", identity: { name: "Hill Giant" }, types: ["Creature"], power: 3, toughness: 3, controllerId: "player-1", ownerId: "player-1" });
+    const attacking = clone(before);
+    for (const c of bfOf(attacking, "player-1").cards) if (Z.includes(c.id)) Object.assign(c, { isAttacking: true, tapped: true, attackTargetId: "player-0" });
+    const atkLines = h.B.logEvents(h.B.logSnapshot(before), h.B.logSnapshot(attacking), attacking);
+    ok("token log: five Zombie tokens attacking are counted", atkLines.some((l) => /attacks (?:.* )?with 5 Zombie tokens$/.test(l)), JSON.stringify(atkLines));
+    // two Soldiers on one Zombie, one Soldier on each of two others, Fog Bank and a Soldier on the fourth
+    const blocked = clone(attacking);
+    blocked.combatAssignments = [[S[0], Z[0]], [S[1], Z[0]], [S[2], Z[1]], [S[3], Z[2]], ["engine-card-1959", Z[3]], [S[4], Z[3]]].map(([blockerId, attackerId]) => ({ blockerId, attackerId }));
+    const blkLines = h.B.logEvents(h.B.logSnapshot(attacking), h.B.logSnapshot(blocked), blocked);
+    ok("token log: two Soldier tokens on one Zombie token are counted", blkLines.includes("2 Soldier tokens block a Zombie token"), JSON.stringify(blkLines));
+    ok("token log: the same block on several Zombie tokens is one line that counts them", blkLines.includes("2 Zombie tokens are blocked by a Soldier token each") && !blkLines.some((l) => /^A Soldier token blocks a Zombie token$/.test(l)), JSON.stringify(blkLines));
+    ok("token log: a card blocking with a token is named, the token counted", blkLines.includes("Fog Bank, a Soldier token block a Zombie token"), JSON.stringify(blkLines));
+    ok("token log: no token is listed twice", !blkLines.some((l) => /Soldier token, (?:a )?Soldier token/i.test(l)), JSON.stringify(blkLines));
+  }
   // "the older one's card details are kept, since they are only sent once" (toTTS outbox merge)
   {
     const h = harness.load();
