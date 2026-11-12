@@ -3704,7 +3704,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     r = await run("Reveal the top card of your library and put that card into your hand.", null);
     ok("dig look: a reveal isn't skipped", r.askedLook, JSON.stringify(r));
   }
-  // the table's sounds (docs/m5-effects-design.md section 6): "ins" on an instant spell only (isInstantCast: not an
+  // the table's sounds (docs/m5-effects-design.md section 6): "ins" on an instant spell only (isSpellOfType: not an
   // ability, not a sorcery, not one still being cast), and "exd" for battlefield -> exile by the engine's word, once
   {
     const h = harness.load();
@@ -3760,6 +3760,11 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("sounds: a card seen hidden first is known by its face-up types", ins["engine-stack-8"] === true, JSON.stringify(ins));
     ok("sounds: a split card's half is known by its card (the half's name was never seen)", ins["engine-stack-9"] === true, JSON.stringify(ins));
     ok("sounds: types first seen on the same board count (noted before the stack)", ins["engine-stack-10"] === true, JSON.stringify(ins));
+    // (sor, 2026-11-12: the table's sorcery sound, by the same rule as ins)
+    const sor = Object.fromEntries((tb.stack || []).map((s) => [s.id, !!s.sor]));
+    ok("sounds: a sorcery spell on the stack is marked sor", sor["engine-stack-2"] === true, JSON.stringify(sor));
+    ok("sounds: an instant is not sor", sor["engine-stack-1"] === false && sor["engine-stack-7"] === false, JSON.stringify(sor));
+    ok("sounds: an ability, a trigger and a permanent spell are not sor", !sor["engine-stack-3"] && !sor["engine-stack-5"] && !sor["engine-stack-6"], JSON.stringify(sor));
     // (sp, 2026-11-11: the table's COUNTERED pop-up took only `spell`, false for any spell with spell text)
     const sp = Object.fromEntries((tb.stack || []).map((s) => [s.id, [!!s.spell, !!s.sp]]));
     ok("countered: an instant and a sorcery are marked sp (spell false)", JSON.stringify([sp["engine-stack-1"], sp["engine-stack-2"], sp["engine-stack-4"]]) === "[[false,true],[false,true],[false,true]]", JSON.stringify(sp));

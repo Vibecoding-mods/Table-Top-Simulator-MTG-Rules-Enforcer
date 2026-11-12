@@ -1,4 +1,5 @@
-// Makes the table's counter and knockout sounds (docs/sounds.md, 2026-11-11) from nothing but ffmpeg's own generators:
+// Makes the table's knockout sound (docs/sounds.md, 2026-11-11), and the first counter sound, written as
+// mtg2-counter-generated.mp3 since the user's own replaced it on 2026-11-12, from nothing but ffmpeg's own generators:
 // no downloaded or third-party audio, so the clips are this project's work (public domain, LICENSE). The noise seeds are
 // fixed, so a run gives the same files, byte for byte (the sha256s in docs/sounds.md).
 //   node tools/make-effect-sounds.js [outDir] [workDir]   defaults: assets/sounds/tts, tmp/sounds-work (both gitignored)
@@ -61,7 +62,8 @@ for (const name of ["counter", "knockout"]) {
   const s = stats(raw);
   const lev = path.join(work, `${name}.wav`);
   ff(["-i", raw, "-af", `volume=${(-20 - s.rms).toFixed(2)}dB,alimiter=limit=0.85:attack=1:release=40:level=disabled,afade=t=out:st=${(s.dur - 0.08).toFixed(3)}:d=0.08`, "-c:a", "pcm_s16le", lev]);
-  const mp3 = path.join(outDir, `mtg2-${name}.mp3`);
+  // (the user's own counter sound replaced this one on 2026-11-12, as mtg2-counter.mp3: ours is kept under another name)
+  const mp3 = path.join(outDir, `mtg2-${name === "counter" ? "counter-generated" : name}.mp3`);
   ff(["-i", lev, "-af", "apad=whole_dur=2", "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "44100", "-id3v2_version", "3", "-metadata", `title=MTG effect ${name}`, mp3]);
   out[name] = { file: mp3, sound: s.dur, levelled: stats(lev), mp3: stats(mp3), bytes: fs.statSync(mp3).size, sha256: crypto.createHash("sha256").update(fs.readFileSync(mp3)).digest("hex") };
 }

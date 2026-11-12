@@ -4287,7 +4287,8 @@ function sendTable() {
     // ("Ponder (18) - " in front, which the table's pop-up also cuts, goes first)
     id: s.id, n: s.identity?.name || "?", tx: displayText(s.text || "").replace(/^[^\n]{0,100}?\(\d+\) - /, "").replace(/([A-Za-z'’,]) \(\d+\)/g, "$1"), ctl: game.slotColor[s.controllerId] || null,
     src: s.sourceId || null, spell: !s.sourceAbilityText, // a spell's card is its source: the table moves that card
-    ...(isInstantCast(s, pub) ? { ins: true } : {}), // (an instant spell: the table's instant sound)
+    ...(isSpellOfType(s, pub, "Instant") ? { ins: true } : {}), // (an instant spell: the table's instant sound)
+    ...(isSpellOfType(s, pub, "Sorcery") ? { sor: true } : {}), // (a sorcery spell: the table's sorcery sound)
     // (a spell that isn't `spell`, its spell text read as an ability's: an instant or a sorcery; the table's COUNTERED
     // pop-up takes either)
     ...(s.sourceAbilityText && !isAbilityOnStack(s, pub) ? { sp: true } : {}),
@@ -4510,7 +4511,7 @@ function notePrinted(gv) {
 // What the bridge records from each board the engine sends, before it is drawn
 function noteBoard(gv) { noteOuts(gv); notePrinted(gv); harmlessVotes(gv); }
 // The card types seen face up, by card id and by name, from every seat's view (sendTable): Forge's stack item carries
-// no types, and the table's instant sound needs them (isInstantCast). Not the battlefield, where effects change types
+// no types, and the table's instant and sorcery sounds need them (isSpellOfType). Not the battlefield, where effects change types
 // (an animated land) and no instant ever is; not tokens or copies by name (defensive: outside the battlefield neither
 // is known to carry an instant's name without its type). Face-down and hidden cards are skipped: their types aren't
 // the card's, and the first types seen stick.
@@ -4528,14 +4529,14 @@ function noteTypes(gv) {
     }
   }
 }
-// A stack item that is an instant spell, for the table's instant sound (`ins`, docs/m5-effects-design.md section 6):
-// a spell, not an ability, no longer being cast, whose card was seen as an Instant (by its stack name first, a split
-// card's half; else by its card). One never seen face up (an AI's first, from a hand no seat sees) isn't known, and
+// A stack item that is an instant (or, type "Sorcery", a sorcery) spell, for the table's instant and sorcery sounds
+// (`ins`, `sor`, docs/m5-effects-design.md section 6): a spell, not an ability, no longer being cast, whose card was
+// seen as that type (by its stack name first, a split card's half; else by its card). One never seen face up (an AI's first, from a hand no seat sees) isn't known, and
 // sounds nothing. A copy is told on the table, by the stack before it.
-function isInstantCast(s, pub) {
+function isSpellOfType(s, pub, type) {
   if (!game || s.isCasting || s.isPermanentSpell || isAbilityOnStack(s, pub)) return false;
   const types = game.typesByName?.get(s.identity?.name) || game.typesById?.get(s.sourceId);
-  return Array.isArray(types) && types.includes("Instant");
+  return Array.isArray(types) && types.includes(type);
 }
 // Not out before the last players to go (still playing, or among them)
 function outLast(p) { const at = game?.outOrder?.[p.id]; return at == null || at === game.outStamp; }
