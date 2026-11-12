@@ -66,8 +66,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("changed text: a card never changed has no box", !!at("engine-card-906") && at("engine-card-906").ct === undefined, JSON.stringify(at("engine-card-906")));
   }
   // the cost badge's data (docs/cost-badge-spec.md, tableCard's costNow): Forge's effectiveManaCost reaches the table as
-  // ec, with the printed cost as mc, only when the two differ; the commander tax is worked out from the card's
-  // commanderTax only while the engine has sent no effectiveManaCost in this game
+  // ec, with the printed cost as mc, only when the two differ; a commander in the command zone gets its commanderTax
+  // added to the engine's cost (or the printed one), unless that cost already has the tax's worth more generic
   {
     const board = (edit) => { const b = clone(F.board); edit(b.gameView); return b; };
     const zone = (gv, z, owner) => gv.zones.find((x) => x.zone === z && x.ownerId === owner);
@@ -98,10 +98,20 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     // fallback: no effectiveManaCost anywhere in the game, tax 4 -> {1}{B}{R} costs {5}{B}{R}
     const cmdFallback = await tableOf((gv) => { card(gv, "command", "player-0", "Neheb, the Worthy").commanderTax = 4; });
     ok("cost data: with no engine cost in the game, the commander's tax is added to its generic", pick(cmdFallback.command, ids["Neheb, the Worthy"]) === JSON.stringify({ ec: "{5}{B}{R}", mc: "{1}{B}{R}" }), pick(cmdFallback.command, ids["Neheb, the Worthy"]));
-    // the engine sends effective costs in this game (a hand card has one), and none for the commander: its cost is as
-    // printed by the engine's word (a reduction that cancels the tax), so no fallback
+    // the engine sends effective costs in this game (a hand card has one: a Thalia tax), and none for the commander:
+    // Forge prices a commander in the command zone without its tax (CostAdjustment adds it only once the cast from the
+    // command zone has begun), so the tax still goes on. Mairsil showed no badge here, live check 2026-11-12.
     const cmdTrusted = await tableOf((gv) => { card(gv, "command", "player-0", "Neheb, the Worthy").commanderTax = 2; card(gv, "hand", "player-0", "Vraska's Fall").effectiveManaCost = "{3}{B}"; });
-    ok("cost data: once the engine sends effective costs, a commander without one has no badge", pick(cmdTrusted.command, ids["Neheb, the Worthy"]) === "{}", pick(cmdTrusted.command, ids["Neheb, the Worthy"]));
+    ok("cost data: a hand card's engine cost seen first, the commander in the command zone still shows its tax", pick(cmdTrusted.command, ids["Neheb, the Worthy"]) === JSON.stringify({ ec: "{3}{B}{R}", mc: "{1}{B}{R}" }), pick(cmdTrusted.command, ids["Neheb, the Worthy"]));
+    // the engine's own change to a commander's cost (a reduction of 1), untaxed as Forge prices it there: the tax on top
+    const cmdReduced = await tableOf((gv) => { const n = card(gv, "command", "player-0", "Neheb, the Worthy"); n.commanderTax = 2; n.effectiveManaCost = "{B}{R}"; });
+    ok("cost data: the engine's untaxed command-zone cost gets the tax added", pick(cmdReduced.command, ids["Neheb, the Worthy"]) === JSON.stringify({ ec: "{2}{B}{R}", mc: "{1}{B}{R}" }), pick(cmdReduced.command, ids["Neheb, the Worthy"]));
+    // a reduction that cancels the tax: the engine's untaxed cost is 2 under printed, so no badge at all
+    const cmdCancel = await tableOf((gv) => { const n = card(gv, "command", "player-0", "Neheb, the Worthy"); n.manaCost = "{3}{B}{R}"; n.commanderTax = 2; n.effectiveManaCost = "{1}{B}{R}"; });
+    ok("cost data: a reduction that cancels the tax leaves no badge", pick(cmdCancel.command, ids["Neheb, the Worthy"]) === "{}", pick(cmdCancel.command, ids["Neheb, the Worthy"]));
+    // a hand card's tax is never added (only the command zone's cast is taxed this way)
+    const handTax = await tableOf((gv) => { card(gv, "hand", "player-0", "Pestilence").commanderTax = 2; });
+    ok("cost data: a commanderTax on a card in a hand adds nothing", pick(handTax.hand, ids.Pestilence) === "{}", pick(handTax.hand, ids.Pestilence));
     const noTax = await tableOf(() => {});
     ok("cost data: a commander with no tax and no engine cost carries none", pick(noTax.command, ids["Neheb, the Worthy"]) === "{}", pick(noTax.command, ids["Neheb, the Worthy"]));
     // a commander on the battlefield has its tax on the card, and nothing to cast: no cost
@@ -3735,6 +3745,38 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     const next = sent(h, "table").slice(mark2);
     ok("sounds: exd of a board skipped as identical goes with the next one", skipped && next.length > 0 && JSON.stringify(next[0].exd) === '["engine-card-952"]',
       JSON.stringify({ skipped, exd: next.map((t) => t.exd) }));
+    harness.restore();
+  }
+  // "ctrd: the cards of the spells the log said were countered since the last board sent ... cleared once sent"
+  // (sendTable). The engine's own shape, live check 2026-11-12: Valki cast as Tibalt, Cosmic Impostor (a permanent face:
+  // no spell text), the AI's Counterspell over it with Forge's stack words "Counter Tibalt, Cosmic Impostor." and no
+  // targets; then both off the stack, Valki in the graveyard. The log read nothing and the table had no pop-up.
+  {
+    const h = harness.load();
+    const seat = setup(h, F.board);
+    const gv = seat.board.state.gameView;
+    const zone = (z, o) => gv.zones.find((x) => x.zone === z && x.ownerId === o);
+    const card = (id, name, types, owner) => ({ id, identity: { name }, types, controllerId: owner, ownerId: owner });
+    const stackItem = (id, src, name, ctl, extra) => ({ id, sourceId: src, controllerId: ctl, ownerId: ctl, identity: { name }, isPermanentSpell: !extra.sourceAbilityText, isCasting: false, targets: [], ...extra });
+    gv.events = [];
+    gv.stack = [stackItem("engine-stack-3", "engine-card-967", "Tibalt, Cosmic Impostor", "player-0", { text: "Tibalt, Cosmic Impostor" }),
+      stackItem("engine-stack-7", "engine-card-979", "Counterspell", "player-1", { sourceAbilityText: "Counter target spell.", text: "Counter Tibalt, Cosmic Impostor." })];
+    h.B.sendTable(); await h.flush();
+    gv.stack = [];
+    zone("graveyard", "player-0").cards.push(card("engine-card-967", "Valki, God of Lies", ["Creature"], "player-0"));
+    zone("graveyard", "player-1").cards.push(card("engine-card-979", "Counterspell", ["Instant"], "player-1"));
+    gv.events = [{ seq: 1, id: "event-1", cardId: "engine-card-967", from: "Stack", to: "Graveyard", ownerId: "player-0" },
+      { seq: 2, id: "event-2", cardId: "engine-card-979", from: "Stack", to: "Graveyard", ownerId: "player-1" }];
+    const mark = sent(h, "table").length, markLog = sent(h, "gamelog").length;
+    h.B.sendTable(); await h.flush();
+    const tb = sent(h, "table")[mark] || {};
+    const logged = sent(h, "gamelog").slice(markLog).flatMap((g) => g.lines);
+    ok("countered: a modal DFC cast as its permanent face and countered says so, by the face cast", logged.includes("Tibalt, Cosmic Impostor is countered by Counterspell"), JSON.stringify(logged));
+    ok("countered: the board names its card in ctrd", JSON.stringify(tb.ctrd) === '["engine-card-967"]', JSON.stringify(tb.ctrd));
+    gv.players.find((p) => p.id === "player-0").life -= 1;
+    h.B.sendTable(); await h.flush();
+    const after = sent(h, "table").slice(mark + 1);
+    ok("countered: ctrd goes once", after.length > 0 && after.every((t) => t.ctrd === undefined), JSON.stringify(after.map((t) => t.ctrd)));
     harness.restore();
   }
   // whom Hero of Bladehold's attacking tokens attack, asked over Forge's labels (entityChoiceIds, entityWords; live check

@@ -566,6 +566,10 @@ function spawnObject(p)
 end
 function spawnObjectData(p)
   local d = p.data
+  -- real TTS raises on an AssetBundle's data with no Transform (seen live 2026-11-12; other kinds not checked), and a
+  -- test can make a spawn fail (__sim.spawnFail(data) -> true) to see what happens then
+  if d.Name == "Custom_Assetbundle" and d.Transform == nil then error("Object reference not set to an instance of an object", 2) end
+  if SIM.spawnFail and SIM.spawnFail(d) then error("spawn failed (test)", 2) end
   local o = makeObj({ Name = d.Name, Nickname = d.Nickname, Description = d.Description, GMNotes = d.GMNotes, ContainedObjects = d.ContainedObjects,
     CustomDeck = d.CustomDeck, CardID = d.CardID, Locked = d.Locked, CustomAssetbundle = d.CustomAssetbundle,
     Transform = { posX = p.position and vec(p.position).x or 0, posY = p.position and vec(p.position).y or 0, posZ = p.position and vec(p.position).z or 0,

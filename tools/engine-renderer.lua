@@ -1806,17 +1806,19 @@ do
   end
   -- once per game at most (the first board): the pool goes on the carrier unless it is already there (it stays in
   -- the save, inactive). A marker panel says which kind of pool it is, so setting the picture links rebuilds it once.
+  -- FX.built is set only once the rigs were looked for and the pool is in place: anything raising before that leaves
+  -- it unset, so the next board tries again instead of running with no pool (a bundle spawn that fails doesn't raise:
+  -- FX.spawnBundle catches it and the effects use the pool's slots).
   function FX.build()
-    FX.built = true
     FX.findRigs() -- (the effect bundle's rigs: once a game too)
     local o = FX.carrier()
     FX.car = o
-    if o == nil then return end
+    if o == nil then FX.built = true return end
     local art = FX.hasArt()
     FX.art = art
     local want = art and "eng_fx_pool_art" or "eng_fx_pool_dots"
     local xml = tostring(o.UI.getXml() or "")
-    if xml:find('id="' .. want .. '"', 1, true) then return end
+    if xml:find('id="' .. want .. '"', 1, true) then FX.built = true return end
     -- (an older pool goes: everything from its marker on is ours; a pool without a marker means the XML is all ours)
     local cut = xml:find('<Panel id="eng_fx_pool_', 1, true)
     if cut ~= nil then xml = xml:sub(1, cut - 1) elseif xml:find("eng_fx_", 1, true) then xml = "" end
@@ -1829,6 +1831,7 @@ do
     end
     o.UI.setXml(table.concat(parts))
     FX.slotOn, FX.slotText = {}, {}
+    FX.built = true
   end
   -- who sees the panels: every colour but those who turned their effects off (an empty list would mean everyone)
   function FX.viewers()
@@ -1954,22 +1957,30 @@ do
     local links = engineFxBundle or {}
     if #FX.rigs == 0 and FX.bundleLink(links.fx) and not FX.spawnedFx then
       FX.spawnedFx = true
-      for i = 1, FX.RIGS do FX.spawnBundle(links.fx, "engine:fx", i, function(o) if FX.rigs ~= nil then FX.addRig(o) end end) end
+      for i = 1, FX.RIGS do
+        if not FX.spawnBundle(links.fx, "engine:fx", i, function(o) if FX.rigs ~= nil then FX.addRig(o) end end) then FX.spawnedFx = false break end
+      end
     end
     if snd == nil and FX.bundleLink(links.sounds) and not FX.spawnedSnd then
-      FX.spawnedSnd = true
-      FX.spawnBundle(links.sounds, "engine:sounds", 0, function(o) FX.sndObj, FX.sndIdx = o, nil end)
+      FX.spawnedSnd = FX.spawnBundle(links.sounds, "engine:sounds", 0, function(o) FX.sndObj, FX.sndIdx = o, nil end)
     end
   end
   -- a usable bundle link (engineFxBundle): a non-empty string
   function FX.bundleLink(url) return type(url) == "string" and url ~= "" end
-  -- one bundle object, locked and parked under the table (the n-th a little along x, so none overlaps)
+  -- one bundle object, locked and parked under the table (the n-th a little along x, so none overlaps). The data needs
+  -- a Transform: without one real TTS's spawnObjectData raises "Object reference not set to an instance of an object"
+  -- (seen live 2026-11-12, file:/// and https:// alike). True when the spawn was made; false (the error kept in
+  -- FX.spawnErr) when it raised, so the caller can try again next game and the effects fall back to the UI slots.
   function FX.spawnBundle(url, gm, n, done)
-    spawnObjectData({
+    local x, z = -40 + 1.5 * n, 30
+    local ok, err = pcall(spawnObjectData, {
       data = { Name = "Custom_Assetbundle", Nickname = "", GMNotes = gm, Locked = true,
+        Transform = { posX = x, posY = FX.RIG_PARK_Y, posZ = z, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 },
         CustomAssetbundle = { AssetbundleURL = url, AssetbundleSecondaryURL = "", MaterialIndex = 0, TypeIndex = 0, LoopingEffectIndex = 0 } },
-      position = Vector(-40 + 1.5 * n, FX.RIG_PARK_Y, 30), rotation = Vector(0, 0, 0),
+      position = Vector(x, FX.RIG_PARK_Y, z), rotation = Vector(0, 0, 0),
       callback_function = done })
+    if not ok then FX.spawnErr = tostring(err) end
+    return ok
   end
   -- trigger effect name -> index, from the first rig whose bundle answers (they are copies of one bundle); asked again
   -- while the bundle is still loading (no AssetBundle yet, or an empty list), nil until then
@@ -2466,16 +2477,15 @@ do
     end
     for c, n in pairs(died) do deathFlash(c, n, diedIds[c]) end
     engineFxLast = { died = died, fx = {}, dropped = 0 }
-    -- countered: a spell that left the stack while a "counter target ..." spell or ability aimed at it left too (the
-    -- board's stack targets; "it left while not on top" alone also caught several spells resolving between updates).
-    -- A spell is the bridge's spell (a permanent spell) or sp (an instant or a sorcery: spell is false for any spell
-    -- with spell text, so a countered instant had no pop-up before 2026-11-11)
-    local still, countered = {}, {}
-    for _, st in ipairs(now.stack) do still[st.id] = true end
+    -- countered: a spell on the last board's stack whose card the bridge's ctrd names (the cards its log said "is
+    -- countered" of since the last board). Not from the stack itself: Forge's stack words name the target ("Counter
+    -- Fury.", no "counter target") and its stack lists no spell targets, so the pop-up never fired, live check
+    -- 2026-11-12. A spell is the bridge's spell (a permanent spell) or sp (an instant or a sorcery: spell is false for
+    -- any spell with spell text, so a countered instant had no pop-up before 2026-11-11)
+    local ctrd, countered = {}, {}
+    for _, id in ipairs(m.ctrd or {}) do ctrd[id] = true end
     for _, st in ipairs(prev.stack) do
-      if not still[st.id] and tostring(st.tx or ""):lower():find("counter target") then
-        for _, t in ipairs(st.tg or {}) do if t.k == "s" and not still[t.id] then countered[t.id] = true end end
-      end
+      if st.src ~= nil and ctrd[st.src] then countered[st.id] = true end
     end
     for _, st in ipairs(prev.stack) do
       if countered[st.id] and (st.spell or st.sp) and panelReadyForPopup() then
