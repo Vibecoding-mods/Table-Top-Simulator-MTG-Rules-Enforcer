@@ -52,6 +52,11 @@ Repository: `Vibecoding-mods/Table-Top-Simulator-Mock-MTGA` (the name is the own
   `fd16e2f` and reproduces every changed file; `engine/make-patches.sh` now diffs against the clean tree's commit, so
   our local manabrew commit is included). Redo it after any later harness change.
 - [ ] Optional: GitHub Actions running the bridge golden + claims tests on every push (no Docker or TTS needed).
+- [ ] Table sounds (docs/sounds.md "Licences and sources", 2026-11-11): the user confirms the sources found for wipe,
+  instant, exile (p0ss, CC-BY-SA 3.0) and damage (Independent.nu, CC0), and names the pages of death and lifegain
+  (unknown, so not cleared; the wipe bursts mix death in). Or replace those two with clips made like counter and
+  knockout (`tools/make-effect-sounds.js`). Then add the sound credits to README "Credits and legal" and to the
+  Workshop / itch.io description (text in docs/sounds.md), and exclude the sounds from README's public-domain line.
 
 ## Not in scope of the first release
 
