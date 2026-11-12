@@ -39,11 +39,31 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   their sizes. The monarch's mat also showed Undercity, City's Blessing and The Ring: a bare `local` in a for-in body
   is the looped table in TTS. Fixed with three more such locals (one dropped the ability panel's greyed reasons) and a
   gate, test_moonsharp_loop_locals (f51b184), deployed and seen fixed.
-- ⬜ Found in that check, not fixed: a debug scenario's planeswalker enters with no loyalty and dies at once (✅ fixed
-  in 8fb86e6, live in c9295fcc); a player-or-permanent choice the bridge can't map (two cards of one name anywhere) still reads "choose one" with
-  "Jace Beleren (201)"; the log's "White attacks with Hero of Bladehold" doesn't name the planeswalker, and it put
-  the Giant Growth cast (declare-attackers step) after the combat damage; a mid-game `mtg debug` without keepHand
-  bottoms the hand and adds 20 lands. The pump-on-attacker payment title wasn't seen (the pool paid by itself).
+- ✅ Found in that check (re-checked against the code 2026-11-11 night): a debug scenario's planeswalker enters with
+  its loyalty (engine 8fb86e6); a player-or-permanent choice the bridge can't map is asked in words, "Jace Beleren (AI
+  1's planeswalker)" with alike ones numbered, never "(201)" (3cfb866), and a card off the battlefield by whose zone,
+  "Ral Zarek (in AI 1's graveyard)"; the attack line names the planeswalker (3cfb866) and now any player attacked too;
+  the Giant Growth after combat damage was the game's own order, no bug (80eea4b); a mid-game `mtg debug` keeps the
+  hand and adds no lands (3cfb866, test_bridge_debug red without it). Still unseen: the pump-on-attacker payment
+  title (the pool paid by itself).
+- 🔶 (source) Live game 2026-11-11 21:36 (scenarios/live-r3.json), each reproduced by a test from its log first:
+  - every message to the table and the table log goes through one name net (tableNames in pump and tlog): a relay
+    username never reaches the table. The kw "Protection from self-hosted-node-…-bot" and older dice chats had leaked.
+  - the caster is asked over their own spell when they hold a spell to answer it with (ownSpellStop), in every step:
+    Lightning Bolt in main 1 passed by itself with Counterspell castable, Giant Growth in combat was asked. Not over
+    their own trigger, nor for an ability or mana alone. ("mtg hold" now matters only for those.)
+  - the log names a player attacked in a game of two too: "White attacks AI 1 with Soldier token", "AI 1 attacks White
+    with Craw Wurm".
+  - what a resolved item did is logged before what went on the stack after it: Fury's four deaths before "AI 1
+    activates Jace Beleren's +2".
+  - a card exiled from a hand to pay a cost: "AI 1 exiles Sneak Attack from their hand to cast Fury (evoke)", not
+    "Sneak Attack is exiled". (Built from the harness's cause, Cost:Evoke; not yet seen in a recording.)
+  - cipher's copy is "White copies Last Thoughts" (the trigger's "cast a copy of" on the board before; kw-17's boards).
+  - attack and target lines at a player end on their life counter, not behind their land row (Craw Wurm's line at
+    White ended near the mat's bottom edge). Needs a look on the real table.
+  - the rewind vote: the asker's Keep playing (or `mtg vote no`) takes back a vote someone never answers, sent as a
+    decline through a voter Forge waits for, said "Blue withdrew the rewind."; and a vote that has ended no longer
+    holds every turn clock (Forge keeps its record on the board; the timer checked only that a record existed).
 - 🔶 (source, live check fixes) The side game log shows the newest entries that fit its box by estimated rows (58 a
   row, 18 rows), the newest always, a giant one cut with "…" (engineLogFit): wrapped lines no longer push the newest
   out of the bottom.
@@ -87,9 +107,9 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   reproduced by a test from its real report first: the flashback row card's hover-text alarm; a stray copy left
   beside a pile (Rancor) and plays queued for graveyard cards; payment taps that can't pay anything owed (Viscera
   Seer's loop); attackers listed with their size and numbered; one spell's draws split by a dredge question joined into
-  one log line; the self-check's playable cards judged on the caster's mat and hand. Not changed: the rewind vote (the
-  only open one in the logs waited on Blue, who never voted), "#10 after #1" (already fixed 2026-11-09, Kykar #9), the
-  cipher copy's "casts" (still no recorded board of it).
+  one log line; the self-check's playable cards judged on the caster's mat and hand. "#10 after #1" was already fixed
+  2026-11-09 (Kykar #9). The rewind vote (the only open one in the logs waited on Blue, who never voted) and the
+  cipher copy's "casts" were fixed later the same day, see the live-game entry above.
 - 🔶 (source) Attack reminders, spec part 2 (item 23): taxes per defender, each creature's own price and the limits
   are listed on the attack question, with "Can't attack: X (reason)" and the reason on Q/E. The tax payment names
   the tax and its Cancel is "Don't attack with X". Part 3 (engine) in source 2026-11-11: Forge's own taxes,
@@ -132,7 +152,9 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
     - The save's paused music blocked every sound; only a playing track blocks now.
     - Custom art leaked by name to the AI's Mountain; a known owner now uses only its own deck's pictures.
   - open:
-    - A prompt option shows the raw AI id "self-hosted-node-…-bot" (Hero's defender choice).
+    - ✅ A prompt option shows the raw AI id "self-hosted-node-…-bot" (Hero's defender choice): the question itself
+      said "AI 1" by the 21:36 game; the leaks left (a protection keyword, older dice chats) are closed by the name
+      net in pump and tlog. The raw id stays in the debug /state's rawPrompt, which is the engine's own data.
     - COUNTERED not seen live: the AI deck had no counterspell; the tests cover it.
     - The touch rule needs a second human.
   - pending: hear the new clips on the real table, including a burst. Check that the players' own track doesn't start
@@ -170,8 +192,8 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 - ✅ Small sweep bugs (fixed 2026-11-07 in 33ffb05; checked again 2026-11-10, each with a claim check): the second AI
   named "AI 1 2" in questions and votes; persist's -1/-1 counter missing from the return line; Halflingcycling's
   question naming a basic land; the log gaps in tmp/kw-runs/SUMMARY.md. 2026-11-10 added the clash's cards and winner
-  to the log. Left: cipher's free copy reads "casts" (no recorded board shows the copy on the stack), kw-03's damage
-  questions read the printed amount (not wrong).
+  to the log. Left: kw-03's damage questions read the printed amount (not wrong). Cipher's free copy reads "copies"
+  since 2026-11-11 (kw-17's boards did show it: the trigger, then the copy).
 - Live-check bugs (2026-11-07, tmp/live-checks/RESULTS.md). The bridge ones were fixed 2026-11-07 (33ffb05, 133f619)
   and checked again 2026-11-10: the turn header, "Skip ended" (and a rewind's step, fixed 2026-11-10), "Game over"
   twice, forage's order, the Ring-bearer question, the timer warning, Done with too few cards (the renderer). Still

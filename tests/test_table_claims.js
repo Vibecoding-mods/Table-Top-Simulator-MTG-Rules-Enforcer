@@ -792,6 +792,21 @@ for (const kind of ["Land", "Creature"]) {
   ok("rewind go: pressing it sends rewindGo", fxOf(r, "press").join(" ").split("\\").join("").includes("rewindGo"), fxOf(r, "press").join(" ").slice(0, 200));
   ok("rewind go: hidden while a vote is still open", valueOf(r, "waiting") === "false", String(valueOf(r, "waiting")));
 }
+// the asker can take back a vote someone never answers (table log 2026-11-12 01:18): their Keep playing shows while
+// another player is still to vote, and sends their no, which the bridge turns into a withdrawal
+{
+  const vote = (by, waiting) => `engineRewindUpdate({ points = {}, vote = { id = 6, to = "turn 4", by = "${by}", byColor = "${by}", waiting = { ${waiting.map((w) => `"${w}"`).join(", ")} }, status = "pending" } }, false)`;
+  const r = run([q(`${vote("Blue", ["Red"])} return tostring(UI.getAttribute("eng_voteno_Blue", "active")) .. "|" .. tostring(UI.getAttribute("eng_voteyes_Blue", "active"))`, "asker"),
+    q('onMtgVote(Player.Blue, nil, "eng_voteno_Blue")', "press"),
+    q(`${vote("Red", ["Red"])} return tostring(UI.getAttribute("eng_voteno_Blue", "active"))`, "other asked"),
+    q(`${vote("Blue", [])} return tostring(UI.getAttribute("eng_voteno_Blue", "active"))`, "nobody left")]);
+  ok("rewind withdraw: the asker gets Keep playing, not Rewind", valueOf(r, "asker") === "true|false", String(valueOf(r, "asker")) + " " + r.errors.join(" | "));
+  ok("rewind withdraw: it says what the button does", fxOf(r, "asker").join(" ").includes("Keep playing takes it back."), fxOf(r, "asker").join(" ").slice(0, 300));
+  const press = fxOf(r, "press").join(" ").split("\\").join("");
+  ok("rewind withdraw: pressing it sends the asker's no", press.includes("rewindVote") && press.includes('"accept":false') && press.includes('"color":"Blue"'), press.slice(0, 200));
+  ok("rewind withdraw: a player who didn't ask and isn't waited for gets no button", valueOf(r, "other asked") === "false", String(valueOf(r, "other asked")));
+  ok("rewind withdraw: nor the asker once nobody is left to vote", valueOf(r, "nobody left") === "false", String(valueOf(r, "nobody left")));
+}
 // The "floating black boxes" (2026-11-09): the covers over TTS's tool bars, measured on one screen, floated on others.
 // None in the screen UI, and nothing sets one. The log panel is no empty black box either: hidden until the first line.
 {
@@ -3038,6 +3053,23 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("combat tabs: and opens the first of them (its line listed, its tab gold)", v(r2, "list more").split("|")[2] === "[  ] Creature H 1/1 → AI 1" && v(r2, "list more").split("|")[3] === "-" && v(r2, "gold more") === "gold:1", `${v(r2, "list more").split("|").slice(0, 4).join(" / ")} ${v(r2, "gold more")}`);
   ok("combat tabs: a tab of the second page shows its line", v(r2, "list h").split("|")[2] === "[  ] Creature H 1/1 → AI 1", v(r2, "list h").split("|").slice(0, 4).join(" / "));
   ok("combat tabs: a blockers question has them too, by the blocker", v(r3, "block tabs") === "Spirit Token (10)|Grizzly Bears (1)|-|-|-|-|-|-", v(r3, "block tabs"));
+}
+// an attack line at a player ends at their life counter, the heart they click to attack them (live game 2026-11-11: Craw
+// Wurm's line at White ended on White's land row, near the mat's edge). A target line at a player too.
+{
+  const board = 'local t = engineTable() local blue, white for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p elseif p.color == "White" then white = p end end ' +
+    'engineStoreStatic("engine-card-985", { n = "Craw Wurm", f = "https://img.example/c.jpg", ty = { "Creature" } }) table.insert(white.battlefield, { s = 1, id = "engine-card-985", ctl = "White", atk = true, atkT = "Blue" }) ' +
+    't.stack = { { id = "engine-stack-9", n = "Lightning Bolt", ctl = "White", src = "engine-card-985", tg = { { k = "p", c = "Blue" } } } } ' +
+    't.active = "White" t.step = "combatDeclareBlockers" engineRender(t) __sim.frames(60) return "laid"';
+  // (Blue's life counter by its GUID, LIFE_TRACKERS in engine-renderer.lua, a local there)
+  const ends = 'local heart = getObjectFromGUID("395037").getPosition() local s = {} for _, l in ipairs(Global.getVectorLines() or {}) do local p = l.points[#l.points] ' +
+    's[#s + 1] = string.format("%.4f:%.1f,%.1f", l.thickness, (p.x or p[1]) - heart.x, (p.z or p[3]) - heart.z) end table.sort(s) return table.concat(s, " ")';
+  const r = run([q(board, "board"), q(ends, "ends")]);
+  const lines = String(valueOf(r, "ends")).split(" ").filter(Boolean);
+  const at = (thick) => lines.find((l) => l.startsWith(thick));
+  const onHeart = (l) => /:-?0\.0,-?0\.0$/.test(l || "");
+  ok("attack line: at a player, it ends on their life counter", onHeart(at("0.2201")), `${valueOf(r, "ends")} ${r.errors.join(" | ")}`);
+  ok("target line: at a player, it ends on their life counter too", onHeart(at("0.3001")), `${valueOf(r, "ends")} ${r.errors.join(" | ")}`);
 }
 // Assigning a blocker always confirms (item 2: "sometimes gives no confirmation"): every click on the table says what
 // it did, a second blocker's "Now click the attacker" within 3 s included, and an attacker clicked after a block was
