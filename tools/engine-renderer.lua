@@ -1954,21 +1954,23 @@ do
         if ours() then MusicPlayer.pause() end
         if FX.sndRepeat ~= nil then MusicPlayer.repeat_track = FX.sndRepeat FX.sndRepeat = nil end
       end
+      -- (not to be played: paused once TTS starts it, a minute at most; also for a clip still loading after 30 s)
+      local function whenStarted()
+        Wait.condition(finish, function() return FX.sndSeq ~= seq or MusicPlayer.player_status == "Play" end, 60, finish)
+      end
       local ok = pcall(function()
         if FX.sndRepeat == nil then FX.sndRepeat = MusicPlayer.repeat_track == true end
         MusicPlayer.repeat_track = true
         MusicPlayer.setCurrentAudioclip({ url = pick, title = title })
         Wait.condition(function()
           if not ours() then return end
-          if os.clock() - setAt > 2 then
-            Wait.condition(finish, function() return FX.sndSeq ~= seq or MusicPlayer.player_status == "Play" end, 30, finish)
-            return
-          end
+          if os.clock() - setAt > 2 then whenStarted() return end
           MusicPlayer.play()
           Wait.time(finish, (engineSoundLen[key] or 2) - 0.15)
-        end, function() return FX.sndSeq ~= seq or (ours() and MusicPlayer.loaded == true) end, 30, finish)
+        end, function() return FX.sndSeq ~= seq or (ours() and MusicPlayer.loaded == true) end, 30, whenStarted)
       end)
-      if not ok then return false end
+      -- (a set that failed still gives the players' repeat setting back, verifier 2026-11-11)
+      if not ok then pcall(finish) return false end
       route = "music"
     else
       if FX.sndObj == nil or FX.sndObj.isDestroyed() then
