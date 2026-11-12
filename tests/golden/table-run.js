@@ -645,7 +645,37 @@ function scenarios() {
   return [{ name: "4-player game vs 3 AI (recorded)", steps: four }, { name: "1v1 with a player's clicks (recorded)", steps: one },
     { name: "setup buttons (Ready / Start)", steps: setup, seated: ["Blue", "White"] },
     { name: "setup buttons: one player starts against an AI", steps: solo, seated: ["Blue"] },
-    { name: "card entry: every way a card object is made", steps: cardEntry(s1) }];
+    { name: "card entry: every way a card object is made", steps: cardEntry(s1) },
+    { name: "cost badge: hand and command cards whose cost changed", steps: costBadge(s1) }];
+}
+
+// (2026-11-11, docs/cost-badge-spec.md) the cost badge, a game of its own so the recorded games stay as they are: the 1v1
+// up to its 40th message, then Blue's first hand card taxed ({2}{R} -> {3}{R}), its second cheaper by a coloured symbol
+// ({2}{G}{G} -> {2}{G}), its third with no generic ({R} -> {1}{R}), the commander after two casts; the same board again
+// (no redraw); then all as printed (the badges go). Each step reads the buttons and hover text of those cards.
+function costBadge(s1) {
+  const msgs = s1.slice(0, 40);
+  const last = JSON.parse([...msgs].reverse().find((m) => m.t === "table").json);
+  let hand = [], command = [];
+  for (const m of msgs) if (m.t === "table") { const pl = JSON.parse(m.json).players.find((x) => x.color === "Blue"); if (pl && pl.hand) hand = pl.hand; if (pl && pl.command) command = pl.command; }
+  const COSTS = [["{2}{R}", "{3}{R}"], ["{2}{G}{G}", "{2}{G}"], ["{R}", "{1}{R}"]];
+  const board = (on) => {
+    const t = JSON.parse(JSON.stringify(last));
+    const pl = t.players.find((x) => x.color === "Blue");
+    pl.hand = hand.map((c, i) => (on && COSTS[i] ? { ...c, mc: COSTS[i][0], ec: COSTS[i][1] } : c));
+    pl.command = command.map((c, i) => (on && i === 0 ? { ...c, mc: "{2}{U}{R}", ec: "{6}{U}{R}" } : c));
+    pl.keep = (pl.keep || []).filter((z) => z !== "hand" && z !== "command");
+    return { t: "table", json: JSON.stringify(t) };
+  };
+  const ids = [...hand.slice(0, 3), ...command.slice(0, 1)].map((c) => c.id);
+  const read = (mark) => ({ lua: `local out = {} for _, id in ipairs({ "${ids.join('", "')}" }) do local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. id then o = x end end
+    local b = {} for _, x in ipairs(o and o.getButtons() or {}) do b[#b + 1] = tostring(x.label) end
+    out[#out + 1] = id .. " [" .. table.concat(b, ",") .. "] " .. (o and tostring(o.getDescription()):match("Costs [^\\n]*") or "-") end return table.concat(out, " | ")`, mark });
+  return [{ lua: "engineAutoPace.Blue = false", mark: "click: auto off" }, { lua: 'engineChat("mtg start ai 1", Player.Blue)', mark: "click: start" },
+    ...msgs.map((m) => ({ msg: { t: m.t, json: m.json } })), { frames: 30 },
+    { msg: board(true), frames: 30, mark: "cost badge: costs changed" }, read("cost badge: the badges"),
+    { msg: board(true), frames: 30, mark: "cost badge: the same board again" }, read("cost badge: the badges again"),
+    { msg: board(false), frames: 30, mark: "cost badge: as printed again" }, read("cost badge: no badges")];
 }
 
 // (2026-11-06, docs/core-moves-cleanup-plan.md §3) every way an object becomes an engine card's object, on crafted boards

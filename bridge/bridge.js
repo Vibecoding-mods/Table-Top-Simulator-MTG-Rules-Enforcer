@@ -1572,6 +1572,7 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
       ...(zone === "battlefield" && ownerOf(c) && c.controllerId && ownerOf(c) !== c.controllerId ? [`Owned by ${nameOf(ownerOf(c))}`] : []),
       ...(zone === "battlefield" ? choiceWords(c, views) : [])]),
     ...cardNotes(c, zone),
+    ...costNow(c, zone), // (what it costs now, when that isn't its printed cost: the table's cost badge)
   };
 }
 
@@ -1609,6 +1610,24 @@ function keywordCostText(c, word, cost) {
   if (printed) return printed;
   const parts = String(cost || "").trim().split(/\s+/);
   return cost && parts.every((p) => /^[0-9WUBRGCXSP/]+$/.test(p)) ? parts.map((p) => `{${p}}`).join("") : null;
+}
+
+// What a card costs now when that isn't its printed cost, for the table's cost badge (docs/cost-badge-spec.md): ec, the
+// cost now, and mc, the printed one ("" for Forge's "no cost"). The cost now is Forge's effectiveManaCost (every
+// reduction, increase and the commander tax Forge applies; sent only for a card its seat may cast from the hand, the
+// command zone or the library's top, and only when it differs). Display only: the payment question says what is paid.
+// Fallback, a commander in the command zone while the engine has sent no effectiveManaCost in this game (an engine or
+// relay without it): its printed cost plus its commanderTax. Once one has come, the engine's silence means "as printed"
+// (a reduction can cancel the tax).
+function costNow(c, zone) {
+  if (c.effectiveManaCost && game) game.costSeen = true;
+  const printed = c.manaCost && c.manaCost !== "no cost" ? String(c.manaCost) : "";
+  let now = c.effectiveManaCost || null;
+  if (!now && zone === "command" && !game?.costSeen && Number(c.commanderTax) > 0) {
+    const generic = /^\{(\d+)\}/.exec(printed);
+    now = `{${(generic ? Number(generic[1]) : 0) + Number(c.commanderTax)}}${generic ? printed.slice(generic[0].length) : printed}`;
+  }
+  return now && now !== printed ? { ec: now, mc: printed } : {};
 }
 
 // The lore counters on a Saga (the counter's name comes from Forge: compared without its case)
@@ -3905,7 +3924,7 @@ function sendTable() {
       battlefield: zoneOf(pub, "battlefield", p.id).cards.map((c) => tableCard(c, { blockers, active: pub.activePlayerId, zone: "battlefield", views })),
       graveyard: zoneOf(pub, "graveyard", p.id).cards.map((c) => tableCard(c, { blockers, zone: "graveyard" })),
       exile: zoneOf(pub, "exile", p.id).cards.map((c) => tableCard(c, { blockers, zone: "exile" })),
-      command: command.map(toCard),
+      command: command.map((c) => tableCard(c, { blockers, zone: "command" })), // (zone: a commander's tax, costNow)
     };
     // (after the zones: the cards a seat may play from outside its hand, built once; none once the game is over: Sen
     // Triplets' stand-ins kept glowing as playable under GAME OVER, real-table check 2026-11-10)
@@ -9580,7 +9599,7 @@ if (require.main === module) {
 } else {
   // Loaded by a test (tests/bridge-harness.js): the logic without servers. `game` is set through _setGame.
   module.exports = {
-    alignment, tableCard, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
+    alignment, tableCard, costNow, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
