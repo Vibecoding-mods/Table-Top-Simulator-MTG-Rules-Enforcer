@@ -28,7 +28,8 @@ function board(st) {
   });
   return JSON.stringify({ t: "table", turn: st.turn ?? 3, step: st.step || "main1", active: "Blue", activeTurnNo: 2, priority: "Blue", gameOver: !!st.gameOver,
     winner: st.winner || null, players: [pl("Blue", "player-0", st.Blue), pl("White", "player-1", st.White)], stack: st.stack || [], cards,
-    ...(st.rewind ? { rewind: st.rewind } : {}), ...(st.jump ? { jump: true } : {}), ...(st.overWhy ? { overWhy: st.overWhy } : {}), ...(st.exd ? { exd: st.exd } : {}) });
+    ...(st.rewind ? { rewind: st.rewind } : {}), ...(st.jump ? { jump: true } : {}), ...(st.overWhy ? { overWhy: st.overWhy } : {}), ...(st.exd ? { exd: st.exd } : {}),
+    ...(st.ctrd ? { ctrd: st.ctrd } : {}) });
 }
 const base = () => ({ Blue: { bf: [...blueC.slice(0, 7), "bl1"], gy: [], more: {} }, White: { bf: [...whiteC, "wl1"], gy: [], more: {} } });
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -626,13 +627,14 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const RAMP = { id: "engine-stack-32", n: "Farseek", tx: "Search your library for a land card.", ctl: "White", src: "c32", spell: false, sp: true, tg: [] };
   const COUNTER = (id, target) => ({ id, n: "Counterspell", tx: "Counter target spell.", ctl: "Blue", src: id + "c", spell: false, sp: true, ins: true, tg: [{ k: "s", id: target }] });
   const CYCLE = { id: "engine-stack-34", n: "Censor", tx: "Cycling {U}", ctl: "White", src: "c34", spell: false, tg: [] };
+  // (the countered spell is told by the bridge's ctrd, its card: see the next block)
   const s0 = base();
   const a1 = clone(s0); a1.stack = [BOLT, COUNTER("engine-stack-31", BOLT.id)];
-  const a2 = clone(s0);
+  const a2 = clone(s0); a2.ctrd = [BOLT.src];
   const b1 = clone(s0); b1.stack = [RAMP, COUNTER("engine-stack-33", RAMP.id)];
-  const b2 = clone(s0);
+  const b2 = clone(s0); b2.ctrd = [RAMP.src];
   const c1 = clone(s0); c1.stack = [CYCLE, COUNTER("engine-stack-35", CYCLE.id)];
-  const c2 = clone(s0);
+  const c2 = clone(s0); c2.ctrd = [CYCLE.src];
   const t = run([send(s0, "first"), send(a1, "bolt cast", 30), send(a2, "bolt countered", 30), send(b1, "farseek cast", 30), send(b2, "farseek countered", 30),
     send(c1, "an ability", 30), send(c2, "an ability countered", 30)]);
   ok("countered: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
@@ -640,6 +642,29 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("countered: an instant countered shows COUNTERED: Lightning Bolt", pop("bolt countered").some((l) => l.includes("COUNTERED: Lightning Bolt")), JSON.stringify(t.fx("bolt countered").filter((l) => l.includes("eng_pop"))));
   ok("countered: a sorcery countered shows COUNTERED: Farseek", pop("farseek countered").some((l) => l.includes("COUNTERED: Farseek")), JSON.stringify(t.fx("farseek countered").filter((l) => l.includes("eng_pop"))));
   ok("countered: an ability (no sp, no spell) countered shows none", pop("an ability countered").length === 0, JSON.stringify(pop("an ability countered")));
+}
+
+// the COUNTERED pop-up in the engine's own shape (bug B, live check 2026-11-12): the stack items as the bridge sent them
+// (Forge's stack words "Counter Fury." / "Counter Tibalt, Cosmic Impostor.", no "counter target", and no targets), then
+// a board with both gone and the bridge's ctrd naming the countered spell's card. The pop-up never fired live.
+{
+  const FURY = { id: "engine-stack-22", n: "Fury", tx: "Fury (Evoked)", ctl: "White", src: "c194", spell: true, tg: [] };
+  const TIBALT = { id: "engine-stack-3", n: "Tibalt, Cosmic Impostor", tx: "Tibalt, Cosmic Impostor", ctl: "White", src: "c167", spell: true, tg: [] };
+  const CS = (id, src, on) => ({ id, n: "Counterspell", tx: `Counter ${on}.`, ctl: "Blue", src, spell: false, sp: true, ins: true, tg: [] });
+  const s0 = base();
+  const f1 = clone(s0); f1.stack = [FURY, CS("engine-stack-26", "c195", "Fury")];
+  const f2 = clone(s0); f2.ctrd = [FURY.src];
+  const t1 = clone(s0); t1.stack = [TIBALT, CS("engine-stack-7", "c179", TIBALT.n)];
+  const t2 = clone(s0); t2.ctrd = [TIBALT.src];
+  const r1 = clone(s0); r1.stack = [FURY];
+  const r2 = clone(s0); r2.ctrd = ["c999"]; // (a card the last stack didn't show: nothing to pop up)
+  const t = run([send(s0, "first"), send(f1, "fury cast", 30), send(f2, "fury countered", 150), send(t1, "tibalt cast", 30), send(t2, "tibalt countered", 150),
+    send(r1, "fury again", 30), send(r2, "fury resolves", 30)]);
+  ok("countered live: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const pop = (m) => t.fx(m).filter((l) => l.includes('"eng_pop_who"') && l.includes("COUNTERED"));
+  ok("countered live: COUNTERED: Fury", pop("fury countered").some((l) => l.includes("COUNTERED: Fury")), JSON.stringify(t.fx("fury countered").filter((l) => l.includes("eng_pop"))));
+  ok("countered live: COUNTERED: Tibalt, Cosmic Impostor (the face cast)", pop("tibalt countered").some((l) => l.includes("COUNTERED: Tibalt, Cosmic Impostor")), JSON.stringify(t.fx("tibalt countered").filter((l) => l.includes("eng_pop"))));
+  ok("countered live: a spell that left with no ctrd for it shows none", pop("fury resolves").length === 0, JSON.stringify(pop("fury resolves")));
 }
 
 // claims audit (jr-programmer-suite, 2026-11-11): promises of design section 6 that the blocks above don't pin
@@ -780,6 +805,9 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
     send(s0, "first board", 5), RIGQ,
     lua(`local s = nil for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:sounds" then s = o end end
       return s and JSON.encode({ y = s.getPosition().y, lock = s.getLock() }) or "{}"`, "sound object", 1),
+    lua(`local out = {} for _, o in ipairs(getObjects()) do local d = o.__d.data
+      if d ~= nil and d.Name == "Custom_Assetbundle" and (d.GMNotes == "engine:fx" or d.GMNotes == "engine:sounds") then local tr = d.Transform or {} out[#out + 1] = { y = tr.posY, s = tr.scaleX } end end
+      return JSON.encode(out)`, "transforms", 1),
     send(d, "death", 150), RIGQ, LAST,
     { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" },
     { msg: { t: "started", json: STARTED }, mark: "started 2" }, send(s0, "second game's first board", 5), RIGQ,
@@ -795,6 +823,36 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   const v = t.value("last");
   ok("links: the death sound through the spawned sound object (index 0)", JSON.stringify(v.snd) === '["death bundle"]' && abLines(t.fx("death")).some((l) => /"AssetBundle.playTriggerEffect" obj:\S+ 0$/.test(l)), JSON.stringify([v.snd, abLines(t.fx("death"))]));
   ok("links: the next game spawns none, and finds all 6", spawns("second game's first board").length === 0 && q[2].length === 6, JSON.stringify(q[2].length));
+  // (the fake raises on an AssetBundle spawned with no Transform, as real TTS does: live check 2026-11-12, bug A)
+  const tf = t.value("transforms");
+  ok("links: every bundle's spawn data has a Transform at its park spot", Array.isArray(tf) && tf.length === 7 && tf.every((x) => near(x.y, -30) && x.s === 1), JSON.stringify(tf));
+}
+
+// a bundle spawn that fails (bug A, live 2026-11-12: the spawn raised and FX.built was already set, so the life
+// counter's effect pool was never built): no script error, the pool is built anyway and a death takes a slot, and the
+// next game tries the spawn again
+{
+  const s0 = base();
+  const d = clone(s0); d.Blue.bf = d.Blue.bf.filter((c) => c !== "b1"); d.Blue.gy = ["b1"];
+  const FXL = "https://example.invalid/mtg-fx.unity3d";
+  const t = run([
+    lua(`__sim.bundleEffects = { ["${FXL}"] = { "${RIG_NAMES.join('", "')}" } } __sim.spawnFail = function(d) return d.Name == "Custom_Assetbundle" end
+      engineFxBundle = { fx = "${FXL}" } return "x"`, "links"),
+    send(s0, "first board", 5),
+    lua(`return getObjectFromGUID("${CARRIER}").UI.getXml()`, "pool xml", 1),
+    send(d, "death", 60), LAST,
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" },
+    lua(`__sim.spawnFail = nil return "x"`, "spawns work again"),
+    { msg: { t: "started", json: STARTED }, mark: "started 2" }, send(s0, "second game's first board", 5), RIGQ,
+  ]);
+  ok("spawn fails: the script ran (the failure is caught)", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const printed = t.r.steps.flatMap((s) => (s.fx || []).filter((l) => /spawn failed|table effects|pop-up/i.test(l)));
+  ok("spawn fails: nothing raised on the way (no error printed)", printed.length === 0, JSON.stringify(printed.slice(0, 3)));
+  ok("spawn fails: the life counter's pool is built at the first board", String(t.step("pool xml").value || "").includes('id="eng_fx_pool_'), String(t.step("pool xml").value || "").slice(0, 120));
+  const v = t.value("last");
+  ok("spawn fails: the death still takes an Object UI slot (the pool was built)", (v.fx || []).length === 1 && v.fx[0].slot === 1 && activeOn(t.fx("death")).length === 1, JSON.stringify(v));
+  const q = t.all("rigq").map((s) => JSON.parse(s.value || "[]"));
+  ok("spawn fails: the next game spawns the 6 rigs", q[0] && q[0].length === 6, JSON.stringify(q));
 }
 
 // a full bundle, 3 rigs: each event plays its own trigger effect at its spot, and the rig goes back under the table
@@ -810,8 +868,8 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   const BOLT = { id: "engine-stack-30", n: "Lightning Bolt", tx: "Lightning Bolt deals 3 damage to any target.", ctl: "White", src: "c30", spell: false, sp: true, ins: true, tg: [{ k: "p", c: "Blue" }] };
   const CS = { id: "engine-stack-31", n: "Counterspell", tx: "Counter target spell.", ctl: "Blue", src: "c31", spell: false, sp: true, ins: true, tg: [{ k: "s", id: BOLT.id }] };
   const cast = clone(crd); cast.stack = [BOLT, CS];
-  const gone = clone(crd);
-  const wipe = clone(gone); wipe.Blue.bf = ["b8", "bl1"].filter((c) => wipe.Blue.bf.includes(c)); wipe.Blue.gy = ["b1", "b3", "b4", "b5", "b6", "b7"];
+  const gone = clone(crd); gone.ctrd = [BOLT.src]; // (the bridge names the countered spell's card)
+  const wipe = clone(crd); wipe.Blue.bf = ["b8", "bl1"].filter((c) => wipe.Blue.bf.includes(c)); wipe.Blue.gy = ["b1", "b3", "b4", "b5", "b6", "b7"];
   const ko = clone(wipe); ko.White.status = "lost";
   const jumped = clone(ko); jumped.White.bf = jumped.White.bf.filter((c) => c !== "w2"); jumped.White.gy = ["w2"]; jumped.jump = true;
   const t = run([

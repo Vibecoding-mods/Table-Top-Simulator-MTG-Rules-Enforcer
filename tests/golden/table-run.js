@@ -265,11 +265,13 @@ function scenarios() {
       ask({ promptId: null }));
   }
   // M5 effects: a Counterspell aimed at Opt (COUNTERED), a board wipe (Blue's graveyard flashes once, "x3")
+  // (the countered spell named by its card in the bridge's ctrd, as the bridge sends it since the live check of
+  // 2026-11-12: the stack's own words and targets tell nothing; cards no board shows, so nothing else changes)
   {
     const withStack = JSON.parse(JSON.stringify(lastTable));
     withStack.stack = [
-      { id: "stack-70", n: "Opt", tx: "Scry 1. Draw a card.", ctl: "Blue", src: null, spell: true, tg: [] },
-      { id: "stack-71", n: "Counterspell", tx: "Counter target spell.", ctl: "White", src: null, spell: true, tg: [{ k: "s", id: "stack-70" }] }];
+      { id: "stack-70", n: "Opt", tx: "Scry 1. Draw a card.", ctl: "Blue", src: "golden-card-70", spell: true, tg: [] },
+      { id: "stack-71", n: "Counterspell", tx: "Counter target spell.", ctl: "White", src: "golden-card-71", spell: true, tg: [{ k: "s", id: "stack-70" }] }];
     const wiped = JSON.parse(JSON.stringify(lastTable));
     const wb = wiped.players.find((x) => x.color === "Blue");
     wb.battlefield = bf.slice(3);
@@ -281,11 +283,11 @@ function scenarios() {
     fb.keep = (fb.keep || []).filter((z) => z !== "battlefield");
     one.push({ msg: { t: "table", json: JSON.stringify(full) }, mark: "fx: before" },
       { msg: { t: "table", json: JSON.stringify(withStack) }, mark: "fx: Counterspell on Opt" },
-      { msg: { t: "table", json: JSON.stringify({ ...full, stack: [] }) }, frames: 130, mark: "fx: both gone (countered)" },
+      { msg: { t: "table", json: JSON.stringify({ ...full, stack: [], ctrd: ["golden-card-70"] }) }, frames: 130, mark: "fx: both gone (countered)" },
       { msg: { t: "table", json: JSON.stringify(wiped) }, frames: 100, mark: "fx: three die at once" },
       { msg: { t: "table", json: JSON.stringify({ ...full, stack: [withStack.stack[0], withStack.stack[1],
-        { id: "stack-72", n: "Negate", tx: "Counter target noncreature spell.", ctl: "Blue", src: null, spell: true, tg: [{ k: "s", id: "stack-71" }] }] }) }, mark: "fx: Negate on the Counterspell" },
-      { msg: { t: "table", json: JSON.stringify({ ...full, stack: [withStack.stack[0]] }) }, frames: 130, mark: "fx: Counterspell countered, Opt stays" },
+        { id: "stack-72", n: "Negate", tx: "Counter target noncreature spell.", ctl: "Blue", src: "golden-card-72", spell: true, tg: [{ k: "s", id: "stack-71" }] }] }) }, mark: "fx: Negate on the Counterspell" },
+      { msg: { t: "table", json: JSON.stringify({ ...full, stack: [withStack.stack[0]], ctrd: ["golden-card-71"] }) }, frames: 130, mark: "fx: Counterspell countered, Opt stays" },
       { msg: { t: "table", json: JSON.stringify({ ...full, stack: [] }) }, frames: 130, mark: "fx: Opt resolves" },
       click("return tostring(engineFxLast and engineFxLast.died and engineFxLast.died.Blue) .. ' ' .. tostring(engineFxFlashed)"));
   }

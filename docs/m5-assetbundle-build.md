@@ -18,7 +18,10 @@ must contain so the table can use them, how to build them, and the two-client te
   the sounds stay the MusicPlayer links.
 - With a link and none of that object on the table, a game's first board spawns them once (`spawnObjectData`,
   `Custom_Assetbundle`, locked, parked under the table at y −30, x −40…−31, z 30). They stay in the save after that;
-  the next games find them by their GM notes. Rigs already in the save are used without a link too.
+  the next games find them by their GM notes. Rigs already in the save are used without a link too. The spawn data
+  carries a `Transform` at the park spot: without one real TTS raises "Object reference not set to an instance of an
+  object" and spawns nothing (live check 2026-11-12). A spawn that raises is caught: that game's effects use the
+  Object UI slots and the next game tries the spawn again.
 - Each game's first board looks for the rigs once: made `interactable = false` (a rig over a card mustn't take its
   clicks), one found above the table goes back under it. The trigger effect names come from the first rig's
   `AssetBundle.getTriggerEffects()`; no AssetBundle yet or an empty list (still loading) is asked again later.

@@ -858,9 +858,31 @@ const id = (n) => `engine-card-${n}`;
   same("kw-14: but not one that entered first (evoke, the legend rule)",
     between(board((b) => b.stack.push(WURM)), board((b) => put(b, "graveyard", WURM_CARD)), [ev(11, "Stack", "Battlefield", id(70)), ev(12, "Battlefield", "Graveyard", id(70), "sacrificed")]),
     []);
+  // (a sorcery face's stack item has its spell text, as every instant's and sorcery's does in Forge's feed: Counterspell's
+  // came as sourceAbilityText with sp set, live check 2026-11-12; the words here stand for any sorcery face's)
   same("kw-14: nor a double-faced card's sorcery face, which resolves into the graveyard",
-    between(board((b) => b.stack.push({ ...WURM, identity: { name: "Tibalt's Trickery" } })), board((b) => put(b, "graveyard", WURM_CARD)), [ev(11, "Stack", "Graveyard", id(70))]),
+    between(board((b) => b.stack.push({ ...WURM, identity: { name: "Tibalt's Trickery" }, sourceAbilityText: "Draw two cards." })),
+      board((b) => put(b, "graveyard", WURM_CARD)), [ev(11, "Stack", "Graveyard", id(70))]),
     []);
+  // (but a permanent face, which has no spell text, straight into the graveyard was countered: Valki cast as Tibalt,
+  // Cosmic Impostor under the AI's Counterspell, in the engine's own shape (no targets, Forge's stack words), read no
+  // "is countered" while Fury's did, live check 2026-11-12)
+  {
+    const TIBALT = { id: "engine-stack-3", sourceId: id(67), identity: { name: "Tibalt, Cosmic Impostor" }, controllerId: "player-0", text: "Tibalt, Cosmic Impostor", targets: [] };
+    const FURY = { id: "engine-stack-22", sourceId: id(68), identity: { name: "Fury" }, controllerId: "player-0", text: "Fury (Evoked)", targets: [] };
+    const CS_ON = (on) => ({ id: "engine-stack-7", sourceId: id(72), identity: { name: "Counterspell" }, controllerId: "player-1", sourceAbilityText: "Counter target spell.", text: `Counter ${on}.`, targets: [] });
+    const countered = (spell, gyCard) => between(board((b) => b.stack.push(spell, CS_ON(spell.identity.name))),
+      board((b) => { put(b, "graveyard", gyCard); put(b, "graveyard", COUNTERSPELL, "player-1"); }),
+      [ev(11, "Stack", "Graveyard", spell.sourceId), ev(12, "Stack", "Graveyard", id(72), null, "player-1")]);
+    const t = countered(TIBALT, card(67, "Valki, God of Lies", ["Creature"]));
+    same("countered: a modal DFC's permanent face countered says so, by the face cast", t, ["Tibalt, Cosmic Impostor is countered by Counterspell"]);
+    same("countered: and the lines name its card as countered (the table's ctrd)", t.countered, [id(67)]);
+    const f = countered(FURY, card(68, "Fury", ["Creature"]));
+    same("countered: Fury, as live", f, ["Fury is countered by Counterspell"]);
+    same("countered: its card named too", f.countered, [id(68)]);
+    same("countered: a spell that resolved names nothing", between(board((b) => b.stack.push(FURY)), board((b) => put(b, "battlefield", card(68, "Fury", ["Creature"]))),
+      [ev(11, "Stack", "Battlefield", id(68))]).countered, []);
+  }
   same("kw-14: a commander countered by the AI between two boards says so",
     between(board((b) => { b.stack.push({ ...WURM, sourceId: id(46), identity: { name: "Niv-Mizzet, Visionary" } }); count(b, "hand", 7, "player-1"); }),
       board((b) => { put(b, "command", { ...card(46, "Niv-Mizzet, Visionary", ["Creature"]) }); count(b, "hand", 6, "player-1"); put(b, "graveyard", COUNTERSPELL, "player-1"); }),

@@ -1657,19 +1657,25 @@ function keywordCostText(c, word, cost) {
 // cost now, and mc, the printed one ("" for Forge's "no cost"). The cost now is Forge's effectiveManaCost (every
 // reduction, increase and the commander tax Forge applies; sent only for a card its seat may cast from the hand, the
 // command zone or the library's top, and only when it differs). Display only: the payment question says what is paid.
-// Fallback, a commander in the command zone while the engine has sent no effectiveManaCost in this game (an engine or
-// relay without it): its printed cost plus its commanderTax. Once one has come, the engine's silence means "as printed"
-// (a reduction can cancel the tax).
+// A commander in the command zone: the engine's cost (or the printed one when it sent none) plus its commanderTax.
+// Forge's effective cost leaves the tax out there: CostAdjustment.adjust adds it only when the card's castFrom is the
+// command zone, which GameAction sets as the card moves to the stack, so a commander waiting in the command zone is
+// priced untaxed (Mairsil showed no badge once a Thalia hand cost had come, live check 2026-11-12). Should an engine
+// ever price the tax in, its cost then has at least the tax more generic than the printed one, and is taken as it is:
+// the one misreading left is an untaxed cost raised by the tax's amount or more by other effects.
 function costNow(c, zone) {
-  if (c.effectiveManaCost && game) game.costSeen = true;
   const printed = c.manaCost && c.manaCost !== "no cost" ? String(c.manaCost) : "";
   let now = c.effectiveManaCost || null;
-  if (!now && zone === "command" && !game?.costSeen && Number(c.commanderTax) > 0) {
-    const generic = /^\{(\d+)\}/.exec(printed);
-    now = `{${(generic ? Number(generic[1]) : 0) + Number(c.commanderTax)}}${generic ? printed.slice(generic[0].length) : printed}`;
+  const tax = zone === "command" ? Number(c.commanderTax) || 0 : 0;
+  const base = now || printed;
+  if (tax > 0 && base && genericOf(base) - genericOf(printed) < tax) {
+    const generic = /^\{(\d+)\}/.exec(base);
+    now = `{${(generic ? Number(generic[1]) : 0) + tax}}${generic ? base.slice(generic[0].length) : base}`;
   }
   return now && now !== printed ? { ec: now, mc: printed } : {};
 }
+// the generic part of a mana cost string, "{3}{U}" -> 3 (none: 0)
+const genericOf = (cost) => Number(/^\{(\d+)\}/.exec(cost || "")?.[1] || 0);
 
 // The lore counters on a Saga (the counter's name comes from Forge: compared without its case)
 const loreOf = (c) => Object.entries(c.counters || {}).find(([k]) => k.toUpperCase() === "LORE")?.[1] || 0;
@@ -2761,7 +2767,13 @@ function logEvents(prev, cur, pub, facts = null) {
   // Counterspell, Kykar #8, nor Talisman of Dominance of Jin-Gitaxias's copy)
   const counterSpells = resolved.filter((s) => !s.ability && isCounterspell(s.text));
   const onlyCounter = counterSpells.length === 1 && !resolved.some((s) => s.ability && isCounterspell(s.text)) ? counterSpells[0] : null;
+  // (every "is countered" line names its counter through counteredBy, so the cards it is asked for are the ones countered
+  // on this board: lines.countered, for the table's COUNTERED pop-up (sendTable's ctrd). The table can't tell from the
+  // stack: Forge's stack words name the target, "Counter Fury.", and its stack lists no spell targets, live check
+  // 2026-11-12)
+  const counteredIds = new Set();
   const counteredBy = (id) => {
+    counteredIds.add(id);
     const sids = prevSpellOf.get(id)?.sids || [], off = takenOff.get(id);
     const name = Object.values(prev.stack).find((x) => x.id !== id && x.ctg?.some((t) => sids.includes(t)))?.name
       || (off?.how === "counter" ? cur.cards[off.by]?.name || prev.cards[off.by]?.name : null)
@@ -2832,10 +2844,16 @@ function logEvents(prev, cur, pub, facts = null) {
   };
   // (a permanent spell straight from the stack into a graveyard was countered too, by whatever did it, an ability or a
   // spell: of those only an Aura can lose its target and not resolve, and one that resolved went by the battlefield,
-  // evoke's sacrifice and the legend rule's loser. Not one cast by another name: a double-faced card's sorcery face
-  // resolves into the graveyard, its front a creature)
-  const counteredOff = (id, c, moved) => takenOff.get(id)?.how === "counter" || (moved?.from === "Stack" && moved.to === "Graveyard" && !moved.through
-    && !c.spell && !c.land && !(pubIndex[id]?.subtypes || []).includes("Aura") && (prevSpellOf.get(id)?.name ?? c.name) === c.name);
+  // evoke's sacrifice and the legend rule's loser. One cast by another name, a double-faced card's other face, goes by
+  // the face cast, its stack item: a sorcery face resolves into the graveyard, its front a creature, and has its spell
+  // text (Forge's sourceAbilityText, an instant's or a sorcery's words); a permanent face has none and was countered.
+  // Valki cast as Tibalt, Cosmic Impostor and countered read no "is countered", live check 2026-11-12)
+  const counteredOff = (id, c, moved) => {
+    if (takenOff.get(id)?.how === "counter") return true;
+    if (moved?.from !== "Stack" || moved.to !== "Graveyard" || moved.through || c.land || (pubIndex[id]?.subtypes || []).includes("Aura")) return false;
+    const cast = prevSpellOf.get(id);
+    return cast && cast.name !== c.name ? !cast.text : !c.spell;
+  };
   // (lines said after the cards' own: a spell countered by one cast just now, after that cast; [line, the spell's card])
   const later = [], sayAfter = (now, id, line) => (now ? out.push(line) : later.push([line, id]));
   // (came off the stack, or was just logged as a cast: not a discard, not "put into a graveyard")
@@ -3470,7 +3488,8 @@ function logEvents(prev, cur, pub, facts = null) {
       // (by one no board showed on the stack, or by an ability: said after that spell's cast, below)
       else if (!from && counteredOff(id, c, moved)) {
         if (moved?.from === "Stack" && !fromStack(id, c)) out.push(`${who(c.owner)} casts ${c.name}`);
-        sayAfter(false, id, `${c.name} is countered${counteredBy(id)}`);
+        // (by the face cast: "Tibalt, Cosmic Impostor is countered", not its card's front, Valki)
+        sayAfter(false, id, `${prevSpellOf.get(id)?.name ?? c.name} is countered${counteredBy(id)}`);
       }
       // (an epic spell resolved: its player's spells are gone for good, shown nowhere; Eternal Dominion, hp-23 gap)
       else if (!from && fromStack(id, c) && /(?:^|\n)Epic \(/.test(pubIndex[id]?.text || "")) out.push(`${who(c.owner)} can't cast spells for the rest of the game (epic); at each of their upkeeps, ${c.name} is copied`);
@@ -3772,6 +3791,8 @@ function logEvents(prev, cur, pub, facts = null) {
     const by = facts?.drawCause[owner];
     if (by) lines.draws[owner] = { line: sentence(line), n: facts.draws[owner], by, onStack: Object.keys(cur.stack).some((k) => k.startsWith(`${by}|`)) };
   }
+  // (the cards of the spells said to be countered on this board, see counteredBy)
+  lines.countered = [...counteredIds];
   return lines;
 }
 const sentence = (l) => (l ? l[0].toUpperCase() + l.slice(1) : l);
@@ -3820,6 +3841,8 @@ function updateLog(pub) {
   for (const [id, mv] of facts?.moves || []) if (mv.from === "Battlefield" && mv.to === "Exile") (game.fxExiled ??= new Set()).add(id);
   if (!prev) return;
   const lines = logEvents(prev, cur, pub, facts);
+  // (the spells countered, for the table's COUNTERED pop-up: see sendTable's ctrd)
+  for (const id of lines.countered || []) (game.fxCountered ??= new Set()).add(id);
   flashNews(prev, cur, pub);
   if (!lines.length) return;
   if (game.heldLines?.length) { clearTimeout(game.heldTimer); lines.push(...game.heldLines.splice(0)); }
@@ -4023,6 +4046,9 @@ function sendTable() {
   // ceases to exist and no board shows it in exile, so the table's exile sound would read it as a death. Out of the
   // signature too; cleared once sent)
   if (game.fxExiled?.size) tableMsg.exd = [...game.fxExiled];
+  // (and the cards of the spells the log said were countered since the last board sent: the table's COUNTERED pop-up
+  // and countered effect go by these, the stack telling no counter's target. Out of the signature; cleared once sent)
+  if (game.fxCountered?.size) tableMsg.ctrd = [...game.fxCountered];
   // Zones identical to the last board sent are left out and named in `keep`: the table reuses its copy. A board
   // update was 1.5-4.7 KB and cost TTS 45-120 ms to decode; most updates change one or two zones.
   game.sentZones ??= {};
@@ -4045,6 +4071,7 @@ function sendTable() {
   // (cleared after the send, not before the same-board check: a board skipped as identical keeps it for the next)
   game.fxJump = false;
   game.fxExiled?.clear();
+  game.fxCountered?.clear();
   flushTexts();
 }
 
