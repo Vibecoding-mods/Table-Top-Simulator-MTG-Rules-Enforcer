@@ -298,7 +298,7 @@ function engineNoop() end
 -- One string per card (engineBadge) decides whether anything changed; then its buttons are drawn again.
 local BADGE = { pt = { 0.62, 0.3, 1.18 }, ctr = { 0.6, 0.3, -1.12 }, grp = { -0.62, 0.3, -1.12 }, cp = { -0.55, 0.3, 1.18 }, cpBg = { 0.42, 0.18, 0.55, 0.95 },
   kw = { 0, 0.3, 0.1 }, kwBg = { 0.05, 0.32, 0.12, 0.95 }, tb = { 0, 0.29, 0.74 }, tbBg = { 0.95, 0.92, 0.84, 0.98 },
-  poBg = { 0.1, 0.16, 0.42, 0.95 }, poTint = { 0.38, 0.42, 0.62 },
+  poBg = { 0.1, 0.16, 0.42, 0.95 }, poTint = { 0.38, 0.42, 0.62 }, room = { 0, 0.3, 0.55 }, roomBg = { 0.36, 0.2, 0.05, 0.95 },
   black = { 0, 0, 0, 0.85 }, grew = { 0.8, 0.55, 0.05, 0.95 }, up = { 0.1, 0.35, 0.8, 0.95 }, down = { 0.62, 0.08, 0.08, 0.95 }, ctrBg = { 0.06, 0.16, 0.42, 0.95 } }
 local function badgeParts(c)
   local parts = {}
@@ -311,6 +311,9 @@ local function badgeParts(c)
     if cur ~= "" then lines[#lines + 1] = cur end
     return lines
   end
+  -- a dungeon's room, where it leads and the dungeons completed, the bridge's words (dungeonLabel), the room's text as
+  -- its tooltip (docs/planechase-dungeon-engine-spec.md D7)
+  if type(c.dg) == "string" and c.dg ~= "" then parts[#parts + 1] = { "room", c.dg, BADGE.roomBg, type(c.dgt) == "string" and c.dgt or "" } end
   if (c.groupN or 1) > 1 then parts[#parts + 1] = { "grp", "x" .. c.groupN, BADGE.black } end
   -- a copy of another card (Phantasmal Image as Kenrith): which of two alike is the copy (legend rule, playtest 2026-10-26)
   if c.cp then parts[#parts + 1] = { "cp", "COPY", BADGE.cpBg } end
@@ -502,9 +505,10 @@ local function updateBadge(o, c, zone)
   -- (a face-down permanent has badges too, drawn on the side that faces up, its back: one pumped or damaged said nothing.
   -- Its base is the rules' 2/2, bridge tableCard, so a plain morph has none. "=under" in the text redraws it with the next board after a flip.)
   -- (a card in a hand, a command zone, a playable row or a revealed strip shows only its cost badge, and none while its
-  -- owner has it turned over: engineCostParts)
+  -- owner has it turned over: engineCostParts; a dungeon in the command zone shows its room badge instead)
   local costZone = ENGINE_COST_ZONES[zone] == true and not engineFlipped[c.id]
-  local text = zone == "battlefield" and badgeText(c) or (costZone and engineCostText(c)) or ""
+  local text = (zone == "battlefield" or (zone == "command" and type(c.dg) == "string" and c.dg ~= "")) and badgeText(c)
+    or (costZone and engineCostText(c)) or ""
   if text ~= "" and (c.fd == true) ~= (engineFlipped[c.id] == true) then text = text .. "=under" end
   -- (the card's ability buttons are drawn with its badges: one set of buttons per card, engineAbilityButtons)
   local ab = engineAbilitySig ~= nil and engineAbilitySig(c) or ""
@@ -528,7 +532,7 @@ local function updateBadge(o, c, zone)
     for line in (b[2] .. "\n"):gmatch("([^\n]*)\n") do longest = math.max(longest, #line) lines = lines + 1 end
     lines = lines - 1
     local pos = BADGE[b[1]]
-    local kwb, tbb = b[1] == "kw", b[1] == "tb"
+    local kwb, tbb = b[1] == "kw" or b[1] == "room", b[1] == "tb"
     -- (the status box: smaller, card-wide at most, its bottom edge fixed, growing upward; the changed text box: smaller
     -- still, card-wide, centred on the card's text box)
     local fs, lineH = tbb and 64 or kwb and 90 or 180, tbb and 78 or kwb and 102 or 165
@@ -574,7 +578,8 @@ function engineCardEntry(id, obj, c, opts)
   if c ~= nil then
     updateBadge(obj, c, opts.zone)
     obj.setLock(opts.lock == true)
-    if opts.zone == "attached" or opts.zone == "linked" or opts.zone == "revealed" then obj.setScale(Vector(ATTACH_SCALE, 1, ATTACH_SCALE)) end
+    if opts.zone == "attached" or opts.zone == "linked" or opts.zone == "revealed" then obj.setScale(Vector(ATTACH_SCALE, 1, ATTACH_SCALE))
+    elseif opts.zone == "plane" then obj.setScale(Vector(1.5, 1, 1.5)) end -- (a plane in play: larger, place)
   end
   if engineGlowLate ~= nil then engineGlowLate(id) end
 end
@@ -648,7 +653,7 @@ local function place(c, pos, rot, seen, handColor, meta)
   -- "Creature — Rat", hp-22 #4 2026-10-28)
   if o.getName() ~= nickname(c) then op("name") o.setName(nickname(c)) end
   if o.getDescription() ~= description(c) then op("desc") o.setDescription(description(c)) end
-  local wantScale = (meta and (meta.zone == "attached" or meta.zone == "linked" or meta.zone == "revealed")) and ATTACH_SCALE or 1
+  local wantScale = (meta and (meta.zone == "attached" or meta.zone == "linked" or meta.zone == "revealed")) and ATTACH_SCALE or (meta and meta.zone == "plane") and 1.5 or 1
   if math.abs(o.getScale().x - wantScale) > 0.01 then op("scale") o.setScale(Vector(wantScale, 1, wantScale)) end
   if handColor ~= nil then
     engineInHand[c.id] = true
@@ -1463,6 +1468,13 @@ local function mergeStatic(m)
           for k, v in pairs(engineStatic[c.id]) do c[k] = v end
         end
       end
+    end
+  end
+  -- (the planes in play, Planechase: slimmed the same way, sent with every board)
+  for _, c in ipairs(m.planes or {}) do
+    if c.s ~= nil then
+      for k, v in pairs(engineStatic[c.id] or {}) do if c[k] == nil then c[k] = v end end
+      c.s = nil
     end
   end
 end
@@ -2647,9 +2659,20 @@ function engineRender(m)
       engineZonePile(color, "exile", engineWithoutSpecial(pl.exile or {}), g.lib + g.libFwd * 4.16, g.rotY, seen)
       sect("piles")
       local labels = TAX_LABELS[color] or {}
-      for i, c in ipairs(pl.command or {}) do
-        local label = getObjectFromGUID(labels[i] or labels[1] or "")
-        local base = label and label.getPosition() or g.lib
+      local k = 0
+      for _, c in ipairs(pl.command or {}) do
+        local base = nil
+        -- (a dungeon has its own spot past the second tax label, the way from the first to the second once more: on a
+        -- label it covered a partner commander, docs/planechase-dungeon-engine-spec.md D7)
+        if hasType(c, "Dungeon") then
+          local first, second = getObjectFromGUID(labels[1] or ""), getObjectFromGUID(labels[2] or "")
+          if first ~= nil and second ~= nil then base = second.getPosition() + (second.getPosition() - first.getPosition())
+          else base = g.lib - g.libFwd * 2.6 end
+        else
+          k = k + 1
+          local label = getObjectFromGUID(labels[k] or labels[1] or "")
+          base = label and label.getPosition() or g.lib
+        end
         -- (the dropped spot only while it is being cast; a commander that came back goes to its command zone,
         -- playtest 2026-10-26: Kenrith back in the command zone was still drawn where it had been on the battlefield)
         place(c, (engineManualPlay[c.id] and engineManual[c.id]) or onTable(base), Vector(0, g.rotY, 0), seen, nil, { zone = "command", color = color })
@@ -2666,6 +2689,15 @@ function engineRender(m)
       sect("library")
     end
   end
+  -- the planes in play (Planechase, docs/planechase-dungeon-engine-spec.md P9): at the table's centre, raised over the
+  -- life trackers, larger, turned to read from the planar controller's seat; that player's buttons on it are a
+  -- permanent's (the planar die's roll, as the ability boxes draw them), and a roll's result is a banner
+  -- (enginePlanarBanner)
+  for i, pc in ipairs(m.planes or {}) do
+    local pg = pc.ctl and seatGeometry(pc.ctl) or nil
+    place(pc, Vector(4.6 * (i - (#m.planes + 1) / 2), 2.4, 0), Vector(0, ((pg and pg.rotY) or 180) + 90, 0), seen, nil, { zone = "plane", color = pc.ctl })
+  end
+  pcall(enginePlanarBanner, m)
   local okCtl, errCtl = pcall(engineCtlHands, m, seen) -- (a controlled player's hand, see engineCtlHands)
   if not okCtl then print("[MTG] controlled hand: " .. tostring(errCtl)) end
   local okPop, errPop = pcall(function() enginePopups(m) enginePopupsClose(m) engineEffects(m) end) -- a pop-up problem must never stop the board update
@@ -2902,6 +2934,7 @@ function engineClear()
   if engineEffectsReset ~= nil then engineEffectsReset() end -- life counters lit again, no effects carried over
   if enginePileReset ~= nil then enginePileReset() end -- piles, groups and glows: ids repeat in the next game
   lastTable = nil
+  enginePlanarRollSeen = nil -- (the next game's planar die rolls count from 1 again)
   enginePrompts = {}
   restoreStash()
   engineRenderPanels()
@@ -3382,6 +3415,26 @@ end
 -- On screen when the game ends, like YOUR TURN (the board just stood still with its attack lines, playtest 2026-10-26)
 -- (the big VICTORY / DEFEAT, then "<NAME> WINS THE GAME", is the table effects' result banner; this step banner says the
 -- same for a player who turned the effects off, so nobody sees two at once (both showed together, item 14 2026-11-10))
+-- A planar die roll's result on everyone's screen for 4 s: CHAOS, PLANESWALK or BLANK (Planechase, the board's
+-- planar.last, said once by its sequence number; a jump board, a rewind or a reload, only records it)
+enginePlanarRollSeen = nil
+function enginePlanarBanner(m)
+  local last = m.planar and m.planar.last
+  if last == nil or last.seq == nil or last.seq == enginePlanarRollSeen then return end
+  enginePlanarRollSeen = last.seq
+  if m.jump then return end
+  local word = string.upper(tostring(last.result or ""))
+  if word == "" then return end
+  for _, c in ipairs(getSeatedPlayers()) do
+    if Player[c] ~= nil then
+      setText("eng_banner_" .. c, word)
+      setAttr("eng_banner_" .. c, "color", word == "CHAOS" and "#FF9A6B" or word == "PLANESWALK" and "#C9A7FF" or "#FFFFFF")
+      setAttr("eng_banner_" .. c, "outline", "#101010E0")
+      setAttr("eng_banner_" .. c, "active", "true")
+      Wait.time(function() if enginePlanarRollSeen == last.seq then setAttr("eng_banner_" .. c, "active", "false") end end, 4)
+    end
+  end
+end
 function engineGameOverBanner(m)
   for _, c in ipairs(getSeatedPlayers()) do
     if Player[c] ~= nil and engineEffectsOff[c] then
@@ -3447,6 +3500,11 @@ function engineUpdateCorner(color, p)
   setAttr("eng_phasebg_" .. color, "active", t ~= nil and "true" or "false")
   -- day or night, once a daybound card has made it one (nothing showed it, playtest 2026-10-26)
   local day = (t and t.day == "day") and "      <b><color=#FFE08A>DAY</color></b>" or ((t and t.day == "night") and "      <b><color=#9FB4FF>NIGHT</color></b>" or "")
+  -- (and the plane in play, Planechase: after DAY or NIGHT, docs/planechase-dungeon-engine-spec.md P9)
+  for _, pc in ipairs((t and t.planes) or {}) do
+    local st = engineStatic[pc.id] or pc
+    day = day .. "      <b><color=#C9A7FF>" .. (hasType(st, "Phenomenon") and "PHENOMENON: " or "PLANE: ") .. string.upper(tostring(st.n or "?")) .. "</color></b>"
+  end
   -- (a finished game shows no turn: the bar read "YOUR TURN ... MAIN 1" after the engine ended Kykar's game, #16)
   if t ~= nil and t.gameOver then
     setText("eng_phase_" .. color, "<b><color=#FFD27A>GAME OVER</color></b>" .. (t.overWhy and ("      " .. engineCut(tostring(t.overWhy), 150)) or ""))
@@ -8396,6 +8454,8 @@ function engineAbilityCard(id)
   for _, pl in ipairs((lastTable and lastTable.players) or {}) do
     for _, c in ipairs(pl.battlefield or {}) do if c.id == id then return c end end
   end
+  -- (a plane in play: the planar die's roll, Planechase)
+  for _, c in ipairs((lastTable and lastTable.planes) or {}) do if c.id == id then return c end end
 end
 function engineAbilityBoxes(color, p, kind)
   local want = {}
@@ -8428,7 +8488,7 @@ function engineAbilityBoxes(color, p, kind)
     -- back)" is not one: every land tapped for mana got a button, stage 3 review 2026-10-27)
     local ability = o.ab ~= nil or (not sent and not id:find("^tap:") and not id:find("^untap:") and not label:find("^Mana:")
       and not label:find("^Cast ") and not label:find("^Play ") and not label:find("^Untap "))
-    if meta ~= nil and meta.color == color and (meta.zone == "battlefield" or meta.zone == "attached") and ability then
+    if meta ~= nil and meta.color == color and (meta.zone == "battlefield" or meta.zone == "attached" or meta.zone == "plane") and ability then
       -- (by card id: a permanent still being spawned gets its buttons when it is drawn)
       want[o.cardId] = want[o.cardId] or {}
       local w = want[o.cardId]

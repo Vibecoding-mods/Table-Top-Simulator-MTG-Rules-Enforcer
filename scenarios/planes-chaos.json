@@ -1,0 +1,7 @@
+{
+  "label": "Planechase P7 (a game with mtg planechase on): chaos ensues on the plane in play (on Akoum: destroy target creature that is not enchanted, asked for a creature)",
+  "lands": 0,
+  "keepHand": true,
+  "battlefield": ["Grizzly Bears"],
+  "chaos": true
+}

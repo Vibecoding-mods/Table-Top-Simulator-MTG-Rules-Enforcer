@@ -17,10 +17,10 @@ index b363b43..024629b 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..3546758 100644
+index 54173c6..4ade1ca 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
-@@ -74,18 +74,32 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
+@@ -74,18 +74,38 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
  The node can opt into `checkpointMetrics` on its internal start request. `recordCheckpoint` records copy and bookkeeping nanoseconds only for successful checkpoints. The session owns the samples; `drainCheckpointMetrics` serializes and clears them under the same lock used to append. WASM games also enable collection: `WasmMain` supplies a session drain to `SabTransport`, which posts `forge:checkpoints` before each new prompt and at game end. `forge:decision.checkpointMs` accumulates checkpoints across bot prompts within the same human-response window. Keep checkpoint instrumentation separate from per-viewer board snapshot timing.
  
  
@@ -41,6 +41,12 @@ index 54173c6..3546758 100644
  
  In a browser-hosted game every seat also has a directive lane (`game:directive_lanes`, one 4096-byte `SharedArrayBuffer` per seat). `SabTransport.exchange` checks the lanes every 25 ms while it waits on the prompted seat and hands a directive to the session at once; the open prompt stays open and is not sent again (`openPrompt`/`openSeat`).
  
++### Dungeons and Planechase in the view
++
++`DungeonView` writes `PlayerDto.dungeonState` (`name`, `room`, the dungeon card's `cardId`, and `rooms`: each room's `RoomName`, its `NextRoomName` list and its description, read from the dungeon's triggers as `VentureEffect.chooseNextRoom` reads them) and `completedDungeons` (names). The fix directive's `dungeon`, `completedDungeon` and `initiative` ops make the dungeon token the way `VentureEffect.getDungeonCard` does; they run with triggers suppressed like every first-pass op, so taking the initiative there ventures nowhere.
++
++A start request's `players[].planes` turns Planechase on (`Planechase.planarDecks`): when every player brought a plane each keeps their own deck, otherwise the pool is dealt round-robin, planes before phenomena, so every planar deck holds a plane (`Player.initPlane` loops forever on a phenomena-only deck and `Player.planeswalk` reads past an empty one). `GameViewDto.planar` carries the controller, the active plane ids, the die cost (`getPlanarDiceSpecialActionThisTurn`), each planar deck's size and the last roll. Forge tells every seat a roll with `notifyOfValue`; the controller records it once (`Planechase.noteRoll`) instead of asking for an acknowledgement. The `planeswalk` and `chaos` ops run in the free-play pass, after triggers are back on, so the plane's triggers fire. A Planechase game takes no restore points: `GameSnapshot` copies neither `Game.activePlanes` nor `Player.currentPlanes`.
++
 +### A controlled player's prompts go to the controlling seat (Mindslaver)
 +
 +`Player.addController` gives a controlled player a controller made by the controlling player's lobby player, so an interactive seat that takes control of a Forge AI seat (Mindslaver) answers through `ManaBrewInteractiveController` under the AI's seat index. `publishAgentPrompt` therefore names the seat that decides, not the seat the question is about: `controllingSeat` follows `getControllingPlayer` up the chain (A controls B who controls C: C's questions go to A, since A makes every decision B would make) and stops at a controller whose original lobby player is not a `ManaBrewInteractiveLobbyPlayer` (a Forge AI cannot answer a prompt, so the question stays with the last interactive seat) or at a player it has already visited (two players controlling each other). `promptedPlayerIndex` follows `decidingPlayerId`: the browser bridge exchanges with the controlling seat, and it is the controlling seat's concede, not the controlled player's, that turns the open prompt into a pass. `MindslaverControlTest` pins one-level, nested, AI-topped and looping control.
@@ -56,7 +62,7 @@ index 54173c6..3546758 100644
  ## Typed prompt emission (compile-time protocol check)
  
  The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the source of truth: `scripts/gen-harness-prompts.mjs` reads its generated TS bindings and emits one Java class per prompt input + referenced shared type into `forge-harness/src/main/java/forge/harness/protocol/` (package `forge.harness.protocol.*`), each baking in its own `type` discriminator. `scripts/harness.mjs` regenerates them before every build. The package is generated, gitignored (`forge-harness/.gitignore`), and lives under the standard `src/main/java` root on purpose: m2e/JDTLS has no build-helper connector, so an out-of-tree generated-sources dir never lands on the IDE classpath. Never hand-edit anything in this package.
-@@ -94,7 +108,9 @@ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the
+@@ -94,7 +114,9 @@ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the
  
  `publishAgentPrompt` resolves an omitted source from the currently resolving stack item. It emits `sourceAbilityText` from that stack ability, or from `castingAbility` during cast-time prompts, only when the ability host matches an explicit source. Keep this centralized fallback: Forge callbacks such as `arrangeForScry`, `arrangeForSurveil`, and `reveal` do not receive the originating `SpellAbility`, but their prompts still need the source card and ability in the envelope. Prompts outside stack resolution remain source-less unless their caller provides a source explicitly, and unmatched abilities remain absent rather than being misattributed.
  
@@ -537,6 +543,120 @@ index aa1a47c..14c82b4 100644
      public static synchronized int parityId(final Card c) {
          if (c == null) {
              return Integer.MAX_VALUE;
+diff --git a/forge-harness/src/main/java/forge/harness/host/DungeonView.java b/forge-harness/src/main/java/forge/harness/host/DungeonView.java
+new file mode 100644
+index 0000000..3fa96b5
+--- /dev/null
++++ b/forge-harness/src/main/java/forge/harness/host/DungeonView.java
+@@ -0,0 +1,108 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.card.CardRules;
++import forge.card.GamePieceType;
++import forge.game.Game;
++import forge.game.card.Card;
++import forge.game.card.CardFactory;
++import forge.game.player.Player;
++import forge.game.spellability.SpellAbility;
++import forge.game.trigger.Trigger;
++import forge.game.zone.ZoneType;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.PaperToken;
++
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++
++final class DungeonView {
++    private DungeonView() {}
++
++    static Map<String, Object> dungeonState(final Player player) {
++        for (final Card card : player.getCardsIn(ZoneType.Command)) {
++            if (!card.getType().isDungeon()) {
++                continue;
++            }
++            final Map<String, Object> state = new LinkedHashMap<>();
++            state.put("name", card.getName());
++            state.put("room", card.getCurrentRoom() == null ? "" : card.getCurrentRoom());
++            state.put("cardId", SnapshotExtractor.javaCardId(card));
++            state.put("rooms", rooms(card));
++            return state;
++        }
++        return null;
++    }
++
++    static List<String> completedDungeons(final Player player) {
++        final List<String> names = new ArrayList<>();
++        for (final Card dungeon : player.getCompletedDungeons()) {
++            names.add(dungeon.getName());
++        }
++        return names;
++    }
++
++    static List<Map<String, Object>> rooms(final Card dungeon) {
++        final List<Map<String, Object>> rooms = new ArrayList<>();
++        for (final Trigger trigger : dungeon.getTriggers()) {
++            final SpellAbility room = trigger.getOverridingAbility();
++            if (room == null || !room.hasParam("RoomName")) {
++                continue;
++            }
++            final Map<String, Object> entry = new LinkedHashMap<>();
++            entry.put("name", room.getParam("RoomName"));
++            entry.put("next", room.hasParam("NextRoomName")
++                    ? Arrays.asList(room.getParam("NextRoomName").split(","))
++                    : List.of());
++            entry.put("text", room.getDescription());
++            rooms.add(entry);
++        }
++        return rooms;
++    }
++
++    static Card makeDungeon(final Game game, final Player owner, final String name) {
++        for (final Map.Entry<String, CardRules> entry : StaticData.instance().getAllTokens().getRules().entrySet()) {
++            if (!entry.getValue().getType().isDungeon() || !name.equals(entry.getValue().getName())) {
++                continue;
++            }
++            final PaperToken paper = StaticData.instance().getAllTokens().getToken(entry.getKey());
++            if (paper == null) {
++                break;
++            }
++            final Card dungeon = CardFactory.getCard(paper, owner, game);
++            dungeon.setGamePieceType(GamePieceType.DUNGEON);
++            return dungeon;
++        }
++        throw new IllegalArgumentException("no dungeon named " + name);
++    }
++
++    static void enterDungeon(final Game game, final Player player, final String name, final String room) {
++        for (final Card card : player.getCardsIn(ZoneType.Command)) {
++            if (card.getType().isDungeon()) {
++                throw new IllegalStateException(player.getName() + " is already in " + card.getName());
++            }
++        }
++        final Card dungeon = makeDungeon(game, player, name);
++        if (room != null && !room.isEmpty() && !hasRoom(dungeon, room)) {
++            throw new IllegalArgumentException(name + " has no room named " + room);
++        }
++        game.getAction().moveToCommand(dungeon, null);
++        dungeon.setCurrentRoom(room == null ? "" : room);
++    }
++
++    static void completeDungeon(final Game game, final Player player, final String name) {
++        player.addCompletedDungeon(makeDungeon(game, player, name));
++    }
++
++    private static boolean hasRoom(final Card dungeon, final String room) {
++        for (final Map<String, Object> entry : rooms(dungeon)) {
++            if (room.equals(entry.get("name"))) {
++                return true;
++            }
++        }
++        return false;
++    }
++}
 diff --git a/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java b/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java
 new file mode 100644
 index 0000000..00026e1
@@ -931,7 +1051,7 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..20bd951 100644
+index 713e1ef..883af78 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 @@ -28,20 +28,26 @@ import forge.game.Game;
@@ -1053,7 +1173,7 @@ index 713e1ef..20bd951 100644
                  final String controllerId =
                          "player-" + SnapshotExtractor.playerIndex(game, card.getController());
                  final CardDto dto = toCard(
-@@ -224,9 +276,13 @@ public final class InteractiveSnapshotExtractor {
+@@ -224,13 +276,21 @@ public final class InteractiveSnapshotExtractor {
          view.put("dayTime", dayTime(game));
          view.put("checkpoints", checkpoints);
          view.put("snapshotRecording", snapshotRecording);
@@ -1067,7 +1187,15 @@ index 713e1ef..20bd951 100644
          final List<String> activePlaneNames = activePlaneNames(game);
          if (!activePlaneNames.isEmpty()) {
              view.put("activePlaneNames", activePlaneNames);
-@@ -285,7 +341,7 @@ public final class InteractiveSnapshotExtractor {
+         }
++        final Map<String, Object> planar = Planechase.planarState(game);
++        if (planar != null) {
++            view.put("planar", planar);
++        }
+         final Object winner = base.get("winner");
+         if (winner != null) {
+             view.put("winnerId", "player-" + winner);
+@@ -285,7 +345,7 @@ public final class InteractiveSnapshotExtractor {
          out.put("cardsDrawnThisTurn", player.getNumDrawnThisTurn());
          out.put("damagePrevention", player.getPreventNextDamageTotalShields());
          out.put("isExtraTurn", player.isExtraTurn());
@@ -1076,7 +1204,40 @@ index 713e1ef..20bd951 100644
          final Player controller = player.getControllingPlayer();
          if (controller != null && controller != player) {
              out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
-@@ -685,6 +741,22 @@ public final class InteractiveSnapshotExtractor {
+@@ -299,10 +359,11 @@ public final class InteractiveSnapshotExtractor {
+         out.put("ringLevel", player.getNumRingTemptedYou());
+         out.put("speed", player.getSpeed());
+         out.put("hasEnduringStory", player.hasEnduringStory());
+-        final Map<String, Object> dungeonState = dungeonState(player);
++        final Map<String, Object> dungeonState = DungeonView.dungeonState(player);
+         if (dungeonState != null) {
+             out.put("dungeonState", dungeonState);
+         }
++        out.put("completedDungeons", DungeonView.completedDungeons(player));
+         final List<String> activeSchemeNames = activeSchemeNames(player);
+         if (!activeSchemeNames.isEmpty()) {
+             out.put("activeSchemeNames", activeSchemeNames);
+@@ -325,19 +386,6 @@ public final class InteractiveSnapshotExtractor {
+         return names;
+     }
+ 
+-    private static Map<String, Object> dungeonState(final Player player) {
+-        for (final Card card : player.getCardsIn(ZoneType.Command)) {
+-            if (!card.getType().isDungeon()) {
+-                continue;
+-            }
+-            final Map<String, Object> state = new LinkedHashMap<>();
+-            state.put("name", card.getName());
+-            state.put("room", card.getCurrentRoom() == null ? "" : card.getCurrentRoom());
+-            return state;
+-        }
+-        return null;
+-    }
+-
+     private static List<String> activeSchemeNames(final Player player) {
+         final List<String> names = new ArrayList<>();
+         for (final Card card : player.getCardsIn(ZoneType.Command)) {
+@@ -685,6 +733,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -1099,7 +1260,7 @@ index 713e1ef..20bd951 100644
      private static CardDto toCard(
              final Game game,
              final Card card,
-@@ -714,6 +786,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -714,6 +778,11 @@ public final class InteractiveSnapshotExtractor {
              dto.toughness = String.valueOf(card.getNetToughness());
              dto.basePower = card.getBasePower();
              dto.baseToughness = card.getBaseToughness();
@@ -1111,7 +1272,7 @@ index 713e1ef..20bd951 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -752,6 +829,29 @@ public final class InteractiveSnapshotExtractor {
+@@ -752,6 +821,29 @@ public final class InteractiveSnapshotExtractor {
          dto.isMadnessExiled = card.isMadness();
          dto.isPlotted = card.isPlotted();
          dto.isWarpExiled = card.isWarped();
@@ -1141,7 +1302,7 @@ index 713e1ef..20bd951 100644
          dto.foil = card.hasPaperFoil();
  
          final Card attachedTo = card.getAttachedTo();
-@@ -1078,12 +1178,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -1078,12 +1170,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -1156,7 +1317,7 @@ index 713e1ef..20bd951 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1233,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1225,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -1164,7 +1325,7 @@ index 713e1ef..20bd951 100644
          return stackItem;
      }
  
-@@ -1163,6 +1266,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1258,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -1191,12 +1352,32 @@ index 713e1ef..20bd951 100644
          if (source == null) {
              return 0;
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-index c69b549..f46c7ca 100644
+index c69b549..6132f90 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-@@ -115,7 +115,9 @@ public final class ManaBrewEngineAdapter {
+@@ -85,7 +85,14 @@ public final class ManaBrewEngineAdapter {
+ 
+         final int playerCount = request.getPlayers().size();
+         final GameType gameType = resolveGameType(request);
+-        final Set<GameType> variants = EnumSet.of(gameType);
++        final List<List<CardIdentity>> requestedPlanes = new ArrayList<>();
++        for (PlayerConfig playerConfig : request.getPlayers()) {
++            requestedPlanes.add(playerConfig.getPlanes());
++        }
++        final List<List<PaperCard>> planarDecks = Planechase.planarDecks(requestedPlanes, request.getSeed());
++        final Set<GameType> variants = planarDecks == null
++                ? EnumSet.of(gameType)
++                : EnumSet.of(gameType, GameType.Planechase);
+         final GameRules rules = new GameRules(gameType);
+         rules.setAppliedVariants(variants);
+         rules.setSimTimeout(120);
+@@ -113,9 +120,12 @@ public final class ManaBrewEngineAdapter {
+             }
+             Deck deck = buildDeck(playerConfig);
              RegisteredPlayer registeredPlayer = RegisteredPlayer.forVariants(
-                     playerCount, variants, deck, null, false, null, null);
+-                    playerCount, variants, deck, null, false, null, null);
++                    playerCount, variants, deck, null, false,
++                    planarDecks == null ? null : planarDecks.get(registeredPlayers.size()), null);
              if (playerConfig.isAi()) {
 -                registeredPlayer.setPlayer(new LobbyPlayerAi(playerConfig.getName(), null));
 +                registeredPlayer.setPlayer(PassiveLobbyPlayerAi.isLandsOnly(deck)
@@ -1205,8 +1386,60 @@ index c69b549..f46c7ca 100644
              } else {
                  registeredPlayer.setPlayer(new ManaBrewInteractiveLobbyPlayer(
                          playerConfig.getName(), session));
+@@ -426,7 +436,10 @@ public final class ManaBrewEngineAdapter {
+             boolean bot = playerObject.has("bot")
+                     && !playerObject.get("bot").isJsonNull()
+                     && playerObject.get("bot").getAsBoolean();
+-            players.add(new PlayerConfig(name, deck, sideboard, attractions, commanderNames, ai, bot));
++            List<CardIdentity> planes = playerObject.has("planes") && playerObject.get("planes").isJsonArray()
++                    ? parseCardIdentities(playerObject.getAsJsonArray("planes"))
++                    : List.of();
++            players.add(new PlayerConfig(name, deck, sideboard, attractions, commanderNames, ai, bot, planes));
+         }
+         final StartGameRequest request = new StartGameRequest(
+                 gameId, variant, startingLife, seed, snapshotRecording, players);
+@@ -526,6 +539,7 @@ public final class ManaBrewEngineAdapter {
+         private final List<String> commanderNames;
+         private final boolean ai;
+         private final boolean bot;
++        private final List<CardIdentity> planes;
+ 
+         public PlayerConfig(
+                 final String name,
+@@ -535,6 +549,19 @@ public final class ManaBrewEngineAdapter {
+                 final List<String> commanderNames,
+                 final boolean ai,
+                 final boolean bot
++        ) {
++            this(name, deck, sideboard, attractions, commanderNames, ai, bot, List.of());
++        }
++
++        public PlayerConfig(
++                final String name,
++                final List<CardIdentity> deck,
++                final List<CardIdentity> sideboard,
++                final List<CardIdentity> attractions,
++                final List<String> commanderNames,
++                final boolean ai,
++                final boolean bot,
++                final List<CardIdentity> planes
+         ) {
+             if (name == null || name.isBlank()) {
+                 throw new IllegalArgumentException("player name is required");
+@@ -549,6 +576,11 @@ public final class ManaBrewEngineAdapter {
+             this.commanderNames = commanderNames == null ? List.of() : List.copyOf(commanderNames);
+             this.ai = ai;
+             this.bot = bot;
++            this.planes = planes == null ? List.of() : List.copyOf(planes);
++        }
++
++        public List<CardIdentity> getPlanes() {
++            return planes;
+         }
+ 
+         public String getName() {
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
-index fb82e6d..0d51968 100644
+index fb82e6d..1710ff6 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 @@ -11,6 +11,8 @@ import forge.harness.common.HarnessPlayPlumbing;
@@ -1358,7 +1591,18 @@ index fb82e6d..0d51968 100644
      }
  
      @Override
-@@ -2620,7 +2675,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2514,6 +2569,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+ 
+     @Override
+     public void notifyOfValue(final SpellAbility saSource, final GameObject realtedTarget, final String value) {
++        if (saSource != null && saSource.getApi() == ApiType.RollPlanarDice && saSource.getActivatingPlayer() != null) {
++            Planechase.noteRoll(saSource.getActivatingPlayer(), value);
++            return;
++        }
+         final String message = MessageUtil.formatNotificationMessage(saSource, player, realtedTarget, value);
+         if (saSource != null && saSource.isManaAbility()) {
+             game.getGameLog().add(GameLogEntryType.LAND, message);
+@@ -2620,7 +2679,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      }
  
      private <T extends GameEntity> T chooseSingleEntityGeneric(
@@ -1368,7 +1612,7 @@ index fb82e6d..0d51968 100644
          final List<T> opts = new ArrayList<>();
          for (final T option : optionList) {
              opts.add(option);
-@@ -2632,7 +2688,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2632,7 +2692,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          for (final T option : opts) {
              labels.add(option == null ? "?" : option.toString());
          }
@@ -1383,7 +1627,7 @@ index fb82e6d..0d51968 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..ed64afe 100644
+index 643e5de..fd5411a 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,12 +6,15 @@ import forge.harness.common.ParityCardMap;
@@ -1463,13 +1707,14 @@ index 643e5de..ed64afe 100644
      private volatile boolean closed;
      private volatile Thread gameThread;
      private static volatile InteractiveBridge bridge;
-@@ -70,16 +89,25 @@ public final class ManaBrewInteractiveSession {
+@@ -70,16 +89,26 @@ public final class ManaBrewInteractiveSession {
      private final InteractiveSnapshotExtractor.SecretChoiceVisibility secretChoiceVisibility =
              new InteractiveSnapshotExtractor.SecretChoiceVisibility();
      private static final int CHECKPOINT_TURNS = 3;
 +    private static final int MAX_RESTORE_FORCED_PASSES = 500;
 +    private static final Set<String> FREE_PLAY_OPS = Set.of("freeCast", "freeActivate", "freeLand");
 +    private static final Set<String> LIBRARY_OPS = Set.of("draw", "mill");
++    private static final Set<String> PLANAR_OPS = Set.of("planeswalk", "chaos");
 +    private static final String FREE_PLAY_NOT_MADE =
 +            "not played: a choice was cancelled, or there was no legal target or a cost that could be paid";
      private final Deque<Checkpoint> checkpoints = new ArrayDeque<>();
@@ -1489,7 +1734,7 @@ index 643e5de..ed64afe 100644
      private boolean checkpointMetricsEnabled;
      private final List<long[]> checkpointTimings = new ArrayList<>();
      private boolean priorityPromptOpen;
-@@ -91,7 +119,7 @@ public final class ManaBrewInteractiveSession {
+@@ -91,7 +120,7 @@ public final class ManaBrewInteractiveSession {
          private final PhaseType phase;
          private final Player activePlayer;
          private final Player priorityPlayer;
@@ -1498,7 +1743,7 @@ index 643e5de..ed64afe 100644
  
          private Checkpoint(
                  final int id,
-@@ -99,16 +127,43 @@ public final class ManaBrewInteractiveSession {
+@@ -99,16 +128,43 @@ public final class ManaBrewInteractiveSession {
                  final PhaseType phase,
                  final Player activePlayer,
                  final Player priorityPlayer,
@@ -1543,7 +1788,7 @@ index 643e5de..ed64afe 100644
      private enum RestoreVoteStatus { PENDING, APPROVED, DECLINED, UNAVAILABLE }
  
      private static final class RestoreVote {
-@@ -136,6 +191,8 @@ public final class ManaBrewInteractiveSession {
+@@ -136,6 +192,8 @@ public final class ManaBrewInteractiveSession {
          this.game = Objects.requireNonNull(game, "game");
          this.botSeats = Set.copyOf(botSeats);
          this.snapshotRecording = snapshotRecording;
@@ -1552,7 +1797,7 @@ index 643e5de..ed64afe 100644
      }
  
      public String getSessionId() {
-@@ -155,26 +212,26 @@ public final class ManaBrewInteractiveSession {
+@@ -155,26 +213,26 @@ public final class ManaBrewInteractiveSession {
          requireAttached();
          Objects.requireNonNull(rng, "rng");
          if (bridge != null) {
@@ -1593,7 +1838,7 @@ index 643e5de..ed64afe 100644
      public void close() {
          closed = true;
          JsonObject action = new JsonObject();
-@@ -216,9 +273,14 @@ public final class ManaBrewInteractiveSession {
+@@ -216,9 +274,14 @@ public final class ManaBrewInteractiveSession {
  
      public String getSnapshotJson(final int viewer) {
          requireAttached();
@@ -1611,7 +1856,7 @@ index 643e5de..ed64afe 100644
      }
  
      void rememberSecretNumberViewer(final String sourceCardId, final Player viewer) {
-@@ -266,7 +328,7 @@ public final class ManaBrewInteractiveSession {
+@@ -266,7 +329,7 @@ public final class ManaBrewInteractiveSession {
  
      static final String TRIGGER_ORDER_TITLE = "Order triggered abilities";
  
@@ -1620,7 +1865,7 @@ index 643e5de..ed64afe 100644
  
      static final class PriorityChoice {
          private final PriorityActionKind kind;
-@@ -362,6 +424,11 @@ public final class ManaBrewInteractiveSession {
+@@ -362,6 +425,11 @@ public final class ManaBrewInteractiveSession {
              if (isRestoreDirective(action)) {
                  return new PriorityChoice(PriorityActionKind.RESTORE, null, null, null);
              }
@@ -1632,7 +1877,7 @@ index 643e5de..ed64afe 100644
              try {
                  return interpretPriorityAction(action, actionsForPrompt, untappableCards);
              } catch (IllegalArgumentException | UnsupportedOperationException | NullPointerException invalid) {
-@@ -823,6 +890,9 @@ public final class ManaBrewInteractiveSession {
+@@ -823,6 +891,9 @@ public final class ManaBrewInteractiveSession {
                  }
                  return chosen;
              }
@@ -1642,7 +1887,7 @@ index 643e5de..ed64afe 100644
              throw new UnsupportedOperationException("unsupported action kind: " + actionKind);
          }
          return new ArrayList<>();
-@@ -881,6 +951,12 @@ public final class ManaBrewInteractiveSession {
+@@ -881,6 +952,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -1655,7 +1900,7 @@ index 643e5de..ed64afe 100644
      boolean awaitMulliganDecision(final int playerId, final int cardsToReturn) {
          requireAttached();
          final List<Card> cards = new ArrayList<Card>(
-@@ -896,6 +972,7 @@ public final class ManaBrewInteractiveSession {
+@@ -896,6 +973,7 @@ public final class ManaBrewInteractiveSession {
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
              if ("mulligan_decision".equals(actionKind)) {
@@ -1663,7 +1908,7 @@ index 643e5de..ed64afe 100644
                  return action.has("keep") && action.get("keep").getAsBoolean();
              }
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
-@@ -1104,14 +1181,31 @@ public final class ManaBrewInteractiveSession {
+@@ -1104,14 +1182,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -1698,7 +1943,7 @@ index 643e5de..ed64afe 100644
      }
  
      void awaitRevealCards(
-@@ -1188,6 +1282,18 @@ public final class ManaBrewInteractiveSession {
+@@ -1188,6 +1283,18 @@ public final class ManaBrewInteractiveSession {
          return awaitModeChoice(playerId, unweightedOptions(options, allowRepeat), min, max, sourceName, null, null);
      }
  
@@ -1717,7 +1962,7 @@ index 643e5de..ed64afe 100644
      List<Integer> awaitModeChoice(
              final int playerId,
              final List<SelectionOption> options,
-@@ -1196,6 +1302,19 @@ public final class ManaBrewInteractiveSession {
+@@ -1196,6 +1303,19 @@ public final class ManaBrewInteractiveSession {
              final String sourceName,
              final String description,
              final String sourceCardId
@@ -1737,7 +1982,7 @@ index 643e5de..ed64afe 100644
      ) {
          requireAttached();
          if (options.isEmpty() && min > 0) {
-@@ -1207,7 +1326,7 @@ public final class ManaBrewInteractiveSession {
+@@ -1207,7 +1327,7 @@ public final class ManaBrewInteractiveSession {
          final int clampedMax = anyRepeatable ? max : Math.min(max, totalWeight);
          final String title = sourceName != null ? sourceName : "Choose";
          final PromptPresentation presentation =
@@ -1746,7 +1991,7 @@ index 643e5de..ed64afe 100644
          publishAgentPrompt("player-" + playerId, sourceCardId,
                  new ChooseFromSelectionInput(presentation, options, clampedMin, clampedMax));
          while (!closed && !game.isGameOver()) {
-@@ -1762,24 +1881,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +1882,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -1778,7 +2023,7 @@ index 643e5de..ed64afe 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +1945,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +1946,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -1788,7 +2033,7 @@ index 643e5de..ed64afe 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +1959,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +1960,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -1801,7 +2046,7 @@ index 643e5de..ed64afe 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +2011,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +2012,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -1818,7 +2063,7 @@ index 643e5de..ed64afe 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +2031,12 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +2032,12 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -1831,7 +2076,7 @@ index 643e5de..ed64afe 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1911,10 +2056,10 @@ public final class ManaBrewInteractiveSession {
+@@ -1911,10 +2057,10 @@ public final class ManaBrewInteractiveSession {
                      }
                  }
              }
@@ -1845,7 +2090,7 @@ index 643e5de..ed64afe 100644
                  throw new IllegalArgumentException("selected card count out of range: " + selected.size());
              }
              return selected;
-@@ -1940,10 +2085,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,10 +2086,16 @@ public final class ManaBrewInteractiveSession {
  
      private JsonObject takeAction() throws InterruptedException {
          while (true) {
@@ -1863,7 +2108,7 @@ index 643e5de..ed64afe 100644
              if (action == null) {
                  if (closed || game.isGameOver()) {
                      return syntheticPass();
-@@ -1966,6 +2117,14 @@ public final class ManaBrewInteractiveSession {
+@@ -1966,6 +2118,14 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -1878,7 +2123,7 @@ index 643e5de..ed64afe 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2146,15 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2147,15 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -1894,7 +2139,7 @@ index 643e5de..ed64afe 100644
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2178,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2179,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -1903,7 +2148,15 @@ index 643e5de..ed64afe 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2073,16 +2243,9 @@ public final class ManaBrewInteractiveSession {
+@@ -2067,22 +2238,16 @@ public final class ManaBrewInteractiveSession {
+         if (handler.getTurn() == checkpointTurn && handler.getPhase() == checkpointPhase) {
+             return;
+         }
+-        if (!snapshotRecording || !game.getStack().isEmpty() || game.getStack().hasSimultaneousStackEntries()) {
++        if (!snapshotRecording || !game.getStack().isEmpty() || game.getStack().hasSimultaneousStackEntries()
++                || Planechase.isPlanechase(game)) {
+             return;
+         }
          checkpointTurn = handler.getTurn();
          checkpointPhase = handler.getPhase();
          final long started = checkpointMetricsEnabled ? System.nanoTime() : 0;
@@ -1922,7 +2175,7 @@ index 643e5de..ed64afe 100644
          if (checkpointMetricsEnabled) {
              final long finished = System.nanoTime();
              synchronized (checkpointTimings) {
-@@ -2091,6 +2254,132 @@ public final class ManaBrewInteractiveSession {
+@@ -2091,6 +2256,132 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2055,7 +2308,7 @@ index 643e5de..ed64afe 100644
      private void publishCheckpointViews() {
          final List<Map<String, Object>> views = new ArrayList<>();
          for (final Checkpoint checkpoint : checkpoints) {
-@@ -2124,6 +2413,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2415,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -2066,7 +2319,7 @@ index 643e5de..ed64afe 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2157,11 +2450,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2157,11 +2452,7 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void restore(final Checkpoint target) {
@@ -2079,7 +2332,7 @@ index 643e5de..ed64afe 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2464,403 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2466,429 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2101,7 +2354,7 @@ index 643e5de..ed64afe 100644
 +            for (int i = 0; i < ops.size(); i++) {
 +                final JsonObject op = ops.get(i).getAsJsonObject();
 +                final String kind = op.get("op").getAsString();
-+                if (FREE_PLAY_OPS.contains(kind) || LIBRARY_OPS.contains(kind)) {
++                if (FREE_PLAY_OPS.contains(kind) || LIBRARY_OPS.contains(kind) || PLANAR_OPS.contains(kind)) {
 +                    plays.add(i);
 +                } else {
 +                    applyStateOp(op);
@@ -2149,7 +2402,7 @@ index 643e5de..ed64afe 100644
 +                } else {
 +                    final Map<String, Object> drop = new LinkedHashMap<>();
 +                    drop.put("index", index);
-+                    drop.put("card", op.get("card").getAsString());
++                    drop.put("card", op.has("card") ? op.get("card").getAsString() : op.get("op").getAsString());
 +                    drop.put("reason", error != null ? error : FREE_PLAY_NOT_MADE);
 +                    dropped.add(drop);
 +                }
@@ -2163,7 +2416,7 @@ index 643e5de..ed64afe 100644
 +        if (lastPlayer != null) {
 +            handler.setPriority(lastPlayer);
 +        }
-+        if (snapshotRecording) {
++        if (snapshotRecording && !Planechase.isPlanechase(game)) {
 +            addCheckpoint(before, priority);
 +        }
 +        publishStateFix(fixId, true, null, dropped);
@@ -2177,6 +2430,9 @@ index 643e5de..ed64afe 100644
 +    private String freePlayError(final JsonObject op) {
 +        final String playerId = op.get("player").getAsString();
 +        final Player player = statePlayer(playerId);
++        if (PLANAR_OPS.contains(op.get("op").getAsString())) {
++            return Planechase.opError(game, player, op);
++        }
 +        final String cardId = op.get("card").getAsString();
 +        final Card card = cardInGame(cardId);
 +        if (card == null) {
@@ -2244,6 +2500,9 @@ index 643e5de..ed64afe 100644
 +
 +    private boolean playFree(final JsonObject op) {
 +        final Player player = statePlayer(op.get("player").getAsString());
++        if (PLANAR_OPS.contains(op.get("op").getAsString())) {
++            return Planechase.applyOp(game, player, op);
++        }
 +        final Card card = stateCard(op.get("card").getAsString());
 +        final ManaBrewInteractiveController controller = (ManaBrewInteractiveController) player.getController();
 +        switch (op.get("op").getAsString()) {
@@ -2421,7 +2680,27 @@ index 643e5de..ed64afe 100644
 +                break;
 +            }
 +            default:
-+                throw new IllegalArgumentException("unknown op " + kind);
++                if (!applyVariantOp(kind, op)) {
++                    throw new IllegalArgumentException("unknown op " + kind);
++                }
++        }
++    }
++
++    private boolean applyVariantOp(final String kind, final JsonObject op) {
++        switch (kind) {
++            case "dungeon":
++                DungeonView.enterDungeon(game, statePlayer(op.get("player").getAsString()),
++                        op.get("name").getAsString(), op.has("room") ? op.get("room").getAsString() : "");
++                return true;
++            case "completedDungeon":
++                DungeonView.completeDungeon(game, statePlayer(op.get("player").getAsString()),
++                        op.get("name").getAsString());
++                return true;
++            case "initiative":
++                game.getAction().takeInitiative(statePlayer(op.get("player").getAsString()), "CLB");
++                return true;
++            default:
++                return false;
 +        }
 +    }
 +
@@ -2483,7 +2762,7 @@ index 643e5de..ed64afe 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +2893,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +2921,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -2500,7 +2779,7 @@ index 643e5de..ed64afe 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +2937,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +2965,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -2509,7 +2788,7 @@ index 643e5de..ed64afe 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +2980,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3008,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -2532,7 +2811,7 @@ index 643e5de..ed64afe 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3024,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3052,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -2563,7 +2842,7 @@ index 643e5de..ed64afe 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,16 +3288,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,16 +3316,21 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -2587,7 +2866,7 @@ index 643e5de..ed64afe 100644
          }
          final List<AttackTargetDto> attackTargets = new java.util.ArrayList<>();
          for (final GameEntity defender : combat.getDefenders()) {
-@@ -2596,7 +3310,114 @@ public final class ManaBrewInteractiveSession {
+@@ -2596,7 +3338,114 @@ public final class ManaBrewInteractiveSession {
                      defenderId(defender), defender.getName(),
                      enumFromWire(defenderKind(defender), AttackTargetKind.class)));
          }
@@ -2703,7 +2982,7 @@ index 643e5de..ed64afe 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2918,7 +3739,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +3767,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2713,7 +2992,7 @@ index 643e5de..ed64afe 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +3750,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +3778,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -2739,7 +3018,7 @@ index 643e5de..ed64afe 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +3782,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +3810,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -2750,7 +3029,7 @@ index 643e5de..ed64afe 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +3810,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +3838,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -2888,6 +3167,197 @@ index 0000000..cc4e7ba
 +                super.declareAttackers(attacker, combat);
 +            }
 +        }
++    }
++}
+diff --git a/forge-harness/src/main/java/forge/harness/host/Planechase.java b/forge-harness/src/main/java/forge/harness/host/Planechase.java
+new file mode 100644
+index 0000000..6f3245b
+--- /dev/null
++++ b/forge-harness/src/main/java/forge/harness/host/Planechase.java
+@@ -0,0 +1,185 @@
++package forge.harness.host;
++
++import com.google.gson.JsonObject;
++import forge.StaticData;
++import forge.game.Game;
++import forge.game.GameType;
++import forge.game.ability.AbilityKey;
++import forge.game.card.Card;
++import forge.game.card.CardCollection;
++import forge.game.player.Player;
++import forge.game.trigger.TriggerType;
++import forge.game.zone.ZoneType;
++import forge.harness.common.SnapshotExtractor;
++import forge.harness.host.ManaBrewEngineAdapter.CardIdentity;
++import forge.item.PaperCard;
++
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Locale;
++import java.util.Map;
++import java.util.Random;
++import java.util.WeakHashMap;
++
++final class Planechase {
++    private Planechase() {}
++
++    private static final Map<Game, Map<String, Object>> LAST_ROLLS = Collections.synchronizedMap(new WeakHashMap<>());
++
++    static boolean isPlanechase(final Game game) {
++        return game.getRules().hasAppliedVariant(GameType.Planechase);
++    }
++
++    static List<List<PaperCard>> planarDecks(final List<List<CardIdentity>> requested, final long seed) {
++        boolean any = false;
++        boolean everyHasAPlane = true;
++        final List<List<PaperCard>> own = new ArrayList<>();
++        for (final List<CardIdentity> cards : requested) {
++            final List<PaperCard> deck = new ArrayList<>();
++            for (final CardIdentity card : cards) {
++                deck.add(planeCard(card.getName()));
++            }
++            any |= !deck.isEmpty();
++            everyHasAPlane &= deck.stream().anyMatch(card -> !isPhenomenon(card));
++            own.add(deck);
++        }
++        if (!any) {
++            return null;
++        }
++        if (everyHasAPlane) {
++            return own;
++        }
++        final List<PaperCard> planes = new ArrayList<>();
++        final List<PaperCard> phenomena = new ArrayList<>();
++        for (final List<PaperCard> deck : own) {
++            for (final PaperCard card : deck) {
++                (isPhenomenon(card) ? phenomena : planes).add(card);
++            }
++        }
++        if (planes.size() < requested.size()) {
++            throw new IllegalArgumentException("Planechase needs at least one plane per player: "
++                    + planes.size() + " planes for " + requested.size() + " players");
++        }
++        final Random rng = new Random(seed);
++        Collections.shuffle(planes, rng);
++        Collections.shuffle(phenomena, rng);
++        final List<List<PaperCard>> dealt = new ArrayList<>();
++        for (int i = 0; i < requested.size(); i++) {
++            dealt.add(new ArrayList<>());
++        }
++        int seat = 0;
++        for (final PaperCard card : planes) {
++            dealt.get(seat++ % dealt.size()).add(card);
++        }
++        for (final PaperCard card : phenomena) {
++            dealt.get(seat++ % dealt.size()).add(card);
++        }
++        return dealt;
++    }
++
++    private static boolean isPhenomenon(final PaperCard card) {
++        return card.getRules().getType().isPhenomenon();
++    }
++
++    private static PaperCard planeCard(final String name) {
++        PaperCard card = StaticData.instance().fetchCard(name);
++        if (card == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            card = StaticData.instance().fetchCard(name);
++        }
++        if (card == null || !(card.getRules().getType().isPlane() || isPhenomenon(card))) {
++            throw new IllegalArgumentException("no plane or phenomenon named " + name);
++        }
++        return card;
++    }
++
++    static Map<String, Object> planarState(final Game game) {
++        if (!isPlanechase(game)) {
++            return null;
++        }
++        final Map<String, Object> state = new LinkedHashMap<>();
++        final List<String> planeIds = new ArrayList<>();
++        Player controller = game.getPhaseHandler().getPlayerTurn();
++        if (game.getActivePlanes() != null) {
++            for (final Card plane : game.getActivePlanes()) {
++                planeIds.add(SnapshotExtractor.javaCardId(plane));
++                controller = plane.getController() != null ? plane.getController() : controller;
++            }
++        }
++        state.put("controllerId", controller == null ? "" : "player-" + SnapshotExtractor.playerIndex(game, controller));
++        state.put("planeIds", planeIds);
++        state.put("dieRollsThisTurn", game.getPhaseHandler().getPlanarDiceSpecialActionThisTurn());
++        final Map<String, Integer> deckCounts = new LinkedHashMap<>();
++        for (final Player player : game.getRegisteredPlayers()) {
++            deckCounts.put("player-" + SnapshotExtractor.playerIndex(game, player),
++                    player.getCardsIn(ZoneType.PlanarDeck).size());
++        }
++        state.put("deckCounts", deckCounts);
++        final Map<String, Object> lastRoll = LAST_ROLLS.get(game);
++        if (lastRoll != null) {
++            state.put("lastRoll", lastRoll);
++        }
++        return state;
++    }
++
++    static void noteRoll(final Player roller, final String message) {
++        final Game game = roller.getGame();
++        final String result = message.substring(message.lastIndexOf(' ') + 1).toLowerCase(Locale.ROOT);
++        final String playerId = "player-" + SnapshotExtractor.playerIndex(game, roller);
++        final int turn = game.getPhaseHandler().getTurn();
++        final int roll = roller.getNumRollsThisTurn();
++        synchronized (LAST_ROLLS) {
++            final Map<String, Object> last = LAST_ROLLS.get(game);
++            if (last != null && playerId.equals(last.get("playerId"))
++                    && Integer.valueOf(turn).equals(last.get("turn")) && Integer.valueOf(roll).equals(last.get("roll"))) {
++                return;
++            }
++            final Map<String, Object> next = new LinkedHashMap<>();
++            next.put("playerId", playerId);
++            next.put("result", result);
++            next.put("seq", last == null ? 1 : (Integer) last.get("seq") + 1);
++            next.put("turn", turn);
++            next.put("roll", roll);
++            LAST_ROLLS.put(game, next);
++        }
++    }
++
++    static String opError(final Game game, final Player player, final JsonObject op) {
++        if (!isPlanechase(game)) {
++            return "this is not a Planechase game";
++        }
++        if ("planeswalk".equals(op.get("op").getAsString()) && planarDeckCard(game, op.get("name").getAsString()) == null) {
++            return "no plane named " + op.get("name").getAsString() + " in a planar deck";
++        }
++        return null;
++    }
++
++    static boolean applyOp(final Game game, final Player player, final JsonObject op) {
++        if ("chaos".equals(op.get("op").getAsString())) {
++            game.getTriggerHandler().runTrigger(TriggerType.ChaosEnsues, AbilityKey.mapFromPlayer(player), false);
++            return true;
++        }
++        final Card destination = planarDeckCard(game, op.get("name").getAsString());
++        if (destination == null) {
++            return false;
++        }
++        for (final Player p : game.getPlayers()) {
++            p.leaveCurrentPlane();
++        }
++        player.planeswalkTo(null, new CardCollection(destination));
++        return true;
++    }
++
++    private static Card planarDeckCard(final Game game, final String name) {
++        for (final Player player : game.getRegisteredPlayers()) {
++            for (final Card card : player.getCardsIn(ZoneType.PlanarDeck)) {
++                if (name.equals(card.getName())) {
++                    return card;
++                }
++            }
++        }
++        return null;
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ApplyStateCreateCardTest.java b/forge-harness/src/test/java/forge/harness/host/ApplyStateCreateCardTest.java
@@ -3501,6 +3971,261 @@ index 0000000..c11442b
 +        card.setGameTimestamp(p.getGame().getNextTimestamp());
 +        p.getZone(zone).add(card);
 +        return card;
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/DungeonStateTest.java b/forge-harness/src/test/java/forge/harness/host/DungeonStateTest.java
+new file mode 100644
+index 0000000..9fb6cd8
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/DungeonStateTest.java
+@@ -0,0 +1,249 @@
++package forge.harness.host;
++
++import com.google.gson.JsonArray;
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Set;
++
++public final class DungeonStateTest {
++    private DungeonStateTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++
++        check("noDungeonSendsNoStateAndAnEmptyCompletedList", DungeonStateTest::noDungeonSendsNoStateAndAnEmptyCompletedList);
++        check("dungeonStateNamesTheCardAndItsRooms", DungeonStateTest::dungeonStateNamesTheCardAndItsRooms);
++        check("aLastRoomLeadsNowhere", DungeonStateTest::aLastRoomLeadsNowhere);
++        check("aDungeonEnteredWithNoRoomHasAnEmptyRoom", DungeonStateTest::aDungeonEnteredWithNoRoomHasAnEmptyRoom);
++        check("completedDungeonsAreListedByName", DungeonStateTest::completedDungeonsAreListedByName);
++        check("initiativeOpGivesTheInitiativeWithoutVenturing", DungeonStateTest::initiativeOpGivesTheInitiativeWithoutVenturing);
++        check("anUnknownDungeonIsRefused", DungeonStateTest::anUnknownDungeonIsRefused);
++        check("anUnknownRoomIsRefused", DungeonStateTest::anUnknownRoomIsRefused);
++        check("aSecondDungeonIsRefused", DungeonStateTest::aSecondDungeonIsRefused);
++        System.out.println(failed == 0 ? "PASS DungeonStateTest" : "FAIL DungeonStateTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void noDungeonSendsNoStateAndAnEmptyCompletedList() throws Exception {
++        final Fixture f = new Fixture();
++        final JsonObject white = f.player(0);
++        expect(!white.has("dungeonState"), "a player in no dungeon has a dungeonState: " + white.get("dungeonState"));
++        expect(white.has("completedDungeons") && white.getAsJsonArray("completedDungeons").isEmpty(),
++                "completedDungeons is not an empty list: " + white.get("completedDungeons"));
++    }
++
++    private static void dungeonStateNamesTheCardAndItsRooms() throws Exception {
++        final Fixture f = new Fixture();
++        f.apply("{\"op\":\"dungeon\",\"player\":\"player-0\",\"name\":\"Lost Mine of Phandelver\",\"room\":\"Goblin Lair\"}");
++        expectApplied(f);
++        final JsonObject state = f.player(0).getAsJsonObject("dungeonState");
++        expect(state != null, "no dungeonState after the dungeon op");
++        expect("Lost Mine of Phandelver".equals(state.get("name").getAsString()), "name " + state.get("name"));
++        expect("Goblin Lair".equals(state.get("room").getAsString()), "room " + state.get("room"));
++        final Card dungeon = f.dungeonCard(f.white);
++        expect(SnapshotExtractor.javaCardId(dungeon).equals(state.get("cardId").getAsString()),
++                "cardId " + state.get("cardId") + " is not the command-zone card " + SnapshotExtractor.javaCardId(dungeon));
++        final JsonArray rooms = state.getAsJsonArray("rooms");
++        expect(rooms.size() == 7, "Lost Mine of Phandelver has " + rooms.size() + " rooms, not 7");
++        final JsonObject entrance = rooms.get(0).getAsJsonObject();
++        expect("Cave Entrance".equals(entrance.get("name").getAsString()), "first room " + entrance.get("name"));
++        expect(names(entrance.getAsJsonArray("next")).equals(List.of("Goblin Lair", "Mine Tunnels")),
++                "Cave Entrance leads to " + entrance.get("next"));
++        expect("Scry 1.".equals(entrance.get("text").getAsString()), "Cave Entrance text " + entrance.get("text"));
++        final JsonObject lair = room(rooms, "Goblin Lair");
++        expect(names(lair.getAsJsonArray("next")).equals(List.of("Storeroom", "Dark Pool")),
++                "Goblin Lair leads to " + lair.get("next"));
++    }
++
++    private static void aLastRoomLeadsNowhere() throws Exception {
++        final Fixture f = new Fixture();
++        f.apply("{\"op\":\"dungeon\",\"player\":\"player-0\",\"name\":\"Lost Mine of Phandelver\",\"room\":\"Temple of Dumathoin\"}");
++        expectApplied(f);
++        final JsonObject temple = room(f.player(0).getAsJsonObject("dungeonState").getAsJsonArray("rooms"), "Temple of Dumathoin");
++        expect(temple.getAsJsonArray("next").isEmpty(), "Temple of Dumathoin leads to " + temple.get("next"));
++        expect("Draw a card.".equals(temple.get("text").getAsString()), "Temple of Dumathoin text " + temple.get("text"));
++    }
++
++    private static void aDungeonEnteredWithNoRoomHasAnEmptyRoom() throws Exception {
++        final Fixture f = new Fixture();
++        f.apply("{\"op\":\"dungeon\",\"player\":\"player-1\",\"name\":\"Tomb of Annihilation\"}");
++        expectApplied(f);
++        final JsonObject state = f.player(1).getAsJsonObject("dungeonState");
++        expect("Tomb of Annihilation".equals(state.get("name").getAsString()), "name " + state.get("name"));
++        expect("".equals(state.get("room").getAsString()), "room " + state.get("room"));
++        expect(f.dungeonCard(f.blue).getZone().is(ZoneType.Command), "the dungeon is not in the command zone");
++    }
++
++    private static void completedDungeonsAreListedByName() throws Exception {
++        final Fixture f = new Fixture();
++        f.apply("{\"op\":\"completedDungeon\",\"player\":\"player-0\",\"name\":\"Tomb of Annihilation\"}");
++        expectApplied(f);
++        expect(names(f.player(0).getAsJsonArray("completedDungeons")).equals(List.of("Tomb of Annihilation")),
++                "completedDungeons " + f.player(0).get("completedDungeons"));
++        expect(f.white.getCompletedDungeons().size() == 1, "Forge's completed list has " + f.white.getCompletedDungeons().size());
++        expect(!f.player(0).has("dungeonState"), "a completed dungeon shows as the current one");
++    }
++
++    private static void initiativeOpGivesTheInitiativeWithoutVenturing() throws Exception {
++        final Fixture f = new Fixture();
++        f.apply("{\"op\":\"initiative\",\"player\":\"player-1\"}");
++        expectApplied(f);
++        expect(f.game.getHasInitiative() == f.blue, "the initiative is with " + f.game.getHasInitiative());
++        expect("player-1".equals(f.view().get("initiativeHolderId").getAsString()), "initiativeHolderId " + f.view().get("initiativeHolderId"));
++        expect(!f.player(1).has("dungeonState"), "taking the initiative by the fix ventured into " + f.player(1).get("dungeonState"));
++    }
++
++    private static void anUnknownDungeonIsRefused() throws Exception {
++        final Fixture f = new Fixture();
++        f.apply("{\"op\":\"dungeon\",\"player\":\"player-0\",\"name\":\"Baldur's Gate Wilderness\"}");
++        expectRefused(f);
++        expect(!f.player(0).has("dungeonState"), "a refused dungeon op left " + f.player(0).get("dungeonState"));
++    }
++
++    private static void anUnknownRoomIsRefused() throws Exception {
++        final Fixture f = new Fixture();
++        f.apply("{\"op\":\"dungeon\",\"player\":\"player-0\",\"name\":\"Lost Mine of Phandelver\",\"room\":\"Yawning Portal\"}");
++        expectRefused(f);
++        expect(!f.player(0).has("dungeonState"), "a refused room left " + f.player(0).get("dungeonState"));
++    }
++
++    private static void aSecondDungeonIsRefused() throws Exception {
++        final Fixture f = new Fixture();
++        f.apply("{\"op\":\"dungeon\",\"player\":\"player-0\",\"name\":\"Lost Mine of Phandelver\",\"room\":\"Cave Entrance\"}");
++        expectApplied(f);
++        f.apply("{\"op\":\"dungeon\",\"player\":\"player-0\",\"name\":\"Tomb of Annihilation\"}");
++        expectRefused(f);
++        expect("Lost Mine of Phandelver".equals(f.player(0).getAsJsonObject("dungeonState").get("name").getAsString()),
++                "the first dungeon was replaced");
++    }
++
++    private static JsonObject room(final JsonArray rooms, final String name) {
++        for (final JsonElement room : rooms) {
++            if (name.equals(room.getAsJsonObject().get("name").getAsString())) {
++                return room.getAsJsonObject();
++            }
++        }
++        throw new AssertionError("no room " + name + " in " + rooms);
++    }
++
++    private static List<String> names(final JsonArray array) {
++        final List<String> names = new ArrayList<>();
++        for (final JsonElement name : array) {
++            names.add(name.getAsString());
++        }
++        return names;
++    }
++
++    private static void expectApplied(final Fixture f) {
++        final JsonObject fix = f.view().getAsJsonObject("stateFix");
++        expect(fix != null && fix.get("applied").getAsBoolean(), "the fix was not applied: " + fix);
++    }
++
++    private static void expectRefused(final Fixture f) {
++        final JsonObject fix = f.view().getAsJsonObject("stateFix");
++        expect(fix != null && !fix.get("applied").getAsBoolean(), "the fix was applied: " + fix);
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("dungeon-state-test");
++        final Game game = newGame();
++        final Player white = game.getPlayers().get(0);
++        final Player blue = game.getPlayers().get(1);
++        private int fixId;
++
++        Fixture() {
++            session.attach(game.getMatch(), game, Set.of(), true);
++        }
++
++        void apply(final String op) throws Exception {
++            final JsonObject action = JsonParser.parseString("{\"fixId\":" + (++fixId) + ",\"ops\":[" + op + "]}").getAsJsonObject();
++            final Method apply = ManaBrewInteractiveSession.class.getDeclaredMethod("applyState", JsonObject.class);
++            apply.setAccessible(true);
++            apply.invoke(session, action);
++        }
++
++        JsonObject view() {
++            return JsonParser.parseString(session.getSnapshotJson(0)).getAsJsonObject();
++        }
++
++        JsonObject player(final int index) {
++            for (final JsonElement p : view().getAsJsonArray("players")) {
++                if (("player-" + index).equals(p.getAsJsonObject().get("id").getAsString())) {
++                    return p.getAsJsonObject();
++                }
++            }
++            throw new AssertionError("no player-" + index);
++        }
++
++        Card dungeonCard(final Player player) {
++            for (final Card card : player.getCardsIn(ZoneType.Command)) {
++                if (card.getType().isDungeon()) {
++                    return card;
++                }
++            }
++            throw new AssertionError(player.getName() + " has no dungeon card");
++        }
++
++        private Game newGame() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            final Game created = new Game(players, rules, new Match(rules, players, "DungeonStateTest"));
++            created.setAge(GameStage.Play);
++            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
++            created.getPhaseHandler().onStackResolved();
++            return created;
++        }
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ExtraTurnRewindTest.java b/forge-harness/src/test/java/forge/harness/host/ExtraTurnRewindTest.java
@@ -4897,6 +5622,333 @@ index 0000000..4758982
 +        }
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/PlanechaseTest.java b/forge-harness/src/test/java/forge/harness/host/PlanechaseTest.java
+new file mode 100644
+index 0000000..eebc3d2
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/PlanechaseTest.java
+@@ -0,0 +1,321 @@
++package forge.harness.host;
++
++import com.google.gson.JsonArray;
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.harness.host.ManaBrewEngineAdapter.CardIdentity;
++import forge.item.PaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.EnumSet;
++import java.util.List;
++import java.util.Set;
++
++public final class PlanechaseTest {
++    private PlanechaseTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++
++        check("noPlanesMeansNoPlanechase", PlanechaseTest::noPlanesMeansNoPlanechase);
++        check("everyoneWithAPlaneKeepsTheirOwnDeck", PlanechaseTest::everyoneWithAPlaneKeepsTheirOwnDeck);
++        check("aPlayerWithNoPlanesGetsADealtDeck", PlanechaseTest::aPlayerWithNoPlanesGetsADealtDeck);
++        check("theDealIsTheSameForTheSameSeed", PlanechaseTest::theDealIsTheSameForTheSameSeed);
++        check("fewerPlanesThanPlayersIsRefused", PlanechaseTest::fewerPlanesThanPlayersIsRefused);
++        check("aCardThatIsNoPlaneIsRefused", PlanechaseTest::aCardThatIsNoPlaneIsRefused);
++        check("planarStateIsOnlyInPlanechaseGames", PlanechaseTest::planarStateIsOnlyInPlanechaseGames);
++        check("planarStateCountsTheDecksBeforeTheFirstPlane", PlanechaseTest::planarStateCountsTheDecksBeforeTheFirstPlane);
++        check("planeswalkOpMovesTheNamedPlane", PlanechaseTest::planeswalkOpMovesTheNamedPlane);
++        check("planeswalkOpToAPlaneInNoDeckIsRefused", PlanechaseTest::planeswalkOpToAPlaneInNoDeckIsRefused);
++        check("planarOpsAreRefusedOutsidePlanechase", PlanechaseTest::planarOpsAreRefusedOutsidePlanechase);
++        check("chaosOpIsApplied", PlanechaseTest::chaosOpIsApplied);
++        check("aRollIsNotedOnceForEverySeat", PlanechaseTest::aRollIsNotedOnceForEverySeat);
++        check("aPlanechaseGameTakesNoRestorePoints", PlanechaseTest::aPlanechaseGameTakesNoRestorePoints);
++        check("anotherGameStillTakesRestorePoints", PlanechaseTest::anotherGameStillTakesRestorePoints);
++        System.out.println(failed == 0 ? "PASS PlanechaseTest" : "FAIL PlanechaseTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static List<CardIdentity> cards(final String... names) {
++        final List<CardIdentity> cards = new ArrayList<>();
++        for (final String name : names) {
++            cards.add(new CardIdentity(name, null, null, false));
++        }
++        return cards;
++    }
++
++    private static List<String> names(final List<PaperCard> deck) {
++        final List<String> names = new ArrayList<>();
++        for (final PaperCard card : deck) {
++            names.add(card.getName());
++        }
++        return names;
++    }
++
++    private static void noPlanesMeansNoPlanechase() {
++        expect(Planechase.planarDecks(List.of(cards(), cards()), 7L) == null, "two empty planar decks started Planechase");
++    }
++
++    private static void everyoneWithAPlaneKeepsTheirOwnDeck() {
++        final List<List<PaperCard>> decks = Planechase.planarDecks(
++                List.of(cards("Akoum", "Chaotic Aether"), cards("Naya")), 7L);
++        expect(names(decks.get(0)).equals(List.of("Akoum", "Chaotic Aether")), "seat 0 got " + names(decks.get(0)));
++        expect(names(decks.get(1)).equals(List.of("Naya")), "seat 1 got " + names(decks.get(1)));
++    }
++
++    private static void aPlayerWithNoPlanesGetsADealtDeck() {
++        final List<List<PaperCard>> decks = Planechase.planarDecks(
++                List.of(cards("Akoum", "Naya", "Turri Island", "Chaotic Aether"), cards(), cards()), 7L);
++        int total = 0;
++        for (final List<PaperCard> deck : decks) {
++            expect(deck.stream().anyMatch(card -> card.getRules().getType().isPlane()), "a dealt deck has no plane: " + names(deck));
++            total += deck.size();
++        }
++        expect(total == 4, "the deal has " + total + " cards, not 4");
++    }
++
++    private static void theDealIsTheSameForTheSameSeed() {
++        final List<List<CardIdentity>> requested = List.of(cards("Akoum", "Naya", "Turri Island", "Interplanar Tunnel"), cards());
++        final List<List<PaperCard>> a = Planechase.planarDecks(requested, 11L);
++        final List<List<PaperCard>> b = Planechase.planarDecks(requested, 11L);
++        expect(names(a.get(0)).equals(names(b.get(0))) && names(a.get(1)).equals(names(b.get(1))), "one seed dealt two ways");
++    }
++
++    private static void fewerPlanesThanPlayersIsRefused() {
++        try {
++            Planechase.planarDecks(List.of(cards("Akoum", "Chaotic Aether"), cards(), cards()), 7L);
++        } catch (final IllegalArgumentException expected) {
++            return;
++        }
++        throw new AssertionError("one plane for three players was dealt");
++    }
++
++    private static void aCardThatIsNoPlaneIsRefused() {
++        try {
++            Planechase.planarDecks(List.of(cards("Grizzly Bears"), cards("Akoum")), 7L);
++        } catch (final IllegalArgumentException expected) {
++            return;
++        }
++        throw new AssertionError("Grizzly Bears went into a planar deck");
++    }
++
++    private static void planarStateIsOnlyInPlanechaseGames() throws Exception {
++        final Fixture f = new Fixture(false);
++        expect(!f.view().has("planar"), "a game without Planechase sent " + f.view().get("planar"));
++    }
++
++    private static void planarStateCountsTheDecksBeforeTheFirstPlane() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.plane("Akoum", f.white);
++        f.plane("Naya", f.white);
++        f.plane("Turri Island", f.blue);
++        final JsonObject planar = f.view().getAsJsonObject("planar");
++        expect(planar != null, "no planar block in a Planechase game");
++        expect("player-0".equals(planar.get("controllerId").getAsString()), "controllerId " + planar.get("controllerId"));
++        expect(planar.getAsJsonArray("planeIds").isEmpty(), "planeIds " + planar.get("planeIds"));
++        expect(planar.get("dieRollsThisTurn").getAsInt() == 0, "dieRollsThisTurn " + planar.get("dieRollsThisTurn"));
++        final JsonObject counts = planar.getAsJsonObject("deckCounts");
++        expect(counts.get("player-0").getAsInt() == 2 && counts.get("player-1").getAsInt() == 1, "deckCounts " + counts);
++        expect(!planar.has("lastRoll"), "lastRoll before any roll: " + planar.get("lastRoll"));
++    }
++
++    private static void planeswalkOpMovesTheNamedPlane() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.plane("Naya", f.white);
++        final Card akoum = f.plane("Akoum", f.blue);
++        f.apply("{\"op\":\"planeswalk\",\"player\":\"player-0\",\"name\":\"Akoum\"}");
++        expectApplied(f);
++        final JsonObject view = f.view();
++        expect(names(view.getAsJsonArray("activePlaneNames")).equals(List.of("Akoum")), "activePlaneNames " + view.get("activePlaneNames"));
++        final JsonObject planar = view.getAsJsonObject("planar");
++        expect(names(planar.getAsJsonArray("planeIds")).equals(List.of(SnapshotExtractor.javaCardId(f.commandCard("Akoum")))),
++                "planeIds " + planar.get("planeIds"));
++        expect(planar.getAsJsonObject("deckCounts").get("player-1").getAsInt() == 0, "Akoum is still in a planar deck");
++        expect(f.commandCard("Akoum").getZone().is(ZoneType.Command), "Akoum is not in a command zone");
++        expect(akoum.getOwner() == f.blue, "Akoum changed owner");
++    }
++
++    private static void planeswalkOpToAPlaneInNoDeckIsRefused() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.plane("Naya", f.white);
++        f.apply("{\"op\":\"planeswalk\",\"player\":\"player-0\",\"name\":\"Akoum\"}");
++        expectRefused(f);
++    }
++
++    private static void planarOpsAreRefusedOutsidePlanechase() throws Exception {
++        final Fixture f = new Fixture(false);
++        f.apply("{\"op\":\"chaos\",\"player\":\"player-0\"}");
++        expectRefused(f);
++    }
++
++    private static void chaosOpIsApplied() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.plane("Naya", f.white);
++        f.apply("{\"op\":\"chaos\",\"player\":\"player-0\"}");
++        expectApplied(f);
++    }
++
++    private static void aRollIsNotedOnceForEverySeat() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.white.roll();
++        Planechase.noteRoll(f.white, "Planar dice result: Chaos");
++        Planechase.noteRoll(f.white, "Planar dice result: Chaos");
++        JsonObject roll = f.view().getAsJsonObject("planar").getAsJsonObject("lastRoll");
++        expect("player-0".equals(roll.get("playerId").getAsString()), "playerId " + roll.get("playerId"));
++        expect("chaos".equals(roll.get("result").getAsString()), "result " + roll.get("result"));
++        expect(roll.get("seq").getAsInt() == 1, "two seats' notices made seq " + roll.get("seq"));
++        f.white.roll();
++        Planechase.noteRoll(f.white, "Planar dice result: Planeswalk");
++        roll = f.view().getAsJsonObject("planar").getAsJsonObject("lastRoll");
++        expect("planeswalk".equals(roll.get("result").getAsString()) && roll.get("seq").getAsInt() == 2,
++                "the second roll reads " + roll);
++    }
++
++    private static void aPlanechaseGameTakesNoRestorePoints() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.recordCheckpoint();
++        expect(f.view().getAsJsonArray("checkpoints").isEmpty(), "a Planechase game took a restore point");
++    }
++
++    private static void anotherGameStillTakesRestorePoints() throws Exception {
++        final Fixture f = new Fixture(false);
++        f.recordCheckpoint();
++        expect(f.view().getAsJsonArray("checkpoints").size() == 1, "a game without Planechase took no restore point");
++    }
++
++    private static List<String> names(final JsonArray array) {
++        final List<String> names = new ArrayList<>();
++        for (final JsonElement name : array) {
++            names.add(name.getAsString());
++        }
++        return names;
++    }
++
++    private static void expectApplied(final Fixture f) {
++        final JsonObject fix = f.view().getAsJsonObject("stateFix");
++        expect(fix != null && fix.get("applied").getAsBoolean(), "the fix was not applied: " + fix);
++        expect(!fix.has("dropped") || fix.getAsJsonArray("dropped").isEmpty(), "the fix dropped " + fix.get("dropped"));
++    }
++
++    private static void expectRefused(final Fixture f) {
++        final JsonObject fix = f.view().getAsJsonObject("stateFix");
++        expect(fix != null && !fix.get("applied").getAsBoolean(), "the fix was applied: " + fix);
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("planechase-test");
++        final Game game;
++        final Player white;
++        final Player blue;
++        private int fixId;
++
++        Fixture(final boolean planechase) {
++            game = newGame(planechase);
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++            session.attach(game.getMatch(), game, Set.of(), true);
++        }
++
++        Card plane(final String name, final Player owner) {
++            PaperCard paper = StaticData.instance().fetchCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = StaticData.instance().fetchCard(name);
++            }
++            final Card card = Card.fromPaperCard(paper, owner);
++            owner.getZone(ZoneType.PlanarDeck).add(card);
++            return card;
++        }
++
++        Card commandCard(final String name) {
++            for (final Player player : game.getPlayers()) {
++                for (final Card card : player.getCardsIn(ZoneType.Command)) {
++                    if (card.getName().equals(name)) {
++                        return card;
++                    }
++                }
++            }
++            throw new AssertionError(name + " is in no command zone");
++        }
++
++        void apply(final String op) throws Exception {
++            final JsonObject action = JsonParser.parseString("{\"fixId\":" + (++fixId) + ",\"ops\":[" + op + "]}").getAsJsonObject();
++            final Method apply = ManaBrewInteractiveSession.class.getDeclaredMethod("applyState", JsonObject.class);
++            apply.setAccessible(true);
++            apply.invoke(session, action);
++        }
++
++        void recordCheckpoint() throws Exception {
++            final Method record = ManaBrewInteractiveSession.class.getDeclaredMethod("recordCheckpoint");
++            record.setAccessible(true);
++            record.invoke(session);
++        }
++
++        JsonObject view() {
++            return JsonParser.parseString(session.getSnapshotJson(0)).getAsJsonObject();
++        }
++
++        private Game newGame(final boolean planechase) {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setAppliedVariants(planechase
++                    ? EnumSet.of(GameType.Constructed, GameType.Planechase)
++                    : EnumSet.of(GameType.Constructed));
++            final Game created = new Game(players, rules, new Match(rules, players, "PlanechaseTest"));
++            created.setAge(GameStage.Play);
++            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
++            created.getPhaseHandler().onStackResolved();
++            return created;
++        }
++    }
++}
 diff --git a/manabrew-rs/crates/loadgen/src/main.rs b/manabrew-rs/crates/loadgen/src/main.rs
 index 3b914ff..a86f4f9 100644
 --- a/manabrew-rs/crates/loadgen/src/main.rs
@@ -5054,7 +6106,7 @@ index 3385214..b68e2c9 100644
          Reorder(reorder::ReorderInput {
              presentation: common::PromptPresentation {
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-index 76fdc4f..39568e5 100644
+index 76fdc4f..b4e4b66 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
 @@ -789,6 +789,15 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
@@ -5073,7 +6125,24 @@ index 76fdc4f..39568e5 100644
      }
  }
  
-@@ -1015,6 +1024,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -859,6 +868,8 @@ impl GameViewDtoExt for GameViewDto {
+                         .cloned()
+                         .unwrap_or_else(|| card.card_name.clone()),
+                     room: card.svars.get("CurrentRoom").cloned().unwrap_or_default(),
++                    card_id: None,
++                    rooms: Vec::new(),
+                 })
+             });
+             let active_scheme_names: Vec<String> = command_zone
+@@ -936,6 +947,7 @@ impl GameViewDtoExt for GameViewDto {
+                 player_keywords,
+                 commander_casts,
+                 dungeon_state,
++                completed_dungeons: Vec::new(),
+                 active_scheme_names: (!active_scheme_names.is_empty())
+                     .then_some(active_scheme_names),
+                 team_number,
+@@ -1015,6 +1027,7 @@ impl GameViewDtoExt for GameViewDto {
                      identity,
                      text: entry.spell_ability.ability_text.clone(),
                      source_ability_text: stack_source_ability_text(game, &entry.spell_ability),
@@ -5081,7 +6150,7 @@ index 76fdc4f..39568e5 100644
                      is_permanent_spell: entry.is_creature_spell || entry.is_permanent_spell,
                      is_casting: entry.is_pending_cast,
                      is_double_faced: source_card.map(|c| c.is_double_faced()).unwrap_or(false),
-@@ -1022,6 +1032,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1022,6 +1035,7 @@ impl GameViewDtoExt for GameViewDto {
                          .map(|c| u8::from(c.is_transformed))
                          .unwrap_or_default(),
                      targets: collect_stack_targets(&entry.spell_ability),
@@ -5089,8 +6158,11 @@ index 76fdc4f..39568e5 100644
                  }
              })
              .collect();
-@@ -1063,6 +1074,8 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1061,8 +1075,11 @@ impl GameViewDtoExt for GameViewDto {
+             initiative_holder_id: game.initiative_holder.map(player_id_str),
+             day_time: day_time_of(game),
              active_plane_names: (!active_plane_names.is_empty()).then_some(active_plane_names),
++            planar: None,
              checkpoints: Vec::new(),
              restore_vote: None,
 +            state_fix: None,
@@ -5099,10 +6171,19 @@ index 76fdc4f..39568e5 100644
          }
      }
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-index 0f579af..849e7db 100644
+index 0f579af..5adde05 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-@@ -155,6 +155,61 @@ pub struct GameViewDto {
+@@ -149,12 +149,70 @@ pub struct GameViewDto {
+     pub day_time: DayTime,
+     #[ts(optional)]
+     pub active_plane_names: Option<Vec<String>>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub planar: Option<PlanarStateDto>,
+     #[serde(default)]
+     pub checkpoints: Vec<CheckpointDto>,
+     #[serde(default)]
      pub restore_vote: Option<RestoreVoteDto>,
      #[serde(default)]
      pub snapshot_recording: bool,
@@ -5164,7 +6245,65 @@ index 0f579af..849e7db 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -397,6 +452,30 @@ pub struct CardDto {
+@@ -216,6 +274,48 @@ pub enum PlayerStatus {
+ pub struct DungeonStateDto {
+     pub name: String,
+     pub room: String,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub card_id: Option<String>,
++    #[serde(default)]
++    pub rooms: Vec<DungeonRoomDto>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "game/index.ts")]
++pub struct DungeonRoomDto {
++    pub name: String,
++    #[serde(default)]
++    pub next: Vec<String>,
++    #[serde(default)]
++    pub text: String,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "game/index.ts")]
++pub struct PlanarStateDto {
++    pub controller_id: String,
++    #[serde(default)]
++    pub plane_ids: Vec<String>,
++    #[serde(default)]
++    pub die_rolls_this_turn: u32,
++    #[serde(default)]
++    #[ts(type = "Record<string, number>")]
++    pub deck_counts: HashMap<String, u32>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub last_roll: Option<PlanarRollDto>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "game/index.ts")]
++pub struct PlanarRollDto {
++    pub player_id: String,
++    pub result: String,
++    pub seq: u32,
+ }
+ 
+ #[derive(Debug, Clone, Serialize, Deserialize, TS)]
+@@ -254,6 +354,8 @@ pub struct PlayerDto {
+     pub commander_casts: HashMap<String, u32>,
+     #[ts(optional)]
+     pub dungeon_state: Option<DungeonStateDto>,
++    #[serde(default)]
++    pub completed_dungeons: Vec<String>,
+     #[ts(optional)]
+     pub active_scheme_names: Option<Vec<String>>,
+     #[ts(optional)]
+@@ -397,6 +499,30 @@ pub struct CardDto {
      #[serde(default, skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub zone: Option<ZoneKind>,
@@ -5195,7 +6334,7 @@ index 0f579af..849e7db 100644
  }
  
  #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-@@ -412,11 +491,15 @@ pub struct StackObjectDto {
+@@ -412,11 +538,15 @@ pub struct StackObjectDto {
      #[serde(skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub source_ability_text: Option<String>,
@@ -5211,7 +6350,7 @@ index 0f579af..849e7db 100644
  }
  
  #[cfg(test)]
-@@ -433,11 +516,13 @@ mod stack_object_tests {
+@@ -433,11 +563,13 @@ mod stack_object_tests {
              identity: CardIdentity::default(),
              text: String::new(),
              source_ability_text: Some("When this enters, draw a card.".into()),
@@ -5338,7 +6477,7 @@ index 88b5700..882ac92 100644
 +    },
  }
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
-index a1bcdce..0e4cfa7 100644
+index a1bcdce..c6fb754 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
 @@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
@@ -5359,7 +6498,7 @@ index a1bcdce..0e4cfa7 100644
  #[serde(
      tag = "type",
      rename_all = "camelCase",
-@@ -33,6 +33,73 @@ pub enum DirectiveInput {
+@@ -33,6 +33,84 @@ pub enum DirectiveInput {
      RequestRestore { checkpoint_id: u32 },
      RestoreVote { vote_id: u32, accept: bool },
      SetSnapshotRecording { enabled: bool },
@@ -5422,6 +6561,17 @@ index a1bcdce..0e4cfa7 100644
 +    FreeLand { card: String, player: String },
 +    Draw { player: String, n: i32 },
 +    Mill { player: String, n: i32 },
++    Dungeon {
++        player: String,
++        name: String,
++        #[serde(default, skip_serializing_if = "Option::is_none")]
++        #[ts(optional)]
++        room: Option<String>,
++    },
++    CompletedDungeon { player: String, name: String },
++    Initiative { player: String },
++    Planeswalk { player: String, name: String },
++    Chaos { player: String },
 +}
 +
 +#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -5508,7 +6658,7 @@ index ed50370..6f54c53 100644
                          )
                          .await?;
 diff --git a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs b/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
-index e19dcde..32ca111 100644
+index e19dcde..07e6b3e 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
 +++ b/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
 @@ -2093,7 +2093,7 @@ impl JavaScenario {
@@ -5534,6 +6684,35 @@ index e19dcde..32ca111 100644
                      }
                      Some("mulliganPutBack") if !*put_back_done => {
                          let count = prompt
+@@ -3050,6 +3050,7 @@ pub struct PlayerConfig {
+     deck: Vec<CardIdentityForJava>,
+     sideboard: Vec<CardIdentityForJava>,
+     attractions: Vec<CardIdentityForJava>,
++    planes: Vec<CardIdentityForJava>,
+     commander_names: Vec<String>,
+     ai: bool,
+     bot: bool,
+@@ -3102,6 +3103,7 @@ impl PlayerConfig {
+             deck: deck.iter().map(CardIdentityForJava::from).collect(),
+             sideboard: Vec::new(),
+             attractions: Vec::new(),
++            planes: Vec::new(),
+             commander_names,
+             ai: false,
+             bot: false,
+@@ -3120,6 +3122,12 @@ impl PlayerConfig {
+             .flatten()
+             .map(|card| CardIdentityForJava::from(&card.identity))
+             .collect();
++        self.planes = deck
++            .planes
++            .iter()
++            .flatten()
++            .map(|card| CardIdentityForJava::from(&card.identity))
++            .collect();
+         self
+     }
+ }
 diff --git a/manabrew-rs/crates/self-hosted-node/src/host.rs b/manabrew-rs/crates/self-hosted-node/src/host.rs
 index 7e1ddef..6fd45d8 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/host.rs

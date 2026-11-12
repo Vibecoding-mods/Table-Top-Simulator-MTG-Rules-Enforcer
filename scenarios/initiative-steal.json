@@ -1,0 +1,6 @@
+{
+  "label": "dungeon D4: White has the initiative; your ready Seasoned Dungeoneer attacks White: combat damage takes it, Undercity starts (Secret Entrance)",
+  "lands": { "Plains": 20 },
+  "battlefield": ["Seasoned Dungeoneer"],
+  "initiative": "White"
+}
