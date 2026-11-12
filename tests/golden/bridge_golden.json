@@ -163670,6 +163670,9 @@
        "name": "Venomous Changeling"
       },
       {
+       "name": "Hurloon Minotaur"
+      },
+      {
        "name": "Pestilence"
       },
       {
@@ -163955,6 +163958,7 @@
        "n": "Hurloon Minotaur",
        "f": "https://img.example/front.webp",
        "b": "",
+       "o2": "https://img.example/back.webp",
        "tl": "Creature — Minotaur",
        "cmc": 3,
        "ty": [
@@ -164771,6 +164775,7 @@
        "n": "Hurloon Minotaur",
        "f": "https://img.example/front.webp",
        "b": "https://img.example/back.webp",
+       "o2": "https://img.example/back.webp",
        "tl": "Creature — Minotaur",
        "cmc": 3,
        "ty": [
