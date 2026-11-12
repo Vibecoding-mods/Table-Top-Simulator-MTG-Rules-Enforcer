@@ -165954,17 +165954,17 @@
    },
    {
     "tts": {
-     "t": "gamelog",
-     "lines": [
-      "That was Blue's last free mulligan: their next one costs a card."
-     ]
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
     }
    },
    {
     "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": null
+     "t": "gamelog",
+     "lines": [
+      "That was Blue's last free mulligan: their next one costs a card."
+     ]
     }
    },
    {
@@ -166205,17 +166205,17 @@
    },
    {
     "tts": {
-     "t": "gamelog",
-     "lines": [
-      "Blue took a free mulligan (1 of 2)."
-     ]
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
     }
    },
    {
     "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": null
+     "t": "gamelog",
+     "lines": [
+      "Blue took a free mulligan (1 of 2)."
+     ]
     }
    },
    {
@@ -166316,17 +166316,17 @@
    },
    {
     "tts": {
-     "t": "gamelog",
-     "lines": [
-      "That was Blue's last free mulligan: their next one costs a card."
-     ]
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
     }
    },
    {
     "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": null
+     "t": "gamelog",
+     "lines": [
+      "That was Blue's last free mulligan: their next one costs a card."
+     ]
     }
    },
    {
@@ -166528,17 +166528,17 @@
    },
    {
     "tts": {
-     "t": "gamelog",
-     "lines": [
-      "That was Blue's last free mulligan: their next one costs a card."
-     ]
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
     }
    },
    {
     "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": null
+     "t": "gamelog",
+     "lines": [
+      "That was Blue's last free mulligan: their next one costs a card."
+     ]
     }
    },
    {
@@ -166777,17 +166777,17 @@
    },
    {
     "tts": {
-     "t": "gamelog",
-     "lines": [
-      "Blue took a free mulligan (1 of 2)."
-     ]
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
     }
    },
    {
     "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": null
+     "t": "gamelog",
+     "lines": [
+      "Blue took a free mulligan (1 of 2)."
+     ]
     }
    },
    {
@@ -166888,17 +166888,17 @@
    },
    {
     "tts": {
-     "t": "gamelog",
-     "lines": [
-      "That was Blue's last free mulligan: their next one costs a card."
-     ]
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
     }
    },
    {
     "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": null
+     "t": "gamelog",
+     "lines": [
+      "That was Blue's last free mulligan: their next one costs a card."
+     ]
     }
    },
    {
@@ -167174,17 +167174,17 @@
    },
    {
     "tts": {
-     "t": "gamelog",
-     "lines": [
-      "That was Blue's last free mulligan: their next one costs a card."
-     ]
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
     }
    },
    {
     "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": null
+     "t": "gamelog",
+     "lines": [
+      "That was Blue's last free mulligan: their next one costs a card."
+     ]
     }
    },
    {
@@ -167446,17 +167446,17 @@
    },
    {
     "tts": {
-     "t": "gamelog",
-     "lines": [
-      "That was Blue's last free mulligan: their next one costs a card."
-     ]
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
     }
    },
    {
     "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": null
+     "t": "gamelog",
+     "lines": [
+      "That was Blue's last free mulligan: their next one costs a card."
+     ]
     }
    }
   ],
@@ -167903,17 +167903,17 @@
    },
    {
     "tts": {
-     "t": "gamelog",
-     "lines": [
-      "That was Blue's last free mulligan: their next one costs a card."
-     ]
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
     }
    },
    {
     "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": null
+     "t": "gamelog",
+     "lines": [
+      "That was Blue's last free mulligan: their next one costs a card."
+     ]
     }
    },
    {
@@ -168153,17 +168153,17 @@
    },
    {
     "tts": {
-     "t": "gamelog",
-     "lines": [
-      "Blue took a free mulligan (1 of 2)."
-     ]
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
     }
    },
    {
     "tts": {
-     "t": "prompt",
-     "color": "Blue",
-     "promptId": null
+     "t": "gamelog",
+     "lines": [
+      "Blue took a free mulligan (1 of 2)."
+     ]
     }
    },
    {

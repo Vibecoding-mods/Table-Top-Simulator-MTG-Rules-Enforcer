@@ -131,7 +131,12 @@ d15c1be4... (1017 scenarios; 994 before this work, 23 new).
 
 ## Not done
 
-- Plan step 4 (`seat.clearFollowUps()` for `checkRestored`): not in this task's list.
+- Plan step 4 (`seat.clearFollowUps()` for `checkRestored`): done 2026-11-11. `Seat.FOLLOW_UPS` holds the list (the
+  plan's missing four: `smartPay` and `autoPayFailedFor` were already cleared; `textWord` and `mustAttack` added). Only
+  `checkRestored` calls it: `resetGame` drops the seats themselves. `tests/test_bridge_claims.js` sets every field (named
+  in the test, not read from the list), rewinds, and checks all are gone and `lately` is empty, and that a board that
+  moves on keeps them. Mutants: `textWord` left out of the list, `forget()` dropped: both caught. Bridge golden unchanged
+  by it.
 - The timer's chat line still names the sub-question ("ran out of time: Hurloon Minotaur: how do you play it? took its
   default answer") although it now goes back and passes (review, wording only).
 - Finding 6 (bridge questions skip `plainQuestion`/`arenaWords`): not touched, nothing reads wrong today.
