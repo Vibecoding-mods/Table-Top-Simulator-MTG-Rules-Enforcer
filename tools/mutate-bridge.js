@@ -223,7 +223,9 @@ const M = [
   ["reveal: no game-log line", `toTTS({ t: "gamelog", lines: [line] });`, "/* removed */"],
   ["discard drags: need min instead of max(1,min)", "Math.max(1, input.min || 0)", "(input.min || 0)"],
   ["hello: open prompts not shown again", "for (const st of game.seats.values()) if (st.prompt?.ui) toTTS(", "for (const st of game.seats.values()) if (false) toTTS("],
-  ["resolve stack: every → some", "stackIds.every((id) => seat.resolveStack.has(id))", "stackIds.some((id) => seat.resolveStack.has(id))"],
+  // (the rest of Resolve all, Resolve N× and the top-only own-spell stop: test_bridge_claims.js "Big stacks, 2026-11-12", each
+  // one red with its fix taken out)
+  ["resolve all: another player's new item never stops it", "const theirs = stack.find((x) => !rs.ids.has(x.id) && x.controllerId !== seat.slot && x.controllerId !== rs.by);", "const theirs = null;"],
   ["combat stop: never","const combatStop = gv.activePlayerId !== seat.slot && attacking &&","const combatStop = false &&"],
   ["combat stop: in every step","&& [\"combatDeclareAttackers\", \"combatDeclareBlockers\"].includes(gv.step);","&& true;"],
   ["queued play: never cast","        if (act) {\n          seat.queuedPlay = null;\n          log(","        if (false) {\n          seat.queuedPlay = null;\n          log("],

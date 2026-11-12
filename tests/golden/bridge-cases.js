@@ -15,6 +15,8 @@ const card = (board, id) => {
 // command 199. Theirs: battlefield 192 126 195 110 134 104 200 181, graveyard 196 107.
 const H = (n) => card(D2.board, `engine-card-${n}`);
 const myMain = (board) => { const b = clone(board); b.gameView.activePlayerId = "player-0"; b.gameView.step = "main1"; b.gameView.priorityPlayerId = "player-0"; b.gameView.stack = []; return b; };
+// a "Resolve all" pressed over these stack items (bridge startResolving's record; no turn or step to keep to)
+const resolving = (ids) => ({ ids: new Set(ids), by: "player-0", turn: null, step: null, passes: 0, seen: new Map(), group: null, left: 0, label: "Resolve all" });
 const prompt = (type, input, extra = {}) => ({ promptId: 900, decidingPlayerId: "player-0", input: { type, ...input }, ...extra });
 
 // a game with one seated player (Blue) against one AI (White), drawn by the table
@@ -42,7 +44,7 @@ function promptCase(name, board, p, answers = [], opts = {}) {
       await h.flush();
     }
     return { open: seat.prompt ? { type: seat.prompt.type, ui: seat.prompt.ui } : null, endTurnAt: seat.endTurnAt ?? null,
-      resolveStack: seat.resolveStack ? [...seat.resolveStack] : null, autoPayCard: seat.autoPayCard ?? null };
+      resolveStack: seat.resolveStack ? [...seat.resolveStack.ids] : null, autoPayCard: seat.autoPayCard ?? null };
   } };
 }
 
@@ -131,7 +133,7 @@ add(promptCase("chooseAction: mana creature with one colour taps", myMain(D2.boa
   const noKeys = myMain(D2.board); noKeys.gameView.players.find((p) => p.id === "player-0").manaPool = {};
   add(promptCase("chooseAction: undo listed, pool {}: no mana back option", noKeys, prompt("chooseAction", { actions: [acts[7], acts[11]] }), []));
   add(promptCase("chooseAction: end turn held for this turn", myMain(D2.board), actionP, [], { seat: { endTurnAt: 11 } }));
-  add(promptCase("chooseAction: resolve-the-stack keeps passing", b, actionP, [], { seat: { resolveStack: new Set(["s1"]) } }));
+  add(promptCase("chooseAction: resolve-the-stack keeps passing", b, actionP, [], { seat: { resolveStack: resolving(["s1"]) } }));
 }
 
 // added after the first mutation pass (each closes an edit that escaped)
@@ -141,7 +143,7 @@ add(promptCase("chooseAction: mana creature with one colour taps", myMain(D2.boa
   const dmg = myMain(D2.board); dmg.gameView.step = "combatDamage"; dmg.gameView.activePlayerId = "player-1";
   add(promptCase("chooseAction: ninjutsu stop in the combat damage step", dmg, actionP, []));
   const two = myMain(D2.board); two.gameView.stack = [{ id: "s1", controllerId: "player-1" }, { id: "s2", controllerId: "player-1" }];
-  add(promptCase("chooseAction: resolve-the-stack stops when something new joins", two, actionP, [], { seat: { resolveStack: new Set(["s1"]) } }));
+  add(promptCase("chooseAction: resolve-the-stack stops when something new joins", two, actionP, [], { seat: { resolveStack: resolving(["s1"]) } }));
   add(promptCase("damage split auto: not enough for the first blocker", D2.board, prompt("chooseCombatDamageAssignment",
     { attackerId: "engine-card-75", blockerIds: ["engine-card-134", "engine-card-35"], defenderId: "player-1", totalDamage: 2, attackerHasDeathtouch: false }), [["auto"]]));
   add(promptCase("reveal: a face-down card has no picture", D2.board, prompt("revealCards", { presentation: { title: "Look" }, cards: [{ ...H(43), visibility: "hidden" }, H(75)] }), [["ok"]]));
