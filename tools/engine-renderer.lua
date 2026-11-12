@@ -4882,7 +4882,7 @@ end
 engineRedrawSoon = {} -- colour -> true while a redraw is waiting for the next frame
 function engineGlowLate(id)
   for color, p in pairs(enginePrompts or {}) do
-    local named = false
+    local named = tostring(p.attacker) == id
     for _, o in ipairs(p.options or {}) do
       local oid = tostring(o.id)
       if oid == id or o.cardId == id or oid:sub(-#id - 1) == "|" .. id or oid:sub(1, #id + 1) == id .. "|" then named = true break end
@@ -4899,6 +4899,9 @@ function enginePhase2Prompt(color)
   clearMenus(color)
   local p = enginePrompts[color]
   local kind = promptKind(p)
+  -- the creature a defender is chosen for (Hero of Bladehold's token, put onto the battlefield attacking): red, as an
+  -- attacker picked on the attack question, whether the question is answered on the table or in the panel
+  if p ~= nil and p.attacker ~= nil then glowCard(color, tostring(p.attacker), GLOW.attackPick) end
   -- (no kind the table draws: the last question's ability buttons go, a click on one answered this question with an
   -- option of the same id, stage 3 review 2026-10-27)
   if kind == nil then if engineAbilityBoxes ~= nil then pcall(engineAbilityBoxes, color, nil, nil) end return end
