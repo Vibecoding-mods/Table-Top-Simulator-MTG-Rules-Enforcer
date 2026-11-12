@@ -107,7 +107,7 @@ game's first board, moved and triggered by name, falling back to the Object UI s
 `engine:sounds` object. What the Unity build must contain, the command-line build and the two-client test:
 `docs/m5-assetbundle-build.md`. With the bundle links in `engineFxBundle` and none on the table, a game's first board
 spawns the 6 rigs and the sound object once; they stay in the save after that (never destroyed: `destruct` costs
-~360 ms here). No link: nothing changes.
+~360 ms here). No link: nothing changes. The `mtg-fx` link is in since 2026-11-12 (`docs/m5-assetbundle-build.md` §1).
 
 One small AssetBundle, under ~5 MB, made from CC0 textures (Kenney particle pack) with Unity's standard particle system (Shuriken). No Asset Store packs, since they can't be redistributed in a public mod. At load, a pool of rigs is spawned under the table, then moved and triggered when needed:
 

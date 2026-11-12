@@ -4702,35 +4702,39 @@ end
 engineSoundOff = {}    -- colour -> true: that player asked for no sounds (the table's sounds are shared: the host's switch)
 -- M5 step 4 sound picks (docs/m5-effects-design.md section 6, "Plugging in a sound"): nil = silent. A link to an
 -- .mp3 (https://...) plays through the table's music player, for everyone; a name plays that trigger effect of the
--- sound object (an AssetBundle whose GM notes are "engine:sounds"). The user's six sounds, on the host's TTS Cloud
--- (docs/sounds.md, 2026-11-11); counter and knockout have none yet. The kinds added 2026-11-12 (countered, playerhit,
--- bighit, sorcery, and their bursts) have none until the user uploads them, nor the user's counter sound, nor the
--- louder death, instant, death_x2..x8 and wipe_x3..x8 (the links below are the 2026-11-11 files until then).
+-- sound object (an AssetBundle whose GM notes are "engine:sounds"). The sounds are on the host's TTS Cloud
+-- (docs/sounds.md). Every kind has one since 2026-11-12: that day's upload added counter, knockout, countered,
+-- playerhit, bighit, sorcery and their bursts, and the louder death, instant, death_x2..x8 and wipe_x3..x8.
 engineSounds = engineSounds or {
-  death = "https://steamusercontent-a.akamaihd.net/ugc/13327121084153162136/0C977DB5060F3953980271BE4789081E6889FD46/",    -- a permanent to the graveyard
-  wipe = "https://steamusercontent-a.akamaihd.net/ugc/11479971636843136595/5C0FB88EC6DE1F473D4067207ADDB4CCC0540597/",     -- 3 or more to graveyards on one board
-  damage = "https://steamusercontent-a.akamaihd.net/ugc/10124521221080295893/E301DC2C50A312AB8C6C1EDBB7C295B3AC76B06E/",   -- damage to a creature (5 or less); every hit with no playerhit / bighit pick
-  exile = "https://steamusercontent-a.akamaihd.net/ugc/17507000918538872455/683F8320B4DB9EAF77CF1AF05D1205EF94F7BA65/",    -- a permanent exiled from the battlefield
-  instant = "https://steamusercontent-a.akamaihd.net/ugc/13908604519167356078/0E2D2096A9D13080B6AC9F2204F29D2B419AD00A/",  -- an instant cast (not abilities, not copies)
-  lifegain = "https://steamusercontent-a.akamaihd.net/ugc/18328296034120530417/099A768F25DE573194668B6ACDFC47C3BC4F0DE7/", -- a player's life goes up
-  counter = nil, -- a counter put on a permanent
-  knockout = nil, -- a player loses or concedes
-  countered = nil, -- a spell countered (as the COUNTERED pop-up)
-  playerhit = nil, -- 1 to 5 damage to a player (bursts playerhit_x2..x8)
-  bighit = nil, -- one hit of more than 5, to a player or a creature (bursts bighit_x2..x8)
-  sorcery = nil, -- a sorcery cast (not abilities, not copies)
+  death = "https://steamusercontent-a.akamaihd.net/ugc/11698913979615550185/7F13F2B39D7065CE85AC235B6369A0747F6F712E/",       -- a permanent to the graveyard
+  wipe = "https://steamusercontent-a.akamaihd.net/ugc/11479971636843136595/5C0FB88EC6DE1F473D4067207ADDB4CCC0540597/",        -- 3 or more to graveyards on one board
+  damage = "https://steamusercontent-a.akamaihd.net/ugc/10124521221080295893/E301DC2C50A312AB8C6C1EDBB7C295B3AC76B06E/",      -- damage to a creature (5 or less); every hit with no playerhit / bighit pick
+  exile = "https://steamusercontent-a.akamaihd.net/ugc/17507000918538872455/683F8320B4DB9EAF77CF1AF05D1205EF94F7BA65/",       -- a permanent exiled from the battlefield
+  instant = "https://steamusercontent-a.akamaihd.net/ugc/15655704109114108865/027ADEDADC1E8E89E6AF2D66E77010F5D9A82298/",     -- an instant cast (not abilities, not copies)
+  lifegain = "https://steamusercontent-a.akamaihd.net/ugc/18328296034120530417/099A768F25DE573194668B6ACDFC47C3BC4F0DE7/",    -- a player's life goes up
+  counter = "https://steamusercontent-a.akamaihd.net/ugc/18384867903770801477/E84A3FA1E2AA6059EFD2D315A776D43AEBFD2E87/",     -- a counter put on a permanent
+  knockout = "https://steamusercontent-a.akamaihd.net/ugc/11703297018823193116/BCCEEF4571C8BD6A30FF2AF0350DE2C53A1DF345/",    -- a player loses or concedes
+  countered = "https://steamusercontent-a.akamaihd.net/ugc/16931120861737353001/A2214840FC305FC9063F57823D4C2852D2383CD3/",   -- a spell countered (as the COUNTERED pop-up)
+  playerhit = "https://steamusercontent-a.akamaihd.net/ugc/17427026780177468511/DC419EEC5FE59459E3F2417452DDE9E381380D0F/",   -- 1 to 5 damage to a player (bursts playerhit_x2..x8)
+  bighit = "https://steamusercontent-a.akamaihd.net/ugc/13928224574378758506/BFC535CE502EC967E020203AE6E1CAA2A68E703C/",      -- one hit of more than 5, to a player or a creature (bursts bighit_x2..x8)
+  sorcery = "https://steamusercontent-a.akamaihd.net/ugc/14467135192415793223/86376C7381097865A4421068FCA1FF8827BE47A8/",     -- a sorcery cast (not abilities, not copies)
   -- the bursts (docs/sounds.md "Bursts", 2026-11-11): the kind's sound stacked N times, for N or more of it on one board
   -- (FX.burst: the largest at or under the count, up to x8); wipe's plain sound is already its 3+ one, so it has no x2
+  bighit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10102534904146116314/FEC357F76AD3BC3E204485638504751C6EA5B3B4/",
+  bighit_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11596786930130643260/0DCA16B265095D18A20987D952273510DE3145BB/",
+  bighit_x4 = "https://steamusercontent-a.akamaihd.net/ugc/16029644423041008713/DBCF6A81CA79412C182C41A9A2EBDC7CFB595643/",
+  bighit_x6 = "https://steamusercontent-a.akamaihd.net/ugc/11089834991395856694/583F01EAB5F918482F28CB6B30208E082AD7F95E/",
+  bighit_x8 = "https://steamusercontent-a.akamaihd.net/ugc/14567024543913859128/655F1FDF1BF798D88ACBA5CC2648E8EB878C4135/",
   damage_x2 = "https://steamusercontent-a.akamaihd.net/ugc/9466119173358429772/2E01C49BC2F53D6B93F512EA0A64749DDA634A13/",
   damage_x3 = "https://steamusercontent-a.akamaihd.net/ugc/17172338814229470186/BA59E9063B3D8BCAB7189038A65371A54F7D222C/",
   damage_x4 = "https://steamusercontent-a.akamaihd.net/ugc/13841800202556732767/F0038F1475AEFEC61821E465C78BC3EC21D80C35/",
   damage_x6 = "https://steamusercontent-a.akamaihd.net/ugc/11502082504506897617/CF4A879844D92A2B54F7C750CD94BB636EE34ED4/",
   damage_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15514955064335890272/27041620B6C22438F8CEE38F4DEA99C3F41E499F/",
-  death_x2 = "https://steamusercontent-a.akamaihd.net/ugc/15977504191754705363/9CB0EBE3DEB258B6EC662929F722AA63C1859207/",
-  death_x3 = "https://steamusercontent-a.akamaihd.net/ugc/10197623558912609913/8E8411F1BB726E5EC9E9DCCAF2BDA12DA8873A94/",
-  death_x4 = "https://steamusercontent-a.akamaihd.net/ugc/13749034421601130711/8C34460B16F3A2C67691C9CDB2648B3B4FC700DC/",
-  death_x6 = "https://steamusercontent-a.akamaihd.net/ugc/14981614231409099112/DFE78BFC666DAB2A2EF88031E551780A8AD4AF5A/",
-  death_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15294488810888848110/3E48CF911CB8DA8E2E91231BE0A3DA620D1AB5B5/",
+  death_x2 = "https://steamusercontent-a.akamaihd.net/ugc/16160518566392322538/3D6776DCCE5662B172CD4184F6344747B424BB5D/",
+  death_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11242284143342103969/869EFC92C49790389FF0AC51C65A2932903FAE7E/",
+  death_x4 = "https://steamusercontent-a.akamaihd.net/ugc/14108423383041101533/2B7557832A1D8B69BE205F1FA054FD5985C9243C/",
+  death_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13804901690921610856/0E73D20BEA8004922AC93B72FBC240863778E6D3/",
+  death_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17462850133371665419/F8E3B2BB340E54993FC37392890ACC457FB1485B/",
   exile_x2 = "https://steamusercontent-a.akamaihd.net/ugc/17186924497210315771/FE7A0190EFBB0DD9CF10187AC7F4A053FF1445A5/",
   exile_x3 = "https://steamusercontent-a.akamaihd.net/ugc/16360686395485260339/33E0E7B8EE9466915355D652E0E2F53319E380E2/",
   exile_x4 = "https://steamusercontent-a.akamaihd.net/ugc/10667382779559099124/73D0ED29786C7A9DBED6E09027F1BD86EA407F00/",
@@ -4741,10 +4745,15 @@ engineSounds = engineSounds or {
   lifegain_x4 = "https://steamusercontent-a.akamaihd.net/ugc/15145076126188951042/48A9C18F2948F0AAF6BE76DCE1ADC5A4F9694697/",
   lifegain_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13678081104005473403/478E8433DBE00A0525EA21D206CA4DEEAFB5CBBE/",
   lifegain_x8 = "https://steamusercontent-a.akamaihd.net/ugc/12456025496901847800/D91EEE8A25C5F36EB72180F2363E38FC7B649D23/",
-  wipe_x3 = "https://steamusercontent-a.akamaihd.net/ugc/14397732191257991892/A2E4928820C613C1C7F795C4D22F39A951A14A0E/",
-  wipe_x4 = "https://steamusercontent-a.akamaihd.net/ugc/14089368148864425489/1B489E29E6BD0AA6026B4541D50135F5DF522F6B/",
-  wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/16706646390672856597/464A1F9ED5D5B2B15041BFDD9E6BF355867838D1/",
-  wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17471838172650004055/385D7FB6163AFE2C6DFD043DAE5036647530E63E/",
+  playerhit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/18385823772406590874/F67603DF33151D56EE4F4918A969DA71AEC93182/",
+  playerhit_x3 = "https://steamusercontent-a.akamaihd.net/ugc/15674528219804165919/03D2A5F8726309453086C91906045D28E9407290/",
+  playerhit_x4 = "https://steamusercontent-a.akamaihd.net/ugc/17558314647484330927/633D523AF1FC71C73C7737BA1C2D3D449CF9E983/",
+  playerhit_x6 = "https://steamusercontent-a.akamaihd.net/ugc/11410730380554930576/B9D76DCEE32CFC1BEBB704F01E34AF4BB66F2409/",
+  playerhit_x8 = "https://steamusercontent-a.akamaihd.net/ugc/13466691882656356958/8CBA319CD04332BEA45C8976283C9FD7A53C78D6/",
+  wipe_x3 = "https://steamusercontent-a.akamaihd.net/ugc/15886777703497702507/C882FFB1C26BEE20C87791A7135A3FBA1EAD3990/",
+  wipe_x4 = "https://steamusercontent-a.akamaihd.net/ugc/12703812866224761222/8F7B4507EC055B76100A5BF6966D5C085331E6A8/",
+  wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/14531756883241499521/4AB4F03063BBA056EE23C175B621BE4FB228DE58/",
+  wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/10603921525270560187/08115EEC453EE7937CD5B34288B696512A190D7D/",
 }
 -- each clip's length in seconds, where it isn't 2 (docs/sounds.md: every clip is padded to at least 2 s; a clip is
 -- paused just before its length runs out, engineSoundPlay)
@@ -4758,7 +4767,7 @@ engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }
 -- a link and no such object on the table, a game's first board spawns them once, parked under the table (fx: the
 -- pool of rigs, GM notes "engine:fx"; sounds: one object, "engine:sounds"); they then stay in the save. nil or "" =
 -- nothing spawned (rigs or a sound object already in the save are still used); with none, the effects are today's.
-engineFxBundle = engineFxBundle or { fx = nil, sounds = nil }
+engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/", sounds = nil }
 -- "mtg sounds on/off" and Settings → My sounds: the host mutes the table; anyone else is told it's shared
 function engineSetSounds(player, on)
   engineSoundOff[player.color] = (not on) or nil

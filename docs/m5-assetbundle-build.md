@@ -13,9 +13,11 @@ must contain so the table can use them, how to build them, and the two-client te
 | Effect rig | `engine:fx` | 6 (`FX.RIGS`) | `mtg-fx.unity3d` | `engineFxBundle.fx` |
 | Sound object | `engine:sounds` | 1 | `mtg-sounds.unity3d` | `engineFxBundle.sounds` |
 
-- `engineFxBundle = { fx = nil, sounds = nil }` (next to `engineFxArt` in `tools/engine-renderer.lua`): the TTS Cloud
-  links. **No link and no such object on the table: nothing happens**, the effects stay today's Object UI slots and
-  the sounds stay the MusicPlayer links.
+- `engineFxBundle = { fx = "<link>", sounds = nil }` (next to `engineFxArt` in `tools/engine-renderer.lua`): the TTS
+  Cloud links. **No link and no such object on the table: nothing happens**, the effects stay today's Object UI slots
+  and the sounds stay the MusicPlayer links.
+- `engineFxBundle.fx` (shipped since 2026-11-12, `mtg-fx.unity3d`, 118,140 bytes, sha256 `8e08833c2559a9221c0d21987693c106db9300738c3274254999631ca02ffce4`; the link was downloaded back and matches the file): https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/
+  Not yet deployed or seen from this link in TTS. No `sounds` bundle: the sounds are MusicPlayer links (`docs/sounds.md`).
 - With a link and none of that object on the table, a game's first board spawns them once (`spawnObjectData`,
   `Custom_Assetbundle`, locked, parked under the table at y −30, x −40…−31, z 30). They stay in the save after that;
   the next games find them by their GM notes. Rigs already in the save are used without a link too. The spawn data
@@ -174,7 +176,7 @@ public static class MtgBundles
 
   Exit 0 and "MTG bundles built" in the log: done; exit 1: the reason is on the "MTG bundles:" line.
 - Upload both in TTS (Modding → Cloud Manager), put the links in `engineFxBundle`, deploy as usual. The first game
-  spawns the objects; save the table once so they stay.
+  spawns the objects; save the table once so they stay. (`mtg-fx` done 2026-11-12: its link is in §1.)
 
 ## 7. After the first bundle
 

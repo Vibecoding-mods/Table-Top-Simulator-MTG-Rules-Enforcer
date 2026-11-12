@@ -1,6 +1,6 @@
 # Table sound effects
 
-Six sounds the user supplied on 2026-11-11, from OpenGameArt. Each was trimmed to where its sound ends, given an 80 ms fade-out, levelled to about -20 dBFS RMS (peaks under -1 dBFS), and encoded as 160 kbps mp3 with VLC. They were uploaded to the host's TTS Cloud (Steam Cloud); the links below are what the table plays (each link was downloaded back and matches its mtg2 file by sha256).
+The table's sounds. Six came from the user on 2026-11-11, from OpenGameArt; knockout is ours ("Counter and knockout"); counter, countered, playerhit, bighit and sorcery are the user's files of 2026-11-12, when death and instant were also made x1.5 louder ("Added and changed 2026-11-12"). Each of the six was trimmed to where its sound ends, given an 80 ms fade-out, levelled to about -20 dBFS RMS (peaks under -1 dBFS), and encoded as 160 kbps mp3 with VLC. All are on the host's TTS Cloud (Steam Cloud); the links below are what the table plays. Each link was downloaded back and matches its mtg2 file by sha256: the six on 2026-11-11, the 2026-11-12 upload (28 files: 27 sounds and the effect bundle `mtg-fx.unity3d`, `docs/m5-assetbundle-build.md`) on 2026-11-12.
 
 **Re-encoded 2026-11-11 (the links below are the new ones, files assets/sounds/tts/mtg2-*.mp3).** TTS's music player never loaded the first uploads. Live probes showed two causes:
 
@@ -17,16 +17,22 @@ Since that day, only a track of the players' own that is *playing* holds off the
 
 | File | Plays when | Length | Original file | Link |
 |---|---|---|---|---|
-| mtg-death.mp3 | a permanent goes to the graveyard (`death`) | 0.90 s | Permanent_and_creature_removal_sound_effect.wav | https://steamusercontent-a.akamaihd.net/ugc/13327121084153162136/0C977DB5060F3953980271BE4789081E6889FD46/ |
+| mtg-death.mp3 | a permanent goes to the graveyard (`death`; x1.5 louder since 2026-11-12) | 0.90 s | Permanent_and_creature_removal_sound_effect.wav | https://steamusercontent-a.akamaihd.net/ugc/11698913979615550185/7F13F2B39D7065CE85AC235B6369A0747F6F712E/ |
 | mtg-wipe.mp3 | several permanents go to the graveyard on one board (`wipe`, new) | 1.60 s | Board_wipe_to_graveyard_sound_effect.ogg (really a WAV) | https://steamusercontent-a.akamaihd.net/ugc/11479971636843136595/5C0FB88EC6DE1F473D4067207ADDB4CCC0540597/ |
-| mtg-damage.mp3 | damage to a creature or a player (`damage`) | 0.80 s | hit01.mp3.flac (really FLAC) | https://steamusercontent-a.akamaihd.net/ugc/10124521221080295893/E301DC2C50A312AB8C6C1EDBB7C295B3AC76B06E/ |
+| mtg-damage.mp3 | damage of 5 or less to a creature (`damage`; also every hit if playerhit or bighit has no link) | 0.80 s | hit01.mp3.flac (really FLAC) | https://steamusercontent-a.akamaihd.net/ugc/10124521221080295893/E301DC2C50A312AB8C6C1EDBB7C295B3AC76B06E/ |
 | mtg-exile.mp3 | a permanent is exiled (`exile`, new) | 1.50 s | Exile_sound_effect.ogg | https://steamusercontent-a.akamaihd.net/ugc/17507000918538872455/683F8320B4DB9EAF77CF1AF05D1205EF94F7BA65/ |
-| mtg-instant.mp3 | an instant is cast, instants only (`instant`, new) | 0.90 s | Instant_spell_cast.ogg (really a WAV) | https://steamusercontent-a.akamaihd.net/ugc/13908604519167356078/0E2D2096A9D13080B6AC9F2204F29D2B419AD00A/ |
+| mtg-instant.mp3 | an instant is cast, instants only (`instant`, new; x1.5 louder since 2026-11-12) | 0.90 s | Instant_spell_cast.ogg (really a WAV) | https://steamusercontent-a.akamaihd.net/ugc/15655704109114108865/027ADEDADC1E8E89E6AF2D66E77010F5D9A82298/ |
 | mtg-lifegain.mp3 | a player gains life (`lifegain`, new) | 1.80 s | Health_gain.aif | https://steamusercontent-a.akamaihd.net/ugc/18328296034120530417/099A768F25DE573194668B6ACDFC47C3BC4F0DE7/ |
+| mtg-counter.mp3 | a counter is put on a permanent (`counter`, 2026-11-12) | 0.65 s | Counter gain.mp3 (the user's) | https://steamusercontent-a.akamaihd.net/ugc/18384867903770801477/E84A3FA1E2AA6059EFD2D315A776D43AEBFD2E87/ |
+| mtg-knockout.mp3 | a player loses or concedes (`knockout`, 2026-11-12) | 1.60 s | ours, `tools/make-effect-sounds.js` | https://steamusercontent-a.akamaihd.net/ugc/11703297018823193116/BCCEEF4571C8BD6A30FF2AF0350DE2C53A1DF345/ |
+| mtg-countered.mp3 | a spell is countered (`countered`, 2026-11-12) | 1.05 s | If a spell is countered.ogg | https://steamusercontent-a.akamaihd.net/ugc/16931120861737353001/A2214840FC305FC9063F57823D4C2852D2383CD3/ |
+| mtg-playerhit.mp3 | 1 to 5 damage to a player (`playerhit`, 2026-11-12) | 0.85 s | player damage from pingorbolts pells.ogg | https://steamusercontent-a.akamaihd.net/ugc/17427026780177468511/DC419EEC5FE59459E3F2417452DDE9E381380D0F/ |
+| mtg-bighit.mp3 | one hit of more than 5, to a player or a creature (`bighit`, 2026-11-12) | 1.14 s | Damage from anything over 5.ogg | https://steamusercontent-a.akamaihd.net/ugc/13928224574378758506/BFC535CE502EC967E020203AE6E1CAA2A68E703C/ |
+| mtg-sorcery.mp3 | a sorcery is cast, sorceries only (`sorcery`, 2026-11-12) | 0.87 s | qubodup-PowerDrain.flac, reversed and 3x faster | https://steamusercontent-a.akamaihd.net/ugc/14467135192415793223/86376C7381097865A4421068FCA1FF8827BE47A8/ |
 
-`counter` and `knockout` have clips (below, "Counter and knockout"; counter is the user's own since 2026-11-12) but no link yet, so they stay silent. The four kinds added 2026-11-12 and the louder death and instant: "Added and changed 2026-11-12" below.
+Every kind has a link since 2026-11-12. The upload of that day (the five 2026-11-12 kinds, knockout, the louder death and instant, the bursts below) has not been heard in TTS yet. Details: "Counter and knockout" and "Added and changed 2026-11-12" below.
 
-The links are in `engineSounds` in `tools/engine-renderer.lua` (2026-11-11); when each kind plays and which wins on a
+The links are in `engineSounds` in `tools/engine-renderer.lua` (2026-11-11 and 2026-11-12); when each kind plays and which wins on a
 busy board: `docs/m5-effects-design.md` section 6. `tests/test_table_effects.js` checks the two lists match.
 ## Bursts (stacked copies)
 
@@ -35,21 +41,29 @@ TTS's music player plays one clip at a time, so a sound can't overlap itself liv
 - damage, death, exile: N copies about 110–170 ms apart with a little timing jitter, each 1 dB quieter than the one before, leaning alternately left and right.
 - lifegain: style B, rising chimes (the user picked it from three options on 2026-11-11): copies 170 ms apart, each pitched up min(2, 9/(N-1)) semitones from the last.
 - wipe: the wipe sound mixed over death ×N at -4 dB (no ×2: a wipe is 3+ permanents).
+- bighit, playerhit (2026-11-12): as damage's, 110 ms apart ("Added and changed 2026-11-12").
 
-Uploaded 2026-11-11 (re-encoded, mtg2-*); each link was downloaded back and matches its mtg2 file by sha256.
+Uploaded 2026-11-11 (re-encoded, mtg2-*); each link was downloaded back and matches its mtg2 file by sha256. On
+2026-11-12 the death and wipe bursts were replaced by louder ones and the bighit and playerhit bursts added, uploaded
+and checked by sha256 the same way.
 
 | File | Kind | Copies | Link |
 |---|---|---|---|
+| mtg-bighit-x2.mp3 | bighit | 2 | https://steamusercontent-a.akamaihd.net/ugc/10102534904146116314/FEC357F76AD3BC3E204485638504751C6EA5B3B4/ |
+| mtg-bighit-x3.mp3 | bighit | 3 | https://steamusercontent-a.akamaihd.net/ugc/11596786930130643260/0DCA16B265095D18A20987D952273510DE3145BB/ |
+| mtg-bighit-x4.mp3 | bighit | 4 | https://steamusercontent-a.akamaihd.net/ugc/16029644423041008713/DBCF6A81CA79412C182C41A9A2EBDC7CFB595643/ |
+| mtg-bighit-x6.mp3 | bighit | 6 | https://steamusercontent-a.akamaihd.net/ugc/11089834991395856694/583F01EAB5F918482F28CB6B30208E082AD7F95E/ |
+| mtg-bighit-x8.mp3 | bighit | 8 | https://steamusercontent-a.akamaihd.net/ugc/14567024543913859128/655F1FDF1BF798D88ACBA5CC2648E8EB878C4135/ |
 | mtg-damage-x2.mp3 | damage | 2 | https://steamusercontent-a.akamaihd.net/ugc/9466119173358429772/2E01C49BC2F53D6B93F512EA0A64749DDA634A13/ |
 | mtg-damage-x3.mp3 | damage | 3 | https://steamusercontent-a.akamaihd.net/ugc/17172338814229470186/BA59E9063B3D8BCAB7189038A65371A54F7D222C/ |
 | mtg-damage-x4.mp3 | damage | 4 | https://steamusercontent-a.akamaihd.net/ugc/13841800202556732767/F0038F1475AEFEC61821E465C78BC3EC21D80C35/ |
 | mtg-damage-x6.mp3 | damage | 6 | https://steamusercontent-a.akamaihd.net/ugc/11502082504506897617/CF4A879844D92A2B54F7C750CD94BB636EE34ED4/ |
 | mtg-damage-x8.mp3 | damage | 8 | https://steamusercontent-a.akamaihd.net/ugc/15514955064335890272/27041620B6C22438F8CEE38F4DEA99C3F41E499F/ |
-| mtg-death-x2.mp3 | death | 2 | https://steamusercontent-a.akamaihd.net/ugc/15977504191754705363/9CB0EBE3DEB258B6EC662929F722AA63C1859207/ |
-| mtg-death-x3.mp3 | death | 3 | https://steamusercontent-a.akamaihd.net/ugc/10197623558912609913/8E8411F1BB726E5EC9E9DCCAF2BDA12DA8873A94/ |
-| mtg-death-x4.mp3 | death | 4 | https://steamusercontent-a.akamaihd.net/ugc/13749034421601130711/8C34460B16F3A2C67691C9CDB2648B3B4FC700DC/ |
-| mtg-death-x6.mp3 | death | 6 | https://steamusercontent-a.akamaihd.net/ugc/14981614231409099112/DFE78BFC666DAB2A2EF88031E551780A8AD4AF5A/ |
-| mtg-death-x8.mp3 | death | 8 | https://steamusercontent-a.akamaihd.net/ugc/15294488810888848110/3E48CF911CB8DA8E2E91231BE0A3DA620D1AB5B5/ |
+| mtg-death-x2.mp3 | death | 2 | https://steamusercontent-a.akamaihd.net/ugc/16160518566392322538/3D6776DCCE5662B172CD4184F6344747B424BB5D/ |
+| mtg-death-x3.mp3 | death | 3 | https://steamusercontent-a.akamaihd.net/ugc/11242284143342103969/869EFC92C49790389FF0AC51C65A2932903FAE7E/ |
+| mtg-death-x4.mp3 | death | 4 | https://steamusercontent-a.akamaihd.net/ugc/14108423383041101533/2B7557832A1D8B69BE205F1FA054FD5985C9243C/ |
+| mtg-death-x6.mp3 | death | 6 | https://steamusercontent-a.akamaihd.net/ugc/13804901690921610856/0E73D20BEA8004922AC93B72FBC240863778E6D3/ |
+| mtg-death-x8.mp3 | death | 8 | https://steamusercontent-a.akamaihd.net/ugc/17462850133371665419/F8E3B2BB340E54993FC37392890ACC457FB1485B/ |
 | mtg-exile-x2.mp3 | exile | 2 | https://steamusercontent-a.akamaihd.net/ugc/17186924497210315771/FE7A0190EFBB0DD9CF10187AC7F4A053FF1445A5/ |
 | mtg-exile-x3.mp3 | exile | 3 | https://steamusercontent-a.akamaihd.net/ugc/16360686395485260339/33E0E7B8EE9466915355D652E0E2F53319E380E2/ |
 | mtg-exile-x4.mp3 | exile | 4 | https://steamusercontent-a.akamaihd.net/ugc/10667382779559099124/73D0ED29786C7A9DBED6E09027F1BD86EA407F00/ |
@@ -60,48 +74,42 @@ Uploaded 2026-11-11 (re-encoded, mtg2-*); each link was downloaded back and matc
 | mtg-lifegain-x4.mp3 | lifegain | 4 | https://steamusercontent-a.akamaihd.net/ugc/15145076126188951042/48A9C18F2948F0AAF6BE76DCE1ADC5A4F9694697/ |
 | mtg-lifegain-x6.mp3 | lifegain | 6 | https://steamusercontent-a.akamaihd.net/ugc/13678081104005473403/478E8433DBE00A0525EA21D206CA4DEEAFB5CBBE/ |
 | mtg-lifegain-x8.mp3 | lifegain | 8 | https://steamusercontent-a.akamaihd.net/ugc/12456025496901847800/D91EEE8A25C5F36EB72180F2363E38FC7B649D23/ |
-| mtg-wipe-x3.mp3 | wipe | 3 | https://steamusercontent-a.akamaihd.net/ugc/14397732191257991892/A2E4928820C613C1C7F795C4D22F39A951A14A0E/ |
-| mtg-wipe-x4.mp3 | wipe | 4 | https://steamusercontent-a.akamaihd.net/ugc/14089368148864425489/1B489E29E6BD0AA6026B4541D50135F5DF522F6B/ |
-| mtg-wipe-x6.mp3 | wipe | 6 | https://steamusercontent-a.akamaihd.net/ugc/16706646390672856597/464A1F9ED5D5B2B15041BFDD9E6BF355867838D1/ |
-| mtg-wipe-x8.mp3 | wipe | 8 | https://steamusercontent-a.akamaihd.net/ugc/17471838172650004055/385D7FB6163AFE2C6DFD043DAE5036647530E63E/ |
+| mtg-playerhit-x2.mp3 | playerhit | 2 | https://steamusercontent-a.akamaihd.net/ugc/18385823772406590874/F67603DF33151D56EE4F4918A969DA71AEC93182/ |
+| mtg-playerhit-x3.mp3 | playerhit | 3 | https://steamusercontent-a.akamaihd.net/ugc/15674528219804165919/03D2A5F8726309453086C91906045D28E9407290/ |
+| mtg-playerhit-x4.mp3 | playerhit | 4 | https://steamusercontent-a.akamaihd.net/ugc/17558314647484330927/633D523AF1FC71C73C7737BA1C2D3D449CF9E983/ |
+| mtg-playerhit-x6.mp3 | playerhit | 6 | https://steamusercontent-a.akamaihd.net/ugc/11410730380554930576/B9D76DCEE32CFC1BEBB704F01E34AF4BB66F2409/ |
+| mtg-playerhit-x8.mp3 | playerhit | 8 | https://steamusercontent-a.akamaihd.net/ugc/13466691882656356958/8CBA319CD04332BEA45C8976283C9FD7A53C78D6/ |
+| mtg-wipe-x3.mp3 | wipe | 3 | https://steamusercontent-a.akamaihd.net/ugc/15886777703497702507/C882FFB1C26BEE20C87791A7135A3FBA1EAD3990/ |
+| mtg-wipe-x4.mp3 | wipe | 4 | https://steamusercontent-a.akamaihd.net/ugc/12703812866224761222/8F7B4507EC055B76100A5BF6966D5C085331E6A8/ |
+| mtg-wipe-x6.mp3 | wipe | 6 | https://steamusercontent-a.akamaihd.net/ugc/14531756883241499521/4AB4F03063BBA056EE23C175B621BE4FB228DE58/ |
+| mtg-wipe-x8.mp3 | wipe | 8 | https://steamusercontent-a.akamaihd.net/ugc/10603921525270560187/08115EEC453EE7937CD5B34288B696512A190D7D/ |
 
-## Counter and knockout (made 2026-11-11, not uploaded yet)
+## Counter and knockout (made 2026-11-11; knockout uploaded 2026-11-12)
 
 **Since 2026-11-12 only knockout here is the table's.** The `counter` kind takes the user's own "Counter gain" sound
 (next section), and `tools/make-effect-sounds.js` now writes its generated counter as `mtg2-counter-generated.mp3`, so a
-run can't overwrite the user's. The steps below are for knockout; the counter link follows the next section's steps.
+run can't overwrite the user's.
 
 Made with ffmpeg's own generators by `tools/make-effect-sounds.js`: no downloaded or third-party audio, so they are this
 project's work and public domain like the code (`LICENSE`). The noise seeds are fixed: a run makes the same files, byte
 for byte. Levelled like the six (-20 dBFS RMS over the sound, peaks under -1 dBFS, 80 ms fade-out), then the TTS recipe
 above (padded to 2 s, libmp3lame 192 kbps, ID3v2.3, titles "MTG effect counter" / "MTG effect knockout"). The same
-recipe as the 30 that load in TTS, but these two have not been loaded in TTS yet.
+recipe as the 30 that load in TTS; the knockout was uploaded 2026-11-12 but has not been heard in TTS yet.
 
 | File (assets/sounds/tts/) | Kind | Sound | File length | sha256 | Link |
 |---|---|---|---|---|---|
 | mtg2-counter-generated.mp3 (was mtg2-counter.mp3) | replaced 2026-11-12 by the user's "Counter gain" (below); not to be uploaded | 0.62 s: a soft tick, then two rising bell notes (E6, B6) | 2.00 s (49,601 bytes) | `0b21690e0d7c5373fd082dc8fc0d81dd7a7e9018dd0187a47d2ef5ea8ebbc71a` | none |
-| mtg2-knockout.mp3 | a player loses or concedes (`knockout`) | 1.60 s: an explosion (a noise crack, a low rumble, a sub thump falling 80 to 30 Hz) | 2.00 s (49,602 bytes) | `5f45e58c0e0c4f22a57f12b3f2c6e81924f600983ee5ccdb68f8f5653fed1103` | none yet |
+| mtg2-knockout.mp3 | a player loses or concedes (`knockout`) | 1.60 s: an explosion (a noise crack, a low rumble, a sub thump falling 80 to 30 Hz) | 2.00 s (49,602 bytes) | `5f45e58c0e0c4f22a57f12b3f2c6e81924f600983ee5ccdb68f8f5653fed1103` | in the first table (`mtg-knockout.mp3`) |
 
 Both files (the knockout and the now unused generated counter) are 2.0 s, so neither needs an `engineSoundLen` entry (the table pauses a clip at its length minus 0.25 s,
 1.75 s, after both sounds have ended).
 
-**Where the links go**, once the lead has uploaded the two files (TTS → Modding → Cloud Manager) and downloaded each
-link back to check its sha256 against the table above:
+**The links: done 2026-11-12.** The knockout (and the user's counter) were uploaded (TTS → Modding → Cloud Manager),
+each link downloaded back and matched to its file by sha256, and put in `engineSounds` (`tools/engine-renderer.lua`)
+and the first table above, which `tests/test_table_effects.js` reads. Still to do: deploy, then as the host
+`mtg sounds test counter` and `mtg sounds test knockout`.
 
-1. `tools/engine-renderer.lua`, the `engineSounds = engineSounds or {` table: replace `nil` in the lines
-   `counter = nil, -- a counter put on a permanent` and `knockout = nil, -- a player loses or concedes` with the quoted
-   links (`counter = "https://steamusercontent-a.akamaihd.net/ugc/.../",`). Until then both stay `nil`, which plays
-   nothing (`FX.picked`), so a board with only a counter or a knock-out is silent and the next kind down plays instead.
-   Update the comment above the table ("counter and knockout have none yet").
-2. This file: move the two rows into the first table as `mtg-counter.mp3` / `mtg-knockout.mp3` with ``(`counter`)`` /
-   ``(`knockout`)`` in the "Plays when" column and the link last, the way the six are written: `tests/test_table_effects.js`
-   reads that table.
-3. `tests/test_table_effects.js`, the "the user's sounds" block: the check that the doc has 6 links becomes 8, and
-   "counter and knockout stay silent" becomes a check that they are the doc's links. Its `PICKS` lists and the design
-   doc's "six of the eight kinds" (`docs/m5-effects-design.md` section 6) change with them.
-4. Run the gates, deploy as usual, then as the host `mtg sounds test counter` and `mtg sounds test knockout`.
-
-## Added and changed 2026-11-12 (made, not uploaded yet)
+## Added and changed 2026-11-12 (uploaded 2026-11-12)
 
 The user's requests: four new sounds, and "permanent leaving the battlefield sound needs to be louder, increase 1.5,
 same for instant sound".
@@ -114,7 +122,7 @@ same for instant sound".
 | `counter` (new sound) | a counter put on a permanent, as before | `Counter gain.mp3` (replaces our generated one) |
 | `playerhit` (new) | 1 to 5 damage to a player (a player's life going down by 1 to 5 on a board; life paid reads the same, as for damage) | `player damage from pingorbolts pells.ogg` |
 | `bighit` (new) | one hit of more than 5: a player's life down by 6 or more, or a creature's damage up by 6 or more, on one board | `Damage from anything over 5.ogg` |
-| `damage` (narrower) | damage of 5 or less to a creature. It still counts every hit, so with no playerhit or bighit pick (today, until the upload) every hit plays damage as before | (unchanged) |
+| `damage` (narrower) | damage of 5 or less to a creature. It still counts every hit, so with no playerhit or bighit pick (as before the 2026-11-12 upload) every hit plays damage | (unchanged) |
 | `sorcery` (new) | a sorcery cast, mirroring instant: sorceries only, not abilities, not copies (the bridge marks the stack item `sor`, as `ins` for instants) | `sorc cast sound/flac/qubodup-PowerDrain.flac`, reversed and 3x faster |
 
 "One hit" is per player or creature per board: the table sees totals, so two Shocks at one player that land on one
@@ -152,8 +160,8 @@ replaced ones kept in `assets/sounds/tts-replaced-2026-11-12`):
 - `countered`, `playerhit`, `bighit` and `sorcery` have no bursts of their own beyond those (countered and sorcery are
   1 at a time, like instant).
 
-**The files to upload** (all in `tmp/upload`, also in `assets/sounds/tts`; `tmp/upload` also keeps `mtg-fx.unity3d` and
-`mtg2-knockout.mp3` from before):
+**The files uploaded** (all in `tmp/upload`, also in `assets/sounds/tts`; `tmp/upload` also keeps `mtg-fx.unity3d` and
+`mtg2-knockout.mp3` from before, uploaded with them):
 
 | File | Sound | File length | Limited | sha256 |
 |---|---|---|---|---|
@@ -184,20 +192,14 @@ replaced ones kept in `assets/sounds/tts-replaced-2026-11-12`):
 | mtg2-wipe-x6.mp3 | 1.60 s | 2.00 s | 0.6 dB | `457c59d4d9e64c120250dc46184acfe8b9e31136bc8c59ba64d93d89aaa32032` |
 | mtg2-wipe-x8.mp3 | 1.70 s | 2.00 s | 0.6 dB | `76f022eba5af89c64ffccaf413e638ea46f662adb7578e99fb4c8805fee00b05` |
 
-None of the 26 has been loaded in TTS yet (same recipe as the 30 that load).
+All 26 were uploaded 2026-11-12 (TTS → Modding → Cloud Manager); each link was downloaded back and matched to its
+file by sha256 against the table above. None has been heard in TTS yet (same recipe as the 30 that load).
 
-**Where the links go**, once uploaded (TTS → Modding → Cloud Manager) and each link downloaded back and checked
-against its sha256 above:
-
-1. `tools/engine-renderer.lua`, `engineSounds`: fill `countered`, `counter`, `playerhit`, `bighit`, `sorcery` (now
-   `nil`), add `playerhit_x2..x8` and `bighit_x2..x8`, and replace the links of `death`, `instant`, `death_x2..x8` and
-   `wipe_x3..x8`. Until then the table plays exactly what it did on 2026-11-11 (the new kinds have no pick; every hit is
-   `damage`).
-2. This file: the rows of the first two tables (new kinds' plain sounds as `mtg-<kind>.mp3` rows with ``(`<kind>`)``,
-   bursts as `mtg-<kind>-xN.mp3` rows; the replaced death, instant, death and wipe burst links), so the counts that
-   `tests/test_table_effects.js` checks (6 plain links, 24 bursts) become 11 and 34, and its "no link until the user
-   uploads" check becomes a check that they are the doc's.
-3. Gates, deploy, then as the host `mtg sounds test countered`, `playerhit`, `bighit`, `sorcery`, `bighit 8`.
+**The links: done 2026-11-12.** In `engineSounds` (`tools/engine-renderer.lua`): `countered`, `counter`, `playerhit`,
+`bighit`, `sorcery`, `playerhit_x2..x8` and `bighit_x2..x8` filled in, the links of `death`, `instant`,
+`death_x2..x8` and `wipe_x3..x8` replaced; in this file, the first two tables (12 plain links, 34 bursts), which
+`tests/test_table_effects.js` checks against the table's. Still to do: deploy, then as the host
+`mtg sounds test countered`, `playerhit`, `bighit`, `sorcery`, `bighit 8`.
 
 ## Licences and sources (checked 2026-11-11)
 

@@ -887,9 +887,13 @@ function cardEntry(s1) {
 }
 
 
+// The golden pins the table with no effect bundle: the shipped mtg-fx link (2026-11-12) would spawn the rigs at each
+// game's first board. That path is tested in tests/test_table_effects.js ("links").
+const NO_BUNDLE = "engineFxBundle = { fx = nil, sounds = nil }";
+
 function runAll(save = buildSave()) {
   return scenarios().map((sc) => {
-    const r = simulate({ save, steps: sc.steps, ...(sc.seated ? { seated: sc.seated } : {}) });
+    const r = simulate({ save, steps: sc.steps, prelude: NO_BUNDLE, ...(sc.seated ? { seated: sc.seated } : {}) });
     return { name: sc.name, errors: r.errors, steps: r.steps };
   });
 }
