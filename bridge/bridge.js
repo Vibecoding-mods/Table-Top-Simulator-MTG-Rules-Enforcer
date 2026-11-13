@@ -2221,29 +2221,80 @@ function facePeek(id, seats, views) {
   const img = imagesFor(name, game.slotColor?.[face.ownerId] || null, face.id);
   return { pk: { n: name, f: img?.face || cachedImage(name)?.face || null, v: colors } };
 }
-// The foretold cards in exile, id -> its exile's owner (game.foretold), for the FORETOLD n mark, while each stays in
-// that exile: a card any seat's view says is foretold (Forge's isForetold, the owner's view only), or, for each foretell
-// Forge's feed counted for a player since the last board (updateLog's game.foretellsNew: an AI's foretell is seen only
-// so, a move with no cardId), one of the hidden cards new in that player's exile on this board. Only the count is
-// shown: which card it is stays the owner's (the board's other seats get a hidden entry, id only).
+// The foretold cards in exile, for the FORETOLD n mark. Only the count is shown: which card it is stays the owner's
+// (the board's other seats get a hidden entry, id only).
+// - game.foretold, id -> owner: the ones known, while each stays in its owner's exile: a card any seat's view says is
+//   foretold (Forge's isForetold, the owner's view only); one an AI's foretell was matched to, below; one known foretold
+//   before (game.foretoldEver) back hidden in that exile, a rewind's restore, which the feed says nothing of.
+// - game.foretoldPool, owner -> { pending, candidates }: an AI's foretells not yet pinned to a card. Forge's feed
+//   counts them (a move with no cardId, updateLog's game.foretellsNew), less the ones a view matched on this board (a
+//   human's), and each is one of the hidden cards new in that player's exile on this board (the candidates). With as
+//   many new cards as foretells they are those; with more (a hideaway, or another player's face-down exile of the
+//   owner's card, on the same board) the count is kept without saying which: `pending` of the candidates still hidden
+//   there. One that leaves is read by its face once a board shows it face up (graveyard, battlefield): a card with
+//   foretell was the foretold one (pending goes down), one without wasn't; one that goes where no one sees (hand,
+//   library: a rewind to before the foretell) is taken as foretold. Once as many candidates are left as foretells, they
+//   are pinned. (A spell on the stack shows no keywords, Forge's StackObjectDto, so while the foretold one is on the
+//   stack, the hideaway still counts: the count is one too high until it resolves.) The pool's field names are long so
+//   test_table_map doesn't take them for table keys.
 function noteForetold(pub, views) {
-  const where = new Map();
-  for (const z of pub.zones || []) if (z.zone === "exile") for (const c of z.cards || []) where.set(c.id, z.ownerId);
-  game.foretold ??= new Map();
-  for (const v of views) for (const c of Object.values(v || {})) if (c?.isForetold && where.has(c.id)) game.foretold.set(c.id, where.get(c.id));
-  for (const [owner, n] of Object.entries(game.foretellsNew || {})) {
-    const z = (pub.zones || []).find((x) => x.zone === "exile" && x.ownerId === owner);
-    const fresh = (z?.cards || []).filter((c) => (c.visibility === "hidden" || c.isFaceDown) && !game.exileSeen?.has(c.id) && !game.foretold.has(c.id));
-    for (const c of fresh.slice(0, n)) game.foretold.set(c.id, owner);
+  const where = new Map(), hidden = new Map();
+  for (const z of pub.zones || []) if (z.zone === "exile") for (const c of z.cards || []) {
+    where.set(c.id, z.ownerId);
+    if (c.visibility === "hidden" || c.isFaceDown) hidden.set(c.id, z.ownerId);
   }
-  game.foretellsNew = {};
-  game.exileSeen = new Set(where.keys());
+  game.foretold ??= new Map();
+  game.foretoldEver ??= new Map();
+  game.foretoldPool ??= {};
+  const known = (id, o) => { game.foretold.set(id, o); game.foretoldEver.set(id, o); };
+  const isNew = (id) => !game.exileSeen?.has(id);
+  // (owner -> the foretells on this board already matched to a card: a view's, or a known one's back)
+  const viewNew = {};
+  for (const v of views) for (const c of Object.values(v || {})) {
+    if (!c?.isForetold || !where.has(c.id)) continue;
+    const o = where.get(c.id);
+    if (!game.foretold.has(c.id) && isNew(c.id)) viewNew[o] = (viewNew[o] || 0) + 1;
+    known(c.id, o);
+  }
+  // (and one known before, back: new on this board it is a foretell of its own, or a rewind's, which sends none)
+  for (const [id, o] of game.foretoldEver) {
+    if (hidden.get(id) !== o || game.foretold.has(id)) continue;
+    if (isNew(id)) viewNew[o] = (viewNew[o] || 0) + 1;
+    game.foretold.set(id, o);
+  }
   for (const id of [...game.foretold.keys()]) {
     if (where.has(id)) game.foretold.set(id, where.get(id));
     else game.foretold.delete(id);
   }
+  // (the pool's cards gone from their exile: by their face once shown, see above)
+  const face = (id) => (pub.zones || []).flatMap((z) => z.cards || []).find((c) => c.id === id && c.identity?.name && !c.isFaceDown && c.visibility !== "hidden");
+  const onStack = (id) => (pub.stack || []).some((s) => s.sourceId === id);
+  for (const [o, pool] of Object.entries(game.foretoldPool)) {
+    pool.candidates = pool.candidates.filter((id) => {
+      if (hidden.get(id) === o) return true;
+      const f = face(id);
+      if (!f && onStack(id)) return true; // (decided when it resolves)
+      if (!f || hasKeyword(f, "Foretell") || /(?:^|\n)Foretell\b/.test(String(f.text ?? ""))) { pool.pending -= 1; if (f) game.foretoldEver.set(id, o); }
+      return false;
+    });
+  }
+  for (const [o, k] of Object.entries(game.foretellsNew || {})) {
+    const inPool = new Set(Object.values(game.foretoldPool).flatMap((p) => p.candidates));
+    const fresh = [...hidden].filter(([id, x]) => x === o && isNew(id) && !game.foretold.has(id) && !inPool.has(id)).map(([id]) => id);
+    const n = Math.min(k - (viewNew[o] || 0), fresh.length);
+    if (n > 0) { const p = (game.foretoldPool[o] ??= { pending: 0, candidates: [] }); p.pending += n; p.candidates.push(...fresh); }
+  }
+  for (const [o, pool] of Object.entries(game.foretoldPool)) {
+    pool.pending = Math.max(0, Math.min(pool.pending, pool.candidates.length));
+    if (pool.pending && pool.pending === pool.candidates.filter((id) => hidden.get(id) === o).length && pool.pending === pool.candidates.length) for (const id of pool.candidates) known(id, o);
+    if (!pool.pending || game.foretold.has(pool.candidates[0])) delete game.foretoldPool[o];
+  }
+  game.foretellsNew = {};
+  game.exileSeen = new Set(where.keys());
 }
-const foretoldCount = (slot) => [...(game?.foretold?.values() || [])].filter((o) => o === slot).length;
+// (the known ones in the player's exile, and the pool's count: `pending` of its candidates still hidden there)
+const foretoldCount = (slot) => [...(game?.foretold?.values() || [])].filter((o) => o === slot).length
+  + Math.min(game?.foretoldPool?.[slot]?.pending || 0, (game?.foretoldPool?.[slot]?.candidates || []).filter((id) => game.exileSeen?.has(id)).length);
 // A face-down exiled card the drawing seat may not see (a hidden entry: no exiledWith) as a seat that may look sees
 // it, for what is public about it (the card it lies under, its counters); tableCard draws it as the nameless stub
 function faceDownAnyView(c, views) {
@@ -2642,12 +2693,14 @@ function logSnapshot(pub, prev = null) {
         ...((n) => (n > 0 ? { loy: n } : {}))(Object.entries(c.counters || {}).find(([k]) => /^loyalty$/i.test(k))?.[1]),
         ...(c.mergedCardIds?.length ? { merged: [...c.mergedCardIds] } : {}),
         ...(hasKeyword(c, "Rebound") ? { rebound: true } : {}),
-        // (suspended, CR 702.62b: face up in exile with suspend and a time counter, or so on the last board and still
-        // there, its last counter just removed. Not the keyword alone: an impulse-drawn Rift Bolt cast for its cost, or a
-        // cascade into Living End, read "casts ... from suspend", review 2026-11-13. Nor counters alone: a card with time
-        // counters and no suspend is not suspended)
+        // (suspended, CR 702.62b: face up in exile with suspend and a time counter; or its last counter just removed: so on
+        // the last board with a time counter on it, or its own trigger (suspend's cast) on the stack now while it was so.
+        // Not the keyword alone: an impulse-drawn Rift Bolt cast for its cost, or a cascade into Living End, read "casts
+        // ... from suspend", review 2026-11-13. Nor counters alone: a card with time counters and no suspend is not
+        // suspended. Nor for good: one whose cast was declined, left in exile, cast later another way, is no suspend cast)
         ...(z.zone === "exile" && !c.isFaceDown && hasKeyword(c, "Suspend") && (Object.entries(c.counters || {}).some(([k, n]) => /^time$/i.test(k) && n > 0)
-          || (prev?.cards?.[c.id]?.zone === "exile" && prev.cards[c.id].suspend)) ? { suspend: true } : {}),
+          || (prev?.cards?.[c.id]?.zone === "exile" && prev.cards[c.id].suspend
+            && (timeCounters(prev.cards[c.id]) > 0 || (pub.stack || []).some((s) => s.isTrigger && s.sourceId === c.id)))) ? { suspend: true } : {}),
         // (phasing is no zone change, so it stays "battlefield" here: Forge says which, the log no longer guesses)
         ...(c.phasedOut ? { po: true } : {}),
         // (a dungeon's room, Forge's "[Room: Cave Entrance]" note: venturing read only its effect, "+1 life", mechanic run hp-08;
