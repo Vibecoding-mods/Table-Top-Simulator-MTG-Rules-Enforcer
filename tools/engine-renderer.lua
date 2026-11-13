@@ -984,8 +984,10 @@ local function layoutRow(g, cards, row, seen, color, hosts)
   for i, c in ipairs(cards) do
     -- a permanent that changed controller (Volatile Stormdrake's exchange, a steal) goes to its new controller's
     -- side: the spot its old controller arranged it at is on the other side of the table
+    -- (a curse on this row's player is its controller's to move: the seat it is kept for, engineRender's cursed)
+    local owner = (c.attP ~= nil and c.attP == color and c.ctl ~= nil) and c.ctl or color
     local was = engineMeta[c.id]
-    if was ~= nil and was.color ~= nil and was.color ~= color then engineManual[c.id] = nil end
+    if was ~= nil and was.color ~= nil and was.color ~= owner then engineManual[c.id] = nil end
     -- a LAND played by dragging it here lands in the mana box: the spot it was dropped on only held it while it was
     -- played (playtest 2026-10-26: "it appears in the middle of the battlefield instead of the lower mana box"). Any
     -- other card stays where it was dropped (2026-11-10: "I also don't want any other cards to snap to the play mat"),
@@ -996,7 +998,7 @@ local function layoutRow(g, cards, row, seen, color, hosts)
     end
     local pos = engineManual[c.id] or gridPos(g, col * step, row)
     col = col + 1 + ((hosts and hosts[c.id]) and ATTACH.extraCols or 0)
-    place(c, pos, Vector(0, g.rotY + ((c.tap or engineHeldTapped(c.id)) and 90 or 0), c.fd and 180 or 0), seen, nil, { zone = "battlefield", color = color })
+    place(c, pos, Vector(0, g.rotY + ((c.tap or engineHeldTapped(c.id)) and 90 or 0), c.fd and 180 or 0), seen, nil, { zone = "battlefield", color = owner })
   end
 end
 
@@ -1047,6 +1049,7 @@ local function updateTrackers(m)
       setLife(color, pl.life)
       if enginePlayerCounters ~= nil then pcall(enginePlayerCounters, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
       if engineExtraTurnBadge ~= nil then pcall(engineExtraTurnBadge, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
+      if engineLifeTip ~= nil then pcall(engineLifeTip, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
       for from, guid in pairs(CMD_DAMAGE[color] or {}) do setCounterVal(guid, (pl.cmdDamage or {})[from] or 0) end
       for i, guid in ipairs(TAX_LABELS[color] or {}) do setTax(guid, (pl.tax or {})[i] or 0) end
     end
@@ -1077,6 +1080,26 @@ BASE_GLOW = { stack = {0.75, 0.35, 1}, atk = {1, 0.12, 0.08}, blk = {0.15, 0.45,
 -- object, found again by their tooltip.
 ENGINE_COUNTERS_TIP = "Poison (ten and that player loses), energy and the other player counters, the monarch (draws at their end step), the initiative, the city's blessing, an enduring story, the Ring's temptations, speed, a turn run by another player, an extra turn, damage prevention, hand size, and what protects or binds the player"
 engineCountersShown = {} -- counter object guid -> the label it shows (redrawn only on a change)
+-- A marks box, by its click function (a box may carry its own hover text, the bridge's markTips), or by the common
+-- hover text (a box drawn by an older script)
+function engineMarksNoop() end
+function engineMarksIsBox(b)
+  return type(b) == "table" and (b.click_function == "engineMarksNoop" or b.tooltip == ENGINE_COUNTERS_TIP)
+end
+-- The life counter's hover text: its own, then the life gained and lost this turn (the bridge's lifeTip, Forge's
+-- lifeGainedThisTurn and lifeLostThisTurn, engine1112), on the counter's big button (index 0, the life number: Amuzet's
+-- LifeTracker creates it first, tooltip ENGINE_LIFE_TIP, click function `option`), set
+-- only on a change; its own text alone when there is none, and again when the game goes (engineCountersReset)
+ENGINE_LIFE_TIP = "Click to increase\nRight click to decrease"
+function engineLifeTip(o, pl)
+  if o == nil then return end
+  -- (the counter's own button: the tracker script's click function `option`, never a marks box drawn before it)
+  local main = (o.getButtons() or {})[1]
+  if main == nil or main.click_function ~= "option" then return end
+  local want = ENGINE_LIFE_TIP
+  if pl ~= nil and type(pl.lifeTip) == "string" and pl.lifeTip ~= "" then want = pl.lifeTip .. "\n\n" .. ENGINE_LIFE_TIP end
+  if main.tooltip ~= want then o.editButton({ index = 0, tooltip = want }) end
+end
 -- (the label goes with the game: it stayed on the normal table after a reset, stage 3 review 2026-10-27)
 -- (the extra-turn number beside the life counter goes too, engineExtraTurnBadge; from the last button down, as a
 -- removal moves the ones after it)
@@ -1085,8 +1108,9 @@ function engineCountersReset()
     local o = getObjectFromGUID(guid)
     local buttons = (o and o.getButtons()) or {}
     for i = #buttons, 1, -1 do
-      if buttons[i].tooltip == ENGINE_COUNTERS_TIP or engineExtraTurnTip(buttons[i].tooltip) then o.removeButton(i - 1) end
+      if engineMarksIsBox(buttons[i]) or engineExtraTurnTip(buttons[i].tooltip) then o.removeButton(i - 1) end
     end
+    if o ~= nil then pcall(engineLifeTip, o, nil) end
   end
   engineCountersShown = {}
   if engineStatusParkAll ~= nil then pcall(engineStatusParkAll) end -- (the status pieces go back under the table)
@@ -1129,10 +1153,38 @@ function engineMarksBoxes(parts)
     for _, try in ipairs(fonts) do
       if engineMarksWidth(m, try) <= fitIn.max then f = try break end
     end
-    if engineMarksWidth(m, f) > fitIn.max then m = engineMarksCut(m, f) end
-    out[i] = { text = m, font = f, width = engineMarksWidth(m, f), height = math.floor(380 * f / 300 + 0.5) }
+    local two = nil
+    if engineMarksWidth(m, f) > fitIn.max then
+      two = engineMarksTwoLines(m)
+      if two == nil then m = engineMarksCut(m, f) end
+    end
+    if two ~= nil then
+      out[i] = { text = two.text, font = two.font, width = engineMarksWidth(two.long, two.font), height = math.floor(ENGINE_MARKS_TWO * two.font / 300 + 0.5) }
+    else
+      out[i] = { text = m, font = f, width = engineMarksWidth(m, f), height = math.floor(380 * f / 300 + 0.5) }
+    end
   end
   return out
+end
+-- A mark too long for one line at the smallest font, on two lines split at the space nearest its middle, at the largest
+-- font its longer line fits in (the engine's rules effects, "TEFERI'S PROTECTION" / "UNTIL YOUR NEXT TURN", and "SPELLS
+-- THIS TURN: 2" / "(STORM 2)", 2026-11-12): { text, long (the longer line), font }, or nil when it has no space or its
+-- longer line still doesn't fit (then it is cut, as before). ENGINE_MARKS_TWO: a two-line box's height at font 300.
+ENGINE_MARKS_TWO = 700
+function engineMarksTwoLines(m)
+  local mid, at = #m / 2, nil
+  local i = m:find(" ", 1, true)
+  while i ~= nil do
+    if at == nil or math.abs(i - mid) < math.abs(at - mid) then at = i end
+    i = m:find(" ", i + 1, true)
+  end
+  if at == nil then return nil end
+  local a, b = m:sub(1, at - 1), m:sub(at + 1)
+  local long = #a >= #b and a or b
+  for _, try in ipairs(ENGINE_MARKS_FIT.fonts) do
+    if engineMarksWidth(long, try) <= ENGINE_MARKS_FIT.max then return { text = a .. "\n" .. b, long = long, font = try } end
+  end
+  return nil
 end
 -- Which way along a tracker's label is away from the middle of the table, in button x: +1, -1, or 0 for a tracker on
 -- the middle line. TTS draws a button's +x on its reader's right (the tracker's own "+20" is at +x and shows on its
@@ -1154,11 +1206,17 @@ function enginePlayerCounters(o, pl)
     for _, m in ipairs(pl.allMarks) do parts[#parts + 1] = tostring(m) end
   end
   local boxes = engineMarksBoxes(parts)
+  -- (each box's hover text: the bridge's markTips, by allMarks' order, for a mark that has its own (a rules effect's
+  -- whole text, a pact's cost), else the boxes' common one; the "+n MORE" box keeps the common one)
   local texts = {}
-  for i, b in ipairs(boxes) do texts[i] = b.text end
+  for i, b in ipairs(boxes) do
+    local tip = type(pl.markTips) == "table" and (#parts <= ENGINE_MARKS_FIT.boxes or i < #boxes) and pl.markTips[i] or nil
+    b.tip = (type(tip) == "string" and tip ~= "") and tip or ENGINE_COUNTERS_TIP
+    texts[i] = b.text .. "\t" .. b.tip
+  end
   local label = table.concat(texts, "\n")
   local at = {}
-  for i, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then at[#at + 1] = i - 1 end end
+  for i, b in ipairs(o.getButtons() or {}) do if engineMarksIsBox(b) then at[#at + 1] = i - 1 end end
   -- (unchanged and still there: the tracker's own onload clears its buttons, stage 3 review 2026-10-27)
   if engineCountersShown[o.getGUID()] == label and #at == #boxes then return end
   engineCountersShown[o.getGUID()] = label
@@ -1171,14 +1229,14 @@ function enginePlayerCounters(o, pl)
   if sign == 0 then sign = 1 end
   local top = fitIn.top
   for i, b in ipairs(boxes) do
-    local look = { label = b.text, width = b.width, height = b.height, font_size = b.font,
+    local look = { label = b.text, width = b.width, height = b.height, font_size = b.font, tooltip = b.tip,
       position = { sign * (b.width / 2 - fitIn.inner) / fitIn.perLocal, 0.05, top + b.height / 2 / fitIn.perLocal } }
     top = top + (b.height + fitIn.gap) / fitIn.perLocal
     if at[i] ~= nil then
       look.index = at[i]
       o.editButton(look)
     else
-      look.click_function, look.function_owner, look.rotation, look.tooltip = "engineNoop", Global, { 0, 0, 0 }, ENGINE_COUNTERS_TIP
+      look.click_function, look.function_owner, look.rotation = "engineMarksNoop", Global, { 0, 0, 0 }
       look.color, look.font_color = { 0.04, 0.2, 0.05, 0.92 }, { 0.45, 1, 0.45 }
       o.createButton(look)
     end
@@ -2650,6 +2708,18 @@ function engineRender(m)
   -- every card something is attached to, on any battlefield (an aura can sit on another player's token)
   local allHosts = {}
   for _, pl in ipairs(m.players or {}) do for _, c in ipairs(pl.battlefield or {}) do if c.att ~= nil then allHosts[c.att] = true end end end
+  -- a curse on another player (the bridge's attP, Forge's attachedToPlayer) lies on that player's mat, with their other
+  -- permanents, not loose among its controller's (docs/readability-audit-2026-11-12.md E9)
+  local cursed, onOther = {}, {}
+  for _, pl in ipairs(m.players or {}) do
+    for _, c in ipairs(pl.battlefield or {}) do
+      if c.att == nil and c.attP ~= nil and c.attP ~= pl.color and seatGeometry(c.attP) ~= nil then
+        cursed[c.attP] = cursed[c.attP] or {}
+        table.insert(cursed[c.attP], c)
+        onOther[c.id] = true
+      end
+    end
+  end
   for _, pl in ipairs(m.players or {}) do
     local color = pl.color
     local g = color and seatGeometry(color)
@@ -2657,11 +2727,13 @@ function engineRender(m)
       engineColors[color] = true
       local creatures, others, lands, attached = {}, {}, {}, {}
       for _, c in ipairs(pl.battlefield or {}) do
-        if c.att ~= nil then attached[#attached + 1] = c
+        if onOther[c.id] then -- (drawn on the cursed player's mat, below)
+        elseif c.att ~= nil then attached[#attached + 1] = c
         elseif hasType(c, "Land") then lands[#lands + 1] = c
         elseif hasType(c, "Creature") then creatures[#creatures + 1] = c
         else others[#others + 1] = c end
       end
+      for _, c in ipairs(cursed[color] or {}) do others[#others + 1] = c end
       creatures = groupTokens(creatures, seen, allHosts)
       others = groupTokens(others, seen, allHosts)
       -- cards carrying auras/equipment get room beside them; the attachments sit there at half size, stacked
