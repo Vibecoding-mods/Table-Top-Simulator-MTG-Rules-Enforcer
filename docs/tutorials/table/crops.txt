@@ -1,0 +1,24 @@
+# Crops of real table screenshots for the tutorial: src|x|y|w|h|out|maxWidth (pixels of the source image)
+# Re-make: powershell -File docs/tutorials/table/make-crops.ps1 docs/tutorials/table/crops.txt docs/tutorials/table/img
+C:\Users\you\mtg-tts\tmp\live-checks\shots\b1-01-start.jpg|0|0|0|0|overview.jpg|1600
+C:\Users\you\mtg-tts\tmp\live-checks\shots\b1-01-start.jpg|80|122|570|42|dock.jpg|570
+C:\Users\you\mtg-tts\tmp\live-checks\shots\2-keep-free.jpg|1150|850|770|230|mulligan.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\b1-01-start.jpg|1000|770|920|230|hand-glow.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\b2-03-dungeon-done.jpg|900|540|1020|260|perm-glow.jpg
+C:\Users\you\mtg-tts\tmp\ui-2026-11-11\4-giant-growth-on-hero-pay-prompt.jpg|1280|760|640|240|pay.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\b1-12-hero-whom.jpg|1600|230|300|440|stack-popup.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\3b-search.jpg|95|240|430|615|choices-panel.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\1a-howplay.jpg|560|190|800|220|choice-row.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\11-forage-q.jpg|440|230|1500|500|card-row.jpg|1200
+C:\Users\you\mtg-tts\tmp\live-checks\shots\bolt1.jpg|0|0|0|0|targets.jpg|1600
+C:\Users\you\mtg-tts\tmp\live-checks\shots\b1-06-attackq.jpg|960|520|960|420|attack.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\whom1.jpg|600|195|720|180|attack-whom.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\b1-13-stack-blocks.jpg|0|430|1920|570|blocks.jpg|1600
+C:\Users\you\mtg-tts\tmp\live-checks\shots\12-list-open.jpg|15|175|560|360|autoresolve-list.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\3b-search.jpg|100|795|420|60|stops.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\12-until-myturn.jpg|560|330|800|260|banner.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\bolt1.jpg|560|215|720|520|counters-monarch.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\b2-04-end.jpg|620|360|580|320|marks-dungeon.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\b2-03-dungeon-done.jpg|540|60|840|42|plane-bar.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\4-sounds-test.jpg|560|300|800|240|victory.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\b1-13-stack-blocks.jpg|620|515|530|80|blocks-zoom.jpg
