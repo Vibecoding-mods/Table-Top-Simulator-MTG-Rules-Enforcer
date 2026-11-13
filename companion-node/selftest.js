@@ -594,6 +594,7 @@ async function server() {
     const status = (r) => Number((/^HTTP\/1\.1 (\d+)/.exec(r) || [])[1]);
     const json = (r) => { try { return JSON.parse(r.slice(r.indexOf("\r\n\r\n") + 4)); } catch { return null; } };
     check("the token: 32 hex characters", /^[0-9a-f]{32}$/.test(w.token));
+    if (fs.existsSync(cs)) check("the page from WebPage.cs: no Windows-only 'MTG Companion.exe' left", !pageFromCs(fs.readFileSync(cs, "utf8")).includes(".exe") && pageFromCs(fs.readFileSync(cs, "utf8")).includes("start.sh"));
     let r = await req("GET", "/", {});
     check("GET / (no token needed): the page, with this run's token in it", status(r) === 200 && r.includes(w.token) && !r.includes("{{TOKEN}}"), r.slice(0, 200));
     const nonce = (/script-src 'nonce-([0-9a-f]+)'/.exec(r) || [])[1];
