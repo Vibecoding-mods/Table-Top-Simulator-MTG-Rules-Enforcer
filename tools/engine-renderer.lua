@@ -1040,6 +1040,21 @@ local function setTax(guid, tax)
   for i = 0, 9 do pcall(function() o.editButton({ index = i, label = tostring(tax) }) end) end
 end
 
+-- A commander damage tracker's tooltip with partners: its name, then each commander's damage, the bridge's cmdTip
+-- ("Thrasios, Triton Hero: 15\nTymna the Weaver: 10"); the tracker shows the most from one of them (readability audit
+-- D4). On the tracker's number buttons (11-21, the ones its own updateVal words), again after a new value, which puts
+-- its plain name back. Untouched while no tip was ever set.
+engineCmdTips = {} -- tracker guid -> "tip|value" last put on it
+function engineCmdDamageTip(guid, tip)
+  local o = getObjectFromGUID(guid)
+  if o == nil or (tip == nil and engineCmdTips[guid] == nil) then return end
+  local key = tostring(tip) .. "|" .. tostring(o.getVar("val"))
+  if engineCmdTips[guid] == key then return end
+  engineCmdTips[guid] = tip ~= nil and key or nil
+  local text = o.getName() .. (tip ~= nil and ("\n" .. tostring(tip)) or "")
+  for i = 11, 21 do pcall(function() o.editButton({ index = i, tooltip = text }) end) end
+end
+
 local function updateTrackers(m)
   for _, pl in ipairs(m.players or {}) do
     local color = pl.color
@@ -1047,7 +1062,10 @@ local function updateTrackers(m)
       setLife(color, pl.life)
       if enginePlayerCounters ~= nil then pcall(enginePlayerCounters, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
       if engineExtraTurnBadge ~= nil then pcall(engineExtraTurnBadge, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
-      for from, guid in pairs(CMD_DAMAGE[color] or {}) do setCounterVal(guid, (pl.cmdDamage or {})[from] or 0) end
+      for from, guid in pairs(CMD_DAMAGE[color] or {}) do
+        setCounterVal(guid, (pl.cmdDamage or {})[from] or 0)
+        engineCmdDamageTip(guid, (pl.cmdTip or {})[from])
+      end
       for i, guid in ipairs(TAX_LABELS[color] or {}) do setTax(guid, (pl.tax or {})[i] or 0) end
     end
   end
@@ -1061,6 +1079,23 @@ local function updateTrackers(m)
 end
 
 -- ───────── render ─────────
+-- A third command card and on (an effect card, or one more beside two partners) lay on the first commander
+-- (`labels[k] or labels[1]`, readability audit B6). Its own spot instead, in a row toward the table's centre across the
+-- mat's axis, level with the two tax labels and the dungeon's spot (the second label plus the step between them), 4.3
+-- out: clear of a card on a label and of the tax number beside it (about 2.4 from the label), and of the other side's
+-- row. Three spots; the fourth such card on is fanned over the third spot. j = 1, 2, ... (the command cards past the
+-- labels).
+function engineExtraCommandSpot(g, labels, j)
+  local first, second = getObjectFromGUID(labels[1] or ""), getObjectFromGUID(labels[2] or "")
+  if first == nil then return g.lib end
+  local a = first.getPosition()
+  local step = second ~= nil and (second.getPosition() - a) or (g.right * -2.55)
+  local f = g.fwd
+  local inward = (a.x * f.x + a.z * f.z) > 0 and -1 or 1 -- (the side of the label nearer the table's centre)
+  local fan = math.max(0, j - 3)
+  return a + step * (math.min(j, 3) - 1 + 0.3 * fan) + f * (4.3 * inward)
+end
+
 local function keepStashed()
   for guid, st in pairs(stashed) do
     local o = getObjectFromGUID(guid)
@@ -2709,8 +2744,10 @@ function engineRender(m)
           else base = g.lib - g.libFwd * 2.6 end
         else
           k = k + 1
-          local label = getObjectFromGUID(labels[k] or labels[1] or "")
-          base = label and label.getPosition() or g.lib
+          local label = getObjectFromGUID(labels[k] or "")
+          if label ~= nil then base = label.getPosition()
+          elseif k > #labels and #labels > 0 then base = engineExtraCommandSpot(g, labels, k - #labels)
+          else base = g.lib end
         end
         -- (the dropped spot only while it is being cast; a commander that came back goes to its command zone,
         -- playtest 2026-10-26: Kenrith back in the command zone was still drawn where it had been on the battlefield)
@@ -3442,6 +3479,8 @@ function engineStepBanner(color, t)
   local step = tostring(t.step or "")
   local label = engineStepNames[step] or (step:find("^combat") and "COMBAT") or nil
   if label == nil then return end
+  -- (an extra combat or main phase has a banner of its own, by its number: the second combat's key matched the first's)
+  if t.phaseNo ~= nil and (label == "COMBAT" or step == "main2") then label = (label == "COMBAT" and "COMBAT (" or "MAIN PHASE (") .. tostring(t.phaseNo) .. ")" end
   local key = tostring(t.turn) .. "|" .. label
   if engineStepSeen[color] == key then return end
   engineStepSeen[color] = key
@@ -3535,6 +3574,9 @@ function engineUpdateCorner(color, p)
   for _, ph in ipairs(PHASES) do
     local here = step == ph[1] or (ph[1] == "combat" and step:find("^combat")) or (ph[1] == "end" and (step == "end" or step == "cleanup" or step == "endOfTurn"))
     local name = (here and step == "cleanup") and "Cleanup" or ph[2]
+    -- (an extra combat or main phase by its number, the bridge's phaseNo: "COMBAT (2)", "MAIN (3)"; the first ones
+    -- looked the same, readability audit D6)
+    if here and t.phaseNo ~= nil and (ph[1] == "combat" or ph[1] == "main2") then name = (ph[1] == "combat" and "Combat" or "Main") .. " (" .. tostring(t.phaseNo) .. ")" end
     -- (COMBAT green on your own turn, red while you are the one attacked: combat clarity, docs/engine-ui-spec.md 9)
     local side = (here and ph[1] == "combat") and engineCombatSide(color, t) or nil
     local gold = side == "attack" and ENGINE_COMBAT.attackWord or side == "block" and ENGINE_COMBAT.blockWord or "#FFD27A"
@@ -3962,20 +4004,23 @@ end
 engineLogHidden = {} -- colour -> true when the player closed the game log
 AUTO_PACE_DELAY = 2
 
--- "Your mana pool: GG B" for the player's own floating mana.
+-- "Your mana pool: GG B" for the player's own floating mana, and under it the other players' that isn't empty,
+-- "Floating: AI 1 RR · Red G" (mana in a pool is public; only your own showed, readability audit D7).
 local POOL_ORDER = { "W", "U", "B", "R", "G", "C" }
 local function poolText(color)
+  local own, others = "", {}
   for _, pl in ipairs((lastTable and lastTable.players) or {}) do
-    if pl.color == color and pl.pool ~= nil then
+    if pl.pool ~= nil then
       local parts = {}
       for _, k in ipairs(POOL_ORDER) do
         local n = tonumber(pl.pool[k] or 0) or 0
         if n > 0 then parts[#parts + 1] = string.rep(k, n) end
       end
-      if #parts > 0 then return "\nYour mana pool: " .. table.concat(parts, " ") end
+      if #parts > 0 and pl.color == color then own = "\nYour mana pool: " .. table.concat(parts, " ")
+      elseif #parts > 0 then others[#others + 1] = engineNameOf(pl.color) .. " " .. table.concat(parts, " ") end
     end
   end
-  return ""
+  return own .. (#others > 0 and ("\nFloating: " .. table.concat(others, " · ")) or "")
 end
 
 -- "Waiting for you: draw 1 ..." while moves are held for the player.

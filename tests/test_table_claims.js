@@ -3438,5 +3438,97 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("art switch: anything else says how, and sends nothing", /mtg art off/.test(told(r, "host other")) && !/art/.test(sent(r, "host other")), JSON.stringify(fxOf(r, "host other").slice(0, 3)));
   ok("art switch: the chat line is hidden (handled)", ["White off", "host off", "host on", "host other"].every((m) => valueOf(r, m) === "false"), JSON.stringify(["White off", "host off"].map((m) => valueOf(r, m))));
 }
+// Readability audit 2026-11-12 (docs/readability-audit-2026-11-12.md rows 8, 10, 11, 16), on made-up boards (Blue
+// seated, White an AI): the commander damage tooltip with partners, a third command card's own spot, the phase bar's
+// extra combat / main phase, and the other players' floating mana in the status line.
+{
+  const cards = {
+    cmd1: { n: "Thrasios, Triton Hero", f: "https://example.invalid/cmd1.jpg", b: "", tl: "Legendary Creature", ty: ["Legendary", "Creature"] },
+    cmd2: { n: "Tymna the Weaver", f: "https://example.invalid/cmd2.jpg", b: "", tl: "Legendary Creature", ty: ["Legendary", "Creature"] },
+    dun1: { n: "Lost Mine of Phandelver", f: "https://example.invalid/dun1.jpg", b: "", tl: "Dungeon", ty: ["Dungeon"] },
+    emb1: { n: "Effect One", f: "https://example.invalid/emb1.jpg", b: "", tl: "Emblem", ty: ["Emblem"] },
+    emb2: { n: "Effect Two", f: "https://example.invalid/emb2.jpg", b: "", tl: "Emblem", ty: ["Emblem"] },
+    emb3: { n: "Effect Three", f: "https://example.invalid/emb3.jpg", b: "", tl: "Emblem", ty: ["Emblem"] },
+    emb4: { n: "Effect Four", f: "https://example.invalid/emb4.jpg", b: "", tl: "Emblem", ty: ["Emblem"] },
+  };
+  const board = ({ command = [], blue = {}, white = {}, top = {} } = {}) => {
+    const pl = (color, slot, more) => ({ color, slot, name: color === "White" ? "AI 1" : color, ai: color === "White", life: 40, status: "playing", pool: color === "Blue" ? {} : null,
+      cmdDamage: {}, tax: [0, 0], library: 50, handCount: 0, hand: color === "Blue" ? [] : null, battlefield: [], graveyard: [], exile: [],
+      command: color === "Blue" ? command : [], ...more });
+    return JSON.stringify({ t: "table", turn: 3, step: "main1", active: "Blue", activeTurnNo: 2, priority: "Blue", gameOver: false,
+      winner: null, players: [pl("Blue", "player-0", blue), pl("White", "player-1", white)], stack: [], cards, ...top });
+  };
+  const STARTED = JSON.stringify({ t: "started", colors: { "player-0": "Blue", "player-1": "White" }, names: { "player-0": "Blue", "player-1": "AI 1" }, ai: ["White"] });
+  const start = [{ lua: 'engineAutoPace.Blue = false engineChat("mtg start ai 1", Player.Blue) return "ok"', mark: "prelude" }, { msg: { t: "started", json: STARTED } }];
+  const tableMsg = (b, mark) => ({ msg: { t: "table", json: b }, frames: 60, mark });
+  const read = (code, mark) => ({ lua: code, mark, frames: 1 });
+  const go = (steps) => simulate({ save, steps: [...start, ...steps] });
+
+  // the tooltip: Blue's tracker for White's commanders ("bfcf4a", CMD_DAMAGE.Blue.White) shows the most, 15, and its
+  // tooltip each commander's; a board without the tip puts the plain name back
+  const TIP = 'local o = getObjectFromGUID("bfcf4a") local b = o and o.getButtons() or {} return tostring(o and o.getVar("val")) .. "|" .. tostring(b[12] and b[12].tooltip) .. "|" .. tostring(b[22] and b[22].tooltip)';
+  {
+    // (the fake TTS runs no object scripts: the tracker's 22 buttons as its own onload makes them)
+    const r = go([read('local o = getObjectFromGUID("bfcf4a") for i = 1, 22 do o.createButton({ label = "0", tooltip = o.getName(), click_function = "null" }) end return "ok"', "buttons"),
+      tableMsg(board({ blue: { cmdDamage: { White: 15 }, cmdTip: { White: "Thrasios, Triton Hero: 15\nTymna the Weaver: 10" } } }), "partners"), read(TIP, "tip"),
+      tableMsg(board({ blue: { cmdDamage: { White: 16 } } }), "plain"), read(TIP, "tip after")]);
+    ok("cmd damage tip: no errors", !r.errors.length, r.errors.join(" | "));
+    ok("cmd damage tip: the tracker shows 15 and its tooltip each partner's damage", valueOf(r, "tip") === "15|Commander Damage\nThrasios, Triton Hero: 15\nTymna the Weaver: 10|Commander Damage\nThrasios, Triton Hero: 15\nTymna the Weaver: 10", valueOf(r, "tip"));
+    ok("cmd damage tip: a board without partners' damage puts the plain name back", valueOf(r, "tip after") === "16|Commander Damage|Commander Damage", valueOf(r, "tip after"));
+  }
+
+  // the command zone: two commanders on the labels, the dungeon past them, four more cards each with a spot of its own
+  {
+    const POS = read('local out = {} for _, o in ipairs(getObjects()) do local id = string.match(o.getGMNotes() or "", "^engine:(.+)$") if id then local p = o.getPosition() out[id] = { x = p.x, z = p.z } end end '
+      + 'local tax = {} for i, g in ipairs({ "0c0c5e", "3b2d18" }) do local a = getObjectFromGUID(g) if a then local p = a.getPosition() tax[i] = { x = p.x, z = p.z } end end out.__tax = tax '
+      + 'local near = {} for _, o in ipairs(getObjects()) do local p = o.getPosition() if not string.match(o.getGMNotes() or "", "^engine:") and o.type ~= "Scripting" and o.type ~= "Hand" and o.type ~= "Board" and o.type ~= "Generic" then near[#near + 1] = { g = o.getGUID(), n = o.getName(), x = p.x, z = p.z } end end out.__objs = near return JSON.encode(out)', "pos");
+    const ids = ["cmd1", "cmd2", "dun1", "emb1", "emb2", "emb3", "emb4"];
+    const r = go([tableMsg(board({ command: ids.map((id) => ({ s: 1, id, ctl: "Blue" })) }), "board"), POS]);
+    const pos = JSON.parse(valueOf(r, "pos") || "{}");
+    const dist = (a, b) => (a && b ? Math.hypot(a.x - b.x, a.z - b.z) : NaN);
+    ok("command zone: no errors", !r.errors.length, r.errors.join(" | "));
+    ok("command zone: every card is on the table", ids.every((id) => pos[id]), JSON.stringify(Object.keys(pos)));
+    ok("command zone: the commanders still lie on the two tax labels", dist(pos.cmd1, pos.__tax?.[0]) < 0.5 && dist(pos.cmd2, pos.__tax?.[1]) < 0.5, `${dist(pos.cmd1, pos.__tax?.[0])} ${dist(pos.cmd2, pos.__tax?.[1])}`);
+    // (a card is about 2.2 wide and 3.06 long: the label row's cards and the new row are a long side apart, the cards in
+    // a row a short side; the tax number lies about 2.4 from its label, so a card centre 1.53 + 2.4 away clears it)
+    const extra = ["emb1", "emb2", "emb3"];
+    const crowd = [];
+    for (const e of extra) for (const o of ["cmd1", "cmd2", "dun1", ...extra.filter((x) => x !== e)]) if (!(dist(pos[e], pos[o]) > 2.2)) crowd.push(`${e}-${o} ${dist(pos[e], pos[o]).toFixed(2)}`);
+    ok("command zone: the third, fourth and fifth cards have spots of their own, clear of each other, the commanders and the dungeon", crowd.length === 0, crowd.join(", "));
+    ok("command zone: clear of the tax numbers beside the labels", extra.every((e) => (pos.__tax || []).every((t) => dist(pos[e], t) > 3.9)), extra.map((e) => (pos.__tax || []).map((t) => dist(pos[e], t).toFixed(2)).join("/")).join(" "));
+    ok("command zone: a sixth card and on is fanned over the fifth, still clear of the rest", dist(pos.emb4, pos.emb3) > 0.4 && ["cmd1", "cmd2", "dun1", "emb1", "emb2"].every((o) => dist(pos.emb4, pos[o]) > 2.2), `${dist(pos.emb4, pos.emb3)}`);
+    // (and nothing else of the table's lies there: no object within a card's reach of a new spot)
+    const hits = (pos.__objs || []).filter((o) => extra.some((e) => dist(pos[e], o) < 2.6) && !/Commander Zone/.test(o.n));
+    ok("command zone: no other object of the table near the new spots", hits.length === 0, JSON.stringify(hits.slice(0, 5)));
+    // (on the table's centre side of the labels, and short of the centre line: the opposite seat's row mirrors it)
+    ok("command zone: the new row is between the labels and the table's centre line", extra.every((e) => Math.abs(pos[e].z) < Math.abs(pos.__tax[0].z) - 3 && Math.abs(pos[e].z) > 1.6), extra.map((e) => pos[e].z.toFixed(2)).join(" "));
+  }
+
+  // the phase bar: an extra combat and an extra main phase by their numbers, the first ones as before
+  {
+    const CORNER = (m) => read('engineUpdateCorner("Blue", nil) return tostring(UI.getValue("eng_phase_Blue"))', m);
+    const r = go([tableMsg(board({ top: { step: "combatDeclareAttackers" } }), "c1"), CORNER("corner c1"),
+      tableMsg(board({ top: { step: "combatDeclareAttackers", phaseNo: 2 } }), "c2"), CORNER("corner c2"),
+      tableMsg(board({ top: { step: "main2" } }), "m2"), CORNER("corner m2"),
+      tableMsg(board({ top: { step: "main2", phaseNo: 3 } }), "m3"), CORNER("corner m3")]);
+    ok("phase bar: no errors", !r.errors.length, r.errors.join(" | "));
+    ok("phase bar: the first combat reads COMBAT, no number", /COMBAT</.test(valueOf(r, "corner c1")) && !/\(\d\)/.test(valueOf(r, "corner c1")), valueOf(r, "corner c1"));
+    ok("phase bar: an extra combat reads COMBAT (2)", /COMBAT \(2\)</.test(valueOf(r, "corner c2")), valueOf(r, "corner c2"));
+    ok("phase bar: main 2 reads MAIN 2", /MAIN 2</.test(valueOf(r, "corner m2")) && !/\(\d\)/.test(valueOf(r, "corner m2")), valueOf(r, "corner m2"));
+    ok("phase bar: an extra main phase reads MAIN (3), the other phases as before", /MAIN \(3\)</.test(valueOf(r, "corner m3")) && /Combat/.test(valueOf(r, "corner m3")) && /Main 1/.test(valueOf(r, "corner m3")), valueOf(r, "corner m3"));
+  }
+
+  // floating mana: your own as before, the other players' that isn't empty under it
+  {
+    const STATUS = (m) => read('return tostring(UI.getValue("eng_status_Blue"))', m);
+    const r = go([tableMsg(board({ blue: { pool: { G: 1 } }, white: { pool: { R: 2, B: 1 } } }), "both"), STATUS("status both"),
+      tableMsg(board({ blue: { pool: {} }, white: { pool: null } }), "none"), STATUS("status none"),
+      tableMsg(board({ blue: { pool: {} }, white: { pool: { C: 3 } } }), "theirs"), STATUS("status theirs")]);
+    ok("floating mana: no errors", !r.errors.length, r.errors.join(" | "));
+    ok("floating mana: your own pool, then the AI's", /Your mana pool: G\nFloating: AI 1 B RR/.test(valueOf(r, "status both")), JSON.stringify(valueOf(r, "status both")));
+    ok("floating mana: nothing when no pool has mana", !/mana pool|Floating/.test(valueOf(r, "status none")), JSON.stringify(valueOf(r, "status none")));
+    ok("floating mana: another player's alone", /Floating: AI 1 CCC/.test(valueOf(r, "status theirs")) && !/Your mana pool/.test(valueOf(r, "status theirs")), JSON.stringify(valueOf(r, "status theirs")));
+  }
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);
