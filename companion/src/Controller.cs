@@ -1213,6 +1213,7 @@ namespace MtgCompanion
         }
 
         DateTime trimCheckedAt = DateTime.MinValue;
+        DateTime? trimmedAt;
         bool trimDue;
 
         // The 14-day log trim (LogTrim; docs/companion-app-spec.md §7.1): the stamp is read once an hour, and a due trim
@@ -1221,9 +1222,13 @@ namespace MtgCompanion
         {
             if (Observe) return;
             var now = DateTime.UtcNow;
-            if ((now - trimCheckedAt).TotalMinutes >= 60) { trimCheckedAt = now; trimDue = Logic.TrimDue(LogTrim.LastTrim(L), now); }
+            // (trimmedAt: this run's own last trim, so a stamp that couldn't be written or a clock jump doesn't roll the
+            // .old copies over again within the same 14 days)
+            if ((now - trimCheckedAt).TotalMinutes >= 60) { trimCheckedAt = now; trimDue = Logic.TrimDue(LogTrim.LastTrim(L), now) && (!trimmedAt.HasValue || Logic.TrimDue(trimmedAt, now)); }
             if (!Logic.TrimNow(trimDue, Game, Observe)) return;
-            trimDue = false;
+            RefreshGame(); // (the tick's game state can be seconds old: a game may have just started)
+            if (IsLocked) return;
+            trimDue = false; trimmedAt = now;
             Log.Write(LogTrim.Run(L, now));
         }
 
