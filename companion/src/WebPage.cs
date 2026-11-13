@@ -27,7 +27,10 @@ body {
   margin: 0; min-height: 100vh; color: var(--text); font: 15px/1.5 'Segoe UI', system-ui, -apple-system, sans-serif;
   background: radial-gradient(1200px 500px at 50% -200px, #232733 0%, rgba(15,17,21,0) 70%), var(--bg);
 }
-.wrap { max-width: 920px; margin: 0 auto; padding: 20px 16px 32px; }
+.wrap { max-width: 1440px; margin: 0 auto; padding: 20px 16px 32px; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 28px; align-items: start; }
+.col { min-width: 0; }
+@media (max-width: 1000px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .skip { position: absolute; left: 16px; top: -48px; background: var(--gold); color: var(--ink); padding: 8px 12px; border-radius: 6px; z-index: 5; }
 .skip:focus { top: 8px; }
@@ -144,11 +147,15 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
   <div class='banner info' id='observe' hidden>Observe only: this copy reads the lights and changes nothing.</div>
   <div class='banner update' id='update' hidden><strong id='update-title'>Update</strong><span id='update-text'></span><div class='tools' id='update-actions'></div></div>
 
+  <div class='cols'>
+  <section class='col'>
   <h2 id='lights-h'>Start steps</h2>
   <ol class='lights' id='lights' aria-labelledby='lights-h'></ol>
 
   <p class='hint' id='hint'></p>
+  </section>
 
+  <section class='col'>
   <h2 id='tools-h'>Actions</h2>
   <div class='tools' id='tools' role='group' aria-labelledby='tools-h'></div>
   <p class='toast' id='toast' role='status' aria-live='polite'></p>
@@ -190,6 +197,8 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
     <p class='logfile' id='logfile'></p>
     <pre class='log' id='log' tabindex='0' aria-label='Log tail'>(empty)</pre>
   </details>
+  </section>
+  </div>
 </main>
 <footer><span id='versions'></span><span id='updated'></span></footer>
 </div>
