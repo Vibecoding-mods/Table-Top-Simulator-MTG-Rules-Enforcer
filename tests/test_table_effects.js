@@ -443,7 +443,7 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("jump: a jump board plays none of the new sounds", said(14) === "[]" && vals[14].jump === true, JSON.stringify(vals[14]));
   ok("order: with no lifegain pick, the instant under it plays", said(15) === '["instant music"]', said(15));
   ok("mtg sounds test: the new kinds play", said(16) === '["exile music","instant music"]', said(16));
-  ok("mtg sounds test: an unknown kind lists the kinds", t.fx("tests").some((l) => l.includes("The sounds are: knockout, wipe, bighit, death, exile, countered, playerhit, damage, lifegain, sorcery, instant, counter.")), JSON.stringify(t.fx("tests").filter((l) => l.includes("broadcast"))));
+  ok("mtg sounds test: an unknown kind lists the kinds", t.fx("tests").some((l) => l.includes("The sounds are: knockout, wipe, bighit, death, exile, countered, playerhit, damage, lifegain, treasure, treasurespend, sorcery, instant, counter.")), JSON.stringify(t.fx("tests").filter((l) => l.includes("broadcast"))));
 }
 
 // the music player (verifier, 2026-11-11): a sound plays once the player holds its own clip and has loaded it (loaded
@@ -627,9 +627,9 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
 // the kinds added 2026-11-12 (docs/sounds.md, design section 6): countered, sorcery, playerhit (1 to 5 damage to a
 // player) and bighit (one hit of more than 5, a player or a creature); damage keeps the creatures' hits of 5 or less and
 // stays the fallback of both. Order: knockout > wipe > bighit > death > exile > countered > playerhit > damage >
-// lifegain > sorcery > instant > counter.
+// lifegain > (treasure > treasurespend, 2026-11-13: the block after this one) > sorcery > instant > counter.
 {
-  const ORDER = ["knockout", "wipe", "bighit", "death", "exile", "countered", "playerhit", "damage", "lifegain", "sorcery", "instant", "counter"];
+  const ORDER = ["knockout", "wipe", "bighit", "death", "exile", "countered", "playerhit", "damage", "lifegain", "treasure", "treasurespend", "sorcery", "instant", "counter"];
   const PICKS = (kinds) => `for _, k in ipairs({ "${kinds.join('", "')}" }) do engineSounds[k] = "https://example.invalid/" .. k .. ".mp3"
       for _, b in ipairs({ 2, 3, 4, 6, 8 }) do engineSounds[k .. "_x" .. b] = "https://example.invalid/" .. k .. "_x" .. b .. ".mp3" end end return "set"`;
   const ALL = ORDER.filter((k) => k !== "knockout");
@@ -725,6 +725,73 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
     ok(`timing (${kinds[0]}): no sound at once`, JSON.stringify(now) === "[]", JSON.stringify(now));
     ok(`timing (${kinds[0]}): the sound with the hit`, JSON.stringify(later) === `["${kinds[0]} music"]`, JSON.stringify(later));
   }
+}
+
+// the Treasure sounds (2026-11-13, docs/sounds.md "Treasure"): Treasure tokens new on the battlefield play treasure, and
+// those that left it the way a death does (sacrificed for mana, mostly) play treasurespend in place of death and wipe,
+// never counted in them; both with bursts. A Treasure is a token with the Treasure subtype in its type line (a renamed
+// one counts, a token merely named Treasure doesn't). Order: lifegain > treasure > treasurespend > sorcery
+{
+  const tr = (id, name = "Treasure Token", tl = "Artifact — Treasure") => { cards[id] = { n: name, f: "https://example.invalid/" + id + ".jpg", b: "", tl, ty: tl.startsWith("Creature") ? ["Creature"] : ["Artifact"], tok: true }; return id; };
+  for (const id of ["tr1", "tr2", "tr3", "tr4", "tr5", "tr6", "tr7"]) tr(id);
+  tr("gold1", "Gold Hoard"); // (a Treasure by its type line, under another name)
+  tr("fake1", "Treasure Token", "Creature — Goblin"); // (a creature token that is no Treasure, whatever its name)
+  const KINDS = ["death", "wipe", "treasure", "treasurespend", "lifegain", "sorcery"];
+  const PICKS = `for _, k in ipairs({ "${KINDS.join('", "')}" }) do engineSounds[k] = "https://example.invalid/" .. k .. ".mp3"
+      for _, b in ipairs({ 2, 3, 4, 6, 8 }) do if not (k == "wipe" and b == 2) then engineSounds[k .. "_x" .. b] = "https://example.invalid/" .. k .. "_x" .. b .. ".mp3" end end end
+    engineFxBundle = { fx = nil, sounds = nil } return "set"`;
+  const UNPICK = `for _, k in ipairs({ "treasure", "treasurespend" }) do engineSounds[k] = nil for _, b in ipairs({ 2, 3, 4, 6, 8 }) do engineSounds[k .. "_x" .. b] = nil end end return "x"`;
+  const step = (from, edit) => { const x = clone(from); for (const k of ["ctrd", "rsv", "jump", "exd", "lv"]) delete x[k]; edit(x); return x; };
+  const add = (who, ...ids) => (x) => { x[who].bf.push(...ids); };
+  const drop = (who, ...ids) => (x) => { x[who].bf = x[who].bf.filter((c) => !ids.includes(c)); };
+  const s0 = base(); s0.Blue.bf.push("tok1");
+  const make1 = step(s0, add("Blue", "tr1"));
+  const make3 = step(make1, add("Blue", "tr2", "tr3", "gold1"));
+  const spend1 = step(make3, drop("Blue", "tr1"));
+  const tokDies = step(spend1, drop("Blue", "tok1"));
+  const spend3 = step(tokDies, drop("Blue", "tr2", "tr3", "gold1")); // (3 at once: would be a wipe if they were deaths)
+  const make2 = step(spend3, (x) => { add("Blue", "tr4")(x); add("White", "tr5")(x); });
+  const mixed = step(make2, (x) => { drop("Blue", "tr4", "b1")(x); x.Blue.gy = ["b1"]; }); // (a creature dies and a Treasure goes)
+  const fakeIn = step(mixed, add("White", "fake1"));
+  const fakeOut = step(fakeIn, drop("White", "fake1"));
+  const gainMake = step(fakeOut, (x) => { add("Blue", "tr6")(x); x.White.life = 45; x.rsv = [{ id: "s70", k: "sor" }]; x.Blue.hc = 2; });
+  const sorcMake = step(gainMake, (x) => { add("Blue", "tr7")(x); x.rsv = [{ id: "s71", k: "sor" }]; x.Blue.hc = 1; });
+  // (then no links: the shipped table until the upload)
+  const quietMake = step(sorcMake, (x) => { x.Blue.bf.push("tr1"); });
+  const quietSpend = step(quietMake, (x) => { drop("Blue", "tr1")(x); drop("White", "tr5")(x); });
+  const t = run([
+    lua(`return JSON.encode({ kinds = engineSoundKinds, shipped = engineSoundsShipped, len = engineSoundLen })`, "shipped"),
+    lua(PICKS, "picks"), send(s0, "first board"),
+    send(make1, "one made", 30), LAST, send(make3, "three made", 30), LAST, send(spend1, "one spent", 30), LAST,
+    send(tokDies, "a token dies", 30), LAST, send(spend3, "three spent", 30), LAST, send(make2, "two made, two seats", 30), LAST,
+    send(mixed, "a death and a spend", 30), LAST, send(fakeIn, "a fake enters", 30), LAST, send(fakeOut, "a fake dies", 30), LAST,
+    send(gainMake, "lifegain, treasure, sorcery", 30), LAST, send(sorcMake, "treasure and sorcery", 30), LAST,
+    lua(UNPICK, "no links"), send(quietMake, "made, no link", 30), LAST, send(quietSpend, "spent, no link", 30), LAST,
+  ]);
+  ok("treasure: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  const news = vals.map((v, i) => (v.snd || []).slice(i === 0 ? 0 : (vals[i - 1].snd || []).length));
+  const said = (i) => JSON.stringify(news[i]);
+  ok("treasure: one Treasure created plays treasure", said(0) === '["treasure music"]', said(0));
+  ok("treasure: three created on one board (one renamed, by its type line) play the x3 burst", said(1) === '["treasure_x3 music"]', said(1));
+  ok("treasurespend: one Treasure sacrificed plays treasurespend, not death", said(2) === '["treasurespend music"]', said(2));
+  ok("treasurespend: a token that is no Treasure still plays death", said(3) === '["death music"]', said(3));
+  ok("treasurespend: three spent on one board play its x3, not a wipe", said(4) === '["treasurespend_x3 music"]', said(4));
+  ok("treasure: two made on two seats play its x2", said(5) === '["treasure_x2 music"]', said(5));
+  ok("order: a creature death beats a Treasure spent, and the Treasure isn't one of its deaths (death, not death_x2)", said(6) === '["death music"]', said(6));
+  ok("treasure: a creature token named Treasure Token is no Treasure (entering: nothing)", said(7) === "[]", said(7));
+  ok("treasurespend: ... and it dies as a death", said(8) === '["death music"]', said(8));
+  ok("order: lifegain beats treasure", said(9) === '["lifegain music"]', said(9));
+  ok("order: treasure beats sorcery (a spell that makes Treasures plays the jingle)", said(10) === '["treasure music"]', said(10));
+  ok("treasure: no link (the shipped table until the upload): a Treasure made plays nothing", said(11) === "[]", said(11));
+  ok("treasurespend: no link: two Treasures spent play nothing, not death", said(12) === "[]", said(12));
+  const sh = t.value("shipped");
+  ok("treasure: the shipped table has no Treasure link yet (nil until uploaded)", Object.keys(sh.shipped || {}).filter((k) => k.startsWith("treasure")).length === 0, JSON.stringify(Object.keys(sh.shipped || {}).filter((k) => k.startsWith("treasure"))));
+  // the clips' lengths: each file of the doc's Treasure table longer than 2 s has its length in engineSoundLen
+  const doc = require("fs").readFileSync(require("path").join(__dirname, "..", "docs", "sounds.md"), "utf8");
+  const files = [...doc.matchAll(/^\| mtg2-(treasure(?:spend)?)(?:-x(\d+))?\.mp3 \| [\d.]+ s \| ([\d.]+) s \(/gm)].map((m) => ({ key: m[1] + (m[2] ? "_x" + m[2] : ""), len: Number(m[3]) }));
+  ok("treasure: the doc's Treasure table lists the 12 files", files.length === 12 && new Set(files.map((f) => f.key)).size === 12, JSON.stringify(files));
+  ok("treasure: each file over 2 s has its length in engineSoundLen, the others none", files.every((f) => (f.len > 2 ? sh.len[f.key] === f.len : sh.len[f.key] === undefined)), JSON.stringify({ files, len: sh.len }));
 }
 
 // the instant and sorcery sounds play on the resolve, not the cast (2026-11-12, the user: "only play if not countered"):

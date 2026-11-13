@@ -21,7 +21,7 @@ index b363b43..148f64d 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..f041b7d 100644
+index 54173c6..d8bda07 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
 @@ -74,18 +74,42 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
@@ -39,7 +39,7 @@ index 54173c6..f041b7d 100644
 -A vote change must reach every seat without a prompt. After handling a vote directive that does not restore at once, `takeAction` raises `stateRevision` and, in the browser build, calls `InteractiveBridge.publishState`: `SabTransport` posts a `game:seat_state` event per human seat, which the host routes like a seat state frame. The node polls `getStateRevision` every loop and sends every seat its state when the revision moves; the game thread is parked in `takeAction` when the revision moves, so the snapshots do not race the game.
 +A vote change must reach every seat without a prompt. After handling a vote directive that does not restore at once, `takeAction` raises `stateRevision` and, in the browser build, calls `InteractiveBridge.publishState`: `SabTransport` posts a `game:seat_state` event per human seat, which the host routes like a seat state frame. The node polls `getStateRevision` every loop and sends every seat its state when the revision moves.
 +
-+A moved revision or a new prompt does not mean the game thread is parked: it may already hold the next queued action, such as the vote that starts a restore. So the game thread holds `gameLock` for the whole match and releases it only around the poll in `takeAction`, and `getSnapshotJson` takes it; a snapshot then waits for the next park instead of walking collections the game is changing (`ConcurrentModificationException`, which ended the game on a seat snapshot). Any new read of game state from a host thread must take `gameLock` too.
++A moved revision or a new prompt does not mean the game thread is parked: it may already hold the next queued action, such as the vote that starts a restore. So the game thread holds `gameLock` for the whole match and releases it only around the poll in `takeAction`, and `getSnapshotJson` takes it; a snapshot then waits for the next park instead of walking collections the game is changing (`ConcurrentModificationException`, which ended the game on a seat snapshot). Any new read of game state from a host thread must take `gameLock` too. Because the game cannot change while it is parked, `pollAction` opens a `SnapshotRound` before it releases the lock and drops it when it takes the lock back: every seat's snapshot during one park shares it, so each creature's `cantBlock`/`cantAttack`/`mustAttack` (and each controller's possible defenders) is computed once per park, not once per seat. A snapshot taken outside a park (tests, the browser bridge, prompts) gets a fresh round; anything cached in a round must be a pure function of game state.
  
  Recording can be switched off, and then no `GameSnapshot` is made at all. The start request carries `snapshotRecording` (default on; the browser worker fills it from the host's saved setting), so a game that starts with it off never takes one. During the game only the engine host may change it, with `setSnapshotRecording { enabled }` on the **host lane**: a lane that only the tab running the engine can write, apart from the seat lanes that carry players' directives (including those relayed from guests). The session honours it only when its `player` is `InteractiveBridge.HOST_SEAT`. Turning recording off drops the points already taken. `GameViewDto.snapshotRecording` shows every seat the current state. A node-hosted game has no client host, so recording stays as the start request set it, and the node refuses the directive from any seat.
  
@@ -53,7 +53,7 @@ index 54173c6..f041b7d 100644
 +
 +### Effects, delayed triggers and turn counts in the view
 +
-+Forge's Effect cards (`isImmutable`) stay out of the command zone list; `EffectsView.effects` sends them as `PlayerDto.effects` instead, but only those Forge itself would show: `getRenderForUI()` (so unearth's and the Prepared Spell's helper effects stay hidden), an effect source (the player's built-in Monarch, Initiative, Ring, Commander, Keyword and other effects have none) and non-empty ability text. `untilEndOfTurn` is set for an `Effect` or `Fog` source with no `Duration$` (both end at cleanup); otherwise the source's raw `Duration$` goes out as `duration`. `GameViewDto.delayed` lists `TriggerHandler`'s delayed triggers (read by reflection, both fields named in `reflect-config.json`), immediate (reflexive) ones excepted, plus the player-defined ones still waiting for that player's next turn (`turnOf`); `when` is worded from a `Phase` trigger's `Phase$`, and `cardIds` are the trigger's remembered cards. Forge writes card names with their engine id (`Card.toString`, "Hill Giant (2)"); the ids of the cards involved are taken out of names and texts. Triggers still parked in a cleanup `addUntil` (`NextTurn$`, `UpcomingTurn$`) are not in the handler yet and are not sent. `spellsCastThisTurn`, `lifeGainedThisTurn`, `lifeLostThisTurn` and `stormCount` (`MagicStack.getSpellsCastThisTurn().size()`: the copies a storm spell cast now would get) are sent only when above zero, and every new field is absent when empty, so an older reader sees the same view.
++Forge's Effect cards (`isImmutable`) stay out of the command zone list; `EffectsView.effects` sends them as `PlayerDto.effects` instead, but only those Forge itself would show: `getRenderForUI()` (so unearth's and the Prepared Spell's helper effects stay hidden), an effect source (the player's built-in Monarch, Initiative, Ring, Commander, Keyword and other effects have none) and non-empty ability text. `untilEndOfTurn` is set for an `Effect` or `Fog` source with no `Duration$` (both end at cleanup); otherwise the source's raw `Duration$` goes out as `duration`. `GameViewDto.delayed` lists `TriggerHandler`'s delayed triggers (read by reflection, both fields named in `reflect-config.json`), immediate (reflexive) ones excepted, plus the player-defined ones still waiting for that player's next turn (`turnOf`); `when` is worded from a `Phase` trigger's `Phase$`, and `cardIds` are the trigger's remembered cards. Per viewer, a host or remembered card the viewer may not see (`shownTo`: a hand, a library) is left out of `hostCardId`/`cardIds`, and then `text` is sent empty, since Forge's text names it. Forge writes card names with their engine id (`Card.toString`, "Hill Giant (2)"); the ids of the cards involved are taken out of names and texts. Triggers still parked in a cleanup `addUntil` (`NextTurn$`, `UpcomingTurn$`) are not in the handler yet and are not sent. `spellsCastThisTurn`, `lifeGainedThisTurn`, `lifeLostThisTurn` and `stormCount` (`MagicStack.getSpellsCastThisTurn().size()`: the copies a storm spell cast now would get) are sent only when above zero, and every new field is absent when empty, so an older reader sees the same view.
 +
 +### A controlled player's prompts go to the controlling seat (Mindslaver)
 +
@@ -77,9 +77,9 @@ index 54173c6..f041b7d 100644
 -Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see.
 +Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see. Phased-out permanents stay in the battlefield zone with `phasedOut` set (`getCardsIn(Battlefield, false)`): phasing is not a zone change, and a client that hides them can't tell them from cards that left. `mayPlay` marks a card outside the viewer's hand that the viewer may really play: `getCardsActivatableInExternalZones` also lists cards the viewer may only look at (Courser of Kruphix's revealed top card, an opponent's hand under Revelation), and `mayPlayOutsideHand` drops those. The viewer's own graveyard and exile are checked whole as well: `PlayerZone`'s own-card filter only knows the graveyard keywords up to Disturb, and Mayhem, Harmonize, Beam me up and a plotted card get their spell from `GameActionUtil.getAlternativeCosts` at cast time, so they never reach Forge's list. Mayhem counts only for a card discarded this turn, as `getAlternativeCosts` requires.
 +
-+A permanent's own states come from Forge's card, never from text: `exerted` is `isExertedBy` any player (Forge clears the this-turn count at cleanup but keeps the creature frozen until that player's untap step), `skipsNextUntap` the hidden "doesn't untap during your next untap step" keyword `Card.canUntap` checks, plus `monstrous`, `saddled`/`saddledBy`, `harnessed`, `solved`, `unlockedDoors` (Room halves), `pairedWith`, `attachedToPlayer` (a curse's `getEntityAttachedTo`), and `protectorId`. `cantBlock` is `!CombatUtil.canBlock(card, true)` and `cantAttack` is `canAttackNextTurn` failing against every possible defender, so tapped and summoning-sick creatures are not flagged but a creature with defender is; `mustAttack` is a non-empty `StaticAbilityMustAttack.entitiesMustAttack` (goad is not in it). `CardStateFlagsTest` sets each state on a real card.
++A permanent's own states come from Forge's card, never from text: `exerted` is `isExertedBy` any player (Forge clears the this-turn count at cleanup but keeps the creature frozen until that player's untap step), `skipsNextUntap` the hidden "doesn't untap during your next untap step" keyword `Card.canUntap` checks, plus `monstrous`, `saddled`/`saddledBy`, `harnessed`, `solved`, `unlockedDoors` (Room halves; blanked by `redact` on a face-down permanent the viewer may not see, as its names are), `pairedWith`, `attachedToPlayer` (a curse's `getEntityAttachedTo`), and `protectorId`. `cantBlock` is `!CombatUtil.canBlock(card, true)` and `cantAttack` is `canAttackNextTurn` failing against every possible defender, so tapped and summoning-sick creatures are not flagged but a creature with defender is; `mustAttack` is a non-empty `StaticAbilityMustAttack.entitiesMustAttack` (goad is not in it). `CardStateFlagsTest` sets each state on a real card.
 +
-+`GameViewDto.events` is a ring of the last 512 zone changes and damage events, from `EngineEventLog`, which the session subscribes to the game in `attach`. The same ring goes to every seat and each entry has a rising `seq`, so a client that misses a snapshot loses nothing and a gap shows it fell behind. Each entry also carries an `id`: the relay's state patches key an array by `id`, and without one every new entry resends the whole ring. Forge fires no draw or discard event, so one entry carries `how`, set from the event order: `sacrificed` from the event just before the move, `destroyed` from `CardView.wasDestroyed` (`GameAction` sets it on a destroy and on a state-based death but fires `GameEventCardDestroyed` only on the first, and sets it on a sacrifice too, so `sacrificed` is checked first), `played`, `discard` and `surveil` from the event just after it, and `draw` from `Card.getDrawnThisTurn`, read at the next move, phase or snapshot because Forge sets it after the move (at the next move, or a card drawn and then discarded in one resolution, as Faithless Looting does, moves before its draw is read and loses it); `mill` likewise from `Card.wasMilled`, read at the next move or snapshot because `Player.mill` sets it after `moveTo`; and, the same way, `foretell`, `plot` and `suspend` for a card still in exile with `isForetold`, `isPlotted` or `hasSuspend` (special actions resolve off the stack, so no ability names them). `GameEventCardChangeZone` carries no cause, so `cause` is read from the game at the move: a move made while `ReplacementHandler.isReplacing()` takes the next `EFFECT_REPLACED` log message (Dredge's reads `<card> - Dredge N`); a move made while `game.costPaymentStack` holds a cost part takes `Cost:<name>`, the name being `Delve` for a card exiled while the mana part of a delve card is paid, else the paying ability's keyword (`Cycling`, `TypeCycling`), else its alternative cost (`Escape`, `Emerge`), else the cost part's class without `Cost` (`Sacrifice`, `Discard`, `Exile`), with the ability's host as `causeName`; and otherwise a move made while the stack resolves takes the resolving ability's `ApiType` name (`Explore`, `Mill`, `Surveil`), with its host as `causeName`/`causeCardId`. Moves off the stack never get a cause. Moves onto the stack and moves before `GameStage.Play` are skipped. An entry names its card only when a public zone is involved and the card isn't face down; foretell turns its card face down after the move, so an exile entry whose card is face down in exile when the move settles loses its name too; a draw stays a count. Moves made by a restore are ignored. Damage entries (`kind: "damage"`, `to: "Damage"`, so a client that compares `to` with zone names skips them; no `cardId`) take the same `seq` as moves, carry `sourceCardId`, `targetCardId` or `targetPlayerId`, `amount` and `combat`, and `ownerId` is the source's owner. A player's comes whole from `GameEventPlayerDamaged`. A card's is read from the `Pair` that `CardDamageHistory.registerDamage` adds to the target's `getDamageReceivedThisTurn()` (amount, combat flag, and the source by `Game.getDamageLKI`), at the next event or snapshot, since Forge fires `GameEventCardDamaged` before registering it and gives it no combat flag; a non-creature planeswalker or battle fires no damage event at all, so a drop in its loyalty or defense counters is waited on the same way and kept only when the received list grew (a loyalty cost does not). Prevented damage is never dealt, so it sends the amount left, or nothing. The ring is 512 so that one board's wipe (a damage entry and a death per creature) does not push out moves a client has not read. `EngineEventLog` is named in `native/extra-config/reflect-config.json` like `GameLogFormatter` in the frozen config: Guava finds `@Subscribe` by reflection, so a subscriber missing from that file receives nothing in the native image while working on a JVM.
++`GameViewDto.events` is a ring of the last 512 zone changes and damage events, from `EngineEventLog`, which the session subscribes to the game in `attach`. The same ring goes to every seat and each entry has a rising `seq`, so a client that misses a snapshot loses nothing and a gap shows it fell behind. Each entry also carries an `id`: the relay's state patches key an array by `id`, and without one every new entry resends the whole ring. Forge fires no draw or discard event, so one entry carries `how`, set from the event order: `sacrificed` from the event just before the move, `destroyed` from `CardView.wasDestroyed` (`GameAction` sets it on a destroy and on a state-based death but fires `GameEventCardDestroyed` only on the first, and sets it on a sacrifice too, so `sacrificed` is checked first), `played`, `discard` and `surveil` from the event just after it, and `draw` from `Card.getDrawnThisTurn`, read at the next move, phase or snapshot because Forge sets it after the move (at the next move, or a card drawn and then discarded in one resolution, as Faithless Looting does, moves before its draw is read and loses it); `mill` likewise from `Card.wasMilled`, read at the next move or snapshot because `Player.mill` sets it after `moveTo`; and, the same way, `foretell`, `plot` and `suspend` for a card still in exile with `isForetold`, `isPlotted` or `hasSuspend` (special actions resolve off the stack, so no ability names them). `GameEventCardChangeZone` carries no cause, so `cause` is read from the game at the move: a move made while `ReplacementHandler.isReplacing()` takes the next `EFFECT_REPLACED` log message (Dredge's reads `<card> - Dredge N`); a move made while `game.costPaymentStack` holds a cost part takes `Cost:<name>`, the name being `Delve` for a card exiled while the mana part of a delve card is paid, else the paying ability's keyword (`Cycling`, `TypeCycling`), else its alternative cost (`Escape`, `Emerge`), else the cost part's class without `Cost` (`Sacrifice`, `Discard`, `Exile`), with the ability's host as `causeName`; and otherwise a move made while the stack resolves takes the resolving ability's `ApiType` name (`Explore`, `Mill`, `Surveil`), with its host as `causeName`/`causeCardId`. Moves off the stack never get a cause. Moves onto the stack and moves before `GameStage.Play` are skipped. An entry names its card only when a public zone is involved and the card isn't face down; foretell turns its card face down after the move, so an exile entry whose card is face down in exile when the move settles loses its name too; a draw stays a count. Moves made by a restore are ignored. Damage entries (`kind: "damage"`, `to: "Damage"`, so a client that compares `to` with zone names skips them; no `cardId`) take the same `seq` as moves, carry `sourceCardId`, `targetCardId` or `targetPlayerId`, `amount` and `combat`, and `ownerId` is the source's owner. One whose source has no owner in the game, or whose target has no id in the view (a token that died before any snapshot saw it), is not sent, so `seq` can skip a number. A player's comes whole from `GameEventPlayerDamaged`. A card's is read from the `Pair` that `CardDamageHistory.registerDamage` adds to the target's `getDamageReceivedThisTurn()` (amount, combat flag, and the source by `Game.getDamageLKI`), at the next event or snapshot, since Forge fires `GameEventCardDamaged` before registering it and gives it no combat flag; a non-creature planeswalker or battle fires no damage event at all, so a drop in its loyalty or defense counters is waited on the same way and kept only when the received list grew (a loyalty cost does not). Prevented damage is never dealt, so it sends the amount left, or nothing. The ring is 512 so that one board's wipe (a damage entry and a death per creature) does not push out moves a client has not read. `EngineEventLog` is named in `native/extra-config/reflect-config.json` like `GameLogFormatter` in the frozen config: Guava finds `@Subscribe` by reflection, so a subscriber missing from that file receives nothing in the native image while working on a JVM.
  
  ## Boundary API discipline
  
@@ -669,10 +669,10 @@ index 0000000..3fa96b5
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/EffectsView.java b/forge-harness/src/main/java/forge/harness/host/EffectsView.java
 new file mode 100644
-index 0000000..28c96aa
+index 0000000..1ecaebb
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/EffectsView.java
-@@ -0,0 +1,176 @@
+@@ -0,0 +1,192 @@
 +package forge.harness.host;
 +
 +import com.google.common.collect.ListMultimap;
@@ -694,6 +694,7 @@ index 0000000..28c96aa
 +import java.util.List;
 +import java.util.Map;
 +import java.util.Set;
++import java.util.function.Predicate;
 +
 +final class EffectsView {
 +    private static final Field DELAYED = field("delayedTriggers");
@@ -730,21 +731,22 @@ index 0000000..28c96aa
 +        return effects;
 +    }
 +
-+    static List<Map<String, Object>> delayed(final Game game) {
++    static List<Map<String, Object>> delayed(final Game game, final Predicate<Card> shown) {
 +        final TriggerHandler handler = game.getTriggerHandler();
 +        final List<Map<String, Object>> out = new ArrayList<>();
 +        for (final Trigger trigger : delayedTriggers(handler)) {
 +            if (trigger.getMode() != TriggerType.Immediate) {
-+                out.add(delayed(game, trigger, null));
++                out.add(delayed(game, trigger, null, shown));
 +            }
 +        }
 +        for (final Map.Entry<Player, Trigger> entry : playerDefined(handler).entries()) {
-+            out.add(delayed(game, entry.getValue(), entry.getKey()));
++            out.add(delayed(game, entry.getValue(), entry.getKey(), shown));
 +        }
 +        return out;
 +    }
 +
-+    private static Map<String, Object> delayed(final Game game, final Trigger trigger, final Player nextTurnOf) {
++    private static Map<String, Object> delayed(
++            final Game game, final Trigger trigger, final Player nextTurnOf, final Predicate<Card> shown) {
 +        final Map<String, Object> out = new LinkedHashMap<>();
 +        out.put("id", "delayed-" + trigger.getId());
 +        final Card host = trigger.getHostCard();
@@ -755,20 +757,34 @@ index 0000000..28c96aa
 +                named.add(card);
 +            }
 +        }
-+        out.put("text", withoutIds(plainText(trigger.toString()), named));
++        final Card shownHost = host.isImmutable() && host.getEffectSource() != null ? host.getEffectSource() : host;
++        boolean hidden = false;
++        String hostCardId = null;
++        if (!shownHost.isImmutable()) {
++            if (shown.test(shownHost)) {
++                hostCardId = SnapshotExtractor.javaCardId(shownHost);
++            } else {
++                hidden = true;
++            }
++        }
++        final List<String> cardIds = new ArrayList<>();
++        for (final Card card : named.subList(1, named.size())) {
++            if (card.isImmutable()) {
++                continue;
++            }
++            if (shown.test(card)) {
++                cardIds.add(SnapshotExtractor.javaCardId(card));
++            } else {
++                hidden = true;
++            }
++        }
++        out.put("text", hidden ? "" : withoutIds(plainText(trigger.toString()), named));
 +        final SpellAbility spawning = trigger.getSpawningAbility();
 +        final Player controller = spawning != null && spawning.getActivatingPlayer() != null
 +                ? spawning.getActivatingPlayer() : host.getController();
 +        out.put("controllerId", playerId(game, controller));
-+        final Card shownHost = host.isImmutable() && host.getEffectSource() != null ? host.getEffectSource() : host;
-+        if (!shownHost.isImmutable()) {
-+            out.put("hostCardId", SnapshotExtractor.javaCardId(shownHost));
-+        }
-+        final List<String> cardIds = new ArrayList<>();
-+        for (final Card card : named.subList(1, named.size())) {
-+            if (!card.isImmutable()) {
-+                cardIds.add(SnapshotExtractor.javaCardId(card));
-+            }
++        if (hostCardId != null) {
++            out.put("hostCardId", hostCardId);
 +        }
 +        out.put("cardIds", cardIds);
 +        if (trigger.getMode() == TriggerType.Phase && trigger.hasParam("Phase")) {
@@ -851,10 +867,10 @@ index 0000000..28c96aa
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java b/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java
 new file mode 100644
-index 0000000..daecc66
+index 0000000..ca35fdf
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java
-@@ -0,0 +1,403 @@
+@@ -0,0 +1,409 @@
 +package forge.harness.host;
 +
 +import com.google.common.eventbus.Subscribe;
@@ -998,9 +1014,11 @@ index 0000000..daecc66
 +            final Pair<Integer, Boolean> dealt = received.get(waiting.index());
 +            final Pair<Card, GameEntity> sourceToTarget = game.getDamageLKI(dealt);
 +            final Card source = sourceToTarget == null ? null : sourceToTarget.getLeft();
-+            final Entry entry = damageEntry(source == null ? 0 : source.getId(),
-+                    source == null ? -1 : playerIndex(source.getOwner()), dealt.getLeft(), dealt.getRight());
-+            entry.targetCardId = waiting.target().getId();
++            if (source != null && source.getOwner() != null) {
++                final Entry entry = damageEntry(source.getId(), playerIndex(source.getOwner()),
++                        dealt.getLeft(), dealt.getRight());
++                entry.targetCardId = waiting.target().getId();
++            }
 +        }
 +        awaited.clear();
 +    }
@@ -1010,9 +1028,11 @@ index 0000000..daecc66
 +            return;
 +        }
 +        final CardView source = damaged.source();
-+        final Entry entry = damageEntry(source == null ? 0 : source.getId(),
-+                source == null ? -1 : playerIndex(source.getOwner()), damaged.amount(), damaged.combat());
-+        entry.targetPlayer = playerIndex(damaged.target());
++        final int owner = source == null ? -1 : playerIndex(source.getOwner());
++        final int target = playerIndex(damaged.target());
++        if (owner >= 0 && target >= 0) {
++            damageEntry(source.getId(), owner, damaged.amount(), damaged.combat()).targetPlayer = target;
++        }
 +    }
 +
 +    private Entry damageEntry(final int sourceCardId, final int owner, final int amount, final boolean combat) {
@@ -1207,8 +1227,9 @@ index 0000000..daecc66
 +            event.put("id", "event-" + entry.seq);
 +            event.put("seq", entry.seq);
 +            if (entry.damage) {
-+                putDamage(event, entry);
-+                events.add(event);
++                if (putDamage(event, entry)) {
++                    events.add(event);
++                }
 +                continue;
 +            }
 +            final Integer parityId = entry.visible ? ParityCardMap.knownParityId(entry.cardId) : null;
@@ -1238,7 +1259,7 @@ index 0000000..daecc66
 +        return events;
 +    }
 +
-+    private static void putDamage(final Map<String, Object> event, final Entry entry) {
++    private static boolean putDamage(final Map<String, Object> event, final Entry entry) {
 +        event.put("kind", "damage");
 +        event.put("to", "Damage");
 +        event.put("ownerId", "player-" + entry.owner);
@@ -1249,6 +1270,7 @@ index 0000000..daecc66
 +        }
 +        event.put("amount", entry.amount);
 +        event.put("combat", entry.combat);
++        return event.containsKey("targetCardId") || event.containsKey("targetPlayerId");
 +    }
 +
 +    private static void putCardId(final Map<String, Object> event, final String key, final int cardId) {
@@ -1353,10 +1375,10 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..9eb8aa8 100644
+index 713e1ef..4bc0e2e 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-@@ -28,22 +28,31 @@ import forge.game.Game;
+@@ -28,25 +28,36 @@ import forge.game.Game;
  import forge.game.GameEntity;
  import forge.ai.ComputerUtilCombat;
  import forge.game.card.Card;
@@ -1388,16 +1410,51 @@ index 713e1ef..9eb8aa8 100644
  
  import java.util.ArrayList;
  import java.util.Collections;
-@@ -97,6 +106,8 @@ public final class InteractiveSnapshotExtractor {
++import java.util.HashMap;
++import java.util.IdentityHashMap;
+ import java.util.LinkedHashMap;
+ import java.util.List;
+ import java.util.Map;
+@@ -96,7 +107,38 @@ public final class InteractiveSnapshotExtractor {
+ 
      }
  
++    static final class SnapshotRound {
++        private final Map<Player, FCollectionView<GameEntity>> defenders = new HashMap<>();
++        private final Map<Card, CombatFlags> flags = new IdentityHashMap<>();
++        private int computed;
++
++        int computedFlags() {
++            return computed;
++        }
++
++        private FCollectionView<GameEntity> defenders(final Player controller) {
++            return defenders.computeIfAbsent(controller, CombatUtil::getAllPossibleDefenders);
++        }
++
++        private CombatFlags flags(final Card card) {
++            CombatFlags known = flags.get(card);
++            if (known == null) {
++                computed++;
++                known = combatFlags(card, this);
++                flags.put(card, known);
++            }
++            return known;
++        }
++    }
++
++    private record CombatFlags(boolean cantBlock, boolean cantAttack, boolean mustAttack) {
++        private static final CombatFlags NONE = new CombatFlags(false, false, false);
++    }
++
      private static final Gson GSON = new GsonBuilder().create();
 +    private static final ThreadLocal<CardCollectionView> PLAYABLE_OUTSIDE_HAND = new ThreadLocal<>();
++    private static final ThreadLocal<SnapshotRound> ROUND = new ThreadLocal<>();
 +    private static final String DOESNT_UNTAP_NEXT_UNTAP_STEP = "This card doesn't untap during your next untap step.";
  
      public static String snapshotJson(
              final Game game,
-@@ -106,18 +117,61 @@ public final class InteractiveSnapshotExtractor {
+@@ -106,18 +148,80 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -1405,16 +1462,35 @@ index 713e1ef..9eb8aa8 100644
 +            final boolean snapshotRecording,
 +            final Map<String, Object> stateFix,
 +            final EngineEventLog eventLog
++    ) {
++        return snapshotJson(game, castingAbility, gameId, viewer, secretChoiceVisibility, checkpoints, restoreVote,
++                snapshotRecording, stateFix, eventLog, new SnapshotRound());
++    }
++
++    static String snapshotJson(
++            final Game game,
++            final SpellAbility castingAbility,
++            final String gameId,
++            final int viewer,
++            final SecretChoiceVisibility secretChoiceVisibility,
++            final List<Map<String, Object>> checkpoints,
++            final Map<String, Object> restoreVote,
++            final boolean snapshotRecording,
++            final Map<String, Object> stateFix,
++            final EngineEventLog eventLog,
++            final SnapshotRound round
      ) {
          ParityCardMap.beginSnapshot(game);
 +        final Player viewerPlayer = playerForIndex(game, viewer);
 +        PLAYABLE_OUTSIDE_HAND.set(viewerPlayer == null ? null : playableOutsideHand(viewerPlayer));
++        ROUND.set(round);
          try {
              return GSON.toJson(buildGameView(
                      game, castingAbility, gameId, viewer, secretChoiceVisibility, checkpoints, restoreVote,
 -                    snapshotRecording));
 +                    snapshotRecording, stateFix, eventLog));
          } finally {
++            ROUND.remove();
 +            PLAYABLE_OUTSIDE_HAND.remove();
              ParityCardMap.endSnapshot();
          }
@@ -1461,7 +1537,7 @@ index 713e1ef..9eb8aa8 100644
      private static Map<String, Object> buildGameView(
              final Game game,
              final SpellAbility castingAbility,
-@@ -126,7 +180,9 @@ public final class InteractiveSnapshotExtractor {
+@@ -126,7 +230,9 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -1472,7 +1548,7 @@ index 713e1ef..9eb8aa8 100644
      ) {
          final Map<String, Object> base = SnapshotExtractor.extractSnapshot(game);
  
-@@ -171,7 +227,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -171,7 +277,7 @@ public final class InteractiveSnapshotExtractor {
          final Map<String, List<JsonObject>> battlefieldByController = new LinkedHashMap<>();
          for (final Player player : game.getRegisteredPlayers()) {
              final int ownerIndex = SnapshotExtractor.playerIndex(game, player);
@@ -1481,7 +1557,7 @@ index 713e1ef..9eb8aa8 100644
                  final String controllerId =
                          "player-" + SnapshotExtractor.playerIndex(game, card.getController());
                  final CardDto dto = toCard(
-@@ -224,13 +280,29 @@ public final class InteractiveSnapshotExtractor {
+@@ -224,13 +330,29 @@ public final class InteractiveSnapshotExtractor {
          view.put("dayTime", dayTime(game));
          view.put("checkpoints", checkpoints);
          view.put("snapshotRecording", snapshotRecording);
@@ -1500,7 +1576,7 @@ index 713e1ef..9eb8aa8 100644
 +        if (planar != null) {
 +            view.put("planar", planar);
 +        }
-+        final List<Map<String, Object>> delayed = EffectsView.delayed(game);
++        final List<Map<String, Object>> delayed = EffectsView.delayed(game, card -> shownTo(card, viewerPlayer));
 +        if (!delayed.isEmpty()) {
 +            view.put("delayed", delayed);
 +        }
@@ -1511,7 +1587,7 @@ index 713e1ef..9eb8aa8 100644
          final Object winner = base.get("winner");
          if (winner != null) {
              view.put("winnerId", "player-" + winner);
-@@ -285,7 +357,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -285,7 +407,7 @@ public final class InteractiveSnapshotExtractor {
          out.put("cardsDrawnThisTurn", player.getNumDrawnThisTurn());
          out.put("damagePrevention", player.getPreventNextDamageTotalShields());
          out.put("isExtraTurn", player.isExtraTurn());
@@ -1520,7 +1596,7 @@ index 713e1ef..9eb8aa8 100644
          final Player controller = player.getControllingPlayer();
          if (controller != null && controller != player) {
              out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
-@@ -299,10 +371,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -299,10 +421,11 @@ public final class InteractiveSnapshotExtractor {
          out.put("ringLevel", player.getNumRingTemptedYou());
          out.put("speed", player.getSpeed());
          out.put("hasEnduringStory", player.hasEnduringStory());
@@ -1533,7 +1609,7 @@ index 713e1ef..9eb8aa8 100644
          final List<String> activeSchemeNames = activeSchemeNames(player);
          if (!activeSchemeNames.isEmpty()) {
              out.put("activeSchemeNames", activeSchemeNames);
-@@ -311,6 +384,13 @@ public final class InteractiveSnapshotExtractor {
+@@ -311,6 +434,13 @@ public final class InteractiveSnapshotExtractor {
          if (teamNumber != null) {
              out.put("teamNumber", teamNumber);
          }
@@ -1547,7 +1623,7 @@ index 713e1ef..9eb8aa8 100644
          return out;
      }
  
-@@ -325,19 +405,6 @@ public final class InteractiveSnapshotExtractor {
+@@ -325,19 +455,6 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -1567,7 +1643,7 @@ index 713e1ef..9eb8aa8 100644
      private static List<String> activeSchemeNames(final Player player) {
          final List<String> names = new ArrayList<>();
          for (final Card card : player.getCardsIn(ZoneType.Command)) {
-@@ -367,7 +434,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -367,7 +484,7 @@ public final class InteractiveSnapshotExtractor {
          return counters;
      }
  
@@ -1576,7 +1652,15 @@ index 713e1ef..9eb8aa8 100644
          if (value > 0) {
              map.put(key, value);
          }
-@@ -685,6 +752,22 @@ public final class InteractiveSnapshotExtractor {
+@@ -499,6 +616,7 @@ public final class InteractiveSnapshotExtractor {
+         dto.effectiveManaCost = null;
+         dto.commanderTax = null;
+         dto.madnessCost = null;
++        dto.unlockedDoors = null;
+     }
+ 
+     private static Player playerForIndex(final Game game, final int viewer) {
+@@ -685,6 +803,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -1599,7 +1683,7 @@ index 713e1ef..9eb8aa8 100644
      private static CardDto toCard(
              final Game game,
              final Card card,
-@@ -714,6 +797,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -714,6 +848,11 @@ public final class InteractiveSnapshotExtractor {
              dto.toughness = String.valueOf(card.getNetToughness());
              dto.basePower = card.getBasePower();
              dto.baseToughness = card.getBaseToughness();
@@ -1611,7 +1695,7 @@ index 713e1ef..9eb8aa8 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -746,17 +834,47 @@ public final class InteractiveSnapshotExtractor {
+@@ -746,17 +885,47 @@ public final class InteractiveSnapshotExtractor {
          dto.isFaceDown = card.isFaceDown();
          dto.isBestowed = card.isBestowed();
          dto.phasedOut = card.isPhasedOut();
@@ -1660,7 +1744,7 @@ index 713e1ef..9eb8aa8 100644
          }
          final List<String> attachmentIds = new ArrayList<>();
          for (final Card attachment : card.getAttachedCards()) {
-@@ -802,6 +920,64 @@ public final class InteractiveSnapshotExtractor {
+@@ -802,6 +971,70 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -1697,20 +1781,26 @@ index 713e1ef..9eb8aa8 100644
 +            dto.protectorId = "player-" + SnapshotExtractor.playerIndex(game, card.getProtectingPlayer());
 +        }
 +        if (card.isCreature() && !card.isPhasedOut()) {
-+            try {
-+                dto.cantBlock = !CombatUtil.canBlock(card, true);
-+                dto.cantAttack = cantAttackAnyDefender(card);
-+                dto.mustAttack = !StaticAbilityMustAttack.entitiesMustAttack(card).isEmpty();
-+            } catch (final RuntimeException ignored) {
-+                dto.cantBlock = false;
-+                dto.cantAttack = false;
-+                dto.mustAttack = false;
-+            }
++            final SnapshotRound shared = ROUND.get();
++            final CombatFlags flags = shared != null ? shared.flags(card) : combatFlags(card, new SnapshotRound());
++            dto.cantBlock = flags.cantBlock();
++            dto.cantAttack = flags.cantAttack();
++            dto.mustAttack = flags.mustAttack();
 +        }
 +    }
 +
-+    private static boolean cantAttackAnyDefender(final Card card) {
-+        final FCollectionView<GameEntity> defenders = CombatUtil.getAllPossibleDefenders(card.getController());
++    private static CombatFlags combatFlags(final Card card, final SnapshotRound round) {
++        try {
++            return new CombatFlags(
++                    !CombatUtil.canBlock(card, true),
++                    cantAttackAnyDefender(card, round.defenders(card.getController())),
++                    !StaticAbilityMustAttack.entitiesMustAttack(card).isEmpty());
++        } catch (final RuntimeException ignored) {
++            return CombatFlags.NONE;
++        }
++    }
++
++    private static boolean cantAttackAnyDefender(final Card card, final FCollectionView<GameEntity> defenders) {
 +        if (defenders.isEmpty()) {
 +            return false;
 +        }
@@ -1725,7 +1815,7 @@ index 713e1ef..9eb8aa8 100644
      private static String normalizedOracle(final Card card) {
          return card.getOracleText().replace("\\n", "\n");
      }
-@@ -1078,12 +1254,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -1078,12 +1311,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -1740,7 +1830,7 @@ index 713e1ef..9eb8aa8 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1309,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1366,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -1748,7 +1838,7 @@ index 713e1ef..9eb8aa8 100644
          return stackItem;
      }
  
-@@ -1163,6 +1342,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1399,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -2050,7 +2140,7 @@ index fb82e6d..1710ff6 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..fd5411a 100644
+index 643e5de..4627330 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,12 +6,15 @@ import forge.harness.common.ParityCardMap;
@@ -2130,7 +2220,7 @@ index 643e5de..fd5411a 100644
      private volatile boolean closed;
      private volatile Thread gameThread;
      private static volatile InteractiveBridge bridge;
-@@ -70,16 +89,26 @@ public final class ManaBrewInteractiveSession {
+@@ -70,16 +89,27 @@ public final class ManaBrewInteractiveSession {
      private final InteractiveSnapshotExtractor.SecretChoiceVisibility secretChoiceVisibility =
              new InteractiveSnapshotExtractor.SecretChoiceVisibility();
      private static final int CHECKPOINT_TURNS = 3;
@@ -2154,10 +2244,11 @@ index 643e5de..fd5411a 100644
      private volatile long stateRevision;
      private volatile boolean snapshotRecording;
 +    private EngineEventLog eventLog;
++    private InteractiveSnapshotExtractor.SnapshotRound snapshotRound;
      private boolean checkpointMetricsEnabled;
      private final List<long[]> checkpointTimings = new ArrayList<>();
      private boolean priorityPromptOpen;
-@@ -91,7 +120,7 @@ public final class ManaBrewInteractiveSession {
+@@ -91,7 +121,7 @@ public final class ManaBrewInteractiveSession {
          private final PhaseType phase;
          private final Player activePlayer;
          private final Player priorityPlayer;
@@ -2166,7 +2257,7 @@ index 643e5de..fd5411a 100644
  
          private Checkpoint(
                  final int id,
-@@ -99,16 +128,43 @@ public final class ManaBrewInteractiveSession {
+@@ -99,16 +129,43 @@ public final class ManaBrewInteractiveSession {
                  final PhaseType phase,
                  final Player activePlayer,
                  final Player priorityPlayer,
@@ -2211,7 +2302,7 @@ index 643e5de..fd5411a 100644
      private enum RestoreVoteStatus { PENDING, APPROVED, DECLINED, UNAVAILABLE }
  
      private static final class RestoreVote {
-@@ -136,6 +192,8 @@ public final class ManaBrewInteractiveSession {
+@@ -136,6 +193,8 @@ public final class ManaBrewInteractiveSession {
          this.game = Objects.requireNonNull(game, "game");
          this.botSeats = Set.copyOf(botSeats);
          this.snapshotRecording = snapshotRecording;
@@ -2220,7 +2311,7 @@ index 643e5de..fd5411a 100644
      }
  
      public String getSessionId() {
-@@ -155,26 +213,26 @@ public final class ManaBrewInteractiveSession {
+@@ -155,26 +214,26 @@ public final class ManaBrewInteractiveSession {
          requireAttached();
          Objects.requireNonNull(rng, "rng");
          if (bridge != null) {
@@ -2261,7 +2352,7 @@ index 643e5de..fd5411a 100644
      public void close() {
          closed = true;
          JsonObject action = new JsonObject();
-@@ -216,9 +274,14 @@ public final class ManaBrewInteractiveSession {
+@@ -216,9 +275,15 @@ public final class ManaBrewInteractiveSession {
  
      public String getSnapshotJson(final int viewer) {
          requireAttached();
@@ -2272,14 +2363,15 @@ index 643e5de..fd5411a 100644
 +        try {
 +            return InteractiveSnapshotExtractor.snapshotJson(
 +                    game, castingAbility, sessionId, viewer, secretChoiceVisibility, checkpointViews,
-+                    restoreVoteView, snapshotRecording, stateFixView, eventLog);
++                    restoreVoteView, snapshotRecording, stateFixView, eventLog,
++                    snapshotRound != null ? snapshotRound : new InteractiveSnapshotExtractor.SnapshotRound());
 +        } finally {
 +            gameLock.unlock();
 +        }
      }
  
      void rememberSecretNumberViewer(final String sourceCardId, final Player viewer) {
-@@ -266,7 +329,7 @@ public final class ManaBrewInteractiveSession {
+@@ -266,7 +331,7 @@ public final class ManaBrewInteractiveSession {
  
      static final String TRIGGER_ORDER_TITLE = "Order triggered abilities";
  
@@ -2288,7 +2380,7 @@ index 643e5de..fd5411a 100644
  
      static final class PriorityChoice {
          private final PriorityActionKind kind;
-@@ -362,6 +425,11 @@ public final class ManaBrewInteractiveSession {
+@@ -362,6 +427,11 @@ public final class ManaBrewInteractiveSession {
              if (isRestoreDirective(action)) {
                  return new PriorityChoice(PriorityActionKind.RESTORE, null, null, null);
              }
@@ -2300,7 +2392,7 @@ index 643e5de..fd5411a 100644
              try {
                  return interpretPriorityAction(action, actionsForPrompt, untappableCards);
              } catch (IllegalArgumentException | UnsupportedOperationException | NullPointerException invalid) {
-@@ -823,6 +891,9 @@ public final class ManaBrewInteractiveSession {
+@@ -823,6 +893,9 @@ public final class ManaBrewInteractiveSession {
                  }
                  return chosen;
              }
@@ -2310,7 +2402,7 @@ index 643e5de..fd5411a 100644
              throw new UnsupportedOperationException("unsupported action kind: " + actionKind);
          }
          return new ArrayList<>();
-@@ -881,6 +952,12 @@ public final class ManaBrewInteractiveSession {
+@@ -881,6 +954,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2323,7 +2415,7 @@ index 643e5de..fd5411a 100644
      boolean awaitMulliganDecision(final int playerId, final int cardsToReturn) {
          requireAttached();
          final List<Card> cards = new ArrayList<Card>(
-@@ -896,6 +973,7 @@ public final class ManaBrewInteractiveSession {
+@@ -896,6 +975,7 @@ public final class ManaBrewInteractiveSession {
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
              if ("mulligan_decision".equals(actionKind)) {
@@ -2331,7 +2423,7 @@ index 643e5de..fd5411a 100644
                  return action.has("keep") && action.get("keep").getAsBoolean();
              }
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
-@@ -1104,14 +1182,31 @@ public final class ManaBrewInteractiveSession {
+@@ -1104,14 +1184,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -2366,7 +2458,7 @@ index 643e5de..fd5411a 100644
      }
  
      void awaitRevealCards(
-@@ -1188,6 +1283,18 @@ public final class ManaBrewInteractiveSession {
+@@ -1188,6 +1285,18 @@ public final class ManaBrewInteractiveSession {
          return awaitModeChoice(playerId, unweightedOptions(options, allowRepeat), min, max, sourceName, null, null);
      }
  
@@ -2385,7 +2477,7 @@ index 643e5de..fd5411a 100644
      List<Integer> awaitModeChoice(
              final int playerId,
              final List<SelectionOption> options,
-@@ -1196,6 +1303,19 @@ public final class ManaBrewInteractiveSession {
+@@ -1196,6 +1305,19 @@ public final class ManaBrewInteractiveSession {
              final String sourceName,
              final String description,
              final String sourceCardId
@@ -2405,7 +2497,7 @@ index 643e5de..fd5411a 100644
      ) {
          requireAttached();
          if (options.isEmpty() && min > 0) {
-@@ -1207,7 +1327,7 @@ public final class ManaBrewInteractiveSession {
+@@ -1207,7 +1329,7 @@ public final class ManaBrewInteractiveSession {
          final int clampedMax = anyRepeatable ? max : Math.min(max, totalWeight);
          final String title = sourceName != null ? sourceName : "Choose";
          final PromptPresentation presentation =
@@ -2414,7 +2506,7 @@ index 643e5de..fd5411a 100644
          publishAgentPrompt("player-" + playerId, sourceCardId,
                  new ChooseFromSelectionInput(presentation, options, clampedMin, clampedMax));
          while (!closed && !game.isGameOver()) {
-@@ -1762,24 +1882,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +1884,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -2446,7 +2538,7 @@ index 643e5de..fd5411a 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +1946,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +1948,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -2456,7 +2548,7 @@ index 643e5de..fd5411a 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +1960,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +1962,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -2469,7 +2561,7 @@ index 643e5de..fd5411a 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +2012,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +2014,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -2486,7 +2578,7 @@ index 643e5de..fd5411a 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +2032,12 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +2034,12 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -2499,7 +2591,7 @@ index 643e5de..fd5411a 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1911,10 +2057,10 @@ public final class ManaBrewInteractiveSession {
+@@ -1911,10 +2059,10 @@ public final class ManaBrewInteractiveSession {
                      }
                  }
              }
@@ -2513,7 +2605,7 @@ index 643e5de..fd5411a 100644
                  throw new IllegalArgumentException("selected card count out of range: " + selected.size());
              }
              return selected;
-@@ -1940,10 +2086,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,10 +2088,16 @@ public final class ManaBrewInteractiveSession {
  
      private JsonObject takeAction() throws InterruptedException {
          while (true) {
@@ -2531,7 +2623,7 @@ index 643e5de..fd5411a 100644
              if (action == null) {
                  if (closed || game.isGameOver()) {
                      return syntheticPass();
-@@ -1966,6 +2118,14 @@ public final class ManaBrewInteractiveSession {
+@@ -1966,6 +2120,14 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -2546,23 +2638,25 @@ index 643e5de..fd5411a 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2147,15 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2149,17 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
 +    private JsonObject pollAction() throws InterruptedException {
++        snapshotRound = new InteractiveSnapshotExtractor.SnapshotRound();
 +        gameLock.unlock();
 +        try {
 +            return actions.poll(1, java.util.concurrent.TimeUnit.SECONDS);
 +        } finally {
 +            gameLock.lock();
++            snapshotRound = null;
 +        }
 +    }
 +
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2179,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2183,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -2571,7 +2665,7 @@ index 643e5de..fd5411a 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2067,22 +2238,16 @@ public final class ManaBrewInteractiveSession {
+@@ -2067,22 +2242,16 @@ public final class ManaBrewInteractiveSession {
          if (handler.getTurn() == checkpointTurn && handler.getPhase() == checkpointPhase) {
              return;
          }
@@ -2598,7 +2692,7 @@ index 643e5de..fd5411a 100644
          if (checkpointMetricsEnabled) {
              final long finished = System.nanoTime();
              synchronized (checkpointTimings) {
-@@ -2091,6 +2256,132 @@ public final class ManaBrewInteractiveSession {
+@@ -2091,6 +2260,132 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2731,7 +2825,7 @@ index 643e5de..fd5411a 100644
      private void publishCheckpointViews() {
          final List<Map<String, Object>> views = new ArrayList<>();
          for (final Checkpoint checkpoint : checkpoints) {
-@@ -2124,6 +2415,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2419,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -2742,7 +2836,7 @@ index 643e5de..fd5411a 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2157,11 +2452,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2157,11 +2456,7 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void restore(final Checkpoint target) {
@@ -2755,7 +2849,7 @@ index 643e5de..fd5411a 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2466,429 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2470,429 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3185,7 +3279,7 @@ index 643e5de..fd5411a 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +2921,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +2925,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -3202,7 +3296,7 @@ index 643e5de..fd5411a 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +2965,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +2969,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -3211,7 +3305,7 @@ index 643e5de..fd5411a 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3008,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3012,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -3234,7 +3328,7 @@ index 643e5de..fd5411a 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3052,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3056,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -3265,7 +3359,7 @@ index 643e5de..fd5411a 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,16 +3316,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,16 +3320,21 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -3289,7 +3383,7 @@ index 643e5de..fd5411a 100644
          }
          final List<AttackTargetDto> attackTargets = new java.util.ArrayList<>();
          for (final GameEntity defender : combat.getDefenders()) {
-@@ -2596,7 +3338,114 @@ public final class ManaBrewInteractiveSession {
+@@ -2596,7 +3342,114 @@ public final class ManaBrewInteractiveSession {
                      defenderId(defender), defender.getName(),
                      enumFromWire(defenderKind(defender), AttackTargetKind.class)));
          }
@@ -3405,7 +3499,7 @@ index 643e5de..fd5411a 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2918,7 +3767,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +3771,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3415,7 +3509,7 @@ index 643e5de..fd5411a 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +3778,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +3782,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -3441,7 +3535,7 @@ index 643e5de..fd5411a 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +3810,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +3814,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -3452,7 +3546,7 @@ index 643e5de..fd5411a 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +3838,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +3842,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -4398,10 +4492,10 @@ index 0000000..c11442b
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/CardStateFlagsTest.java b/forge-harness/src/test/java/forge/harness/host/CardStateFlagsTest.java
 new file mode 100644
-index 0000000..6d7ef69
+index 0000000..930da08
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/CardStateFlagsTest.java
-@@ -0,0 +1,330 @@
+@@ -0,0 +1,479 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -4430,9 +4524,15 @@ index 0000000..6d7ef69
 +import forge.localinstance.properties.ForgePreferences.FPref;
 +import forge.model.FModel;
 +
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
 +import java.util.ArrayList;
 +import java.util.List;
 +import java.util.Set;
++import java.util.concurrent.BlockingQueue;
++import java.util.concurrent.Semaphore;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.locks.ReentrantLock;
 +
 +public final class CardStateFlagsTest {
 +    private CardStateFlagsTest() {}
@@ -4462,6 +4562,9 @@ index 0000000..6d7ef69
 +        check("pacifismMakesItUnableToAttackOrBlock", CardStateFlagsTest::pacifismMakesItUnableToAttackOrBlock);
 +        check("defenderCantAttack", CardStateFlagsTest::defenderCantAttack);
 +        check("attacksEachCombatIsMustAttack", CardStateFlagsTest::attacksEachCombatIsMustAttack);
++        check("faceDownRoomHidesItsUnlockedDoors", CardStateFlagsTest::faceDownRoomHidesItsUnlockedDoors);
++        check("seatsWhileTheGameWaitsShareOneRound", CardStateFlagsTest::seatsWhileTheGameWaitsShareOneRound);
++        check("theNextWaitSeesWhatChanged", CardStateFlagsTest::theNextWaitSeesWhatChanged);
 +        System.out.println(failed == 0 ? "PASS CardStateFlagsTest" : "FAIL CardStateFlagsTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
 +    }
@@ -4642,6 +4745,138 @@ index 0000000..6d7ef69
 +        expect(flag(f.card(cyclops), "mustAttack"), "Bloodrock Cyclops does not have to attack: " + f.card(cyclops));
 +    }
 +
++    private static void faceDownRoomHidesItsUnlockedDoors() {
++        final Fixture f = new Fixture();
++        final Card room = f.add("Bottomless Pool // Locker Room", f.p1);
++        room.unlockRoom(f.p1, CardStateName.LeftSplit);
++        room.turnFaceDown(true);
++        final JsonObject seen = f.card(room);
++        expect(flag(seen, "isFaceDown"), "the Room is not face down: " + seen);
++        expect(!seen.has("unlockedDoors"), "a face-down Room names its doors to another seat: " + seen);
++        expect(ids(f.card(room, 1), "unlockedDoors").equals(List.of("Bottomless Pool")),
++                "its controller no longer sees the unlocked door: " + f.card(room, 1));
++    }
++
++    private static void seatsWhileTheGameWaitsShareOneRound() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = f.add("Grizzly Bears", f.p0);
++        final Card wall = f.add("Wall of Stone", f.p1);
++        f.add("Bloodrock Cyclops", f.p1);
++        f.settle();
++        final String alone0 = f.snapshot(0);
++        final String alone1 = f.snapshot(1);
++        try (WaitingGame waiting = new WaitingGame(f)) {
++            final String shared0 = f.snapshot(0);
++            final String shared1 = f.snapshot(1);
++            final InteractiveSnapshotExtractor.SnapshotRound round = waiting.round();
++            expect(round != null, "no round while the game waits for an action");
++            expect(round.computedFlags() == 3, "the flags of 3 creatures were computed " + round.computedFlags() + " times");
++            expect(shared0.equals(alone0) && shared1.equals(alone1), "a shared round changed a seat's view");
++            expect(flag(f.card(wall), "cantAttack") && !flag(f.card(bears), "cantAttack"), "wrong flags in the round");
++        }
++    }
++
++    private static void theNextWaitSeesWhatChanged() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = f.add("Grizzly Bears", f.p1);
++        f.settle();
++        try (WaitingGame waiting = new WaitingGame(f)) {
++            expect(!flag(f.card(bears), "cantAttack"), "the bears can't attack before Pacifism");
++            waiting.step(() -> {
++                final Card pacifism = f.add("Pacifism", f.p0);
++                pacifism.attachToEntity(bears, null, true);
++                f.settle();
++            });
++            final JsonObject seen = f.card(bears);
++            expect(flag(seen, "cantAttack") && flag(seen, "cantBlock"), "the next wait kept the old flags: " + seen);
++        }
++    }
++
++    private static final class WaitingGame implements AutoCloseable {
++        private final Fixture f;
++        private final ReentrantLock lock;
++        private final BlockingQueue<JsonObject> actions;
++        private final Field round;
++        private final Semaphore waiting = new Semaphore(0);
++        private final Thread thread;
++        private volatile Runnable step;
++        private volatile Throwable failure;
++
++        @SuppressWarnings("unchecked")
++        WaitingGame(final Fixture f) throws Exception {
++            this.f = f;
++            lock = (ReentrantLock) field("gameLock").get(f.session);
++            actions = (BlockingQueue<JsonObject>) field("actions").get(f.session);
++            round = field("snapshotRound");
++            final Method poll = ManaBrewInteractiveSession.class.getDeclaredMethod("pollAction");
++            poll.setAccessible(true);
++            thread = new Thread(() -> {
++                lock.lock();
++                try {
++                    while (true) {
++                        waiting.release();
++                        JsonObject action;
++                        do {
++                            action = (JsonObject) poll.invoke(f.session);
++                        } while (action == null);
++                        if ("stop".equals(action.get("kind").getAsString())) {
++                            return;
++                        }
++                        step.run();
++                    }
++                } catch (final Throwable thrown) {
++                    failure = thrown;
++                    waiting.release();
++                } finally {
++                    lock.unlock();
++                }
++            }, "waiting game");
++            thread.setDaemon(true);
++            thread.start();
++            await();
++        }
++
++        InteractiveSnapshotExtractor.SnapshotRound round() throws Exception {
++            lock.lock();
++            try {
++                return (InteractiveSnapshotExtractor.SnapshotRound) round.get(f.session);
++            } finally {
++                lock.unlock();
++            }
++        }
++
++        void step(final Runnable change) throws Exception {
++            step = change;
++            offer("step");
++            await();
++        }
++
++        private void offer(final String kind) {
++            final JsonObject action = new JsonObject();
++            action.addProperty("kind", kind);
++            actions.offer(action);
++        }
++
++        private void await() throws Exception {
++            expect(waiting.tryAcquire(30, TimeUnit.SECONDS), "the game never waited for an action");
++            if (failure != null) {
++                throw new AssertionError("the game thread failed", failure);
++            }
++        }
++
++        @Override
++        public void close() throws Exception {
++            offer("stop");
++            thread.join(10_000);
++        }
++
++        private static Field field(final String name) throws NoSuchFieldException {
++            final Field field = ManaBrewInteractiveSession.class.getDeclaredField(name);
++            field.setAccessible(true);
++            return field;
++        }
++    }
++
 +    private static boolean flag(final JsonObject card, final String name) {
 +        return card != null && card.has(name) && card.get(name).getAsBoolean();
 +    }
@@ -4701,8 +4936,16 @@ index 0000000..6d7ef69
 +            game.getUntap().executeAt();
 +        }
 +
++        String snapshot(final int viewer) {
++            return session.getSnapshotJson(viewer);
++        }
++
 +        JsonObject card(final Card card) {
-+            final JsonObject view = JsonParser.parseString(session.getSnapshotJson(0)).getAsJsonObject();
++            return card(card, 0);
++        }
++
++        JsonObject card(final Card card, final int viewer) {
++            final JsonObject view = JsonParser.parseString(session.getSnapshotJson(viewer)).getAsJsonObject();
 +            final String id = SnapshotExtractor.javaCardId(card);
 +            for (final JsonElement z : view.getAsJsonArray("zones")) {
 +                final JsonObject zo = z.getAsJsonObject();
@@ -5000,10 +5243,10 @@ index 0000000..4dd0af7
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/EffectsViewTest.java b/forge-harness/src/test/java/forge/harness/host/EffectsViewTest.java
 new file mode 100644
-index 0000000..79c434c
+index 0000000..60c0a91
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/EffectsViewTest.java
-@@ -0,0 +1,390 @@
+@@ -0,0 +1,427 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -5061,6 +5304,8 @@ index 0000000..79c434c
 +        check("unearthSendsItsExileButNotItsHiddenEffect", EffectsViewTest::unearthSendsItsExileButNotItsHiddenEffect);
 +        check("flickerwispReturnNamesTheExiledCard", EffectsViewTest::flickerwispReturnNamesTheExiledCard);
 +        check("pactUpkeepIsOnItsCastersTurn", EffectsViewTest::pactUpkeepIsOnItsCastersTurn);
++        check("aHostInAHandIsNotNamedToAnotherSeat", EffectsViewTest::aHostInAHandIsNotNamedToAnotherSeat);
++        check("aRememberedCardInAHandIsNotNamedToAnotherSeat", EffectsViewTest::aRememberedCardInAHandIsNotNamedToAnotherSeat);
 +        check("lifeGainedAndLostThisTurnAreSent", EffectsViewTest::lifeGainedAndLostThisTurnAreSent);
 +        System.out.println(failed == 0 ? "PASS EffectsViewTest" : "FAIL EffectsViewTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
@@ -5232,13 +5477,44 @@ index 0000000..79c434c
 +        final Fixture f = new Fixture();
 +        final Card pact = add("Pact of Negation", f.blue, ZoneType.Hand);
 +        resolve(f, AbilityFactory.getAbility(pact.getSVar("DBDelTrig"), pact), f.blue);
-+        final JsonObject delayed = onlyDelayed(f.view());
++        final JsonObject delayed = onlyDelayed(f.view(1));
 +        expect(delayed.get("text").getAsString().startsWith("At the beginning of your next upkeep, pay {3}{U}{U}."),
 +                "text " + delayed.get("text"));
 +        expect("player-1".equals(delayed.get("controllerId").getAsString()), "controllerId " + delayed.get("controllerId"));
 +        expect("upkeep".equals(delayed.get("when").getAsString()), "when " + delayed.get("when"));
 +        expect("player-1".equals(delayed.get("turnOf").getAsString()), "turnOf " + delayed.get("turnOf"));
 +        expect(ids(delayed).isEmpty(), "cardIds " + delayed.get("cardIds"));
++    }
++
++    private static void aHostInAHandIsNotNamedToAnotherSeat() throws Exception {
++        final Fixture f = new Fixture();
++        final Card pact = add("Pact of Negation", f.blue, ZoneType.Hand);
++        resolve(f, AbilityFactory.getAbility(pact.getSVar("DBDelTrig"), pact), f.blue);
++        final JsonObject other = onlyDelayed(f.view(0));
++        expect(!other.has("hostCardId"), "another seat is sent the hand card's id: " + other);
++        expect(other.get("text").getAsString().isEmpty(), "another seat is sent the hand card's text: " + other);
++        expect("upkeep".equals(other.get("when").getAsString()) && "player-1".equals(other.get("turnOf").getAsString()),
++                "the public fields are gone: " + other);
++        final JsonObject owner = onlyDelayed(f.view(1));
++        expect(id(pact).equals(owner.get("hostCardId").getAsString()), "its owner lost the host id: " + owner);
++        expect(owner.get("text").getAsString().startsWith("At the beginning of your next upkeep"), "its owner lost the text: " + owner);
++    }
++
++    private static void aRememberedCardInAHandIsNotNamedToAnotherSeat() throws Exception {
++        final Fixture f = new Fixture();
++        final Card wisp = add("Flickerwisp", f.white, ZoneType.Battlefield);
++        final Card bear = add("Grizzly Bears", f.blue, ZoneType.Battlefield);
++        final SpellAbility exile = AbilityFactory.getAbility(wisp.getSVar("TrigExile"), wisp);
++        exile.getTargets().add(bear);
++        resolve(f, exile, f.white);
++        final Card exiled = f.game.getCardState(bear);
++        f.game.getAction().moveTo(ZoneType.Hand, exiled, null, null);
++        final JsonObject other = onlyDelayed(f.view(0));
++        expect(ids(other).isEmpty(), "another seat is sent the hand card's id: " + other);
++        expect(other.get("text").getAsString().isEmpty(), "another seat is sent the text naming it: " + other);
++        expect(id(wisp).equals(other.get("hostCardId").getAsString()), "the public host id is gone: " + other);
++        final JsonObject owner = onlyDelayed(f.view(1));
++        expect(ids(owner).size() == 1, "its owner lost the card id: " + owner);
 +    }
 +
 +    private static void lifeGainedAndLostThisTurnAreSent() throws Exception {
@@ -5368,7 +5644,11 @@ index 0000000..79c434c
 +        }
 +
 +        JsonObject view() {
-+            return JsonParser.parseString(session.getSnapshotJson(0)).getAsJsonObject();
++            return view(0);
++        }
++
++        JsonObject view(final int viewer) {
++            return JsonParser.parseString(session.getSnapshotJson(viewer)).getAsJsonObject();
 +        }
 +
 +        JsonObject player(final int index) {
@@ -5396,10 +5676,10 @@ index 0000000..79c434c
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/EngineEventDamageTest.java b/forge-harness/src/test/java/forge/harness/host/EngineEventDamageTest.java
 new file mode 100644
-index 0000000..922f663
+index 0000000..9f17899
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/EngineEventDamageTest.java
-@@ -0,0 +1,359 @@
+@@ -0,0 +1,403 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -5416,6 +5696,7 @@ index 0000000..922f663
 +import forge.game.card.CardCollection;
 +import forge.game.card.CounterEnumType;
 +import forge.game.combat.Combat;
++import forge.game.event.GameEventPlayerDamaged;
 +import forge.game.phase.PhaseType;
 +import forge.game.player.Player;
 +import forge.game.player.RegisteredPlayer;
@@ -5452,6 +5733,8 @@ index 0000000..922f663
 +        check("fullyPreventedCombatDamageSendsNothing", EngineEventDamageTest::fullyPreventedCombatDamageSendsNothing);
 +        check("aWipeOfABigBoardKeepsEveryMoveInTheRing", EngineEventDamageTest::aWipeOfABigBoardKeepsEveryMoveInTheRing);
 +        check("oldFieldsStayOffDamageEvents", EngineEventDamageTest::oldFieldsStayOffDamageEvents);
++        check("damageToACardWithNoIdIsNotSent", EngineEventDamageTest::damageToACardWithNoIdIsNotSent);
++        check("damageWithNoSourceOwnerIsNotSent", EngineEventDamageTest::damageWithNoSourceOwnerIsNotSent);
 +        System.out.println(failed == 0 ? "PASS EngineEventDamageTest" : "FAIL EngineEventDamageTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
 +    }
@@ -5640,6 +5923,38 @@ index 0000000..922f663
 +        }
 +    }
 +
++    private static void damageToACardWithNoIdIsNotSent() {
++        final Fixture f = new Fixture();
++        final Card shock = f.add("Shock", f.white, ZoneType.Hand);
++        final Card token = f.addUnseen("Grizzly Bears", f.blue);
++        f.cast(shock, f.white, token);
++        f.game.getAction().checkStateEffects(true);
++        expect("the bears died", true, token.getZone() == null || !f.game.getCardState(token).isInZone(ZoneType.Battlefield));
++        final List<Map<String, Object>> events = f.log.view();
++        expect("damage events", 0, damage(events).size());
++        noUnknownOwner(events);
++    }
++
++    private static void damageWithNoSourceOwnerIsNotSent() {
++        final Fixture f = new Fixture();
++        f.log.recieve(new GameEventPlayerDamaged(f.blue.getView(), null, 2, false, false));
++        final Card shock = f.add("Shock", f.white, ZoneType.Hand);
++        f.cast(shock, f.white, f.blue);
++        final List<Map<String, Object>> events = f.log.view();
++        final Map<String, Object> hit = only(damage(events));
++        expect("the real hit", f.id(shock), hit.get("sourceCardId"));
++        noUnknownOwner(events);
++    }
++
++    private static void noUnknownOwner(final List<Map<String, Object>> events) {
++        for (final Map<String, Object> event : events) {
++            expect("an owner on " + event, false, "player--1".equals(event.get("ownerId")));
++            if ("damage".equals(event.get("kind"))) {
++                expect("a target on " + event, true, event.containsKey("targetCardId") || event.containsKey("targetPlayerId"));
++            }
++        }
++    }
++
 +    private static List<Map<String, Object>> damage(final List<Map<String, Object>> events) {
 +        final List<Map<String, Object>> hits = new ArrayList<>();
 +        for (final Map<String, Object> event : events) {
@@ -5719,6 +6034,15 @@ index 0000000..922f663
 +                card.setSickness(false);
 +            }
 +            ParityCardMap.syncWithGame(game);
++            return card;
++        }
++
++        Card addUnseen(final String name, final Player p) {
++            final IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(p.getGame().getNextTimestamp());
++            p.getZone(ZoneType.Battlefield).add(card);
++            card.setSickness(false);
 +            return card;
 +        }
 +

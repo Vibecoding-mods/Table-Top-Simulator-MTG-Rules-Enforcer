@@ -2514,10 +2514,16 @@ do
     -- 5 (bighit) and the players hit by 5 or less (playerhit); players whose life went up (a board has life totals
     -- only: two gains by one player count once); the spells countered (as the COUNTERED pop-up takes them); a sorcery
     -- and an instant resolved (FX.resolvedOf; 1 at most each); permanents given counters
-    local nDied = 0
-    for _, ids in pairs(diedIds) do nDied = nDied + #ids end
+    -- (and Treasure tokens, FX.isTreasure: those new on the battlefield are the treasure sound; those that left it the
+    -- way a death does, sacrificed for mana or not, are treasurespend in place of death and wipe, never counted in them)
+    local nDied, nSpent, nMade = 0, 0, 0
+    for _, ids in pairs(diedIds) do
+      for _, id in ipairs(ids) do if prev.bf[id] ~= nil and prev.bf[id].tr then nSpent = nSpent + 1 else nDied = nDied + 1 end end
+    end
+    for id, x in pairs(now.bf) do if x.tr and prev.bf[id] == nil then nMade = nMade + 1 end end
     local counts = { knockout = nOut, wipe = nDied >= FX.WIPE and nDied or 0, death = nDied, exile = exiledIds and #exiledIds or 0,
       bighit = nBig, playerhit = nHurt - nBigP, damage = #hitsAt + nHurt, lifegain = nGained, countered = countered and #countered or 0,
+      treasure = nMade, treasurespend = nSpent,
       sorcery = FX.resolvedOf(m, "sor") and 1 or 0, instant = FX.resolvedOf(m, "ins") and 1 or 0, counter = #rings }
     -- one sound: the most important kind on this board that has a pick
     local kind = nil
@@ -2725,6 +2731,17 @@ do
     end
     return false
   end
+  -- a Treasure token (the treasure and treasurespend sounds, 2026-11-13): a token whose type line has the Treasure
+  -- subtype (the bridge's tl, "Artifact — Treasure": a copy or a renamed one counts, a creature token named Treasure
+  -- doesn't); with no type line, by Forge's name for it. Never a face-down card (its details are hidden)
+  function FX.isTreasure(card)
+    if not card.tok or card.fd then return false end
+    local tl = tostring(card.tl or "")
+    local dash = tl:find("—", 1, true)
+    if dash ~= nil then return (" " .. tl:sub(dash + #"—") .. " "):find(" Treasure ", 1, true) ~= nil end
+    if tl ~= "" then return false end
+    return card.n == "Treasure Token" or card.n == "Treasure"
+  end
   -- a jump, not a play: the next board only gives the effects a new start (the table was sent again, "started")
   function engineEffectsJump() FX.jumpNext = true end
   -- for calibrating on the real table (real-table check 2): one slot on a card (engine id) or a player's spot (a
@@ -2906,7 +2923,7 @@ do
         -- (its spot on this board, for the effects; a token drawn as part of a group has its group's spot)
         for _, card in ipairs(pl.battlefield or {}) do
           now.bf[card.id] = { owner = c, tok = card.tok, pos = enginePlanned[card.id] or (engineGroupOf[card.id] ~= nil and enginePlanned[engineGroupOf[card.id]]) or nil,
-            dmg = tonumber(card.dmg) or 0, ctr = card.ctr, fd = card.fd }
+            dmg = tonumber(card.dmg) or 0, ctr = card.ctr, fd = card.fd, tr = FX.isTreasure(card) or nil }
         end
         for _, card in ipairs(pl.graveyard or {}) do now.gy[card.id] = c end
         for _, card in ipairs(pl.exile or {}) do now.ex[card.id] = c if card.ew ~= nil then now.ew[card.id] = card.ew end end
@@ -5266,12 +5283,18 @@ engineSounds = engineSounds or {
   wipe_x4 = "https://steamusercontent-a.akamaihd.net/ugc/12703812866224761222/8F7B4507EC055B76100A5BF6966D5C085331E6A8/",
   wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/14531756883241499521/4AB4F03063BBA056EE23C175B621BE4FB228DE58/",
   wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/10603921525270560187/08115EEC453EE7937CD5B34288B696512A190D7D/",
+  -- the Treasure sounds (docs/sounds.md "Treasure", 2026-11-13): made (tools/make-treasure-sounds.js), not uploaded
+  -- yet, so nil: silent until their links are in (match each link to its file by the doc's sha256s)
+  treasure = nil,          -- Treasure tokens created (mtg2-treasure.mp3; bursts mtg2-treasure-x2..x8.mp3)
+  treasurespend = nil,     -- Treasure tokens leaving the battlefield, sacrificed for mana or not: in place of death
+  treasure_x2 = nil, treasure_x3 = nil, treasure_x4 = nil, treasure_x6 = nil, treasure_x8 = nil,
+  treasurespend_x2 = nil, treasurespend_x3 = nil, treasurespend_x4 = nil, treasurespend_x6 = nil, treasurespend_x8 = nil,
 }
 -- each clip's length in seconds, where it isn't 2 (docs/sounds.md: every clip is padded to at least 2 s; a clip is
 -- paused just before its length runs out, engineSoundPlay)
-engineSoundLen = engineSoundLen or { exile_x6 = 2.04, exile_x8 = 2.25, lifegain_x8 = 2.25, bighit_x8 = 2.2, sorcery = 2.4 }
+engineSoundLen = engineSoundLen or { exile_x6 = 2.04, exile_x8 = 2.25, lifegain_x8 = 2.25, bighit_x8 = 2.2, sorcery = 2.4, treasure_x6 = 2.1, treasure_x8 = 2.3 }
 -- the sound kinds, most important first: one sound per board, the first of these on it that has a pick
-engineSoundKinds = { "knockout", "wipe", "bighit", "death", "exile", "countered", "playerhit", "damage", "lifegain", "sorcery", "instant", "counter" }
+engineSoundKinds = { "knockout", "wipe", "bighit", "death", "exile", "countered", "playerhit", "damage", "lifegain", "treasure", "treasurespend", "sorcery", "instant", "counter" }
 engineSoundsMuted = false -- the host's switch for the whole table
 -- the three pictures of the table effects (links from TTS's Cloud Manager); nil = a coloured "●" stands in
 engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }
@@ -9262,6 +9285,11 @@ function engineTextAbility(line)
   if at == nil or at < 2 or at > 70 then return nil end
   local cost, eff = line:sub(1, at - 1), (line:sub(at + 1):gsub("^%s+", ""))
   if cost:find(".", 1, true) or cost:find('"', 1, true) then return nil end
+  -- (the engine's text writes a loyalty cost in brackets, "[+2]: ...", the offered ability bare, "+2: ...")
+  if cost:sub(1, 1) == "[" and cost:sub(-1) == "]" and engineLoyaltyCost(cost:sub(2, -2)) ~= nil then
+    cost = cost:sub(2, -2)
+    line = cost .. ": " .. eff
+  end
   local loyalty = engineLoyaltyCost(cost)
   local first = cost:match("^(%a+)") or ""
   if loyalty == nil and not cost:find("{", 1, true) and not ENGINE_AB_COSTWORDS[first] then return nil end
