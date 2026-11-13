@@ -5235,7 +5235,7 @@ engineSounds = engineSounds or {
   countered = "https://steamusercontent-a.akamaihd.net/ugc/16931120861737353001/A2214840FC305FC9063F57823D4C2852D2383CD3/",   -- a spell countered (as the COUNTERED pop-up)
   playerhit = "https://steamusercontent-a.akamaihd.net/ugc/17427026780177468511/DC419EEC5FE59459E3F2417452DDE9E381380D0F/",   -- 1 to 5 damage to a player (bursts playerhit_x2..x8)
   bighit = "https://steamusercontent-a.akamaihd.net/ugc/13928224574378758506/BFC535CE502EC967E020203AE6E1CAA2A68E703C/",      -- one hit of more than 5, to a player or a creature (bursts bighit_x2..x8)
-  sorcery = "https://steamusercontent-a.akamaihd.net/ugc/14467135192415793223/86376C7381097865A4421068FCA1FF8827BE47A8/",     -- a sorcery cast (not abilities, not copies)
+  sorcery = "https://steamusercontent-a.akamaihd.net/ugc/13241084417049183126/BB800BB0A8D05F14C238A0B03A137A70148E6B41/",     -- a sorcery cast (not abilities, not copies)
   -- the bursts (docs/sounds.md "Bursts", 2026-11-11): the kind's sound stacked N times, for N or more of it on one board
   -- (FX.burst: the largest at or under the count, up to x8); wipe's plain sound is already its 3+ one, so it has no x2
   bighit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10102534904146116314/FEC357F76AD3BC3E204485638504751C6EA5B3B4/",
@@ -5275,7 +5275,7 @@ engineSounds = engineSounds or {
 }
 -- each clip's length in seconds, where it isn't 2 (docs/sounds.md: every clip is padded to at least 2 s; a clip is
 -- paused just before its length runs out, engineSoundPlay)
-engineSoundLen = engineSoundLen or { exile_x6 = 2.04, exile_x8 = 2.25, lifegain_x8 = 2.25, bighit_x8 = 2.2 }
+engineSoundLen = engineSoundLen or { exile_x6 = 2.04, exile_x8 = 2.25, lifegain_x8 = 2.25, bighit_x8 = 2.2, sorcery = 2.4 }
 -- the sound kinds, most important first: one sound per board, the first of these on it that has a pick
 engineSoundKinds = { "knockout", "wipe", "bighit", "death", "exile", "countered", "playerhit", "damage", "lifegain", "sorcery", "instant", "counter" }
 engineSoundsMuted = false -- the host's switch for the whole table
@@ -5285,8 +5285,9 @@ engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }
 -- a link and no such object on the table, a game's first board spawns them once, parked under the table (fx: the
 -- pool of rigs, GM notes "engine:fx"; sounds: one object, "engine:sounds"); they then stay in the save. nil or "" =
 -- nothing spawned (rigs or a sound object already in the save are still used); with none, the effects are today's.
--- bolt: the bolt bundle (mtg-bolt.unity3d, rigs "engine:bolt"), not uploaded yet: no bolts until it is.
-engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/", sounds = nil, bolt = nil }
+-- bolt: the bolt bundle (mtg-bolt.unity3d, rigs "engine:bolt"). Both uploaded 2026-11-12 night (fx: mtg-fx2.unity3d,
+-- the tint-ready rebuild; links matched to their files by sha256).
+engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/13181964746744684712/6948BE73BB273AAB129525130A13E4982559BD1D/", sounds = nil, bolt = "https://steamusercontent-a.akamaihd.net/ugc/12109543125843195804/C6B0053848DA7FCB5E6136B82243D57A66E3B289/" }
 -- The particle effects (docs/particle-fx-spec.md), "mtg fx on|low|off" (the host's, saved with the game): on, all of
 -- them; low, a wipe's wave without its cards' own deaths, and no bolts; off, no rig effect at all, the table as it was
 -- without the bundle (sounds, slots and flashes stay). engineFxTint: the host's flag for the live tint check (a

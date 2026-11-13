@@ -1171,7 +1171,7 @@ const pools = (nFx, nBolt, extra = "") => lua(`for i = 1, ${nFx} do __sim.makeOb
   Transform = { posX = 20 + i, posY = -30, posZ = 0 }, CustomAssetbundle = { AssetbundleURL = "https://example.invalid/fx.unity3d", SimTriggerEffects = { "${FX_NAMES.join('", "')}" } } }) end
   for i = 1, ${nBolt} do __sim.makeObj({ Name = "Custom_Assetbundle", GUID = string.format("blt%03d", i), GMNotes = "engine:bolt", Locked = true,
   Transform = { posX = 20 + i, posY = -30, posZ = 2 }, CustomAssetbundle = { AssetbundleURL = "https://example.invalid/bolt.unity3d", SimTriggerEffects = { "${BOLT_NAMES.join('", "')}" } } }) end
-  engineFxBundle.fx = nil ${extra} return "pools"`, "pools"); // (no link: the pools as given, see rigs)
+  engineFxBundle.fx = nil engineFxBundle.bolt = nil ${extra} return "pools"`, "pools"); // (no links: the pools as given, see rigs)
 // every rig of both pools: where it is, its scale and tint now, and each trigger effect it played (frame, spot, turn,
 // scale, tint then)
 const POOLQ = lua(`local out = {} for _, o in ipairs(getObjects()) do local gm = o.getGMNotes() if gm == "engine:fx" or gm == "engine:bolt" then local p = o.getPosition() local pl = {}
@@ -1543,7 +1543,10 @@ const wiped = (s, ids, by, extra = {}) => {
       JSON.stringify({ e: x.r.errors.slice(0, 1), spawns: x.spawns, q2: x.q2 }));
   };
   none("the next load (the new rigs saved with their memo)", withRigs(NEW), `engineFxBundle = { fx = "${NEW}" }`);
-  none("the shipped link (rigs with no memo are its own)", withRigs(null), "");
+  none("the legacy link (rigs with no memo are its own)", withRigs(null), `engineFxBundle = { fx = "${LEGACY}" }`);
+  // since 2026-11-12 night the shipped fx link is mtg-fx2's, not the legacy one: the user's memo-less rigs are renewed
+  const shippedFx = (save.LuaScript.match(/engineFxBundle = engineFxBundle or \{ fx = "([^"]+)"/) || [])[1];
+  ok("stale rigs: the shipped fx link is not the legacy one (the old rigs in a save are renewed)", /^https:\/\/steamusercontent/.test(shippedFx || "") && shippedFx !== LEGACY, JSON.stringify({ shippedFx, LEGACY }));
   none("no link", withRigs(null), `engineFxBundle = { fx = "" }`);
   none("mtg fx off", withRigs(null), `engineFxBundle = { fx = "${NEW}" } rawset(Global, "script_state", '{"engineStash":{},"engineFx":"off"}')`);
 }
