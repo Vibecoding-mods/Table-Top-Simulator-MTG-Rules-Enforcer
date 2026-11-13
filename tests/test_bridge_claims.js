@@ -4096,8 +4096,10 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const ELK = card("engine-card-983", "Elk", ["Creature"], "player-1", "", { power: 3, toughness: 3 });
       const BOLT = card("engine-card-982", "Lightning Bolt", ["Instant"], "player-0", "R", { text: "Lightning Bolt deals 3 damage to any target." });
       const ALTAR = card("engine-card-990", "Ashnod's Altar", ["Artifact"], "player-1", "");
+      const WOLF = card("engine-card-984", "Timber Wolves", ["Creature"], "player-0", "G", { power: 1, toughness: 1 });
+      const OX = card("engine-card-985", "Trained Armodon", ["Creature"], "player-0", "G", { power: 3, toughness: 3 });
       gv.events = [];
-      zone("battlefield", "player-0").cards.push(BEAR);
+      zone("battlefield", "player-0").cards.push(BEAR, WOLF, OX);
       zone("battlefield", "player-1").cards.push(GIANT, ELK, ALTAR);
       zone("hand", "player-0").cards.push(BOLT);
       h.B.sendTable(); await h.flush();
@@ -4108,10 +4110,11 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       h.B.sendTable(); await h.flush();
       const t1 = sent(h, "table").at(-1) || {};
       // (the Bolt resolves at the Bears; the AI sacrifices its Elk to its Altar; the Giant's combat damage at Blue; a
-      // damage entry of 0 and one at nothing, which name no card and must not count)
+      // damage entry of 0 and one at nothing, which name no card and must not count; the Giant's combat damage to the
+      // Wolves, which die of it, and to the Armodon, which lives)
       gv.stack = [];
-      zone("battlefield", "player-0").cards = zone("battlefield", "player-0").cards.filter((c) => c.id !== BEAR.id);
-      zone("graveyard", "player-0").cards.push(BEAR, BOLT);
+      zone("battlefield", "player-0").cards = zone("battlefield", "player-0").cards.filter((c) => c.id !== BEAR.id && c.id !== WOLF.id);
+      zone("graveyard", "player-0").cards.push(BEAR, BOLT, WOLF);
       zone("battlefield", "player-1").cards = zone("battlefield", "player-1").cards.filter((c) => c.id !== ELK.id);
       zone("graveyard", "player-1").cards.push(ELK);
       const dmg = (seq, src, tgt, n, combat) => ({ seq, id: `event-${seq}`, kind: "damage", to: "Damage", sourceCardId: src, ...(tgt?.startsWith("player") ? { targetPlayerId: tgt } : tgt ? { targetCardId: tgt } : {}), amount: n, combat });
@@ -4119,7 +4122,9 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       gv.events = [...(withDamage ? [dmg(1, BOLT.id, BEAR.id, 3, false)] : []), mv(2, BOLT.id, "Stack", "Graveyard", "player-0"),
         mv(3, BEAR.id, "Battlefield", "Graveyard", "player-0", { how: "destroyed" }),
         mv(4, ELK.id, "Battlefield", "Graveyard", "player-1", { how: "sacrificed", cause: "Sacrifice", causeCardId: ALTAR.id, causeName: "Ashnod's Altar" }),
-        ...(withDamage ? [dmg(5, GIANT.id, "player-0", 3, true), dmg(6, GIANT.id, BEAR.id, 0, false), dmg(7, GIANT.id, null, 2, false)] : [])]
+        ...(withDamage ? [dmg(5, GIANT.id, "player-0", 3, true), dmg(6, GIANT.id, BEAR.id, 0, false), dmg(7, GIANT.id, null, 2, false),
+          dmg(8, GIANT.id, WOLF.id, 2, true), dmg(9, GIANT.id, OX.id, 1, true)] : []),
+        mv(10, WOLF.id, "Battlefield", "Graveyard", "player-0", { how: "destroyed" })]
         .map((e, i) => ({ ...e, seq: i + 1, id: `event-${i + 1}` })); // (the ring numbered without gaps: a gap reads as falling behind)
       const markLog = sent(h, "gamelog").length;
       h.B.sendTable(); await h.flush();
@@ -4145,10 +4150,11 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       JSON.stringify(Object.fromEntries(Object.entries(r.t0.cards || {}).filter(([k]) => /98[0-3]/.test(k)).map(([k, v]) => [k, v.cl]))));
     ok("fx cl: a stack item has its card's colours, from where it was last seen", (r.t1.stack || []).find((s) => s.id === "engine-stack-40")?.cl === "R", JSON.stringify(r.t1.stack));
     ok("fx lv/hits: none on a board where nothing left or was hit", r.t0.lv === undefined && r.t0.hits === undefined && r.t1.lv === undefined && r.t1.hits === undefined, JSON.stringify([r.t1.lv, r.t1.hits]));
-    ok("fx hits: the Bolt at the Bears, the Giant's combat damage at Blue's colour, in Forge's order; nothing of 0 or at nothing",
-      JSON.stringify(r.t2.hits) === JSON.stringify([{ src: "engine-card-982", to: "engine-card-980", n: 3, q: 1 }, { src: "engine-card-981", to: "Blue", n: 3, q: 4, combat: true }]), JSON.stringify(r.t2.hits));
-    ok("fx lv: the Bears destroyed by the damage's source, the Elk sacrificed to the Altar, q across both lists",
-      JSON.stringify(r.t2.lv) === JSON.stringify([{ id: "engine-card-980", to: "g", how: "d", by: "engine-card-982", q: 2 }, { id: "engine-card-983", to: "g", how: "s", by: "engine-card-990", q: 3 }]), JSON.stringify(r.t2.lv));
+    ok("fx hits: the Bolt at the Bears and the Giant's combat damage to the Wolves that died of it, in Forge's order; not its combat damage at Blue nor at the Armodon that lives; nothing of 0 or at nothing",
+      JSON.stringify(r.t2.hits) === JSON.stringify([{ src: "engine-card-982", to: "engine-card-980", n: 3, q: 1 }, { src: "engine-card-981", to: "engine-card-984", n: 2, q: 4, combat: true }]), JSON.stringify(r.t2.hits));
+    ok("fx lv: the Bears destroyed by the damage's source, the Elk sacrificed to the Altar, the Wolves by the Giant, q across both lists",
+      JSON.stringify(r.t2.lv) === JSON.stringify([{ id: "engine-card-980", to: "g", how: "d", by: "engine-card-982", q: 2 }, { id: "engine-card-983", to: "g", how: "s", by: "engine-card-990", q: 3 },
+        { id: "engine-card-984", to: "g", how: "d", by: "engine-card-981", q: 5 }]), JSON.stringify(r.t2.lv));
     ok("fx lv: a board skipped as identical keeps its lv for the next one", r.skipped && JSON.stringify(r.t3.lv) === '[{"id":"engine-card-981","to":"e","q":1}]' && r.t3.hits === undefined, JSON.stringify([r.skipped, r.t3.lv, r.t3.hits]));
     ok("fx lv/hits: sent once", r.t4.lv === undefined && r.t4.hits === undefined, JSON.stringify([r.t4.lv, r.t4.hits]));
     // the same with an engine that sends no damage entries: the log's certain damage stands in, its spell blamed for the death
@@ -4156,6 +4162,44 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("fx old engine: the log still says the Bolt's damage", o.logged.includes("Lightning Bolt deals 3 damage to Grizzly Bears"), JSON.stringify(o.logged));
     ok("fx old engine: hits from the log's certain damage (the Bolt at the Bears), first", JSON.stringify(o.t2.hits) === JSON.stringify([{ src: "engine-card-982", to: "engine-card-980", n: 3, q: 1 }]), JSON.stringify(o.t2.hits));
     ok("fx old engine: the Bears' death blamed on the card that left the stack before it", JSON.stringify((o.t2.lv || []).find((x) => x.id === "engine-card-980")) === JSON.stringify({ id: "engine-card-980", to: "g", how: "d", by: "engine-card-982", q: 2 }), JSON.stringify(o.t2.lv));
+    // a morph seen face up in its owner's hand (green), then cast face down: Forge's stack item keeps the card's id and
+    // names it "" (PlaySpellAbility turns it face down before the cost). Its colour would tell every seat what it is.
+    {
+      const h = harness.load();
+      const seat = setup(h, F.board);
+      const gv = seat.board.state.gameView;
+      const hand = gv.zones.find((x) => x.zone === "hand" && x.ownerId === "player-0");
+      gv.events = [];
+      hand.cards.push({ id: "engine-card-1990", identity: { name: "Den Protector" }, types: ["Creature"], controllerId: "player-0", ownerId: "player-0", color: "G" });
+      h.B.sendTable(); await h.flush();
+      const seen = (sent(h, "table").at(-1) || {}).cards?.["engine-card-1990"]?.cl;
+      hand.cards = hand.cards.filter((c) => c.id !== "engine-card-1990");
+      for (const casting of [true, false]) {
+        gv.stack = [{ id: casting ? "casting-77" : "engine-stack-77", sourceId: "engine-card-1990", controllerId: "player-0", ownerId: "player-0", identity: { name: "" },
+          isPermanentSpell: true, isCasting: casting, targets: [], text: "" }];
+        gv.players.find((p) => p.id === "player-0").life -= 1;
+        h.B.sendTable(); await h.flush();
+        const st = ((sent(h, "table").at(-1) || {}).stack || [])[0] || {};
+        ok(`fx cl: a morph cast face down has no colour on the stack${casting ? " (while it is cast)" : ""}, though its hand showed it green`, seen === "G" && st.src === "engine-card-1990" && st.cl === undefined, JSON.stringify({ seen, st }));
+      }
+      harness.restore();
+    }
+    // a huge wipe: at most 48 of each, the first by Forge's order, q numbering what is sent
+    {
+      const h = harness.load();
+      const left = new Map(), hits = [];
+      for (let i = 0; i < 60; i++) {
+        hits.push({ seq: 2 * i + 1, src: "engine-card-1", card: `engine-card-${100 + i}`, n: 1 });
+        left.set(`engine-card-${100 + i}`, { to: "g", how: "d", seq: 2 * i + 2 });
+      }
+      const f = h.B.fxFacts(left, hits);
+      const qs = [...(f.lv || []), ...(f.hits || [])].map((x) => x.q).sort((a, b) => a - b);
+      ok("fx cap: 48 lv and 48 hits of 60 each, the first ones", f.lv?.length === 48 && f.hits?.length === 48 && f.lv[47].id === "engine-card-147" && f.hits[47].to === "engine-card-147",
+        JSON.stringify([f.lv?.length, f.hits?.length, f.lv?.at(-1), f.hits?.at(-1)]));
+      ok("fx cap: q runs 1..96 over what is sent, in Forge's order", qs.length === 96 && qs.every((q, i) => q === i + 1) && f.hits[0].q === 1 && f.lv[0].q === 2,
+        JSON.stringify(qs.slice(0, 4).concat(qs.slice(-2))));
+      harness.restore();
+    }
   }
   // whom Hero of Bladehold's attacking tokens attack, asked over Forge's labels (entityChoiceIds, entityWords; live check
   // 2026-11-11: a dead Jace Beleren in a graveyard left the live one unmapped, and the list came as "Hero of Bladehold:

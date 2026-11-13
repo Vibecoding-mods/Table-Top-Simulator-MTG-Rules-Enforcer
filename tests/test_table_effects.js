@@ -1354,6 +1354,24 @@ const wiped = (s, ids, by, extra = {}) => {
     JSON.stringify([off.all("last").map((s) => s.value), none.all("last").map((s) => s.value)]).slice(0, 400));
   ok("fx off: the rigs never leave the park", !off.r.steps.some((s) => (s.fx || []).some((l) => /"setPosition" obj:(rig|blt)\d/.test(l))));
 }
+// "mtg fx off" reads no lv: a token the engine says went to a hand, and one it says was exiled (no exd, not in an
+// exile zone), die as they did on the table before lv; with effects on, neither is a death (the boards tell apart)
+{
+  const s0 = base(); s0.Blue.bf.push("tok1");
+  const home = base(); home.lv = [{ id: "tok1", to: "h", q: 1 }];
+  const gone = base(); gone.lv = [{ id: "tok1", to: "e", q: 1 }];
+  const boards = (lv) => [send(s0, "first board"), send(lv ? home : { ...home, lv: undefined }, "home", 60), LAST, send(s0, "back", 30), send(lv ? gone : { ...gone, lv: undefined }, "gone", 60), LAST];
+  const noLinks = lua(`engineFxBundle = { fx = nil, sounds = nil, bolt = nil } return "x"`, "links", 1);
+  const off = run([noLinks, lua(`engineChat("mtg fx off", Player.Blue) return engineFxMode`, "off", 1), ...boards(true)]);
+  const today = run([noLinks, lua(`return "pad"`, "off", 1), ...boards(false)]);
+  const on = run([noLinks, lua(`return "pad"`, "off", 1), ...boards(true)]);
+  const died = (t) => t.all("last").map((s) => JSON.parse(s.value || "{}").died || {});
+  ok("fx off, lv: the scripts ran", !off.r.errors.length && !today.r.errors.length && !on.r.errors.length, [...off.r.errors, ...today.r.errors, ...on.r.errors].slice(0, 2).join(" | "));
+  ok("fx off, lv: the token home and the token exiled each die, as before lv", JSON.stringify(died(off)) === '[{"Blue":1},{"Blue":1}]' && JSON.stringify(died(off)) === JSON.stringify(died(today)),
+    JSON.stringify([died(off), died(today)]));
+  ok("fx off, lv: the same calls as the table before lv", ["home", "gone"].every((mk) => JSON.stringify(off.fx(mk)) === JSON.stringify(today.fx(mk))), ["home", "gone"].map((mk) => off.fx(mk).length + "/" + today.fx(mk).length).join(" "));
+  ok("fx off, lv: effects on, neither is a death", died(on).length === 2 && died(on).every((d) => Object.keys(d).length === 0), JSON.stringify(died(on)));
+}
 
 // the bolts: from where a spell stood on the stack (an ability: its card) to its target, aimed (local +z at it) and
 // scaled to the distance, in the source's colour (bolt_<C>; colourless, two colours or unknown: the red-orange bolt);
@@ -1380,6 +1398,9 @@ const wiped = (s, ids, by, extra = {}) => {
   const withTok = plain(L); withTok.Blue.bf.push("tok1");
   const tokHome = plain(L); tokHome.lv = [{ id: "tok1", to: "h", q: 1 }];
   const tokGone = plain(L);
+  // (a face-down creature's ability: its card's colour, green, known from when it was face up, is not told)
+  const fdPre = plain(L); fdPre.White.more.w2 = { fd: true };
+  const fdHit = Object.assign(dmg(plain(L), { b3: 1 }), { hits: hitsOf([["w2", "b3", 1]]) }); fdHit.White.more.w2 = { fd: true };
   const t = run([pools(6, 6),
     send(pre1, "first board", 10), send(pre1, "bolt on the stack", 10), POOLQ, posOf(["w1", "w2", "w3", "b1", "b2", "b3", "b6", "b7"]),
     lua(`local p = engineFxStackSpot["engine-stack-c30"] return p and JSON.encode({ x = p.x, y = p.y, z = p.z }) or "{}"`, "stack spot", 1),
@@ -1394,6 +1415,7 @@ const wiped = (s, ids, by, extra = {}) => {
     send(noHits, "no hits", 150), POOLQ, send(plain(L), "c9", 30), POOLQ,
     send(exile, "exile", 150), POOLQ, send(withTok, "c10", 30), POOLQ,
     send(tokHome, "token home", 150), POOLQ, LAST, send(withTok, "c11", 30), POOLQ, send(tokGone, "token gone", 150), POOLQ, LAST,
+    send(fdPre, "c12", 30), POOLQ, send(fdHit, "face down", 150), POOLQ,
   ]);
   ok("bolts: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
   const q = t.all("poolq").map((s) => JSON.parse(s.value || "[]"));
@@ -1435,6 +1457,7 @@ const wiped = (s, ids, by, extra = {}) => {
   const lasts = t.all("last").map((s) => JSON.parse(s.value || "{}"));
   ok("token home: a token the engine says went to a hand is no death", at(20).length === 0 && Object.keys(lasts[0].died || {}).length === 0, JSON.stringify([at(20), lasts[0]]));
   ok("token gone: one that just left the battlefield still dies", at(22).some((x) => x.name === "death") && (lasts[1].died || {}).Blue === 1, JSON.stringify([at(22), lasts[1]]));
+  ok("bolt, a face-down source: the red-orange bolt, not its card's green", JSON.stringify(at(24).filter((x) => x.bolt).map((x) => x.name)) === '["bolt"]', JSON.stringify(at(24).map((x) => x.name)));
 }
 
 // engineFxBoltMove (the fallback, should the bundle's flight not play): bolt_trail at scale 1, the rig moved to the
@@ -1469,7 +1492,8 @@ const wiped = (s, ids, by, extra = {}) => {
   const q0 = nil.all("poolq").map((s) => JSON.parse(s.value || "[]"));
   ok("no bolt link: the hit's damage at once, no bolt", JSON.stringify(fxPlayed(q0[0], q0[1]).map((x) => x.name)) === '["damage"]' && arr(nil.value("lastb")).every((b) => b.name == null),
     JSON.stringify([fxPlayed(q0[0], q0[1]).map((x) => x.name), nil.value("lastb")]));
-  const up = run([pools(4, 0), lua(`${bundles} engineFxBundle = { fx = "${FXL}", sounds = nil, bolt = "${BL}" } return "x"`, "links"), send(pre, "first board", 10), count, POOLQ, send(hit, "hit", 150), POOLQ,
+  // (rigs of this very link, its memo: else they would be an older bundle's, replaced; see the next block)
+  const up = run([pools(4, 0, `for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:fx" then o.memo = "${FXL}" end end`), lua(`${bundles} engineFxBundle = { fx = "${FXL}", sounds = nil, bolt = "${BL}" } return "x"`, "links"), send(pre, "first board", 10), count, POOLQ, send(hit, "hit", 150), POOLQ,
     { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" }, { msg: { t: "started", json: STARTED }, mark: "started 2" }, send(pre, "second game", 10), count]);
   ok("bolt link: the script ran", !up.r.errors.length, up.r.errors.slice(0, 2).join(" | "));
   const [c1, c2] = up.all("count").map((s) => JSON.parse(s.value || "{}"));
@@ -1477,6 +1501,51 @@ const wiped = (s, ids, by, extra = {}) => {
   const q1 = up.all("poolq").map((s) => JSON.parse(s.value || "[]"));
   ok("bolt link: a spawned bolt rig flies bolt_R", fxPlayed(q1[0], q1[1]).some((x) => x.bolt && x.name === "bolt_R"), JSON.stringify(fxPlayed(q1[0], q1[1]).map((x) => x.name)));
   ok("bolt link: the next game spawns none", c2.fx === 6 && c2.bolt === 4, JSON.stringify(c2));
+}
+
+// a save holding rigs of an older bundle (the user's: 6 "engine:fx" rigs spawned before the memo, from the shipped
+// link, so with none): a new fx link replaces them on load, one destroyed every 30 frames (a destruct costs ~360 ms in
+// real TTS) and 6 spawned with the link in their memo; a game after that and the next load (the new rigs saved) touch
+// none. The shipped link, no link or "mtg fx off" touch none either.
+{
+  const LEGACY = (save.LuaScript.match(/FX\.LEGACY = \{ fx = "([^"]+)" \}/) || [])[1];
+  const NEW = "https://example.invalid/mtg-fx-2.unity3d";
+  const withRigs = (memo) => {
+    const s = clone(save);
+    for (let i = 1; i <= 6; i++) s.ObjectStates.push({ Name: "Custom_Assetbundle", GUID: `old00${i}`, Nickname: "", GMNotes: "engine:fx", Locked: true, ...(memo ? { Memo: memo } : {}),
+      Transform: { posX: -40 + 1.5 * i, posY: -30, posZ: 30, rotX: 0, rotY: 0, rotZ: 0, scaleX: 1, scaleY: 1, scaleZ: 1 },
+      CustomAssetbundle: { AssetbundleURL: memo || LEGACY, SimTriggerEffects: FX_NAMES } });
+    return s;
+  };
+  const Q = (mark) => lua(`local out = { alive = {}, died = {} } for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:fx" then out.alive[#out.alive + 1] = { g = o.getGUID(), memo = o.memo or "" } end end
+    for i = 1, 6 do local o = __sim.objects["old00" .. i] out.died[i] = (o and o.__d.diedAt) or 0 end return JSON.encode(out)`, mark, 1);
+  const go = (s, prelude) => {
+    const r = simulate({ save: s, prelude: `__sim.bundleEffects = { ["${NEW}"] = { "${FX_NAMES.join('", "')}" } } ${prelude}`,
+      steps: [Q("q0"), { frames: 300 }, Q("q1"), lua(PRELUDE, "prelude"), { msg: { t: "started", json: STARTED } }, send(base(), "first board", 10), { frames: 250 }, Q("q2")] }); // (250: a destruct the game's look scheduled has come)
+    const val = (mark) => JSON.parse(r.steps.find((x) => x.step === mark)?.value || "{}");
+    const spawns = r.steps.map((x) => (x.fx || []).filter((l) => l.includes('"spawnObjectData" "Custom_Assetbundle"')).length);
+    return { r, q0: val("q0"), q1: val("q1"), q2: val("q2"), spawns, gameSpawns: spawns[r.steps.findIndex((x) => x.step === "first board")] };
+  };
+  ok("stale rigs: the legacy link is a steamusercontent link", /^https:\/\/steamusercontent/.test(LEGACY || ""), LEGACY);
+  const a = go(withRigs(null), `engineFxBundle = { fx = "${NEW}" }`);
+  ok("stale rigs: the script ran", !a.r.errors.length, a.r.errors.slice(0, 2).join(" | "));
+  const died = arr(a.q1.died).slice().sort((x, y) => x - y);
+  ok("stale rigs, a new link: the 6 old rigs destroyed on load", died.length === 6 && died.every((f) => f > 0) && arr(a.q1.alive).every((x) => !x.g.startsWith("old")), JSON.stringify(a.q1));
+  ok("stale rigs, a new link: one destroyed every 30 frames, none at once", died.every((f, i) => i === 0 || f - died[i - 1] >= 30) && arr(a.q0.alive).filter((x) => x.g.startsWith("old")).length >= 5,
+    JSON.stringify({ died, q0: arr(a.q0.alive).length }));
+  ok("stale rigs, a new link: 6 rigs spawned in their place, marked with the link", a.spawns.reduce((x, y) => x + y, 0) === 6 && arr(a.q1.alive).length === 6 && arr(a.q1.alive).every((x) => x.memo === NEW),
+    JSON.stringify({ spawns: a.spawns, alive: a.q1.alive }));
+  ok("stale rigs, a new link: the game after that spawns and destroys none", a.gameSpawns === 0 && JSON.stringify(a.q2.alive) === JSON.stringify(a.q1.alive) && JSON.stringify(a.q2.died) === JSON.stringify(a.q1.died),
+    JSON.stringify({ g: a.gameSpawns, q2: a.q2 }));
+  const none = (name, s, prelude) => {
+    const x = go(s, prelude);
+    ok(`stale rigs, ${name}: none destroyed, none spawned, on load or at the game`, !x.r.errors.length && x.spawns.every((n) => n === 0) && arr(x.q2.died).every((f) => f === 0) && arr(x.q2.alive).length === 6,
+      JSON.stringify({ e: x.r.errors.slice(0, 1), spawns: x.spawns, q2: x.q2 }));
+  };
+  none("the next load (the new rigs saved with their memo)", withRigs(NEW), `engineFxBundle = { fx = "${NEW}" }`);
+  none("the shipped link (rigs with no memo are its own)", withRigs(null), "");
+  none("no link", withRigs(null), `engineFxBundle = { fx = "" }`);
+  none("mtg fx off", withRigs(null), `engineFxBundle = { fx = "${NEW}" } rawset(Global, "script_state", '{"engineStash":{},"engineFx":"off"}')`);
 }
 
 // the host's Lua per board (fengari's own clock, docs/particle-fx-spec.md section 5: under 5 ms): engineEffects and
