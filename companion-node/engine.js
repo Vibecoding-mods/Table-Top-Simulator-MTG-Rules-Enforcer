@@ -85,9 +85,9 @@ class Engine {
     return { info: null, error: r.timedOut ? "the container engine didn't answer" : L.clip(r.out.trim(), 200) };
   }
 
-  async cmd(args, timeoutMs) {
+  async cmd(args, timeoutMs, env) {
     this.o.log(`${this.runtime || "engine"} ${args.map((a) => (/^-e$/.test(a) ? a : a.replace(/(KEY=).*/, "$1***"))).join(" ")}`);
-    const r = await probes.run(this.cli, args, { timeoutMs: timeoutMs || 120000, onLine: (l) => this.o.log(`  ${l}`) });
+    const r = await probes.run(this.cli, args, { timeoutMs: timeoutMs || 120000, env: env ? { ...process.env, ...env } : undefined, onLine: (l) => this.o.log(`  ${l}`) });
     this.o.log(`  exit ${r.code}${r.timedOut ? " (timed out)" : ""}`);
     return r;
   }
@@ -104,8 +104,12 @@ class Engine {
       const plan = s === "relay" ? P.upPlan(info, tag.id, L.sameId) : P.roomPlan(info, tag.id, relayPlan, L.sameId);
       if (s === "relay") relayPlan = plan;
       let r = null;
-      if (plan === "replace") { r = await this.cmd(["rm", "-f", this.name(s)], 60000); if (r.code !== 0) return r; }
-      if (plan === "run" || plan === "replace") r = await this.cmd(P.runArgs(s, { project: this.o.project, runtime: this.runtime, key: this.o.key(), platform: this.o.platform, arch: this.o.arch }), 120000);
+      if (plan === "replace") {
+        const room = s === "relay" ? (await this.container("forge-room")).info : null;
+        r = await this.cmd(P.removeArgs(this.o.project, s, !!(room && room.exists)), 60000);
+        if (r.code !== 0) return r;
+      }
+      if (plan === "run" || plan === "replace") r = await this.cmd(P.runArgs(s, { project: this.o.project, runtime: this.runtime, key: this.o.key(), platform: this.o.platform, arch: this.o.arch }), 120000, P.secretEnv(s, this.o.key()));
       else if (plan === "start") r = await this.cmd(["start", this.name(s)], 60000);
       if (r) { out += r.out; if (r.code !== 0) return r; }
     }
@@ -117,8 +121,14 @@ class Engine {
     const r = await this.cmd(["restart", this.name("relay")], 120000);
     return r.code !== 0 ? r : this.cmd(["restart", this.name("forge-room")], 120000);
   }
-  stop() { return this.cmd(["stop", this.name("forge-room"), this.name("relay")], 120000); }
-  down() { return this.cmd(["rm", "-f", this.name("forge-room"), this.name("relay")], 120000); }
+  // the containers that are there, room first (a missing name makes stop and rm -f fail on Podman)
+  async present() {
+    const out = [];
+    for (const s of ["forge-room", "relay"]) { const c = (await this.container(s)).info; if (c && c.exists) out.push(this.name(s)); }
+    return out;
+  }
+  async stop() { const n = await this.present(); return n.length ? this.cmd(["stop", ...n], 120000) : { code: 0, out: "", timedOut: false }; }
+  async down() { const n = await this.present(); return n.length ? this.cmd(["rm", "-f", ...n], 120000) : { code: 0, out: "", timedOut: false }; }
 
   // `<cli> load -i <tar>`; progress(percent or -1, seconds)
   async load(tar, size, progress) {

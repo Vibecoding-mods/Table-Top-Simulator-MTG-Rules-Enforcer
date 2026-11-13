@@ -5,7 +5,7 @@ const fs = require("fs");
 const http = require("http");
 const os = require("os");
 const path = require("path");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const P = require("./mods").platform();
 
 // ───────────────────────────── files ─────────────────────────────
@@ -216,5 +216,12 @@ function kill(pids, signal) {
   for (const pid of pids) { try { process.kill(pid, signal || "SIGTERM"); } catch { /* gone */ } }
 }
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; } };
+// A running process's command line (arguments joined by spaces), or null when it is gone or can't be read: Linux
+// /proc/<pid>/cmdline, macOS ps. Used to check that a pid from a file is still the process that wrote it.
+function commandOf(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return null;
+  if (process.platform === "linux") { const raw = readText(`/proc/${pid}/cmdline`); return raw ? P.procFromCmdline(raw, null).cmd : null; }
+  try { const r = spawnSync("ps", ["-o", "command=", "-p", String(pid)], { encoding: "utf8", timeout: 5000 }); return r.status === 0 && r.stdout.trim() ? r.stdout.trim() : null; } catch { return null; }
+}
 
-module.exports = { readText, readHead, tail, exists, tryWrite, writeJsonAtomic, which, run, launch, bytesRead, httpGet, httpPost, relayLogin, processes, listeners, kill, alive };
+module.exports = { readText, readHead, tail, exists, tryWrite, writeJsonAtomic, which, run, launch, bytesRead, httpGet, httpPost, relayLogin, processes, listeners, kill, alive, commandOf };

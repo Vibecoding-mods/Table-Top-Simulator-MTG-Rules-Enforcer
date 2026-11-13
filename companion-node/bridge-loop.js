@@ -12,10 +12,12 @@ const stamp = () => new Date().toISOString().replace("T", " ").slice(0, 19);
 
 function line(log, text) { try { fs.appendFileSync(log, `${text}\n`); } catch { /* the bridge's own lines matter more */ } }
 
-// the pid of this package's running loop, or null
+// the pid of this package's running loop, or null. The file's pid counts only while that process is still this
+// package's loop: after a reboot the number can belong to anything, which must never be stopped or waited for.
 function loopPid(layout) {
   const pid = Number(probes.readText(pidFile(layout)));
-  return Number.isInteger(pid) && pid > 0 && probes.alive(pid) ? pid : null;
+  if (!Number.isInteger(pid) || pid <= 0 || !probes.alive(pid)) return null;
+  return require("./mods").platform().isLoopCmd(probes.commandOf(pid), layout.home) ? pid : null;
 }
 
 // Runs until stopped. env: what the bridge gets on top of this process's (MTG_HOME, MTG_LOG_DIR, the shim's PATH).
@@ -67,7 +69,7 @@ async function stop(layout) {
   const pid = loopPid(layout);
   if (pid) {
     probes.kill([pid], "SIGTERM");
-    for (let i = 0; i < 30 && probes.alive(pid); i++) await new Promise((r) => setTimeout(r, 200));
+    for (let i = 0; i < 30 && loopPid(layout) === pid; i++) await new Promise((r) => setTimeout(r, 200));
   }
   const P = require("./mods").platform();
   const left = P.bridgeProcs(await probes.processes(), layout.bridgeJs).map((p) => p.pid).filter((p) => p !== process.pid);

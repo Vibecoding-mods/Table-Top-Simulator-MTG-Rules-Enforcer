@@ -165,6 +165,12 @@ function playersText(state, seats) {
 
 const locked = (g) => !g || g.kind !== "none";
 const lockText = (g) => (g && g.kind === "cantTell" ? "Locked: can't tell whether a game is on. Try again in a minute." : "Locked: a game is on. Do this after the game.");
+// stop.sh / Stop MTG.command during a game (or when it can't tell): refused, as the status page's Stop everything
+// asks again first; force is the second answer. null: go ahead.
+function stopRefusal(g, force, forceCmd) {
+  if (force || !locked(g)) return null;
+  return `Not stopped: ${g && g.kind === "cantTell" ? "the companion can't tell whether a game is on" : "a game is on"} (${g ? g.text : "no answer"}). Stopping now ends it for everyone at the table. To stop anyway: ${forceCmd}`;
+}
 
 // ───────────────────────────── 1. container engine (Docker or Podman) ─────────────────────────────
 
@@ -298,6 +304,13 @@ function decideStack(relay, room, login, game, friend) {
 }
 
 // The first folder of the package the bridge can't write, in words, or null. tryWrite: dir -> null when writable.
+// The table save step when TTS's own folder wasn't found anywhere (savesDirFor found false): wait, never make it,
+// since a save put where TTS doesn't look would be green and never show up. null: the folder is there.
+function savesFolderVerdict(found, tried) {
+  if (found) return null;
+  return verdict(Light.Amber, `Tabletop Simulator hasn't been run on this computer yet (its folder isn't in ${(tried || []).slice(0, 2).join(" or ") || "the usual places"}${(tried || []).length > 2 ? `, or ${tried.length - 2} other places` : ""}). Run Tabletop Simulator once from Steam (up to its main menu), then press Try again.`, { fix: Fixes.Retry, label: "Try again" });
+}
+
 function writeProblem(dirs, tryWrite) {
   for (const d of dirs) {
     const err = tryWrite(d);
@@ -631,7 +644,7 @@ module.exports = {
   StackWaitSeconds, stackTimedOut, startFrom, resumeAfterStop,
   httpOk, httpOf, parseJson, isObj, get, has, str, int, Game, decideGame, playersText, locked, lockText,
   DockerUrl, decideDocker, sameId, normId, deployedAfterLoad, shortId, decideImages,
-  decideStack, writeProblem, composeFailure, SaveName, planSave, readSaveName,
+  decideStack, savesFolderVerdict, stopRefusal, writeProblem, composeFailure, SaveName, planSave, readSaveName,
   isBridgeCommandLine, decidePorts, decideBridge, countExits,
   DefaultSaveName, Room, ttsHowTo, decideTts, sha8, clip, relayKey, worst,
   Updates, validTag, imagesVersion, parseKeys, verifySignature, parseManifest, localVersion, builtTime, downgrade,

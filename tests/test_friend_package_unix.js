@@ -82,7 +82,7 @@ async function pure() {
     for (const [n, text] of Object.entries(l)) {
       const code = text.split("\n").filter((x) => x.trim() && !x.startsWith("#"));
       ok(`launcher ${p} ${n}: #!/bin/sh, LF, under 12 lines`, text.startsWith("#!/bin/sh\n") && !text.includes("\r") && text.split("\n").length <= 12, text);
-      ok(`launcher ${p} ${n}: only cd to its folder and exec the bundled node on companion/companion.js`, code.length === 2 && code[0] === 'cd "$(dirname "$0")" || exit 1' && /^exec \.\/runtime\/node\/bin\/node companion\/companion\.js( "\$@"| --stop)$/.test(code[1]), code.join(" | "));
+      ok(`launcher ${p} ${n}: only cd to its folder and exec the bundled node on companion/companion.js`, code.length === 2 && code[0] === 'cd "$(dirname "$0")" || exit 1' && /^exec \.\/runtime\/node\/bin\/node companion\/companion\.js( "\$@"| --stop "\$@")$/.test(code[1]), code.join(" | "));
       ok(`launcher ${p} ${n}: no download, decode or eval`, !/curl|wget|base64|eval|\|\s*(sh|bash)\b/.test(code.join("\n")));
     }
   }
@@ -135,6 +135,7 @@ async function pure() {
   ok("README Linux: Steam Deck Desktop Mode, Dolphin, Konsole, podman info, ./start.sh", ["Switch to Desktop", "Dolphin", "Konsole", "podman info", "./start.sh", "./stop.sh"].every((s) => lin.includes(s)));
   ok("README Linux: both places TTS keeps its saves", lin.includes("~/.local/share/Tabletop Simulator/Saves") && lin.includes("Proton"));
   ok("README Mac arm64: Rosetta; Intel: none", macA.includes("Rosetta") && !macI.includes("Rosetta"));
+  ok("README Linux and Mac: the token is readable by other accounts; stop refuses mid-game, --force", [lin, macA].every((t) => t.includes("access token can be read by other accounts") && t.includes("--force")));
   ok("README Mac: Docker Desktop, the .command, the unsigned-launcher step", ["Docker Desktop", "MTG Companion.command", "right-click it > Open", "Stop MTG.command"].every((s) => macA.includes(s)));
   ok("SOURCE.txt: the images are linux/amd64, Node's licence from its archive", /linux\/amd64/.test(pack.sourceText({ images: ["a", "b"], manabrewCommit: "m", forgeCommit: "f", nodeVersion: "v1", patches: { manabrew: "1", forge: "2" } })));
 }

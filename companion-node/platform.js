@@ -8,20 +8,40 @@ const path = require("path").posix;
 
 const TTS_APP_ID = 286160;
 
-// TTS's Saves folder. macOS: ~/Library/Tabletop Simulator/Saves. Linux, native TTS (the Steam Deck default):
-// ~/.local/share/Tabletop Simulator/Saves; TTS run through Proton keeps its Documents in the Proton prefix instead,
-// used when only that one exists. exists(dir) -> bool. (Both checked against TTS's knowledge base, see README.)
-function savesDirFor(platform, homeDir, exists, env) {
-  env = env || {};
-  if (platform === "darwin") return path.join(homeDir, "Library", "Tabletop Simulator", "Saves");
-  const xdg = env.XDG_DATA_HOME && env.XDG_DATA_HOME.startsWith("/") ? env.XDG_DATA_HOME : path.join(homeDir, ".local", "share");
-  const native = path.join(xdg, "Tabletop Simulator", "Saves");
-  if (exists(path.dirname(native))) return native;
-  for (const steam of [path.join(xdg, "Steam"), path.join(homeDir, ".steam", "steam")]) {
-    const proton = path.join(steam, "steamapps", "compatdata", String(TTS_APP_ID), "pfx", "drive_c", "users", "steamuser", "Documents", "My Games", "Tabletop Simulator", "Saves");
-    if (exists(path.dirname(proton))) return proton;
+// The library folders in Steam's steamapps/libraryfolders.vdf ("path" "/run/media/mmcblk0p1" ...): an SD card's or a
+// second disk's library, where a Proton prefix lives when TTS is installed there
+function steamLibraries(vdf) {
+  const out = [];
+  for (const m of String(vdf || "").matchAll(/"path"\s+"((?:[^"\\]|\\.)*)"/g)) out.push(m[1].replace(/\\\\/g, "\\"));
+  return out;
+}
+
+// TTS's Saves folder: { dir, found, tried }. found: TTS's own folder (the one holding Saves) exists, so TTS has run
+// there; when nothing is found, dir is where the Linux version would make it, and the companion waits instead of
+// making it (a save put where TTS never looks would be green and useless). exists(dir) -> bool; readText(file) ->
+// string or null (Steam's libraryfolders.vdf). The places (TTS's knowledge base, Steam's layouts):
+//   macOS ~/Library/Tabletop Simulator; Linux native ~/.local/share/Tabletop Simulator (also under $XDG_DATA_HOME),
+//   Flatpak Steam's ~/.var/app/com.valvesoftware.Steam/{.local/share,data}/Tabletop Simulator; through Proton
+//   <library>/steamapps/compatdata/286160/pfx/drive_c/users/steamuser/Documents/My Games/Tabletop Simulator, for every
+//   Steam root (~/.local/share/Steam, ~/.steam/steam, ~/.steam/root, Flatpak's) and every library they list.
+function savesDirFor(platform, homeDir, exists, env, readText) {
+  env = env || {}; readText = readText || (() => null);
+  const tts = "Tabletop Simulator";
+  if (platform === "darwin") {
+    const d = path.join(homeDir, "Library", tts);
+    return { dir: path.join(d, "Saves"), found: exists(d), tried: [d] };
   }
-  return native;
+  const share = path.join(homeDir, ".local", "share");
+  const xdg = env.XDG_DATA_HOME && env.XDG_DATA_HOME.startsWith("/") ? env.XDG_DATA_HOME : share;
+  const flat = path.join(homeDir, ".var", "app", "com.valvesoftware.Steam");
+  const native = [path.join(xdg, tts), path.join(share, tts), path.join(flat, ".local", "share", tts), path.join(flat, "data", tts)];
+  const roots = [path.join(xdg, "Steam"), path.join(share, "Steam"), path.join(homeDir, ".steam", "steam"), path.join(homeDir, ".steam", "root"), path.join(flat, ".local", "share", "Steam")];
+  const libs = [];
+  for (const r of roots) libs.push(r, ...steamLibraries(readText(path.join(r, "steamapps", "libraryfolders.vdf"))));
+  const proton = libs.map((l) => path.join(l, "steamapps", "compatdata", String(TTS_APP_ID), "pfx", "drive_c", "users", "steamuser", "Documents", "My Games", tts));
+  const tried = [...new Set([...native, ...proton])];
+  const hit = tried.find((d) => exists(d));
+  return { dir: path.join(hit || native[0], "Saves"), found: !!hit, tried };
 }
 
 // The companion's own state (state.json, updates.json, save backups)
@@ -93,11 +113,33 @@ function runArgs(service, o) {
       SELF_HOSTED_NODE_ENGINE_BACKEND: "forge", SELF_HOSTED_NODE_FORMAT: "commander", SELF_HOSTED_NODE_MAX_PLAYERS: String(o.seats || 4),
       SELF_HOSTED_NODE_AUTO_START: "true", RUST_LOG: "self_hosted_node=info",
     };
-  for (const [k, v] of Object.entries(env)) a.push("-e", `${k}=${v}`);
+  // (the key by name only: its value comes from the run command's environment, secretEnv, so ps never shows it)
+  for (const [k, v] of Object.entries(env)) a.push("-e", Secret.includes(k) ? k : `${k}=${v}`);
   if (service === "relay") a.push("-p", "127.0.0.1:9443:9443");
   a.push(Images[service]);
   return a;
 }
+
+const Secret = ["MANABREW_SERVER_KEY", "SELF_HOSTED_NODE_SERVER_KEY"];
+// The environment the run command needs for the names runArgs passes without a value
+function secretEnv(service, key) {
+  return service === "relay" ? { MANABREW_SERVER_KEY: key } : { SELF_HOSTED_NODE_SERVER_KEY: key };
+}
+
+// What `rm -f` removes to replace a service's container: the room alone, or for the relay the room first (it joined
+// the relay's network namespace, and Podman refuses to remove a container others depend on). roomExists: only a
+// container that is there is named (rm -f of a missing one fails on Podman, and that would stop the start).
+function removeArgs(project, service, roomExists) {
+  const room = containerName(project, "forge-room");
+  return service === "relay" ? ["rm", "-f", ...(roomExists ? [room] : []), containerName(project, "relay")] : ["rm", "-f", room];
+}
+
+// Whether a pid read from a file is still ours (a pid is reused after a reboot): its command line, from
+// /proc/<pid>/cmdline or `ps -o command= -p <pid>`. The bridge loop: companion.js --bridge-loop --home <this package>.
+const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const isLoopCmd = (cmd, home) => !!cmd && /companion\.js/.test(cmd) && /\s--bridge-loop(\s|$)/.test(cmd) && new RegExp(`\\s--home ${escRe(home)}(\\s--|$)`).test(cmd); // (the home ends at the next flag: it may hold spaces)
+// A companion's own process (not its bridge loop, a --stop or a --selftest)
+const isCompanionCmd = (cmd) => !!cmd && /(^|[\s/])companion\.js(\s|$)/.test(cmd) && !/\s--(bridge-loop|stop|selftest)(\s|$)/.test(cmd);
 
 // The key the containers get: MANABREW_SERVER_KEY from the environment (as compose reads it), else stack/.env, else
 // the default. The login uses the same one, so the two can't disagree.
@@ -221,7 +263,7 @@ function ttsLaunch(platform, steamCmd) {
 const openCommand = (platform, target) => (platform === "darwin" ? ["open", [target]] : ["xdg-open", [target]]);
 
 module.exports = {
-  TTS_APP_ID, savesDirFor, stateDirFor, chooseRuntime, parseInfo, accessDeniedText, noSuchText, containerName,
-  Services, Images, runArgs, engineKey, upPlan, roomPlan, containerFromInspect, procStartTicks, procListening, parseEtime, parsePs,
+  TTS_APP_ID, steamLibraries, savesDirFor, stateDirFor, chooseRuntime, parseInfo, accessDeniedText, noSuchText, containerName,
+  Services, Images, runArgs, secretEnv, removeArgs, isLoopCmd, isCompanionCmd, engineKey, upPlan, roomPlan, containerFromInspect, procStartTicks, procListening, parseEtime, parsePs,
   parseLsof, procName, procFromCmdline, findTts, bridgeProcs, ttsLaunch, openCommand,
 };

@@ -42,6 +42,24 @@ const Cases = [
     "a.push(\"-p\", \"127.0.0.1:9443:9443\")", "a.push(\"-p\", \"9443:9443\")", "relay: port on 127.0.0.1 only"],
   ["platform.js", "a room joined to an old relay's network is kept after the relay is created again",
     "return relayPlan !== \"keep\" && own !== \"run\" ? \"replace\" : own;", "return own;", "a relay run, started or replaced has a new namespace"],
+  ["logic.js", "stop.sh stops the engine during a game without --force",
+    "if (force || !locked(g)) return null;", "return null;", "stop.sh during a game: refused"],
+  ["logic.js", "the save step goes on (and makes a folder) when TTS has never run here",
+    "if (found) return null;", "return null;", "no TTS folder anywhere: amber"],
+  ["platform.js", "a Saves folder no TTS made counts as found",
+    "return { dir: path.join(hit || native[0], \"Saves\"), found: !!hit, tried };", "return { dir: path.join(hit || native[0], \"Saves\"), found: true, tried };",
+    "TTS never started: not found"],
+  ["platform.js", "Steam libraries on an SD card are never looked in",
+    "libs.push(r, ...steamLibraries(readText(path.join(r, \"steamapps\", \"libraryfolders.vdf\"))));", "libs.push(r);", "TTS on the SD card through Proton"],
+  ["platform.js", "the engine key is written on the run command line",
+    "a.push(\"-e\", Secret.includes(k) ? k : `${k}=${v}`);", "a.push(\"-e\", `${k}=${v}`);", "the key never on the command line"],
+  ["platform.js", "replacing the relay removes it before the room that depends on it",
+    "[\"rm\", \"-f\", ...(roomExists ? [room] : []), containerName(project, \"relay\")]", "[\"rm\", \"-f\", containerName(project, \"relay\"), ...(roomExists ? [room] : [])]",
+    "replacing the relay removes the room first"],
+  ["platform.js", "a bridge-loop pid file is trusted without checking it is this package's loop",
+    "&& new RegExp(`\\\\s--home ${escRe(home)}(\\\\s--|$)`).test(cmd);", ";", "another package's loop is not ours"],
+  ["platform.js", "the instance lock trusts any companion.js process, a bridge loop or --stop too",
+    " && !/\\s--(bridge-loop|stop|selftest)(\\s|$)/.test(cmd);", ";", "a bridge loop or a --stop is not a companion"],
   ["platform.js", "Podman keeps the image's health check",
     "if (o.runtime === \"podman\") a.push(\"--no-healthcheck\");", "", "Podman: no health check"],
   ["platform.js", "on a Deck the TTS process found is Steam's launcher wrapper",
@@ -50,7 +68,7 @@ const Cases = [
     "const name = path.basename(argv[0] || \"\") || String(comm || \"\").trim() || null;", "const name = String(comm || \"\").trim() || path.basename(argv[0] || \"\") || null;",
     "Node renames its process MainThread"],
   ["platform.js", "Proton's Saves folder is never used",
-    "if (exists(path.dirname(proton))) return proton;", "", "TTS only ever run through Proton"],
+    "const tried = [...new Set([...native, ...proton])];", "const tried = [...new Set(native)];", "TTS only ever run through Proton"],
 ];
 
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
@@ -61,7 +79,7 @@ let missed = 0;
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "mtg-breakit-"));
 try {
   // the unbroken copies must pass first, or a red check proves nothing
-  const runWith = (logic, platform) => spawnSync(process.execPath, [path.join(here, "selftest.js")], { encoding: "utf8", env: { ...process.env, MTG_COMPANION_LOGIC: logic, MTG_COMPANION_PLATFORM: platform } });
+  const runWith = (logic, platform) => spawnSync(process.execPath, [path.join(here, "selftest.js")], { encoding: "utf8", env: { ...process.env, MTG_COMPANION_BREAKIT: "1", MTG_COMPANION_LOGIC: logic, MTG_COMPANION_PLATFORM: platform } });
   const cleanL = path.join(tmp, "logic.js"), cleanP = path.join(tmp, "platform.js");
   fs.copyFileSync(originals[0], cleanL); fs.copyFileSync(originals[1], cleanP);
   const base = runWith(cleanL, cleanP);

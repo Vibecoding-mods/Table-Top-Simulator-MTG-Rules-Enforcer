@@ -24,7 +24,7 @@ What each file does:
   update.js       checks GitHub for a newer release (signature-checked with release-keys.txt, the PUBLIC key only).
                   It only tells you; it never downloads or installs anything
   shim/docker     a short shell script: the bridge's "docker" calls go to Podman (or Docker) through it
-  mods.js         loads logic.js and platform.js (a test can point it at a copy)
+  mods.js         loads logic.js and platform.js (only breakit.js, running selftest.js, can swap in a broken copy)
   selftest.js     the checks: runtime/node/bin/node companion/companion.js --selftest
   breakit.js      proves the checks work: breaks one rule at a time in a copy and expects a red check
 

@@ -183,7 +183,7 @@ const launchers = (platform) => {
   const mac = PLATFORMS[platform].os === "darwin";
   const start = `${LAUNCH_HEAD("Starts the MTG Companion. Its status page opens in your browser; keep this window open while you play.")}exec ./runtime/node/bin/node companion/companion.js "$@"
 `;
-  const stopIt = `${LAUNCH_HEAD("Stops the MTG bridge and the engine's containers (Docker or Podman itself keeps running).")}exec ./runtime/node/bin/node companion/companion.js --stop
+  const stopIt = `${LAUNCH_HEAD("Stops the MTG bridge and the engine's containers (Docker or Podman keeps running). During a game: add --force.")}exec ./runtime/node/bin/node companion/companion.js --stop "$@"
 `;
   return mac ? { "MTG Companion.command": start, "Stop MTG.command": stopIt } : { "start.sh": start, "stop.sh": stopIt };
 };
@@ -282,6 +282,7 @@ EVERY GAME NIGHT
    Turn the engine on with the middle tile (Engine: on), then press Start. Against the computer: type
    "mtg start ai 1" in chat (up to 3 AI players).
 5. When you are done: "Stop everything" on the status page, or ./stop.sh in the folder, or just shut down.
+   During a game ./stop.sh refuses (it would end the game for everyone); ./stop.sh --force stops it anyway.
    Back to Gaming Mode afterwards: the engine needs nothing from Desktop Mode once it is stopped.
 
 
@@ -310,6 +311,8 @@ here: download the new package, "Stop everything" in the old one, unpack the new
 PRIVACY
 Everything here listens on your own computer only (127.0.0.1). Nothing is opened to the internet; TTS's own
 multiplayer is how your friends reach the table. Card pictures come from Scryfall.
+The status page's access token can be read by other accounts on this same computer: if others have their own
+account on it, only run the companion if you trust them.
 
 
 WHAT RUNS, AND HOW TO READ IT
@@ -381,6 +384,8 @@ EVERY GAME NIGHT
    Turn the engine on with the middle tile (Engine: on), then press Start. Against the computer: type
    "mtg start ai 1" in chat (up to 3 AI players).
 5. When you are done: "Stop everything" on the status page, or double-click "Stop MTG.command", or just shut down.
+   During a game "Stop MTG.command" refuses (it would end the game for everyone); in Terminal in this folder,
+   ./"Stop MTG.command" --force stops it anyway.
 
 
 IF A LIGHT IS RED
@@ -404,6 +409,8 @@ here: download the new package, "Stop everything" in the old one, unpack the new
 PRIVACY
 Everything here listens on your own Mac only (127.0.0.1). Nothing is opened to the internet; TTS's own multiplayer
 is how your friends reach the table. Card pictures come from Scryfall.
+The status page's access token can be read by other accounts on this same Mac: on a shared Mac, only run the
+companion from an account whose other users you trust.
 
 
 WHAT RUNS, AND HOW TO READ IT
