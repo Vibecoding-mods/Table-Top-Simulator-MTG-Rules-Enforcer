@@ -262,6 +262,23 @@ function holdLogLine(line) {
   clearTimeout(g.heldTimer);
   g.heldTimer = setTimeout(() => { if (game === g) for (const l of g.heldLines.splice(0)) gameLogLine(l); }, 2000);
 }
+// A notice Forge shows each human seat in turn (a vote, a reveal; a clash keeps its own, game.lastClash), said once for
+// the table: `key`, the notice as
+// every seat is shown it, is that same notice again when a seat that hasn't acknowledged it yet (each answers in turn,
+// so a slow OK delays the next seat's: CLASH_SAME_MS), or, with `againMs`, the same seat within that long (a reveal
+// shown again a moment later by the same card, Parley's), brings it; else it is a new one (a second vote, a second
+// explore revealing the same card still on top). Readability audit C8: a four-human vote wrote one "<seat> saw:" copy
+// per seat. `say` writes the line (gameLogLine, or holdLogLine for a reveal). True when it was said.
+function tableNotice(key, seatColor, line, { say = gameLogLine, againMs = 0 } = {}) {
+  if (!game) return false;
+  const now = Date.now();
+  game.notices = (game.notices || []).filter((n) => now - n.at < CLASH_SAME_MS);
+  const same = game.notices.find((n) => n.key === key && (!n.seats.has(seatColor) || now - n.last < againMs));
+  if (same) { same.seats.add(seatColor); same.last = now; return false; }
+  game.notices.push({ key, at: now, last: now, seats: new Set([seatColor]) });
+  say(line);
+  return true;
+}
 // cards from a player's hand put on top of their library, which the boards alone don't say (the hand's drop beside the
 // library's rise): Brainstorm's pick, Sylvan Library's card put back (hp-26)
 function sayPutOnTop(seat, n) {
@@ -1928,7 +1945,7 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
       ...(game.renowned?.has(c.id) ? ["Renowned"] : []),
       ...(game.suspected?.has(c.id) ? ["Suspected: can't block"] : []),
       // (a permanent's states and what a delayed trigger will do to it; a card elsewhere is in a pile or a hand)
-      ...(zone === "battlefield" ? [...cardStateWords(c), ...delayedWordsOf(c.id)] : []),
+      ...(zone === "battlefield" ? [...cardStateWords(c), ...mutateWords(c), ...delayedWordsOf(c.id)] : []),
       // (detained and a regeneration shield, which the bridge kept for the log and the attack question only: logEvents)
       ...(zone === "battlefield" && game.detained?.has(c.id) ? [`Detained until ${nameOf(game.detained.get(c.id).by)}'s next turn`] : []),
       ...(zone === "battlefield" && game.regenShields?.has(c.id) ? ["Regeneration shield"] : []),
@@ -1991,6 +2008,25 @@ function cardStateWords(c) {
   else if (cantBlock) out.push("Can't block");
   if (c.mustAttack) out.push("Must attack");
   return out;
+}
+
+// A mutated creature's status box line naming the cards under the top one (readability audit A4): "Mutated: Eidolon of
+// Blossoms under it". Forge sends the pile as the host's mergedCardIds (every card but the host's own), each one on the
+// battlefield attached to it; the host keeps its id and takes the top card's name. So when a card mutated on top, the
+// host's name is that card's and the card under is the host's own, the name it had before the merge (updateLog's
+// game.unmergedName); one of the merged cards carries the top's name, and is the top. Without the old name (a bridge
+// started after the merge) the top is still dropped from the list and "the creature it mutated onto" stands in.
+// A face-down card is named as one (boardName). The order is the pile's as Forge lists it.
+function mutateWords(c) {
+  const ids = (c.mergedCardIds || []).map(String);
+  if (!ids.length || c.isFaceDown) return [];
+  const top = c.identity?.name;
+  const names = ids.map(boardName);
+  const base = game?.unmergedName?.get(c.id);
+  const i = names.indexOf(top);
+  if (base && base !== top && i >= 0) names.splice(i, 1, base);
+  else if (!base && i >= 0) names.splice(i, 1, "the creature it mutated onto");
+  return [`Mutated: ${names.join(", ")} under it`];
 }
 
 // Forge's delayed triggers (engine1112 GameViewDto.delayed: { id, text, controllerId, hostCardId?, cardIds[], when?,
@@ -2184,6 +2220,21 @@ function facePeek(id, seats, views) {
   const img = imagesFor(name, game.slotColor?.[face.ownerId] || null, face.id);
   return { pk: { n: name, f: img?.face || cachedImage(name)?.face || null, v: colors } };
 }
+// The foretold cards in exile, id -> its exile's owner (game.foretold), for the FORETOLD n mark: a card any seat's view
+// says is foretold (Forge's isForetold, the owner's view only), or that Forge's feed says was moved by a foretell
+// (updateLog; an AI's foretell is seen only so), while it stays in that exile. Only the count is shown: which card it
+// is stays the owner's (the board's other seats get a hidden entry, id only).
+function noteForetold(pub, views) {
+  const where = new Map();
+  for (const z of pub.zones || []) if (z.zone === "exile") for (const c of z.cards || []) where.set(c.id, z.ownerId);
+  game.foretold ??= new Map();
+  for (const v of views) for (const c of Object.values(v || {})) if (c?.isForetold && where.has(c.id)) game.foretold.set(c.id, where.get(c.id));
+  for (const id of [...game.foretold.keys()]) {
+    if (where.has(id)) game.foretold.set(id, where.get(id));
+    else game.foretold.delete(id);
+  }
+}
+const foretoldCount = (slot) => [...(game?.foretold?.values() || [])].filter((o) => o === slot).length;
 // A face-down exiled card the drawing seat may not see (a hidden entry: no exiledWith) as a seat that may look sees
 // it, for what is public about it (the card it lies under, its counters); tableCard draws it as the nameless stub
 function faceDownAnyView(c, views) {
@@ -2596,6 +2647,10 @@ function logSnapshot(pub, prev = null) {
     if (z.zone === "hand" || z.zone === "library") counts[`${z.zone}:${z.ownerId}`] = z.count ?? (z.cards || []).length;
   }
   const life = Object.fromEntries((pub.players || []).map((p) => [p.id, p.life]));
+  // (each player's commander damage taken, Forge's commanderDamage { commander card id: damage }, for the life line)
+  // (only players who took any, and left out when none did: most boards)
+  const cmd = Object.fromEntries((pub.players || []).map((p) => [p.id, Object.fromEntries(Object.entries(p.commanderDamage || {}).filter(([, n]) => Number(n) > 0).map(([k, n]) => [k, Number(n)]))])
+    .filter(([, m]) => Object.keys(m).length));
   // keyed by what it is, not its id: a spell keeps changing ids while it is being cast
   const stack = {};
   for (const s of pub.stack || []) {
@@ -2667,7 +2722,10 @@ function logSnapshot(pub, prev = null) {
     // Forge writes no room note on the dungeon card itself; venturing read only "+1 life", mechanic run hp-08 re-test)
     const room = ability && (/\(Leads to: /.test(s.sourceAbilityText || "") || (pub.zones || []).some((z) => z.zone === "command" && (z.cards || []).some((c) => c.id === s.sourceId && (c.types || []).includes("Dungeon"))))
       ? (s.sourceAbilityText || "").match(/^([^—(]+?) — /)?.[1] || null : null;
+    // (a copy of an exiled card, cast: its line says so and names the card it lies with, castCopyOf)
+    const copy = ability ? null : castCopyOf(s, pub);
     stack[key] ??= { id: s.sourceId, name, ctl: s.controllerId, ability, trigger, kwTrigger, upkeepCost, n: 0, sids: [], tg: [], ...(regen ? { regen } : {}), ...(effect ? { effect } : {}),
+      ...(copy ? { castCopy: copy.source || "" } : {}),
       ...(s.optionalCosts?.length ? { opt: s.optionalCosts } : {}), ...(via ? { via } : {}), ...(room ? { room } : {}),
       // (its words and the cards it targets: a goad's creatures, see logEvents)
       text: s.sourceAbilityText || "", cardTg: cardTargets, plTg: playerTargets,
@@ -2697,7 +2755,7 @@ function logSnapshot(pub, prev = null) {
   const marks = Object.fromEntries((pub.players || []).map((p) => [p.id, trackMarks(p, pub).values]));
   // (Planechase: the planes in play and the planar die's last roll, Forge's planar block; null in other games)
   const planar = pub.planar ? { ids: (pub.planar.planeIds || []).map(String), controller: pub.planar.controllerId || null, roll: pub.planar.lastRoll || null } : null;
-  return { cards, counts, life, lands, stack, blocks, marks, turnRun: turnRuns(prev, marks, pub), turn: pub.turn, step: pub.step, active: pub.activePlayerId, day: pub.dayTime, planar };
+  return { cards, counts, life, ...(Object.keys(cmd).length ? { cmd } : {}), lands, stack, blocks, marks, turnRun: turnRuns(prev, marks, pub), turn: pub.turn, step: pub.step, active: pub.activePlayerId, day: pub.dayTime, planar };
 }
 // Whose turn another player runs: player id -> the controller, for a control that is a turn's (the TURN RUN BY label
 // and the "takes control of ...'s turn" line; any other control is said plainly, see PLAYER_MARKS' controlledBy). Forge
@@ -2723,6 +2781,9 @@ function turnRuns(prev, marks, pub) {
 // triggered ability says when it triggers.
 // An activated ability's words, its cost before the colon: mana, a sacrifice, a tap, a loyalty cost, ...
 const ACTIVATION_COST = /^(?:\{[^}]+\}|Sacrifice\b|Pay\b|Discard\b|Remove\b|Exile\b|Tap\b|Untap\b|Return\b|[+−-](?:\d+|X)|0)[^.:]*:\s/;
+// The keyword triggers that cast a spell without paying its mana cost, by the log's word for them (a stack item's
+// kwTrigger): a spell they cast says so, logEvents' freeWords
+const FREE_CAST_KEYWORDS = ["cascade", "discover", "ripple"];
 // What an ability does, in a few words, for its trigger or activation line: its first sentence, from Forge's own
 // ability text (the stack item's sourceAbilityText, or the action's "<cost>: <effect>." description), less its
 // trigger condition ("When ... enters, "), its cost (before the colon), reminder text and Forge's notes; its own card's
@@ -2776,6 +2837,8 @@ function isAbilityOnStack(s, pub) {
   if (/^Paradigm \(/.test(s.sourceAbilityText)) return true;
   // (and a keyword activated from a hand no one else sees: another player's transmute read "AI 1 casts ...", keyword sweep)
   if (keywordKind(s.sourceAbilityText) !== "ability") return true;
+  // (a copy of a card cast from exile is a spell: Forge's PlayEffect makes the copy a token, castCopyOf)
+  if (castCopyOf(s, pub)) return false;
   // (a token's, or one with a cost before its colon, its source sacrificed to pay it and so in no zone: no token is cast,
   // and no spell's words start with a cost; AI 1's Clue read "AI 1 casts Clue Token", Kykar #19. A copy of a spell is
   // no token: Twincast's of Big Score has isToken false.)
@@ -2783,6 +2846,24 @@ function isAbilityOnStack(s, pub) {
   // (not the hand or the library: a spell with buyback was still listed in the hand, and "White uses Constant Mists's
   // ability" was logged, playtest 2026-10-27)
   return (pub.zones || []).some((z) => z.zone !== "hand" && z.zone !== "library" && (z.cards || []).some((c) => c.id === s.sourceId));
+}
+// A copy of an exiled card being cast (Arcane Bombardment's "copy each card exiled with Arcane Bombardment. You may cast
+// any number of the copies", Isochron Scepter, Mizzix's Mastery): Forge's PlayEffect with CopyCard makes the copy a
+// token of the card (GamePieceType.TOKEN) in the card's zone, then casts it, so its stack item is a token's with the
+// spell's own words and its source in no zone. It read "White uses Swords to Plowshares token's ability", readability
+// audit C5. -> { source: the name of the permanent the exiled card lies with (its exiledWith on the battlefield), or
+// null } when the item is such a copy: a token, no cost before a colon, no trigger, its source in no zone, and a face-up
+// card of its name, no token, in an exile zone; else null.
+function castCopyOf(s, pub) {
+  const words = String(s.sourceAbilityText || "");
+  if (!s.identity?.isToken || !s.identity.name || s.isPermanentSpell || s.isTrigger || ACTIVATION_COST.test(words) || /^(?:When|Whenever|At)\b/.test(words)) return null;
+  const zones = pub?.zones || [];
+  if (zones.some((z) => (z.cards || []).some((c) => c.id === s.sourceId))) return null;
+  const original = zones.filter((z) => z.zone === "exile").flatMap((z) => z.cards || [])
+    .find((c) => c.identity?.name === s.identity.name && !c.identity.isToken && !c.isFaceDown && c.visibility !== "hidden");
+  if (!original) return null;
+  const host = original.exiledWith && zones.filter((z) => z.zone === "battlefield").flatMap((z) => z.cards || []).find((c) => c.id === original.exiledWith);
+  return { source: host && !host.isFaceDown && host.identity?.name ? host.identity.name : null };
 }
 
 // What the player started (a cast, an ability) when a board with it on the stack never comes: it was paid from the pool
@@ -3706,6 +3787,16 @@ function logEvents(prev, cur, pub, facts = null) {
       out.push(`${x.name} can't be countered: ${s.name} did nothing to it${why && why.card ? ` (${why.said})` : ""}`);
     }
   }
+  // (an ability countered: gone from the stack with a counter that targeted it gone too, Stifle, Disallow, Tale's End on
+  // a trigger. It fell through to nothing at all, its counter's own line being its cast; readability audit C10)
+  for (const s of Object.values(prev.stack)) {
+    if (!s.ability) continue;
+    const gone = s.sids.filter((x) => !curSids.has(x) && prevCounterTargeted.has(x));
+    if (!gone.length) continue;
+    const by = Object.values(prev.stack).find((x) => x !== s && x.ctg?.some((t) => gone.includes(t)));
+    if (by && by.sids.some((x) => curSids.has(x))) continue; // (its counter still waits: something else took the ability)
+    out.push(`${poss(s.name)} ability is countered${by ? ` by ${by.name}` : ""}`);
+  }
   // (the targets the player picked for a stack item of theirs, kept on it while it stays: Forge's stack names no spell's
   // targets, Shock's and Counterspell's list is empty, so its own targets are the player's picks alone; picks asked for
   // these words only, see Seat.respond)
@@ -3745,6 +3836,18 @@ function logEvents(prev, cur, pub, facts = null) {
   // (a cast of a prepared creature's spell copy names the creature, the copy having been in exile on the last board:
   // notePrepared, HAND-TEST-HP06 #20)
   const prepWords = (id) => (prev.cards[id]?.prepBy ? ` (prepared by ${prev.cards[id].prepBy})` : "");
+  // (how a spell with no record of the player's was cast for free: from suspend, its card suspended in exile on the last
+  // board (readability audit B5); or by a trigger or spell of its caster's that left the stack now and casts "without
+  // paying its mana cost", cascade's and discover's by their keyword: an AI's cascade read plain "AI 1 casts X", audit
+  // C13. Not a spell's own alternative cost, "you may cast this spell without paying its mana cost".)
+  const freeWords = (s) => {
+    const was = prev.cards[s.id];
+    if (was?.zone === "exile" && was.suspend) return " from suspend without paying its mana cost";
+    const by = Object.values(prev.stack).find((x) => x.ctl === s.ctl && x.id !== s.id && x.sids.length && x.sids.every((sid) => !curSids.has(sid))
+      && (FREE_CAST_KEYWORDS.includes(x.kwTrigger) || (/\bwithout paying (?:its|their) mana costs?\b/i.test(`${x.text} ${x.desc}`) && !/\bcast this spell without paying\b/i.test(x.text))));
+    if (!by) return "";
+    return FREE_CAST_KEYWORDS.includes(by.kwTrigger) ? ` (${by.kwTrigger})` : ` without paying its mana cost (${by.name})`;
+  };
   // (and that cast's line when no board showed the copy on the stack: cast and resolved between two boards, an AI's.
   // Its caster is the creature's controller, Forge's MayPlayPlayer$ EffectSourceController; the copy is in the exile of
   // the player who prepared it.)
@@ -3867,7 +3970,8 @@ function logEvents(prev, cur, pub, facts = null) {
       (!mine && ability && (s.trigger || s.kwTrigger || s.upkeepCost) ? triggered : !mine && ability && entered ? afterEntries : resolvedHere ? afterResolved : out).push(s.upkeepCost ? `${poss(s.name)} ${s.upkeepCost}, or it is sacrificed`
         : ability && s.room ? `${who(s.ctl)} ventures into ${s.room} (${s.name})`
         : ability ? keywordLine(mine ? mine.kind : !s.trigger && !s.kwTrigger ? keywordKind(s.text) : null, s.ctl, s.name) || (!mine && s.kwTrigger ? `${poss(s.name)} ${s.kwTrigger} triggers (${who(s.ctl)})` : !mine && s.trigger ? `${poss(s.name)} ability triggers (${who(s.ctl)})${gistWords(s.text, s.name)}` : activationLine(s, mine))
-        : k >= 1 || copyOf ? `${who(s.ctl)} copies ${s.name}` : `${who(s.ctl)} casts ${mine ? mine.name : s.name}${prepWords(s.id)}${optionalWords(s.opt, mine?.name)}${targetWords(s)}`);
+        : s.castCopy != null ? `${who(s.ctl)} casts a copy of ${s.name}${s.castCopy ? ` (${s.castCopy})` : ""}${targetWords(s)}`
+        : k >= 1 || copyOf ? `${who(s.ctl)} copies ${s.name}` : `${who(s.ctl)} casts ${mine ? mine.name : s.name}${prepWords(s.id)}${mine ? "" : freeWords(s)}${optionalWords(s.opt, mine?.name)}${targetWords(s)}`);
     }
   }
   for (const e of pending) {
@@ -4398,6 +4502,9 @@ function logEvents(prev, cur, pub, facts = null) {
       // (cast from exile: an adventurer, a foretold card, ... enters; read "returns ... from exile", hp-02 #3)
       // (a land played from exile is a play: Tibalt's read "returns to the battlefield from exile", re-test 2026-10-31)
       else if (from === "exile" && c.land && landPlayed) out.push(`${who(c.ctl)} plays ${c.name} from exile${arrive}`);
+      // (a suspended creature cast as its last time counter went, no board showing it on the stack: an AI's Greater
+      // Gargadon read "returns to the battlefield from exile", readability audit B5)
+      else if (from === "exile" && was.suspend && moved?.through === "Stack" && !castNow.has(id)) out.push(`${who(c.ctl)} casts ${c.name} from suspend without paying its mana cost`, `${self} enters the battlefield${asCopy}${arrive} (${who(c.ctl)})`);
       else if (from === "exile") out.push(castNow.has(id) ? `${self} enters the battlefield${asCopy}${arrive} (${who(c.ctl)})` : `${self} returns to the battlefield from exile${asCopy}${arrive} (${backBy(moved, c, was)})`);
       // (face down: off the stack a face-down spell's creature, else put there (manifest, cloak); Abhorrent Oculus's
       // manifest dread read "a face-down card enters the battlefield (White)", hp-09)
@@ -4424,6 +4531,8 @@ function logEvents(prev, cur, pub, facts = null) {
       if (armored) out.push(`${c.name} is destroyed instead of ${armored} (umbra armor)`);
       // (a prepared creature's spell copy, from exile to the graveyard: cast and resolved unseen, prepCast)
       else if (from === "exile" && was.prep) prepCast(id);
+      // (a suspended spell cast and resolved between two boards, Forge's moves exile, stack, graveyard: B5)
+      else if (from === "exile" && was.suspend && moved?.through === "Stack" && !castNow.has(id)) out.push(`${who(c.owner)} casts ${c.name} from suspend without paying its mana cost`);
       else if (from === "battlefield") {
         // (and what destroyed it or put it there, Forge's word: "Batterskull is destroyed by Krosan Grip", a creature
         // destroyed so too, "Grizzly Bears is destroyed by Murder"; one dead of its damage has no cause and "dies",
@@ -4711,6 +4820,13 @@ function logEvents(prev, cur, pub, facts = null) {
         if (d) out.push(`${c.name} ${d > 0 ? "gets" : "loses"} ${countWords(Math.abs(d), Math.abs(d), noun)} (${now[k] || 0} ${d > 0 ? "in all" : "left"})`);
       }
     }
+    // (a suspended card's countdown in exile, face up for everyone: "Rift Bolt: 2 time counters left", its last one
+    // "Rift Bolt: last time counter removed"; only the pile's hover showed the count, readability audit B5)
+    if (c.zone === "exile" && was?.zone === "exile" && !c.fd && !was.fd) {
+      const now = timeCounters(c), then = timeCounters(was);
+      if (now < then) out.push(now ? `${c.name}: ${now} time counter${now === 1 ? "" : "s"} left` : `${c.name}: last time counter removed`);
+      else if (now > then) out.push(`${c.name} gets ${countWords(now - then, now - then, "time counter")} (${now} in all)`);
+    }
     // (and loyalty an effect puts on, not its own ability's cost, which that ability's line says: a second Empower on the
     // Jace token said nothing, the table showing Loyalty 4, keyword sweep kw-07)
     // (its own ability: the player's record of it, or the ability seen on a stack. The state counts no loyalty
@@ -4752,6 +4868,14 @@ function logEvents(prev, cur, pub, facts = null) {
     })];
   // (each life change with what made it, when what the boards and the player's answers show adds up to it, each part by
   // its words; else bare, as no source is guessed: the pain lands and life paid above, pains and payable)
+  // (commander damage taken now, said with the player's life line, else on its own: "commander damage from Kenrith, the
+  // Returned King: 14 in all"; the 21 that loses counts from one commander. Nothing flagged it, readability audit C9)
+  const cmdNow = (p) => Object.entries(cur.cmd?.[p] || {}).filter(([k, n]) => n > (prev.cmd?.[p]?.[k] || 0))
+    .map(([k, n]) => `commander damage from ${cur.cards[k]?.name || prev.cards[k]?.name || game.namesSeen?.get(k) || "a commander"}: ${n} in all`);
+  for (const p of Object.keys(cur.cmd || {})) {
+    if (cur.life[p] != null && cur.life[p] !== prev.life[p] && prev.life[p] != null) continue;
+    for (const w of cmdNow(p)) out.push(`${who(p)} takes ${w}`);
+  }
   for (const [p, l] of Object.entries(cur.life)) {
     const before = prev.life[p];
     if (before == null || l === before) continue;
@@ -4762,7 +4886,7 @@ function logEvents(prev, cur, pub, facts = null) {
       ...paid.map((x) => ({ n: x.n, w: `paid for ${x.name}` }))].map((x) => ({ n: -x.n, w: x.w }))];
     parts.push(...lifeSources(p, l - before - parts.reduce((a, x) => a + x.n, 0), lifeFrom, Object.keys(cur.life), prev));
     const why = parts.length && parts.reduce((a, x) => a + x.n, 0) === l - before ? `, ${lifeWords(parts)}` : "";
-    out.push(`${who(p)}: ${before} -> ${l} life (${l > before ? "+" : ""}${l - before}${why})`);
+    out.push(`${who(p)}: ${before} -> ${l} life (${l > before ? "+" : ""}${l - before}${why})${cmdNow(p).map((w) => `; ${w}`).join("")}`);
   }
   out.push(...triggered, ...afterResolved);
   // (each group's line made once and kept on it, for the moves after the cuts below to find)
@@ -4862,6 +4986,10 @@ function updateLog(pub) {
   game.namesSeen ??= new Map();
   // (a face-down card's name here is already "a face-down card": logSnapshot hides it)
   for (const [id, c] of Object.entries(cur.cards)) game.namesSeen.set(id, c.name);
+  // (each permanent's own name while nothing is merged into it: a creature mutated under keeps its id and takes the top
+  // card's name, so this is the name of the card under it, mutateWords)
+  game.unmergedName ??= new Map();
+  for (const [id, c] of Object.entries(cur.cards)) if (c.zone === "battlefield" && !c.merged && !c.fd) game.unmergedName.set(id, c.name);
   // (every card seen in a command zone this game: a commander, for the legend rule's choice; see chooseCards)
   game.commandIds ??= new Set();
   for (const [id, c] of Object.entries(cur.cards)) if (c.zone === "command") game.commandIds.add(id);
@@ -4870,6 +4998,8 @@ function updateLog(pub) {
   const facts = engineFacts(pub.events);
   // (battlefield to exile, for the table's exile sound: see sendTable's exd)
   for (const [id, mv] of facts?.moves || []) if (mv.from === "Battlefield" && mv.to === "Exile") (game.fxExiled ??= new Set()).add(id);
+  // (a card foretold, by Forge's word on its move, for the FORETOLD n mark: noteForetold keeps it while it stays in exile)
+  for (const [id, mv] of facts?.moves || []) if (mv.how === "foretell" && mv.to === "Exile") (game.foretold ??= new Map()).set(id, mv.owner || null);
   // (every battlefield departure and every damage dealt, for the table's effects: see sendTable's lv and hits; an engine
   // that sends damage entries is the one word on damage from then on, game.feedDamage)
   for (const [id, l] of facts?.leaves || []) (game.fxLeft ??= new Map()).set(id, l);
@@ -5097,6 +5227,7 @@ function sendTable() {
   const byId = cardIndex(pub);
   game.delayedNow = delayedOf(pub); // (the delayed triggers' words on their cards: tableCard, cardNotes)
   const views = seats.map((s) => cardIndex(s.board.state.gameView));
+  noteForetold(pub, views); // (the FORETOLD n marks below: playerMarks)
   for (const s of seats) noteTypes(s.board.state.gameView); // (before the stack below: its instants)
   // (the board the notes naming another card read: exiledWithNote, playNote)
   game.tableCtx = { byId, field: new Set((pub.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => (z.cards || []).map((c) => c.id))) };
@@ -5341,8 +5472,14 @@ const andList = (names) => (names.length > 1 ? `${names.slice(0, -1).join(", ")}
 function gameEndWords(gv) {
   const decked = deckedPlayers(gv).map((p) => nameOf(p.id));
   const conceded = concededPlayers(gv).map((p) => nameOf(p.id));
+  // (and a last loser none of those explain, by name: "AI 1 wins" alone left who lost unsaid, readability audit C11.
+  // The engine sends no loss reason, so none is given: an alternate win, Thassa's Oracle, or an effect's "loses the game".
+  // Only beside a winner: with none, everyone lost and it reads "a draw")
+  const said = new Set([...decked, ...conceded]);
+  const other = (gv?.players || []).filter((p) => gv.winnerId && p.status === "lost" && outLast(p) && p.id !== gv.winnerId && !LOSS_REASONS.some((r) => r(p)))
+    .map((p) => nameOf(p.id)).filter((n) => !said.has(n));
   const lost = [lossReasons(gv), decked.length ? `${andList(decked)} drew from an empty library` : null,
-    conceded.length ? `${andList(conceded)} conceded` : null].filter(Boolean).join(", ") || null;
+    conceded.length ? `${andList(conceded)} conceded` : null, other.length ? `${andList(other)} lost the game` : null].filter(Boolean).join(", ") || null;
   const won = gv?.winnerId ? `${nameOf(gv.winnerId)} wins` : null;
   if (lost) return won ? `${lost}. ${won}` : lost;
   // (a draw only when the engine says the game is over: a gameOver question with a board still playing tells nothing)
@@ -5500,6 +5637,14 @@ const positive = (n) => (typeof n === "number" && n > 0 ? n : 0);
 // (a held mark's words after its line: from whom and by what, logEvents' `at.from` and `at.cause`, "(from White, combat damage)")
 const heldWords = (at = {}) => ((w) => (w.length ? ` (${w.join(", ")})` : ""))([...(at.from ? [`from ${at.from}`] : []), ...(at.cause ? [at.cause] : [])]);
 const counterOf = (name) => (p) => positive(playerCounter(p, name));
+// The Ring's four levels: [the label's few words, Forge's description] (its level 3 text, "becomes blocked a creature",
+// as Forge has it, "by" put back)
+const RING_LEVELS = [
+  ["BEARER IS LEGENDARY, EVADES BIGGER", "Your Ring-bearer is legendary and can't be blocked by creatures with greater power."],
+  ["BEARER LOOTS ON ATTACK", "Whenever your Ring-bearer attacks, draw a card, then discard a card."],
+  ["BEARER'S BLOCKERS ARE SACRIFICED", "Whenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat."],
+  ["BEARER'S HITS DRAIN 3", "Whenever your Ring-bearer deals combat damage to a player, each opponent loses 3 life."],
+];
 const PLAYER_MARKS = [
   { key: "poison", read: counterOf("poison"), label: (n) => `POISON ${n}`,
     say: (who, n, was) => (n > was ? `${who} gets ${countWords(n - was, n - was, "poison counter")} (${n} in all)`
@@ -5524,7 +5669,11 @@ const PLAYER_MARKS = [
     } },
   // (Forge's count of temptations only goes up in play, getNumRingTemptedYou: a rewind or a restarted game lowers it,
   // and that says nothing)
-  { key: "ring", read: (p) => positive(p.ringLevel), label: (n) => `RING TEMPTED ${n}`,
+  // The label names what the newest level gave the Ring-bearer, the hover lists every level reached, in Forge's words
+  // (Player.setRingLevel's descriptions); the label keeps "RING TEMPTED n" first, the Ring piece's mark
+  // (make-engine-copy STATUS_PIECES, engineStatusMatch). Readability audit C7/D8.
+  { key: "ring", read: (p) => positive(p.ringLevel), label: (n) => `RING TEMPTED ${n}: ${RING_LEVELS[Math.min(n, 4) - 1][0]}`,
+    tip: (n, p) => `The Ring has tempted ${nameOf(p.id)} ${n === 1 ? "once" : `${n} times`}:\n${RING_LEVELS.slice(0, Math.min(n, 4)).map((l) => l[1]).join("\n")}`,
     say: (who, n, was, at = {}) => (n > was ? `${who} is tempted by the Ring${n - was > 1 ? ` ${n - was} times` : ""} (${n})${at.bearer ? `: Ring-bearer ${at.bearer}` : ""}` : null) },
   // (0 until a "Start your engines!" card; then 1 to 4, up once a turn, Forge's "Max Speed!" at 4, never down below 1)
   { key: "speed", read: (p) => positive(p.speed), label: (n) => `SPEED ${n}`,
@@ -5550,6 +5699,10 @@ const PLAYER_MARKS = [
   { key: "handSize", read: (p) => (p.unlimitedHandSize ? "none" : p.maxHandSize != null && p.maxHandSize !== 7 ? String(p.maxHandSize) : null),
     label: (n) => (n === "none" ? "NO MAX HAND SIZE" : `MAX HAND ${n}`) },
   { key: "keywords", read: playerKeywordLabels, label: (list) => list },
+  // (how many foretold cards the player has in exile, noteForetold: a count only, which is public; what they are only
+  // the owner sees, in their second hand. Readability audit B7)
+  { key: "foretold", read: (p) => foretoldCount(p.id), label: (n) => `FORETOLD ${n}`,
+    tip: (n, p) => `${nameOf(p.id)} has ${countWords(n, n, "foretold card")} in exile, face down, to cast on a later turn for ${n === 1 ? "its" : "their"} foretell cost` },
   // (engine1112, docs/readability-audit-2026-11-12.md E6, E1, E2: the active player's spells this turn and the storm
   // count; the rules effects and emblems on the player; a delayed trigger waiting for their turn with no card to mark,
   // a pact's upkeep cost. Each box's hover says it whole: `tip`. Nothing from an engine that sends none.)
@@ -8891,7 +9044,11 @@ function onPrompt(seat, prompt) {
         // (and a die roll, said of its roller: "White saw: Ancient Copper Dragon: White rolled 6", re-test 2 bug b)
         const roll = plain.match(/^(?:(.+): )?(.+?) rolled (\d+(?:(?:, | and |\+)\d+)*)\.?$/);
         const roller = roll && Object.values(game?.slotNames || {}).includes(roll[2]) ? roll[2] : null;
-        if (game) gameLogLine(mine && mine[2] === me ? `${me} chooses ${mine[3]} (${mine[1]})`
+        // (a vote's tally is the table's, said once and by nobody: "Mob Verdict: White voted for AI 1. Votes: AI 1: White",
+        // not "<seat> saw:" once per human seat, readability audit C8; any other notice as each seat is shown it)
+        const vote = !mine && !flip && !roller && / voted for |\bVotes: /.test(plain);
+        if (vote) tableNotice(`vote|${plain}`, seat.color, plain);
+        else if (game) gameLogLine(mine && mine[2] === me ? `${me} chooses ${mine[3]} (${mine[1]})`
           : flip ? `${me} ${flip[2]}s the flip${flip[1] ? ` (${flip[1]})` : ""}`
             : roller ? `${roller} rolls ${roll[3]}${roll[1] ? ` (${roll[1]})` : ""}` : `${seat.color} saw: ${plain}`);
         seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" });
@@ -9034,14 +9191,15 @@ function onPrompt(seat, prompt) {
           : revealedNow ? `${owner} reveals ${many} from their ${input.zone}${said ? ` (${said})` : ""}`
           : revealed ? `${seat.color} saw: ${ui.title}: ${ui.text}`
           : `${seat.color} looked at ${countWords(input.cards.length, input.cards.length, "card")} (${mine ? "their" : `${nameOf(ownerSlot)}'s`} ${input.zone})`;
-        // (each seat is shown a reveal: said once)
-        const again = revealedNow && game.lastReveal?.line === line && Date.now() - game.lastReveal.at < 5000;
+        // (each seat is shown a reveal: said once, the other human seats acknowledging it in turn, tableNotice; and the same
+        // cards shown again a moment later by the same card, Parley's)
         // (until: revealed until a card is found, which is the last; grandeur's Divination read "puts a card from their
         // library into their hand", keyword sweep kw-25)
         // (cards: each with its id, for which of them went to the hand, see logEvents)
         const cards = input.cards.filter((c) => c.identity?.name).map((c) => ({ id: c.id, name: c.identity.name }));
         if (revealedNow) game.lastReveal = { line, at: Date.now(), slot: ownerSlot, zone: input.zone, names: cards.map((c) => c.name), cards, until: /\buntil you reveal\b/i.test(abilityWords) };
-        if (!again) (revealedNow ? holdLogLine : gameLogLine)(line);
+        if (revealedNow) tableNotice(`reveal|${line}`, seat.color, line, { say: holdLogLine, againMs: 5000 });
+        else gameLogLine(line);
       }
       toOutput = () => ({ type: "revealCardsAcknowledged" });
       break;
@@ -11075,6 +11233,6 @@ if (require.main === module) {
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
-    fixOps, phaseNumber, fxFacts,
+    fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords,
   };
 }

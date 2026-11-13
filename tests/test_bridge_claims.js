@@ -1859,7 +1859,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       emptyLibrary(b, ["player-0"]);
       seat.board = { state: b, fingerprint: null };
       await asked(h, seat, { type: "gameOver" });
-      ok("verify #16: the winner's empty library is no loss", chats(h).filter((t) => /Game over/.test(t))[0] === "[MTG] Game over: Blue wins.", JSON.stringify(chats(h)));
+      ok("verify #16: the winner's empty library is no loss", chats(h).filter((t) => /Game over/.test(t))[0] === "[MTG] Game over: AI 1 lost the game. Blue wins.", JSON.stringify(chats(h)));
       harness.restore();
     }
     // (a concession is a reason, said by concededPlayers: LOSS_REASONS has none for it)
@@ -2347,7 +2347,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
         (gv) => { gv.turn++; gv.step = "main1"; gv.activePlayerId = "player-2"; }, (gv) => { P(gv, "player-2").status = "conceded"; over("player-0")(gv); }]));
       ok("verify 1: a loser whose library emptied as they left isn't decked", said === "[MTG] Game over: Yellow conceded. Blue wins.", said);
       said = await gameOverSaid(await play(3, [() => {}, (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; lib(gv, "player-1", 0); over("player-0")(gv); }]));
-      ok("verify 1: a loser in their own draw step whose library had cards isn't decked", said === "[MTG] Game over: Blue wins.", said);
+      ok("verify 1: a loser in their own draw step whose library had cards isn't decked", said === "[MTG] Game over: White lost the game. Blue wins.", said);
       // a real deck-out: the library already empty while White was playing, out in White's own draw step
       said = await gameOverSaid(await play(3, [() => {}, (gv) => { lib(gv, "player-1", 0); },
         (gv) => { gv.step = "draw"; gv.activePlayerId = "player-1"; P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
@@ -2366,11 +2366,11 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       // a player who lost earlier isn't named for the end (outLast)
       said = await gameOverSaid(await play(3, [() => {}, (gv) => { P(gv, "player-1").status = "lost"; P(gv, "player-1").life = -3; lib(gv, "player-1", 0); },
         (gv) => { gv.turn++; }, (gv) => { P(gv, "player-2").status = "lost"; lib(gv, "player-2", 0); over("player-0")(gv); }]));
-      ok("verify 1: a player out earlier isn't how the game ended", said === "[MTG] Game over: Blue wins.", said);
+      ok("verify 1: a player out earlier isn't how the game ended", said === "[MTG] Game over: Yellow lost the game. Blue wins.", said);
       // Thassa's Oracle in 3 and 4 players: every loser's cards leave the game with them, libraries 0
       for (const n of [3, 4]) {
         said = await gameOverSaid(await play(n, [() => {}, (gv) => { for (let i = 1; i < n; i++) { P(gv, `player-${i}`).status = "lost"; lib(gv, `player-${i}`, 0); } lib(gv, "player-0", 0); over("player-0")(gv); }]));
-        ok(`verify 1: a Thassa's Oracle win in ${n} players blames no library`, said === "[MTG] Game over: Blue wins.", said);
+        ok(`verify 1: a Thassa's Oracle win in ${n} players blames no library`, said === `[MTG] Game over: ${n === 3 ? "White and Yellow" : "White, Yellow and Red"} lost the game. Blue wins.`, said);
       }
       // a 4-player draw (everyone lost at once, the runaway cap): no guessed reason
       said = await gameOverSaid(await play(4, [() => {}, (gv) => { for (let i = 0; i < 4; i++) { P(gv, `player-${i}`).status = "lost"; lib(gv, `player-${i}`, 0); } over(null)(gv); }]));
@@ -2378,12 +2378,12 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       // 2 players: a loser whose library was empty, out on the other player's turn (Phage), isn't called decked
       said = await gameOverSaid(await play(2, [() => {}, (gv) => { lib(gv, "player-1", 0); },
         (gv) => { gv.step = "main1"; gv.activePlayerId = "player-0"; P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
-      ok("verify 1: an empty library and a loss outside its draw isn't a deck-out", said === "[MTG] Game over: Blue wins.", said);
+      ok("verify 1: an empty library and a loss outside its draw isn't a deck-out", said === "[MTG] Game over: White lost the game. Blue wins.", said);
       // (nor in its own turn's main phase, nor in another player's draw step)
       for (const [step, active] of [["main1", "player-1"], ["draw", "player-0"]]) {
         said = await gameOverSaid(await play(2, [() => {}, (gv) => { lib(gv, "player-1", 0); },
           (gv) => { gv.step = step; gv.activePlayerId = active; P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
-        ok(`verify 1: an empty library and a loss in ${step} of ${active}'s turn isn't a deck-out`, said === "[MTG] Game over: Blue wins.", said);
+        ok(`verify 1: an empty library and a loss in ${step} of ${active}'s turn isn't a deck-out`, said === "[MTG] Game over: White lost the game. Blue wins.", said);
       }
       // (once the game is over, a player still playing with an empty library in their own draw step hasn't drawn yet)
       said = await gameOverSaid(await play(3, [() => {}, (gv) => { lib(gv, "player-2", 0); },
@@ -2423,7 +2423,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       // drawn: White drew it, then lost to something LOSS_REASONS doesn't know, a Laboratory Maniac's)
       said = await gameOverSaid(await play(2, [(gv) => { lib(gv, "player-1", 1); gv.step = "upkeep"; gv.activePlayerId = "player-1"; },
         (gv) => { lib(gv, "player-1", 0); gv.step = "draw"; }, (gv) => { P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
-      ok("suite: a player who drew their last card and then lost isn't decked", said === "[MTG] Game over: Blue wins.", said);
+      ok("suite: a player who drew their last card and then lost isn't decked", said === "[MTG] Game over: White lost the game. Blue wins.", said);
       // (and the same draw step a turn later, the library empty since the turn before: decked)
       said = await gameOverSaid(await play(2, [(gv) => { lib(gv, "player-1", 0); gv.step = "draw"; gv.activePlayerId = "player-1"; },
         (gv) => { gv.turn++; gv.step = "upkeep"; }, (gv) => { gv.step = "draw"; }, (gv) => { P(gv, "player-1").status = "lost"; over("player-0")(gv); }]));
@@ -2451,7 +2451,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
         r.seat.board = { state: clone(out), fingerprint: null };
         await asked(r.h, r.seat, { type: "gameOver" });
         const s = chatsOf(r.h).filter((t) => /Game over/.test(t));
-        ok("suite: a player the rewind brought back is read by how they went out again", s[0] === "[MTG] Game over: Blue wins.", JSON.stringify(s));
+        ok("suite: a player the rewind brought back is read by how they went out again", s[0] === "[MTG] Game over: White lost the game. Blue wins.", JSON.stringify(s));
         harness.restore();
       }
       // the relay's abort, on a board not over: a conceded player with library 0 is never decked; nothing known says no "aborted"
@@ -5269,6 +5269,223 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     same("skipped: a turn the other way round leaves the direction unknown until it is seen again (it may have been a skip)",
       skips(run([1, 0], [2, 1], [3, 0], [4, 2])), []);
     same("skipped: and after a reversal, a skip once the new direction is seen is said", skips(run([1, 0], [2, 1], [3, 2], [4, 1], [5, 0], [6, 2])), ["AI 3's turn is skipped"]);
+  }
+  // Readability batch 2 (docs/readability-audit-2026-11-12.md rows 13, 15, 17, 18, 19, 21, 22)
+  {
+    const zoneOf = (gv, kind, owner) => gv.zones.find((z) => z.zone === kind && z.ownerId === owner);
+    const card = (n, name, types = ["Instant"], more = {}) => ({ id: `engine-card-${n}`, identity: { name }, types, ownerId: "player-0", controllerId: "player-0", text: "", counters: {}, keywords: [], ...more });
+    const logOf = (h, before, after, events) => h.B.logEvents(h.B.logSnapshot(before), h.B.logSnapshot(after), after, events ? h.B.engineFacts(events) : null);
+    const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+    // row 13 (C5): a copy of an exiled card cast (Arcane Bombardment) is a cast copy, not a token's ability
+    {
+      const h = harness.load();
+      setup(h, F.board);
+      const before = clone(F.board.gameView);
+      zoneOf(before, "battlefield", "player-0").cards.push(card(951, "Arcane Bombardment", ["Enchantment"]));
+      zoneOf(before, "exile", "player-0").cards.push(card(950, "Swords to Plowshares", ["Instant"], { exiledWith: "engine-card-951" }));
+      const after = clone(before);
+      after.stack = [{ id: "stack-c1", sourceId: "engine-card-960", controllerId: "player-0", identity: { name: "Swords to Plowshares", isToken: true },
+        sourceAbilityText: "Exile target creature. Its controller gains life equal to its power.", targets: [] }];
+      const lines = logOf(h, before, after);
+      ok("cast copy: a copy of an exiled card is cast, naming the card it lies with", lines.includes("Blue casts a copy of Swords to Plowshares (Arcane Bombardment)"), JSON.stringify(lines));
+      ok("cast copy: not a token's ability", !lines.some((l) => /token's ability/.test(l)), JSON.stringify(lines));
+      // (no original face up in exile: a token's spell-like stack item stays as it was read)
+      const lone = clone(F.board.gameView), lone2 = clone(lone);
+      lone2.stack = after.stack;
+      ok("cast copy: with no exiled card of that name it is no cast copy", !logOf(h, lone, lone2).some((l) => /casts a copy/.test(l)), JSON.stringify(logOf(h, lone, lone2)));
+      // (a token's own activated ability, Kykar #19's Clue, is still its ability)
+      const b2 = clone(F.board.gameView);
+      zoneOf(b2, "battlefield", "player-0").cards.push(card(961, "Clue", ["Artifact"], { identity: { name: "Clue", isToken: true } }));
+      zoneOf(b2, "exile", "player-0").cards.push(card(962, "Clue", ["Artifact"]));
+      const a2 = clone(b2);
+      a2.stack = [{ id: "stack-c2", sourceId: "engine-card-961", controllerId: "player-0", identity: { name: "Clue", isToken: true }, sourceAbilityText: "{2}, Sacrifice this artifact: Draw a card." }];
+      const clue = logOf(h, b2, a2);
+      ok("cast copy: a token's activated ability is still its ability", clue.some((l) => /uses Clue token's ability/.test(l)) && !clue.some((l) => /casts a copy/.test(l)), JSON.stringify(clue));
+      harness.restore();
+    }
+    // row 18 (B5) and row 22 (C13): suspend's countdown and its free cast in the log
+    {
+      const h = harness.load();
+      setup(h, F.board);
+      const bolt = (n) => card(970, "Rift Bolt", ["Sorcery"], { counters: n ? { TIME: n } : {}, keywords: ["Suspend:1:{R}"] });
+      const at = (n) => { const b = clone(F.board.gameView); zoneOf(b, "exile", "player-0").cards.push(bolt(n)); return b; };
+      same("suspend: a time counter removed is counted down", logOf(h, at(3), at(2)), ["Rift Bolt: 2 time counters left"]);
+      same("suspend: the last one", logOf(h, at(1), at(0)), ["Rift Bolt: last time counter removed"]);
+      same("suspend: counters added (Jhoira's suspend) say how many", logOf(h, at(1), at(3)), ["Rift Bolt gets 2 time counters (3 in all)"]);
+      const cast = clone(F.board.gameView);
+      cast.stack = [{ id: "stack-rb", sourceId: "engine-card-970", controllerId: "player-0", identity: { name: "Rift Bolt" }, sourceAbilityText: "Rift Bolt deals 3 damage to any target.", targets: [] }];
+      const lines = logOf(h, at(0), cast);
+      ok("suspend: its cast from exile says it is free, from suspend", lines.includes("Blue casts Rift Bolt from suspend without paying its mana cost"), JSON.stringify(lines));
+      // (an ordinary cast says nothing of the kind)
+      const hand = clone(F.board.gameView); zoneOf(hand, "hand", "player-0").cards.push(card(971, "Lightning Bolt"));
+      const handCast = clone(F.board.gameView);
+      handCast.stack = [{ id: "stack-lb", sourceId: "engine-card-971", controllerId: "player-0", identity: { name: "Lightning Bolt" }, sourceAbilityText: "Lightning Bolt deals 3 damage to any target.", targets: [] }];
+      ok("free cast: a cast from the hand has no tag", logOf(h, hand, handCast).includes("Blue casts Lightning Bolt"), JSON.stringify(logOf(h, hand, handCast)));
+      // (a cascade trigger that resolved and put a spell on the stack: "(cascade)")
+      const cascading = clone(F.board.gameView);
+      cascading.stack = [{ id: "stack-cs", sourceId: "engine-card-972", controllerId: "player-1", identity: { name: "Bloodbraid Elf" }, isTrigger: true,
+        sourceAbilityText: "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)", targets: [] }];
+      const cascaded = clone(F.board.gameView);
+      cascaded.stack = [{ id: "stack-bb", sourceId: "engine-card-973", controllerId: "player-1", identity: { name: "Blightning" }, sourceAbilityText: "Blightning deals 3 damage to target player.", targets: [] }];
+      const cl = logOf(h, cascading, cascaded);
+      ok("free cast: an AI's spell cast by its cascade trigger is tagged", cl.some((l) => l.startsWith("AI 1 casts Blightning (cascade)")), JSON.stringify(cl));
+      harness.restore();
+    }
+    // row 22 (C10): an ability countered (Stifle) has a line
+    {
+      const h = harness.load();
+      setup(h, F.board);
+      const both = clone(F.board.gameView);
+      both.stack = [
+        { id: "stack-hb", sourceId: "engine-card-980", controllerId: "player-1", identity: { name: "Hero of Bladehold" }, isTrigger: true, sourceAbilityText: "Whenever Hero of Bladehold attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking.", targets: [] },
+        { id: "stack-st", sourceId: "engine-card-981", controllerId: "player-0", identity: { name: "Stifle" }, sourceAbilityText: "Counter target activated or triggered ability.", targets: [{ kind: "spell", id: "stack-hb" }] },
+      ];
+      const none = clone(F.board.gameView);
+      zoneOf(none, "graveyard", "player-0").cards.push(card(981, "Stifle"));
+      const lines = logOf(h, both, none);
+      ok("countered ability: the ability gone with a counter on it is said countered, by what", lines.includes("Hero of Bladehold's ability is countered by Stifle"), JSON.stringify(lines));
+      harness.restore();
+    }
+    // row 22 (C9): commander damage is flagged with the life line, else on its own
+    {
+      const h = harness.load();
+      setup(h, F.board);
+      const before = clone(F.board.gameView);
+      zoneOf(before, "battlefield", "player-1").cards.push(card(200, "Kenrith, the Returned King", ["Creature"], { ownerId: "player-1", controllerId: "player-1" }));
+      const after = clone(before);
+      const blue = after.players.find((p) => p.id === "player-0");
+      blue.life -= 5; blue.commanderDamage = { "engine-card-200": 7 };
+      const lines = logOf(h, before, after);
+      ok("commander damage: the life line says it and the total from that commander", lines.some((l) => /^Blue: 30 -> 25 life \(-5.*; commander damage from Kenrith, the Returned King: 7 in all$/.test(l)), JSON.stringify(lines));
+      const same2 = clone(before);
+      same2.players.find((p) => p.id === "player-0").commanderDamage = { "engine-card-200": 9 };
+      same("commander damage: with no life change (prevented, or life that can't change) on its own line", logOf(h, before, same2), ["Blue takes commander damage from Kenrith, the Returned King: 9 in all"]);
+      ok("commander damage: nothing when it didn't rise", !logOf(h, before, clone(before)).some((l) => /commander damage/.test(l)), JSON.stringify(logOf(h, before, clone(before))));
+      harness.restore();
+    }
+    // row 22 (C11): a game over names a last loser no known reason explains
+    {
+      const h = harness.load();
+      setup(h, F.board);
+      const gv = clone(F.board.gameView);
+      gv.gameOver = true; gv.winnerId = "player-0";
+      gv.players.find((p) => p.id === "player-1").status = "lost";
+      same("game over: the loser named when no reason is known", h.B.gameEndWords(gv), "AI 1 lost the game. Blue wins");
+      gv.players.find((p) => p.id === "player-1").life = 0;
+      same("game over: a known reason still says it, the loser not twice", h.B.gameEndWords(gv), "AI 1 is at 0 life. Blue wins");
+      harness.restore();
+    }
+    // row 15 (C7, D8): the Ring's label says what the newest level gives, its hover every level
+    {
+      const h = harness.load();
+      const b = clone(F.board);
+      b.gameView.players.find((p) => p.id === "player-0").ringLevel = 2;
+      setup(h, b);
+      h.B.sendTable(); await h.flush();
+      const me = sent(h, "table")[0].players.find((p) => p.slot === "player-0");
+      const i = (me.allMarks || []).findIndex((m) => m.startsWith("RING TEMPTED"));
+      same("ring: the label keeps RING TEMPTED n first (the Ring piece's mark) and names the level's ability", me.allMarks[i], "RING TEMPTED 2: BEARER LOOTS ON ATTACK");
+      ok("ring: its hover lists the levels reached, in Forge's words", /^The Ring has tempted Blue 2 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power\.\nWhenever your Ring-bearer attacks, draw a card, then discard a card\.$/.test(me.markTips?.[i] || ""), JSON.stringify(me.markTips));
+      harness.restore();
+    }
+    // row 17 (A4): a mutated creature's status box names the cards under the top one
+    {
+      const h = harness.load();
+      const base = { types: ["Creature"], ownerId: "player-0", controllerId: "player-0", text: "", counters: {}, keywords: [] };
+      const run = async (onTop) => {
+        const start = clone(F.board);
+        const bf = zoneOf(start.gameView, "battlefield", "player-0");
+        bf.cards.push({ ...base, id: "engine-card-994", identity: { name: "Eidolon of Blossoms" } });
+        const seat = setup(h, start);
+        h.B.sendTable(); await h.flush();
+        const next = clone(start);
+        const host = zoneOf(next.gameView, "battlefield", "player-0").cards.find((c) => c.id === "engine-card-994");
+        if (onTop) host.identity = { name: "Gemrazer" };
+        host.mergedCardIds = ["engine-card-995"];
+        zoneOf(next.gameView, "battlefield", "player-0").cards.push({ ...base, id: "engine-card-995", identity: { name: "Gemrazer" }, attachedTo: "engine-card-994" });
+        seat.board = { state: next, fingerprint: null };
+        h.effects.length = 0;
+        // (every zone sent whole: an unchanged one goes as "keep")
+        Object.assign(h.B._getGame(), { sentZones: {}, sentStatic: {} });
+        h.B.sendTable(); await h.flush();
+        // (the last board that sent the battlefield: a later resend of the same board keeps it)
+        const row = sent(h, "table").map((t) => t.players.find((p) => p.slot === "player-0")).filter((p) => p?.battlefield).at(-1);
+        return row?.battlefield.find((c) => c.id === "engine-card-994")?.kw || [];
+      };
+      ok("mutate: mutated on top, the creature it mutated onto is under it", (await run(true)).includes("Mutated: Eidolon of Blossoms under it"), JSON.stringify(await run(true)));
+      ok("mutate: mutated under, the mutating card is under it", (await run(false)).includes("Mutated: Gemrazer under it"), JSON.stringify(await run(false)));
+      // (a bridge that never saw the creature before the merge: the top's own card is not named as under it)
+      h.B._setGame({ ...h.B._getGame(), unmergedName: new Map(), tableCtx: { byId: { "engine-card-995": { identity: { name: "Gemrazer" } } } } });
+      same("mutate: without the old name, the creature it mutated onto stands in", h.B.mutateWords({ id: "engine-card-994", identity: { name: "Gemrazer" }, mergedCardIds: ["engine-card-995"] }), ["Mutated: the creature it mutated onto under it"]);
+      h.B._getGame().tableCtx = { byId: { "engine-card-995": { identity: { name: "Gemrazer" }, isFaceDown: true } } };
+      same("mutate: a face-down card under it is not named", h.B.mutateWords({ id: "engine-card-994", identity: { name: "Eidolon of Blossoms" }, mergedCardIds: ["engine-card-995"] }), ["Mutated: a face-down card under it"]);
+      harness.restore();
+    }
+    // row 19 (B7): opponents see how many foretold cards a player has, never which
+    {
+      const h = harness.load();
+      const b = clone(F.board);
+      // (AI 1 foretells: the board's seat sees a hidden entry, id only; Forge's feed says the move was a foretell)
+      const ex = zoneOf(b.gameView, "exile", "player-1");
+      ex.cards = [{ id: "engine-card-990", visibility: "hidden" }];
+      b.gameView.events = [];
+      const seat = setup(h, b);
+      h.B.sendTable(); await h.flush();
+      const next = clone(b);
+      next.gameView.events = [{ seq: 1, kind: "move", cardId: "engine-card-990", from: "Hand", to: "Exile", how: "foretell", ownerId: "player-1" }];
+      seat.board = { state: next, fingerprint: null };
+      h.B.sendTable(); await h.flush();
+      const ai = sent(h, "table").at(-1).players.find((p) => p.slot === "player-1");
+      ok("foretold: the owner's row says how many", (ai.allMarks || []).includes("FORETOLD 1"), JSON.stringify(ai.allMarks));
+      ok("foretold: its hover gives the count only", (ai.markTips || []).some((t) => /^AI 1 has a foretold card in exile, face down/.test(t)), JSON.stringify(ai.markTips));
+      // (cast from exile: the count goes)
+      const gone = clone(next);
+      zoneOf(gone.gameView, "exile", "player-1").cards = [];
+      gone.gameView.events = [];
+      seat.board = { state: gone, fingerprint: null };
+      h.B.sendTable(); await h.flush();
+      const after = sent(h, "table").at(-1).players.find((p) => p.slot === "player-1");
+      ok("foretold: gone once the card leaves exile", !(after.allMarks || []).some((m) => /FORETOLD/.test(m)), JSON.stringify(after.allMarks));
+      // (the seat's own foretold card, named in its own view: counted, and its name nowhere in the public row)
+      const own = clone(F.board);
+      zoneOf(own.gameView, "exile", "player-0").cards = [{ id: "engine-card-991", identity: { name: "Doomskar" }, isFaceDown: true, isForetold: true, types: ["Sorcery"], ownerId: "player-0" }];
+      setup(h, own);
+      h.effects.length = 0;
+      h.B.sendTable(); await h.flush();
+      const blue = sent(h, "table").at(-1).players.find((p) => p.slot === "player-0");
+      ok("foretold: the seat's own foretold card is counted", (blue.allMarks || []).includes("FORETOLD 1"), JSON.stringify(blue.allMarks));
+      ok("foretold: the marks never name the card", !JSON.stringify([blue.allMarks, blue.markTips]).includes("Doomskar"), JSON.stringify([blue.allMarks, blue.markTips]));
+      harness.restore();
+    }
+    // row 21 (C8): a vote notice shown to each human seat is said once, as the table's, not "<seat> saw:"
+    {
+      const h = harness.load();
+      const b = clone(F.board);
+      const blue = setup(h, b);
+      const red = new h.B.Seat("Red", "neheb_minotaur_commander");
+      red.slot = "player-2"; red.board = { state: clone(b), fingerprint: null };
+      h.B._getGame().seats.set("Red", red);
+      h.B._getGame().slotNames["player-2"] = "Red";
+      const notice = (seat, n, title) => h.B.onPrompt(seat, { promptId: n, decidingPlayerId: seat.slot, sourceCard: { identity: { name: "Council's Judgment" } }, input: { type: "revealCards", cards: [], presentation: { title } } });
+      const vote = "AI 1 vote Grizzly Bears (141)";
+      notice(blue, 401, vote); await h.flush();
+      notice(red, 402, vote); await h.flush();
+      same("votes: one line for two seats acknowledging it, no \"saw\"", h.B._getGame().log, ["Council's Judgment: AI 1 voted for Grizzly Bears"]);
+      notice(blue, 403, vote); await h.flush();
+      same("votes: the same seat shown it again is a new vote", h.B._getGame().log.length, 2);
+      // (reveals: one line for the seats acknowledging one in turn, however slowly)
+      const reveal = (seat, n) => h.B.onPrompt(seat, { promptId: n, decidingPlayerId: seat.slot, sourceCard: { identity: { name: "Chaos Warp" } },
+        input: { type: "revealCards", zone: "library", ownerPlayerId: "player-1", cards: [{ id: "engine-card-1201", identity: { name: "Island" }, types: ["Land"] }], presentation: { title: "Chaos Warp - Revealing cards from" } } });
+      const real = Date.now;
+      const start = h.B._getGame().log.length;
+      reveal(blue, 404); await h.flush();
+      Date.now = () => real() + 30000; // (Red's OK half a minute later)
+      reveal(red, 405); await h.flush();
+      Date.now = real;
+      const reveals = h.B._getGame().log.slice(start).filter((l) => /Island/.test(l));
+      ok("reveals: one line for two seats acknowledging it 30 s apart", reveals.length === 1, JSON.stringify(h.B._getGame().log.slice(start)));
+      harness.restore();
+    }
   }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
