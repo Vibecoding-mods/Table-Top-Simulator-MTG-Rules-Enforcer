@@ -1,8 +1,8 @@
 diff --git a/forge-harness/native/extra-config/reflect-config.json b/forge-harness/native/extra-config/reflect-config.json
-index b363b43..024629b 100644
+index b363b43..148f64d 100644
 --- a/forge-harness/native/extra-config/reflect-config.json
 +++ b/forge-harness/native/extra-config/reflect-config.json
-@@ -8,5 +8,12 @@
+@@ -8,5 +8,16 @@
    { "name": "forge.game.trigger.Trigger", "fields": [{ "name": "maxId" }] },
    { "name": "forge.game.replacement.ReplacementEffect", "fields": [{ "name": "maxId" }] },
    { "name": "forge.game.staticability.StaticAbility", "fields": [{ "name": "maxId" }] },
@@ -11,16 +11,20 @@ index b363b43..024629b 100644
 +  { "name": "forge.game.phase.PhaseHandler", "fields": [{ "name": "extraTurns" }] },
 +  { "name": "forge.game.player.PlayerStatistics", "fields": [{ "name": "extraTurnsPlayed" }] },
 +  {
++    "name": "forge.game.trigger.TriggerHandler",
++    "fields": [{ "name": "delayedTriggers" }, { "name": "playerDefinedDelayedTriggers" }]
++  },
++  {
 +    "name": "forge.harness.host.EngineEventLog",
 +    "queryAllDeclaredMethods": true,
 +    "methods": [{ "name": "recieve", "parameterTypes": ["forge.game.event.GameEvent"] }]
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..4ade1ca 100644
+index 54173c6..f041b7d 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
-@@ -74,18 +74,38 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
+@@ -74,18 +74,42 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
  The node can opt into `checkpointMetrics` on its internal start request. `recordCheckpoint` records copy and bookkeeping nanoseconds only for successful checkpoints. The session owns the samples; `drainCheckpointMetrics` serializes and clears them under the same lock used to append. WASM games also enable collection: `WasmMain` supplies a session drain to `SabTransport`, which posts `forge:checkpoints` before each new prompt and at game end. `forge:decision.checkpointMs` accumulates checkpoints across bot prompts within the same human-response window. Keep checkpoint instrumentation separate from per-viewer board snapshot timing.
  
  
@@ -47,6 +51,10 @@ index 54173c6..4ade1ca 100644
 +
 +A start request's `players[].planes` turns Planechase on (`Planechase.planarDecks`): when every player brought a plane each keeps their own deck, otherwise the pool is dealt round-robin, planes before phenomena, so every planar deck holds a plane (`Player.initPlane` loops forever on a phenomena-only deck and `Player.planeswalk` reads past an empty one). `GameViewDto.planar` carries the controller, the active plane ids, the die cost (`getPlanarDiceSpecialActionThisTurn`), each planar deck's size and the last roll. Forge tells every seat a roll with `notifyOfValue`; the controller records it once (`Planechase.noteRoll`) instead of asking for an acknowledgement. The `planeswalk` and `chaos` ops run in the free-play pass, after triggers are back on, so the plane's triggers fire. A Planechase game takes no restore points: `GameSnapshot` copies neither `Game.activePlanes` nor `Player.currentPlanes`.
 +
++### Effects, delayed triggers and turn counts in the view
++
++Forge's Effect cards (`isImmutable`) stay out of the command zone list; `EffectsView.effects` sends them as `PlayerDto.effects` instead, but only those Forge itself would show: `getRenderForUI()` (so unearth's and the Prepared Spell's helper effects stay hidden), an effect source (the player's built-in Monarch, Initiative, Ring, Commander, Keyword and other effects have none) and non-empty ability text. `untilEndOfTurn` is set for an `Effect` or `Fog` source with no `Duration$` (both end at cleanup); otherwise the source's raw `Duration$` goes out as `duration`. `GameViewDto.delayed` lists `TriggerHandler`'s delayed triggers (read by reflection, both fields named in `reflect-config.json`), immediate (reflexive) ones excepted, plus the player-defined ones still waiting for that player's next turn (`turnOf`); `when` is worded from a `Phase` trigger's `Phase$`, and `cardIds` are the trigger's remembered cards. Forge writes card names with their engine id (`Card.toString`, "Hill Giant (2)"); the ids of the cards involved are taken out of names and texts. Triggers still parked in a cleanup `addUntil` (`NextTurn$`, `UpcomingTurn$`) are not in the handler yet and are not sent. `spellsCastThisTurn`, `lifeGainedThisTurn`, `lifeLostThisTurn` and `stormCount` (`MagicStack.getSpellsCastThisTurn().size()`: the copies a storm spell cast now would get) are sent only when above zero, and every new field is absent when empty, so an older reader sees the same view.
++
 +### A controlled player's prompts go to the controlling seat (Mindslaver)
 +
 +`Player.addController` gives a controlled player a controller made by the controlling player's lobby player, so an interactive seat that takes control of a Forge AI seat (Mindslaver) answers through `ManaBrewInteractiveController` under the AI's seat index. `publishAgentPrompt` therefore names the seat that decides, not the seat the question is about: `controllingSeat` follows `getControllingPlayer` up the chain (A controls B who controls C: C's questions go to A, since A makes every decision B would make) and stops at a controller whose original lobby player is not a `ManaBrewInteractiveLobbyPlayer` (a Forge AI cannot answer a prompt, so the question stays with the last interactive seat) or at a player it has already visited (two players controlling each other). `promptedPlayerIndex` follows `decidingPlayerId`: the browser bridge exchanges with the controlling seat, and it is the controlling seat's concede, not the controlled player's, that turns the open prompt into a pass. `MindslaverControlTest` pins one-level, nested, AI-topped and looping control.
@@ -62,14 +70,16 @@ index 54173c6..4ade1ca 100644
  ## Typed prompt emission (compile-time protocol check)
  
  The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the source of truth: `scripts/gen-harness-prompts.mjs` reads its generated TS bindings and emits one Java class per prompt input + referenced shared type into `forge-harness/src/main/java/forge/harness/protocol/` (package `forge.harness.protocol.*`), each baking in its own `type` discriminator. `scripts/harness.mjs` regenerates them before every build. The package is generated, gitignored (`forge-harness/.gitignore`), and lives under the standard `src/main/java` root on purpose: m2e/JDTLS has no build-helper connector, so an out-of-tree generated-sources dir never lands on the IDE classpath. Never hand-edit anything in this package.
-@@ -94,7 +114,9 @@ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the
+@@ -94,7 +118,11 @@ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the
  
  `publishAgentPrompt` resolves an omitted source from the currently resolving stack item. It emits `sourceAbilityText` from that stack ability, or from `castingAbility` during cast-time prompts, only when the ability host matches an explicit source. Keep this centralized fallback: Forge callbacks such as `arrangeForScry`, `arrangeForSurveil`, and `reveal` do not receive the originating `SpellAbility`, but their prompts still need the source card and ability in the envelope. Prompts outside stack resolution remain source-less unless their caller provides a source explicitly, and unmatched abilities remain absent rather than being misattributed.
  
 -Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see.
 +Snapshots are **per-viewer**: `getSnapshot` takes a `viewer` seat index (`-1` = spectator) and `InteractiveSnapshotExtractor` gates every card on Forge's visibility oracle — `CardView.canBeShownTo(viewer)` (hands controller-only, library hidden unless `MayLookAt`, face-down exile hidden unless the viewer may look — foretell grants the owner that right) and `canFaceDownBeShownTo`/controller for battlefield morph faces (redacted DTO, never dropped from the list, since the shell is public). Hidden hand/library cards are elided to the zone `count`; hidden exile cards stay as `{visibility:"hidden", id}` entries so clients render an anonymous face-down card. A serialized face-down card carries its real paper identity — visibility is the caller's decision, `redact()` blanks what a viewer may not see. Do not serialize a card the viewer can't see. Phased-out permanents stay in the battlefield zone with `phasedOut` set (`getCardsIn(Battlefield, false)`): phasing is not a zone change, and a client that hides them can't tell them from cards that left. `mayPlay` marks a card outside the viewer's hand that the viewer may really play: `getCardsActivatableInExternalZones` also lists cards the viewer may only look at (Courser of Kruphix's revealed top card, an opponent's hand under Revelation), and `mayPlayOutsideHand` drops those. The viewer's own graveyard and exile are checked whole as well: `PlayerZone`'s own-card filter only knows the graveyard keywords up to Disturb, and Mayhem, Harmonize, Beam me up and a plotted card get their spell from `GameActionUtil.getAlternativeCosts` at cast time, so they never reach Forge's list. Mayhem counts only for a card discarded this turn, as `getAlternativeCosts` requires.
 +
-+`GameViewDto.events` is a ring of the last 256 zone changes, from `EngineEventLog`, which the session subscribes to the game in `attach`. The same ring goes to every seat and each entry has a rising `seq`, so a client that misses a snapshot loses nothing and a gap shows it fell behind. Each entry also carries an `id`: the relay's state patches key an array by `id`, and without one every new entry resends the whole ring. Forge fires no draw or discard event, so one entry carries `how`, set from the event order: `sacrificed` from the event just before the move, `destroyed` from `CardView.wasDestroyed` (`GameAction` sets it on a destroy and on a state-based death but fires `GameEventCardDestroyed` only on the first, and sets it on a sacrifice too, so `sacrificed` is checked first), `played`, `discard` and `surveil` from the event just after it, and `draw` from `Card.getDrawnThisTurn`, read at the next move, phase or snapshot because Forge sets it after the move (at the next move, or a card drawn and then discarded in one resolution, as Faithless Looting does, moves before its draw is read and loses it); `mill` likewise from `Card.wasMilled`, read at the next move or snapshot because `Player.mill` sets it after `moveTo`; and, the same way, `foretell`, `plot` and `suspend` for a card still in exile with `isForetold`, `isPlotted` or `hasSuspend` (special actions resolve off the stack, so no ability names them). `GameEventCardChangeZone` carries no cause, so `cause` is read from the game at the move: a move made while `ReplacementHandler.isReplacing()` takes the next `EFFECT_REPLACED` log message (Dredge's reads `<card> - Dredge N`); a move made while `game.costPaymentStack` holds a cost part takes `Cost:<name>`, the name being `Delve` for a card exiled while the mana part of a delve card is paid, else the paying ability's keyword (`Cycling`, `TypeCycling`), else its alternative cost (`Escape`, `Emerge`), else the cost part's class without `Cost` (`Sacrifice`, `Discard`, `Exile`), with the ability's host as `causeName`; and otherwise a move made while the stack resolves takes the resolving ability's `ApiType` name (`Explore`, `Mill`, `Surveil`), with its host as `causeName`/`causeCardId`. Moves off the stack never get a cause. Moves onto the stack and moves before `GameStage.Play` are skipped. An entry names its card only when a public zone is involved and the card isn't face down; foretell turns its card face down after the move, so an exile entry whose card is face down in exile when the move settles loses its name too; a draw stays a count. Moves made by a restore are ignored. `EngineEventLog` is named in `native/extra-config/reflect-config.json` like `GameLogFormatter` in the frozen config: Guava finds `@Subscribe` by reflection, so a subscriber missing from that file receives nothing in the native image while working on a JVM.
++A permanent's own states come from Forge's card, never from text: `exerted` is `isExertedBy` any player (Forge clears the this-turn count at cleanup but keeps the creature frozen until that player's untap step), `skipsNextUntap` the hidden "doesn't untap during your next untap step" keyword `Card.canUntap` checks, plus `monstrous`, `saddled`/`saddledBy`, `harnessed`, `solved`, `unlockedDoors` (Room halves), `pairedWith`, `attachedToPlayer` (a curse's `getEntityAttachedTo`), and `protectorId`. `cantBlock` is `!CombatUtil.canBlock(card, true)` and `cantAttack` is `canAttackNextTurn` failing against every possible defender, so tapped and summoning-sick creatures are not flagged but a creature with defender is; `mustAttack` is a non-empty `StaticAbilityMustAttack.entitiesMustAttack` (goad is not in it). `CardStateFlagsTest` sets each state on a real card.
++
++`GameViewDto.events` is a ring of the last 512 zone changes and damage events, from `EngineEventLog`, which the session subscribes to the game in `attach`. The same ring goes to every seat and each entry has a rising `seq`, so a client that misses a snapshot loses nothing and a gap shows it fell behind. Each entry also carries an `id`: the relay's state patches key an array by `id`, and without one every new entry resends the whole ring. Forge fires no draw or discard event, so one entry carries `how`, set from the event order: `sacrificed` from the event just before the move, `destroyed` from `CardView.wasDestroyed` (`GameAction` sets it on a destroy and on a state-based death but fires `GameEventCardDestroyed` only on the first, and sets it on a sacrifice too, so `sacrificed` is checked first), `played`, `discard` and `surveil` from the event just after it, and `draw` from `Card.getDrawnThisTurn`, read at the next move, phase or snapshot because Forge sets it after the move (at the next move, or a card drawn and then discarded in one resolution, as Faithless Looting does, moves before its draw is read and loses it); `mill` likewise from `Card.wasMilled`, read at the next move or snapshot because `Player.mill` sets it after `moveTo`; and, the same way, `foretell`, `plot` and `suspend` for a card still in exile with `isForetold`, `isPlotted` or `hasSuspend` (special actions resolve off the stack, so no ability names them). `GameEventCardChangeZone` carries no cause, so `cause` is read from the game at the move: a move made while `ReplacementHandler.isReplacing()` takes the next `EFFECT_REPLACED` log message (Dredge's reads `<card> - Dredge N`); a move made while `game.costPaymentStack` holds a cost part takes `Cost:<name>`, the name being `Delve` for a card exiled while the mana part of a delve card is paid, else the paying ability's keyword (`Cycling`, `TypeCycling`), else its alternative cost (`Escape`, `Emerge`), else the cost part's class without `Cost` (`Sacrifice`, `Discard`, `Exile`), with the ability's host as `causeName`; and otherwise a move made while the stack resolves takes the resolving ability's `ApiType` name (`Explore`, `Mill`, `Surveil`), with its host as `causeName`/`causeCardId`. Moves off the stack never get a cause. Moves onto the stack and moves before `GameStage.Play` are skipped. An entry names its card only when a public zone is involved and the card isn't face down; foretell turns its card face down after the move, so an exile entry whose card is face down in exile when the move settles loses its name too; a draw stays a count. Moves made by a restore are ignored. Damage entries (`kind: "damage"`, `to: "Damage"`, so a client that compares `to` with zone names skips them; no `cardId`) take the same `seq` as moves, carry `sourceCardId`, `targetCardId` or `targetPlayerId`, `amount` and `combat`, and `ownerId` is the source's owner. A player's comes whole from `GameEventPlayerDamaged`. A card's is read from the `Pair` that `CardDamageHistory.registerDamage` adds to the target's `getDamageReceivedThisTurn()` (amount, combat flag, and the source by `Game.getDamageLKI`), at the next event or snapshot, since Forge fires `GameEventCardDamaged` before registering it and gives it no combat flag; a non-creature planeswalker or battle fires no damage event at all, so a drop in its loyalty or defense counters is waited on the same way and kept only when the received list grew (a loyalty cost does not). Prevented damage is never dealt, so it sends the amount left, or nothing. The ring is 512 so that one board's wipe (a damage entry and a death per creature) does not push out moves a client has not read. `EngineEventLog` is named in `native/extra-config/reflect-config.json` like `GameLogFormatter` in the frozen config: Guava finds `@Subscribe` by reflection, so a subscriber missing from that file receives nothing in the native image while working on a JVM.
  
  ## Boundary API discipline
  
@@ -657,27 +667,214 @@ index 0000000..3fa96b5
 +        return false;
 +    }
 +}
+diff --git a/forge-harness/src/main/java/forge/harness/host/EffectsView.java b/forge-harness/src/main/java/forge/harness/host/EffectsView.java
+new file mode 100644
+index 0000000..28c96aa
+--- /dev/null
++++ b/forge-harness/src/main/java/forge/harness/host/EffectsView.java
+@@ -0,0 +1,176 @@
++package forge.harness.host;
++
++import com.google.common.collect.ListMultimap;
++import forge.game.Game;
++import forge.game.ability.ApiType;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.spellability.SpellAbility;
++import forge.game.trigger.Trigger;
++import forge.game.trigger.TriggerHandler;
++import forge.game.trigger.TriggerType;
++import forge.game.zone.ZoneType;
++import forge.harness.common.SnapshotExtractor;
++
++import java.lang.reflect.Field;
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++final class EffectsView {
++    private static final Field DELAYED = field("delayedTriggers");
++    private static final Field PLAYER_DEFINED = field("playerDefinedDelayedTriggers");
++
++    private EffectsView() {}
++
++    static List<Map<String, Object>> effects(final Player player) {
++        final List<Map<String, Object>> effects = new ArrayList<>();
++        for (final Card card : player.getCardsIn(ZoneType.Command)) {
++            if (!card.isImmutable() || !card.getRenderForUI() || card.getEffectSource() == null) {
++                continue;
++            }
++            final List<Card> named = List.of(card.getEffectSource());
++            final String text = withoutIds(plainText(card.getAbilityText()), named);
++            if (text.isEmpty()) {
++                continue;
++            }
++            final Map<String, Object> effect = new LinkedHashMap<>();
++            effect.put("id", "effect-" + card.getId());
++            effect.put("name", withoutIds(card.getName(), named));
++            effect.put("text", text);
++            effect.put("sourceCardId", SnapshotExtractor.javaCardId(card.getEffectSource()));
++            effect.put("emblem", card.isEmblem());
++            final SpellAbility source = card.getEffectSourceAbility();
++            final String duration = source == null ? null : source.getParam("Duration");
++            effect.put("untilEndOfTurn", source != null && duration == null
++                    && (source.getApi() == ApiType.Effect || source.getApi() == ApiType.Fog));
++            if (duration != null) {
++                effect.put("duration", duration);
++            }
++            effects.add(effect);
++        }
++        return effects;
++    }
++
++    static List<Map<String, Object>> delayed(final Game game) {
++        final TriggerHandler handler = game.getTriggerHandler();
++        final List<Map<String, Object>> out = new ArrayList<>();
++        for (final Trigger trigger : delayedTriggers(handler)) {
++            if (trigger.getMode() != TriggerType.Immediate) {
++                out.add(delayed(game, trigger, null));
++            }
++        }
++        for (final Map.Entry<Player, Trigger> entry : playerDefined(handler).entries()) {
++            out.add(delayed(game, entry.getValue(), entry.getKey()));
++        }
++        return out;
++    }
++
++    private static Map<String, Object> delayed(final Game game, final Trigger trigger, final Player nextTurnOf) {
++        final Map<String, Object> out = new LinkedHashMap<>();
++        out.put("id", "delayed-" + trigger.getId());
++        final Card host = trigger.getHostCard();
++        final List<Card> named = new ArrayList<>();
++        named.add(host);
++        for (final Object remembered : trigger.getTriggerRemembered()) {
++            if (remembered instanceof Card card) {
++                named.add(card);
++            }
++        }
++        out.put("text", withoutIds(plainText(trigger.toString()), named));
++        final SpellAbility spawning = trigger.getSpawningAbility();
++        final Player controller = spawning != null && spawning.getActivatingPlayer() != null
++                ? spawning.getActivatingPlayer() : host.getController();
++        out.put("controllerId", playerId(game, controller));
++        final Card shownHost = host.isImmutable() && host.getEffectSource() != null ? host.getEffectSource() : host;
++        if (!shownHost.isImmutable()) {
++            out.put("hostCardId", SnapshotExtractor.javaCardId(shownHost));
++        }
++        final List<String> cardIds = new ArrayList<>();
++        for (final Card card : named.subList(1, named.size())) {
++            if (!card.isImmutable()) {
++                cardIds.add(SnapshotExtractor.javaCardId(card));
++            }
++        }
++        out.put("cardIds", cardIds);
++        if (trigger.getMode() == TriggerType.Phase && trigger.hasParam("Phase")) {
++            out.put("when", phaseWords(trigger.getParam("Phase")));
++        }
++        if (nextTurnOf != null) {
++            out.put("turnOf", playerId(game, nextTurnOf));
++        } else if ("You".equals(trigger.getParam("ValidPlayer"))) {
++            out.put("turnOf", playerId(game, controller));
++        }
++        return out;
++    }
++
++    private static String phaseWords(final String phases) {
++        final Set<PhaseType> parsed = PhaseType.parseRange(phases);
++        final List<String> words = new ArrayList<>();
++        for (final PhaseType phase : parsed) {
++            words.add(switch (phase) {
++                case UNTAP -> "untap step";
++                case UPKEEP -> "upkeep";
++                case DRAW -> "draw step";
++                case MAIN1 -> "first main phase";
++                case COMBAT_BEGIN -> "beginning of combat";
++                case COMBAT_DECLARE_ATTACKERS -> "declare attackers step";
++                case COMBAT_DECLARE_BLOCKERS -> "declare blockers step";
++                case COMBAT_FIRST_STRIKE_DAMAGE -> "first strike damage step";
++                case COMBAT_DAMAGE -> "combat damage step";
++                case COMBAT_END -> "end of combat";
++                case MAIN2 -> "second main phase";
++                case END_OF_TURN -> "end step";
++                case CLEANUP -> "cleanup step";
++            });
++        }
++        return String.join(" or ", words);
++    }
++
++    private static String playerId(final Game game, final Player player) {
++        return "player-" + SnapshotExtractor.playerIndex(game, player);
++    }
++
++    private static String withoutIds(final String text, final List<Card> cards) {
++        String out = text;
++        for (final Card card : cards) {
++            out = out.replace(" (" + card.getId() + ")", "");
++        }
++        return out;
++    }
++
++    private static String plainText(final String text) {
++        return text.replaceAll("<[^>]*>", "").replace("\r", "").replaceAll("\n{2,}", "\n").trim();
++    }
++
++    @SuppressWarnings("unchecked")
++    private static List<Trigger> delayedTriggers(final TriggerHandler handler) {
++        try {
++            return (List<Trigger>) DELAYED.get(handler);
++        } catch (final IllegalAccessException e) {
++            throw new IllegalStateException(e);
++        }
++    }
++
++    @SuppressWarnings("unchecked")
++    private static ListMultimap<Player, Trigger> playerDefined(final TriggerHandler handler) {
++        try {
++            return (ListMultimap<Player, Trigger>) PLAYER_DEFINED.get(handler);
++        } catch (final IllegalAccessException e) {
++            throw new IllegalStateException(e);
++        }
++    }
++
++    private static Field field(final String name) {
++        try {
++            final Field field = TriggerHandler.class.getDeclaredField(name);
++            field.setAccessible(true);
++            return field;
++        } catch (final NoSuchFieldException e) {
++            throw new IllegalStateException(e);
++        }
++    }
++}
 diff --git a/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java b/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java
 new file mode 100644
-index 0000000..00026e1
+index 0000000..daecc66
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java
-@@ -0,0 +1,293 @@
+@@ -0,0 +1,403 @@
 +package forge.harness.host;
 +
 +import com.google.common.eventbus.Subscribe;
 +import forge.game.Game;
++import forge.game.GameEntity;
 +import forge.game.GameLogEntryType;
 +import forge.game.GameStage;
 +import forge.game.card.Card;
 +import forge.game.card.CardView;
++import forge.game.card.CounterEnumType;
 +import forge.game.cost.CostPart;
 +import forge.game.cost.CostPartMana;
 +import forge.game.event.GameEvent;
 +import forge.game.event.GameEventAddLog;
 +import forge.game.event.GameEventCardChangeZone;
++import forge.game.event.GameEventCardCounters;
++import forge.game.event.GameEventCardDamaged;
 +import forge.game.event.GameEventCardSacrificed;
 +import forge.game.event.GameEventLandPlayed;
++import forge.game.event.GameEventPlayerDamaged;
 +import forge.game.event.GameEventSnapshotRestored;
 +import forge.game.event.GameEventSurveil;
 +import forge.game.event.GameEventTurnPhase;
@@ -699,9 +896,10 @@ index 0000000..00026e1
 +import java.util.List;
 +import java.util.Map;
 +import java.util.Set;
++import org.apache.commons.lang3.tuple.Pair;
 +
 +final class EngineEventLog {
-+    private static final int CAPACITY = 256;
++    private static final int CAPACITY = 512;
 +
 +    private static final class Entry {
 +        int seq;
@@ -714,6 +912,15 @@ index 0000000..00026e1
 +        String cause;
 +        String causeName;
 +        int causeCardId;
++        boolean damage;
++        int sourceCardId;
++        int targetCardId;
++        int targetPlayer = -1;
++        int amount;
++        boolean combat;
++    }
++
++    private record Awaited(Card target, int index) {
 +    }
 +
 +    private final Game game;
@@ -722,6 +929,7 @@ index 0000000..00026e1
 +    private final List<Entry> unsettled = new ArrayList<>();
 +    private final List<Entry> replacing = new ArrayList<>();
 +    private final Set<Integer> sacrificed = new HashSet<>();
++    private final List<Awaited> awaited = new ArrayList<>();
 +    private boolean restoring;
 +    private int seq;
 +
@@ -737,9 +945,14 @@ index 0000000..00026e1
 +            unsettled.clear();
 +            replacing.clear();
 +            sacrificed.clear();
-+        } else if (restoring) {
++            awaited.clear();
 +            return;
-+        } else if (event instanceof GameEventCardChangeZone moved) {
++        }
++        if (restoring) {
++            return;
++        }
++        settleDamage();
++        if (event instanceof GameEventCardChangeZone moved) {
 +            zoneChange(moved);
 +        } else if (event instanceof GameEventCardSacrificed gone) {
 +            sacrificed.add(gone.card().getId());
@@ -755,6 +968,69 @@ index 0000000..00026e1
 +            markSurveiled(surveil.player(), surveil.toGraveyard());
 +        } else if (event instanceof GameEventTurnPhase) {
 +            settleDraws();
++        } else if (event instanceof GameEventCardDamaged damaged) {
++            awaitDamage(damaged.card(), true);
++        } else if (event instanceof GameEventCardCounters counters && isDamageCounter(counters)) {
++            awaitDamage(counters.card(), false);
++        } else if (event instanceof GameEventPlayerDamaged damaged) {
++            playerDamaged(damaged);
++        }
++    }
++
++    private static boolean isDamageCounter(final GameEventCardCounters counters) {
++        return counters.newValue() < counters.oldValue()
++                && (counters.type().is(CounterEnumType.LOYALTY) || counters.type().is(CounterEnumType.DEFENSE));
++    }
++
++    private void awaitDamage(final CardView view, final boolean creature) {
++        final Card target = game.getAge() == GameStage.Play ? game.findById(view.getId()) : null;
++        if (target != null && target.isCreature() == creature) {
++            awaited.add(new Awaited(target, target.getDamageReceivedThisTurn().size()));
++        }
++    }
++
++    private void settleDamage() {
++        for (final Awaited waiting : awaited) {
++            final List<Pair<Integer, Boolean>> received = waiting.target().getDamageReceivedThisTurn();
++            if (received.size() <= waiting.index()) {
++                continue;
++            }
++            final Pair<Integer, Boolean> dealt = received.get(waiting.index());
++            final Pair<Card, GameEntity> sourceToTarget = game.getDamageLKI(dealt);
++            final Card source = sourceToTarget == null ? null : sourceToTarget.getLeft();
++            final Entry entry = damageEntry(source == null ? 0 : source.getId(),
++                    source == null ? -1 : playerIndex(source.getOwner()), dealt.getLeft(), dealt.getRight());
++            entry.targetCardId = waiting.target().getId();
++        }
++        awaited.clear();
++    }
++
++    private void playerDamaged(final GameEventPlayerDamaged damaged) {
++        if (game.getAge() != GameStage.Play) {
++            return;
++        }
++        final CardView source = damaged.source();
++        final Entry entry = damageEntry(source == null ? 0 : source.getId(),
++                source == null ? -1 : playerIndex(source.getOwner()), damaged.amount(), damaged.combat());
++        entry.targetPlayer = playerIndex(damaged.target());
++    }
++
++    private Entry damageEntry(final int sourceCardId, final int owner, final int amount, final boolean combat) {
++        final Entry entry = new Entry();
++        entry.seq = ++seq;
++        entry.damage = true;
++        entry.sourceCardId = sourceCardId;
++        entry.owner = owner;
++        entry.amount = amount;
++        entry.combat = combat;
++        add(entry);
++        return entry;
++    }
++
++    private void add(final Entry entry) {
++        ring.addLast(entry);
++        if (ring.size() > CAPACITY) {
++            ring.removeFirst();
 +        }
 +    }
 +
@@ -790,10 +1066,7 @@ index 0000000..00026e1
 +        if (entry.from != ZoneType.Stack) {
 +            markCause(entry);
 +        }
-+        ring.addLast(entry);
-+        if (ring.size() > CAPACITY) {
-+            ring.removeFirst();
-+        }
++        add(entry);
 +    }
 +
 +    private void markCause(final Entry entry) {
@@ -850,7 +1123,10 @@ index 0000000..00026e1
 +    }
 +
 +    private int playerIndex(final PlayerView view) {
-+        final Player player = view == null ? null : game.getPlayer(view);
++        return playerIndex(view == null ? null : game.getPlayer(view));
++    }
++
++    private int playerIndex(final Player player) {
 +        return player == null ? -1 : SnapshotExtractor.playerIndex(game, player);
 +    }
 +
@@ -922,6 +1198,7 @@ index 0000000..00026e1
 +    }
 +
 +    List<Map<String, Object>> view() {
++        settleDamage();
 +        settleDraws();
 +        settleMoves();
 +        final List<Map<String, Object>> events = new ArrayList<>(ring.size());
@@ -929,6 +1206,11 @@ index 0000000..00026e1
 +            final Map<String, Object> event = new LinkedHashMap<>();
 +            event.put("id", "event-" + entry.seq);
 +            event.put("seq", entry.seq);
++            if (entry.damage) {
++                putDamage(event, entry);
++                events.add(event);
++                continue;
++            }
 +            final Integer parityId = entry.visible ? ParityCardMap.knownParityId(entry.cardId) : null;
 +            if (parityId != null) {
 +                event.put("cardId", "engine-card-" + parityId);
@@ -954,6 +1236,26 @@ index 0000000..00026e1
 +            events.add(event);
 +        }
 +        return events;
++    }
++
++    private static void putDamage(final Map<String, Object> event, final Entry entry) {
++        event.put("kind", "damage");
++        event.put("to", "Damage");
++        event.put("ownerId", "player-" + entry.owner);
++        putCardId(event, "sourceCardId", entry.sourceCardId);
++        putCardId(event, "targetCardId", entry.targetCardId);
++        if (entry.targetPlayer >= 0) {
++            event.put("targetPlayerId", "player-" + entry.targetPlayer);
++        }
++        event.put("amount", entry.amount);
++        event.put("combat", entry.combat);
++    }
++
++    private static void putCardId(final Map<String, Object> event, final String key, final int cardId) {
++        final Integer parityId = cardId == 0 ? null : ParityCardMap.knownParityId(cardId);
++        if (parityId != null) {
++            event.put(key, "engine-card-" + parityId);
++        }
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/ExtraTurnState.java b/forge-harness/src/main/java/forge/harness/host/ExtraTurnState.java
@@ -1051,10 +1353,10 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..883af78 100644
+index 713e1ef..9eb8aa8 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-@@ -28,20 +28,26 @@ import forge.game.Game;
+@@ -28,22 +28,31 @@ import forge.game.Game;
  import forge.game.GameEntity;
  import forge.ai.ComputerUtilCombat;
  import forge.game.card.Card;
@@ -1064,6 +1366,7 @@ index 713e1ef..883af78 100644
  import forge.game.card.CounterEnumType;
  import forge.game.card.CounterType;
  import forge.game.combat.Combat;
++import forge.game.combat.CombatUtil;
  import forge.game.cost.Cost;
  import forge.game.cost.CostAdjustment;
 +import forge.game.keyword.Keyword;
@@ -1074,22 +1377,27 @@ index 713e1ef..883af78 100644
  import forge.game.spellability.SpellAbility;
  import forge.game.spellability.SpellAbilityStackInstance;
  import forge.game.spellability.TargetChoices;
++import forge.game.staticability.StaticAbilityMustAttack;
  import forge.game.trigger.Trigger;
 +import forge.game.zone.Zone;
  import forge.game.zone.ZoneType;
 +import forge.card.ICardFace;
  import forge.item.IPaperCard;
  import forge.item.PaperToken;
++import forge.util.collect.FCollectionView;
  
-@@ -97,6 +103,7 @@ public final class InteractiveSnapshotExtractor {
+ import java.util.ArrayList;
+ import java.util.Collections;
+@@ -97,6 +106,8 @@ public final class InteractiveSnapshotExtractor {
      }
  
      private static final Gson GSON = new GsonBuilder().create();
 +    private static final ThreadLocal<CardCollectionView> PLAYABLE_OUTSIDE_HAND = new ThreadLocal<>();
++    private static final String DOESNT_UNTAP_NEXT_UNTAP_STEP = "This card doesn't untap during your next untap step.";
  
      public static String snapshotJson(
              final Game game,
-@@ -106,18 +113,61 @@ public final class InteractiveSnapshotExtractor {
+@@ -106,18 +117,61 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -1153,7 +1461,7 @@ index 713e1ef..883af78 100644
      private static Map<String, Object> buildGameView(
              final Game game,
              final SpellAbility castingAbility,
-@@ -126,7 +176,9 @@ public final class InteractiveSnapshotExtractor {
+@@ -126,7 +180,9 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -1164,7 +1472,7 @@ index 713e1ef..883af78 100644
      ) {
          final Map<String, Object> base = SnapshotExtractor.extractSnapshot(game);
  
-@@ -171,7 +223,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -171,7 +227,7 @@ public final class InteractiveSnapshotExtractor {
          final Map<String, List<JsonObject>> battlefieldByController = new LinkedHashMap<>();
          for (final Player player : game.getRegisteredPlayers()) {
              final int ownerIndex = SnapshotExtractor.playerIndex(game, player);
@@ -1173,7 +1481,7 @@ index 713e1ef..883af78 100644
                  final String controllerId =
                          "player-" + SnapshotExtractor.playerIndex(game, card.getController());
                  final CardDto dto = toCard(
-@@ -224,13 +276,21 @@ public final class InteractiveSnapshotExtractor {
+@@ -224,13 +280,29 @@ public final class InteractiveSnapshotExtractor {
          view.put("dayTime", dayTime(game));
          view.put("checkpoints", checkpoints);
          view.put("snapshotRecording", snapshotRecording);
@@ -1192,10 +1500,18 @@ index 713e1ef..883af78 100644
 +        if (planar != null) {
 +            view.put("planar", planar);
 +        }
++        final List<Map<String, Object>> delayed = EffectsView.delayed(game);
++        if (!delayed.isEmpty()) {
++            view.put("delayed", delayed);
++        }
++        final int stormCount = game.getStack().getSpellsCastThisTurn().size();
++        if (stormCount > 0) {
++            view.put("stormCount", stormCount);
++        }
          final Object winner = base.get("winner");
          if (winner != null) {
              view.put("winnerId", "player-" + winner);
-@@ -285,7 +345,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -285,7 +357,7 @@ public final class InteractiveSnapshotExtractor {
          out.put("cardsDrawnThisTurn", player.getNumDrawnThisTurn());
          out.put("damagePrevention", player.getPreventNextDamageTotalShields());
          out.put("isExtraTurn", player.isExtraTurn());
@@ -1204,7 +1520,7 @@ index 713e1ef..883af78 100644
          final Player controller = player.getControllingPlayer();
          if (controller != null && controller != player) {
              out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
-@@ -299,10 +359,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -299,10 +371,11 @@ public final class InteractiveSnapshotExtractor {
          out.put("ringLevel", player.getNumRingTemptedYou());
          out.put("speed", player.getSpeed());
          out.put("hasEnduringStory", player.hasEnduringStory());
@@ -1217,7 +1533,21 @@ index 713e1ef..883af78 100644
          final List<String> activeSchemeNames = activeSchemeNames(player);
          if (!activeSchemeNames.isEmpty()) {
              out.put("activeSchemeNames", activeSchemeNames);
-@@ -325,19 +386,6 @@ public final class InteractiveSnapshotExtractor {
+@@ -311,6 +384,13 @@ public final class InteractiveSnapshotExtractor {
+         if (teamNumber != null) {
+             out.put("teamNumber", teamNumber);
+         }
++        final List<Map<String, Object>> effects = EffectsView.effects(player);
++        if (!effects.isEmpty()) {
++            out.put("effects", effects);
++        }
++        putIfPositive(out, "spellsCastThisTurn", player.getSpellsCastThisTurn());
++        putIfPositive(out, "lifeGainedThisTurn", player.getLifeGainedThisTurn());
++        putIfPositive(out, "lifeLostThisTurn", player.getLifeLostThisTurn());
+         return out;
+     }
+ 
+@@ -325,19 +405,6 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -1237,7 +1567,16 @@ index 713e1ef..883af78 100644
      private static List<String> activeSchemeNames(final Player player) {
          final List<String> names = new ArrayList<>();
          for (final Card card : player.getCardsIn(ZoneType.Command)) {
-@@ -685,6 +733,22 @@ public final class InteractiveSnapshotExtractor {
+@@ -367,7 +434,7 @@ public final class InteractiveSnapshotExtractor {
+         return counters;
+     }
+ 
+-    private static void putIfPositive(final Map<String, Integer> map, final String key, final int value) {
++    private static void putIfPositive(final Map<String, ? super Integer> map, final String key, final int value) {
+         if (value > 0) {
+             map.put(key, value);
+         }
+@@ -685,6 +752,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -1260,7 +1599,7 @@ index 713e1ef..883af78 100644
      private static CardDto toCard(
              final Game game,
              final Card card,
-@@ -714,6 +778,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -714,6 +797,11 @@ public final class InteractiveSnapshotExtractor {
              dto.toughness = String.valueOf(card.getNetToughness());
              dto.basePower = card.getBasePower();
              dto.baseToughness = card.getBaseToughness();
@@ -1272,7 +1611,14 @@ index 713e1ef..883af78 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -752,6 +821,29 @@ public final class InteractiveSnapshotExtractor {
+@@ -746,17 +834,47 @@ public final class InteractiveSnapshotExtractor {
+         dto.isFaceDown = card.isFaceDown();
+         dto.isBestowed = card.isBestowed();
+         dto.phasedOut = card.isPhasedOut();
+-        dto.exerted = card.getExertedThisTurn() > 0;
++        dto.exerted = isExerted(game, card);
+         dto.isRingBearer = card.isRingBearer();
+         dto.isCrewed = card.getTimesCrewedThisTurn() > 0;
          dto.isMadnessExiled = card.isMadness();
          dto.isPlotted = card.isPlotted();
          dto.isWarpExiled = card.isWarped();
@@ -1301,8 +1647,85 @@ index 713e1ef..883af78 100644
 +        dto.mayPlay = playableOutsideHand != null && playableOutsideHand.contains(card);
          dto.foil = card.hasPaperFoil();
  
++        if (card.isInPlay()) {
++            permanentState(game, card, dto);
++        }
++
          final Card attachedTo = card.getAttachedTo();
-@@ -1078,12 +1170,14 @@ public final class InteractiveSnapshotExtractor {
+         if (attachedTo != null) {
+             dto.attachedTo = SnapshotExtractor.javaCardId(attachedTo);
++        } else if (card.getEntityAttachedTo() instanceof Player) {
++            dto.attachedToPlayer =
++                    "player-" + SnapshotExtractor.playerIndex(game, (Player) card.getEntityAttachedTo());
+         }
+         final List<String> attachmentIds = new ArrayList<>();
+         for (final Card attachment : card.getAttachedCards()) {
+@@ -802,6 +920,64 @@ public final class InteractiveSnapshotExtractor {
+         return dto;
+     }
+ 
++    private static boolean isExerted(final Game game, final Card card) {
++        for (final Player player : game.getRegisteredPlayers()) {
++            if (card.isExertedBy(player)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    private static void permanentState(final Game game, final Card card, final CardDto dto) {
++        dto.skipsNextUntap = card.hasKeyword(DOESNT_UNTAP_NEXT_UNTAP_STEP);
++        dto.monstrous = card.isMonstrous();
++        dto.harnessed = card.isHarnessed();
++        dto.solved = card.isSolved();
++        dto.saddled = card.isSaddled();
++        if (card.isSaddled() && card.getSaddledByThisTurn() != null) {
++            final List<String> saddledBy = new ArrayList<>();
++            for (final Card saddler : card.getSaddledByThisTurn()) {
++                saddledBy.add(SnapshotExtractor.javaCardId(saddler));
++            }
++            dto.saddledBy = saddledBy;
++        }
++        final List<String> doors = card.getUnlockedRoomNames();
++        if (!doors.isEmpty()) {
++            dto.unlockedDoors = doors;
++        }
++        if (card.getPairedWith() != null) {
++            dto.pairedWith = SnapshotExtractor.javaCardId(card.getPairedWith());
++        }
++        if (card.getProtectingPlayer() != null) {
++            dto.protectorId = "player-" + SnapshotExtractor.playerIndex(game, card.getProtectingPlayer());
++        }
++        if (card.isCreature() && !card.isPhasedOut()) {
++            try {
++                dto.cantBlock = !CombatUtil.canBlock(card, true);
++                dto.cantAttack = cantAttackAnyDefender(card);
++                dto.mustAttack = !StaticAbilityMustAttack.entitiesMustAttack(card).isEmpty();
++            } catch (final RuntimeException ignored) {
++                dto.cantBlock = false;
++                dto.cantAttack = false;
++                dto.mustAttack = false;
++            }
++        }
++    }
++
++    private static boolean cantAttackAnyDefender(final Card card) {
++        final FCollectionView<GameEntity> defenders = CombatUtil.getAllPossibleDefenders(card.getController());
++        if (defenders.isEmpty()) {
++            return false;
++        }
++        for (final GameEntity defender : defenders) {
++            if (CombatUtil.canAttackNextTurn(card, defender)) {
++                return false;
++            }
++        }
++        return true;
++    }
++
+     private static String normalizedOracle(final Card card) {
+         return card.getOracleText().replace("\\n", "\n");
+     }
+@@ -1078,12 +1254,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -1317,7 +1740,7 @@ index 713e1ef..883af78 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1225,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1309,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -1325,7 +1748,7 @@ index 713e1ef..883af78 100644
          return stackItem;
      }
  
-@@ -1163,6 +1258,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1342,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -3973,6 +4396,342 @@ index 0000000..c11442b
 +        return card;
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/CardStateFlagsTest.java b/forge-harness/src/test/java/forge/harness/host/CardStateFlagsTest.java
+new file mode 100644
+index 0000000..6d7ef69
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/CardStateFlagsTest.java
+@@ -0,0 +1,330 @@
++package forge.harness.host;
++
++import com.google.gson.JsonArray;
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.card.CardStateName;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.card.CardCollection;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Set;
++
++public final class CardStateFlagsTest {
++    private CardStateFlagsTest() {}
++
++    private static final String DOESNT_UNTAP = "This card doesn't untap during your next untap step.";
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++
++        check("exertedLastsPastCleanupUntilItsControllersUntapStep", CardStateFlagsTest::exertedLastsPastCleanupUntilItsControllersUntapStep);
++        check("doesntUntapKeywordLastsUntilTheUntapStep", CardStateFlagsTest::doesntUntapKeywordLastsUntilTheUntapStep);
++        check("plainCreatureCarriesNoFlags", CardStateFlagsTest::plainCreatureCarriesNoFlags);
++        check("monstrousIsSent", CardStateFlagsTest::monstrousIsSent);
++        check("saddledNamesItsSaddlersUntilCleanup", CardStateFlagsTest::saddledNamesItsSaddlersUntilCleanup);
++        check("harnessedIsSent", CardStateFlagsTest::harnessedIsSent);
++        check("caseSolvedIsSent", CardStateFlagsTest::caseSolvedIsSent);
++        check("roomNamesItsUnlockedDoor", CardStateFlagsTest::roomNamesItsUnlockedDoor);
++        check("soulbondPairNamesEachOther", CardStateFlagsTest::soulbondPairNamesEachOther);
++        check("curseNamesThePlayerItIsAttachedTo", CardStateFlagsTest::curseNamesThePlayerItIsAttachedTo);
++        check("battleNamesItsProtector", CardStateFlagsTest::battleNamesItsProtector);
++        check("cantBlockKeywordIsSent", CardStateFlagsTest::cantBlockKeywordIsSent);
++        check("pacifismMakesItUnableToAttackOrBlock", CardStateFlagsTest::pacifismMakesItUnableToAttackOrBlock);
++        check("defenderCantAttack", CardStateFlagsTest::defenderCantAttack);
++        check("attacksEachCombatIsMustAttack", CardStateFlagsTest::attacksEachCombatIsMustAttack);
++        System.out.println(failed == 0 ? "PASS CardStateFlagsTest" : "FAIL CardStateFlagsTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void exertedLastsPastCleanupUntilItsControllersUntapStep() {
++        final Fixture f = new Fixture();
++        final Card bears = f.add("Grizzly Bears", f.p0);
++        bears.setTapped(true);
++        bears.exert(f.p0);
++        expect(flag(f.card(bears), "exerted"), "an exerted creature is not exerted");
++        bears.onCleanupPhase(f.p0);
++        expect(bears.getExertedThisTurn() == 0, "cleanup kept the exert count");
++        expect(flag(f.card(bears), "exerted"), "the exert marker is gone after cleanup: " + f.card(bears));
++        f.untapStep(f.p1);
++        expect(flag(f.card(bears), "exerted"), "another player's untap step cleared the exert marker");
++        f.untapStep(f.p0);
++        expect(bears.isTapped(), "the exerted creature untapped in its controller's untap step");
++        expect(!flag(f.card(bears), "exerted"), "the exert marker outlived its controller's untap step");
++    }
++
++    private static void doesntUntapKeywordLastsUntilTheUntapStep() {
++        final Fixture f = new Fixture();
++        final Card bears = f.add("Grizzly Bears", f.p0);
++        bears.setTapped(true);
++        bears.addHiddenExtrinsicKeywords(f.game.getNextTimestamp(), 0, List.of(DOESNT_UNTAP));
++        expect(flag(f.card(bears), "skipsNextUntap"), "a Frost Breath creature does not skip its next untap");
++        bears.onCleanupPhase(f.p0);
++        expect(flag(f.card(bears), "skipsNextUntap"), "cleanup cleared skipsNextUntap");
++        f.untapStep(f.p0);
++        expect(bears.isTapped(), "the frozen creature untapped");
++        expect(!flag(f.card(bears), "skipsNextUntap"), "skipsNextUntap outlived the untap step");
++    }
++
++    private static void plainCreatureCarriesNoFlags() {
++        final Fixture f = new Fixture();
++        final Card bears = f.add("Grizzly Bears", f.p0);
++        final JsonObject seen = f.card(bears);
++        for (final String name : List.of("exerted", "skipsNextUntap", "monstrous", "saddled", "harnessed", "solved",
++                "cantAttack", "cantBlock", "mustAttack")) {
++            expect(!flag(seen, name), name + " is set on a plain creature: " + seen);
++        }
++        for (final String name : List.of("saddledBy", "unlockedDoors", "pairedWith", "attachedToPlayer", "protectorId")) {
++            expect(!seen.has(name), name + " is sent for a plain creature: " + seen);
++        }
++    }
++
++    private static void monstrousIsSent() {
++        final Fixture f = new Fixture();
++        final Card polukranos = f.add("Polukranos, World Eater", f.p0);
++        expect(!flag(f.card(polukranos), "monstrous"), "Polukranos is monstrous before its ability");
++        polukranos.setMonstrous(true);
++        expect(flag(f.card(polukranos), "monstrous"), "a monstrous Polukranos is not monstrous");
++    }
++
++    private static void saddledNamesItsSaddlersUntilCleanup() {
++        final Fixture f = new Fixture();
++        final Card bronco = f.add("Caustic Bronco", f.p0);
++        final Card bears = f.add("Grizzly Bears", f.p0);
++        bronco.setSaddled(true);
++        bronco.addSaddledByThisTurn(new CardCollection(bears));
++        final JsonObject seen = f.card(bronco);
++        expect(flag(seen, "saddled"), "a saddled mount is not saddled: " + seen);
++        expect(ids(seen, "saddledBy").equals(List.of(SnapshotExtractor.javaCardId(bears))),
++                "saddledBy does not name the saddler: " + seen);
++        bronco.onCleanupPhase(f.p0);
++        final JsonObject after = f.card(bronco);
++        expect(!flag(after, "saddled") && !after.has("saddledBy"), "the mount is still saddled after cleanup: " + after);
++    }
++
++    private static void harnessedIsSent() {
++        final Fixture f = new Fixture();
++        final Card stone = f.add("The Mind Stone", f.p0);
++        expect(!flag(f.card(stone), "harnessed"), "The Mind Stone starts harnessed");
++        stone.setHarnessed(true);
++        expect(flag(f.card(stone), "harnessed"), "a harnessed Mind Stone is not harnessed");
++    }
++
++    private static void caseSolvedIsSent() {
++        final Fixture f = new Fixture();
++        final Card caseCard = f.add("Case of the Burning Masks", f.p0);
++        expect(!flag(f.card(caseCard), "solved"), "an unsolved Case is solved");
++        caseCard.setSolved(true);
++        expect(flag(f.card(caseCard), "solved"), "a solved Case is not solved");
++    }
++
++    private static void roomNamesItsUnlockedDoor() {
++        final Fixture f = new Fixture();
++        final Card room = f.add("Bottomless Pool // Locker Room", f.p0);
++        expect(!f.card(room).has("unlockedDoors"), "a fresh Room has unlocked doors: " + f.card(room));
++        room.unlockRoom(f.p0, CardStateName.LeftSplit);
++        expect(ids(f.card(room), "unlockedDoors").equals(List.of("Bottomless Pool")),
++                "the unlocked door is not named: " + f.card(room));
++        room.unlockRoom(f.p0, CardStateName.RightSplit);
++        final List<String> both = ids(f.card(room), "unlockedDoors");
++        expect(both.size() == 2 && both.contains("Bottomless Pool") && both.contains("Locker Room"),
++                "both unlocked doors are not named: " + both);
++    }
++
++    private static void soulbondPairNamesEachOther() {
++        final Fixture f = new Fixture();
++        final Card wolfir = f.add("Wolfir Silverheart", f.p0);
++        final Card bears = f.add("Grizzly Bears", f.p0);
++        wolfir.setPairedWith(bears);
++        bears.setPairedWith(wolfir);
++        expect(SnapshotExtractor.javaCardId(bears).equals(text(f.card(wolfir), "pairedWith")),
++                "Wolfir Silverheart does not name its partner: " + f.card(wolfir));
++        expect(SnapshotExtractor.javaCardId(wolfir).equals(text(f.card(bears), "pairedWith")),
++                "the partner does not name Wolfir Silverheart: " + f.card(bears));
++    }
++
++    private static void curseNamesThePlayerItIsAttachedTo() {
++        final Fixture f = new Fixture();
++        final Card curse = f.add("Curse of the Pierced Heart", f.p0);
++        curse.attachToEntity(f.p1, null, true);
++        final JsonObject seen = f.card(curse);
++        expect(("player-" + SnapshotExtractor.playerIndex(f.game, f.p1)).equals(text(seen, "attachedToPlayer")),
++                "the curse does not name the cursed player: " + seen);
++        expect(!seen.has("attachedTo"), "a curse on a player names a card: " + seen);
++    }
++
++    private static void battleNamesItsProtector() {
++        final Fixture f = new Fixture();
++        final Card battle = f.add("Invasion of Tarkir", f.p0);
++        battle.setProtectingPlayer(f.p1);
++        expect(("player-" + SnapshotExtractor.playerIndex(f.game, f.p1)).equals(text(f.card(battle), "protectorId")),
++                "the battle does not name its protector: " + f.card(battle));
++    }
++
++    private static void cantBlockKeywordIsSent() {
++        final Fixture f = new Fixture();
++        final Card bears = f.add("Grizzly Bears", f.p0);
++        bears.addHiddenExtrinsicKeywords(f.game.getNextTimestamp(), 0, List.of("CARDNAME can't block."));
++        final JsonObject seen = f.card(bears);
++        expect(flag(seen, "cantBlock"), "a creature that can't block can block: " + seen);
++        expect(!flag(seen, "cantAttack"), "a creature that can't block can't attack: " + seen);
++    }
++
++    private static void pacifismMakesItUnableToAttackOrBlock() {
++        final Fixture f = new Fixture();
++        final Card bears = f.add("Grizzly Bears", f.p1);
++        final Card pacifism = f.add("Pacifism", f.p0);
++        pacifism.attachToEntity(bears, null, true);
++        f.settle();
++        final JsonObject seen = f.card(bears);
++        expect(flag(seen, "cantAttack"), "a pacified creature can attack: " + seen);
++        expect(flag(seen, "cantBlock"), "a pacified creature can block: " + seen);
++    }
++
++    private static void defenderCantAttack() {
++        final Fixture f = new Fixture();
++        final Card wall = f.add("Wall of Stone", f.p0);
++        f.settle();
++        final JsonObject seen = f.card(wall);
++        expect(flag(seen, "cantAttack"), "a creature with defender can attack: " + seen);
++        expect(!flag(seen, "cantBlock"), "a creature with defender can't block: " + seen);
++    }
++
++    private static void attacksEachCombatIsMustAttack() {
++        final Fixture f = new Fixture();
++        final Card cyclops = f.add("Bloodrock Cyclops", f.p1);
++        f.settle();
++        expect(flag(f.card(cyclops), "mustAttack"), "Bloodrock Cyclops does not have to attack: " + f.card(cyclops));
++    }
++
++    private static boolean flag(final JsonObject card, final String name) {
++        return card != null && card.has(name) && card.get(name).getAsBoolean();
++    }
++
++    private static String text(final JsonObject card, final String name) {
++        return card != null && card.has(name) ? card.get(name).getAsString() : null;
++    }
++
++    private static List<String> ids(final JsonObject card, final String name) {
++        final List<String> out = new ArrayList<>();
++        if (card != null && card.has(name)) {
++            final JsonArray array = card.getAsJsonArray(name);
++            for (final JsonElement element : array) {
++                out.add(element.getAsString());
++            }
++        }
++        return out;
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static final class Fixture {
++        final Game game = newGame();
++        final Player p0 = game.getPlayers().get(0);
++        final Player p1 = game.getPlayers().get(1);
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("card-state-flags-test");
++
++        Fixture() {
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        Card add(final String name, final Player p) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(ZoneType.Battlefield).add(card);
++            return card;
++        }
++
++        void settle() {
++            game.getAction().checkStaticAbilities();
++        }
++
++        void untapStep(final Player active) {
++            game.getPhaseHandler().devModeSet(PhaseType.UNTAP, active);
++            game.getUntap().executeAt();
++        }
++
++        JsonObject card(final Card card) {
++            final JsonObject view = JsonParser.parseString(session.getSnapshotJson(0)).getAsJsonObject();
++            final String id = SnapshotExtractor.javaCardId(card);
++            for (final JsonElement z : view.getAsJsonArray("zones")) {
++                final JsonObject zo = z.getAsJsonObject();
++                if (!"battlefield".equals(zo.get("zone").getAsString())) {
++                    continue;
++                }
++                for (final JsonElement c : zo.getAsJsonArray("cards")) {
++                    if (id.equals(c.getAsJsonObject().get("id").getAsString())) {
++                        return c.getAsJsonObject();
++                    }
++                }
++            }
++            throw new AssertionError("card not on the battlefield in the snapshot: " + card);
++        }
++    }
++
++    private static Game newGame() {
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        final Deck deck = new Deck();
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("p1", null)));
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("p2", null)));
++        final GameRules rules = new GameRules(GameType.Constructed);
++        final Game game = new Game(players, rules, new Match(rules, players, "CardStateFlagsTest"));
++        game.setAge(GameStage.Play);
++        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++        game.getPhaseHandler().onStackResolved();
++        return game;
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/DungeonStateTest.java b/forge-harness/src/test/java/forge/harness/host/DungeonStateTest.java
 new file mode 100644
 index 0000000..4dd0af7
@@ -4236,6 +4995,767 @@ index 0000000..4dd0af7
 +            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
 +            created.getPhaseHandler().onStackResolved();
 +            return created;
++        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/EffectsViewTest.java b/forge-harness/src/test/java/forge/harness/host/EffectsViewTest.java
+new file mode 100644
+index 0000000..79c434c
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/EffectsViewTest.java
+@@ -0,0 +1,390 @@
++package forge.harness.host;
++
++import com.google.gson.JsonArray;
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.ability.ApiType;
++import forge.game.card.Card;
++import forge.game.keyword.Keyword;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Set;
++
++public final class EffectsViewTest {
++    private EffectsViewTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++
++        check("aQuietGameSendsNoneOfTheNewFields", EffectsViewTest::aQuietGameSendsNoneOfTheNewFields);
++        check("momentsPeaceSendsAFogForThisTurn", EffectsViewTest::momentsPeaceSendsAFogForThisTurn);
++        check("castSpellsAreCountedPerPlayerAndForStorm", EffectsViewTest::castSpellsAreCountedPerPlayerAndForStorm);
++        check("gideonsEmblemIsPermanent", EffectsViewTest::gideonsEmblemIsPermanent);
++        check("teferisProtectionLastsUntilYourNextTurn", EffectsViewTest::teferisProtectionLastsUntilYourNextTurn);
++        check("eaterOfDaysSendsTheSkippedTurns", EffectsViewTest::eaterOfDaysSendsTheSkippedTurns);
++        check("sneakAttackSacrificeWaitsForTheEndStep", EffectsViewTest::sneakAttackSacrificeWaitsForTheEndStep);
++        check("unearthSendsItsExileButNotItsHiddenEffect", EffectsViewTest::unearthSendsItsExileButNotItsHiddenEffect);
++        check("flickerwispReturnNamesTheExiledCard", EffectsViewTest::flickerwispReturnNamesTheExiledCard);
++        check("pactUpkeepIsOnItsCastersTurn", EffectsViewTest::pactUpkeepIsOnItsCastersTurn);
++        check("lifeGainedAndLostThisTurnAreSent", EffectsViewTest::lifeGainedAndLostThisTurnAreSent);
++        System.out.println(failed == 0 ? "PASS EffectsViewTest" : "FAIL EffectsViewTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void aQuietGameSendsNoneOfTheNewFields() throws Exception {
++        final Fixture f = new Fixture();
++        final JsonObject view = f.view();
++        expect(!view.has("delayed"), "delayed in a quiet game: " + view.get("delayed"));
++        expect(!view.has("stormCount"), "stormCount in a quiet game: " + view.get("stormCount"));
++        for (final JsonElement p : view.getAsJsonArray("players")) {
++            final JsonObject player = p.getAsJsonObject();
++            for (final String key : List.of("effects", "spellsCastThisTurn", "lifeGainedThisTurn", "lifeLostThisTurn")) {
++                expect(!player.has(key), key + " in a quiet game: " + player.get(key));
++            }
++        }
++    }
++
++    private static void momentsPeaceSendsAFogForThisTurn() throws Exception {
++        final Fixture f = new Fixture();
++        final Card peace = add("Moment's Peace", f.white, ZoneType.Hand);
++        resolve(f, peace.getFirstSpellAbility(), f.white);
++        final JsonObject effect = onlyEffect(f.player(0));
++        expect("Moment's Peace's Effect".equals(effect.get("name").getAsString()), "name " + effect.get("name"));
++        expect(effect.get("text").getAsString().contains("Prevent all combat damage this turn."), "text " + effect.get("text"));
++        expect(id(peace).equals(effect.get("sourceCardId").getAsString()), "sourceCardId " + effect.get("sourceCardId"));
++        expect(!effect.get("emblem").getAsBoolean(), "a Fog is an emblem");
++        expect(effect.get("untilEndOfTurn").getAsBoolean(), "a Fog does not end this turn");
++        expect(!effect.has("duration"), "duration " + effect.get("duration"));
++        expect(effect.get("id").getAsString().startsWith("effect-"), "id " + effect.get("id"));
++        expect(!f.player(1).has("effects"), "the other player got " + f.player(1).get("effects"));
++        for (final JsonElement z : f.view().getAsJsonArray("zones")) {
++            final JsonObject zone = z.getAsJsonObject();
++            if ("command".equals(zone.get("zone").getAsString())) {
++                expect(zone.getAsJsonArray("cards").isEmpty(), "the effect is a command-zone card again: " + zone);
++            }
++        }
++    }
++
++    private static void castSpellsAreCountedPerPlayerAndForStorm() throws Exception {
++        final Fixture f = new Fixture();
++        final Card first = add("Moment's Peace", f.white, ZoneType.Hand);
++        final Card second = add("Moment's Peace", f.white, ZoneType.Hand);
++        f.apply("{\"op\":\"freeCast\",\"player\":\"player-0\",\"card\":\"" + id(first) + "\"}");
++        expectApplied(f);
++        expect(f.player(0).get("spellsCastThisTurn").getAsInt() == 1, "spellsCastThisTurn " + f.player(0).get("spellsCastThisTurn"));
++        expect(f.view().get("stormCount").getAsInt() == 1, "stormCount " + f.view().get("stormCount"));
++        resolveStack(f);
++        expect(f.game.getStack().isEmpty(), "the first Moment's Peace did not resolve");
++        expect(f.player(0).get("spellsCastThisTurn").getAsInt() == 1, "resolving changed the count: " + f.player(0).get("spellsCastThisTurn"));
++        f.apply("{\"op\":\"freeCast\",\"player\":\"player-0\",\"card\":\"" + id(second) + "\"}");
++        expectApplied(f);
++        expect(f.player(0).get("spellsCastThisTurn").getAsInt() == 2, "spellsCastThisTurn " + f.player(0).get("spellsCastThisTurn"));
++        expect(f.view().get("stormCount").getAsInt() == 2, "stormCount " + f.view().get("stormCount"));
++        expect(!f.player(1).has("spellsCastThisTurn"), "the other player cast " + f.player(1).get("spellsCastThisTurn"));
++        expect(f.white.getSpellsCastThisTurn() == 2, "Forge counts " + f.white.getSpellsCastThisTurn());
++    }
++
++    private static void gideonsEmblemIsPermanent() throws Exception {
++        final Fixture f = new Fixture();
++        final Card gideon = add("Gideon, Ally of Zendikar", f.white, ZoneType.Battlefield);
++        SpellAbility ultimate = null;
++        for (final SpellAbility sa : gideon.getSpellAbilities()) {
++            if (sa.getApi() == ApiType.Effect && sa.hasParam("Name")) {
++                ultimate = sa;
++            }
++        }
++        expect(ultimate != null, "Gideon has no emblem ability");
++        resolve(f, ultimate, f.white);
++        final JsonObject effect = onlyEffect(f.player(0));
++        expect(effect.get("name").getAsString().startsWith("Emblem"), "name " + effect.get("name"));
++        expect(effect.get("emblem").getAsBoolean(), "the emblem is not an emblem");
++        expect("Creatures you control get +1/+1.".equals(effect.get("text").getAsString()), "text " + effect.get("text"));
++        expect(!effect.get("untilEndOfTurn").getAsBoolean(), "the emblem ends this turn");
++        expect("Permanent".equals(effect.get("duration").getAsString()), "duration " + effect.get("duration"));
++        expect(id(gideon).equals(effect.get("sourceCardId").getAsString()), "sourceCardId " + effect.get("sourceCardId"));
++    }
++
++    private static void teferisProtectionLastsUntilYourNextTurn() throws Exception {
++        final Fixture f = new Fixture();
++        final Card protection = add("Teferi's Protection", f.white, ZoneType.Hand);
++        resolve(f, protection.getFirstSpellAbility(), f.white);
++        final JsonObject effect = onlyEffect(f.player(0));
++        expect(effect.get("text").getAsString().contains("Your life total can't change."), "text " + effect.get("text"));
++        expect("UntilYourNextTurn".equals(effect.get("duration").getAsString()), "duration " + effect.get("duration"));
++        expect(!effect.get("untilEndOfTurn").getAsBoolean(), "Teferi's Protection ends this turn");
++    }
++
++    private static void eaterOfDaysSendsTheSkippedTurns() throws Exception {
++        final Fixture f = new Fixture();
++        final Card eater = add("Eater of Days", f.white, ZoneType.Battlefield);
++        resolve(f, AbilityFactory.getAbility(eater.getSVar("EatSomeDays"), eater), f.white);
++        final JsonObject effect = onlyEffect(f.player(0));
++        expect("Skip your next two turns.".equals(effect.get("text").getAsString()), "text " + effect.get("text"));
++        expect(id(eater).equals(effect.get("sourceCardId").getAsString()), "sourceCardId " + effect.get("sourceCardId"));
++        expect(!effect.get("untilEndOfTurn").getAsBoolean(), "the skip ends this turn");
++    }
++
++    private static void sneakAttackSacrificeWaitsForTheEndStep() throws Exception {
++        final Fixture f = new Fixture();
++        final Card sneak = add("Sneak Attack", f.white, ZoneType.Battlefield);
++        final Card giant = add("Hill Giant", f.white, ZoneType.Battlefield);
++        sneak.addRemembered(giant);
++        resolve(f, AbilityFactory.getAbility(sneak.getSVar("DBPump"), sneak), f.white);
++        final JsonObject delayed = onlyDelayed(f.view());
++        expect("Sacrifice Hill Giant at the beginning of the next end step.".equals(delayed.get("text").getAsString()),
++                "text " + delayed.get("text"));
++        expect("player-0".equals(delayed.get("controllerId").getAsString()), "controllerId " + delayed.get("controllerId"));
++        expect(id(sneak).equals(delayed.get("hostCardId").getAsString()), "hostCardId " + delayed.get("hostCardId"));
++        expect(ids(delayed).equals(List.of(id(giant))), "cardIds " + delayed.get("cardIds"));
++        expect("end step".equals(delayed.get("when").getAsString()), "when " + delayed.get("when"));
++        expect(!delayed.has("turnOf"), "turnOf " + delayed.get("turnOf"));
++        expect(delayed.get("id").getAsString().startsWith("delayed-"), "id " + delayed.get("id"));
++    }
++
++    private static void unearthSendsItsExileButNotItsHiddenEffect() throws Exception {
++        final Fixture f = new Fixture();
++        final Card zombie = add("Dregscape Zombie", f.white, ZoneType.Graveyard);
++        SpellAbility unearth = null;
++        for (final SpellAbility sa : zombie.getSpellAbilities()) {
++            if (sa.isKeyword(Keyword.UNEARTH)) {
++                unearth = sa;
++            }
++        }
++        expect(unearth != null, "Dregscape Zombie has no unearth ability");
++        resolve(f, unearth, f.white);
++        final Card returned = f.game.getCardState(zombie);
++        expect(returned.isInZone(ZoneType.Battlefield), "the zombie is not on the battlefield");
++        expect(!f.player(0).has("effects"), "unearth's hidden effect is sent: " + f.player(0).get("effects"));
++        final JsonObject delayed = onlyDelayed(f.view());
++        expect(delayed.get("text").getAsString().startsWith("Exile Dregscape Zombie at the beginning of the next end step"),
++                "text " + delayed.get("text"));
++        expect(ids(delayed).equals(List.of(id(returned))), "cardIds " + delayed.get("cardIds"));
++        expect("end step".equals(delayed.get("when").getAsString()), "when " + delayed.get("when"));
++    }
++
++    private static void flickerwispReturnNamesTheExiledCard() throws Exception {
++        final Fixture f = new Fixture();
++        final Card wisp = add("Flickerwisp", f.white, ZoneType.Battlefield);
++        final Card bear = add("Grizzly Bears", f.blue, ZoneType.Battlefield);
++        final SpellAbility exile = AbilityFactory.getAbility(wisp.getSVar("TrigExile"), wisp);
++        exile.getTargets().add(bear);
++        resolve(f, exile, f.white);
++        expect(f.game.getCardState(bear).isInZone(ZoneType.Exile), "the bears are not in exile");
++        final JsonObject delayed = onlyDelayed(f.view());
++        expect("Return exiled permanent to the battlefield.".equals(delayed.get("text").getAsString()), "text " + delayed.get("text"));
++        expect(ids(delayed).equals(List.of(id(bear))), "cardIds " + delayed.get("cardIds"));
++        expect(id(wisp).equals(delayed.get("hostCardId").getAsString()), "hostCardId " + delayed.get("hostCardId"));
++        expect("end step".equals(delayed.get("when").getAsString()), "when " + delayed.get("when"));
++    }
++
++    private static void pactUpkeepIsOnItsCastersTurn() throws Exception {
++        final Fixture f = new Fixture();
++        final Card pact = add("Pact of Negation", f.blue, ZoneType.Hand);
++        resolve(f, AbilityFactory.getAbility(pact.getSVar("DBDelTrig"), pact), f.blue);
++        final JsonObject delayed = onlyDelayed(f.view());
++        expect(delayed.get("text").getAsString().startsWith("At the beginning of your next upkeep, pay {3}{U}{U}."),
++                "text " + delayed.get("text"));
++        expect("player-1".equals(delayed.get("controllerId").getAsString()), "controllerId " + delayed.get("controllerId"));
++        expect("upkeep".equals(delayed.get("when").getAsString()), "when " + delayed.get("when"));
++        expect("player-1".equals(delayed.get("turnOf").getAsString()), "turnOf " + delayed.get("turnOf"));
++        expect(ids(delayed).isEmpty(), "cardIds " + delayed.get("cardIds"));
++    }
++
++    private static void lifeGainedAndLostThisTurnAreSent() throws Exception {
++        final Fixture f = new Fixture();
++        final Card source = add("Grizzly Bears", f.white, ZoneType.Battlefield);
++        f.white.gainLife(3, source, null);
++        f.white.gainLife(2, source, null);
++        f.blue.loseLife(4, false, false, null);
++        final JsonObject white = f.player(0);
++        final JsonObject blue = f.player(1);
++        expect(white.get("lifeGainedThisTurn").getAsInt() == 5, "lifeGainedThisTurn " + white.get("lifeGainedThisTurn"));
++        expect(!white.has("lifeLostThisTurn"), "lifeLostThisTurn " + white.get("lifeLostThisTurn"));
++        expect(blue.get("lifeLostThisTurn").getAsInt() == 4, "lifeLostThisTurn " + blue.get("lifeLostThisTurn"));
++        expect(!blue.has("lifeGainedThisTurn"), "lifeGainedThisTurn " + blue.get("lifeGainedThisTurn"));
++    }
++
++    private static void resolve(final Fixture f, final SpellAbility sa, final Player activator) throws Exception {
++        sa.setActivatingPlayer(activator);
++        withoutPrompts(f, "resolving " + sa.getHostCard(), () -> AbilityUtils.resolve(sa));
++    }
++
++    private static void resolveStack(final Fixture f) throws Exception {
++        withoutPrompts(f, "resolving the stack", () -> f.game.getStack().resolveStack());
++    }
++
++    private static void withoutPrompts(final Fixture f, final String what, final Runnable step) throws Exception {
++        final Throwable[] failure = new Throwable[1];
++        final Thread runner = new Thread(() -> {
++            try {
++                step.run();
++            } catch (final Throwable thrown) {
++                failure[0] = thrown;
++            }
++        }, what);
++        runner.setDaemon(true);
++        runner.start();
++        runner.join(60_000);
++        if (runner.isAlive()) {
++            throw new AssertionError(what + " asked " + f.session.getLatestPromptJson());
++        }
++        if (failure[0] != null) {
++            throw new AssertionError(what + " failed", failure[0]);
++        }
++    }
++
++    private static JsonObject onlyEffect(final JsonObject player) {
++        expect(player.has("effects"), "no effects for " + player.get("id"));
++        final JsonArray effects = player.getAsJsonArray("effects");
++        expect(effects.size() == 1, "expected one effect, got " + effects);
++        return effects.get(0).getAsJsonObject();
++    }
++
++    private static JsonObject onlyDelayed(final JsonObject view) {
++        expect(view.has("delayed"), "no delayed triggers in the view");
++        final JsonArray delayed = view.getAsJsonArray("delayed");
++        expect(delayed.size() == 1, "expected one delayed trigger, got " + delayed);
++        return delayed.get(0).getAsJsonObject();
++    }
++
++    private static List<String> ids(final JsonObject delayed) {
++        final List<String> ids = new ArrayList<>();
++        for (final JsonElement id : delayed.getAsJsonArray("cardIds")) {
++            ids.add(id.getAsString());
++        }
++        return ids;
++    }
++
++    private static String id(final Card card) {
++        return SnapshotExtractor.javaCardId(card);
++    }
++
++    private static void expectApplied(final Fixture f) {
++        final JsonObject fix = f.view().getAsJsonObject("stateFix");
++        expect(fix != null && fix.get("applied").getAsBoolean(), "the fix was not applied: " + fix);
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("effects-view-test");
++        final Game game = newGame();
++        final Player white = game.getPlayers().get(0);
++        final Player blue = game.getPlayers().get(1);
++        private int fixId;
++
++        Fixture() {
++            session.attach(game.getMatch(), game, Set.of(), true);
++        }
++
++        void apply(final String op) throws Exception {
++            final JsonObject action = JsonParser.parseString("{\"fixId\":" + (++fixId) + ",\"ops\":[" + op + "]}").getAsJsonObject();
++            final Method apply = ManaBrewInteractiveSession.class.getDeclaredMethod("applyState", JsonObject.class);
++            apply.setAccessible(true);
++            final Throwable[] failure = new Throwable[1];
++            final Thread applier = new Thread(() -> {
++                try {
++                    apply.invoke(session, action);
++                } catch (final Throwable thrown) {
++                    failure[0] = thrown;
++                }
++            }, "apply-" + fixId);
++            applier.setDaemon(true);
++            applier.start();
++            applier.join(60_000);
++            if (applier.isAlive()) {
++                throw new AssertionError("the fix " + op + " asked " + session.getLatestPromptJson());
++            }
++            if (failure[0] != null) {
++                throw new AssertionError("the fix " + op + " failed", failure[0]);
++            }
++        }
++
++        JsonObject view() {
++            return JsonParser.parseString(session.getSnapshotJson(0)).getAsJsonObject();
++        }
++
++        JsonObject player(final int index) {
++            for (final JsonElement p : view().getAsJsonArray("players")) {
++                if (("player-" + index).equals(p.getAsJsonObject().get("id").getAsString())) {
++                    return p.getAsJsonObject();
++                }
++            }
++            throw new AssertionError("no player-" + index);
++        }
++
++        private Game newGame() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            final Game created = new Game(players, rules, new Match(rules, players, "EffectsViewTest"));
++            created.setAge(GameStage.Play);
++            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
++            created.getPhaseHandler().onStackResolved();
++            return created;
++        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/EngineEventDamageTest.java b/forge-harness/src/test/java/forge/harness/host/EngineEventDamageTest.java
+new file mode 100644
+index 0000000..922f663
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/EngineEventDamageTest.java
+@@ -0,0 +1,359 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameEntity;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.card.CardCollection;
++import forge.game.card.CounterEnumType;
++import forge.game.combat.Combat;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.ParityCardMap;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Map;
++
++public final class EngineEventDamageTest {
++    private EngineEventDamageTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++
++        check("shockToACreatureComesBeforeItsDeath", EngineEventDamageTest::shockToACreatureComesBeforeItsDeath);
++        check("shockToAPlayerNamesThePlayer", EngineEventDamageTest::shockToAPlayerNamesThePlayer);
++        check("shockToAPlaneswalkerIsDamageNotACost", EngineEventDamageTest::shockToAPlaneswalkerIsDamageNotACost);
++        check("aLoyaltyCostIsNoDamage", EngineEventDamageTest::aLoyaltyCostIsNoDamage);
++        check("arcTrailSendsOneEventPerTarget", EngineEventDamageTest::arcTrailSendsOneEventPerTarget);
++        check("combatDamageIsMarkedCombat", EngineEventDamageTest::combatDamageIsMarkedCombat);
++        check("preventedDamageSendsWhatWasDealt", EngineEventDamageTest::preventedDamageSendsWhatWasDealt);
++        check("fullyPreventedCombatDamageSendsNothing", EngineEventDamageTest::fullyPreventedCombatDamageSendsNothing);
++        check("aWipeOfABigBoardKeepsEveryMoveInTheRing", EngineEventDamageTest::aWipeOfABigBoardKeepsEveryMoveInTheRing);
++        check("oldFieldsStayOffDamageEvents", EngineEventDamageTest::oldFieldsStayOffDamageEvents);
++        System.out.println(failed == 0 ? "PASS EngineEventDamageTest" : "FAIL EngineEventDamageTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void shockToACreatureComesBeforeItsDeath() {
++        final Fixture f = new Fixture();
++        final Card bears = f.add("Grizzly Bears", f.blue, ZoneType.Battlefield);
++        final Card shock = f.add("Shock", f.white, ZoneType.Hand);
++        f.cast(shock, f.white, bears);
++        f.game.getAction().checkStateEffects(true);
++        final List<Map<String, Object>> events = f.log.view();
++        final Map<String, Object> hit = only(damage(events));
++        expect("source", f.id(shock), hit.get("sourceCardId"));
++        expect("target", f.id(bears), hit.get("targetCardId"));
++        expect("amount", 2, hit.get("amount"));
++        expect("combat", false, hit.get("combat"));
++        expect("owner", "player-0", hit.get("ownerId"));
++        final Map<String, Object> death = move(events, f.id(bears), "Graveyard");
++        expect("damage before the death", true, (int) hit.get("seq") < (int) death.get("seq"));
++    }
++
++    private static void shockToAPlayerNamesThePlayer() {
++        final Fixture f = new Fixture();
++        final Card shock = f.add("Shock", f.white, ZoneType.Hand);
++        f.cast(shock, f.white, f.blue);
++        final Map<String, Object> hit = only(damage(f.log.view()));
++        expect("source", f.id(shock), hit.get("sourceCardId"));
++        expect("target player", "player-1", hit.get("targetPlayerId"));
++        expect("no target card", false, hit.containsKey("targetCardId"));
++        expect("amount", 2, hit.get("amount"));
++        expect("combat", false, hit.get("combat"));
++        expect("life", 18, f.blue.getLife());
++    }
++
++    private static void shockToAPlaneswalkerIsDamageNotACost() {
++        final Fixture f = new Fixture();
++        final Card jace = f.add("Jace Beleren", f.blue, ZoneType.Battlefield);
++        jace.setCounters(CounterEnumType.LOYALTY, 3);
++        final Card shock = f.add("Shock", f.white, ZoneType.Hand);
++        f.cast(shock, f.white, jace);
++        final Map<String, Object> hit = only(damage(f.log.view()));
++        expect("source", f.id(shock), hit.get("sourceCardId"));
++        expect("target", f.id(jace), hit.get("targetCardId"));
++        expect("amount", 2, hit.get("amount"));
++        expect("loyalty", 1, jace.getCounters(CounterEnumType.LOYALTY));
++    }
++
++    private static void aLoyaltyCostIsNoDamage() {
++        final Fixture f = new Fixture();
++        final Card jace = f.add("Jace Beleren", f.blue, ZoneType.Battlefield);
++        jace.setCounters(CounterEnumType.LOYALTY, 3);
++        jace.subtractCounter(CounterEnumType.LOYALTY, 1, f.blue);
++        expect("damage events", 0, damage(f.log.view()).size());
++    }
++
++    private static void arcTrailSendsOneEventPerTarget() {
++        final Fixture f = new Fixture();
++        final Card bears = f.add("Grizzly Bears", f.blue, ZoneType.Battlefield);
++        final Card arc = f.add("Arc Trail", f.white, ZoneType.Hand);
++        final SpellAbility sa = arc.getFirstSpellAbility();
++        sa.getTargets().add(bears);
++        sa.getSubAbility().getTargets().add(f.blue);
++        f.cast(arc, f.white, sa);
++        f.game.getAction().checkStateEffects(true);
++        final List<Map<String, Object>> events = f.log.view();
++        final List<Map<String, Object>> hits = damage(events);
++        expect("damage events", 2, hits.size());
++        Map<String, Object> toBears = null;
++        Map<String, Object> toBlue = null;
++        for (final Map<String, Object> hit : hits) {
++            expect("source", f.id(arc), hit.get("sourceCardId"));
++            if (f.id(bears).equals(hit.get("targetCardId"))) {
++                toBears = hit;
++            } else if ("player-1".equals(hit.get("targetPlayerId"))) {
++                toBlue = hit;
++            }
++        }
++        expect("2 to the bears", 2, toBears == null ? null : toBears.get("amount"));
++        expect("1 to the player", 1, toBlue == null ? null : toBlue.get("amount"));
++        final Map<String, Object> death = move(events, f.id(bears), "Graveyard");
++        expect("damage before the death", true, (int) toBears.get("seq") < (int) death.get("seq"));
++        expect("the next seq after the damage", (int) hits.get(1).get("seq") + 1, seqOf(events, f.id(arc), "Graveyard"));
++    }
++
++    private static void combatDamageIsMarkedCombat() {
++        final Fixture f = new Fixture();
++        final Card runner = f.add("Grizzly Bears", f.white, ZoneType.Battlefield);
++        final Card giant = f.add("Hill Giant", f.white, ZoneType.Battlefield);
++        final Card blocker = f.add("Grizzly Bears", f.blue, ZoneType.Battlefield);
++        f.fight(List.of(runner, giant), giant, blocker);
++        f.game.getAction().checkStateEffects(true);
++        final List<Map<String, Object>> events = f.log.view();
++        final List<Map<String, Object>> hits = damage(events);
++        expect("damage events", 3, hits.size());
++        for (final Map<String, Object> hit : hits) {
++            expect("combat", true, hit.get("combat"));
++        }
++        final Map<String, Object> toBlue = find(hits, "targetPlayerId", "player-1");
++        expect("unblocked source", f.id(runner), toBlue.get("sourceCardId"));
++        expect("unblocked amount", 2, toBlue.get("amount"));
++        final Map<String, Object> toBlocker = find(hits, "targetCardId", f.id(blocker));
++        expect("giant to blocker", f.id(giant), toBlocker.get("sourceCardId"));
++        expect("giant amount", 3, toBlocker.get("amount"));
++        expect("blocker owner", "player-0", toBlocker.get("ownerId"));
++        final Map<String, Object> toGiant = find(hits, "targetCardId", f.id(giant));
++        expect("blocker to giant", f.id(blocker), toGiant.get("sourceCardId"));
++        expect("blocker amount", 2, toGiant.get("amount"));
++        expect("blocker's owner", "player-1", toGiant.get("ownerId"));
++        final Map<String, Object> death = move(events, f.id(blocker), "Graveyard");
++        for (final Map<String, Object> hit : hits) {
++            expect("damage before the death", true, (int) hit.get("seq") < (int) death.get("seq"));
++        }
++    }
++
++    private static void preventedDamageSendsWhatWasDealt() {
++        final Fixture f = new Fixture();
++        f.add("Urza's Armor", f.blue, ZoneType.Battlefield);
++        final Card shock = f.add("Shock", f.white, ZoneType.Hand);
++        f.cast(shock, f.white, f.blue);
++        final Map<String, Object> hit = only(damage(f.log.view()));
++        expect("amount after prevention", 1, hit.get("amount"));
++        expect("life", 19, f.blue.getLife());
++    }
++
++    private static void fullyPreventedCombatDamageSendsNothing() {
++        final Fixture f = new Fixture();
++        final Card runner = f.add("Grizzly Bears", f.white, ZoneType.Battlefield);
++        final Card fog = f.add("Fog", f.blue, ZoneType.Hand);
++        final SpellAbility sa = fog.getFirstSpellAbility();
++        sa.setActivatingPlayer(f.blue);
++        AbilityUtils.resolve(sa);
++        f.fight(List.of(runner), null, null);
++        expect("damage events", 0, damage(f.log.view()).size());
++        expect("life", 20, f.blue.getLife());
++    }
++
++    private static void aWipeOfABigBoardKeepsEveryMoveInTheRing() {
++        final Fixture f = new Fixture();
++        final int perSide = 120;
++        for (int i = 0; i < perSide; i++) {
++            f.add("Grizzly Bears", f.white, ZoneType.Battlefield);
++            f.add("Grizzly Bears", f.blue, ZoneType.Battlefield);
++        }
++        final int before = f.log.view().size();
++        final Card wipe = f.add("Pyroclasm", f.white, ZoneType.Hand);
++        f.cast(wipe, f.white, wipe.getFirstSpellAbility());
++        f.game.getAction().checkStateEffects(true);
++        final List<Map<String, Object>> events = f.log.view();
++        int deaths = 0;
++        for (final Map<String, Object> event : events) {
++            if ("Battlefield".equals(event.get("from")) && "Graveyard".equals(event.get("to"))) {
++                deaths++;
++            }
++        }
++        expect("damage events", 2 * perSide, damage(events).size());
++        expect("deaths", 2 * perSide, deaths);
++        expect("events since the last view", 4 * perSide + 1, events.size() - before);
++        expect("no seq dropped", 1, events.get(0).get("seq"));
++    }
++
++    private static void oldFieldsStayOffDamageEvents() {
++        final Fixture f = new Fixture();
++        final Card shock = f.add("Shock", f.white, ZoneType.Hand);
++        f.cast(shock, f.white, f.blue);
++        final Map<String, Object> hit = only(damage(f.log.view()));
++        expect("to", "Damage", hit.get("to"));
++        expect("id", "event-" + hit.get("seq"), hit.get("id"));
++        for (final String old : List.of("cardId", "from", "how", "cause", "causeName", "causeCardId")) {
++            expect("no " + old, false, hit.containsKey(old));
++        }
++    }
++
++    private static List<Map<String, Object>> damage(final List<Map<String, Object>> events) {
++        final List<Map<String, Object>> hits = new ArrayList<>();
++        for (final Map<String, Object> event : events) {
++            if ("damage".equals(event.get("kind"))) {
++                hits.add(event);
++            }
++        }
++        return hits;
++    }
++
++    private static Map<String, Object> only(final List<Map<String, Object>> hits) {
++        expect("damage events", 1, hits.size());
++        return hits.get(0);
++    }
++
++    private static Map<String, Object> find(final List<Map<String, Object>> hits, final String key, final Object value) {
++        for (final Map<String, Object> hit : hits) {
++            if (value.equals(hit.get(key))) {
++                return hit;
++            }
++        }
++        throw new AssertionError("no damage event with " + key + " " + value + " in " + hits);
++    }
++
++    private static Map<String, Object> move(final List<Map<String, Object>> events, final String cardId, final String to) {
++        for (final Map<String, Object> event : events) {
++            if (cardId.equals(event.get("cardId")) && to.equals(event.get("to"))) {
++                return event;
++            }
++        }
++        throw new AssertionError("no move of " + cardId + " to " + to + " in " + events);
++    }
++
++    private static int seqOf(final List<Map<String, Object>> events, final String cardId, final String to) {
++        return (int) move(events, cardId, to).get("seq");
++    }
++
++    private static void expect(final String what, final Object want, final Object got) {
++        if (!want.equals(got)) {
++            throw new AssertionError(what + ": " + got + ", not " + want);
++        }
++    }
++
++    private static final class Fixture {
++        final Game game;
++        final Player white;
++        final Player blue;
++        final EngineEventLog log;
++
++        Fixture() {
++            ParityCardMap.reset();
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("White", null)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            game = new Game(players, rules, new Match(rules, players, "EngineEventDamageTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++            log = new EngineEventLog(game);
++            game.subscribeToEvents(log);
++        }
++
++        Card add(final String name, final Player p, final ZoneType zone) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(p.getGame().getNextTimestamp());
++            p.getZone(zone).add(card);
++            if (zone == ZoneType.Battlefield) {
++                card.setSickness(false);
++            }
++            ParityCardMap.syncWithGame(game);
++            return card;
++        }
++
++        String id(final Card card) {
++            return "engine-card-" + ParityCardMap.knownParityId(card.getId());
++        }
++
++        void cast(final Card card, final Player caster, final GameEntity target) {
++            final SpellAbility sa = card.getFirstSpellAbility();
++            sa.getTargets().add(target);
++            cast(card, caster, sa);
++        }
++
++        void cast(final Card card, final Player caster, final SpellAbility sa) {
++            sa.setActivatingPlayer(caster);
++            sa.setHostCard(game.getAction().moveToStack(card, sa));
++            game.getStack().add(sa);
++            game.getStack().resolveStack();
++        }
++
++        void fight(final List<Card> attackers, final Card blocked, final Card blocker) {
++            game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DAMAGE, white);
++            final Combat combat = new Combat(white);
++            for (final Card attacker : attackers) {
++                combat.addAttacker(attacker, blue);
++            }
++            if (blocked != null) {
++                combat.addBlocker(blocked, blocker);
++                combat.orderBlockersForDamageAssignment(blocked, new CardCollection(blocker));
++                combat.orderAttackersForDamageAssignment(blocker);
++            }
++            for (final Card attacker : attackers) {
++                combat.setBlocked(attacker, attacker == blocked);
++            }
++            game.getPhaseHandler().setCombat(combat);
++            combat.assignCombatDamage(false);
++            combat.dealAssignedDamage();
 +        }
 +    }
 +}
@@ -6117,10 +7637,10 @@ index 3385214..b68e2c9 100644
          Reorder(reorder::ReorderInput {
              presentation: common::PromptPresentation {
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-index 76fdc4f..b4e4b66 100644
+index 76fdc4f..1bf249b 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-@@ -789,6 +789,15 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
+@@ -789,6 +789,28 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
          // Rust engine doesn't surface it yet.
          would_die_in_combat: false,
          zone: None,
@@ -6133,10 +7653,23 @@ index 76fdc4f..b4e4b66 100644
 +        current_text: None,
 +        printed_name: None,
 +        encoded_on: None,
++        skips_next_untap: false,
++        monstrous: false,
++        saddled: false,
++        saddled_by: Vec::new(),
++        harnessed: false,
++        solved: false,
++        unlocked_doors: Vec::new(),
++        paired_with: None,
++        attached_to_player: None,
++        protector_id: None,
++        cant_attack: false,
++        cant_block: false,
++        must_attack: false,
      }
  }
  
-@@ -859,6 +868,8 @@ impl GameViewDtoExt for GameViewDto {
+@@ -859,6 +881,8 @@ impl GameViewDtoExt for GameViewDto {
                          .cloned()
                          .unwrap_or_else(|| card.card_name.clone()),
                      room: card.svars.get("CurrentRoom").cloned().unwrap_or_default(),
@@ -6145,7 +7678,7 @@ index 76fdc4f..b4e4b66 100644
                  })
              });
              let active_scheme_names: Vec<String> = command_zone
-@@ -936,6 +947,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -936,9 +960,14 @@ impl GameViewDtoExt for GameViewDto {
                  player_keywords,
                  commander_casts,
                  dungeon_state,
@@ -6153,7 +7686,14 @@ index 76fdc4f..b4e4b66 100644
                  active_scheme_names: (!active_scheme_names.is_empty())
                      .then_some(active_scheme_names),
                  team_number,
-@@ -1015,6 +1027,7 @@ impl GameViewDtoExt for GameViewDto {
++                effects: None,
++                spells_cast_this_turn: None,
++                life_gained_this_turn: None,
++                life_lost_this_turn: None,
+                 counters,
+                 mana_pool: mana_pool_to_map(&pool),
+                 commander_damage,
+@@ -1015,6 +1044,7 @@ impl GameViewDtoExt for GameViewDto {
                      identity,
                      text: entry.spell_ability.ability_text.clone(),
                      source_ability_text: stack_source_ability_text(game, &entry.spell_ability),
@@ -6161,7 +7701,7 @@ index 76fdc4f..b4e4b66 100644
                      is_permanent_spell: entry.is_creature_spell || entry.is_permanent_spell,
                      is_casting: entry.is_pending_cast,
                      is_double_faced: source_card.map(|c| c.is_double_faced()).unwrap_or(false),
-@@ -1022,6 +1035,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1022,6 +1052,7 @@ impl GameViewDtoExt for GameViewDto {
                          .map(|c| u8::from(c.is_transformed))
                          .unwrap_or_default(),
                      targets: collect_stack_targets(&entry.spell_ability),
@@ -6169,7 +7709,7 @@ index 76fdc4f..b4e4b66 100644
                  }
              })
              .collect();
-@@ -1061,8 +1075,11 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1061,9 +1092,14 @@ impl GameViewDtoExt for GameViewDto {
              initiative_holder_id: game.initiative_holder.map(player_id_str),
              day_time: day_time_of(game),
              active_plane_names: (!active_plane_names.is_empty()).then_some(active_plane_names),
@@ -6179,13 +7719,16 @@ index 76fdc4f..b4e4b66 100644
 +            state_fix: None,
 +            events: Vec::new(),
              snapshot_recording: false,
++            delayed: None,
++            storm_count: None,
          }
      }
+ 
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-index 0f579af..5adde05 100644
+index 0f579af..0814d3b 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-@@ -149,12 +149,70 @@ pub struct GameViewDto {
+@@ -149,12 +149,133 @@ pub struct GameViewDto {
      pub day_time: DayTime,
      #[ts(optional)]
      pub active_plane_names: Option<Vec<String>>,
@@ -6203,6 +7746,51 @@ index 0f579af..5adde05 100644
 +    pub state_fix: Option<StateFixDto>,
 +    #[serde(default)]
 +    pub events: Vec<EngineEventDto>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub delayed: Option<Vec<DelayedTriggerDto>>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub storm_count: Option<u32>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "game/index.ts")]
++pub struct DelayedTriggerDto {
++    pub id: String,
++    pub text: String,
++    pub controller_id: String,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub host_card_id: Option<String>,
++    #[serde(default)]
++    pub card_ids: Vec<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub when: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub turn_of: Option<String>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "game/index.ts")]
++pub struct EffectDto {
++    pub id: String,
++    pub name: String,
++    pub text: String,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub source_card_id: Option<String>,
++    #[serde(default)]
++    pub emblem: bool,
++    #[serde(default)]
++    pub until_end_of_turn: bool,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub duration: Option<String>,
 +}
 +
 +#[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -6231,6 +7819,24 @@ index 0f579af..5adde05 100644
 +    #[serde(default, skip_serializing_if = "Option::is_none")]
 +    #[ts(optional)]
 +    pub cause_card_id: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub kind: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub source_card_id: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub target_card_id: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub target_player_id: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub amount: Option<u32>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub combat: Option<bool>,
 +}
 +
 +#[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -6256,7 +7862,7 @@ index 0f579af..5adde05 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -216,6 +274,48 @@ pub enum PlayerStatus {
+@@ -216,6 +337,48 @@ pub enum PlayerStatus {
  pub struct DungeonStateDto {
      pub name: String,
      pub room: String,
@@ -6305,7 +7911,7 @@ index 0f579af..5adde05 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -254,6 +354,8 @@ pub struct PlayerDto {
+@@ -254,10 +417,24 @@ pub struct PlayerDto {
      pub commander_casts: HashMap<String, u32>,
      #[ts(optional)]
      pub dungeon_state: Option<DungeonStateDto>,
@@ -6314,7 +7920,23 @@ index 0f579af..5adde05 100644
      #[ts(optional)]
      pub active_scheme_names: Option<Vec<String>>,
      #[ts(optional)]
-@@ -397,6 +499,30 @@ pub struct CardDto {
+     pub team_number: Option<i32>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub effects: Option<Vec<EffectDto>>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub spells_cast_this_turn: Option<u32>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub life_gained_this_turn: Option<u32>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub life_lost_this_turn: Option<u32>,
+     pub counters: BTreeMap<PlayerCounterKind, u32>,
+     pub mana_pool: BTreeMap<ManaColor, u32>,
+     #[ts(type = "Record<string, number>")]
+@@ -397,6 +574,59 @@ pub struct CardDto {
      #[serde(default, skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub zone: Option<ZoneKind>,
@@ -6342,10 +7964,39 @@ index 0f579af..5adde05 100644
 +    #[serde(default, skip_serializing_if = "Option::is_none")]
 +    #[ts(optional)]
 +    pub encoded_on: Option<String>,
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub skips_next_untap: bool,
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub monstrous: bool,
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub saddled: bool,
++    #[serde(default, skip_serializing_if = "Vec::is_empty")]
++    pub saddled_by: Vec<String>,
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub harnessed: bool,
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub solved: bool,
++    #[serde(default, skip_serializing_if = "Vec::is_empty")]
++    pub unlocked_doors: Vec<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub paired_with: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub attached_to_player: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub protector_id: Option<String>,
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub cant_attack: bool,
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub cant_block: bool,
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub must_attack: bool,
  }
  
  #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-@@ -412,11 +538,15 @@ pub struct StackObjectDto {
+@@ -412,11 +642,15 @@ pub struct StackObjectDto {
      #[serde(skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub source_ability_text: Option<String>,
@@ -6361,7 +8012,7 @@ index 0f579af..5adde05 100644
  }
  
  #[cfg(test)]
-@@ -433,11 +563,13 @@ mod stack_object_tests {
+@@ -433,11 +667,13 @@ mod stack_object_tests {
              identity: CardIdentity::default(),
              text: String::new(),
              source_ability_text: Some("When this enters, draw a card.".into()),
@@ -6760,3 +8411,27 @@ index 9c35616..8fa7268 100644
                              },
                          )
                          .await?;
+diff --git a/src/lib/gameCard.ts b/src/lib/gameCard.ts
+index 5bcb862..b9adca0 100644
+--- a/src/lib/gameCard.ts
++++ b/src/lib/gameCard.ts
+@@ -41,6 +41,19 @@ export const GAME_CARD_DEFAULTS: ClientCardDto = {
+   isWarpExiled: false,
+   foil: false,
+   wouldDieInCombat: false,
++  returnsWhenHostLeaves: false,
++  isForetold: false,
++  mayPlay: false,
++  skipsNextUntap: false,
++  monstrous: false,
++  saddled: false,
++  saddledBy: [],
++  harnessed: false,
++  solved: false,
++  unlockedDoors: [],
++  cantAttack: false,
++  cantBlock: false,
++  mustAttack: false,
+ };
+ 
+ export function isFacelessCard(card: Pick<CardDto, "isFaceDown" | "identity">): boolean {
