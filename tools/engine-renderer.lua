@@ -517,7 +517,8 @@ local function updateBadge(o, c, zone)
   -- owner has it turned over: engineCostParts; a dungeon in the command zone shows its room badge instead)
   local room = zone == "command" and type(c.dg) == "string" and c.dg ~= ""
   local costZone = ENGINE_COST_ZONES[zone] == true and not engineFlipped[c.id] and not room
-  local text = (zone == "battlefield" or room) and badgeText(c) or (costZone and engineCostText(c)) or ""
+  -- (and a suspended card beside its exile pile, its time counters: engineTimeCounters)
+  local text = (zone == "battlefield" or zone == "suspended" or room) and badgeText(c) or (costZone and engineCostText(c)) or ""
   if text ~= "" and (c.fd == true) ~= (engineFlipped[c.id] == true) then text = text .. "=under" end
   -- (the card's ability buttons are drawn with its badges: one set of buttons per card, engineAbilityButtons)
   local ab = engineAbilitySig ~= nil and engineAbilitySig(c) or ""
@@ -587,7 +588,7 @@ function engineCardEntry(id, obj, c, opts)
   if c ~= nil then
     updateBadge(obj, c, opts.zone)
     obj.setLock(opts.lock == true)
-    if opts.zone == "attached" or opts.zone == "linked" or opts.zone == "revealed" then obj.setScale(Vector(ATTACH_SCALE, 1, ATTACH_SCALE))
+    if opts.zone == "attached" or opts.zone == "linked" or opts.zone == "revealed" or opts.zone == "suspended" then obj.setScale(Vector(ATTACH_SCALE, 1, ATTACH_SCALE))
     elseif opts.zone == "plane" then obj.setScale(Vector(1.5, 1, 1.5)) end -- (a plane in play: larger, place)
   end
   if engineGlowLate ~= nil then engineGlowLate(id) end
@@ -662,7 +663,7 @@ local function place(c, pos, rot, seen, handColor, meta)
   -- "Creature — Rat", hp-22 #4 2026-10-28)
   if o.getName() ~= nickname(c) then op("name") o.setName(nickname(c)) end
   if o.getDescription() ~= description(c) then op("desc") o.setDescription(description(c)) end
-  local wantScale = (meta and (meta.zone == "attached" or meta.zone == "linked" or meta.zone == "revealed")) and ATTACH_SCALE or (meta and meta.zone == "plane") and 1.5 or 1
+  local wantScale = (meta and (meta.zone == "attached" or meta.zone == "linked" or meta.zone == "revealed" or meta.zone == "suspended")) and ATTACH_SCALE or (meta and meta.zone == "plane") and 1.5 or 1
   if math.abs(o.getScale().x - wantScale) > 0.01 then op("scale") o.setScale(Vector(wantScale, 1, wantScale)) end
   if handColor ~= nil then
     engineInHand[c.id] = true
@@ -6711,9 +6712,28 @@ function engineMarkSpecial(m)
   for _, pl in ipairs(m.players or {}) do
     for _, c in ipairs(pl.exile or {}) do
       if engineSpecial[c.id] == nil and c.ew ~= nil and onField[c.ew] ~= nil then engineSpecial[c.id] = "linked" end
+      -- (a face-up card with time counters, suspended: out of the pile, its counters on its own badge, enginePlaceSpecial)
+      if engineSpecial[c.id] == nil and engineTimeCounters(c) > 0 then engineSpecial[c.id] = "suspended" end
     end
   end
   engineLinkHost = onField
+end
+-- A suspended card's time counters (Rift Bolt, Ancestral Vision; readability audit B5: they showed only in the exile
+-- pile's hover): a face-up exiled card's TIME counters, 0 for a face-down one. Such a card lies out of the exile pile,
+-- half size, on the strip past the pile away from the library (SUSPEND_FIT: fwd, how far from the library along its
+-- forward, the exile pile being at 4.16: 6.85 puts a half card's near edge 0.4 past the pile's far edge and its own far
+-- edge 2.8 short of the commander zones' centres; step, sideways away from the mat between cards, `per` of them before
+-- the next ones lie over them), with the badge a battlefield card has: "2 Time" counting down. Measured on the save's
+-- geometry (White: library z -18.75, exile pile -14.59 with its far edge at -13.06, commander zones at -8.35, the mat's
+-- edge 2.9 to the side); to confirm on the real table with tools/tts-shot.ps1.
+SUSPEND_FIT = { fwd = 6.85, step = 1.25, per = 3 }
+function engineTimeCounters(c)
+  if c == nil or c.fd or c.n == nil then return 0 end
+  for k, n in pairs(c.ctr or {}) do if string.upper(tostring(k)) == "TIME" then return tonumber(n) or 0 end end
+  return 0
+end
+function engineSuspendSpot(g, k)
+  return onTable(g.lib + g.libFwd * SUSPEND_FIT.fwd - g.right * (SUSPEND_FIT.step * (k % SUSPEND_FIT.per)), 0.02 * math.floor(k / SUSPEND_FIT.per))
 end
 function engineWithoutSpecial(list)
   if next(engineSpecial) == nil then return list end
@@ -6816,6 +6836,17 @@ function enginePlaceSpecial(m, seen)
           local spot = host + g.fwd * (1.1 + 0.35 * (n - 1)) + g.right * (0.35 * (n - 1)) + Vector(0, -0.02 * n, 0)
           place(c, spot, Vector(0, g.rotY, c.fd and 180 or 0), seen, nil, { zone = "linked", color = hostColor, host = c.ew })
         end
+      end
+    end
+  end
+  -- (suspended cards, beside their owner's exile pile: engineSuspendSpot)
+  for _, pl in ipairs(m.players or {}) do
+    local g = pl.color and seatGeometry(pl.color)
+    local k = 0
+    for _, c in ipairs(pl.exile or {}) do
+      if g ~= nil and engineSpecial[c.id] == "suspended" then
+        place(c, engineSuspendSpot(g, k), Vector(0, g.rotY, 0), seen, nil, { zone = "suspended", color = pl.color })
+        k = k + 1
       end
     end
   end
@@ -9601,6 +9632,17 @@ function engineSelfCheck()
           elseif special == "linked" then -- map:linked
             local host = byId[card.ew]
             ok = host ~= nil and near(p, host.getPosition(), 2.5)
+          elseif special == "suspended" then -- map:suspended (beside the exile pile, its time counters on its badge)
+            local g = seatGeometry(c)
+            ok = g ~= nil and near(p, g.lib + g.libFwd * SUSPEND_FIT.fwd, SUSPEND_FIT.step * SUSPEND_FIT.per + 1)
+            if not (o.isSmoothMoving() or o.held_by_color ~= nil) then
+              local want, have = {}, {}
+              for _, b in ipairs(badgeParts(card)) do want[#want + 1] = b[2] end
+              for _, b in ipairs(o.getButtons() or {}) do if b.click_function == "engineNoop" then have[#have + 1] = tostring(b.label) end end
+              table.sort(want) table.sort(have)
+              local w, h = table.concat(want, " | "), table.concat(have, " | ")
+              if w ~= h then add(label .. " (suspended) shows badges [" .. h .. "], the engine says [" .. w .. "]") end
+            end
           elseif zone == "hand" then ok = inHand(o, 1)
           elseif zone == "battlefield" then ok = inZone(d.playmat, p) or card.att ~= nil
           elseif zone == "graveyard" then ok = heldNow[card.id] or near(p, d.graveyard.getPosition(), 1.6) -- (a held mill lies on its fan)

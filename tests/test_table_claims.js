@@ -1868,6 +1868,26 @@ const cmdIcons = (half) => save.ObjectStates.filter((o) => o.Nickname === "Comma
 // the save's four playmat zones (the scripting zones the size of a mat, 37 x 20.75)
 const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrigger" && o.Transform.scaleX > 30)
   .map((o) => { const t = o.Transform; return { g: o.GUID, box: [t.posX - t.scaleX / 2, t.posX + t.scaleX / 2, t.posZ - t.scaleZ / 2, t.posZ + t.scaleZ / 2] }; });
+// The Ring's four labels, as the bridge makes them ("RING TEMPTED n: <the level's words>", bridge.js RING_LEVELS, read
+// from its source), each through the table's own fitting (engineMarksBoxes): uncut, no "...", every word kept (level 1's
+// "BEARER IS LEGENDARY, EVADES BIGGER" was cut to "RING TEMPTED 1: BEARE...", review 2026-11-13), and the Ring piece
+// still found by its mark (engineStatusMatch against "RING TEMPTED").
+{
+  const bsrc = fs.readFileSync(path.join(__dirname, "..", "bridge", "bridge.js"), "utf8");
+  const at = bsrc.indexOf("const RING_LEVELS = ["), end = bsrc.indexOf("];", at);
+  const levels = at < 0 ? [] : Function(`return ${bsrc.slice(at + "const RING_LEVELS = ".length, end + 1)}`)();
+  ok("ring labels: precondition, the bridge's four levels read", levels.length === 4 && levels.every((l) => typeof l[0] === "string"), JSON.stringify(levels));
+  const labels = levels.map((l, i) => `RING TEMPTED ${i + 1}: ${l[0]}`);
+  const r = run(labels.map((m, i) => q(`local b = engineMarksBoxes({ [==[${m}]==] })[1] return JSON.encode({ text = b.text, font = b.font, width = b.width, piece = engineStatusMatch([==[${m}]==], "RING TEMPTED") })`, `ring ${i + 1}`)));
+  ok("ring labels: precondition, no script error", !r.errors.length, r.errors.slice(0, 2).join(" | "));
+  labels.forEach((m, i) => {
+    let b = {};
+    try { b = JSON.parse(String(valueOf(r, `ring ${i + 1}`))); } catch (e) { /* checked below */ }
+    ok(`ring labels: level ${i + 1} fits its box uncut`, typeof b.text === "string" && !b.text.includes("...") && b.text.replace(/\n/g, " ") === m && b.width <= 2250, JSON.stringify(b));
+    ok(`ring labels: level ${i + 1} still shows the Ring piece`, typeof b.piece === "string", JSON.stringify(b));
+  });
+}
+
 // Marks boxes: one small box a mark, stacked down the inner corner of the player's mat under the heart (2026-11-10, the
 // user: "have it [in the] corner of your playmat under your heart"; "you can add multiple boxes if need be instead of
 // cramming everything in one box"; before, one label ran along the strip between the counters and the mats, where live
@@ -3692,6 +3712,40 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("library top: precondition, no errors", !priv.errors.length && !open.errors.length, [...priv.errors, ...open.errors].slice(0, 3).join(" | "));
   ok("library top: a private one (pv) lies in its owner's second hand zone", String(valueOf(priv, "where")) === "hand2", String(valueOf(priv, "where")));
   ok("library top: a public one lies on the table", String(valueOf(open, "where")) === "table", String(valueOf(open, "where")));
+}
+// Suspend (readability audit B5, 2026-11-13): a face-up exiled card with time counters leaves the exile pile and lies
+// half size beside it with its own "2 Time" badge, counting down; with none left it goes back into the pile. A face-down
+// card with time counters stays in the pile: its badge would say what is under it.
+{
+  const C = (n) => `engine-card-${n}`;
+  const last = JSON.parse([...s1.slice(0, 40)].reverse().find((m) => m.t === "table").json);
+  const board = (time, fdTime) => {
+    const b = JSON.parse(JSON.stringify(last));
+    const blue = b.players.find((x) => x.color === "Blue");
+    b.cards = { ...(b.cards || {}), [C(970)]: { n: "Rift Bolt", f: "https://img.example/riftbolt.jpg", ty: ["Sorcery"], tl: "Sorcery" },
+      [C(971)]: { n: "Ponder", f: "https://img.example/ponder.jpg", ty: ["Sorcery"], tl: "Sorcery" }, [C(972)]: { n: "Opt", f: "https://img.example/opt.jpg", ty: ["Instant"], tl: "Instant" } };
+    blue.exile = [{ id: C(971), s: 1 }, { id: C(970), s: 1, ctr: time ? { TIME: time } : {} }, { id: C(972), s: 1 }, { id: C(973), fd: true, ctr: fdTime ? { TIME: fdTime } : {} }];
+    blue.keep = (blue.keep || []).filter((z) => z !== "exile");
+    return { msg: { t: "table", json: JSON.stringify(b) }, frames: 90 };
+  };
+  const look = (n, mark) => q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(n)}" then o = x end end if o == nil then ` +
+    `local pile = "" for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:exile:Blue" then for _, e in ipairs(x.getObjects()) do if e.gm_notes == "engine:${C(n)}" then pile = "in pile" end end end end return pile ~= "" and pile or "none" end ` +
+    'local labels = {} for _, b in ipairs(o.getButtons() or {}) do labels[#labels + 1] = tostring(b.label) end local p, g = o.getPosition(), data.Blue.libraryZone ' +
+    'local spot = g.getPosition() + g.getTransformForward() * SUSPEND_FIT.fwd ' +
+    'return string.format("scale %.2f|%s|dist %.2f", o.getScale().x, table.concat(labels, ";"), math.sqrt((p.x - spot.x) ^ 2 + (p.z - spot.z) ^ 2))', mark);
+  const check = q('local out = {} for _, pr in ipairs(engineSelfCheck().problems or {}) do if tostring(pr):find("Rift Bolt", 1, true) or tostring(pr):find("Ponder", 1, true) then out[#out + 1] = tostring(pr) end end return #out == 0 and "none" or table.concat(out, " || ")', "check");
+  const r = simulate({ save, seated: ["Blue", "White"], steps: [...prefix,
+    { ...board(2, 3), mark: "two" }, look(970, "bolt two"), look(971, "ponder"), look(973, "face down"), check,
+    { ...board(1, 3), mark: "one" }, look(970, "bolt one"),
+    { ...board(0, 0), mark: "none" }, look(970, "bolt none")] });
+  const v = (mark) => String(valueOf(r, mark));
+  ok("suspend: precondition, the boards drew", !r.errors.length, r.errors.slice(0, 3).join(" | "));
+  ok("suspend: the suspended card lies half size beside the exile pile with its \"2 Time\" badge", /^scale 0\.50\|2 Time\|dist 0\.\d+$/.test(v("bolt two")), v("bolt two"));
+  ok("suspend: the other exiled cards stay in the pile", v("ponder") === "in pile", v("ponder"));
+  ok("suspend: a face-down card with time counters stays in the pile", v("face down") === "in pile", v("face down"));
+  ok("suspend: the self-check finds it in its place with its badge", v("check") === "none", v("check"));
+  ok("suspend: the badge counts down", /\|1 Time\|/.test(v("bolt one")), v("bolt one"));
+  ok("suspend: with no time counter left it goes back into the pile", v("bolt none") === "in pile", v("bolt none"));
 }
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

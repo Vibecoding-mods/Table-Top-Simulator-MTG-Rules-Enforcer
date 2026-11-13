@@ -119,6 +119,25 @@ broken("the life tracker", "getObjectFromGUID('395037').setVar('count', 12345)",
   ok("linked: the check sees it away from its card", (valueOf(moved, "after").problems || []).some((p) => p.includes("wrong place: Taken Card")), JSON.stringify(valueOf(moved, "after").problems));
 }
 
+// a suspended card (face up in exile with time counters, readability audit B5): beside the exile pile with its badge
+{
+  const board = JSON.parse(s1[boardAt].json);
+  const suspended = () => {
+    const b = JSON.parse(JSON.stringify(board)), p = b.players.find((x) => x.color === "Blue");
+    p.exile = [{ id: "engine-card-9003", n: "Suspended Card", tl: "Sorcery", cmc: 1, tx: "A card.", ty: ["Sorcery"], ctr: { TIME: 2 } }];
+    p.keep = (p.keep || []).filter((z) => z !== "exile");
+    return { t: "table", json: JSON.stringify(b) };
+  };
+  const steps = (more = []) => [...prefix, send(suspended()), { frames: 200 }, ...more, check("after")];
+  const quiet = valueOf(simulate({ save, steps: steps() }), "after").problems || [];
+  ok("suspended: quiet beside its exile pile", !quiet.length, quiet.join(" | "));
+  const obj = "for _, x in ipairs(getObjects()) do if x.getGMNotes() == 'engine:engine-card-9003' then ";
+  const moved = valueOf(simulate({ save, steps: steps([{ lua: `${obj}x.setPosition(Vector(90, 2, 90)) end end` }]) }), "after").problems || [];
+  ok("suspended: the check sees it away from its spot", moved.some((p) => p.includes("wrong place: Suspended Card")), moved.join(" | "));
+  const wiped = valueOf(simulate({ save, steps: steps([{ lua: `${obj}x.clearButtons() end end` }]) }), "after").problems || [];
+  ok("suspended: the check sees its time counters gone", wiped.some((p) => p.includes("Suspended Card") && p.includes("(suspended) shows badges")), wiped.join(" | "));
+}
+
 // a card playable from exile: it lies in the player's row or second hand, and the pile is not where it belongs
 {
   const board = JSON.parse(s1[boardAt].json);
@@ -334,7 +353,7 @@ broken("the life tracker", "getObjectFromGUID('395037').setVar('count', 12345)",
 // every "map:" line in the check has its case here, and a new one fails until it does
 {
   const COVERED = { badges: "a badge gone", attack: "attacker with no glow", attackLine: "attacker with no line", phased: "phased out, and not shown", faceDown: "face up and should be down", attached: "attached to nothing",
-    counters: "a counter not shown", present: "a card that isn't there", playable: "playable: the check sees it out of its row", linked: "linked: the check sees it away from its card", place: "wrong place", tapped: "tapped", hoverName: "hover name", hoverText: "hover text", cost: "a cost badge gone" };
+    counters: "a counter not shown", present: "a card that isn't there", playable: "playable: the check sees it out of its row", linked: "linked: the check sees it away from its card", suspended: "suspended: the check sees it away from its spot", place: "wrong place", tapped: "tapped", hoverName: "hover name", hoverText: "hover text", cost: "a cost badge gone" };
   const lua = fs.readFileSync(path.join(__dirname, "..", "tools", "engine-renderer.lua"), "utf8");
   const tags = [...lua.slice(lua.indexOf("function engineSelfCheck()"), lua.indexOf("function engineCheckRun()")).matchAll(/map:(\w+)/g)].map((m) => m[1]);
   ok("each map: line has a case", tags.length > 10 && tags.every((t) => COVERED[t]), tags.filter((t) => !COVERED[t]).join(" "));
