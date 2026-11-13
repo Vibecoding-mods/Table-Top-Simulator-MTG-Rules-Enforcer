@@ -30,6 +30,7 @@ local function show(v, depth)
 end
 SIM.show = show
 local function fx(...)
+  if SIM.quiet then return end -- (a test timing the script: the record's own string building isn't the script's)
   local parts = { "f" .. SIM.frame }
   for i = 1, select("#", ...) do parts[#parts + 1] = show((select(i, ...))) end
   __fx[#__fx + 1] = table.concat(parts, " ")
@@ -221,6 +222,7 @@ Wait = {
   stopAll = function() SIM.waits = {} end,
 }
 Time = { delta_time = 1 / 60, time = 0, fixed_delta_time = 1 / 60 }
+__realclock = os.clock -- (the host's own CPU clock, for the tests that time the script)
 os.clock = function() return SIM.clock end
 os.time = function(t) if t then return 1792500000 end return 1792500000 + math.floor(SIM.clock) end
 os.date = function(f) return "2026-10-20 12:00:00" end
@@ -324,13 +326,16 @@ local function makeObj(d)
       playTriggerEffect = function(i)
         fx("AssetBundle.playTriggerEffect", o, i)
         o.__d.played = o.__d.played or {}
-        o.__d.played[#o.__d.played + 1] = { index = i, frame = SIM.frame, pos = o.__d.pos:copy() }
+        -- (and how it stood then: turned, sized and tinted, for the effects' aim, scale and colour checks)
+        o.__d.played[#o.__d.played + 1] = { index = i, frame = SIM.frame, pos = o.__d.pos:copy(), rot = o.__d.rot:copy(), scale = o.__d.scale:copy(), tint = o.__d.tint }
       end,
       getLoopingEffects = function() return {} end,
       playLoopingEffect = function(i) fx("AssetBundle.playLoopingEffect", o, i) end,
       getLoopingEffectIndex = function() return 0 end,
     })
   end
+  -- (a save's or a spawn's Memo is the object's memo, as in TTS)
+  if d.Memo ~= nil and d.Memo ~= "" then rawset(o, "memo", d.Memo) end
   SIM.objects[o.__guid] = o
   SIM.order[#SIM.order + 1] = o
   return o
@@ -570,7 +575,7 @@ function spawnObjectData(p)
   -- test can make a spawn fail (__sim.spawnFail(data) -> true) to see what happens then
   if d.Name == "Custom_Assetbundle" and d.Transform == nil then error("Object reference not set to an instance of an object", 2) end
   if SIM.spawnFail and SIM.spawnFail(d) then error("spawn failed (test)", 2) end
-  local o = makeObj({ Name = d.Name, Nickname = d.Nickname, Description = d.Description, GMNotes = d.GMNotes, ContainedObjects = d.ContainedObjects,
+  local o = makeObj({ Name = d.Name, Nickname = d.Nickname, Description = d.Description, GMNotes = d.GMNotes, Memo = d.Memo, ContainedObjects = d.ContainedObjects,
     CustomDeck = d.CustomDeck, CardID = d.CardID, Locked = d.Locked, CustomAssetbundle = d.CustomAssetbundle,
     Transform = { posX = p.position and vec(p.position).x or 0, posY = p.position and vec(p.position).y or 0, posZ = p.position and vec(p.position).z or 0,
       rotX = p.rotation and vec(p.rotation).x or 0, rotY = p.rotation and vec(p.rotation).y or 0, rotZ = p.rotation and vec(p.rotation).z or 0, scaleX = 1, scaleY = 1, scaleZ = 1 } })

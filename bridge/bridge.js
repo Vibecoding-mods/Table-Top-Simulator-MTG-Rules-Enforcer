@@ -72,6 +72,12 @@ function toTTS(customMessage) {
       for (const k of ["exd", "ctrd"]) {
         if (older[k]?.length) customMessage[k] = [...new Set([...older[k], ...(customMessage[k] || [])])];
       }
+      // (and the effects' facts, lv and hits: the older board's first, the newer's order after them)
+      const top = Math.max(0, ...[...(older.lv || []), ...(older.hits || [])].map((x) => x.q || 0));
+      for (const k of ["lv", "hits"]) {
+        const both = [...(older[k] || []), ...(customMessage[k] || []).map((x) => ({ ...x, q: x.q + top }))];
+        if (both.length) customMessage[k] = both;
+      }
       outbox.splice(i, 1);
     }
   }
@@ -1802,6 +1808,24 @@ async function fetchTokens() {
   scheduleTable();
 }
 
+// A card's colours as the table's cl says them: Forge's CardDto.color letters in WUBRG order, "C" for a colourless card
+// (Forge's ""), null when the engine says nothing (a hidden card, an older engine's stack item)
+function colourLetters(color) {
+  if (typeof color !== "string") return null;
+  const up = color.toUpperCase();
+  return [..."WUBRG"].filter((x) => up.includes(x)).join("") || "C";
+}
+// (each card's colours as tableCard last saw them this game, by id and by name: a stack item's, see sendTable)
+function noteColour(c, cl) {
+  if (!cl || !game) return;
+  (game.colourById ??= new Map()).set(c.id, cl);
+  (game.colourByName ??= new Map()).set(c.identity.name, cl);
+}
+const colourSeen = (id, name) => game?.colourById?.get(id) || game?.colourByName?.get(name) || null;
+// a stack item whose card is face down (a morph or disguise cast face down, from the casting entry on, since Forge
+// turns the card face down before the cost: PlaySpellAbility's setSplitStateToPlayAbility; a face-down creature's
+// trigger): Forge's name for it is its face-down card's, "" (the board's "?", as the log's "a face-down spell")
+const stackFaceDown = (s) => !s.identity?.name || s.identity.name === "?";
 // blockers: ids of creatures blocking on the board being drawn (sendTable); other callers have none
 // active: whose turn it is, for a card on the battlefield (a creature that can't attack yet is news on its controller's
 // turn only; Forge calls every creature card sick until it has been in play, in hand as well)
@@ -1858,6 +1882,8 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
   const typeLine = [...(c.supertypes || []), ...(c.types || [])].join(" ") + ((c.subtypes || []).length ? ` — ${c.subtypes.join(" ")}` : "");
   const other = otherSide(c, name);
   const prep = zone === "battlefield" ? preparedBy(c.id) : null; // (its prepare spell's copy in exile: notePrepared)
+  const cl = colourLetters(c.color);
+  noteColour(c, cl);
   return {
     // a double-faced card's back is its other face (the imported deck's back is the plain card back): flipping it
     // on the table shows the other side, as the table's own state button did
@@ -1866,6 +1892,8 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     // state to read and cast it by, docs/card-other-side-spec.md; n2 that side's name)
     ...(other ? { o2: other.pic, ...(other.name ? { n2: other.name } : {}) } : {}),
     tl: typeLine, cmc: c.cmc || 0, tx: c.text || "", ty: c.types || [],
+    // (its colours, WUBRG letters or C, sent once with the static details: the table's wipe and bolt colours)
+    ...(cl ? { cl } : {}),
     tap: !!c.tapped, fd: !!c.isFaceDown, p: c.power ?? null, t: c.toughness ?? null,
     bp, bt,
     ctr: Object.fromEntries(Object.entries(c.counters || {}).filter(([, k]) => k)), dmg: c.damage || 0,
@@ -2884,10 +2912,23 @@ function engineFacts(events) {
   // off it, see logEvents)
   // (firstSeq: each moved card's first move by Forge's order, so what was moved to pay a cost before a draw is said
   // before it, see logEvents)
-  const facts = { moves: new Map(), firstSeq: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), drawsBy: new Map(), drawCause: {}, offStack: [] };
+  // (damage: the engine's damage entries, kind "damage" (engine1112 on; an older engine sends none): source, target card
+  // or player, amount, combat, in Forge's order, for the table's bolts (sendTable's hits). leaves: each card's last
+  // battlefield departure, where to, how and by what, for the table's death / exile / wipe effects (sendTable's lv))
+  const facts = { moves: new Map(), firstSeq: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), drawsBy: new Map(), drawCause: {}, offStack: [],
+    damage: [], leaves: new Map() };
   for (const e of events) {
     if (e.seq <= seen) continue;
-    if (e.from === "Stack" && e.cardId) facts.offStack.push({ id: e.cardId, to: e.to, owner: e.ownerId });
+    // (a damage entry moves no card: no cardId, to "Damage")
+    if (e.kind === "damage") {
+      if (e.amount > 0 && (e.targetCardId || e.targetPlayerId)) facts.damage.push({ src: e.sourceCardId || null, card: e.targetCardId || null, slot: e.targetPlayerId || null, n: e.amount, combat: !!e.combat, seq: e.seq });
+      continue;
+    }
+    if (e.from === "Stack" && e.cardId) facts.offStack.push({ id: e.cardId, to: e.to, owner: e.ownerId, seq: e.seq });
+    if (e.from === "Battlefield" && e.to !== "Battlefield" && e.cardId) {
+      facts.leaves.set(e.cardId, { to: LEAVE_CODE[e.to] || "x", how: e.how === "destroyed" ? "d" : e.how === "sacrificed" ? "s" : "",
+        by: e.causeCardId && e.causeCardId !== e.cardId ? e.causeCardId : null, seq: e.seq });
+    }
     // (an engine that names causes: a move without one means something only then, buyback's return, see logEvents)
     if (e.cause) game.feedCauses = true;
     if (e.from === "Library") {
@@ -2918,8 +2959,17 @@ function engineFacts(events) {
       ...((was?.owner || e.ownerId) ? { owner: was?.owner || e.ownerId } : {}) });
     if (!facts.firstSeq.has(e.cardId)) facts.firstSeq.set(e.cardId, e.seq);
   }
+  // (a departure with no cause, a state-based death: blamed on the last damage dealt to it before, else on the last card
+  // that left the stack before it, the spell that just resolved; the wipe's colour, docs/particle-fx-spec.md section 3)
+  for (const [id, l] of facts.leaves) {
+    if (l.by) continue;
+    const hit = facts.damage.filter((d) => d.card === id && d.seq < l.seq).at(-1);
+    l.by = hit?.src || facts.offStack.filter((o) => o.seq < l.seq && o.id !== id).at(-1)?.id || null;
+  }
   return facts;
 }
+// a battlefield departure's zone, as the table's lv says it (x: anything else, a token ceasing to exist)
+const LEAVE_CODE = { Graveyard: "g", Exile: "e", Hand: "h", Library: "l", Command: "c" };
 // What took a card out of its library into a graveyard, from Forge's word on the move (EngineEventLog's how and
 // cause): every mechanic that moves cards there is one of these kinds, and its name is only the label the line carries
 // (dredge mills, an explore or a surveil puts, PLAN "every mechanic through the core moves"). A move Forge says nothing
@@ -3123,7 +3173,9 @@ function takenOffStack(offStack, prevSpellOf, cards, pubIndex) {
 // Protection: Red's prevention nothing at all. otherParts(p): a part of p's life change known outside these lines (a
 // pain land, life paid). -> { lines (said before what came of them), loss / gain: player -> [{ n, w: the words }] }
 function damageNews(prev, cur, resolved, facts, otherParts = () => false) {
-  const lines = [], loss = {}, gain = {};
+  // (hits: the damage items' certain hits, at a creature or a player, for the table's bolts when the engine sends no
+  // damage entries, updateLog; combat is the lunge's)
+  const lines = [], loss = {}, gain = {}, hits = [];
   const why = (t, p, n, w) => { if (n > 0 && p) (t[p] ||= []).push({ n, w }); };
   const lost = (p) => (prev.life[p] ?? 0) - (cur.life[p] ?? 0);
   // (a shield of this turn for that source, and for that player when it prevents; used up once said)
@@ -3252,7 +3304,7 @@ function damageNews(prev, cur, resolved, facts, otherParts = () => false) {
       onCreature.set(id, list);
     }
   }
-  const say = (it, d, id) => { if (!it.hit.has(d)) it.hit.set(d, []); it.hit.get(d).push(id); it.dealt += d; };
+  const say = (it, d, id) => { if (!it.hit.has(d)) it.hit.set(d, []); it.hit.get(d).push(id); it.dealt += d; hits.push({ src: it.s.id, card: id, n: d, combat: false, seq: null }); };
   if (!firstStep && !regular) for (const [id, list] of onCreature) {
     const now = cur.cards[id];
     const one = list.length === 1 && list[0].k === 1 ? list[0].it : null;
@@ -3296,7 +3348,7 @@ function damageNews(prev, cur, resolved, facts, otherParts = () => false) {
       const sh = shieldFor(src.id, p);
       if (sh?.kind === "prevent" && lost(p) <= 0) prevented(sh, src, s.name, p, n);
       else if (sh?.kind === "redirect" && lost(src.ctl) >= n && lost(p) <= 0) redirected(sh, src, s.name, n);
-      else if (!sh && lost(p) > 0) { why(loss, p, n, `damage from ${s.name}`); it.dealt += n; }
+      else if (!sh && lost(p) > 0) { why(loss, p, n, `damage from ${s.name}`); it.dealt += n; hits.push({ src: src.id, card: null, slot: p, n, combat: false, seq: null }); }
     }
     if (src.ll && it.dealt) why(gain, src.ctl, it.dealt, `lifelink from ${s.name}`);
   }
@@ -3305,7 +3357,7 @@ function damageNews(prev, cur, resolved, facts, otherParts = () => false) {
     const alone = !(loss[p] || []).length && !(gain[p] || []).length && !otherParts(p);
     for (const o of list) { if (alone) { lines.push(o.line); why(loss, p, o.n, o.w); } if (o.sh) used(o.sh); }
   }
-  return { lines, loss, gain };
+  return { lines, loss, gain, hits };
 }
 // A life change's parts in words, the same words once with their count: "damage from Niv-Mizzet, Parun ×2"; parts
 // apart by ";", as card names have commas
@@ -4676,6 +4728,8 @@ function logEvents(prev, cur, pub, facts = null) {
   }
   // (the cards of the spells said to be countered on this board, see counteredBy)
   lines.countered = [...counteredIds];
+  // (the damage it is certain of, for the table's bolts with an engine that sends no damage entries: updateLog)
+  lines.hits = damage.hits;
   return lines;
 }
 const sentence = (l) => (l ? l[0].toUpperCase() + l.slice(1) : l);
@@ -4722,8 +4776,14 @@ function updateLog(pub) {
   const facts = engineFacts(pub.events);
   // (battlefield to exile, for the table's exile sound: see sendTable's exd)
   for (const [id, mv] of facts?.moves || []) if (mv.from === "Battlefield" && mv.to === "Exile") (game.fxExiled ??= new Set()).add(id);
+  // (every battlefield departure and every damage dealt, for the table's effects: see sendTable's lv and hits; an engine
+  // that sends damage entries is the one word on damage from then on, game.feedDamage)
+  for (const [id, l] of facts?.leaves || []) (game.fxLeft ??= new Map()).set(id, l);
+  if (facts?.damage.length) { game.feedDamage = true; (game.fxHits ??= []).push(...facts.damage); }
   if (!prev) return;
   const lines = logEvents(prev, cur, pub, facts);
+  // (an older engine, no damage entries: the damage the log is certain of, damageNews's)
+  if (!game.feedDamage && lines.hits?.length) (game.fxHits ??= []).push(...lines.hits);
   // (the spells countered, for the table's COUNTERED pop-up: see sendTable's ctrd)
   for (const id of lines.countered || []) (game.fxCountered ??= new Set()).add(id);
   flashNews(prev, cur, pub);
@@ -4807,7 +4867,7 @@ function slimmer(game) {
   const slim = (c) => {
     if (c.n == null) return c; // hidden card: nothing to share
     // rules text is the bulk of a card and TTS decodes ~15 ms per KB: it follows separately in small pieces
-    const st = { n: c.n, f: shortUrl(c.f), b: shortUrl(c.b), o2: shortUrl(c.o2), n2: c.n2, tl: c.tl, cmc: c.cmc, ty: c.ty, tok: c.tok, bp: c.bp, bt: c.bt };
+    const st = { n: c.n, f: shortUrl(c.f), b: shortUrl(c.b), o2: shortUrl(c.o2), n2: c.n2, tl: c.tl, cmc: c.cmc, ty: c.ty, tok: c.tok, bp: c.bp, bt: c.bt, cl: c.cl };
     for (const k of Object.keys(st)) if (st[k] == null || st[k] === false) delete st[k];
     const key = JSON.stringify(st) + "|" + (c.tx || "");
     if (game.sentStatic[c.id] !== key) {
@@ -4818,7 +4878,7 @@ function slimmer(game) {
       // named from it, hp-12 re-test 2026-10-27)
       if (c.tx) (game.cardText ??= {})[c.id] = c.tx;
     }
-    const { n, f, b, o2, n2, tl, cmc, tx, ty, tok, bp, bt, ...dyn } = c;
+    const { n, f, b, o2, n2, tl, cmc, tx, ty, tok, bp, bt, cl, ...dyn } = c;
     const out = { s: 1 };
     for (const [k, v] of Object.entries(dyn)) {
       // leave out defaults (untapped, no counters, ...); power/toughness 0 is real information
@@ -4899,6 +4959,30 @@ function playableEnded(now, pub) {
   for (const [id, was] of before) {
     if (!now.has(id) && inExile.has(id)) gameLogLine(`${was.name} is no longer playable${was.host ? ` (${boardName(was.host)})` : ""}`);
   }
+}
+
+// The table's lv and hits (sendTable) from what updateLog gathered: {} when there is nothing, else either or both. A
+// player hit's colour by its slot; empty fields left out (bytes: TTS decodes ~15 ms per KB). Combat damage only to a
+// card that left on this board (its burn-away death; the table flies no bolt for combat, and chip damage to a creature
+// that lives or to a player is no news to it), and at most FX_MAX of each, the first by q (a huge wipe stays a small
+// message); q numbers what is sent.
+const FX_MAX = 48;
+function fxFacts(left, hits) {
+  const all = [...[...(left || [])].map(([id, l]) => ({ lv: true, id, ...l })),
+    ...(hits || []).filter((h) => !h.combat || (h.card && left?.has(h.card))).map((h) => ({ ...h }))];
+  if (!all.length) return {};
+  all.sort((a, b) => (a.seq ?? -1) - (b.seq ?? -1));
+  const out = {};
+  let q = 0;
+  for (const x of all) {
+    if (x.lv) {
+      if ((out.lv?.length || 0) < FX_MAX) (out.lv ??= []).push({ id: x.id, to: x.to, ...(x.how ? { how: x.how } : {}), ...(x.by ? { by: x.by } : {}), q: ++q });
+    } else {
+      const to = x.card || game.slotColor?.[x.slot] || null;
+      if (to && (out.hits?.length || 0) < FX_MAX) (out.hits ??= []).push({ ...(x.src ? { src: x.src } : {}), to, n: x.n, q: ++q, ...(x.combat ? { combat: true } : {}) });
+    }
+  }
+  return out;
 }
 
 function sendTable() {
@@ -5004,6 +5088,11 @@ function sendTable() {
 
     // (a spell's picture is its card's, sourceId; the owner's printing)
     f: pictureOf(s.identity?.name, { id: s.sourceId || s.id, ownerId: s.ownerId }),
+    // (its colours, the table's wipe and bolt colours: Forge's stack item has none, so its source card's as last seen in
+    // a zone this game, by id, else a card of that name's; an AI's spell cast from its hand has none until it lands)
+    // (none for a face-down one: Forge names a face-down spell or permanent's stack item "" (n "?"), and keeps its
+    // card's id, which its owner's hand showed face up: its colour would tell every seat what the morph is)
+    ...(!stackFaceDown(s) && colourSeen(s.sourceId, s.identity?.name) ? { cl: colourSeen(s.sourceId, s.identity?.name) } : {}),
   }));
   const phaseNo = phaseNumber(pub);
   const tableMsg = {
@@ -5032,6 +5121,11 @@ function sendTable() {
   // (and the cards of the spells the log said were countered since the last board sent: the table's COUNTERED pop-up
   // and countered effect go by these, the stack telling no counter's target. Out of the signature; cleared once sent)
   if (game.fxCountered?.size) tableMsg.ctrd = [...game.fxCountered];
+  // (and the table's particle effects' facts since the last board sent, docs/particle-fx-spec.md section 3, out of the
+  // signature and cleared once sent: lv, every battlefield departure {id, to: g e h l c x, how: d destroyed / s
+  // sacrificed, by: the card that caused it}; hits, the damage dealt {src, to: a card id or a colour, n, combat}; q,
+  // Forge's order across both, 1 first; the log's own hits, from an engine that sends none, before the moves)
+  Object.assign(tableMsg, fxFacts(game.fxLeft, game.fxHits));
   // Zones identical to the last board sent are left out and named in `keep`: the table reuses its copy. A board
   // update was 1.5-4.7 KB and cost TTS 45-120 ms to decode; most updates change one or two zones.
   game.sentZones ??= {};
@@ -5055,6 +5149,8 @@ function sendTable() {
   game.fxJump = false;
   game.fxExiled?.clear();
   game.fxCountered?.clear();
+  game.fxLeft?.clear();
+  if (game.fxHits) game.fxHits.length = 0;
   flushTexts();
 }
 
@@ -10873,6 +10969,6 @@ if (require.main === module) {
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
-    fixOps, phaseNumber,
+    fixOps, phaseNumber, fxFacts,
   };
 }

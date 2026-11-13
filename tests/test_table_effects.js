@@ -29,7 +29,7 @@ function board(st) {
   return JSON.stringify({ t: "table", turn: st.turn ?? 3, step: st.step || "main1", active: "Blue", activeTurnNo: 2, priority: "Blue", gameOver: !!st.gameOver,
     winner: st.winner || null, players: [pl("Blue", "player-0", st.Blue), pl("White", "player-1", st.White)], stack: st.stack || [], cards,
     ...(st.rewind ? { rewind: st.rewind } : {}), ...(st.jump ? { jump: true } : {}), ...(st.overWhy ? { overWhy: st.overWhy } : {}), ...(st.exd ? { exd: st.exd } : {}),
-    ...(st.ctrd ? { ctrd: st.ctrd } : {}) });
+    ...(st.ctrd ? { ctrd: st.ctrd } : {}), ...(st.lv ? { lv: st.lv } : {}), ...(st.hits ? { hits: st.hits } : {}) });
 }
 const base = () => ({ Blue: { bf: [...blueC.slice(0, 7), "bl1"], gy: [], more: {} }, White: { bf: [...whiteC, "wl1"], gy: [], more: {} } });
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -860,10 +860,11 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
 // Particle rigs: copies of one AssetBundle whose GM notes are "engine:fx", parked under the table. One is moved to where
 // something happened and plays the trigger effect of that name (AssetBundle.playTriggerEffect, index from
 // getTriggerEffects), then goes back under the table. No rig, or no effect of that name: today's Object UI slot.
+// (rigs: n of them and no fx link, so the shipped link doesn't top the pool up to FX.RIGS; the top-up has its own checks)
 const RIG_NAMES = ["death", "death_wipe", "exile", "countered", "damage", "player_hit", "counter", "counter_minus", "lifegain", "knockout"];
 const rigs = (n, names, extra = "") => lua(`for i = 1, ${n} do __sim.makeObj({ Name = "Custom_Assetbundle", GUID = "rig00" .. i, GMNotes = "engine:fx", Locked = true,
   Transform = { posX = 20 + i, posY = -30, posZ = 0 }, CustomAssetbundle = { AssetbundleURL = "https://example.invalid/fx.unity3d", SimTriggerEffects = { "${names.join('", "')}" } } }) end
-  ${extra} return "rigs"`, "rigs");
+  engineFxBundle.fx = nil ${extra} return "rigs"`, "rigs");
 // every rig: where it is now, the trigger effects it played (index, frame, where it was then), who it is invisible to
 const RIGQ = lua(`local out = {} for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:fx" then local p = o.getPosition() local pl = {}
   for _, x in ipairs(o.__d.played or {}) do pl[#pl + 1] = { i = x.index, f = x.frame, x = x.pos.x, y = x.pos.y, z = x.pos.z } end
@@ -1158,6 +1159,439 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
   ok("route B loading: nothing while it loads", (vals[0].snd || []).length === 0 && !abLines(t.fx("still loading")).some((l) => l.includes("playTriggerEffect")), JSON.stringify(vals[0].snd));
   ok("route B loading: the death sound once it has loaded (index 1)", JSON.stringify(vals[1].snd) === '["death bundle"]' && abLines(t.fx("loaded now")).some((l) => l.includes('"AssetBundle.playTriggerEffect" obj:snd001 1')), JSON.stringify(abLines(t.fx("loaded now"))));
+}
+
+// ───────── the particle effects, full build (docs/particle-fx-spec.md) ─────────
+// The mtg-fx bundle's 20 trigger effects and the mtg-bolt bundle's 8, in their index order (assets/fx/EFFECTS.md), on
+// rigs "engine:fx" and "engine:bolt"; the bridge's cl (a card's colour letters), lv (battlefield departures: to, how, by,
+// q) and hits (damage dealt by an effect: src, to, n, q, combat).
+const FX_NAMES = [...RIG_NAMES, "death_burn", "exile_neutral", "wipe_wave", ..."WUBRGCM".split("").map((k) => `death_wipe_${k}`)];
+const BOLT_NAMES = ["bolt", "bolt_W", "bolt_U", "bolt_B", "bolt_R", "bolt_G", "bolt_trail", "bolt_impact"];
+const pools = (nFx, nBolt, extra = "") => lua(`for i = 1, ${nFx} do __sim.makeObj({ Name = "Custom_Assetbundle", GUID = string.format("rig%03d", i), GMNotes = "engine:fx", Locked = true,
+  Transform = { posX = 20 + i, posY = -30, posZ = 0 }, CustomAssetbundle = { AssetbundleURL = "https://example.invalid/fx.unity3d", SimTriggerEffects = { "${FX_NAMES.join('", "')}" } } }) end
+  for i = 1, ${nBolt} do __sim.makeObj({ Name = "Custom_Assetbundle", GUID = string.format("blt%03d", i), GMNotes = "engine:bolt", Locked = true,
+  Transform = { posX = 20 + i, posY = -30, posZ = 2 }, CustomAssetbundle = { AssetbundleURL = "https://example.invalid/bolt.unity3d", SimTriggerEffects = { "${BOLT_NAMES.join('", "')}" } } }) end
+  engineFxBundle.fx = nil ${extra} return "pools"`, "pools"); // (no link: the pools as given, see rigs)
+// every rig of both pools: where it is, its scale and tint now, and each trigger effect it played (frame, spot, turn,
+// scale, tint then)
+const POOLQ = lua(`local out = {} for _, o in ipairs(getObjects()) do local gm = o.getGMNotes() if gm == "engine:fx" or gm == "engine:bolt" then local p = o.getPosition() local pl = {}
+  for _, x in ipairs(o.__d.played or {}) do local t = x.tint or { 1, 1, 1 } pl[#pl + 1] = { i = x.index, f = x.frame, x = x.pos.x, y = x.pos.y, z = x.pos.z, rx = x.rot.x, ry = x.rot.y, s = x.scale.x, tr = t.r or t[1], tg = t.g or t[2], tb = t.b or t[3] } end
+  local t = o.__d.tint or { 1, 1, 1 }
+  out[#out + 1] = { g = o.getGUID(), b = gm == "engine:bolt", x = p.x, y = p.y, z = p.z, s = o.__d.scale.x, tr = t.r or t[1], tg = t.g or t[2], tb = t.b or t[3], played = pl } end end return JSON.encode(out)`, "poolq", 1);
+const fxPlayed = (before, after) => {
+  const out = [];
+  for (const r of arr(after)) {
+    const was = arr(arr(before).find((b) => b.g === r.g)?.played).length;
+    for (const p of arr(r.played).slice(was)) out.push({ ...p, name: (r.b ? BOLT_NAMES : FX_NAMES)[p.i], bolt: r.b, g: r.g });
+  }
+  return out.sort((a, b) => a.f - b.f || (a.g < b.g ? -1 : 1));
+};
+const LASTB = lua(`return JSON.encode(engineFxLast and engineFxLast.bolts or {})`, "lastb", 1);
+const LIVES = lua(`local out = {} for c, g in pairs({ White = "23e485", Blue = "395037" }) do local p = getObjectFromGUID(g).getPosition() out[c] = { x = p.x, z = p.z } end return JSON.encode(out)`, "lives", 1);
+const ang = (a, b) => Math.abs(((((a - b) % 360) + 540) % 360) - 180);
+const d2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+// a rig aimed from where it played at `to` (local +z at it: yaw and pitch) and scaled to the distance
+const aimOf = (from, to) => { const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z, d = Math.hypot(dx, dy, dz); return { yaw: Math.atan2(dx, dz) * 180 / Math.PI, pitch: -Math.asin(dy / d) * 180 / Math.PI, d }; };
+const aimed = (b, to) => { const a = aimOf(b, to); return !!b && ang(b.ry, a.yaw) < 0.5 && ang(b.rx, a.pitch) < 0.5 && Math.abs(b.s - a.d) < 0.05; };
+const clCard = (id, name, ty, cl) => { card(id, name, ty); cards[id].cl = cl; return id; };
+clCard("c40", "Wrath of God", ["Sorcery"], "W"); clCard("c41", "Supreme Verdict", ["Sorcery"], "WU"); clCard("c42", "Nevinyrral's Disk", ["Artifact"], "C");
+clCard("c50", "Pyroclasm", ["Sorcery"], "R"); clCard("c30", "Lightning Bolt", ["Instant"], "R"); clCard("c60", "Kozilek's Return", ["Instant"], "C");
+cards.w2.cl = "G"; cards.w4.cl = "BR"; // (an ability's source: green; a multicoloured one)
+const stackOf = (src, n, ctl, cl, extra = {}) => ({ id: `engine-stack-${src}`, n, tx: "", ctl, src, spell: false, sp: true, cl, ...extra });
+const ALL = [...blueC.slice(0, 7), ...whiteC];
+// s with ids gone to their owners' graveyards, the stack emptied; by: lv's cause for each (a card id, or id -> one)
+const wiped = (s, ids, by, extra = {}) => {
+  const w = clone(s);
+  for (const c of ["Blue", "White"]) { const mine = w[c].bf.filter((id) => ids.includes(id)); w[c].bf = w[c].bf.filter((id) => !ids.includes(id)); w[c].gy = [...(w[c].gy || []), ...mine]; }
+  w.stack = [];
+  if (by) w.lv = ids.map((id, i) => ({ id, to: "g", how: "d", by: typeof by === "function" ? by(id) : by, q: i + 1 }));
+  return Object.assign(w, extra);
+};
+
+// the wipe: one wave from the caster's side in the cause's colour (baked death_wipe_<C>), aimed across the board at
+// scale 2, then the cards' own deaths in the order the wave reaches them, 0.12 s apart, 8 at most; its cause flies no bolt
+{
+  const s0 = base(); s0.stack = [stackOf("c40", "Wrath of God", "White", "W", { sor: true })];
+  const w = wiped(s0, ALL, "c40");
+  const t = run([pools(12, 4), send(s0, "first board"), posOf(ALL), LIVES, POOLQ, send(w, "wipe", 200), POOLQ, LAST, LASTB]);
+  ok("wave: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("poolq").map((s) => JSON.parse(s.value || "[]"));
+  const p = fxPlayed(q[0], q[1]), pos = t.value("pos"), lives = t.value("lives");
+  const wave = p[0];
+  ok("wave: a wipe by a white spell plays the baked death_wipe_W first", wave && wave.name === "death_wipe_W" && !wave.bolt, JSON.stringify(p.map((x) => x.name)));
+  ok("wave: from the caster's side (White's), not the active player's", wave && d2(wave, lives.White) < d2(wave, lives.Blue), JSON.stringify({ wave, lives }));
+  ok("wave: aimed across the board (local +z at the table's centre), level, at scale 2", wave && ang(wave.ry, Math.atan2(-wave.x, -wave.z) * 180 / Math.PI) < 0.5 && Math.abs(wave.rx) < 0.01 && near(wave.s, 2), JSON.stringify(wave));
+  const each = p.slice(1);
+  ok("wave: then 8 of the 11 cards' own deaths (the cap), each at a card", each.length === 8 && each.every((x) => x.name === "death" && ALL.some((id) => near(x.x, pos[id].x) && near(x.z, pos[id].z))), JSON.stringify(each.map((x) => [x.name, x.x, x.z])));
+  const gaps = each.map((x, i) => x.f - (i ? each[i - 1].f : wave.f));
+  ok("wave: the first card 0.15 s after the wave, the rest 0.12 s apart", gaps.length === 8 && gaps[0] >= 8 && gaps[0] <= 10 && gaps.slice(1).every((g) => g >= 6 && g <= 8), JSON.stringify(gaps));
+  const len = wave ? Math.hypot(wave.x, wave.z) : 1;
+  const along = (x) => (x.x - wave.x) * (-wave.x / len) + (x.z - wave.z) * (-wave.z / len);
+  ok("wave: the cards in the order the wave reaches them", each.every((x, i) => i === 0 || along(x) >= along(each[i - 1]) - 0.01), JSON.stringify(each.map(along)));
+  const v = t.value("last");
+  const wv = (v.fx || []).filter((e) => e.kind === "wave");
+  ok("wave: engineFxLast has one wave in W, no old cloud and no slot", wv.length === 1 && wv[0].key === "W" && wv[0].rig === "death_wipe_W" && !(v.fx || []).some((e) => e.rig === "death_wipe" || e.slot !== undefined), JSON.stringify(v.fx));
+  ok("wave: its cause flies no bolt", p.every((x) => !x.bolt) && arr(t.value("lastb")).length === 0, JSON.stringify(t.value("lastb")));
+  ok("wave: every rig back under the table at scale 1 once it is over", q[1].every((r) => near(r.y, -30) && near(r.s, 1)), JSON.stringify(q[1].filter((r) => !near(r.y, -30) || !near(r.s, 1))));
+}
+
+// 6 rigs: the wave takes one, the cards' own deaths the other 5; the rest dropped (the wave stands for them)
+{
+  const s0 = base(); s0.stack = [stackOf("c40", "Wrath of God", "White", "W", { sor: true })];
+  const t = run([pools(6, 0), send(s0, "first board"), POOLQ, send(wiped(s0, ALL, "c40"), "wipe", 150), POOLQ, LAST]);
+  ok("wave, 6 rigs: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("poolq").map((s) => JSON.parse(s.value || "[]"));
+  const p = fxPlayed(q[0], q[1]), v = t.value("last");
+  ok("wave, 6 rigs: the wave and 5 deaths, 3 dropped", p.length === 6 && p[0].name === "death_wipe_W" && p.slice(1).every((x) => x.name === "death") && v.dropped === 3, JSON.stringify([p.map((x) => x.name), v.dropped]));
+}
+
+// the wave's colour and side: two colours or more gold (M), colourless C, none known B from the active player's side, a
+// sweep's damage (hits) its source's colour with each card a burn, the commonest cause's colour, a spell gone from the
+// stack when nothing names a cause
+{
+  const s0 = base();
+  const three = ["b1", "b2", "b3"];
+  const cases = [
+    { name: "two colours", pre: [stackOf("c41", "Supreme Verdict", "White", "WU")], by: "c41", want: "death_wipe_M", side: "White", each: "death" },
+    { name: "colourless", pre: [stackOf("c42", "Nevinyrral's Disk", "White", "C", { sp: false })], by: "c42", want: "death_wipe_C", side: "White", each: "death" },
+    { name: "no cause known", pre: [], by: null, want: "death_wipe_B", side: "Blue", each: "death" },
+    { name: "a sweep's damage", pre: [stackOf("c50", "Pyroclasm", "White", "R")], by: null, hits: three.map((id, i) => ({ src: "c50", to: id, n: 2, q: i + 1 })), want: "death_wipe_R", side: "White", each: "death_burn" },
+    // (an ability's, its card on the battlefield and nothing on the stack: only the hits say whose)
+    { name: "an ability's damage", pre: [], by: null, hits: three.map((id, i) => ({ src: "w2", to: id, n: 2, q: i + 1 })), want: "death_wipe_G", side: "White", each: "death_burn" },
+    { name: "the commonest cause", pre: [stackOf("c40", "Wrath of God", "White", "W"), stackOf("c50", "Pyroclasm", "White", "R")], by: (id) => (id === "b3" ? "c50" : "c40"), want: "death_wipe_W", side: "White", each: "death" },
+    { name: "a spell gone from the stack", pre: [stackOf("c50", "Pyroclasm", "White", "R")], by: null, want: "death_wipe_R", side: "White", each: "death" },
+  ];
+  const steps = [pools(12, 4), send(s0, "first board"), LIVES];
+  for (const c of cases) {
+    const pre = clone(s0); pre.stack = c.pre;
+    steps.push(send(pre, `pre ${c.name}`, 10), POOLQ, send(wiped(pre, three, c.by, c.hits ? { hits: c.hits } : {}), c.name, 150), POOLQ, send(s0, `back ${c.name}`, 30));
+  }
+  const t = run(steps);
+  ok("wave colours: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("poolq").map((s) => JSON.parse(s.value || "[]")), lives = t.value("lives");
+  cases.forEach((c, i) => {
+    const p = fxPlayed(q[2 * i], q[2 * i + 1]);
+    const other = c.side === "White" ? "Blue" : "White";
+    ok(`wave colours, ${c.name}: ${c.want} from ${c.side}'s side, then each card's ${c.each}`, p.length === 4 && p[0].name === c.want && d2(p[0], lives[c.side]) < d2(p[0], lives[other])
+      && p.slice(1).every((x) => x.name === c.each && !x.bolt), JSON.stringify(p.map((x) => x.name)));
+  });
+}
+
+// engineFxTint (the host's flag for the live tint check): the neutral wipe_wave tinted in the cause's colour, and the
+// neutral exile in its exiler's; scale and tint back to 1 and white when a rig is parked
+{
+  const s0 = base(); s0.stack = [stackOf("c40", "Wrath of God", "White", "W", { sor: true })];
+  const back = base();
+  const ex = clone(back); ex.Blue.bf = ex.Blue.bf.filter((c) => c !== "b1"); ex.Blue.ex = ["b1"]; ex.lv = [{ id: "b1", to: "e", by: "w2", q: 1 }];
+  const t = run([pools(6, 4, "engineFxTint = true"), send(s0, "first board"), POOLQ, send(wiped(s0, ALL, "c40"), "wipe", 150), POOLQ,
+    send(back, "back", 30), POOLQ, send(ex, "exile", 150), POOLQ]);
+  ok("tint: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("poolq").map((s) => JSON.parse(s.value || "[]"));
+  const near3 = (x, rgb) => !!x && near(x.tr, rgb[0]) && near(x.tg, rgb[1]) && near(x.tb, rgb[2]);
+  const p = fxPlayed(q[0], q[1]);
+  ok("tint: the wipe plays the neutral wipe_wave tinted white's gold-white", p[0] && p[0].name === "wipe_wave" && near3(p[0], [0.95, 0.82, 0.48]) && near(p[0].s, 2), JSON.stringify(p[0]));
+  ok("tint: the cards' own deaths untinted", p.slice(1).length === 5 && p.slice(1).every((x) => x.name === "death" && near3(x, [1, 1, 1])), JSON.stringify(p.slice(1).map((x) => [x.name, x.tr])));
+  ok("tint: parked rigs are back at scale 1 and white", q[1].every((r) => near(r.y, -30) && near(r.s, 1) && near3(r, [1, 1, 1])), JSON.stringify(q[1].filter((r) => !near(r.s, 1) || !near3(r, [1, 1, 1]))));
+  const e = fxPlayed(q[2], q[3]).filter((x) => !x.bolt);
+  ok("tint: an exile by a green card plays exile_neutral tinted green", e.length === 1 && e[0].name === "exile_neutral" && near3(e[0], [0.56, 0.89, 0.42]), JSON.stringify(e));
+}
+
+// "mtg fx low" (the host's): a wipe's wave without its cards' own effects, no bolts, single effects as on; only the
+// host may set it, and it is saved with the game
+{
+  const s0 = base(); s0.stack = [stackOf("c40", "Wrath of God", "White", "W", { sor: true })];
+  const back = base(); back.stack = [stackOf("c30", "Lightning Bolt", "White", "R", { ins: true })];
+  const hit = base(); hit.White.more.w1 = { dmg: 3 }; hit.hits = [{ src: "c30", to: "w1", n: 3, q: 1 }];
+  const healed = base();
+  const die = clone(healed); die.Blue.bf = die.Blue.bf.filter((c) => c !== "b1"); die.Blue.gy = ["b1"]; die.lv = [{ id: "b1", to: "g", how: "d", by: "w2", q: 1 }];
+  const ex = clone(die); ex.Blue.bf = ex.Blue.bf.filter((c) => c !== "b2"); ex.Blue.ex = ["b2"]; ex.lv = [{ id: "b2", to: "e", by: "w2", q: 1 }];
+  const t = run([lua(`__sim.seated.White = true return "x"`, "seat"), pools(6, 4),
+    lua(`engineChat("mtg fx low", Player.White) local a = engineFxMode engineChat("mtg fx low", Player.Blue) return JSON.encode({ guest = a, host = engineFxMode, saved = JSON.decode(onSave()).engineFx })`, "modes", 1),
+    send(s0, "first board"), POOLQ, send(wiped(s0, ALL, "c40"), "wipe", 150), POOLQ, send(back, "back", 30), POOLQ, send(hit, "hit", 150), POOLQ, LASTB,
+    send(healed, "healed", 30), POOLQ, send(die, "death", 150), POOLQ, send(ex, "exile", 150), POOLQ]);
+  ok("low: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const m = t.value("modes");
+  ok("low: a guest can't set it, the host can, and it is in the save", m.guest === "on" && m.host === "low" && m.saved === "low", JSON.stringify(m));
+  ok("low: the guest is told only the host can", t.fx("modes").some((l) => l.includes("Only the host can change the table's particle effects")), JSON.stringify(t.fx("modes").filter((l) => l.includes("broadcast"))));
+  const q = t.all("poolq").map((s) => JSON.parse(s.value || "[]"));
+  ok("low: a wipe plays its wave only", JSON.stringify(fxPlayed(q[0], q[1]).map((x) => x.name)) === '["death_wipe_W"]', JSON.stringify(fxPlayed(q[0], q[1]).map((x) => x.name)));
+  const h = fxPlayed(q[2], q[3]);
+  ok("low: a bolt's hit flies no bolt, its damage at once", JSON.stringify(h.map((x) => x.name)) === '["damage"]' && arr(t.value("lastb")).length === 0, JSON.stringify(h.map((x) => [x.name, x.f])));
+  ok("low: a single death and a single exile as on (no exile light)", JSON.stringify(fxPlayed(q[4], q[5]).map((x) => x.name)) === '["death"]' && JSON.stringify(fxPlayed(q[5], q[6]).map((x) => x.name)) === '["exile"]',
+    JSON.stringify([fxPlayed(q[4], q[5]).map((x) => x.name), fxPlayed(q[5], q[6]).map((x) => x.name)]));
+}
+
+// the saved "mtg fx" comes back with the save
+{
+  const r = simulate({ save, prelude: `rawset(Global, "script_state", '{"engineStash":{},"engineFx":"off"}')`, steps: [lua(`return tostring(engineFxMode)`, "mode", 1)] });
+  const bad = simulate({ save, prelude: `rawset(Global, "script_state", '{"engineFx":"loud"}')`, steps: [lua(`return tostring(engineFxMode)`, "mode", 1)] });
+  ok("fx mode saved: restored from the save", r.steps.find((s) => s.step === "mode")?.value === "off", JSON.stringify(r.errors.slice(0, 2)));
+  ok("fx mode saved: a word it doesn't know leaves it on", bad.steps.find((s) => s.step === "mode")?.value === "on", JSON.stringify(bad.errors.slice(0, 2)));
+}
+
+// "mtg fx off" = the table without the bundle: with both pools and both links on the table, every board does exactly
+// what it does with no rig and no link (the same calls, the same engineFxLast), no AssetBundle call, nothing spawned
+{
+  const s0 = base(); s0.stack = [stackOf("c40", "Wrath of God", "White", "W", { sor: true })];
+  const back = base(); back.stack = [stackOf("c30", "Lightning Bolt", "White", "R", { ins: true })];
+  const hit = base(); hit.White.more.w1 = { dmg: 3 }; hit.hits = [{ src: "c30", to: "w1", n: 3, q: 1 }];
+  const healed = base();
+  const die = clone(healed); die.Blue.bf = die.Blue.bf.filter((c) => c !== "b1"); die.Blue.gy = ["b1"]; die.lv = [{ id: "b1", to: "g", how: "d", by: "w2", q: 1 }];
+  const ex = clone(die); ex.Blue.bf = ex.Blue.bf.filter((c) => c !== "b2"); ex.Blue.ex = ["b2"]; ex.lv = [{ id: "b2", to: "e", by: "w2", q: 1 }];
+  const boards = [send(s0, "first board"), send(wiped(s0, ALL, "c40"), "wipe", 150), LAST, send(back, "back", 30), send(hit, "hit", 150), LAST,
+    send(healed, "healed", 30), send(die, "death", 150), LAST, send(ex, "exile", 150), LAST];
+  // (pools short of FX.RIGS and FX.BOLTS, with links: "on" would top them up)
+  const off = run([pools(4, 2, `engineFxBundle = { fx = "https://example.invalid/fx2.unity3d", bolt = "https://example.invalid/bolt2.unity3d" }`), lua(`engineChat("mtg fx off", Player.Blue) return engineFxMode`, "off", 1), ...boards]);
+  const none = run([lua(`return "pad"`, "pad"), lua(`engineFxBundle = { fx = nil, sounds = nil, bolt = nil } return "off"`, "off", 1), ...boards]); // (pad: the frames the pools took)
+  ok("fx off: the scripts ran", !off.r.errors.length && !none.r.errors.length && off.step("off").value === "off", [...off.r.errors, ...none.r.errors].slice(0, 2).join(" | "));
+  ok("fx off: no AssetBundle call, nothing spawned", off.r.steps.every((s) => abLines(s.fx || []).length === 0 && !(s.fx || []).some((l) => l.includes('"spawnObjectData" "Custom_Assetbundle"'))),
+    JSON.stringify(off.r.steps.flatMap((s) => abLines(s.fx || [])).slice(0, 3)));
+  const marks = ["wipe", "back", "hit", "healed", "death", "exile"];
+  const diff = marks.filter((mk) => JSON.stringify(off.fx(mk)) !== JSON.stringify(none.fx(mk)));
+  ok("fx off: every board's calls the same as with no bundle", diff.length === 0, diff.map((mk) => {
+    const a = off.fx(mk), b = none.fx(mk); const i = a.findIndex((l, k) => l !== b[k]); return `${mk}: ${a[i]} vs ${b[i]}`; }).join(" | "));
+  ok("fx off: engineFxLast the same each board", JSON.stringify(off.all("last").map((s) => s.value)) === JSON.stringify(none.all("last").map((s) => s.value)),
+    JSON.stringify([off.all("last").map((s) => s.value), none.all("last").map((s) => s.value)]).slice(0, 400));
+  ok("fx off: the rigs never leave the park", !off.r.steps.some((s) => (s.fx || []).some((l) => /"setPosition" obj:(rig|blt)\d/.test(l))));
+}
+// "mtg fx off" reads no lv: a token the engine says went to a hand, and one it says was exiled (no exd, not in an
+// exile zone), die as they did on the table before lv; with effects on, neither is a death (the boards tell apart)
+{
+  const s0 = base(); s0.Blue.bf.push("tok1");
+  const home = base(); home.lv = [{ id: "tok1", to: "h", q: 1 }];
+  const gone = base(); gone.lv = [{ id: "tok1", to: "e", q: 1 }];
+  const boards = (lv) => [send(s0, "first board"), send(lv ? home : { ...home, lv: undefined }, "home", 60), LAST, send(s0, "back", 30), send(lv ? gone : { ...gone, lv: undefined }, "gone", 60), LAST];
+  const noLinks = lua(`engineFxBundle = { fx = nil, sounds = nil, bolt = nil } return "x"`, "links", 1);
+  const off = run([noLinks, lua(`engineChat("mtg fx off", Player.Blue) return engineFxMode`, "off", 1), ...boards(true)]);
+  const today = run([noLinks, lua(`return "pad"`, "off", 1), ...boards(false)]);
+  const on = run([noLinks, lua(`return "pad"`, "off", 1), ...boards(true)]);
+  const died = (t) => t.all("last").map((s) => JSON.parse(s.value || "{}").died || {});
+  ok("fx off, lv: the scripts ran", !off.r.errors.length && !today.r.errors.length && !on.r.errors.length, [...off.r.errors, ...today.r.errors, ...on.r.errors].slice(0, 2).join(" | "));
+  ok("fx off, lv: the token home and the token exiled each die, as before lv", JSON.stringify(died(off)) === '[{"Blue":1},{"Blue":1}]' && JSON.stringify(died(off)) === JSON.stringify(died(today)),
+    JSON.stringify([died(off), died(today)]));
+  ok("fx off, lv: the same calls as the table before lv", ["home", "gone"].every((mk) => JSON.stringify(off.fx(mk)) === JSON.stringify(today.fx(mk))), ["home", "gone"].map((mk) => off.fx(mk).length + "/" + today.fx(mk).length).join(" "));
+  ok("fx off, lv: effects on, neither is a death", died(on).length === 2 && died(on).every((d) => Object.keys(d).length === 0), JSON.stringify(died(on)));
+}
+
+// the bolts: from where a spell stood on the stack (an ability: its card) to its target, aimed (local +z at it) and
+// scaled to the distance, in the source's colour (bolt_<C>; colourless, two colours or unknown: the red-orange bolt);
+// the target's effect at the impact, 0.25 s after the bolt; 4 a board at most (the rest: their effects at once); a
+// sweep (a source with more than 4 hits), combat damage and a board without hits fly none; an exile's light to its
+// exiler; a token that went back to a hand is no death
+{
+  const L = { life: 37 }; // (Blue's life stays down after the player hit: a gain would play its own effect)
+  const plain = (st = {}) => { const b = base(); b.Blue.life = st.life ?? 40; if (st.stack) b.stack = st.stack; return b; };
+  const dmg = (b, map) => { for (const [id, n] of Object.entries(map)) { const c = id.startsWith("w") ? "White" : "Blue"; b[c].more[id] = { dmg: n }; } return b; };
+  const hitsOf = (list) => list.map(([src, to, n], i) => ({ src, to, n, q: i + 1 }));
+  const pre1 = plain({ stack: [stackOf("c30", "Lightning Bolt", "White", "R", { ins: true })] });
+  const hit1 = Object.assign(dmg(plain(), { w1: 3 }), { hits: hitsOf([["c30", "w1", 3]]) });
+  const hit2 = Object.assign(plain(L), { hits: hitsOf([["w2", "Blue", 3]]) });
+  const die3 = Object.assign(plain(L), { hits: hitsOf([["w2", "b1", 2]]), lv: [{ id: "b1", to: "g", how: "d", by: "w2", q: 2 }] }); die3.Blue.bf = die3.Blue.bf.filter((c) => c !== "b1"); die3.Blue.gy = ["b1"];
+  const cap = Object.assign(dmg(plain(L), { b2: 1, b3: 1, b4: 1, b5: 1, b6: 5, b7: 5 }), { hits: hitsOf([["w2", "b2", 1], ["w2", "b3", 1], ["w2", "b4", 1], ["w3", "b5", 1], ["w3", "b6", 5], ["w3", "b7", 5]]) });
+  const sweep = Object.assign(dmg(plain(L), { b2: 1, b3: 1, b4: 1, b5: 1, b6: 1 }), { hits: hitsOf([["w2", "b2", 1], ["w2", "b3", 1], ["w2", "b4", 1], ["w2", "b5", 1], ["w2", "b6", 1]]) });
+  const multi = Object.assign(dmg(plain(L), { b2: 2 }), { hits: hitsOf([["w4", "b2", 2]]) });
+  const preC = plain({ life: 37, stack: [stackOf("c60", "Kozilek's Return", "White", "C", { ins: true })] });
+  const colourless = Object.assign(dmg(plain(L), { b3: 2 }), { hits: hitsOf([["c60", "b3", 2]]) });
+  const combat = Object.assign(dmg(plain(L), { b4: 2 }), { hits: [{ src: "w1", to: "b4", n: 2, q: 1, combat: true }] });
+  const noHits = dmg(plain(L), { b5: 2 });
+  const exile = plain(L); exile.Blue.bf = exile.Blue.bf.filter((c) => c !== "b2"); exile.Blue.ex = ["b2"]; exile.lv = [{ id: "b2", to: "e", by: "w2", q: 1 }];
+  const withTok = plain(L); withTok.Blue.bf.push("tok1");
+  const tokHome = plain(L); tokHome.lv = [{ id: "tok1", to: "h", q: 1 }];
+  const tokGone = plain(L);
+  // (a face-down creature's ability: its card's colour, green, known from when it was face up, is not told)
+  const fdPre = plain(L); fdPre.White.more.w2 = { fd: true };
+  const fdHit = Object.assign(dmg(plain(L), { b3: 1 }), { hits: hitsOf([["w2", "b3", 1]]) }); fdHit.White.more.w2 = { fd: true };
+  const t = run([pools(6, 6),
+    send(pre1, "first board", 10), send(pre1, "bolt on the stack", 10), POOLQ, posOf(["w1", "w2", "w3", "b1", "b2", "b3", "b6", "b7"]),
+    lua(`local p = engineFxStackSpot["engine-stack-c30"] return p and JSON.encode({ x = p.x, y = p.y, z = p.z }) or "{}"`, "stack spot", 1),
+    send(hit1, "spell hit", 150), POOLQ, LASTB, send(plain(), "c1", 30), POOLQ,
+    send(hit2, "player hit", 150), POOLQ, send(plain(L), "c2", 30), POOLQ,
+    send(die3, "burn", 150), POOLQ, send(plain(L), "c3", 30), POOLQ,
+    send(cap, "cap", 150), POOLQ, LASTB, send(plain(L), "c4", 30), POOLQ,
+    send(sweep, "sweep", 150), POOLQ, send(plain(L), "c5", 30), POOLQ,
+    send(multi, "multicoloured", 150), POOLQ, send(preC, "c6", 30), POOLQ,
+    send(colourless, "colourless", 150), POOLQ, send(plain(L), "c7", 30), POOLQ,
+    send(combat, "combat", 150), POOLQ, send(plain(L), "c8", 30), POOLQ,
+    send(noHits, "no hits", 150), POOLQ, send(plain(L), "c9", 30), POOLQ,
+    send(exile, "exile", 150), POOLQ, send(withTok, "c10", 30), POOLQ,
+    send(tokHome, "token home", 150), POOLQ, LAST, send(withTok, "c11", 30), POOLQ, send(tokGone, "token gone", 150), POOLQ, LAST,
+    send(fdPre, "c12", 30), POOLQ, send(fdHit, "face down", 150), POOLQ,
+  ]);
+  ok("bolts: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("poolq").map((s) => JSON.parse(s.value || "[]"));
+  const at = (k) => fxPlayed(q[k], q[k + 1]); // (board k's: between POOLQ k and k + 1)
+  const pos = t.value("pos"), spot = t.value("stack spot"), lb = t.all("lastb").map((s) => arr(JSON.parse(s.value || "[]")));
+  // a spell's bolt
+  const p1 = at(0), b1 = p1.find((x) => x.bolt), d1 = p1.find((x) => x.name === "damage");
+  ok("bolt, a spell: bolt_R (a red source) on a bolt rig", p1.filter((x) => x.bolt).length === 1 && b1.name === "bolt_R", JSON.stringify(p1.map((x) => x.name)));
+  ok("bolt, a spell: from its spot on the stack", b1 && spot.x !== undefined && near(b1.x, spot.x) && near(b1.z, spot.z) && near(b1.y, spot.y + 0.3), JSON.stringify({ b1, spot }));
+  ok("bolt, a spell: the target's damage at its card", d1 && near(d1.x, pos.w1.x) && near(d1.z, pos.w1.z), JSON.stringify({ d1, w1: pos.w1 }));
+  ok("bolt, a spell: aimed at the target and scaled to the distance", aimed(b1, d1), JSON.stringify({ b1, d1, want: d1 && b1 && aimOf(b1, d1) }));
+  ok("bolt, a spell: the damage 0.25 s after the bolt (the impact)", b1 && d1 && d1.f - b1.f >= 14 && d1.f - b1.f <= 16, JSON.stringify([b1 && b1.f, d1 && d1.f]));
+  ok("bolt, a spell: engineFxLast.bolts says so", lb[0].length === 1 && lb[0][0].name === "bolt_R" && lb[0][0].tgt === "w1" && b1 && Math.abs(lb[0][0].d - b1.s) < 0.01, JSON.stringify(lb[0]));
+  ok("bolt: the rig parked again at scale 1", q[1].every((r) => near(r.y, -30) && near(r.s, 1)), JSON.stringify(q[1].filter((r) => !near(r.s, 1))));
+  // an ability's bolt at a player
+  const p2 = at(2), b2 = p2.find((x) => x.bolt), h2 = p2.find((x) => x.name === "player_hit");
+  ok("bolt, an ability at a player: bolt_G from its green source card to the player's spot", b2 && b2.name === "bolt_G" && near(b2.x, pos.w2.x) && near(b2.z, pos.w2.z) && aimed(b2, h2), JSON.stringify({ b2, h2, w2: pos.w2 }));
+  ok("bolt, an ability at a player: player_hit at the impact", b2 && h2 && h2.f - b2.f >= 14 && h2.f - b2.f <= 16, JSON.stringify([b2 && b2.f, h2 && h2.f]));
+  // a death by a bolt
+  const p3 = at(4), b3 = p3.find((x) => x.bolt), k3 = p3.find((x) => !x.bolt);
+  ok("bolt, a death from it: death_burn at the card, at the impact", b3 && k3 && k3.name === "death_burn" && near(k3.x, pos.b1.x) && k3.f - b3.f >= 14, JSON.stringify(p3.map((x) => [x.name, x.f])));
+  // the cap
+  const p4 = at(6), bolts4 = p4.filter((x) => x.bolt), dm4 = p4.filter((x) => !x.bolt);
+  ok("bolt cap: 4 bolts of 6 hits, in Forge's order (3 green, then the colourless source's red-orange)", JSON.stringify(bolts4.map((x) => x.name)) === '["bolt_G","bolt_G","bolt_G","bolt"]' && lb[1].length === 4, JSON.stringify([bolts4.map((x) => x.name), lb[1].length]));
+  ok("bolt cap: 0.15 s apart", bolts4.length === 4 && bolts4.every((x, i) => i === 0 || (x.f - bolts4[i - 1].f >= 8 && x.f - bolts4[i - 1].f <= 10)), JSON.stringify(bolts4.map((x) => x.f)));
+  const atCard = (id) => dm4.find((x) => near(x.x, pos[id].x) && near(x.z, pos[id].z));
+  ok("bolt cap: the hits past the cap have their effect at once (no bolt to wait for)", atCard("b6") && atCard("b7") && bolts4[0] && atCard("b6").f <= bolts4[0].f + 1 && atCard("b7").f <= bolts4[0].f + 1, JSON.stringify(dm4.map((x) => [x.x, x.f])));
+  ok("bolt cap: a bolted card's effect waits for its impact", atCard("b2") && bolts4[0] && atCard("b2").f - bolts4[0].f >= 14, JSON.stringify(dm4.map((x) => [x.x, x.f])));
+  ok("bolt sweep: a source with 5 hits flies none", at(8).filter((x) => x.bolt).length === 0 && at(8).length > 0, JSON.stringify(at(8).map((x) => x.name)));
+  ok("bolt, a source of two colours: the red-orange bolt", JSON.stringify(at(10).filter((x) => x.bolt).map((x) => x.name)) === '["bolt"]', JSON.stringify(at(10).map((x) => x.name)));
+  ok("bolt, a colourless spell: the red-orange bolt", JSON.stringify(at(12).filter((x) => x.bolt).map((x) => x.name)) === '["bolt"]', JSON.stringify(at(12).map((x) => x.name)));
+  ok("bolt, combat damage: none (the swing shows it)", at(14).filter((x) => x.bolt).length === 0 && at(14).some((x) => x.name === "damage"), JSON.stringify(at(14).map((x) => x.name)));
+  ok("bolt, a board with no hits (an older engine): none, the damage as before", JSON.stringify(at(16).map((x) => x.name)) === '["damage"]', JSON.stringify(at(16).map((x) => x.name)));
+  const p9 = at(18), ex9 = p9.find((x) => x.name === "exile"), fl9 = p9.find((x) => x.bolt);
+  ok("exile light: exile at the card, then bolt_G (its green exiler's colour) flies to the exiler", ex9 && fl9 && fl9.name === "bolt_G" && near(fl9.x, pos.b2.x) && near(fl9.z, pos.b2.z)
+    && ang(fl9.ry, Math.atan2(pos.w2.x - fl9.x, pos.w2.z - fl9.z) * 180 / Math.PI) < 0.5 && Math.abs(fl9.s - d2(fl9, pos.w2)) < 0.2,
+    JSON.stringify({ p9, w2: pos.w2 }));
+  ok("exile light: 0.7 s after the exile", ex9 && fl9 && fl9.f - ex9.f >= 40 && fl9.f - ex9.f <= 44, JSON.stringify([ex9 && ex9.f, fl9 && fl9.f]));
+  const lasts = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  ok("token home: a token the engine says went to a hand is no death", at(20).length === 0 && Object.keys(lasts[0].died || {}).length === 0, JSON.stringify([at(20), lasts[0]]));
+  ok("token gone: one that just left the battlefield still dies", at(22).some((x) => x.name === "death") && (lasts[1].died || {}).Blue === 1, JSON.stringify([at(22), lasts[1]]));
+  ok("bolt, a face-down source: the red-orange bolt, not its card's green", JSON.stringify(at(24).filter((x) => x.bolt).map((x) => x.name)) === '["bolt"]', JSON.stringify(at(24).map((x) => x.name)));
+}
+
+// engineFxBoltMove (the fallback, should the bundle's flight not play): bolt_trail at scale 1, the rig moved to the
+// target one frame at a time (15), then bolt_impact there
+{
+  const pre = base(); pre.stack = [stackOf("c30", "Lightning Bolt", "White", "R", { ins: true })];
+  const hit = base(); hit.White.more.w1 = { dmg: 3 }; hit.hits = [{ src: "c30", to: "w1", n: 3, q: 1 }];
+  const t = run([pools(2, 2, "engineFxBoltMove = true"), send(pre, "first board", 10), send(pre, "again", 10), POOLQ, posOf(["w1"]), send(hit, "hit", 150), POOLQ]);
+  ok("bolt fallback: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("poolq").map((s) => JSON.parse(s.value || "[]"));
+  const p = fxPlayed(q[0], q[1]), tr = p.find((x) => x.name === "bolt_trail"), im = p.find((x) => x.name === "bolt_impact"), w1 = t.value("pos").w1;
+  const g = tr && tr.g;
+  const moves = t.fx("hit").filter((l) => g && l.includes(`"setPosition" obj:${g} `));
+  ok("bolt fallback: bolt_trail at scale 1, then bolt_impact at the target", tr && im && near(tr.s, 1) && im.g === g && near(im.x, w1.x) && near(im.z, w1.z), JSON.stringify(p));
+  ok("bolt fallback: moved over 15 frames (one setPosition a frame), the impact after", moves.length >= 16 && im && im.f - tr.f >= 15 && im.f - tr.f <= 17, JSON.stringify([moves.length, tr && tr.f, im && im.f]));
+}
+
+// the links: with no bolt link (not uploaded yet) no bolt rig is spawned and a bolt's hit has its effect at once; with
+// it, the missing bolt rigs (4) are spawned once, a row behind the fx rigs, and fly; 4 fx rigs on the table are topped
+// up to 6
+{
+  const FXL = "https://example.invalid/mtg-fx.unity3d", BL = "https://example.invalid/mtg-bolt.unity3d";
+  const pre = base(); pre.stack = [stackOf("c30", "Lightning Bolt", "White", "R", { ins: true })];
+  const hit = base(); hit.White.more.w1 = { dmg: 3 }; hit.hits = [{ src: "c30", to: "w1", n: 3, q: 1 }];
+  const count = lua(`local out = { fx = 0, bolt = 0, boltZ = {} } for _, o in ipairs(getObjects()) do local gm = o.getGMNotes()
+    if gm == "engine:fx" then out.fx = out.fx + 1 elseif gm == "engine:bolt" then out.bolt = out.bolt + 1 out.boltZ[#out.boltZ + 1] = o.getPosition().z end end return JSON.encode(out)`, "count", 1);
+  const bundles = `__sim.bundleEffects = { ["${FXL}"] = { "${FX_NAMES.join('", "')}" }, ["${BL}"] = { "${BOLT_NAMES.join('", "')}" } }`;
+  const nil = run([lua(`${bundles} engineFxBundle = { fx = "${FXL}", sounds = nil, bolt = nil } return "x"`, "links"), send(pre, "first board", 10), count, POOLQ, send(hit, "hit", 150), POOLQ, LASTB]);
+  ok("no bolt link: the script ran", !nil.r.errors.length, nil.r.errors.slice(0, 2).join(" | "));
+  const c0 = nil.value("count");
+  ok("no bolt link: 6 fx rigs spawned, no bolt rig", c0.fx === 6 && c0.bolt === 0, JSON.stringify(c0));
+  const q0 = nil.all("poolq").map((s) => JSON.parse(s.value || "[]"));
+  ok("no bolt link: the hit's damage at once, no bolt", JSON.stringify(fxPlayed(q0[0], q0[1]).map((x) => x.name)) === '["damage"]' && arr(nil.value("lastb")).every((b) => b.name == null),
+    JSON.stringify([fxPlayed(q0[0], q0[1]).map((x) => x.name), nil.value("lastb")]));
+  // (rigs of this very link, its memo: else they would be an older bundle's, replaced; see the next block)
+  const up = run([pools(4, 0, `for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:fx" then o.memo = "${FXL}" end end`), lua(`${bundles} engineFxBundle = { fx = "${FXL}", sounds = nil, bolt = "${BL}" } return "x"`, "links"), send(pre, "first board", 10), count, POOLQ, send(hit, "hit", 150), POOLQ,
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" }, { msg: { t: "started", json: STARTED }, mark: "started 2" }, send(pre, "second game", 10), count]);
+  ok("bolt link: the script ran", !up.r.errors.length, up.r.errors.slice(0, 2).join(" | "));
+  const [c1, c2] = up.all("count").map((s) => JSON.parse(s.value || "{}"));
+  ok("bolt link: 4 fx rigs topped up to 6, 4 bolt rigs spawned a row behind", c1.fx === 6 && c1.bolt === 4 && arr(c1.boltZ).every((z) => near(z, 32)), JSON.stringify(c1));
+  const q1 = up.all("poolq").map((s) => JSON.parse(s.value || "[]"));
+  ok("bolt link: a spawned bolt rig flies bolt_R", fxPlayed(q1[0], q1[1]).some((x) => x.bolt && x.name === "bolt_R"), JSON.stringify(fxPlayed(q1[0], q1[1]).map((x) => x.name)));
+  ok("bolt link: the next game spawns none", c2.fx === 6 && c2.bolt === 4, JSON.stringify(c2));
+}
+
+// a save holding rigs of an older bundle (the user's: 6 "engine:fx" rigs spawned before the memo, from the shipped
+// link, so with none): a new fx link replaces them on load, one destroyed every 30 frames (a destruct costs ~360 ms in
+// real TTS) and 6 spawned with the link in their memo; a game after that and the next load (the new rigs saved) touch
+// none. The shipped link, no link or "mtg fx off" touch none either.
+{
+  const LEGACY = (save.LuaScript.match(/FX\.LEGACY = \{ fx = "([^"]+)" \}/) || [])[1];
+  const NEW = "https://example.invalid/mtg-fx-2.unity3d";
+  const withRigs = (memo) => {
+    const s = clone(save);
+    for (let i = 1; i <= 6; i++) s.ObjectStates.push({ Name: "Custom_Assetbundle", GUID: `old00${i}`, Nickname: "", GMNotes: "engine:fx", Locked: true, ...(memo ? { Memo: memo } : {}),
+      Transform: { posX: -40 + 1.5 * i, posY: -30, posZ: 30, rotX: 0, rotY: 0, rotZ: 0, scaleX: 1, scaleY: 1, scaleZ: 1 },
+      CustomAssetbundle: { AssetbundleURL: memo || LEGACY, SimTriggerEffects: FX_NAMES } });
+    return s;
+  };
+  const Q = (mark) => lua(`local out = { alive = {}, died = {} } for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:fx" then out.alive[#out.alive + 1] = { g = o.getGUID(), memo = o.memo or "" } end end
+    for i = 1, 6 do local o = __sim.objects["old00" .. i] out.died[i] = (o and o.__d.diedAt) or 0 end return JSON.encode(out)`, mark, 1);
+  const go = (s, prelude) => {
+    const r = simulate({ save: s, prelude: `__sim.bundleEffects = { ["${NEW}"] = { "${FX_NAMES.join('", "')}" } } ${prelude}`,
+      steps: [Q("q0"), { frames: 300 }, Q("q1"), lua(PRELUDE, "prelude"), { msg: { t: "started", json: STARTED } }, send(base(), "first board", 10), { frames: 250 }, Q("q2")] }); // (250: a destruct the game's look scheduled has come)
+    const val = (mark) => JSON.parse(r.steps.find((x) => x.step === mark)?.value || "{}");
+    const spawns = r.steps.map((x) => (x.fx || []).filter((l) => l.includes('"spawnObjectData" "Custom_Assetbundle"')).length);
+    return { r, q0: val("q0"), q1: val("q1"), q2: val("q2"), spawns, gameSpawns: spawns[r.steps.findIndex((x) => x.step === "first board")] };
+  };
+  ok("stale rigs: the legacy link is a steamusercontent link", /^https:\/\/steamusercontent/.test(LEGACY || ""), LEGACY);
+  const a = go(withRigs(null), `engineFxBundle = { fx = "${NEW}" }`);
+  ok("stale rigs: the script ran", !a.r.errors.length, a.r.errors.slice(0, 2).join(" | "));
+  const died = arr(a.q1.died).slice().sort((x, y) => x - y);
+  ok("stale rigs, a new link: the 6 old rigs destroyed on load", died.length === 6 && died.every((f) => f > 0) && arr(a.q1.alive).every((x) => !x.g.startsWith("old")), JSON.stringify(a.q1));
+  ok("stale rigs, a new link: one destroyed every 30 frames, none at once", died.every((f, i) => i === 0 || f - died[i - 1] >= 30) && arr(a.q0.alive).filter((x) => x.g.startsWith("old")).length >= 5,
+    JSON.stringify({ died, q0: arr(a.q0.alive).length }));
+  ok("stale rigs, a new link: 6 rigs spawned in their place, marked with the link", a.spawns.reduce((x, y) => x + y, 0) === 6 && arr(a.q1.alive).length === 6 && arr(a.q1.alive).every((x) => x.memo === NEW),
+    JSON.stringify({ spawns: a.spawns, alive: a.q1.alive }));
+  ok("stale rigs, a new link: the game after that spawns and destroys none", a.gameSpawns === 0 && JSON.stringify(a.q2.alive) === JSON.stringify(a.q1.alive) && JSON.stringify(a.q2.died) === JSON.stringify(a.q1.died),
+    JSON.stringify({ g: a.gameSpawns, q2: a.q2 }));
+  const none = (name, s, prelude) => {
+    const x = go(s, prelude);
+    ok(`stale rigs, ${name}: none destroyed, none spawned, on load or at the game`, !x.r.errors.length && x.spawns.every((n) => n === 0) && arr(x.q2.died).every((f) => f === 0) && arr(x.q2.alive).length === 6,
+      JSON.stringify({ e: x.r.errors.slice(0, 1), spawns: x.spawns, q2: x.q2 }));
+  };
+  none("the next load (the new rigs saved with their memo)", withRigs(NEW), `engineFxBundle = { fx = "${NEW}" }`);
+  none("the shipped link (rigs with no memo are its own)", withRigs(null), "");
+  none("no link", withRigs(null), `engineFxBundle = { fx = "" }`);
+  none("mtg fx off", withRigs(null), `engineFxBundle = { fx = "${NEW}" } rawset(Global, "script_state", '{"engineStash":{},"engineFx":"off"}')`);
+}
+
+// the host's Lua per board (fengari's own clock, docs/particle-fx-spec.md section 5: under 5 ms): engineEffects and
+// every Wait it schedules, for a 20-creature wipe and a board of 4 bolts, effects on and off
+{
+  const xs = Array.from({ length: 8 }, (_, i) => card(`x${i + 1}`, `Elk ${i + 1}`, ["Creature"]));
+  const big = () => { const b = base(); b.Blue.bf = [...blueC, xs[0], xs[1], "bl1"]; b.White.bf = [...whiteC, ...xs.slice(2), "wl1"]; return b; };
+  const twenty = [...blueC, xs[0], xs[1], ...whiteC, ...xs.slice(2)];
+  const s0 = big(); s0.stack = [stackOf("c40", "Wrath of God", "White", "W", { sor: true })];
+  const w = wiped(s0, twenty, "c40");
+  const pre = big(); pre.stack = [stackOf("c30", "Lightning Bolt", "White", "R", { ins: true })];
+  const four = big(); four.hits = [["c30", "b1"], ["w2", "b2"], ["w2", "b3"], ["w3", "b4"]].map(([src, to], i) => ({ src, to, n: 1, q: i + 1 }));
+  for (const id of ["b1", "b2", "b3", "b4"]) four.Blue.more[id] = { dmg: 1 };
+  // (all: engineEffects and every Wait it schedules; fx: engineFxBoard and its Waits, the effects' own share)
+  const TIMED = lua(`__fxT = { all = 0, fx = 0 } local active = {}
+    local function timed(fn, keys) return function(...)
+      local mine = {} for k in pairs(keys) do if not active[k] then mine[k] = true active[k] = true end end
+      local t = __realclock() local a, b, c = fn(...) local d = (__realclock() - t) * 1000
+      for k in pairs(mine) do __fxT[k] = __fxT[k] + d active[k] = nil end return a, b, c end end
+    local function cur() local s = {} for k in pairs(active) do s[k] = true end return s end
+    local wt, wf = Wait.time, Wait.frames
+    Wait.time = function(fn, s, r) if next(active) ~= nil then fn = timed(fn, cur()) end return wt(fn, s, r) end
+    Wait.frames = function(fn, n) if next(active) ~= nil then fn = timed(fn, cur()) end return wf(fn, n) end
+    engineEffects, engineFxBoard = timed(engineEffects, { all = true }), timed(engineFxBoard, { fx = true })
+    __sim.quiet = true -- (the fake's record of each call, string building that real TTS doesn't do, left out)
+    return "timed"`, "timed", 1);
+  const ZERO = lua(`__fxT.all, __fxT.fx = 0, 0 return "0"`, "zero", 1), READ = lua(`return JSON.encode(__fxT)`, "ms", 1);
+  const REPS = 7;
+  const steps = (mode) => [pools(6, 4), lua(`engineChat("mtg fx ${mode}", Player.Blue) return "x"`, "mode", 1), TIMED, send(s0, "first board", 10), send(s0, "again", 10),
+    ...Array.from({ length: REPS }, () => [ZERO, send(w, "wipe", 200), READ, send(s0, "back", 30)]).flat(),
+    send(pre, "bolt on the stack", 30), POOLQ,
+    ...Array.from({ length: REPS }, () => [ZERO, send(four, "bolts", 150), READ, send(pre, "back 2", 30)]).flat(), POOLQ];
+  const on = run(steps("on")), off = run(steps("off"));
+  ok("timing: the scripts ran", !on.r.errors.length && !off.r.errors.length, [...on.r.errors, ...off.r.errors].slice(0, 2).join(" | "));
+  // (the fastest of the runs: a garbage collection or another process on the CPU only ever adds time; in the full test
+  // file, with its earlier games' garbage, a median still came out 12 ms apart on and off)
+  const ms = (t, i0, key) => Math.min(...t.all("ms").slice(i0, i0 + REPS).map((s) => JSON.parse(s.value)[key]));
+  const m = { wipeAll: [ms(on, 0, "all"), ms(off, 0, "all")], wipeFx: [ms(on, 0, "fx"), ms(off, 0, "fx")], boltAll: [ms(on, REPS, "all"), ms(off, REPS, "all")], boltFx: [ms(on, REPS, "fx"), ms(off, REPS, "fx")] };
+  const [q0, q1] = on.all("poolq").map((s) => JSON.parse(s.value || "[]"));
+  const played = fxPlayed(q0, q1);
+  ok("timing: the measured boards played their bolts", played.filter((x) => x.bolt).length === 4 * REPS && q0.some((r) => arr(r.played).some((p) => FX_NAMES[p.i] === "death_wipe_W")), JSON.stringify(played.map((x) => x.name)));
+  const f = ([a, b]) => `${a.toFixed(2)} on / ${b.toFixed(2)} off`;
+  console.log(`timing (fengari, fastest of ${REPS}, ms of host Lua a board): 20-creature wipe: engineEffects ${f(m.wipeAll)}, engineFxBoard ${f(m.wipeFx)}; 4 bolts: engineEffects ${f(m.boltAll)}, engineFxBoard ${f(m.boltFx)}`);
+  // (what the build adds to a board, over the same board with "mtg fx off", today's path: fengari's clock on a busy
+  // machine wanders by a millisecond or two, so the bound is on the difference, not on the total)
+  ok("timing: the rig effects add under 5 ms of the host's Lua a board", m.wipeAll[0] - m.wipeAll[1] < 5 && m.boltAll[0] - m.boltAll[1] < 5, JSON.stringify(m));
 }
 
 console.log(failed ? `\n${failed} failed, ${passed} passed` : `all ${passed} passed`);
