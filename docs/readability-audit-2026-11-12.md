@@ -25,20 +25,20 @@ Harm = how common in Commander × how confusing.
 | # | Gap | Example | Size | Source |
 |---|---|---|---|---|
 | 1 | **You can't see your own face-down creatures**: the table hides them from their controller too, which breaks a rule | morph, manifest, disguise, cloak | M | A1 |
-| 2 | Removal, bounce, reanimation and forced discard log lines name no cause | "Batterskull is destroyed" (by Krosan Grip?) | M | C1 |
+| 2 | Removal, bounce, reanimation and forced discard log lines name no cause (fixed in source effa69f, not seen live) | "Batterskull is destroyed" (by Krosan Grip?) | M | C1 |
 | 3 | Impulse draw: no card names who granted it or when it ends, and it drops back to exile silently | Jeska's Will, Light Up the Stage, Prosper | S | B1 |
-| 4 | Triggers and activations never say what they do | "Hero of Bladehold's ability triggers" | M | C2 |
+| 4 | Triggers and activations never say what they do (fixed in source effa69f, not seen live) | "Hero of Bladehold's ability triggers" | M | C2 |
 | 5 | "Doesn't untap during your next untap step" shows nothing | Frost Breath, Sleep | S | A2 |
 | 6 | "Exiled with X" never names X; the O-Ring kind gets no "comes back" hover | Banishing Light, Oblivion Ring, Fiend Hunter | S | B3 |
-| 7 | Life changes other than damage are bare | "White: 40 -> 42 life (+2)" | M | C3 |
+| 7 | Life changes other than damage are bare (fixed in source effa69f for what resolved, a room entered and a "Pay N life:" cost; recover and shockland payments stay bare; not seen live) | "White: 40 -> 42 life (+2)" | M | C3 |
 | 8 | Partner commander damage is summed in the display (15 + 10 shows 25 against 21; the loss check is right) | partner pairs | S | D4 |
 | 9 | Cards playable from the graveyard leave the graveyard pile with no origin label; only flashback has a note | escape, disturb, unearth, jump-start | S | B4 |
 | 10 | A third card in the command zone lands on the first commander | emblems, effect cards | S | B6 |
 | 11 | An extra combat or main phase looks like the first one | Aggravated Assault, Relentless Assault | S | D6 |
 | 12 | Detained and regeneration shields are tracked but not shown | Lavinia, Ivy Lane Denizen-style regen | S | A8 |
 | 13 | A copy cast from exile is logged as a token's ability | Arcane Bombardment | S-M | C5 |
-| 14 | Monarch, initiative and control changes give no cause or previous holder; initiative prints after its venture | – | S | C6 |
-| 15 | The Ring's log line never names the Ring-bearer; the label doesn't spell out the level's effect | The One Ring tempt | S | C7, D8 |
+| 14 | Monarch, initiative and control changes give no cause or previous holder; initiative prints after its venture (fixed in source effa69f, not seen live; the real log's "after" order was Veteran Dungeoneer's own venture and a debug setup's initiative, so only a venture into Undercity is moved) | – | S | C6 |
+| 15 | The Ring's log line never names the Ring-bearer (log line fixed in source effa69f, not seen live); the label doesn't spell out the level's effect | The One Ring tempt | S | C7, D8 |
 | 16 | Opponents' floating mana is never shown | – | S | D7 |
 | 17 | Mutate: the cards under the top one are never listed | Illuna, mutate decks | M | A4 |
 | 18 | Suspend: time counters only show in the pile's hover; no countdown in the log | Rift Bolt, Ancestral Vision | M | B5 |
