@@ -187,6 +187,16 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   the deploy needs `MTG_MANABREW=tmp/mb-wt-merge` (batch 2 used `tmp/mb-pc`). That tree has the new fields; `mb-pc` and the
   shared `manabrew` checkout don't. The bridge does not read the new fields yet.
 - **Rollback:** `node tools/deploy.js --image batch2-1112` (node `975d62f6279e`, relay `57aa07a9b314`).
+- **Review (Opus, read-only, verdict deploy):** no hidden-info leak, thread-safety or snapshot-crash problem found. Follow-ups, none blocking:
+  1. Snapshot cost: `InteractiveSnapshotExtractor.java` ~956-969 calls `canBlock`, `canAttackNextTurn` per defender and
+     `entitiesMustAttack` for every creature on every viewer's snapshot; each scans the board's static abilities. Time it on a big
+     4-player board live; if it shows, compute defenders once per controller and the flags once per snapshot round.
+  2. `EffectsView.java` ~90/95 sends delayed-trigger `hostCardId`/`cardIds` to every seat unchecked, so a hand or library card's id
+     can be followed by a raw-protocol client. The table never forwards these ids, and the bridge drops the text for hidden cards.
+     Fix in a later image: drop ids `shownTo(card, null)` rejects.
+  3. `redact()` (~555) doesn't blank `unlockedDoors` on a face-down permanent (Ixidron on an unlocked Room creature; already public).
+  4. A damage entry can carry `ownerId "player--1"` or no target (a token that died before getting an id); the bridge tolerates both.
+  Also: delayed entries can have empty `text`; `untilEndOfTurn` is set only for Effect and Fog sources.
 
 ### 2026-11-12 batch2-1112: dungeons and Planechase in the engine view
 - **Problem:** the table guessed a dungeon's room from card text and had no Planechase at all; initiative and venture
