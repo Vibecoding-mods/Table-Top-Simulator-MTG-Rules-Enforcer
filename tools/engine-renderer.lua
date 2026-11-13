@@ -461,6 +461,7 @@ end
 BADGE.from = { x = 0, y = 0.3, z = -0.8, w = 760, h = 110, fs = 70, bg = { 0.24, 0.2, 0.3, 0.95 } }
 function engineCostParts(c)
   local parts = {}
+  if c.fd or c.pv then return parts end -- (a card hidden from the others: buttons may show to every player, so none)
   if c.og == "graveyard" then
     local F = BADGE.from
     parts[1] = { "costFrom", "FROM GRAVEYARD", F.bg, "Playable from its owner's graveyard", { 1, 1, 1 }, { x = F.x, y = F.y, z = F.z, w = F.w, h = F.h, fs = F.fs } }
@@ -1509,7 +1510,8 @@ function engineOnTexts(m)
   for _, pl in ipairs((lastTable and lastTable.players) or {}) do
     for _, z in ipairs({ "hand", "battlefield", "graveyard", "exile", "command" }) do
       for _, c in ipairs(pl[z] or {}) do
-        if t[c.id] ~= nil then
+        -- (never a face-down card's public stub: the text came for the one seat that may look, its playable row)
+        if t[c.id] ~= nil and c.n ~= nil and not c.fd then
           c.tx = t[c.id]
           local o = engineObjs[c.id]
           if o ~= nil and not o.isDestroyed() then o.setDescription(description(c)) end
@@ -6268,12 +6270,13 @@ function enginePlaceSpecial(m, seen)
       local side = Player[color].getHandTransform(2)
       local base = side and side.position or (g.handPos or g.mat)
       local k, public = 0, 0
-      for _, c in ipairs(row) do if not (faceDown[c.id] or c.fo) then public = public + 1 end end
+      -- (pv: a library top only its owner may look at, from the bridge: private as a face-down card)
+      for _, c in ipairs(row) do if not (faceDown[c.id] or c.fo or c.pv) then public = public + 1 end end
       local lat = g.handPos and (g.handPos - g.mat):dot(g.right) or 0
       local span = math.min(PLAYABLE_STEP * (public - 1), PLAYABLE_SPAN)
       local step = public > 1 and span / (public - 1) or 0
       for _, c in ipairs(row) do
-        if faceDown[c.id] or c.fo then
+        if faceDown[c.id] or c.fo or c.pv then
           place(c, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, color, { zone = "playable", color = color, hand2 = true })
         else
           local spot = onTable(g.mat + g.fwd * PLAYABLE_DEPTH + g.right * (lat + span / 2 - k * step), 0)

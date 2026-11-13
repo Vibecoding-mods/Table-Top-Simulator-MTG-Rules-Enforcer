@@ -1912,7 +1912,10 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     ...cardNotes(c, zone, row),
     // (a playable row card from a graveyard says so on its face: it left the graveyard pile for the row, readability
     // audit B4)
-    ...(row && zone === "graveyard" ? { og: "graveyard" } : {}),    ...costNow(c, zone), // (what it costs now, when that isn't its printed cost: the table's cost badge)
+    ...(row && zone === "graveyard" ? { og: "graveyard" } : {}),
+    // (what it costs now, when that isn't its printed cost: the table's cost badge; never on a card face down to the
+    // others, whose badge buttons other players may see)
+    ...(c.isFaceDown ? {} : costNow(c, zone)),
   };
 }
 
@@ -1964,7 +1967,8 @@ function keywordCostText(c, word, cost) {
 const notesOf = (list) => (list.length ? { nt: list } : {});
 
 // The board sendTable is drawing, for the notes that name another card: byId (the drawing seat's card index) and field
-// (the battlefield's card ids). Unset outside sendTable: then those notes are left out.
+// (the battlefield's card ids). Set by each sendTable and never cleared, so a caller between boards reads the last
+// board drawn; before a game's first board there is none, and those notes are left out.
 // A card on that board by name: a face-down one by no name, whichever seat's board this is (seat 0's may see it)
 function boardName(id) {
   const h = game?.tableCtx?.byId?.[id];
@@ -2199,6 +2203,18 @@ function playableOf(own, toCard, slot) {
     for (const c of z.cards || []) if (c.mayPlay && c.visibility !== "hidden") out.push(toCard(c, z.zone));
   }
   return out;
+}
+// A playable row card from its owner's library top that only its owner may look at (The Reality Chip, Mystic Forge)
+// is marked pv: the table lays it in the owner's second hand zone, TTS's private one, not on the public strip, and it
+// carries no cost badge (object buttons). The top is public only when every other human seat's view shows it (Future
+// Sight, Courser of Kruphix's "revealed"); with no other human seat that can't be told, so it stays private.
+function privateTop(t, zone, slot, seats, views) {
+  if (zone !== "library") return t;
+  const others = seats.map((s, i) => [s, views[i]]).filter(([s]) => s.slot !== slot);
+  const shown = others.length > 0 && others.every(([, v]) => v?.[t.id]?.identity?.name && v[t.id].visibility !== "hidden");
+  if (shown) return t;
+  const { ec, mc, ...rest } = t;
+  return { ...rest, pv: true };
 }
 
 // A player's hand cards shown to the whole table (Revelation's "Players play with their hands revealed", Sen
@@ -4579,7 +4595,7 @@ function sendTable() {
     if (row.dungeon?.id) row.command = row.command.map((c) => (c.id === row.dungeon.id ? { ...c, ...dungeonLabel(row.dungeon, row.dungeonsDone) } : c));
     // (after the zones: the cards a seat may play from outside its hand, built once; none once the game is over: Sen
     // Triplets' stand-ins kept glowing as playable under GAME OVER, real-table check 2026-11-10)
-    const playable = own && !pub.gameOver ? playableOf(own, (c, zone) => tableCard(c, { blockers, zone, row: true }), p.id) : [];
+    const playable = own && !pub.gameOver ? playableOf(own, (c, zone) => privateTop(tableCard(c, { blockers, zone, row: true }), zone, p.id, seats, views), p.id) : [];
     if (playable.length) row.playable = playable;
     // (the face-up exiled cards this seat may play, for the line when that ends: playableEnded)
     if (own && !pub.gameOver) for (const z of own.zones || []) if (z.zone === "exile") for (const c of z.cards || []) {

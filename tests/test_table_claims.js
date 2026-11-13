@@ -3487,5 +3487,54 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("face-down spell: precondition, without the mark the hand card's face is what the table would draw", String(valueOf(open, "names")).includes("SecretSpell"), String(valueOf(open, "names")).slice(0, 200));
   ok("face-down spell: marked, no object and no pop-up picture shows it", !/SecretSpell|secretspell/.test(String(valueOf(safe, "names"))), String(valueOf(safe, "names")).slice(0, 300));
   ok("foretold: its face for the owner's row never fills the public exile stub", String(valueOf(safe, "exile stub")) === "nil", String(valueOf(safe, "exile stub")));}
+// Privacy review 2026-11-12. (1) A "texts" message for a face-down card's id (its rules text, sent for the owner's
+// playable row) never writes into the public exile stub: once the row is gone (game over, the seat empty) the kept stub
+// is drawn as a linked object, and its hover showed the real rules text. (2) No cost badge on a row card hidden from
+// the others (fd, pv): its buttons may show to every player. (3) A library top only its owner may look at (pv) lies in
+// the owner's second hand zone, TTS's private one; without pv it lies on the public strip.
+{
+  const C = (n) => `engine-card-${n}`;
+  const last = JSON.parse([...s1.slice(0, 40)].reverse().find((m) => m.t === "table").json);
+  let host = null;
+  for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.json).players.find((x) => x.color === "Blue"); if (pl && pl.battlefield && pl.battlefield.length) host = pl.battlefield[0].id; }
+  const b1 = JSON.parse(JSON.stringify(last));
+  const blue1 = b1.players.find((x) => x.color === "Blue");
+  b1.cards = { ...(b1.cards || {}), [C(966)]: { n: "SecretThiefCard", f: "https://img.example/secret.jpg", ty: ["Instant"] } };
+  blue1.exile = [{ id: C(966), fd: true, ew: host, rl: false }];
+  blue1.playable = [{ id: C(966), s: 1, fd: true }];
+  blue1.keep = (blue1.keep || []).filter((z) => z !== "exile" && z !== "playable");
+  // (board 2: the row gone, the exile pile unchanged and kept)
+  const b2 = JSON.parse(JSON.stringify(last));
+  const blue2 = b2.players.find((x) => x.color === "Blue");
+  delete b2.cards; delete blue2.exile; delete blue2.playable;
+  blue2.keep = [...new Set([...(blue2.keep || []).filter((z) => z !== "playable"), "exile"])];
+  const r = simulate({ save, seated: ["Blue", "White"], steps: [...prefix,
+    { msg: { t: "table", json: JSON.stringify(b1) }, frames: 60, mark: "b1" },
+    { msg: { t: "texts", json: JSON.stringify({ t: "texts", texts: { [C(966)]: "SECRET RULES TEXT" } }) }, frames: 10, mark: "texts" },
+    q('local t = engineTable() for _, p in ipairs(t.players) do if p.color == "Blue" then return tostring((p.exile or {})[1] and p.exile[1].tx) end end return "?"', "stub tx"),
+    { msg: { t: "table", json: JSON.stringify(b2) }, frames: 60, mark: "b2" },
+    q('local out = {} for _, x in ipairs(getObjects()) do if tostring(x.getDescription()):find("SECRET") then out[#out + 1] = tostring(x.getGMNotes()) end end return "found:" .. table.concat(out, ",")', "who"),
+    q('local function n(c) return tostring(#engineCostParts(c)) end return n({ ec = "{0}", mc = "{U}" }) .. "/" .. n({ ec = "{0}", mc = "{U}", fd = true }) .. "/" .. n({ ec = "{0}", mc = "{U}", pv = true }) .. "/" .. n({ og = "graveyard", fd = true })', "cost parts")] });
+  const v = (mark) => String(valueOf(r, mark));
+  ok("texts: precondition, the boards drew", !r.errors.length, r.errors.slice(0, 3).join(" | "));
+  ok("texts after a face-down row card, then a kept exile: the stub never takes the text", v("stub tx") === "nil", v("stub tx"));
+  ok("texts after a face-down row card, then a kept exile: no object's hover shows it", v("who") === "found:", v("who"));
+  ok("cost badge: none on a row card hidden from the others (fd, pv), one on a face-up card", /^[1-9]\d*\/0\/0\/0$/.test(v("cost parts")), v("cost parts"));
+  // (3) where the library top lies: pv in Blue's second hand zone, without it not
+  const lib = (pv) => {
+    const b = JSON.parse(JSON.stringify(last));
+    const blue = b.players.find((x) => x.color === "Blue");
+    b.cards = { ...(b.cards || {}), [C(967)]: { n: "Enlightened Tutor", f: "https://img.example/tutor.jpg", ty: ["Instant"] } };
+    blue.playable = [{ id: C(967), s: 1, ...(pv ? { pv: true } : {}) }];
+    blue.keep = (blue.keep || []).filter((z) => z !== "playable");
+    return simulate({ save, seated: ["Blue", "White"], steps: [...prefix, { msg: { t: "table", json: JSON.stringify(b) }, frames: 90, mark: "lib" },
+      q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(967)}" then o = x end end if o == nil then return "none" end ` +
+        'for _, h in ipairs(Player.Blue.getHandObjects(2) or {}) do if h.getGUID() == o.getGUID() then return "hand2" end end return "table"', "where")] });
+  };
+  const priv = lib(true), open = lib(false);
+  ok("library top: precondition, no errors", !priv.errors.length && !open.errors.length, [...priv.errors, ...open.errors].slice(0, 3).join(" | "));
+  ok("library top: a private one (pv) lies in its owner's second hand zone", String(valueOf(priv, "where")) === "hand2", String(valueOf(priv, "where")));
+  ok("library top: a public one lies on the table", String(valueOf(open, "where")) === "table", String(valueOf(open, "where")));
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);
