@@ -5344,6 +5344,15 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const zero = h.B.logSnapshot(at(0), h.B.logSnapshot(at(1)));
       const chained = h.B.logEvents(zero, h.B.logSnapshot(cast, zero), cast, null);
       ok("suspend: still from suspend after a board showed its last counter gone", chained.includes("Blue casts Rift Bolt from suspend without paying its mana cost"), JSON.stringify(chained));
+      // (its cast trigger waiting a board or more on the stack: still suspended while it is there)
+      const withTrig = () => { const b = at(0); b.stack = [{ id: "stack-rt", sourceId: "engine-card-970", controllerId: "player-0", identity: { name: "Rift Bolt" }, isTrigger: true, sourceAbilityText: "When the last time counter is removed from this card, if it's exiled, you may cast it without paying its mana cost.", targets: [] }]; return b; };
+      const t1 = h.B.logSnapshot(withTrig(), h.B.logSnapshot(at(1))), t2 = h.B.logSnapshot(withTrig(), t1);
+      const waited = h.B.logEvents(t2, h.B.logSnapshot(cast, t2), cast, null);
+      ok("suspend: from suspend when its trigger waited a board on the stack", waited.includes("Blue casts Rift Bolt from suspend without paying its mana cost"), JSON.stringify(waited));
+      // (the cast declined: the card stays in exile with no counter; cast a board or more later by another permission)
+      const z2 = h.B.logSnapshot(at(0), zero);
+      const later = h.B.logEvents(z2, h.B.logSnapshot(cast, z2), cast, null);
+      ok("suspend: a declined suspend cast, the card cast later another way, isn't from suspend", later.includes("Blue casts Rift Bolt"), JSON.stringify(later));
       // (a suspend card exiled by an impulse draw, no time counters, cast for its cost: no "from suspend")
       const impulse = logOf(h, at(0), cast);
       ok("suspend: a suspend card cast from an impulse exile isn't from suspend", impulse.includes("Blue casts Rift Bolt"), JSON.stringify(impulse));
@@ -5361,11 +5370,12 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const viaImpulse = fresh(at(0)), viaSuspend = fresh(at(1));
       ok("suspend: an impulse cast resolved between boards isn't from suspend", !viaImpulse.some((l) => /from suspend/.test(l)), JSON.stringify(viaImpulse));
       ok("suspend: a suspended cast resolved between boards is", viaSuspend.includes("Blue casts Rift Bolt from suspend without paying its mana cost"), JSON.stringify(viaSuspend));
-      // (a cascade into Living End, a suspend card with no mana cost, face up in the cascade's exile: a cascade)
+      // (a cascade into Living End, a suspend card with no mana cost, face up in the cascade's exile: a cascade. Here it
+      // even has a time counter, so only the trigger's check coming first tells it)
       const intoEnd = clone(F.board.gameView);
       intoEnd.stack = [{ id: "stack-sa", sourceId: "engine-card-975", controllerId: "player-1", identity: { name: "Shardless Agent" }, isTrigger: true,
         sourceAbilityText: "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)", targets: [] }];
-      zoneOf(intoEnd, "exile", "player-1").cards.push(card(976, "Living End", ["Sorcery"], { ownerId: "player-1", controllerId: "player-1", keywords: ["Suspend:3:{2}{B}{B}"] }));
+      zoneOf(intoEnd, "exile", "player-1").cards.push(card(976, "Living End", ["Sorcery"], { ownerId: "player-1", controllerId: "player-1", counters: { TIME: 1 }, keywords: ["Suspend:3:{2}{B}{B}"] }));
       const endCast = clone(F.board.gameView);
       endCast.stack = [{ id: "stack-le", sourceId: "engine-card-976", controllerId: "player-1", identity: { name: "Living End" }, sourceAbilityText: "Each player exiles all creature cards from their graveyard, then sacrifices all creatures they control, then returns all cards they exiled this way onto the battlefield.", targets: [] }];
       const le = logOf(h, intoEnd, endCast);
@@ -5511,6 +5521,37 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       h.B.sendTable(); await h.flush();
       const after = sent(h, "table").at(-1).players.find((p) => p.slot === "player-1");
       ok("foretold: gone once the foretold card is cast", !(after.allMarks || []).some((m) => /FORETOLD/.test(m)), JSON.stringify(after.allMarks));
+      // (a vote rewind to before the cast: the card back hidden in exile, no foretell in the feed, a restore)
+      const back = clone(next);
+      back.gameView.events = [];
+      seat.board = { state: back, fingerprint: null };
+      h.B.sendTable(); await h.flush();
+      const rewound = sent(h, "table").at(-1).players.find((p) => p.slot === "player-1");
+      ok("foretold: a rewind to before the cast brings the count back", (rewound.allMarks || []).includes("FORETOLD 1"), JSON.stringify(rewound.allMarks));
+      // (an AI's foretell and another hidden card new in the same exile on one board, a hideaway: the count is 1, not
+      // pinned on either; whichever leaves first is read by its face in the graveyard)
+      const fx = (cards, events, more = () => {}) => { const x = clone(F.board); zoneOf(x.gameView, "exile", "player-1").cards = cards; x.gameView.events = events; more(x.gameView); return x; };
+      const hid = (n) => ({ id: `engine-card-${n}`, visibility: "hidden" });
+      const shown = (n, name, keywords) => ({ id: `engine-card-${n}`, identity: { name }, types: ["Instant"], ownerId: "player-1", controllerId: "player-1", text: "", counters: {}, keywords });
+      const mark1 = () => (sent(h, "table").at(-1).players.find((p) => p.slot === "player-1").allMarks || []).filter((m) => /FORETOLD/.test(m));
+      const twoNew = async (first) => {
+        const s2 = setup(h, fx([], []));
+        h.B.sendTable(); await h.flush();
+        s2.board = { state: fx([hid(993), hid(994)], [{ seq: 1, kind: "move", from: "Hand", to: "Exile", how: "foretell", ownerId: "player-1" }]), fingerprint: null };
+        h.B.sendTable(); await h.flush();
+        const both = mark1();
+        // (993 is the hideaway, 994 the foretold card; `first` leaves first and resolves into the graveyard)
+        const [goneId, name, kw] = first === "hideaway" ? [993, "Pongify", []] : [994, "Saw It Coming", ["Foretell:{1}{U}"]];
+        const stay = first === "hideaway" ? 994 : 993;
+        s2.board = { state: fx([hid(stay)], [], (gv) => zoneOf(gv, "graveyard", "player-1").cards.push(shown(goneId, name, kw))), fingerprint: null };
+        h.B.sendTable(); await h.flush();
+        return { both, then: mark1() };
+      };
+      const hideFirst = await twoNew("hideaway");
+      ok("foretold: a foretell beside a new hideaway counts 1", JSON.stringify(hideFirst.both) === '["FORETOLD 1"]', JSON.stringify(hideFirst.both));
+      ok("foretold: the hideaway cast first, the foretold card still counts", JSON.stringify(hideFirst.then) === '["FORETOLD 1"]', JSON.stringify(hideFirst.then));
+      const foreFirst = await twoNew("foretold");
+      ok("foretold: the foretold card cast first, the count doesn't stick to the hideaway", foreFirst.then.length === 0, JSON.stringify(foreFirst.then));
       // (the seat's own foretold card, named in its own view: counted, and its name nowhere in the public row)
       const own = clone(F.board);
       zoneOf(own.gameView, "exile", "player-0").cards = [{ id: "engine-card-991", identity: { name: "Doomskar" }, isFaceDown: true, isForetold: true, types: ["Sorcery"], ownerId: "player-0" }];
@@ -5520,6 +5561,21 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const blue = sent(h, "table").at(-1).players.find((p) => p.slot === "player-0");
       ok("foretold: the seat's own foretold card is counted", (blue.allMarks || []).includes("FORETOLD 1"), JSON.stringify(blue.allMarks));
       ok("foretold: the marks never name the card", !JSON.stringify([blue.allMarks, blue.markTips]).includes("Doomskar"), JSON.stringify([blue.allMarks, blue.markTips]));
+      // (a human's foretell, which its own view names, and a face-down card new in that exile on the same board: the
+      // feed's one foretell is the view's card, not also the other)
+      const mine0 = clone(F.board);
+      zoneOf(mine0.gameView, "exile", "player-0").cards = [];
+      mine0.gameView.events = []; // (a feed from the first board on, so the next board's foretell is read)
+      const s0 = setup(h, mine0);
+      h.B.sendTable(); await h.flush();
+      const mine1 = clone(mine0);
+      zoneOf(mine1.gameView, "exile", "player-0").cards = [{ id: "engine-card-995", identity: { name: "Doomskar" }, isFaceDown: true, isForetold: true, types: ["Sorcery"], ownerId: "player-0" },
+        { id: "engine-card-996", identity: { name: "Ancestral Recall" }, isFaceDown: true, types: ["Instant"], ownerId: "player-0" }];
+      mine1.gameView.events = [{ seq: 1, kind: "move", from: "Hand", to: "Exile", how: "foretell", ownerId: "player-0" }];
+      s0.board = { state: mine1, fingerprint: null };
+      h.B.sendTable(); await h.flush();
+      const human = (sent(h, "table").at(-1).players.find((p) => p.slot === "player-0").allMarks || []).filter((m) => /FORETOLD/.test(m));
+      ok("foretold: a human's foretell beside another new face-down card counts 1", JSON.stringify(human) === '["FORETOLD 1"]', JSON.stringify(human));
       harness.restore();
     }
     // row 21 (C8): a vote notice shown to each human seat is said once, as the table's, not "<seat> saw:"
