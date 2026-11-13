@@ -620,7 +620,18 @@ Spec: [planechase-dungeon-engine-spec.md](planechase-dungeon-engine-spec.md).
   The node and harness drop it today; no `gameConfig` message is needed for it.
 - Dungeons and the initiative already run in the engine; the work is state fields, the bridge and the table.
 
-## 12. Questions for the user
+## 12. Decisions (the user, 2026-11-13)
+
+1. **Two-Headed Giant:** the cheaper version (Level 1) first: shared life, poison and blocks, partners take their own
+   turns back to back. Level 2 (the real shared turn) is not planned.
+2. **Commander numbers:** 2HG Commander starts at **80 life per team**, and a team loses at **42 damage from one
+   commander** (our house rule, not Wizards' 60/21). **3v3 is Commander.** Its life and commander damage were not given;
+   the proposal is to scale the user's numbers by team size: **120 life and 63 damage** (to confirm).
+3. **Standard AI decks:** Claude picks four current Standard decks (from Forge's own Standard list, §3.3).
+4. **Six seats:** stays parked (the 2026-11-06 decision holds). 3v3 waits with it.
+5. **Partners' hands:** yes, partners see each other's hands in 2HG and 3HG.
+
+The questions as asked:
 
 1. **Two-Headed Giant:** is the cheaper version OK first, where partners share life and block for each other but still
    take their own turns one after the other? The real shared turn is about 63–83 more hours of engine work.
