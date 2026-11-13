@@ -1963,28 +1963,45 @@ function delayedWhen(d) {
   if (!d.when) return "";
   return d.turnOf ? ` at ${nameOf(d.turnOf)}'s next ${d.when}` : ` at ${d.when}`;
 }
+// (hidden information: what every seat sees comes from one seat's view, and Forge's texts name the cards a trigger
+// remembers, which the engine strips of ids but not of names; a trigger whose host or any remembered card is face
+// down or out of the public zones in that view shows no text, only its fixed words, publicCardIds)
 function delayedOf(pub) {
   const cards = new Map(), players = new Map();
+  const shown = publicCardIds(pub);
   const add = (map, k, v) => { if (!map.has(k)) map.set(k, []); if (!map.get(k).some((x) => JSON.stringify(x) === JSON.stringify(v))) map.get(k).push(v); };
   for (const d of Array.isArray(pub?.delayed) ? pub.delayed : []) {
     if (!d || typeof d.text !== "string") continue;
     const ids = Array.isArray(d.cardIds) ? d.cardIds : [];
-    const action = delayedAction(d.text);
-    const verb = DELAYED_VERBS.find(([re]) => re.test(action));
+    const open = [...ids, ...(d.hostCardId ? [d.hostCardId] : [])].every((id) => shown.has(id));
+    const action = open ? delayedAction(d.text) : "";
+    const verb = open ? DELAYED_VERBS.find(([re]) => re.test(action)) : null;
     const when = delayedWhen(d); // (" at end step", or "")
     const At = when ? `A${when.slice(2)}` : "Later"; // ("At end step")
-    const doing = shortText(`${At}: ${action.charAt(0).toLowerCase()}${action.slice(1)}`, 80);
+    const doing = open ? shortText(`${At}: ${action.charAt(0).toLowerCase()}${action.slice(1)}`, 80) : `${At}: a delayed trigger`;
     for (const id of ids) add(cards, id, verb ? `${verb[1]}${when || " later"}` : doing);
     if (d.hostCardId && !ids.includes(d.hostCardId)) add(cards, d.hostCardId, doing);
     // (no card to mark and waiting for a player's turn, or with no card at all: the player's mark, Pact of Negation's)
     if (!ids.length && (d.turnOf || !d.hostCardId)) {
       const who = d.turnOf || d.controllerId;
       const host = d.hostCardId ? game?.namesSeen?.get(d.hostCardId) : null;
-      const label = `${d.turnOf && d.when ? "NEXT " : ""}${d.when ? `${String(d.when).toUpperCase()}: ` : ""}${action.toUpperCase()}`;
-      if (who) add(players, who, { label: shortText(label, 40), tip: `${host ? `${host}: ` : ""}${d.text.trim()}` });
+      const label = `${d.turnOf && d.when ? "NEXT " : ""}${d.when ? `${String(d.when).toUpperCase()}: ` : ""}${open ? action.toUpperCase() : "DELAYED TRIGGER"}`;
+      if (who) add(players, who, { label: shortText(label, 40), tip: open ? `${host ? `${host}: ` : ""}${d.text.trim()}` : "" });
     }
   }
   return { cards, players };
+}
+// The ids of the cards every seat may see in a view: face up in a public zone (the log's PUBLIC_ZONES)
+// or on the stack; not a hand's or a library's, nor a face-down or hidden one
+function publicCardIds(pub) {
+  const ids = new Set();
+  for (const z of pub?.zones || []) {
+    if (!PUBLIC_ZONES.includes(z.zone)) continue;
+    for (const c of z.cards || []) if (c?.id && c.identity && !c.isFaceDown && c.visibility !== "hidden") ids.add(c.id);
+  }
+  // (a spell on the stack by its own id; not an ability's source, which may be a card in a hand)
+  for (const s of pub?.stack || []) if (s?.id && s.identity?.name && !s.isFaceDown) ids.add(s.id);
+  return ids;
 }
 const delayedWordsOf = (id) => game?.delayedNow?.cards.get(id) || [];
 
@@ -4925,9 +4942,12 @@ function trackMarks(p, pub, at = {}) {
 const EFFECT_MARKS = 3;
 const EFFECT_DURATIONS = { UntilYourNextTurn: "until your next turn", UntilYourNextUpkeep: "until your next upkeep",
   UntilEndOfCombat: "this combat", UntilTheEndOfYourNextTurn: "until the end of your next turn", UntilHostLeavesPlay: "while its source stays" };
-function effectMark(e) {
+// (hidden information, as delayedOf: an effect whose source card is face down or out of the public zones in the view
+// every seat's board comes from shows no text, and no label made from its name; an emblem is public, its label stays)
+function effectMark(e, shown) {
   const name = String(e.name || "").trim();
   const text = String(e.text || "").trim();
+  const open = !e.sourceCardId || shown.has(e.sourceCardId);
   const base = name.replace(/'s Effect$/i, "").replace(/ Effect$/i, "").trim() || "Effect";
   const dur = e.untilEndOfTurn ? "this turn" : EFFECT_DURATIONS[e.duration] || "";
   const skip = /^Skip your next (?:(\w+) )?turns?\b/i.exec(text);
@@ -4935,14 +4955,15 @@ function effectMark(e) {
   const label = e.emblem ? `EMBLEM: ${base.replace(/^Emblem\s*[-—:]?\s*/i, "").split(",")[0].trim() || base}`
     : n ? (n > 1 ? `SKIPS NEXT ${n} TURNS` : "SKIPS NEXT TURN")
     : e.untilEndOfTurn && /\bprevent all combat damage\b/i.test(text) ? "FOG THIS TURN"
-    : `${base}${dur ? ` ${dur}` : ""}`;
-  return `${label.toUpperCase()}\t${base}${dur ? ` (${dur})` : ""}: ${text || "(no text)"}`;
+    : `${open ? base : "RULES EFFECT"}${dur ? ` ${dur}` : ""}`;
+  return `${label.toUpperCase()}\t${open ? `${base}${dur ? ` (${dur})` : ""}: ${text || "(no text)"}` : ""}`;
 }
-function effectMarks(p) {
-  const all = (Array.isArray(p.effects) ? p.effects : []).filter((e) => e && (e.name || e.text)).map(effectMark);
+function effectMarks(p, pub) {
+  const shown = publicCardIds(pub);
+  const all = (Array.isArray(p.effects) ? p.effects : []).filter((e) => e && (e.name || e.text)).map((e) => effectMark(e, shown));
   if (all.length <= EFFECT_MARKS + 1) return all;
   const rest = all.slice(EFFECT_MARKS);
-  return [...all.slice(0, EFFECT_MARKS), `+${rest.length} MORE EFFECTS\t${rest.map((m) => m.split("\t")[1]).join("\n")}`];
+  return [...all.slice(0, EFFECT_MARKS), `+${rest.length} MORE EFFECTS\t${rest.map((m) => m.split("\t")[1]).filter(Boolean).join("\n")}`];
 }
 // The spells cast this turn, for the active player (engine1112 PlayerDto.spellsCastThisTurn and GameViewDto.stormCount,
 // each sent only above 0, E6): "SPELLS THIS TURN: 2 (STORM 3)", the storm count being every player's spells

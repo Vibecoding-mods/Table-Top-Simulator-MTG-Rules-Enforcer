@@ -2710,10 +2710,13 @@ function engineRender(m)
   for _, pl in ipairs(m.players or {}) do for _, c in ipairs(pl.battlefield or {}) do if c.att ~= nil then allHosts[c.att] = true end end end
   -- a curse on another player (the bridge's attP, Forge's attachedToPlayer) lies on that player's mat, with their other
   -- permanents, not loose among its controller's (docs/readability-audit-2026-11-12.md E9)
-  local cursed, onOther = {}, {}
+  -- (only onto a player this board still draws: a curse on an eliminated player stays in its controller's rows, or it
+  -- would be drawn nowhere and cleaned up)
+  local cursed, onOther, present = {}, {}, {}
+  for _, pl in ipairs(m.players or {}) do if pl.color ~= nil then present[pl.color] = true end end
   for _, pl in ipairs(m.players or {}) do
     for _, c in ipairs(pl.battlefield or {}) do
-      if c.att == nil and c.attP ~= nil and c.attP ~= pl.color and seatGeometry(c.attP) ~= nil then
+      if c.att == nil and c.attP ~= nil and c.attP ~= pl.color and present[c.attP] and seatGeometry(c.attP) ~= nil then
         cursed[c.attP] = cursed[c.attP] or {}
         table.insert(cursed[c.attP], c)
         onOther[c.id] = true

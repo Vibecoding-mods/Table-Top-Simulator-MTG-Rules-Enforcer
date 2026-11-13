@@ -4396,8 +4396,9 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       let threw = null;
       try { h.B.sendTable(); await h.flush(); } catch (e) { threw = e; }
       const t = sent(h, "table")[0];
+      const all = JSON.stringify(h.effects.filter((e) => e.tts));
       harness.restore();
-      return { t, threw };
+      return { t, threw, all };
     };
     const cardIn = (t, id) => (t?.players || []).flatMap((p) => [...(p.battlefield || []), ...(p.exile || []), ...(p.graveyard || [])]).find((c) => c.id === id);
     const rowOf = (t, slot) => (t?.players || []).find((p) => p.slot === slot);
@@ -4485,6 +4486,11 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ];
       const LABELS = ["FOG THIS TURN", "EMBLEM: GIDEON", "TEFERI'S PROTECTION UNTIL YOUR NEXT TURN", "SKIPS NEXT 2 TURNS"];
       const { t, threw } = await tableOf((gv) => {
+        // (their sources where the effects leave them: in a graveyard, on the battlefield, in exile)
+        zoneOf(gv, "graveyard", "player-0").cards.push(card("engine-card-970", "Moment's Peace", "player-0", { types: ["Instant"] }));
+        zoneOf(gv, "battlefield", "player-0").cards.push(card("engine-card-971", "Gideon, Ally of Zendikar", "player-0", { types: ["Planeswalker"] }),
+          card("engine-card-973", "Eater of Days", "player-0", { types: ["Artifact", "Creature"] }));
+        zoneOf(gv, "exile", "player-0").cards.push(card("engine-card-972", "Teferi's Protection", "player-0", { types: ["Instant"] }));
         Object.assign(gv.players.find((p) => p.id === "player-0"), { effects: EFFECTS, spellsCastThisTurn: 1, lifeGainedThisTurn: 5, lifeLostThisTurn: 4 });
         Object.assign(gv.players.find((p) => p.id === "player-1"), { spellsCastThisTurn: 2, effects: [...EFFECTS, { ...EFFECTS[0], id: "effect-5", name: "Holy Day's Effect" }] });
         gv.stormCount = 3;
@@ -4504,6 +4510,32 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("engine1112 spells: the active player's spells and the storm count", (ai?.allMarks || []).includes("SPELLS THIS TURN: 2 (STORM 3)"), JSON.stringify(ai?.allMarks));
       ok("engine1112 spells: not for a player whose turn it isn't", !(blue?.allMarks || []).some((m) => /SPELLS/.test(m)), JSON.stringify(blue?.allMarks));
       ok("engine1112 life: gained and lost this turn in the life counter's hover", blue?.lifeTip === "Gained 5 life this turn\nLost 4 life this turn" && !("lifeTip" in (ai || {})), JSON.stringify([blue?.lifeTip, ai?.lifeTip]));
+    }
+    // hidden information (delayedOf, effectMark): Forge's texts name the cards a trigger remembers (ids stripped, names
+    // kept), and every seat sees the marks; a trigger or effect tied to a face-down card or one in a hand shows no text
+    // and no name, only its fixed words; one tied to public cards still shows its text (the checks above)
+    {
+      const { t, threw, all } = await tableOf((gv) => {
+        zoneOf(gv, "battlefield", "player-1").cards.push(card("engine-card-980", "Flickerwisp", "player-1"));
+        zoneOf(gv, "exile", "player-1").cards.push({ ...card("engine-card-981", "SecretBear", "player-1"), isFaceDown: true });
+        // (another player's hand card, as a seat's view holds it: an id only; the trigger's and effect's texts name it)
+        zoneOf(gv, "hand", "player-1").cards.push({ id: "engine-card-982", visibility: "hidden" });
+        gv.delayed = [
+          { id: "delayed-9", text: "Return SecretBear to the battlefield.", controllerId: "player-1", hostCardId: "engine-card-980", cardIds: ["engine-card-981"], when: "end step" },
+          { id: "delayed-10", text: "At the beginning of your next upkeep, reveal SecretPact.", controllerId: "player-1", hostCardId: "engine-card-982", cardIds: [], when: "upkeep", turnOf: "player-1" },
+        ];
+        gv.players.find((p) => p.id === "player-1").effects = [
+          { id: "effect-9", name: "SecretPact's Effect", text: "SecretPact: you can't lose this turn.", sourceCardId: "engine-card-982", emblem: false, untilEndOfTurn: true }];
+      });
+      const everything = all || "";
+      const ai = rowOf(t, "player-1");
+      ok("engine1112 hidden: precondition, the board went out", !threw && !!t, threw?.stack);
+      ok("engine1112 hidden: no name of a face-down or hand card anywhere on the table", !/SecretBear|SecretPact/.test(everything), everything.match(/.{60}Secret.{40}/)?.[0]);
+      ok("engine1112 hidden: the trigger's own card says only that one waits", (cardIn(t, "engine-card-980")?.kw || []).includes("At end step: a delayed trigger"), JSON.stringify(cardIn(t, "engine-card-980")?.kw));
+      const at = (ai?.allMarks || []).indexOf("NEXT UPKEEP: DELAYED TRIGGER");
+      ok("engine1112 hidden: a hand card's trigger is a mark with fixed words and the common hover", at >= 0 && (ai.markTips?.[at] || "") === "", JSON.stringify([ai?.allMarks, ai?.markTips]));
+      const ef = (ai?.allMarks || []).indexOf("RULES EFFECT THIS TURN");
+      ok("engine1112 hidden: an effect from a hand card shows fixed words and the common hover", ef >= 0 && (ai.markTips?.[ef] || "") === "", JSON.stringify([ai?.allMarks, ai?.markTips]));
     }
     // damage entries in the event ring (EngineEventDamageTest: kind "damage", to "Damage", no cardId): the bridge reads
     // the moves around them as before and breaks on none
