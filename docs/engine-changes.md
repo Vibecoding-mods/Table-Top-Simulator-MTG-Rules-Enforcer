@@ -69,7 +69,23 @@ outer repo's `engine/manabrew.patch` history (`git -C mtg-tts log -- engine/mana
 ## 2. Pending / in progress (2026-11-13)
 
 `engine1113` (the four engine1112 review follow-ups, section 4) is **built and tested, not deployed**. The deployed engine
-is still `engine1112` (deployed 2026-11-12 ~22:25 with main `f66ba5e`).
+is still `engine1112` (deployed 2026-11-12 ~22:25 with main `f66ba5e`). Merged to main `e64787f` after an
+independent review (verdict: merge, no blockers; bridge claims 1395 pass).
+
+Open follow-ups from that review (none a regression of engine1113; the table is protected by the bridge for 1 and 2):
+1. `EffectsView.effects(player)` has no viewer filter: an effect whose source card went to a hand or library still sends
+   that card's id, name and text in every seat's raw view (the bridge filters it: claims check "engine1112 hidden: an
+   effect from a hand card"). Fix: give `effects` the same `shownTo` predicate `delayed` got.
+2. The delayed-trigger filter treats a face-down permanent as shown (`CardView.canBeShownTo` is true on the battlefield),
+   and `Trigger.toString` can name the real card through `getHostName`. Fix: `shownTo(c) && (!c.isFaceDown() ||
+   faceShownTo(c, viewer))`. Rare (a permanent turned face down after its trigger was made); the bridge's
+   `publicCardIds` already excludes face-down cards.
+3. bridge `delayedOf`: a host in seat 0's own hand vs another seat's hand gives different player marks (no card named
+   either way).
+4. `CardStateFlagsTest.seatsWhileTheGameWaitsShareOneRound` can fail spuriously if a 1 s `pollAction` timeout falls
+   between its snapshots.
+5. The engine1113 entry below says a prompt's `cardDto` "still shares the defenders per controller": outside a snapshot
+   each card gets its own round, so nothing is shared (output unchanged).
 
 ## 3. Summary table (newest first)
 
