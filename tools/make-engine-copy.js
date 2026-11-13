@@ -120,8 +120,10 @@ patchScripts("rikrassen importer: disable check_version (downloads importer code
 
 save.SaveName = "MTG 4 player table - ENGINE MODE";
 // background: Ariande's Hideaway skybox (assets/ariande-skybox-4096.jpg), uploaded to Steam Cloud so every player
-// sees it (a file:// picture would show only on the host's PC)
-save.SkyURL = "https://steamusercontent-a.akamaihd.net/ugc/18285858995376011531/FC6BD5C748CC76B4AE3958D3AD6FCCE2BEFB4892/";
+// sees it (a file:// picture would show only on the host's PC). Since 2026-11-13 the floor is pulled 1.5x closer
+// (tools/warp-skybox.py, assets/ariande-skybox-4096-floor15.jpg, sha256 ce0f24a5...; the link downloaded back and
+// matched); the unwarped one was ugc/18285858995376011531/FC6BD5C748CC76B4AE3958D3AD6FCCE2BEFB4892/
+save.SkyURL = "https://steamusercontent-a.akamaihd.net/ugc/15166805931125466029/A699B821ACFA350FD8DE708796C23D2B0803FEF3/";
 // ───────────── Step 1: ENGINE MODE switch (PLAN.md M4) ─────────────
 // `mtg engine on|off` in chat (host/promoted). Off = the table works exactly as before.
 // On = every manual rules helper below does nothing and says so, because the engine runs the game.
