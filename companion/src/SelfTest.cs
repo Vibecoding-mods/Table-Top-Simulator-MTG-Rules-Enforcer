@@ -257,6 +257,9 @@ namespace MtgCompanion
         static void Stack()
         {
             sb.AppendLine("-- engine stack");
+            Check("relay heal: two broken logins, no game: restart relay and room", Logic.HealRelayNow(2, false, false, 60));
+            Check("relay heal: one broken login, a game (or can't tell), observe, or a heal 5 min ago: no", !Logic.HealRelayNow(1, false, false, 60) && !Logic.HealRelayNow(5, true, false, 60) && !Logic.HealRelayNow(5, false, true, 60) && !Logic.HealRelayNow(5, false, false, 5));
+            Check("relay heal: broken is closed/refused/timeout/error, never ok, a wrong key or no probe", Logic.LoginBroken(LoginKind.Closed) && Logic.LoginBroken(LoginKind.Refused) && Logic.LoginBroken(LoginKind.Timeout) && Logic.LoginBroken(LoginKind.Error) && !Logic.LoginBroken(LoginKind.Ok) && !Logic.LoginBroken(LoginKind.AuthFailed) && !Logic.LoginBroken(LoginKind.Skipped));
             var none = Game.None("No game."); var on = Game.On("Game on", 6);
             var v = Logic.DecideStack(new ContainerInfo { Exists = false }, Up(""), null, none);
             Check("relay missing: red, Start the engine", v.Light == Light.Red && v.Fix == Fixes.StackRestart, v);
@@ -366,6 +369,30 @@ namespace MtgCompanion
             Check("HTTP 500: can't tell", g.Kind == GameKind.CantTell, g.Text);
             Check("locked fixes: restart relay/room, bridge, image load", Fixes.LocksDuringGame(Fixes.StackRestart) && Fixes.LocksDuringGame(Fixes.BridgeRestart) && Fixes.LocksDuringGame(Fixes.ImagesLoad));
             Check("never locked: open TTS, start Docker, start a dead bridge, try again", !Fixes.LocksDuringGame(Fixes.TtsOpen) && !Fixes.LocksDuringGame(Fixes.DockerStart) && !Fixes.LocksDuringGame(Fixes.BridgeStart) && !Fixes.LocksDuringGame(Fixes.Retry));
+            // another program on port 48787 (break-it test 2026-11-13): no bridge runs, so no game, not "can't tell"
+            Func<string, string, Func<IList<Listener>>> on48787 = (name, cmd) => () => new List<Listener> { new Listener { Port = 48787, Pid = 7, Name = name, CommandLine = cmd } };
+            g = Logic.DecideGame(Logic.StateForLock(HttpResult.Of(HttpKind.Timeout), on48787("node", "node C:\\x\\occupy.js 48787")), null);
+            Check("port lock: a non-bridge node holds 48787, /state times out: no game, unlocked", g.Kind == GameKind.None && !Logic.Locked(g), g.Text);
+            g = Logic.DecideGame(Logic.StateForLock(new HttpResult { Kind = HttpKind.Ok, Status = 404, Body = "nope" }, on48787("Code", null)), null);
+            Check("port lock: another program answers 404 on 48787: no game, unlocked", g.Kind == GameKind.None, g.Text);
+            g = Logic.DecideGame(Logic.StateForLock(HttpResult.Of(HttpKind.Timeout), on48787("node", "node C:\\x\\occupy.js")), 15);
+            Check("port lock: foreign holder but a fresh resume file: still locked", Logic.Locked(g), g.Text);
+            g = Logic.DecideGame(Logic.StateForLock(HttpResult.Of(HttpKind.Timeout), on48787("node", "node --x C:\\r\\bridge\\bridge.js")), null);
+            Check("port lock: a bridge holds 48787 and times out: still can't tell", g.Kind == GameKind.CantTell, g.Text);
+            g = Logic.DecideGame(Logic.StateForLock(HttpResult.Of(HttpKind.Timeout), on48787("node", null)), null);
+            Check("port lock: a node whose command line can't be read: still can't tell", g.Kind == GameKind.CantTell, g.Text);
+            g = Logic.DecideGame(Logic.StateForLock(HttpResult.Of(HttpKind.Timeout), () => new List<Listener>()), null);
+            Check("port lock: nobody listed on 48787: still can't tell", g.Kind == GameKind.CantTell, g.Text);
+            Func<IList<Listener>> twoOn48787 = () => new List<Listener> { new Listener { Port = 48787, Pid = 7, Name = "Code", CommandLine = "code" }, new Listener { Port = 48787, Pid = 8, Name = "node", CommandLine = "node C:\\r\\bridge\\bridge.js" } };
+            g = Logic.DecideGame(Logic.StateForLock(HttpResult.Of(HttpKind.Timeout), twoOn48787), null);
+            Check("port lock: a foreign program on IPv4 and a bridge on IPv6: still can't tell", g.Kind == GameKind.CantTell, g.Text);
+            g = Logic.DecideGame(Logic.StateForLock(HttpResult.Of(HttpKind.Timeout), on48787("node", "")), null);
+            Check("port lock: a node with an empty command line: still can't tell", g.Kind == GameKind.CantTell, g.Text);
+            g = Logic.DecideGame(Logic.StateForLock(HttpResult.Of(HttpKind.Timeout), () => { throw new InvalidOperationException("wmi"); }), null);
+            Check("port lock: the port read throws: still can't tell, no throw", g.Kind == GameKind.CantTell, g.Text);
+            var okState = State("{\"started\":true,\"seats\":[{\"turn\":2}]}");
+            Check("port lock: a good /state answer is used as it is (ports not read)", Logic.StateForLock(okState, () => { throw new InvalidOperationException("read"); }) == okState);
+            Check("restart label: can't tell says so, not 'game on'", Logic.RestartLabel(Game.CantTell("slow")) == "Restart engine (locked: can't tell)" && Logic.RestartLabel(Game.On("x", 1)) == "Restart engine (locked: game on)" && Logic.RestartLabel(Game.None("No game.")) == "Restart engine", Logic.RestartLabel(Game.CantTell("slow")));
 
             // the real Controller refuses while a game is on (its worker isn't started: nothing can run)
             var tmp = Path.Combine(Path.GetTempPath(), "mtg-companion-selftest-" + Guid.NewGuid().ToString("N").Substring(0, 6));
@@ -776,6 +803,9 @@ namespace MtgCompanion
             Check("stamp: round trip, UTC", st.HasValue && st.Value == now && st.Value.Kind == DateTimeKind.Utc, st);
             Check("stamp: garbage or empty reads as none", Logic.ParseTrimStamp("not a date") == null && Logic.ParseTrimStamp("") == null && Logic.ParseTrimStamp(null) == null);
             Check("trim now: due, no game", Logic.TrimNow(true, Game.None("No game."), false));
+            Check("no stamp: the newest .old roll is the last trim", Logic.LastTrimOr(null, new[] { now.AddDays(-20), now.AddHours(-3) }) == now.AddHours(-3) && !Logic.TrimDue(Logic.LastTrimOr(null, new[] { now.AddHours(-3) }), now));
+            Check("no stamp, no roll: none (trim); a stamp wins over the rolls", Logic.LastTrimOr(null, new DateTime[0]) == null && Logic.LastTrimOr(now, new[] { now.AddDays(1) }) == now);
+            Check("trim rolls: companion.log.old yes; bridge-live.log.old, .old alone, table-log no", Logic.IsTrimRoll("companion.log.old") && Logic.IsTrimRoll("TTS-console.log.OLD") && !Logic.IsTrimRoll("bridge-live.log.old") && !Logic.IsTrimRoll(".old") && !Logic.IsTrimRoll("table-log.log"));
             Check("trim waits: game on", !Logic.TrimNow(true, Game.On("Game on", 3), false));
             Check("trim waits: can't tell", !Logic.TrimNow(true, Game.CantTell("slow"), false));
             Check("trim waits: not due, or an observing copy", !Logic.TrimNow(false, Game.None("No game."), false) && !Logic.TrimNow(true, Game.None("No game."), true));
@@ -859,6 +889,10 @@ namespace MtgCompanion
                 Check("run: the line says what was freed", result.StartsWith("log trim: freed ") && result.Contains("table-log.log archived") && result.Contains("tts-stream.jsonl deleted"), result);
                 var last = LogTrim.LastTrim(l);
                 Check("run: stamp written, next trim in 14 days", last.HasValue && last.Value == now && !Logic.TrimDue(last, now.AddDays(13)) && Logic.TrimDue(last, now.AddDays(14)), last);
+                File.Delete(LogTrim.StampFile(l));
+                var noStamp = LogTrim.LastTrim(l);
+                Check("stamp deleted: the .old rolls just made say the trim was now, not due", noStamp.HasValue && !Logic.TrimDue(noStamp, DateTime.UtcNow), noStamp);
+                File.WriteAllText(LogTrim.StampFile(l), Logic.TrimStampText(now));
 
                 // a .trimming a failed run left, and new lines since: both archived, the leftover first, nothing lost
                 File.WriteAllText(Path.Combine(l.LogsDir, "table-log.log.trimming"), "left over\n");
@@ -900,6 +934,8 @@ namespace MtgCompanion
             sb.AppendLine("-- misc");
             Check("relay key from stack\\.env", Logic.RelayKey("FOO=1\r\nMANABREW_SERVER_KEY=\"s3cret\"\r\n") == "s3cret");
             Check("relay key default", Logic.RelayKey(null) == "tts-local" && Logic.RelayKey("MANABREW_SERVER_KEY=") == "tts-local");
+            Check("light log: a green light whose login ms alone moved: no line", !Logic.LogLightChange(Light.Green, "Ready: room tts-commander is open (login 7 ms).", Light.Green, "Ready: room tts-commander is open (login 164 ms)."));
+            Check("light log: new words, a new colour, or a red light's numbers: a line", Logic.LogLightChange(Light.Green, "Running (bridge 12345678).", Light.Green, "Running (bridge 87654321).") && Logic.LogLightChange(Light.Green, "Ready (login 7 ms).", Light.Red, "Ready (login 7 ms).") && Logic.LogLightChange(Light.Red, "waited 3 s", Light.Red, "waited 4 s"));
             Check("worst light: red beats amber", Logic.Worst(new[] { Light.Green, Light.Amber, Light.Red }) == Light.Red);
             Check("worst light: all grey is grey", Logic.Worst(new[] { Light.Grey, Light.Grey }) == Light.Grey);
             Check("worst light: grey rows don't hide green", Logic.Worst(new[] { Light.Grey, Light.Green }) == Light.Green);

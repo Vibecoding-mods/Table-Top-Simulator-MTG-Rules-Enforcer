@@ -357,7 +357,7 @@ namespace MtgCompanion
             tips.SetToolTip(restartBtn, locked ? Logic.LockText(g) : "Stops the bridge, restarts relay and room, then starts the bridge again.");
             stopBtn.Enabled = miStop.Enabled = !c.Observe;
             wslBtn.Enabled = !c.Observe;
-            miRestart.Text = locked ? "Restart engine (locked: game on)" : "Restart engine";
+            miRestart.Text = Logic.RestartLabel(g);
 
             var worst = Logic.Worst(c.Rows.Select(r => r.V.Light));
             var icon = Icons.Tray(worst == Light.Grey ? Light.Grey : worst);

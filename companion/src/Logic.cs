@@ -225,6 +225,27 @@ namespace MtgCompanion
             return players + (players == 1 ? " player" : " players") + (ai > 0 ? " (" + ai + " AI)" : "");
         }
 
+        // /state as the game lock reads it. When /state gave no usable answer (a timeout, an error, not HTTP 200) and the
+        // programs on port 48787 are all known not to be a bridge (not node, or a node whose command line was read and
+        // isn't bridge.js; every listener, IPv4 and IPv6), no bridge runs, so it counts as refused: "the bridge isn't
+        // running" (a fresh resume file still locks). Without this, a program holding the port (break-it test
+        // 2026-11-13) locked Restart engine as "can't tell" for as long as it ran. held: the 48787 listeners, read only
+        // when needed; a read that throws leaves the answer as it was.
+        public static HttpResult StateForLock(HttpResult state, Func<IList<Listener>> held)
+        {
+            if (state.Kind == HttpKind.Refused || (state.Kind == HttpKind.Ok && state.Status == 200 && J.Parse(state.Body) is Dictionary<string, object>)) return state;
+            List<Listener> on;
+            try { on = (held() ?? new List<Listener>()).Where(x => x != null && x.Port == 48787).ToList(); }
+            catch { return state; }
+            if (on.Count == 0) return state;
+            foreach (var l in on)
+            {
+                bool isNode = string.Equals(l.Name, "node", StringComparison.OrdinalIgnoreCase) || string.Equals(l.Name, "node.exe", StringComparison.OrdinalIgnoreCase);
+                if (string.IsNullOrEmpty(l.Name) || (isNode && (string.IsNullOrEmpty(l.CommandLine) || IsBridgeCommandLine(l.CommandLine)))) return state; // (could be a bridge: can't tell)
+            }
+            return new HttpResult { Kind = HttpKind.Refused, Error = "port 48787 held by " + on[0].Name };
+        }
+
         public static bool Locked(Game g) { return g == null || g.Kind != GameKind.None; }
 
         public static string LockText(Game g)
@@ -232,6 +253,13 @@ namespace MtgCompanion
             return g != null && g.Kind == GameKind.CantTell
                 ? "Locked: can't tell whether a game is on. Try again in a minute."
                 : "Locked: a game is on. Do this after the game.";
+        }
+
+        // the Restart engine menu item's label: what locks it, in a few words
+        public static string RestartLabel(Game g)
+        {
+            if (!Locked(g)) return "Restart engine";
+            return g != null && g.Kind == GameKind.CantTell ? "Restart engine (locked: can't tell)" : "Restart engine (locked: game on)";
         }
 
         // ───────────────────────────── 1. Docker ─────────────────────────────
@@ -372,6 +400,19 @@ namespace MtgCompanion
                     return new Verdict(Light.Red, "The relay is up, but this PC can't log in to it (" + login.Kind.ToString().ToLowerInvariant() + "), so games would fail at setup. This happens after Docker or WSL restarts.")
                         .WithFix(Fixes.StackRestart, "Restart relay and room");
             }
+        }
+
+        // A login that says the relay won't let this PC in although it runs healthy: the stale 127.0.0.1:9443 forward after
+        // `wsl --shutdown` or a Docker restart (not a wrong key, not a probe that wasn't made)
+        public static bool LoginBroken(LoginKind k) { return k != LoginKind.Ok && k != LoginKind.AuthFailed && k != LoginKind.Skipped; }
+
+        // The watcher restarts relay and room by itself (as the start sequence's engine wait does): two fresh logins in
+        // a row broken on a healthy relay, no game (Locked), not observing, and none of its own restarts in the last 10
+        // minutes. Before, a `wsl --shutdown` left the light red until someone pressed the button (break-it test
+        // 2026-11-13).
+        public static bool HealRelayNow(int brokenLogins, bool locked, bool observe, double minutesSinceLastHeal)
+        {
+            return brokenLogins >= 2 && !locked && !observe && minutesSinceLastHeal >= 10;
         }
 
         // The first folder of the package the bridge can't write (its logs, resume file and picture cache), in words, or
@@ -606,6 +647,24 @@ namespace MtgCompanion
             return since.TotalDays >= TrimEveryDays || since.TotalDays < -1;
         }
 
+        // The last trim when the stamp is gone or unreadable: the newest .old roll's time (a roll keeps the log's own last
+        // write, and companion.log is written up to the trim). A deleted stamp otherwise trimmed again at once and
+        // deleted the .old copies of a few hours before (break-it test 2026-11-13). null: no stamp and no roll yet.
+        public static DateTime? LastTrimOr(DateTime? stampUtc, IEnumerable<DateTime> oldRollsUtc)
+        {
+            if (stampUtc.HasValue) return stampUtc;
+            DateTime? newest = null;
+            foreach (var t in oldRollsUtc ?? new DateTime[0]) if (!newest.HasValue || t > newest.Value) newest = t;
+            return newest;
+        }
+
+        // the .old rolls the trim makes, by file name (tts-console.log.old, companion.log.old...)
+        public static bool IsTrimRoll(string fileName)
+        {
+            string n = (fileName ?? "").ToLowerInvariant();
+            return n.EndsWith(".old") && RollNames.Contains(n.Substring(0, n.Length - 4));
+        }
+
         // Trim now: due, not an observing copy, and no game (Can't tell waits too, as Locked says)
         public static bool TrimNow(bool due, Game game, bool observe) { return due && !observe && !Locked(game); }
 
@@ -687,6 +746,14 @@ namespace MtgCompanion
                 for (int i = 0; i < 4; i++) sb.Append(h[i].ToString("x2"));
                 return sb.ToString();
             }
+        }
+
+        // a light's new text worth a companion.log line: not when only a time in ms moved on a light that stays green
+        // (the stack's "login 7 ms" changed every minute: 1,400 lines a day of nothing, break-it test 2026-11-13)
+        public static bool LogLightChange(Light was, string wasText, Light now, string nowText)
+        {
+            if (was != now || now != Light.Green || wasText == null || nowText == null) return true;
+            return Regex.Replace(wasText, "[0-9]+ ms", "# ms") != Regex.Replace(nowText, "[0-9]+ ms", "# ms");
         }
 
         public static string Clip(string s, int n) { if (s == null) return ""; return s.Length <= n ? s : s.Substring(0, n) + "…"; }
