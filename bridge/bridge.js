@@ -2642,10 +2642,11 @@ function logSnapshot(pub, prev = null) {
         ...((n) => (n > 0 ? { loy: n } : {}))(Object.entries(c.counters || {}).find(([k]) => /^loyalty$/i.test(k))?.[1]),
         ...(c.mergedCardIds?.length ? { merged: [...c.mergedCardIds] } : {}),
         ...(hasKeyword(c, "Rebound") ? { rebound: true } : {}),
-        // (suspended: face up in exile with time counters, or so on the last board and still there, its last counter just
-        // removed. Not the keyword: an impulse-drawn Rift Bolt cast for its cost, or a cascade into Living End, read
-        // "casts ... from suspend", review 2026-11-13)
-        ...(z.zone === "exile" && !c.isFaceDown && (Object.entries(c.counters || {}).some(([k, n]) => /^time$/i.test(k) && n > 0)
+        // (suspended, CR 702.62b: face up in exile with suspend and a time counter, or so on the last board and still
+        // there, its last counter just removed. Not the keyword alone: an impulse-drawn Rift Bolt cast for its cost, or a
+        // cascade into Living End, read "casts ... from suspend", review 2026-11-13. Nor counters alone: a card with time
+        // counters and no suspend is not suspended)
+        ...(z.zone === "exile" && !c.isFaceDown && hasKeyword(c, "Suspend") && (Object.entries(c.counters || {}).some(([k, n]) => /^time$/i.test(k) && n > 0)
           || (prev?.cards?.[c.id]?.zone === "exile" && prev.cards[c.id].suspend)) ? { suspend: true } : {}),
         // (phasing is no zone change, so it stays "battlefield" here: Forge says which, the log no longer guesses)
         ...(c.phasedOut ? { po: true } : {}),

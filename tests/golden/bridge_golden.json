@@ -255666,7 +255666,7 @@
         "POISON 1",
         "EXPERIENCE 2",
         "RAD 3",
-        "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
+        "RING TEMPTED 2: LOOTS ON ATTACK",
         "SPEED 4",
         "PREVENT 5",
         "MAX HAND 0",
@@ -256220,7 +256220,7 @@
         "POISON 1",
         "EXPERIENCE 2",
         "RAD 3",
-        "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
+        "RING TEMPTED 2: LOOTS ON ATTACK",
         "SPEED 4",
         "PREVENT 5",
         "MAX HAND 0",
@@ -256680,7 +256680,7 @@
         "POISON 1",
         "EXPERIENCE 2",
         "RAD 3",
-        "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
+        "RING TEMPTED 2: LOOTS ON ATTACK",
         "SPEED 4",
         "PREVENT 5",
         "HEXPROOF",
@@ -256809,7 +256809,7 @@
      "POISON 1",
      "EXPERIENCE 2",
      "RAD 3",
-     "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
+     "RING TEMPTED 2: LOOTS ON ATTACK",
      "SPEED 4",
      "PREVENT 5",
      "MAX HAND 0",
@@ -256829,7 +256829,7 @@
      "POISON 1",
      "EXPERIENCE 2",
      "RAD 3",
-     "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
+     "RING TEMPTED 2: LOOTS ON ATTACK",
      "SPEED 4",
      "PREVENT 5",
      "HEXPROOF",
@@ -842987,7 +842987,7 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
+        "RING TEMPTED 3: BLOCKERS SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
@@ -843129,7 +843129,7 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
+        "RING TEMPTED 1: LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
@@ -843568,7 +843568,7 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
+        "RING TEMPTED 3: BLOCKERS SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
@@ -843624,7 +843624,7 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
+        "RING TEMPTED 1: LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
@@ -844068,7 +844068,7 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
+        "RING TEMPTED 3: BLOCKERS SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
@@ -844121,7 +844121,7 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
+        "RING TEMPTED 1: LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
@@ -844352,7 +844352,7 @@
       "EXPERIENCE 2",
       "RAD 1",
       "TICKETS 4",
-      "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
+      "RING TEMPTED 3: BLOCKERS SACRIFICED",
       "SPEED 2",
       "TURN RUN BY AI 1",
       "EXTRA TURN",
@@ -844370,7 +844370,7 @@
       "CITY'S BLESSING",
       "ENDURING STORY",
       "EXPERIENCE 1",
-      "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
+      "RING TEMPTED 1: LEGENDARY, EVADES BIGGER",
       "SPEED 1",
       "NO MAX HAND SIZE",
       "YOU CAN'T LOSE THE GAME"
@@ -844387,7 +844387,7 @@
       "EXPERIENCE 2",
       "RAD 1",
       "TICKETS 4",
-      "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
+      "RING TEMPTED 3: BLOCKERS SACRIFICED",
       "SPEED 2",
       "TURN RUN BY AI 1",
       "EXTRA TURN",
@@ -844404,7 +844404,7 @@
       "CITY'S BLESSING",
       "ENDURING STORY",
       "EXPERIENCE 1",
-      "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
+      "RING TEMPTED 1: LEGENDARY, EVADES BIGGER",
       "SPEED 1",
       "NO MAX HAND SIZE",
       "YOU CAN'T LOSE THE GAME"
@@ -846508,7 +846508,7 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
+        "RING TEMPTED 3: BLOCKERS SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
@@ -846650,7 +846650,7 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
+        "RING TEMPTED 1: LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
@@ -847089,7 +847089,7 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
+        "RING TEMPTED 3: BLOCKERS SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
@@ -847145,7 +847145,7 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
+        "RING TEMPTED 1: LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
@@ -847576,7 +847576,7 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
+        "RING TEMPTED 3: BLOCKERS SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
@@ -847632,7 +847632,7 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
+        "RING TEMPTED 1: LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
@@ -847761,7 +847761,7 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
+        "RING TEMPTED 3: BLOCKERS SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
@@ -847817,7 +847817,7 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
+        "RING TEMPTED 1: LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
@@ -850768,7 +850768,7 @@
        "status": "playing",
        "pool": null,
        "allMarks": [
-        "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
+        "RING TEMPTED 2: LOOTS ON ATTACK",
         "SPEED 1",
         "CONTROLLED BY PLAYER-9",
         "PREVENT 4"
@@ -851220,7 +851220,7 @@
        "status": "playing",
        "pool": null,
        "allMarks": [
-        "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
+        "RING TEMPTED 2: LOOTS ON ATTACK",
         "SPEED 1",
         "CONTROLLED BY PLAYER-9",
         "PREVENT 4"
@@ -851628,7 +851628,7 @@
    {
     "c": "White",
     "allMarks": [
-     "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
+     "RING TEMPTED 2: LOOTS ON ATTACK",
      "SPEED 1",
      "CONTROLLED BY PLAYER-9",
      "PREVENT 4"
@@ -852702,7 +852702,7 @@
        "status": "playing",
        "pool": {},
        "allMarks": [
-        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER"
+        "RING TEMPTED 1: LEGENDARY, EVADES BIGGER"
        ],
        "markTips": [
         "The Ring has tempted Blue once:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power."
@@ -852839,7 +852839,7 @@
        "status": "playing",
        "pool": {},
        "allMarks": [
-        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED"
+        "RING TEMPTED 3: BLOCKERS SACRIFICED"
        ],
        "markTips": [
         "The Ring has tempted Blue 3 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.\nWhenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat."
@@ -852976,7 +852976,7 @@
        "status": "playing",
        "pool": {},
        "allMarks": [
-        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
+        "RING TEMPTED 3: BLOCKERS SACRIFICED",
         "TURN RUN BY AI 1"
        ],
        "markTips": [
@@ -853115,7 +853115,7 @@
        "status": "playing",
        "pool": {},
        "allMarks": [
-        "RING TEMPTED 2: BEARER LOOTS ON ATTACK"
+        "RING TEMPTED 2: LOOTS ON ATTACK"
        ],
        "markTips": [
         "The Ring has tempted Blue 2 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card."
@@ -853239,7 +853239,7 @@
        "status": "playing",
        "pool": {},
        "allMarks": [
-        "RING TEMPTED 2: BEARER LOOTS ON ATTACK"
+        "RING TEMPTED 2: LOOTS ON ATTACK"
        ],
        "markTips": [
         "The Ring has tempted Blue 2 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card."
@@ -853366,7 +853366,7 @@
     [
      "Blue",
      [
-      "RING TEMPTED 2: BEARER LOOTS ON ATTACK"
+      "RING TEMPTED 2: LOOTS ON ATTACK"
      ]
     ],
     [
