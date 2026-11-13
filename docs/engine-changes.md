@@ -68,9 +68,10 @@ outer repo's `engine/manabrew.patch` history (`git -C mtg-tts log -- engine/mana
 
 ## 2. Pending / in progress (2026-11-13)
 
-`engine1113` (the four engine1112 review follow-ups, section 4) is **built and tested, not deployed**. The deployed engine
-is still `engine1112` (deployed 2026-11-12 ~22:25 with main `f66ba5e`). Merged to main `e64787f` after an
-independent review (verdict: merge, no blockers; bridge claims 1395 pass).
+`engine1113` (the four engine1112 review follow-ups, section 4) is **deployed** (2026-11-13 09:37 UTC with main `75fc8a2`,
+`tools/deploy.js --image engine1113`; its live tests passed; live-checked on the table the same morning). Merged to main
+`e64787f` after an independent review (verdict: merge, no blockers; bridge claims 1395 pass). Backed up to
+`D:\MTG-Engine-Backup\2026-11-13`.
 
 Open follow-ups from that review (none a regression of engine1113; the table is protected by the bridge for 1 and 2):
 1. `EffectsView.effects(player)` has no viewer filter: an effect whose source card went to a hand or library still sends
@@ -95,7 +96,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
-| 2026-11-13 02:07 / (relay layers all cached, 20:07 stamp) | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) | Combat flags once per snapshot round; delayed-trigger ids per viewer; face-down `unlockedDoors` blanked; no ownerless or targetless damage entries | Node only (no protocol change; relay rebuilt from the same tree, source unchanged) | tree `tmp/eb1113` in the outer worktree (`engine/manabrew.patch` regenerated); bridge `delayedOf` reads an empty text as hidden | **not deployed** | `engine1112` (`0306d683de26` / `58cf2e3da251`) |
+| 2026-11-13 02:07 / (relay layers all cached, 20:07 stamp) | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) | Combat flags once per snapshot round; delayed-trigger ids per viewer; face-down `unlockedDoors` blanked; no ownerless or targetless damage entries | Node only (no protocol change; relay rebuilt from the same tree, source unchanged) | tree `tmp/eb1113` in the outer worktree (`engine/manabrew.patch` regenerated); bridge `delayedOf` reads an empty text as hidden | **deployed 2026-11-13 09:37 UTC** (main 75fc8a2) | `engine1112` (`0306d683de26` / `58cf2e3da251`) |
 | 2026-11-12 20:03 / 20:07 | `engine1112` (`0306d683de26` / `58cf2e3da251`) | Per-permanent card flags; effects, delayed triggers, storm and per-turn counts in the view; damage events in the feed | Node needed; relay optional (the old relay passes the new fields, proved live) | mb-wt-merge `86b9279`, `6b6d362`, `8fac2bb`, merge `ecf76ab`; no compile fix needed | **deployed 2026-11-12** (main `f66ba5e`, table `01875e13`, save `30d57321`) | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) |
 | 2026-11-12 05:02 / 05:05 | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) = `:exile` now | Dungeon rooms and Planechase in the view; dungeon, initiative, planeswalk, chaos fix ops | Both | mb-pc `5356a42`, `62ac39e`, `4753e36`; outer `96e2c4c`, `044f77e`, `f46b12c` (bridge) | 2026-11-12 ~05:50, main `3ae38c3` | `batch1112` (`00d0a4d243ed` / `e6156e135032`) |
 | 2026-11-12 03:39 / 02:59 | `batch1112` (`00d0a4d243ed` / `e6156e135032`) | Attack taxes, refusals and limits sent; defender choice names the attacker; draw and mill fix ops; mill triggers | Both | `a7d187a`, `efde6c7`, `6c06a04`, `5a13c18`, `30bd56e`, `ba5ad41`; outer `248165d`, `8d496c4`, `f44b8a4`, `153a6fc` | 2026-11-12 ~04:00, main `dd9f12c` | `walker` node (`c9295fcc7e1c`), relay `exile` as before (`dbfe69213fff`) |
@@ -161,7 +162,7 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
 
-### 2026-11-13 engine1113: the engine1112 review follow-ups (built, not deployed)
+### 2026-11-13 engine1113: the engine1112 review follow-ups (deployed 2026-11-13 09:37 UTC)
 - **Problem:** the four follow-ups the engine1112 review left (that entry, "Follow-ups, none blocking"): the combat flags cost
   three board-wide static scans per creature on every seat's snapshot; delayed triggers sent `hostCardId`/`cardIds` of hand
   and library cards to every seat; a face-down permanent kept its `unlockedDoors`; a damage entry could say
