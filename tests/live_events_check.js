@@ -423,7 +423,9 @@ function judge() {
   check(atSearch.some((l) => l.includes("from their library into their hand")) && !atSearch.some((l) => /\bdraws\b/.test(l)), "log: and no draw on the search's board");
   check(said("discard", new RegExp(`^${who("discard")} discards `)) === 1, "log: the discards on one line");
   check(said("bounce", new RegExp(`^Elvish Visionary returns to ${who("bounce")}'s hand`)) === 1, "log: the bounce");
-  check(said("tokenDies", /Goblin.* dies/) === 1, "log: the token dies");
+  // (since the log names causes, 2026-11-12: a destroyed creature reads "is destroyed by <the spell>", tokens too)
+  if (said("tokenDies", /Goblin.* is destroyed by Doom Blade/) !== 1) process.stdout.write(`tokenDies's lines: ${JSON.stringify(lines.filter((x) => x.i >= D.tokenDies.from - 1 && x.i <= D.tokenDies.to + 1).map((x) => x.l))}\n`);
+  check(said("tokenDies", /Goblin.* is destroyed by Doom Blade/) === 1, "log: the token is destroyed, by Doom Blade");
   check(said("tokenExiled", /Goblin.* is exiled/) === 1, "log: the token is exiled");
   check(said("sacrifice", /Goblin.* is sacrificed \(to pay for Village Rites\)/) === 1, "log: the sacrifice says what it paid for");
   check(said("cycle", new RegExp(`^${who("cycle")} discards Censor \\(cycling\\)`)) === 1, "log: the cycling discard says cycling");
