@@ -1,0 +1,50 @@
+#!/bin/sh
+# The bridge runs two `docker` commands of its own (bridge/versions.js, bridge/bridge.js):
+#   docker inspect -f {{.Image}} <containers>              which images the engine runs (for /versions)
+#   docker compose -f <file> restart -t 3 forge-room       a fresh room after "mtg reset"
+# The Linux/macOS companion puts this folder first on the bridge's PATH, so they go to the engine the companion uses
+# (Docker or Podman, MTG_CONTAINER_CLI) without needing compose: a compose service name becomes its container's name
+# (<MTG_PROJECT>-<service>-1). Podman prints image ids without "sha256:"; they get it, as Docker prints them.
+# Anything else is passed to the engine unchanged.
+cli="${MTG_CONTAINER_CLI:-}"
+project="${MTG_PROJECT:-mtg-table}"
+if [ -z "$cli" ]; then
+  echo "MTG shim: MTG_CONTAINER_CLI is not set (start the bridge from the MTG Companion)" >&2
+  exit 1
+fi
+
+if [ "$1" = "compose" ]; then
+  shift
+  action=""
+  wait=""
+  names=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -f|--file|-p|--project-name) shift ;;
+      -t|--timeout) shift; wait="$1" ;;
+      -*) ;;
+      *)
+        if [ -z "$action" ]; then action="$1"; else names="$names $project-$1-1"; fi ;;
+    esac
+    shift
+  done
+  case "$action" in
+    restart|stop|start)
+      if [ -n "$wait" ] && [ "$action" != "start" ]; then
+        exec "$cli" "$action" -t "$wait" $names
+      fi
+      exec "$cli" "$action" $names ;;
+    *)
+      echo "MTG shim: docker compose $action isn't supported here" >&2
+      exit 1 ;;
+  esac
+fi
+
+if [ "$1" = "inspect" ]; then
+  out=$("$cli" "$@")
+  code=$?
+  printf '%s\n' "$out" | sed -E 's/^([0-9a-f]{64})$/sha256:\1/'
+  exit $code
+fi
+
+exec "$cli" "$@"
