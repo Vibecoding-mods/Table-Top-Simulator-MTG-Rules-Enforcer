@@ -454,7 +454,9 @@ namespace MtgCompanion
                 }
                 catch { }
             }
-            var g = Logic.DecideGame(st, age);
+            // (after Stop everything the engine's containers are stopped too, so no game can come back: a fresh resume
+            // file must not keep Restart engine locked, 2026-11-13 the lock stayed on with everything stopped)
+            var g = everythingStopped && st.Kind == HttpKind.Refused ? Game.None("No game (everything was stopped).") : Logic.DecideGame(st, age);
             bool changed = Game == null || Game.Kind != g.Kind || Game.Text != g.Text;
             Game = g;
             if (Logic.Locked(g)) idleSince = null; else if (!idleSince.HasValue) idleSince = DateTime.UtcNow;
@@ -1161,6 +1163,7 @@ namespace MtgCompanion
                 if (dockerCli != null && Rows[StepDocker].V.Light == Light.Green) Compose(L.Friend ? "down" : "stop", 120000);
                 for (int i = 0; i < Rows.Length; i++)
                     if (i != StepDocker) Rows[i].V = new Verdict(Light.Grey, i == StepSave ? (L.Friend ? "Installed (unchanged)." : Rows[i].V.Text) : "Stopped.");
+                RefreshGame(); // (the watcher pauses now, so this is the last look: it unlocks Restart engine)
                 SetPhase("Stopped. Restart engine starts it again.");
                 Fire();
                 if (done != null) done();

@@ -155,8 +155,10 @@ function main(write) {
   if (ttsRunning()) throw new Error("TTS is running: close it first, it would save over this");
   fs.mkdirSync(path.join(ROOT, "tmp", "backup"), { recursive: true });
   fs.writeFileSync(path.join(ROOT, "tmp", "backup", `TS_Save_1.${sha8(raw)}.json`), raw);
+  // the new save too: a save deleted in TTS (2026-11-13, twice) is restored by copying this, with no rebuild
+  fs.writeFileSync(path.join(ROOT, "tmp", "backup", `TS_Save_1.${sha8(out)}.json`), out);
   fs.writeFileSync(SAVE, out);
-  console.log(`written; a copy of the old save is at tmp/backup/TS_Save_1.${sha8(raw)}.json`);
+  console.log(`written; copies of the old and new saves are at tmp/backup/TS_Save_1.${sha8(raw)}.json and TS_Save_1.${sha8(out)}.json`);
   return { stamp, save: sha8(out) };
 }
 
