@@ -11124,6 +11124,7 @@ function checkRestored(seat) {
     // the log says the rewind, and the board it went back to is its new start: the difference was told as plays
     // ("Dauthi Voidwalker returns to the battlefield", "Command Tower leaves the battlefield", hp-07 #36 2026-10-27)
     game.logPrev = null;
+    game.suspendLimbo?.clear(); // (a suspend cast mid-flight is undone with the rest: updateLog's pruning skips the first board after)
     // (and what the players' answers said for the log: a source chosen, a "Pay {1}?", a target pick, a pain land's
     // tap, the blocks, all from the turns undone; a shield chosen before the rewind named a replayed turn's damage
     // "prevented", review 2026-11-09. A player the rewind brought back is in the game again: how they went out is undone.)
