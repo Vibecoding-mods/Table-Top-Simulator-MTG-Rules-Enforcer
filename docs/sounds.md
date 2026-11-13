@@ -224,6 +224,69 @@ The file is longer than 2 s, so `engineSoundLen.sorcery = 2.4`: the table pauses
 (`mtg-fx2.unity3d`, `mtg-bolt.unity3d`); the link was downloaded back and matched by sha256. The old `mtg2-sorcery.mp3`
 link stays on the Cloud, unused. Licence: still qubodup's CC-BY-SA 3.0 (the swell); the pop and crackle are ours.
 
+## Treasure (made 2026-11-13, not uploaded yet)
+
+The user: "I want some sounds for treasure tokens". Two kinds, each with bursts x2 x3 x4 x6 x8:
+
+| Kind | Plays when | Source (assets/sounds/treasure/) |
+|---|---|---|
+| `treasure` | Treasure tokens created: tokens new on the battlefield whose type line has the Treasure subtype (a renamed one counts; a token merely named "Treasure Token" with another type line doesn't); the count is all seats together | `snd_purchase.wav`, "Purchasing Sound Effect" by Spring Spring |
+| `treasurespend` | Treasure tokens leaving the battlefield the way a death does (sacrificed for mana, mostly; destroyed too): **in place of** death and wipe, so a Treasure is never counted in either (three spent on one board are a `treasurespend_x3`, not a wipe; a creature dying with a Treasure spent is a `death`, not a `death_x2`). Exiled or bounced Treasures are as before (exile; nothing) | `coins/coin.N.ogg`, "12 Coin Sound Effects" by StarNinjas |
+
+Still one sound per board (`engineSoundKinds`, `docs/m5-effects-design.md` section 6): lifegain > **treasure >
+treasurespend** > sorcery > instant > counter, so a creature dying, an exile or a hit on the same board wins, and a
+spell that makes Treasures plays the jingle rather than its sorcery or instant sound. The table reads a Treasure from
+the board (`FX.isTreasure`, `tools/engine-renderer.lua`: the card's `tok` and its `tl` type line, "Artifact — Treasure";
+by Forge's name "Treasure Token" only when there is no type line); the bridge is unchanged. The visuals are unchanged:
+a Treasure spent still gets its death smoke (and, 3 or more with the effect bundle, the wipe wave).
+
+**How they were made**: `node tools/make-treasure-sounds.js` (sources in `assets/sounds/treasure/`, gitignored with
+`assets/`: `snd_purchase.wav`, `coins_-_starninjas.zip` and its `coins/coin.1.ogg` .. `coin.12.ogg`; output to
+`assets/sounds/tts/` and a copy in `tmp/upload4/` to upload). A run on the same sources with the same ffmpeg (9.0.2,
+WinGet) makes the same files byte for byte (checked: two runs, the same 12 sha256s).
+
+- Decoded to 44.1 kHz stereo, low-passed at 18.6 kHz (what the mp3 keeps); trimmed from the first sample over -60 dBFS
+  to the end of the last 10 ms over -60 dBFS RMS.
+- Levelled by loudness on the mp3, not by -20 dBFS RMS: the loudest 400 ms (EBU R128 momentary, M) at -13 LUFS, about
+  the median of the table's single sounds (M -11.0 to -15.0, median -12.6), peaks limited to stay under -1 dBFS, never
+  by more than 6 dB (bighit took 5.8). The purchase jingle is a few sparse coin hits (-29 dBFS RMS with a 0 dBFS peak):
+  -20 dBFS RMS would have taken 8 to 9 dB off its hits, so it stops at the 6 dB cap, M -14.8 LUFS (inside the others'
+  range, at their quiet end with knockout). Then an 80 ms fade-out.
+- `treasure` bursts: the jingle stacked N times, 110 ms apart with the 2026-11-11 bursts' fixed jitter table, each copy
+  1 dB quieter and leaning alternately left and right, each pitched a little (0, +0.6, -0.5, +1.1, -0.9, +0.3, -1.3,
+  +0.9 semitones, `asetrate`), so the pile doesn't comb; then scaled so the mp3's peak is under -1 dBFS, no limiter.
+- `treasurespend`: coin.1 (the loudest). Its bursts are N different coins, each levelled as above (coin.1, 9, 2, 11,
+  3, 7, 8, 10, in that order; coin.2, 7 and 10 reach the 6 dB cap, coin.7 stays at M -20.3, the sixth copy), 80 ms
+  apart with the same jitter, 1 dB quieter each, leaning left and right; scaled as the treasure bursts.
+- Then the recipe above: padded to 2 s (or the sound + 0.25 s, rounded up to 0.1 s, when that is longer: the table
+  pauses a clip 0.25 s before its length), libmp3lame 192 kbps, 44.1 kHz, ID3v2.3, title "MTG effect <name>"
+  (`treasure-x3` for a burst).
+
+| File | Sound | File length | Loudness M / I (LUFS) | Limited | sha256 |
+|---|---|---|---|---|---|
+| mtg2-treasure.mp3 | 1.21 s | 2.00 s (49,602 bytes) | -14.8 / -17.9 | 6.0 dB | `579562921873cef3dc18f9739d1c54206676c2f6d08ea77d02e3495682b706db` |
+| mtg2-treasure-x2.mp3 | 1.30 s | 2.00 s (49,605 bytes) | -12.5 / -15.8 | no | `672430b100665fba23e70683b1c1edc1cca83aaa68d423da11f962f02849a831` |
+| mtg2-treasure-x3.mp3 | 1.47 s | 2.00 s (49,605 bytes) | -11.3 / -14.9 | no | `313c58508b6331a8d316390bcdd54bcee4faff4cbfc13933e87e4456a72c5585` |
+| mtg2-treasure-x4.mp3 | 1.50 s | 2.00 s (49,605 bytes) | -10.9 / -14.9 | no | `e7309167704108ae20749c5e8c65e70781eaf5f644bc37ceafcf824cffc98944` |
+| mtg2-treasure-x6.mp3 | 1.76 s | 2.10 s (52,113 bytes) | -11.2 / -14.7 | no | `4a63a2e284cb583056116e27f38e30f4722275ec291f3f986eedbf523a259344` |
+| mtg2-treasure-x8.mp3 | 1.98 s | 2.30 s (57,128 bytes) | -11.2 / -14.8 | no | `0a7c789a989ef6d6ecba33f9cf3d59b74934d881357d7fb248d8443b89df69bf` |
+| mtg2-treasurespend.mp3 | 0.45 s | 2.00 s (49,607 bytes) | -13.0 / -13.1 | 0.9 dB | `ddf69a1375bfd0294e247004e964dafd4c649e0017051fbed1f6d76ba4af511b` |
+| mtg2-treasurespend-x2.mp3 | 0.55 s | 2.00 s (49,610 bytes) | -10.9 / -11.9 | no | `9393b3692c8ca9f75582d6bcd22bdf2dbc3f5424be9fce7565c52d3de689a038` |
+| mtg2-treasurespend-x3.mp3 | 0.55 s | 2.00 s (49,610 bytes) | -10.4 / -12.3 | no | `98405a304ef431f1fd45cdb3f687c8cc73db9cee11441bd972c74c5e9029d112` |
+| mtg2-treasurespend-x4.mp3 | 0.77 s | 2.00 s (49,610 bytes) | -10.4 / -12.8 | no | `e329020debae67cd44ac0c1ada271932922f9a04ff2048e6ac281b373e10cd1e` |
+| mtg2-treasurespend-x6.mp3 | 0.77 s | 2.00 s (49,610 bytes) | -10.3 / -12.4 | no | `7e88821b60c3476848643a4218b837b45722593046f7e6c41429c542af4898d9` |
+| mtg2-treasurespend-x8.mp3 | 0.94 s | 2.00 s (49,610 bytes) | -10.3 / -12.4 | no | `2960c99e4504b87cd20cd26bbf2b85462974fdcfbb9e442b5f3c99d635a886a3` |
+
+(The limiting of a burst is its coins'; the bursts themselves were only scaled. treasurespend-x6 and x8 end where x4
+does: their later coins are shorter.) `treasure-x6` and `treasure-x8` are longer than 2 s: `engineSoundLen.treasure_x6
+= 2.1` and `treasure_x8 = 2.3` (`tests/test_table_effects.js` checks them against this table).
+
+**The links: not yet.** `engineSounds.treasure`, `treasurespend`, `treasure_x2..x8` and `treasurespend_x2..x8` are nil
+(silent) in `tools/engine-renderer.lua`. To do: upload the 12 files of `tmp/upload4` (TTS → Modding → Cloud Manager),
+download each link back and match it to its file by the sha256 above, fill in `engineSounds`, add the rows to the first
+two tables (and the counts the tests check there: 12 plain links, 34 bursts), deploy, then as the host `mtg sounds
+test treasure`, `treasurespend`, `treasure 8`, `treasurespend 3`.
+
 ## Licences and sources (checked 2026-11-11)
 
 The user supplied the six as files, with no source pages (session uploads `Health_gain.aif`,
@@ -243,6 +306,8 @@ the audio (that would need the packs downloaded). **The user should confirm each
 | knockout (and the generated counter, no longer used) | ours (`tools/make-effect-sounds.js`) | this project | public domain (`LICENSE`) | certain | allowed |
 | sorcery (2026-11-12) | "PowerDrain" (`qubodup-PowerDrain.flac`, the user's folder `sorc cast sound/` with its `license.txt`); we reversed it and sped it up 3x, and (remake, 2026-11-12 night) slowed that to half speed at the same pitch and added our own pop and crackle | Iwan 'qubodup' Gabovitch (http://qubodup.net), 2012 | CC-BY-SA 3.0 (the folder's licence.txt is its full text) | certain: the licence and copyright line came with the file | allowed, with attribution and share-alike (below) |
 | countered, counter, playerhit, playerhit_x2..x8, bighit, bighit_x2..x8 (2026-11-12) | **unknown**: the user's files `If a spell is countered.ogg`, `Counter gain.mp3`, `player damage from pingorbolts pells.ogg`, `Damage from anything over 5.ogg`, no source pages | ? | ? | — | **not cleared** |
+| treasure, treasure_x2..x8 (2026-11-13) | [Purchasing Sound Effect](https://opengameart.org/content/purchasing-sound-effect) (`snd_purchase.wav`, 622,170 bytes, sha256 `091bfc1a3ee7ebd7713636ec631c940b79de715e141856e6c0daf09e8868486e`) | Spring Spring | CC0 | certain: the licence field read on the page, 2026-11-13; downloaded with the user's permission | allowed, no attribution required (credit is a courtesy) |
+| treasurespend, treasurespend_x2..x8 (2026-11-13) | [12 Coin Sound Effects](https://opengameart.org/content/12-coin-sound-effects) (the zip, sha256 `3af4ef8dedb45868055dae6c8f1b35daea13d89736e5ac812a9047c0755725ac`; we use coin.1, 2, 3, 7, 8, 9, 10, 11) | StarNinjas ([OpenGameArt profile](https://opengameart.org/users/starninjas), the usual OGA profile address, not opened) | CC0 (the page asks for credit, not required) | certain: the licence field read on the page, 2026-11-13; downloaded with the user's permission | allowed; credit StarNinjas with a link to their profile, as asked |
 
 **Flags.**
 
@@ -265,7 +330,8 @@ the audio (that would need the packs downloaded). **The user should confirm each
   Iwan 'qubodup' Gabovitch, link the licence, say we reversed it, sped it up 3x, trimmed and levelled it, and offer
   our version under CC-BY-SA 3.0. Its `license.txt` names no page; qubodup posts his sounds on OpenGameArt and
   Freesound, so the user may want to find the page to link.
-- **CC0 (damage)**: no conditions.
+- **CC0 (damage; treasure and treasurespend, 2026-11-13)**: no conditions. StarNinjas ask for credit with a link to
+  their OpenGameArt profile: a courtesy, given in the attribution text below.
 
 **Attribution text to add** (once death and lifegain are settled; add their lines the same way):
 
@@ -275,7 +341,9 @@ the audio (that would need the packs downloaded). **The user should confirm each
   > (https://creativecommons.org/licenses/by-sa/3.0/); we trimmed, levelled, padded and stacked them, and our versions
   > are CC-BY-SA 3.0 too. The sorcery sound is "PowerDrain" by Iwan 'qubodup' Gabovitch (http://qubodup.net),
   > CC-BY-SA 3.0; we reversed it, sped it up and levelled it, and our version is CC-BY-SA 3.0 too. The damage sound comes from "37 hits/punches" by Independent.nu
-  > (https://opengameart.org/content/37-hitspunches), CC0. The counter and knockout sounds are ours. See
+  > (https://opengameart.org/content/37-hitspunches), CC0. The Treasure sounds come from "Purchasing Sound Effect" by
+  > Spring Spring (https://opengameart.org/content/purchasing-sound-effect) and "12 Coin Sound Effects" by StarNinjas
+  > (https://opengameart.org/content/12-coin-sound-effects), both CC0. The counter and knockout sounds are ours. See
   > docs/sounds.md.
 
   and the licence line after it: "That covers our code only, not Manabrew, Forge (or our changes to them), the
@@ -284,5 +352,6 @@ the audio (that would need the packs downloaded). **The user should confirm each
   > Sound effects: "Spell Sounds Starter Pack" by p0ss, CC-BY-SA 3.0, https://opengameart.org/content/spell-sounds-starter-pack
   > (edited: trimmed, levelled, stacked; the edited clips are CC-BY-SA 3.0). Hits from "37 hits/punches" by
   > Independent.nu, CC0, https://opengameart.org/content/37-hitspunches. Sorcery: "PowerDrain" by Iwan 'qubodup'
-  > Gabovitch, CC-BY-SA 3.0 (edited: reversed, 3x faster, levelled; the edited clip is CC-BY-SA 3.0).
+  > Gabovitch, CC-BY-SA 3.0 (edited: reversed, 3x faster, levelled; the edited clip is CC-BY-SA 3.0). Treasure:
+  > "Purchasing Sound Effect" by Spring Spring and "12 Coin Sound Effects" by StarNinjas, both CC0, on OpenGameArt.
 - `THIRD-PARTY-NOTICES.md`: the rows are in (2026-11-11); the sorcery row (qubodup) and the four not-cleared 2026-11-12 sounds are in too (2026-11-12).

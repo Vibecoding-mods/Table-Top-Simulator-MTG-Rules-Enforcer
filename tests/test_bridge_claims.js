@@ -5117,6 +5117,22 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const ef = (ai?.allMarks || []).indexOf("RULES EFFECT THIS TURN");
       ok("engine1112 hidden: an effect from a hand card shows fixed words and the common hover", ef >= 0 && (ai.markTips?.[ef] || "") === "", JSON.stringify([ai?.allMarks, ai?.markTips]));
     }
+    // engine1113 sends a seat no id of a card hidden from it and blanks the text that names it (EffectsViewTest): the
+    // same fixed words as the engine1112 checks above, never an empty "At end step: "
+    {
+      const { t, threw } = await tableOf((gv) => {
+        zoneOf(gv, "battlefield", "player-1").cards.push(card("engine-card-990", "Flickerwisp", "player-1"));
+        gv.delayed = [
+          { id: "delayed-11", text: "", controllerId: "player-1", hostCardId: "engine-card-990", cardIds: [], when: "end step" },
+          { id: "delayed-12", text: "", controllerId: "player-1", cardIds: [], when: "upkeep", turnOf: "player-1" },
+        ];
+      });
+      const ai = rowOf(t, "player-1");
+      ok("engine1113 hidden: precondition, the board went out", !threw && !!t, threw?.stack);
+      ok("engine1113 hidden: a blank text on a public host is fixed words", (cardIn(t, "engine-card-990")?.kw || []).includes("At end step: a delayed trigger"), JSON.stringify(cardIn(t, "engine-card-990")?.kw));
+      const at = (ai?.allMarks || []).indexOf("NEXT UPKEEP: DELAYED TRIGGER");
+      ok("engine1113 hidden: a blank text with no ids is a mark with fixed words and the common hover", at >= 0 && (ai.markTips?.[at] || "") === "", JSON.stringify([ai?.allMarks, ai?.markTips]));
+    }
     // damage entries in the event ring (EngineEventDamageTest: kind "damage", to "Damage", no cardId): the bridge reads
     // the moves around them as before and breaks on none
     {

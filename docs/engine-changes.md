@@ -66,10 +66,26 @@ outer repo's `engine/manabrew.patch` history (`git -C mtg-tts log -- engine/mana
 - Open debt noted 2026-11-02/03: `yarn gen:types`, `build:harness` and `gen:protocol-docs` were not run for the early
   protocol additions (still open as far as the sources show; unconfirmed).
 
-## 2. Pending / in progress (2026-11-12)
+## 2. Pending / in progress (2026-11-13)
 
-Nothing in progress. The three branches listed here earlier (card flags, game state, damage events) are committed,
-merged as `engine-1112` and built as `engine1112`, **deployed 2026-11-12 ~22:25** with main `f66ba5e` (section 4).
+`engine1113` (the four engine1112 review follow-ups, section 4) is **built and tested, not deployed**. The deployed engine
+is still `engine1112` (deployed 2026-11-12 ~22:25 with main `f66ba5e`). Merged to main `e64787f` after an
+independent review (verdict: merge, no blockers; bridge claims 1395 pass).
+
+Open follow-ups from that review (none a regression of engine1113; the table is protected by the bridge for 1 and 2):
+1. `EffectsView.effects(player)` has no viewer filter: an effect whose source card went to a hand or library still sends
+   that card's id, name and text in every seat's raw view (the bridge filters it: claims check "engine1112 hidden: an
+   effect from a hand card"). Fix: give `effects` the same `shownTo` predicate `delayed` got.
+2. The delayed-trigger filter treats a face-down permanent as shown (`CardView.canBeShownTo` is true on the battlefield),
+   and `Trigger.toString` can name the real card through `getHostName`. Fix: `shownTo(c) && (!c.isFaceDown() ||
+   faceShownTo(c, viewer))`. Rare (a permanent turned face down after its trigger was made); the bridge's
+   `publicCardIds` already excludes face-down cards.
+3. bridge `delayedOf`: a host in seat 0's own hand vs another seat's hand gives different player marks (no card named
+   either way).
+4. `CardStateFlagsTest.seatsWhileTheGameWaitsShareOneRound` can fail spuriously if a 1 s `pollAction` timeout falls
+   between its snapshots.
+5. The engine1113 entry below says a prompt's `cardDto` "still shares the defenders per controller": outside a snapshot
+   each card gets its own round, so nothing is shared (output unchanged).
 
 ## 3. Summary table (newest first)
 
@@ -79,6 +95,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-13 02:07 / (relay layers all cached, 20:07 stamp) | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) | Combat flags once per snapshot round; delayed-trigger ids per viewer; face-down `unlockedDoors` blanked; no ownerless or targetless damage entries | Node only (no protocol change; relay rebuilt from the same tree, source unchanged) | tree `tmp/eb1113` in the outer worktree (`engine/manabrew.patch` regenerated); bridge `delayedOf` reads an empty text as hidden | **not deployed** | `engine1112` (`0306d683de26` / `58cf2e3da251`) |
 | 2026-11-12 20:03 / 20:07 | `engine1112` (`0306d683de26` / `58cf2e3da251`) | Per-permanent card flags; effects, delayed triggers, storm and per-turn counts in the view; damage events in the feed | Node needed; relay optional (the old relay passes the new fields, proved live) | mb-wt-merge `86b9279`, `6b6d362`, `8fac2bb`, merge `ecf76ab`; no compile fix needed | **deployed 2026-11-12** (main `f66ba5e`, table `01875e13`, save `30d57321`) | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) |
 | 2026-11-12 05:02 / 05:05 | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) = `:exile` now | Dungeon rooms and Planechase in the view; dungeon, initiative, planeswalk, chaos fix ops | Both | mb-pc `5356a42`, `62ac39e`, `4753e36`; outer `96e2c4c`, `044f77e`, `f46b12c` (bridge) | 2026-11-12 ~05:50, main `3ae38c3` | `batch1112` (`00d0a4d243ed` / `e6156e135032`) |
 | 2026-11-12 03:39 / 02:59 | `batch1112` (`00d0a4d243ed` / `e6156e135032`) | Attack taxes, refusals and limits sent; defender choice names the attacker; draw and mill fix ops; mill triggers | Both | `a7d187a`, `efde6c7`, `6c06a04`, `5a13c18`, `30bd56e`, `ba5ad41`; outer `248165d`, `8d496c4`, `f44b8a4`, `153a6fc` | 2026-11-12 ~04:00, main `dd9f12c` | `walker` node (`c9295fcc7e1c`), relay `exile` as before (`dbfe69213fff`) |
@@ -117,6 +134,8 @@ older ids come from the notes.
 Docker images present on 2026-11-12 (read-only listing):
 
 ```
+mtg-forge-node:engine1113               4d0f4dcaa0f7  2026-11-13 02:07:15   (added 2026-11-13)
+mtg-relay:engine1113                    d88922ebdd9f  2026-11-12 20:07:48   (added 2026-11-13; every layer from cache)
 mtg-relay:engine1112                    58cf2e3da251  2026-11-12 20:07:48
 mtg-forge-node:engine1112               0306d683de26  2026-11-12 20:03:48
 mtg-harness-test:engine1112             5a8646db5b1f  2026-11-12 19:36:54
@@ -141,6 +160,73 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-13 engine1113: the engine1112 review follow-ups (built, not deployed)
+- **Problem:** the four follow-ups the engine1112 review left (that entry, "Follow-ups, none blocking"): the combat flags cost
+  three board-wide static scans per creature on every seat's snapshot; delayed triggers sent `hostCardId`/`cardIds` of hand
+  and library cards to every seat; a face-down permanent kept its `unlockedDoors`; a damage entry could say
+  `ownerId "player--1"` or name no target.
+- **What:**
+  1. *Snapshot cost.* `InteractiveSnapshotExtractor.SnapshotRound` caches each controller's `CombatUtil.getAllPossibleDefenders`
+     and each creature's `cantBlock`/`cantAttack`/`mustAttack`. The session's `pollAction` opens a round just before it releases
+     `gameLock` and drops it when it takes the lock back, so every seat's snapshot while the game waits for one action shares
+     it. The game cannot change while it waits (it holds the lock at every other moment), so the output is the same. A
+     snapshot outside a wait (tests, the browser bridge, a prompt's `cardDto`) gets a fresh round, which still shares the
+     defenders per controller.
+  2. *Delayed-trigger ids.* `EffectsView.delayed(game, shown)` takes the viewer's `shownTo`. A host or remembered card the viewer
+     may not see is left out of `hostCardId`/`cardIds`, and then `text` is sent empty, because Forge's text names the card. The
+     bridge's `delayedOf` now treats an empty text as hidden (fixed words "At end step: a delayed trigger" / "DELAYED TRIGGER"),
+     as it already did for a hidden id; without that change it would show "At end step: " (proved below).
+  3. `redact()` blanks `unlockedDoors`.
+  4. *Damage entries.* `EngineEventLog` drops a damage entry whose source has no owner in the game (or no source), or whose
+     player target is unknown, before it takes a `seq`; `view()` leaves out one whose target card has no id in the view (a
+     token that died before any snapshot saw it). Those can leave a gap in `seq`; the bridge's gap check reads only the ring's
+     first entry, so a gap inside the ring is harmless.
+- **Files:** harness `InteractiveSnapshotExtractor`, `ManaBrewInteractiveSession`, `EffectsView`, `EngineEventLog`, `AGENTS.md`
+  (lock, delayed, damage and face-down notes); tests `CardStateFlagsTest` (+3: `faceDownRoomHidesItsUnlockedDoors`,
+  `seatsWhileTheGameWaitsShareOneRound`, `theNextWaitSeesWhatChanged`), `EffectsViewTest` (+2: `aHostInAHandIsNotNamedToAnotherSeat`,
+  `aRememberedCardInAHandIsNotNamedToAnotherSeat`; `pactUpkeepIsOnItsCastersTurn` now reads the caster's view, since its Pact sits
+  in a hand), `EngineEventDamageTest` (+2: `damageToACardWithNoIdIsNotSent`, `damageWithNoSourceOwnerIsNotSent`). Outer repo:
+  `bridge/bridge.js` (`delayedOf`), `tests/test_bridge_claims.js` (+3 engine1113 checks), `engine/checks/SnapshotTimingCheck.java`
+  (new). No protocol change.
+- **Build:** the source tree is `tmp/eb1113` inside the outer repo's worktree `.claude/worktrees/agent-adfc665514bd5e1fa`: a clone
+  of the clean `tmp/engine-build` (Manabrew `fd16e2f`, Forge `e7d2b93` + `engine/forge.patch`), with engine1112's 53 files copied
+  from `tmp/mb-wt-merge` by the make-patches line-ending rule (its diff equalled the committed `manabrew.patch` byte for byte),
+  committed there as `engine1112 base`, then these edits. `engine/manabrew.patch` is that tree's `git diff fd16e2f` (53 files, the
+  8 touched sections changed); `forge.patch` unchanged. `tmp/mb-wt-merge` itself is untouched (this run could not run git there).
+  Two traps on the way: a clone made with Windows' system `autocrlf=true` leaves 2344 Manabrew files CRLF in the working tree
+  even after `core.autocrlf false` (every `.sh` too, which breaks the native step), so re-check out with
+  `git rm -r --cached . && git reset --hard`; Forge's own `.gitattributes` (`* text=auto`) makes its files CRLF on Windows
+  whatever the setting, as in `tmp/engine-build` before. Also, the committed `engine/manabrew.patch` has no CRs (the outer repo's
+  `eol=lf`), so it applies only where upstream files are LF (all 53 here are). The node build took about 35 minutes (context
+  transfer alone about 6); the relay rebuilt entirely from cache.
+- **Timing** (`engine/checks/SnapshotTimingCheck.java` in `mtg-harness-test:engine1112`, HotSpot JVM, 4 players, 120 creatures,
+  168 permanents, statics Propaganda, Ghostly Prison, Glorious Anthem, Crusade, Silent Arbiter, Norn's Annex, Pacifism, Lure):
+  - A round of 4 seats' snapshots while the game waits for an action: **engine1112 median 98.98 ms (mean 100.28), engine1113
+    median 34.06 ms (mean 35.61)**, about 2.9 times faster, 60 rounds each.
+  - One snapshot alone (no wait, so no shared round): 100.19 ms vs 95.04 ms per 4 seats; sharing the defenders per controller
+    alone saves little.
+  - The flag work alone, both ways interleaved in one process: 58.3 vs 12.8 ms (old harness run) and 85.6 vs 16.6 ms (new
+    harness run) per 4 seats, so the flags were about 60 to 85 % of a round; the same flags in 60 of 60 rounds.
+  - The four snapshots hash the same on both harnesses (`4070d41e8d795c77`), with and without the waiting game thread: the
+    output is unchanged.
+  - The machine was shared with other agents' runs (a first engine1112 run on a busier machine gave medians of 323 and 136 ms
+    for the same code), so take the ratios, not the milliseconds; the native image is slower in absolute terms than HotSpot.
+- **Proof:** harness 15 of 15 classes in `mtg-harness-test:engine1112` (CardStateFlagsTest 18, EffectsViewTest 13,
+  EngineEventDamageTest 12 checks). Break-it, each fix reverted in a copy of the harness and the touched classes run:
+  stale round (never renewed) fails `theNextWaitSeesWhatChanged`; no sharing (a fresh round per snapshot) fails
+  `seatsWhileTheGameWaitsShareOneRound` ("computed 0 times"); unfiltered ids fail both EffectsView hidden checks (the other seat
+  got `hostCardId` and the Pact's text); `redact` without the line fails `faceDownRoomHidesItsUnlockedDoors`; targetless entries
+  fail `damageToACardWithNoIdIsNotSent` (1 event, not 0); the old owner rule fails `damageWithNoSourceOwnerIsNotSent` (2 events,
+  not 1). Bridge `delayedOf` without the empty-text rule fails both engine1113 claim checks ("At end step:", "NEXT UPKEEP:").
+  Bridge gates with `MTG_MANABREW=tmp/eb1113`: `test_bridge_golden` 1066 of 1066, `test_bridge_claims` 1395 of 1395,
+  `test_bridge_events` 597 of 597, `test_table_map` 610 of 610. Live checks against `engine1113` (test stack, port 9444,
+  `mtg-relay:engine1113`): `live-check.sh engine1113 tests/live_phasing_check.js` 29 of 29, `live_events_check` 51 of 51 (the same
+  counts as engine1112). Run through `bash`: `sh tools/live-check.sh` launched from PowerShell exited 1 with no output here.
+- **Deploy (when wanted):** `node tools/deploy.js --image engine1113` (TTS closed, no game), with `MTG_MANABREW` pointing at a tree
+  that has the engine1112 protocol (`tmp/eb1113` in that worktree, or `tmp/mb-wt-merge`; the protocol is the same) and the bridge
+  change from this commit, which an older bridge lacks (an older bridge would show "At end step: " for a hidden delayed trigger).
+- **Rollback:** `node tools/deploy.js --image engine1112` (node `0306d683de26`, relay `58cf2e3da251`).
 
 ### 2026-11-12 engine1112: card flags, effects, delayed triggers, damage events (deployed)
 - **Problem:** the table guessed several per-permanent states (monstrous, saddled, paired, "can't attack/block") from
@@ -201,6 +287,7 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   3. `redact()` (~555) doesn't blank `unlockedDoors` on a face-down permanent (Ixidron on an unlocked Room creature; already public).
   4. A damage entry can carry `ownerId "player--1"` or no target (a token that died before getting an id); the bridge tolerates both.
   Also: delayed entries can have empty `text`; `untilEndOfTurn` is set only for Effect and Fog sources.
+  All four are done in `engine1113` (2026-11-13, above).
 
 ### 2026-11-12 batch2-1112: dungeons and Planechase in the engine view
 - **Problem:** the table guessed a dungeon's room from card text and had no Planechase at all; initiative and venture
