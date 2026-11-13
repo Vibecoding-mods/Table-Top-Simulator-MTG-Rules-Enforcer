@@ -124,3 +124,34 @@ A two-person check (that remote players see the frames and their downloads keep 
 2. **When:** always on, not only during a game.
 3. **Default rating:** PG-13.
 4. **Stills only:** not worth building. If Phase 0 finds no moving route, the feature is dropped.
+
+## Phase 0 results (2026-11-13)
+
+Run in real TTS 14.2.2 on a blank scratch singleplayer game (TTS was at its main menu, not on the user's table, so
+a scratch game was created; the user's save was not loaded). GIPHY test id `26ufdipQqU2lhNA4g` (200x200; its
+`giphy.webp` starts with `RIFF..WEBPVP8X` and has `ANIM`/`ANMF` chunks, so it is a truly animated WebP).
+Shots and scripts: `tmp/gif-phase0/`.
+
+- **T1, `.gif` link on a Custom Tile: does not work (verified live).** TTS prints "Supported formats: .jpg, .png,
+  .webp, .webm, .mp4, .m4v, .mov, .rawt, .unity3d" and shows no image.
+- **Route W, animated `.webp` on a Custom Tile (T2): does not work (verified live).** TTS prints "Async loading
+  images: WEBP decoding failed" for the GIPHY animated WebP; no picture. (A static WebP loads, per the bridge's
+  custom-art rule; the animated one is what the decoder rejects.) Not tested on an Object UI Image.
+- **New route M: a plain `.mp4` link straight on a Custom Tile PLAYS and LOOPS (verified live).** That error message
+  lists `.mp4`, `.m4v`, `.mov`, `.webm` as formats a custom image link accepts. `https://media.giphy.com/media/
+  26ufdipQqU2lhNA4g/giphy.mp4` as the Custom Tile's `ImageURL` (via `spawnObjectData`, Custom_Tile, Stretch on)
+  showed the GIF moving: four window captures a second apart each showed a different frame, and captures minutes
+  later were still moving (it loops). No Unity bundle, no Lua per frame, no flipbook. GIPHY serves an MP4 for every
+  GIF, so the provider adapter just returns the `mp4` link.
+- **Route V (Unity VideoPlayer in an AssetBundle): not built, not needed.** Research (web search; the official
+  custom-AssetBundle page, kb.tabletopsimulator.com/custom-content/custom-assetbundle/, says a bundle may not hold
+  our own scripts and lists only TTSAssetBundleEffects/Sounds) found no TTS source for VideoPlayer in a bundle or a
+  workshop video-player mod: **unverified, no evidence either way**. Unity 6000.0.62f1 is installed and the project
+  builds `mtg-fx`, so a bundle could be built if route M fails later.
+- **Left untested:** MP4 on an Object UI Image (`UI.setCustomAssets` + `<Image>`; my exec channel stopped answering
+  before it ran: the bridge on 48787 had gone away and a direct External Editor API call got no reply); whether
+  other players' clients play it and in sync (needs a second player); frame-time cost with 4-6 playing tiles (T4's
+  PresentMon method); audio (GIPHY MP4s have none, so nothing was heard or tried); the owner-only move/lock and
+  `Custom_Tile` vs a small custom frame model; `.webm`/`.mov` links; save/reload with a video tile on it.
+- **Route pick:** W is out; M is the new first choice (needs a two-player check and a cost measurement before the
+  build); F is only a fallback now, V only if M fails in multiplayer.
