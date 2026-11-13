@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MTG Table Tutorial</title>
+<!--
+  The players' tutorial for the rules-engine table, printed to docs/tutorials/MTG-Table-Tutorial.pdf by
+  docs/tutorials/build-pdf.js. Pictures: img/*.jpg are crops of real table screenshots (crops.txt, make-crops.ps1).
+  img/needed/*.jpg are shots still to take (SHOTS-NEEDED.md): until a file is there, its box prints as a placeholder.
+  Callouts: a .fig carries its picture's size in source pixels (--w, --h); each .m marker sits at --x, --y in those pixels.
+-->
+<style>
+  @page { size: Letter; margin: 0.5in; }
+  :root {
+    --orange: #E8711A; --navy: #2E3A59; --gold: #C8961E; --ink: #1B1E24; --muted: #59606B;
+    --green: #2E9E4F; --red: #C62828; --purple: #6A3D9A; --line: #D9DCE1; --soft: #F4F5F7;
+  }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #fff; color: var(--ink); }
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 15.5px; line-height: 1.42; }
+  .page { width: 7.5in; height: 10in; overflow: hidden; position: relative; page-break-after: always; break-after: page; }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+  .band { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--orange);
+    padding-bottom: 4px; margin-bottom: 10px; font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+  .band b { color: var(--orange); }
+  h1 { font-size: 30px; line-height: 1.15; margin: 0 0 6px; }
+  h2 { font-size: 19px; margin: 14px 0 6px; color: var(--navy); }
+  p { margin: 0 0 8px; }
+  .lead { font-size: 16.5px; color: #333; margin-bottom: 10px; }
+  .foot { position: absolute; bottom: 0; left: 0; right: 0; border-top: 1px solid var(--line); padding-top: 4px;
+    font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
+  ol.steps { margin: 0 0 8px; padding: 0; list-style: none; counter-reset: s; }
+  ol.steps > li { counter-increment: s; position: relative; padding-left: 38px; margin-bottom: 7px; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 27px; height: 27px; border-radius: 6px;
+    background: var(--navy); color: #fff; font-weight: 700; text-align: center; line-height: 27px; font-size: 15px; }
+  ul { margin: 0 0 8px; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  code, .cmd { font-family: Consolas, "Courier New", monospace; font-size: 14px; background: #EEF0F3; border-radius: 4px; padding: 0 4px; }
+  .k { display: inline-block; font-weight: 700; font-size: 13.5px; padding: 0 7px; border-radius: 4px; color: #fff; background: var(--navy); line-height: 21px; white-space: nowrap; }
+  .k.or { background: var(--orange); } .k.gr { background: var(--green); } .k.rd { background: var(--red); } .k.pu { background: var(--purple); }
+  .k.dk { background: #1A1A1A; } .k.key { background: #fff; color: var(--ink); border: 1.5px solid #888; }
+  .tip { background: #FFF6E8; border-left: 5px solid var(--orange); padding: 7px 10px; border-radius: 4px; margin: 8px 0; font-size: 14.5px; }
+  .note { background: var(--soft); border-left: 5px solid var(--navy); padding: 7px 10px; border-radius: 4px; margin: 8px 0; font-size: 14.5px; }
+  .row { display: flex; gap: 14px; align-items: flex-start; }
+  .row > * { flex: 1 1 0; min-width: 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 4px 0 8px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+  td:first-child { white-space: nowrap; }
+  table.tight { font-size: 13px; } table.tight td, table.tight th { padding: 2px 6px; }
+  table.tight code { font-size: 12.5px; }
+  .cap { font-size: 12.5px; color: var(--muted); margin: 3px 0 8px; }
+
+  /* screenshots with numbered callouts */
+  .fig { position: relative; width: 100%; aspect-ratio: var(--w) / var(--h); border-radius: 6px; overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.35); background: #222; }
+  .fig.open { overflow: visible; }
+  .fig > img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 6px; }
+  .m { position: absolute; left: calc(var(--x) / var(--w) * 100%); top: calc(var(--y) / var(--h) * 100%);
+    transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; background: var(--orange); color: #fff;
+    border: 2.5px solid #fff; font-weight: 800; font-size: 14px; line-height: 21px; text-align: center;
+    box-shadow: 0 0 0 1.5px rgba(0,0,0,.55), 0 2px 5px rgba(0,0,0,.6); z-index: 2; }
+  .m.below { top: calc(100% + 17px); }
+  .box { position: absolute; left: calc(var(--x) / var(--w) * 100%); top: calc(var(--y) / var(--h) * 100%);
+    width: calc(var(--bw) / var(--w) * 100%); height: calc(var(--bh) / var(--h) * 100%);
+    border: 3px solid #FFD27A; border-radius: 6px; box-shadow: 0 0 0 1.5px rgba(0,0,0,.6); z-index: 1; }
+  .legend { list-style: none; margin: 8px 0; padding: 0; font-size: 14.5px; }
+  .legend li { position: relative; padding-left: 32px; margin-bottom: 5px; min-height: 24px; }
+  .legend li > span.n { position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--orange);
+    color: #fff; font-weight: 800; font-size: 13px; line-height: 24px; text-align: center; }
+  .legend.cols { columns: 2; column-gap: 18px; }
+  .legend.cols li { break-inside: avoid; }
+
+  /* a shot still to take: the box shows its file name until img/needed/<file> exists, then the picture covers it */
+  .ph { position: relative; width: 100%; aspect-ratio: var(--w) / var(--h); border: 3px dashed #B0B6BF; border-radius: 8px;
+    background: repeating-linear-gradient(135deg, #F7F8FA 0 14px, #EEF0F3 14px 28px); overflow: hidden; }
+  .ph .t { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center; padding: 10px 16px; font-size: 13.5px; color: #4A505A; }
+  .ph .t b { font-size: 15px; color: var(--navy); letter-spacing: .05em; text-transform: uppercase; }
+  .ph .t code { margin: 4px 0; font-size: 13px; }
+  .ph .shot { position: absolute; inset: 0; background-size: cover; background-position: center; background-repeat: no-repeat; }
+
+  /* cover */
+  .cover h1 { font-size: 44px; margin-top: 30px; }
+  .cover .sub { font-size: 20px; color: var(--muted); margin-bottom: 18px; }
+  .toc { columns: 2; column-gap: 26px; font-size: 15.5px; padding-left: 22px; margin: 6px 0 14px; }
+  .toc li { margin-bottom: 5px; } .toc .pg { color: var(--muted); font-size: 13px; }
+  .swatch { display: inline-block; width: 18px; height: 18px; border-radius: 3px; vertical-align: -3px; margin-right: 6px; border: 3px solid; background: #2b2b2b; }
+  .dockrow { padding-bottom: 34px; }
+</style>
+</head>
+<body>
+
+<!-- ───────────── 1. Cover ───────────── -->
+<section class="page cover">
+  <div class="band"><span><b>MTG Commander</b> · Tabletop Simulator · rules-engine table</span><span>Players' guide</span></div>
+  <h1>Playing on the rules-engine table</h1>
+  <div class="sub">A step-by-step picture guide for everyone at the table</div>
+  <p class="lead">This is the group's 4-player Commander table in Tabletop Simulator (TTS), with the <b>Forge rules engine</b> running the
+    game underneath. You play the way you always have: drag cards, tap them, click the table's buttons. The engine checks every
+    move, puts things on the stack, asks the questions (targets, blockers, triggers) and moves the cards for you. A move that
+    isn't legal snaps back, and the chat says why.</p>
+  <p>Sections are numbered as in the contents; each starts on its own page. Every picture in this guide is a real screenshot of the table. Numbered orange circles point at the parts each page talks about.
+    A striped box marked <i>Screenshot needed</i> is a picture still to be taken; the text next to it is accurate.</p>
+
+  <h2>Contents</h2>
+  <ol class="toc">
+    <li>The screen at a glance <span class="pg">p. 2</span></li>
+    <li>Joining a seat and starting a game <span class="pg">p. 3</span></li>
+    <li>Your hand and the green glow <span class="pg">p. 4</span></li>
+    <li>Playing a card and paying costs <span class="pg">p. 5</span></li>
+    <li>The stack and the corner buttons <span class="pg">p. 6</span></li>
+    <li>The Choices window and the card row <span class="pg">p. 7</span></li>
+    <li>Targets and exact picks <span class="pg">p. 8</span></li>
+    <li>Combat: attacking <span class="pg">p. 9</span></li>
+    <li>Combat: blocking <span class="pg">p. 10</span></li>
+    <li>Triggers, stops and Auto-resolve <span class="pg">p. 11</span></li>
+    <li>Marks, life and counters <span class="pg">p. 12</span></li>
+    <li>Planechase and dungeons <span class="pg">p. 13</span></li>
+    <li>Fix... and rewinding (Undo) <span class="pg">p. 14</span></li>
+    <li>Chat commands cheat sheet <span class="pg">p. 15</span></li>
+    <li>Sounds and effects <span class="pg">p. 16</span></li>
+    <li>Troubleshooting <span class="pg">p. 17</span></li>
+  </ol>
+
+  <h2>The three glows</h2>
+  <table>
+    <tr><td><span class="swatch" style="border-color:#3BD16F"></span><b>Green</b></td><td>You can act on it now: a card you can play, a permanent with an ability you can use, a target, an attacker, a blocker, a card to pick.</td></tr>
+    <tr><td><span class="swatch" style="border-color:#E9C23A"></span><b>Gold</b></td><td>You picked it (a chosen card or target).</td></tr>
+    <tr><td><span class="swatch" style="border-color:#E23B3B"></span><b>Red / blue</b></td><td>In combat: red = attacking, blue = blocking.</td></tr>
+  </table>
+
+  <div class="note"><b>Who runs what:</b> only the host starts the engine (Start MTG or the MTG Companion app). Everyone else
+    just needs TTS and a seat. This guide is for the players at the table; the host's setup is in HOW-TO-PLAY.md and the companion guide.</div>
+  <div class="foot"><span>MTG Table Tutorial</span><span>1</span></div>
+</section>
+
+<!-- ───────────── 2. Screen at a glance ───────────── -->
+<section class="page">
+  <div class="band"><span><b>1</b> · The screen at a glance</span><span>White's view, own turn, upkeep</span></div>
+  <h1>The screen at a glance</h1>
+  <p class="lead">What you see when you sit down. Your own seat is always at the bottom right of your camera; the rest of the
+    screen is yours only (each player gets their own copy of the buttons).</p>
+  <div class="fig" style="--w:1920;--h:1000">
+    <img src="img/overview.jpg" alt="The whole table during White's upkeep">
+    <span class="m" style="--x:360;--y:192">1</span>
+    <span class="m" style="--x:960;--y:40">2</span>
+    <span class="m" style="--x:1270;--y:127">3</span>
+    <span class="m" style="--x:1704;--y:420">4</span>
+    <span class="m" style="--x:1060;--y:500">5</span>
+    <span class="m" style="--x:1250;--y:600">6</span>
+    <span class="m" style="--x:1182;--y:745">7</span>
+    <span class="m" style="--x:1340;--y:530">8</span>
+    <span class="m" style="--x:1450;--y:665">9</span>
+    <span class="m" style="--x:1350;--y:860">10</span>
+    <span class="m" style="--x:960;--y:940">11</span>
+    <span class="m" style="--x:1610;--y:880">12</span>
+    <span class="m" style="--x:520;--y:830">13</span>
+    <span class="m" style="--x:700;--y:640">14</span>
+  </div>
+  <ol class="legend cols">
+    <li><span class="n">1</span><b>The dock</b>: Choices, Graveyards, Undo, Settings, Log, Auto-resolve, Fix... (section 6).</li>
+    <li><span class="n">2</span><b>Phase bar</b>: whose turn and the step; DAY / NIGHT and the plane show here too.</li>
+    <li><span class="n">3</span>Your name and <b>Scoop</b> (concede).</li>
+    <li><span class="n">4</span><b>Game log</b>: every play, trigger, life change. Log in the dock hides it.</li>
+    <li><span class="n">5</span><b>Life counters</b> (hearts) with commander damage beside them.</li>
+    <li><span class="n">6</span><b>Your battlefield</b>: creatures in front, other permanents behind.</li>
+    <li><span class="n">7</span><b>The mana box</b>: your lands' row near the mat's bottom edge.</li>
+    <li><span class="n">8</span><b>Command zone</b>: your commander.</li>
+    <li><span class="n">9</span>Exile, library and graveyard spots.</li>
+    <li><span class="n">10</span><b>Your hand on the table</b>: drag cards from here.</li>
+    <li><span class="n">11</span>TTS's own hand strip (look, but don't drag from it).</li>
+    <li><span class="n">12</span><b>Corner buttons</b> and the instruction line above them.</li>
+    <li><span class="n">13</span>Chat: the table's messages start with <code>[MTG]</code>.</li>
+    <li><span class="n">14</span>Other players' mats (here a Forge AI on Red).</li>
+  </ol>
+  <div class="foot"><span>MTG Table Tutorial · The screen at a glance</span><span>2</span></div>
+</section>
+
+<!-- ───────────── 3. Joining ───────────── -->
+<section class="page">
+  <div class="band"><span><b>2</b> · Joining a seat and starting a game</span><span>Before turn 1</span></div>
+  <h1>Joining a seat and starting a game</h1>
+  <ol class="steps">
+    <li><b>Join the host's server</b> (Steam invite or the server browser) and <b>sit at a colour</b>: White, Red, Yellow or Blue.</li>
+    <li><b>Bring your deck</b> with the table's Card Importer as usual: the deck on your library spot, your commander on your command zone.</li>
+    <li><b>Turn the engine on</b>: anyone seated presses <span class="k dk">Engine: on</span> on the middle tile (or types <code>mtg engine on</code>).</li>
+    <li><b>Press <span class="k dk">READY?</span> on your playmat.</b> It checks every card against the engine: <b style="color:var(--green)">READY</b>
+      (green) means good to go; <b style="color:var(--red)">FIX DECK</b> (red) means the chat lists what's wrong (an unknown card, no commander...).</li>
+    <li><b>Free mulligans</b> (optional): the button on the left rim of the table (where the cannon sits outside engine mode) goes
+      None → 1 → 2. One count for the whole table, the rules' free first mulligan included; everyone is told who changed it.</li>
+    <li><b>Start</b>: when everyone is green, anyone seated presses <span class="k dk">Start</span> on the middle tile. A dice roll picks who goes
+      first; turns then go clockwise: <b>White → Red → Yellow → Blue</b>. Empty seats can be Forge AI players (<code>mtg start ai 1</code>, up to 3).</li>
+  </ol>
+  <div class="ph" style="--w:16;--h:4.6">
+    <div class="t"><b>Screenshot needed</b><code>img/needed/ready-start.jpg</code>The middle tile (Engine: on, Start), a READY? button on a
+      playmat, and the Free mulligans button on the left rim, before a game.</div>
+    <div class="shot" style="background-image:url('img/needed/ready-start.jpg')"></div>
+  </div>
+  <h2>Keep or mulligan</h2>
+  <div class="row">
+    <div style="flex:1.25">
+      <div class="fig" style="--w:770;--h:230">
+        <img src="img/mulligan.jpg" alt="Keep this hand? with Mulligan (free) and Keep buttons">
+        <span class="m" style="--x:600;--y:22">1</span>
+        <span class="m" style="--x:440;--y:68">2</span>
+        <span class="m" style="--x:440;--y:132">3</span>
+        <span class="m" style="--x:60;--y:150">4</span>
+      </div>
+    </div>
+    <div>
+      <ol class="legend">
+        <li><span class="n">1</span>The question: <i>Keep this hand?</i></li>
+        <li><span class="n">2</span><span class="k">Mulligan (free)</span>: a new 7, nothing to the bottom. Without a free one left it reads <span class="k">Mulligan</span>.</li>
+        <li><span class="n">3</span><span class="k or">Keep</span>.</li>
+        <li><span class="n">4</span>Your new hand. After a normal mulligan the table asks which cards go to the bottom.</li>
+      </ol>
+    </div>
+  </div>
+  <div class="foot"><span>MTG Table Tutorial · Joining a seat</span><span>3</span></div>
+</section>
+
+<!-- ───────────── 4. Hand and glow ───────────── -->
+<section class="page">
+  <div class="band"><span><b>3</b> · Your hand and the green glow</span><span>What can I do right now?</span></div>
+  <h1>Your hand and the green glow</h1>
+  <p class="lead">The table lights up what you can do <b>right now</b>. Only you see your own glow.</p>
+  <div class="fig" style="--w:920;--h:230">
+    <img src="img/hand-glow.jpg" alt="Hand with green-glowing playable cards and the corner buttons">
+    <span class="m" style="--x:200;--y:150">1</span>
+    <span class="m" style="--x:350;--y:150">2</span>
+    <span class="m" style="--x:520;--y:200">3</span>
+    <span class="m" style="--x:640;--y:120">4</span>
+  </div>
+  <ol class="legend">
+    <li><span class="n">1</span><b>Green frame</b> = you can play this card now (you have the mana and the timing is right).</li>
+    <li><span class="n">2</span>No frame = not now (no mana, wrong timing, or a sorcery while something is on the stack).</li>
+    <li><span class="n">3</span>TTS's hand strip at the bottom of the screen: good for reading cards, but it rises when the pointer touches it,
+      so <b>drag from the cards on the table</b> instead.</li>
+    <li><span class="n">4</span>The corner buttons (section 5). With nothing to answer, <span class="k or">Next</span> passes and <span class="k">End turn</span> passes to the end of your turn.</li>
+  </ol>
+  <h2>Permanents glow too</h2>
+  <div class="fig" style="--w:1020;--h:260">
+    <img src="img/perm-glow.jpg" alt="A commander in the command zone and a creature glowing green">
+    <span class="m" style="--x:870;--y:60">1</span>
+    <span class="m" style="--x:150;--y:205">2</span>
+    <span class="m" style="--x:150;--y:40">3</span>
+  </div>
+  <ol class="legend">
+    <li><span class="n">1</span>Your commander glows in the command zone when you can cast it.</li>
+    <li><span class="n">2</span>A permanent glows when it has an ability you can use now. Mana-only abilities don't glow at priority.</li>
+    <li><span class="n">3</span>No glow: nothing to do with these right now.</li>
+  </ol>
+  <div class="tip"><b>Cards you may play from elsewhere</b> (flashback, foretell, adventures, "play from exile") lie in a glowing row on the
+    near strip of your own mat, below your lands. Drag one onto the battlefield to play it. Turn the glow off or on with <code>mtg glow</code>.</div>
+  <div class="foot"><span>MTG Table Tutorial · Your hand and the green glow</span><span>4</span></div>
+</section>
+
+<!-- ───────────── 5. Playing a card ───────────── -->
+<section class="page">
+  <div class="band"><span><b>4</b> · Playing a card and paying costs</span><span>Drag, then pay</span></div>
+  <h1>Playing a card and paying costs</h1>
+  <ol class="steps">
+    <li><b>Drag the card</b> from your hand onto your battlefield. Your commander: drag it from the command zone (the tax is added for you).
+      A land lands in the mana box by itself; other cards stay where you drop them.</li>
+    <li><b>Answer any question</b> it asks: targets, modes, X, "how do you play it?" (sections 6 and 7).</li>
+    <li><b>Pay.</b> Usually the cost is paid for you. If the table asks, press <span class="k or">Auto-pay</span>, or tap a glowing land or
+      mana source yourself with <span class="k key">Q</span> / <span class="k key">E</span>. Mana already in your pool pays by itself.</li>
+    <li>The spell goes on the <b>stack</b> (section 5). A move the rules don't allow snaps back, and the chat says why.</li>
+  </ol>
+  <div class="row">
+    <div style="flex:1.1">
+      <div class="fig" style="--w:640;--h:240">
+        <img src="img/pay.jpg" alt="Pay {G} for Giant Growth, with Cancel and Pay from mana pool">
+        <span class="m" style="--x:280;--y:30">1</span>
+        <span class="m" style="--x:340;--y:90">2</span>
+        <span class="m" style="--x:340;--y:147">3</span>
+      </div>
+    </div>
+    <div>
+      <ol class="legend">
+        <li><span class="n">1</span>What to pay: <i>Pay {G} for Giant Growth. Tap lands (Q/E), or Auto-pay.</i></li>
+        <li><span class="n">2</span><span class="k">Cancel</span> takes the spell back: the card returns to your hand and lands you tapped for it untap.</li>
+        <li><span class="n">3</span>The main button: <span class="k or">Auto-pay</span> or, with mana floating, <span class="k or">Pay from mana pool</span>.</li>
+      </ol>
+    </div>
+  </div>
+  <h2>Abilities on your cards</h2>
+  <div class="row">
+    <div>
+      <p>Point at one of your cards: its abilities appear as big buttons in a panel at the <b>bottom right</b>, above the corner buttons.
+        Each line shows the cost in gold, then the effect; hover for the whole text, click to use it. A line you can't use now is greyed,
+        with the reason (<i>Tapped</i>, <i>Summoning sickness</i>, <i>Not your priority</i>, <i>Only as a sorcery</i>...). Six lines a page,
+        <span class="k dk">More...</span> for the rest, <b>X</b> to close. The same abilities are on the card itself and in its right-click menu.</p>
+      <p><b>Equip:</b> drag the equipment onto your creature (or use its Equip line).</p>
+    </div>
+    <div style="flex:.85">
+      <div class="ph" style="--w:440;--h:330">
+        <div class="t"><b>Screenshot needed</b><code>img/needed/ability-panel.jpg</code>The ability panel for a creature with several
+          abilities, one greyed with its reason.</div>
+        <div class="shot" style="background-image:url('img/needed/ability-panel.jpg')"></div>
+      </div>
+    </div>
+  </div>
+  <h2>Cost badges</h2>
+  <div class="row">
+    <div style="flex:.9">
+      <div class="ph" style="--w:16;--h:7">
+        <div class="t"><b>Screenshot needed</b><code>img/needed/cost-badge.jpg</code>A hand card with a changed cost (Thalia out).</div>
+        <div class="shot" style="background-image:url('img/needed/cost-badge.jpg')"></div>
+      </div>
+    </div>
+    <div>
+      <p>When a card's cost is changed (commander tax, Thalia, a cost reducer), a round counter covers its generic mana number with the
+        new total: a red rim when it costs more, green when less. Hover text: <i>Costs {3}{R}{R} now (printed {2}{R}{R})</i>.</p>
+    </div>
+  </div>
+  <div class="foot"><span>MTG Table Tutorial · Playing a card</span><span>5</span></div>
+</section>
+
+<!-- ───────────── 6. Stack and corner ───────────── -->
+<section class="page">
+  <div class="band"><span><b>5</b> · The stack and the corner buttons</span><span>Pass, Resolve, Resolve all</span></div>
+  <h1>The stack and the corner buttons</h1>
+  <p class="lead">The corner buttons at the bottom right are your main answer. Their words change with the question; the line above
+    them says what the table wants.</p>
+  <div class="row">
+    <div style="flex:1.45">
+      <div class="ph" style="--w:640;--h:330">
+        <div class="t"><b>Screenshot needed</b><code>img/needed/corner-resolve.jpg</code>The corner with a stack: orange Resolve, navy
+          Resolve all (N) and the purple "Resolve N× &lt;name&gt;" above them.</div>
+        <div class="shot" style="background-image:url('img/needed/corner-resolve.jpg')"></div>
+      </div>
+      <table style="margin-top:10px">
+        <tr><th>Button</th><th>What it does</th></tr>
+        <tr><td><span class="k or">Next</span></td><td>Nothing on the stack: pass priority (the game moves on).</td></tr>
+        <tr><td><span class="k">End turn</span></td><td>Pass until your turn ends (you're still asked if something needs you).</td></tr>
+        <tr><td><span class="k or">Resolve</span></td><td>Something on the stack: pass, so the top item resolves.</td></tr>
+        <tr><td><span class="k">Resolve all (N)</span></td><td>Keep passing until the N items (and your own new triggers) are done. It stops when another player adds something, the step changes, or a question needs you.</td></tr>
+        <tr><td><span class="k pu">Resolve 4× Swiftspear</span></td><td>Purple, only when the top of the stack is a run of 2+ of the same ability of yours (eight prowess triggers): resolves just that run in one press.</td></tr>
+        <tr><td><span class="k or">Done</span> / <span class="k">Cancel</span></td><td>Finish a pick / take back a spell or ability while paying.</td></tr>
+        <tr><td><span class="k or">1 of 2 chosen</span></td><td>A count, not a button: the last pick answers by itself.</td></tr>
+      </table>
+    </div>
+    <div>
+      <div class="fig" style="--w:300;--h:440">
+        <img src="img/stack-popup.jpg" alt="The stack pop-up: Hero of Bladehold's trigger">
+        <span class="m" style="--x:40;--y:18">1</span>
+        <span class="m" style="--x:245;--y:50">2</span>
+        <span class="m" style="--x:30;--y:200">3</span>
+        <span class="m" style="--x:30;--y:410">4</span>
+      </div>
+      <ol class="legend">
+        <li><span class="n">1</span><b>The stack pop-up</b>: the item on top and whose it is.</li>
+        <li><span class="n">2</span><b>X</b> closes it (it comes back for the next item).</li>
+        <li><span class="n">3</span>The card that made it.</li>
+        <li><span class="n">4</span>What will happen (a trigger's own text).</li>
+      </ol>
+    </div>
+  </div>
+  <div class="tip"><b>Hotkey:</b> bind <i>MTG: pass priority / main button</i> to <span class="k key">P</span> (Options → Controls → scripting hotkeys).
+    <b>Safety:</b> when a new question changes the button's words (Resolve becomes Next), a click in the next half second is ignored, so a click meant for the old button can't pass by mistake.</div>
+  <div class="foot"><span>MTG Table Tutorial · The stack and the corner buttons</span><span>6</span></div>
+</section>
+
+<!-- ───────────── 7. Choices ───────────── -->
+<section class="page">
+  <div class="band"><span><b>6</b> · The Choices window and the card row</span><span>Questions that need more than a click</span></div>
+  <h1>The Choices window and the card row</h1>
+  <div class="dockrow">
+    <div class="fig open" style="--w:570;--h:42">
+      <img src="img/dock.jpg" alt="The dock: Choices, Graveyards, Undo, Settings, Log, Auto-resolve, Fix...">
+      <span class="m below" style="--x:43">1</span>
+      <span class="m below" style="--x:125">2</span>
+      <span class="m below" style="--x:197">3</span>
+      <span class="m below" style="--x:262">4</span>
+      <span class="m below" style="--x:322">5</span>
+      <span class="m below" style="--x:422">6</span>
+      <span class="m below" style="--x:525">7</span>
+    </div>
+  </div>
+  <ol class="legend cols">
+    <li><span class="n">1</span><b>Choices</b>: the full question window. Opens by itself when a question needs it.</li>
+    <li><span class="n">2</span><b>Graveyards</b>: every graveyard and exile pile, to look through.</li>
+    <li><span class="n">3</span><b>Undo</b>: restore points (section 13). Shown only when there are some.</li>
+    <li><span class="n">4</span><b>Settings</b>: My effects, My sounds, Table animations (host), Draw / mill / untap by itself.</li>
+    <li><span class="n">5</span><b>Log</b>: show or hide the game log.</li>
+    <li><span class="n">6</span><b>Auto-resolve</b> (section 10).</li>
+    <li><span class="n">7</span><b>Fix...</b> (section 13).</li>
+  </ol>
+  <div class="row">
+    <div style="flex:.6">
+      <div class="fig" style="--w:430;--h:615">
+        <img src="img/choices-panel.jpg" alt="The Choices window with a library search">
+        <span class="m" style="--x:405;--y:18">1</span>
+        <span class="m" style="--x:405;--y:70">2</span>
+        <span class="m" style="--x:405;--y:153">3</span>
+        <span class="m" style="--x:405;--y:300">4</span>
+        <span class="m" style="--x:405;--y:527">5</span>
+        <span class="m" style="--x:405;--y:585">6</span>
+      </div>
+      <p class="cap">(Taken before the dock got its tabs; the window inside is the same.)</p>
+    </div>
+    <div>
+      <ol class="legend">
+        <li><span class="n">1</span>Status: turn, step, who has priority, the stack.</li>
+        <li><span class="n">2</span>The question and its card's text.</li>
+        <li><span class="n">3</span><b>Search box</b>: type to narrow a long list.</li>
+        <li><span class="n">4</span>The answers. Long lists end in <span class="k dk">More...</span>.</li>
+        <li><span class="n">5</span><span class="k gr">Done (0 of 1)</span>: counts your picks.</li>
+        <li><span class="n">6</span>The stops (section 10).</li>
+      </ol>
+      <p>The window can be dragged anywhere. Picking from your library: choose in the list, or right-click your library → Search and drag the card out.</p>
+    </div>
+  </div>
+  <h2>Quick questions: the card row</h2>
+  <div class="row">
+    <div>
+      <div class="fig" style="--w:800;--h:220">
+        <img src="img/choice-row.jpg" alt="Bonecrusher Giant: how do you play it?">
+        <span class="m" style="--x:90;--y:60">1</span>
+        <span class="m" style="--x:30;--y:167">2</span>
+      </div>
+    </div>
+    <div style="flex:.75">
+      <ol class="legend">
+        <li><span class="n">1</span>A short question opens in the middle of the screen...</li>
+        <li><span class="n">2</span>...with one button per answer, and <span class="k">Back</span>.</li>
+      </ol>
+    </div>
+  </div>
+  <div class="foot"><span>MTG Table Tutorial · The Choices window</span><span>7</span></div>
+</section>
+
+<!-- ───────────── 8. Card row + targets ───────────── -->
+<section class="page">
+  <div class="band"><span><b>7</b> · Targets and exact picks</span><span>Click what glows</span></div>
+  <h1>Targets and exact picks</h1>
+  <div class="fig" style="--w:1920;--h:1000">
+    <img src="img/targets.jpg" alt="Lightning Bolt asking for a target: glowing life counters and creatures">
+    <span class="m" style="--x:640;--y:445">1</span>
+    <span class="m" style="--x:1270;--y:445">1</span>
+    <span class="m" style="--x:1420;--y:690">2</span>
+    <span class="m" style="--x:1540;--y:792">3</span>
+    <span class="m" style="--x:1590;--y:846">4</span>
+    <span class="m" style="--x:1630;--y:910">5</span>
+    <span class="m" style="--x:1600;--y:250">6</span>
+    <span class="m" style="--x:990;--y:695">7</span>
+    <span class="m" style="--x:1300;--y:80">8</span>
+  </div>
+  <ol class="legend cols">
+    <li><span class="n">1</span><b>A player</b>: click their glowing <b>life counter</b>.</li>
+    <li><span class="n">2</span><b>A creature or planeswalker</b>: click the glowing card.</li>
+    <li><span class="n">3</span>The question: <i>Lightning Bolt: deals 3 damage to which target?</i></li>
+    <li><span class="n">4</span><span class="k">Cancel</span> takes the spell back.</li>
+    <li><span class="n">5</span><span class="k or">0 of 1 chosen</span>: the last pick answers by itself.</li>
+    <li><span class="n">6</span>The spell, in the stack pop-up.</li>
+    <li><span class="n">7</span>A mark: this player is the <b>MONARCH</b> (section 11).</li>
+    <li><span class="n">8</span><b>DAY</b> / <b>NIGHT</b> shows in the phase bar once a card makes it day.</li>
+  </ol>
+  <h2>Picking cards</h2>
+  <div class="row"><div style="flex:1.6"><div class="fig" style="--w:1500;--h:500">
+    <img src="img/card-row.jpg" alt="Treetop Sentries: choose 3 cards">
+    <span class="m" style="--x:250;--y:40">1</span>
+    <span class="m" style="--x:30;--y:225">2</span>
+    <span class="m" style="--x:700;--y:445">3</span>
+    <span class="m" style="--x:1170;--y:60">4</span>
+  </div></div>
+  <ol class="legend">
+    <li><span class="n">1</span>The question, with what the card does.</li>
+    <li><span class="n">2</span>Click the cards you want; they turn gold.</li>
+    <li><span class="n">3</span><span class="k or">Done (0)</span> counts your picks.</li>
+    <li><span class="n">4</span>The card asking, in the stack pop-up.</li>
+  </ol></div>
+  <div class="tip"><b>Discarding most of your hand</b> (cleanup with a huge hand): the table asks which cards to <b>keep</b> instead.
+    <b>Scry</b>: the top card is shown beside Done; click it to put it on the bottom, then Done.</div>
+  <div class="foot"><span>MTG Table Tutorial · Targets and exact picks</span><span>8</span></div>
+</section>
+
+<!-- ───────────── 9. Attacking ───────────── -->
+<section class="page">
+  <div class="band"><span><b>8</b> · Combat: attacking</span><span>Green means attack</span></div>
+  <h1>Combat: attacking</h1>
+  <div class="fig" style="--w:960;--h:420;width:88%;margin:0 auto">
+    <img src="img/attack.jpg" alt="Choose attackers: glowing creatures, All attack and No attacks">
+    <span class="m" style="--x:170;--y:32">1</span>
+    <span class="m" style="--x:480;--y:273">2</span>
+    <span class="m" style="--x:735;--y:300">3</span>
+    <span class="m" style="--x:660;--y:330">4</span>
+    <span class="m" style="--x:660;--y:387">5</span>
+  </div>
+  <ol class="legend cols">
+    <li><span class="n">1</span>Creatures that can attack glow green.</li>
+    <li><span class="n">2</span><i>Choose attackers. Click a creature, then who it attacks.</i></li>
+    <li><span class="n">3</span>Taxes and limits are spelled out: <i>Attack tax: AI 1 {4} each.</i></li>
+    <li><span class="n">4</span><span class="k gr">All attack</span>: everything that can attacks.</li>
+    <li><span class="n">5</span><span class="k">No attacks</span>. Once you pick some it becomes <span class="k gr">Attack (2)</span>.</li>
+  </ol>
+  <ol class="steps">
+    <li><b>Pick an attacker</b>: press <span class="k key">Q</span> / <span class="k key">E</span> on a glowing creature (or click its line in the Choices window).</li>
+    <li><b>Pick what it attacks</b>: click a player's <b>life counter</b>, a glowing <b>planeswalker</b> or a battle. The chat confirms:
+      <i>Hero of Bladehold 3/4 attacks AI 1.</i></li>
+    <li>Press <span class="k gr">Attack (n)</span> (or <span class="k gr">All attack</span>). If a tax is due, the table asks you to pay it; its
+      Cancel is <i>Don't attack with X</i>.</li>
+  </ol>
+  <h2>Attack whom?</h2>
+  <div class="row"><div style="flex:1.25"><div class="fig" style="--w:720;--h:180">
+    <img src="img/attack-whom.jpg" alt="Attack whom with Hero of Bladehold 3/4?">
+    <span class="m" style="--x:120;--y:37">1</span>
+    <span class="m" style="--x:30;--y:137">2</span>
+    <span class="m" style="--x:452;--y:110">3</span>
+    <span class="m" style="--x:690;--y:110">4</span>
+  </div></div>
+  <ol class="legend">
+    <li><span class="n">1</span>With more than one player or planeswalker to attack, the table asks.</li>
+    <li><span class="n">2</span>A player, with any tax shown.</li>
+    <li><span class="n">3</span>A planeswalker, named with its controller.</li>
+    <li><span class="n">4</span><span class="k">Back</span>. All attack can also go <i>One by one</i>.</li>
+  </ol></div>
+  <div class="note"><b>Big token boards</b>: five or more identical tokens stack as one card with an <b>×N</b> label; attacking with the
+    stack sends them all. To use only some, press <b>Split</b> in the grey box beside it. Attack questions with more than 8 lines get
+    <b>tabs by creature name</b> in the Choices window, e.g. <i>Spirit Token (20)</i>.</div>
+  <div class="foot"><span>MTG Table Tutorial · Combat: attacking</span><span>9</span></div>
+</section>
+
+<!-- ───────────── 10. Blocking ───────────── -->
+<section class="page">
+  <div class="band"><span><b>9</b> · Combat: blocking</span><span>Red means you're attacked</span></div>
+  <h1>Combat: blocking</h1>
+  <p class="lead">When someone attacks you, <b>COMBAT</b> turns red in your phase bar and the corner shows a red <span class="k rd">Done</span>.</p>
+  <div class="fig" style="--w:530;--h:80;margin-bottom:10px">
+    <img src="img/blocks-zoom.jpg" alt="Close-up: the attacker framed red, blockers green and blue">
+    <span class="m" style="--x:150;--y:40">1</span>
+    <span class="m" style="--x:260;--y:16">2</span>
+    <span class="m" style="--x:445;--y:62">3</span>
+    <span class="m" style="--x:515;--y:62">4</span>
+  </div>
+  <div class="fig" style="--w:1920;--h:570">
+    <img src="img/blocks.jpg" alt="Choose blockers: Ghalta attacking, a Soldier token blocking">
+    <span class="m" style="--x:520;--y:395">5</span>
+    <span class="m" style="--x:1560;--y:370">6</span>
+    <span class="m" style="--x:1610;--y:475">7</span>
+  </div>
+  <ol class="legend cols">
+    <li><span class="n">1</span>The attacker, framed <b>red</b>.</li>
+    <li><span class="n">2</span>The attack line points at whom it attacks (here: you).</li>
+    <li><span class="n">3</span>Your creatures that can block glow <b>green</b>.</li>
+    <li><span class="n">4</span>A blocker, framed <b>blue</b>.</li>
+    <li><span class="n">5</span>Every click is confirmed in the chat.</li>
+    <li><span class="n">6</span><i>Choose blockers. Click your creature, then the attacker it blocks.</i></li>
+    <li><span class="n">7</span><span class="k rd">Done</span> when finished (with no blocks: no blocks).</li>
+  </ol>
+  <ol class="steps">
+    <li><b>Click your glowing creature.</b> Chat: <i>Now click the attacker for Soldier Token 1/1 #3 to block (or click it again: no block).</i></li>
+    <li><b>Click the attacker</b> it blocks. Chat: <i>Soldier Token 1/1 #3 blocks Ghalta, Primal Hunger 12/12. Click the blocker again to change it; Done when finished.</i></li>
+    <li>Repeat for each blocker, then press <span class="k rd">Done</span>.</li>
+  </ol>
+  <div class="tip"><b>Changing your mind:</b> click the blocker again to take its block back, or right-click it → <i>Don't block with this</i>.
+    Identical creatures are numbered (#1, #2...) in the chat and the Choices window so you can tell them apart.</div>
+  <div class="note"><b>After blocks</b>, the attacking player gets priority when they hold something to cast (a pump spell), as on Arena.
+    Combat damage, deaths and life changes then appear in the log.</div>
+  <div class="foot"><span>MTG Table Tutorial · Combat: blocking</span><span>10</span></div>
+</section>
+
+<!-- ───────────── 11. Triggers and Auto-resolve ───────────── -->
+<section class="page">
+  <div class="band"><span><b>10</b> · Triggers, stops and Auto-resolve</span><span>Fewer clicks</span></div>
+  <h1>Triggers, stops and Auto-resolve</h1>
+  <div class="row">
+    <div style="flex:1">
+      <div class="fig" style="--w:560;--h:360">
+        <img src="img/autoresolve-list.jpg" alt="The Auto-resolve list">
+        <span class="m" style="--x:160;--y:18">1</span>
+        <span class="m" style="--x:225;--y:55">2</span>
+        <span class="m" style="--x:270;--y:85">3</span>
+        <span class="m" style="--x:220;--y:240">4</span>
+        <span class="m" style="--x:220;--y:335">5</span>
+      </div>
+      <p class="cap">(Taken with the older dock; the list is the same.)</p>
+    </div>
+    <div style="flex:1.05">
+      <ol class="legend">
+        <li><span class="n">1</span><b>Auto-resolve...</b> opens the list (green while on).</li>
+        <li><span class="n">2</span><b>Off</b>: you're asked as usual.</li>
+        <li><span class="n">3</span><b>Other players' turns</b>: pass by yourself on their turns; your own turn asks as usual.</li>
+        <li><span class="n">4</span><b>Until upkeep / draw / main phase / combat / blockers / damage / main 2 / end step</b>: pass until that step comes, on anyone's turn, then it switches off.</li>
+        <li><span class="n">5</span><b>Until my turn</b>: the same, up to your next turn.</li>
+      </ol>
+    </div>
+  </div>
+  <div class="tip"><b>Play your lands first:</b> an "Until" passes your own priority too. An opponent's spell or ability on the stack
+    ends an "Until" so you can answer, and questions other than priority (targets, blocks, discards) are always asked.
+    Typed: <code>mtg skip combat</code> ... <code>mtg skip mine</code>, <code>mtg skip off</code>.</div>
+  <h2>Stops and Hold</h2>
+  <div class="dockrow">
+    <div class="fig open" style="--w:420;--h:60;width:60%">
+      <img src="img/stops.jpg" alt="Stop: start of turn, Stop: combat, Stop: end of turn, Hold">
+      <span class="m below" style="--x:53">1</span>
+      <span class="m below" style="--x:157">2</span>
+      <span class="m below" style="--x:262">3</span>
+      <span class="m below" style="--x:366">4</span>
+    </div>
+  </div>
+  <p>At the bottom of the Choices window: where the game <b>waits for you on other players' turns</b> (gold = on).
+    <b>1</b> Stop: start of turn and <b>3</b> Stop: end of turn are on by default; <b>2</b> Stop: combat is off. They only stop
+    when you can do something. <b>4</b> <span class="k">Hold</span> (or <code>mtg hold</code>) keeps priority once after something goes
+    on the stack, to respond to your own trigger. Over your own spell you are asked anyway when you hold a spell to answer it with.</p>
+  <h2>Step banners</h2>
+  <div class="row">
+    <div style="flex:1">
+      <div class="fig" style="--w:800;--h:260">
+        <img src="img/banner.jpg" alt="UPKEEP banner">
+        <span class="m" style="--x:560;--y:70">1</span>
+      </div>
+    </div>
+    <div style="flex:1">
+      <p><b>1</b> When the table stops to ask you something, the step shows in the middle of the screen once (UPKEEP, DRAW, MAIN PHASE 1,
+        COMBAT, MAIN PHASE 2, END STEP, CLEANUP). Turn banners say <b>YOUR TURN</b> or the player's name. Never while Auto-resolve passes for you.</p>
+    </div>
+  </div>
+  <div class="foot"><span>MTG Table Tutorial · Triggers and Auto-resolve</span><span>11</span></div>
+</section>
+
+<!-- ───────────── 12. Marks and counters ───────────── -->
+<section class="page">
+  <div class="band"><span><b>11</b> · Marks, life and counters</span><span>Who has what</span></div>
+  <h1>Marks, life and counters</h1>
+  <div class="row">
+    <div style="flex:.9">
+      <div class="fig" style="--w:720;--h:520">
+        <img src="img/counters-monarch.jpg" alt="Life counters, commander damage and the MONARCH mark">
+        <span class="m" style="--x:700;--y:260">1</span>
+        <span class="m" style="--x:385;--y:110">2</span>
+        <span class="m" style="--x:20;--y:320">3</span>
+        <span class="m" style="--x:700;--y:470">4</span>
+      </div>
+    </div>
+    <div>
+      <ol class="legend">
+        <li><span class="n">1</span><b>Your life counter</b> (the heart by your mat). The engine sets it; you don't need to turn it.</li>
+        <li><span class="n">2</span>The other players' hearts. During a target question a player's heart glows and can be clicked.</li>
+        <li><span class="n">3</span><b>Commander damage</b>: one small shield per opponent's colour.</li>
+        <li><span class="n">4</span><b>Marks</b>: a box in the corner of the holder's mat, under their heart.</li>
+      </ol>
+    </div>
+  </div>
+  <h2>Mark boxes</h2>
+  <div class="row">
+    <div style="flex:.9">
+      <div class="fig" style="--w:580;--h:320">
+        <img src="img/marks-dungeon.jpg" alt="INITIATIVE and DUNGEONS 1 mark boxes">
+        <span class="m" style="--x:150;--y:194">1</span>
+        <span class="m" style="--x:345;--y:222">2</span>
+      </div>
+      <p class="cap">One box a mark, stacked down the corner: <b>1</b> INITIATIVE, <b>2</b> DUNGEONS 1.</p>
+    </div>
+    <div style="flex:.9">
+      <div class="ph" style="--w:580;--h:320">
+        <div class="t"><b>Screenshot needed</b><code>img/needed/marks-stack.jpg</code>Several marks stacked on one mat (MONARCH, RING TEMPTED,
+          SPEED, EXTRA TURN), drawn as separate boxes.</div>
+        <div class="shot" style="background-image:url('img/needed/marks-stack.jpg')"></div>
+      </div>
+    </div>
+  </div>
+  <table class="tight">
+    <tr><th>Mark</th><th>Means</th><th>Mark</th><th>Means</th></tr>
+    <tr><td>MONARCH</td><td>you're the monarch</td><td>POISON 3</td><td>poison counters</td></tr>
+    <tr><td>INITIATIVE</td><td>you have the initiative</td><td>ENERGY 4</td><td>energy</td></tr>
+    <tr><td>CITY'S BLESSING</td><td>you have it</td><td>EXPERIENCE / RAD / TICKETS</td><td>those player counters</td></tr>
+    <tr><td>RING TEMPTED 2</td><td>times the Ring tempted you</td><td>SPEED 3</td><td>your speed (max 4)</td></tr>
+    <tr><td>DUNGEONS 1</td><td>dungeons completed</td><td>EXTRA TURN</td><td>this turn is an extra one</td></tr>
+    <tr><td>TURN RUN BY ...</td><td>another player runs your turn (Mindslaver)</td><td>PREVENT 3</td><td>damage prevention shield</td></tr>
+    <tr><td>MAX HAND 5</td><td>a changed hand size</td><td>ENDURING STORY</td><td>you have one</td></tr>
+  </table>
+  <p style="font-size:14.5px">Queued extra turns are counted beside the life counter (<i>EXTRA TURN 2x</i>). The log says when each mark
+    comes or goes. The table's own pieces (crown, initiative, City's Blessing, the Ring, Day // Night) are moved onto the holder's mat too.
+    A permanent's counters, keywords and status (PHASED OUT, COPY...) are shown on the card itself.</p>
+  <div class="foot"><span>MTG Table Tutorial · Marks, life and counters</span><span>12</span></div>
+</section>
+
+<!-- ───────────── 13. Planechase and dungeons ───────────── -->
+<section class="page">
+  <div class="band"><span><b>12</b> · Planechase and dungeons</span><span>Variants the engine runs</span></div>
+  <h1>Planechase and dungeons</h1>
+  <h2>Planechase</h2>
+  <div class="dockrow">
+    <div class="fig open" style="--w:840;--h:42">
+      <img src="img/plane-bar.jpg" alt="Phase bar with PLANE: TARDIS BAY">
+      <span class="m below" style="--x:343">1</span>
+      <span class="m below" style="--x:705">2</span>
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <ol class="legend">
+        <li><span class="n">1</span>The step you're in, highlighted.</li>
+        <li><span class="n">2</span>The plane in play, named in the phase bar.</li>
+        <li><span class="n">3</span>The plane card itself lies in the middle of the table, between the life counters.</li>
+      </ol>
+      <ul>
+        <li>The host turns it on <b>before the game</b>: <code>mtg planechase on</code> (<code>mtg planechase off</code> to stop).
+          Each player gets a planar deck of 10 random planes, or the ones named with <code>mtg planes &lt;name&gt;; &lt;name&gt;</code>.</li>
+        <li>On your turn, with priority, the answers include <span class="k">Roll the planar die (free)</span> (later rolls cost more, as the rules say).</li>
+        <li>Planeswalking and chaos are done by the engine; their triggers are asked like any other.</li>
+      </ul>
+    </div>
+    <div style="flex:.8">
+      <div class="fig" style="--w:580;--h:320">
+        <img src="img/marks-dungeon.jpg" alt="The plane card in the middle of the table">
+        <span class="m" style="--x:120;--y:55">3</span>
+        <span class="m" style="--x:250;--y:270">4</span>
+      </div>
+      <p class="cap"><b>3</b> The plane, TARDIS Bay. <b>4</b> The table&#39;s own initiative piece, moved onto the holder&#39;s mat under the INITIATIVE and DUNGEONS 1 boxes.</p>
+    </div>
+  </div>
+  <h2>Dungeons, venture and the initiative</h2>
+  <div class="row">
+    <div>
+      <ul>
+        <li>When you <b>venture</b>, the dungeon card goes to your command zone. A box on it says <b>ROOM:</b> where you are and
+          <b>NEXT:</b> the rooms you can go to; hover for the room's text.</li>
+        <li>A branch asks <i>Lost Mine of Phandelver: which room next?</i> with one button per room.</li>
+        <li>Venturing past the last room completes it: <i>White completes Lost Mine of Phandelver (1 dungeon completed)</i>, and your
+          next venture asks which dungeon to start.</li>
+        <li><b>The initiative</b>: the INITIATIVE mark shows who has it; taking it ventures into Undercity, and so does its
+          holder's upkeep. Combat damage to the holder steals it.</li>
+      </ul>
+    </div>
+    <div style="flex:.8">
+      <div class="ph" style="--w:580;--h:320">
+        <div class="t"><b>Screenshot needed</b><code>img/needed/dungeon-room.jpg</code>A dungeon card in the command zone with its
+          ROOM / NEXT box.</div>
+        <div class="shot" style="background-image:url('img/needed/dungeon-room.jpg')"></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>MTG Table Tutorial · Planechase and dungeons</span><span>13</span></div>
+</section>
+
+<!-- ───────────── 14. Fix and rewind ───────────── -->
+<section class="page">
+  <div class="band"><span><b>13</b> · Fix... and rewinding (Undo)</span><span>When something went wrong</span></div>
+  <h1>Fix... and rewinding</h1>
+  <p class="lead">Two ways to put a game right. Both need the other players to agree; against the AI they happen at once.</p>
+  <h2>Undo: rewind to an earlier point</h2>
+  <div class="row">
+    <div>
+      <ol class="steps">
+        <li>Open the <b>Undo</b> tab in the dock (it shows only when there are restore points). It lists up to 8 restore points by turn and step.</li>
+        <li><b>Click a point.</b> The others get a box at the top of the screen: <i>White asks to rewind to ...</i> with
+          <span class="k gr">Rewind</span> / <span class="k rd">Keep playing</span>.</li>
+        <li>Once everyone agrees it happens at once. If someone still has a question open, a <span class="k gr">Rewind</span> button appears for
+          everyone, and pressing it goes back without answering the question.</li>
+      </ol>
+      <p style="font-size:14.5px">Typed: <code>mtg undo</code> / <code>mtg undo 3</code>, <code>mtg vote yes</code> / <code>mtg vote no</code>.
+        The asker's Keep playing takes the request back.</p>
+    </div>
+    <div style="flex:.85">
+      <div class="ph" style="--w:470;--h:270">
+        <div class="t"><b>Screenshot needed</b><code>img/needed/undo-tab.jpg</code>The Undo tab open with its list of restore points.</div>
+        <div class="shot" style="background-image:url('img/needed/undo-tab.jpg')"></div>
+      </div>
+      <div class="ph" style="--w:800;--h:220;margin-top:8px">
+        <div class="t"><b>Screenshot needed</b><code>img/needed/rewind-vote.jpg</code>The rewind vote box (needs a 2nd person).</div>
+        <div class="shot" style="background-image:url('img/needed/rewind-vote.jpg')"></div>
+      </div>
+    </div>
+  </div>
+  <h2>Fix...: put the board right by hand</h2>
+  <div class="row">
+    <div>
+      <ol class="steps">
+        <li>Press <span class="k dk">Fix...</span> (or <code>mtg fix</code>). The others vote: <span class="k gr">Pause</span> / <span class="k rd">Keep playing</span>.</li>
+        <li>The engine pauses at the next moment with an empty stack. Choose the kind of fix:
+          <ul style="margin-top:3px">
+            <li><b>Fix from hand</b>: your Choices window lists your hand with <i>Cast free</i>, <i>Activate free</i>, <i>Play land</i>, <i>To graveyard</i>; table cards stay locked. Add a note with <code>mtg fix note &lt;text&gt;</code>.</li>
+            <li><b>Edit the board</b>: move cards (battlefield, graveyard, exile, library, hand, command zone), tap/untap, flip face down,
+              drop an aura or equipment on its permanent, right-click → <i>Fix: top / bottom of its library</i>, turn the life and
+              commander-damage counters.</li>
+          </ul></li>
+        <li>Press <span class="k or">Done</span>. Everyone sees the change list and votes <span class="k gr">Apply</span> / <span class="k">Not yet</span>; then the engine applies it.</li>
+      </ol>
+    </div>
+    <div style="flex:.85">
+      <div class="ph" style="--w:800;--h:330">
+        <div class="t"><b>Screenshot needed</b><code>img/needed/fix-panel.jpg</code>The fix panel at the top centre asking
+          "Which kind of fix?" (Fix from hand / Edit the board / Cancel).</div>
+        <div class="shot" style="background-image:url('img/needed/fix-panel.jpg')"></div>
+      </div>
+      <p style="font-size:13.5px;margin-top:6px">Chat while editing: <code>mtg fix token treasure</code>, <code>mtg fix token 1/1 green saproling for red tapped</code>,
+        <code>mtg fix poison red 2</code>, <code>mtg fix counters +1/+1 3</code> (the card under your pointer), <code>mtg fix cancel</code>.</p>
+    </div>
+  </div>
+  <div class="foot"><span>MTG Table Tutorial · Fix... and rewinding</span><span>14</span></div>
+</section>
+
+<!-- ───────────── 15. Chat commands ───────────── -->
+<section class="page">
+  <div class="band"><span><b>14</b> · Chat commands cheat sheet</span><span>Type in TTS chat</span></div>
+  <h1>Chat commands cheat sheet</h1>
+  <p class="lead">Everything has a button too; these are the typed versions. Type <code>mtg help</code> for the list at the table.</p>
+  <table class="tight">
+    <tr><th>Command</th><th>What it does</th><th>Who</th></tr>
+    <tr><td colspan="3" style="background:#FFF6E8;font-weight:700">Before the game</td></tr>
+    <tr><td><code>mtg engine on</code> / <code>off</code></td><td>the rules engine on or off (the middle tile)</td><td>anyone seated</td></tr>
+    <tr><td><code>mtg ready</code></td><td>check your deck (the READY? button)</td><td>you</td></tr>
+    <tr><td><code>mtg friendly 0|1|2</code></td><td>free mulligans each, for everyone</td><td>anyone</td></tr>
+    <tr><td><code>mtg start</code> / <code>mtg start ai 2</code></td><td>start, optionally with Forge AI players in the empty seats</td><td>anyone seated</td></tr>
+    <tr><td><code>mtg aideck &lt;name&gt;[, &lt;name&gt;]</code></td><td>the AI players' decks</td><td>host</td></tr>
+    <tr><td><code>mtg planechase on|off</code>, <code>mtg planes ...</code></td><td>Planechase for the next game; the planar pool</td><td>host</td></tr>
+    <tr><td colspan="3" style="background:#FFF6E8;font-weight:700">During the game</td></tr>
+    <tr><td><code>mtg skip &lt;phase&gt;</code> / <code>off</code></td><td>Auto-resolve "Until": upkeep, draw, main, combat, blockers, damage, main2, end, mine</td><td>you</td></tr>
+    <tr><td><code>mtg hold</code> / <code>mtg hold off</code></td><td>keep priority once after something goes on the stack (the Hold button)</td><td>you</td></tr>
+    <tr><td><code>mtg undo [N]</code></td><td>ask to rewind (the Undo tab)</td><td>anyone</td></tr>
+    <tr><td><code>mtg vote yes</code> / <code>no</code></td><td>answer a rewind vote</td><td>others</td></tr>
+    <tr><td><code>mtg fix</code> (<code>yes</code>/<code>no</code>/<code>done</code>/<code>cancel</code>)</td><td>the manual fix, as the Fix... button</td><td>anyone</td></tr>
+    <tr><td><code>mtg concede</code></td><td>leave the game (type it twice within 15 s); or Scoop</td><td>you</td></tr>
+    <tr><td><code>mtg timer [seconds]</code> / <code>off</code></td><td>turn timers for everyone (60 s a decision plus a time bank)</td><td>host</td></tr>
+    <tr><td><code>mtg winner &lt;colour&gt;</code></td><td>declare the winner (e.g. Treachery)</td><td>host</td></tr>
+    <tr><td colspan="3" style="background:#FFF6E8;font-weight:700">Your own view</td></tr>
+    <tr><td><code>mtg glow</code></td><td>playable-card glow on / off</td><td>you</td></tr>
+    <tr><td><code>mtg effects on|off</code></td><td>your banners, stack pop-up and table effects</td><td>you</td></tr>
+    <tr><td><code>mtg sounds on|off</code></td><td>the table's sounds (shared: the host's switch)</td><td>host</td></tr>
+    <tr><td colspan="3" style="background:#FFF6E8;font-weight:700">After the game, and testing</td></tr>
+    <tr><td><code>mtg reset</code></td><td>end the game and give the imported decks back</td><td>anyone once over; host mid-game</td></tr>
+    <tr><td><code>mtg debug &lt;name&gt;</code> / <code>list</code> / <code>off</code></td><td>a test board from <code>scenarios/&lt;name&gt;.json</code> (others vote)</td><td>testing</td></tr>
+    <tr><td><code>mtg mana 99</code></td><td>99 of each mana until end of turn, as a fix in one line</td><td>testing</td></tr>
+  </table>
+  <div class="tip">Keys: <span class="k key">Q</span>/<span class="k key">E</span> tap and untap (pay, attack), <span class="k key">P</span> if you bound
+    <i>MTG: pass priority / main button</i>. Right-click a card for its abilities and table actions.</div>
+  <div class="foot"><span>MTG Table Tutorial · Chat commands</span><span>15</span></div>
+</section>
+
+<!-- ───────────── 16. Sounds and effects ───────────── -->
+<section class="page">
+  <div class="band"><span><b>15</b> · Sounds and effects</span><span>What that noise meant</span></div>
+  <h1>Sounds and effects</h1>
+  <p class="lead">The table plays a short sound for big moments, through TTS's music player, so everyone hears the same thing.
+    When many happen at once (a board wipe, a token army dying) a stacked version plays, up to ×8: one sound per board update.</p>
+  <table>
+    <tr><th>Sound</th><th>Plays when</th></tr>
+    <tr><td>death</td><td>a permanent goes to the graveyard</td></tr>
+    <tr><td>wipe</td><td>three or more permanents go to the graveyard at once</td></tr>
+    <tr><td>exile</td><td>a permanent is exiled</td></tr>
+    <tr><td>damage</td><td>5 or less damage to a creature</td></tr>
+    <tr><td>player hit</td><td>1 to 5 damage to a player</td></tr>
+    <tr><td>big hit</td><td>one hit of more than 5, to a player or a creature</td></tr>
+    <tr><td>life gain</td><td>a player gains life (rising chimes when it stacks)</td></tr>
+    <tr><td>counter</td><td>a counter is put on a permanent</td></tr>
+    <tr><td>instant / sorcery</td><td>an instant / a sorcery is cast</td></tr>
+    <tr><td>countered</td><td>a spell is countered</td></tr>
+    <tr><td>knockout</td><td>a player loses or concedes</td></tr>
+  </table>
+  <ul>
+    <li><b>Sounds are shared</b>: the host switches them for the table (Settings → My sounds, or <code>mtg sounds off</code>). Anyone can turn
+      down Music in TTS's own settings.</li>
+    <li><b>Your own music wins:</b> while a track of yours is <i>playing</i> in TTS's music player, the table's sounds hold off. A paused track
+      is replaced, and stays in your music library.</li>
+  </ul>
+  <h2>On-screen effects</h2>
+  <div class="row">
+    <div>
+      <div class="fig" style="--w:800;--h:240">
+        <img src="img/victory.jpg" alt="VICTORY banner">
+      </div>
+      <p class="cap">VICTORY or DEFEAT at the end of the game (and "&lt;NAME&gt; IS OUT" when a player leaves).</p>
+    </div>
+    <div>
+      <div class="ph" style="--w:800;--h:240">
+        <div class="t"><b>Screenshot needed</b><code>img/needed/countered-popup.jpg</code>The "COUNTERED: Opt" pop-up (shows 1.8 s).</div>
+        <div class="shot" style="background-image:url('img/needed/countered-popup.jpg')"></div>
+      </div>
+      <p class="cap">COUNTERED: &lt;name&gt; when a spell is countered.</p>
+    </div>
+  </div>
+  <p style="font-size:14.5px">Also: YOUR TURN / step banners, the stack pop-up, attack and target lines, and effects on the table for deaths,
+    exiles and damage. Your banners, pop-up and effects are yours to switch: Settings → My effects, or <code>mtg effects off</code>.
+    The host can switch the table animations (attack lunge, flying mills) for everyone.</p>
+  <div class="foot"><span>MTG Table Tutorial · Sounds and effects</span><span>16</span></div>
+</section>
+
+<!-- ───────────── 17. Troubleshooting ───────────── -->
+<section class="page">
+  <div class="band"><span><b>16</b> · Troubleshooting</span><span>Something's off?</span></div>
+  <h1>Troubleshooting</h1>
+  <table>
+    <tr><th style="width:36%">What you see</th><th>What to do</th></tr>
+    <tr><td>A card I dragged snapped back</td><td>The move isn't legal now; the chat says why (no mana, wrong timing, a restriction). Lands snap into the mana box; other cards stay where dropped.</td></tr>
+    <tr><td>My click on the corner button did nothing</td><td>The words had just changed (Resolve → Next): clicks in that half second are ignored. Click again.</td></tr>
+    <tr><td>The card I wanted moved away</td><td>You dragged from TTS's hand strip, which rises under the pointer. Drag from your hand zone on the table.</td></tr>
+    <tr><td><i>Waiting for Blue...</i> flashing</td><td>Another player has a question open. Remind them, or wait.</td></tr>
+    <tr><td>I can't move another player's card</td><td>During a game you can only touch your own cards. Cards flicked off your mat slide back.</td></tr>
+    <tr><td>A draw or untap waits for me</td><td>Click your library (or the table's Draw button). With <i>Draw / mill / untap by itself</i> on (Settings, the default) it goes by itself after 2 s.</td></tr>
+    <tr><td>The game passed when I wanted to act</td><td>Check Auto-resolve (top left) and your stops. Use <span class="k">Hold</span> to respond to your own trigger.</td></tr>
+    <tr><td>The engine got a rule wrong</td><td>Use <b>Undo</b> if it was recent, or <b>Fix...</b> (section 13).</td></tr>
+    <tr><td>A friend's buttons don't react</td><td>The host reloads the save (the screen buttons are rebuilt for everyone seated).</td></tr>
+    <tr><td>"Room not found" / won't start</td><td>The host runs Start MTG again (a fresh room), then Start.</td></tr>
+    <tr><td>Something looks stuck</td><td>The bridge restarts itself; wait a few seconds. The host's log is <code>tmp/bridge-live.log</code>.</td></tr>
+    <tr><td>The screen is too busy</td><td>Hide the log (Log), close the stack pop-up (X), drag the Choices window aside, or turn My effects off.</td></tr>
+    <tr><td>Concede</td><td><b>Scoop</b> beside your name, then confirm in the "Concede this game?" box (or <code>mtg concede</code> twice).</td></tr>
+  </table>
+  <h2>For testers: debug mode</h2>
+  <div class="row">
+    <div>
+      <p style="font-size:14.5px"><code>mtg debug &lt;scenario&gt;</code> sets up a test board (cards in hand, on the battlefield, mana) as a manual fix the others vote on.
+        The host's MTG Companion page also has <b>Debug tools</b> (switched on by the host, off at every bridge start): add mana, a card to hand
+        or the battlefield, set life, untap, and the engine's own <b>Draw</b> and <b>Mill</b> (1–99 cards, triggers included). Each one is a
+        manual fix: the game pauses, the others vote, and the chat tells the whole table.</p>
+    </div>
+    <div style="flex:.8">
+      <div class="ph" style="--w:640;--h:300">
+        <div class="t"><b>Screenshot needed</b><code>img/needed/debug-draw-mill.jpg</code>The companion page's Debug tools with Draw and Mill.</div>
+        <div class="shot" style="background-image:url('img/needed/debug-draw-mill.jpg')"></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>MTG Table Tutorial · Troubleshooting</span><span>17</span></div>
+</section>
+
+<script>
+  // (dump-dom check only: marks every page whose content runs past its 10 inches; printing ignores it)
+  document.querySelectorAll('.page').forEach((p, i) => {
+    let bottom = 0;
+    p.querySelectorAll(':scope > *:not(.foot)').forEach((c) => { bottom = Math.max(bottom, c.getBoundingClientRect().bottom); });
+    const over = Math.round(bottom - (p.getBoundingClientRect().bottom - 22));
+    p.setAttribute('data-fit', over > 0 ? 'OVER ' + over + 'px' : 'ok ' + (-over) + 'px free');
+  });
+</script>
+</body>
+</html>

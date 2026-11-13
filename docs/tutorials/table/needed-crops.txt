@@ -1,0 +1,13 @@
+# Crops for the shots still to take (SHOTS-NEEDED.md). Sources are lc.js shots (1920x1000 TTS window); a missing one is skipped.
+# Make: powershell -File docs/tutorials/table/make-crops.ps1 docs/tutorials/table/needed-crops.txt docs/tutorials/table/img/needed
+# Rectangles assume the camera of the 2026-11-12 live-check shots; check each crop and adjust before re-printing.
+C:\Users\you\mtg-tts\tmp\live-checks\shots\tut-ready-start.jpg|160|300|1600|460|ready-start.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\tut-ability-panel.jpg|1440|400|480|360|ability-panel.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\tut-cost-badge.jpg|0|0|0|0|cost-badge.jpg|1600
+C:\Users\you\mtg-tts\tmp\live-checks\shots\tut-corner-resolve.jpg|1280|640|640|330|corner-resolve.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\tut-marks-stack.jpg|620|360|580|320|marks-stack.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\tut-dungeon-room.jpg|1340|500|580|320|dungeon-room.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\tut-undo-tab.jpg|80|125|470|270|undo-tab.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\tut-rewind-vote.jpg|560|100|800|220|rewind-vote.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\tut-fix-panel.jpg|560|230|800|330|fix-panel.jpg
+C:\Users\you\mtg-tts\tmp\live-checks\shots\tut-countered-popup.jpg|560|300|800|240|countered-popup.jpg

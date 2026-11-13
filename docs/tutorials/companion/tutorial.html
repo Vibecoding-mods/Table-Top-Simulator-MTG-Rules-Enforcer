@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MTG Companion: host's guide</title>
+<style>
+@page { size: Letter; margin: 0.55in 0.6in 0.6in; }
+:root {
+  --ink: #1d2128; --muted: #5b6370; --line: #d8dce2; --paper: #ffffff; --soft: #f4f5f7;
+  --gold: #b0872f; --green: #2f9e44; --amber: #c78400; --red: #d93a32; --blue: #2f6fd6;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); }
+body { font: 12.5pt/1.45 "Segoe UI", system-ui, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { break-after: page; page-break-after: always; position: relative; }
+.page:last-child { break-after: auto; page-break-after: auto; }
+h1 { font-size: 30pt; line-height: 1.1; margin: 0 0 6pt; letter-spacing: -.01em; }
+h2 { font-size: 20pt; margin: 0 0 4pt; line-height: 1.15; }
+h3 { font-size: 13.5pt; margin: 12pt 0 4pt; }
+p { margin: 0 0 7pt; }
+.kicker { font-size: 10pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); margin-bottom: 2pt; }
+.lead { font-size: 13.5pt; color: var(--muted); margin-bottom: 10pt; }
+.stepno { display: inline-flex; align-items: center; justify-content: center; width: 30pt; height: 30pt; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 700; font-size: 15pt; margin-right: 8pt; vertical-align: middle; }
+.head { display: flex; align-items: center; margin-bottom: 8pt; border-bottom: 2px solid var(--ink); padding-bottom: 6pt; }
+.head h2 { margin: 0; }
+ol.do { padding-left: 0; list-style: none; counter-reset: s; margin: 6pt 0 8pt; }
+ol.do > li { counter-increment: s; position: relative; padding-left: 26pt; margin: 0 0 6pt; }
+ol.do > li::before { content: counter(s); position: absolute; left: 0; top: 1pt; width: 18pt; height: 18pt; border-radius: 50%; background: var(--gold); color: #fff; font-weight: 700; font-size: 10pt; display: flex; align-items: center; justify-content: center; }
+ul { margin: 4pt 0 8pt; padding-left: 18pt; } li { margin-bottom: 3pt; }
+b, strong { font-weight: 650; }
+.ui { font-weight: 650; background: var(--soft); border: 1px solid var(--line); border-radius: 4px; padding: 0 4pt; white-space: nowrap; }
+code, .mono { font-family: Consolas, "Cascadia Mono", monospace; font-size: .92em; background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 3pt; }
+.call { border-left: 5px solid var(--blue); background: #eef4fd; padding: 7pt 10pt; border-radius: 0 6px 6px 0; margin: 8pt 0; break-inside: avoid; }
+.call.warn { border-color: var(--amber); background: #fdf5e6; }
+.call.red { border-color: var(--red); background: #fdeeed; }
+.call.green { border-color: var(--green); background: #ebf7ee; }
+.call .t { font-weight: 700; display: block; margin-bottom: 2pt; }
+.call p:last-child, .call ul:last-child { margin-bottom: 0; }
+figure { margin: 8pt 0; break-inside: avoid; }
+figure img { display: block; max-width: 100%; border-radius: 6px; border: 1px solid #c9ced6; }
+figcaption { font-size: 9.5pt; color: var(--muted); margin-top: 3pt; }
+.tag { display: inline-block; font-size: 7.5pt; font-weight: 800; letter-spacing: .08em; padding: 1pt 5pt; border-radius: 3px; margin-right: 5pt; vertical-align: 1px; color: #fff; }
+.tag.real { background: var(--green); } .tag.ex { background: var(--blue); } .tag.dia { background: #7a5bd1; }
+.dot { display: inline-block; width: 10pt; height: 10pt; border-radius: 50%; vertical-align: -1pt; margin-right: 3pt; }
+.dot.g { background: var(--green); } .dot.a { background: var(--amber); } .dot.r { background: var(--red); } .dot.b { background: #58a6ff; } .dot.k { background: #7d8590; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; align-items: start; }
+.two.w { grid-template-columns: 1.15fr .85fr; }
+.small { font-size: 10.5pt; } .muted { color: var(--muted); }
+
+/* diagrams (clearly drawings, not screenshots) */
+.diagram { border: 1.5px dashed #9a86d8; border-radius: 8px; padding: 10pt; background: #faf9fe; break-inside: avoid; }
+.diagram .label { font-size: 8pt; font-weight: 800; letter-spacing: .1em; color: #7a5bd1; text-transform: uppercase; margin-bottom: 6pt; }
+.win { border: 1px solid #b8bec8; border-radius: 6px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.08); overflow: hidden; font-size: 11pt; }
+.win .bar { background: #eef0f3; padding: 4pt 8pt; font-size: 9.5pt; color: #444; border-bottom: 1px solid #d4d8de; display: flex; justify-content: space-between; }
+.win .body { padding: 10pt 12pt; }
+.ss { background: #0f5fa8; color: #fff; }
+.ss .body { padding: 14pt 16pt; }
+.ss h4 { font-size: 17pt; font-weight: 400; margin: 0 0 8pt; }
+.ss .link { text-decoration: underline; }
+.ss .btns { display: flex; justify-content: flex-end; gap: 8pt; margin-top: 14pt; }
+.ss .btn { border: 1px solid #fff; padding: 4pt 16pt; font-size: 10.5pt; }
+.ss .btn.hl { outline: 3px solid #ffd54a; outline-offset: 2px; }
+.hl-ring { outline: 3px solid #e0a400; outline-offset: 2px; border-radius: 3px; }
+.arrow { color: var(--gold); font-weight: 800; padding: 0 3pt; }
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 5pt; }
+.flow .box { border: 1.5px solid var(--ink); border-radius: 6px; padding: 4pt 9pt; background: #fff; font-weight: 650; font-size: 11.5pt; }
+.flow .box.final { background: var(--ink); color: #fff; }
+.tree { font-family: Consolas, monospace; font-size: 10.5pt; line-height: 1.5; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 8pt 10pt; }
+.tree .em { background: #fff3c4; font-weight: 700; }
+.menu { width: 200pt; border: 1px solid #b8bec8; background: #fff; box-shadow: 0 3px 10px rgba(0,0,0,.12); font-size: 10.5pt; }
+.menu div { padding: 3pt 12pt; } .menu .sep { border-top: 1px solid #ddd; padding: 0; margin: 3pt 0; } .menu .dis { color: #999; }
+
+/* real-screenshot crops (CSS crop of a real TTS capture) */
+.crop { position: relative; overflow: hidden; border-radius: 6px; border: 1px solid #c9ced6; background: #000; }
+.crop img { position: absolute; max-width: none; border: 0; border-radius: 0; }
+
+table.trouble { width: 100%; border-collapse: collapse; font-size: 10pt; line-height: 1.35; }
+table.trouble th, table.trouble td { border: 1px solid var(--line); padding: 4pt 6pt; vertical-align: top; text-align: left; }
+table.trouble th { background: var(--soft); font-size: 9pt; text-transform: uppercase; letter-spacing: .05em; }
+table.trouble td:first-child { width: 47%; }
+table.trouble tr { break-inside: avoid; }
+table.trouble .q { font-style: italic; }
+.lighthead { break-after: avoid; page-break-after: avoid; display: flex; align-items: center; gap: 6pt; font-size: 13.5pt; font-weight: 700; margin: 10pt 0 4pt; }
+.lighthead .n { background: var(--ink); color: #fff; border-radius: 4px; padding: 0 6pt; font-size: 11pt; }
+
+.cover { min-height: 0; display: flex; flex-direction: column; }
+.cover .hero { background: #0f1115; color: #ebe7df; border-radius: 12px; padding: 20pt 24pt 18pt; margin-bottom: 10pt; }
+.cover .hero h1 { color: #fff; font-size: 34pt; }
+.cover .hero h1 span { color: #c8a35a; }
+.cover .hero p { color: #b9bec7; font-size: 13.5pt; margin: 0; }
+.toc { columns: 2; column-gap: 20pt; font-size: 10.5pt; line-height: 1.3; padding-left: 18pt; margin: 4pt 0 0; }
+.toc li { break-inside: avoid; }
+.need { display: grid; grid-template-columns: 1fr 1fr; gap: 6pt 14pt; }
+.need div { border: 1px solid var(--line); border-radius: 6px; padding: 4pt 8pt; font-size: 10.3pt; line-height: 1.3; }
+.need b { display: block; }
+.cover .lead { font-size: 12pt; margin-bottom: 6pt; } .cover h3 { margin-top: 8pt; } .cover .call { margin: 6pt 0; }
+.foot { margin-top: 10pt; font-size: 9pt; color: var(--muted); border-top: 1px solid var(--line); padding-top: 6pt; }
+</style>
+</head>
+<body>
+
+<!-- ============ 1. COVER ============ -->
+<section class="page cover">
+  <div class="hero">
+    <div class="kicker" style="color:#c8a35a">Host's guide · Windows</div>
+    <h1>MTG <span>Companion</span></h1>
+    <p>How to host rules-enforced Commander games in Tabletop Simulator, step by step, with pictures.</p>
+  </div>
+
+  <p class="lead">MTG Companion is a small Windows program. One double-click starts everything the rules engine needs
+  (Docker, the Forge engine, the bridge) and shows <b>six status lights</b> on a page in your web browser. When all six are
+  green, you load the table in Tabletop Simulator and play.</p>
+
+  <div class="call green"><span class="t">Only the host needs this.</span>
+  Your friends join your Tabletop Simulator game like any other. They install nothing of ours.</div>
+
+  <h3>What you need</h3>
+  <div class="need">
+    <div><b>Windows 10 or 11, x64</b>An Intel or AMD processor. Windows on ARM (Snapdragon laptops) can't run the engine.</div>
+    <div><b>Tabletop Simulator</b>Bought on Steam.</div>
+    <div><b>Docker Desktop</b>Free. It runs the rules engine. Step 1 shows how.</div>
+    <div><b>Disk space</b>About 1.5 GB inside Docker plus about 400 MB for the MTG folder.</div>
+    <div><b>The MTG package</b>A .zip from the project's Releases page. The project is invite-only: ask its owner for access.</div>
+    <div><b>Not available</b>No Mac or Linux version exists. The app isn't code-signed (Step 3 explains the warning).</div>
+  </div>
+
+  <h3>Contents</h3>
+  <ol class="toc">
+    <li>How the pieces fit</li>
+    <li>Step 1: Install Docker Desktop</li>
+    <li>Step 2: Unblock and unzip the package</li>
+    <li>Step 3: Start MTG Companion</li>
+    <li>Step 4: The first start</li>
+    <li>Step 5: All six lights green</li>
+    <li>Step 6: Load the table in TTS</li>
+    <li>Step 7: Friends join, start a game</li>
+    <li>During a game</li>
+    <li>Table tools: AI seats</li>
+    <li>Table tools: debug tools</li>
+    <li>Buttons, tray icon, end of the night</li>
+    <li>Updates</li>
+    <li>When a light is red</li>
+    <li>Troubleshooting, light by light</li>
+    <li>Good to know</li>
+  </ol>
+
+  <div class="foot">Every sentence the app shows is quoted from its source code (companion/src, 2026-11-12). Picture labels:
+  <span class="tag real">REAL</span> a real screenshot,
+  <span class="tag ex">REAL PAGE · EXAMPLE</span> the app's real status page showing example lights,
+  <span class="tag dia">DIAGRAM</span> a drawing, not a screenshot.</div>
+</section>
+
+<!-- ============ 2. OVERVIEW ============ -->
+<section class="page">
+  <div class="kicker">Before you start</div>
+  <h2>How the pieces fit</h2>
+  <p class="lead">You don't have to understand this to play, but it explains what the six lights are about.</p>
+
+  <div class="diagram">
+    <div class="label">Diagram</div>
+    <svg viewBox="0 0 640 330" width="88%" style="display:block;font-family:Segoe UI, sans-serif">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1d2128"/></marker></defs>
+      <rect x="6" y="6" width="458" height="318" rx="12" fill="#fff" stroke="#1d2128" stroke-width="1.5"/>
+      <text x="20" y="28" font-size="14" font-weight="700" fill="#1d2128">Your PC (the host)</text>
+      <!-- companion -->
+      <rect x="160" y="44" width="160" height="56" rx="8" fill="#0f1115"/>
+      <text x="240" y="68" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">MTG Companion</text>
+      <text x="240" y="87" font-size="11" fill="#c8a35a" text-anchor="middle">starts and watches</text>
+      <!-- docker -->
+      <rect x="22" y="140" width="190" height="96" rx="8" fill="#e9f1fc" stroke="#2f6fd6"/>
+      <text x="117" y="160" font-size="13" font-weight="700" fill="#1d2128" text-anchor="middle">Docker Desktop</text>
+      <rect x="36" y="170" width="76" height="52" rx="6" fill="#fff" stroke="#2f6fd6"/><text x="74" y="193" font-size="11" text-anchor="middle">relay</text><text x="74" y="208" font-size="10" fill="#5b6370" text-anchor="middle">engine stack</text>
+      <rect x="122" y="170" width="76" height="52" rx="6" fill="#fff" stroke="#2f6fd6"/><text x="160" y="193" font-size="11" text-anchor="middle">Forge room</text><text x="160" y="208" font-size="10" fill="#5b6370" text-anchor="middle">rules engine</text>
+      <!-- bridge -->
+      <rect x="250" y="160" width="90" height="56" rx="8" fill="#fff6e3" stroke="#c78400"/>
+      <text x="295" y="185" font-size="13" font-weight="700" text-anchor="middle">Bridge</text><text x="295" y="202" font-size="10" fill="#5b6370" text-anchor="middle">translator</text>
+      <!-- tts -->
+      <rect x="370" y="150" width="84" height="76" rx="8" fill="#edf7ef" stroke="#2f9e44"/>
+      <text x="412" y="180" font-size="12" font-weight="700" text-anchor="middle">Tabletop</text><text x="412" y="195" font-size="12" font-weight="700" text-anchor="middle">Simulator</text><text x="412" y="212" font-size="10" fill="#5b6370" text-anchor="middle">+ the table</text>
+      <line x1="212" y1="188" x2="248" y2="188" stroke="#1d2128" stroke-width="1.6" marker-end="url(#ah)"/>
+      <line x1="340" y1="188" x2="368" y2="188" stroke="#1d2128" stroke-width="1.6" marker-end="url(#ah)"/>
+      <line x1="200" y1="100" x2="130" y2="138" stroke="#888" stroke-dasharray="4 3" stroke-width="1.3" marker-end="url(#ah)"/>
+      <line x1="260" y1="100" x2="292" y2="158" stroke="#888" stroke-dasharray="4 3" stroke-width="1.3" marker-end="url(#ah)"/>
+      <line x1="300" y1="100" x2="400" y2="148" stroke="#888" stroke-dasharray="4 3" stroke-width="1.3" marker-end="url(#ah)"/>
+      <!-- browser -->
+      <rect x="22" y="258" width="300" height="52" rx="8" fill="#f4f5f7" stroke="#5b6370"/>
+      <text x="172" y="280" font-size="12" font-weight="700" text-anchor="middle">Status page in your browser</text>
+      <text x="172" y="297" font-size="10.5" fill="#5b6370" text-anchor="middle">http://127.0.0.1:48790 (only on this PC)</text>
+      <line x1="200" y1="100" x2="180" y2="256" stroke="#888" stroke-dasharray="2 3" stroke-width="1" />
+      <!-- friends -->
+      <rect x="490" y="120" width="140" height="136" rx="12" fill="#fff" stroke="#1d2128" stroke-width="1.5"/>
+      <text x="560" y="144" font-size="13" font-weight="700" text-anchor="middle">Friends' PCs</text>
+      <text x="560" y="176" font-size="11" text-anchor="middle">Tabletop Simulator</text><text x="560" y="192" font-size="11" text-anchor="middle">only</text>
+      <text x="560" y="222" font-size="10" fill="#5b6370" text-anchor="middle">join via Steam invite</text><text x="560" y="236" font-size="10" fill="#5b6370" text-anchor="middle">or server browser</text>
+      <line x1="488" y1="188" x2="458" y2="188" stroke="#2f9e44" stroke-width="2" marker-end="url(#ah)"/>
+    </svg>
+  </div>
+
+  <h3>The six lights are the six start steps</h3>
+  <table class="trouble" style="font-size:10.5pt">
+    <tr><th style="width:24%">Light</th><th>What it checks</th></tr>
+    <tr><td><b>1. Docker</b></td><td>Docker Desktop is running and answering, set to Linux containers.</td></tr>
+    <tr><td><b>2. Engine images</b></td><td>The engine is loaded into Docker (the first start loads it from the package: a few minutes).</td></tr>
+    <tr><td><b>3. Engine stack</b></td><td>The relay and the Forge room are running, and the game room <code>tts-commander</code> is open.</td></tr>
+    <tr><td><b>4. Table save</b></td><td>The table is copied into your TTS saves as "MTG Table (rules engine)". It never overwrites a save it didn't put there.</td></tr>
+    <tr><td><b>5. Bridge</b></td><td>The bridge (the translator between the engine and TTS) is running. If it ever stops, it restarts by itself after 3 seconds.</td></tr>
+    <tr><td><b>6. TTS</b></td><td>Tabletop Simulator is running and this package's table is loaded in it.</td></tr>
+  </table>
+  <p class="small muted" style="margin-top:6pt">Colours: <span class="dot g"></span>green = OK, <span class="dot a"></span>amber = Check,
+  <span class="dot r"></span>red = Problem, <span class="dot b"></span>blue = Working (wait), <span class="dot k"></span>grey = not checked yet or stopped.</p>
+</section>
+
+<!-- ============ 3. DOCKER ============ -->
+<section class="page">
+  <div class="head"><span class="stepno">1</span><h2>Install Docker Desktop (once)</h2></div>
+  <p class="lead">Docker runs the rules engine on your PC. You only install it once.</p>
+  <ol class="do">
+    <li>Download Docker Desktop yourself from <b>docker.com/products/docker-desktop</b> and install it.</li>
+    <li>Start it once and finish its first-run screens. Signing in to Docker is optional.
+      If it asks to accept its terms or to <b>update WSL</b> (Windows' Linux layer, which Docker uses), do both and let it finish.</li>
+    <li><b>Sign out of Windows and back in</b> (or restart the PC). The install adds you to the "docker-users" group, and that only counts after a new sign-in.</li>
+    <li>Before game night, start Docker Desktop and wait until it says it is running. (If you forget, MTG Companion starts it for you and waits up to 3 minutes.)</li>
+  </ol>
+
+  <div class="diagram" style="margin-top:10pt">
+    <div class="label">Diagram · the idea, not Docker's real window</div>
+    <div class="two" style="grid-template-columns: 1.3fr 1fr; align-items:center">
+      <div class="win">
+        <div class="bar"><span>Docker Desktop</span><span>— ☐ ✕</span></div>
+        <div class="body" style="display:flex;align-items:center;gap:10pt">
+          <span style="display:inline-block;width:12pt;height:12pt;border-radius:50%;background:#2f9e44"></span>
+          <span><b>Docker Desktop is running</b><br><span class="small muted">(no longer "starting")</span></span>
+        </div>
+      </div>
+      <div class="small">The exact look of Docker's window changes between Docker versions. What matters is that Docker no longer
+      says it is starting. MTG Companion's <b>Docker</b> light turning green is the real test.</div>
+    </div>
+  </div>
+
+  <div class="call warn"><span class="t">Docker must use Linux containers (the default).</span>
+  If the Docker light says <span class="q">"Docker is set to Windows containers"</span>: right-click the Docker icon by the clock,
+  choose <b>Switch to Linux containers</b>, then press <span class="ui">Try again</span>.</div>
+
+  <div class="call"><span class="t">Optional: keep Tabletop Simulator smooth.</span>
+  The status page has a button <span class="ui">Limit Docker's CPU use…</span>. It gives Docker 2 CPU cores and 8 GB of memory, so TTS
+  doesn't have to share every core with the engine. It writes a settings file (<code>%USERPROFILE%\.wslconfig</code>, after saving a copy
+  of the old one), affects every WSL program on the PC, and only takes effect after WSL restarts (for example a PC restart). It asks
+  before writing and restarts nothing.</div>
+</section>
+
+<!-- ============ 4. UNZIP ============ -->
+<section class="page">
+  <div class="head"><span class="stepno">2</span><h2>Unblock and unzip the package</h2></div>
+  <p class="lead">The package is a file named like <code>MTG-Table-&lt;date&gt;-&lt;hash&gt;.zip</code> from the project's Releases page on GitHub.</p>
+
+  <ol class="do">
+    <li><b>Before unzipping:</b> right-click the .zip → <b>Properties</b> → tick <b>Unblock</b> → <b>OK</b>.</li>
+    <li>Unzip the <b>whole folder</b> into a plain folder of its own, for example <code>C:\Games\MTG-Table</code>.</li>
+    <li>Don't use OneDrive, Documents or Program Files (synced or protected folders get in the way), and don't run it from inside the zip.</li>
+  </ol>
+
+  <div class="two" style="margin-top:8pt">
+    <div class="diagram">
+      <div class="label">Diagram · the zip's Properties window</div>
+      <div class="win">
+        <div class="bar"><span>MTG-Table-….zip Properties</span><span>✕</span></div>
+        <div class="body small">
+          <div style="border-bottom:1px solid #ddd;padding-bottom:5pt;margin-bottom:6pt"><b>General</b> &nbsp; Security &nbsp; Details</div>
+          <div>Type of file: Compressed (zipped) Folder</div>
+          <div style="margin-top:8pt;color:#444">Security: This file came from another computer and might be blocked to help protect this computer.</div>
+          <div style="margin-top:6pt"><span class="hl-ring" style="padding:1pt 4pt">☑ Unblock</span></div>
+          <div style="display:flex;justify-content:flex-end;gap:6pt;margin-top:10pt"><span class="ui hl-ring">OK</span><span class="ui">Cancel</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="diagram">
+      <div class="label">Diagram · the unzipped folder</div>
+      <div class="tree">C:\Games\MTG-Table\<br>
+        &nbsp;├─ <span class="em">MTG Companion.exe</span> &nbsp;← double-click this<br>
+        &nbsp;├─ README-FRIEND.txt<br>
+        &nbsp;├─ version.json<br>
+        &nbsp;├─ bridge\ &nbsp;decks\ &nbsp;scenarios\<br>
+        &nbsp;├─ images\mtg-images.tar &nbsp;(the engine)<br>
+        &nbsp;├─ table\MTG Table.json<br>
+        &nbsp;├─ runtime\ &nbsp;stack\ &nbsp;manabrew\<br>
+        &nbsp;├─ logs\ &nbsp;(fills up as it runs)<br>
+        &nbsp;└─ LICENSES\</div>
+      <p class="small muted" style="margin:6pt 0 0">The list follows the packager (<code>tools/make-friend-package.js</code>).</p>
+    </div>
+  </div>
+
+  <div class="call warn"><span class="t">Why Unblock?</span>
+  MTG Companion.exe isn't code-signed. Unblocking the zip first makes Windows' warnings in Step 3 less likely.
+  <code>README-FRIEND.txt</code> in the folder has the same instructions in plain text.</div>
+</section>
+
+<!-- ============ 5. RUN ============ -->
+<section class="page">
+  <div class="head"><span class="stepno">3</span><h2>Start MTG Companion</h2></div>
+  <p class="lead">Double-click <b>MTG Companion.exe</b> in the folder. It never asks for administrator rights.</p>
+
+  <p>Windows may show a blue <b>"Windows protected your PC"</b> box, because the app isn't signed:</p>
+  <div class="diagram">
+    <div class="label">Diagram · SmartScreen (drawn, not a screenshot)</div>
+    <div class="two" style="gap:14pt">
+      <div class="win ss"><div class="body">
+        <h4>Windows protected your PC</h4>
+        <div class="small">Microsoft Defender SmartScreen prevented an unrecognized app from starting…</div>
+        <div class="small link hl-ring" style="display:inline-block;margin-top:6pt;padding:0 3pt">More info</div>
+        <div class="btns"><span class="btn">Don't run</span></div>
+      </div></div>
+      <div class="win ss"><div class="body">
+        <h4>Windows protected your PC</h4>
+        <div class="small">App: MTG Companion.exe<br>Publisher: Unknown publisher</div>
+        <div class="btns"><span class="btn hl">Run anyway</span><span class="btn">Don't run</span></div>
+      </div></div>
+    </div>
+    <p class="small" style="margin:7pt 0 0"><b>1.</b> Click <b>More info</b>. &nbsp; <b>2.</b> Click <b>Run anyway</b>.</p>
+  </div>
+
+  <div class="call red"><span class="t">Blocked with no "Run anyway"? (Smart App Control)</span>
+  <ul>
+    <li>Delete the unzipped folder, do the <b>Unblock</b> step on the .zip (Step 2), and unzip again.</li>
+    <li>Still blocked: Smart App Control won't run unsigned programs on this PC, and the companion only runs with it off
+      (Windows Security → App &amp; browser control). <b>That is your decision to make:</b> on many PCs it can't be turned back on
+      without resetting Windows.</li>
+  </ul></div>
+
+  <h3>What happens next</h3>
+  <ul>
+    <li>A small MTG icon appears in the tray by the clock (its colour is the worst light).</li>
+    <li>On the very first start, the <b>status page</b> opens in your default browser by itself. Later it opens by itself only if a light
+      ends up red. You can always open it from the tray icon (click it, or right-click → <b>Open status</b>), or type
+      <code>http://127.0.0.1:48790</code> in the browser.</li>
+    <li>Starting it a second time doesn't start a second copy: the running one shows itself.</li>
+  </ul>
+</section>
+
+<!-- ============ 6. FIRST START ============ -->
+<section class="page">
+  <div class="head"><span class="stepno">4</span><h2>The first start: wait for the lights</h2></div>
+  <p class="lead">The companion runs the six steps in order. The first start takes a few minutes, mostly for step 2.</p>
+  <figure style="width:66%">
+    <img src="img/first-start.png" alt="Status page while loading the engine images">
+    <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>Step 2 is loading the engine into Docker; the blue light means "working, wait".
+    Steps 3 to 6 haven't been checked yet.</figcaption>
+  </figure>
+  <ul>
+    <li><b>Docker</b> first: if Docker Desktop isn't running, the companion starts it and waits up to 3 minutes. If Docker opens a window asking for something, answer it.</li>
+    <li><b>Engine images</b>: the first time, it loads <code>images\mtg-images.tar</code> into Docker, with a percentage.</li>
+    <li><b>Engine stack</b>: starts the relay and the Forge room. It can take up to 5 minutes on a cold start.</li>
+    <li><b>Table save</b>: copies the table into TTS's Saves folder. <b>Bridge</b>: starts the bridge. <b>TTS</b>: opens Tabletop Simulator through Steam if it isn't running.</li>
+  </ul>
+  <div class="call"><span class="t">You don't need to babysit it.</span>
+  If a step stops on a problem and you fix it (for example by starting Docker yourself), the companion notices the light turn green and carries on by itself.</div>
+</section>
+
+<!-- ============ 7. ALL GREEN ============ -->
+<section class="page">
+  <div class="head"><span class="stepno">5</span><h2>All six lights green</h2></div>
+  <p class="lead">This is what "ready" looks like. The top-right badge says <b>Ready</b>.</p>
+  <figure style="width:74%">
+    <img src="img/ready.png" alt="Status page with all six lights green">
+    <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>All six lights green. The dashed box under the lights is the hint line;
+    the buttons under <b>ACTIONS</b> are explained later.</figcaption>
+  </figure>
+  <div class="call warn"><span class="t">The TTS light is the last one, and it stays amber until you load the table.</span>
+  That is normal: on game night, everything but TTS goes green first. Step 6 turns it green.</div>
+</section>
+
+<!-- ============ 8. TTS LOAD ============ -->
+<section class="page">
+  <div class="head"><span class="stepno">6</span><h2>Load the table in Tabletop Simulator</h2></div>
+  <p class="lead">With TTS running, the TTS light is amber and tells you exactly what to do:</p>
+  <figure>
+    <img src="img/tts-amber.png" alt="TTS light amber with load instructions" style="width:52%">
+    <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>"TTS is running. Load the table: In TTS: Create → Singleplayer (or Multiplayer) → Games → Save &amp; Load → MTG Table (rules engine)."</figcaption>
+  </figure>
+
+  <div class="diagram">
+    <div class="label">Diagram · the menu path in Tabletop Simulator</div>
+    <div class="flow">
+      <span class="box">Create</span><span class="arrow">→</span>
+      <span class="box">Multiplayer</span><span class="arrow">→</span>
+      <span class="box">Games</span><span class="arrow">→</span>
+      <span class="box">Save &amp; Load</span><span class="arrow">→</span>
+      <span class="box final">MTG Table (rules engine)</span>
+    </div>
+    <p class="small" style="margin:7pt 0 0">Pick <b>Multiplayer</b> so friends can join. <b>Singleplayer</b> is for playing alone against the AI.
+    <b>Games</b> is a button on TTS's top bar once you are at a table:</p>
+    <div class="crop" style="width:100%;height:78pt;margin-top:4pt"><img src="../../release-check-2026-11-10/01-table.jpg" style="width:200%;left:-58%;top:-1pt" alt="TTS top bar"></div>
+    <p class="small muted" style="margin:3pt 0 0"><span class="tag real">REAL</span>TTS's top bar (crop of a real TTS capture, 2026-11-10). "Games" is the first button.</p>
+  </div>
+
+  <div class="call green"><span class="t">When it worked</span>
+  The TTS light turns green: <span class="q">"Connected: table … is loaded."</span> The light only goes green once the table has
+  talked to the bridge, so a TTS sitting on its main menu stays amber.</div>
+</section>
+
+<!-- ============ 9. START A GAME ============ -->
+<section class="page">
+  <div class="head"><span class="stepno">7</span><h2>Friends join, start a game</h2></div>
+  <ol class="do">
+    <li><b>Friends join your server</b>: a Steam invite, or the TTS server browser. They need nothing but TTS.</li>
+    <li><b>Everyone sits at a colour</b> (White, Red, Yellow, Blue) and brings a deck with the table's <b>Card Importer</b>.</li>
+    <li>Turn the engine on with the middle tile (<b>Engine: on</b>), or type <code>mtg engine on</code> in chat.</li>
+    <li>Everyone presses <b>READY?</b> on their playmat. Green <b>READY</b> = good to go; red <b>FIX DECK</b> = the chat says what's wrong.</li>
+    <li>Press <b>Start</b> on the middle tile. Against the computer: type <code>mtg start ai 1</code> in chat (up to 3 AI players).</li>
+  </ol>
+  <figure>
+    <img src="../../release-check-2026-11-10/01-table.jpg" alt="A game in progress on the MTG table" style="width:100%">
+    <figcaption><span class="tag real">REAL</span>The table during a test game (one person against one Forge AI, 2026-11-10). Top left: the table's own buttons
+    (Engine: show, Graveyards / exile, Log, Auto, Settings, Auto-resolve, Fix…, Undo…). Bottom right: the big orange <b>Next</b> button,
+    your main answer to the engine. Right: the game log.</figcaption>
+  </figure>
+  <p class="small">How to play once the game is on (casting by dragging, the orange button, attacking, undo) is in <b>HOW-TO-PLAY.md</b>; this guide covers the companion.</p>
+</section>
+
+<!-- ============ 10. DURING A GAME ============ -->
+<section class="page">
+  <div class="kicker">While you play</div>
+  <h2>During a game</h2>
+  <p class="lead">Keep the companion running. It watches the lights every few seconds and <b>never restarts anything while a game is on</b>.</p>
+  <figure style="width:64%">
+    <img src="img/game-on.png" alt="Status page during a game">
+    <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>The blue <b>Game in progress</b> banner. The Bridge light here is amber, but its
+    <span class="ui">Restart the bridge</span> button is greyed out, and so is <span class="ui">Restart engine (locked: game on)</span>.</figcaption>
+  </figure>
+  <ul>
+    <li>Locked during a game: <b>Load the engine</b>, <b>Start the engine / Restart relay and room</b>, <b>Restart the bridge</b>, <b>Restart engine</b>,
+      installing an update and updating the table save. Pressing one says <span class="q">"Locked: a game is on. Do this after the game."</span></li>
+    <li>If the companion can't tell whether a game is on, it locks the same way (<span class="q">"Locked: can't tell whether a game is on. Try again in a minute."</span>).</li>
+    <li><b>Stop everything</b> still works, but asks twice: <span class="q">"Stopping everything ends that game for everyone. Stop anyway?"</span></li>
+    <li>A game that was set up or just finished also counts. To unlock, type <code>mtg reset</code> in TTS chat.</li>
+  </ul>
+</section>
+
+<!-- ============ 11. AI SEATS ============ -->
+<section class="page">
+  <div class="kicker">Table tools · part 1</div>
+  <h2>AI seats: who plays an empty seat</h2>
+  <p class="lead">At the bottom of the status page, click <b>▸ Table tools: AI seats and debug tools</b> to open it.</p>
+  <p>For each colour nobody sits at, choose who plays it in every game:</p>
+  <ul>
+    <li><b>None</b>: no AI set; the AI count you give at Start decides (<code>mtg start ai 1</code>).</li>
+    <li><b>Harmless bot</b>: keeps its hand, passes, and never attacks or blocks. Good for learning or testing.</li>
+    <li><b>Forge AI</b>: a real opponent. It needs a deck.</li>
+  </ul>
+  <figure>
+    <img src="img/tools-seat-red.png" alt="One AI seat row" style="width:88%">
+    <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>Red set to a Forge AI playing the "Animar" deck. Pick who plays it, pick a deck, press <b>Set</b>.</figcaption>
+  </figure>
+  <h3>Choosing a deck</h3>
+  <ul>
+    <li>One of the engine's decks from the list (the project's decks, then Manabrew's ready-made decks), or</li>
+    <li><b>Deck list or file…</b>: paste a deck list in the box, or pick a .txt/.dek/.dck file. Mark the commander with a
+      <code>Commander</code> line above it, or <code>*CMDR*</code> after it. Lines like <code>1 Sol Ring</code>, <code>1x Sol Ring</code> and
+      <code>Sol Ring (CMM) 410 *F*</code> all work; Sideboard/Maybeboard parts are skipped. The bridge checks every card is known to the
+      engine. It does <b>not</b> check the deck size.</li>
+  </ul>
+  <div class="call"><span class="t">When it applies</span>
+  "An AI seat applies from the next game." The choice stays from game to game until the bridge restarts, and it wins over
+  <code>mtg aideck</code> and any deck lying in that seat. If a person sits at that colour, the person plays.</div>
+  <p class="small muted">On the current page every seat shows the deck-list box, even when no list is chosen; only the box under the seat
+  set to "Deck list or file…" is used.</p>
+</section>
+
+<!-- ============ 12. DEBUG TOOLS ============ -->
+<section class="page">
+  <div class="kicker">Table tools · part 2</div>
+  <h2>Debug tools: fix the board by hand</h2>
+  <p class="lead">For when something went wrong, or to set up a situation to try out. Tick <b>Debug tools on</b>. Everyone at the table is told in chat.</p>
+  <figure>
+    <img src="img/tools-debug.png" alt="Debug tools" style="width:100%">
+    <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>Debug tools switched on during a game.</figcaption>
+  </figure>
+  <table class="trouble" style="font-size:11pt">
+    <tr><th style="width:28%">Button</th><th>What it does (pick the <b>Player</b> first)</th></tr>
+    <tr><td><b>Add mana</b></td><td><b>Number</b> mana of the <b>Mana</b> colour (W, U, B, R, G or C), 1 to 99, until the end of the turn.</td></tr>
+    <tr><td><b>Add to hand</b></td><td>The card named in <b>Card</b> goes into that player's hand.</td></tr>
+    <tr><td><b>Put on battlefield</b></td><td>The card or token named in <b>Card</b> goes onto the battlefield.</td></tr>
+    <tr><td><b>Set life</b></td><td>Life total to <b>Number</b> (0 to 999).</td></tr>
+    <tr><td><b>Untap all</b></td><td>Untaps everything that player controls.</td></tr>
+    <tr><td><b>Draw</b> / <b>Mill</b></td><td><b>Number</b> cards (1 to 99), drawn or milled by the engine itself, so triggers fire as in play.
+      These two are new (2026-11-12): the buttons show only when your package's bridge offers them, and they need an engine built with them.</td></tr>
+  </table>
+  <div class="call warn"><span class="t">Each change is a vote</span>
+  Every button press pauses the game as a <b>manual fix</b>, and the other players vote on it. The tools work only while a table game is running,
+  and not while another fix is under way. Debug tools switch <b>off</b> every time the bridge starts.</div>
+</section>
+
+<!-- ============ 13. BUTTONS / TRAY / END ============ -->
+<section class="page">
+  <div class="kicker">Everyday controls</div>
+  <h2>Buttons, tray icon, end of the night</h2>
+  <figure>
+    <img src="img/actions.png" alt="Actions row" style="width:76%">
+    <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>The ACTIONS row on the status page.</figcaption>
+  </figure>
+  <table class="trouble" style="font-size:10.8pt">
+    <tr><th style="width:26%">Button</th><th>What it does</th></tr>
+    <tr><td><b>Restart engine</b></td><td>Stops the bridge, restarts the relay and the Forge room, then starts the bridge again (under a minute). Locked during a game.</td></tr>
+    <tr><td><b>Stop everything</b></td><td>Stops the bridge and the engine containers. Docker Desktop and TTS keep running. Afterwards use <b>Restart engine</b> to bring it back.</td></tr>
+    <tr><td><b>Open logs folder</b></td><td>Opens the <code>logs</code> folder (companion.log, bridge.log), the files to send if you need help.</td></tr>
+    <tr><td><b>Limit Docker's CPU use…</b></td><td>Optional; see Step 1.</td></tr>
+  </table>
+
+  <div class="two w" style="margin-top:10pt">
+    <div>
+      <h3 style="margin-top:0">Tray icon (by the clock)</h3>
+      <p class="small">Left-click opens the status page. Right-click shows the menu. Hovering shows "MTG: ready", "game on", "N to check" or "MTG: &lt;light&gt; problem".
+      A light turning red also pops up a notice (at most once per light per 10 minutes); click it to open the page.</p>
+      <h3>End of the night</h3>
+      <ul class="small">
+        <li>Press <b>Stop everything</b>, or just shut down the PC.</li>
+        <li><b>Quit</b> in the tray asks: <b>Yes</b> = quit and leave the engine and bridge running (a game in progress carries on);
+          <b>No</b> = stop everything first, then quit; <b>Cancel</b>.</li>
+        <li>If Windows says "Finishing update…" at shutdown, let it finish (a minute or two). If the PC went off anyway, the next start puts the
+          package back as it was before the update.</li>
+      </ul>
+    </div>
+    <div class="diagram">
+      <div class="label">Diagram · tray menu (right-click)</div>
+      <div class="menu">
+        <div>Open status</div><div>Open logs folder</div><div class="sep"></div>
+        <div class="dis">Package v… (the version)</div><div>Check for updates</div><div>GitHub token…</div><div class="sep"></div>
+        <div>Restart engine</div><div>Stop everything</div><div class="sep"></div><div>Quit</div>
+      </div>
+      <p class="small muted" style="margin:6pt 0 0">Items as in <code>StatusForm.cs</code>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 14. UPDATES ============ -->
+<section class="page">
+  <div class="kicker">Staying current</div>
+  <h2>Updates</h2>
+  <p class="lead">The companion can update itself from signed releases. It only downloads the parts that changed.</p>
+  <figure>
+    <img src="img/update.png" alt="Update available banner" style="width:86%">
+    <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>An update is offered: <span class="ui">Update now</span>, <span class="ui">Later</span>, <span class="ui">Check for updates</span>.</figcaption>
+  </figure>
+  <ul>
+    <li>It checks at start, at most every 6 hours, and when you press <b>Check for updates</b>.</li>
+    <li><b>Update now</b>: the bridge stops for a minute while it installs. <b>During a game it only downloads</b>, then installs 2 minutes after the game ends.</li>
+    <li>Every update is checked against the project's signing key before it is used. If an install fails, it is undone: <span class="q">"The update failed and was undone"</span>.</li>
+    <li>The previous version's files are kept for an undo (about 400 MB stays; an update needs up to about 700 MB while it installs).</li>
+  </ul>
+  <figure>
+    <img src="img/not-public.png" alt="Updates not public line" style="width:86%">
+    <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>What you see today, while the project is private.</figcaption>
+  </figure>
+  <div class="call warn"><span class="t">While the project is private, automatic updates don't work for you yet.</span>
+  The page says <span class="q">"Updates will work once the project is public."</span> That is never a red light; the table still works.
+  Until then, the owner either sends you a new zip, or gives you a GitHub token to enter with the tray's <b>GitHub token…</b>
+  (stored encrypted for your Windows account, sent only to GitHub). Which of the two is still being decided.</div>
+</section>
+
+<!-- ============ 15. RED LIGHT ============ -->
+<section class="page">
+  <div class="kicker">Troubleshooting</div>
+  <h2>When a light is red</h2>
+  <p class="lead">A red light names the problem in one sentence and, usually, shows <b>one gold button that fixes it</b>. Press it.</p>
+  <figure>
+    <img src="img/red-stack.png" alt="Engine stack light red" style="width:60%">
+    <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>The badge says <b>Problem: Engine stack</b>. The gold <span class="ui">Restart relay and room</span>
+    button is the fix (it asks first: "Restart the relay and the Forge room (about 20 s)?").</figcaption>
+  </figure>
+  <ol class="do">
+    <li>Read the red light's sentence. Do what it says (it is written for you, not for a programmer).</li>
+    <li>Press its gold button. Buttons that restart things are locked during a game, so a fix never ends a game by surprise.</li>
+    <li>Still stuck: quit the companion (tray → Quit) and start it again.</li>
+    <li>Still stuck: <b>Open logs folder</b> and send the files to whoever gave you the package.</li>
+  </ol>
+  <div class="call"><span class="t">Amber is not an emergency.</span>
+  Amber means "check this": often it is waiting for you (load the table) or for the game to end (a newer engine or table loads after the game).</div>
+  <div class="call warn"><span class="t">The page says "Companion not running"?</span>
+  "Start MTG Companion.exe again. This page reconnects by itself." A short "Companion busy, retrying" is normal while it works.</div>
+</section>
+
+<!-- ============ 16. TROUBLE 1-3 ============ -->
+<section class="page">
+  <div class="kicker">Troubleshooting</div>
+  <h2>Light by light: what it says, what to do</h2>
+  <p class="small muted">Sentences in italics are the app's own words (shortened with … where long). <b>[Button]</b> is the gold button the light shows.</p>
+
+  <div class="lighthead"><span class="n">1</span>Docker</div>
+  <table class="trouble">
+    <tr><th>The light says</th><th>Do this</th></tr>
+    <tr><td><span class="dot r"></span><span class="q">Docker isn't running.</span> <b>[Start Docker Desktop]</b> (amber instead if Docker Desktop is open but its engine isn't answering yet)</td><td>Press the button, wait a minute.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">Docker Desktop didn't answer within 3 minutes. Open its window and finish anything it asks (agreement, sign-in, a WSL update or a restart), then press the button.</span> <b>[Start Docker Desktop]</b></td><td>Open Docker's window, answer what it asks, press the button.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">Docker Desktop is running, but Windows doesn't let this account use it yet…</span> <b>[Try again]</b></td><td>Sign out of Windows and back in (or restart), then <b>Try again</b>.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">Docker is set to Windows containers…</span> <b>[Try again]</b></td><td>Right-click the Docker icon by the clock → <b>Switch to Linux containers</b> → <b>Try again</b>.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">Install Docker Desktop, then press Try again.</span> / <span class="q">…Docker Desktop.exe wasn't found. Start Docker yourself…</span> <b>[Try again]</b></td><td>Install or start Docker Desktop (Step 1), then <b>Try again</b>.</td></tr>
+  </table>
+
+  <div class="lighthead"><span class="n">2</span>Engine images</div>
+  <table class="trouble">
+    <tr><th>The light says</th><th>Do this</th></tr>
+    <tr><td><span class="dot b"></span><span class="q">Loading the engine images (first run only): 42% of … MB…</span></td><td>Wait. First start only.</td></tr>
+    <tr><td><span class="dot a"></span><span class="q">This package has a newer engine; it loads after the game.</span></td><td>Nothing; it happens after the game.</td></tr>
+    <tr><td><span class="dot a"></span><span class="q">Loaded, but the image ids differ from this package's version.json… Games may still work; tell whoever sent the package.</span></td><td>Play on; mention it to the owner.</td></tr>
+    <tr><td><span class="dot a"></span><span class="q">The engine images differ from this package…</span> <b>[Load the engine images]</b></td><td>Press it between games.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">Loading the engine images didn't work. The log (Open logs folder, companion.log) has Docker's message.</span> <b>[Load the engine again]</b></td><td>Press it. If it fails again, send the logs.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">The engine file (images\mtg-images.tar) is missing from the package. Unzip the package again…</span> <b>[Try again]</b></td><td>Unzip the whole package again (Step 2).</td></tr>
+  </table>
+
+  <div class="lighthead"><span class="n">3</span>Engine stack</div>
+  <table class="trouble">
+    <tr><th>The light says</th><th>Do this</th></tr>
+    <tr><td><span class="dot r"></span><span class="q">The engine isn't running (no relay container).</span> / <span class="q">The Forge room container isn't running.</span> <b>[Start the engine]</b></td><td>Press it.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">The relay is up, but this PC can't log in to it…  This happens after Docker or WSL restarts.</span> <b>[Restart relay and room]</b></td><td>Press it. Common after the PC slept or Docker restarted.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">The room is busy with an earlier game, so a new start would be refused.</span> <b>[Restart relay and room]</b></td><td>If a game was being set up, type <code>mtg reset</code> in TTS chat first, then press it.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">The relay's own health check fails.</span> / <span class="q">The engine didn't get ready within 5 minutes…</span> <b>[Restart relay and room]</b></td><td>Press it.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">Port 9443 is taken, most likely by another copy of the MTG engine…</span></td><td>Stop the other copy (Stop everything in its MTG Companion), then press the button.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">The relay refused the key… A MANABREW_SERVER_KEY setting on this PC… remove it, press Stop everything, then start again.</span></td><td>Rare: ask the owner.</td></tr>
+  </table>
+
+  <div class="lighthead"><span class="n">4</span>Table save</div>
+  <table class="trouble">
+    <tr><th>The light says</th><th>Do this</th></tr>
+    <tr><td><span class="dot a"></span><span class="q">A newer table is in this package; it installs after the game.</span></td><td>Nothing; it happens after the game.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">table\MTG Table.json is missing from the package. Unzip the package again, then press Try again.</span> <b>[Try again]</b></td><td>Unzip again (Step 2), then <b>Try again</b>.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">Couldn't install the table save: …</span> <b>[Try again]</b></td><td><b>Try again</b>; if it repeats, send the logs.</td></tr>
+  </table>
+
+  <div class="lighthead"><span class="n">5</span>Bridge</div>
+  <table class="trouble">
+    <tr><th>The light says</th><th>Do this</th></tr>
+    <tr><td><span class="dot r"></span><span class="q">The bridge isn't running.</span> / <span class="q">The bridge didn't start… Last log lines: …</span> <b>[Start the bridge]</b></td><td>Press it.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">… is using port 39998, which the bridge needs. This is usually the Tabletop Simulator extension in VS Code or Atom: close that program, then press Try again.</span> <b>[Show the program]</b></td><td>Close VS Code / Atom. The button opens Task Manager: find the process number from the sentence on the Details tab and close it yourself.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">Another MTG bridge is already running… Stop it first (Stop everything in the MTG Companion of that other copy)…</span> <b>[Try again]</b></td><td>An older copy of the folder is running: stop it there.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">This folder can't be written to… Move the whole folder somewhere you can write, such as C:\Games\MTG-Table…</span> <b>[Try again]</b></td><td>Move the folder (Step 2) and start the .exe from there.</td></tr>
+    <tr><td><span class="dot a"></span><span class="q">Running, but it isn't this package's bridge (…). Restart it between games.</span> <b>[Restart the bridge]</b></td><td>Press it between games.</td></tr>
+    <tr><td><span class="dot a"></span><span class="q">The bridge runs but didn't answer in time (…). It may be busy.</span> <b>[Restart the bridge]</b></td><td>Usually wait. If it stays, press it between games ("TTS will redraw the table").</td></tr>
+  </table>
+
+  <div class="lighthead"><span class="n">6</span>TTS</div>
+  <table class="trouble">
+    <tr><th>The light says</th><th>Do this</th></tr>
+    <tr><td><span class="dot a"></span><span class="q">Tabletop Simulator isn't running.</span> <b>[Open TTS]</b></td><td>Press it, or start TTS from Steam.</td></tr>
+    <tr><td><span class="dot a"></span><span class="q">Steam wasn't found. Install Steam and Tabletop Simulator, then press Open TTS.</span></td><td>Install them.</td></tr>
+    <tr><td><span class="dot a"></span><span class="q">TTS is running. Load the table: In TTS: Create → … → MTG Table (rules engine).</span></td><td>Load the table (Step 6).</td></tr>
+    <tr><td><span class="dot a"></span><span class="q">TTS is running. The table can be checked once the bridge runs.</span></td><td>Fix the Bridge light first.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">Old table loaded (…, this package has …): load MTG Table (rules engine) again.</span> (also: <span class="q">Old table loaded (it has no version)…</span>)</td><td>An old save is on the table. Load "MTG Table (rules engine)" again (Step 6).</td></tr>
+  </table>
+  <figure style="margin-top:8pt">
+    <img src="img/tts-notrunning.png" alt="TTS light amber with Open TTS button" style="width:70%">
+    <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>The TTS light with its <span class="ui">Open TTS</span> button.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 18. GOOD TO KNOW ============ -->
+<section class="page">
+  <div class="kicker">Reference</div>
+  <h2>Good to know</h2>
+  <div class="two">
+    <div>
+      <h3 style="margin-top:4pt">Privacy</h3>
+      <p class="small">Everything listens on your own PC only (127.0.0.1). Nothing is opened to the internet; TTS's own multiplayer is how friends reach the table.
+      Card pictures come from Scryfall. The status page only works on the PC running the companion.</p>
+      <h3>Where things are</h3>
+      <ul class="small">
+        <li><code>logs\companion.log</code> and <code>logs\bridge.log</code> in the MTG folder</li>
+        <li>The table save: <code>Documents\My Games\Tabletop Simulator\Saves</code>, as a <code>TS_Save_N.json</code> named "MTG Table (rules engine)"</li>
+        <li>The companion's own notes: <code>%LOCALAPPDATA%\MTG Companion</code></li>
+      </ul>
+      <h3>Saving over the table</h3>
+      <p class="small">If you save your own game over the table save, the companion treats that file as yours: a newer table then goes to a new save number beside it, and yours is kept.</p>
+    </div>
+    <div>
+      <h3 style="margin-top:4pt">Not built (yet)</h3>
+      <ul class="small">
+        <li><b>Mac and Linux</b>: no version. The companion is Windows-only.</li>
+        <li><b>Code signing</b>: the .exe isn't signed, hence the SmartScreen warning.</li>
+        <li><b>Updates while the project is private</b>: need a GitHub token, or a new zip from the owner.</li>
+        <li>No "start with Windows" option and no settings screen: behaviour is fixed.</li>
+        <li>The lights don't watch for TTS crashes, graphics-driver resets or memory use.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="two" style="grid-template-columns:1.2fr .8fr;margin-top:6pt">
+  <div><h3 style="margin-top:0">About the pictures in this guide</h3>
+  <p class="small">The status-page pictures are the companion's real page (built from <code>companion/src</code> on 2026-11-12, served by the
+  real app and captured with headless Edge). Where marked <span class="tag ex">REAL PAGE · EXAMPLE</span>, the lights were fed example
+  values for a friend's package, using the exact sentences from the code. The unedited capture is from the developer's PC, which
+  runs in "home mode" (no table-save step) and in read-only "observe" mode (right).</p>
+  </div>
+  <figure style="margin:0">
+    <img src="img/real-page.png" alt="Unedited status page capture">
+    <figcaption><span class="tag real">REAL</span>Unedited capture, 2026-11-12, observe mode on the developer's PC (TTS was closed, so its light is amber).</figcaption>
+  </figure>
+  </div>
+</section>
+
+</body>
+</html>
