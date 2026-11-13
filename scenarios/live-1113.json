@@ -1,0 +1,26 @@
+{
+  "label": "live check 2026-11-13 (engine1113 + readability batch 2 + Treasure sounds): Big Score makes 2 Treasures (treasure sound), spend 3 Treasures on Inspiration (treasurespend_x3); Jace's ability panel greys -12 (Needs 12 loyalty (has 3)); Rift Bolt suspended (suspend spot, then 'from suspend'); Claim the Precious tempts with the Ring (label fits uncut); Saw It Coming foretold (FORETOLD 1)",
+  "mana": 30,
+  "hand": [
+    "Big Score",
+    "Inspiration",
+    "Rift Bolt",
+    "Claim the Precious",
+    "Saw It Coming",
+    "Opt"
+  ],
+  "battlefield": [
+    "Jace, the Mind Sculptor",
+    "Grizzly Bears"
+  ],
+  "tokens": [
+    "treasure",
+    "treasure",
+    "treasure"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Hill Giant"
+    ]
+  }
+}

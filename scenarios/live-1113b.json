@@ -1,0 +1,15 @@
+{
+  "label": "live re-check 2026-11-13: a human's suspend cast reads 'from suspend without paying its mana cost' (Rift Bolt suspended in main 1, cast at the next upkeep)",
+  "mana": 5,
+  "hand": [
+    "Rift Bolt"
+  ],
+  "battlefield": [
+    "Grizzly Bears"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Hill Giant"
+    ]
+  }
+}
