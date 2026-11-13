@@ -5282,12 +5282,20 @@ engineSounds = engineSounds or {
   wipe_x4 = "https://steamusercontent-a.akamaihd.net/ugc/12703812866224761222/8F7B4507EC055B76100A5BF6966D5C085331E6A8/",
   wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/14531756883241499521/4AB4F03063BBA056EE23C175B621BE4FB228DE58/",
   wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/10603921525270560187/08115EEC453EE7937CD5B34288B696512A190D7D/",
-  -- the Treasure sounds (docs/sounds.md "Treasure", 2026-11-13): made (tools/make-treasure-sounds.js), not uploaded
-  -- yet, so nil: silent until their links are in (match each link to its file by the doc's sha256s)
-  treasure = nil,          -- Treasure tokens created (mtg2-treasure.mp3; bursts mtg2-treasure-x2..x8.mp3)
-  treasurespend = nil,     -- Treasure tokens leaving the battlefield, sacrificed for mana or not: in place of death
-  treasure_x2 = nil, treasure_x3 = nil, treasure_x4 = nil, treasure_x6 = nil, treasure_x8 = nil,
-  treasurespend_x2 = nil, treasurespend_x3 = nil, treasurespend_x4 = nil, treasurespend_x6 = nil, treasurespend_x8 = nil,
+  -- the Treasure sounds (docs/sounds.md "Treasure", 2026-11-13): made by tools/make-treasure-sounds.js, uploaded
+  -- 2026-11-13, each link matched to its file by the doc's sha256
+  treasure = "https://steamusercontent-a.akamaihd.net/ugc/17824248367881460454/3B2D359381239D6747F3CBF52718D1A3F3CE21C6/",   -- Treasure tokens created
+  treasurespend = "https://steamusercontent-a.akamaihd.net/ugc/13970842037467871805/FDEF1F5E0B2E081CD7A708F320272D17BF04158E/",   -- Treasure tokens leaving the battlefield, sacrificed for mana or not: in place of death
+  treasure_x2 = "https://steamusercontent-a.akamaihd.net/ugc/15868461381369419176/37EBD32BFF46E4DAF374B0584104988D185CAECB/",
+  treasure_x3 = "https://steamusercontent-a.akamaihd.net/ugc/10935892306243320307/BEE92BD0A11A258C2FA0FF1FEA68983ADA9E0704/",
+  treasure_x4 = "https://steamusercontent-a.akamaihd.net/ugc/11162875445695134125/A6F396D35E514BC742C366C3BEEE1659194996FF/",
+  treasure_x6 = "https://steamusercontent-a.akamaihd.net/ugc/15126618132993431564/C6E6DBF4D4EE47F136224E7972454024920586D5/",
+  treasure_x8 = "https://steamusercontent-a.akamaihd.net/ugc/11939821030113657645/9783AB64A5F45AA366F0B04BFA3DE3000BB4F0D9/",
+  treasurespend_x2 = "https://steamusercontent-a.akamaihd.net/ugc/16741179117198945457/332DF84948C8873AA62F99D31CBF2C360C405502/",
+  treasurespend_x3 = "https://steamusercontent-a.akamaihd.net/ugc/16318789669511781064/CD2C89EB01D46E497114BB6B74116E3D3872BB9D/",
+  treasurespend_x4 = "https://steamusercontent-a.akamaihd.net/ugc/14925489419790829503/2018FE8940702D166851E72C4A0C10FDF1DC9B59/",
+  treasurespend_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13940715731990975781/0C9AC369A768637688F4F7B9F8E63C15037DD563/",
+  treasurespend_x8 = "https://steamusercontent-a.akamaihd.net/ugc/9847596886716429556/853FA485628EABEDEBFBBC79BAD5EC2A4BDB311F/",
 }
 -- each clip's length in seconds, where it isn't 2 (docs/sounds.md: every clip is padded to at least 2 s; a clip is
 -- paused just before its length runs out, engineSoundPlay)
