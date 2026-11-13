@@ -1,6 +1,6 @@
 # Particle effects: death, coloured board wipe, exile, damage bolt (spec)
 
-Status: **spec only, written 2026-11-12. Nothing is built; the user said to wait on building.**
+Status: **built in source 2026-11-12 (the full build, every performance option), not seen live.** Spec written 2026-11-12; what was built, and what is left, in §8. Both bundle links are still nil until the user uploads them, so today's table is unchanged until then.
 Sources:
 - `docs/fx-research/mtga-video-notes.md`: frame-by-frame notes from three MTGA videos (red ping, white exile/destroy, black wipes), with measured colours.
 - `docs/fx-research/tech-inventory.md`: what our Unity bundle, the table and the bridge can do today.
@@ -130,9 +130,55 @@ All new fields stay outside the board signature and are cleared once sent, like 
 
 Each phase gets its builder plus a read-only verifier, tests that go red when the effect is broken, and a live check on the real table before it counts as done.
 
-## 7. Open decisions for the user
+## 7. Decisions (the user, 2026-11-12)
 
-1. Multicolour wipes: one gold wave, or one wave per colour?
-2. Exile: should the light fly to the source card (Banishing Light, Oblivion Ring), or just vanish?
-3. Bolt colour: always red-orange, or the source's colour?
-4. Is the default for `mtg fx` on or off?
+1. Multicolour wipes: one gold wave (M).
+2. Exile: the light flies to the exiling card when it is known and on the battlefield.
+3. Bolt colour: the source's (`bolt_<C>`); the red-orange `bolt` for a colourless, multicoloured or unknown source.
+4. `mtg fx` defaults to on.
+
+## 8. Built (2026-11-12, in source, not seen live)
+
+Bundles (`assets/fx/EFFECTS.md`): `mtg-fx.unity3d` (20 effects: the 10 old ones, `death_burn`, `exile_neutral`, `wipe_wave`, `death_wipe_W/U/B/R/G/C/M`) and `mtg-bolt.unity3d` (`bolt`, `bolt_W/U/B/R/G`, `bolt_trail`, `bolt_impact`). The table names its effects by trigger-effect name, so the order inside a bundle doesn't matter.
+
+### Bridge data (`bridge/bridge.js`)
+
+All outside the board signature, cleared once sent; a board skipped as identical keeps them for the next; a board replaced in the outbox passes them on (the newer board's `q` shifted after the older's).
+
+| Field | Where | What |
+|---|---|---|
+| `cl` | each card's static details; stack items | WUBRG letters in that order, `C` colourless, from the engine's `color`. Stack items have no colour in Forge's DTO: the card's as last seen this game, by id, else by name. None for a face-down stack item (Forge names it `""`, the board's `"?"`; it keeps the card's id, which its owner's hand showed face up), and the table gives a face-down source none either |
+| `lv` | the board | `[{id, to, how?, by?, q}]`, every battlefield departure from the engine's feed. `to` g/e/h/l/c/x; `how` d (destroyed) / s (sacrificed); `by` the cause card, else the source of the last damage to it, else the last card off the stack before it. `exd` is still sent beside it |
+| `hits` | the board | `[{src?, to, n, q, combat?}]`, `to` a card id or a seat's colour. From the engine's damage entries (`kind: "damage"`, engine1112 on); an engine that sends none: `damageNews`' certain hits (no combat ones). Entries of 0 or at nothing are dropped, and so is combat damage except to a card that left the battlefield on that board (its burn-away death: the table flies no bolt for combat, so chip damage to a creature that lives, or to a player, is no news to it) |
+
+`q` runs across `lv` and `hits` together in Forge's order (the log's hits, which have no place in the ring, first), numbering what is sent. At most 48 of each go (`FX_MAX`, the first by `q`), so a huge wipe stays a small message.
+
+### What plays when (`tools/engine-renderer.lua`)
+
+- **Death:** `death` (destroyed or sacrificed), `death_burn` when it was hit on this board (or in combat) and not sacrificed.
+- **Wipe** (3+ permanents to graveyards or exile on one board, all seats together): one wave from the cause's controller's side, 6 units behind their mat, local +z at the table's centre, scale 2 (`FX.WAVE_SCALE`). Its colour is the commonest key among the causes (lv's `by`, else the hit's source), else a stack item gone since the last board, else B (today's purple). It plays the baked `death_wipe_<key>`; with `engineFxTint = true` (the host's flag for the live tint check) the neutral `wipe_wave` tinted. Then each card's own `death` / `death_burn` / `exile`, 0.15 s after the wave and 0.12 s apart in the order the wave reaches them, 8 at most and only while a rig is free (5 with 6 rigs); the rest are dropped, the wave stands for them. A bundle without the wave: the old cloud.
+- **Exile:** `exile`; with `engineFxTint`, `exile_neutral` tinted in the exiler's colour. The light flies to the exiler (lv's `by`, else the card's `ew`) when it is on the battlefield: a bolt in the exiler's colour (W when unknown), 0.7 s after the exile.
+- **Bolt:** each non-combat hit with a source: a bolt rig at the source (a spell: its spot on the last board's stack; an ability: its card), turned so local +z points at the target (yaw and pitch), scaled to the distance, `bolt_<key>` played at least 0.1 s later, the next 0.15 s apart. The target's damage, hit or death plays at the impact, 0.25 s after the bolt, through the lunge's hit-time table. 4 a board, in `q` order; the rest have their effect at once. A source with more than 4 hits on one board (a sweep) and a wave's cause fly none.
+- **Fallback** `engineFxBoltMove = true`: `bolt_trail` at scale 1, the rig moved to the target one frame at a time over 15 frames, then `bolt_impact`. The only per-frame mover.
+- A token that `lv` says went to a hand, a library or the command zone is no death, and one it says was exiled is an exile (on and low; with **off** the table reads no `lv`, so a vanished token dies as before).
+- With no bolt link (no bolt rig), the bolt pass isn't run at all.
+
+### Pool, links and modes
+
+- 6 fx rigs (`engine:fx`) and 4 bolt rigs (`engine:bolt`). With a link in `engineFxBundle.fx` / `.bolt`, the missing ones are spawned once per load (the bolt row at z 32) and then stay in the save; never spawned or destroyed per event. A parked rig is back at scale 1 and untinted.
+- **A new bundle replaces the old rigs.** Each spawned rig keeps its link in its memo (saved with it; GM notes stay `engine:fx` / `engine:bolt`, which the sweep, the stray-card watcher and "mtg start" look for). On load (and at a game's first look), a rig whose memo isn't its pool's link is stale: it is left out of the pool and destroyed, one every 30 frames (`FX.RETIRE_GAP`; a destruct costs ~360 ms in real TTS), each once per load, and the pool is topped up with new rigs from the link. A rig with no memo (spawned before 2026-11-12, as the 6 in the user's save) counts as the old shipped fx link's (`FX.LEGACY`): stale only once another link is set. No link, or `mtg fx off`: nothing is stale.
+- `engineFxBundle.bolt = nil` until the upload: no bolt rigs, every hit's effect at once, as today. `fx` keeps the shipped link.
+- `mtg fx on|low|off` (host only, saved with the game, `onSave`'s `engineFx`): **on** everything; **low** a wipe's wave without its cards' own effects, no bolts and no exile lights, single effects as on; **off** no rig effect and no spawn: every board makes exactly the calls it makes with no bundle (sounds, slots, flashes stay).
+
+### Timings and host cost
+
+Measured in the sim (`tests/test_table_effects.js`, fengari, fastest of 7, the fake's own call recording left out), host Lua of engineEffects and every Wait it schedules: a 20-creature wipe ~8.4 ms with effects on, ~5.7 ms off (today's path; engineFxBoard's share 4.1 / 1.7 ms); a 4-bolt board ~3.9 ms on, ~2.7 ms off (engineFxBoard 3.5 / 2.3 ms). So the build adds ~2.7 ms on a big wipe and ~1.2 ms on a bolt board; the check bounds the addition at 5 ms. fengari is not MoonSharp: the real numbers come from the live check.
+
+### What's left
+
+1. **Upload** both bundles (TTS Cloud Manager), put the links in `engineFxBundle.fx` and `.bolt`. The 6 rigs already in the user's save are the old fx link's: the first load with the new link replaces them by itself (see Pool); keep `FX.LEGACY` at the old link.
+2. **Live tint check:** does `setColorTint` tint the particles? If yes, `engineFxTint = true` makes the neutral effects serve every colour; if not, the baked ones stay.
+3. **Live animation check:** does the bolt's baked head flight play in TTS? If not, `engineFxBoltMove = true`.
+4. **Object check:** Loaded Objects before and after the 10 rigs (the 78k crash line).
+5. **Two-player check:** a host-fired rig effect seen by the other player at the right spot (build doc §8).
+6. Tune `WAVE_SCALE`, `WAVE_BACK`, the stagger and the tint colours on the real table. The extra JSON of `lv` and `hits` on a wipe board (TTS decodes ~15 ms a KB) is to be watched there too.
