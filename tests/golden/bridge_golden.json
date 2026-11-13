@@ -121146,6 +121146,12 @@
        "life": 40,
        "status": "playing",
        "pool": null,
+       "allMarks": [
+        "FORETOLD 1"
+       ],
+       "markTips": [
+        "AI 1 has a foretold card in exile, face down, to cast on a later turn for its foretell cost"
+       ],
        "cmdDamage": {},
        "tax": [
         2
@@ -121615,6 +121621,12 @@
        "life": 40,
        "status": "playing",
        "pool": null,
+       "allMarks": [
+        "FORETOLD 1"
+       ],
+       "markTips": [
+        "AI 1 has a foretold card in exile, face down, to cast on a later turn for its foretell cost"
+       ],
        "cmdDamage": {},
        "tax": [
         2
@@ -122047,6 +122059,12 @@
        "life": 40,
        "status": "playing",
        "pool": null,
+       "allMarks": [
+        "FORETOLD 1"
+       ],
+       "markTips": [
+        "AI 1 has a foretold card in exile, face down, to cast on a later turn for its foretell cost"
+       ],
        "cmdDamage": {},
        "tax": [
         2
@@ -122176,6 +122194,12 @@
        "life": 40,
        "status": "playing",
        "pool": null,
+       "allMarks": [
+        "FORETOLD 1"
+       ],
+       "markTips": [
+        "AI 1 has a foretold card in exile, face down, to cast on a later turn for its foretell cost"
+       ],
        "cmdDamage": {},
        "tax": [
         2
@@ -217168,7 +217192,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue saw: Pestilence: AI 1 voted for Vraska's Fall. Votes: Vraska's Fall: Blue, AI 1\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Pestilence: AI 1 voted for Vraska's Fall. Votes: Vraska's Fall: Blue, AI 1\n"
    },
    {
     "relay": {
@@ -217197,7 +217221,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue saw: Pestilence: AI 1 voted for Vraska's Fall. Votes: Vraska's Fall: Blue, AI 1"
+      "Pestilence: AI 1 voted for Vraska's Fall. Votes: Vraska's Fall: Blue, AI 1"
      ]
     }
    }
@@ -255642,7 +255666,7 @@
         "POISON 1",
         "EXPERIENCE 2",
         "RAD 3",
-        "RING TEMPTED 2",
+        "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
         "SPEED 4",
         "PREVENT 5",
         "MAX HAND 0",
@@ -255650,6 +255674,19 @@
         "PROTECTION FROM EACH OF YOUR OP…",
         "YOU CAN'T LOSE THE GAME",
         "YOUR OPPONENTS CAN'T CAST SPELL…"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "The Ring has tempted Blue 2 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {
         "White": 2
@@ -256183,7 +256220,7 @@
         "POISON 1",
         "EXPERIENCE 2",
         "RAD 3",
-        "RING TEMPTED 2",
+        "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
         "SPEED 4",
         "PREVENT 5",
         "MAX HAND 0",
@@ -256191,6 +256228,19 @@
         "PROTECTION FROM EACH OF YOUR OP…",
         "YOU CAN'T LOSE THE GAME",
         "YOUR OPPONENTS CAN'T CAST SPELL…"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "The Ring has tempted Blue 2 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {
         "White": 2
@@ -256630,13 +256680,25 @@
         "POISON 1",
         "EXPERIENCE 2",
         "RAD 3",
-        "RING TEMPTED 2",
+        "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
         "SPEED 4",
         "PREVENT 5",
         "HEXPROOF",
         "PROTECTION FROM EACH OF YOUR OP…",
         "YOU CAN'T LOSE THE GAME",
         "YOUR OPPONENTS CAN'T CAST SPELL…"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "The Ring has tempted Blue 2 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {
         "White": 2
@@ -256747,7 +256809,7 @@
      "POISON 1",
      "EXPERIENCE 2",
      "RAD 3",
-     "RING TEMPTED 2",
+     "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
      "SPEED 4",
      "PREVENT 5",
      "MAX HAND 0",
@@ -256767,7 +256829,7 @@
      "POISON 1",
      "EXPERIENCE 2",
      "RAD 3",
-     "RING TEMPTED 2",
+     "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
      "SPEED 4",
      "PREVENT 5",
      "HEXPROOF",
@@ -511809,7 +511871,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue saw: Pestilence: AI 1 voted for Money. Votes: Money: Blue, AI 1\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Pestilence: AI 1 voted for Money. Votes: Money: Blue, AI 1\n"
    },
    {
     "relay": {
@@ -511838,7 +511900,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue saw: Pestilence: AI 1 voted for Money. Votes: Money: Blue, AI 1"
+      "Pestilence: AI 1 voted for Money. Votes: Money: Blue, AI 1"
      ]
     }
    }
@@ -583618,7 +583680,10 @@
         {
          "s": 1,
          "id": "engine-card-994",
-         "ctl": "Blue"
+         "ctl": "Blue",
+         "kw": [
+          "Mutated: Eidolon of Blossoms under it"
+         ]
         },
         {
          "s": 1,
@@ -584530,7 +584595,10 @@
         {
          "s": 1,
          "id": "engine-card-994",
-         "ctl": "Blue"
+         "ctl": "Blue",
+         "kw": [
+          "Mutated: Gemrazer under it"
+         ]
         },
         {
          "s": 1,
@@ -842919,13 +842987,30 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3",
+        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
         "PREVENT 1",
         "MAX HAND 5",
         "HEXPROOF"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted Blue 3 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.\nWhenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat.",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {
         "White": 2
@@ -843044,10 +843129,22 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1",
+        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted AI 1 once:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {},
        "tax": [
@@ -843471,13 +843568,30 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3",
+        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
         "PREVENT 1",
         "MAX HAND 5",
         "HEXPROOF"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted Blue 3 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.\nWhenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat.",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {
         "White": 2
@@ -843510,10 +843624,22 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1",
+        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted AI 1 once:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {},
        "tax": [
@@ -843942,13 +844068,28 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3",
+        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
         "PREVENT 1",
         "MAX HAND 5",
         "HEXPROOF"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted Blue 3 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.\nWhenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat.",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {
         "White": 2
@@ -843980,10 +844121,21 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1",
+        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted AI 1 once:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {},
        "tax": [
@@ -844200,7 +844352,7 @@
       "EXPERIENCE 2",
       "RAD 1",
       "TICKETS 4",
-      "RING TEMPTED 3",
+      "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
       "SPEED 2",
       "TURN RUN BY AI 1",
       "EXTRA TURN",
@@ -844218,7 +844370,7 @@
       "CITY'S BLESSING",
       "ENDURING STORY",
       "EXPERIENCE 1",
-      "RING TEMPTED 1",
+      "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
       "SPEED 1",
       "NO MAX HAND SIZE",
       "YOU CAN'T LOSE THE GAME"
@@ -844235,7 +844387,7 @@
       "EXPERIENCE 2",
       "RAD 1",
       "TICKETS 4",
-      "RING TEMPTED 3",
+      "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
       "SPEED 2",
       "TURN RUN BY AI 1",
       "EXTRA TURN",
@@ -844252,7 +844404,7 @@
       "CITY'S BLESSING",
       "ENDURING STORY",
       "EXPERIENCE 1",
-      "RING TEMPTED 1",
+      "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
       "SPEED 1",
       "NO MAX HAND SIZE",
       "YOU CAN'T LOSE THE GAME"
@@ -846356,13 +846508,30 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3",
+        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
         "PREVENT 1",
         "MAX HAND 5",
         "HEXPROOF"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted Blue 3 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.\nWhenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat.",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {
         "White": 2
@@ -846481,10 +846650,22 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1",
+        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted AI 1 once:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {},
        "tax": [
@@ -846908,13 +847089,30 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3",
+        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
         "PREVENT 1",
         "MAX HAND 5",
         "HEXPROOF"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted Blue 3 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.\nWhenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat.",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {
         "White": 2
@@ -846947,10 +847145,22 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1",
+        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted AI 1 once:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {},
        "tax": [
@@ -847366,13 +847576,30 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3",
+        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
         "PREVENT 1",
         "MAX HAND 5",
         "HEXPROOF"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted Blue 3 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.\nWhenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat.",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {
         "White": 2
@@ -847405,10 +847632,22 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1",
+        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted AI 1 once:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {},
        "tax": [
@@ -847522,13 +847761,30 @@
         "EXPERIENCE 2",
         "RAD 1",
         "TICKETS 4",
-        "RING TEMPTED 3",
+        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
         "SPEED 2",
         "TURN RUN BY AI 1",
         "EXTRA TURN",
         "PREVENT 1",
         "MAX HAND 5",
         "HEXPROOF"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted Blue 3 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.\nWhenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat.",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {
         "White": 2
@@ -847561,10 +847817,22 @@
         "CITY'S BLESSING",
         "ENDURING STORY",
         "EXPERIENCE 1",
-        "RING TEMPTED 1",
+        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER",
         "SPEED 1",
         "NO MAX HAND SIZE",
         "YOU CAN'T LOSE THE GAME"
+       ],
+       "markTips": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "The Ring has tempted AI 1 once:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {},
        "tax": [
@@ -850500,10 +850768,16 @@
        "status": "playing",
        "pool": null,
        "allMarks": [
-        "RING TEMPTED 2",
+        "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
         "SPEED 1",
         "CONTROLLED BY PLAYER-9",
         "PREVENT 4"
+       ],
+       "markTips": [
+        "The Ring has tempted AI 1 2 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {},
        "tax": [
@@ -850946,10 +851220,16 @@
        "status": "playing",
        "pool": null,
        "allMarks": [
-        "RING TEMPTED 2",
+        "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
         "SPEED 1",
         "CONTROLLED BY PLAYER-9",
         "PREVENT 4"
+       ],
+       "markTips": [
+        "The Ring has tempted AI 1 2 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.",
+        "",
+        "",
+        ""
        ],
        "cmdDamage": {},
        "tax": [
@@ -851348,7 +851628,7 @@
    {
     "c": "White",
     "allMarks": [
-     "RING TEMPTED 2",
+     "RING TEMPTED 2: BEARER LOOTS ON ATTACK",
      "SPEED 1",
      "CONTROLLED BY PLAYER-9",
      "PREVENT 4"
@@ -852422,7 +852702,10 @@
        "status": "playing",
        "pool": {},
        "allMarks": [
-        "RING TEMPTED 1"
+        "RING TEMPTED 1: BEARER IS LEGENDARY, EVADES BIGGER"
+       ],
+       "markTips": [
+        "The Ring has tempted Blue once:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power."
        ],
        "cmdDamage": {
         "White": 2
@@ -852556,7 +852839,10 @@
        "status": "playing",
        "pool": {},
        "allMarks": [
-        "RING TEMPTED 3"
+        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED"
+       ],
+       "markTips": [
+        "The Ring has tempted Blue 3 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.\nWhenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat."
        ],
        "cmdDamage": {
         "White": 2
@@ -852690,8 +852976,12 @@
        "status": "playing",
        "pool": {},
        "allMarks": [
-        "RING TEMPTED 3",
+        "RING TEMPTED 3: BEARER'S BLOCKERS ARE SACRIFICED",
         "TURN RUN BY AI 1"
+       ],
+       "markTips": [
+        "The Ring has tempted Blue 3 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card.\nWhenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat.",
+        ""
        ],
        "cmdDamage": {
         "White": 2
@@ -852825,7 +853115,10 @@
        "status": "playing",
        "pool": {},
        "allMarks": [
-        "RING TEMPTED 2"
+        "RING TEMPTED 2: BEARER LOOTS ON ATTACK"
+       ],
+       "markTips": [
+        "The Ring has tempted Blue 2 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card."
        ],
        "cmdDamage": {
         "White": 2
@@ -852946,7 +853239,10 @@
        "status": "playing",
        "pool": {},
        "allMarks": [
-        "RING TEMPTED 2"
+        "RING TEMPTED 2: BEARER LOOTS ON ATTACK"
+       ],
+       "markTips": [
+        "The Ring has tempted Blue 2 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power.\nWhenever your Ring-bearer attacks, draw a card, then discard a card."
        ],
        "cmdDamage": {
         "White": 2
@@ -853070,7 +853366,7 @@
     [
      "Blue",
      [
-      "RING TEMPTED 2"
+      "RING TEMPTED 2: BEARER LOOTS ON ATTACK"
      ]
     ],
     [

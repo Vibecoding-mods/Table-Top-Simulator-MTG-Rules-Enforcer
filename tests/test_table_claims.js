@@ -3690,5 +3690,39 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("library top: a private one (pv) lies in its owner's second hand zone", String(valueOf(priv, "where")) === "hand2", String(valueOf(priv, "where")));
   ok("library top: a public one lies on the table", String(valueOf(open, "where")) === "table", String(valueOf(open, "where")));
 }
+// Suspend (readability audit B5, 2026-11-13): a face-up exiled card with time counters leaves the exile pile and lies
+// half size beside it with its own "2 Time" badge, counting down; with none left it goes back into the pile. A face-down
+// card with time counters stays in the pile: its badge would say what is under it.
+{
+  const C = (n) => `engine-card-${n}`;
+  const last = JSON.parse([...s1.slice(0, 40)].reverse().find((m) => m.t === "table").json);
+  const board = (time, fdTime) => {
+    const b = JSON.parse(JSON.stringify(last));
+    const blue = b.players.find((x) => x.color === "Blue");
+    b.cards = { ...(b.cards || {}), [C(970)]: { n: "Rift Bolt", f: "https://img.example/riftbolt.jpg", ty: ["Sorcery"], tl: "Sorcery" },
+      [C(971)]: { n: "Ponder", f: "https://img.example/ponder.jpg", ty: ["Sorcery"], tl: "Sorcery" }, [C(972)]: { n: "Opt", f: "https://img.example/opt.jpg", ty: ["Instant"], tl: "Instant" } };
+    blue.exile = [{ id: C(971), s: 1 }, { id: C(970), s: 1, ctr: time ? { TIME: time } : {} }, { id: C(972), s: 1 }, { id: C(973), fd: true, ctr: fdTime ? { TIME: fdTime } : {} }];
+    blue.keep = (blue.keep || []).filter((z) => z !== "exile");
+    return { msg: { t: "table", json: JSON.stringify(b) }, frames: 90 };
+  };
+  const look = (n, mark) => q(`local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(n)}" then o = x end end if o == nil then ` +
+    `local pile = "" for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:exile:Blue" then for _, e in ipairs(x.getObjects()) do if e.gm_notes == "engine:${C(n)}" then pile = "in pile" end end end end return pile ~= "" and pile or "none" end ` +
+    'local labels = {} for _, b in ipairs(o.getButtons() or {}) do labels[#labels + 1] = tostring(b.label) end local p, g = o.getPosition(), data.Blue.libraryZone ' +
+    'local spot = g.getPosition() + g.getTransformForward() * SUSPEND_FIT.fwd ' +
+    'return string.format("scale %.2f|%s|dist %.2f", o.getScale().x, table.concat(labels, ";"), math.sqrt((p.x - spot.x) ^ 2 + (p.z - spot.z) ^ 2))', mark);
+  const check = q('local out = {} for _, pr in ipairs(engineSelfCheck().problems or {}) do if tostring(pr):find("Rift Bolt", 1, true) or tostring(pr):find("Ponder", 1, true) then out[#out + 1] = tostring(pr) end end return #out == 0 and "none" or table.concat(out, " || ")', "check");
+  const r = simulate({ save, seated: ["Blue", "White"], steps: [...prefix,
+    { ...board(2, 3), mark: "two" }, look(970, "bolt two"), look(971, "ponder"), look(973, "face down"), check,
+    { ...board(1, 3), mark: "one" }, look(970, "bolt one"),
+    { ...board(0, 0), mark: "none" }, look(970, "bolt none")] });
+  const v = (mark) => String(valueOf(r, mark));
+  ok("suspend: precondition, the boards drew", !r.errors.length, r.errors.slice(0, 3).join(" | "));
+  ok("suspend: the suspended card lies half size beside the exile pile with its \"2 Time\" badge", /^scale 0\.50\|2 Time\|dist 0\.\d+$/.test(v("bolt two")), v("bolt two"));
+  ok("suspend: the other exiled cards stay in the pile", v("ponder") === "in pile", v("ponder"));
+  ok("suspend: a face-down card with time counters stays in the pile", v("face down") === "in pile", v("face down"));
+  ok("suspend: the self-check finds it in its place with its badge", v("check") === "none", v("check"));
+  ok("suspend: the badge counts down", /\|1 Time\|/.test(v("bolt one")), v("bolt one"));
+  ok("suspend: with no time counter left it goes back into the pile", v("bolt none") === "in pile", v("bolt none"));
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);
