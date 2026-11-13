@@ -4378,6 +4378,154 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       await tableWith([["battlefield", "player-0", [TOKEN_TWIN, RESEARCHER]], ["exile", "player-0", [COPY]]]),
       { badged: [RESEARCHER.id], linked: [`${COPY.id}>${RESEARCHER.id}`] });
   }
+  // engine1112's new optional fields (docs/readability-audit-2026-11-12.md E1-E6, E9), in the shapes the harness sends
+  // them (manabrew-protocol game/mod.rs; CardStateFlagsTest, EffectsViewTest, EngineEventDamageTest): the words each
+  // shows as (cardStateWords, effectMarks, spellsMark, delayedOf, playerMarks' lifeTip, tableCard's attP), and an engine
+  // that sends none of them (the old one) shows nothing new
+  {
+    const BASE = { basePower: 2, baseToughness: 2, choices: [], classLevels: [], cmc: 2, color: "G", counters: {}, damage: 0, exerted: false,
+      isBestowed: false, isDoubleFaced: false, isFaceDown: false, isTransformed: false, keywords: [], manaCost: "{1}{G}", phasedOut: false,
+      power: 2, sagaChapters: [], subtypes: ["Bear"], summoningSick: false, supertypes: [], tapped: false, text: "", toughness: 2, types: ["Creature"], visibility: "visible" };
+    const card = (id, name, owner, extra = {}) => ({ ...BASE, id, identity: { cardNumber: "1", isToken: false, name, setCode: "M10" }, controllerId: owner, ownerId: owner, ...extra });
+    const zoneOf = (gv, zone, owner) => gv.zones.find((z) => z.zone === zone && z.ownerId === owner);
+    const tableOf = async (edit) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      edit(b.gameView);
+      setup(h, b);
+      let threw = null;
+      try { h.B.sendTable(); await h.flush(); } catch (e) { threw = e; }
+      const t = sent(h, "table")[0];
+      harness.restore();
+      return { t, threw };
+    };
+    const cardIn = (t, id) => (t?.players || []).flatMap((p) => [...(p.battlefield || []), ...(p.exile || []), ...(p.graveyard || [])]).find((c) => c.id === id);
+    const rowOf = (t, slot) => (t?.players || []).find((p) => p.slot === slot);
+    // (one creature with each state, on Blue's battlefield; Hill Giant and Grizzly Bears to be named)
+    const STATES = [
+      ["exerted", { exerted: true }, ["Exerted (won't untap)"]],
+      ["skipsNextUntap", { skipsNextUntap: true }, ["Doesn't untap next untap step"]],
+      ["exerted and skipsNextUntap: one line", { exerted: true, skipsNextUntap: true }, ["Exerted (won't untap)"]],
+      ["monstrous", { monstrous: true }, ["Monstrous"]],
+      ["saddled by a creature", { saddled: true, saddledBy: ["engine-card-952"] }, ["Saddled (by Grizzly Bears)"]],
+      ["harnessed", { harnessed: true }, ["Harnessed"]],
+      ["solved", { solved: true }, ["Solved"]],
+      ["one door unlocked", { unlockedDoors: ["Bottomless Pool"] }, ["Unlocked: Bottomless Pool"]],
+      ["both doors unlocked", { unlockedDoors: ["Bottomless Pool", "Locker Room"] }, ["Both doors unlocked"]],
+      ["paired", { pairedWith: "engine-card-952" }, ["Paired with Grizzly Bears"]],
+      ["a battle's protector", { protectorId: "player-1" }, ["Protected by AI 1"]],
+      ["can't block", { cantBlock: true }, ["Can't block"]],
+      ["can't attack", { cantAttack: true }, ["Can't attack"]],
+      ["can't attack or block (Pacifism)", { cantAttack: true, cantBlock: true }, ["Can't attack or block"]],
+      ["can't attack, with defender: its keyword says it", { cantAttack: true, keywords: ["Defender"], text: "Defender" }, []],
+      ["must attack", { mustAttack: true }, ["Must attack"]],
+    ];
+    const NEWWORDS = /Exerted|untap|Monstrous|Saddled|Harnessed|Solved|door|Unlocked|Paired|Protected by|Can't attack|Can't block|Must attack|Attached to|at end step|Later/;
+    for (const [name, extra, want] of STATES) {
+      const { t, threw } = await tableOf((gv) => zoneOf(gv, "battlefield", "player-0").cards.push(
+        card("engine-card-951", "Hill Giant", "player-0", extra), card("engine-card-952", "Grizzly Bears", "player-0")));
+      const c = cardIn(t, "engine-card-951");
+      const got = (c?.kw || []).filter((w) => NEWWORDS.test(w));
+      ok(`engine1112 card states, ${name}: shows ${JSON.stringify(want)}`, !threw && JSON.stringify(got) === JSON.stringify(want), threw ? threw.stack : JSON.stringify(c?.kw));
+    }
+    // (the old engine: none of the new fields, exerted false; the fixture board as it is)
+    const old = await tableOf(() => {});
+    const oldCards = (old.t?.players || []).flatMap((p) => [...(p.battlefield || []), ...(p.exile || []), ...(p.graveyard || [])]);
+    ok("engine1112 old engine: a board without the new fields has no new words, no attP, no markTips, no lifeTip",
+      !old.threw && oldCards.length > 5 && !oldCards.some((c) => (c.kw || []).some((w) => NEWWORDS.test(w)) || (c.nt || []).some((w) => NEWWORDS.test(w)) || "attP" in c)
+      && (old.t?.players || []).every((p) => !("markTips" in p) && !("lifeTip" in p) && !(p.allMarks || []).some((m) => /SPELLS|EFFECT|EMBLEM|FOG|UPKEEP/.test(m))),
+      old.threw ? old.threw.stack : JSON.stringify((old.t?.players || []).map((p) => [p.allMarks, p.markTips, p.lifeTip])));
+    // a curse on a player (CardStateFlagsTest: attachedToPlayer is the player's id, no attachedTo): the table's attP is
+    // that player's colour
+    {
+      const { t, threw } = await tableOf((gv) => zoneOf(gv, "battlefield", "player-0").cards.push(
+        card("engine-card-953", "Curse of Opulence", "player-0", { types: ["Enchantment"], subtypes: ["Aura", "Curse"], attachedToPlayer: "player-1", power: null, toughness: null })));
+      const c = cardIn(t, "engine-card-953");
+      ok("engine1112 curse: attached to AI 1, sent with attP White and the words", !threw && c?.attP === "White" && (c.kw || []).includes("Attached to AI 1") && !c.att, JSON.stringify(c));
+      ok("engine1112 curse: still in its controller's battlefield list (the table moves it)", rowOf(t, "player-0")?.battlefield.some((x) => x.id === "engine-card-953"));
+    }
+    // delayed triggers, as EffectsViewTest sends them: Sneak Attack's, unearth's, Flickerwisp's, Pact of Negation's
+    {
+      const { t, threw } = await tableOf((gv) => {
+        zoneOf(gv, "battlefield", "player-0").cards.push(card("engine-card-960", "Sneak Attack", "player-0", { types: ["Enchantment"], power: null, toughness: null }),
+          card("engine-card-961", "Hill Giant", "player-0"), card("engine-card-962", "Dregscape Zombie", "player-0"));
+        zoneOf(gv, "battlefield", "player-1").cards.push(card("engine-card-963", "Flickerwisp", "player-1"));
+        zoneOf(gv, "exile", "player-0").cards.push(card("engine-card-964", "Grizzly Bears", "player-0"));
+        zoneOf(gv, "graveyard", "player-1").cards.push(card("engine-card-965", "Pact of Negation", "player-1", { types: ["Instant"], power: null, toughness: null }));
+        gv.delayed = [
+          { id: "delayed-1", text: "Sacrifice Hill Giant at the beginning of the next end step.", controllerId: "player-0", hostCardId: "engine-card-960", cardIds: ["engine-card-961"], when: "end step" },
+          { id: "delayed-2", text: "Exile Dregscape Zombie at the beginning of the next end step. If it would leave the battlefield, exile it instead of putting it anywhere else.", controllerId: "player-0", hostCardId: "engine-card-962", cardIds: ["engine-card-962"], when: "end step" },
+          { id: "delayed-3", text: "Return exiled permanent to the battlefield.", controllerId: "player-1", hostCardId: "engine-card-963", cardIds: ["engine-card-964"], when: "end step" },
+          { id: "delayed-4", text: "At the beginning of your next upkeep, pay {3}{U}{U}. If you don't, you lose the game.", controllerId: "player-1", hostCardId: "engine-card-965", cardIds: [], when: "upkeep", turnOf: "player-1" },
+        ];
+      });
+      const kw = (id) => cardIn(t, id)?.kw || [], nt = (id) => cardIn(t, id)?.nt || [];
+      ok("engine1112 delayed: precondition, the board went out", !threw && !!t, threw?.stack);
+      ok("engine1112 delayed: Sneak Attack's creature says it is sacrificed at end step", kw("engine-card-961").includes("Sacrificed at end step"), JSON.stringify(kw("engine-card-961")));
+      ok("engine1112 delayed: Sneak Attack itself says what it will do", kw("engine-card-960").includes("At end step: sacrifice Hill Giant"), JSON.stringify(kw("engine-card-960")));
+      ok("engine1112 delayed: an unearthed creature is exiled at end step, one line (it is its own trigger's card)",
+        JSON.stringify(kw("engine-card-962").filter((w) => /end step/.test(w))) === '["Exiled at end step"]', JSON.stringify(kw("engine-card-962")));
+      ok("engine1112 delayed: Flickerwisp's exiled card returns at end step (its pile note)", nt("engine-card-964").includes("Returns at end step"), JSON.stringify(cardIn(t, "engine-card-964")));
+      ok("engine1112 delayed: Flickerwisp says it will return it", kw("engine-card-963").includes("At end step: return exiled permanent to the battlefield"), JSON.stringify(kw("engine-card-963")));
+      const ai = rowOf(t, "player-1");
+      const at = (ai?.allMarks || []).indexOf("NEXT UPKEEP: PAY {3}{U}{U}");
+      ok("engine1112 delayed: a pact's upkeep cost is a mark on its caster", at >= 0, JSON.stringify(ai?.allMarks));
+      ok("engine1112 delayed: the pact's mark hover is its whole text, by its card", at >= 0 && ai.markTips?.[at] === "Pact of Negation: At the beginning of your next upkeep, pay {3}{U}{U}. If you don't, you lose the game.", JSON.stringify(ai?.markTips));
+      ok("engine1112 delayed: the pact in the graveyard says it too", nt("engine-card-965").includes("At AI 1's next upkeep: pay {3}{U}{U}"), JSON.stringify(nt("engine-card-965")));
+      ok("engine1112 delayed: no player mark for a trigger with a card to mark", !(rowOf(t, "player-0")?.allMarks || []).some((m) => /END STEP/.test(m)), JSON.stringify(rowOf(t, "player-0")?.allMarks));
+    }
+    // effects and emblems (EffectsViewTest's Moment's Peace, Gideon's emblem, Teferi's Protection, Eater of Days), the
+    // spells this turn and storm, and life this turn
+    {
+      const EFFECTS = [
+        { id: "effect-1", name: "Moment's Peace's Effect", text: "Prevent all combat damage this turn.", sourceCardId: "engine-card-970", emblem: false, untilEndOfTurn: true },
+        { id: "effect-2", name: "Emblem - Gideon, Ally of Zendikar", text: "Creatures you control get +1/+1.", sourceCardId: "engine-card-971", emblem: true, untilEndOfTurn: false, duration: "Permanent" },
+        { id: "effect-3", name: "Teferi's Protection's Effect", text: "Your life total can't change. You have protection from everything.", sourceCardId: "engine-card-972", emblem: false, untilEndOfTurn: false, duration: "UntilYourNextTurn" },
+        { id: "effect-4", name: "Eater of Days's Effect", text: "Skip your next two turns.", sourceCardId: "engine-card-973", emblem: false, untilEndOfTurn: false },
+      ];
+      const LABELS = ["FOG THIS TURN", "EMBLEM: GIDEON", "TEFERI'S PROTECTION UNTIL YOUR NEXT TURN", "SKIPS NEXT 2 TURNS"];
+      const { t, threw } = await tableOf((gv) => {
+        Object.assign(gv.players.find((p) => p.id === "player-0"), { effects: EFFECTS, spellsCastThisTurn: 1, lifeGainedThisTurn: 5, lifeLostThisTurn: 4 });
+        Object.assign(gv.players.find((p) => p.id === "player-1"), { spellsCastThisTurn: 2, effects: [...EFFECTS, { ...EFFECTS[0], id: "effect-5", name: "Holy Day's Effect" }] });
+        gv.stormCount = 3;
+      });
+      const blue = rowOf(t, "player-0"), ai = rowOf(t, "player-1");
+      const mine = (blue?.allMarks || []).map((m, i) => [m, blue.markTips?.[i]]).filter(([m]) => LABELS.includes(m));
+      ok("engine1112 effects: each effect a short label, in order", !threw && JSON.stringify(mine.map(([m]) => m)) === JSON.stringify(LABELS), threw?.stack || JSON.stringify(blue?.allMarks));
+      ok("engine1112 effects: each label's hover is the effect's whole text",
+        mine.length === 4 && mine[0][1] === "Moment's Peace (this turn): Prevent all combat damage this turn." && mine[1][1] === "Emblem - Gideon, Ally of Zendikar: Creatures you control get +1/+1."
+        && mine[2][1] === "Teferi's Protection (until your next turn): Your life total can't change. You have protection from everything." && mine[3][1] === "Eater of Days: Skip your next two turns.",
+        JSON.stringify(mine));
+      ok("engine1112 effects: the other marks keep the common hover (\"\")", (blue?.allMarks || []).every((m, i) => LABELS.includes(m) || blue.markTips[i] === ""), JSON.stringify(blue?.markTips));
+      const aiEff = (ai?.allMarks || []).filter((m) => LABELS.includes(m) || /MORE EFFECTS/.test(m));
+      ok("engine1112 effects: past three of five, \"+2 MORE EFFECTS\" with the rest in its hover",
+        JSON.stringify(aiEff) === JSON.stringify([...LABELS.slice(0, 3), "+2 MORE EFFECTS"]) && ai.markTips[ai.allMarks.indexOf("+2 MORE EFFECTS")] === "Eater of Days: Skip your next two turns.\nHoly Day (this turn): Prevent all combat damage this turn.",
+        JSON.stringify([ai?.allMarks, ai?.markTips]));
+      ok("engine1112 spells: the active player's spells and the storm count", (ai?.allMarks || []).includes("SPELLS THIS TURN: 2 (STORM 3)"), JSON.stringify(ai?.allMarks));
+      ok("engine1112 spells: not for a player whose turn it isn't", !(blue?.allMarks || []).some((m) => /SPELLS/.test(m)), JSON.stringify(blue?.allMarks));
+      ok("engine1112 life: gained and lost this turn in the life counter's hover", blue?.lifeTip === "Gained 5 life this turn\nLost 4 life this turn" && !("lifeTip" in (ai || {})), JSON.stringify([blue?.lifeTip, ai?.lifeTip]));
+    }
+    // damage entries in the event ring (EngineEventDamageTest: kind "damage", to "Damage", no cardId): the bridge reads
+    // the moves around them as before and breaks on none
+    {
+      const h = harness.load();
+      const b = clone(F.board);
+      setup(h, b);
+      const MOVE = { id: "ev-2", seq: 2, cardId: "engine-card-36", from: "Battlefield", to: "Graveyard", ownerId: "player-0" };
+      const DAMAGE = [{ id: "ev-1", seq: 1, kind: "damage", to: "Damage", sourceCardId: "engine-card-134", targetPlayerId: "player-0", amount: 3, combat: true, ownerId: "player-1" },
+        { id: "ev-3", seq: 3, kind: "damage", to: "Damage", sourceCardId: "engine-card-134", targetCardId: "engine-card-22", amount: 1, combat: false, ownerId: "player-1" }];
+      h.B.engineFacts([]);
+      let facts = null, threw = null;
+      try { h.B.engineFacts([{ id: "ev-0", seq: 0, cardId: "x", from: "Hand", to: "Battlefield" }]); facts = h.B.engineFacts([DAMAGE[0], MOVE, DAMAGE[1]]); } catch (e) { threw = e; }
+      ok("engine1112 damage events: the move between two damage entries is read, the damage entries are no moves",
+        !threw && facts && facts.moves.size === 1 && facts.moves.get("engine-card-36")?.to === "Graveyard" && !facts.offStack.length, threw?.stack || JSON.stringify(facts && [...facts.moves]));
+      b.gameView.events = [...DAMAGE];
+      h.B._getGame().seats.get("Blue").board = { state: clone(b), fingerprint: null };
+      try { h.B.sendTable(); await h.flush(); } catch (e) { threw = e; }
+      ok("engine1112 damage events: a board with them goes out", !threw && sent(h, "table").length > 0, threw?.stack);
+      harness.restore();
+    }
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();

@@ -1878,7 +1878,7 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
 {
   const SEATS = { "23e485": "White", "448880": "Red", "37e533": "Yellow", "395037": "Blue" };
   const PER = 480, ICON = 0.6, TOP = 2.1, GAP = 60, COL0 = 10.75, TAPPED = 1.53;
-  const geo = 'local out = {} for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, boxes = {} } for _, b in ipairs(o.getButtons() or {}) do if b.tooltip == ENGINE_COUNTERS_TIP then row.boxes[#row.boxes + 1] = { label = b.label, w = b.width, h = b.height, f = b.font_size, bx = b.position[1] or b.position.x, bz = b.position[3] or b.position.z } end end out[#out + 1] = row end return JSON.encode(out)';
+  const geo = 'local out = {} for _, g in ipairs({ "23e485", "448880", "37e533", "395037" }) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, boxes = {} } for _, b in ipairs(o.getButtons() or {}) do if engineMarksIsBox(b) then row.boxes[#row.boxes + 1] = { label = b.label, w = b.width, h = b.height, f = b.font_size, bx = b.position[1] or b.position.x, bz = b.position[3] or b.position.z } end end out[#out + 1] = row end return JSON.encode(out)';
   // (marks: one list for every seat, or { seat colour: list } for each its own)
   const marksOf = (marks, g) => (Array.isArray(marks) ? marks : marks[SEATS[g]] || []);
   const setAll = (marks) => Object.keys(SEATS).map((g) => `enginePlayerCounters(getObjectFromGUID("${g}"), JSON.decode([==[${JSON.stringify({ allMarks: marksOf(marks, g) })}]==]))`).join(" ") + ' return "set"';
@@ -1910,6 +1910,8 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     "every player mark (past ten)": EVERY,
     "one mark longer than a box": ["THIS PLAYER CAN'T BE THE TARGET OF SPELLS OR ABILITIES YOUR OPPONENTS CONTROL AND CAN'T LOSE"],
     "short": ["POISON 2"],
+    // (engine1112's long marks, on two lines: a rules effect, the storm count, a pact's cost)
+    "engine1112 effects": ["FOG THIS TURN", "TEFERI'S PROTECTION UNTIL YOUR NEXT TURN", "SPELLS THIS TURN: 12 (STORM 14)", "NEXT UPKEEP: PAY {3}{U}{U}", "EMBLEM: GIDEON", "SKIPS NEXT 2 TURNS", "+2 MORE EFFECTS", "EMBLEM: ELSPETH TIRELESS TACTICIAN"],
     // (jr suite 2026-11-07) two-byte letters, so the cut falls inside one: "not inside a character"
     "one accented mark longer than a box": ["É".repeat(60)],
   };
@@ -1937,11 +1939,14 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
       const tops = boxes.map((b) => b.bz - b.h / 2 / PER);
       const stacked = boxes.every((b, i) => Math.abs(tops[i] - (i === 0 ? TOP : boxes[i - 1].bz + boxes[i - 1].h / 2 / PER + GAP / PER)) < 1e-6);
       ok(`marks fit, ${seat}: stacked down from the corner, ${GAP} apart, none overlapping`, boxes.length > 0 && stacked, JSON.stringify(tops.map((n) => +n.toFixed(4))));
-      const labels = boxes.map((b) => String(b.label));
+      // (a mark on two lines reads as one: its lines joined by the space they were split at)
+      const labels = boxes.map((b) => String(b.label).replace("\n", " "));
       const own = marksOf(marks, t.g);
       if (own.length <= 10 && !/longer than a box/.test(name)) ok(`marks fit, ${seat}: one box a mark, every mark in order`, labels.join("|") === own.join("|"), JSON.stringify(labels));
-      const tooWide = boxes.filter((b) => !(b.w <= 2250 && b.f >= 150 && b.h === Math.floor(380 * b.f / 300 + 0.5)));
-      ok(`marks fit, ${seat}: no box wider than 2250, font at least 150, its height the font's`, boxes.length > 0 && tooWide.length === 0, JSON.stringify(tooWide));
+      const tooWide = boxes.filter((b) => !(b.w <= 2250 && b.f >= 150 && b.h === Math.floor((String(b.label).includes("\n") ? 700 : 380) * b.f / 300 + 0.5)));
+      ok(`marks fit, ${seat}: no box wider than 2250, font at least 150, its height the font's (two lines' for a two-line mark)`, boxes.length > 0 && tooWide.length === 0, JSON.stringify(tooWide));
+      if (name === "engine1112 effects") ok(`marks fit, ${seat}: the long engine1112 marks are on two lines, the short ones on one`,
+        boxes.map((b) => String(b.label).includes("\n")).join() === own.map((m) => (175 * m.length + 300) * 150 / 300 > 2250).join(), JSON.stringify(boxes.map((b) => b.label)));
       const hit = icons.filter((c) => world.some((w) => meets(w, c.box))).map((c) => c.g);
       ok(`marks fit, ${seat}: no commander-damage icon under a box`, hit.length === 0, `meets ${hit.join(" ")}`);
     }
@@ -2006,6 +2011,59 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   // (beside the life counter, on its own half: the counter's top-left lobe, off the marks label under it)
   const [bx, bz] = String(at(v("one")) || "").split(",").map(Number);
   ok("extra turns: the badge sits on the counter, above the marks label", Math.abs(bx) <= 1.2 && bz < 0 && bz > -1.6, `at ${at(v("one"))}`);
+}
+// engine1112 (docs/readability-audit-2026-11-12.md E1, E2, E6, E9): a marks box with its own hover text (the bridge's
+// markTips, by allMarks' order; "" or none is the common one), a mark too long for one line on two, edited in place as
+// its text changes and gone with the game; the life gained and lost this turn on the life counter's own button's hover
+// text (lifeTip), only on that button; and a curse on another player laid on that player's mat, still its controller's
+{
+  const lastT = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
+  const board = (white, edit) => { const t = JSON.parse(lastT.json); for (const p of t.players) if (p.color === "White") { delete p.allMarks; delete p.markTips; Object.assign(p, white); } if (edit) edit(t); return { msg: { t: "table", json: JSON.stringify(t) }, frames: 10 }; };
+  const boxes = 'local out = {} for _, b in ipairs(getObjectFromGUID("23e485").getButtons() or {}) do if engineMarksIsBox(b) then out[#out + 1] = { label = b.label, tip = b.tooltip == ENGINE_COUNTERS_TIP and "common" or b.tooltip, w = b.width, h = b.height, f = b.font_size } end end return JSON.encode(out)';
+  const lifeBtn = 'local b = (getObjectFromGUID("23e485").getButtons() or {})[1] return b == nil and "none" or (tostring(b.click_function) .. "|" .. (b.tooltip == ENGINE_LIFE_TIP and "own" or tostring(b.tooltip)))';
+  const mainBtn = 'local o = getObjectFromGUID("23e485") o.clearButtons() o.createButton({ click_function = "option", function_owner = o, label = "40", tooltip = ENGINE_LIFE_TIP, width = 950, height = 750 }) return "main"';
+  const TEFERI = "TEFERI'S PROTECTION UNTIL YOUR NEXT TURN";
+  const tips = ["", "Moment's Peace (this turn): Prevent all combat damage this turn.", "Teferi's Protection (until your next turn): Your life total can't change."];
+  const CURSE = "engine-card-9950";
+  const curse = (t) => { const blue = t.players.find((p) => p.color === "Blue"); blue.battlefield = [...blue.battlefield, { s: 1, id: CURSE, attP: "White", ctl: "Blue", kw: ["Attached to AI 1"] }]; t.cards = { ...(t.cards || {}), [CURSE]: { n: "Curse of Opulence", ty: ["Enchantment"] } }; };
+  const where = `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${CURSE}" then o = x end end if o == nil then return "none" end local p = o.getPosition() ` +
+    'local function d(v) return math.sqrt((p.x - v.x) ^ 2 + (p.z - v.z) ^ 2) end ' +
+    'return d(data.Blue.playmat.getPosition()) < d(data.White.playmat.getPosition()) and "Blue" or "White"';
+  const r = run([
+    q(mainBtn, "main"),
+    board({ allMarks: ["POISON 3", "FOG THIS TURN", TEFERI], markTips: tips }), q(boxes, "tips"), q(lifeBtn, "life none"),
+    board({ allMarks: ["POISON 3", "FOG THIS TURN", TEFERI], markTips: ["", "Holy Day (this turn): Prevent all combat damage this turn.", tips[2]] }), q(boxes, "tip changed"),
+    board({ allMarks: ["POISON 3", "FOG THIS TURN", TEFERI] }), q(boxes, "no tips"),
+    board({ allMarks: ["POISON 3"], lifeTip: "Gained 5 life this turn\nLost 4 life this turn" }), q(lifeBtn, "life"), q(boxes, "one box"),
+    board({ allMarks: ["POISON 3"] }), q(lifeBtn, "life gone"),
+    board({ allMarks: ["POISON 3"], lifeTip: "Lost 2 life this turn" }), q(lifeBtn, "life again"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 }, q(boxes, "after the reset"), q(lifeBtn, "life after the reset"),
+    q('getObjectFromGUID("23e485").clearButtons() return "cleared"', "no main"),
+    board({ allMarks: ["POISON 3"], markTips: ["x"], lifeTip: "Gained 1 life this turn" }), q(boxes, "box first"),
+  ]);
+  const v = (m) => String(valueOf(r, m));
+  const js = (m) => { try { return JSON.parse(v(m)); } catch (e) { return null; } };
+  ok("engine1112 table: precondition, no script error", !r.errors.length, r.errors.slice(0, 2).join(" | "));
+  const t1 = js("tips") || [];
+  ok("engine1112 marks: a box with its own hover text shows it, the others the common one",
+    t1.length === 3 && t1[0].tip === "common" && t1[1].label === "FOG THIS TURN" && t1[1].tip === tips[1] && t1[2].tip === tips[2], v("tips"));
+  const two = t1[2] || {};
+  ok("engine1112 marks: a mark too long for one line is two lines, split at the middle space, at most 2250 wide, a two-line box high",
+    two.label === "TEFERI'S PROTECTION\nUNTIL YOUR NEXT TURN" && two.w <= 2250 && two.f >= 150 && two.h === Math.floor(700 * two.f / 300 + 0.5), JSON.stringify(two));
+  const t2 = js("tip changed") || [];
+  ok("engine1112 marks: a changed hover text is edited in place", t2.length === 3 && t2[1].tip === "Holy Day (this turn): Prevent all combat damage this turn.", v("tip changed"));
+  ok("engine1112 marks: no markTips, every box the common hover text", (js("no tips") || []).length === 3 && js("no tips").every((b) => b.tip === "common"), v("no tips"));
+  ok("engine1112 marks: fewer marks, the boxes found again by their click function and the spare ones gone", (js("one box") || []).length === 1, v("one box"));
+  ok("engine1112 marks: the game's end takes every box", (js("after the reset") || [1]).length === 0, v("after the reset"));
+  ok("engine1112 life: precondition, the counter's own button keeps its hover text with no lifeTip", v("life none") === "option|own", v("life none"));
+  ok("engine1112 life: the life gained and lost this turn, then the counter's own text", v("life") === "option|Gained 5 life this turn\nLost 4 life this turn\n\nClick to increase\nRight click to decrease", v("life"));
+  ok("engine1112 life: none this turn, its own text again", v("life gone") === "option|own" && v("life again").startsWith("option|Lost 2 life this turn"), `${v("life gone")} / ${v("life again")}`);
+  ok("engine1112 life: the game's end gives the counter its own text back", v("life after the reset") === "option|own", v("life after the reset"));
+  ok("engine1112 life: a tracker without its own button: the hover goes on no marks box", (js("box first") || []).length === 1 && js("box first")[0].tip === "x", v("box first"));
+  const r2 = run([board({}, curse), { frames: 60 }, q(where, "curse"), board({}, (t) => { curse(t); t.players.find((p) => p.color === "Blue").battlefield.find((c) => c.id === CURSE).attP = undefined; }), { frames: 60 }, q(where, "loose")]);
+  ok("engine1112 curse: precondition, no script error", !r2.errors.length, r2.errors.slice(0, 2).join(" | "));
+  ok("engine1112 curse: a curse on White lies on White's mat", String(valueOf(r2, "curse")) === "White", String(valueOf(r2, "curse")));
+  ok("engine1112 curse: without attP it lies on its controller's mat", String(valueOf(r2, "loose")) === "Blue", String(valueOf(r2, "loose")));
 }
 // Extra-turn badge fit (checker, 2026-11-07: moving it from local x -1 to +1, onto the [R] lobe, passed every test). On
 // all four trackers, with one extra turn ("EXTRA TURN"), two ("EXTRA TURN 2x") and ten ("EXTRA TURN 10x"; 2026-11-12,

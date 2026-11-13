@@ -1884,9 +1884,13 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
     ...(c.phasedOut ? { po: true } : {}), // (phased out: stays where it was, marked on the table; our Forge build sends it)
     // (goaded, which Forge doesn't show: with the keywords another card gave it, "Goaded by White", hp-05 gap)
     // (and exerted, which nothing showed: Arena of Glory stays tapped through its controller's next untap step, hp-09 gap)
+    // (a curse on a player: the player it is on, for the table to lay it on their mat, engine1112 attachedToPlayer)
+    ...(c.attachedToPlayer && game.slotColor[c.attachedToPlayer] ? { attP: game.slotColor[c.attachedToPlayer] } : {}),
     ...statusLists(c, [...(game.goaded?.has(c.id) ? [`Goaded by ${nameOf(game.goaded.get(c.id).by)}`] : []),
-      ...(c.exerted ? ["Exerted: doesn't untap next turn"] : []), ...(game.renowned?.has(c.id) ? ["Renowned"] : []),
-      ...(game.suspected?.has(c.id) ? ["Suspected: can't block"] : []), ...(game.solved?.has(c.id) ? ["Solved"] : []),
+      ...(game.renowned?.has(c.id) ? ["Renowned"] : []),
+      ...(game.suspected?.has(c.id) ? ["Suspected: can't block"] : []),
+      // (a permanent's states and what a delayed trigger will do to it; a card elsewhere is in a pile or a hand)
+      ...(zone === "battlefield" ? [...cardStateWords(c), ...delayedWordsOf(c.id)] : []),
       ...hauntedBy(c.id).map((n) => `Haunted by ${n}`),
       ...(c.summoningSick && active === c.controllerId && c.types?.includes("Creature") ? ["Summoning sick"] : []),
       ...(c.isCrewed ? ["Crewed"] : []), ...(c.isBestowed ? ["Bestowed"] : []), ...(c.isRingBearer ? ["Ring-bearer"] : []),
@@ -1911,6 +1915,79 @@ function statusLists(c, marks) {
   return { ...(kw.length ? { kw } : {}), ...((kw.length || c.phasedOut) && own.length ? { ow: own } : {}) };
 }
 
+// The states Forge keeps on a permanent that its picture doesn't show, as status box words (engine1112: CardDto
+// exerted, skipsNextUntap, monstrous, saddled/saddledBy, harnessed, solved, unlockedDoors, pairedWith, protectorId,
+// cantAttack, cantBlock, mustAttack; docs/readability-audit-2026-11-12.md E3-E5). An older engine sends none of the new
+// ones (and `exerted` only for the turn it was exerted), so its cards say what they said before. Exerted lasts until
+// its controller's untap step: Forge clears the turn's count at cleanup but keeps the creature frozen.
+function cardStateWords(c) {
+  const out = [];
+  const card = (id) => game?.namesSeen?.get(id) || "a card";
+  if (c.exerted) out.push("Exerted (won't untap)");
+  // (one line for one fact: exerted already says it won't untap)
+  else if (c.skipsNextUntap) out.push("Doesn't untap next untap step");
+  if (c.monstrous) out.push("Monstrous");
+  if (c.saddled) out.push((c.saddledBy || []).length ? `Saddled (by ${c.saddledBy.map(card).join(", ")})` : "Saddled");
+  if (c.harnessed) out.push("Harnessed");
+  // (Forge's flag, else the log's own guess from a "solved" line, game.solved, for an older engine)
+  if (c.solved || game?.solved?.has(c.id)) out.push("Solved");
+  const doors = (c.unlockedDoors || []).map(String);
+  if (doors.length) out.push(doors.length > 1 ? "Both doors unlocked" : `Unlocked: ${doors[0]}`);
+  if (c.pairedWith) out.push(`Paired with ${card(c.pairedWith)}`);
+  if (c.protectorId) out.push(`Protected by ${nameOf(c.protectorId)}`);
+  if (c.attachedToPlayer) out.push(`Attached to ${nameOf(c.attachedToPlayer)}`);
+  // (Forge flags a creature with defender as unable to attack: its own keyword says so already. A suspected creature's
+  // line says it can't block.)
+  const cantAttack = c.cantAttack && !hasKeyword(c, "Defender");
+  const cantBlock = c.cantBlock && !game?.suspected?.has(c.id);
+  if (cantAttack && cantBlock) out.push("Can't attack or block");
+  else if (cantAttack) out.push("Can't attack");
+  else if (cantBlock) out.push("Can't block");
+  if (c.mustAttack) out.push("Must attack");
+  return out;
+}
+
+// Forge's delayed triggers (engine1112 GameViewDto.delayed: { id, text, controllerId, hostCardId?, cardIds[], when?,
+// turnOf? }, docs/readability-audit-2026-11-12.md E2), read once a board (sendTable keeps it as game.delayedNow): `cards`, card id ->
+// what will happen to it ("Sacrificed at end step", "Returns at end step") or, on the trigger's own card, what it will
+// do ("At end step: sacrifice Hill Giant"); `players`, slot -> [{ label, tip }] for one with no card that waits for a
+// player's turn (a pact's upkeep cost). Nothing from an engine that sends none.
+const DELAYED_VERBS = [[/^sacrifice\b/i, "Sacrificed"], [/^exile\b/i, "Exiled"], [/^destroy\b/i, "Destroyed"],
+  [/^return\b.*\b(?:to (?:its|their) owners?'s? hands?|to your hand)\b/i, "Returns to hand"], [/^return\b/i, "Returns"],
+  [/^(?:shuffle|put)\b.*\binto (?:its|their) owners?'s? librar/i, "Shuffled into library"]];
+// (Forge's text with the "at the beginning of ..." clause dropped and a leading one cut: "At the beginning of the next
+// end step, return it" -> "return it")
+const delayedAction = (text) => String(text || "").trim().replace(/^at the beginning of [^,]*,\s*/i, "")
+  .replace(/\s+at the beginning of [^.,]*/i, "").replace(/\.\s*$/, "").split(/\.\s/)[0];
+function delayedWhen(d) {
+  if (!d.when) return "";
+  return d.turnOf ? ` at ${nameOf(d.turnOf)}'s next ${d.when}` : ` at ${d.when}`;
+}
+function delayedOf(pub) {
+  const cards = new Map(), players = new Map();
+  const add = (map, k, v) => { if (!map.has(k)) map.set(k, []); if (!map.get(k).some((x) => JSON.stringify(x) === JSON.stringify(v))) map.get(k).push(v); };
+  for (const d of Array.isArray(pub?.delayed) ? pub.delayed : []) {
+    if (!d || typeof d.text !== "string") continue;
+    const ids = Array.isArray(d.cardIds) ? d.cardIds : [];
+    const action = delayedAction(d.text);
+    const verb = DELAYED_VERBS.find(([re]) => re.test(action));
+    const when = delayedWhen(d); // (" at end step", or "")
+    const At = when ? `A${when.slice(2)}` : "Later"; // ("At end step")
+    const doing = shortText(`${At}: ${action.charAt(0).toLowerCase()}${action.slice(1)}`, 80);
+    for (const id of ids) add(cards, id, verb ? `${verb[1]}${when || " later"}` : doing);
+    if (d.hostCardId && !ids.includes(d.hostCardId)) add(cards, d.hostCardId, doing);
+    // (no card to mark and waiting for a player's turn, or with no card at all: the player's mark, Pact of Negation's)
+    if (!ids.length && (d.turnOf || !d.hostCardId)) {
+      const who = d.turnOf || d.controllerId;
+      const host = d.hostCardId ? game?.namesSeen?.get(d.hostCardId) : null;
+      const label = `${d.turnOf && d.when ? "NEXT " : ""}${d.when ? `${String(d.when).toUpperCase()}: ` : ""}${action.toUpperCase()}`;
+      if (who) add(players, who, { label: shortText(label, 40), tip: `${host ? `${host}: ` : ""}${d.text.trim()}` });
+    }
+  }
+  return { cards, players };
+}
+const delayedWordsOf = (id) => game?.delayedNow?.cards.get(id) || [];
+
 // What a card in a graveyard or exile can still do, and its counters in exile (suspend's time counters, Dauthi
 // Voidwalker's void counters): the table puts these in its hover text and on its pile, as the cards inside a pile deck
 // show no status box
@@ -1920,6 +1997,8 @@ function cardNotes(c, zone) {
     const cost = keywordCostText(c, "Flashback", c.flashbackCost);
     nt.push(cost ? `Flashback ${cost}` : "Has flashback");
   }
+  // (what a delayed trigger will do to it, a card in a pile showing no status box: Flickerwisp's exiled card returns)
+  if (zone === "exile" || zone === "graveyard") nt.push(...delayedWordsOf(c.id));
   if (zone === "exile") {
     if (c.isMadnessExiled) nt.push(`Exiled for madness: its owner may cast it for ${keywordCostText(c, "Madness", c.madnessCost) || "its madness cost"}, or it goes to the graveyard`);
     if (c.isWarpExiled) nt.push("Warped: its owner may cast it from exile on a later turn");
@@ -4395,6 +4474,7 @@ function sendTable() {
   const rewind = rewindNews(pub);
   fixNews(pub);
   const byId = cardIndex(pub);
+  game.delayedNow = delayedOf(pub); // (the delayed triggers' words on their cards: tableCard, cardNotes)
   const views = seats.map((s) => cardIndex(s.board.state.gameView));
   for (const s of seats) noteTypes(s.board.state.gameView); // (before the stack below: its instants)
   // (Planechase: the planes and phenomena in play come out of the command zones, which they follow the active player
@@ -4730,8 +4810,14 @@ const playerCounter = (p, name) => (p.counters || {})[name.toUpperCase()] || (p.
 // count.
 function playerMarks(p, pub) {
   // (updateLog has just read this board: game.logPrev is its log snapshot)
-  const { values, labels } = trackMarks(p, pub, { turnRun: game.logPrev?.turnRun?.[p.id] });
+  const { values, labels, tips } = trackMarks(p, pub, { turnRun: game.logPrev?.turnRun?.[p.id] });
   const out = labels.length ? { allMarks: labels } : {};
+  // (markTips: each box's own hover text, by allMarks' order, "" for the boxes' common one; only when one has its own)
+  if (tips.some(Boolean)) out.markTips = tips;
+  // (the life gained and lost this turn, for the life counter's hover text; Forge sends each only above 0)
+  const life = [positive(p.lifeGainedThisTurn) ? `Gained ${p.lifeGainedThisTurn} life this turn` : "",
+    positive(p.lifeLostThisTurn) ? `Lost ${p.lifeLostThisTurn} life this turn` : ""].filter(Boolean);
+  if (life.length) out.lifeTip = life.join("\n");
   for (const m of PLAYER_MARKS) if (m.row && markShown(values[m.key])) out[m.row] = values[m.key];
   return out;
 }
@@ -4801,6 +4887,14 @@ const PLAYER_MARKS = [
   { key: "handSize", read: (p) => (p.unlimitedHandSize ? "none" : p.maxHandSize != null && p.maxHandSize !== 7 ? String(p.maxHandSize) : null),
     label: (n) => (n === "none" ? "NO MAX HAND SIZE" : `MAX HAND ${n}`) },
   { key: "keywords", read: playerKeywordLabels, label: (list) => list },
+  // (engine1112, docs/readability-audit-2026-11-12.md E6, E1, E2: the active player's spells this turn and the storm
+  // count; the rules effects and emblems on the player; a delayed trigger waiting for their turn with no card to mark,
+  // a pact's upkeep cost. Each box's hover says it whole: `tip`. Nothing from an engine that sends none.)
+  { key: "spells", read: spellsMark, label: (v) => v,
+    tip: (v, p, pub) => `${nameOf(p.id)} has cast ${countWords(positive(p.spellsCastThisTurn), positive(p.spellsCastThisTurn), "spell")} this turn. Storm count (every player's spells this turn): ${positive(pub.stormCount) || positive(p.spellsCastThisTurn)}` },
+  { key: "effects", read: effectMarks, label: (list) => list.map((m) => m.split("\t")[0]), tip: (list) => list.map((m) => m.split("\t")[1]) },
+  { key: "delayed", read: (p, pub) => (delayedOf(pub).players.get(p.id) || []).map((d) => `${d.label}\t${d.tip}`),
+    label: (list) => list.map((m) => m.split("\t")[0]), tip: (list) => list.map((m) => m.split("\t")[1]) },
   // (Forge's extra turn count, up when Time Walk resolves and down as each turn starts: no label, the table draws it
   // beside the life counter, counted from 1, "EXTRA TURN" then "EXTRA TURN 2x", the row's extraTurns, see playerMarks;
   // the log says each one added, the count after it)
@@ -4810,14 +4904,52 @@ const PLAYER_MARKS = [
 const markShown = (v) => (Array.isArray(v) ? v.length > 0 : !!v);
 // One player's marks: { values: key -> value, labels: the whole label list in order }. `at.turnRun`: who runs this
 // player's turn, from turnRuns (the label says a turn's control as one)
+// `tips`: each label's own hover text from its row's `tip(v)` (a list, by the label's order), else ""
 function trackMarks(p, pub, at = {}) {
-  const values = {}, labels = [];
+  const values = {}, labels = [], tips = [];
   for (const m of PLAYER_MARKS) {
     const v = (values[m.key] = m.read(p, pub));
     if (!markShown(v)) continue;
-    labels.push(...[].concat(m.label(v, at)));
+    const said = [].concat(m.label(v, at));
+    const own = m.tip ? [].concat(m.tip(v, p, pub)) : [];
+    labels.push(...said);
+    tips.push(...said.map((_, i) => String(own[i] || "")));
   }
-  return { values, labels };
+  return { values, labels, tips };
+}
+// A player's rules effects and emblems (engine1112 PlayerDto.effects: { id, name, text, sourceCardId?, emblem,
+// untilEndOfTurn, duration? }, docs/readability-audit-2026-11-12.md E1) as short labels, the whole text in each box's
+// hover: "FOG THIS TURN", "EMBLEM: GIDEON", "TEFERI'S PROTECTION UNTIL YOUR NEXT TURN", "SKIPS NEXT 2 TURNS". Past
+// EFFECT_MARKS, one "+n MORE EFFECTS" box whose hover lists the rest. As one string per effect ("label\ttip", so two
+// boards compare by value); [] from an engine that sends none.
+const EFFECT_MARKS = 3;
+const EFFECT_DURATIONS = { UntilYourNextTurn: "until your next turn", UntilYourNextUpkeep: "until your next upkeep",
+  UntilEndOfCombat: "this combat", UntilTheEndOfYourNextTurn: "until the end of your next turn", UntilHostLeavesPlay: "while its source stays" };
+function effectMark(e) {
+  const name = String(e.name || "").trim();
+  const text = String(e.text || "").trim();
+  const base = name.replace(/'s Effect$/i, "").replace(/ Effect$/i, "").trim() || "Effect";
+  const dur = e.untilEndOfTurn ? "this turn" : EFFECT_DURATIONS[e.duration] || "";
+  const skip = /^Skip your next (?:(\w+) )?turns?\b/i.exec(text);
+  const n = skip ? (skip[1] ? NUMBER_WORDS[skip[1].toLowerCase()] || Number(skip[1]) || 0 : 1) : 0;
+  const label = e.emblem ? `EMBLEM: ${base.replace(/^Emblem\s*[-—:]?\s*/i, "").split(",")[0].trim() || base}`
+    : n ? (n > 1 ? `SKIPS NEXT ${n} TURNS` : "SKIPS NEXT TURN")
+    : e.untilEndOfTurn && /\bprevent all combat damage\b/i.test(text) ? "FOG THIS TURN"
+    : `${base}${dur ? ` ${dur}` : ""}`;
+  return `${label.toUpperCase()}\t${base}${dur ? ` (${dur})` : ""}: ${text || "(no text)"}`;
+}
+function effectMarks(p) {
+  const all = (Array.isArray(p.effects) ? p.effects : []).filter((e) => e && (e.name || e.text)).map(effectMark);
+  if (all.length <= EFFECT_MARKS + 1) return all;
+  const rest = all.slice(EFFECT_MARKS);
+  return [...all.slice(0, EFFECT_MARKS), `+${rest.length} MORE EFFECTS\t${rest.map((m) => m.split("\t")[1]).join("\n")}`];
+}
+// The spells cast this turn, for the active player (engine1112 PlayerDto.spellsCastThisTurn and GameViewDto.stormCount,
+// each sent only above 0, E6): "SPELLS THIS TURN: 2 (STORM 3)", the storm count being every player's spells
+function spellsMark(p, pub) {
+  if (pub.activePlayerId !== p.id) return null;
+  const mine = positive(p.spellsCastThisTurn), storm = positive(pub.stormCount);
+  return mine || storm ? `SPELLS THIS TURN: ${mine} (STORM ${storm || mine})` : null;
 }
 // (a keyword as cards' keywords read, "Protection:Player.Opponent:each of your opponents" -> "Protection from each
 // of your opponents", the internal ones left out; one written as a sentence, "You can't lose the game.", as it is)
