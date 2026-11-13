@@ -1144,6 +1144,35 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     const FRODO = card(1534, "Frodo Baggins", ["Creature"]);
     const ring = (level, bearer) => board((b) => { b.players[0].ringLevel = level; put(b, "battlefield", { ...FRODO, ...(bearer ? { isRingBearer: true } : {}) }); });
     same("ring: the tempt line names the Ring-bearer", between(ring(1, false), ring(2, true)).filter((l) => /Ring/.test(l)), ["Blue is tempted by the Ring (2): Ring-bearer Frodo Baggins"]);
+    // review fixes, 2026-11-12: an exchange names its card on both creatures, its own source too (Volatile Stormdrake's
+    // script targets only the other creature)
+    const DRAKE = card(1537, "Volatile Stormdrake", ["Creature"]), CAPTAIN = card(1538, "Precinct Captain", ["Creature"], { controllerId: "player-1" });
+    const DRAKE_TEXT = "When Volatile Stormdrake enters, exchange control of Volatile Stormdrake and target creature an opponent controls. If you do, you get {E}{E}{E}{E}, then sacrifice that creature unless you pay an amount of {E} equal to its mana value.";
+    const swap = (drakeCtl, captainCtl, onStack) => board((b) => { put(b, "battlefield", { ...DRAKE, controllerId: drakeCtl }, drakeCtl); put(b, "battlefield", { ...CAPTAIN, controllerId: captainCtl }, captainCtl);
+      if (onStack) b.stack = [item(13, DRAKE, "Volatile Stormdrake", DRAKE_TEXT, { isTrigger: true, targets: [{ kind: "card", id: CAPTAIN.id }] })]; });
+    same("control: an exchange names its card on both creatures, its untargeted source too",
+      between(swap("player-0", "player-1", true), swap("player-1", "player-0", false)).filter((l) => /gains control/.test(l)).sort(),
+      ["AI 1 gains control of Volatile Stormdrake from Blue (Volatile Stormdrake)", "Blue gains control of Precinct Captain from AI 1 (Volatile Stormdrake)"]);
+    // (a "target opponent becomes the monarch" names its card only for the player it targeted: Jared Carthalion's script)
+    const JARED = card(1539, "Jared Carthalion, True Heir", ["Creature"]);
+    const JARED_TEXT = "When Jared Carthalion, True Heir enters, target opponent becomes the monarch. You can't become the monarch this turn.";
+    const crowned = (holder, ctl, target, onStack) => board((b) => { put(b, "battlefield", { ...JARED, controllerId: ctl }, ctl); b.monarchId = holder;
+      if (onStack) b.stack = [item(14, { ...JARED, controllerId: ctl }, JARED.identity.name, JARED_TEXT, { isTrigger: true, targets: [{ kind: "player", id: target }] })]; });
+    same("monarch: a 'target opponent becomes the monarch' names its card for the player it targeted",
+      between(crowned("player-0", "player-0", "player-1", true), crowned("player-1", "player-0", "player-1", false)).filter((l) => /becomes the monarch/.test(l)),
+      ["AI 1 becomes the monarch (from Blue, Jared Carthalion, True Heir)"]);
+    same("monarch: one that targeted another player names no card for the new monarch",
+      between(crowned("player-0", "player-1", "player-0", true), crowned("player-1", "player-1", "player-0", false)).filter((l) => /becomes the monarch/.test(l)),
+      ["AI 1 becomes the monarch (from Blue)"]);
+    // (reminder text inside reminder text comes out whole; an unbalanced parenthesis gives no gist rather than a fragment)
+    const CONNIVER = card(1540, "Raffine's Informant", ["Creature"]);
+    const connive = (text) => between(board((b) => put(b, "battlefield", CONNIVER)), board((b) => { put(b, "battlefield", CONNIVER); b.stack = [item(15, CONNIVER, "Raffine's Informant", text, { isTrigger: true })]; }));
+    same("gist: nested reminder text is left out whole",
+      connive("When Raffine's Informant enters, it connives. (Draw a card, then discard a card. If you discarded a nonland card, put a +1/+1 counter on this creature. (Connive is a keyword action.))"),
+      ["Raffine's Informant's ability triggers (Blue): it connives"]);
+    same("gist: an unbalanced parenthesis gives no gist",
+      connive("When Raffine's Informant enters, it connives. (Draw a card, then discard a card. (If you discarded a nonland card, put a +1/+1 counter on this creature."),
+      ["Raffine's Informant's ability triggers (Blue)"]);
   }
   // sweep and live-check batch, checked 2026-11-10 (PLAN "Small sweep bugs" / "Live-check bugs"): the log fixes the
   // events test pinned alone, pinned here too, and the two gaps left (a rewind's step, a clash's result)

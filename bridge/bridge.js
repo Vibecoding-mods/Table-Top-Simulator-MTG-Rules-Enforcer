@@ -2390,8 +2390,11 @@ function abilityGist(text, name = "") {
   // (the card's name masked, as it can hold a comma or a colon: "Whenever Syr Konrad, the Grim or another creature dies, ...")
   // (one ability's words only: more lines are a card's whole text, which says nothing of which ability this is)
   const mask = "\u0001";
-  let t = withoutForgeNotes(String(text || "")).replace(/\s*\([^()]*\)/g, "").trim();
-  if (/\n/.test(t)) return "";
+  // (reminder text inside reminder text taken out from the inside; a parenthesis left over is unbalanced text, no gist)
+  let t = withoutForgeNotes(String(text || ""));
+  for (let was = null; was !== t;) { was = t; t = t.replace(/\s*\([^()]*\)/g, ""); }
+  t = t.trim();
+  if (/\n|[()]/.test(t)) return "";
   t = t.replace(/\s+/g, " ").replace(/\bCARDNAME\b/g, mask);
   if (name) t = t.split(name).join(mask);
   // (an ability word or a flavor word before it: "Battalion — Whenever ...", "Timey-Wimey — {7}: ...")
@@ -4133,9 +4136,14 @@ function logEvents(prev, cur, pub, facts = null) {
   // audit C6, C7, 2026-11-12)
   // (by what it does, its trigger condition left out: the Initiative's own "Whenever you take the initiative ..., venture
   // into Undercity" gives none)
-  const markCause = (p, re) => {
+  // (and one that gives it to another player only when it concerns this one: it targets the player or a card they
+  // control, or it targets nothing and is the mark's own combat trigger, its holder's, `from`; a "target opponent
+  // becomes the monarch" at someone else, resolving with a combat change, named the wrong card, review 2026-11-12)
+  const markCause = (p, re, from) => {
     const does = (s) => String(s.text || "").replace(/^(?:When|Whenever|At)\b[^,]*,\s*/i, "");
-    const by = resolved.filter((s) => (re.you.test(does(s)) ? s.ctl === p : re.other.test(does(s))));
+    const mine = (s) => s.plTg.includes(p) || s.cardTg.some((id) => (cur.cards[id] || prev.cards[id])?.ctl === p)
+      || (!s.plTg.length && !s.cardTg.length && from != null && s.ctl === from && /\bcombat damage\b/i.test(s.text || ""));
+    const by = resolved.filter((s) => (re.you.test(does(s)) ? s.ctl === p : re.other.test(does(s)) && mine(s)));
     return by.length !== 1 ? null : /\bcombat damage\b/i.test(by[0].text) ? "combat damage" : by[0].name;
   };
   const MARK_GIVERS = { monarch: { you: /\byou become the monarch\b/i, other: /\bbecomes the monarch\b/i },
@@ -4146,7 +4154,7 @@ function logEvents(prev, cur, pub, facts = null) {
     const held = typeof now[row.key] === "boolean" ? Object.keys(prev.marks || {}).filter((q) => q !== p && prev.marks[q]?.[row.key] === true && !cur.marks[q]?.[row.key]) : [];
     const bearer = Object.values(cur.cards).filter((c) => c.rb && c.ctl === p && c.zone === "battlefield").map((c) => tokenWords(c.name, c.token));
     const line = row.say(who(p), now[row.key], was[row.key], { turnRun: cur.turnRun?.[p], wasTurnRun: prev.turnRun?.[p],
-      from: held.length === 1 ? who(held[0]) : null, cause: MARK_GIVERS[row.key] ? markCause(p, MARK_GIVERS[row.key]) : null, bearer: bearer.length === 1 ? bearer[0] : null });
+      from: held.length === 1 ? who(held[0]) : null, cause: MARK_GIVERS[row.key] ? markCause(p, MARK_GIVERS[row.key], held.length === 1 ? held[0] : null) : null, bearer: bearer.length === 1 ? bearer[0] : null });
     if (!line) continue;
     // (the initiative before the venture it made, said earlier in this board: the swap keeps every line's index, which
     // the lines written by index at the end hold)
@@ -4229,9 +4237,10 @@ function logEvents(prev, cur, pub, facts = null) {
     // (a new controller: Volatile Stormdrake's exchange with Precinct Captain was never said, hp-16 gap)
     // (from whom, and by what: the one spell or ability that resolved now whose words take or exchange control, targeting
     // this card or no card; "White gains control of Island" named neither Expropriate nor AI 1, readability audit C6. A
-    // control given back as an effect ends has no such cause and names only from whom.)
+    // control given back as an effect ends has no such cause and names only from whom. The card that is the ability's
+    // own source counts as targeted: Volatile Stormdrake's exchange targets only the other creature, review 2026-11-12)
     if (c.zone === "battlefield" && was?.zone === "battlefield" && c.ctl !== was.ctl) {
-      const by = resolved.filter((s) => /\b(?:gains?|exchange) control\b/i.test(s.text || "") && (s.cardTg.includes(id) || !s.cardTg.length));
+      const by = resolved.filter((s) => /\b(?:gains?|exchange) control\b/i.test(s.text || "") && (s.cardTg.includes(id) || s.id === id || !s.cardTg.length));
       out.push(`${who(c.ctl)} gains control of ${c.name} from ${who(was.ctl)}${by.length === 1 ? ` (${by[0].name})` : ""}`);
     }
     // (and its other counters, gained or lost, with how many are left: Tangle Wire's fading took a fade counter off each
