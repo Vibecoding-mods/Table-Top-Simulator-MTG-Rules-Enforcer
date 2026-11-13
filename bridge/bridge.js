@@ -1822,6 +1822,10 @@ function noteColour(c, cl) {
   (game.colourByName ??= new Map()).set(c.identity.name, cl);
 }
 const colourSeen = (id, name) => game?.colourById?.get(id) || game?.colourByName?.get(name) || null;
+// a stack item whose card is face down (a morph or disguise cast face down, from the casting entry on, since Forge
+// turns the card face down before the cost: PlaySpellAbility's setSplitStateToPlayAbility; a face-down creature's
+// trigger): Forge's name for it is its face-down card's, "" (the board's "?", as the log's "a face-down spell")
+const stackFaceDown = (s) => !s.identity?.name || s.identity.name === "?";
 // blockers: ids of creatures blocking on the board being drawn (sendTable); other callers have none
 // active: whose turn it is, for a card on the battlefield (a creature that can't attack yet is news on its controller's
 // turn only; Forge calls every creature card sick until it has been in play, in hand as well)
@@ -4438,19 +4442,26 @@ function dungeonLabel(d, done) {
 }
 
 // The table's lv and hits (sendTable) from what updateLog gathered: {} when there is nothing, else either or both. A
-// player hit's colour by its slot; empty fields left out (bytes: TTS decodes ~15 ms per KB).
+// player hit's colour by its slot; empty fields left out (bytes: TTS decodes ~15 ms per KB). Combat damage only to a
+// card that left on this board (its burn-away death; the table flies no bolt for combat, and chip damage to a creature
+// that lives or to a player is no news to it), and at most FX_MAX of each, the first by q (a huge wipe stays a small
+// message); q numbers what is sent.
+const FX_MAX = 48;
 function fxFacts(left, hits) {
-  const all = [...[...(left || [])].map(([id, l]) => ({ lv: true, id, ...l })), ...(hits || []).map((h) => ({ ...h }))];
+  const all = [...[...(left || [])].map(([id, l]) => ({ lv: true, id, ...l })),
+    ...(hits || []).filter((h) => !h.combat || (h.card && left?.has(h.card))).map((h) => ({ ...h }))];
   if (!all.length) return {};
   all.sort((a, b) => (a.seq ?? -1) - (b.seq ?? -1));
   const out = {};
-  all.forEach((x, i) => {
-    if (x.lv) (out.lv ??= []).push({ id: x.id, to: x.to, ...(x.how ? { how: x.how } : {}), ...(x.by ? { by: x.by } : {}), q: i + 1 });
-    else {
+  let q = 0;
+  for (const x of all) {
+    if (x.lv) {
+      if ((out.lv?.length || 0) < FX_MAX) (out.lv ??= []).push({ id: x.id, to: x.to, ...(x.how ? { how: x.how } : {}), ...(x.by ? { by: x.by } : {}), q: ++q });
+    } else {
       const to = x.card || game.slotColor?.[x.slot] || null;
-      if (to) (out.hits ??= []).push({ ...(x.src ? { src: x.src } : {}), to, n: x.n, q: i + 1, ...(x.combat ? { combat: true } : {}) });
+      if (to && (out.hits?.length || 0) < FX_MAX) (out.hits ??= []).push({ ...(x.src ? { src: x.src } : {}), to, n: x.n, q: ++q, ...(x.combat ? { combat: true } : {}) });
     }
-  });
+  }
   return out;
 }
 
@@ -4542,7 +4553,9 @@ function sendTable() {
     f: pictureOf(s.identity?.name, { id: s.sourceId || s.id, ownerId: s.ownerId }),
     // (its colours, the table's wipe and bolt colours: Forge's stack item has none, so its source card's as last seen in
     // a zone this game, by id, else a card of that name's; an AI's spell cast from its hand has none until it lands)
-    ...(colourSeen(s.sourceId, s.identity?.name) ? { cl: colourSeen(s.sourceId, s.identity?.name) } : {}),
+    // (none for a face-down one: Forge names a face-down spell or permanent's stack item "" (n "?"), and keeps its
+    // card's id, which its owner's hand showed face up: its colour would tell every seat what the morph is)
+    ...(!stackFaceDown(s) && colourSeen(s.sourceId, s.identity?.name) ? { cl: colourSeen(s.sourceId, s.identity?.name) } : {}),
   }));
   const tableMsg = {
     t: "table", turn: pub.turn, step: pub.step, active: game.slotColor[pub.activePlayerId] || null,
@@ -10353,5 +10366,6 @@ if (require.main === module) {
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
+    fxFacts,
   };
 }

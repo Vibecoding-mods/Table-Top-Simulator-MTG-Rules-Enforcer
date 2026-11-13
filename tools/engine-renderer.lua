@@ -1994,14 +1994,18 @@ do
   function FX.findRigs()
     FX.rigs, FX.rigIdx, FX.bolts, FX.boltIdx = {}, nil, {}, nil
     local snd = nil
+    local links = engineFxBundle or {}
+    -- (a rig of another bundle than its link's, FX.stale: left out, retired, and a new one spawned in its place)
+    local stale = {}
     for _, o in ipairs(getObjects()) do
       local gm = o.getGMNotes()
-      if gm == "engine:fx" then FX.addRig(o)
-      elseif gm == "engine:bolt" then FX.addRig(o, true)
+      local kind = (gm == "engine:fx" and "fx") or (gm == "engine:bolt" and "bolt") or nil
+      if kind ~= nil and engineFxMode ~= "off" and FX.stale(o, kind, links[kind]) then stale[#stale + 1] = o
+      elseif kind ~= nil then FX.addRig(o, kind == "bolt")
       elseif gm == "engine:sounds" then snd = o end
     end
+    FX.retire(stale)
     if snd ~= nil and FX.sndObj ~= snd then FX.sndObj, FX.sndIdx = snd, nil end
-    local links = engineFxBundle or {}
     if engineFxMode ~= "off" then
       FX.topUp(links.fx, "engine:fx", FX.rigs, FX.RIGS, "spawnedFx", 0)
       FX.topUp(links.bolt, "engine:bolt", FX.bolts, FX.BOLTS, "spawnedBolt", 2)
@@ -2009,6 +2013,47 @@ do
     if snd == nil and FX.bundleLink(links.sounds) and not FX.spawnedSnd then
       FX.spawnedSnd = FX.spawnBundle(links.sounds, "engine:sounds", 0, function(o) FX.sndObj, FX.sndIdx = o, nil end)
     end
+  end
+  -- A rig remembers the link it was spawned from in its memo (saved with it). One whose link isn't the pool's (a new
+  -- bundle uploaded and its link set) is stale; one with no memo was spawned before the memo (2026-11-12), from the old
+  -- shipped fx link, FX.LEGACY: stale only once another link is set. No link: nothing is stale.
+  FX.LEGACY = { fx = "https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/" }
+  FX.RETIRE_GAP = 30 -- frames between two stale rigs' destruct (each costs ~360 ms in real TTS: never a burst)
+  function FX.stale(o, kind, url)
+    if not FX.bundleLink(url) then return false end
+    local memo = o.memo
+    if memo == nil or memo == "" then memo = FX.LEGACY[kind] end
+    return memo ~= url
+  end
+  -- the stale rigs destroyed, one every FX.RETIRE_GAP frames, each once per load (FX.retiring, by GUID: a new game's
+  -- look finds one still waiting and leaves it to its turn)
+  function FX.retire(list)
+    FX.retiring = FX.retiring or {}
+    local n = 0
+    for _, o in ipairs(list) do
+      local g = o.getGUID()
+      if not FX.retiring[g] then
+        FX.retiring[g] = true
+        n = n + 1
+        FX.retireOne(o, FX.RETIRE_GAP * n)
+      end
+    end
+  end
+  -- (its own function, so each wait holds its own object rather than a loop's variable)
+  function FX.retireOne(o, frames)
+    Wait.frames(function() if not o.isDestroyed() then o.destruct() end end, frames)
+  end
+  -- on load, before any game: a save holding rigs of another bundle than the links' has them replaced now (FX.findRigs
+  -- retires them and tops the pools up), not at a game's first board. Nothing stale: nothing is looked for or spawned.
+  function engineFxRenewRigs()
+    if engineFxMode == "off" then return false end
+    local links = engineFxBundle or {}
+    for _, o in ipairs(getObjects()) do
+      local gm = o.getGMNotes()
+      local kind = (gm == "engine:fx" and "fx") or (gm == "engine:bolt" and "bolt") or nil
+      if kind ~= nil and FX.stale(o, kind, links[kind]) then FX.findRigs() return true end
+    end
+    return false
   end
   -- the rigs missing from a pool of `want` (list), spawned from `url` with GM notes gm, once per load (FX[flag]; a spawn
   -- that raises leaves it unset, so the next game tries again); row: their park row
@@ -2028,13 +2073,14 @@ do
   -- FX.spawnErr) when it raised, so the caller can try again next game and the effects fall back to the UI slots.
   function FX.spawnBundle(url, gm, n, done, row)
     local x, z = -40 + 1.5 * n, 30 + (row or 0)
-    local ok, err = pcall(spawnObjectData, {
-      data = { Name = "Custom_Assetbundle", Nickname = "", GMNotes = gm, Locked = true,
+    local ok, obj = pcall(spawnObjectData, {
+      data = { Name = "Custom_Assetbundle", Nickname = "", GMNotes = gm, Memo = url, Locked = true,
         Transform = { posX = x, posY = FX.RIG_PARK_Y, posZ = z, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 },
         CustomAssetbundle = { AssetbundleURL = url, AssetbundleSecondaryURL = "", MaterialIndex = 0, TypeIndex = 0, LoopingEffectIndex = 0 } },
       position = Vector(x, FX.RIG_PARK_Y, z), rotation = Vector(0, 0, 0),
       callback_function = done })
-    if not ok then FX.spawnErr = tostring(err) end
+    -- (the link on the rig, FX.stale: by Memo, and at once, in case TTS doesn't take a spawn's Memo)
+    if not ok then FX.spawnErr = tostring(obj) elseif obj ~= nil then obj.memo = url end
     return ok
   end
   -- trigger effect name -> index, from the first rig whose bundle answers (they are copies of one bundle); asked again
@@ -2147,13 +2193,16 @@ do
     if ("WUBRGC"):find(cl, 1, true) then return cl end
     return nil
   end
-  -- a card's cl: its static details, else a last board's stack item of it (prev: engineEffects' snapshot)
+  -- a card's cl (prev: engineEffects' snapshot): a last board's stack item of it says (the bridge sends none for a
+  -- face-down spell); a face-down permanent has none; else its static details. (A morph's static details are its
+  -- face's, from its owner's hand: never shown while it is face down)
   function FX.clOf(id, prev)
     if id == nil then return nil end
+    for _, s in ipairs(prev and prev.stack or {}) do if s.src == id then return s.cl end end
+    local b = prev and prev.bf[id]
+    if b ~= nil and b.fd then return nil end
     local st = engineStatic[id]
-    if st ~= nil and st.cl ~= nil then return st.cl end
-    for _, s in ipairs(prev and prev.stack or {}) do if s.src == id and s.cl ~= nil then return s.cl end end
-    return nil
+    return st and st.cl or nil
   end
   -- the bridge's battlefield departures by card (m.lv) and the cards hit on this board -> their source (m.hits; true
   -- when it names none)
@@ -2369,8 +2418,9 @@ do
     local kind = nil
     for _, k in ipairs(engineSoundKinds or {}) do if kind == nil and (counts[k] or 0) > 0 and FX.picked(k) then kind = k end end
     local n = kind and counts[kind] or 1
-    -- (the bolts: their spots now, before the stack is laid out again; flown one frame later with the rest)
-    local bolts = FX.boltsOf(m, prev, now, flights, causes)
+    -- (the bolts: their spots now, before the stack is laid out again; flown one frame later with the rest; none to
+    -- look for without a bolt rig, the bolt link not set)
+    local bolts = (FX.bolts ~= nil and #FX.bolts > 0) and FX.boltsOf(m, prev, now, flights, causes) or {}
     if #ev == 0 and #bolts == 0 and kind == nil then return 0 end
     local visual = (#ev > 0 or #bolts > 0) and FX.visualsOn()
     if not visual and kind == nil then return #ev end
@@ -2758,7 +2808,7 @@ do
         -- (its spot on this board, for the effects; a token drawn as part of a group has its group's spot)
         for _, card in ipairs(pl.battlefield or {}) do
           now.bf[card.id] = { owner = c, tok = card.tok, pos = enginePlanned[card.id] or (engineGroupOf[card.id] ~= nil and enginePlanned[engineGroupOf[card.id]]) or nil,
-            dmg = tonumber(card.dmg) or 0, ctr = card.ctr }
+            dmg = tonumber(card.dmg) or 0, ctr = card.ctr, fd = card.fd }
         end
         for _, card in ipairs(pl.graveyard or {}) do now.gy[card.id] = c end
         for _, card in ipairs(pl.exile or {}) do now.ex[card.id] = c if card.ew ~= nil then now.ew[card.id] = card.ew end end
@@ -2799,10 +2849,11 @@ do
     -- exiled: battlefield -> exile, by the exile zone or by the bridge's exd (the engine's word on the move: a token
     -- exiled ceases to exist, and no board shows it in exile). Sound only (design section 6).
     -- (and by the bridge's lv, every battlefield departure as the engine tells it, docs/particle-fx-spec.md section 3:
-    -- exiled too when it says e; a token it says went to a hand, a library or the command zone is no death)
+    -- exiled too when it says e; a token it says went to a hand, a library or the command zone is no death. Not with
+    -- "mtg fx off": then the deaths, exiles and sounds are exactly the table's before lv)
     local exd, exiledIds = {}, {}
     for _, id in ipairs(m.exd or {}) do exd[id] = true end
-    local lv = FX.lvOf(m)
+    local lv = engineFxMode ~= "off" and FX.lvOf(m) or {}
     for id, x in pairs(lv) do if x.to == "e" then exd[id] = true end end
     for id in pairs(prev.bf) do
       if now.bf[id] == nil and (now.ex[id] ~= nil or exd[id]) then exiledIds[#exiledIds + 1] = id end
@@ -6432,6 +6483,8 @@ Wait.frames(function()
   if ok and type(saved) == "table" and (saved.engineFx == "on" or saved.engineFx == "low" or saved.engineFx == "off") then engineFxMode = saved.engineFx end
   sweepEngineCards()
   restoreStash()
+  -- (rigs of an older effect bundle than the links': replaced now, one destroyed every half second)
+  pcall(engineFxRenewRigs)
   engineSend("hello", { stamp = engineStamp(), keepRewind = true })
   -- the running game sent back on that hello was not drawn once, after a TTS relaunch with a big table still loading
   -- (hp-22 re-test 2026-10-28: the bridge's record has it sent; the table showed READY): ask again while nothing came

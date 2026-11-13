@@ -147,11 +147,11 @@ All outside the board signature, cleared once sent; a board skipped as identical
 
 | Field | Where | What |
 |---|---|---|
-| `cl` | each card's static details; stack items | WUBRG letters in that order, `C` colourless, from the engine's `color`. Stack items have no colour in Forge's DTO: the card's as last seen this game, by id, else by name |
+| `cl` | each card's static details; stack items | WUBRG letters in that order, `C` colourless, from the engine's `color`. Stack items have no colour in Forge's DTO: the card's as last seen this game, by id, else by name. None for a face-down stack item (Forge names it `""`, the board's `"?"`; it keeps the card's id, which its owner's hand showed face up), and the table gives a face-down source none either |
 | `lv` | the board | `[{id, to, how?, by?, q}]`, every battlefield departure from the engine's feed. `to` g/e/h/l/c/x; `how` d (destroyed) / s (sacrificed); `by` the cause card, else the source of the last damage to it, else the last card off the stack before it. `exd` is still sent beside it |
-| `hits` | the board | `[{src?, to, n, q, combat?}]`, `to` a card id or a seat's colour. From the engine's damage entries (`kind: "damage"`, engine1112 on); an engine that sends none: `damageNews`' certain hits (no combat ones). Entries of 0 or at nothing are dropped |
+| `hits` | the board | `[{src?, to, n, q, combat?}]`, `to` a card id or a seat's colour. From the engine's damage entries (`kind: "damage"`, engine1112 on); an engine that sends none: `damageNews`' certain hits (no combat ones). Entries of 0 or at nothing are dropped, and so is combat damage except to a card that left the battlefield on that board (its burn-away death: the table flies no bolt for combat, so chip damage to a creature that lives, or to a player, is no news to it) |
 
-`q` runs across `lv` and `hits` together in Forge's order (the log's hits, which have no place in the ring, first).
+`q` runs across `lv` and `hits` together in Forge's order (the log's hits, which have no place in the ring, first), numbering what is sent. At most 48 of each go (`FX_MAX`, the first by `q`), so a huge wipe stays a small message.
 
 ### What plays when (`tools/engine-renderer.lua`)
 
@@ -160,11 +160,13 @@ All outside the board signature, cleared once sent; a board skipped as identical
 - **Exile:** `exile`; with `engineFxTint`, `exile_neutral` tinted in the exiler's colour. The light flies to the exiler (lv's `by`, else the card's `ew`) when it is on the battlefield: a bolt in the exiler's colour (W when unknown), 0.7 s after the exile.
 - **Bolt:** each non-combat hit with a source: a bolt rig at the source (a spell: its spot on the last board's stack; an ability: its card), turned so local +z points at the target (yaw and pitch), scaled to the distance, `bolt_<key>` played at least 0.1 s later, the next 0.15 s apart. The target's damage, hit or death plays at the impact, 0.25 s after the bolt, through the lunge's hit-time table. 4 a board, in `q` order; the rest have their effect at once. A source with more than 4 hits on one board (a sweep) and a wave's cause fly none.
 - **Fallback** `engineFxBoltMove = true`: `bolt_trail` at scale 1, the rig moved to the target one frame at a time over 15 frames, then `bolt_impact`. The only per-frame mover.
-- A token that `lv` says went to a hand, a library or the command zone is no death (in every mode).
+- A token that `lv` says went to a hand, a library or the command zone is no death, and one it says was exiled is an exile (on and low; with **off** the table reads no `lv`, so a vanished token dies as before).
+- With no bolt link (no bolt rig), the bolt pass isn't run at all.
 
 ### Pool, links and modes
 
 - 6 fx rigs (`engine:fx`) and 4 bolt rigs (`engine:bolt`). With a link in `engineFxBundle.fx` / `.bolt`, the missing ones are spawned once per load (the bolt row at z 32) and then stay in the save; never spawned or destroyed per event. A parked rig is back at scale 1 and untinted.
+- **A new bundle replaces the old rigs.** Each spawned rig keeps its link in its memo (saved with it; GM notes stay `engine:fx` / `engine:bolt`, which the sweep, the stray-card watcher and "mtg start" look for). On load (and at a game's first look), a rig whose memo isn't its pool's link is stale: it is left out of the pool and destroyed, one every 30 frames (`FX.RETIRE_GAP`; a destruct costs ~360 ms in real TTS), each once per load, and the pool is topped up with new rigs from the link. A rig with no memo (spawned before 2026-11-12, as the 6 in the user's save) counts as the old shipped fx link's (`FX.LEGACY`): stale only once another link is set. No link, or `mtg fx off`: nothing is stale.
 - `engineFxBundle.bolt = nil` until the upload: no bolt rigs, every hit's effect at once, as today. `fx` keeps the shipped link.
 - `mtg fx on|low|off` (host only, saved with the game, `onSave`'s `engineFx`): **on** everything; **low** a wipe's wave without its cards' own effects, no bolts and no exile lights, single effects as on; **off** no rig effect and no spawn: every board makes exactly the calls it makes with no bundle (sounds, slots, flashes stay).
 
@@ -174,7 +176,7 @@ Measured in the sim (`tests/test_table_effects.js`, fengari, fastest of 7, the f
 
 ### What's left
 
-1. **Upload** both bundles (TTS Cloud Manager), put the links in `engineFxBundle.fx` and `.bolt`. The rigs already in the user's save point at the old fx link: delete them (or change their link) so the new ones are spawned from the new bundle.
+1. **Upload** both bundles (TTS Cloud Manager), put the links in `engineFxBundle.fx` and `.bolt`. The 6 rigs already in the user's save are the old fx link's: the first load with the new link replaces them by itself (see Pool); keep `FX.LEGACY` at the old link.
 2. **Live tint check:** does `setColorTint` tint the particles? If yes, `engineFxTint = true` makes the neutral effects serve every colour; if not, the baked ones stay.
 3. **Live animation check:** does the bolt's baked head flight play in TTS? If not, `engineFxBoltMove = true`.
 4. **Object check:** Loaded Objects before and after the 10 rigs (the 78k crash line).

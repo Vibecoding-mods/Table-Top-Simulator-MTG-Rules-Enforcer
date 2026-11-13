@@ -334,6 +334,8 @@ local function makeObj(d)
       getLoopingEffectIndex = function() return 0 end,
     })
   end
+  -- (a save's or a spawn's Memo is the object's memo, as in TTS)
+  if d.Memo ~= nil and d.Memo ~= "" then rawset(o, "memo", d.Memo) end
   SIM.objects[o.__guid] = o
   SIM.order[#SIM.order + 1] = o
   return o
@@ -573,7 +575,7 @@ function spawnObjectData(p)
   -- test can make a spawn fail (__sim.spawnFail(data) -> true) to see what happens then
   if d.Name == "Custom_Assetbundle" and d.Transform == nil then error("Object reference not set to an instance of an object", 2) end
   if SIM.spawnFail and SIM.spawnFail(d) then error("spawn failed (test)", 2) end
-  local o = makeObj({ Name = d.Name, Nickname = d.Nickname, Description = d.Description, GMNotes = d.GMNotes, ContainedObjects = d.ContainedObjects,
+  local o = makeObj({ Name = d.Name, Nickname = d.Nickname, Description = d.Description, GMNotes = d.GMNotes, Memo = d.Memo, ContainedObjects = d.ContainedObjects,
     CustomDeck = d.CustomDeck, CardID = d.CardID, Locked = d.Locked, CustomAssetbundle = d.CustomAssetbundle,
     Transform = { posX = p.position and vec(p.position).x or 0, posY = p.position and vec(p.position).y or 0, posZ = p.position and vec(p.position).z or 0,
       rotX = p.rotation and vec(p.rotation).x or 0, rotY = p.rotation and vec(p.rotation).y or 0, rotZ = p.rotation and vec(p.rotation).z or 0, scaleX = 1, scaleY = 1, scaleZ = 1 } })
