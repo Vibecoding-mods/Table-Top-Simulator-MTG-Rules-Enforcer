@@ -573,6 +573,109 @@ namespace MtgCompanion
             return string.Join(nl, lines) + nl;
         }
 
+        // ───────────────────────────── log trim (every 14 days, between games) ─────────────────────────────
+        // The decisions; the file work is LogTrim (Controller.cs). docs/companion-app-spec.md §7.1.
+
+        public const int TrimEveryDays = 14;
+        public const string TrimStampName = "log-trim.stamp", ArchiveDirName = "log-archive", TrimmingSuffix = ".trimming";
+
+        // the rolled logs: each keeps one previous roll as <name>.old, so about 4 weeks stays readable
+        static readonly string[] RollNames = { "tts-console.log", "game-log.txt", "table-check.log", "guess-log.log", "companion.log" };
+
+        // The stamp file's text: the last trim's time, UTC, round-trip format
+        public static string TrimStampText(DateTime utc)
+        {
+            return utc.ToUniversalTime().ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        // The last trim's time (UTC) from the stamp file's text; null: no stamp, or one that can't be read
+        public static DateTime? ParseTrimStamp(string text)
+        {
+            DateTime t;
+            if (string.IsNullOrEmpty(text) || !DateTime.TryParse(text.Trim(), System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out t)) return null;
+            return t;
+        }
+
+        // Due: no stamp, 14 days since it, or a stamp more than a day ahead of the clock (written while the clock was wrong,
+        // it would otherwise hold the trim off until that date)
+        public static bool TrimDue(DateTime? lastUtc, DateTime nowUtc)
+        {
+            if (!lastUtc.HasValue) return true;
+            var since = nowUtc - lastUtc.Value;
+            return since.TotalDays >= TrimEveryDays || since.TotalDays < -1;
+        }
+
+        // Trim now: due, not an observing copy, and no game (Can't tell waits too, as Locked says)
+        public static bool TrimNow(bool due, Game game, bool observe) { return due && !observe && !Locked(game); }
+
+        // What a log gets, by its file name; null: not the trim's to touch (the bridge log and its .1, which the bridge loop
+        // rolls at 20 MB while cmd holds it open; the .old rolls; the archives; anything else in the folder)
+        public static TrimKind? TrimKindOf(string fileName)
+        {
+            string n = (fileName ?? "").ToLowerInvariant();
+            // the game history: compressed and kept; a .trimming is one a failed run renamed and couldn't compress
+            if (n == "table-log.log" || n == "table-log.log" + TrimmingSuffix) return TrimKind.Archive;
+            if (n.StartsWith("tts-stream") && n.EndsWith(".jsonl")) return TrimKind.Delete; // (MTG_RECORD recordings)
+            if (RollNames.Contains(n)) return TrimKind.Roll;
+            return null;
+        }
+
+        // The logs to trim, non-empty ones only: the logs folder (logs\ or tmp\), and in home mode bridge\ too, where a
+        // bridge started without MTG_LOG_DIR (Start MTG.bat, tmp\bridge-loop.cmd) writes tts-console.log and game-log.txt.
+        // A leftover .trimming comes before its live file, so the live file's rename to it finds the name free.
+        // listDir: dir -> its files (full paths; none when missing); sizeOf: file -> bytes, or -1 when missing.
+        public static List<TrimItem> TrimPlan(Layout l, Func<string, string[]> listDir, Func<string, long> sizeOf)
+        {
+            var dirs = new List<string> { l.LogsDir };
+            if (!l.Friend) dirs.Add(Path.Combine(l.Home, "bridge"));
+            var items = new List<TrimItem>();
+            foreach (var dir in dirs)
+                foreach (var f in listDir(dir) ?? new string[0])
+                {
+                    var kind = TrimKindOf(Path.GetFileName(f));
+                    if (!kind.HasValue || string.Equals(f, l.BridgeLog, StringComparison.OrdinalIgnoreCase)) continue;
+                    long size = sizeOf(f);
+                    if (size > 0) items.Add(new TrimItem { Path = f, Kind = kind.Value, Size = size });
+                }
+            return items.OrderBy(i => i.Path.EndsWith(TrimmingSuffix, StringComparison.OrdinalIgnoreCase) ? 0 : 1).ToList();
+        }
+
+        // Where an archived log goes: log-archive\ beside it, <name>-<yyyy-MM-dd>.<ext>.gz, then -2, -3... when taken
+        public static string ArchivePath(string liveFile, DateTime localNow, Func<string, bool> exists)
+        {
+            string dir = Path.Combine(Path.GetDirectoryName(liveFile), ArchiveDirName);
+            string name = Path.GetFileNameWithoutExtension(liveFile), ext = Path.GetExtension(liveFile);
+            string date = localNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            for (int n = 1; ; n++)
+            {
+                string p = Path.Combine(dir, name + "-" + date + (n > 1 ? "-" + n : "") + ext + ".gz");
+                if (!exists(p)) return p;
+            }
+        }
+
+        // The one companion-log line about a trim
+        public static string TrimSummary(IList<TrimDone> done)
+        {
+            if (done.Count == 0) return "log trim: nothing to trim.";
+            var parts = new List<string>();
+            long freed = 0;
+            foreach (var d in done)
+            {
+                if (d.Error != null) { parts.Add(d.Name + " skipped (" + d.Error.Trim() + ")"); continue; }
+                freed += d.Freed;
+                if (d.Kind == TrimKind.Archive) parts.Add(d.Name + " archived (" + Mb(d.Before) + " to " + Mb(d.After) + " .gz)");
+                else if (d.Kind == TrimKind.Delete) parts.Add(d.Name + " deleted (" + Mb(d.Before) + ")");
+                else parts.Add(d.Name + " rolled to .old (" + Mb(d.Before) + ")");
+            }
+            return "log trim: freed " + Mb(freed) + "; " + string.Join(", ", parts) + ".";
+        }
+
+        public static string Mb(long bytes)
+        {
+            return (bytes / 1048576.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " MB";
+        }
+
         // ───────────────────────────── small helpers ─────────────────────────────
 
         public static string Sha8(byte[] data)
@@ -682,6 +785,14 @@ namespace MtgCompanion
         // bridge): a table heard before this TTS started is the last session's, not a table loaded now
         public double? TableHeardAgoSec, TtsUpSec;
     }
+
+    // the log trim: Archive (gzip into log-archive\, kept), Delete (recordings), Roll (to <name>.old, one kept)
+    public enum TrimKind { Archive, Delete, Roll }
+
+    public class TrimItem { public string Path; public TrimKind Kind; public long Size; }
+
+    // one file's result: Before, its size; After, the .gz's (Archive); Freed, the bytes the disk got back; Error: skipped
+    public class TrimDone { public string Name; public TrimKind Kind; public long Before, After, Freed; public string Error; }
 
     public class SaveEntry { public string Name; public long Size; public SaveEntry(string n, long s) { Name = n; Size = s; } }
 

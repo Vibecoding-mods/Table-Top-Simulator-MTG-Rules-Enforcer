@@ -23,7 +23,7 @@ namespace MtgCompanion
         public static int Run(StringBuilder output)
         {
             sb = output; fails = 0; passes = 0;
-            Modes(); Sequence(); Docker(); Images(); Stack(); Ports(); Bridge(); GameLock(); Saves(); Tts(); Wsl(); Misc(); Update(); UpdateSafety();
+            Modes(); Sequence(); Docker(); Images(); Stack(); Ports(); Bridge(); GameLock(); Saves(); Tts(); Wsl(); LogTrimChecks(); Misc(); Update(); UpdateSafety();
             sb.AppendLine(passes + " passed, " + fails + " failed");
             return fails;
         }
@@ -762,6 +762,138 @@ namespace MtgCompanion
             }
             finally { try { Directory.Delete(dir, true); } catch { } }
         }
+
+        static void LogTrimChecks()
+        {
+            sb.AppendLine("-- log trim (every 14 days, between games)");
+            var now = new DateTime(2026, 11, 13, 12, 0, 0, DateTimeKind.Utc);
+            Check("trim due: no stamp", Logic.TrimDue(null, now));
+            Check("trim not due: 13 days 23 hours", !Logic.TrimDue(now.AddDays(-14).AddHours(1), now));
+            Check("trim due: 14 days", Logic.TrimDue(now.AddDays(-14), now));
+            Check("trim due: a stamp 2 days ahead of the clock", Logic.TrimDue(now.AddDays(2), now));
+            Check("trim not due: a stamp an hour ahead (clock drift)", !Logic.TrimDue(now.AddHours(1), now));
+            var st = Logic.ParseTrimStamp(Logic.TrimStampText(now));
+            Check("stamp: round trip, UTC", st.HasValue && st.Value == now && st.Value.Kind == DateTimeKind.Utc, st);
+            Check("stamp: garbage or empty reads as none", Logic.ParseTrimStamp("not a date") == null && Logic.ParseTrimStamp("") == null && Logic.ParseTrimStamp(null) == null);
+            Check("trim now: due, no game", Logic.TrimNow(true, Game.None("No game."), false));
+            Check("trim waits: game on", !Logic.TrimNow(true, Game.On("Game on", 3), false));
+            Check("trim waits: can't tell", !Logic.TrimNow(true, Game.CantTell("slow"), false));
+            Check("trim waits: not due, or an observing copy", !Logic.TrimNow(false, Game.None("No game."), false) && !Logic.TrimNow(true, Game.None("No game."), true));
+
+            Check("table-log.log: archived (the real game history)", Logic.TrimKindOf("table-log.log") == TrimKind.Archive && Logic.TrimKindOf("Table-Log.log.trimming") == TrimKind.Archive);
+            Check("tts-stream*.jsonl: deleted", Logic.TrimKindOf("tts-stream.jsonl") == TrimKind.Delete && Logic.TrimKindOf("tts-stream-headless.jsonl") == TrimKind.Delete);
+            Check("console, game, check, guess and companion logs: rolled",
+                new[] { "tts-console.log", "game-log.txt", "table-check.log", "guess-log.log", "companion.log" }.All(n => Logic.TrimKindOf(n) == TrimKind.Roll));
+            string[] never = { "bridge.log", "bridge-live.log", "bridge.log.1", "companion.log.1", "tts-console.log.old", "table-log-2026-11-13.log.gz", "bridge-game.json", "log-trim.stamp", "tts-stream.jsonl.bak" };
+            var touched = never.Where(n => Logic.TrimKindOf(n).HasValue).ToArray();
+            Check("never touched: bridge log (+.1), .old rolls, archives, resume file, stamp", touched.Length == 0, string.Join(",", touched));
+
+            // the plan over a fake folder listing
+            var home = Layout.Make(Mode.Home, @"C:\r");
+            var dirs = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+            dirs[@"C:\r\tmp"] = new[] { @"C:\r\tmp\table-log.log", @"C:\r\tmp\table-log.log.trimming", @"C:\r\tmp\tts-stream.jsonl", @"C:\r\tmp\bridge-live.log", @"C:\r\tmp\companion.log", @"C:\r\tmp\guess-log.log" };
+            dirs[@"C:\r\bridge"] = new[] { @"C:\r\bridge\tts-console.log", @"C:\r\bridge\game-log.txt", @"C:\r\bridge\bridge.js" };
+            dirs[@"D:\P\logs"] = new[] { @"D:\P\logs\table-log.log", @"D:\P\logs\bridge.log", @"D:\P\logs\tts-console.log" };
+            dirs[@"D:\P\bridge"] = new[] { @"D:\P\bridge\tts-console.log" };
+            Func<string, string[]> list = d => dirs.ContainsKey(d) ? dirs[d] : new string[0];
+            Func<string, long> size = f => f.EndsWith("guess-log.log") ? 0 : 1000;
+            var plan = Logic.TrimPlan(home, list, size);
+            var names = plan.Select(i => i.Path).ToList();
+            Check("home plan: tmp\\ and bridge\\ logs, not the bridge log, bridge.js or an empty file",
+                names.Contains(@"C:\r\tmp\table-log.log") && names.Contains(@"C:\r\tmp\tts-stream.jsonl") && names.Contains(@"C:\r\tmp\companion.log")
+                && names.Contains(@"C:\r\bridge\tts-console.log") && names.Contains(@"C:\r\bridge\game-log.txt")
+                && !names.Contains(@"C:\r\tmp\bridge-live.log") && !names.Contains(@"C:\r\bridge\bridge.js") && !names.Contains(@"C:\r\tmp\guess-log.log") && names.Count == 6,
+                string.Join(" | ", names));
+            Check("home plan: a leftover .trimming goes before the live table log", names.IndexOf(@"C:\r\tmp\table-log.log.trimming") == 0, string.Join(" | ", names));
+            plan = Logic.TrimPlan(Layout.Make(Mode.Friend, @"D:\P"), list, size);
+            names = plan.Select(i => i.Path).ToList();
+            Check("friend plan: logs\\ only (never the package's bridge\\), never bridge.log",
+                names.Count == 2 && names.Contains(@"D:\P\logs\table-log.log") && names.Contains(@"D:\P\logs\tts-console.log"), string.Join(" | ", names));
+
+            var local = new DateTime(2026, 11, 13, 9, 0, 0, DateTimeKind.Local);
+            var ap = Logic.ArchivePath(@"C:\r\tmp\table-log.log", local, Files());
+            Check("archive: log-archive\\ beside it, dated", ap == @"C:\r\tmp\log-archive\table-log-2026-11-13.log.gz", ap);
+            ap = Logic.ArchivePath(@"C:\r\tmp\table-log.log", local, Files(@"C:\r\tmp\log-archive\table-log-2026-11-13.log.gz"));
+            Check("archive: a second one the same day gets -2", ap == @"C:\r\tmp\log-archive\table-log-2026-11-13-2.log.gz", ap);
+            var line = Logic.TrimSummary(new List<TrimDone> {
+                new TrimDone { Name = "table-log.log", Kind = TrimKind.Archive, Before = 14 * 1048576L, After = 1048576L, Freed = 13 * 1048576L },
+                new TrimDone { Name = "tts-stream.jsonl", Kind = TrimKind.Delete, Before = 189 * 1048576L, Freed = 189 * 1048576L },
+                new TrimDone { Name = "guess-log.log", Kind = TrimKind.Roll, Error = "in use" } });
+            Check("summary: one line, freed total, each file, the skipped one named",
+                line == "log trim: freed 202.0 MB; table-log.log archived (14.0 MB to 1.0 MB .gz), tts-stream.jsonl deleted (189.0 MB), guess-log.log skipped (in use).", line);
+            Check("summary: nothing to trim", Logic.TrimSummary(new List<TrimDone>()) == "log trim: nothing to trim.");
+
+            // the file work on a temp repo (never the real logs)
+            var tmp = Path.Combine(Path.GetTempPath(), "mtg-companion-selftest-trim-" + Guid.NewGuid().ToString("N").Substring(0, 6));
+            try
+            {
+                var l = Layout.Make(Mode.Home, tmp);
+                Directory.CreateDirectory(l.LogsDir); Directory.CreateDirectory(Path.Combine(tmp, "bridge"));
+                var tsb = new StringBuilder();
+                for (int i = 0; i < 2000; i++) tsb.Append("[12:" + (i % 60).ToString("00") + ":00] White  cast Lightning Bolt targeting Blue\n");
+                string tableText = tsb.ToString();
+                File.WriteAllText(Path.Combine(l.LogsDir, "table-log.log"), tableText);
+                File.WriteAllText(Path.Combine(l.LogsDir, "tts-stream.jsonl"), "{\"at\":1}\n");
+                File.WriteAllText(Path.Combine(l.LogsDir, "tts-stream-headless.jsonl"), "{\"at\":2}\n");
+                File.WriteAllText(Path.Combine(l.LogsDir, "table-check.log"), "this roll\n");
+                File.WriteAllText(Path.Combine(l.LogsDir, "table-check.log.old"), "the roll before\n");
+                File.WriteAllText(Path.Combine(l.LogsDir, "guess-log.log"), "held open\n");
+                File.WriteAllText(l.BridgeLog, "bridge says\n");
+                File.WriteAllText(l.CompanionLog, "lights\n");
+                File.WriteAllText(Path.Combine(tmp, "bridge", "tts-console.log"), "console\n");
+
+                string result;
+                using (new FileStream(Path.Combine(l.LogsDir, "guess-log.log"), FileMode.Open, FileAccess.Read, FileShare.None)) // (a file in use)
+                    result = LogTrim.Run(l, now);
+                var gz = Path.Combine(l.LogsDir, "log-archive", "table-log-" + now.ToLocalTime().ToString("yyyy-MM-dd") + ".log.gz");
+                string back = null;
+                try { using (var z = new System.IO.Compression.GZipStream(File.OpenRead(gz), System.IO.Compression.CompressionMode.Decompress)) using (var r = new StreamReader(z)) back = r.ReadToEnd(); }
+                catch (Exception e) { back = "unreadable: " + e.Message; }
+                Check("run: table-log.log archived to log-archive\\, the .gz holds every line", back == tableText, back == null ? null : Logic.Clip(back, 80));
+                Check("run: table-log.log started empty, no .trimming left", TrimLen(Path.Combine(l.LogsDir, "table-log.log")) == 0 && !File.Exists(Path.Combine(l.LogsDir, "table-log.log.trimming")));
+                Check("run: tts-stream*.jsonl deleted", !File.Exists(Path.Combine(l.LogsDir, "tts-stream.jsonl")) && !File.Exists(Path.Combine(l.LogsDir, "tts-stream-headless.jsonl")));
+                Check("run: a rolled log's .old is this roll, the earlier .old replaced", !File.Exists(Path.Combine(l.LogsDir, "table-check.log")) && TrimText(Path.Combine(l.LogsDir, "table-check.log.old")) == "this roll\n");
+                Check("run: bridge\\tts-console.log and the companion log rolled", File.Exists(Path.Combine(tmp, "bridge", "tts-console.log.old")) && File.Exists(l.CompanionLog + ".old") && !File.Exists(l.CompanionLog));
+                Check("run: the bridge log untouched", TrimText(l.BridgeLog) == "bridge says\n" && !File.Exists(l.BridgeLog + ".old"));
+                Check("run: a file in use skipped and named, kept as it was, no throw", result.Contains("guess-log.log skipped") && TrimText(Path.Combine(l.LogsDir, "guess-log.log")) == "held open\n" && !File.Exists(Path.Combine(l.LogsDir, "guess-log.log.old")), result);
+                Check("run: the line says what was freed", result.StartsWith("log trim: freed ") && result.Contains("table-log.log archived") && result.Contains("tts-stream.jsonl deleted"), result);
+                var last = LogTrim.LastTrim(l);
+                Check("run: stamp written, next trim in 14 days", last.HasValue && last.Value == now && !Logic.TrimDue(last, now.AddDays(13)) && Logic.TrimDue(last, now.AddDays(14)), last);
+
+                // a .trimming a failed run left, and new lines since: both archived, the leftover first, nothing lost
+                File.WriteAllText(Path.Combine(l.LogsDir, "table-log.log.trimming"), "left over\n");
+                File.WriteAllText(Path.Combine(l.LogsDir, "table-log.log"), "new lines\n");
+                LogTrim.Run(l, now);
+                var gz2 = gz.Replace(".log.gz", "-2.log.gz"); var gz3 = gz.Replace(".log.gz", "-3.log.gz");
+                Func<string, string> unzip = p => { try { using (var z = new System.IO.Compression.GZipStream(File.OpenRead(p), System.IO.Compression.CompressionMode.Decompress)) using (var r = new StreamReader(z)) return r.ReadToEnd(); } catch { return null; } };
+                Check("leftover .trimming: archived first (-2), then the live file (-3)", unzip(gz2) == "left over\n" && unzip(gz3) == "new lines\n" && !File.Exists(Path.Combine(l.LogsDir, "table-log.log.trimming")), unzip(gz2) + " / " + unzip(gz3));
+                Check("missing logs folder: nothing to trim, no throw", LogTrim.Run(Layout.Make(Mode.Home, Path.Combine(tmp, "nothing-here")), now).StartsWith("log trim: nothing to trim"));
+
+                // the watcher's hook: the game lock holds it off, no game lets it run
+                var pkg = Path.Combine(tmp, "pkg");
+                var c = new Controller(Layout.Make(Mode.Friend, pkg), false, Path.Combine(pkg, "saves"), Path.Combine(pkg, "state"), "x.exe");
+                Directory.CreateDirectory(c.L.LogsDir);
+                File.WriteAllText(Path.Combine(c.L.LogsDir, "tts-console.log"), "console\n");
+                c.Game = Game.On("Game on: turn 6, 4 players.", 6);
+                c.MaybeTrimLogs();
+                Check("watcher: no trim while a game is on", File.Exists(Path.Combine(c.L.LogsDir, "tts-console.log")) && LogTrim.LastTrim(c.L) == null);
+                c.Game = Game.None("No game.");
+                c.MaybeTrimLogs();
+                Check("watcher: due and no game: trims on the next tick", !File.Exists(Path.Combine(c.L.LogsDir, "tts-console.log")) && File.Exists(Path.Combine(c.L.LogsDir, "tts-console.log.old")) && LogTrim.LastTrim(c.L).HasValue);
+                var o = new Controller(Layout.Make(Mode.Friend, Path.Combine(tmp, "pkg2")), true, tmp, tmp, "x.exe");
+                Directory.CreateDirectory(o.L.LogsDir);
+                File.WriteAllText(Path.Combine(o.L.LogsDir, "tts-console.log"), "console\n");
+                o.Game = Game.None("No game.");
+                o.MaybeTrimLogs();
+                Check("watcher: an observing copy never trims", File.Exists(Path.Combine(o.L.LogsDir, "tts-console.log")));
+            }
+            catch (Exception e) { Check("log trim file work ran to the end", false, e.GetType().Name + ": " + e.Message); }
+            finally { try { Directory.Delete(tmp, true); } catch { } }
+        }
+
+        // (a missing file reads as -1 / null, so a broken trim fails its check by name instead of ending the self-test)
+        static long TrimLen(string f) { try { return File.Exists(f) ? new FileInfo(f).Length : -1; } catch { return -1; } }
+        static string TrimText(string f) { try { return File.Exists(f) ? File.ReadAllText(f) : null; } catch { return null; } }
 
         static void Misc()
         {

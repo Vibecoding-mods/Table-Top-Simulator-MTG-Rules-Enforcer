@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -19,12 +20,12 @@ namespace MtgCompanion
 
     public static class Log
     {
-        static readonly object gate = new object();
+        internal static readonly object Gate = new object(); // (LogTrim rolls companion.log under it too)
         public static string File;
         public static void Write(string line)
         {
             if (File == null) return;
-            lock (gate)
+            lock (Gate)
             {
                 try
                 {
@@ -40,6 +41,104 @@ namespace MtgCompanion
                 }
                 catch { }
             }
+        }
+    }
+
+    // The 14-day log trim's file work; the decisions are Logic's (TrimDue, TrimPlan, ArchivePath, TrimSummary).
+    // Never throws: a file that is locked or gone is skipped and named in the one line Run returns.
+    // The bridge writes its logs with fs.appendFile (open, write, close per line), so a rename between two lines is safe:
+    // the next line starts a new file.
+    public static class LogTrim
+    {
+        public static string StampFile(Layout l) { return Path.Combine(l.LogsDir, Logic.TrimStampName); }
+
+        // the last trim's time, or null: no stamp (trim at the next safe moment)
+        public static DateTime? LastTrim(Layout l)
+        {
+            try
+            {
+                var f = StampFile(l);
+                return File.Exists(f) ? Logic.ParseTrimStamp(File.ReadAllText(f)) : null;
+            }
+            catch { return null; }
+        }
+
+        // Trims every log in the plan, then writes the stamp (always: a file skipped now waits for the next trim, so a locked
+        // one can't make the others roll every hour). Returns the companion-log line.
+        public static string Run(Layout l, DateTime nowUtc)
+        {
+            var done = new List<TrimDone>();
+            foreach (var it in Logic.TrimPlan(l, ListFiles, SizeOf)) done.Add(One(l, it, nowUtc));
+            try
+            {
+                Directory.CreateDirectory(l.LogsDir);
+                File.WriteAllText(StampFile(l), Logic.TrimStampText(nowUtc));
+            }
+            catch (Exception e) { done.Add(new TrimDone { Name = Logic.TrimStampName, Error = e.Message }); }
+            return Logic.TrimSummary(done);
+        }
+
+        static string[] ListFiles(string dir)
+        {
+            try { return Directory.Exists(dir) ? Directory.GetFiles(dir) : new string[0]; }
+            catch { return new string[0]; }
+        }
+
+        static long SizeOf(string f)
+        {
+            try { var fi = new FileInfo(f); return fi.Exists ? fi.Length : -1; }
+            catch { return -1; }
+        }
+
+        static TrimDone One(Layout l, TrimItem it, DateTime nowUtc)
+        {
+            var d = new TrimDone { Name = Path.GetFileName(it.Path), Kind = it.Kind, Before = it.Size };
+            try
+            {
+                if (it.Kind == TrimKind.Delete) { File.Delete(it.Path); d.Freed = it.Size; }
+                else if (it.Kind == TrimKind.Archive) { d.After = Archive(it.Path, nowUtc.ToLocalTime()); d.Freed = it.Size - d.After; }
+                else if (string.Equals(it.Path, l.CompanionLog, StringComparison.OrdinalIgnoreCase)) { lock (Log.Gate) d.Freed = Roll(it.Path); }
+                else d.Freed = Roll(it.Path);
+            }
+            catch (Exception e) { d.Error = e.Message; }
+            return d;
+        }
+
+        // <name> -> <name>.old, replacing the earlier .old; the bytes freed are the earlier .old's
+        static long Roll(string file)
+        {
+            string old = file + ".old";
+            long freed = Math.Max(0, SizeOf(old));
+            if (File.Exists(old)) File.Delete(old);
+            File.Move(file, old);
+            return freed;
+        }
+
+        // table-log.log -> table-log.log.trimming (the bridge's next line starts a new file) -> log-archive\table-log-<date>.log.gz,
+        // then the .trimming is deleted and the live file is there, empty. A .trimming a failed run left is archived as it is
+        // (the plan puts it first). Compression goes to a .part first, so a half-written archive never takes the name.
+        // Returns the .gz's size.
+        static long Archive(string path, DateTime localNow)
+        {
+            bool leftover = path.EndsWith(Logic.TrimmingSuffix, StringComparison.OrdinalIgnoreCase);
+            string pending = leftover ? path : path + Logic.TrimmingSuffix;
+            string live = pending.Substring(0, pending.Length - Logic.TrimmingSuffix.Length);
+            if (!leftover) File.Move(path, pending); // (a leftover still in the way: throws, skipped, nothing moved)
+            string gz = Logic.ArchivePath(live, localNow, File.Exists), part = gz + ".part";
+            Directory.CreateDirectory(Path.GetDirectoryName(gz));
+            try
+            {
+                using (var src = new FileStream(pending, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (var dst = new FileStream(part, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var z = new GZipStream(dst, CompressionLevel.Optimal))
+                    src.CopyTo(z);
+                File.Move(part, gz);
+            }
+            catch { try { File.Delete(part); } catch { } throw; } // (the .trimming stays: the next trim archives it)
+            File.Delete(pending);
+            try { using (new FileStream(live, FileMode.OpenOrCreate, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete)) { } }
+            catch { } // (the bridge's next line creates it anyway)
+            return new FileInfo(gz).Length;
         }
     }
 
@@ -1110,6 +1209,22 @@ namespace MtgCompanion
             }
             UpdateTts();
             if (!Observe && Phase.StartsWith("Ready")) SetPhase(Rows.Any(r => r.V.Light == Light.Red) ? "Ready, with a problem: see the red light" : "Ready");
+            MaybeTrimLogs();
+        }
+
+        DateTime trimCheckedAt = DateTime.MinValue;
+        bool trimDue;
+
+        // The 14-day log trim (LogTrim; docs/companion-app-spec.md §7.1): the stamp is read once an hour, and a due trim
+        // runs on the first tick with no game on (Game is this tick's: MonitorTick refreshed it first).
+        internal void MaybeTrimLogs()
+        {
+            if (Observe) return;
+            var now = DateTime.UtcNow;
+            if ((now - trimCheckedAt).TotalMinutes >= 60) { trimCheckedAt = now; trimDue = Logic.TrimDue(LogTrim.LastTrim(L), now); }
+            if (!Logic.TrimNow(trimDue, Game, Observe)) return;
+            trimDue = false;
+            Log.Write(LogTrim.Run(L, now));
         }
 
         // ───────────────────────────── buttons and menu ─────────────────────────────

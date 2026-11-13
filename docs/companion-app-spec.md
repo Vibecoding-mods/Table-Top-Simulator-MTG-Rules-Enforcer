@@ -251,6 +251,27 @@ when nobody is looking) (`Controller.cs:340-373`). One thread, so two actions ne
 "Nobody is looking": the page sends polls; if none came for 20 s (`IdleSec`, `WebUi.cs:227, 446-450`) the watcher slows to 15 s;
 the next poll restores it and nudges an immediate tick (`WebUi.cs:452-456`).
 
+### 7.1 Log trim (every 14 days, between games)
+
+The last step of each watcher tick (`Controller.MaybeTrimLogs`) rolls the logs the bridge and the app write. The stamp file
+`log-trim.stamp` in the logs folder (`logs\` friend, `tmp\` home) holds the last trim's UTC time; it is read once an hour, and a
+trim is due when it is missing, 14 days old, or more than a day in the future (`Logic.TrimDue`). A due trim runs on the first
+tick with **no game** (`Logic.TrimNow`: Game on and Can't tell both wait; an `--observe` copy never trims). The decisions are
+`Logic.TrimKindOf` / `TrimPlan` / `ArchivePath` / `TrimSummary`; the file work is `LogTrim` (`Controller.cs`).
+
+| File | What the trim does |
+|---|---|
+| `table-log.log` (the real game history) | renamed to `.trimming`, gzipped to **`log-archive\table-log-YYYY-MM-DD.log.gz`** beside it (`-2`, `-3` for a second one that day), kept forever; the live file starts empty. A `.trimming` a failed run left is archived first at the next trim. |
+| `tts-stream*.jsonl` (`MTG_RECORD` recordings) | deleted |
+| `tts-console.log`, `game-log.txt`, `table-check.log`, `guess-log.log`, `companion.log` | renamed to `<name>.old`, replacing the earlier `.old` (so about 4 weeks stays readable) |
+| `bridge.log` / `tmp\bridge-live.log` and its `.1` | never: the bridge loop rolls it at 20 MB (`Program.cs`), and cmd holds it open |
+
+Folders: the logs folder, and in home mode `bridge\` too (a bridge started without `MTG_LOG_DIR` writes `tts-console.log` and
+`game-log.txt` there). Empty files are skipped. Renaming is safe while the bridge runs: it writes these with `fs.appendFile`
+(open, write, close per line). A locked or vanished file is skipped, never thrown; the stamp is written anyway (a skipped file
+waits for the next trim). One companion-log line says what happened, e.g. `log trim: freed 275.1 MB; table-log.log archived
+(14.0 MB to 1.3 MB .gz), tts-stream.jsonl deleted (180.3 MB), ..., guess-log.log skipped (<reason>).`
+
 ## 8. The status page (`WebUi.cs`, `WebPage.cs`)
 
 A `TcpListener` on `127.0.0.1:48790` (any free port if taken) with a hand-written HTTP/1.1 parser, because `HttpListener` can
@@ -440,6 +461,7 @@ not-public, available, downloading, ready, installing, restarting, updated, fail
 | `updates.json`, `github-token.bin`, `backup\` | same | check time, pending update, DPAPI token, save backups |
 | `companion.log` (5 MB then `.1`) | `logs\` or `tmp\` | lights, buttons, update steps (`Controller.cs:20-44`) |
 | `bridge.log` (20 MB then `.1`) | `logs\` or `tmp\bridge-live.log` | the bridge's stdout/stderr, `[bridge exited with code N; restarting in 3 s]` lines |
+| `log-trim.stamp`, `log-archive\table-log-YYYY-MM-DD.log.gz`, `<log>.old` | `logs\` or `tmp\` (`.old` also in `bridge\`, home) | the 14-day log trim (§7.1): its last run, the archived game history (kept forever), one previous roll of each other log |
 | `update-journal.json`, `updates\`, `backup\` | package folder | update bookkeeping |
 | `.wslconfig` (+ `.bak-<stamp>`) | `%USERPROFILE%` | only on the **Limit Docker's CPU use** button |
 | `TS_Save_N.json` (+ `.png`) | TTS Saves folder | only the table save step |
