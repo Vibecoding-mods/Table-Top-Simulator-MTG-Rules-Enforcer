@@ -1805,7 +1805,7 @@ do
     slotUntil = {}, slotOn = {}, slotText = {}, gen = 0, built = false, jumpNext = false, sndAt = {}, sndLast = -100,
     UNIT = 100, AX = 1, AY = 1, ROT0 = 180, LIFT = 0.7, CARD = 2.2, SHOW = false, SLOTS = 6, PER_BOARD = 6, MAX_RINGS = 4, MAX_HITS = 4,
     COLOURS = { "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" },
-    SOUND_OF = { knockout = "knockout", death = "death", player = "playerhit", damage = "damage", counter = "counter", countered = "countered" },
+    SOUND_OF = { knockout = "knockout", death = "death", wave = "death", player = "playerhit", damage = "damage", counter = "counter", countered = "countered" },
     WIPE = 3, BURST_MAX = 8, BIG_HIT = 5 }
   local TRACK = { White = "23e485", Red = "448880", Yellow = "37e533", Blue = "395037" }
   -- the carrier of the effect panels: White's life counter, else the first other one there is
@@ -1951,42 +1951,73 @@ do
   -- kind whose effect stands in when the bundle lacks one; RIG_LEN: how long each plays (s); RIG_AT: its start after
   -- the event (the knock-out's burst and sound are 0.6 s in); RIG_LEAD: the least time between the move and the
   -- trigger; RIG_TAIL: time for the last particles to fade before the rig goes back; RIG_LIFT: above the spot.
+  -- (2026-11-12, docs/particle-fx-spec.md: burn, the death from damage, falling back to death; wave, the coloured
+  -- board-wide sweep of a wipe, which has no stand-in: without it a wipe is the old cloud)
   FX.RIG_NAME = { death = "death", wipe = "death_wipe", exile = "exile", countered = "countered", damage = "damage",
-    player = "player_hit", counter = "counter", counter_minus = "counter_minus", lifegain = "lifegain", knockout = "knockout" }
-  FX.RIG_ELSE = { wipe = "death", player = "damage", counter_minus = "counter" }
+    player = "player_hit", counter = "counter", counter_minus = "counter_minus", lifegain = "lifegain", knockout = "knockout",
+    burn = "death_burn" }
+  FX.RIG_ELSE = { wipe = "death", player = "damage", counter_minus = "counter", burn = "death" }
   FX.RIG_LEN = { death = 1.0, wipe = 1.5, exile = 1.0, countered = 1.5, damage = 0.4, player = 0.5, counter = 0.6,
-    counter_minus = 0.6, lifegain = 1.0, knockout = 1.5 }
+    counter_minus = 0.6, lifegain = 1.0, knockout = 1.5, burn = 1.0, wave = 0.6 }
   FX.RIG_AT = { knockout = 0.6 }
   FX.RIG_LEAD, FX.RIG_TAIL, FX.RIG_LIFT, FX.RIG_PARK_Y = 0.1, 0.6, 0.3, -30
-  -- the rigs, looked for once a game (FX.build) and by engineFxTest: every "engine:fx" object with an AssetBundle. One
-  -- found above the table (a reload cut its effect short) goes back under it. The same look finds the sound object.
-  -- None there and a link in engineFxBundle: they are spawned (FX.RIGS rigs, one sound object), once.
-  FX.RIGS = 6
-  function FX.addRig(o)
+  -- The wipe (3 or more permanents to graveyards or exile on one board, FX.WIPE): one wave from the caster's side
+  -- (WAVE_BACK behind the middle of their playmat, toward their edge, local +z toward the table's centre, scaled by
+  -- WAVE_SCALE: at 1 the band is one seat wide and sweeps 17 units), in the cause's colour (WAVE_KEY when none is
+  -- known); then each card's own small death or exile, WIPE_FIRST after the wave and WIPE_STEP apart in the order the
+  -- wave reaches them, WIPE_DRAW at most (and only while a rig is free). TINT: the colour a neutral effect is tinted
+  -- with (engineFxTint), per key. All to be tuned on the real table.
+  FX.WIPE_DRAW, FX.WIPE_FIRST, FX.WIPE_STEP, FX.WAVE_SCALE, FX.WAVE_BACK, FX.WAVE_KEY = 8, 0.15, 0.12, 2, 6, "B"
+  FX.TINT = { W = { 0.95, 0.82, 0.48 }, U = { 0.56, 0.84, 1 }, B = { 0.67, 0.44, 0.99 }, R = { 1, 0.48, 0.23 },
+    G = { 0.56, 0.89, 0.42 }, C = { 0.82, 0.83, 0.86 }, M = { 0.91, 0.76, 0.35 } }
+  -- The bolts (the mtg-bolt bundle's rigs): MAX_BOLTS a board, BOLT_STEP apart; each hits BOLT_HIT after it plays
+  -- (the head's flight), plays BOLT_LEN; an exile's light leaves FLIGHT_AT after the exile starts. The fallback
+  -- (engineFxBoltMove) moves the rig over BOLT_FRAMES frames instead.
+  FX.MAX_BOLTS, FX.BOLT_STEP, FX.BOLT_HIT, FX.BOLT_LEN, FX.FLIGHT_AT, FX.BOLT_FRAMES = 4, 0.15, 0.25, 0.6, 0.7, 15
+  FX.atan2 = math.atan2 or math.atan -- (Lua 5.2's two-argument arc tangent; 5.3's math.atan takes both)
+  -- the rigs, looked for once a game (FX.build) and by engineFxTest: every "engine:fx" object with an AssetBundle, and
+  -- every "engine:bolt" one (the bolt bundle's). One found above the table (a reload cut its effect short) goes back
+  -- under it, at scale 1 and untinted. The same look finds the sound object. Fewer than FX.RIGS (FX.BOLTS) and a link
+  -- in engineFxBundle.fx (.bolt): the missing ones are spawned, once per load ("mtg fx off": none); one sound object.
+  FX.RIGS, FX.BOLTS = 6, 4
+  function FX.addRig(o, bolt)
     local p = o.getPosition()
     local home = p
     if p.y > FX.RIG_PARK_Y / 2 then home = Vector(p.x, FX.RIG_PARK_Y, p.z) o.setPosition(home) end
     o.interactable = false -- (over a card for a second: it mustn't take the clicks meant for the card)
-    FX.rigs[#FX.rigs + 1] = { o = o, home = home, busy = 0, use = 0 }
+    local s, c = o.getScale(), o.getColorTint()
+    if s ~= nil and math.abs(s.x - 1) > 0.001 then o.setScale(Vector(1, 1, 1)) end
+    if c ~= nil and (c.r or 1) + (c.g or 1) + (c.b or 1) < 2.99 then o.setColorTint({ 1, 1, 1 }) end
+    local list = bolt and FX.bolts or FX.rigs
+    list[#list + 1] = { o = o, home = home, busy = 0, use = 0, scale = 1 }
   end
   function FX.findRigs()
-    FX.rigs, FX.rigIdx = {}, nil
+    FX.rigs, FX.rigIdx, FX.bolts, FX.boltIdx = {}, nil, {}, nil
     local snd = nil
     for _, o in ipairs(getObjects()) do
       local gm = o.getGMNotes()
       if gm == "engine:fx" then FX.addRig(o)
+      elseif gm == "engine:bolt" then FX.addRig(o, true)
       elseif gm == "engine:sounds" then snd = o end
     end
     if snd ~= nil and FX.sndObj ~= snd then FX.sndObj, FX.sndIdx = snd, nil end
     local links = engineFxBundle or {}
-    if #FX.rigs == 0 and FX.bundleLink(links.fx) and not FX.spawnedFx then
-      FX.spawnedFx = true
-      for i = 1, FX.RIGS do
-        if not FX.spawnBundle(links.fx, "engine:fx", i, function(o) if FX.rigs ~= nil then FX.addRig(o) end end) then FX.spawnedFx = false break end
-      end
+    if engineFxMode ~= "off" then
+      FX.topUp(links.fx, "engine:fx", FX.rigs, FX.RIGS, "spawnedFx", 0)
+      FX.topUp(links.bolt, "engine:bolt", FX.bolts, FX.BOLTS, "spawnedBolt", 2)
     end
     if snd == nil and FX.bundleLink(links.sounds) and not FX.spawnedSnd then
       FX.spawnedSnd = FX.spawnBundle(links.sounds, "engine:sounds", 0, function(o) FX.sndObj, FX.sndIdx = o, nil end)
+    end
+  end
+  -- the rigs missing from a pool of `want` (list), spawned from `url` with GM notes gm, once per load (FX[flag]; a spawn
+  -- that raises leaves it unset, so the next game tries again); row: their park row
+  function FX.topUp(url, gm, list, want, flag, row)
+    if #list >= want or not FX.bundleLink(url) or FX[flag] then return end
+    FX[flag] = true
+    local bolt = gm == "engine:bolt"
+    for i = #list + 1, want do
+      if not FX.spawnBundle(url, gm, i, function(o) if FX.rigs ~= nil and FX.bolts ~= nil then FX.addRig(o, bolt) end end, row) then FX[flag] = false break end
     end
   end
   -- a usable bundle link (engineFxBundle): a non-empty string
@@ -1995,8 +2026,8 @@ do
   -- a Transform: without one real TTS's spawnObjectData raises "Object reference not set to an instance of an object"
   -- (seen live 2026-11-12, file:/// and https:// alike). True when the spawn was made; false (the error kept in
   -- FX.spawnErr) when it raised, so the caller can try again next game and the effects fall back to the UI slots.
-  function FX.spawnBundle(url, gm, n, done)
-    local x, z = -40 + 1.5 * n, 30
+  function FX.spawnBundle(url, gm, n, done, row)
+    local x, z = -40 + 1.5 * n, 30 + (row or 0)
     local ok, err = pcall(spawnObjectData, {
       data = { Name = "Custom_Assetbundle", Nickname = "", GMNotes = gm, Locked = true,
         Transform = { posX = x, posY = FX.RIG_PARK_Y, posZ = z, rotX = 0, rotY = 0, rotZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1 },
@@ -2008,104 +2039,167 @@ do
   end
   -- trigger effect name -> index, from the first rig whose bundle answers (they are copies of one bundle); asked again
   -- while the bundle is still loading (no AssetBundle yet, or an empty list), nil until then
-  function FX.rigIndex()
-    if FX.rigIdx ~= nil then return FX.rigIdx end
-    for _, r in ipairs(FX.rigs or {}) do
+  function FX.rigIndex(bolt)
+    local key = bolt and "boltIdx" or "rigIdx"
+    if FX[key] ~= nil then return FX[key] end
+    for _, r in ipairs((bolt and FX.bolts or FX.rigs) or {}) do
       local ab = not r.o.isDestroyed() and r.o.AssetBundle or nil
       if ab ~= nil then
         local ok, list = pcall(ab.getTriggerEffects)
         if ok and type(list) == "table" and #list > 0 then
-          FX.rigIdx = {}
-          for _, t in ipairs(list) do if t.name ~= nil then FX.rigIdx[t.name] = t.index end end
+          FX[key] = {}
+          for _, t in ipairs(list) do if t.name ~= nil then FX[key][t.name] = t.index end end
         end
         break
       end
     end
-    return FX.rigIdx
+    return FX[key]
   end
-  -- the kind of rig effect an event is: a wipe's cloud and a -1/-1 counter's ring have their own
+  -- the kind of rig effect an event is: a wipe's cloud, a death from damage and a -1/-1 counter's ring have their own
   function FX.rigKind(e)
     if e.kind == "death" and e.wipe then return "wipe" end
+    if e.kind == "death" and e.burn then return "burn" end
     if e.kind == "counter" and e.m1 then return "counter_minus" end
     return e.kind
   end
-  -- the bundle's trigger effect for a kind (its own, else its stand-in's), or nil: no rig, a bundle still loading, or
-  -- no such effect in it
-  function FX.rigName(k)
-    if FX.rigs == nil or #FX.rigs == 0 then return nil end
+  -- the bundle's trigger effect for a kind (its own, else its stand-in's), or nil: "mtg fx off", no rig, a bundle still
+  -- loading, or no such effect in it. An event with its own names (e.names: a wave, a tinted exile) takes the first of
+  -- them the bundle has, and its tint when that is e.tintName (the neutral effect); -> name, tint or nil
+  function FX.rigName(k, e)
+    if engineFxMode == "off" or FX.rigs == nil or #FX.rigs == 0 then return nil end
     local idx = FX.rigIndex()
     if idx == nil then return nil end
+    if e ~= nil and e.names ~= nil then
+      for _, name in ipairs(e.names) do if idx[name] ~= nil then return name, (name == e.tintName) and e.tint or nil end end
+      return nil
+    end
     for _, kk in ipairs({ k, FX.RIG_ELSE[k] or "" }) do
       local name = FX.RIG_NAME[kk]
       if name ~= nil and idx[name] ~= nil then return name end
     end
     return nil
   end
+  -- a free rig of a pool (now: os.clock()), or nil
+  function FX.freeRig(list, now)
+    for _, r in ipairs(list or {}) do if now >= r.busy and not r.o.isDestroyed() then return r end end
+    return nil
+  end
   -- one effect on a free rig, `delay` s from now: the rig moves there at once (so other players have its new spot
   -- before the trigger arrives), plays at least RIG_LEAD later, and goes back under the table once it is over (never
-  -- reused before). The trigger effect's name, or nil (no rig free, or none for it): the caller falls back to a slot.
+  -- reused before). e.rot / e.scale: a wave's turn and size (else the seat's turn, scale 1). The trigger effect's name,
+  -- or nil (no rig free, or none for it): the caller falls back to a slot.
   function FX.rigPlay(e, spot, delay, gen)
     local k = FX.rigKind(e)
-    local name = FX.rigName(k)
+    local name, tint = FX.rigName(k, e)
     if name == nil then return nil end
-    local now, rig = os.clock(), nil
-    for _, r in ipairs(FX.rigs) do if rig == nil and now >= r.busy and not r.o.isDestroyed() then rig = r end end
+    local rig = FX.freeRig(FX.rigs, os.clock())
     if rig == nil then return nil end
     local at = math.max(delay + (FX.RIG_AT[k] or 0), FX.RIG_LEAD)
-    local over = at + (FX.RIG_LEN[k] or 1) + FX.RIG_TAIL
-    rig.busy, rig.use = now + over, rig.use + 1
-    local use, o, idx = rig.use, rig.o, FX.rigIdx[name]
+    local g = e.rot == nil and e.seat and seatGeometry(e.seat) or nil
+    FX.rigGo(rig, Vector(spot.x, spot.y + FX.RIG_LIFT, spot.z), e.rot or Vector(0, g and g.rotY or 0, 0), e.scale or 1, tint,
+      FX.rigIdx[name], at, at + (FX.RIG_LEN[k] or 1) + FX.RIG_TAIL, gen)
+    return name
+  end
+  -- a rig taken: moved, turned, sized and tinted at once (each call only when it changes), trigger effect idx played
+  -- `at` s from now, and back under the table at `over` (scale 1, untinted)
+  function FX.rigGo(rig, pos, rot, scale, tint, idx, at, over, gen)
+    rig.busy, rig.use = os.clock() + over, rig.use + 1
+    local use, o = rig.use, rig.o
     -- (who mustn't see it: the players with effects off, one setInvisibleTo when that changes)
     local off = {}
     for _, c in ipairs(FX.COLOURS) do if engineEffectsOff[c] then off[#off + 1] = c end end
     local offKey = table.concat(off, "|")
     if rig.off ~= offKey then rig.off = offKey o.setInvisibleTo(off) end
-    local g = e.seat and seatGeometry(e.seat)
-    local rotY = g and g.rotY or 0
-    if rig.rotY ~= rotY then rig.rotY = rotY o.setRotation(Vector(0, rotY, 0)) end
-    o.setPosition(Vector(spot.x, spot.y + FX.RIG_LIFT, spot.z))
+    local rotKey = string.format("%.1f,%.1f,%.1f", rot.x, rot.y, rot.z)
+    if rig.rot ~= rotKey then rig.rot = rotKey o.setRotation(rot) end
+    if rig.scale ~= scale then rig.scale = scale o.setScale(Vector(scale, scale, scale)) end
+    local tintKey = tint and table.concat(tint, ",") or nil
+    if rig.tint ~= tintKey then rig.tint = tintKey o.setColorTint(tint or { 1, 1, 1 }) end
+    o.setPosition(pos)
     Wait.time(function()
       local ab = FX.gen == gen and rig.use == use and not o.isDestroyed() and o.AssetBundle or nil
-      if ab ~= nil then pcall(ab.playTriggerEffect, idx) end
+      if ab ~= nil and idx ~= nil then pcall(ab.playTriggerEffect, idx) end
     end, at)
-    Wait.time(function() if rig.use == use and not o.isDestroyed() then o.setPosition(rig.home) end end, over)
-    return name
+    Wait.time(function() if rig.use == use and not o.isDestroyed() then FX.park(rig) end end, over)
+  end
+  function FX.park(rig)
+    local o = rig.o
+    o.setPosition(rig.home)
+    if rig.scale ~= 1 then rig.scale = 1 o.setScale(Vector(1, 1, 1)) end
+    if rig.tint ~= nil then rig.tint = nil o.setColorTint({ 1, 1, 1 }) end
   end
   -- a new game: every rig still out goes back under the table, and the next game looks for them again
   function FX.rigsReset()
-    for _, r in ipairs(FX.rigs or {}) do
-      r.use = r.use + 1
-      if r.busy > os.clock() and not r.o.isDestroyed() then r.o.setPosition(r.home) end
-      r.busy = 0
+    for _, list in ipairs({ FX.rigs or {}, FX.bolts or {} }) do
+      for _, r in ipairs(list) do
+        r.use = r.use + 1
+        if r.busy > os.clock() and not r.o.isDestroyed() then FX.park(r) end
+        r.busy = 0
+      end
     end
-    FX.rigs, FX.rigIdx = nil, nil
+    FX.rigs, FX.rigIdx, FX.bolts, FX.boltIdx = nil, nil, nil, nil
+  end
+  -- ── the board's colours (docs/particle-fx-spec.md section 1: a wipe in its cause's colour, a bolt in its source's) ──
+  -- a colour key from the bridge's cl letters: W U B R G, C colourless, M two or more; nil unknown
+  function FX.keyOf(cl)
+    if type(cl) ~= "string" or cl == "" then return nil end
+    if #cl > 1 then return "M" end
+    if ("WUBRGC"):find(cl, 1, true) then return cl end
+    return nil
+  end
+  -- a card's cl: its static details, else a last board's stack item of it (prev: engineEffects' snapshot)
+  function FX.clOf(id, prev)
+    if id == nil then return nil end
+    local st = engineStatic[id]
+    if st ~= nil and st.cl ~= nil then return st.cl end
+    for _, s in ipairs(prev and prev.stack or {}) do if s.src == id and s.cl ~= nil then return s.cl end end
+    return nil
+  end
+  -- the bridge's battlefield departures by card (m.lv) and the cards hit on this board -> their source (m.hits; true
+  -- when it names none)
+  function FX.lvOf(m)
+    local out = {}
+    for _, x in ipairs(m.lv or {}) do if x.id ~= nil then out[x.id] = x end end
+    return out
+  end
+  function FX.hitOf(m)
+    local out = {}
+    for _, h in ipairs(m.hits or {}) do if h.to ~= nil then out[h.to] = h.src or out[h.to] or true end end
+    return out
   end
   -- the bundle objects belong to the table, not to a game: the sweep of engine objects, "mtg start" and the table's
   -- own check leave them alone
-  function engineIsBundleObject(gm) return gm == "engine:fx" or gm == "engine:sounds" end
+  function engineIsBundleObject(gm) return gm == "engine:fx" or gm == "engine:bolt" or gm == "engine:sounds" end
   -- one frame after the board (engineCombatLunge has stamped its hit times by then): start what fits, drop the rest
   -- kind: the board's sound (engineFxBoard picked it), played when the first event of that kind starts (a wipe's with
   -- the first death; a hit's with its first hit, FX.ofSound; a sound-only kind, exile, lifegain, a cast, at once); n: the
   -- board's count for it (its burst)
-  function FX.dispatch(m, ev, visual, gen, kind, n)
+  -- bolts: FX.boltsOf's, flown first (their impacts time their targets' effects, as the swings do)
+  function FX.dispatch(m, ev, visual, gen, kind, n, bolts)
     if FX.gen ~= gen then return end
     local t0 = os.clock()
     local hits = (engineLungeHits ~= nil and engineLungeHits.board == m) and engineLungeHits or {}
     local last = engineFxLast or {}
     last.fx, last.dropped = last.fx or {}, last.dropped or 0
+    if visual and bolts ~= nil and #bolts > 0 then hits = FX.boltsFire(bolts, gen, hits, last) end
     if visual and (FX.car == nil or FX.car.isDestroyed()) then FX.car = FX.carrier() end
     local started, deaths, soundAt = 0, 0, nil
     for _, e in ipairs(ev) do
       local hit = hits[e.id or e.seat]
       local delay = hit ~= nil and math.max(0, hit - os.clock()) or 0
-      if e.kind == "death" then delay = delay + 0.08 * deaths deaths = deaths + 1 end
+      -- (a wave's cards at their own times, e.at; a combat death is from damage too: a burn)
+      if e.at ~= nil then delay = e.at
+      elseif e.kind == "death" then delay = delay + 0.08 * deaths deaths = deaths + 1 end
+      if e.kind == "death" and hit ~= nil and not e.sac then e.burn = true end
       if soundAt == nil and kind ~= nil and FX.ofSound(e, kind) then soundAt = delay + (e.kind == "knockout" and 0.6 or 0) end
       if visual then
         local spot = e.spot
         if e.kind == "knockout" then local life = getObjectFromGUID(TRACK[e.seat] or "") spot = life and life.getPosition() end
-        -- (a rig of the effect bundle when there is one for it, else a slot; a bundle-only kind has no slot look)
-        local rig = (started < FX.PER_BOARD and spot ~= nil) and FX.rigPlay(e, spot, delay, gen) or nil
-        local key = (rig == nil and not e.rigOnly and started < FX.PER_BOARD and spot ~= nil and FX.car ~= nil) and FX.slot(e.kind == "knockout") or nil
+        -- (a rig of the effect bundle when there is one for it, else a slot; a bundle-only kind has no slot look; a
+        -- wave's cards have their own cap, FX.WIPE_DRAW, not the board's)
+        local room = e.under or started < FX.PER_BOARD
+        local rig = (room and spot ~= nil) and FX.rigPlay(e, spot, delay, gen) or nil
+        local key = (rig == nil and not e.rigOnly and room and spot ~= nil and FX.car ~= nil) and FX.slot(e.kind == "knockout") or nil
         if key ~= nil then
           local look = FX.look(e)
           look.spot, look.seat = spot, e.seat
@@ -2113,8 +2207,8 @@ do
           FX.slotUntil[key] = os.clock() + delay + look.stop
         end
         if key ~= nil or rig ~= nil then
-          started = started + 1
-          last.fx[#last.fx + 1] = { kind = e.kind, seat = e.seat, at = delay, x = spot.x, z = spot.z, n = e.n, slot = key, rig = rig }
+          if not e.under then started = started + 1 end
+          last.fx[#last.fx + 1] = { kind = e.kind, seat = e.seat, at = delay, x = spot.x, z = spot.z, n = e.n, slot = key, rig = rig, key = e.key }
           if e.kind == "player" then FX.glowLife(e.seat, { 1, 0.2, 0.15 }, 0.5, delay)
           elseif e.kind == "knockout" then FX.glowLife(e.seat, { 1, 0.15, 0.1 }, 0.7, delay) end
         else last.dropped = last.dropped + 1 end
@@ -2142,15 +2236,24 @@ do
   -- (then, with the effect bundle, exiles, countered spells and life gained). prev/now are engineEffects' snapshots,
   -- diedIds its deaths, exiledIds the permanents exiled, countered the last board's stack items countered. Picks the
   -- board's one sound by its counts per kind (FX.dispatch plays it). Returns how many (visual) events it found.
-  function engineFxBoard(m, prev, now, diedIds, exiledIds, countered)
+  function engineFxBoard(m, prev, now, diedIds, exiledIds, countered, lv)
     local ev, nOut = {}, 0
     local sortedKeys = function(t) local ks = {} for k in pairs(t) do ks[#ks + 1] = k end table.sort(ks) return ks end
     for _, c in ipairs(sortedKeys(now.status)) do
       if now.status[c] ~= "playing" and prev.status[c] == "playing" then ev[#ev + 1] = { kind = "knockout", seat = c } nOut = nOut + 1 end
     end
-    -- deaths by the battlefield they left; more than 3 on one = one bigger cloud with "×N" in the middle of them
+    -- a wipe with the bundle's wave (FX.waveOf): the wave and the cards' own effects, in place of the deaths below
+    -- and of its cards' exiles (inWave); causes: what caused it, which flies no bolt
+    lv = lv or {}
+    local hitBy = FX.hitOf(m)
+    local waveEv, inWave, causes = FX.waveOf(m, prev, now, diedIds, exiledIds, lv, hitBy)
+    inWave, causes = inWave or {}, causes or {}
+    for _, e in ipairs(waveEv or {}) do ev[#ev + 1] = e end
+    -- deaths by the battlefield they left; more than 3 on one = one bigger cloud with "×N" in the middle of them. A
+    -- death from damage (a hit on this board, not a sacrifice) is a burn on a rig (FX.rigKind); FX.dispatch adds the
+    -- combat ones, by the lunge
     local bySeat = {}
-    for _, ids in pairs(diedIds) do
+    for _, ids in pairs(waveEv == nil and diedIds or {}) do
       for _, id in ipairs(ids) do
         local x = prev.bf[id]
         if x ~= nil then bySeat[x.owner] = bySeat[x.owner] or {} table.insert(bySeat[x.owner], id) end
@@ -2168,7 +2271,8 @@ do
         for _, id in ipairs(list) do
           local p = prev.bf[id].pos
           local key = p and string.format("%.1f,%.1f", p.x, p.z)
-          if p ~= nil and not at[key] then at[key] = true ev[#ev + 1] = { kind = "death", seat = c, id = id, spot = p, n = 1 } end
+          local sac = lv[id] ~= nil and lv[id].how == "s"
+          if p ~= nil and not at[key] then at[key] = true ev[#ev + 1] = { kind = "death", seat = c, id = id, spot = p, n = 1, sac = sac, burn = hitBy[id] ~= nil and not sac or nil } end
         end
       end
     end
@@ -2214,14 +2318,26 @@ do
     -- with the effect bundle only (FX.rigName; no slot look of their own, rigOnly): permanents exiled (one per spot),
     -- a countered spell where it stood on the stack (engineFxStackSpot, the last board's), a player's life going up at
     -- their life counter
+    -- (an exile: tinted in its exiler's colour with engineFxTint, the neutral exile; and its light flies to the card that
+    -- exiled it when that is on the battlefield, lv's by or the exiled card's ew: a bolt, FX.boltsOf)
+    local flights = {}
     if FX.rigName("exile") ~= nil then
       local list, at = {}, {}
-      for _, id in ipairs(exiledIds or {}) do if prev.bf[id] ~= nil and prev.bf[id].pos ~= nil then list[#list + 1] = id end end
+      for _, id in ipairs(exiledIds or {}) do if prev.bf[id] ~= nil and prev.bf[id].pos ~= nil and not inWave[id] then list[#list + 1] = id end end
       table.sort(list)
       for _, id in ipairs(list) do
         local p = prev.bf[id].pos
         local key = string.format("%.1f,%.1f", p.x, p.z)
-        if not at[key] then at[key] = true ev[#ev + 1] = { kind = "exile", seat = prev.bf[id].owner, id = id, spot = p, n = 1, rigOnly = true } end
+        if not at[key] then
+          at[key] = true
+          local by = (lv[id] and lv[id].by) or (now.ew and now.ew[id]) or nil
+          local ck = FX.keyOf(FX.clOf(by, prev))
+          local e = { kind = "exile", seat = prev.bf[id].owner, id = id, spot = p, n = 1, rigOnly = true }
+          if engineFxTint == true and ck ~= nil then e.names, e.tint, e.tintName = { "exile_neutral", "exile" }, FX.TINT[ck], "exile_neutral" end
+          ev[#ev + 1] = e
+          local to = by ~= nil and by ~= id and now.bf[by] ~= nil and now.bf[by].pos or nil
+          if to then flights[#flights + 1] = { from = p, to = to, tgt = by, key = ck or "W", q = tonumber(lv[id] and lv[id].q) or 0, flight = true } end
+        end
       end
     end
     if FX.rigName("countered") ~= nil then
@@ -2253,13 +2369,180 @@ do
     local kind = nil
     for _, k in ipairs(engineSoundKinds or {}) do if kind == nil and (counts[k] or 0) > 0 and FX.picked(k) then kind = k end end
     local n = kind and counts[kind] or 1
-    if #ev == 0 and kind == nil then return 0 end
-    local visual = #ev > 0 and FX.visualsOn()
+    -- (the bolts: their spots now, before the stack is laid out again; flown one frame later with the rest)
+    local bolts = FX.boltsOf(m, prev, now, flights, causes)
+    if #ev == 0 and #bolts == 0 and kind == nil then return 0 end
+    local visual = (#ev > 0 or #bolts > 0) and FX.visualsOn()
     if not visual and kind == nil then return #ev end
     if visual and not FX.built then FX.build() end
     local gen = FX.gen
-    Wait.frames(function() FX.dispatch(m, ev, visual, gen, kind, n) end, 1)
+    Wait.frames(function() FX.dispatch(m, ev, visual, gen, kind, n, bolts) end, 1)
     return #ev
+  end
+  -- The wipe (FX.WIPE or more permanents to graveyards or exile on this board, every seat together): the wave, then
+  -- the cards' own death, burn or exile ("mtg fx on" only, FX.WIPE_DRAW at most); or nil: "mtg fx off", too few, or no
+  -- wave in the bundle (the old cloud then). Its colour is the commonest key among its cards' causes (lv's by, else the
+  -- source of the damage dealt to the card), else a stack item gone since the last board's, else FX.WAVE_KEY; its side
+  -- is that cause's controller's (the last board's stack item, else its battlefield), else the active player's.
+  -- -> events, { id = true } of its cards, { cause id = true }
+  function FX.waveOf(m, prev, now, diedIds, exiledIds, lv, hitBy)
+    if engineFxMode == "off" then return nil end
+    local gone, dead = {}, {}
+    for _, ids in pairs(diedIds) do
+      for _, id in ipairs(ids) do if prev.bf[id] ~= nil and prev.bf[id].pos ~= nil then gone[#gone + 1] = id dead[id] = true end end
+    end
+    for _, id in ipairs(exiledIds or {}) do if prev.bf[id] ~= nil and prev.bf[id].pos ~= nil then gone[#gone + 1] = id end end
+    if #gone < FX.WIPE then return nil end
+    table.sort(gone)
+    local count, byOf, causes = {}, {}, {}
+    for _, id in ipairs(gone) do
+      local by = (lv[id] and lv[id].by) or (type(hitBy[id]) == "string" and hitBy[id]) or nil
+      local key = FX.keyOf(FX.clOf(by, prev))
+      if by ~= nil then causes[by] = true end
+      if key ~= nil then count[key] = (count[key] or 0) + 1 byOf[key] = byOf[key] or by end
+    end
+    local key, best = nil, 0
+    for _, k in ipairs({ "W", "U", "B", "R", "G", "C", "M" }) do if (count[k] or 0) > best then key, best = k, count[k] end end
+    local by = key and byOf[key] or nil
+    if key == nil then
+      local still = {}
+      for _, st in ipairs(now.stack) do still[st.id] = true end
+      for _, st in ipairs(prev.stack) do if key == nil and not still[st.id] and FX.keyOf(st.cl) ~= nil then key, by = FX.keyOf(st.cl), st.src end end
+    end
+    local seat = nil
+    for _, st in ipairs(prev.stack) do if seat == nil and by ~= nil and st.src == by then seat = st.ctl end end
+    seat = seat or (by and ((prev.bf[by] and prev.bf[by].owner) or (now.bf[by] and now.bf[by].owner))) or m.active
+    local wave = FX.waveEvent(seat, key, #gone)
+    if wave == nil then return nil end
+    local o, dx, dz = wave.spot, wave.dx, wave.dz
+    local ev, inWave = { wave }, {}
+    for _, id in ipairs(gone) do inWave[id] = true end
+    if engineFxMode ~= "on" then return ev, inWave, causes end
+    -- (the cards in the order the wave reaches them, one per spot: grouped tokens share one)
+    local along, at = {}, {}
+    for _, id in ipairs(gone) do local p = prev.bf[id].pos along[id] = (p.x - o.x) * dx + (p.z - o.z) * dz end
+    table.sort(gone, function(a, b) if along[a] ~= along[b] then return along[a] < along[b] end return a < b end)
+    for _, id in ipairs(gone) do
+      local x = prev.bf[id]
+      local spotKey = string.format("%.1f,%.1f", x.pos.x, x.pos.z)
+      if #ev <= FX.WIPE_DRAW and not at[spotKey] then
+        at[spotKey] = true
+        local sac = lv[id] ~= nil and lv[id].how == "s"
+        ev[#ev + 1] = { kind = dead[id] and "death" or "exile", burn = dead[id] and hitBy[id] ~= nil and not sac or nil, sac = sac, seat = x.owner,
+          id = id, spot = x.pos, n = 1, rigOnly = true, under = true, at = FX.RIG_LEAD + FX.WIPE_FIRST + FX.WIPE_STEP * (#ev - 1) }
+      end
+    end
+    return ev, inWave, causes
+  end
+  -- one wave of n cards from seat's side in colour key (nil: FX.WAVE_KEY), or nil: no wave in the bundle, or no seat.
+  -- With engineFxTint the neutral wipe_wave tinted, else the baked death_wipe_<key> (each the other's stand-in). It
+  -- starts WAVE_BACK behind the middle of the seat's playmat, its local +z toward the table's centre (dx, dz).
+  function FX.waveEvent(seat, key, n)
+    key = (key ~= nil and FX.TINT[key] ~= nil) and key or FX.WAVE_KEY
+    local tint = engineFxTint == true
+    local wave = { kind = "wave", n = n, key = key, rigOnly = true, at = 0, tintName = "wipe_wave", tint = tint and FX.TINT[key] or nil,
+      names = tint and { "wipe_wave", "death_wipe_" .. key } or { "death_wipe_" .. key, "wipe_wave" } }
+    if FX.rigName("wave", wave) == nil then return nil end
+    local g = seat and seatGeometry(seat)
+    if g == nil then return nil end
+    local dx, dz = -g.mat.x, -g.mat.z
+    if dx * dx + dz * dz < 0.0001 then dx, dz = g.fwd.x, g.fwd.z end
+    local len = math.max(0.01, math.sqrt(dx * dx + dz * dz))
+    dx, dz = dx / len, dz / len
+    wave.seat, wave.dx, wave.dz = seat, dx, dz
+    wave.spot = Vector(g.mat.x - dx * FX.WAVE_BACK, g.mat.y, g.mat.z - dz * FX.WAVE_BACK)
+    wave.rot, wave.scale = Vector(0, math.deg(FX.atan2(dx, dz)), 0), FX.WAVE_SCALE
+    return wave
+  end
+  -- The board's bolts ("mtg fx on" only, docs/particle-fx-spec.md section 1): each hit of a spell or an ability (not
+  -- combat: the lunge shows that) at a card or a player, from where its source was (a spell: its spot on the last
+  -- board's stack; an ability: its source card) to its target, in the source's colour, in Forge's order (q); and the
+  -- exiles' lights (flights, engineFxBoard). A source with more than FX.MAX_BOLTS hits on this board (a sweep) or the
+  -- cause of this board's wave flies none; FX.MAX_BOLTS at most, the rest get only their impact (the target's own
+  -- effect, at once). -> { { from, to, tgt, key, q, flight } }
+  function FX.boltsOf(m, prev, now, flights, causes)
+    local out = {}
+    if engineFxMode ~= "on" then return out end
+    local per = {}
+    for _, h in ipairs(m.hits or {}) do if not h.combat and h.src ~= nil then per[h.src] = (per[h.src] or 0) + 1 end end
+    for _, h in ipairs(m.hits or {}) do
+      if not h.combat and h.src ~= nil and per[h.src] <= FX.MAX_BOLTS and not causes[h.src] then
+        local from = FX.boltFrom(h.src, prev, now)
+        local to = (LIFE_TRACKERS[h.to] ~= nil and enginePlayerSpot ~= nil and enginePlayerSpot(h.to)) or (prev.bf[h.to] and prev.bf[h.to].pos)
+          or (now.bf[h.to] and now.bf[h.to].pos) or nil
+        if from ~= nil and to ~= nil then out[#out + 1] = { from = from, to = to, tgt = h.to, key = FX.keyOf(FX.clOf(h.src, prev)), q = tonumber(h.q) or 0 } end
+      end
+    end
+    for _, x in ipairs(flights or {}) do out[#out + 1] = x end
+    table.sort(out, function(a, b) if a.q ~= b.q then return a.q < b.q end return tostring(a.tgt) < tostring(b.tgt) end)
+    while #out > FX.MAX_BOLTS do table.remove(out) end
+    return out
+  end
+  -- where a bolt of src starts: a spell's spot on the last board's stack (engineFxStackSpot, not yet laid out again),
+  -- an ability's source card (the last board's spot, else this one's); nil when neither (a spell no board showed)
+  function FX.boltFrom(src, prev, now)
+    for _, st in ipairs(prev.stack) do
+      if st.src == src then
+        if st.spell or st.sp then return engineFxStackSpot and engineFxStackSpot[st.id] or nil end
+        break
+      end
+    end
+    return (prev.bf[src] and prev.bf[src].pos) or (now.bf[src] and now.bf[src].pos) or nil
+  end
+  -- One bolt `at` s from now on a free bolt rig (b: FX.boltsOf's): at its start, turned so local +z points at the
+  -- target (yaw and pitch), scaled to the distance, bolt_<key> (else the red-orange bolt) played at `at`; the head
+  -- lands BOLT_HIT later. engineFxBoltMove (the fallback, should the bundle's animation not play): bolt_trail at
+  -- scale 1, the rig moved to the target over BOLT_FRAMES frames, bolt_impact there. -> the impact's os.clock(), name,
+  -- distance; nil when no bolt rig is free or the bundle has neither
+  function FX.boltPlay(b, at, gen)
+    if engineFxMode ~= "on" or FX.bolts == nil or #FX.bolts == 0 then return nil end
+    local idx = FX.rigIndex(true)
+    if idx == nil then return nil end
+    local move = engineFxBoltMove == true
+    local want = (b.key ~= nil and b.key ~= "C" and b.key ~= "M") and ("bolt_" .. b.key) or "bolt"
+    local name = move and "bolt_trail" or (idx[want] ~= nil and want or "bolt")
+    if idx[name] == nil then return nil end
+    local rig = FX.freeRig(FX.bolts, os.clock())
+    if rig == nil then return nil end
+    local a = Vector(b.from.x, b.from.y + FX.RIG_LIFT, b.from.z)
+    local z = Vector(b.to.x, b.to.y + FX.RIG_LIFT, b.to.z)
+    local dx, dy, dz = z.x - a.x, z.y - a.y, z.z - a.z
+    local d = math.sqrt(dx * dx + dy * dy + dz * dz)
+    if d < 0.05 then return nil end
+    local rot = Vector(-math.deg(math.asin(dy / d)), math.deg(FX.atan2(dx, dz)), 0)
+    local fly = move and (FX.BOLT_FRAMES / 60) or FX.BOLT_HIT
+    FX.rigGo(rig, a, rot, move and 1 or d, nil, idx[name], at, at + FX.BOLT_LEN + fly + FX.RIG_TAIL, gen)
+    if move then FX.boltMove(rig, a, z, at, gen, idx.bolt_impact) end
+    return os.clock() + at + fly, name, d
+  end
+  -- the fallback's flight: a straight move, one setPosition a frame, then the impact at the target
+  function FX.boltMove(rig, a, z, at, gen, impact)
+    local use, o = rig.use, rig.o
+    local step = 0
+    local function hop()
+      if FX.gen ~= gen or rig.use ~= use or o.isDestroyed() then return end
+      step = step + 1
+      local t = step / FX.BOLT_FRAMES
+      o.setPosition(Vector(a.x + (z.x - a.x) * t, a.y + (z.y - a.y) * t, a.z + (z.z - a.z) * t))
+      if step < FX.BOLT_FRAMES then Wait.frames(hop, 1)
+      elseif impact ~= nil and o.AssetBundle ~= nil then pcall(o.AssetBundle.playTriggerEffect, impact) end
+    end
+    Wait.time(function() Wait.frames(hop, 1) end, at)
+  end
+  -- the bolts flown (FX.dispatch, before the board's other events): each target's first impact becomes its hit time,
+  -- as the lunge's, so its damage, hit or death lands then. hits: the lunge's (copied, never changed). -> hit times
+  function FX.boltsFire(bolts, gen, hits, last)
+    local out = {}
+    for k, v in pairs(hits) do out[k] = v end
+    last.bolts = last.bolts or {}
+    for i, b in ipairs(bolts) do
+      local at = FX.RIG_LEAD + (i - 1) * FX.BOLT_STEP + (b.flight and FX.FLIGHT_AT or 0)
+      local imp, name, d = FX.boltPlay(b, at, gen)
+      if imp ~= nil and not b.flight and out[b.tgt] == nil then out[b.tgt] = imp end
+      last.bolts[#last.bolts + 1] = { name = name, at = at, d = d, tgt = b.tgt, flight = b.flight, key = b.key,
+        fx = b.from.x, fz = b.from.z, tx = b.to.x, tz = b.to.z }
+    end
+    return out
   end
   -- a burst (docs/sounds.md "Bursts"): the engineSounds key for n of a kind at once, the largest <kind>_x<N> with a
   -- pick and N at or under n, never over FX.BURST_MAX; the plain kind for 1 or when none fits
@@ -2298,12 +2581,26 @@ do
   -- for calibrating on the real table (real-table check 2): one slot on a card (engine id) or a player's spot (a
   -- colour) for 3 s; kind = "ring", "burst" or "smoke"; or a kind of the effect bundle (FX.RIG_NAME: "death", "wipe",
   -- "exile", ...) plays that on a rig (looked for again first, so a bundle put on the table mid-game shows)
-  function engineFxTest(kind, id)
+  -- (2026-11-12, for the live checks of docs/particle-fx-spec.md: "bolt" flies one from id to `to`, a card or a colour,
+  -- in colour key `key`; "wave" sweeps from colour id's side in key `to`, W U B R G C M)
+  function engineFxTest(kind, id, to, key)
     if not FX.built then FX.build() end
-    local spot = enginePlanned[id] or (engineObjs[id] ~= nil and not engineObjs[id].isDestroyed() and engineObjs[id].getPosition())
-      or (enginePlayerSpot ~= nil and LIFE_TRACKERS[id] ~= nil and enginePlayerSpot(id)) or nil
+    local spotOf = function(x) return enginePlanned[x] or (engineObjs[x] ~= nil and not engineObjs[x].isDestroyed() and engineObjs[x].getPosition())
+      or (enginePlayerSpot ~= nil and LIFE_TRACKERS[x] ~= nil and enginePlayerSpot(x)) or nil end
+    local spot = spotOf(id)
     if not spot then return "no such card or colour on the table" end
     local seat = (engineMeta[id] and engineMeta[id].color) or (LIFE_TRACKERS[id] ~= nil and id) or nil
+    if kind == "bolt" or kind == "wave" then
+      if FX.rigs == nil or (#FX.rigs == 0 and #FX.bolts == 0) or (kind == "bolt" and FX.boltIdx == nil) or (kind == "wave" and FX.rigIdx == nil) then FX.findRigs() end
+      if kind == "bolt" then
+        local dest = to and spotOf(to)
+        if not dest then return "no such target" end
+        return FX.boltPlay({ from = spot, to = dest, key = key }, FX.RIG_LEAD, FX.gen) and "shown" or "no free bolt rig with that bolt"
+      end
+      local e = FX.waveEvent(seat, to, 3)
+      if e == nil then return "no wave in the effect bundle, or no seat " .. tostring(id) end
+      return FX.rigPlay(e, e.spot, 0, FX.gen) and "shown" or "no free effect bundle rig"
+    end
     if FX.RIG_NAME[kind] ~= nil then
       if FX.rigs == nil or #FX.rigs == 0 or FX.rigIdx == nil then FX.findRigs() end
       if FX.rigPlay({ kind = kind, seat = seat }, spot, 0, FX.gen) == nil then return "no free effect bundle rig with " .. kind end
@@ -2451,7 +2748,7 @@ do
   function engineEffects(m)
     if not engineBoardNew then return end -- (a redraw of the same board: nothing happened)
     local prev = FX.prev
-    local now = { bf = {}, gy = {}, ex = {}, stack = {}, status = {}, life = {}, hc = {}, turn = tonumber(m.turn) }
+    local now = { bf = {}, gy = {}, ex = {}, ew = {}, stack = {}, status = {}, life = {}, hc = {}, turn = tonumber(m.turn) }
     for _, pl in ipairs(m.players or {}) do
       local c = pl.color
       if c ~= nil then
@@ -2464,7 +2761,7 @@ do
             dmg = tonumber(card.dmg) or 0, ctr = card.ctr }
         end
         for _, card in ipairs(pl.graveyard or {}) do now.gy[card.id] = c end
-        for _, card in ipairs(pl.exile or {}) do now.ex[card.id] = c end
+        for _, card in ipairs(pl.exile or {}) do now.ex[card.id] = c if card.ew ~= nil then now.ew[card.id] = card.ew end end
       end
     end
     for i, st in ipairs(m.stack or {}) do now.stack[i] = st end
@@ -2501,15 +2798,20 @@ do
     end
     -- exiled: battlefield -> exile, by the exile zone or by the bridge's exd (the engine's word on the move: a token
     -- exiled ceases to exist, and no board shows it in exile). Sound only (design section 6).
+    -- (and by the bridge's lv, every battlefield departure as the engine tells it, docs/particle-fx-spec.md section 3:
+    -- exiled too when it says e; a token it says went to a hand, a library or the command zone is no death)
     local exd, exiledIds = {}, {}
     for _, id in ipairs(m.exd or {}) do exd[id] = true end
+    local lv = FX.lvOf(m)
+    for id, x in pairs(lv) do if x.to == "e" then exd[id] = true end end
     for id in pairs(prev.bf) do
       if now.bf[id] == nil and (now.ex[id] ~= nil or exd[id]) then exiledIds[#exiledIds + 1] = id end
     end
     -- deaths: battlefield -> its owner's graveyard, and tokens that left the battlefield (they go nowhere) but not to exile
     local died, diedIds = {}, {}
     for id, x in pairs(prev.bf) do
-      if now.bf[id] == nil and (now.gy[id] ~= nil or (x.tok and not exd[id] and now.ex[id] == nil)) then
+      local away = lv[id] ~= nil and (lv[id].to == "h" or lv[id].to == "l" or lv[id].to == "c")
+      if now.bf[id] == nil and (now.gy[id] ~= nil or (x.tok and not exd[id] and now.ex[id] == nil and not away)) then
         local c = now.gy[id] or x.owner
         died[c] = (died[c] or 0) + 1
         diedIds[c] = diedIds[c] or {}
@@ -2576,7 +2878,7 @@ do
     -- step 4: the table effects and their sound (nothing found = no UI call at all)
     local counteredSt = {} -- (the spells countered, as the pop-up takes them: for the bundle's "countered" effect)
     for _, st in ipairs(prev.stack) do if countered[st.id] and (st.spell or st.sp) then counteredSt[#counteredSt + 1] = st end end
-    local okFx, errFx = pcall(engineFxBoard, m, prev, now, diedIds, exiledIds, counteredSt)
+    local okFx, errFx = pcall(engineFxBoard, m, prev, now, diedIds, exiledIds, counteredSt, lv)
     if not okFx then print("[MTG] table effects: " .. tostring(errFx)) end
   end
   -- a new game: the life counters light up again, nothing carried over (an effect still showing goes off)
@@ -4800,7 +5102,22 @@ engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }
 -- a link and no such object on the table, a game's first board spawns them once, parked under the table (fx: the
 -- pool of rigs, GM notes "engine:fx"; sounds: one object, "engine:sounds"); they then stay in the save. nil or "" =
 -- nothing spawned (rigs or a sound object already in the save are still used); with none, the effects are today's.
-engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/", sounds = nil }
+-- bolt: the bolt bundle (mtg-bolt.unity3d, rigs "engine:bolt"), not uploaded yet: no bolts until it is.
+engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/", sounds = nil, bolt = nil }
+-- The particle effects (docs/particle-fx-spec.md), "mtg fx on|low|off" (the host's, saved with the game): on, all of
+-- them; low, a wipe's wave without its cards' own deaths, and no bolts; off, no rig effect at all, the table as it was
+-- without the bundle (sounds, slots and flashes stay). engineFxTint: the host's flag for the live tint check (a
+-- neutral effect tinted by setColorTint instead of the baked colours); engineFxBoltMove: the bolt's fallback should
+-- the bundle's animation not play (Lua moves the rig).
+engineFxMode = engineFxMode or "on"
+engineFxTint = engineFxTint or false
+engineFxBoltMove = engineFxBoltMove or false
+function engineSetFxMode(mode, by)
+  if mode ~= "on" and mode ~= "low" and mode ~= "off" then return false end
+  engineFxMode = mode
+  broadcastToAll("[MTG] Table particle effects: " .. mode .. (by and (" (" .. by .. ")") or "") .. ".", {1, 0.85, 0.4})
+  return true
+end
 -- "mtg sounds on/off" and Settings → My sounds: the host mutes the table; anyone else is told it's shared
 function engineSetSounds(player, on)
   engineSoundOff[player.color] = (not on) or nil
@@ -6101,7 +6418,8 @@ function onSave()
   for guid, st in pairs(stashed) do
     s[guid] = { pos = { st.pos.x, st.pos.y, st.pos.z }, rot = { st.rot.x, st.rot.y, st.rot.z }, lock = st.lock }
   end
-  return JSON.encode({ engineStash = s })
+  -- (and the host's "mtg fx" setting, a word)
+  return JSON.encode({ engineStash = s, engineFx = engineFxMode })
 end
 
 Wait.frames(function()
@@ -6111,6 +6429,7 @@ Wait.frames(function()
       stashed[guid] = { pos = Vector(st.pos[1], st.pos[2], st.pos[3]), rot = Vector(st.rot[1], st.rot[2], st.rot[3]), lock = st.lock }
     end
   end
+  if ok and type(saved) == "table" and (saved.engineFx == "on" or saved.engineFx == "low" or saved.engineFx == "off") then engineFxMode = saved.engineFx end
   sweepEngineCards()
   restoreStash()
   engineSend("hello", { stamp = engineStamp(), keepRewind = true })
