@@ -1,0 +1,7 @@
+{
+  "label": "tutorial shot: several marks on one mat (MONARCH, RING TEMPTED 2, SPEED, EXTRA TURN)",
+  "keepHand": true,
+  "mana": 20,
+  "hand": ["Palace Jailer", "Claim the Precious", "Claim the Precious", "Burnout Bashtronaut", "Lightning Bolt", "Time Walk"],
+  "opponents": { "battlefield": ["Grizzly Bears", "Hill Giant", "Craw Wurm"] }
+}

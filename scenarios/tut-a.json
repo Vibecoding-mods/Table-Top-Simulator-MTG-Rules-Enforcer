@@ -1,0 +1,8 @@
+{
+  "label": "tutorial shots: Swiftspear prowess run (Resolve N×), Jace's ability panel, Thalia cost badge, Counterspell on Opt, a dungeon room box",
+  "mana": 10,
+  "hand": ["Lightning Bolt", "Lightning Bolt", "Opt", "Counterspell", "Chaos Warp"],
+  "battlefield": ["Monastery Swiftspear", "Monastery Swiftspear", "Monastery Swiftspear", "Monastery Swiftspear", "Jace Beleren"],
+  "dungeon": { "name": "Lost Mine of Phandelver", "room": "Goblin Lair" },
+  "opponents": { "battlefield": ["Thalia, Guardian of Thraben", "Grizzly Bears"] }
+}
