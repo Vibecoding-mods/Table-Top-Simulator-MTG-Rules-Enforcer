@@ -8059,8 +8059,11 @@ end
 
 -- Scoop: each seated player still in the game sees it beside their name at the top (screen UI). Also called after
 -- the screen UI is rebuilt (a game start seats players): the rebuilt XML starts with it hidden, and attributes set
--- while TTS is still loading new XML are lost.
+-- while TTS is still loading new XML are lost. So nothing until the rebuilt XML is ready: the setup buttons redraw in the
+-- frame the first board rebuilds it, and a "true" set then was lost in TTS and cached, so the redraw 3 frames later sent
+-- nothing and Scoop never showed (the user's 1v1, 2026-11-13).
 function engineScoopRedraw()
+  if not panelReady then return end
   local game = engineTable ~= nil and engineTable() or nil
   local running = ENGINE_MODE and game ~= nil and not game.gameOver
   for _, c in ipairs(SETUP.seats) do
