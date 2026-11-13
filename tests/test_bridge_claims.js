@@ -4392,7 +4392,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const t = sent(h, "table")[0] || { players: [] };
       const fix = (n) => h.B.fixOps([{ op: "commanderDamage", player: "Blue", from: "White", n }], b.gameView);
       const row = t.players.find((p) => p.slot === "player-0") || {};
-      const out = { row, fix18: fix(18) };
+      const out = { row, fix18: fix(18), fix12: fix(12), fix5: fix(5) };
       harness.restore();
       return out;
     };
@@ -4407,8 +4407,14 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("cmd damage: partners' 15 and 10 show 15, the most from one commander, not 25", a.row.cmdDamage?.White === 15, JSON.stringify(a.row.cmdDamage));
     ok("cmd damage: the tooltip lists each commander's damage", a.row.cmdTip?.White === `${name200}: 15\nTymna the Weaver: 10`, JSON.stringify(a.row.cmdTip));
     const b2 = await cmdTable((gv) => partners(gv, 10, 15));
-    ok("cmd damage: the counter turned to 18 sets the commander it shows (the second partner's 15), to 18",
-      JSON.stringify(b2.fix18.ops) === JSON.stringify([{ op: "commanderDamage", player: "player-0", from: "engine-card-1401", n: 18 }]), JSON.stringify(b2.fix18));
+    const cd = (from, n) => ({ op: "commanderDamage", player: "player-0", from, n });
+    ok("cmd damage: the counter raised to 18 sets the commander it shows (the second partner's 15), to 18, and no other",
+      JSON.stringify(b2.fix18.ops) === JSON.stringify([cd("engine-card-1401", 18)]), JSON.stringify(b2.fix18));
+    ok("cmd damage: lowered to 12, still above the other partner's 10: only the one shown",
+      JSON.stringify(b2.fix12.ops) === JSON.stringify([cd("engine-card-1401", 12)]), JSON.stringify(b2.fix12));
+    ok("cmd damage: lowered to 5, below the other partner's 10: that one comes down to 5 too (the counter would bounce back to 10)",
+      JSON.stringify(b2.fix5.ops) === JSON.stringify([cd("engine-card-1401", 5), cd("engine-card-200", 5)]), JSON.stringify(b2.fix5));
+    ok("cmd damage: and the change list says both", JSON.stringify(b2.fix5.lines) === JSON.stringify(["Blue: 5 damage from Tymna the Weaver", `Blue: 5 damage from ${name200}`]), JSON.stringify(b2.fix5.lines));
     const c = await cmdTable((gv) => {
       gv.players.find((p) => p.id === "player-1").commanderCasts = { "engine-card-1402": 0 };
       gv.players.find((p) => p.id === "player-0").commanderDamage = { "engine-card-1402": 7 };
@@ -4449,6 +4455,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("phases: an extra combat is the 2nd, the main phase after it the 3rd; a combat straight after a combat is the 2nd; a main 2 first seen is no extra, and the combat after it the 2nd",
       JSON.stringify(got) === JSON.stringify(want), got.join(" "));
     ok("phases: the same step again is the same phase", h.B.phaseNumber({ turn: 7, step: "main2" }) === null && h.B.phaseNumber({ turn: 7, step: "main2" }) === null);
+    const odd = [[9, "combatBegin"], [9, "combatDamage"], [9, "combatSomethingNew"], [9, "combatEnd"]].map(([turn, step]) => h.B.phaseNumber({ turn, step }));
+    ok("phases: a combat step the order doesn't know is no step back (no 2nd combat)", JSON.stringify(odd) === "[null,null,null,null]", JSON.stringify(odd));
     harness.restore();
     // the board: the second combat goes out as phaseNo 2, the first with none
     const h2 = harness.load();
@@ -4462,15 +4470,18 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     harness.restore();
   }
   // Skipped turns (skippedTurns): a turn that isn't extra goes to the next player after the last normal turn's; anyone
-  // still playing passed over was skipped. Three players.
+  // still playing passed over was skipped, walked in the turn order's direction as seen (it can be reversed). Four players.
   {
-    const P3 = ["player-0", "player-1", "player-2"];
+    const P4 = ["player-0", "player-1", "player-2", "player-3"];
     const tb = (turn, active, { extra = false, out = [], flag = true } = {}) => ({ turn, step: "upkeep", activePlayerId: active, priorityPlayerId: active, stack: [],
-      players: P3.map((id) => ({ id, life: 40, status: out.includes(id) ? "lost" : "playing", ...(flag ? { isExtraTurn: id === active && extra } : {}) })),
-      zones: P3.flatMap((ownerId) => ["library", "hand", "graveyard", "exile", "battlefield", "command"].map((zone) => ({ zone, ownerId, cards: [], count: 0 }))) });
+      players: P4.map((id) => ({ id, life: 40, status: out.includes(id) ? "lost" : "playing", ...(flag ? { isExtraTurn: id === active && extra } : {}) })),
+      zones: P4.flatMap((ownerId) => ["library", "hand", "graveyard", "exile", "battlefield", "command"].map((zone) => ({ zone, ownerId, cards: [], count: 0 }))) });
+    // (a run of turns: [turn, player number] or [turn, player number, options])
+    const run = (...steps) => steps.map(([t, p, o]) => tb(t, `player-${p}`, o));
     const linesOf = (seq) => {
       const h = harness.load();
-      setup(h, clone(F.board), { slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "AI 2" }, slotColor: { "player-0": "Blue", "player-1": "White", "player-2": "Red" } });
+      setup(h, clone(F.board), { slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "AI 2", "player-3": "AI 3" },
+        slotColor: { "player-0": "Blue", "player-1": "White", "player-2": "Red", "player-3": "Yellow" } });
       const all = [];
       for (let i = 1; i < seq.length; i++) all.push(...h.B.logEvents(h.B.logSnapshot(seq[i - 1]), h.B.logSnapshot(seq[i]), seq[i]));
       harness.restore();
@@ -4478,17 +4489,26 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     };
     const skips = (seq) => linesOf(seq).filter((l) => /skipped/.test(l));
     const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
-    same("skipped: the usual order says nothing", skips([tb(1, "player-0"), tb(2, "player-1"), tb(3, "player-2"), tb(4, "player-0")]), []);
-    same("skipped: the next player passed over is skipped, said above the new turn's header",
-      linesOf([tb(1, "player-0"), tb(2, "player-2")]), ["AI 1's turn is skipped", "--- AI 2's turn 1 ---"]);
-    same("skipped: the same player again, not an extra turn: everyone else was skipped", skips([tb(1, "player-0"), tb(2, "player-0")]), ["AI 1's turn is skipped", "AI 2's turn is skipped"]);
-    same("skipped: an extra turn for another player, then the normal order goes on: nothing", skips([tb(1, "player-0"), tb(2, "player-2", { extra: true }), tb(3, "player-1")]), []);
-    same("skipped: your own extra turn: nothing", skips([tb(1, "player-0"), tb(2, "player-0", { extra: true }), tb(3, "player-1")]), []);
-    same("skipped: after another player's extra turn, the normal next one passed over", skips([tb(1, "player-0"), tb(2, "player-2", { extra: true }), tb(3, "player-2")]), ["AI 1's turn is skipped"]);
-    same("skipped: a player who lost is passed over by the rules, not skipped", skips([tb(1, "player-0", { out: ["player-1"] }), tb(2, "player-2", { out: ["player-1"] })]), []);
-    same("skipped: an engine without the extra-turn flag says nothing", skips([tb(1, "player-0", { flag: false }), tb(2, "player-0", { flag: false })]), []);
-    same("skipped: a turn number that jumped (boards unseen) says nothing", skips([tb(1, "player-0"), tb(3, "player-2")]), []);
-    same("skipped: not from the mulligans (turn 0) to the first turn", skips([tb(0, "player-0"), tb(1, "player-0")]), []);
+    same("skipped: the usual order says nothing", skips(run([1, 0], [2, 1], [3, 2], [4, 3], [5, 0])), []);
+    same("skipped: the order seen, the next player passed over is skipped, said above the new turn's header",
+      linesOf(run([1, 0], [2, 1], [3, 3])), ["--- AI 1's turn 1 ---", "AI 2's turn is skipped", "--- AI 3's turn 1 ---"]);
+    same("skipped: before the order's direction is seen, nothing", skips(run([1, 0], [2, 2])), []);
+    same("skipped: the same player again, not an extra turn: everyone else was skipped (either way round)", skips(run([1, 0], [2, 0])), ["AI 1's turn is skipped", "AI 2's turn is skipped", "AI 3's turn is skipped"]);
+    same("skipped: an extra turn for another player, then the normal order goes on: nothing", skips(run([1, 0], [2, 2, { extra: true }], [3, 1])), []);
+    same("skipped: your own extra turn: nothing", skips(run([1, 0], [2, 0, { extra: true }], [3, 1])), []);
+    same("skipped: after another player's extra turn, the normal next one passed over", skips(run([1, 0], [2, 1], [3, 3, { extra: true }], [4, 3])), ["AI 2's turn is skipped"]);
+    const lost = { out: ["player-1"] };
+    same("skipped: a player who lost is passed over by the rules, not skipped", skips(run([1, 3, lost], [2, 0, lost], [3, 2, lost])), []);
+    same("skipped: an engine without the extra-turn flag says nothing", skips(run([1, 0, { flag: false }], [2, 0, { flag: false }])), []);
+    same("skipped: a turn number that jumped (boards unseen) says nothing", skips(run([1, 0], [2, 1], [4, 3])), []);
+    same("skipped: not from the mulligans (turn 0) to the first turn", skips(run([0, 0], [1, 0])), []);
+    // reversed turn order (Aeon Engine, Temple of Atropos)
+    same("skipped: a reversed order says nothing on its normal turns", skips(run([1, 0], [2, 3], [3, 2], [4, 1], [5, 0], [6, 3])), []);
+    same("skipped: a real skip in a reversed order is said, walked the reversed way", skips(run([1, 0], [2, 3], [3, 1])), ["AI 2's turn is skipped"]);
+    same("skipped: a reversal mid-game says nothing (D after A is no skip of B and C)", skips(run([1, 0], [2, 1], [3, 2], [4, 3], [5, 0], [6, 3], [7, 2], [8, 1], [9, 0])), []);
+    same("skipped: a turn the other way round leaves the direction unknown until it is seen again (it may have been a skip)",
+      skips(run([1, 0], [2, 1], [3, 0], [4, 2])), []);
+    same("skipped: and after a reversal, a skip once the new direction is seen is said", skips(run([1, 0], [2, 1], [3, 2], [4, 1], [5, 0], [6, 2])), ["AI 3's turn is skipped"]);
   }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
