@@ -83002,13 +83002,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Evolving Wilds' ability\n[time] Evolving Wilds goes to the graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Evolving Wilds' ability: search your library for a basic land card\n[time] Evolving Wilds goes to the graveyard\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Evolving Wilds' ability",
+      "Blue uses Evolving Wilds' ability: search your library for a basic land card",
       "Evolving Wilds goes to the graveyard"
      ]
     }
@@ -83160,7 +83160,7 @@
   "result": {
    "early": [],
    "lines": [
-    "Blue uses Evolving Wilds' ability",
+    "Blue uses Evolving Wilds' ability: search your library for a basic land card",
     "Evolving Wilds goes to the graveyard"
    ]
   }
@@ -96116,15 +96116,15 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Lightning Bolt\n[time] Blue uses Gilded Goose's ability\n[time] Tenacious Underdog's ability triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Lightning Bolt\n[time] Blue uses Gilded Goose's ability: create a Food token\n[time] Tenacious Underdog's ability triggers (Blue): you draw a card\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
       "Blue casts Lightning Bolt",
-      "Blue uses Gilded Goose's ability",
-      "Tenacious Underdog's ability triggers (Blue)"
+      "Blue uses Gilded Goose's ability: create a Food token",
+      "Tenacious Underdog's ability triggers (Blue): you draw a card"
      ]
     }
    },
@@ -96453,8 +96453,8 @@
   "result": {
    "lines": [
     "Blue casts Lightning Bolt",
-    "Blue uses Gilded Goose's ability",
-    "Tenacious Underdog's ability triggers (Blue)"
+    "Blue uses Gilded Goose's ability: create a Food token",
+    "Tenacious Underdog's ability triggers (Blue): you draw a card"
    ]
   }
  },
@@ -218980,13 +218980,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Hurloon Minotaur's ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Hurloon Minotaur's ability: draw a card\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Hurloon Minotaur's ability"
+      "Blue uses Hurloon Minotaur's ability: draw a card"
      ]
     }
    },
@@ -219107,7 +219107,7 @@
    }
   ],
   "result": [
-   "Blue uses Hurloon Minotaur's ability"
+   "Blue uses Hurloon Minotaur's ability: draw a card"
   ]
  },
  {
@@ -249426,13 +249426,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Taniwha's ability triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Taniwha's ability triggers (Blue): all lands you control phase out\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Taniwha's ability triggers (Blue)"
+      "Taniwha's ability triggers (Blue): all lands you control phase out"
      ]
     }
    },
@@ -250413,7 +250413,7 @@
    }
   ],
   "result": [
-   "Taniwha's ability triggers (Blue)",
+   "Taniwha's ability triggers (Blue): all lands you control phase out",
    "Forest returns to Blue's hand",
    "Blue puts Forest onto the battlefield",
    "Mountain phases out",
@@ -251439,13 +251439,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Sensei's Divining Top's ability\n[time] Blue draws a card\n[time] Sensei's Divining Top is put on top of Blue's library\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Sensei's Divining Top's ability: draw a card, then put Sensei's Divining Top on top of its owner's library\n[time] Blue draws a card\n[time] Sensei's Divining Top is put on top of Blue's library\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Sensei's Divining Top's ability",
+      "Blue uses Sensei's Divining Top's ability: draw a card, then put Sensei's Divining Top on top of its owner's library",
       "Blue draws a card",
       "Sensei's Divining Top is put on top of Blue's library"
      ]
@@ -251590,7 +251590,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Sensei's Divining Top's ability",
+    "Blue uses Sensei's Divining Top's ability: draw a card, then put Sensei's Divining Top on top of its owner's library",
     "Blue draws a card",
     "Sensei's Divining Top is put on top of Blue's library"
    ]
@@ -253781,13 +253781,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Sensei's Divining Top's ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Sensei's Divining Top's ability: draw a card, then put Sensei's Divining Top on top of its owner's library\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Sensei's Divining Top's ability"
+      "Blue uses Sensei's Divining Top's ability: draw a card, then put Sensei's Divining Top on top of its owner's library"
      ]
     }
    },
@@ -254069,7 +254069,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Sensei's Divining Top's ability",
+    "Blue uses Sensei's Divining Top's ability: draw a card, then put Sensei's Divining Top on top of its owner's library",
     "Blue draws a card",
     "Sensei's Divining Top is put on top of Blue's library"
    ]
@@ -255091,13 +255091,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Sensei's Divining Top's ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Sensei's Divining Top's ability: look at the top three cards of your library, then put them back in any order\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Sensei's Divining Top's ability"
+      "Blue uses Sensei's Divining Top's ability: look at the top three cards of your library, then put them back in any order"
      ]
     }
    },
@@ -255378,7 +255378,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Sensei's Divining Top's ability",
+    "Blue uses Sensei's Divining Top's ability: look at the top three cards of your library, then put them back in any order",
     "Sensei's Divining Top returns to Blue's hand"
    ]
   }
@@ -266420,13 +266420,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons' ability"
+      "Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons"
      ]
     }
    },
@@ -267005,7 +267005,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons' ability",
+    "Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons",
     "Blue casts Murder",
     "Drudge Skeletons regenerates"
    ]
@@ -268054,13 +268054,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Swarmyard's ability targeting Drudge Skeletons\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Swarmyard's ability targeting Drudge Skeletons: regenerate target Insect, Rat, Spider, or Squirrel\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Swarmyard's ability targeting Drudge Skeletons"
+      "Blue uses Swarmyard's ability targeting Drudge Skeletons: regenerate target Insect, Rat, Spider, or Squirrel"
      ]
     }
    },
@@ -268644,7 +268644,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Swarmyard's ability targeting Drudge Skeletons",
+    "Blue uses Swarmyard's ability targeting Drudge Skeletons: regenerate target Insect, Rat, Spider, or Squirrel",
     "Blue casts Murder",
     "Drudge Skeletons regenerates"
    ]
@@ -272856,13 +272856,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 uses Typhoid Rats' ability targeting Grizzly Bears\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 uses Typhoid Rats' ability targeting Grizzly Bears: goad target creature\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "AI 1 uses Typhoid Rats' ability targeting Grizzly Bears"
+      "AI 1 uses Typhoid Rats' ability targeting Grizzly Bears: goad target creature"
      ]
     }
    },
@@ -273309,7 +273309,7 @@
   ],
   "result": {
    "lines": [
-    "AI 1 uses Typhoid Rats' ability targeting Grizzly Bears",
+    "AI 1 uses Typhoid Rats' ability targeting Grizzly Bears: goad target creature",
     "Grizzly Bears is goaded by AI 1: it attacks each combat, a player other than AI 1 if able, until AI 1's next turn",
     "--- AI 1's turn 1 ---"
    ],
@@ -287454,13 +287454,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Case of the Locked Hothouse's ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Case of the Locked Hothouse's ability: you may play an additional land on each of your turns\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Case of the Locked Hothouse's ability"
+      "Blue uses Case of the Locked Hothouse's ability: you may play an additional land on each of your turns"
      ]
     }
    },
@@ -287707,13 +287707,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Case of the Locked Hothouse's ability\n"
+    "text": "[time] Blue uses Case of the Locked Hothouse's ability: to solve — You control seven or more lands\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Case of the Locked Hothouse's ability"
+      "Blue uses Case of the Locked Hothouse's ability: to solve — You control seven or more lands"
      ]
     }
    },
@@ -288002,8 +288002,8 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Case of the Locked Hothouse's ability",
-    "Blue uses Case of the Locked Hothouse's ability",
+    "Blue uses Case of the Locked Hothouse's ability: you may play an additional land on each of your turns",
+    "Blue uses Case of the Locked Hothouse's ability: to solve — You control seven or more lands",
     "Case of the Locked Hothouse is solved"
    ],
    "kw": [
@@ -291716,13 +291716,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Shifting Woodland's ability\n"
+    "text": "[time] Blue uses Shifting Woodland's ability: it becomes a copy of target permanent card in your graveyard until end of turn\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Shifting Woodland's ability"
+      "Blue uses Shifting Woodland's ability: it becomes a copy of target permanent card in your graveyard until end of turn"
      ]
     }
    },
@@ -292002,7 +292002,7 @@
   ],
   "result": [
    "Frontline Medic's battalion triggers (Blue)",
-   "Blue uses Shifting Woodland's ability"
+   "Blue uses Shifting Woodland's ability: it becomes a copy of target permanent card in your graveyard until end of turn"
   ]
  },
  {
@@ -298440,13 +298440,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons' ability"
+      "Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons"
      ]
     }
    },
@@ -298722,7 +298722,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons' ability",
+    "Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons",
     "Drudge Skeletons regenerates"
    ]
   }
@@ -301092,13 +301092,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons' ability"
+      "Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons"
      ]
     }
    },
@@ -301219,13 +301219,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] Blue uses Drudge Skeletons' ability: add {B}\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons' ability"
+      "Blue uses Drudge Skeletons' ability: add {B}"
      ]
     }
    },
@@ -301374,8 +301374,8 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons' ability",
-    "Blue uses Drudge Skeletons' ability"
+    "Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons",
+    "Blue uses Drudge Skeletons' ability: add {B}"
    ]
   }
  },
@@ -302395,13 +302395,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons' ability"
+      "Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons"
      ]
     }
    },
@@ -302678,7 +302678,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons' ability",
+    "Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons",
     "Blue attacks with Drudge Skeletons"
    ]
   }
@@ -303699,13 +303699,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability: regenerate target creature\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons' ability"
+      "Blue uses Drudge Skeletons' ability: regenerate target creature"
      ]
     }
    },
@@ -303969,7 +303969,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons' ability"
+    "Blue uses Drudge Skeletons' ability: regenerate target creature"
    ]
   }
  },
@@ -304989,13 +304989,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Drudge Skeletons' ability"
+      "Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons"
      ]
     }
    },
@@ -305554,7 +305554,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Drudge Skeletons' ability",
+    "Blue uses Drudge Skeletons' ability: regenerate Drudge Skeletons",
     "Drudge Skeletons regenerates"
    ]
   }
@@ -315554,13 +315554,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Tangle Wire's ability triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Tangle Wire's ability triggers (Blue): that player taps an untapped artifact, creature, or land they control for each fade...\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Tangle Wire's ability triggers (Blue)"
+      "Tangle Wire's ability triggers (Blue): that player taps an untapped artifact, creature, or land they control for each fade..."
      ]
     }
    },
@@ -316316,15 +316316,15 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Tangle Wire's ability triggers (Blue)\n[time] Aeon Engine's ability triggers (Blue)\n[time] Blastoderm's ability triggers (Blue)\n"
+    "text": "[time] Tangle Wire's ability triggers (Blue): remove a fade counter from Tangle Wire\n[time] Aeon Engine's ability triggers (Blue): put a time counter on it\n[time] Blastoderm's ability triggers (Blue): remove a fade counter from Blastoderm\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Tangle Wire's ability triggers (Blue)",
-      "Aeon Engine's ability triggers (Blue)",
-      "Blastoderm's ability triggers (Blue)"
+      "Tangle Wire's ability triggers (Blue): remove a fade counter from Tangle Wire",
+      "Aeon Engine's ability triggers (Blue): put a time counter on it",
+      "Blastoderm's ability triggers (Blue): remove a fade counter from Blastoderm"
      ]
     }
    },
@@ -316655,13 +316655,13 @@
   ],
   "result": {
    "lines": [
-    "Tangle Wire's ability triggers (Blue)",
+    "Tangle Wire's ability triggers (Blue): that player taps an untapped artifact, creature, or land they control for each fade...",
     "Tangle Wire loses a fade counter (3 left)",
     "Aeon Engine gets 2 time counters (3 in all)",
     "AI 1 taps Taiga, Garruk's Companion (Tangle Wire)",
-    "Tangle Wire's ability triggers (Blue)",
-    "Aeon Engine's ability triggers (Blue)",
-    "Blastoderm's ability triggers (Blue)",
+    "Tangle Wire's ability triggers (Blue): remove a fade counter from Tangle Wire",
+    "Aeon Engine's ability triggers (Blue): put a time counter on it",
+    "Blastoderm's ability triggers (Blue): remove a fade counter from Blastoderm",
     "Tangle Wire is sacrificed",
     "Aeon Engine goes to the graveyard",
     "Blastoderm is sacrificed"
@@ -330247,15 +330247,15 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue gets 4 energy (4 in all)\n[time] AI 1 gains control of Volatile Stormdrake\n[time] Blue gains control of Precinct Captain\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue gets 4 energy (4 in all)\n[time] AI 1 gains control of Volatile Stormdrake from Blue\n[time] Blue gains control of Precinct Captain from AI 1\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
       "Blue gets 4 energy (4 in all)",
-      "AI 1 gains control of Volatile Stormdrake",
-      "Blue gains control of Precinct Captain"
+      "AI 1 gains control of Volatile Stormdrake from Blue",
+      "Blue gains control of Precinct Captain from AI 1"
      ]
     }
    },
@@ -330595,8 +330595,8 @@
   ],
   "result": [
    "Blue gets 4 energy (4 in all)",
-   "AI 1 gains control of Volatile Stormdrake",
-   "Blue gains control of Precinct Captain",
+   "AI 1 gains control of Volatile Stormdrake from Blue",
+   "Blue gains control of Precinct Captain from AI 1",
    "Blue pays 2 energy (2 left)"
   ]
  },
@@ -335357,13 +335357,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] AI 1 becomes the monarch\n[time] Blue takes the initiative\n"
+    "text": "[time] AI 1 becomes the monarch (from Blue)\n[time] Blue takes the initiative\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "AI 1 becomes the monarch",
+      "AI 1 becomes the monarch (from Blue)",
       "Blue takes the initiative"
      ]
     }
@@ -335493,7 +335493,7 @@
   "result": {
    "lines": [
     "Blue becomes the monarch",
-    "AI 1 becomes the monarch",
+    "AI 1 becomes the monarch (from Blue)",
     "Blue takes the initiative"
    ],
    "rows": [
@@ -385246,13 +385246,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Elvish Visionary's ability triggers (Blue)\n"
+    "text": "[time] Elvish Visionary's ability triggers (Blue): draw a card\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Elvish Visionary's ability triggers (Blue)"
+      "Elvish Visionary's ability triggers (Blue): draw a card"
      ]
     }
    },
@@ -385387,7 +385387,7 @@
    "lines": [
     "Blue casts Elvish Visionary",
     "Elvish Visionary enters the battlefield (Blue)",
-    "Elvish Visionary's ability triggers (Blue)"
+    "Elvish Visionary's ability triggers (Blue): draw a card"
    ]
   }
  },
@@ -387935,13 +387935,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Evolving Wilds' ability\n[time] Evolving Wilds goes to the graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Evolving Wilds' ability: search your library for a basic land card\n[time] Evolving Wilds goes to the graveyard\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Evolving Wilds' ability",
+      "Blue uses Evolving Wilds' ability: search your library for a basic land card",
       "Evolving Wilds goes to the graveyard"
      ]
     }
@@ -388092,7 +388092,7 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Evolving Wilds' ability",
+    "Blue uses Evolving Wilds' ability: search your library for a basic land card",
     "Evolving Wilds goes to the graveyard"
    ]
   }
@@ -390683,14 +390683,14 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Evolving Wilds' ability\n[time] Blue uses Evolving Wilds' ability\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Evolving Wilds' ability: draw a card\n[time] Blue uses Evolving Wilds' ability: draw a card\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Evolving Wilds' ability",
-      "Blue uses Evolving Wilds' ability"
+      "Blue uses Evolving Wilds' ability: draw a card",
+      "Blue uses Evolving Wilds' ability: draw a card"
      ]
     }
    },
@@ -390964,8 +390964,8 @@
   ],
   "result": {
    "lines": [
-    "Blue uses Evolving Wilds' ability",
-    "Blue uses Evolving Wilds' ability"
+    "Blue uses Evolving Wilds' ability: draw a card",
+    "Blue uses Evolving Wilds' ability: draw a card"
    ]
   }
  },
@@ -533283,13 +533283,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Evolving Wilds' ability triggers (Blue)\n"
+    "text": "[time] Evolving Wilds' ability triggers (Blue): you gain 1 life\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Evolving Wilds' ability triggers (Blue)"
+      "Evolving Wilds' ability triggers (Blue): you gain 1 life"
      ]
     }
    },
@@ -533424,7 +533424,7 @@
    "Evolving Wilds' cumulative upkeep: pay {1} for each age counter on it, or it is sacrificed",
    "Evolving Wilds' cumulative upkeep: pay 2 life for each age counter on it, or it is sacrificed",
    "Evolving Wilds' cumulative upkeep: pay {2}{U} for each age counter on it, or it is sacrificed",
-   "Evolving Wilds' ability triggers (Blue)"
+   "Evolving Wilds' ability triggers (Blue): you gain 1 life"
   ]
  },
  {
@@ -568060,13 +568060,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Tooth and Nail's ability triggers (Blue)\n"
+    "text": "[time] Tooth and Nail's ability triggers (Blue): you gain 1 life\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Tooth and Nail's ability triggers (Blue)"
+      "Tooth and Nail's ability triggers (Blue): you gain 1 life"
      ]
     }
    },
@@ -568210,7 +568210,7 @@
   ],
   "result": [
    "Blue casts Tooth and Nail",
-   "Tooth and Nail's ability triggers (Blue)"
+   "Tooth and Nail's ability triggers (Blue): you gain 1 life"
   ]
  },
  {
@@ -620692,13 +620692,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Gudul Lurker's ability\n[time] Gudul Lurker is turned face up (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue uses Gudul Lurker's ability: draw a card\n[time] Gudul Lurker is turned face up (Blue)\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Gudul Lurker's ability",
+      "Blue uses Gudul Lurker's ability: draw a card",
       "Gudul Lurker is turned face up (Blue)"
      ]
     }
@@ -621614,7 +621614,7 @@
     "Gudul Lurker is turned face up (Blue)"
    ],
    [
-    "Blue uses Gudul Lurker's ability",
+    "Blue uses Gudul Lurker's ability: draw a card",
     "Gudul Lurker is turned face up (Blue)"
    ],
    [
@@ -644302,13 +644302,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Eternal Dominion's ability triggers (Blue)\n"
+    "text": "[time] Eternal Dominion's ability triggers (Blue): copy this spell except for its epic ability\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Eternal Dominion's ability triggers (Blue)"
+      "Eternal Dominion's ability triggers (Blue): copy this spell except for its epic ability"
      ]
     }
    },
@@ -646804,7 +646804,7 @@
    "Blue copies Incarnation Technique",
    "Blue copies Incarnation Technique",
    "AI 1 controls that copy of Incarnation Technique",
-   "Eternal Dominion's ability triggers (Blue)",
+   "Eternal Dominion's ability triggers (Blue): copy this spell except for its epic ability",
    "Blue copies Eternal Dominion",
    "Improvisation Capstone's paradigm triggers (Blue)",
    "Blue copies Improvisation Capstone",
@@ -730497,14 +730497,14 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Lizard Blades enters the battlefield (Blue)\n[time] Evolving Wilds' ability triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Lizard Blades enters the battlefield (Blue)\n[time] Evolving Wilds' ability triggers (Blue): you may put a permanent card from your hand onto the battlefield\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
       "Lizard Blades enters the battlefield (Blue)",
-      "Evolving Wilds' ability triggers (Blue)"
+      "Evolving Wilds' ability triggers (Blue): you may put a permanent card from your hand onto the battlefield"
      ]
     }
    },
@@ -730959,13 +730959,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Evolving Wilds' ability triggers (Blue)\n"
+    "text": "[time] Evolving Wilds' ability triggers (Blue): you may put a permanent card from your hand onto the battlefield\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Evolving Wilds' ability triggers (Blue)"
+      "Evolving Wilds' ability triggers (Blue): you may put a permanent card from your hand onto the battlefield"
      ]
     }
    },
@@ -731431,7 +731431,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Grizzly Bears dies\n[time] Evolving Wilds' ability triggers (Blue)\n"
+    "text": "[time] Grizzly Bears dies\n[time] Evolving Wilds' ability triggers (Blue): you may put a permanent card from your hand onto the battlefield\n"
    },
    {
     "tts": {
@@ -731445,7 +731445,7 @@
      "t": "gamelog",
      "lines": [
       "Grizzly Bears dies",
-      "Evolving Wilds' ability triggers (Blue)"
+      "Evolving Wilds' ability triggers (Blue): you may put a permanent card from your hand onto the battlefield"
      ]
     }
    },
@@ -731729,13 +731729,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Evolving Wilds' ability\n[time] Llanowar Elves enters the battlefield (Blue)\n"
+    "text": "[time] Blue uses Evolving Wilds' ability: proliferate\n[time] Llanowar Elves enters the battlefield (Blue)\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Evolving Wilds' ability",
+      "Blue uses Evolving Wilds' ability: proliferate",
       "Llanowar Elves enters the battlefield (Blue)"
      ]
     }
@@ -732082,12 +732082,12 @@
   ],
   "result": [
    "Lizard Blades enters the battlefield (Blue)",
-   "Evolving Wilds' ability triggers (Blue)",
-   "Evolving Wilds' ability triggers (Blue)",
+   "Evolving Wilds' ability triggers (Blue): you may put a permanent card from your hand onto the battlefield",
+   "Evolving Wilds' ability triggers (Blue): you may put a permanent card from your hand onto the battlefield",
    "Grizzly Bears enters the battlefield (Blue)",
    "Grizzly Bears dies",
-   "Evolving Wilds' ability triggers (Blue)",
-   "Blue uses Evolving Wilds' ability",
+   "Evolving Wilds' ability triggers (Blue): you may put a permanent card from your hand onto the battlefield",
+   "Blue uses Evolving Wilds' ability: proliferate",
    "Llanowar Elves enters the battlefield (Blue)"
   ]
  },
@@ -814632,7 +814632,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue loses 3 poison counters (0 in all)\n[time] AI 1 pays 5 energy (0 left)\n[time] AI 1 becomes the monarch\n[time] Blue takes the initiative\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue loses 3 poison counters (0 in all)\n[time] AI 1 pays 5 energy (0 left)\n[time] AI 1 becomes the monarch (from Blue)\n[time] Blue takes the initiative (from AI 1)\n"
    },
    {
     "tts": {
@@ -814640,8 +814640,8 @@
      "lines": [
       "Blue loses 3 poison counters (0 in all)",
       "AI 1 pays 5 energy (0 left)",
-      "AI 1 becomes the monarch",
-      "Blue takes the initiative"
+      "AI 1 becomes the monarch (from Blue)",
+      "Blue takes the initiative (from AI 1)"
      ]
     }
    },
@@ -816186,7 +816186,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue loses a poison counter (1 in all)\n[time] AI 1 gets 3 poison counters (4 in all)\n[time] Blue pays 2 energy (1 left)\n[time] AI 1 becomes the monarch\n[time] Blue takes the initiative\n[time] Blue ventures into Temple of Dumathoin (Lost Mine of Phandelver)\n"
+    "text": "[time] Blue loses a poison counter (1 in all)\n[time] AI 1 gets 3 poison counters (4 in all)\n[time] Blue pays 2 energy (1 left)\n[time] AI 1 becomes the monarch (from Blue)\n[time] Blue takes the initiative (from AI 1)\n[time] Blue ventures into Temple of Dumathoin (Lost Mine of Phandelver)\n"
    },
    {
     "tts": {
@@ -816195,8 +816195,8 @@
       "Blue loses a poison counter (1 in all)",
       "AI 1 gets 3 poison counters (4 in all)",
       "Blue pays 2 energy (1 left)",
-      "AI 1 becomes the monarch",
-      "Blue takes the initiative",
+      "AI 1 becomes the monarch (from Blue)",
+      "Blue takes the initiative (from AI 1)",
       "Blue ventures into Temple of Dumathoin (Lost Mine of Phandelver)"
      ]
     }
@@ -816916,8 +816916,8 @@
     "Blue loses a poison counter (1 in all)",
     "AI 1 gets 3 poison counters (4 in all)",
     "Blue pays 2 energy (1 left)",
-    "AI 1 becomes the monarch",
-    "Blue takes the initiative",
+    "AI 1 becomes the monarch (from Blue)",
+    "Blue takes the initiative (from AI 1)",
     "Blue ventures into Temple of Dumathoin (Lost Mine of Phandelver)"
    ],
    [],
@@ -824797,13 +824797,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] Blue uses Polluted Delta's ability\n[time] Polluted Delta is put into Blue's graveyard\n"
+    "text": "[time] Blue uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle\n[time] Polluted Delta is put into Blue's graveyard\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue uses Polluted Delta's ability",
+      "Blue uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle",
       "Polluted Delta is put into Blue's graveyard"
      ]
     }
@@ -825430,7 +825430,7 @@
     "turn": 6,
     "step": "main1",
     "lines": [
-     "Blue uses Polluted Delta's ability",
+     "Blue uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle",
      "Polluted Delta is put into Blue's graveyard"
     ],
     "labels": [
@@ -826501,13 +826501,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 uses Polluted Delta's ability\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "AI 1 uses Polluted Delta's ability",
+      "AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle",
       "Polluted Delta is put into AI 1's graveyard",
       "Blue controls AI 1 for now"
      ]
@@ -826993,14 +826993,14 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 3 ---\n[time] AI 1 uses Polluted Delta's ability\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
+    "text": "[time] --- Blue's turn 3 ---\n[time] AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
       "--- Blue's turn 3 ---",
-      "AI 1 uses Polluted Delta's ability",
+      "AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle",
       "Polluted Delta is put into AI 1's graveyard",
       "Blue controls AI 1 for now"
      ]
@@ -827303,7 +827303,7 @@
     "turn": 5,
     "step": "main1",
     "lines": [
-     "AI 1 uses Polluted Delta's ability",
+     "AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle",
      "Polluted Delta is put into AI 1's graveyard",
      "Blue controls AI 1 for now"
     ],
@@ -827342,7 +827342,7 @@
     "step": "main1",
     "lines": [
      "--- Blue's turn 3 ---",
-     "AI 1 uses Polluted Delta's ability",
+     "AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle",
      "Polluted Delta is put into AI 1's graveyard",
      "Blue controls AI 1 for now"
     ],
@@ -828396,14 +828396,14 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- AI 1's turn 3 ---\n[time] AI 1 uses Polluted Delta's ability\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- AI 1's turn 3 ---\n[time] AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
       "--- AI 1's turn 3 ---",
-      "AI 1 uses Polluted Delta's ability",
+      "AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle",
       "Polluted Delta is put into AI 1's graveyard",
       "Blue controls AI 1 for now"
      ]
@@ -828889,13 +828889,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] AI 1 uses Polluted Delta's ability\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
+    "text": "[time] AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle\n[time] Polluted Delta is put into AI 1's graveyard\n[time] Blue controls AI 1 for now\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "AI 1 uses Polluted Delta's ability",
+      "AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle",
       "Polluted Delta is put into AI 1's graveyard",
       "Blue controls AI 1 for now"
      ]
@@ -829200,7 +829200,7 @@
     "step": "upkeep",
     "lines": [
      "--- AI 1's turn 3 ---",
-     "AI 1 uses Polluted Delta's ability",
+     "AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle",
      "Polluted Delta is put into AI 1's graveyard",
      "Blue controls AI 1 for now"
     ],
@@ -829238,7 +829238,7 @@
     "turn": 5,
     "step": "end",
     "lines": [
-     "AI 1 uses Polluted Delta's ability",
+     "AI 1 uses Polluted Delta's ability: search your library for an Island or Swamp card, put it onto the battlefield, then shuffle",
      "Polluted Delta is put into AI 1's graveyard",
      "Blue controls AI 1 for now"
     ],
@@ -830293,7 +830293,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Blue's turn 3 ---\n[time] AI 1 controls Blue for now\n[time] Phyrexian Arena's ability triggers (Blue)\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Blue's turn 3 ---\n[time] AI 1 controls Blue for now\n[time] Phyrexian Arena's ability triggers (Blue): you draw a card and you lose 1 life\n"
    },
    {
     "tts": {
@@ -830301,7 +830301,7 @@
      "lines": [
       "--- Blue's turn 3 ---",
       "AI 1 controls Blue for now",
-      "Phyrexian Arena's ability triggers (Blue)"
+      "Phyrexian Arena's ability triggers (Blue): you draw a card and you lose 1 life"
      ]
     }
    },
@@ -830688,7 +830688,7 @@
     "lines": [
      "--- Blue's turn 3 ---",
      "AI 1 controls Blue for now",
-     "Phyrexian Arena's ability triggers (Blue)"
+     "Phyrexian Arena's ability triggers (Blue): you draw a card and you lose 1 life"
     ],
     "labels": [
      [

@@ -1028,6 +1028,152 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       harness.restore();
     }
   }
+  // readability audit C1-C3, C6, C7 (docs/readability-audit/C-game-log.md, 2026-11-12): the log names what moved a card,
+  // what an ability does, what changed a life total, who held the monarch, what took control and the Ring-bearer. The
+  // texts are Forge's own: the card scripts' descriptions (forge/forge-gui/res/cardsfolder) as InteractiveSnapshotExtractor
+  // sends them (a trigger by its TriggerDescription, CARDNAME filled in; an activation by its cost and description), and
+  // the causes EngineEventLog's markCause names (the resolving ability's ApiType and its host card).
+  {
+    const ZONES = ["library", "hand", "graveyard", "exile", "battlefield", "command"];
+    const board = (fill) => {
+      const b = { turn: 3, step: "main1", activePlayerId: "player-0", priorityPlayerId: "player-0", stack: [], players: [{ id: "player-0", life: 40 }, { id: "player-1", life: 40 }],
+        zones: ["player-0", "player-1"].flatMap((ownerId) => ZONES.map((zone) => ({ zone, ownerId, cards: [], count: 0 }))) };
+      fill(b);
+      return b;
+    };
+    const put = (b, zone, c, ownerId = "player-0") => { const z = b.zones.find((x) => x.zone === zone && x.ownerId === ownerId); z.cards.push(c); z.count = z.cards.length; };
+    const card = (n, name, types, extra = {}) => ({ id: `engine-card-${n}`, identity: { name }, types, controllerId: "player-0", ...extra });
+    const ev = (seq, from, to, cardId, how, ownerId, cause = {}) => ({ seq, cardId, from, to, ownerId, ...(how ? { how } : {}), ...cause });
+    const by = (cause, name, n) => ({ cause, causeName: name, causeCardId: `engine-card-${n}` });
+    const item = (n, src, name, text, extra = {}) => ({ id: `engine-stack-${n}`, sourceId: src.id, controllerId: src.controllerId, identity: { name }, sourceAbilityText: text, text, isPermanentSpell: false, ...extra });
+    const between = (before, after, events = null) => {
+      const h = harness.load();
+      setup(h, clone(F.board), { eventSeq: 10 });
+      const lines = h.B.logEvents(h.B.logSnapshot(before), h.B.logSnapshot(after), after, events && h.B.engineFacts(events));
+      harness.restore();
+      return [...lines];
+    };
+    const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+    // C1: a move made while something resolves names that card; a state-based one, no cause, reads as before
+    const BATTERSKULL = card(1500, "Batterskull", ["Artifact"]), BEARS = card(1501, "Grizzly Bears", ["Creature"], { controllerId: "player-1" });
+    const WURM = card(1502, "Craw Wurm", ["Creature"]), ISLAND = card(1503, "Island", ["Land"], { controllerId: "player-1" });
+    const ELF = card(1504, "Llanowar Elves", ["Creature"], { controllerId: "player-1" });
+    same("cause: a destroyed artifact names what destroyed it",
+      between(board((b) => put(b, "battlefield", BATTERSKULL)), board((b) => put(b, "graveyard", BATTERSKULL)), [ev(11, "Battlefield", "Graveyard", BATTERSKULL.id, "destroyed", "player-0", by("Destroy", "Krosan Grip", 1590))]),
+      ["Batterskull is destroyed by Krosan Grip"]);
+    same("cause: a creature destroyed by a spell says so",
+      between(board((b) => put(b, "battlefield", BEARS, "player-1")), board((b) => put(b, "graveyard", BEARS, "player-1")), [ev(11, "Battlefield", "Graveyard", BEARS.id, "destroyed", "player-1", by("Destroy", "Doom Blade", 1591))]),
+      ["Grizzly Bears is destroyed by Doom Blade"]);
+    same("cause: a creature dead of its damage (no cause, state-based) still just dies",
+      between(board((b) => put(b, "battlefield", BEARS, "player-1")), board((b) => put(b, "graveyard", BEARS, "player-1")), [ev(11, "Battlefield", "Graveyard", BEARS.id, "destroyed", "player-1")]),
+      ["Grizzly Bears dies"]);
+    same("cause: a reanimated creature names the spell",
+      between(board((b) => put(b, "graveyard", WURM)), board((b) => put(b, "battlefield", WURM)), [ev(11, "Graveyard", "Battlefield", WURM.id, null, "player-0", by("ChangeZone", "Reanimate", 1592))]),
+      ["Craw Wurm returns to the battlefield from Blue's graveyard (Reanimate)"]);
+    same("cause: one reanimated from another player's graveyard names its new controller too",
+      between(board((b) => put(b, "graveyard", { ...BEARS, controllerId: "player-1" }, "player-1")), board((b) => put(b, "battlefield", { ...BEARS, controllerId: "player-0" }, "player-0")),
+        [ev(11, "Graveyard", "Battlefield", BEARS.id, null, "player-1", by("ChangeZone", "Reanimate", 1592))]),
+      ["Grizzly Bears returns to the battlefield from AI 1's graveyard (Blue, Reanimate)"]);
+    same("cause: a bounced creature names the spell",
+      between(board((b) => { put(b, "battlefield", BEARS, "player-1"); b.zones.find((z) => z.zone === "hand" && z.ownerId === "player-1").count = 3; }),
+        board((b) => { b.zones.find((z) => z.zone === "hand" && z.ownerId === "player-1").count = 4; }), [ev(11, "Battlefield", "Hand", BEARS.id, null, "player-1", by("ChangeZone", "Cyclonic Rift", 1593))]),
+      ["Grizzly Bears returns to AI 1's hand (Cyclonic Rift)"]);
+    same("cause: an exiled creature names the spell",
+      between(board((b) => put(b, "battlefield", ELF, "player-1")), board((b) => put(b, "exile", ELF, "player-1")), [ev(11, "Battlefield", "Exile", ELF.id, null, "player-1", by("ChangeZone", "Swords to Plowshares", 1594))]),
+      ["Llanowar Elves is exiled by Swords to Plowshares"]);
+    same("cause: a forced discard names the spell",
+      between(board((b) => { b.zones.find((z) => z.zone === "hand" && z.ownerId === "player-1").count = 3; }),
+        board((b) => { put(b, "graveyard", ISLAND, "player-1"); b.zones.find((z) => z.zone === "hand" && z.ownerId === "player-1").count = 2; }),
+        [ev(11, "Hand", "Graveyard", ISLAND.id, "discard", "player-1", by("Discard", "Duress", 1595))]),
+      ["AI 1 discards Island (Duress)"]);
+    same("cause: a card moved by its own ability names nothing (persist)",
+      between(board((b) => put(b, "graveyard", WURM)), board((b) => put(b, "battlefield", WURM)), [ev(11, "Graveyard", "Battlefield", WURM.id, null, "player-0", by("ChangeZone", "Craw Wurm", 1502))]),
+      ["Craw Wurm returns to the battlefield from Blue's graveyard (Blue)"]);
+    // C2: a trigger and an activation say what they do, by Forge's own ability text
+    const HERO = card(1510, "Hero of Bladehold", ["Creature"]), LOOTER = card(1511, "Merfolk Looter", ["Creature"], { controllerId: "player-1" });
+    const JADE = card(1512, "Jadelight Ranger", ["Creature"]);
+    same("gist: a trigger says what it does (Hero of Bladehold's token trigger)",
+      between(board((b) => put(b, "battlefield", HERO)), board((b) => { put(b, "battlefield", HERO); b.stack = [item(1, HERO, "Hero of Bladehold", "Whenever Hero of Bladehold attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking.", { isTrigger: true })]; })),
+      ["Hero of Bladehold's ability triggers (Blue): create two 1/1 white Soldier creature tokens that are tapped and attacking"]);
+    same("gist: its card's name at the start reads 'it', the reminder text left out (Jadelight Ranger, live text)",
+      between(board((b) => put(b, "battlefield", JADE)), board((b) => { put(b, "battlefield", JADE); b.stack = [item(2, JADE, "Jadelight Ranger", "When Jadelight Ranger enters, it explores, then it explores again. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard. Then repeat this process.)", { isTrigger: true })]; })),
+      ["Jadelight Ranger's ability triggers (Blue): it explores, then it explores again"]);
+    same("gist: an activation says what it does, its cost left out",
+      between(board((b) => put(b, "battlefield", LOOTER, "player-1")), board((b) => { put(b, "battlefield", LOOTER, "player-1"); b.stack = [item(3, LOOTER, "Merfolk Looter", "{T}: Draw a card, then discard a card.")]; })),
+      ["AI 1 uses Merfolk Looter's ability: draw a card, then discard a card"]);
+    // C3: a life change that isn't damage names its source when the amounts add up, else stays bare
+    const FINKS = card(1520, "Kitchen Finks", ["Creature"]), GREED = card(1521, "Greed", ["Enchantment"]);
+    const finksBoard = (life, onStack) => board((b) => { put(b, "battlefield", FINKS); b.players[0].life = life; if (onStack) b.stack = [item(4, FINKS, "Kitchen Finks", "When Kitchen Finks enters, you gain 2 life.", { isTrigger: true })]; });
+    same("life: a gain names the trigger that gave it", between(finksBoard(40, true), finksBoard(42, false)).filter((l) => /life/.test(l)), ["Blue: 40 -> 42 life (+2, Kitchen Finks)"]);
+    same("life: a gain the trigger's amount doesn't add up to stays bare", between(finksBoard(40, true), finksBoard(43, false)).filter((l) => /life/.test(l)), ["Blue: 40 -> 43 life (+3)"]);
+    same("life: a 'Pay N life' cost names what it paid for",
+      between(board((b) => put(b, "battlefield", GREED)), board((b) => { put(b, "battlefield", GREED); b.players[0].life = 38; b.stack = [item(5, GREED, "Greed", "{B}, Pay 2 life: Draw a card.")]; })).filter((l) => /life/.test(l)),
+      ["Blue: 40 -> 38 life (-2, paid for Greed)"]);
+    const MINE = card(1522, "Lost Mine of Phandelver", ["Dungeon"]);
+    const DARK_POOL = "Dark Pool — Each opponent loses 1 life and you gain 1 life. (Leads to: Temple of Dumathoin)";
+    const room = (life0, life1, onStack) => board((b) => { put(b, "command", MINE); b.players[0].life = life0; b.players[1].life = life1; if (onStack) b.stack = [item(6, MINE, "Lost Mine of Phandelver", DARK_POOL, { isTrigger: true })]; });
+    same("life: a dungeon room's drain names the room on both lines",
+      between(room(40, 40, true), room(41, 39, false)).filter((l) => /life/.test(l)), ["Blue: 40 -> 41 life (+1, Dark Pool)", "AI 1: 40 -> 39 life (-1, Dark Pool)"]);
+    // C6: the monarch from whom and by what; control from whom and by what
+    const JAILER = card(1530, "Palace Jailer", ["Creature"]);
+    const monarch = (holder, onStack) => board((b) => { put(b, "battlefield", JAILER); if (holder) b.monarchId = holder; if (onStack) b.stack = [item(7, JAILER, "Palace Jailer", "When Palace Jailer enters, you become the monarch.", { isTrigger: true })]; });
+    same("monarch: taken by a card's trigger, from its holder", between(monarch("player-1", true), monarch("player-0", false)).filter((l) => /monarch/.test(l)), ["Blue becomes the monarch (from AI 1, Palace Jailer)"]);
+    const MONARCH = { id: "engine-card-1531", identity: { name: "The Monarch" }, types: [], controllerId: "player-0" };
+    const hit = (holder, onStack) => board((b) => { put(b, "command", MONARCH); b.monarchId = holder; if (onStack) b.stack = [item(8, MONARCH, "The Monarch", "Whenever a creature deals combat damage to you, its controller becomes the monarch.", { isTrigger: true })]; });
+    same("monarch: taken by combat damage (Forge's own monarch trigger), from its holder",
+      between(hit("player-0", true), hit("player-1", false)).filter((l) => /becomes the monarch/.test(l)), ["AI 1 becomes the monarch (from Blue, combat damage)"]);
+    const TREASON = card(1532, "Act of Treason", ["Sorcery"]);
+    const stolen = (ctl, onStack) => board((b) => { put(b, "battlefield", { ...BEARS, controllerId: ctl }, ctl); if (onStack) b.stack = [item(9, TREASON, "Act of Treason", "Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn.", { targets: [{ kind: "card", id: BEARS.id }] })]; });
+    same("control: a steal names its spell and the player it was taken from", between(stolen("player-1", true), stolen("player-0", false)).filter((l) => /control/.test(l)), ["Blue gains control of Grizzly Bears from AI 1 (Act of Treason)"]);
+    same("control: the give-back names only from whom", between(stolen("player-0", false), stolen("player-1", false)).filter((l) => /control/.test(l)), ["AI 1 gains control of Grizzly Bears from Blue"]);
+    // C6: the initiative before the venture into Undercity it made, on one board: the room's ability on the stack (Forge's
+    // room words, Undercity's script) from a feed that leaves isTrigger out, so its line is said with the cards' lines
+    const UNDERCITY = card(1533, "Undercity", ["Dungeon"]);
+    const SECRET = "Secret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)";
+    const init = (holder, onStack) => board((b) => { if (holder) b.initiativeHolderId = holder; put(b, "command", UNDERCITY); if (onStack) b.stack = [item(10, UNDERCITY, "Undercity", SECRET)]; });
+    same("initiative: said before the venture into Undercity it made",
+      between(init(null, false), init("player-0", true)).filter((l) => /initiative|ventures/.test(l)), ["Blue takes the initiative", "Blue ventures into Secret Entrance (Undercity)"]);
+    // (by the card that gave it, not the Initiative's own venture trigger, whose condition names it too: Player.java's text)
+    const SEASONED = card(1535, "Seasoned Dungeoneer", ["Creature"]), INITIATIVE = { id: "engine-card-1536", identity: { name: "The Initiative" }, types: [], controllerId: "player-0" };
+    const VENTURE = "Whenever you take the initiative and at the beginning of your upkeep, venture into Undercity. (If you're in a dungeon, advance to the next room. If not, enter Undercity. You can take the initiative even if you already have it.)";
+    const given = (holder, onStack) => board((b) => { put(b, "battlefield", SEASONED); put(b, "command", INITIATIVE); if (holder) b.initiativeHolderId = holder;
+      if (onStack) b.stack = [item(11, SEASONED, "Seasoned Dungeoneer", "When Seasoned Dungeoneer enters, you take the initiative.", { isTrigger: true }), item(12, INITIATIVE, "The Initiative", VENTURE, { isTrigger: true })]; });
+    same("initiative: names the card that gave it, from its holder", between(given("player-1", true), given("player-0", false)).filter((l) => /takes the initiative/.test(l)),
+      ["Blue takes the initiative (from AI 1, Seasoned Dungeoneer)"]);
+    // C7: the Ring names the Ring-bearer
+    const FRODO = card(1534, "Frodo Baggins", ["Creature"]);
+    const ring = (level, bearer) => board((b) => { b.players[0].ringLevel = level; put(b, "battlefield", { ...FRODO, ...(bearer ? { isRingBearer: true } : {}) }); });
+    same("ring: the tempt line names the Ring-bearer", between(ring(1, false), ring(2, true)).filter((l) => /Ring/.test(l)), ["Blue is tempted by the Ring (2): Ring-bearer Frodo Baggins"]);
+    // review fixes, 2026-11-12: an exchange names its card on both creatures, its own source too (Volatile Stormdrake's
+    // script targets only the other creature)
+    const DRAKE = card(1537, "Volatile Stormdrake", ["Creature"]), CAPTAIN = card(1538, "Precinct Captain", ["Creature"], { controllerId: "player-1" });
+    const DRAKE_TEXT = "When Volatile Stormdrake enters, exchange control of Volatile Stormdrake and target creature an opponent controls. If you do, you get {E}{E}{E}{E}, then sacrifice that creature unless you pay an amount of {E} equal to its mana value.";
+    const swap = (drakeCtl, captainCtl, onStack) => board((b) => { put(b, "battlefield", { ...DRAKE, controllerId: drakeCtl }, drakeCtl); put(b, "battlefield", { ...CAPTAIN, controllerId: captainCtl }, captainCtl);
+      if (onStack) b.stack = [item(13, DRAKE, "Volatile Stormdrake", DRAKE_TEXT, { isTrigger: true, targets: [{ kind: "card", id: CAPTAIN.id }] })]; });
+    same("control: an exchange names its card on both creatures, its untargeted source too",
+      between(swap("player-0", "player-1", true), swap("player-1", "player-0", false)).filter((l) => /gains control/.test(l)).sort(),
+      ["AI 1 gains control of Volatile Stormdrake from Blue (Volatile Stormdrake)", "Blue gains control of Precinct Captain from AI 1 (Volatile Stormdrake)"]);
+    // (a "target opponent becomes the monarch" names its card only for the player it targeted: Jared Carthalion's script)
+    const JARED = card(1539, "Jared Carthalion, True Heir", ["Creature"]);
+    const JARED_TEXT = "When Jared Carthalion, True Heir enters, target opponent becomes the monarch. You can't become the monarch this turn.";
+    const crowned = (holder, ctl, target, onStack) => board((b) => { put(b, "battlefield", { ...JARED, controllerId: ctl }, ctl); b.monarchId = holder;
+      if (onStack) b.stack = [item(14, { ...JARED, controllerId: ctl }, JARED.identity.name, JARED_TEXT, { isTrigger: true, targets: [{ kind: "player", id: target }] })]; });
+    same("monarch: a 'target opponent becomes the monarch' names its card for the player it targeted",
+      between(crowned("player-0", "player-0", "player-1", true), crowned("player-1", "player-0", "player-1", false)).filter((l) => /becomes the monarch/.test(l)),
+      ["AI 1 becomes the monarch (from Blue, Jared Carthalion, True Heir)"]);
+    same("monarch: one that targeted another player names no card for the new monarch",
+      between(crowned("player-0", "player-1", "player-0", true), crowned("player-1", "player-1", "player-0", false)).filter((l) => /becomes the monarch/.test(l)),
+      ["AI 1 becomes the monarch (from Blue)"]);
+    // (reminder text inside reminder text comes out whole; an unbalanced parenthesis gives no gist rather than a fragment)
+    const CONNIVER = card(1540, "Raffine's Informant", ["Creature"]);
+    const connive = (text) => between(board((b) => put(b, "battlefield", CONNIVER)), board((b) => { put(b, "battlefield", CONNIVER); b.stack = [item(15, CONNIVER, "Raffine's Informant", text, { isTrigger: true })]; }));
+    same("gist: nested reminder text is left out whole",
+      connive("When Raffine's Informant enters, it connives. (Draw a card, then discard a card. If you discarded a nonland card, put a +1/+1 counter on this creature. (Connive is a keyword action.))"),
+      ["Raffine's Informant's ability triggers (Blue): it connives"]);
+    same("gist: an unbalanced parenthesis gives no gist",
+      connive("When Raffine's Informant enters, it connives. (Draw a card, then discard a card. (If you discarded a nonland card, put a +1/+1 counter on this creature."),
+      ["Raffine's Informant's ability triggers (Blue)"]);
+  }
   // sweep and live-check batch, checked 2026-11-10 (PLAN "Small sweep bugs" / "Live-check bugs"): the log fixes the
   // events test pinned alone, pinned here too, and the two gaps left (a rewind's step, a clash's result)
   {
