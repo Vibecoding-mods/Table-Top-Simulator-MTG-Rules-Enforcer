@@ -1,6 +1,7 @@
 # Own engine: the rules in one place (plan refreshed 2026-11-11)
 
-Status: **plan, nothing scheduled.** The first version (2026-11-02) planned a Java-to-Lua copy of Forge running inside
+Status: **DROPPED 2026-11-13** (the user: "Drop it"). Kept as a record only; nothing here will be built or tested.
+Before that: **plan, nothing scheduled.** The first version (2026-11-02) planned a Java-to-Lua copy of Forge running inside
 Tabletop Simulator and began with a "Phase 0" of five cheap tests. That Phase 0 was never run as written, because the same day
 the whole translator was built as an experiment on the `copy-engine` branch (`engine-lua/`, commit ddcc69a), and the experiment
 answered the question Phase 0 asked. It was **closed 2026-11-03**: the copy plays a correct game inside real TTS but 4.4 times
