@@ -249,7 +249,9 @@ Still one sound per board (`engineSoundKinds`, `docs/m5-effects-design.md` secti
 treasurespend** > sorcery > instant > counter, so a creature dying, an exile or a hit on the same board wins, and a
 spell that makes Treasures plays the jingle rather than its sorcery or instant sound. The table reads a Treasure from
 the board (`FX.isTreasure`, `tools/engine-renderer.lua`: the card's `tok` and its `tl` type line, "Artifact — Treasure";
-by Forge's name "Treasure Token" only when there is no type line); the bridge is unchanged. The visuals are unchanged:
+by Forge's name "Treasure Token" only when there is no type line). Only tokens count: a non-token artifact with the
+Treasure subtype (a card that becomes a copy of one, say) is left to the usual death sound, since Treasures are almost
+always tokens and `tok` is what keeps a creature-land or animated artifact out; the bridge is unchanged. The visuals are unchanged:
 a Treasure spent still gets its death smoke (and, 3 or more with the effect bundle, the wipe wave).
 
 **How they were made**: `node tools/make-treasure-sounds.js` (sources in `assets/sounds/treasure/`, gitignored with
