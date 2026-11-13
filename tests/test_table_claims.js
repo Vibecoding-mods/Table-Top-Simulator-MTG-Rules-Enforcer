@@ -1008,6 +1008,23 @@ for (const kind of ["Land", "Creature"]) {
   }
   ok("button colours: every button checked", parts.length === 7, String(valueOf(r, "drawn")));
 }
+// Scoop shows once the game's first board has rebuilt the screen XML (the user's 1v1, 2026-11-13: no Scoop button all
+// game). There the board came before the first question, so the board built the XML and the setup buttons redrew in that
+// same frame, when real TTS loses attributes; the "true" set then was also cached, so the redraw 3 frames later sent
+// nothing. (In s1 a question comes first and builds it.) Shown means a set in a later frame than the last UI.setXml.
+{
+  const first = s1.findIndex((m) => m.t === "table");
+  const steps = [{ lua: 'engineChat("mtg start ai 1", Player.Blue)' }, ...s1.slice(0, first + 1).filter((m) => m.t !== "prompt").map((m) => ({ msg: { t: m.t, json: m.json } })),
+    { frames: 30 }, q('return tostring(UI.getAttribute("eng_scoop_Blue", "active"))', "scoop")];
+  const r = simulate({ save, steps });
+  const lines = r.steps.flatMap((st) => st.fx || []);
+  const frameOf = (l) => Number((/^f(\d+) /.exec(l) || [])[1]);
+  const xmlAt = Math.max(...lines.filter((l) => l.includes('"UI.setXml"')).map(frameOf));
+  const shows = lines.filter((l) => l.includes('"eng_scoop_Blue"') && l.includes('active="true"')).map(frameOf);
+  ok("scoop after rebuild: precondition, the first board rebuilt the screen XML", Number.isFinite(xmlAt) && !r.errors.length, `${xmlAt} ${r.errors.join(" | ")}`);
+  ok("scoop after rebuild: Scoop is shown after the new XML loads, not in the frame it is set", shows.some((f) => f > xmlAt) && valueOf(r, "scoop") === "true",
+    `setXml at f${xmlAt}, shown at ${JSON.stringify(shows)}, active=${valueOf(r, "scoop")}`);
+}
 // Auto-resolve shows by itself in a game with no restore points, read as clearly as Fix beside it, and goes with a reset
 // (live check batch 2, 2026-11-12: a game whose bridge sent no restore points never showed it, as the panels' redraw
 // before the first board left the rewind signature the first board had; a reset mid-game left it showing). No
