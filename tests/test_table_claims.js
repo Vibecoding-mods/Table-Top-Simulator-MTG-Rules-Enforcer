@@ -1269,7 +1269,7 @@ for (const kind of ["Land", "Creature"]) {
     setCard('c.tx = "{T}: Draw a card.\\n{2}: Scry 1." c.tap = true', "tap it"), rowsOf(true, "tapped"), q('return __sim.drawn("eng_abp_Blue_1")', "grey drawn"),
     setCard('c.tap = false c.sick = true c.ty = { "Creature" }', "set sick"), rowsOf(true, "sick"),
     setCard('c.sick = false c.ty = { "Planeswalker" } c.ctr = { LOYALTY = 2 } c.tx = "+1: Scry 1.\\n\\226\\136\\1463: Destroy target creature." t.active = "Blue" t.step = "main1" t.stack = {}', "set walker"), rowsOf(true, "walker"),
-    setCard('c.tx = "[+1]: Scry 1.\\n[\\226\\136\\1463]: Destroy target creature."', "set walker brackets"), rowsOf(true, "walker brackets"),
+    setCard('c.tx = "[+1]: Surveil 1.\\n[\\226\\136\\1464]: Exile target creature."', "set walker brackets"), rowsOf(true, "walker brackets"),
     ask({ promptId: null }), { frames: 10 },
     setCard('c.ty = { "Artifact" } c.ctr = nil c.tx = "{T}: Draw a card." t.priority = "White"', "set no prio"), rowsOf(true, "no prio"),
     q('onMtgAbPanel(Player.Blue, nil, "eng_abp_Blue_1")', "grey click")]);
@@ -1281,7 +1281,8 @@ for (const kind of ["Land", "Creature"]) {
   ok("ability panel+: a greyed line is drawn grey on dark, not TTS's dark label", /^#1C1C1C\|#8C919[89]$/i.test(String(valueOf(r2, "grey drawn"))), String(valueOf(r2, "grey drawn")));
   ok("ability panel+: a creature that just came: Summoning sickness", row2("sick", 1)[1].includes("Summoning sickness"), row2("sick", 1).join("~"));
   ok("ability panel+: a minus ability it can't pay: Needs 3 loyalty (has 2)", row2("walker", 2)[1].includes("Needs 3 loyalty (has 2)") && row2("walker", 1)[1].includes("Loyalty: once each turn"), String(valueOf(r2, "walker")));
-  ok("ability panel+: the engine's bracketed loyalty text ([+1]:, [−3]:) lists both lines, the minus greyed: Needs 3 loyalty (has 2)", row2("walker brackets", 2)[1].includes("Needs 3 loyalty (has 2)") && row2("walker brackets", 2)[1].includes("Destroy target creature.") && row2("walker brackets", 1)[1].includes("Scry 1."), String(valueOf(r2, "walker brackets")));
+  // (its own text, not the step above's: a panel that didn't redraw would still show that step's lines)
+  ok("ability panel+: the engine's bracketed loyalty text ([+1]:, [−4]:) lists both lines, the minus greyed: Needs 4 loyalty (has 2)", row2("walker brackets", 2)[1].includes("Needs 4 loyalty (has 2)") && row2("walker brackets", 2)[1].includes("Exile target creature.") && row2("walker brackets", 1)[1].includes("Surveil 1."), String(valueOf(r2, "walker brackets")));
   ok("ability panel+: with no question for you: Not your priority (waiting for ...)", row2("no prio", 1)[1].includes("Not your priority (waiting for "), row2("no prio", 1).join("~"));
   const told = fxOf(r2, "grey click").join(" ").split("\\").join("");
   ok("ability panel+: a click on a greyed line says why, uses nothing", told.includes("Not your priority") && !told.includes('"choice"'), told.slice(0, 300));
