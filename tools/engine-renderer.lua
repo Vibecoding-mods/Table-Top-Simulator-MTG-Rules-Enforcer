@@ -456,11 +456,18 @@ function engineCostChange(mc, ec)
 end
 -- The cost badge's buttons for card c, in drawing order: { name, label, colour, tooltip, font colour, { x, y, z, w, h,
 -- fs } }. The rim first, a little below the counter, which is drawn over it; the chip last.
+-- First, a playable row card's origin when it came from a graveyard (the bridge's og): "FROM GRAVEYARD" across the
+-- top of its art, as it left the graveyard pile for the row (readability audit B4).
+BADGE.from = { x = 0, y = 0.3, z = -0.8, w = 760, h = 110, fs = 70, bg = { 0.24, 0.2, 0.3, 0.95 } }
 function engineCostParts(c)
-  local ch = engineCostChange(c.mc, c.ec)
-  if ch == nil then return {} end
-  local B = BADGE.cost
   local parts = {}
+  if c.og == "graveyard" then
+    local F = BADGE.from
+    parts[1] = { "costFrom", "FROM GRAVEYARD", F.bg, "Playable from its owner's graveyard", { 1, 1, 1 }, { x = F.x, y = F.y, z = F.z, w = F.w, h = F.h, fs = F.fs } }
+  end
+  local ch = engineCostChange(c.mc, c.ec)
+  if ch == nil then return parts end
+  local B = BADGE.cost
   local first = B.x - B.step * (ch.pips - 1) -- (the leftmost pip's centre)
   local left = first - B.pip / 2 -- (the left edge of what the badge covers so far: the chip goes left of it)
   if ch.generic ~= nil then
@@ -495,6 +502,7 @@ function engineCostDraw(o, c)
 end
 local function updateBadge(o, c, zone)
   if o == nil or o.isDestroyed() then return end
+  enginePeekShow(o, c, zone) -- (a face-down card's face for the seats that may look at it, and no one else)
   if zone == "battlefield" and c.po then
     if o.getColorTint().r > 0.6 then o.setColorTint(BADGE.poTint) end
     enginePhaseTint[c.id] = true
@@ -1473,9 +1481,10 @@ local function mergeStatic(m)
           local st = engineStatic[c.id] or {}
           for k, v in pairs(st) do if c[k] == nil then c[k] = v end end
           c.s = nil
-        elseif fresh[c.id] then
+        elseif fresh[c.id] and not c.fd then
           -- (details sent again for a card in a zone kept from the last board: a token's picture found after it was
-          -- drawn as a card back never reached it, hp-12 re-test 2026-10-27)
+          -- drawn as a card back never reached it, hp-12 re-test 2026-10-27. Never into a face-down card's nameless entry:
+          -- a foretold card's face reaches its owner's playable row in the same board as its public stub in the exile)
           for k, v in pairs(engineStatic[c.id]) do c[k] = v end
         end
       end
@@ -1762,7 +1771,7 @@ function enginePopups(m)
   end
   popSeen = now
   if newest == nil or not panelReadyForPopup() then return end
-  local stc = newest.src and engineStatic[newest.src] or nil
+  local stc = newest.src and not newest.fd and engineStatic[newest.src] or nil -- (face down: the stack's own words only)
   local img = engineUiImage(newest.f or (stc and stc.f) or ENGINE_BACK)
   local who = newest.ctl and (" - " .. tostring(newest.ctl)) or ""
   -- the engine starts with "Ponder (18) - ": cut up to the first "(n) - " near the start ("^.-" on a long text made
@@ -2530,7 +2539,7 @@ do
     end
     for _, st in ipairs(prev.stack) do
       if countered[st.id] and (st.spell or st.sp) and panelReadyForPopup() then
-        local stc = st.src and engineStatic[st.src] or nil
+        local stc = st.src and not st.fd and engineStatic[st.src] or nil
         engineSetImage("eng_pop_img", engineUiImage(st.f or (stc and stc.f) or ENGINE_BACK))
         UI.setValue("eng_pop_who", "COUNTERED: " .. tostring(st.n))
         UI.setAttribute("eng_pop_who", "color", "#FF6B5A")
@@ -2763,8 +2772,9 @@ function engineRender(m)
     -- an ability's lines start at its source card, a spell's at its spot on the stack
     local srcObj = s.src and engineObjs[s.src]
     stackSpot[s.id] = (not s.spell and s.src and (enginePlanned[s.src] or (srcObj ~= nil and not srcObj.isDestroyed() and srcObj.getPosition()))) or pos
-    local st = s.src and engineStatic[s.src]
-    if s.spell and st ~= nil then
+    -- (a face-down spell, fd: never its card as its owner's hand knew it, which showed a morph's face to everyone)
+    local st = s.src and not s.fd and engineStatic[s.src]
+    if s.spell and st then
       -- the spell's own card moves onto the stack (spawning a new object costs a frame hitch while its picture loads)
       local c = { id = s.src }
       for k, v in pairs(st) do c[k] = v end
@@ -7141,9 +7151,9 @@ local playableBuilt = {} -- object -> owner colour its frame was built for (buil
 -- UI holds, never by replacing it; a rebuild (another colour: a stolen permanent) takes only its own panel out.
 ENGINE_FRAME_BUILDS = 4
 engineFrameQueue = { list = {}, want = {}, pumping = false } -- want: object -> { color, on } waiting for its build
-function engineFrameBuild(obj, color, on)
-  local x = tostring(obj.UI.getXml() or "")
-  local a = x:find('<Panel id="eng_play"', 1, true)
+-- An object's UI XML x without our Panel of that id (the frame's eng_play, the face-down peek's eng_peek): the rest kept
+function engineXmlWithout(x, id)
+  local a = x:find('<Panel id="' .. id .. '"', 1, true)
   if a ~= nil then
     -- (ours ends at the "</Panel>" that closes it, the Panels opened inside it counted: its bars close themselves as
     -- written, and are counted too should getXml give them back written out in full)
@@ -7163,8 +7173,58 @@ function engineFrameBuild(obj, color, on)
     end
     if b ~= nil then x = x:sub(1, a - 1) .. x:sub(b + 1) end
   end
+  return x
+end
+function engineFrameBuild(obj, color, on)
+  local x = engineXmlWithout(tostring(obj.UI.getXml() or ""), "eng_play")
   obj.UI.setXml(x .. string.format(PLAYABLE_XML, color, on and "true" or "false"))
   playableBuilt[obj] = color
+end
+
+-- ───────── your own face-down cards: their face, for you only ─────────
+-- The rules let a face-down permanent's controller look at it (and foretell's or hideaway's owner at theirs), but TTS
+-- shows one object to everyone, and the board's card is the nameless stub (the bridge's tableCard). So the face rides in
+-- the card's own UI, with visibility set to the seats that may look (the bridge's pk: { n, f, v }, from each seat's own
+-- view: facePeek), as the green frame does: the picture over the card, and a name tag sticking out past its top edge,
+-- where the UI shows even should the card hide what lies within its outline (the frame's finding, PLAN.md). Nothing
+-- else carries the name: the card's name and hover text stay "Face-down card". Laid on the side facing up: a card lying
+-- face down has the frame's place turned over with it (about its length: z and the turn mirrored, as updateBadge's
+-- "=under" buttons are), one its owner flipped face up (engineFlipped) the frame's own. Picture and tag positions are
+-- estimates, to check on the real table with tools/tts-shot.ps1.
+enginePeekSig = {} -- engine card id -> { o = the object, sig = what its overlay shows, "" none }
+function enginePeekXml(pk, lyingDown)
+  local function esc(s)
+    s = tostring(s or "")
+    s = s:gsub("&", "&amp;") s = s:gsub("<", "&lt;") s = s:gsub(">", "&gt;") s = s:gsub('"', "&quot;")
+    return s
+  end
+  local vis = {}
+  for _, col in ipairs(pk.v or {}) do if type(col) == "string" and Player[col] ~= nil then vis[#vis + 1] = col end end
+  if #vis == 0 then return nil end -- (an empty visibility shows a UI element to everyone)
+  local where = lyingDown and 'position="0 0 12" rotation="180 0 0"' or 'position="0 0 -12" rotation="0 0 180"'
+  local pic = type(pk.f) == "string" and pk.f ~= "" and ('<Image image="' .. esc(engineUiImage(pk.f)) .. '" width="200" height="280" preserveAspect="true" color="#FFFFFFF2" raycastTarget="false"/>') or ""
+  return '<Panel id="eng_peek" visibility="' .. table.concat(vis, "|") .. '" ' .. where .. ' width="220" height="310" color="#00000000" raycastTarget="false">'
+    .. pic .. '<Panel width="300" height="44" rectAlignment="UpperCenter" offsetXY="0 52" color="#101010E6" raycastTarget="false">'
+    .. '<Text fontSize="20" fontStyle="Bold" color="#FFD27A" alignment="MiddleCenter" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="20" raycastTarget="false">Face down, only you see: '
+    .. esc(pk.n) .. '</Text></Panel></Panel>'
+end
+-- Shows (or takes off) card c's overlay on its object o, drawn as it lies in zone: only for a face-down card on the
+-- battlefield or under the card it was exiled with; one XML change when what it shows changes, none otherwise
+function enginePeekShow(o, c, zone)
+  if o == nil or o.isDestroyed() then return end
+  local pk = c.pk
+  local want, xml = "", nil
+  if (zone == "battlefield" or zone == "linked") and c.n == nil and type(pk) == "table" and pk.n ~= nil then
+    local lyingDown = (c.fd == true) ~= (engineFlipped[c.id] == true)
+    xml = enginePeekXml(pk, lyingDown)
+    if xml ~= nil then want = xml end
+  end
+  local had = enginePeekSig[c.id]
+  local was = (had ~= nil and had.o == o) and had.sig or ""
+  if was == want then return end
+  enginePeekSig[c.id] = { o = o, sig = want }
+  local x = engineXmlWithout(tostring(o.UI.getXml() or ""), "eng_peek")
+  o.UI.setXml(x .. (xml or ""))
 end
 function engineFramePump()
   local q = engineFrameQueue

@@ -45,11 +45,162 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     b.gameView.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0").cards.push({ id: "engine-card-904", identity: { name: "SecretForetold" }, isFaceDown: true, types: ["Instant"] });
     setup(h, b);
     h.B.sendTable(); await h.flush();
-    const out = JSON.stringify(h.effects.filter((e) => e.tts));
+    // (the seat that may look gets the face in pk, facePeek, which the table shows to that seat only: left out here)
+    const out = JSON.stringify(h.effects.filter((e) => e.tts), (k, v) => (k === "pk" ? undefined : v));
     const bf = (sent(h, "table")[0] || { players: [] }).players.find((p) => p.slot === "player-0");
     ok("precondition: the face-down card is on the board sent", out.includes("engine-card-903") && out.includes("engine-card-904"));
-    ok("face-down: no name, picture or text reaches the table", !/SecretMorph|SecretForetold|Morph \{3\}/.test(out));
+    ok("face-down: no name, picture or text reaches the table outside the controller's peek", !/SecretMorph|SecretForetold|Morph \{3\}/.test(out));
     ok("face-down: its public 2/2 still does", bf && bf.battlefield.some((c) => c.id === "engine-card-903" && c.fd && c.p === 2 && c.t === 2), JSON.stringify(bf && bf.battlefield.find((c) => c.id === "engine-card-903")));
+  }
+  // readability audit A1 (a rules gap): a face-down permanent's controller may look at it, its opponents never. Two human
+  // seats, each with its own view as the extractor sends it: Blue's own morph unredacted, White's copy redacted (name "",
+  // no text). The face rides in pk, for Blue alone; no other field TTS gets (the card's own fields, the static details,
+  // the log, chat, the stack) carries the name, whichever seat's board is drawn.
+  for (const blueFirst of [true, false]) {
+    const h = harness.load();
+    const morph = { id: "engine-card-903", identity: { name: "SecretMorph" }, isFaceDown: true, types: ["Creature"], power: 2, toughness: 2, text: "Morph {3}", controllerId: "player-0", ownerId: "player-0" };
+    const redacted = { ...morph, identity: { name: "", setCode: "", cardNumber: "", isToken: false }, text: "", manaCost: "" };
+    // (and a hideaway card under Blue's land: Blue may look, White's view has only a hidden entry)
+    const land = { id: "engine-card-912", identity: { name: "Windbrisk Heights" }, types: ["Land"], text: "Hideaway 4", controllerId: "player-0", ownerId: "player-0" };
+    const hidden = { id: "engine-card-913", identity: { name: "SecretHidden" }, isFaceDown: true, types: ["Creature"], power: 5, toughness: 7, exiledWith: "engine-card-912", returnsWhenHostLeaves: false, ownerId: "player-0" };
+    const board = (card) => {
+      const b = clone(F.board);
+      b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push(card, land);
+      b.gameView.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0").cards.push(card === morph ? hidden : { visibility: "hidden", id: hidden.id });
+      // (and the morph spell cast earlier, on the stack: a face-down spell has no name in any view)
+      b.gameView.stack = [{ id: "stack-77", identity: { name: "" }, sourceId: "engine-card-908", controllerId: "player-0", text: "" }];
+      return b;
+    };
+    const blue = new h.B.Seat("Blue", "neheb_minotaur_commander");
+    blue.slot = "player-0"; blue.board = { state: board(morph), fingerprint: null };
+    const white = new h.B.Seat("White", "neheb_minotaur_commander");
+    white.slot = "player-1"; white.board = { state: board(redacted), fingerprint: null };
+    h.B._setGame({ seats: new Map(blueFirst ? [["Blue", blue], ["White", white]] : [["White", white], ["Blue", blue]]), bots: 0, total: 2,
+      playerOrder: ["tts-Blue-ab12", "tts-White-cd34"], slotNames: { "player-0": "Blue", "player-1": "White" }, slotColor: { "player-0": "Blue", "player-1": "White" },
+      started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
+    h.B.sendTable(); await h.flush();
+    const tag = blueFirst ? "Blue's board" : "White's board";
+    const table = sent(h, "table")[0];
+    const card = table && table.players.find((p) => p.slot === "player-0")?.battlefield.find((c) => c.id === "engine-card-903");
+    ok(`face-down peek (${tag}): the controller's peek names the card`, card?.pk?.n === "SecretMorph", JSON.stringify(card));
+    ok(`face-down peek (${tag}): only the controller's colour may see it`, JSON.stringify(card?.pk?.v) === '["Blue"]', JSON.stringify(card?.pk));
+    const rest = JSON.stringify(h.effects.filter((e) => e.tts), (k, v) => (k === "pk" ? undefined : v));
+    ok(`face-down peek (${tag}): no field outside the peek carries the name or text`, !/SecretMorph|Morph \{3\}|SecretHidden/.test(rest), rest.match(/.{80}Secret\w+.{40}/)?.[0]);
+    const under = table && table.players.find((p) => p.slot === "player-0")?.exile.find((c) => c.id === "engine-card-913");
+    ok(`face-down peek (${tag}): a hideaway card keeps its land, and its owner's peek`, under && under.ew === "engine-card-912" && under.n == null && JSON.stringify(under.pk?.v) === '["Blue"]' && under.pk.n === "SecretHidden", JSON.stringify(under));
+    ok(`face-down peek (${tag}): the hideaway stub shows no power, toughness or types`, under && under.p == null && under.t == null && JSON.stringify(under.ty) === "[]" && under.bp == null, JSON.stringify(under));
+    ok(`face-down peek (${tag}): the card itself stays the nameless stub`, card && card.fd && card.n == null && card.tx == null && card.f == null, JSON.stringify(card));
+    ok(`face-down peek (${tag}): a face-down spell on the stack is marked so the table never draws its hand card`, table?.stack?.[0]?.fd === true, JSON.stringify(table?.stack));
+  }
+  // and with the controller's view redacted too (an AI's morph, or a view that may not look): no peek at all
+  {
+    const h = harness.load();
+    const b = clone(F.board);
+    b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-1").cards.push({ id: "engine-card-909", identity: { name: "" }, isFaceDown: true, types: ["Creature"], power: 2, toughness: 2, text: "", controllerId: "player-1", ownerId: "player-1" });
+    setup(h, b);
+    h.B.sendTable(); await h.flush();
+    const card = (sent(h, "table")[0] || { players: [] }).players.find((p) => p.slot === "player-1")?.battlefield.find((c) => c.id === "engine-card-909");
+    ok("face-down peek: an opponent's morph has no peek for anyone", card && card.fd && card.pk === undefined, JSON.stringify(card));
+  }
+  // readability audit B1: impulse draw names who let the card be played and until when, and says when that ends
+  {
+    const W = (t) => h0.B.playWindow(t);
+    const h0 = harness.load();
+    ok("play window: Jeska's Will, this turn", JSON.stringify(W("Choose one or both —\n• Add {R} for each card in target opponent's hand.\n• Exile the top three cards of your library. You may play them this turn.")) === '{"until":"until end of turn","cast":false}');
+    ok("play window: Light Up the Stage, until the end of your next turn", W("Spectacle {R}\nExile the top two cards of your library. Until the end of your next turn, you may play those cards.")?.until === "until the end of your next turn");
+    ok("play window: Ragavan's 'may cast' is a cast", JSON.stringify(W("Whenever Ragavan deals combat damage to a player, create a Treasure token and exile the top card of that player's library. Until end of turn, you may cast that card.")) === '{"until":"until end of turn","cast":true}');
+    ok("play window: Tibalt names no end", W("You may play cards exiled with Tibalt, Cosmic Impostor, and you may spend mana as though it were mana of any color to cast those spells.")?.until === null);
+    ok("play window: no permission, none", W("Destroy target creature.") === null);
+    const h = harness.load();
+    const lava = { id: "engine-card-910", identity: { name: "Lava Coil" }, types: ["Sorcery"], text: "Lava Coil deals 4 damage to target creature.", mayPlay: true, exiledWith: "engine-card-911", ownerId: "player-0", controllerId: "player-0" };
+    const will = { id: "engine-card-911", identity: { name: "Jeska's Will" }, types: ["Sorcery"], text: "Choose one or both —\n• Add {R} for each card in target opponent's hand.\n• Exile the top three cards of your library. You may play them this turn.", ownerId: "player-0" };
+    const board = (exile, play) => {
+      const b = clone(F.board);
+      b.gameView.zones.find((z) => z.zone === "graveyard" && z.ownerId === "player-0").cards.push(will);
+      if (exile) b.gameView.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0").cards.push({ ...lava, mayPlay: play });
+      return b;
+    };
+    const seat = setup(h, board(true, true));
+    h.B.sendTable(); await h.flush();
+    // (the first board: a later one, after the pictures came, keeps the unchanged rows)
+    const row = (sent(h, "table")[0]?.players || []).find((p) => p.slot === "player-0")?.playable || [];
+    const entry = row.find((c) => c.id === "engine-card-910");
+    ok("impulse: the playable card's hover names the card and the window", (entry?.nt || []).includes("Playable until end of turn — Jeska's Will"), JSON.stringify(entry?.nt));
+    seat.board = { state: board(true, false), fingerprint: null };
+    h.B.sendTable(); await h.flush();
+    const lines = () => sent(h, "gamelog").flatMap((m) => m.lines || []);
+    ok("impulse: the window's end is logged while the card stays exiled", lines().includes("Lava Coil is no longer playable (Jeska's Will)"), JSON.stringify(lines()));
+    h.B.sendTable(); await h.flush();
+    ok("impulse: said once", lines().filter((l) => /no longer playable/.test(l)).length === 1, JSON.stringify(lines()));
+    // (played: it left exile, no line)
+    const h2 = harness.load();
+    const seat2 = setup(h2, board(true, true));
+    h2.B.sendTable(); await h2.flush();
+    seat2.board = { state: board(false, false), fingerprint: null };
+    h2.B.sendTable(); await h2.flush();
+    ok("impulse: a card cast from exile is no 'no longer playable'", !sent(h2, "gamelog").flatMap((m) => m.lines || []).some((l) => /no longer playable/.test(l)));
+    // (a foretold card is private to its owner: the public log never names it)
+    const h3 = harness.load();
+    const fore = (play) => { const b = board(true, play); const c = b.gameView.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0").cards.at(-1); c.isForetold = true; delete c.exiledWith; return b; };
+    const seat3 = setup(h3, fore(true));
+    h3.B.sendTable(); await h3.flush();
+    seat3.board = { state: fore(false), fingerprint: null };
+    h3.B.sendTable(); await h3.flush();
+    ok("impulse: a foretold card's end is not logged (private)", !sent(h3, "gamelog").flatMap((m) => m.lines || []).some((l) => /Lava Coil/.test(l)));
+  }
+  // readability audit B3: "Exiled with X" names X for linked exile, the O-Ring kind says its trigger returns it, and a
+  // face-down linked card (hideaway) keeps its link and its "comes back" flag
+  {
+    const h = harness.load();
+    const b = clone(F.board);
+    const bf = b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards;
+    bf.push({ id: "engine-card-920", identity: { name: "Banishing Light" }, types: ["Enchantment"], text: "When Banishing Light enters, exile target nonland permanent an opponent controls until Banishing Light leaves the battlefield." },
+      { id: "engine-card-921", identity: { name: "Oblivion Ring" }, types: ["Enchantment"], text: "When Oblivion Ring enters, exile another target nonland permanent.\nWhen Oblivion Ring leaves the battlefield, return the exiled card to its owner's control." },
+      { id: "engine-card-922", identity: { name: "Windbrisk Heights" }, types: ["Land"], text: "Hideaway 4" });
+    const ex = b.gameView.zones.find((z) => z.zone === "exile" && z.ownerId === "player-1").cards;
+    ex.push({ id: "engine-card-923", identity: { name: "Taken One" }, types: ["Creature"], exiledWith: "engine-card-920", returnsWhenHostLeaves: true, ownerId: "player-1" },
+      { id: "engine-card-924", identity: { name: "Taken Two" }, types: ["Creature"], exiledWith: "engine-card-921", returnsWhenHostLeaves: false, ownerId: "player-1" });
+    b.gameView.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0").cards.push({ id: "engine-card-925", identity: { name: "HiddenAway" }, isFaceDown: true, types: ["Creature"], exiledWith: "engine-card-922", returnsWhenHostLeaves: false, ownerId: "player-0" });
+    setup(h, b);
+    h.B.sendTable(); await h.flush();
+    const all = (sent(h, "table")[0]?.players || []).flatMap((p) => p.exile || []);
+    const nt = (id) => all.find((c) => c.id === id)?.nt || [];
+    ok("exiled with: Banishing Light's card names it", nt("engine-card-923").includes("Exiled with Banishing Light"), JSON.stringify(nt("engine-card-923")));
+    ok("exiled with: Oblivion Ring's card says its trigger returns it", nt("engine-card-924").includes("Exiled with Oblivion Ring. When Oblivion Ring leaves the battlefield, its trigger returns this card"), JSON.stringify(nt("engine-card-924")));
+    const fd = all.find((c) => c.id === "engine-card-925");
+    ok("exiled with: a face-down linked card keeps its link and flag, no name", fd && fd.fd && fd.ew === "engine-card-922" && fd.rl === false && fd.n == null && nt("engine-card-925").includes("Exiled with Windbrisk Heights"), JSON.stringify(fd));
+  }
+  // readability audit B4: a graveyard card's keywords each get a hover note with their cost, and a row card says it came
+  // from the graveyard
+  {
+    const h = harness.load();
+    const b = clone(F.board);
+    b.gameView.zones.find((z) => z.zone === "graveyard" && z.ownerId === "player-0").cards.push(
+      { id: "engine-card-930", identity: { name: "Uro, Titan of Nature's Wrath" }, types: ["Creature"], text: "When Uro enters, sacrifice it unless it escaped.\nEscape—{G}{G}{U}{U}, Exile five other cards from your graveyard.", keywords: ["Escape:GGUU:ExileFromGrave<5/Card.Other>"], mayPlay: true, ownerId: "player-0" },
+      { id: "engine-card-931", identity: { name: "Dregscape Zombie" }, types: ["Creature"], text: "Unearth {B} ({B}: Return this card from your graveyard to the battlefield.)", keywords: ["Unearth:B"], ownerId: "player-0" },
+      { id: "engine-card-932", identity: { name: "Chemister's Insight" }, types: ["Instant"], text: "Draw two cards.\nJump-start (You may cast this card from your graveyard by discarding a card in addition to paying its other costs. Then exile this card.)", keywords: ["Jump-start"], mayPlay: true, ownerId: "player-0" });
+    setup(h, b);
+    h.B.sendTable(); await h.flush();
+    const me = (sent(h, "table")[0]?.players || []).find((p) => p.slot === "player-0");
+    const gy = (id) => (me?.graveyard || []).find((c) => c.id === id)?.nt || [];
+    ok("graveyard ways: escape with its cost", gy("engine-card-930").some((l) => l.startsWith("Escape {G}{G}{U}{U}, Exile five other cards from your graveyard:")), JSON.stringify(gy("engine-card-930")));
+    ok("graveyard ways: unearth with its cost", gy("engine-card-931").some((l) => l.startsWith("Unearth {B}:")), JSON.stringify(gy("engine-card-931")));
+    ok("graveyard ways: jump-start, no cost of its own", gy("engine-card-932").some((l) => l.startsWith("Jump-start: may be cast from the graveyard by also discarding a card")), JSON.stringify(gy("engine-card-932")));
+    const uro = (me?.playable || []).find((c) => c.id === "engine-card-930");
+    ok("graveyard ways: the row card says where it came from", uro?.og === "graveyard" && (uro.nt || [])[0] === "From the graveyard", JSON.stringify(uro));
+  }
+  // readability audit A8: detained and regeneration shields, kept for the log, show in the card's status box
+  {
+    const h = harness.load();
+    const b = clone(F.board);
+    const mine = b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards;
+    const [a, c2] = [mine[0], mine[1]];
+    setup(h, b, { detained: new Map([[a.id, { by: "player-1", turn: 3 }]]), regenShields: new Set([c2.id]) });
+    h.B.sendTable(); await h.flush();
+    const bfs = (sent(h, "table")[0]?.players || []).find((p) => p.slot === "player-0")?.battlefield || [];
+    const kw = (id) => bfs.find((c) => c.id === id)?.kw || [];
+    ok("detained: in the status box with who detained it", kw(a.id).includes("Detained until AI 1's next turn"), JSON.stringify(kw(a.id)));
+    ok("regeneration shield: in the status box", kw(c2.id).includes("Regeneration shield"), JSON.stringify(kw(c2.id)));
   }
   // "its text as changed": an emptied text box is a change (Exchange of Words, real table 2026-11-05)
   {
@@ -2256,7 +2407,15 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const t = await board(bv, wv);
       ok("Thief of Sanity: the exiled card is in its caster's row", ids(rowOf(t, "Blue").playable).includes("engine-card-950"), JSON.stringify(rowOf(t, "Blue").playable));
       ok("Thief of Sanity: not in its owner's", !ids(rowOf(t, "White").playable).includes("engine-card-950"), JSON.stringify(rowOf(t, "White").playable));
-      ok("Thief of Sanity: its name doesn't reach the table", !JSON.stringify(t).includes("Counterspell"));
+      // (its caster may look at it: the name rides only in the caster's row, which the table lays in the caster's second
+      // hand zone, TTS's private one (with that card's static details), and in the peek shown to the caster's colour;
+      // the exile pile's own fields and White's side never carry it)
+      const blueRow = (rowOf(t, "Blue").playable || []).find((c) => c.id === "engine-card-950");
+      ok("Thief of Sanity: its caster's row has it, still marked face down", blueRow && blueRow.fd === true, JSON.stringify(blueRow));
+      const pile = (rowOf(t, "White").exile || []).find((c) => c.id === "engine-card-950");
+      ok("Thief of Sanity: the exile pile's peek is its caster's only", JSON.stringify(pile?.pk?.v) === '["Blue"]', JSON.stringify(pile));
+      const rest = JSON.stringify(t, function (k, v) { return (k === "playable" && this.color === "Blue") || (k === "engine-card-950" && this === t.cards) || k === "pk" ? undefined : v; });
+      ok("Thief of Sanity: its name doesn't reach the table outside its caster's row and peek", !rest.includes("Counterspell"), rest.match(/.{80}Counterspell.{40}/)?.[0]);
     }
     // Faithless Looting in its owner's graveyard, castable by flashback: its playable entry says "Flashback {2}{R}" as its
     // graveyard entry does (it said nothing, and the table's self-check called its hover text wrong all game: Lingering
@@ -2272,7 +2431,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const row = (rowOf(t, "Blue").playable || []).find((c) => c.id === "engine-card-1201");
       ok("flashback: precondition, the card is in the graveyard and the row", !!gy && !!row, JSON.stringify([gy, row]));
       ok("flashback: the graveyard entry says its cost", JSON.stringify(gy && gy.nt) === JSON.stringify(["Flashback {2}{R}"]), JSON.stringify(gy));
-      ok("flashback: the playable entry says the same", JSON.stringify(row && row.nt) === JSON.stringify(gy && gy.nt), JSON.stringify(row));
+      // (after the line saying where it came from: readability audit B4)
+      ok("flashback: the playable entry says the same", JSON.stringify(row && row.nt) === JSON.stringify(["From the graveyard", ...((gy && gy.nt) || [])]), JSON.stringify(row));
     }
     // Revelation, both seated: each hand is shown to the other seat, so each goes into its owner's revealed list
     {

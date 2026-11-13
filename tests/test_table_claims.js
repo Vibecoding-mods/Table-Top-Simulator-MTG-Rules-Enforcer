@@ -3438,5 +3438,54 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("art switch: anything else says how, and sends nothing", /mtg art off/.test(told(r, "host other")) && !/art/.test(sent(r, "host other")), JSON.stringify(fxOf(r, "host other").slice(0, 3)));
   ok("art switch: the chat line is hidden (handled)", ["White off", "host off", "host on", "host other"].every((m) => valueOf(r, m) === "false"), JSON.stringify(["White off", "host off"].map((m) => valueOf(r, m))));
 }
+// Your own face-down cards (readability audit A1, a rules gap): the bridge's pk { n, f, v } becomes a UI overlay on the
+// card whose visibility is those colours only; the card's name, hover text and buttons stay the nameless stub's; an empty
+// colour list (which TTS would show to everyone) draws none; the overlay goes when pk does.
+{
+  const C = (n) => `engine-card-${n}`;
+  const both = (steps) => simulate({ save, seated: ["Blue", "White"], steps: [...prefix, ...steps] });
+  const add = (extra) => 'local t = engineTable() local blue for _, p in ipairs(t.players) do if p.color == "Blue" then blue = p end end ' +
+    `blue.battlefield = blue.battlefield or {} local function fd(id, pk, more) local c = { id = id, fd = true, p = 2, t = 2, ty = { "Creature" }, bp = 2, bt = 2, ctl = "Blue", pk = pk } for k, v in pairs(more or {}) do c[k] = v end table.insert(blue.battlefield, c) end ${extra} ` +
+    'engineRender(t) __sim.frames(90) return "x"';
+  const obj = (n) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${C(n)}" then o = x end end if o == nil then return "none" end `;
+  const facts = (n, mark) => q(obj(n) + 'local labels = {} for _, b in ipairs(o.getButtons() or {}) do labels[#labels + 1] = tostring(b.label) .. "~" .. tostring(b.tooltip) end ' +
+    'return tostring(o.getName()) .. "\\n##" .. tostring(o.getDescription()) .. "\\n##" .. table.concat(labels, ";") .. "\\n##" .. tostring(o.UI.getXml() or "")', mark);
+  const pk = (v) => `{ n = "SecretMorph", f = "https://img.example/secret.jpg", v = { ${v.map((c) => `"${c}"`).join(", ")} } }`;
+  const r = both([q(add(`fd("${C(950)}", ${pk(["Blue"])}) fd("${C(951)}", ${pk([])}) fd("${C(952)}", ${pk(["Blue"])}, { ctr = { P1P1 = 1 }, p = 3, t = 3 })`), "board"),
+    facts(950, "peek"), facts(951, "empty"), facts(952, "pumped"),
+    // the next board: the peek gone (control taken by an opponent who may not look)
+    q('local t = engineTable() for _, p in ipairs(t.players) do for _, c in ipairs(p.battlefield or {}) do if c.id == "' + C(950) + '" then c.pk = nil end end end engineRender(t) __sim.frames(30) return "x"', "gone board"),
+    facts(950, "gone")]);
+  const v = (mark) => String(valueOf(r, mark));
+  const [name, desc, buttons, xml] = v("peek").split("\n##");
+  ok("face-down peek: precondition, the boards drew", v("board") === "x" && !r.errors.length, v("board") + " " + r.errors.slice(0, 3).join(" | "));
+  ok("face-down peek: the overlay names the card, for its controller's colour only", /<Panel id="eng_peek" visibility="Blue" /.test(xml || "") && (xml || "").includes("SecretMorph"), (xml || "").slice(0, 300));
+  ok("face-down peek: the overlay shows the card's picture", (xml || "").includes("img.example/secret.jpg"), (xml || "").slice(0, 300));
+  ok("face-down peek: no other colour in its visibility", !/visibility="[^"]*(White|Red|Yellow|Grey|Black|Host)/.test(xml || ""), (xml || "").slice(0, 200));
+  ok("face-down peek: the card's name, hover text and buttons say nothing of it", !/SecretMorph/.test(`${name}${desc}${buttons}`) && /^Face-down card/.test(name || ""), `${name} | ${desc} | ${buttons}`);
+  ok("face-down peek: the outside of the overlay never names it", !/SecretMorph/.test((xml || "").replace(/<Panel id="eng_peek"[\s\S]*$/, "")), xml);
+  ok("face-down peek: an empty colour list draws no overlay at all", !/eng_peek/.test(v("empty")), v("empty").slice(0, 200));
+  ok("face-down peek: a pumped one keeps its badges beside the overlay", /eng_peek/.test(v("pumped")) && /3\/3/.test(v("pumped").split("\n##")[2] || "") && !/SecretMorph/.test(v("pumped").split("\n##")[2] || ""), v("pumped").slice(0, 300));
+  ok("face-down peek: the overlay goes when the bridge stops sending it", v("gone") !== "none" && !/eng_peek|SecretMorph/.test(v("gone")), v("gone").slice(0, 200));
+  // A face-down spell on the stack (the bridge's fd) is never drawn from what the table knew of its card in its owner's
+  // hand: that showed a morph's real face on the stack to everyone. Its pop-up shows no such picture either. And a
+  // foretold card's face, sent for its owner's playable row in the same board, never fills its public exile stub.
+  const last = JSON.parse([...s1.slice(0, 40)].reverse().find((m) => m.t === "table").json);
+  const leaky = (fd) => {
+    const b = JSON.parse(JSON.stringify(last));
+    const blue = b.players.find((x) => x.color === "Blue");
+    b.cards = { ...(b.cards || {}), [C(961)]: { n: "SecretSpell", f: "https://img.example/secretspell.jpg", ty: ["Creature"] }, [C(962)]: { n: "SecretForetold", f: "https://img.example/secretfo.jpg", ty: ["Instant"] } };
+    b.stack = [{ id: "stack-88", n: "?", src: C(961), spell: true, ctl: "Blue", tx: "", ...(fd ? { fd: true } : {}) }];
+    blue.exile = [{ id: C(962), fd: true, fo: true }];
+    blue.playable = [{ id: C(962), s: 1, fd: true, fo: true }];
+    blue.keep = (blue.keep || []).filter((z) => z !== "exile" && z !== "playable");
+    return simulate({ save, seated: ["Blue", "White"], steps: [...prefix, { msg: { t: "table", json: JSON.stringify(b) }, frames: 60, mark: "stack" },
+      q('local names = {} for _, x in ipairs(getObjects()) do names[#names + 1] = tostring(x.getName()) end return table.concat(names, "|") .. "##" .. tostring(engineImgWant["eng_pop_img"])', "names"),
+      q('local t = engineTable() for _, p in ipairs(t.players) do if p.color == "Blue" then return tostring((p.exile or {})[1] and p.exile[1].n) end end return "?"', "exile stub")] });
+  };
+  const safe = leaky(true), open = leaky(false);
+  ok("face-down spell: precondition, without the mark the hand card's face is what the table would draw", String(valueOf(open, "names")).includes("SecretSpell"), String(valueOf(open, "names")).slice(0, 200));
+  ok("face-down spell: marked, no object and no pop-up picture shows it", !/SecretSpell|secretspell/.test(String(valueOf(safe, "names"))), String(valueOf(safe, "names")).slice(0, 300));
+  ok("foretold: its face for the owner's row never fills the public exile stub", String(valueOf(safe, "exile stub")) === "nil", String(valueOf(safe, "exile stub")));}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);
