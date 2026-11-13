@@ -9231,6 +9231,11 @@ function engineTextAbility(line)
   if at == nil or at < 2 or at > 70 then return nil end
   local cost, eff = line:sub(1, at - 1), (line:sub(at + 1):gsub("^%s+", ""))
   if cost:find(".", 1, true) or cost:find('"', 1, true) then return nil end
+  -- (the engine's text writes a loyalty cost in brackets, "[+2]: ...", the offered ability bare, "+2: ...")
+  if cost:sub(1, 1) == "[" and cost:sub(-1) == "]" and engineLoyaltyCost(cost:sub(2, -2)) ~= nil then
+    cost = cost:sub(2, -2)
+    line = cost .. ": " .. eff
+  end
   local loyalty = engineLoyaltyCost(cost)
   local first = cost:match("^(%a+)") or ""
   if loyalty == nil and not cost:find("{", 1, true) and not ENGINE_AB_COSTWORDS[first] then return nil end
