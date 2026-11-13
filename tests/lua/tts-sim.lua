@@ -30,6 +30,7 @@ local function show(v, depth)
 end
 SIM.show = show
 local function fx(...)
+  if SIM.quiet then return end -- (a test timing the script: the record's own string building isn't the script's)
   local parts = { "f" .. SIM.frame }
   for i = 1, select("#", ...) do parts[#parts + 1] = show((select(i, ...))) end
   __fx[#__fx + 1] = table.concat(parts, " ")
@@ -221,6 +222,7 @@ Wait = {
   stopAll = function() SIM.waits = {} end,
 }
 Time = { delta_time = 1 / 60, time = 0, fixed_delta_time = 1 / 60 }
+__realclock = os.clock -- (the host's own CPU clock, for the tests that time the script)
 os.clock = function() return SIM.clock end
 os.time = function(t) if t then return 1792500000 end return 1792500000 + math.floor(SIM.clock) end
 os.date = function(f) return "2026-10-20 12:00:00" end
@@ -324,7 +326,8 @@ local function makeObj(d)
       playTriggerEffect = function(i)
         fx("AssetBundle.playTriggerEffect", o, i)
         o.__d.played = o.__d.played or {}
-        o.__d.played[#o.__d.played + 1] = { index = i, frame = SIM.frame, pos = o.__d.pos:copy() }
+        -- (and how it stood then: turned, sized and tinted, for the effects' aim, scale and colour checks)
+        o.__d.played[#o.__d.played + 1] = { index = i, frame = SIM.frame, pos = o.__d.pos:copy(), rot = o.__d.rot:copy(), scale = o.__d.scale:copy(), tint = o.__d.tint }
       end,
       getLoopingEffects = function() return {} end,
       playLoopingEffect = function(i) fx("AssetBundle.playLoopingEffect", o, i) end,
