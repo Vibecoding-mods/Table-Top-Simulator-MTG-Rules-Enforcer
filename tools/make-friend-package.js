@@ -359,7 +359,8 @@ how your friends reach the table. Card pictures come from Scryfall.
 
 LICENCES
 See the LICENSES folder. The rules engine is built from Forge (GPL-3.0) and Manabrew (AGPL-3.0-or-later); its
-source is described in LICENSES\\SOURCE.txt. Magic: The Gathering is (c) Wizards of the Coast; this is unofficial Fan
+source is described in LICENSES\\SOURCE.txt. MTG Companion.exe's full source is in LICENSES\\source\\companion (read it,
+or build your own exe from it with its build.cmd); the bridge is plain JavaScript in bridge\\. Nothing is encrypted. Magic: The Gathering is (c) Wizards of the Coast; this is unofficial Fan
 Content permitted under the Wizards of the Coast Fan Content Policy, not approved or endorsed by Wizards.
 
 
@@ -488,7 +489,33 @@ function companion(pkg) {
   const exe = [path.join(tree, "companion", "bin", "MTG Companion.exe"), path.join(tree, "MTG Companion.exe"), path.join(tree, "companion", "MTG Companion.exe")].find((f) => fs.existsSync(f) && fs.statSync(f).mtimeMs >= t0);
   if (!exe) stop(`${build} ran, but no fresh "MTG Companion.exe" is in ${tree} or its companion folder`);
   copy(exe, path.join(pkg, "MTG Companion.exe"));
+  companionSource(tree, pkg);
   return `built from ${tree}`;
+}
+// The companion's full source, from the tree the exe was just built from, so anyone can read what they run or build
+// their own exe with build.cmd (Windows' own C# compiler). In LICENSES/, which the app part of an update carries
+// (companion/src/Update.cs lists the folders an installed companion replaces; a new top-level folder would go stale).
+function companionSource(tree, pkg) {
+  const from = path.join(tree, "companion"), to = path.join(pkg, "LICENSES", "source", "companion");
+  const files = ["build.cmd", "app.manifest", "app.ico", "release-keys.txt"].filter((f) => fs.existsSync(path.join(from, f)));
+  for (const f of files) copy(path.join(from, f), path.join(to, f));
+  const src = fs.readdirSync(path.join(from, "src")).filter((f) => f.endsWith(".cs")).sort();
+  if (!src.length) stop(`no companion source in ${path.join(from, "src")}`);
+  for (const f of src) copy(path.join(from, "src", f), path.join(to, "src", f));
+  fs.writeFileSync(path.join(to, "README.txt"), [
+    "The full source of MTG Companion.exe, exactly the files it was built from for this package.",
+    "",
+    "Nothing in the exe is encrypted or obfuscated. To check it:",
+    "- read the .cs files in src\\ (plain C#);",
+    "- or build your own: double-click build.cmd (it uses the C# compiler that comes with Windows, no downloads) and",
+    "  run bin\\MTG Companion.exe instead of the one in this package. (Two builds of the same source are not byte for",
+    "  byte identical with that compiler, so compare by building, not by hash.)",
+    "- release-keys.txt holds only the PUBLIC half of the key that signs updates; the companion uses it to refuse any",
+    "  update not signed by the person who made this package.",
+    "The bridge (bridge\\*.js) is plain JavaScript too, run by the official Node.js in runtime\\node.",
+    "",
+  ].join("\r\n"));
+  return src.length;
 }
 
 async function main() {
@@ -693,4 +720,4 @@ function releaseFinish({ tag, dir, partVersions, previous, plan }, pkg, zip, inf
 }
 
 if (require.main === module) main().catch((e) => stop(e.stack || e.message));
-module.exports = { stampOf, renameSave, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, releaseRefusals, pointedAt, appVersion, validTag, signManifest, publicKeyText, releaseKey, RELEASE_PARTS, UPDATE_FORMAT, APP_UNVERSIONED, APP_EXCLUDED, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };
+module.exports = { companionSource, stampOf, renameSave, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, releaseRefusals, pointedAt, appVersion, validTag, signManifest, publicKeyText, releaseKey, RELEASE_PARTS, UPDATE_FORMAT, APP_UNVERSIONED, APP_EXCLUDED, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };

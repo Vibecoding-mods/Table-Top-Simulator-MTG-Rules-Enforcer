@@ -8,6 +8,26 @@ let failed = 0, passed = 0;
 const ok = (name, cond, why) => { if (cond) passed++; else { failed++; process.stdout.write(`FAIL ${name}${why ? `: ${why}` : ""}\n`); } };
 const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
 
+// the companion's source goes into the package beside its exe (LICENSES/source/companion, carried by the app part of
+// an update): every .cs file byte for byte, build.cmd, and only the public key file
+{
+  const fs = require("fs"), os = require("os"), path = require("path");
+  const tree = path.join(__dirname, ".."), pkg = fs.mkdtempSync(path.join(os.tmpdir(), "mtg-pkg-"));
+  try {
+    pack.companionSource(tree, pkg);
+    const to = path.join(pkg, "LICENSES", "source", "companion");
+    const want = fs.readdirSync(path.join(tree, "companion", "src")).filter((f) => f.endsWith(".cs")).sort();
+    const got = fs.existsSync(path.join(to, "src")) ? fs.readdirSync(path.join(to, "src")).sort() : [];
+    ok("companion source: every .cs file of companion/src is in the package", want.length > 5 && JSON.stringify(got) === JSON.stringify(want), JSON.stringify({ want, got }));
+    ok("companion source: byte for byte", want.every((f) => fs.existsSync(path.join(to, "src", f)) && fs.readFileSync(path.join(to, "src", f)).equals(fs.readFileSync(path.join(tree, "companion", "src", f)))));
+    ok("companion source: build.cmd and a README beside it", fs.existsSync(path.join(to, "build.cmd")) && fs.existsSync(path.join(to, "README.txt")));
+    ok("companion source: in LICENSES, which the update's app part carries", pack.RELEASE_PARTS.app.holds.includes("LICENSES"));
+    const keys = fs.existsSync(path.join(to, "release-keys.txt")) ? fs.readFileSync(path.join(to, "release-keys.txt"), "utf8") : "";
+    ok("companion source: no private key shipped", !/PRIVATE KEY/.test(keys) && !fs.readdirSync(to).some((f) => /\.(pem|key|p8)$/i.test(f)));
+    ok("the friend README points at the companion's source", /LICENSES\\+source\\+companion/.test(pack.readmeText({ nodeVersion: "v0", bridge: "b", table: "t", built: "2026-11-12" })));
+  } finally { fs.rmSync(pkg, { recursive: true, force: true }); }
+}
+
 // the save: TTS's own layout (CRLF, two-space indent, the script as one escaped string)
 const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r\n  "LuaScript": "x = 1\\r\\nfunction engineStamp() return \\"0fa50b21\\" end\\r\\n",\r\n  "ObjectStates": [\r\n    {\r\n      "Nickname": "SaveName",\r\n      "Name": "Card"\r\n    }\r\n  ]\r\n}';
 {
