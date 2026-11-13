@@ -29,10 +29,10 @@ const Log = {
 const hhmmss = (d) => d.toTimeString().slice(0, 8);
 
 class Controller {
-  // o: { layout, observe, savesDir, stateDir, appDir (the companion's folder), platform, arch, engine, bridgeUrl,
-  //      runtimeOverride }
+  // o: { layout, observe, findSaves (() => platform.savesDirFor's { dir, found, tried }) or savesDir (a fixed folder,
+  //      tests), stateDir, appDir (the companion's folder), platform, arch, engine, bridgeUrl, runtimeOverride }
   constructor(o) {
-    this.L = o.layout; this.observe = !!o.observe; this.savesDir = o.savesDir; this.stateDir = o.stateDir;
+    this.L = o.layout; this.observe = !!o.observe; this.findSaves = o.findSaves || (() => ({ dir: o.savesDir, found: true, tried: [] })); this.savesDir = this.findSaves().dir; this.stateDir = o.stateDir;
     this.appDir = o.appDir; this.platform = o.platform; this.arch = o.arch;
     this.bridgeUrl = o.bridgeUrl || "http://127.0.0.1:48787";
     this.engine = o.engine;
@@ -371,6 +371,10 @@ class Controller {
   async doSave() {
     if (!this.L.friend) { this.set(Step.Save, verdict(Light.Grey, `Home mode: you keep your own save (${this.saveName}).`)); return true; }
     if (!probes.exists(this.L.tableJson)) { this.set(Step.Save, verdict(Light.Red, "table/MTG Table.json is missing from the package. Unpack the package again, then press Try again.", { fix: Fixes.Retry, label: "Try again" })); return false; }
+    const where = this.findSaves();
+    this.savesDir = where.dir;
+    const notYet = L.savesFolderVerdict(where.found, where.tried);
+    if (notYet) { Log.write(`no TTS folder yet; looked in: ${where.tried.join(" | ")}`); this.set(Step.Save, notYet); return false; }
     try {
       const ours = fs.readFileSync(this.L.tableJson);
       const ourHash = L.sha8(ours);

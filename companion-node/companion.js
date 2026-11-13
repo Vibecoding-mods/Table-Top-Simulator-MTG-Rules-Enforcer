@@ -54,14 +54,19 @@ async function main() {
   }
 
   const home = os.homedir();
-  const savesDir = opt("saves") ? path.resolve(opt("saves")) : P.savesDirFor(process.platform, home, probes.exists, process.env);
+  // (looked for again at each save step: TTS may be run for the first time while the companion waits)
+  const findSaves = () => (opt("saves") ? { dir: path.resolve(opt("saves")), found: true, tried: [] } : P.savesDirFor(process.platform, home, probes.exists, process.env, probes.readText));
   const stateDir = opt("state") ? path.resolve(opt("state")) : P.stateDirFor(process.platform, home, process.env);
   Log.file = opt("log") ? path.resolve(opt("log")) : layout.companionLog;
   const observe = flag("observe");
-  const controller = new Controller({ layout, observe, savesDir, stateDir, appDir: __dirname, platform: process.platform, arch: process.arch, engine, bridgeUrl: opt("bridge-url") || undefined });
+  const controller = new Controller({ layout, observe, findSaves, stateDir, appDir: __dirname, platform: process.platform, arch: process.arch, engine, bridgeUrl: opt("bridge-url") || undefined });
   if (opt("steps")) controller.onlySteps = new Set(opt("steps").split(",").map(Number));
 
   if (flag("stop")) {
+    // (as the status page's Stop everything, which asks again during a game: here --force is the second answer)
+    await controller.refreshGame();
+    const no = L.stopRefusal(controller.game, flag("force"), process.platform === "darwin" ? "./\"Stop MTG.command\" --force" : "./stop.sh --force");
+    if (no) { console.log(no); process.exit(3); }
     console.log("Stopping the bridge and the engine containers (the container engine and TTS keep running)...");
     await controller.stopBridge();
     const f = await engine.detect();
@@ -74,8 +79,12 @@ async function main() {
   // ── one companion per package: a second start opens the first one's page
   const lockFile = path.join(stateDir, `running-${L.sha8(layout.home)}.json`);
   if (!observe) {
+    // (the file's pid counts only while it is still a companion whose page answers: after a reboot the number can
+    // belong to anything, and a stale file must not make every start say "already running")
     const lk = L.parseJson(probes.readText(lockFile));
-    if (lk && Number.isInteger(lk.pid) && lk.pid !== process.pid && probes.alive(lk.pid) && lk.url) {
+    const ours = lk && Number.isInteger(lk.pid) && lk.pid !== process.pid && typeof lk.url === "string" && /^http:\/\/127\.0\.0\.1:\d+\/$/.test(lk.url)
+      && probes.alive(lk.pid) && P.isCompanionCmd(probes.commandOf(lk.pid));
+    if (ours && (await probes.httpGet(lk.url, 3000)).status === 200) {
       console.log(`MTG Companion is already running: ${lk.url}`);
       const [cmd, a] = P.openCommand(process.platform, lk.url);
       probes.launch(cmd, a);

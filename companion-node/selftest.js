@@ -167,16 +167,26 @@ function stack() {
   const s = ra.join(" ");
   check("relay: compose's container name, its own network namespace (no network flag)", s.includes("--name mtg-table-relay-1") && !s.includes("--network"), s);
   check("relay: port on 127.0.0.1 only", s.includes("-p 127.0.0.1:9443:9443") && !/-p 9443/.test(s), s);
-  check("relay: the key, never pulled, restarts unless stopped", s.includes("MANABREW_SERVER_KEY=k1") && s.includes("--pull never") && s.includes("--restart unless-stopped") && ra[ra.length - 1] === "mtg-relay:exile", s);
+  check("relay: the key by name, never pulled, restarts unless stopped", ra.includes("MANABREW_SERVER_KEY") && s.includes("--pull never") && s.includes("--restart unless-stopped") && ra[ra.length - 1] === "mtg-relay:exile", s);
   check("Podman: no health check (the login decides)", s.includes("--no-healthcheck"));
   const rr = P.runArgs("forge-room", { project: "mtg-table", runtime: "docker", key: "k1", platform: "darwin", arch: "arm64" }).join(" ");
   check("room: in the relay's network namespace, reaching it as ws://127.0.0.1:9443 (no DNS needed)", rr.includes("--network container:mtg-table-relay-1") && rr.includes("SELF_HOSTED_NODE_RELAY_URL=ws://127.0.0.1:9443"), rr);
-  check("room: the same key, room tts-commander, 4 seats, no port of its own", rr.includes("SELF_HOSTED_NODE_SERVER_KEY=k1") && rr.includes("SELF_HOSTED_NODE_ROOM_NAME=tts-commander") && rr.includes("SELF_HOSTED_NODE_MAX_PLAYERS=4") && !rr.includes(" -p "), rr);
+  check("room: the same key, room tts-commander, 4 seats, no port of its own", rr.split(" ").includes("SELF_HOSTED_NODE_SERVER_KEY") && rr.includes("SELF_HOSTED_NODE_ROOM_NAME=tts-commander") && rr.includes("SELF_HOSTED_NODE_MAX_PLAYERS=4") && !rr.includes(" -p "), rr);
   check("Docker: keeps the image's health check", !rr.includes("--no-healthcheck"));
   check("Apple Silicon: the amd64 images under emulation", rr.includes("--platform linux/amd64") && !s.includes("--platform"));
   check("the same container names the bridge reads (versions.js: <project>-forge-room-1)", P.containerName("mtg-table", "forge-room") === "mtg-table-forge-room-1");
   check("up: no container: run; stopped: start; running: keep; new image: replace", P.upPlan({ exists: false }, R, L.sameId) === "run" && P.upPlan({ exists: true, state: "exited", image: R }, R, L.sameId) === "start"
     && P.upPlan({ exists: true, state: "running", image: R }, R, L.sameId) === "keep" && P.upPlan({ exists: true, state: "running", image: N }, R, L.sameId) === "replace");
+  check("the key never on the command line (ps shows it): passed by name, its value in the command's environment", !s.includes("k1") && !rr.includes("k1") && P.secretEnv("relay", "k1").MANABREW_SERVER_KEY === "k1" && P.secretEnv("forge-room", "k1").SELF_HOSTED_NODE_SERVER_KEY === "k1", s);
+  check("replacing the relay removes the room first (Podman refuses to remove a container others depend on)", JSON.stringify(P.removeArgs("mtg-table", "relay", true)) === JSON.stringify(["rm", "-f", "mtg-table-forge-room-1", "mtg-table-relay-1"]));
+  check("replacing the relay with no room: only the relay (rm -f of a missing container fails on Podman)", JSON.stringify(P.removeArgs("mtg-table", "relay", false)) === JSON.stringify(["rm", "-f", "mtg-table-relay-1"]) && JSON.stringify(P.removeArgs("mtg-table", "forge-room", true)) === JSON.stringify(["rm", "-f", "mtg-table-forge-room-1"]));
+  section("pids from files (reused after a reboot)");
+  const loopCmd = "/home/deck/MTG Table/runtime/node/bin/node /home/deck/MTG Table/companion/companion.js --bridge-loop --home /home/deck/MTG Table";
+  check("the bridge loop's pid: still ours when it is companion.js --bridge-loop --home <this package>", P.isLoopCmd(loopCmd, "/home/deck/MTG Table") && P.isLoopCmd(`${loopCmd} --runtime podman`, "/home/deck/MTG Table"));
+  check("another package's loop is not ours (even a folder whose name starts the same)", !P.isLoopCmd(loopCmd.replace(/MTG Table$/, "MTG Table2"), "/home/deck/MTG Table") && !P.isLoopCmd(loopCmd, "/home/deck/MTG"));
+  check("a reused pid (another program, the companion itself, gone) is not the loop", !P.isLoopCmd("/usr/lib/firefox/firefox", "/home/deck/MTG Table") && !P.isLoopCmd("./runtime/node/bin/node companion/companion.js", "/home/deck/MTG Table") && !P.isLoopCmd(null, "/x"));
+  check("the instance lock's pid: a companion (started by start.sh, or by hand)", P.isCompanionCmd("./runtime/node/bin/node companion/companion.js") && P.isCompanionCmd("node /r/companion-node/companion.js --observe"));
+  check("a bridge loop or a --stop is not a companion; nor is any other program", !P.isCompanionCmd(loopCmd) && !P.isCompanionCmd("node companion/companion.js --stop") && !P.isCompanionCmd("/usr/bin/kwin_wayland") && !P.isCompanionCmd("node mycompanion.js") && !P.isCompanionCmd(null));
   const running = { exists: true, state: "running", image: N };
   check("room: relay kept: the room's own plan (keep, start, run, replace)", P.roomPlan(running, N, "keep", L.sameId) === "keep" && P.roomPlan({ ...running, state: "exited" }, N, "keep", L.sameId) === "start" && P.roomPlan({ exists: false }, N, "keep", L.sameId) === "run" && P.roomPlan(running, R, "keep", L.sameId) === "replace");
   check("room: a relay run, started or replaced has a new namespace: a running room is created again", ["run", "start", "replace"].every((rp) => P.roomPlan(running, N, rp, L.sameId) === "replace" && P.roomPlan({ ...running, state: "exited" }, N, rp, L.sameId) === "replace"));
@@ -225,6 +235,12 @@ function ports() {
   check("Linux: Node renames its process MainThread; the name is still node, from argv[0]", pc.name === "node" && pc.cmd === "/home/deck/MTG Table/runtime/node/bin/node --report-on-fatalerror /home/deck/MTG Table/bridge/bridge.js", pc);
   check("Linux: so the package's own bridge on its port is fine", L.decidePorts([{ port: 48787, pid: 27, name: pc.name, commandLine: pc.cmd }], "/home/deck/MTG Table/bridge/bridge.js", true) === null);
   check("Linux: no command line (a kernel thread): comm", P.procFromCmdline("", "kworker/0:1\n").name === "kworker/0:1" && P.procFromCmdline(null, null).name === null);
+  section("the test hook (mods.js)");
+  const { overrideAllowed } = require("./mods");
+  const tdir = path.join(os.tmpdir(), "mtg-breakit-abc"), copy = path.join(tdir, "case1-logic.js");
+  check("a broken copy loads only for breakit: its marker, a temp mtg-breakit-* folder, selftest.js running", overrideAllowed({ MTG_COMPANION_BREAKIT: "1" }, copy, os.tmpdir(), "/x/selftest.js"));
+  check("the companion itself never loads another file (no marker, another folder, or companion.js running)", !overrideAllowed({}, copy, os.tmpdir(), "/x/selftest.js") && !overrideAllowed({ MTG_COMPANION_BREAKIT: "1" }, path.join(os.tmpdir(), "evil", "logic.js"), os.tmpdir(), "/x/selftest.js")
+    && !overrideAllowed({ MTG_COMPANION_BREAKIT: "1" }, copy, os.tmpdir(), "/x/companion.js") && !overrideAllowed({ MTG_COMPANION_BREAKIT: "1" }, path.join(tdir, "x.json"), os.tmpdir(), "/x/selftest.js") && !overrideAllowed({ MTG_COMPANION_BREAKIT: "1" }, null, os.tmpdir(), "/x/selftest.js"));
   check("lsof -F: pid and command", JSON.stringify(P.parseLsof("p4242\ncnode\nf12\np9\ncCode Helper\n")) === JSON.stringify([{ pid: 4242, name: "node" }, { pid: 9, name: "Code Helper" }]));
   const bp = P.bridgeProcs([{ pid: 5, name: "node", cmd: "/home/deck/MTG Table/runtime/node/bin/node --report-on-fatalerror /home/deck/MTG Table/bridge/bridge.js" }, { pid: 6, name: "node", cmd: "node /home/deck/MTG Table/companion/companion.js --bridge-loop --home /home/deck/MTG Table" }], "/home/deck/MTG Table/bridge/bridge.js");
   check("the package's bridge among the processes (a folder with a space), not the loop", bp.length === 1 && bp[0].pid === 5, bp);
@@ -267,6 +283,13 @@ function gameLock() {
   check("unreadable answer: can't tell", L.decideGame(st("not json"), null).kind === "cantTell");
   check("HTTP 500: can't tell", L.decideGame({ kind: "ok", status: 500, body: "" }, null).kind === "cantTell");
   check("locked fixes: restart relay/room, bridge, image load", Fixes.locksDuringGame(Fixes.StackRestart) && Fixes.locksDuringGame(Fixes.BridgeRestart) && Fixes.locksDuringGame(Fixes.ImagesLoad));
+  section("stop.sh during a game");
+  const forceCmd = "./stop.sh --force";
+  const sr = L.stopRefusal(L.Game.on("Game on: turn 6, 4 players.", 6), false, forceCmd);
+  check("stop.sh during a game: refused, says the game ends and how to force it", !!sr && sr.includes("a game is on") && sr.includes("turn 6") && sr.includes(forceCmd), sr);
+  check("stop.sh when it can't tell: refused too", (L.stopRefusal(L.Game.cantTell("bridge slow"), false, forceCmd) || "").includes("can't tell"));
+  check("stop.sh --force during a game: goes ahead", L.stopRefusal(L.Game.on("Game on", 6), true, forceCmd) === null);
+  check("stop.sh with no game: goes ahead", L.stopRefusal(L.Game.none("No game."), false, forceCmd) === null);
   check("never locked: open TTS, start Docker, start a dead bridge, try again", !Fixes.locksDuringGame(Fixes.TtsOpen) && !Fixes.locksDuringGame(Fixes.DockerStart) && !Fixes.locksDuringGame(Fixes.BridgeStart) && !Fixes.locksDuringGame(Fixes.Retry));
 }
 
@@ -317,12 +340,29 @@ function saves() {
   check("sha8 like the bridge's", L.sha8(Buffer.from("abc")) === "ba7816bf");
   section("where the saves go");
   const yes = (...dirs) => (d) => dirs.includes(d);
-  check("Mac: ~/Library/Tabletop Simulator/Saves (TTS knowledge base)", P.savesDirFor("darwin", "/Users/a", () => false) === "/Users/a/Library/Tabletop Simulator/Saves");
-  check("Linux, native TTS: ~/.local/share/Tabletop Simulator/Saves (TTS knowledge base)", P.savesDirFor("linux", "/home/deck", yes("/home/deck/.local/share/Tabletop Simulator")) === "/home/deck/.local/share/Tabletop Simulator/Saves");
+  const sd = (plat, home, ex, env, rt) => P.savesDirFor(plat, home, ex, env, rt);
+  let w = sd("darwin", "/Users/a", yes("/Users/a/Library/Tabletop Simulator"));
+  check("Mac: ~/Library/Tabletop Simulator/Saves (TTS knowledge base), found", w.dir === "/Users/a/Library/Tabletop Simulator/Saves" && w.found, w);
+  check("Mac, TTS never run: not found", sd("darwin", "/Users/a", () => false).found === false);
+  w = sd("linux", "/home/deck", yes("/home/deck/.local/share/Tabletop Simulator"));
+  check("Linux, native TTS: ~/.local/share/Tabletop Simulator/Saves (TTS knowledge base)", w.dir === "/home/deck/.local/share/Tabletop Simulator/Saves" && w.found, w);
   const proton = "/home/deck/.local/share/Steam/steamapps/compatdata/286160/pfx/drive_c/users/steamuser/Documents/My Games/Tabletop Simulator";
-  check("Linux, TTS only ever run through Proton: the Proton prefix's Saves", P.savesDirFor("linux", "/home/deck", yes(proton)) === `${proton}/Saves`);
-  check("Linux, both: the native one", P.savesDirFor("linux", "/home/deck", yes(proton, "/home/deck/.local/share/Tabletop Simulator")).startsWith("/home/deck/.local/share/Tabletop"));
-  check("Linux, TTS never started: the native one (made)", P.savesDirFor("linux", "/home/deck", () => false) === "/home/deck/.local/share/Tabletop Simulator/Saves");
+  check("Linux, TTS only ever run through Proton: the Proton prefix's Saves", sd("linux", "/home/deck", yes(proton)).dir === `${proton}/Saves`);
+  check("Linux, both: the native one", sd("linux", "/home/deck", yes(proton, "/home/deck/.local/share/Tabletop Simulator")).dir.startsWith("/home/deck/.local/share/Tabletop"));
+  w = sd("linux", "/home/deck", () => false);
+  check("Linux, TTS never started: not found (the companion waits, makes nothing), dir where native TTS would put it", w.found === false && w.dir === "/home/deck/.local/share/Tabletop Simulator/Saves" && w.tried.length > 5, w);
+  const card = "/run/media/mmcblk0p1/steamapps/compatdata/286160/pfx/drive_c/users/steamuser/Documents/My Games/Tabletop Simulator";
+  const vdf = '"libraryfolders"\n{\n\t"0"\n\t{\n\t\t"path"\t\t"/home/deck/.local/share/Steam"\n\t}\n\t"1"\n\t{\n\t\t"path"\t\t"/run/media/mmcblk0p1"\n\t\t"apps"\t{ "286160" "1" }\n\t}\n}\n';
+  w = sd("linux", "/home/deck", yes(card), {}, (f) => (f === "/home/deck/.local/share/Steam/steamapps/libraryfolders.vdf" ? vdf : null));
+  check("Linux, TTS on the SD card through Proton: its library from libraryfolders.vdf", w.found && w.dir === `${card}/Saves`, w);
+  check("libraryfolders.vdf: every library path", JSON.stringify(P.steamLibraries(vdf)) === JSON.stringify(["/home/deck/.local/share/Steam", "/run/media/mmcblk0p1"]) && P.steamLibraries(null).length === 0);
+  const flat = "/home/deck/.var/app/com.valvesoftware.Steam/.local/share/Tabletop Simulator";
+  check("Linux, Flatpak Steam, native TTS: the Flatpak's folder", sd("linux", "/home/deck", yes(flat)).dir === `${flat}/Saves`);
+  check("Linux, Flatpak Steam, TTS through Proton", sd("linux", "/home/deck", yes(`/home/deck/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/compatdata/286160/pfx/drive_c/users/steamuser/Documents/My Games/Tabletop Simulator`)).found);
+  check("Linux, $XDG_DATA_HOME elsewhere but TTS in ~/.local/share: found there", sd("linux", "/home/deck", yes("/home/deck/.local/share/Tabletop Simulator"), { XDG_DATA_HOME: "/data/x" }).dir === "/home/deck/.local/share/Tabletop Simulator/Saves");
+  let v = L.savesFolderVerdict(false, w.tried);
+  check("no TTS folder anywhere: amber, run TTS once, Try again (no folder made)", v && v.light === Light.Amber && v.text.includes("Run Tabletop Simulator once") && v.fix === Fixes.Retry, v);
+  check("a TTS folder found: no verdict, the save step goes on", L.savesFolderVerdict(true, []) === null);
   check("state: ~/.local/state/mtg-companion, ~/Library/Application Support/MTG Companion", P.stateDirFor("linux", "/home/deck") === "/home/deck/.local/state/mtg-companion" && P.stateDirFor("darwin", "/Users/a") === "/Users/a/Library/Application Support/MTG Companion");
 }
 
@@ -573,6 +613,20 @@ async function saveFiles() {
     ok = await c.doSave();
     check("a newer package table, ours untouched: updated in place, a backup kept", ok && fs.readFileSync(path.join(c.savesDir, "TS_Save_3.json"), "utf8").includes('"x": 3') && fs.readdirSync(path.join(c.stateDir, "backup")).length === 1 && !fs.existsSync(path.join(c.savesDir, "TS_Save_4.json")), c.rows[3].v);
   } catch (e) { check("save files: no exception", false, e.stack); } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  // TTS never run here: the step waits, makes no folder, and goes on once TTS's folder appears
+  const n = fakeController(false);
+  try {
+    fs.mkdirSync(path.join(n.tmp, "table"), { recursive: true });
+    fs.writeFileSync(n.c.L.tableJson, '{"SaveName": "MTG Table (rules engine)"}');
+    const tts = path.join(n.tmp, "home", "Tabletop Simulator");
+    n.c.findSaves = () => ({ dir: path.join(tts, "Saves"), found: fs.existsSync(tts), tried: [tts] });
+    n.c.reloadPackage();
+    let ok = await n.c.doSave();
+    check("no TTS folder yet: the save step stops amber, says run TTS once, makes no folder", !ok && n.c.rows[3].v.light === Light.Amber && n.c.rows[3].v.text.includes("Run Tabletop Simulator once") && !fs.existsSync(tts), n.c.rows[3].v);
+    fs.mkdirSync(tts, { recursive: true });
+    ok = await n.c.doSave();
+    check("TTS run once (its folder there): Try again installs the table", ok && fs.existsSync(path.join(tts, "Saves", "TS_Save_1.json")), n.c.rows[3].v);
+  } catch (e) { check("no TTS folder: no exception", false, e.stack); } finally { fs.rmSync(n.tmp, { recursive: true, force: true }); }
 }
 
 // the real server on a free port: the guards and the API, as a browser and an attacker would talk to it
