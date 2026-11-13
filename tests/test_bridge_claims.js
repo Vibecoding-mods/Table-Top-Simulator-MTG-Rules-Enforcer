@@ -5347,11 +5347,18 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       // (a suspend card exiled by an impulse draw, no time counters, cast for its cost: no "from suspend")
       const impulse = logOf(h, at(0), cast);
       ok("suspend: a suspend card cast from an impulse exile isn't from suspend", impulse.includes("Blue casts Rift Bolt"), JSON.stringify(impulse));
+      // (time counters on a card with no suspend, CR 702.62b: not suspended either)
+      const plain = clone(F.board.gameView);
+      zoneOf(plain, "exile", "player-0").cards.push(card(970, "Rift Bolt", ["Sorcery"], { counters: { TIME: 1 } }));
+      const noKw = logOf(h, plain, cast);
+      ok("suspend: time counters without suspend aren't from suspend", noKw.includes("Blue casts Rift Bolt"), JSON.stringify(noKw));
       // (and cast and resolved between two boards, Forge's moves exile, stack, graveyard)
       const resolved = clone(F.board.gameView);
       zoneOf(resolved, "graveyard", "player-0").cards.push(bolt(0));
       const ev = [{ seq: 1, kind: "move", cardId: "engine-card-970", from: "Exile", to: "Stack", ownerId: "player-0" }, { seq: 2, kind: "move", cardId: "engine-card-970", from: "Stack", to: "Graveyard", ownerId: "player-0" }];
-      const viaImpulse = logOf(h, at(0), resolved, ev), viaSuspend = logOf(h, at(1), resolved, ev);
+      // (the feed read from its start each time: engineFacts keeps its place in the ring, game.eventSeq)
+      const fresh = (prevB) => { h.B._getGame().eventSeq = 0; return logOf(h, prevB, resolved, ev); };
+      const viaImpulse = fresh(at(0)), viaSuspend = fresh(at(1));
       ok("suspend: an impulse cast resolved between boards isn't from suspend", !viaImpulse.some((l) => /from suspend/.test(l)), JSON.stringify(viaImpulse));
       ok("suspend: a suspended cast resolved between boards is", viaSuspend.includes("Blue casts Rift Bolt from suspend without paying its mana cost"), JSON.stringify(viaSuspend));
       // (a cascade into Living End, a suspend card with no mana cost, face up in the cascade's exile: a cascade)
