@@ -2019,7 +2019,8 @@ function delayedOf(pub) {
   for (const d of Array.isArray(pub?.delayed) ? pub.delayed : []) {
     if (!d || typeof d.text !== "string") continue;
     const ids = Array.isArray(d.cardIds) ? d.cardIds : [];
-    const open = [...ids, ...(d.hostCardId ? [d.hostCardId] : [])].every((id) => shown.has(id));
+    // (an empty text: engine1113 blanks it, and drops the ids, when a card it names is hidden from the viewing seat)
+    const open = d.text.trim() !== "" && [...ids, ...(d.hostCardId ? [d.hostCardId] : [])].every((id) => shown.has(id));
     const action = open ? delayedAction(d.text) : "";
     const verb = open ? DELAYED_VERBS.find(([re]) => re.test(action)) : null;
     const when = delayedWhen(d); // (" at end step", or "")
