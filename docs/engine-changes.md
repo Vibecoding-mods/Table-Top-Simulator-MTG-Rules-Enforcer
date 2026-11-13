@@ -310,6 +310,18 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   payment, an AI with no deck, rule 901.10) was **not** run as of PLAN's note; unseen live.
 - **Known limits:** no rewind in Planechase; "<plane> leaves the game" line, chaos trigger label on the stack, Interplanar
   Tunnel wording, and plane pictures ahead are open (PLAN). The shared `manabrew` checkout lacks these protocol fields.
+- **Update 2026-11-13 (branch `planechase-1113`, bridge only, no engine change, no image build):** the deployed
+  `engine1113` (`4d0f4dcaa0f7`) already holds every planechase-1111 harness change. Its source `tmp/eb1113` has the same
+  `Planechase.java`, planar block and `Planeswalk`/`Chaos` ops, and the image's `libforgeharness.so` has their strings.
+  The bridge items are done: the chaos trigger is said as chaos on the stack, in the log and in its target question.
+  The 901.10 line "<plane> leaves the game with <player>" is in; the bridge tracks each plane's owner (who planeswalked
+  to it, overridden by a trigger's `ownerId` on the stack, kept in the resume file). Forge's "Would you like to
+  planeswalk?" and Interplanar Tunnel's "Select a card from your planar deck" are reworded. A debug scenario has a
+  `"planechase"` field (`{ "planes": [...], "current": name }`, before a game only), and plane pictures are fetched when
+  the pool is set. The live spike is `tests/live_planechase_check.js`:
+  `LIVE_STACK=1 LIVE_TIMEOUT=600 bash tools/live-check.sh exile tests/live_planechase_check.js` (`exile` is the
+  deployed engine1113 node and its relay; a test stack only; not yet run). Optional engine follow-up: a `planar.ownerIds` map (`Planechase.planarState` plus a field in the
+  Rust `PlanarStateDto`, which needs a node rebuild) would replace the bridge's owner tracking.
 - **Rollback:** `node tools/deploy.js --image batch1112` (from main `dd9f12c`). The same commits also exist as `2841bf3`,
   `53057d9` on `pc-src` and `09d608b` on `planechase-1111` (rebased copies).
 
