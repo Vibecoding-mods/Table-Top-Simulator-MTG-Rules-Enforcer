@@ -49,17 +49,23 @@ Harm = how common in Commander × how confusing.
 
 ### Needs an engine change (harness field plus an image rebuild; batch them into one rebuild)
 
-| # | Gap | Example | Size | Source |
-|---|---|---|---|---|
-| E1 | Emblems and "this turn" rule effects are invisible (root cause 1) | Teferi's Protection, Moment's Peace, Gideon's emblem | L | D1 |
-| E2 | Nothing warns that a permanent leaves, or an exiled card returns, at end of turn | Sneak Attack, Kiki-Jiki, Flickerwisp, dash, unearth | M-L | A5, B2, D3 |
-| E3 | The exert marker vanishes at cleanup while the creature is still frozen (one line: send `isExertedBy`) | Combat Celebrant | S | A3 |
-| E4 | Monstrous, saddled, harnessed, rooms, case solved, soulbond partner, battle protector | Polukranos, case cards | S each | A7, A |
-| E5 | Floating "can't block / must attack" effects | Falter, Lure | M | A6 |
-| E6 | Spells cast this turn, the storm count, and life gained or lost this turn | storm, Emeritus "third spell" | M | D5 |
-| E7 | Divided damage has no damage line | Fury, Electrolyze, Arc Trail | M | C4 |
-| E8 | The cost of a card in the playable row (cost badge phase 2) | airbend, free casts | M | B8 |
-| E9 | Curses attached to a player look unattached | curse decks | S | A |
+Status (2026-11-12): the engine fields come from image `engine1112` (`tmp/mb-wt-merge`, branch `engine-1112`); the
+bridge and table side of E1-E6 and E9 is built (bridge `cardStateWords`, `delayedOf`, `effectMarks`, `spellsMark`,
+`playerMarks`' `markTips`/`lifeTip`; table `enginePlayerCounters` per-box hover text and two-line marks,
+`engineLifeTip`, curses laid by `attP`), checked in `tests/test_bridge_claims.js` and `tests/test_table_claims.js`
+("engine1112 ..."), **not deployed and not seen live**. With an older engine none of it shows (the fields are absent).
+
+| # | Gap | Example | Size | Source | Status |
+|---|---|---|---|---|---|
+| E1 | Emblems and "this turn" rule effects are invisible (root cause 1) | Teferi's Protection, Moment's Peace, Gideon's emblem | L | D1 | Built: a marks box per effect under the life counter ("FOG THIS TURN", "EMBLEM: GIDEON", "TEFERI'S PROTECTION / UNTIL YOUR NEXT TURN", "SKIPS NEXT 2 TURNS"), the whole text in its hover; past three, "+N MORE EFFECTS" |
+| E2 | Nothing warns that a permanent leaves, or an exiled card returns, at end of turn | Sneak Attack, Kiki-Jiki, Flickerwisp, dash, unearth | M-L | A5, B2, D3 | Built: the affected card's status box (pile note in exile or a graveyard) says "Sacrificed / Exiled / Returns at end step"; the trigger's own card "At end step: sacrifice Hill Giant"; a pact's cost is a mark on its caster ("NEXT UPKEEP: PAY {3}{U}{U}") |
+| E3 | The exert marker vanishes at cleanup while the creature is still frozen (one line: send `isExertedBy`) | Combat Celebrant | S | A3 | Built: "Exerted (won't untap)" until its controller's untap step; "Doesn't untap next untap step" for `skipsNextUntap` |
+| E4 | Monstrous, saddled, harnessed, rooms, case solved, soulbond partner, battle protector | Polukranos, case cards | S each | A7, A | Built: "Monstrous", "Saddled (by X)", "Harnessed", "Solved", "Unlocked: <door>" / "Both doors unlocked", "Paired with X", "Protected by <player>" |
+| E5 | Floating "can't block / must attack" effects | Falter, Lure | M | A6 | Built: "Can't attack", "Can't block", "Can't attack or block", "Must attack" (no "Can't attack" for a creature with defender) |
+| E6 | Spells cast this turn, the storm count, and life gained or lost this turn | storm, Emeritus "third spell" | M | D5 | Built: "SPELLS THIS TURN: N (STORM M)" on the active player; life gained and lost this turn in the life counter's hover |
+| E7 | Divided damage has no damage line | Fury, Electrolyze, Arc Trail | M | C4 | Engine sends damage events (engine1112); the log line is separate work. The bridge reads the ring with them in it unchanged (checked) |
+| E8 | The cost of a card in the playable row (cost badge phase 2) | airbend, free casts | M | B8 | Not in this batch |
+| E9 | Curses attached to a player look unattached | curse decks | S | A | Built: a curse on another player lies on that player's mat with their other permanents, its box saying "Attached to <player>"; its controller still moves it |
 
 ## Suggested order
 
