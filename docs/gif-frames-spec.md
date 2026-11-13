@@ -6,8 +6,10 @@ Facts below are marked **(verified)** with a source, **(unverified)** when only 
 
 ## 1. What the players get
 
-- Every seated player has a **GIF frame** on the table: a small picture frame near their seat, the same size for
-  everyone, locked in place, that everyone at the table can see.
+- Every seated player has a **GIF frame** on the table: a square picture frame **as tall as a card** (width = height),
+  the same size for everyone, that everyone at the table can see. It spawns in a free spot on its owner's playmat and
+  **only its owner can move it** (anywhere on their own mat; others can't pick it up). It is there **always**, in a game
+  or not (decided 2026-11-13).
 - A player sets their own frame: click it (only the owner can) and a small panel opens on their screen with a search
   box, eight results as still pictures, More, and Clear. Pick one and it plays on your frame for everyone. Chat works
   too: `mtg gif <words>` shows the first match, `mtg gif off` clears your frame.
@@ -15,7 +17,7 @@ Facts below are marked **(verified)** with a source, **(unverified)** when only 
   the frame (anyone) plays it again.
 - **Hide GIFs for me:** any player can hide every frame on their own screen only (others keep seeing them).
 - **Host controls** (chat, host only): `mtg gifs on|off` (the whole feature, saved with the game), `mtg gif clear
-  <colour>` (empties one player's frame), `mtg gifs rating g|pg|pg-13` (default pg).
+  <colour>` (empties one player's frame), `mtg gifs rating g|pg|pg-13` (default **pg-13**, decided 2026-11-13).
 - AI seats get no frame. Spectators see the frames but can't set one.
 
 ## 2. The hard part: TTS can't show a GIF
@@ -102,22 +104,23 @@ All in real TTS on the user's PC, with a scratch table, not the user's save:
 5. **T5** a test bundle from the Unity project (`C:\Users\you\mtg-unity\Tabletop-Simulator-Modding`) with a
    VideoPlayer playing a GIPHY MP4 URL onto a quad: does it play in TTS?
 
-Pick the route: W if T2 moves; else V if T5 plays; else F if T3 and T4 pass; else **stills only** (Phase 1 alone).
+Pick the route: W if T2 moves; else V if T5 plays; else F if T3 and T4 pass; else **the feature is dropped** (the
+user, 2026-11-13: stills only is not worth building).
 
 ## 7. Build phases (after Phase 0)
 
 1. **Stills** (about 1 day): keys in the companion, the bridge's GIPHY adapter with tests on recorded real answers
    (captured once, never typed by hand), the frames, the search panel, chat commands, hide-for-me, host controls.
-   Useful on its own.
+   Built only once Phase 0 has found a route that moves; it does not ship on its own.
 2. **Motion** (about 1-2 days, depends on the route).
 3. **KLIPY** (about half a day, only if its terms fit).
 
 Each phase: a builder and a checker agent, the table's simulator tests and a break-it proof, one deploy with TTS closed.
 A two-person check (that remote players see the frames and their downloads keep up) needs a second player.
 
-## 8. Questions for the user
+## 8. Decisions (the user, 2026-11-13)
 
-1. Where should the frame sit: beside the life counter, or standing up behind each mat facing the middle? How big?
-2. Frames always on, or only during a game?
-3. Default rating: G, PG (proposed) or PG-13?
-4. If only stills are possible (Phase 0 fails every route), still worth building?
+1. **Place and size:** square, as tall as a card; spawns in a free spot on the owner's mat; only the owner can move it.
+2. **When:** always on, not only during a game.
+3. **Default rating:** PG-13.
+4. **Stills only:** not worth building. If Phase 0 finds no moving route, the feature is dropped.
