@@ -31,19 +31,19 @@ Harm = how common in Commander × how confusing.
 | 5 | "Doesn't untap during your next untap step" shows nothing | Frost Breath, Sleep | S | A2 |
 | 6 | "Exiled with X" never names X; the O-Ring kind gets no "comes back" hover | Banishing Light, Oblivion Ring, Fiend Hunter | S | B3 |
 | 7 | Life changes other than damage are bare (fixed in source effa69f for what resolved, a room entered and a "Pay N life:" cost; recover and shockland payments stay bare; not seen live) | "White: 40 -> 42 life (+2)" | M | C3 |
-| 8 | Partner commander damage is summed in the display (15 + 10 shows 25 against 21; the loss check is right) | partner pairs | S | D4 |
+| 8 | Partner commander damage is summed in the display (15 + 10 shows 25 against 21; the loss check is right). **Fixed 2026-11-12, not yet seen live:** the tracker shows the most from one commander, its tooltip each commander's damage (bridge `cmdDamageRow`, `cmdTip`; table `engineCmdDamageTip`); a commander in a library or hand is counted (owner from `commanderCasts`); the counter turned in a fix sets the commander it shows, and turned down below a partner's damage lowers that partner too | partner pairs | S | D4 |
 | 9 | Cards playable from the graveyard leave the graveyard pile with no origin label; only flashback has a note | escape, disturb, unearth, jump-start | S | B4 |
-| 10 | A third card in the command zone lands on the first commander | emblems, effect cards | S | B6 |
-| 11 | An extra combat or main phase looks like the first one | Aggravated Assault, Relentless Assault | S | D6 |
+| 10 | A third card in the command zone lands on the first commander. **Fixed 2026-11-12, not yet seen live:** command cards past the two tax labels get a row of their own toward the table's centre, under the labels and the dungeon's spot, clear of the tax numbers; a sixth and on fan over the fifth (`engineExtraCommandSpot`). Emblems themselves still don't reach the table (E1) | emblems, effect cards | S | B6 |
+| 11 | An extra combat or main phase looks like the first one. **Fixed 2026-11-12, not yet seen live:** the bridge counts the phases of each turn from the steps (`phaseNumber`, reset by a rewind) and sends `phaseNo`; the phase bar reads "COMBAT (2)" / "MAIN (3)" and the step banner the same | Aggravated Assault, Relentless Assault | S | D6 |
 | 12 | Detained and regeneration shields are tracked but not shown | Lavinia, Ivy Lane Denizen-style regen | S | A8 |
 | 13 | A copy cast from exile is logged as a token's ability | Arcane Bombardment | S-M | C5 |
 | 14 | Monarch, initiative and control changes give no cause or previous holder; initiative prints after its venture (fixed in source effa69f, not seen live; the real log's "after" order was Veteran Dungeoneer's own venture and a debug setup's initiative, so only a venture into Undercity is moved) | – | S | C6 |
 | 15 | The Ring's log line never names the Ring-bearer (log line fixed in source effa69f, not seen live); the label doesn't spell out the level's effect | The One Ring tempt | S | C7, D8 |
-| 16 | Opponents' floating mana is never shown | – | S | D7 |
+| 16 | Opponents' floating mana is never shown. **Fixed 2026-11-12, not yet seen live:** the bridge sends every player's non-empty pool; your status line adds "Floating: AI 1 RR · Red G" under your own pool | – | S | D7 |
 | 17 | Mutate: the cards under the top one are never listed | Illuna, mutate decks | M | A4 |
 | 18 | Suspend: time counters only show in the pile's hover; no countdown in the log | Rift Bolt, Ancestral Vision | M | B5 |
 | 19 | Foretold cards: opponents see no count | Doomskar, Saw It Coming | M | B7 |
-| 20 | Skipped turns leave no trace (stopgap: log when a seat is passed over) | Eater of Days | S | D2 |
+| 20 | Skipped turns leave no trace (stopgap: log when a seat is passed over). **Stopgap done 2026-11-12, not yet seen live:** "AI 1's turn is skipped" above the new turn's header when the turn order passes over a player still in the game (`skippedTurns`: extra turns follow Forge's stack, so they don't count; the passed-over seats are walked in the turn order's direction as seen, so a reversed order (Aeon Engine, Temple of Atropos) reads right, and nothing is said while the direction is unknown or just changed; nothing without Forge's isExtraTurn flag or when boards were missed). Why, and a warning beforehand, still need E1 | Eater of Days | S | D2 |
 | 21 | Vote and reveal notices may print once per seat that acknowledges them (unconfirmed live) | Council's Judgment | S | C8 |
 | 22 | Smaller items: no reason on "Game over"; no line for a countered ability; no tag on AI free casts; commander damage not flagged in the log | – | S each | C9-13 |
 
