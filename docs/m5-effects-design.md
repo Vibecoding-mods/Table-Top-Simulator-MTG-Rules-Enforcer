@@ -306,7 +306,7 @@ engineSounds = engineSounds or { death = "https://...", wipe = "https://...", da
   knockout = "https://...", countered = "https://...", playerhit = "https://...", bighit = "https://...",
   sorcery = "https://..." }
 engineSoundKinds = { "knockout", "wipe", "bighit", "death", "exile", "countered", "playerhit", "damage", "lifegain",
-  "sorcery", "instant", "counter" }
+  "treasure", "treasurespend", "sorcery", "instant", "counter" }
 engineSoundsMuted = false -- the host's switch for the whole table
 -- (plus the bursts: death_x2 ... death_x8 and the like, see "Bursts" below)
 function engineSoundPlay(kind, force, n)   -- true if it played; n: the board's count for that kind (bursts)
@@ -334,12 +334,14 @@ on the real table.
 | `playerhit` | 1 to 5 damage to a player (life down by 1 to 5; life paid reads the same) | with the first lunge hit on a player; with no playerhit pick it is a damage |
 | `damage` | damage of 5 or less to a creature; it still counts every hit (creatures and players, any size), so it is the fallback of playerhit and bighit: with neither picked every hit plays it, as before 2026-11-12 | with the first lunge hit |
 | `lifegain` | a player's life goes up on a board | a life loss never plays it |
+| `treasure` (2026-11-13) | Treasure tokens created: tokens new on the battlefield with the Treasure subtype in their type line (`FX.isTreasure`: the board's `tok` and `tl`; Forge's name "Treasure Token" only with no type line) | at once; bursts ×2 ×3 ×4 ×6 ×8 by the count, all seats together. No link yet (`docs/sounds.md` "Treasure") |
+| `treasurespend` (2026-11-13) | Treasure tokens leaving the battlefield the way a death does (sacrificed for mana, mostly) | **in place of** death and wipe: a Treasure is never in their counts (so three spent are not a wipe). At once; bursts as treasure. No link yet |
 | `sorcery` | a sorcery spell resolves (since 2026-11-12; before, when it appeared on the stack) | as instant, by the bridge's `rsv` entries with `k: "sor"`; not for a copy (storm's Grapeshot copies), not for an ability, not for one countered, fizzled or exiled from the stack |
 | `instant` | an instant spell resolves (since 2026-11-12, the user: "only play if not countered"; before, when it appeared on the stack) | by the bridge's `rsv` alone (`resolvedSpells`): `[{id: card, k: "ins" or "sor"}]`, the instants and sorceries that resolved since the last board sent, out of the board's signature, cleared once sent, merged when a waiting board is replaced (as `ctrd`). The table can't tell it from the boards: a spell countered, fizzled, exiled from the stack or a copy leaves the stack just as one that resolved does. A spell's card that left the stack (the engine's feed; without the feed, a spell of the last board's stack now in a graveyard or an exile) is named unless: a copy (Forge moves none: `GameAction.changeZone` takes a copied spell out of its zone with no event, and it is in no zone after); countered (the log's "is countered", `takenOffStack`'s, or a counterspell of the last board's stack whose Forge stack words name it, "Counter Opt.", off the stack after it: Forge's stack lists no spell targets); fizzled (it knew of targets, Forge's or the player's picks, and every one was illegal: a card gone from the zone it was in when targeted, on an earlier board or on this one before the spell left the stack by the feed's order and not by the spell's own effect; a spell target gone from the stack before; a player is always legal, hexproof gained in answer can't be told); or put into an exile, a hand or a library by something else (flashback, rebound, jump-start, escape, aftermath, harmonize, a paradigm spell or "Exile <it>" put it into exile, buyback into a hand, "shuffle <it> into" into a library; anything else took it off the stack). Its kind: what `sendTable` marked its stack item (`ins` / `sor`, `isSpellOfType`), else its card's types now, so one cast and resolved between two boards, or an AI's never seen face up before, plays too. One at most per board (two resolved on one board play one), and never for an `rsv` entry `ctrd` names. Never for a sorcery, an ability, a Flash creature |
 | `counter` | a counter put on a permanent | |
 
 - **When:** at most one sound per board: the first kind of `engineSoundKinds` (knockout > wipe > bighit > death > exile >
-  countered > playerhit > damage > lifegain > sorcery > instant > counter) that is on this board **and has a pick**, so a
+  countered > playerhit > damage > lifegain > treasure > treasurespend > sorcery > instant > counter) that is on this board **and has a pick**, so a
   wipe with no wipe pick plays death, and a knock-out with no knockout pick plays the hit that did it (bighit or playerhit, else
   damage).
 - **Why that order (2026-11-12):** the rarer and bigger event wins. A hit of more than 5 is about a player's game or a
@@ -348,7 +350,10 @@ on the real table.
   more than a creature; the spells resolved stay at the bottom with instant (a sorcery is cast at sorcery speed, so it
   resolves on one board with an instant only when both resolve in the same update; the sorcery, the bigger spell, wins).
   playerhit and bighit each sit above damage, which counts every hit: with no pick for them, damage plays as on
-  2026-11-11, as death does for wipe.
+  2026-11-11, as death does for wipe. (2026-11-13) The Treasure sounds sit under lifegain and over the spells
+  resolved: a creature dying, an exile or a hit on the same board matters more, and a spell that makes Treasures plays
+  the jingle, what it did, rather than its sorcery or instant sound; making Treasures goes above spending them. A
+  Treasure spent with no treasurespend pick plays nothing, never death (it isn't one of death's).
 - **Spacing and timing:** each kind at most once every 0.3 s, and any two sounds at least 0.15 s apart. It plays at
   that kind's first event's start time (lunge hit, knock-out 600 ms, a wipe's first death; a hit sound with its first
   hit of that kind, damage with any hit: `FX.ofSound`); exile, lifegain, countered, sorcery and instant at once.
@@ -360,7 +365,8 @@ on the real table.
     `_x16` link is never used); a count of 1, or no bucket link under it, plays the plain kind. So 5 plays ×4, 7
     plays ×6, 50 plays ×8.
   - The counts, all on one board: death and wipe = the permanents that went to a graveyard (the same `diedIds` the
-    wipe rule counts); exile = the permanents exiled from the battlefield (the exile zones' new ids plus `exd`);
+    wipe rule counts), less the Treasure tokens among them, which are treasurespend's count (2026-11-13); treasure =
+    the Treasure tokens new on the battlefield; exile = the permanents exiled from the battlefield (the exile zones' new ids plus `exd`);
     damage = the creatures that took damage (before the 4-burst visual cap) plus the players whose life went down;
     bighit = those of them hit by more than 5; playerhit = the players whose life went down by 5 or less;
     lifegain = the players whose life went up. The engine's own feed has no separate gain events for the table (the
