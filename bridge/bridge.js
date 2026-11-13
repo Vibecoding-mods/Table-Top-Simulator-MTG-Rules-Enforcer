@@ -72,6 +72,8 @@ function toTTS(customMessage) {
       for (const k of ["exd", "ctrd"]) {
         if (older[k]?.length) customMessage[k] = [...new Set([...older[k], ...(customMessage[k] || [])])];
       }
+      // (and the spells resolved, by card)
+      if (older.rsv?.length) customMessage.rsv = [...new Map([...older.rsv, ...(customMessage.rsv || [])].map((x) => [x.id, x])).values()];
       // (and the effects' facts, lv and hits: the older board's first, the newer's order after them)
       const top = Math.max(0, ...[...(older.lv || []), ...(older.hits || [])].map((x) => x.q || 0));
       for (const k of ["lv", "hits"]) {
@@ -2951,7 +2953,9 @@ function engineFacts(events) {
     if (e.causeCardId && e.how === "draw") facts.drawsBy.set(e.causeCardId, (facts.drawsBy.get(e.causeCardId) || 0) + 1);
     if (!e.cardId) continue;
     const was = facts.moves.get(e.cardId);
-    const cause = was?.cause ? { cause: was.cause, causeName: was.causeName } : e.cause ? { cause: e.cause, causeName: e.causeName } : {};
+    // (causeId: the card whose effect moved it, for a spell whose target an effect moved before it resolved: fizzled)
+    const cause = was?.cause ? { cause: was.cause, causeName: was.causeName, ...(was.causeId ? { causeId: was.causeId } : {}) }
+      : e.cause ? { cause: e.cause, causeName: e.causeName, ...(e.causeCardId ? { causeId: e.causeCardId } : {}) } : {};
     // (through: the zone it passed on the way, a commander countered and recast before the next board went Stack, Command,
     // Stack, which read as never having left; Arcane Denial on Niv-Mizzet, recast at once, rebuilt re-test 2)
     // (owner: Forge's card's own, which the battlefield's view doesn't give, see noteOwners)
@@ -3150,6 +3154,86 @@ function takenOffStack(offStack, prevSpellOf, cards, pubIndex) {
     }
   }
   return taken;
+}
+
+// The cards a logSnapshot stack item targets: Forge's, then the player's picks ("card|<id>")
+function cardTargetsOf(s) {
+  return [...new Set([...(s.cardTg || []), ...(s.pk || []).filter((t) => t.startsWith("card|")).map((t) => t.slice(5))])];
+}
+// The instant and sorcery spells that resolved between two boards, for the table's instant and sorcery sounds (sendTable's
+// rsv, docs/m5-effects-design.md section 6; before 2026-11-12 they played on the cast: the user, "only play if not
+// countered"). A card that left the stack, by the engine's feed (offStack; without the feed, a spell of the last board's
+// stack now in a graveyard or an exile), and none of these:
+// - a copy: Forge moves none (GameAction.changeZone takes a copied spell out of its zone with no zone-change event), and
+//   it is in no zone after, so neither the feed nor the boards show it leaving;
+// - countered or taken off by another spell (countered: the log's "is countered" lines, counteredBy, and takenOffStack's;
+//   and a counterspell's stack words naming it, counterNamed);
+// - fizzled, its every target illegal as it was to resolve (fizzled);
+// - put somewhere other than its graveyard by something else: into exile, a hand or a library only when its own words put
+//   it there as it resolves (ownWay); a spell exiled from the stack plays nothing;
+// - still (or again) on the stack.
+// Its kind: the one sendTable marked its stack item (ins / sor, game.fxKinds), else its card's types now (cast and
+// resolved between two boards, or not known while it was on the stack). -> [{ id: card id, k: "ins" | "sor" }]
+function resolvedSpells(prev, cur, facts, pubIndex, prevSpellOf, countered) {
+  const onStack = new Set(Object.values(cur.stack).filter((s) => !s.ability).map((s) => s.id));
+  const offTo = new Map();
+  for (const o of facts?.offStack || []) offTo.set(o.id, { to: String(o.to || "").toLowerCase(), seq: o.seq });
+  if (!facts) for (const id of prevSpellOf.keys()) if (cur.cards[id]) offTo.set(id, { to: cur.cards[id].zone, seq: null });
+  const kindOf = (types) => (!Array.isArray(types) ? null : types.includes("Instant") ? "ins" : types.includes("Sorcery") ? "sor" : null);
+  // (and one a counterspell of the last board's stack names in Forge's stack words, "Counter Opt.", that left the stack
+  // too, it before the counterspell by the feed's order (an "unless" one paid for lets it resolve after): Forge's stack
+  // lists no spell targets, so the log can miss the counter, and the instant sound played for it)
+  const counters = Object.values(prev.stack).filter((x) => !x.ability && /\bcounter target\b/i.test(x.text || "") && offTo.has(x.id));
+  const counterNamed = (id, s, off) => !!s && counters.some((c) => c.id !== id && String(c.desc || "").toLowerCase().includes(`counter ${String(s.name).toLowerCase()}`)
+    && (off.seq == null || offTo.get(c.id).seq == null || off.seq < offTo.get(c.id).seq));
+  const out = [];
+  for (const [id, off] of offTo) {
+    if (onStack.has(id) || countered(id)) continue;
+    // (a card in a graveyard or an exile shows there: one that isn't was a copy)
+    if ((off.to === "graveyard" || off.to === "exile") && !cur.cards[id]) continue;
+    const s = prevSpellOf.get(id);
+    const k = (s && game.fxKinds?.get(id)) || kindOf(pubIndex[id]?.types || game.typesById?.get(id));
+    if (!k) continue;
+    const text = `${pubIndex[id]?.text || ""}\n${s?.text || ""}`, name = cur.cards[id]?.name || s?.name || pubIndex[id]?.identity?.name || "";
+    if (off.to !== "graveyard" && !ownWay(off.to, text, name)) continue;
+    if (s && (counterNamed(id, s, off) || fizzled(s, off.seq, prev, cur, facts))) continue;
+    out.push({ id, k });
+  }
+  return out;
+}
+// Whether an instant's or a sorcery's own words put it into that zone (exile, hand, library) as it resolves, rather than
+// its graveyard: flashback, rebound, jump-start, escape, aftermath, harmonize, a paradigm spell, "Exile <it>" into exile;
+// buyback into a hand; "shuffle <it> into its owner's library" into a library. Anything else took it off the stack.
+function ownWay(to, text, name) {
+  const t = text.toLowerCase(), n = name.toLowerCase();
+  if (to === "exile") return /\b(?:flashback|rebound|jump-start|escape|aftermath|harmonize|paradigm)\b/.test(t) || (!!n && t.includes(`exile ${n}`));
+  if (to === "hand") return /\bbuyback\b/.test(t);
+  if (to === "library") return !!n && (t.includes(`shuffle ${n} into`) || t.includes(`${n} into its owner's library`));
+  return false;
+}
+// Whether a spell of the last board's stack fizzled: it had targets that it knew of (Forge's, the player's picks, the spells
+// it targets) and every one was illegal as it was to resolve (Forge's MagicStack.hasFizzled: it goes to its graveyard
+// and does nothing). A card target is illegal once gone from the zone it was in when targeted (s.tz): on an earlier board,
+// or on this one before the spell left the stack (the feed's order, offSeq) by anything but the spell itself (an effect
+// of another card, or no cause at all: a state-based death; a replacement names no card and is taken for the spell's own
+// doing). A spell target is illegal once off the stack while this one was still on it. A player is always a legal one
+// here. Hexproof or protection gained in answer can't be told and reads as resolved.
+function fizzled(s, offSeq, prev, cur, facts) {
+  const prevSids = new Set(Object.values(prev.stack).flatMap((x) => x.sids));
+  const cards = cardTargetsOf(s);
+  const spells = [...new Set([...(s.tg || []), ...(s.pk || []).filter((t) => t.startsWith("spell|")).map((t) => t.slice(6))])];
+  if (!cards.length && !spells.length) return false;
+  if ((s.plTg || []).length || (s.pk || []).some((t) => t.startsWith("player|"))) return false;
+  const cardGone = (t) => {
+    const at = s.tz?.[t];
+    if (at == null) return false;
+    if (prev.cards[t]?.zone !== at) return true;
+    if (cur.cards[t]?.zone === at) return false;
+    const m = facts?.moves.get(t), seq = facts?.firstSeq.get(t);
+    if (!m || seq == null || offSeq == null || seq > offSeq) return false;
+    return m.causeId ? m.causeId !== s.id : !m.cause;
+  };
+  return cards.every(cardGone) && spells.every((x) => !prevSids.has(x));
 }
 
 // What dealt damage between two boards, and to what (Forge sends no damage event: GameViewDto.events moves cards only),
@@ -3628,6 +3712,11 @@ function logEvents(prev, cur, pub, facts = null) {
     // target, checker round 4; any other only with its words)
     if (pick && !prev.stack[key]?.pk && (pick.text || pick.casting) && pick.text === s.text && fresh(pick)) { s.pk = pick.ids; game.picked.delete(s.id); }
     else if (prev.stack[key]?.pk) s.pk = prev.stack[key].pk;
+    // (and the zone each card it targets was in when it was first seen targeted, kept on it while it stays: a target gone
+    // from there since is an illegal one, see fizzled)
+    const tz = { ...(prev.stack[key]?.tz || {}) };
+    for (const t of cardTargetsOf(s)) if (!(t in tz)) tz[t] = cur.cards[t]?.zone ?? null;
+    if (Object.keys(tz).length) s.tz = tz;
   }
   // (" targeting X and Y": a stack item's targets by name, Forge's and the player's picks, or a pick not yet on any stack
   // item (one cast and gone before a board showed it); "White casts Counterspell" named no target, Kykar #8)
@@ -4728,6 +4817,8 @@ function logEvents(prev, cur, pub, facts = null) {
   }
   // (the cards of the spells said to be countered on this board, see counteredBy)
   lines.countered = [...counteredIds];
+  // (and the instants and sorceries that resolved, for the table's instant and sorcery sounds: resolvedSpells)
+  lines.resolved = resolvedSpells(prev, cur, facts, pubIndex, prevSpellOf, (id) => counteredIds.has(id) || takenOff.has(id));
   // (the damage it is certain of, for the table's bolts with an engine that sends no damage entries: updateLog)
   lines.hits = damage.hits;
   return lines;
@@ -4786,6 +4877,8 @@ function updateLog(pub) {
   if (!game.feedDamage && lines.hits?.length) (game.fxHits ??= []).push(...lines.hits);
   // (the spells countered, for the table's COUNTERED pop-up: see sendTable's ctrd)
   for (const id of lines.countered || []) (game.fxCountered ??= new Set()).add(id);
+  // (and the instants and sorceries that resolved, for the table's instant and sorcery sounds: see sendTable's rsv)
+  for (const x of lines.resolved || []) (game.fxResolved ??= new Map()).set(x.id, x);
   flashNews(prev, cur, pub);
   if (!lines.length) return;
   if (game.heldLines?.length) { clearTimeout(game.heldTimer); lines.push(...game.heldLines.splice(0)); }
@@ -5070,6 +5163,9 @@ function sendTable() {
   for (const pl of players) for (const z of ZONE_KEYS) if (pl[z]) pl[z] = pl[z].map(slim);
   const planar = planarRow(pub);
   const planes = planeCards.map((c) => slim({ ...toCard(c), ctl: planar?.controller || game.slotColor[c.controllerId] || null }));
+  // (the stack's instant and sorcery spells by card, ins / sor, for the board they resolve on: resolvedSpells)
+  game.fxKinds = new Map();
+  const kindOn = (s, k) => { if (s.sourceId) game.fxKinds.set(s.sourceId, k); return true; };
   const stack = (pub.stack || []).map((s) => ({
     // (its text without Forge's card numbers: stackText)
     id: s.id, n: s.identity?.name || "?", tx: stackText(s), ctl: game.slotColor[s.controllerId] || null,
@@ -5077,8 +5173,10 @@ function sendTable() {
     // (a face-down spell, or a face-down permanent's ability, has no name: the table must not draw its card from what it
     // knew of it in its owner's hand, which showed a morph's real face on the stack and in the pop-up to everyone)
     ...(!s.identity?.name ? { fd: true } : {}),
-    ...(isSpellOfType(s, pub, "Instant") ? { ins: true } : {}), // (an instant spell: the table's instant sound)
-    ...(isSpellOfType(s, pub, "Sorcery") ? { sor: true } : {}), // (a sorcery spell: the table's sorcery sound)
+    // (an instant spell, a sorcery spell: the kind of its sound once it resolves, see the board's rsv; the table plays
+    // nothing on the cast since 2026-11-12)
+    ...(isSpellOfType(s, pub, "Instant") && kindOn(s, "ins") ? { ins: true } : {}),
+    ...(isSpellOfType(s, pub, "Sorcery") && kindOn(s, "sor") ? { sor: true } : {}),
     // (a spell that isn't `spell`, its spell text read as an ability's: an instant or a sorcery; the table's COUNTERED
     // pop-up takes either)
     ...(s.sourceAbilityText && !isAbilityOnStack(s, pub) ? { sp: true } : {}),
@@ -5121,6 +5219,10 @@ function sendTable() {
   // (and the cards of the spells the log said were countered since the last board sent: the table's COUNTERED pop-up
   // and countered effect go by these, the stack telling no counter's target. Out of the signature; cleared once sent)
   if (game.fxCountered?.size) tableMsg.ctrd = [...game.fxCountered];
+  // (and the instants and sorceries that resolved since the last board sent, {id: its card, k: "ins" or "sor"}: the
+  // table's instant and sorcery sounds go by these alone, as a countered, fizzled or copied spell leaves the stack the
+  // same way on the boards (resolvedSpells). Out of the signature; cleared once sent)
+  if (game.fxResolved?.size) tableMsg.rsv = [...game.fxResolved.values()];
   // (and the table's particle effects' facts since the last board sent, docs/particle-fx-spec.md section 3, out of the
   // signature and cleared once sent: lv, every battlefield departure {id, to: g e h l c x, how: d destroyed / s
   // sacrificed, by: the card that caused it}; hits, the damage dealt {src, to: a card id or a colour, n, combat}; q,
@@ -5149,6 +5251,7 @@ function sendTable() {
   game.fxJump = false;
   game.fxExiled?.clear();
   game.fxCountered?.clear();
+  game.fxResolved?.clear();
   game.fxLeft?.clear();
   if (game.fxHits) game.fxHits.length = 0;
   flushTexts();

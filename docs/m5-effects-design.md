@@ -334,8 +334,8 @@ on the real table.
 | `playerhit` | 1 to 5 damage to a player (life down by 1 to 5; life paid reads the same) | with the first lunge hit on a player; with no playerhit pick it is a damage |
 | `damage` | damage of 5 or less to a creature; it still counts every hit (creatures and players, any size), so it is the fallback of playerhit and bighit: with neither picked every hit plays it, as before 2026-11-12 | with the first lunge hit |
 | `lifegain` | a player's life goes up on a board | a life loss never plays it |
-| `sorcery` | a sorcery spell appears on the stack | as instant, by the bridge's `sor` (the same rule as `ins`: a spell, not an ability, not still being cast, whose card was seen as a Sorcery); not for a copy (storm's Grapeshot copies), not for an ability |
-| `instant` | an instant spell appears on the stack | the bridge marks the stack item `ins`: a spell, not an ability (`isAbilityOnStack`), no longer being cast, whose card it has seen as an Instant (its stack name first, else its card id, from every seat's view outside the battlefield). Forge's stack item has no card types, so an instant whose card no seat has seen face up (an AI's first of that name, from a hand nobody sees) plays nothing. The table plays it once per card (`src`), and not for a copy: a stack item with the name of an instant already on the stack while its controller's hand didn't shrink (Twincast's copy, storm's). Never for a sorcery, an ability, a Flash creature |
+| `sorcery` | a sorcery spell resolves (since 2026-11-12; before, when it appeared on the stack) | as instant, by the bridge's `rsv` entries with `k: "sor"`; not for a copy (storm's Grapeshot copies), not for an ability, not for one countered, fizzled or exiled from the stack |
+| `instant` | an instant spell resolves (since 2026-11-12, the user: "only play if not countered"; before, when it appeared on the stack) | by the bridge's `rsv` alone (`resolvedSpells`): `[{id: card, k: "ins" or "sor"}]`, the instants and sorceries that resolved since the last board sent, out of the board's signature, cleared once sent, merged when a waiting board is replaced (as `ctrd`). The table can't tell it from the boards: a spell countered, fizzled, exiled from the stack or a copy leaves the stack just as one that resolved does. A spell's card that left the stack (the engine's feed; without the feed, a spell of the last board's stack now in a graveyard or an exile) is named unless: a copy (Forge moves none: `GameAction.changeZone` takes a copied spell out of its zone with no event, and it is in no zone after); countered (the log's "is countered", `takenOffStack`'s, or a counterspell of the last board's stack whose Forge stack words name it, "Counter Opt.", off the stack after it: Forge's stack lists no spell targets); fizzled (it knew of targets, Forge's or the player's picks, and every one was illegal: a card gone from the zone it was in when targeted, on an earlier board or on this one before the spell left the stack by the feed's order and not by the spell's own effect; a spell target gone from the stack before; a player is always legal, hexproof gained in answer can't be told); or put into an exile, a hand or a library by something else (flashback, rebound, jump-start, escape, aftermath, harmonize, a paradigm spell or "Exile <it>" put it into exile, buyback into a hand, "shuffle <it> into" into a library; anything else took it off the stack). Its kind: what `sendTable` marked its stack item (`ins` / `sor`, `isSpellOfType`), else its card's types now, so one cast and resolved between two boards, or an AI's never seen face up before, plays too. One at most per board (two resolved on one board play one), and never for an `rsv` entry `ctrd` names. Never for a sorcery, an ability, a Flash creature |
 | `counter` | a counter put on a permanent | |
 
 - **When:** at most one sound per board: the first kind of `engineSoundKinds` (knockout > wipe > bighit > death > exile >
@@ -345,8 +345,8 @@ on the real table.
 - **Why that order (2026-11-12):** the rarer and bigger event wins. A hit of more than 5 is about a player's game or a
   big creature, so it goes above a single death (a wipe of 3+ and a knock-out still beat it); a countered spell is
   one card lost, with death and exile; a player hit of 5 or less goes just above damage, as hitting a player matters
-  more than a creature; the casts stay at the bottom with instant (a sorcery is cast at sorcery speed, so it shares a
-  board with an instant only when the instant answers it in the same update; the sorcery, the bigger spell, wins).
+  more than a creature; the spells resolved stay at the bottom with instant (a sorcery is cast at sorcery speed, so it
+  resolves on one board with an instant only when both resolve in the same update; the sorcery, the bigger spell, wins).
   playerhit and bighit each sit above damage, which counts every hit: with no pick for them, damage plays as on
   2026-11-11, as death does for wipe.
 - **Spacing and timing:** each kind at most once every 0.3 s, and any two sounds at least 0.15 s apart. It plays at
@@ -420,8 +420,9 @@ on the real table.
   - `mtg sounds test <kind> [N]` (host), any of `engineSoundKinds`: plays that pick now (with N, the burst a count
     of N picks), so the user can try sounds; an unknown kind lists them.
 - **Bridge fields** (`bridge/bridge.js`, `sendTable`): `ins: true` on a stack item (`isSpellOfType(s, pub, "Instant")`, types from
-  `noteTypes`), `sor: true` the same for a sorcery (2026-11-12), `sp: true` on a spell that isn't `spell` (an instant or a sorcery: the countered pop-up), and `exd: [card ids]` on the board (from `updateLog`'s engine facts; out of the board's signature like
-  `jump`, cleared once sent). A bridge without them: no instant (or sorcery) sound, and an exiled token reads as a death.
+  `noteTypes`), `sor: true` the same for a sorcery (2026-11-12; the table no longer reads either since 2026-11-12, the
+  bridge keeps them as the kind of the spell's `rsv` entry once it resolves), `sp: true` on a spell that isn't `spell` (an instant or a sorcery: the countered pop-up), `exd: [card ids]` on the board (from `updateLog`'s engine facts; out of the board's signature like
+  `jump`, cleared once sent), and `rsv: [{id, k}]` the same way, the instants and sorceries that resolved (`resolvedSpells`). A bridge without them: no instant (or sorcery) sound, and an exiled token reads as a death.
 ### Plugging in a sound (the user)
 
 1. Get the sound as an **.mp3** file. The TTS music player docs give only .mp3 links in their examples and list no
