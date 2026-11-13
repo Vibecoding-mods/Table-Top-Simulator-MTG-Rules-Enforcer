@@ -24,7 +24,8 @@ Where the source lives:
 | `C:\Users\you\mtg-tts\tmp\mb-pc` | Current working checkout, branch `pc-on-batch1` (tip `4753e36`). Built batch1112 and batch2-1112. |
 | `C:\Users\you\mtg-tts\tmp\mb-batch1` | Worktree of branch `tts-engine` (tip `ba5ad41`). Origin of the batch 1 commits. |
 | `C:\Users\you\mtg-tts\manabrew` | Older shared checkout, branch `tts-engine` (tip `6186d11`, 2026-11-09). Also holds `planechase-1111` (tip `09d608b`) in `tmp/wt-planechase/manabrew`. Its `main` is upstream `fd16e2f`. |
-| `tmp/mb-wt-cards`, `tmp/mb-wt-game`, `tmp/mb-wt-damage` | Worktrees of `mb-pc` for the three branches in progress (section 2). |
+| `tmp/mb-wt-cards`, `tmp/mb-wt-game`, `tmp/mb-wt-damage` | Worktrees of `mb-pc` for branches `card-flags-1112`, `game-state-1112`, `damage-events-1112`. |
+| `tmp/mb-wt-merge` | Worktree of branch `engine-1112` (tip `ecf76ab`): the three branches merged on `4753e36`. Built engine1112. |
 | `engine/manabrew.patch`, `engine/forge.patch` | The published form: our whole change as a patch on top of the pinned upstream commits. `engine/forge-trek-files.txt` lists the imported Star Trek files. |
 | `engine/build-images.sh`, `engine/make-patches.sh`, `engine/checks/` | Build the images from public source; remake the patches; headless checks (`harness-tests.sh`, `TrekCardsLoadCheck.java`, `ExtraTurnCountCheck.java`). |
 
@@ -67,19 +68,8 @@ outer repo's `engine/manabrew.patch` history (`git -C mtg-tts log -- engine/mana
 
 ## 2. Pending / in progress (2026-11-12)
 
-Three engine branches are being built in worktrees of `tmp/mb-pc`. **In progress, not built.** All three branch tips
-are still `4753e36` (the same as `pc-on-batch1`), so **nothing is committed yet**. Work exists only as uncommitted
-changes in each worktree (checked with `git status`/`git diff`, 2026-11-12 evening; worktrees last touched about 19:00).
-No image tag exists for any of them.
-
-| Branch | Worktree | Uncommitted so far |
-|---|---|---|
-| `card-flags-1112` | `tmp/mb-wt-cards` | `InteractiveSnapshotExtractor.java` (+71), `manabrew-protocol/.../game/mod.rs` (+29), `game_view_dto.rs` (+13), `src/lib/gameCard.ts` (+13). New per-card fields seen in the diff: `skipsNextUntap`, `monstrous`, `saddled`, `saddledBy[]`, `harnessed`, `solved`, `unlockedDoors[]`, `pairedWith`, `attachedToPlayer`, `protectorId`, `cantAttack`, `cantBlock`, `mustAttack`. (`exert`, `rooms` are in the brief; the diff may carry them under other names. Unconfirmed.) |
-| `game-state-1112` | `tmp/mb-wt-game` | `InteractiveSnapshotExtractor.java` (+17), new `EffectsView.java`, `reflect-config.json` (+4: reflects `TriggerHandler.delayedTriggers` and `playerDefinedDelayedTriggers`), protocol `mod.rs` (+57), `game_view_dto.rs` (+6). New DTOs seen: `DelayedTriggerDto {id, text, controllerId, hostCardId?, cardIds[], when?, turnOf?}`, `EffectDto {id, name, text, sourceCardId?, emblem, untilEndOfTurn, duration?}`, and optional per-player `effects`, `spellsCastThisTurn`, `lifeGainedThisTurn`, `lifeLostThisTurn`, plus game-level `delayed` and `stormCount`. |
-| `damage-events-1112` | `tmp/mb-wt-damage` | `EngineEventLog.java` (+126/-8), protocol `mod.rs` (+18). New optional `EngineEventDto` fields seen: `kind`, `sourceCardId`, `targetCardId`, `targetPlayerId`, `amount`, `combat`. |
-
-All three add optional DTO fields, so they would be node-only unless a directive changes (unconfirmed until built).
-When one is built, add its entry to section 4 and the table in section 3.
+Nothing in progress. The three branches listed here earlier (card flags, game state, damage events) are committed,
+merged as `engine-1112` and built as `engine1112`, **not deployed** (section 4).
 
 ## 3. Summary table (newest first)
 
@@ -89,6 +79,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-12 20:03 / 20:07 | `engine1112` (`0306d683de26` / `58cf2e3da251`) | Per-permanent card flags; effects, delayed triggers, storm and per-turn counts in the view; damage events in the feed | Node needed; relay optional (the old relay passes the new fields, proved live) | mb-wt-merge `86b9279`, `6b6d362`, `8fac2bb`, merge `ecf76ab`; no compile fix needed | **not deployed** | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) |
 | 2026-11-12 05:02 / 05:05 | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) = `:exile` now | Dungeon rooms and Planechase in the view; dungeon, initiative, planeswalk, chaos fix ops | Both | mb-pc `5356a42`, `62ac39e`, `4753e36`; outer `96e2c4c`, `044f77e`, `f46b12c` (bridge) | 2026-11-12 ~05:50, main `3ae38c3` | `batch1112` (`00d0a4d243ed` / `e6156e135032`) |
 | 2026-11-12 03:39 / 02:59 | `batch1112` (`00d0a4d243ed` / `e6156e135032`) | Attack taxes, refusals and limits sent; defender choice names the attacker; draw and mill fix ops; mill triggers | Both | `a7d187a`, `efde6c7`, `6c06a04`, `5a13c18`, `30bd56e`, `ba5ad41`; outer `248165d`, `8d496c4`, `f44b8a4`, `153a6fc` | 2026-11-12 ~04:00, main `dd9f12c` | `walker` node (`c9295fcc7e1c`), relay `exile` as before (`dbfe69213fff`) |
 | 2026-11-11 14:12 | `walker` (`c9295fcc7e1c`) | Debug-created planeswalker or battle enters with its printed loyalty or defense | Node only | outer `8fb86e6`; mb-pc sync `f8068c5` | 2026-11-11 14:40, main `bff272c` | `bugs1111` (`d718c138b924`) |
@@ -126,6 +117,9 @@ older ids come from the notes.
 Docker images present on 2026-11-12 (read-only listing):
 
 ```
+mtg-relay:engine1112                    58cf2e3da251  2026-11-12 20:07:48
+mtg-forge-node:engine1112               0306d683de26  2026-11-12 20:03:48
+mtg-harness-test:engine1112             5a8646db5b1f  2026-11-12 19:36:54
 mtg-relay:batch2-1112 / :exile          57aa07a9b314  2026-11-12 05:05:31
 mtg-forge-node:batch2-1112 / :exile     975d62f6279e  2026-11-12 05:02:49
 mtg-harness-test:batch2-1112            00474462f02a  2026-11-12 04:41:31
@@ -147,6 +141,52 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-12 engine1112: card flags, effects, delayed triggers, damage events (not deployed)
+- **Problem:** the table guessed several per-permanent states (monstrous, saddled, paired, "can't attack/block") from
+  text or counters. It could not show continuous effects (Fog, Teferi's Protection) or delayed triggers (unearth's exile,
+  Sneak Attack's sacrifice), had no storm count, and the feed reported no damage.
+- **What (`86b9279`, card flags):** `CardDto` gains `skipsNextUntap`, `monstrous`, `saddled`, `saddledBy[]`, `harnessed`,
+  `solved`, `unlockedDoors[]`, `pairedWith`, `attachedToPlayer`, `protectorId`, `cantAttack`, `cantBlock`, `mustAttack`
+  (booleans and lists left out when false or empty). `exerted` now holds until its controller's next untap step, not
+  only the turn it was exerted. The defaults in `src/lib/gameCard.ts` are filled in.
+- **What (`6b6d362`, game state):** a new `EffectsView` adds four kinds of field. Each player gets `effects[]` (`EffectDto {id, name, text,
+  sourceCardId?, emblem, untilEndOfTurn, duration?}`, from the command-zone effect cards). The game gets `delayed[]` (`DelayedTriggerDto
+  {id, text, controllerId, hostCardId?, cardIds[], when?, turnOf?}`, read from `TriggerHandler.delayedTriggers` and
+  `playerDefinedDelayedTriggers`, both added to `reflect-config.json`) and `stormCount`. Each player also gets `spellsCastThisTurn`,
+  `lifeGainedThisTurn` and `lifeLostThisTurn`. All are left out when empty or 0.
+- **What (`8fac2bb`, damage events):** `EngineEventLog` adds one feed entry per damage dealt: `kind: "damage"`, `to: "Damage"`,
+  `ownerId` (the source's owner), `sourceCardId`, `targetCardId` or `targetPlayerId`, `amount`, `combat`. Damage to a planeswalker or
+  battle is read from its counter drop. Ring capacity 256 -> 512.
+- **Files:** harness `InteractiveSnapshotExtractor`, `EffectsView` (new), `EngineEventLog`, `native/extra-config/reflect-config.json`,
+  `AGENTS.md`; protocol `manabrew-protocol/src/game/mod.rs`, `manabrew-agent-interface/src/game_view_dto.rs`; tests
+  `CardStateFlagsTest` (15), `EffectsViewTest` (11), `EngineEventDamageTest` (10).
+- **Build:** this was the first compile of these edits. It compiled on the first try, with **no compile-fix commit**. It took the same route as batch2-1112:
+  1. A manabrew patch made from `tmp/mb-wt-merge` against the clean `tmp/engine-build` tree (the manabrew half of make-patches,
+     53 files, kept as `tmp/manabrew-engine1112.patch`, sha1 `653b09f9762a`).
+  2. That patch applied in `tmp/engine-build` with `engine/forge.patch` (unchanged).
+  3. A `docker build` from that tree of the node, the relay and `--target java-builder` (harness-test).
+
+  `engine/manabrew.patch` is **not** regenerated yet. Regenerate it before the deploy commit. The build generates the Java
+  protocol classes from the Rust types: the image's generated `CardDto.java` carries the new fields, and the harness tests
+  compile against it.
+- **Proof:** harness 15 of 15 classes in `mtg-harness-test:engine1112` (the three new ones pass 15, 11 and 10 checks). On a
+  test stack (port 9444) the live checks match batch2-1112: `live-check.sh engine1112` (phasing/rewind) 29 of 29, `live_events_check`
+  51 of 51, and the draw/mill check 20 of 20. A new wire check, `live_engine1112_check.js` (session scratchpad), passed 22 of 22 twice with
+  `mtg-relay:engine1112` and 22 of 22 with `LIVE_RELAY=batch2-1112`. It shows these on the wire, through the real relay:
+  - Shock on a Grizzly Bears: a damage event `{kind:"damage", sourceCardId: Shock, targetCardId: bear, amount: 2, combat: false, ownerId, to:"Damage"}`.
+  - Moment's Peace: the caster's `effects` gains `{name:"Moment's Peace's Effect", text:"Prevent all combat damage this turn.",
+    untilEndOfTurn: true, emblem: false, sourceCardId}`.
+  - `stormCount` 2 and `spellsCastThisTurn` 2 after two spells (both absent before).
+  - Dregscape Zombie's unearth: `delayed` gains `{text:"Exile Dregscape Zombie at the beginning of the next end step.",
+    when:"end step", hostCardId/cardIds: the zombie, controllerId}`.
+  - Fleecemane Lion's monstrosity: `monstrous: true`.
+  - The other seat sees all of them.
+- **Deploy:** **not deployed yet.** `node tools/deploy.js --image engine1112` (TTS closed, no game) would retag both images. The
+  relay swap is optional, because the old relay carries every new field. The deploy gate `tests/test_table_map.js` reads the protocol's `game/mod.rs`, so
+  the deploy needs `MTG_MANABREW=tmp/mb-wt-merge` (batch 2 used `tmp/mb-pc`). That tree has the new fields; `mb-pc` and the
+  shared `manabrew` checkout don't. The bridge does not read the new fields yet.
+- **Rollback:** `node tools/deploy.js --image batch2-1112` (node `975d62f6279e`, relay `57aa07a9b314`).
 
 ### 2026-11-12 batch2-1112: dungeons and Planechase in the engine view
 - **Problem:** the table guessed a dungeon's room from card text and had no Planechase at all; initiative and venture
