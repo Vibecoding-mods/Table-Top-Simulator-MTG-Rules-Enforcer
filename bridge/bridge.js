@@ -1808,12 +1808,18 @@ async function fetchTokens() {
 // zone: the zone list the card is drawn from (sendTable), for what only means something there: a graveyard card's
 // flashback, an exiled card's madness, warp or plot, a permanent's owner and choices
 // views: every human seat's card index, for the choices only every seat can see (choiceWords)
-function tableCard(c, { blockers = null, active = null, zone = null, views = [] } = {}) {
+// row: drawn for a seat's playable row (playableOf): its hover says who let it be played and until when (playNote), and
+// a face-down card the seat may look at (foretold, hideaway) comes with its face, as that row's face-down cards lie in
+// the seat's second hand zone, which TTS shows its owner alone (the table's enginePlaceSpecial)
+function tableCard(c, { blockers = null, active = null, zone = null, views = [], row = false } = {}) {
   if (!c || c.visibility === "hidden" || !c.identity) return { id: c?.id, fd: true };
   // A face-down card (morph, manifest, foretold or "exiled face down") travels without name, picture or text: the
-  // board goes to every player's table from one seat's view, and that seat may be allowed to see what it is.
-  if (c.isFaceDown) {
-    return { id: c.id, fd: true, tap: !!c.tapped, p: c.power ?? null, t: c.toughness ?? null, dmg: c.damage || 0,
+  // board goes to every player's table from one seat's view, and that seat may be allowed to see what it is. (Who may
+  // look is told apart from that by facePeek, a field the table shows to those seats only.)
+  if (c.isFaceDown && !(row && c.identity.name)) {
+    // (in exile no body at all: the seat's view carries the card's real power and toughness there)
+    const body = zone === "exile" ? null : c.power;
+    return { id: c.id, fd: true, tap: !!c.tapped, p: body ?? null, t: zone === "exile" ? null : (c.toughness ?? null), dmg: c.damage || 0,
       ctr: Object.fromEntries(Object.entries(c.counters || {}).filter(([, k]) => k)), att: c.attachedTo || null,
       ctl: game.slotColor[c.controllerId] || null, atk: !!c.isAttacking, blk: !!(blockers && blockers.has(c.id)),
       atkT: c.isAttacking ? (game.slotColor[c.attackTargetId] || c.attackTargetId || null) : null,
@@ -1821,12 +1827,14 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
       // (public: that it is foretold, or hidden away under a permanent; not what it is. A face-down permanent is a 2/2
       // creature, and the table lays it out with the creatures, hp-07 2026-10-27; never its real types, which the
       // owner's view carries: a foretold Instant, a manifested land, stage 3 review 2026-10-27)
-      ty: c.power != null ? ["Creature"] : [],
+      ty: body != null ? ["Creature"] : [],
       // (what the badge compares against, as for a face-up card's picture: a face-down permanent is a 2/2 by the rules,
       // so a plain morph shows no numbers and a pumped or damaged one does)
-      ...(c.power != null ? { bp: 2, bt: 2 } : {}),
+      ...(body != null ? { bp: 2, bt: 2 } : {}),
       ...(c.phasedOut ? { po: true } : {}),
-      ...(c.isForetold ? { fo: true } : {}), ...(c.exiledWith ? { ew: c.exiledWith } : {}) };
+      ...(c.isForetold ? { fo: true } : {}), ...(c.exiledWith ? { ew: c.exiledWith, rl: !!c.returnsWhenHostLeaves } : {}),
+      // (a hideaway card under its land: which card it lies under is public, what it is is not)
+      ...(zone === "exile" ? notesOf(exiledWithNote(c)) : {}) };
   }
   const name = c.identity.name;
   // the picture: a token's own (tokenImage), else its owner's deck's (a token copy of a deck card too), else by name
@@ -1891,6 +1899,9 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
       ...(game.suspected?.has(c.id) ? ["Suspected: can't block"] : []),
       // (a permanent's states and what a delayed trigger will do to it; a card elsewhere is in a pile or a hand)
       ...(zone === "battlefield" ? [...cardStateWords(c), ...delayedWordsOf(c.id)] : []),
+      // (detained and a regeneration shield, which the bridge kept for the log and the attack question only: logEvents)
+      ...(zone === "battlefield" && game.detained?.has(c.id) ? [`Detained until ${nameOf(game.detained.get(c.id).by)}'s next turn`] : []),
+      ...(zone === "battlefield" && game.regenShields?.has(c.id) ? ["Regeneration shield"] : []),
       ...hauntedBy(c.id).map((n) => `Haunted by ${n}`),
       ...(c.summoningSick && active === c.controllerId && c.types?.includes("Creature") ? ["Summoning sick"] : []),
       ...(c.isCrewed ? ["Crewed"] : []), ...(c.isBestowed ? ["Bestowed"] : []), ...(c.isRingBearer ? ["Ring-bearer"] : []),
@@ -1902,8 +1913,13 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
       ...(c.wouldDieInCombat && (c.isAttacking || blockers?.has(c.id)) ? ["Dies in this combat as it stands"] : []),
       ...(zone === "battlefield" && ownerOf(c) && c.controllerId && ownerOf(c) !== c.controllerId ? [`Owned by ${nameOf(ownerOf(c))}`] : []),
       ...(zone === "battlefield" ? choiceWords(c, views) : [])]),
-    ...cardNotes(c, zone),
-    ...costNow(c, zone), // (what it costs now, when that isn't its printed cost: the table's cost badge)
+    ...cardNotes(c, zone, row),
+    // (a playable row card from a graveyard says so on its face: it left the graveyard pile for the row, readability
+    // audit B4)
+    ...(row && zone === "graveyard" ? { og: "graveyard" } : {}),
+    // (what it costs now, when that isn't its printed cost: the table's cost badge; never on a card face down to the
+    // others, whose badge buttons other players may see)
+    ...(c.isFaceDown ? {} : costNow(c, zone)),
   };
 }
 
@@ -2008,15 +2024,21 @@ const delayedWordsOf = (id) => game?.delayedNow?.cards.get(id) || [];
 // What a card in a graveyard or exile can still do, and its counters in exile (suspend's time counters, Dauthi
 // Voidwalker's void counters): the table puts these in its hover text and on its pile, as the cards inside a pile deck
 // show no status box
-function cardNotes(c, zone) {
+// row: the card is drawn in a seat's playable row (playNote; a graveyard card says it came from there)
+function cardNotes(c, zone, row = false) {
   const nt = [];
+  if (zone === "graveyard" && row) nt.push("From the graveyard");
   if (zone === "graveyard" && c.flashbackCost) {
     const cost = keywordCostText(c, "Flashback", c.flashbackCost);
     nt.push(cost ? `Flashback ${cost}` : "Has flashback");
   }
+  if (zone === "graveyard") nt.push(...graveKeywordNotes(c));
   // (what a delayed trigger will do to it, a card in a pile showing no status box: Flickerwisp's exiled card returns)
   if (zone === "exile" || zone === "graveyard") nt.push(...delayedWordsOf(c.id));
   if (zone === "exile") {
+    // (who let it be played and until when, in the playable row; else the permanent it lies under: readability audit B1, B3)
+    const play = row ? playNote(c) : null;
+    nt.push(...(play ? [play] : exiledWithNote(c)));
     if (c.isMadnessExiled) nt.push(`Exiled for madness: its owner may cast it for ${keywordCostText(c, "Madness", c.madnessCost) || "its madness cost"}, or it goes to the graveyard`);
     if (c.isWarpExiled) nt.push("Warped: its owner may cast it from exile on a later turn");
     if (c.isPlotted) nt.push("Plotted: its owner may cast it without paying its mana cost on a later turn, as a sorcery");
@@ -2037,6 +2059,114 @@ function keywordCostText(c, word, cost) {
   if (printed) return printed;
   const parts = String(cost || "").trim().split(/\s+/);
   return cost && parts.every((p) => /^[0-9WUBRGCXSP/]+$/.test(p)) ? parts.map((p) => `{${p}}`).join("") : null;
+}
+const notesOf = (list) => (list.length ? { nt: list } : {});
+
+// The board sendTable is drawing, for the notes that name another card: byId (the drawing seat's card index) and field
+// (the battlefield's card ids). Set by each sendTable and never cleared, so a caller between boards reads the last
+// board drawn; before a game's first board there is none, and those notes are left out.
+// A card on that board by name: a face-down one by no name, whichever seat's board this is (seat 0's may see it)
+function boardName(id) {
+  const h = game?.tableCtx?.byId?.[id];
+  if (h?.isFaceDown || h?.visibility === "hidden") return "a face-down card";
+  return h?.identity?.name || game?.namesSeen?.get(id) || "another card";
+}
+const boardText = (id) => {
+  const h = game?.tableCtx?.byId?.[id];
+  return h?.isFaceDown ? "" : String(h?.text || game?.cardText?.[id] || "");
+};
+// "Exiled with X" on a card exiled with a permanent still on the battlefield (Banishing Light, Oblivion Ring, Fiend
+// Hunter, Valki, a hideaway land): Forge's exiledWith. The one-trigger "until X leaves" kind (returnsWhenHostLeaves)
+// gets the table's own "comes back" line too; the two-trigger kind (Oblivion Ring's, Fiend Hunter's "When X leaves the
+// battlefield, return the exiled card") says its trigger returns it, which can be answered: readability audit B3.
+function exiledWithNote(c) {
+  const host = c?.exiledWith;
+  if (!host || host === c.id || !game?.tableCtx?.field?.has(host)) return [];
+  const name = boardName(host);
+  if (!c.returnsWhenHostLeaves && /\bleaves the battlefield, return the exiled cards?\b/i.test(boardText(host))) {
+    return [`Exiled with ${name}. When ${name} leaves the battlefield, its trigger returns this card`];
+  }
+  return [`Exiled with ${name}`];
+}
+// How long a card's play permission lasts, from the words of the card that gave it ("Until the end of your next turn,
+// you may play those cards.", "You may play them this turn."): { until, cast } or null when its sentence names no end.
+// The engine sends no duration (readability audit B1), so this is the text's word; a "may cast" sentence is a cast.
+function playWindow(text) {
+  const plain = String(text || "").replace(/\([^)]*\)/g, " ");
+  const sentence = plain.split(/(?<=[.!])\s+|\n+/).find((s) => /\bmay (?:play|cast)\b/i.test(s));
+  if (!sentence) return null;
+  const cast = !/\bmay play\b/i.test(sentence);
+  const ends = [[/\buntil the end of your next turn\b/i, "until the end of your next turn"],
+    [/\buntil the end of (?:their|that player's|its owner's) next turn\b/i, "until the end of their next turn"],
+    [/\buntil your next end step\b/i, "until your next end step"],
+    [/\buntil end of turn\b|\bthis turn\b/i, "until end of turn"],
+    [/\bfor as long as (?:it|they|that card|those cards|the exiled cards?) remains? exiled\b/i, "while it stays exiled"]];
+  for (const [re, until] of ends) if (re.test(sentence)) return { until, cast };
+  const other = /\b(for as long as|until) ([^,.;]+)/i.exec(sentence);
+  return { until: other ? `${other[1].toLowerCase()} ${other[2].trim()}` : null, cast };
+}
+// A playable row card exiled by another card (impulse draw: Jeska's Will, Light Up the Stage, Prosper, Tibalt):
+// "Playable until end of turn — Jeska's Will" (Castable for a "may cast"), readability audit B1
+function playNote(c) {
+  if (!c?.mayPlay || !c.exiledWith || c.exiledWith === c.id || game?.prepared?.has(c.id)) return null;
+  const w = playWindow(boardText(c.exiledWith));
+  return `${w?.cast ? "Castable" : "Playable"}${w?.until ? ` ${w.until}` : ""} — ${boardName(c.exiledWith)}`;
+}
+// What a graveyard card's keyword lets its owner do from there, with its cost as printed (flashback has its own line:
+// cardNotes), readability audit B4. [keyword, the words after "<keyword> <cost>: "]
+const GRAVE_WAYS = [
+  ["Escape", "may be cast from the graveyard for its escape cost"],
+  ["Disturb", "may be cast transformed from the graveyard"],
+  ["Unearth", "returns it to the battlefield, as a sorcery: it gains haste and is exiled at the next end step or if it would leave"],
+  ["Embalm", "exiles it to make a token copy of it, a white Zombie, as a sorcery"],
+  ["Eternalize", "exiles it to make a token copy of it, a 4/4 black Zombie, as a sorcery"],
+  ["Encore", "exiles it to make a token copy attacking each opponent, sacrificed at the next end step, as a sorcery"],
+  ["Jump-start", "may be cast from the graveyard by also discarding a card; then it is exiled"],
+  ["Retrace", "may be cast from the graveyard by also discarding a land card"],
+  ["Harmonize", "may be cast from the graveyard (tapping a creature lowers it); then it is exiled"],
+  ["Mayhem", "may be cast from the graveyard the turn it was discarded"],
+];
+function graveKeywordNotes(c) {
+  const text = String(c.text || "");
+  const out = [];
+  for (const [word, does] of GRAVE_WAYS) {
+    if (!hasKeyword(c, word) && !new RegExp(`(?:^|\\n)${word}\\b`).test(text)) continue;
+    const kw = (c.keywords || []).find((k) => String(k).toLowerCase().startsWith(word.toLowerCase()));
+    const cost = keywordCostText(c, word, kw ? String(kw).split(":")[1] : null);
+    out.push(`${word}${cost ? ` ${cost}` : ""}: ${does}`);
+  }
+  return out;
+}
+// A face-down card's face for the seats that may look at it (CR 708.5: a face-down permanent's controller; foretell's
+// and hideaway's owner): each seat's own view says, Forge's canFaceDownBeShownTo (the extractor redacts it for the
+// others). -> { pk: { n, f, v: [colours] } } for the table's per-seat overlay (visibility: those colours only), or {}.
+// The board's own fields stay the nameless stub (tableCard): the hover text, the name and the log say nothing.
+function facePeek(id, seats, views) {
+  const colors = [];
+  let face = null;
+  seats.forEach((s, i) => {
+    const v = views[i]?.[id];
+    const color = game.slotColor?.[s.slot];
+    if (color && v?.isFaceDown && v.visibility !== "hidden" && v.identity?.name && v.identity.name !== "?") { if (!colors.includes(color)) colors.push(color); face ??= v; }
+  });
+  if (!face) return {};
+  const name = face.identity.name;
+  const img = imagesFor(name, game.slotColor?.[face.ownerId] || null, face.id);
+  return { pk: { n: name, f: img?.face || cachedImage(name)?.face || null, v: colors } };
+}
+// A face-down exiled card the drawing seat may not see (a hidden entry: no exiledWith) as a seat that may look sees
+// it, for what is public about it (the card it lies under, its counters); tableCard draws it as the nameless stub
+function faceDownAnyView(c, views) {
+  if (!c || (c.visibility !== "hidden" && c.identity)) return c;
+  // (only the link: that seat's copy carries the card's real power, toughness and types, which are not public)
+  for (const v of views) {
+    const x = v?.[c.id];
+    if (x?.isFaceDown && x.identity && x.visibility !== "hidden" && x.exiledWith) {
+      return { id: c.id, isFaceDown: true, identity: { name: "" }, text: "", ownerId: x.ownerId, controllerId: x.controllerId,
+        exiledWith: x.exiledWith, returnsWhenHostLeaves: !!x.returnsWhenHostLeaves };
+    }
+  }
+  return c;
 }
 
 // What a card costs now when that isn't its printed cost, for the table's cost badge (docs/cost-badge-spec.md): ec, the
@@ -2169,6 +2299,18 @@ function playableOf(own, toCard, slot) {
     for (const c of z.cards || []) if (c.mayPlay && c.visibility !== "hidden") out.push(toCard(c, z.zone));
   }
   return out;
+}
+// A playable row card from its owner's library top that only its owner may look at (The Reality Chip, Mystic Forge)
+// is marked pv: the table lays it in the owner's second hand zone, TTS's private one, not on the public strip, and it
+// carries no cost badge (object buttons). The top is public only when every other human seat's view shows it (Future
+// Sight, Courser of Kruphix's "revealed"); with no other human seat that can't be told, so it stays private.
+function privateTop(t, zone, slot, seats, views) {
+  if (zone !== "library") return t;
+  const others = seats.map((s, i) => [s, views[i]]).filter(([s]) => s.slot !== slot);
+  const shown = others.length > 0 && others.every(([, v]) => v?.[t.id]?.identity?.name && v[t.id].visibility !== "hidden");
+  if (shown) return t;
+  const { ec, mc, ...rest } = t;
+  return { ...rest, pv: true };
 }
 
 // A player's hand cards shown to the whole table (Revelation's "Players play with their hands revealed", Sen
@@ -4746,6 +4888,19 @@ function cmdDamageRow(p, pub, byId, views = []) {
   return { cmdDamage, ...(Object.keys(cmdTip).length ? { cmdTip } : {}) };
 }
 
+// "Lava Coil is no longer playable (Jeska's Will)": a face-up exiled card some seat could play (now: id -> { name, host },
+// sendTable) that is still in exile and nobody may play any more, its impulse window over; it dropped back into the pile
+// without a word (readability audit B1). Not on a rewound or resent board (fxJump), nor after the game.
+function playableEnded(now, pub) {
+  const before = game.playableExile;
+  game.playableExile = now;
+  if (!before || game.fxJump || pub.gameOver) return;
+  const inExile = new Set((pub.zones || []).filter((z) => z.zone === "exile").flatMap((z) => (z.cards || []).map((c) => c.id)));
+  for (const [id, was] of before) {
+    if (!now.has(id) && inExile.has(id)) gameLogLine(`${was.name} is no longer playable${was.host ? ` (${boardName(was.host)})` : ""}`);
+  }
+}
+
 function sendTable() {
   if (!game?.started || game.autoplay || !game.fromTable) return; // (other games get the text board, sendView)
   const seats = [...game.seats.values()].filter((s) => s.board?.state?.gameView);
@@ -4763,6 +4918,12 @@ function sendTable() {
   game.delayedNow = delayedOf(pub); // (the delayed triggers' words on their cards: tableCard, cardNotes)
   const views = seats.map((s) => cardIndex(s.board.state.gameView));
   for (const s of seats) noteTypes(s.board.state.gameView); // (before the stack below: its instants)
+  // (the board the notes naming another card read: exiledWithNote, playNote)
+  game.tableCtx = { byId, field: new Set((pub.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => (z.cards || []).map((c) => c.id))) };
+  // a face-down card with its face for the seats that may look at it (facePeek), the rest of it the nameless stub
+  // (in exile only a card lying under its permanent, where the table draws it on its own: a pile's cards show nothing)
+  const withPeek = (t, linkedOnly = false) => (t.fd && t.n == null && (!linkedOnly || t.ew) ? { ...t, ...facePeek(t.id, seats, views) } : t);
+  const playableNow = new Map(); // (filled with the players' rows below: playableEnded)
   // (Planechase: the planes and phenomena in play come out of the command zones, which they follow the active player
   // through, into the board's own planes list; the table draws them at its centre)
   const planeCards = (pub.zones || []).filter((z) => z.zone === "command").flatMap((z) => (z.cards || []).filter(isPlanarCard));
@@ -4788,9 +4949,10 @@ function sendTable() {
       // in a hand a card shows the plain back: TTS shows the other players a hand card's back, and a double-faced
       // card's back is its other face (playtest 2026-10-25: a daybound card in Yellow's hand showed its night side)
       hand: own ? zoneOf(own, "hand", p.id).cards.map((c) => ({ ...toCard(c), b: DEFAULT_BACK })) : null,
-      battlefield: zoneOf(pub, "battlefield", p.id).cards.map((c) => tableCard(c, { blockers, active: pub.activePlayerId, zone: "battlefield", views })),
+      battlefield: zoneOf(pub, "battlefield", p.id).cards.map((c) => withPeek(tableCard(c, { blockers, active: pub.activePlayerId, zone: "battlefield", views }))),
       graveyard: zoneOf(pub, "graveyard", p.id).cards.map((c) => tableCard(c, { blockers, zone: "graveyard" })),
-      exile: zoneOf(pub, "exile", p.id).cards.map((c) => tableCard(c, { blockers, zone: "exile" })),
+      // (a face-down card the drawing seat may not see still lies under the card it was exiled with: faceDownAnyView)
+      exile: zoneOf(pub, "exile", p.id).cards.map((c) => withPeek(tableCard(faceDownAnyView(c, views), { blockers, zone: "exile" }), true)),
       command: command.filter((c) => !planeIds.has(c.id)).map((c) => tableCard(c, { blockers, zone: "command" })), // (zone: a commander's tax, costNow)
       ...dungeonRow(p, command),
     };
@@ -4798,8 +4960,14 @@ function sendTable() {
     if (row.dungeon?.id) row.command = row.command.map((c) => (c.id === row.dungeon.id ? { ...c, ...dungeonLabel(row.dungeon, row.dungeonsDone) } : c));
     // (after the zones: the cards a seat may play from outside its hand, built once; none once the game is over: Sen
     // Triplets' stand-ins kept glowing as playable under GAME OVER, real-table check 2026-11-10)
-    const playable = own && !pub.gameOver ? playableOf(own, (c, zone) => tableCard(c, { blockers, zone }), p.id) : [];
+    const playable = own && !pub.gameOver ? playableOf(own, (c, zone) => privateTop(tableCard(c, { blockers, zone, row: true }), zone, p.id, seats, views), p.id) : [];
     if (playable.length) row.playable = playable;
+    // (the face-up exiled cards this seat may play, for the line when that ends: playableEnded)
+    if (own && !pub.gameOver) for (const z of own.zones || []) if (z.zone === "exile") for (const c of z.cards || []) {
+      // (the log is public: only a card every seat sees face up, never a foretold one)
+      if (c.mayPlay && !c.isForetold && views.every((v) => v[c.id]?.identity?.name && !v[c.id].isFaceDown && v[c.id].visibility !== "hidden"))
+        playableNow.set(c.id, { name: c.identity.name, host: c.exiledWith || null });
+    }
     // (and the hand cards shown to everyone: the table lays them face up at the owner's seat)
     const revealed = revealedOf(p, seats, toCard);
     if (revealed.length) row.revealed = revealed;
@@ -4810,6 +4978,7 @@ function sendTable() {
     if (ctlHand.length) { row.ctlHand = ctlHand.map((c) => ({ ...toCard(c), b: DEFAULT_BACK })); row.ctlBy = ctl.color; }
     return row;
   });
+  playableEnded(playableNow, pub);
   // TTS decodes JSON slowly (~70 ms per full board, felt as a hitch every update). A card's fixed details (name,
   // pictures, type line, rules text) go out once in `cards`; zone lists then carry only what changes (tapped,
   // counters, damage, ...) plus s:1 meaning "details as sent before". A reload (hello) or new game resends all.
@@ -4821,6 +4990,9 @@ function sendTable() {
     // (its text without Forge's card numbers: stackText)
     id: s.id, n: s.identity?.name || "?", tx: stackText(s), ctl: game.slotColor[s.controllerId] || null,
     src: s.sourceId || null, spell: !s.sourceAbilityText, // a spell's card is its source: the table moves that card
+    // (a face-down spell, or a face-down permanent's ability, has no name: the table must not draw its card from what it
+    // knew of it in its owner's hand, which showed a morph's real face on the stack and in the pop-up to everyone)
+    ...(!s.identity?.name ? { fd: true } : {}),
     ...(isSpellOfType(s, pub, "Instant") ? { ins: true } : {}), // (an instant spell: the table's instant sound)
     ...(isSpellOfType(s, pub, "Sorcery") ? { sor: true } : {}), // (a sorcery spell: the table's sorcery sound)
     // (a spell that isn't `spell`, its spell text read as an ability's: an instant or a sorcery; the table's COUNTERED
@@ -10696,7 +10868,7 @@ if (require.main === module) {
   // Loaded by a test (tests/bridge-harness.js): the logic without servers. `game` is set through _setGame.
   module.exports = {
     alignment, tableCard, costNow, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
-    summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword,
+    summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
