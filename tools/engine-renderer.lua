@@ -2325,7 +2325,7 @@ do
   function engineIsBundleObject(gm) return gm == "engine:fx" or gm == "engine:bolt" or gm == "engine:sounds" end
   -- one frame after the board (engineCombatLunge has stamped its hit times by then): start what fits, drop the rest
   -- kind: the board's sound (engineFxBoard picked it), played when the first event of that kind starts (a wipe's with
-  -- the first death; a hit's with its first hit, FX.ofSound; a sound-only kind, exile, lifegain, a cast, at once); n: the
+  -- the first death; a hit's with its first hit, FX.ofSound; a sound-only kind, exile, lifegain, a spell resolved, at once); n: the
   -- board's count for it (its burst)
   -- bolts: FX.boltsOf's, flown first (their impacts time their targets' effects, as the swings do)
   function FX.dispatch(m, ev, visual, gen, kind, n, bolts)
@@ -2512,12 +2512,12 @@ do
     -- (all, not only the 4 shown) plus players hit, every hit (the fallback of the two below); of those, the hits over
     -- 5 (bighit) and the players hit by 5 or less (playerhit); players whose life went up (a board has life totals
     -- only: two gains by one player count once); the spells countered (as the COUNTERED pop-up takes them); a sorcery
-    -- and an instant cast (1 at most each); permanents given counters
+    -- and an instant resolved (FX.resolvedOf; 1 at most each); permanents given counters
     local nDied = 0
     for _, ids in pairs(diedIds) do nDied = nDied + #ids end
     local counts = { knockout = nOut, wipe = nDied >= FX.WIPE and nDied or 0, death = nDied, exile = exiledIds and #exiledIds or 0,
       bighit = nBig, playerhit = nHurt - nBigP, damage = #hitsAt + nHurt, lifegain = nGained, countered = countered and #countered or 0,
-      sorcery = FX.castOf(prev, now, "sor") and 1 or 0, instant = FX.castOf(prev, now, "ins") and 1 or 0, counter = #rings }
+      sorcery = FX.resolvedOf(m, "sor") and 1 or 0, instant = FX.resolvedOf(m, "ins") and 1 or 0, counter = #rings }
     -- one sound: the most important kind on this board that has a pick
     local kind = nil
     for _, k in ipairs(engineSoundKinds or {}) do if kind == nil and (counts[k] or 0) > 0 and FX.picked(k) then kind = k end end
@@ -2713,20 +2713,14 @@ do
     local pick = engineSounds ~= nil and engineSounds[k]
     return not engineSoundsMuted and type(pick) == "string" and pick ~= ""
   end
-  -- an instant (flag "ins") or a sorcery ("sor", 2026-11-12) cast on this board: a stack item the bridge marks so (never
-  -- an ability, never one still being cast) that wasn't on the stack before. A copy is one with the name of one already
-  -- on the stack while its controller's hand didn't shrink (Twincast's copy, storm's); the same name cast from a hand counts.
-  function FX.castOf(prev, now, flag)
-    local was, names = {}, {}
-    for _, st in ipairs(prev.stack or {}) do
-      if st[flag] then was[st.src or st.id] = true names[tostring(st.n)] = true end
-    end
-    for _, st in ipairs(now.stack) do
-      if st[flag] and not was[st.src or st.id] then
-        local hcNow, hcWas = now.hc and now.hc[st.ctl], prev.hc and prev.hc[st.ctl]
-        local fromHand = hcNow ~= nil and hcWas ~= nil and hcNow < hcWas
-        if not names[tostring(st.n)] or fromHand then return true end
-      end
+  -- an instant (k "ins") or a sorcery ("sor") that resolved on this board: the bridge's rsv names it (2026-11-12, the
+  -- user: "only play if not countered"; before, it played on the cast). The bridge alone can tell: a spell countered,
+  -- fizzled, exiled from the stack or a copy leaves the stack just as one that resolved does. Never one ctrd names.
+  function FX.resolvedOf(m, k)
+    local ctrd = {}
+    for _, id in ipairs(m.ctrd or {}) do ctrd[id] = true end
+    for _, x in ipairs(m.rsv or {}) do
+      if x.k == k and x.id ~= nil and not ctrd[x.id] then return true end
     end
     return false
   end
@@ -2902,13 +2896,12 @@ do
   function engineEffects(m)
     if not engineBoardNew then return end -- (a redraw of the same board: nothing happened)
     local prev = FX.prev
-    local now = { bf = {}, gy = {}, ex = {}, ew = {}, stack = {}, status = {}, life = {}, hc = {}, turn = tonumber(m.turn) }
+    local now = { bf = {}, gy = {}, ex = {}, ew = {}, stack = {}, status = {}, life = {}, turn = tonumber(m.turn) }
     for _, pl in ipairs(m.players or {}) do
       local c = pl.color
       if c ~= nil then
         now.status[c] = pl.status
         now.life[c] = pl.life
-        now.hc[c] = tonumber(pl.handCount) -- (a spell cast from a hand takes a card from it; a copy doesn't: the instant sound)
         -- (its spot on this board, for the effects; a token drawn as part of a group has its group's spot)
         for _, card in ipairs(pl.battlefield or {}) do
           now.bf[card.id] = { owner = c, tok = card.tok, pos = enginePlanned[card.id] or (engineGroupOf[card.id] ~= nil and enginePlanned[engineGroupOf[card.id]]) or nil,
@@ -5228,14 +5221,14 @@ engineSounds = engineSounds or {
   wipe = "https://steamusercontent-a.akamaihd.net/ugc/11479971636843136595/5C0FB88EC6DE1F473D4067207ADDB4CCC0540597/",        -- 3 or more to graveyards on one board
   damage = "https://steamusercontent-a.akamaihd.net/ugc/10124521221080295893/E301DC2C50A312AB8C6C1EDBB7C295B3AC76B06E/",      -- damage to a creature (5 or less); every hit with no playerhit / bighit pick
   exile = "https://steamusercontent-a.akamaihd.net/ugc/17507000918538872455/683F8320B4DB9EAF77CF1AF05D1205EF94F7BA65/",       -- a permanent exiled from the battlefield
-  instant = "https://steamusercontent-a.akamaihd.net/ugc/15655704109114108865/027ADEDADC1E8E89E6AF2D66E77010F5D9A82298/",     -- an instant cast (not abilities, not copies)
+  instant = "https://steamusercontent-a.akamaihd.net/ugc/15655704109114108865/027ADEDADC1E8E89E6AF2D66E77010F5D9A82298/",     -- an instant resolved (not countered, not abilities, not copies)
   lifegain = "https://steamusercontent-a.akamaihd.net/ugc/18328296034120530417/099A768F25DE573194668B6ACDFC47C3BC4F0DE7/",    -- a player's life goes up
   counter = "https://steamusercontent-a.akamaihd.net/ugc/18384867903770801477/E84A3FA1E2AA6059EFD2D315A776D43AEBFD2E87/",     -- a counter put on a permanent
   knockout = "https://steamusercontent-a.akamaihd.net/ugc/11703297018823193116/BCCEEF4571C8BD6A30FF2AF0350DE2C53A1DF345/",    -- a player loses or concedes
   countered = "https://steamusercontent-a.akamaihd.net/ugc/16931120861737353001/A2214840FC305FC9063F57823D4C2852D2383CD3/",   -- a spell countered (as the COUNTERED pop-up)
   playerhit = "https://steamusercontent-a.akamaihd.net/ugc/17427026780177468511/DC419EEC5FE59459E3F2417452DDE9E381380D0F/",   -- 1 to 5 damage to a player (bursts playerhit_x2..x8)
   bighit = "https://steamusercontent-a.akamaihd.net/ugc/13928224574378758506/BFC535CE502EC967E020203AE6E1CAA2A68E703C/",      -- one hit of more than 5, to a player or a creature (bursts bighit_x2..x8)
-  sorcery = "https://steamusercontent-a.akamaihd.net/ugc/14467135192415793223/86376C7381097865A4421068FCA1FF8827BE47A8/",     -- a sorcery cast (not abilities, not copies)
+  sorcery = "https://steamusercontent-a.akamaihd.net/ugc/14467135192415793223/86376C7381097865A4421068FCA1FF8827BE47A8/",     -- a sorcery resolved (not countered, not abilities, not copies)
   -- the bursts (docs/sounds.md "Bursts", 2026-11-11): the kind's sound stacked N times, for N or more of it on one board
   -- (FX.burst: the largest at or under the count, up to x8); wipe's plain sound is already its 3+ one, so it has no x2
   bighit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10102534904146116314/FEC357F76AD3BC3E204485638504751C6EA5B3B4/",

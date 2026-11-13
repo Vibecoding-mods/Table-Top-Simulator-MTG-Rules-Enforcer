@@ -29,7 +29,7 @@ function board(st) {
   return JSON.stringify({ t: "table", turn: st.turn ?? 3, step: st.step || "main1", active: "Blue", activeTurnNo: 2, priority: "Blue", gameOver: !!st.gameOver,
     winner: st.winner || null, players: [pl("Blue", "player-0", st.Blue), pl("White", "player-1", st.White)], stack: st.stack || [], cards,
     ...(st.rewind ? { rewind: st.rewind } : {}), ...(st.jump ? { jump: true } : {}), ...(st.overWhy ? { overWhy: st.overWhy } : {}), ...(st.exd ? { exd: st.exd } : {}),
-    ...(st.ctrd ? { ctrd: st.ctrd } : {}), ...(st.lv ? { lv: st.lv } : {}), ...(st.hits ? { hits: st.hits } : {}) });
+    ...(st.ctrd ? { ctrd: st.ctrd } : {}), ...(st.rsv ? { rsv: st.rsv } : {}), ...(st.lv ? { lv: st.lv } : {}), ...(st.hits ? { hits: st.hits } : {}) });
 }
 const base = () => ({ Blue: { bf: [...blueC.slice(0, 7), "bl1"], gy: [], more: {} }, White: { bf: [...whiteC, "wl1"], gy: [], more: {} } });
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -381,7 +381,8 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const PICKS = `for _, k in ipairs({ "death", "wipe", "damage", "exile", "instant", "lifegain" }) do engineSounds[k] = "https://example.invalid/" .. k .. ".mp3" end return "set"`;
   const SHOCK = (id, src, ctl = "Blue") => ({ id, n: "Shock", tx: "Shock deals 2 damage to any target.", ctl, src, spell: false, ins: true, tg: [] });
   const s0 = base(); s0.Blue.bf.push("tok1"); s0.Blue.hc = 5; s0.White.hc = 5;
-  const step = (from, edit) => { const x = clone(from); delete x.exd; delete x.jump; edit(x); return x; };
+  const step = (from, edit) => { const x = clone(from); delete x.exd; delete x.jump; delete x.rsv; edit(x); return x; };
+  const RSV = (id, k = "ins") => ({ id, k }); // (the bridge's rsv: an instant or a sorcery that resolved since the last board)
   const exile = step(s0, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "b1"); x.Blue.ex = ["b1"]; });
   const tokEx = step(exile, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "tok1"); x.exd = ["tok1"]; });
   const back = step(tokEx, (x) => { x.Blue.bf.push("tok1"); }); // (a new token under the same id, for the next board)
@@ -390,15 +391,16 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const two = step(wipe, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "b4" && c !== "b5"); x.Blue.gy.push("b4", "b5"); });
   const gain = step(two, (x) => { x.White.life = 43; });
   const loss = step(gain, (x) => { x.White.life = 41; });
+  // (since 2026-11-12 the instant sound is the resolve's, by the bridge's rsv alone: a cast plays nothing)
   const cast = step(loss, (x) => { x.stack = [SHOCK("engine-stack-1", "i1")]; x.Blue.hc = 4; });
-  const still = step(cast, (x) => { x.step = "main2"; x.Blue.hc = 3; }); // (its hand shrinks for something else: a Flash creature)
-  const copy = step(still, (x) => { x.stack.push(SHOCK("engine-stack-2", "i2")); });
-  const again = step(copy, (x) => { x.stack.push(SHOCK("engine-stack-3", "i3", "White")); x.White.hc = 4; });
-  const sorcery = step(again, (x) => { x.stack = [{ id: "engine-stack-4", n: "Farseek", tx: "Farseek - search for a land", ctl: "Blue", src: "s1", spell: false, tg: [] }]; x.Blue.hc = 3; });
-  const ability = step(sorcery, (x) => { x.stack.push({ id: "engine-stack-5", n: "Fury", tx: "When Fury enters, it deals 4 damage divided as you choose", ctl: "Blue", src: "b6", spell: false, tg: [] }); });
-  const mixed = step(ability, (x) => { x.stack = [SHOCK("engine-stack-6", "i4")]; x.Blue.hc = 2; x.White.life = 45; x.White.bf = x.White.bf.filter((c) => c !== "w2"); x.White.ex = ["w2"]; x.Blue.life = 38; });
-  const quiet = step(mixed, (x) => { x.stack = [SHOCK("engine-stack-7", "i5")]; x.Blue.hc = 1; x.White.life = 50; x.White.bf = x.White.bf.filter((c) => c !== "w3"); x.White.ex.push("w3"); x.jump = true; });
-  const gainCast = step(quiet, (x) => { x.stack = [SHOCK("engine-stack-8", "i6")]; x.Blue.hc = 0; x.White.life = 52; });
+  const still = step(cast, (x) => { x.stack = []; x.rsv = [RSV("i1")]; x.Blue.hc = 3; });
+  const copy = step(still, (x) => { x.stack = [SHOCK("engine-stack-2", "i2")]; }); // (a copy on the stack, then gone with no rsv)
+  const again = step(copy, (x) => { x.stack = []; x.rsv = [RSV("i3")]; x.White.hc = 4; }); // (another player's, cast and resolved between two boards)
+  const sorcery = step(again, (x) => { x.stack = []; x.rsv = [RSV("s1", "sor")]; x.Blue.hc = 3; });
+  const ability = step(sorcery, (x) => { x.stack = [{ id: "engine-stack-5", n: "Fury", tx: "When Fury enters, it deals 4 damage divided as you choose", ctl: "Blue", src: "b6", spell: false, tg: [] }]; });
+  const mixed = step(ability, (x) => { x.stack = []; x.rsv = [RSV("i4")]; x.Blue.hc = 2; x.White.life = 45; x.White.bf = x.White.bf.filter((c) => c !== "w2"); x.White.ex = ["w2"]; x.Blue.life = 38; });
+  const quiet = step(mixed, (x) => { x.rsv = [RSV("i5")]; x.Blue.hc = 1; x.White.life = 50; x.White.bf = x.White.bf.filter((c) => c !== "w3"); x.White.ex.push("w3"); x.jump = true; });
+  const gainCast = step(quiet, (x) => { x.rsv = [RSV("i6")]; x.Blue.hc = 0; x.White.life = 52; });
   const t = run([
     lua(`return JSON.encode(engineSoundsShipped)`, "shipped"),
     lua(PICKS, "picks"),
@@ -407,7 +409,7 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
     send(wipe, "three die", 30), LAST, send(two, "two die", 30), LAST,
     send(gain, "life up", 30), LAST, lua(`engineSounds.damage = nil return "x"`, "no damage pick"), send(loss, "life down", 30), LAST,
     lua(`engineSounds.damage = "https://example.invalid/damage.mp3" return "x"`, "damage pick again"),
-    send(cast, "instant cast", 30), LAST, send(still, "instant still there", 30), LAST, send(copy, "a copy", 30), LAST, send(again, "the same name from a hand", 30), LAST,
+    send(cast, "instant cast", 30), LAST, send(still, "instant resolved", 30), LAST, send(copy, "a copy", 30), LAST, send(again, "another's resolved", 30), LAST,
     send(sorcery, "a sorcery", 30), LAST, send(ability, "an ability", 30), LAST,
     send(mixed, "exile, damage, lifegain and instant", 30), LAST, send(quiet, "a jump board", 30), LAST,
     lua(`engineSounds.lifegain = nil return "x"`, "no lifegain pick"), send(gainCast, "lifegain without a pick", 30), LAST,
@@ -431,10 +433,10 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("wipe: 2 to the graveyard is a death", said(4) === '["death music"]', said(4));
   ok("lifegain: a player's life going up plays lifegain once", said(5) === '["lifegain music"]', said(5));
   ok("lifegain: not for a life loss (with no damage pick, nothing plays)", said(6) === "[]", said(6));
-  ok("instant: an instant on the stack plays instant once", said(7) === '["instant music"]', said(7));
-  ok("instant: the same instant still on the stack plays nothing", said(8) === "[]", said(8));
-  ok("instant: a copy (same name on the stack, no card from a hand) plays nothing", said(9) === "[]", said(9));
-  ok("instant: the same name cast from another hand plays again", said(10) === '["instant music"]', said(10));
+  ok("instant: an instant cast (on the stack) plays nothing", said(7) === "[]", said(7));
+  ok("instant: an instant resolved (the bridge's rsv) plays instant once", said(8) === '["instant music"]', said(8));
+  ok("instant: a copy (on the stack, then gone with no rsv) plays nothing", said(9) === "[]", said(9));
+  ok("instant: another player's, cast and resolved between two boards, plays instant", said(10) === '["instant music"]', said(10));
   ok("instant: not for a sorcery", said(11) === "[]", said(11));
   ok("instant: not for an ability", said(12) === "[]", said(12));
   ok("order: exile beats damage, lifegain and instant on one board", said(13) === '["exile music"]', said(13));
@@ -634,7 +636,8 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const SORC = (id, src, ctl = "Blue") => ({ id, n: "Farseek", tx: "Search your library for a land card.", ctl, src, spell: false, sp: true, sor: true, tg: [] });
   const SHOCK = (id, src, ctl = "Blue") => ({ id, n: "Shock", tx: "Shock deals 2 damage to any target.", ctl, src, spell: false, sp: true, ins: true, tg: [] });
   const s0 = base(); s0.Blue.hc = 5; s0.White.hc = 5;
-  const step = (from, edit) => { const x = clone(from); delete x.ctrd; edit(x); return x; };
+  const step = (from, edit) => { const x = clone(from); delete x.ctrd; delete x.rsv; edit(x); return x; };
+  const RSV = (id, k) => ({ id, k }); // (the bridge's rsv: resolved since the last board)
   const ping = step(s0, (x) => { x.White.life = 37; }); // 3 to a player
   const five = step(ping, (x) => { x.White.life = 32; }); // 5: still a playerhit
   const six = step(five, (x) => { x.White.life = 26; }); // 6: a big hit
@@ -644,11 +647,12 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const bigs = step(twoP, (x) => { x.White.more.w3 = { dmg: 7 }; x.White.more.w4 = { dmg: 9 }; x.Blue.life = 30; }); // three hits over 5: bighit_x3
   const bigDeath = step(bigs, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "b1"); x.Blue.gy = ["b1"]; x.White.life = 10; }); // a death and a big hit
   const deathP = step(bigDeath, (x) => { x.Blue.bf = x.Blue.bf.filter((c) => c !== "b2"); x.Blue.gy.push("b2"); x.White.life = 8; }); // a death and a ping
+  // (the sorcery and instant sounds play on the resolve, the bridge's rsv, since 2026-11-12)
   const sorc = step(deathP, (x) => { x.stack = [SORC("engine-stack-40", "s40")]; x.Blue.hc = 4; });
-  const still = step(sorc, (x) => { x.step = "main2"; });
-  const copy = step(still, (x) => { x.stack.push(SORC("engine-stack-41", "s41")); }); // (storm's copy: same name, no card from a hand)
-  const inst = step(copy, (x) => { x.stack = [SHOCK("engine-stack-42", "i42")]; x.Blue.hc = 3; });
-  const both = step(inst, (x) => { x.stack = [SORC("engine-stack-43", "s43"), SHOCK("engine-stack-44", "i44", "White")]; x.Blue.hc = 2; x.White.hc = 4; });
+  const still = step(sorc, (x) => { x.stack = [SORC("engine-stack-41", "s41")]; x.rsv = [RSV("s40", "sor")]; }); // (storm's copy left on the stack)
+  const copy = step(still, (x) => { x.stack = []; }); // (the copy resolved: the bridge names no copy)
+  const inst = step(copy, (x) => { x.rsv = [RSV("i42", "ins")]; x.Blue.hc = 3; });
+  const both = step(inst, (x) => { x.rsv = [RSV("s43", "sor"), RSV("i44", "ins")]; x.Blue.hc = 2; x.White.hc = 4; });
   const cast = step(both, (x) => { x.stack = [SHOCK("engine-stack-45", "i45", "White")]; x.White.hc = 3; });
   const ctrd = step(cast, (x) => { x.stack = []; x.ctrd = ["i45"]; });
   const ctrdPing = step(ctrd, (x) => { x.stack = [SORC("engine-stack-46", "s46")]; x.Blue.hc = 1; });
@@ -659,7 +663,7 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
     send(s0, "first board"),
     send(ping, "ping", 30), LAST, send(five, "five", 30), LAST, send(six, "six", 30), LAST, send(small, "creature 5", 30), LAST, send(bigC, "creature 6", 30), LAST,
     send(twoP, "two players", 30), LAST, send(bigs, "three big", 30), LAST, send(bigDeath, "big and death", 30), LAST, send(deathP, "death and ping", 30), LAST,
-    send(sorc, "sorcery", 30), LAST, send(still, "sorcery still there", 30), LAST, send(copy, "sorcery copy", 30), LAST, send(inst, "instant", 30), LAST,
+    send(sorc, "sorcery", 30), LAST, send(still, "sorcery resolved", 30), LAST, send(copy, "sorcery copy", 30), LAST, send(inst, "instant", 30), LAST,
     send(both, "sorcery and instant", 30), LAST, send(cast, "instant to counter", 30), LAST, send(ctrd, "countered", 30), LAST,
     send(ctrdPing, "sorcery to counter", 30), LAST, send(ctrd2, "countered and ping", 30), LAST,
     lua(`engineChat("mtg sounds test boom", Player.Blue) return "t"`, "tests", 30),
@@ -691,9 +695,9 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("bighit: three hits over 5 (two creatures, a player) plays its x3", said(6) === '["bighit_x3 music"]', said(6));
   ok("order: bighit beats death", said(7) === '["bighit music"]', said(7));
   ok("order: death beats playerhit", said(8) === '["death music"]', said(8));
-  ok("sorcery: a sorcery cast plays sorcery once", said(9) === '["sorcery music"]', said(9));
-  ok("sorcery: still on the stack plays nothing", said(10) === "[]", said(10));
-  ok("sorcery: a copy plays nothing", said(11) === "[]", said(11));
+  ok("sorcery: a sorcery cast (on the stack) plays nothing", said(9) === "[]", said(9));
+  ok("sorcery: a sorcery resolved plays sorcery once", said(10) === '["sorcery music"]', said(10));
+  ok("sorcery: a copy resolved (no rsv) plays nothing", said(11) === "[]", said(11));
   ok("instant: an instant plays instant, not sorcery", said(12) === '["instant music"]', said(12));
   ok("order: sorcery beats instant", said(13) === '["sorcery music"]', said(13));
   ok("countered: an instant countered plays countered", said(15) === '["countered music"]', said(15));
@@ -721,6 +725,56 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
     ok(`timing (${kinds[0]}): no sound at once`, JSON.stringify(now) === "[]", JSON.stringify(now));
     ok(`timing (${kinds[0]}): the sound with the hit`, JSON.stringify(later) === `["${kinds[0]} music"]`, JSON.stringify(later));
   }
+}
+
+// the instant and sorcery sounds play on the resolve, not the cast (2026-11-12, the user: "only play if not countered"):
+// the bridge's rsv names each instant or sorcery that resolved since the last board (it alone can tell: a spell
+// countered, fizzled, exiled from the stack or a copy leaves the stack as one that resolved does; resolvedSpells). The
+// table plays instant / sorcery for an rsv entry only, one at most per board, never for one ctrd names, never on a jump
+{
+  const SHOCK = (id, src, ctl = "Blue") => ({ id, n: "Shock", tx: "Shock deals 2 damage to any target.", ctl, src, spell: false, sp: true, ins: true, tg: [] });
+  const PICKS = (kinds) => `for _, k in ipairs({ "${kinds.join('", "')}" }) do engineSounds[k] = "https://example.invalid/" .. k .. ".mp3" end return "set"`;
+  const s0 = base();
+  const step = (from, edit) => { const x = clone(from); for (const k of ["ctrd", "rsv", "jump", "exd"]) delete x[k]; edit(x); return x; };
+  const cast = step(s0, (x) => { x.stack = [SHOCK("engine-stack-60", "c60")]; });
+  const resolved = step(cast, (x) => { x.stack = []; x.rsv = [{ id: "c60", k: "ins" }]; });
+  const cast2 = step(resolved, (x) => { x.stack = [SHOCK("engine-stack-61", "c61")]; });
+  const countered = step(cast2, (x) => { x.stack = []; x.ctrd = ["c61"]; }); // (countered: ctrd, no rsv)
+  const cast3 = step(countered, (x) => { x.stack = [SHOCK("engine-stack-62", "c62")]; });
+  const fizzled = step(cast3, (x) => { x.stack = []; }); // (fizzled or exiled from the stack: the bridge sends no rsv)
+  const cast4 = step(fizzled, (x) => { x.stack = [SHOCK("engine-stack-63", "c63"), SHOCK("engine-stack-64", "c64")]; }); // (the second a copy)
+  const copyGone = step(cast4, (x) => { x.stack = [SHOCK("engine-stack-63", "c63")]; }); // (the copy resolved: no rsv)
+  const both = step(copyGone, (x) => { x.stack = []; x.rsv = [{ id: "c63", k: "ins" }, { id: "c65", k: "ins" }]; }); // (two resolved on one board)
+  const unseen = step(both, (x) => { x.rsv = [{ id: "c66", k: "ins" }]; }); // (cast and resolved between two boards)
+  const both2 = step(unseen, (x) => { x.ctrd = ["c67"]; x.rsv = [{ id: "c67", k: "ins" }]; }); // (an rsv that ctrd names too: countered)
+  const jumped = step(both2, (x) => { x.rsv = [{ id: "c68", k: "ins" }]; x.jump = true; });
+  const back = step(jumped, (x) => { x.turn = 2; x.rsv = [{ id: "c69", k: "ins" }]; }); // (the turn going down: a rewind)
+  const after = step(back, (x) => { x.rsv = [{ id: "c70", k: "sor" }]; });
+  const t = run([lua(PICKS(["instant", "sorcery", "countered"]), "picks"), send(s0, "first board"),
+    send(cast, "cast", 30), LAST, send(resolved, "resolved", 30), LAST, send(cast2, "cast 2", 30), LAST, send(countered, "countered", 30), LAST,
+    send(cast3, "cast 3", 30), LAST, send(fizzled, "fizzled", 30), LAST, send(cast4, "cast 4", 30), LAST, send(copyGone, "copy gone", 30), LAST,
+    send(both, "two resolved", 30), LAST, send(unseen, "unseen", 30), LAST,
+    lua(`engineSounds.countered = nil return "x"`, "no countered pick"), send(both2, "rsv and ctrd", 30), LAST,
+    send(jumped, "jump", 30), LAST, send(back, "turn down", 30), LAST,
+    lua(`engineChat("mtg fx off", Player.Blue) return "x"`, "fx off"), send(after, "fx off", 30), LAST]);
+  ok("resolve: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
+  const news = vals.map((v, i) => JSON.stringify((v.snd || []).slice(i === 0 ? 0 : (vals[i - 1].snd || []).length)));
+  ok("resolve: the cast plays nothing", news[0] === "[]", news[0]);
+  ok("resolve: resolved (rsv) plays instant", news[1] === '["instant music"]', news[1]);
+  ok("resolve: countered plays countered, never instant", news[2] === "[]" && news[3] === '["countered music"]', JSON.stringify([news[2], news[3]]));
+  ok("resolve: fizzled / exiled from the stack (gone, no rsv) plays nothing", news[4] === "[]" && news[5] === "[]", JSON.stringify([news[4], news[5]]));
+  ok("resolve: a copy cast and gone (no rsv) plays nothing", news[6] === "[]" && news[7] === "[]", JSON.stringify([news[6], news[7]]));
+  ok("resolve: two resolved on one board play one instant (no burst)", news[8] === '["instant music"]', news[8]);
+  ok("resolve: one cast and resolved between two boards plays instant", news[9] === '["instant music"]', news[9]);
+  ok("resolve: an rsv ctrd names too plays no instant", news[10] === "[]", news[10]);
+  ok("resolve: a jump board (bridge's jump) plays nothing", news[11] === "[]" && vals[11].jump === true, JSON.stringify([news[11], vals[11].jump]));
+  ok("resolve: a rewind (the turn going down) plays nothing", news[12] === "[]" && vals[12].jump === true, JSON.stringify([news[12], vals[12].jump]));
+  ok("resolve: mtg fx off keeps the sorcery sound", news[13] === '["sorcery music"]', news[13]);
+  // (sounds off: nothing)
+  const m = run([lua(PICKS(["instant"]), "picks"), send(s0, "first board"), lua(`engineChat("mtg sounds off", Player.Blue) return "x"`, "off"),
+    send(resolved, "resolved, sounds off", 30), LAST]);
+  ok("resolve: sounds off plays nothing", JSON.stringify(m.all("last").map((s) => JSON.parse(s.value || "{}").snd || [])[0]) === "[]", JSON.stringify(m.all("last").map((s) => s.value)));
 }
 
 // the COUNTERED pop-up (2026-11-11): an instant or a sorcery countered shows it too. The bridge's `spell` is false for
