@@ -2028,7 +2028,7 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   const curse = (t) => { const blue = t.players.find((p) => p.color === "Blue"); blue.battlefield = [...blue.battlefield, { s: 1, id: CURSE, attP: "White", ctl: "Blue", kw: ["Attached to AI 1"] }]; t.cards = { ...(t.cards || {}), [CURSE]: { n: "Curse of Opulence", ty: ["Enchantment"] } }; };
   const where = `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${CURSE}" then o = x end end if o == nil then return "none" end local p = o.getPosition() ` +
     'local function d(v) return math.sqrt((p.x - v.x) ^ 2 + (p.z - v.z) ^ 2) end ' +
-    'return d(data.Blue.playmat.getPosition()) < d(data.White.playmat.getPosition()) and "Blue" or "White"';
+    'local best, at = nil, nil for _, c in ipairs({ "Blue", "White", "Yellow", "Red" }) do local m = data[c] and data[c].playmat if m ~= nil and (at == nil or d(m.getPosition()) < at) then best, at = c, d(m.getPosition()) end end return tostring(best)';
   const r = run([
     q(mainBtn, "main"),
     board({ allMarks: ["POISON 3", "FOG THIS TURN", TEFERI], markTips: tips }), q(boxes, "tips"), q(lifeBtn, "life none"),
@@ -2060,10 +2060,14 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("engine1112 life: none this turn, its own text again", v("life gone") === "option|own" && v("life again").startsWith("option|Lost 2 life this turn"), `${v("life gone")} / ${v("life again")}`);
   ok("engine1112 life: the game's end gives the counter its own text back", v("life after the reset") === "option|own", v("life after the reset"));
   ok("engine1112 life: a tracker without its own button: the hover goes on no marks box", (js("box first") || []).length === 1 && js("box first")[0].tip === "x", v("box first"));
-  const r2 = run([board({}, curse), { frames: 60 }, q(where, "curse"), board({}, (t) => { curse(t); t.players.find((p) => p.color === "Blue").battlefield.find((c) => c.id === CURSE).attP = undefined; }), { frames: 60 }, q(where, "loose")]);
+  const attP = (to) => (t) => { curse(t); t.players.find((p) => p.color === "Blue").battlefield.find((c) => c.id === CURSE).attP = to; };
+  // (a victim no longer on the board, an eliminated player's colour: Yellow, in no row of this two-player game)
+  const r2 = run([board({}, curse), { frames: 60 }, q(where, "curse"), board({}, attP(undefined)), { frames: 60 }, q(where, "loose"),
+    board({}, attP("Yellow")), { frames: 60 }, q(where, "victim gone")]);
   ok("engine1112 curse: precondition, no script error", !r2.errors.length, r2.errors.slice(0, 2).join(" | "));
   ok("engine1112 curse: a curse on White lies on White's mat", String(valueOf(r2, "curse")) === "White", String(valueOf(r2, "curse")));
   ok("engine1112 curse: without attP it lies on its controller's mat", String(valueOf(r2, "loose")) === "Blue", String(valueOf(r2, "loose")));
+  ok("engine1112 curse: on a player no longer in the game it stays on its controller's mat (not drawn nowhere)", String(valueOf(r2, "victim gone")) === "Blue", String(valueOf(r2, "victim gone")));
 }
 // Extra-turn badge fit (checker, 2026-11-07: moving it from local x -1 to +1, onto the [R] lobe, passed every test). On
 // all four trackers, with one extra turn ("EXTRA TURN"), two ("EXTRA TURN 2x") and ten ("EXTRA TURN 10x"; 2026-11-12,
