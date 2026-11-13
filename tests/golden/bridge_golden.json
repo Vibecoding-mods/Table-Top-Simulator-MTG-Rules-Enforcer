@@ -532784,7 +532784,13 @@
        }
       ],
       "vote": null
-     }
+     },
+     "rsv": [
+      {
+       "id": "engine-card-961",
+       "k": "sor"
+      }
+     ]
     }
    },
    {
@@ -534231,7 +534237,13 @@
        }
       ],
       "vote": null
-     }
+     },
+     "rsv": [
+      {
+       "id": "engine-card-990",
+       "k": "sor"
+      }
+     ]
     }
    },
    {
@@ -535663,7 +535675,13 @@
        }
       ],
       "vote": null
-     }
+     },
+     "rsv": [
+      {
+       "id": "engine-card-990",
+       "k": "sor"
+      }
+     ]
     }
    },
    {
@@ -669899,7 +669917,13 @@
        }
       ],
       "vote": null
-     }
+     },
+     "rsv": [
+      {
+       "id": "engine-card-952",
+       "k": "sor"
+      }
+     ]
     }
    },
    {
@@ -737424,7 +737448,13 @@
        }
       ],
       "vote": null
-     }
+     },
+     "rsv": [
+      {
+       "id": "engine-card-982",
+       "k": "sor"
+      }
+     ]
     }
    },
    {
@@ -774811,6 +774841,12 @@
      },
      "ctrd": [
       "engine-card-970"
+     ],
+     "rsv": [
+      {
+       "id": "engine-card-971",
+       "k": "ins"
+      }
      ]
     }
    }
@@ -785284,6 +785320,12 @@
      },
      "ctrd": [
       "engine-card-980"
+     ],
+     "rsv": [
+      {
+       "id": "engine-card-981",
+       "k": "ins"
+      }
      ]
     }
    },
@@ -786914,7 +786956,17 @@
        }
       ],
       "vote": null
-     }
+     },
+     "rsv": [
+      {
+       "id": "engine-card-980",
+       "k": "ins"
+      },
+      {
+       "id": "engine-card-981",
+       "k": "ins"
+      }
+     ]
     }
    },
    {
@@ -791014,7 +791066,13 @@
        }
       ],
       "vote": null
-     }
+     },
+     "rsv": [
+      {
+       "id": "engine-card-985",
+       "k": "sor"
+      }
+     ]
     }
    }
   ],

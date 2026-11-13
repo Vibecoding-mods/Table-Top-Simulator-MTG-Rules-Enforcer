@@ -342,6 +342,17 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("outbox: the replaced board's countered ids go along", JSON.stringify(t.ctrd) === '["c1","c2"]', JSON.stringify(t.ctrd));
     ok("outbox: the replaced board's exiled ids go along", JSON.stringify(t.exd) === '["x1"]', JSON.stringify(t.exd));
   }
+  // "and the spells resolved, by card" (toTTS outbox merge: rsv)
+  {
+    const h = harness.load();
+    setup(h, F.board);
+    h.B.toTTS({ t: "chat", text: "first" }); // in flight
+    h.B.toTTS({ t: "table", players: [], cards: {}, rsv: [{ id: "r1", k: "ins" }] });
+    h.B.toTTS({ t: "table", players: [], cards: {}, rsv: [{ id: "r2", k: "sor" }, { id: "r1", k: "ins" }] }); // replaces the waiting one
+    await h.flush();
+    const t = sent(h, "table")[0] || {};
+    ok("outbox: the replaced board's resolved spells go along, once each", JSON.stringify(t.rsv) === '[{"id":"r1","k":"ins"},{"id":"r2","k":"sor"}]', JSON.stringify(t.rsv));
+  }
   // "and the effects' facts, lv and hits: the older board's first, the newer's order after them" (toTTS outbox merge)
   {
     const h = harness.load();
@@ -4415,6 +4426,103 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     h.B.sendTable(); await h.flush();
     const after = sent(h, "table").slice(mark + 1);
     ok("countered: ctrd goes once", after.length > 0 && after.every((t) => t.ctrd === undefined), JSON.stringify(after.map((t) => t.ctrd)));
+    harness.restore();
+  }
+  // "the instants and sorceries that resolved since the last board sent ... the table's instant and sorcery sounds go
+  // by these alone ... Out of the signature; cleared once sent" (sendTable's rsv, resolvedSpells; 2026-11-12, the user:
+  // "only play if not countered"). Each case: a board with the spell on the stack, then one with it gone and the feed's
+  // moves; rsv names what resolved and nothing countered, fizzled, exiled from the stack or copied.
+  {
+    const h = harness.load();
+    const seat = setup(h, F.board);
+    const gv = seat.board.state.gameView;
+    const zone = (z, o) => gv.zones.find((x) => x.zone === z && x.ownerId === o);
+    const card = (id, name, types, owner, text = "", extra = {}) => ({ id, identity: { name }, types, controllerId: owner, ownerId: owner, text, ...extra });
+    const item = (sid, c, extra = {}) => ({ id: sid, sourceId: c.id, controllerId: c.controllerId, ownerId: c.ownerId, identity: { name: c.identity.name }, isPermanentSpell: false,
+      isCasting: false, targets: [], sourceAbilityText: c.text, text: c.text, ...extra });
+    let seq = 0;
+    const mv = (c, from, to, extra = {}) => ({ seq: ++seq, id: `event-${seq}`, cardId: c.id, from, to, ownerId: c.ownerId, ...extra });
+    const take = (c) => { for (const z of gv.zones) z.cards = (z.cards || []).filter((x) => x.id !== c.id); };
+    const put = (z, c) => { take(c); zone(z, c.ownerId).cards.push(c); };
+    // (a board: edit it, the feed's new moves after the old, then what this sendTable sent, {} when it sent nothing)
+    const board = async (edit, moves = []) => { edit(); gv.events = [...gv.events, ...moves]; const mark = sent(h, "table").length; h.B.sendTable(); await h.flush(); return sent(h, "table")[mark] || {}; };
+    const OPT = card("engine-card-1001", "Opt", ["Instant"], "player-0", "Scry 1.\nDraw a card.");
+    const SHOCK = card("engine-card-1002", "Shock", ["Instant"], "player-0", "Shock deals 2 damage to any target.");
+    const CS = card("engine-card-1003", "Counterspell", ["Instant"], "player-1", "Counter target spell.");
+    const BOLT = card("engine-card-1004", "Lightning Bolt", ["Instant"], "player-0", "Lightning Bolt deals 3 damage to any target.");
+    const MURDER = card("engine-card-1005", "Murder", ["Instant"], "player-1", "Destroy target creature.");
+    const BEAR = card("engine-card-1006", "Grizzly Bears", ["Creature"], "player-1", "", { power: 2, toughness: 2 });
+    const OPT2 = card("engine-card-1007", "Opt", ["Instant"], "player-0", "Scry 1.\nDraw a card.");
+    const THINK = card("engine-card-1008", "Think Twice", ["Instant"], "player-0", "Draw a card.\nFlashback {2}{U} (You may cast this card from your graveyard for its flashback cost. Then exile it.)");
+    const FARSEEK = card("engine-card-1009", "Farseek", ["Sorcery"], "player-0", "Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield tapped, then shuffle.");
+    const SHOCK2 = card("engine-card-1010", "Shock", ["Instant"], "player-0", "Shock deals 2 damage to any target.");
+    const CS2 = card("engine-card-1011", "Counterspell", ["Instant"], "player-1", "Counter target spell.");
+    const UNSUMMON = card("engine-card-1012", "Unsummon", ["Instant"], "player-0", "Return target creature to its owner's hand.");
+    const ELK = card("engine-card-1013", "Elk", ["Creature"], "player-1", "", { power: 3, toughness: 3 });
+    const BOLT2 = card("engine-card-1014", "Lightning Bolt", ["Instant"], "player-0", "Lightning Bolt deals 3 damage to any target.");
+    const MURDER2 = card("engine-card-1015", "Murder", ["Instant"], "player-1", "Destroy target creature.");
+    const WOLF = card("engine-card-1016", "Timber Wolves", ["Creature"], "player-1", "", { power: 1, toughness: 1 });
+    const PREORDAIN = card("engine-card-1017", "Preordain", ["Sorcery"], "player-0", "Scry 2, then draw a card.");
+    gv.events = []; gv.stack = [];
+    const THINK2 = card("engine-card-1019", "Think Twice", ["Instant"], "player-0", THINK.text);
+    const TRAP = card("engine-card-1020", "Mindbreak Trap", ["Instant"], "player-1", "Exile any number of target spells.");
+    await board(() => { for (const c of [OPT, SHOCK, BOLT, OPT2, FARSEEK, SHOCK2, UNSUMMON, BOLT2, PREORDAIN, TRAP]) put("hand", c); put("graveyard", THINK); put("graveyard", THINK2); for (const c of [BEAR, ELK, WOLF]) put("battlefield", c); });
+    const rsv = (t) => JSON.stringify(t.rsv ?? null);
+    // resolves
+    await board(() => { take(OPT); gv.stack = [item("engine-stack-1", OPT)]; });
+    const t1 = await board(() => { gv.stack = []; put("graveyard", OPT); }, [mv(OPT, "Stack", "Graveyard")]);
+    ok("rsv: an instant that resolved is named, ins", rsv(t1) === '[{"id":"engine-card-1001","k":"ins"}]', rsv(t1));
+    const t1b = await board(() => { gv.players.find((p) => p.id === "player-0").life -= 1; });
+    ok("rsv: goes once", t1b.t === "table" && t1b.rsv === undefined, rsv(t1b));
+    // countered (Forge's targets name it, its stack words don't: the log's "is countered", ctrd)
+    await board(() => { take(SHOCK); gv.stack = [item("engine-stack-3", CS, { targets: [{ kind: "spell", id: "engine-stack-2" }] }), item("engine-stack-2", SHOCK)]; });
+    const t2 = await board(() => { gv.stack = []; put("graveyard", SHOCK); put("graveyard", CS); }, [mv(SHOCK, "Stack", "Graveyard"), mv(CS, "Stack", "Graveyard")]);
+    ok("rsv: a countered instant isn't named (ctrd is), its counterspell is", rsv(t2) === '[{"id":"engine-card-1003","k":"ins"}]' && JSON.stringify(t2.ctrd) === '["engine-card-1002"]', JSON.stringify([t2.rsv, t2.ctrd]));
+    // countered with no targets on Forge's stack, only its words ("Counter Shock."), as live
+    await board(() => { take(SHOCK2); gv.stack = [item("engine-stack-5", CS2, { text: "Counter Shock." }), item("engine-stack-4", SHOCK2)]; });
+    const t2b = await board(() => { gv.stack = []; put("graveyard", SHOCK2); put("graveyard", CS2); }, [mv(SHOCK2, "Stack", "Graveyard"), mv(CS2, "Stack", "Graveyard")]);
+    ok("rsv: an instant a counterspell's stack words name, off the stack before it, isn't named", rsv(t2b) === '[{"id":"engine-card-1011","k":"ins"}]', rsv(t2b));
+    // fizzled: its one target murdered on an earlier board
+    await board(() => { take(BOLT); gv.stack = [item("engine-stack-7", MURDER, { targets: [{ kind: "card", id: BEAR.id }] }), item("engine-stack-6", BOLT, { targets: [{ kind: "card", id: BEAR.id }] })]; });
+    const t3 = await board(() => { gv.stack = [item("engine-stack-6", BOLT, { targets: [{ kind: "card", id: BEAR.id }] })]; put("graveyard", BEAR); put("graveyard", MURDER); },
+      [mv(BEAR, "Battlefield", "Graveyard", { how: "destroyed", cause: "Destroy", causeName: "Murder", causeCardId: MURDER.id }), mv(MURDER, "Stack", "Graveyard")]);
+    ok("rsv: the answer that resolved is named", rsv(t3) === '[{"id":"engine-card-1005","k":"ins"}]', rsv(t3));
+    const t3b = await board(() => { gv.stack = []; put("graveyard", BOLT); }, [mv(BOLT, "Stack", "Graveyard")]);
+    ok("rsv: a spell that fizzled (its target gone on an earlier board) isn't named", t3b.rsv === undefined, rsv(t3b));
+    // fizzled on the same board: its target murdered before it left the stack, by the feed's order
+    await board(() => { take(BOLT2); gv.stack = [item("engine-stack-9", MURDER2, { targets: [{ kind: "card", id: WOLF.id }] }), item("engine-stack-8", BOLT2, { targets: [{ kind: "card", id: WOLF.id }] })]; });
+    const t4 = await board(() => { gv.stack = []; put("graveyard", WOLF); put("graveyard", MURDER2); put("graveyard", BOLT2); },
+      [mv(WOLF, "Battlefield", "Graveyard", { how: "destroyed", cause: "Destroy", causeName: "Murder", causeCardId: MURDER2.id }), mv(MURDER2, "Stack", "Graveyard"), mv(BOLT2, "Stack", "Graveyard")]);
+    ok("rsv: a spell whose target died before it left the stack (same board) isn't named", rsv(t4) === '[{"id":"engine-card-1015","k":"ins"}]', rsv(t4));
+    // not a fizzle: its own effect moves the target (cause the spell itself)
+    await board(() => { take(UNSUMMON); gv.stack = [item("engine-stack-10", UNSUMMON, { targets: [{ kind: "card", id: ELK.id }] })]; });
+    const t5 = await board(() => { gv.stack = []; put("hand", ELK); put("graveyard", UNSUMMON); },
+      [mv(ELK, "Battlefield", "Hand", { cause: "ChangeZone", causeName: "Unsummon", causeCardId: UNSUMMON.id }), mv(UNSUMMON, "Stack", "Graveyard")]);
+    ok("rsv: a spell whose own effect moved its target resolved", rsv(t5) === '[{"id":"engine-card-1012","k":"ins"}]', rsv(t5));
+    // exiled from the stack (no words of its own put it there): nothing; flashback's exile: resolved
+    await board(() => { take(OPT2); gv.stack = [item("engine-stack-11", OPT2)]; });
+    const t6 = await board(() => { gv.stack = []; put("exile", OPT2); }, [mv(OPT2, "Stack", "Exile")]);
+    ok("rsv: a spell exiled from the stack isn't named", t6.rsv === undefined, rsv(t6));
+    await board(() => { take(THINK); gv.stack = [item("engine-stack-12", THINK)]; });
+    const t7 = await board(() => { gv.stack = []; put("exile", THINK); }, [mv(THINK, "Stack", "Exile")]);
+    ok("rsv: a flashback spell exiled as it resolves is named", rsv(t7) === '[{"id":"engine-card-1008","k":"ins"}]', rsv(t7));
+    // a flashback spell exiled from the stack by another card (Mindbreak Trap; the feed names the trap as the cause):
+    // its own words would allow exile, but it never resolved; the trap did
+    await board(() => { take(THINK2); take(TRAP); gv.stack = [item("engine-stack-16", TRAP, { targets: [{ kind: "spell", id: "engine-stack-15" }] }), item("engine-stack-15", THINK2)]; });
+    const t7b = await board(() => { gv.stack = []; put("exile", THINK2); put("graveyard", TRAP); },
+      [mv(THINK2, "Stack", "Exile", { cause: "ChangeZone", causeName: "Mindbreak Trap", causeCardId: TRAP.id }), mv(TRAP, "Stack", "Graveyard")]);
+    ok("rsv: a flashback spell another card exiled from the stack isn't named, that card is", rsv(t7b) === '[{"id":"engine-card-1020","k":"ins"}]', rsv(t7b));
+    // a copy (Twincast's: a card in no zone, which Forge moves nowhere): never; its original: once
+    const COPY = card("engine-card-1018", "Preordain", ["Sorcery"], "player-0", PREORDAIN.text);
+    await board(() => { take(PREORDAIN); gv.stack = [item("engine-stack-14", COPY), item("engine-stack-13", PREORDAIN)]; });
+    // (Forge moves a copy nowhere; should a feed ever say it went to a graveyard, it is in no zone there)
+    const t8 = await board(() => { gv.stack = [item("engine-stack-13", PREORDAIN)]; }, [mv(COPY, "Stack", "Graveyard")]);
+    ok("rsv: a copy that resolved isn't named", t8.rsv === undefined, rsv(t8));
+    const t8b = await board(() => { gv.stack = []; put("graveyard", PREORDAIN); }, [mv(PREORDAIN, "Stack", "Graveyard")]);
+    ok("rsv: its original, a sorcery, is named sor", rsv(t8b) === '[{"id":"engine-card-1017","k":"sor"}]', rsv(t8b));
+    // cast and resolved between two boards (never on a stack the bridge saw): by its card's types
+    const t9 = await board(() => { put("graveyard", FARSEEK); }, [mv(FARSEEK, "Stack", "Graveyard")]);
+    ok("rsv: a sorcery cast and resolved between two boards is named sor", rsv(t9) === '[{"id":"engine-card-1009","k":"sor"}]', rsv(t9));
     harness.restore();
   }
   // the table's particle effects (docs/particle-fx-spec.md section 3): "cl" a card's colour letters (its static details;
