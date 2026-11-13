@@ -165,17 +165,22 @@ function stack() {
   section("the containers without compose");
   const ra = P.runArgs("relay", { project: "mtg-table", runtime: "podman", key: "k1", platform: "linux", arch: "x64" });
   const s = ra.join(" ");
-  check("relay: compose's container name, network and alias", s.includes("--name mtg-table-relay-1") && s.includes("--network mtg-table_default") && s.includes("--network-alias relay"), s);
+  check("relay: compose's container name, its own network namespace (no network flag)", s.includes("--name mtg-table-relay-1") && !s.includes("--network"), s);
   check("relay: port on 127.0.0.1 only", s.includes("-p 127.0.0.1:9443:9443") && !/-p 9443/.test(s), s);
   check("relay: the key, never pulled, restarts unless stopped", s.includes("MANABREW_SERVER_KEY=k1") && s.includes("--pull never") && s.includes("--restart unless-stopped") && ra[ra.length - 1] === "mtg-relay:exile", s);
   check("Podman: no health check (the login decides)", s.includes("--no-healthcheck"));
   const rr = P.runArgs("forge-room", { project: "mtg-table", runtime: "docker", key: "k1", platform: "darwin", arch: "arm64" }).join(" ");
-  check("room: reaches the relay as ws://relay:9443 with the same key, room tts-commander, 4 seats, no port", rr.includes("SELF_HOSTED_NODE_RELAY_URL=ws://relay:9443") && rr.includes("SELF_HOSTED_NODE_SERVER_KEY=k1") && rr.includes("SELF_HOSTED_NODE_ROOM_NAME=tts-commander") && rr.includes("SELF_HOSTED_NODE_MAX_PLAYERS=4") && !rr.includes(" -p "), rr);
+  check("room: in the relay's network namespace, reaching it as ws://127.0.0.1:9443 (no DNS needed)", rr.includes("--network container:mtg-table-relay-1") && rr.includes("SELF_HOSTED_NODE_RELAY_URL=ws://127.0.0.1:9443"), rr);
+  check("room: the same key, room tts-commander, 4 seats, no port of its own", rr.includes("SELF_HOSTED_NODE_SERVER_KEY=k1") && rr.includes("SELF_HOSTED_NODE_ROOM_NAME=tts-commander") && rr.includes("SELF_HOSTED_NODE_MAX_PLAYERS=4") && !rr.includes(" -p "), rr);
   check("Docker: keeps the image's health check", !rr.includes("--no-healthcheck"));
   check("Apple Silicon: the amd64 images under emulation", rr.includes("--platform linux/amd64") && !s.includes("--platform"));
   check("the same container names the bridge reads (versions.js: <project>-forge-room-1)", P.containerName("mtg-table", "forge-room") === "mtg-table-forge-room-1");
   check("up: no container: run; stopped: start; running: keep; new image: replace", P.upPlan({ exists: false }, R, L.sameId) === "run" && P.upPlan({ exists: true, state: "exited", image: R }, R, L.sameId) === "start"
     && P.upPlan({ exists: true, state: "running", image: R }, R, L.sameId) === "keep" && P.upPlan({ exists: true, state: "running", image: N }, R, L.sameId) === "replace");
+  const running = { exists: true, state: "running", image: N };
+  check("room: relay kept: the room's own plan (keep, start, run, replace)", P.roomPlan(running, N, "keep", L.sameId) === "keep" && P.roomPlan({ ...running, state: "exited" }, N, "keep", L.sameId) === "start" && P.roomPlan({ exists: false }, N, "keep", L.sameId) === "run" && P.roomPlan(running, R, "keep", L.sameId) === "replace");
+  check("room: a relay run, started or replaced has a new namespace: a running room is created again", ["run", "start", "replace"].every((rp) => P.roomPlan(running, N, rp, L.sameId) === "replace" && P.roomPlan({ ...running, state: "exited" }, N, rp, L.sameId) === "replace"));
+  check("room: no room yet: run, whatever the relay did", ["keep", "run", "start", "replace"].every((rp) => P.roomPlan({ exists: false }, N, rp, L.sameId) === "run"));
   check("the key: the environment's, else stack/.env's", P.engineKey(" s1 ", "f") === "s1" && P.engineKey("", "f") === "f" && P.engineKey(undefined, "f") === "f");
   const ci = P.containerFromInspect('[{"Id":"abc","Name":"/mtg-table-relay-1","Image":"' + R.slice(7) + '","State":{"Status":"running","Health":{"Status":"healthy"}}}]', L.normId);
   check("container inspect: state, health, the image id as Docker writes it", ci && ci.state === "running" && ci.health === "healthy" && ci.image === R && ci.name === "mtg-table-relay-1", ci);

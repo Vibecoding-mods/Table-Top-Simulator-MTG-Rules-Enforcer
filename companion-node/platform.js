@@ -64,20 +64,24 @@ const noSuchText = (out) => /no such (image|container|object|network)|image not 
 
 // The engine's containers, named as compose names them (the bridge's versions.js reads <project>-forge-room-1)
 const containerName = (project, service) => `${project}-${service}-1`;
-const networkName = (project) => `${project}_default`;
 const Services = ["relay", "forge-room"];
 const Images = { relay: "mtg-relay:exile", "forge-room": "mtg-forge-node:exile" };
 
-// `<cli> run` for one service: the same as the package's stack/compose.yml (make-friend-package.js composeYaml) with no
-// compose needed. o: { project, runtime, key, platform, arch, seats }.
-//   - every port on 127.0.0.1 only; the room reaches the relay as "relay" on the project's own network;
+// `<cli> run` for one service: the same settings as the package's stack/compose.yml (make-friend-package.js
+// composeYaml) with no compose needed. o: { project, runtime, key, platform, arch, seats }.
+//   - the relay's port on 127.0.0.1 only; the room has none;
+//   - the room shares the relay's network namespace (--network container:<relay>) and reaches it as ws://127.0.0.1:9443.
+//     compose's "relay" name needs DNS on a user network, which rootless Podman has only with its aardvark-dns plugin
+//     (not on every Steam Deck); a shared namespace needs nothing and is the same in Docker and Podman. The price: a
+//     relay that is created again or restarted takes the room with it (roomPlan below);
 //   - --pull never: the images come from images/mtg-images.tar, there is nothing to pull;
 //   - Podman: --no-healthcheck (its health checks need systemd timers a rootless setup may not run, and a check that
 //     never runs stays "starting" forever; the relay login decides instead), no --userns needed (no volumes);
 //   - an Apple Silicon Mac runs the amd64 images under emulation (Docker Desktop: Rosetta), said with --platform.
 function runArgs(service, o) {
   const name = containerName(o.project, service);
-  const a = ["run", "-d", "--name", name, "--network", networkName(o.project), "--network-alias", service,
+  const a = ["run", "-d", "--name", name,
+    ...(service === "relay" ? [] : ["--network", `container:${containerName(o.project, "relay")}`]),
     "--label", `com.docker.compose.project=${o.project}`, "--label", `com.docker.compose.service=${service}`,
     "--restart", "unless-stopped", "--pull", "never"];
   if (o.runtime === "podman") a.push("--no-healthcheck");
@@ -85,7 +89,7 @@ function runArgs(service, o) {
   const env = service === "relay"
     ? { MANABREW_SERVER_KEY: o.key, RUST_LOG: "manabrew_server=info" }
     : {
-      SELF_HOSTED_NODE_RELAY_URL: "ws://relay:9443", SELF_HOSTED_NODE_SERVER_KEY: o.key, SELF_HOSTED_NODE_ROOM_NAME: "tts-commander",
+      SELF_HOSTED_NODE_RELAY_URL: "ws://127.0.0.1:9443", SELF_HOSTED_NODE_SERVER_KEY: o.key, SELF_HOSTED_NODE_ROOM_NAME: "tts-commander",
       SELF_HOSTED_NODE_ENGINE_BACKEND: "forge", SELF_HOSTED_NODE_FORMAT: "commander", SELF_HOSTED_NODE_MAX_PLAYERS: String(o.seats || 4),
       SELF_HOSTED_NODE_AUTO_START: "true", RUST_LOG: "self_hosted_node=info",
     };
@@ -106,6 +110,12 @@ function upPlan(info, tagId, sameId) {
   if (tagId && info.image && !sameId(info.image, tagId)) return "replace";
   if (info.state !== "running") return "start";
   return "keep";
+}
+// The room's plan: its own, except that a relay that was run, started or replaced has a new network namespace, and a
+// room already joined to the old one has no network left: it is created again to join the new one.
+function roomPlan(info, tagId, relayPlan, sameId) {
+  const own = upPlan(info, tagId, sameId);
+  return relayPlan !== "keep" && own !== "run" ? "replace" : own;
 }
 
 // `<cli> container inspect <name>` (a JSON array) -> { exists, id, name, state, health, image }
@@ -211,7 +221,7 @@ function ttsLaunch(platform, steamCmd) {
 const openCommand = (platform, target) => (platform === "darwin" ? ["open", [target]] : ["xdg-open", [target]]);
 
 module.exports = {
-  TTS_APP_ID, savesDirFor, stateDirFor, chooseRuntime, parseInfo, accessDeniedText, noSuchText, containerName, networkName,
-  Services, Images, runArgs, engineKey, upPlan, containerFromInspect, procStartTicks, procListening, parseEtime, parsePs,
+  TTS_APP_ID, savesDirFor, stateDirFor, chooseRuntime, parseInfo, accessDeniedText, noSuchText, containerName,
+  Services, Images, runArgs, engineKey, upPlan, roomPlan, containerFromInspect, procStartTicks, procListening, parseEtime, parsePs,
   parseLsof, procName, procFromCmdline, findTts, bridgeProcs, ttsLaunch, openCommand,
 };

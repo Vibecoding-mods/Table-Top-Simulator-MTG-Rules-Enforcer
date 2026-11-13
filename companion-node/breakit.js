@@ -40,6 +40,8 @@ const Cases = [
     "locked fixes: restart relay/room"],
   ["platform.js", "the relay's port is published on every network interface",
     "a.push(\"-p\", \"127.0.0.1:9443:9443\")", "a.push(\"-p\", \"9443:9443\")", "relay: port on 127.0.0.1 only"],
+  ["platform.js", "a room joined to an old relay's network is kept after the relay is created again",
+    "return relayPlan !== \"keep\" && own !== \"run\" ? \"replace\" : own;", "return own;", "a relay run, started or replaced has a new namespace"],
   ["platform.js", "Podman keeps the image's health check",
     "if (o.runtime === \"podman\") a.push(\"--no-healthcheck\");", "", "Podman: no health check"],
   ["platform.js", "on a Deck the TTS process found is Steam's launcher wrapper",
