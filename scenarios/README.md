@@ -56,6 +56,12 @@ triggers, state-based actions after, a restore point before). Names are lower ca
   The plane must be in one of the game's planar decks, and those are random planes by default (10 a player), so a
   named plane is usually absent and refused ("no plane named Interplanar Tunnel in a planar deck"): name it in the
   pool first, `mtg planes Interplanar Tunnel; <more planes>` (a plane for every player), then `mtg planechase on`.
+- `planechase`: `{ "planes": [names], "current": name }` (top level, typed **before** a game only; during a game or while one
+  is set up it is refused, as Planechase is set when a game starts): that game is a Planechase game with these planes
+  and phenomena for the planar decks (dealt to every player, a plane for each, as `mtg planes` does; the host's own
+  `mtg planechase` setting stays as it was for later games). `current`, one of them: at the setup you planeswalk to it,
+  unless Forge turned it up first. Their pictures are asked for at once. `planes-chaos`, `planes-walk` and
+  `planes-cost` use it, so they need no `mtg planes` first.
 
 A file of the wrong shape (not an object, `lands` of another kind, a zone or `tokens` that isn't a list) is refused
 when typed, saying what is wrong. A choice made before a game is dropped (and said) if that colour isn't in it.
