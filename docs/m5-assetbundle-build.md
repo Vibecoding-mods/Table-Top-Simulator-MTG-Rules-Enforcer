@@ -16,8 +16,10 @@ must contain so the table can use them, how to build them, and the two-client te
 - `engineFxBundle = { fx = "<link>", sounds = nil }` (next to `engineFxArt` in `tools/engine-renderer.lua`): the TTS
   Cloud links. **No link and no such object on the table: nothing happens**, the effects stay today's Object UI slots
   and the sounds stay the MusicPlayer links.
-- `engineFxBundle.fx` (shipped since 2026-11-12, `mtg-fx.unity3d`, 118,140 bytes, sha256 `8e08833c2559a9221c0d21987693c106db9300738c3274254999631ca02ffce4`; the link was downloaded back and matches the file): https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/
-  Not yet deployed or seen from this link in TTS. No `sounds` bundle: the sounds are MusicPlayer links (`docs/sounds.md`).
+- `engineFxBundle.fx` (shipped since 2026-11-12 night: today's `mtg-fx.unity3d` in assets/fx, the 20-effect rebuild of `docs/particle-fx-spec.md`, uploaded as `mtg-fx2.unity3d`, 59,318 bytes, sha256 `c28c30a65d4a1f1186f21bd38570d70c1935d2b1b7625aafb94799302f1bfae3`; the link was downloaded back and matches the file): https://steamusercontent-a.akamaihd.net/ugc/13181964746744684712/6948BE73BB273AAB129525130A13E4982559BD1D/
+  The first `mtg-fx.unity3d` (10 effects, 118,140 bytes, sha256 `8e08833c…`, deployed 2026-11-12) was https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/; its rigs in a save are retired on load (`FX.LEGACY`).
+- `engineFxBundle.bolt` (shipped since 2026-11-12 night, `mtg-bolt.unity3d`, 50,577 bytes, sha256 `4b286c24bea4b21f94e7eb19f955aa57c56d0e89e36b0ea99c3879dbdbc5a711`, matched the same way): https://steamusercontent-a.akamaihd.net/ugc/12109543125843195804/C6B0053848DA7FCB5E6136B82243D57A66E3B289/
+  Neither link deployed or seen in TTS yet. No `sounds` bundle: the sounds are MusicPlayer links (`docs/sounds.md`).
 - With a link and none of that object on the table, a game's first board spawns them once (`spawnObjectData`,
   `Custom_Assetbundle`, locked, parked under the table at y −30, x −40…−31, z 30). They stay in the save after that;
   the next games find them by their GM notes. Rigs already in the save are used without a link too. The spawn data

@@ -28,7 +28,7 @@ Since that day, only a track of the players' own that is *playing* holds off the
 | mtg-countered.mp3 | a spell is countered (`countered`, 2026-11-12) | 1.05 s | If a spell is countered.ogg | https://steamusercontent-a.akamaihd.net/ugc/16931120861737353001/A2214840FC305FC9063F57823D4C2852D2383CD3/ |
 | mtg-playerhit.mp3 | 1 to 5 damage to a player (`playerhit`, 2026-11-12) | 0.85 s | player damage from pingorbolts pells.ogg | https://steamusercontent-a.akamaihd.net/ugc/17427026780177468511/DC419EEC5FE59459E3F2417452DDE9E381380D0F/ |
 | mtg-bighit.mp3 | one hit of more than 5, to a player or a creature (`bighit`, 2026-11-12) | 1.14 s | Damage from anything over 5.ogg | https://steamusercontent-a.akamaihd.net/ugc/13928224574378758506/BFC535CE502EC967E020203AE6E1CAA2A68E703C/ |
-| mtg-sorcery.mp3 | a sorcery is cast, sorceries only (`sorcery`, 2026-11-12) | 0.87 s | qubodup-PowerDrain.flac, reversed and 3x faster | https://steamusercontent-a.akamaihd.net/ugc/14467135192415793223/86376C7381097865A4421068FCA1FF8827BE47A8/ |
+| mtg-sorcery.mp3 | a sorcery is cast, sorceries only (`sorcery`, 2026-11-12; remade that night, "Sorcery remake" below) | 2.22 s | qubodup-PowerDrain.flac, reversed, 3x faster, then half speed at the same pitch, with our pop and crackle (uploaded as mtg3-sorcery.mp3) | https://steamusercontent-a.akamaihd.net/ugc/13241084417049183126/BB800BB0A8D05F14C238A0B03A137A70148E6B41/ |
 
 Every kind has a link since 2026-11-12. The upload of that day (the five 2026-11-12 kinds, knockout, the louder death and instant, the bursts below) has not been heard in TTS yet. Details: "Counter and knockout" and "Added and changed 2026-11-12" below.
 
@@ -201,6 +201,29 @@ file by sha256 against the table above. None has been heard in TTS yet (same rec
 `tests/test_table_effects.js` checks against the table's. Still to do: deploy, then as the host
 `mtg sounds test countered`, `playerhit`, `bighit`, `sorcery`, `bighit 8`.
 
+## Sorcery remake (2026-11-12 night, uploaded the same night)
+
+The user's picks, in order: the 2026-11-12 sorcery "slowed down by half" (the same-pitch version), "needs like cracking
+sound at the end" (crackle take 1), then "a popping sound or small explosion in-between the og sound and crackling"
+(pop take 2, "Pop2 wins"). The work files are in `assets/sounds/test/` (gitignored with `assets/`): the filtergraphs
+`pop2.txt` and `crackle1.txt`, the mix `pop2.wav`, the result `mtg2-sorcery-new.mp3` (= `tmp/upload3/mtg3-sorcery.mp3`).
+
+- Swell: the first 1.0 s of `mtg2-sorcery.mp3` through `atempo=0.5` (half speed, pitch kept), so 2.0 s.
+- Pop (ours, ffmpeg generators, no third-party audio): a boom `sin(2*PI*(38*t+(110/8)*(1-exp(-8*t))))*exp(-t*9)`
+  (a sine falling from 148 to 38 Hz), 0.4 s of brown-noise rumble, and a 0.03 s white-noise crack, at 1620 ms.
+- Crackle (ours, as above): `crackle1.txt`, at 1780 ms.
+- Then the recipe: leading silence removed, cut at 2.215 s, low-passed at 18.6 kHz, -3.2 dB (on target measured on the
+  mp3, peak under -1 dBFS), 80 ms fade-out, padded to 2.4 s, libmp3lame 192 kbps, ID3v2.3, title "MTG effect sorcery".
+
+| File | Sound | File length | sha256 |
+|---|---|---|---|
+| mtg3-sorcery.mp3 | 2.22 s | 2.40 s (59,079 bytes) | `710d548770a41d71f768b4f284c363b0ee30bb9bd2fdd6d0f9dbe020ebd5556f` |
+
+The file is longer than 2 s, so `engineSoundLen.sorcery = 2.4`: the table pauses it at 2.15 s, which takes off the last
+65 ms of the fade-out (the crackle is already fading). Uploaded 2026-11-12 night with the effect bundles
+(`mtg-fx2.unity3d`, `mtg-bolt.unity3d`); the link was downloaded back and matched by sha256. The old `mtg2-sorcery.mp3`
+link stays on the Cloud, unused. Licence: still qubodup's CC-BY-SA 3.0 (the swell); the pop and crackle are ours.
+
 ## Licences and sources (checked 2026-11-11)
 
 The user supplied the six as files, with no source pages (session uploads `Health_gain.aif`,
@@ -218,7 +241,7 @@ the audio (that would need the packs downloaded). **The user should confirm each
 | death, death_x2..x8 (and the death under wipe_x3..x8) | **unknown**: a 1.85 s WAV whose tag says FL Studio's Edison made it. Searched 2026-11-12 (OpenGameArt web searches for the filename, "creature removal", FL Studio/Edison, card-game death/destroy): no page offers it | ? | ? | — (not found) | **not cleared** |
 | lifegain, lifegain_x2..x8 | **unknown**: a 3.20 s AIFF. Unconfirmed guess: [Level up, power up, Coin get (13 Sounds)](https://opengameart.org/content/level-up-power-up-coin-get-13-sounds) by wobbleboxx, CC0 (per search snippets; the page returned 403 to our fetch, so its file list and licence text were not read; a commenter names a `Rise03.aif` in it, but no `Health_gain` file is listed anywhere we could see) | wobbleboxx (if the guess holds) | CC0 (if the guess holds; unverified) | — (guess only; no page found offering `Health_gain.aif`) | **not cleared** |
 | knockout (and the generated counter, no longer used) | ours (`tools/make-effect-sounds.js`) | this project | public domain (`LICENSE`) | certain | allowed |
-| sorcery (2026-11-12) | "PowerDrain" (`qubodup-PowerDrain.flac`, the user's folder `sorc cast sound/` with its `license.txt`); we reversed it and sped it up 3x | Iwan 'qubodup' Gabovitch (http://qubodup.net), 2012 | CC-BY-SA 3.0 (the folder's licence.txt is its full text) | certain: the licence and copyright line came with the file | allowed, with attribution and share-alike (below) |
+| sorcery (2026-11-12) | "PowerDrain" (`qubodup-PowerDrain.flac`, the user's folder `sorc cast sound/` with its `license.txt`); we reversed it and sped it up 3x, and (remake, 2026-11-12 night) slowed that to half speed at the same pitch and added our own pop and crackle | Iwan 'qubodup' Gabovitch (http://qubodup.net), 2012 | CC-BY-SA 3.0 (the folder's licence.txt is its full text) | certain: the licence and copyright line came with the file | allowed, with attribution and share-alike (below) |
 | countered, counter, playerhit, playerhit_x2..x8, bighit, bighit_x2..x8 (2026-11-12) | **unknown**: the user's files `If a spell is countered.ogg`, `Counter gain.mp3`, `player damage from pingorbolts pells.ogg`, `Damage from anything over 5.ogg`, no source pages | ? | ? | — | **not cleared** |
 
 **Flags.**
