@@ -2115,6 +2115,58 @@ function trackTurns(pub, seats) {
   }
 }
 
+// Which combat or main phase of the turn this is, for the phase bar (readability audit D6): an extra combat (Relentless
+// Assault, Aggravated Assault) or an extra main phase lit COMBAT or MAIN 2 again, looking like the first. Forge sends
+// only the step, so a phase begins when the step leaves the phase it was in, or goes back in the turn's order (an extra
+// combat straight after a combat). -> the phase's number past the usual (combat 2 on, main 3 on), else null; the first
+// combat, main 1 and main 2 send none. Counted from the first board of each turn the bridge sees (a main 2 first seen
+// counts as the 2nd, after the turn's first combat); a rewind starts the count again (checkRestored).
+function phaseNumber(pub) {
+  const step = String(pub.step || "");
+  const phaseOf = (s) => (s.startsWith("combat") ? "combat" : s);
+  let t = game.phaseTrack;
+  if (!t || t.turn !== pub.turn) t = game.phaseTrack = { turn: pub.turn, step: null, combat: 0, main: 0 };
+  if (step && step !== t.step) {
+    // (a turn first seen past its combat has had one: an extra combat after it is the 2nd)
+    if (t.step == null && SKIP_ORDER.indexOf(step) > SKIP_ORDER.indexOf("combatEnd")) t.combat = 1;
+    const back = t.step != null && SKIP_ORDER.indexOf(step) < SKIP_ORDER.indexOf(t.step);
+    if (t.step == null || phaseOf(step) !== phaseOf(t.step) || back) {
+      if (phaseOf(step) === "combat") t.combat++;
+      else if (step === "main1" || step === "main2") t.main = Math.max(t.main + 1, step === "main2" ? 2 : 1);
+    }
+    t.step = step;
+  }
+  if (phaseOf(step) === "combat" && t.combat > 1) return t.combat;
+  if (step === "main2" && t.main > 2) return t.main;
+  return null;
+}
+
+// Skipped turns, a stopgap (readability audit D2): Forge holds a skip (Eater of Days, Lethal Vapors) in an effect card
+// the harness leaves out, so nothing said one. Read from the turn order instead: Forge's PhaseHandler puts an extra turn
+// on top of the normal next turn, which still follows it, so a turn that isn't an extra one goes to the next player in
+// the game after the last turn that wasn't extra (game.turnBase); every player still in the game passed over on the way
+// was skipped (a player who has left is passed over by the rules). Nothing when the turn number moved by more than one
+// (boards unseen), before the first turn, or from an engine that sends no isExtraTurn (an extra turn would read as every
+// other player's skip). A rewind starts again (checkRestored). -> log lines, for the top of the new turn.
+function skippedTurns(prev, cur, pub) {
+  const players = pub.players || [];
+  const me = players.find((p) => p.id === cur.active);
+  if (typeof me?.isExtraTurn !== "boolean") { game.turnBase = null; return []; }
+  // (the last normal turn's player: the one kept, else the last board's when its turn wasn't extra)
+  const base = game.turnBase ?? (prev.turn >= 1 && !prev.marks?.[prev.active]?.extraTurn ? prev.active : null);
+  game.turnBase = me.isExtraTurn ? base : cur.active;
+  if (me.isExtraTurn) return [];
+  const i = players.findIndex((p) => p.id === base);
+  if (i < 0 || !(prev.turn >= 1) || cur.turn !== prev.turn + 1) return [];
+  const out = [];
+  for (let k = 1; k < players.length; k++) {
+    const p = players[(i + k) % players.length];
+    if (p.id === cur.active) break;
+    if (!p.status || p.status === "playing") out.push(`${poss(nameOf(p.id))} turn is skipped`);
+  }
+  return out;
+}
+
 // ───────────────────────── Game log (phase 3) ─────────────────────────
 // What each player did, worked out by comparing public board states: battlefield, graveyards, exile, command
 // zone, stack, life and the hand/library counts. Hidden cards are never named.
@@ -3078,6 +3130,8 @@ function logEvents(prev, cur, pub, facts = null) {
   const turnBegan = cur.turn !== prev.turn && !!cur.active;
   const oldTurn = []; // (the lines of spells that resolved in the turn just ended: they go above the header)
   if (turnBegan) {
+    // (the turns skipped on the way, above the new turn's header: skippedTurns)
+    out.push(...skippedTurns(prev, cur, pub));
     // (an extra turn, Forge's flag: Stitch in Time's read as a plain turn, rebuilt hand test #15)
     out.push(`--- ${who(cur.active)}'s turn ${game.turnsTaken?.[cur.active] || 1}${extraTurn(cur) ? " (extra turn)" : ""} ---`);
     // (a look at a library last turn says nothing about this turn's draw: Top looked, then the draw step's card read
@@ -4381,6 +4435,35 @@ function dungeonLabel(d, done) {
   return { dg: lines.join("\n"), ...(d.text ? { dgt: `${d.room} — ${d.text}` } : {}) };
 }
 
+// A player's floating mana, the colours with any (Forge's manaPool: colour -> amount).
+function manaOf(p) { return Object.fromEntries(Object.entries(p?.manaPool || {}).filter(([, n]) => n)); }
+
+// Commander damage as the victim's trackers show it, one per attacking colour (readability audit D4): `cmdDamage` the
+// most from any one of that colour's commanders, the number the 21 counts (the loss reason reads the same max,
+// LOSS_REASONS), and `cmdTip` each commander's own damage, for the tracker's tooltip, when that player has partners. Two
+// partners' 15 and 10 read 25 against the 21 while the player was alive. A commander's owner from Forge's
+// commanderCasts (every player's commanders, wherever they are), else from the board: the board alone knew no
+// commander in a library or a hand, and its damage was dropped.
+function cmdDamageRow(p, pub, byId, views = []) {
+  const ownerOfCmd = {};
+  for (const q of pub.players || []) for (const cid of Object.keys(q.commanderCasts || {})) ownerOfCmd[cid] ??= q.id;
+  const per = {};
+  for (const [cid, raw] of Object.entries(p.commanderDamage || {})) {
+    const n = Number(raw);
+    const from = game.slotColor[ownerOfCmd[cid] || byId[cid]?.ownerId || game.owners?.get(cid)];
+    if (!from || !(n > 0)) continue;
+    const name = byId[cid]?.identity?.name || views.map((v) => v[cid]?.identity?.name).find(Boolean) || "A commander";
+    (per[from] ??= []).push({ name, n });
+  }
+  const cmdDamage = {}, cmdTip = {};
+  for (const [from, list] of Object.entries(per)) {
+    cmdDamage[from] = Math.max(...list.map((x) => x.n));
+    const owner = (pub.players || []).find((q) => q.id === slotOfColor(from));
+    if (list.length > 1 || Object.keys(owner?.commanderCasts || {}).length > 1) cmdTip[from] = list.map((x) => `${x.name}: ${x.n}`).join("\n");
+  }
+  return { cmdDamage, ...(Object.keys(cmdTip).length ? { cmdTip } : {}) };
+}
+
 function sendTable() {
   if (!game?.started || game.autoplay || !game.fromTable) return; // (other games get the text board, sendView)
   const seats = [...game.seats.values()].filter((s) => s.board?.state?.gameView);
@@ -4404,18 +4487,17 @@ function sendTable() {
   const players = (pub.players || []).map((p) => {
     const own = seats.find((s) => s.slot === p.id)?.board.state.gameView;
     const command = zoneOf(pub, "command", p.id).cards;
-    const cmdDamage = {};
-    for (const [cid, n] of Object.entries(p.commanderDamage || {})) {
-      const from = game.slotColor[byId[cid]?.ownerId];
-      if (from && n) cmdDamage[from] = (cmdDamage[from] || 0) + n;
-    }
     const row = {
       color: game.slotColor[p.id], slot: p.id, name: nameOf(p.id), ai: !own, life: p.life, status: p.status,
-      // your own floating mana (only your seat's view has it)
-      pool: own ? Object.fromEntries(Object.entries(own.players?.find((x) => x.id === p.id)?.manaPool || {}).filter(([, n]) => n)) : null,
+      // floating mana: a seat's own from its own view, everyone else's from the public one (mana in a pool is public;
+      // only a seat was shown its own, readability audit D7). Another player's only while not empty: an empty one is
+      // null as before, the table drawing nothing for it.
+      pool: own ? manaOf(own.players?.find((x) => x.id === p.id)) : (Object.keys(manaOf(p)).length ? manaOf(p) : null),
       // the marks under the life total (allMarks: PLAYER_MARKS, playerMarks)
       ...playerMarks(p, pub),
-      cmdDamage,
+      // (commander damage per attacking colour, cmdDamage the most from one commander, cmdTip each one's for the
+      // tracker's tooltip: cmdDamageRow)
+      ...cmdDamageRow(p, pub, byId, views),
       // Commander tax per commander, in command-zone order (casts × 2).
       tax: Object.values(p.commanderCasts || {}).map((n) => 2 * (n || 0)),
       library: zoneOf(pub, "library", p.id).count,
@@ -4468,9 +4550,11 @@ function sendTable() {
     // (a spell's picture is its card's, sourceId; the owner's printing)
     f: pictureOf(s.identity?.name, { id: s.sourceId || s.id, ownerId: s.ownerId }),
   }));
+  const phaseNo = phaseNumber(pub);
   const tableMsg = {
     t: "table", turn: pub.turn, step: pub.step, active: game.slotColor[pub.activePlayerId] || null,
     activeTurnNo: game.turnsTaken?.[pub.activePlayerId] || 1,
+    ...(phaseNo ? { phaseNo } : {}), // (an extra combat's or main phase's number, the phase bar's "COMBAT (2)": phaseNumber)
     priority: game.slotColor[pub.priorityPlayerId] || null, gameOver: !!pub.gameOver,
     ...(pub.gameOver ? { overWhy: gameEndWords(pub) } : {}), // (why it ended, on the top bar: Kykar hand test #16)
     ...(pub.dayTime === "day" || pub.dayTime === "night" ? { day: pub.dayTime } : {}), // (shown beside the turn on the table)
@@ -9476,16 +9560,15 @@ function fixOps(list, pub, ownWords = false, kind = null) {
       const c = byId[op.card];
       if (!(c.subtypes || []).some((t) => /^(Aura|Equipment|Fortification)$/.test(t))) return { error: `${cardName(op.card)} can't be attached to anything.` };
     }
-    // commander damage counted per colour on the table: the commander of that colour (with partners, the first one
-    // takes what the others haven't dealt)
+    // commander damage counted per colour on the table: the commander of that colour (with partners, the one whose
+    // damage the tracker shows, the most from one of them, cmdDamageRow; the first on a tie or none dealt yet)
     if (op.op === "commanderDamage" && !byId[op.from]) {
       const from = (pub.players || []).find((p) => p.id === slotOfColor(op.from));
       const victim = (pub.players || []).find((p) => p.id === op.player);
       const ids = Object.keys(from?.commanderCasts || {});
       if (!ids.length) return { error: `${op.from} has no commander.` };
-      const others = ids.slice(1).reduce((n, id) => n + ((victim?.commanderDamage || {})[id] || 0), 0);
-      op.from = ids[0];
-      op.n = Math.max(0, op.n - others);
+      const dealt = (id) => Number((victim?.commanderDamage || {})[id]) || 0;
+      op.from = ids.reduce((best, id) => (dealt(id) > dealt(best) ? id : best), ids[0]);
     }
     const c = op.card ? byId[op.card] : null;
     // a free play is a table player's own card, in their hand (or, to activate, under their control on the battlefield):
@@ -10080,6 +10163,8 @@ function checkRestored(seat) {
     // (and what the players' answers said for the log: a source chosen, a "Pay {1}?", a target pick, a pain land's
     // tap, the blocks, all from the turns undone; a shield chosen before the rewind named a replayed turn's damage
     // "prevented", review 2026-11-09. A player the rewind brought back is in the game again: how they went out is undone.)
+    // (and the phases counted this turn and the turn order's last normal turn: phaseNumber, skippedTurns)
+    game.phaseTrack = null; game.turnBase = null;
     game.picked?.clear(); game.answers?.clear(); game.sourceShields = []; game.painTaps = []; game.declaredBlocks = null; game.owedCombat = null; game.lifePays = []; game.chosenSources = []; game.orderAnswer = null;
     for (const p of gv.players || []) if (!p.status || p.status === "playing") { delete game.outOrder?.[p.id]; delete game.outWhere?.[p.id]; }
     // (the turn as the log's headers count it, each player's own: "White's turn 4", suite review 2026-10-27)
@@ -10270,5 +10355,6 @@ if (require.main === module) {
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
+    fixOps, phaseNumber,
   };
 }

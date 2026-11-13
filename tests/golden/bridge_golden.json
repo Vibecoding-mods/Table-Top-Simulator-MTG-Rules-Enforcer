@@ -135785,7 +135785,10 @@
        "status": "playing",
        "pool": {},
        "cmdDamage": {
-        "White": 2
+        "White": 3
+       },
+       "cmdTip": {
+        "White": "Ashling, the Limitless: 2\nPartner Two: 3"
        },
        "tax": [
         0
@@ -136306,7 +136309,10 @@
        "status": "playing",
        "pool": {},
        "cmdDamage": {
-        "White": 2
+        "White": 3
+       },
+       "cmdTip": {
+        "White": "Ashling, the Limitless: 2\nPartner Two: 3"
        },
        "tax": [
         0
@@ -136740,7 +136746,10 @@
        "status": "playing",
        "pool": {},
        "cmdDamage": {
-        "White": 2
+        "White": 3
+       },
+       "cmdTip": {
+        "White": "Ashling, the Limitless: 2\nPartner Two: 3"
        },
        "tax": [
         0
@@ -136850,10 +136859,10 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Changes: Blue gets a 1/1 blue spirit token; Blue gets a 3/3 green beast token; Blue gets a white 1/1 soldier token; Blue: 7 damage from Ashling, the Limitless.\n"
+    "text": "[time] all    told: [MTG] Changes: Blue gets a 1/1 blue spirit token; Blue gets a 3/3 green beast token; Blue gets a white 1/1 soldier token; Blue: 10 damage from Partner Two.\n"
    },
    {
-    "log": "fix #1: [{\"op\":\"createToken\",\"script\":\"u_1_1_spirit_flying\",\"player\":\"player-0\"},{\"op\":\"createToken\",\"script\":\"g_3_3_beast\",\"player\":\"player-0\"},{\"op\":\"createToken\",\"script\":\"w_1_1_soldier\",\"player\":\"player-0\"},{\"op\":\"commanderDamage\",\"player\":\"player-0\",\"from\":\"engine-card-200\",\"n\":7}]"
+    "log": "fix #1: [{\"op\":\"createToken\",\"script\":\"u_1_1_spirit_flying\",\"player\":\"player-0\"},{\"op\":\"createToken\",\"script\":\"g_3_3_beast\",\"player\":\"player-0\"},{\"op\":\"createToken\",\"script\":\"w_1_1_soldier\",\"player\":\"player-0\"},{\"op\":\"commanderDamage\",\"player\":\"player-0\",\"from\":\"engine-card-201\",\"n\":10}]"
    },
    {
     "relay": {
@@ -136883,8 +136892,8 @@
         {
          "op": "commanderDamage",
          "player": "player-0",
-         "from": "engine-card-200",
-         "n": 7
+         "from": "engine-card-201",
+         "n": 10
         }
        ]
       }
@@ -136894,7 +136903,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Changes: Blue gets a 1/1 blue spirit token; Blue gets a 3/3 green beast token; Blue gets a white 1/1 soldier token; Blue: 7 damage from Ashling, the Limitless.",
+     "text": "[MTG] Changes: Blue gets a 1/1 blue spirit token; Blue gets a 3/3 green beast token; Blue gets a white 1/1 soldier token; Blue: 10 damage from Partner Two.",
      "color": null
     }
    },
@@ -136918,7 +136927,10 @@
        "status": "playing",
        "pool": {},
        "cmdDamage": {
-        "White": 2
+        "White": 3
+       },
+       "cmdTip": {
+        "White": "Ashling, the Limitless: 2\nPartner Two: 3"
        },
        "tax": [
         0
@@ -137021,7 +137033,7 @@
        "Blue gets a 1/1 blue spirit token",
        "Blue gets a 3/3 green beast token",
        "Blue gets a white 1/1 soldier token",
-       "Blue: 7 damage from Ashling, the Limitless"
+       "Blue: 10 damage from Partner Two"
       ],
       "message": null
      }
@@ -137048,8 +137060,8 @@
     {
      "op": "commanderDamage",
      "player": "player-0",
-     "from": "engine-card-200",
-     "n": 7
+     "from": "engine-card-201",
+     "n": 10
     }
    ]
   ]
@@ -160560,12 +160572,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- AI 1's turn 2 ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue's turn is skipped\n[time] --- AI 1's turn 2 ---\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
+      "Blue's turn is skipped",
       "--- AI 1's turn 2 ---"
      ]
     }
@@ -171795,12 +171808,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- AI 1's turn 2 ---\n"
+    "text": "[time] Blue's turn is skipped\n[time] --- AI 1's turn 2 ---\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
+      "Blue's turn is skipped",
       "--- AI 1's turn 2 ---"
      ]
     }
@@ -323085,12 +323099,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 2 ---\n"
+    "text": "[time] AI 1's turn is skipped\n[time] --- Blue's turn 2 ---\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
+      "AI 1's turn is skipped",
       "--- Blue's turn 2 ---"
      ]
     }
@@ -324540,12 +324555,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 2 ---\n"
+    "text": "[time] AI 1's turn is skipped\n[time] --- Blue's turn 2 ---\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
+      "AI 1's turn is skipped",
       "--- Blue's turn 2 ---"
      ]
     }
@@ -401660,7 +401676,7 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 2 ---\n[time] Blue draws a card\n"
+    "text": "[time] AI 1's turn is skipped\n[time] --- Blue's turn 2 ---\n[time] Blue draws a card\n"
    },
    {
     "tts": {
@@ -401673,6 +401689,7 @@
     "tts": {
      "t": "gamelog",
      "lines": [
+      "AI 1's turn is skipped",
       "--- Blue's turn 2 ---",
       "Blue draws a card"
      ]
@@ -401872,6 +401889,7 @@
   ],
   "result": {
    "lines": [
+    "AI 1's turn is skipped",
     "--- Blue's turn 2 ---",
     "Blue draws a card"
    ]
@@ -764347,13 +764365,14 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Daring Skyjek is countered\n[time] --- Blue's turn 2 ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Daring Skyjek is countered\n[time] AI 1's turn is skipped\n[time] --- Blue's turn 2 ---\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
       "Daring Skyjek is countered",
+      "AI 1's turn is skipped",
       "--- Blue's turn 2 ---"
      ]
     }
@@ -764510,6 +764529,7 @@
   ],
   "result": [
    "Daring Skyjek is countered",
+   "AI 1's turn is skipped",
    "--- Blue's turn 2 ---"
   ]
  },
@@ -767712,12 +767732,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] --- Blue's turn 2 ---\n[time] AI 1 plays Swamp\n"
+    "text": "[time] AI 1's turn is skipped\n[time] --- Blue's turn 2 ---\n[time] AI 1 plays Swamp\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
+      "AI 1's turn is skipped",
       "--- Blue's turn 2 ---",
       "AI 1 plays Swamp"
      ]
@@ -767923,6 +767944,7 @@
    "AI 1 puts Swamp onto the battlefield",
    "AI 1 plays Swamp",
    "AI 1 puts Swamp onto the battlefield",
+   "AI 1's turn is skipped",
    "--- Blue's turn 2 ---",
    "AI 1 plays Swamp"
   ]
@@ -793500,12 +793522,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] --- Blue's turn 2 ---\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] AI 1's turn is skipped\n[time] --- Blue's turn 2 ---\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
+      "AI 1's turn is skipped",
       "--- Blue's turn 2 ---"
      ]
     }

@@ -4378,6 +4378,118 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       await tableWith([["battlefield", "player-0", [TOKEN_TWIN, RESEARCHER]], ["exile", "player-0", [COPY]]]),
       { badged: [RESEARCHER.id], linked: [`${COPY.id}>${RESEARCHER.id}`] });
   }
+  // Readability audit 2026-11-12 (docs/readability-audit-2026-11-12.md rows 8, 11, 16, 20).
+  // Commander damage with partners (cmdDamageRow): the tracker shows the most from one commander, the number the 21
+  // counts, not the sum; the tooltip lists each; a commander no board shows (in a library) is still counted, by Forge's
+  // commanderCasts; the table's counter turned sets the commander it shows (fixOps)
+  {
+    const cmdTable = async (edit) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      edit(b.gameView);
+      setup(h, b);
+      h.B.sendTable(); await h.flush();
+      const t = sent(h, "table")[0] || { players: [] };
+      const fix = (n) => h.B.fixOps([{ op: "commanderDamage", player: "Blue", from: "White", n }], b.gameView);
+      const row = t.players.find((p) => p.slot === "player-0") || {};
+      const out = { row, fix18: fix(18) };
+      harness.restore();
+      return out;
+    };
+    const partners = (gv, d200, d201) => {
+      gv.players.find((p) => p.id === "player-1").commanderCasts = { "engine-card-200": 1, "engine-card-1401": 0 };
+      gv.players.find((p) => p.id === "player-0").commanderDamage = { "engine-card-200": d200, "engine-card-1401": d201 };
+      gv.zones.find((z) => z.zone === "command" && z.ownerId === "player-1").cards.push({ id: "engine-card-1401", identity: { name: "Tymna the Weaver" }, types: ["Creature"], ownerId: "player-1", controllerId: "player-1" });
+    };
+    const name200 = F.board.gameView.zones.flatMap((z) => z.cards || []).find((c) => c.id === "engine-card-200")?.identity?.name;
+    const a = await cmdTable((gv) => partners(gv, 15, 10));
+    ok("cmd damage: precondition, White's first commander is on the board", !!name200, name200);
+    ok("cmd damage: partners' 15 and 10 show 15, the most from one commander, not 25", a.row.cmdDamage?.White === 15, JSON.stringify(a.row.cmdDamage));
+    ok("cmd damage: the tooltip lists each commander's damage", a.row.cmdTip?.White === `${name200}: 15\nTymna the Weaver: 10`, JSON.stringify(a.row.cmdTip));
+    const b2 = await cmdTable((gv) => partners(gv, 10, 15));
+    ok("cmd damage: the counter turned to 18 sets the commander it shows (the second partner's 15), to 18",
+      JSON.stringify(b2.fix18.ops) === JSON.stringify([{ op: "commanderDamage", player: "player-0", from: "engine-card-1401", n: 18 }]), JSON.stringify(b2.fix18));
+    const c = await cmdTable((gv) => {
+      gv.players.find((p) => p.id === "player-1").commanderCasts = { "engine-card-1402": 0 };
+      gv.players.find((p) => p.id === "player-0").commanderDamage = { "engine-card-1402": 7 };
+    });
+    ok("cmd damage: a commander no board shows (in a library) still counts", c.row.cmdDamage?.White === 7, JSON.stringify(c.row.cmdDamage));
+    ok("cmd damage: a single commander has no tooltip list", c.row.cmdTip === undefined, JSON.stringify(c.row.cmdTip));
+  }
+  // Floating mana: every player's that isn't empty, from the public view; an empty one null as before
+  {
+    const h = harness.load();
+    const b = clone(F.board);
+    b.gameView.players.find((p) => p.id === "player-1").manaPool = { W: 0, U: 0, B: 1, R: 2, G: 0, C: 0 };
+    b.gameView.players.find((p) => p.id === "player-0").manaPool = { W: 0, U: 0, B: 0, R: 0, G: 1, C: 0 };
+    setup(h, b);
+    h.B.sendTable(); await h.flush();
+    const rows = (sent(h, "table")[0] || { players: [] }).players;
+    ok("pool: the AI's floating mana reaches the table", JSON.stringify(rows.find((p) => p.slot === "player-1")?.pool) === JSON.stringify({ B: 1, R: 2 }), JSON.stringify(rows.map((p) => p.pool)));
+    ok("pool: the seat's own as before", JSON.stringify(rows.find((p) => p.slot === "player-0")?.pool) === JSON.stringify({ G: 1 }), JSON.stringify(rows.map((p) => p.pool)));
+    harness.restore();
+    const h2 = harness.load();
+    setup(h2, clone(F.board));
+    h2.B.sendTable(); await h2.flush();
+    ok("pool: an AI's empty pool is null, as before", (sent(h2, "table")[0]?.players || []).find((p) => p.slot === "player-1")?.pool === null);
+    harness.restore();
+  }
+  // Extra combat and main phases (phaseNumber): the number past the usual, counted per turn from the steps; and in the
+  // board as phaseNo
+  {
+    const h = harness.load();
+    setup(h, clone(F.board));
+    const seq = [[5, "upkeep"], [5, "main1"], [5, "combatBegin"], [5, "combatDamage"], [5, "combatEnd"], [5, "main2"], [5, "combatBegin"], [5, "combatDeclareAttackers"],
+      [5, "combatEnd"], [5, "main2"], [5, "end"], [6, "main1"], [6, "combatBegin"], [6, "combatEnd"], [6, "combatBegin"], [6, "combatDamage"], [7, "main2"],
+      [8, "main2"], [8, "combatBegin"], [8, "main2"]];
+    const got = seq.map(([turn, step]) => `${step}:${h.B.phaseNumber({ turn, step })}`);
+    const want = ["upkeep:null", "main1:null", "combatBegin:null", "combatDamage:null", "combatEnd:null", "main2:null", "combatBegin:2", "combatDeclareAttackers:2",
+      "combatEnd:2", "main2:3", "end:null", "main1:null", "combatBegin:null", "combatEnd:null", "combatBegin:2", "combatDamage:2", "main2:null",
+      "main2:null", "combatBegin:2", "main2:3"];
+    ok("phases: an extra combat is the 2nd, the main phase after it the 3rd; a combat straight after a combat is the 2nd; a main 2 first seen is no extra, and the combat after it the 2nd",
+      JSON.stringify(got) === JSON.stringify(want), got.join(" "));
+    ok("phases: the same step again is the same phase", h.B.phaseNumber({ turn: 7, step: "main2" }) === null && h.B.phaseNumber({ turn: 7, step: "main2" }) === null);
+    harness.restore();
+    // the board: the second combat goes out as phaseNo 2, the first with none
+    const h2 = harness.load();
+    const b = clone(F.board);
+    const seat = setup(h2, b);
+    const step = async (s) => { const nb = clone(b); nb.gameView.step = s; seat.board = { state: nb, fingerprint: null }; h2.B.sendTable(); await h2.flush(); return sent(h2, "table").at(-1); };
+    const first = await step("combatBegin");
+    await step("main2");
+    const second = await step("combatBegin");
+    ok("phases: the board says the second combat's number, not the first's", first && first.phaseNo === undefined && second && second.phaseNo === 2, `${first?.phaseNo} ${second?.phaseNo}`);
+    harness.restore();
+  }
+  // Skipped turns (skippedTurns): a turn that isn't extra goes to the next player after the last normal turn's; anyone
+  // still playing passed over was skipped. Three players.
+  {
+    const P3 = ["player-0", "player-1", "player-2"];
+    const tb = (turn, active, { extra = false, out = [], flag = true } = {}) => ({ turn, step: "upkeep", activePlayerId: active, priorityPlayerId: active, stack: [],
+      players: P3.map((id) => ({ id, life: 40, status: out.includes(id) ? "lost" : "playing", ...(flag ? { isExtraTurn: id === active && extra } : {}) })),
+      zones: P3.flatMap((ownerId) => ["library", "hand", "graveyard", "exile", "battlefield", "command"].map((zone) => ({ zone, ownerId, cards: [], count: 0 }))) });
+    const linesOf = (seq) => {
+      const h = harness.load();
+      setup(h, clone(F.board), { slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "AI 2" }, slotColor: { "player-0": "Blue", "player-1": "White", "player-2": "Red" } });
+      const all = [];
+      for (let i = 1; i < seq.length; i++) all.push(...h.B.logEvents(h.B.logSnapshot(seq[i - 1]), h.B.logSnapshot(seq[i]), seq[i]));
+      harness.restore();
+      return all.filter((l) => /skipped|^--- /.test(l));
+    };
+    const skips = (seq) => linesOf(seq).filter((l) => /skipped/.test(l));
+    const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+    same("skipped: the usual order says nothing", skips([tb(1, "player-0"), tb(2, "player-1"), tb(3, "player-2"), tb(4, "player-0")]), []);
+    same("skipped: the next player passed over is skipped, said above the new turn's header",
+      linesOf([tb(1, "player-0"), tb(2, "player-2")]), ["AI 1's turn is skipped", "--- AI 2's turn 1 ---"]);
+    same("skipped: the same player again, not an extra turn: everyone else was skipped", skips([tb(1, "player-0"), tb(2, "player-0")]), ["AI 1's turn is skipped", "AI 2's turn is skipped"]);
+    same("skipped: an extra turn for another player, then the normal order goes on: nothing", skips([tb(1, "player-0"), tb(2, "player-2", { extra: true }), tb(3, "player-1")]), []);
+    same("skipped: your own extra turn: nothing", skips([tb(1, "player-0"), tb(2, "player-0", { extra: true }), tb(3, "player-1")]), []);
+    same("skipped: after another player's extra turn, the normal next one passed over", skips([tb(1, "player-0"), tb(2, "player-2", { extra: true }), tb(3, "player-2")]), ["AI 1's turn is skipped"]);
+    same("skipped: a player who lost is passed over by the rules, not skipped", skips([tb(1, "player-0", { out: ["player-1"] }), tb(2, "player-2", { out: ["player-1"] })]), []);
+    same("skipped: an engine without the extra-turn flag says nothing", skips([tb(1, "player-0", { flag: false }), tb(2, "player-0", { flag: false })]), []);
+    same("skipped: a turn number that jumped (boards unseen) says nothing", skips([tb(1, "player-0"), tb(3, "player-2")]), []);
+    same("skipped: not from the mulligans (turn 0) to the first turn", skips([tb(0, "player-0"), tb(1, "player-0")]), []);
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();
