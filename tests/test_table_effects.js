@@ -417,7 +417,7 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ]);
   ok("new sounds: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
   const shipped = t.value("shipped");
-  ok("the user's sounds: the 12 links of docs/sounds.md are the shipped picks", Object.keys(docLinks).length === 12
+  ok("the user's sounds: the 14 links of docs/sounds.md are the shipped picks", Object.keys(docLinks).length === 14
     && Object.entries(docLinks).every(([k, url]) => shipped[k] === url), JSON.stringify({ docLinks, shipped }));
   ok("the user's sounds: counter and knockout are the doc's links (uploaded 2026-11-12)", /^https:/.test(docLinks.counter || "") && /^https:/.test(docLinks.knockout || "")
     && shipped.counter === docLinks.counter && shipped.knockout === docLinks.knockout, JSON.stringify([shipped.counter, shipped.knockout]));
@@ -620,8 +620,8 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   // the shipped links: the 34 of docs/sounds.md
   const shipped = JSON.parse(run([lua(`return JSON.encode(engineSoundsShipped)`, "shipped")]).step("shipped").value || "{}");
   const keys = Object.keys(burstDoc);
-  ok("bursts: the 34 links of docs/sounds.md are the shipped bursts", keys.length === 34 && keys.every((k) => shipped[k] === burstDoc[k])
-    && Object.keys(shipped).filter((k) => k.includes("_x")).length === 34 && !shipped.wipe_x2, JSON.stringify(keys.filter((k) => shipped[k] !== burstDoc[k])));
+  ok("bursts: the 44 links of docs/sounds.md are the shipped bursts", keys.length === 44 && keys.every((k) => shipped[k] === burstDoc[k])
+    && Object.keys(shipped).filter((k) => k.includes("_x")).length === 44 && !shipped.wipe_x2, JSON.stringify(keys.filter((k) => shipped[k] !== burstDoc[k])));
 }
 
 // the kinds added 2026-11-12 (docs/sounds.md, design section 6): countered, sorcery, playerhit (1 to 5 damage to a
@@ -786,7 +786,10 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("treasure: no link (the shipped table until the upload): a Treasure made plays nothing", said(11) === "[]", said(11));
   ok("treasurespend: no link: two Treasures spent play nothing, not death", said(12) === "[]", said(12));
   const sh = t.value("shipped");
-  ok("treasure: the shipped table has no Treasure link yet (nil until uploaded)", Object.keys(sh.shipped || {}).filter((k) => k.startsWith("treasure")).length === 0, JSON.stringify(Object.keys(sh.shipped || {}).filter((k) => k.startsWith("treasure"))));
+  // (uploaded 2026-11-13: the 12 links are the shipped ones; the plain two and the ten bursts are also checked against the
+  // doc's tables by the 14-link and 44-burst checks)
+  const tKeys = Object.keys(sh.shipped || {}).filter((k) => k.startsWith("treasure")).sort();
+  ok("treasure: the shipped table has the 12 Treasure links (uploaded 2026-11-13)", tKeys.length === 12 && tKeys.every((k) => String(sh.shipped[k]).startsWith("https://steamusercontent-a.akamaihd.net/ugc/")), JSON.stringify(tKeys));
   // the clips' lengths: each file of the doc's Treasure table longer than 2 s has its length in engineSoundLen
   const doc = require("fs").readFileSync(require("path").join(__dirname, "..", "docs", "sounds.md"), "utf8");
   const files = [...doc.matchAll(/^\| mtg2-(treasure(?:spend)?)(?:-x(\d+))?\.mp3 \| [\d.]+ s \| ([\d.]+) s \(/gm)].map((m) => ({ key: m[1] + (m[2] ? "_x" + m[2] : ""), len: Number(m[3]) }));
