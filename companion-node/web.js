@@ -124,9 +124,10 @@ function jsonType(ct) {
 // ───────────────────────────── the page ─────────────────────────────
 
 // The Windows app's page: page.html beside this file (a package), else the verbatim string in companion/src/WebPage.cs
+// The Windows app's page (a C# verbatim string: "" is one quote), with its one Windows-only line said for here
 function pageFromCs(cs) {
   const m = /public const string Html = @"([\s\S]*?)";\s*\}\s*\}\s*$/.exec(cs);
-  return m ? m[1] : null;
+  return m ? m[1].replace(/""/g, "\"").replace("Start MTG Companion.exe again.", "Start the companion again (start.sh, or MTG Companion.command on a Mac).") : null;
 }
 function loadPage(dir) {
   const own = probes.readText(path.join(dir, "page.html"));
