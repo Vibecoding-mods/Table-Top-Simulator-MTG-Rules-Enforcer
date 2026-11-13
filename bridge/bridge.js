@@ -2129,7 +2129,9 @@ function phaseNumber(pub) {
   if (step && step !== t.step) {
     // (a turn first seen past its combat has had one: an extra combat after it is the 2nd)
     if (t.step == null && SKIP_ORDER.indexOf(step) > SKIP_ORDER.indexOf("combatEnd")) t.combat = 1;
-    const back = t.step != null && SKIP_ORDER.indexOf(step) < SKIP_ORDER.indexOf(t.step);
+    // (a step the order doesn't know is no step back)
+    const at = SKIP_ORDER.indexOf(step), was = t.step == null ? -1 : SKIP_ORDER.indexOf(t.step);
+    const back = at >= 0 && was >= 0 && at < was;
     if (t.step == null || phaseOf(step) !== phaseOf(t.step) || back) {
       if (phaseOf(step) === "combat") t.combat++;
       else if (step === "main1" || step === "main2") t.main = Math.max(t.main + 1, step === "main2" ? 2 : 1);
@@ -2145,26 +2147,47 @@ function phaseNumber(pub) {
 // the harness leaves out, so nothing said one. Read from the turn order instead: Forge's PhaseHandler puts an extra turn
 // on top of the normal next turn, which still follows it, so a turn that isn't an extra one goes to the next player in
 // the game after the last turn that wasn't extra (game.turnBase); every player still in the game passed over on the way
-// was skipped (a player who has left is passed over by the rules). Nothing when the turn number moved by more than one
-// (boards unseen), before the first turn, or from an engine that sends no isExtraTurn (an extra turn would read as every
-// other player's skip). A rewind starts again (checkRestored). -> log lines, for the top of the new turn.
+// was skipped (a player who has left is passed over by the rules). The turn order can be reversed (Aeon Engine, Temple
+// of Atropos, Time Distortion: Forge's ReverseTurnOrderEffect; no direction is sent), so its direction is the one seen
+// (game.turnDir, 1 the players' list order, -1 reversed): a normal turn that goes to the next player in the game one way
+// round and not the other shows it. The seats passed over are walked that way only; while the direction is unknown, or
+// a turn just went the other way round (a reversal, or a skip that lands there: the two look alike), nothing is said and
+// the direction is learnt again. The same player again (a full round) is everyone else's skip either way round; with
+// two players left either way round is the same. Nothing when the turn number moved by more than one (boards unseen),
+// before the first turn, or from an engine that sends no isExtraTurn (an extra turn would read as every other player's
+// skip). A rewind starts again (checkRestored). -> log lines, for the top of the new turn.
 function skippedTurns(prev, cur, pub) {
   const players = pub.players || [];
   const me = players.find((p) => p.id === cur.active);
-  if (typeof me?.isExtraTurn !== "boolean") { game.turnBase = null; return []; }
+  if (typeof me?.isExtraTurn !== "boolean") { game.turnBase = null; game.turnDir = null; return []; }
   // (the last normal turn's player: the one kept, else the last board's when its turn wasn't extra)
   const base = game.turnBase ?? (prev.turn >= 1 && !prev.marks?.[prev.active]?.extraTurn ? prev.active : null);
   game.turnBase = me.isExtraTurn ? base : cur.active;
   if (me.isExtraTurn) return [];
   const i = players.findIndex((p) => p.id === base);
   if (i < 0 || !(prev.turn >= 1) || cur.turn !== prev.turn + 1) return [];
-  const out = [];
-  for (let k = 1; k < players.length; k++) {
-    const p = players[(i + k) % players.length];
-    if (p.id === cur.active) break;
-    if (!p.status || p.status === "playing") out.push(`${poss(nameOf(p.id))} turn is skipped`);
+  const n = players.length;
+  // the players still in the game from the base one way round (d 1 or -1) before the new turn's player: those passed
+  // over that way (a full round when it is the base again)
+  const passed = (d) => {
+    const out = [];
+    for (let k = 1; k < n; k++) {
+      const p = players[(((i + d * k) % n) + n) % n];
+      if (p.id === cur.active) break;
+      if (!p.status || p.status === "playing") out.push(p);
+    }
+    return out;
+  };
+  const fwd = passed(1), bwd = passed(-1);
+  const words = (list) => list.map((p) => `${poss(nameOf(p.id))} turn is skipped`);
+  if (cur.active === base) return words(fwd);
+  if (!fwd.length && !bwd.length) return [];
+  if (!fwd.length || !bwd.length) {
+    const d = fwd.length ? -1 : 1;
+    game.turnDir = game.turnDir == null || game.turnDir === d ? d : null;
+    return [];
   }
-  return out;
+  return game.turnDir === 1 ? words(fwd) : game.turnDir === -1 ? words(bwd) : [];
 }
 
 // ───────────────────────── Game log (phase 3) ─────────────────────────
@@ -9561,7 +9584,10 @@ function fixOps(list, pub, ownWords = false, kind = null) {
       if (!(c.subtypes || []).some((t) => /^(Aura|Equipment|Fortification)$/.test(t))) return { error: `${cardName(op.card)} can't be attached to anything.` };
     }
     // commander damage counted per colour on the table: the commander of that colour (with partners, the one whose
-    // damage the tracker shows, the most from one of them, cmdDamageRow; the first on a tie or none dealt yet)
+    // damage the tracker shows, the most from one of them, cmdDamageRow; the first on a tie or none dealt yet). Turned
+    // down below a partner's damage, that partner comes down to it too (extra ops): the tracker shows the most from
+    // one, so 15 and 10 turned to 5 set only the 15, and the next board's 10 put the counter back up.
+    const lowered = [];
     if (op.op === "commanderDamage" && !byId[op.from]) {
       const from = (pub.players || []).find((p) => p.id === slotOfColor(op.from));
       const victim = (pub.players || []).find((p) => p.id === op.player);
@@ -9569,6 +9595,7 @@ function fixOps(list, pub, ownWords = false, kind = null) {
       if (!ids.length) return { error: `${op.from} has no commander.` };
       const dealt = (id) => Number((victim?.commanderDamage || {})[id]) || 0;
       op.from = ids.reduce((best, id) => (dealt(id) > dealt(best) ? id : best), ids[0]);
+      for (const id of ids) if (id !== op.from && dealt(id) > op.n) lowered.push({ op: "commanderDamage", player: op.player, from: id, n: op.n });
     }
     const c = op.card ? byId[op.card] : null;
     // a free play is a table player's own card, in their hand (or, to activate, under their control on the battlefield):
@@ -9606,6 +9633,7 @@ function fixOps(list, pub, ownWords = false, kind = null) {
       chaos: () => `Chaos ensues for ${nameOf(op.player)}`,
     }[op.op]());
     ops.push(op);
+    for (const x of lowered) { lines.push(`${nameOf(x.player)}: ${x.n} damage from ${cardName(x.from)}`); ops.push(x); }
   }
   return { ops, lines: [...lines.reduce((m, l) => m.set(l, (m.get(l) || 0) + 1), new Map())].map(([l, k]) => (k > 1 ? `${l} ×${k}` : l)) };
 }
@@ -10164,7 +10192,7 @@ function checkRestored(seat) {
     // tap, the blocks, all from the turns undone; a shield chosen before the rewind named a replayed turn's damage
     // "prevented", review 2026-11-09. A player the rewind brought back is in the game again: how they went out is undone.)
     // (and the phases counted this turn and the turn order's last normal turn: phaseNumber, skippedTurns)
-    game.phaseTrack = null; game.turnBase = null;
+    game.phaseTrack = null; game.turnBase = null; game.turnDir = null;
     game.picked?.clear(); game.answers?.clear(); game.sourceShields = []; game.painTaps = []; game.declaredBlocks = null; game.owedCombat = null; game.lifePays = []; game.chosenSources = []; game.orderAnswer = null;
     for (const p of gv.players || []) if (!p.status || p.status === "playing") { delete game.outOrder?.[p.id]; delete game.outWhere?.[p.id]; }
     // (the turn as the log's headers count it, each player's own: "White's turn 4", suite review 2026-10-27)
