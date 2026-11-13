@@ -1,0 +1,123 @@
+# GIF frames: one per player (spec, 2026-11-13)
+
+Status: **spec only, nothing built.** The user asked for "an object that shows gifs (giphy klipy etc) one per player".
+Facts below are marked **(verified)** with a source, **(unverified)** when only third-party pages say so, and
+**(spike)** when only a test in real TTS can settle it. Phase 0 (§6) settles the spike items before any build.
+
+## 1. What the players get
+
+- Every seated player has a **GIF frame** on the table: a small picture frame near their seat, the same size for
+  everyone, locked in place, that everyone at the table can see.
+- A player sets their own frame: click it (only the owner can) and a small panel opens on their screen with a search
+  box, eight results as still pictures, More, and Clear. Pick one and it plays on your frame for everyone. Chat works
+  too: `mtg gif <words>` shows the first match, `mtg gif off` clears your frame.
+- The GIF plays for a while (default 12 s), then holds on one still frame so the table isn't busy all game. Clicking
+  the frame (anyone) plays it again.
+- **Hide GIFs for me:** any player can hide every frame on their own screen only (others keep seeing them).
+- **Host controls** (chat, host only): `mtg gifs on|off` (the whole feature, saved with the game), `mtg gif clear
+  <colour>` (empties one player's frame), `mtg gifs rating g|pg|pg-13` (default pg).
+- AI seats get no frame. Spectators see the frames but can't set one.
+
+## 2. The hard part: TTS can't show a GIF
+
+- TTS does not load GIF pictures: a 2021 player report gets "Load image failed unsupported format" for a .gif, and a
+  2015 developer reply said there was no GIF support and pointed at AssetBundles instead
+  ([2021 thread](https://steamcommunity.com/app/286160/discussions/0/5879990700806314352),
+  [2015 thread](https://steamcommunity.com/app/286160/discussions/0/617329150703241572)) **(unverified for today's
+  TTS 14.2.2; T1 checks it)**.
+- Our custom-art code already accepts `.webp` links (bridge custom art rule), so TTS loads WebP pictures. Whether an
+  **animated** WebP plays or shows only its first frame is unknown **(spike T2)**. GIPHY serves a WebP of every GIF.
+- So there are three ways to make it move, and Phase 0 picks one:
+
+| Route | How | Good | Bad |
+|---|---|---|---|
+| **W: animated WebP** | Put the provider's WebP link straight on the frame (a Custom Tile or an Object UI Image) | Nothing per frame; every client plays it itself | Only if TTS animates WebP (T2), which is doubtful |
+| **V: video bundle** | A Unity AssetBundle with a VideoPlayer playing the provider's MP4 link onto the frame's face | Smooth, each client streams it itself, no Lua per frame | Only if TTS keeps a VideoPlayer component in a bundle and lets it read a URL (T5, unknown); needs a bundle build like `mtg-fx` |
+| **F: flipbook** | The GIF's frames as separate PNG links, preloaded as the frame object's UI pictures, and the host's Lua swaps the picture 8-10 times a second | Works with what we know TTS does | Lua work per frame on the host, and every swap goes to every client (T4 measures it); each client downloads every frame |
+
+**Frame links for route F.** The host's bridge can cut frames, but it has no public web address, so remote players
+couldn't download them. A public image proxy can: images.weserv.nl processes the first frame by default, `n=-1`
+handles all frames of an animated GIF or WebP, and `page=` picks one page
+([wsrv docs mirror](https://images-wsrv.thepage.ua/docs/format)) **(unverified that `page=` picks a GIF frame;
+spike T3)**. A frame link would look like
+`https://wsrv.nl/?url=<gif link>&page=<k>&output=png&w=256`. If `page=` doesn't pick GIF frames, route F needs
+another public host for frames, and none is free of an account, so route F would fall back to showing the still.
+
+## 3. Providers
+
+- **GIPHY first.** A new key is a beta key limited to 100 calls an hour; production keys are applied for in the
+  dashboard ([quick start](https://developers.giphy.com/docs/api/quick-start-guide/)) **(verified: official docs)**.
+  Apps must show the "Powered By GIPHY" mark where the API is used ([API docs](https://developers.giphy.com/docs/api))
+  **(verified: official docs)**: the search panel shows it. GIPHY's results carry still pictures, WebP and MP4 links,
+  and a `rating` filter.
+- **KLIPY second, after reading its terms.** Third-party guides say the key goes in the path
+  (`https://api.klipy.com/api/v1/<key>/gifs/search?q=...`) and that ads run in Search and Trending results
+  ([Zuplo guide](https://zuplo.com/learning-center/klipy-api)) **(unverified; KLIPY's own docs page is mostly about
+  ads)**. If its terms require showing its ads, it may not fit a game table; decide after reading them.
+- One small adapter per provider in the bridge, both returning the same list (§4), so adding a provider is one file.
+
+**Keys.** The host makes their own GIPHY (and KLIPY) developer key; Claude can't make accounts. The key is typed into
+the companion (Table tools), kept on the host's PC only, and passed to the bridge at start. It is **never** in the
+table save or the table script: the save goes to friends and into release packages, so a key there would be public.
+That is also why the search runs in the bridge, not in TTS's Lua (`WebRequest` from the table script would need the
+key in the script). No key: the frames don't appear and `mtg gif` says how to add one.
+
+## 4. How it fits the code
+
+- **Bridge** (`bridge/gifs.js`, new): `search(provider, words, page, rating)` returns up to 8 items
+  `{ id, title, still, webp, mp4, frames, w, h }` (`frames`: the route-F frame links, at most 24). Answers are cached
+  (the same words within a day cost no call), the GIPHY hour limit is counted, and when it runs out the player is told
+  "GIF search is resting for N minutes". New messages: table to bridge `gif_search {color, q, provider, page}`; bridge
+  to table `gif_results {color, items, credit}`. The table log gets one line per pick ("White shows a GIF: <title>").
+- **Table** (`tools/engine-renderer.lua`): the frames are spawned once per load like the effect rigs (GM notes
+  `engine:gif`, memo the colour; the sweep, the stray watcher and `mtg start` leave them alone). The search panel is
+  **Object UI on the frame itself**, not the screen UI: the screen UI is at about 60 KB with four seats and above that
+  other players' buttons stopped working (docs/m5-plan.md). Visibility per player is the XmlUI `visibility` attribute
+  (already used for every seat's panels). "Hide GIFs for me" removes that colour from each frame's visibility. The
+  frame's state (link, title, still) is saved in `onSave` inside an existing saved table: **no new main-chunk local**
+  (MoonSharp allows 200 and the table is close: older docs say 179 to 194, so count again before building).
+- **Companion**: a "GIF search keys" field in Table tools (with the tooltip saying where the key is stored and that it
+  never leaves this PC), and the key handed to the bridge the way other settings are.
+- **Rewind/Undo:** frames are not game state; an Undo leaves them as they are.
+
+## 5. Costs and limits
+
+- Route F, measured in T4 before it's chosen: host Lua per swap, how many swaps a second four frames cost, and whether
+  remote players see the frames in time. Hard caps either way: at most 2 frames animating at once (the rest hold their
+  still), 8-10 frames a second, 24 frames per GIF, 256 px wide.
+- Downloads per client: a GIF's frames at 256 px are roughly 20-40 KB each, so up to about 1 MB per GIF per client on
+  route F **(estimate)**; route V streams the MP4 (GIPHY's are small); route W is one WebP.
+- Rating filter on every search; the host's clear command covers anything that slips through.
+
+## 6. Phase 0: the spike (about half a day, before any build)
+
+All in real TTS on the user's PC, with a scratch table, not the user's save:
+
+1. **T1** a `.gif` link on a Custom Tile and on an Object UI Image: loads or "unsupported format"?
+2. **T2** a GIPHY animated `.webp` link on both: shows, and does it move?
+3. **T3** wsrv.nl `page=0..5` on a GIPHY GIF with `output=png`: six different frames, and how fast?
+4. **T4** route F on one object: 24 frames preloaded with `UI.setCustomAssets`, the Image swapped 10 times a second
+   for 60 s; record host frame time (our usual PresentMon method) with 1 and with 4 frames; a second client if one is
+   available.
+5. **T5** a test bundle from the Unity project (`C:\Users\you\mtg-unity\Tabletop-Simulator-Modding`) with a
+   VideoPlayer playing a GIPHY MP4 URL onto a quad: does it play in TTS?
+
+Pick the route: W if T2 moves; else V if T5 plays; else F if T3 and T4 pass; else **stills only** (Phase 1 alone).
+
+## 7. Build phases (after Phase 0)
+
+1. **Stills** (about 1 day): keys in the companion, the bridge's GIPHY adapter with tests on recorded real answers
+   (captured once, never typed by hand), the frames, the search panel, chat commands, hide-for-me, host controls.
+   Useful on its own.
+2. **Motion** (about 1-2 days, depends on the route).
+3. **KLIPY** (about half a day, only if its terms fit).
+
+Each phase: a builder and a checker agent, the table's simulator tests and a break-it proof, one deploy with TTS closed.
+A two-person check (that remote players see the frames and their downloads keep up) needs a second player.
+
+## 8. Questions for the user
+
+1. Where should the frame sit: beside the life counter, or standing up behind each mat facing the middle? How big?
+2. Frames always on, or only during a game?
+3. Default rating: G, PG (proposed) or PG-13?
+4. If only stills are possible (Phase 0 fails every route), still worth building?
