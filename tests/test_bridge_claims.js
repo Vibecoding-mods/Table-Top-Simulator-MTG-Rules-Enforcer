@@ -2417,6 +2417,38 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const rest = JSON.stringify(t, function (k, v) { return (k === "playable" && this.color === "Blue") || (k === "engine-card-950" && this === t.cards) || k === "pk" ? undefined : v; });
       ok("Thief of Sanity: its name doesn't reach the table outside its caster's row and peek", !rest.includes("Counterspell"), rest.match(/.{80}Counterspell.{40}/)?.[0]);
     }
+    // A row card hidden from the others carries no cost badge (object buttons, which may show to every player): Thief of
+    // Sanity's face-down card with a cheaper cost now; the same card face up has one (privacy review 2026-11-12)
+    {
+      const card = (fd) => C("engine-card-951", "Brainstorm", "player-1", { types: ["Instant"], isFaceDown: fd, mayPlay: true, exiledWith: "engine-card-22", visibility: "visible", manaCost: "{U}", effectiveManaCost: "{0}" });
+      const costOf = async (fd) => {
+        const bv = view("player-0"), wv = view("player-1");
+        zone(bv.gameView, "exile", "player-1").cards = [card(fd)];
+        zone(wv.gameView, "exile", "player-1").cards = [fd ? { visibility: "hidden", id: "engine-card-951" } : card(false)];
+        const t = await board(bv, wv);
+        return (rowOf(t, "Blue").playable || []).find((c) => c.id === "engine-card-951");
+      };
+      const up = await costOf(false), down = await costOf(true);
+      ok("cost badge: precondition, the face-up card in the row has its cost now", up?.ec === "{0}", JSON.stringify(up));
+      ok("cost badge: a face-down row card has none", down && down.fd === true && down.ec === undefined && down.mc === undefined, JSON.stringify(down));
+    }
+    // The library's playable top card only its owner may look at (The Reality Chip, Mystic Forge) is marked private (pv),
+    // with no cost badge: the table lays it in the owner's second hand zone, not on the public strip. One every other
+    // human seat sees (Future Sight's revealed top) stays public; with no other human seat it stays private.
+    {
+      const top = () => C("engine-card-952", "Lightning Bolt", "player-0", { types: ["Instant"], mayPlay: true, visibility: "visible", manaCost: "{R}", effectiveManaCost: "{0}" });
+      const rowCard = async (otherSees, alone = false) => {
+        const bv = view("player-0"), wv = view("player-1");
+        zone(bv.gameView, "library", "player-0").cards = [top()];
+        zone(wv.gameView, "library", "player-0").cards = otherSees ? [{ ...top(), mayPlay: false }] : [];
+        const t = await board(bv, alone ? null : wv);
+        return (rowOf(t, "Blue").playable || []).find((c) => c.id === "engine-card-952");
+      };
+      const priv = await rowCard(false), pub = await rowCard(true), alone = await rowCard(false, true);
+      ok("library top: a look only its owner has is private, without a cost badge", priv?.pv === true && priv.ec === undefined, JSON.stringify(priv));
+      ok("library top: one every other seat sees stays public", pub && pub.pv === undefined && pub.ec === "{0}", JSON.stringify(pub));
+      ok("library top: with no other human seat, private", alone?.pv === true, JSON.stringify(alone));
+    }
     // Faithless Looting in its owner's graveyard, castable by flashback: its playable entry says "Flashback {2}{R}" as its
     // graveyard entry does (it said nothing, and the table's self-check called its hover text wrong all game: Lingering
     // Souls and Faithless Looting, 2026-11-08/09 game, tmp/table-check.log)
