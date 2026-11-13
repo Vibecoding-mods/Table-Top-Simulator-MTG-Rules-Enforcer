@@ -22,6 +22,11 @@ Facts below are marked **(verified)** with a source, **(unverified)** when only 
 
 ## 2. The hard part: TTS can't show a GIF
 
+**Settled by Phase 0 (2026-11-13): route M.** GIPHY's MP4 link put straight on a Custom Tile plays and loops in TTS
+(verified live; see "Phase 0 results" at the end). GIF and animated WebP links both fail. Routes W, V and F below are
+kept as the record of what was weighed; the build uses route M. Still to check before building: MP4 on an Object UI
+Image, a second player's client, the frame-time cost of six playing tiles, and a save/reload with a video tile.
+
 - TTS does not load GIF pictures: a 2021 player report gets "Load image failed unsupported format" for a .gif, and a
   2015 developer reply said there was no GIF support and pointed at AssetBundles instead
   ([2021 thread](https://steamcommunity.com/app/286160/discussions/0/5879990700806314352),
