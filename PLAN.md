@@ -709,13 +709,16 @@ Players drag and use the table normally; every move is a request the engine acce
 - [ ] `make-engine-copy.js` and the renderer: per-table profiles (seats, GUIDs, layout) instead of the 4-player values
 - [ ] 6-player engine table: our scripts patched in (not the 4-player script pasted over), background objects removed, table buttons added; then the full 5–6 seat game above
 
-### M8: game modes (spec 2026-10-21: docs/game-modes-spec.md)
+### M8: game modes (spec 2026-10-21, rewritten 2026-11-13: docs/game-modes-spec.md)
+**Spec: `docs/game-modes-spec.md`** (2026-11-13): Standard 1v1 + free-for-all (no engine change, legality from Forge's own format files), team plumbing, 2v2 Team Commander, Two-Headed Giant in two levels (own turns ~48 h; real shared turns ~63–83 h more: Forge has team numbers but no shared life, poison 15 or shared turn), Juggernaut, the six-seat table (M6, ~50 h), Three-Headed Giant (rule 810.11: 45 life, 20 poison). Order of work and 5 questions for the user in its §9 and §12.
 - [x] **Ready / Start buttons (2026-10-21, revised with the user):** a small READY? just below each seated player's Draw button (yellow → green when the deck checks out, red "FIX DECK" with the reason in chat; only that seat's player can press it; = "mtg ready"; press again to un-ready). A ready player's own table buttons (untap, reveal, draw, mill, scry, mulligan) go under the table until they un-ready or the game is reset. "Start" appears between the four life counters only when every seated player is ready; anyone can press it (= "mtg start"; alone: against 1 Forge AI); hidden during the game, NEW GAME afterwards (host, = "mtg reset"). Engine mode only. Checked live on the table
-- [ ] Standard 1v1 (our side only: no-commander decks, 20 life)
-- [ ] Engine spike: teams, per-player starting life and hand in Forge (the forge submodule is checked out since M7)
-- [ ] Teams + per-player settings through protocol, harness and node (fork or upstream PR); 2v2 Team Commander
-- [ ] Juggernaut 3v1: settings, perks (extra draw), "Juggernaut wins" / "team wins"
-- [ ] Later: Two-Headed Giant (shared life), Juggernaut turn-order option, Archenemy schemes
+- [ ] Standard 1v1 and free-for-all (our side only: no-commander decks, 20 life, Forge's Standard list; spec §3)
+- [x] Engine spike, on paper (2026-11-13): Forge's team setters, team game-over and the missing 2HG pieces read and cited (spec §2)
+- [ ] Teams + per-player settings through protocol, harness and node (spec §4); 2v2 Team Commander (§4.1)
+- [ ] Two-Headed Giant level 1: shared life 30 (60 Commander), poison 15, team loss, team blocks, own turns back to back (spec §5)
+- [ ] Juggernaut 3v1: settings, perks (extra draw), "Juggernaut wins" / "team wins" (spec §6)
+- [ ] Three-Headed Giant 3v3 on the six-seat table (spec §8; needs M6)
+- [ ] Later: 2HG/3HG level 2 (real shared team turns, spec §5.4), Juggernaut turn-order option, Archenemy schemes
 
 ### M7: manual fix mode by vote (§10c Tier B; needs engine work)
 - [x] Check out the `forge/` submodule (Forge's own puzzle setup is the model: triggers suppressed, apply, state-based actions)
