@@ -622,8 +622,9 @@ Spec: [planechase-dungeon-engine-spec.md](planechase-dungeon-engine-spec.md).
 
 ## 12. Decisions (the user, 2026-11-13)
 
-1. **Two-Headed Giant:** the cheaper version (Level 1) first: shared life, poison and blocks, partners take their own
-   turns back to back. Level 2 (the real shared turn) is not planned.
+1. **Two-Headed Giant: the real shared turn (Level 2)**, changed the same day (the user: "Actually let's do shared
+   turn"). Level 1 (shared life, poison and blocks) is still built first as the foundation, then Level 2 on top
+   (§5.2, §5.4): one turn for the team, a combined attack, and the Forge AI in a shared turn (the 10-30 h unknown).
 2. **Commander numbers:** 2HG Commander starts at **80 life per team**, and a team loses at **42 damage from one
    commander** (our house rule, not Wizards' 60/21). **3v3 is Commander.** Its life and commander damage were not given;
    the proposal is to scale the user's numbers by team size: **120 life and 63 damage** (to confirm).
