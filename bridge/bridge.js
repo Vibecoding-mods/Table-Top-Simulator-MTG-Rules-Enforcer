@@ -556,7 +556,9 @@ function artProblem(u) {
   if (u.length > ART_MAX) return `the link is longer than ${ART_MAX} characters`;
   if (!/^https:\/\//i.test(u)) return "the link must start with https://";
   if (/[\s"'`\\<>\x00-\x1f\x7f]/.test(u)) return "the link has a space, quote, backslash or angle bracket in it";
-  if (!/\.(?:png|jpe?g|webp)$/i.test(u.split("?")[0])) return "the link must end in .png, .jpg, .jpeg or .webp";
+  // Steam Cloud links (TTS's Cloud Manager, Workshop pictures) carry no file extension: /ugc/<number>/<hex>/
+  const steamCloud = /^https:\/\/(?:steamusercontent-a\.akamaihd\.net|(?:[a-z0-9-]+\.)?steamusercontent\.com)\/ugc\/\d+\/[0-9A-F]+\/?$/i.test(u);
+  if (!steamCloud && !/\.(?:png|jpe?g|webp)$/i.test(u.split("?")[0])) return "the link must end in .png, .jpg, .jpeg or .webp, or be a Steam Cloud link";
   return null;
 }
 // The host's switch, "mtg art off|on" (every player's table): off, every card shows its normal picture (imagesFor). It

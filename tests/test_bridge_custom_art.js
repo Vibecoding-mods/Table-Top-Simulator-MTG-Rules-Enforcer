@@ -57,6 +57,12 @@ const ids = (k, from) => Array.from({ length: k }, (_, i) => `engine-card-${from
     ok("check: angle brackets are refused", /angle/.test(p("https://x.example/<a>.png") || ""));
     ok("check: a control character is refused", p("https://x.example/a\u0001.png") !== null);
     ok("check: another file type is refused", /\.png/.test(p("https://x.example/a.gif") || "") && p("https://x.example/page") !== null);
+    ok("check: a Steam Cloud link passes with no extension", [
+      "https://steamusercontent-a.akamaihd.net/ugc/11698913979615550185/7F13F2B39D7065CE85AC235B6369A0747F6F712E/",
+      "https://images.steamusercontent.com/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/"].every((u) => p(u) === null));
+    ok("check: a look-alike of a Steam Cloud link is refused", [
+      "http://steamusercontent-a.akamaihd.net/ugc/1/AB/", "https://steamusercontent-a.akamaihd.net.evil.example/ugc/1/AB/",
+      "https://steamusercontent-a.akamaihd.net/other/1/AB/", "https://evil.example/steamusercontent.com/ugc/1/AB/"].every((u) => p(u) !== null));
     ok("check: 500 characters pass, 501 are refused", p(`https://x.example/${"a".repeat(500 - 22)}.png`) === null && /500/.test(p(`https://x.example/${"a".repeat(501 - 22)}.png`) || ""),
       [p(`https://x.example/${"a".repeat(500 - 22)}.png`), `https://x.example/${"a".repeat(500 - 22)}.png`.length]);
     ok("custom: the importer's own pictures and the card back are not a player's", ![CMD, "https://cards.scryfall.io/normal/front/a/b/ab.jpg",
