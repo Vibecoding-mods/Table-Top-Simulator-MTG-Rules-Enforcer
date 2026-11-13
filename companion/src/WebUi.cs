@@ -620,7 +620,7 @@ namespace MtgCompanion
             {
                 new Dictionary<string, object>
                 {
-                    { "id", "restart-engine" }, { "label", locked ? "Restart engine (locked: game on)" : "Restart engine" }, { "enabled", !locked && !c.Observe },
+                    { "id", "restart-engine" }, { "label", Logic.RestartLabel(g) }, { "enabled", !locked && !c.Observe },
                     { "title", c.Observe ? ObserveText : locked ? Logic.LockText(g) : "Stops the bridge, restarts relay and room, then starts the bridge again." },
                     { "confirm", "Restart the engine? This stops the bridge, restarts the relay and the Forge room, and starts the bridge again (under a minute)." }, { "confirmLocked", false },
                 },

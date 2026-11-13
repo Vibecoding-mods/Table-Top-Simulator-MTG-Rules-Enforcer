@@ -164,7 +164,10 @@ While a game runs this step is amber and loads afterwards (`Logic.cs:337-338`). 
    `Authenticate`, then `ListRooms`, expecting `tts-commander` in `Lobby`, always closed properly (`Probes.cs:353-405`). The key
    is `MANABREW_SERVER_KEY` from `stack\.env` or `tts-local` (`Logic.RelayKey` `Logic.cs:598`).
 4. Login failing 3 times on a healthy relay (the stale 9443 forward after `wsl --shutdown`), or a room busy 5 times, restarts relay
-   and room once by itself (at most twice), unless a game is on (`Controller.cs:727-739`).
+   and room once by itself (at most twice), unless a game is on (`Controller.cs:727-739`). The watcher does the same between runs:
+   two fresh logins in a row (60 s apart) refused by a healthy relay, no game, restart relay and room once, at most every 10 minutes
+   (`Logic.HealRelayNow`, `Controller.HealRelay`; only the engine, never the later steps, so it never reopens TTS). While Docker
+   doesn't answer, the Engine images and Engine stack lights are grey "Waiting for Docker." and both are read again as soon as it does.
 5. "port is already allocated" is turned into a sentence naming the other engine (`Logic.ComposeFailure` `Logic.cs:391`).
 
 ### 5.4 Table save (`DoSave`, `Controller.cs:834`; friend only)
@@ -219,6 +222,7 @@ three answers, **Game on**, **No game**, **Can't tell**:
 | `/state` 200, no seats | No game (unless the resume file is under 60 s old: "bringing a game back") |
 | connection refused | No game; but Game on if `bridge-game.json` is under 60 s old (the bridge just crashed mid-game) |
 | timeout or error | Can't tell, or Game on if the file is fresh |
+| timeout, error or not 200, and port 48787 is held by a program known not to be a bridge | as connection refused (`Logic.StateForLock`): another program on the port means no bridge runs |
 
 The resume files are `logs\bridge-game.json` and `tmp\bridge-game.json` (friend), `tmp\bridge-game.json` (home)
 (`Logic.cs:97, 106`). Can't tell locks exactly like Game on (`Logic.Locked` `Logic.cs:228`).
@@ -255,7 +259,9 @@ the next poll restores it and nudges an immediate tick (`WebUi.cs:452-456`).
 
 The last step of each watcher tick (`Controller.MaybeTrimLogs`) rolls the logs the bridge and the app write. The stamp file
 `log-trim.stamp` in the logs folder (`logs\` friend, `tmp\` home) holds the last trim's UTC time; it is read once an hour, and a
-trim is due when it is missing, 14 days old, or more than a day in the future (`Logic.TrimDue`). A due trim runs on the first
+trim is due when it is 14 days old, or more than a day in the future (`Logic.TrimDue`); a missing or unreadable stamp reads as the
+newest `.old` roll's time (`Logic.LastTrimOr`), so deleting it doesn't trim again at once and drop the last `.old` copies; due
+when there is neither. A due trim runs on the first
 tick with **no game** (`Logic.TrimNow`: Game on and Can't tell both wait; an `--observe` copy never trims). The decisions are
 `Logic.TrimKindOf` / `TrimPlan` / `ArchivePath` / `TrimSummary`; the file work is `LogTrim` (`Controller.cs`).
 

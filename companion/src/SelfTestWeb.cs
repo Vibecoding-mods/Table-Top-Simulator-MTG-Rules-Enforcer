@@ -243,6 +243,10 @@ namespace MtgCompanion
             Check("game on: POST Open TTS goes through (never locked)", J.Bool(res, "ok"), J.Write(res));
             res = Act(w, "stop-everything");
             Check("game on: Stop everything first asks again (needConfirm), does nothing", !J.Bool(res, "ok") && J.Bool(res, "needConfirm") && J.Str(res, "message").Contains("ends that game"), J.Write(res));
+            c.Game = Game.CantTell("Can't tell whether a game is on: the bridge didn't answer (timeout).");
+            var ctMenu = J.Arr(J.Parse(Send(w, Get(w, "/api/status", w.Token)).Body), "menu")[0];
+            Check("can't tell: the Restart engine label says can't tell, not game on", J.Str(ctMenu, "label") == "Restart engine (locked: can't tell)" && !J.Bool(ctMenu, "enabled"), J.Str(ctMenu, "label"));
+            c.Game = Game.On("Game on: turn 6, 4 seats.", 6);
             res = Act(w, "stop-everything", true);
             Check("game on: Stop everything confirmed goes through (as the window's warning)", J.Bool(res, "ok"), J.Write(res));
             c.Game = Game.CantTell("bridge slow");

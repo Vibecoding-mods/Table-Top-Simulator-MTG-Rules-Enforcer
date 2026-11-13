@@ -52,15 +52,23 @@ namespace MtgCompanion
     {
         public static string StampFile(Layout l) { return Path.Combine(l.LogsDir, Logic.TrimStampName); }
 
-        // the last trim's time, or null: no stamp (trim at the next safe moment)
+        // the last trim's time: the stamp, else the newest .old roll (Logic.LastTrimOr); null: neither (trim at the next
+        // safe moment)
         public static DateTime? LastTrim(Layout l)
         {
+            DateTime? stamp = null;
             try
             {
                 var f = StampFile(l);
-                return File.Exists(f) ? Logic.ParseTrimStamp(File.ReadAllText(f)) : null;
+                if (File.Exists(f)) stamp = Logic.ParseTrimStamp(File.ReadAllText(f));
             }
-            catch { return null; }
+            catch { }
+            if (stamp.HasValue) return stamp;
+            var rolls = new List<DateTime>();
+            foreach (var dir in l.Friend ? new[] { l.LogsDir } : new[] { l.LogsDir, Path.Combine(l.Home, "bridge") })
+                foreach (var file in ListFiles(dir))
+                    if (Logic.IsTrimRoll(Path.GetFileName(file))) try { rolls.Add(File.GetLastWriteTimeUtc(file)); } catch { }
+            return Logic.LastTrimOr(null, rolls);
         }
 
         // Trims every log in the plan, then writes the stamp (always: a file skipped now waits for the next trim, so a locked
@@ -515,12 +523,14 @@ namespace MtgCompanion
         {
             var row = Rows[i];
             bool changed = row.V == null || row.V.Light != v.Light || row.V.Text != v.Text || row.V.Fix != v.Fix;
+            bool worthLogging = row.V == null || row.V.Fix != v.Fix || Logic.LogLightChange(row.V.Light, row.V.Text, v.Light, v.Text);
             row.V = v; row.At = DateTime.Now;
             if (changed)
             {
-                // (a progress line every second would flood the log: busy text changes go in at most every 15 s)
+                // (a progress line every second would flood the log: busy text changes go in at most every 15 s; a green
+                // light whose numbers alone moved, never)
                 DateTime lastBusy;
-                bool progress = v.Light == Light.Busy && busyLogged.TryGetValue(i, out lastBusy) && (DateTime.Now - lastBusy).TotalSeconds < 15;
+                bool progress = !worthLogging || (v.Light == Light.Busy && busyLogged.TryGetValue(i, out lastBusy) && (DateTime.Now - lastBusy).TotalSeconds < 15);
                 if (!progress) { Log.Write("light " + row.Name + ": " + v); if (v.Light == Light.Busy) busyLogged[i] = DateTime.Now; else busyLogged.Remove(i); }
                 if (v.Light == Light.Red && !Observe)
                 {
@@ -541,7 +551,7 @@ namespace MtgCompanion
 
         void RefreshGame()
         {
-            var st = Probes.HttpGet(BridgeUrl + "/state", 5000);
+            var st = Logic.StateForLock(Probes.HttpGet(BridgeUrl + "/state", 5000), () => Probes.Listeners(48787));
             double? age = null;
             foreach (var f in L.ResumeFiles)
             {
@@ -1185,14 +1195,24 @@ namespace MtgCompanion
                 {
                     LoginResult login;
                     bool canLogin = rc != null && rc.Exists && rc.State == "running" && rc.Health != "starting" && !IsLocked;
-                    if (!canLogin) login = new LoginResult { Kind = LoginKind.Skipped };
-                    else if (loginCache == null || (DateTime.UtcNow - loginAt).TotalSeconds > 60) login = Login();
+                    if (!canLogin) { login = new LoginResult { Kind = LoginKind.Skipped }; watchBrokenLogins = 0; }
+                    else if (loginCache == null || (DateTime.UtcNow - loginAt).TotalSeconds > 60)
+                    {
+                        login = Login();
+                        watchBrokenLogins = rc.Health == "healthy" && Logic.LoginBroken(login.Kind) ? watchBrokenLogins + 1 : 0;
+                    }
                     else login = loginCache;
                     Set(StepStack, Logic.DecideStack(rc, oc, login, Game, L.Friend));
+                    if (Logic.HealRelayNow(watchBrokenLogins, IsLocked, Observe, (DateTime.UtcNow - lastHeal).TotalMinutes)) HealRelay();
                 }
             }
             else
             {
+                // (the images can't be read either: "Present" stayed green while Docker was quit, break-it test
+                // 2026-11-13; imagesAt reset, so they are read again on the first tick Docker answers; the last login
+                // dropped, so a Docker that comes back isn't shown "Ready" from a login made before it went)
+                if (Rows[StepImages].V.Light != Light.Busy) { Set(StepImages, new Verdict(Light.Grey, "Waiting for Docker.")); imagesAt = DateTime.MinValue; }
+                loginCache = null; watchBrokenLogins = 0;
                 Set(StepStack, new Verdict(Light.Grey, "Waiting for Docker."));
             }
             // bridge: /versions every 30 s, not more (each call runs docker inspect inside the bridge: 3-4 s)
@@ -1210,6 +1230,22 @@ namespace MtgCompanion
             UpdateTts();
             if (!Observe && Phase.StartsWith("Ready")) SetPhase(Rows.Any(r => r.V.Light == Light.Red) ? "Ready, with a problem: see the red light" : "Ready");
             MaybeTrimLogs();
+        }
+
+        int watchBrokenLogins; // (fresh watcher logins in a row the healthy relay refused)
+        DateTime lastHeal = DateTime.MinValue;
+
+        // the watcher's own relay-and-room restart (Logic.HealRelayNow): only the engine; it never runs the later start
+        // steps itself (step 6 can open TTS). (A start sequence that had stopped red at step 3 still carries on from step 4
+        // once the light turns green, as ResumeIfGreen always does.)
+        void HealRelay()
+        {
+            lastHeal = DateTime.UtcNow; watchBrokenLogins = 0;
+            RefreshGame(); // (the lock again, just before the restart)
+            if (IsLocked) return;
+            Log.Write("the relay is healthy but this PC's logins fail (stale port forward after a WSL or Docker restart?): restarting relay and room by itself");
+            Set(StepStack, new Verdict(Light.Busy, "The relay didn't let this PC in; restarting relay and room by itself."));
+            if (RestartRelayRoom()) loginCache = null; // (the next tick logs in afresh)
         }
 
         DateTime trimCheckedAt = DateTime.MinValue;
@@ -1305,7 +1341,8 @@ namespace MtgCompanion
                 var v = Rows[i].V;
                 sb.AppendLine(string.Format("  {0} {1,-14} [{2,-5}] {3}{4}", i + 1, Rows[i].Name, v.Light.ToString().ToUpperInvariant(), v.Text, v.Fix != null ? "   (button: " + v.FixLabel + (Fixes.LocksDuringGame(v.Fix) && IsLocked ? ", locked" : "") + ")" : ""));
             }
-            if (loginCache != null) sb.AppendLine("Relay login: " + loginCache.Kind + (loginCache.RoomFound ? ", room " + loginCache.RoomStatus : ", room not listed") + (loginCache.Detail != null ? " (" + loginCache.Detail + ")" : "") + ", " + loginCache.Ms + " ms");
+            var lc = loginCache; // (the worker drops it while Docker is down)
+            if (lc != null) sb.AppendLine("Relay login: " + lc.Kind + (lc.RoomFound ? ", room " + lc.RoomStatus : ", room not listed") + (lc.Detail != null ? " (" + lc.Detail + ")" : "") + ", " + lc.Ms + " ms");
             else sb.AppendLine("Relay login: not tried (" + (IsLocked ? "locked by the game state" : "relay not ready") + ")");
             return sb.ToString();
         }
