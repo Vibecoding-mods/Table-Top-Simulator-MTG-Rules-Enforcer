@@ -1847,6 +1847,7 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
   if (/\bventure into\b|\binitiative\b/i.test(c.text || "")) for (const d of DUNGEON_NAMES) cachedImage(d);
   const typeLine = [...(c.supertypes || []), ...(c.types || [])].join(" ") + ((c.subtypes || []).length ? ` — ${c.subtypes.join(" ")}` : "");
   const other = otherSide(c, name);
+  const prep = zone === "battlefield" ? preparedBy(c.id) : null; // (its prepare spell's copy in exile: notePrepared)
   return {
     // a double-faced card's back is its other face (the imported deck's back is the plain card back): flipping it
     // on the table shows the other side, as the table's own state button did
@@ -1888,7 +1889,7 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [] 
       ...(c.summoningSick && active === c.controllerId && c.types?.includes("Creature") ? ["Summoning sick"] : []),
       ...(c.isCrewed ? ["Crewed"] : []), ...(c.isBestowed ? ["Bestowed"] : []), ...(c.isRingBearer ? ["Ring-bearer"] : []),
       // (prepared, which Forge's card view doesn't say: its spell copy in exile, notePrepared; HAND-TEST-HP06 #20)
-      ...(zone === "battlefield" && preparedBy(c.id) ? [`Prepared: ${preparedBy(c.id).spell} — ${nameOf(c.controllerId) || "its controller"} may cast a copy`] : []),
+      ...(prep ? [`Prepared: ${prep.spell} — ${nameOf(c.controllerId) || "its controller"} may cast a copy`] : []),
       ...(c.finalChapter ? [`Chapter ${loreOf(c)} of ${c.finalChapter}`, ...nextChapter(c)] : []),
       ...(c.classLevel ? [`Level ${c.classLevel}`, ...nextLevel(c)] : []),
       // (Forge's own combat sums, as the attackers and blockers stand; a trick can still change it)
@@ -2141,11 +2142,15 @@ function ownerOf(c, z) { return game?.owners?.get(c.id) || c.ownerId || z?.owner
 // and collector number and the spell's name, no token script), and an effect card that lets the creature's controller
 // cast it. The effect card is immutable, so the harness leaves it out of the command zone, and the harness sends no
 // prepared flag: the copy is the one sign. Casting the copy unprepares the creature, and its leaving play (or "becomes
-// unprepared") makes the copy cease to exist, so a creature is prepared while its copy is in exile. A copy keeps the
-// creature it was first matched with while both are there; a new one takes a creature of that printing with another
-// name, first one not already prepared and controlled by the copy's owner (two alike prepared at once: either may be
-// named, the one gap). -> game.prepared: copy id -> { host: the creature's id, hostName, ctl: its controller, spell:
-// the copy's name }.
+// unprepared") makes the copy cease to exist, so a creature is prepared while its copy is in exile. A copy is an
+// instant or a sorcery (every prepare spell in Forge's cardsfolder, 69 cards, 2026-11-12) with a set and collector
+// number; Forge lets the creature's controller cast it (mayPlay), which a seat's view shows only when that controller
+// is a human seat, so an AI's creature's copy goes by its printing alone. A copy keeps the creature it was first matched
+// with while both are there; a new one takes a creature of that printing with another name not already prepared, a
+// card before a token copy of it, and of those first one controlled by the copy's exile owner (Forge's activator,
+// AlterAttributeEffect: the creature's own controller unless another card prepared it). Two alike prepared at once may
+// swap names, the one gap. -> game.prepared: copy id -> { host: the creature's id, hostName, ctl: its controller,
+// spell: the copy's name }.
 function notePrepared(pub) {
   if (!game) return new Map();
   const field = [];
@@ -2153,8 +2158,16 @@ function notePrepared(pub) {
   const copies = [];
   for (const z of pub.zones || []) {
     if (z.zone !== "exile") continue;
-    for (const c of z.cards || []) if (c.identity?.isToken && !c.identity.tokenScript && !c.isFaceDown && c.identity.setCode && c.identity.name) copies.push({ c, owner: z.ownerId });
+    for (const c of z.cards || []) {
+      if (c.identity?.isToken && !c.identity.tokenScript && !c.isFaceDown && c.identity.setCode && c.identity.cardNumber && c.identity.name
+        && (c.types || []).some((t) => t === "Instant" || t === "Sorcery")) copies.push({ c, owner: z.ownerId });
+    }
   }
+  // (Forge's mayPlay in the board's view or any human seat's, and the players those views belong to)
+  const playable = new Set(), viewed = new Set();
+  const views = [pub];
+  for (const s of game.seats?.values() || []) if (s.board?.state?.gameView) { views.push(s.board.state.gameView); if (s.slot) viewed.add(s.slot); }
+  for (const gv of views) for (const z of gv.zones || []) if (z.zone === "exile") for (const c of z.cards || []) if (c.mayPlay) playable.add(c.id);
   const was = game.prepared || new Map(), now = new Map(), hosting = new Set();
   const link = (c, h) => { now.set(c.id, { host: h.id, hostName: h.identity.name, ctl: h.controllerId || null, spell: c.identity.name }); hosting.add(h.id); };
   for (const { c } of copies) {
@@ -2164,8 +2177,10 @@ function notePrepared(pub) {
   for (const { c, owner } of copies) {
     if (now.has(c.id)) continue;
     const alike = field.filter((f) => !hosting.has(f.id) && f.identity.name !== c.identity.name && f.identity.setCode === c.identity.setCode
-      && String(f.identity.cardNumber || "") === String(c.identity.cardNumber || ""));
-    const h = alike.find((f) => (f.controllerId || owner) === owner) || alike[0];
+      && String(f.identity.cardNumber) === String(c.identity.cardNumber) && (playable.has(c.id) || !viewed.has(f.controllerId)));
+    const cards = alike.filter((f) => !f.identity.isToken);
+    const pool = cards.length ? cards : alike;
+    const h = pool.find((f) => (f.controllerId || owner) === owner) || pool[0];
     if (h) link(c, h);
   }
   game.prepared = now;

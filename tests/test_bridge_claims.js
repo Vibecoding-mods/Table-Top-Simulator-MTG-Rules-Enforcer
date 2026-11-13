@@ -4281,7 +4281,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       power: "3", toughness: "3", controllerId: "player-0", ownerId: "player-0", text: RESEARCHER_TEXT, visibility: "visible" };
     const COPY = { id: "engine-card-1301", identity: { name: "Reanimate", setCode: "SOS", cardNumber: "85", isToken: true }, types: ["Sorcery"], manaCost: "{B}",
       text: "Put target creature card from a graveyard onto the battlefield under your control. You lose life equal to its mana value.", controllerId: "player-0", ownerId: "player-0", mayPlay: true, visibility: "visible" };
-    // (a token of no prepare: Forge's token script, so never a copy, though its printing matches nothing anyway)
+    // (a token of a token script beside it on every board: never a copy; its near-miss check is below)
     const ZOMBIE = { id: "engine-card-1302", identity: { name: "Zombie Token", setCode: "SOS", cardNumber: "", isToken: true, tokenScript: "b_2_2_zombie" }, types: ["Creature"], controllerId: "player-0", visibility: "visible" };
     const between = (before, after, events) => {
       const h = harness.load();
@@ -4331,7 +4331,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("prepared: the copy in exile is tied to its creature (linked exile)", copy?.ew === RESEARCHER.id, JSON.stringify(copy));
       ok("prepared: the copy's hover says it is the creature's copy, not a card", (copy?.nt || []).some((n) => n.startsWith("Prepared by Grave Researcher: a copy of its spell, not a card.")), JSON.stringify(copy));
       ok("prepared: and so does its entry in the playable row", ((blue.playable || []).find((c) => c.id === COPY.id)?.nt || []).some((n) => n.startsWith("Prepared by Grave Researcher")), JSON.stringify(blue.playable));
-      ok("prepared: a token with a token script is no copy", zombie && zombie.ew === undefined && !zombie.nt, JSON.stringify(zombie));
+      ok("prepared: precondition: the script token is on the table", !!zombie, JSON.stringify(blue.exile));
       // cast: the copy left exile, the creature is unprepared
       const after = clone(b);
       after.gameView.zones.find((z) => z.zone === "exile" && z.ownerId === "player-0").cards = [clone(ZOMBIE)];
@@ -4342,6 +4342,41 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("prepared: the badge clears once the copy is gone (cast, or unprepared)", t2 !== table && host2 && !(host2.kw || []).some((k) => /^Prepared/.test(k)), JSON.stringify(host2));
       harness.restore();
     }
+    // near misses, each one exile card beside the creature that differs from a real copy in one way only: none ties
+    // to it. -> for each battlefield and exile list, which creatures carry the badge and which exile cards a link.
+    const tableWith = async (fields) => {
+      const h = harness.load();
+      const b = clone(F.board);
+      for (const [zone, ownerId, cards] of fields) b.gameView.zones.find((z) => z.zone === zone && z.ownerId === ownerId).cards.push(...clone(cards));
+      setup(h, b);
+      h.B.sendTable(); await h.flush();
+      const t = sent(h, "table")[0] || { players: [] };
+      harness.restore();
+      const mine = new Set(fields.flatMap(([, , cards]) => cards.map((c) => c.id)));
+      const all = t.players.flatMap((p) => [...(p.battlefield || []), ...(p.exile || [])]).filter((c) => mine.has(c.id));
+      return { badged: all.filter((c) => (c.kw || []).some((k) => /^Prepared/.test(k))).map((c) => c.id), linked: all.filter((c) => c.ew).map((c) => `${c.id}>${c.ew}`) };
+    };
+    const none = { badged: [], linked: [] };
+    const nearMiss = async (name, copy, host = RESEARCHER) => same(`prepared: ${name}`, await tableWith([["battlefield", "player-0", [host]], ["exile", "player-0", [copy]]]), none);
+    await nearMiss("a token with a token script and the creature's own printing is no copy",
+      { ...COPY, identity: { ...COPY.identity, tokenScript: "b_2_2_zombie" } });
+    await nearMiss("no collector number on either side is no match",
+      { ...COPY, identity: { ...COPY.identity, cardNumber: "" } }, { ...RESEARCHER, identity: { ...RESEARCHER.identity, cardNumber: "" } });
+    await nearMiss("a token copy of the creature itself, same name (Spark Double), is no prepare copy",
+      { ...COPY, identity: { ...RESEARCHER.identity, isToken: true } });
+    await nearMiss("a copy its seat's view says no one may play is no prepare copy (the creature is a human seat's)",
+      { ...COPY, mayPlay: false });
+    await nearMiss("a permanent-type token of that printing is no prepare copy",
+      { ...COPY, types: ["Creature"] });
+    // (an AI's creature: no view we have shows its controller's mayPlay, so its printing alone ties it)
+    same("prepared: an AI's prepared creature still gets its badge without mayPlay",
+      await tableWith([["battlefield", "player-1", [{ ...RESEARCHER, controllerId: "player-1", ownerId: "player-1" }]], ["exile", "player-1", [{ ...COPY, controllerId: "player-1", ownerId: "player-1", mayPlay: false }]]]),
+      { badged: [RESEARCHER.id], linked: [`${COPY.id}>${RESEARCHER.id}`] });
+    // two of that printing, a token copy first in the list and the card: the card is the prepared one
+    const TOKEN_TWIN = { ...RESEARCHER, id: "engine-card-1303", identity: { ...RESEARCHER.identity, isToken: true } };
+    same("prepared: with a token copy of the creature beside it, the badge goes on the card",
+      await tableWith([["battlefield", "player-0", [TOKEN_TWIN, RESEARCHER]], ["exile", "player-0", [COPY]]]),
+      { badged: [RESEARCHER.id], linked: [`${COPY.id}>${RESEARCHER.id}`] });
   }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
