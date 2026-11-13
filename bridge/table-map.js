@@ -147,7 +147,7 @@ const PLAYER_FACTS = {
   commanderDamage: { to: ["cmdDamage", "cmdTip"], show: "commander damage by seat: the most from one commander; with partners each one's in the tracker's tooltip; the log's life line adds \"commander damage from Kenrith: 14 in all\"" },
   hasCityBlessing: { to: ["allMarks"], show: "CITY'S BLESSING" },
   hasEnduringStory: { to: ["allMarks"], show: "ENDURING STORY" },
-  ringLevel: { to: ["allMarks"], show: "RING TEMPTED 2: BEARER LOOTS ON ATTACK (the newest level's ability), every level reached in its hover; the log says each temptation" },
+  ringLevel: { to: ["allMarks"], show: "RING TEMPTED 2: LOOTS ON ATTACK (the newest level's ability), every level reached in its hover; the log says each temptation" },
   speed: { to: ["allMarks"], show: "SPEED 3; the log says each change" },
   // (engine1112)
   effects: { to: ["allMarks", "markTips"], show: "effect and emblem marks, FOG THIS TURN, EMBLEM: GIDEON, +N MORE EFFECTS; each box's own hover the full text (dropped when a card it names is hidden)" },

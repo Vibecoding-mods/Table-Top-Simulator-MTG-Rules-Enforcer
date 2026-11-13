@@ -1868,6 +1868,26 @@ const cmdIcons = (half) => save.ObjectStates.filter((o) => o.Nickname === "Comma
 // the save's four playmat zones (the scripting zones the size of a mat, 37 x 20.75)
 const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrigger" && o.Transform.scaleX > 30)
   .map((o) => { const t = o.Transform; return { g: o.GUID, box: [t.posX - t.scaleX / 2, t.posX + t.scaleX / 2, t.posZ - t.scaleZ / 2, t.posZ + t.scaleZ / 2] }; });
+// The Ring's four labels, as the bridge makes them ("RING TEMPTED n: <the level's words>", bridge.js RING_LEVELS, read
+// from its source), each through the table's own fitting (engineMarksBoxes): uncut, no "...", every word kept (level 1's
+// "BEARER IS LEGENDARY, EVADES BIGGER" was cut to "RING TEMPTED 1: BEARE...", review 2026-11-13), and the Ring piece
+// still found by its mark (engineStatusMatch against "RING TEMPTED").
+{
+  const bsrc = fs.readFileSync(path.join(__dirname, "..", "bridge", "bridge.js"), "utf8");
+  const at = bsrc.indexOf("const RING_LEVELS = ["), end = bsrc.indexOf("];", at);
+  const levels = at < 0 ? [] : Function(`return ${bsrc.slice(at + "const RING_LEVELS = ".length, end + 1)}`)();
+  ok("ring labels: precondition, the bridge's four levels read", levels.length === 4 && levels.every((l) => typeof l[0] === "string"), JSON.stringify(levels));
+  const labels = levels.map((l, i) => `RING TEMPTED ${i + 1}: ${l[0]}`);
+  const r = run(labels.map((m, i) => q(`local b = engineMarksBoxes({ [==[${m}]==] })[1] return JSON.encode({ text = b.text, font = b.font, width = b.width, piece = engineStatusMatch([==[${m}]==], "RING TEMPTED") })`, `ring ${i + 1}`)));
+  ok("ring labels: precondition, no script error", !r.errors.length, r.errors.slice(0, 2).join(" | "));
+  labels.forEach((m, i) => {
+    let b = {};
+    try { b = JSON.parse(String(valueOf(r, `ring ${i + 1}`))); } catch (e) { /* checked below */ }
+    ok(`ring labels: level ${i + 1} fits its box uncut`, typeof b.text === "string" && !b.text.includes("...") && b.text.replace(/\n/g, " ") === m && b.width <= 2250, JSON.stringify(b));
+    ok(`ring labels: level ${i + 1} still shows the Ring piece`, typeof b.piece === "string", JSON.stringify(b));
+  });
+}
+
 // Marks boxes: one small box a mark, stacked down the inner corner of the player's mat under the heart (2026-11-10, the
 // user: "have it [in the] corner of your playmat under your heart"; "you can add multiple boxes if need be instead of
 // cramming everything in one box"; before, one label ran along the strip between the counters and the mats, where live

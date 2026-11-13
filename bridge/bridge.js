@@ -2221,15 +2221,23 @@ function facePeek(id, seats, views) {
   const img = imagesFor(name, game.slotColor?.[face.ownerId] || null, face.id);
   return { pk: { n: name, f: img?.face || cachedImage(name)?.face || null, v: colors } };
 }
-// The foretold cards in exile, id -> its exile's owner (game.foretold), for the FORETOLD n mark: a card any seat's view
-// says is foretold (Forge's isForetold, the owner's view only), or that Forge's feed says was moved by a foretell
-// (updateLog; an AI's foretell is seen only so), while it stays in that exile. Only the count is shown: which card it
-// is stays the owner's (the board's other seats get a hidden entry, id only).
+// The foretold cards in exile, id -> its exile's owner (game.foretold), for the FORETOLD n mark, while each stays in
+// that exile: a card any seat's view says is foretold (Forge's isForetold, the owner's view only), or, for each foretell
+// Forge's feed counted for a player since the last board (updateLog's game.foretellsNew: an AI's foretell is seen only
+// so, a move with no cardId), one of the hidden cards new in that player's exile on this board. Only the count is
+// shown: which card it is stays the owner's (the board's other seats get a hidden entry, id only).
 function noteForetold(pub, views) {
   const where = new Map();
   for (const z of pub.zones || []) if (z.zone === "exile") for (const c of z.cards || []) where.set(c.id, z.ownerId);
   game.foretold ??= new Map();
   for (const v of views) for (const c of Object.values(v || {})) if (c?.isForetold && where.has(c.id)) game.foretold.set(c.id, where.get(c.id));
+  for (const [owner, n] of Object.entries(game.foretellsNew || {})) {
+    const z = (pub.zones || []).find((x) => x.zone === "exile" && x.ownerId === owner);
+    const fresh = (z?.cards || []).filter((c) => (c.visibility === "hidden" || c.isFaceDown) && !game.exileSeen?.has(c.id) && !game.foretold.has(c.id));
+    for (const c of fresh.slice(0, n)) game.foretold.set(c.id, owner);
+  }
+  game.foretellsNew = {};
+  game.exileSeen = new Set(where.keys());
   for (const id of [...game.foretold.keys()]) {
     if (where.has(id)) game.foretold.set(id, where.get(id));
     else game.foretold.delete(id);
@@ -2634,7 +2642,11 @@ function logSnapshot(pub, prev = null) {
         ...((n) => (n > 0 ? { loy: n } : {}))(Object.entries(c.counters || {}).find(([k]) => /^loyalty$/i.test(k))?.[1]),
         ...(c.mergedCardIds?.length ? { merged: [...c.mergedCardIds] } : {}),
         ...(hasKeyword(c, "Rebound") ? { rebound: true } : {}),
-        ...(hasKeyword(c, "Suspend") ? { suspend: true } : {}),
+        // (suspended: face up in exile with time counters, or so on the last board and still there, its last counter just
+        // removed. Not the keyword: an impulse-drawn Rift Bolt cast for its cost, or a cascade into Living End, read
+        // "casts ... from suspend", review 2026-11-13)
+        ...(z.zone === "exile" && !c.isFaceDown && (Object.entries(c.counters || {}).some(([k, n]) => /^time$/i.test(k) && n > 0)
+          || (prev?.cards?.[c.id]?.zone === "exile" && prev.cards[c.id].suspend)) ? { suspend: true } : {}),
         // (phasing is no zone change, so it stays "battlefield" here: Forge says which, the log no longer guesses)
         ...(c.phasedOut ? { po: true } : {}),
         // (a dungeon's room, Forge's "[Room: Cave Entrance]" note: venturing read only its effect, "+1 life", mechanic run hp-08;
@@ -2854,17 +2866,22 @@ function isAbilityOnStack(s, pub) {
 // spell's own words and its source in no zone. It read "White uses Swords to Plowshares token's ability", readability
 // audit C5. -> { source: the name of the permanent the exiled card lies with (its exiledWith on the battlefield), or
 // null } when the item is such a copy: a token, no cost before a colon, no trigger, its source in no zone, and a face-up
-// card of its name, no token, in an exile zone; else null.
+// card of its name, no token, in an exile zone; else null. The permanent is named only when the caster controls it: a
+// copy made another way (Garth One-Eye's) beside an unrelated exiled card of that name read "casts a copy of Terror
+// (Banishing Light)", review 2026-11-13; it is then "casts a copy of Terror".
 function castCopyOf(s, pub) {
   const words = String(s.sourceAbilityText || "");
   if (!s.identity?.isToken || !s.identity.name || s.isPermanentSpell || s.isTrigger || ACTIVATION_COST.test(words) || /^(?:When|Whenever|At)\b/.test(words)) return null;
   const zones = pub?.zones || [];
   if (zones.some((z) => (z.cards || []).some((c) => c.id === s.sourceId))) return null;
-  const original = zones.filter((z) => z.zone === "exile").flatMap((z) => z.cards || [])
-    .find((c) => c.identity?.name === s.identity.name && !c.identity.isToken && !c.isFaceDown && c.visibility !== "hidden");
-  if (!original) return null;
-  const host = original.exiledWith && zones.filter((z) => z.zone === "battlefield").flatMap((z) => z.cards || []).find((c) => c.id === original.exiledWith);
-  return { source: host && !host.isFaceDown && host.identity?.name ? host.identity.name : null };
+  // (a battlefield zone's owner is its cards' controller, as logSnapshot reads it)
+  const field = zones.filter((z) => z.zone === "battlefield").flatMap((z) => (z.cards || []).map((c) => ({ c, ctl: c.controllerId || z.ownerId })));
+  const hostOf = (c) => (c.exiledWith && field.find((x) => x.c.id === c.exiledWith && x.ctl === s.controllerId && !x.c.isFaceDown && x.c.identity?.name)?.c) || null;
+  const originals = zones.filter((z) => z.zone === "exile").flatMap((z) => z.cards || [])
+    .filter((c) => c.identity?.name === s.identity.name && !c.identity.isToken && !c.isFaceDown && c.visibility !== "hidden");
+  if (!originals.length) return null;
+  const host = originals.map(hostOf).find(Boolean);
+  return { source: host ? host.identity.name : null };
 }
 
 // What the player started (a cast, an ability) when a board with it on the stack never comes: it was paid from the pool
@@ -3000,7 +3017,7 @@ function engineFacts(events) {
   // or player, amount, combat, in Forge's order, for the table's bolts (sendTable's hits). leaves: each card's last
   // battlefield departure, where to, how and by what, for the table's death / exile / wipe effects (sendTable's lv))
   const facts = { moves: new Map(), firstSeq: new Map(), draws: {}, tutors: {}, mills: {}, explored: {}, firstDraw: {}, firstDiscard: {}, causes: new Map(), drawsBy: new Map(), drawCause: {}, offStack: [],
-    damage: [], leaves: new Map() };
+    damage: [], leaves: new Map(), foretells: {} };
   for (const e of events) {
     if (e.seq <= seen) continue;
     // (a damage entry moves no card: no cardId, to "Damage")
@@ -3033,6 +3050,9 @@ function engineFacts(events) {
     if (e.causeCardId && e.causeCardId !== e.cardId && /^[A-Z][A-Za-z]+$/.test(e.cause || "")) facts.causes.set(e.causeCardId, e.causeName);
     // (and how many cards each one drew: of two Mentor of the Meek triggers, which were paid for, see unlessNews)
     if (e.causeCardId && e.how === "draw") facts.drawsBy.set(e.causeCardId, (facts.drawsBy.get(e.causeCardId) || 0) + 1);
+    // (a foretell, a count per owner: the engine sends a move whose card ends face down in exile with no cardId, so an
+    // AI's foretell names no card; noteForetold matches the count to that owner's new hidden exile cards)
+    if (!e.cardId && e.how === "foretell" && e.to === "Exile" && e.ownerId) facts.foretells[e.ownerId] = (facts.foretells[e.ownerId] || 0) + 1;
     if (!e.cardId) continue;
     const was = facts.moves.get(e.cardId);
     // (causeId: the card whose effect moved it, for a spell whose target an effect moved before it resolved: fizzled)
@@ -3837,17 +3857,17 @@ function logEvents(prev, cur, pub, facts = null) {
   // (a cast of a prepared creature's spell copy names the creature, the copy having been in exile on the last board:
   // notePrepared, HAND-TEST-HP06 #20)
   const prepWords = (id) => (prev.cards[id]?.prepBy ? ` (prepared by ${prev.cards[id].prepBy})` : "");
-  // (how a spell with no record of the player's was cast for free: from suspend, its card suspended in exile on the last
-  // board (readability audit B5); or by a trigger or spell of its caster's that left the stack now and casts "without
-  // paying its mana cost", cascade's and discover's by their keyword: an AI's cascade read plain "AI 1 casts X", audit
-  // C13. Not a spell's own alternative cost, "you may cast this spell without paying its mana cost".)
+  // (how a spell with no record of the player's was cast for free: by a trigger or spell of its caster's that left the
+  // stack now and casts "without paying its mana cost", cascade's and discover's by their keyword: an AI's cascade read
+  // plain "AI 1 casts X", audit C13; else from suspend, its card suspended in exile on the last board (logSnapshot's
+  // suspend: time counters, not the keyword; readability audit B5). The trigger first: a cascade into Living End is a
+  // cascade. Not a spell's own alternative cost, "you may cast this spell without paying its mana cost".)
   const freeWords = (s) => {
     const was = prev.cards[s.id];
-    if (was?.zone === "exile" && was.suspend) return " from suspend without paying its mana cost";
     const by = Object.values(prev.stack).find((x) => x.ctl === s.ctl && x.id !== s.id && x.sids.length && x.sids.every((sid) => !curSids.has(sid))
       && (FREE_CAST_KEYWORDS.includes(x.kwTrigger) || (/\bwithout paying (?:its|their) mana costs?\b/i.test(`${x.text} ${x.desc}`) && !/\bcast this spell without paying\b/i.test(x.text))));
-    if (!by) return "";
-    return FREE_CAST_KEYWORDS.includes(by.kwTrigger) ? ` (${by.kwTrigger})` : ` without paying its mana cost (${by.name})`;
+    if (by) return FREE_CAST_KEYWORDS.includes(by.kwTrigger) ? ` (${by.kwTrigger})` : ` without paying its mana cost (${by.name})`;
+    return was?.zone === "exile" && was.suspend ? " from suspend without paying its mana cost" : "";
   };
   // (and that cast's line when no board showed the copy on the stack: cast and resolved between two boards, an AI's.
   // Its caster is the creature's controller, Forge's MayPlayPlayer$ EffectSourceController; the copy is in the exile of
@@ -4999,8 +5019,9 @@ function updateLog(pub) {
   const facts = engineFacts(pub.events);
   // (battlefield to exile, for the table's exile sound: see sendTable's exd)
   for (const [id, mv] of facts?.moves || []) if (mv.from === "Battlefield" && mv.to === "Exile") (game.fxExiled ??= new Set()).add(id);
-  // (a card foretold, by Forge's word on its move, for the FORETOLD n mark: noteForetold keeps it while it stays in exile)
-  for (const [id, mv] of facts?.moves || []) if (mv.how === "foretell" && mv.to === "Exile") (game.foretold ??= new Map()).set(id, mv.owner || null);
+  // (how many cards each player foretold since the last board, by Forge's word on the moves, for the FORETOLD n mark:
+  // noteForetold, called after this, matches them to new hidden cards in that player's exile)
+  game.foretellsNew = { ...(facts?.foretells || {}) };
   // (every battlefield departure and every damage dealt, for the table's effects: see sendTable's lv and hits; an engine
   // that sends damage entries is the one word on damage from then on, game.feedDamage)
   for (const [id, l] of facts?.leaves || []) (game.fxLeft ??= new Map()).set(id, l);
@@ -5639,12 +5660,14 @@ const positive = (n) => (typeof n === "number" && n > 0 ? n : 0);
 const heldWords = (at = {}) => ((w) => (w.length ? ` (${w.join(", ")})` : ""))([...(at.from ? [`from ${at.from}`] : []), ...(at.cause ? [at.cause] : [])]);
 const counterOf = (name) => (p) => positive(playerCounter(p, name));
 // The Ring's four levels: [the label's few words, Forge's description] (its level 3 text, "becomes blocked a creature",
-// as Forge has it, "by" put back)
+// as Forge has it, "by" put back). The words are short enough that "RING TEMPTED n: ..." fits the marks box on two
+// lines uncut ("BEARER IS LEGENDARY, EVADES BIGGER" was cut to "BEARE...", review 2026-11-13; test_table_claims runs
+// each label through engineMarksBoxes); the hover's Forge text says it is the Ring-bearer's.
 const RING_LEVELS = [
-  ["BEARER IS LEGENDARY, EVADES BIGGER", "Your Ring-bearer is legendary and can't be blocked by creatures with greater power."],
-  ["BEARER LOOTS ON ATTACK", "Whenever your Ring-bearer attacks, draw a card, then discard a card."],
-  ["BEARER'S BLOCKERS ARE SACRIFICED", "Whenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat."],
-  ["BEARER'S HITS DRAIN 3", "Whenever your Ring-bearer deals combat damage to a player, each opponent loses 3 life."],
+  ["LEGENDARY, EVADES BIGGER", "Your Ring-bearer is legendary and can't be blocked by creatures with greater power."],
+  ["LOOTS ON ATTACK", "Whenever your Ring-bearer attacks, draw a card, then discard a card."],
+  ["BLOCKERS SACRIFICED", "Whenever your Ring-bearer becomes blocked by a creature, that creature's controller sacrifices it at end of combat."],
+  ["COMBAT HITS DRAIN 3", "Whenever your Ring-bearer deals combat damage to a player, each opponent loses 3 life."],
 ];
 const PLAYER_MARKS = [
   { key: "poison", read: counterOf("poison"), label: (n) => `POISON ${n}`,

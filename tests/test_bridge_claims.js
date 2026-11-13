@@ -5305,6 +5305,13 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const lines = logOf(h, before, after);
       ok("cast copy: a copy of an exiled card is cast, naming the card it lies with", lines.includes("Blue casts a copy of Swords to Plowshares (Arcane Bombardment)"), JSON.stringify(lines));
       ok("cast copy: not a token's ability", !lines.some((l) => /token's ability/.test(l)), JSON.stringify(lines));
+      // (a copy made another way, Garth One-Eye's, by AI 1, beside Blue's exiled card of that name under Blue's
+      // permanent: a cast copy, the permanent not named)
+      const garth = clone(before);
+      garth.stack = [{ id: "stack-c3", sourceId: "engine-card-963", controllerId: "player-1", identity: { name: "Swords to Plowshares", isToken: true },
+        sourceAbilityText: "Exile target creature. Its controller gains life equal to its power.", targets: [] }];
+      const gl = logOf(h, before, garth);
+      ok("cast copy: a copy names no permanent its caster doesn't control", gl.includes("AI 1 casts a copy of Swords to Plowshares") && !gl.some((l) => /Arcane Bombardment/.test(l)), JSON.stringify(gl));
       // (no original face up in exile: a token's spell-like stack item stays as it was read)
       const lone = clone(F.board.gameView), lone2 = clone(lone);
       lone2.stack = after.stack;
@@ -5330,8 +5337,32 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       same("suspend: counters added (Jhoira's suspend) say how many", logOf(h, at(1), at(3)), ["Rift Bolt gets 2 time counters (3 in all)"]);
       const cast = clone(F.board.gameView);
       cast.stack = [{ id: "stack-rb", sourceId: "engine-card-970", controllerId: "player-0", identity: { name: "Rift Bolt" }, sourceAbilityText: "Rift Bolt deals 3 damage to any target.", targets: [] }];
-      const lines = logOf(h, at(0), cast);
+      // (its last counter removed and the spell cast between two boards; or the board that showed it at 0 counters, read
+      // after the one that showed 1, as updateLog reads each board after the last)
+      const lines = logOf(h, at(1), cast);
       ok("suspend: its cast from exile says it is free, from suspend", lines.includes("Blue casts Rift Bolt from suspend without paying its mana cost"), JSON.stringify(lines));
+      const zero = h.B.logSnapshot(at(0), h.B.logSnapshot(at(1)));
+      const chained = h.B.logEvents(zero, h.B.logSnapshot(cast, zero), cast, null);
+      ok("suspend: still from suspend after a board showed its last counter gone", chained.includes("Blue casts Rift Bolt from suspend without paying its mana cost"), JSON.stringify(chained));
+      // (a suspend card exiled by an impulse draw, no time counters, cast for its cost: no "from suspend")
+      const impulse = logOf(h, at(0), cast);
+      ok("suspend: a suspend card cast from an impulse exile isn't from suspend", impulse.includes("Blue casts Rift Bolt"), JSON.stringify(impulse));
+      // (and cast and resolved between two boards, Forge's moves exile, stack, graveyard)
+      const resolved = clone(F.board.gameView);
+      zoneOf(resolved, "graveyard", "player-0").cards.push(bolt(0));
+      const ev = [{ seq: 1, kind: "move", cardId: "engine-card-970", from: "Exile", to: "Stack", ownerId: "player-0" }, { seq: 2, kind: "move", cardId: "engine-card-970", from: "Stack", to: "Graveyard", ownerId: "player-0" }];
+      const viaImpulse = logOf(h, at(0), resolved, ev), viaSuspend = logOf(h, at(1), resolved, ev);
+      ok("suspend: an impulse cast resolved between boards isn't from suspend", !viaImpulse.some((l) => /from suspend/.test(l)), JSON.stringify(viaImpulse));
+      ok("suspend: a suspended cast resolved between boards is", viaSuspend.includes("Blue casts Rift Bolt from suspend without paying its mana cost"), JSON.stringify(viaSuspend));
+      // (a cascade into Living End, a suspend card with no mana cost, face up in the cascade's exile: a cascade)
+      const intoEnd = clone(F.board.gameView);
+      intoEnd.stack = [{ id: "stack-sa", sourceId: "engine-card-975", controllerId: "player-1", identity: { name: "Shardless Agent" }, isTrigger: true,
+        sourceAbilityText: "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)", targets: [] }];
+      zoneOf(intoEnd, "exile", "player-1").cards.push(card(976, "Living End", ["Sorcery"], { ownerId: "player-1", controllerId: "player-1", keywords: ["Suspend:3:{2}{B}{B}"] }));
+      const endCast = clone(F.board.gameView);
+      endCast.stack = [{ id: "stack-le", sourceId: "engine-card-976", controllerId: "player-1", identity: { name: "Living End" }, sourceAbilityText: "Each player exiles all creature cards from their graveyard, then sacrifices all creatures they control, then returns all cards they exiled this way onto the battlefield.", targets: [] }];
+      const le = logOf(h, intoEnd, endCast);
+      ok("suspend: a cascade into Living End is a cascade, not a suspend", le.some((l) => l.startsWith("AI 1 casts Living End (cascade)")) && !le.some((l) => /from suspend/.test(l)), JSON.stringify(le));
       // (an ordinary cast says nothing of the kind)
       const hand = clone(F.board.gameView); zoneOf(hand, "hand", "player-0").cards.push(card(971, "Lightning Bolt"));
       const handCast = clone(F.board.gameView);
@@ -5400,7 +5431,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       h.B.sendTable(); await h.flush();
       const me = sent(h, "table")[0].players.find((p) => p.slot === "player-0");
       const i = (me.allMarks || []).findIndex((m) => m.startsWith("RING TEMPTED"));
-      same("ring: the label keeps RING TEMPTED n first (the Ring piece's mark) and names the level's ability", me.allMarks[i], "RING TEMPTED 2: BEARER LOOTS ON ATTACK");
+      same("ring: the label keeps RING TEMPTED n first (the Ring piece's mark) and names the level's ability", me.allMarks[i], "RING TEMPTED 2: LOOTS ON ATTACK");
       ok("ring: its hover lists the levels reached, in Forge's words", /^The Ring has tempted Blue 2 times:\nYour Ring-bearer is legendary and can't be blocked by creatures with greater power\.\nWhenever your Ring-bearer attacks, draw a card, then discard a card\.$/.test(me.markTips?.[i] || ""), JSON.stringify(me.markTips));
       harness.restore();
     }
@@ -5441,27 +5472,38 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     {
       const h = harness.load();
       const b = clone(F.board);
-      // (AI 1 foretells: the board's seat sees a hidden entry, id only; Forge's feed says the move was a foretell)
+      // (AI 1 foretells: the board's seat sees a hidden entry, id only, and Forge's feed a foretell move with no cardId,
+      // the engine's visible=false for a card that ends face down in exile. A hidden card already there, a hideaway
+      // say, is not the foretold one)
       const ex = zoneOf(b.gameView, "exile", "player-1");
-      ex.cards = [{ id: "engine-card-990", visibility: "hidden" }];
+      ex.cards = [{ id: "engine-card-989", visibility: "hidden" }];
       b.gameView.events = [];
       const seat = setup(h, b);
       h.B.sendTable(); await h.flush();
+      const before = sent(h, "table").at(-1).players.find((p) => p.slot === "player-1");
+      ok("foretold: a hidden exile card with no foretell isn't counted", !(before.allMarks || []).some((m) => /FORETOLD/.test(m)), JSON.stringify(before.allMarks));
       const next = clone(b);
-      next.gameView.events = [{ seq: 1, kind: "move", cardId: "engine-card-990", from: "Hand", to: "Exile", how: "foretell", ownerId: "player-1" }];
+      zoneOf(next.gameView, "exile", "player-1").cards.push({ id: "engine-card-990", visibility: "hidden" });
+      next.gameView.events = [{ seq: 1, kind: "move", from: "Hand", to: "Exile", how: "foretell", ownerId: "player-1" }];
       seat.board = { state: next, fingerprint: null };
       h.B.sendTable(); await h.flush();
       const ai = sent(h, "table").at(-1).players.find((p) => p.slot === "player-1");
       ok("foretold: the owner's row says how many", (ai.allMarks || []).includes("FORETOLD 1"), JSON.stringify(ai.allMarks));
       ok("foretold: its hover gives the count only", (ai.markTips || []).some((t) => /^AI 1 has a foretold card in exile, face down/.test(t)), JSON.stringify(ai.markTips));
-      // (cast from exile: the count goes)
+      // (a later board with no foretell: still 1, the hideaway still not counted)
+      const still = clone(next);
+      still.gameView.events = [];
+      seat.board = { state: still, fingerprint: null };
+      h.B.sendTable(); await h.flush();
+      ok("foretold: the count holds on the next board", (sent(h, "table").at(-1).players.find((p) => p.slot === "player-1").allMarks || []).includes("FORETOLD 1"));
+      // (cast from exile: the card goes to the stack face up, and the count goes; the hideaway stays)
       const gone = clone(next);
-      zoneOf(gone.gameView, "exile", "player-1").cards = [];
-      gone.gameView.events = [];
+      zoneOf(gone.gameView, "exile", "player-1").cards = [{ id: "engine-card-989", visibility: "hidden" }];
+      gone.gameView.events = [{ seq: 2, kind: "move", cardId: "engine-card-990", from: "Exile", to: "Stack", ownerId: "player-1" }];
       seat.board = { state: gone, fingerprint: null };
       h.B.sendTable(); await h.flush();
       const after = sent(h, "table").at(-1).players.find((p) => p.slot === "player-1");
-      ok("foretold: gone once the card leaves exile", !(after.allMarks || []).some((m) => /FORETOLD/.test(m)), JSON.stringify(after.allMarks));
+      ok("foretold: gone once the foretold card is cast", !(after.allMarks || []).some((m) => /FORETOLD/.test(m)), JSON.stringify(after.allMarks));
       // (the seat's own foretold card, named in its own view: counted, and its name nowhere in the public row)
       const own = clone(F.board);
       zoneOf(own.gameView, "exile", "player-0").cards = [{ id: "engine-card-991", identity: { name: "Doomskar" }, isFaceDown: true, isForetold: true, types: ["Sorcery"], ownerId: "player-0" }];
