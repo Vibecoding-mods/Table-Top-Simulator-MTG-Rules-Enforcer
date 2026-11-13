@@ -92,18 +92,17 @@ class Engine {
     return r;
   }
 
-  // `compose up -d`: the network, then each container run, started, or replaced when its image changed
+  // `compose up -d`: each container run, started, or replaced when its image changed; the relay first, and the room
+  // again whenever the relay's network namespace is new (platform.js roomPlan)
   async up() {
     if (!this.cli) return { code: -1, out: "no container engine", timedOut: false };
-    const net = P.networkName(this.o.project);
-    const ni = await probes.run(this.cli, ["network", "inspect", net], { timeoutMs: 20000 });
-    let out = "";
-    if (ni.code !== 0) { const c = await this.cmd(["network", "create", net], 30000); out += c.out; if (c.code !== 0) return c; }
+    let out = "", relayPlan = "keep";
     for (const s of P.Services) {
       const { info, error } = await this.container(s);
       if (error) return { code: 1, out: error, timedOut: false };
       const tag = await this.imageId(P.Images[s]);
-      const plan = P.upPlan(info, tag.id, L.sameId);
+      const plan = s === "relay" ? P.upPlan(info, tag.id, L.sameId) : P.roomPlan(info, tag.id, relayPlan, L.sameId);
+      if (s === "relay") relayPlan = plan;
       let r = null;
       if (plan === "replace") { r = await this.cmd(["rm", "-f", this.name(s)], 60000); if (r.code !== 0) return r; }
       if (plan === "run" || plan === "replace") r = await this.cmd(P.runArgs(s, { project: this.o.project, runtime: this.runtime, key: this.o.key(), platform: this.o.platform, arch: this.o.arch }), 120000);
@@ -113,13 +112,13 @@ class Engine {
     return { code: 0, out, timedOut: false };
   }
 
-  restart() { return this.cmd(["restart", ...P.Services.map((s) => this.name(s))], 120000); }
-  stop() { return this.cmd(["stop", ...P.Services.map((s) => this.name(s))], 120000); }
-  async down() {
-    const r = await this.cmd(["rm", "-f", ...P.Services.map((s) => this.name(s))], 120000);
-    await this.cmd(["network", "rm", P.networkName(this.o.project)], 30000);
-    return r;
+  // the relay, then the room (one command each: the room joins the relay's new namespace only once the relay is up)
+  async restart() {
+    const r = await this.cmd(["restart", this.name("relay")], 120000);
+    return r.code !== 0 ? r : this.cmd(["restart", this.name("forge-room")], 120000);
   }
+  stop() { return this.cmd(["stop", this.name("forge-room"), this.name("relay")], 120000); }
+  down() { return this.cmd(["rm", "-f", this.name("forge-room"), this.name("relay")], 120000); }
 
   // `<cli> load -i <tar>`; progress(percent or -1, seconds)
   async load(tar, size, progress) {
