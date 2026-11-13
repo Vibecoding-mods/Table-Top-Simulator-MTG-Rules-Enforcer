@@ -69,11 +69,27 @@ const CARD_FACTS = {
   attackingPlayerId: { skip: "attackTargetId says the same for the table" },
   attachmentIds: { skip: "attachedTo on each attachment says the same" },
   choices: { to: ["kw"], show: "the status box: Chosen colour: red; only a choice every human seat may see", check: "badges" },
+  // (engine1112 card states, cardStateWords; battlefield cards only)
+  skipsNextUntap: { to: ["kw"], show: "the status box: Doesn't untap next untap step (left out when exerted says it)", check: "badges" },
+  monstrous: { to: ["kw"], show: "the status box: Monstrous", check: "badges" },
+  saddled: { to: ["kw"], show: "the status box: Saddled, with saddledBy", check: "badges" },
+  saddledBy: { to: ["kw"], show: "the status box: Saddled (by Grizzly Bears)", check: "badges" },
+  harnessed: { to: ["kw"], show: "the status box: Harnessed", check: "badges" },
+  solved: { to: ["kw"], show: "the status box: Solved (the bridge's log guess is the old engine's fallback)", check: "badges" },
+  unlockedDoors: { to: ["kw"], show: "the status box: Unlocked: Bottomless Pool, or Both doors unlocked", check: "badges" },
+  pairedWith: { to: ["kw"], show: "the status box: Paired with X", check: "badges" },
+  attachedToPlayer: { to: ["attP", "kw"], show: "a curse lies in the cursed player's non-creature row (its controller can still move it); the status box: Attached to White", check: "place" },
+  protectorId: { to: ["kw"], show: "the status box of a battle: Protected by White", check: "badges" },
+  cantAttack: { to: ["kw"], show: "the status box: Can't attack (not on a card with Defender, whose own line says it)", check: "badges" },
+  cantBlock: { to: ["kw"], show: "the status box: Can't block (not on a suspected card, whose own line says it)", check: "badges" },
+  mustAttack: { to: ["kw"], show: "the status box: Must attack", check: "badges" },
 };
 
 // Keys tableCard sends that stand for no single CardDto field: combat worked out from the game's blocker list, and the
 // bridge's own records of what Forge doesn't send
-const TABLE_ONLY_KEYS = { blk: "blocking", blkOf: "the attackers it blocks", sick: "nothing reads it; the status box's mark is decided in the bridge, which knows whose turn it is", enc: "ew is a cipher link; the table treats it as any link" };
+const TABLE_ONLY_KEYS = { blk: "blocking", blkOf: "the attackers it blocks", sick: "nothing reads it; the status box's mark is decided in the bridge, which knows whose turn it is", enc: "ew is a cipher link; the table treats it as any link",
+  og: "a playable-row card from the graveyard: the FROM GRAVEYARD chip (the zone the bridge found it in, no CardDto field)",
+  pk: "your own face-down card's face { n, f, v }: from each human seat's own view (facePeek), drawn as UI only those seats' colours see" };
 
 // Forge's zones -> where the table puts them. check: the words engineSelfCheck reports
 const ZONES = {
@@ -133,6 +149,11 @@ const PLAYER_FACTS = {
   hasEnduringStory: { to: ["allMarks"], show: "ENDURING STORY" },
   ringLevel: { to: ["allMarks"], show: "RING TEMPTED 2; the log says each temptation" },
   speed: { to: ["allMarks"], show: "SPEED 3; the log says each change" },
+  // (engine1112)
+  effects: { to: ["allMarks", "markTips"], show: "effect and emblem marks, FOG THIS TURN, EMBLEM: GIDEON, +N MORE EFFECTS; each box's own hover the full text (dropped when a card it names is hidden)" },
+  spellsCastThisTurn: { to: ["allMarks"], show: "SPELLS THIS TURN: 2 (STORM 3) on the active player" },
+  lifeGainedThisTurn: { to: ["lifeTip"], show: "the life counter's hover: Gained 5 life this turn" },
+  lifeLostThisTurn: { to: ["lifeTip"], show: "the life counter's hover: Lost 4 life this turn" },
 };
 
 module.exports = { CARD_FACTS, TABLE_ONLY_KEYS, ZONES, GESTURES, PLAYER_FACTS };

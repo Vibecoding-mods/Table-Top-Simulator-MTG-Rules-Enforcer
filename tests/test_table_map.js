@@ -33,7 +33,10 @@ const mapped = new Set(Object.values(CARD_FACTS).flatMap((f) => f.to || []));
 // the object keys of tableCard's two returned shapes (the words inside its helpers are not keys)
 const sent = [...new Set([...tableCard.matchAll(/(?:\{ |, |^\s+|\.\.\.\(c\.\w+[^?]*\? \{ )([a-zA-Z]{1,6}): /gm)].map((m) => m[1]))];
 ok("tableCard parsed: its keys were found", sent.includes("tap") && sent.includes("po") && sent.includes("ctr"), sent.join(" "));
-const NOT_KEYS = new Set(["kw"]);
+// (kw: built by statusLists; the rest are keys of helpers that sit between tableCard and the slice's end marker:
+// delayedOf's player marks { label, tip }, playWindow's { until }, facePeek's pk { n, f, v }, the face-down stub's
+// CardDto-shaped { name, text })
+const NOT_KEYS = new Set(["kw", "label", "tip", "until", "v", "name", "text"]);
 for (const k of sent) ok(`table key ${k} is mapped`, mapped.has(k) || TABLE_ONLY_KEYS[k] || NOT_KEYS.has(k), "add it to the fact it shows");
 for (const [f, e] of Object.entries(CARD_FACTS)) for (const k of e.to || []) {
   if (k !== "playable") ok(`${f}: tableCard sends ${k}`, new RegExp(`\\b${k}: |\\b${k}\\b.*\\[`).test(tableCard), "the map names a key that is gone");
@@ -53,6 +56,8 @@ const marksFn = bridge.slice(bridge.indexOf("function playerMarks("), bridge.ind
 // (a key playerMarks sends beside allMarks: a PLAYER_MARKS row's value under a row key of its own, its `row`, extraTurns;
 // playerMarks sends every row's)
 const marksKeys = new Set([...marksFn.matchAll(/\{ key: "\w+", row: "(\w+)"/g)].map((m) => m[1]));
+// (and the keys playerMarks sets on its result beside allMarks: markTips, lifeTip)
+for (const m of marksFn.matchAll(/\bout\.(\w+) = /g)) marksKeys.add(m[1]);
 ok("playerMarks: precondition, its own row keys were found (extraTurns), and it sends each row's", marksKeys.has("extraTurns") && /\.\.\.playerMarks\(p, pub\)/.test(send)
   && /for \(const m of PLAYER_MARKS\) if \(m\.row && markShown\(values\[m\.key\]\)\) out\[m\.row\] = values\[m\.key\];/.test(marksFn), [...marksKeys].join(" "));
 for (const [f, e] of Object.entries(PLAYER_FACTS)) for (const k of e.to || []) {
