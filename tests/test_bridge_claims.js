@@ -5395,6 +5395,34 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("free cast: an AI's spell cast by its cascade trigger is tagged", cl.some((l) => l.startsWith("AI 1 casts Blightning (cascade)")), JSON.stringify(cl));
       harness.restore();
     }
+    // row 18 (B5) on the engine's own boards (tests/golden/fixtures/suspend-live.json, tests/live_suspend_check.js on
+    // engine1113): AI 1's suspended Rift Bolt cast at its upkeep, then the human's, answered on the table's dialogs as
+    // the human did ("Cast it", AI 1). Live 2026-11-13 the human's read "White casts Rift Bolt targeting AI 1": on the
+    // board after "Cast it" Forge shows the card in no zone, its own trigger still on the stack.
+    {
+      const LIVE = require("./golden/fixtures/suspend-live.json");
+      const h = harness.load();
+      const boards = LIVE.record.filter((e) => e.board).map((e) => e.board.gameView);
+      const limboBoard = boards.find((g) => (g.stack || []).some((s) => s.isTrigger && s.controllerId === LIVE.human && /^When the last time counter/.test(s.text || ""))
+        && !(g.zones || []).some((z) => (z.cards || []).some((c) => c.identity?.name === "Rift Bolt" && c.ownerId === LIVE.human)));
+      ok("suspend live: precondition, the human is player-0 and a board shows their Rift Bolt in no zone under its own trigger", LIVE.human === "player-0" && !!limboBoard);
+      const seat = setup(h, LIVE.record.find((e) => e.board).board);
+      const lines = () => h.effects.filter((e) => e.tts && e.tts.t === "gamelog").flatMap((e) => e.tts.lines || []);
+      for (const e of LIVE.record) {
+        if (e.board) { seat.board = { state: clone(e.board), fingerprint: null }; h.B.sendTable(); await h.flush(); continue; }
+        const type = e.prompt && (e.prompt.kind === "priority" ? "chooseAction" : e.prompt.input?.type);
+        if (!e.prompt || !["chooseBoolean", "chooseBoardTargets"].includes(type)) continue;
+        h.B.onPrompt(seat, clone(e.prompt)); await h.flush();
+        const opts = seat.prompt?.ui?.options || [];
+        const want = type === "chooseBoolean" ? opts.find((o) => o.label === "Cast it") : opts.find((o) => o.label === "AI 1");
+        if (want) { h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: e.prompt.promptId, choice: [want.id] }) }); await h.flush(); }
+      }
+      const log = lines();
+      ok("suspend live: the AI's suspend cast says so", log.includes("AI 1 casts Rift Bolt from suspend without paying its mana cost targeting Blue"), JSON.stringify(log.filter((l) => /Rift Bolt/.test(l))));
+      ok("suspend live: the human's suspend cast says so", log.includes("Blue casts Rift Bolt from suspend without paying its mana cost targeting AI 1"), JSON.stringify(log.filter((l) => /Rift Bolt/.test(l))));
+      ok("suspend live: once the card is in the graveyard nothing is kept for it", (h.B._getGame().suspendLimbo?.size ?? 0) === 0, JSON.stringify([...(h.B._getGame().suspendLimbo || [])]));
+      harness.restore();
+    }
     // row 22 (C10): an ability countered (Stifle) has a line
     {
       const h = harness.load();
