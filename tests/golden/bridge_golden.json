@@ -91974,7 +91974,14 @@
           "Creature"
          ],
          "bp": 2,
-         "bt": 2
+         "bt": 2,
+         "pk": {
+          "n": "Hurloon Minotaur",
+          "f": "https://img.klrmngr.com/display/front/8/c/8c8afead-7fec-9d27-3411-3d237d052a1f.webp",
+          "v": [
+           "Blue"
+          ]
+         }
         }
        ],
        "keep": [
@@ -117304,7 +117311,10 @@
          "sick": true,
          "ctl": "Blue",
          "ew": "engine-card-22",
-         "rl": true
+         "rl": true,
+         "nt": [
+          "Exiled with Evolving Wilds"
+         ]
         },
         {
          "s": 1,
@@ -117313,7 +117323,10 @@
          "t": "3",
          "sick": true,
          "ctl": "Blue",
-         "ew": "engine-card-22"
+         "ew": "engine-card-22",
+         "nt": [
+          "Exiled with Evolving Wilds"
+         ]
         },
         {
          "s": 1,
@@ -241570,7 +241583,14 @@
          ],
          "bp": 2,
          "bt": 2,
-         "po": true
+         "po": true,
+         "pk": {
+          "n": "Grizzly Bears",
+          "f": null,
+          "v": [
+           "Blue"
+          ]
+         }
         }
        ],
        "graveyard": [
@@ -242008,9 +242028,67 @@
        ],
        "library": 87,
        "handCount": 7,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-22",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-64",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-65",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-36",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-961",
+         "ctr": {
+          "P1P1": 1
+         },
+         "ctl": "Blue",
+         "po": true
+        },
+        {
+         "id": "engine-card-962",
+         "fd": true,
+         "tap": false,
+         "p": 2,
+         "t": 2,
+         "dmg": 0,
+         "ctr": {},
+         "att": null,
+         "ctl": "Blue",
+         "atk": false,
+         "blk": false,
+         "atkT": null,
+         "blkOf": null,
+         "ty": [
+          "Creature"
+         ],
+         "bp": 2,
+         "bt": 2,
+         "po": true,
+         "pk": {
+          "n": "Grizzly Bears",
+          "f": "https://img.klrmngr.com/display/front/5/e/5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88.webp",
+          "v": [
+           "Blue"
+          ]
+         }
+        }
+       ],
        "keep": [
         "hand",
-        "battlefield",
         "graveyard",
         "exile",
         "command"
@@ -266606,9 +266684,43 @@
        ],
        "library": 87,
        "handCount": 7,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-22",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-64",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-65",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-36",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-952",
+         "ctl": "Blue",
+         "kw": [
+          "Regeneration shield"
+         ]
+        },
+        {
+         "s": 1,
+         "id": "engine-card-953",
+         "ctl": "Blue"
+        }
+       ],
        "keep": [
         "hand",
-        "battlefield",
         "graveyard",
         "exile",
         "command"
@@ -268245,9 +268357,43 @@
        ],
        "library": 87,
        "handCount": 7,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-22",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-64",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-65",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-36",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-952",
+         "ctl": "Blue",
+         "kw": [
+          "Regeneration shield"
+         ]
+        },
+        {
+         "s": 1,
+         "id": "engine-card-953",
+         "ctl": "Blue"
+        }
+       ],
        "keep": [
         "hand",
-        "battlefield",
         "graveyard",
         "exile",
         "command"
@@ -298477,9 +298623,38 @@
        ],
        "library": 87,
        "handCount": 7,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-22",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-64",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-65",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-36",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-952",
+         "ctl": "Blue",
+         "kw": [
+          "Regeneration shield"
+         ]
+        }
+       ],
        "keep": [
         "hand",
-        "battlefield",
         "graveyard",
         "exile",
         "command"
@@ -299827,9 +300002,38 @@
        ],
        "library": 87,
        "handCount": 7,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-22",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-64",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-65",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-36",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-952",
+         "ctl": "Blue",
+         "kw": [
+          "Regeneration shield"
+         ]
+        }
+       ],
        "keep": [
         "hand",
-        "battlefield",
         "graveyard",
         "exile",
         "command"
@@ -301129,9 +301333,38 @@
        ],
        "library": 87,
        "handCount": 7,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-22",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-64",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-65",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-36",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-952",
+         "ctl": "Blue",
+         "kw": [
+          "Regeneration shield"
+         ]
+        }
+       ],
        "keep": [
         "hand",
-        "battlefield",
         "graveyard",
         "exile",
         "command"
@@ -301281,7 +301514,10 @@
          "s": 1,
          "id": "engine-card-952",
          "tap": true,
-         "ctl": "Blue"
+         "ctl": "Blue",
+         "kw": [
+          "Regeneration shield"
+         ]
         }
        ],
        "keep": [
@@ -302432,9 +302668,38 @@
        ],
        "library": 87,
        "handCount": 7,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-22",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-64",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-65",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-36",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-952",
+         "ctl": "Blue",
+         "kw": [
+          "Regeneration shield"
+         ]
+        }
+       ],
        "keep": [
         "hand",
-        "battlefield",
         "graveyard",
         "exile",
         "command"
@@ -302585,7 +302850,10 @@
          "id": "engine-card-952",
          "tap": true,
          "ctl": "Blue",
-         "atk": true
+         "atk": true,
+         "kw": [
+          "Regeneration shield"
+         ]
         }
        ],
        "keep": [
@@ -305026,9 +305294,38 @@
        ],
        "library": 87,
        "handCount": 7,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-22",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-64",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-65",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-36",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-952",
+         "ctl": "Blue",
+         "kw": [
+          "Regeneration shield"
+         ]
+        }
+       ],
        "keep": [
         "hand",
-        "battlefield",
         "graveyard",
         "exile",
         "command"
@@ -556488,7 +556785,14 @@
          "blk": false,
          "atkT": null,
          "blkOf": null,
-         "ty": []
+         "ty": [],
+         "pk": {
+          "n": "Itlimoc, Cradle of the Sun",
+          "f": "https://img.klrmngr.com/display/front/5/e/5e72d5ee-0e84-f0e2-ae74-e2dad743a46e.webp",
+          "v": [
+           "Blue"
+          ]
+         }
         }
        ],
        "keep": [
@@ -615495,6 +615799,17 @@
     }
    },
    {
+    "fetch": "https://api.scryfall.com/cards/collection",
+    "method": "POST",
+    "body": {
+     "identifiers": [
+      {
+       "name": "Hidden Morph"
+      }
+     ]
+    }
+   },
+   {
     "tts": {
      "t": "table",
      "turn": 11,
@@ -615556,7 +615871,14 @@
          "blk": false,
          "atkT": null,
          "blkOf": null,
-         "ty": []
+         "ty": [],
+         "pk": {
+          "n": "Hidden Morph",
+          "f": null,
+          "v": [
+           "Blue"
+          ]
+         }
         }
        ],
        "keep": [
@@ -615645,6 +615967,175 @@
       "vote": null
      }
     }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 11,
+     "step": "main1",
+     "active": "Blue",
+     "activeTurnNo": 1,
+     "priority": "Blue",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "Blue",
+       "slot": "player-0",
+       "name": "Blue",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {
+        "White": 2
+       },
+       "tax": [
+        0
+       ],
+       "library": 87,
+       "handCount": 7,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-22",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-64",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-65",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-36",
+         "ctl": "Blue"
+        },
+        {
+         "id": "engine-card-999",
+         "fd": true,
+         "tap": false,
+         "p": null,
+         "t": null,
+         "dmg": 0,
+         "ctr": {},
+         "att": null,
+         "ctl": "Blue",
+         "atk": false,
+         "blk": false,
+         "atkT": null,
+         "blkOf": null,
+         "ty": [],
+         "pk": {
+          "n": "Hidden Morph",
+          "f": "https://img.klrmngr.com/display/front/a/e/aec3bf9e-2269-ccbf-4a3f-31b1b541c1ac.webp",
+          "v": [
+           "Blue"
+          ]
+         }
+        }
+       ],
+       "keep": [
+        "hand",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "White",
+       "slot": "player-1",
+       "name": "AI 1",
+       "ai": true,
+       "life": 40,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [
+        2
+       ],
+       "library": 86,
+       "handCount": 4,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 84,
+        "label": "turn 11, AI 1's upkeep"
+       },
+       {
+        "id": 82,
+        "label": "turn 10, Blue's second main phase"
+       },
+       {
+        "id": 80,
+        "label": "turn 10, Blue's attacks"
+       },
+       {
+        "id": 78,
+        "label": "turn 10, Blue's main phase"
+       },
+       {
+        "id": 76,
+        "label": "turn 10, Blue's upkeep"
+       },
+       {
+        "id": 74,
+        "label": "turn 9, AI 1's second main phase"
+       },
+       {
+        "id": 70,
+        "label": "turn 9, AI 1's attacks"
+       },
+       {
+        "id": 68,
+        "label": "turn 9, AI 1's main phase"
+       },
+       {
+        "id": 66,
+        "label": "turn 9, AI 1's upkeep"
+       },
+       {
+        "id": 64,
+        "label": "turn 8, Blue's second main phase"
+       },
+       {
+        "id": 62,
+        "label": "turn 8, Blue's attacks"
+       },
+       {
+        "id": 60,
+        "label": "turn 8, Blue's main phase"
+       }
+      ],
+      "vote": null
+     }
+    }
+   },
+   {
+    "writeFile": "image-cache-klrmngr.json.tmp",
+    "bytes": 2844
+   },
+   {
+    "rename": [
+     "image-cache-klrmngr.json.tmp",
+     "image-cache-klrmngr.json"
+    ]
    }
   ],
   "result": [
@@ -618857,6 +619348,9 @@
        "name": "Swamp"
       },
       {
+       "name": "Gudul Lurker"
+      },
+      {
        "name": "Fatal Blow"
       },
       {
@@ -619006,7 +619500,14 @@
          "blk": false,
          "atkT": null,
          "blkOf": null,
-         "ty": []
+         "ty": [],
+         "pk": {
+          "n": "Gudul Lurker",
+          "f": null,
+          "v": [
+           "Blue"
+          ]
+         }
         }
        ],
        "graveyard": [
@@ -619435,9 +619936,53 @@
        ],
        "library": 87,
        "handCount": 7,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-22",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-64",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-65",
+         "ctl": "Blue"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-36",
+         "ctl": "Blue"
+        },
+        {
+         "id": "engine-card-985",
+         "fd": true,
+         "tap": false,
+         "p": null,
+         "t": null,
+         "dmg": 0,
+         "ctr": {},
+         "att": null,
+         "ctl": "Blue",
+         "atk": false,
+         "blk": false,
+         "atkT": null,
+         "blkOf": null,
+         "ty": [],
+         "pk": {
+          "n": "Gudul Lurker",
+          "f": "https://img.klrmngr.com/display/front/3/1/317627db-0b14-e736-49a6-3a4d155620a0.webp",
+          "v": [
+           "Blue"
+          ]
+         }
+        }
+       ],
        "keep": [
         "hand",
-        "battlefield",
         "graveyard",
         "exile",
         "command"
@@ -619806,7 +620351,7 @@
    },
    {
     "writeFile": "image-cache-klrmngr.json.tmp",
-    "bytes": 2611
+    "bytes": 2733
    },
    {
     "rename": [
@@ -619823,17 +620368,6 @@
      "t": "gamelog",
      "lines": [
       "Gudul Lurker is turned face up (Blue)"
-     ]
-    }
-   },
-   {
-    "fetch": "https://api.scryfall.com/cards/collection",
-    "method": "POST",
-    "body": {
-     "identifiers": [
-      {
-       "name": "Gudul Lurker"
-      }
      ]
     }
    },
@@ -619893,131 +620427,6 @@
        ],
        "keep": [
         "hand",
-        "graveyard",
-        "exile",
-        "command"
-       ]
-      },
-      {
-       "color": "White",
-       "slot": "player-1",
-       "name": "AI 1",
-       "ai": true,
-       "life": 40,
-       "status": "playing",
-       "pool": null,
-       "cmdDamage": {},
-       "tax": [
-        2
-       ],
-       "library": 86,
-       "handCount": 4,
-       "hand": null,
-       "keep": [
-        "battlefield",
-        "graveyard",
-        "exile",
-        "command"
-       ]
-      }
-     ],
-     "stack": [],
-     "cards": {
-      "engine-card-985": {
-       "n": "Gudul Lurker",
-       "b": "",
-       "tl": "Creature",
-       "cmc": 0,
-       "ty": [
-        "Creature"
-       ]
-      }
-     },
-     "rewind": {
-      "points": [
-       {
-        "id": 84,
-        "label": "turn 11, AI 1's upkeep"
-       },
-       {
-        "id": 82,
-        "label": "turn 10, Blue's second main phase"
-       },
-       {
-        "id": 80,
-        "label": "turn 10, Blue's attacks"
-       },
-       {
-        "id": 78,
-        "label": "turn 10, Blue's main phase"
-       },
-       {
-        "id": 76,
-        "label": "turn 10, Blue's upkeep"
-       },
-       {
-        "id": 74,
-        "label": "turn 9, AI 1's second main phase"
-       },
-       {
-        "id": 70,
-        "label": "turn 9, AI 1's attacks"
-       },
-       {
-        "id": 68,
-        "label": "turn 9, AI 1's main phase"
-       },
-       {
-        "id": 66,
-        "label": "turn 9, AI 1's upkeep"
-       },
-       {
-        "id": 64,
-        "label": "turn 8, Blue's second main phase"
-       },
-       {
-        "id": 62,
-        "label": "turn 8, Blue's attacks"
-       },
-       {
-        "id": 60,
-        "label": "turn 8, Blue's main phase"
-       }
-      ],
-      "vote": null
-     }
-    }
-   },
-   {
-    "tts": {
-     "t": "table",
-     "turn": 11,
-     "step": "main1",
-     "active": "Blue",
-     "activeTurnNo": 1,
-     "priority": "Blue",
-     "gameOver": false,
-     "winner": null,
-     "players": [
-      {
-       "color": "Blue",
-       "slot": "player-0",
-       "name": "Blue",
-       "ai": false,
-       "life": 30,
-       "status": "playing",
-       "pool": {},
-       "cmdDamage": {
-        "White": 2
-       },
-       "tax": [
-        0
-       ],
-       "library": 87,
-       "handCount": 7,
-       "keep": [
-        "hand",
-        "battlefield",
         "graveyard",
         "exile",
         "command"
@@ -620113,16 +620522,6 @@
       "vote": null
      }
     }
-   },
-   {
-    "writeFile": "image-cache-klrmngr.json.tmp",
-    "bytes": 2733
-   },
-   {
-    "rename": [
-     "image-cache-klrmngr.json.tmp",
-     "image-cache-klrmngr.json"
-    ]
    },
    {
     "wsOpen": "ws://127.0.0.1:9443"
@@ -620245,7 +620644,14 @@
          "blk": false,
          "atkT": null,
          "blkOf": null,
-         "ty": []
+         "ty": [],
+         "pk": {
+          "n": "Gudul Lurker",
+          "f": "https://img.klrmngr.com/display/front/3/1/317627db-0b14-e736-49a6-3a4d155620a0.webp",
+          "v": [
+           "Blue"
+          ]
+         }
         }
        ],
        "graveyard": [
@@ -620987,7 +621393,14 @@
          "blk": false,
          "atkT": null,
          "blkOf": null,
-         "ty": []
+         "ty": [],
+         "pk": {
+          "n": "Gudul Lurker",
+          "f": "https://img.klrmngr.com/display/front/3/1/317627db-0b14-e736-49a6-3a4d155620a0.webp",
+          "v": [
+           "Blue"
+          ]
+         }
         }
        ],
        "graveyard": [
