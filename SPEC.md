@@ -431,8 +431,8 @@ sends the list as one `applyState` directive, and the engine records a restore p
 ## Turn timer and AFK votes (added 2026-10-19)
 
 Status: a turn timer is built (2026-10-30, `mtg timer`), but not this one: it times each decision and takes the safest
-answer at zero, with no vote ([docs/m5-plan.md](docs/m5-plan.md), "Player requests"). The skip vote and the AFK vote
-below are not built.
+answer at zero, with no vote ([docs/m5-plan.md](docs/m5-plan.md), "Player requests"). **The skip vote and the AFK vote
+below were DROPPED on 2026-11-13 (the user: "Drop votes"); they are kept here only as a record.**
 
 - **Turn timer:** an optional per-turn timer. When it runs out the turn is **not** skipped automatically: the other players get a vote ("Skip their turn?"). With a majority, the bridge answers the stalled player's open prompt with its default (pass, no attack, no block) until their turn ends.
 - **AFK vote:** any player can start a vote to mark someone away. With a majority, that player's turns pass automatically (or a Forge AI covers the seat, chosen by the vote) until they press "I'm back" in their panel.
