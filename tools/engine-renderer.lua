@@ -5283,24 +5283,25 @@ engineSounds = engineSounds or {
   wipe_x4 = "https://steamusercontent-a.akamaihd.net/ugc/12703812866224761222/8F7B4507EC055B76100A5BF6966D5C085331E6A8/",
   wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/14531756883241499521/4AB4F03063BBA056EE23C175B621BE4FB228DE58/",
   wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/10603921525270560187/08115EEC453EE7937CD5B34288B696512A190D7D/",
-  -- the Treasure sounds (docs/sounds.md "Treasure", 2026-11-13): made by tools/make-treasure-sounds.js, uploaded
-  -- 2026-11-13, each link matched to its file by the doc's sha256
-  treasure = "https://steamusercontent-a.akamaihd.net/ugc/17824248367881460454/3B2D359381239D6747F3CBF52718D1A3F3CE21C6/",   -- Treasure tokens created
-  treasurespend = "https://steamusercontent-a.akamaihd.net/ugc/13970842037467871805/FDEF1F5E0B2E081CD7A708F320272D17BF04158E/",   -- Treasure tokens leaving the battlefield, sacrificed for mana or not: in place of death
-  treasure_x2 = "https://steamusercontent-a.akamaihd.net/ugc/15868461381369419176/37EBD32BFF46E4DAF374B0584104988D185CAECB/",
-  treasure_x3 = "https://steamusercontent-a.akamaihd.net/ugc/10935892306243320307/BEE92BD0A11A258C2FA0FF1FEA68983ADA9E0704/",
-  treasure_x4 = "https://steamusercontent-a.akamaihd.net/ugc/11162875445695134125/A6F396D35E514BC742C366C3BEEE1659194996FF/",
-  treasure_x6 = "https://steamusercontent-a.akamaihd.net/ugc/15126618132993431564/C6E6DBF4D4EE47F136224E7972454024920586D5/",
-  treasure_x8 = "https://steamusercontent-a.akamaihd.net/ugc/11939821030113657645/9783AB64A5F45AA366F0B04BFA3DE3000BB4F0D9/",
-  treasurespend_x2 = "https://steamusercontent-a.akamaihd.net/ugc/16741179117198945457/332DF84948C8873AA62F99D31CBF2C360C405502/",
-  treasurespend_x3 = "https://steamusercontent-a.akamaihd.net/ugc/16318789669511781064/CD2C89EB01D46E497114BB6B74116E3D3872BB9D/",
-  treasurespend_x4 = "https://steamusercontent-a.akamaihd.net/ugc/14925489419790829503/2018FE8940702D166851E72C4A0C10FDF1DC9B59/",
-  treasurespend_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13940715731990975781/0C9AC369A768637688F4F7B9F8E63C15037DD563/",
-  treasurespend_x8 = "https://steamusercontent-a.akamaihd.net/ugc/9847596886716429556/853FA485628EABEDEBFBBC79BAD5EC2A4BDB311F/",
+  -- the Treasure sounds (docs/sounds.md "Treasure", 2026-11-13): treasure* are the Sack of Gold clips made by
+  -- tools/make-treasure-sounds.js, each link matched to its file by the doc's sha256; treasurespend* are death's own
+  -- links (the user's pick: "permanent removal sound for treasure spent")
+  treasure = "https://steamusercontent-a.akamaihd.net/ugc/12161233116466232436/6A7FB1D65AB33404B56E51CB6824175E9F033E20/",   -- Treasure tokens created
+  treasurespend = "https://steamusercontent-a.akamaihd.net/ugc/11698913979615550185/7F13F2B39D7065CE85AC235B6369A0747F6F712E/",   -- Treasure tokens leaving the battlefield, sacrificed for mana or not: in place of death (death's clip)
+  treasure_x2 = "https://steamusercontent-a.akamaihd.net/ugc/13934984292284700895/CBCA13B5CDBF49D7A8348E9D01D2E05F9E7B5F08/",
+  treasure_x3 = "https://steamusercontent-a.akamaihd.net/ugc/16822922275327521349/EF9DC692360D914E87B7569F77D6DDBC5877566A/",
+  treasure_x4 = "https://steamusercontent-a.akamaihd.net/ugc/9494146362291305358/1CB4631A6477E467F2B4CD5A1CA5B12CB4A7D2DF/",
+  treasure_x6 = "https://steamusercontent-a.akamaihd.net/ugc/12370862888904708022/C76F3899AEEB7B4662B07D143866E49A9E3DBCF8/",
+  treasure_x8 = "https://steamusercontent-a.akamaihd.net/ugc/12440635735839891348/C0500B19C73E5304C629CA93F68D03049034FFF1/",
+  treasurespend_x2 = "https://steamusercontent-a.akamaihd.net/ugc/16160518566392322538/3D6776DCCE5662B172CD4184F6344747B424BB5D/",
+  treasurespend_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11242284143342103969/869EFC92C49790389FF0AC51C65A2932903FAE7E/",
+  treasurespend_x4 = "https://steamusercontent-a.akamaihd.net/ugc/14108423383041101533/2B7557832A1D8B69BE205F1FA054FD5985C9243C/",
+  treasurespend_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13804901690921610856/0E73D20BEA8004922AC93B72FBC240863778E6D3/",
+  treasurespend_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17462850133371665419/F8E3B2BB340E54993FC37392890ACC457FB1485B/",
 }
 -- each clip's length in seconds, where it isn't 2 (docs/sounds.md: every clip is padded to at least 2 s; a clip is
 -- paused just before its length runs out, engineSoundPlay)
-engineSoundLen = engineSoundLen or { exile_x6 = 2.04, exile_x8 = 2.25, lifegain_x8 = 2.25, bighit_x8 = 2.2, sorcery = 2.4, treasure_x6 = 2.1, treasure_x8 = 2.3 }
+engineSoundLen = engineSoundLen or { exile_x6 = 2.04, exile_x8 = 2.25, lifegain_x8 = 2.25, bighit_x8 = 2.2, sorcery = 2.4, treasure = 2.2, treasure_x2 = 2.2, treasure_x3 = 2.5, treasure_x4 = 2.5, treasure_x6 = 2.7, treasure_x8 = 3.0 }
 -- the sound kinds, most important first: one sound per board, the first of these on it that has a pick
 engineSoundKinds = { "knockout", "wipe", "bighit", "death", "exile", "countered", "playerhit", "damage", "lifegain", "treasure", "treasurespend", "sorcery", "instant", "counter" }
 engineSoundsMuted = false -- the host's switch for the whole table

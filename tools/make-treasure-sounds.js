@@ -1,29 +1,27 @@
-// Makes the table's Treasure sounds (docs/sounds.md, "Treasure", 2026-11-13): `treasure` (Treasure tokens created) from
-// "Purchasing Sound Effect" by Spring Spring, and `treasurespend` (Treasure tokens leaving the battlefield, mostly
-// sacrificed for mana) from "12 Coin Sound Effects" by StarNinjas, both CC0 on OpenGameArt, with their bursts x2 x3 x4
-// x6 x8. Every step has fixed parameters (no randomness, no measured value that isn't the output of an earlier fixed
-// step), so a run on the same sources with the same ffmpeg makes the same files, byte for byte (the sha256s in
-// docs/sounds.md).
+// Makes the table's Treasure-made sound (docs/sounds.md, "Treasure"): `treasure` (Treasure tokens created) from "Sack of
+// Gold" by Amarikah (CC0, OpenGameArt; the user's pick of 2026-11-13, replacing the first day's purchase jingle), with
+// its bursts x2 x3 x4 x6 x8. `treasurespend` has no files of its own since then: it plays the death sound (the user:
+// "permanent removal sound for treasure spent"), so its links in tools/engine-renderer.lua are death's.
+// Every step has fixed parameters (no randomness, no measured value that isn't the output of an earlier fixed step), so
+// a run on the same source with the same ffmpeg makes the same files, byte for byte (the sha256s in docs/sounds.md).
 //   node tools/make-treasure-sounds.js [srcDir] [outDir] [uploadDir] [workDir]
-//   defaults: assets/sounds/treasure, assets/sounds/tts, tmp/upload4, tmp/sounds-treasure-work (all gitignored)
-// srcDir holds snd_purchase.wav and coins/coin.1.ogg .. coin.12.ogg. FFMPEG overrides the path to ffmpeg.exe.
+//   defaults: assets/sounds/treasure2, assets/sounds/tts, tmp/upload5, tmp/sounds-treasure-work (all gitignored)
+// srcDir holds gold_sack.wav. FFMPEG overrides the path to ffmpeg.exe.
 //
 // The recipe (docs/sounds.md):
 // - decoded to 44.1 kHz stereo and low-passed at 18.6 kHz (libmp3lame at 192 kbps keeps nothing above it, so what is
 //   levelled is what the mp3 keeps); trimmed from the first sample over -60 dBFS to the end of the last 10 ms over
 //   -60 dBFS RMS;
 // - levelled by loudness, on the mp3: its loudest 400 ms (EBU R128 momentary) at -13 LUFS, about the median of the
-//   table's other single sounds (-11.0 to -15.0, median -12.6; a short clink is heard by its loudest moment, not its
-//   average), with peaks limited to stay under -1 dBFS, but never by more than LIMIT_MAX (a sound whose loudness is all
-//   in a few hits, as the purchase jingle's, stays quieter instead of losing its hits); then an 80 ms fade-out. (Not
-//   the -20 dBFS RMS of the older sounds: that would take 8 dB of limiting off the jingle's hits);
-// - the bursts: N copies stacked about 110 ms (treasure) or 80 ms (treasurespend) apart with the same fixed timing
-//   jitter as the 2026-11-11 bursts, each 1 dB quieter than the one before, leaning alternately left and right; the
-//   treasure copies are each pitched a little (PITCH), the treasurespend copies are N different coins (COINS); then
-//   scaled so the mp3's peak is under -1 dBFS (no limiter);
+//   table's other single sounds (-11.0 to -15.0, median -12.6), with peaks limited to stay under -1 dBFS, but never by
+//   more than LIMIT_MAX (a sound whose loudness is all in a few hits stays quieter instead of losing its hits); then an
+//   80 ms fade-out;
+// - the bursts: N copies stacked about 110 ms apart with the same fixed timing jitter as the 2026-11-11 bursts, each
+//   1 dB quieter than the one before, leaning alternately left and right, each pitched a little (PITCH) so the pile
+//   doesn't comb; then scaled so the mp3's peak is under -1 dBFS (no limiter);
 // - TTS's recipe: padded with silence to at least 2 s (longer when the sound needs it: the table pauses a clip 0.25 s
 //   before its length, so a file is at least the sound + 0.25 s), libmp3lame 192 kbps, 44.1 kHz, ID3v2.3, title
-//   "MTG effect <name>".
+//   "MTG effect <name>". Files are named mtg3-* (the mtg2-treasure* names are the first day's uploads).
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
@@ -31,9 +29,9 @@ const crypto = require("crypto");
 
 const ROOT = path.join(__dirname, "..");
 const FF = process.env.FFMPEG || "C:/Users/you/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.2-full_build/bin/ffmpeg.exe";
-const srcDir = process.argv[2] || path.join(ROOT, "assets", "sounds", "treasure");
+const srcDir = process.argv[2] || path.join(ROOT, "assets", "sounds", "treasure2");
 const outDir = process.argv[3] || path.join(ROOT, "assets", "sounds", "tts");
-const uploadDir = process.argv[4] || path.join(ROOT, "tmp", "upload4");
+const uploadDir = process.argv[4] || path.join(ROOT, "tmp", "upload5");
 const work = process.argv[5] || path.join(ROOT, "tmp", "sounds-treasure-work");
 for (const d of [outDir, uploadDir, work]) fs.mkdirSync(d, { recursive: true });
 
@@ -43,8 +41,7 @@ const PEAK_MAX = -1; // dBFS, on the mp3
 const LIMIT_MAX = 6; // dB of limiting at most, on a sound's loudest peak (bighit had 5.8, the most of the 2026-11-12 sounds)
 const BURSTS = [2, 3, 4, 6, 8];
 const JITTER = [0, 0.18, -0.12, 0.22, -0.2, 0.1, -0.06, 0.15, -0.24, 0.05, 0.2, -0.15]; // (the 2026-11-11 bursts' table)
-const PITCH = [0, 0.6, -0.5, 1.1, -0.9, 0.3, -1.3, 0.9]; // semitones, the k-th treasure copy
-const COINS = [1, 9, 2, 11, 3, 7, 8, 10]; // the treasurespend copies (coin.N.ogg), loudest first; the first is the single sound
+const PITCH = [0, 0.6, -0.5, 1.1, -0.9, 0.3, -1.3, 0.9]; // semitones, the k-th copy
 
 const ff = (args) => {
   const r = spawnSync(FF, ["-hide_banner", "-y", ...args], { encoding: "utf8", maxBuffer: 1 << 26 });
@@ -85,8 +82,7 @@ const trim = (s) => {
   return { L: s.L.slice(a, b), R: s.R.slice(a, b) };
 };
 // a file's loudness (EBU R128: M, the loudest 400 ms, and I, integrated; LUFS) and sample peak (dBFS). (Padded with a
-// second of silence first: R128 measures in 400 ms blocks, so a coin shorter than one would have none; silent blocks
-// are gated out of I)
+// second of silence first: R128 measures in 400 ms blocks; silent blocks are gated out of I)
 const measure = (file) => {
   const e = spawnSync(FF, ["-hide_banner", "-i", file, "-af", "apad=pad_dur=1,ebur128", "-f", "null", "-"], { encoding: "utf8" });
   const I = Number(((e.stderr.match(/I:\s*(-?[\d.]+) LUFS/g) || []).pop() || "").replace(/[^\d.-]/g, ""));
@@ -162,33 +158,20 @@ const done = (file, info) => {
 };
 const LP = "lowpass=f=18600";
 
-// treasure: the purchase jingle
-const jingle = level("treasure", trim(decode(path.join(srcDir, "snd_purchase.wav"), LP)));
-const single = (name, lv) => {
-  const out = path.join(outDir, `mtg2-${name}.mp3`);
-  mp3(lv.wav, out, "", padFor(lv.sound), `MTG effect ${name}`);
-  done(out, { sound: +lv.sound.toFixed(3), pad: padFor(lv.sound), gainDb: +lv.gain.toFixed(2), ceilingDb: +lv.ceil.toFixed(2), limitedDb: +lv.limited.toFixed(1), ...measure(out) });
-};
-single("treasure", jingle);
+// treasure: the sack of gold
+const sack = level("treasure", trim(decode(path.join(srcDir, "gold_sack.wav"), LP)));
+const out1 = path.join(outDir, "mtg3-treasure.mp3");
+mp3(sack.wav, out1, "", padFor(sack.sound), "MTG effect treasure");
+done(out1, { sound: +sack.sound.toFixed(3), pad: padFor(sack.sound), gainDb: +sack.gain.toFixed(2), ceilingDb: +sack.ceil.toFixed(2), limitedDb: +sack.limited.toFixed(1), ...measure(out1) });
 const pitched = PITCH.map((st, k) => {
-  if (st === 0) return jingle.samples;
+  if (st === 0) return sack.samples;
   const f = path.join(work, `treasure-pitch${k}.wav`);
-  ff(["-i", jingle.wav, "-af", `asetrate=${Math.round(RATE * Math.pow(2, st / 12))},aresample=${RATE}`, "-c:a", "pcm_f32le", f]);
+  ff(["-i", sack.wav, "-af", `asetrate=${Math.round(RATE * Math.pow(2, st / 12))},aresample=${RATE}`, "-c:a", "pcm_f32le", f]);
   return decode(f);
 });
 for (const n of BURSTS) {
-  const out = path.join(outDir, `mtg2-treasure-x${n}.mp3`);
+  const out = path.join(outDir, `mtg3-treasure-x${n}.mp3`);
   const b = burstMp3(`treasure-x${n}`, stack(pitched.slice(0, n), 110), out);
   done(out, { sound: +b.sound.toFixed(3), pad: b.pad, scaleDb: +b.scale.toFixed(2), ...b.measured });
 }
-
-// treasurespend: a coin clink, the bursts N different coins
-const coins = COINS.map((c) => level(`coin${c}`, trim(decode(path.join(srcDir, "coins", `coin.${c}.ogg`), LP))));
-single("treasurespend", coins[0]);
-for (const n of BURSTS) {
-  const out = path.join(outDir, `mtg2-treasurespend-x${n}.mp3`);
-  const b = burstMp3(`treasurespend-x${n}`, stack(coins.slice(0, n).map((c) => c.samples), 80), out);
-  done(out, { sound: +b.sound.toFixed(3), pad: b.pad, scaleDb: +b.scale.toFixed(2), ...b.measured });
-}
-report.coins = Object.fromEntries(coins.map((c, k) => [`coin.${COINS[k]}`, { sound: +c.sound.toFixed(3), gainDb: +c.gain.toFixed(2), limitedDb: +c.limited.toFixed(1), M: c.measured.M, I: c.measured.I }]));
 console.log(JSON.stringify(report, null, 2));

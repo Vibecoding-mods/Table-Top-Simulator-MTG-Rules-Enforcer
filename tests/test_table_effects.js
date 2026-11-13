@@ -792,9 +792,13 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   ok("treasure: the shipped table has the 12 Treasure links (uploaded 2026-11-13)", tKeys.length === 12 && tKeys.every((k) => String(sh.shipped[k]).startsWith("https://steamusercontent-a.akamaihd.net/ugc/")), JSON.stringify(tKeys));
   // the clips' lengths: each file of the doc's Treasure table longer than 2 s has its length in engineSoundLen
   const doc = require("fs").readFileSync(require("path").join(__dirname, "..", "docs", "sounds.md"), "utf8");
-  const files = [...doc.matchAll(/^\| mtg2-(treasure(?:spend)?)(?:-x(\d+))?\.mp3 \| [\d.]+ s \| ([\d.]+) s \(/gm)].map((m) => ({ key: m[1] + (m[2] ? "_x" + m[2] : ""), len: Number(m[3]) }));
-  ok("treasure: the doc's Treasure table lists the 12 files", files.length === 12 && new Set(files.map((f) => f.key)).size === 12, JSON.stringify(files));
+  const files = [...doc.matchAll(/^\| mtg3-(treasure)(?:-x(\d+))?\.mp3 \| [\d.]+ s \| ([\d.]+) s \(/gm)].map((m) => ({ key: m[1] + (m[2] ? "_x" + m[2] : ""), len: Number(m[3]) }));
+  ok("treasure: the doc's Treasure table lists the 6 Sack of Gold files", files.length === 6 && new Set(files.map((f) => f.key)).size === 6, JSON.stringify(files));
   ok("treasure: each file over 2 s has its length in engineSoundLen, the others none", files.every((f) => (f.len > 2 ? sh.len[f.key] === f.len : sh.len[f.key] === undefined)), JSON.stringify({ files, len: sh.len }));
+  // (the user's pick, 2026-11-13: Treasure spent plays the death sound, so its plain link and bursts are death's)
+  const spendKeys = ["", "_x2", "_x3", "_x4", "_x6", "_x8"];
+  ok("treasurespend: its 6 links are death's own", spendKeys.every((x) => sh.shipped["treasurespend" + x] && sh.shipped["treasurespend" + x] === sh.shipped["death" + x]) && spendKeys.every((x) => sh.len["treasurespend" + x] === undefined),
+    JSON.stringify(spendKeys.map((x) => [sh.shipped["treasurespend" + x], sh.shipped["death" + x]])));
 }
 
 // the instant and sorcery sounds play on the resolve, not the cast (2026-11-12, the user: "only play if not countered"):
