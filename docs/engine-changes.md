@@ -69,7 +69,7 @@ outer repo's `engine/manabrew.patch` history (`git -C mtg-tts log -- engine/mana
 ## 2. Pending / in progress (2026-11-12)
 
 Nothing in progress. The three branches listed here earlier (card flags, game state, damage events) are committed,
-merged as `engine-1112` and built as `engine1112`, **not deployed** (section 4).
+merged as `engine-1112` and built as `engine1112`, **deployed 2026-11-12 ~22:25** with main `f66ba5e` (section 4).
 
 ## 3. Summary table (newest first)
 
@@ -79,7 +79,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
-| 2026-11-12 20:03 / 20:07 | `engine1112` (`0306d683de26` / `58cf2e3da251`) | Per-permanent card flags; effects, delayed triggers, storm and per-turn counts in the view; damage events in the feed | Node needed; relay optional (the old relay passes the new fields, proved live) | mb-wt-merge `86b9279`, `6b6d362`, `8fac2bb`, merge `ecf76ab`; no compile fix needed | **not deployed** | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) |
+| 2026-11-12 20:03 / 20:07 | `engine1112` (`0306d683de26` / `58cf2e3da251`) | Per-permanent card flags; effects, delayed triggers, storm and per-turn counts in the view; damage events in the feed | Node needed; relay optional (the old relay passes the new fields, proved live) | mb-wt-merge `86b9279`, `6b6d362`, `8fac2bb`, merge `ecf76ab`; no compile fix needed | **deployed 2026-11-12** (main `f66ba5e`, table `01875e13`, save `30d57321`) | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) |
 | 2026-11-12 05:02 / 05:05 | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) = `:exile` now | Dungeon rooms and Planechase in the view; dungeon, initiative, planeswalk, chaos fix ops | Both | mb-pc `5356a42`, `62ac39e`, `4753e36`; outer `96e2c4c`, `044f77e`, `f46b12c` (bridge) | 2026-11-12 ~05:50, main `3ae38c3` | `batch1112` (`00d0a4d243ed` / `e6156e135032`) |
 | 2026-11-12 03:39 / 02:59 | `batch1112` (`00d0a4d243ed` / `e6156e135032`) | Attack taxes, refusals and limits sent; defender choice names the attacker; draw and mill fix ops; mill triggers | Both | `a7d187a`, `efde6c7`, `6c06a04`, `5a13c18`, `30bd56e`, `ba5ad41`; outer `248165d`, `8d496c4`, `f44b8a4`, `153a6fc` | 2026-11-12 ~04:00, main `dd9f12c` | `walker` node (`c9295fcc7e1c`), relay `exile` as before (`dbfe69213fff`) |
 | 2026-11-11 14:12 | `walker` (`c9295fcc7e1c`) | Debug-created planeswalker or battle enters with its printed loyalty or defense | Node only | outer `8fb86e6`; mb-pc sync `f8068c5` | 2026-11-11 14:40, main `bff272c` | `bugs1111` (`d718c138b924`) |
@@ -142,7 +142,7 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
 
-### 2026-11-12 engine1112: card flags, effects, delayed triggers, damage events (not deployed)
+### 2026-11-12 engine1112: card flags, effects, delayed triggers, damage events (deployed)
 - **Problem:** the table guessed several per-permanent states (monstrous, saddled, paired, "can't attack/block") from
   text or counters. It could not show continuous effects (Fog, Teferi's Protection) or delayed triggers (unearth's exile,
   Sneak Attack's sacrifice), had no storm count, and the feed reported no damage.
@@ -182,7 +182,11 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
     when:"end step", hostCardId/cardIds: the zombie, controllerId}`.
   - Fleecemane Lion's monstrosity: `monstrous: true`.
   - The other seat sees all of them.
-- **Deploy:** **not deployed yet.** `node tools/deploy.js --image engine1112` (TTS closed, no game) would retag both images. The
+- **Deployed 2026-11-12 ~22:25** with main `f66ba5e` (the four readability merges, the table-side display of these fields, and the
+  particle-effects wiring): engine node `0306d683de26`, relay `58cf2e3da251`, table `01875e13`, save `30d57321` (old save backed up as
+  `tmp/backup/TS_Save_1.f0c9f91e.json`). Two deploy gates needed fixes first: `test_table_map` (the new fields mapped, `15e15ec`) and
+  `live_events_check` (a destroyed token now reads "is destroyed by Doom Blade", `f66ba5e`). Not yet seen in real TTS.
+- **Deploy (as planned):** `node tools/deploy.js --image engine1112` (TTS closed, no game) retags both images. The
   relay swap is optional, because the old relay carries every new field. The deploy gate `tests/test_table_map.js` reads the protocol's `game/mod.rs`, so
   the deploy needs `MTG_MANABREW=tmp/mb-wt-merge` (batch 2 used `tmp/mb-pc`). That tree has the new fields; `mb-pc` and the
   shared `manabrew` checkout don't. The bridge does not read the new fields yet.
