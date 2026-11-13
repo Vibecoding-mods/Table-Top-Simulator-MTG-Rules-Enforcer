@@ -29,6 +29,8 @@ Since that day, only a track of the players' own that is *playing* holds off the
 | mtg-playerhit.mp3 | 1 to 5 damage to a player (`playerhit`, 2026-11-12) | 0.85 s | player damage from pingorbolts pells.ogg | https://steamusercontent-a.akamaihd.net/ugc/17427026780177468511/DC419EEC5FE59459E3F2417452DDE9E381380D0F/ |
 | mtg-bighit.mp3 | one hit of more than 5, to a player or a creature (`bighit`, 2026-11-12) | 1.14 s | Damage from anything over 5.ogg | https://steamusercontent-a.akamaihd.net/ugc/13928224574378758506/BFC535CE502EC967E020203AE6E1CAA2A68E703C/ |
 | mtg-sorcery.mp3 | a sorcery resolves (not when it is cast, countered, fizzles or is a copy), sorceries only (`sorcery`, 2026-11-12; remade that night, "Sorcery remake" below) | 2.22 s | qubodup-PowerDrain.flac, reversed, 3x faster, then half speed at the same pitch, with our pop and crackle (uploaded as mtg3-sorcery.mp3) | https://steamusercontent-a.akamaihd.net/ugc/13241084417049183126/BB800BB0A8D05F14C238A0B03A137A70148E6B41/ |
+| mtg-treasure.mp3 | Treasure tokens created (`treasure`, 2026-11-13; "Treasure" below) | 1.21 s | snd_purchase.wav, levelled (uploaded as mtg2-treasure.mp3) | https://steamusercontent-a.akamaihd.net/ugc/17824248367881460454/3B2D359381239D6747F3CBF52718D1A3F3CE21C6/ |
+| mtg-treasurespend.mp3 | Treasure tokens leaving the battlefield, sacrificed for mana or not, in place of death (`treasurespend`, 2026-11-13) | 0.45 s | coin.1.ogg, levelled (uploaded as mtg2-treasurespend.mp3) | https://steamusercontent-a.akamaihd.net/ugc/13970842037467871805/FDEF1F5E0B2E081CD7A708F320272D17BF04158E/ |
 
 Every kind has a link since 2026-11-12. The upload of that day (the five 2026-11-12 kinds, knockout, the louder death and instant, the bursts below) has not been heard in TTS yet. Details: "Counter and knockout" and "Added and changed 2026-11-12" below.
 
@@ -83,6 +85,16 @@ and checked by sha256 the same way.
 | mtg-wipe-x4.mp3 | wipe | 4 | https://steamusercontent-a.akamaihd.net/ugc/12703812866224761222/8F7B4507EC055B76100A5BF6966D5C085331E6A8/ |
 | mtg-wipe-x6.mp3 | wipe | 6 | https://steamusercontent-a.akamaihd.net/ugc/14531756883241499521/4AB4F03063BBA056EE23C175B621BE4FB228DE58/ |
 | mtg-wipe-x8.mp3 | wipe | 8 | https://steamusercontent-a.akamaihd.net/ugc/10603921525270560187/08115EEC453EE7937CD5B34288B696512A190D7D/ |
+| mtg-treasure-x2.mp3 | treasure | 2 | https://steamusercontent-a.akamaihd.net/ugc/15868461381369419176/37EBD32BFF46E4DAF374B0584104988D185CAECB/ |
+| mtg-treasure-x3.mp3 | treasure | 3 | https://steamusercontent-a.akamaihd.net/ugc/10935892306243320307/BEE92BD0A11A258C2FA0FF1FEA68983ADA9E0704/ |
+| mtg-treasure-x4.mp3 | treasure | 4 | https://steamusercontent-a.akamaihd.net/ugc/11162875445695134125/A6F396D35E514BC742C366C3BEEE1659194996FF/ |
+| mtg-treasure-x6.mp3 | treasure | 6 | https://steamusercontent-a.akamaihd.net/ugc/15126618132993431564/C6E6DBF4D4EE47F136224E7972454024920586D5/ |
+| mtg-treasure-x8.mp3 | treasure | 8 | https://steamusercontent-a.akamaihd.net/ugc/11939821030113657645/9783AB64A5F45AA366F0B04BFA3DE3000BB4F0D9/ |
+| mtg-treasurespend-x2.mp3 | treasurespend | 2 | https://steamusercontent-a.akamaihd.net/ugc/16741179117198945457/332DF84948C8873AA62F99D31CBF2C360C405502/ |
+| mtg-treasurespend-x3.mp3 | treasurespend | 3 | https://steamusercontent-a.akamaihd.net/ugc/16318789669511781064/CD2C89EB01D46E497114BB6B74116E3D3872BB9D/ |
+| mtg-treasurespend-x4.mp3 | treasurespend | 4 | https://steamusercontent-a.akamaihd.net/ugc/14925489419790829503/2018FE8940702D166851E72C4A0C10FDF1DC9B59/ |
+| mtg-treasurespend-x6.mp3 | treasurespend | 6 | https://steamusercontent-a.akamaihd.net/ugc/13940715731990975781/0C9AC369A768637688F4F7B9F8E63C15037DD563/ |
+| mtg-treasurespend-x8.mp3 | treasurespend | 8 | https://steamusercontent-a.akamaihd.net/ugc/9847596886716429556/853FA485628EABEDEBFBBC79BAD5EC2A4BDB311F/ |
 
 ## Counter and knockout (made 2026-11-11; knockout uploaded 2026-11-12)
 
@@ -224,7 +236,7 @@ The file is longer than 2 s, so `engineSoundLen.sorcery = 2.4`: the table pauses
 (`mtg-fx2.unity3d`, `mtg-bolt.unity3d`); the link was downloaded back and matched by sha256. The old `mtg2-sorcery.mp3`
 link stays on the Cloud, unused. Licence: still qubodup's CC-BY-SA 3.0 (the swell); the pop and crackle are ours.
 
-## Treasure (made 2026-11-13, not uploaded yet)
+## Treasure (made and uploaded 2026-11-13)
 
 The user: "I want some sounds for treasure tokens". Two kinds, each with bursts x2 x3 x4 x6 x8:
 
@@ -237,7 +249,9 @@ Still one sound per board (`engineSoundKinds`, `docs/m5-effects-design.md` secti
 treasurespend** > sorcery > instant > counter, so a creature dying, an exile or a hit on the same board wins, and a
 spell that makes Treasures plays the jingle rather than its sorcery or instant sound. The table reads a Treasure from
 the board (`FX.isTreasure`, `tools/engine-renderer.lua`: the card's `tok` and its `tl` type line, "Artifact — Treasure";
-by Forge's name "Treasure Token" only when there is no type line); the bridge is unchanged. The visuals are unchanged:
+by Forge's name "Treasure Token" only when there is no type line). Only tokens count: a non-token artifact with the
+Treasure subtype (a card that becomes a copy of one, say) is left to the usual death sound, since Treasures are almost
+always tokens and `tok` is what keeps a creature-land or animated artifact out; the bridge is unchanged. The visuals are unchanged:
 a Treasure spent still gets its death smoke (and, 3 or more with the effect bundle, the wipe wave).
 
 **How they were made**: `node tools/make-treasure-sounds.js` (sources in `assets/sounds/treasure/`, gitignored with
@@ -281,11 +295,10 @@ WinGet) makes the same files byte for byte (checked: two runs, the same 12 sha25
 does: their later coins are shorter.) `treasure-x6` and `treasure-x8` are longer than 2 s: `engineSoundLen.treasure_x6
 = 2.1` and `treasure_x8 = 2.3` (`tests/test_table_effects.js` checks them against this table).
 
-**The links: not yet.** `engineSounds.treasure`, `treasurespend`, `treasure_x2..x8` and `treasurespend_x2..x8` are nil
-(silent) in `tools/engine-renderer.lua`. To do: upload the 12 files of `tmp/upload4` (TTS → Modding → Cloud Manager),
-download each link back and match it to its file by the sha256 above, fill in `engineSounds`, add the rows to the first
-two tables (and the counts the tests check there: 12 plain links, 34 bursts), deploy, then as the host `mtg sounds
-test treasure`, `treasurespend`, `treasure 8`, `treasurespend 3`.
+**The links** (uploaded 2026-11-13 through TTS's Cloud Manager; each link downloaded back and matched to its file by the
+sha256 above): in `engineSounds` in `tools/engine-renderer.lua` and in the first two tables above (as
+`mtg-treasure*.mp3` rows; the files are the mtg2- ones). After a deploy, check as the host with `mtg sounds test
+treasure`, `treasurespend`, `treasure 8`, `treasurespend 3`.
 
 ## Licences and sources (checked 2026-11-11)
 
