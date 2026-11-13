@@ -38,6 +38,17 @@ const script = scripts.length ? scripts[0][2] : "";
   ok("static: every id the script looks up is in the page", used.length > 20 && missing.length === 0, missing.join(","));
   ok("static: the hint paragraph has no aria-label (a label hides its text from readers)", /<p class='hint' id='hint'>/.test(html));
   ok("static: the token meta has the id the script reads", /<meta id='mtg-token' name='mtg-token' content='[0-9a-f]{32}'>/.test(html));
+  const tags = [...html.matchAll(/<(button|select|input|textarea|summary)\b([^>]*)>/g)];
+  ok("static: every control in the page has an id (so the script gives it a tooltip)", tags.length >= 14 && tags.every((t) => /\sid='[^']+'/.test(t[2])), tags.filter((t) => !/\sid='/.test(t[2])).map((t) => t[0]).join(" "));
+  ok("static: the tooltip box and the describedby holder are there, the box hidden from readers", /<div class='tip' id='tip' aria-hidden='true' hidden>/.test(html) && /<div id='tipdefs' hidden><\/div>/.test(html));
+  ok("static: no native title tooltips anywhere (one styled tooltip for all)", !/\stitle='/.test(html) && !/(?<!doc)\.title\s*=/.test(script));
+  const moving = html.split("\n").filter((l) => /animation:|transition:/.test(l));
+  ok("static: animations and transitions only when the reader allows motion", moving.length >= 4 && moving.every((l) => l.startsWith("@media (prefers-reduced-motion: no-preference)")), moving.filter((l) => !l.startsWith("@media")).join("\n"));
+  // (tools/make-friend-package-unix.js ships this page as companion/page.html and refuses unreadable files; the
+  // Linux/Mac companion swaps its one Windows-only sentence and checks that no other '.exe' is left)
+  ok("static: readable as shipped: no line over 1000 characters, no base64 run", html.split("\n").every((l) => l.length <= 1000) && !/[A-Za-z0-9+/]{200,}={0,2}/.test(html));
+  ok("static: the only '.exe' is the down banner's sentence the Linux/Mac companion replaces", html.split(".exe").length === 2 && html.includes("Start MTG Companion.exe again."));
+  ok("static: icons are drawn here (data: SVGs), nothing from outside", !/url\((?!'data:)/.test(html));
 }
 
 // ───────────────────────────── a stub DOM built from the page's ids ─────────────────────────────
@@ -56,7 +67,16 @@ class El {
   appendChild(c) { this.children.push(c); c.parent = this; return c; }
   addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); }
   click() { (this.listeners.click || []).forEach((f) => f()); }
+  fire(t, ev) { (this.listeners[t] || []).forEach((f) => f(ev || {})); }
 }
+// every element under the given roots (the page's own and the ones the script made), once each
+function allEls(roots) {
+  const seen = new Set(), out = [];
+  const walk = (e) => { if (!e || seen.has(e)) return; seen.add(e); out.push(e); (e.children || []).forEach(walk); };
+  roots.forEach(walk);
+  return out;
+}
+const CONTROLS = new Set(["button", "select", "input", "textarea", "summary"]);
 
 function makeDom() {
   const byId = {};
@@ -174,6 +194,19 @@ ok("vm: the script defines MtgPage without a document (and starts nothing)", P &
   same("vm: game on: the locked fix is disabled with the lock sentence (title and label)", [gb.disabled, gb.locked, gb.title, gb.aria], [true, true, LOCK, `Restart relay and room (Engine stack). ${LOCK}`]);
   same("vm: game on: Restart engine disabled, the lock sentence as its title and label", [g.menu[0].disabled, g.menu[0].locked, g.menu[0].lockText, g.menu[0].aria], [true, true, LOCK, `Restart engine (locked: game on). ${LOCK}`]);
   same("vm: game on: Stop everything stays enabled and carries confirmLocked", [g.menu[1].disabled, g.menu[1].confirmLocked], [false, true]);
+  const NOWL = "\nRight now: ";
+  same("tip: every menu button says what it does, its icon set", g.menu.map((x) => [x.id, x.tip.split(":")[0], !!x.icon]),
+    [["restart-engine", "Restart engine", true], ["stop-everything", "Stop everything", true], ["open-logs", "Open logs folder", true]]);
+  same("tip: game on: Restart engine's tip says it's locked during a game, and why right now", [/Locked while a game is on/.test(g.menu[0].tip), g.menu[0].tip.endsWith(NOWL + LOCK)], [true, true]);
+  same("tip: game on: the locked fix's tip starts with its label and ends with the lock", [gb.tip.startsWith("Restart relay and room: "), gb.tip.endsWith(NOWL + LOCK), gb.icon], [true, true, "restart"]);
+  ok("tip: an unlocked button has no 'Right now' line", g.menu[1].tip.indexOf(NOWL) < 0 && /ends that game for everyone/.test(g.menu[1].tip));
+  ok("tip: Open logs folder names the folder", v.menu[2].tip.endsWith("\nFolder: C:\\pkg\\logs"));
+  const ob2 = status(); ob2.observe = true; ob2.menu[0] = { ...ob2.menu[0], enabled: false, title: "Observe mode: nothing is changed." };
+  ok("tip: observe mode: the locked button says so", P.viewModel(ob2, none).menu[0].tip.endsWith(NOWL + "Observe mode: nothing is changed."));
+  const fx = (fix, label) => P.lightButton({ id: `fix:0:${fix}`, label, locked: false }, "Docker", { down: false, inflight: {} });
+  same("tip: each fix kind its own words and icon", [fx("retry", "Try again"), fx("docker-start", "Start Docker Desktop"), fx("tts-open", "Open TTS"), fx("show-program", "Show the program"), fx("new-thing", "New")].map((x) => [x.tip.split(": ")[0], x.icon]),
+    [["Try again", "restart"], ["Start Docker Desktop", "play"], ["Open TTS", "open"], ["Show the program", "window"], ["New", "wrench"]]);
+  ok("tip: an unknown fix still gets a sentence", fx("new-thing", "New").tip === "New: the companion’s fix for the Docker step.");
   const ct = status(); ct.game = { kind: "cantTell", text: "The bridge is slow.", locked: true, lockText: LOCK };
   const vc = P.viewModel(ct, none);
   same("vm: can't tell: the warn banner", [vc.game.shown, vc.game.cls, vc.game.title], [true, "banner warn", "Can’t tell whether a game is on"]);
@@ -189,6 +222,8 @@ ok("vm: the script defines MtgPage without a document (and starts nothing)", P &
   const fl = P.viewModel(status(), { mode: "ok", inflight: { "restart-engine": true } });
   same("vm: a request in flight: that button busy and disabled, the others not", [fl.menu[0].busy, fl.menu[0].disabled, fl.menu[1].busy, fl.menu[1].disabled], [true, true, false, false]);
   const n0 = P.viewModel(null, none);
+  ok("tip: down: every button's tip says the companion isn't running", d.menu.concat([d.lights[2].button]).every((x) => x.tip.endsWith("\nRight now: The companion isn’t running.")));
+  ok("tip: in flight: waiting for the answer", fl.menu[0].tip.endsWith("\nRight now: sent; waiting for the companion’s answer."));
   same("vm: before the first answer: connecting, six grey rows, no menu", [n0.header.text, n0.lights.length, n0.lights[0].state, n0.lights[0].text, n0.menu.length, n0.footer.updated], ["Connecting…", 6, "grey", "Not checked yet.", 0, ""]);
 
   const u = status();
@@ -211,6 +246,9 @@ ok("vm: the script defines MtgPage without a document (and starts nothing)", P &
   const vd = P.viewModel(ud, none);
   same("vm: downloading: the progress in the title, Check disabled", [vd.update.title, vd.update.text, vd.update.actions[0].disabled], ["Downloading update (40%)", "Downloading app.zip: 40% of 1.0 MB.", true]);
   same("click: a disabled update button says its title, sends nothing", P.clickPlan(vd.update.actions[0], none), { do: "say", text: "Last checked 2026-11-10T12:00:00Z", kind: "warn" });
+  same("tip: a disabled update button says it's busy with an update (not its title), and when it last checked", [vd.update.actions[0].tip.endsWith("\nRight now: an update is being checked, downloaded or installed."), vd.update.actions[0].tip.indexOf("\nLast checked 2026-11-10T12:00:00Z\n") > 0],
+    [true, true]);
+  same("tip: Update now and Later say what they do", [/installs 2 minutes after the game ends/.test(vo.update.actions[0].tip), vo.update.actions[1].tip.startsWith("Later: no reminder"), vo.update.actions.map((a) => a.icon)], [true, true, ["download", "clock", "search"]]);
   same("vm: down: every update button disabled", P.viewModel(uo, { mode: "down", inflight: {} }).update.actions.every((a) => a.disabled), true);
   same("vm: update not an object: no section", [P.updateView("x", { down: false, inflight: {} }), P.updateView(null, { down: false, inflight: {} })], [null, null]);
 }
@@ -400,11 +438,32 @@ function boot(body) {
     await h.clock.advance(0);
     const b = h.rowBtn(2);
     same("shell: game on: the banner", [h.$("game").hidden, h.$("game").className, h.$("game-title").textContent], [false, "banner game", "Game in progress"]);
-    same("shell: game on: the fix drawn locked with the sentence", [b.getAttribute("aria-disabled"), b.title, b.getAttribute("aria-label")], ["true", LOCK, `Restart relay and room (Engine stack). ${LOCK}`]);
+    same("shell: game on: the fix drawn locked with the sentence (its tooltip and label)", [b.getAttribute("aria-disabled"), b.getAttribute("data-tip").endsWith(`\nRight now: ${LOCK}`), b.getAttribute("aria-label")], ["true", true, `Restart relay and room (Engine stack). ${LOCK}`]);
     b.click();
     ok("shell: game on: clicking the locked fix sends nothing, says the lock", h.posts.length === 0 && h.confirms.length === 0 && h.toast() === LOCK, h.toast());
     const restart = h.$("tools").children[0];
-    same("shell: game on: Restart engine drawn disabled", [restart.getAttribute("aria-disabled"), restart.title], ["true", LOCK]);
+    same("shell: game on: Restart engine drawn disabled, its tooltip saying why", [restart.getAttribute("aria-disabled"), restart.getAttribute("data-tip").endsWith(`\nRight now: ${LOCK}`)], ["true", true]);
+    ok("shell: no native title tooltips on the buttons (the page draws its own)", [b, restart].every((x) => x.title === ""));
+    restart.fire("mouseenter");
+    same("tip: hovering a locked button shows the tooltip with why it's locked", [h.$("tip").hidden, h.$("tip-text").textContent.startsWith("Restart engine: stops the bridge"), h.$("tip-now").hidden, h.$("tip-now").textContent],
+      [false, true, false, `Right now: ${LOCK}`]);
+    restart.fire("mouseleave");
+    ok("tip: it stays a moment after the pointer leaves", h.$("tip").hidden === false);
+    await h.clock.advance(250);
+    ok("tip: then hides", h.$("tip").hidden === true);
+    h.$("tools").children[1].fire("focus");
+    same("tip: keyboard focus shows it too; an unlocked button has no 'Right now' line", [h.$("tip").hidden, h.$("tip-text").textContent.startsWith("Stop everything:"), h.$("tip-now").hidden], [false, true, true]);
+    h.$("tools").children[1].fire("blur");
+    ok("tip: blur hides it", h.$("tip").hidden === true);
+    h.$("tools").children[1].fire("focus");
+    h.dom.document.listeners.keydown.forEach((f) => f({ key: "Escape" }));
+    ok("tip: Escape hides it", h.$("tip").hidden === true);
+    restart.fire("mouseenter");
+    restart.fire("mouseleave");
+    h.$("tools").children[1].fire("mouseenter");
+    await h.clock.advance(250);
+    same("tip: moving to the next button shows its tip, not the old one hiding it", [h.$("tip").hidden, h.$("tip-text").textContent.startsWith("Stop everything:")], [false, true]);
+    ok("static: the tooltip lets clicks through, so it never covers the next control", /\.tip \{[^}]*pointer-events: none;/.test(html));
     restart.click();
     ok("shell: game on: clicking Restart engine sends nothing", h.posts.length === 0 && h.toast() === LOCK);
     h.$("tools").children[1].click();
@@ -592,6 +651,48 @@ function boot(body) {
     h.$("tt-mill-btn").click();
     for (let i = 0; i < 4; i++) await flush();
     same("tools: Mill: the debug body", h.posts[1] && h.posts[1].body, { kind: "debug", tool: "mill", color: "White", n: 4 });
+  }
+
+  {
+    // every control the page renders, static or made by the script, has a tooltip a screen reader can reach
+    const s = redFix(status(), false);
+    s.update = { title: "Update available: v2", line: "v2.", actions: [{ id: "update-now", label: "Update now", enabled: true, title: "Downloads and installs v2.", confirm: null, confirmLocked: false },
+      { id: "update-check", label: "Check for updates", enabled: true, title: "Not checked yet.", confirm: null, confirmLocked: false }] };
+    s.menu.push({ id: "wsl-limits", label: "Limit Docker's CPU use…", enabled: true, title: "Optional.", confirm: "Write the limit?", confirmLocked: false });
+    const h = boot(s);
+    h.tools = TOOLS(); h.tools.tools.push("draw", "mill");
+    await h.clock.advance(0);
+    h.$("tablebox").open = true;
+    h.$("tablebox").listeners.toggle.forEach((f) => f());
+    for (let i = 0; i < 4; i++) await flush();
+    const defs = h.$("tipdefs").children;
+    const ctl = allEls(Object.values(h.dom.byId)).filter((e) => CONTROLS.has(e.tagName) && !e.hidden); // (a light's unused button stays hidden)
+    const bad = ctl.filter((e) => {
+      const t = e.getAttribute("data-tip"), d = defs.find((x) => x.id === e.getAttribute("aria-describedby"));
+      return !t || t.length < 20 || !d || d.textContent !== t;
+    });
+    same("tip: every control drawn has a tooltip, read out through aria-describedby", [ctl.length >= 40, bad.map((e) => e.id || `${e.tagName}:${e.textContent || e.getAttribute("aria-label")}`)], [true, []]);
+    const tipOf = (e) => (e && e.getAttribute("data-tip")) || "";
+    const setRed = ctl.find((e) => e.getAttribute("aria-label") === "Set Red");
+    same("tip: each kind starts with its own name (fix, menu, update, seat, debug, toggles, switch)",
+      [tipOf(h.rowBtn(2)), tipOf(h.menuBtn("Limit")), tipOf(h.$("update-actions").children[0]), tipOf(setRed), tipOf(h.$("tt-draw-btn")), tipOf(h.$("tablebox-sum")), tipOf(h.$("logbox-sum")), tipOf(h.$("tt-debug"))].map((t) => t.split(":")[0]),
+      ["Restart relay and room", "Limit Docker’s CPU use", "Update now", "Set Red", "Draw", "Table tools", "Log", "Debug tools"]);
+    ok("tip: tooltip ids are unique", new Set(defs.map((x) => x.id)).size === defs.length && defs.length === allEls(Object.values(h.dom.byId)).filter((e) => e.getAttribute && e.getAttribute("aria-describedby")).length);
+    ok("tip: a seat's controls name the seat", ctl.filter((e) => /^Red: /.test(e.getAttribute("aria-label") || "")).every((e) => /^Red: /.test(e.getAttribute("data-tip"))));
+    const t2 = TOOLS(); t2.debug.on = false; h.tools = t2;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("tip: debug tools off: each tool's tooltip says why it can't be used now", ["mana", "draw"].map((id) => h.$(`tt-${id}-btn`).getAttribute("data-tip").endsWith("\nRight now: Off. Switch them on to change the running game.")), [true, true]);
+    h.toolsFail = true;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("tip: no bridge: the switch's tooltip says why it is greyed out, and shows on hovering its label", [h.$("tt-debug").getAttribute("data-tip").endsWith("\nRight now: The bridge isn’t answering: start the engine first."), (h.$("tt-debug-label").fire("mouseenter"), h.$("tip").hidden), h.$("tip-now").textContent],
+      [true, false, "Right now: The bridge isn’t answering: start the engine first."]);
+    const fixBtn = h.rowBtn(2);
+    fixBtn.fire("mouseenter");
+    h.body = status();
+    await h.clock.advance(2500);
+    ok("tip: a button that goes away takes its open tooltip with it", fixBtn.hidden === true && h.$("tip").hidden === true);
   }
 
   {
