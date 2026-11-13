@@ -485,7 +485,10 @@ earlier spec, not re-checked.
 
 ## 14. Planned but NOT built
 
-Everything here was in the earlier spec or in other specs and has **no code** in `companion/src`:
+Everything here was in the earlier spec or in other specs and has **no code** in `companion/src`.
+
+**DROPPED 2026-11-13** (the user: "Drop the companion extra"): items 1-6 and 8 will not be built. Item 7 is covered by
+the Linux/Mac companion (`companion-node`, merged d0dba68). Items 9-11 are not extras and stay open.
 
 1. **Lights and probes**: WSL cores (the fix button exists only as an optional menu action, not a light), ports as a light,
    GPU resets (`nvlddmkm` events), memory and the HP OMEN process, TTS crash/hang events, TTS loaded-object count and

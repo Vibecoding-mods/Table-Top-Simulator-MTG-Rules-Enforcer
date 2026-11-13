@@ -271,6 +271,7 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 - **AFK vote:** players can vote to mark someone away; their turns then pass, or the AI covers them, until they return.
 - **Status (checked 2026-11-05):** the timer was built differently. `mtg timer` gives each decision a clock plus a time
   bank, and a question that runs out takes its default answer. Neither vote is built.
+- **DROPPED 2026-11-13** (the user: "Drop votes"): the turn-timer skip vote and the AFK vote will not be built.
 
 The first game's original list (9 items) is the done list above. Item 9, engine card support (Forge has sets through
 Star Trek, Nov 2026, so keyword trouble is the table's wording), was covered by the keyword passes and the keyword
@@ -404,7 +405,8 @@ Details per day: `docs/changes-2026-10-31-to-11-05.md`. Everything up to `980aec
 - **Tests:** bridge golden 926 scenarios, `test_bridge_events` 221 checks, both passing.
 - **Being specified 2026-11-05 (open):**
   - ✅ Companion .exe: built (six start lights, browser status page, table tools, friend-package self-update); the spec was rewritten from the code 2026-11-11 (`docs/companion-app-spec.md`, §14 lists what is not built).
-  - ⬜ Own engine: refreshed plan 2026-11-11 (`docs/spec-own-engine.md`); its new Phase 0 (people-only speed, fixes-in-one-place comparison, native engine without Docker) has not started.
+  - ⬜ Own engine: refreshed plan 2026-11-11 (`docs/spec-own-engine.md`); its new Phase 0 (people-only speed, fixes-in-one-place comparison, native engine without Docker) has not started. (The earlier Lua copy engine was tried and closed 2026-11-03: correct but 4.4x slower in TTS with 43 s freezes.)
+  - ❌ Companion extras (`docs/companion-app-spec.md` §14 items 1-6 and 8: extra lights and probes, source-stamp label, /health and /shutdown, Ask the table, bug-report zip, Start with Windows, settings dialog, own-server and Cloud modes, code signing): DROPPED 2026-11-13 (the user: "Drop the companion extra").
   - ✅ Core-moves cleanups: `askUnder`, `trackMarks`, `engineCardEntry` (2026-11-06; askUnder's `clearFollowUps` 2026-11-11).
   - ⬜ M5 step 4: particle effects with sound hooks.
   - ⬜ Planechase plane and dungeon room: engine changes.
