@@ -3921,7 +3921,8 @@ function logEvents(prev, cur, pub, facts = null) {
     const by = Object.values(prev.stack).find((x) => x.ctl === s.ctl && x.id !== s.id && x.sids.length && x.sids.every((sid) => !curSids.has(sid))
       && (FREE_CAST_KEYWORDS.includes(x.kwTrigger) || (/\bwithout paying (?:its|their) mana costs?\b/i.test(`${x.text} ${x.desc}`) && !/\bcast this spell without paying\b/i.test(x.text))));
     if (by) return FREE_CAST_KEYWORDS.includes(by.kwTrigger) ? ` (${by.kwTrigger})` : ` without paying its mana cost (${by.name})`;
-    return was?.zone === "exile" && was.suspend ? " from suspend without paying its mana cost" : "";
+    // (or in no zone on the last board, being cast from suspend: game.suspendLimbo, updateLog)
+    return (was?.zone === "exile" && was.suspend) || (!was && game.suspendLimbo?.has(s.id)) ? " from suspend without paying its mana cost" : "";
   };
   // (and that cast's line when no board showed the copy on the stack: cast and resolved between two boards, an AI's.
   // Its caster is the creature's controller, Forge's MayPlayPlayer$ EffectSourceController; the copy is in the exile of
@@ -5082,6 +5083,13 @@ function updateLog(pub) {
   if (facts?.damage.length) { game.feedDamage = true; (game.fxHits ??= []).push(...facts.damage); }
   if (!prev) return;
   const lines = logEvents(prev, cur, pub, facts);
+  // (a suspended card being cast, in no zone: on the board after its "Cast it" Forge shows it nowhere, its own trigger
+  // still resolving and the spell not yet on the stack, so the board before its cast line had no card to be suspended
+  // in exile; "White casts Rift Bolt targeting AI 1" said nothing of suspend, live check 2026-11-13. Kept, for
+  // freeWords, while the card is in no zone and a stack item of its own is there.)
+  const limbo = (game.suspendLimbo ??= new Set());
+  for (const [id, c] of Object.entries(prev.cards)) if (c.zone === "exile" && c.suspend && !cur.cards[id]) limbo.add(id);
+  for (const id of [...limbo]) if (cur.cards[id] || !(pub.stack || []).some((s) => s.sourceId === id)) limbo.delete(id);
   // (an older engine, no damage entries: the damage the log is certain of, damageNews's)
   if (!game.feedDamage && lines.hits?.length) (game.fxHits ??= []).push(...lines.hits);
   // (the spells countered, for the table's COUNTERED pop-up: see sendTable's ctrd)
