@@ -45,12 +45,13 @@ const PROJECT = "mtg-table"; // the package's compose project: containers mtg-ta
 const IMAGES = { relay: "mtg-relay:exile", node: "mtg-forge-node:exile" };
 // What the bridge reads beside its code (path.join(__dirname, ...) in bridge.js). The image cache is git-ignored and
 // rebuilt from Scryfall when missing, so it is shipped when there is one.
-const BRIDGE_DATA = ["forge-cards.json", "token-scripts.json", "forge-planes.json"];
+const BRIDGE_DATA = ["forge-cards.json", "token-scripts.json", "forge-planes.json", "forge-formats.json"];
 const BRIDGE_CACHE = ["image-cache-klrmngr.json"];
 // The folders of JSON files the bridge reads through home.data(), copied whole (the repo's path = the package's;
 // tests/test_home_paths.js checks every home.data() folder is here or stack/): decks, Manabrew's, "mtg debug" scenarios
 const DATA_DIRS = ["decks", "manabrew/public/preset_decks", "scenarios"];
 const DEFAULT_DECKS_RE = /const DEFAULT_DECKS = (\[[^\]]*\]);/; // the AI's decks when none was chosen (bridge.js)
+const STANDARD_DECKS_RE = /const STANDARD_DECKS = (\[[^\]]*\]);/; // the same in a Standard game
 const TAR = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe"); // Windows' bsdtar writes zips
 
 const sha8 = versions.sha8;
@@ -535,7 +536,8 @@ async function main() {
 
   // the bridge's data, checked before anything is written
   const presetsDir = path.join(ROOT, "manabrew", "public", "preset_decks");
-  const defaults = JSON.parse(DEFAULT_DECKS_RE.exec(fs.readFileSync(path.join(ROOT, "bridge", "bridge.js"), "utf8"))[1]);
+  const bridgeSrc = fs.readFileSync(path.join(ROOT, "bridge", "bridge.js"), "utf8");
+  const defaults = [DEFAULT_DECKS_RE, STANDARD_DECKS_RE].flatMap((re) => JSON.parse(re.exec(bridgeSrc)[1]));
   for (const id of defaults) if (!fs.existsSync(path.join(presetsDir, `${id}.json`)) && !fs.existsSync(path.join(ROOT, "decks", `${id}.json`))) stop(`the AI's default deck ${id} is in neither decks/ nor ${path.relative(ROOT, presetsDir)}`);
   for (const f of BRIDGE_DATA) if (!fs.existsSync(path.join(ROOT, "bridge", f))) stop(`bridge/${f} is missing`);
   const licences = {

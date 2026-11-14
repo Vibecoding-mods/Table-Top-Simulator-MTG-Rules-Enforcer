@@ -792,6 +792,22 @@ function boot(body) {
     ok("bootstrap: listens for the tab coming back", (dom.document.listeners.visibilitychange || []).length === 1);
   }
 
+  {
+    // the backdrop: five blobs follow the pointer by their own share, never more than a quarter window, and all go
+    // home when there is no pointer
+    const home = P.manaDrift(null, null, 1000, 800);
+    same("mana: no pointer: every blob at home, normal size", home, [0, 1, 2, 3, 4].map(() => ({ x: 0, y: 0, s: 1 })));
+    same("mana: a zero-size window counts as no pointer", P.manaDrift(10, 10, 0, 0), home);
+    const mid = P.manaDrift(500, 400, 1000, 800);
+    same("mana: pointer in the middle: the corners lean in, the centre one stays put but grows most",
+      mid.map((b) => [b.x, b.y]), [[110, 88], [-130, 104], [0, 0], [120, -96], [-140, -112]]);
+    ok("mana: the centre blob is the biggest when the pointer is on it", mid[2].s === 1.18 && mid.every((b, i) => i === 2 || b.s < 1.18));
+    const far = P.manaDrift(5000, 5000, 1000, 800);
+    ok("mana: a pointer far outside is clamped to a quarter of the window", far.every((b) => Math.abs(b.x) <= 250 && Math.abs(b.y) <= 200) && far[0].x === 250 && far[0].y === 200);
+    const corner = P.manaDrift(0, 0, 1000, 800);
+    ok("mana: pointer on the white corner: white stays home and grows, the others lean toward it", corner[0].x === 0 && corner[0].y === 0 && corner[0].s === 1.18 && corner[4].x < 0 && corner[4].y < 0);
+  }
+
   process.stdout.write(`${passed} passed, ${failed} failed\n`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.log(`FAIL crashed: ${e && e.stack}`); process.exit(1); });
