@@ -297,6 +297,24 @@ its file by the sha256 above): in `engineSounds` in `tools/engine-renderer.lua` 
 `mtg-treasure*.mp3` rows; the files are the mtg3- ones; the `mtg-treasurespend*.mp3` rows carry death's links). After a
 deploy, check as the host with `mtg sounds test treasure`, `treasurespend`, `treasure 8`, `treasurespend 3`.
 
+## The sound bundle (route B, built 2026-11-13; not uploaded, not heard)
+
+The same sounds as one AssetBundle, `mtg-sounds.unity3d` (1,536,075 bytes, sha256
+`679c7eceda5901bb99975eace4f186a18c82c44aab8389fc5bc1cb816417d662`): a trigger effect per `engineSounds` key (58), each
+the uploaded mp3 of that key with the music player's padding cut off, so it sounds the same through either route. Keys
+sharing a link share a clip (`treasurespend*` = death's), 52 clips. Index with every key's clip, length and link:
+`docs/fx-research/SOUNDS.md`; how it is made: `docs/m5-assetbundle-build.md` section 4, "Built".
+
+- It changes nothing until it is uploaded, its link is in `engineFxBundle.sounds`, and the host sets
+  `engineSoundRoute = "bundle"` (`tools/engine-renderer.lua`; default `"music"`). Then a sound plays as a trigger
+  effect of the table's sound object: no music player (no clip title shown, the players' own music never touched, no
+  1.5 s minimum, no load wait), heard at TTS's sound-effect level, not the Music slider's (to be checked).
+- **A sound changed or added here needs the bundle rebuilt** (`node tools/make-sound-bundle-clips.js`, then the Unity
+  build) and uploaded again: `tests/test_table_effects.js` fails while a key's link isn't the one the bundle was built
+  from. Until then that key plays its link.
+- The licences are the clips' own (below): the bundle carries the same audio as the links, so publishing it is
+  publishing them.
+
 ## Licences and sources (checked 2026-11-11)
 
 The user supplied the six as files, with no source pages (session uploads `Health_gain.aif`,
