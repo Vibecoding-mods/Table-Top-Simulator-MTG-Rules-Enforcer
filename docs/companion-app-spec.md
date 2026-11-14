@@ -318,7 +318,7 @@ nonce CSP with `default-src 'none'` (`WebUi.cs:195-210, 541-549`).
 Dark theme, no CDN or fonts, inline script and style. Layout (`WebPage.cs:126-191`): header with the worst light in words;
 banners (companion not running, busy, page error, **Game in progress**, observe, update); **Start steps** (the six rows: dot, name,
 word, sentence, time, the row's one button); a hint line; **Actions** (the menu: Restart engine, Stop everything, Open logs folder,
-Limit Docker's CPU use…); **Table tools: AI seats and debug tools** (collapsed, §10); a collapsible **Log** tail; a footer with
+Limit Docker's CPU use…); **Table tools: AI seats, debug tools and GIF frames** (collapsed, §10; the GIPHY key box and its "Get a GIPHY key" steps: docs/gif-frames-spec.md); a collapsible **Log** tail; a footer with
 versions. Polls `/api/status` every 2.5 s (30 s in a hidden tab), aborts a poll after 6 s; two misses in a row show "Companion
 busy, retrying", misses past 10 s show "Companion not running"; a stale token reloads the page at most once per 15 s
 (`WebPage.cs:201-204`). Buttons are disabled while their request is in flight. A script error shows a red banner and polling
