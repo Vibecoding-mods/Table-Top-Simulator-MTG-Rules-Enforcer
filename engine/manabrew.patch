@@ -89,7 +89,7 @@ index 54173c6..82d332a 100644
  ## Boundary API discipline
  
 diff --git a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
-index 972f4ae..9a062b9 100644
+index 972f4ae..19b02a0 100644
 --- a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
 +++ b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
 @@ -201,6 +201,9 @@ public final class ActionSpace {
@@ -102,7 +102,7 @@ index 972f4ae..9a062b9 100644
              if (canPayManaWithAnnouncedX(sa, player, reservedSacrifices)) {
                  return true;
              }
-@@ -385,7 +388,14 @@ public final class ActionSpace {
+@@ -385,7 +388,13 @@ public final class ActionSpace {
              if (stackSa == sa || stackSa.getId() == sa.getId()) {
                  continue;
              }
@@ -111,14 +111,13 @@ index 972f4ae..9a062b9 100644
 +            try {
 +                targetable = sa.canTarget(stackSa);
 +            } catch (NullPointerException upstream) {
-+                // Forge's SpellAbility.isValid reads root.getCardState() unguarded; a stack ability without one threw here
 +                targetable = false;
 +            }
 +            if (!targetable) {
                  continue;
              }
              final Card sourceCard = si.getSourceCard();
-@@ -417,6 +427,171 @@ public final class ActionSpace {
+@@ -417,6 +426,171 @@ public final class ActionSpace {
          return reserved;
      }
  
