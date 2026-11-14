@@ -5,7 +5,7 @@
 #          Realtek speakers, so it recorded silence when TTS played on another device, 2026-11-14)
 #   powershell -File tools/record-tts.ps1 <out.mp4> [seconds]
 param([Parameter(Mandatory = $true)][string]$Out, [int]$Seconds = 120)
-$ff = "C:\Users\you\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.2-full_build\bin\ffmpeg.exe"
+$ff = if ($env:FFMPEG) { $env:FFMPEG } else { (Get-Command ffmpeg -ErrorAction Stop).Source } # ffmpeg on PATH, or FFMPEG=<path to ffmpeg.exe>
 $dir = Join-Path $PSScriptRoot "loopback-rec"
 $wav = [IO.Path]::ChangeExtension($Out, ".wav")
 $vid = [IO.Path]::ChangeExtension($Out, ".video.mp4")
