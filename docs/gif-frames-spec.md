@@ -288,3 +288,23 @@ unhandled rejection that would end the bridge.
 **Phase 1 checks done live (above):** (a) MP4 on an Object UI Image, (b) frame time with six playing tiles, (c) save
 and reload, (d) `.webm`. **Not checked:** a second player's client, audio, the frame time on the full 70-80k-object
 table, typing in the search box, the 12 s hold, the GUID fix for `onObjectDestroy`.
+
+## Fixes and additions (2026-11-14)
+
+- **Page 2 thumbnails stayed white** (live, the user's recording): the bridge's page 2 and 3 answers were right (the
+  same wsrv.nl `.jpg` thumb links as page 1, seen in `tmp/tts-stream.jsonl`), but the panel gave the frame's Object UI
+  the same asset names `t1..t8` with new links, and TTS loads a name's picture only once per object. Page 1 worked
+  only because each pick respawns the frame. Each page now has its own names (`t<gen>_<i>`, `engineGif.thumbGen`).
+  The fake TTS models the rule (`uiLoaded`: a name given a second link shows BLANK). A refused More ("one GIF search
+  at a time" after a double click) keeps the page shown instead of emptying it.
+- **Favourites tab** (the user asked, 2026-11-14): the panel has Search and Favourites tabs; every thumbnail has a star
+  (`*`, gold when starred). The bridge keeps each player's list (`createFavs` in `bridge/gifs.js`) by Steam ID (the
+  colour when the table has none), at most 48, newest first, paged 8 at a time, in `%APPDATA%/MTG-TTS/gif-favourites.json`
+  beside the key file (`MTG_GIF_FAVS` overrides it; a test bridge keeps them in memory). Only the id, title, links and
+  size are kept, the links checked again as search answers are. Messages: `gif_favs` and `gif_star`, both answered
+  with `gif_favs`; neither calls GIPHY nor counts against the hour's searches. A favourite's click shows it like a pick.
+  Both tabs' thumbnails stay in the frame's assets while the panel is open, so a tab switch reuses no name.
+- **Collapse** (the user asked, 2026-11-14): the owner's Hide (beside GIF... and Replay) makes the frame a small plain
+  tile (`CS` = 2.5 times smaller, the table's card back, a "GIF" square) for everyone: it is the tile itself, so every
+  client sees it. The GIF stays chosen (`state.collapsed`, in the frame's memo, so a reload keeps it); the owner's
+  Show respawns it at full size, playing. A collapsed frame doesn't play on a click.

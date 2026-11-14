@@ -27,10 +27,12 @@ const FRAMES = (mark, frames) => lua(`local out = {}
       local c = gm:sub(8) local d = o.getData() local p = o.getPosition()
       local l = data[c] and data[c].playmat and data[c].playmat.positionToLocal(p)
       local assets = {} for _, a in ipairs(o.UI.getCustomAssets() or {}) do assets[#assets + 1] = a.name .. "=" .. a.url end
+      -- (what each asset name really shows on real TTS: its first link on this object, BLANK once it was given another)
+      local shown = {} for n, u in pairs(rawget(o, "__d").uiLoaded or {}) do shown[n] = u or "BLANK" end
       local inv = rawget(o, "__d").invisibleTo or {}
       out[#out + 1] = { c = c, guid = o.getGUID(), x = p.x, z = p.z, ry = o.getRotation().y, sx = d.Transform and d.Transform.scaleX, sz = d.Transform and d.Transform.scaleZ,
         img = d.CustomImage and d.CustomImage.ImageURL, stretch = d.CustomImage and d.CustomImage.CustomTile and d.CustomImage.CustomTile.Stretch,
-        name = o.getName(), memo = o.memo or "", xml = o.UI.getXml(), assets = assets, hold = o.UI.getAttribute("gifhold_" .. c, "active"),
+        name = o.getName(), memo = o.memo or "", xml = o.UI.getXml(), assets = assets, shown = shown, hold = o.UI.getAttribute("gifhold_" .. c, "active"),
         onMat = l ~= nil and math.abs(l.x) <= 0.5 and math.abs(l.z) <= 0.5, inv = table.concat(inv, ","), handRot = Player[c].getHandTransform() and Player[c].getHandTransform().rotation.y }
     end
   end
@@ -77,9 +79,11 @@ const SEATED = ["White", "Blue"];
     msg("gif_results", { color: "White", req: 2, first: false, q: "happy dog", page: 0, items: ITEMS, total: 30, error: null }, 4), FRAMES("results"),
     CLICK("Blue", "gifr2_White", "blue picks white's result"), FRAMES("after blue's pick"),
     CLICK("White", "gifmore_White", "more"), SENT("sent more"),
-    msg("gif_results", { color: "White", req: 3, first: false, q: "happy dog", page: 1, items: [ITEMS[1]], total: 30, error: null }, 4),
+    msg("gif_results", { color: "White", req: 3, first: false, q: "happy dog", page: 1, items: [ITEMS[1], ITEMS[2]], total: 30, error: null }, 4), FRAMES("page 2"),
+    CLICK("White", "gifmore_White", "more again"),
+    msg("gif_results", { color: "White", req: 4, first: false, q: "happy dog", page: 2, items: [], total: null, error: "One GIF search at a time, please: try again in a moment." }, 4), FRAMES("more refused"),
     CLICK("White", "gifr1_White", "white picks"), { frames: 10 }, FRAMES("after panel pick"), SENT("sent panel pick"),
-    msg("gif_results", { color: "White", req: 4, first: false, q: "x", page: 0, items: [], total: 0, error: "GIF search is resting for 12 minutes." }, 4),
+    msg("gif_results", { color: "White", req: 5, first: false, q: "x", page: 0, items: [], total: 0, error: "GIF search is resting for 12 minutes." }, 4),
     CLICK("White", "gifclear_White", "clear"), { frames: 10 }, FRAMES("cleared"),
     CHAT("Grey", "mtg gif cats", "spectator"),
   ] });
@@ -143,7 +147,15 @@ const SEATED = ["White", "Blue"];
   ok("panel: Enter searches the trimmed words, a page of results (not the first match)", ps && ps.t === "gif_search" && ps.p.q === "happy dog" && ps.p.first === false && ps.p.req === 2, ps);
   ok("panel: it says it's searching", byC(val(r, "searching"), "White")?.xml.includes("Searching..."));
   const res = byC(val(r, "results"), "White");
-  ok("panel: the results as still pictures (thumb assets t1..t3)", res && ["t1", "t2", "t3"].every((t, i) => res.assets.includes(`${t}=${ITEMS[i].thumb}`)), res?.assets);
+  // every thumbnail the panel's XML names, and the picture real TTS shows for it (fake TTS: uiLoaded)
+  const thumbs = (f) => [...(f?.xml || "").matchAll(/<Button id="gifr(\d)_White"[^>]*><Image image="([^"]+)"/g)].map((m) => [Number(m[1]), m[2], (f.shown || {})[m[2]]]);
+  const showsAll = (f, items) => f && thumbs(f).length === items.length && thumbs(f).every(([i, , u]) => u === items[i - 1].thumb);
+  ok("panel: the results as still pictures (a thumb asset each)", showsAll(res, ITEMS), [thumbs(res), res?.assets]);
+  const pg2 = byC(val(r, "page 2"), "White");
+  ok("panel: page 2's thumbnails load (not under page 1's asset names, which TTS never reloads)", showsAll(pg2, [ITEMS[1], ITEMS[2]]), [thumbs(pg2), pg2?.assets]);
+  ok("panel: page 2 says so", pg2 && pg2.xml.includes("Page 2: click one to show it"), pg2?.xml);
+  const mr = byC(val(r, "more refused"), "White");
+  ok("panel: a refused More keeps the page shown and its More, and says why", showsAll(mr, [ITEMS[1], ITEMS[2]]) && mr.xml.includes('id="gifmore_White"') && mr.xml.includes("One GIF search at a time"), [thumbs(mr), mr?.xml]);
   ok("panel: a button per result, and More", res && [1, 2, 3].every((i) => res.xml.includes(`id="gifr${i}_White"`)) && !res.xml.includes("gifr4_") && res.xml.includes('id="gifmore_White"'), res?.xml);
   ok("panel: a result's title is its tooltip, cleaned", res && res.xml.includes('tooltip="Wide one"'), res?.xml);
   ok("panel: the typed words stay in the box", res && res.xml.includes('text="happy dog"'), res?.xml);
@@ -199,6 +211,68 @@ const SEATED = ["White", "Blue"];
   ok("host off: mtg gif says so", fxOf(r, "white while off").some((f) => f.includes("turned the GIF frames off")));
   ok("host on: the frames come back", (val(r, "on again")?.list || []).length === 2, val(r, "on again"));
   ok("key removed (gif_config off): every frame goes", (val(r, "key removed")?.list || []).length === 0, val(r, "key removed"));
+}
+
+// ── favourites: the tab, the stars, paging, a pick; asked of the bridge (gif_favs / gif_star), never a search
+{
+  const FAVS = Array.from({ length: 9 }, (_, i) => item(`fav${i + 1}`, 300, 300, `Fav ${i + 1}`));
+  const favs = (req, page, items, ids, total) => msg("gif_favs", { color: "White", req, page, items, ids, total, max: 48, error: null }, 4);
+  const r = simulate({ save, seated: SEATED, host: "Blue", steps: [
+    SPY, CONFIG(true), { frames: 10 },
+    CLICK("White", "gifpick_White", "open"), SENT("sent open"),
+    favs(1, 0, [], [], 0),
+    lua('engineGifUiSearch(Player.White, "dogs", "gifq_White") return "ok"', "search"),
+    msg("gif_results", { color: "White", req: 1, first: false, q: "dogs", page: 0, items: ITEMS, total: 30, error: null }, 4), FRAMES("results"), SENT("sent search"),
+    CLICK("Blue", "gifst2_White", "blue stars"), SENT("sent blue star"),
+    CLICK("White", "gifst2_White", "star"), SENT("sent star"),
+    favs(2, 0, [ITEMS[1]], [ITEMS[1].id], 1), FRAMES("starred"),
+    CLICK("White", "giftabf_White", "fav tab"), SENT("sent fav tab"),
+    favs(3, 0, [ITEMS[1]], [ITEMS[1].id], 1), FRAMES("fav tab shown"),
+    CLICK("White", "gifst1_White", "unstar"), SENT("sent unstar"),
+    favs(4, 0, [], [], 0), FRAMES("fav empty"),
+    favs(4, 0, FAVS.slice(0, 8), FAVS.map((x) => x.id), 9), FRAMES("nine"),
+    CLICK("White", "gifmore_White", "fav more"), SENT("sent fav more"),
+    favs(5, 1, FAVS.slice(8), FAVS.map((x) => x.id), 9), FRAMES("fav page 2"),
+    favs(3, 0, [ITEMS[0]], [ITEMS[0].id], 1), FRAMES("stale favs"),
+    CLICK("White", "giftabs_White", "search tab"), SENT("sent search tab"), FRAMES("back to search"),
+    CLICK("White", "giftabf_White", "fav tab again"), favs(6, 1, FAVS.slice(8), FAVS.map((x) => x.id), 9),
+    CLICK("White", "gifr1_White", "fav pick"), { frames: 10 }, FRAMES("fav picked"), SENT("sent fav pick"),
+  ] });
+  const stars = (f) => Object.fromEntries([...(f?.xml || "").matchAll(/<Button id="gifst(\d)_White"[^>]*textColor="(#[0-9A-F]+)"/g)].map((m) => [m[1], m[2] === "#FFD24A"]));
+  const thumbs = (f) => [...(f?.xml || "").matchAll(/<Button id="gifr(\d)_White"[^>]*><Image image="([^"]+)"/g)].map((m) => [Number(m[1]), (f.shown || {})[m[2]]]);
+  const sends = (mark) => val(r, mark)?.list || [];
+  ok("favs: no errors", !r.errors.length, r.errors.join(" | "));
+  const o1 = sends("sent open").find((m) => m.t === "gif_favs");
+  ok("favs: opening the panel asks for the player's favourites once, with their Steam ID", o1 && o1.p.color === "White" && o1.p.steam === "sim-White" && o1.p.page === 0 && o1.p.req === 1, sends("sent open"));
+  const res = byC(val(r, "results"), "White");
+  ok("favs: each result has a star, none gold yet", JSON.stringify(stars(res)) === JSON.stringify({ 1: false, 2: false, 3: false }), stars(res));
+  ok("favs: the panel has the Search and Favourites tabs", res && res.xml.includes('id="giftabs_White"') && res.xml.includes('id="giftabf_White"') && res.xml.includes("Favourites (0)"), res?.xml);
+  ok("favs: another player's star click does nothing", sends("sent blue star").length === 0, sends("sent blue star"));
+  const st = sends("sent star").find((m) => m.t === "gif_star");
+  ok("favs: a star sends that GIF to the bridge (on), no search", st && st.p.on === true && st.p.item.id === "tallTwo" && st.p.item.mp4 === ITEMS[1].mp4 && st.p.item.thumb === ITEMS[1].thumb && st.p.steam === "sim-White" && !sends("sent star").some((m) => m.t === "gif_search"), sends("sent star"));
+  const sd = byC(val(r, "starred"), "White");
+  ok("favs: the bridge's answer turns that star gold and counts it", JSON.stringify(stars(sd)) === JSON.stringify({ 1: false, 2: true, 3: false }) && sd.xml.includes("Favourites (1)"), [stars(sd)]);
+  ok("favs: the results stay shown after a star", thumbs(sd).length === 3 && thumbs(sd).every(([i, u]) => u === ITEMS[i - 1].thumb), thumbs(sd));
+  const ft = sends("sent fav tab");
+  ok("favs: the Favourites tab asks the bridge, never GIPHY", ft.length === 1 && ft[0].t === "gif_favs" && ft[0].p.req === 3, ft);
+  const fs1 = byC(val(r, "fav tab shown"), "White");
+  ok("favs: the tab shows the favourites, loaded, starred, without the search box or More", fs1 && thumbs(fs1).length === 1 && thumbs(fs1)[0][1] === ITEMS[1].thumb && stars(fs1)[1] === true && !fs1.xml.includes('id="gifq_White"') && !fs1.xml.includes("gifmore_") && fs1.xml.includes("Favourites 1 of 1"), [thumbs(fs1), fs1?.xml]);
+  const un = sends("sent unstar").find((m) => m.t === "gif_star");
+  ok("favs: a gold star unstars it", un && un.p.on === false && un.p.item.id === "tallTwo", un);
+  const fe = byC(val(r, "fav empty"), "White");
+  ok("favs: an empty list says how to add one", fe && fe.xml.includes("No favourites yet") && !fe.xml.includes('id="gifr1_White"'), fe?.xml);
+  const nine = byC(val(r, "nine"), "White");
+  ok("favs: past 8, a More pages them", nine && thumbs(nine).length === 8 && nine.xml.includes('id="gifmore_White"') && nine.xml.includes("Favourites 1 of 2"), nine?.xml);
+  const fm = sends("sent fav more");
+  ok("favs: More on the tab asks the bridge for the next page, no search", fm.length === 1 && fm[0].t === "gif_favs" && fm[0].p.page === 1, fm);
+  const p2 = byC(val(r, "fav page 2"), "White");
+  ok("favs: page 2 of the favourites loads its thumbnail", p2 && thumbs(p2).length === 1 && thumbs(p2)[0][1] === FAVS[8].thumb && p2.xml.includes("Favourites 2 of 2"), [thumbs(p2), p2?.assets]);
+  ok("favs: an older ask's answer changes nothing", byC(val(r, "stale favs"), "White")?.xml === p2?.xml);
+  const bs = byC(val(r, "back to search"), "White");
+  ok("favs: the Search tab brings the results back, still loaded", bs && thumbs(bs).length === 3 && thumbs(bs).every(([i, u]) => u === ITEMS[i - 1].thumb) && bs.xml.includes('id="gifq_White"') && sends("sent search tab").length === 0, [thumbs(bs), sends("sent search tab")]);
+  const fp = byC(val(r, "fav picked"), "White");
+  ok("favs: a favourite's click shows it in the frame", fp && fp.img === FAVS[8].mp4 && !fp.xml.includes("gifpanel_"), fp);
+  ok("favs: and is told to the bridge like a pick, no search", sends("sent fav pick").some((m) => m.t === "gif_pick" && m.p.id === "fav9") && !sends("sent fav pick").some((m) => m.t === "gif_search"), sends("sent fav pick"));
 }
 
 // ── seats change: a frame for a new player, none for one who left
@@ -311,6 +385,33 @@ const SEATED = ["White", "Blue"];
   const c = val(r, "config");
   ok("reload: the adopted frame is kept, Blue gets one", (c?.list || []).map((f) => f.c).join() === "Blue,White" && byC(c, "White")?.guid === l?.list?.[0]?.guid, c);
   ok("reload: the saved rating is used", ((val(r, "sent search")?.list || []).find((m) => m.t === "gif_search") || {}).p?.rating === "pg", val(r, "sent search"));
+}
+
+// ── collapse: the owner's Hide makes the frame a small plain tile for everyone, keeping the GIF; Show brings it back
+{
+  const r = simulate({ save, seated: SEATED, host: "Blue", steps: [
+    SPY, CONFIG(true), { frames: 10 },
+    CHAT("White", "mtg gif cats", "search"), msg("gif_results", { color: "White", req: 1, first: true, q: "cats", page: 0, items: ITEMS, total: 3, error: null }, 10), FRAMES("shown"),
+    CLICK("White", "gifpick_White", "open panel"),
+    CLICK("Blue", "gifcol_White", "blue hides"), { frames: 10 }, FRAMES("after blue"),
+    CLICK("White", "gifcol_White", "hide"), { frames: 10 }, FRAMES("collapsed"),
+    ACT("Blue", "Select", "White", "blue clicks it"), lua("return tostring(engineGif.playing.White)", "playing while collapsed"),
+    lua("engineGif.adopted = false engineGif.frames = {} engineGif.state.White = nil engineGif.adopt() local st = engineGif.state.White return JSON.encode({ c = st and st.collapsed, mp4 = st and st.mp4 })", "adopted"),
+    CLICK("White", "gifcol_White", "show"), { frames: 10 }, FRAMES("expanded"),
+  ] });
+  ok("collapse: no errors", !r.errors.length, r.errors.join(" | "));
+  const sh = byC(val(r, "shown"), "White");
+  ok("collapse: a shown GIF has the owner's Hide beside GIF... and Replay", sh && /<Button id="gifcol_White" visibility="White"[^>]*>Hide<\/Button>/.test(sh.xml) && sh.xml.includes('id="gifplay_White"') && sh.xml.includes('id="gifpick_White"'), sh?.xml);
+  ok("collapse: another player's click does nothing", byC(val(r, "after blue"), "White")?.img === ITEMS[0].mp4);
+  const co = byC(val(r, "collapsed"), "White");
+  const memo = (() => { try { return JSON.parse(co?.memo || ""); } catch { return {}; } })();
+  ok("collapse: the frame becomes a small plain tile (for everyone: it is the tile itself)", co && co.img === ENGINE_BACK && co.stretch === false && Math.abs(co.sx - 1.53 / 2.5) < 0.001 && co.inv === "", co && [co.img, co.stretch, co.sx]);
+  ok("collapse: the GIF stays chosen, in the frame's memo with collapsed", memo.mp4 === ITEMS[0].mp4 && memo.collapsed === true, memo);
+  ok("collapse: the collapsed UI: no still, the owner's Show, the panel closed", co && !co.xml.includes("gifhold_") && /<Button id="gifcol_White" visibility="White"[^>]*>Show<\/Button>/.test(co.xml) && !co.xml.includes("gifpanel_"), co?.xml);
+  ok("collapse: a click on the collapsed frame doesn't play it", raw(r, "playing while collapsed") === "nil", raw(r, "playing while collapsed"));
+  ok("collapse: a reload keeps it collapsed (the memo)", (() => { try { const j = JSON.parse(raw(r, "adopted")); return j.c === true && j.mp4 === ITEMS[0].mp4; } catch { return false; } })(), raw(r, "adopted"));
+  const ex = byC(val(r, "expanded"), "White");
+  ok("collapse: Show brings the same GIF back, playing, at full size", ex && ex.img === ITEMS[0].mp4 && ex.stretch === true && Math.abs(ex.sx - 0.765) < 0.001 && ex.hold === "false" && !JSON.parse(ex.memo || "{}").collapsed, ex && [ex.img, ex.sx, ex.hold, ex.memo]);
 }
 
 console.log(`${passed} passed, ${failed} failed`);
