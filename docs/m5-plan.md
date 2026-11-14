@@ -109,6 +109,13 @@ game's first board, moved and triggered by name, falling back to the Object UI s
 spawns the 6 rigs and the sound object once; they stay in the save after that (never destroyed: `destruct` costs
 ~360 ms here). No link: nothing changes. The `mtg-fx` link is in since 2026-11-12 (`docs/m5-assetbundle-build.md` §1).
 
+**Where it stands (2026-11-13):** all of step 4 is built in source and deployed: the Object UI slots, the `mtg-fx` and
+`mtg-bolt` particle bundles (`docs/particle-fx-spec.md`: coloured wipe waves, burn deaths, exile lights, aimed bolts,
+`mtg fx on|low|off`) and every sound hook (`engineSounds`, 14 kinds with bursts, `docs/sounds.md`). The sound bundle
+for route B, `mtg-sounds.unity3d`, was built 2026-11-13 (`docs/m5-assetbundle-build.md` §4, "Built") and waits for its
+upload; `engineSoundRoute = "bundle"` switches to it. None of it has been seen on the real table: what is left are the
+live checks (`docs/particle-fx-spec.md` §8, "What's left"; the two-client test, build doc §8).
+
 One small AssetBundle, under ~5 MB, made from CC0 textures (Kenney particle pack) with Unity's standard particle system (Shuriken). No Asset Store packs, since they can't be redistributed in a public mod. At load, a pool of rigs is spawned under the table, then moved and triggered when needed:
 
 | Rig | Used for | Look (from the Arena frames) | Length |
