@@ -429,11 +429,21 @@ What exists (details and proofs: `docs/engine-changes.md`, "2026-11-13 2hg"):
   both formats (Standard 2HG: 30 a team).
 - **§5.6 table:** `mtg mode 2hg|ffa` and `mtg team <colour> 1|2` (host; beside main's `mtg mode standard|commander`), the
   partner's hand stand-ins, the phase bar's "(YOUR TEAM)" / "(TEAM ...)" tag, VICTORY for both partners and "WHITE + RED
-  WIN THE GAME", "Concede for your team?". **Not built:** a separate team life tracker between the mats (each seat's
-  tracker shows the team number already), team tint on the mat borders, per-team commander-damage trackers (each seat's
-  tracker shows the team's total instead). These three are looks only, and each needs placing and a screenshot on the
-  real table, so they wait for a session with TTS. The engine side was proved live on `engine1115-2hg`
+  WIN THE GAME", "Concede for your team?". The engine side was proved live on `engine1115-2hg`
   (`tests/live_2hg_check.js`, 24 of 24, 2026-11-14).
+- **Team pieces (looks only; branch `2hg-looks`, 2026-11-14, fake TTS only, not yet seen on the real table):**
+  `engineTeamLooks` in `engine-renderer.lua`, drawn from the board's `teams` (no bridge change), nothing in a
+  free-for-all game, all gone when the game is cleared:
+  - *Team tint:* a line round each partner's mat (vector lines, thickness 0.3501, 0.15 inside the mat zone, y 0.98):
+    green (0.25, 0.85, 0.55) for the team with White, violet (0.8, 0.45, 1) for the other. Set only when the teams
+    change; a reloaded table drops a saved game's lines.
+  - *Team life:* in the 1.8-wide gap between the partners' mats, centred between the two mats' centres (default teams:
+    x 0, z ∓15.4), 1.6 wide, read from the team's side: "TEAM", then the team's life on a box in the team's colour.
+  - *Commander damage (Commander only):* under it, "CMDR DMG", then one box per opposing commander in its owner's seat
+    colour, "n/42" (the team's total from that commander, as the bridge sends it; partners: one box each, from
+    `cmdTip`). Each seat's own trackers still show the same team numbers.
+  - Buttons on the team's first seat's playmat (as the READY buttons), edited in place on a number change; put back
+    after the setup redraw clears the mats. Tests: `tests/test_table_team_looks.js` (each check broken and seen to fail).
 
 Known limits (Level 1):
 - The Forge AI blocks for its partner (2026-11-14, forge-ai `ComputerUtilCombat.attackersOfTeam`): it counts the life,
