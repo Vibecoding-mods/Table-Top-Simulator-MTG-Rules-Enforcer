@@ -88,6 +88,46 @@ Open follow-ups from that review (none a regression of engine1113; the table is 
 5. The engine1113 entry below says a prompt's `cardDto` "still shares the defenders per controller": outside a snapshot
    each card gets its own round, so nothing is shared (output unchanged).
 
+Planechase engine bugs found by the live spike `tests/live_planechase_check.js` on 2026-11-13 (engine1113 /
+`mtg-forge-node:exile`). Not fixed, nothing built. The spike passes 41 of 41 checks by setting its cases up around them.
+Node log evidence is from the test stack, run 2026-11-13 18:54 and 19:00-19:07 local.
+1. **Abort (ConcurrentModificationException) in Forge `Game.onPlayerLost`, the 901.10 block** (`Game.java:1019`):
+   `for (Card c : getActivePlanes()) { ... planarController.removeCurrentPlane(c); }`. `Game.activePlanes` is the same
+   list object as the `currentPlanes` of the last player to planeswalk (`Player.planeswalkTo` calls
+   `game.setActivePlanes(currentPlanes)`). When that player is also the planar controller and the plane's owner is
+   someone else, the loop removes from the list it is iterating, the engine thread dies, and the room aborts the game.
+   - Natural play never gets this shape: the list holder walked from their own deck, so they are the owner.
+   - The harness's debug `planeswalk` op does get it: `Planechase.applyOp` walks the op's player to a plane from any
+     deck. The bridge's debug scenarios send it as the seat's own player (a `"planechase"` scenario's `"current"`, or
+     `"planeswalk"`), and the plane may be in an AI's dealt deck. If that AI leaves on the seat's turn (or on its own
+     turn, with the seat next) before anyone planeswalks again, the game aborts. Debug games only.
+   - Fix (forge patch): iterate a copy, `for (Card c : new CardCollection(getActivePlanes()))`, in that loop. The 901.6
+     loop above it only reads, but could take a copy too.
+2. **Priority goes round for ever after a debug planar op's player leaves.** `ManaBrewInteractiveSession.applyState`
+   treats `planeswalk` and `chaos` like free plays: `lastPlayer = statePlayer(op.player)`, then
+   `handler.setPriority(lastPlayer)`, which sets `pFirstPriority` too. If that player then leaves the game,
+   `PhaseHandler.mainLoopStep`'s "everyone passed" test (`pFirstPriority == nextPlayer`) can never be true, because
+   `getNextPlayerAfter` skips a lost player. The step never ends, every seat is asked again and again, and Forge's
+   runaway cap ends the game as a draw ("5001 triggers fired in one turn"). Seen with H asked 814 times in main 1,
+   the board unchanged.
+   - Harness fix: leave `PLANAR_OPS` out of `lastPlayer`. A planeswalk or chaos is not a play, so the player who had
+     priority keeps it.
+   - The same Forge gap exists without Planechase (source reading only, not run). A non-active player who holds
+     `pFirstPriority` (they cast something and keep priority) and then leaves before the others pass leaves the loop
+     the same way; the only exit Forge has is for the ACTIVE player (`mainLoopStep`'s "Active player is no longer in
+     the game"). Fix (forge patch): at the `pFirstPriority == nextPlayer` test, treat a lost `pFirstPriority` as the
+     next player in the game after it.
+3. **The debug `planeswalk` op leaves the plane under its owner's control**, not the active player's (rule 901.6).
+   `Player.planeswalkTo` sets no controller; Forge only moves the planes at the next turn (PhaseHandler,
+   `p.setController(next, 0)` + `controllerChangeZoneCorrection`). Natural planeswalks are made by the active player
+   from their own deck, so they are right; the op is wrong until the turn ends. Harness fix in `Planechase.applyOp`:
+   walk as the card's owner (`destination.getOwner().planeswalkTo(...)`, the natural shape, which also avoids 1), then
+   give control to `game.getPhaseHandler().getPlayerTurn()` the same way PhaseHandler does.
+What a fix takes: fix 1 and the Forge half of 2 go in `engine/forge.patch`; the harness half of 2 and fix 3 go in
+`Planechase.java` / `ManaBrewInteractiveSession.java`, plus a `PlanechaseTest` case for each. No protocol change, so a
+node rebuild only (about 20 minutes). After the rebuild, the spike's case set-ups can go back to the simple shape (the
+seat walks on its own turn), and both must pass.
+
 ## 3. Summary table (newest first)
 
 "Protocol?" says which images carry the change. "Source" gives commits in `tmp/mb-pc` (Manabrew) and the outer `mtg-tts`
