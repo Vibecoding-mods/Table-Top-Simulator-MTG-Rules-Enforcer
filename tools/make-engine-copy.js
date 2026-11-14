@@ -279,6 +279,13 @@ function engineChat(message, pl)
     end
   elseif cmd == "commander" then
     engineMarkCommander(pl)
+  elseif cmd == "clear" then
+    -- "mtg clear deck": your own deck and commander off your seat, by the script (players whose Delete did nothing)
+    if rest ~= "deck" then pl.broadcast("[MTG] Type  mtg clear deck  to remove your own deck and commander from your seat.") return false end
+    local n, why = engineClearDeck(pl.color)
+    if n == nil then pl.broadcast("[MTG] " .. why)
+    elseif n == 0 then pl.broadcast("[MTG] No deck or commander on your seat.")
+    else pl.broadcast("[MTG] Removed your deck and commander (" .. n .. (n == 1 and " object" or " objects") .. "). Load a new one any time.") end
   elseif cmd == "start" then
     engineStartGame(pl, rest)
   elseif cmd == "undo" then
