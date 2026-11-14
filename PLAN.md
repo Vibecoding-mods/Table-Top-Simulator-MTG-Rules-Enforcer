@@ -222,7 +222,12 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   side's rules text in the hover (Tibalt on Valki, Stomp on Bonecrusher Giant, Kenzo on Bushi), a meld half's other
   side is the melded card (Gisela → Brisela), and a face name of a one-picture card (a flipped Kenzo, Stomp, Ice or
   Ribbons on the stack) has its deck's picture instead of none and is asked of Scryfall once (it was asked on every
-  board). Tested from Scryfall's real cards, each layout's check shown to fail. Still to see live: the spec's list.
+  board). Then every Forge `CardSplitType` and `CardStateName` given a row (battles, prepare, specialize, face down,
+  Rooms' EmptyRoom added): a prepare creature's hover reads its spell and its prepared copy shows the creature's card,
+  and a classic card whose name a prepare spell copies (every deck's Lightning Bolt, Channel, Reanimate) no longer
+  reads that creature as its other side (Scryfall answers "Lightning Bolt" with Emeritus of Conflict // Lightning
+  Bolt; its exact-name lookup finds the real one). No engine change. Tested from Scryfall's real cards, each check
+  shown to fail. Still to see live: the spec's list.
 - ✅ Small sweep bugs (fixed 2026-11-07 in 33ffb05; checked again 2026-11-10, each with a claim check): the second AI
   named "AI 1 2" in questions and votes; persist's -1/-1 counter missing from the return line; Halflingcycling's
   question naming a basic land; the log gaps in tmp/kw-runs/SUMMARY.md. 2026-11-10 added the clash's cards and winner

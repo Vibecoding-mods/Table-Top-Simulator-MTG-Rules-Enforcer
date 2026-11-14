@@ -301,6 +301,9 @@ const intent = (h, m) => h.B.onTTS({ t: "intent", json: JSON.stringify({ color: 
     same("a cache entry from before layouts were kept (an adventure, no back, Forge's two faces): asked once, its picture kept, Stomp's name and text added",
       [asked(h, "Bonecrusher Giant"), st?.f, st?.n2, st?.t2], [1, "https://img.example/old-entry.webp", "Stomp", textOf("Stomp")]);
   });
+  await real({ name: "Ice", zone: "exile" }, async (h) => {
+    same("layout split, a half by its own name (Ice): no other side (Scryfall's split layout)", [sentCard(h, ID)?.n2 ?? null, sentCard(h, ID)?.t2 ?? null], [null, null]);
+  });
   const FIRE = [{ id: "stack-1", sourceId: ID, controllerId: "player-0", ownerId: "player-0", identity: { name: "Fire" }, text: "Fire deals 2 damage divided as you choose.", targets: [] }];
   await real({ name: "Fire // Ice", zone: "exile", stack: FIRE, pictures: { "Fire // Ice": [{ face: DECK_PIC, back: null }] }, rounds: 3 }, async (h) => {
     const msgs = h.effects.filter((e) => e.tts && e.tts.t === "table" && (e.tts.stack || []).length);
@@ -327,6 +330,53 @@ const intent = (h, m) => h.B.onTTS({ t: "intent", json: JSON.stringify({ color: 
   await real({ name: "Autonomous Assembler" }, async (h, seat) => {
     const d = await dragReal(h, seat, [cast("a1", "Cast Autonomous Assembler"), cast("a2", "Cast Autonomous Assembler (Prototype)")], {});
     same("layout prototype (Autonomous Assembler): no other side; a drag asks which way", [sentCard(h, ID)?.n2 ?? null, d.asked], [null, ["Cast Autonomous Assembler", "Cast Autonomous Assembler (Prototype)"]]);
+  });
+
+  // Transforming battles (Invasion of Zendikar // Awakened Skyclave): the front is cast, the back read
+  await real({ name: "Invasion of Zendikar" }, async (h) => {
+    same("layout transform, a battle (Invasion of Zendikar) in a hand: its back face to read, with its rules text", detail(sentCard(h, ID)),
+      { f: kf("Invasion of Zendikar"), b: "", o2: kb("Invasion of Zendikar"), n2: "Awakened Skyclave", t2: textOf("Awakened Skyclave") });
+  });
+  // Prepare (Secrets of Strixhaven): one picture, the creature and the spell a prepared copy of it casts
+  await real({ name: "Abigale, Poet Laureate" }, async (h, seat) => {
+    same("layout prepare (Abigale, Poet Laureate) in a hand: its spell's name and text, no second picture", detail(sentCard(h, ID)),
+      { f: kf("Abigale, Poet Laureate"), b: "", o2: null, n2: "Heroic Stanza", t2: textOf("Heroic Stanza") });
+    same("layout prepare: its cast names no side", await sides(h, seat, [cast("a1", "Cast Abigale, Poet Laureate")]), [null]);
+  });
+  // (the prepared copy, a token named after the spell in its creature's controller's exile, notePrepared)
+  const STANZA = { identity: { name: "Heroic Stanza", isToken: true, setCode: "SOS", cardNumber: "999" }, types: ["Sorcery"] };
+  await real({ name: "Heroic Stanza", zone: "exile", extra: STANZA, pictures: { "Abigale, Poet Laureate": [{ face: DECK_PIC, back: null }] }, rounds: 3 }, async (h) => {
+    same("layout prepare, the spell's copy in exile: its deck's picture of the creature's card, no other side", [sentCard(h, ID)?.f, sentCard(h, ID)?.n2 ?? null], [DECK_PIC, null]);
+  });
+  // (a prepare spell that is a classic card: Scryfall answers "Lightning Bolt" with Emeritus of Conflict // Lightning Bolt)
+  const BOLT = SF.find((c) => c.name === "Lightning Bolt");
+  await real({ name: "Emeritus of Conflict" }, async (h) => {
+    same("layout prepare, a classic spell (Emeritus of Conflict // Lightning Bolt): Lightning Bolt its other side", [sentCard(h, ID)?.n2, sentCard(h, ID)?.t2], ["Lightning Bolt", textOf("Lightning Bolt")]);
+  });
+  await real({ name: "Lightning Bolt", rounds: 3 }, async (h) => {
+    const named = h.effects.filter((e) => e.fetch && e.fetch.includes("/cards/named") && e.fetch.includes("Lightning")).length;
+    same("Lightning Bolt itself (Scryfall's batch answer is Emeritus): its own picture by its exact name, asked once each, no other side",
+      [sentCard(h, ID)?.f, sentCard(h, ID)?.n2 ?? null, sentCard(h, ID)?.t2 ?? null, asked(h, "Lightning Bolt"), named],
+      [`kf${BOLT.id}`, null, null, 1, 1]);
+  });
+  await withBridge({ scryfallCards: SF }, async (h) => {
+    const b = board({ name: "Lightning Bolt" });
+    b.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards.push({ ...clone(b.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards.find((c) => c.id === ID)), id: "engine-card-76", identity: { name: "Emeritus of Conflict" } });
+    game(h, b);
+    for (let k = 0; k < 3; k++) { h.B.sendTable(); await h.flush(); }
+    same("Lightning Bolt beside Emeritus of Conflict (both asked at once): still no other side, its own picture", [sentCard(h, ID)?.n2 ?? null, sentCard(h, ID)?.f], [null, `kf${BOLT.id}`]);
+  });
+  // (the exact-name lookup's answer caches nothing under the name asked: still asked once per bridge run, exactAsked)
+  await withBridge({ scryfallCards: SF.filter((c) => c !== BOLT) }, async (h) => {
+    game(h, board({ name: "Lightning Bolt" }));
+    for (let k = 0; k < 3; k++) { h.B.sendTable(); await h.flush(); }
+    const named = h.effects.filter((e) => e.fetch && e.fetch.includes("/cards/named") && e.fetch.includes("Lightning")).length;
+    same("Lightning Bolt whose exact-name answer caches nothing under its name: the exact-name lookup asked once, not on every board", named, 1);
+  });
+  // Specialize (Alchemy, Alora, Rogue Companion): each specialized version a card of its own on Scryfall
+  await real({ name: "Alora, Cheerful Thief", zone: "battlefield", pictures: { "Alora, Rogue Companion": [{ face: DECK_PIC, back: null }] }, rounds: 3 }, async (h) => {
+    same("layout specialize, specialized (Alora, Cheerful Thief): Scryfall's picture of that version, no other side", detail(sentCard(h, ID)),
+      { f: kf("Alora, Cheerful Thief"), b: "", o2: null, n2: null, t2: null });
   });
 
   // (OTHER_SIDE_BRIDGE_ONLY=1: the bridge's checks alone, seconds instead of the table's minute, for mutation runs)
