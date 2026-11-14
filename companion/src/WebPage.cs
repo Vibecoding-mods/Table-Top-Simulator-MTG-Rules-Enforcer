@@ -299,6 +299,12 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
 
   <p class='hint-h' aria-hidden='true'><span class='sico' data-icon='spark'></span>What to do next</p>
   <p class='hint' id='hint'></p>
+
+  <details id='logbox' class='card'>
+    <summary id='logbox-sum'><span class='sum-ico' data-icon='log' aria-hidden='true'></span><span>Log: the last lines of companion.log</span></summary>
+    <p class='logfile' id='logfile'></p>
+    <pre class='log' id='log' tabindex='0' aria-label='Log tail'>(empty)</pre>
+  </details>
   </section>
 
   <section class='col'>
@@ -384,12 +390,6 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
       <p class='tt-note' id='tt-gif-state'></p>
       <p class='toast' id='tt-toast' role='status' aria-live='polite'></p>
     </div>
-  </details>
-
-  <details id='logbox' class='card'>
-    <summary id='logbox-sum'><span class='sum-ico' data-icon='log' aria-hidden='true'></span><span>Log: the last lines of companion.log</span></summary>
-    <p class='logfile' id='logfile'></p>
-    <pre class='log' id='log' tabindex='0' aria-label='Log tail'>(empty)</pre>
   </details>
   </section>
   </div>

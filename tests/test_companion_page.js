@@ -599,7 +599,9 @@ function boot(body) {
     const guide = gm ? gm[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") : "";
     const at = (s) => html.indexOf(s);
     ok("key guide: there, collapsed, between the key box and the key's state line, inside Table tools",
-      !!gm && at("id='tt-gif-key'") < at("id='tt-gif-help'") && at("id='tt-gif-help'") < at("id='tt-gif-state'") && at("id='tablebox'") < at("id='tt-gif-help'") && at("id='tt-gif-help'") < at("id='logbox'") && !/id='tt-gif-help'[^>]*\sopen/.test(html), guide.slice(0, 80));
+      !!gm && at("id='tt-gif-key'") < at("id='tt-gif-help'") && at("id='tt-gif-help'") < at("id='tt-gif-state'") && at("id='tablebox'") < at("id='tt-gif-help'") && at("id='tt-gif-help'") < html.indexOf("</details>", at("id='tt-gif-state'")) && !/id='tt-gif-help'[^>]*\sopen/.test(html), guide.slice(0, 80));
+    ok("log box: under What to do next, in the left column (the user, 2026-11-14)",
+      at("id='hint'") < at("id='logbox'") && at("id='logbox'") < at("id='tools-h'"), at("id='logbox'"));
     ok("key guide: developers.giphy.com, Dashboard, sign in or a free account, Create an App / Create API Key",
       /developers\.giphy\.com/.test(guide) && /Dashboard/.test(guide) && /free GIPHY account/.test(guide) && /Create an App/.test(guide) && /Create API Key/.test(guide), guide);
     ok("key guide: screen 1 of 2 says API, not SDK, and why the SDK form is the wrong one",
