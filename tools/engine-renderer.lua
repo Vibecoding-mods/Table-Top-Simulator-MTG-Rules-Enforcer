@@ -2102,15 +2102,19 @@ do
     local links = engineFxBundle or {}
     -- (a rig of another bundle than its link's, FX.stale: left out, retired, and a new one spawned in its place)
     local stale = {}
+    -- (the sound object is renewed the same way, "mtg fx off" or not: it is no particle effect)
     for _, o in ipairs(getObjects()) do
       local gm = o.getGMNotes()
       local kind = (gm == "engine:fx" and "fx") or (gm == "engine:bolt" and "bolt") or nil
       if kind ~= nil and engineFxMode ~= "off" and FX.stale(o, kind, links[kind]) then stale[#stale + 1] = o
       elseif kind ~= nil then FX.addRig(o, kind == "bolt")
+      elseif gm == "engine:sounds" and FX.stale(o, "sounds", links.sounds) then stale[#stale + 1] = o
       elseif gm == "engine:sounds" then snd = o end
     end
     FX.retire(stale)
     if snd ~= nil and FX.sndObj ~= snd then FX.sndObj, FX.sndIdx = snd, nil end
+    -- (a sound object found before and retired now is played no more while it waits for its destruct)
+    if snd == nil and FX.sndObj ~= nil and not FX.sndObj.isDestroyed() and FX.retiring[FX.sndObj.getGUID()] then FX.sndObj, FX.sndIdx = nil, nil end
     if engineFxMode ~= "off" then
       FX.topUp(links.fx, "engine:fx", FX.rigs, FX.RIGS, "spawnedFx", 0)
       FX.topUp(links.bolt, "engine:bolt", FX.bolts, FX.BOLTS, "spawnedBolt", 2)
@@ -2150,12 +2154,12 @@ do
   end
   -- on load, before any game: a save holding rigs of another bundle than the links' has them replaced now (FX.findRigs
   -- retires them and tops the pools up), not at a game's first board. Nothing stale: nothing is looked for or spawned.
+  -- (a sound object of another bundle than engineFxBundle.sounds too, whatever the fx mode)
   function engineFxRenewRigs()
-    if engineFxMode == "off" then return false end
     local links = engineFxBundle or {}
     for _, o in ipairs(getObjects()) do
       local gm = o.getGMNotes()
-      local kind = (gm == "engine:fx" and "fx") or (gm == "engine:bolt" and "bolt") or nil
+      local kind = (engineFxMode ~= "off" and ((gm == "engine:fx" and "fx") or (gm == "engine:bolt" and "bolt"))) or (gm == "engine:sounds" and "sounds") or nil
       if kind ~= nil and FX.stale(o, kind, links[kind]) then FX.findRigs() return true end
     end
     return false
@@ -2337,7 +2341,7 @@ do
     last.fx, last.dropped = last.fx or {}, last.dropped or 0
     if visual and bolts ~= nil and #bolts > 0 then hits = FX.boltsFire(bolts, gen, hits, last) end
     if visual and (FX.car == nil or FX.car.isDestroyed()) then FX.car = FX.carrier() end
-    local started, deaths, soundAt = 0, 0, nil
+    local started, deaths, soundAt, soundEv = 0, 0, nil, nil
     for _, e in ipairs(ev) do
       local hit = hits[e.id or e.seat]
       local delay = hit ~= nil and math.max(0, hit - os.clock()) or 0
@@ -2345,7 +2349,7 @@ do
       if e.at ~= nil then delay = e.at
       elseif e.kind == "death" then delay = delay + 0.08 * deaths deaths = deaths + 1 end
       if e.kind == "death" and hit ~= nil and not e.sac then e.burn = true end
-      if soundAt == nil and kind ~= nil and FX.ofSound(e, kind) then soundAt = delay + (e.kind == "knockout" and 0.6 or 0) end
+      if soundAt == nil and kind ~= nil and FX.ofSound(e, kind) then soundAt, soundEv = delay + (e.kind == "knockout" and 0.6 or 0), e end
       if visual then
         local spot = e.spot
         if e.kind == "knockout" then local life = getObjectFromGUID(TRACK[e.seat] or "") spot = life and life.getPosition() end
@@ -2353,6 +2357,9 @@ do
         -- wave's cards have their own cap, FX.WIPE_DRAW, not the board's)
         local room = e.under or started < FX.PER_BOARD
         local rig = (room and spot ~= nil) and FX.rigPlay(e, spot, delay, gen) or nil
+        -- (a sound from the sound bundle goes out with its rig's trigger, RIG_LEAD at the soonest, not before it: both
+        -- are trigger effects sent the same way. Route A's sound isn't held back: the music player's own load is later)
+        if rig ~= nil and e == soundEv and FX.sndLeads(kind, n) then soundAt = math.max(soundAt, FX.RIG_LEAD) end
         local key = (rig == nil and not e.rigOnly and room and spot ~= nil and FX.car ~= nil) and FX.slot(e.kind == "knockout") or nil
         if key ~= nil then
           local look = FX.look(e)
@@ -2777,10 +2784,51 @@ do
     FX.start("eng_fx_1", { spot = spot, seat = seat, phases = { { t = 0, img = kind or "ring", col = "#FFFFFFE6", size = 1.0 } }, stop = 3, text = "×3" }, 0)
     return "shown"
   end
+  -- Route B: the trigger effect `name` of the sound object (GM notes "engine:sounds", the mtg-sounds bundle) played;
+  -- false when there is none on the table, its bundle is still loading or has no effect of that name. With none on the
+  -- table, one look over every object each 5 s at most (not one per board); one being retired is passed over.
+  function FX.sndBundle(name, force, now)
+    if FX.sndObj == nil or FX.sndObj.isDestroyed() then
+      FX.sndObj, FX.sndIdx = nil, nil
+      if force or now - (FX.sndScanAt or -100) >= 5 then
+        FX.sndScanAt = now
+        for _, o in ipairs(getObjects()) do
+          if o.getGMNotes() == "engine:sounds" and not (FX.retiring and FX.retiring[o.getGUID()]) then FX.sndObj = o end
+        end
+      end
+    end
+    local o = FX.sndObj
+    if o == nil or o.AssetBundle == nil then return false end
+    -- (an empty list is a bundle still loading: asked again with the next sound, not kept as "no effects")
+    if FX.sndIdx == nil then
+      local okList, list = pcall(o.AssetBundle.getTriggerEffects)
+      if okList and type(list) == "table" and #list > 0 then
+        FX.sndIdx = {}
+        for _, t in ipairs(list) do if t.name ~= nil then FX.sndIdx[t.name] = t.index end end
+      end
+    end
+    local idx = FX.sndIdx and FX.sndIdx[name]
+    return idx ~= nil and pcall(o.AssetBundle.playTriggerEffect, idx)
+  end
+  -- whether the board's sound (kind, n of it) would go out through the sound bundle (a name, or engineSoundRoute
+  -- "bundle" with a sound object found): FX.dispatch then sends it with its rig's trigger, not before
+  -- (and with an effect of that name, once the bundle has said its names: else it falls back to the music player, which
+  -- isn't held back)
+  function FX.sndLeads(kind, n)
+    local key = FX.burst(kind, n)
+    local pick = engineSounds ~= nil and engineSounds[key]
+    if type(pick) ~= "string" then return false end
+    local link = pick:find("^https?://") ~= nil
+    if link and engineSoundRoute ~= "bundle" then return false end
+    local o = FX.sndObj
+    if o == nil or o.isDestroyed() then return false end
+    return FX.sndIdx == nil or FX.sndIdx[link and key or pick] ~= nil
+  end
   -- M5 sounds (design section 6), at most one per board: each kind at most every 0.3 s, any two 0.15 s apart.
   -- engineSounds[kind]: nil or "" = silent (FX.picked); a link (https://...) plays through the table's music player
   -- (route A, shared by everyone); a name plays that trigger effect of the sound object whose GM notes are
-  -- "engine:sounds" (route B). force (mtg sounds test) skips the spacing. n: how many at once, for the bursts (FX.burst: death_x4 for 5 deaths;
+  -- "engine:sounds" (route B); with engineSoundRoute "bundle" a link plays its key's trigger effect there when the
+  -- sound object has one (the mtg-sounds bundle names its effects after the keys), else the link. force (mtg sounds test) skips the spacing. n: how many at once, for the bursts (FX.burst: death_x4 for 5 deaths;
   -- the spacing stays the kind's). True if it played. engineSoundLog: "clip route" (death_x4 music), for the tests.
   function engineSoundPlay(kind, force, n)
     if not FX.picked(kind) then return false end
@@ -2789,7 +2837,13 @@ do
     local now = os.clock()
     if not force and (now - (FX.sndAt[kind] or -100) < 0.3 or now - FX.sndLast < 0.15) then return false end
     local route
-    if pick:find("^https?://") then
+    local link = pick:find("^https?://") ~= nil
+    -- (route B: a name; with engineSoundRoute "bundle", a link's own key too, when the sound object has it; else, and
+    -- whenever the bundle can't play it, the link through the music player)
+    if (not link or engineSoundRoute == "bundle") and FX.sndBundle(link and key or pick, force, now) then
+      route = "bundle"
+    elseif not link then return false
+    else
       if MusicPlayer == nil then return false end
       -- (the players' own music is never cut while it plays: a clip of theirs that is playing; a clip of ours is titled
       -- "MTG effect: ..."; a paused one is replaced and stays in their music library. Live check 2026-11-11: TTS loads a
@@ -2839,28 +2893,6 @@ do
       -- (a set that failed still gives the players' repeat setting back, verifier 2026-11-11)
       if not ok then pcall(finish) return false end
       route = "music"
-    else
-      -- (a name with no sound object on the table: one look over every object each 5 s at most, not one per board)
-      if FX.sndObj == nil or FX.sndObj.isDestroyed() then
-        FX.sndObj, FX.sndIdx = nil, nil
-        if force or now - (FX.sndScanAt or -100) >= 5 then
-          FX.sndScanAt = now
-          for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:sounds" then FX.sndObj = o end end
-        end
-      end
-      local o = FX.sndObj
-      if o == nil or o.AssetBundle == nil then return false end
-      -- (an empty list is a bundle still loading: asked again with the next sound, not kept as "no effects")
-      if FX.sndIdx == nil then
-        local okList, list = pcall(o.AssetBundle.getTriggerEffects)
-        if okList and type(list) == "table" and #list > 0 then
-          FX.sndIdx = {}
-          for _, t in ipairs(list) do if t.name ~= nil then FX.sndIdx[t.name] = t.index end end
-        end
-      end
-      local idx = FX.sndIdx and FX.sndIdx[pick]
-      if idx == nil or not pcall(o.AssetBundle.playTriggerEffect, idx) then return false end
-      route = "bundle"
     end
     FX.sndAt[kind], FX.sndLast = now, now
     engineSoundLog = engineSoundLog or {}
@@ -5312,7 +5344,8 @@ engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }
 -- pool of rigs, GM notes "engine:fx"; sounds: one object, "engine:sounds"); they then stay in the save. nil or "" =
 -- nothing spawned (rigs or a sound object already in the save are still used); with none, the effects are today's.
 -- bolt: the bolt bundle (mtg-bolt.unity3d, rigs "engine:bolt"). Both uploaded 2026-11-12 night (fx: mtg-fx2.unity3d,
--- the tint-ready rebuild; links matched to their files by sha256).
+-- the tint-ready rebuild; links matched to their files by sha256). sounds: mtg-sounds.unity3d (built 2026-11-13,
+-- docs/fx-research/SOUNDS.md), nil until it is uploaded; it is played only with engineSoundRoute "bundle".
 engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/13181964746744684712/6948BE73BB273AAB129525130A13E4982559BD1D/", sounds = nil, bolt = "https://steamusercontent-a.akamaihd.net/ugc/12109543125843195804/C6B0053848DA7FCB5E6136B82243D57A66E3B289/" }
 -- The particle effects (docs/particle-fx-spec.md), "mtg fx on|low|off" (the host's, saved with the game): on, all of
 -- them; low, a wipe's wave without its cards' own deaths, and no bolts; off, no rig effect at all, the table as it was
@@ -5322,6 +5355,12 @@ engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.n
 engineFxMode = engineFxMode or "on"
 engineFxTint = engineFxTint or false
 engineFxBoltMove = engineFxBoltMove or false
+-- engineSoundRoute: how a link's sound is played. "music" (the default): the table's music player (route A, heard by
+-- everyone, docs/m5-effects-design.md section 6). "bundle": the sound object's trigger effect named as its key (route
+-- B, the mtg-sounds bundle, engineFxBundle.sounds; the same clips without the music player's padding), the link only
+-- when there is no sound object or no effect of that name. The host's flag for the two-client check 3
+-- (docs/m5-assetbundle-build.md section 8): the default changes once other players are known to hear route B.
+engineSoundRoute = engineSoundRoute or "music"
 function engineSetFxMode(mode, by)
   if mode ~= "on" and mode ~= "low" and mode ~= "off" then return false end
   engineFxMode = mode
