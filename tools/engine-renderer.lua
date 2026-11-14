@@ -7511,6 +7511,100 @@ function onUpdate()
   P.recent = {}
   P.uiCalls = 0
   engineOps = {}
+  if ENGINE_MODE then engineFlipGuardTick() elseif engineFlipGuard.snap ~= nil then engineFlipGuardDrop() end
+end
+
+-- ───────── flip guard: the top menu's Flip (table flip) while engine mode is on ─────────
+-- TTS gives Lua no event for its Flip and no way to cancel or disable it, and its "Table Flip" permission never applies
+-- to the host or promoted players (in engine mode every seated player is promoted, enginePromoteSeated). Measured live
+-- 2026-11-14: a flip throws the table object over and down (it falls for ever), and with it ~113 of ~139 objects, 109
+-- of them locked (locks don't hold); TTS never puts anything back. So while engine mode is on, every frame looks at the
+-- table object (one getPosition and one getRotation, nothing per object); once it has moved or turned, the table goes
+-- back, the furniture goes back from a snapshot, and the bridge is asked for the board again (the "hello" a table
+-- sends again after a reload: the running game's full resend), which draws the engine cards exactly.
+-- The snapshot is the locked objects that aren't engine cards (playmats, counters, zones, tiles, the setup tile, the
+-- effect and sound bundles), taken when engine mode goes on and again every 3 s (one scan of the objects then, never
+-- per frame); engine cards are left to the bridge's redraw. Unlocked objects are not put back (a player's own moves are
+-- theirs). An object the flip destroyed (fell through the floor in the frame it moved) can't be brought back: the
+-- per-frame check keeps that to the very first frame. Engine mode off: no guard, the table works like the original.
+-- (The user, 2026-11-14: "make the flip the table button not work when engine mode is on".)
+engineFlipGuard = { snap = nil, obj = nil, pos = nil, rot = nil, frame = 0, toldAt = nil, flips = 0, lost = 0 }
+do
+  local G = engineFlipGuard
+  local SNAP_FRAMES = 180    -- the snapshot is taken again every 3 s (60 frames a second)
+  local MOVED, TURNED = 0.05, 0.5 -- how far the table may be off (units, degrees) before it counts as flipped
+  local function angleOff(a, b)
+    local d = math.abs(a - b) % 360
+    if d > 180 then d = 360 - d end
+    return d
+  end
+  local function furniture(o)
+    if not o.getLock() then return false end
+    local gm = tostring(o.getGMNotes())
+    return gm:find("^engine:") == nil or engineIsBundleObject(gm)
+  end
+  -- the table object and how it stands, and the furniture where it is now (taken only while the table stands)
+  function engineFlipGuardSnapshot()
+    local t = Tables.getTableObject()
+    if t ~= G.obj then G.obj, G.pos, G.rot = t, t ~= nil and t.getPosition() or nil, t ~= nil and t.getRotation() or nil end
+    local snap = {}
+    for _, o in ipairs(getObjects()) do
+      if furniture(o) then snap[#snap + 1] = { o = o, pos = o.getPosition(), rot = o.getRotation() } end
+    end
+    G.snap = snap
+    G.frame = 0
+  end
+  function engineFlipGuardDrop()
+    G.snap, G.obj, G.pos, G.rot = nil, nil, nil, nil
+  end
+  -- the table and the furniture back where the snapshot has them, still and locked
+  function engineFlipGuardPutBack()
+    local zero = Vector(0, 0, 0)
+    local t = G.obj
+    if t ~= nil and not t.isDestroyed() then
+      t.setVelocity(zero) t.setAngularVelocity(zero)
+      t.setPosition(G.pos) t.setRotation(G.rot)
+      pcall(t.setLock, true) -- (so it doesn't fall again; not measured live on the table object yet, hence the pcall)
+    end
+    local lost = 0
+    for _, s in ipairs(G.snap or {}) do
+      if s.o == nil or s.o.isDestroyed() then lost = lost + 1
+      else
+        s.o.setLock(true)
+        s.o.setVelocity(zero) s.o.setAngularVelocity(zero)
+        s.o.setPosition(s.pos) s.o.setRotation(s.rot)
+      end
+    end
+    G.lost = lost
+  end
+  function engineFlipGuardRestore()
+    G.flips = G.flips + 1
+    engineFlipGuardPutBack()
+    -- (a second pass a moment later: what the flip had already set going lands on its spot, the table too)
+    Wait.frames(function() if ENGINE_MODE and G.snap ~= nil then engineFlipGuardPutBack() end end, 30)
+    -- (one message and one redraw for a flip, however many frames it keeps pushing)
+    local now = os.clock()
+    if G.toldAt == nil or now - G.toldAt > 3 then
+      G.toldAt = now
+      broadcastToAll("[MTG] The table can't be flipped while the engine is on.", {1, 0.6, 0.3})
+      if lastTable ~= nil then engineRender(lastTable) end -- (at once, from the board the table has)
+      engineSend("hello", { again = true, stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil })
+    end
+  end
+  function engineFlipGuardTick()
+    if G.snap == nil then engineFlipGuardSnapshot() return end
+    local t = G.obj
+    if t ~= nil and not t.isDestroyed() then
+      local p, r = t.getPosition(), t.getRotation()
+      if math.abs(p.x - G.pos.x) + math.abs(p.y - G.pos.y) + math.abs(p.z - G.pos.z) > MOVED
+        or angleOff(r.x, G.rot.x) + angleOff(r.y, G.rot.y) + angleOff(r.z, G.rot.z) > TURNED then
+        engineFlipGuardRestore()
+        return
+      end
+    end
+    G.frame = G.frame + 1
+    if G.frame >= SNAP_FRAMES then engineFlipGuardSnapshot() end
+  end
 end
 local function profiled(name)
   local fn = _G[name]
