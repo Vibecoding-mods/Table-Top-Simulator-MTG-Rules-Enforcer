@@ -270,6 +270,7 @@ ObjMeta.__index = function(o, k)
     -- TTS methods are called with a dot (obj.getPosition()); a colon call passes the object twice
     -- (an object destroyed in an earlier frame raises on every call but isDestroyed, as in TTS; in the frame it was
     -- destroyed it still answers, as Unity removes it at the frame's end)
+    if SIM.calls then local ck = (o.__guid == "sim-table" and "table." or "") .. k SIM.calls[ck] = (SIM.calls[ck] or 0) + 1 end -- (a test counting the script's object calls, the table's apart)
     return function(a, ...)
       local died = rawget(o, "__d") and o.__d.diedAt
       if died ~= nil and died < SIM.frame and k ~= "isDestroyed" then
@@ -559,8 +560,38 @@ end
 
 -- ───────── world ─────────
 function getObjectFromGUID(g) local o = SIM.objects[g] if alive(o) then return o end return nil end
-function getObjects() local out = {} for _, o in ipairs(SIM.order) do if alive(o) then out[#out + 1] = o end end return out end
+function getObjects() if SIM.calls then SIM.calls.getObjects = (SIM.calls.getObjects or 0) + 1 end local out = {} for _, o in ipairs(SIM.order) do if alive(o) then out[#out + 1] = o end end return out end
 getAllObjects = getObjects
+-- The table object (Tables.getTableObject): made when first asked for, kept out of getObjects as TTS keeps it out.
+-- flipTable() is TTS's top-menu Flip as measured live 2026-11-14: the table turns over and drops, and every object,
+-- locked or not, is thrown (moved, turned, set moving); __sim.flipDestroy = { [guid] = true } destroys those as well.
+Tables = {
+  getTableObject = function()
+    if SIM.tableObj == nil then
+      SIM.tableObj = makeObj({ Name = "Table_Custom", GUID = "sim-table", Locked = true, Transform = { posX = 0, posY = -3, posZ = 0 } })
+      SIM.objects["sim-table"] = nil
+      table.remove(SIM.order) -- (makeObj put it last)
+    end
+    return SIM.tableObj
+  end,
+}
+function flipTable()
+  fx("flipTable")
+  local t = Tables.getTableObject()
+  t.__d.pos = vec(0, -9, 0) t.__d.rot = vec(1.4, 345.9, 294.2)
+  local doomed = SIM.flipDestroy or {}
+  for i, o in ipairs(SIM.order) do
+    if alive(o) then
+      -- (a GUID in __sim.flipDestroy falls through the floor as well)
+      if doomed[o.__guid] then kill(o)
+      else
+        o.__d.pos = vec(o.__d.pos.x + (i % 7) - 3, o.__d.pos.y + 2 + (i % 3), o.__d.pos.z + (i % 5) - 2)
+        o.__d.rot = vec((o.__d.rot.x + 40) % 360, (o.__d.rot.y + 75) % 360, (o.__d.rot.z + 120) % 360)
+        o.__d.vel = vec(1, 5, -2)
+      end
+    end
+  end
+end
 function getObjectsWithTag(t) local out = {} for _, o in ipairs(getObjects()) do if M.hasTag(o, t) then out[#out + 1] = o end end return out end
 function spawnObject(p)
   local o = makeObj({ Name = p.type or "Custom", Transform = { posX = p.position and vec(p.position).x or 0, posY = p.position and vec(p.position).y or 0, posZ = p.position and vec(p.position).z or 0,
