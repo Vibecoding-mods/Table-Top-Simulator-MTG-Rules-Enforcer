@@ -1299,6 +1299,7 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   const k2 = clone(k1); k2.Blue.bf = k2.Blue.bf.filter((x) => x !== "b2"); k2.Blue.gy.push("b2");
   const k3 = clone(k2); k3.Blue.bf = k3.Blue.bf.filter((x) => x !== "b3" && x !== "b4"); k3.Blue.gy.push("b3", "b4");
   const k4 = clone(k3); k4.Blue.bf = k4.Blue.bf.filter((x) => x !== "b5"); k4.Blue.ex = ["b5"];
+  const k5 = clone(k4); k5.Blue.bf = k5.Blue.bf.filter((x) => x !== "b6"); k5.Blue.gy.push("b6");
   const L = (k) => `https://example.invalid/${k}.mp3`;
   const t = run([
     lua(`return engineSoundRoute`, "default route", 1),
@@ -1307,6 +1308,7 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
     send(s0, "first board"), send(k1, "music route", 60), LAST,
     lua(`engineSoundRoute = "bundle" return "x"`, "route"), send(k2, "bundle route", 60), LAST,
     send(k3, "a burst", 60), LAST, send(k4, "not in the bundle", 60), LAST,
+    lua(`getObjectFromGUID("snd001").destruct() return "x"`, "gone", 400), send(k5, "no sound object", 60), LAST,
   ]);
   ok("route by key: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
   const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
@@ -1322,6 +1324,8 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
     JSON.stringify([vals[2].snd, trig("a burst")]));
   ok("route by key, bundle: a key the bundle lacks (exile) plays its link", lastSnd(vals[3]) === "exile music" && sets("not in the bundle").some((l) => l.includes(L("exile"))) && trig("not in the bundle").length === 0,
     JSON.stringify([vals[3].snd, sets("not in the bundle")]));
+  ok("route by key, bundle: with no sound object on the table, the link", lastSnd(vals[4]) === "death music" && sets("no sound object").some((l) => l.includes(L("death"))),
+    JSON.stringify([vals[4].snd, sets("no sound object")]));
 }
 
 // route B's sound goes out with its rig's trigger (both trigger effects, sent the same way): on one board a death on a
