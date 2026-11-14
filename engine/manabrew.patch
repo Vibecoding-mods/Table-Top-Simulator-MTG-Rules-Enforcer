@@ -21,7 +21,7 @@ index b363b43..148f64d 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..d8bda07 100644
+index 54173c6..fa377eb 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
 @@ -74,18 +74,42 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
@@ -49,7 +49,7 @@ index 54173c6..d8bda07 100644
 +
 +`DungeonView` writes `PlayerDto.dungeonState` (`name`, `room`, the dungeon card's `cardId`, and `rooms`: each room's `RoomName`, its `NextRoomName` list and its description, read from the dungeon's triggers as `VentureEffect.chooseNextRoom` reads them) and `completedDungeons` (names). The fix directive's `dungeon`, `completedDungeon` and `initiative` ops make the dungeon token the way `VentureEffect.getDungeonCard` does; they run with triggers suppressed like every first-pass op, so taking the initiative there ventures nowhere.
 +
-+A start request's `players[].planes` turns Planechase on (`Planechase.planarDecks`): when every player brought a plane each keeps their own deck, otherwise the pool is dealt round-robin, planes before phenomena, so every planar deck holds a plane (`Player.initPlane` loops forever on a phenomena-only deck and `Player.planeswalk` reads past an empty one). `GameViewDto.planar` carries the controller, the active plane ids, the die cost (`getPlanarDiceSpecialActionThisTurn`), each planar deck's size and the last roll. Forge tells every seat a roll with `notifyOfValue`; the controller records it once (`Planechase.noteRoll`) instead of asking for an acknowledgement. The `planeswalk` and `chaos` ops run in the free-play pass, after triggers are back on, so the plane's triggers fire. A Planechase game takes no restore points: `GameSnapshot` copies neither `Game.activePlanes` nor `Player.currentPlanes`.
++A start request's `players[].planes` turns Planechase on (`Planechase.planarDecks`): when every player brought a plane each keeps their own deck, otherwise the pool is dealt round-robin, planes before phenomena, so every planar deck holds a plane (`Player.initPlane` loops forever on a phenomena-only deck and `Player.planeswalk` reads past an empty one). `GameViewDto.planar` carries the controller, the active plane ids, the die cost (`getPlanarDiceSpecialActionThisTurn`), each planar deck's size and the last roll. Forge tells every seat a roll with `notifyOfValue`; the controller records it once (`Planechase.noteRoll`) instead of asking for an acknowledgement. The `planeswalk` and `chaos` ops run in the free-play pass, after triggers are back on, so the plane's triggers fire. Unlike the free plays they leave priority where it was: handing it to the op's player, who might then leave the game, kept `PhaseHandler`'s `pFirstPriority` on a lost player and the step never ended. A `planeswalk` op walks the plane's owner to it, the way a real planeswalk comes from the walker's own deck (Forge keeps the planes in play in that player's `currentPlanes`, the same list as `Game.activePlanes`), then gives the planes to the active player as `PhaseHandler` does at each turn (rule 901.6). A Planechase game takes no restore points: `GameSnapshot` copies neither `Game.activePlanes` nor `Player.currentPlanes`.
 +
 +### Effects, delayed triggers and turn counts in the view
 +
@@ -2140,7 +2140,7 @@ index fb82e6d..1710ff6 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..4627330 100644
+index 643e5de..0c07c10 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,12 +6,15 @@ import forge.harness.common.ParityCardMap;
@@ -2849,7 +2849,7 @@ index 643e5de..4627330 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2470,429 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2470,431 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -2915,7 +2915,9 @@ index 643e5de..4627330 100644
 +                }
 +                final String error = freePlayError(op);
 +                if (error == null && playFree(op)) {
-+                    lastPlayer = statePlayer(op.get("player").getAsString());
++                    if (!PLANAR_OPS.contains(op.get("op").getAsString())) {
++                        lastPlayer = statePlayer(op.get("player").getAsString());
++                    }
 +                } else {
 +                    final Map<String, Object> drop = new LinkedHashMap<>();
 +                    drop.put("index", index);
@@ -3279,7 +3281,7 @@ index 643e5de..4627330 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +2925,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +2927,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -3296,7 +3298,7 @@ index 643e5de..4627330 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +2969,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +2971,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -3305,7 +3307,7 @@ index 643e5de..4627330 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3012,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3014,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -3328,7 +3330,7 @@ index 643e5de..4627330 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3056,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3058,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -3359,7 +3361,7 @@ index 643e5de..4627330 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,16 +3320,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,16 +3322,21 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -3383,7 +3385,7 @@ index 643e5de..4627330 100644
          }
          final List<AttackTargetDto> attackTargets = new java.util.ArrayList<>();
          for (final GameEntity defender : combat.getDefenders()) {
-@@ -2596,7 +3342,114 @@ public final class ManaBrewInteractiveSession {
+@@ -2596,7 +3344,114 @@ public final class ManaBrewInteractiveSession {
                      defenderId(defender), defender.getName(),
                      enumFromWire(defenderKind(defender), AttackTargetKind.class)));
          }
@@ -3499,7 +3501,7 @@ index 643e5de..4627330 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2918,7 +3771,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +3773,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3509,7 +3511,7 @@ index 643e5de..4627330 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +3782,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +3784,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -3535,7 +3537,7 @@ index 643e5de..4627330 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +3814,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +3816,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -3546,7 +3548,7 @@ index 643e5de..4627330 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +3842,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +3844,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -3688,10 +3690,10 @@ index 0000000..cc4e7ba
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/Planechase.java b/forge-harness/src/main/java/forge/harness/host/Planechase.java
 new file mode 100644
-index 0000000..6f3245b
+index 0000000..89c4600
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/Planechase.java
-@@ -0,0 +1,185 @@
+@@ -0,0 +1,190 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonObject;
@@ -3862,7 +3864,12 @@ index 0000000..6f3245b
 +        for (final Player p : game.getPlayers()) {
 +            p.leaveCurrentPlane();
 +        }
-+        player.planeswalkTo(null, new CardCollection(destination));
++        destination.getOwner().planeswalkTo(null, new CardCollection(destination));
++        final Player active = game.getPhaseHandler().getPlayerTurn();
++        for (final Card plane : game.getActivePlanes()) {
++            plane.setController(active, 0);
++            game.getAction().controllerChangeZoneCorrection(plane);
++        }
 +        return true;
 +    }
 +
@@ -7479,10 +7486,10 @@ index 0000000..4758982
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/PlanechaseTest.java b/forge-harness/src/test/java/forge/harness/host/PlanechaseTest.java
 new file mode 100644
-index 0000000..eebc3d2
+index 0000000..4206c96
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/PlanechaseTest.java
-@@ -0,0 +1,321 @@
+@@ -0,0 +1,422 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -7498,6 +7505,8 @@ index 0000000..eebc3d2
 +import forge.game.GameType;
 +import forge.game.Match;
 +import forge.game.card.Card;
++import forge.game.card.CardCollection;
++import forge.game.phase.PhaseHandler;
 +import forge.game.phase.PhaseType;
 +import forge.game.player.Player;
 +import forge.game.player.RegisteredPlayer;
@@ -7539,6 +7548,11 @@ index 0000000..eebc3d2
 +        check("planeswalkOpToAPlaneInNoDeckIsRefused", PlanechaseTest::planeswalkOpToAPlaneInNoDeckIsRefused);
 +        check("planarOpsAreRefusedOutsidePlanechase", PlanechaseTest::planarOpsAreRefusedOutsidePlanechase);
 +        check("chaosOpIsApplied", PlanechaseTest::chaosOpIsApplied);
++        check("planeswalkOpWalksAsTheOwnerAndGivesControlToTheActivePlayer", PlanechaseTest::planeswalkOpWalksAsTheOwnerAndGivesControlToTheActivePlayer);
++        check("planarOpsLeavePriorityWithThePlayerWhoHadIt", PlanechaseTest::planarOpsLeavePriorityWithThePlayerWhoHadIt);
++        check("anOwnerLeavingWhileThePlanarControllerHoldsTheirPlanePlaneswalksOn", PlanechaseTest::anOwnerLeavingWhileThePlanarControllerHoldsTheirPlanePlaneswalksOn);
++        check("anOwnerLeavingAfterThePlaneswalkOpPlaneswalksOn", PlanechaseTest::anOwnerLeavingAfterThePlaneswalkOpPlaneswalksOn);
++        check("theStepEndsWhenTheFirstPlayerToActHasLeft", PlanechaseTest::theStepEndsWhenTheFirstPlayerToActHasLeft);
 +        check("aRollIsNotedOnceForEverySeat", PlanechaseTest::aRollIsNotedOnceForEverySeat);
 +        check("aPlanechaseGameTakesNoRestorePoints", PlanechaseTest::aPlanechaseGameTakesNoRestorePoints);
 +        check("anotherGameStillTakesRestorePoints", PlanechaseTest::anotherGameStillTakesRestorePoints);
@@ -7681,6 +7695,85 @@ index 0000000..eebc3d2
 +        expectApplied(f);
 +    }
 +
++    private static void planeswalkOpWalksAsTheOwnerAndGivesControlToTheActivePlayer() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.plane("Naya", f.white);
++        f.plane("Akoum", f.blue);
++        f.apply("{\"op\":\"planeswalk\",\"player\":\"player-0\",\"name\":\"Akoum\"}");
++        expectApplied(f);
++        final Card akoum = f.commandCard("Akoum");
++        expect(akoum.getController() == f.white, "Akoum is controlled by " + akoum.getController());
++        expect(f.white.getZone(ZoneType.Command).contains(akoum), "Akoum is not in the active player's command zone");
++        expect(cardNames(f.blue.getPlaneswalkedToThisTurn()).equals(List.of("Akoum")),
++                "Akoum's owner planeswalked to " + cardNames(f.blue.getPlaneswalkedToThisTurn()));
++        expect(f.white.getPlaneswalkedToThisTurn().isEmpty(), "White planeswalked to " + cardNames(f.white.getPlaneswalkedToThisTurn()));
++        expect("player-0".equals(f.view().getAsJsonObject("planar").get("controllerId").getAsString()),
++                "controllerId " + f.view().getAsJsonObject("planar").get("controllerId"));
++    }
++
++    private static void planarOpsLeavePriorityWithThePlayerWhoHadIt() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.plane("Naya", f.white);
++        f.plane("Akoum", f.blue);
++        expect(f.game.getPhaseHandler().getPriorityPlayer() == f.white, "White does not start with priority");
++        f.apply("{\"op\":\"planeswalk\",\"player\":\"player-1\",\"name\":\"Akoum\"}");
++        expectApplied(f);
++        expect(f.game.getPhaseHandler().getPriorityPlayer() == f.white,
++                "the planeswalk op gave priority to " + f.game.getPhaseHandler().getPriorityPlayer());
++        f.apply("{\"op\":\"chaos\",\"player\":\"player-1\"}");
++        expectApplied(f);
++        expect(f.game.getPhaseHandler().getPriorityPlayer() == f.white,
++                "the chaos op gave priority to " + f.game.getPhaseHandler().getPriorityPlayer());
++    }
++
++    private static void anOwnerLeavingWhileThePlanarControllerHoldsTheirPlanePlaneswalksOn() throws Exception {
++        final Fixture f = new Fixture(true, true);
++        f.plane("Naya", f.white);
++        final Card akoum = f.plane("Akoum", f.blue);
++        f.white.planeswalkTo(null, new CardCollection(akoum));
++        f.blue.setLife(0, null);
++        f.game.getAction().checkStateEffects(true);
++        expect(f.blue.hasLost(), "Blue is still in the game");
++        expect(names(f.view().getAsJsonArray("activePlaneNames")).equals(List.of("Naya")),
++                "activePlaneNames " + f.view().get("activePlaneNames"));
++    }
++
++    private static void anOwnerLeavingAfterThePlaneswalkOpPlaneswalksOn() throws Exception {
++        final Fixture f = new Fixture(true, true);
++        f.plane("Naya", f.white);
++        f.plane("Akoum", f.blue);
++        f.apply("{\"op\":\"planeswalk\",\"player\":\"player-0\",\"name\":\"Akoum\"}");
++        expectApplied(f);
++        f.blue.setLife(0, null);
++        f.game.getAction().checkStateEffects(true);
++        expect(f.blue.hasLost(), "Blue is still in the game");
++        expect(names(f.view().getAsJsonArray("activePlaneNames")).equals(List.of("Naya")),
++                "activePlaneNames " + f.view().get("activePlaneNames"));
++        expect(f.commandCard("Naya").getController() == f.white, "Naya is controlled by " + f.commandCard("Naya").getController());
++    }
++
++    private static void theStepEndsWhenTheFirstPlayerToActHasLeft() {
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        for (final String name : List.of("White", "Blue", "Red")) {
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new PassiveLobbyPlayerAi(name)));
++        }
++        final GameRules rules = new GameRules(GameType.Constructed);
++        final Game game = new Game(players, rules, new Match(rules, players, "PlanechaseTest"));
++        game.setAge(GameStage.Play);
++        final PhaseHandler handler = game.getPhaseHandler();
++        handler.devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++        handler.onStackResolved();
++        final Player blue = game.getPlayers().get(1);
++        handler.setPriority(blue);
++        blue.setLife(0, null);
++        game.getAction().checkStateEffects(true);
++        expect(blue.hasLost(), "Blue is still in the game");
++        for (int i = 0; i < 12 && handler.getPhase() == PhaseType.MAIN1; i++) {
++            handler.mainLoopStep();
++        }
++        expect(handler.getPhase() != PhaseType.MAIN1, "every player passed 12 times and the main phase did not end");
++    }
++
 +    private static void aRollIsNotedOnceForEverySeat() throws Exception {
 +        final Fixture f = new Fixture(true);
 +        f.white.roll();
@@ -7707,6 +7800,14 @@ index 0000000..eebc3d2
 +        final Fixture f = new Fixture(false);
 +        f.recordCheckpoint();
 +        expect(f.view().getAsJsonArray("checkpoints").size() == 1, "a game without Planechase took no restore point");
++    }
++
++    private static List<String> cardNames(final List<Card> cards) {
++        final List<String> names = new ArrayList<>();
++        for (final Card card : cards) {
++            names.add(card.getName());
++        }
++        return names;
 +    }
 +
 +    private static List<String> names(final JsonArray array) {
@@ -7742,7 +7843,11 @@ index 0000000..eebc3d2
 +        private int fixId;
 +
 +        Fixture(final boolean planechase) {
-+            game = newGame(planechase);
++            this(planechase, false);
++        }
++
++        Fixture(final boolean planechase, final boolean third) {
++            game = newGame(planechase, third);
 +            white = game.getPlayers().get(0);
 +            blue = game.getPlayers().get(1);
 +            session.attach(game.getMatch(), game, Set.of(), true);
@@ -7787,11 +7892,14 @@ index 0000000..eebc3d2
 +            return JsonParser.parseString(session.getSnapshotJson(0)).getAsJsonObject();
 +        }
 +
-+        private Game newGame(final boolean planechase) {
++        private Game newGame(final boolean planechase, final boolean third) {
 +            final List<RegisteredPlayer> players = new ArrayList<>();
 +            final Deck deck = new Deck();
 +            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
 +            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++            if (third) {
++                players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Red", null)));
++            }
 +            final GameRules rules = new GameRules(GameType.Constructed);
 +            rules.setAppliedVariants(planechase
 +                    ? EnumSet.of(GameType.Constructed, GameType.Planechase)

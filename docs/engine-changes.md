@@ -89,7 +89,8 @@ Open follow-ups from that review (none a regression of engine1113; the table is 
    each card gets its own round, so nothing is shared (output unchanged).
 
 Planechase engine bugs found by the live spike `tests/live_planechase_check.js` on 2026-11-13 (engine1113 /
-`mtg-forge-node:exile`). Not fixed, nothing built. The spike passes 41 of 41 checks by setting its cases up around them.
+`mtg-forge-node:exile`). **Fixed in source 2026-11-13, not built** (branch `planechase-fix-1113`, below). On engine1113 the
+spike passes 41 of 41 checks by setting its cases up around them.
 Node log evidence is from the test stack, run 2026-11-13 18:54 and 19:00-19:07 local.
 1. **Abort (ConcurrentModificationException) in Forge `Game.onPlayerLost`, the 901.10 block** (`Game.java:1019`):
    `for (Card c : getActivePlanes()) { ... planarController.removeCurrentPlane(c); }`. `Game.activePlanes` is the same
@@ -127,6 +128,42 @@ What a fix takes: fix 1 and the Forge half of 2 go in `engine/forge.patch`; the 
 `Planechase.java` / `ManaBrewInteractiveSession.java`, plus a `PlanechaseTest` case for each. No protocol change, so a
 node rebuild only (about 20 minutes). After the rebuild, the spike's case set-ups can go back to the simple shape (the
 seat walks on its own turn), and both must pass.
+**planechase-fix-1113 (source only, not built, 2026-11-13).** All three fixes, in `engine/forge.patch` and
+`engine/manabrew.patch` (regenerated with `engine/make-patches.sh`; the diff against the engine1113 patches is only these
+hunks). Worktree `tmp/mb-pcfix` (Manabrew branch `planechase-fix-1113` from `2af9fe9`, commit `b2e59fd`; its `forge/` is a
+clone at the patch base `8f3f705d` + commit `ae1e586c`). Node only, no protocol change.
+- Forge `Game.onPlayerLost` 901.10: iterates `new CardCollection(getActivePlanes())` (fix 1).
+- Forge `PhaseHandler.mainLoopStep`, just before the `pFirstPriority == nextPlayer` test: if `pFirstPriority` has lost
+  and is not the player passing now, it becomes `game.getNextPlayerAfter(pFirstPriority)` (the Forge half of fix 2).
+  Conservative on purpose: nothing changes unless the first player to act has left. Every player between the lost one and
+  the one passing now has already passed in turn, so the step still ends only after each remaining player passed once.
+  It waits while the lost player itself holds priority (moving `pFirstPriority` then would end the step before anyone
+  else passed). Forge's own "Active player is no longer in the game" branch runs earlier in the same call and leaves
+  `pFirstPriority` on a player still in the game, so the two never meet.
+- Harness `ManaBrewInteractiveSession.applyState`: `planeswalk` and `chaos` no longer set `lastPlayer` (fix 2).
+- Harness `Planechase.applyOp`: walks `destination.getOwner()`, then gives every active plane to the turn player with
+  `setController(active, 0)` + `controllerChangeZoneCorrection`, as PhaseHandler does (fix 3). Side effect, debug only:
+  `planeswalkedToThisTurn` and the PlaneswalkedTo trigger's player are the owner, not the op's player.
+- `PlanechaseTest`, five new checks: `planeswalkOpWalksAsTheOwnerAndGivesControlToTheActivePlayer`,
+  `planarOpsLeavePriorityWithThePlayerWhoHadIt`, `anOwnerLeavingWhileThePlanarControllerHoldsTheirPlanePlaneswalksOn`
+  (the raw Forge shape, fix 1), `anOwnerLeavingAfterThePlaneswalkOpPlaneswalksOn`, `theStepEndsWhenTheFirstPlayerToActHasLeft`
+  (no Planechase, three passive AIs, fix 2's Forge half). **Not run yet**: there is no JDK here and the tests need the
+  java-builder image. The break-it proof (each check fails by name with its fix removed) is part of the build steps.
+- `tests/live_planechase_check.js --raw`: the spike in the simple shape (the seat's own walks, the controller checked on
+  op turns). It must pass on the new image and fail (abort or runaway) on engine1113.
+Build and check (bash, from `C:/Users/you/mtg-tts`, when no other agent is building):
+1. `ENGINE_BUILD_DIR=$PWD/tmp/engine-build-pcfix bash engine/build-images.sh pcfix1113` (fetches the pinned upstream
+   commits, applies both patches in a clean LF tree, builds node and relay; relay source is unchanged).
+2. `docker build --target java-builder -f tmp/engine-build-pcfix/manabrew-rs/crates/self-hosted-node/Dockerfile -t
+   mtg-harness-test:pcfix1113 tmp/engine-build-pcfix`, then `MSYS_NO_PATHCONV=1 docker run --rm -v
+   "C:/Users/you/mtg-tts/tmp/engine-build-pcfix/forge-harness:/src:ro" -v
+   "C:/Users/you/mtg-tts/engine/checks/harness-tests.sh:/harness-tests.sh:ro" --entrypoint sh
+   mtg-harness-test:pcfix1113 /harness-tests.sh PlanechaseTest`, then with no class name (every class).
+3. Break-it: revert one fix at a time and re-run PlanechaseTest. The harness fixes can be reverted in the mounted
+   `forge-harness`; a Forge fix needs the java-builder image rebuilt with that hunk removed.
+4. `LIVE_STACK=1 LIVE_TIMEOUT=600 bash tools/live-check.sh pcfix1113 tests/live_planechase_check.js`, then the same with
+   `LIVE_ARGS=--raw`. Both must pass.
+Then the usual: a row in section 3 and an entry in section 4, a rollback tag, `deploy.js --image pcfix1113`.
 
 ## 3. Summary table (newest first)
 
