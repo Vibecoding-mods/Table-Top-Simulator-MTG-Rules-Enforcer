@@ -20,7 +20,8 @@ javac -nowarn -encoding UTF-8 -proc:none -d /tmp/test -cp "/tmp/main:$jar" @/tmp
 cd /build
 [ $# -gt 0 ] || set -- MindslaverControlTest ExtraTurnRewindTest OptionalCardChoiceTest ManaBrewEngineAdapterTest \
   InteractiveSnapshotExtractorTest MayPlayVisibilityTest PassiveAiTest ApplyStateCreateCardTest AttackDefenderChoiceTest \
-  ApplyStateDrawMillTest DungeonStateTest PlanechaseTest CardStateFlagsTest EffectsViewTest EngineEventDamageTest
+  ApplyStateDrawMillTest DungeonStateTest PlanechaseTest CardStateFlagsTest EffectsViewTest EngineEventDamageTest \
+  TeamGameTest
 failed=""
 for c in "$@"; do
   echo "=== $c"
