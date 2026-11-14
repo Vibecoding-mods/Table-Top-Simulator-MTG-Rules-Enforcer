@@ -304,3 +304,7 @@ table, typing in the search box, the 12 s hold, the GUID fix for `onObjectDestro
   size are kept, the links checked again as search answers are. Messages: `gif_favs` and `gif_star`, both answered
   with `gif_favs`; neither calls GIPHY nor counts against the hour's searches. A favourite's click shows it like a pick.
   Both tabs' thumbnails stay in the frame's assets while the panel is open, so a tab switch reuses no name.
+- **Collapse** (the user asked, 2026-11-14): the owner's Hide (beside GIF... and Replay) makes the frame a small plain
+  tile (`CS` = 2.5 times smaller, the table's card back, a "GIF" square) for everyone: it is the tile itself, so every
+  client sees it. The GIF stays chosen (`state.collapsed`, in the frame's memo, so a reload keeps it); the owner's
+  Show respawns it at full size, playing. A collapsed frame doesn't play on a click.

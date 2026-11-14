@@ -387,5 +387,32 @@ const SEATED = ["White", "Blue"];
   ok("reload: the saved rating is used", ((val(r, "sent search")?.list || []).find((m) => m.t === "gif_search") || {}).p?.rating === "pg", val(r, "sent search"));
 }
 
+// ── collapse: the owner's Hide makes the frame a small plain tile for everyone, keeping the GIF; Show brings it back
+{
+  const r = simulate({ save, seated: SEATED, host: "Blue", steps: [
+    SPY, CONFIG(true), { frames: 10 },
+    CHAT("White", "mtg gif cats", "search"), msg("gif_results", { color: "White", req: 1, first: true, q: "cats", page: 0, items: ITEMS, total: 3, error: null }, 10), FRAMES("shown"),
+    CLICK("White", "gifpick_White", "open panel"),
+    CLICK("Blue", "gifcol_White", "blue hides"), { frames: 10 }, FRAMES("after blue"),
+    CLICK("White", "gifcol_White", "hide"), { frames: 10 }, FRAMES("collapsed"),
+    ACT("Blue", "Select", "White", "blue clicks it"), lua("return tostring(engineGif.playing.White)", "playing while collapsed"),
+    lua("engineGif.adopted = false engineGif.frames = {} engineGif.state.White = nil engineGif.adopt() local st = engineGif.state.White return JSON.encode({ c = st and st.collapsed, mp4 = st and st.mp4 })", "adopted"),
+    CLICK("White", "gifcol_White", "show"), { frames: 10 }, FRAMES("expanded"),
+  ] });
+  ok("collapse: no errors", !r.errors.length, r.errors.join(" | "));
+  const sh = byC(val(r, "shown"), "White");
+  ok("collapse: a shown GIF has the owner's Hide beside GIF... and Replay", sh && /<Button id="gifcol_White" visibility="White"[^>]*>Hide<\/Button>/.test(sh.xml) && sh.xml.includes('id="gifplay_White"') && sh.xml.includes('id="gifpick_White"'), sh?.xml);
+  ok("collapse: another player's click does nothing", byC(val(r, "after blue"), "White")?.img === ITEMS[0].mp4);
+  const co = byC(val(r, "collapsed"), "White");
+  const memo = (() => { try { return JSON.parse(co?.memo || ""); } catch { return {}; } })();
+  ok("collapse: the frame becomes a small plain tile (for everyone: it is the tile itself)", co && co.img === ENGINE_BACK && co.stretch === false && Math.abs(co.sx - 1.53 / 2.5) < 0.001 && co.inv === "", co && [co.img, co.stretch, co.sx]);
+  ok("collapse: the GIF stays chosen, in the frame's memo with collapsed", memo.mp4 === ITEMS[0].mp4 && memo.collapsed === true, memo);
+  ok("collapse: the collapsed UI: no still, the owner's Show, the panel closed", co && !co.xml.includes("gifhold_") && /<Button id="gifcol_White" visibility="White"[^>]*>Show<\/Button>/.test(co.xml) && !co.xml.includes("gifpanel_"), co?.xml);
+  ok("collapse: a click on the collapsed frame doesn't play it", raw(r, "playing while collapsed") === "nil", raw(r, "playing while collapsed"));
+  ok("collapse: a reload keeps it collapsed (the memo)", (() => { try { const j = JSON.parse(raw(r, "adopted")); return j.c === true && j.mp4 === ITEMS[0].mp4; } catch { return false; } })(), raw(r, "adopted"));
+  const ex = byC(val(r, "expanded"), "White");
+  ok("collapse: Show brings the same GIF back, playing, at full size", ex && ex.img === ITEMS[0].mp4 && ex.stretch === true && Math.abs(ex.sx - 0.765) < 0.001 && ex.hold === "false" && !JSON.parse(ex.memo || "{}").collapsed, ex && [ex.img, ex.sx, ex.hold, ex.memo]);
+}
+
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
