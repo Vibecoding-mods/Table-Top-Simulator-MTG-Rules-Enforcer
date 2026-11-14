@@ -241,7 +241,7 @@ function engineStartGame(pl, rest, cleared)
   if engineStartSentAt ~= nil and os.clock() - engineStartSentAt < 5 then return false end
   engineStartSentAt = os.clock()
   engineSendDecks(read, pl.color)
-  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly })
+  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly, mode = engineModeSent() })
 end
 
 -- All "mtg ..." chat commands. Returns false (hide the line) when handled, nil otherwise.
@@ -385,6 +385,12 @@ function engineChat(message, pl)
     if not isHost then pl.broadcast("[MTG] Only the host can set up Planechase.") return false end
     if cmd == "planechase" then engineSend("planechase", { color = pl.color, on = rest ~= "off" })
     else engineSend("planes", { color = pl.color, text = rest }) end
+  elseif cmd == "mode" then
+    -- the next games' mode (host): mtg mode standard / mtg mode commander (docs/game-modes-spec.md §3.4); "mtg mode" says it
+    if rest == "" then pl.broadcast("[MTG] Game mode: " .. (ENGINE_GAME_MODE == "standard" and "Standard" or "Commander") .. ". The host changes it:  mtg mode standard  or  mtg mode commander  (or the Game mode button).")
+    elseif not isHost then pl.broadcast("[MTG] Only the host can change the game mode (everyone plays it).")
+    elseif rest == "standard" or rest == "commander" then engineSetGameMode(rest, pl)
+    else pl.broadcast("[MTG] Use:  mtg mode standard  (60-card decks, 20 life, no commander) or  mtg mode commander") end
   elseif cmd == "art" then
     -- the players' own card pictures (a deck line "1 Sol Ring #https://..."), on or off for everyone (host):
     -- mtg art off / mtg art on (the bridge's customArt, docs/custom-art-spec.md)
@@ -412,7 +418,7 @@ function engineChat(message, pl)
     engineSend("reset", {})
     if ENGINE_MODE then engineClear() end -- don't wait for the bridge's "clear" (it may be down)
   else
-    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg ai <colour> harmless|forge [deck] / mtg ai <colour> off (host) - who plays an empty seat, every game\\n mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg planechase on|off (host) - Planechase in the next games; mtg planes random [N] / mtg planes <name>; <name> - the planar decks\\n mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <knockout|wipe|bighit|death|exile|countered|playerhit|damage|lifegain|treasure|treasurespend|sorcery|instant|counter> [N] (N at once); mtg animations on/off (host) - also under Settings\\n mtg fx on/low/off (host) - the table's particle effects")
+    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg mode standard|commander (host) - the next games' format: Standard (60 cards, 20 life, no commander) or Commander\\n mtg commander - hover your commander first\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg ai <colour> harmless|forge [deck] / mtg ai <colour> off (host) - who plays an empty seat, every game\\n mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg planechase on|off (host) - Planechase in the next games; mtg planes random [N] / mtg planes <name>; <name> - the planar decks\\n mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <knockout|wipe|bighit|death|exile|countered|playerhit|damage|lifegain|treasure|treasurespend|sorcery|instant|counter> [N] (N at once); mtg animations on/off (host) - also under Settings\\n mtg fx on/low/off (host) - the table's particle effects")
   end
   return false
 end
@@ -505,7 +511,7 @@ function engineSendDecks(colors, requester)
   end
   readyRequest = readyRequest + 1
   local mine = readyRequest
-  engineSend("decks", { seats = seats, request = mine })
+  engineSend("decks", { seats = seats, request = mine, mode = engineModeSent() })
   broadcastToColor("[MTG] Checking deck" .. (#colors > 1 and "s" or "") .. " with the rules engine...", requester, {0.8, 0.8, 0.8})
   Wait.time(function()
     if readyRequest == mine then

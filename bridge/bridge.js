@@ -370,7 +370,10 @@ function loadPreset(id) {
     if (p.commander && e.name === p.commander && !commander) { commander = toCard(e); continue; }
     for (let k = 0; k < (e.count || 1); k++) cards.push(toCard(e));
   }
-  const deck = { name: p.label, cards, sideboard: [], format: p.format || "commander" };
+  // (a Standard deck's file has its sideboard too: decks/standard_*.json)
+  const sideboard = [];
+  for (const e of p.sideboard || []) for (let k = 0; k < (e.count || 1); k++) sideboard.push(toCard(e));
+  const deck = { name: p.label, cards, sideboard, format: p.format || "commander" };
   if (commander) deck.commanders = [commander];
   return { deckName: p.label, deck, commanderName: p.commander || null };
 }
@@ -482,8 +485,92 @@ const normName = (s) => String(s || "").normalize("NFKD").replace(/[̀-ͯ]/g, ""
   .replace(/\s+/g, " ").trim().toLowerCase();
 const BASICS = new Set(["plains", "island", "swamp", "mountain", "forest", "wastes",
   "snow-covered plains", "snow-covered island", "snow-covered swamp", "snow-covered mountain", "snow-covered forest", "snow-covered wastes"]);
-const readyDecks = {}; // color → { deckName, cards, commanders, images }
+const readyDecks = {}; // color → { deckName, cards, commanders, images, mode (the game mode it was checked for) }
 const asList = (x) => (Array.isArray(x) ? x : x && typeof x === "object" ? Object.values(x) : []);
+
+// ───── Game modes (docs/game-modes-spec.md §3): Commander (the default) or Standard, 1v1 and free-for-all ─────
+// The host picks the mode on the table ("mtg mode standard|commander", the mode button by Start); the table keeps it and
+// sends it with "hello", every deck check and every start, so the bridge's copy follows the table's (a reloaded table
+// is back on Commander, as its other switches are). `format`: what StartGame sends the relay (it picks the starting life
+// from it: 40, or 20 for Standard; the node maps Standard to Forge's Constructed game); `deck`: the engine deck's format.
+const MODES = {
+  commander: { format: "Commander", deck: "commander", words: "Commander" },
+  standard: { format: "Standard", deck: "standard", words: "Standard" },
+};
+// the bot decks of a mode when nothing else was chosen (decks/standard_*.json: real lists, each file says where from)
+const STANDARD_DECKS = ["standard_rakdos_ingris", "standard_mono_green_landfall", "standard_orzhov_soul_sisters", "standard_dimir_aggro"];
+const gameMode = { mode: "commander" }; // the next games' mode, as the table last said
+// a mode name as typed or sent ("Standard", " commander"), or null
+const modeOf = (x) => { const k = String(x ?? "").trim().toLowerCase(); return Object.hasOwn(MODES, k) ? k : null; };
+const defaultDecksOf = (mode) => (mode === "standard" ? STANDARD_DECKS : DEFAULT_DECKS);
+// "Standard, 1v1" / "Standard, free-for-all (3)" (spec §3.4), or the mode's name when the player count isn't known
+function modeWords(mode, players) {
+  if (mode !== "standard") return MODES[mode]?.words || "Commander";
+  return players === 2 ? "Standard, 1v1" : players > 2 ? `Standard, free-for-all (${players})` : "Standard";
+}
+// the table's mode, from a message the table sends it with (hello, decks, start, mode). The table sends it only for
+// Standard, so a message without one is Commander (an older table script, a reloaded table, a test's start).
+function noteMode(m) {
+  const k = modeOf(m?.mode) || "commander";
+  if (k !== gameMode.mode) { log(`game mode: ${k}`); gameMode.mode = k; }
+  return gameMode.mode;
+}
+function onMode(m) {
+  const k = modeOf(m.mode);
+  if (!k) return chat("[MTG] Use:  mtg mode standard  or  mtg mode commander", m.color);
+  noteMode(m);
+  // (the table said it to everyone; the Forge AI seats set for the other mode are said here, they play a built-in deck,
+  // deckForMode; a harmless bot keeps its own)
+  const off = TABLE_COLORS.filter((c) => aiSeatChoice[c]?.kind === "forge" && (aiSeatChoice[c].deck.deck.format || "commander") !== MODES[k].deck);
+  if (off.length) chat(`[MTG] In ${MODES[k].words} the AI seat${off.length > 1 ? "s" : ""} ${off.join(", ")} set with a ${k === "standard" ? "Commander" : "Standard"} deck play${off.length > 1 ? "" : "s"} a built-in ${MODES[k].words} deck instead (mtg ai <colour> forge <deck> to choose).`);
+}
+
+// Forge's own format data (bridge/forge-formats.json, tools/build-forge-card-index.js --formats): per format the legal
+// card names (a printing in one of its sets, not banned), the ban list, and the cards allowed more than 4 copies.
+let forgeFormats = null; // format name -> { legal: Set, banned: Set, sets, limits }, read once
+function forgeFormat(name) {
+  if (!forgeFormats) {
+    forgeFormats = new Map();
+    try {
+      const j = JSON.parse(fs.readFileSync(path.join(__dirname, "forge-formats.json"), "utf8"));
+      for (const [k, f] of Object.entries(j.formats || {})) {
+        if (Array.isArray(f.legal)) forgeFormats.set(k, { legal: new Set(f.legal), banned: new Set(f.banned || []), sets: f.sets || [], limits: j.copyLimits || {} });
+      }
+    } catch { log("forge-formats.json missing: run node tools/build-forge-card-index.js --formats"); }
+  }
+  return forgeFormats.get(name) || null;
+}
+// What keeps a deck out of Standard (spec §3.3/§3.4, as Forge's GameFormat and DeckFormat.Constructed check it): 60+
+// main deck, at most 15 sideboard, at most 4 of a card counting main deck and sideboard together (basic lands and the
+// cards that say otherwise excepted), every card legal in Forge's Standard list and none banned, and no commander.
+// Names are the engine's (forgeIndex). [problems] (empty: legal).
+function standardProblems(cards, commanders = [], sideboard = []) {
+  const f = forgeFormat("Standard");
+  if (!f) return ["the bridge has no Standard card list (bridge/forge-formats.json is missing: node tools/build-forge-card-index.js --formats)"];
+  const problems = [];
+  const few = (list) => `${list.slice(0, 8).join(", ")}${list.length > 8 ? `, and ${list.length - 8} more` : ""}`;
+  // (the engine's name for each: a preset's "Aang, Swift Savior // Aang and La, Ocean's Fury" is Forge's front face)
+  const index = forgeIndex(), canon = (n) => index[normName(n)] || n;
+  cards = cards.map(canon), commanders = commanders.map(canon), sideboard = sideboard.map(canon);
+  if (commanders.length) problems.push(`Standard has no commander: take ${few(commanders)} off your command zone (or put it in your deck)`);
+  if (cards.length < 60) problems.push(`${cards.length} cards in your deck: Standard decks have at least 60`);
+  if (sideboard.length > 15) problems.push(`${sideboard.length} cards in the sideboard: at most 15`);
+  const counts = {};
+  for (const n of [...cards, ...sideboard]) counts[n] = (counts[n] || 0) + 1;
+  const basic = (n) => BASICS.has(normName(n));
+  const over = Object.entries(counts).filter(([n, k]) => {
+    const lim = f.limits[n] ?? 4;
+    return !basic(n) && lim !== "any" && k > lim;
+  }).map(([n, k]) => `${k}× ${n}`);
+  if (over.length) problems.push(`more than 4 copies of: ${few(over)} (basic lands excepted)`);
+  const names = Object.keys(counts);
+  const banned = names.filter((n) => f.banned.has(n));
+  if (banned.length) problems.push(`banned in Standard: ${few(banned)}`);
+  // (basic lands too: Forge's list has the basics its sets print, and no snow-covered ones)
+  const outside = names.filter((n) => !f.banned.has(n) && !f.legal.has(n));
+  if (outside.length) problems.push(`not in Standard's sets (${f.sets.join(" ")}): ${few(outside)}`);
+  return problems;
+}
 
 // Cards printed in another language (2026-11-12: a deck's "アクローマの意志" and "嵐の伝導者、ラル" were unknown to the
 // engine, which has English names only). Scryfall gives the English name: by the printing's id, which the card's face
@@ -617,7 +704,8 @@ function artNotes(art, copies) {
   return lines.length > MAX ? [...lines.slice(0, MAX), `and ${lines.length - MAX} more`] : lines;
 }
 
-function checkDeck(color, entry) {
+function checkDeck(color, entry, mode = gameMode.mode) {
+  const std = mode === "standard"; // (Standard: no commander, every card in Forge's Standard list, standardProblems)
   const index = forgeIndex();
   const unknown = [];
   const commanders = [];
@@ -653,7 +741,8 @@ function checkDeck(color, entry) {
   };
   for (const c of asList(entry.commander)) { const n = resolve(c); if (n) commanders.push(n); }
   for (const c of asList(entry.library)) { const n = resolve(c); if (n) cards.push(n); }
-  for (const cmd of commanders) { const i = cards.indexOf(cmd); if (i >= 0) cards.splice(i, 1); } // commander left in the library
+  // (Standard: nothing is a commander, so nothing comes out of the library: standardProblems says the command zone's)
+  if (!std) for (const cmd of commanders) { const i = cards.indexOf(cmd); if (i >= 0) cards.splice(i, 1); } // commander left in the library
   const counts = {};
   for (const n of cards) counts[n] = (counts[n] || 0) + 1;
   const extras = Object.entries(counts).filter(([n, k]) => k > 1 && !BASICS.has(normName(n))).map(([n, k]) => `${k}× ${n}`);
@@ -663,22 +752,29 @@ function checkDeck(color, entry) {
 
   const problems = [];
   if (!asList(entry.library).length) problems.push("no deck found in your library zone; put your imported deck there");
-  if (!commanders.length) problems.push("no commander found; put it on your command zone, or hover it and type: mtg commander");
+  if (!std && !commanders.length) problems.push("no commander found; put it on your command zone, or hover it and type: mtg commander");
   if (unknown.length) problems.push(`the engine doesn't know ${unknown.length} card(s): ${unknown.slice(0, 8).join(", ")}${unknown.length > 8 ? `, and ${unknown.length - 8} more` : ""}. Swap them out or fix the names`);
+  // (the table reads no sideboard: the Card Importer puts a list's sideboard in the Notebook, so there is none to check)
+  if (std && asList(entry.library).length) problems.push(...standardProblems(cards, commanders));
   const warnings = [];
-  if (asList(entry.library).length && total !== 100) warnings.push(`${total} cards (Commander decks are 100 including the commander)`);
-  if (extras.length) warnings.push(`more than one copy of: ${extras.slice(0, 5).join(", ")}${extras.length > 5 ? " ..." : ""} (fine only if the card allows it)`);
+  if (!std && asList(entry.library).length && total !== 100) warnings.push(`${total} cards (Commander decks are 100 including the commander)`);
+  if (!std && extras.length) warnings.push(`more than one copy of: ${extras.slice(0, 5).join(", ")}${extras.length > 5 ? " ..." : ""} (fine only if the card allows it)`);
 
   const label = `${color}${entry.deckName ? ` (${entry.deckName})` : ""}`;
   const names = [...translated].map(([p, n]) => `${p} → ${n}`);
   const foreign = names.length ? `\nForeign names: ${names.slice(0, 8).join(", ")}${names.length > 8 ? `, and ${names.length - 8} more` : ""}` : "";
   if (problems.length) {
     delete readyDecks[color];
-    chat(`[MTG] ${label}: not ready.\n- ${problems.join("\n- ")}${warnings.length ? `\nAlso: ${warnings.join("; ")}` : ""}${foreign}${artSaid}`, color);
+    chat(`[MTG] ${label}: not ready${std ? " for Standard" : ""}.\n- ${problems.join("\n- ")}${warnings.length ? `\nAlso: ${warnings.join("; ")}` : ""}${foreign}${artSaid}`, color);
     return false;
   }
-  readyDecks[color] = { deckName: entry.deckName || `${color}'s deck`, cards, commanders, images };
+  readyDecks[color] = { deckName: entry.deckName || `${color}'s deck`, cards, commanders, images, mode };
   checkDeckImages(images);
+  if (std) {
+    chat(`[MTG] ${label}: ready for Standard. ${cards.length} cards; every card is known to the engine and legal in Standard.${foreign}${artSaid}`, color);
+    log(`${color} deck ready for Standard: ${cards.length} cards`);
+    return true;
+  }
   chat(`[MTG] ${label}: ready. ${cards.length} cards + commander ${commanders.join(" & ")}; every card is known to the engine.${warnings.length ? `\nCheck: ${warnings.join("; ")}` : ""}${foreign}${artSaid}`, color);
   log(`${color} deck ready: ${total} cards, commander ${commanders.join(" & ")}`);
   return true;
@@ -705,15 +801,20 @@ function onDecks(m, looked = false) {
       .then(() => guarded("decks after the name lookup", () => onDecks({ ...m, seats, request: -1 }, gens)));
     return;
   }
-  const ok = colors.filter((c) => checkDeck(c, seats[c]));
+  const mode = noteMode(m); // (the table's mode, sent with the decks)
+  const ok = colors.filter((c) => checkDeck(c, seats[c], mode));
   if (colors.length > 1) chat(`[MTG] Decks ready: ${ok.length}/${colors.length}${ok.length ? ` (${ok.join(", ")})` : ""}.`);
   toTTS({ t: "deckReport", request: m.request, ready: ok, checked: colors });
 }
 
 // The engine's deck format, built from a deck checked by "mtg ready". Names only: Forge picks the printing,
 // while the table keeps showing each card's own images.
+// A Standard deck (r.mode "standard") goes with no commander and with its sideboard (a deck list's; the table reads none).
 function engineDeckFromTable(r) {
   const card = (name) => ({ identity: { name, setCode: "", cardNumber: "" }, uris: {} });
+  if (r.mode === "standard") {
+    return { deckName: r.deckName, deck: { name: r.deckName, cards: r.cards.map(card), sideboard: (r.sideboard || []).map(card), format: "standard", commanders: [] }, commanderName: null };
+  }
   return {
     deckName: r.deckName,
     deck: { name: r.deckName, cards: r.cards.map(card), sideboard: [], format: "commander", commanders: r.commanders.map(card) },
@@ -721,11 +822,44 @@ function engineDeckFromTable(r) {
   };
 }
 
-function listCommanderPresets() {
+// the preset ids whose file says `format` ("commander", "standard")
+function listPresets(format) {
   try {
-    return presetIds().filter((id) => { try { return JSON.parse(fs.readFileSync(presetFile(id), "utf8")).format === "commander"; } catch { return false; } });
-  } catch { return DEFAULT_DECKS; }
+    return presetIds().filter((id) => { try { return JSON.parse(fs.readFileSync(presetFile(id), "utf8")).format === format; } catch { return false; } });
+  } catch { return format === "commander" ? DEFAULT_DECKS : []; }
 }
+function listCommanderPresets() { return listPresets("commander"); }
+// The presets a game of `mode` may use: Commander's by their format; Standard's by their format and legal in Forge's
+// Standard list as it stands (the engine's own Standard presets, ironsmith_standard_* and starter_deck_*, have rotated
+// out or hold banned cards). (legalStandard: preset id → legal; the list and the files don't change while it runs)
+const legalStandard = new Map();
+function presetsFor(mode) {
+  const ids = listPresets(MODES[mode].deck);
+  if (mode !== "standard") return ids;
+  const names = (list) => (list || []).map((c) => c.identity.name);
+  return ids.filter((id) => {
+    if (!legalStandard.has(id)) {
+      const d = loadPreset(id).deck;
+      legalStandard.set(id, standardProblems(names(d.cards), names(d.commanders), names(d.sideboard)).length === 0);
+    }
+    return legalStandard.get(id);
+  });
+}
+// the decks to choose from in the next games' mode ("mtg aideck", "mtg deck", "mtg ai", the companion page)
+const modePresets = () => presetsFor(gameMode.mode);
+// The deck an AI plays in a game of `mode`: its own (loadPreset's form) when it was made for that mode, else the mode's
+// k-th built-in deck (an AI seat set before the host switched modes, onMode says so). harmless: a harmless bot keeps its
+// own deck, as a Standard deck without its commander (it plays nothing anyway: its lands-only deck stays one)
+function deckForMode(d, mode, k = 0, harmless = false) {
+  if ((d?.deck?.format || "commander") === MODES[mode].deck) return d;
+  if (harmless && d?.deck && mode === "standard") return { ...d, deck: { ...d.deck, format: "standard", commanders: [] }, commanderName: null };
+  const ids = defaultDecksOf(mode);
+  return loadPreset(ids[k % ids.length]);
+}
+// whether colour c's checked deck is one for a game of `mode` (a deck checked before modes existed counts as Commander)
+const readyFor = (c, mode = "commander") => !!readyDecks[c] && (readyDecks[c].mode || "commander") === mode;
+// what a Standard game adds to the table's "started" message and the resume file; nothing for Commander
+const modeField = () => (game?.mode === "standard" ? { mode: "standard" } : {});
 
 // ───────────────────────── AI seats (docs/next-features-2026-11-09.md items 17 + 20) ─────────────────────────
 // Per empty table colour: who plays it, and with which deck, kept from game to game like "mtg aideck". "forge": a Forge
@@ -740,14 +874,15 @@ const HARMLESS_DECK = "ai_passive_lands"; // ("mtg ai Red harmless" with no deck
 // A deck list as players paste or export it: "1 Sol Ring", "1x Sol Ring", "Sol Ring (CMM) 410 *F*", with the commander
 // under a "Commander" line (Arena, Moxfield) or marked *CMDR*. Other heading lines ("Deck", "Mainboard") start the
 // deck again; a "Sideboard", "Maybeboard" or "Companion" part isn't played. "//" and "#" lines are comments.
-function parseDeckList(text) {
-  const cards = [], commanders = [];
+// withSide: the "Sideboard" part's cards come back too, as sideboard (a Standard deck's, aiSeatDeck)
+function parseDeckList(text, withSide = false) {
+  const cards = [], commanders = [], sideboard = [];
   let part = "deck";
   for (const raw of String(text || "").split(/\r?\n/)) {
     let line = raw.trim();
     if (!line || /^(\/\/|#)/.test(line)) continue;
     const head = /^(commanders?|deck|main ?deck|mainboard|sideboard|maybeboard|companion)\s*:?$/i.exec(line);
-    if (head) { const h = head[1].toLowerCase(); part = h.startsWith("commander") ? "commander" : /side|maybe|companion/.test(h) ? "skip" : "deck"; continue; }
+    if (head) { const h = head[1].toLowerCase(); part = h.startsWith("commander") ? "commander" : h === "sideboard" && withSide ? "side" : /side|maybe|companion/.test(h) ? "skip" : "deck"; continue; }
     if (part === "skip") continue;
     let marked = false;
     line = line.replace(/\*CMDR\*/i, () => { marked = true; return " "; }).trim();
@@ -755,19 +890,23 @@ function parseDeckList(text) {
     // (the printing and the tags after the name: "(CMM) 410", "*F*", "[Ramp]", "#Ramp")
     const name = (m ? m[2] : line).replace(/\s+\([A-Za-z0-9]{2,6}\)(\s+\S+)?/, "").replace(/\s+(\*[A-Za-z]+\*|\[[^\]]*\]|#\S+)/g, "").trim();
     if (!name) continue;
-    for (let k = 0; k < Math.min(m ? Number(m[1]) : 1, 99); k++) (part === "commander" || marked ? commanders : cards).push(name);
+    for (let k = 0; k < Math.min(m ? Number(m[1]) : 1, 99); k++) (part === "commander" || marked ? commanders : part === "side" ? sideboard : cards).push(name);
   }
-  return { cards, commanders };
+  return withSide ? { cards, commanders, sideboard } : { cards, commanders };
 }
 
 // A deck for an AI seat, from a preset id or a deck list: { deck (the engine's form), source } or { error }. A list is
-// checked as a table deck is (checkDeck): a commander, and every card known to the engine.
+// checked as a table deck is (checkDeck): a commander, and every card known to the engine; in Standard (the next games'
+// mode, gameMode) a preset of that mode, or a list that passes standardProblems with its sideboard.
 function aiSeatDeck({ preset, list, name } = {}) {
+  const mode = gameMode.mode;
   if (preset) {
-    if (!listCommanderPresets().includes(preset)) return { error: `no Commander deck "${String(preset).slice(0, 60)}"` };
+    // (the harmless bot's own lands deck in either mode: deckForMode drops its commander in a Standard game)
+    if (!presetsFor(mode).includes(preset) && preset !== HARMLESS_DECK) return { error: `no ${MODES[mode].words} deck "${String(preset).slice(0, 60)}"` };
     return { deck: loadPreset(preset), source: preset };
   }
   if (!String(list || "").trim()) return { error: "choose a deck or give a deck list" };
+  if (mode === "standard") return standardListDeck(list, name);
   const { cards, commanders } = parseDeckList(list);
   const index = forgeIndex();
   const unknown = [];
@@ -781,6 +920,21 @@ function aiSeatDeck({ preset, list, name } = {}) {
   // (the name is said in chat: TTS would draw a "[ff0000]" in it as a colour, so codes in brackets go)
   const deckName = String(name || "").replace(/\[[^\]]*\]/g, "").trim().slice(0, 60) || `${cmd.join(" & ")} (deck list)`;
   return { deck: engineDeckFromTable({ deckName, cards: rest, commanders: cmd }), source: "list" };
+}
+// aiSeatDeck's Standard deck list: every card known, then Forge's Standard rules (60+, 15 side, 4 copies, the list, no
+// commander)
+function standardListDeck(list, name) {
+  const { cards, commanders, sideboard } = parseDeckList(list, true);
+  const index = forgeIndex();
+  const unknown = [];
+  const known = (n) => { const e = index[normName(n)]; if (!e) unknown.push(n); return e; };
+  const cmd = commanders.map(known).filter(Boolean), main = cards.map(known).filter(Boolean), side = sideboard.map(known).filter(Boolean);
+  const names = [...new Set(unknown)];
+  if (names.length) return { error: `the engine doesn't know ${names.length} card(s): ${names.slice(0, 8).join(", ")}${names.length > 8 ? ", ..." : ""}` };
+  const problems = standardProblems(main, cmd, side);
+  if (problems.length) return { error: `not a Standard deck: ${problems.join("; ")}` };
+  const deckName = String(name || "").replace(/\[[^\]]*\]/g, "").trim().slice(0, 60) || "Standard deck (deck list)";
+  return { deck: engineDeckFromTable({ deckName, cards: main, commanders: [], sideboard: side, mode: "standard" }), source: "list" };
 }
 
 // One AI seat: kind "forge", "harmless" or "off", and the deck (aiSeatDeck's). { ok, message }.
@@ -802,9 +956,9 @@ const aiSeatsText = (colors = TABLE_COLORS) => colors.filter((c) => aiSeatChoice
 function onAiSeatChat(text) {
   const [color, kind, ...more] = String(text || "").trim().split(/\s+/);
   const preset = more.join(" ");
-  if (!color || color === "list") return chat(`[MTG] AI seats: ${aiSeatsText() || "none set"}. Use  mtg ai <colour> harmless|forge [deck]  or  mtg ai <colour> off  (decks: ${listCommanderPresets().join(", ")}).`);
+  if (!color || color === "list") return chat(`[MTG] AI seats: ${aiSeatsText() || "none set"}. Use  mtg ai <colour> harmless|forge [deck]  or  mtg ai <colour> off  (decks: ${modePresets().join(", ")}).`);
   if (color === "clear") { for (const c of Object.keys(aiSeatChoice)) delete aiSeatChoice[c]; return chat("[MTG] AI seats cleared."); }
-  if (kind === "forge" && !preset) return chat(`[MTG] Name the Forge AI's deck:  mtg ai ${color} forge <deck>  (decks: ${listCommanderPresets().join(", ")}).`);
+  if (kind === "forge" && !preset) return chat(`[MTG] Name the Forge AI's deck:  mtg ai ${color} forge <deck>  (decks: ${modePresets().join(", ")}).`);
   const r = setAiSeat(color, kind, preset ? { preset } : {});
   chat(`[MTG] ${r.message}`);
 }
@@ -1300,6 +1454,7 @@ function saveResume() {
       turnOwners: game.turnOwners || {}, friendly: game.friendly, friendlyOver: game.friendlyOver,
       // (each deck's own pictures: every Plains keeps its printing after a restart, imagesFor)
       pictures: game.pictures, ...(customArt.off ? { artOff: true } : {}), // (and the host's "mtg art off", onArt)
+      ...modeField(), // (a Standard game stays one: the table hides the commander pieces, startGame's mode)
       // (who went out when, and each library as last seen in the game: a true deck-out is still said after a restart,
       // noteOuts; and the printed P/T seen for each name, so a copy's badge stays as it was, notePrinted)
       outOrder: game.outOrder, outStamp: game.outStamp, outWhere: game.outWhere, inLibrary: game.inLibrary, emptyAt: game.emptyAt, printedPT: game.printedPT },
@@ -1343,7 +1498,7 @@ function resendToTable() {
   game.lastTableSig = null;
   game.sentZones = {};
   game.fxJump = true; // (the next board is a jump, not a play: the table plays no effects for it)
-  toTTS({ t: "started", colors: game.slotColor, names: game.slotNames, ai: Object.keys(game.slotColor).filter((k) => !TABLE_COLORS.includes(game.slotNames[k])).map((k) => game.slotColor[k]) });
+  toTTS({ t: "started", ...modeField(), colors: game.slotColor, names: game.slotNames, ai: Object.keys(game.slotColor).filter((k) => !TABLE_COLORS.includes(game.slotNames[k])).map((k) => game.slotColor[k]) });
   scheduleTable();
   for (const st of game.seats.values()) autoNotice(st); // (a reloaded table has forgotten its Auto-resolve lists)
   // show each player's still-open question again (re-running the last prompt could answer it twice)
@@ -1358,9 +1513,13 @@ const friendlyCount = (n) => (n === 1 || n === 2 ? n : 0);
 const forgeBotCount = () => game.bots - (game.harmlessWanted || []).length;
 
 // fromTable: the group's table draws the game (default: games whose decks come from the table)
-function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0) {
+// mode: "commander" | "standard" (MODES; the table's, sent with the start)
+function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
-  const notReady = requireReady ? seatList.filter((c) => !readyDecks[c]) : [];
+  const std = mode === "standard";
+  // (a deck checked for the other mode is no deck for this one: checked again with Ready)
+  const notReady = requireReady ? seatList.filter((c) => !readyFor(c, mode)) : [];
+  if (notReady.length && std) { chat(`[MTG] Not started: ${notReady.join(", ")} still need \"mtg ready\" for Standard (import a deck of 60 or more Standard cards into your library zone; no commander).`); return; }
   if (notReady.length) { chat(`[MTG] Not started: ${notReady.join(", ")} still need \"mtg ready\" (import your deck, put your commander on the command zone).`); return; }
   // (the colours set as AI seats that nobody sits at: an AI player each, in every game, see aiSeatChoice)
   const preset = TABLE_COLORS.filter((c) => aiSeatChoice[c] && !seatList.includes(c));
@@ -1369,25 +1528,29 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (!seatList.length) { chat("[MTG] Nobody is seated."); return; }
   // the table has a playmat per colour (TABLE_COLORS); a 5th player had no colour and no zones (5-8 players: PLAN M6)
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
-  const aiTable = aiSeats.filter((c) => readyDecks[c] && !preset.includes(c)).slice(0, bots - preset.length); // (empty seats' ready decks, in order: see below)
+  const aiTable = aiSeats.filter((c) => readyFor(c, mode) && !preset.includes(c)).slice(0, bots - preset.length); // (empty seats' ready decks, in order: see below)
   const pool = planechase.on ? planarPool(total) : null;
   if (pool?.error) { chat(`[MTG] Not started: ${pool.error}`); return; }
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
-    friendly: friendlyCount(friendly),
+    friendly: friendlyCount(friendly), mode,
     // (Planechase: the planar pool, sent in the first seated player's deck, onRoomUpdate)
     planes: pool?.names || null, planeSeat: pool ? seatList[0] : null,
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
     // each came from, for its pictures (onGameStarted)
     aiTableDecks: aiTable.map((c) => engineDeckFromTable(readyDecks[c])), aiTableColors: aiTable,
     // (the AI seats set for this game: the harmless ones the bridge plays, the Forge ones by colour, see onRoomUpdate)
-    harmlessWanted: preset.filter((c) => aiSeatChoice[c].kind === "harmless").map((c) => ({ color: c, deck: aiSeatChoice[c].deck })),
-    forgeSeats: preset.filter((c) => aiSeatChoice[c].kind === "forge").map((c) => ({ color: c, deck: aiSeatChoice[c].deck })) };
-  for (const c of aiSeats) if (!readyDecks[c] && !preset.includes(c)) chat(`[MTG] The deck in ${c}'s seat isn't ready (see above); that AI plays a built-in deck.`);
-  seatList.forEach((color, i) => game.seats.set(color, new Seat(color, deckChoice[color] || DEFAULT_DECKS[i % DEFAULT_DECKS.length])));
+    // (each in this game's mode: a deck set for the other mode gives way to a built-in one, deckForMode)
+    harmlessWanted: preset.filter((c) => aiSeatChoice[c].kind === "harmless").map((c, k) => ({ color: c, deck: deckForMode(aiSeatChoice[c].deck, mode, k, true) })),
+    forgeSeats: preset.filter((c) => aiSeatChoice[c].kind === "forge").map((c, k) => ({ color: c, deck: deckForMode(aiSeatChoice[c].deck, mode, k) })) };
+  for (const c of aiSeats) if (!readyFor(c, mode) && !preset.includes(c)) chat(`[MTG] The deck in ${c}'s seat isn't ready${std ? " for Standard" : ""} (see above); that AI plays a built-in deck.`);
+  const builtIn = defaultDecksOf(mode);
+  // ("mtg deck" chose a deck of the other mode: the mode's own built-in deck instead)
+  const ownDeck = (c) => (deckChoice[c] && (!std || presetsFor("standard").includes(deckChoice[c])) ? deckChoice[c] : null);
+  seatList.forEach((color, i) => game.seats.set(color, new Seat(color, ownDeck(color) || builtIn[i % builtIn.length])));
   // (a debug setup waits for its player's next game: one not in this game is dropped, not kept for a later one)
   for (const c of Object.keys(debugChoice)) if (!seatList.includes(c)) { chat(`[MTG] Debug "${debugChoice[c].name}" dropped: ${c} isn't in this game.`); delete debugChoice[c]; }
   const harmlessN = game.harmlessWanted.length, forgeN = forgeBotCount();
-  chat(`[MTG] Setting up: ${seatList.join(", ")}${forgeN ? ` + ${forgeN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
+  chat(`[MTG] Setting up${std ? ` ${modeWords(mode, total)}` : ""}: ${seatList.join(", ")}${forgeN ? ` + ${forgeN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
   if (preset.length) chat(`[MTG] AI seats: ${aiSeatsText(preset)}.`);
   log(`setup: seats ${seatList.join(", ")}, bots ${bots}, relay ${RELAY}`);
 }
@@ -1406,7 +1569,7 @@ function onRoomUpdate(seat, room) {
   const me = room.players.find((p) => p.username === seat.username);
   if (me && !seat.joined) {
     seat.joined = true;
-    const d = seat.deck || (readyDecks[seat.color] ? engineDeckFromTable(readyDecks[seat.color]) : loadPreset(seat.deckId));
+    const d = seat.deck || (readyFor(seat.color, game.mode) ? engineDeckFromTable(readyDecks[seat.color]) : loadPreset(seat.deckId));
     const planes = game.planes && seat.color === game.planeSeat && !seat.harmless ? game.planes : null;
     seat.send({ type: "SetDeckSelection", deck_name: d.deckName, deck: planes ? { ...d.deck, planes: planes.map(planeDeckCard) } : d.deck, commander_name: d.commanderName });
     if (planes) { chat(`[MTG] Planechase: ${planes.length} planes and phenomena dealt to the planar decks.`); for (const n of planes) cachedImage(n); }
@@ -1433,8 +1596,11 @@ function onRoomUpdate(seat, room) {
     // a harmless AI got the player's other Commander deck instead)
     // (with the table seat each deck came from, null for a preset: the k-th deck goes to the k-th bot, onGameStarted)
     // (an AI seat's own deck before all of them: the k-th of those bots sits at that seat's colour, clockwiseOrder)
-    const choices = [...(game.forgeSeats || []).map((f) => [f.deck, null]), ...aiDeckChoice.map((id) => [loadPreset(id), null]), ...game.aiTableDecks.map((d, i) => [d, game.aiTableColors?.[i] ?? null]),
-      ...DEFAULT_DECKS.filter((d) => !used.has(d)).map((id) => [loadPreset(id), null])].slice(0, forgeBots);
+    // (in this game's mode: "mtg aideck" decks of the other mode are left out, and the built-in decks are the mode's)
+    const mode = game.mode || "commander";
+    const chosen = aiDeckChoice.map((id) => loadPreset(id)).filter((d) => (d.deck.format || "commander") === MODES[mode].deck);
+    const choices = [...(game.forgeSeats || []).map((f) => [f.deck, null]), ...chosen.map((d) => [d, null]), ...game.aiTableDecks.map((d, i) => [d, game.aiTableColors?.[i] ?? null]),
+      ...defaultDecksOf(mode).filter((d) => !used.has(d)).map((id) => [loadPreset(id), null])].slice(0, forgeBots);
     const botDecks = choices.map(([d]) => d);
     game.botDeckColors = choices.map(([, c]) => c);
     for (const b of botDecks) for (const c of [...b.deck.cards, ...(b.deck.commanders || [])]) {
@@ -1449,7 +1615,7 @@ function onRoomUpdate(seat, room) {
   const ready = room.players.filter((p) => p.ready && p.connected).length;
   if (!game.startSent && room.status === "Lobby" && ready >= game.total) {
     game.startSent = true;
-    controllerOf(room, seats).send({ type: "StartGame", format: "Commander", seat_order: clockwiseOrder(room) });
+    controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: clockwiseOrder(room) });
   }
 }
 
@@ -1510,7 +1676,7 @@ function onGameStarted(msg) {
   // restarted bridge shows each card as it was; readyDecks starts empty then. See imagesFor.)
   game.pictures = gamePictures(msg.player_order);
   toTTS({ t: "gamelog", reset: true, lines: [] }); // (a new game: the last game's log lines go, playtest 2026-10-26)
-  toTTS({ t: "started", colors: game.slotColor, names: game.slotNames,
+  toTTS({ t: "started", ...modeField(), colors: game.slotColor, names: game.slotNames,
     ai: Object.keys(game.slotColor).filter((k) => !TABLE_COLORS.includes(game.slotNames[k])).map((k) => game.slotColor[k]) });
   // Ask Scryfall now for every deck card whose picture isn\'t cached yet (the links arrive with the board). TTS itself
   // doesn\'t preload them (2026-10-19, PresentMon: each destroyed preload card cost a ~370 ms asset clean-up).
@@ -10111,6 +10277,7 @@ function onTTS(m) {
     case "hello":
       tableStamp = m.stamp ?? null;
       tableKeepsRewind = m.keepRewind === true;
+      noteMode(m); // (the table's game mode: a restarted bridge takes it up again)
       // (the table's repeat while it has drawn nothing, with no game running: nothing to send, suite review)
       if (m.again && !game?.started) break;
       log("TTS connected");
@@ -10124,7 +10291,7 @@ function onTTS(m) {
       noteStamp(m);
       warnIfOutOfStep();
       const go = () => {
-        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly);
+        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m));
         if (game && m.autoplay) game.autoplay = true;
       };
       // the table's Start button (autoReset): a game left over from before is reset first, and a room that is still
@@ -10160,8 +10327,8 @@ function onTTS(m) {
       if (id === "clear") { aiDeckChoice.length = 0; chat("[MTG] AI players will use the default decks."); }
       // the list is replaced, one deck per AI player in order ("mtg aideck a b"): typing the same command again in the
       // next game added it a second time ("ai_passive_lands, ai_passive_lands", playtest 2026-10-26)
-      else if (id && id.split(/[\s,]+/).every((x) => listCommanderPresets().includes(x))) { aiDeckChoice.splice(0, aiDeckChoice.length, ...id.split(/[\s,]+/)); chat(`[MTG] AI decks: ${aiDeckChoice.join(", ")} (before any deck lying in an empty seat).`); }
-      else chat(`[MTG] Commander decks: ${listCommanderPresets().join(", ")}`);
+      else if (id && id.split(/[\s,]+/).every((x) => modePresets().includes(x))) { aiDeckChoice.splice(0, aiDeckChoice.length, ...id.split(/[\s,]+/)); chat(`[MTG] AI decks: ${aiDeckChoice.join(", ")} (before any deck lying in an empty seat).`); }
+      else chat(`[MTG] ${MODES[gameMode.mode].words} decks: ${modePresets().join(", ")}`);
       break;
     }
     case "aiseat": // "mtg ai ..." (the host's, make-engine-copy.js)
@@ -10175,8 +10342,8 @@ function onTTS(m) {
       restartRoom(null);
       break;
     case "deck":
-      if (m.deck && listCommanderPresets().includes(String(m.deck))) { deckChoice[m.color] = m.deck; chat(`[MTG] ${m.color} will play ${m.deck}.`); }
-      else chat(`[MTG] Commander decks: ${listCommanderPresets().join(", ")}`, m.color);
+      if (m.deck && modePresets().includes(String(m.deck))) { deckChoice[m.color] = m.deck; chat(`[MTG] ${m.color} will play ${m.deck}.`); }
+      else chat(`[MTG] ${MODES[gameMode.mode].words} decks: ${modePresets().join(", ")}`, m.color);
       break;
     case "decks":
       onDecks(m);
@@ -10267,6 +10434,9 @@ function onTTS(m) {
       break;
     case "art": // "mtg art on|off" (host, checked on the table)
       onArt(m);
+      break;
+    case "mode": // "mtg mode standard|commander" and the mode button (host, checked on the table)
+      onMode(m);
       break;
     case "winner":
       onWinner(m.color, m.by);
@@ -11014,7 +11184,7 @@ function toolsState() {
       return { color: c, person: !!game?.seats?.has(c), inGame: inGame.includes(c),
         ai: a ? { kind: a.kind, kindLabel: AI_KINDS[a.kind], deckName: a.deck.deckName, source: a.source } : null };
     }),
-    presets: listCommanderPresets(),
+    presets: modePresets(),
     debug: { on: debugTools, game: !runningTableGame().error, fix: !!game?.fix,
       players: game?.started ? Object.keys(game.slotColor).filter((s) => game.slotColor[s] && isPlaying(pub, s)).map((s) => ({ color: game.slotColor[s], name: nameOf(s) })) : [] },
     tools: Object.keys(DEBUG_TOOLS),
@@ -11321,5 +11491,6 @@ if (require.main === module) {
     parseDeckList, aiSeatDeck, setAiSeat, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
     fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords,
+    standardProblems, modeWords, loadPreset, STANDARD_DECKS, _gameMode: gameMode,
   };
 }
