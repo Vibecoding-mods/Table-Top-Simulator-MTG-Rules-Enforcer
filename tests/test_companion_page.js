@@ -576,6 +576,60 @@ function boot(body) {
     same("tools: the bridge's tool list is kept", P.toolsView(TOOLS()).debug.tools, ["mana", "hand", "battlefield", "life", "untap"]);
   }
   {
+    // GIF frames: the GIPHY key field (the bridge keeps the key; GET /tools says only whether one is set and its last four)
+    const KEY = "AbCdEf0123456789AbCdEf0123456789";
+    const G = P.gifKeyRequest;
+    same("gif key: Save sends the trimmed key for giphy", G(`  ${KEY} `, false), { kind: "gif-key", provider: "giphy", key: KEY });
+    same("gif key: Remove sends an empty key", G("whatever", true), { kind: "gif-key", provider: "giphy", key: "" });
+    same("gif key: empty or malformed: said, nothing to send", [G("  ", false).error, G("has spaces in it 123", false).error, G("short1", false).error],
+      ["Paste your GIPHY key first (developers.giphy.com).", "That doesn’t look like a GIPHY key: letters and digits only, as GIPHY shows it.", "That doesn’t look like a GIPHY key: letters and digits only, as GIPHY shows it."]);
+    const withGifs = (g) => ({ ...TOOLS(), gifs: g });
+    same("gif key: set: its last four and the hour's searches", P.toolsView(withGifs({ giphy: { set: true, ends: "6789" }, used: 3, limit: 100, restingMin: 0 })).gifs,
+      { set: true, text: "A GIPHY key ending in 6789 is saved on this PC: the table’s GIF frames are on. Searches this hour: 3 of 100." });
+    ok("gif key: resting is said", /resting 12 min/.test(P.toolsView(withGifs({ giphy: { set: true, ends: "6789" }, used: 100, limit: 100, restingMin: 12 })).gifs.text));
+    same("gif key: none set", P.toolsView(withGifs({ giphy: { set: false } })).gifs, { set: false, text: "No GIPHY key saved: the table has no GIF frames." });
+    same("gif key: an older bridge (no gifs field)", P.toolsView(TOOLS()).gifs.set, false);
+    ok("gif key: an older bridge is told to restart", /restart the engine/.test(P.toolsView(TOOLS()).gifs.text));
+    same("gif key: the bridge down: no line", P.toolsView(null).gifs, { set: false, text: "" });
+  }
+  {
+    // "Get a GIPHY key": the steps for another host, a collapsed help block right under the key box (the user walked
+    // them 2026-11-13: the API form, not the SDK one, and Platform Other), and the same steps in HOW-TO-PLAY.md
+    const gm = /<details class='tt-help' id='tt-gif-help'>([\s\S]*?)<\/details>/.exec(html);
+    const guide = gm ? gm[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") : "";
+    const at = (s) => html.indexOf(s);
+    ok("key guide: there, collapsed, between the key box and the key's state line, inside Table tools",
+      !!gm && at("id='tt-gif-key'") < at("id='tt-gif-help'") && at("id='tt-gif-help'") < at("id='tt-gif-state'") && at("id='tablebox'") < at("id='tt-gif-help'") && at("id='tt-gif-help'") < at("id='logbox'") && !/id='tt-gif-help'[^>]*\sopen/.test(html), guide.slice(0, 80));
+    ok("key guide: developers.giphy.com, Dashboard, sign in or a free account, Create an App / Create API Key",
+      /developers\.giphy\.com/.test(guide) && /Dashboard/.test(guide) && /free GIPHY account/.test(guide) && /Create an App/.test(guide) && /Create API Key/.test(guide), guide);
+    ok("key guide: screen 1 of 2 says API, not SDK, and why the SDK form is the wrong one",
+      /Screen 1 of 2: choose API , not SDK/.test(guide) && /SDK beta key/.test(guide) && /wrong one/.test(guide), guide);
+    ok("key guide: screen 2 of 2: any name, Platform Other, a description, the GIPHY API Terms box",
+      /Screen 2 of 2: any app name/.test(guide) && /Platform Other/.test(guide) && /one-line description/.test(guide) && /GIPHY API Terms/.test(guide), guide);
+    ok("key guide: host only, free, 100 an hour for the whole table, stays on this PC, not shared, no key = no frames only",
+      /Only the host needs a key\. Players don’t/.test(guide) && /free/.test(guide) && /100 searches an hour for the whole table/.test(guide)
+        && /never in the table save or the friend package/.test(guide) && /Don’t share it or paste it in chats/.test(guide) && /No key: the GIF frames don’t appear, and everything else works/.test(guide), guide);
+    // every step and note, in this order (a step dropped, moved or reworded fails here)
+    const inOrder = (text, parts) => { let at = -1; for (const p of parts) { const i = text.indexOf(p, at + 1); if (i < 0) return `missing or out of order: ${p}`; at = i; } return ""; };
+    const STEPS = ["developers.giphy.com", "open the menu", "Dashboard", "Sign in", "free GIPHY account", "Create an App", "Create API Key", "Screen 1 of 2", "API", "not SDK", "SDK beta key", "SDK licence", "wrong one",
+      "Screen 2 of 2", "any app name", "Other", "one-line description", "tick the box", "GIPHY API Terms", "Create API Key", "Copy the key", "GIPHY key box", "Save key",
+      "Only the host needs a key", "Players don", "free", "100 searches an hour for the whole table", "stays on this PC", "never in the table save or the friend package", "share it or paste it in chats", "No key", "GIF frames don", "everything else works"];
+    const pageOrder = inOrder(guide.replace(/ ([,.:)])/g, "$1"), STEPS);
+    ok("key guide: on the page, every step and note in order", pageOrder === "", pageOrder);
+    const hostPlain = ((/## Host: starting up[\s\S]*?(?=\n## )/.exec(fs.readFileSync(path.join(__dirname, "..", "HOW-TO-PLAY.md"), "utf8")) || [""])[0]).replace(/\*\*/g, "").replace(/\s+/g, " ");
+    const howOrder = inOrder(hostPlain, STEPS);
+    ok("key guide: in HOW-TO-PLAY.md's host section, every step and note in the same order", howOrder === "", howOrder);
+    ok("key guide: it's free, said as such (not only 'a free account')", /It’s free\./.test(guide) && /It's free\./.test(hostPlain));
+    ok("key guide: no key-shaped string in it (never a real key in the page)", !/[A-Za-z0-9]{24,}/.test(guide), guide);
+    ok("key guide: its summary has a tooltip that says API, not SDK", /'tt-gif-help-sum': 'Get a GIPHY key:[^']*API, not SDK/.test(script));
+    const howTo = fs.readFileSync(path.join(__dirname, "..", "HOW-TO-PLAY.md"), "utf8");
+    const host = (/## Host: starting up[\s\S]*?(?=\n## )/.exec(howTo) || [""])[0];
+    ok("key guide: HOW-TO-PLAY.md's host section has the same steps (API not SDK, Platform Other, the API Terms, host only, 100 an hour, never in the save or package)",
+      /developers\.giphy\.com/.test(host) && /\*\*API\*\*, not SDK/.test(host) && /SDK beta key/.test(host) && /Platform \*\*Other\*\*/.test(host) && /GIPHY API Terms/.test(host)
+        && /Only the host needs a key/.test(host) && /100 searches an hour/.test(host) && /never in the table save or the friend package/.test(host)
+        && /paste it in chats/.test(host) && /everything else works/.test(host) && !/[A-Za-z0-9]{24,}/.test(host.replace(/https?:\S+/g, "")), host.slice(0, 120));
+  }
+  {
     const h = boot();
     h.tools = TOOLS();
     await h.clock.advance(0);
@@ -611,6 +665,26 @@ function boot(body) {
     h.$("tt-debug").listeners.change.forEach((f) => f());
     for (let i = 0; i < 4; i++) await flush();
     same("tools: the switch posts debug-mode", h.posts[2] && h.posts[2].body, { kind: "debug-mode", on: false });
+    // the GIF key: sent, then the box emptied (the page never shows a key back); the state line from GET /tools
+    const GKEY = "AbCdEf0123456789AbCdEf0123456789";
+    h.answer = () => ({ ok: true, message: "GIPHY key saved on this PC. The table's GIF frames are on." });
+    h.tools = { ...TOOLS(), gifs: { giphy: { set: true, ends: "6789" }, used: 0, limit: 100, restingMin: 0 } };
+    h.$("tt-gif-key").value = GKEY;
+    h.$("tt-gif-save").click();
+    for (let i = 0; i < 6; i++) await flush();
+    same("gif key: Save posts gif-key, empties the box, says the bridge's answer and its state", [h.posts[3] && h.posts[3].body, h.$("tt-gif-key").value, h.$("tt-toast").textContent, h.$("tt-gif-state").textContent],
+      [{ kind: "gif-key", provider: "giphy", key: GKEY }, "", "GIPHY key saved on this PC. The table's GIF frames are on.", "A GIPHY key ending in 6789 is saved on this PC: the table’s GIF frames are on. Searches this hour: 0 of 100."]);
+    h.$("tt-gif-remove").click();
+    for (let i = 0; i < 6; i++) await flush();
+    same("gif key: Remove posts an empty key", h.posts[4] && h.posts[4].body, { kind: "gif-key", provider: "giphy", key: "" });
+    // a key the bridge refuses stays in the box, to be corrected (the review, 2026-11-13)
+    h.answer = () => ({ ok: false, message: "That doesn't look like a GIPHY key (16 to 64 letters and digits)." });
+    h.$("tt-gif-key").value = GKEY;
+    h.$("tt-gif-save").click();
+    for (let i = 0; i < 6; i++) await flush();
+    same("gif key: a refused key stays in the box, the refusal said", [h.posts[5] && h.posts[5].body.key, h.$("tt-gif-key").value, h.$("tt-toast").textContent], [GKEY, GKEY, "That doesn't look like a GIPHY key (16 to 64 letters and digits)."]);
+    h.$("tt-gif-key").value = "";
+    h.posts.length = 3; h.tools = TOOLS(); h.answer = () => ({ ok: true, message: "" });
     const t2 = TOOLS(); t2.debug.on = false; h.tools = t2;
     await h.clock.advance(2500);
     for (let i = 0; i < 4; i++) await flush();

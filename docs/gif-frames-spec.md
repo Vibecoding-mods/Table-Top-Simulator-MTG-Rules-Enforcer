@@ -1,6 +1,7 @@
 # GIF frames: one per player (spec, 2026-11-13)
 
-Status: **spec only, nothing built.** The user asked for "an object that shows gifs (giphy klipy etc) one per player".
+Status: **Phase 1+2 built on branch `gif-frames` (2026-11-13), brought up to date with `main` on 2026-11-14 (review
+fixes, "Review fixes and the merge" at the end), not merged into main or deployed; see "Phase 1 checks and the build" at the end.** Earlier: spec only. The user asked for "an object that shows gifs (giphy klipy etc) one per player".
 Facts below are marked **(verified)** with a source, **(unverified)** when only third-party pages say so, and
 **(spike)** when only a test in real TTS can settle it. Phase 0 (§6) settles the spike items before any build.
 
@@ -24,8 +25,9 @@ Facts below are marked **(verified)** with a source, **(unverified)** when only 
 
 **Settled by Phase 0 (2026-11-13): route M.** GIPHY's MP4 link put straight on a Custom Tile plays and loops in TTS
 (verified live; see "Phase 0 results" at the end). GIF and animated WebP links both fail. Routes W, V and F below are
-kept as the record of what was weighed; the build uses route M. Still to check before building: MP4 on an Object UI
-Image, a second player's client, the frame-time cost of six playing tiles, and a save/reload with a video tile.
+kept as the record of what was weighed; the build uses route M. Checked since ("Phase 1 checks" at the end): MP4 on an
+Object UI Image (no: results stay stills), six playing tiles' frame time (cheap), a save/reload with a video tile
+(works), `.webm` (VP8 only; GIPHY has none). Still open: a second player's client.
 
 - TTS does not load GIF pictures: a 2021 player report gets "Load image failed unsupported format" for a .gif, and a
   2015 developer reply said there was no GIF support and pointed at AssetBundles instead
@@ -71,6 +73,9 @@ key in the script). No key: the frames don't appear and `mtg gif` says how to ad
 
 ## 4. How it fits the code
 
+*(The plan before Phase 0. Where it differs, "Phase 1 checks and the build" at the end wins: GM notes `mtggif:<colour>`
+not `engine:gif`, no route-F `frames`, items `{ id, title, mp4, still, thumb, w, h }`.)*
+
 - **Bridge** (`bridge/gifs.js`, new): `search(provider, words, page, rating)` returns up to 8 items
   `{ id, title, still, webp, mp4, frames, w, h }` (`frames`: the route-F frame links, at most 24). Answers are cached
   (the same words within a day cost no call), the GIPHY hour limit is counted, and when it runs out the player is told
@@ -88,6 +93,9 @@ key in the script). No key: the frames don't appear and `mtg gif` says how to ad
 - **Rewind/Undo:** frames are not game state; an Undo leaves them as they are.
 
 ## 5. Costs and limits
+
+*(Written for route F. The build is route M: the "at most 2 animating" cap is dropped (six playing tiles measured cheap,
+"Phase 1 checks" (b)); the per-player search limits are in the build notes.)*
 
 - Route F, measured in T4 before it's chosen: host Lua per swap, how many swaps a second four frames cost, and whether
   remote players see the frames in time. Hard caps either way: at most 2 frames animating at once (the rest hold their
@@ -160,3 +168,123 @@ Shots and scripts: `tmp/gif-phase0/`.
   `Custom_Tile` vs a small custom frame model; `.webm`/`.mov` links; save/reload with a video tile on it.
 - **Route pick:** W is out; M is the new first choice (needs a two-player check and a cost measurement before the
   build); F is only a fallback now, V only if M fails in multiplayer.
+
+## Phase 1 checks and the build (2026-11-13)
+
+Checked live in TTS 14.2.2 on a scratch singleplayer game (never the user's table; `TS_Save_1.json` checked unchanged,
+sha256 b3e24db7...). Scripts and shots: `tmp/gif-p1/`.
+
+- **(a) MP4 on an Object UI Image: does not work (verified live).** TTS prints "Xml UI only supports Texture2D" and draws
+  nothing. A `.jpg` does: GIPHY's `480w_s.jpg` still, and a GIF's still turned into a JPEG by wsrv.nl
+  (`https://wsrv.nl/?url=media.giphy.com/media/<id>/200w_s.gif&w=160&h=160&fit=inside&output=jpg`). So the search
+  results are still pictures, and the "hold" after 12 s is an Object UI Image of the still laid over the playing tile
+  (the tile isn't reloaded to stop it).
+- **(b) Six tiles playing GIPHY MP4s cost little (verified live, PresentMon, 30 s each, empty scratch table).**
+  Baseline 4300 frames (143 fps), median 6.9 ms, p99 8.2 ms; six playing 4295 frames, median 6.9 ms, p99 8.3 ms, worst
+  31 ms. GPU busy 1.92 to 2.36 ms a frame (p99 3.62 to 5.64), CPU busy unchanged (6.83 to 6.84 ms); the TTS process
+  used 20% more of one core (62% to 82%) and 8 MB more memory. **The spec's "at most 2 playing" cap was for route F and
+  is dropped**: every frame may play. Not measured on the 70-80k-object game table. A picture change is a respawn: one
+  87 ms frame on the empty table (expect up to ~0.4 s on the full one, as `destruct`), so it happens only on a pick or
+  a clear, never for hold/replay.
+- **(c) Save and reload with video tiles: works (verified live).** An autosave captured two MP4 tiles; loading it brought
+  both back, playing (frames changed between shots).
+- **(d) `.webm`: only VP8 (verified live).** A VP9 `.webm` fails (TTS opens its CUSTOM TILE import dialog and closing
+  that deletes the object); a VP8 `.webm` plays; an MP4 remuxed to `.mov` plays. GIPHY serves no `.webm`
+  (`giphy.webm` answers 403), so the adapter uses MP4 only.
+- Also seen: a failed picture link (bad MP4, VP9) opens that import dialog on the host, and its X deletes the object.
+  Every link the bridge sends is checked to be GIPHY's own media host over https (`media*.giphy.com`, `i.giphy.com`).
+
+**Built (branch `gif-frames`).**
+
+- **Bridge** `bridge/gifs.js` (new): the GIPHY adapter and the search: 8 items a page `{ id, title, mp4, still, thumb,
+  w, h }`; the original MP4 unless it is over 2 MB (then the 200-high one); the still is `480w_still` (a .jpg) or the
+  original still through wsrv.nl as a JPEG; the thumb is the small still through wsrv.nl at 160 px; titles lose
+  quotes, angle brackets, ampersands, backslashes and control characters. Cached a day per words/page/rating; the
+  hour's calls counted (100 for a beta key), past it "GIF search is resting for N minutes"; GIPHY's own 429 rests it
+  15 minutes; 401/403 say the key was refused. `bridge/bridge.js` ("GIF frames" block): `gif_hello` and the
+  table's hello -> `gif_config { on, credit, why }` (the hello one only while a key is set, so a table without a key
+  hears nothing new); `gif_search` -> `gif_results`; `gif_pick` -> one table-log line "White shows a GIF: <title>";
+  `POST /tools { kind: "gif-key", provider, key }` sets or (empty) removes the key; `GET /tools` has
+  `gifs { giphy: { set, ends }, used, limit, restingMin }`, never the key.
+- **The key** is kept in `%APPDATA%/MTG-TTS/gif-keys.json` (`~/.config/MTG-TTS` elsewhere; `MTG_GIF_KEYS` overrides; a
+  test bridge keeps it in memory), outside the repo, the save, the table script and the friend package. It is typed
+  in the companion's Table tools (GIF frames: a password box, Save key, Remove key), handed to the bridge over its
+  local `/tools`, and the page never shows it back (only its last four). `MTG_GIPHY_KEY` in the live bridge's
+  environment also works.
+- **Table** (`tools/engine-renderer.lua`, "GIF FRAMES" block at the end; all state in the global table `engineGif`, no
+  new main-chunk local: 187 before and after). Changes from §4: GM notes `mtggif:<colour>` rather than `engine:gif`,
+  so the engine's sweep, stray watcher and self-check never see a frame and none of their code changed; the frame is
+  **unlocked** (a locked object can't be picked up) and `onPlayerAction` refuses every action on it but the owner's
+  pick-up, select and rotate; a frame dropped off its owner's mat goes back. Spawned in the first free spot of 24 beside
+  the mat's battlefield grid (`SPOTS_R` x `SPOTS_F`), turned like the owner's cards. Empty: the card back, square, with
+  a dark "GIF" panel; with a GIF: the MP4, stretched, fitted inside the card-tall square (scale 1.53 / aspect for a
+  wide one), its UI scaled back up so buttons are the same size on every frame. Under it: GIF... (owner only) and
+  Replay (everyone; a click on the frame replays too). The panel (owner only, Object UI beside the frame): search box
+  (Enter), 8 thumbs, More, Clear, X, a status line, "Powered By GIPHY". Chat: `mtg gif <words>` (first match),
+  `mtg gif off`, `mtg gif help`, `mtg gifs` (state), `mtg gifs hide|show` (`setInvisibleTo` plus the UI's
+  visibility, that player only), host: `mtg gifs on|off`, `mtg gifs rating g|pg|pg-13` (both saved in `onSave`
+  beside the table's own state, only when not the defaults), `mtg gif clear <colour>`. Frames come and go with
+  seated players (AI seats, Grey and Black get none) and all go on `gif_config off` or the host's off. A save's
+  frames are adopted at load (their GIF is in the memo; a duplicate is removed) and the bridge is asked about its key.
+- **Tests**: `tests/test_bridge_gifs.js` (adapter, links, cache, limits, key handling, the bridge's messages and
+  tool) against `tests/fixtures/gifs/giphy-search.docs-shape.json`, which is **written from GIPHY's documented
+  response shape, not recorded** (the host had no key yet): re-record it with a real key, and it is not part of any
+  golden master. `tests/test_table_gifs.js` (the table side on the fake TTS). `tests/test_companion_page.js` (the key
+  field). The fake TTS gained an object's `UI.setCustomAssets` / `getCustomAssets`.
+
+**Seen live on the scratch game (2026-11-13)**, with the block loaded over the bridge's exec beside stand-ins for the
+table's mat and seat (shots `tmp/gif-p1/l1.jpg` to `l6.jpg`): the empty frame and its GIF... button; a real click on
+GIF... reached `Global/engineGifUiClick` and opened the panel to the owner's right, readable; four results drawn as
+thumbs (wsrv JPEGs); a pick respawned the frame playing the 16:9 MP4, fitted inside the square, with GIF... and Replay
+under it at the same size. It also found a bug, fixed since: `onObjectDestroy` compared the destroyed old frame with
+the new one by `==`, which raised "Object reference not set to an instance of an object" in TTS; frames are now
+compared by GUID (`engineGif.same`). The fix itself was not re-run live: loading the block a second time into the same
+scratch game chained each wrapper to itself and froze TTS (a test-harness mistake: the table loads the block once per
+script load), so TTS was closed. Not seen live: typing in the search box (`onEndEdit`), the hold after 12 s.
+
+**Needs a live check after the deploy:** frames spawning on the real table's four mats (spots clear of the trackers,
+tax labels and dungeon), the UI's side and reading direction at each seat, the `Global/` handlers from Object UI
+buttons and the InputField's `onEndEdit`, the still overlay hiding the video, a second player's client (plays, in
+sync enough, sees only their own panel), the respawn hitch on the full table, and the frame time with four playing
+during a big game. **The user must** make a GIPHY key (developers.giphy.com: Create an App, API) and paste it into the
+companion's Table tools; then a real search answer should be recorded to replace the docs-shaped fixture.
+
+**Key guide for other hosts (2026-11-13, the steps the user walked).** Under the companion's GIPHY key box, a
+collapsed "Get a GIPHY key" block, and the same steps in HOW-TO-PLAY.md's host section ("Optional: GIF frames"):
+developers.giphy.com, menu, Dashboard (sign in or a free account), Create an App / Create API Key; screen 1 of 2
+**API, not SDK** (the SDK form says "SDK beta key" and asks for the SDK licence: the wrong one); screen 2 of 2 any
+name, Platform **Other**, a one-line description, the box naming the **GIPHY API Terms**, Create API Key; copy the key
+into the box. Also said: only the host needs a key; free; a beta key is 100 searches an hour for the whole table; the
+key stays on this PC, never in the save or the friend package; don't share it or paste it in chats; with no key the
+frames don't appear and everything else works. The bridge's no-key chat line points at the block.
+`tests/test_companion_page.js` checks both (the "key guide" checks). HOW-TO-PLAY.md also gained the players' "GIF
+frames" section and the chat commands. The bridge's search now has a `.catch`: an async throw is logged, never an
+unhandled rejection that would end the bridge.
+
+**Review fixes and the merge (2026-11-13 and 14).**
+
+- **Per-player search limits** (bridge/gifs.js `WHO_SHARE`, `WHO_GAP_MS`): one player gets at most 40% of the hour's
+  GIPHY calls (40 of a beta key's 100) and waits 2 s between their own searches, so one player can't spend the whole
+  table's hour. A cached answer costs nothing and is never held back. Past the share: "You've had your share of this
+  hour's GIF searches: yours again in N min"; too fast: "One GIF search at a time, please". The bridge passes the
+  player's colour as the search's `who`.
+- **The key never reaches a log**: a failed fetch is logged by the error's name (its message can quote the link, which
+  holds the key); a corrupt key file by the parse error's name (JSON.parse quotes the text). The key file is written
+  whole and renamed over the old one. Answers that all fail the link checks are logged ("has GIPHY's answer changed
+  shape?").
+- **Table**: a spawn whose callback never comes (TTS refused the link) is given up after 10 s
+  (`SPAWN_GIVE_UP_S`), and a late callback's object is removed; a frame deleted before its picture arrived (the import
+  dialog's X) comes back empty, and the owner is told. A box selection over frames isn't refused and doesn't replay
+  them (one click on a frame still does). The search box's `onEndEdit` on losing focus doesn't search the same words
+  again (compared as the box shows them), unless the last search failed. Hide-for-me goes with its player when they
+  leave (a spectator's stays).
+- **Companion**: a key the bridge refuses stays in the box to be corrected; the box empties only on the bridge's ok.
+- **Merged with main** (2026-11-14): conflicts only in export lists (bridge `module.exports`, the page's `MtgPage`
+  return) and the deploy gates (main's Standard and clear-deck gates plus `test_bridge_gifs`, `test_table_gifs`).
+  Main-chunk locals 195, the same as main. `mtg help` now lists the GIF commands.
+- **A whole engine game leaves the frames alone** (§4's promise, now tested): `test_table_gifs` plays the recorded 1v1
+  from `mtg start` to the bridge's clear with both frames up; they keep their object, GIF and memo, on their mats.
+
+**Phase 1 checks done live (above):** (a) MP4 on an Object UI Image, (b) frame time with six playing tiles, (c) save
+and reload, (d) `.webm`. **Not checked:** a second player's client, audio, the frame time on the full 70-80k-object
+table, typing in the search box, the 12 s hold, the GUID fix for `onObjectDestroy`.

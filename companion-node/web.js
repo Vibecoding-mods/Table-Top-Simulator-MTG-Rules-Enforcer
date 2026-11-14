@@ -6,7 +6,7 @@
 //   GET  /api/status    the lights, the game lock, the menu, versions, the log tail (status() below; "api": 1)
 //   POST /api/action    {"id": "...", "confirmLocked": bool}: the Controller's calls, under the same game lock
 //   GET  /api/tools     the bridge's table tools, passed through from the bridge's GET /tools
-//   POST /api/tools     {"kind": "ai-seat"|"debug-mode"|"debug", ...}: one change, passed to the bridge
+//   POST /api/tools     {"kind": "ai-seat"|"debug-mode"|"debug"|"gif-key", ...}: one change, passed to the bridge
 //
 // Guards (DNS rebinding, CSRF): Host must be 127.0.0.1:<port> or localhost:<port>; an Origin, when sent, must be that
 // origin; /api/* needs the X-MTG-Token header (16 random bytes per run, only ever written into the served page) and
@@ -403,7 +403,7 @@ class WebUi {
     if (!jsonType(r.headers["content-type"])) return refuse(415, "content-type", "Send application/json.");
     const body = L.parseJson(r.body);
     const kind = L.str(body, "kind");
-    if (!L.isObj(body) || !ToolKinds.includes(kind)) return refuse(400, "bad-body", "Send {\"kind\": \"ai-seat\" | \"debug-mode\" | \"debug\", ...}.");
+    if (!L.isObj(body) || !ToolKinds.includes(kind)) return refuse(400, "bad-body", "Send {\"kind\": \"ai-seat\" | \"debug-mode\" | \"debug\" | \"gif-key\", ...}.");
     if (this.c.observe) return { status: 200, body: JSON.stringify({ ok: false, message: ObserveText }) };
     const res = await this.bridgeCall("POST", "/tools", JSON.stringify(body)); // (rewritten from what was parsed, never the raw bytes)
     const answer = res.kind === "ok" ? L.parseJson(res.body) : null;
@@ -413,7 +413,7 @@ class WebUi {
   }
 }
 
-const ToolKinds = ["ai-seat", "debug-mode", "debug"];
+const ToolKinds = ["ai-seat", "debug-mode", "debug", "gif-key"]; // (gif-key: the GIF frames' GIPHY key, kept by the bridge on this PC)
 const refuse = (status, error, message) => ({ status, body: JSON.stringify({ error, message }) });
 function noBridge(h) {
   return h.kind === "refused" ? "The bridge isn't running: start the engine first (the Bridge light)."

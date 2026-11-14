@@ -15,6 +15,26 @@ and anything illegal snaps back with the reason.
 
 To shut down: **Stop MTG.bat** in the same folder.
 
+### Optional: GIF frames (a GIPHY key, once)
+
+With a GIPHY key, every seated player gets a GIF frame on their mat (see "GIF frames" below). Getting one takes about
+five minutes:
+
+1. In your browser, go to **developers.giphy.com**, open the menu and choose **Dashboard**. Sign in, or make a free
+   GIPHY account.
+2. Click **Create an App** (some pages say **Create API Key**).
+3. Screen 1 of 2: choose **API**, not SDK. The SDK form says "SDK beta key" and asks you to accept the SDK licence:
+   that is the wrong one, go back and pick API.
+4. Screen 2 of 2: any app name (MTG table is fine), Platform **Other**, a one-line description (GIF frames for our
+   Tabletop Simulator table), tick the box that names the **GIPHY API Terms**, then **Create API Key**.
+5. Copy the key from your GIPHY dashboard. In the companion's page, open **Table tools**, paste it into the
+   **GIPHY key** box and press **Save key**. (The same steps are under that box: **Get a GIPHY key**.)
+
+- Only the host needs a key. Players don't.
+- It's free. A new key is a beta key: 100 searches an hour for the whole table.
+- The key stays on this PC: never in the table save or the friend package. Don't share it or paste it in chats.
+- No key: the GIF frames don't appear, and everything else works as usual. **Remove key** takes them away again.
+
 ## Everyone: getting into a game
 
 1. **Sit at a colour** (White, Red, Yellow, Blue).
@@ -100,6 +120,18 @@ To shut down: **Stop MTG.bat** in the same folder.
 - **Your cards stay on your mat:** move your permanents around your own mat as you like. A card you flick or throw off
   your mat slides back.
 
+## GIF frames (when the host has a GIPHY key)
+
+- Every seated player has a square **GIF frame** on their own mat, in a game or not. Everyone sees it; only you can
+  move yours (anywhere on your mat).
+- **GIF...** under your frame opens your search panel (only you see it): type words, press Enter, click a result. It
+  plays on your frame for everyone for 12 s, then holds a still picture. **Replay** under any frame plays it again.
+  **Clear** empties your frame.
+- In chat: `mtg gif <words>` shows the first match, `mtg gif off` empties your frame, `mtg gifs hide` / `mtg gifs show`
+  hides or shows every frame on your screen only.
+- Host: `mtg gifs off` / `on` (everyone), `mtg gifs rating g|pg|pg-13` (PG-13 unless changed), `mtg gif clear
+  <colour>` empties one player's frame.
+
 ## The buttons at the top left (yours only)
 
 A row above Auto-resolve / Fix... / Undo...:
@@ -161,6 +193,9 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg sounds test <kind> [N]` | host: play one table sound now, with N the one for N at once (death 5 plays the 4-stack); kinds: knockout, wipe, death, exile, damage, lifegain, instant, counter (counter and knockout have no sound yet) |
 | `mtg mana 99` | (testing) a manual fix in one line: 99 of each mana until the end of the turn |
 | `mtg debug <scenario>` / `list` / `off` | (testing) a test board from `scenarios/<name>.json`: 20 lands out (the commander's colours, or the lands the file names) and the scenario's cards in hand, plus anything it puts in other zones for you or the opponents. Typed before a game, it is set up at your first priority on your own turn (your opening hand is kept by itself); during one, at the next moment with nothing on the stack. Other players vote as for any fix |
+| `mtg gif <words>` / `mtg gif off` / `mtg gif help` | your GIF frame: the first match for the words / empty it / the GIF commands |
+| `mtg gifs hide` / `show` | every GIF frame hidden or shown on your screen only |
+| `mtg gifs on\|off`, `mtg gifs rating g\|pg\|pg-13`, `mtg gif clear <colour>` | host: the GIF frames for everyone, their rating, one player's frame emptied |
 | `mtg aideck <name>[, <name>...]` | host: the deck(s) the Forge AI players get (one name per AI; a new list replaces the old) |
 
 ## Trouble?
