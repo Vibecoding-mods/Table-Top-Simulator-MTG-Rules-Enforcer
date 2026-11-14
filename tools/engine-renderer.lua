@@ -3419,6 +3419,42 @@ local function stashImported(colors)
   end
 end
 
+-- "mtg clear deck": a seated player's own deck (on their library spot) and the cards on their two commander spots
+-- removed by the script, which acts as the host, for players whose Delete key does nothing on them (the user,
+-- 2026-11-13: "players still can't delete their decks before a game starts", with the engine off too). Never while an
+-- engine game is running, never an engine card, never the Identity cards. -> the number of objects removed, or nil and
+-- why not
+function engineClearDeck(color)
+  local d = data[color]
+  if d == nil or d.libraryZone == nil then return nil, "Sit at a seat with a playmat first." end
+  if engineTable ~= nil and engineTable() ~= nil then return nil, "Not during a game: type  mtg reset  first." end
+  local gone, n = {}, 0
+  local function take(o)
+    if o == nil or o.isDestroyed() or gone[o] then return end
+    if o.type ~= "Card" and o.type ~= "Deck" then return end
+    if tostring(o.getGMNotes()):find("^engine") or tostring(o.getName()):find("Identity") then return end
+    gone[o] = true
+    n = n + 1
+    o.setLock(false)
+    o.destruct()
+  end
+  take(getDeckFromZone(d.libraryZone))
+  local anchors = {}
+  for _, guid in ipairs(TAX_LABELS[color] or {}) do
+    local a = getObjectFromGUID(guid)
+    if a then anchors[#anchors + 1] = a.getPosition() end
+  end
+  for _, o in ipairs(getObjects()) do
+    if (o.type == "Card" or o.type == "Deck") and not gone[o] then
+      local p = o.getPosition()
+      for _, a in ipairs(anchors) do
+        if (p.x - a.x) ^ 2 + (p.z - a.z) ^ 2 < 6.25 and p.y > a.y - 3 then take(o) break end
+      end
+    end
+  end
+  return n
+end
+
 local function restoreStash()
   for guid, s in pairs(stashed) do
     local o = getObjectFromGUID(guid)
