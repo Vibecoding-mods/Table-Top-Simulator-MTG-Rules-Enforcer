@@ -991,8 +991,12 @@ function TL.put(p, was)
   local sx, sz = s.x, s.z
   if math.floor(rot + 0.5) % 180 == 90 then sx, sz = s.z, s.x end -- (TTS stretches a button after turning it: setupButton)
   for _, e in ipairs(p.list) do
+    -- (real TTS draws a mat zone's button with its local x mirrored, as on the middle tile: live 2026-11-14 the panel
+    -- meant for the gap at x 0 showed on the mat's far edge, x 38.8; so x is negated)
+    local pos = mat.positionToLocal(e.at)
+    pos.x = -pos.x
     mat.createButton({ click_function = "engineTeamNoop", function_owner = Global, label = e.label, tooltip = e.tip,
-      position = mat.positionToLocal(e.at), rotation = { 0, rot, 0 }, scale = { 1 / sx, 1 / s.y, 1 / sz },
+      position = pos, rotation = { 0, rot, 0 }, scale = { 1 / sx, 1 / s.y, 1 / sz },
       width = math.floor(TL.w * TL.perWorld), height = math.floor(e.h * TL.perWorld), font_size = e.font, color = e.color, font_color = e.fcolor })
   end
 end
