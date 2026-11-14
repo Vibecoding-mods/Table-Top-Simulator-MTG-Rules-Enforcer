@@ -95,6 +95,13 @@ function teamsField(pub, slotColor) {
   return { teams: { poison: t.poison, ...(t.cmd != null ? { cmd: t.cmd } : {}), sides: [...t.byTeam.values()], ...(pub.gameOver && won ? { won } : {}) } };
 }
 
+// The life counter's hover line in a shared-life game: "Team life: White + Red" (both partners' counters show the
+// team's one total, 810.4), or null
+function teamLifeTip(p, pub, slotColor) {
+  const team = teamOf(p, pub);
+  return team.length > 1 ? `Team life: ${teamWords(team.map((q) => slotColor[q.id] || q.id))}` : null;
+}
+
 // "POISON 3" -> "POISON 3/15" in a shared-life game (the team's count out of the team's limit)
 function poisonLabel(label, pub) {
   const lim = pub?.teamRules?.rule === "sharedLife" ? pub.teamRules.poisonToLose : null;
@@ -104,4 +111,4 @@ function poisonLabel(label, pub) {
 // The game's end in words, a team game's way: "White + Red win" for the winning team. won: from teamsField.
 const teamWinWords = (won, nameOf) => `${teamWords(won.map(nameOf))} win`;
 
-module.exports = { TEAM_COLORS, DEFAULT_TEAMS, teamsOf, teamWords, sides, teamsProblem, gameConfig, boardTeams, teamOf, withTeamDamage, teamsField, poisonLabel, teamWinWords };
+module.exports = { TEAM_COLORS, DEFAULT_TEAMS, teamsOf, teamWords, sides, teamsProblem, gameConfig, boardTeams, teamOf, withTeamDamage, teamsField, teamLifeTip, poisonLabel, teamWinWords };

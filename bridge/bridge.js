@@ -5936,6 +5936,9 @@ function playerMarks(p, pub) {
   // (the life gained and lost this turn, for the life counter's hover text; Forge sends each only above 0)
   const life = [positive(p.lifeGainedThisTurn) ? `Gained ${p.lifeGainedThisTurn} life this turn` : "",
     positive(p.lifeLostThisTurn) ? `Lost ${p.lifeLostThisTurn} life this turn` : ""].filter(Boolean);
+  // (Two-Headed Giant: the life total is the team's, "Team life: White + Red")
+  const teamLife = teams2hg.teamLifeTip(p, pub, game?.slotColor || {});
+  if (teamLife) life.unshift(teamLife);
   if (life.length) out.lifeTip = life.join("\n");
   for (const m of PLAYER_MARKS) if (m.row && markShown(values[m.key])) out[m.row] = values[m.key];
   // (Two-Headed Giant: the team's poison out of its limit, POISON 3/15)

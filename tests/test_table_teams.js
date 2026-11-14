@@ -81,6 +81,7 @@ const chats = (r, mark) => fxOf(r, mark).filter((l) => /broadcast/.test(l)).join
     q(where("team:Yellow:engine-card-501", "Yellow"), "yellow sees"),
     q(where("team:Blue:engine-card-502", "Blue"), "blue sees"),
     q('local n = 0 for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:team:Yellow:engine-card-501" then n = n + #(x.getDescription() or "") end end return tostring(n)', "note"),
+    q('engineConcedeAsk = nil engineChat("mtg concede", Player.Blue) return "asked"', "concede ask"),
     q(check, "check"),
     // (TTS lays a hand out itself: a stand-in shifted inside the second hand zone stays where TTS put it on the next board)
     q('local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:team:Yellow:engine-card-501" then o = x end end if o == nil then return "none" end ' +
@@ -100,6 +101,7 @@ const chats = (r, mark) => fxOf(r, mark).filter((l) => /broadcast/.test(l)).join
   ok("hands: Blue's own card stays in Blue's hand", valueOf(r, "blue's own") === "1 hand", String(valueOf(r, "blue's own")));
   ok("hands: Yellow sees Blue's card in Yellow's second hand zone", valueOf(r, "yellow sees") === "1 hand2", String(valueOf(r, "yellow sees")));
   ok("hands: Blue sees Yellow's card in Blue's second hand zone", valueOf(r, "blue sees") === "1 hand2", String(valueOf(r, "blue sees")));
+  ok("concede: the question says it is for the team", /Concede for your team \(PlayerYellow \+ PlayerBlue\)\?/.test(chats(r, "concede ask")), chats(r, "concede ask"));
   ok("hands: the stand-in says it is the partner's, look only", Number(valueOf(r, "note")) > 0, String(valueOf(r, "note")));
   ok("hands: a stand-in TTS laid out in the hand zone stays there on the next board", valueOf(r, "relaid") === "0", String(valueOf(r, "relaid")));
   ok("hands: the table check expects the stand-ins", valueOf(r, "check") === "none", String(valueOf(r, "check")));

@@ -407,6 +407,58 @@ On top of §5.3:
 
 Plus §4 (15.5) if not done already. Level 1 with §4: **63.5**.
 
+### 5.9 Level 1 as built (2026-11-13, branch `2hg`, image tag `2hg`, not deployed)
+
+What exists (details and proofs: `docs/engine-changes.md`, "2026-11-13 2hg"):
+- **§4 plumbing:** `gameConfig` roomRelay from the room controller (relay allow-list, node `HostSnapshot.game_config`,
+  taken by the next game that starts); `StartGameRequest.teamRules` (`none`, `teams`, `sharedLife`), `poisonToLose`,
+  `commanderDamageToLose`, per player `team`, `startingLife`, `startingHand`; `GameViewDto.teamRules`. Perks were not
+  built (no mode needs them yet).
+- **§5.3 engine:** items 1-7 as planned, in Forge behind `GameRules.sharedTeamLife`; defaults by team size from the harness
+  (2 heads: 30 life, 80 in Commander; poison 15; 42 commander damage, §12). Also: an alternate win ("you win the game")
+  is the team's, and the first-player roll is offered to each team's first seat only (`GameAction.teamLead`), so a team's
+  turns are back to back (Power Play, too, starts the team at its first seat). The harness refuses a `sharedLife` request
+  whose partners aren't next to each other in seat order, give partners different starting life, or set a poison or
+  commander-damage limit below 1. Left out, as planned: 810.9d, 810.9f, 701.34b.
+- **Hands (§12.5):** a teammate's hand is sent to the viewer in a `sharedLife` game; the bridge keeps it out of the
+  "revealed to everyone" rows and the table lays it look-only in the partner's second hand zone.
+- **§5.5 bridge (`bridge/teams.js`):** the table's teams come with every Start; the bridge refuses a start that is not
+  four seats in two teams of two side by side in turn order, sends `gameConfig` before `StartGame`, says the teams; the
+  board gets `teams` (sides, poison limit, winners), poison as "POISON n/15", both partners' commander damage as the
+  team's, a "Team life: White + Red" hover line; the end words name the team; a concede is said for the team. Works in
+  both formats (Standard 2HG: 30 a team).
+- **§5.6 table:** `mtg mode 2hg|ffa` and `mtg team <colour> 1|2` (host; beside main's `mtg mode standard|commander`), the
+  partner's hand stand-ins, the phase bar's "(YOUR TEAM)" / "(TEAM ...)" tag, VICTORY for both partners and "WHITE + RED
+  WIN THE GAME", "Concede for your team?". **Not built:** a separate team life tracker between the mats (each seat's
+  tracker shows the team number already), team tint on the mat borders, per-team commander-damage trackers (each seat's
+  tracker shows the team's total instead).
+
+Known limits (Level 1):
+- The Forge AI blocks only creatures attacking itself (`AiBlockController.sortPotentialAttackers` reads
+  `combat.getAttackersOf` the AI's own player and planeswalkers), so an AI partner doesn't block for a human partner. Its
+  board score already reads the team's life (mirrored).
+- Each defender still declares blocks one after the other (§5.3 item 5).
+- A `gameConfig` stays with the node until a game starts: one sent before a StartGame that never led to a game would
+  apply to the next game started in that room without a restart (the bridge sends one only right before StartGame).
+- Poison is mirrored where Forge adds or removes counters one kind at a time; `clearCounters` and the bulk
+  `setCounters(Multiset)` set each partner on their own, and the mirrored copy fires no counter events. The callers are
+  Karn Liberated's restart (clears every player alike), the debug state loader and game copies (`GameSnapshot`), which copy
+  each player's own, already mirrored, counters.
+- `GameViewDto.teamRules` is also sent in a `teams` game without `sharedLife` (no mode uses one yet).
+- The Rust engine backend has no team rules: the node warns and starts such a game without its `gameConfig`.
+
+### 5.10 Seams left for Level 2 (not built)
+
+- Forge: `sharedTeamLife` is only the life/poison/loss/block flag; the shared turn gets its own flag (e.g.
+  `sharedTeamTurns`) so Level 1 stays as is. `GameAction.teamLead` is the team's first seat in turn order, i.e. where a team
+  turn would start; `PhaseHandler.isStartingTeamsFirstDraw` counts the starting team's first turns, which becomes "the
+  team's first turn" once a turn is the team's (805.4b, 103.8b).
+- Harness: questions still go to the player Forge asks (§5.5); the primary player (805.2) is `teamLead`'s mirror image
+  (rightmost seat) and is not computed yet.
+- Bridge: `teams.teamsProblem`'s side-by-side rule exists only because Level 1 plays the team's turns back to back.
+  `gameConfig` would carry the new rule (`teamRules: "sharedTurns"` or a separate field).
+- Table: the phase bar's team tag already names the team on either partner's turn.
+
 ## 6. Juggernaut (3v1; kept as written)
 One strong player against a team of three.
 
