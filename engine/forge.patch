@@ -99,7 +99,7 @@ index 8d204538..298cc9f1 100644
                      planesLeavingGame.add(c);
                      planarController.removeCurrentPlane(c);
 diff --git a/forge-game/src/main/java/forge/game/GameAction.java b/forge-game/src/main/java/forge/game/GameAction.java
-index e6cbe012..134f05bc 100644
+index e6cbe012..7d444186 100644
 --- a/forge-game/src/main/java/forge/game/GameAction.java
 +++ b/forge-game/src/main/java/forge/game/GameAction.java
 @@ -1988,7 +1988,8 @@ public class GameAction {
@@ -107,8 +107,8 @@ index e6cbe012..134f05bc 100644
              reason = GameEndReason.WinsGameSpellEffect;
              for (Player pl : allPlayers) {
 -                if (pl.equals(p)) {
-+                // CR 810.8a, 808.4: a player's win is the team's
-+                if (pl.equals(p) || !pl.isOpponentOf(p)) {
++                // CR 810.8a: with shared team life a player's win is the team's
++                if (pl.equals(p) || game.getRules().hasSharedTeamLife() && !pl.isOpponentOf(p)) {
                      continue;
                  }
  
@@ -132,6 +132,15 @@ index e6cbe012..134f05bc 100644
          if (losers != null) {
              for (Player p : losers) {
                  game.onPlayerLost(p);
+@@ -2471,7 +2485,7 @@ public class GameAction {
+         if (!powerPlayers.isEmpty()) {
+             List<Player> players = Lists.newArrayList(powerPlayers);
+             Collections.shuffle(players, MyRandom.getRandom());
+-            return players.get(0);
++            return game.getRules().hasSharedTeamLife() ? teamLead(players.get(0)) : players.get(0);
+         }
+ 
+         boolean isFirstGame = lastGameOutcome == null;
 @@ -2499,9 +2513,36 @@ public class GameAction {
              }
          }
@@ -503,7 +512,7 @@ index 58a41b9d..d7d011e6 100644
      protected String formatReminderText(String reminderText) {
          // some reminder does not contain cost
 diff --git a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
-index 4a3a94df..e20875b7 100644
+index 4a3a94df..33871e93 100644
 --- a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 +++ b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 @@ -186,6 +186,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
@@ -516,18 +525,27 @@ index 4a3a94df..e20875b7 100644
  
                  final int lands = CardLists.count(playerTurn.getLandsInPlay(), CardPredicates.UNTAPPED);
                  playerTurn.setNumPowerSurgeLands(lands);
-@@ -216,10 +219,20 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -216,10 +219,29 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
          game.fireEvent(new GameEventTurnPhase(playerTurn, phase, phaseType));
      }
  
 +    // CR 103.8b: in Two-Headed Giant the team that plays first skips the draw step of its first turn; the team's
-+    // players take their turns one after the other, so each skips the draw of its own first turn
++    // players take their turns one after the other, so each skips the draw of its own first turn. Extra turns are left
++    // out of the count (an extra turn on turn 1 moves the partner's first turn to turn 3); the turn number and the extra
++    // turns played are both put back by a rewind
 +    private boolean isStartingTeamsFirstDraw() {
-+        if (!game.getRules().hasSharedTeamLife()) {
++        if (!game.getRules().hasSharedTeamLife() || playerTurn.isExtraTurn()) {
 +            return false;
 +        }
 +        final Player first = game.getStartingPlayer();
-+        return first != null && !first.isOpponentOf(playerTurn) && turn <= first.getYourTeam().size();
++        if (first == null || first.isOpponentOf(playerTurn)) {
++            return false;
++        }
++        int extraTurns = 0;
++        for (final Player p : game.getRegisteredPlayers()) {
++            extraTurns += p.getExtraTurnsPlayed();
++        }
++        return turn - extraTurns <= first.getYourTeam().size();
 +    }
 +
      private boolean isSkippingPhase(final PhaseType phase) {
@@ -538,7 +556,7 @@ index 4a3a94df..e20875b7 100644
  
              case COMBAT_BEGIN:
              case COMBAT_DECLARE_ATTACKERS:
-@@ -653,6 +666,19 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -653,6 +675,19 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
          game.fireEvent(new GameEventCombatChanged());
      }
  
@@ -558,7 +576,7 @@ index 4a3a94df..e20875b7 100644
      private void declareBlockersTurnBasedAction() {
          Player p = playerTurn;
  
-@@ -660,7 +686,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -660,7 +695,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
              p = game.getNextPlayerAfter(p);
              // Apply Odric's effect here
              Player whoDeclaresBlockers = Objects.requireNonNullElse(p.getDeclaresBlockers(), p);
@@ -567,7 +585,7 @@ index 4a3a94df..e20875b7 100644
                  if (CombatUtil.canBlock(p, combat)) {
                      // Replacement effects (for Camouflage)
                      final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(p);
-@@ -1129,6 +1155,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -1129,6 +1164,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
          if (DEBUG_PHASES) {
              System.out.println(TextUtil.concatWithSpace(playerTurn.toString(),TextUtil.addSuffix(phase.toString(),":"), pPlayerPriority.toString(),"is active, previous was", nextPlayer.toString()));
          }
@@ -578,7 +596,7 @@ index 4a3a94df..e20875b7 100644
              if (game.getStack().isEmpty()) {
                  if (playerTurn.hasLost()) {
 diff --git a/forge-game/src/main/java/forge/game/player/Player.java b/forge-game/src/main/java/forge/game/player/Player.java
-index 4cbb6deb..5eea758f 100644
+index 4cbb6deb..fc4a21d5 100644
 --- a/forge-game/src/main/java/forge/game/player/Player.java
 +++ b/forge-game/src/main/java/forge/game/player/Player.java
 @@ -107,6 +107,7 @@ public class Player extends GameEntity implements Comparable<Player> {
@@ -597,13 +615,16 @@ index 4cbb6deb..5eea758f 100644
          boolean firstGain = lifeGainedTimesThisTurn == 0;
          lifeGainedThisTurn += lifeGain;
          lifeGainedTimesThisTurn++;
-@@ -488,7 +490,38 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -488,7 +490,41 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean canGainLife() {
 -        return isInGame() && !StaticAbilityCantGainLosePayLife.anyCantGainLife(this);
 +        if (!isInGame()) {
 +            return false;
++        }
++        if (!game.getRules().hasSharedTeamLife()) {
++            return !StaticAbilityCantGainLosePayLife.anyCantGainLife(this);
 +        }
 +        // CR 810.9g: can't gain life covers the whole team
 +        for (final Player p : sharedLifeTeam()) {
@@ -637,7 +658,7 @@ index 4cbb6deb..5eea758f 100644
      }
  
      public final int loseLife(int toLose, final boolean damage, final boolean manaBurn, final SpellAbility cause) {
-@@ -525,6 +558,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -525,6 +561,7 @@ public class Player extends GameEntity implements Comparable<Player> {
  
          life -= toLose;
          view.updateLife(this);
@@ -645,13 +666,16 @@ index 4cbb6deb..5eea758f 100644
          if (manaBurn) {
              game.fireEvent(new GameEventManaBurn(PlayerView.get(this), true, toLose));
          } else {
-@@ -544,7 +578,16 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -544,7 +581,19 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean canLoseLife() {
 -        return isInGame() && !StaticAbilityCantGainLosePayLife.anyCantLoseLife(this);
 +        if (!isInGame()) {
 +            return false;
++        }
++        if (!game.getRules().hasSharedTeamLife()) {
++            return !StaticAbilityCantGainLosePayLife.anyCantLoseLife(this);
 +        }
 +        // CR 810.9h: can't lose life covers the whole team
 +        for (final Player p : sharedLifeTeam()) {
@@ -663,7 +687,7 @@ index 4cbb6deb..5eea758f 100644
      }
  
      public final boolean canPayLife(final int lifePayment, final boolean effect, SpellAbility cause) {
-@@ -919,6 +962,17 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -919,6 +968,17 @@ public class Player extends GameEntity implements Comparable<Player> {
          int old = getCounters(counterType);
          setCounters(counterType, num);
          view.updateCounters(this);
@@ -681,7 +705,7 @@ index 4cbb6deb..5eea758f 100644
          if (fireEvents) {
              getGame().fireEvent(new GameEventPlayerCounters(this, counterType, old, num));
              if (counterType.is(CounterEnumType.POISON)) {
-@@ -1101,6 +1155,16 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1101,6 +1161,16 @@ public class Player extends GameEntity implements Comparable<Player> {
          scryThisTurn++;
      }
  
@@ -698,7 +722,7 @@ index 4cbb6deb..5eea758f 100644
      public boolean canMulligan() {
          return !getZone(ZoneType.Hand).isEmpty();
      }
-@@ -1803,6 +1867,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1803,6 +1873,14 @@ public class Player extends GameEntity implements Comparable<Player> {
          stats.nextTurn();
      }
  
@@ -713,12 +737,12 @@ index 4cbb6deb..5eea758f 100644
      public final int getLastTurnNr() {
          return this.lastTurnNr;
      }
-@@ -1972,6 +2044,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1972,6 +2050,14 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean loseConditionMet(final GameLossReason state, final String spellName) {
 +        // CR 810.8a: if an effect says a player can't lose the game, that player's team can't lose
-+        if (state != GameLossReason.Conceded && state != GameLossReason.IntentionalDraw && state != GameLossReason.OpponentWon) {
++        if (game.getRules().hasSharedTeamLife() && state != GameLossReason.Conceded && state != GameLossReason.IntentionalDraw && state != GameLossReason.OpponentWon) {
 +            for (final Player p : sharedLifeTeam()) {
 +                if (p != this && p.isInGame() && p.cantLoseCheck(state)) {
 +                    return false;
@@ -728,7 +752,7 @@ index 4cbb6deb..5eea758f 100644
          if (state != GameLossReason.OpponentWon) {
              Map<AbilityKey, Object> repParams = AbilityKey.mapFromAffected(this);
              repParams.put(AbilityKey.LoseReason, state);
-@@ -1983,6 +2063,12 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1983,6 +2069,12 @@ public class Player extends GameEntity implements Comparable<Player> {
          return true;
      }
  
@@ -741,7 +765,7 @@ index 4cbb6deb..5eea758f 100644
      public final void concede() { // No cantLose checks - just lose
          setOutcome(PlayerOutcome.concede());
      }
-@@ -2044,13 +2130,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2044,13 +2136,14 @@ public class Player extends GameEntity implements Comparable<Player> {
  
          // Rule 704.5c - If a player has ten or more poison counters, he or she loses the game.
          // 704.6b In a Two-Headed Giant game, if a team has fifteen or more poison counters, that team loses the game. See rule 810, “Two-Headed Giant Variant.”
@@ -758,7 +782,7 @@ index 4cbb6deb..5eea758f 100644
                      return true;
                  }
              }
-@@ -2477,6 +2564,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2477,6 +2570,7 @@ public class Player extends GameEntity implements Comparable<Player> {
          investigatedThisTurn = 0;
          scryThisTurn = 0;
          surveilThisTurn = 0;
@@ -766,7 +790,7 @@ index 4cbb6deb..5eea758f 100644
          resetDiscardedThisTurn();
          resetSacrificedThisTurn();
          resetVenturedThisTurn();
-@@ -2842,6 +2930,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2842,6 +2936,14 @@ public class Player extends GameEntity implements Comparable<Player> {
      public Iterable<Entry<Card, Integer>> getCommanderDamage() {
          return commanderDamage.entrySet();
      }

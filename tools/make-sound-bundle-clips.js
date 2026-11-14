@@ -2,7 +2,7 @@
 // trigger effect per engineSounds key, each playing the very sound that key's link plays through the music player
 // (route A), so switching routes changes how a sound is played, never what is heard.
 //   node tools/make-sound-bundle-clips.js [assetsDir] [unityProject]
-//   defaults: assets (this checkout's, gitignored) and C:/Users/you/mtg-unity/Tabletop-Simulator-Modding
+//   defaults: assets (this checkout's, gitignored) and ~/mtg-unity/Tabletop-Simulator-Modding
 // Then the Unity build (MtgSoundsBuild.Build in the Unity project's Assets/Editor) makes the bundle from what this
 // writes: <unityProject>/Assets/MTG/Sounds/<clip>.wav and sounds.tsv. FFMPEG overrides the path to ffmpeg.exe.
 //
@@ -24,9 +24,9 @@ const path = require("path");
 const crypto = require("crypto");
 
 const ROOT = path.join(__dirname, "..");
-const FF = process.env.FFMPEG || "C:/Users/you/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.2-full_build/bin/ffmpeg.exe";
+const FF = process.env.FFMPEG || path.join(require("os").homedir(), "AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.2-full_build/bin/ffmpeg.exe");
 const assets = process.argv[2] || path.join(ROOT, "assets");
-const unity = process.argv[3] || "C:/Users/you/mtg-unity/Tabletop-Simulator-Modding";
+const unity = process.argv[3] || path.join(require("os").homedir(), "mtg-unity/Tabletop-Simulator-Modding");
 const outDir = path.join(unity, "Assets", "MTG", "Sounds");
 const RATE = 44100;
 const FLOOR = Math.pow(10, -60 / 20); // the padding cut: the last sample over -60 dBFS ends the sound

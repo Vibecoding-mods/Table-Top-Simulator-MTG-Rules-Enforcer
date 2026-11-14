@@ -17,20 +17,20 @@ Since that day, only a track of the players' own that is *playing* holds off the
 
 | File | Plays when | Length | Original file | Link |
 |---|---|---|---|---|
-| mtg-death.mp3 | a permanent goes to the graveyard (`death`; x1.5 louder since 2026-11-12) | 0.90 s | Permanent_and_creature_removal_sound_effect.wav | https://steamusercontent-a.akamaihd.net/ugc/11698913979615550185/7F13F2B39D7065CE85AC235B6369A0747F6F712E/ |
-| mtg-wipe.mp3 | several permanents go to the graveyard on one board (`wipe`, new) | 1.60 s | Board_wipe_to_graveyard_sound_effect.ogg (really a WAV) | https://steamusercontent-a.akamaihd.net/ugc/11479971636843136595/5C0FB88EC6DE1F473D4067207ADDB4CCC0540597/ |
-| mtg-damage.mp3 | damage of 5 or less to a creature (`damage`; also every hit if playerhit or bighit has no link) | 0.80 s | hit01.mp3.flac (really FLAC) | https://steamusercontent-a.akamaihd.net/ugc/10124521221080295893/E301DC2C50A312AB8C6C1EDBB7C295B3AC76B06E/ |
-| mtg-exile.mp3 | a permanent is exiled (`exile`, new) | 1.50 s | Exile_sound_effect.ogg | https://steamusercontent-a.akamaihd.net/ugc/17507000918538872455/683F8320B4DB9EAF77CF1AF05D1205EF94F7BA65/ |
-| mtg-instant.mp3 | an instant resolves (not when it is cast, countered, fizzles or is a copy: since 2026-11-12), instants only (`instant`, new; x1.5 louder since 2026-11-12) | 0.90 s | Instant_spell_cast.ogg (really a WAV) | https://steamusercontent-a.akamaihd.net/ugc/15655704109114108865/027ADEDADC1E8E89E6AF2D66E77010F5D9A82298/ |
-| mtg-lifegain.mp3 | a player gains life (`lifegain`, new) | 1.80 s | Health_gain.aif | https://steamusercontent-a.akamaihd.net/ugc/18328296034120530417/099A768F25DE573194668B6ACDFC47C3BC4F0DE7/ |
-| mtg-counter.mp3 | a counter is put on a permanent (`counter`, 2026-11-12) | 0.65 s | Counter gain.mp3 (the user's) | https://steamusercontent-a.akamaihd.net/ugc/18384867903770801477/E84A3FA1E2AA6059EFD2D315A776D43AEBFD2E87/ |
-| mtg-knockout.mp3 | a player loses or concedes (`knockout`, 2026-11-12) | 1.60 s | ours, `tools/make-effect-sounds.js` | https://steamusercontent-a.akamaihd.net/ugc/11703297018823193116/BCCEEF4571C8BD6A30FF2AF0350DE2C53A1DF345/ |
-| mtg-countered.mp3 | a spell is countered (`countered`, 2026-11-12) | 1.05 s | If a spell is countered.ogg | https://steamusercontent-a.akamaihd.net/ugc/16931120861737353001/A2214840FC305FC9063F57823D4C2852D2383CD3/ |
-| mtg-playerhit.mp3 | 1 to 5 damage to a player (`playerhit`, 2026-11-12) | 0.85 s | player damage from pingorbolts pells.ogg | https://steamusercontent-a.akamaihd.net/ugc/17427026780177468511/DC419EEC5FE59459E3F2417452DDE9E381380D0F/ |
-| mtg-bighit.mp3 | one hit of more than 5, to a player or a creature (`bighit`, 2026-11-12) | 1.14 s | Damage from anything over 5.ogg | https://steamusercontent-a.akamaihd.net/ugc/13928224574378758506/BFC535CE502EC967E020203AE6E1CAA2A68E703C/ |
-| mtg-sorcery.mp3 | a sorcery resolves (not when it is cast, countered, fizzles or is a copy), sorceries only (`sorcery`, 2026-11-12; remade that night, "Sorcery remake" below) | 2.22 s | qubodup-PowerDrain.flac, reversed, 3x faster, then half speed at the same pitch, with our pop and crackle (uploaded as mtg3-sorcery.mp3) | https://steamusercontent-a.akamaihd.net/ugc/13241084417049183126/BB800BB0A8D05F14C238A0B03A137A70148E6B41/ |
-| mtg-treasure.mp3 | Treasure tokens created (`treasure`, 2026-11-13; "Treasure" below) | 1.88 s | gold_sack.wav ("Sack of Gold"), levelled (uploaded as mtg3-treasure.mp3) | https://steamusercontent-a.akamaihd.net/ugc/12161233116466232436/6A7FB1D65AB33404B56E51CB6824175E9F033E20/ |
-| mtg-treasurespend.mp3 | Treasure tokens leaving the battlefield, sacrificed for mana or not, in place of death (`treasurespend`, 2026-11-13) | 0.90 s | the death sound: death's own link (the user's pick, 2026-11-13) | https://steamusercontent-a.akamaihd.net/ugc/11698913979615550185/7F13F2B39D7065CE85AC235B6369A0747F6F712E/ |
+| mtg-death.mp3 | a permanent goes to the graveyard (`death`; x1.5 louder since 2026-11-12) | 0.90 s | Permanent_and_creature_removal_sound_effect.wav | https://steamusercontent-a.akamaihd.net/ugc/9800569858149488327/8971500EFD07C4FD0BD18D68B8B252405017A5A0/ |
+| mtg-wipe.mp3 | several permanents go to the graveyard on one board (`wipe`, new) | 1.60 s | Board_wipe_to_graveyard_sound_effect.ogg (really a WAV) | https://steamusercontent-a.akamaihd.net/ugc/15817545063740906107/206A0FA5435B601208C14BC12289526592275C05/ |
+| mtg-damage.mp3 | damage of 5 or less to a creature (`damage`; also every hit if playerhit or bighit has no link) | 0.80 s | hit01.mp3.flac (really FLAC) | https://steamusercontent-a.akamaihd.net/ugc/18394554027578421591/38584ACB11DF0374F06EF58288CC103E1A7BCB17/ |
+| mtg-exile.mp3 | a permanent is exiled (`exile`, new) | 1.50 s | Exile_sound_effect.ogg | https://steamusercontent-a.akamaihd.net/ugc/15277917318962835347/67E988768501AE61D76EA0B61CE26CBF7B9047F3/ |
+| mtg-instant.mp3 | an instant resolves (not when it is cast, countered, fizzles or is a copy: since 2026-11-12), instants only (`instant`, new; x1.5 louder since 2026-11-12) | 0.90 s | Instant_spell_cast.ogg (really a WAV) | https://steamusercontent-a.akamaihd.net/ugc/12129289638876188200/E4A383D9F0FD11D33AD0C3231ADBDC76640FB6F4/ |
+| mtg-lifegain.mp3 | a player gains life (`lifegain`, new) | 1.80 s | Health_gain.aif | https://steamusercontent-a.akamaihd.net/ugc/14589447832811798852/152589A1C8FC457DF750D1F1DA09974B7D4621DC/ |
+| mtg-counter.mp3 | a counter is put on a permanent (`counter`, 2026-11-12) | 0.65 s | Counter gain.mp3 (the user's) | https://steamusercontent-a.akamaihd.net/ugc/10198555696183163869/22D514A072E215258BFB7BDD0D94438B93234282/ |
+| mtg-knockout.mp3 | a player loses or concedes (`knockout`, 2026-11-12) | 1.60 s | ours, `tools/make-effect-sounds.js` | https://steamusercontent-a.akamaihd.net/ugc/17359985036682352321/876EDEC83B31E9D171B93725698195BD3A60998D/ |
+| mtg-countered.mp3 | a spell is countered (`countered`, 2026-11-12) | 1.05 s | If a spell is countered.ogg | https://steamusercontent-a.akamaihd.net/ugc/16224198548986524439/ECC3E042EBA1BBB7F8ACA675DF0D15CDED64151C/ |
+| mtg-playerhit.mp3 | 1 to 5 damage to a player (`playerhit`, 2026-11-12) | 0.85 s | player damage from pingorbolts pells.ogg | https://steamusercontent-a.akamaihd.net/ugc/13286146598818442690/A0BF8B16B8001A089539C205ABEA92AD37067A30/ |
+| mtg-bighit.mp3 | one hit of more than 5, to a player or a creature (`bighit`, 2026-11-12) | 1.14 s | Damage from anything over 5.ogg | https://steamusercontent-a.akamaihd.net/ugc/10985637461852960373/895695DAAB6E6CFED9309BB61B579480F0019975/ |
+| mtg-sorcery.mp3 | a sorcery resolves (not when it is cast, countered, fizzles or is a copy), sorceries only (`sorcery`, 2026-11-12; remade that night, "Sorcery remake" below) | 2.22 s | qubodup-PowerDrain.flac, reversed, 3x faster, then half speed at the same pitch, with our pop and crackle (uploaded as mtg3-sorcery.mp3) | https://steamusercontent-a.akamaihd.net/ugc/17287502999685576865/30550DE1D11406AE8BB4478A926881AD27AC8101/ |
+| mtg-treasure.mp3 | Treasure tokens created (`treasure`, 2026-11-13; "Treasure" below) | 1.88 s | gold_sack.wav ("Sack of Gold"), levelled (uploaded as mtg3-treasure.mp3) | https://steamusercontent-a.akamaihd.net/ugc/13794614518614591327/CB0C3DB1DE80ED6670AE453526BC661BD65E285B/ |
+| mtg-treasurespend.mp3 | Treasure tokens leaving the battlefield, sacrificed for mana or not, in place of death (`treasurespend`, 2026-11-13) | 0.90 s | the death sound: death's own link (the user's pick, 2026-11-13) | https://steamusercontent-a.akamaihd.net/ugc/9800569858149488327/8971500EFD07C4FD0BD18D68B8B252405017A5A0/ |
 
 Every kind has a link since 2026-11-12. The upload of that day (the five 2026-11-12 kinds, knockout, the louder death and instant, the bursts below) has not been heard in TTS yet. Details: "Counter and knockout" and "Added and changed 2026-11-12" below.
 
@@ -51,50 +51,50 @@ and checked by sha256 the same way.
 
 | File | Kind | Copies | Link |
 |---|---|---|---|
-| mtg-bighit-x2.mp3 | bighit | 2 | https://steamusercontent-a.akamaihd.net/ugc/10102534904146116314/FEC357F76AD3BC3E204485638504751C6EA5B3B4/ |
-| mtg-bighit-x3.mp3 | bighit | 3 | https://steamusercontent-a.akamaihd.net/ugc/11596786930130643260/0DCA16B265095D18A20987D952273510DE3145BB/ |
-| mtg-bighit-x4.mp3 | bighit | 4 | https://steamusercontent-a.akamaihd.net/ugc/16029644423041008713/DBCF6A81CA79412C182C41A9A2EBDC7CFB595643/ |
-| mtg-bighit-x6.mp3 | bighit | 6 | https://steamusercontent-a.akamaihd.net/ugc/11089834991395856694/583F01EAB5F918482F28CB6B30208E082AD7F95E/ |
-| mtg-bighit-x8.mp3 | bighit | 8 | https://steamusercontent-a.akamaihd.net/ugc/14567024543913859128/655F1FDF1BF798D88ACBA5CC2648E8EB878C4135/ |
-| mtg-damage-x2.mp3 | damage | 2 | https://steamusercontent-a.akamaihd.net/ugc/9466119173358429772/2E01C49BC2F53D6B93F512EA0A64749DDA634A13/ |
-| mtg-damage-x3.mp3 | damage | 3 | https://steamusercontent-a.akamaihd.net/ugc/17172338814229470186/BA59E9063B3D8BCAB7189038A65371A54F7D222C/ |
-| mtg-damage-x4.mp3 | damage | 4 | https://steamusercontent-a.akamaihd.net/ugc/13841800202556732767/F0038F1475AEFEC61821E465C78BC3EC21D80C35/ |
-| mtg-damage-x6.mp3 | damage | 6 | https://steamusercontent-a.akamaihd.net/ugc/11502082504506897617/CF4A879844D92A2B54F7C750CD94BB636EE34ED4/ |
-| mtg-damage-x8.mp3 | damage | 8 | https://steamusercontent-a.akamaihd.net/ugc/15514955064335890272/27041620B6C22438F8CEE38F4DEA99C3F41E499F/ |
-| mtg-death-x2.mp3 | death | 2 | https://steamusercontent-a.akamaihd.net/ugc/16160518566392322538/3D6776DCCE5662B172CD4184F6344747B424BB5D/ |
-| mtg-death-x3.mp3 | death | 3 | https://steamusercontent-a.akamaihd.net/ugc/11242284143342103969/869EFC92C49790389FF0AC51C65A2932903FAE7E/ |
-| mtg-death-x4.mp3 | death | 4 | https://steamusercontent-a.akamaihd.net/ugc/14108423383041101533/2B7557832A1D8B69BE205F1FA054FD5985C9243C/ |
-| mtg-death-x6.mp3 | death | 6 | https://steamusercontent-a.akamaihd.net/ugc/13804901690921610856/0E73D20BEA8004922AC93B72FBC240863778E6D3/ |
-| mtg-death-x8.mp3 | death | 8 | https://steamusercontent-a.akamaihd.net/ugc/17462850133371665419/F8E3B2BB340E54993FC37392890ACC457FB1485B/ |
-| mtg-exile-x2.mp3 | exile | 2 | https://steamusercontent-a.akamaihd.net/ugc/17186924497210315771/FE7A0190EFBB0DD9CF10187AC7F4A053FF1445A5/ |
-| mtg-exile-x3.mp3 | exile | 3 | https://steamusercontent-a.akamaihd.net/ugc/16360686395485260339/33E0E7B8EE9466915355D652E0E2F53319E380E2/ |
-| mtg-exile-x4.mp3 | exile | 4 | https://steamusercontent-a.akamaihd.net/ugc/10667382779559099124/73D0ED29786C7A9DBED6E09027F1BD86EA407F00/ |
-| mtg-exile-x6.mp3 | exile | 6 | https://steamusercontent-a.akamaihd.net/ugc/17333791709913556002/D96572C923879FA41AA4FF78BABF33C230B7BE18/ |
-| mtg-exile-x8.mp3 | exile | 8 | https://steamusercontent-a.akamaihd.net/ugc/16336440088589292350/C7421989BD48CF0D53217080BCD600880C9EABF3/ |
-| mtg-lifegain-x2.mp3 | lifegain | 2 | https://steamusercontent-a.akamaihd.net/ugc/10399168408910104955/AACB8F7F754DBFEC4CB9FA5E160B526C0B369D03/ |
-| mtg-lifegain-x3.mp3 | lifegain | 3 | https://steamusercontent-a.akamaihd.net/ugc/14232928834878565003/0A18B59FCF2658F59C5946B812F153BC70EE8BB3/ |
-| mtg-lifegain-x4.mp3 | lifegain | 4 | https://steamusercontent-a.akamaihd.net/ugc/15145076126188951042/48A9C18F2948F0AAF6BE76DCE1ADC5A4F9694697/ |
-| mtg-lifegain-x6.mp3 | lifegain | 6 | https://steamusercontent-a.akamaihd.net/ugc/13678081104005473403/478E8433DBE00A0525EA21D206CA4DEEAFB5CBBE/ |
-| mtg-lifegain-x8.mp3 | lifegain | 8 | https://steamusercontent-a.akamaihd.net/ugc/12456025496901847800/D91EEE8A25C5F36EB72180F2363E38FC7B649D23/ |
-| mtg-playerhit-x2.mp3 | playerhit | 2 | https://steamusercontent-a.akamaihd.net/ugc/18385823772406590874/F67603DF33151D56EE4F4918A969DA71AEC93182/ |
-| mtg-playerhit-x3.mp3 | playerhit | 3 | https://steamusercontent-a.akamaihd.net/ugc/15674528219804165919/03D2A5F8726309453086C91906045D28E9407290/ |
-| mtg-playerhit-x4.mp3 | playerhit | 4 | https://steamusercontent-a.akamaihd.net/ugc/17558314647484330927/633D523AF1FC71C73C7737BA1C2D3D449CF9E983/ |
-| mtg-playerhit-x6.mp3 | playerhit | 6 | https://steamusercontent-a.akamaihd.net/ugc/11410730380554930576/B9D76DCEE32CFC1BEBB704F01E34AF4BB66F2409/ |
-| mtg-playerhit-x8.mp3 | playerhit | 8 | https://steamusercontent-a.akamaihd.net/ugc/13466691882656356958/8CBA319CD04332BEA45C8976283C9FD7A53C78D6/ |
-| mtg-wipe-x3.mp3 | wipe | 3 | https://steamusercontent-a.akamaihd.net/ugc/15886777703497702507/C882FFB1C26BEE20C87791A7135A3FBA1EAD3990/ |
-| mtg-wipe-x4.mp3 | wipe | 4 | https://steamusercontent-a.akamaihd.net/ugc/12703812866224761222/8F7B4507EC055B76100A5BF6966D5C085331E6A8/ |
-| mtg-wipe-x6.mp3 | wipe | 6 | https://steamusercontent-a.akamaihd.net/ugc/14531756883241499521/4AB4F03063BBA056EE23C175B621BE4FB228DE58/ |
-| mtg-wipe-x8.mp3 | wipe | 8 | https://steamusercontent-a.akamaihd.net/ugc/10603921525270560187/08115EEC453EE7937CD5B34288B696512A190D7D/ |
-| mtg-treasure-x2.mp3 | treasure | 2 | https://steamusercontent-a.akamaihd.net/ugc/13934984292284700895/CBCA13B5CDBF49D7A8348E9D01D2E05F9E7B5F08/ |
-| mtg-treasure-x3.mp3 | treasure | 3 | https://steamusercontent-a.akamaihd.net/ugc/16822922275327521349/EF9DC692360D914E87B7569F77D6DDBC5877566A/ |
-| mtg-treasure-x4.mp3 | treasure | 4 | https://steamusercontent-a.akamaihd.net/ugc/9494146362291305358/1CB4631A6477E467F2B4CD5A1CA5B12CB4A7D2DF/ |
-| mtg-treasure-x6.mp3 | treasure | 6 | https://steamusercontent-a.akamaihd.net/ugc/12370862888904708022/C76F3899AEEB7B4662B07D143866E49A9E3DBCF8/ |
-| mtg-treasure-x8.mp3 | treasure | 8 | https://steamusercontent-a.akamaihd.net/ugc/12440635735839891348/C0500B19C73E5304C629CA93F68D03049034FFF1/ |
-| mtg-treasurespend-x2.mp3 | treasurespend | 2 | https://steamusercontent-a.akamaihd.net/ugc/16160518566392322538/3D6776DCCE5662B172CD4184F6344747B424BB5D/ |
-| mtg-treasurespend-x3.mp3 | treasurespend | 3 | https://steamusercontent-a.akamaihd.net/ugc/11242284143342103969/869EFC92C49790389FF0AC51C65A2932903FAE7E/ |
-| mtg-treasurespend-x4.mp3 | treasurespend | 4 | https://steamusercontent-a.akamaihd.net/ugc/14108423383041101533/2B7557832A1D8B69BE205F1FA054FD5985C9243C/ |
-| mtg-treasurespend-x6.mp3 | treasurespend | 6 | https://steamusercontent-a.akamaihd.net/ugc/13804901690921610856/0E73D20BEA8004922AC93B72FBC240863778E6D3/ |
-| mtg-treasurespend-x8.mp3 | treasurespend | 8 | https://steamusercontent-a.akamaihd.net/ugc/17462850133371665419/F8E3B2BB340E54993FC37392890ACC457FB1485B/ |
+| mtg-bighit-x2.mp3 | bighit | 2 | https://steamusercontent-a.akamaihd.net/ugc/14501727456834808804/628C139A9EC2F064F0AEBAAEB358CC3F5A40173D/ |
+| mtg-bighit-x3.mp3 | bighit | 3 | https://steamusercontent-a.akamaihd.net/ugc/14675707134736660256/DE23EECC399113DB5A8A701388F4602430CE862A/ |
+| mtg-bighit-x4.mp3 | bighit | 4 | https://steamusercontent-a.akamaihd.net/ugc/12947269894393077649/85CCD3DCB33516740ABC987287B3377D5A4056A7/ |
+| mtg-bighit-x6.mp3 | bighit | 6 | https://steamusercontent-a.akamaihd.net/ugc/10328800220900197571/5E27AF2CFFF991B0299DAE84D956A878410BB649/ |
+| mtg-bighit-x8.mp3 | bighit | 8 | https://steamusercontent-a.akamaihd.net/ugc/15836800511667477523/58269293AE3E3564573F65363CB2CD69342DEE7C/ |
+| mtg-damage-x2.mp3 | damage | 2 | https://steamusercontent-a.akamaihd.net/ugc/15391021997800247402/7C763CA26C8CD97E1034D2CFDA51E12EF92CF4D4/ |
+| mtg-damage-x3.mp3 | damage | 3 | https://steamusercontent-a.akamaihd.net/ugc/11994110290441954314/FEC87CC02628F37F7943AD3E2135796B3AEA9410/ |
+| mtg-damage-x4.mp3 | damage | 4 | https://steamusercontent-a.akamaihd.net/ugc/13578099046086566174/4E86F9603540AB189BF84E0AD81053317898F17B/ |
+| mtg-damage-x6.mp3 | damage | 6 | https://steamusercontent-a.akamaihd.net/ugc/13086995823088759042/AC30C0C5FB2451996CDA7668D3D0260B2A396E85/ |
+| mtg-damage-x8.mp3 | damage | 8 | https://steamusercontent-a.akamaihd.net/ugc/15550604889634791289/8440E3ED39B3788D00E0FA66E873F5D698E0D1B6/ |
+| mtg-death-x2.mp3 | death | 2 | https://steamusercontent-a.akamaihd.net/ugc/9883242587509736557/6981B43D6337A0228E5B453184A9B6B4A375C466/ |
+| mtg-death-x3.mp3 | death | 3 | https://steamusercontent-a.akamaihd.net/ugc/10436603059024612911/CCB29073C58A677B180E47CF78A95FEBAECDAF43/ |
+| mtg-death-x4.mp3 | death | 4 | https://steamusercontent-a.akamaihd.net/ugc/9611064040962894146/B332E6D7EDBD65B4A51C597E8A7765AC9A973232/ |
+| mtg-death-x6.mp3 | death | 6 | https://steamusercontent-a.akamaihd.net/ugc/13035548119423571592/E20CCA3DD638DDE3277520B4919AF32372247E4B/ |
+| mtg-death-x8.mp3 | death | 8 | https://steamusercontent-a.akamaihd.net/ugc/11027633385360712386/AE3BDE68AC8603D4E63502B86013A24FE3DA3E66/ |
+| mtg-exile-x2.mp3 | exile | 2 | https://steamusercontent-a.akamaihd.net/ugc/10685423988775677223/93E9E99CDF836B7D5DA0B5617E9B87FB9A68EF63/ |
+| mtg-exile-x3.mp3 | exile | 3 | https://steamusercontent-a.akamaihd.net/ugc/9798376956180430026/5E3EAAE6998CEFF1B80E4FBC73A9180EEF487C51/ |
+| mtg-exile-x4.mp3 | exile | 4 | https://steamusercontent-a.akamaihd.net/ugc/15676129596723056222/2E876EFB1AD5BBC1BC6B73559C841AB957FE7682/ |
+| mtg-exile-x6.mp3 | exile | 6 | https://steamusercontent-a.akamaihd.net/ugc/12325136851710697223/AF2DC095D2C8A6286940804E26981F83C2B789BD/ |
+| mtg-exile-x8.mp3 | exile | 8 | https://steamusercontent-a.akamaihd.net/ugc/15810681250109920267/AB7833248EB102767DE58D9F8CE062C31BEB51FD/ |
+| mtg-lifegain-x2.mp3 | lifegain | 2 | https://steamusercontent-a.akamaihd.net/ugc/15339424935138826246/1444B69A779AA728EFDF604E0BDAB87C709BDE2D/ |
+| mtg-lifegain-x3.mp3 | lifegain | 3 | https://steamusercontent-a.akamaihd.net/ugc/17719154414524319005/5D58B34080D1067DA20E96974CFE6357539F29A5/ |
+| mtg-lifegain-x4.mp3 | lifegain | 4 | https://steamusercontent-a.akamaihd.net/ugc/18102140899015148787/6CD1962F9508D7E9364D090732B8996563A343B6/ |
+| mtg-lifegain-x6.mp3 | lifegain | 6 | https://steamusercontent-a.akamaihd.net/ugc/13527528297040637011/4C81282CAC5AA2CAD15ECC4B20BA029E9A8B3CB2/ |
+| mtg-lifegain-x8.mp3 | lifegain | 8 | https://steamusercontent-a.akamaihd.net/ugc/14653307058996790132/E8D8FD2B9D8CA49761FDD2729CA52FA035286611/ |
+| mtg-playerhit-x2.mp3 | playerhit | 2 | https://steamusercontent-a.akamaihd.net/ugc/15301479630649839933/C414A6E2C196E53148B30626BE78521D1E00843F/ |
+| mtg-playerhit-x3.mp3 | playerhit | 3 | https://steamusercontent-a.akamaihd.net/ugc/14011261080340369559/79EC7CD4B9480EE39C2AD12564CE9F76C6CF5067/ |
+| mtg-playerhit-x4.mp3 | playerhit | 4 | https://steamusercontent-a.akamaihd.net/ugc/11616489111656235985/EBCE64F9B3D5A01A129CF554713D23F13472BEAC/ |
+| mtg-playerhit-x6.mp3 | playerhit | 6 | https://steamusercontent-a.akamaihd.net/ugc/15803660923802238346/33D1A2940FA8EE1CC7B495703D55F8723ECE0399/ |
+| mtg-playerhit-x8.mp3 | playerhit | 8 | https://steamusercontent-a.akamaihd.net/ugc/9578969410471442226/6AF64F6E1EBAB1724840868E3C869709EB78AD23/ |
+| mtg-wipe-x3.mp3 | wipe | 3 | https://steamusercontent-a.akamaihd.net/ugc/17918509475140877353/A5A47B70A0BA927059446A66327EDFDC6C2CA13B/ |
+| mtg-wipe-x4.mp3 | wipe | 4 | https://steamusercontent-a.akamaihd.net/ugc/11527446792693991431/417A49F207E5F1F4E5C5FB1C71B8D476FC83FE4F/ |
+| mtg-wipe-x6.mp3 | wipe | 6 | https://steamusercontent-a.akamaihd.net/ugc/9953796201784196604/979D6AC4A3B7413143E6C58F9703F0B52403DBDD/ |
+| mtg-wipe-x8.mp3 | wipe | 8 | https://steamusercontent-a.akamaihd.net/ugc/12689661881266718549/61F509DB71B97DED9C31385ECD35D6A24AC92B15/ |
+| mtg-treasure-x2.mp3 | treasure | 2 | https://steamusercontent-a.akamaihd.net/ugc/17949130541744455112/65D1E290589FD73EB288EC6907C2FB640ABD6C4C/ |
+| mtg-treasure-x3.mp3 | treasure | 3 | https://steamusercontent-a.akamaihd.net/ugc/11666964080657862260/B487C1E5D6DE6F6A9975B6989531CE7F4A4825A7/ |
+| mtg-treasure-x4.mp3 | treasure | 4 | https://steamusercontent-a.akamaihd.net/ugc/17660563052074390177/0A4C0DD264A4887F57D1B38252B9F487E82AC155/ |
+| mtg-treasure-x6.mp3 | treasure | 6 | https://steamusercontent-a.akamaihd.net/ugc/16507546084760307611/BF94A7AF7BB947FBB9205880D3CC7A8C6B1BE7FD/ |
+| mtg-treasure-x8.mp3 | treasure | 8 | https://steamusercontent-a.akamaihd.net/ugc/17585473593631833822/0F6C1788B92B63F4A55DF8342B807AA8276AA49C/ |
+| mtg-treasurespend-x2.mp3 | treasurespend | 2 | https://steamusercontent-a.akamaihd.net/ugc/9883242587509736557/6981B43D6337A0228E5B453184A9B6B4A375C466/ |
+| mtg-treasurespend-x3.mp3 | treasurespend | 3 | https://steamusercontent-a.akamaihd.net/ugc/10436603059024612911/CCB29073C58A677B180E47CF78A95FEBAECDAF43/ |
+| mtg-treasurespend-x4.mp3 | treasurespend | 4 | https://steamusercontent-a.akamaihd.net/ugc/9611064040962894146/B332E6D7EDBD65B4A51C597E8A7765AC9A973232/ |
+| mtg-treasurespend-x6.mp3 | treasurespend | 6 | https://steamusercontent-a.akamaihd.net/ugc/13035548119423571592/E20CCA3DD638DDE3277520B4919AF32372247E4B/ |
+| mtg-treasurespend-x8.mp3 | treasurespend | 8 | https://steamusercontent-a.akamaihd.net/ugc/11027633385360712386/AE3BDE68AC8603D4E63502B86013A24FE3DA3E66/ |
 
 ## Counter and knockout (made 2026-11-11; knockout uploaded 2026-11-12)
 

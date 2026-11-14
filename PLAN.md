@@ -6,6 +6,16 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 
 ---
 
+## 2026-11-13 (asked by the user)
+- ⬜ **Floating mana you can see at a glance.** Today your pool shows only as a line in the engine panel's status text
+  ("Your mana pool: GG B"), with the other players' pools under it ("Floating: AI 1 RR · Red G",
+  `poolText`, engine-renderer.lua); players don't notice it, so they can't tell how much mana they have
+  floating. Wanted: a counter on the table for each player's pool, beside the life heart like the player marks: one
+  mana symbol per colour (W U B R G C) with its amount, hidden while the pool is empty, updated with every board,
+  emptied when the step ends. Everyone sees every pool (mana in a pool is public). Also: the total on your "Done" /
+  pass-priority button ("Pass (3 floating)"), since passing with mana floating loses it. Data: the bridge already
+  sends each player's pool to the table (the status line reads it), so this is table-side only.
+
 ## 2026-11-12
 - 🔶 (in source, not seen live) Prepared readable on the table (docs/HAND-TEST-HP06.md #20; Grave Researcher, Emeritus
   of Conflict). No engine change: the harness sends no prepared flag and leaves Forge's immutable "<card>'s Prepared

@@ -3521,6 +3521,42 @@ local function stashImported(colors)
   end
 end
 
+-- "mtg clear deck": a seated player's own deck (on their library spot) and the cards on their two commander spots
+-- removed by the script, which acts as the host, for players whose Delete key does nothing on them (the user,
+-- 2026-11-13: "players still can't delete their decks before a game starts", with the engine off too). Never while an
+-- engine game is running, never an engine card, never the Identity cards. -> the number of objects removed, or nil and
+-- why not
+function engineClearDeck(color)
+  local d = data[color]
+  if d == nil or d.libraryZone == nil then return nil, "Sit at a seat with a playmat first." end
+  if engineTable ~= nil and engineTable() ~= nil then return nil, "Not during a game: type  mtg reset  first." end
+  local gone, n = {}, 0
+  local function take(o)
+    if o == nil or o.isDestroyed() or gone[o] then return end
+    if o.type ~= "Card" and o.type ~= "Deck" then return end
+    if tostring(o.getGMNotes()):find("^engine") or tostring(o.getName()):find("Identity") then return end
+    gone[o] = true
+    n = n + 1
+    o.setLock(false)
+    o.destruct()
+  end
+  take(getDeckFromZone(d.libraryZone))
+  local anchors = {}
+  for _, guid in ipairs(TAX_LABELS[color] or {}) do
+    local a = getObjectFromGUID(guid)
+    if a then anchors[#anchors + 1] = a.getPosition() end
+  end
+  for _, o in ipairs(getObjects()) do
+    if (o.type == "Card" or o.type == "Deck") and not gone[o] then
+      local p = o.getPosition()
+      for _, a in ipairs(anchors) do
+        if (p.x - a.x) ^ 2 + (p.z - a.z) ^ 2 < 6.25 and p.y > a.y - 3 then take(o) break end
+      end
+    end
+  end
+  return n
+end
+
 local function restoreStash()
   for guid, s in pairs(stashed) do
     local o = getObjectFromGUID(guid)
@@ -5376,69 +5412,69 @@ engineSoundOff = {}    -- colour -> true: that player asked for no sounds (the t
 -- (docs/sounds.md). Every kind has one since 2026-11-12: that day's upload added counter, knockout, countered,
 -- playerhit, bighit, sorcery and their bursts, and the louder death, instant, death_x2..x8 and wipe_x3..x8.
 engineSounds = engineSounds or {
-  death = "https://steamusercontent-a.akamaihd.net/ugc/11698913979615550185/7F13F2B39D7065CE85AC235B6369A0747F6F712E/",       -- a permanent to the graveyard
-  wipe = "https://steamusercontent-a.akamaihd.net/ugc/11479971636843136595/5C0FB88EC6DE1F473D4067207ADDB4CCC0540597/",        -- 3 or more to graveyards on one board
-  damage = "https://steamusercontent-a.akamaihd.net/ugc/10124521221080295893/E301DC2C50A312AB8C6C1EDBB7C295B3AC76B06E/",      -- damage to a creature (5 or less); every hit with no playerhit / bighit pick
-  exile = "https://steamusercontent-a.akamaihd.net/ugc/17507000918538872455/683F8320B4DB9EAF77CF1AF05D1205EF94F7BA65/",       -- a permanent exiled from the battlefield
-  instant = "https://steamusercontent-a.akamaihd.net/ugc/15655704109114108865/027ADEDADC1E8E89E6AF2D66E77010F5D9A82298/",     -- an instant resolved (not countered, not abilities, not copies)
-  lifegain = "https://steamusercontent-a.akamaihd.net/ugc/18328296034120530417/099A768F25DE573194668B6ACDFC47C3BC4F0DE7/",    -- a player's life goes up
-  counter = "https://steamusercontent-a.akamaihd.net/ugc/18384867903770801477/E84A3FA1E2AA6059EFD2D315A776D43AEBFD2E87/",     -- a counter put on a permanent
-  knockout = "https://steamusercontent-a.akamaihd.net/ugc/11703297018823193116/BCCEEF4571C8BD6A30FF2AF0350DE2C53A1DF345/",    -- a player loses or concedes
-  countered = "https://steamusercontent-a.akamaihd.net/ugc/16931120861737353001/A2214840FC305FC9063F57823D4C2852D2383CD3/",   -- a spell countered (as the COUNTERED pop-up)
-  playerhit = "https://steamusercontent-a.akamaihd.net/ugc/17427026780177468511/DC419EEC5FE59459E3F2417452DDE9E381380D0F/",   -- 1 to 5 damage to a player (bursts playerhit_x2..x8)
-  bighit = "https://steamusercontent-a.akamaihd.net/ugc/13928224574378758506/BFC535CE502EC967E020203AE6E1CAA2A68E703C/",      -- one hit of more than 5, to a player or a creature (bursts bighit_x2..x8)
-  sorcery = "https://steamusercontent-a.akamaihd.net/ugc/13241084417049183126/BB800BB0A8D05F14C238A0B03A137A70148E6B41/",     -- a sorcery resolved (not countered, not abilities, not copies)
+  death = "https://steamusercontent-a.akamaihd.net/ugc/9800569858149488327/8971500EFD07C4FD0BD18D68B8B252405017A5A0/",       -- a permanent to the graveyard
+  wipe = "https://steamusercontent-a.akamaihd.net/ugc/15817545063740906107/206A0FA5435B601208C14BC12289526592275C05/",        -- 3 or more to graveyards on one board
+  damage = "https://steamusercontent-a.akamaihd.net/ugc/18394554027578421591/38584ACB11DF0374F06EF58288CC103E1A7BCB17/",      -- damage to a creature (5 or less); every hit with no playerhit / bighit pick
+  exile = "https://steamusercontent-a.akamaihd.net/ugc/15277917318962835347/67E988768501AE61D76EA0B61CE26CBF7B9047F3/",       -- a permanent exiled from the battlefield
+  instant = "https://steamusercontent-a.akamaihd.net/ugc/12129289638876188200/E4A383D9F0FD11D33AD0C3231ADBDC76640FB6F4/",     -- an instant resolved (not countered, not abilities, not copies)
+  lifegain = "https://steamusercontent-a.akamaihd.net/ugc/14589447832811798852/152589A1C8FC457DF750D1F1DA09974B7D4621DC/",    -- a player's life goes up
+  counter = "https://steamusercontent-a.akamaihd.net/ugc/10198555696183163869/22D514A072E215258BFB7BDD0D94438B93234282/",     -- a counter put on a permanent
+  knockout = "https://steamusercontent-a.akamaihd.net/ugc/17359985036682352321/876EDEC83B31E9D171B93725698195BD3A60998D/",    -- a player loses or concedes
+  countered = "https://steamusercontent-a.akamaihd.net/ugc/16224198548986524439/ECC3E042EBA1BBB7F8ACA675DF0D15CDED64151C/",   -- a spell countered (as the COUNTERED pop-up)
+  playerhit = "https://steamusercontent-a.akamaihd.net/ugc/13286146598818442690/A0BF8B16B8001A089539C205ABEA92AD37067A30/",   -- 1 to 5 damage to a player (bursts playerhit_x2..x8)
+  bighit = "https://steamusercontent-a.akamaihd.net/ugc/10985637461852960373/895695DAAB6E6CFED9309BB61B579480F0019975/",      -- one hit of more than 5, to a player or a creature (bursts bighit_x2..x8)
+  sorcery = "https://steamusercontent-a.akamaihd.net/ugc/17287502999685576865/30550DE1D11406AE8BB4478A926881AD27AC8101/",     -- a sorcery resolved (not countered, not abilities, not copies)
   -- the bursts (docs/sounds.md "Bursts", 2026-11-11): the kind's sound stacked N times, for N or more of it on one board
   -- (FX.burst: the largest at or under the count, up to x8); wipe's plain sound is already its 3+ one, so it has no x2
-  bighit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10102534904146116314/FEC357F76AD3BC3E204485638504751C6EA5B3B4/",
-  bighit_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11596786930130643260/0DCA16B265095D18A20987D952273510DE3145BB/",
-  bighit_x4 = "https://steamusercontent-a.akamaihd.net/ugc/16029644423041008713/DBCF6A81CA79412C182C41A9A2EBDC7CFB595643/",
-  bighit_x6 = "https://steamusercontent-a.akamaihd.net/ugc/11089834991395856694/583F01EAB5F918482F28CB6B30208E082AD7F95E/",
-  bighit_x8 = "https://steamusercontent-a.akamaihd.net/ugc/14567024543913859128/655F1FDF1BF798D88ACBA5CC2648E8EB878C4135/",
-  damage_x2 = "https://steamusercontent-a.akamaihd.net/ugc/9466119173358429772/2E01C49BC2F53D6B93F512EA0A64749DDA634A13/",
-  damage_x3 = "https://steamusercontent-a.akamaihd.net/ugc/17172338814229470186/BA59E9063B3D8BCAB7189038A65371A54F7D222C/",
-  damage_x4 = "https://steamusercontent-a.akamaihd.net/ugc/13841800202556732767/F0038F1475AEFEC61821E465C78BC3EC21D80C35/",
-  damage_x6 = "https://steamusercontent-a.akamaihd.net/ugc/11502082504506897617/CF4A879844D92A2B54F7C750CD94BB636EE34ED4/",
-  damage_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15514955064335890272/27041620B6C22438F8CEE38F4DEA99C3F41E499F/",
-  death_x2 = "https://steamusercontent-a.akamaihd.net/ugc/16160518566392322538/3D6776DCCE5662B172CD4184F6344747B424BB5D/",
-  death_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11242284143342103969/869EFC92C49790389FF0AC51C65A2932903FAE7E/",
-  death_x4 = "https://steamusercontent-a.akamaihd.net/ugc/14108423383041101533/2B7557832A1D8B69BE205F1FA054FD5985C9243C/",
-  death_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13804901690921610856/0E73D20BEA8004922AC93B72FBC240863778E6D3/",
-  death_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17462850133371665419/F8E3B2BB340E54993FC37392890ACC457FB1485B/",
-  exile_x2 = "https://steamusercontent-a.akamaihd.net/ugc/17186924497210315771/FE7A0190EFBB0DD9CF10187AC7F4A053FF1445A5/",
-  exile_x3 = "https://steamusercontent-a.akamaihd.net/ugc/16360686395485260339/33E0E7B8EE9466915355D652E0E2F53319E380E2/",
-  exile_x4 = "https://steamusercontent-a.akamaihd.net/ugc/10667382779559099124/73D0ED29786C7A9DBED6E09027F1BD86EA407F00/",
-  exile_x6 = "https://steamusercontent-a.akamaihd.net/ugc/17333791709913556002/D96572C923879FA41AA4FF78BABF33C230B7BE18/",
-  exile_x8 = "https://steamusercontent-a.akamaihd.net/ugc/16336440088589292350/C7421989BD48CF0D53217080BCD600880C9EABF3/",
-  lifegain_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10399168408910104955/AACB8F7F754DBFEC4CB9FA5E160B526C0B369D03/",
-  lifegain_x3 = "https://steamusercontent-a.akamaihd.net/ugc/14232928834878565003/0A18B59FCF2658F59C5946B812F153BC70EE8BB3/",
-  lifegain_x4 = "https://steamusercontent-a.akamaihd.net/ugc/15145076126188951042/48A9C18F2948F0AAF6BE76DCE1ADC5A4F9694697/",
-  lifegain_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13678081104005473403/478E8433DBE00A0525EA21D206CA4DEEAFB5CBBE/",
-  lifegain_x8 = "https://steamusercontent-a.akamaihd.net/ugc/12456025496901847800/D91EEE8A25C5F36EB72180F2363E38FC7B649D23/",
-  playerhit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/18385823772406590874/F67603DF33151D56EE4F4918A969DA71AEC93182/",
-  playerhit_x3 = "https://steamusercontent-a.akamaihd.net/ugc/15674528219804165919/03D2A5F8726309453086C91906045D28E9407290/",
-  playerhit_x4 = "https://steamusercontent-a.akamaihd.net/ugc/17558314647484330927/633D523AF1FC71C73C7737BA1C2D3D449CF9E983/",
-  playerhit_x6 = "https://steamusercontent-a.akamaihd.net/ugc/11410730380554930576/B9D76DCEE32CFC1BEBB704F01E34AF4BB66F2409/",
-  playerhit_x8 = "https://steamusercontent-a.akamaihd.net/ugc/13466691882656356958/8CBA319CD04332BEA45C8976283C9FD7A53C78D6/",
-  wipe_x3 = "https://steamusercontent-a.akamaihd.net/ugc/15886777703497702507/C882FFB1C26BEE20C87791A7135A3FBA1EAD3990/",
-  wipe_x4 = "https://steamusercontent-a.akamaihd.net/ugc/12703812866224761222/8F7B4507EC055B76100A5BF6966D5C085331E6A8/",
-  wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/14531756883241499521/4AB4F03063BBA056EE23C175B621BE4FB228DE58/",
-  wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/10603921525270560187/08115EEC453EE7937CD5B34288B696512A190D7D/",
+  bighit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/14501727456834808804/628C139A9EC2F064F0AEBAAEB358CC3F5A40173D/",
+  bighit_x3 = "https://steamusercontent-a.akamaihd.net/ugc/14675707134736660256/DE23EECC399113DB5A8A701388F4602430CE862A/",
+  bighit_x4 = "https://steamusercontent-a.akamaihd.net/ugc/12947269894393077649/85CCD3DCB33516740ABC987287B3377D5A4056A7/",
+  bighit_x6 = "https://steamusercontent-a.akamaihd.net/ugc/10328800220900197571/5E27AF2CFFF991B0299DAE84D956A878410BB649/",
+  bighit_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15836800511667477523/58269293AE3E3564573F65363CB2CD69342DEE7C/",
+  damage_x2 = "https://steamusercontent-a.akamaihd.net/ugc/15391021997800247402/7C763CA26C8CD97E1034D2CFDA51E12EF92CF4D4/",
+  damage_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11994110290441954314/FEC87CC02628F37F7943AD3E2135796B3AEA9410/",
+  damage_x4 = "https://steamusercontent-a.akamaihd.net/ugc/13578099046086566174/4E86F9603540AB189BF84E0AD81053317898F17B/",
+  damage_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13086995823088759042/AC30C0C5FB2451996CDA7668D3D0260B2A396E85/",
+  damage_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15550604889634791289/8440E3ED39B3788D00E0FA66E873F5D698E0D1B6/",
+  death_x2 = "https://steamusercontent-a.akamaihd.net/ugc/9883242587509736557/6981B43D6337A0228E5B453184A9B6B4A375C466/",
+  death_x3 = "https://steamusercontent-a.akamaihd.net/ugc/10436603059024612911/CCB29073C58A677B180E47CF78A95FEBAECDAF43/",
+  death_x4 = "https://steamusercontent-a.akamaihd.net/ugc/9611064040962894146/B332E6D7EDBD65B4A51C597E8A7765AC9A973232/",
+  death_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13035548119423571592/E20CCA3DD638DDE3277520B4919AF32372247E4B/",
+  death_x8 = "https://steamusercontent-a.akamaihd.net/ugc/11027633385360712386/AE3BDE68AC8603D4E63502B86013A24FE3DA3E66/",
+  exile_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10685423988775677223/93E9E99CDF836B7D5DA0B5617E9B87FB9A68EF63/",
+  exile_x3 = "https://steamusercontent-a.akamaihd.net/ugc/9798376956180430026/5E3EAAE6998CEFF1B80E4FBC73A9180EEF487C51/",
+  exile_x4 = "https://steamusercontent-a.akamaihd.net/ugc/15676129596723056222/2E876EFB1AD5BBC1BC6B73559C841AB957FE7682/",
+  exile_x6 = "https://steamusercontent-a.akamaihd.net/ugc/12325136851710697223/AF2DC095D2C8A6286940804E26981F83C2B789BD/",
+  exile_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15810681250109920267/AB7833248EB102767DE58D9F8CE062C31BEB51FD/",
+  lifegain_x2 = "https://steamusercontent-a.akamaihd.net/ugc/15339424935138826246/1444B69A779AA728EFDF604E0BDAB87C709BDE2D/",
+  lifegain_x3 = "https://steamusercontent-a.akamaihd.net/ugc/17719154414524319005/5D58B34080D1067DA20E96974CFE6357539F29A5/",
+  lifegain_x4 = "https://steamusercontent-a.akamaihd.net/ugc/18102140899015148787/6CD1962F9508D7E9364D090732B8996563A343B6/",
+  lifegain_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13527528297040637011/4C81282CAC5AA2CAD15ECC4B20BA029E9A8B3CB2/",
+  lifegain_x8 = "https://steamusercontent-a.akamaihd.net/ugc/14653307058996790132/E8D8FD2B9D8CA49761FDD2729CA52FA035286611/",
+  playerhit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/15301479630649839933/C414A6E2C196E53148B30626BE78521D1E00843F/",
+  playerhit_x3 = "https://steamusercontent-a.akamaihd.net/ugc/14011261080340369559/79EC7CD4B9480EE39C2AD12564CE9F76C6CF5067/",
+  playerhit_x4 = "https://steamusercontent-a.akamaihd.net/ugc/11616489111656235985/EBCE64F9B3D5A01A129CF554713D23F13472BEAC/",
+  playerhit_x6 = "https://steamusercontent-a.akamaihd.net/ugc/15803660923802238346/33D1A2940FA8EE1CC7B495703D55F8723ECE0399/",
+  playerhit_x8 = "https://steamusercontent-a.akamaihd.net/ugc/9578969410471442226/6AF64F6E1EBAB1724840868E3C869709EB78AD23/",
+  wipe_x3 = "https://steamusercontent-a.akamaihd.net/ugc/17918509475140877353/A5A47B70A0BA927059446A66327EDFDC6C2CA13B/",
+  wipe_x4 = "https://steamusercontent-a.akamaihd.net/ugc/11527446792693991431/417A49F207E5F1F4E5C5FB1C71B8D476FC83FE4F/",
+  wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/9953796201784196604/979D6AC4A3B7413143E6C58F9703F0B52403DBDD/",
+  wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/12689661881266718549/61F509DB71B97DED9C31385ECD35D6A24AC92B15/",
   -- the Treasure sounds (docs/sounds.md "Treasure", 2026-11-13): treasure* are the Sack of Gold clips made by
   -- tools/make-treasure-sounds.js, each link matched to its file by the doc's sha256; treasurespend* are death's own
   -- links (the user's pick: "permanent removal sound for treasure spent")
-  treasure = "https://steamusercontent-a.akamaihd.net/ugc/12161233116466232436/6A7FB1D65AB33404B56E51CB6824175E9F033E20/",   -- Treasure tokens created
-  treasurespend = "https://steamusercontent-a.akamaihd.net/ugc/11698913979615550185/7F13F2B39D7065CE85AC235B6369A0747F6F712E/",   -- Treasure tokens leaving the battlefield, sacrificed for mana or not: in place of death (death's clip)
-  treasure_x2 = "https://steamusercontent-a.akamaihd.net/ugc/13934984292284700895/CBCA13B5CDBF49D7A8348E9D01D2E05F9E7B5F08/",
-  treasure_x3 = "https://steamusercontent-a.akamaihd.net/ugc/16822922275327521349/EF9DC692360D914E87B7569F77D6DDBC5877566A/",
-  treasure_x4 = "https://steamusercontent-a.akamaihd.net/ugc/9494146362291305358/1CB4631A6477E467F2B4CD5A1CA5B12CB4A7D2DF/",
-  treasure_x6 = "https://steamusercontent-a.akamaihd.net/ugc/12370862888904708022/C76F3899AEEB7B4662B07D143866E49A9E3DBCF8/",
-  treasure_x8 = "https://steamusercontent-a.akamaihd.net/ugc/12440635735839891348/C0500B19C73E5304C629CA93F68D03049034FFF1/",
-  treasurespend_x2 = "https://steamusercontent-a.akamaihd.net/ugc/16160518566392322538/3D6776DCCE5662B172CD4184F6344747B424BB5D/",
-  treasurespend_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11242284143342103969/869EFC92C49790389FF0AC51C65A2932903FAE7E/",
-  treasurespend_x4 = "https://steamusercontent-a.akamaihd.net/ugc/14108423383041101533/2B7557832A1D8B69BE205F1FA054FD5985C9243C/",
-  treasurespend_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13804901690921610856/0E73D20BEA8004922AC93B72FBC240863778E6D3/",
-  treasurespend_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17462850133371665419/F8E3B2BB340E54993FC37392890ACC457FB1485B/",
+  treasure = "https://steamusercontent-a.akamaihd.net/ugc/13794614518614591327/CB0C3DB1DE80ED6670AE453526BC661BD65E285B/",   -- Treasure tokens created
+  treasurespend = "https://steamusercontent-a.akamaihd.net/ugc/9800569858149488327/8971500EFD07C4FD0BD18D68B8B252405017A5A0/",   -- Treasure tokens leaving the battlefield, sacrificed for mana or not: in place of death (death's clip)
+  treasure_x2 = "https://steamusercontent-a.akamaihd.net/ugc/17949130541744455112/65D1E290589FD73EB288EC6907C2FB640ABD6C4C/",
+  treasure_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11666964080657862260/B487C1E5D6DE6F6A9975B6989531CE7F4A4825A7/",
+  treasure_x4 = "https://steamusercontent-a.akamaihd.net/ugc/17660563052074390177/0A4C0DD264A4887F57D1B38252B9F487E82AC155/",
+  treasure_x6 = "https://steamusercontent-a.akamaihd.net/ugc/16507546084760307611/BF94A7AF7BB947FBB9205880D3CC7A8C6B1BE7FD/",
+  treasure_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17585473593631833822/0F6C1788B92B63F4A55DF8342B807AA8276AA49C/",
+  treasurespend_x2 = "https://steamusercontent-a.akamaihd.net/ugc/9883242587509736557/6981B43D6337A0228E5B453184A9B6B4A375C466/",
+  treasurespend_x3 = "https://steamusercontent-a.akamaihd.net/ugc/10436603059024612911/CCB29073C58A677B180E47CF78A95FEBAECDAF43/",
+  treasurespend_x4 = "https://steamusercontent-a.akamaihd.net/ugc/9611064040962894146/B332E6D7EDBD65B4A51C597E8A7765AC9A973232/",
+  treasurespend_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13035548119423571592/E20CCA3DD638DDE3277520B4919AF32372247E4B/",
+  treasurespend_x8 = "https://steamusercontent-a.akamaihd.net/ugc/11027633385360712386/AE3BDE68AC8603D4E63502B86013A24FE3DA3E66/",
 }
 -- each clip's length in seconds, where it isn't 2 (docs/sounds.md: every clip is padded to at least 2 s; a clip is
 -- paused just before its length runs out, engineSoundPlay)
@@ -7669,7 +7705,13 @@ function engineHideForEngine(on)
       o.memo = ""
       o.setPosition({ tonumber(x), tonumber(y), tonumber(z) })
       o.setLock(locked == "true")
+      -- (the key boxes' text comes back with them: their onLoad draws it)
+      if (guid == "9065aa" or guid == "e8e28d") and #(o.getButtons() or {}) == 0 then pcall(function() o.call("onLoad") end) end
     end
+    -- the hidden key boxes keep no text: TTS on a Mac draws a button under the table through it, blown up across the
+    -- top of the screen (real player 2026-11-13); their onLoad redraws it on every load, so this also runs when the
+    -- table loads already in engine mode
+    if o ~= nil and on and (guid == "9065aa" or guid == "e8e28d") then o.clearButtons() end
   end
 end
 local setEngineModeWithoutButtons = setEngineMode
