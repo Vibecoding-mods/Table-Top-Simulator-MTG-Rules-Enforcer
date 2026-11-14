@@ -38,3 +38,6 @@ companion/bin/
 .mtg-release/
 *.pem
 docs/fx-research/img/
+
+# screen recordings for marketing (kept local, not in the public repo)
+marketing/

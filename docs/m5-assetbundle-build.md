@@ -16,10 +16,11 @@ must contain so the table can use them, how to build them, and the two-client te
 - `engineFxBundle = { fx = "<link>", sounds = nil }` (next to `engineFxArt` in `tools/engine-renderer.lua`): the TTS
   Cloud links. **No link and no such object on the table: nothing happens**, the effects stay today's Object UI slots
   and the sounds stay the MusicPlayer links.
-- `engineFxBundle.fx` (shipped since 2026-11-12 night: today's `mtg-fx.unity3d` in assets/fx, the 20-effect rebuild of `docs/particle-fx-spec.md`, uploaded as `mtg-fx2.unity3d`, 59,318 bytes, sha256 `c28c30a65d4a1f1186f21bd38570d70c1935d2b1b7625aafb94799302f1bfae3`; the link was downloaded back and matches the file): https://steamusercontent-a.akamaihd.net/ugc/13181964746744684712/6948BE73BB273AAB129525130A13E4982559BD1D/
+- `engineFxBundle.fx` (shipped 2026-11-14: the `mtg-fx.unity3d` rebuild with an empty mesh on every rig root, so TTS shows no placeholder box, uploaded under the new internal name `mtg-fx3.unity3d`, 61,035 bytes, sha256 `0cab8546ed60…e378`; the link was downloaded back and matches the file): https://steamusercontent-a.akamaihd.net/ugc/15666370258971028614/C9FF06D0A10B0C170C2B49122C0423FE29D35D3B/
+  Before it (2026-11-12 night to 2026-11-14): `mtg-fx2.unity3d`, 59,318 bytes, sha256 `c28c30a6…`, https://steamusercontent-a.akamaihd.net/ugc/13181964746744684712/6948BE73BB273AAB129525130A13E4982559BD1D/ (its rigs showed TTS's grey box; retired on load as stale rigs).
   The first `mtg-fx.unity3d` (10 effects, 118,140 bytes, sha256 `8e08833c…`, deployed 2026-11-12) was https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/; its rigs in a save are retired on load (`FX.LEGACY`).
-- `engineFxBundle.bolt` (shipped since 2026-11-12 night, `mtg-bolt.unity3d`, 50,577 bytes, sha256 `4b286c24bea4b21f94e7eb19f955aa57c56d0e89e36b0ea99c3879dbdbc5a711`, matched the same way): https://steamusercontent-a.akamaihd.net/ugc/12109543125843195804/C6B0053848DA7FCB5E6136B82243D57A66E3B289/
-  Neither link deployed or seen in TTS yet.
+- `engineFxBundle.bolt` (shipped 2026-11-14, `mtg-bolt2.unity3d`, the same empty-mesh rebuild, 52,271 bytes, sha256 `5ea6e6d9cdbd…0574`, matched the same way): https://steamusercontent-a.akamaihd.net/ugc/16460449626220746289/901D08363F140757CCAB54BA2D10909F2546D622/
+  Before it: `mtg-bolt.unity3d`, 50,577 bytes, https://steamusercontent-a.akamaihd.net/ugc/12109543125843195804/C6B0053848DA7FCB5E6136B82243D57A66E3B289/ (the big box on ping damage).
 - `engineFxBundle.sounds`: `mtg-sounds.unity3d` **built 2026-11-13** (section 4; 1,536,075 bytes, sha256
   `679c7eceda5901bb99975eace4f186a18c82c44aab8389fc5bc1cb816417d662`, index `docs/fx-research/SOUNDS.md`), **not uploaded
   yet**, so still nil. Even with its link set, the sounds stay the MusicPlayer links (`docs/sounds.md`) until the host
