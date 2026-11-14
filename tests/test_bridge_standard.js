@@ -89,8 +89,24 @@ async function check(h, e, mode) {
   await run(async (h) => {
     const prev = fs.readFileSync;
     fs.readFileSync = (p, ...a) => { if (String(p).endsWith("forge-formats.json")) { const e = new Error("ENOENT"); e.code = "ENOENT"; throw e; } return prev(p, ...a); };
-    const r = await check(h, entry(RAKDOS), "standard");
-    ok("check: without forge-formats.json nothing is ready for Standard", !r.ready && /no Standard card list .*build-forge-card-index\.js --formats/.test(r.said), r.said);
+    try {
+      const r = await check(h, entry(RAKDOS), "standard");
+      ok("check: without forge-formats.json nothing is ready for Standard", !r.ready && /no Standard card list .*build-forge-card-index\.js --formats/.test(r.said), r.said);
+    } finally { fs.readFileSync = prev; }
+  });
+  // a card's own number (K:DeckLimit:N, as Seven Dwarves; none is in Standard today, so Hired Claw is given 7 here):
+  // Forge counts it in the main deck only, where the 4 counts main deck and sideboard together
+  await run(async (h) => {
+    const prev = fs.readFileSync;
+    const data = JSON.stringify({ ...FORMATS, copyLimits: { ...FORMATS.copyLimits, "Hired Claw": 7 } });
+    fs.readFileSync = (p, ...a) => (String(p).endsWith("forge-formats.json") ? data : prev(p, ...a));
+    try {
+      const names = (pairs) => pairs.flatMap(([k, n]) => Array.from({ length: k }, () => n));
+      const side = names([[4, "Duress"], [1, "Hired Claw"]]);
+      const seven = h.B.standardProblems(names(withCards({ "Hired Claw": 7 })), [], side);
+      const eight = h.B.standardProblems(names(withCards({ "Hired Claw": 8 })), [], []);
+      ok("check: a card's own number (DeckLimit) counts the main deck only", seven.length === 0 && eight.some((p) => /8× Hired Claw/.test(p)), `${seven.join("; ")} / ${eight.join("; ")}`);
+    } finally { fs.readFileSync = prev; }
   });
 
   // ── the mode the table sends ──
@@ -229,6 +245,14 @@ async function check(h, e, mode) {
     same("start in Commander: StartGame still asks for Commander", start?.format, "Commander");
     const started = h.effects.map((e) => e.tts).find((t) => t?.t === "started");
     ok("start in Commander: the table's started message has no mode", started && !("mode" in started) && g.mode === "commander", JSON.stringify(started));
+  });
+  await run(async (h) => {
+    // "mtg deck" (a seat's preset, used when it has no table deck) chosen in Standard: a Commander game gives that
+    // seat a Commander deck instead
+    say(h, "mode", { mode: "standard" });
+    say(h, "deck", { color: "Blue", deck: "standard_dimir_aggro" });
+    const { g } = await startStandard(h, 1, "commander");
+    same("start in Commander: a Standard deck chosen with mtg deck gives way to a Commander one", g?.seats.get("Blue")?.deckId, "neheb_minotaur_commander");
   });
 
   // ── the four AI Standard decks ──

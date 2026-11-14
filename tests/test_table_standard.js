@@ -59,6 +59,9 @@ const r = simulate({ save, seated: ["Blue", "White"], host: "Blue", steps: [{ lu
   { msg: { t: s1[0].t, json: s1[0].json } }, { msg: { t: "started", json: JSON.stringify({ ...JSON.parse(s1[3].json), mode: "standard" }) } },
   ...s1.slice(4, 12).map((m) => ({ msg: { t: m.t, json: m.json } })),
   mode("in game"), pieces("pieces in game"),
+  // the mode changed while the game runs: for the next game; the game's READYs stay
+  q('engineReadyState.Blue = "ready" engineChat("mtg mode standard", Player.Blue) return tostring(engineReadyState.Blue)', "mid-game switch"),
+  q('engineChat("mtg mode commander", Player.Blue)', "switch back"),
   q("engineClear()", "cleared"), { frames: 30 }, mode("after game"), pieces("pieces after game"),
 ] });
 
@@ -93,6 +96,7 @@ ok("Commander again: the life counters at 40", back[2].split(",").every((v) => v
 ok("Commander: the deck check sends no mode", /^decks \{/.test(String(valueOf(r, "decks c sent"))) && !/"mode"/.test(String(valueOf(r, "decks c sent"))), String(valueOf(r, "decks c sent")).slice(0, 300));
 ok("a Standard game running: the game's mode decides", valueOf(r, "in game") === "commander|standard", valueOf(r, "in game"));
 ok("a Standard game running: the trackers leave the table", String(valueOf(r, "pieces in game")).split("|")[0].split(";").every((p) => Number(p.split("#")[0]) < -10), valueOf(r, "pieces in game"));
+ok("mode changed in a game: for the next one, the game's READYs kept", valueOf(r, "mid-game switch") === "ready" && /set the game mode for the next game: Standard.*READY again after this game./.test(told(r, "mid-game switch")), `${valueOf(r, "mid-game switch")} ${told(r, "mid-game switch")}`);
 ok("the game cleared: back to the next games' Commander, the trackers back", valueOf(r, "after game") === "commander|commander" && String(valueOf(r, "pieces after game")).split("|")[0] === atLoad[0], `${valueOf(r, "after game")} ${valueOf(r, "pieces after game")}`);
 
 console.log(failed ? `FAILED: ${failed} failed, ${passed} passed` : `PASSED: ${passed} passed, 0 failed`);
