@@ -14,6 +14,19 @@
 // from its owner's (-1). Every plane's owner is learned by planeswalking to it with the debug op, in H's first turn.
 // The cases: A, on H's turn the owner of the plane in play loses (H planeswalks from H's deck); B, on an AI's turn
 // another AI owns the plane in play and loses (that AI planeswalks from its dealt deck).
+// Each case's plane is put in play by the debug op, whose "player" is chosen to keep two engine traps out of the way
+// (both seen live 2026-11-13, docs/engine-changes.md section 2):
+//   - Forge keeps the planes in play in the list of the player who planeswalked (Player.currentPlanes, which IS
+//     Game.activePlanes). When the plane's owner leaves, Game.onPlayerLost's 901.10 loop removes the plane from the
+//     planar controller's list while iterating Game.activePlanes: a ConcurrentModificationException, and the game
+//     aborts, if that list is the planar controller's own. In a real game the list holder walked from their own deck,
+//     so it is the leaver's list; here the op's player must not be the planar controller of the case.
+//   - The harness hands priority to the op's player (applyState's lastPlayer -> PhaseHandler.setPriority, which sets
+//     pFirstPriority too). If that player then leaves, "everyone passed" (pFirstPriority == nextPlayer) never comes
+//     again: the priority goes round for ever (the runaway cap ends the game as a draw). So it isn't the leaver either.
+//   Case A (H's turn): the op's player is another AI; case B (an AI's turn): H.
+// The op also leaves the plane under its owner's control (Player.planeswalkTo sets none; 901.6's move to the active
+// player comes at the next turn), so the controller checks skip a turn with a debug planeswalk in it.
 // Needs a fresh test stack: tools/live-check.sh exile tests/live_planechase_check.js (exile = engine1113, which holds the
 // harness; LIVE_TIMEOUT=600, as the AIs play whole turns).
 const delta = require("../bridge/state-delta");
@@ -61,7 +74,7 @@ const costOf = (s) => String(s ?? "").replace(/[{}\s]/g, "");
 
 // S.state: setup -> mana -> roll -> probe -> caseA -> caseA-kill -> toB -> caseB-walk -> caseB-kill -> end
 const S = { state: "setup", H: null, AI: [], fixId: 1300, owner: {}, track: null, rolls: 0, pay: {}, rollSeq: null, rollsSeen: [],
-  offTiming: [], ctlWrong: [], rollCounts: new Set(), before: null, target: null, victim: null, payTries: 0 };
+  offTiming: [], ctlWrong: [], opTurns: new Set(), rollCounts: new Set(), before: null, target: null, victim: null, payTries: 0 };
 let client = null;
 
 class Client {
@@ -178,6 +191,7 @@ function observe(g) {
 
 function fix(c, ops, next) {
   S.fixId++;
+  if (ops.some((o) => o.op === "planeswalk")) S.opTurns.add(c.g.turn);
   S.state = next;
   c.directive({ type: "applyState", fixId: S.fixId, ops });
 }
@@ -195,7 +209,7 @@ function priority(c, p, g, input) {
   const rolls = (input.actions || []).filter((a) => isRoll(g, a));
   // standing checks, at every priority question H gets
   if (rolls.length && !(mine && main && empty)) S.offTiming.push(`t${g.turn} ${g.step} active ${g.activePlayerId} stack ${(g.stack || []).length}`);
-  if (g.planar && g.planar.controllerId !== g.activePlayerId) S.ctlWrong.push(`t${g.turn} ${g.step}: ${g.planar.controllerId} for ${g.activePlayerId}`);
+  if (g.planar && g.planar.controllerId !== g.activePlayerId && !S.opTurns.has(g.turn)) S.ctlWrong.push(`t${g.turn} ${g.step}: ${g.planar.controllerId} for ${g.activePlayerId}`);
   if (mine && main && empty && !Number(g.planar?.dieRollsThisTurn)) S.rollCounts.add(rolls.length); // (the free roll: a later one may be unaffordable)
 
   if (S.state === "setup") {
@@ -250,11 +264,12 @@ function priority(c, p, g, input) {
     if (!check(S.AI.every((s) => planeOf(g, s)), `a plane of every AI's is known (${JSON.stringify(S.owner)})`)) return finish("owners unknown");
     S.victim = S.AI[0];
     S.target = planeOf(g, S.victim);
-    return fix(c, [{ op: "planeswalk", player: S.H, name: S.target }], "caseA");
+    return fix(c, [{ op: "planeswalk", player: S.AI[1], name: S.target }], "caseA");
   }
   if (S.state === "caseA") {
     if (!applied(g, pass)) return;
-    check(planeName(g) === S.target && g.planar.controllerId === S.H, `case A: ${S.target} (${S.victim}'s) in play, controlled by H (${planeName(g)}, ${g.planar.controllerId})`);
+    check(planeName(g) === S.target, `case A: ${S.target} (${S.victim}'s) in play on H's turn (${planeName(g)})`);
+    note(`case A set-up: the op left ${S.target} with ${g.planar.controllerId}'s control (901.6 would say H)`);
     S.before = { counts: counts(g), id: planeIds(g)[0] };
     return fix(c, [{ op: "life", player: S.victim, n: 0 }], "caseA-kill");
   }
@@ -282,12 +297,13 @@ function priority(c, p, g, input) {
     S.target = S.owner[planeName(g)] === m ? planeName(g) : planeOf(g, m);
     S.walker = j;
     if (planeName(g) === S.target) { S.state = "caseB-walk"; S.fixId++; g = { ...g, stateFix: { fixId: S.fixId, ok: true } }; }
-    else return fix(c, [{ op: "planeswalk", player: j, name: S.target }], "caseB-walk");
+    else return fix(c, [{ op: "planeswalk", player: S.H, name: S.target }], "caseB-walk");
   }
   if (S.state === "caseB-walk") {
     if (!applied(g, pass)) return;
     if (g.activePlayerId !== S.walker) return finish(`case B: ${S.walker}'s turn ended during the set-up`);
-    check(planeName(g) === S.target && g.planar.controllerId === S.walker, `case B: ${S.target} (${S.victim}'s) in play on ${S.walker}'s turn, controlled by ${S.walker} (${planeName(g)}, ${g.planar.controllerId})`);
+    check(planeName(g) === S.target, `case B: ${S.target} (${S.victim}'s) in play on ${S.walker}'s turn (${planeName(g)})`);
+    note(`case B set-up: ${S.target} under ${g.planar.controllerId}'s control (901.6 would say ${S.walker})`);
     S.before = { counts: counts(g), id: planeIds(g)[0] };
     return fix(c, [{ op: "life", player: S.victim, n: 0 }], "caseB-kill");
   }
