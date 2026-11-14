@@ -148,7 +148,7 @@ What the build is, and where it differs from the plan above:
 - `Duration`: the clip's length rounded up to 0.05 s. No GameObjects or particles; looping effect 0 `idle`, empty.
 - The build (`Assets/Editor/MtgSoundsBuild.cs` in the Unity project, branch `mtg-fx`) reloads the bundle it made with
   `AssetBundle.LoadFromFile` and checks every trigger effect against `sounds.tsv`: name and order, its clip, the clip's
-  length, Positional3D off, nothing else in it. Size budget 3 MB.
+  length, Positional3D off, no GameObjects or particles in it. Size budget 3 MB.
 - Result: `mtg-sounds.unity3d`, 1,536,075 bytes, sha256 `679c7eceda5901bb99975eace4f186a18c82c44aab8389fc5bc1cb816417d662`
   (`assets/fx`, gitignored; index `docs/fx-research/SOUNDS.md`, hash in `docs/fx-research/bundles.sha256`).
 
@@ -173,14 +173,17 @@ fails until the bundle is rebuilt.
   sound object's trigger effect named as its key (`death_x4` for a burst), and its link only when there is no sound
   object, its bundle is still loading, or it has no effect of that name. A pick that is a name plays that name, as
   before, whatever the route.
-- A route B sound whose first event plays on a rig is sent with the rig's trigger, `RIG_LEAD` (0.1 s) after the board
-  at the soonest, not before it (`FX.sndLeads`). Route A is not held back (the music player's own load comes later).
+- A route B sound whose first event plays on a rig is held to `RIG_LEAD` (0.1 s) after the board at the soonest, the
+  rig's own earliest trigger, so it never goes out before the particles (`FX.sndLeads`; only when the sound object is
+  there and has that effect). Route A is not held back (the music player's own load comes later).
 - The sound object is renewed like the rigs: one whose memo isn't `engineFxBundle.sounds` is retired on load and a new
   one spawned (whatever `mtg fx` says: it is no particle effect); one being retired is never played.
+- `engineSoundRoute` is a plain global, like `engineFxTint`: not saved with the game and no chat command, so it is
+  `"music"` again after every load. For check 3 the host sets it by Lua (`tools/tts-exec.sh`); once the check passes, the
+  default in the source becomes `"bundle"`.
+- Not automatic until then: route A (the music player) is known to reach everyone, route B isn't yet (check 3).
 - To use it: upload `mtg-sounds.unity3d`, put its link in `engineFxBundle.sounds`, deploy; the first game spawns the
-  sound object (save the table once so it stays). Then check 3 below with `engineSoundRoute = "bundle"`; once it
-  passes, make `"bundle"` the default.
-  Not automatic: route A (the music player) is known to reach everyone, route B isn't yet (check 3).
+  sound object (save the table once so it stays). Then check 3 below with `engineSoundRoute = "bundle"`.
 
 ## 5. Shaders, platforms, size
 

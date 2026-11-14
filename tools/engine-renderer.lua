@@ -2113,6 +2113,8 @@ do
     end
     FX.retire(stale)
     if snd ~= nil and FX.sndObj ~= snd then FX.sndObj, FX.sndIdx = snd, nil end
+    -- (a sound object found before and retired now is played no more while it waits for its destruct)
+    if snd == nil and FX.sndObj ~= nil and not FX.sndObj.isDestroyed() and FX.retiring[FX.sndObj.getGUID()] then FX.sndObj, FX.sndIdx = nil, nil end
     if engineFxMode ~= "off" then
       FX.topUp(links.fx, "engine:fx", FX.rigs, FX.RIGS, "spawnedFx", 0)
       FX.topUp(links.bolt, "engine:bolt", FX.bolts, FX.BOLTS, "spawnedBolt", 2)
@@ -2810,11 +2812,17 @@ do
   end
   -- whether the board's sound (kind, n of it) would go out through the sound bundle (a name, or engineSoundRoute
   -- "bundle" with a sound object found): FX.dispatch then sends it with its rig's trigger, not before
+  -- (and with an effect of that name, once the bundle has said its names: else it falls back to the music player, which
+  -- isn't held back)
   function FX.sndLeads(kind, n)
-    local pick = engineSounds ~= nil and engineSounds[FX.burst(kind, n)]
+    local key = FX.burst(kind, n)
+    local pick = engineSounds ~= nil and engineSounds[key]
     if type(pick) ~= "string" then return false end
-    if not pick:find("^https?://") then return true end
-    return engineSoundRoute == "bundle" and FX.sndObj ~= nil and not FX.sndObj.isDestroyed()
+    local link = pick:find("^https?://") ~= nil
+    if link and engineSoundRoute ~= "bundle" then return false end
+    local o = FX.sndObj
+    if o == nil or o.isDestroyed() then return false end
+    return FX.sndIdx == nil or FX.sndIdx[link and key or pick] ~= nil
   end
   -- M5 sounds (design section 6), at most one per board: each kind at most every 0.3 s, any two 0.15 s apart.
   -- engineSounds[kind]: nil or "" = silent (FX.picked); a link (https://...) plays through the table's music player

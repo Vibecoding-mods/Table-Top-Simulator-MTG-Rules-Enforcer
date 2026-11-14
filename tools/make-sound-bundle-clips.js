@@ -101,8 +101,9 @@ function main() {
   const docs = recorded();
   const tts = path.join(assets, "sounds", "tts");
   fs.mkdirSync(outDir, { recursive: true });
-  // (clips no longer in the table go: the Unity build would otherwise import them)
-  for (const f of fs.readdirSync(outDir)) if (/\.wav$/.test(f)) fs.rmSync(path.join(outDir, f));
+  // (each run writes every clip again; a clip no longer in the table goes afterwards, with its .meta: the Unity build
+  // would otherwise import it. The others keep their .meta, so the prefab's references to them stay the same)
+  const before = fs.readdirSync(outDir).filter((f) => /\.wav$/.test(f));
   const clipOf = {}; // link -> { clip, secs, file, sha }
   const lines = ["# name\tclip\tseconds\tsource\tsha256\tlink"];
   const notes = [];
@@ -122,6 +123,12 @@ function main() {
     }
     const c = clipOf[link];
     lines.push([name, c.clip, c.secs.toFixed(3), c.file, c.sha, link].join("\t"));
+  }
+  const keep = new Set(Object.values(clipOf).map((c) => c.clip + ".wav"));
+  for (const f of before) {
+    if (keep.has(f)) continue;
+    fs.rmSync(path.join(outDir, f));
+    fs.rmSync(path.join(outDir, f + ".meta"), { force: true });
   }
   fs.writeFileSync(path.join(outDir, "sounds.tsv"), lines.join("\n") + "\n");
   console.log(`${rows.length} trigger effects, ${Object.keys(clipOf).length} clips -> ${outDir}`);
