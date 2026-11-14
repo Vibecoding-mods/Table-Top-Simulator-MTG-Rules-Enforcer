@@ -30,9 +30,10 @@ const fxOf = (r, mark) => r.steps.find((s) => s.step === mark)?.fx || [];
 const sim = (steps) => simulate({ save, seated: ["Yellow", "Blue"], host: "Blue", steps });
 const prelude = q('engineAutoPace.Yellow = false engineAutoPace.Blue = false engineChat("mtg start ai 2", Player.Blue) return "ok"', "prelude");
 
-// Each mat's team buttons, top to bottom: "Colour: label@x,z;label@x,z" (world spots), "|" between mats with any
+// Each mat's team buttons, top to bottom: "Colour: label@x,z;label@x,z" (world spots, where real TTS draws them: a mat
+// zone's button with its local x mirrored, seen live 2026-11-14), "|" between mats with any
 const PANELS = 'local out = {} for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do local mat = data[c].playmat local parts = {} ' +
-  'for _, b in ipairs(mat.getButtons() or {}) do if b.click_function == "engineTeamNoop" then local w = mat.positionToWorld(b.position) ' +
+  'for _, b in ipairs(mat.getButtons() or {}) do if b.click_function == "engineTeamNoop" then local w = mat.positionToWorld(Vector(-b.position.x, b.position.y, b.position.z)) ' +
   'parts[#parts + 1] = tostring(b.label) .. string.format("@%.2f,%.2f", w.x, w.z) end end ' +
   'if #parts > 0 then out[#out + 1] = c .. ": " .. table.concat(parts, ";") end end return #out == 0 and "none" or table.concat(out, " | ")';
 // our lines: "r,g,b xmin..xmax zmin..zmax" each (thickness 0.3501), "|" between; the others' count after "#"
