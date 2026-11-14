@@ -89,7 +89,8 @@ Open follow-ups from that review (none a regression of engine1113; the table is 
    each card gets its own round, so nothing is shared (output unchanged).
 
 Planechase engine bugs found by the live spike `tests/live_planechase_check.js` on 2026-11-13 (engine1113 /
-`mtg-forge-node:exile`). Not fixed, nothing built. The spike passes 41 of 41 checks by setting its cases up around them.
+`mtg-forge-node:exile`). **Fixed in source 2026-11-13, not built** (branch `planechase-fix-1113`, below). On engine1113 the
+spike passes 41 of 41 checks by setting its cases up around them.
 Node log evidence is from the test stack, run 2026-11-13 18:54 and 19:00-19:07 local.
 1. **Abort (ConcurrentModificationException) in Forge `Game.onPlayerLost`, the 901.10 block** (`Game.java:1019`):
    `for (Card c : getActivePlanes()) { ... planarController.removeCurrentPlane(c); }`. `Game.activePlanes` is the same
@@ -127,6 +128,46 @@ What a fix takes: fix 1 and the Forge half of 2 go in `engine/forge.patch`; the 
 `Planechase.java` / `ManaBrewInteractiveSession.java`, plus a `PlanechaseTest` case for each. No protocol change, so a
 node rebuild only (about 20 minutes). After the rebuild, the spike's case set-ups can go back to the simple shape (the
 seat walks on its own turn), and both must pass.
+**planechase-fix-1113 (source only, not built, 2026-11-13).** All three fixes, in `engine/forge.patch` and
+`engine/manabrew.patch` (regenerated with `engine/make-patches.sh`; the diff against the engine1113 patches is only these
+hunks). Worktree `tmp/mb-pcfix` (Manabrew branch `planechase-fix-1113` from `2af9fe9`, commit `b2e59fd`; its `forge/` is a
+clone at the patch base `8f3f705d` + commit `ae1e586c`). Node only, no protocol change.
+- Forge `Game.onPlayerLost` 901.10: iterates `new CardCollection(getActivePlanes())` (fix 1).
+- Forge `PhaseHandler.mainLoopStep`, just before the `pFirstPriority == nextPlayer` test: if `pFirstPriority` has lost
+  and is not the player passing now, it becomes `game.getNextPlayerAfter(pFirstPriority)` (the Forge half of fix 2).
+  Conservative on purpose: nothing changes unless the first player to act has left. Every player between the lost one and
+  the one passing now has already passed in turn, so the step still ends only after each remaining player passed once.
+  It waits while the lost player itself holds priority (moving `pFirstPriority` then would end the step before anyone
+  else passed). Forge's own "Active player is no longer in the game" branch runs earlier in the same call and leaves
+  `pFirstPriority` on a player still in the game, so the two never meet.
+- Harness `ManaBrewInteractiveSession.applyState`: `planeswalk` and `chaos` no longer set `lastPlayer` (fix 2).
+- Harness `Planechase.applyOp`: walks `destination.getOwner()`, then gives every active plane to the turn player with
+  `setController(active, 0)` + `controllerChangeZoneCorrection`, as PhaseHandler does (fix 3). Side effect, debug only:
+  `planeswalkedToThisTurn` and the PlaneswalkedTo trigger's player are the owner, not the op's player.
+- `PlanechaseTest`, five new checks: `planeswalkOpWalksAsTheOwnerAndGivesControlToTheActivePlayer`,
+  `planarOpsLeavePriorityWithThePlayerWhoHadIt`, `anOwnerLeavingWhileThePlanarControllerHoldsTheirPlanePlaneswalksOn`
+  (the raw Forge shape, fix 1), `anOwnerLeavingAfterThePlaneswalkOpPlaneswalksOn`, `theStepEndsWhenTheFirstPlayerToActHasLeft`
+  (no Planechase, three passive AIs, fix 2's Forge half). **Not run yet**: there is no JDK here and the tests need the
+  java-builder image. The break-it proof (each check fails by name with its fix removed) is part of the build steps.
+- `tests/live_planechase_check.js --raw`: the spike in the simple shape (the seat's own walks, the controller checked on
+  op turns). It must pass on the new image and fail (abort or runaway) on engine1113.
+Build and check (bash, from `C:/Users/you/mtg-tts`, when no other agent is building):
+1. `ENGINE_BUILD_DIR=$PWD/tmp/engine-build-pcfix bash engine/build-images.sh pcfix1113` (fetches the pinned upstream
+   commits, applies both patches in a clean LF tree, builds node and relay; relay source is unchanged).
+2. `docker build --target java-builder -f tmp/engine-build-pcfix/manabrew-rs/crates/self-hosted-node/Dockerfile -t
+   mtg-harness-test:pcfix1113 tmp/engine-build-pcfix`, then `MSYS_NO_PATHCONV=1 docker run --rm -v
+   "C:/Users/you/mtg-tts/tmp/engine-build-pcfix/forge-harness:/src:ro" -v
+   "C:/Users/you/mtg-tts/engine/checks/harness-tests.sh:/harness-tests.sh:ro" --entrypoint sh
+   mtg-harness-test:pcfix1113 /harness-tests.sh PlanechaseTest`, then with no class name (every class).
+3. Break-it: revert one fix at a time and re-run PlanechaseTest. The harness fixes can be reverted in the mounted
+   `forge-harness`; a Forge fix needs the java-builder image rebuilt with that hunk removed.
+4. `LIVE_STACK=1 LIVE_TIMEOUT=600 bash tools/live-check.sh pcfix1113 tests/live_planechase_check.js`, then the same with
+   `LIVE_ARGS=--raw`. Both must pass.
+Then the usual: a row in section 3 and an entry in section 4, a rollback tag, `deploy.js --image pcfix1113`.
+**Update 2026-11-14:** this source is now **built inside `engine1114-rejoin`** (section 4), whose `engine/manabrew.patch`
+starts from the planechase-fix-1113 patch. In `mtg-harness-test:engine1114-rejoin` the five new `PlanechaseTest` checks
+pass (whole suite 16 of 16 classes, 140 checks). Steps 3 (break-it) and 4 (the live spike, plain and `--raw`) are still
+to do, on `engine1114-rejoin` in place of `pcfix1113`, before that image is deployed.
 
 ## 3. Summary table (newest first)
 
@@ -136,6 +177,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-14 03:25 / (relay cached, 2026-11-12 20:07 stamp) | `engine1114-rejoin` (`3e8f2005bda9` / `4e47919e1966`) | A rewind brings back players who conceded or lost after the point; also carries planechase-fix-1113 (first build) | Node only (no protocol change; relay source unchanged) | tree `tmp/eb1114-rejoin` in worktree `agent-ac7d563c775ca72fd`, branch `rejoin-1114` (`866240c`, `0d6dfa3`, `df0e503`); bridge "is back in the game" line | not deployed | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) |
 | 2026-11-13 02:07 / (relay layers all cached, 20:07 stamp) | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) | Combat flags once per snapshot round; delayed-trigger ids per viewer; face-down `unlockedDoors` blanked; no ownerless or targetless damage entries | Node only (no protocol change; relay rebuilt from the same tree, source unchanged) | tree `tmp/eb1113` in the outer worktree (`engine/manabrew.patch` regenerated); bridge `delayedOf` reads an empty text as hidden | **deployed 2026-11-13 09:37 UTC** (main 75fc8a2) | `engine1112` (`0306d683de26` / `58cf2e3da251`) |
 | 2026-11-12 20:03 / 20:07 | `engine1112` (`0306d683de26` / `58cf2e3da251`) | Per-permanent card flags; effects, delayed triggers, storm and per-turn counts in the view; damage events in the feed | Node needed; relay optional (the old relay passes the new fields, proved live) | mb-wt-merge `86b9279`, `6b6d362`, `8fac2bb`, merge `ecf76ab`; no compile fix needed | **deployed 2026-11-12** (main `f66ba5e`, table `01875e13`, save `30d57321`) | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) |
 | 2026-11-12 05:02 / 05:05 | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) = `:exile` now | Dungeon rooms and Planechase in the view; dungeon, initiative, planeswalk, chaos fix ops | Both | mb-pc `5356a42`, `62ac39e`, `4753e36`; outer `96e2c4c`, `044f77e`, `f46b12c` (bridge) | 2026-11-12 ~05:50, main `3ae38c3` | `batch1112` (`00d0a4d243ed` / `e6156e135032`) |
@@ -201,6 +243,78 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-14 engine1114-rejoin: a rewind brings back a player who conceded or lost after the point (built, not deployed)
+- **Problem:** the user asked that a player who conceded can get back into the game when the table rewinds. A rewind to a
+  point from before a concession (or any loss) left that player out: `Game.onPlayerLost` (CR 800.4a) sets the outcome,
+  takes the player out of `Game.getPlayers()` into `getLostPlayers()`, and in a game of 3 or more makes every card they own
+  cease to exist (zone `None`, in no list) and hands the permanents they controlled back to their owners. `GameSnapshot`
+  only walks the players of the live game, so the restore set the others back and left the player out, outcome and all.
+- **What (harness only):**
+  1. Each restore point (`SavedState`) also keeps the ids of the players still in the game at it (`playersInGame`, a player
+     whose outcome is already a loss counts as out) and a `CardPlaces`: every card's zone at the point (stack cards aside)
+     and, for a card controlled by someone other than its owner, a copy of `Card.tempControllers` (private, read by
+     reflection; listed in `native/extra-config/reflect-config.json` for the native image).
+  2. `restoreState` calls `rejoinPlayers` before `GameSnapshot.restoreGameState`. For each registered player the point had
+     in the game who is out now: outcome cleared (`getStats().setOutcome(null)`, so `hasLost()` is false and the view's
+     `status` is `playing`), `setHasLost(false)` on the view, off `getLostPlayers()`, and `getPlayers()` rebuilt in seat
+     order (so `getNextPlayerAfter`, priority and the restore vote see them again). `CardPlaces.putBack` then puts their own
+     cards back into the zones the point had them in (the same card objects, with `Zone.add(..., rollback=true)` so no
+     zone-change bookkeeping runs), and gives back each permanent they controlled with its original temp-controller
+     timestamp, moving it off its owner's battlefield list. The snapshot then sets everything else as it does for any player.
+  3. A player already out at the point stays out; a rewind with nobody to bring back does nothing new.
+- **Not covered (found on the way, not regressions):** control set by `Card.setController` (an exchange of control) is not
+  given back. And for every card, not only a returning player's, **counters added after a point stay after a rewind**:
+  `GameSnapshot` builds its copies from the paper card, so they carry no counters, and the restore never sets counters on a
+  live card (a probe in `RejoinRewindTest`, 2026-11-14: +1/+1 counters set after the point were still 3 after the rewind,
+  same card object). That is a general rewind bug worth its own fix.
+- **Bridge:** `checkRestored` says "<names> is/are back in the game." in the chat and the game log for each player the
+  rewound board shows playing whom `noteOuts` had seen go out (once; the out record is then forgotten as before). The rest
+  of the table already follows the engine's `status`: `isPlaying` (concede, rewind requests, the vote's waiting list, fix
+  tools), the life counter relit on a jump (`engine-renderer.lua`, unchanged), and the node's `active_player_usernames`
+  (a rejoined seat counts as active again).
+- **Files:** harness `ManaBrewInteractiveSession` (`SavedState`, `saveState`, `playersInGame`, `rejoinPlayers`,
+  `restoreState`), new `CardPlaces`, `reflect-config.json`, `AGENTS.md` (restore-point paragraph); new test
+  `RejoinRewindTest` (6 checks: `aConcededPlayerRejoinsOnARewindToBeforeTheConcession`,
+  `aPlayerAtZeroLifeRejoinsOnARewindToBeforeTheLoss`, `aRewindToAfterTheConcessionKeepsThePlayerOut`,
+  `aRejoinedPlayerTakesTheirTurnAndVotes`, `aRejoinedCommanderComesBackOnce`,
+  `permanentsThatChangedControlComeBackWithTheirController`), added to `engine/checks/harness-tests.sh`. Outer repo:
+  `bridge/bridge.js` (`checkRestored`, `onConcede` comment), `tests/test_bridge_claims.js` (+6 "rejoin:" checks), new live check
+  `tests/live_rejoin_check.js`. No protocol
+  change.
+- **Source:** tree `tmp/eb1114-rejoin` in the outer worktree `.claude/worktrees/agent-ac7d563c775ca72fd`, a clone of
+  `tmp/eb1113`: branch `rejoin-1114` = `fd16e2f` + `866240c` (the committed `engine/manabrew.patch` of `c1170fe` applied;
+  its `git diff fd16e2f` reproduces that patch byte for byte) + `0d6dfa3` (this change). `engine/manabrew.patch` is that
+  branch's `git diff fd16e2f` (55 files); `forge.patch` unchanged. So this build **also carries the planechase-fix-1113 source
+  (section 2), built for the first time here**. (Branch `rejoin-on-1113`, `1bd7900`, is the same change on `2af9fe9`, where
+  it was first written and tested.)
+- **Build:** 2026-11-14 through `tmp/slot.js`: `ENGINE_BUILD_DIR=$PWD/tmp/engine-build-rejoin bash engine/build-images.sh
+  engine1114-rejoin` (pinned upstream + both patches in a clean LF tree). `mtg-forge-node:engine1114-rejoin` `3e8f2005bda9`
+  (03:25 EST); `mtg-relay:engine1114-rejoin` `4e47919e1966` (all layers cached, 2026-11-12 20:07 stamp; relay source
+  unchanged). Test image `mtg-harness-test:engine1114-rejoin` (`--target java-builder` from the same tree).
+- **Proof:** the built tree in `mtg-harness-test:engine1114-rejoin`: 16 of 16 classes, 140 checks (the five new
+  planechase-fix `PlanechaseTest` checks among them, run here for the first time). Live, `tools/live-check.sh
+  engine1114-rejoin tests/live_rejoin_check.js` (three human seats, `LIVE_STACK=7`): 9 of 9: a seat concedes on turn 4, its
+  permanents leave, it is not awaited in the rewind vote, after the rewind all three seats see it `playing` with the
+  point's life and zone counts, it is awaited in the next vote, and it is asked to act on its own next turn. The same
+  check on `engine1113` fails 4 of 8 and times out: after the rewind every seat still sees the seat `conceded` (its cards
+  back on the board, which the old snapshot already did), and it is not awaited in the next vote. Earlier, on the engine1113 harness in `mtg-harness-test:engine1112`: 16 of 16 classes (135 checks), the new
+  class 6 of 6; before the fix 4 of its 5 first checks failed ("Blue has still lost: has conceded", "the turn after White's
+  goes to Red"). Break-it, one mutation at a time in the mounted harness, restored by sha256 each time (all restored):
+  no `rejoinPlayers` call fails 5 checks (all but the stays-out one); rejoined players appended instead of in seat order
+  fails 4 ("players in the game are [White, Red, Blue]", "the turn after White's goes to Red"); no `putBack` fails 4
+  ("Blue's state is not the checkpoint's"); lost players counted as in the game at the point fails
+  `aRewindToAfterTheConcessionKeepsThePlayerOut`; the outcome left set fails 4 (incl. "White's rewind awaits seats []");
+  no temp controllers given back, and no move off the owner's battlefield, each fail
+  `permanentsThatChangedControlComeBackWithTheirController`. Bridge: `test_bridge_golden` 1066 of 1066, `test_bridge_claims`
+  1451 of 1451, `test_bridge_events` 602 of 602, `test_table_map` 613 of 613 (`MTG_MANABREW=tmp/eb1114-rejoin`); break-it
+  without the chat line fails 2 rejoin checks, without the log line 1, naming every playing player 4.
+- **Deploy (when wanted):** first the planechase spike on this image (section 2, steps 3 and 4: `LIVE_STACK=1
+  LIVE_TIMEOUT=600 bash tools/live-check.sh engine1114-rejoin tests/live_planechase_check.js`, then `LIVE_ARGS=--raw`),
+  since the image carries those fixes too. Then, with TTS closed and no game running, from the merged main checkout:
+  `node tools/deploy.js --image engine1114-rejoin` (node only, no protocol change; the bridge change is in this commit and
+  works on the old engine too, it just never fires there).
+- **Rollback:** `node tools/deploy.js --image engine1113` (node `4d0f4dcaa0f7`, relay `d88922ebdd9f`).
 
 ### 2026-11-13 engine1113: the engine1112 review follow-ups (deployed 2026-11-13 09:37 UTC)
 - **Problem:** the four follow-ups the engine1112 review left (that entry, "Follow-ups, none blocking"): the combat flags cost

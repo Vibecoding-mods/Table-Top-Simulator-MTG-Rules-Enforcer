@@ -145,6 +145,7 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 |---|---|
 | `mtg help` | the list of commands |
 | `mtg ready` | the same as the READY? button |
+| `mtg clear deck` | removes your own deck and commander from your seat (when your Delete key does nothing on them); not during a game |
 | `mtg friendly 0\|1\|2` | free mulligans each, for everyone, the same as the Free mulligans button |
 | `mtg engine on` / `off` | anyone seated: the rules engine on or off |
 | `mtg start [ai N]` | anyone seated: start (optionally with N Forge AI players) |

@@ -26,20 +26,23 @@ namespace MtgCompanion
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { background: var(--bg); }
-/* the five-colour backdrop: soft glows of white, blue, black, red and green mana on a near-black base */
-body {
-  margin: 0; min-height: 100vh; color: var(--text); font: 15px/1.5 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background-color: var(--bg);
-  background-image:
-    radial-gradient(900px 620px at 0% 0%, rgba(242,233,204,.12), rgba(242,233,204,0) 62%),
-    radial-gradient(860px 620px at 100% 0%, rgba(79,149,224,.20), rgba(79,149,224,0) 62%),
-    radial-gradient(1000px 760px at 50% 50%, rgba(98,64,128,.17), rgba(98,64,128,0) 66%),
-    radial-gradient(860px 640px at 0% 100%, rgba(227,102,77,.18), rgba(227,102,77,0) 62%),
-    radial-gradient(860px 640px at 100% 100%, rgba(85,176,108,.18), rgba(85,176,108,0) 62%),
-    linear-gradient(160deg, #0e0e16, #060609);
-  background-attachment: fixed;
-}
+/* the five-colour backdrop: saturated glows of white, blue, black, red and green mana on a near-black base (the user
+   liked the colours and asked for them saturated, 2026-11-13). The base sits on html, which paints the canvas under
+   every layer; body stays clear, or its own background box would cover the glow layer (z-index -1) below. */
+html { background-color: var(--bg); background-image: linear-gradient(160deg, #0e0e16, #060609); background-attachment: fixed; }
+body { margin: 0; min-height: 100vh; color: var(--text); font: 15px/1.5 'Segoe UI', system-ui, -apple-system, sans-serif; }
+/* the five glows are blobs on a fixed layer behind the page: they drift toward the pointer while it moves and blend
+   where they meet (screen), then ease back to their corners when it stops (MtgPage.manaDrift; the wiring is at the end
+   of the script). Each blob is the old radial-gradient's ellipse: twice its radii times its fade stop, centred where
+   the gradient was. */
+.mana { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.blob { position: absolute; border-radius: 50%; mix-blend-mode: screen; transform: translate3d(0, 0, 0) scale(1); }
+@media (prefers-reduced-motion: no-preference) { .blob { will-change: transform; transition: transform 1.8s cubic-bezier(.22, .7, .2, 1); } .mana.moving .blob { transition-duration: .9s; } }
+.blob.w { left: -640px; top: -448px; width: 1280px; height: 896px; background: radial-gradient(closest-side, rgba(255,246,215,.46), rgba(255,246,215,0)); }
+.blob.u { right: -533px; top: -384px; width: 1066px; height: 769px; background: radial-gradient(closest-side, rgba(25,120,255,.42), rgba(25,120,255,0)); }
+.blob.b { left: 50%; top: 50%; margin: -501px 0 0 -660px; width: 1320px; height: 1003px; background: radial-gradient(closest-side, rgba(130,40,200,.32), rgba(130,40,200,0)); }
+.blob.r { left: -533px; bottom: -397px; width: 1066px; height: 794px; background: radial-gradient(closest-side, rgba(255,55,25,.40), rgba(255,55,25,0)); }
+.blob.g { right: -533px; bottom: -397px; width: 1066px; height: 794px; background: radial-gradient(closest-side, rgba(20,200,70,.38), rgba(20,200,70,0)); }
 .wrap { max-width: 1440px; margin: 0 auto; padding: 20px 16px 32px; }
 .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 28px; align-items: start; }
 .col { min-width: 0; }
@@ -245,6 +248,7 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
 </style>
 </head>
 <body>
+<div class='mana' id='mana' aria-hidden='true'><i class='blob w'></i><i class='blob u'></i><i class='blob b'></i><i class='blob r'></i><i class='blob g'></i></div>
 <a class='skip' href='#lights'>Skip to the lights</a>
 <div class='wrap'>
 <header class='top card'>
@@ -1084,8 +1088,24 @@ var MtgPage = (function () {
     lightView: lightView, gameView: gameView, updateView: updateView, viewModel: viewModel, clickPlan: clickPlan,
     answerPlan: answerPlan, afterPoll: afterPoll, reloadAllowed: reloadAllowed, headers: headers, start: start,
     toolsView: toolsView, seatRequest: seatRequest, debugRequest: debugRequest, LIST_CHOICE: LIST_CHOICE, handRequest: handRequest, handNote: handNote, handView: handView,
-    debugTip: debugTip, seatTips: seatTips, STATIC_TIPS: STATIC_TIPS, NOW: NOW
+    debugTip: debugTip, seatTips: seatTips, STATIC_TIPS: STATIC_TIPS, NOW: NOW, manaDrift: manaDrift
   };
+
+  // The backdrop's five blobs (W U B R G, in the page's order) for a pointer at (px, py) in a w x h window: each one
+  // drifts toward the pointer by its own share of the distance, at most a quarter of the window, and grows a little
+  // when the pointer is near its home. px null: every blob back home.
+  function manaDrift(px, py, w, h) {
+    var home = [[0, 0], [1, 0], [0.5, 0.5], [0, 1], [1, 1]], pull = [0.22, 0.26, 0.32, 0.24, 0.28], out = [];
+    for (var i = 0; i < home.length; i++) {
+      if (px === null || px === undefined || !(w > 0) || !(h > 0)) { out.push({ x: 0, y: 0, s: 1 }); continue; }
+      var cx = home[i][0] * w, cy = home[i][1] * h;
+      var x = Math.max(-w / 4, Math.min(w / 4, (px - cx) * pull[i]));
+      var y = Math.max(-h / 4, Math.min(h / 4, (py - cy) * pull[i]));
+      var d = Math.sqrt(Math.pow(px / w - home[i][0], 2) + Math.pow(py / h - home[i][1], 2));
+      out.push({ x: Math.round(x), y: Math.round(y), s: Math.round((1 + 0.18 * Math.max(0, 1 - d)) * 100) / 100 });
+    }
+    return out;
+  }
 })();
 
 if (typeof document !== 'undefined' && document.getElementById('mtg-token')) {
@@ -1111,6 +1131,29 @@ if (typeof document !== 'undefined' && document.getElementById('mtg-token')) {
       fr.readAsText(file);
     }
   });
+  // the backdrop follows the pointer while it moves and drifts home 600 ms after it stops (or leaves the window);
+  // nothing moves for a viewer who asked for reduced motion
+  (function () {
+    var layer = document.getElementById('mana');
+    if (!layer || !layer.children || !window.requestAnimationFrame || !window.matchMedia) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var blobs = layer.children, frame = 0, rest = 0, px = null, py = null;
+    function paint() {
+      frame = 0;
+      var d = MtgPage.manaDrift(px, py, window.innerWidth, window.innerHeight);
+      for (var i = 0; i < blobs.length && i < d.length; i++) {
+        blobs[i].style.transform = 'translate3d(' + d[i].x + 'px, ' + d[i].y + 'px, 0) scale(' + d[i].s + ')';
+      }
+    }
+    function home() { rest = 0; px = null; py = null; layer.classList.remove('moving'); if (!frame) frame = window.requestAnimationFrame(paint); }
+    document.addEventListener('pointermove', function (e) {
+      px = e.clientX; py = e.clientY; layer.classList.add('moving');
+      if (!frame) frame = window.requestAnimationFrame(paint);
+      if (rest) window.clearTimeout(rest);
+      rest = window.setTimeout(home, 600);
+    });
+    document.documentElement.addEventListener('mouseleave', home);
+  })();
 }
 </script>
 </body>

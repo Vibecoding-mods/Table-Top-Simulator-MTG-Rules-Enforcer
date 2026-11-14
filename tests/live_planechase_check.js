@@ -25,6 +25,10 @@
 //     pFirstPriority too). If that player then leaves, "everyone passed" (pFirstPriority == nextPlayer) never comes
 //     again: the priority goes round for ever (the runaway cap ends the game as a draw). So it isn't the leaver either.
 //   Case A (H's turn): the op's player is another AI; case B (an AI's turn): H.
+// --raw sets both cases up in the trap shapes instead (case A: H walks; case B: the AI that will leave walks) and
+// expects the op to give the plane to the active player at once: an engine with the planechase-fix-1113 changes
+// (Forge's 901.10 loop on a copy, planar ops leaving priority where it was, the op walking as the owner and then
+// giving control to the active player) passes it; engine1113 aborts or loops.
 // The op also leaves the plane under its owner's control (Player.planeswalkTo sets none; 901.6's move to the active
 // player comes at the next turn), so the controller checks skip a turn with a debug planeswalk in it.
 // Needs a fresh test stack: tools/live-check.sh exile tests/live_planechase_check.js (exile = engine1113, which holds the
@@ -33,7 +37,7 @@ const delta = require("../bridge/state-delta");
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
 const RELAY = arg("relay", "ws://127.0.0.1:9444"), ROOM = arg("room", "tts-test"), KEY = "tts-local", AIS = 3;
-const VERBOSE = process.argv.includes("--verbose");
+const VERBOSE = process.argv.includes("--verbose"), RAW = process.argv.includes("--raw");
 
 const card = (name, types = []) => ({ identity: { name, setCode: "", cardNumber: "" }, manaCost: "", cmc: 0, types, subtypes: [], supertypes: [], colorIdentity: [], text: "", power: "", toughness: "" });
 const COMMANDER = "Rograkh, Son of Rohgahh";
@@ -191,7 +195,7 @@ function observe(g) {
 
 function fix(c, ops, next) {
   S.fixId++;
-  if (ops.some((o) => o.op === "planeswalk")) S.opTurns.add(c.g.turn);
+  if (!RAW && ops.some((o) => o.op === "planeswalk")) S.opTurns.add(c.g.turn);
   S.state = next;
   c.directive({ type: "applyState", fixId: S.fixId, ops });
 }
@@ -264,12 +268,13 @@ function priority(c, p, g, input) {
     if (!check(S.AI.every((s) => planeOf(g, s)), `a plane of every AI's is known (${JSON.stringify(S.owner)})`)) return finish("owners unknown");
     S.victim = S.AI[0];
     S.target = planeOf(g, S.victim);
-    return fix(c, [{ op: "planeswalk", player: S.AI[1], name: S.target }], "caseA");
+    return fix(c, [{ op: "planeswalk", player: RAW ? S.H : S.AI[1], name: S.target }], "caseA");
   }
   if (S.state === "caseA") {
     if (!applied(g, pass)) return;
     check(planeName(g) === S.target, `case A: ${S.target} (${S.victim}'s) in play on H's turn (${planeName(g)})`);
-    note(`case A set-up: the op left ${S.target} with ${g.planar.controllerId}'s control (901.6 would say H)`);
+    if (RAW) check(g.planar.controllerId === S.H, `case A set-up: the op gave ${S.target} to H, the active player (${g.planar.controllerId})`);
+    else note(`case A set-up: the op left ${S.target} with ${g.planar.controllerId}'s control (901.6 would say H)`);
     S.before = { counts: counts(g), id: planeIds(g)[0] };
     return fix(c, [{ op: "life", player: S.victim, n: 0 }], "caseA-kill");
   }
@@ -297,13 +302,14 @@ function priority(c, p, g, input) {
     S.target = S.owner[planeName(g)] === m ? planeName(g) : planeOf(g, m);
     S.walker = j;
     if (planeName(g) === S.target) { S.state = "caseB-walk"; S.fixId++; g = { ...g, stateFix: { fixId: S.fixId, ok: true } }; }
-    else return fix(c, [{ op: "planeswalk", player: S.H, name: S.target }], "caseB-walk");
+    else return fix(c, [{ op: "planeswalk", player: RAW ? m : S.H, name: S.target }], "caseB-walk");
   }
   if (S.state === "caseB-walk") {
     if (!applied(g, pass)) return;
     if (g.activePlayerId !== S.walker) return finish(`case B: ${S.walker}'s turn ended during the set-up`);
     check(planeName(g) === S.target, `case B: ${S.target} (${S.victim}'s) in play on ${S.walker}'s turn (${planeName(g)})`);
-    note(`case B set-up: ${S.target} under ${g.planar.controllerId}'s control (901.6 would say ${S.walker})`);
+    if (RAW) check(g.planar.controllerId === S.walker, `case B set-up: ${S.target} is ${S.walker}'s, the active player's, to control (${g.planar.controllerId})`);
+    else note(`case B set-up: ${S.target} under ${g.planar.controllerId}'s control (901.6 would say ${S.walker})`);
     S.before = { counts: counts(g), id: planeIds(g)[0] };
     return fix(c, [{ op: "life", player: S.victim, n: 0 }], "caseB-kill");
   }

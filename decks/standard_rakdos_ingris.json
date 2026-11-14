@@ -1,0 +1,100 @@
+{
+ "label": "Standard: Rakdos Ingris aggro",
+ "desc": "Black-red aggro: cheap Lizards and burn, Ingris Stingerquill and Nova Hellkite turn every attack into damage",
+ "format": "standard",
+ "ai_eligible": true,
+ "source": "Draftsim, \"MTG Standard Meta Report\" (2026-10-06, after Reality Fracture), https://draftsim.com/mtg-standard-meta-report-10-6-26/, the \"Rakdos Ingris aggro\" list as printed there (main deck and sideboard), every card checked against Forge's own Standard list (bridge/forge-formats.json) and known to the engine.",
+ "reasoning": "Fast and creature-led, the shape the Forge AI plays best (attack, burn face, few decisions). Black and red.",
+ "cards": [
+  {
+   "name": "Hawkeye, Master Marksman",
+   "count": 2
+  },
+  {
+   "name": "Hired Claw",
+   "count": 4
+  },
+  {
+   "name": "Ingris Stingerquill",
+   "count": 4
+  },
+  {
+   "name": "Iridescent Vinelasher",
+   "count": 4
+  },
+  {
+   "name": "Master of Barbs",
+   "count": 4
+  },
+  {
+   "name": "Nova Hellkite",
+   "count": 4
+  },
+  {
+   "name": "Stingerquill Voxmancer",
+   "count": 2
+  },
+  {
+   "name": "Tomik, Izzet Sparkmage",
+   "count": 3
+  },
+  {
+   "name": "Burst Lightning",
+   "count": 4
+  },
+  {
+   "name": "Shock",
+   "count": 1
+  },
+  {
+   "name": "Stingerquill Charm",
+   "count": 4
+  },
+  {
+   "name": "Blazemire Verge",
+   "count": 4
+  },
+  {
+   "name": "Blood Crypt",
+   "count": 4
+  },
+  {
+   "name": "Dark Fortress",
+   "count": 4
+  },
+  {
+   "name": "Mountain",
+   "count": 6
+  },
+  {
+   "name": "Rockface Village",
+   "count": 2
+  },
+  {
+   "name": "Starting Town",
+   "count": 4
+  }
+ ],
+ "sideboard": [
+  {
+   "name": "Bitter Triumph",
+   "count": 3
+  },
+  {
+   "name": "Duress",
+   "count": 4
+  },
+  {
+   "name": "Ghost Vacuum",
+   "count": 2
+  },
+  {
+   "name": "Magebane Lizard",
+   "count": 4
+  },
+  {
+   "name": "Sunspine Lynx",
+   "count": 2
+  }
+ ]
+}
