@@ -25,7 +25,9 @@ const real = {
 
 // scryfall: "up" (answers everything), "down" (no network: every request rejects), "busy" (HTTP 503)
 // cardFaces: name -> [front, back] for the cards Scryfall answers as two-faced (its card_faces, each with its own picture)
-function load({ imageCache = {}, scryfall = "up", cardFaces = {} } = {}) {
+// scryfallCards: real Scryfall cards (tests/golden/fixtures/scryfall-two-sided.json): a name asked that is one of theirs
+// (the card's, "A // B", or a face's, as Scryfall finds them) is answered with that card, as Scryfall does
+function load({ imageCache = {}, scryfall = "up", cardFaces = {}, scryfallCards = [] } = {}) {
   const effects = [];
   const timers = [];
   let clock = 0, seq = 0;
@@ -63,9 +65,15 @@ function load({ imageCache = {}, scryfall = "up", cardFaces = {} } = {}) {
     if (u.includes("/cards/collection")) {
       const ids = body?.identifiers || [];
       const two = (i) => cardFaces[i.name] && { name: cardFaces[i.name].join(" // "), card_faces: cardFaces[i.name].map((n) => ({ name: n, image_uris: {} })) };
-      return okJson({ data: ids.filter((i) => i.name !== "Ghost").map((i) => ({ id: fakeId(i.name), name: i.name, ...two(i) })),
-        not_found: ids.filter((i) => i.name === "Ghost") });
+      const norm = (n) => String(n || "").toLowerCase();
+      const real = (i) => scryfallCards.find((c) => [c.name, ...(c.card_faces || []).map((f) => f.name)].some((n) => norm(n) === norm(i.name)) && !(c.card_faces && norm(c.name) === norm(i.name)));
+      // (and, as Scryfall, not by a split card's whole name: "Fire // Ice" is not found, its exact-name lookup finds it)
+      const missed = (i) => i.name === "Ghost" || scryfallCards.some((c) => c.card_faces && norm(c.name) === norm(i.name));
+      return okJson({ data: ids.filter((i) => !missed(i)).map((i) => real(i) || { id: fakeId(i.name), name: i.name, ...two(i) }),
+        not_found: ids.filter(missed) });
     }
+    const named = u.includes("/cards/named") && scryfallCards.find((c) => c.name.toLowerCase() === decodeURIComponent(u.split("exact=")[1] || "").toLowerCase());
+    if (named) return okJson(named);
     if (u.includes("/cards/named")) return okJson({ id: fakeId(decodeURIComponent(u.split("exact=")[1] || "")), name: "named" });
     if (u.includes("/cards/search")) return okJson({ data: [] });
     // the image host: a link with "dead" in it is gone (404), any other is there (deck picture check, 2026-10-26)
