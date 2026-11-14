@@ -5491,7 +5491,7 @@ engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }
 -- bolt: the bolt bundle (mtg-bolt.unity3d, rigs "engine:bolt"). Both uploaded 2026-11-12 night (fx: mtg-fx2.unity3d,
 -- the tint-ready rebuild; links matched to their files by sha256). sounds: mtg-sounds.unity3d (built 2026-11-13,
 -- docs/fx-research/SOUNDS.md), nil until it is uploaded; it is played only with engineSoundRoute "bundle".
-engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/13181964746744684712/6948BE73BB273AAB129525130A13E4982559BD1D/", sounds = nil, bolt = "https://steamusercontent-a.akamaihd.net/ugc/12109543125843195804/C6B0053848DA7FCB5E6136B82243D57A66E3B289/" }
+engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/15666370258971028614/C9FF06D0A10B0C170C2B49122C0423FE29D35D3B/", sounds = nil, bolt = "https://steamusercontent-a.akamaihd.net/ugc/16460449626220746289/901D08363F140757CCAB54BA2D10909F2546D622/" }
 -- The particle effects (docs/particle-fx-spec.md), "mtg fx on|low|off" (the host's, saved with the game): on, all of
 -- them; low, a wipe's wave without its cards' own deaths, and no bolts; off, no rig effect at all, the table as it was
 -- without the bundle (sounds, slots and flashes stay). engineFxTint: the host's flag for the live tint check (a
@@ -6813,7 +6813,10 @@ function onSave()
     s[guid] = { pos = { st.pos.x, st.pos.y, st.pos.z }, rot = { st.rot.x, st.rot.y, st.rot.z }, lock = st.lock }
   end
   -- (and the host's "mtg fx" setting, a word)
-  return JSON.encode({ engineStash = s, engineFx = engineFxMode })
+  -- (and the players this table promoted for engine mode, as one text: steam ids joined by commas, never as keys)
+  local promoted = {}
+  for sid in pairs(ENGINE_PROMOTED or {}) do promoted[#promoted + 1] = sid end
+  return JSON.encode({ engineStash = s, engineFx = engineFxMode, enginePromoted = table.concat(promoted, ",") })
 end
 
 Wait.frames(function()
@@ -6822,6 +6825,11 @@ Wait.frames(function()
     for guid, st in pairs(saved.engineStash) do
       stashed[guid] = { pos = Vector(st.pos[1], st.pos[2], st.pos[3]), rot = Vector(st.rot[1], st.rot[2], st.rot[3]), lock = st.lock }
     end
+  end
+  -- (players this table promoted before the reload: engine mode is off now, so they are demoted)
+  if ok and type(saved) == "table" and type(saved.enginePromoted) == "string" and ENGINE_PROMOTED ~= nil then
+    for sid in saved.enginePromoted:gmatch("[^,]+") do ENGINE_PROMOTED[sid] = true end
+    if enginePromoteSeated ~= nil then pcall(enginePromoteSeated) end
   end
   if ok and type(saved) == "table" and (saved.engineFx == "on" or saved.engineFx == "low" or saved.engineFx == "off") then engineFxMode = saved.engineFx end
   sweepEngineCards()
@@ -8312,7 +8320,7 @@ end
 -- left away from the camera, have it sit where the cannon would be"). Start sends the count. A rematch keeps it; a
 -- table reload clears it.
 engineFriendly = 0
-FRIENDLY_SPOT = Vector(-60, 1.1, 0) -- (the cannon's saved home, its memo "mtghome -60.000 0.732 0.000")
+FRIENDLY_SPOT = Vector(-47, 1.1, 5) -- (on the wood strip in front of the rim, right of Game mode with a gap; the user, 2026-11-14: "move these buttons down here and make sure they don't overlap". It was on the cannon's home, -60 0.732 0, on the rim)
 function engineFriendlyLabel()
   return "Free mulligans\n" .. (engineFriendly == 0 and "None" or tostring(engineFriendly))
 end
@@ -8335,7 +8343,7 @@ end
 -- game runs, the game's own mode (the bridge's "started") decides what the table shows (engineModeNow).
 ENGINE_GAME_MODE = "commander"
 engineRunningMode = nil -- the running game's mode, from "started"; nil between games
-MODE_SPOT = Vector(-60, 1.1, -6.5) -- (beside Free mulligans on the rim, along the same line: live check)
+MODE_SPOT = Vector(-47, 1.1, -5) -- (left of Free mulligans on the same strip, 10 apart so the two never overlap)
 function engineModeNow()
   if engineRunningMode ~= nil and engineTable ~= nil and engineTable() ~= nil then return engineRunningMode end
   return ENGINE_GAME_MODE
@@ -8449,6 +8457,13 @@ end
 
 function onPlayerChangeColor(color)
   if engineSetupButtons ~= nil then engineSetupButtons() end
+  -- (a player who sits down while engine mode is on is promoted; one who leaves their seat is demoted: make-engine-copy.js)
+  -- (two frames on: TTS may not have updated the player's seat yet when this runs)
+  Wait.frames(function()
+    if enginePromoteSeated == nil then return end
+    local ok, err = pcall(enginePromoteSeated)
+    if not ok then print("[MTG] promote seated players: " .. tostring(err)) end
+  end, 2)
 end
 -- on load (engine mode is off then): the middle tile with its engine switch
 Wait.frames(function() if engineSetupButtons ~= nil then pcall(engineSetupButtons) end end, 60)

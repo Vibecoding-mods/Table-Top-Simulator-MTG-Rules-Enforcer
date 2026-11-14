@@ -188,6 +188,29 @@ function setEngineMode(on)
     broadcastToAll("[MTG] Engine mode OFF: the table works as normal.", {1, 1, 1})
   end
   if engineSetupButtons ~= nil then pcall(engineSetupButtons) end -- the Ready / Start buttons come and go with it
+  enginePromoteSeated()
+end
+
+-- While engine mode is on, every seated player is promoted (TTS's own host-like permissions: delete, move and lock
+-- anything), so a player can clear their own deck or fix the table without the host. Only players the table promoted
+-- are demoted again: when engine mode goes off or they leave their seat. A player the host promoted stays promoted.
+-- The list survives a reload (onSave in engine-renderer.lua): engine mode is off after one, so they are demoted then.
+-- They do not get the host-only "mtg" commands (engineChat's isHost). A player who disconnects is dropped from the
+-- list the next time this runs while they are back and not promoted.
+-- (The user, 2026-11-14: "allow the other players the same privileges the host has when the engine is on".)
+ENGINE_PROMOTED = {} -- steam_id -> true: promoted by this table, not by the host
+function enginePromoteSeated()
+  for _, pl in ipairs(Player.getPlayers()) do
+    local sid = tostring(pl.steam_id)
+    local want = ENGINE_MODE and pl.seated and data[pl.color] ~= nil
+    if want and not (pl.host or pl.admin or pl.promoted) then
+      pl.promote() -- (TTS's promote() toggles; the guard above makes it a promote)
+      ENGINE_PROMOTED[sid] = true
+    elseif not want and ENGINE_PROMOTED[sid] then
+      if pl.promoted and not pl.host then pl.promote() end -- (a toggle: only while promoted)
+      ENGINE_PROMOTED[sid] = nil
+    end
+  end
 end
 
 -- Starts an engine game with the seated players (and "ai N" Forge AI players). "mtg start" (host) and the Start
@@ -252,7 +275,9 @@ function engineChat(message, pl)
   -- text passed ~55 characters, tmp/pattern-trap/audit.md)
   local cmd, restAt = lower:match("^%s*mtg%s*(%a*)%s*()")
   local rest = (lower:sub(restAt):gsub("%s+$", ""))
-  local isHost = pl.host or pl.admin or pl.promoted
+  -- (a player the table promoted for engine mode, enginePromoteSeated, is not a host here: the host-only commands stay the
+  -- host's and their own promoted players')
+  local isHost = pl.host or ((pl.admin or pl.promoted) and not (ENGINE_PROMOTED or {})[tostring(pl.steam_id)])
   -- (Two-Headed Giant's "mtg mode 2hg|ffa" and "mtg team ...": engineTeamChat, engine-renderer.lua)
   if engineTeamChat ~= nil and engineTeamChat(cmd, rest, pl, isHost) then return false end
   -- engine mode, starting a game, friendly mulligans and clearing a finished one: anyone, seated or not (playtest
