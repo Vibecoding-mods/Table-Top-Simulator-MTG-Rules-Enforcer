@@ -1079,6 +1079,7 @@ local function updateTrackers(m)
       if enginePlayerCounters ~= nil then pcall(enginePlayerCounters, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
       if engineExtraTurnBadge ~= nil then pcall(engineExtraTurnBadge, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
       if engineLifeTip ~= nil then pcall(engineLifeTip, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
+      if enginePoolChips ~= nil then pcall(enginePoolChips, getObjectFromGUID(LIFE_TRACKERS[color] or ""), pl) end
       for from, guid in pairs(CMD_DAMAGE[color] or {}) do
         setCounterVal(guid, (pl.cmdDamage or {})[from] or 0)
         engineCmdDamageTip(guid, (pl.cmdTip or {})[from])
@@ -1152,14 +1153,14 @@ function engineLifeTip(o, pl)
   if main.tooltip ~= want then o.editButton({ index = 0, tooltip = want }) end
 end
 -- (the label goes with the game: it stayed on the normal table after a reset, stage 3 review 2026-10-27)
--- (the extra-turn number beside the life counter goes too, engineExtraTurnBadge; from the last button down, as a
--- removal moves the ones after it)
+-- (the extra-turn number beside the life counter goes too, engineExtraTurnBadge, and the floating-mana chips,
+-- enginePoolChips; from the last button down, as a removal moves the ones after it)
 function engineCountersReset()
   for _, guid in pairs(LIFE_TRACKERS) do
     local o = getObjectFromGUID(guid)
     local buttons = (o and o.getButtons()) or {}
     for i = #buttons, 1, -1 do
-      if engineMarksIsBox(buttons[i]) or engineExtraTurnTip(buttons[i].tooltip) then o.removeButton(i - 1) end
+      if engineMarksIsBox(buttons[i]) or engineExtraTurnTip(buttons[i].tooltip) or enginePoolIsChip(buttons[i]) then o.removeButton(i - 1) end
     end
     if o ~= nil then pcall(engineLifeTip, o, nil) end
   end
@@ -4272,6 +4273,12 @@ function engineUpdateCorner(color, p)
   if smallLabel and #smallLabel > 30 and smallLabel:find(":") then smallLabel = smallLabel:sub(1, smallLabel:find(":", 1, true) - 1) end
   if bigLabel and #bigLabel > 22 then bigLabel = engineCut(bigLabel, 21) .. "…" end
   if smallLabel and #smallLabel > 30 then smallLabel = engineCut(smallLabel, 29) .. "…" end
+  -- (passing priority with mana floating loses it: the pass button says how much is in your pool, "Next (3 floating)",
+  -- PLAN 2026-11-13; after the cut above, so the count is never cut off: "Resolve (999 floating)" is 22)
+  if big == 1 and p.options[1].id == "__pass" then
+    local n = enginePoolTotal(color)
+    if n > 0 then bigLabel = bigLabel .. " (" .. n .. " floating)" end
+  end
   if big == nil and small == nil and p == nil and not over and engineLinger(color, function() engineUpdateCorner(color, nil) end) then return end
   -- a button whose words just changed under the pointer ignores clicks for 0.6 s (Resolve became Next as the spell
   -- resolved by itself, and the click meant for Resolve passed the main phase, playtest 2026-10-26). Only a new
@@ -4549,6 +4556,84 @@ local function poolText(color)
     end
   end
   return own .. (#others > 0 and ("\nFloating: " .. table.concat(others, " · ")) or "")
+end
+
+-- ───────── floating mana on the table (PLAN 2026-11-13) ─────────
+-- Each player's pool as a row of small chips on their life counter, between the heart and their mat: one chip a
+-- colour that has mana, in W U B R G C order, the mana's colour with its letter and amount ("G2"), hidden while the
+-- pool is empty. Everyone sees every pool (mana in a pool is public). Buttons of the tracker, as the marks boxes,
+-- found again by their click function, edited in place and redrawn only when the pool changes (or the tracker lost
+-- them: its own onload clears its buttons). Placement, in tracker-local units (480 button units to one): the row is
+-- centred on the heart at z `z`, `w` x `h` chips `gap` apart. The heart's own buttons end at z 0.48 and its life-change
+-- line (shown 3 s after a change, 440 high at z 0.7) at 1.16; the chips run 1.19..1.81, short of the mat's edge
+-- (1.92 from the counter's centre) and the first marks box (from 2.1); six chips span x -2.0..2.0 (world 1.0..6.0
+-- on a 1.258 tracker at x 3.5), clear of the commander-damage icons (from world 6.2). Checked in
+-- tests/test_table_floating_mana.js "fit".
+ENGINE_POOL_FIT = { w = 300, h = 300, gap = 25, font = 160, z = 1.5, perLocal = 480 }
+-- colour letter -> { chip colour, letter colour, the word in the hover text }
+ENGINE_POOL_LOOK = {
+  W = { { 0.97, 0.94, 0.78, 0.95 }, { 0.15, 0.12, 0.05 }, "white" },
+  U = { { 0.2, 0.5, 0.9, 0.95 }, { 1, 1, 1 }, "blue" },
+  B = { { 0.16, 0.13, 0.16, 0.95 }, { 0.9, 0.85, 0.9 }, "black" },
+  R = { { 0.85, 0.25, 0.18, 0.95 }, { 1, 1, 1 }, "red" },
+  G = { { 0.15, 0.55, 0.25, 0.95 }, { 1, 1, 1 }, "green" },
+  C = { { 0.68, 0.66, 0.63, 0.95 }, { 0.1, 0.1, 0.1 }, "colourless" },
+}
+function enginePoolNoop() end
+function enginePoolIsChip(b) return type(b) == "table" and b.click_function == "enginePoolNoop" end
+-- a pool (the bridge's { W = 2, C = 1 }, or nil) as { { k = "W", n = 2 }, ... } in W U B R G C order, empty ones left out
+function enginePoolList(pool)
+  local list = {}
+  if type(pool) ~= "table" then return list end
+  for _, k in ipairs(POOL_ORDER) do
+    local n = math.floor(tonumber(pool[k] or 0) or 0)
+    if n > 0 then list[#list + 1] = { k = k, n = n } end
+  end
+  return list
+end
+-- the mana in `color`'s own pool on the last board, all colours together (0 with none, or no board)
+function enginePoolTotal(color)
+  for _, pl in ipairs((lastTable and lastTable.players) or {}) do
+    if pl.color == color then
+      local n = 0
+      for _, c in ipairs(enginePoolList(pl.pool)) do n = n + c.n end
+      return n
+    end
+  end
+  return 0
+end
+function enginePoolChips(o, pl)
+  if o == nil then return end
+  local list = enginePoolList(pl.pool)
+  local sig, words = {}, {}
+  for i, c in ipairs(list) do
+    sig[i] = c.k .. c.n
+    words[i] = c.n .. " " .. ENGINE_POOL_LOOK[c.k][3]
+  end
+  local at = {}
+  for i, b in ipairs(o.getButtons() or {}) do if enginePoolIsChip(b) then at[#at + 1] = i - 1 end end
+  local key = "pool " .. o.getGUID()
+  local label = table.concat(sig, " ") .. "|" .. tostring(pl.name or pl.color)
+  if engineCountersShown[key] == label and #at == #list then return end
+  engineCountersShown[key] = label
+  -- (chips no longer needed go, from the last down as a removal moves the ones after it; the rest are edited in place)
+  for i = #at, #list + 1, -1 do o.removeButton(at[i]) end
+  local fit = ENGINE_POOL_FIT
+  local tip = "Floating mana in " .. tostring(pl.name or pl.color) .. "'s pool: " .. table.concat(words, ", ")
+    .. ".\nA pool empties at the end of each step and phase unless an effect keeps it. Everyone sees every pool."
+  local row = #list * fit.w + (#list - 1) * fit.gap
+  for i, c in ipairs(list) do
+    local look = ENGINE_POOL_LOOK[c.k]
+    local b = { label = sig[i], tooltip = tip, width = fit.w, height = fit.h, font_size = fit.font, color = look[1], font_color = look[2],
+      position = { (-row / 2 + (i - 1) * (fit.w + fit.gap) + fit.w / 2) / fit.perLocal, 0.06, fit.z } }
+    if at[i] ~= nil then
+      b.index = at[i]
+      o.editButton(b)
+    else
+      b.click_function, b.function_owner, b.rotation = "enginePoolNoop", Global, { 0, 0, 0 }
+      o.createButton(b)
+    end
+  end
 end
 
 -- "Waiting for you: draw 1 ..." while moves are held for the player.
