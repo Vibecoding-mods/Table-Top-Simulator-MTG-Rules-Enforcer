@@ -823,6 +823,225 @@ function engineTeamTurnTag(t, viewer)
   for _, c in ipairs(side) do if c == viewer then mine = true end end
   return "  <color=#B8D8FF>" .. (mine and "(YOUR TEAM)" or ("(TEAM " .. string.upper(engineTeamWords(side)) .. ")")) .. "</color>"
 end
+-- ── The team pieces (spec §5.6; looks only), drawn from each board's `teams` while a Two-Headed Giant game runs ──
+-- 1. Team tint: a line round each partner's mat, in the team's colour (green for the team with White, violet for the
+--    other), lying on the mat's border. Global vector lines, told apart from the target / attack / block lines and a
+--    player's own drawing by their exact thickness (`thick`); set only when the teams change, as they go into the save.
+-- 2. Team life: in the gap between the partners' mats (1.8 wide; the marks boxes keep 1.04 out from the middle line),
+--    centred on the point between the two mats' centres, readable from the team's side: "TEAM", then the team's one
+--    life total (810.4) on a box in the team's colour.
+-- 3. Commander damage, Commander games only: under it, "CMDR DMG", then one box per opposing commander in its owner's
+--    seat colour, "n/42": the team's damage from that commander (the bridge's cmdDamage, the team's total,
+--    teams.withTeamDamage; with partners one box per commander, from its cmdTip lines).
+-- Buttons on the team's first seat's playmat (a scripting zone, as the READY buttons: positionToLocal, the scale undone
+-- so 480 button units are one world unit), click function engineTeamNoop, edited in place when only their words change.
+-- Nothing at all in a free-for-all game (no board `teams`); everything goes with the game (engineResetUi) or engine mode,
+-- and after a reload (engineTeamLooksLoad: the lines are in the save, the buttons are not). The engineSetupButtons
+-- redraw clears the mats' buttons: it calls this again, which sees its buttons gone and puts them back.
+do -- (its own scope: the main chunk is at Lua's 200-locals limit; one local here)
+local TL = {
+  thick = 0.3501, y = 0.98, inset = 0.15, -- (the border lines: thickness, height, how far inside the mat zone's edge)
+  tint = { { 0.25, 0.85, 0.55 }, { 0.8, 0.45, 1 } },
+  box = { { 0.07, 0.34, 0.2, 0.95 }, { 0.32, 0.14, 0.42, 0.95 } },
+  w = 1.6, perWorld = 480, lift = 1.05, -- (the panel's width and height, world units; buttons at the READY buttons' height)
+  -- each element's depth along the gap and the gap after it (world units)
+  head = 0.5, life = 1.3, cmd = 0.8, gap = 0.08, gapGroup = 0.3, gapCmd = 0.12,
+  seat = { White = { { 0.95, 0.95, 0.95, 0.95 }, { 0.1, 0.1, 0.1 } }, Red = { { 0.86, 0.1, 0.09, 0.95 }, { 1, 1, 1 } },
+    Yellow = { { 0.9, 0.9, 0.17, 0.95 }, { 0.1, 0.1, 0.1 } }, Blue = { { 0.12, 0.53, 1, 0.95 }, { 1, 1, 1 } } },
+  seats = { "White", "Red", "Yellow", "Blue" },
+}
+engineTeamShown = nil -- { lines = signature of the lines drawn, panels = { [host colour] = the buttons' looks } }, nil: none
+engineTeamTL = TL -- (for the tests: its sizes)
+function engineTeamNoop() end
+function TL.isLine(l) return math.abs((tonumber(l.thickness) or 0) - TL.thick) < 0.00005 end
+-- the vector lines: the others kept, ours (a list, or none) after them; only when there are ours to take or add
+function TL.setLines(ours)
+  local keep, had = {}, false
+  for _, l in ipairs(Global.getVectorLines() or {}) do
+    if TL.isLine(l) then had = true else keep[#keep + 1] = l end
+  end
+  if not had and #ours == 0 then return end
+  for _, l in ipairs(ours) do keep[#keep + 1] = l end
+  Global.setVectorLines(keep)
+end
+-- our buttons on a mat, their indices (0-based) in order
+function TL.mine(mat)
+  local at = {}
+  for i, b in ipairs((mat and mat.getButtons()) or {}) do if b.click_function == "engineTeamNoop" then at[#at + 1] = i - 1 end end
+  return at
+end
+function TL.clearMat(mat)
+  local at = TL.mine(mat)
+  for i = #at, 1, -1 do mat.removeButton(at[i]) end
+end
+-- the largest font (at most `cap`) a label fits in a w x h box, world units (a letter about 0.58 of the font wide)
+function TL.font(label, w, h, cap)
+  local u = TL.perWorld
+  return math.max(60, math.floor(math.min(cap, (w * u - 60) / (0.58 * math.max(1, #label)), h * u * 0.78)))
+end
+-- "Name: 15" lines (the bridge's cmdTip) -> { { name, n } ... }, by plain finds
+function TL.tipLines(tip)
+  local out = {}
+  local rest = tostring(tip or "") .. "\n"
+  while #rest > 0 do
+    local nl = rest:find("\n", 1, true)
+    local line = rest:sub(1, nl - 1)
+    rest = rest:sub(nl + 1)
+    local cut, from = nil, 1
+    while true do
+      local at = line:find(": ", from, true)
+      if at == nil then break end
+      cut, from = at, at + 1
+    end
+    local n = cut and tonumber(line:sub(cut + 2)) or nil
+    if n ~= nil then out[#out + 1] = { name = line:sub(1, cut - 1), n = n } end
+  end
+  return out
+end
+-- one team's panel: { host = colour, rotY = world turn, list = { { label, tip, h, color, font, fcolor, at } ... } }
+function TL.panel(m, side, k, byColor, cmdLimit)
+  local ga, gb = seatGeometry(side[1]), seatGeometry(side[2])
+  if ga == nil or gb == nil then return nil end
+  local mid = (ga.mat + gb.mat) * 0.5
+  local d = gb.mat - ga.mat
+  local u = Vector(-d.z, 0, d.x)
+  local len = math.sqrt(u.x * u.x + u.z * u.z)
+  if len < 0.001 then return nil end
+  u = u * (1 / len)
+  if u.x * -mid.x + u.z * -mid.z < 0 then u = u * -1 end -- (the top of the words towards the table's middle)
+  local words = engineTeamWords(side)
+  local pl = byColor[side[1]] or byColor[side[2]] or {}
+  local life = tostring(pl.life == nil and "?" or pl.life)
+  local list = {}
+  local function add(label, tip, h, color, fcolor, cap, gapAfter)
+    list[#list + 1] = { label = label, tip = tip, h = h, color = color, fcolor = fcolor, font = TL.font(label, TL.w, h, cap), gap = gapAfter }
+  end
+  local tint = TL.tint[k]
+  add("TEAM", "Team " .. words, TL.head, { 0, 0, 0, 0.7 }, tint, 230, TL.gap)
+  add(life, "Team life: " .. words .. ". One total for both (810.4); either partner's counter shows it too. The team loses at 0.",
+    TL.life, TL.box[k], { 1, 1, 1 }, 520, TL.gapGroup)
+  if cmdLimit ~= nil then
+    add("CMDR DMG", "Commander damage to team " .. words .. ": the team loses at " .. cmdLimit .. " from one commander.", TL.head, { 0, 0, 0, 0.7 }, tint, 230, TL.gap)
+    for _, other in ipairs(m.teams.sides) do
+      if other ~= side then
+        for _, from in ipairs(other) do
+          local look = TL.seat[from] or TL.seat.White
+          local lines = TL.tipLines((pl.cmdTip or {})[from])
+          local owner = engineNameOf(from) .. "'s commander"
+          if #lines == 0 then lines = { { n = tonumber((pl.cmdDamage or {})[from]) or 0 } } end
+          for _, x in ipairs(lines) do
+            add(tostring(x.n) .. "/" .. cmdLimit, (x.name and (x.name .. " (" .. owner .. ")") or owner) .. ": " .. x.n .. " of " .. cmdLimit .. " commander damage to team " .. words .. ".",
+              TL.cmd, look[1], look[2], 330, TL.gapCmd)
+          end
+        end
+      end
+    end
+  end
+  local total = 0
+  for i, e in ipairs(list) do total = total + e.h + (i < #list and e.gap or 0) end
+  local top = mid + u * (total / 2)
+  local down = 0
+  for _, e in ipairs(list) do
+    local c = top - u * (down + e.h / 2)
+    e.at = Vector(c.x, TL.lift, c.z)
+    down = down + e.h + e.gap
+  end
+  -- (turned as a seat's g.rotY, which is 180 for White and Red, whose words read up towards +z; MoonSharp has
+  -- math.atan2, Lua 5.3 in the fake TTS a two-argument math.atan)
+  return { host = side[1], rotY = (180 + math.deg((math.atan2 or math.atan)(u.x, u.z))) % 360, list = list }
+end
+-- the line round colour c's mat, inset from the zone's edge
+function TL.matLine(c, k)
+  local g = seatGeometry(c)
+  local mat = data[c] and data[c].playmat
+  if g == nil or mat == nil then return nil end
+  local s = mat.getScale()
+  local hx, hz = s.x / 2 - TL.inset, s.z / 2 - TL.inset
+  local pts = {}
+  for _, f in ipairs({ { 1, 1 }, { -1, 1 }, { -1, -1 }, { 1, -1 }, { 1, 1 } }) do
+    local p = g.mat + g.right * (f[1] * hx) + g.fwd * (f[2] * hz)
+    pts[#pts + 1] = { p.x, TL.y, p.z }
+  end
+  return { points = pts, color = TL.tint[k], thickness = TL.thick }
+end
+-- put a panel's buttons on its host mat: edited in place when the same buttons are there, else drawn again
+function TL.put(p, was)
+  local mat = data[p.host] and data[p.host].playmat
+  if mat == nil then return end
+  local at = TL.mine(mat)
+  local same = was ~= nil and #was.list == #p.list and #at == #p.list
+  if same then
+    for i, e in ipairs(p.list) do
+      local o = was.list[i]
+      if o.at.x ~= e.at.x or o.at.z ~= e.at.z or o.h ~= e.h then same = false end
+    end
+  end
+  if same then
+    for i, e in ipairs(p.list) do
+      local o = was.list[i]
+      if o.label ~= e.label or o.tip ~= e.tip or o.font ~= e.font or tostring(o.color[1]) ~= tostring(e.color[1]) then
+        mat.editButton({ index = at[i], label = e.label, tooltip = e.tip, font_size = e.font, color = e.color, font_color = e.fcolor })
+      end
+    end
+    return
+  end
+  TL.clearMat(mat)
+  local s = mat.getScale()
+  local rot = (p.rotY - mat.getRotation().y) % 360
+  local sx, sz = s.x, s.z
+  if math.floor(rot + 0.5) % 180 == 90 then sx, sz = s.z, s.x end -- (TTS stretches a button after turning it: setupButton)
+  for _, e in ipairs(p.list) do
+    mat.createButton({ click_function = "engineTeamNoop", function_owner = Global, label = e.label, tooltip = e.tip,
+      position = mat.positionToLocal(e.at), rotation = { 0, rot, 0 }, scale = { 1 / sx, 1 / s.y, 1 / sz },
+      width = math.floor(TL.w * TL.perWorld), height = math.floor(e.h * TL.perWorld), font_size = e.font, color = e.color, font_color = e.fcolor })
+  end
+end
+-- all of it gone
+function TL.clear()
+  for _, c in ipairs(TL.seats) do
+    local mat = data[c] and data[c].playmat
+    if mat ~= nil then TL.clearMat(mat) end
+  end
+  TL.setLines({})
+  engineTeamShown = nil
+end
+-- From each board (updateTrackers), the end of a game (engineResetUi, m nil) and the setup redraw.
+function engineTeamLooks(m)
+  local sides = ENGINE_MODE and m ~= nil and type(m.teams) == "table" and m.teams.sides or nil
+  if type(sides) ~= "table" or #sides ~= 2 then
+    if engineTeamShown ~= nil then TL.clear() end
+    return
+  end
+  local byColor = {}
+  for _, pl in ipairs(m.players or {}) do if pl.color ~= nil then byColor[pl.color] = pl end end
+  local cmdLimit = (engineModeNow == nil or engineModeNow() ~= "standard") and tonumber(m.teams.cmd) or nil
+  local shown = engineTeamShown or { panels = {} }
+  local lines, sigs = {}, {}
+  for _, side in ipairs(sides) do
+    local k = 2
+    for _, c in ipairs(side) do if c == "White" then k = 1 end end
+    if #side == 2 then
+      for _, c in ipairs(side) do
+        local l = TL.matLine(c, k)
+        if l ~= nil then lines[#lines + 1] = l sigs[#sigs + 1] = c .. k end
+      end
+      local p = TL.panel(m, side, k, byColor, cmdLimit)
+      if p ~= nil then
+        TL.put(p, shown.panels[p.host])
+        shown.panels[p.host] = p
+      end
+    end
+  end
+  local sig = table.concat(sigs, ",")
+  if shown.lines ~= sig then TL.setLines(lines) shown.lines = sig end
+  engineTeamShown = shown
+end
+-- after a load: lines a saved 2HG game left (buttons aren't saved); a board that came in since redraws them
+function engineTeamLooksLoad()
+  if engineTeamShown == nil then TL.setLines({}) end
+end
+Wait.frames(function() pcall(engineTeamLooksLoad) end, 20)
+end
 -- the game's result for a viewer: won when their team won (2HG) or they are the winner
 function engineWonBy(m, viewer)
   local won = m.teams and m.teams.won
@@ -1190,6 +1409,7 @@ local function updateTrackers(m)
     end
   end
   if engineStatusPieces ~= nil then pcall(engineStatusPieces, m) end -- (the pieces for the marks: under the last box)
+  if engineTeamLooks ~= nil then pcall(engineTeamLooks, m) end -- (Two-Headed Giant: the team tint, life and commander damage)
   if m.active ~= nil and m.active ~= lastTurnSet then
     lastTurnSet = m.active
     if Player[m.active] ~= nil and Player[m.active].seated and Turns.turn_color ~= m.active then
@@ -4630,6 +4850,7 @@ function engineResetUi()
   if engineRewindUpdate ~= nil then engineRewindUpdate(nil, true) end
   if engineDrawLines ~= nil then pcall(engineDrawLines, nil, nil) end -- and the target/attack/block lines
   if engineCombatLunge ~= nil then pcall(engineCombatLunge, nil) end -- and the remembered attackers
+  if engineTeamLooks ~= nil then pcall(engineTeamLooks, nil) end -- and the Two-Headed Giant team pieces
   -- a new game checks decks again (the bridge forgets them on reset too): every Ready button goes back to yellow
   if engineReadyState ~= nil then for k in pairs(engineReadyState) do engineReadyState[k] = nil end end
   for k in pairs(engineSelected) do engineSelected[k] = nil end
@@ -8385,6 +8606,7 @@ function engineSetupButtons()
   end
   local tile = setupTile()
   if tile ~= nil then tile.clearButtons() end
+  if engineTeamLooks ~= nil then pcall(engineTeamLooks, game) end -- (the team pieces on the mats just cleared: put back)
   if engineTableButtons ~= nil then
     engineTableButtons(function(c) return ENGINE_MODE and c ~= nil and engineReadyState[c] == "ready" end)
   end
