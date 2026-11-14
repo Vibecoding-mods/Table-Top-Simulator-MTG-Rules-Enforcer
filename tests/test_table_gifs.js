@@ -213,6 +213,68 @@ const SEATED = ["White", "Blue"];
   ok("key removed (gif_config off): every frame goes", (val(r, "key removed")?.list || []).length === 0, val(r, "key removed"));
 }
 
+// ── favourites: the tab, the stars, paging, a pick; asked of the bridge (gif_favs / gif_star), never a search
+{
+  const FAVS = Array.from({ length: 9 }, (_, i) => item(`fav${i + 1}`, 300, 300, `Fav ${i + 1}`));
+  const favs = (req, page, items, ids, total) => msg("gif_favs", { color: "White", req, page, items, ids, total, max: 48, error: null }, 4);
+  const r = simulate({ save, seated: SEATED, host: "Blue", steps: [
+    SPY, CONFIG(true), { frames: 10 },
+    CLICK("White", "gifpick_White", "open"), SENT("sent open"),
+    favs(1, 0, [], [], 0),
+    lua('engineGifUiSearch(Player.White, "dogs", "gifq_White") return "ok"', "search"),
+    msg("gif_results", { color: "White", req: 1, first: false, q: "dogs", page: 0, items: ITEMS, total: 30, error: null }, 4), FRAMES("results"), SENT("sent search"),
+    CLICK("Blue", "gifst2_White", "blue stars"), SENT("sent blue star"),
+    CLICK("White", "gifst2_White", "star"), SENT("sent star"),
+    favs(2, 0, [ITEMS[1]], [ITEMS[1].id], 1), FRAMES("starred"),
+    CLICK("White", "giftabf_White", "fav tab"), SENT("sent fav tab"),
+    favs(3, 0, [ITEMS[1]], [ITEMS[1].id], 1), FRAMES("fav tab shown"),
+    CLICK("White", "gifst1_White", "unstar"), SENT("sent unstar"),
+    favs(4, 0, [], [], 0), FRAMES("fav empty"),
+    favs(4, 0, FAVS.slice(0, 8), FAVS.map((x) => x.id), 9), FRAMES("nine"),
+    CLICK("White", "gifmore_White", "fav more"), SENT("sent fav more"),
+    favs(5, 1, FAVS.slice(8), FAVS.map((x) => x.id), 9), FRAMES("fav page 2"),
+    favs(3, 0, [ITEMS[0]], [ITEMS[0].id], 1), FRAMES("stale favs"),
+    CLICK("White", "giftabs_White", "search tab"), SENT("sent search tab"), FRAMES("back to search"),
+    CLICK("White", "giftabf_White", "fav tab again"), favs(6, 1, FAVS.slice(8), FAVS.map((x) => x.id), 9),
+    CLICK("White", "gifr1_White", "fav pick"), { frames: 10 }, FRAMES("fav picked"), SENT("sent fav pick"),
+  ] });
+  const stars = (f) => Object.fromEntries([...(f?.xml || "").matchAll(/<Button id="gifst(\d)_White"[^>]*textColor="(#[0-9A-F]+)"/g)].map((m) => [m[1], m[2] === "#FFD24A"]));
+  const thumbs = (f) => [...(f?.xml || "").matchAll(/<Button id="gifr(\d)_White"[^>]*><Image image="([^"]+)"/g)].map((m) => [Number(m[1]), (f.shown || {})[m[2]]]);
+  const sends = (mark) => val(r, mark)?.list || [];
+  ok("favs: no errors", !r.errors.length, r.errors.join(" | "));
+  const o1 = sends("sent open").find((m) => m.t === "gif_favs");
+  ok("favs: opening the panel asks for the player's favourites once, with their Steam ID", o1 && o1.p.color === "White" && o1.p.steam === "sim-White" && o1.p.page === 0 && o1.p.req === 1, sends("sent open"));
+  const res = byC(val(r, "results"), "White");
+  ok("favs: each result has a star, none gold yet", JSON.stringify(stars(res)) === JSON.stringify({ 1: false, 2: false, 3: false }), stars(res));
+  ok("favs: the panel has the Search and Favourites tabs", res && res.xml.includes('id="giftabs_White"') && res.xml.includes('id="giftabf_White"') && res.xml.includes("Favourites (0)"), res?.xml);
+  ok("favs: another player's star click does nothing", sends("sent blue star").length === 0, sends("sent blue star"));
+  const st = sends("sent star").find((m) => m.t === "gif_star");
+  ok("favs: a star sends that GIF to the bridge (on), no search", st && st.p.on === true && st.p.item.id === "tallTwo" && st.p.item.mp4 === ITEMS[1].mp4 && st.p.item.thumb === ITEMS[1].thumb && st.p.steam === "sim-White" && !sends("sent star").some((m) => m.t === "gif_search"), sends("sent star"));
+  const sd = byC(val(r, "starred"), "White");
+  ok("favs: the bridge's answer turns that star gold and counts it", JSON.stringify(stars(sd)) === JSON.stringify({ 1: false, 2: true, 3: false }) && sd.xml.includes("Favourites (1)"), [stars(sd)]);
+  ok("favs: the results stay shown after a star", thumbs(sd).length === 3 && thumbs(sd).every(([i, u]) => u === ITEMS[i - 1].thumb), thumbs(sd));
+  const ft = sends("sent fav tab");
+  ok("favs: the Favourites tab asks the bridge, never GIPHY", ft.length === 1 && ft[0].t === "gif_favs" && ft[0].p.req === 3, ft);
+  const fs1 = byC(val(r, "fav tab shown"), "White");
+  ok("favs: the tab shows the favourites, loaded, starred, without the search box or More", fs1 && thumbs(fs1).length === 1 && thumbs(fs1)[0][1] === ITEMS[1].thumb && stars(fs1)[1] === true && !fs1.xml.includes('id="gifq_White"') && !fs1.xml.includes("gifmore_") && fs1.xml.includes("Favourites 1 of 1"), [thumbs(fs1), fs1?.xml]);
+  const un = sends("sent unstar").find((m) => m.t === "gif_star");
+  ok("favs: a gold star unstars it", un && un.p.on === false && un.p.item.id === "tallTwo", un);
+  const fe = byC(val(r, "fav empty"), "White");
+  ok("favs: an empty list says how to add one", fe && fe.xml.includes("No favourites yet") && !fe.xml.includes('id="gifr1_White"'), fe?.xml);
+  const nine = byC(val(r, "nine"), "White");
+  ok("favs: past 8, a More pages them", nine && thumbs(nine).length === 8 && nine.xml.includes('id="gifmore_White"') && nine.xml.includes("Favourites 1 of 2"), nine?.xml);
+  const fm = sends("sent fav more");
+  ok("favs: More on the tab asks the bridge for the next page, no search", fm.length === 1 && fm[0].t === "gif_favs" && fm[0].p.page === 1, fm);
+  const p2 = byC(val(r, "fav page 2"), "White");
+  ok("favs: page 2 of the favourites loads its thumbnail", p2 && thumbs(p2).length === 1 && thumbs(p2)[0][1] === FAVS[8].thumb && p2.xml.includes("Favourites 2 of 2"), [thumbs(p2), p2?.assets]);
+  ok("favs: an older ask's answer changes nothing", byC(val(r, "stale favs"), "White")?.xml === p2?.xml);
+  const bs = byC(val(r, "back to search"), "White");
+  ok("favs: the Search tab brings the results back, still loaded", bs && thumbs(bs).length === 3 && thumbs(bs).every(([i, u]) => u === ITEMS[i - 1].thumb) && bs.xml.includes('id="gifq_White"') && sends("sent search tab").length === 0, [thumbs(bs), sends("sent search tab")]);
+  const fp = byC(val(r, "fav picked"), "White");
+  ok("favs: a favourite's click shows it in the frame", fp && fp.img === FAVS[8].mp4 && !fp.xml.includes("gifpanel_"), fp);
+  ok("favs: and is told to the bridge like a pick, no search", sends("sent fav pick").some((m) => m.t === "gif_pick" && m.p.id === "fav9") && !sends("sent fav pick").some((m) => m.t === "gif_search"), sends("sent fav pick"));
+}
+
 // ── seats change: a frame for a new player, none for one who left
 {
   const r = simulate({ save, seated: SEATED, host: "Blue", steps: [
