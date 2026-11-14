@@ -9765,6 +9765,9 @@ engineGif = {
   playing = {},          -- colour -> true while the GIF plays (the still is off)
   holdWait = {},         -- colour -> the Wait that puts the still back
   spawning = {},         -- colour -> true while its frame is being spawned
+  spawnId = {},          -- colour -> number of its newest spawn (the watchdog's and a late callback's check)
+  loaded = {},           -- colour -> the spawnId whose callback came (the frame's picture arrived)
+  SPAWN_GIVE_UP_S = 10,  -- a spawn whose callback never comes (a refused picture link) frees the colour after this
   dirty = {},            -- colour -> true: changed while spawning, spawn again when it lands
   SIZE = 1.53,           -- a Custom Tile at scale 1 is 2 x 2; a card is 3.06 tall
   PLAY_S = 12,           -- seconds a GIF plays before it holds
@@ -9903,13 +9906,14 @@ function engineGif.play(c)
 end
 
 -- ───── spawning ─────
--- the first candidate spot no object lies on (else the first one)
+-- the first candidate spot no object lies on (else the first one). Runs once per new frame; the cheap distance test
+-- comes first so the busy table's far objects cost one getPosition each (no GM notes, no bounds)
 function engineGif.freeSpot(c, g)
   local G = engineGif
   local near = {}
   for _, o in ipairs(getObjects()) do
     local p = o.getPosition()
-    if o.type ~= "Scripting" and o.type ~= "Hand" and G.ownerOf(o) == nil and p.y > 0.5 and (p.x - g.mat.x) ^ 2 + (p.z - g.mat.z) ^ 2 < 625 then
+    if (p.x - g.mat.x) ^ 2 + (p.z - g.mat.z) ^ 2 < 625 and p.y > 0.5 and o.type ~= "Scripting" and o.type ~= "Hand" and G.ownerOf(o) == nil then
       local ok, b = pcall(o.getBounds)
       if ok and type(b) == "table" and b.size ~= nil and b.size.x < 10 and b.size.z < 10 then near[#near + 1] = b end
     end
@@ -9947,6 +9951,15 @@ function engineGif.spawn(c)
   local st = G.state[c]
   local s = G.SIZE / math.max(G.aspect(st), 1)
   G.spawning[c] = true
+  G.spawnId[c] = (G.spawnId[c] or 0) + 1
+  local id = G.spawnId[c]
+  -- (TTS calls back only once the picture loads: a link it refuses opens its import dialog and may never call back,
+  -- which would leave the colour "spawning" for good)
+  Wait.time(function()
+    if G.spawnId[c] ~= id or not G.spawning[c] then return end
+    G.spawning[c] = nil
+    if G.dirty[c] then G.dirty[c] = nil G.spawn(c) end
+  end, G.SPAWN_GIVE_UP_S)
   G.frames[c] = spawnObjectData({
     data = { Name = "Custom_Tile", Nickname = "GIF frame (" .. c .. ")", Description = st and G.xmlText(st.title) or "",
       GMNotes = "mtggif:" .. c, Memo = st and JSON.encode(st) or "", Locked = false,
@@ -9955,7 +9968,12 @@ function engineGif.spawn(c)
         CustomTile = { Type = 0, Thickness = 0.1, Stackable = false, Stretch = st ~= nil } } },
     position = pos, rotation = { 0, rotY, 0 }, scale = { s, 1, s },
     callback_function = function(obj)
+      if G.spawnId[c] ~= id then -- (late: the watchdog gave up on it and a newer frame was spawned)
+        if not G.same(G.frames[c], obj) and G.alive(obj) then obj.destruct() end
+        return
+      end
       G.spawning[c] = nil
+      G.loaded[c] = id
       if G.dirty[c] then G.dirty[c] = nil return G.spawn(c) end
       if not G.same(G.frames[c], obj) then return end
       Wait.frames(function() G.redraw(c) if G.playing[c] then G.play(c) end end, 2)
@@ -9986,10 +10004,15 @@ end
 function engineGif.sync()
   local G = engineGif
   G.adopt()
-  local want = {}
-  if G.on and not G.hostOff then
-    for _, c in ipairs(getSeatedPlayers()) do if G.canHave(c) then want[c] = true end end
+  local want, seated = {}, {}
+  for _, c in ipairs(getSeatedPlayers()) do
+    seated[c] = true
+    if G.on and not G.hostOff and G.canHave(c) then want[c] = true end
   end
+  -- (hide-for-me belongs to the player: whoever sits in a colour next doesn't inherit it; spectators keep theirs)
+  local unhid = false
+  for h in pairs(G.hidden) do if not seated[h] and h ~= "Grey" and h ~= "Black" then G.hidden[h] = nil unhid = true end end
+  if unhid then for f in pairs(G.frames) do if want[f] then G.redraw(f) end end end
   local gone = 0
   for c, o in pairs(G.frames) do
     if not want[c] then
@@ -10053,7 +10076,7 @@ function engineGif.onMessage(m)
       elseif G.alive(G.frames[c]) or G.spawning[c] then G.show(c, items[1]) end
       return
     end
-    G.results[c] = { q = m.q, page = tonumber(m.page) or 0, items = items, total = m.total }
+    G.results[c] = { q = m.q, page = tonumber(m.page) or 0, items = items, total = m.total, err = m.error ~= nil and m.error ~= "" }
     if m.error ~= nil and m.error ~= "" then G.status[c] = tostring(m.error)
     elseif #items == 0 then G.status[c] = "Nothing found."
     else G.status[c] = "Page " .. ((tonumber(m.page) or 0) + 1) .. ": click one to show it" end
@@ -10097,7 +10120,10 @@ function engineGif.onSearch(player, value, id)
   local c = id:sub(u + 1)
   if player == nil or player.color ~= c or G.frames[c] == nil then return end
   local q = G.trim(value)
-  if q == "" or (q == G.query[c] and G.results[c] ~= nil and G.results[c].q == q and G.status[c] ~= "Searching...") then return end
+  -- (onEndEdit also fires when the box loses focus, e.g. a click on a result: the same words as last time cost no
+  -- search unless the last one failed. Compared as the box shows them: xmlText drops & < > " from its text.)
+  local same = G.xmlText(q) == G.xmlText(G.query[c])
+  if q == "" or (same and (G.status[c] == "Searching..." or (G.results[c] ~= nil and not G.results[c].err))) then return end
   G.query[c] = q
   G.status[c] = "Searching..."
   G.redraw(c)
@@ -10199,10 +10225,12 @@ function onPlayerAction(player, action, targets)
   for _, o in ipairs(targets or {}) do
     local c = engineGif.ownerOf(o)
     if c ~= nil then
-      if action == A.Select then engineGif.play(c) end -- (clicking a frame, anyone: it plays again)
+      -- (a click on a frame, anyone's: it plays again; a box selection over many objects doesn't play them. Selecting
+      -- is never refused, so a box over the table still selects the rest; moving the selection is a PickUp, refused.)
+      if action == A.Select and #targets == 1 then engineGif.play(c) end
       local mine = player ~= nil and player.color == c
-      if not (mine and (action == A.PickUp or action == A.Select or action == A.RotateIncrementalLeft or action == A.RotateIncrementalRight)) then
-        if action ~= A.Select and player ~= nil then
+      if action ~= A.Select and not (mine and (action == A.PickUp or action == A.RotateIncrementalLeft or action == A.RotateIncrementalRight)) then
+        if player ~= nil then
           engineGif.say(player.color, mine and "Your GIF frame can only be moved (Clear in its panel empties it)." or (c .. "'s GIF frame: only " .. c .. " can move it. Its Replay button plays it again."))
         end
         return false
@@ -10236,7 +10264,18 @@ end
 engineGif.prevDestroy = onObjectDestroy
 function onObjectDestroy(obj)
   local c = engineGif.ownerOf(obj)
-  if c ~= nil and engineGif.same(engineGif.frames[c], obj) then engineGif.frames[c] = nil engineGif.syncSoon() end
+  if c ~= nil and engineGif.same(engineGif.frames[c], obj) then
+    engineGif.frames[c] = nil
+    engineGif.spawning[c] = nil -- (its spawn is over either way)
+    -- (a frame gone before its picture arrived: TTS refused the link and its import dialog's X deleted it; the frame
+    -- comes back empty rather than with the same link, which would open the dialog again)
+    if engineGif.loaded[c] ~= engineGif.spawnId[c] and engineGif.state[c] ~= nil then
+      engineGif.state[c] = nil
+      engineGif.playing[c] = nil
+      engineGif.say(c, "Your GIF couldn't be loaded, so your frame is empty again. Pick another one.")
+    end
+    engineGif.syncSoon()
+  end
   if engineGif.prevDestroy ~= nil then return engineGif.prevDestroy(obj) end
 end
 engineGif.prevColor = onPlayerChangeColor

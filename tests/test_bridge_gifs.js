@@ -118,6 +118,39 @@ function gifsWith(o = {}) {
     ok("cache: a day later the words are asked again", fetch.calls.length === 5, fetch.calls.length);
     ok("search: empty words refused without a call", /Type some words/.test((await g.search({ q: "  " })).error) && fetch.calls.length === 5);
   }
+  // ── one player can't spend the table's hour (the review, 2026-11-13): a gap between their own searches and 40% each
+  {
+    const { g, fetch, tick } = gifsWith({ hourLimit: 10 });
+    g.setKey("giphy", KEY);
+    await g.search({ q: "a", who: "White" });
+    const fast = await g.search({ q: "b", who: "White" });
+    ok("who: a second search within 2 s waits, no call", /One GIF search at a time/.test(fast.error || "") && fetch.calls.length === 1, fast);
+    ok("who: another player isn't held back by it", !(await g.search({ q: "c", who: "Blue" })).error && fetch.calls.length === 2);
+    ok("who: their cached words still answer at once", (await g.search({ q: "a", who: "White" })).items?.length === 3);
+    for (const q of ["d", "e", "f"]) { tick(2001); await g.search({ q, who: "White" }); }
+    tick(2001);
+    const share = await g.search({ q: "g", who: "White" });
+    ok("who: past 40% of the hour (4 of 10), their own searches rest, said in minutes", /your share of this hour's GIF searches: yours again in \d+ min/.test(share.error || "") && fetch.calls.length === 5, [share.error, fetch.calls.length]);
+    ok("who: the others still search", !(await g.search({ q: "h", who: "Blue" })).error && fetch.calls.length === 6);
+    tick(3600 * 1000);
+    ok("who: an hour later they search again", !(await g.search({ q: "g", who: "White" })).error);
+  }
+  // ── nothing that could hold the key reaches the log (the review, 2026-11-13)
+  {
+    const logs = [];
+    const leaky = async (url) => { throw new TypeError(`fetch failed for ${url}`); };
+    const g1 = G.createGifs({ fetch: leaky, now: () => 1, log: (s) => logs.push(s) });
+    g1.setKey("giphy", KEY);
+    const r = await g1.search({ q: "cat" });
+    ok("log: a fetch error that quotes the link (with the key) is logged by its name only", /couldn't reach GIPHY/.test(r.error) && logs.some((l) => /gif search: TypeError/.test(l)) && !logs.join("\n").includes(KEY), logs);
+    const corrupt = { read: () => JSON.parse(`{"giphy":${KEY}}`), write: () => {} };
+    const g2 = G.createGifs({ fetch: leaky, now: () => 1, store: corrupt, log: (s) => logs.push(s) });
+    ok("log: a corrupt key file: no key, and the log quotes none of the file", g2.hasKey() === false && logs.some((l) => /gif keys: can't read them \(SyntaxError\)/.test(l)) && !logs.join("\n").includes(KEY.slice(0, 8)), logs);
+    const shape = G.createGifs({ fetch: async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: "x1", images: { original: { mp4: "https://evil.example/x.mp4" } } }] }) }), now: () => 1, log: (s) => logs.push(s) });
+    shape.setKey("giphy", KEY);
+    await shape.search({ q: "z" });
+    ok("log: answers that all fail our checks are said (has GIPHY's shape changed?)", logs.some((l) => /1 answers, none usable/.test(l)), logs);
+  }
   {
     const f429 = fakeFetch(429);
     const { g, tick } = gifsWith({ fetch: f429 });
@@ -173,6 +206,10 @@ function gifsWith(o = {}) {
     const res = tts().find((m) => m.t === "gif_results");
     ok("bridge: a search answers that colour, with its req and first", res && res.color === "Blue" && res.req === 7 && res.first === true && res.page === 1 && res.items.length === 3 && res.error === null, res);
     ok("bridge: the search went to GIPHY with the table's rating", f.calls.length === 1 && f.calls[0].includes("rating=g&") && f.calls[0].includes("offset=8"), f.calls);
+    B.onTTS({ t: "gif_search", json: JSON.stringify({ color: "Blue", q: "dog", req: 8 }) });
+    await h.flush();
+    const fast = tts().filter((m) => m.t === "gif_results").pop();
+    ok("bridge: the player's colour is the search's who (a second search at once waits)", fast && fast.req === 8 && /One GIF search at a time/.test(fast.error || "") && f.calls.length === 1, fast);
     const n = tts().length;
     B.onTTS({ t: "gif_search", json: JSON.stringify({ color: "Grey", q: "cat" }) });
     B.onTTS({ t: "gif_search", json: JSON.stringify({ q: "cat" }) });

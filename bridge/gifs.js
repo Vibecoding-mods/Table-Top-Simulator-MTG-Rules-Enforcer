@@ -22,6 +22,10 @@ const CACHE_MAX = 300;
 const HOUR_MS = 3600 * 1000;
 const HOUR_LIMIT = 100; // a new GIPHY key is a beta key: 100 calls an hour (developers.giphy.com/docs/api)
 const REST_429_MS = 15 * 60 * 1000; // the provider said "too many requests" before our own count did
+// one player can't spend the table's hour alone: at most this share of it each, and a gap between their own searches
+// (a cached answer costs nothing and is never held back)
+const WHO_SHARE = 0.4;
+const WHO_GAP_MS = 2000;
 const FETCH_MS = 8000;
 const TITLE_MAX = 80;
 const PROVIDERS = ["giphy"];
@@ -117,6 +121,7 @@ function createGifs(opts = {}) {
   const hourLimit = Number(opts.hourLimit) > 0 ? Number(opts.hourLimit) : HOUR_LIMIT;
   let keys = null; // provider -> key, read once from the store
   const calls = []; // provider call times (ms) within the last hour
+  const whoCalls = new Map(); // who (a player's colour) -> their call times within the last hour
   let restUntil = 0;
   const cache = new Map(); // "provider|rating|page|words" -> { at, items, total }
 
@@ -124,7 +129,8 @@ function createGifs(opts = {}) {
     if (keys) return keys;
     keys = {};
     let saved = null;
-    try { saved = opts.store ? opts.store.read() : null; } catch (e) { log(`gif keys: can't read them (${e.message})`); }
+    // (only the error's code: JSON.parse's message quotes the file's text, i.e. part of the key)
+    try { saved = opts.store ? opts.store.read() : null; } catch (e) { log(`gif keys: can't read them (${(e && (e.code || e.name)) || "unreadable"})`); }
     for (const p of PROVIDERS) {
       const k = saved && typeof saved[p] === "string" ? saved[p] : "";
       if (validKey(k)) keys[p] = k;
@@ -168,7 +174,18 @@ function createGifs(opts = {}) {
     return out;
   }
 
-  // { provider, q, page, rating } -> { items, credit, total, words, page, rating, cached } or { error }
+  // how long `who` must wait for their own next call (0: now)
+  function whoWait(who, t) {
+    if (!who) return 0;
+    const list = (whoCalls.get(who) || []).filter((x) => x > t - HOUR_MS);
+    whoCalls.set(who, list);
+    const cap = Math.max(1, Math.floor(hourLimit * WHO_SHARE));
+    if (list.length >= cap) return list[0] + HOUR_MS - t;
+    if (list.length && t - list[list.length - 1] < WHO_GAP_MS) return list[list.length - 1] + WHO_GAP_MS - t;
+    return 0;
+  }
+
+  // { provider, q, page, rating, who } -> { items, credit, total, words, page, rating, cached } or { error }
   async function search(req = {}) {
     const provider = PROVIDERS.includes(req.provider) ? req.provider : "giphy";
     const ad = ADAPTERS[provider];
@@ -182,14 +199,20 @@ function createGifs(opts = {}) {
     if (hit && t - hit.at < CACHE_MS) return { ...base, items: hit.items, total: hit.total, cached: true };
     const wait = restingFor(t);
     if (wait > 0) return { ...base, error: restText(wait) };
+    const mine = whoWait(req.who, t);
+    if (mine > 0) {
+      return { ...base, error: mine <= WHO_GAP_MS ? "One GIF search at a time, please: try again in a moment."
+        : `You've had your share of this hour's GIF searches: yours again in ${Math.max(1, Math.ceil(mine / 60000))} min (words searched before still work).` };
+    }
     calls.push(t);
+    if (req.who) whoCalls.get(req.who).push(t);
     let res, body;
     try {
       const signal = typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(FETCH_MS) : undefined;
       res = await opts.fetch(ad.searchUrl(loadKeys()[provider], words, page, rating), { headers: { Accept: "application/json" }, signal });
       if (res.ok) body = await res.json();
     } catch (e) {
-      log(`gif search: ${e.message}`);
+      log(`gif search: ${(e && e.name) || "error"}${e && e.cause && e.cause.code ? ` ${e.cause.code}` : ""}`); // (never e.message: it may hold the link, with the key)
       return { ...base, error: "GIF search couldn't reach GIPHY. Try again in a moment." };
     }
     if (!res.ok) {
@@ -199,6 +222,7 @@ function createGifs(opts = {}) {
       return { ...base, error: p.error };
     }
     const { items, total } = ad.parse(body);
+    if (!items.length && Array.isArray(body?.data) && body.data.length) log(`gif search: ${body.data.length} answers, none usable (has GIPHY's answer changed shape?)`);
     if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
     cache.set(ck, { at: t, items, total });
     return { ...base, items, total };
