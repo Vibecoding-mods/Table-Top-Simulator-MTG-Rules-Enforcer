@@ -794,6 +794,22 @@ namespace MtgCompanion
             return w;
         }
 
+        // The header's light (the page's badge, the tray icon): the worst row, except after Stop everything, when it is
+        // grey ("Stopped") whatever the rows still running say (Docker stays green, TTS may be open), a red row aside
+        public static Light Overall(IEnumerable<Light> lights, bool everythingStopped)
+        {
+            var all = lights.ToList();
+            if (everythingStopped) return all.Contains(Light.Red) ? Light.Red : Light.Grey;
+            return Worst(all);
+        }
+
+        // The TTS row after Stop everything: Stop everything leaves TTS open, so the row says whether it runs
+        public static Verdict TtsAfterStop(bool running)
+        {
+            return running ? new Verdict(Light.Green, "Tabletop Simulator is running (Stop everything leaves it open).")
+                : new Verdict(Light.Grey, "Tabletop Simulator isn't running.");
+        }
+
         static int Rank(Light l) { return l == Light.Red ? 4 : l == Light.Amber ? 3 : l == Light.Busy ? 2 : l == Light.Green ? 1 : 0; }
     }
 
