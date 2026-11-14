@@ -8,7 +8,7 @@
 // engineSelfCheck (absent: nothing compares it on the live table yet) }, or { gap: what is missing }, or { skip: why not }.
 const CARD_FACTS = {
   id: { to: ["id"], show: "the card object's GM note, engine:<id>", check: "present" },
-  identity: { to: ["n", "f", "b", "o2", "n2", "tok"], show: "name, picture, back; a token's picture; a two-faced card's other face and its name, its second state (docs/card-other-side-spec.md)", check: "hoverName" },
+  identity: { to: ["n", "f", "b", "o2", "n2", "t2", "tok"], show: "name, picture, back; a token's picture; a two-faced card's other face, its name and (Scryfall's) rules text in the hover, its second state; an adventure or flip card's other part by name and text (docs/card-other-side-spec.md)", check: "hoverName" },
   color: { skip: "in the picture" },
   // (with effectiveManaCost: the cost badge compares the two, docs/cost-badge-spec.md)
   manaCost: { to: ["mc"], show: "the printed cost the cost badge compares the cost now against (sent only with ec)", check: "cost" },

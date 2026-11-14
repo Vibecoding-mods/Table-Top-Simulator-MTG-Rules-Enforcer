@@ -1,0 +1,570 @@
+{
+ "source": "api.scryfall.com/cards/collection, 2026-11-13: POST /cards/collection with the asked names (each card once); the fields the bridge reads",
+ "asked": [
+  "Valki, God of Lies",
+  "Emeria's Call",
+  "Shatterskull Smashing",
+  "Brightclimb Pathway",
+  "Delver of Secrets",
+  "Exdeath, Void Warlock",
+  "Fable of the Mirror-Breaker",
+  "Starscream, Power Hungry",
+  "Beloved Beggar",
+  "Gisela, the Broken Blade",
+  "Bruna, the Fading Light",
+  "Brisela, Voice of Nightmares",
+  "Bushi Tenderfoot",
+  "Kenzo the Hardhearted",
+  "Fire",
+  "Wear",
+  "Ribbons",
+  "Bonecrusher Giant",
+  "Stomp",
+  "Dirgur Island Dragon",
+  "Skimming Strike",
+  "Autonomous Assembler",
+  "Unholy Annex",
+  "Tibalt, Cosmic Impostor",
+  "Neo Exdeath, Dimension's End",
+  "Grizzly Bears"
+ ],
+ "data": [
+  {
+   "id": "ea7e4c65-b4c4-4795-9475-3cba71c50ea5",
+   "name": "Valki, God of Lies // Tibalt, Cosmic Impostor",
+   "layout": "modal_dfc",
+   "type_line": "Legendary Creature — God // Legendary Planeswalker — Tibalt",
+   "card_faces": [
+    {
+     "name": "Valki, God of Lies",
+     "type_line": "Legendary Creature — God",
+     "oracle_text": "When Valki enters, each opponent reveals their hand. For each opponent, exile a creature card they revealed this way until Valki leaves the battlefield.\n{X}: Choose a creature card exiled with Valki with mana value X. Valki becomes a copy of that card.",
+     "mana_cost": "{1}{B}",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/front/e/a/ea7e4c65-b4c4-4795-9475-3cba71c50ea5.jpg?1783928244"
+     }
+    },
+    {
+     "name": "Tibalt, Cosmic Impostor",
+     "type_line": "Legendary Planeswalker — Tibalt",
+     "oracle_text": "As Tibalt enters, you get an emblem with \"You may play cards exiled with Tibalt, Cosmic Impostor, and you may spend mana as though it were mana of any color to cast those spells.\"\n+2: Exile the top card of each player's library.\n−3: Exile target artifact or creature.\n−8: Exile all graveyards. Add {R}{R}{R}.",
+     "mana_cost": "{5}{B}{R}",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/back/e/a/ea7e4c65-b4c4-4795-9475-3cba71c50ea5.jpg?1783928244"
+     }
+    }
+   ],
+   "all_parts": [
+    {
+     "component": "combo_piece",
+     "name": "Tibalt, Cosmic Impostor Emblem"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Valki, God of Lies // Tibalt, Cosmic Impostor"
+    }
+   ]
+  },
+  {
+   "id": "c470539a-9cc7-4175-8f7c-c982b6072b6d",
+   "name": "Emeria's Call // Emeria, Shattered Skyclave",
+   "layout": "modal_dfc",
+   "type_line": "Sorcery // Land",
+   "card_faces": [
+    {
+     "name": "Emeria's Call",
+     "type_line": "Sorcery",
+     "oracle_text": "Create two 4/4 white Angel Warrior creature tokens with flying. Non-Angel creatures you control gain indestructible until your next turn.",
+     "mana_cost": "{4}{W}{W}{W}",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/front/c/4/c470539a-9cc7-4175-8f7c-c982b6072b6d.jpg?1783929425"
+     }
+    },
+    {
+     "name": "Emeria, Shattered Skyclave",
+     "type_line": "Land",
+     "oracle_text": "As this land enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {W}.",
+     "mana_cost": "",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/back/c/4/c470539a-9cc7-4175-8f7c-c982b6072b6d.jpg?1783929425"
+     }
+    }
+   ],
+   "all_parts": [
+    {
+     "component": "combo_piece",
+     "name": "Emeria's Call // Emeria, Shattered Skyclave"
+    },
+    {
+     "component": "token",
+     "name": "Angel Warrior"
+    }
+   ]
+  },
+  {
+   "id": "bc7239ea-f8aa-4a6f-87bd-c35359635673",
+   "name": "Shatterskull Smashing // Shatterskull, the Hammer Pass",
+   "layout": "modal_dfc",
+   "type_line": "Sorcery // Land",
+   "card_faces": [
+    {
+     "name": "Shatterskull Smashing",
+     "type_line": "Sorcery",
+     "oracle_text": "Shatterskull Smashing deals X damage divided as you choose among up to two target creatures and/or planeswalkers. If X is 6 or more, Shatterskull Smashing deals twice X damage divided as you choose among them instead.",
+     "mana_cost": "{X}{R}{R}",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/front/b/c/bc7239ea-f8aa-4a6f-87bd-c35359635673.jpg?1783929355"
+     }
+    },
+    {
+     "name": "Shatterskull, the Hammer Pass",
+     "type_line": "Land",
+     "oracle_text": "As this land enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {R}.",
+     "mana_cost": "",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/back/b/c/bc7239ea-f8aa-4a6f-87bd-c35359635673.jpg?1783929355"
+     }
+    }
+   ]
+  },
+  {
+   "id": "d24c3d51-795d-4c01-a34a-3280fccd2d78",
+   "name": "Brightclimb Pathway // Grimclimb Pathway",
+   "layout": "modal_dfc",
+   "type_line": "Land // Land",
+   "card_faces": [
+    {
+     "name": "Brightclimb Pathway",
+     "type_line": "Land",
+     "oracle_text": "{T}: Add {W}.",
+     "mana_cost": "",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/front/d/2/d24c3d51-795d-4c01-a34a-3280fccd2d78.jpg?1783929313"
+     }
+    },
+    {
+     "name": "Grimclimb Pathway",
+     "type_line": "Land",
+     "oracle_text": "{T}: Add {B}.",
+     "mana_cost": "",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/back/d/2/d24c3d51-795d-4c01-a34a-3280fccd2d78.jpg?1783929313"
+     }
+    }
+   ]
+  },
+  {
+   "id": "6904ea20-e504-47da-95a0-08739fdde260",
+   "name": "Delver of Secrets // Insectile Aberration",
+   "layout": "transform",
+   "type_line": "Creature — Human Wizard // Creature — Human Insect",
+   "card_faces": [
+    {
+     "name": "Delver of Secrets",
+     "type_line": "Creature — Human Wizard",
+     "oracle_text": "At the beginning of your upkeep, look at the top card of your library. You may reveal that card. If an instant or sorcery card is revealed this way, transform this creature.",
+     "mana_cost": "{U}",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/front/6/9/6904ea20-e504-47da-95a0-08739fdde260.jpg?1783908173"
+     }
+    },
+    {
+     "name": "Insectile Aberration",
+     "type_line": "Creature — Human Insect",
+     "oracle_text": "Flying",
+     "mana_cost": "",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/back/6/9/6904ea20-e504-47da-95a0-08739fdde260.jpg?1783908173"
+     }
+    }
+   ],
+   "all_parts": [
+    {
+     "component": "combo_piece",
+     "name": "Innistrad Checklist"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Delver of Secrets // Insectile Aberration"
+    }
+   ]
+  },
+  {
+   "id": "1b4bab87-4000-461d-8b58-d34928fee305",
+   "name": "Exdeath, Void Warlock // Neo Exdeath, Dimension's End",
+   "layout": "transform",
+   "type_line": "Legendary Creature — Spirit Warlock // Legendary Creature — Spirit Avatar",
+   "card_faces": [
+    {
+     "name": "Exdeath, Void Warlock",
+     "type_line": "Legendary Creature — Spirit Warlock",
+     "oracle_text": "When Exdeath enters, you gain 3 life.\nAt the beginning of your end step, if there are six or more permanent cards in your graveyard, transform Exdeath.",
+     "mana_cost": "{1}{B}{G}",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/front/1/b/1b4bab87-4000-461d-8b58-d34928fee305.jpg?1783906576"
+     }
+    },
+    {
+     "name": "Neo Exdeath, Dimension's End",
+     "type_line": "Legendary Creature — Spirit Avatar",
+     "oracle_text": "Trample\nNeo Exdeath's power is equal to the number of permanent cards in your graveyard.",
+     "mana_cost": "",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/back/1/b/1b4bab87-4000-461d-8b58-d34928fee305.jpg?1783906576"
+     }
+    }
+   ]
+  },
+  {
+   "id": "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc",
+   "name": "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
+   "layout": "transform",
+   "type_line": "Enchantment — Saga // Enchantment Creature — Goblin Shaman",
+   "card_faces": [
+    {
+     "name": "Fable of the Mirror-Breaker",
+     "type_line": "Enchantment — Saga",
+     "oracle_text": "(As this Saga enters and after your draw step, add a lore counter.)\nI — Create a 2/2 red Goblin Shaman creature token with \"Whenever this token attacks, create a Treasure token.\"\nII — You may discard up to two cards. If you do, draw that many cards.\nIII — Exile this Saga, then return it to the battlefield transformed under your control.",
+     "mana_cost": "{2}{R}",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/front/2/4/24c0d87b-0049-4beb-b9cb-6f813b7aa7dc.jpg?1783923875"
+     }
+    },
+    {
+     "name": "Reflection of Kiki-Jiki",
+     "type_line": "Enchantment Creature — Goblin Shaman",
+     "oracle_text": "{1}, {T}: Create a token that's a copy of another target nonlegendary creature you control, except it has haste. Sacrifice it at the beginning of the next end step.",
+     "mana_cost": "",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/back/2/4/24c0d87b-0049-4beb-b9cb-6f813b7aa7dc.jpg?1783923875"
+     }
+    }
+   ],
+   "all_parts": [
+    {
+     "component": "token",
+     "name": "Treasure"
+    },
+    {
+     "component": "token",
+     "name": "Goblin Shaman"
+    },
+    {
+     "component": "token",
+     "name": "Copy"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki"
+    }
+   ]
+  },
+  {
+   "id": "8234ea77-9ed6-4f3e-acc2-f52fb7003ed2",
+   "name": "Starscream, Power Hungry // Starscream, Seeker Leader",
+   "layout": "transform",
+   "type_line": "Legendary Artifact Creature — Robot // Legendary Artifact — Vehicle",
+   "card_faces": [
+    {
+     "name": "Starscream, Power Hungry",
+     "type_line": "Legendary Artifact Creature — Robot",
+     "oracle_text": "More Than Meets the Eye {2}{B} (You may cast this card converted for {2}{B}.)\nFlying\nWhenever you draw a card, if you're the monarch, target opponent loses 2 life.\nWhenever one or more creatures deal combat damage to you, convert Starscream.",
+     "mana_cost": "{3}{B}",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/front/8/2/8234ea77-9ed6-4f3e-acc2-f52fb7003ed2.jpg?1783919906"
+     }
+    },
+    {
+     "name": "Starscream, Seeker Leader",
+     "type_line": "Legendary Artifact — Vehicle",
+     "oracle_text": "Living metal (During your turn, this Vehicle is also a creature.)\nFlying, menace, haste\nWhenever Starscream deals combat damage to a player, if there is no monarch, that player becomes the monarch.\nWhenever you become the monarch, convert Starscream.",
+     "mana_cost": "",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/back/8/2/8234ea77-9ed6-4f3e-acc2-f52fb7003ed2.jpg?1783919906"
+     }
+    }
+   ],
+   "all_parts": [
+    {
+     "component": "combo_piece",
+     "name": "Starscream, Power Hungry // Starscream, Seeker Leader"
+    },
+    {
+     "component": "combo_piece",
+     "name": "The Monarch"
+    }
+   ]
+  },
+  {
+   "id": "6109b54e-56c5-4014-9f6d-d5f7a0fd725d",
+   "name": "Beloved Beggar // Generous Soul",
+   "layout": "transform",
+   "type_line": "Creature — Human Peasant // Creature — Spirit",
+   "card_faces": [
+    {
+     "name": "Beloved Beggar",
+     "type_line": "Creature — Human Peasant",
+     "oracle_text": "Disturb {4}{W}{W} (You may cast this card from your graveyard transformed for its disturb cost.)",
+     "mana_cost": "{1}{W}",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/front/6/1/6109b54e-56c5-4014-9f6d-d5f7a0fd725d.jpg?1783925674"
+     }
+    },
+    {
+     "name": "Generous Soul",
+     "type_line": "Creature — Spirit",
+     "oracle_text": "Flying, vigilance\nIf Generous Soul would be put into a graveyard from anywhere, exile it instead.",
+     "mana_cost": "",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/back/6/1/6109b54e-56c5-4014-9f6d-d5f7a0fd725d.jpg?1783925674"
+     }
+    }
+   ]
+  },
+  {
+   "id": "04506bad-3856-4184-8dda-941ded60f41a",
+   "name": "Gisela, the Broken Blade",
+   "layout": "meld",
+   "oracle_text": "Flying, first strike, lifelink\nAt the beginning of your end step, if you both own and control Gisela and a creature named Bruna, the Fading Light, exile them, then meld them into Brisela, Voice of Nightmares.",
+   "type_line": "Legendary Creature — Angel Horror",
+   "all_parts": [
+    {
+     "component": "combo_piece",
+     "name": "Eldritch Moon Checklist"
+    },
+    {
+     "component": "meld_result",
+     "name": "Brisela, Voice of Nightmares"
+    },
+    {
+     "component": "meld_part",
+     "name": "Bruna, the Fading Light"
+    },
+    {
+     "component": "meld_part",
+     "name": "Gisela, the Broken Blade"
+    }
+   ]
+  },
+  {
+   "id": "6fccdb60-5fce-4a6e-a709-b986f9a4b653",
+   "name": "Bruna, the Fading Light",
+   "layout": "meld",
+   "oracle_text": "When you cast this spell, you may return target Angel or Human creature card from your graveyard to the battlefield.\nFlying, vigilance\n(Melds with Gisela, the Broken Blade.)",
+   "type_line": "Legendary Creature — Angel Horror",
+   "all_parts": [
+    {
+     "component": "combo_piece",
+     "name": "Eldritch Moon Checklist"
+    },
+    {
+     "component": "meld_result",
+     "name": "Brisela, Voice of Nightmares"
+    },
+    {
+     "component": "meld_part",
+     "name": "Bruna, the Fading Light"
+    },
+    {
+     "component": "meld_part",
+     "name": "Gisela, the Broken Blade"
+    }
+   ]
+  },
+  {
+   "id": "7e926e19-553c-470a-afde-358541af5caa",
+   "name": "Brisela, Voice of Nightmares",
+   "layout": "meld",
+   "oracle_text": "Flying, first strike, vigilance, lifelink\nYour opponents can't cast spells with mana value 3 or less.",
+   "type_line": "Legendary Creature — Eldrazi Angel",
+   "all_parts": [
+    {
+     "component": "meld_result",
+     "name": "Brisela, Voice of Nightmares"
+    },
+    {
+     "component": "meld_part",
+     "name": "Bruna, the Fading Light"
+    },
+    {
+     "component": "meld_part",
+     "name": "Gisela, the Broken Blade"
+    }
+   ]
+  },
+  {
+   "id": "864ad989-19a6-4930-8efc-bbc077a18c32",
+   "name": "Bushi Tenderfoot // Kenzo the Hardhearted",
+   "layout": "flip",
+   "type_line": "Creature — Human Soldier // Legendary Creature — Human Samurai",
+   "card_faces": [
+    {
+     "name": "Bushi Tenderfoot",
+     "type_line": "Creature — Human Soldier",
+     "oracle_text": "When a creature dealt damage by this creature this turn dies, flip this creature.",
+     "mana_cost": "{W}"
+    },
+    {
+     "name": "Kenzo the Hardhearted",
+     "type_line": "Legendary Creature — Human Samurai",
+     "oracle_text": "Double strike; bushido 2 (Whenever this creature blocks or becomes blocked, it gets +2/+2 until end of turn.)",
+     "mana_cost": ""
+    }
+   ]
+  },
+  {
+   "id": "18303862-4726-4136-814f-157aa7006579",
+   "name": "Fire // Ice",
+   "layout": "split",
+   "type_line": "Instant // Instant",
+   "card_faces": [
+    {
+     "name": "Fire",
+     "type_line": "Instant",
+     "oracle_text": "Fire deals 2 damage divided as you choose among one or two targets.",
+     "mana_cost": "{1}{R}"
+    },
+    {
+     "name": "Ice",
+     "type_line": "Instant",
+     "oracle_text": "Tap target permanent.\nDraw a card.",
+     "mana_cost": "{1}{U}"
+    }
+   ]
+  },
+  {
+   "id": "e01cc65a-0e38-4f41-b9ed-796ef0355d0b",
+   "name": "Wear // Tear",
+   "layout": "split",
+   "type_line": "Instant // Instant",
+   "card_faces": [
+    {
+     "name": "Wear",
+     "type_line": "Instant",
+     "oracle_text": "Destroy target artifact.\nFuse (You may cast one or both halves of this card from your hand.)",
+     "mana_cost": "{1}{R}"
+    },
+    {
+     "name": "Tear",
+     "type_line": "Instant",
+     "oracle_text": "Destroy target enchantment.\nFuse (You may cast one or both halves of this card from your hand.)",
+     "mana_cost": "{W}"
+    }
+   ]
+  },
+  {
+   "id": "c6f61e2b-e93b-4dda-95cf-9d0ff198c0a6",
+   "name": "Cut // Ribbons",
+   "layout": "split",
+   "type_line": "Sorcery // Sorcery",
+   "card_faces": [
+    {
+     "name": "Cut",
+     "type_line": "Sorcery",
+     "oracle_text": "Cut deals 4 damage to target creature.",
+     "mana_cost": "{1}{R}"
+    },
+    {
+     "name": "Ribbons",
+     "type_line": "Sorcery",
+     "oracle_text": "Aftermath (Cast this spell only from your graveyard. Then exile it.)\nEach opponent loses X life.",
+     "mana_cost": "{X}{B}{B}"
+    }
+   ]
+  },
+  {
+   "id": "b5b71cd2-de35-451f-b16e-2e3936169407",
+   "name": "Bonecrusher Giant // Stomp",
+   "layout": "adventure",
+   "type_line": "Creature — Giant // Instant — Adventure",
+   "card_faces": [
+    {
+     "name": "Bonecrusher Giant",
+     "type_line": "Creature — Giant",
+     "oracle_text": "Whenever this creature becomes the target of a spell, this creature deals 2 damage to that spell's controller.",
+     "mana_cost": "{2}{R}"
+    },
+    {
+     "name": "Stomp",
+     "type_line": "Instant — Adventure",
+     "oracle_text": "Damage can't be prevented this turn. Stomp deals 2 damage to any target.",
+     "mana_cost": "{1}{R}"
+    }
+   ],
+   "all_parts": [
+    {
+     "component": "combo_piece",
+     "name": "On an Adventure"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Bonecrusher Giant // Stomp"
+    }
+   ]
+  },
+  {
+   "id": "b1d21a9a-6b0c-4fbc-a427-81be885d326b",
+   "name": "Dirgur Island Dragon // Skimming Strike",
+   "layout": "adventure",
+   "type_line": "Creature — Dragon // Instant — Omen",
+   "card_faces": [
+    {
+     "name": "Dirgur Island Dragon",
+     "type_line": "Creature — Dragon",
+     "oracle_text": "Flying\nWard {2} (Whenever this creature becomes the target of a spell or ability an opponent controls, counter it unless that player pays {2}.)",
+     "mana_cost": "{5}{U}"
+    },
+    {
+     "name": "Skimming Strike",
+     "type_line": "Instant — Omen",
+     "oracle_text": "Tap up to one target creature. Draw a card. (Then shuffle this card into its owner's library.)",
+     "mana_cost": "{1}{U}"
+    }
+   ]
+  },
+  {
+   "id": "d5dee863-e6ef-4061-a877-ddd3c4dbe87e",
+   "name": "Autonomous Assembler",
+   "layout": "prototype",
+   "oracle_text": "Prototype {1}{W} — 2/2 (You may cast this spell with different mana cost, color, and size. It keeps its abilities and types.)\nVigilance\n{1}, {T}: Put a +1/+1 counter on target Assembly-Worker you control.",
+   "type_line": "Artifact Creature — Assembly-Worker"
+  },
+  {
+   "id": "0fb4c734-c698-46f2-bc78-5f036f472e5b",
+   "name": "Unholy Annex // Ritual Chamber",
+   "layout": "split",
+   "type_line": "Enchantment — Room // Enchantment — Room",
+   "card_faces": [
+    {
+     "name": "Unholy Annex",
+     "type_line": "Enchantment — Room",
+     "oracle_text": "At the beginning of your end step, draw a card. If you control a Demon, each opponent loses 2 life and you gain 2 life. Otherwise, you lose 2 life.\n(You may cast either half. That door unlocks on the battlefield. As a sorcery, you may pay the mana cost of a locked door to unlock it.)",
+     "mana_cost": "{2}{B}"
+    },
+    {
+     "name": "Ritual Chamber",
+     "type_line": "Enchantment — Room",
+     "oracle_text": "When you unlock this door, create a 6/6 black Demon creature token with flying.\n(You may cast either half. That door unlocks on the battlefield. As a sorcery, you may pay the mana cost of a locked door to unlock it.)",
+     "mana_cost": "{3}{B}{B}"
+    }
+   ],
+   "all_parts": [
+    {
+     "component": "token",
+     "name": "Demon"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Unholy Annex // Ritual Chamber"
+    }
+   ]
+  },
+  {
+   "id": "409f9b88-f03e-40b6-9883-68c14c37c0de",
+   "name": "Grizzly Bears",
+   "layout": "normal",
+   "oracle_text": "",
+   "type_line": "Creature — Bear"
+  }
+ ]
+}
