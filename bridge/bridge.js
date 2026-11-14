@@ -1587,26 +1587,81 @@ function cachedImage(name) {
   if (name) { imageWanted.add(name); setImmediate(fetchImages); }
   return null;
 }
-// A lookup's answer into the cache. A card already pictured keeps its picture and only gains its face names: a card
-// asked again for its names (otherSide) must not change printing, which would replace it on the table.
+// A lookup's answer into the cache. A card already pictured keeps its picture and only gains what Scryfall says of its
+// faces (faces, texts, l, meld: scryEntries): a card asked again for them (otherSide) must not change printing, which
+// would replace it on the table.
 function putImage(name, entry) {
   const k = normName(name);
   const old = imageCache[k];
-  imageCache[k] = old?.face ? { ...old, ...(entry.faces ? { faces: entry.faces } : {}) } : entry;
+  const facts = Object.fromEntries(["faces", "texts", "l", "meld"].filter((f) => entry[f] != null).map((f) => [f, entry[f]]));
+  imageCache[k] = old?.face ? { ...old, ...facts } : entry;
 }
-// A two-faced card's other side, by Scryfall's pictures (the engine says isDoubleFaced only for transform and meld, not
-// for a modal double-faced card): { pic, name }, the name null until known. An entry from before names were kept asks
-// Scryfall once per bridge run; the board is sent again when it answers. null for a card with one face (an adventure,
-// a split or a flip card has one picture), a token or a copy (Clone as Valki has Valki's face only).
+// A Scryfall card's cache entries, [name, entry] by every name the engine may give it (docs/card-other-side-spec.md):
+// the card's own name and its first face's, with its picture and, with two pictures (a modal double-faced or
+// transforming card), its back; each other face under its own name, that face first: with two pictures showing that
+// face (a transformed card is named after its back face), with one the whole card (a flipped Kenzo the Hardhearted,
+// Stomp on the stack, Fire cast from Fire // Ice: such a name was never cached before 2026-11-13 and was asked for
+// again on every board). l: Scryfall's layout; faces, texts: each face's name and rules text, the entry's own first;
+// meld: the card a meld half becomes (Brisela, Voice of Nightmares for Gisela and Bruna), whose own text is kept.
+function scryEntries(card) {
+  const id = card?.id;
+  if (!id || !card.name) return [];
+  const pic = (side) => `https://img.klrmngr.com/display/${side}/${id[0]}/${id[1]}/${id}.webp`;
+  const faces = (card.card_faces || []).filter((f) => f?.name);
+  const face = pic("front");
+  const back = faces.length > 1 && faces[1].image_uris ? pic("back") : null;
+  const meld = card.layout === "meld" ? (card.all_parts || []).find((p) => p.component === "meld_result")?.name : null;
+  const base = { face, back, ...(card.layout ? { l: card.layout } : {}), ...(meld && normName(meld) !== normName(card.name) ? { meld } : {}),
+    ...(card.layout === "meld" && faces.length < 2 && card.oracle_text != null ? { texts: [card.oracle_text] } : {}) };
+  if (faces.length < 2) return [[card.name, base]];
+  const names = faces.map((f) => f.name), texts = faces.map((f) => f.oracle_text ?? "");
+  const first = (list, i) => [list[i], ...list.filter((_, j) => j !== i)];
+  const out = [[card.name, { ...base, faces: names, texts }], [names[0], { ...base, faces: names, texts }]];
+  for (let i = 1; i < names.length; i++) out.push([names[i], { ...base, ...(back && i === 1 ? { face: back, back: face } : {}), faces: first(names, i), texts: first(texts, i) }]);
+  return out;
+}
+// How many faces Forge's own scripts give the card a name belongs to (bridge/forge-cards.json maps every face's name,
+// and "A // B", to the card's): 2 for Bonecrusher Giant (Stomp), Gisela (Brisela) or Fire // Ice; 1 for one face.
+let forgeFaceTotals = null;
+function forgeFaceCount(name) {
+  if (!forgeFaceTotals) {
+    forgeFaceTotals = Object.create(null);
+    for (const [k, v] of Object.entries(forgeIndex())) if (!k.includes(" // ")) forgeFaceTotals[v] = (forgeFaceTotals[v] || 0) + 1;
+  }
+  return forgeFaceTotals[forgeIndex()[normName(name)]] || 0;
+}
+// A card's other side (docs/card-other-side-spec.md, the layouts table): { pic, name, text }. pic: the other face's
+// picture, by Scryfall's (the engine says isDoubleFaced only for transform and meld, not for a modal double-faced card),
+// or for a meld half the card it melds into; null for a card whose parts share one picture (an adventure, a flip card),
+// which still has the other part's name and rules text (the engine's text is the part it shows). name, text: null until
+// known. An entry Scryfall hasn't described (no l: from before 2026-11-13) asks it once per bridge run when the card may
+// have another side (a back, Forge's faces, a meld); the board is sent again when it answers. null for a card of one
+// face, a split card (its name and text are both halves already), a token or a copy (Clone as Valki has Valki's only).
 const facesAsked = new Set();
 function otherSide(c, name) {
-  if (!name || c.identity?.isToken || c.isCopy) return null;
-  const hit = imageCache[normName(name)];
-  if (!hit?.back) return null;
-  if (!hit.faces && !facesAsked.has(normName(name))) { facesAsked.add(normName(name)); imageWanted.add(name); setImmediate(fetchImages); }
+  if (!name || c.identity?.isToken || c.isCopy || name.includes(" // ")) return null;
   const own = normName(name);
-  const other = (hit.faces || []).find((n) => normName(n) !== own) || null;
-  return { pic: hit.back, name: other };
+  const hit = imageCache[own];
+  if (!hit) return null;
+  if (!hit.l && !facesAsked.has(own) && (hit.back || forgeFaceCount(name) > 1 || /\bmeld/i.test(c.text || ""))) {
+    facesAsked.add(own); imageWanted.add(name); setImmediate(fetchImages);
+  }
+  const meldName = hit.meld && normName(hit.meld) !== own ? hit.meld : null;
+  const meld = meldName ? imageCache[normName(meldName)] || cachedImage(meldName) : null;
+  const at = (hit.faces || []).findIndex((n) => normName(n) !== own);
+  const other = meldName || (at >= 0 ? hit.faces[at] : null);
+  const pic = hit.back || meld?.face || null;
+  if (!pic && !other) return null;
+  return { pic, name: other, text: (meldName ? meld?.texts?.[0] : at >= 0 ? hit.texts?.[at] : null) ?? null };
+}
+// A face of a card printed whole on one picture (a flipped Kenzo the Hardhearted, Stomp on the stack, Fire from
+// Fire // Ice): the card's name as the decks know it (Forge's), for its owner's printing (imagesFor); null for any
+// other name. Known once Scryfall has described the face (faces, no back); a meld result (Brisela) has no faces and
+// keeps its own picture.
+function wholeCardName(name) {
+  const hit = imageCache[normName(name)];
+  const whole = forgeIndex()[normName(name)];
+  return hit && !hit.back && (hit.faces || []).length > 1 && whole && normName(whole) !== normName(name) ? whole : null;
 }
 // The side of a two-faced card an action plays: 1 the face the card shows (its name), 2 its other face; null for an
 // action of no one side (an ability, cycling) or a card with one face. Forge's harness names the face in the label,
@@ -1615,7 +1670,8 @@ function otherSide(c, name) {
 function actionSide(a, card) {
   if (!a || !card) return null;
   const own = card.identity?.name || "";
-  if (!otherSide(card, own)) return null;
+  // (two pictures, two TTS states to show a side by; one picture shows every part, and the drag asks which)
+  if (!otherSide(card, own)?.pic) return null;
   if (a.mode?.type === "backFaceLand") return 2;
   if (a.type !== "cast" && a.type !== "playLand") return null;
   const said = /^(?:Cast|Play) (.+)$/.exec(String(a.label || ""))?.[1];
@@ -1664,32 +1720,17 @@ async function fetchImages() {
       }
       imageBackoff = 0;
       const body = await res.json();
-      for (const card of body.data || []) {
-        const faces = card.card_faces || [];
-        // Same image server the table's Card Importer uses (TTS-friendly); Scryfall's own CDN fails to load in
-        // TTS when many pictures are requested at once.
-        const hasBack = faces.length > 1 && faces[1]?.image_uris;
-        const id = card.id;
-        const face = id ? `https://img.klrmngr.com/display/front/${id[0]}/${id[1]}/${id}.webp` : null;
-        const back = id && hasBack ? `https://img.klrmngr.com/display/back/${id[0]}/${id[1]}/${id}.webp` : null;
-        if (!face) continue;
-        // (a two-faced card's face names, its own first: the table names both, docs/card-other-side-spec.md)
-        const names = back && faces[0]?.name && faces[1]?.name ? [faces[0].name, faces[1].name] : null;
-        const entry = { face, back, ...(names ? { faces: names } : {}) };
-        putImage(card.name, entry);
-        if (faces[0]?.name) putImage(faces[0].name, entry);
-        // the back face under its own name, showing the back: a transformed card is named after its back face
-        // (before this, that name was never found and was asked for again and again)
-        if (faces[1]?.name && back) putImage(faces[1].name, { face: back, back: face, ...(names ? { faces: [names[1], names[0]] } : {}) });
-      }
+      // (Same image server the table's Card Importer uses (TTS-friendly); Scryfall's own CDN fails to load in TTS when
+      // many pictures are requested at once. Every name a card may go by: scryEntries.)
+      for (const card of body.data || []) for (const [n, e] of scryEntries(card)) putImage(n, e);
       // Scryfall's batch lookup misses split and Room cards ("Alive // Well"); its exact-name lookup finds them
       for (const miss of body.not_found || []) {
         const r = miss.name && miss.name.includes(" // ") ? await fetchNamed(miss.name) : "notfound";
         if (r === "error") { imageWanted.add(miss.name); continue; } // asked again on the next round
-        const card = r.card;
-        imageCache[normName(miss.name)] = card?.id
-          ? { face: `https://img.klrmngr.com/display/front/${card.id[0]}/${card.id[1]}/${card.id}.webp`, back: null }
-          : { face: null, back: null };
+        const entries = scryEntries(r.card);
+        for (const [n, e] of entries) putImage(n, e);
+        if (entries.length) putImage(miss.name, entries[0][1]);
+        else imageCache[normName(miss.name)] = { face: null, back: null };
       }
       saveImageCache();
       await new Promise((r) => setTimeout(r, 120)); // Scryfall asks for ~10 requests/second at most
@@ -1882,7 +1923,8 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
   const name = c.identity.name;
   // the picture: a token's own (tokenImage), else its owner's deck's (a token copy of a deck card too), else by name
   const tok = c.identity.isToken ? tokenImage(c) : null;
-  const img = tok?.face ? tok : imagesFor(name, game.slotColor?.[c.ownerId] || null, c.id);
+  // (a face of a card printed whole on one picture, a flipped Kenzo the Hardhearted: its deck's picture of that card)
+  const img = tok?.face ? tok : imagesFor(name, game.slotColor?.[c.ownerId] || null, c.id) || imagesFor(wholeCardName(name), game.slotColor?.[c.ownerId] || null, c.id);
   const face = img?.face || cachedImage(name)?.face || null;
   // (the table's badge shows when the numbers differ from bp/bt, so these are what the card's picture says, null when
   // it says none or isn't known: Saw in Half's 1/1 tokens of a 2/2 have a base of 1/1, and looked 2/2 with no badge,
@@ -1909,7 +1951,9 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     id: c.id, n: name, f: face, b: imageCache[normName(name)]?.back || img?.back || DEFAULT_BACK,
     // (and its other side again, kept where the back is the plain one, a hand: the table gives such a card a second
     // state to read and cast it by, docs/card-other-side-spec.md; n2 that side's name)
-    ...(other ? { o2: other.pic, ...(other.name ? { n2: other.name } : {}) } : {}),
+    // (t2 that side's rules text: the engine's is the side it shows. A card whose parts share one picture, Bonecrusher
+    // Giant // Stomp, has the name and text but no o2, so no second state: its picture shows both)
+    ...(other ? { ...(other.pic ? { o2: other.pic } : {}), ...(other.name ? { n2: other.name } : {}), ...(other.text ? { t2: other.text } : {}) } : {}),
     tl: typeLine, cmc: c.cmc || 0, tx: c.text || "", ty: c.types || [],
     // (its colours, WUBRG letters or C, sent once with the static details: the table's wipe and bolt colours)
     ...(cl ? { cl } : {}),
@@ -5177,7 +5221,7 @@ function slimmer(game) {
   const slim = (c) => {
     if (c.n == null) return c; // hidden card: nothing to share
     // rules text is the bulk of a card and TTS decodes ~15 ms per KB: it follows separately in small pieces
-    const st = { n: c.n, f: shortUrl(c.f), b: shortUrl(c.b), o2: shortUrl(c.o2), n2: c.n2, tl: c.tl, cmc: c.cmc, ty: c.ty, tok: c.tok, bp: c.bp, bt: c.bt, cl: c.cl };
+    const st = { n: c.n, f: shortUrl(c.f), b: shortUrl(c.b), o2: shortUrl(c.o2), n2: c.n2, t2: c.t2, tl: c.tl, cmc: c.cmc, ty: c.ty, tok: c.tok, bp: c.bp, bt: c.bt, cl: c.cl };
     for (const k of Object.keys(st)) if (st[k] == null || st[k] === false) delete st[k];
     const key = JSON.stringify(st) + "|" + (c.tx || "");
     if (game.sentStatic[c.id] !== key) {
@@ -5188,7 +5232,7 @@ function slimmer(game) {
       // named from it, hp-12 re-test 2026-10-27)
       if (c.tx) (game.cardText ??= {})[c.id] = c.tx;
     }
-    const { n, f, b, o2, n2, tl, cmc, tx, ty, tok, bp, bt, cl, ...dyn } = c;
+    const { n, f, b, o2, n2, t2, tl, cmc, tx, ty, tok, bp, bt, cl, ...dyn } = c;
     const out = { s: 1 };
     for (const [k, v] of Object.entries(dyn)) {
       // leave out defaults (untapped, no counters, ...); power/toughness 0 is real information
@@ -5498,7 +5542,9 @@ const IMG_DIR = home.tmp("img-cache"); // jpgs for the /img/ route (older table 
 // card: the engine card (or stack item) it is the picture of, for its owner's deck and its printing (imagesFor): the
 // picture in a question is the one on the table
 function pictureOf(name, card = null) {
-  return (name && (imagesFor(name, card ? game?.slotColor?.[card.ownerId] || null : null, card?.id)?.face || cachedImage(name)?.face)) || null;
+  const owner = card ? game?.slotColor?.[card.ownerId] || null : null;
+  // (Stomp or Fire on the stack: its deck's picture of the whole card, Bonecrusher Giant, Fire // Ice: wholeCardName)
+  return (name && (imagesFor(name, owner, card?.id)?.face || imagesFor(wholeCardName(name), owner, card?.id)?.face || cachedImage(name)?.face)) || null;
 }
 
 // The picture the table's card row shows for a card (undefined when face-down or not known yet).

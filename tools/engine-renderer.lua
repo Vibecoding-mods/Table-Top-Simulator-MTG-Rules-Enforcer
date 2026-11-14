@@ -73,6 +73,9 @@ local function description(c)
   local s = c.ct and ("[b]Text changed:[/b]\n" .. c.ct) or (c.tx or "")
   if c.pn then s = "[b]" .. c.pn .. "[/b], as " .. tostring(c.n) .. "\n" .. s end
   if c.p ~= nil and c.t ~= nil then s = s .. "\n[b]" .. tostring(c.p) .. "/" .. tostring(c.t) .. "[/b]" end
+  -- (its other side's text, the engine's being the side it shows: Stomp on Bonecrusher Giant, Tibalt in Valki's state
+  -- 2, readable in a hand, docs/card-other-side-spec.md)
+  if c.t2 ~= nil and c.n2 ~= nil then s = s .. (s == "" and "" or "\n\n") .. "[b]" .. tostring(c.n2) .. "[/b]\n" .. tostring(c.t2) end
   if c.ew and c.rl then s = s .. "\n[i]" .. COMES_BACK .. "[/i]" end
   -- (what it can still do from a graveyard or exile, and its counters there: flashback, madness, warp, plot, suspend's
   -- time counters, from the bridge's cardNotes)
