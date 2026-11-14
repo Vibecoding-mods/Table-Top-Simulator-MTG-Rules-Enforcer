@@ -74,6 +74,10 @@ five minutes:
   **End turn**. The blue one under it is the other choice. Tip: bind *MTG: pass priority / main button* to **P**
   (Options → Controls → scripting hotkeys). When a new question changes the button's words (Resolve becomes Next),
   a click in the next half second is ignored, so a click meant for the old button doesn't pass by mistake.
+- **Floating mana:** mana in a player's pool shows as coloured chips on their life counter, on the side towards
+  their mat: one chip a colour, its letter and amount (**G2** = two green, **C** = colourless). Everyone's pool
+  shows; the chips go when the pool empties (at the end of each step and phase, unless an effect keeps the mana).
+  While you have mana floating, your pass button says so, **Next (3 floating)**: passing loses it.
 - **Step banners:** when the table stops to ask you something, the step shows in the middle of the screen (UPKEEP,
   DRAW, MAIN PHASE 1, COMBAT, MAIN PHASE 2, END STEP, CLEANUP), once per step. Never with Auto-resolve on. Turn and
   win banners name the player by their Steam name.

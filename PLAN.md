@@ -7,7 +7,7 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
 ---
 
 ## 2026-11-13 (asked by the user)
-- ⬜ **Floating mana you can see at a glance.** Today your pool shows only as a line in the engine panel's status text
+- 🔶 **Floating mana you can see at a glance.** Today your pool shows only as a line in the engine panel's status text
   ("Your mana pool: GG B"), with the other players' pools under it ("Floating: AI 1 RR · Red G",
   `poolText`, engine-renderer.lua); players don't notice it, so they can't tell how much mana they have
   floating. Wanted: a counter on the table for each player's pool, beside the life heart like the player marks: one
@@ -15,6 +15,14 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   emptied when the step ends. Everyone sees every pool (mana in a pool is public). Also: the total on your "Done" /
   pass-priority button ("Pass (3 floating)"), since passing with mana floating loses it. Data: the bridge already
   sends each player's pool to the table (the status line reads it), so this is table-side only.
+  - (in source, not seen live; branch floating-mana) Built table-side only (the bridge already sends every row's
+    `pool`): `enginePoolChips` draws a row of chips on each life counter, between the heart and the player's mat
+    (local z 1.5, centred, "G2" in the mana's colour, W U B R G C order, hover names the player and the amounts),
+    edited in place and redrawn only on a change, removed with the game's counters; the pass button reads "Next (3
+    floating)" / "Resolve (1 floating)" from your own pool (`enginePoolTotal`). The status-text line stays. Tests:
+    tests/test_table_floating_mana.js (incl. the fit on all four counters). Gap: a turn you control (Mindslaver)
+    counts your own pool on the button, not the controlled player's. Needs a look on the real table (chip size,
+    colours).
 
 ## 2026-11-12
 - 🔶 (in source, not seen live) Prepared readable on the table (docs/HAND-TEST-HP06.md #20; Grave Researcher, Emeritus
