@@ -10495,6 +10495,7 @@ engineGif = {
   -- reloads an Object UI asset whose name it has already loaded with another link: page 2 under page 1's names t1..t8
   -- stayed blank white cards (seen live 2026-11-14)
   thumbGen = {},
+  assetSig = {}, -- (colour -> the frame object and its pictures last set: a change sets the XML again once loaded)
   -- favourites (kept by the bridge on the host's PC, per Steam ID: bridge/gifs.js createFavs; never a GIPHY search)
   tab = {},              -- colour -> "fav" while their panel shows their favourites (nil: the search results)
   favs = {},             -- colour -> { page, items, total, gen } of the favourites page shown
@@ -10651,8 +10652,22 @@ function engineGif.redraw(c)
       end
     end
   end
+  -- (real TTS draws a picture whose asset is still loading as a blank white card, and keeps it so until the XML is set
+  -- again: live 2026-11-14 the panel's page 2 stayed white under fresh names and loaded at a second setXml. So when the
+  -- pictures change, the XML is set again once UI.loading is over, or after 10 s at the latest)
+  local sig = { o.getGUID() }
+  for _, a in ipairs(assets) do sig[#sig + 1] = a.name .. "=" .. a.url end
+  sig = table.concat(sig, "|")
+  local changed = G.assetSig[c] ~= sig
+  G.assetSig[c] = sig
   o.UI.setCustomAssets(assets)
   o.UI.setXml(G.xml(c))
+  if changed then
+    local again = function() if G.alive(o) then o.UI.setXml(G.xml(c)) end end
+    Wait.frames(function()
+      Wait.condition(again, function() return not G.alive(o) or o.UI.loading ~= true end, 10, again)
+    end, 2)
+  end
   local hiders = {}
   for _, h in ipairs(G.COLORS) do if G.hidden[h] then hiders[#hiders + 1] = h end end
   o.setInvisibleTo(hiders)

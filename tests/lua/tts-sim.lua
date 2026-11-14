@@ -299,8 +299,17 @@ local function makeObj(d)
     or (d.Name == "ScriptingTrigger" and "Scripting") or (d.Name == "HandTrigger" and "Hand") or (d.Name:find("Token") and "Token") or "Generic")
   rawset(o, "tag", o.type)
   rawset(o, "guid", o.__guid)
-  rawset(o, "UI", {
-    setXml = function(x) o.__d.uiXml = x fx("objUI.setXml", o, hash(x)) end,
+  -- uiBlank: names whose picture was still loading when the XML was last set. Real TTS draws an image whose asset hasn't
+  -- loaded yet as a blank white card and keeps it so until the XML is set again (live 2026-11-14: the GIF panel's page 2
+  -- stayed white under fresh names, and loaded at a second setXml). Loading takes 20 frames here; UI.loading says so.
+  rawset(o, "UI", setmetatable({
+    setXml = function(x)
+      o.__d.uiXml = x
+      local blank = {}
+      if SIM.frame < (o.__d.uiLoadingUntil or -1) then for n in pairs(o.__d.uiNew or {}) do blank[n] = true end end
+      o.__d.uiBlank = blank
+      fx("objUI.setXml", o, hash(x))
+    end,
     getXml = function() return o.__d.uiXml end,
     setAttribute = function(id, k, v) o.__d.uiAttrs[id .. "|" .. k] = tostring(v) fx("objUI.setAttribute", o, id, k, tostring(v)) end,
     getAttribute = function(id, k) return o.__d.uiAttrs[id .. "|" .. k] end,
@@ -311,6 +320,11 @@ local function makeObj(d)
     -- picture once per object and never again for another link under the same name (the image stays a blank white
     -- card; the GIF panel's page 2, seen live 2026-11-14)
     setCustomAssets = function(t)
+      local before = {}
+      for _, a in ipairs(o.__d.uiAssets or {}) do before[a.name] = a.url end
+      local new = {}
+      for _, a in ipairs(t) do if before[a.name] ~= a.url then new[a.name] = true end end
+      if next(new) ~= nil then o.__d.uiNew = new o.__d.uiLoadingUntil = SIM.frame + 20 end
       o.__d.uiAssets = t
       o.__d.uiLoaded = o.__d.uiLoaded or {}
       for _, a in ipairs(t) do
@@ -320,7 +334,7 @@ local function makeObj(d)
       fx("objUI.setCustomAssets", o, #t)
     end,
     getCustomAssets = function() return o.__d.uiAssets or {} end,
-  })
+  }, { __index = function(_, k) if k == "loading" then return SIM.frame < (o.__d.uiLoadingUntil or -1) end end }))
   -- an AssetBundle object (Custom_Assetbundle, or any with CustomAssetbundle data) has obj.AssetBundle, as in TTS; others
   -- have none (nil). The trigger effects live in the bundle file, not the save, so the fake takes their names from
   -- CustomAssetbundle.SimTriggerEffects, else from __sim.bundleEffects[AssetbundleURL] (what the bundle file at that
