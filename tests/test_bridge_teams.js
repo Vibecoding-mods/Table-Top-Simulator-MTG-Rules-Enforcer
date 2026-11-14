@@ -190,6 +190,19 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     ok("free-for-all: no teams, no partner's hand", !msg?.teams && !rowOf(msg, "White")?.teamHand && !rowOf(msg, "Blue")?.teamHand, JSON.stringify({ t: msg?.teams, w: rowOf(msg, "White")?.teamHand }));
   });
   await run(async (h) => {
+    // a teams game without shared life (the engine sends teamRules "teams" too, spec §5.9): no 2HG board
+    const v = views({ shared: false });
+    for (const x of [v.blueView, v.whiteView]) {
+      x.gameView.teamRules = { rule: "teams", poisonToLose: 10 };
+      for (const p of x.gameView.players) p.teamNumber = 1;
+    }
+    setGame(h, v);
+    h.B.sendTable();
+    await h.flush();
+    const msg = tables(h).pop();
+    ok("teams without shared life: no 2HG sides or poison limit", !msg?.teams, JSON.stringify(msg?.teams));
+  });
+  await run(async (h) => {
     // the end: an engine win for Blue (player-0) is the team's
     const v = views();
     for (const x of [v.blueView, v.whiteView]) Object.assign(x.gameView, { gameOver: true, winnerId: "player-0" });

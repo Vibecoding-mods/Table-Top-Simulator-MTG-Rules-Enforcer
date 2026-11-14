@@ -44,6 +44,7 @@ function teamsProblem(teams, total) {
   if (s[1].length !== 2 || s[2].length !== 2) return `Two-Headed Giant needs two teams of two (now team 1: ${teamWords(s[1]) || "nobody"}, team 2: ${teamWords(s[2]) || "nobody"}). Use  mtg team <colour> <1|2>.`;
   const at = (c) => TEAM_COLORS.indexOf(c);
   const nextTo = (a, b) => Math.abs(at(a) - at(b)) === 1 || Math.abs(at(a) - at(b)) === TEAM_COLORS.length - 1;
+  // (team 1 side by side among four seats leaves team 2 side by side too, so one test covers both)
   if (!nextTo(...s[1])) return `Partners sit next to each other in turn order (White, Red, Yellow, Blue): ${teamWords(s[1])} and ${teamWords(s[2])} don't. Use  mtg team <colour> <1|2>.`;
   return null;
 }
@@ -75,7 +76,7 @@ function teamOf(p, pub) {
   return (pub.players || []).filter((q) => q.teamNumber === p.teamNumber);
 }
 
-// p with the commander damage its whole team took (810.10 house rule: a team loses at 42 from one commander), for the
+// p with the commander damage its whole team took (the house rule, spec §12: a team loses at 42 from one commander), for the
 // table's trackers: both partners show the team's number. p itself outside a team game.
 function withTeamDamage(p, pub) {
   const team = teamOf(p, pub);

@@ -139,7 +139,9 @@ function onBoard(c) {
     check(g.players.map((p) => p.teamNumber).join(",") === "1,1,2,2", `teams 1, 1, 2, 2 by seat (${g.players.map((p) => p.teamNumber).join(",")})`);
     check(g.players.every((p) => p.life === 80), `every player starts at the team's 80 (${lives(g)})`);
   }
-  if (!S.handsSeen && clients.every((x) => x?.board) && clients.every((x) => (x.g.players || []).length === SEATS)) {
+  // (once every seat holds its opening hand: a board before the deal has four players and empty hands)
+  if (!S.handsSeen && clients.every((x) => x?.board) && clients.every((x) => (x.g.players || []).length === SEATS)
+    && clients.every((x) => zoneOf(x.g, "hand", x.slot).count > 0)) {
     S.handsSeen = true;
     for (const x of clients) {
       const mate = clients.find((y) => y !== x && teamOfSlot(y.slot) === teamOfSlot(x.slot));
@@ -159,6 +161,7 @@ function gameOver(c) {
   check(losers.every((p) => p.status === "lost"), `42 from one commander over the team: both of team ${S.hitTeam} lost (${losers.map((p) => `${p.id} ${p.status}`).join(", ")})`);
   check(winners.every((p) => p.status !== "lost") && teamOfSlot(g.winnerId) !== S.hitTeam, `the other team won (${winners.map((p) => `${p.id} ${p.status}`).join(", ")}; winner ${g.winnerId})`);
   S.state = "over";
+  check(S.handsSeen, "the partners' hands were checked (every seat held its opening hand on some board)");
   return finish();
 }
 
