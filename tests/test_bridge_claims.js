@@ -2467,6 +2467,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
         r.seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(back), fingerprint: "rewound-before" }); await r.h.flush();
         const [said, logged] = backSaid(r.h);
         ok("rejoin: a rewind to before the concession says the player is back, in the chat", JSON.stringify(said) === JSON.stringify(["[MTG] White is back in the game."]), JSON.stringify(said));
+        const limits = chatsOf(r.h).filter((t) => /^\[MTG\] Undo limits: /.test(t));
+        ok("rejoin: the chat also gives the undo's limits (counters stay, a permanent taken for good stays taken), once", limits.length === 1 && /counters/.test(limits[0]) && /for good/.test(limits[0]), JSON.stringify(limits));
         ok("rejoin: and in the game log", JSON.stringify(logged) === JSON.stringify(["White is back in the game."]), JSON.stringify(logged));
         const g = r.h.B._getGame();
         ok("rejoin: how they went out is forgotten", g.outOrder?.["player-1"] == null && g.outWhere?.["player-1"] == null, JSON.stringify([g.outOrder, g.outWhere]));
