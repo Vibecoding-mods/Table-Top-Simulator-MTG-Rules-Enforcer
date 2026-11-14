@@ -593,6 +593,32 @@ function boot(body) {
     same("gif key: the bridge down: no line", P.toolsView(null).gifs, { set: false, text: "" });
   }
   {
+    // "Get a GIPHY key": the steps for another host, a collapsed help block right under the key box (the user walked
+    // them 2026-11-13: the API form, not the SDK one, and Platform Other), and the same steps in HOW-TO-PLAY.md
+    const gm = /<details class='tt-help' id='tt-gif-help'>([\s\S]*?)<\/details>/.exec(html);
+    const guide = gm ? gm[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") : "";
+    const at = (s) => html.indexOf(s);
+    ok("key guide: there, collapsed, between the key box and the key's state line, inside Table tools",
+      !!gm && at("id='tt-gif-key'") < at("id='tt-gif-help'") && at("id='tt-gif-help'") < at("id='tt-gif-state'") && at("id='tablebox'") < at("id='tt-gif-help'") && at("id='tt-gif-help'") < at("id='logbox'") && !/id='tt-gif-help'[^>]*\sopen/.test(html), guide.slice(0, 80));
+    ok("key guide: developers.giphy.com, Dashboard, sign in or a free account, Create an App / Create API Key",
+      /developers\.giphy\.com/.test(guide) && /Dashboard/.test(guide) && /free GIPHY account/.test(guide) && /Create an App/.test(guide) && /Create API Key/.test(guide), guide);
+    ok("key guide: screen 1 of 2 says API, not SDK, and why the SDK form is the wrong one",
+      /Screen 1 of 2: choose API , not SDK/.test(guide) && /SDK beta key/.test(guide) && /wrong one/.test(guide), guide);
+    ok("key guide: screen 2 of 2: any name, Platform Other, a description, the GIPHY API Terms box",
+      /Screen 2 of 2: any app name/.test(guide) && /Platform Other/.test(guide) && /one-line description/.test(guide) && /GIPHY API Terms/.test(guide), guide);
+    ok("key guide: host only, free, 100 an hour for the whole table, stays on this PC, not shared, no key = no frames only",
+      /Only the host needs a key\. Players don’t/.test(guide) && /free/.test(guide) && /100 searches an hour for the whole table/.test(guide)
+        && /never in the table save or the friend package/.test(guide) && /Don’t share it or paste it in chats/.test(guide) && /No key: the GIF frames don’t appear, and everything else works/.test(guide), guide);
+    ok("key guide: no key-shaped string in it (never a real key in the page)", !/[A-Za-z0-9]{24,}/.test(guide), guide);
+    ok("key guide: its summary has a tooltip that says API, not SDK", /'tt-gif-help-sum': 'Get a GIPHY key:[^']*API, not SDK/.test(script));
+    const howTo = fs.readFileSync(path.join(__dirname, "..", "HOW-TO-PLAY.md"), "utf8");
+    const host = (/## Host: starting up[\s\S]*?(?=\n## )/.exec(howTo) || [""])[0];
+    ok("key guide: HOW-TO-PLAY.md's host section has the same steps (API not SDK, Platform Other, the API Terms, host only, 100 an hour, never in the save or package)",
+      /developers\.giphy\.com/.test(host) && /\*\*API\*\*, not SDK/.test(host) && /SDK beta key/.test(host) && /Platform \*\*Other\*\*/.test(host) && /GIPHY API Terms/.test(host)
+        && /Only the host needs a key/.test(host) && /100 searches an hour/.test(host) && /never in the table save or the friend package/.test(host)
+        && /paste it in chats/.test(host) && /everything else works/.test(host) && !/[A-Za-z0-9]{24,}/.test(host.replace(/https?:\S+/g, "")), host.slice(0, 120));
+  }
+  {
     const h = boot();
     h.tools = TOOLS();
     await h.clock.advance(0);

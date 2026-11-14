@@ -186,6 +186,20 @@ function gifsWith(o = {}) {
     ok("bridge: the key is in no log, file or table message", !JSON.stringify(h.effects).includes(KEY));
     const bad = B.onToolsPost({ kind: "gif-key", key: "x" });
     ok("bridge: a bad key is refused and the table not told", bad.ok === false && tts().filter((m) => m.t === "gif_config").length === 3, bad);
+    // a search that throws after its first await is logged, never an unhandled rejection (Node would end the bridge)
+    const realSearch = B._gifs.search;
+    B._gifs.search = async () => { await null; throw new Error("boom in search"); };
+    let rejected = null;
+    const unhandled = (e) => { rejected = e; };
+    process.on("unhandledRejection", unhandled);
+    const n2 = tts().length;
+    let settled = "pending";
+    try { await B.onGifMessage({ t: "gif_search", color: "Blue", q: "cat", req: 8 }); settled = "resolved"; } catch (e) { settled = `rejected: ${e.message}`; }
+    await h.flush(); await h.flush();
+    process.off("unhandledRejection", unhandled);
+    B._gifs.search = realSearch;
+    ok("bridge: a search that throws is caught and logged, the bridge goes on", settled === "resolved" && rejected === null && tts().length === n2
+      && JSON.stringify(h.effects).includes("ERROR in gif search: boom in search"), { settled, rejected: rejected && rejected.message });
     harness.restore();
   }
 

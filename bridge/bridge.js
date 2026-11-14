@@ -11067,7 +11067,7 @@ function onGifMessage(m) {
     return gifs.search({ provider: "giphy", q: m.q, page: m.page, rating: m.rating }).then((r) => guarded("gif results", () => {
       if (r.error) log(`gif search for ${color}: ${r.error}`);
       toTTS({ t: "gif_results", color, req, first, q: r.words, page: r.page, items: r.items || [], total: r.total ?? null, credit: r.credit, error: r.error || null });
-    }));
+    })).catch((e) => log(`ERROR in gif search: ${e && e.message}`)); // (an async throw: logged, never an unhandled rejection that ends the bridge)
   }
   if (m.t === "gif_pick") return tlog(color, `shows a GIF: ${gifLib.cleanTitle(m.title)}`);
   log(`unknown GIF message ${String(m.t).slice(0, 20)}`);

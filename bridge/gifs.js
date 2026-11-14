@@ -107,7 +107,7 @@ const giphy = {
 const ADAPTERS = { giphy };
 
 const restText = (ms) => { const n = Math.max(1, Math.ceil(ms / 60000)); return `GIF search is resting for ${n} minute${n === 1 ? "" : "s"}.`; };
-const NO_KEY = "GIF frames need a GIPHY key: the host makes one at developers.giphy.com (free) and types it into the companion, Table tools.";
+const NO_KEY = "GIF frames need a GIPHY key: the host makes one, free, at developers.giphy.com (the steps: Get a GIPHY key, in the companion page's Table tools) and saves it there.";
 
 // opts: fetch (as global fetch), now () -> ms, store { read() -> object|null, write(object) } for the keys (null: kept in
 // memory only), envKey (a key from the environment, used when none is saved), hourLimit, log

@@ -241,3 +241,19 @@ buttons and the InputField's `onEndEdit`, the still overlay hiding the video, a 
 sync enough, sees only their own panel), the respawn hitch on the full table, and the frame time with four playing
 during a big game. **The user must** make a GIPHY key (developers.giphy.com: Create an App, API) and paste it into the
 companion's Table tools; then a real search answer should be recorded to replace the docs-shaped fixture.
+
+**Key guide for other hosts (2026-11-13, the steps the user walked).** Under the companion's GIPHY key box, a
+collapsed "Get a GIPHY key" block, and the same steps in HOW-TO-PLAY.md's host section ("Optional: GIF frames"):
+developers.giphy.com, menu, Dashboard (sign in or a free account), Create an App / Create API Key; screen 1 of 2
+**API, not SDK** (the SDK form says "SDK beta key" and asks for the SDK licence: the wrong one); screen 2 of 2 any
+name, Platform **Other**, a one-line description, the box naming the **GIPHY API Terms**, Create API Key; copy the key
+into the box. Also said: only the host needs a key; free; a beta key is 100 searches an hour for the whole table; the
+key stays on this PC, never in the save or the friend package; don't share it or paste it in chats; with no key the
+frames don't appear and everything else works. The bridge's no-key chat line points at the block.
+`tests/test_companion_page.js` checks both (the "key guide" checks). HOW-TO-PLAY.md also gained the players' "GIF
+frames" section and the chat commands. The bridge's search now has a `.catch`: an async throw is logged, never an
+unhandled rejection that would end the bridge.
+
+**Phase 1 checks done live (above):** (a) MP4 on an Object UI Image, (b) frame time with six playing tiles, (c) save
+and reload, (d) `.webm`. **Not checked:** a second player's client, audio, the frame time on the full 70-80k-object
+table, typing in the search box, the 12 s hold, the GUID fix for `onObjectDestroy`.
