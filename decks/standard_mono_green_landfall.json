@@ -1,0 +1,116 @@
+{
+ "label": "Standard: Mono-Green Landfall",
+ "desc": "Mono-green creatures that grow with each land: Llanowar Elves, Mightform Harmonizer, Sazh's Chocobo",
+ "format": "standard",
+ "ai_eligible": true,
+ "source": "Draftsim, \"MTG Standard Meta Report\" (2026-10-06, after Reality Fracture), https://draftsim.com/mtg-standard-meta-report-10-6-26/, the \"Mono-Green Landfall\" list as printed there (main deck and sideboard), every card checked against Forge's own Standard list (bridge/forge-formats.json) and known to the engine.",
+ "reasoning": "A one-colour creature deck with no counterspells or combo pieces: easy mana for the AI and plain attacks. Green.",
+ "cards": [
+  {
+   "name": "Icetill Explorer",
+   "count": 4
+  },
+  {
+   "name": "Keen-Eyed Curator",
+   "count": 2
+  },
+  {
+   "name": "Llanowar Elves",
+   "count": 4
+  },
+  {
+   "name": "Mightform Harmonizer",
+   "count": 4
+  },
+  {
+   "name": "Sazh's Chocobo",
+   "count": 4
+  },
+  {
+   "name": "Surrak, Elusive Hunter",
+   "count": 1
+  },
+  {
+   "name": "Esper Origins",
+   "count": 2
+  },
+  {
+   "name": "Glimpse the Core",
+   "count": 3
+  },
+  {
+   "name": "Earthbender Ascension",
+   "count": 4
+  },
+  {
+   "name": "Meltstrider's Resolve",
+   "count": 2
+  },
+  {
+   "name": "Sapling Nursery",
+   "count": 3
+  },
+  {
+   "name": "Lumbering Worldwagon",
+   "count": 1
+  },
+  {
+   "name": "Ba Sing Se",
+   "count": 3
+  },
+  {
+   "name": "Escape Tunnel",
+   "count": 4
+  },
+  {
+   "name": "Fabled Passage",
+   "count": 4
+  },
+  {
+   "name": "Forest",
+   "count": 15
+  }
+ ],
+ "sideboard": [
+  {
+   "name": "Keen-Eyed Curator",
+   "count": 1
+  },
+  {
+   "name": "Leatherhead, Swamp Stalker",
+   "count": 1
+  },
+  {
+   "name": "Meltstrider's Resolve",
+   "count": 2
+  },
+  {
+   "name": "Mossborn Hydra",
+   "count": 4
+  },
+  {
+   "name": "Origin of Metalbending",
+   "count": 1
+  },
+  {
+   "name": "Sapling Nursery",
+   "count": 1
+  },
+  {
+   "name": "Soul-Guide Lantern",
+   "count": 1
+  },
+  {
+   "name": "Surrak, Elusive Hunter",
+   "count": 1
+  },
+  {
+   "name": "Torpor Orb",
+   "count": 2
+  },
+  {
+   "name": "Warg Tactics",
+   "count": 1
+  }
+ ]
+}
