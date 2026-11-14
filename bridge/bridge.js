@@ -11107,7 +11107,7 @@ function setDebugTools(on) {
 // Up to HAND_MAX card names for a player's next game, while debug tools are on; that player must be the only person in
 // the game. Forge deals the opening hand itself and the harness takes no change at the keep-or-mulligan question
 // (awaitMulliganDecision reads only a mulligan_decision; applyState is a priority action), so the picked cards come at
-// the player's first priority with nothing on the stack (turn 1's upkeep, whoever's turn it is), as one debug fix: the
+// the player's first priority with nothing on the stack (in turn 1, whoever's turn it is), as one debug fix: the
 // dealt hand is kept by itself; a picked card that was dealt stays (it is the deck's own); every other picked card is
 // added to the hand (createCard, as a scenario's), and for each one a dealt card goes to the bottom of the library, so
 // the hand keeps its size and the dealt cards left are the rest "at random from the deck". A picked card the deck has
@@ -11166,9 +11166,10 @@ function handWords(color, names, deck) {
   const rest = HAND_MAX - names.length;
   return `${names.join(", ")}${rest > 0 ? `, and ${rest} more dealt at random from the deck` : ""}.`
     + (plan?.added.length ? ` Not in ${deck.name} (the deck ${color} plays), so added to the game: ${plan.added.join(", ")}.` : "")
+    + (plan && plan.fromDeck.length ? ` A deck card not dealt is added as an extra copy.` : "")
     + (deck ? "" : " (The deck for that seat can't be read, so whether these are in it is told when the game starts.)");
 }
-const HAND_WHEN = "They come at the first priority, turn 1's upkeep (the engine deals the opening hand itself and takes no change at the keep-or-mulligan question, so the dealt hand is kept by itself).";
+const HAND_WHEN = "They come at the first priority, in turn 1 (the engine deals the opening hand itself and takes no change at the keep-or-mulligan question, so the dealt hand is kept by itself).";
 // m: { color, names } or { color, off: true } -> { ok, message }; a hand set or cleared is said to the whole table
 function setPickedHand(m) {
   const color = TABLE_COLORS.find((c) => c.toLowerCase() === String(m?.color || "").toLowerCase());
@@ -11181,7 +11182,9 @@ function setPickedHand(m) {
   }
   if (!debugTools) return { ok: false, message: "Debug tools are off: the host switches them on first (companion page, Table tools)." };
   // (the game set up or running now is the one known: its other people; the next game's are checked when it starts)
-  const others = game ? [...game.seats.keys()].filter((c) => c !== color) : [];
+  // (a game that is over, still on the table until mtg reset, counts for nothing)
+  const over = !game || game.over || game.closing || leadSeat()?.board?.state?.gameView?.gameOver;
+  const others = over ? [] : [...game.seats.keys()].filter((c) => c !== color);
   if (others.length) return { ok: false, message: `${listWords(others)} ${others.length > 1 ? "are" : "is"} playing too: a picked hand is for games against the AI only.` };
   if (debugChoice[color]) return { ok: false, message: `Debug "${debugChoice[color].name}" is waiting for ${color} and sets the hand itself: mtg debug off first.` };
   const r = checkHandNames(m.names);
@@ -11204,16 +11207,17 @@ function onHandChat(m) {
   if (!r.ok || text === "off") chat(`[MTG] ${r.message}`, m.color);
 }
 function dropPickedHands(why) {
-  const waiting = [...Object.keys(handChoice), ...Object.keys(game?.handPick || {})];
+  const waiting = [...new Set([...Object.keys(handChoice), ...Object.keys(game?.handPick || {})])];
   for (const c of Object.keys(handChoice)) delete handChoice[c];
   if (game?.handPick) game.handPick = {};
   if (waiting.length) chat(`[MTG] Picked hand${waiting.length > 1 ? "s" : ""} for ${listWords(waiting)} dropped: ${why}.`);
 }
 // (startGame) this game's players' picked hands: taken from handChoice into game.handPick, with the deck each plays;
-// dropped, and said, unless the game has one person and debug tools are on. A game the table didn't start (a test's
-// autoplay) leaves them waiting.
+// dropped, and said, unless the game has one person and debug tools are on; one for a colour not in this game is
+// dropped too (said, as a debug setup is). A game the table didn't start (a test's autoplay) leaves them waiting.
 function takePickedHands(seatList) {
   if (!game?.fromTable) return;
+  for (const c of Object.keys(handChoice)) if (!seatList.includes(c)) { chat(`[MTG] Picked hand for ${c} dropped: ${c} isn't in this game.`); delete handChoice[c]; }
   for (const color of seatList) {
     const h = handChoice[color];
     if (!h) continue;

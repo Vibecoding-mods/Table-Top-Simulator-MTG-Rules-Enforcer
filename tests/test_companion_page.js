@@ -691,6 +691,13 @@ function boot(body) {
     await h.clock.advance(2500);
     for (let i = 0; i < 4; i++) await flush();
     same("hand: a poll with the same hand waiting keeps what is being typed", boxes(h), ["", "Counterspell", "Shock", "", "", "", "Vraska's Fall"]);
+    h.toolsFail = true;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    h.toolsFail = false;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("hand: the bridge away for a poll and back: what was typed is still there, the seat too", [boxes(h), h.$("tt-hand-color").value], [["", "Counterspell", "Shock", "", "", "", "Vraska's Fall"], "Blue"]);
     h.answer = () => ({ ok: true, message: "Picked hand for Blue's next game: Counterspell, Shock, Vraska's Fall, and 4 more dealt at random from the deck." });
     h.$("tt-hand-set").click();
     for (let i = 0; i < 4; i++) await flush();

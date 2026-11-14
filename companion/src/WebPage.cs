@@ -330,7 +330,7 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
         <p class='tt-note'>Add mana: Number of the Mana colour, until the end of the turn. Set life: to Number. Draw and Mill: Number cards, drawn or milled by the engine itself, so its triggers fire as in play.</p>
         <div class='tt-hand' id='tt-hand'>
           <h4>Starting hand</h4>
-          <p class='tt-note'>For your next game against the AI (refused with another person in it): up to 7 cards, the rest dealt at random from your deck. A card your deck hasn’t got is added to the game. The engine deals the opening hand itself, so these come at your first priority (turn 1’s upkeep), not at the keep-or-mulligan question: the dealt hand is kept by itself.</p>
+          <p class='tt-note'>For your next game against the AI (refused with another person in it): up to 7 cards, the rest dealt at random from your deck. A named card you are dealt stays; any other is added to the game (one your deck has comes as an extra copy), and a dealt card goes under your library for it. The engine deals the opening hand itself, so these come at your first priority in turn 1, not at the keep-or-mulligan question: the dealt hand is kept by itself.</p>
           <div class='tt-line'><label id='tt-hand-color-label'>Seat <select id='tt-hand-color'></select></label></div>
           <div class='tt-cards'>
             <input type='text' id='tt-hand-1' list='tt-hand-names' autocomplete='off' aria-label='Starting hand: card 1' placeholder='Card 1'>
@@ -1021,7 +1021,8 @@ var MtgPage = (function () {
       var ckey = s ? s.color + ':' + s.cards.join('|') : '';
       if (ckey !== tt.handCards) { fillSelect($('tt-hand-names'), (s ? s.cards : []).map(function (n) { return [n, n]; })); tt.handCards = ckey; }
       var wkey = s ? s.color + ':' + JSON.stringify(s.waiting) : '';
-      if (wkey !== tt.handWaiting) { HAND_BOXES.forEach(function (id, k) { $(id).value = s && s.waiting && s.waiting[k] || ''; }); tt.handWaiting = wkey; }
+      // (not while the bridge is away: what was typed waits for it to come back)
+      if (h.known && wkey !== tt.handWaiting) { HAND_BOXES.forEach(function (id, k) { $(id).value = s && s.waiting && s.waiting[k] || ''; }); tt.handWaiting = wkey; }
       set($('tt-hand-note'), h.known ? handNote(s, h.max) : '');
       ['tt-hand-set', 'tt-hand-clear'].forEach(function (id) {
         $(id).setAttribute('aria-disabled', v.ok && v.debug.on && !tt.busy ? 'false' : 'true');

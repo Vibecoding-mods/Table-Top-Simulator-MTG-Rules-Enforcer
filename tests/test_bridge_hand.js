@@ -61,15 +61,32 @@ function started(h, { red = false, pick = null } = {}) {
     started(h, { red: true });
     same("another person in the game: refused, a picked hand is for games against the AI", (await post(h, { kind: "hand", color: "Blue", names: ["Shock"] })),
       { ok: false, message: "Red is playing too: a picked hand is for games against the AI only." });
+    h.B._getGame().over = true;
+    same("that game over (still on the table until mtg reset): allowed, for the next game", (await post(h, { kind: "hand", color: "Blue", names: ["Shock"] })).ok, true);
+  });
+  await run(async (h) => {
+    h.B.setDebugTools(true);
+    started(h, { pick: ["Shock"] });
+    (await post(h, { kind: "hand", color: "Blue", names: ["Opt"] }));
+    h.B.setDebugTools(false); await h.flush();
+    same("debug tools off with a hand in the game and one waiting for the next: said once", chats(h).at(-1), "[MTG] Picked hand for Blue dropped: debug tools are off.");
+  });
+  await run(async (h) => {
+    h.B.setDebugTools(true);
+    (await post(h, { kind: "hand", color: "Red", names: ["Shock"] }));
+    h.B.startGame(["Blue"], 1, false, true);
+    await h.flush();
+    same("a hand for a colour not in the game: dropped, said", [chats(h).filter((t) => /Picked hand for Red/.test(t)), h.B.toolsState().hand.seats.find((s) => s.color === "Red").waiting],
+      [["[MTG] Picked hand for Red dropped: Red isn't in this game."], null]);
   });
 
   // ── set from the page: said to the table, shown on the page with the deck's own cards and the added ones ──
   await run(async (h) => {
     h.B.setDebugTools(true);
     const r = (await post(h, { kind: "hand", color: "Blue", names: [" lightning bolt", "Vraska's Fall", "Counterspell"] }));
-    same("set: the answer", r, { ok: true, message: "Picked hand for Blue's next game: Lightning Bolt, Vraska's Fall, Counterspell, and 4 more dealt at random from the deck. Not in Neheb, the Worthy (the deck Blue plays), so added to the game: Counterspell." });
+    same("set: the answer", r, { ok: true, message: "Picked hand for Blue's next game: Lightning Bolt, Vraska's Fall, Counterspell, and 4 more dealt at random from the deck. Not in Neheb, the Worthy (the deck Blue plays), so added to the game: Counterspell. A deck card not dealt is added as an extra copy." });
     same("set: said to the whole table, with when they come", chats(h).at(-1),
-      "[MTG] Debug: Blue's next game (against the AI) starts with a picked hand: Lightning Bolt, Vraska's Fall, Counterspell, and 4 more dealt at random from the deck. Not in Neheb, the Worthy (the deck Blue plays), so added to the game: Counterspell. They come at the first priority, turn 1's upkeep (the engine deals the opening hand itself and takes no change at the keep-or-mulligan question, so the dealt hand is kept by itself).");
+      "[MTG] Debug: Blue's next game (against the AI) starts with a picked hand: Lightning Bolt, Vraska's Fall, Counterspell, and 4 more dealt at random from the deck. Not in Neheb, the Worthy (the deck Blue plays), so added to the game: Counterspell. A deck card not dealt is added as an extra copy. They come at the first priority, in turn 1 (the engine deals the opening hand itself and takes no change at the keep-or-mulligan question, so the dealt hand is kept by itself).");
     const blue = h.B.toolsState().hand.seats.find((s) => s.color === "Blue");
     same("GET: the hand waiting, Forge's spelling, in order; the added card", [blue.waiting, blue.added], [["Lightning Bolt", "Vraska's Fall", "Counterspell"], ["Counterspell"]]);
     same("GET: the deck the seat plays, where from", [blue.deck, blue.source, h.B.toolsState().hand.max], ["Neheb, the Worthy", "default", 7]);
@@ -89,7 +106,7 @@ function started(h, { red = false, pick = null } = {}) {
     h.B.onTTS({ t: "deck", json: JSON.stringify({ color: "Blue", deck: "rebuilt_niv" }) }); await h.flush();
     const r = await post(h, { kind: "hand", color: "Blue", names: ["Archmage of Runes", "Island", "Island", "Lightning Bolt", "Niv-Mizzet, Visionary"] });
     same("mtg deck's deck: named, the cards it lacks (the commander is never in the library) added",
-      r.message, "Picked hand for Blue's next game: Archmage of Runes, Island, Island, Lightning Bolt, Niv-Mizzet, Visionary, and 2 more dealt at random from the deck. Not in Rebuilt: Niv-Mizzet (from the 2026-11-03 logs) (the deck Blue plays), so added to the game: Lightning Bolt, Niv-Mizzet, Visionary.");
+      r.message, "Picked hand for Blue's next game: Archmage of Runes, Island, Island, Lightning Bolt, Niv-Mizzet, Visionary, and 2 more dealt at random from the deck. Not in Rebuilt: Niv-Mizzet (from the 2026-11-03 logs) (the deck Blue plays), so added to the game: Lightning Bolt, Niv-Mizzet, Visionary. A deck card not dealt is added as an extra copy.");
     const blue = h.B.toolsState().hand.seats.find((s) => s.color === "Blue");
     same("GET: that deck, from mtg deck; its names suggested", [blue.deck, blue.source, blue.cards.includes("Archmage of Runes"), blue.cards.includes("Niv-Mizzet, Visionary"), blue.added],
       ["Rebuilt: Niv-Mizzet (from the 2026-11-03 logs)", "preset", true, false, ["Lightning Bolt", "Niv-Mizzet, Visionary"]]);
@@ -121,7 +138,7 @@ function started(h, { red = false, pick = null } = {}) {
     await h.flush();
     same("start: taken into this game, gone from the waiting list", [h.B._getGame().handPick, h.B.toolsState().hand.seats.find((s) => s.color === "Blue").waiting],
       [{ Blue: { names: ["Lightning Bolt", "Counterspell"] } }, null]);
-    ok("start: said, with the deck the seat plays", chats(h).includes("[MTG] Blue's picked hand: Lightning Bolt, Counterspell, and 5 more dealt at random from the deck. Not in Neheb, the Worthy (the deck Blue plays), so added to the game: Counterspell. They come at the first priority, turn 1's upkeep (the engine deals the opening hand itself and takes no change at the keep-or-mulligan question, so the dealt hand is kept by itself)."), JSON.stringify(chats(h).slice(-3)));
+    ok("start: said, with the deck the seat plays", chats(h).includes("[MTG] Blue's picked hand: Lightning Bolt, Counterspell, and 5 more dealt at random from the deck. Not in Neheb, the Worthy (the deck Blue plays), so added to the game: Counterspell. A deck card not dealt is added as an extra copy. They come at the first priority, in turn 1 (the engine deals the opening hand itself and takes no change at the keep-or-mulligan question, so the dealt hand is kept by itself)."), JSON.stringify(chats(h).slice(-3)));
   });
   await run(async (h) => {
     h.B.setDebugTools(true);
