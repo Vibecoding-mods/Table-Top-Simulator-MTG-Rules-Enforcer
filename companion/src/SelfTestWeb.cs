@@ -82,8 +82,9 @@ namespace MtgCompanion
                 lights = J.Arr(status(), "lights");
                 Check("stopped: TTS closed: its row says so, grey", J.Str(lights[5], "state") == "grey" && J.Str(lights[5], "text") == "Tabletop Simulator isn't running.", J.Str(lights[5], "text"));
                 c.TtsProbe = () => true;
+                c.Rows[Controller.StepTts].At = DateTime.MinValue;
                 c.KeepTtsRowStopped();
-                Check("stopped: TTS opened after the stop: the row follows it", c.Rows[Controller.StepTts].V.Light == Light.Green && c.Rows[Controller.StepTts].V.Text.StartsWith("Tabletop Simulator is running"), c.Rows[Controller.StepTts].V);
+                Check("stopped: TTS opened after the stop: the row follows it, its time with it", c.Rows[Controller.StepTts].V.Light == Light.Green && c.Rows[Controller.StepTts].V.Text.StartsWith("Tabletop Simulator is running") && (DateTime.Now - c.Rows[Controller.StepTts].At).TotalSeconds < 60, c.Rows[Controller.StepTts].V + " at " + c.Rows[Controller.StepTts].At);
                 c.Rows[2].V = new Verdict(Light.Red, "The relay is up, but this PC can't log in to it.");
                 s = status();
                 Check("stopped: a red row still names the problem", J.Str(J.Get(s, "worst"), "text") == "Problem: Engine stack" && J.Str(J.Get(s, "worst"), "state") == "red", J.Write(J.Get(s, "worst")));

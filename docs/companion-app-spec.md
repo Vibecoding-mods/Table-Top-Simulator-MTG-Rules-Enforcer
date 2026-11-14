@@ -388,7 +388,7 @@ engine's own draw and mill: the fix's `draw` and `mill` ops, run by the harness'
 engine image (node and relay) built with those ops. A draw or mill op in a fix the table sends is refused; a mill from an empty
 library is refused, a draw from one is allowed (it is how decking is tested). A button shows only when the bridge's `tools` lists it.
 
-**Starting hand** (built 2026-11-13, branch `pick-hand`; bridge `bridge.js:11106-11258`, page `WebPage.cs` `#tt-hand`). Up to 7 card
+**Starting hand** (built 2026-11-13, branch `pick-hand`; bridge `bridge.js:11106-11262`, page `WebPage.cs` `#tt-hand`). Up to 7 card
 names for one seat's **next** game, while debug tools are on, for a game against the AI. Page: the box under the debug tools
 (a seat, 7 card boxes suggesting the names in that seat's next deck, any name the engine knows allowed; Set for next game,
 Clear; a line saying the deck and what is waiting). Chat: `mtg hand <card>, <card> ...` (a comma inside a card's own name, as in
@@ -396,14 +396,16 @@ Clear; a line saying the deck and what is waiting). Chat: `mtg hand <card>, <car
 `{kind:"hand", color, names}` or `{kind:"hand", color, clear:true}`; `GET /tools` adds `hand {max, seats[{color, deck, source,
 cards, waiting, added}]}` (`source`: `table` = checked with mtg ready, `preset` = mtg deck, `default` = the engine's default).
 - Refused (said): debug tools off; more than 7 names or none; a name the engine doesn't know; not a seat colour; another person
-  in the game being set up or played now; a debug scenario waiting for that colour (it sets the hand itself). At the game's
+  in the game being set up or played now (a game that is over counts for nothing); a debug scenario waiting for that colour (it sets the hand itself). At the game's
   start the hand is taken only by a table game with that one person and debug tools on, else dropped and said ("Red is playing
-  too, and a picked hand is for games against the AI only"). Switching debug tools off drops every waiting hand (said).
+  too, and a picked hand is for games against the AI only"). A hand for a colour not in the next game is dropped at its start (said). Switching debug tools off drops every waiting hand
+  (said). The pick is not in the resume file: a bridge restart that resumes the game before the first priority loses it.
 - A name the deck hasn't got (the commander included, which is never in the library) is **added**, and said before the game
   ("Not in <deck>, so added to the game: ..."), at Set and again at the start: the user named it, so the test asked for runs;
-  dropping it silently would test something else.
+  dropping it silently would test something else. A named card the deck has but doesn't deal is added too, as an extra copy;
+  the messages and the page's box say so.
 - **When:** the dealt hand is kept by itself at Forge's keep-or-mulligan question (the player is not asked), and at the player's
-  first priority with nothing on the stack (turn 1's upkeep, whoever's turn) one debug fix (applies at once against the AI) makes
+  first priority with nothing on the stack (in turn 1, whoever's turn; the upkeep in the live check) one debug fix (applies at once against the AI) makes
   the hand the picked one: a picked card that was dealt stays (the deck's own card); each other picked card is created in the
   hand (`createCard`), and for each a dealt card goes to the bottom of the library (the last dealt first). Fewer than 7 named:
   the dealt cards left are the rest. The hand ends as the dealt cards kept, in their order, then the added ones in the order named.

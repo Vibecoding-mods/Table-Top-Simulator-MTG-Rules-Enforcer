@@ -1135,7 +1135,7 @@ namespace MtgCompanion
         {
             var v = Logic.TtsAfterStop(TtsRunning());
             if (Rows[StepTts].V != null && Rows[StepTts].V.Text == v.Text) return;
-            Rows[StepTts].V = v;
+            Set(StepTts, v); // (its time too: the page shows when the row last changed)
             Fire();
         }
 
