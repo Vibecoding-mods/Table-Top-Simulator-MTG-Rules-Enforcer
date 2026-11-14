@@ -8217,7 +8217,7 @@ end
 -- left away from the camera, have it sit where the cannon would be"). Start sends the count. A rematch keeps it; a
 -- table reload clears it.
 engineFriendly = 0
-FRIENDLY_SPOT = Vector(-47, 1.1, 5) -- (on the wood strip in front of the rim, right of Game mode with a gap; the user, 2026-11-14: "move these buttons down here and make sure they don't overlap". It was on the cannon's home, -60 0.732 0, on the rim)
+FRIENDLY_SPOT = Vector(-47, 1.1, 7.5) -- (on the wood strip in front of the rim, right of Game mode with a gap; the user, 2026-11-14: "move these buttons down here and make sure they don't overlap". It was on the cannon's home, -60 0.732 0, on the rim)
 function engineFriendlyLabel()
   return "Free mulligans\n" .. (engineFriendly == 0 and "None" or tostring(engineFriendly))
 end
@@ -8240,7 +8240,7 @@ end
 -- game runs, the game's own mode (the bridge's "started") decides what the table shows (engineModeNow).
 ENGINE_GAME_MODE = "commander"
 engineRunningMode = nil -- the running game's mode, from "started"; nil between games
-MODE_SPOT = Vector(-47, 1.1, -5) -- (left of Free mulligans on the same strip, 10 apart so the two never overlap)
+MODE_SPOT = Vector(-47, 1.1, -2.5) -- (left of Free mulligans on the same strip, 10 apart so the two never overlap, clear of the deck importer: live check 2026-11-14)
 function engineModeNow()
   if engineRunningMode ~= nil and engineTable ~= nil and engineTable() ~= nil then return engineRunningMode end
   return ENGINE_GAME_MODE

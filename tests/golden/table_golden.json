@@ -191,8 +191,8 @@
      "f60 \"setPosition\" obj:e0a3bc V(13,-19.14,26.54)",
      "f60 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f60 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
      "f60 \"setPosition\" obj:e2f7ae V(27,1.03,27)",
      "f60 \"setPosition\" obj:c489e1 V(19,1,27)",
      "f60 \"setPosition\" obj:b49d50 V(25,1.03,27)",
@@ -4311,8 +4311,8 @@
      "f60 \"setPosition\" obj:e0a3bc V(13,-19.14,26.54)",
      "f60 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f60 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
      "f60 \"setPosition\" obj:e2f7ae V(27,1.03,27)",
      "f60 \"setPosition\" obj:c489e1 V(19,1,27)",
      "f60 \"setPosition\" obj:b49d50 V(25,1.03,27)",
@@ -13593,8 +13593,8 @@
      "f37 \"createButton\" obj:8b3401 \"READY?\" \"0.85,0.68,0.12\" \"at -0.05,0.10,0.63 scale 0.0676\"",
      "f37 \"createButton\" obj:56cd9d \"READY?\" \"0.85,0.68,0.12\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f37 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f37 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f37 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\""
+     "f37 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f37 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\""
     ]
    },
    {
@@ -13609,8 +13609,8 @@
      "f48 \"createButton\" obj:8b3401 \"READY?\" \"0.85,0.68,0.12\" \"at -0.05,0.10,0.63 scale 0.0676\"",
      "f48 \"createButton\" obj:56cd9d \"FIX DECK\" \"0.78,0.20,0.18\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f48 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f48 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f48 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\""
+     "f48 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f48 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\""
     ]
    },
    {
@@ -13625,8 +13625,8 @@
      "f54 \"createButton\" obj:8b3401 \"READY?\" \"0.85,0.68,0.12\" \"at -0.05,0.10,0.63 scale 0.0676\"",
      "f54 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f54 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f54 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f54 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\""
+     "f54 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f54 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\""
     ]
    },
    {
@@ -13660,8 +13660,8 @@
      "f78 \"createButton\" obj:8b3401 \"READY\" \"0.20,0.68,0.30\" \"at -0.05,0.10,0.63 scale 0.0676\"",
      "f78 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f78 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f78 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f78 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\""
+     "f78 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f78 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\""
     ]
    },
    {
@@ -14330,8 +14330,8 @@
      "f818 \"createButton\" obj:8b3401 \"READY?\" \"0.85,0.68,0.12\" \"at -0.05,0.10,0.63 scale 0.0676\"",
      "f818 \"createButton\" obj:56cd9d \"READY?\" \"0.85,0.68,0.12\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f818 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f818 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f818 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\"",
+     "f818 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f818 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
      "f818 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
      "f818 \"UI.setAttribute\" \"eng_scoopask_Red\" \"active\" \"false\"",
      "f818 \"UI.setAttribute\" \"eng_scoopask_Yellow\" \"active\" \"false\"",
@@ -14572,8 +14572,8 @@
      "f31 \"setScale\" obj:s00001 V(2.2,0.08,1.5)",
      "f31 \"createButton\" obj:56cd9d \"READY?\" \"0.85,0.68,0.12\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f31 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f31 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f31 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\""
+     "f31 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f31 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\""
     ]
    },
    {
@@ -14587,8 +14587,8 @@
      "f36 \"setPosition\" obj:e0a3bc V(13,-19.14,26.54)",
      "f36 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f36 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f36 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f36 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\""
+     "f36 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f36 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\""
     ]
    },
    {
@@ -14602,8 +14602,8 @@
      "f42 \"setPosition\" obj:e0a3bc V(13,0.86,26.54)",
      "f42 \"createButton\" obj:56cd9d \"READY?\" \"0.85,0.68,0.12\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f42 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f42 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f42 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\""
+     "f42 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f42 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\""
     ]
    },
    {
@@ -14623,8 +14623,8 @@
      "f54 \"setPosition\" obj:e0a3bc V(13,-19.14,26.54)",
      "f54 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f54 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f54 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f54 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\""
+     "f54 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f54 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\""
     ]
    },
    {
@@ -14829,8 +14829,8 @@
      "f60 \"setPosition\" obj:e0a3bc V(13,-19.14,26.54)",
      "f60 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f60 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
      "f60 \"setPosition\" obj:e2f7ae V(27,1.03,27)",
      "f60 \"setPosition\" obj:c489e1 V(19,1,27)",
      "f60 \"setPosition\" obj:b49d50 V(25,1.03,27)",
@@ -15909,8 +15909,8 @@
      "f1108 \"broadcastToAll\" \"[MTG] Engine mode ON: manual rules buttons, hotkeys and tools are off. The rules engine runs the game.\"",
      "f1108 \"createButton\" obj:56cd9d \"READY?\" \"0.85,0.68,0.12\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f1108 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f1108 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f1108 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\"",
+     "f1108 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f1108 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
      "f1108 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
      "f1108 \"UI.setAttribute\" \"eng_scoopask_Red\" \"active\" \"false\"",
      "f1108 \"UI.setAttribute\" \"eng_scoopask_Yellow\" \"active\" \"false\"",
@@ -16532,8 +16532,8 @@
      "f60 \"setPosition\" obj:e0a3bc V(13,-19.14,26.54)",
      "f60 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f60 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,3.33 scale 1.6667\"",
-     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-3.33 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
      "f60 \"setPosition\" obj:e2f7ae V(27,1.03,27)",
      "f60 \"setPosition\" obj:c489e1 V(19,1,27)",
      "f60 \"setPosition\" obj:b49d50 V(25,1.03,27)",

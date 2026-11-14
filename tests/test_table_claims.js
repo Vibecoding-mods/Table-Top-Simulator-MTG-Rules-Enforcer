@@ -470,7 +470,7 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("setup: someone not seated can turn engine mode on", valueOf(r, "mode after grey") === "true" && !fxOf(r, "grey engine on").some((l) => /Sit at a colour/.test(l)), String(valueOf(r, "mode after grey")));
   // (where: none on a playmat | how many | x stored mirrored (world x + spot x = 0), same z, turned 90; the tile's stretch undone on the turned axes (TTS stretches after turning) | the spot is
   // the Pirate Cannon's saved home; real TTS draws a tile button's x mirrored, see setupButton)
-  ok("friendly: one shared button, on the wood strip 13 in from the cannon's rim spot, turned a quarter, none on a playmat", valueOf(r, "where") === "|1|0.00,0.00,90;2.50,2.50|13.00,5.00", String(valueOf(r, "where")));
+  ok("friendly: one shared button, on the wood strip 13 in from the cannon's rim spot, turned a quarter, none on a playmat", valueOf(r, "where") === "|1|0.00,0.00,90;2.50,2.50|13.00,7.50", String(valueOf(r, "where")));
   ok("friendly: a click sets 1 for everyone and the button says so", valueOf(r, "after one") === "1" && labels(r, "one").length === 1 && labels(r, "one").every((l) => l === "1"), `${valueOf(r, "after one")} ${labels(r, "one")}`);
   ok("friendly: everyone is told who set it", fxOf(r, "one").some((l) => /broadcastToAll/.test(l) && /set free mulligans for everyone: 1 each/.test(l)), JSON.stringify(fxOf(r, "one").slice(0, 3)));
   ok("friendly: another player's click moves the same count", valueOf(r, "after two") === "2" && labels(r, "two").length === 1 && labels(r, "two").every((l) => l === "2"),`${valueOf(r, "after two")} ${labels(r, "two")}`);
