@@ -1,5 +1,5 @@
 {
- "source": "api.scryfall.com/cards/collection, 2026-11-13: POST /cards/collection with the asked names (each card once); the fields the bridge reads",
+ "source": "api.scryfall.com/cards/collection, 2026-11-13: POST /cards/collection with the asked names (each card once); the fields the bridge reads; added the same day: Emeritus of Conflict, Abigale, Poet Laureate, Invasion of Zendikar, Alora, Rogue Companion, Alora, Cheerful Thief (POST /cards/collection: its answer for \"Lightning Bolt\" is Emeritus of Conflict // Lightning Bolt), and Lightning Bolt from GET /cards/named?exact=Lightning Bolt",
  "asked": [
   "Valki, God of Lies",
   "Emeria's Call",
@@ -26,6 +26,11 @@
   "Unholy Annex",
   "Tibalt, Cosmic Impostor",
   "Neo Exdeath, Dimension's End",
+  "Emeritus of Conflict",
+  "Abigale, Poet Laureate",
+  "Invasion of Zendikar",
+  "Alora, Rogue Companion",
+  "Alora, Cheerful Thief",
   "Grizzly Bears"
  ],
  "data": [
@@ -556,6 +561,163 @@
     {
      "component": "combo_piece",
      "name": "Unholy Annex // Ritual Chamber"
+    }
+   ]
+  },
+  {
+   "id": "f58dba4f-1abb-47a3-a684-29c32bab95c0",
+   "name": "Emeritus of Conflict // Lightning Bolt",
+   "layout": "prepare",
+   "type_line": "Creature — Human Wizard // Instant",
+   "card_faces": [
+    {
+     "name": "Emeritus of Conflict",
+     "type_line": "Creature — Human Wizard",
+     "oracle_text": "First strike\nWhenever you cast your third spell each turn, this creature becomes prepared. (While it's prepared, you may cast a copy of its spell. Doing so unprepares it.)",
+     "mana_cost": "{1}{R}"
+    },
+    {
+     "name": "Lightning Bolt",
+     "type_line": "Instant",
+     "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+     "mana_cost": "{R}"
+    }
+   ]
+  },
+  {
+   "id": "7673784e-db4b-43a1-8d55-1bb9fc1e284f",
+   "name": "Lightning Bolt",
+   "layout": "normal",
+   "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+   "type_line": "Instant",
+   "all_parts": [
+    {
+     "component": "combo_piece",
+     "name": "Lightning Bolt"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Toralf's Disciple"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Thayan Evokers"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Indris, the Hydrostatic Surge"
+    }
+   ]
+  },
+  {
+   "id": "77285d12-e658-4eb3-ba13-ff202afab9c8",
+   "name": "Abigale, Poet Laureate // Heroic Stanza",
+   "layout": "prepare",
+   "type_line": "Legendary Creature — Bird Bard // Sorcery",
+   "card_faces": [
+    {
+     "name": "Abigale, Poet Laureate",
+     "type_line": "Legendary Creature — Bird Bard",
+     "oracle_text": "Flying\nWhenever you cast a creature spell, Abigale becomes prepared. (While it's prepared, you may cast a copy of its spell. Doing so unprepares it.)",
+     "mana_cost": "{1}{W}{B}"
+    },
+    {
+     "name": "Heroic Stanza",
+     "type_line": "Sorcery",
+     "oracle_text": "Put a +1/+1 counter on target creature.",
+     "mana_cost": "{1}{W/B}"
+    }
+   ]
+  },
+  {
+   "id": "8fed056f-a8f5-41ec-a7d2-a80a238872d1",
+   "name": "Invasion of Zendikar // Awakened Skyclave",
+   "layout": "transform",
+   "type_line": "Battle — Siege // Creature — Elemental",
+   "card_faces": [
+    {
+     "name": "Invasion of Zendikar",
+     "type_line": "Battle — Siege",
+     "oracle_text": "(As a Siege enters, choose an opponent to protect it. You and others can attack it. When it's defeated, exile it, then cast it transformed.)\nWhen this Siege enters, search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.",
+     "mana_cost": "{3}{G}",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/front/8/f/8fed056f-a8f5-41ec-a7d2-a80a238872d1.jpg?1783916973"
+     }
+    },
+    {
+     "name": "Awakened Skyclave",
+     "type_line": "Creature — Elemental",
+     "oracle_text": "Vigilance, haste\nAs long as this creature is on the battlefield, it's a land in addition to its other types.\n{T}: Add one mana of any color.",
+     "mana_cost": "",
+     "image_uris": {
+      "normal": "https://cards.scryfall.io/normal/back/8/f/8fed056f-a8f5-41ec-a7d2-a80a238872d1.jpg?1783916973"
+     }
+    }
+   ]
+  },
+  {
+   "id": "85746149-1119-4238-a8ca-3cc6873cf6e3",
+   "name": "Alora, Rogue Companion",
+   "layout": "normal",
+   "oracle_text": "Specialize {2}\nWhenever you attack, up to one target attacking creature can't be blocked this turn. At the beginning of the next end step, return that creature to its owner's hand.",
+   "type_line": "Legendary Creature — Halfling Rogue",
+   "all_parts": [
+    {
+     "component": "combo_piece",
+     "name": "Alora, Cheerful Swashbuckler"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Alora, Cheerful Scout"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Alora, Cheerful Assassin"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Alora, Rogue Companion"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Alora, Cheerful Mastermind"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Alora, Cheerful Thief"
+    }
+   ]
+  },
+  {
+   "id": "e01b93ba-77f2-44d8-8eea-00b39c1fd7f9",
+   "name": "Alora, Cheerful Thief",
+   "layout": "normal",
+   "oracle_text": "Whenever you attack, up to one target attacking creature can't be blocked this turn. At the beginning of the next end step, return that creature to its owner's hand. If you do, a creature of your choice an opponent controls perpetually gets -1/-0.",
+   "type_line": "Legendary Creature — Halfling Rogue",
+   "all_parts": [
+    {
+     "component": "combo_piece",
+     "name": "Alora, Cheerful Swashbuckler"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Alora, Cheerful Scout"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Alora, Cheerful Assassin"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Alora, Rogue Companion"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Alora, Cheerful Mastermind"
+    },
+    {
+     "component": "combo_piece",
+     "name": "Alora, Cheerful Thief"
     }
    ]
   },

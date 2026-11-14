@@ -1579,6 +1579,7 @@ const imageWanted = new Set();
 // (venture's three and the initiative's Undercity: see tableCard)
 const DUNGEON_NAMES = ["Lost Mine of Phandelver", "Dungeon of the Mad Mage", "Tomb of Annihilation", "Undercity"];
 let imageFetching = false;
+const exactAsked = new Set(); // (names asked of Scryfall's exact-name lookup this run: fetchImages)
 const stripQuery = (u) => (u ? u.split("?")[0] : null);
 
 function cachedImage(name) {
@@ -1617,7 +1618,13 @@ function scryEntries(card) {
   const names = faces.map((f) => f.name), texts = faces.map((f) => f.oracle_text ?? "");
   const first = (list, i) => [list[i], ...list.filter((_, j) => j !== i)];
   const out = [[card.name, { ...base, faces: names, texts }], [names[0], { ...base, faces: names, texts }]];
-  for (let i = 1; i < names.length; i++) out.push([names[i], { ...base, ...(back && i === 1 ? { face: back, back: face } : {}), faces: first(names, i), texts: first(texts, i) }]);
+  // (not a face Forge's index gives another card: a prepare spell is often a classic card, Emeritus of Conflict //
+  // Lightning Bolt, Yavimaya Bloomsage // Channel, and every deck's Lightning Bolt read Emeritus as its other side)
+  const ours = new Set([normName(card.name), normName(names[0])]);
+  const mine = (n) => { const whole = forgeIndex()[normName(n)]; return !whole || ours.has(normName(whole)); };
+  for (let i = 1; i < names.length; i++) {
+    if (mine(names[i])) out.push([names[i], { ...base, ...(back && i === 1 ? { face: back, back: face } : {}), faces: first(names, i), texts: first(texts, i) }]);
+  }
   return out;
 }
 // How many faces Forge's own scripts give the card a name belongs to (bridge/forge-cards.json maps every face's name,
@@ -1646,6 +1653,8 @@ function otherSide(c, name) {
   if (!hit.l && !facesAsked.has(own) && (hit.back || forgeFaceCount(name) > 1 || /\bmeld/i.test(c.text || ""))) {
     facesAsked.add(own); imageWanted.add(name); setImmediate(fetchImages);
   }
+  // (a split card's half by its own name, Ice cast from Fire // Ice: no other side either, verifier 2026-11-13)
+  if (hit.l === "split") return null;
   const meldName = hit.meld && normName(hit.meld) !== own ? hit.meld : null;
   const meld = meldName ? imageCache[normName(meldName)] || cachedImage(meldName) : null;
   const at = (hit.faces || []).findIndex((n) => normName(n) !== own);
@@ -1723,6 +1732,17 @@ async function fetchImages() {
       // (Same image server the table's Card Importer uses (TTS-friendly); Scryfall's own CDN fails to load in TTS when
       // many pictures are requested at once. Every name a card may go by: scryEntries.)
       for (const card of body.data || []) for (const [n, e] of scryEntries(card)) putImage(n, e);
+      // (a name it answered with another card, one with a face of that name, Emeritus of Conflict // Lightning Bolt for
+      // "Lightning Bolt" (2026-11-13), is not cached by it (scryEntries); its exact-name lookup finds the card itself.
+      // Once per name per bridge run.)
+      const unfound = new Set((body.not_found || []).map((m) => normName(m.name)));
+      for (const n of batch) {
+        if (imageCache[normName(n)] || unfound.has(normName(n)) || exactAsked.has(normName(n))) continue;
+        exactAsked.add(normName(n));
+        const r = await fetchNamed(n);
+        if (r === "error") { exactAsked.delete(normName(n)); continue; } // (asked again with the next board)
+        if (r !== "notfound") for (const [k, e] of scryEntries(r.card)) putImage(k, e);
+      }
       // Scryfall's batch lookup misses split and Room cards ("Alive // Well"); its exact-name lookup finds them
       for (const miss of body.not_found || []) {
         const r = miss.name && miss.name.includes(" // ") ? await fetchNamed(miss.name) : "notfound";
@@ -1923,7 +1943,8 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
   const name = c.identity.name;
   // the picture: a token's own (tokenImage), else its owner's deck's (a token copy of a deck card too), else by name
   const tok = c.identity.isToken ? tokenImage(c) : null;
-  // (a face of a card printed whole on one picture, a flipped Kenzo the Hardhearted: its deck's picture of that card)
+  // (a face of a card printed whole on one picture, a flipped Kenzo the Hardhearted: its deck's picture of that card;
+  // a token too, as a token copy of a deck card: a prepared creature's spell copy, Heroic Stanza, shows Abigale's card)
   const img = tok?.face ? tok : imagesFor(name, game.slotColor?.[c.ownerId] || null, c.id) || imagesFor(wholeCardName(name), game.slotColor?.[c.ownerId] || null, c.id);
   const face = img?.face || cachedImage(name)?.face || null;
   // (the table's badge shows when the numbers differ from bp/bt, so these are what the card's picture says, null when

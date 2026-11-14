@@ -99,7 +99,11 @@ hovering). Each state is a full object of its own, with its own picture and back
 
 Forge's layouts are its `CardSplitType` (forge-core `CardSplitType.java`: None, Transform, Meld, Split, Flip,
 Adventure, Omen, Modal, Prepare, Specialize; the script line is `AlternateMode:`, a transforming card's is
-`DoubleFaced`), plus Prototype, a keyword on a one-faced card. What the engine sends, read from the harness and Forge:
+`DoubleFaced`), plus Prototype, a keyword on a one-faced card. In Forge's cardsfolder (2026-11-13): DoubleFaced 399,
+Adventure 151, Split 128 (Rooms, fuse and aftermath among them), Modal 100, Prepare 72, Flip 20, Specialize 19, Omen 16,
+Meld 14, `K:Prototype` 21. The states a card can be in are its `CardStateName`: Original, FaceDown, Flipped, Backside,
+Meld, LeftSplit, RightSplit, Secondary (adventure, omen), PreparedSpell, EmptyRoom, SpecializeW/U/B/R/G; every one is a
+row below. What the engine sends, read from the harness and Forge:
 
 - **Name**: `Card.getName()`, the state it is in: the front in a hand, the back face when transformed ("Neo Exdeath,
   Dimension's End"), "Kenzo the Hardhearted" flipped, "Brisela, Voice of Nightmares" melded, "Fire // Ice" whole (Forge
@@ -114,25 +118,32 @@ Adventure, Omen, Modal, Prepare, Specialize; the script line is `AlternateMode:`
   Room, adventure, omen and prototype cards (Scryfall's `card_faces` with no own pictures); a meld half is a card of
   its own with one picture, the melded card (Brisela) another (`all_parts`, `meld_result`). Scryfall's batch lookup
   finds a card by any face's name (it answers "Kenzo the Hardhearted" with "Bushi Tenderfoot // Kenzo the Hardhearted")
-  but not by a split card's whole name.
+  but not by a split card's whole name. **It also answers a classic card's name with a newer card that has a face of that
+  name**: "Lightning Bolt" with Emeritus of Conflict // Lightning Bolt, "Channel" with Yavimaya Bloomsage // Channel
+  (25 of Forge's 72 prepare cards copy a classic spell, `CopyFaceFrom:`); its exact-name lookup
+  (`/cards/named?exact=`) answers the classic card. Prepare cards are Scryfall's layout `prepare`, one picture. A
+  specialize card (Alchemy) is `normal`, each specialized version a card of its own (Alora, Cheerful Thief), listed
+  in the base card's `all_parts`. Scryfall's `reversible_card` printings were not its answer to a name (Zndrsplt, Eye
+  of Wisdom came back `normal`), and a `double_faced_token` is a token, which gets no other side here (`otherSide`).
 
 | Layout (example) | Hand / command / playable row | Battlefield | Stack, graveyard, exile | Ways | Before (2026-11-11 build) | After (other-side) |
 |---|---|---|---|---|---|---|
 | Modal DFC (Valki // Tibalt, Emeria's Call, Shatterskull Smashing, Pathways) | state 2 = back face; cast the side shown | the face it was cast as; the other face as state 2 / flip | one state (piles); the picture back is the other face | "Cast Valki", "Cast Tibalt", "Play Shatterskull, the Hammer Pass", "Play Grimclimb Pathway" | states, side-cast, refusals; the back's rules text nowhere but its picture (state 2's hover showed the front's text) | + the other face's rules text in the hover (both states, piles too); tested with Scryfall's real cards, two-land Pathway |
-| Transform (Exdeath, Delver, daybound, Fable of the Mirror-Breaker, MTMtE Starscream, Disturb Beloved Beggar) | state 2 = back face, to read; the back cast only by MTMtE / Disturb | transformed: named and pictured as its back, the front its other side | as above | front "Cast Exdeath"; "Cast Starscream, Seeker Leader (MTMtE)", "Cast Generous Soul (Disturb)" = side 2 | states, side 2 for MTMtE / Disturb (untested); back text not in the hover | + back text; MTMtE, Disturb (from the graveyard's playable row), a flip saga and a transformed permanent tested |
+| Transform (Exdeath, Delver, daybound, Fable of the Mirror-Breaker, MTMtE Starscream, Disturb Beloved Beggar, battles: Invasion of Zendikar // Awakened Skyclave) | state 2 = back face, to read; the back cast only by MTMtE / Disturb | transformed: named and pictured as its back, the front its other side | as above | front "Cast Exdeath"; "Cast Starscream, Seeker Leader (MTMtE)", "Cast Generous Soul (Disturb)" = side 2 | states, side 2 for MTMtE / Disturb (untested); back text not in the hover | + back text; MTMtE, Disturb (from the graveyard's playable row), a flip saga, a battle and a transformed permanent tested |
 | Meld (Gisela + Bruna = Brisela) | — | the halves; melded, Brisela | — | each half cast as itself | a half had no other side (Scryfall gives it no back); Brisela showed its own picture | a half's other side is Brisela: picture as state 2, name, text (Scryfall's `meld_result`); Bruna, which Forge's index gives one face, found by its "Melds with" text |
 | Flip (Bushi Tenderfoot // Kenzo the Hardhearted) | one picture, both halves on it | flipped: "Kenzo the Hardhearted" | — | "Cast Bushi Tenderfoot" | **flipped card had no picture**: the decks know "Bushi Tenderfoot", the face name was never cached and was asked of Scryfall on every board (376 asks in one harness run); Kenzo's text not in the hand's hover | the deck's picture of the card; asked once; the other half's name and text in the hover. **Not** turned 180° (see below) |
-| Split (Fire // Ice) | one picture, name and text both halves | — | on the stack the half's name | "Cast Fire", "Cast Ice": a drag asks which | right half on the stack ("Ice") re-asked on every board, no picture; left half Scryfall's printing, not the deck's | the deck's printing; every half cached from Scryfall's answer for the whole card |
+| Split (Fire // Ice) | one picture, name and text both halves | — | on the stack the half's name | "Cast Fire", "Cast Ice": a drag asks which | right half on the stack ("Ice") re-asked on every board, no picture; left half Scryfall's printing, not the deck's | the deck's printing; every half cached from Scryfall's answer for the whole card; a half by its own name (Ice on the stack) has no other side either (Scryfall's `split` layout) |
 | Fuse (Wear // Tear) | as split | — | as split | + "Cast Wear // Tear" read "Cast both halves (fuse)" | worked (hp-15) | unchanged, tested |
 | Aftermath (Cut // Ribbons) | as split; Ribbons from the graveyard's playable row | — | "Ribbons" on the stack | "Cast Cut"; "Cast Ribbons" from the graveyard | castable; Ribbons on the stack re-asked on every board, no picture | picture, asked once |
-| Room (Unholy Annex // Ritual Chamber) | as split | doors (room badges, unlock modes) | — | right door / unlock modes | its own feature | unchanged (no other side: both doors in the name) |
+| Room (Unholy Annex // Ritual Chamber; Scryfall `split`; state EmptyRoom, no door unlocked) | as split | doors (room badges, unlock modes) | — | right door / unlock modes | its own feature | unchanged (no other side: both doors in the name; a door by its own name is a `split` half), tested |
 | Adventure (Bonecrusher Giant // Stomp), Omen (Dirgur Island Dragon // Skimming Strike) | one picture; the spell's text not in the engine's | the creature | "Stomp" on the stack; exiled on an adventure, cast from the playable row | "Cast Bonecrusher Giant", "Cast Stomp": a drag asks which | Stomp's text only on the picture; Stomp on the stack re-asked on every board, no picture | named "Bonecrusher Giant // Stomp", Stomp's text in the hover; the stack shows the deck's picture; asked once |
-| Prepare (Yavimaya Bloomsage // Channel) | — | prepared | its spell copy, linked | the copy's cast | its own feature (notePrepared) | unchanged |
-| Specialize (Alchemy) | — | — | — | — | not on paper / Scryfall | not covered |
+| Prepare (Abigale, Poet Laureate // Heroic Stanza; Emeritus of Conflict // Lightning Bolt; state PreparedSpell) | one picture; the spell's text not in the engine's | prepared (notePrepared's status box) | the spell's copy, a token in exile, linked to its creature | "Cast Abigale, Poet Laureate"; the copy's "Cast Heroic Stanza" from the playable row | the spell's text only on the picture; the copy named after its spell had no picture of its own | the spell's name and text in the hover; the copy shows its deck's picture of the creature's card; **a classic spell's own card (every Lightning Bolt) is not given the creature as its other side**: Scryfall's face entry is kept off by Forge's index, and the classic card is found by its exact name (both 2026-11-13); tested |
+| Specialize (Alchemy, Alora, Rogue Companion; states SpecializeW/U/B/R/G) | one face | specialized: Forge names it after that version ("Alora, Cheerful Thief") | — | the base card's cast | Scryfall's picture of that version, by its name (a card of its own there; the deck has only the base card) | unchanged, tested; no other side: five versions, chosen once and for good, none of them the card's back |
+| Face down (morph, disguise, manifest, cloak, foretell, hideaway; state FaceDown) | foretold: in the seat's own playable row with its face | a 2/2 with no name, picture or text (tableCard), its face to the seats that may look (facePeek) | exiled face down: the same | "(face down)" casts | its own feature | unchanged: not another side of the card, and never sent to the table as one (the board goes to every seat) |
 | Prototype (Autonomous Assembler) | one face | its prototype P/T on the badge | — | "Cast X", "Cast X (Prototype)": a drag asks which | worked (kw-14) | unchanged, tested |
 
 **TTS states where they help:** only a card with a second picture (modal double-faced, transforming, a meld half) gets
-state 2. A card printed whole on one picture (flip, split, fuse, aftermath, Room, adventure, omen, prototype) would
+state 2. A card printed whole on one picture (flip, split, fuse, aftermath, Room, adventure, omen, prepare, prototype) would
 get a second state with the same picture: nothing new to look at, so it has none, its hover names and reads both
 parts, and a drag asks which way (Arena's question, "Bonecrusher Giant: how do you play it?").
 
@@ -146,16 +157,25 @@ with its layout (`l`), face names and rules texts (`faces`, `texts`) and a meld 
 adds those to an old entry without changing its picture. `otherSide` returns `{ pic, name, text }` for every layout
 above but split (pic null for one picture), asking Scryfall once per run for an entry from before layouts were kept
 (a back, Forge's index giving the card two faces, or a meld text). `wholeCardName` gives a face of a one-picture card
-its deck's picture. `actionSide` marks sides only for a card with two pictures. The bridge sends `t2` (the other
-side's text) as a static detail; `description` (tools/engine-renderer.lua) adds it to the hover text. No new Lua locals.
+its deck's picture (a token too: a prepared spell's copy). `actionSide` marks sides only for a card with two pictures.
+The bridge sends `t2` (the other side's text) as a static detail; `description` (tools/engine-renderer.lua) adds it to
+the hover text. No new Lua locals.
+A face name Forge's index gives another card (Lightning Bolt, Channel, Reanimate: prepare spells that copy a classic
+card) is not cached from the newer card (`scryEntries`), and a name Scryfall's batch lookup answered with another card
+is asked once of its exact-name lookup (`fetchImages`, `exactAsked`), which finds the classic card.
 
 **Tests:** `tests/test_card_other_side.js` section 4, from Scryfall's real answers
-(`tests/golden/fixtures/scryfall-two-sided.json`, fetched 2026-11-13) and Forge's label rules; each layout's checks
-were shown to fail by name with its code broken (16 mutations, each file restored and checked by sha256).
+(`tests/golden/fixtures/scryfall-two-sided.json`, fetched 2026-11-13; prepare, battle and specialize cards and the
+real Lightning Bolt added the same day) and Forge's label rules; each layout's checks were shown to fail by name with
+its code broken (16 mutations, then 8 more for the additions, each file restored and checked by sha256; on
+2026-11-14 the additions' mutations run again: the exact-name lookup asked on every board survived, and a check with an
+exact-name answer that caches nothing under the name asked now catches it).
 
 **To check live:** Valki in hand, hover shows Tibalt's text in both states; Gisela in hand turned to state 2 shows
 Brisela; a Bushi Tenderfoot that flips keeps its picture; Bonecrusher Giant's hover reads Stomp and Stomp on the stack
-shows the card; plus the 2026-11-11 list above (state change adopted, hand privacy, Tibalt cast from state 2).
+shows the card; a prepare creature's hover reads its spell and its prepared copy in exile shows the creature's card;
+a deck's Lightning Bolt (or Channel) has no other side; plus the 2026-11-11 list above (state change adopted, hand
+privacy, Tibalt cast from state 2).
 
 ## Size
 

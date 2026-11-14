@@ -386155,6 +386155,17 @@
     }
    },
    {
+    "fetch": "https://api.scryfall.com/cards/collection",
+    "method": "POST",
+    "body": {
+     "identifiers": [
+      {
+       "name": "Valki, God of Lies"
+      }
+     ]
+    }
+   },
+   {
     "tts": {
      "t": "table",
      "turn": 11,
@@ -386562,6 +386573,121 @@
       "engine-card-200": "Elemental permanent spells you cast from your hand have evoke {4}. (If you cast a spell for its evoke cost, it's sacrificed when it enters.)\nWhenever you sacrifice a nontoken Elemental, create a token that's a copy of it. The token gains haste until end of turn. At the beginning of your next end step, sacrifice it unless you pay {W}{U}{B}{R}{G}.",
       "engine-card-181": "({T}: Add {R}.)",
       "engine-card-196": "Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield tapped, then shuffle."
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 11,
+     "step": "main1",
+     "active": "Blue",
+     "activeTurnNo": 1,
+     "priority": "Blue",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "Blue",
+       "slot": "player-0",
+       "name": "Blue",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {
+        "White": 2
+       },
+       "tax": [
+        0
+       ],
+       "library": 87,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "White",
+       "slot": "player-1",
+       "name": "AI 1",
+       "ai": true,
+       "life": 40,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [
+        2
+       ],
+       "library": 86,
+       "handCount": 4,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 84,
+        "label": "turn 11, AI 1's upkeep"
+       },
+       {
+        "id": 82,
+        "label": "turn 10, Blue's second main phase"
+       },
+       {
+        "id": 80,
+        "label": "turn 10, Blue's attacks"
+       },
+       {
+        "id": 78,
+        "label": "turn 10, Blue's main phase"
+       },
+       {
+        "id": 76,
+        "label": "turn 10, Blue's upkeep"
+       },
+       {
+        "id": 74,
+        "label": "turn 9, AI 1's second main phase"
+       },
+       {
+        "id": 70,
+        "label": "turn 9, AI 1's attacks"
+       },
+       {
+        "id": 68,
+        "label": "turn 9, AI 1's main phase"
+       },
+       {
+        "id": 66,
+        "label": "turn 9, AI 1's upkeep"
+       },
+       {
+        "id": 64,
+        "label": "turn 8, Blue's second main phase"
+       },
+       {
+        "id": 62,
+        "label": "turn 8, Blue's attacks"
+       },
+       {
+        "id": 60,
+        "label": "turn 8, Blue's main phase"
+       }
+      ],
+      "vote": null
      }
     }
    },
@@ -575608,6 +575734,17 @@
     }
    },
    {
+    "fetch": "https://api.scryfall.com/cards/collection",
+    "method": "POST",
+    "body": {
+     "identifiers": [
+      {
+       "name": "Growing Rites of Itlimoc"
+      }
+     ]
+    }
+   },
+   {
     "tts": {
      "t": "table",
      "turn": 11,
@@ -576000,6 +576137,121 @@
    },
    {
     "tts": {
+     "t": "table",
+     "turn": 11,
+     "step": "main1",
+     "active": "Blue",
+     "activeTurnNo": 1,
+     "priority": "Blue",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "Blue",
+       "slot": "player-0",
+       "name": "Blue",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {
+        "White": 2
+       },
+       "tax": [
+        0
+       ],
+       "library": 87,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "White",
+       "slot": "player-1",
+       "name": "AI 1",
+       "ai": true,
+       "life": 40,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [
+        2
+       ],
+       "library": 86,
+       "handCount": 4,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 84,
+        "label": "turn 11, AI 1's upkeep"
+       },
+       {
+        "id": 82,
+        "label": "turn 10, Blue's second main phase"
+       },
+       {
+        "id": 80,
+        "label": "turn 10, Blue's attacks"
+       },
+       {
+        "id": 78,
+        "label": "turn 10, Blue's main phase"
+       },
+       {
+        "id": 76,
+        "label": "turn 10, Blue's upkeep"
+       },
+       {
+        "id": 74,
+        "label": "turn 9, AI 1's second main phase"
+       },
+       {
+        "id": 70,
+        "label": "turn 9, AI 1's attacks"
+       },
+       {
+        "id": 68,
+        "label": "turn 9, AI 1's main phase"
+       },
+       {
+        "id": 66,
+        "label": "turn 9, AI 1's upkeep"
+       },
+       {
+        "id": 64,
+        "label": "turn 8, Blue's second main phase"
+       },
+       {
+        "id": 62,
+        "label": "turn 8, Blue's attacks"
+       },
+       {
+        "id": 60,
+        "label": "turn 8, Blue's main phase"
+       }
+      ],
+      "vote": null
+     }
+    }
+   },
+   {
+    "tts": {
      "t": "texts",
      "texts": {
       "engine-card-107": "Landfall — Whenever a land you control enters, create a 5/5 red and green Elemental creature token.\nWhenever Omnath, Locus of Rage or another Elemental you control dies, Omnath deals 3 damage to any target.",
@@ -576195,6 +576447,17 @@
     }
    },
    {
+    "fetch": "https://api.scryfall.com/cards/collection",
+    "method": "POST",
+    "body": {
+     "identifiers": [
+      {
+       "name": "Itlimoc, Cradle of the Sun"
+      }
+     ]
+    }
+   },
+   {
     "tts": {
      "t": "table",
      "turn": 11,
@@ -576265,6 +576528,121 @@
        ]
       }
      },
+     "rewind": {
+      "points": [
+       {
+        "id": 84,
+        "label": "turn 11, AI 1's upkeep"
+       },
+       {
+        "id": 82,
+        "label": "turn 10, Blue's second main phase"
+       },
+       {
+        "id": 80,
+        "label": "turn 10, Blue's attacks"
+       },
+       {
+        "id": 78,
+        "label": "turn 10, Blue's main phase"
+       },
+       {
+        "id": 76,
+        "label": "turn 10, Blue's upkeep"
+       },
+       {
+        "id": 74,
+        "label": "turn 9, AI 1's second main phase"
+       },
+       {
+        "id": 70,
+        "label": "turn 9, AI 1's attacks"
+       },
+       {
+        "id": 68,
+        "label": "turn 9, AI 1's main phase"
+       },
+       {
+        "id": 66,
+        "label": "turn 9, AI 1's upkeep"
+       },
+       {
+        "id": 64,
+        "label": "turn 8, Blue's second main phase"
+       },
+       {
+        "id": 62,
+        "label": "turn 8, Blue's attacks"
+       },
+       {
+        "id": 60,
+        "label": "turn 8, Blue's main phase"
+       }
+      ],
+      "vote": null
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 11,
+     "step": "main1",
+     "active": "Blue",
+     "activeTurnNo": 1,
+     "priority": "Blue",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "Blue",
+       "slot": "player-0",
+       "name": "Blue",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {
+        "White": 2
+       },
+       "tax": [
+        0
+       ],
+       "library": 87,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "White",
+       "slot": "player-1",
+       "name": "AI 1",
+       "ai": true,
+       "life": 40,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [
+        2
+       ],
+       "library": 86,
+       "handCount": 4,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
      "rewind": {
       "points": [
        {
