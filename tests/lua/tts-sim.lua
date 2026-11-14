@@ -305,6 +305,9 @@ local function makeObj(d)
     getAttribute = function(id, k) return o.__d.uiAttrs[id .. "|" .. k] end,
     setAttributes = function(id, t) for k, v in pairs(t) do o.__d.uiAttrs[id .. "|" .. k] = tostring(v) end fx("objUI.setAttributes", o, id, t) end,
     setValue = function(id, v) fx("objUI.setValue", o, id, v) end,
+    -- (the pictures its XML names, as TTS: a list of { name, url }, replacing the last one)
+    setCustomAssets = function(t) o.__d.uiAssets = t fx("objUI.setCustomAssets", o, #t) end,
+    getCustomAssets = function() return o.__d.uiAssets or {} end,
   })
   -- an AssetBundle object (Custom_Assetbundle, or any with CustomAssetbundle data) has obj.AssetBundle, as in TTS; others
   -- have none (nil). The trigger effects live in the bundle file, not the save, so the fake takes their names from

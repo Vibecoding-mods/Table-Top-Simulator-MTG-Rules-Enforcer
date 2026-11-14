@@ -325,6 +325,14 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
         </div>
         <p class='tt-note'>Add mana: Number of the Mana colour, until the end of the turn. Set life: to Number. Draw and Mill: Number cards, drawn or milled by the engine itself, so its triggers fire as in play.</p>
       </div>
+      <h3><span class='sico' data-icon='spark' aria-hidden='true'></span>GIF frames</h3>
+      <p class='tt-note'>Each seated player gets a picture frame on their mat that plays a GIF they pick from GIPHY (in TTS chat: mtg gif help). It needs your own GIPHY API key, free at developers.giphy.com (Create an App, then API). The key stays on this PC.</p>
+      <div class='tt-line'>
+        <label id='tt-gif-key-label'>GIPHY key <input type='password' id='tt-gif-key' autocomplete='off' spellcheck='false' placeholder='Paste your GIPHY API key'></label>
+        <button type='button' class='btn' id='tt-gif-save' data-icon='check'>Save key</button>
+        <button type='button' class='btn' id='tt-gif-remove' data-icon='stop'>Remove key</button>
+      </div>
+      <p class='tt-note' id='tt-gif-state'></p>
       <p class='toast' id='tt-toast' role='status' aria-live='polite'></p>
     </div>
   </details>
@@ -542,6 +550,9 @@ var MtgPage = (function () {
   var STATIC_TIPS = {
     'tablebox-sum': 'Table tools: opens the AI seat setup and the debug tools. The bridge is asked only while this is open, so the engine must be running. Observe mode changes nothing here.',
     'logbox-sum': 'Log: shows the last lines of companion.log here, updated by themselves. Read only; Open logs folder has the whole file.',
+    'tt-gif-key': 'Your GIPHY API key (free at developers.giphy.com). Saved in a file in your user folder on this PC only: never in the table save, the table script or a package, and sent nowhere but to GIPHY with each search. The bridge searches for the players, at most 100 times an hour with a new key.',
+    'tt-gif-save': 'Save key: hands the key to the bridge, which keeps it on this PC and tells the table its GIF frames are on.',
+    'tt-gif-remove': 'Remove key: deletes the saved key; the table’s GIF frames go away.',
     'tt-debug': 'Debug tools: switches them on or off on the bridge, and the whole table is told in chat. They are off at every bridge start. Switching them off cancels a debug change still waiting for its vote.',
     'tt-player': 'Player: whom the debug tool changes. Only players still in the running game are listed.',
     'tt-n': 'Number: the mana to add (1 to 99), the life total to set (0 to 999), or the cards to draw or mill (1 to 99).',
@@ -579,7 +590,7 @@ var MtgPage = (function () {
   // GET /api/tools (or null, or a refusal) -> what the section shows
   function toolsView(t) {
     if (!t || typeof t !== 'object' || !t.seats) {
-      return { ok: false, state: str(t && t.message) || 'The bridge isn’t answering: start the engine first.', seats: [], presets: [], debug: { on: false, usable: false, players: [], note: '', tools: [] } };
+      return { ok: false, state: str(t && t.message) || 'The bridge isn’t answering: start the engine first.', seats: [], presets: [], debug: { on: false, usable: false, players: [], note: '', tools: [] }, gifs: { set: false, text: '' } };
     }
     var seats = t.seats.map(function (s) {
       var ai = s.ai || null;
@@ -593,8 +604,24 @@ var MtgPage = (function () {
     return {
       ok: true, state: 'Read from the bridge. An AI seat applies from the next game.', seats: seats, presets: (t.presets || []).map(str),
       debug: { on: !!d.on, usable: !!(d.on && d.game && !d.fix), players: (d.players || []).map(function (p) { return { color: str(p.color), name: str(p.name) }; }), note: note,
-        tools: (Array.isArray(t.tools) ? t.tools : []).map(str) }
+        tools: (Array.isArray(t.tools) ? t.tools : []).map(str) },
+      gifs: gifsView(t.gifs)
     };
+  }
+  // the bridge's GIF search state (never the key itself: whether one is set, its last four) -> the section's line
+  function gifsView(g) {
+    if (!g || typeof g !== 'object' || !g.giphy || typeof g.giphy !== 'object') return { set: false, text: 'This bridge has no GIF frames yet: restart the engine to run the new one.' };
+    if (!g.giphy.set) return { set: false, text: 'No GIPHY key saved: the table has no GIF frames.' };
+    var used = Number(g.used) || 0, limit = Number(g.limit) || 0, rest = Number(g.restingMin) || 0;
+    return { set: true, text: 'A GIPHY key ending in ' + str(g.giphy.ends) + ' is saved on this PC: the table’s GIF frames are on. Searches this hour: ' + used + (limit ? ' of ' + limit : '') + (rest ? ', resting ' + rest + ' min' : '') + '.' };
+  }
+  // Save key / Remove key -> the POST body, or { error }
+  function gifKeyRequest(key, remove) {
+    if (remove) return { kind: 'gif-key', provider: 'giphy', key: '' };
+    var k = str(key).trim();
+    if (!k) return { error: 'Paste your GIPHY key first (developers.giphy.com).' };
+    if (!/^[A-Za-z0-9]{16,64}$/.test(k)) return { error: 'That doesn’t look like a GIPHY key: letters and digits only, as GIPHY shows it.' };
+    return { kind: 'gif-key', provider: 'giphy', key: k };
   }
 
   // one AI seat's Set -> the POST body, or { error }
@@ -935,6 +962,7 @@ var MtgPage = (function () {
       $('tt-debug').disabled = !v.ok;
       tip($('tt-debug'), debugSwitchTip(v), $('tt-debug-label'));
       set($('tt-debug-note'), v.debug.note);
+      set($('tt-gif-state'), v.gifs.text);
       $('tt-dbg').hidden = !v.debug.on;
       var pkey = v.debug.players.map(function (p) { return p.color + ':' + p.name; }).join('|');
       if (pkey !== tt.players) { fillSelect($('tt-player'), v.debug.players.map(function (p) { return [p.color, p.name === p.color ? p.color : p.name + ' (' + p.color + ')']; })); tt.players = pkey; }
@@ -976,6 +1004,9 @@ var MtgPage = (function () {
       tip($('tt-' + id + '-btn'), debugTip(id, null, false));
     });
     $('tt-debug').addEventListener('change', function () { toolsPost({ kind: 'debug-mode', on: !!$('tt-debug').checked }); });
+    // (the key box is emptied once sent: the page never shows a saved key back)
+    $('tt-gif-save').addEventListener('click', function () { var b = gifKeyRequest($('tt-gif-key').value, false); toolsPost(b); if (!b.error) $('tt-gif-key').value = ''; });
+    $('tt-gif-remove').addEventListener('click', function () { toolsPost(gifKeyRequest('', true)); });
     $('tablebox').addEventListener('toggle', function () { tt.open = !!$('tablebox').open; if (tt.open) toolsLoad(); });
     // (the page's own controls: a control inside a label shows its tip when the label is hovered too)
     Object.keys(STATIC_TIPS).forEach(function (id) { tip($(id), STATIC_TIPS[id], $(id + '-label')); });
@@ -991,7 +1022,7 @@ var MtgPage = (function () {
     T: T, NAMES: NAMES, stateOf: stateOf, connView: connView, lightButton: lightButton, menuButton: menuButton,
     lightView: lightView, gameView: gameView, updateView: updateView, viewModel: viewModel, clickPlan: clickPlan,
     answerPlan: answerPlan, afterPoll: afterPoll, reloadAllowed: reloadAllowed, headers: headers, start: start,
-    toolsView: toolsView, seatRequest: seatRequest, debugRequest: debugRequest, LIST_CHOICE: LIST_CHOICE,
+    toolsView: toolsView, seatRequest: seatRequest, debugRequest: debugRequest, LIST_CHOICE: LIST_CHOICE, gifKeyRequest: gifKeyRequest, gifsView: gifsView,
     debugTip: debugTip, seatTips: seatTips, STATIC_TIPS: STATIC_TIPS, NOW: NOW
   };
 })();
