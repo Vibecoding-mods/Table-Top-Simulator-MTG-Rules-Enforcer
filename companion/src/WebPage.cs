@@ -219,7 +219,7 @@ pre.log { margin: 0; padding: 12px 16px; max-height: 340px; overflow: auto; bord
 .tt-status { color: var(--muted); overflow-wrap: anywhere; }
 .tt-list { display: grid; gap: 8px; margin-top: 8px; }
 .tt-list[hidden] { display: none; }
-.tt select, .tt input[type='text'], .tt input[type='number'], .tt textarea { font: inherit; font-size: 14.5px; min-height: 42px; color: var(--text); background: var(--panel2); border: 1px solid #44475e; border-radius: 10px; padding: 7px 11px; max-width: 100%; }
+.tt select, .tt input[type='text'], .tt input[type='password'], .tt input[type='number'], .tt textarea { font: inherit; font-size: 14.5px; min-height: 42px; color: var(--text); background: var(--panel2); border: 1px solid #44475e; border-radius: 10px; padding: 7px 11px; max-width: 100%; }
 .tt select:hover, .tt input:hover, .tt textarea:hover { border-color: var(--gold); }
 .tt input[type='file'] { font: inherit; font-size: 14px; color: var(--muted); max-width: 100%; }
 .tt textarea { width: 100%; font: 13px/1.45 Consolas, 'Cascadia Mono', ui-monospace, monospace; resize: vertical; }
@@ -228,6 +228,11 @@ pre.log { margin: 0; padding: 12px 16px; max-height: 340px; overflow: auto; bord
 .switch { min-height: 44px; padding: 4px 0; cursor: pointer; font-weight: 600; }
 .switch input { width: 20px; height: 20px; accent-color: var(--gold); }
 #tt-dbg .tools { margin-top: 12px; }
+.tt-help { margin-top: 10px; border: 1px dashed #464a63; border-radius: 12px; }
+.tt-help > summary { min-height: 40px; padding: 8px 14px; font-size: 14px; font-weight: 600; color: var(--muted); border-radius: 12px; }
+.tt-help ol, .tt-help ul { margin: 0; padding: 0 16px 10px 36px; line-height: 1.5; overflow-wrap: anywhere; }
+.tt-help li + li { margin-top: 4px; }
+.tt-help b { color: var(--text); }
 
 footer { margin-top: 24px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; }
 body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; filter: grayscale(1); }
@@ -301,8 +306,8 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
   </div>
 
   <details id='tablebox' class='card'>
-    <summary id='tablebox-sum'><span class='sum-ico' data-icon='spark' aria-hidden='true'></span><span>Table tools: AI seats and debug tools</span></summary>
-    <p class='sum-help'>Set who plays an empty seat, or change the running game for testing. The bridge is asked only while this is open.</p>
+    <summary id='tablebox-sum'><span class='sum-ico' data-icon='spark' aria-hidden='true'></span><span>Table tools: AI seats, debug tools and GIF frames</span></summary>
+    <p class='sum-help'>Set who plays an empty seat, change the running game for testing, or give the table its GIPHY key. The bridge is asked only while this is open.</p>
     <div class='tt'>
       <p class='tt-note' id='tt-state'>Open to ask the bridge.</p>
       <h3><span class='sico' data-icon='dice' aria-hidden='true'></span>AI seats</h3>
@@ -329,6 +334,30 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
         </div>
         <p class='tt-note'>Add mana: Number of the Mana colour, until the end of the turn. Set life: to Number. Draw and Mill: Number cards, drawn or milled by the engine itself, so its triggers fire as in play.</p>
       </div>
+      <h3><span class='sico' data-icon='spark' aria-hidden='true'></span>GIF frames</h3>
+      <p class='tt-note'>Each seated player gets a picture frame on their mat that plays a GIF they pick from GIPHY (in TTS chat: mtg gif help). It needs your own GIPHY API key, free: the steps are under the box. The key stays on this PC.</p>
+      <div class='tt-line'>
+        <label id='tt-gif-key-label'>GIPHY key <input type='password' id='tt-gif-key' autocomplete='off' spellcheck='false' placeholder='Paste your GIPHY API key'></label>
+        <button type='button' class='btn' id='tt-gif-save' data-icon='check'>Save key</button>
+        <button type='button' class='btn' id='tt-gif-remove' data-icon='stop'>Remove key</button>
+      </div>
+      <details class='tt-help' id='tt-gif-help'>
+        <summary id='tt-gif-help-sum'>Get a GIPHY key (host only, free, about 5 minutes)</summary>
+        <ol>
+          <li>In your browser, go to <b>developers.giphy.com</b>, open the menu and choose <b>Dashboard</b>. Sign in, or make a free GIPHY account.</li>
+          <li>Click <b>Create an App</b> (some pages say <b>Create API Key</b>).</li>
+          <li>Screen 1 of 2: choose <b>API</b>, not SDK. The SDK form says “SDK beta key” and asks you to accept the SDK licence: that is the wrong one, go back and pick API.</li>
+          <li>Screen 2 of 2: any app name (MTG table is fine), Platform <b>Other</b>, a one-line description (GIF frames for our Tabletop Simulator table), tick the box that names the <b>GIPHY API Terms</b>, then <b>Create API Key</b>.</li>
+          <li>Copy the key from your GIPHY dashboard, paste it into the GIPHY key box above and press <b>Save key</b>.</li>
+        </ol>
+        <ul>
+          <li>Only the host needs a key. Players don’t.</li>
+          <li>It’s free. A new key is a beta key: 100 searches an hour for the whole table.</li>
+          <li>The key stays on this PC: never in the table save or the friend package. Don’t share it or paste it in chats.</li>
+          <li>No key: the GIF frames don’t appear, and everything else works as usual.</li>
+        </ul>
+      </details>
+      <p class='tt-note' id='tt-gif-state'></p>
       <p class='toast' id='tt-toast' role='status' aria-live='polite'></p>
     </div>
   </details>
@@ -544,8 +573,12 @@ var MtgPage = (function () {
 
   // the table tools' tips (the bridge: setAiSeat, DEBUG_TOOLS, setDebugTools; observe mode refuses every change)
   var STATIC_TIPS = {
-    'tablebox-sum': 'Table tools: opens the AI seat setup and the debug tools. The bridge is asked only while this is open, so the engine must be running. Observe mode changes nothing here.',
+    'tablebox-sum': 'Table tools: opens the AI seat setup, the debug tools and the GIF frames’ GIPHY key. The bridge is asked only while this is open, so the engine must be running. Observe mode changes nothing here.',
     'logbox-sum': 'Log: shows the last lines of companion.log here, updated by themselves. Read only; Open logs folder has the whole file.',
+    'tt-gif-key': 'Your GIPHY API key (free at developers.giphy.com). Saved in a file in your user folder on this PC only: never in the table save, the table script or a package, and sent only to this PC’s bridge and, with each search, to GIPHY. The bridge searches for the players, at most 100 times an hour with a new key.',
+    'tt-gif-save': 'Save key: hands the key to the bridge, which keeps it on this PC and tells the table its GIF frames are on.',
+    'tt-gif-remove': 'Remove key: deletes the saved key; the table’s GIF frames go away.',
+    'tt-gif-help-sum': 'Get a GIPHY key: the steps on developers.giphy.com, for the host only (players need none). Choose API, not SDK.',
     'tt-debug': 'Debug tools: switches them on or off on the bridge, and the whole table is told in chat. They are off at every bridge start. Switching them off cancels a debug change still waiting for its vote.',
     'tt-player': 'Player: whom the debug tool changes. Only players still in the running game are listed.',
     'tt-n': 'Number: the mana to add (1 to 99), the life total to set (0 to 999), or the cards to draw or mill (1 to 99).',
@@ -583,7 +616,7 @@ var MtgPage = (function () {
   // GET /api/tools (or null, or a refusal) -> what the section shows
   function toolsView(t) {
     if (!t || typeof t !== 'object' || !t.seats) {
-      return { ok: false, state: str(t && t.message) || 'The bridge isn’t answering: start the engine first.', seats: [], presets: [], debug: { on: false, usable: false, players: [], note: '', tools: [] } };
+      return { ok: false, state: str(t && t.message) || 'The bridge isn’t answering: start the engine first.', seats: [], presets: [], debug: { on: false, usable: false, players: [], note: '', tools: [] }, gifs: { set: false, text: '' } };
     }
     var seats = t.seats.map(function (s) {
       var ai = s.ai || null;
@@ -597,8 +630,24 @@ var MtgPage = (function () {
     return {
       ok: true, state: 'Read from the bridge. An AI seat applies from the next game.', seats: seats, presets: (t.presets || []).map(str),
       debug: { on: !!d.on, usable: !!(d.on && d.game && !d.fix), players: (d.players || []).map(function (p) { return { color: str(p.color), name: str(p.name) }; }), note: note,
-        tools: (Array.isArray(t.tools) ? t.tools : []).map(str) }
+        tools: (Array.isArray(t.tools) ? t.tools : []).map(str) },
+      gifs: gifsView(t.gifs)
     };
+  }
+  // the bridge's GIF search state (never the key itself: whether one is set, its last four) -> the section's line
+  function gifsView(g) {
+    if (!g || typeof g !== 'object' || !g.giphy || typeof g.giphy !== 'object') return { set: false, text: 'This bridge has no GIF frames yet: restart the engine to run the new one.' };
+    if (!g.giphy.set) return { set: false, text: 'No GIPHY key saved: the table has no GIF frames.' };
+    var used = Number(g.used) || 0, limit = Number(g.limit) || 0, rest = Number(g.restingMin) || 0;
+    return { set: true, text: 'A GIPHY key ending in ' + str(g.giphy.ends) + ' is saved on this PC: the table’s GIF frames are on. Searches this hour: ' + used + (limit ? ' of ' + limit : '') + (rest ? ', resting ' + rest + ' min' : '') + '.' };
+  }
+  // Save key / Remove key -> the POST body, or { error }
+  function gifKeyRequest(key, remove) {
+    if (remove) return { kind: 'gif-key', provider: 'giphy', key: '' };
+    var k = str(key).trim();
+    if (!k) return { error: 'Paste your GIPHY key first (developers.giphy.com).' };
+    if (!/^[A-Za-z0-9]{16,64}$/.test(k)) return { error: 'That doesn’t look like a GIPHY key: letters and digits only, as GIPHY shows it.' };
+    return { kind: 'gif-key', provider: 'giphy', key: k };
   }
 
   // one AI seat's Set -> the POST body, or { error }
@@ -939,6 +988,7 @@ var MtgPage = (function () {
       $('tt-debug').disabled = !v.ok;
       tip($('tt-debug'), debugSwitchTip(v), $('tt-debug-label'));
       set($('tt-debug-note'), v.debug.note);
+      set($('tt-gif-state'), v.gifs.text);
       $('tt-dbg').hidden = !v.debug.on;
       var pkey = v.debug.players.map(function (p) { return p.color + ':' + p.name; }).join('|');
       if (pkey !== tt.players) { fillSelect($('tt-player'), v.debug.players.map(function (p) { return [p.color, p.name === p.color ? p.color : p.name + ' (' + p.color + ')']; })); tt.players = pkey; }
@@ -957,7 +1007,8 @@ var MtgPage = (function () {
         .then(function (j) { if (my === tt.seq) toolsDraw(toolsView(j)); }, function () { if (my === tt.seq) toolsDraw(toolsView(null)); })
         .then(null, showError);
     }
-    function toolsPost(body) {
+    // (onOk: called with the bridge's answer when it says ok)
+    function toolsPost(body, onOk) {
       if (body.error) { ttSay(body.error, 'warn'); return; }
       if (tt.busy) { ttSay('Already sent; waiting for the bridge.', ''); return; }
       tt.busy = true;
@@ -968,6 +1019,7 @@ var MtgPage = (function () {
         tt.busy = false;
         var a = answerPlan(res);
         ttSay(a.text, a.kind);
+        if (onOk && res && res.ok === true) onOk(res);
         toolsLoad();
       }, function () { tt.busy = false; ttSay('The companion didn’t answer.', 'bad'); });
     }
@@ -980,6 +1032,10 @@ var MtgPage = (function () {
       tip($('tt-' + id + '-btn'), debugTip(id, null, false));
     });
     $('tt-debug').addEventListener('change', function () { toolsPost({ kind: 'debug-mode', on: !!$('tt-debug').checked }); });
+    // (the key box is emptied once the bridge has the key: the page never shows a saved key back; a refused key stays
+    // in the box to be corrected)
+    $('tt-gif-save').addEventListener('click', function () { toolsPost(gifKeyRequest($('tt-gif-key').value, false), function () { $('tt-gif-key').value = ''; }); });
+    $('tt-gif-remove').addEventListener('click', function () { toolsPost(gifKeyRequest('', true)); });
     $('tablebox').addEventListener('toggle', function () { tt.open = !!$('tablebox').open; if (tt.open) toolsLoad(); });
     // (the page's own controls: a control inside a label shows its tip when the label is hovered too)
     Object.keys(STATIC_TIPS).forEach(function (id) { tip($(id), STATIC_TIPS[id], $(id + '-label')); });
@@ -995,7 +1051,7 @@ var MtgPage = (function () {
     T: T, NAMES: NAMES, stateOf: stateOf, connView: connView, lightButton: lightButton, menuButton: menuButton,
     lightView: lightView, gameView: gameView, updateView: updateView, viewModel: viewModel, clickPlan: clickPlan,
     answerPlan: answerPlan, afterPoll: afterPoll, reloadAllowed: reloadAllowed, headers: headers, start: start,
-    toolsView: toolsView, seatRequest: seatRequest, debugRequest: debugRequest, LIST_CHOICE: LIST_CHOICE,
+    toolsView: toolsView, seatRequest: seatRequest, debugRequest: debugRequest, LIST_CHOICE: LIST_CHOICE, gifKeyRequest: gifKeyRequest, gifsView: gifsView,
     debugTip: debugTip, seatTips: seatTips, STATIC_TIPS: STATIC_TIPS, NOW: NOW, manaDrift: manaDrift
   };
 
