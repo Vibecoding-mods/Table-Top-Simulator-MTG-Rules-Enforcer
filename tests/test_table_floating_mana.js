@@ -19,7 +19,8 @@ const json = (r, mark) => { try { return JSON.parse(String(valueOf(r, mark))); }
 
 const TRACKER = { Blue: "395037", White: "23e485", Red: "448880", Yellow: "37e533" };
 const cards = { bl1: { n: "Forest", f: "https://example.invalid/bl1.jpg", b: "", tl: "Land", ty: ["Land"] } };
-// a board with Blue's and White's pools (undefined: {} for Blue, null for White, as the bridge sends an empty one)
+// a board with Blue's and White's pools (undefined: {} for Blue, null for White, as the bridge sends an empty one);
+// White's row first, so a count that read the first row instead of Blue's own would show
 function board(bluePool, whitePool, extra = {}) {
   const pl = (color, slot, pool) => ({
     color, slot, name: color === "White" ? "AI 1" : color, ai: color === "White", life: 40, status: "playing", pool, poison: 0, energy: 0,
@@ -27,7 +28,7 @@ function board(bluePool, whitePool, extra = {}) {
     battlefield: color === "Blue" ? [{ s: 1, id: "bl1", ctl: color, dmg: 0, ctr: {} }] : [], graveyard: [], exile: [], command: [],
   });
   return { msg: { t: "table", json: JSON.stringify({ t: "table", turn: 3, step: "main1", active: "Blue", activeTurnNo: 2, priority: "Blue", gameOver: false,
-    winner: null, players: [pl("Blue", "player-0", bluePool ?? {}), pl("White", "player-1", whitePool ?? null)], stack: [], cards, ...extra }) }, frames: 20 };
+    winner: null, players: [pl("White", "player-1", whitePool ?? null), pl("Blue", "player-0", bluePool ?? {})], stack: [], cards, ...extra }) }, frames: 20 };
 }
 const STARTED = JSON.stringify({ t: "started", colors: { "player-0": "Blue", "player-1": "White" }, names: { "player-0": "Blue", "player-1": "AI 1" }, ai: ["White"] });
 const PRELUDE = 'engineAutoPace.Blue = false engineChat("mtg start ai 1", Player.Blue) return "ok"';

@@ -4272,7 +4272,7 @@ function engineUpdateCorner(color, p)
   if smallLabel and #smallLabel > 30 then smallLabel = engineCut(smallLabel, 29) .. "…" end
   -- (passing priority with mana floating loses it: the pass button says how much is in your pool, "Next (3 floating)",
   -- PLAN 2026-11-13; after the cut above, so the count is never cut off: "Resolve (999 floating)" is 22)
-  if big == 1 and p.mode == "single" and p.options[1].id == "__pass" then
+  if big == 1 and p.options[1].id == "__pass" then
     local n = enginePoolTotal(color)
     if n > 0 then bigLabel = bigLabel .. " (" .. n .. " floating)" end
   end
@@ -4617,7 +4617,7 @@ function enginePoolChips(o, pl)
   for i = #at, #list + 1, -1 do o.removeButton(at[i]) end
   local fit = ENGINE_POOL_FIT
   local tip = "Floating mana in " .. tostring(pl.name or pl.color) .. "'s pool: " .. table.concat(words, ", ")
-    .. ".\nIt empties at the end of each step and phase. Everyone sees every pool."
+    .. ".\nA pool empties at the end of each step and phase unless an effect keeps it. Everyone sees every pool."
   local row = #list * fit.w + (#list - 1) * fit.gap
   for i, c in ipairs(list) do
     local look = ENGINE_POOL_LOOK[c.k]
