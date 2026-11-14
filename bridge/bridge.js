@@ -10098,6 +10098,8 @@ function onTTS(m) {
     const latin = /[\u0080-ÿ]|\\u00[89a-f]/i.test(m.json);
     try { m = { ...JSON.parse(m.json, latin ? tableText : undefined), t: m.t }; } catch { return log(`bad json payload for ${m.t}`); }
   }
+  if (typeof m.t === "string" && m.t.startsWith("gif_")) return void guarded("gif message", () => onGifMessage(m)); // GIF frames (bridge/gifs.js)
+  if (m.t === "hello" && gifs.hasKey("giphy")) toTTS(gifConfig()); // GIF frames: a table with a key gets its frames (none said without one)
   const said = tlogIn(m);
   if (said) tlog(m.color, said);
   switch (m.t) {
@@ -11018,6 +11020,7 @@ function toolsState() {
     debug: { on: debugTools, game: !runningTableGame().error, fix: !!game?.fix,
       players: game?.started ? Object.keys(game.slotColor).filter((s) => game.slotColor[s] && isPlaying(pub, s)).map((s) => ({ color: game.slotColor[s], name: nameOf(s) })) : [] },
     tools: Object.keys(DEBUG_TOOLS),
+    gifs: gifs.state(), // GIF frames: whether a key is set (never the key)
   };
 }
 // a POST /tools body (already JSON) -> { ok, message }; a success is also said to the table
@@ -11027,8 +11030,52 @@ function onToolsPost(m) {
   if (m.kind === "ai-seat") r = setAiSeat(m.color, m.seat, { preset: m.preset || null, list: m.list || null, name: m.name || null });
   else if (m.kind === "debug-mode") return setDebugTools(m.on === true);
   else if (m.kind === "debug") r = runDebugTool(m);
+  else if (m.kind === "gif-key") return onGifKey(m); // GIF frames: the host's provider key (bridge/gifs.js)
   else return { ok: false, message: `Unknown kind "${String(m.kind || "").slice(0, 20)}".` };
   if (r.ok && m.kind === "ai-seat") chat(`[MTG] AI seat (companion page): ${r.message}`);
+  return r;
+}
+
+// ───────── GIF frames (docs/gif-frames-spec.md; the search itself is bridge/gifs.js) ─────────
+// The table's frames talk to this block only: their messages start with "gif_" and skip the rest of onTTS.
+//   gif_hello {}                                   -> gif_config { on: a key is set, credit, why }
+//   (the table's own hello gets a gif_config too, only while a key is set: a table without one hears nothing new)
+//   gif_search { color, q, page, rating, first, req } -> gif_results { color, req, first, q, page, items, total, credit, error }
+//   gif_pick { color, id, title }                  -> one table-log line, "White shows a GIF: <title>"
+// The key comes from the companion's Table tools (POST /tools { kind: "gif-key", provider, key }) and is kept in
+// GIF_KEY_FILE, on this PC only: outside the repo and the friend package, never in the save or the table script.
+// MTG_GIPHY_KEY in the environment works too (used while no key is saved). A test bridge keeps keys in memory.
+const GIF_KEY_FILE = process.env.MTG_GIF_KEYS
+  || (LIVE ? path.join(process.env.APPDATA || path.join(require("os").homedir(), ".config"), "MTG-TTS", "gif-keys.json") : null);
+const gifLib = require("./gifs");
+const gifs = gifLib.createGifs({
+  fetch: (...a) => global.fetch(...a), now: () => Date.now(), log: (s) => log(s), envKey: LIVE ? process.env.MTG_GIPHY_KEY : undefined,
+  store: GIF_KEY_FILE && {
+    read: () => { try { return JSON.parse(fs.readFileSync(GIF_KEY_FILE, "utf8")); } catch (e) { if (e.code === "ENOENT") return null; throw e; } },
+    write: (keys) => { fs.mkdirSync(path.dirname(GIF_KEY_FILE), { recursive: true }); fs.writeFileSync(GIF_KEY_FILE, JSON.stringify(keys), { mode: 0o600 }); },
+  },
+});
+// the colours that can have a frame (seated players; Grey and Black are spectators and the GM)
+const GIF_COLORS = new Set(["White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink"]);
+const gifConfig = () => { const on = gifs.hasKey("giphy"); return { t: "gif_config", on, credit: "Powered By GIPHY", why: on ? "" : gifs.NO_KEY }; };
+function onGifMessage(m) {
+  if (m.t === "gif_hello") return toTTS(gifConfig());
+  const color = GIF_COLORS.has(m.color) ? m.color : null;
+  if (!color) return log(`${m.t}: no player colour`);
+  if (m.t === "gif_search") {
+    const req = Number.isInteger(m.req) ? m.req : 0, first = m.first === true;
+    return gifs.search({ provider: "giphy", q: m.q, page: m.page, rating: m.rating }).then((r) => guarded("gif results", () => {
+      if (r.error) log(`gif search for ${color}: ${r.error}`);
+      toTTS({ t: "gif_results", color, req, first, q: r.words, page: r.page, items: r.items || [], total: r.total ?? null, credit: r.credit, error: r.error || null });
+    }));
+  }
+  if (m.t === "gif_pick") return tlog(color, `shows a GIF: ${gifLib.cleanTitle(m.title)}`);
+  log(`unknown GIF message ${String(m.t).slice(0, 20)}`);
+}
+// POST /tools { kind: "gif-key" }: the table is told at once whether its frames are on
+function onGifKey(m) {
+  const r = gifs.setKey(typeof m.provider === "string" ? m.provider : "giphy", typeof m.key === "string" ? m.key : "");
+  if (r.ok) toTTS(gifConfig());
   return r;
 }
 
@@ -11321,5 +11368,6 @@ if (require.main === module) {
     parseDeckList, aiSeatDeck, setAiSeat, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
     fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords,
+    onGifMessage, onGifKey, _gifs: gifs, // GIF frames
   };
 }

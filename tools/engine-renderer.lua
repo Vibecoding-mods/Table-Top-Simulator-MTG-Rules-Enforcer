@@ -9739,5 +9739,540 @@ function engineCheckDue(m)
   engineCheckedAt = { turn = m.turn, attacked = attacking }
   Wait.time(engineCheckRun, 3)
 end
+-- ═════════════════════ GIF FRAMES (docs/gif-frames-spec.md) ═════════════════════
+-- Every seated player gets a square frame as tall as a card on their own mat, always (in a game or not), once the
+-- host's bridge has a GIPHY key (it says so with gif_config). The frame is a Custom Tile whose picture is GIPHY's MP4
+-- (TTS plays and loops an .mp4 image link, Phase 0 "route M"); it plays for 12 s, then a still picture (Object UI
+-- Image) covers it until someone clicks Replay. The owner's search panel is Object UI on the frame (visible to the
+-- owner only); the search runs in the bridge (bridge/gifs.js), which holds the key: the key is never in this script
+-- or the save. Frames carry GM notes "mtggif:<colour>" (not "engine:", so the engine's sweeps, stray watcher and
+-- self-check never see them) and their GIF in the memo (JSON), so a saved game keeps them.
+-- All state is in the one global table engineGif (the main chunk is at MoonSharp's 200-local limit: no locals here).
+engineGif = {
+  on = false,            -- the bridge has a key (gif_config)
+  why = "",              -- why not, as the bridge said
+  credit = "Powered By GIPHY",
+  hostOff = false,       -- the host's switch, saved with the game (mtg gifs off)
+  rating = "pg-13",      -- the host's rating filter, saved with the game
+  frames = {},           -- colour -> its frame object
+  state = {},            -- colour -> the GIF it shows { id, mp4, still, title, w, h }, nil: empty
+  hidden = {},           -- colour -> true: that player hides every frame on their own screen
+  open = {},             -- colour -> true: the owner's search panel is open
+  results = {},          -- colour -> { q, page, items, total } of the panel's last search
+  status = {},           -- colour -> the panel's status line
+  query = {},            -- colour -> the words in the panel's box
+  req = {},              -- colour -> number of the newest search (older answers are dropped)
+  playing = {},          -- colour -> true while the GIF plays (the still is off)
+  holdWait = {},         -- colour -> the Wait that puts the still back
+  spawning = {},         -- colour -> true while its frame is being spawned
+  dirty = {},            -- colour -> true: changed while spawning, spawn again when it lands
+  SIZE = 1.53,           -- a Custom Tile at scale 1 is 2 x 2; a card is 3.06 tall
+  PLAY_S = 12,           -- seconds a GIF plays before it holds
+  -- free-spot candidates on the mat (along its right and forward axes, as gridPos): beside the battlefield grid
+  -- (its columns span +10.75 .. -10.85), nearest the table's centre first
+  SPOTS_R = { 15.2, 13.1, -15.2, -13.1 },
+  SPOTS_F = { -7.5, -4.2, -0.9, 2.4, 5.7, 8.4 },
+  COLORS = { "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" },
+}
+
+function engineGif.say(color, text)
+  if Player[color] ~= nil and Player[color].seated then broadcastToColor("[MTG] " .. text, color, { 1, 0.85, 0.4 }) end
+end
+-- text going into the XML: nothing that ends an attribute or starts a tag
+function engineGif.xmlText(s) return (tostring(s or ""):gsub("[<>&\"]", "")) end
+function engineGif.trim(s)
+  s = tostring(s or "")
+  local a = s:find("%S")
+  if a == nil then return "" end
+  local b = #s
+  while b > a and s:sub(b, b):find("%s") ~= nil do b = b - 1 end
+  return s:sub(a, b)
+end
+function engineGif.aspect(st)
+  if st ~= nil and tonumber(st.w) ~= nil and tonumber(st.h) ~= nil and st.w > 0 and st.h > 0 then return st.w / st.h end
+  return 1
+end
+-- a seated player with a mat (not Grey or Black, not an AI seat: those have nobody seated)
+function engineGif.canHave(c)
+  return c ~= "Grey" and c ~= "Black" and data ~= nil and data[c] ~= nil and data[c].playmat ~= nil and Player[c] ~= nil and Player[c].seated == true
+end
+function engineGif.alive(o) return o ~= nil and not o.isDestroyed() end
+-- the same object, by GUID: == on an object TTS is destroying raised "Object reference not set" live (2026-11-13: a pick
+-- destroyed the old frame, and onObjectDestroy compared it with the new one)
+function engineGif.same(a, b)
+  if a == nil or b == nil then return false end
+  local okA, ga = pcall(function() return a.getGUID() end)
+  local okB, gb = pcall(function() return b.getGUID() end)
+  return okA and okB and ga ~= nil and ga == gb
+end
+function engineGif.ownerOf(o)
+  if o == nil then return nil end
+  local gm = tostring(o.getGMNotes())
+  if gm:sub(1, 7) ~= "mtggif:" then return nil end
+  return gm:sub(8)
+end
+
+-- ───── the frame's Object UI ─────
+-- The root panel is turned like a card's UI (0 0 180, readable from the owner's seat) and scaled so a UI unit is the
+-- same size on every frame (a wide GIF's tile is smaller, scale SIZE / aspect). In the root's own frame +x is the
+-- owner's right and +y away from the owner.
+function engineGif.viewers()
+  local G, any, list = engineGif, false, {}
+  for _, c in ipairs(G.COLORS) do
+    if G.hidden[c] then any = true else list[#list + 1] = c end
+  end
+  if not any then return "" end
+  return ' visibility="' .. (#list > 0 and table.concat(list, "|") or "None") .. '"'
+end
+function engineGif.panelXml(c, fw)
+  local G = engineGif
+  local r = G.results[c] or {}
+  local x = {}
+  x[#x + 1] = '<Panel id="gifpanel_' .. c .. '" visibility="' .. c .. '" position="' .. math.floor(fw / 2 + 222) .. ' 0 0" width="420" height="318" color="#161616F0">'
+  x[#x + 1] = '<Text rectAlignment="UpperLeft" offsetXY="12 -6" width="240" height="26" fontSize="15" color="#DDDDDD" alignment="MiddleLeft">GIF search (only you see this)</Text>'
+  x[#x + 1] = '<Button id="gifclose_' .. c .. '" rectAlignment="UpperRight" offsetXY="-6 -6" width="30" height="26" fontSize="15" onClick="Global/engineGifUiClick">X</Button>'
+  x[#x + 1] = '<InputField id="gifq_' .. c .. '" rectAlignment="UpperLeft" offsetXY="10 -36" width="400" height="34" fontSize="18" placeholder="Type words, press Enter" text="' .. G.xmlText(G.query[c]) .. '" onEndEdit="Global/engineGifUiSearch"/>'
+  for i, it in ipairs(r.items or {}) do
+    if i > 8 then break end
+    local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
+    x[#x + 1] = '<Button id="gifr' .. i .. '_' .. c .. '" rectAlignment="UpperLeft" offsetXY="' .. (10 + col * 101) .. ' ' .. -(78 + row * 101) .. '" width="95" height="95" color="#FFFFFF" tooltip="' .. G.xmlText(it.title) .. '" onClick="Global/engineGifUiClick"><Image image="t' .. i .. '" preserveAspect="true" raycastTarget="false"/></Button>'
+  end
+  if r.items ~= nil and #r.items > 0 then
+    x[#x + 1] = '<Button id="gifmore_' .. c .. '" rectAlignment="LowerLeft" offsetXY="10 8" width="70" height="28" fontSize="15" onClick="Global/engineGifUiClick">More</Button>'
+  end
+  x[#x + 1] = '<Button id="gifclear_' .. c .. '" rectAlignment="LowerLeft" offsetXY="86 8" width="70" height="28" fontSize="15" onClick="Global/engineGifUiClick">Clear</Button>'
+  x[#x + 1] = '<Text rectAlignment="LowerLeft" offsetXY="162 8" width="250" height="28" fontSize="13" color="#BBBBBB" alignment="MiddleLeft">' .. G.xmlText(G.status[c]) .. '</Text>'
+  -- (GIPHY asks for its mark where its search is used: top right, clear of the status line)
+  x[#x + 1] = '<Text rectAlignment="UpperRight" offsetXY="-42 -6" width="130" height="26" fontSize="12" color="#999999" alignment="MiddleRight">' .. G.xmlText(G.credit) .. '</Text>'
+  x[#x + 1] = '</Panel>'
+  return table.concat(x)
+end
+function engineGif.xml(c)
+  local G = engineGif
+  local st = G.state[c]
+  local asp = G.aspect(st)
+  local k = math.max(asp, 1)
+  local fw, fh = math.floor(200 * asp / k + 0.5), math.floor(200 / k + 0.5)
+  local by = -math.floor(fh / 2 + 20)
+  local x = {}
+  x[#x + 1] = '<Panel position="0 0 -11" rotation="0 0 180" scale="' .. string.format("%.3f %.3f 1", k, k) .. '" width="' .. fw .. '" height="' .. fh .. '"' .. G.viewers() .. '>'
+  if st == nil then
+    x[#x + 1] = '<Panel width="' .. fw .. '" height="' .. fh .. '" color="#141414" raycastTarget="false"><Text fontSize="40" fontStyle="Bold" color="#E0E0E0" position="0 24 0" width="190" height="60">GIF</Text>'
+      .. '<Text fontSize="14" color="#9A9A9A" position="0 -30 0" width="186" height="70">' .. c .. "'s frame: GIF... below picks one" .. '</Text></Panel>'
+  else
+    x[#x + 1] = '<Image id="gifhold_' .. c .. '" image="still" width="' .. fw .. '" height="' .. fh .. '" preserveAspect="true" raycastTarget="false" active="' .. (G.playing[c] and "false" or "true") .. '"/>'
+    x[#x + 1] = '<Button id="gifplay_' .. c .. '" position="46 ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">Replay</Button>'
+  end
+  x[#x + 1] = '<Button id="gifpick_' .. c .. '" visibility="' .. c .. '" position="' .. (st == nil and 0 or -46) .. ' ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">GIF...</Button>'
+  if G.open[c] then x[#x + 1] = G.panelXml(c, fw) end
+  x[#x + 1] = '</Panel>'
+  return table.concat(x)
+end
+function engineGif.redraw(c)
+  local G = engineGif
+  local o = G.frames[c]
+  if not G.alive(o) then return end
+  local assets = {}
+  local st = G.state[c]
+  if st ~= nil and st.still ~= nil then assets[#assets + 1] = { name = "still", url = st.still } end
+  if G.open[c] then
+    for i, it in ipairs((G.results[c] or {}).items or {}) do
+      if i <= 8 and it.thumb ~= nil then assets[#assets + 1] = { name = "t" .. i, url = it.thumb } end
+    end
+  end
+  o.UI.setCustomAssets(assets)
+  o.UI.setXml(G.xml(c))
+  local hiders = {}
+  for _, h in ipairs(G.COLORS) do if G.hidden[h] then hiders[#hiders + 1] = h end end
+  o.setInvisibleTo(hiders)
+end
+-- the GIF plays for PLAY_S seconds, then the still covers it
+function engineGif.play(c)
+  local G = engineGif
+  if G.state[c] == nil then return end
+  G.playing[c] = true
+  local o = G.frames[c]
+  if G.alive(o) then o.UI.setAttribute("gifhold_" .. c, "active", "false") end
+  if G.holdWait[c] ~= nil then Wait.stop(G.holdWait[c]) end
+  G.holdWait[c] = Wait.time(function()
+    G.holdWait[c] = nil
+    G.playing[c] = nil
+    local f = G.frames[c]
+    if G.alive(f) then f.UI.setAttribute("gifhold_" .. c, "active", "true") end
+  end, G.PLAY_S)
+end
+
+-- ───── spawning ─────
+-- the first candidate spot no object lies on (else the first one)
+function engineGif.freeSpot(c, g)
+  local G = engineGif
+  local near = {}
+  for _, o in ipairs(getObjects()) do
+    local p = o.getPosition()
+    if o.type ~= "Scripting" and o.type ~= "Hand" and G.ownerOf(o) == nil and p.y > 0.5 and (p.x - g.mat.x) ^ 2 + (p.z - g.mat.z) ^ 2 < 625 then
+      local ok, b = pcall(o.getBounds)
+      if ok and type(b) == "table" and b.size ~= nil and b.size.x < 10 and b.size.z < 10 then near[#near + 1] = b end
+    end
+  end
+  local half = G.SIZE + 0.2
+  local first = nil
+  for _, r in ipairs(G.SPOTS_R) do
+    for _, f in ipairs(G.SPOTS_F) do
+      local p = onTable(g.mat + g.right * r + g.fwd * f, 0.2)
+      if first == nil then first = p end
+      local free = true
+      for _, b in ipairs(near) do
+        if math.abs(b.center.x - p.x) < half + b.size.x / 2 and math.abs(b.center.z - p.z) < half + b.size.z / 2 then free = false break end
+      end
+      if free then return p end
+    end
+  end
+  return first
+end
+-- (re)spawns c's frame showing G.state[c], where the old one lay (or in a free spot); one at a time per colour
+function engineGif.spawn(c)
+  local G = engineGif
+  if G.spawning[c] then G.dirty[c] = true return end
+  local g = seatGeometry(c)
+  if g == nil then return end
+  local old = G.frames[c]
+  local pos, rotY = nil, g.rotY
+  if G.alive(old) then
+    pos, rotY = old.getPosition() + Vector(0, 0.1, 0), old.getRotation().y
+    G.frames[c] = nil
+    old.destruct()
+  else
+    pos = G.freeSpot(c, g)
+  end
+  local st = G.state[c]
+  local s = G.SIZE / math.max(G.aspect(st), 1)
+  G.spawning[c] = true
+  G.frames[c] = spawnObjectData({
+    data = { Name = "Custom_Tile", Nickname = "GIF frame (" .. c .. ")", Description = st and G.xmlText(st.title) or "",
+      GMNotes = "mtggif:" .. c, Memo = st and JSON.encode(st) or "", Locked = false,
+      Transform = { posX = pos.x, posY = pos.y, posZ = pos.z, rotX = 0, rotY = rotY, rotZ = 0, scaleX = s, scaleY = 1, scaleZ = s },
+      CustomImage = { ImageURL = st and st.mp4 or ENGINE_BACK, ImageSecondaryURL = "", ImageScalar = 1, WidthScale = 0,
+        CustomTile = { Type = 0, Thickness = 0.1, Stackable = false, Stretch = st ~= nil } } },
+    position = pos, rotation = { 0, rotY, 0 }, scale = { s, 1, s },
+    callback_function = function(obj)
+      G.spawning[c] = nil
+      if G.dirty[c] then G.dirty[c] = nil return G.spawn(c) end
+      if not G.same(G.frames[c], obj) then return end
+      Wait.frames(function() G.redraw(c) if G.playing[c] then G.play(c) end end, 2)
+    end,
+  })
+end
+-- frames left in the save are adopted (with the GIF in their memo); a second one for the same colour is removed
+function engineGif.adopt()
+  local G = engineGif
+  if G.adopted then return 0 end
+  G.adopted = true
+  local n = 0
+  for _, o in ipairs(getObjects()) do
+    local c = G.ownerOf(o)
+    if c ~= nil then
+      if G.alive(G.frames[c]) and not G.same(G.frames[c], o) then o.destruct()
+      else
+        G.frames[c] = o
+        n = n + 1
+        local ok, st = pcall(JSON.decode, tostring(o.memo or ""))
+        if G.state[c] == nil and ok and type(st) == "table" and type(st.mp4) == "string" then G.state[c] = st end
+      end
+    end
+  end
+  return n
+end
+-- the frames the table should have now: one per seated player while the bridge has a key and the host's switch is on
+function engineGif.sync()
+  local G = engineGif
+  G.adopt()
+  local want = {}
+  if G.on and not G.hostOff then
+    for _, c in ipairs(getSeatedPlayers()) do if G.canHave(c) then want[c] = true end end
+  end
+  local gone = 0
+  for c, o in pairs(G.frames) do
+    if not want[c] then
+      G.frames[c] = nil
+      G.open[c] = nil
+      if G.alive(o) then
+        -- (one destroy at a time: each costs the host a frame of up to ~0.4 s on a full table)
+        Wait.time(function() if G.alive(o) then o.destruct() end end, 0.1 + 0.5 * gone)
+        gone = gone + 1
+      end
+    end
+  end
+  for c in pairs(want) do
+    if not G.alive(G.frames[c]) and not G.spawning[c] then G.frames[c] = nil G.spawn(c) end
+  end
+end
+function engineGif.syncSoon()
+  local G = engineGif
+  if G.syncWait ~= nil then Wait.stop(G.syncWait) end
+  G.syncWait = Wait.time(function() G.syncWait = nil G.sync() end, 2)
+end
+
+-- ───── showing, searching ─────
+function engineGif.show(c, item)
+  local G = engineGif
+  if type(item) ~= "table" or type(item.mp4) ~= "string" then return end
+  G.state[c] = { id = tostring(item.id or ""), mp4 = item.mp4, still = item.still, title = G.xmlText(item.title), w = tonumber(item.w) or 1, h = tonumber(item.h) or 1 }
+  G.open[c] = nil
+  G.playing[c] = true
+  G.spawn(c)
+  engineSend("gif_pick", { color = c, id = G.state[c].id, title = G.state[c].title })
+end
+function engineGif.clear(c)
+  local G = engineGif
+  if G.state[c] == nil then return false end
+  G.state[c] = nil
+  G.playing[c] = nil
+  if G.holdWait[c] ~= nil then Wait.stop(G.holdWait[c]) G.holdWait[c] = nil end
+  G.spawn(c)
+  return true
+end
+function engineGif.search(c, q, page, first)
+  local G = engineGif
+  G.req[c] = (G.req[c] or 0) + 1
+  engineSend("gif_search", { color = c, q = q, page = page or 0, rating = G.rating, req = G.req[c], first = first == true })
+end
+function engineGif.onMessage(m)
+  local G = engineGif
+  if m.t == "gif_config" then
+    G.on = m.on == true
+    G.why = tostring(m.why or "")
+    if type(m.credit) == "string" and m.credit ~= "" then G.credit = m.credit end
+    G.sync()
+  elseif m.t == "gif_results" then
+    local c = m.color
+    if type(c) ~= "string" or m.req ~= G.req[c] then return end -- (an older search's answer)
+    local items = type(m.items) == "table" and m.items or {}
+    if m.first then
+      if m.error ~= nil and m.error ~= "" then G.say(c, tostring(m.error))
+      elseif items[1] == nil then G.say(c, 'No GIFs found for "' .. G.xmlText(m.q) .. '".')
+      elseif G.alive(G.frames[c]) or G.spawning[c] then G.show(c, items[1]) end
+      return
+    end
+    G.results[c] = { q = m.q, page = tonumber(m.page) or 0, items = items, total = m.total }
+    if m.error ~= nil and m.error ~= "" then G.status[c] = tostring(m.error)
+    elseif #items == 0 then G.status[c] = "Nothing found."
+    else G.status[c] = "Page " .. ((tonumber(m.page) or 0) + 1) .. ": click one to show it" end
+    G.redraw(c)
+  end
+end
+
+-- ───── the frame's buttons (Object UI, so the colour is in each element's id: "gifpick_White") ─────
+function engineGif.onClick(player, id)
+  local G = engineGif
+  local u = id:find("_", 1, true)
+  if u == nil then return end
+  local kind, c = id:sub(1, u - 1), id:sub(u + 1)
+  if G.frames[c] == nil then return end
+  if kind == "gifplay" then return G.play(c) end
+  if player == nil or player.color ~= c then return end -- (the rest are the owner's, shown only to them)
+  if kind == "gifpick" then
+    G.open[c] = not G.open[c] or nil
+    if G.open[c] and (G.results[c] == nil) then G.status[c] = "Type some words, press Enter." end
+    G.redraw(c)
+  elseif kind == "gifclose" then G.open[c] = nil G.redraw(c)
+  elseif kind == "gifclear" then
+    if not G.clear(c) then G.status[c] = "Your frame is already empty." G.redraw(c) end
+  elseif kind == "gifmore" then
+    local r = G.results[c]
+    if r ~= nil and r.q ~= nil then
+      G.status[c] = "Searching..."
+      G.redraw(c)
+      G.search(c, r.q, (r.page or 0) + 1, false)
+    end
+  elseif kind:sub(1, 4) == "gifr" then
+    local i = tonumber(kind:sub(5))
+    local r = G.results[c]
+    if i ~= nil and r ~= nil and r.items ~= nil and r.items[i] ~= nil then G.show(c, r.items[i]) end
+  end
+end
+function engineGif.onSearch(player, value, id)
+  local G = engineGif
+  local u = id:find("_", 1, true)
+  if u == nil then return end
+  local c = id:sub(u + 1)
+  if player == nil or player.color ~= c or G.frames[c] == nil then return end
+  local q = G.trim(value)
+  if q == "" or (q == G.query[c] and G.results[c] ~= nil and G.results[c].q == q and G.status[c] ~= "Searching...") then return end
+  G.query[c] = q
+  G.status[c] = "Searching..."
+  G.redraw(c)
+  G.search(c, q, 0, false)
+end
+function engineGifUiClick(player, value, id)
+  local ok, err = pcall(engineGif.onClick, player, tostring(id or ""))
+  if not ok then print("[MTG] GIF frame: " .. tostring(err)) end
+end
+function engineGifUiSearch(player, value, id)
+  local ok, err = pcall(engineGif.onSearch, player, tostring(value or ""), tostring(id or ""))
+  if not ok then print("[MTG] GIF frame: " .. tostring(err)) end
+end
+
+-- ───── chat: mtg gif ... / mtg gifs ... ─────
+engineGif.HELP = "GIF frames: click GIF... under your frame, or type  mtg gif <words>  (the first match),  mtg gif off  (empty it),  mtg gifs hide  /  mtg gifs show  (every frame, on your screen only). Host:  mtg gifs on  /  mtg gifs off ,  mtg gifs rating g | pg | pg-13 ,  mtg gif clear <colour> ."
+function engineGif.chat(message, pl)
+  local G = engineGif
+  local lower = string.lower(message)
+  local cmd, at = lower:match("^%s*mtg%s+(%a+)()")
+  if cmd ~= "gif" and cmd ~= "gifs" then return nil end
+  local rest = G.trim(message:sub(at))
+  local low = string.lower(rest)
+  local c = pl.color
+  local isHost = pl.host or pl.admin or pl.promoted
+  local function tellMe(t) pl.broadcast("[MTG] " .. t, { 1, 0.85, 0.4 }) end
+  if cmd == "gifs" then
+    if low == "hide" or low == "show" then
+      G.hidden[c] = (low == "hide") or nil
+      for f in pairs(G.frames) do G.redraw(f) end
+      tellMe(low == "hide" and "GIF frames hidden on your screen (the others still see them). Type  mtg gifs show  to see them again." or "GIF frames shown on your screen.")
+    elseif low == "on" or low == "off" then
+      if not isHost then tellMe("Only the host can turn the GIF frames on or off (everyone sees them).") return false end
+      G.hostOff = (low == "off")
+      G.sync()
+      if G.hostOff then broadcastToAll("[MTG] The host turned the GIF frames off.", { 1, 0.85, 0.4 })
+      elseif G.on then broadcastToAll("[MTG] The host turned the GIF frames on.", { 1, 0.85, 0.4 })
+      else tellMe("GIF frames are allowed again, but the bridge has no GIPHY key yet. " .. G.why) engineSend("gif_hello", {}) end
+    elseif low:sub(1, 6) == "rating" then
+      local r = G.trim(low:sub(7))
+      if not isHost then tellMe("Only the host can change the GIF rating.")
+      elseif r == "g" or r == "pg" or r == "pg-13" then G.rating = r broadcastToAll("[MTG] GIF searches are now rated " .. string.upper(r) .. " at most.", { 1, 0.85, 0.4 })
+      else tellMe("GIF rating is " .. string.upper(G.rating) .. ". Use:  mtg gifs rating g | pg | pg-13") end
+    else
+      tellMe("GIF frames: " .. ((G.hostOff and "off (the host's switch)") or (G.on and "on") or ("off: " .. (G.why ~= "" and G.why or "no answer from the bridge yet"))) .. ", rated " .. string.upper(G.rating) .. ". " .. G.HELP)
+    end
+    return false
+  end
+  if rest == "" or low == "help" then tellMe(G.HELP) return false end
+  if low:sub(1, 6) == "clear " then
+    local who = G.trim(rest:sub(7))
+    who = who:sub(1, 1):upper() .. who:sub(2):lower()
+    if not isHost then tellMe("Only the host can empty another player's frame. Yours:  mtg gif off")
+    elseif G.clear(who) then broadcastToAll("[MTG] The host emptied " .. who .. "'s GIF frame.", { 1, 0.85, 0.4 })
+    else tellMe(who .. " has no GIF on a frame.") end
+    return false
+  end
+  if G.hostOff then tellMe("The host has turned the GIF frames off.") return false end
+  if not G.on then
+    tellMe("GIF frames are off: " .. (G.why ~= "" and G.why or "the bridge hasn't said it has a GIPHY key (is it running?)."))
+    engineSend("gif_hello", {}) -- (asks again: its answer turns them on)
+    return false
+  end
+  if not G.canHave(c) or G.frames[c] == nil then tellMe("Only seated players have a GIF frame.") return false end
+  if low == "off" or low == "clear" then
+    if not G.clear(c) then tellMe("Your frame is already empty.") end
+    return false
+  end
+  G.search(c, rest, 0, true)
+  return false
+end
+
+-- the table's hooks, each passing on to the one it wraps (kept in engineGif: no new main-chunk locals)
+engineGif.prevChat = engineChat
+function engineChat(message, pl)
+  local ok, r = pcall(engineGif.chat, message, pl)
+  if not ok then print("[MTG] GIF chat: " .. tostring(r)) return false end
+  if r ~= nil then return r end
+  return engineGif.prevChat(message, pl)
+end
+engineGif.prevMsg = engineOnMessage
+function engineOnMessage(m)
+  if type(m) == "table" and type(m.t) == "string" and m.t:sub(1, 4) == "gif_" then
+    local d = m
+    if type(m.json) == "string" then
+      local ok, x = pcall(engineJsonDecode, m.json)
+      if not ok or type(x) ~= "table" then ok, x = pcall(JSON.decode, m.json) end
+      if not ok or type(x) ~= "table" then return end
+      d = x
+    end
+    return engineGif.onMessage(d)
+  end
+  return engineGif.prevMsg(m)
+end
+-- nobody but the owner moves a frame; nobody copies, deletes, flips or groups one; a click plays it again
+engineGif.prevAction = onPlayerAction
+function onPlayerAction(player, action, targets)
+  local A = Player.Action
+  for _, o in ipairs(targets or {}) do
+    local c = engineGif.ownerOf(o)
+    if c ~= nil then
+      if action == A.Select then engineGif.play(c) end -- (clicking a frame, anyone: it plays again)
+      local mine = player ~= nil and player.color == c
+      if not (mine and (action == A.PickUp or action == A.Select or action == A.RotateIncrementalLeft or action == A.RotateIncrementalRight)) then
+        if action ~= A.Select and player ~= nil then
+          engineGif.say(player.color, mine and "Your GIF frame can only be moved (Clear in its panel empties it)." or (c .. "'s GIF frame: only " .. c .. " can move it. Its Replay button plays it again."))
+        end
+        return false
+      end
+    end
+  end
+  if engineGif.prevAction ~= nil then return engineGif.prevAction(player, action, targets) end
+  return true
+end
+-- the owner moves it anywhere on their own mat; dropped elsewhere it goes back
+engineGif.prevDrop = onObjectDrop
+engineGif.homes = {}
+function onObjectDrop(color, obj)
+  local c = engineGif.ownerOf(obj)
+  if c ~= nil then
+    local d = data ~= nil and data[c] or nil
+    if d ~= nil and d.playmat ~= nil and insideZone(d.playmat, obj.getPosition()) then engineGif.homes[c] = obj.getPosition()
+    else
+      local home = engineGif.homes[c]
+      if home == nil then
+        local g = seatGeometry(c)
+        home = g and engineGif.freeSpot(c, g) or nil
+      end
+      if home ~= nil then obj.setPositionSmooth(home, false, true) end
+      engineGif.say(color, "A GIF frame stays on its owner's mat.")
+    end
+    return
+  end
+  if engineGif.prevDrop ~= nil then return engineGif.prevDrop(color, obj) end
+end
+engineGif.prevDestroy = onObjectDestroy
+function onObjectDestroy(obj)
+  local c = engineGif.ownerOf(obj)
+  if c ~= nil and engineGif.same(engineGif.frames[c], obj) then engineGif.frames[c] = nil engineGif.syncSoon() end
+  if engineGif.prevDestroy ~= nil then return engineGif.prevDestroy(obj) end
+end
+engineGif.prevColor = onPlayerChangeColor
+function onPlayerChangeColor(color)
+  if engineGif.prevColor ~= nil then engineGif.prevColor(color) end
+  if engineGif.on then engineGif.syncSoon() end
+end
+-- the host's switch and rating go in the save beside the table's own (only when not the defaults)
+engineGif.prevSave = onSave
+function onSave()
+  local s = engineGif.prevSave ~= nil and engineGif.prevSave() or "{}"
+  if not engineGif.hostOff and engineGif.rating == "pg-13" then return s end
+  if type(s) ~= "string" or s:sub(-1) ~= "}" then return s end
+  local add = JSON.encode({ off = engineGif.hostOff, rating = engineGif.rating })
+  return s:sub(1, -2) .. (s == "{}" and "" or ",") .. '"engineGif":' .. add .. "}"
+end
+-- on load: the saved switch and rating, and the frames the save kept (then the bridge is asked whether it has a key;
+-- with no frames on the table it says so by itself, with its answer to the table's hello)
+function engineGif.load()
+  local G = engineGif
+  local ok, saved = pcall(JSON.decode, Global.script_state or "")
+  if ok and type(saved) == "table" and type(saved.engineGif) == "table" then
+    G.hostOff = saved.engineGif.off == true
+    local r = saved.engineGif.rating
+    if r == "g" or r == "pg" or r == "pg-13" then G.rating = r end
+  end
+  if G.adopt() > 0 then
+    for c in pairs(G.frames) do G.redraw(c) end
+    engineSend("gif_hello", {})
+  end
+end
+Wait.frames(function()
+  local ok, err = pcall(engineGif.load)
+  if not ok then print("[MTG] GIF frames: " .. tostring(err)) end
+end, 31)
+-- ═════════════════════ end of GIF FRAMES ═════════════════════
+
 -- This script's version, set in the save by tools/patch-save.js; the bridge compares it with the last deploy
 function engineStamp() return "dev" end

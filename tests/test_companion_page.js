@@ -576,6 +576,23 @@ function boot(body) {
     same("tools: the bridge's tool list is kept", P.toolsView(TOOLS()).debug.tools, ["mana", "hand", "battlefield", "life", "untap"]);
   }
   {
+    // GIF frames: the GIPHY key field (the bridge keeps the key; GET /tools says only whether one is set and its last four)
+    const KEY = "AbCdEf0123456789AbCdEf0123456789";
+    const G = P.gifKeyRequest;
+    same("gif key: Save sends the trimmed key for giphy", G(`  ${KEY} `, false), { kind: "gif-key", provider: "giphy", key: KEY });
+    same("gif key: Remove sends an empty key", G("whatever", true), { kind: "gif-key", provider: "giphy", key: "" });
+    same("gif key: empty or malformed: said, nothing to send", [G("  ", false).error, G("has spaces in it 123", false).error, G("short1", false).error],
+      ["Paste your GIPHY key first (developers.giphy.com).", "That doesn’t look like a GIPHY key: letters and digits only, as GIPHY shows it.", "That doesn’t look like a GIPHY key: letters and digits only, as GIPHY shows it."]);
+    const withGifs = (g) => ({ ...TOOLS(), gifs: g });
+    same("gif key: set: its last four and the hour's searches", P.toolsView(withGifs({ giphy: { set: true, ends: "6789" }, used: 3, limit: 100, restingMin: 0 })).gifs,
+      { set: true, text: "A GIPHY key ending in 6789 is saved on this PC: the table’s GIF frames are on. Searches this hour: 3 of 100." });
+    ok("gif key: resting is said", /resting 12 min/.test(P.toolsView(withGifs({ giphy: { set: true, ends: "6789" }, used: 100, limit: 100, restingMin: 12 })).gifs.text));
+    same("gif key: none set", P.toolsView(withGifs({ giphy: { set: false } })).gifs, { set: false, text: "No GIPHY key saved: the table has no GIF frames." });
+    same("gif key: an older bridge (no gifs field)", P.toolsView(TOOLS()).gifs.set, false);
+    ok("gif key: an older bridge is told to restart", /restart the engine/.test(P.toolsView(TOOLS()).gifs.text));
+    same("gif key: the bridge down: no line", P.toolsView(null).gifs, { set: false, text: "" });
+  }
+  {
     const h = boot();
     h.tools = TOOLS();
     await h.clock.advance(0);
@@ -611,6 +628,19 @@ function boot(body) {
     h.$("tt-debug").listeners.change.forEach((f) => f());
     for (let i = 0; i < 4; i++) await flush();
     same("tools: the switch posts debug-mode", h.posts[2] && h.posts[2].body, { kind: "debug-mode", on: false });
+    // the GIF key: sent, then the box emptied (the page never shows a key back); the state line from GET /tools
+    const GKEY = "AbCdEf0123456789AbCdEf0123456789";
+    h.answer = () => ({ ok: true, message: "GIPHY key saved on this PC. The table's GIF frames are on." });
+    h.tools = { ...TOOLS(), gifs: { giphy: { set: true, ends: "6789" }, used: 0, limit: 100, restingMin: 0 } };
+    h.$("tt-gif-key").value = GKEY;
+    h.$("tt-gif-save").click();
+    for (let i = 0; i < 6; i++) await flush();
+    same("gif key: Save posts gif-key, empties the box, says the bridge's answer and its state", [h.posts[3] && h.posts[3].body, h.$("tt-gif-key").value, h.$("tt-toast").textContent, h.$("tt-gif-state").textContent],
+      [{ kind: "gif-key", provider: "giphy", key: GKEY }, "", "GIPHY key saved on this PC. The table's GIF frames are on.", "A GIPHY key ending in 6789 is saved on this PC: the table’s GIF frames are on. Searches this hour: 0 of 100."]);
+    h.$("tt-gif-remove").click();
+    for (let i = 0; i < 6; i++) await flush();
+    same("gif key: Remove posts an empty key", h.posts[4] && h.posts[4].body, { kind: "gif-key", provider: "giphy", key: "" });
+    h.posts.length = 3; h.tools = TOOLS(); h.answer = () => ({ ok: true, message: "" });
     const t2 = TOOLS(); t2.debug.on = false; h.tools = t2;
     await h.clock.advance(2500);
     for (let i = 0; i < 4; i++) await flush();
