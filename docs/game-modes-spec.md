@@ -407,7 +407,7 @@ On top of §5.3:
 
 Plus §4 (15.5) if not done already. Level 1 with §4: **63.5**.
 
-### 5.9 Level 1 as built (2026-11-13, branch `2hg`, image tag `2hg`, not deployed)
+### 5.9 Level 1 as built (2026-11-13/14, branch `2hg`, image tag `engine1115-2hg`, not deployed)
 
 What exists (details and proofs: `docs/engine-changes.md`, "2026-11-13 2hg"):
 - **§4 plumbing:** `gameConfig` roomRelay from the room controller (relay allow-list, node `HostSnapshot.game_config`,
@@ -431,12 +431,14 @@ What exists (details and proofs: `docs/engine-changes.md`, "2026-11-13 2hg"):
   partner's hand stand-ins, the phase bar's "(YOUR TEAM)" / "(TEAM ...)" tag, VICTORY for both partners and "WHITE + RED
   WIN THE GAME", "Concede for your team?". **Not built:** a separate team life tracker between the mats (each seat's
   tracker shows the team number already), team tint on the mat borders, per-team commander-damage trackers (each seat's
-  tracker shows the team's total instead).
+  tracker shows the team's total instead). These three are looks only, and each needs placing and a screenshot on the
+  real table, so they wait for a session with TTS. The engine side was proved live on `engine1115-2hg`
+  (`tests/live_2hg_check.js`, 24 of 24, 2026-11-14).
 
 Known limits (Level 1):
-- The Forge AI blocks only creatures attacking itself (`AiBlockController.sortPotentialAttackers` reads
-  `combat.getAttackersOf` the AI's own player and planeswalkers), so an AI partner doesn't block for a human partner. Its
-  board score already reads the team's life (mirrored).
+- The Forge AI blocks for its partner (2026-11-14, forge-ai `ComputerUtilCombat.attackersOfTeam`): it counts the life,
+  poison and commander damage an attack on either partner costs the team, and sorts the partner's attackers in with its
+  own. It still declares its blocks on its own, without knowing what a human partner will block.
 - Each defender still declares blocks one after the other (§5.3 item 5).
 - A `gameConfig` stays with the node until a game starts: one sent before a StartGame that never led to a game would
   apply to the next game started in that room without a restart (the bridge sends one only right before StartGame).

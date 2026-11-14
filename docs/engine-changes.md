@@ -169,8 +169,9 @@ starts from the planechase-fix-1113 patch. In `mtg-harness-test:engine1114-rejoi
 pass (whole suite 16 of 16 classes, 140 checks). Steps 3 (break-it) and 4 (the live spike, plain and `--raw`) are still
 to do, on `engine1114-rejoin` in place of `pcfix1113`, before that image is deployed.
 
-**2hg (Two-Headed Giant Level 1 and team plumbing, built 2026-11-13, not deployed).** Section 4's "2026-11-13 2hg" entry.
-Carries planechase-fix-1113 as well. Branch `2hg` of the outer repo (worktree `tmp/wt-2hg`), not merged to main.
+**engine1115-2hg (Two-Headed Giant Level 1 and team plumbing, built 2026-11-14, not deployed).** Section 4's
+"2026-11-14 engine1115-2hg" entry. On top of engine1114-rejoin. Branch `2hg` of the outer repo (worktree `tmp/wt-2hg`),
+not merged to main.
 
 ## 3. Summary table (newest first)
 
@@ -180,6 +181,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-14 12:49 / 12:51 | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) | Two-Headed Giant Level 1 (shared life and poison, team loss, team blocks, team-lead start, 2HG Commander numbers) and the team plumbing (`gameConfig`, `teamRules`); the Forge AI blocks for its partner; on top of engine1114-rejoin | **Both** (protocol: `StartGameRequest` team fields, `GameViewDto.teamRules`, relay allow-list `gameConfig`) | tree `tmp/eb1115-2hg` in `tmp/wt-2hg`, branch `2hg-1115` (`4f4411c`, `f995fab`), its `forge/` branch `2hg-1115` (`ef17522a`, `7f3026cb`, `19931d89`); outer branch `2hg` | not deployed | `engine1114-rejoin` (or `engine1113`, the live one) |
 | 2026-11-14 03:25 / (relay cached, 2026-11-12 20:07 stamp) | `engine1114-rejoin` (`3e8f2005bda9` / `4e47919e1966`) | A rewind brings back players who conceded or lost after the point; also carries planechase-fix-1113 (first build) | Node only (no protocol change; relay source unchanged) | tree `tmp/eb1114-rejoin` in worktree `agent-ac7d563c775ca72fd`, branch `rejoin-1114` (`866240c`, `0d6dfa3`, `df0e503`); bridge "is back in the game" line | not deployed | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) |
 | 2026-11-13 02:07 / (relay layers all cached, 20:07 stamp) | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) | Combat flags once per snapshot round; delayed-trigger ids per viewer; face-down `unlockedDoors` blanked; no ownerless or targetless damage entries | Node only (no protocol change; relay rebuilt from the same tree, source unchanged) | tree `tmp/eb1113` in the outer worktree (`engine/manabrew.patch` regenerated); bridge `delayedOf` reads an empty text as hidden | **deployed 2026-11-13 09:37 UTC** (main 75fc8a2) | `engine1112` (`0306d683de26` / `58cf2e3da251`) |
 | 2026-11-12 20:03 / 20:07 | `engine1112` (`0306d683de26` / `58cf2e3da251`) | Per-permanent card flags; effects, delayed triggers, storm and per-turn counts in the view; damage events in the feed | Node needed; relay optional (the old relay passes the new fields, proved live) | mb-wt-merge `86b9279`, `6b6d362`, `8fac2bb`, merge `ecf76ab`; no compile fix needed | **deployed 2026-11-12** (main `f66ba5e`, table `01875e13`, save `30d57321`) | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) |
@@ -246,6 +248,68 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-14 engine1115-2hg: Two-Headed Giant Level 1 (built, not deployed)
+- **Problem:** the user asked for Two-Headed Giant (`docs/game-modes-spec.md` §5, decisions §12): partners share one
+  life total (30, 80 in Commander), poison (15) and a commander's damage (42, the house rule), lose together and block for
+  each other; Level 1 keeps each player's own turn, the team's two back to back. Forge has team numbers but none of that.
+- **What, Forge (`engine/forge.patch`, all behind `GameRules.sharedTeamLife`, off by default):** life and poison
+  mirrored to the teammates after each change (`Player.shareLifeWithTeam`, `setCounters` for poison; 810.9, 810.10),
+  can't gain / can't lose life for the whole team (810.9g-h), the poison limit from `GameRules.poisonCountersToLose` instead
+  of 10, a new `commanderDamageToLose` with one commander's damage summed over the team (`getTeamCommanderDamage`), a
+  player's loss (concession too) is the team's (`loseWithTeammate`, 810.8a-b) and a teammate's "can't lose" protects the
+  team, an alternate win is the team's, a defender may block a creature attacking a teammate (`CombatUtil.canBeBlocked`,
+  805.10d) and is asked to (`PhaseHandler.isTeammateAttacked`), the starting team skips both first draws (103.8b, kept
+  across an extra turn), the first-player roll and Power Play start at the team's first seat (`GameAction.teamLead`).
+  **New in this build, forge-ai:** `ComputerUtilCombat` reads the shared-life team for the life, poison and commander
+  damage an attack costs (`attackersOfTeam`, `combatDamageTo`, `combatPoisonTo`, `getLifeThreateningCommanders`
+  against `getCommanderDamageToLose`), and `AiBlockController.sortPotentialAttackers` sorts a teammate's attackers in
+  with its own, so a Forge AI blocks for its partner. Outside a shared-life game every one of these reads the player
+  alone, as before (the team is just the player, the limit 21).
+- **What, harness and node (`engine/manabrew.patch`):** `StartGameRequest` gains `teamRules` (`none`, `teams`,
+  `sharedLife`), `poisonToLose`, `commanderDamageToLose` and per player `team`, `startingLife`, `startingHand`;
+  `ManaBrewEngineAdapter.configureTeamRules` refuses an unknown rule, a missing or negative team, fewer than two teams,
+  uneven `sharedLife` teams, partners apart in seat order, partners at different starting life and limits below 1; the
+  2HG defaults by team size (2 heads: 30 life, 80 in Commander, poison 15, commander damage 42). The roll offers only team
+  leads. `GameViewDto.teamRules` (rule and limits) when a team has two players; a teammate's hand shown to the viewer in
+  a `sharedLife` game (`InteractiveSnapshotExtractor.sharesHandWith`, 810.5). Node: the room controller's `gameConfig`
+  roomRelay message is kept (`HostSnapshot.game_config`) and applied to the next game started; the relay passes it
+  (allow-list in `manabrew-server/src/connection.rs`); the Rust backend logs a warning and ignores it.
+- **Source:** tree `tmp/eb1115-2hg` in the outer worktree `tmp/wt-2hg`, a clone of `eb1114-rejoin`: branch `2hg-1115`
+  = `rejoin-1114` (`df0e503`) + `4f4411c` (the harness, protocol, node and relay work of `tmp/mb-2hg` branch
+  `2hg-1113`, `fc28388..3badb9c`, applied as one diff with no conflicts) + `f995fab` (new checks). Its `forge/` is a
+  clone of `tmp/mb-2hg/forge` (`ef17522a`, `0d5e213f` planechase, `7f3026cb` review fixes) + `19931d89` (the AI).
+  `engine/manabrew.patch` is `git diff fd16e2f` of that branch (56 files), `engine/forge.patch` is `git diff e7d2b93`
+  of its `forge/` (436 files with the Star Trek import). Main's forge patch plus this work differs from it only in the
+  2HG files (checked by applying main's patch to `e7d2b93` and diffing against `7f3026cb`).
+- **Build:** 2026-11-14 through `tmp/slot.js`, `ENGINE_BUILD_DIR=tmp/wt-2hg/tmp/engine-build-2hg bash
+  engine/build-images.sh engine1115-2hg` (clean tree from the pinned upstream commits + both patches):
+  `mtg-forge-node:engine1115-2hg` `fcb808036400`, `mtg-relay:engine1115-2hg` `034587f1f7b1` (relay rebuilt: the
+  allow-list changed). Test image `mtg-harness-test:engine1115-2hg` `0097fcf338ed` (`--target java-builder`, same tree).
+  Older images `mtg-forge-node:2hg` / `mtg-harness-test:2hg` (2026-11-13, on engine1113, no AI change) are superseded.
+- **Proof:** in `mtg-harness-test:engine1115-2hg`, `engine/checks/harness-tests.sh` with no class name: 17 of 17 classes,
+  165 checks (`TeamGameTest` 25, `RejoinRewindTest` 6, `PlanechaseTest` with the five planechase-fix checks). New
+  `TeamGameTest` checks: `theAiCountsAttacksOnItsPartnerAgainstTheTeam`, `anAiDefenderBlocksForItsPartnerWhenTheTeamWouldLose`,
+  `theAiSeesACommanderThreatenTheTeamsTotal`, `aRewindPutsTheTeamsLifeBackOnBothPartners` (rewind x shared life, the
+  merge with engine1114-rejoin). Break-it (`tmp/wt-2hg/tmp/mutate-2hg.sh`: the two forge-ai classes compiled into the
+  harness classpath ahead of the image's Forge jar, one mutation at a time, each file restored and checked by sha256):
+  block sort on own attackers fails `anAiDefenderBlocks...`; remaining life on own attackers fails `theAiCounts...` and
+  `anAiDefenderBlocks...`; poison on own attackers, and `attackersOfTeam` on the player alone, each fail
+  `theAiCounts...`; the commander threat on own damage at 21, and on the player alone, each fail
+  `theAiSeesACommander...`; a restore without the snapshot fails `aRewindPuts...`. Baseline 25 of 25.
+  Live, `LIVE_STACK=5 LIVE_TIMEOUT=600 sh tools/live-check.sh engine1115-2hg tests/live_2hg_check.js` (four human seats,
+  2HG Commander): 24 of 24 (partners see each other's hands and no one else's, 80 life, poison 15, commander damage 42,
+  the team's first seat starts and its turns come back to back, both first draws skipped, shared life and poison, 41 over
+  the team stays in, 42 loses both, the other team wins). The check now waits for the dealt hands before looking at them
+  (its first run here read a board from before the deal, 0 of 0 cards) and fails if it never did.
+- **Known limits:** spec §5.9 (each defender still declares blocks on their own; 810.9d, 810.9f and 701.34b left out;
+  poison set in bulk is not mirrored; the Rust backend has no team rules).
+- **Deploy (when wanted):** protocol changed, so both images: TTS closed, no game running, from the merged checkout
+  `node tools/deploy.js --image engine1115-2hg` (retags node and relay). The bridge and table changes are on branch `2hg`
+  and work on the old engine for free-for-all games; a 2HG start on an engine without `gameConfig` would start a plain
+  free-for-all, so deploy the engine with the branch.
+- **Rollback:** `node tools/deploy.js --image engine1113` (the live one, node `4d0f4dcaa0f7`, relay `d88922ebdd9f`), or
+  `engine1114-rejoin` if that went live first.
 
 ### 2026-11-14 engine1114-rejoin: a rewind brings back a player who conceded or lost after the point (built, not deployed)
 - **Problem:** the user asked that a player who conceded can get back into the game when the table rewinds. A rewind to a

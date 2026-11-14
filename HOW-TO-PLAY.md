@@ -147,6 +147,8 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg ready` | the same as the READY? button |
 | `mtg clear deck` | removes your own deck and commander from your seat (when your Delete key does nothing on them); not during a game |
 | `mtg friendly 0\|1\|2` | free mulligans each, for everyone, the same as the Free mulligans button |
+| `mtg mode 2hg` / `mtg mode ffa` | host: the next games are Two-Headed Giant (White + Red against Yellow + Blue) or free-for-all again. Partners share one life total (30 a team, 80 in Commander), poison (15 loses) and a commander's damage (42 loses), lose together, block for each other and see each other's hands; each player still takes their own turn, the team's two turns back to back. All four seats play (Forge AI players fill the empty ones). Works with `mtg mode standard` too |
+| `mtg team <colour> 1\|2` | host, after `mtg mode 2hg`: move a seat to team 1 or 2 (partners must sit next to each other in turn order) |
 | `mtg engine on` / `off` | anyone seated: the rules engine on or off |
 | `mtg start [ai N]` | anyone seated: start (optionally with N Forge AI players) |
 | `mtg reset` | host: end the game and give the imported decks back (anyone seated once the game is over) |
@@ -156,7 +158,7 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg timer [seconds]` / `mtg timer off` | turn timers for everyone (host) |
 | `mtg art off` / `mtg art on` | host: everyone sees the normal card pictures / the pictures players linked in their deck lists (`1 Sol Ring #https://...`) |
 | `mtg fix` (`yes` / `no` / `done` / `cancel`) | the manual fix, as the Fix... button |
-| `mtg concede` | leave the game (twice within 15 s) |
+| `mtg concede` | leave the game (twice within 15 s); in Two-Headed Giant it concedes for your whole team |
 | `mtg effects on/off`, `mtg sounds on/off` | your own effects and sounds |
 | `mtg sounds test <kind> [N]` | host: play one table sound now, with N the one for N at once (death 5 plays the 4-stack); kinds: knockout, wipe, death, exile, damage, lifegain, instant, counter (counter and knockout have no sound yet) |
 | `mtg mana 99` | (testing) a manual fix in one line: 99 of each mana until the end of the turn |

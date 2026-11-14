@@ -8696,10 +8696,10 @@ index 0000000..849bb01
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java b/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java
 new file mode 100644
-index 0000000..a7a1c3f
+index 0000000..699629d
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java
-@@ -0,0 +1,600 @@
+@@ -0,0 +1,699 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -8707,6 +8707,8 @@ index 0000000..a7a1c3f
 +import com.google.gson.JsonObject;
 +import com.google.gson.JsonParser;
 +import forge.StaticData;
++import forge.ai.AiBlockController;
++import forge.ai.ComputerUtilCombat;
 +import forge.ai.LobbyPlayerAi;
 +import forge.ai.PlayerControllerAi;
 +import forge.deck.Deck;
@@ -8719,6 +8721,7 @@ index 0000000..a7a1c3f
 +import forge.game.ability.AbilityFactory;
 +import forge.game.ability.AbilityUtils;
 +import forge.game.card.Card;
++import forge.game.card.CounterEnumType;
 +import forge.game.combat.Combat;
 +import forge.game.combat.CombatUtil;
 +import forge.game.phase.PhaseHandler;
@@ -8740,6 +8743,7 @@ index 0000000..a7a1c3f
 +import java.lang.reflect.Field;
 +import java.lang.reflect.Method;
 +import java.util.ArrayList;
++import java.util.Deque;
 +import java.util.EnumSet;
 +import java.util.List;
 +import java.util.Set;
@@ -8771,6 +8775,10 @@ index 0000000..a7a1c3f
 +        check("anExtraTurnLeavesThePartnersFirstDrawSkipped", TeamGameTest::anExtraTurnLeavesThePartnersFirstDrawSkipped);
 +        check("platinumAngelKeepsTheWholeTeamIn", TeamGameTest::platinumAngelKeepsTheWholeTeamIn);
 +        check("aDefenderBlocksForItsTeammate", TeamGameTest::aDefenderBlocksForItsTeammate);
++        check("theAiCountsAttacksOnItsPartnerAgainstTheTeam", TeamGameTest::theAiCountsAttacksOnItsPartnerAgainstTheTeam);
++        check("anAiDefenderBlocksForItsPartnerWhenTheTeamWouldLose", TeamGameTest::anAiDefenderBlocksForItsPartnerWhenTheTeamWouldLose);
++        check("theAiSeesACommanderThreatenTheTeamsTotal", TeamGameTest::theAiSeesACommanderThreatenTheTeamsTotal);
++        check("aRewindPutsTheTeamsLifeBackOnBothPartners", TeamGameTest::aRewindPutsTheTeamsLifeBackOnBothPartners);
 +        check("theStartingTeamSkipsItsFirstDraws", TeamGameTest::theStartingTeamSkipsItsFirstDraws);
 +        check("theTeamsFirstSeatStarts", TeamGameTest::theTeamsFirstSeatStarts);
 +        check("oneCommandersDamageAddsUpOverTheTeam", TeamGameTest::oneCommandersDamageAddsUpOverTheTeam);
@@ -9058,6 +9066,93 @@ index 0000000..a7a1c3f
 +        expect(!CombatUtil.canBlock(ffaBears, ffaBlocker, ffaCombat), "a free-for-all player blocks for another (rule 802.4a)");
 +    }
 +
++    private static Combat attack(final Fixture f, final Player attacker, final Player defender, final Card... creatures) {
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, attacker);
++        final Combat combat = new Combat(attacker);
++        for (final Card c : creatures) {
++            combat.addAttacker(c, defender);
++        }
++        f.game.getPhaseHandler().setCombat(combat);
++        return combat;
++    }
++
++    private static void theAiCountsAttacksOnItsPartnerAgainstTheTeam() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        final Card bears = add("Grizzly Bears", f.white, ZoneType.Battlefield);
++        final Card elf = add("Glistener Elf", f.white, ZoneType.Battlefield);
++        final Combat combat = attack(f, f.white, f.yellow, bears, elf);
++        expect(ComputerUtilCombat.lifeThatWouldRemain(f.blue, combat) == 28,
++                "Blue expects " + ComputerUtilCombat.lifeThatWouldRemain(f.blue, combat) + " life after 2 damage to Yellow, not 28");
++        expect(ComputerUtilCombat.resultingPoison(f.blue, combat) == 1,
++                "Blue expects " + ComputerUtilCombat.resultingPoison(f.blue, combat) + " poison after an infect hit on Yellow, not 1");
++        expect(ComputerUtilCombat.attackersOfTeam(f.blue, combat).size() == 2, "Blue's team is attacked by " + ComputerUtilCombat.attackersOfTeam(f.blue, combat));
++        final Fixture ffa = new Fixture(false, GameType.Constructed, 20);
++        final Card ffaBears = add("Grizzly Bears", ffa.white, ZoneType.Battlefield);
++        final Card ffaElf = add("Glistener Elf", ffa.white, ZoneType.Battlefield);
++        final Combat ffaCombat = attack(ffa, ffa.white, ffa.yellow, ffaBears, ffaElf);
++        expect(ComputerUtilCombat.lifeThatWouldRemain(ffa.blue, ffaCombat) == 20 && ComputerUtilCombat.resultingPoison(ffa.blue, ffaCombat) == 0,
++                "a free-for-all Blue counts an attack on Yellow: " + ComputerUtilCombat.lifeThatWouldRemain(ffa.blue, ffaCombat)
++                        + " life, " + ComputerUtilCombat.resultingPoison(ffa.blue, ffaCombat) + " poison");
++    }
++
++    private static void anAiDefenderBlocksForItsPartnerWhenTheTeamWouldLose() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        f.yellow.setLife(3, null);
++        final Card first = add("Grizzly Bears", f.white, ZoneType.Battlefield);
++        final Card second = add("Grizzly Bears", f.white, ZoneType.Battlefield);
++        add("Grizzly Bears", f.blue, ZoneType.Battlefield);
++        final Combat combat = attack(f, f.white, f.yellow, first, second);
++        expect(ComputerUtilCombat.lifeInDanger(f.blue, combat), "Blue does not see the team in danger from 4 damage to Yellow at 3 life");
++        new AiBlockController(f.blue, false).assignBlockersForCombat(combat);
++        expect(!combat.getAllBlockers().isEmpty(), "Blue's AI left the team to die: no block on the attack on Yellow");
++        expect(ComputerUtilCombat.lifeThatWouldRemain(f.blue, combat) > 0,
++                "after Blue's blocks the team would still be at " + ComputerUtilCombat.lifeThatWouldRemain(f.blue, combat));
++    }
++
++    private static void theAiSeesACommanderThreatenTheTeamsTotal() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Commander, 80);
++        f.game.getRules().setCommanderDamageToLose(42);
++        final Card commander = add("Grizzly Bears", f.white, ZoneType.Battlefield);
++        commander.setCommander(true);
++        f.yellow.addCommanderDamage(commander, 20);
++        f.blue.addCommanderDamage(commander, 20);
++        final Combat combat = attack(f, f.white, f.yellow, commander);
++        expect(ComputerUtilCombat.getLifeThreateningCommanders(f.blue, combat).contains(commander),
++                "Blue does not see 40 + 2 of one commander's damage to the team as lethal (42)");
++        f.blue.addCommanderDamage(commander, -1);
++        expect(ComputerUtilCombat.getLifeThreateningCommanders(f.blue, combat).isEmpty(),
++                "Blue sees 39 + 2 of one commander's damage as lethal (42)");
++    }
++
++    @SuppressWarnings("unchecked")
++    private static void aRewindPutsTheTeamsLifeBackOnBothPartners() throws Exception {
++        final Fixture f = new Fixture(true, true, GameType.Constructed, 30, true);
++        final Method record = ManaBrewInteractiveSession.class.getDeclaredMethod("recordCheckpoint");
++        record.setAccessible(true);
++        record.invoke(f.session);
++        f.white.loseLife(3, false, false, null);
++        f.red.setCounters(CounterEnumType.POISON, 4);
++        expectLife(f, 27, 27, 30, 30);
++        final Field field = ManaBrewInteractiveSession.class.getDeclaredField("checkpoints");
++        field.setAccessible(true);
++        final Object first = ((Deque<Object>) field.get(f.session)).peekFirst();
++        expect(first != null, "no checkpoint was recorded");
++        Method restore = null;
++        for (final Method m : ManaBrewInteractiveSession.class.getDeclaredMethods()) {
++            if (m.getName().equals("restore") && m.getParameterCount() == 1) {
++                restore = m;
++            }
++        }
++        expect(restore != null, "no restore method");
++        restore.setAccessible(true);
++        restore.invoke(f.session, first);
++        expectLife(f, 30, 30, 30, 30);
++        expect(f.white.getPoisonCounters() == 0 && f.red.getPoisonCounters() == 0,
++                "poison after the rewind " + f.white.getPoisonCounters() + "/" + f.red.getPoisonCounters());
++        f.red.loseLife(5, false, false, null);
++        expectLife(f, 25, 25, 30, 30);
++    }
++
 +    private static void theStartingTeamSkipsItsFirstDraws() throws Exception {
 +        final Fixture f = new Fixture(true, GameType.Constructed, 30);
 +        f.game.setStartingPlayer(f.white);
@@ -9267,6 +9362,10 @@ index 0000000..a7a1c3f
 +        }
 +
 +        Fixture(final boolean teams, final boolean shared, final GameType type, final int life) {
++            this(teams, shared, type, life, false);
++        }
++
++        Fixture(final boolean teams, final boolean shared, final GameType type, final int life, final boolean recording) {
 +            final List<RegisteredPlayer> players = new ArrayList<>();
 +            final String[] names = {"White", "Red", "Yellow", "Blue"};
 +            for (int i = 0; i < 4; i++) {
@@ -9288,7 +9387,7 @@ index 0000000..a7a1c3f
 +            red = game.getPlayers().get(1);
 +            yellow = game.getPlayers().get(2);
 +            blue = game.getPlayers().get(3);
-+            session.attach(game.getMatch(), game, Set.of(), false);
++            session.attach(game.getMatch(), game, Set.of(), recording);
 +        }
 +
 +        JsonObject view(final int viewer) {
