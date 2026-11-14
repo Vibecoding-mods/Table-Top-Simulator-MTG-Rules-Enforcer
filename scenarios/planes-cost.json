@@ -1,0 +1,22 @@
+{
+  "label": "Planechase: roll the planar die three times in your main phase: the button reads free, then {1}, then {2} (5 Mountains to pay with)",
+  "lands": {
+    "Mountain": 5
+  },
+  "keepHand": true,
+  "planechase": {
+    "planes": [
+      "Akoum",
+      "Turri Island",
+      "Naya",
+      "Krosa",
+      "Murasa",
+      "Feeding Grounds",
+      "Goldmeadow",
+      "Llanowar",
+      "The Great Forest",
+      "Sea of Sand"
+    ],
+    "current": "Krosa"
+  }
+}

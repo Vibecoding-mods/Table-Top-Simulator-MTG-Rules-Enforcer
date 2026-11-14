@@ -1,6 +1,25 @@
 {
-  "label": "Planechase P7 (a game with mtg planechase on): planeswalk to Interplanar Tunnel from a planar deck: its pick of five planes, then the planeswalk line and the new plane at the centre (needs the plane in the pool first: mtg planes Interplanar Tunnel; ... then mtg planechase on, see README)",
+  "label": "Planechase P7: planeswalk to Interplanar Tunnel: \"Interplanar Tunnel: put which plane on top of your planar deck?\" with five planes as pictures, then the planeswalk line and the new plane at the centre",
   "lands": 0,
   "keepHand": true,
-  "planeswalk": "Interplanar Tunnel"
+  "planeswalk": "Interplanar Tunnel",
+  "planechase": {
+    "planes": [
+      "Akoum",
+      "Turri Island",
+      "Naya",
+      "Krosa",
+      "Murasa",
+      "Feeding Grounds",
+      "Goldmeadow",
+      "Llanowar",
+      "The Great Forest",
+      "Sea of Sand",
+      "Tazeem",
+      "Skybreen",
+      "Velis Vel",
+      "Mount Keralia",
+      "Interplanar Tunnel"
+    ]
+  }
 }

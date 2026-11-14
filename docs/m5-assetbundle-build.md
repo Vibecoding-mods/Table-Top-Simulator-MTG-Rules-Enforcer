@@ -16,10 +16,15 @@ must contain so the table can use them, how to build them, and the two-client te
 - `engineFxBundle = { fx = "<link>", sounds = nil }` (next to `engineFxArt` in `tools/engine-renderer.lua`): the TTS
   Cloud links. **No link and no such object on the table: nothing happens**, the effects stay today's Object UI slots
   and the sounds stay the MusicPlayer links.
-- `engineFxBundle.fx` (shipped since 2026-11-12 night: today's `mtg-fx.unity3d` in assets/fx, the 20-effect rebuild of `docs/particle-fx-spec.md`, uploaded as `mtg-fx2.unity3d`, 59,318 bytes, sha256 `c28c30a65d4a1f1186f21bd38570d70c1935d2b1b7625aafb94799302f1bfae3`; the link was downloaded back and matches the file): https://steamusercontent-a.akamaihd.net/ugc/13181964746744684712/6948BE73BB273AAB129525130A13E4982559BD1D/
+- `engineFxBundle.fx` (shipped 2026-11-14: the `mtg-fx.unity3d` rebuild with an empty mesh on every rig root, so TTS shows no placeholder box, uploaded under the new internal name `mtg-fx3.unity3d`, 61,035 bytes, sha256 `0cab8546ed60…e378`; the link was downloaded back and matches the file): https://steamusercontent-a.akamaihd.net/ugc/15666370258971028614/C9FF06D0A10B0C170C2B49122C0423FE29D35D3B/
+  Before it (2026-11-12 night to 2026-11-14): `mtg-fx2.unity3d`, 59,318 bytes, sha256 `c28c30a6…`, https://steamusercontent-a.akamaihd.net/ugc/13181964746744684712/6948BE73BB273AAB129525130A13E4982559BD1D/ (its rigs showed TTS's grey box; retired on load as stale rigs).
   The first `mtg-fx.unity3d` (10 effects, 118,140 bytes, sha256 `8e08833c…`, deployed 2026-11-12) was https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/; its rigs in a save are retired on load (`FX.LEGACY`).
-- `engineFxBundle.bolt` (shipped since 2026-11-12 night, `mtg-bolt.unity3d`, 50,577 bytes, sha256 `4b286c24bea4b21f94e7eb19f955aa57c56d0e89e36b0ea99c3879dbdbc5a711`, matched the same way): https://steamusercontent-a.akamaihd.net/ugc/12109543125843195804/C6B0053848DA7FCB5E6136B82243D57A66E3B289/
-  Neither link deployed or seen in TTS yet. No `sounds` bundle: the sounds are MusicPlayer links (`docs/sounds.md`).
+- `engineFxBundle.bolt` (shipped 2026-11-14, `mtg-bolt2.unity3d`, the same empty-mesh rebuild, 52,271 bytes, sha256 `5ea6e6d9cdbd…0574`, matched the same way): https://steamusercontent-a.akamaihd.net/ugc/16460449626220746289/901D08363F140757CCAB54BA2D10909F2546D622/
+  Before it: `mtg-bolt.unity3d`, 50,577 bytes, https://steamusercontent-a.akamaihd.net/ugc/12109543125843195804/C6B0053848DA7FCB5E6136B82243D57A66E3B289/ (the big box on ping damage).
+- `engineFxBundle.sounds`: `mtg-sounds.unity3d` **built 2026-11-13** (section 4; 1,536,075 bytes, sha256
+  `679c7eceda5901bb99975eace4f186a18c82c44aab8389fc5bc1cb816417d662`, index `docs/fx-research/SOUNDS.md`), **not uploaded
+  yet**, so still nil. Even with its link set, the sounds stay the MusicPlayer links (`docs/sounds.md`) until the host
+  sets `engineSoundRoute = "bundle"` (section 4, "Switching").
 - With a link and none of that object on the table, a game's first board spawns them once (`spawnObjectData`,
   `Custom_Assetbundle`, locked, parked under the table at y −30, x −40…−31, z 30). They stay in the save after that;
   the next games find them by their GM notes. Rigs already in the save are used without a link too. The spawn data
@@ -122,7 +127,64 @@ same), `Duration` = the clip's length; no GameObjects, no Particles. Plus the em
 - **Licences:** `docs/sounds.md` says the six originals are from OpenGameArt; none is listed in
   `THIRD-PARTY-NOTICES.md`. Find and list each one's licence before a public mod carries this bundle.
 - Switching a sound to the bundle: `engineSounds.death = "death"` (a value without `http` is a trigger effect name).
-  Not automatic: route A (the music player) is known to reach everyone, route B isn't yet (check 3).
+  Since 2026-11-13 also all at once: `engineSoundRoute = "bundle"` plays every link's **key** as a trigger effect name
+  (see "Built" below).
+
+### Built (2026-11-13, not uploaded, not heard in TTS)
+
+What the build is, and where it differs from the plan above:
+
+- **Names: every `engineSounds` key, 58 trigger effects** (the 12 kinds, the two Treasure kinds, and all their bursts),
+  in the table's order, read from `tools/engine-renderer.lua` itself. Keys sharing a link share one clip:
+  `treasurespend` and its bursts play death's clips, as their links do. So 52 clips.
+- **Clips: the uploaded music-player mp3s**, not the `assets/sounds/stack` mixes, so the bundle plays exactly what the
+  links play: `tools/make-sound-bundle-clips.js` maps each key to its file (`mtg2-<kind>[-xN].mp3`, `mtg3-` for
+  treasure and the remade sorcery), checks it against the sha256 `docs/sounds.md` records (33 of the 52 files; the
+  2026-11-11 damage, exile, lifegain and wipe files have none), decodes it to 44.1 kHz 16-bit WAV and cuts the music
+  player's silence padding off (after the last sample over -60 dBFS, plus 20 ms). No gain, no filter. Byte for byte
+  the same on a second run.
+- **Import: channels kept** (the plan said Force To Mono: the bursts lean left and right, so mono would change them),
+  Decompress On Load, Vorbis quality 0.6, sample rate kept, preload on. Levels are the uploaded files' (about -20 dBFS
+  RMS, Treasure by loudness, `docs/sounds.md`), not re-levelled to -16..-18 LUFS.
+- `Duration`: the clip's length rounded up to 0.05 s. No GameObjects or particles; looping effect 0 `idle`, empty.
+- The build (`Assets/Editor/MtgSoundsBuild.cs` in the Unity project, branch `mtg-fx`) reloads the bundle it made with
+  `AssetBundle.LoadFromFile` and checks every trigger effect against `sounds.tsv`: name and order, its clip, the clip's
+  length, Positional3D off, no GameObjects or particles in it. Size budget 3 MB.
+- Result: `mtg-sounds.unity3d`, 1,536,075 bytes, sha256 `679c7eceda5901bb99975eace4f186a18c82c44aab8389fc5bc1cb816417d662`
+  (`assets/fx`, gitignored; index `docs/fx-research/SOUNDS.md`, hash in `docs/fx-research/bundles.sha256`).
+
+Build, from scratch (the Unity editor closed on the project):
+
+```
+node tools/make-sound-bundle-clips.js C:/Users/you/mtg-tts/assets
+"C:\Program Files\Unity\Hub\Editor\6000.0.62f1\Editor\Unity.exe" -batchmode -nographics -quit ^
+  -projectPath C:\Users\you\mtg-unity\Tabletop-Simulator-Modding -buildTarget StandaloneWindows64 ^
+  -executeMethod MtgSoundsBuild.Build -mtgOut C:\Users\you\mtg-tts\assets\fx -logFile <log>
+```
+
+Exit 0 and "MTG sounds bundle built" in the log: done. Then copy `assets/fx/SOUNDS.md` to `docs/fx-research/` and the
+bundle's sha256 to `docs/fx-research/bundles.sha256` (`tests/test_table_effects.js` checks both against
+`engineSounds`). A new or changed sound link needs a rebuild: until then a new key plays its link (the bundle has no
+effect of that name) and a changed one the old clip. SOUNDS.md names the link each effect stands for, and the test
+fails until the bundle is rebuilt.
+
+**Switching** (the table side, `tools/engine-renderer.lua`):
+
+- `engineSoundRoute`: `"music"` (the default) or `"bundle"`. With `"bundle"`, a sound whose pick is a link plays the
+  sound object's trigger effect named as its key (`death_x4` for a burst), and its link only when there is no sound
+  object, its bundle is still loading, or it has no effect of that name. A pick that is a name plays that name, as
+  before, whatever the route.
+- A route B sound whose first event plays on a rig is held to `RIG_LEAD` (0.1 s) after the board at the soonest, the
+  rig's own earliest trigger, so it never goes out before the particles (`FX.sndLeads`; only when the sound object is
+  there and has that effect). Route A is not held back (the music player's own load comes later).
+- The sound object is renewed like the rigs: one whose memo isn't `engineFxBundle.sounds` is retired on load and a new
+  one spawned (whatever `mtg fx` says: it is no particle effect); one being retired is never played.
+- `engineSoundRoute` is a plain global, like `engineFxTint`: not saved with the game and no chat command, so it is
+  `"music"` again after every load. For check 3 the host sets it by Lua (`tools/tts-exec.sh`); once the check passes, the
+  default in the source becomes `"bundle"`.
+- Not automatic until then: route A (the music player) is known to reach everyone, route B isn't yet (check 3).
+- To use it: upload `mtg-sounds.unity3d`, put its link in `engineFxBundle.sounds`, deploy; the first game spawns the
+  sound object (save the table once so it stays). Then check 3 below with `engineSoundRoute = "bundle"`.
 
 ## 5. Shaders, platforms, size
 
@@ -196,7 +258,7 @@ A second TTS client (a friend, or a second Steam account on another PC) joins th
 |---|---|---|---|
 | 1 | A host-fired trigger effect shows for the other player | host: `engineFxTest("death", "<card id>")` | the client sees the smoke at the card, about when the host does |
 | 2 | At the right spot for them | 1 at each seat | at the card, not under the table first (else raise `FX.RIG_LEAD`) |
-| 3 | A host-fired sound effect is heard by the other player | `engineSounds.death = "death"`, `mtg sounds test death` | the client hears it; note the delay, and route A's for comparison |
+| 3 | A host-fired sound effect is heard by the other player | `engineSoundRoute = "bundle"` (or `engineSounds.death = "death"`), `mtg sounds test death` | the client hears it; note the delay, and route A's for comparison |
 | 4 | Effects off hides particles | client: `mtg effects off`; host fires 1 | the client sees nothing; if they do, `HOW-TO-PLAY.md` says particles are for everyone, like the life-counter glow |
 | 5 | Animations off stops them | host: `mtg animations off`; a creature dies | nothing for anyone |
 | 6 | No pink elsewhere | a Mac or Linux client, if one can be found | the same look as on Windows |

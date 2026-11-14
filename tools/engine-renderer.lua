@@ -1048,11 +1048,12 @@ local function setCounterVal(guid, val)
   o.call("updateSave")
 end
 
-local function setTax(guid, tax)
+-- blank: a Standard game (engineModeNow), where the label shows no number (engineModePieces)
+local function setTax(guid, tax, blank)
   local o = getObjectFromGUID(guid)
   if o == nil or o.getVar("val") == tax then return end
   o.setVar("val", tax)
-  for i = 0, 9 do pcall(function() o.editButton({ index = i, label = tostring(tax) }) end) end
+  for i = 0, 9 do pcall(function() o.editButton({ index = i, label = blank and "" or tostring(tax) }) end) end
 end
 
 -- A commander damage tracker's tooltip with partners: its name, then each commander's damage, the bridge's cmdTip
@@ -1082,7 +1083,9 @@ local function updateTrackers(m)
         setCounterVal(guid, (pl.cmdDamage or {})[from] or 0)
         engineCmdDamageTip(guid, (pl.cmdTip or {})[from])
       end
-      for i, guid in ipairs(TAX_LABELS[color] or {}) do setTax(guid, (pl.tax or {})[i] or 0) end
+      -- (Standard: the commander damage trackers are put away and the tax shows nothing, engineModePieces; their values
+      -- are still set, to the 0 a game without commanders has, so a manual fix never reads an old game's number off them)
+      for i, guid in ipairs(TAX_LABELS[color] or {}) do setTax(guid, (pl.tax or {})[i] or 0, engineModeNow ~= nil and engineModeNow() == "standard") end
     end
   end
   if engineStatusPieces ~= nil then pcall(engineStatusPieces, m) end -- (the pieces for the marks: under the last box)
@@ -2105,15 +2108,19 @@ do
     local links = engineFxBundle or {}
     -- (a rig of another bundle than its link's, FX.stale: left out, retired, and a new one spawned in its place)
     local stale = {}
+    -- (the sound object is renewed the same way, "mtg fx off" or not: it is no particle effect)
     for _, o in ipairs(getObjects()) do
       local gm = o.getGMNotes()
       local kind = (gm == "engine:fx" and "fx") or (gm == "engine:bolt" and "bolt") or nil
       if kind ~= nil and engineFxMode ~= "off" and FX.stale(o, kind, links[kind]) then stale[#stale + 1] = o
       elseif kind ~= nil then FX.addRig(o, kind == "bolt")
+      elseif gm == "engine:sounds" and FX.stale(o, "sounds", links.sounds) then stale[#stale + 1] = o
       elseif gm == "engine:sounds" then snd = o end
     end
     FX.retire(stale)
     if snd ~= nil and FX.sndObj ~= snd then FX.sndObj, FX.sndIdx = snd, nil end
+    -- (a sound object found before and retired now is played no more while it waits for its destruct)
+    if snd == nil and FX.sndObj ~= nil and not FX.sndObj.isDestroyed() and FX.retiring[FX.sndObj.getGUID()] then FX.sndObj, FX.sndIdx = nil, nil end
     if engineFxMode ~= "off" then
       FX.topUp(links.fx, "engine:fx", FX.rigs, FX.RIGS, "spawnedFx", 0)
       FX.topUp(links.bolt, "engine:bolt", FX.bolts, FX.BOLTS, "spawnedBolt", 2)
@@ -2153,12 +2160,12 @@ do
   end
   -- on load, before any game: a save holding rigs of another bundle than the links' has them replaced now (FX.findRigs
   -- retires them and tops the pools up), not at a game's first board. Nothing stale: nothing is looked for or spawned.
+  -- (a sound object of another bundle than engineFxBundle.sounds too, whatever the fx mode)
   function engineFxRenewRigs()
-    if engineFxMode == "off" then return false end
     local links = engineFxBundle or {}
     for _, o in ipairs(getObjects()) do
       local gm = o.getGMNotes()
-      local kind = (gm == "engine:fx" and "fx") or (gm == "engine:bolt" and "bolt") or nil
+      local kind = (engineFxMode ~= "off" and ((gm == "engine:fx" and "fx") or (gm == "engine:bolt" and "bolt"))) or (gm == "engine:sounds" and "sounds") or nil
       if kind ~= nil and FX.stale(o, kind, links[kind]) then FX.findRigs() return true end
     end
     return false
@@ -2340,7 +2347,7 @@ do
     last.fx, last.dropped = last.fx or {}, last.dropped or 0
     if visual and bolts ~= nil and #bolts > 0 then hits = FX.boltsFire(bolts, gen, hits, last) end
     if visual and (FX.car == nil or FX.car.isDestroyed()) then FX.car = FX.carrier() end
-    local started, deaths, soundAt = 0, 0, nil
+    local started, deaths, soundAt, soundEv = 0, 0, nil, nil
     for _, e in ipairs(ev) do
       local hit = hits[e.id or e.seat]
       local delay = hit ~= nil and math.max(0, hit - os.clock()) or 0
@@ -2348,7 +2355,7 @@ do
       if e.at ~= nil then delay = e.at
       elseif e.kind == "death" then delay = delay + 0.08 * deaths deaths = deaths + 1 end
       if e.kind == "death" and hit ~= nil and not e.sac then e.burn = true end
-      if soundAt == nil and kind ~= nil and FX.ofSound(e, kind) then soundAt = delay + (e.kind == "knockout" and 0.6 or 0) end
+      if soundAt == nil and kind ~= nil and FX.ofSound(e, kind) then soundAt, soundEv = delay + (e.kind == "knockout" and 0.6 or 0), e end
       if visual then
         local spot = e.spot
         if e.kind == "knockout" then local life = getObjectFromGUID(TRACK[e.seat] or "") spot = life and life.getPosition() end
@@ -2356,6 +2363,9 @@ do
         -- wave's cards have their own cap, FX.WIPE_DRAW, not the board's)
         local room = e.under or started < FX.PER_BOARD
         local rig = (room and spot ~= nil) and FX.rigPlay(e, spot, delay, gen) or nil
+        -- (a sound from the sound bundle goes out with its rig's trigger, RIG_LEAD at the soonest, not before it: both
+        -- are trigger effects sent the same way. Route A's sound isn't held back: the music player's own load is later)
+        if rig ~= nil and e == soundEv and FX.sndLeads(kind, n) then soundAt = math.max(soundAt, FX.RIG_LEAD) end
         local key = (rig == nil and not e.rigOnly and room and spot ~= nil and FX.car ~= nil) and FX.slot(e.kind == "knockout") or nil
         if key ~= nil then
           local look = FX.look(e)
@@ -2780,10 +2790,51 @@ do
     FX.start("eng_fx_1", { spot = spot, seat = seat, phases = { { t = 0, img = kind or "ring", col = "#FFFFFFE6", size = 1.0 } }, stop = 3, text = "×3" }, 0)
     return "shown"
   end
+  -- Route B: the trigger effect `name` of the sound object (GM notes "engine:sounds", the mtg-sounds bundle) played;
+  -- false when there is none on the table, its bundle is still loading or has no effect of that name. With none on the
+  -- table, one look over every object each 5 s at most (not one per board); one being retired is passed over.
+  function FX.sndBundle(name, force, now)
+    if FX.sndObj == nil or FX.sndObj.isDestroyed() then
+      FX.sndObj, FX.sndIdx = nil, nil
+      if force or now - (FX.sndScanAt or -100) >= 5 then
+        FX.sndScanAt = now
+        for _, o in ipairs(getObjects()) do
+          if o.getGMNotes() == "engine:sounds" and not (FX.retiring and FX.retiring[o.getGUID()]) then FX.sndObj = o end
+        end
+      end
+    end
+    local o = FX.sndObj
+    if o == nil or o.AssetBundle == nil then return false end
+    -- (an empty list is a bundle still loading: asked again with the next sound, not kept as "no effects")
+    if FX.sndIdx == nil then
+      local okList, list = pcall(o.AssetBundle.getTriggerEffects)
+      if okList and type(list) == "table" and #list > 0 then
+        FX.sndIdx = {}
+        for _, t in ipairs(list) do if t.name ~= nil then FX.sndIdx[t.name] = t.index end end
+      end
+    end
+    local idx = FX.sndIdx and FX.sndIdx[name]
+    return idx ~= nil and pcall(o.AssetBundle.playTriggerEffect, idx)
+  end
+  -- whether the board's sound (kind, n of it) would go out through the sound bundle (a name, or engineSoundRoute
+  -- "bundle" with a sound object found): FX.dispatch then sends it with its rig's trigger, not before
+  -- (and with an effect of that name, once the bundle has said its names: else it falls back to the music player, which
+  -- isn't held back)
+  function FX.sndLeads(kind, n)
+    local key = FX.burst(kind, n)
+    local pick = engineSounds ~= nil and engineSounds[key]
+    if type(pick) ~= "string" then return false end
+    local link = pick:find("^https?://") ~= nil
+    if link and engineSoundRoute ~= "bundle" then return false end
+    local o = FX.sndObj
+    if o == nil or o.isDestroyed() then return false end
+    return FX.sndIdx == nil or FX.sndIdx[link and key or pick] ~= nil
+  end
   -- M5 sounds (design section 6), at most one per board: each kind at most every 0.3 s, any two 0.15 s apart.
   -- engineSounds[kind]: nil or "" = silent (FX.picked); a link (https://...) plays through the table's music player
   -- (route A, shared by everyone); a name plays that trigger effect of the sound object whose GM notes are
-  -- "engine:sounds" (route B). force (mtg sounds test) skips the spacing. n: how many at once, for the bursts (FX.burst: death_x4 for 5 deaths;
+  -- "engine:sounds" (route B); with engineSoundRoute "bundle" a link plays its key's trigger effect there when the
+  -- sound object has one (the mtg-sounds bundle names its effects after the keys), else the link. force (mtg sounds test) skips the spacing. n: how many at once, for the bursts (FX.burst: death_x4 for 5 deaths;
   -- the spacing stays the kind's). True if it played. engineSoundLog: "clip route" (death_x4 music), for the tests.
   function engineSoundPlay(kind, force, n)
     if not FX.picked(kind) then return false end
@@ -2792,7 +2843,13 @@ do
     local now = os.clock()
     if not force and (now - (FX.sndAt[kind] or -100) < 0.3 or now - FX.sndLast < 0.15) then return false end
     local route
-    if pick:find("^https?://") then
+    local link = pick:find("^https?://") ~= nil
+    -- (route B: a name; with engineSoundRoute "bundle", a link's own key too, when the sound object has it; else, and
+    -- whenever the bundle can't play it, the link through the music player)
+    if (not link or engineSoundRoute == "bundle") and FX.sndBundle(link and key or pick, force, now) then
+      route = "bundle"
+    elseif not link then return false
+    else
       if MusicPlayer == nil then return false end
       -- (the players' own music is never cut while it plays: a clip of theirs that is playing; a clip of ours is titled
       -- "MTG effect: ..."; a paused one is replaced and stays in their music library. Live check 2026-11-11: TTS loads a
@@ -2842,28 +2899,6 @@ do
       -- (a set that failed still gives the players' repeat setting back, verifier 2026-11-11)
       if not ok then pcall(finish) return false end
       route = "music"
-    else
-      -- (a name with no sound object on the table: one look over every object each 5 s at most, not one per board)
-      if FX.sndObj == nil or FX.sndObj.isDestroyed() then
-        FX.sndObj, FX.sndIdx = nil, nil
-        if force or now - (FX.sndScanAt or -100) >= 5 then
-          FX.sndScanAt = now
-          for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:sounds" then FX.sndObj = o end end
-        end
-      end
-      local o = FX.sndObj
-      if o == nil or o.AssetBundle == nil then return false end
-      -- (an empty list is a bundle still loading: asked again with the next sound, not kept as "no effects")
-      if FX.sndIdx == nil then
-        local okList, list = pcall(o.AssetBundle.getTriggerEffects)
-        if okList and type(list) == "table" and #list > 0 then
-          FX.sndIdx = {}
-          for _, t in ipairs(list) do if t.name ~= nil then FX.sndIdx[t.name] = t.index end end
-        end
-      end
-      local idx = FX.sndIdx and FX.sndIdx[pick]
-      if idx == nil or not pcall(o.AssetBundle.playTriggerEffect, idx) then return false end
-      route = "bundle"
     end
     FX.sndAt[kind], FX.sndLast = now, now
     engineSoundLog = engineSoundLog or {}
@@ -3387,6 +3422,42 @@ local function stashImported(colors)
   end
 end
 
+-- "mtg clear deck": a seated player's own deck (on their library spot) and the cards on their two commander spots
+-- removed by the script, which acts as the host, for players whose Delete key does nothing on them (the user,
+-- 2026-11-13: "players still can't delete their decks before a game starts", with the engine off too). Never while an
+-- engine game is running, never an engine card, never the Identity cards. -> the number of objects removed, or nil and
+-- why not
+function engineClearDeck(color)
+  local d = data[color]
+  if d == nil or d.libraryZone == nil then return nil, "Sit at a seat with a playmat first." end
+  if engineTable ~= nil and engineTable() ~= nil then return nil, "Not during a game: type  mtg reset  first." end
+  local gone, n = {}, 0
+  local function take(o)
+    if o == nil or o.isDestroyed() or gone[o] then return end
+    if o.type ~= "Card" and o.type ~= "Deck" then return end
+    if tostring(o.getGMNotes()):find("^engine") or tostring(o.getName()):find("Identity") then return end
+    gone[o] = true
+    n = n + 1
+    o.setLock(false)
+    o.destruct()
+  end
+  take(getDeckFromZone(d.libraryZone))
+  local anchors = {}
+  for _, guid in ipairs(TAX_LABELS[color] or {}) do
+    local a = getObjectFromGUID(guid)
+    if a then anchors[#anchors + 1] = a.getPosition() end
+  end
+  for _, o in ipairs(getObjects()) do
+    if (o.type == "Card" or o.type == "Deck") and not gone[o] then
+      local p = o.getPosition()
+      for _, a in ipairs(anchors) do
+        if (p.x - a.x) ^ 2 + (p.z - a.z) ^ 2 < 6.25 and p.y > a.y - 3 then take(o) break end
+      end
+    end
+  end
+  return n
+end
+
 local function restoreStash()
   for guid, s in pairs(stashed) do
     local o = getObjectFromGUID(guid)
@@ -3467,6 +3538,7 @@ function engineClear()
   enginePlanarRollSeen = nil -- (the next game's planar die rolls count from 1 again)
   enginePrompts = {}
   restoreStash()
+  engineRunningMode = nil -- (no game: the host's pick for the next one, engineModeNow)
   engineRenderPanels()
   -- back to the normal table, except after the NEW GAME button (straight back to READY)
   -- (a start clears the last game's cards, and the bridge's own reset clears again: a one-time flag was used up by the
@@ -3488,6 +3560,8 @@ function engineStarted(m)
   if engineEffectsJump ~= nil then engineEffectsJump() end -- (the bridge sends "started" again before a resend: no effects for it)
   stashImported(humans)
   if not ENGINE_MODE then setEngineMode(true) end
+  engineRunningMode = m.mode or "commander" -- (the bridge says "standard" for a Standard game, docs/game-modes-spec.md §3.4)
+  if engineModePieces ~= nil then pcall(engineModePieces) end
 end
 
 -- ───────── prompt panel (added next to the table's own UI, never replacing it) ─────────
@@ -5238,69 +5312,69 @@ engineSoundOff = {}    -- colour -> true: that player asked for no sounds (the t
 -- (docs/sounds.md). Every kind has one since 2026-11-12: that day's upload added counter, knockout, countered,
 -- playerhit, bighit, sorcery and their bursts, and the louder death, instant, death_x2..x8 and wipe_x3..x8.
 engineSounds = engineSounds or {
-  death = "https://steamusercontent-a.akamaihd.net/ugc/11698913979615550185/7F13F2B39D7065CE85AC235B6369A0747F6F712E/",       -- a permanent to the graveyard
-  wipe = "https://steamusercontent-a.akamaihd.net/ugc/11479971636843136595/5C0FB88EC6DE1F473D4067207ADDB4CCC0540597/",        -- 3 or more to graveyards on one board
-  damage = "https://steamusercontent-a.akamaihd.net/ugc/10124521221080295893/E301DC2C50A312AB8C6C1EDBB7C295B3AC76B06E/",      -- damage to a creature (5 or less); every hit with no playerhit / bighit pick
-  exile = "https://steamusercontent-a.akamaihd.net/ugc/17507000918538872455/683F8320B4DB9EAF77CF1AF05D1205EF94F7BA65/",       -- a permanent exiled from the battlefield
-  instant = "https://steamusercontent-a.akamaihd.net/ugc/15655704109114108865/027ADEDADC1E8E89E6AF2D66E77010F5D9A82298/",     -- an instant resolved (not countered, not abilities, not copies)
-  lifegain = "https://steamusercontent-a.akamaihd.net/ugc/18328296034120530417/099A768F25DE573194668B6ACDFC47C3BC4F0DE7/",    -- a player's life goes up
-  counter = "https://steamusercontent-a.akamaihd.net/ugc/18384867903770801477/E84A3FA1E2AA6059EFD2D315A776D43AEBFD2E87/",     -- a counter put on a permanent
-  knockout = "https://steamusercontent-a.akamaihd.net/ugc/11703297018823193116/BCCEEF4571C8BD6A30FF2AF0350DE2C53A1DF345/",    -- a player loses or concedes
-  countered = "https://steamusercontent-a.akamaihd.net/ugc/16931120861737353001/A2214840FC305FC9063F57823D4C2852D2383CD3/",   -- a spell countered (as the COUNTERED pop-up)
-  playerhit = "https://steamusercontent-a.akamaihd.net/ugc/17427026780177468511/DC419EEC5FE59459E3F2417452DDE9E381380D0F/",   -- 1 to 5 damage to a player (bursts playerhit_x2..x8)
-  bighit = "https://steamusercontent-a.akamaihd.net/ugc/13928224574378758506/BFC535CE502EC967E020203AE6E1CAA2A68E703C/",      -- one hit of more than 5, to a player or a creature (bursts bighit_x2..x8)
-  sorcery = "https://steamusercontent-a.akamaihd.net/ugc/13241084417049183126/BB800BB0A8D05F14C238A0B03A137A70148E6B41/",     -- a sorcery resolved (not countered, not abilities, not copies)
+  death = "https://steamusercontent-a.akamaihd.net/ugc/9800569858149488327/8971500EFD07C4FD0BD18D68B8B252405017A5A0/",       -- a permanent to the graveyard
+  wipe = "https://steamusercontent-a.akamaihd.net/ugc/15817545063740906107/206A0FA5435B601208C14BC12289526592275C05/",        -- 3 or more to graveyards on one board
+  damage = "https://steamusercontent-a.akamaihd.net/ugc/18394554027578421591/38584ACB11DF0374F06EF58288CC103E1A7BCB17/",      -- damage to a creature (5 or less); every hit with no playerhit / bighit pick
+  exile = "https://steamusercontent-a.akamaihd.net/ugc/15277917318962835347/67E988768501AE61D76EA0B61CE26CBF7B9047F3/",       -- a permanent exiled from the battlefield
+  instant = "https://steamusercontent-a.akamaihd.net/ugc/12129289638876188200/E4A383D9F0FD11D33AD0C3231ADBDC76640FB6F4/",     -- an instant resolved (not countered, not abilities, not copies)
+  lifegain = "https://steamusercontent-a.akamaihd.net/ugc/14589447832811798852/152589A1C8FC457DF750D1F1DA09974B7D4621DC/",    -- a player's life goes up
+  counter = "https://steamusercontent-a.akamaihd.net/ugc/10198555696183163869/22D514A072E215258BFB7BDD0D94438B93234282/",     -- a counter put on a permanent
+  knockout = "https://steamusercontent-a.akamaihd.net/ugc/17359985036682352321/876EDEC83B31E9D171B93725698195BD3A60998D/",    -- a player loses or concedes
+  countered = "https://steamusercontent-a.akamaihd.net/ugc/16224198548986524439/ECC3E042EBA1BBB7F8ACA675DF0D15CDED64151C/",   -- a spell countered (as the COUNTERED pop-up)
+  playerhit = "https://steamusercontent-a.akamaihd.net/ugc/13286146598818442690/A0BF8B16B8001A089539C205ABEA92AD37067A30/",   -- 1 to 5 damage to a player (bursts playerhit_x2..x8)
+  bighit = "https://steamusercontent-a.akamaihd.net/ugc/10985637461852960373/895695DAAB6E6CFED9309BB61B579480F0019975/",      -- one hit of more than 5, to a player or a creature (bursts bighit_x2..x8)
+  sorcery = "https://steamusercontent-a.akamaihd.net/ugc/17287502999685576865/30550DE1D11406AE8BB4478A926881AD27AC8101/",     -- a sorcery resolved (not countered, not abilities, not copies)
   -- the bursts (docs/sounds.md "Bursts", 2026-11-11): the kind's sound stacked N times, for N or more of it on one board
   -- (FX.burst: the largest at or under the count, up to x8); wipe's plain sound is already its 3+ one, so it has no x2
-  bighit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10102534904146116314/FEC357F76AD3BC3E204485638504751C6EA5B3B4/",
-  bighit_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11596786930130643260/0DCA16B265095D18A20987D952273510DE3145BB/",
-  bighit_x4 = "https://steamusercontent-a.akamaihd.net/ugc/16029644423041008713/DBCF6A81CA79412C182C41A9A2EBDC7CFB595643/",
-  bighit_x6 = "https://steamusercontent-a.akamaihd.net/ugc/11089834991395856694/583F01EAB5F918482F28CB6B30208E082AD7F95E/",
-  bighit_x8 = "https://steamusercontent-a.akamaihd.net/ugc/14567024543913859128/655F1FDF1BF798D88ACBA5CC2648E8EB878C4135/",
-  damage_x2 = "https://steamusercontent-a.akamaihd.net/ugc/9466119173358429772/2E01C49BC2F53D6B93F512EA0A64749DDA634A13/",
-  damage_x3 = "https://steamusercontent-a.akamaihd.net/ugc/17172338814229470186/BA59E9063B3D8BCAB7189038A65371A54F7D222C/",
-  damage_x4 = "https://steamusercontent-a.akamaihd.net/ugc/13841800202556732767/F0038F1475AEFEC61821E465C78BC3EC21D80C35/",
-  damage_x6 = "https://steamusercontent-a.akamaihd.net/ugc/11502082504506897617/CF4A879844D92A2B54F7C750CD94BB636EE34ED4/",
-  damage_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15514955064335890272/27041620B6C22438F8CEE38F4DEA99C3F41E499F/",
-  death_x2 = "https://steamusercontent-a.akamaihd.net/ugc/16160518566392322538/3D6776DCCE5662B172CD4184F6344747B424BB5D/",
-  death_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11242284143342103969/869EFC92C49790389FF0AC51C65A2932903FAE7E/",
-  death_x4 = "https://steamusercontent-a.akamaihd.net/ugc/14108423383041101533/2B7557832A1D8B69BE205F1FA054FD5985C9243C/",
-  death_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13804901690921610856/0E73D20BEA8004922AC93B72FBC240863778E6D3/",
-  death_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17462850133371665419/F8E3B2BB340E54993FC37392890ACC457FB1485B/",
-  exile_x2 = "https://steamusercontent-a.akamaihd.net/ugc/17186924497210315771/FE7A0190EFBB0DD9CF10187AC7F4A053FF1445A5/",
-  exile_x3 = "https://steamusercontent-a.akamaihd.net/ugc/16360686395485260339/33E0E7B8EE9466915355D652E0E2F53319E380E2/",
-  exile_x4 = "https://steamusercontent-a.akamaihd.net/ugc/10667382779559099124/73D0ED29786C7A9DBED6E09027F1BD86EA407F00/",
-  exile_x6 = "https://steamusercontent-a.akamaihd.net/ugc/17333791709913556002/D96572C923879FA41AA4FF78BABF33C230B7BE18/",
-  exile_x8 = "https://steamusercontent-a.akamaihd.net/ugc/16336440088589292350/C7421989BD48CF0D53217080BCD600880C9EABF3/",
-  lifegain_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10399168408910104955/AACB8F7F754DBFEC4CB9FA5E160B526C0B369D03/",
-  lifegain_x3 = "https://steamusercontent-a.akamaihd.net/ugc/14232928834878565003/0A18B59FCF2658F59C5946B812F153BC70EE8BB3/",
-  lifegain_x4 = "https://steamusercontent-a.akamaihd.net/ugc/15145076126188951042/48A9C18F2948F0AAF6BE76DCE1ADC5A4F9694697/",
-  lifegain_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13678081104005473403/478E8433DBE00A0525EA21D206CA4DEEAFB5CBBE/",
-  lifegain_x8 = "https://steamusercontent-a.akamaihd.net/ugc/12456025496901847800/D91EEE8A25C5F36EB72180F2363E38FC7B649D23/",
-  playerhit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/18385823772406590874/F67603DF33151D56EE4F4918A969DA71AEC93182/",
-  playerhit_x3 = "https://steamusercontent-a.akamaihd.net/ugc/15674528219804165919/03D2A5F8726309453086C91906045D28E9407290/",
-  playerhit_x4 = "https://steamusercontent-a.akamaihd.net/ugc/17558314647484330927/633D523AF1FC71C73C7737BA1C2D3D449CF9E983/",
-  playerhit_x6 = "https://steamusercontent-a.akamaihd.net/ugc/11410730380554930576/B9D76DCEE32CFC1BEBB704F01E34AF4BB66F2409/",
-  playerhit_x8 = "https://steamusercontent-a.akamaihd.net/ugc/13466691882656356958/8CBA319CD04332BEA45C8976283C9FD7A53C78D6/",
-  wipe_x3 = "https://steamusercontent-a.akamaihd.net/ugc/15886777703497702507/C882FFB1C26BEE20C87791A7135A3FBA1EAD3990/",
-  wipe_x4 = "https://steamusercontent-a.akamaihd.net/ugc/12703812866224761222/8F7B4507EC055B76100A5BF6966D5C085331E6A8/",
-  wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/14531756883241499521/4AB4F03063BBA056EE23C175B621BE4FB228DE58/",
-  wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/10603921525270560187/08115EEC453EE7937CD5B34288B696512A190D7D/",
+  bighit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/14501727456834808804/628C139A9EC2F064F0AEBAAEB358CC3F5A40173D/",
+  bighit_x3 = "https://steamusercontent-a.akamaihd.net/ugc/14675707134736660256/DE23EECC399113DB5A8A701388F4602430CE862A/",
+  bighit_x4 = "https://steamusercontent-a.akamaihd.net/ugc/12947269894393077649/85CCD3DCB33516740ABC987287B3377D5A4056A7/",
+  bighit_x6 = "https://steamusercontent-a.akamaihd.net/ugc/10328800220900197571/5E27AF2CFFF991B0299DAE84D956A878410BB649/",
+  bighit_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15836800511667477523/58269293AE3E3564573F65363CB2CD69342DEE7C/",
+  damage_x2 = "https://steamusercontent-a.akamaihd.net/ugc/15391021997800247402/7C763CA26C8CD97E1034D2CFDA51E12EF92CF4D4/",
+  damage_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11994110290441954314/FEC87CC02628F37F7943AD3E2135796B3AEA9410/",
+  damage_x4 = "https://steamusercontent-a.akamaihd.net/ugc/13578099046086566174/4E86F9603540AB189BF84E0AD81053317898F17B/",
+  damage_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13086995823088759042/AC30C0C5FB2451996CDA7668D3D0260B2A396E85/",
+  damage_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15550604889634791289/8440E3ED39B3788D00E0FA66E873F5D698E0D1B6/",
+  death_x2 = "https://steamusercontent-a.akamaihd.net/ugc/9883242587509736557/6981B43D6337A0228E5B453184A9B6B4A375C466/",
+  death_x3 = "https://steamusercontent-a.akamaihd.net/ugc/10436603059024612911/CCB29073C58A677B180E47CF78A95FEBAECDAF43/",
+  death_x4 = "https://steamusercontent-a.akamaihd.net/ugc/9611064040962894146/B332E6D7EDBD65B4A51C597E8A7765AC9A973232/",
+  death_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13035548119423571592/E20CCA3DD638DDE3277520B4919AF32372247E4B/",
+  death_x8 = "https://steamusercontent-a.akamaihd.net/ugc/11027633385360712386/AE3BDE68AC8603D4E63502B86013A24FE3DA3E66/",
+  exile_x2 = "https://steamusercontent-a.akamaihd.net/ugc/10685423988775677223/93E9E99CDF836B7D5DA0B5617E9B87FB9A68EF63/",
+  exile_x3 = "https://steamusercontent-a.akamaihd.net/ugc/9798376956180430026/5E3EAAE6998CEFF1B80E4FBC73A9180EEF487C51/",
+  exile_x4 = "https://steamusercontent-a.akamaihd.net/ugc/15676129596723056222/2E876EFB1AD5BBC1BC6B73559C841AB957FE7682/",
+  exile_x6 = "https://steamusercontent-a.akamaihd.net/ugc/12325136851710697223/AF2DC095D2C8A6286940804E26981F83C2B789BD/",
+  exile_x8 = "https://steamusercontent-a.akamaihd.net/ugc/15810681250109920267/AB7833248EB102767DE58D9F8CE062C31BEB51FD/",
+  lifegain_x2 = "https://steamusercontent-a.akamaihd.net/ugc/15339424935138826246/1444B69A779AA728EFDF604E0BDAB87C709BDE2D/",
+  lifegain_x3 = "https://steamusercontent-a.akamaihd.net/ugc/17719154414524319005/5D58B34080D1067DA20E96974CFE6357539F29A5/",
+  lifegain_x4 = "https://steamusercontent-a.akamaihd.net/ugc/18102140899015148787/6CD1962F9508D7E9364D090732B8996563A343B6/",
+  lifegain_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13527528297040637011/4C81282CAC5AA2CAD15ECC4B20BA029E9A8B3CB2/",
+  lifegain_x8 = "https://steamusercontent-a.akamaihd.net/ugc/14653307058996790132/E8D8FD2B9D8CA49761FDD2729CA52FA035286611/",
+  playerhit_x2 = "https://steamusercontent-a.akamaihd.net/ugc/15301479630649839933/C414A6E2C196E53148B30626BE78521D1E00843F/",
+  playerhit_x3 = "https://steamusercontent-a.akamaihd.net/ugc/14011261080340369559/79EC7CD4B9480EE39C2AD12564CE9F76C6CF5067/",
+  playerhit_x4 = "https://steamusercontent-a.akamaihd.net/ugc/11616489111656235985/EBCE64F9B3D5A01A129CF554713D23F13472BEAC/",
+  playerhit_x6 = "https://steamusercontent-a.akamaihd.net/ugc/15803660923802238346/33D1A2940FA8EE1CC7B495703D55F8723ECE0399/",
+  playerhit_x8 = "https://steamusercontent-a.akamaihd.net/ugc/9578969410471442226/6AF64F6E1EBAB1724840868E3C869709EB78AD23/",
+  wipe_x3 = "https://steamusercontent-a.akamaihd.net/ugc/17918509475140877353/A5A47B70A0BA927059446A66327EDFDC6C2CA13B/",
+  wipe_x4 = "https://steamusercontent-a.akamaihd.net/ugc/11527446792693991431/417A49F207E5F1F4E5C5FB1C71B8D476FC83FE4F/",
+  wipe_x6 = "https://steamusercontent-a.akamaihd.net/ugc/9953796201784196604/979D6AC4A3B7413143E6C58F9703F0B52403DBDD/",
+  wipe_x8 = "https://steamusercontent-a.akamaihd.net/ugc/12689661881266718549/61F509DB71B97DED9C31385ECD35D6A24AC92B15/",
   -- the Treasure sounds (docs/sounds.md "Treasure", 2026-11-13): treasure* are the Sack of Gold clips made by
   -- tools/make-treasure-sounds.js, each link matched to its file by the doc's sha256; treasurespend* are death's own
   -- links (the user's pick: "permanent removal sound for treasure spent")
-  treasure = "https://steamusercontent-a.akamaihd.net/ugc/12161233116466232436/6A7FB1D65AB33404B56E51CB6824175E9F033E20/",   -- Treasure tokens created
-  treasurespend = "https://steamusercontent-a.akamaihd.net/ugc/11698913979615550185/7F13F2B39D7065CE85AC235B6369A0747F6F712E/",   -- Treasure tokens leaving the battlefield, sacrificed for mana or not: in place of death (death's clip)
-  treasure_x2 = "https://steamusercontent-a.akamaihd.net/ugc/13934984292284700895/CBCA13B5CDBF49D7A8348E9D01D2E05F9E7B5F08/",
-  treasure_x3 = "https://steamusercontent-a.akamaihd.net/ugc/16822922275327521349/EF9DC692360D914E87B7569F77D6DDBC5877566A/",
-  treasure_x4 = "https://steamusercontent-a.akamaihd.net/ugc/9494146362291305358/1CB4631A6477E467F2B4CD5A1CA5B12CB4A7D2DF/",
-  treasure_x6 = "https://steamusercontent-a.akamaihd.net/ugc/12370862888904708022/C76F3899AEEB7B4662B07D143866E49A9E3DBCF8/",
-  treasure_x8 = "https://steamusercontent-a.akamaihd.net/ugc/12440635735839891348/C0500B19C73E5304C629CA93F68D03049034FFF1/",
-  treasurespend_x2 = "https://steamusercontent-a.akamaihd.net/ugc/16160518566392322538/3D6776DCCE5662B172CD4184F6344747B424BB5D/",
-  treasurespend_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11242284143342103969/869EFC92C49790389FF0AC51C65A2932903FAE7E/",
-  treasurespend_x4 = "https://steamusercontent-a.akamaihd.net/ugc/14108423383041101533/2B7557832A1D8B69BE205F1FA054FD5985C9243C/",
-  treasurespend_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13804901690921610856/0E73D20BEA8004922AC93B72FBC240863778E6D3/",
-  treasurespend_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17462850133371665419/F8E3B2BB340E54993FC37392890ACC457FB1485B/",
+  treasure = "https://steamusercontent-a.akamaihd.net/ugc/13794614518614591327/CB0C3DB1DE80ED6670AE453526BC661BD65E285B/",   -- Treasure tokens created
+  treasurespend = "https://steamusercontent-a.akamaihd.net/ugc/9800569858149488327/8971500EFD07C4FD0BD18D68B8B252405017A5A0/",   -- Treasure tokens leaving the battlefield, sacrificed for mana or not: in place of death (death's clip)
+  treasure_x2 = "https://steamusercontent-a.akamaihd.net/ugc/17949130541744455112/65D1E290589FD73EB288EC6907C2FB640ABD6C4C/",
+  treasure_x3 = "https://steamusercontent-a.akamaihd.net/ugc/11666964080657862260/B487C1E5D6DE6F6A9975B6989531CE7F4A4825A7/",
+  treasure_x4 = "https://steamusercontent-a.akamaihd.net/ugc/17660563052074390177/0A4C0DD264A4887F57D1B38252B9F487E82AC155/",
+  treasure_x6 = "https://steamusercontent-a.akamaihd.net/ugc/16507546084760307611/BF94A7AF7BB947FBB9205880D3CC7A8C6B1BE7FD/",
+  treasure_x8 = "https://steamusercontent-a.akamaihd.net/ugc/17585473593631833822/0F6C1788B92B63F4A55DF8342B807AA8276AA49C/",
+  treasurespend_x2 = "https://steamusercontent-a.akamaihd.net/ugc/9883242587509736557/6981B43D6337A0228E5B453184A9B6B4A375C466/",
+  treasurespend_x3 = "https://steamusercontent-a.akamaihd.net/ugc/10436603059024612911/CCB29073C58A677B180E47CF78A95FEBAECDAF43/",
+  treasurespend_x4 = "https://steamusercontent-a.akamaihd.net/ugc/9611064040962894146/B332E6D7EDBD65B4A51C597E8A7765AC9A973232/",
+  treasurespend_x6 = "https://steamusercontent-a.akamaihd.net/ugc/13035548119423571592/E20CCA3DD638DDE3277520B4919AF32372247E4B/",
+  treasurespend_x8 = "https://steamusercontent-a.akamaihd.net/ugc/11027633385360712386/AE3BDE68AC8603D4E63502B86013A24FE3DA3E66/",
 }
 -- each clip's length in seconds, where it isn't 2 (docs/sounds.md: every clip is padded to at least 2 s; a clip is
 -- paused just before its length runs out, engineSoundPlay)
@@ -5315,8 +5389,9 @@ engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }
 -- pool of rigs, GM notes "engine:fx"; sounds: one object, "engine:sounds"); they then stay in the save. nil or "" =
 -- nothing spawned (rigs or a sound object already in the save are still used); with none, the effects are today's.
 -- bolt: the bolt bundle (mtg-bolt.unity3d, rigs "engine:bolt"). Both uploaded 2026-11-12 night (fx: mtg-fx2.unity3d,
--- the tint-ready rebuild; links matched to their files by sha256).
-engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/13181964746744684712/6948BE73BB273AAB129525130A13E4982559BD1D/", sounds = nil, bolt = "https://steamusercontent-a.akamaihd.net/ugc/12109543125843195804/C6B0053848DA7FCB5E6136B82243D57A66E3B289/" }
+-- the tint-ready rebuild; links matched to their files by sha256). sounds: mtg-sounds.unity3d (built 2026-11-13,
+-- docs/fx-research/SOUNDS.md), nil until it is uploaded; it is played only with engineSoundRoute "bundle".
+engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/15666370258971028614/C9FF06D0A10B0C170C2B49122C0423FE29D35D3B/", sounds = nil, bolt = "https://steamusercontent-a.akamaihd.net/ugc/16460449626220746289/901D08363F140757CCAB54BA2D10909F2546D622/" }
 -- The particle effects (docs/particle-fx-spec.md), "mtg fx on|low|off" (the host's, saved with the game): on, all of
 -- them; low, a wipe's wave without its cards' own deaths, and no bolts; off, no rig effect at all, the table as it was
 -- without the bundle (sounds, slots and flashes stay). engineFxTint: the host's flag for the live tint check (a
@@ -5325,6 +5400,12 @@ engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.n
 engineFxMode = engineFxMode or "on"
 engineFxTint = engineFxTint or false
 engineFxBoltMove = engineFxBoltMove or false
+-- engineSoundRoute: how a link's sound is played. "music" (the default): the table's music player (route A, heard by
+-- everyone, docs/m5-effects-design.md section 6). "bundle": the sound object's trigger effect named as its key (route
+-- B, the mtg-sounds bundle, engineFxBundle.sounds; the same clips without the music player's padding), the link only
+-- when there is no sound object or no effect of that name. The host's flag for the two-client check 3
+-- (docs/m5-assetbundle-build.md section 8): the default changes once other players are known to hear route B.
+engineSoundRoute = engineSoundRoute or "music"
 function engineSetFxMode(mode, by)
   if mode ~= "on" and mode ~= "low" and mode ~= "off" then return false end
   engineFxMode = mode
@@ -6632,7 +6713,10 @@ function onSave()
     s[guid] = { pos = { st.pos.x, st.pos.y, st.pos.z }, rot = { st.rot.x, st.rot.y, st.rot.z }, lock = st.lock }
   end
   -- (and the host's "mtg fx" setting, a word)
-  return JSON.encode({ engineStash = s, engineFx = engineFxMode })
+  -- (and the players this table promoted for engine mode, as one text: steam ids joined by commas, never as keys)
+  local promoted = {}
+  for sid in pairs(ENGINE_PROMOTED or {}) do promoted[#promoted + 1] = sid end
+  return JSON.encode({ engineStash = s, engineFx = engineFxMode, enginePromoted = table.concat(promoted, ",") })
 end
 
 Wait.frames(function()
@@ -6642,18 +6726,23 @@ Wait.frames(function()
       stashed[guid] = { pos = Vector(st.pos[1], st.pos[2], st.pos[3]), rot = Vector(st.rot[1], st.rot[2], st.rot[3]), lock = st.lock }
     end
   end
+  -- (players this table promoted before the reload: engine mode is off now, so they are demoted)
+  if ok and type(saved) == "table" and type(saved.enginePromoted) == "string" and ENGINE_PROMOTED ~= nil then
+    for sid in saved.enginePromoted:gmatch("[^,]+") do ENGINE_PROMOTED[sid] = true end
+    if enginePromoteSeated ~= nil then pcall(enginePromoteSeated) end
+  end
   if ok and type(saved) == "table" and (saved.engineFx == "on" or saved.engineFx == "low" or saved.engineFx == "off") then engineFxMode = saved.engineFx end
   sweepEngineCards()
   restoreStash()
   -- (rigs of an older effect bundle than the links': replaced now, one destroyed every half second)
   pcall(engineFxRenewRigs)
-  engineSend("hello", { stamp = engineStamp(), keepRewind = true })
+  engineSend("hello", { stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil })
   -- the running game sent back on that hello was not drawn once, after a TTS relaunch with a big table still loading
   -- (hp-22 re-test 2026-10-28: the bridge's record has it sent; the table showed READY): ask again while nothing came
   local function askAgain(tries)
     Wait.time(function()
       if lastTable ~= nil then return end
-      engineSend("hello", { again = true, stamp = engineStamp(), keepRewind = true })
+      engineSend("hello", { again = true, stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil })
       if tries > 1 then askAgain(tries - 1) end
     end, 10)
   end
@@ -7524,7 +7613,13 @@ function engineHideForEngine(on)
       o.memo = ""
       o.setPosition({ tonumber(x), tonumber(y), tonumber(z) })
       o.setLock(locked == "true")
+      -- (the key boxes' text comes back with them: their onLoad draws it)
+      if (guid == "9065aa" or guid == "e8e28d") and #(o.getButtons() or {}) == 0 then pcall(function() o.call("onLoad") end) end
     end
+    -- the hidden key boxes keep no text: TTS on a Mac draws a button under the table through it, blown up across the
+    -- top of the screen (real player 2026-11-13); their onLoad redraws it on every load, so this also runs when the
+    -- table loads already in engine mode
+    if o ~= nil and on and (guid == "9065aa" or guid == "e8e28d") then o.clearButtons() end
   end
 end
 local setEngineModeWithoutButtons = setEngineMode
@@ -7922,7 +8017,7 @@ function engineSetupIntact()
   local want = SETUP.drawn.tile
   local have = tile ~= nil and (tile.getButtons() or {})[1] or nil
   if (want == nil) ~= (have == nil) or (have ~= nil and have.label ~= want) then return false end
-  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < 2 then return false end
+  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < (SETUP.drawn.mode and 3 or 2) then return false end
   for c in pairs(SETUP.drawn.mats) do
     local mat = data[c] and data[c].playmat
     local any = false
@@ -7968,6 +8063,7 @@ function engineDeckReport(m)
 end
 
 function engineSetupButtons()
+  pcall(engineModePieces) -- (the commander pieces put away or back for the mode: engine mode on/off, the 2 s heal)
   local game = engineTable ~= nil and engineTable() or nil
   local running = game ~= nil and not game.gameOver
   local seated = seatedSetupColors()
@@ -7979,7 +8075,7 @@ function engineSetupButtons()
   for _, pl in ipairs((game and game.players) or {}) do if pl.status == "playing" then alive[#alive + 1] = tostring(pl.color) end end
   table.sort(alive)
   local sig = table.concat({ tostring(ENGINE_MODE), tostring(running), tostring(over), table.concat(seated, ","), tostring(ready), table.concat(alive, ","),
-    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly) }, "|")
+    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE) }, "|")
   -- (unchanged, and the buttons are still there: TTS's own scripts or a reload can wipe an object's buttons, and after a
   -- game ended the READY buttons and the middle tile stayed gone or stale, "Engine: off" with engine mode on, playtest
   -- 2026-10-24; engineSetupHeal below looks every 2 s)
@@ -8055,6 +8151,9 @@ function engineSetupButtons()
     if not running and not over then
       SETUP.drawn.friendly = true
       setupButton(tile, "onMtgSetupFriendly", engineFriendlyLabel(), SETUP.color.wait, FRIENDLY_SPOT, nil, 1700, 620, 90)
+      -- (the game mode beside it, host only: docs/game-modes-spec.md §3.4 and §10)
+      SETUP.drawn.mode = true
+      setupButton(tile, "onMtgSetupMode", engineModeLabel(), SETUP.color.idle, MODE_SPOT, nil, 1700, 620, 90)
     end
   end
   engineScoopRedraw()
@@ -8121,7 +8220,7 @@ end
 -- left away from the camera, have it sit where the cannon would be"). Start sends the count. A rematch keeps it; a
 -- table reload clears it.
 engineFriendly = 0
-FRIENDLY_SPOT = Vector(-60, 1.1, 0) -- (the cannon's saved home, its memo "mtghome -60.000 0.732 0.000")
+FRIENDLY_SPOT = Vector(-47, 1.1, 5) -- (on the wood strip in front of the rim, right of Game mode with a gap; the user, 2026-11-14: "move these buttons down here and make sure they don't overlap". It was on the cannon's home, -60 0.732 0, on the rim)
 function engineFriendlyLabel()
   return "Free mulligans\n" .. (engineFriendly == 0 and "None" or tostring(engineFriendly))
 end
@@ -8135,6 +8234,104 @@ function engineSetFriendly(n, pl)
 end
 function onMtgSetupFriendly(obj, playerColor)
   engineSetFriendly((engineFriendly + 1) % 3, Player[playerColor])
+end
+
+-- Game modes (docs/game-modes-spec.md §3): Commander (the default) or Standard (60-card decks, 20 life, no commander;
+-- 1v1 or free-for-all). The host's pick for the next games, "mtg mode standard|commander" or the mode button beside
+-- Free mulligans; sent to the bridge with every deck check and start (and with "hello"), only when it is Standard (the
+-- bridge reads no mode as Commander). A table reload is back on Commander, as Free mulligans is back on none. While a
+-- game runs, the game's own mode (the bridge's "started") decides what the table shows (engineModeNow).
+ENGINE_GAME_MODE = "commander"
+engineRunningMode = nil -- the running game's mode, from "started"; nil between games
+MODE_SPOT = Vector(-47, 1.1, -5) -- (left of Free mulligans on the same strip, 10 apart so the two never overlap)
+function engineModeNow()
+  if engineRunningMode ~= nil and engineTable ~= nil and engineTable() ~= nil then return engineRunningMode end
+  return ENGINE_GAME_MODE
+end
+-- the mode for a message to the bridge: "standard", or nil for Commander (left out of the message)
+function engineModeSent() return ENGINE_GAME_MODE == "standard" and "standard" or nil end
+function engineModeLabel() return "Game mode\n" .. (ENGINE_GAME_MODE == "standard" and "Standard" or "Commander") end
+-- mode: "standard" | "commander"; pl: who set it (the host; checked in engineChat)
+function engineSetGameMode(mode, pl)
+  if mode ~= "standard" and mode ~= "commander" then return end
+  local running = engineTable ~= nil and engineTable() ~= nil and not engineTable().gameOver
+  if ENGINE_GAME_MODE == mode then
+    if pl ~= nil then pl.broadcast("[MTG] The game mode is already " .. (mode == "standard" and "Standard" or "Commander") .. ".", { 1, 0.85, 0.4 }) end
+    return
+  end
+  ENGINE_GAME_MODE = mode
+  -- (every deck was checked for the other mode: READY again; in a game the game's own READYs stay, and its end
+  -- clears them, engineClear)
+  if not running then for k in pairs(engineReadyState) do engineReadyState[k] = nil end end
+  local who = pl ~= nil and (pl.steam_name or pl.color) or "The host"
+  broadcastToAll("[MTG] " .. tostring(who) .. " set the game mode" .. (running and " for the next game" or "") .. ": "
+    .. (mode == "standard" and "Standard (decks of 60+ Standard cards, at most 4 of a card, no commander; 20 life; 1v1 or free-for-all)"
+      or "Commander (100-card decks with a commander, 40 life)") .. ". Everyone presses READY again" .. (running and " after this game." or "."), { 1, 0.85, 0.4 })
+  engineSend("mode", { color = pl and pl.color or nil, mode = mode })
+  if not running then engineModeLife(mode == "standard" and 20 or 40) end
+  engineSetupButtons()
+end
+-- every life counter to n (the next game's starting life), with no change line: only between games
+function engineModeLife(n)
+  for _, guid in pairs(LIFE_TRACKERS) do
+    local o = getObjectFromGUID(guid)
+    if o ~= nil and o.getVar("count") ~= n then pcall(function() o.setVar("count", n) o.call("sL", n) o.call("updateSave") end) end
+  end
+end
+-- The commander pieces in Standard (engine mode on): the commander damage trackers go under the table, hidden and
+-- locked, their spot written on them (memo "enginemode:x,y,z,lock", so a reloaded table puts them back), and the
+-- command zones' tax labels show no number. Back as they were otherwise. Only on a change (engineModeKey; nil after a
+-- load: trackers a saved Standard table put away come back, and the labels, never blanked in this session, stay).
+engineModeKey = nil
+function engineModePieces()
+  local std = ENGINE_MODE == true and engineModeNow() == "standard"
+  if engineModeKey == std then return end
+  local was = engineModeKey
+  engineModeKey = std
+  for _, row in pairs(CMD_DAMAGE) do
+    for _, guid in pairs(row) do
+      local o = getObjectFromGUID(guid)
+      if o ~= nil then
+        local memo = tostring(o.memo or "")
+        local hidden = memo:sub(1, 11) == "enginemode:"
+        if std and not hidden then
+          local p = o.getPosition()
+          o.memo = string.format("enginemode:%.3f,%.3f,%.3f,%s", p.x, p.y, p.z, tostring(o.getLock()))
+          o.setLock(true)
+          o.setPosition(p + Vector(0, -15, 0))
+          o.setInvisibleTo(engineEveryone())
+        elseif not std and hidden then
+          -- (the spot by plain finds: x, y, z and the lock between commas)
+          local parts, rest = {}, memo:sub(12)
+          while true do
+            local at = rest:find(",", 1, true)
+            if at == nil then parts[#parts + 1] = rest break end
+            parts[#parts + 1] = rest:sub(1, at - 1)
+            rest = rest:sub(at + 1)
+          end
+          o.setInvisibleTo({})
+          local x, y, z = tonumber(parts[1]), tonumber(parts[2]), tonumber(parts[3])
+          if x ~= nil and y ~= nil and z ~= nil then o.setPosition(Vector(x, y, z)) o.setLock(parts[4] == "true") end
+          o.memo = nil
+        end
+      end
+    end
+  end
+  if not std and was ~= true then return end
+  for _, list in pairs(TAX_LABELS) do
+    for _, guid in ipairs(list) do
+      local o = getObjectFromGUID(guid)
+      if o ~= nil then
+        local label = std and "" or tostring(o.getVar("val") or 0)
+        for i = 0, 9 do pcall(function() o.editButton({ index = i, label = label }) end) end
+      end
+    end
+  end
+end
+-- the mode button: the other mode, as "mtg mode ..." typed (the host only, said there)
+function onMtgSetupMode(obj, playerColor)
+  local pl = Player[playerColor]
+  if pl ~= nil then engineChat("mtg mode " .. (ENGINE_GAME_MODE == "standard" and "commander" or "standard"), pl) end
 end
 
 function onMtgSetupStart(obj, playerColor)
@@ -8160,6 +8357,13 @@ end
 
 function onPlayerChangeColor(color)
   if engineSetupButtons ~= nil then engineSetupButtons() end
+  -- (a player who sits down while engine mode is on is promoted; one who leaves their seat is demoted: make-engine-copy.js)
+  -- (two frames on: TTS may not have updated the player's seat yet when this runs)
+  Wait.frames(function()
+    if enginePromoteSeated == nil then return end
+    local ok, err = pcall(enginePromoteSeated)
+    if not ok then print("[MTG] promote seated players: " .. tostring(err)) end
+  end, 2)
 end
 -- on load (engine mode is off then): the middle tile with its engine switch
 Wait.frames(function() if engineSetupButtons ~= nil then pcall(engineSetupButtons) end end, 60)
