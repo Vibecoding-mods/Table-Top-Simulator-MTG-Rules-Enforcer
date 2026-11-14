@@ -165,7 +165,9 @@ Forge-side check (call `GameFormat` in the harness) is the alternative; it needs
   a card from a set not in the list, a banned card, a deck with a commander line.
 - Break-it proofs: each deck-check rule mutated off in turn must fail a case (the mutation runner, as for earlier work).
 - Headless (`engine-test.js`): Standard 1v1 (20 life, the first player skips the draw), Standard 4-player (20 life,
-  nobody skips, mulligan free).
+  nobody skips, mulligan free). Prepared 2026-11-13, not run yet (it joins the live relay's room):
+  `node bridge/engine-test.js --format standard --seats 2 --turns 8` and `... --seats 4 --turns 8`. With
+  `--format standard` it logs each player's life and library at every turn (53 = no draw yet after the opening 7).
 - Live: host vs 1 Forge AI on the real table to the end, with the log.
 
 ### 3.6 Best of three (optional, requested by the user 2026-11-06; kept as written)

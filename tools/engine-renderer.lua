@@ -8168,12 +8168,13 @@ function engineSetGameMode(mode, pl)
     return
   end
   ENGINE_GAME_MODE = mode
-  -- (every deck was checked for the other mode: READY again)
-  for k in pairs(engineReadyState) do engineReadyState[k] = nil end
+  -- (every deck was checked for the other mode: READY again; in a game the game's own READYs stay, and its end
+  -- clears them, engineClear)
+  if not running then for k in pairs(engineReadyState) do engineReadyState[k] = nil end end
   local who = pl ~= nil and (pl.steam_name or pl.color) or "The host"
   broadcastToAll("[MTG] " .. tostring(who) .. " set the game mode" .. (running and " for the next game" or "") .. ": "
     .. (mode == "standard" and "Standard (decks of 60+ Standard cards, at most 4 of a card, no commander; 20 life; 1v1 or free-for-all)"
-      or "Commander (100-card decks with a commander, 40 life)") .. ". Everyone presses READY again.", { 1, 0.85, 0.4 })
+      or "Commander (100-card decks with a commander, 40 life)") .. ". Everyone presses READY again" .. (running and " after this game." or "."), { 1, 0.85, 0.4 })
   engineSend("mode", { color = pl and pl.color or nil, mode = mode })
   if not running then engineModeLife(mode == "standard" and 20 or 40) end
   engineSetupButtons()

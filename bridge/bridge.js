@@ -555,13 +555,18 @@ function standardProblems(cards, commanders = [], sideboard = []) {
   if (commanders.length) problems.push(`Standard has no commander: take ${few(commanders)} off your command zone (or put it in your deck)`);
   if (cards.length < 60) problems.push(`${cards.length} cards in your deck: Standard decks have at least 60`);
   if (sideboard.length > 15) problems.push(`${sideboard.length} cards in the sideboard: at most 15`);
-  const counts = {};
+  // (as DeckFormat.getDeckConformanceProblem: 4 counts main deck and sideboard together; a card's own number
+  // (K:DeckLimit:N, e.g. Seven Dwarves) counts the main deck only)
+  const counts = {}, inMain = {};
   for (const n of [...cards, ...sideboard]) counts[n] = (counts[n] || 0) + 1;
+  for (const n of cards) inMain[n] = (inMain[n] || 0) + 1;
   const basic = (n) => BASICS.has(normName(n));
-  const over = Object.entries(counts).filter(([n, k]) => {
+  const over = Object.entries(counts).map(([n, k]) => {
     const lim = f.limits[n] ?? 4;
-    return !basic(n) && lim !== "any" && k > lim;
-  }).map(([n, k]) => `${k}× ${n}`);
+    if (basic(n) || lim === "any") return null;
+    const own = f.limits[n] !== undefined;
+    return (own ? inMain[n] || 0 : k) > lim ? `${own ? inMain[n] : k}× ${n}` : null;
+  }).filter(Boolean);
   if (over.length) problems.push(`more than 4 copies of: ${few(over)} (basic lands excepted)`);
   const names = Object.keys(counts);
   const banned = names.filter((n) => f.banned.has(n));
@@ -1544,8 +1549,8 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
     forgeSeats: preset.filter((c) => aiSeatChoice[c].kind === "forge").map((c, k) => ({ color: c, deck: deckForMode(aiSeatChoice[c].deck, mode, k) })) };
   for (const c of aiSeats) if (!readyFor(c, mode) && !preset.includes(c)) chat(`[MTG] The deck in ${c}'s seat isn't ready${std ? " for Standard" : ""} (see above); that AI plays a built-in deck.`);
   const builtIn = defaultDecksOf(mode);
-  // ("mtg deck" chose a deck of the other mode: the mode's own built-in deck instead)
-  const ownDeck = (c) => (deckChoice[c] && (!std || presetsFor("standard").includes(deckChoice[c])) ? deckChoice[c] : null);
+  // ("mtg deck" chose a deck of the other mode: the mode's own built-in deck instead, either way)
+  const ownDeck = (c) => (deckChoice[c] && presetsFor(mode).includes(deckChoice[c]) ? deckChoice[c] : null);
   seatList.forEach((color, i) => game.seats.set(color, new Seat(color, ownDeck(color) || builtIn[i % builtIn.length])));
   // (a debug setup waits for its player's next game: one not in this game is dropped, not kept for a later one)
   for (const c of Object.keys(debugChoice)) if (!seatList.includes(c)) { chat(`[MTG] Debug "${debugChoice[c].name}" dropped: ${c} isn't in this game.`); delete debugChoice[c]; }
