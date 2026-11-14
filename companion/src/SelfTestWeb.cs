@@ -58,6 +58,46 @@ namespace MtgCompanion
             return w;
         }
 
+        // After Stop everything (2026-11-13: the header said "Ready" in green, as Docker's row stays green, and the TTS
+        // row said "Stopped." with TTS still open): the header is Stopped, grey, and the TTS row says what TTS is doing.
+        // The rows are put back as they were after.
+        static void StoppedStatus(Controller c, WebUi w)
+        {
+            var keep = c.Rows.Select(x => x.V).ToArray();
+            var probe = c.TtsProbe;
+            Func<Dictionary<string, object>> status = () => J.Parse(Send(w, Get(w, "/api/status", w.Token)).Body) as Dictionary<string, object>;
+            try
+            {
+                c.Rows[0].V = new Verdict(Light.Green, "Running (Docker 29.8.2).");
+                c.MarkStopped(true);
+                var s = status();
+                Check("stopped: the rows alone (Docker green, the rest grey) would say Ready, the old header", J.Str(J.Get(s, "worst"), "text") == "Ready" && J.Str(J.Get(s, "worst"), "state") == "green", J.Write(J.Get(s, "worst")));
+                c.EverythingStopped = true;
+                s = status();
+                Check("stopped: after Stop everything the header says Stopped, grey", J.Str(J.Get(s, "worst"), "text") == "Stopped" && J.Str(J.Get(s, "worst"), "state") == "grey", J.Write(J.Get(s, "worst")));
+                var lights = J.Arr(s, "lights");
+                Check("stopped: TTS still open: its row says it runs, green, not Stopped.", J.Str(lights[5], "state") == "green" && J.Str(lights[5], "text") == "Tabletop Simulator is running (Stop everything leaves it open).", J.Str(lights[5], "text"));
+                Check("stopped: the bridge's row is Stopped., grey; Docker's stays as it was", J.Str(lights[4], "text") == "Stopped." && J.Str(lights[4], "state") == "grey" && J.Str(lights[0], "state") == "green", J.Str(lights[4], "text") + " / " + J.Str(lights[0], "state"));
+                c.MarkStopped(false);
+                lights = J.Arr(status(), "lights");
+                Check("stopped: TTS closed: its row says so, grey", J.Str(lights[5], "state") == "grey" && J.Str(lights[5], "text") == "Tabletop Simulator isn't running.", J.Str(lights[5], "text"));
+                c.TtsProbe = () => true;
+                c.KeepTtsRowStopped();
+                Check("stopped: TTS opened after the stop: the row follows it", c.Rows[Controller.StepTts].V.Light == Light.Green && c.Rows[Controller.StepTts].V.Text.StartsWith("Tabletop Simulator is running"), c.Rows[Controller.StepTts].V);
+                c.Rows[2].V = new Verdict(Light.Red, "The relay is up, but this PC can't log in to it.");
+                s = status();
+                Check("stopped: a red row still names the problem", J.Str(J.Get(s, "worst"), "text") == "Problem: Engine stack" && J.Str(J.Get(s, "worst"), "state") == "red", J.Write(J.Get(s, "worst")));
+                Check("stopped: the tray's light is the header's", Logic.Overall(c.Rows.Select(x => x.V.Light), true) == Light.Red && Logic.Overall(new[] { Light.Green, Light.Grey }, true) == Light.Grey && Logic.Overall(new[] { Light.Green, Light.Grey }, false) == Light.Green);
+            }
+            catch (Exception e) { Check("stopped: no exception", false, e); }
+            finally
+            {
+                for (int i = 0; i < keep.Length; i++) c.Rows[i].V = keep[i];
+                c.EverythingStopped = false;
+                c.TtsProbe = probe;
+            }
+        }
+
         static void Web()
         {
             sb.AppendLine("-- status page: HTTP parser");
@@ -206,6 +246,7 @@ namespace MtgCompanion
             var menu = J.Arr(s, "menu");
             Check("status: the menu: restart-engine, stop-everything, open-logs, wsl-limits", menu != null && string.Join(",", menu.Select(m => J.Str(m, "id"))) == "restart-engine,stop-everything,open-logs,wsl-limits");
             Check("status: versions, a log with lines, the update section (friend mode)", J.Has(s, "versions") && J.Str(J.Get(s, "versions"), "companion") != null && J.Arr(J.Get(s, "log"), "lines") != null && J.Get(s, "update") is Dictionary<string, object>);
+            StoppedStatus(c, w);
             var keepV = c.Rows[0].V;
             c.Rows[0].V = null; // (a bug inside: Status() throws)
             resp = Send(w, Get(w, "/api/status", w.Token));
@@ -303,6 +344,13 @@ namespace MtgCompanion
             var tp = J.Parse(postTools("{ \"kind\" : \"ai-seat\", \"color\": \"Red\", \"seat\": \"harmless\", \"junk\": [1] }"));
             Check("tools: POST a known kind: passed on as parsed (written again), answered {ok, message} only", J.Bool(tp, "ok") && J.Str(tp, "message") == "Red: Harmless bot playing X." && !J.Has(tp, "extra")
                 && calls.Count == 2 && calls[1] == "POST /tools {\"kind\":\"ai-seat\",\"color\":\"Red\",\"seat\":\"harmless\",\"junk\":[1]}", string.Join("|", calls));
+            // (the Starting hand box: Set and Clear; the bridge checks the names and the game)
+            bridgeAnswer = HttpResult.Ok("{\"ok\":true,\"message\":\"Picked hand for Blue's next game: Lightning Bolt.\"}");
+            var th = J.Parse(postTools("{\"kind\":\"hand\",\"color\":\"Blue\",\"names\":[\"Lightning Bolt\",\"Neheb, the Worthy\"]}"));
+            postTools("{\"kind\":\"hand\",\"color\":\"Blue\",\"clear\":true}");
+            Check("tools: POST a starting hand (Set, Clear): passed on as parsed, the names in order", J.Bool(th, "ok") && calls.Count == 4
+                && calls[2] == "POST /tools {\"kind\":\"hand\",\"color\":\"Blue\",\"names\":[\"Lightning Bolt\",\"Neheb, the Worthy\"]}" && calls[3] == "POST /tools {\"kind\":\"hand\",\"color\":\"Blue\",\"clear\":true}", string.Join("|", calls));
+            calls.RemoveRange(2, 2);
             var tpBad = Send(w, Post(w, "{\"kind\":\"format-c\"}", w.Token).Replace("POST /api/action ", "POST /api/tools "));
             Check("tools: POST an unknown kind: 400, the bridge not asked", tpBad.Status == 400 && ErrorId(tpBad) == "bad-body" && calls.Count == 2, tpBad.Body);
             Check("tools: POST not JSON: 400; the wrong type: 415", Send(w, Post(w, "kind=debug", w.Token).Replace("POST /api/action ", "POST /api/tools ")).Status == 400

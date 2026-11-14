@@ -336,7 +336,10 @@ on a balloon open it (`StatusForm.cs:217, 241-242`).
   line, **Check for updates**, **GitHub token…**, Restart engine, Stop everything, Quit (`StatusForm.cs:217-231`).
 - **Restart engine**: confirm, then stop bridge → `forceFresh` → run steps 1-6 (`Controller.cs:1134-1149`). Locked during a game.
 - **Stop everything**: stops the bridge loop and the bridge, then, only if the Docker light is green, `docker compose ... down` (friend) or `stop` (home) (`Controller.cs:1161`); Docker
-  Desktop and TTS keep running; all other lights go grey; the watcher pauses until Restart engine (`Controller.cs:1152-1168`).
+  Desktop and TTS keep running; the other lights go grey ("Stopped.") except TTS's, which keeps saying whether TTS runs (green
+  "Tabletop Simulator is running (Stop everything leaves it open).", grey "isn't running", followed while stopped,
+  `KeepTtsRowStopped`); the header (page badge, tray icon) says **Stopped** in grey whatever stays green, a red row aside
+  (`Logic.Overall`, 2026-11-13: it said "Ready" in green); the watcher pauses until Restart engine (`Controller.cs:1152-1168`).
 - **Quit** asks: Yes = quit and leave engine and bridge running; No = stop everything, then quit; Cancel. While an update installs,
   Quit says to wait (`StatusForm.cs:458-465`).
 - **Old window** (`StatusForm`, 760 × 520): the same six rows with the same buttons. Fallback only: `--no-web`, `--shot`, no free
@@ -351,7 +354,7 @@ its section is open (once on open, after every POST, and with each status poll) 
 ### 10.1 Companion side (`WebUi.Tools`, `WebUi.cs:854-888`)
 - `GET /api/tools` = the bridge's `GET /tools` body. Bridge down or slow, a 404 (a bridge older than the feature) or a non-object
   answer: 502 `no-bridge` with a sentence (`WebUi.cs:864-866, 882-888`).
-- `POST /api/tools`: `kind` must be `ai-seat`, `debug-mode` or `debug`, else 400 and the bridge is not asked. The body is parsed
+- `POST /api/tools`: `kind` must be `ai-seat`, `debug-mode`, `debug` or `hand`, else 400 and the bridge is not asked. The body is parsed
   and written again (never the raw bytes) and the answer cut down to `{ok, message}`. Observe mode refuses every POST. The bridge
   answers a refusal as HTTP 200 with `ok:false` so its reason reaches the page (`WebUi.cs:868-880`; bridge `bridge.js:9277-9283`).
 - The page limits a pasted deck list so the whole POST is at most 16 KB (the companion's body limit), measured in UTF-8 with
@@ -384,6 +387,54 @@ number or card name (`runDebugTool` `bridge.js:9151`). **Draw and mill** (built 
 engine's own draw and mill: the fix's `draw` and `mill` ops, run by the harness's `applyState` with triggers on, so they need an
 engine image (node and relay) built with those ops. A draw or mill op in a fix the table sends is refused; a mill from an empty
 library is refused, a draw from one is allowed (it is how decking is tested). A button shows only when the bridge's `tools` lists it.
+
+**Starting hand** (built 2026-11-13, branch `pick-hand`; bridge `bridge.js:11106-11258`, page `WebPage.cs` `#tt-hand`). Up to 7 card
+names for one seat's **next** game, while debug tools are on, for a game against the AI. Page: the box under the debug tools
+(a seat, 7 card boxes suggesting the names in that seat's next deck, any name the engine knows allowed; Set for next game,
+Clear; a line saying the deck and what is waiting). Chat: `mtg hand <card>, <card> ...` (a comma inside a card's own name, as in
+"Neheb, the Worthy", is kept; a semicolon always splits), `mtg hand off`, `mtg hand` (what is waiting). `POST /tools`
+`{kind:"hand", color, names}` or `{kind:"hand", color, clear:true}`; `GET /tools` adds `hand {max, seats[{color, deck, source,
+cards, waiting, added}]}` (`source`: `table` = checked with mtg ready, `preset` = mtg deck, `default` = the engine's default).
+- Refused (said): debug tools off; more than 7 names or none; a name the engine doesn't know; not a seat colour; another person
+  in the game being set up or played now; a debug scenario waiting for that colour (it sets the hand itself). At the game's
+  start the hand is taken only by a table game with that one person and debug tools on, else dropped and said ("Red is playing
+  too, and a picked hand is for games against the AI only"). Switching debug tools off drops every waiting hand (said).
+- A name the deck hasn't got (the commander included, which is never in the library) is **added**, and said before the game
+  ("Not in <deck>, so added to the game: ..."), at Set and again at the start: the user named it, so the test asked for runs;
+  dropping it silently would test something else.
+- **When:** the dealt hand is kept by itself at Forge's keep-or-mulligan question (the player is not asked), and at the player's
+  first priority with nothing on the stack (turn 1's upkeep, whoever's turn) one debug fix (applies at once against the AI) makes
+  the hand the picked one: a picked card that was dealt stays (the deck's own card); each other picked card is created in the
+  hand (`createCard`), and for each a dealt card goes to the bottom of the library (the last dealt first). Fewer than 7 named:
+  the dealt cards left are the rest. The hand ends as the dealt cards kept, in their order, then the added ones in the order named.
+  So it is **not** the opening hand: it is not seen at the mulligan question, an opening-hand action (a Leyline, Chancellor,
+  Gemstone Caverns) never sees it, and a deck card that was not dealt is a second copy for that game (its own copy stays in the
+  hidden library). With fewer than 7 cards in hand by then (an opening-hand card already used), every dealt card not picked can go under.
+- **Why not stacked before the deal** (read 2026-11-13 in `manabrew/forge-harness` and `forge/forge-game`): Forge shuffles in
+  `Match.prepareAllZones` (`player.shuffle`) and deals in `GameAction.startGame` with nothing from the bridge in between;
+  `awaitMulliganDecision` (ManaBrewInteractiveSession) takes only `mulligan_decision` and `pass`, and throws on any other kind,
+  `apply_state` included (the harness takes `apply_state` only while a priority prompt is open, else it answers "not waiting for
+  priority"); the library is hidden from the bridge (the board's library zone has a count and no cards) and Forge's card ids are
+  given in `CardPool` iteration order (a ConcurrentHashMap), so the deck's own copies can't be moved by id; the first-player roll
+  is the harness's own and takes only an acknowledgement. Free mulligans until the cards come were rejected: about 14 deals for
+  one named card, hundreds for two.
+- **Engine change for a true opening hand** (not built; no image builds on this branch). Smallest honest version:
+  1. Deck JSON (`SetDeckSelection`'s `deck`, as `planes` rides today): `openingCards: [names]`, at most 7, in order. The relay
+     must carry the field (its deck struct, as for `planes` in the planechase build) and the node must pass it to the harness.
+  2. Harness: after `Match.prepareAllZones` has shuffled and before `GameAction.startGame` deals (the first
+     `GameEventGameStarted`, fired inside `startGame` before `runPreOpeningHandActions` and the draw; or a hook the harness
+     runs from `session.start` before `match.startGame`), for each name in reverse order take one copy of that name from the
+     player's library and put it on top (`PlayerZone.remove` then `add(card, 0)`). Forge then deals those cards as the opening
+     hand, the rest from the shuffled library; the keep-or-mulligan question shows them; a mulligan reshuffles as usual (the
+     cards are not kept through it). The deck is unchanged: every card is the deck's own.
+  3. A name with no copy left in the library: the harness skips it and reports it (a game-log line or a field on the first
+     state), and the bridge says which. The bridge keeps refusing names the engine doesn't know, and warns before the game which
+     named cards the deck lacks (it knows the deck): those would come at the first priority as now, or be dropped (the choice is
+     the bridge's; added is today's default).
+  4. `StaticData.getFilteredHandsEnabled()` must stay off in the harness (`drawStartingHand` may reshuffle and undo the stack).
+  5. Bridge: send `openingCards` in `SetDeckSelection` when the engine says it supports it (a version or capability flag), stop
+     auto-keeping, and use the first-priority fix only for the cards the deck lacks. Tests: the bridge goldens here, plus a live
+     check on the new image (`tests/live_hand_check.js` already records the real mulligan prompt and the hidden library).
 
 ## 11. Install and release flow (friend package)
 
@@ -482,6 +533,9 @@ not-public, available, downloading, ready, installing, restarting, updated, fail
   §3, covering kill points during install, tampered signatures, resumed downloads, off-host URLs, token leaks and the
   self-update swap.
 - `tests/test_friend_package.js`: the packager's release rules. `tests/test_bridge_ai_tools.js`: the bridge side of §10.
+  `tests/test_bridge_hand.js`: the Starting hand (§10.3) on the bridge; `tests/test_table_hand_chat.js`: `mtg hand` in the
+  table's chat; `tests/live_hand_check.js` (`tools/live-check.sh exile tests/live_hand_check.js`): the first-priority fix and
+  the facts that rule out stacking the library, on the real engine. The selftest covers Stop everything's header and TTS row.
 - `tests/no-live-ports.js` refuses and records every connection to 39999, 39998, 48787 and 9443 during tests (`PLAN.md:54`).
 
 Not covered by any automated test, from the sources: a whole friend-mode start on a PC without the repo's stack (ports 9443,
@@ -516,6 +570,9 @@ the Linux/Mac companion (`companion-node`, merged d0dba68). Items 9-11 are not e
    either the repository public or each friend entering a token (decision pending, `docs/release-fix-plan-2026-11-10.md`).
 10. **Draw and mill debug tools** (§10.3): built 2026-11-12; they work once the engine images are rebuilt with the `draw`/`mill` ops.
 11. `docs/publishing-checklist.md:59` still calls the companion "a later release"; the friend package already ships it.
+12. **Starting hand** (§10.3): built 2026-11-13 on what the engine has, so the picked cards come at the first priority, not at the
+    mulligan question; a true opening hand needs the engine change written up there (`openingCards`, relay and harness). Chat
+    `mtg hand` needs the table script deployed (`tools/make-engine-copy.js`); the page's box needs only the new bridge.
 
 ## 15. Changed from the earlier spec
 

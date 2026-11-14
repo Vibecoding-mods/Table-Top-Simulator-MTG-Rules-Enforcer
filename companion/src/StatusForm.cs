@@ -359,7 +359,7 @@ namespace MtgCompanion
             wslBtn.Enabled = !c.Observe;
             miRestart.Text = Logic.RestartLabel(g);
 
-            var worst = Logic.Worst(c.Rows.Select(r => r.V.Light));
+            var worst = Logic.Overall(c.Rows.Select(r => r.V.Light), c.EverythingStopped);
             var icon = Icons.Tray(worst == Light.Grey ? Light.Grey : worst);
             if (tray.Icon != icon) { tray.Icon = icon; Icon = icon; }
             var red = c.Rows.FirstOrDefault(r => r.V.Light == Light.Red);

@@ -668,7 +668,7 @@ namespace MtgCompanion
                     { "at", row.At == DateTime.MinValue ? null : row.At.ToString("HH:mm:ss") }, { "action", LightAction(i, v, g, locked) },
                 });
             }
-            var worst = Logic.Worst(c.Rows.Select(r => r.V.Light));
+            var worst = Logic.Overall(c.Rows.Select(r => r.V.Light), c.EverythingStopped);
             string hint = c.Rows.Select(r => r.V).Where(v => v.Hint != null && v.Light != Light.Green && v.Light != Light.Grey).Select(v => v.Hint).FirstOrDefault()
                 ?? Logic.TtsHowTo(c.SaveName) + "\n\nOnly the host runs this app. Friends join your TTS game (Multiplayer) and need nothing else.";
             return new Dictionary<string, object>
@@ -851,7 +851,7 @@ namespace MtgCompanion
         // {ok, message}. Only a body of a known kind is passed on, rewritten from what was parsed; observe mode refuses
         // every POST. The page is the host's (it opens only on this PC, with this run's token), which is what "host only"
         // means here; the bridge itself refuses a debug tool while debug tools are off.
-        public static readonly string[] ToolKinds = { "ai-seat", "debug-mode", "debug" };
+        public static readonly string[] ToolKinds = { "ai-seat", "debug-mode", "debug", "hand" };
         // (method, path on the bridge, JSON body or null) -> the bridge's answer; tests replace it
         public Func<string, string, string, HttpResult> BridgeCall = (method, path, json) =>
             method == "GET" ? Probes.HttpGet(Controller.BridgeUrl + path, 5000) : Probes.HttpPost(Controller.BridgeUrl + path, json, 10000);
@@ -869,7 +869,7 @@ namespace MtgCompanion
             if (!JsonType(r.Header("Content-Type"))) return Refuse(415, "content-type", "Send application/json.");
             var body = J.Parse(r.Body) as Dictionary<string, object>;
             string kind = J.Str(body, "kind");
-            if (body == null || !ToolKinds.Contains(kind)) return Refuse(400, "bad-body", "Send {\"kind\": \"ai-seat\" | \"debug-mode\" | \"debug\", ...}.");
+            if (body == null || !ToolKinds.Contains(kind)) return Refuse(400, "bad-body", "Send {\"kind\": \"ai-seat\" | \"debug-mode\" | \"debug\" | \"hand\", ...}.");
             if (c.Observe) return new HttpResp(200, J.Write(new Dictionary<string, object> { { "ok", false }, { "message", ObserveText } }));
             var sent = J.Write(body);
             var res = BridgeCall("POST", "/tools", sent);

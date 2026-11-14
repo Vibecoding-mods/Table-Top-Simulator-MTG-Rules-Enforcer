@@ -475,6 +475,7 @@ namespace MtgCompanion
                 return true;
             }
             if (!everythingStopped) { Safe(watch, "watch"); ResumeIfGreen(); }
+            else Safe(KeepTtsRowStopped, "tts row");
             FirstPassDone = true;
             return false;
         }
@@ -1124,7 +1125,19 @@ namespace MtgCompanion
 
         // ── 6. TTS
 
-        bool TtsRunning() { return Probes.ProcessRunning("Tabletop Simulator"); }
+        // (a field so the self-test can answer it; nothing else replaces it)
+        internal Func<bool> TtsProbe = () => Probes.ProcessRunning("Tabletop Simulator");
+        bool TtsRunning() { return TtsProbe(); }
+
+        // (WorkOnce, while Stop everything is in effect and the watcher pauses) the TTS row follows TTS: opened or closed
+        // after the stop, it says so, as the other rows stay stopped
+        internal void KeepTtsRowStopped()
+        {
+            var v = Logic.TtsAfterStop(TtsRunning());
+            if (Rows[StepTts].V != null && Rows[StepTts].V.Text == v.Text) return;
+            Rows[StepTts].V = v;
+            Fire();
+        }
 
         void LaunchTts()
         {
@@ -1317,14 +1330,27 @@ namespace MtgCompanion
                 SetPhase("Stopping");
                 StopBridge();
                 if (dockerCli != null && Rows[StepDocker].V.Light == Light.Green) Compose(L.Friend ? "down" : "stop", 120000);
-                for (int i = 0; i < Rows.Length; i++)
-                    if (i != StepDocker) Rows[i].V = new Verdict(Light.Grey, i == StepSave ? (L.Friend ? "Installed (unchanged)." : Rows[i].V.Text) : "Stopped.");
+                MarkStopped(TtsRunning());
                 RefreshGame(); // (the watcher pauses now, so this is the last look: it unlocks Restart engine)
                 SetPhase("Stopped. Restart engine starts it again.");
                 Fire();
                 if (done != null) done();
             });
         }
+
+        // (StopEverything) every row but Docker's as Stop everything leaves it: stopped, the save as it was, and TTS as it
+        // is (Stop everything leaves it open: the row said "Stopped." with TTS running, 2026-11-13)
+        internal void MarkStopped(bool ttsRunning)
+        {
+            for (int i = 0; i < Rows.Length; i++)
+            {
+                if (i == StepDocker) continue;
+                Rows[i].V = i == StepTts ? Logic.TtsAfterStop(ttsRunning)
+                    : new Verdict(Light.Grey, i == StepSave ? (L.Friend ? "Installed (unchanged)." : Rows[i].V.Text) : "Stopped.");
+            }
+        }
+        // the menu's Stop everything is in effect (until the next start sequence): the header says Stopped
+        internal bool EverythingStopped { get { return everythingStopped; } set { everythingStopped = value; } }
 
         // the text dump for --observe --dump
         public string Dump()
