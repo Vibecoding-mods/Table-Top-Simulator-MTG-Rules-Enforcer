@@ -1,0 +1,12 @@
+{
+  "label": "showcase: every table effect and sound once, in order (tests/live_showcase.js drives it; White plays Sisay's five-colour deck (ai_gap_creatures), the opponent at 11 life with four creatures)",
+  "lands": { "Mountain": 13, "Plains": 12, "Island": 10, "Swamp": 7, "Forest": 8 },
+  "keepHand": false,
+  "hand": [
+    "Lightning Bolt", "Doom Blade", "Declaration in Stone", "Shock", "Counterspell", "Angel's Mercy", "Think Twice",
+    "Strike It Rich", "Divination", "Wrath of God", "Banefire", "Lightning Bolt"
+  ],
+  "battlefield": ["Prodigal Pyromancer", "Prodigal Sorcerer", "The Scorpion God", "Gavony Township"],
+  "life": 40,
+  "opponents": { "battlefield": ["Hill Giant", "Grizzly Bears", "Craw Wurm", "Serra Angel"], "life": 11 }
+}
