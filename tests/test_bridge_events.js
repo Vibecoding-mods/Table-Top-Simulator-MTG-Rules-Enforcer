@@ -1196,6 +1196,59 @@ const id = (n) => `engine-card-${n}`;
   same("planar: a roll's planeswalk: the roll, then the planeswalk", between(planar(board((b) => put(b, "command", PLANE(70, "Turri Island"))), [id(70)]),
     planar(board((b) => put(b, "command", PLANE(71, "Akoum"))), [id(71)], { lastRoll: { playerId: "player-0", result: "planeswalk", seq: 2 } }), []),
     ["Blue rolls the planar die: planeswalk", "Blue planeswalks to Akoum (from Turri Island)"]);
+  // (a plane's chaos trigger by its word, with what it does: Akoum's read "Akoum's ability triggers (AI 1): destroy ...")
+  const CHAOS = { id: "engine-stack-30", sourceId: id(70), controllerId: "player-1", ownerId: "player-1", identity: { name: "Akoum" }, isTrigger: true, targets: [],
+    text: "Akoum (70) - Whenever chaos ensues, destroy target creature that isn't enchanted.", sourceAbilityText: "Whenever chaos ensues, destroy target creature that isn't enchanted." };
+  same("planar: a chaos trigger is said as chaos", between(planar(board((b) => put(b, "command", PLANE(70, "Akoum", "player-1"), "player-1")), [id(70)], { controllerId: "player-1" }),
+    planar(board((b) => { put(b, "command", PLANE(70, "Akoum", "player-1"), "player-1"); b.stack = [CHAOS]; }), [id(70)], { controllerId: "player-1" }), []),
+    ["Akoum's chaos triggers (AI 1): destroy target creature that isn't enchanted"]);
+  // (rule 901.10: a player leaving the game takes the planes they own with them, and the planar controller planeswalks
+  // from their own planar deck. The plane card's ownerId is its command zone's player, so the owner is the player who
+  // planeswalked to it, or Forge's own ownerId on one of its triggers on the stack. Boards in order, one bridge.)
+  const along = (boards) => {
+    const h = harness.load();
+    setup(h);
+    const lines = [];
+    let prev = null;
+    for (const b of boards) {
+      const snap = h.B.logSnapshot(b);
+      if (prev) lines.push(...h.B.logEvents(prev, snap, b, h.B.engineFacts([])));
+      prev = snap;
+    }
+    return lines;
+  };
+  const out1 = (b) => players(b, {}, { status: "lost" });
+  const walk = (ctl, plane = PLANE(70, "Akoum", ctl)) => planar(players(board((b) => put(b, "command", plane, ctl))), [plane.id], { controllerId: ctl });
+  const toNaya = () => planar(out1(board((x) => put(x, "command", PLANE(71, "Naya")))), [id(71)]);
+  same("901.10: AI 1's plane leaves with AI 1, and Blue planeswalks from Blue's deck",
+    along([board(() => {}), walk("player-1"), walk("player-0"), toNaya()]), ["Akoum leaves the game with AI 1; Blue planeswalks to Naya"]);
+  same("901.10: a plane of Blue's when AI 1 leaves is an ordinary planeswalk (Pompeii's damage, then its planeswalk)",
+    along([board(() => {}), walk("player-0"), toNaya()]), ["Blue planeswalks to Naya (from Akoum)"]);
+  same("901.10: the owner from Forge's ownerId on the plane's trigger, over who walked to it",
+    along([board(() => {}), walk("player-0"), (() => { const b = walk("player-0"); b.stack = [{ ...CHAOS, controllerId: "player-0" }]; return b; })(), toNaya()]),
+    ["Akoum's chaos triggers (Blue): destroy target creature that isn't enchanted", "Akoum leaves the game with AI 1; Blue planeswalks to Naya"]);
+  // (the owners are kept in the resume file: a bridge restarted between AI 1's planeswalk and its leaving says it the same)
+  {
+    const h = harness.load();
+    setup(h);
+    let prev = null;
+    for (const b of [board(() => {}), walk("player-1")]) { const s = h.B.logSnapshot(b); if (prev) h.B.logEvents(prev, s, b, h.B.engineFacts([])); prev = s; }
+    const fsm = require("fs");
+    const w0 = fsm.writeFile;
+    let snapText = null;
+    fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
+    h.B.saveResume(); await h.flush();
+    fsm.writeFile = w0;
+    harness.restore();
+    const h2 = harness.load();
+    await fsm.promises.writeFile(process.env.MTG_RESUME_FILE, snapText || "{}");
+    const resumed = h2.B.resumeGame();
+    await fsm.promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
+    const before = walk("player-0"), after = toNaya();
+    same("901.10 after a bridge restart: the plane's owner came back with the game", resumed ? h2.B.logEvents(h2.B.logSnapshot(before), h2.B.logSnapshot(after), after, h2.B.engineFacts([])) : "not resumed",
+      ["Akoum leaves the game with AI 1; Blue planeswalks to Naya"]);
+    harness.restore();
+  }
   same("#11 re-test: two texts changed otherwise are no swap",
     between(board((b) => { put(b, "battlefield", ASSN(RA)); put(b, "battlefield", KEEP(BK)); }), board((b) => { put(b, "battlefield", ASSN(RA, "Flying")); put(b, "battlefield", KEEP(BK, RA)); }), []),
     []);

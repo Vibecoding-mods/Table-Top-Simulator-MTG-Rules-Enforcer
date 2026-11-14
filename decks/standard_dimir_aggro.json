@@ -1,0 +1,136 @@
+{
+ "label": "Standard: Dimir Aggro",
+ "desc": "Blue-black tempo: evasive threats (Spyglass Siren, Floodpits Drowner, Kaito) backed by cheap interaction",
+ "format": "standard",
+ "ai_eligible": true,
+ "source": "Draftsim, \"MTG Standard Meta Report\" (2026-10-06, after Reality Fracture), https://draftsim.com/mtg-standard-meta-report-10-6-26/, the \"Dimir Aggro\" list as printed there (main deck and sideboard), every card checked against Forge's own Standard list (bridge/forge-formats.json) and known to the engine.",
+ "reasoning": "The fourth colour pair the AI needs (blue), as a threat-first tempo deck rather than draw-go control, which the AI plays poorly. Blue and black.",
+ "cards": [
+  {
+   "name": "Kaito, Bane of Nightmares",
+   "count": 4
+  },
+  {
+   "name": "Dream Beavers",
+   "count": 4
+  },
+  {
+   "name": "Enduring Curiosity",
+   "count": 4
+  },
+  {
+   "name": "Floodpits Drowner",
+   "count": 4
+  },
+  {
+   "name": "Preacher of the Schism",
+   "count": 1
+  },
+  {
+   "name": "Spyglass Siren",
+   "count": 4
+  },
+  {
+   "name": "The Wondrous Wasp",
+   "count": 2
+  },
+  {
+   "name": "Tishana's Tidebinder",
+   "count": 2
+  },
+  {
+   "name": "Bitter Triumph",
+   "count": 2
+  },
+  {
+   "name": "Requiting Hex",
+   "count": 4
+  },
+  {
+   "name": "Shoot the Sheriff",
+   "count": 2
+  },
+  {
+   "name": "Spell Snare",
+   "count": 2
+  },
+  {
+   "name": "We Say Thee Nay!",
+   "count": 1
+  },
+  {
+   "name": "Fountainport",
+   "count": 1
+  },
+  {
+   "name": "Gloomlake Verge",
+   "count": 4
+  },
+  {
+   "name": "Hidden Lair",
+   "count": 3
+  },
+  {
+   "name": "Island",
+   "count": 4
+  },
+  {
+   "name": "Restless Reef",
+   "count": 2
+  },
+  {
+   "name": "Soulstone Sanctuary",
+   "count": 2
+  },
+  {
+   "name": "Swamp",
+   "count": 4
+  },
+  {
+   "name": "Watery Grave",
+   "count": 4
+  }
+ ],
+ "sideboard": [
+  {
+   "name": "Day of Black Sun",
+   "count": 3
+  },
+  {
+   "name": "Duress",
+   "count": 2
+  },
+  {
+   "name": "Flashfreeze",
+   "count": 2
+  },
+  {
+   "name": "Ghost Vacuum",
+   "count": 1
+  },
+  {
+   "name": "Preacher of the Schism",
+   "count": 1
+  },
+  {
+   "name": "Qarsi Revenant",
+   "count": 1
+  },
+  {
+   "name": "Shoot the Sheriff",
+   "count": 1
+  },
+  {
+   "name": "Strategic Betrayal",
+   "count": 1
+  },
+  {
+   "name": "Vren, the Relentless",
+   "count": 1
+  },
+  {
+   "name": "Wan Shi Tong, Librarian",
+   "count": 2
+  }
+ ]
+}

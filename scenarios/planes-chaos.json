@@ -1,7 +1,24 @@
 {
-  "label": "Planechase P7 (a game with mtg planechase on): chaos ensues on the plane in play (on Akoum: destroy target creature that is not enchanted, asked for a creature)",
+  "label": "Planechase P7: chaos ensues on Akoum (destroy target creature that is not enchanted): the trigger reads \"Chaos — ...\" on the stack, its question \"Akoum (chaos): destroy which creature that isn't enchanted?\"",
   "lands": 0,
   "keepHand": true,
-  "battlefield": ["Grizzly Bears"],
-  "chaos": true
+  "battlefield": [
+    "Grizzly Bears"
+  ],
+  "chaos": true,
+  "planechase": {
+    "planes": [
+      "Akoum",
+      "Turri Island",
+      "Naya",
+      "Krosa",
+      "Murasa",
+      "Feeding Grounds",
+      "Goldmeadow",
+      "Llanowar",
+      "The Great Forest",
+      "Sea of Sand"
+    ],
+    "current": "Akoum"
+  }
 }

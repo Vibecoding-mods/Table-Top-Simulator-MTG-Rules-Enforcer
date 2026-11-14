@@ -1,6 +1,7 @@
 # GIF frames: one per player (spec, 2026-11-13)
 
-Status: **Phase 1+2 built on branch `gif-frames` (2026-11-13), not merged or deployed; see "Phase 1 checks and the build" at the end.** Earlier: spec only. The user asked for "an object that shows gifs (giphy klipy etc) one per player".
+Status: **Phase 1+2 built on branch `gif-frames` (2026-11-13), brought up to date with `main` on 2026-11-14 (review
+fixes, "Review fixes and the merge" at the end), not merged into main or deployed; see "Phase 1 checks and the build" at the end.** Earlier: spec only. The user asked for "an object that shows gifs (giphy klipy etc) one per player".
 Facts below are marked **(verified)** with a source, **(unverified)** when only third-party pages say so, and
 **(spike)** when only a test in real TTS can settle it. Phase 0 (§6) settles the spike items before any build.
 
@@ -259,6 +260,30 @@ frames don't appear and everything else works. The bridge's no-key chat line poi
 `tests/test_companion_page.js` checks both (the "key guide" checks). HOW-TO-PLAY.md also gained the players' "GIF
 frames" section and the chat commands. The bridge's search now has a `.catch`: an async throw is logged, never an
 unhandled rejection that would end the bridge.
+
+**Review fixes and the merge (2026-11-13 and 14).**
+
+- **Per-player search limits** (bridge/gifs.js `WHO_SHARE`, `WHO_GAP_MS`): one player gets at most 40% of the hour's
+  GIPHY calls (40 of a beta key's 100) and waits 2 s between their own searches, so one player can't spend the whole
+  table's hour. A cached answer costs nothing and is never held back. Past the share: "You've had your share of this
+  hour's GIF searches: yours again in N min"; too fast: "One GIF search at a time, please". The bridge passes the
+  player's colour as the search's `who`.
+- **The key never reaches a log**: a failed fetch is logged by the error's name (its message can quote the link, which
+  holds the key); a corrupt key file by the parse error's name (JSON.parse quotes the text). The key file is written
+  whole and renamed over the old one. Answers that all fail the link checks are logged ("has GIPHY's answer changed
+  shape?").
+- **Table**: a spawn whose callback never comes (TTS refused the link) is given up after 10 s
+  (`SPAWN_GIVE_UP_S`), and a late callback's object is removed; a frame deleted before its picture arrived (the import
+  dialog's X) comes back empty, and the owner is told. A box selection over frames isn't refused and doesn't replay
+  them (one click on a frame still does). The search box's `onEndEdit` on losing focus doesn't search the same words
+  again (compared as the box shows them), unless the last search failed. Hide-for-me goes with its player when they
+  leave (a spectator's stays).
+- **Companion**: a key the bridge refuses stays in the box to be corrected; the box empties only on the bridge's ok.
+- **Merged with main** (2026-11-14): conflicts only in export lists (bridge `module.exports`, the page's `MtgPage`
+  return) and the deploy gates (main's Standard and clear-deck gates plus `test_bridge_gifs`, `test_table_gifs`).
+  Main-chunk locals 195, the same as main. `mtg help` now lists the GIF commands.
+- **A whole engine game leaves the frames alone** (§4's promise, now tested): `test_table_gifs` plays the recorded 1v1
+  from `mtg start` to the bridge's clear with both frames up; they keep their object, GIF and memo, on their mats.
 
 **Phase 1 checks done live (above):** (a) MP4 on an Object UI Image, (b) frame time with six playing tiles, (c) save
 and reload, (d) `.webm`. **Not checked:** a second player's client, audio, the frame time on the full 70-80k-object
