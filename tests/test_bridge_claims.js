@@ -2454,6 +2454,34 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
         ok("suite: a player the rewind brought back is read by how they went out again", s[0] === "[MTG] Game over: White lost the game. Blue wins.", JSON.stringify(s));
         harness.restore();
       }
+      // (engine1114-rejoin: a rewind to before a concession brings the player back, and the chat and log say so once; a
+      // rewind that keeps them out, or one with nobody out, says nothing of the kind)
+      {
+        const backSaid = (h) => [chatsOf(h).filter((t) => /back in the game/.test(t)),
+          h.effects.filter((e) => e.tts && e.tts.t === "gamelog").flatMap((e) => e.tts.lines || []).filter((l) => /back in the game/.test(l))];
+        const r = await play(3, [(gv) => { gv.turn = 6; gv.step = "main1"; }, (gv) => { P(gv, "player-1").status = "conceded"; }]);
+        const kept = clone(r.last); kept.gameView.turn = 5;
+        r.seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(kept), fingerprint: "rewound-after" }); await r.h.flush();
+        ok("rejoin: a rewind that keeps a conceded player out says nobody is back", JSON.stringify(backSaid(r.h)) === "[[],[]]", JSON.stringify(backSaid(r.h)));
+        const back = clone(kept); back.gameView.turn = 4; P(back.gameView, "player-1").status = "playing";
+        r.seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(back), fingerprint: "rewound-before" }); await r.h.flush();
+        const [said, logged] = backSaid(r.h);
+        ok("rejoin: a rewind to before the concession says the player is back, in the chat", JSON.stringify(said) === JSON.stringify(["[MTG] White is back in the game."]), JSON.stringify(said));
+        ok("rejoin: and in the game log", JSON.stringify(logged) === JSON.stringify(["White is back in the game."]), JSON.stringify(logged));
+        const g = r.h.B._getGame();
+        ok("rejoin: how they went out is forgotten", g.outOrder?.["player-1"] == null && g.outWhere?.["player-1"] == null, JSON.stringify([g.outOrder, g.outWhere]));
+        const again = clone(back); again.gameView.turn = 3;
+        r.seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(again), fingerprint: "rewound-again" }); await r.h.flush();
+        ok("rejoin: a later rewind does not say it again", backSaid(r.h)[0].length === 1, JSON.stringify(backSaid(r.h)));
+        // (out again after coming back: a second concession ends the game and is the one named)
+        const out = clone(again); P(out.gameView, "player-1").status = "conceded"; P(out.gameView, "player-2").status = "conceded"; over("player-0")(out.gameView);
+        r.seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(out), fingerprint: "out-again" }); await r.h.flush();
+        r.seat.board = { state: clone(out), fingerprint: null };
+        await asked(r.h, r.seat, { type: "gameOver" });
+        const s = chatsOf(r.h).filter((t) => /Game over/.test(t));
+        ok("rejoin: a player who came back and conceded again is named at the end", s[0] === "[MTG] Game over: White and Yellow conceded. Blue wins.", JSON.stringify(s));
+        harness.restore();
+      }
       // the relay's abort, on a board not over: a conceded player with library 0 is never decked; nothing known says no "aborted"
       {
         // (White's library empty while still playing, the concession in White's own draw step: all a deck-out would show)

@@ -261,6 +261,35 @@ const SEATED = ["White", "Blue"];
   ok("hide: a player's hide goes when they leave; a spectator's stays", h && h.white === false && h.grey === true, h);
 }
 
+// ── a whole engine game leaves the frames alone (spec §4: the sweep, the stray watcher and mtg start leave them; an
+// Undo leaves them as they are): the recorded 1v1 (Blue and White, tests/golden/fixtures/table-stream-1v1.json) from
+// mtg start to the bridge's clear (mtg reset), with both frames up and White's showing a GIF
+{
+  const s1 = require("./golden/fixtures/table-stream-1v1.json");
+  const pickWhite = msg("gif_results", { color: "White", req: 1, first: true, q: "cats", page: 0, items: ITEMS, total: 3, error: null }, 10);
+  const r = simulate({ save, seated: SEATED, host: "Blue", steps: [
+    CONFIG(true), { frames: 10 }, CHAT("White", "mtg gif cats", "w search"), pickWhite, { frames: 30 }, FRAMES("before game"),
+    lua('engineAutoPace.Blue = false engineChat("mtg start ai 1", Player.Blue) return "ok"', "mtg start"),
+    ...s1.map((m) => ({ msg: { t: m.t, json: m.json } })), FRAMES("in game"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 90, mark: "clear (mtg reset)" }, { frames: 180 }, FRAMES("after game"),
+  ] });
+  ok("game: no errors", !r.errors.length, r.errors.slice(0, 3).join(" | "));
+  const keep = (v) => (v?.list || []).map((f) => [f.c, f.guid, f.img, f.memo].join("|")).join(" ; ");
+  const before = val(r, "before game");
+  ok("game: both frames up before it, White's with its GIF", (before?.list || []).map((f) => f.c).join() === "Blue,White" && byC(before, "White")?.img === ITEMS[0].mp4, before);
+  ok("game: the frames are the same objects, GIF and memo through the game", keep(val(r, "in game")) === keep(before), [keep(before), keep(val(r, "in game"))]);
+  ok("game: and after mtg reset's clear", keep(val(r, "after game")) === keep(before), [keep(before), keep(val(r, "after game"))]);
+  ok("game: each frame still on its owner's mat", (val(r, "after game")?.list || []).every((f) => f.onMat === true), val(r, "after game"));
+}
+
+// ── mtg help lists the GIF commands (the GIF block passes "mtg help" on to the table's own chat)
+{
+  const r = simulate({ save, seated: SEATED, host: "Blue", steps: [CHAT("White", "mtg help", "help")] });
+  ok("help: no errors", !r.errors.length, r.errors.join(" | "));
+  const said = fxOf(r, "help").join("\n");
+  ok("help: mtg help lists mtg gif, mtg gif off, mtg gifs hide/show and mtg gif help", /mtg gif <words> \/ mtg gif off - your GIF frame/.test(said) && /mtg gifs hide\/show/.test(said) && /mtg gif help - every GIF command/.test(said), said.slice(-400));
+}
+
 // ── a reload: the save's frames are adopted (with their GIF), not doubled, and the bridge is asked about its key
 {
   const st = { id: "square3", mp4: ITEMS[2].mp4, still: ITEMS[2].still, title: "Square", w: 300, h: 300 };
