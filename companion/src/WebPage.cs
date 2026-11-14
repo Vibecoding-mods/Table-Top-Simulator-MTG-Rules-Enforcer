@@ -233,6 +233,10 @@ pre.log { margin: 0; padding: 12px 16px; max-height: 340px; overflow: auto; bord
 .tt-help ol, .tt-help ul { margin: 0; padding: 0 16px 10px 36px; line-height: 1.5; overflow-wrap: anywhere; }
 .tt-help li + li { margin-top: 4px; }
 .tt-help b { color: var(--text); }
+.tt-hand { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.tt-hand h4 { margin: 0 0 4px; font-size: 14.5px; color: var(--text); font-weight: 650; }
+.tt-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(12em, 1fr)); gap: 8px; margin-top: 8px; }
+.tt-cards input[type='text'] { width: 100%; }
 
 footer { margin-top: 24px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; }
 body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; filter: grayscale(1); }
@@ -333,6 +337,26 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
           <button type='button' class='btn' id='tt-mill-btn' data-icon='mill'>Mill</button>
         </div>
         <p class='tt-note'>Add mana: Number of the Mana colour, until the end of the turn. Set life: to Number. Draw and Mill: Number cards, drawn or milled by the engine itself, so its triggers fire as in play.</p>
+        <div class='tt-hand' id='tt-hand'>
+          <h4>Starting hand</h4>
+          <p class='tt-note'>For your next game against the AI (refused with another person in it): up to 7 cards, the rest dealt at random from your deck. A named card you are dealt stays; any other is added to the game (one your deck has comes as an extra copy), and a dealt card goes under your library for it. The engine deals the opening hand itself, so these come at your first priority in turn 1, not at the keep-or-mulligan question: the dealt hand is kept by itself.</p>
+          <div class='tt-line'><label id='tt-hand-color-label'>Seat <select id='tt-hand-color'></select></label></div>
+          <div class='tt-cards'>
+            <input type='text' id='tt-hand-1' list='tt-hand-names' autocomplete='off' aria-label='Starting hand: card 1' placeholder='Card 1'>
+            <input type='text' id='tt-hand-2' list='tt-hand-names' autocomplete='off' aria-label='Starting hand: card 2' placeholder='Card 2'>
+            <input type='text' id='tt-hand-3' list='tt-hand-names' autocomplete='off' aria-label='Starting hand: card 3' placeholder='Card 3'>
+            <input type='text' id='tt-hand-4' list='tt-hand-names' autocomplete='off' aria-label='Starting hand: card 4' placeholder='Card 4'>
+            <input type='text' id='tt-hand-5' list='tt-hand-names' autocomplete='off' aria-label='Starting hand: card 5' placeholder='Card 5'>
+            <input type='text' id='tt-hand-6' list='tt-hand-names' autocomplete='off' aria-label='Starting hand: card 6' placeholder='Card 6'>
+            <input type='text' id='tt-hand-7' list='tt-hand-names' autocomplete='off' aria-label='Starting hand: card 7' placeholder='Card 7'>
+          </div>
+          <datalist id='tt-hand-names'></datalist>
+          <div class='tools'>
+            <button type='button' class='btn' id='tt-hand-set' data-icon='hand'>Set for next game</button>
+            <button type='button' class='btn' id='tt-hand-clear' data-icon='stop'>Clear</button>
+          </div>
+          <p class='tt-note' id='tt-hand-note' role='status'></p>
+        </div>
       </div>
       <h3><span class='sico' data-icon='spark' aria-hidden='true'></span>GIF frames</h3>
       <p class='tt-note'>Each seated player gets a picture frame on their mat that plays a GIF they pick from GIPHY (in TTS chat: mtg gif help). It needs your own GIPHY API key, free: the steps are under the box. The key stays on this PC.</p>
@@ -583,8 +607,12 @@ var MtgPage = (function () {
     'tt-player': 'Player: whom the debug tool changes. Only players still in the running game are listed.',
     'tt-n': 'Number: the mana to add (1 to 99), the life total to set (0 to 999), or the cards to draw or mill (1 to 99).',
     'tt-mana': 'Mana: the colour Add mana adds: W white, U blue, B black, R red, G green or C colourless.',
-    'tt-name': 'Card: a card name the engine knows, for Add to hand and Put on battlefield (Put on battlefield also takes token names).'
+    'tt-name': 'Card: a card name the engine knows, for Add to hand and Put on battlefield (Put on battlefield also takes token names).',
+    'tt-hand-color': 'Seat: whose next game the starting hand is for, and whose deck the card names are suggested from (the deck the bridge gives that seat: the one checked with mtg ready, else the engine’s default).',
+    'tt-hand-set': 'Set for next game: sends the cards typed above to the bridge, which tells the table. The next game of that seat takes it, against the AI only: a game with another person in it drops it, said in chat. Empty boxes are dealt at random from the deck.',
+    'tt-hand-clear': 'Clear: takes the waiting starting hand away, so the next game deals as usual. Switching debug tools off clears it too.'
   };
+  var HAND_CARD_TIP = 'Starting hand card: a card name the engine knows (the list suggests your deck’s cards; any card is allowed). One card per box; leave a box empty and that card is dealt at random from the deck.';
   var DEBUG_TIPS = {
     mana: 'Add mana: adds Number mana of the Mana colour to the player’s pool, until the end of the turn.',
     hand: 'Add to hand: puts the card named in Card into the player’s hand.',
@@ -616,7 +644,7 @@ var MtgPage = (function () {
   // GET /api/tools (or null, or a refusal) -> what the section shows
   function toolsView(t) {
     if (!t || typeof t !== 'object' || !t.seats) {
-      return { ok: false, state: str(t && t.message) || 'The bridge isn’t answering: start the engine first.', seats: [], presets: [], debug: { on: false, usable: false, players: [], note: '', tools: [] }, gifs: { set: false, text: '' } };
+      return { ok: false, state: str(t && t.message) || 'The bridge isn’t answering: start the engine first.', seats: [], presets: [], debug: { on: false, usable: false, players: [], note: '', tools: [] }, gifs: { set: false, text: '' }, hand: handView(null) };
     }
     var seats = t.seats.map(function (s) {
       var ai = s.ai || null;
@@ -631,7 +659,8 @@ var MtgPage = (function () {
       ok: true, state: 'Read from the bridge. An AI seat applies from the next game.', seats: seats, presets: (t.presets || []).map(str),
       debug: { on: !!d.on, usable: !!(d.on && d.game && !d.fix), players: (d.players || []).map(function (p) { return { color: str(p.color), name: str(p.name) }; }), note: note,
         tools: (Array.isArray(t.tools) ? t.tools : []).map(str) },
-      gifs: gifsView(t.gifs)
+      gifs: gifsView(t.gifs),
+      hand: handView(t.hand)
     };
   }
   // the bridge's GIF search state (never the key itself: whether one is set, its last four) -> the section's line
@@ -648,6 +677,32 @@ var MtgPage = (function () {
     if (!k) return { error: 'Paste your GIPHY key first (developers.giphy.com).' };
     if (!/^[A-Za-z0-9]{16,64}$/.test(k)) return { error: 'That doesn’t look like a GIPHY key: letters and digits only, as GIPHY shows it.' };
     return { kind: 'gif-key', provider: 'giphy', key: k };
+  }
+
+  // the bridge's Starting hand part of GET /tools (none from a bridge before it) -> { known, max, seats }
+  function handView(h) {
+    var list = h && Array.isArray(h.seats) ? h.seats : [];
+    return { known: list.length > 0, max: h && h.max > 0 ? Number(h.max) : 7, seats: list.map(function (s) {
+      return { color: str(s.color), deck: str(s.deck), source: str(s.source), cards: (Array.isArray(s.cards) ? s.cards : []).map(str),
+        waiting: Array.isArray(s.waiting) ? s.waiting.map(str) : null, added: (Array.isArray(s.added) ? s.added : []).map(str) };
+    }) };
+  }
+  // one seat's line under the box: its deck, and what is waiting for its next game
+  function handNote(s, max) {
+    if (!s) return 'Pick a seat.';
+    var deck = !s.deck ? s.color + '’s deck can’t be read now: whether the cards are in it is said when the game starts.'
+      : s.color + ' plays ' + s.deck + (s.source === 'table' ? ' (the deck checked on the table).' : s.source === 'preset' ? ' (chosen with mtg deck).' : ' (the engine’s default deck: mtg ready reads the one on your table).');
+    if (!s.waiting) return deck + ' Nothing waiting: the next game deals as usual.';
+    var rest = max - s.waiting.length;
+    return deck + ' Waiting for the next game: ' + s.waiting.join(', ') + (rest > 0 ? ', and ' + rest + ' dealt at random.' : '.')
+      + (s.added.length ? ' Not in the deck, so added: ' + s.added.join(', ') + '.' : '');
+  }
+  // Set for next game -> the POST body, or { error }
+  function handRequest(color, values) {
+    if (!color) return { error: 'Pick a seat.' };
+    var names = (values || []).map(function (v) { return str(v).trim(); }).filter(function (v) { return v; });
+    if (!names.length) return { error: 'Type at least one card name (or press Clear).' };
+    return { kind: 'hand', color: color, names: names };
   }
 
   // one AI seat's Set -> the POST body, or { error }
@@ -925,7 +980,7 @@ var MtgPage = (function () {
     }
 
     // ── table tools ── (asked only while their section is open: a closed page never calls the bridge)
-    var tt = { open: false, seq: 0, rows: {}, presets: null, players: null, busy: false };
+    var tt = { open: false, seq: 0, rows: {}, presets: null, players: null, busy: false, handSeats: null, handCards: null, handWaiting: null, handChosen: null };
     function ttSay(text, kind) { var t = $('tt-toast'); t.className = 'toast' + (kind ? ' ' + kind : ''); set(t, text); }
     function opt(sel, value, label) { var o = el('option', null, label); o.value = value; sel.appendChild(o); return o; }
     // a select's options from [value, label] pairs, keeping the choice when it is still there
@@ -992,6 +1047,7 @@ var MtgPage = (function () {
       $('tt-dbg').hidden = !v.debug.on;
       var pkey = v.debug.players.map(function (p) { return p.color + ':' + p.name; }).join('|');
       if (pkey !== tt.players) { fillSelect($('tt-player'), v.debug.players.map(function (p) { return [p.color, p.name === p.color ? p.color : p.name + ' (' + p.color + ')']; })); tt.players = pkey; }
+      handDraw(v);
       // (only the tools this bridge lists: one from before Draw and Mill refuses them by name)
       TOOL_IDS.forEach(function (id) {
         var b = $('tt-' + id + '-btn');
@@ -1000,11 +1056,39 @@ var MtgPage = (function () {
         tip(b, debugTip(id, v, tt.busy));
       });
     }
+    // the Starting hand box: the seats, the chosen seat's deck as suggestions, what is waiting (its boxes filled when that
+    // changes: after Set or Clear, not while typing)
+    function handDraw(v) {
+      var h = v.hand, sel = $('tt-hand-color');
+      $('tt-hand').hidden = !h.known;
+      var skey = h.seats.map(function (s) { return s.color + ':' + s.deck; }).join('|');
+      if (skey !== tt.handSeats) {
+        fillSelect(sel, h.seats.map(function (s) { return [s.color, s.deck ? s.color + ' (' + s.deck + ')' : s.color]; }));
+        tt.handSeats = skey;
+      }
+      // (the seat picked here, kept through a bridge that went away and came back; until one is picked, the seat with a
+      // deck checked on the table, else one with a hand waiting, else the first)
+      var mine = h.seats.filter(function (s) { return s.source === 'table'; })[0] || h.seats.filter(function (s) { return s.waiting; })[0] || h.seats[0];
+      var want = tt.handChosen && h.seats.some(function (s) { return s.color === tt.handChosen; }) ? tt.handChosen : mine && mine.color;
+      if (want && sel.value !== want) sel.value = want;
+      var s = h.seats.filter(function (x) { return x.color === sel.value; })[0] || null;
+      var ckey = s ? s.color + ':' + s.cards.join('|') : '';
+      if (ckey !== tt.handCards) { fillSelect($('tt-hand-names'), (s ? s.cards : []).map(function (n) { return [n, n]; })); tt.handCards = ckey; }
+      var wkey = s ? s.color + ':' + JSON.stringify(s.waiting) : '';
+      // (not while the bridge is away: what was typed waits for it to come back)
+      if (h.known && wkey !== tt.handWaiting) { HAND_BOXES.forEach(function (id, k) { $(id).value = s && s.waiting && s.waiting[k] || ''; }); tt.handWaiting = wkey; }
+      set($('tt-hand-note'), h.known ? handNote(s, h.max) : '');
+      ['tt-hand-set', 'tt-hand-clear'].forEach(function (id) {
+        $(id).setAttribute('aria-disabled', v.ok && v.debug.on && !tt.busy ? 'false' : 'true');
+        tip($(id), withNow(STATIC_TIPS[id], !v.ok ? v.state : !v.debug.on ? v.debug.note : tt.busy ? 'waiting for the bridge’s answer.' : ''));
+      });
+    }
+    var HAND_BOXES = [1, 2, 3, 4, 5, 6, 7].map(function (k) { return 'tt-hand-' + k; });
     function toolsLoad() {
       var my = ++tt.seq;
       new Promise(function (ok) { ok(env.fetch('/api/tools', { headers: headers(st.token, false), cache: 'no-store', credentials: 'same-origin' })); })
         .then(function (r) { return r.json(); })
-        .then(function (j) { if (my === tt.seq) toolsDraw(toolsView(j)); }, function () { if (my === tt.seq) toolsDraw(toolsView(null)); })
+        .then(function (j) { if (my === tt.seq) toolsDraw(tt.view = toolsView(j)); }, function () { if (my === tt.seq) toolsDraw(tt.view = toolsView(null)); })
         .then(null, showError);
     }
     // (onOk: called with the bridge's answer when it says ok)
@@ -1036,6 +1120,14 @@ var MtgPage = (function () {
     // in the box to be corrected)
     $('tt-gif-save').addEventListener('click', function () { toolsPost(gifKeyRequest($('tt-gif-key').value, false), function () { $('tt-gif-key').value = ''; }); });
     $('tt-gif-remove').addEventListener('click', function () { toolsPost(gifKeyRequest('', true)); });
+    HAND_BOXES.forEach(function (id) { tip($(id), HAND_CARD_TIP); });
+    function handPress(id, body) {
+      if ($(id).getAttribute('aria-disabled') === 'true') { ttSay($('tt-debug-note').textContent || 'Not available now.', 'warn'); return; }
+      toolsPost(body);
+    }
+    $('tt-hand-set').addEventListener('click', function () { handPress('tt-hand-set', handRequest($('tt-hand-color').value, HAND_BOXES.map(function (id) { return $(id).value; }))); });
+    $('tt-hand-clear').addEventListener('click', function () { handPress('tt-hand-clear', { kind: 'hand', color: $('tt-hand-color').value, clear: true }); });
+    $('tt-hand-color').addEventListener('change', function () { tt.handChosen = $('tt-hand-color').value; if (tt.view) handDraw(tt.view); });
     $('tablebox').addEventListener('toggle', function () { tt.open = !!$('tablebox').open; if (tt.open) toolsLoad(); });
     // (the page's own controls: a control inside a label shows its tip when the label is hovered too)
     Object.keys(STATIC_TIPS).forEach(function (id) { tip($(id), STATIC_TIPS[id], $(id + '-label')); });
@@ -1051,7 +1143,7 @@ var MtgPage = (function () {
     T: T, NAMES: NAMES, stateOf: stateOf, connView: connView, lightButton: lightButton, menuButton: menuButton,
     lightView: lightView, gameView: gameView, updateView: updateView, viewModel: viewModel, clickPlan: clickPlan,
     answerPlan: answerPlan, afterPoll: afterPoll, reloadAllowed: reloadAllowed, headers: headers, start: start,
-    toolsView: toolsView, seatRequest: seatRequest, debugRequest: debugRequest, LIST_CHOICE: LIST_CHOICE, gifKeyRequest: gifKeyRequest, gifsView: gifsView,
+    toolsView: toolsView, seatRequest: seatRequest, debugRequest: debugRequest, LIST_CHOICE: LIST_CHOICE, gifKeyRequest: gifKeyRequest, gifsView: gifsView, handRequest: handRequest, handNote: handNote, handView: handView,
     debugTip: debugTip, seatTips: seatTips, STATIC_TIPS: STATIC_TIPS, NOW: NOW, manaDrift: manaDrift
   };
 

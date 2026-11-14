@@ -60,7 +60,7 @@ class El {
     this.throwOnce = false;
   }
   get textContent() { return this._text; }
-  set textContent(v) { this._text = String(v); }
+  set textContent(v) { this._text = String(v); this.children = []; } // (as a browser: the text replaces the children)
   setAttribute(k, v) { if (this.throwOnce) { this.throwOnce = false; throw new Error("boom in setAttribute"); } this.attrs[k] = String(v); }
   getAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; }
   removeAttribute(k) { delete this.attrs[k]; }
@@ -725,6 +725,90 @@ function boot(body) {
     h.$("tt-mill-btn").click();
     for (let i = 0; i < 4; i++) await flush();
     same("tools: Mill: the debug body", h.posts[1] && h.posts[1].body, { kind: "debug", tool: "mill", color: "White", n: 4 });
+  }
+  {
+    // the Starting hand box (bridge toolsState().hand: each colour's next deck, its card names, the hand waiting).
+    // Blue's deck is the default Neheb, the Worthy preset's (manabrew/public/preset_decks), here a few of its names.
+    const NEHEB = ["Fire-Belly Changeling", "Heated Debate", "Lightning Bolt", "Mountain", "Vraska's Fall"];
+    const HAND = (blueWaiting) => ({ max: 7, seats: [
+      { color: "White", deck: "Kykar, Wind's Fury", source: "preset", cards: ["Island", "Opt"], waiting: null, added: [] },
+      { color: "Red", deck: null, source: null, cards: [], waiting: null, added: [] },
+      { color: "Yellow", deck: "Neheb, the Worthy", source: "default", cards: NEHEB, waiting: null, added: [] },
+      { color: "Blue", deck: "Neheb, the Worthy", source: "table", cards: NEHEB, waiting: blueWaiting, added: (blueWaiting || []).filter((n) => !NEHEB.includes(n)) }] });
+    const boxes = (h) => [1, 2, 3, 4, 5, 6, 7].map((k) => h.$(`tt-hand-${k}`).value || "");
+    same("hand: an older bridge (no hand part): nothing to show", [P.toolsView(TOOLS()).hand.known, P.handView(undefined).max], [false, 7]);
+    same("hand: the note for a seat with a hand waiting: its deck, the cards, how many dealt, the added ones",
+      P.handNote(P.handView(HAND(["Lightning Bolt", "Counterspell"])).seats[3], 7),
+      "Blue plays Neheb, the Worthy (the deck checked on the table). Waiting for the next game: Lightning Bolt, Counterspell, and 5 dealt at random. Not in the deck, so added: Counterspell.");
+    same("hand: the note for a seat whose deck can't be read, and for the engine's default", [P.handNote(P.handView(HAND(null)).seats[1], 7), P.handNote(P.handView(HAND(null)).seats[2], 7)],
+      ["Red’s deck can’t be read now: whether the cards are in it is said when the game starts. Nothing waiting: the next game deals as usual.",
+        "Yellow plays Neheb, the Worthy (the engine’s default deck: mtg ready reads the one on your table). Nothing waiting: the next game deals as usual."]);
+    same("hand: Set's body: the boxes in order, empty ones left out; none or no seat refused", [P.handRequest("Blue", ["", " Shock ", "", "Neheb, the Worthy"]), P.handRequest("Blue", ["", " "]), P.handRequest("", ["Shock"])],
+      [{ kind: "hand", color: "Blue", names: ["Shock", "Neheb, the Worthy"] }, { error: "Type at least one card name (or press Clear)." }, { error: "Pick a seat." }]);
+
+    const h = boot();
+    h.tools = TOOLS();
+    h.$("tablebox").open = true;
+    h.$("tablebox").listeners.toggle.forEach((f) => f());
+    for (let i = 0; i < 4; i++) await flush();
+    ok("hand: a bridge without it: the box hidden", h.$("tt-hand").hidden === true);
+    const t = TOOLS(); t.hand = HAND(["Lightning Bolt", "Counterspell"]); h.tools = t;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("hand: shown; a seat per colour with its deck; the seat with the table's deck chosen first",
+      [h.$("tt-hand").hidden, h.$("tt-hand-color").children.map((o) => [o.value, o.textContent]), h.$("tt-hand-color").value],
+      [false, [["White", "White (Kykar, Wind's Fury)"], ["Red", "Red"], ["Yellow", "Yellow (Neheb, the Worthy)"], ["Blue", "Blue (Neheb, the Worthy)"]], "Blue"]);
+    same("hand: the suggestions are that seat's deck; the boxes show what is waiting; the note says it",
+      [h.$("tt-hand-names").children.map((o) => o.value), boxes(h), h.$("tt-hand-note").textContent],
+      [NEHEB, ["Lightning Bolt", "Counterspell", "", "", "", "", ""], P.handNote(P.handView(t.hand).seats[3], 7)]);
+    h.$("tt-hand-1").value = ""; h.$("tt-hand-3").value = "Shock"; h.$("tt-hand-7").value = "Vraska's Fall";
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("hand: a poll with the same hand waiting keeps what is being typed", boxes(h), ["", "Counterspell", "Shock", "", "", "", "Vraska's Fall"]);
+    h.toolsFail = true;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    h.toolsFail = false;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("hand: the bridge away for a poll and back: what was typed is still there, the seat too", [boxes(h), h.$("tt-hand-color").value], [["", "Counterspell", "Shock", "", "", "", "Vraska's Fall"], "Blue"]);
+    h.answer = () => ({ ok: true, message: "Picked hand for Blue's next game: Counterspell, Shock, Vraska's Fall, and 4 more dealt at random from the deck." });
+    h.$("tt-hand-set").click();
+    for (let i = 0; i < 4; i++) await flush();
+    same("hand: Set: POST /api/tools with the cards in box order, the answer said", [h.posts.at(-1)?.url, h.posts.at(-1)?.body, h.$("tt-toast").textContent],
+      ["/api/tools", { kind: "hand", color: "Blue", names: ["Counterspell", "Shock", "Vraska's Fall"] }, "Picked hand for Blue's next game: Counterspell, Shock, Vraska's Fall, and 4 more dealt at random from the deck."]);
+    const t2 = TOOLS(); t2.hand = HAND(["Counterspell", "Shock", "Vraska's Fall"]); h.tools = t2;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("hand: the bridge's new hand waiting fills the boxes again", boxes(h), ["Counterspell", "Shock", "Vraska's Fall", "", "", "", ""]);
+    h.answer = () => ({ ok: true, message: "Picked hand for Blue cleared." });
+    h.$("tt-hand-clear").click();
+    for (let i = 0; i < 4; i++) await flush();
+    same("hand: Clear: the clear body for the chosen seat", h.posts.at(-1)?.body, { kind: "hand", color: "Blue", clear: true });
+    const n = h.posts.length;
+    [1, 2, 3].forEach((k) => { h.$(`tt-hand-${k}`).value = " "; });
+    h.$("tt-hand-set").click();
+    await flush();
+    same("hand: Set with every box empty: said, nothing sent", [h.$("tt-toast").textContent, h.posts.length], ["Type at least one card name (or press Clear).", n]);
+    h.$("tt-hand-color").value = "White";
+    h.$("tt-hand-color").fire("change");
+    same("hand: another seat: its deck's names, its (empty) hand, its note", [h.$("tt-hand-names").children.map((o) => o.value), boxes(h), h.$("tt-hand-note").textContent],
+      [["Island", "Opt"], ["", "", "", "", "", "", ""], "White plays Kykar, Wind's Fury (chosen with mtg deck). Nothing waiting: the next game deals as usual."]);
+    h.answer = () => ({ ok: false, message: "Red is playing too: a picked hand is for games against the AI only." });
+    h.$("tt-hand-1").value = "Opt";
+    h.$("tt-hand-set").click();
+    for (let i = 0; i < 4; i++) await flush();
+    same("hand: a refusal is said as a warning", [h.posts.at(-1)?.body, h.$("tt-toast").textContent, h.$("tt-toast").className],
+      [{ kind: "hand", color: "White", names: ["Opt"] }, "Red is playing too: a picked hand is for games against the AI only.", "toast warn"]);
+    const t3 = TOOLS(); t3.debug.on = false; t3.hand = HAND(null); h.tools = t3;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    const m = h.posts.length;
+    h.$("tt-hand-set").click();
+    await flush();
+    same("hand: debug tools off: the box is hidden with the tools, Set disabled and says why", [h.$("tt-dbg").hidden, h.$("tt-hand-set").getAttribute("aria-disabled"), h.$("tt-toast").textContent, h.posts.length],
+      [true, "true", "Off. Switch them on to change the running game.", m]);
+    ok("hand: the buttons' tooltips say why now", h.$("tt-hand-set").getAttribute("data-tip").endsWith("\nRight now: Off. Switch them on to change the running game."), h.$("tt-hand-set").getAttribute("data-tip"));
   }
 
   {

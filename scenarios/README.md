@@ -36,6 +36,11 @@ triggers, state-based actions after, a restore point before). Names are lower ca
 - `keepHand`: before a game, without it your dealt hand goes to the bottom of your library, so the hand is just the
   scenario's cards. During a game your hand is kept unless the file says `"keepHand": false`.
 - `library`: each card goes on top, the last one named ends up first.
+- Only a hand to test against the AI, nothing else: `mtg hand <card>, <card> ...` (or the companion page's Starting hand box)
+  instead of a file. Up to 7 cards; the rest is your dealt hand; debug tools on; refused or dropped with another person in the
+  game; a waiting `mtg debug` setup wins (it sets the hand itself). Like `hand` here it applies at your first priority (in turn 1, whoever's
+  turn), not at the mulligan question (the engine deals the opening hand itself), but it keeps the dealt cards you named (the deck's own) and
+  puts one dealt card under the library for each card it adds, so the hand stays 7 (docs/companion-app-spec.md §10.3).
 - `tokens`: as `mtg fix token` takes them (Forge's token scripts by colour, size and words).
 - `mana`: that many of each colour (W U B R G C) until the end of the turn, as `mtg mana` (at most 99).
 - `opponents`: every other player still in the game; a colour (`"Red"`) has its own part instead.
