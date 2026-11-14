@@ -28,7 +28,7 @@ const path = require("path");
 const crypto = require("crypto");
 
 const ROOT = path.join(__dirname, "..");
-const FF = process.env.FFMPEG || "C:/Users/you/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.2-full_build/bin/ffmpeg.exe";
+const FF = process.env.FFMPEG || path.join(require("os").homedir(), "AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.2-full_build/bin/ffmpeg.exe");
 const srcDir = process.argv[2] || path.join(ROOT, "assets", "sounds", "treasure2");
 const outDir = process.argv[3] || path.join(ROOT, "assets", "sounds", "tts");
 const uploadDir = process.argv[4] || path.join(ROOT, "tmp", "upload5");
