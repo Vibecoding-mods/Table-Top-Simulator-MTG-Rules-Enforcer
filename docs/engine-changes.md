@@ -164,6 +164,10 @@ Build and check (bash, from `C:/Users/you/mtg-tts`, when no other agent is build
 4. `LIVE_STACK=1 LIVE_TIMEOUT=600 bash tools/live-check.sh pcfix1113 tests/live_planechase_check.js`, then the same with
    `LIVE_ARGS=--raw`. Both must pass.
 Then the usual: a row in section 3 and an entry in section 4, a rollback tag, `deploy.js --image pcfix1113`.
+(2026-11-13 evening: built instead inside `2hg`, below, which carries these fixes; see its entry in section 4.)
+
+**2hg (Two-Headed Giant Level 1 and team plumbing, built 2026-11-13, not deployed).** Section 4's "2026-11-13 2hg" entry.
+Carries planechase-fix-1113 as well. Branch `2hg` of the outer repo (worktree `tmp/wt-2hg`), not merged to main.
 
 ## 3. Summary table (newest first)
 

@@ -35,22 +35,22 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
 
   // ── start: refused, said, and the gameConfig before StartGame ──
   await run(async (h) => {
-    h.B.startGame(["Blue"], 2, false, true, [], 0, TEAMS);
+    h.B.startGame(["Blue"], 2, false, true, [], 0, "commander", TEAMS);
     await h.flush();
     ok("start: three players are refused", h.B._getGame() == null && chats(h).some((c) => /Not started: Two-Headed Giant needs all four seats/.test(c)), chats(h).join(" | "));
   });
   await run(async (h) => {
-    h.B.startGame(["Blue"], 3, false, true, [], 0, { White: 1, Red: 1, Yellow: 1, Blue: 2 });
+    h.B.startGame(["Blue"], 3, false, true, [], 0, "commander", { White: 1, Red: 1, Yellow: 1, Blue: 2 });
     await h.flush();
     ok("start: three on a team are refused", h.B._getGame() == null && chats(h).some((c) => /Not started: Two-Headed Giant needs two teams of two/.test(c)), chats(h).join(" | "));
   });
   await run(async (h) => {
-    h.B.startGame(["Blue"], 3, false, true, [], 0, { White: 1, Red: 2, Yellow: 1, Blue: 2 });
+    h.B.startGame(["Blue"], 3, false, true, [], 0, "commander", { White: 1, Red: 2, Yellow: 1, Blue: 2 });
     await h.flush();
     ok("start: partners across the table are refused", h.B._getGame() == null && chats(h).some((c) => /Not started: Partners sit next to each other/.test(c)), chats(h).join(" | "));
   });
   await run(async (h) => {
-    h.B.startGame(["Blue"], 3, false, true, [], 0, TEAMS);
+    h.B.startGame(["Blue"], 3, false, true, [], 0, "commander", TEAMS);
     await h.flush();
     const g = h.B._getGame();
     same("start: the game keeps the teams", g?.teams, TEAMS);
@@ -75,6 +75,25 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     same("start: every seat's team, in StartGame's seat order (Blue at Blue, the AIs at White, Red, Yellow)", cfg?.payload,
       { type: "gameConfig", teamRules: "sharedLife", players: order.map((u) => ({ username: u, team: u === blue.username || u === "Forge AI 3" ? 2 : 1 })) });
     same("start: the seat order is round the table", order, ["Forge AI", "Forge AI 2", "Forge AI 3", blue.username]);
+  });
+  await run(async (h) => {
+    // Two-Headed Giant in Standard (spec §12: 30 a team; the engine's default for a non-Commander game): the same teams,
+    // and StartGame says Standard, so the node starts Forge's Constructed game
+    h.B.startGame(["Blue"], 3, false, true, [], 0, "standard", TEAMS);
+    await h.flush();
+    const g = h.B._getGame();
+    const blue = g.seats.get("Blue");
+    blue.heartbeat = () => {};
+    blue.ws.emit("open");
+    frame(blue.ws, { type: "AuthResult", success: true });
+    frame(blue.ws, { type: "RoomList", rooms: [{ room_id: "room-1", room_name: "tts-commander", status: "Lobby" }] });
+    const bots = ["Forge AI", "Forge AI 2", "Forge AI 3"].map((u) => ({ username: u, ready: true, connected: true, is_bot: true }));
+    frame(blue.ws, { type: "RoomUpdate", room: { room_id: "room-1", status: "Lobby", max_players: 4, players: [{ username: blue.username, ready: true, connected: true }, ...bots] } });
+    await h.flush();
+    const out = relay(h);
+    const start = out.find((r) => r.type === "StartGame");
+    ok("start: a Standard 2HG start says Standard, with the teams", start?.format === "Standard" && out.some((r) => r.state?.payload?.type === "gameConfig" && r.state.payload.teamRules === "sharedLife"),
+      JSON.stringify({ format: start?.format, types: out.map((r) => r.state?.payload?.type || r.type) }));
   });
   await run(async (h) => {
     // the table's Start (make-engine-copy.js engineStartGame) carries the teams
@@ -134,6 +153,9 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     return { blue, white };
   }
   const rowOf = (msg, color) => msg?.players?.find((p) => p.color === color);
+  // (every board sent: a zone unchanged since the last board is left out of the next one, "keep", so the last alone can't
+  // show that a hand was never sent as revealed)
+  const revealedRows = (h) => tables(h).flatMap((m) => (m.players || []).filter((p) => p.revealed).map((p) => `${p.color} ${p.revealed.length}`));
   const cmdId = D2.board.gameView.zones.find((z) => z.zone === "command" && z.ownerId === "player-0").cards[0].id;
 
   await run(async (h) => {
@@ -144,8 +166,9 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     const blueRow = rowOf(msg, "Blue"), whiteRow = rowOf(msg, "White");
     same("board: White's hand to Blue, look-only", { ids: (whiteRow?.teamHand || []).map((c) => c.id), by: whiteRow?.teamBy }, { ids: ["engine-card-900"], by: "Blue" });
     same("board: Blue's hand to White", { n: (blueRow?.teamHand || []).length, by: blueRow?.teamBy }, { n: 7, by: "White" });
-    ok("board: a partner's hand is not shown to everyone", !blueRow?.revealed && !whiteRow?.revealed, JSON.stringify({ b: blueRow?.revealed?.length, w: whiteRow?.revealed?.length }));
+    same("board: a partner's hand is not shown to everyone", revealedRows(h), []);
     same("board: the sides and the team's poison limit", msg?.teams, { poison: 15, cmd: 42, sides: [["Blue", "White"]] });
+    ok("board: the life counter says it is the team's", /^Team life: Blue \+ White/.test(blueRow?.lifeTip || "") && /^Team life: Blue \+ White/.test(whiteRow?.lifeTip || ""), JSON.stringify([blueRow?.lifeTip, whiteRow?.lifeTip]));
     ok("board: poison is the team's out of 15", (blueRow?.allMarks || []).includes("POISON 3/15"), JSON.stringify(blueRow?.allMarks));
   });
   await run(async (h) => {
@@ -155,7 +178,7 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     await h.flush();
     const msg = tables(h).pop();
     same("board: both partners' trackers show the team's commander damage", [rowOf(msg, "Blue")?.cmdDamage?.Blue, rowOf(msg, "White")?.cmdDamage?.Blue], [21, 21]);
-    ok("board: a partner's hand is not shown to everyone (a second board)", !rowOf(msg, "Blue")?.revealed && !rowOf(msg, "White")?.revealed, JSON.stringify({ b: rowOf(msg, "Blue")?.revealed?.length, w: rowOf(msg, "White")?.revealed?.length }));
+    same("board: a partner's hand is not shown to everyone (a second board)", revealedRows(h), []);
   });
   await run(async (h) => {
     const v = views({ shared: false });
@@ -163,6 +186,7 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     h.B.sendTable();
     await h.flush();
     const msg = tables(h).pop();
+    ok("free-for-all: no team life tip", !/Team life/.test(rowOf(msg, "Blue")?.lifeTip || ""), rowOf(msg, "Blue")?.lifeTip);
     ok("free-for-all: no teams, no partner's hand", !msg?.teams && !rowOf(msg, "White")?.teamHand && !rowOf(msg, "Blue")?.teamHand, JSON.stringify({ t: msg?.teams, w: rowOf(msg, "White")?.teamHand }));
   });
   await run(async (h) => {
