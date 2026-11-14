@@ -27,10 +27,12 @@ const FRAMES = (mark, frames) => lua(`local out = {}
       local c = gm:sub(8) local d = o.getData() local p = o.getPosition()
       local l = data[c] and data[c].playmat and data[c].playmat.positionToLocal(p)
       local assets = {} for _, a in ipairs(o.UI.getCustomAssets() or {}) do assets[#assets + 1] = a.name .. "=" .. a.url end
+      -- (what each asset name really shows on real TTS: its first link on this object, BLANK once it was given another)
+      local shown = {} for n, u in pairs(rawget(o, "__d").uiLoaded or {}) do shown[n] = u or "BLANK" end
       local inv = rawget(o, "__d").invisibleTo or {}
       out[#out + 1] = { c = c, guid = o.getGUID(), x = p.x, z = p.z, ry = o.getRotation().y, sx = d.Transform and d.Transform.scaleX, sz = d.Transform and d.Transform.scaleZ,
         img = d.CustomImage and d.CustomImage.ImageURL, stretch = d.CustomImage and d.CustomImage.CustomTile and d.CustomImage.CustomTile.Stretch,
-        name = o.getName(), memo = o.memo or "", xml = o.UI.getXml(), assets = assets, hold = o.UI.getAttribute("gifhold_" .. c, "active"),
+        name = o.getName(), memo = o.memo or "", xml = o.UI.getXml(), assets = assets, shown = shown, hold = o.UI.getAttribute("gifhold_" .. c, "active"),
         onMat = l ~= nil and math.abs(l.x) <= 0.5 and math.abs(l.z) <= 0.5, inv = table.concat(inv, ","), handRot = Player[c].getHandTransform() and Player[c].getHandTransform().rotation.y }
     end
   end
@@ -77,9 +79,11 @@ const SEATED = ["White", "Blue"];
     msg("gif_results", { color: "White", req: 2, first: false, q: "happy dog", page: 0, items: ITEMS, total: 30, error: null }, 4), FRAMES("results"),
     CLICK("Blue", "gifr2_White", "blue picks white's result"), FRAMES("after blue's pick"),
     CLICK("White", "gifmore_White", "more"), SENT("sent more"),
-    msg("gif_results", { color: "White", req: 3, first: false, q: "happy dog", page: 1, items: [ITEMS[1]], total: 30, error: null }, 4),
+    msg("gif_results", { color: "White", req: 3, first: false, q: "happy dog", page: 1, items: [ITEMS[1], ITEMS[2]], total: 30, error: null }, 4), FRAMES("page 2"),
+    CLICK("White", "gifmore_White", "more again"),
+    msg("gif_results", { color: "White", req: 4, first: false, q: "happy dog", page: 2, items: [], total: null, error: "One GIF search at a time, please: try again in a moment." }, 4), FRAMES("more refused"),
     CLICK("White", "gifr1_White", "white picks"), { frames: 10 }, FRAMES("after panel pick"), SENT("sent panel pick"),
-    msg("gif_results", { color: "White", req: 4, first: false, q: "x", page: 0, items: [], total: 0, error: "GIF search is resting for 12 minutes." }, 4),
+    msg("gif_results", { color: "White", req: 5, first: false, q: "x", page: 0, items: [], total: 0, error: "GIF search is resting for 12 minutes." }, 4),
     CLICK("White", "gifclear_White", "clear"), { frames: 10 }, FRAMES("cleared"),
     CHAT("Grey", "mtg gif cats", "spectator"),
   ] });
@@ -143,7 +147,15 @@ const SEATED = ["White", "Blue"];
   ok("panel: Enter searches the trimmed words, a page of results (not the first match)", ps && ps.t === "gif_search" && ps.p.q === "happy dog" && ps.p.first === false && ps.p.req === 2, ps);
   ok("panel: it says it's searching", byC(val(r, "searching"), "White")?.xml.includes("Searching..."));
   const res = byC(val(r, "results"), "White");
-  ok("panel: the results as still pictures (thumb assets t1..t3)", res && ["t1", "t2", "t3"].every((t, i) => res.assets.includes(`${t}=${ITEMS[i].thumb}`)), res?.assets);
+  // every thumbnail the panel's XML names, and the picture real TTS shows for it (fake TTS: uiLoaded)
+  const thumbs = (f) => [...(f?.xml || "").matchAll(/<Button id="gifr(\d)_White"[^>]*><Image image="([^"]+)"/g)].map((m) => [Number(m[1]), m[2], (f.shown || {})[m[2]]]);
+  const showsAll = (f, items) => f && thumbs(f).length === items.length && thumbs(f).every(([i, , u]) => u === items[i - 1].thumb);
+  ok("panel: the results as still pictures (a thumb asset each)", showsAll(res, ITEMS), [thumbs(res), res?.assets]);
+  const pg2 = byC(val(r, "page 2"), "White");
+  ok("panel: page 2's thumbnails load (not under page 1's asset names, which TTS never reloads)", showsAll(pg2, [ITEMS[1], ITEMS[2]]), [thumbs(pg2), pg2?.assets]);
+  ok("panel: page 2 says so", pg2 && pg2.xml.includes("Page 2: click one to show it"), pg2?.xml);
+  const mr = byC(val(r, "more refused"), "White");
+  ok("panel: a refused More keeps the page shown and its More, and says why", showsAll(mr, [ITEMS[1], ITEMS[2]]) && mr.xml.includes('id="gifmore_White"') && mr.xml.includes("One GIF search at a time"), [thumbs(mr), mr?.xml]);
   ok("panel: a button per result, and More", res && [1, 2, 3].every((i) => res.xml.includes(`id="gifr${i}_White"`)) && !res.xml.includes("gifr4_") && res.xml.includes('id="gifmore_White"'), res?.xml);
   ok("panel: a result's title is its tooltip, cleaned", res && res.xml.includes('tooltip="Wide one"'), res?.xml);
   ok("panel: the typed words stay in the box", res && res.xml.includes('text="happy dog"'), res?.xml);

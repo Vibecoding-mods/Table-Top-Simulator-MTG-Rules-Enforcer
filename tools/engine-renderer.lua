@@ -10490,7 +10490,11 @@ engineGif = {
   state = {},            -- colour -> the GIF it shows { id, mp4, still, title, w, h }, nil: empty
   hidden = {},           -- colour -> true: that player hides every frame on their own screen
   open = {},             -- colour -> true: the owner's search panel is open
-  results = {},          -- colour -> { q, page, items, total } of the panel's last search
+  results = {},          -- colour -> { q, page, items, total, gen } of the panel's last search
+  -- colour -> number of the last results page drawn: its thumbnails' asset names carry it ("t3_1"). Real TTS never
+  -- reloads an Object UI asset whose name it has already loaded with another link: page 2 under page 1's names t1..t8
+  -- stayed blank white cards (seen live 2026-11-14)
+  thumbGen = {},
   status = {},           -- colour -> the panel's status line
   query = {},            -- colour -> the words in the panel's box
   req = {},              -- colour -> number of the newest search (older answers are dropped)
@@ -10570,7 +10574,7 @@ function engineGif.panelXml(c, fw)
   for i, it in ipairs(r.items or {}) do
     if i > 8 then break end
     local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
-    x[#x + 1] = '<Button id="gifr' .. i .. '_' .. c .. '" rectAlignment="UpperLeft" offsetXY="' .. (10 + col * 101) .. ' ' .. -(78 + row * 101) .. '" width="95" height="95" color="#FFFFFF" tooltip="' .. G.xmlText(it.title) .. '" onClick="Global/engineGifUiClick"><Image image="t' .. i .. '" preserveAspect="true" raycastTarget="false"/></Button>'
+    x[#x + 1] = '<Button id="gifr' .. i .. '_' .. c .. '" rectAlignment="UpperLeft" offsetXY="' .. (10 + col * 101) .. ' ' .. -(78 + row * 101) .. '" width="95" height="95" color="#FFFFFF" tooltip="' .. G.xmlText(it.title) .. '" onClick="Global/engineGifUiClick"><Image image="t' .. (r.gen or 0) .. '_' .. i .. '" preserveAspect="true" raycastTarget="false"/></Button>'
   end
   if r.items ~= nil and #r.items > 0 then
     x[#x + 1] = '<Button id="gifmore_' .. c .. '" rectAlignment="LowerLeft" offsetXY="10 8" width="70" height="28" fontSize="15" onClick="Global/engineGifUiClick">More</Button>'
@@ -10611,8 +10615,9 @@ function engineGif.redraw(c)
   local st = G.state[c]
   if st ~= nil and st.still ~= nil then assets[#assets + 1] = { name = "still", url = st.still } end
   if G.open[c] then
-    for i, it in ipairs((G.results[c] or {}).items or {}) do
-      if i <= 8 and it.thumb ~= nil then assets[#assets + 1] = { name = "t" .. i, url = it.thumb } end
+    local r = G.results[c] or {}
+    for i, it in ipairs(r.items or {}) do
+      if i <= 8 and it.thumb ~= nil then assets[#assets + 1] = { name = "t" .. (r.gen or 0) .. "_" .. i, url = it.thumb } end
     end
   end
   o.UI.setCustomAssets(assets)
@@ -10808,8 +10813,16 @@ function engineGif.onMessage(m)
       elseif G.alive(G.frames[c]) or G.spawning[c] then G.show(c, items[1]) end
       return
     end
-    G.results[c] = { q = m.q, page = tonumber(m.page) or 0, items = items, total = m.total, err = m.error ~= nil and m.error ~= "" }
-    if m.error ~= nil and m.error ~= "" then G.status[c] = tostring(m.error)
+    local failed = m.error ~= nil and m.error ~= ""
+    local old = G.results[c]
+    if failed and old ~= nil and old.items ~= nil and old.items[1] ~= nil and old.q == m.q then
+      -- (a failed More, e.g. "one GIF search at a time" after a double click: the page shown stays, with its More)
+      old.err = true
+    else
+      G.thumbGen[c] = (G.thumbGen[c] or 0) + 1
+      G.results[c] = { q = m.q, page = tonumber(m.page) or 0, items = items, total = m.total, err = failed, gen = G.thumbGen[c] }
+    end
+    if failed then G.status[c] = tostring(m.error)
     elseif #items == 0 then G.status[c] = "Nothing found."
     else G.status[c] = "Page " .. ((tonumber(m.page) or 0) + 1) .. ": click one to show it" end
     G.redraw(c)
