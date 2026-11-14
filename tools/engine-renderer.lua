@@ -7566,7 +7566,13 @@ function engineHideForEngine(on)
       o.memo = ""
       o.setPosition({ tonumber(x), tonumber(y), tonumber(z) })
       o.setLock(locked == "true")
+      -- (the key boxes' text comes back with them: their onLoad draws it)
+      if (guid == "9065aa" or guid == "e8e28d") and #(o.getButtons() or {}) == 0 then pcall(function() o.call("onLoad") end) end
     end
+    -- the hidden key boxes keep no text: TTS on a Mac draws a button under the table through it, blown up across the
+    -- top of the screen (real player 2026-11-13); their onLoad redraws it on every load, so this also runs when the
+    -- table loads already in engine mode
+    if o ~= nil and on and (guid == "9065aa" or guid == "e8e28d") then o.clearButtons() end
   end
 end
 local setEngineModeWithoutButtons = setEngineMode
