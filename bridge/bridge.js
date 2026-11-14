@@ -11584,12 +11584,28 @@ function onToolsPost(m) {
 //   (the table's own hello gets a gif_config too, only while a key is set: a table without one hears nothing new)
 //   gif_search { color, q, page, rating, first, req } -> gif_results { color, req, first, q, page, items, total, credit, error }
 //   gif_pick { color, id, title }                  -> one table-log line, "White shows a GIF: <title>"
+//   gif_favs { color, steam, page, req }            -> gif_favs { color, req, page, items, total, ids, max, error }
+//   gif_star { color, steam, item, on, page, req }  -> the same gif_favs, after starring (on) or unstarring item
+//   (favourites: per player, by Steam ID, else colour; kept in GIF_FAV_FILE beside the key file; never a GIPHY call)
 // The key comes from the companion's Table tools (POST /tools { kind: "gif-key", provider, key }) and is kept in
 // GIF_KEY_FILE, on this PC only: outside the repo and the friend package, never in the save or the table script.
 // MTG_GIPHY_KEY in the environment works too (used while no key is saved). A test bridge keeps keys in memory.
 const GIF_KEY_FILE = process.env.MTG_GIF_KEYS
   || (LIVE ? path.join(process.env.APPDATA || path.join(require("os").homedir(), ".config"), "MTG-TTS", "gif-keys.json") : null);
 const gifLib = require("./gifs");
+const GIF_FAV_FILE = process.env.MTG_GIF_FAVS
+  || (LIVE ? path.join(process.env.APPDATA || path.join(require("os").homedir(), ".config"), "MTG-TTS", "gif-favourites.json") : null);
+const gifFavs = gifLib.createFavs({
+  log: (s) => log(s),
+  store: GIF_FAV_FILE && {
+    read: () => { try { return JSON.parse(fs.readFileSync(GIF_FAV_FILE, "utf8")); } catch (e) { if (e.code === "ENOENT") return null; throw e; } },
+    write: (data) => {
+      fs.mkdirSync(path.dirname(GIF_FAV_FILE), { recursive: true });
+      fs.writeFileSync(`${GIF_FAV_FILE}.tmp`, JSON.stringify(data));
+      fs.renameSync(`${GIF_FAV_FILE}.tmp`, GIF_FAV_FILE);
+    },
+  },
+});
 const gifs = gifLib.createGifs({
   fetch: (...a) => global.fetch(...a), now: () => Date.now(), log: (s) => log(s), envKey: LIVE ? process.env.MTG_GIPHY_KEY : undefined,
   store: GIF_KEY_FILE && {
@@ -11617,6 +11633,12 @@ function onGifMessage(m) {
     })).catch((e) => log(`ERROR in gif search: ${e && e.message}`)); // (an async throw: logged, never an unhandled rejection that ends the bridge)
   }
   if (m.t === "gif_pick") return tlog(color, `shows a GIF: ${gifLib.cleanTitle(m.title)}`);
+  if (m.t === "gif_favs" || m.t === "gif_star") {
+    const who = gifLib.favWho(m.steam, color);
+    const r = m.t === "gif_star" ? gifFavs.star(who, m.item, m.on === true) : { ok: true };
+    const p = gifFavs.page(who, m.page);
+    return toTTS({ t: "gif_favs", color, req: Number.isInteger(m.req) ? m.req : 0, page: p.page, items: p.items, total: p.total, ids: p.ids, max: gifFavs.MAX, error: r.ok ? null : r.message });
+  }
   log(`unknown GIF message ${String(m.t).slice(0, 20)}`);
 }
 // POST /tools { kind: "gif-key" }: the table is told at once whether its frames are on
@@ -11931,6 +11953,6 @@ if (require.main === module) {
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
     fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords,
     standardProblems, modeWords, loadPreset, STANDARD_DECKS, _gameMode: gameMode,
-    onGifMessage, onGifKey, _gifs: gifs, // GIF frames
+    onGifMessage, onGifKey, _gifs: gifs, _gifFavs: gifFavs, // GIF frames
   };
 }

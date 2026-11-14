@@ -177,6 +177,37 @@ function gifsWith(o = {}) {
     ok("no error repeats the key", !Object.values(errs).some((e) => String(e).includes(KEY)));
   }
 
+  // ── favourites (createFavs): star, unstar, the cap, pages, the file, and never a GIPHY call
+  {
+    const fav = (id) => ({ id, title: `Fav <${id}>`, mp4: `https://media2.giphy.com/media/${id}/giphy.mp4`, still: `https://media2.giphy.com/media/${id}/480w_s.jpg`,
+      thumb: `https://wsrv.nl/?url=media2.giphy.com/media/${id}/200w_s.gif&w=160&h=160&fit=inside&output=jpg`, w: 480, h: 270 });
+    let saved = null, writes = 0;
+    const store = { read: () => saved, write: (d) => { writes++; saved = JSON.parse(JSON.stringify(d)); } };
+    const F = G.createFavs({ store, max: 10 });
+    ok("favs: star keeps the item", F.star("765611980000001", fav("aaa1"), true).ok === true && F.page("765611980000001", 0).ids.join() === "aaa1");
+    same("favs: only id, title (cleaned), links and size are kept", F.list("765611980000001")[0], { id: "aaa1", title: "Fav aaa1", mp4: fav("aaa1").mp4, still: fav("aaa1").still, thumb: fav("aaa1").thumb, w: 480, h: 270 });
+    F.star("765611980000001", fav("aaa1"), true);
+    ok("favs: starring twice keeps one", F.list("765611980000001").length === 1);
+    for (let i = 2; i <= 10; i++) F.star("765611980000001", fav(`aaa${i}`), true);
+    const full = F.star("765611980000001", fav("aaa11"), true);
+    ok("favs: the cap: an 11th of 10 is refused and said", full.ok === false && full.full === true && /full \(10\)/.test(full.message) && F.list("765611980000001").length === 10, full);
+    const p0 = F.page("765611980000001", 0), p1 = F.page("765611980000001", 1), p9 = F.page("765611980000001", 9);
+    ok("favs: paged 8 at a time, newest first; a page past the end is the last", p0.items.length === 8 && p0.items[0].id === "aaa10" && p1.items.length === 2 && p1.page === 1 && p9.page === 1 && p0.total === 10 && p0.ids.length === 10, [p0.items.map((x) => x.id), p1.page, p9.page]);
+    F.star("765611980000001", { id: "aaa4" }, false);
+    ok("favs: unstar takes it off (the id is enough)", !F.page("765611980000001", 0).ids.includes("aaa4") && F.list("765611980000001").length === 9);
+    ok("favs: another host's link is refused", F.star("765611980000001", { ...fav("bad1"), mp4: "https://evil.example.com/x.mp4" }, true).ok === false
+      && F.star("765611980000001", { ...fav("bad2"), thumb: "https://wsrv.nl/?url=evil.example.com/x.gif&w=160&h=160&fit=inside&output=jpg", still: "https://evil.example.com/x.jpg" }, true).ok === false);
+    ok("favs: per player", F.page("color:White", 0).total === 0);
+    ok("favs: written to the store each change", writes === 11 && saved.version === 1 && saved.players["765611980000001"].length === 9, [writes, saved && Object.keys(saved.players)]);
+    const F2 = G.createFavs({ store, max: 10 });
+    ok("favs: a new bridge (a TTS restart, a new game) reads them back", F2.page("765611980000001", 0).ids.join() === F.page("765611980000001", 0).ids.join());
+    saved.players.x = [{ ...fav("ccc1"), mp4: "https://evil.example.com/a.mp4" }, fav("ccc2"), fav("ccc2")];
+    ok("favs: a hand-edited file's bad links and doubles are dropped", G.createFavs({ store }).list("x").map((i) => i.id).join() === "ccc2");
+    const Fb = G.createFavs({ store: { read: () => { throw Object.assign(new Error("secret text"), { code: "EBADF" }); }, write: () => {} } });
+    ok("favs: an unreadable file means none, no crash", Fb.page("x", 0).total === 0);
+    same("favs: who is a Steam ID, else the colour", [G.favWho("76561198000000001", "White"), G.favWho("sim-White", "White"), G.favWho(undefined, "Blue")], ["76561198000000001", "color:White", "color:Blue"]);
+  }
+
   // ── the bridge: gif_* messages and the gif-key tool (bridge.js "GIF frames" block)
   {
     const h = harness.load();
@@ -237,6 +268,24 @@ function gifsWith(o = {}) {
     B._gifs.search = realSearch;
     ok("bridge: a search that throws is caught and logged, the bridge goes on", settled === "resolved" && rejected === null && tts().length === n2
       && JSON.stringify(h.effects).includes("ERROR in gif search: boom in search"), { settled, rejected: rejected && rejected.message });
+    // favourites through the bridge: answered at once, by Steam ID, and never a GIPHY call or the hour's count
+    const calls0 = f.calls.length, used0 = B._gifs.state().used;
+    const it = res.items[0];
+    B.onTTS({ t: "gif_star", json: JSON.stringify({ color: "Blue", steam: "76561198000000002", item: it, on: true, page: 0, req: 1 }) });
+    await h.flush();
+    const fv = tts().filter((m) => m.t === "gif_favs").pop();
+    ok("bridge: a star answers with the player's favourites", fv && fv.color === "Blue" && fv.req === 1 && fv.total === 1 && fv.items[0].id === it.id && fv.ids.join() === it.id && fv.error === null && fv.max === 48, fv);
+    B.onTTS({ t: "gif_favs", json: JSON.stringify({ color: "Red", steam: "76561198000000002", page: 0, req: 2 }) });
+    await h.flush();
+    const fr = tts().filter((m) => m.t === "gif_favs").pop();
+    ok("bridge: favourites follow the Steam ID, not the seat", fr && fr.color === "Red" && fr.total === 1, fr);
+    B.onTTS({ t: "gif_favs", json: JSON.stringify({ color: "Green", page: 0, req: 3 }) });
+    await h.flush();
+    ok("bridge: no Steam ID: the colour's own list", tts().filter((m) => m.t === "gif_favs").pop()?.total === 0);
+    for (let i = 0; i < 5; i++) B.onTTS({ t: "gif_star", json: JSON.stringify({ color: "Blue", steam: "76561198000000002", item: it, on: i % 2 === 1, req: 4 + i }) });
+    await h.flush();
+    ok("bridge: favourites never call GIPHY nor count against the hour's searches", f.calls.length === calls0 && B._gifs.state().used === used0, [f.calls.length, calls0, B._gifs.state().used, used0]);
+    ok("bridge: favourites never need a wait between them (no 'one at a time')", tts().filter((m) => m.t === "gif_favs").every((m) => m.error === null));
     harness.restore();
   }
 

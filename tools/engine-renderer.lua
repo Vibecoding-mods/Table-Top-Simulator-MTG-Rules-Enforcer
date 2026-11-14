@@ -10490,7 +10490,16 @@ engineGif = {
   state = {},            -- colour -> the GIF it shows { id, mp4, still, title, w, h }, nil: empty
   hidden = {},           -- colour -> true: that player hides every frame on their own screen
   open = {},             -- colour -> true: the owner's search panel is open
-  results = {},          -- colour -> { q, page, items, total } of the panel's last search
+  results = {},          -- colour -> { q, page, items, total, gen } of the panel's last search
+  -- colour -> number of the last results page drawn: its thumbnails' asset names carry it ("t3_1"). Real TTS never
+  -- reloads an Object UI asset whose name it has already loaded with another link: page 2 under page 1's names t1..t8
+  -- stayed blank white cards (seen live 2026-11-14)
+  thumbGen = {},
+  -- favourites (kept by the bridge on the host's PC, per Steam ID: bridge/gifs.js createFavs; never a GIPHY search)
+  tab = {},              -- colour -> "fav" while their panel shows their favourites (nil: the search results)
+  favs = {},             -- colour -> { page, items, total, gen } of the favourites page shown
+  favIds = {},           -- colour -> { [id] = true } for every GIF they starred (the stars on any page)
+  favReq = {},           -- colour -> number of the newest favourites ask (older answers are dropped)
   status = {},           -- colour -> the panel's status line
   query = {},            -- colour -> the words in the panel's box
   req = {},              -- colour -> number of the newest search (older answers are dropped)
@@ -10503,6 +10512,9 @@ engineGif = {
   dirty = {},            -- colour -> true: changed while spawning, spawn again when it lands
   SIZE = 1.53,           -- a Custom Tile at scale 1 is 2 x 2; a card is 3.06 tall
   PLAY_S = 12,           -- seconds a GIF plays before it holds
+  -- a collapsed frame (its owner's Hide; state.collapsed, so the memo and a reload keep it): a small plain tile, this
+  -- many times smaller, for everyone. The GIF stays chosen; Show brings it back playing
+  CS = 2.5,
   -- free-spot candidates on the mat (along its right and forward axes, as gridPos): beside the battlefield grid
   -- (its columns span +10.75 .. -10.85), nearest the table's centre first
   SPOTS_R = { 15.2, 13.1, -15.2, -13.1 },
@@ -10561,18 +10573,32 @@ function engineGif.viewers()
 end
 function engineGif.panelXml(c, fw)
   local G = engineGif
-  local r = G.results[c] or {}
+  local fav = G.tab[c] == "fav"
+  local r = (fav and G.favs[c] or G.results[c]) or {}
+  local ids = G.favIds[c] or {}
+  local nFav = G.favs[c] ~= nil and tonumber(G.favs[c].total) or nil
   local x = {}
-  x[#x + 1] = '<Panel id="gifpanel_' .. c .. '" visibility="' .. c .. '" position="' .. math.floor(fw / 2 + 222) .. ' 0 0" width="420" height="318" color="#161616F0">'
+  x[#x + 1] = '<Panel id="gifpanel_' .. c .. '" visibility="' .. c .. '" position="' .. math.floor(fw / 2 + 222) .. ' 0 0" width="420" height="352" color="#161616F0">'
   x[#x + 1] = '<Text rectAlignment="UpperLeft" offsetXY="12 -6" width="240" height="26" fontSize="15" color="#DDDDDD" alignment="MiddleLeft">GIF search (only you see this)</Text>'
   x[#x + 1] = '<Button id="gifclose_' .. c .. '" rectAlignment="UpperRight" offsetXY="-6 -6" width="30" height="26" fontSize="15" onClick="Global/engineGifUiClick">X</Button>'
-  x[#x + 1] = '<InputField id="gifq_' .. c .. '" rectAlignment="UpperLeft" offsetXY="10 -36" width="400" height="34" fontSize="18" placeholder="Type words, press Enter" text="' .. G.xmlText(G.query[c]) .. '" onEndEdit="Global/engineGifUiSearch"/>'
+  -- (the tabs: the one shown is blue)
+  x[#x + 1] = '<Button id="giftabs_' .. c .. '" rectAlignment="UpperLeft" offsetXY="10 -36" width="100" height="28" fontSize="15" color="' .. (fav and "#4A4A4A" or "#3A6EA5") .. '" textColor="#FFFFFF" onClick="Global/engineGifUiClick">Search</Button>'
+  x[#x + 1] = '<Button id="giftabf_' .. c .. '" rectAlignment="UpperLeft" offsetXY="116 -36" width="140" height="28" fontSize="15" color="' .. (fav and "#3A6EA5" or "#4A4A4A") .. '" textColor="#FFFFFF" onClick="Global/engineGifUiClick">Favourites' .. (nFav ~= nil and (" (" .. nFav .. ")") or "") .. '</Button>'
+  if fav then
+    x[#x + 1] = '<Text rectAlignment="UpperLeft" offsetXY="12 -70" width="400" height="34" fontSize="14" color="#BBBBBB" alignment="MiddleLeft">Your favourites, kept on the host\'s PC. The * on a GIF stars or unstars it.</Text>'
+  else
+    x[#x + 1] = '<InputField id="gifq_' .. c .. '" rectAlignment="UpperLeft" offsetXY="10 -70" width="400" height="34" fontSize="18" placeholder="Type words, press Enter" text="' .. G.xmlText(G.query[c]) .. '" onEndEdit="Global/engineGifUiSearch"/>'
+  end
   for i, it in ipairs(r.items or {}) do
     if i > 8 then break end
     local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
-    x[#x + 1] = '<Button id="gifr' .. i .. '_' .. c .. '" rectAlignment="UpperLeft" offsetXY="' .. (10 + col * 101) .. ' ' .. -(78 + row * 101) .. '" width="95" height="95" color="#FFFFFF" tooltip="' .. G.xmlText(it.title) .. '" onClick="Global/engineGifUiClick"><Image image="t' .. i .. '" preserveAspect="true" raycastTarget="false"/></Button>'
+    local ox, oy = 10 + col * 101, -(112 + row * 101)
+    local on = ids[tostring(it.id)] == true
+    x[#x + 1] = '<Button id="gifr' .. i .. '_' .. c .. '" rectAlignment="UpperLeft" offsetXY="' .. ox .. ' ' .. oy .. '" width="95" height="95" color="#FFFFFF" tooltip="' .. G.xmlText(it.title) .. '" onClick="Global/engineGifUiClick"><Image image="t' .. (r.gen or 0) .. '_' .. i .. '" preserveAspect="true" raycastTarget="false"/></Button>'
+    -- (its star, over the thumbnail's top right corner: gold when it is a favourite)
+    x[#x + 1] = '<Button id="gifst' .. i .. '_' .. c .. '" rectAlignment="UpperLeft" offsetXY="' .. (ox + 67) .. ' ' .. (oy - 2) .. '" width="26" height="26" fontSize="22" fontStyle="Bold" color="#000000B0" textColor="' .. (on and "#FFD24A" or "#9A9A9A") .. '" tooltip="' .. (on and "Unstar it (off your favourites)" or "Star it (keep it in your favourites)") .. '" onClick="Global/engineGifUiClick">*</Button>'
   end
-  if r.items ~= nil and #r.items > 0 then
+  if r.items ~= nil and #r.items > 0 and (not fav or (tonumber(r.total) or 0) > 8) then
     x[#x + 1] = '<Button id="gifmore_' .. c .. '" rectAlignment="LowerLeft" offsetXY="10 8" width="70" height="28" fontSize="15" onClick="Global/engineGifUiClick">More</Button>'
   end
   x[#x + 1] = '<Button id="gifclear_' .. c .. '" rectAlignment="LowerLeft" offsetXY="86 8" width="70" height="28" fontSize="15" onClick="Global/engineGifUiClick">Clear</Button>'
@@ -10585,6 +10611,12 @@ end
 function engineGif.xml(c)
   local G = engineGif
   local st = G.state[c]
+  if st ~= nil and st.collapsed == true then
+    local w = math.floor(200 / G.CS + 0.5)
+    return '<Panel position="0 0 -11" rotation="0 0 180" scale="' .. string.format("%.3f %.3f 1", G.CS, G.CS) .. '" width="' .. w .. '" height="' .. w .. '"' .. G.viewers() .. '>'
+      .. '<Panel width="' .. w .. '" height="' .. w .. '" color="#141414" raycastTarget="false"><Text fontSize="26" fontStyle="Bold" color="#E0E0E0" width="' .. w .. '" height="' .. w .. '">GIF</Text></Panel>'
+      .. '<Button id="gifcol_' .. c .. '" visibility="' .. c .. '" position="0 ' .. -math.floor(w / 2 + 20) .. ' 0" width="80" height="32" fontSize="16" tooltip="Show your GIF again (everyone sees it)" onClick="Global/engineGifUiClick">Show</Button></Panel>'
+  end
   local asp = G.aspect(st)
   local k = math.max(asp, 1)
   local fw, fh = math.floor(200 * asp / k + 0.5), math.floor(200 / k + 0.5)
@@ -10596,9 +10628,10 @@ function engineGif.xml(c)
       .. '<Text fontSize="14" color="#9A9A9A" position="0 -30 0" width="186" height="70">' .. c .. "'s frame: GIF... below picks one" .. '</Text></Panel>'
   else
     x[#x + 1] = '<Image id="gifhold_' .. c .. '" image="still" width="' .. fw .. '" height="' .. fh .. '" preserveAspect="true" raycastTarget="false" active="' .. (G.playing[c] and "false" or "true") .. '"/>'
-    x[#x + 1] = '<Button id="gifplay_' .. c .. '" position="46 ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">Replay</Button>'
+    x[#x + 1] = '<Button id="gifplay_' .. c .. '" position="0 ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">Replay</Button>'
+    x[#x + 1] = '<Button id="gifcol_' .. c .. '" visibility="' .. c .. '" position="88 ' .. by .. ' 0" width="80" height="32" fontSize="16" tooltip="Collapse your GIF to a small tile (everyone sees it so; Show brings it back)" onClick="Global/engineGifUiClick">Hide</Button>'
   end
-  x[#x + 1] = '<Button id="gifpick_' .. c .. '" visibility="' .. c .. '" position="' .. (st == nil and 0 or -46) .. ' ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">GIF...</Button>'
+  x[#x + 1] = '<Button id="gifpick_' .. c .. '" visibility="' .. c .. '" position="' .. (st == nil and 0 or -88) .. ' ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">GIF...</Button>'
   if G.open[c] then x[#x + 1] = G.panelXml(c, fw) end
   x[#x + 1] = '</Panel>'
   return table.concat(x)
@@ -10611,8 +10644,11 @@ function engineGif.redraw(c)
   local st = G.state[c]
   if st ~= nil and st.still ~= nil then assets[#assets + 1] = { name = "still", url = st.still } end
   if G.open[c] then
-    for i, it in ipairs((G.results[c] or {}).items or {}) do
-      if i <= 8 and it.thumb ~= nil then assets[#assets + 1] = { name = "t" .. i, url = it.thumb } end
+    -- (both tabs' thumbnails, so a switch between them gives no name a new link)
+    for _, r in ipairs({ G.results[c] or {}, G.favs[c] or {} }) do
+      for i, it in ipairs(r.items or {}) do
+        if i <= 8 and it.thumb ~= nil then assets[#assets + 1] = { name = "t" .. (r.gen or 0) .. "_" .. i, url = it.thumb } end
+      end
     end
   end
   o.UI.setCustomAssets(assets)
@@ -10624,7 +10660,7 @@ end
 -- the GIF plays for PLAY_S seconds, then the still covers it
 function engineGif.play(c)
   local G = engineGif
-  if G.state[c] == nil then return end
+  if G.state[c] == nil or G.state[c].collapsed == true then return end
   G.playing[c] = true
   local o = G.frames[c]
   if G.alive(o) then o.UI.setAttribute("gifhold_" .. c, "active", "false") end
@@ -10681,7 +10717,8 @@ function engineGif.spawn(c)
     pos = G.freeSpot(c, g)
   end
   local st = G.state[c]
-  local s = G.SIZE / math.max(G.aspect(st), 1)
+  local folded = st ~= nil and st.collapsed == true
+  local s = folded and G.SIZE / G.CS or G.SIZE / math.max(G.aspect(st), 1)
   G.spawning[c] = true
   G.spawnId[c] = (G.spawnId[c] or 0) + 1
   local id = G.spawnId[c]
@@ -10696,8 +10733,8 @@ function engineGif.spawn(c)
     data = { Name = "Custom_Tile", Nickname = "GIF frame (" .. c .. ")", Description = st and G.xmlText(st.title) or "",
       GMNotes = "mtggif:" .. c, Memo = st and JSON.encode(st) or "", Locked = false,
       Transform = { posX = pos.x, posY = pos.y, posZ = pos.z, rotX = 0, rotY = rotY, rotZ = 0, scaleX = s, scaleY = 1, scaleZ = s },
-      CustomImage = { ImageURL = st and st.mp4 or ENGINE_BACK, ImageSecondaryURL = "", ImageScalar = 1, WidthScale = 0,
-        CustomTile = { Type = 0, Thickness = 0.1, Stackable = false, Stretch = st ~= nil } } },
+      CustomImage = { ImageURL = (st ~= nil and not folded) and st.mp4 or ENGINE_BACK, ImageSecondaryURL = "", ImageScalar = 1, WidthScale = 0,
+        CustomTile = { Type = 0, Thickness = 0.1, Stackable = false, Stretch = st ~= nil and not folded } } },
     position = pos, rotation = { 0, rotY, 0 }, scale = { s, 1, s },
     callback_function = function(obj)
       if G.spawnId[c] ~= id then -- (late: the watchdog gave up on it and a newer frame was spawned)
@@ -10777,6 +10814,18 @@ function engineGif.show(c, item)
   G.spawn(c)
   engineSend("gif_pick", { color = c, id = G.state[c].id, title = G.state[c].title })
 end
+-- the owner's Hide / Show: the frame becomes a small plain tile for everyone, or comes back playing the same GIF
+function engineGif.collapse(c)
+  local G = engineGif
+  local st = G.state[c]
+  if st == nil then return false end
+  st.collapsed = (st.collapsed ~= true) or nil
+  G.open[c] = nil
+  if G.holdWait[c] ~= nil then Wait.stop(G.holdWait[c]) G.holdWait[c] = nil end
+  G.playing[c] = (st.collapsed == nil) or nil
+  G.spawn(c)
+  return true
+end
 function engineGif.clear(c)
   local G = engineGif
   if G.state[c] == nil then return false end
@@ -10790,6 +10839,37 @@ function engineGif.search(c, q, page, first)
   local G = engineGif
   G.req[c] = (G.req[c] or 0) + 1
   engineSend("gif_search", { color = c, q = q, page = page or 0, rating = G.rating, req = G.req[c], first = first == true })
+end
+-- favourites: asked of the bridge (it keeps them per Steam ID; the colour when the table has none)
+function engineGif.steam(c)
+  local ok, s = pcall(function() return Player[c].steam_id end)
+  return (ok and s ~= nil) and tostring(s) or ""
+end
+function engineGif.askFavs(c, page)
+  local G = engineGif
+  G.favReq[c] = (G.favReq[c] or 0) + 1
+  engineSend("gif_favs", { color = c, steam = G.steam(c), page = page or 0, req = G.favReq[c] })
+end
+-- star it, or unstar it when it is already a favourite
+function engineGif.star(c, it)
+  local G = engineGif
+  local on = (G.favIds[c] or {})[tostring(it.id)] ~= true
+  G.favReq[c] = (G.favReq[c] or 0) + 1
+  engineSend("gif_star", { color = c, steam = G.steam(c), on = on, page = (G.favs[c] or {}).page or 0, req = G.favReq[c],
+    item = { id = it.id, title = it.title, mp4 = it.mp4, still = it.still, thumb = it.thumb, w = it.w, h = it.h } })
+end
+function engineGif.tabStatus(c)
+  local G = engineGif
+  if G.tab[c] == "fav" then
+    local f = G.favs[c]
+    if f == nil then return "Loading your favourites..." end
+    if (tonumber(f.total) or 0) == 0 then return "No favourites yet: star (*) a GIF." end
+    return "Favourites " .. ((tonumber(f.page) or 0) + 1) .. " of " .. math.ceil(f.total / 8) .. ": click one to show it"
+  end
+  local r = G.results[c]
+  if r == nil then return "Type some words, press Enter." end
+  if r.items == nil or r.items[1] == nil then return "Nothing found." end
+  return "Page " .. ((tonumber(r.page) or 0) + 1) .. ": click one to show it"
 end
 function engineGif.onMessage(m)
   local G = engineGif
@@ -10808,11 +10888,31 @@ function engineGif.onMessage(m)
       elseif G.alive(G.frames[c]) or G.spawning[c] then G.show(c, items[1]) end
       return
     end
-    G.results[c] = { q = m.q, page = tonumber(m.page) or 0, items = items, total = m.total, err = m.error ~= nil and m.error ~= "" }
-    if m.error ~= nil and m.error ~= "" then G.status[c] = tostring(m.error)
+    local failed = m.error ~= nil and m.error ~= ""
+    local old = G.results[c]
+    if failed and old ~= nil and old.items ~= nil and old.items[1] ~= nil and old.q == m.q then
+      -- (a failed More, e.g. "one GIF search at a time" after a double click: the page shown stays, with its More)
+      old.err = true
+    else
+      G.thumbGen[c] = (G.thumbGen[c] or 0) + 1
+      G.results[c] = { q = m.q, page = tonumber(m.page) or 0, items = items, total = m.total, err = failed, gen = G.thumbGen[c] }
+    end
+    if failed then G.status[c] = tostring(m.error)
     elseif #items == 0 then G.status[c] = "Nothing found."
     else G.status[c] = "Page " .. ((tonumber(m.page) or 0) + 1) .. ": click one to show it" end
+    if G.tab[c] == "fav" then G.status[c] = G.tabStatus(c) end
     G.redraw(c)
+  elseif m.t == "gif_favs" then
+    local c = m.color
+    if type(c) ~= "string" or m.req ~= G.favReq[c] then return end -- (an older ask's answer)
+    local ids = {}
+    for _, id in ipairs(type(m.ids) == "table" and m.ids or {}) do ids[tostring(id)] = true end
+    G.favIds[c] = ids
+    G.thumbGen[c] = (G.thumbGen[c] or 0) + 1
+    G.favs[c] = { page = tonumber(m.page) or 0, items = type(m.items) == "table" and m.items or {}, total = tonumber(m.total) or 0, gen = G.thumbGen[c] }
+    if m.error ~= nil and m.error ~= "" then G.status[c] = tostring(m.error)
+    elseif G.tab[c] == "fav" then G.status[c] = G.tabStatus(c) end
+    if G.open[c] then G.redraw(c) end
   end
 end
 
@@ -10827,11 +10927,25 @@ function engineGif.onClick(player, id)
   if player == nil or player.color ~= c then return end -- (the rest are the owner's, shown only to them)
   if kind == "gifpick" then
     G.open[c] = not G.open[c] or nil
-    if G.open[c] and (G.results[c] == nil) then G.status[c] = "Type some words, press Enter." end
+    if G.open[c] and (G.results[c] == nil) and G.tab[c] ~= "fav" then G.status[c] = "Type some words, press Enter." end
+    if G.open[c] and G.favIds[c] == nil then G.askFavs(c, 0) end -- (the stars need the list once)
     G.redraw(c)
   elseif kind == "gifclose" then G.open[c] = nil G.redraw(c)
+  elseif kind == "gifcol" then G.collapse(c)
   elseif kind == "gifclear" then
     if not G.clear(c) then G.status[c] = "Your frame is already empty." G.redraw(c) end
+  elseif kind == "giftabs" or kind == "giftabf" then
+    G.tab[c] = kind == "giftabf" and "fav" or nil
+    if G.tab[c] == "fav" then G.askFavs(c, (G.favs[c] or {}).page or 0) end
+    G.status[c] = G.tabStatus(c)
+    G.redraw(c)
+  elseif kind == "gifmore" and G.tab[c] == "fav" then
+    local f = G.favs[c]
+    if f ~= nil and (tonumber(f.total) or 0) > 8 then G.askFavs(c, ((tonumber(f.page) or 0) + 1) % math.ceil(f.total / 8)) end
+  elseif kind:sub(1, 5) == "gifst" then
+    local i = tonumber(kind:sub(6))
+    local r = (G.tab[c] == "fav" and G.favs[c] or G.results[c]) or {}
+    if i ~= nil and r.items ~= nil and type(r.items[i]) == "table" then G.star(c, r.items[i]) end
   elseif kind == "gifmore" then
     local r = G.results[c]
     if r ~= nil and r.q ~= nil then
@@ -10841,7 +10955,7 @@ function engineGif.onClick(player, id)
     end
   elseif kind:sub(1, 4) == "gifr" then
     local i = tonumber(kind:sub(5))
-    local r = G.results[c]
+    local r = G.tab[c] == "fav" and G.favs[c] or G.results[c]
     if i ~= nil and r ~= nil and r.items ~= nil and r.items[i] ~= nil then G.show(c, r.items[i]) end
   end
 end
