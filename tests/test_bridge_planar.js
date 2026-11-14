@@ -126,6 +126,84 @@ function withPlane(board, owner = "player-1", planar = {}) {
     });
   }
 
+  // ── the leftovers of 2026-11-13: chaos on the stack, the planar questions in Forge's words, pictures ahead ──
+  // (Akoum's script: "T:Mode$ ChaosEnsues | ... | TriggerDescription$ Whenever chaos ensues, destroy target creature that
+  // isn't enchanted." with "TgtPrompt$ Select target creature that isn't enchanted"; the harness sends the trigger's words
+  // as sourceAbilityText and Forge's stack line, "<card> (<n>) - <words>", as text)
+  const CHAOS_WORDS = "Whenever chaos ensues, destroy target creature that isn't enchanted.";
+  const CHAOS = { id: "engine-stack-9", sourceId: "engine-card-400", controllerId: "player-0", ownerId: "player-0", identity: { name: "Akoum" },
+    text: `Akoum (400) - ${CHAOS_WORDS}`, sourceAbilityText: CHAOS_WORDS, isTrigger: true, targets: [] };
+  await run(async (h) => {
+    const b = withPlane(myMain(), "player-0");
+    b.gameView.stack = [CHAOS];
+    game(h, b);
+    h.B.sendTable(); await h.flush();
+    same("chaos on the stack: said as chaos, Forge's card number gone", tables(h).at(-1)?.stack?.map((s) => [s.n, s.tx]), [["Akoum", "Chaos — destroy target creature that isn't enchanted."]]);
+  });
+  await run(async (h) => {
+    const b = withPlane(myMain(), "player-0");
+    b.gameView.stack = [{ ...CHAOS, text: "Akoum (400) - Destroy target creature that isn't enchanted. (Targeting: Evolving Wilds (41))" }];
+    game(h, b);
+    h.B.sendTable(); await h.flush();
+    same("chaos on the stack: a stack line in other words still says chaos", tables(h).at(-1)?.stack?.map((s) => s.tx), ["Chaos — Destroy target creature that isn't enchanted. (Targeting: Evolving Wilds)"]);
+  });
+  await run(async (h) => {
+    const b = withPlane(myMain(), "player-0");
+    const bear = b.gameView.zones.find((z) => z.zone === "battlefield" && z.cards.length).cards[0];
+    const seat = game(h, b);
+    h.B.onPrompt(seat, { promptId: 901, decidingPlayerId: "player-0", sourceCard: { id: "engine-card-400", identity: { name: "Akoum" } }, sourceAbilityText: CHAOS_WORDS,
+      input: { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, candidates: [{ kind: "card", id: bear.id }], presentation: { title: "Select target creature that isn't enchanted" } } });
+    await h.flush();
+    same("chaos target: the plane's question, as chaos", seat.prompt?.ui?.title, "Akoum (chaos): destroy which creature that isn't enchanted?");
+  });
+  // (Forge's PlaneswalkEffect with Optional$ asks confirmAction "Would you like to planeswalk?" (lblWouldYouLikeToPlaneswalk):
+  // Start the TARDIS, the TARDIS)
+  await run(async (h) => {
+    const seat = game(h, withPlane(myMain(), "player-0"));
+    h.B.onPrompt(seat, { promptId: 902, decidingPlayerId: "player-0", sourceCard: { id: "engine-card-77", identity: { name: "Start the TARDIS" } },
+      input: { type: "chooseBoolean", presentation: { title: "Would you like to planeswalk?" } } });
+    await h.flush();
+    same("planeswalk now: the card's question", [seat.prompt?.ui?.title, (seat.prompt?.ui?.options || []).map((o) => o.label)], ["Start the TARDIS: planeswalk now?", ["Yes", "No"]]);
+    seat.prompt.toOutput && same("planeswalk now: Yes is a yes", seat.prompt.toOutput(["yes"]), { type: "decision", value: true });
+  });
+  // (Interplanar Tunnel's script: DigUntil five planes, then "ChangeZone | ChangeType$ Card.IsImprinted | Origin$ PlanarDeck |
+  // Destination$ PlanarDeck | LibraryPosition$ 0": Forge asks chooseSingleCardForZoneChange with lblSelectCardFromPlayerZone,
+  // "Select a card from your planar deck", optional; the harness titles it with the source's name)
+  const TUNNEL_WORDS = "When you encounter Interplanar Tunnel, reveal cards from the top of your planar deck until you reveal five plane cards. Put a plane card from among them on top of your planar deck, then put the rest of the revealed cards on the bottom in a random order. (Then planeswalk away from this phenomenon.)";
+  const FIVE = ["Turri Island", "Naya", "Krosa", "Murasa", "Feeding Grounds"];
+  const PICS = Object.fromEntries(FIVE.map((n) => [n.toLowerCase(), { face: `https://img.example/${n.replace(/ /g, "-")}.webp`, back: null }]));
+  {
+    const h = harness.load({ imageCache: PICS });
+    try {
+      const seat = game(h, withPlane(myMain(), "player-0"));
+      h.B.onPrompt(seat, { promptId: 903, decidingPlayerId: "player-0", sourceCard: { id: "engine-card-401", identity: { name: "Interplanar Tunnel" }, types: ["Phenomenon"] }, sourceAbilityText: TUNNEL_WORDS,
+        input: { type: "chooseCards", min: 0, max: 1, cards: FIVE.map((n, i) => ({ id: `engine-card-${500 + i}`, identity: { name: n }, types: ["Plane"], ownerId: "player-0" })),
+          presentation: { title: "Interplanar Tunnel", description: "Select a card from your planar deck" } } });
+      await h.flush();
+      const ui = seat.prompt?.ui;
+      same("Interplanar Tunnel: its own question", ui?.title, "Interplanar Tunnel: put which plane on top of your planar deck?");
+      same("Interplanar Tunnel: one must go on top (the card's rule)", [ui?.min, ui?.max], [1, 1]);
+      ok("Interplanar Tunnel: the rest's way said, no library search", String(ui?.text || "").startsWith("The others go to the bottom of your planar deck in a random order.") && !/Search/.test(String(ui?.text || "")), JSON.stringify(ui?.text));
+      same("Interplanar Tunnel: the five planes as pictures, the ones fetched ahead", (ui?.options || []).map((o) => [o.label, !!o.img]), [...FIVE].sort().map((n) => [n, true]));
+    } finally { harness.restore(); }
+  }
+  // the planes' pictures asked for ahead: when the host names them, and for a random pool when the game is set up, before
+  // any seat joins (a plane is in no table deck; its first look was a card back)
+  const asked = (h) => h.effects.filter((e) => /api\.scryfall\.com\/cards\/collection/.test(e.fetch || "")).flatMap((e) => (e.body?.identifiers || []).map((x) => x.name));
+  await run(async (h) => {
+    say(h, "planes", { text: "akoum; turri island" });
+    await h.flush();
+    same("pictures ahead: the host's planes asked for at once", asked(h).filter((n) => ["Akoum", "Turri Island"].includes(n)).sort(), ["Akoum", "Turri Island"]);
+  });
+  await run(async (h) => {
+    say(h, "planes", { text: "random 3" });
+    say(h, "planechase", { on: true });
+    h.B.startGame(["Blue"], 1, false, true);
+    await h.flush();
+    const pool = h.B._getGame().planes || [];
+    ok("pictures ahead: a random pool asked for as the game is set up", pool.length === 6 && pool.every((n) => asked(h).includes(n)), `pool ${JSON.stringify(pool)}, asked ${JSON.stringify(asked(h))}`);
+  });
+
   console.log(failed ? `FAILED: ${failed} failed, ${passed} passed` : `PASSED: ${passed} passed, 0 failed`);
   process.exit(failed ? 1 : 0);
 })();

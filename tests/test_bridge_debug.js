@@ -36,6 +36,12 @@ const SCEN = {
   "planes-walk": { lands: 0, keepHand: true, planeswalk: "Interplanar Tunnel" },
   "planes-chaos": { lands: 0, keepHand: true, chaos: true },
   badplaneswalk: { lands: 0, planeswalk: ["Akoum"] },
+  // (Planechase as a pre-game setting: the planar decks' planes, the plane to start on; spec §3.4)
+  "planes-start": { lands: 0, keepHand: true, hand: ["Opt"], planechase: { planes: ["Akoum", "turri island", "Naya", "Interplanar Tunnel"], current: "Turri Island" } },
+  "planes-few": { lands: 0, keepHand: true, planechase: { planes: ["Akoum", "Interplanar Tunnel"] } },
+  badplanechase: { lands: 0, planechase: { planes: ["Akoum", "Nowhere Land"] } },
+  badplanecurrent: { lands: 0, planechase: { planes: ["Akoum", "Naya"], current: "Krosa" } },
+  badplaneshape: { planechase: ["Akoum"] },
   baddungeon: { lands: 0, dungeon: "Lost Mine of Phandelver" },
   badcompleted: { lands: 0, completedDungeons: "Tomb of Annihilation" },
   badinitiative: { lands: 0, initiative: "Purple" },
@@ -93,7 +99,7 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     await say(h, "Blue", "../plain");
     await say(h, "Blue", "broken");
     const c = chats(h);
-    same("list: every scenario by name", c[0], "[MTG] Debug scenarios: an-token, badcompleted, baddungeon, badinitiative, badlands, badname, badplaneswalk, badside, badzone, bare, broken, defaults, dungeon-branch, initiative-mine, initiative-steal, nolands, nullfile, per-seat, plain, planes-chaos, planes-walk, setup, twenty-mid. Use  mtg debug <name>  (mtg debug off).");
+    same("list: every scenario by name", c[0], "[MTG] Debug scenarios: an-token, badcompleted, baddungeon, badinitiative, badlands, badname, badplanechase, badplanecurrent, badplaneshape, badplaneswalk, badside, badzone, bare, broken, defaults, dungeon-branch, initiative-mine, initiative-steal, nolands, nullfile, per-seat, plain, planes-chaos, planes-few, planes-start, planes-walk, setup, twenty-mid. Use  mtg debug <name>  (mtg debug off).");
     same("list: 'list' says the same", c[1], c[0]);
     ok("unknown: refused with the list", /^\[MTG\] No debug scenario "nosuch"\. Scenarios: an-token, badcompleted, baddungeon/.test(c[2]), c[2]);
     ok("a path is no name", /^\[MTG\] No debug scenario "\.\.\/plain"/.test(c[3]), c[3]);
@@ -206,6 +212,66 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     same("planes: chaos for the caller", applies(h)[0]?.ops, [{ op: "chaos", player: "player-0" }]);
     same("planes: chaos said", chats(h).find((t) => t.startsWith("[MTG] Debug")), '[MTG] Debug "planes-chaos": Chaos ensues for Blue.');
   });
+  // Planechase as a pre-game setting (spec §3.4): typed before a game, it turns Planechase on for that game with the
+  // scenario's planes in the first seated player's deck (Forge's spelling), the pictures asked for at once; at the
+  // setup the caller planeswalks to "current" unless Forge turned it up already
+  const fetched = (h) => h.effects.filter((e) => /cards\/collection/.test(e.fetch || "")).flatMap((e) => (e.body?.identifiers || []).map((x) => x.name));
+  await run(async (h) => {
+    await say(h, "Blue", "planes-start");
+    same("planechase: kept for the next game, said with its planes", chats(h).at(-1),
+      '[MTG] Debug "planes-start" is set up at your first priority on your own turn in the next game (your opening hand is kept), with Planechase on and its 3 planes and 1 phenomenon (starting on Turri Island). Start the game.');
+    ok("planechase: its planes' pictures asked for at once", ["Akoum", "Turri Island", "Naya", "Interplanar Tunnel"].every((n) => fetched(h).includes(n)), JSON.stringify(fetched(h)));
+    h.B.startGame(["Blue"], 1, false, true);
+    await h.flush();
+    same("planechase: on for this game, with the scenario's planes as Forge spells them", h.B._getGame().planes, ["Akoum", "Turri Island", "Naya", "Interplanar Tunnel"]);
+    ok("planechase: said as the game is set up", chats(h).includes('[MTG] Debug "planes-start": Planechase on for this game, with its 4 planes and phenomena.'), JSON.stringify(chats(h).slice(-3)));
+    const blue = h.B._getGame().seats.get("Blue");
+    blue.heartbeat = () => {};
+    blue.ws.emit("open");
+    const frame = (msg) => blue.ws.emit("message", JSON.stringify(msg));
+    frame({ type: "AuthResult", success: true });
+    frame({ type: "RoomList", rooms: [{ room_id: "room-1", room_name: "tts-commander", status: "Lobby" }] });
+    frame({ type: "RoomUpdate", room: { room_id: "room-1", status: "Lobby", max_players: 4, players: [{ username: blue.username, ready: false, connected: true }] } });
+    await h.flush();
+    const sel = h.effects.map((e) => e.relay).find((r) => r?.type === "SetDeckSelection");
+    same("planechase: the planes in Blue's deck", (sel?.deck?.planes || []).map((c) => [c.identity.name, c.types[0]]),
+      [["Akoum", "Plane"], ["Turri Island", "Plane"], ["Naya", "Plane"], ["Interplanar Tunnel", "Phenomenon"]]);
+    // (the host's own switch is untouched: the next game without the scenario has none)
+    h.B._setGame(null);
+    for (const c of ["Blue"]) h.B.onTTS({ t: "debug", json: JSON.stringify({ color: c, scenario: "off" }) });
+    h.B.startGame(["Blue"], 1, false, true);
+    same("planechase: the next game is as the host set it (off)", h.B._getGame().planes, null);
+  });
+  for (const [inPlay, want, why] of [[null, [{ op: "createCard", name: "Opt", player: "player-0", zone: "hand" }, { op: "planeswalk", player: "player-0", name: "Turri Island" }], "another plane in play: planeswalk to it"],
+    ["Turri Island", [{ op: "createCard", name: "Opt", player: "player-0", zone: "hand" }], "already in play: no planeswalk"]]) {
+    await run(async (h) => {
+      await say(h, "Blue", "planes-start");
+      const b = myMain();
+      const cz = b.gameView.zones.find((z) => z.zone === "command" && z.ownerId === "player-0");
+      cz.cards.push({ id: "engine-card-400", identity: { name: inPlay || "Akoum" }, types: ["Plane"], ownerId: "player-0", controllerId: "player-0" });
+      b.gameView.planar = { controllerId: "player-0", planeIds: ["engine-card-400"], dieRollsThisTurn: 0, deckCounts: {} };
+      const seat = setup(h, { board: b });
+      h.B.onPrompt(seat, prompt("chooseAction", PASS)); await h.flush();
+      same(`planechase: the plane to start on, ${why}`, applies(h)[0]?.ops, want);
+    });
+  }
+  for (const [started, why] of [[true, "during a game"], [false, "while a game is set up"]]) {
+    await run(async (h) => {
+      const seat = setup(h, { started });
+      if (started) { h.B.onPrompt(seat, prompt("chooseAction", PASS)); await h.flush(); }
+      await say(h, "Blue", "planes-start");
+      same(`planechase: refused ${why}`, [chats(h).at(-1), applies(h).length],
+        ['[MTG] Debug "planes-start" turns Planechase on, which is set when a game starts: type it before the next game (mtg reset first).', 0]);
+    });
+  }
+  await run(async (h) => {
+    await say(h, "Blue", "planes-few");
+    h.B.startGame(["Blue"], 1, false, true);
+    await h.flush();
+    same("planechase: too few planes for the players, not started", [h.B._getGame(), chats(h).at(-1)],
+      [null, '[MTG] Not started: debug "planes-few": Planechase needs a plane for every player: the list has 1 for 2 players.']);
+  });
+
   // before a game: 20 lands for the caller and the dealt hand to the bottom, as before
   await run(async (h) => {
     setup(h, { started: false });
@@ -311,7 +377,7 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
   // a scenario of the wrong shape: refused when typed, never half set up (a "null" file left the fix stuck at pausing)
   await run(async (h) => {
     setup(h, { started: false });
-    for (const n of ["nullfile", "badlands", "badzone", "badside", "baddungeon", "badcompleted", "badinitiative", "badplaneswalk"]) await say(h, "Blue", n);
+    for (const n of ["nullfile", "badlands", "badzone", "badside", "baddungeon", "badcompleted", "badinitiative", "badplaneswalk", "badplanechase", "badplanecurrent", "badplaneshape"]) await say(h, "Blue", n);
     same("wrong shapes: refused when typed, saying what", chats(h), [
       '[MTG] Scenario "nullfile": it must be one { ... } object.',
       '[MTG] Scenario "badlands": "lands" must be a number, a list of names, or counts by name.',
@@ -320,7 +386,10 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
       '[MTG] Scenario "baddungeon": "dungeon" must be { "name": ..., "room": ... }.',
       '[MTG] Scenario "badcompleted": "completedDungeons" must be a list.',
       '[MTG] Scenario "badinitiative": "initiative" must be "you" or a colour.',
-      '[MTG] Scenario "badplaneswalk": "planeswalk" must be the name of a plane.']);
+      '[MTG] Scenario "badplaneswalk": "planeswalk" must be the name of a plane.',
+      '[MTG] Scenario "badplanechase": "planechase": not planes Forge knows: Nowhere Land.',
+      '[MTG] Scenario "badplanecurrent": "planechase": "current" must be one of its planes.',
+      '[MTG] Scenario "badplaneshape": "planechase" must be { "planes": [names], "current": name }.']);
     const seat = setup(h);
     h.B.onPrompt(seat, prompt("mulligan", { mulliganCount: 0 }, 901)); await h.flush();
     same("wrong shapes: nothing waits for the next game", [responses(h).length, seat.prompt?.type], [0, "mulligan"]);

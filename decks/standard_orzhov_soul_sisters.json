@@ -1,0 +1,132 @@
+{
+ "label": "Standard: Orzhov Soul Sisters",
+ "desc": "White-black lifegain: Amalia, Hinterland Sanctifier and Case of the Uneaten Feast gain life and grow the team",
+ "format": "standard",
+ "ai_eligible": true,
+ "source": "Draftsim, \"MTG Standard Meta Report\" (2026-10-06, after Reality Fracture), https://draftsim.com/mtg-standard-meta-report-10-6-26/, the \"Orzhov Soul Sisters\" list as printed there (main deck and sideboard), every card checked against Forge's own Standard list (bridge/forge-formats.json) and known to the engine.",
+ "reasoning": "A creature deck whose payoffs trigger by themselves on lifegain, so the AI gets value without planning. White and black.",
+ "cards": [
+  {
+   "name": "Ajani Resolute",
+   "count": 3
+  },
+  {
+   "name": "Amalia Benavides Aguirre",
+   "count": 4
+  },
+  {
+   "name": "Deep-Cavern Bat",
+   "count": 2
+  },
+  {
+   "name": "Enlightened Confidant",
+   "count": 3
+  },
+  {
+   "name": "Essence Channeler",
+   "count": 1
+  },
+  {
+   "name": "Haliya, Guided by Light",
+   "count": 3
+  },
+  {
+   "name": "Hinterland Sanctifier",
+   "count": 4
+  },
+  {
+   "name": "Liliana the Faultless",
+   "count": 3
+  },
+  {
+   "name": "Moseo, Vein's New Dean",
+   "count": 3
+  },
+  {
+   "name": "Starscape Cleric",
+   "count": 2
+  },
+  {
+   "name": "Erode",
+   "count": 3
+  },
+  {
+   "name": "Case of the Uneaten Feast",
+   "count": 4
+  },
+  {
+   "name": "Lunar Convocation",
+   "count": 3
+  },
+  {
+   "name": "Bleachbone Verge",
+   "count": 2
+  },
+  {
+   "name": "Concealed Courtyard",
+   "count": 3
+  },
+  {
+   "name": "Godless Shrine",
+   "count": 4
+  },
+  {
+   "name": "Multiversal Passage",
+   "count": 3
+  },
+  {
+   "name": "Plains",
+   "count": 3
+  },
+  {
+   "name": "Shattered Sanctum",
+   "count": 3
+  },
+  {
+   "name": "Starting Town",
+   "count": 3
+  },
+  {
+   "name": "Swamp",
+   "count": 1
+  }
+ ],
+ "sideboard": [
+  {
+   "name": "Clarion Conqueror",
+   "count": 2
+  },
+  {
+   "name": "Curious Farm Animals",
+   "count": 2
+  },
+  {
+   "name": "Decorum Dissertation",
+   "count": 1
+  },
+  {
+   "name": "Duress",
+   "count": 3
+  },
+  {
+   "name": "Enduring Innocence",
+   "count": 1
+  },
+  {
+   "name": "Ghost Vacuum",
+   "count": 1
+  },
+  {
+   "name": "Seam Rip",
+   "count": 2
+  },
+  {
+   "name": "Shoot the Sheriff",
+   "count": 1
+  },
+  {
+   "name": "Strategic Betrayal",
+   "count": 2
+  }
+ ]
+}
