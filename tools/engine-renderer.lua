@@ -739,6 +739,106 @@ function engineCtlHands(m, seen)
   end
 end
 
+-- ───── Two-Headed Giant (docs/game-modes-spec.md §5.5-5.6, Level 1) ─────
+-- The host's teams for the next games: nil is free-for-all; "mtg mode 2hg" sets the sides (White + Red against Yellow
+-- + Blue, the two seats on each long side), "mtg team <colour> <1|2>" moves a seat, "mtg mode ffa" ends it. Sent with
+-- every start (engineTeamsSent), so a restarted bridge needs nothing; the bridge checks them (bridge/teams.js) and the
+-- engine plays them. A table reload is back on free-for-all, as Free mulligans is back on none. Globals, not locals:
+-- the main chunk is at Lua's 200-local limit.
+ENGINE_TEAMS = nil
+function engineTeamsSent() return ENGINE_TEAMS end
+-- "White + Red" from a list of colours, by what the screen calls each player
+function engineTeamWords(colors)
+  local names = {}
+  for _, c in ipairs(colors or {}) do names[#names + 1] = engineNameOf(c) end
+  return table.concat(names, " + ")
+end
+-- the teams as said in chat: "White + Red vs Yellow + Blue"
+function engineTeamsText()
+  local s = { {}, {} }
+  for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do
+    local n = ENGINE_TEAMS[c] or 1
+    s[n][#s[n] + 1] = c
+  end
+  return table.concat(s[1], " + ") .. " vs " .. table.concat(s[2], " + ")
+end
+-- "mtg mode 2hg|ffa" and "mtg team <colour> <1|2>" (host): true when handled (engineChat, make-engine-copy.js); any
+-- other "mtg mode" word is left to the other game modes
+function engineTeamChat(cmd, rest, pl, isHost)
+  local isMode = cmd == "mode" and (rest == "2hg" or rest == "ffa")
+  if not isMode and cmd ~= "team" then return false end
+  if not isHost then pl.broadcast("[MTG] Only the host can set up Two-Headed Giant.") return true end
+  local who = tostring(pl.steam_name or pl.color)
+  if isMode and rest == "ffa" then
+    if ENGINE_TEAMS == nil then pl.broadcast("[MTG] The games are already free-for-all.") return true end
+    ENGINE_TEAMS = nil
+    broadcastToAll("[MTG] " .. who .. " set the next games to free-for-all (no teams).", { 1, 0.85, 0.4 })
+    return true
+  end
+  if isMode then
+    if ENGINE_TEAMS == nil then ENGINE_TEAMS = { White = 1, Red = 1, Yellow = 2, Blue = 2 } end
+    broadcastToAll("[MTG] " .. who .. " set the next games to Two-Headed Giant: " .. engineTeamsText()
+      .. ". Partners share life (30 a team, 80 in Commander), poison (15) and a commander's damage (42), block for each other and see each other's hands; each player takes their own turn. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).", { 1, 0.85, 0.4 })
+    return true
+  end
+  local col, n = rest:match("^(%a+)%s+([12])$")
+  local seat = nil
+  for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do if col ~= nil and c:lower() == col then seat = c end end
+  if seat == nil then pl.broadcast("[MTG] Use:  mtg team <white|red|yellow|blue> <1|2>  (after  mtg mode 2hg)") return true end
+  if ENGINE_TEAMS == nil then pl.broadcast("[MTG] Teams are for Two-Headed Giant: type  mtg mode 2hg  first.") return true end
+  ENGINE_TEAMS[seat] = tonumber(n)
+  broadcastToAll("[MTG] " .. who .. " put " .. seat .. " on team " .. n .. ": " .. engineTeamsText() .. ".", { 1, 0.85, 0.4 })
+  return true
+end
+function engineTeamId(color, id) return "team:" .. tostring(color) .. ":" .. tostring(id) end
+-- A partner's hand (810.5): the bridge sends it as teamHand with the seated partner who sees it, teamBy. Look-only
+-- stand-ins, team:<partner>:<id>, in that partner's second hand zone, which only they see; dragged out they snap back
+-- (zone "partner", onObjectDrop's last case). Their own hand keeps the real cards.
+function engineTeamHands(m, seen)
+  for _, pl in ipairs(m.players or {}) do
+    local by = pl.teamBy
+    local g = by and seatGeometry(by)
+    if g ~= nil and #(pl.teamHand or {}) > 0 and Player[by] ~= nil and Player[by].seated then
+      local side = Player[by].getHandTransform(2)
+      local base = side and side.position or (g.handPos or g.mat)
+      for _, c in ipairs(pl.teamHand) do
+        local r = engineStandIn(c, engineTeamId(by, c.id), "In your partner " .. engineNameOf(pl.color) .. "'s hand (look only)")
+        place(r, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, by, { zone = "partner", color = by, hand2 = true })
+      end
+    end
+  end
+end
+-- the team of the colour, from the board's teams (bridge/teams.js teamsField), or nil
+function engineTeamOf(t, color)
+  for _, side in ipairs((t and t.teams and t.teams.sides) or {}) do
+    for _, c in ipairs(side) do if c == color then return side end end
+  end
+  return nil
+end
+-- after the phase bar's turn: whose team's turn it is ("(YOUR TEAM)", "(TEAM WHITE + RED)"); "" outside 2HG
+function engineTeamTurnTag(t, viewer)
+  local side = t and t.active and engineTeamOf(t, t.active)
+  if side == nil then return "" end
+  local mine = false
+  for _, c in ipairs(side) do if c == viewer then mine = true end end
+  return "  <color=#B8D8FF>" .. (mine and "(YOUR TEAM)" or ("(TEAM " .. string.upper(engineTeamWords(side)) .. ")")) .. "</color>"
+end
+-- the game's result for a viewer: won when their team won (2HG) or they are the winner
+function engineWonBy(m, viewer)
+  local won = m.teams and m.teams.won
+  if won ~= nil then
+    for _, c in ipairs(won) do if c == viewer then return true end end
+    return false
+  end
+  return viewer == m.winner
+end
+-- "<NAME> WINS THE GAME", "WHITE + RED WIN THE GAME" for a team, "THE GAME IS A DRAW"
+function engineWinsWords(m)
+  local won = m.teams and m.teams.won
+  if won ~= nil then return string.upper(engineTeamWords(won)) .. " WIN THE GAME" end
+  return m.winner ~= nil and (string.upper(engineNameOf(m.winner)) .. " WINS THE GAME") or "THE GAME IS A DRAW"
+end
+
 local function hasType(c, t)
   for _, x in ipairs(c.ty or {}) do if x == t then return true end end
   return false
@@ -3071,11 +3171,11 @@ do
       Wait.time(function()
         for _, viewer in ipairs(seatedColors(m)) do
           if m.winner == nil then result(viewer, "DRAW", "#E8E2D0", "#1a1a1aE0", 2)
-          elseif viewer == m.winner then result(viewer, "VICTORY", "#FFD27A", "#2a1600E0", 2)
+          elseif engineWonBy(m, viewer) then result(viewer, "VICTORY", "#FFD27A", "#2a1600E0", 2)
           else result(viewer, "DEFEAT", "#C9A3FF", "#1a0730E0", 2) end
         end
         Wait.time(function()
-          local said = m.winner ~= nil and (string.upper(engineNameOf(m.winner)) .. " WINS THE GAME") or "THE GAME IS A DRAW"
+          local said = engineWinsWords(m) -- (a Two-Headed Giant team's: "WHITE + RED WIN THE GAME")
           for _, viewer in ipairs(seatedColors(m)) do result(viewer, said, "#FFD27A", "#2a1600E0", 4, #said > 20 and 72 or 96) end
         end, 2)
       end, 2.5)
@@ -3265,6 +3365,8 @@ function engineRender(m)
   pcall(enginePlanarBanner, m)
   local okCtl, errCtl = pcall(engineCtlHands, m, seen) -- (a controlled player's hand, see engineCtlHands)
   if not okCtl then print("[MTG] controlled hand: " .. tostring(errCtl)) end
+  okCtl, errCtl = pcall(engineTeamHands, m, seen) -- (a Two-Headed Giant partner's hand, look-only: engineTeamHands)
+  if not okCtl then print("[MTG] partner's hand: " .. tostring(errCtl)) end
   local okPop, errPop = pcall(function() enginePopups(m) enginePopupsClose(m) engineEffects(m) end) -- a pop-up problem must never stop the board update
   if not okPop then print("[MTG] pop-up: " .. tostring(errPop)) end
   sect("popups")
@@ -4054,12 +4156,12 @@ function engineGameOverBanner(m)
       -- (a step banner's own timer, shown just before the game ended, would hide this one: its key no longer matches)
       engineStepSeen[c] = "over"
       if engineBannerSeen ~= nil then engineBannerSeen[c] = "over" end
-      setText("eng_banner_" .. c, m.winner == nil and "DRAW" or (m.winner == c and "VICTORY" or "DEFEAT"))
-      setAttr("eng_banner_" .. c, "color", m.winner == c and "#FFD27A" or "#D6E4FF")
+      setText("eng_banner_" .. c, m.winner == nil and "DRAW" or (engineWonBy(m, c) and "VICTORY" or "DEFEAT"))
+      setAttr("eng_banner_" .. c, "color", engineWonBy(m, c) and "#FFD27A" or "#D6E4FF")
       setAttr("eng_banner_" .. c, "outline", "#101010E0")
       setAttr("eng_banner_" .. c, "active", "true")
       Wait.time(function()
-        setText("eng_banner_" .. c, m.winner == nil and "THE GAME IS A DRAW" or (string.upper(engineNameOf(m.winner)) .. " WINS THE GAME"))
+        setText("eng_banner_" .. c, engineWinsWords(m))
         Wait.time(function() setAttr("eng_banner_" .. c, "active", "false") end, 4)
       end, 2)
     end
@@ -4112,6 +4214,7 @@ function engineUpdateCorner(color, p)
     parts[#parts + 1] = here and ("<b><color=" .. gold .. ">" .. string.upper(name) .. "</color></b>") or name
   end
   local whose = t and t.active and ((t.active == color) and "<b><color=#7CFC9A>YOUR TURN</color></b>" or ("<b>" .. string.upper(engineNameOf(t.active)) .. "'S TURN</b>")) or ""
+  whose = whose .. engineTeamTurnTag(t, color) -- (Two-Headed Giant: the team whose turn it is)
   setAttr("eng_phase_" .. color, "active", t ~= nil and "true" or "false")
   setAttr("eng_phasebg_" .. color, "active", t ~= nil and "true" or "false")
   -- day or night, once a daybound card has made it one (nothing showed it, playtest 2026-10-26)
@@ -9990,6 +10093,8 @@ function engineSelfCheck()
     for _, card in ipairs(pl.playable or {}) do expected[engineCastId(c, card.id)] = true end
     -- (a controlled player's hand, in the controller's second hand zone, or as stand-ins there: engineCtlHands)
     for _, card in ipairs(pl.ctlHand or {}) do expected[card.id] = true expected[engineCastId(pl.ctlBy, card.id)] = true end
+    -- (a Two-Headed Giant partner's hand, look-only in the partner's second hand zone: engineTeamHands)
+    for _, card in ipairs(pl.teamHand or {}) do expected[engineTeamId(pl.teamBy, card.id)] = true end
     local handY = nil
     local function inHand(o, which) return inHandOf(c, o, which) end
     local function homeRotation()
