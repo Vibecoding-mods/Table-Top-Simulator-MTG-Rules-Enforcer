@@ -307,7 +307,18 @@ local function makeObj(d)
     setAttributes = function(id, t) for k, v in pairs(t) do o.__d.uiAttrs[id .. "|" .. k] = tostring(v) end fx("objUI.setAttributes", o, id, t) end,
     setValue = function(id, v) fx("objUI.setValue", o, id, v) end,
     -- (the pictures its XML names, as TTS: a list of { name, url }, replacing the last one)
-    setCustomAssets = function(t) o.__d.uiAssets = t fx("objUI.setCustomAssets", o, #t) end,
+    -- uiLoaded: name -> the link that name's picture was loaded from on this object, or false: real TTS loads a name's
+    -- picture once per object and never again for another link under the same name (the image stays a blank white
+    -- card; the GIF panel's page 2, seen live 2026-11-14)
+    setCustomAssets = function(t)
+      o.__d.uiAssets = t
+      o.__d.uiLoaded = o.__d.uiLoaded or {}
+      for _, a in ipairs(t) do
+        local was = o.__d.uiLoaded[a.name]
+        if was == nil then o.__d.uiLoaded[a.name] = a.url elseif was ~= a.url then o.__d.uiLoaded[a.name] = false end
+      end
+      fx("objUI.setCustomAssets", o, #t)
+    end,
     getCustomAssets = function() return o.__d.uiAssets or {} end,
   })
   -- an AssetBundle object (Custom_Assetbundle, or any with CustomAssetbundle data) has obj.AssetBundle, as in TTS; others
