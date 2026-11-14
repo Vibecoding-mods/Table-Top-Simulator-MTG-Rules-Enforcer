@@ -72,6 +72,9 @@ key in the script). No key: the frames don't appear and `mtg gif` says how to ad
 
 ## 4. How it fits the code
 
+*(The plan before Phase 0. Where it differs, "Phase 1 checks and the build" at the end wins: GM notes `mtggif:<colour>`
+not `engine:gif`, no route-F `frames`, items `{ id, title, mp4, still, thumb, w, h }`.)*
+
 - **Bridge** (`bridge/gifs.js`, new): `search(provider, words, page, rating)` returns up to 8 items
   `{ id, title, still, webp, mp4, frames, w, h }` (`frames`: the route-F frame links, at most 24). Answers are cached
   (the same words within a day cost no call), the GIPHY hour limit is counted, and when it runs out the player is told
@@ -89,6 +92,9 @@ key in the script). No key: the frames don't appear and `mtg gif` says how to ad
 - **Rewind/Undo:** frames are not game state; an Undo leaves them as they are.
 
 ## 5. Costs and limits
+
+*(Written for route F. The build is route M: the "at most 2 animating" cap is dropped (six playing tiles measured cheap,
+"Phase 1 checks" (b)); the per-player search limits are in the build notes.)*
 
 - Route F, measured in T4 before it's chosen: host Lua per swap, how many swaps a second four frames cost, and whether
   remote players see the frames in time. Hard caps either way: at most 2 frames animating at once (the rest hold their

@@ -125,7 +125,7 @@ const SEATED = ["White", "Blue"];
   ok("stale answer: an older search's answer changes nothing", byC(val(r, "after stale"), "White")?.guid === w1.guid);
   ok("hold: after 12 s the still covers it", byC(val(r, "after 12 s"), "White")?.hold === "true", byC(val(r, "after 12 s"), "White")?.hold);
   ok("replay: anyone's click plays it again", byC(val(r, "replaying"), "White")?.hold === "false");
-  ok("replay: but another player's click is refused as an action", raw(r, "blue clicks") === "false");
+  ok("replay: another player's click (a select) isn't refused: moving is", raw(r, "blue clicks") === "true", raw(r, "blue clicks"));
   ok("touch: another player can't pick up White's frame", raw(r, "blue picks up") === "false");
   ok("touch: White can pick up (move) their own", raw(r, "white picks up") === "true");
   ok("touch: not even White deletes, flips; nobody copies", raw(r, "white deletes") === "false" && raw(r, "white flips") === "false" && raw(r, "blue copies") === "false");
@@ -214,6 +214,51 @@ const SEATED = ["White", "Blue"];
   const bb = byC(val(r, "blue back"), "Blue");
   ok("seats: a frame deleted some other way comes back", bb && bb.guid !== raw(r, "old blue"), [bb?.guid, raw(r, "old blue")]);
   ok("seats: a player who leaves loses theirs", (val(r, "white gone")?.list || []).map((f) => f.c).join() === "Blue,Red", val(r, "white gone"));
+}
+
+// ── the break-it review's cases (2026-11-13): a box selection, the search box's blur, a spawn that never calls back, a
+// picture TTS refuses, and hide-for-me when its player leaves
+{
+  const pickWhite = msg("gif_results", { color: "White", req: 1, first: true, q: "cats", page: 0, items: ITEMS, total: 3, error: null }, 10);
+  const NO_CALLBACK = lua("__realSpawn = __realSpawn or spawnObjectData spawnObjectData = function(t) t.callback_function = nil return __realSpawn(t) end return 'ok'", "no callback");
+  const CALLBACK = lua("spawnObjectData = __realSpawn return 'ok'", "callback again");
+  const SEARCH = (text, mark) => lua(`engineGifUiSearch(Player.White, ${JSON.stringify(text)}, "gifq_White") return "ok"`, mark);
+  const WHITES = (v) => (v?.list || []).filter((f) => f.c === "White");
+  const r = simulate({ save, seated: SEATED, host: "Blue", steps: [
+    SPY, CONFIG(true), { frames: 10 },
+    CHAT("White", "mtg gif cats", "w search"), pickWhite, { frames: 12 * 60 + 10 }, FRAMES("held"),
+    lua("return tostring(onPlayerAction(Player.Blue, Player.Action.Select, { engineGif.frames.White, engineGif.frames.Blue }))", "box select"), FRAMES("after box"),
+    // the search box: Enter, then the same words again on losing focus (as the box shows them: & dropped)
+    CLICK("White", "gifpick_White", "open"), SEARCH("AT&T  news", "enter"), SENT("sent enter"),
+    msg("gif_results", { color: "White", req: 2, first: false, q: "AT&T news", page: 0, items: ITEMS, total: 3, error: null }, 4), FRAMES("box text"),
+    SEARCH("ATT  news", "blur"), SEARCH("AT&T  news", "enter again"), SENT("sent blur"),
+    // a spawn whose callback never comes, with a clear waiting behind it
+    NO_CALLBACK, CLICK("White", "gifr1_White", "pick stuck"), { frames: 30 }, CHAT("White", "mtg gif off", "clear while stuck"), { frames: 30 },
+    CALLBACK, { frames: 11 * 60 }, FRAMES("after give up"),
+    // a picture TTS refuses: its import dialog's X deletes the frame before any callback
+    NO_CALLBACK, CLICK("White", "gifpick_White", "open 2"), CLICK("White", "gifr2_White", "pick refused"), { frames: 30 },
+    lua("local f = engineGif.frames.White f.destruct() onObjectDestroy(f) return 'ok'", "dialog X", 1), CALLBACK, { frames: 180 }, FRAMES("after refused"),
+    // a failed search's words may be tried again
+    SEARCH("dogs", "dogs"), msg("gif_results", { color: "White", req: 3, first: false, q: "dogs", page: 0, items: [], total: 0, error: "GIF search is resting for 3 minutes." }, 4),
+    SEARCH("dogs", "dogs again"), SENT("sent after error"),
+    // hide-for-me leaves with its player
+    CHAT("White", "mtg gifs hide", "white hides"), CHAT("Grey", "mtg gifs hide", "grey hides"),
+    lua("__sim.seated.White = nil onPlayerChangeColor('Grey') return 'ok'", "white leaves", 180),
+    lua("return JSON.encode({ white = engineGif.hidden.White == true, grey = engineGif.hidden.Grey == true })", "hidden after"),
+  ] });
+  ok("review: no errors", !r.errors.length, r.errors.join(" | "));
+  ok("box select: not refused, and it doesn't replay the frames in it", raw(r, "box select") !== "false" && byC(val(r, "after box"), "White")?.hold === "true", [raw(r, "box select"), byC(val(r, "after box"), "White")?.hold]);
+  ok("search box: Enter searches", (val(r, "sent enter")?.list || []).some((m) => m.t === "gif_search" && m.p.q === "AT&T  news" && m.p.req === 2), val(r, "sent enter"));
+  ok("search box: its text drops what breaks XML", /text="ATT  news"/.test(byC(val(r, "box text"), "White")?.xml || ""), byC(val(r, "box text"), "White")?.xml);
+  ok("search box: the same words on blur (as shown, or as typed) cost no search", (val(r, "sent blur")?.list || []).filter((m) => m.t === "gif_search").length === 0, val(r, "sent blur"));
+  ok("search box: the same words after a failed search do search again", (val(r, "sent after error")?.list || []).filter((m) => m.t === "gif_search" && m.p.q === "dogs").length === 2, val(r, "sent after error"));
+  const g = WHITES(val(r, "after give up"));
+  ok("stuck spawn: given up after 10 s, then the waiting clear lands: one empty White frame", g.length === 1 && g[0].img === ENGINE_BACK && g[0].memo === "", g.map((f) => [f.img, f.memo]));
+  const rf = WHITES(val(r, "after refused"));
+  ok("refused picture: the frame comes back empty, not with the same link", rf.length === 1 && rf[0].img === ENGINE_BACK && rf[0].memo === "", rf.map((f) => [f.img, f.memo]));
+  ok("refused picture: the owner is told", fxOf(r, "dialog X").concat(r.steps.flatMap((s) => s.fx || [])).some((f) => f.includes("couldn't be loaded")));
+  const h = val(r, "hidden after");
+  ok("hide: a player's hide goes when they leave; a spectator's stays", h && h.white === false && h.grey === true, h);
 }
 
 // ── a reload: the save's frames are adopted (with their GIF), not doubled, and the bridge is asked about its key

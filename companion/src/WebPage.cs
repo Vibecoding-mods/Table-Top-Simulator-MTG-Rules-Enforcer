@@ -571,7 +571,7 @@ var MtgPage = (function () {
   var STATIC_TIPS = {
     'tablebox-sum': 'Table tools: opens the AI seat setup, the debug tools and the GIF frames’ GIPHY key. The bridge is asked only while this is open, so the engine must be running. Observe mode changes nothing here.',
     'logbox-sum': 'Log: shows the last lines of companion.log here, updated by themselves. Read only; Open logs folder has the whole file.',
-    'tt-gif-key': 'Your GIPHY API key (free at developers.giphy.com). Saved in a file in your user folder on this PC only: never in the table save, the table script or a package, and sent nowhere but to GIPHY with each search. The bridge searches for the players, at most 100 times an hour with a new key.',
+    'tt-gif-key': 'Your GIPHY API key (free at developers.giphy.com). Saved in a file in your user folder on this PC only: never in the table save, the table script or a package, and sent only to this PC’s bridge and, with each search, to GIPHY. The bridge searches for the players, at most 100 times an hour with a new key.',
     'tt-gif-save': 'Save key: hands the key to the bridge, which keeps it on this PC and tells the table its GIF frames are on.',
     'tt-gif-remove': 'Remove key: deletes the saved key; the table’s GIF frames go away.',
     'tt-gif-help-sum': 'Get a GIPHY key: the steps on developers.giphy.com, for the host only (players need none). Choose API, not SDK.',
@@ -1003,7 +1003,8 @@ var MtgPage = (function () {
         .then(function (j) { if (my === tt.seq) toolsDraw(toolsView(j)); }, function () { if (my === tt.seq) toolsDraw(toolsView(null)); })
         .then(null, showError);
     }
-    function toolsPost(body) {
+    // (onOk: called with the bridge's answer when it says ok)
+    function toolsPost(body, onOk) {
       if (body.error) { ttSay(body.error, 'warn'); return; }
       if (tt.busy) { ttSay('Already sent; waiting for the bridge.', ''); return; }
       tt.busy = true;
@@ -1014,6 +1015,7 @@ var MtgPage = (function () {
         tt.busy = false;
         var a = answerPlan(res);
         ttSay(a.text, a.kind);
+        if (onOk && res && res.ok === true) onOk(res);
         toolsLoad();
       }, function () { tt.busy = false; ttSay('The companion didn’t answer.', 'bad'); });
     }
@@ -1026,8 +1028,9 @@ var MtgPage = (function () {
       tip($('tt-' + id + '-btn'), debugTip(id, null, false));
     });
     $('tt-debug').addEventListener('change', function () { toolsPost({ kind: 'debug-mode', on: !!$('tt-debug').checked }); });
-    // (the key box is emptied once sent: the page never shows a saved key back)
-    $('tt-gif-save').addEventListener('click', function () { var b = gifKeyRequest($('tt-gif-key').value, false); toolsPost(b); if (!b.error) $('tt-gif-key').value = ''; });
+    // (the key box is emptied once the bridge has the key: the page never shows a saved key back; a refused key stays
+    // in the box to be corrected)
+    $('tt-gif-save').addEventListener('click', function () { toolsPost(gifKeyRequest($('tt-gif-key').value, false), function () { $('tt-gif-key').value = ''; }); });
     $('tt-gif-remove').addEventListener('click', function () { toolsPost(gifKeyRequest('', true)); });
     $('tablebox').addEventListener('toggle', function () { tt.open = !!$('tablebox').open; if (tt.open) toolsLoad(); });
     // (the page's own controls: a control inside a label shows its tip when the label is hovered too)

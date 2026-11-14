@@ -11052,7 +11052,12 @@ const gifs = gifLib.createGifs({
   fetch: (...a) => global.fetch(...a), now: () => Date.now(), log: (s) => log(s), envKey: LIVE ? process.env.MTG_GIPHY_KEY : undefined,
   store: GIF_KEY_FILE && {
     read: () => { try { return JSON.parse(fs.readFileSync(GIF_KEY_FILE, "utf8")); } catch (e) { if (e.code === "ENOENT") return null; throw e; } },
-    write: (keys) => { fs.mkdirSync(path.dirname(GIF_KEY_FILE), { recursive: true }); fs.writeFileSync(GIF_KEY_FILE, JSON.stringify(keys), { mode: 0o600 }); },
+    // (written whole, then renamed over the old file: a crash mid-write never leaves half a key file)
+    write: (keys) => {
+      fs.mkdirSync(path.dirname(GIF_KEY_FILE), { recursive: true });
+      fs.writeFileSync(`${GIF_KEY_FILE}.tmp`, JSON.stringify(keys), { mode: 0o600 });
+      fs.renameSync(`${GIF_KEY_FILE}.tmp`, GIF_KEY_FILE);
+    },
   },
 });
 // the colours that can have a frame (seated players; Grey and Black are spectators and the GM)
@@ -11064,7 +11069,7 @@ function onGifMessage(m) {
   if (!color) return log(`${m.t}: no player colour`);
   if (m.t === "gif_search") {
     const req = Number.isInteger(m.req) ? m.req : 0, first = m.first === true;
-    return gifs.search({ provider: "giphy", q: m.q, page: m.page, rating: m.rating }).then((r) => guarded("gif results", () => {
+    return gifs.search({ provider: "giphy", q: m.q, page: m.page, rating: m.rating, who: color }).then((r) => guarded("gif results", () => {
       if (r.error) log(`gif search for ${color}: ${r.error}`);
       toTTS({ t: "gif_results", color, req, first, q: r.words, page: r.page, items: r.items || [], total: r.total ?? null, credit: r.credit, error: r.error || null });
     })).catch((e) => log(`ERROR in gif search: ${e && e.message}`)); // (an async throw: logged, never an unhandled rejection that ends the bridge)
