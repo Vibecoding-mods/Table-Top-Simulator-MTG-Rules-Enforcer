@@ -1045,11 +1045,12 @@ local function setCounterVal(guid, val)
   o.call("updateSave")
 end
 
-local function setTax(guid, tax)
+-- blank: a Standard game (engineModeNow), where the label shows no number (engineModePieces)
+local function setTax(guid, tax, blank)
   local o = getObjectFromGUID(guid)
   if o == nil or o.getVar("val") == tax then return end
   o.setVar("val", tax)
-  for i = 0, 9 do pcall(function() o.editButton({ index = i, label = tostring(tax) }) end) end
+  for i = 0, 9 do pcall(function() o.editButton({ index = i, label = blank and "" or tostring(tax) }) end) end
 end
 
 -- A commander damage tracker's tooltip with partners: its name, then each commander's damage, the bridge's cmdTip
@@ -1079,7 +1080,9 @@ local function updateTrackers(m)
         setCounterVal(guid, (pl.cmdDamage or {})[from] or 0)
         engineCmdDamageTip(guid, (pl.cmdTip or {})[from])
       end
-      for i, guid in ipairs(TAX_LABELS[color] or {}) do setTax(guid, (pl.tax or {})[i] or 0) end
+      -- (Standard: the commander damage trackers are put away and the tax shows nothing, engineModePieces; their values
+      -- are still set, to the 0 a game without commanders has, so a manual fix never reads an old game's number off them)
+      for i, guid in ipairs(TAX_LABELS[color] or {}) do setTax(guid, (pl.tax or {})[i] or 0, engineModeNow ~= nil and engineModeNow() == "standard") end
     end
   end
   if engineStatusPieces ~= nil then pcall(engineStatusPieces, m) end -- (the pieces for the marks: under the last box)
@@ -3464,6 +3467,7 @@ function engineClear()
   enginePlanarRollSeen = nil -- (the next game's planar die rolls count from 1 again)
   enginePrompts = {}
   restoreStash()
+  engineRunningMode = nil -- (no game: the host's pick for the next one, engineModeNow)
   engineRenderPanels()
   -- back to the normal table, except after the NEW GAME button (straight back to READY)
   -- (a start clears the last game's cards, and the bridge's own reset clears again: a one-time flag was used up by the
@@ -3485,6 +3489,8 @@ function engineStarted(m)
   if engineEffectsJump ~= nil then engineEffectsJump() end -- (the bridge sends "started" again before a resend: no effects for it)
   stashImported(humans)
   if not ENGINE_MODE then setEngineMode(true) end
+  engineRunningMode = m.mode or "commander" -- (the bridge says "standard" for a Standard game, docs/game-modes-spec.md §3.4)
+  if engineModePieces ~= nil then pcall(engineModePieces) end
 end
 
 -- ───────── prompt panel (added next to the table's own UI, never replacing it) ─────────
@@ -6644,13 +6650,13 @@ Wait.frames(function()
   restoreStash()
   -- (rigs of an older effect bundle than the links': replaced now, one destroyed every half second)
   pcall(engineFxRenewRigs)
-  engineSend("hello", { stamp = engineStamp(), keepRewind = true })
+  engineSend("hello", { stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil })
   -- the running game sent back on that hello was not drawn once, after a TTS relaunch with a big table still loading
   -- (hp-22 re-test 2026-10-28: the bridge's record has it sent; the table showed READY): ask again while nothing came
   local function askAgain(tries)
     Wait.time(function()
       if lastTable ~= nil then return end
-      engineSend("hello", { again = true, stamp = engineStamp(), keepRewind = true })
+      engineSend("hello", { again = true, stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil })
       if tries > 1 then askAgain(tries - 1) end
     end, 10)
   end
@@ -7919,7 +7925,7 @@ function engineSetupIntact()
   local want = SETUP.drawn.tile
   local have = tile ~= nil and (tile.getButtons() or {})[1] or nil
   if (want == nil) ~= (have == nil) or (have ~= nil and have.label ~= want) then return false end
-  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < 2 then return false end
+  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < (SETUP.drawn.mode and 3 or 2) then return false end
   for c in pairs(SETUP.drawn.mats) do
     local mat = data[c] and data[c].playmat
     local any = false
@@ -7965,6 +7971,7 @@ function engineDeckReport(m)
 end
 
 function engineSetupButtons()
+  pcall(engineModePieces) -- (the commander pieces put away or back for the mode: engine mode on/off, the 2 s heal)
   local game = engineTable ~= nil and engineTable() or nil
   local running = game ~= nil and not game.gameOver
   local seated = seatedSetupColors()
@@ -7976,7 +7983,7 @@ function engineSetupButtons()
   for _, pl in ipairs((game and game.players) or {}) do if pl.status == "playing" then alive[#alive + 1] = tostring(pl.color) end end
   table.sort(alive)
   local sig = table.concat({ tostring(ENGINE_MODE), tostring(running), tostring(over), table.concat(seated, ","), tostring(ready), table.concat(alive, ","),
-    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly) }, "|")
+    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE) }, "|")
   -- (unchanged, and the buttons are still there: TTS's own scripts or a reload can wipe an object's buttons, and after a
   -- game ended the READY buttons and the middle tile stayed gone or stale, "Engine: off" with engine mode on, playtest
   -- 2026-10-24; engineSetupHeal below looks every 2 s)
@@ -8052,6 +8059,9 @@ function engineSetupButtons()
     if not running and not over then
       SETUP.drawn.friendly = true
       setupButton(tile, "onMtgSetupFriendly", engineFriendlyLabel(), SETUP.color.wait, FRIENDLY_SPOT, nil, 1700, 620, 90)
+      -- (the game mode beside it, host only: docs/game-modes-spec.md §3.4 and §10)
+      SETUP.drawn.mode = true
+      setupButton(tile, "onMtgSetupMode", engineModeLabel(), SETUP.color.idle, MODE_SPOT, nil, 1700, 620, 90)
     end
   end
   engineScoopRedraw()
@@ -8132,6 +8142,103 @@ function engineSetFriendly(n, pl)
 end
 function onMtgSetupFriendly(obj, playerColor)
   engineSetFriendly((engineFriendly + 1) % 3, Player[playerColor])
+end
+
+-- Game modes (docs/game-modes-spec.md §3): Commander (the default) or Standard (60-card decks, 20 life, no commander;
+-- 1v1 or free-for-all). The host's pick for the next games, "mtg mode standard|commander" or the mode button beside
+-- Free mulligans; sent to the bridge with every deck check and start (and with "hello"), only when it is Standard (the
+-- bridge reads no mode as Commander). A table reload is back on Commander, as Free mulligans is back on none. While a
+-- game runs, the game's own mode (the bridge's "started") decides what the table shows (engineModeNow).
+ENGINE_GAME_MODE = "commander"
+engineRunningMode = nil -- the running game's mode, from "started"; nil between games
+MODE_SPOT = Vector(-60, 1.1, -6.5) -- (beside Free mulligans on the rim, along the same line: live check)
+function engineModeNow()
+  if engineRunningMode ~= nil and engineTable ~= nil and engineTable() ~= nil then return engineRunningMode end
+  return ENGINE_GAME_MODE
+end
+-- the mode for a message to the bridge: "standard", or nil for Commander (left out of the message)
+function engineModeSent() return ENGINE_GAME_MODE == "standard" and "standard" or nil end
+function engineModeLabel() return "Game mode\n" .. (ENGINE_GAME_MODE == "standard" and "Standard" or "Commander") end
+-- mode: "standard" | "commander"; pl: who set it (the host; checked in engineChat)
+function engineSetGameMode(mode, pl)
+  if mode ~= "standard" and mode ~= "commander" then return end
+  local running = engineTable ~= nil and engineTable() ~= nil and not engineTable().gameOver
+  if ENGINE_GAME_MODE == mode then
+    if pl ~= nil then pl.broadcast("[MTG] The game mode is already " .. (mode == "standard" and "Standard" or "Commander") .. ".", { 1, 0.85, 0.4 }) end
+    return
+  end
+  ENGINE_GAME_MODE = mode
+  -- (every deck was checked for the other mode: READY again)
+  for k in pairs(engineReadyState) do engineReadyState[k] = nil end
+  local who = pl ~= nil and (pl.steam_name or pl.color) or "The host"
+  broadcastToAll("[MTG] " .. tostring(who) .. " set the game mode" .. (running and " for the next game" or "") .. ": "
+    .. (mode == "standard" and "Standard (decks of 60+ Standard cards, at most 4 of a card, no commander; 20 life; 1v1 or free-for-all)"
+      or "Commander (100-card decks with a commander, 40 life)") .. ". Everyone presses READY again.", { 1, 0.85, 0.4 })
+  engineSend("mode", { color = pl and pl.color or nil, mode = mode })
+  if not running then engineModeLife(mode == "standard" and 20 or 40) end
+  engineSetupButtons()
+end
+-- every life counter to n (the next game's starting life), with no change line: only between games
+function engineModeLife(n)
+  for _, guid in pairs(LIFE_TRACKERS) do
+    local o = getObjectFromGUID(guid)
+    if o ~= nil and o.getVar("count") ~= n then pcall(function() o.setVar("count", n) o.call("sL", n) o.call("updateSave") end) end
+  end
+end
+-- The commander pieces in Standard (engine mode on): the commander damage trackers go under the table, hidden and
+-- locked, their spot written on them (memo "enginemode:x,y,z,lock", so a reloaded table puts them back), and the
+-- command zones' tax labels show no number. Back as they were otherwise. Only on a change (engineModeKey; nil after a
+-- load: trackers a saved Standard table put away come back, and the labels, never blanked in this session, stay).
+engineModeKey = nil
+function engineModePieces()
+  local std = ENGINE_MODE == true and engineModeNow() == "standard"
+  if engineModeKey == std then return end
+  local was = engineModeKey
+  engineModeKey = std
+  for _, row in pairs(CMD_DAMAGE) do
+    for _, guid in pairs(row) do
+      local o = getObjectFromGUID(guid)
+      if o ~= nil then
+        local memo = tostring(o.memo or "")
+        local hidden = memo:sub(1, 11) == "enginemode:"
+        if std and not hidden then
+          local p = o.getPosition()
+          o.memo = string.format("enginemode:%.3f,%.3f,%.3f,%s", p.x, p.y, p.z, tostring(o.getLock()))
+          o.setLock(true)
+          o.setPosition(p + Vector(0, -15, 0))
+          o.setInvisibleTo(engineEveryone())
+        elseif not std and hidden then
+          -- (the spot by plain finds: x, y, z and the lock between commas)
+          local parts, rest = {}, memo:sub(12)
+          while true do
+            local at = rest:find(",", 1, true)
+            if at == nil then parts[#parts + 1] = rest break end
+            parts[#parts + 1] = rest:sub(1, at - 1)
+            rest = rest:sub(at + 1)
+          end
+          o.setInvisibleTo({})
+          local x, y, z = tonumber(parts[1]), tonumber(parts[2]), tonumber(parts[3])
+          if x ~= nil and y ~= nil and z ~= nil then o.setPosition(Vector(x, y, z)) o.setLock(parts[4] == "true") end
+          o.memo = nil
+        end
+      end
+    end
+  end
+  if not std and was ~= true then return end
+  for _, list in pairs(TAX_LABELS) do
+    for _, guid in ipairs(list) do
+      local o = getObjectFromGUID(guid)
+      if o ~= nil then
+        local label = std and "" or tostring(o.getVar("val") or 0)
+        for i = 0, 9 do pcall(function() o.editButton({ index = i, label = label }) end) end
+      end
+    end
+  end
+end
+-- the mode button: the other mode, as "mtg mode ..." typed (the host only, said there)
+function onMtgSetupMode(obj, playerColor)
+  local pl = Player[playerColor]
+  if pl ~= nil then engineChat("mtg mode " .. (ENGINE_GAME_MODE == "standard" and "commander" or "standard"), pl) end
 end
 
 function onMtgSetupStart(obj, playerColor)

@@ -1,7 +1,10 @@
 // Engine round-trip latency test (SPEC.md §6, test 2 / milestone M2).
 // Joins the local Forge room as one seat, fills the rest with Forge AI bots,
 // auto-plays its own seat, and times every response → next engine message.
-//   node engine-test.js [--seats 2] [--turns 8] [--deck neheb_minotaur_commander] [--minutes 10] [--full]
+//   node engine-test.js [--seats 2] [--turns 8] [--deck neheb_minotaur_commander] [--minutes 10] [--full] [--format standard]
+// --format standard: a Standard game (docs/game-modes-spec.md §3): StartGame "Standard" (the relay's 20 life), every
+// deck a Standard one with its sideboard and no commander, this seat's default deck standard_dimir_aggro and the bots'
+// the other three built-in Standard decks.
 // --full: don't announce a client version, so the relay sends whole states instead of change-only patches.
 // Needs the stack from ../stack/compose.yml running. Node 22+ (built-in WebSocket).
 const fs = require("fs");
@@ -18,8 +21,11 @@ const ROOM = arg("room", "tts-commander");
 const SEATS = Number(arg("seats", 2));
 const MAX_TURNS = Number(arg("turns", 8));
 const MINUTES = Number(arg("minutes", 10));
-const DECK_ID = arg("deck", "neheb_minotaur_commander");
-const BOT_DECK_IDS = ["ashling_limitless_commander", "ramses_commander", "real_teval_commander"];
+const FORMAT = arg("format", "commander") === "standard" ? "standard" : "commander";
+const STD = FORMAT === "standard";
+const DECK_ID = arg("deck", STD ? "standard_dimir_aggro" : "neheb_minotaur_commander");
+const BOT_DECK_IDS = STD ? ["standard_rakdos_ingris", "standard_mono_green_landfall", "standard_orzhov_soul_sisters"]
+  : ["ashling_limitless_commander", "ramses_commander", "real_teval_commander"];
 const { presetFile } = require("./presets");
 const FULL = process.argv.includes("--full");
 const BOTS = Number(arg("bots", SEATS - 1)); // Forge AI seats to request; 0 when other test clients fill the table
@@ -39,12 +45,15 @@ function loadPreset(id) {
   });
   const cards = [];
   let commander = null;
+  if (STD && p.format !== "standard") throw new Error(`--format standard: ${id} is not a Standard deck`);
   for (const e of p.cards) {
     if (p.commander && e.name === p.commander && !commander) { commander = toCard(e); continue; }
     for (let k = 0; k < (e.count || 1); k++) cards.push(toCard(e));
   }
-  const deck = { name: p.label, cards, sideboard: [], format: "commander" };
-  if (commander) deck.commanders = [commander];
+  const sideboard = STD ? (p.sideboard || []).flatMap((e) => Array.from({ length: e.count || 1 }, () => toCard(e))) : [];
+  const deck = { name: p.label, cards, sideboard, format: FORMAT };
+  if (commander && !STD) deck.commanders = [commander];
+  if (STD) return { deckName: p.label, deck, commanderName: null };
   return { deckName: p.label, deck, commanderName: p.commander || null };
 }
 
@@ -117,7 +126,7 @@ ws.addEventListener("message", (ev) => {
       if (joined && !started && room.status === "Lobby" && ready >= SEATS) {
         started = true;
         log(`all ${SEATS} seats ready: ${room.players.map((p) => p.username).join(", ")}; starting`);
-        send({ type: "StartGame", format: "Commander" });
+        send({ type: "StartGame", format: STD ? "Standard" : "Commander" });
       }
       break;
     }
@@ -181,7 +190,17 @@ function onEnvelope(env, bytes) {
 
 function onBoard(bytes) {
   const t = board.state?.gameView?.turn ?? turn;
-  if (t !== turn) { turn = t; log(`turn ${turn} (last message ${(bytes / 1024).toFixed(1)} KB, board ${(JSON.stringify(board.state).length / 1024).toFixed(0)} KB)`); }
+  if (t !== turn) {
+    turn = t;
+    log(`turn ${turn} (last message ${(bytes / 1024).toFixed(1)} KB, board ${(JSON.stringify(board.state).length / 1024).toFixed(0)} KB)`);
+    // (Standard, spec §3.1: 20 life; a 60-card library is 53 after the opening hand, so at turn 2 the 1v1 starting
+    // player still has 53 (no first draw) and in a free-for-all everyone who has had a turn has 52)
+    if (STD) {
+      const gv = board.state?.gameView || {};
+      const lib = (id) => (gv.zones || []).find((z) => z.zone === "library" && z.ownerId === id)?.count;
+      log(`  ${(gv.players || []).map((p) => `${p.id}: life ${p.life}, library ${lib(p.id)}`).join("; ")}`);
+    }
+  }
   if (turn > MAX_TURNS) finish(0);
 }
 
