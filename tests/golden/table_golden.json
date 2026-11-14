@@ -1042,6 +1042,7 @@
     "step": "44 table",
     "fx": [
      "f294 \"setRotationSmooth\" obj:s00014 V(0,450,0)",
+     "f294 \"createButton\" obj:395037 \"U1\" \"0.20,0.50,0.90\" \"at 0.00,0.06,1.50\"",
      "f294 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 2nd turn (game turn 2) - main1 - priority: Blue\\\nStack (top first): Thousand-Faced Shadow\\\nYour mana pool: U\"",
      "f300 \"UI.setValue\" \"eng_banner_Blue\" \"MAIN PHASE 1\"",
      "f300 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFFFFF\"",
@@ -1057,6 +1058,7 @@
      "f300 \"UI.setAttribute\" \"eng_pop\" \"visibility\" \"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\"",
      "f300 \"UI.setAttribute\" \"eng_pop\" \"active\" \"true\"",
      "f300 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FEFEFE\"",
+     "f300 \"removeButton\" obj:395037 0",
      "f300 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 2nd turn (game turn 2) - main1 - priority: Blue\\\nStack (top first): Thousand-Faced Shadow\"",
      "f306 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"main1\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":2}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
@@ -5594,6 +5596,7 @@
      "f636 \"UI.setAttribute\" \"eng_pop\" \"visibility\" \"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\"",
      "f636 \"UI.setAttribute\" \"eng_pop\" \"active\" \"true\"",
      "f636 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FFFFFF\"",
+     "f636 \"createButton\" obj:395037 \"C1\" \"0.68,0.66,0.63\" \"at 0.00,0.06,1.50\"",
      "f636 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 3rd turn (game turn 4) - main1 - priority: Blue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\""
     ]
    },
@@ -5606,7 +5609,7 @@
      "f642 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"true\",color=\"#262626\",text=\"Cast Arcane Adaptation\",textColor=\"#fffffE\"}",
      "f642 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"false\"",
      "f642 \"UI.setValue\" \"eng_hint_Blue\" \" \"",
-     "f642 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"Pass priority\",textColor=\"#ffffff\"}",
+     "f642 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"Pass priority (1 floating)\",textColor=\"#ffffff\"}",
      "f642 \"UI.setAttributes\" \"eng_big2_Blue\" {color=\"#2e3a59\",text=\"End turn\",textColor=\"#ffffff\"}",
      "f642 \"menu+\" obj:s00005 \"Cast Arcane Adaptation\"",
      "f642 \"objUI.setAttribute\" obj:s00005 \"eng_play\" \"active\" \"true\"",
@@ -5679,6 +5682,7 @@
    {
     "step": "108 table",
     "fx": [
+     "f678 \"removeButton\" obj:395037 0",
      "f678 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 3rd turn (game turn 4) - combatDeclareAttackers - priority: Blue\"",
      "f678 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
     ]
@@ -8866,6 +8870,7 @@
     "fx": [
      "f2148 \"setRotationSmooth\" obj:s00003 V(0,450,0)",
      "f2148 \"setRotationSmooth\" obj:s00006 V(0,450,0)",
+     "f2148 \"createButton\" obj:395037 \"C1\" \"0.68,0.66,0.63\" \"at 0.00,0.06,1.50\"",
      "f2148 \"UI.setValue\" \"eng_status_Blue\" \"Blue's 6th turn (game turn 10) - combatDeclareBlockers - priority: Blue\\\nYour mana pool: C\""
     ]
    },
@@ -8936,7 +8941,7 @@
      "f2178 \"UI.setAttributes\" \"eng_opt_Blue_7\" {active=\"true\",color=\"#262626\",text=\"Yuriko, the Tiger's Shadow: Commander Ninjutsu {U}{B} ({U}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand or the command zone tapped and attacking.)\",textColor=\"#ffffff\"}",
      "f2178 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"false\"",
      "f2178 \"UI.setValue\" \"eng_hint_Blue\" \" \"",
-     "f2178 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"Pass priority\",textColor=\"#fffffE\"}",
+     "f2178 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"Pass priority (1 floating)\",textColor=\"#fffffE\"}",
      "f2178 \"UI.setAttributes\" \"eng_big2_Blue\" {color=\"#2e3a59\",text=\"Resolve the stack (1 item)\",textColor=\"#fffffE\"}",
      "f2178 \"UI.setAttribute\" \"eng_row_Blue\" \"active\" \"false\"",
      "f2178 \"menu+\" obj:s00034 \"{1}, {T}: Scry 2. (Look at the top two…\"",
@@ -9152,7 +9157,7 @@
      "f2292 \"UI.setAttributes\" \"eng_opt_Blue_3\" {active=\"false\"}",
      "f2292 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"false\"",
      "f2292 \"UI.setValue\" \"eng_hint_Blue\" \" \"",
-     "f2292 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"Pass priority\",textColor=\"#fffffE\"}",
+     "f2292 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"Pass priority (1 floating)\",textColor=\"#fffffE\"}",
      "f2292 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"false\"}",
      "f2298 \"UI.setAttribute\" \"eng_rowimg_Blue_1\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/1/6/16185c50-f7b8-4cea-a129-dfad8e9df781.jpg\"",
      "f2298 \"UI.setAttribute\" \"eng_rowimg_Blue_2\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/7/a/7a59d4b1-6cf4-44ec-8a96-1bb7094fea21.jpg\""
@@ -9211,7 +9216,7 @@
      "f2328 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#e8711a\",text=\"Pass priority\",textColor=\"#ffffff\"}",
      "f2328 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"false\"",
      "f2328 \"UI.setValue\" \"eng_hint_Blue\" \" \"",
-     "f2328 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"Pass priority\",textColor=\"#ffffff\"}"
+     "f2328 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"Pass priority (1 floating)\",textColor=\"#ffffff\"}"
     ]
    },
    {
@@ -10095,7 +10100,7 @@
      "f3240 \"putObject\" obj:s00016 obj:s00051",
      "f3240 \"call\" obj:395037 \"engineLifeChange\" \"delta=3,life=34\"",
      "f3240 \"call\" obj:395037 \"updateSave\"",
-     "f3240 \"removeButton\" obj:395037 0",
+     "f3240 \"removeButton\" obj:395037 1",
      "f3241 \"setHiddenFrom\" obj:s00004 {}",
      "f3241 \"setHiddenFrom\" obj:s00017 {}",
      "f3241 \"setHiddenFrom\" obj:s00021 {}",
@@ -12848,6 +12853,7 @@
    {
     "step": "clear with rewind UI showing",
     "fx": [
+     "f6085 \"removeButton\" obj:395037 0",
      "f6085 \"setInvisibleTo\" obj:8963ec {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
      "f6085 \"setColorTint\" obj:8963ec {1=1,2=1,3=1,4=0}",
      "f6085 \"setPosition\" obj:8963ec V(-49.586,-30,19.161)",
@@ -13257,6 +13263,7 @@
      "f6175 \"UI.setAttributes\" \"eng_autores_Blue\" {active=\"true\",color=\"#1A1A1A\",textColor=\"#fffffE\"}",
      "f6175 \"createButton\" obj:395037 \"RING TEMPTED 2\" \"0.04,0.20,0.05\" \"at -0.14,0.05,2.39\"",
      "f6175 \"createButton\" obj:395037 \"YOU CAN'T LOSE THE GAME\" \"0.04,0.20,0.05\" \"at -0.29,0.05,3.00\"",
+     "f6175 \"createButton\" obj:395037 \"C1\" \"0.68,0.66,0.63\" \"at 0.00,0.06,1.50\"",
      "f6175 \"UI.setAttributes\" \"eng_toggle_Blue\" {active=\"true\",color=\"#1A1A1A\",textColor=\"#FFFFFE\"}",
      "f6175 \"UI.setAttributes\" \"eng_browse_Blue\" {active=\"true\",color=\"#1A1A1A\",textColor=\"#FFFFFE\"}",
      "f6175 \"UI.setAttributes\" \"eng_set_Blue\" {active=\"true\",color=\"#1A1A1A\",textColor=\"#FFFFFE\"}",
@@ -13388,6 +13395,7 @@
    {
     "step": "marks: none again",
     "fx": [
+     "f6731 \"removeButton\" obj:395037 8",
      "f6731 \"removeButton\" obj:395037 7",
      "f6731 \"removeButton\" obj:395037 6",
      "f6731 \"removeButton\" obj:395037 5",
@@ -13395,7 +13403,6 @@
      "f6731 \"removeButton\" obj:395037 3",
      "f6731 \"removeButton\" obj:395037 2",
      "f6731 \"removeButton\" obj:395037 1",
-     "f6731 \"removeButton\" obj:395037 0",
      "f6731 \"removeButton\" obj:23e485 2",
      "f6731 \"removeButton\" obj:23e485 1",
      "f6731 \"removeButton\" obj:23e485 0"
