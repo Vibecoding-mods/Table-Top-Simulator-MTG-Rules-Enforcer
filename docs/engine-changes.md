@@ -181,6 +181,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-14 16:00 / (relay layers cached, 12:51 stamp) | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) | engine1115-2hg with the one Java comment taken out of `ActionSpace.getStackTargetCandidates` (the AGENTS.md rule); no code change | Both rebuilt, no protocol change (relay source unchanged) | tree `tmp/eb1115b`, branch `nocomment-1115` (`44de312` on `f995fab`), its `forge/` branch `nocomment-1115` = `19931d89`; outer branch `engine-nocomment` | not deployed | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) |
 | 2026-11-14 12:49 / 12:51 | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) | Two-Headed Giant Level 1 (shared life and poison, team loss, team blocks, team-lead start, 2HG Commander numbers) and the team plumbing (`gameConfig`, `teamRules`); the Forge AI blocks for its partner; on top of engine1114-rejoin | **Both** (protocol: `StartGameRequest` team fields, `GameViewDto.teamRules`, relay allow-list `gameConfig`) | tree `tmp/eb1115-2hg` in `tmp/wt-2hg`, branch `2hg-1115` (`4f4411c`, `f995fab`), its `forge/` branch `2hg-1115` (`ef17522a`, `7f3026cb`, `19931d89`); outer branch `2hg` | not deployed | `engine1114-rejoin` (or `engine1113`, the live one) |
 | 2026-11-14 03:25 / (relay cached, 2026-11-12 20:07 stamp) | `engine1114-rejoin` (`3e8f2005bda9` / `4e47919e1966`) | A rewind brings back players who conceded or lost after the point; also carries planechase-fix-1113 (first build) | Node only (no protocol change; relay source unchanged) | tree `tmp/eb1114-rejoin` in worktree `agent-ac7d563c775ca72fd`, branch `rejoin-1114` (`866240c`, `0d6dfa3`, `df0e503`); bridge "is back in the game" line | not deployed | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) |
 | 2026-11-13 02:07 / (relay layers all cached, 20:07 stamp) | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) | Combat flags once per snapshot round; delayed-trigger ids per viewer; face-down `unlockedDoors` blanked; no ownerless or targetless damage entries | Node only (no protocol change; relay rebuilt from the same tree, source unchanged) | tree `tmp/eb1113` in the outer worktree (`engine/manabrew.patch` regenerated); bridge `delayedOf` reads an empty text as hidden | **deployed 2026-11-13 09:37 UTC** (main 75fc8a2) | `engine1112` (`0306d683de26` / `58cf2e3da251`) |
@@ -248,6 +249,31 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-14 engine1115b: no comments in the Manabrew Java (built, not deployed)
+- **Problem:** `engine/manabrew.patch` shipped one Java comment, against the no-comments rule for Manabrew Java
+  (`manabrew/AGENTS.md`): `forge-harness/src/main/java/forge/harness/common/ActionSpace.java` line 395 (in
+  `getStackTargetCandidates`, the `catch (NullPointerException upstream)` of the Spider-Sense fix), "Forge's
+  SpellAbility.isValid reads root.getCardState() unguarded; ...". It was the only `//` or `/*` comment our patch adds to
+  Manabrew Java (the two other `//` hits are the card name "Bottomless Pool // Locker Room" in `CardStateFlagsTest`).
+  `engine/forge.patch` has comments (the 2HG CR notes, `AssimilateEffect` javadoc); Forge has no such rule, so they stay.
+- **What:** the comment line removed; no code changed. `engine/manabrew.patch` differs from engine1115-2hg's by that line
+  and the hunk's line counts; `engine/forge.patch` is unchanged.
+- **Source:** tree `tmp/eb1115b`, a clone of `tmp/wt-2hg/tmp/eb1115-2hg` (left untouched as the rollback source): branch
+  `nocomment-1115` = `2hg-1115` (`f995fab`) + `44de312`; its `forge/` branch `nocomment-1115` = `19931d89`. Patches
+  regenerated with `ENGINE_WORK_DIR=tmp/eb1115b ENGINE_BUILD_DIR=tmp/wt-nocomment/tmp/engine-build-nc bash
+  engine/make-patches.sh` (56 and 436 files, as before).
+- **Build:** through `tmp/slot.js`, `ENGINE_BUILD_DIR=tmp/wt-nocomment/tmp/engine-build-nc bash engine/build-images.sh
+  engine1115b`: `mtg-forge-node:engine1115b` `c298b620cfd8`, `mtg-relay:engine1115b` `8f10863542e6`; test image
+  `mtg-harness-test:engine1115b` `81c1bd1b6e81` (`--target java-builder`, same tree).
+- **Proof:** in `mtg-harness-test:engine1115b` on `tmp/eb1115b/forge-harness`, `engine/checks/harness-tests.sh` with no
+  class name: 17 of 17 classes, 165 checks (the same as engine1115-2hg). Live on test stack 5 (port 9449, beside the real
+  stack): `LIVE_STACK=5 LIVE_TIMEOUT=600 sh tools/live-check.sh engine1115b tests/live_2hg_check.js` 24 of 24, and
+  `LIVE_STACK=5 sh tools/live-check.sh engine1115b tests/live_events_check.js` 51 of 51. `tests/test_table_map.js` with
+  `MTG_MANABREW=tmp/eb1115b`: 615 checks pass.
+- **Deploy (when wanted):** TTS closed, no game running, from main after this branch is merged:
+  `MTG_MANABREW=tmp/eb1115b node tools/deploy.js --image engine1115b` (retags node and relay).
+- **Rollback:** `node tools/deploy.js --image engine1115-2hg`.
 
 ### 2026-11-14 engine1115-2hg: Two-Headed Giant Level 1 (built, not deployed)
 - **Problem:** the user asked for Two-Headed Giant (`docs/game-modes-spec.md` §5, decisions §12): partners share one
