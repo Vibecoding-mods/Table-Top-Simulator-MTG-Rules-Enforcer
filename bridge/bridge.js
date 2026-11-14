@@ -11412,10 +11412,13 @@ function checkRestored(seat) {
     if (back.length) {
       const line = `${andList(back)} ${back.length > 1 ? "are" : "is"} back in the game.`;
       chat(`[MTG] ${line}`);
+      // (the user, 2026-11-14: the table is told the rewind's two gaps whenever a player comes back)
+      chat(REJOIN_LIMITS);
       gameLogLine(line);
     }
   }
 }
+const REJOIN_LIMITS = "[MTG] Undo limits: counters put on cards after the undo point stay on them, and a permanent someone took control of for good is not given back.";
 
 // ───────────────────────── Debug channel (localhost; always on) ────────────────────────
 // Refuses browser requests (they carry an Origin header) and foreign Host headers (DNS rebinding): see debugServer.─
