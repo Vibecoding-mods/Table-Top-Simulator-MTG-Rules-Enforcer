@@ -7716,8 +7716,9 @@ end
 -- The snapshot is the locked objects that aren't engine cards (playmats, counters, zones, tiles, the setup tile, the
 -- effect and sound bundles), taken when engine mode goes on and again every 3 s (one scan of the objects then, never
 -- per frame); engine cards are left to the bridge's redraw. Unlocked objects are not put back (a player's own moves are
--- theirs). An object the flip destroyed (fell through the floor in the frame it moved) can't be brought back: the
--- per-frame check keeps that to the very first frame. Engine mode off: no guard, the table works like the original.
+-- theirs). An object the flip destroyed (fell through the floor in the frame it moved, as the templates parked under
+-- the table did live) is spawned again from the copy the snapshot keeps of each piece (getJSON once per GUID).
+-- Engine mode off: no guard, the table works like the original.
 -- (The user, 2026-11-14: "make the flip the table button not work when engine mode is on".)
 engineFlipGuard = { snap = nil, obj = nil, pos = nil, rot = nil, frame = 0, toldAt = nil, flips = 0, lost = 0 }
 do
@@ -7739,14 +7740,21 @@ do
     local t = Tables.getTableObject()
     if t ~= G.obj then G.obj, G.pos, G.rot = t, t ~= nil and t.getPosition() or nil, t ~= nil and t.getRotation() or nil end
     local snap = {}
+    G.json = G.json or {}
     for _, o in ipairs(getObjects()) do
-      if furniture(o) then snap[#snap + 1] = { o = o, pos = o.getPosition(), rot = o.getRotation() } end
+      if furniture(o) then
+        -- (each piece's copy once, by GUID: what a flip destroys is spawned again from it. Measured live 2026-11-14: a
+        -- flip destroyed the City's Blessing and Day templates parked under the table)
+        local guid = o.getGUID()
+        if G.json[guid] == nil then G.json[guid] = o.getJSON() end
+        snap[#snap + 1] = { o = o, guid = guid, pos = o.getPosition(), rot = o.getRotation() }
+      end
     end
     G.snap = snap
     G.frame = 0
   end
   function engineFlipGuardDrop()
-    G.snap, G.obj, G.pos, G.rot = nil, nil, nil, nil
+    G.snap, G.obj, G.pos, G.rot, G.json = nil, nil, nil, nil, nil
   end
   -- the table and the furniture back where the snapshot has them, still and locked
   function engineFlipGuardPutBack()
@@ -7759,7 +7767,14 @@ do
     end
     local lost = 0
     for _, s in ipairs(G.snap or {}) do
-      if s.o == nil or s.o.isDestroyed() then lost = lost + 1
+      if s.o == nil or s.o.isDestroyed() then
+        -- (destroyed by the flip: spawned again from its copy, same GUID while it is free, locked, where it stood)
+        lost = lost + 1
+        local json = G.json and G.json[s.guid]
+        if json ~= nil then
+          local ok, o = pcall(spawnObjectJSON, { json = json, position = s.pos, rotation = s.rot })
+          if ok and o ~= nil then s.o = o o.setLock(true) G.respawned = (G.respawned or 0) + 1 end
+        end
       else
         s.o.setLock(true)
         s.o.setVelocity(zero) s.o.setAngularVelocity(zero)

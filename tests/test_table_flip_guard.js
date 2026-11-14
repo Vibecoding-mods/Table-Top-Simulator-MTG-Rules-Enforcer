@@ -60,8 +60,9 @@ const r = simulate({ save, seated: ["Blue"], host: "Blue", steps: [
   q("return 'ok'", "settle", 40),
   at("after settle"),
   // a flip that destroys an object: it is counted lost, the rest goes back
-  q("__sim.flipDestroy = { [__g.getGUID()] = true } flipTable() return 'ok'", "flip lost", 2),
+  q("__gid, __gpos = __g.getGUID(), __g.getPosition() __sim.flipDestroy = { [__gid] = true } flipTable() return 'ok'", "flip lost", 2),
   at("after flip lost"),
+  q("local o = getObjectFromGUID(__gid) if o == nil or o.isDestroyed() then return 'gone' end local p = o.getPosition() return 'back' .. (o.getLock() and '/L' or '') .. ((math.abs(p.x - __gpos.x) + math.abs(p.y - __gpos.y) + math.abs(p.z - __gpos.z) < 0.01) and '/home' or '/moved')", "back"),
   // engine mode off: the table works like the original
   q("__sim.flipDestroy = nil setEngineMode(false) return 'ok'", "off", 30),
   q("for _, k in ipairs({ 'f', 'u', 'e' }) do local o = _G['__' .. k] __home[k] = { pos = o.getPosition(), rot = o.getRotation() } end __sent = {} return 'ok'", "rehome"),
@@ -86,6 +87,7 @@ ok("flip guard: still in place after the second pass", as.startsWith(TABLE_HOME)
 ok("flip guard: one message for one flip", !SAID.test(told(r, "settle")), told(r, "settle"));
 const al = valueOf(r, "after flip lost") || "";
 ok("flip guard: an object the flip destroyed is counted lost", / lost=1$/.test(al) && al.startsWith(TABLE_HOME) && / f=home\/L/.test(al), al);
+ok("flip guard: and is spawned again, same GUID, locked, where it stood", valueOf(r, "back") === "back/L/home", valueOf(r, "back"));
 ok("flip guard: a flip again within 3 s isn't told twice (one message, one redraw)", !SAID.test(told(r, "flip lost")) && !/hello:again,hello:again/.test(al), `${told(r, "flip lost")} ${al}`);
 const ao = valueOf(r, "after flip off") || "";
 ok("flip guard: engine off + flip puts nothing back", !ao.startsWith(TABLE_HOME) && / f=moved/.test(ao), ao);
