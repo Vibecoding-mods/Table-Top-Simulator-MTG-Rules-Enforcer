@@ -722,12 +722,19 @@ UI = {
 -- ───────── players ─────────
 local COLORS = { "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" }
 Player = setmetatable({}, { __index = function(t, color)
-  if color == "getPlayers" then return function() local out = {} for c in pairs(SIM.seated) do out[#out + 1] = t[c] end table.sort(out, function(a, b) return a.color < b.color end) return out end end
+  if color == "getPlayers" then return function() local out = {} for c in pairs(SIM.seated) do out[#out + 1] = t[c] end for c in pairs(SIM.present or {}) do if not SIM.seated[c] then out[#out + 1] = t[c] end end table.sort(out, function(a, b) return a.color < b.color end) return out end end
   if color == "getAvailableColors" then return function() return { "White", "Red", "Yellow", "Blue" } end end
   if color == "getColors" then return function() return COLORS end end
   if color == "Action" then return { PickUp = 0, Select = 1, FlipOver = 2, RotateIncrementalLeft = 3, RotateIncrementalRight = 4, Copy = 5, Paste = 6, Delete = 7, Group = 8, Randomize = 9, Cut = 10 } end
   local p = { color = color, seated = SIM.seated[color] == true, steam_name = SIM.seated[color] and ("Player" .. color) or "", host = color == SIM.host,
-    admin = color == SIM.host, promoted = false, team = "None", steam_id = "0" }
+    admin = color == SIM.host or (SIM.promoted or {})[color] == true, promoted = (SIM.promoted or {})[color] == true, team = "None", steam_id = "sim-" .. color }
+  -- (promote() toggles, like TTS (api.tabletopsimulator.com/player/instance: no parameters); an argument is ignored)
+  p.promote = function()
+    SIM.promoted = SIM.promoted or {}
+    local b = not SIM.promoted[color]
+    SIM.promoted[color] = b and true or nil
+    fx("Player.promote", color, tostring(b))
+  end
   p.getHandTransform = function(i)
     local h = SIM.hands[color] and SIM.hands[color][i or 1]
     if not h then return nil end
