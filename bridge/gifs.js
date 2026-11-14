@@ -231,5 +231,81 @@ function createGifs(opts = {}) {
   return { search, setKey, hasKey, state, NO_KEY };
 }
 
-module.exports = { createGifs, giphy, cleanWords, cleanTitle, cleanRating, cleanPage, mediaLink, viaProxy, restText,
-  PER_PAGE, RATINGS, DEFAULT_RATING, HOUR_LIMIT, CACHE_MS, WORDS_MAX };
+// ───────── favourites: each player's starred GIFs, kept on the host's PC (never in the save or the table script) ─────────
+// Starring needs no provider call: the table hands back an item it was given by a search, so favourites never spend the
+// hour's searches. Only the item's id, title, links and size are kept (no key: a link never holds it). Each link is
+// checked again as search answers are (a GIPHY media link, or our wsrv.nl still of one), so the file can't put another
+// host's link on the table. Who: the player's Steam ID, or "color:<colour>" when the table has none.
+const FAV_MAX = 48; // per player (6 pages of 8)
+const FAV_WHO_MAX = 500; // players kept; the one starred longest ago goes first
+const PROXY_LINK = /^https:\/\/wsrv\.nl\/\?url=(?:media\d?|i)\.giphy\.com\/[A-Za-z0-9/_.-]+&w=\d{1,4}&h=\d{1,4}&fit=inside&output=jpg$/;
+const stillLink = (u) => mediaLink(u, [".jpg"]) || (typeof u === "string" && PROXY_LINK.test(u) && !u.includes("..") ? u : null);
+// an item from the table (or the file) -> the item kept, or null
+function favItem(it) {
+  if (!it || typeof it !== "object" || typeof it.id !== "string" || !/^[A-Za-z0-9]{1,64}$/.test(it.id)) return null;
+  const mp4 = mediaLink(it.mp4, [".mp4"]), still = stillLink(it.still), thumb = stillLink(it.thumb) || still;
+  if (!mp4 || !still || !thumb) return null;
+  return { id: it.id, title: cleanTitle(it.title), mp4, still, thumb, w: num(it.w) || 1, h: num(it.h) || 1 };
+}
+// the key a player's list is kept under: a Steam ID (digits) when the table gave one, else their colour
+function favWho(steam, color) {
+  const s = String(steam ?? "");
+  return /^\d{5,20}$/.test(s) ? s : `color:${String(color ?? "").replace(/[^A-Za-z]/g, "").slice(0, 12)}`;
+}
+// opts: store { read() -> object|null, write(object) } (null: kept in memory only), log, max
+function createFavs(opts = {}) {
+  const log = opts.log || (() => {});
+  const max = Number(opts.max) > 0 ? Number(opts.max) : FAV_MAX;
+  let all = null; // who -> [item], newest first
+  function load() {
+    if (all) return all;
+    all = new Map();
+    let saved = null;
+    try { saved = opts.store ? opts.store.read() : null; } catch (e) { log(`gif favourites: can't read them (${(e && (e.code || e.name)) || "unreadable"})`); }
+    const lists = saved && typeof saved === "object" && saved.players && typeof saved.players === "object" ? saved.players : {};
+    for (const [who, list] of Object.entries(lists)) {
+      if (!Array.isArray(list)) continue;
+      const items = list.map(favItem).filter(Boolean).filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i).slice(0, max);
+      if (items.length) all.set(who, items);
+    }
+    return all;
+  }
+  function save() {
+    if (!opts.store) return;
+    try { opts.store.write({ version: 1, players: Object.fromEntries(all) }); } catch (e) { log(`gif favourites: can't save them (${(e && (e.code || e.name)) || "error"})`); }
+  }
+  const list = (who) => load().get(who) || [];
+  // { who, page } -> { items (that page), page, total, ids (every id, for the stars) }
+  function page(who, p) {
+    const l = list(who);
+    const last = Math.max(0, Math.ceil(l.length / PER_PAGE) - 1);
+    const pg = Math.min(last, Math.max(0, Math.floor(Number(p)) || 0));
+    return { items: l.slice(pg * PER_PAGE, pg * PER_PAGE + PER_PAGE), page: pg, total: l.length, ids: l.map((x) => x.id) };
+  }
+  // star (on) or unstar an item -> { ok, message?, full? } ; a new star goes first, the list never passes max
+  function star(who, item, on) {
+    const l = list(who).slice();
+    const id = item && typeof item.id === "string" ? item.id : "";
+    const at = l.findIndex((x) => x.id === id);
+    if (!on) {
+      if (at < 0) return { ok: true };
+      l.splice(at, 1);
+    } else {
+      if (at >= 0) return { ok: true };
+      const it = favItem(item);
+      if (!it) return { ok: false, message: "That GIF can't be kept as a favourite." };
+      if (l.length >= max) return { ok: false, full: true, message: `Your favourites are full (${max}): unstar one first.` };
+      l.unshift(it);
+    }
+    const m = load();
+    m.delete(who); // (re-added last: the Map's order is who starred most recently)
+    if (l.length) m.set(who, l);
+    while (m.size > FAV_WHO_MAX) m.delete(m.keys().next().value);
+    save();
+    return { ok: true };
+  }
+  return { page, star, list, MAX: max };
+}
+
+module.exports = { createGifs, createFavs, favItem, favWho, giphy, cleanWords, cleanTitle, cleanRating, cleanPage, mediaLink, viaProxy, restText,
+  PER_PAGE, RATINGS, DEFAULT_RATING, HOUR_LIMIT, CACHE_MS, WORDS_MAX, FAV_MAX };
