@@ -28,7 +28,7 @@ const FRAMES = (mark, frames) => lua(`local out = {}
       local l = data[c] and data[c].playmat and data[c].playmat.positionToLocal(p)
       local assets = {} for _, a in ipairs(o.UI.getCustomAssets() or {}) do assets[#assets + 1] = a.name .. "=" .. a.url end
       -- (what each asset name really shows on real TTS: its first link on this object, BLANK once it was given another)
-      local shown = {} for n, u in pairs(rawget(o, "__d").uiLoaded or {}) do shown[n] = u or "BLANK" end
+      local blank = rawget(o, "__d").uiBlank or {} local shown = {} for n, u in pairs(rawget(o, "__d").uiLoaded or {}) do shown[n] = (u and not blank[n]) and u or "BLANK" end
       local inv = rawget(o, "__d").invisibleTo or {}
       out[#out + 1] = { c = c, guid = o.getGUID(), x = p.x, z = p.z, ry = o.getRotation().y, sx = d.Transform and d.Transform.scaleX, sz = d.Transform and d.Transform.scaleZ,
         img = d.CustomImage and d.CustomImage.ImageURL, stretch = d.CustomImage and d.CustomImage.CustomTile and d.CustomImage.CustomTile.Stretch,
@@ -76,12 +76,12 @@ const SEATED = ["White", "Blue"];
     CLICK("Blue", "gifpick_White", "blue opens white's panel"), FRAMES("after blue's click"),
     CLICK("White", "gifpick_White", "white opens"), FRAMES("panel open"),
     lua('engineGifUiSearch(Player.White, "  happy dog ", "gifq_White") return "ok"', "panel search"), SENT("sent panel search"), FRAMES("searching"),
-    msg("gif_results", { color: "White", req: 2, first: false, q: "happy dog", page: 0, items: ITEMS, total: 30, error: null }, 4), FRAMES("results"),
+    msg("gif_results", { color: "White", req: 2, first: false, q: "happy dog", page: 0, items: ITEMS, total: 30, error: null }, 4), { frames: 30 }, FRAMES("results"),
     CLICK("Blue", "gifr2_White", "blue picks white's result"), FRAMES("after blue's pick"),
     CLICK("White", "gifmore_White", "more"), SENT("sent more"),
-    msg("gif_results", { color: "White", req: 3, first: false, q: "happy dog", page: 1, items: [ITEMS[1], ITEMS[2]], total: 30, error: null }, 4), FRAMES("page 2"),
+    msg("gif_results", { color: "White", req: 3, first: false, q: "happy dog", page: 1, items: [ITEMS[1], ITEMS[2]], total: 30, error: null }, 4), { frames: 30 }, FRAMES("page 2"),
     CLICK("White", "gifmore_White", "more again"),
-    msg("gif_results", { color: "White", req: 4, first: false, q: "happy dog", page: 2, items: [], total: null, error: "One GIF search at a time, please: try again in a moment." }, 4), FRAMES("more refused"),
+    msg("gif_results", { color: "White", req: 4, first: false, q: "happy dog", page: 2, items: [], total: null, error: "One GIF search at a time, please: try again in a moment." }, 4), { frames: 30 }, FRAMES("more refused"),
     CLICK("White", "gifr1_White", "white picks"), { frames: 10 }, FRAMES("after panel pick"), SENT("sent panel pick"),
     msg("gif_results", { color: "White", req: 5, first: false, q: "x", page: 0, items: [], total: 0, error: "GIF search is resting for 12 minutes." }, 4),
     CLICK("White", "gifclear_White", "clear"), { frames: 10 }, FRAMES("cleared"),
@@ -222,17 +222,17 @@ const SEATED = ["White", "Blue"];
     CLICK("White", "gifpick_White", "open"), SENT("sent open"),
     favs(1, 0, [], [], 0),
     lua('engineGifUiSearch(Player.White, "dogs", "gifq_White") return "ok"', "search"),
-    msg("gif_results", { color: "White", req: 1, first: false, q: "dogs", page: 0, items: ITEMS, total: 30, error: null }, 4), FRAMES("results"), SENT("sent search"),
+    msg("gif_results", { color: "White", req: 1, first: false, q: "dogs", page: 0, items: ITEMS, total: 30, error: null }, 4), { frames: 30 }, FRAMES("results"), SENT("sent search"),
     CLICK("Blue", "gifst2_White", "blue stars"), SENT("sent blue star"),
     CLICK("White", "gifst2_White", "star"), SENT("sent star"),
-    favs(2, 0, [ITEMS[1]], [ITEMS[1].id], 1), FRAMES("starred"),
+    favs(2, 0, [ITEMS[1]], [ITEMS[1].id], 1), { frames: 30 }, FRAMES("starred"),
     CLICK("White", "giftabf_White", "fav tab"), SENT("sent fav tab"),
-    favs(3, 0, [ITEMS[1]], [ITEMS[1].id], 1), FRAMES("fav tab shown"),
+    favs(3, 0, [ITEMS[1]], [ITEMS[1].id], 1), { frames: 30 }, FRAMES("fav tab shown"),
     CLICK("White", "gifst1_White", "unstar"), SENT("sent unstar"),
     favs(4, 0, [], [], 0), FRAMES("fav empty"),
-    favs(4, 0, FAVS.slice(0, 8), FAVS.map((x) => x.id), 9), FRAMES("nine"),
+    favs(4, 0, FAVS.slice(0, 8), FAVS.map((x) => x.id), 9), { frames: 30 }, FRAMES("nine"),
     CLICK("White", "gifmore_White", "fav more"), SENT("sent fav more"),
-    favs(5, 1, FAVS.slice(8), FAVS.map((x) => x.id), 9), FRAMES("fav page 2"),
+    favs(5, 1, FAVS.slice(8), FAVS.map((x) => x.id), 9), { frames: 30 }, FRAMES("fav page 2"),
     favs(3, 0, [ITEMS[0]], [ITEMS[0].id], 1), FRAMES("stale favs"),
     CLICK("White", "giftabs_White", "search tab"), SENT("sent search tab"), FRAMES("back to search"),
     CLICK("White", "giftabf_White", "fav tab again"), favs(6, 1, FAVS.slice(8), FAVS.map((x) => x.id), 9),
