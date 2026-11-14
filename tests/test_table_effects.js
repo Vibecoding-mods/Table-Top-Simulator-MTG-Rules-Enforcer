@@ -1399,7 +1399,10 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   ok("sound bundle: one trigger effect per engineSounds key, in order", rows.length === keys.length && rows.every((r, i) => r.i === i && r.name === keys[i].name),
     JSON.stringify({ rows: rows.length, keys: keys.length, first: rows.find((r, i) => r.name !== (keys[i] || {}).name) }));
   // (a link changed or added since the build: the bundle would play the old clip, or none; rebuild it)
-  ok("sound bundle: each trigger effect stands for its key's link today", rows.length === keys.length && rows.every((r, i) => r.link === keys[i].link),
+  // (only while the bundle is in use, engineFxBundle.sounds set: with it nil the table plays the links themselves,
+  // and the 2026-11-14 louder links left the unused bundle on the old clips)
+  const sndOn = /\nengineFxBundle = engineFxBundle or \{[^\n]*sounds = "/.test(lua_);
+  ok("sound bundle: each trigger effect stands for its key's link today (bundle in use)", !sndOn || (rows.length === keys.length && rows.every((r, i) => r.link === keys[i].link)),
     JSON.stringify(rows.filter((r, i) => r.link !== (keys[i] || {}).link).map((r) => r.name)));
   const ownerOf = {};
   for (const k of keys) if (ownerOf[k.link] === undefined) ownerOf[k.link] = k.name;
