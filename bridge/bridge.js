@@ -11302,7 +11302,8 @@ function onToolsPost(m) {
 
 // ───────── conceding and declaring the winner (Treachery, PLAN M4.6) ─────────
 // Forge plays a free-for-all; in Treachery the roles decide who wins, so players concede or the host declares the
-// winner. A concede is the engine's own directive: the player is out for good (the Lua side asks to confirm first).
+// winner. A concede is the engine's own directive: the player is out (the Lua side asks to confirm first) unless the
+// table rewinds to a point before it, which brings them back (engine1114-rejoin, checkRestored).
 function onConcede(color) {
   const seat = game?.seats.get(color);
   const gv = seat?.board?.state?.gameView;
@@ -11399,11 +11400,20 @@ function checkRestored(seat) {
     // (and the phases counted this turn and the turn order's last normal turn: phaseNumber, skippedTurns)
     game.phaseTrack = null; game.turnBase = null; game.turnDir = null;
     game.picked?.clear(); game.answers?.clear(); game.sourceShields = []; game.painTaps = []; game.declaredBlocks = null; game.owedCombat = null; game.lifePays = []; game.chosenSources = []; game.orderAnswer = null;
+    // (engine1114-rejoin: a player out at the rewind but in the game at the point it went back to plays again, a
+    // concession included; said in the chat and the log, once. Seen from noteOuts' record, so a player the bridge never
+    // saw go out isn't named.)
+    const back = (gv.players || []).filter((p) => (!p.status || p.status === "playing") && game.outOrder?.[p.id] != null).map((p) => nameOf(p.id));
     for (const p of gv.players || []) if (!p.status || p.status === "playing") { delete game.outOrder?.[p.id]; delete game.outWhere?.[p.id]; }
     // (the turn as the log's headers count it, each player's own: "White's turn 4", suite review 2026-10-27)
     // (whose turn and which step: Forge's turn number counts every player's turns, unlike the log's headers, and the
     // per-player count isn't wound back, suite review 2026-10-27)
     gameLogLine(`--- Rewound to ${nameOf(gv.activePlayerId)}'s turn (${rewindStep(gv.step)}) ---`);
+    if (back.length) {
+      const line = `${andList(back)} ${back.length > 1 ? "are" : "is"} back in the game.`;
+      chat(`[MTG] ${line}`);
+      gameLogLine(line);
+    }
   }
 }
 
