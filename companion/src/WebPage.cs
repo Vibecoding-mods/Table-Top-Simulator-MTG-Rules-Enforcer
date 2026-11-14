@@ -27,16 +27,17 @@ namespace MtgCompanion
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { background: var(--bg); }
-/* the five-colour backdrop: soft glows of white, blue, black, red and green mana on a near-black base */
+/* the five-colour backdrop: saturated glows of white, blue, black, red and green mana on a near-black base (the user
+   liked the colours and asked for them saturated, 2026-11-13) */
 body {
   margin: 0; min-height: 100vh; color: var(--text); font: 15px/1.5 'Segoe UI', system-ui, -apple-system, sans-serif;
   background-color: var(--bg);
   background-image:
-    radial-gradient(900px 620px at 0% 0%, rgba(242,233,204,.12), rgba(242,233,204,0) 62%),
-    radial-gradient(860px 620px at 100% 0%, rgba(79,149,224,.20), rgba(79,149,224,0) 62%),
-    radial-gradient(1000px 760px at 50% 50%, rgba(98,64,128,.17), rgba(98,64,128,0) 66%),
-    radial-gradient(860px 640px at 0% 100%, rgba(227,102,77,.18), rgba(227,102,77,0) 62%),
-    radial-gradient(860px 640px at 100% 100%, rgba(85,176,108,.18), rgba(85,176,108,0) 62%),
+    radial-gradient(900px 620px at 0% 0%, rgba(255,230,150,.30), rgba(255,230,150,0) 62%),
+    radial-gradient(860px 620px at 100% 0%, rgba(25,120,255,.42), rgba(25,120,255,0) 62%),
+    radial-gradient(1000px 760px at 50% 50%, rgba(130,40,200,.32), rgba(130,40,200,0) 66%),
+    radial-gradient(860px 640px at 0% 100%, rgba(255,55,25,.40), rgba(255,55,25,0) 62%),
+    radial-gradient(860px 640px at 100% 100%, rgba(20,200,70,.38), rgba(20,200,70,0) 62%),
     linear-gradient(160deg, #0e0e16, #060609);
   background-attachment: fixed;
 }
