@@ -1569,6 +1569,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   seatList.forEach((color, i) => game.seats.set(color, new Seat(color, ownDeck(color) || builtIn[i % builtIn.length])));
   // (a debug setup waits for its player's next game: one not in this game is dropped, not kept for a later one)
   for (const c of Object.keys(debugChoice)) if (!seatList.includes(c)) { chat(`[MTG] Debug "${debugChoice[c].name}" dropped: ${c} isn't in this game.`); delete debugChoice[c]; }
+  takePickedHands(seatList); // (a picked starting hand: debug tools, a game against the AI)
   const harmlessN = game.harmlessWanted.length, forgeN = forgeBotCount();
   chat(`[MTG] Setting up${std ? ` ${modeWords(mode, total)}` : ""}: ${seatList.join(", ")}${forgeN ? ` + ${forgeN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
   if (preset.length) chat(`[MTG] AI seats: ${aiSeatsText(preset)}.`);
@@ -7929,6 +7930,7 @@ function onPrompt(seat, prompt) {
   else if (type !== "chooseColor") seat.payingCost = null;
   const opts = (list) => list.map((o, i) => ({ id: String(o.id ?? i), label: o.label }));
   if (debugPrompt(seat, type, prompt, gv)) return;
+  if (handPrompt(seat, type, prompt, gv)) return;
 
   switch (type) {
     case "mulligan":
@@ -10561,6 +10563,9 @@ function onTTS(m) {
     case "debug":
       onDebug(m);
       break;
+    case "hand": // "mtg hand <name>, <name> ..." / "mtg hand off" (a picked starting hand, debug tools on)
+      onHandChat(m);
+      break;
     case "planechase":
       onPlanechase(m);
       break;
@@ -11338,7 +11343,166 @@ function setDebugTools(on) {
     chat(`[MTG] Debug tool "${f.debug.name}" cancelled: debug tools are off.`);
     endFix();
   }
+  if (!debugTools) dropPickedHands("debug tools are off");
   return { ok: true, message: `Debug tools ${debugTools ? "on" : "off"}.` };
+}
+
+// ───────── a picked starting hand ("mtg hand", the companion page's Starting hand; debug tools, games against the AI) ─────────
+// Up to HAND_MAX card names for a player's next game, while debug tools are on; that player must be the only person in
+// the game. Forge deals the opening hand itself and the harness takes no change at the keep-or-mulligan question
+// (awaitMulliganDecision reads only a mulligan_decision; applyState is a priority action), so the picked cards come at
+// the player's first priority with nothing on the stack (in turn 1, whoever's turn it is), as one debug fix: the
+// dealt hand is kept by itself; a picked card that was dealt stays (it is the deck's own); every other picked card is
+// added to the hand (createCard, as a scenario's), and for each one a dealt card goes to the bottom of the library, so
+// the hand keeps its size and the dealt cards left are the rest "at random from the deck". A picked card the deck has
+// but didn't deal is added too: the library is hidden from the bridge, so its own copy stays there. Stacking the library
+// before the deal needs an engine change (docs/companion-app-spec.md §10.3).
+const HAND_MAX = 7;
+const handChoice = {}; // colour -> { names: [Forge's names, as typed in order] }: set up in that colour's next game
+// the deck the bridge gives this colour in its next game, as onRoomUpdate picks it (a table deck checked with "mtg ready",
+// else "mtg deck"'s, else the first default; startGame numbers the defaults by seat, and a game against the AI has one
+// person): { name, source, cards (its library's names, the commanders apart) }, or null when it can't be read
+function nextDeckOf(color, deckId = deckChoice[color] || DEFAULT_DECKS[0]) {
+  try {
+    const d = readyDecks[color] ? engineDeckFromTable(readyDecks[color]) : loadPreset(deckId);
+    return { name: d.deckName, source: readyDecks[color] ? "table" : deckChoice[color] ? "preset" : "default", cards: (d.deck.cards || []).map((c) => c.identity?.name || c.name) };
+  } catch { return null; }
+}
+// picked names -> { fromDeck, added }: a name counts as the deck's while the deck has a copy left (two Mountains picked
+// from a deck of 14 are both its own)
+function handPlan(names, deckCards) {
+  const left = new Map();
+  for (const n of deckCards) left.set(n, (left.get(n) || 0) + 1);
+  const fromDeck = [], added = [];
+  for (const n of names) {
+    if (left.get(n) > 0) { left.set(n, left.get(n) - 1); fromDeck.push(n); } else added.push(n);
+  }
+  return { fromDeck, added };
+}
+// chat's text -> the names typed. Commas split them, but not inside a card's own name ("Neheb, the Worthy"): from each
+// piece, the longest run of pieces that is one card's name is taken. A semicolon always splits.
+function splitHandText(text) {
+  const out = [];
+  for (const part of String(text || "").split(";")) {
+    const bits = part.split(",").map((s) => s.trim());
+    for (let i = 0; i < bits.length;) {
+      let j = bits.length;
+      while (j > i + 1 && !forgeIndex()[normName(bits.slice(i, j).join(", "))]) j--;
+      out.push(bits.slice(i, j).join(", "));
+      i = j;
+    }
+  }
+  return out.filter(Boolean);
+}
+// the names typed -> { names } in Forge's spelling, or { error }
+function checkHandNames(list) {
+  const typed = (Array.isArray(list) ? list : []).map((s) => String(s ?? "").trim()).filter(Boolean);
+  if (!typed.length) return { error: "Name at least one card (Clear takes the picked hand away)." };
+  if (typed.length > HAND_MAX) return { error: `A hand is ${HAND_MAX} cards: name ${HAND_MAX} at most (that was ${typed.length}). Name fewer and the rest are dealt at random from the deck.` };
+  const unknown = typed.filter((n) => !forgeIndex()[normName(n)]);
+  if (unknown.length) return { error: `The engine has no card called ${unknown.map((n) => `"${n.slice(0, 60)}"`).join(", ")}.` };
+  return { names: typed.map((n) => forgeIndex()[normName(n)]) };
+}
+const listWords = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
+// what a picked hand will be, in a sentence: the cards, how many dealt at random, and the ones the deck hasn't got
+function handWords(color, names, deck) {
+  const plan = deck ? handPlan(names, deck.cards) : null;
+  const rest = HAND_MAX - names.length;
+  return `${names.join(", ")}${rest > 0 ? `, and ${rest} more dealt at random from the deck` : ""}.`
+    + (plan?.added.length ? ` Not in ${deck.name} (the deck ${color} plays), so added to the game: ${plan.added.join(", ")}.` : "")
+    + (plan && plan.fromDeck.length ? ` A deck card not dealt is added as an extra copy.` : "")
+    + (deck ? "" : " (The deck for that seat can't be read, so whether these are in it is told when the game starts.)");
+}
+const HAND_WHEN = "They come at the first priority, in turn 1 (the engine deals the opening hand itself and takes no change at the keep-or-mulligan question, so the dealt hand is kept by itself).";
+// m: { color, names } or { color, off: true } -> { ok, message }; a hand set or cleared is said to the whole table
+function setPickedHand(m) {
+  const color = TABLE_COLORS.find((c) => c.toLowerCase() === String(m?.color || "").toLowerCase());
+  if (!color) return { ok: false, message: `${String(m?.color || "That colour").slice(0, 20)} isn't a seat colour.` };
+  if (m.off) {
+    if (!handChoice[color]) return { ok: true, message: `No picked hand was waiting for ${color}.` };
+    delete handChoice[color];
+    chat(`[MTG] Picked hand for ${color} cleared: the next game deals as usual.`);
+    return { ok: true, message: `Picked hand for ${color} cleared.` };
+  }
+  if (!debugTools) return { ok: false, message: "Debug tools are off: the host switches them on first (companion page, Table tools)." };
+  // (the game set up or running now is the one known: its other people; the next game's are checked when it starts)
+  // (a game that is over, still on the table until mtg reset, counts for nothing)
+  const over = !game || game.over || game.closing || leadSeat()?.board?.state?.gameView?.gameOver;
+  const others = over ? [] : [...game.seats.keys()].filter((c) => c !== color);
+  if (others.length) return { ok: false, message: `${listWords(others)} ${others.length > 1 ? "are" : "is"} playing too: a picked hand is for games against the AI only.` };
+  if (debugChoice[color]) return { ok: false, message: `Debug "${debugChoice[color].name}" is waiting for ${color} and sets the hand itself: mtg debug off first.` };
+  const r = checkHandNames(m.names);
+  if (r.error) return { ok: false, message: r.error };
+  handChoice[color] = { names: r.names };
+  const words = handWords(color, r.names, nextDeckOf(color));
+  log(`picked hand for ${color}: ${r.names.join("; ")}`);
+  chat(`[MTG] Debug: ${color}'s next game (against the AI) starts with a picked hand: ${words} ${HAND_WHEN}`);
+  return { ok: true, message: `Picked hand for ${color}'s next game: ${words}` };
+}
+// "mtg hand <name>, <name> ..." / "mtg hand off" / "mtg hand" (what is waiting)
+function onHandChat(m) {
+  const text = String(m.text || "").trim();
+  if (text === "") {
+    const h = handChoice[m.color];
+    return chat(h ? `[MTG] Picked hand waiting for your next game: ${handWords(m.color, h.names, nextDeckOf(m.color))} (mtg hand off clears it.)`
+      : `[MTG] No picked hand. Debug tools on, against the AI:  mtg hand <card>, <card> ...  (up to ${HAND_MAX}; the rest dealt at random), mtg hand off.`, m.color);
+  }
+  const r = setPickedHand(text === "off" ? { color: m.color, off: true } : { color: m.color, names: splitHandText(text) });
+  if (!r.ok || text === "off") chat(`[MTG] ${r.message}`, m.color);
+}
+function dropPickedHands(why) {
+  const waiting = [...new Set([...Object.keys(handChoice), ...Object.keys(game?.handPick || {})])];
+  for (const c of Object.keys(handChoice)) delete handChoice[c];
+  if (game?.handPick) game.handPick = {};
+  if (waiting.length) chat(`[MTG] Picked hand${waiting.length > 1 ? "s" : ""} for ${listWords(waiting)} dropped: ${why}.`);
+}
+// (startGame) this game's players' picked hands: taken from handChoice into game.handPick, with the deck each plays;
+// dropped, and said, unless the game has one person and debug tools are on; one for a colour not in this game is
+// dropped too (said, as a debug setup is). A game the table didn't start (a test's autoplay) leaves them waiting.
+function takePickedHands(seatList) {
+  if (!game?.fromTable) return;
+  for (const c of Object.keys(handChoice)) if (!seatList.includes(c)) { chat(`[MTG] Picked hand for ${c} dropped: ${c} isn't in this game.`); delete handChoice[c]; }
+  for (const color of seatList) {
+    const h = handChoice[color];
+    if (!h) continue;
+    delete handChoice[color];
+    const others = seatList.filter((c) => c !== color);
+    const why = !debugTools ? "debug tools are off"
+      : others.length ? `${listWords(others)} ${others.length > 1 ? "are" : "is"} playing too, and a picked hand is for games against the AI only`
+        : debugChoice[color] ? `debug "${debugChoice[color].name}" sets ${poss(color)} hand itself` : null;
+    if (why) { chat(`[MTG] Picked hand for ${color} dropped: ${why}.`); continue; }
+    const deck = nextDeckOf(color, game.seats.get(color)?.deckId);
+    (game.handPick ??= {})[color] = h;
+    chat(`[MTG] ${poss(color)} picked hand: ${handWords(color, h.names, deck)} ${HAND_WHEN}`);
+  }
+}
+// The changes that turn the dealt hand into the picked one, as a debug fix's list (the table's form: players by colour).
+// Picked cards that were dealt stay; the others are added, after one dealt card each goes to the bottom of the library
+// (the last dealt ones). The hand ends as the dealt cards kept, in their order, then the added ones in the order picked.
+function handOps(names, color, pub) {
+  const slot = slotOfColor(color);
+  const left = ((pub.zones || []).find((z) => z.zone === "hand" && z.ownerId === slot)?.cards || []).filter((c) => c.id);
+  const add = [];
+  for (const n of names) {
+    const i = left.findIndex((c) => c.identity?.name === n);
+    if (i >= 0) left.splice(i, 1); else add.push(n);
+  }
+  const out = left.slice(Math.max(0, left.length - add.length)).map((c) => ({ op: "move", card: c.id, zone: "library", position: "bottom",
+    shown: `${poss(nameOf(slot))} dealt ${c.identity?.name || "card"}: to the bottom of the library` }));
+  for (const name of add) out.push({ op: "createCard", name, player: color, zone: "hand" });
+  return out;
+}
+// (onPrompt) a game with a picked hand: the opening hand is kept, and the player's first priority with nothing on the
+// stack, whoever's turn, makes the hand the picked one (a debug fix: against the AI it applies at once)
+function handPrompt(seat, type, prompt, gv) {
+  const h = game?.handPick?.[seat.color];
+  if (!h || !game.fromTable) return false;
+  if (type === "mulligan") { seat.respond(prompt.promptId, "mulligan", { type: "mulliganDecision", keep: true }); return true; }
+  if (type !== "chooseAction" || fixBusy(gv) || (gv.stack || []).length) return false;
+  delete game.handPick[seat.color];
+  if (!handOps(h.names, seat.color, gv).length) { chat(`[MTG] ${poss(seat.color)} picked hand was dealt as it is.`); return false; }
+  openFix(seat.color, gv, { name: "picked hand", tool: true, build: (pub) => handOps(h.names, seat.color, pub) });
+  return false;
 }
 
 // ───────── the companion page's table tools (GET/POST /tools on the debug port; companion/WebUi.cs /api/tools) ─────────
@@ -11356,6 +11520,12 @@ function toolsState() {
       players: game?.started ? Object.keys(game.slotColor).filter((s) => game.slotColor[s] && isPlaying(pub, s)).map((s) => ({ color: game.slotColor[s], name: nameOf(s) })) : [] },
     tools: Object.keys(DEBUG_TOOLS),
     gifs: gifs.state(), // GIF frames: whether a key is set (never the key)
+    // (the Starting hand box: each colour's next deck, its card names for the box to suggest, and the hand waiting)
+    hand: { max: HAND_MAX, seats: TABLE_COLORS.map((c) => {
+      const d = nextDeckOf(c), w = handChoice[c];
+      return { color: c, deck: d?.name ?? null, source: d?.source ?? null, cards: d ? [...new Set(d.cards)].sort() : [],
+        waiting: w ? w.names : null, added: w && d ? handPlan(w.names, d.cards).added : [] };
+    }) },
   };
 }
 // a POST /tools body (already JSON) -> { ok, message }; a success is also said to the table
@@ -11366,6 +11536,7 @@ function onToolsPost(m) {
   else if (m.kind === "debug-mode") return setDebugTools(m.on === true);
   else if (m.kind === "debug") r = runDebugTool(m);
   else if (m.kind === "gif-key") return onGifKey(m); // GIF frames: the host's provider key (bridge/gifs.js)
+  else if (m.kind === "hand") return setPickedHand({ color: m.color, names: m.names, off: m.clear === true });
   else return { ok: false, message: `Unknown kind "${String(m.kind || "").slice(0, 20)}".` };
   if (r.ok && m.kind === "ai-seat") chat(`[MTG] AI seat (companion page): ${r.message}`);
   return r;
@@ -11718,7 +11889,7 @@ if (require.main === module) {
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
-    parseDeckList, aiSeatDeck, setAiSeat, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
+    parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
     fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords,
     standardProblems, modeWords, loadPreset, STANDARD_DECKS, _gameMode: gameMode,

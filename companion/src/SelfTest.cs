@@ -235,6 +235,17 @@ namespace MtgCompanion
                 ran = c.WorkOnce(watch);
                 Check("wiring: no second carry-on: the next turn only watches", !ran && watched == before + 1 && c.PendingFrom == 0, ran + " / " + c.PendingFrom);
 
+                // after Stop everything the watcher pauses, but the TTS row still follows TTS (it stays open)
+                c.EverythingStopped = true;
+                c.TtsProbe = () => true;
+                before = watched;
+                ran = c.WorkOnce(watch);
+                Check("wiring: stopped: the watcher pauses, the TTS row says TTS runs", !ran && watched == before && c.Rows[Controller.StepTts].V.Light == Light.Green && c.Rows[Controller.StepTts].V.Text.StartsWith("Tabletop Simulator is running"), watched + " / " + c.Rows[Controller.StepTts].V);
+                c.TtsProbe = () => false;
+                c.WorkOnce(watch);
+                Check("wiring: stopped: TTS closed later: the row follows", watched == before && c.Rows[Controller.StepTts].V.Light == Light.Grey && c.Rows[Controller.StepTts].V.Text == "Tabletop Simulator isn't running.", c.Rows[Controller.StepTts].V);
+                c.EverythingStopped = false;
+
                 // a run already queued (the watcher's update install queues one from step 1) is kept, not replaced
                 var u = new Controller(Layout.Make(Mode.Friend, tmp), false, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state-u"), "x.exe");
                 u.OnlySteps = new HashSet<int> { 4 };
