@@ -830,7 +830,7 @@ end
 -- 2. Team life: in the gap between the partners' mats (1.8 wide; the marks boxes keep 1.04 out from the middle line),
 --    centred on the point between the two mats' centres, readable from the team's side: "TEAM", then the team's one
 --    life total (810.4) on a box in the team's colour.
--- 3. Commander damage, Commander games only: under it, "CMDR DMG", then one box per opposing commander in its owner's
+-- 3. Commander damage, Commander games only: under it, "CMDR", then one box per opposing commander in its owner's
 --    seat colour, "n/42": the team's damage from that commander (the bridge's cmdDamage, the team's total,
 --    teams.withTeamDamage; with partners one box per commander, from its cmdTip lines).
 -- Buttons on the team's first seat's playmat (a scripting zone, as the READY buttons: positionToLocal, the scale undone
@@ -843,9 +843,9 @@ local TL = {
   thick = 0.3501, y = 0.98, inset = 0.15, -- (the border lines: thickness, height, how far inside the mat zone's edge)
   tint = { { 0.25, 0.85, 0.55 }, { 0.8, 0.45, 1 } },
   box = { { 0.07, 0.34, 0.2, 0.95 }, { 0.32, 0.14, 0.42, 0.95 } },
-  w = 1.6, perWorld = 480, lift = 1.05, -- (the panel's width and height, world units; buttons at the READY buttons' height)
+  w = 1.75, perWorld = 480, lift = 1.05, -- (the panel's width and height, world units; buttons at the READY buttons' height)
   -- each element's depth along the gap and the gap after it (world units)
-  head = 0.5, life = 1.3, cmd = 0.8, gap = 0.08, gapGroup = 0.3, gapCmd = 0.12,
+  head = 0.7, life = 1.6, cmd = 1.0, gap = 0.08, gapGroup = 0.3, gapCmd = 0.12,
   seat = { White = { { 0.95, 0.95, 0.95, 0.95 }, { 0.1, 0.1, 0.1 } }, Red = { { 0.86, 0.1, 0.09, 0.95 }, { 1, 1, 1 } },
     Yellow = { { 0.9, 0.9, 0.17, 0.95 }, { 0.1, 0.1, 0.1 } }, Blue = { { 0.12, 0.53, 1, 0.95 }, { 1, 1, 1 } } },
   seats = { "White", "Red", "Yellow", "Blue" },
@@ -917,11 +917,11 @@ function TL.panel(m, side, k, byColor, cmdLimit)
     list[#list + 1] = { label = label, tip = tip, h = h, color = color, fcolor = fcolor, font = TL.font(label, TL.w, h, cap), gap = gapAfter }
   end
   local tint = TL.tint[k]
-  add("TEAM", "Team " .. words, TL.head, { 0, 0, 0, 0.7 }, tint, 230, TL.gap)
+  add("TEAM", "Team " .. words, TL.head, { 0, 0, 0, 0.7 }, tint, 340, TL.gap)
   add(life, "Team life: " .. words .. ". One total for both (810.4); either partner's counter shows it too. The team loses at 0.",
-    TL.life, TL.box[k], { 1, 1, 1 }, 520, TL.gapGroup)
+    TL.life, TL.box[k], { 1, 1, 1 }, 660, TL.gapGroup)
   if cmdLimit ~= nil then
-    add("CMDR DMG", "Commander damage to team " .. words .. ": the team loses at " .. cmdLimit .. " from one commander.", TL.head, { 0, 0, 0, 0.7 }, tint, 230, TL.gap)
+    add("CMDR", "Commander damage to team " .. words .. ": the team loses at " .. cmdLimit .. " from one commander.", TL.head, { 0, 0, 0, 0.7 }, tint, 340, TL.gap)
     for _, other in ipairs(m.teams.sides) do
       if other ~= side then
         for _, from in ipairs(other) do
@@ -931,7 +931,7 @@ function TL.panel(m, side, k, byColor, cmdLimit)
           if #lines == 0 then lines = { { n = tonumber((pl.cmdDamage or {})[from]) or 0 } } end
           for _, x in ipairs(lines) do
             add(tostring(x.n) .. "/" .. cmdLimit, (x.name and (x.name .. " (" .. owner .. ")") or owner) .. ": " .. x.n .. " of " .. cmdLimit .. " commander damage to team " .. words .. ".",
-              TL.cmd, look[1], look[2], 330, TL.gapCmd)
+              TL.cmd, look[1], look[2], 420, TL.gapCmd)
           end
         end
       end

@@ -70,8 +70,8 @@ const madeOn = (r, mark) => fxOf(r, mark).filter((l) => /createButton/.test(l) &
   ]);
   ok("2hg: no errors", !r.errors.length, r.errors.join(" | "));
   const p = valueOf(r, "panels");
-  ok("2hg: team life panel on each team's first mat, top to bottom", JSON.stringify(labels(p, "White")) === JSON.stringify(["TEAM", "80", "CMDR DMG", "0/42", "0/42"])
-    && JSON.stringify(labels(p, "Yellow")) === JSON.stringify(["TEAM", "80", "CMDR DMG", "5/42", "0/42"]) && !/Red:|Blue:/.test(p), p);
+  ok("2hg: team life panel on each team's first mat, top to bottom", JSON.stringify(labels(p, "White")) === JSON.stringify(["TEAM", "80", "CMDR", "0/42", "0/42"])
+    && JSON.stringify(labels(p, "Yellow")) === JSON.stringify(["TEAM", "80", "CMDR", "5/42", "0/42"]) && !/Red:|Blue:/.test(p), p);
   // between the partners' mats: the gap |x| < 0.9 (the marks boxes from 1.04), on the team's side past the mats' inner
   // edge (|z| > 5.03), clear of the life counters (|z| 2.62) and of the wood strip's buttons and the importer (x -47)
   const inGap = (list, sign) => list.length > 0 && list.every(([x, z]) => Math.abs(x) < 0.05 && sign * z > 5.5 && sign * z < 25.5);
@@ -87,14 +87,14 @@ const madeOn = (r, mark) => fxOf(r, mark).filter((l) => /createButton/.test(l) &
     && violet.includes("0.80,0.45,1.00 -37.75..-1.05 5.17..25.63") && violet.includes("0.80,0.45,1.00 1.05..37.75 5.17..25.63"), l);
   ok("2hg: a player's own line is kept", / #1$/.test(l), l);
   const p2 = valueOf(r, "panels 2");
-  ok("2hg: the panels follow life and commander damage", JSON.stringify(labels(p2, "White")) === JSON.stringify(["TEAM", "72", "CMDR DMG", "0/42", "3/42"])
-    && JSON.stringify(labels(p2, "Yellow")) === JSON.stringify(["TEAM", "80", "CMDR DMG", "9/42", "0/42"]), p2);
+  ok("2hg: the panels follow life and commander damage", JSON.stringify(labels(p2, "White")) === JSON.stringify(["TEAM", "72", "CMDR", "0/42", "3/42"])
+    && JSON.stringify(labels(p2, "Yellow")) === JSON.stringify(["TEAM", "80", "CMDR", "9/42", "0/42"]), p2);
   ok("2hg: a change edits the buttons in place", madeOn(r, "changed") === 0 && fxOf(r, "changed").some((x) => /editButton/.test(x) && /72/.test(x)), fxOf(r, "changed").filter((x) => /Button/.test(x)).join(" / "));
   ok("2hg: the lines are not set again for a number", !fxOf(r, "changed").some((x) => /setVectorLines/.test(x)), "");
   const pp = valueOf(r, "partners");
-  ok("2hg: partner commanders get a box each", JSON.stringify(labels(pp, "Yellow")) === JSON.stringify(["TEAM", "80", "CMDR DMG", "4/42", "9/42", "0/42"]) && inGap(spots(pp, "Yellow"), 1), pp);
+  ok("2hg: partner commanders get a box each", JSON.stringify(labels(pp, "Yellow")) === JSON.stringify(["TEAM", "80", "CMDR", "4/42", "9/42", "0/42"]) && inGap(spots(pp, "Yellow"), 1), pp);
   ok("2hg: a partner commander's box names it", valueOf(r, "partner tip") === "1", String(valueOf(r, "partner tip")));
-  ok("2hg: wiped buttons come back on the next board", JSON.stringify(labels(valueOf(r, "healed"), "White")) === JSON.stringify(["TEAM", "80", "CMDR DMG", "0/42", "0/42"])
+  ok("2hg: wiped buttons come back on the next board", JSON.stringify(labels(valueOf(r, "healed"), "White")) === JSON.stringify(["TEAM", "80", "CMDR", "0/42", "0/42"])
     && labels(valueOf(r, "healed"), "Yellow").length === 5, String(valueOf(r, "healed")));
   ok("2hg: the game-over board keeps the final numbers", labels(valueOf(r, "game over"), "White")[1] === "0", String(valueOf(r, "game over")));
   ok("2hg: gone after the game", valueOf(r, "cleared") === "none" && valueOf(r, "lines cleared") === "none #1", `${valueOf(r, "cleared")} ${valueOf(r, "lines cleared")}`);

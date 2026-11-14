@@ -439,7 +439,7 @@ What exists (details and proofs: `docs/engine-changes.md`, "2026-11-13 2hg"):
     change; a reloaded table drops a saved game's lines.
   - *Team life:* in the 1.8-wide gap between the partners' mats, centred between the two mats' centres (default teams:
     x 0, z ∓15.4), 1.6 wide, read from the team's side: "TEAM", then the team's life on a box in the team's colour.
-  - *Commander damage (Commander only):* under it, "CMDR DMG", then one box per opposing commander in its owner's seat
+  - *Commander damage (Commander only):* under it, "CMDR", then one box per opposing commander in its owner's seat
     colour, "n/42" (the team's total from that commander, as the bridge sends it; partners: one box each, from
     `cmdTip`). Each seat's own trackers still show the same team numbers.
   - Buttons on the team's first seat's playmat (as the READY buttons), edited in place on a number change; put back
