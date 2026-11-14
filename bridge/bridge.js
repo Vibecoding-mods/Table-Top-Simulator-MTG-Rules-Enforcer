@@ -8,6 +8,7 @@ const path = require("path");
 const { execFile } = require("child_process");
 const delta = require("./state-delta");
 const versions = require("./versions");
+const teams2hg = require("./teams"); // Two-Headed Giant (docs/game-modes-spec.md §5, Level 1)
 const home = require("./home"); // where the data and logs are (MTG_HOME, MTG_LOG_DIR; unset: the repo)
 
 const arg = (name, def) => {
@@ -1529,7 +1530,8 @@ const forgeBotCount = () => game.bots - (game.harmlessWanted || []).length;
 
 // fromTable: the group's table draws the game (default: games whose decks come from the table)
 // mode: "commander" | "standard" (MODES; the table's, sent with the start)
-function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode) {
+// teams: the table's Two-Headed Giant teams ({ White: 1, ... }, teams2hg.teamsOf), null for free-for-all; either mode
+function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode, teams = null) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
   const std = mode === "standard";
   // (a deck checked for the other mode is no deck for this one: checked again with Ready)
@@ -1543,6 +1545,8 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (!seatList.length) { chat("[MTG] Nobody is seated."); return; }
   // the table has a playmat per colour (TABLE_COLORS); a 5th player had no colour and no zones (5-8 players: PLAN M6)
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
+  const teamProblem = teams && teams2hg.teamsProblem(teams, total);
+  if (teamProblem) { chat(`[MTG] Not started: ${teamProblem}`); return; }
   const aiTable = aiSeats.filter((c) => readyFor(c, mode) && !preset.includes(c)).slice(0, bots - preset.length); // (empty seats' ready decks, in order: see below)
   // (a debug scenario with "planechase" turns it on for this game with its own planes, debugPlanechase)
   const dbgPlanes = fromTable ? debugPlanechase(seatList) : null;
@@ -1553,6 +1557,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   for (const n of pool?.names || []) cachedImage(n);
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
     friendly: friendlyCount(friendly), mode,
+    teams: teams || null, // (Two-Headed Giant: sent to the engine as gameConfig before StartGame, onRoomUpdate)
     // (Planechase: the planar pool, sent in the first seated player's deck, onRoomUpdate)
     planes: pool?.names || null, planeSeat: pool ? seatList[0] : null,
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
@@ -1573,6 +1578,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   const harmlessN = game.harmlessWanted.length, forgeN = forgeBotCount();
   chat(`[MTG] Setting up${std ? ` ${modeWords(mode, total)}` : ""}: ${seatList.join(", ")}${forgeN ? ` + ${forgeN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
   if (preset.length) chat(`[MTG] AI seats: ${aiSeatsText(preset)}.`);
+  if (teams) { const s = teams2hg.sides(teams); chat(`[MTG] Two-Headed Giant: ${teams2hg.teamWords(s[1])} vs ${teams2hg.teamWords(s[2])} (shared life, poison 15; each player takes their own turn, the team's back to back).`); }
   log(`setup: seats ${seatList.join(", ")}, bots ${bots}, relay ${RELAY}`);
 }
 
@@ -1636,7 +1642,12 @@ function onRoomUpdate(seat, room) {
   const ready = room.players.filter((p) => p.ready && p.connected).length;
   if (!game.startSent && room.status === "Lobby" && ready >= game.total) {
     game.startSent = true;
-    controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: clockwiseOrder(room) });
+    const order = clockwiseOrder(room);
+    // (Two-Headed Giant: the teams first, which the node keeps for the game it starts next, host.rs gameConfig)
+    if (game.teams) controllerOf(room, seats).send({ type: "BroadcastState", state: {
+      kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId: `tts-${Date.now()}-teams`, roomId: seat.roomId,
+      payload: teams2hg.gameConfig(game.teams, order, game.seatColors) } });
+    controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: order });
   }
 }
 
@@ -1664,6 +1675,7 @@ function clockwiseOrder(room) {
   const isForge = (c) => forge.some((f) => f.color === c);
   const free = [...TABLE_COLORS.filter((c) => !byColor[c] && !isForge(c)), ...TABLE_COLORS.filter((c) => !byColor[c] && isForge(c))];
   for (const p of others) if (!placed.has(p.username) && free.length) byColor[free.shift()] = p.username;
+  game.seatColors = TABLE_COLORS.filter((c) => byColor[c]); // (each seat's colour, in the seat order returned: Two-Headed Giant's gameConfig)
   if ((game.harmless || []).length || forge.length) game.colorOfUser = Object.fromEntries(Object.entries(byColor).map(([c, u]) => [u, c]));
   return TABLE_COLORS.filter((c) => byColor[c]).map((c) => byColor[c]);
 }
@@ -2714,13 +2726,26 @@ function privateTop(t, zone, slot, seats, views) {
 // look alone would have made the hand public.
 function revealedOf(p, seats, toCard) {
   const by = seats.length ? (seats[0].board.state.gameView.players || []).find((x) => x.id === p.id)?.controlledBy : null;
-  const others = seats.filter((s) => s.slot !== p.id && s.slot !== by);
+  // (nor p's partners in Two-Headed Giant: they see p's hand by the rules, 810.5, which shows it to nobody else)
+  const gvp = seats.length ? seats[0].board.state.gameView : null;
+  const mates = new Set(teams2hg.teamOf(p, gvp).map((q) => q.id));
+  const others = seats.filter((s) => s.slot !== p.id && s.slot !== by && !mates.has(s.slot));
   if (!others.length) return [];
   const sees = others.map((s) => new Set((zoneOf(s.board.state.gameView, "hand", p.id).cards || [])
     .filter((c) => c.visibility === "visible" && c.identity).map((c) => c.id)));
   return (zoneOf(others[0].board.state.gameView, "hand", p.id).cards || []).filter((c) => sees.every((ids) => ids.has(c.id)))
     // (face up, its plain back as in a hand: a double-faced card's back would be its other face)
     .map((c) => ({ ...toCard(c), b: DEFAULT_BACK }));
+}
+
+// Two-Headed Giant (810.5): p's hand for p's seated partner, as that partner's own view shows it (the engine shows a
+// partner's hand to their teammates only, forge-harness InteractiveSnapshotExtractor.sharesHandWith). -> { teamHand,
+// teamBy } for the table's partner stand-ins (engineTeamHands: look-only, in the partner's second hand zone), or {}.
+function teamHandOf(p, pub, seats, toCard) {
+  const mate = teams2hg.teamOf(p, pub).find((q) => q.id !== p.id && seats.some((s) => s.slot === q.id));
+  const seat = mate && seats.find((s) => s.slot === mate.id);
+  const cards = seat ? zoneOf(seat.board.state.gameView, "hand", p.id).cards.filter((c) => c.identity?.name && c.visibility !== "hidden") : [];
+  return cards.length ? { teamHand: cards.map((c) => ({ ...toCard(c), b: DEFAULT_BACK })), teamBy: seat.color } : {};
 }
 
 // Forge numbers turns across all players (turn 10 = your 5th in a 2-player game); count each player's own turns.
@@ -5607,7 +5632,8 @@ function sendTable() {
       ...playerMarks(p, pub),
       // (commander damage per attacking colour, cmdDamage the most from one commander, cmdTip each one's for the
       // tracker's tooltip: cmdDamageRow)
-      ...cmdDamageRow(p, pub, byId, views),
+      // (Two-Headed Giant: the team's damage from each commander, both partners' trackers alike)
+      ...cmdDamageRow(teams2hg.withTeamDamage(p, pub), pub, byId, views),
       // Commander tax per commander, in command-zone order (casts × 2).
       tax: Object.values(p.commanderCasts || {}).map((n) => 2 * (n || 0)),
       library: zoneOf(pub, "library", p.id).count,
@@ -5642,6 +5668,8 @@ function sendTable() {
     const ctl = p.controlledBy && p.controlledBy !== p.id && seats.find((s) => s.slot === p.controlledBy);
     const ctlHand = ctl ? zoneOf(ctl.board.state.gameView, "hand", p.id).cards.filter((c) => c.identity?.name) : [];
     if (ctlHand.length) { row.ctlHand = ctlHand.map((c) => ({ ...toCard(c), b: DEFAULT_BACK })); row.ctlBy = ctl.color; }
+    // (Two-Headed Giant: the hand as a seated partner's view shows it, look-only in that partner's second hand zone)
+    Object.assign(row, teamHandOf(p, pub, seats, toCard));
     return row;
   });
   playableEnded(playableNow, pub);
@@ -5693,6 +5721,7 @@ function sendTable() {
     winner: pub.winnerId ? game.slotColor[pub.winnerId] || nameOf(pub.winnerId) : null, players, stack, cards: statics,
     rewind, // restore points and the open vote (in the board update: a message of its own doubled the traffic)
     ...(planes.length || planar ? { planes, planar } : {}), // (Planechase: planarRow)
+    ...teams2hg.teamsField(pub, game.slotColor), // (Two-Headed Giant: the sides, the team's poison limit and who won)
     ...(game.fix ? { fix: fixState() } : {}), // (a manual fix under way, PLAN M7)
   };
   // An update identical to the last one costs TTS a decode and a redraw for nothing (and feeds its GC pauses).
@@ -5838,7 +5867,9 @@ function gameEndWords(gv) {
     .map((p) => nameOf(p.id)).filter((n) => !said.has(n));
   const lost = [lossReasons(gv), decked.length ? `${andList(decked)} drew from an empty library` : null,
     conceded.length ? `${andList(conceded)} conceded` : null, other.length ? `${andList(other)} lost the game` : null].filter(Boolean).join(", ") || null;
-  const won = gv?.winnerId ? `${nameOf(gv.winnerId)} wins` : null;
+  // (Two-Headed Giant: the winning team, "White + Red win")
+  const team = gv?.winnerId ? teams2hg.teamsField(gv, game?.slotColor || {}).teams?.won : null;
+  const won = team ? teams2hg.teamWinWords(team, (c) => nameOf((game && slotOfColor(c)) || c)) : gv?.winnerId ? `${nameOf(gv.winnerId)} wins` : null;
   if (lost) return won ? `${lost}. ${won}` : lost;
   // (a draw only when the engine says the game is over: a gameOver question with a board still playing tells nothing)
   return won || (gv?.gameOver ? "a draw" : null);
@@ -5973,8 +6004,13 @@ function playerMarks(p, pub) {
   // (the life gained and lost this turn, for the life counter's hover text; Forge sends each only above 0)
   const life = [positive(p.lifeGainedThisTurn) ? `Gained ${p.lifeGainedThisTurn} life this turn` : "",
     positive(p.lifeLostThisTurn) ? `Lost ${p.lifeLostThisTurn} life this turn` : ""].filter(Boolean);
+  // (Two-Headed Giant: the life total is the team's, "Team life: White + Red")
+  const teamLife = teams2hg.teamLifeTip(p, pub, game?.slotColor || {});
+  if (teamLife) life.unshift(teamLife);
   if (life.length) out.lifeTip = life.join("\n");
   for (const m of PLAYER_MARKS) if (m.row && markShown(values[m.key])) out[m.row] = values[m.key];
+  // (Two-Headed Giant: the team's poison out of its limit, POISON 3/15)
+  if (out.allMarks && pub?.teamRules) out.allMarks = out.allMarks.map((l) => teams2hg.poisonLabel(l, pub));
   return out;
 }
 // Every mark under a player's life total, one row each: `read` takes its value from Forge's player (p) and the game
@@ -10428,7 +10464,7 @@ function onTTS(m) {
       noteStamp(m);
       warnIfOutOfStep();
       const go = () => {
-        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m));
+        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), teams2hg.teamsOf(m.teams));
         if (game && m.autoplay) game.autoplay = true;
       };
       // the table's Start button (autoReset): a game left over from before is reset first, and a room that is still
@@ -11601,7 +11637,9 @@ function onConcede(color) {
   if (!isPlaying(gv, seat.slot)) return chat("[MTG] You are already out of the game.", color);
   log(`${color} concedes`);
   seat.directive({ type: "concede" });
-  chat(`[MTG] ${color} conceded.`);
+  // (Two-Headed Giant: a player concedes for the team, 810.8b; the engine takes the partner out too)
+  const mates = teams2hg.teamOf(gv.players.find((p) => p.id === seat.slot), gv).filter((p) => p.id !== seat.slot).map((p) => game.slotColor[p.id] || nameOf(p.id));
+  chat(mates.length ? `[MTG] ${color} conceded for the team (${teams2hg.teamWords([color, ...mates])}).` : `[MTG] ${color} conceded.`);
 }
 // the host names the winner: every other player at the table concedes. AI seats can't be conceded from here.
 function onWinner(color, by) {

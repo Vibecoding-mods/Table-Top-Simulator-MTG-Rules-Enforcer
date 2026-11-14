@@ -1,3 +1,162 @@
+diff --git a/forge-ai/src/main/java/forge/ai/AiBlockController.java b/forge-ai/src/main/java/forge/ai/AiBlockController.java
+index eb732342..3974b49b 100644
+--- a/forge-ai/src/main/java/forge/ai/AiBlockController.java
++++ b/forge-ai/src/main/java/forge/ai/AiBlockController.java
+@@ -142,7 +142,9 @@ public class AiBlockController {
+ 
+         // If I don't have any planeswalkers then sorting doesn't really matter
+         if (defenders.size() == 1 || !attackingCmd.isEmpty()) {
+-            final CardCollection attackers = combat.getAttackersOf(defenders.get(0));
++            // CR 805.10d: with shared team life, the creatures attacking either player of the team
++            final CardCollection attackers = ai.getGame().getRules().hasSharedTeamLife()
++                    ? ComputerUtilCombat.attackersOfTeam(ai, combat) : combat.getAttackersOf(defenders.get(0));
+             // Begin with the attackers that pose the biggest threat
+             ComputerUtilCard.sortByEvaluateCreature(attackers);
+             CardLists.sortByPowerDesc(attackers);
+@@ -176,11 +178,12 @@ public class AiBlockController {
+                 // Begin with the attackers that pose the biggest threat
+                 CardLists.sortByPowerDesc(ccAttackers);
+                 sortedAttackers.addAll(ccAttackers);
+-            } else if (defender instanceof Player && defender.equals(ai)) {
+-                firstAttacker = combat.getAttackersOf(defender);
+-                CardLists.sortByPowerDesc(firstAttacker);
++            } else if (defender instanceof Player p && ai.sharedLifeTeam().contains(p)) {
++                // CR 805.10d: with shared team life, a teammate's attackers threaten this player's life too
++                firstAttacker.addAll(combat.getAttackersOf(defender));
+             }
+         }
++        CardLists.sortByPowerDesc(firstAttacker);
+ 
+         if (ComputerUtilCombat.lifeInDanger(ai, combat)) {
+             // add creatures attacking the Player to the front of the list
+diff --git a/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java b/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
+index 1dfd5d98..24ff4930 100644
+--- a/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
++++ b/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
+@@ -298,29 +298,45 @@ public class ComputerUtilCombat {
+         int damage = 0;
+ 
+         if (ai.canLoseLife()) {
+-            final List<Card> attackers = combat.getAttackersOf(ai);
+-            final List<Card> unblocked = Lists.newArrayList();
+-
+-            for (final Card attacker : attackers) {
+-                final List<Card> blockers = combat.getBlockers(attacker);
+-
+-                if (blockers.size() == 0
+-                        || StaticAbilityAssignCombatDamageAsUnblocked.assignCombatDamageAsUnblocked(attacker)) {
+-                    unblocked.add(attacker);
+-                } else if (attacker.hasKeyword(Keyword.TRAMPLE) && !attacker.hasKeyword(Keyword.INFECT)) {
+-                    int dmgAfterShielding = getAttack(attacker) - totalShieldDamage(attacker, blockers);
+-                    if (dmgAfterShielding > 0) {
+-                        damage += dmgAfterShielding;
+-                    }
+-                }
++            // CR 810.9: with shared team life, damage to a teammate comes off this player's life too
++            for (final Player attacked : ai.sharedLifeTeam()) {
++                damage += combatDamageTo(attacked, combat);
+             }
+-
+-            damage += sumDamageIfUnblocked(unblocked, ai);
+         }
+ 
+         return ai.getLife() - damage;
+     }
+ 
++    private static int combatDamageTo(final Player attacked, final Combat combat) {
++        int damage = 0;
++        final List<Card> unblocked = Lists.newArrayList();
++
++        for (final Card attacker : combat.getAttackersOf(attacked)) {
++            final List<Card> blockers = combat.getBlockers(attacker);
++
++            if (blockers.size() == 0
++                    || StaticAbilityAssignCombatDamageAsUnblocked.assignCombatDamageAsUnblocked(attacker)) {
++                unblocked.add(attacker);
++            } else if (attacker.hasKeyword(Keyword.TRAMPLE) && !attacker.hasKeyword(Keyword.INFECT)) {
++                int dmgAfterShielding = getAttack(attacker) - totalShieldDamage(attacker, blockers);
++                if (dmgAfterShielding > 0) {
++                    damage += dmgAfterShielding;
++                }
++            }
++        }
++
++        return damage + sumDamageIfUnblocked(unblocked, attacked);
++    }
++
++    // CR 805.10d, 810.9: with shared team life, the creatures attacking any player of this player's team
++    public static CardCollection attackersOfTeam(final Player ai, final Combat combat) {
++        final CardCollection attackers = new CardCollection();
++        for (final Player p : ai.sharedLifeTeam()) {
++            attackers.addAll(combat.getAttackersOf(p));
++        }
++        return attackers;
++    }
++
+     // calculates the amount of poison counters after the attack
+     /**
+      * <p>
+@@ -332,11 +348,18 @@ public class ComputerUtilCombat {
+      * @return a int.
+      */
+     public static int resultingPoison(final Player ai, final Combat combat) {
+-        // ai can't get poison counters, so the value can't change
+-        if (!ai.canReceiveCounters(CounterEnumType.POISON)) {
+-            return ai.getPoisonCounters();
++        int poison = 0;
++        // CR 810.10: with shared team life, poison given to a teammate is this player's too
++        for (final Player attacked : ai.sharedLifeTeam()) {
++            // a player who can't get poison counters adds none
++            if (attacked.canReceiveCounters(CounterEnumType.POISON)) {
++                poison += combatPoisonTo(attacked, combat);
++            }
+         }
++        return ai.getPoisonCounters() + poison;
++    }
+ 
++    private static int combatPoisonTo(final Player ai, final Combat combat) {
+         int poison = 0;
+ 
+         final List<Card> attackers = combat.getAttackersOf(ai);
+@@ -361,15 +384,16 @@ public class ComputerUtilCombat {
+ 
+         poison += sumPoisonIfUnblocked(unblocked, ai);
+ 
+-        return ai.getPoisonCounters() + poison;
++        return poison;
+     }
+ 
+     public static List<Card> getLifeThreateningCommanders(final Player ai, final Combat combat) {
+         List<Card> res = Lists.newArrayList();
++        final int toLose = ai.getGame().getRules().getCommanderDamageToLose();
+         for (Card c : combat.getAttackers()) {
+-            if (c.isCommander() && combat.isAttacking(c, ai)) {
+-                int currentCommanderDamage = ai.getCommanderDamage(c);
+-                if (damageIfUnblocked(c, ai, combat, false) + currentCommanderDamage >= 21) {
++            for (final Player attacked : ai.sharedLifeTeam()) {
++                if (c.isCommander() && combat.isAttacking(c, attacked)
++                        && damageIfUnblocked(c, attacked, combat, false) + ai.getTeamCommanderDamage(c) >= toLose) {
+                     res.add(c);
+                 }
+             }
+@@ -408,7 +432,7 @@ public class ComputerUtilCombat {
+         }
+ 
+         // check for creatures that must be blocked
+-        final List<Card> attackers = combat.getAttackersOf(ai);
++        final List<Card> attackers = attackersOfTeam(ai, combat);
+ 
+         final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
+ 
+@@ -474,7 +498,7 @@ public class ComputerUtilCombat {
+         final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
+ 
+         // check for creatures that must be blocked
+-        final List<Card> attackers = combat.getAttackersOf(ai);
++        final List<Card> attackers = attackersOfTeam(ai, combat);
+ 
+         for (final Card attacker : attackers) {
+             final List<Card> blockers = combat.getBlockers(attacker);
 diff --git a/forge-ai/src/main/java/forge/ai/SpellApiToAi.java b/forge-ai/src/main/java/forge/ai/SpellApiToAi.java
 index 7b6c673c..c4a93da8 100644
 --- a/forge-ai/src/main/java/forge/ai/SpellApiToAi.java
@@ -98,6 +257,86 @@ index 8d204538..298cc9f1 100644
                  if (c.getOwner().equals(p)) {
                      planesLeavingGame.add(c);
                      planarController.removeCurrentPlane(c);
+diff --git a/forge-game/src/main/java/forge/game/GameAction.java b/forge-game/src/main/java/forge/game/GameAction.java
+index e6cbe012..7d444186 100644
+--- a/forge-game/src/main/java/forge/game/GameAction.java
++++ b/forge-game/src/main/java/forge/game/GameAction.java
+@@ -1988,7 +1988,8 @@ public class GameAction {
+             // then the rest have lost!
+             reason = GameEndReason.WinsGameSpellEffect;
+             for (Player pl : allPlayers) {
+-                if (pl.equals(p)) {
++                // CR 810.8a: with shared team life a player's win is the team's
++                if (pl.equals(p) || game.getRules().hasSharedTeamLife() && !pl.isOpponentOf(p)) {
+                     continue;
+                 }
+ 
+@@ -2015,6 +2016,19 @@ public class GameAction {
+             }
+         }
+ 
++        // CR 810.8a, 810.8b: with shared team life a team loses together, a concession included
++        if (losers != null && game.getRules().hasSharedTeamLife()) {
++            for (Player p : Lists.newArrayList(losers)) {
++                for (Player mate : p.getTeamMates(false)) {
++                    if (!mate.isInGame() || losers.contains(mate)) {
++                        continue;
++                    }
++                    mate.loseWithTeammate(p);
++                    losers.add(mate);
++                }
++            }
++        }
++
+         if (losers != null) {
+             for (Player p : losers) {
+                 game.onPlayerLost(p);
+@@ -2471,7 +2485,7 @@ public class GameAction {
+         if (!powerPlayers.isEmpty()) {
+             List<Player> players = Lists.newArrayList(powerPlayers);
+             Collections.shuffle(players, MyRandom.getRandom());
+-            return players.get(0);
++            return game.getRules().hasSharedTeamLife() ? teamLead(players.get(0)) : players.get(0);
+         }
+ 
+         boolean isFirstGame = lastGameOutcome == null;
+@@ -2499,9 +2513,36 @@ public class GameAction {
+             }
+         }
+         goesFirst = goesFirst.getController().chooseStartingPlayer(isFirstGame);
++        if (game.getRules().hasSharedTeamLife()) {
++            goesFirst = teamLead(goesFirst);
++        }
+         return goesFirst;
+     }
+ 
++    // CR 810.6: the team goes first; with shared team life its first seat in turn order starts, so the team's turns
++    // come one after the other
++    public Player teamLead(final Player p) {
++        Player lead = p;
++        for (int i = 0; i < game.getPlayers().size(); i++) {
++            Player before = playerBefore(lead);
++            if (before == p || before.isOpponentOf(lead)) {
++                break;
++            }
++            lead = before;
++        }
++        return lead;
++    }
++
++    private Player playerBefore(final Player p) {
++        Player prev = p;
++        for (Player q : game.getPlayers()) {
++            if (game.getNextPlayerAfter(q) == p) {
++                prev = q;
++            }
++        }
++        return prev;
++    }
++
+     private void runPreOpeningHandActions(final Player first) {
+         Player takesAction = first;
+         do {
 diff --git a/forge-game/src/main/java/forge/game/GameActionUtil.java b/forge-game/src/main/java/forge/game/GameActionUtil.java
 index 2411340d..76985e46 100644
 --- a/forge-game/src/main/java/forge/game/GameActionUtil.java
@@ -111,6 +350,41 @@ index 2411340d..76985e46 100644
  
                          alternatives.add(beamSA);
                      } else if (keyword.startsWith("Flashback")) {
+diff --git a/forge-game/src/main/java/forge/game/GameRules.java b/forge-game/src/main/java/forge/game/GameRules.java
+index 2a2d5583..660b7060 100644
+--- a/forge-game/src/main/java/forge/game/GameRules.java
++++ b/forge-game/src/main/java/forge/game/GameRules.java
+@@ -8,6 +8,9 @@ public class GameRules {
+     private boolean manaBurn;
+     private boolean orderCombatants;
+     private int poisonCountersToLose = 10; // is commonly 10, but turns into 15 for 2HG
++    private int commanderDamageToLose = 21;
++    // CR 810.4, 810.9: teammates share one life total and one poison count (Two-Headed Giant)
++    private boolean sharedTeamLife = false;
+     private int gamesPerMatch = 3;
+     private int gamesToWinMatch = 2;
+     private boolean playForAnte = false;
+@@ -61,6 +64,20 @@ public class GameRules {
+         this.poisonCountersToLose = amount;
+     }
+ 
++    public int getCommanderDamageToLose() {
++        return commanderDamageToLose;
++    }
++    public void setCommanderDamageToLose(final int amount) {
++        this.commanderDamageToLose = amount;
++    }
++
++    public boolean hasSharedTeamLife() {
++        return sharedTeamLife;
++    }
++    public void setSharedTeamLife(final boolean shared) {
++        this.sharedTeamLife = shared;
++    }
++
+     public int getGamesPerMatch() {
+         return gamesPerMatch;
+     }
 diff --git a/forge-game/src/main/java/forge/game/GameSnapshot.java b/forge-game/src/main/java/forge/game/GameSnapshot.java
 index c7208809..e3fd8f03 100644
 --- a/forge-game/src/main/java/forge/game/GameSnapshot.java
@@ -361,6 +635,21 @@ index 5d0373f5..ebc9b1a7 100644
      PETAL("PETAL", 255, 162, 216, CounterAiCategory.Positive),
  
      PETRIFICATION("PETRI", 185, 201, 208, CounterAiCategory.Neutral),
+diff --git a/forge-game/src/main/java/forge/game/combat/CombatUtil.java b/forge-game/src/main/java/forge/game/combat/CombatUtil.java
+index a95828ff..11f7e717 100644
+--- a/forge-game/src/main/java/forge/game/combat/CombatUtil.java
++++ b/forge-game/src/main/java/forge/game/combat/CombatUtil.java
+@@ -525,7 +525,9 @@ public class CombatUtil {
+ 
+             // Rule 802.4a: A player can block only creatures attacking him/her or a planeswalker he/she controls
+             Player attacked = combat.getDefendingPlayerRelatedTo(attacker);
+-            if (attacked != null && attacked != defendingPlayer) {
++            // CR 805.10d: with shared team life a defender may block a creature attacking a teammate
++            if (attacked != null && attacked != defendingPlayer
++                    && !(defendingPlayer != null && defendingPlayer.getGame().getRules().hasSharedTeamLife() && !attacked.isOpponentOf(defendingPlayer))) {
+                 return false;
+             }
+         }
 diff --git a/forge-game/src/main/java/forge/game/keyword/KeywordWithCost.java b/forge-game/src/main/java/forge/game/keyword/KeywordWithCost.java
 index 58a41b9d..d7d011e6 100644
 --- a/forge-game/src/main/java/forge/game/keyword/KeywordWithCost.java
@@ -382,7 +671,7 @@ index 58a41b9d..d7d011e6 100644
      protected String formatReminderText(String reminderText) {
          // some reminder does not contain cost
 diff --git a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
-index 4a3a94df..5dc64ece 100644
+index 4a3a94df..33871e93 100644
 --- a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 +++ b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 @@ -186,6 +186,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
@@ -395,7 +684,67 @@ index 4a3a94df..5dc64ece 100644
  
                  final int lands = CardLists.count(playerTurn.getLandsInPlay(), CardPredicates.UNTAPPED);
                  playerTurn.setNumPowerSurgeLands(lands);
-@@ -1129,6 +1132,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -216,10 +219,29 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+         game.fireEvent(new GameEventTurnPhase(playerTurn, phase, phaseType));
+     }
+ 
++    // CR 103.8b: in Two-Headed Giant the team that plays first skips the draw step of its first turn; the team's
++    // players take their turns one after the other, so each skips the draw of its own first turn. Extra turns are left
++    // out of the count (an extra turn on turn 1 moves the partner's first turn to turn 3); the turn number and the extra
++    // turns played are both put back by a rewind
++    private boolean isStartingTeamsFirstDraw() {
++        if (!game.getRules().hasSharedTeamLife() || playerTurn.isExtraTurn()) {
++            return false;
++        }
++        final Player first = game.getStartingPlayer();
++        if (first == null || first.isOpponentOf(playerTurn)) {
++            return false;
++        }
++        int extraTurns = 0;
++        for (final Player p : game.getRegisteredPlayers()) {
++            extraTurns += p.getExtraTurnsPlayed();
++        }
++        return turn - extraTurns <= first.getYourTeam().size();
++    }
++
+     private boolean isSkippingPhase(final PhaseType phase) {
+         switch (phase) {
+             case DRAW:
+-                return turn == 1 && game.getPlayers().size() == 2;
++                return turn == 1 && game.getPlayers().size() == 2 || isStartingTeamsFirstDraw();
+ 
+             case COMBAT_BEGIN:
+             case COMBAT_DECLARE_ATTACKERS:
+@@ -653,6 +675,19 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+         game.fireEvent(new GameEventCombatChanged());
+     }
+ 
++    // CR 805.10d: with shared team life a defender declares blockers when a teammate is attacked too
++    private boolean isTeammateAttacked(final Player p) {
++        if (!game.getRules().hasSharedTeamLife()) {
++            return false;
++        }
++        for (final Player mate : p.getTeamMates(false)) {
++            if (combat.isPlayerAttacked(mate)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
+     private void declareBlockersTurnBasedAction() {
+         Player p = playerTurn;
+ 
+@@ -660,7 +695,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+             p = game.getNextPlayerAfter(p);
+             // Apply Odric's effect here
+             Player whoDeclaresBlockers = Objects.requireNonNullElse(p.getDeclaresBlockers(), p);
+-            if (combat.isPlayerAttacked(p)) {
++            if (combat.isPlayerAttacked(p) || isTeammateAttacked(p)) {
+                 if (CombatUtil.canBlock(p, combat)) {
+                     // Replacement effects (for Camouflage)
+                     final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(p);
+@@ -1129,6 +1164,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
          if (DEBUG_PHASES) {
              System.out.println(TextUtil.concatWithSpace(playerTurn.toString(),TextUtil.addSuffix(phase.toString(),":"), pPlayerPriority.toString(),"is active, previous was", nextPlayer.toString()));
          }
@@ -406,7 +755,7 @@ index 4a3a94df..5dc64ece 100644
              if (game.getStack().isEmpty()) {
                  if (playerTurn.hasLost()) {
 diff --git a/forge-game/src/main/java/forge/game/player/Player.java b/forge-game/src/main/java/forge/game/player/Player.java
-index 4cbb6deb..3b00e9cc 100644
+index 4cbb6deb..fc4a21d5 100644
 --- a/forge-game/src/main/java/forge/game/player/Player.java
 +++ b/forge-game/src/main/java/forge/game/player/Player.java
 @@ -107,6 +107,7 @@ public class Player extends GameEntity implements Comparable<Player> {
@@ -417,7 +766,105 @@ index 4cbb6deb..3b00e9cc 100644
      private int committedCrimeThisTurn;
      private int numFlipsThisTurn;
      private int numRollsThisTurn;
-@@ -1101,6 +1102,16 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -467,6 +468,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+         int oldLife = life;
+         life += lifeGain;
+         view.updateLife(this);
++        shareLifeWithTeam();
+         boolean firstGain = lifeGainedTimesThisTurn == 0;
+         lifeGainedThisTurn += lifeGain;
+         lifeGainedTimesThisTurn++;
+@@ -488,7 +490,41 @@ public class Player extends GameEntity implements Comparable<Player> {
+     }
+ 
+     public final boolean canGainLife() {
+-        return isInGame() && !StaticAbilityCantGainLosePayLife.anyCantGainLife(this);
++        if (!isInGame()) {
++            return false;
++        }
++        if (!game.getRules().hasSharedTeamLife()) {
++            return !StaticAbilityCantGainLosePayLife.anyCantGainLife(this);
++        }
++        // CR 810.9g: can't gain life covers the whole team
++        for (final Player p : sharedLifeTeam()) {
++            if (StaticAbilityCantGainLosePayLife.anyCantGainLife(p)) {
++                return false;
++            }
++        }
++        return true;
++    }
++
++    // CR 810.9: the players whose life total and poison counters this player shares (only itself outside 2HG)
++    public final PlayerCollection sharedLifeTeam() {
++        if (game.getRules().hasSharedTeamLife()) {
++            return getYourTeam();
++        }
++        PlayerCollection self = new PlayerCollection();
++        self.add(this);
++        return self;
++    }
++
++    // CR 810.9: a change to one player's life is applied to the team total, which every teammate holds
++    private void shareLifeWithTeam() {
++        for (final Player p : sharedLifeTeam()) {
++            if (p != this && p.life != life) {
++                final int old = p.life;
++                p.life = life;
++                p.view.updateLife(p);
++                game.fireEvent(new GameEventPlayerLivesChanged(p, old, p.life));
++            }
++        }
+     }
+ 
+     public final int loseLife(int toLose, final boolean damage, final boolean manaBurn, final SpellAbility cause) {
+@@ -525,6 +561,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+ 
+         life -= toLose;
+         view.updateLife(this);
++        shareLifeWithTeam();
+         if (manaBurn) {
+             game.fireEvent(new GameEventManaBurn(PlayerView.get(this), true, toLose));
+         } else {
+@@ -544,7 +581,19 @@ public class Player extends GameEntity implements Comparable<Player> {
+     }
+ 
+     public final boolean canLoseLife() {
+-        return isInGame() && !StaticAbilityCantGainLosePayLife.anyCantLoseLife(this);
++        if (!isInGame()) {
++            return false;
++        }
++        if (!game.getRules().hasSharedTeamLife()) {
++            return !StaticAbilityCantGainLosePayLife.anyCantLoseLife(this);
++        }
++        // CR 810.9h: can't lose life covers the whole team
++        for (final Player p : sharedLifeTeam()) {
++            if (StaticAbilityCantGainLosePayLife.anyCantLoseLife(p)) {
++                return false;
++            }
++        }
++        return true;
+     }
+ 
+     public final boolean canPayLife(final int lifePayment, final boolean effect, SpellAbility cause) {
+@@ -919,6 +968,17 @@ public class Player extends GameEntity implements Comparable<Player> {
+         int old = getCounters(counterType);
+         setCounters(counterType, num);
+         view.updateCounters(this);
++        // CR 810.10: poison counters are shared by the team
++        if (counterType.is(CounterEnumType.POISON)) {
++            for (final Player p : sharedLifeTeam()) {
++                if (p != this && p.getCounters(counterType) != num) {
++                    final int was = p.getCounters(counterType);
++                    p.setCounters(counterType, num);
++                    p.view.updateCounters(p);
++                    game.fireEvent(new GameEventPlayerCounters(p, counterType, was, num));
++                }
++            }
++        }
+         if (fireEvents) {
+             getGame().fireEvent(new GameEventPlayerCounters(this, counterType, old, num));
+             if (counterType.is(CounterEnumType.POISON)) {
+@@ -1101,6 +1161,16 @@ public class Player extends GameEntity implements Comparable<Player> {
          scryThisTurn++;
      }
  
@@ -434,7 +881,7 @@ index 4cbb6deb..3b00e9cc 100644
      public boolean canMulligan() {
          return !getZone(ZoneType.Hand).isEmpty();
      }
-@@ -1803,6 +1814,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1803,6 +1873,14 @@ public class Player extends GameEntity implements Comparable<Player> {
          stats.nextTurn();
      }
  
@@ -449,7 +896,52 @@ index 4cbb6deb..3b00e9cc 100644
      public final int getLastTurnNr() {
          return this.lastTurnNr;
      }
-@@ -2477,6 +2496,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1972,6 +2050,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+     }
+ 
+     public final boolean loseConditionMet(final GameLossReason state, final String spellName) {
++        // CR 810.8a: if an effect says a player can't lose the game, that player's team can't lose
++        if (game.getRules().hasSharedTeamLife() && state != GameLossReason.Conceded && state != GameLossReason.IntentionalDraw && state != GameLossReason.OpponentWon) {
++            for (final Player p : sharedLifeTeam()) {
++                if (p != this && p.isInGame() && p.cantLoseCheck(state)) {
++                    return false;
++                }
++            }
++        }
+         if (state != GameLossReason.OpponentWon) {
+             Map<AbilityKey, Object> repParams = AbilityKey.mapFromAffected(this);
+             repParams.put(AbilityKey.LoseReason, state);
+@@ -1983,6 +2069,12 @@ public class Player extends GameEntity implements Comparable<Player> {
+         return true;
+     }
+ 
++    // CR 810.8a: the team loses when one of its players does, for the same reason
++    public final void loseWithTeammate(final Player mate) {
++        setOutcome(mate.conceded() ? PlayerOutcome.concede()
++                : PlayerOutcome.loss(mate.getOutcome().lossState, mate.getOutcome().loseConditionSpell));
++    }
++
+     public final void concede() { // No cantLose checks - just lose
+         setOutcome(PlayerOutcome.concede());
+     }
+@@ -2044,13 +2136,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+ 
+         // Rule 704.5c - If a player has ten or more poison counters, he or she loses the game.
+         // 704.6b In a Two-Headed Giant game, if a team has fifteen or more poison counters, that team loses the game. See rule 810, “Two-Headed Giant Variant.”
+-        if (getCounters(CounterEnumType.POISON) >= 10 && loseConditionMet(GameLossReason.Poisoned, null)) {
++        if (getCounters(CounterEnumType.POISON) >= game.getRules().getPoisonCountersToLose() && loseConditionMet(GameLossReason.Poisoned, null)) {
+             return true;
+         }
+ 
+         if (game.getRules().hasAppliedVariant(GameType.Commander)) {
++            final int toLose = game.getRules().getCommanderDamageToLose();
+             for (Entry<Card, Integer> entry : getCommanderDamage()) {
+-                if (entry.getValue() >= 21 && loseConditionMet(GameLossReason.CommanderDamage, null)) {
++                if (getTeamCommanderDamage(entry.getKey()) >= toLose && loseConditionMet(GameLossReason.CommanderDamage, null)) {
+                     return true;
+                 }
+             }
+@@ -2477,6 +2570,7 @@ public class Player extends GameEntity implements Comparable<Player> {
          investigatedThisTurn = 0;
          scryThisTurn = 0;
          surveilThisTurn = 0;
@@ -457,6 +949,21 @@ index 4cbb6deb..3b00e9cc 100644
          resetDiscardedThisTurn();
          resetSacrificedThisTurn();
          resetVenturedThisTurn();
+@@ -2842,6 +2936,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+     public Iterable<Entry<Card, Integer>> getCommanderDamage() {
+         return commanderDamage.entrySet();
+     }
++    // with shared team life, one commander's damage to every player of the team adds up (2HG Commander)
++    public int getTeamCommanderDamage(Card commander) {
++        int total = 0;
++        for (final Player p : sharedLifeTeam()) {
++            total += p.getCommanderDamage(commander);
++        }
++        return total;
++    }
+     public int getCommanderDamage(Card commander) {
+         Integer damage = commanderDamage.get(commander);
+         return damage == null ? 0 : damage;
 diff --git a/forge-game/src/main/java/forge/game/player/PlayerStatistics.java b/forge-game/src/main/java/forge/game/player/PlayerStatistics.java
 index 70f867b9..91ecc5ec 100644
 --- a/forge-game/src/main/java/forge/game/player/PlayerStatistics.java
