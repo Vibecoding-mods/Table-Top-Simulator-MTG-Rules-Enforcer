@@ -33,7 +33,7 @@ body {
   margin: 0; min-height: 100vh; color: var(--text); font: 15px/1.5 'Segoe UI', system-ui, -apple-system, sans-serif;
   background-color: var(--bg);
   background-image:
-    radial-gradient(900px 620px at 0% 0%, rgba(255,230,150,.30), rgba(255,230,150,0) 62%),
+    radial-gradient(1000px 700px at 0% 0%, rgba(255,246,215,.46), rgba(255,246,215,0) 64%),
     radial-gradient(860px 620px at 100% 0%, rgba(25,120,255,.42), rgba(25,120,255,0) 62%),
     radial-gradient(1000px 760px at 50% 50%, rgba(130,40,200,.32), rgba(130,40,200,0) 66%),
     radial-gradient(860px 640px at 0% 100%, rgba(255,55,25,.40), rgba(255,55,25,0) 62%),
