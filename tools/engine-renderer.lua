@@ -10512,6 +10512,9 @@ engineGif = {
   dirty = {},            -- colour -> true: changed while spawning, spawn again when it lands
   SIZE = 1.53,           -- a Custom Tile at scale 1 is 2 x 2; a card is 3.06 tall
   PLAY_S = 12,           -- seconds a GIF plays before it holds
+  -- a collapsed frame (its owner's Hide; state.collapsed, so the memo and a reload keep it): a small plain tile, this
+  -- many times smaller, for everyone. The GIF stays chosen; Show brings it back playing
+  CS = 2.5,
   -- free-spot candidates on the mat (along its right and forward axes, as gridPos): beside the battlefield grid
   -- (its columns span +10.75 .. -10.85), nearest the table's centre first
   SPOTS_R = { 15.2, 13.1, -15.2, -13.1 },
@@ -10608,6 +10611,12 @@ end
 function engineGif.xml(c)
   local G = engineGif
   local st = G.state[c]
+  if st ~= nil and st.collapsed == true then
+    local w = math.floor(200 / G.CS + 0.5)
+    return '<Panel position="0 0 -11" rotation="0 0 180" scale="' .. string.format("%.3f %.3f 1", G.CS, G.CS) .. '" width="' .. w .. '" height="' .. w .. '"' .. G.viewers() .. '>'
+      .. '<Panel width="' .. w .. '" height="' .. w .. '" color="#141414" raycastTarget="false"><Text fontSize="26" fontStyle="Bold" color="#E0E0E0" width="' .. w .. '" height="' .. w .. '">GIF</Text></Panel>'
+      .. '<Button id="gifcol_' .. c .. '" visibility="' .. c .. '" position="0 ' .. -math.floor(w / 2 + 20) .. ' 0" width="80" height="32" fontSize="16" tooltip="Show your GIF again (everyone sees it)" onClick="Global/engineGifUiClick">Show</Button></Panel>'
+  end
   local asp = G.aspect(st)
   local k = math.max(asp, 1)
   local fw, fh = math.floor(200 * asp / k + 0.5), math.floor(200 / k + 0.5)
@@ -10619,9 +10628,10 @@ function engineGif.xml(c)
       .. '<Text fontSize="14" color="#9A9A9A" position="0 -30 0" width="186" height="70">' .. c .. "'s frame: GIF... below picks one" .. '</Text></Panel>'
   else
     x[#x + 1] = '<Image id="gifhold_' .. c .. '" image="still" width="' .. fw .. '" height="' .. fh .. '" preserveAspect="true" raycastTarget="false" active="' .. (G.playing[c] and "false" or "true") .. '"/>'
-    x[#x + 1] = '<Button id="gifplay_' .. c .. '" position="46 ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">Replay</Button>'
+    x[#x + 1] = '<Button id="gifplay_' .. c .. '" position="0 ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">Replay</Button>'
+    x[#x + 1] = '<Button id="gifcol_' .. c .. '" visibility="' .. c .. '" position="88 ' .. by .. ' 0" width="80" height="32" fontSize="16" tooltip="Collapse your GIF to a small tile (everyone sees it so; Show brings it back)" onClick="Global/engineGifUiClick">Hide</Button>'
   end
-  x[#x + 1] = '<Button id="gifpick_' .. c .. '" visibility="' .. c .. '" position="' .. (st == nil and 0 or -46) .. ' ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">GIF...</Button>'
+  x[#x + 1] = '<Button id="gifpick_' .. c .. '" visibility="' .. c .. '" position="' .. (st == nil and 0 or -88) .. ' ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">GIF...</Button>'
   if G.open[c] then x[#x + 1] = G.panelXml(c, fw) end
   x[#x + 1] = '</Panel>'
   return table.concat(x)
@@ -10650,7 +10660,7 @@ end
 -- the GIF plays for PLAY_S seconds, then the still covers it
 function engineGif.play(c)
   local G = engineGif
-  if G.state[c] == nil then return end
+  if G.state[c] == nil or G.state[c].collapsed == true then return end
   G.playing[c] = true
   local o = G.frames[c]
   if G.alive(o) then o.UI.setAttribute("gifhold_" .. c, "active", "false") end
@@ -10707,7 +10717,8 @@ function engineGif.spawn(c)
     pos = G.freeSpot(c, g)
   end
   local st = G.state[c]
-  local s = G.SIZE / math.max(G.aspect(st), 1)
+  local folded = st ~= nil and st.collapsed == true
+  local s = folded and G.SIZE / G.CS or G.SIZE / math.max(G.aspect(st), 1)
   G.spawning[c] = true
   G.spawnId[c] = (G.spawnId[c] or 0) + 1
   local id = G.spawnId[c]
@@ -10722,8 +10733,8 @@ function engineGif.spawn(c)
     data = { Name = "Custom_Tile", Nickname = "GIF frame (" .. c .. ")", Description = st and G.xmlText(st.title) or "",
       GMNotes = "mtggif:" .. c, Memo = st and JSON.encode(st) or "", Locked = false,
       Transform = { posX = pos.x, posY = pos.y, posZ = pos.z, rotX = 0, rotY = rotY, rotZ = 0, scaleX = s, scaleY = 1, scaleZ = s },
-      CustomImage = { ImageURL = st and st.mp4 or ENGINE_BACK, ImageSecondaryURL = "", ImageScalar = 1, WidthScale = 0,
-        CustomTile = { Type = 0, Thickness = 0.1, Stackable = false, Stretch = st ~= nil } } },
+      CustomImage = { ImageURL = (st ~= nil and not folded) and st.mp4 or ENGINE_BACK, ImageSecondaryURL = "", ImageScalar = 1, WidthScale = 0,
+        CustomTile = { Type = 0, Thickness = 0.1, Stackable = false, Stretch = st ~= nil and not folded } } },
     position = pos, rotation = { 0, rotY, 0 }, scale = { s, 1, s },
     callback_function = function(obj)
       if G.spawnId[c] ~= id then -- (late: the watchdog gave up on it and a newer frame was spawned)
@@ -10802,6 +10813,18 @@ function engineGif.show(c, item)
   G.playing[c] = true
   G.spawn(c)
   engineSend("gif_pick", { color = c, id = G.state[c].id, title = G.state[c].title })
+end
+-- the owner's Hide / Show: the frame becomes a small plain tile for everyone, or comes back playing the same GIF
+function engineGif.collapse(c)
+  local G = engineGif
+  local st = G.state[c]
+  if st == nil then return false end
+  st.collapsed = (st.collapsed ~= true) or nil
+  G.open[c] = nil
+  if G.holdWait[c] ~= nil then Wait.stop(G.holdWait[c]) G.holdWait[c] = nil end
+  G.playing[c] = (st.collapsed == nil) or nil
+  G.spawn(c)
+  return true
 end
 function engineGif.clear(c)
   local G = engineGif
@@ -10908,6 +10931,7 @@ function engineGif.onClick(player, id)
     if G.open[c] and G.favIds[c] == nil then G.askFavs(c, 0) end -- (the stars need the list once)
     G.redraw(c)
   elseif kind == "gifclose" then G.open[c] = nil G.redraw(c)
+  elseif kind == "gifcol" then G.collapse(c)
   elseif kind == "gifclear" then
     if not G.clear(c) then G.status[c] = "Your frame is already empty." G.redraw(c) end
   elseif kind == "giftabs" or kind == "giftabf" then
