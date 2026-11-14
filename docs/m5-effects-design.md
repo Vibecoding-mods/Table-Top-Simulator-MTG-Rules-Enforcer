@@ -419,6 +419,12 @@ on the real table.
     - no volume from Lua (`TTSSound` has only `Audio` and `Positional3D`), so loudness is set in the clip (−16 to −18
       LUFS, plan step 5);
     - a quiet set can be a second effect named `death_quiet` etc., used when `engineSoundLevel == "quiet"`.
+  - **Built 2026-11-13** (not uploaded, not heard): `mtg-sounds.unity3d`, one trigger effect per `engineSounds` key
+    (58, the uploaded clips without their padding; `docs/m5-assetbundle-build.md` section 4, "Built"). The switch is
+    one setting, `engineSoundRoute = "bundle"` (default `"music"`): every link then plays its key's trigger effect on
+    the sound object, the link itself only when the object or that effect isn't there. A route B sound that goes with
+    a rig effect leaves with the rig's trigger (`RIG_LEAD` after the board), not 0.1 s before it. The default stays
+    the music player until real-table check 6 / the build doc's check 3 shows other players hear route B.
 - **Commands** (`engineChat` in `tools/make-engine-copy.js`, and the Settings "My sounds" button `onMtgSnd`):
   - `mtg sounds off` / `on` from the host: sets `engineSoundsMuted` and tells everyone. From another player: keeps
     their `engineSoundOff` flag and tells them "Table sounds are shared: ask the host, or turn down Music / Effects in
