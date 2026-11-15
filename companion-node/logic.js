@@ -303,6 +303,58 @@ function decideStack(relay, room, login, game, friend) {
   }
 }
 
+// ── the table comes from the host's own Workshop copy (the package ships our patcher, table/make-table.js, never the
+// Workshop table: Steam lets a subscriber use a Workshop item, not hand out copies). As companion/src/Logic.cs.
+const TableWorkshopId = "2296042369"; // the 4-player table
+const SixWorkshopId = "2293586471";   // the 6-player table (optional, once its profile exists)
+const workshopUrl = (id) => `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`;
+
+function workshopMissing(url, tried) {
+  return verdict(Light.Red, `Subscribe to the table on the Steam Workshop: ${url}, start TTS once so it downloads, then press Try again.`, {
+    fix: Fixes.Retry, label: "Try again",
+    hint: `This package doesn't include the table: the companion makes it from your own Workshop copy.\n1. Open ${url} (signed in to Steam) and press Subscribe.\n2. Start Tabletop Simulator once, up to its main menu, so Steam downloads it.\n3. Press Try again.\nLooked for it in:\n    ${(tried || []).join("\n    ")}`,
+  });
+}
+
+// make-table.js prints one JSON line: { ok, stamp, save, workshop } or { ok: false, missing, error }
+function parseMakeTable(code, output) {
+  let o = null;
+  for (const line of String(output || "").split("\n").reverse()) {
+    const t = line.trim();
+    if (t.startsWith("{")) { o = parseJson(t); if (isObj(o)) break; o = null; }
+  }
+  if (!o) {
+    const last = String(output || "").trim().split("\n").pop().trim();
+    return { ok: false, missing: false, error: `the patcher said nothing${code !== 0 ? ` (exit ${code})` : ""}${last ? `: ${last}` : ""}` };
+  }
+  const ok = code === 0 && o.ok === true;
+  return { ok, missing: o.missing === true, stamp: str(o, "stamp"), save: str(o, "save"), workshop: str(o, "workshop"), error: ok ? null : str(o, "error") || `the patcher failed (exit ${code})` };
+}
+
+function tableBuildFailed(b) {
+  return verdict(Light.Red, `Couldn't make the table from your Workshop copy: ${b.error}`, {
+    fix: Fixes.Retry, label: "Try again",
+    hint: "The companion patches your Workshop copy of the table. A patch that doesn't apply means the table's author changed it on the Workshop since this package was made: ask whoever gave you this package for a newer one.",
+  });
+}
+
+// The save step's line once installed: green when the table is the one this package was checked with, amber when the
+// host's Workshop copy made another (its author changed it: it may well work, but it is untested)
+function saveDone(text, ourHash, packageSave, stamp, packageTable) {
+  if (!packageSave || ourHash === packageSave) return verdict(Light.Green, text);
+  return verdict(Light.Amber, `${text} Your Workshop copy of the table isn't the one this package was checked with (the table's author may have changed it): its table is ${stamp || "?"}, the package's ${packageTable || "?"}. It may work; if the table misbehaves, ask for a newer package.`);
+}
+
+// The package's stack/deployed.json with the table this host made (the bridge compares the loaded table with it), or
+// null when it already says so. The package's own stays as tablePackage.
+function deployedWithTable(deployed, stamp) {
+  if (!isObj(deployed) || !stamp || str(deployed, "table") === stamp) return null;
+  const next = { ...deployed };
+  if (!has(next, "tablePackage")) next.tablePackage = str(deployed, "table");
+  next.table = stamp;
+  return next;
+}
+
 // The first folder of the package the bridge can't write, in words, or null. tryWrite: dir -> null when writable.
 // The table save step when TTS's own folder wasn't found anywhere (savesDirFor found false): wait, never make it,
 // since a save put where TTS doesn't look would be green and never show up. null: the folder is there.
@@ -530,7 +582,7 @@ const autoStart = (args) => args.includes("--start") || args.includes("--after-u
 // release's runtime and companion parts are the Windows ones. An update found is offered as "download the new package".
 
 const Updates = {
-  Format: 1,
+  Format: 2, // (2: the table is made from the host's Workshop copy; the table part is the patcher)
   Repo: "Vibecoding-mods/Table-Top-Simulator-Mock-MTGA",
   ApiBase: "https://api.github.com",
   UserAgent: "MTG-Companion",
@@ -698,6 +750,7 @@ module.exports = {
   StackWaitSeconds, stackTimedOut, startFrom, resumeAfterStop,
   httpOk, httpOf, parseJson, isObj, get, has, str, int, Game, decideGame, playersText, locked, lockText,
   DockerUrl, decideDocker, sameId, normId, deployedAfterLoad, shortId, decideImages,
+  TableWorkshopId, SixWorkshopId, workshopUrl, workshopMissing, parseMakeTable, tableBuildFailed, saveDone, deployedWithTable,
   decideStack, savesFolderVerdict, stopRefusal, writeProblem, composeFailure, SaveName, planSave, readSaveName,
   isBridgeCommandLine, decidePorts, decideBridge, countExits,
   DefaultSaveName, Room, ttsHowTo, decideTts, sha8, clip, relayKey, worst, overall,

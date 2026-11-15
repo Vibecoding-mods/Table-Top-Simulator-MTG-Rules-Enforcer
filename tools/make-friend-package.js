@@ -5,7 +5,6 @@
 //   node tools/make-friend-package.js                 dist/MTG-Table-<date>-<bridge>/ and dist/MTG-Table-<date>-<bridge>.zip
 //   node tools/make-friend-package.js --no-images     without images/ (no docker save, which takes minutes): quick runs
 //   --allow-undeployed-bridge   ship bridge code that isn't the deployed one (stack/deployed.json `bridge`)
-//   --allow-changed-save        ship a save whose bytes changed since the deploy (its table stamp must still match)
 //   --companion <dir>           the tree that holds companion/build.cmd (default: this repo)
 //   --out <dir>                 where the package goes (default: dist/)
 //   --release [--tag T] [--previous update-manifest.json]   also dist/release-<tag>/: the parts the companion's
@@ -13,9 +12,14 @@
 //                               GitHub release, which the user creates by hand. --previous: the PUBLISHED latest
 //                               release's manifest (else a reused part must be in dist/release-<its tag>/ with its sha).
 //                               Signs update-manifest.json with the release key, %USERPROFILE%\.mtg-release\release-key.pem
-//                               (MTG_RELEASE_KEY overrides; made on first use; never in the repo). Refuses the two --allow flags.
+//                               (MTG_RELEASE_KEY overrides; made on first use; never in the repo). Refuses --allow-undeployed-bridge.
 // It refuses, saying why, when stack/deployed.json disagrees with the images it would ship, the running engine
-// containers or the save file. It only reads the TTS save; it never writes in the Saves folder.
+// containers or the table the sources make. The package holds NO table: the Workshop table (2296042369) is its
+// author's, and Steam's Subscriber Agreement lets a subscriber use a Workshop item, not hand out copies. It ships our
+// patcher instead (table/: tools/make-table.js and what it runs), and the companion makes the table on the host's PC
+// from the host's own subscribed copy. To check what that makes, this script runs the same patcher on this PC's
+// Workshop copy (MTG_WORKSHOP overrides the path) and records the result's hashes in version.json. It never writes in
+// TTS's folders.
 //
 // The layout is the contract with the companion app (keep the two in step):
 //   MTG Companion.exe             or "MTG Companion - NOT BUILT.txt" when there is no companion/build.cmd
@@ -28,7 +32,9 @@
 //   stack/deployed.json           the deploy record the bridge's /versions compares with (bridge = the packaged code,
 //                                 nodeConfig / relayConfig = the image ids in Docker's classic store)
 //   images/mtg-images.tar         docker save of both engine images (plain: their layers are gzip already, see below)
-//   table/MTG Table.json (+ .png) the deployed save, SaveName "MTG Table (rules engine)"
+//   table/                        the patcher (make-table.js PATCHER_FILES, README.txt), never a table: the companion
+//                                 writes table/MTG Table.json (+ .png) there from the host's own Workshop copy,
+//                                 SaveName "MTG Table (rules engine)"
 //   logs/                         empty; the companion starts the bridge with MTG_HOME=<package> and
 //                                 MTG_LOG_DIR=<package>\logs, so its logs and resume file land here
 //   README-FRIEND.txt, LICENSES/
@@ -39,8 +45,10 @@ const { pipeline } = require("stream/promises");
 const versions = require("../bridge/versions");
 
 const ROOT = path.join(__dirname, "..");
-const SAVE = process.env.MTG_SAVE || path.join(process.env.USERPROFILE || "", "Documents/My Games/Tabletop Simulator/Saves/TS_Save_1.json"); // (as tools/patch-save.js)
-const SAVE_NAME = "MTG Table (rules engine)";
+const tables = require("./make-table");
+const TABLE = tables.TABLES["4p"];
+const WORKSHOP = process.env.MTG_WORKSHOP || path.join(process.env.USERPROFILE || require("os").homedir(), "Documents", "My Games", "Tabletop Simulator", "Mods", "Workshop", `${TABLE.id}.json`);
+const SAVE_NAME = TABLE.saveName;
 const PROJECT = "mtg-table"; // the package's compose project: containers mtg-table-relay-1, mtg-table-forge-room-1
 const IMAGES = { relay: "mtg-relay:exile", node: "mtg-forge-node:exile" };
 // What the bridge reads beside its code (path.join(__dirname, ...) in bridge.js). The image cache is git-ignored and
@@ -68,18 +76,63 @@ function stampOf(saveText) {
   return m ? m[1] : null;
 }
 
-// The save with its top-level SaveName replaced and every other byte kept (TTS lists a save by this name)
-function renameSave(raw, name) {
-  const re = /^(\s*"SaveName":\s*)"(?:[^"\\]|\\.)*"/m; // (the first key of a TTS save; nested objects have no SaveName)
-  if (!re.test(raw)) throw new Error("no SaveName in the save");
-  const out = raw.replace(re, (_, lead) => `${lead}${JSON.stringify(name)}`);
-  if (JSON.parse(out).SaveName !== name) throw new Error("SaveName didn't change");
-  return out;
+const renameSave = tables.renameSave; // (tools/make-table.js: the companion renames with the same code)
+
+// What in a package would be a copy of a Workshop table, as package paths ([] when none): by name, a JSON under
+// table/, a file named after a Workshop id or a TTS save; by content, any file that is a TTS save (a JSON object with
+// an ObjectStates list, whatever its name: in the Workshop file ObjectStates comes after a 130 KB script, so the whole
+// text is read, not its start).
+// entries: [{ rel, text? }] (text: the whole file, for files that start like JSON: jsonText())
+const WORKSHOP_IDS = Object.values(tables.TABLES).map((t) => t.id);
+function isTtsSave(text) {
+  if (typeof text !== "string") return false;
+  const t = text.replace(/^﻿/, "");
+  try { const o = JSON.parse(t); return !!o && typeof o === "object" && Array.isArray(o.ObjectStates); }
+  catch { return /^\s*\{/.test(t) && /"ObjectStates"\s*:\s*\[/.test(t); } // (a cut or broken save is still one)
 }
+function tableCopies(entries) {
+  return entries.filter(({ rel, text }) => {
+    const base = rel.split("/").pop();
+    if (/^table\/.*\.json$/i.test(rel) || /^TS_Save_\d+\.json$/i.test(base)) return true;
+    if (WORKSHOP_IDS.some((id) => base.includes(id))) return true;
+    return isTtsSave(text);
+  }).map((e) => e.rel);
+}
+// a file's whole text when it starts like JSON ("{" after a BOM or spaces), else undefined (the images tar, exes,
+// pictures: never read past their first bytes)
+const JSON_TEXT_MAX = 256 * 1024 * 1024;
+function jsonText(head, size, readAll) {
+  if (!/^(﻿)?\s*\{/.test(head.toString("utf8")) || size > JSON_TEXT_MAX) return undefined;
+  return readAll().toString("utf8");
+}
+// every file under a folder as { rel, text? } for tableCopies
+function packageEntries(root, rel = "") {
+  const p = path.join(root, rel);
+  const st = fs.statSync(p);
+  if (!st.isDirectory()) {
+    const fd = fs.openSync(p, "r");
+    let head;
+    try { const b = Buffer.alloc(64); head = b.subarray(0, fs.readSync(fd, b, 0, b.length, 0)); } finally { fs.closeSync(fd); }
+    return [{ rel, text: jsonText(head, st.size, () => fs.readFileSync(p)) }];
+  }
+  return fs.readdirSync(p).flatMap((f) => packageEntries(root, rel ? `${rel}/${f}` : f));
+}
+
+// The package's table/ folder: our patcher, and a note saying where the table comes from
+const tableReadme = () => `This folder holds no table. The table is "${TABLE.saveName}", made on your PC from your own Steam
+Workshop copy of the group's table, which this package doesn't include (Steam lets a subscriber use a Workshop item,
+not hand out copies of it):
+    ${TABLE.url}
+Subscribe to it, start Tabletop Simulator once so it downloads, then press Start engine in MTG Companion. The companion
+runs make-table.js here on that copy and installs the result as a TTS save; it writes "MTG Table.json" in this folder.
+make-table.js runs make-engine-copy.js (with engine-json.lua and engine-renderer.lua, the table's engine scripts). All
+plain JavaScript and Lua: read them to see every change made to the table.
+`;
 
 // Why the package can't be built, from what was read: [] when everything agrees with the deploy record.
 // read: { deployed, tags: { node, relay } (image ids of the tags, null = missing), containers: { node, relay } (null =
-// Docker can't say), save: { stamp, sha8 } | null, bridge (the code's hash), compose (stack/compose.yml's text) }
+// Docker can't say), table: { stamp } | { error } (make-table run on this PC's Workshop copy), bridge (the code's
+// hash), compose (stack/compose.yml's text) }
 function refusals(read, opts = {}) {
   const { deployed: d } = read;
   if (!d) return ["stack/deployed.json is missing: nothing was deployed (node tools/deploy.js)"];
@@ -92,11 +145,8 @@ function refusals(read, opts = {}) {
     else if (read.containers[k] !== d[k]) out.push(`the running ${what} container is ${read.containers[k].slice(7, 19)}, not the deployed ${d[k].slice(7, 19)}`);
     if (!new RegExp(`^\\s*image:\\s*${IMAGES[k].replace(/[.:]/g, "\\$&")}\\s*$`, "m").test(read.compose || "")) out.push(`stack/compose.yml doesn't run ${IMAGES[k]}`);
   }
-  if (!read.save) out.push(`the table save ${SAVE} can't be read`);
-  else {
-    if (read.save.stamp !== d.table) out.push(`${read.save.stamp ? `the save's table is ${read.save.stamp}` : "the save has no table stamp"}, but the deploy wrote ${d.table}: deploy again (node tools/deploy.js)`);
-    else if (read.save.sha8 !== d.save && !opts.allowChangedSave) out.push(`the save changed since the deploy (${read.save.sha8}, deployed ${d.save}): a Save in TTS can add decks or a game; deploy again, or pass --allow-changed-save after checking it`);
-  }
+  if (!read.table || read.table.error) out.push(`the table can't be made from this PC's Workshop copy (${WORKSHOP}): ${read.table ? read.table.error : "not tried"}. Subscribe to ${TABLE.url} and start TTS once, or point MTG_WORKSHOP at the file`);
+  else if (read.table.stamp !== d.table) out.push(`the sources make table ${read.table.stamp}, but the deploy wrote ${d.table}: the table's source changed since the deploy; deploy again (node tools/deploy.js)`);
   if (read.bridge !== d.bridge && !opts.allowUndeployedBridge) out.push(`the bridge's code (${read.bridge}) isn't the deployed one (${d.bridge}): deploy it first, or pass --allow-undeployed-bridge to ship code that hasn't run live`);
   return out;
 }
@@ -191,7 +241,9 @@ const RELEASE_PARTS = {
   runtime: { file: "runtime.zip", holds: ["runtime"] },
   companion: { file: "MTG.Companion.exe", holds: ["MTG Companion.exe"] },
 };
-const UPDATE_FORMAT = 1; // the companion's Updates.Format that can apply what this writes
+const UPDATE_FORMAT = 2; // the companion's Updates.Format that can apply what this writes (2: the table part is the
+// patcher, and the table is made on the host from its Workshop copy; a format-1 companion would install no table, so
+// it takes the new companion first)
 // (the app part's version leaves these out: they change with every release; the manifest carries the first two)
 const APP_UNVERSIONED = ["version.json", "stack/deployed.json", "README-FRIEND.txt", "bridge/image-cache-klrmngr.json"]; // (README: its build date; the picture cache: the friend's own, kept by the updater, not in app.zip)
 const APP_EXCLUDED = ["bridge/image-cache-klrmngr.json"]; // (in the package, not in app.zip: an update keeps the friend's cache)
@@ -227,11 +279,10 @@ function planRelease(partVersions, previous, { published = true, have = () => tr
 }
 
 // what --release refuses (the companion installs these on friends' PCs: only what ran live, and every part shipped)
-function releaseRefusals({ build, imagesFile, allowUndeployedBridge, allowChangedSave, tag }) {
+function releaseRefusals({ build, imagesFile, allowUndeployedBridge, tag }) {
   const out = [];
   if (!validTag(tag)) out.push(`the tag ${tag} has characters a release tag can't have`);
   if (allowUndeployedBridge) out.push("--allow-undeployed-bridge: a release ships only a bridge that ran live (deploy it first)");
-  if (allowChangedSave) out.push("--allow-changed-save: a release ships only the deployed save (deploy it again first)");
   if (build.includes("images") && !imagesFile) out.push("the engine images changed since the previous release, so they must be shipped (drop --no-images)");
   return out;
 }
@@ -287,6 +338,30 @@ function tarImages(text) {
   return out;
 }
 
+// HOST REQUIREMENTS for a Windows host (this README, README.md and docs/companion-app-spec.md say the same)
+const hostRequirements = () => `HOST REQUIREMENTS (the PC that runs the engine; friends who only join need just TTS)
+- Windows 10 or 11 on an x64 processor (Intel or AMD). Windows on ARM (e.g. Snapdragon laptops) won't run the
+  engine.
+- At least 4 CPU cores and 16 GB of RAM recommended. The engine uses 2 cores and about 8 GB inside Docker; TTS and
+  Windows need the rest. These are estimates, not measured limits.
+- About 2 GB of free disk: about 1.5 GB for the engine inside Docker and about 400 MB for this folder (the .zip can
+  be deleted once it is unzipped). An update needs up to about 700 MB more while it installs, and about 400 MB
+  stays afterwards: the companion keeps the previous version's files for an undo.
+- Docker Desktop: https://www.docker.com/products/docker-desktop/
+  * In its installer choose "All-users installation": it turns on Windows' Virtual Machine Platform, which Docker
+    needs. Or, before installing, run  wsl --install  in an administrator PowerShell and restart the PC.
+  * Then start Docker Desktop once, finish its first-run screens yourself (sign-in is optional), and sign out of
+    Windows and back in (or restart): the install adds you to the "docker-users" group, which only counts after a
+    new sign-in.
+  * If Docker says virtualization is off: turn on SVM (AMD) or Intel VT-x (Intel) in the PC's BIOS/UEFI settings.
+- Tabletop Simulator (Steam).
+- The tables, subscribed on the Steam Workshop (this package doesn't include them; the companion makes the
+  rules-engine table from your own copy):
+    4 players: ${tables.TABLES["4p"].url}
+    6 players: ${tables.TABLES["6p"].url}
+  After subscribing, start TTS once so Steam downloads them.
+`;
+
 const readmeText = (v) => `MTG Table (rules engine) - host it on your own PC
 =================================================
 
@@ -296,18 +371,7 @@ blockers, triggers) and moves the cards. This folder lets YOU host it. Friends w
 Package: built ${v.built.slice(0, 10)}, bridge ${v.bridge}, table ${v.table}.
 
 
-WHAT YOU NEED
-- A Windows 10 or 11 PC with an x64 processor (Intel or AMD). Windows on ARM (e.g. Snapdragon laptops) won't run
-  the engine.
-- Tabletop Simulator (Steam).
-- Docker Desktop: https://www.docker.com/products/docker-desktop/
-  Install it, start it once, and finish its first-run screens yourself (sign-in is optional). Then sign out of
-  Windows and back in (or restart the PC): the install adds you to the "docker-users" group, which only counts
-  after a new sign-in.
-- About 1.5 GB of free disk for the engine inside Docker, plus about 400 MB for this folder (the .zip can be
-  deleted once it is unzipped). An update needs up to about 700 MB more while it installs, and about 400 MB
-  stays afterwards: the companion keeps the previous version's files for an undo (the engine images only from
-  the latest update).
+${hostRequirements()}
 
 
 FIRST TIME
@@ -322,9 +386,13 @@ FIRST TIME
    Program Files (synced or protected folders get in the way), and don't run it from inside the zip.
 3. Start Docker Desktop and wait until it says it is running. Its first start may ask you to accept its terms, or
    to update WSL (Windows' Linux layer, which Docker uses): do both, then let it finish starting.
-4. Double-click "MTG Companion.exe". It opens its status page and checks everything, but starts nothing yet.
+4. Subscribe to the table on the Steam Workshop (HOST REQUIREMENTS above) and start Tabletop Simulator once, up to
+   its main menu, so Steam downloads it. This package doesn't include the table: the companion makes the rules-engine
+   table from your own copy.
+5. Double-click "MTG Companion.exe". It opens its status page and checks everything, but starts nothing yet.
    Press "Start engine" (under Actions). The first start takes a few minutes while it loads the engine into
-   Docker. It also copies the table into your TTS saves. Then it starts the engine and opens Tabletop Simulator.
+   Docker. It also makes the table from your Workshop copy and puts it in your TTS saves. Then it starts the
+   engine and opens Tabletop Simulator.
 
 
 EVERY GAME NIGHT
@@ -344,7 +412,11 @@ EVERY GAME NIGHT
 IF A LIGHT IS RED
 Each red light says what is wrong and has one button that fixes it. The usual ones:
 - Docker: Docker Desktop isn't running: "Start Docker Desktop", wait a minute. If it says Windows doesn't let this
-  account use Docker yet, sign out of Windows and back in (or restart), then press "Try again".
+  account use Docker yet, sign out of Windows and back in (or restart), then press "Try again". If Docker Desktop
+  never gets going, see the Docker Desktop notes in HOST REQUIREMENTS (Virtual Machine Platform, virtualization).
+- Table save: "Subscribe to the table on the Steam Workshop": do that, start TTS once so it downloads, then press
+  "Try again". If it says a patch didn't apply, the table's author changed it on the Workshop since this package
+  was made: ask whoever gave you this for a newer package.
 - Engine stack: press "Restart relay and room". This happens after Windows slept or Docker restarted. If a game was
   being set up, type "mtg reset" in TTS chat first.
 - Bridge: press "Start the bridge". If it says another program holds port 39998, close the TTS extension of VS Code
@@ -431,8 +503,11 @@ function tagIds() {
   for (const k of ["node", "relay"]) out[k] = docker(["image", "inspect", "-f", "{{.Id}}", IMAGES[k]]);
   return out;
 }
-function readSave() {
-  try { const raw = fs.readFileSync(SAVE); return { raw, stamp: stampOf(raw.toString("utf8")), sha8: sha8(raw) }; } catch { return null; }
+// the table the package's patcher makes from this PC's Workshop copy: { stamp, save, workshop } or { error }. Only
+// its hashes are used: its bytes are never shipped (the companion makes the same bytes from the host's copy)
+function readTable() {
+  try { const b = tables.build(WORKSHOP, { table: "4p" }); return { stamp: b.stamp, save: b.save, workshop: b.workshop }; }
+  catch (e) { return { error: e.missing ? "no such file" : e.message }; }
 }
 function gitCommit() {
   try {
@@ -523,16 +598,17 @@ function companionSource(tree, pkg) {
 async function main() {
   const noImages = flag("no-images");
   const deployed = versions.readManifest();
-  const save = readSave();
+  if (flag("allow-changed-save")) stop("--allow-changed-save is gone: the package ships no save (the companion makes the table from the host's Workshop copy)");
+  const made4p = readTable();
   const compose = fs.readFileSync(path.join(ROOT, "stack", "compose.yml"), "utf8");
   const containers = await new Promise((done) => versions.containerImages(done)); // (the running stack on this PC)
   const bridge = versions.bridgeHash();
-  if (flag("release") && (flag("allow-undeployed-bridge") || flag("allow-changed-save")))
-    stop(releaseRefusals({ build: [], imagesFile: "-", tag: "-", allowUndeployedBridge: flag("allow-undeployed-bridge"), allowChangedSave: flag("allow-changed-save") }).join("; "));
+  if (flag("release") && flag("allow-undeployed-bridge"))
+    stop(releaseRefusals({ build: [], imagesFile: "-", tag: "-", allowUndeployedBridge: true }).join("; "));
   // the release key before the companion is built: its public half must be inside the exe this release ships
   const signing = flag("release") ? releaseSigning() : null;
-  const why = refusals({ deployed, tags: tagIds(), containers, save, bridge, compose },
-    { allowChangedSave: flag("allow-changed-save"), allowUndeployedBridge: flag("allow-undeployed-bridge") });
+  const why = refusals({ deployed, tags: tagIds(), containers, table: made4p, bridge, compose },
+    { allowUndeployedBridge: flag("allow-undeployed-bridge") });
   if (why.length) stop(`stack/deployed.json disagrees with what would be shipped:\n  - ${why.join("\n  - ")}`);
 
   // the bridge's data, checked before anything is written
@@ -576,16 +652,16 @@ async function main() {
 
   copy(node.file, path.join(pkg, "runtime", "node", "node.exe"));
 
-  // the table: the deployed save under its new name, and its picture
-  const table = Buffer.from(renameSave(save.raw.toString("utf8"), SAVE_NAME), "utf8");
-  if (stampOf(table.toString("utf8")) !== deployed.table) stop("the renamed save lost its table stamp");
-  fs.mkdirSync(path.join(pkg, "table"), { recursive: true });
-  fs.writeFileSync(path.join(pkg, "table", "MTG Table.json"), table);
-  const png = SAVE.replace(/\.json$/i, ".png");
-  if (fs.existsSync(png)) copy(png, path.join(pkg, "table", "MTG Table.png"));
+  // the table: our patcher, never the table itself (the companion makes it from the host's Workshop copy)
+  for (const f of tables.PATCHER_FILES) copy(path.join(__dirname, f), path.join(pkg, "table", f));
+  fs.writeFileSync(path.join(pkg, "table", "README.txt"), tableReadme().replace(/\n/g, "\r\n"));
 
   const info = {
-    bridge, table: deployed.table, save: sha8(table), node: deployed.node, relay: deployed.relay,
+    bridge, table: made4p.stamp, save: made4p.save, node: deployed.node, relay: deployed.relay,
+    // (what the companion makes the table from: the Workshop item, and the hash of the copy this package was checked
+    // with; a host's copy with another hash was updated by its author and may or may not still patch)
+    workshop: { id: TABLE.id, url: TABLE.url, sha8: made4p.workshop },
+    tables: tables.versionTables(),
     built: new Date().toISOString(), gitCommit: gitCommit(),
     // (beyond the contract's keys) the deploy this was cut from, and both ids of each image: Docker's containerd store
     // reports `id`, the classic store `config`
@@ -621,6 +697,8 @@ async function main() {
   fs.writeFileSync(path.join(pkg, "README-FRIEND.txt"), readmeText(info).replace(/\n/g, "\r\n"));
   const release = flag("release") ? releaseStart(pkg, out, info) : null;
   fs.writeFileSync(path.join(pkg, "version.json"), `${JSON.stringify(info, null, 1)}\n`);
+  const copies = tableCopies(packageEntries(pkg));
+  if (copies.length) stop(`the package would hand out a copy of a Workshop table (Steam lets subscribers use it, not distribute it): ${copies.join(", ")}`);
 
   console.log(`  zipping (${mb(sizeOf(pkg))})`);
   execFileSync(TAR, ["-a", "-c", "-f", zip, "-C", out, name], { stdio: "inherit", timeout: 1800000 });
@@ -677,7 +755,8 @@ function releaseStart(pkg, out, info) {
   const tag = option("tag", `v${d.getFullYear()}.${two(d.getMonth() + 1)}.${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}`);
   if (!validTag(tag)) stop(`the tag ${tag} has characters a release tag can't have`);
   const app = RELEASE_PARTS.app.holds.flatMap((h) => filesUnder(pkg, h));
-  const partVersions = { app: appVersion(app), table: info.save, images: imagesVersion(info.node, info.relay), runtime: info.nodeVersion };
+  // (the table part is our patcher: its version is its files' hash, not the table's, which each host makes)
+  const partVersions = { app: appVersion(app), table: treeHash(filesUnder(pkg, "table")), images: imagesVersion(info.node, info.relay), runtime: info.nodeVersion };
   const cv = companionVersion();
   if (cv && fs.existsSync(path.join(pkg, "MTG Companion.exe"))) partVersions.companion = cv;
   const previous = previousManifest(out, tag);
@@ -723,4 +802,4 @@ function releaseFinish({ tag, dir, partVersions, previous, plan }, pkg, zip, inf
 }
 
 if (require.main === module) main().catch((e) => stop(e.stack || e.message));
-module.exports = { companionSource, stampOf, renameSave, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, releaseRefusals, pointedAt, appVersion, validTag, signManifest, publicKeyText, releaseKey, RELEASE_PARTS, UPDATE_FORMAT, APP_UNVERSIONED, APP_EXCLUDED, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };
+module.exports = { companionSource, stampOf, renameSave, tableCopies, isTtsSave, jsonText, packageEntries, tableReadme, hostRequirements, readTable, WORKSHOP, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, releaseRefusals, pointedAt, appVersion, validTag, signManifest, publicKeyText, releaseKey, RELEASE_PARTS, UPDATE_FORMAT, APP_UNVERSIONED, APP_EXCLUDED, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };

@@ -5,7 +5,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const TTS = path.join(process.env.USERPROFILE, "Documents", "My Games", "Tabletop Simulator");
+const TTS = path.join(process.env.USERPROFILE || require("os").homedir(), "Documents", "My Games", "Tabletop Simulator");
 const SRC = process.argv[2] || path.join(TTS, "Mods", "Workshop", "2296042369.json");
 const DEST = process.argv[3] || path.join(TTS, "Saves", "MTG 4 player table - ENGINE MODE.json");
 const TAG = "-- [engine copy]";
@@ -497,7 +497,32 @@ function engineChat(message, pl)
     engineSend("reset", {})
     if ENGINE_MODE then engineClear() end -- don't wait for the bridge's "clear" (it may be down)
   else
-    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg mode standard|commander (host) - the next games' format: Standard (60 cards, 20 life, no commander) or Commander\\n mtg mode 2hg / 2v2 / juggernaut / ffa (host) - Two-Headed Giant or 2v2 Team Commander (White + Red vs Yellow + Blue), Juggernaut (one against three) or free-for-all, in either format; mtg team <colour> 1|2 (host) - move a seat; mtg juggernaut <colour> / life|hand|draw|land <n> / cmd 21|42 / order first|after (host) - the Juggernaut\\n mtg commander - hover your commander first\\n mtg clear deck - remove your own deck and commander from your seat (not during a game)\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg ai <colour> harmless|forge [deck] / mtg ai <colour> off (host) - who plays an empty seat, every game\\n mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg hand <card>, <card> ... (debug tools on, against the AI) - your next game's starting hand, the rest dealt from your deck; mtg hand off\\n mtg planechase on|off (host) - Planechase in the next games; mtg planes random [N] / mtg planes <name>; <name> - the planar decks\\n mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg refresh - your hand, your question and your panels drawn again (after a lag-out, or a question that never showed)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <knockout|wipe|bighit|death|exile|countered|playerhit|damage|lifegain|treasure|treasurespend|sorcery|instant|counter> [N] (N at once); mtg animations on/off (host) - also under Settings\\n mtg fx on/low/off (host) - the table's particle effects; mtg fx test <effect> [colour] (host) - play one now, at the card you point at\\n mtg gif <words> / mtg gif off - your GIF frame (once the host has a GIPHY key); mtg gifs hide/show - on your screen; mtg gif help - every GIF command")
+    pl.broadcast("[MTG] Commands:\\n${[
+      " mtg ready / mtg ready all (host) - check decks",
+      " mtg mode standard|commander (host) - the next games' format: Standard (60 cards, 20 life, no commander) or Commander",
+      " mtg mode 2hg / 2v2 / juggernaut / ffa (host) - Two-Headed Giant or 2v2 Team Commander (White + Red vs Yellow + Blue), Juggernaut (one against three) or free-for-all, in either format; mtg team <colour> 1|2 (host) - move a seat; mtg juggernaut <colour> / life|hand|draw|land <n> / cmd 21|42 / order first|after (host) - the Juggernaut",
+      " mtg commander - hover your commander first",
+      " mtg clear deck - remove your own deck and commander from your seat (not during a game)",
+      " mtg start [ai N] - start the engine game, optionally with N Forge AI players",
+      " mtg ai <colour> harmless|forge [deck] / mtg ai <colour> off (host) - who plays an empty seat, every game",
+      " mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)",
+      " mtg reset - put the imported decks back once the game is over (host: also mid-game)",
+      " mtg undo [N] - rewind (the others vote); mtg vote yes/no",
+      " mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)",
+      " mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off",
+      " mtg hand <card>, <card> ... (debug tools on, against the AI) - your next game's starting hand, the rest dealt from your deck; mtg hand off",
+      " mtg planechase on|off (host) - Planechase in the next games; mtg planes random [N] / mtg planes <name>; <name> - the planar decks",
+      " mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone",
+      " mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)",
+      " mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)",
+      " mtg refresh - your hand, your question and your panels drawn again (after a lag-out, or a question that never showed)",
+      " mtg timer [seconds] / mtg timer off (host) - turn timers for everyone",
+      " mtg concede - leave the game; mtg winner <colour> (host, Treachery)",
+      " mtg engine on/off",
+      " mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <knockout|wipe|bighit|death|exile|countered|playerhit|damage|lifegain|treasure|treasurespend|sorcery|instant|counter> [N] (N at once); mtg animations on/off (host) - also under Settings",
+      " mtg fx on/low/off (host) - the table's particle effects; mtg fx test <effect> [colour] (host) - play one now, at the card you point at",
+      " mtg gif <words> / mtg gif off - your GIF frame (once the host has a GIPHY key); mtg gifs hide/show - on your screen; mtg gif help - every GIF command",
+    ].join("\\n")}")
   end
   return false
 end

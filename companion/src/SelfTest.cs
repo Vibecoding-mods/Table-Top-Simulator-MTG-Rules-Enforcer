@@ -287,18 +287,22 @@ namespace MtgCompanion
             try
             {
                 var l = Layout.Make(Mode.Friend, tmp);
-                Directory.CreateDirectory(Path.GetDirectoryName(l.TableJson));
-                File.WriteAllText(l.TableJson, "{\"SaveName\": \"Selftest table\", \"ObjectStates\": []}");
+                // the host's Workshop copy beside the Saves folders (tmp\saves*), and a patcher that makes the table
+                Directory.CreateDirectory(Path.Combine(tmp, "Mods", "Workshop"));
+                File.WriteAllText(Path.Combine(tmp, "Mods", "Workshop", Logic.TableWorkshopId + ".json"), "{\"SaveName\": \"The Workshop table\"}");
+                Func<string, string, TableBuild> fake = (ws, outFile) => { File.WriteAllText(outFile, "{\"SaveName\": \"Selftest table\", \"ObjectStates\": []}"); return new TableBuild { Ok = true, Stamp = "t1" }; };
                 string saves = Path.Combine(tmp, "saves");
                 Func<string, int> filesIn = d => Directory.Exists(d) ? Directory.GetFiles(d).Length : 0;
                 var c = new Controller(l, false, saves, Path.Combine(tmp, "state"), "x.exe");
                 c.OnlySteps = new HashSet<int> { 4 };
+                c.BuildTable = fake; c.SteamDir = null;
                 int watched = 0;
                 Action watch = () => watched++;
                 c.WorkOnce(watch);
                 Check("launch starts nothing: the check installed no table save", filesIn(saves) == 0, filesIn(saves));
                 Check("launch starts nothing: the save row is grey and says Start engine does it", c.Rows[Controller.StepSave].V.Light == Light.Grey && c.Rows[Controller.StepSave].V.Text == "Start engine does this: Installing the table as TS_Save_1.json.", c.Rows[Controller.StepSave].V);
                 Check("launch starts nothing: Not started, nothing queued, not started", c.Phase == Logic.NotStartedPhase && c.PendingFrom == 0 && c.NeedsStart && !c.EngineStarted, c.Phase);
+                Check("launch starts nothing: the check made the table in a temp file, not in the package", !File.Exists(l.TableJson));
                 c.WorkOnce(watch); c.WorkOnce(watch);
                 Check("launch starts nothing: the watcher's turns install nothing either", watched == 2 && filesIn(saves) == 0, watched + " / " + filesIn(saves));
                 c.StartEngine();
@@ -309,6 +313,7 @@ namespace MtgCompanion
                 string saves2 = Path.Combine(tmp, "saves2");
                 var a = new Controller(l, false, saves2, Path.Combine(tmp, "state2"), "x.exe");
                 a.OnlySteps = new HashSet<int> { 4 };
+                a.BuildTable = fake; a.SteamDir = null;
                 a.AutoStart = true;
                 bool ran = a.WorkOnce(watch);
                 Check("--start: the launch's first turn is the start sequence: the save installed, Ready", ran && File.Exists(Path.Combine(saves2, "TS_Save_1.json")) && a.Phase == "Ready" && a.EngineStarted, a.Phase + " / " + filesIn(saves2));
@@ -316,11 +321,105 @@ namespace MtgCompanion
                 string saves3 = Path.Combine(tmp, "saves3");
                 var o = new Controller(l, true, saves3, Path.Combine(tmp, "state3"), "x.exe");
                 o.OnlySteps = new HashSet<int> { 4 };
+                o.BuildTable = fake; o.SteamDir = null;
                 o.AutoStart = true;
                 o.WorkOnce(watch);
                 Check("--observe beats --start: nothing installed, Observing", filesIn(saves3) == 0 && o.Phase == "Observing (no changes)" && !o.NeedsStart && o.StartEngine() != null, o.Phase);
             }
             catch (Exception e) { Check("launch starts nothing: no exception", false, e); }
+            finally { try { if (Directory.Exists(tmp)) Directory.Delete(tmp, true); } catch { } }
+            WorkshopTable();
+        }
+
+        // The table save made from the host's own Workshop copy (the package ships no table): the copy missing, the
+        // patcher refusing it, a copy that makes another table than the package's, and the pure parts
+        static void WorkshopTable()
+        {
+            sb.AppendLine("-- the table from the host's Workshop copy");
+            var cand = Logic.WorkshopCandidates(@"C:\U\Documents\My Games\Tabletop Simulator\Saves", @"D:\Steam", "2296042369");
+            Check("Workshop: beside Saves first, then the game's own folder (TTS's Game Data mod location)", cand.Count == 2
+                && cand[0] == @"C:\U\Documents\My Games\Tabletop Simulator\Mods\Workshop\2296042369.json"
+                && cand[1] == @"D:\Steam\steamapps\common\Tabletop Simulator\Tabletop Simulator_Data\Mods\Workshop\2296042369.json", string.Join(" | ", cand));
+            Check("Workshop: no Steam found: only beside Saves", Logic.WorkshopCandidates(@"C:\S\Saves", null, "1").Count == 1);
+            var miss = Logic.WorkshopMissing(Logic.WorkshopUrl(Logic.TableWorkshopId), cand);
+            Check("Workshop missing: red, the link, what to do, Try again", miss.Light == Light.Red && miss.Fix == Fixes.Retry
+                && miss.Text == "Subscribe to the table on the Steam Workshop: https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369, start TTS once so it downloads, then press Try again.", miss);
+            Check("Workshop missing: the hint names where it looked", miss.Hint != null && miss.Hint.Contains(cand[0]) && miss.Hint.Contains(cand[1]), miss.Hint);
+            Check("the 6-player table's link is ready for its profile", Logic.WorkshopUrl(Logic.SixWorkshopId) == "https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471");
+            Check("make-table: the command line quotes every path", Logic.MakeTableArgs(@"C:\P q\table\make-table.js", @"C:\W\1.json", @"C:\P q\table\MTG Table.json") == "\"C:\\P q\\table\\make-table.js\" \"C:\\W\\1.json\" \"C:\\P q\\table\\MTG Table.json\"");
+            var ok = Logic.ParseMakeTable(0, "noise\n{\"ok\":true,\"table\":\"4p\",\"stamp\":\"5a6fd66e\",\"save\":\"09d84816\",\"workshop\":\"e502cd67\"}\n");
+            Check("make-table: its JSON line read", ok.Ok && ok.Stamp == "5a6fd66e" && ok.Save == "09d84816" && ok.Workshop == "e502cd67" && ok.Error == null, ok.Error);
+            var gone = Logic.ParseMakeTable(3, "{\"ok\":false,\"missing\":true,\"error\":\"x isn't there\"}");
+            Check("make-table: the Workshop file gone", !gone.Ok && gone.Missing && gone.Error == "x isn't there");
+            var bad = Logic.ParseMakeTable(1, "{\"ok\":false,\"error\":\"a patch didn't apply to this Workshop copy: FAIL Draw\"}");
+            Check("make-table: a patch that didn't apply", !bad.Ok && !bad.Missing && bad.Error.Contains("FAIL Draw"));
+            Check("make-table: ok:true but a non-zero exit is a failure", !Logic.ParseMakeTable(1, "{\"ok\":true}").Ok);
+            var none = Logic.ParseMakeTable(1, "Error: Cannot find module");
+            Check("make-table: no JSON line: a failure that says what it printed", !none.Ok && none.Error.Contains("Cannot find module"), none.Error);
+            var refused = Logic.TableBuildFailed(bad);
+            Check("make-table failed: red, why, Try again, and a hint about the Workshop table changing", refused.Light == Light.Red && refused.Text.Contains("FAIL Draw") && refused.Fix == Fixes.Retry && refused.Hint.Contains("newer"), refused);
+            Check("save done: the package's table: green", Logic.SaveDone("Installed.", "s1", "s1", "t1", "t1").Light == Light.Green);
+            Check("save done: no package hash to compare: green", Logic.SaveDone("Installed.", "s1", null, "t1", null).Light == Light.Green);
+            var other = Logic.SaveDone("Installed.", "s2", "s1", "t2", "t1");
+            Check("save done: another Workshop copy made another table: amber, says both", other.Light == Light.Amber && other.Text.StartsWith("Installed.") && other.Text.Contains("t2") && other.Text.Contains("t1"), other);
+            var dep = new Dictionary<string, object> { { "table", "t1" }, { "bridge", "b" } };
+            var next = Logic.DeployedWithTable(dep, "t2");
+            Check("deployed.json: the host's table, the package's kept as tablePackage", next != null && J.Str(next, "table") == "t2" && J.Str(next, "tablePackage") == "t1" && J.Str(next, "bridge") == "b" && J.Str(dep, "table") == "t1");
+            Check("deployed.json: already the host's: no rewrite", Logic.DeployedWithTable(dep, "t1") == null && Logic.DeployedWithTable(null, "t2") == null);
+            Check("deployed.json: the package's own table kept on a second rewrite", J.Str(Logic.DeployedWithTable(next, "t3"), "tablePackage") == "t1");
+            var notInstalled = Logic.DecideDocker(new DockerFacts());
+            var slow = Logic.DecideDocker(new DockerFacts { CliFound = true, DesktopFound = true, Waiting = true, WaitedSec = 200 });
+            Check("Docker: not installed: the hint says All-users installation and Virtual Machine Platform", notInstalled.Hint.Contains("All-users installation") && notInstalled.Hint.Contains("Virtual Machine Platform") && notInstalled.Hint.Contains("wsl --install"), notInstalled.Hint);
+            Check("Docker: 3 minutes and no answer: the hint says Virtual Machine Platform and SVM / VT-x", slow.Light == Light.Red && slow.Hint != null && slow.Hint.Contains("Virtual Machine Platform") && slow.Hint.Contains("SVM") && slow.Hint.Contains("VT-x"), slow.Hint);
+
+            // the controller's save step on a temp package: --steps 4 only
+            var tmp = Path.Combine(Path.GetTempPath(), "mtg-companion-selftest-" + Guid.NewGuid().ToString("N").Substring(0, 6));
+            try
+            {
+                var l = Layout.Make(Mode.Friend, tmp);
+                Directory.CreateDirectory(Path.Combine(tmp, "stack"));
+                File.WriteAllText(Path.Combine(tmp, "version.json"), "{\"table\": \"t1\", \"save\": \"" + Logic.Sha8(Encoding.UTF8.GetBytes("{\"SaveName\": \"MTG Table (rules engine)\", \"v\": 1}")) + "\", \"workshop\": {\"id\": \"2296042369\", \"url\": \"https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369\"}}");
+                File.WriteAllText(l.DeployedFile, "{\"table\": \"t1\", \"bridge\": \"b\"}");
+                string saves = Path.Combine(tmp, "Saves");
+                Func<int> savesCount = () => Directory.Exists(saves) ? Directory.GetFiles(saves, "*.json").Length : 0;
+                string ws = Path.Combine(tmp, "Mods", "Workshop", Logic.TableWorkshopId + ".json");
+                string body = "{\"SaveName\": \"MTG Table (rules engine)\", \"v\": 1}", stamp = "t1";
+                bool refuse = false; int runs = 0; string seenWs = null;
+                Func<string, string, TableBuild> patcher = (w, outFile) =>
+                {
+                    runs++; seenWs = w;
+                    if (refuse) return new TableBuild { Error = "a patch didn't apply to this Workshop copy: FAIL Draw" };
+                    File.WriteAllText(outFile, body);
+                    return new TableBuild { Ok = true, Stamp = stamp };
+                };
+                Func<Controller> make = () => { var x = new Controller(l, false, saves, Path.Combine(tmp, "state"), "x.exe"); x.OnlySteps = new HashSet<int> { 4 }; x.BuildTable = patcher; x.SteamDir = null; x.AutoStart = true; return x; };
+                var c = make();
+                c.WorkOnce(() => { });
+                Check("no Workshop copy: the save step is red with the subscribe hint, the patcher never ran, nothing installed", c.Rows[Controller.StepSave].V.Light == Light.Red && c.Rows[Controller.StepSave].V.Text.StartsWith("Subscribe to the table on the Steam Workshop: https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369") && runs == 0 && savesCount() == 0, c.Rows[Controller.StepSave].V);
+                Directory.CreateDirectory(Path.GetDirectoryName(ws));
+                File.WriteAllText(ws, "{}");
+                refuse = true;
+                c = make(); c.WorkOnce(() => { });
+                Check("the patcher refuses the copy: red with its reason, nothing installed", c.Rows[Controller.StepSave].V.Light == Light.Red && c.Rows[Controller.StepSave].V.Text.Contains("FAIL Draw") && runs == 1 && savesCount() == 0, c.Rows[Controller.StepSave].V);
+                refuse = false;
+                c = make(); c.WorkOnce(() => { });
+                Check("the package's table from the Workshop copy: green, installed, made from the file found", c.Rows[Controller.StepSave].V.Light == Light.Green && savesCount() == 1 && File.ReadAllText(Path.Combine(saves, "TS_Save_1.json")) == body && seenWs == ws, c.Rows[Controller.StepSave].V);
+                Check("the table it made stays in the package's table folder (the save name, the TTS light)", File.Exists(l.TableJson) && File.ReadAllText(l.TableJson) == body);
+                Check("the package's deployed.json untouched while the table is the package's", J.Str(J.Parse(File.ReadAllText(l.DeployedFile)), "table") == "t1");
+                body = "{\"SaveName\": \"MTG Table (rules engine)\", \"v\": 2}"; stamp = "t9";
+                // (an update asks the bridge whether a game is on: pointed at a port nothing listens on, never the real one)
+                string realBridge = Controller.BridgeUrl;
+                Controller.BridgeUrl = "http://127.0.0.1:9";
+                try { c = make(); c.WorkOnce(() => { }); } finally { Controller.BridgeUrl = realBridge; }
+                var v = c.Rows[Controller.StepSave].V;
+                Check("another Workshop copy (its author changed it): installed over our untouched save, amber, says both tables", v.Light == Light.Amber && v.Text.Contains("t9") && v.Text.Contains("t1") && File.ReadAllText(Path.Combine(saves, "TS_Save_1.json")) == body && savesCount() == 1, v);
+                var dj = J.Parse(File.ReadAllText(l.DeployedFile));
+                Check("another Workshop copy: deployed.json says the host's table (the bridge compares with it), the package's kept", J.Str(dj, "table") == "t9" && J.Str(dj, "tablePackage") == "t1" && J.Str(dj, "bridge") == "b", J.Write(dj));
+                File.Delete(ws);
+                c = make(); c.WorkOnce(() => { });
+                Check("the Workshop copy unsubscribed later: red again, the installed save left alone", c.Rows[Controller.StepSave].V.Light == Light.Red && File.ReadAllText(Path.Combine(saves, "TS_Save_1.json")) == body, c.Rows[Controller.StepSave].V);
+            }
+            catch (Exception e) { Check("Workshop table: no exception", false, e); }
             finally { try { if (Directory.Exists(tmp)) Directory.Delete(tmp, true); } catch { } }
         }
 
