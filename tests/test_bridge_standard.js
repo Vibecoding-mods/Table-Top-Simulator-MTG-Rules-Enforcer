@@ -246,6 +246,54 @@ async function check(h, e, mode) {
     const started = h.effects.map((e) => e.tts).find((t) => t?.t === "started");
     ok("start in Commander: the table's started message has no mode", started && !("mode" in started) && g.mode === "commander", JSON.stringify(started));
   });
+  // ── the room's own format (headless 2026-11-15): the relay takes StartGame's format only in an "Any" room, and a room
+  // fresh from the node is Commander until its first game ends, so a Standard start there got 40 life ──
+  const formatStart = async (h, mode, roomFormat) => {
+    await check(h, entry(RAKDOS, mode === "standard" ? [] : ["Ingris Stingerquill"], "My Rakdos"), mode === "standard" ? mode : undefined);
+    say(h, "start", { seats: ["Blue"], bots: 1, requireReady: true, fromTable: true, ...(mode === "standard" ? { mode } : {}) });
+    await h.flush();
+    const blue = h.B._getGame()?.seats.get("Blue");
+    blue.heartbeat = () => {};
+    blue.ws.emit("open");
+    frame(blue.ws, { type: "AuthResult", success: true });
+    frame(blue.ws, { type: "RoomList", rooms: [{ room_id: "room-1", room_name: "tts-commander", status: "Lobby" }] });
+    const bot = { username: "self-hosted-node-bot", ready: true, connected: true, is_bot: true };
+    const update = async (format, ready) => {
+      frame(blue.ws, { type: "RoomUpdate", room: { room_id: "room-1", status: "Lobby", max_players: 4, format, players: [{ username: blue.username, ready, connected: true }, bot] } });
+      await h.flush();
+    };
+    return { blue, update };
+  };
+  await run(async (h) => {
+    const { update } = await formatStart(h, "standard", "Commander");
+    await update("Commander", true); // (Blue joined and is ready, the room still Commander)
+    const sets = () => relay(h).filter((r) => r.type === "SetFormat");
+    same("room format: a Standard start in a Commander room sets the room to Standard first", sets().map((r) => r.format), ["Standard"]);
+    ok("room format: no StartGame while the room is still Commander", !relay(h).some((r) => r.type === "StartGame"), JSON.stringify(relay(h).map((r) => r.type)));
+    await update("Commander", true);
+    same("room format: SetFormat is sent once", sets().length, 1);
+    const readies = () => relay(h).filter((r) => r.type === "SetReady").length;
+    const before = readies();
+    await update("Standard", false); // (the relay un-readies the people when the format changes)
+    same("room format: un-readied by the format change, Blue says ready again", readies(), before + 1);
+    await update("Standard", false);
+    same("room format: ready is said again only once", readies(), before + 1);
+    await update("Standard", true);
+    same("room format: once the room is Standard and everyone is ready, StartGame goes", relay(h).find((r) => r.type === "StartGame")?.format, "Standard");
+  });
+  for (const [mode, roomFormat] of [["standard", "Any"], ["standard", "Standard"], ["commander", "Commander"], ["commander", "Any"]]) await run(async (h) => {
+    const { update } = await formatStart(h, mode, roomFormat);
+    await update(roomFormat, true);
+    const want = mode === "standard" ? "Standard" : "Commander";
+    ok(`room format: ${mode} in a${roomFormat === "Any" ? "n" : ""} ${roomFormat} room: no SetFormat, StartGame ${want}`,
+      !relay(h).some((r) => r.type === "SetFormat") && relay(h).find((r) => r.type === "StartGame")?.format === want, JSON.stringify(relay(h).map((r) => r.type + (r.format ? " " + r.format : ""))));
+  });
+  await run(async (h) => {
+    const { update } = await formatStart(h, "commander", "Standard");
+    await update("Standard", true); // (a room left on Standard by someone else)
+    same("room format: a Commander start in a Standard room sets it to Commander", relay(h).filter((r) => r.type === "SetFormat").map((r) => r.format), ["Commander"]);
+    ok("room format: no Commander StartGame in a Standard room", !relay(h).some((r) => r.type === "StartGame"));
+  });
   await run(async (h) => {
     // "mtg deck" (a seat's preset, used when it has no table deck) chosen in Standard: a Commander game gives that
     // seat a Commander deck instead

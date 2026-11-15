@@ -109,6 +109,9 @@ engine-changes.md §1). Manabrew's rule holds for the harness: no comments in it
 The chain, each link read 2026-11-13:
 1. The bridge sends `StartGame` with `format: "Standard"` instead of `"Commander"` (`bridge.js:1452`).
 2. The relay stores it as the room's format (`lobby.rs:674-678`) and picks 20 life (`lobby.rs:695-708`).
+   **Wrong as read (headless 2026-11-15):** it stores it only when the room's format is `Any`. The node's room is its
+   own format (Commander) until the first game ends (`reset_lobby_settings` then sets Any), so a Standard start in a
+   fresh room got 40 life and Forge's Commander game. The bridge sends `SetFormat` first in that case (`onRoomUpdate`).
 3. The node maps Standard to `"Constructed"` (`host.rs:1576-1592`).
 4. The harness maps `"Constructed"` to `GameType.Constructed` (`ManaBrewEngineAdapter.java:370-371`).
 5. `forVariants` with no Commander variant leaves life at the default 20 (`RegisteredPlayer.java:25, 141-182`).
@@ -165,7 +168,7 @@ Forge-side check (call `GameFormat` in the harness) is the alternative; it needs
   a card from a set not in the list, a banned card, a deck with a commander line.
 - Break-it proofs: each deck-check rule mutated off in turn must fail a case (the mutation runner, as for earlier work).
 - Headless (`engine-test.js`): Standard 1v1 (20 life, the first player skips the draw), Standard 4-player (20 life,
-  nobody skips, mulligan free). Prepared 2026-11-13, not run yet (it joins the live relay's room):
+  nobody skips, mulligan free). Prepared 2026-11-13, run 2026-11-15 (results in PLAN.md M8; it joins the live relay's room):
   `node bridge/engine-test.js --format standard --seats 2 --turns 8` and `... --seats 4 --turns 8`. With
   `--format standard` it logs each player's life and library at every turn (53 = no draw yet after the opening 7).
 - Live: host vs 1 Forge AI on the real table to the end, with the log.
