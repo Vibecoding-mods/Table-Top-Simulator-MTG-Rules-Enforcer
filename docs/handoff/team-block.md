@@ -55,6 +55,22 @@ and the level 1 shared-life case that lists the partner's attackers too):
   - "unchanged" counted as a change;
   - the first defender not re-asked.
 
+## What players must see (the owner: "it has to be easy to read and easy to do")
+
+The table is built on the owner's PC. The engine must give it everything it needs for this:
+
+- **Title:** "Block with <partner>" in round 1. In a revise round, "<partner> changed the blocks. Agree or change?"
+- **The team's block:** one line per attacker, e.g. `Goblin Guide -> your Bear + Yellow's Wall`.
+- **Agreeing is one click:** an "Agree" button that sends the defender's current blocks unchanged.
+  - So a revise-round prompt must say it is a revise round, and give the round number (1 to 4).
+  - It must carry the defender's own current blocks, so the table can pre-fill them and send them back on Agree.
+  - Add these as optional fields on the existing chooseBlockers prompt. Older tables must still work, so don't
+    rename anything.
+- **Changing works as today:** pick creatures and attackers, then press Done.
+- **Chat:** after each answer that changes something, one notice per change, e.g. "Yellow: Bear now blocks Goblin
+  Guide." These are notices with no cards and the text in plain words, so the table only prints them.
+- **At the cap:** "White decides (team leader)", then the block is final.
+
 ## Protocol and table notes (no table work here; the table is on the owner's PC)
 
 The report says exactly what the table will see:
