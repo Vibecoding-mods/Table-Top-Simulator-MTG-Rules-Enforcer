@@ -181,6 +181,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-15 03:16 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams` (`0966b1c0d6cb` / `b07cf1600b20`) | Per-player rules for 2v2 Team Commander and Juggernaut: perks (hidden effect cards from Forge script lines), a player's own commander-damage limit, a named first player, `ReplaceBeginTurn` `ExtraTurn$ False`; on top of engine1115b | Node only (`gameConfig` fields through the node's serde structs; relay source unchanged) | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (`0569073`, `36617e3`, `4eb95da` on `44de312`), its `forge/` branch `teams-1116` (`7451885e` on `19931d89`); outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
 | 2026-11-14 16:00 / (relay layers cached, 12:51 stamp) | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) | engine1115-2hg with the one Java comment taken out of `ActionSpace.getStackTargetCandidates` (the AGENTS.md rule); no code change | Both rebuilt, no protocol change (relay source unchanged) | tree `tmp/eb1115b`, branch `nocomment-1115` (`44de312` on `f995fab`), its `forge/` branch `nocomment-1115` = `19931d89`; outer branch `engine-nocomment` | not deployed | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) |
 | 2026-11-14 12:49 / 12:51 | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) | Two-Headed Giant Level 1 (shared life and poison, team loss, team blocks, team-lead start, 2HG Commander numbers) and the team plumbing (`gameConfig`, `teamRules`); the Forge AI blocks for its partner; on top of engine1114-rejoin | **Both** (protocol: `StartGameRequest` team fields, `GameViewDto.teamRules`, relay allow-list `gameConfig`) | tree `tmp/eb1115-2hg` in `tmp/wt-2hg`, branch `2hg-1115` (`4f4411c`, `f995fab`), its `forge/` branch `2hg-1115` (`ef17522a`, `7f3026cb`, `19931d89`); outer branch `2hg` | not deployed | `engine1114-rejoin` (or `engine1113`, the live one) |
 | 2026-11-14 03:25 / (relay cached, 2026-11-12 20:07 stamp) | `engine1114-rejoin` (`3e8f2005bda9` / `4e47919e1966`) | A rewind brings back players who conceded or lost after the point; also carries planechase-fix-1113 (first build) | Node only (no protocol change; relay source unchanged) | tree `tmp/eb1114-rejoin` in worktree `agent-ac7d563c775ca72fd`, branch `rejoin-1114` (`866240c`, `0d6dfa3`, `df0e503`); bridge "is back in the game" line | not deployed | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) |
@@ -249,6 +250,45 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-15 engine1116-teams: per-player rules for 2v2 and Juggernaut (built, not deployed)
+- **Problem:** the next game modes (`docs/game-modes-spec.md` §4.1, §6): 2v2 Team Commander needs nothing the 2HG plumbing
+  lacks, but Juggernaut needs per-player rules the engine had no way to take: the Juggernaut's extra draw and land plays,
+  its own commander-damage limit (42 as an option, the others 21), the Juggernaut going first (no roll), and the
+  optional turn order "the Juggernaut after every challenger".
+- **What, Forge (`engine/forge.patch`):** `GameRules.startingPlayer` (-1 by default), read by
+  `GameAction.determineFirstTurnPlayer` after the Puzzle check; `RegisteredPlayer.commanderDamageToLose` (0: the game's
+  limit) and `Player.getCommanderDamageToLose` (the player's own, else the rules'), used by the commander-damage loss
+  check and by forge-ai `ComputerUtilCombat.getLifeThreateningCommanders`; `ReplaceBeginTurn` reads `ExtraTurn$ False`
+  (replace only a turn that is not an extra turn; before, `ExtraTurn` could only mean True). Outside these settings
+  every path is as before.
+- **What, harness and node (`engine/manabrew.patch`):** `gameConfig` / `StartGameRequest` players gain `perks` (Forge
+  card-script lines: Name:, Oracle:, SVar:, T:, S:, R:), `commanderDamageToLose` and `goesFirst`.
+  `ManaBrewEngineAdapter.configurePlayerRules` refuses an unknown perk line, a limit below 1 and two first players,
+  and sets `GameRules.startingPlayer`; `configurePlayer` sets the player's limit; after `match.createGame()`
+  `host/Perks.addAll` makes one effect card per player with perks (`GamePieceType.EFFECT`, owner the player, in the
+  command zone; an immutable card with no effect source, so neither the command zone nor EffectsView shows it). Node
+  `java_backend.rs`: `GameConfigPlayer` and `PlayerConfig` carry the three fields (serde defaults; skipped when empty),
+  `apply_game_config` copies them. The relay passes `gameConfig` as it is, so its source is unchanged.
+- **The perks the bridge sends** (`bridge/teams.js` `juggPerks`, the same lines `PlayerRulesTest` proves): extra draw, a
+  static `Phase` trigger in the draw step (`DB$ Draw`); extra land plays, a continuous `AdjustLandPlays`; turn order
+  "after", a static upkeep trigger on each opponent's upkeep (`DB$ AddTurn`, an extra turn after this one) plus a
+  `BeginTurn` replacement `ExtraTurn$ False | Skip$ True` on the Juggernaut's own normal turns.
+- **Source:** tree `tmp/wt-teams/tmp/eb1116-teams`, a clone of `tmp/eb1115b` (left untouched): branch `teams-1116` =
+  `nocomment-1115` + `0569073` (feature), `36617e3` (a missing import found by the first build), `4eb95da` (the test
+  helper resets the phase's active triggers, as `PhaseHandler.onPhaseBegin` does); its `forge/` branch `teams-1116` =
+  `19931d89` + `7451885e`. No comments in the Manabrew Java. Patches regenerated with `ENGINE_WORK_DIR=tmp/wt-teams/tmp/eb1116-teams
+  ENGINE_BUILD_DIR=tmp/wt-teams/tmp/engine-build-teams bash engine/make-patches.sh` (forge.patch 438 files).
+- **Build:** through `tmp/slot.js`, `ENGINE_BUILD_DIR=tmp/wt-teams/tmp/engine-build-teams bash engine/build-images.sh
+  engine1116-teams`: `mtg-forge-node:engine1116-teams` `0966b1c0d6cb`, `mtg-relay:engine1116-teams` `b07cf1600b20`
+  (the same relay layers as engine1115-2hg); test image `mtg-harness-test:engine1116-teams` `f92b8299f270`. The running
+  stack was not touched.
+- **Proof:** `engine/checks/harness-tests.sh` in `mtg-harness-test:engine1116-teams`: 18 of 18 classes, 178 checks (new
+  `PlayerRulesTest`, 13). Break-it `node engine/checks/mutate-player-rules.js tmp/wt-teams/tmp/eb1116-teams`: 12 of 12
+  mutations (3 Forge, 5 Perks, 4 adapter) caught by name, the tree unchanged by sha256. HEADLESS_RESULTS
+- **Deploy (when wanted):** TTS closed, no game running, from main after this branch is merged:
+  `MTG_MANABREW=tmp/wt-teams/tmp/eb1116-teams node tools/deploy.js --image engine1116-teams`.
+- **Rollback:** `node tools/deploy.js --image engine1115b`.
 
 ### 2026-11-14 engine1115b: no comments in the Manabrew Java (built, not deployed)
 - **Problem:** `engine/manabrew.patch` shipped one Java comment, against the no-comments rule for Manabrew Java

@@ -30,7 +30,7 @@ index eb732342..3974b49b 100644
          if (ComputerUtilCombat.lifeInDanger(ai, combat)) {
              // add creatures attacking the Player to the front of the list
 diff --git a/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java b/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
-index 1dfd5d98..24ff4930 100644
+index 1dfd5d98..7b9e4d9b 100644
 --- a/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
 +++ b/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
 @@ -298,29 +298,45 @@ public class ComputerUtilCombat {
@@ -118,7 +118,7 @@ index 1dfd5d98..24ff4930 100644
          int poison = 0;
  
          final List<Card> attackers = combat.getAttackersOf(ai);
-@@ -361,15 +384,16 @@ public class ComputerUtilCombat {
+@@ -361,15 +384,15 @@ public class ComputerUtilCombat {
  
          poison += sumPoisonIfUnblocked(unblocked, ai);
  
@@ -128,18 +128,17 @@ index 1dfd5d98..24ff4930 100644
  
      public static List<Card> getLifeThreateningCommanders(final Player ai, final Combat combat) {
          List<Card> res = Lists.newArrayList();
-+        final int toLose = ai.getGame().getRules().getCommanderDamageToLose();
          for (Card c : combat.getAttackers()) {
 -            if (c.isCommander() && combat.isAttacking(c, ai)) {
 -                int currentCommanderDamage = ai.getCommanderDamage(c);
 -                if (damageIfUnblocked(c, ai, combat, false) + currentCommanderDamage >= 21) {
 +            for (final Player attacked : ai.sharedLifeTeam()) {
 +                if (c.isCommander() && combat.isAttacking(c, attacked)
-+                        && damageIfUnblocked(c, attacked, combat, false) + ai.getTeamCommanderDamage(c) >= toLose) {
++                        && damageIfUnblocked(c, attacked, combat, false) + ai.getTeamCommanderDamage(c) >= attacked.getCommanderDamageToLose()) {
                      res.add(c);
                  }
              }
-@@ -408,7 +432,7 @@ public class ComputerUtilCombat {
+@@ -408,7 +431,7 @@ public class ComputerUtilCombat {
          }
  
          // check for creatures that must be blocked
@@ -148,7 +147,7 @@ index 1dfd5d98..24ff4930 100644
  
          final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
  
-@@ -474,7 +498,7 @@ public class ComputerUtilCombat {
+@@ -474,7 +497,7 @@ public class ComputerUtilCombat {
          final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
  
          // check for creatures that must be blocked
@@ -258,7 +257,7 @@ index 8d204538..298cc9f1 100644
                      planesLeavingGame.add(c);
                      planarController.removeCurrentPlane(c);
 diff --git a/forge-game/src/main/java/forge/game/GameAction.java b/forge-game/src/main/java/forge/game/GameAction.java
-index e6cbe012..7d444186 100644
+index e6cbe012..853f5941 100644
 --- a/forge-game/src/main/java/forge/game/GameAction.java
 +++ b/forge-game/src/main/java/forge/game/GameAction.java
 @@ -1988,7 +1988,8 @@ public class GameAction {
@@ -291,7 +290,20 @@ index e6cbe012..7d444186 100644
          if (losers != null) {
              for (Player p : losers) {
                  game.onPlayerLost(p);
-@@ -2471,7 +2485,7 @@ public class GameAction {
+@@ -2451,6 +2465,12 @@ public class GameAction {
+                 return game.getPlayers().get(0);
+             }
+ 
++            // house rule (Juggernaut): the host named who goes first
++            final int named = game.getRules().getStartingPlayer();
++            if (named >= 0 && named < game.getPlayers().size()) {
++                return game.getPlayers().get(named);
++            }
++
+             // 904.6: in Archenemy games the Archenemy goes first
+             if (game.getRules().hasAppliedVariant(GameType.Archenemy)) {
+                 for (Player p : game.getPlayers()) {
+@@ -2471,7 +2491,7 @@ public class GameAction {
          if (!powerPlayers.isEmpty()) {
              List<Player> players = Lists.newArrayList(powerPlayers);
              Collections.shuffle(players, MyRandom.getRandom());
@@ -300,7 +312,7 @@ index e6cbe012..7d444186 100644
          }
  
          boolean isFirstGame = lastGameOutcome == null;
-@@ -2499,9 +2513,36 @@ public class GameAction {
+@@ -2499,9 +2519,36 @@ public class GameAction {
              }
          }
          goesFirst = goesFirst.getController().chooseStartingPlayer(isFirstGame);
@@ -351,20 +363,22 @@ index 2411340d..76985e46 100644
                          alternatives.add(beamSA);
                      } else if (keyword.startsWith("Flashback")) {
 diff --git a/forge-game/src/main/java/forge/game/GameRules.java b/forge-game/src/main/java/forge/game/GameRules.java
-index 2a2d5583..660b7060 100644
+index 2a2d5583..390344bc 100644
 --- a/forge-game/src/main/java/forge/game/GameRules.java
 +++ b/forge-game/src/main/java/forge/game/GameRules.java
-@@ -8,6 +8,9 @@ public class GameRules {
+@@ -8,6 +8,11 @@ public class GameRules {
      private boolean manaBurn;
      private boolean orderCombatants;
      private int poisonCountersToLose = 10; // is commonly 10, but turns into 15 for 2HG
 +    private int commanderDamageToLose = 21;
 +    // CR 810.4, 810.9: teammates share one life total and one poison count (Two-Headed Giant)
 +    private boolean sharedTeamLife = false;
++    // house rule (Juggernaut): the registered player who goes first, -1 for the usual roll
++    private int startingPlayer = -1;
      private int gamesPerMatch = 3;
      private int gamesToWinMatch = 2;
      private boolean playForAnte = false;
-@@ -61,6 +64,20 @@ public class GameRules {
+@@ -61,6 +66,27 @@ public class GameRules {
          this.poisonCountersToLose = amount;
      }
  
@@ -373,6 +387,13 @@ index 2a2d5583..660b7060 100644
 +    }
 +    public void setCommanderDamageToLose(final int amount) {
 +        this.commanderDamageToLose = amount;
++    }
++
++    public int getStartingPlayer() {
++        return startingPlayer;
++    }
++    public void setStartingPlayer(final int index) {
++        this.startingPlayer = index;
 +    }
 +
 +    public boolean hasSharedTeamLife() {
@@ -755,7 +776,7 @@ index 4a3a94df..33871e93 100644
              if (game.getStack().isEmpty()) {
                  if (playerTurn.hasLost()) {
 diff --git a/forge-game/src/main/java/forge/game/player/Player.java b/forge-game/src/main/java/forge/game/player/Player.java
-index 4cbb6deb..fc4a21d5 100644
+index 4cbb6deb..6f0c9131 100644
 --- a/forge-game/src/main/java/forge/game/player/Player.java
 +++ b/forge-game/src/main/java/forge/game/player/Player.java
 @@ -107,6 +107,7 @@ public class Player extends GameEntity implements Comparable<Player> {
@@ -934,14 +955,27 @@ index 4cbb6deb..fc4a21d5 100644
          }
  
          if (game.getRules().hasAppliedVariant(GameType.Commander)) {
-+            final int toLose = game.getRules().getCommanderDamageToLose();
++            final int toLose = getCommanderDamageToLose();
              for (Entry<Card, Integer> entry : getCommanderDamage()) {
 -                if (entry.getValue() >= 21 && loseConditionMet(GameLossReason.CommanderDamage, null)) {
 +                if (getTeamCommanderDamage(entry.getKey()) >= toLose && loseConditionMet(GameLossReason.CommanderDamage, null)) {
                      return true;
                  }
              }
-@@ -2477,6 +2570,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2387,6 +2480,12 @@ public class Player extends GameEntity implements Comparable<Player> {
+         return controller.getLobbyPlayer();
+     }
+ 
++    // the commander damage from one commander that knocks this player out: their own limit, else the game's
++    public final int getCommanderDamageToLose() {
++        final RegisteredPlayer rp = getRegisteredPlayer();
++        return rp != null && rp.getCommanderDamageToLose() > 0 ? rp.getCommanderDamageToLose() : game.getRules().getCommanderDamageToLose();
++    }
++
+     public final RegisteredPlayer getRegisteredPlayer() {
+         return game.getMatch().getPlayers().get(game.getRegisteredPlayers().indexOf(this));
+     }
+@@ -2477,6 +2576,7 @@ public class Player extends GameEntity implements Comparable<Player> {
          investigatedThisTurn = 0;
          scryThisTurn = 0;
          surveilThisTurn = 0;
@@ -949,7 +983,7 @@ index 4cbb6deb..fc4a21d5 100644
          resetDiscardedThisTurn();
          resetSacrificedThisTurn();
          resetVenturedThisTurn();
-@@ -2842,6 +2936,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2842,6 +2942,14 @@ public class Player extends GameEntity implements Comparable<Player> {
      public Iterable<Entry<Card, Integer>> getCommanderDamage() {
          return commanderDamage.entrySet();
      }
@@ -991,6 +1025,46 @@ index 70f867b9..91ecc5ec 100644
      public void nextTurn() {
          this.turnsPlayed++;
      }
+diff --git a/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java b/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java
+index 927afb99..053ecc8a 100644
+--- a/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java
++++ b/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java
+@@ -36,6 +36,7 @@ public class RegisteredPlayer {
+     private List<PaperCard> vanguardAvatars = null;
+     private PaperCard planeswalker = null;
+     private int teamNumber = -1; // members of teams with negative id will play FFA.
++    private int commanderDamageToLose = 0; // this player's own limit (Juggernaut); 0 is the game's
+     private Integer id = null;
+     private boolean randomFoil = false;
+     private boolean enableETBCountersEffect = false;
+@@ -63,6 +64,13 @@ public class RegisteredPlayer {
+         this.startingLife = startingLife;
+     }
+ 
++    public final int getCommanderDamageToLose() {
++        return commanderDamageToLose;
++    }
++    public final void setCommanderDamageToLose(int amount) {
++        this.commanderDamageToLose = amount;
++    }
++
+     public final int getManaShards() {
+         return manaShards;
+     }
+diff --git a/forge-game/src/main/java/forge/game/replacement/ReplaceBeginTurn.java b/forge-game/src/main/java/forge/game/replacement/ReplaceBeginTurn.java
+index 21c84a69..d3c6cb42 100644
+--- a/forge-game/src/main/java/forge/game/replacement/ReplaceBeginTurn.java
++++ b/forge-game/src/main/java/forge/game/replacement/ReplaceBeginTurn.java
+@@ -18,7 +18,8 @@ public class ReplaceBeginTurn extends ReplacementEffect {
+             return false;
+         }
+         if (hasParam("ExtraTurn")) {
+-            if (!(boolean) runParams.get(AbilityKey.ExtraTurn)) {
++            // ExtraTurn$ True: only an extra turn; ExtraTurn$ False: only a turn that is not one
++            if ((boolean) runParams.get(AbilityKey.ExtraTurn) != "True".equalsIgnoreCase(getParam("ExtraTurn"))) {
+                 return false;
+             }
+         }
 diff --git a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java b/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java
 index 42c36fb2..5f35f204 100644
 --- a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java
