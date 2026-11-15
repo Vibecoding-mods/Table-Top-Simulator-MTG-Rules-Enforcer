@@ -5,6 +5,11 @@
 // --format standard: a Standard game (docs/game-modes-spec.md §3): StartGame "Standard" (the relay's 20 life), every
 // deck a Standard one with its sideboard and no commander, this seat's default deck standard_dimir_aggro and the bots'
 // the other three built-in Standard decks.
+// --mode 2hg|2v2|juggernaut: a team game (docs/game-modes-spec.md §4-§6) for four seats: the teams go to the node as
+// gameConfig before StartGame (bridge/teams.js gameConfig, as the bridge sends them), the seats sat White, Red, Yellow,
+// Blue in join order (this seat first), so White + Red against Yellow + Blue; --jugg <colour> (default White, this seat)
+// is the Juggernaut with its default settings (--jugg-cmd 42, --jugg-order after). At the end it logs every player's life
+// and result and which side won (teamsField).
 // --full: don't announce a client version, so the relay sends whole states instead of change-only patches.
 // Needs the stack from ../stack/compose.yml running. Node 22+ (built-in WebSocket).
 const fs = require("fs");
@@ -28,6 +33,12 @@ const BOT_DECK_IDS = STD ? ["standard_rakdos_ingris", "standard_mono_green_landf
   : ["ashling_limitless_commander", "ramses_commander", "real_teval_commander"];
 const { presetFile } = require("./presets");
 const FULL = process.argv.includes("--full");
+const teams = require("./teams");
+const TEAM_MODE = arg("mode", "");
+if (TEAM_MODE && !teams.TEAM_MODES[TEAM_MODE]) throw new Error(`--mode ${TEAM_MODE}: use 2hg, 2v2 or juggernaut`);
+if (TEAM_MODE && SEATS !== 4) throw new Error(`--mode ${TEAM_MODE} needs --seats 4`);
+const JUGG = TEAM_MODE === "juggernaut" ? teams.juggOf({ color: arg("jugg", "White"), cmd: arg("jugg-cmd", 21), order: arg("jugg-order", "first") }) : null;
+const SEAT_COLORS = ["White", "Red", "Yellow", "Blue"];
 const BOTS = Number(arg("bots", SEATS - 1)); // Forge AI seats to request; 0 when other test clients fill the table
 const TAG = arg("tag", "");
 const DUMP = arg("dump", ""); // write last board + one sample of each prompt type here
@@ -126,7 +137,16 @@ ws.addEventListener("message", (ev) => {
       if (joined && !started && room.status === "Lobby" && ready >= SEATS) {
         started = true;
         log(`all ${SEATS} seats ready: ${room.players.map((p) => p.username).join(", ")}; starting`);
-        send({ type: "StartGame", format: STD ? "Standard" : "Commander" });
+        const order = room.players.map((p) => p.username);
+        if (TEAM_MODE) {
+          const t = JUGG ? teams.juggTeams(JUGG.color) : { ...teams.DEFAULT_TEAMS };
+          const problem = teams.teamsProblem(t, order.length, TEAM_MODE);
+          if (problem) { log(`teams refused: ${problem}`); return finish(1); }
+          const payload = teams.gameConfig(t, order, SEAT_COLORS, TEAM_MODE, JUGG, STD);
+          log(`${TEAM_MODE}: ${order.map((u, i) => `${SEAT_COLORS[i]}=${u}`).join(", ")}; gameConfig ${JSON.stringify(payload)}`);
+          broadcast({ kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId: `tts-${Date.now()}-teams`, roomId, payload });
+        }
+        send({ type: "StartGame", format: STD ? "Standard" : "Commander", ...(TEAM_MODE ? { seat_order: order } : {}) });
       }
       break;
     }
@@ -195,10 +215,11 @@ function onBoard(bytes) {
     log(`turn ${turn} (last message ${(bytes / 1024).toFixed(1)} KB, board ${(JSON.stringify(board.state).length / 1024).toFixed(0)} KB)`);
     // (Standard, spec §3.1: 20 life; a 60-card library is 53 after the opening hand, so at turn 2 the 1v1 starting
     // player still has 53 (no first draw) and in a free-for-all everyone who has had a turn has 52)
-    if (STD) {
+    // (a team game too: the Juggernaut's extra draw shows as a library one card shorter each of its turns)
+    if (STD || TEAM_MODE) {
       const gv = board.state?.gameView || {};
       const lib = (id) => (gv.zones || []).find((z) => z.zone === "library" && z.ownerId === id)?.count;
-      log(`  ${(gv.players || []).map((p) => `${p.id}: life ${p.life}, library ${lib(p.id)}`).join("; ")}`);
+      log(`  ${(gv.players || []).map((p) => `${p.id}: life ${p.life}, library ${lib(p.id)}, hand ${(gv.zones || []).find((z) => z.zone === "hand" && z.ownerId === p.id)?.count ?? "?"}`).join("; ")}`);
     }
   }
   if (turn > MAX_TURNS) finish(0);
@@ -279,9 +300,22 @@ function stats(label, vals) {
   return `${label}: n=${s.length} p50=${pct(s, 50).toFixed(1)} p95=${pct(s, 95).toFixed(1)} p99=${pct(s, 99).toFixed(1)} max=${s[s.length - 1].toFixed(1)} ms`;
 }
 
+// the end of a game: each player's life, status and team, the winner and the winning side (bridge/teams.js teamsField)
+function result() {
+  const gv = board?.state?.gameView;
+  if (!gv) return "no board";
+  const slotColor = Object.fromEntries((gv.players || []).map((p, i) => [p.id, SEAT_COLORS[Number(String(p.id).split("-")[1])] || `seat${i}`]));
+  const t = teams.teamsField(gv, slotColor, TEAM_MODE || null).teams;
+  const rows = (gv.players || []).map((p) => `${slotColor[p.id]} (${p.id}): life ${p.life}, ${p.status}, team ${p.teamNumber ?? "-"}` +
+    `, cmd damage ${JSON.stringify(p.commanderDamage || {})}`);
+  return [`gameOver ${!!gv.gameOver}, winner ${gv.winnerId ? slotColor[gv.winnerId] : "none"}, teamRules ${JSON.stringify(gv.teamRules || null)}`,
+    ...rows, t ? `sides ${JSON.stringify(t.sides)}${t.juggernaut ? `, Juggernaut ${t.juggernaut}` : ""}, won ${JSON.stringify(t.won || null)}` : "no teams"].join("\n  ");
+}
+
 function finish(code) {
   if (finished) return;
   finished = true;
+  console.log(`Result:\n  ${result()}`);
   const out = path.join(__dirname, `latency-engine-${SEATS}p${FULL ? "-full" : ""}${TAG ? "-" + TAG : ""}.csv`);
   const cols = ["n", "turn", "prompt", "reply", "rtt_ms", "engine_ms", "emit_ms", "bytes"];
   fs.writeFileSync(out, cols.join(",") + "\n" + samples.map((s) => cols.map((c) => (typeof s[c] === "number" ? +s[c].toFixed?.(2) || s[c] : s[c])).join(",")).join("\n") + "\n");

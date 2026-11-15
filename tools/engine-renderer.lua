@@ -739,56 +739,139 @@ function engineCtlHands(m, seen)
   end
 end
 
--- ───── Two-Headed Giant (docs/game-modes-spec.md §5.5-5.6, Level 1) ─────
--- The host's teams for the next games: nil is free-for-all; "mtg mode 2hg" sets the sides (White + Red against Yellow
--- + Blue, the two seats on each long side), "mtg team <colour> <1|2>" moves a seat, "mtg mode ffa" ends it. Sent with
--- every start (engineTeamsSent), so a restarted bridge needs nothing; the bridge checks them (bridge/teams.js) and the
--- engine plays them. A table reload is back on free-for-all, as Free mulligans is back on none. Globals, not locals:
--- the main chunk is at Lua's 200-local limit.
+-- ───── The team modes (docs/game-modes-spec.md §4.1, §5.5-5.6, §6): Two-Headed Giant, 2v2, Juggernaut ─────
+-- The host's teams for the next games: nil is free-for-all. "mtg mode 2hg" (Two-Headed Giant, Level 1) and "mtg mode
+-- 2v2" (2v2 Team Commander) set the sides (White + Red against Yellow + Blue, the two seats on each long side), "mtg
+-- team <colour> <1|2>" moves a seat; "mtg mode juggernaut" puts the Juggernaut (ENGINE_JUGG.color, "mtg juggernaut
+-- <colour>") alone against the other three, with its settings ("mtg juggernaut life|hand|draw|land|cmd|order ...");
+-- "mtg mode ffa" ends it. Also the Teams button on the setup tile (onMtgSetupTeams). Sent with every start
+-- (engineTeamsSent, engineTeamModeSent, engineJuggSent), so a restarted bridge needs nothing; the bridge checks them
+-- (bridge/teams.js) and the engine plays them. A table reload is back on free-for-all, as Free mulligans is back on
+-- none. Globals, not locals: the main chunk is at Lua's 200-local limit.
 ENGINE_TEAMS = nil
+ENGINE_TEAM_MODE = nil -- "2hg" | "2v2" | "juggernaut" while ENGINE_TEAMS is set
+-- the Juggernaut's settings (bridge/teams.js JUGG_DEFAULTS; life nil: twice the format's, 80 or 40)
+ENGINE_JUGG = { color = "White", hand = 10, draw = 1, land = 0, cmd = 21, order = "first" }
+ENGINE_TEAM_NAMES = { ["2hg"] = "Two-Headed Giant", ["2v2"] = "2v2 Team Commander", juggernaut = "Juggernaut" }
 function engineTeamsSent() return ENGINE_TEAMS end
+function engineTeamModeSent() return ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil end
+function engineJuggSent() return (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == "juggernaut") and ENGINE_JUGG or nil end
 -- "White + Red" from a list of colours, by what the screen calls each player
 function engineTeamWords(colors)
   local names = {}
   for _, c in ipairs(colors or {}) do names[#names + 1] = engineNameOf(c) end
   return table.concat(names, " + ")
 end
--- the teams as said in chat: "White + Red vs Yellow + Blue"
+-- the teams as said in chat: "White + Red vs Yellow + Blue" (Juggernaut: "White (Juggernaut) vs Red + Yellow + Blue")
 function engineTeamsText()
   local s = { {}, {} }
   for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do
     local n = ENGINE_TEAMS[c] or 1
     s[n][#s[n] + 1] = c
   end
+  if ENGINE_TEAM_MODE == "juggernaut" then return table.concat(s[1], " + ") .. " (Juggernaut) vs " .. table.concat(s[2], " + ") end
   return table.concat(s[1], " + ") .. " vs " .. table.concat(s[2], " + ")
 end
--- "mtg mode 2hg|ffa" and "mtg team <colour> <1|2>" (host): true when handled (engineChat, make-engine-copy.js); any
--- other "mtg mode" word is left to the other game modes
+-- the Juggernaut's settings in words (bridge/teams.js juggWords, without the format: life "80 (40 in Standard)")
+function engineJuggText()
+  local j = ENGINE_JUGG
+  local function n(k, one) return tostring(j[k]) .. " " .. one .. (j[k] == 1 and "" or "s") end
+  return j.color .. ": " .. (j.life ~= nil and tostring(j.life) or "80 (40 in Standard)") .. " life, " .. tostring(j.hand) .. " cards, "
+    .. n("draw", "extra card") .. " each draw step, " .. n("land", "extra land play") .. ", out at " .. tostring(j.cmd)
+    .. " commander damage, " .. (j.order == "after" and "a turn after every challenger's" or "goes first")
+end
+-- the Juggernaut's teams: the Juggernaut on 1, the three on 2
+function engineJuggTeams()
+  local t = {}
+  for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do t[c] = c == ENGINE_JUGG.color and 1 or 2 end
+  return t
+end
+ENGINE_JUGG_LIMITS = { life = { 1, 999 }, hand = { 0, 30 }, draw = { 0, 5 }, land = { 0, 5 }, cmd = { 1, 99 } }
+-- what each mode means, said when the host picks it
+ENGINE_TEAM_HELP = {
+  ["2hg"] = ". Partners share life (30 a team, 80 in Commander), poison (15) and a commander's damage (42), block for each other and see each other's hands; each player takes their own turn. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).",
+  ["2v2"] = ". Each player has their own life (40, 20 in Standard) and turn; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).",
+}
+-- "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team <colour> <1|2>" and "mtg juggernaut ..." (host): true when handled
+-- (engineChat, make-engine-copy.js); any other "mtg mode" word is left to the other game modes
 function engineTeamChat(cmd, rest, pl, isHost)
-  local isMode = cmd == "mode" and (rest == "2hg" or rest == "ffa")
-  if not isMode and cmd ~= "team" then return false end
-  if not isHost then pl.broadcast("[MTG] Only the host can set up Two-Headed Giant.") return true end
+  local isMode = cmd == "mode" and (rest == "2hg" or rest == "2v2" or rest == "juggernaut" or rest == "ffa")
+  if not isMode and cmd ~= "team" and cmd ~= "juggernaut" then return false end
+  if not isHost then pl.broadcast("[MTG] Only the host can set up team games.") return true end
   local who = tostring(pl.steam_name or pl.color)
+  local function redraw() if engineSetupButtons ~= nil then pcall(engineSetupButtons) end end
   if isMode and rest == "ffa" then
     if ENGINE_TEAMS == nil then pl.broadcast("[MTG] The games are already free-for-all.") return true end
     ENGINE_TEAMS = nil
+    ENGINE_TEAM_MODE = nil
     broadcastToAll("[MTG] " .. who .. " set the next games to free-for-all (no teams).", { 1, 0.85, 0.4 })
+    redraw()
+    return true
+  end
+  if isMode and rest == "juggernaut" then
+    ENGINE_TEAM_MODE = "juggernaut"
+    ENGINE_TEAMS = engineJuggTeams()
+    broadcastToAll("[MTG] " .. who .. " set the next games to Juggernaut: " .. engineTeamsText() .. " (" .. engineJuggText()
+      .. "). The Juggernaut wins when all three have lost; the three win together when the Juggernaut loses. All four seats play (AI players fill the empty ones). The host changes it:  mtg juggernaut <colour>,  mtg juggernaut life|hand|draw|land <n>,  mtg juggernaut cmd 21|42,  mtg juggernaut order first|after.", { 1, 0.85, 0.4 })
+    redraw()
     return true
   end
   if isMode then
-    if ENGINE_TEAMS == nil then ENGINE_TEAMS = { White = 1, Red = 1, Yellow = 2, Blue = 2 } end
-    broadcastToAll("[MTG] " .. who .. " set the next games to Two-Headed Giant: " .. engineTeamsText()
-      .. ". Partners share life (30 a team, 80 in Commander), poison (15) and a commander's damage (42), block for each other and see each other's hands; each player takes their own turn. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).", { 1, 0.85, 0.4 })
+    if ENGINE_TEAMS == nil or ENGINE_TEAM_MODE == "juggernaut" then ENGINE_TEAMS = { White = 1, Red = 1, Yellow = 2, Blue = 2 } end
+    ENGINE_TEAM_MODE = rest
+    broadcastToAll("[MTG] " .. who .. " set the next games to " .. ENGINE_TEAM_NAMES[rest] .. ": " .. engineTeamsText() .. ENGINE_TEAM_HELP[rest], { 1, 0.85, 0.4 })
+    redraw()
+    return true
+  end
+  if cmd == "juggernaut" then
+    local key, value = rest:match("^(%a+)%s*(%w*)$")
+    local seat = nil
+    for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do if key ~= nil and value == "" and c:lower() == key then seat = c end end
+    local playing = ENGINE_TEAM_MODE == "juggernaut" and ENGINE_TEAMS ~= nil
+    local note = playing and "" or " (for Juggernaut games:  mtg mode juggernaut)"
+    if rest == "" then pl.broadcast("[MTG] Juggernaut " .. engineJuggText() .. "." .. note) return true end
+    if seat ~= nil then
+      ENGINE_JUGG.color = seat
+    elseif key == "order" and (value == "first" or value == "after") then
+      ENGINE_JUGG.order = value
+    elseif key == "life" and value == "auto" then
+      ENGINE_JUGG.life = nil
+    elseif key == "cmd" and (value == "21" or value == "42") then
+      ENGINE_JUGG.cmd = tonumber(value)
+    elseif key ~= nil and key ~= "cmd" and ENGINE_JUGG_LIMITS[key] ~= nil and tonumber(value) ~= nil
+      and math.floor(tonumber(value)) == tonumber(value) and tonumber(value) >= ENGINE_JUGG_LIMITS[key][1] and tonumber(value) <= ENGINE_JUGG_LIMITS[key][2] then
+      ENGINE_JUGG[key] = tonumber(value)
+    else
+      pl.broadcast("[MTG] Use:  mtg juggernaut <white|red|yellow|blue>,  mtg juggernaut life <1-999|auto>,  mtg juggernaut hand <0-30>,  mtg juggernaut draw <0-5>,  mtg juggernaut land <0-5>,  mtg juggernaut cmd 21|42,  mtg juggernaut order first|after.")
+      return true
+    end
+    if playing then ENGINE_TEAMS = engineJuggTeams() end
+    broadcastToAll("[MTG] " .. who .. " set the Juggernaut: " .. engineJuggText() .. "." .. note, { 1, 0.85, 0.4 })
+    redraw()
     return true
   end
   local col, n = rest:match("^(%a+)%s+([12])$")
   local seat = nil
   for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do if col ~= nil and c:lower() == col then seat = c end end
-  if seat == nil then pl.broadcast("[MTG] Use:  mtg team <white|red|yellow|blue> <1|2>  (after  mtg mode 2hg)") return true end
-  if ENGINE_TEAMS == nil then pl.broadcast("[MTG] Teams are for Two-Headed Giant: type  mtg mode 2hg  first.") return true end
+  if seat == nil then pl.broadcast("[MTG] Use:  mtg team <white|red|yellow|blue> <1|2>  (after  mtg mode 2hg  or  mtg mode 2v2)") return true end
+  if ENGINE_TEAMS == nil then pl.broadcast("[MTG] Teams are for Two-Headed Giant and 2v2: type  mtg mode 2hg  or  mtg mode 2v2  first.") return true end
+  if ENGINE_TEAM_MODE == "juggernaut" then pl.broadcast("[MTG] In Juggernaut the teams follow the Juggernaut: type  mtg juggernaut <colour>.") return true end
   ENGINE_TEAMS[seat] = tonumber(n)
   broadcastToAll("[MTG] " .. who .. " put " .. seat .. " on team " .. n .. ": " .. engineTeamsText() .. ".", { 1, 0.85, 0.4 })
   return true
+end
+-- The Teams button on the setup tile (host only, as typed): none -> Two-Headed Giant -> 2v2 -> Juggernaut -> none
+TEAMS_SPOT = Vector(-47, 1.1, 17.5) -- (right of Free mulligans on the same strip, 10 apart as the other two: not yet seen on the real table)
+function engineTeamsLabel()
+  local m = ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil
+  if m == "juggernaut" then return "Juggernaut\n" .. ENGINE_JUGG.color end
+  return "Teams\n" .. (m == "2hg" and "2HG" or m == "2v2" and "2v2" or "None")
+end
+function onMtgSetupTeams(obj, playerColor)
+  local pl = Player[playerColor]
+  if pl == nil then return end
+  local m = ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil
+  engineChat("mtg mode " .. (m == nil and "2hg" or m == "2hg" and "2v2" or m == "2v2" and "juggernaut" or "ffa"), pl)
 end
 function engineTeamId(color, id) return "team:" .. tostring(color) .. ":" .. tostring(id) end
 -- A partner's hand (810.5): the bridge sends it as teamHand with the seated partner who sees it, teamBy. Look-only
@@ -815,10 +898,14 @@ function engineTeamOf(t, color)
   end
   return nil
 end
--- after the phase bar's turn: whose team's turn it is ("(YOUR TEAM)", "(TEAM WHITE + RED)"); "" outside 2HG
+-- after the phase bar's turn: whose team's turn it is ("(YOUR TEAM)", "(TEAM WHITE + RED)", the Juggernaut's
+-- "(JUGGERNAUT)"); "" outside a team game
 function engineTeamTurnTag(t, viewer)
   local side = t and t.active and engineTeamOf(t, t.active)
   if side == nil then return "" end
+  if t.teams.juggernaut ~= nil and t.active == t.teams.juggernaut then
+    return "  <color=#FFD27A>" .. (viewer == t.active and "(YOU, THE JUGGERNAUT)" or "(JUGGERNAUT)") .. "</color>"
+  end
   local mine = false
   for _, c in ipairs(side) do if c == viewer then mine = true end end
   return "  <color=#B8D8FF>" .. (mine and "(YOUR TEAM)" or ("(TEAM " .. string.upper(engineTeamWords(side)) .. ")")) .. "</color>"
@@ -841,7 +928,7 @@ end
 do -- (its own scope: the main chunk is at Lua's 200-locals limit; one local here)
 local TL = {
   thick = 0.3501, y = 0.98, inset = 0.15, -- (the border lines: thickness, height, how far inside the mat zone's edge)
-  tint = { { 0.25, 0.85, 0.55 }, { 0.8, 0.45, 1 } },
+  tint = { { 0.25, 0.85, 0.55 }, { 0.8, 0.45, 1 }, { 1, 0.72, 0.18 } }, -- (the team with White, the other, the Juggernaut)
   box = { { 0.07, 0.34, 0.2, 0.95 }, { 0.32, 0.14, 0.42, 0.95 } },
   w = 1.75, perWorld = 480, lift = 1.05, -- (the panel's width and height, world units; buttons at the READY buttons' height)
   -- each element's depth along the gap and the gap after it (world units)
@@ -1011,7 +1098,10 @@ function TL.clear()
 end
 -- From each board (updateTrackers), the end of a game (engineResetUi, m nil) and the setup redraw.
 function engineTeamLooks(m)
+  -- (2v2 and Juggernaut, rule "teams": the tint only, every side, the Juggernaut's gold; no team life panel, each player
+  -- has their own life)
   local sides = ENGINE_MODE and m ~= nil and type(m.teams) == "table" and m.teams.sides or nil
+  local shared = sides ~= nil and m.teams.rule ~= "teams"
   if type(sides) ~= "table" or #sides ~= 2 then
     if engineTeamShown ~= nil then TL.clear() end
     return
@@ -1024,11 +1114,14 @@ function engineTeamLooks(m)
   for _, side in ipairs(sides) do
     local k = 2
     for _, c in ipairs(side) do if c == "White" then k = 1 end end
-    if #side == 2 then
+    if not shared and #side == 1 and side[1] == m.teams.juggernaut then k = 3 end
+    if #side == 2 or not shared then
       for _, c in ipairs(side) do
         local l = TL.matLine(c, k)
         if l ~= nil then lines[#lines + 1] = l sigs[#sigs + 1] = c .. k end
       end
+    end
+    if #side == 2 and shared then
       local p = TL.panel(m, side, k, byColor, cmdLimit)
       if p ~= nil then
         TL.put(p, shown.panels[p.host])
@@ -1058,7 +1151,7 @@ end
 -- "<NAME> WINS THE GAME", "WHITE + RED WIN THE GAME" for a team, "THE GAME IS A DRAW"
 function engineWinsWords(m)
   local won = m.teams and m.teams.won
-  if won ~= nil then return string.upper(engineTeamWords(won)) .. " WIN THE GAME" end
+  if won ~= nil then return string.upper(engineTeamWords(won)) .. (#won == 1 and " WINS THE GAME" or " WIN THE GAME") end
   return m.winner ~= nil and (string.upper(engineNameOf(m.winner)) .. " WINS THE GAME") or "THE GAME IS A DRAW"
 end
 
@@ -8539,7 +8632,7 @@ function engineSetupIntact()
   local want = SETUP.drawn.tile
   local have = tile ~= nil and (tile.getButtons() or {})[1] or nil
   if (want == nil) ~= (have == nil) or (have ~= nil and have.label ~= want) then return false end
-  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < (SETUP.drawn.mode and 3 or 2) then return false end
+  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < (SETUP.drawn.mode and (SETUP.drawn.teams and 4 or 3) or 2) then return false end
   for c in pairs(SETUP.drawn.mats) do
     local mat = data[c] and data[c].playmat
     local any = false
@@ -8597,7 +8690,7 @@ function engineSetupButtons()
   for _, pl in ipairs((game and game.players) or {}) do if pl.status == "playing" then alive[#alive + 1] = tostring(pl.color) end end
   table.sort(alive)
   local sig = table.concat({ tostring(ENGINE_MODE), tostring(running), tostring(over), table.concat(seated, ","), tostring(ready), table.concat(alive, ","),
-    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE) }, "|")
+    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE), engineTeamsLabel ~= nil and engineTeamsLabel() or "" }, "|")
   -- (unchanged, and the buttons are still there: TTS's own scripts or a reload can wipe an object's buttons, and after a
   -- game ended the READY buttons and the middle tile stayed gone or stale, "Engine: off" with engine mode on, playtest
   -- 2026-10-24; engineSetupHeal below looks every 2 s)
@@ -8677,6 +8770,11 @@ function engineSetupButtons()
       -- (the game mode beside it, host only: docs/game-modes-spec.md §3.4 and §10)
       SETUP.drawn.mode = true
       setupButton(tile, "onMtgSetupMode", engineModeLabel(), SETUP.color.idle, MODE_SPOT, nil, 1700, 620, 90)
+      -- (and the team mode on its other side, host only: docs/game-modes-spec.md §4.1, §5.5, §6)
+      if engineTeamsLabel ~= nil then
+        SETUP.drawn.teams = true
+        setupButton(tile, "onMtgSetupTeams", engineTeamsLabel(), SETUP.color.idle, TEAMS_SPOT, nil, 1700, 620, 90)
+      end
     end
   end
   engineScoopRedraw()

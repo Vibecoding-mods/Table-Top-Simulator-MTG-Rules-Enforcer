@@ -240,6 +240,26 @@ Each player has their own life (40), turns go around the table as usual, teammat
 have lost (verified: `GameAction.java:2025-2042`). Engine work: §4 only. Bridge and table: team choice, team tint, "TEAM
 WINS" (about 8 hours on top of §4; not verified).
 
+**As built (2026-11-15, branch `teams-2v2-juggernaut`, image tag `engine1116-teams`, not deployed).** §4's plumbing was
+already in engine1115b for 2HG (`gameConfig`, `teamRules` `none`/`teams`/`sharedLife`, per player `team`,
+`startingLife`, `startingHand`); engine1116-teams adds the per-player rules Juggernaut needs, so all three modes share
+one path: per player `perks` (Forge card-script lines, `forge-harness` `host/Perks.java`: one hidden effect card in the
+player's command zone, made after `match.createGame()`, kept by a rewind), `commanderDamageToLose` (Forge
+`RegisteredPlayer`, read by `Player.getCommanderDamageToLose` and the Forge AI) and `goesFirst` (Forge
+`GameRules.startingPlayer`, used by `GameAction.determineFirstTurnPlayer`). The node's `gameConfig` passes them
+through (`java_backend.rs`); the relay is unchanged. 2v2 needs no engine work of its own: `teamRules: "teams"`, each
+player the format's life (40, 20 in Standard), own turns clockwise, a team wins when both opponents have lost (Forge's
+own team game-over, proven in `PlayerRulesTest.aTeamCommanderTeamWinsWhenBothOpponentsLose`).
+- **Table:** `mtg mode 2v2` (host; or the new Teams button on the setup tile, which cycles none -> 2HG -> 2v2 ->
+  Juggernaut -> none). Default sides are the long sides (White + Red vs Yellow + Blue); `mtg team <colour> 1|2` makes
+  any 2 + 2 split (2v2 has no seating rule, unlike 2HG). Start sends `teams` and `teamMode`.
+- **Bridge:** `bridge/teams.js` `TEAM_MODES` (2hg = sharedLife, 2v2 and juggernaut = teams), `setupOf` reads a start,
+  `teamsProblem` checks it per mode, `gameConfig` builds the node message, `teamsField` sends the board
+  `{rule: "teams", mode, sides, juggernaut, won}`.
+- **Looks:** the team tint round every mat (green for White's team, violet for the other); no team life panel (each
+  player has their own life); the phase bar's "(YOUR TEAM)" / "(TEAM ...)"; the end banner "<A> + <B> WIN THE GAME";
+  concede is the player's own (no "for your team" question).
+
 ## 5. 2v2 Two-Headed Giant
 
 ### 5.1 Rules (Comprehensive Rules, effective 2026-11-06; verified by reading)
@@ -492,6 +512,29 @@ One strong player against a team of three.
 
 (Note 2026-11-13: the setter names are now verified, `RegisteredPlayer.java:62` and `:103`; the text above is unchanged
 on purpose. Its team and per-player parts are §4.)
+
+### 6.1 As built (2026-11-15, branch `teams-2v2-juggernaut`, image tag `engine1116-teams`, not deployed)
+- **Settings (host, chat):** `mtg mode juggernaut`, `mtg juggernaut <colour>` (who; the teams follow), `mtg juggernaut
+  life <1-999|auto>` (auto: twice the format's, 80 in Commander, 40 in Standard), `hand <0-30>` (10), `draw <0-5>`
+  (1), `land <0-5>` (0), `cmd 21|42` (21), `order first|after` (first). The settings can be set before the mode;
+  the Teams button shows "Juggernaut <colour>". `mtg team` is refused in Juggernaut. Start sends `teamMode` and
+  `juggernaut`; the bridge cleans them (`juggOf`, each bad value its default) and takes the teams from the colour.
+- **Engine:** the Juggernaut's `gameConfig` entry carries `startingLife`, `startingHand`, `goesFirst: true` (the
+  Juggernaut takes the first turn, no roll), `commanderDamageToLose` (only when not 21) and `perks`, Forge script lines
+  from `teams.js` `juggPerks`: the extra draw is a static `Phase` trigger in the draw step (`Draw`, not on the
+  stack), the extra land plays a continuous `AdjustLandPlays`. The challengers start at the format's life.
+- **Turn order "after":** Juggernaut, challenger, Juggernaut, challenger... (`PlayerRulesTest.theJuggernautTakesATurnAfterEachChallenger`).
+  Two perks: at each opponent's upkeep the Juggernaut gets an extra turn after it (`AddTurn`), and a `BeginTurn`
+  replacement skips the Juggernaut's own normal turns. That needed one Forge change: `ReplaceBeginTurn` reads a new
+  `ExtraTurn$ False` parameter (skip only turns that are not extra turns); before, `ExtraTurn` could only ask for
+  extra turns. Forge's extra-turn stack is in the snapshot, so a rewind keeps the order.
+- **Endings:** Forge's team game-over: the Juggernaut alone wins when all three have lost; the three win together
+  when the Juggernaut loses, a fallen challenger too (`theJuggernautWinsWhenAllThreeLose`,
+  `theThreeWinWhenTheJuggernautLoses`). Banner "<NAME> WINS THE GAME" or "<A> + <B> + <C> WIN THE GAME".
+- **Looks:** the tint round every mat, the Juggernaut's gold; the phase bar says "(JUGGERNAUT)" / "(YOU, THE
+  JUGGERNAUT)" on its turns. The engine sends `teamNumber` only to a player with a teammate, so the bridge makes the
+  lone Juggernaut a side of its own.
+- **Not built:** Archenemy schemes.
 
 ## 7. The six-seat table ("just copy everything and make sure it works with two more people")
 
