@@ -311,7 +311,14 @@ function builtZip(zip) {
       const f = path.join(path.dirname(ws4), `${t.id}.json`);
       if (fs.existsSync(f)) known[sha(fs.readFileSync(f))] = `the Workshop file ${t.id}.json`;
     }
-    if (fs.existsSync(ws4)) { try { known[sha(mt.build(ws4).bytes)] = "the table made from it"; } catch { /* the patcher refused: nothing to compare */ } }
+    if (fs.existsSync(ws4)) {
+      try { known[sha(mt.build(ws4).bytes)] = "the table this tree's patcher makes"; } catch { /* the patcher refused: nothing to compare */ }
+      // (and what the zip's own patcher makes: the table a host gets from this package)
+      const made = path.join(tmp, "made", "MTG Table.json");
+      const r = require("child_process").spawnSync(process.execPath, [path.join(root, "table", "make-table.js"), ws4, made], { encoding: "utf8", timeout: 120000 });
+      ok(`${tag}: its own table/make-table.js makes the table from this PC's Workshop copy`, r.status === 0 && fs.existsSync(made), r.stdout + r.stderr);
+      if (fs.existsSync(made)) known[sha(fs.readFileSync(made))] = "the table the package's patcher makes";
+    }
     if (!Object.keys(known).length) process.stdout.write(`SKIP ${tag}: byte-for-byte check (no Workshop copy on this PC)\n`);
     const same8 = entries.filter((e) => known[sha(fs.readFileSync(path.join(root, e.rel)))]).map((e) => `${e.rel} = ${known[sha(fs.readFileSync(path.join(root, e.rel)))]}`);
     same(`${tag}: no file is byte for byte this PC's Workshop table or the table made from it`, same8, []);
