@@ -96,7 +96,25 @@ Draft message to the table's author, for a Workshop comment on 2296042369 or the
 
 ## Before making the repository public
 
-- [ ] **Message the table's author first** (Workshop 2296042369: a Workshop comment or their Steam profile). Draft:
+- [ ] **Tell the table's author** (Workshop 2296042369 and 2293586471: a Workshop comment or their Steam profile). The
+  user decided 2026-11-15 to let them know after the fact rather than wait for permission. Current draft:
+
+  > Hi! Thanks for your MTG 4 player and 6 player tables, they're great. I wanted to let you know I've built an
+  > open-source project on top of them: Commander in Tabletop Simulator with the Forge rules engine enforcing the rules
+  > (the stack, priority, triggers, combat and AI opponents), plus game modes like Two-Headed Giant, 2v2 and Juggernaut.
+  >
+  > The GitHub repository doesn't include your tables: a script patches each player's own copy from the Workshop. The
+  > patch adds the engine scripts, removes the decoration objects for performance, removes the hard-coded "promote me"
+  > permission and the Smart mulligan button, and adds commander-damage trackers to the 6 player table. The docs describe
+  > how your scripts work so the patch can find its way around them. The ready-to-run download I share with friends does
+  > contain a patched copy of the 4 player table.
+  >
+  > You're credited as the tables' author with links to your Workshop pages:
+  > https://github.com/Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer
+  >
+  > If there's anything you'd like changed, credited differently, or taken out, just tell me and I'll sort it.
+
+- Older draft (from before the repository went public):
 
   > Hi! I've really enjoyed your MTG 4 player table. I've been building an open-source project that runs Commander on it with
   > the Forge rules engine enforcing the rules. It doesn't include or redistribute your table: people need their own copy from

@@ -230,8 +230,10 @@ How each test works and what it can't see: [TESTING.md](TESTING.md).
 - Rules engine: [Forge](https://github.com/Card-Forge/forge) (GPL-3.0) through
   [Manabrew](https://github.com/witchesofthehill/manabrew) (AGPL-3.0), run as separate programs, with our changes to
   both. Those changes stay under their licences and their source must be published with any build we share.
-- The table: "MTG 4 player table - scripted" by its Workshop author; this repo only contains the script that adapts
-  your own copy.
+- The tables: "MTG 4 player table - scripted"
+  ([Workshop 2296042369](https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369)) and "MTG 6 player table -
+  scripted" ([Workshop 2293586471](https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471)), both by the
+  same Workshop author; this repo only contains the script that adapts your own copy.
 - Card images come from [Scryfall](https://scryfall.com/docs/api) under its guidelines.
 - Magic: The Gathering is © Wizards of the Coast. This is unofficial Fan Content permitted under the
   [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards.
