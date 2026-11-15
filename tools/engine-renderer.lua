@@ -10496,6 +10496,7 @@ engineGif = {
   -- stayed blank white cards (seen live 2026-11-14)
   thumbGen = {},
   assetSig = {}, -- (colour -> the frame object and its pictures last set: a change sets the XML again once loaded)
+  thumbIds = {}, -- (colour -> { guid, n, by = link -> asset name }: engineGif.thumbName)
   -- favourites (kept by the bridge on the host's PC, per Steam ID: bridge/gifs.js createFavs; never a GIPHY search)
   tab = {},              -- colour -> "fav" while their panel shows their favourites (nil: the search results)
   favs = {},             -- colour -> { page, items, total, gen } of the favourites page shown
@@ -10545,6 +10546,18 @@ function engineGif.canHave(c)
   return c ~= "Grey" and c ~= "Black" and data ~= nil and data[c] ~= nil and data[c].playmat ~= nil and Player[c] ~= nil and Player[c].seated == true
 end
 function engineGif.alive(o) return o ~= nil and not o.isDestroyed() end
+-- a thumbnail's asset name on c's frame: one name per link (real TTS loads a link listed under two names under the
+-- first only, the other a blank card: live 2026-11-14 a starred result stayed white on the Favourites tab), and a
+-- fresh one for a new link (a name never gets a second link: TTS wouldn't load it); kept per frame object
+function engineGif.thumbName(c, url)
+  local G = engineGif
+  local o = G.frames[c]
+  local guid = G.alive(o) and o.getGUID() or ""
+  local t = G.thumbIds[c]
+  if t == nil or t.guid ~= guid then t = { guid = guid, n = 0, by = {} } G.thumbIds[c] = t end
+  if t.by[url] == nil then t.n = t.n + 1 t.by[url] = "t" .. t.n end
+  return t.by[url]
+end
 -- the same object, by GUID: == on an object TTS is destroying raised "Object reference not set" live (2026-11-13: a pick
 -- destroyed the old frame, and onObjectDestroy compared it with the new one)
 function engineGif.same(a, b)
@@ -10595,7 +10608,7 @@ function engineGif.panelXml(c, fw)
     local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
     local ox, oy = 10 + col * 101, -(112 + row * 101)
     local on = ids[tostring(it.id)] == true
-    x[#x + 1] = '<Button id="gifr' .. i .. '_' .. c .. '" rectAlignment="UpperLeft" offsetXY="' .. ox .. ' ' .. oy .. '" width="95" height="95" color="#FFFFFF" tooltip="' .. G.xmlText(it.title) .. '" onClick="Global/engineGifUiClick"><Image image="t' .. (r.gen or 0) .. '_' .. i .. '" preserveAspect="true" raycastTarget="false"/></Button>'
+    x[#x + 1] = '<Button id="gifr' .. i .. '_' .. c .. '" rectAlignment="UpperLeft" offsetXY="' .. ox .. ' ' .. oy .. '" width="95" height="95" color="#FFFFFF" tooltip="' .. G.xmlText(it.title) .. '" onClick="Global/engineGifUiClick"><Image image="' .. G.thumbName(c, it.thumb) .. '" preserveAspect="true" raycastTarget="false"/></Button>'
     -- (its star, over the thumbnail's top right corner: gold when it is a favourite)
     x[#x + 1] = '<Button id="gifst' .. i .. '_' .. c .. '" rectAlignment="UpperLeft" offsetXY="' .. (ox + 67) .. ' ' .. (oy - 2) .. '" width="26" height="26" fontSize="22" fontStyle="Bold" color="#000000B0" textColor="' .. (on and "#FFD24A" or "#9A9A9A") .. '" tooltip="' .. (on and "Unstar it (off your favourites)" or "Star it (keep it in your favourites)") .. '" onClick="Global/engineGifUiClick">*</Button>'
   end
@@ -10645,10 +10658,14 @@ function engineGif.redraw(c)
   local st = G.state[c]
   if st ~= nil and st.still ~= nil then assets[#assets + 1] = { name = "still", url = st.still } end
   if G.open[c] then
-    -- (both tabs' thumbnails, so a switch between them gives no name a new link)
+    -- (both tabs' thumbnails, so a switch between them gives no name a new link; a link once, by its name)
+    local seen = {}
     for _, r in ipairs({ G.results[c] or {}, G.favs[c] or {} }) do
       for i, it in ipairs(r.items or {}) do
-        if i <= 8 and it.thumb ~= nil then assets[#assets + 1] = { name = "t" .. (r.gen or 0) .. "_" .. i, url = it.thumb } end
+        if i <= 8 and it.thumb ~= nil and not seen[it.thumb] then
+          seen[it.thumb] = true
+          assets[#assets + 1] = { name = G.thumbName(c, it.thumb), url = it.thumb }
+        end
       end
     end
   end
@@ -10727,7 +10744,9 @@ function engineGif.spawn(c)
   if G.alive(old) then
     pos, rotY = old.getPosition() + Vector(0, 0.1, 0), old.getRotation().y
     G.frames[c] = nil
-    old.destruct()
+    -- (a frame later: a pick, Clear, Hide or Show is a click on the old frame's own UI, and real TTS raises "Object
+    -- reference not set to an instance of an object" when that object is gone as the click ends, live 2026-11-14)
+    Wait.frames(function() if G.alive(old) then old.destruct() end end, 1)
   else
     pos = G.freeSpot(c, g)
   end
