@@ -10654,7 +10654,8 @@ function engineGif.redraw(c)
   end
   -- (real TTS draws a picture whose asset is still loading as a blank white card, and keeps it so until the XML is set
   -- again: live 2026-11-14 the panel's page 2 stayed white under fresh names and loaded at a second setXml. So when the
-  -- pictures change, the XML is set again once UI.loading is over, or after 10 s at the latest)
+  -- pictures change, the XML is set again 2 s and 6 s later: UI.loading reads false at once on real TTS, live 2026-11-14,
+  -- so it can't say when they have loaded)
   local sig = { o.getGUID() }
   for _, a in ipairs(assets) do sig[#sig + 1] = a.name .. "=" .. a.url end
   sig = table.concat(sig, "|")
@@ -10664,9 +10665,8 @@ function engineGif.redraw(c)
   o.UI.setXml(G.xml(c))
   if changed then
     local again = function() if G.alive(o) then o.UI.setXml(G.xml(c)) end end
-    Wait.frames(function()
-      Wait.condition(again, function() return not G.alive(o) or o.UI.loading ~= true end, 10, again)
-    end, 2)
+    Wait.time(again, 2)
+    Wait.time(again, 6)
   end
   local hiders = {}
   for _, h in ipairs(G.COLORS) do if G.hidden[h] then hiders[#hiders + 1] = h end end
