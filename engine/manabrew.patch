@@ -10353,10 +10353,10 @@ index 0000000..1038adb
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java b/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java
 new file mode 100644
-index 0000000..4d71149
+index 0000000..89f73da
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java
-@@ -0,0 +1,1112 @@
+@@ -0,0 +1,1131 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -10443,6 +10443,7 @@ index 0000000..4d71149
 +        CHECKS.put("cr805.9 theActivePlayerIsOnePlayerOfTheActiveTeam", SharedTurnsTest::theActivePlayerIsOnePlayerOfTheActiveTeam);
 +        CHECKS.put("cr805.10e defendingPlayerIsThePlayerItAttacks", SharedTurnsTest::defendingPlayerIsThePlayerItAttacks);
 +        CHECKS.put("cr805.8 aPartnersExtraStepIsTheTeams", SharedTurnsTest::aPartnersExtraStepIsTheTeams);
++        CHECKS.put("cr805.4 aGainInTheTeamTurnTriggersThePartnersLifeCardOnce", SharedTurnsTest::aGainInTheTeamTurnTriggersThePartnersLifeCardOnce);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            if (only.isEmpty() || only.contains(e.getKey()) || only.contains(e.getKey().split(" ")[1])) {
 +                check(e.getKey(), e.getValue());
@@ -11220,6 +11221,24 @@ index 0000000..4d71149
 +        l1.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, l1.white, 5);
 +        stepTo(l1, PhaseType.UPKEEP);
 +        expect(count(triggeredHosts(l1), l1Haze) == 0, "level 1: Paradox Haze on Red triggered in White's upkeep");
++    }
++
++    private static void aGainInTheTeamTurnTriggersThePartnersLifeCardOnce() throws Exception {
++        for (final boolean shared : new boolean[] {true, false}) {
++            final Fixture f = new Fixture(shared);
++            f.game.getRules().setTeamLifeEvents(true);
++            f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, f.white, 3);
++            final Card whiteCat = add("Ajani's Pridemate", f.white, ZoneType.Battlefield);
++            final Card redCat = add("Ajani's Pridemate", f.red, ZoneType.Battlefield);
++            final Card yellowCat = add("Ajani's Pridemate", f.yellow, ZoneType.Battlefield);
++            f.game.getTriggerHandler().resetActiveTriggers();
++            resolve(f, AbilityFactory.getAbility("DB$ GainLife | Defined$ You | LifeAmount$ 3", whiteCat), f.white);
++            final List<Card> hosts = triggeredHosts(f);
++            expect(count(hosts, redCat) == 1 && count(hosts, whiteCat) == 1 && count(hosts, yellowCat) == 0,
++                    (shared ? "" : "level 1: ") + "White's gain of 3 in her team's turn triggered Red's Pridemate " + count(hosts, redCat)
++                            + ", White's " + count(hosts, whiteCat) + " and Yellow's " + count(hosts, yellowCat) + " times, not 1, 1 and 0");
++            expect(f.white.getLife() == 33 && f.red.getLife() == 33, (shared ? "" : "level 1: ") + "the team's life is " + f.white.getLife() + " / " + f.red.getLife());
++        }
 +    }
 +
 +    private static Card creature(final String name, final Player p) {

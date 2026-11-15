@@ -184,6 +184,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-15 (no image; built in a cloud session) | `engine1117` (no image ids) | Two-Headed Giant level 2 (engine1117-l2) + the life house rule `teamLifeEvents` (engine1116-teams3) in one engine; no Team draws or Team effects | Node only (no protocol change) | outer branch `cloud/team-block` (the engine1117 commit), patches regenerated there | not deployed | `engine1116-teams3` |
 | 2026-11-15 (no image; harness jar built in a cloud session) | `engine1117-l2` (no image ids yet) | Two-Headed Giant level 2, shared team turns: tracks A (tests), B (turns and priority) and C (combat) merged into `engine/forge.patch` and `engine/manabrew.patch` | Node only (no protocol change) | outer branch `cloud/l2-merge` (patches regenerated there) | not deployed | `engine1116-teams2` |
 | 2026-11-15 04:21 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams2` (`a904893325fc` / `5173c7e692c2`) | engine1116-teams + engine1115-2hgrules in one engine (the four 2hg-rules Forge commits and their harness tests cherry-picked) | Node only, as both parts | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (+ `6c97e3b`..`ba4da9e`), its `forge/` + `e7b32d36`..`85bc8c3d`; outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` |
 | 2026-11-15 03:16 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams` (`0966b1c0d6cb` / `b07cf1600b20`) | Per-player rules for 2v2 Team Commander and Juggernaut: perks (hidden effect cards from Forge script lines), a player's own commander-damage limit, a named first player, `ReplaceBeginTurn` `ExtraTurn$ False`; on top of engine1115b | Node only (`gameConfig` fields through the node's serde structs; relay source unchanged) | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (`0569073`, `36617e3`, `4eb95da` on `44de312`), its `forge/` branch `teams-1116` (`7451885e` on `19931d89`); outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
@@ -256,6 +257,20 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-15 engine1117: Two-Headed Giant level 2 + the life house rule, built in the cloud, no image
+- **What:** the level 2 engine (`engine1117-l2`) and the live life house rule (`teamLifeEvents`, engine1116-teams3) merged
+  on the owner's PC (`GameRules`, `Trigger`, `configureTeamRules` keep both sides). The Team draws and Team effects house
+  rules are not in it (the owner's decision).
+- **Fixes:** none needed: the merged tree compiled and passed as handed over.
+- **New check:** `SharedTurnsTest.aGainInTheTeamTurnTriggersThePartnersLifeCardOnce` (level 2 and level 1: White's gain
+  triggers Red's Ajani's Pridemate once). New mutation `life-house-rule-off` (`matchesValidLifePlayer` back to plain
+  `ValidPlayer` matching).
+- **Proof:** `engine/test-harness-local.sh --all`: 23 of 23 classes. `node tools/l2-mutate.js --local <tree>`: 39 of 39
+  mutations caught by name, nothing stale, files restored by sha256.
+- **Patches:** `forge.patch` byte-identical (474 files); `manabrew.patch` only the SharedTurnsTest hunk (63 files). Both
+  apply to fresh trees at the pinned commits.
+- **Not done:** no Docker image built, no live check.
 
 ### 2026-11-15 engine1117-l2: Two-Headed Giant level 2 shared team turns (built, not deployed)
 - **What:** the level 2 rules for 2HG (`GameRules.sharedTeamTurns`, on top of level 1's shared life), merged from three
