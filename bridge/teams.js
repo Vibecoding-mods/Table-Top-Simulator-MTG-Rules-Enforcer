@@ -321,6 +321,29 @@ function teamBlockLines(pub, who, blocks, controllerOf, cname, nameOf, decl = nu
   return theirs.length ? [head, `${nameOf(partner)} blocks: ${theirs.map((a) => `${cname(a.blockerId)} blocks ${cname(a.attackerId)}`).join(", ")}.`] : [head];
 }
 
-module.exports = { sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, juggOf, juggLife, juggTeams, juggPerks, juggWords,
+// The team's trigger order (805.7: the active team puts all its triggers on the stack in one order, which the primary
+// player, the team's first seat, picks, 805.2): asked of who with both partners' triggers in items (each { id, card }).
+// { partner, theirs: the partner's item ids, hint, toPartner } when some item is the partner's, else null.
+function teamTriggerWords(pub, who, items, nameOf) {
+  const partner = turnPartnerOf(pub, who);
+  if (!partner) return null;
+  const theirs = new Set((items || []).filter((i) => (i.card?.controllerId || i.card?.ownerId) === partner).map((i) => i.id));
+  if (!theirs.size) return null;
+  return { partner, theirs,
+    hint: `You order your team's triggers, ${nameOf(partner)}'s too (you are the team's first seat). The one you click first happens first. Not sure? Keep this order.`,
+    toPartner: `${nameOf(who)} is putting your team's triggers in order, yours too (the team's first seat does).` };
+}
+// A refused team attack or block (track C, docs/2hg-level2-combat.md: a notice with no cards to every player of the
+// team, "Attack declaration invalid" or "Block declaration invalid: <reason>", then each is asked again, first seat
+// first): the words for player who, or null outside a shared-turn game or for any other notice.
+function teamRefusalWords(pub, who, title, nameOf) {
+  const m = /^(Attack|Block) declaration invalid\b:?\s*(.*)$/i.exec(String(title || "").trim());
+  if (!m || !turnPartnerOf(pub, who)) return null;
+  const team = (pub.players || []).filter((p) => p.id === who || turnPartners(pub, who, p.id)).map((p) => p.id);
+  const attack = m[1].toLowerCase() === "attack";
+  const why = m[2] ? ` ${m[2].replace(/\.?$/, ".")}` : "";
+  return `Your team's ${attack ? "attack" : "blocks"} together ${attack ? "isn't" : "aren't"} legal.${why} You are both asked again, ${nameOf(team[0])} first.`;
+}
+module.exports = { teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, juggOf, juggLife, juggTeams, juggPerks, juggWords,
   setupWords, teamsOf, teamWords, sides, teamsProblem, gameConfig, boardTeams, teamOf, withTeamDamage, teamsField, teamLifeTip,
   poisonLabel, teamWinWords };

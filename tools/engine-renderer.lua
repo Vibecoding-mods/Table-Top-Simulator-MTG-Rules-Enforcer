@@ -4594,6 +4594,21 @@ function engineCombatSide(color, t)
   end
   return nil
 end
+-- Two-Headed Giant Level 2: while a partner is asked their part of the team's attack or block (each partner declares
+-- their own creatures, one after the other: docs/2hg-level2-combat.md), the other partner's line says so: "White is
+-- declaring attackers for your team...". nil outside a shared-turn game or when no partner's question is a combat one
+-- (an AI partner's questions never reach the table).
+function engineTeamDeclaring(t, color)
+  if t == nil or t.activeTeam == nil or t.gameOver then return nil end
+  for _, c in ipairs(engineTeamOf(t, color) or {}) do
+    local q = c ~= color and enginePrompts[c] or nil
+    local kind = q ~= nil and describePrompt(q).kind or nil
+    if kind == "attack" or kind == "block" then
+      return engineNameOf(c) .. " is declaring " .. (kind == "attack" and "attackers" or "blockers") .. " for your team..."
+    end
+  end
+  return nil
+end
 function engineUpdateCorner(color, p)
   local t = lastTable
   local step = tostring(t and t.step or "")
@@ -4678,6 +4693,8 @@ function engineUpdateCorner(color, p)
     -- card discarded puts a +1/+1 counter" was missing, hp-06 2026-10-28)
     if hint ~= "" and q.note ~= nil and q.note ~= "" then hint = hint .. "\n" .. engineCut(tostring(q.note), 140) end
     if describePrompt(q).kind == "priority" or step == "cleanup" then engineStepBanner(color, t) end
+  elseif engineTeamDeclaring(t, color) ~= nil then
+    hint = engineTeamDeclaring(t, color)
   elseif t ~= nil and t.priority ~= nil and t.priority ~= color and not t.gameOver then
     hint = engineTeamPriorityHint(t, color) or ("Waiting for " .. engineNameOf(t.priority) .. "...")
   elseif t ~= nil and t.priority == color and not t.gameOver then

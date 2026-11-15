@@ -107,7 +107,13 @@ const level1 = (m) => { const x = clone(m); delete x.activeTeam; if (x.teams) de
       board(f(B[25])), board(f(B[27])),
       q('return tostring(UI.getValue("eng_banner_Blue")) .. " ## " .. tostring(UI.getValue("eng_banner_White"))', "banner turn 2"),
       q(corners, "turn 2"),
-      board(f(B[48])), board(f(B[62])),
+      board(f(B[48])),
+      // (White is asked her part of the team's attack: Red's line says so, docs/2hg-level2-combat.md)
+      { msg: { t: "prompt", json: JSON.stringify({ t: "prompt", color: "White", promptId: 19, kind: "attack", title: "Choose attackers", mode: "multi", min: 0, max: 2,
+        options: [{ id: "__allattack", label: "All attack" }, { id: "engine-card-29|player-2", label: "Grizzly Bears → Yellow" }] }) }, frames: 10 },
+      q('engineUpdateCorner("Red", nil) return tostring(UI.getValue("eng_hint_Red"))', "red while white declares"),
+      q('enginePrompts.White = nil return "ok"', "clear white"),
+      board(f(B[62])),
       q(combat(f(B[62])), "combat"),
       q(combat(juggOnly(f(B[62]))), "combat jugg only"),
       q('return tostring(engineMyTurn(engineTable(), "Red")) .. " " .. tostring(engineMyTurn(engineTable(), "White")) .. " " .. tostring(engineMyTurn(engineTable(), "Blue"))', "my turn"),
@@ -132,6 +138,7 @@ const level1 = (m) => { const x = clone(m); delete x.activeTeam; if (x.teams) de
   ok("banner: the new turn is the team's, to both teams", ban[0] === "YOUR TEAM'S TURN" && ban[1] === "TEAM PLAYERYELLOW + PLAYERBLUE'S TURN", ban.join(" | "));
   const c3 = valueOf(r, "turn 2");
   ok("phase bar: turn 2 is Yellow + PlayerBlue's, Blue (not the lead) on her turn", /YOUR TEAM'S TURN/.test(cornerOf(c3, "Blue")) && /TEAM PLAYERYELLOW \+ PLAYERBLUE'S TURN/.test(cornerOf(c3, "Red")), `${cornerOf(c3, "Blue")} || ${cornerOf(c3, "Red")}`);
+  ok("combat: the partner sees who is declaring the team's attack", valueOf(r, "red while white declares") === "PlayerWhite is declaring attackers for your team...", String(valueOf(r, "red while white declares")));
   ok("combat: both partners attack, both defenders block", valueOf(r, "combat") === "White=attack Red=attack Yellow=block Blue=block", String(valueOf(r, "combat")));
   ok("combat: an attack at the partner is the whole team's to block", valueOf(r, "combat jugg only") === "White=attack Red=attack Yellow=block Blue=block", String(valueOf(r, "combat jugg only")));
   ok("turn: the team's turn is both partners', not the other team's", valueOf(r, "my turn") === "true true false", String(valueOf(r, "my turn")));
@@ -143,6 +150,7 @@ const level1 = (m) => { const x = clone(m); delete x.activeTeam; if (x.teams) de
   ok("level 1: the partner sees the active player's turn with the team tag", /WHITE'S TURN/.test(cornerOf(d1, "Red")) && /\(YOUR TEAM\)/.test(cornerOf(d1, "Red")) && !/YOUR TEAM'S TURN/.test(cornerOf(d1, "Red")), cornerOf(d1, "Red"));
   ok("level 1: waiting is for the one player", /## Waiting for PlayerWhite\.\.\.$/.test(cornerOf(d1, "Red")), cornerOf(d1, "Red"));
   ok("level 1: the partner's sorcery-speed ability waits for her own turn", /Only as a sorcery/.test(String(valueOf(r1, "why red")).split(" ## ")[1] || ""), String(valueOf(r1, "why red")));
+  ok("level 1: no team declaring line", !/declaring attackers/.test(String(valueOf(r1, "red while white declares"))), String(valueOf(r1, "red while white declares")));
   ok("level 1: the partner's turn is not hers", valueOf(r1, "my turn") === "false true false", String(valueOf(r1, "my turn")));
   ok("level 1: an attack at the partner alone is not the other partner's to block", valueOf(r1, "combat jugg only") === "White=attack Red=nil Yellow=nil Blue=block", String(valueOf(r1, "combat jugg only")));
 

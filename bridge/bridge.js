@@ -9611,6 +9611,14 @@ function onPrompt(seat, prompt) {
       }
       // a notice with no cards ("White picked AI 1", "AI 1 vote Money"): told in chat and the game log, not asked (one
       // test game asked for OK 15 times; Arena shows such things in passing)
+      // (Two-Headed Giant Level 2: a refused team attack or block is the team's, said so, and who is asked first again)
+      const teamNo = teams2hg.teamRefusalWords(gv, seat.slot, /declaration invalid/i.test(String(title)) ? title : input.presentation?.text, nameOf);
+      if (teamNo) {
+        chat(`[MTG] ${teamNo}`, seat.color);
+        if (/^Attack declaration invalid\b/i.test(title)) seat.attackRefused = teamNo;
+        seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" });
+        return;
+      }
       if (/^Attack declaration invalid\b/i.test(title)) {
         const names = seat.mustAttack || [];
         const { broken, limiters } = attackRefusalReason(gv, seat.lastAttack || [], seat.attackData);
@@ -9833,7 +9841,16 @@ function onPrompt(seat, prompt) {
       // (a look at the top of a library said in the log, as Brainstorm's put-back is: Ponder's read nothing, rebuilt hand
       // test #16)
       if (onTop && game && /\blook at the top \w+ cards of your library\b/i.test(what)) gameLogLine(`${seat.color} looks at the top ${input.items.length === 1 ? "card" : `${input.items.length} cards`} of their library (${src})`);
-      const [words, hint] = trig
+      // (Two-Headed Giant Level 2: the team's first seat orders both partners' triggers, 805.7 and 805.2; the partner's
+      // are named as theirs and the partner is told)
+      const teamTrig = trig && teams2hg.sharesTurns(gv) ? teams2hg.teamTriggerWords(gv, forP || seat.slot, input.items, nameOf) : null;
+      if (teamTrig) {
+        const partnerSeat = [...game.seats.values()].find((s) => s.slot === teamTrig.partner);
+        if (partnerSeat) chat(`[MTG] ${teamTrig.toPartner}`, partnerSeat.color);
+      }
+      const [words, hint] = teamTrig
+        ? [(n) => `Your team's triggers: click the one that happens ${n ? "next" : "first"}`, teamTrig.hint]
+        : trig
         ? [(n) => `Your triggers: click the one that happens ${n ? "next" : "first"}`, "The one you click first happens first. Not sure? Keep this order."]
         : bottom
           ? [(n) => `${src || title}: these go to the bottom of your library${n ? ` (${n + 1})` : ""}`, "The order on the bottom hardly matters: Keep this order is fine."]
@@ -9868,7 +9885,7 @@ function onPrompt(seat, prompt) {
       if (bottom || exileAll || allSame || landsDown) { seat.respond(prompt.promptId, type, { type: "reorderDecision", orderedIds: input.items.map((i) => i.id) }); return; }
       // (Forge's object numbers left out of what is shown: "Counter Chart a Course (61)")
       // (and an effect's own name too: "First Day of Class (225)'s Effect" read so, keyword sweep kw-13)
-      const items = input.items.map((i) => ({ id: i.id, label: String(cardLabel(i.card)).replace(/^(.+?) \(\d+\)'s Effect$/, (m, n) => `${poss(n)} effect`) + (i.oracle ? `: ${shorten(oracleOf(i), 60)}` : ""), img: imgOf(i.card) }));
+      const items = input.items.map((i) => ({ id: i.id, label: (teamTrig && teamTrig.theirs.has(i.id) ? `${nameOf(teamTrig.partner)}'s ` : "") + String(cardLabel(i.card)).replace(/^(.+?) \(\d+\)'s Effect$/, (m, n) => `${poss(n)} effect`) + (i.oracle ? `: ${shorten(oracleOf(i), 60)}` : ""), img: imgOf(i.card) }));
       const step = orderSteps(words, hint, onTop ? [...items].reverse() : items,
         (ids) => ({ type: "reorderDecision", orderedIds: onTop ? [...ids].reverse() : ids }));
       if (step.auto) { seat.respond(prompt.promptId, type, step.auto); return; }
