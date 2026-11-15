@@ -22,7 +22,7 @@ index b363b43..228c02a 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..f0e4e62 100644
+index 54173c6..4d7b1c0 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
 @@ -74,18 +74,48 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
@@ -58,7 +58,7 @@ index 54173c6..f0e4e62 100644
 +
 +### Teams and Two-Headed Giant (`teamRules`)
 +
-+`StartGameRequest` takes an optional game-level `teamRules` (`none`, the default; `teams`; `sharedLife`), `poisonToLose`, `commanderDamageToLose`, and per player `team`, `startingLife`, `startingHand`; the self-hosted node fills them from the room controller's `gameConfig` roomRelay message. `configureTeamRules` refuses an unknown rule, a missing or negative team, fewer than two teams, a `poisonToLose` or `commanderDamageToLose` below 1, and for `sharedLife` uneven teams, partners apart in seat order (the order wraps round, so `1,2,2,1` is two adjacent pairs) and partners given different `startingLife`. `sharedLife` sets Forge's `GameRules.setSharedTeamLife` (the 2HG rules live in Forge, `engine/forge.patch`: life and poison mirrored to teammates, a team loses together, teammates block for each other, the team's first seat starts and the starting team skips its first draws, a commander's damage summed over the team), `GameRules.setTeamLifeEvents` (a house rule, not CR 810: a teammate's life gain or loss also counts as the player's own for "you gain/lose life" triggers, the life-this-turn counts and "if you would gain life" replacements) and the defaults by team size `heads`: poison `15 + 5 * (heads - 2)`, commander damage `21 * heads`, starting life `40 * heads` in Commander and `30 + 15 * (heads - 2)` otherwise. Life and poison are mirrored, not pooled: every teammate's `life` is the team total, so readers need no team arithmetic. The first-player roll offers only each team's first seat (`GameAction.teamLead`). `GameViewDto.teamRules` (`rule`, `poisonToLose`, `commanderDamageToLose` in Commander) is sent only when a team has two players; a teammate's hand is shown to the viewer in a `sharedLife` game (`sharesHandWith`, CR 810.5). The Rust engine backend has no team rules: the node logs a warning and starts such a game without its `gameConfig`. A `teams` game without `sharedLife` keeps Forge's ordinary win: when one player wins, everyone else loses, teammates included. `TeamGameTest` pins each rule with real cards.
++`StartGameRequest` takes an optional game-level `teamRules` (`none`, the default; `teams`; `sharedLife`), `poisonToLose`, `commanderDamageToLose`, and per player `team`, `startingLife`, `startingHand`; the self-hosted node fills them from the room controller's `gameConfig` roomRelay message. `configureTeamRules` refuses an unknown rule, a missing or negative team, fewer than two teams, a `poisonToLose` or `commanderDamageToLose` below 1, and for `sharedLife` uneven teams, partners apart in seat order (the order wraps round, so `1,2,2,1` is two adjacent pairs) and partners given different `startingLife`. `sharedLife` sets Forge's `GameRules.setSharedTeamLife` (the 2HG rules live in Forge, `engine/forge.patch`: life and poison mirrored to teammates, a team loses together, teammates block for each other, the team's first seat starts and the starting team skips its first draws, a commander's damage summed over the team), `GameRules.setTeamLifeEvents` (a house rule, not CR 810: a teammate's life gain or loss also counts as the player's own for "you gain/lose life" triggers, the life-this-turn counts and "if you would gain life" replacements), `GameRules.setTeamEffects` (always on, a house rule: discard, mill, sacrifice, "you create" tokens and player counters other than poison also happen to the partner; costs are never shared) and `GameRules.setTeamDraws` from the request's optional boolean `teamDraws` (default false, a house rule: draw, scry, surveil and look at the top of the library also happen to the partner; the draw-step draw is never shared) and the defaults by team size `heads`: poison `15 + 5 * (heads - 2)`, commander damage `21 * heads`, starting life `40 * heads` in Commander and `30 + 15 * (heads - 2)` otherwise. Life and poison are mirrored, not pooled: every teammate's `life` is the team total, so readers need no team arithmetic. The first-player roll offers only each team's first seat (`GameAction.teamLead`). `GameViewDto.teamRules` (`rule`, `poisonToLose`, `commanderDamageToLose` in Commander) is sent only when a team has two players; a teammate's hand is shown to the viewer in a `sharedLife` game (`sharesHandWith`, CR 810.5). The Rust engine backend has no team rules: the node logs a warning and starts such a game without its `gameConfig`. A `teams` game without `sharedLife` keeps Forge's ordinary win: when one player wins, everyone else loses, teammates included. `TeamGameTest` pins each rule with real cards; `TeamHouseRulesTest` pins `teamEffects` and `teamDraws`.
 +
 +Per player, three more settings (Juggernaut, `configurePlayerRules`): `perks`, a list of card-script lines (`Name:`, `Oracle:`, `SVar:`, `T:`, `S:`, `R:`; anything else refuses the start) that `Perks` turns into one immutable effect card in that player's command zone after `match.createGame()`, so its triggers, statics and replacements are rules of the game (an immutable card without an effect source is in neither the command zone nor `effects` of the view); `commanderDamageToLose`, that player's own limit (Forge `RegisteredPlayer.setCommanderDamageToLose`, read by `Player.getCommanderDamageToLose`, which falls back to the game's); and `goesFirst`, at most one player, who then starts (Forge `GameRules.setStartingPlayer`, ahead of the roll). Forge's `ReplaceBeginTurn` takes `ExtraTurn$ False` (only a turn that is not an extra one), which the Juggernaut's "after every challenger" order uses. `PlayerRulesTest` pins them.
 +
@@ -2022,7 +2022,7 @@ index 713e1ef..0d09df5 100644
          if (source == null) {
              return 0;
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-index c69b549..35c9272 100644
+index c69b549..53a8dea 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 @@ -47,6 +47,10 @@ import java.util.concurrent.ConcurrentHashMap;
@@ -2085,7 +2085,7 @@ index c69b549..35c9272 100644
          session.attach(match, game, botSeats, request.isSnapshotRecording());
          if (request.checkpointMetrics) {
              session.enableCheckpointMetrics();
-@@ -357,6 +375,104 @@ public final class ManaBrewEngineAdapter {
+@@ -357,6 +375,106 @@ public final class ManaBrewEngineAdapter {
          }
      }
  
@@ -2131,6 +2131,8 @@ index c69b549..35c9272 100644
 +        final int heads = sizes.values().iterator().next();
 +        rules.setSharedTeamLife(true);
 +        rules.setTeamLifeEvents(true);
++        rules.setTeamEffects(true);
++        rules.setTeamDraws(request.isTeamDraws());
 +        rules.setPoisonCountersToLose(request.getPoisonToLose() != null
 +                ? request.getPoisonToLose() : 15 + 5 * (heads - 2));
 +        rules.setCommanderDamageToLose(request.getCommanderDamageToLose() != null
@@ -2190,7 +2192,7 @@ index c69b549..35c9272 100644
      private static GameType resolveGameType(final StartGameRequest request) {
          final String variant = request.getVariant();
          if (variant != null && !variant.isBlank()) {
-@@ -380,7 +496,7 @@ public final class ManaBrewEngineAdapter {
+@@ -380,7 +498,7 @@ public final class ManaBrewEngineAdapter {
          return commanderGame ? GameType.Commander : GameType.Constructed;
      }
  
@@ -2199,7 +2201,7 @@ index c69b549..35c9272 100644
          JsonObject root = JsonParser.parseString(requestJson).getAsJsonObject();
          String gameId = requiredString(root, "gameId");
          String variant = optionalString(root, "variant");
-@@ -426,11 +542,28 @@ public final class ManaBrewEngineAdapter {
+@@ -426,11 +544,31 @@ public final class ManaBrewEngineAdapter {
              boolean bot = playerObject.has("bot")
                      && !playerObject.get("bot").isJsonNull()
                      && playerObject.get("bot").getAsBoolean();
@@ -2226,10 +2228,13 @@ index c69b549..35c9272 100644
 +                optionalString(root, "teamRules") == null ? TEAM_RULES_NONE : optionalString(root, "teamRules"),
 +                optionalInt(root, "poisonToLose"),
 +                optionalInt(root, "commanderDamageToLose"));
++        request.teamDraws = root.has("teamDraws") && !root.get("teamDraws").isJsonNull()
++                && root.get("teamDraws").isJsonPrimitive() && root.get("teamDraws").getAsJsonPrimitive().isBoolean()
++                && root.get("teamDraws").getAsBoolean();
          return request;
      }
  
-@@ -455,6 +588,25 @@ public final class ManaBrewEngineAdapter {
+@@ -455,6 +593,25 @@ public final class ManaBrewEngineAdapter {
          return value;
      }
  
@@ -2255,17 +2260,18 @@ index c69b549..35c9272 100644
      private static String optionalString(final JsonObject object, final String key) {
          if (!object.has(key) || object.get(key).isJsonNull()) {
              return null;
-@@ -470,6 +622,9 @@ public final class ManaBrewEngineAdapter {
+@@ -470,6 +627,10 @@ public final class ManaBrewEngineAdapter {
          private final boolean snapshotRecording;
          private boolean checkpointMetrics;
          private final List<PlayerConfig> players;
 +        private String teamRules = TEAM_RULES_NONE;
 +        private Integer poisonToLose;
 +        private Integer commanderDamageToLose;
++        private boolean teamDraws;
  
          public StartGameRequest(
                  final String gameId,
-@@ -516,6 +671,29 @@ public final class ManaBrewEngineAdapter {
+@@ -516,6 +677,38 @@ public final class ManaBrewEngineAdapter {
          public List<PlayerConfig> getPlayers() {
              return players;
          }
@@ -2292,10 +2298,19 @@ index c69b549..35c9272 100644
 +        public Integer getCommanderDamageToLose() {
 +            return commanderDamageToLose;
 +        }
++
++        public boolean isTeamDraws() {
++            return teamDraws;
++        }
++
++        public StartGameRequest setTeamDraws(final boolean teamDraws) {
++            this.teamDraws = teamDraws;
++            return this;
++        }
      }
  
      public static final class PlayerConfig {
-@@ -526,6 +704,13 @@ public final class ManaBrewEngineAdapter {
+@@ -526,6 +719,13 @@ public final class ManaBrewEngineAdapter {
          private final List<String> commanderNames;
          private final boolean ai;
          private final boolean bot;
@@ -2309,7 +2324,7 @@ index c69b549..35c9272 100644
  
          public PlayerConfig(
                  final String name,
-@@ -535,6 +720,19 @@ public final class ManaBrewEngineAdapter {
+@@ -535,6 +735,19 @@ public final class ManaBrewEngineAdapter {
                  final List<String> commanderNames,
                  final boolean ai,
                  final boolean bot
@@ -2329,7 +2344,7 @@ index c69b549..35c9272 100644
          ) {
              if (name == null || name.isBlank()) {
                  throw new IllegalArgumentException("player name is required");
-@@ -549,6 +747,11 @@ public final class ManaBrewEngineAdapter {
+@@ -549,6 +762,11 @@ public final class ManaBrewEngineAdapter {
              this.commanderNames = commanderNames == null ? List.of() : List.copyOf(commanderNames);
              this.ai = ai;
              this.bot = bot;
@@ -2341,7 +2356,7 @@ index c69b549..35c9272 100644
          }
  
          public String getName() {
-@@ -578,6 +781,45 @@ public final class ManaBrewEngineAdapter {
+@@ -578,6 +796,45 @@ public final class ManaBrewEngineAdapter {
          public boolean isBot() {
              return bot;
          }
@@ -10299,6 +10314,629 @@ index 0000000..a5d3088
 +        return SnapshotExtractor.javaCardId(card);
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/TeamHouseRulesTest.java b/forge-harness/src/test/java/forge/harness/host/TeamHouseRulesTest.java
+new file mode 100644
+index 0000000..e63dfea
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/TeamHouseRulesTest.java
+@@ -0,0 +1,617 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.ai.PlayerControllerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameEntity;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.card.CardCollection;
++import forge.game.card.CounterEnumType;
++import forge.game.cost.CostPart;
++import forge.game.cost.PaymentDecision;
++import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.spellability.SpellAbilityStackInstance;
++import forge.game.zone.MagicStack;
++import forge.game.player.DelayedReveal;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++import org.apache.commons.lang3.tuple.ImmutablePair;
++import forge.util.collect.FCollectionView;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.EnumSet;
++import java.util.HashMap;
++import java.util.HashSet;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++public final class TeamHouseRulesTest {
++    private TeamHouseRulesTest() {}
++
++    private enum Mode { ON, OFF, FFA }
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        final Set<String> only = new HashSet<>(List.of(args));
++        CHECKS.put("requestReadsTeamDraws", TeamHouseRulesTest::requestReadsTeamDraws);
++        CHECKS.put("drawIsSharedWithTeamDraws", TeamHouseRulesTest::drawIsSharedWithTeamDraws);
++        CHECKS.put("scryIsSharedWithTeamDraws", TeamHouseRulesTest::scryIsSharedWithTeamDraws);
++        CHECKS.put("surveilIsSharedWithTeamDraws", TeamHouseRulesTest::surveilIsSharedWithTeamDraws);
++        CHECKS.put("lookingAtTheTopIsSharedWithTeamDraws", TeamHouseRulesTest::lookingAtTheTopIsSharedWithTeamDraws);
++        CHECKS.put("discardIsTheTeams", TeamHouseRulesTest::discardIsTheTeams);
++        CHECKS.put("millIsTheTeams", TeamHouseRulesTest::millIsTheTeams);
++        CHECKS.put("eachOpponentSacrificesOnceEach", TeamHouseRulesTest::eachOpponentSacrificesOnceEach);
++        CHECKS.put("targetPlayerSacrificeIsTheTeams", TeamHouseRulesTest::targetPlayerSacrificeIsTheTeams);
++        CHECKS.put("youSacrificeIsTheTeams", TeamHouseRulesTest::youSacrificeIsTheTeams);
++        CHECKS.put("youCreateTokensIsTheTeams", TeamHouseRulesTest::youCreateTokensIsTheTeams);
++        CHECKS.put("energyIsTheTeams", TeamHouseRulesTest::energyIsTheTeams);
++        CHECKS.put("theDrawStepIsNotShared", TeamHouseRulesTest::theDrawStepIsNotShared);
++        CHECKS.put("costsAreNotShared", TeamHouseRulesTest::costsAreNotShared);
++        CHECKS.put("manaIsNotShared", TeamHouseRulesTest::manaIsNotShared);
++        CHECKS.put("poisonIsCountedOnce", TeamHouseRulesTest::poisonIsCountedOnce);
++        CHECKS.put("aSharedDrawNeverSharesAgain", TeamHouseRulesTest::aSharedDrawNeverSharesAgain);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            if (only.isEmpty() || only.contains(e.getKey())) {
++                check(e.getKey(), e.getValue());
++            }
++        }
++        System.out.println(failed == 0 ? "PASS TeamHouseRulesTest" : "FAIL TeamHouseRulesTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void requestReadsTeamDraws() {
++        final GameRules on = rulesFor(Mode.ON, "true");
++        expect(on.hasTeamDraws() && on.hasTeamEffects() && on.hasTeamLifeEvents(), "teamDraws true: draws " + on.hasTeamDraws() + ", effects " + on.hasTeamEffects());
++        final GameRules missing = rulesFor(Mode.OFF, null);
++        expect(!missing.hasTeamDraws() && missing.hasTeamEffects(), "no teamDraws: draws " + missing.hasTeamDraws() + ", effects " + missing.hasTeamEffects());
++        expect(!rulesFor(Mode.OFF, "false").hasTeamDraws(), "teamDraws false turned team draws on");
++        expect(!rulesFor(Mode.OFF, "\"yes\"").hasTeamDraws(), "teamDraws \"yes\" turned team draws on");
++        expect(!rulesFor(Mode.OFF, "1").hasTeamDraws(), "teamDraws 1 turned team draws on");
++        final GameRules ffa = rulesFor(Mode.FFA, "true");
++        expect(!ffa.hasTeamDraws() && !ffa.hasTeamEffects(), "free-for-all with teamDraws true: draws " + ffa.hasTeamDraws() + ", effects " + ffa.hasTeamEffects());
++    }
++
++    private static GameRules rulesFor(final Mode mode, final String teamDraws) {
++        final StringBuilder players = new StringBuilder();
++        for (int i = 0; i < 4; i++) {
++            players.append(i == 0 ? "" : ",").append("{\"name\":\"P").append(i).append("\",\"deck\":[{\"name\":\"Forest\"}]");
++            if (mode != Mode.FFA) {
++                players.append(",\"team\":").append(i < 2 ? 1 : 2);
++            }
++            players.append("}");
++        }
++        final String json = "{\"gameId\":\"team-house-rules-test\",\"variant\":\"Constructed\",\"teamRules\":\""
++                + (mode == Mode.FFA ? "none" : "sharedLife") + "\"" + (teamDraws == null ? "" : ",\"teamDraws\":" + teamDraws)
++                + ",\"players\":[" + players + "]}";
++        final ManaBrewEngineAdapter.StartGameRequest request = ManaBrewEngineAdapter.parseStartGameRequest(json);
++        final GameRules rules = new GameRules(GameType.Constructed);
++        rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
++        ManaBrewEngineAdapter.configureTeamRules(rules, request, GameType.Constructed);
++        return rules;
++    }
++
++    private static void drawIsSharedWithTeamDraws() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            final Map<Player, Integer> before = sizes(f, ZoneType.Hand);
++            castBy(f, "Divination", f.white, null);
++            final Map<Player, Integer> drawn = growth(f, ZoneType.Hand, before);
++            expect(drawn.get(f.white) == 2 && drawn.get(f.red) == (mode == Mode.ON ? 2 : 0) && drawn.get(f.yellow) == 0 && drawn.get(f.blue) == 0,
++                    mode + ": White's Divination drew " + names(drawn));
++        }
++    }
++
++    private static void scryIsSharedWithTeamDraws() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            castBy(f, "Opt", f.white, null);
++            expect(f.scried.equals(mode == Mode.ON ? List.of(f.white, f.red) : List.of(f.white)), mode + ": White's Opt made " + f.scried + " scry");
++        }
++    }
++
++    private static void surveilIsSharedWithTeamDraws() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            castBy(f, "Consider", f.white, null);
++            expect(f.surveiled.equals(mode == Mode.ON ? List.of(f.white, f.red) : List.of(f.white)), mode + ": White's Consider made " + f.surveiled + " surveil");
++        }
++    }
++
++    private static void lookingAtTheTopIsSharedWithTeamDraws() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            final Map<Player, Integer> before = sizes(f, ZoneType.Hand);
++            castBy(f, "Impulse", f.white, null);
++            final Map<Player, Integer> taken = growth(f, ZoneType.Hand, before);
++            expect(taken.get(f.white) == 1 && taken.get(f.red) == (mode == Mode.ON ? 1 : 0) && taken.get(f.yellow) == 0,
++                    mode + ": White's Impulse put into hands " + names(taken));
++            for (final Card c : f.red.getCardsIn(ZoneType.Hand)) {
++                expect(c.getOwner() == f.red, mode + ": Red's Impulse share took " + c.getOwner() + "'s card");
++            }
++            expect(f.picks.equals(mode == Mode.ON ? List.of("White from White", "Red from Red") : List.of("White from White")),
++                    mode + ": Impulse's choices were " + f.picks + ", not each player choosing from their own cards");
++            expect(f.red.getCardsIn(ZoneType.Library).size() == (mode == Mode.ON ? 11 : 12), mode + ": Red's library " + f.red.getCardsIn(ZoneType.Library).size());
++        }
++    }
++
++    private static void discardIsTheTeams() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            fillHands(f, 4);
++            final Map<Player, Integer> before = sizes(f, ZoneType.Graveyard);
++            castBy(f, "Mind Rot", f.white, f.yellow);
++            final Map<Player, Integer> discarded = growth(f, ZoneType.Graveyard, before);
++            expect(discarded.get(f.yellow) == 2 && discarded.get(f.blue) == (mode == Mode.FFA ? 0 : 2) && discarded.get(f.red) == 0,
++                    mode + ": Mind Rot at Yellow discarded " + names(discarded));
++        }
++    }
++
++    private static void millIsTheTeams() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            final Map<Player, Integer> before = sizes(f, ZoneType.Graveyard);
++            castBy(f, "Thought Scour", f.white, f.yellow);
++            final Map<Player, Integer> milled = growth(f, ZoneType.Graveyard, before);
++            expect(milled.get(f.yellow) == 2 && milled.get(f.blue) == (mode == Mode.FFA ? 0 : 2) && milled.get(f.red) == 0,
++                    mode + ": Thought Scour at Yellow milled " + names(milled));
++        }
++    }
++
++    private static void eachOpponentSacrificesOnceEach() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            for (final Player p : f.game.getPlayers()) {
++                add("Grizzly Bears", p, ZoneType.Battlefield);
++                add("Grizzly Bears", p, ZoneType.Battlefield);
++            }
++            final Map<Player, Integer> before = creatures(f);
++            castBy(f, "Vona's Hunger", f.white, null);
++            final Map<Player, Integer> after = creatures(f);
++            expect(before.get(f.yellow) - after.get(f.yellow) == 1 && before.get(f.blue) - after.get(f.blue) == 1
++                            && after.get(f.white) == 2 && after.get(f.red) == (mode == Mode.FFA ? 1 : 2),
++                    mode + ": after Vona's Hunger each player has " + names(after) + " creatures, not one sacrificed by each opponent");
++        }
++    }
++
++    private static void targetPlayerSacrificeIsTheTeams() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            for (final Player p : f.game.getPlayers()) {
++                add("Grizzly Bears", p, ZoneType.Battlefield);
++                add("Grizzly Bears", p, ZoneType.Battlefield);
++            }
++            castBy(f, "Diabolic Edict", f.white, f.yellow);
++            final Map<Player, Integer> after = creatures(f);
++            expect(after.get(f.yellow) == 1 && after.get(f.blue) == (mode == Mode.FFA ? 2 : 1) && after.get(f.white) == 2 && after.get(f.red) == 2,
++                    mode + ": after Diabolic Edict at Yellow the creatures are " + names(after));
++        }
++    }
++
++    private static void youSacrificeIsTheTeams() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            for (final Player p : f.game.getPlayers()) {
++                add("Forest", p, ZoneType.Battlefield);
++                add("Forest", p, ZoneType.Battlefield);
++            }
++            final Card minotaur = add("Ruinous Minotaur", f.white, ZoneType.Battlefield);
++            resolve(f, AbilityFactory.getAbility(minotaur.getSVar("TrigSacrifice"), minotaur), f.white);
++            final Map<Player, Integer> lands = new HashMap<>();
++            for (final Player p : f.game.getPlayers()) {
++                lands.put(p, p.getLandsInPlay().size());
++            }
++            expect(lands.get(f.white) == 1 && lands.get(f.red) == (mode == Mode.FFA ? 2 : 1) && lands.get(f.yellow) == 2,
++                    mode + ": after Ruinous Minotaur's \"sacrifice a land\" the lands are " + names(lands));
++        }
++    }
++
++    private static void youCreateTokensIsTheTeams() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            castBy(f, "Raise the Alarm", f.white, null);
++            final Map<Player, Integer> soldiers = new HashMap<>();
++            for (final Player p : f.game.getPlayers()) {
++                soldiers.put(p, (int) p.getCardsIn(ZoneType.Battlefield).stream().filter(c -> c.isToken() && c.getType().hasCreatureType("Soldier")).count());
++            }
++            expect(soldiers.get(f.white) == 2 && soldiers.get(f.red) == (mode == Mode.FFA ? 0 : 2) && soldiers.get(f.yellow) == 0,
++                    mode + ": Raise the Alarm made Soldiers " + names(soldiers));
++        }
++    }
++
++    private static void energyIsTheTeams() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            final Card hub = add("Aether Hub", f.white, ZoneType.Battlefield);
++            resolve(f, AbilityFactory.getAbility(hub.getSVar("TrigEnergy"), hub), f.white);
++            final Map<Player, Integer> energy = new HashMap<>();
++            for (final Player p : f.game.getPlayers()) {
++                energy.put(p, p.getCounters(CounterEnumType.ENERGY));
++            }
++            expect(energy.get(f.white) == 1 && energy.get(f.red) == (mode == Mode.FFA ? 0 : 1) && energy.get(f.yellow) == 0,
++                    mode + ": Aether Hub's \"you get {E}\" gave energy " + names(energy));
++        }
++    }
++
++    private static void theDrawStepIsNotShared() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            f.game.getPhaseHandler().devModeSet(PhaseType.UPKEEP, f.white, 5);
++            final Map<Player, Integer> before = sizes(f, ZoneType.Hand);
++            stepTo(f, PhaseType.DRAW);
++            final Map<Player, Integer> drawn = growth(f, ZoneType.Hand, before);
++            expect(drawn.get(f.white) == 1 && drawn.get(f.red) == 0, mode + ": White's draw step drew " + names(drawn));
++        }
++    }
++
++    private static void costsAreNotShared() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            final Card ghoul = add("Phyrexian Ghoul", f.white, ZoneType.Battlefield);
++            final Card whiteBears = add("Grizzly Bears", f.white, ZoneType.Battlefield);
++            add("Grizzly Bears", f.red, ZoneType.Battlefield);
++            add("Grizzly Bears", f.red, ZoneType.Battlefield);
++            final Card mongrel = add("Wild Mongrel", f.white, ZoneType.Battlefield);
++            fillHands(f, 3);
++            final Map<Player, Integer> before = creatures(f);
++            final Map<Player, Integer> handsBefore = sizes(f, ZoneType.Hand);
++            pay(f, ability(ghoul), f.white, whiteBears);
++            pay(f, ability(mongrel), f.white, f.white.getCardsIn(ZoneType.Hand).get(0));
++            final Map<Player, Integer> after = creatures(f);
++            final Map<Player, Integer> hands = sizes(f, ZoneType.Hand);
++            expect(before.get(f.white) - after.get(f.white) == 1, mode + ": Phyrexian Ghoul's sacrifice cost took " + (before.get(f.white) - after.get(f.white)) + " of White's creatures");
++            expect(after.get(f.red).equals(before.get(f.red)), mode + ": White's sacrifice cost made Red sacrifice: " + names(after));
++            expect(handsBefore.get(f.white) - hands.get(f.white) == 1, mode + ": Wild Mongrel's discard cost took " + (handsBefore.get(f.white) - hands.get(f.white)) + " of White's cards");
++            expect(hands.get(f.red).equals(handsBefore.get(f.red)), mode + ": White's discard cost made Red discard: " + names(hands));
++        }
++    }
++
++    private static void manaIsNotShared() throws Exception {
++        for (final Mode mode : Mode.values()) {
++            final Fixture f = new Fixture(mode);
++            final Card elves = add("Llanowar Elves", f.white, ZoneType.Battlefield);
++            elves.setSickness(false);
++            resolve(f, elves.getManaAbilities().get(0), f.white);
++            expect(f.white.getManaPool().totalMana() == 1 && f.red.getManaPool().totalMana() == 0,
++                    mode + ": Llanowar Elves gave White " + f.white.getManaPool().totalMana() + " mana and Red " + f.red.getManaPool().totalMana());
++        }
++    }
++
++    private static void poisonIsCountedOnce() throws Exception {
++        final Fixture plain = new Fixture(Mode.OFF, false);
++        castBy(plain, "Prologue to Phyresis", plain.white, null);
++        final int expected = plain.yellow.getPoisonCounters();
++        expect(expected > 0 && plain.blue.getPoisonCounters() == expected, "without the house rules Prologue to Phyresis gave Yellow " + expected + " and Blue " + plain.blue.getPoisonCounters());
++        final Fixture plainCounter = new Fixture(Mode.OFF, false);
++        resolve(plainCounter, AbilityFactory.getAbility("DB$ PutCounter | Defined$ Player.Opponent | CounterType$ POISON | CounterNum$ 1", add("Grizzly Bears", plainCounter.white, ZoneType.Battlefield)), plainCounter.white);
++        final int expectedCounter = plainCounter.yellow.getPoisonCounters();
++        for (final Mode mode : new Mode[] {Mode.ON, Mode.OFF}) {
++            final Fixture f = new Fixture(mode);
++            castBy(f, "Prologue to Phyresis", f.white, null);
++            expect(f.yellow.getPoisonCounters() == expected && f.blue.getPoisonCounters() == expected,
++                    mode + ": Prologue to Phyresis gave the team " + f.yellow.getPoisonCounters() + " / " + f.blue.getPoisonCounters() + " poison, not " + expected);
++            expect(f.white.getPoisonCounters() == 0 && f.red.getPoisonCounters() == 0, mode + ": White's team got poison");
++            final Fixture g = new Fixture(mode);
++            final Card host = add("Grizzly Bears", g.white, ZoneType.Battlefield);
++            resolve(g, AbilityFactory.getAbility("DB$ PutCounter | ValidTgts$ Player | CounterType$ POISON | CounterNum$ 1", host), g.white, g.yellow);
++            expect(g.yellow.getPoisonCounters() == 1 && g.blue.getPoisonCounters() == 1, mode + ": a poison counter put on Yellow gave the team " + g.yellow.getPoisonCounters() + " / " + g.blue.getPoisonCounters());
++            final Fixture h = new Fixture(mode);
++            resolve(h, AbilityFactory.getAbility("DB$ PutCounter | Defined$ Player.Opponent | CounterType$ POISON | CounterNum$ 1", add("Grizzly Bears", h.white, ZoneType.Battlefield)), h.white);
++            expect(h.yellow.getPoisonCounters() == expectedCounter, mode + ": a poison counter on each opponent gave the team " + h.yellow.getPoisonCounters() + ", not " + expectedCounter);
++        }
++    }
++
++    private static void aSharedDrawNeverSharesAgain() throws Exception {
++        final Fixture f = new Fixture(Mode.ON);
++        final Card yellowSphinx = add("Consecrated Sphinx", f.yellow, ZoneType.Battlefield);
++        final Card blueSphinx = add("Consecrated Sphinx", f.blue, ZoneType.Battlefield);
++        f.game.getTriggerHandler().resetActiveTriggers();
++        final Map<Player, Integer> before = sizes(f, ZoneType.Hand);
++        castBy(f, "Divination", f.white, null);
++        withoutPrompts(f, "running the waiting triggers", () -> f.game.getTriggerHandler().runWaitingTriggers());
++        final Map<Player, Integer> drawn = growth(f, ZoneType.Hand, before);
++        expect(drawn.get(f.white) == 2 && drawn.get(f.red) == 2, "with Consecrated Sphinxes out, White's Divination drew " + names(drawn));
++        final List<Card> hosts = triggeredHosts(f);
++        expect(count(hosts, yellowSphinx) == 4 && count(hosts, blueSphinx) == 4,
++                "Consecrated Sphinxes triggered " + count(hosts, yellowSphinx) + " and " + count(hosts, blueSphinx) + " times, not 4 each (2 draws by White, 2 shared to Red)");
++    }
++
++    private static void castBy(final Fixture f, final String name, final Player caster, final Player target) throws Exception {
++        final Card card = add(name, caster, ZoneType.Exile);
++        resolve(f, card.getFirstSpellAbility(), caster, target);
++    }
++
++    private static void resolve(final Fixture f, final SpellAbility sa, final Player activator) throws Exception {
++        resolve(f, sa, activator, null);
++    }
++
++    private static void resolve(final Fixture f, final SpellAbility sa, final Player activator, final Player target) throws Exception {
++        sa.setActivatingPlayer(activator);
++        if (target != null) {
++            sa.getTargets().add(target);
++        }
++        withoutPrompts(f, "resolving " + sa.getHostCard(), () -> AbilityUtils.resolve(sa));
++    }
++
++    private static void pay(final Fixture f, final SpellAbility sa, final Player activator, final Card paid) throws Exception {
++        sa.setActivatingPlayer(activator);
++        withoutPrompts(f, "paying for " + sa.getHostCard(), () -> {
++            for (final CostPart part : sa.getPayCosts().getCostParts()) {
++                expect(part.payAsDecided(activator, PaymentDecision.card(paid), sa, false), "the " + part + " cost of " + sa.getHostCard() + " was not paid");
++            }
++            AbilityUtils.resolve(sa);
++        });
++    }
++
++    private static SpellAbility ability(final Card card) {
++        for (final SpellAbility sa : card.getSpellAbilities()) {
++            if (!sa.isSpell()) {
++                return sa;
++            }
++        }
++        throw new AssertionError(card + " has no activated ability");
++    }
++
++    private static void fillHands(final Fixture f, final int n) {
++        for (final Player p : f.game.getPlayers()) {
++            for (int i = 0; i < n; i++) {
++                add("Plains", p, ZoneType.Hand);
++            }
++        }
++    }
++
++    private static Map<Player, Integer> creatures(final Fixture f) {
++        final Map<Player, Integer> out = new HashMap<>();
++        for (final Player p : f.game.getPlayers()) {
++            out.put(p, p.getCreaturesInPlay().size());
++        }
++        return out;
++    }
++
++    private static Map<Player, Integer> sizes(final Fixture f, final ZoneType zone) {
++        final Map<Player, Integer> out = new HashMap<>();
++        for (final Player p : f.game.getPlayers()) {
++            out.put(p, p.getCardsIn(zone).size());
++        }
++        return out;
++    }
++
++    private static Map<Player, Integer> growth(final Fixture f, final ZoneType zone, final Map<Player, Integer> before) {
++        final Map<Player, Integer> out = new HashMap<>();
++        for (final Player p : f.game.getPlayers()) {
++            out.put(p, p.getCardsIn(zone).size() - before.get(p));
++        }
++        return out;
++    }
++
++    private static String names(final Map<Player, Integer> byPlayer) {
++        final StringBuilder sb = new StringBuilder();
++        for (final Player p : List.copyOf(byPlayer.keySet()).stream().sorted((a, b) -> Integer.compare(a.getId(), b.getId())).toList()) {
++            sb.append(sb.length() == 0 ? "" : ", ").append(p.getName()).append(' ').append(byPlayer.get(p));
++        }
++        return sb.toString();
++    }
++
++    private static int count(final List<Card> hosts, final Card card) {
++        int n = 0;
++        for (final Card c : hosts) {
++            if (c.equals(card)) {
++                n++;
++            }
++        }
++        return n;
++    }
++
++    @SuppressWarnings("unchecked")
++    private static List<Card> triggeredHosts(final Fixture f) throws Exception {
++        final List<Card> hosts = new ArrayList<>();
++        final Field waiting = MagicStack.class.getDeclaredField("simultaneousStackEntryList");
++        waiting.setAccessible(true);
++        for (final SpellAbility sa : (List<SpellAbility>) waiting.get(f.game.getStack())) {
++            hosts.add(sa.getHostCard());
++        }
++        for (final SpellAbilityStackInstance si : f.game.getStack()) {
++            hosts.add(si.getSourceCard());
++        }
++        return hosts;
++    }
++
++    private static void stepTo(final Fixture f, final PhaseType target) throws Exception {
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        final Method end = PhaseHandler.class.getDeclaredMethod("onPhaseEnd");
++        final Method advance = PhaseHandler.class.getDeclaredMethod("advanceToNextPhase");
++        final Method begin = PhaseHandler.class.getDeclaredMethod("onPhaseBegin");
++        end.setAccessible(true);
++        advance.setAccessible(true);
++        begin.setAccessible(true);
++        for (int i = 0; i < 16; i++) {
++            withoutPrompts(f, "stepping from " + ph.getPhase(), () -> {
++                invoke(end, ph);
++                invoke(advance, ph);
++                invoke(begin, ph);
++            });
++            if (ph.getPhase() == target) {
++                return;
++            }
++        }
++        throw new AssertionError("never reached " + target + ", at " + ph.getPhase());
++    }
++
++    private static void invoke(final Method m, final Object target) {
++        try {
++            m.invoke(target);
++        } catch (final ReflectiveOperationException e) {
++            throw new RuntimeException(e.getCause() != null ? e.getCause() : e);
++        }
++    }
++
++    private static void withoutPrompts(final Fixture f, final String what, final Runnable step) throws Exception {
++        final Throwable[] failure = new Throwable[1];
++        final Thread runner = new Thread(() -> {
++            try {
++                step.run();
++            } catch (final Throwable thrown) {
++                failure[0] = thrown;
++            }
++        }, what);
++        runner.setDaemon(true);
++        runner.start();
++        runner.join(60_000);
++        if (runner.isAlive()) {
++            throw new AssertionError(what + " asked " + f.session.getLatestPromptJson());
++        }
++        if (failure[0] != null) {
++            throw new AssertionError(what + " failed: " + failure[0], failure[0]);
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        if (zone == ZoneType.Battlefield) {
++            card.setSickness(false);
++        }
++        return card;
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("team-house-rules-test");
++        final Game game;
++        final Player white;
++        final Player red;
++        final Player yellow;
++        final Player blue;
++        final List<Player> scried = new ArrayList<>();
++        final List<Player> surveiled = new ArrayList<>();
++        final List<String> picks = new ArrayList<>();
++
++        Fixture(final Mode mode) {
++            this(mode, true);
++        }
++
++        Fixture(final Mode mode, final boolean houseRules) {
++            final boolean teams = mode != Mode.FFA;
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final String[] names = {"White", "Red", "Yellow", "Blue"};
++            for (int i = 0; i < 4; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
++                rp.setStartingLife(teams ? 30 : 20);
++                if (teams) {
++                    rp.setTeamNumber(i < 2 ? 1 : 2);
++                }
++                players.add(rp);
++            }
++            final GameRules rules = rulesFor(mode, mode == Mode.OFF ? "false" : "true");
++            if (!houseRules) {
++                rules.setTeamEffects(false);
++                rules.setTeamDraws(false);
++            }
++            game = new Game(players, rules, new Match(rules, players, "TeamHouseRulesTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            red = game.getPlayers().get(1);
++            yellow = game.getPlayers().get(2);
++            blue = game.getPlayers().get(3);
++            for (final Player p : game.getPlayers()) {
++                for (int i = 0; i < 12; i++) {
++                    add("Island", p, ZoneType.Library);
++                }
++                p.dangerouslySetController(new PlayerControllerAi(game, p, p.getLobbyPlayer()) {
++                    @Override
++                    public ImmutablePair<CardCollection, CardCollection> arrangeForScry(final CardCollection topN) {
++                        scried.add(p);
++                        return super.arrangeForScry(topN);
++                    }
++
++                    @Override
++                    public <T extends GameEntity> List<T> chooseEntitiesForEffect(final FCollectionView<T> optionList, final int min, final int max,
++                            final DelayedReveal delayedReveal, final SpellAbility sa, final String title, final Player targetedPlayer, final Map<String, Object> params) {
++                        recordPick(p, optionList);
++                        return super.chooseEntitiesForEffect(optionList, min, max, delayedReveal, sa, title, targetedPlayer, params);
++                    }
++
++                    @Override
++                    public <T extends GameEntity> T chooseSingleEntityForEffect(final FCollectionView<T> optionList, final DelayedReveal delayedReveal,
++                            final SpellAbility sa, final String title, final boolean isOptional, final Player targetedPlayer, final Map<String, Object> params) {
++                        recordPick(p, optionList);
++                        return super.chooseSingleEntityForEffect(optionList, delayedReveal, sa, title, isOptional, targetedPlayer, params);
++                    }
++
++                    @Override
++                    public ImmutablePair<CardCollection, CardCollection> arrangeForSurveil(final CardCollection topN) {
++                        surveiled.add(p);
++                        return super.arrangeForSurveil(topN);
++                    }
++                });
++            }
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        private void recordPick(final Player chooser, final FCollectionView<? extends GameEntity> options) {
++            for (final GameEntity e : options) {
++                if (e instanceof Card c) {
++                    final String pick = chooser.getName() + " from " + c.getOwner().getName();
++                    if (!picks.contains(pick)) {
++                        picks.add(pick);
++                    }
++                    return;
++                }
++            }
++        }
++    }
++}
 diff --git a/manabrew-rs/crates/loadgen/src/main.rs b/manabrew-rs/crates/loadgen/src/main.rs
 index 3b914ff..a86f4f9 100644
 --- a/manabrew-rs/crates/loadgen/src/main.rs
@@ -11163,7 +11801,7 @@ index ed50370..6f54c53 100644
                          )
                          .await?;
 diff --git a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs b/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
-index e19dcde..1deb64f 100644
+index e19dcde..1224a97 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
 +++ b/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
 @@ -1427,6 +1427,7 @@ pub fn run_hosted_engine_game(
@@ -11231,7 +11869,7 @@ index e19dcde..1deb64f 100644
                      }
                      Some("mulliganPutBack") if !*put_back_done => {
                          let count = prompt
-@@ -3041,6 +3048,43 @@ pub struct StartGameRequest {
+@@ -3041,6 +3048,47 @@ pub struct StartGameRequest {
      seed: u64,
      players: Vec<PlayerConfig>,
      checkpoint_metrics: bool,
@@ -11241,6 +11879,8 @@ index e19dcde..1deb64f 100644
 +    poison_to_lose: Option<i32>,
 +    #[serde(skip_serializing_if = "Option::is_none")]
 +    commander_damage_to_lose: Option<i32>,
++    #[serde(skip_serializing_if = "std::ops::Not::not")]
++    team_draws: bool,
 +}
 +
 +#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
@@ -11252,6 +11892,8 @@ index e19dcde..1deb64f 100644
 +    pub poison_to_lose: Option<i32>,
 +    #[serde(default)]
 +    pub commander_damage_to_lose: Option<i32>,
++    #[serde(default)]
++    pub team_draws: bool,
 +    #[serde(default)]
 +    pub players: Vec<GameConfigPlayer>,
 +}
@@ -11275,7 +11917,7 @@ index e19dcde..1deb64f 100644
  }
  
  #[derive(Debug, Clone, Serialize)]
-@@ -3050,9 +3094,22 @@ pub struct PlayerConfig {
+@@ -3050,9 +3098,22 @@ pub struct PlayerConfig {
      deck: Vec<CardIdentityForJava>,
      sideboard: Vec<CardIdentityForJava>,
      attractions: Vec<CardIdentityForJava>,
@@ -11298,13 +11940,14 @@ index e19dcde..1deb64f 100644
  }
  
  #[derive(Debug, Clone, Serialize)]
-@@ -3087,6 +3144,26 @@ impl StartGameRequest {
+@@ -3087,6 +3148,28 @@ impl StartGameRequest {
              seed,
              players,
              checkpoint_metrics: false,
 +            team_rules: None,
 +            poison_to_lose: None,
 +            commander_damage_to_lose: None,
++            team_draws: false,
 +        }
 +    }
 +
@@ -11312,6 +11955,7 @@ index e19dcde..1deb64f 100644
 +        self.team_rules = config.team_rules.clone();
 +        self.poison_to_lose = config.poison_to_lose;
 +        self.commander_damage_to_lose = config.commander_damage_to_lose;
++        self.team_draws = config.team_draws;
 +        for (player, name) in self.players.iter_mut().zip(player_names) {
 +            let Some(seat) = config.players.iter().find(|seat| &seat.username == name) else {
 +                continue;
@@ -11325,7 +11969,7 @@ index e19dcde..1deb64f 100644
          }
      }
  
-@@ -3102,9 +3179,16 @@ impl PlayerConfig {
+@@ -3102,9 +3185,16 @@ impl PlayerConfig {
              deck: deck.iter().map(CardIdentityForJava::from).collect(),
              sideboard: Vec::new(),
              attractions: Vec::new(),
@@ -11342,7 +11986,7 @@ index e19dcde..1deb64f 100644
          }
      }
  
-@@ -3120,6 +3204,12 @@ impl PlayerConfig {
+@@ -3120,6 +3210,12 @@ impl PlayerConfig {
              .flatten()
              .map(|card| CardIdentityForJava::from(&card.identity))
              .collect();
@@ -11355,6 +11999,36 @@ index e19dcde..1deb64f 100644
          self
      }
  }
+@@ -3299,3 +3395,29 @@ mod gc_log_tests {
+         ));
+     }
+ }
++
++#[cfg(test)]
++mod game_config_tests {
++    use super::*;
++
++    #[test]
++    fn team_draws_reaches_the_start_request() {
++        let config: GameConfig = serde_json::from_value(serde_json::json!({
++            "type": "gameConfig", "teamRules": "sharedLife", "teamDraws": true, "players": []
++        }))
++        .unwrap();
++        assert!(config.team_draws);
++        let mut request = StartGameRequest::new("g".into(), "Constructed".into(), 30, 1, Vec::new());
++        request.apply_game_config(&config, &[]);
++        assert!(request.to_json().unwrap().contains("\"teamDraws\":true"));
++    }
++
++    #[test]
++    fn team_draws_is_off_and_left_out_by_default() {
++        let config: GameConfig = serde_json::from_value(serde_json::json!({ "teamRules": "sharedLife" })).unwrap();
++        assert!(!config.team_draws);
++        let mut request = StartGameRequest::new("g".into(), "Constructed".into(), 30, 1, Vec::new());
++        request.apply_game_config(&config, &[]);
++        assert!(!request.to_json().unwrap().contains("teamDraws"));
++    }
++}
 diff --git a/manabrew-rs/crates/self-hosted-node/src/host.rs b/manabrew-rs/crates/self-hosted-node/src/host.rs
 index 7e1ddef..848b90b 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/host.rs

@@ -184,6 +184,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-15 (no image built: no Docker in the cloud session) | `engine1117-teamdraws` (not built as an image) | engine1116-teams3 + two 2HG house rules: Team effects (always on: discard, mill, sacrifice, "you create" tokens, player counters other than poison also happen to the partner) and Team draws (`gameConfig.teamDraws`, default off: draw, scry, surveil, look at the top) | Node only (`gameConfig.teamDraws` through the node's serde structs; relay source unchanged) | branch `cloud/team-draws`, patches regenerated from the pinned commits | not deployed | `engine1116-teams3` |
 | 2026-11-15 12:08 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams3` (`c156f48555ce` / `5b2f8fd69dc8`) | engine1116-teams2 + the 2HG house rule: a partner's life gain or loss counts as yours (triggers, this-turn counts, first time each turn, lifegain replacements), behind `GameRules.teamLifeEvents`, on in every `sharedLife` game | Node only (relay source unchanged) | tree `tmp/wt-2hghouse/tmp/eb-house`, branch `2hg-house` (`1806dd9` on `ba4da9e`), its `forge/` `2hg-house` (`02c1dad1` on `85bc8c3d`); outer branch `2hg-house-life` | not deployed | `engine1116-teams2` (`a904893325fc` / `5173c7e692c2`) |
 | 2026-11-15 04:21 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams2` (`a904893325fc` / `5173c7e692c2`) | engine1116-teams + engine1115-2hgrules in one engine (the four 2hg-rules Forge commits and their harness tests cherry-picked) | Node only, as both parts | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (+ `6c97e3b`..`ba4da9e`), its `forge/` + `e7b32d36`..`85bc8c3d`; outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` |
 | 2026-11-15 03:16 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams` (`0966b1c0d6cb` / `b07cf1600b20`) | Per-player rules for 2v2 Team Commander and Juggernaut: perks (hidden effect cards from Forge script lines), a player's own commander-damage limit, a named first player, `ReplaceBeginTurn` `ExtraTurn$ False`; on top of engine1115b | Node only (`gameConfig` fields through the node's serde structs; relay source unchanged) | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (`0569073`, `36617e3`, `4eb95da` on `44de312`), its `forge/` branch `teams-1116` (`7451885e` on `19931d89`); outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
@@ -256,6 +257,30 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-15 engine1117-teamdraws: the 2HG house rules Team draws and Team effects (built, not deployed)
+- **Problem:** the owner wants 2HG teammates treated as one, "everything shared except mana". Two house rules, not
+  CR 810, only with shared team life (`GameRules.hasSharedTeamLife()`).
+- **What, Forge (`engine/forge.patch`):** `GameRules.teamEffects` and `GameRules.teamDraws` (each counts only with
+  `sharedTeamLife`). `SpellAbilityEffect.withTeamPartners` / `withTeamPartnersCounted` add each named player's partners to an
+  effect's player list once, after the named players; a player already named keeps their own count (Vision Skeins draws
+  once each, an "each opponent sacrifices" sacrifice is one each), so a share never shares again. Hooked at the effect
+  level only (costs, the draw-step draw and mana never pass through these): Team draws: `DrawEffect`, `ScryEffect`,
+  `SurveilEffect`, `DigEffect` (library only; a partner chooses from their own cards); Team effects: `DiscardEffect`,
+  `MillEffect`, `SacrificeEffect` (the player branch, not "sacrifice this"), `TokenEffect` (every token owner),
+  `CountersPutEffect` on players (not poison, already the team's; not divided counters).
+- **What, harness (`engine/manabrew.patch`):** `StartGameRequest.teamDraws` (a JSON boolean, anything else is false);
+  `configureTeamRules` turns `setTeamEffects(true)` on with shared life and `setTeamDraws(request.isTeamDraws())`. New
+  `TeamHouseRulesTest` (17 checks); AGENTS.md says so.
+- **What, node (`manabrew-rs/crates/self-hosted-node`, `java_backend.rs`):** `GameConfig.team_draws` (`teamDraws`, default
+  false) copied in `apply_game_config` to `StartGameRequest.teamDraws` (left out when false); two unit tests.
+- **What, bridge:** `bridge/teams.js` `setupOf` and `gameConfig`, `bridge/bridge.js` `startGame`: the table's start message
+  field `teamDraws` (exactly `true` turns it on) goes into a 2HG `gameConfig`; other modes send no `teamDraws`.
+- **Build:** no Docker in the cloud session: `engine/test-harness-local.sh` (the harness jar), `cargo build -p
+  self-hosted-node`. No image was built or tagged; the running stack was not touched.
+- **Proof:** 19 of 19 harness classes pass (the 18 of `engine/checks/harness-tests.sh` + `TeamHouseRulesTest`); the
+  house-rule mutations (`node tools/l2-mutate.js --local <tree> --set house`) 17 of 17 caught by name, files restored by
+  sha256 (`docs/handoff/team-draws-report.md`).
 
 ### 2026-11-15 engine1116-teams3: the 2HG house rule, a partner's life gain or loss is yours (built, not deployed)
 - **Problem:** the user's answer to the rules audit's first conflict (2026-11-15): build it as a house rule. In 2HG a
