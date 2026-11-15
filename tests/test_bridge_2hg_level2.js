@@ -79,6 +79,24 @@ async function replay(h, { level1 = false, hook = null } = {}) {
   }
   return { seats, shown, autoPassed };
 }
+// The team's trigger order (805.7, track B: the first seat orders both partners' triggers) and a refused team block
+// (track C: a notice with no cards to each defender): what White is shown and told, what Red and Yellow are told.
+async function teamExtras(h, seats, board) {
+  const white = seats.get("White"), yellow = seats.get("Yellow");
+  white.board = { state: clone(board), fingerprint: null };
+  yellow.board = { state: clone(board), fingerprint: null };
+  const n0 = h.effects.length;
+  h.B.onPrompt(white, { promptId: 950, decidingPlayerId: "player-0", input: { type: "reorder", presentation: { title: "Order triggered abilities", description: "Choose trigger resolution order" },
+    items: [{ id: "sa-0", card: { id: "engine-card-3", identity: { name: "Grizzly Bears" }, controllerId: "player-0", ownerId: "player-0" }, oracle: "When this enters, you gain 1 life." },
+      { id: "sa-1", card: { id: "engine-card-30", identity: { name: "Juggernaut" }, controllerId: "player-1", ownerId: "player-1" }, oracle: "When this enters, draw a card." }] } });
+  await h.flush();
+  const order = shownTo(h, n0, "White");
+  const toRed = h.effects.slice(n0).filter((e) => e.tts?.t === "chat" && e.tts.color === "Red").map((e) => e.tts.text);
+  const n1 = h.effects.length;
+  h.B.onPrompt(yellow, { promptId: 951, decidingPlayerId: "player-2", input: { type: "revealCards", cards: [], presentation: { title: "Block declaration invalid: Hill Giant can't block alone" } } });
+  await h.flush();
+  return { order, toRed, refused: chats(h, n1) };
+}
 const fixPrompt = (id) => FIX.record.find((e) => e.prompt?.promptId === id).prompt;
 const fixBoard = (i) => FIX.record[i].board;
 
@@ -177,6 +195,10 @@ const fixBoard = (i) => FIX.record[i].board;
     const n2 = h.effects.length;
     h.B.onPrompt(yel, { promptId: 904, decidingPlayerId: "player-2", input: { type: "chooseAction", actions: [] } }); await h.flush();
     ok("skip: an opponent's spell still stops it", chats(h, n2).some((c) => /Grizzly Bears \(White\) is on the stack/.test(c)), chats(h, n2).join(" | "));
+    const ex = await teamExtras(h, r.seats, fixBoard(48));
+    ok("triggers: the first seat orders the team's triggers, the partner's named", /^Your team's triggers/.test(ex.order?.title || "") && (ex.order?.options || []).some((o) => /^Red's Juggernaut/.test(o.label)), JSON.stringify(ex.order && { t: ex.order.title, o: ex.order.options }));
+    ok("triggers: the partner is told who orders them", ex.toRed.some((c) => /White is putting your team's triggers in order, yours too/.test(c)), ex.toRed.join(" | "));
+    ok("refusal: a refused team block is the team's, and who is asked first", ex.refused.some((c) => c === "[MTG] Your team's blocks together aren't legal. Hill Giant can't block alone. You are both asked again, Yellow first."), ex.refused.join(" | "));
   });
 
   // ── the same fixture as a Level 1 game: none of it ──
@@ -191,6 +213,9 @@ const fixBoard = (i) => FIX.record[i].board;
     ok("level 1: the partner's land waits for her own turn", /only be played on your turn/.test(String(redLand)), String(redLand));
     ok("level 1: no team attack words", !/Your team attacks together/.test(r.shown[19]?.text || "") && !/Your team attacks together/.test(r.shown[20]?.text || ""), `${r.shown[19]?.text} || ${r.shown[20]?.text}`);
     ok("level 1: no team block words", !/Your team blocks together/.test(r.shown[25]?.text || ""), r.shown[25]?.text);
+    const ex = await teamExtras(h, r.seats, asLevel1(fixBoard(48)));
+    ok("level 1: trigger order is the player's own", /^Your triggers/.test(ex.order?.title || "") && !(ex.order?.options || []).some((o) => /^Red's/.test(o.label)) && !ex.toRed.length, JSON.stringify(ex.order?.title));
+    ok("level 1: no team refusal words", !ex.refused.some((c) => /Your team's blocks/.test(c)), ex.refused.join(" | "));
   });
 
   console.log(`${failed ? "FAIL" : "PASS"} test_bridge_2hg_level2: ${passed} passed, ${failed} failed`);

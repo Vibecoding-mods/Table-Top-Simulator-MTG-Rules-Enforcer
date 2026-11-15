@@ -574,15 +574,22 @@ recorded). Every piece is gated on the board's `teamRules.rule == "sharedTurns"`
 - **Blocks:** each defender's question says "Your team blocks together: you and Blue can each block any attacker, even one
   attacking your partner."; the partner's blocks already made are listed; a partner's creature offered in the question (one
   player declaring for the team) is named "Blue's Hill Giant blocks ...". Works for either shape track C picks (one
-  question per defender, as in the fixture, or one combined question).
+  question per defender, as in the fixture and as track C built it, or one combined question). While a partner is
+  asked their part, the other partner's corner line says "White is declaring attackers for your team..." (human
+  partners only: an AI's questions never reach the table). A refused team declaration (track C: a notice with no cards,
+  "Attack declaration invalid" / "Block declaration invalid: <reason>") is said to each partner as "Your team's blocks
+  together aren't legal. <reason> You are both asked again, Yellow first."
+- **Trigger order (805.7, track B):** the team's first seat gets one order question for both partners' triggers: "Your
+  team's triggers: click the one that happens first", the partner's named "Red's Juggernaut: ...", and the partner is
+  told "White is putting your team's triggers in order, yours too".
 - **Tests:** `tests/test_bridge_2hg_level2.js` (the fixture through the bridge, with a Level 1 contrast) and
   `tests/test_table_2hg_level2.js` (the bridge's boards on the fake TTS with four seated players, with a Level 1 contrast);
-  24 mutations, each made a named check fail and every file came back to its sha256.
+  27 mutations, each made a named check fail and every file came back to its sha256.
 
 Waits on the engine: the real `activeTeamIds` / `priorityTeamIds` names (the bridge reads `activeTeamIds` and falls back
 to `teamNumber`; the table derives the priority team from the sides), a recorded fixture to replace the hand-built one,
-and track C's combat shape (`docs/2hg-level2-combat.md`, not written yet). Not built: the primary player's team questions
-(805.2, 805.7 trigger order), team mulligans (805.3a), a Forge AI partner in a shared turn (§5.4 item 6).
+(tracks B and C are written: `docs/2hg-level2-turns.md`, `docs/2hg-level2-combat.md`; neither writes `activeTeamIds` /
+`priorityTeamIds` yet, and the bridge needs neither). Not built: 805.2 disagreements and 810.9d member picks, team mulligans (805.3a), a Forge AI partner in a shared turn (§5.4 item 6).
 
 ## 6. Juggernaut (3v1; kept as written)
 One strong player against a team of three.
