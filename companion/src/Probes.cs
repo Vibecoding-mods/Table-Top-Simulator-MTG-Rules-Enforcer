@@ -545,6 +545,20 @@ namespace MtgCompanion
             try { IoCounters c; return GetProcessIoCounters(p.Handle, out c) ? (long)c.ReadBytes : -1; } catch { return -1; }
         }
 
+        // Steam's folder (HKCU Software\Valve\Steam SteamPath), or null
+        public static string SteamPath()
+        {
+            try
+            {
+                using (var k = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam"))
+                {
+                    var p = k == null ? null : k.GetValue("SteamPath") as string;
+                    return string.IsNullOrEmpty(p) ? null : p.Replace('/', '\\');
+                }
+            }
+            catch { return null; }
+        }
+
         public static bool SteamFound()
         {
             try

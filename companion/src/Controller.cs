@@ -969,6 +969,23 @@ namespace MtgCompanion
             catch (Exception e) { Log.Write("stack\\deployed.json not rewritten: " + e.Message); }
         }
 
+        // The table this host made, in the package's stack\deployed.json (its Workshop copy made another than the package's)
+        void RewriteDeployedTable(string stamp)
+        {
+            var next = Logic.DeployedWithTable(deployed, stamp);
+            if (next == null) return;
+            try
+            {
+                var tmp = L.DeployedFile + ".tmp";
+                File.WriteAllText(tmp, J.Write(next), new UTF8Encoding(false));
+                if (File.Exists(L.DeployedFile)) File.Delete(L.DeployedFile);
+                File.Move(tmp, L.DeployedFile);
+                deployed = next;
+                Log.Write("stack\\deployed.json: this host's table " + stamp + " recorded");
+            }
+            catch (Exception e) { Log.Write("stack\\deployed.json not rewritten: " + e.Message); }
+        }
+
         // the ids to expect: the package's, or the ones Docker reported after loading this same package before
         void ExpectedImages(out string relay, out string node)
         {
@@ -991,20 +1008,58 @@ namespace MtgCompanion
             File.Move(tmp, dest);
         }
 
+        // The Workshop table the package makes its table from: version.json "workshop" (id, url), else the 4-player one.
+        // (A 6-player table, once its profile exists, comes as a second entry of version.json "tables"; this step
+        // makes the first, required one.)
+        string WorkshopId { get { return J.Str(J.Get(version, "workshop"), "id") ?? Logic.TableWorkshopId; } }
+        string WorkshopLink { get { return J.Str(J.Get(version, "workshop"), "url") ?? Logic.WorkshopUrl(WorkshopId); } }
+        // the table stamp this host's Workshop copy made, when that isn't the package's (the TTS light expects it)
+        string builtStamp;
+
+        // runs the package's table\make-table.js with its own Node: the Workshop copy in, the table out (tests: a fake)
+        public Func<string, string, TableBuild> BuildTable;
+        public Func<string> SteamDir = Probes.SteamPath; // (tests: none, so only the folder beside Saves counts)
+        TableBuild RunMakeTable(string workshop, string outFile)
+        {
+            var script = Path.Combine(L.Home, "table", "make-table.js");
+            if (!File.Exists(script)) return new TableBuild { Error = "table\\make-table.js is missing from the package. Unzip the package again" };
+            var r = Probes.Run(L.NodeExe, Logic.MakeTableArgs(script, workshop, outFile), 120000, null, null, null, L.Home);
+            if (r.Error != null) return new TableBuild { Error = "couldn't run " + L.NodeExe + ": " + r.Error };
+            if (r.TimedOut) return new TableBuild { Error = "the patcher took over 2 minutes" };
+            return Logic.ParseMakeTable(r.Exit, r.Output);
+        }
+
         bool DoSave()
         {
             if (!L.Friend) { Set(StepSave, new Verdict(Light.Grey, "Home mode: you keep your own save (" + saveName + ").")); return true; }
-            if (!File.Exists(L.TableJson))
+            // the table: made here from the host's own Workshop copy (the package ships none)
+            var tried = Logic.WorkshopCandidates(SavesDir, SteamDir == null ? null : SteamDir(), WorkshopId);
+            string workshop = tried.FirstOrDefault(File.Exists);
+            if (workshop == null)
             {
-                Set(StepSave, new Verdict(Light.Red, "table\\MTG Table.json is missing from the package. Unzip the package again, then press Try again.").WithFix(Fixes.Retry, "Try again"));
+                Log.Write("no Workshop table " + WorkshopId + "; looked in: " + string.Join(" | ", tried));
+                Set(StepSave, Logic.WorkshopMissing(WorkshopLink, tried));
                 return false;
             }
+            // (a check makes it in a temp file: it changes nothing, not even the package's table folder)
+            string made = DryRun ? Path.Combine(Path.GetTempPath(), "mtg-companion-table-" + Guid.NewGuid().ToString("N").Substring(0, 8) + ".json") : L.TableJson;
             try
             {
-                var ours = File.ReadAllBytes(L.TableJson);
+                Directory.CreateDirectory(Path.GetDirectoryName(made));
+                var b = (BuildTable ?? RunMakeTable)(workshop, made);
+                Log.Write("table from " + workshop + ": " + (b.Ok ? "stamp " + b.Stamp + ", save " + b.Save + ", Workshop copy " + b.Workshop : "failed: " + b.Error));
+                if (!b.Ok || !File.Exists(made))
+                {
+                    Set(StepSave, b.Missing ? Logic.WorkshopMissing(WorkshopLink, tried) : Logic.TableBuildFailed(b.Ok ? new TableBuild { Error = "it wrote nothing" } : b));
+                    return false;
+                }
+                var ours = File.ReadAllBytes(made);
                 string ourHash = Logic.Sha8(ours);
-                string want = Want("save") ?? ourHash;
-                if (want != ourHash) Log.Write("note: version.json save " + want + " but table\\MTG Table.json hashes to " + ourHash);
+                string packageSave = Want("save");
+                if (packageSave != null && packageSave != ourHash) Log.Write("note: this Workshop copy made save " + ourHash + " (stamp " + b.Stamp + "), the package was checked with " + packageSave + " (" + Want("table") + ")");
+                builtStamp = b.Stamp != null && b.Stamp != Want("table") ? b.Stamp : null;
+                if (!DryRun && builtStamp != null) RewriteDeployedTable(builtStamp);
+                string want = ourHash; // (what goes into the save is what was just made)
                 var existing = Directory.Exists(SavesDir)
                     ? Directory.GetFiles(SavesDir).Select(f => new SaveEntry(Path.GetFileName(f), new FileInfo(f).Length)).ToList()
                     : new List<SaveEntry>();
@@ -1015,7 +1070,7 @@ namespace MtgCompanion
                 if (DryRun)
                 {
                     Set(StepSave, plan.Kind == SaveKind.Skip || plan.Kind == SaveKind.Adopt
-                        ? new Verdict(Light.Green, plan.Text)
+                        ? Logic.SaveDone(plan.Text, ourHash, packageSave, b.Stamp, Want("table"))
                         : checking ? new Verdict(Light.Grey, "Start engine does this: " + plan.Text)
                         : new Verdict(Light.Amber, "Would do: " + plan.Text + " (in " + SavesDir + ")"));
                     return true;
@@ -1047,7 +1102,7 @@ namespace MtgCompanion
                     : plan.Kind == SaveKind.Adopt ? plan.Text
                     : plan.Kind == SaveKind.Update ? "Updated " + plan.File + " (" + saveName + ")."
                     : "Installed as " + plan.File + " (" + saveName + ").";
-                Set(StepSave, new Verdict(Light.Green, done));
+                Set(StepSave, Logic.SaveDone(done, ourHash, packageSave, b.Stamp, Want("table")));
                 return true;
             }
             catch (Exception e)
@@ -1056,6 +1111,7 @@ namespace MtgCompanion
                 Set(StepSave, new Verdict(Light.Red, "Couldn't install the table save: " + e.Message).WithFix(Fixes.Retry, "Try again"));
                 return false;
             }
+            finally { if (DryRun) try { File.Delete(made); File.Delete(Path.ChangeExtension(made, ".png")); } catch { } }
         }
 
         // ── 5. Bridge
@@ -1232,7 +1288,7 @@ namespace MtgCompanion
             var f = new TtsFacts
             {
                 Running = TtsRunning(), VersionsOk = vers != null, TableHeard = J.Has(now, "table"), Table = J.Str(now, "table"),
-                WantTable = Want("table"), SaveName = saveName, SteamFound = Probes.SteamFound(), Home = !L.Friend,
+                WantTable = builtStamp ?? Want("table"), SaveName = saveName, SteamFound = Probes.SteamFound(), Home = !L.Friend,
                 TableHeardAgoSec = heardAgo, TtsUpSec = ttsStart.HasValue ? (DateTime.UtcNow - ttsStart.Value).TotalSeconds : (double?)null,
             };
             Set(StepTts, Logic.DecideTts(f));

@@ -123,7 +123,8 @@ namespace MtgCompanion
 
     public static class Updates
     {
-        public const int Format = 1; // the manifest format this app applies (a release's minCompanion)
+        public const int Format = 2; // the manifest format this app applies (a release's minCompanion; 2: the table is made
+                                     // from the host's Workshop copy, the table part is the patcher)
         public const string Repo = "Vibecoding-mods/Table-Top-Simulator-Mock-MTGA";
         public const string ApiBase = "https://api.github.com";
         public const string UserAgent = "MTG-Companion";

@@ -82,17 +82,38 @@ More: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [SPEC.md](SPEC.md).
 
 ## The easy way: the one-click package
 
-For playing rather than developing. Nothing to build, and no Node or Workshop download.
+For playing rather than developing. Nothing to build, and no Node.
 
-1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and start it once. Accept its terms, and
-   let it update WSL if it asks.
-2. Download the latest `MTG-Table-<date>-<hash>.zip` from this repository's **Releases** page. The repository is
-   invite-only: ask its owner for access.
-3. Unzip it anywhere and double-click **MTG Companion.exe**.
+### Host requirements
+
+The PC that runs the engine (the host). Friends who only join need just Tabletop Simulator.
+
+- Windows 10 or 11 on an x64 processor (Intel or AMD). Windows on ARM won't run the engine.
+- At least 4 CPU cores and 16 GB of RAM recommended. The engine uses 2 cores and about 8 GB inside Docker; TTS and
+  Windows need the rest. These are estimates, not measured limits.
+- About 2 GB of free disk.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/):
+  - In its installer, choose **"All-users installation"**: it turns on Windows' Virtual Machine Platform, which
+    Docker needs. Or run `wsl --install` in an administrator PowerShell and restart the PC.
+  - Then start Docker once, and sign out of Windows and back in (the install adds you to the `docker-users` group).
+  - If Docker says virtualization is off, enable SVM (AMD) or Intel VT-x (Intel) in the BIOS/UEFI.
+- Tabletop Simulator (Steam).
+- The tables, subscribed on the Steam Workshop:
+  [4 player](https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369) and
+  [6 player](https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471). Start TTS once afterwards so Steam
+  downloads them. The package doesn't include the tables: the companion makes the rules-engine table from your own
+  copy (Steam's Subscriber Agreement lets subscribers use Workshop items, not hand out copies).
+
+### Steps
+
+1. Install Docker Desktop as above, start it once, and accept its terms. Let it update WSL if it asks.
+2. Subscribe to the table on the Workshop and start TTS once.
+3. Download the latest `MTG-Table-<date>-<hash>.zip` from this repository's **Releases** page.
+4. Unzip it anywhere and double-click **MTG Companion.exe**, then press **Start engine**.
    - Windows may warn that the app is unsigned: choose **More info → Run anyway**.
-   - The first start loads the engine into Docker and takes a few minutes. The tray lights turn green when it's
-     ready.
-4. In Tabletop Simulator, load **MTG Table (rules engine)** from your saves.
+   - The first start loads the engine into Docker and takes a few minutes. It makes the table from your Workshop copy
+     and installs it as a TTS save. The lights turn green when it's ready.
+5. In Tabletop Simulator, load **MTG Table (rules engine)** from your saves.
 
 `README-FRIEND.txt` in the zip has the details and what to do if a light stays red. The rest of this page is for hosts
 who build and run everything themselves.
@@ -230,9 +251,14 @@ How each test works and what it can't see: [TESTING.md](TESTING.md).
 - Rules engine: [Forge](https://github.com/Card-Forge/forge) (GPL-3.0) through
   [Manabrew](https://github.com/witchesofthehill/manabrew) (AGPL-3.0), run as separate programs, with our changes to
   both. Those changes stay under their licences and their source must be published with any build we share.
-- The table: "MTG 4 player table - scripted" by its Workshop author; this repo only contains the script that adapts
-  your own copy.
+- The tables: "MTG 4 player table - scripted"
+  ([Workshop 2296042369](https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369)) and "MTG 6 player table -
+  scripted" ([Workshop 2293586471](https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471)), both by the
+  same Workshop author; this repo only contains the script that adapts your own copy.
 - Card images come from [Scryfall](https://scryfall.com/docs/api) under its guidelines.
+- DeckCheck deck links (bracket and threat level): [DeckCheck](https://deckcheck.co) through its public API
+  ([deckcheck.co/docs/api](https://deckcheck.co/docs/api)), read-only, one request per import, nothing stored.
+  Not affiliated with DeckCheck.
 - Magic: The Gathering is © Wizards of the Coast. This is unofficial Fan Content permitted under the
   [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards.
   Portions of the materials used are property of Wizards of the Coast. © Wizards of the Coast LLC.

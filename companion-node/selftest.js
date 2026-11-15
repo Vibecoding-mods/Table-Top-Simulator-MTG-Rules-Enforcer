@@ -535,6 +535,22 @@ function fakeController(observe) {
   return { c, tmp };
 }
 
+// the host's Workshop copy, beside the controller's Saves folder (or at `at`), and a patcher that makes the table by
+// copying it (and its .png) as make-table.js would write them: a test changes the copy to change the table
+function fakeWorkshop(c, text, at) {
+  const ws = at || path.join(path.dirname(c.savesDir), "Mods", "Workshop", `${L.TableWorkshopId}.json`);
+  fs.mkdirSync(path.dirname(ws), { recursive: true });
+  fs.writeFileSync(ws, text);
+  if (at) c.workshopCandidates = () => [ws];
+  c.buildTable = (w, out) => {
+    fs.copyFileSync(w, out);
+    const png = w.replace(/\.json$/i, ".png");
+    if (fs.existsSync(png)) fs.copyFileSync(png, out.replace(/\.json$/i, ".png"));
+    return { ok: true, stamp: null };
+  };
+  return ws;
+}
+
 async function wiring() {
   section("the start sequence wiring (Controller.workOnce, no worker, a fake watcher)");
   const { c, tmp } = fakeController(false);
@@ -603,8 +619,7 @@ async function launchStartsNothing() {
   section("launch only checks; Start engine starts");
   const mk = (observe, autoStart) => {
     const x = fakeController(observe);
-    fs.mkdirSync(path.join(x.tmp, "table"), { recursive: true });
-    fs.writeFileSync(x.c.L.tableJson, '{"SaveName": "Selftest table", "ObjectStates": []}');
+    fakeWorkshop(x.c, '{"SaveName": "Selftest table", "ObjectStates": []}');
     x.c.reloadPackage();
     x.c.autoStart = autoStart;
     x.c.stopBridge = async () => {}; // (never near a real bridge)
@@ -621,6 +636,7 @@ async function launchStartsNothing() {
     check("launch starts nothing: the check installed no table save", filesIn(c.savesDir) === 0, filesIn(c.savesDir));
     check("launch starts nothing: the save row is grey and says Start engine does it", c.rows[L.Step.Save].v.light === Light.Grey && c.rows[L.Step.Save].v.text === "Start engine does this: Installing the table as TS_Save_1.json.", c.rows[L.Step.Save].v);
     check("launch starts nothing: Not started, nothing queued, not started", c.phase === L.NotStartedPhase && c.pendingFrom === 0 && c.needsStart && !c.engineStarted, c.phase);
+    check("launch starts nothing: the check made the table in a temp file, not in the package", !fs.existsSync(c.L.tableJson));
     await c.workOnce(watch); await c.workOnce(watch);
     check("launch starts nothing: the watcher's turns install nothing either", watched === 2 && filesIn(c.savesDir) === 0, `${watched} / ${filesIn(c.savesDir)}`);
     c.startEngine();
@@ -800,9 +816,8 @@ async function saveFiles() {
   section("table save: the files");
   const { c, tmp } = fakeController(false);
   try {
-    fs.mkdirSync(path.join(tmp, "table"), { recursive: true });
-    fs.writeFileSync(c.L.tableJson, '{"SaveName": "MTG Table (rules engine)", "x": 1}');
-    fs.writeFileSync(c.L.tablePng, "png");
+    const ws = fakeWorkshop(c, '{"SaveName": "MTG Table (rules engine)", "x": 1}');
+    fs.writeFileSync(ws.replace(/\.json$/, ".png"), "png");
     fs.mkdirSync(c.savesDir, { recursive: true });
     fs.writeFileSync(path.join(c.savesDir, "TS_Save_1.json"), "the player's own");
     c.reloadPackage();
@@ -812,11 +827,11 @@ async function saveFiles() {
     ok = await c.doSave();
     check("a second start: up to date, no new file", ok && !fs.existsSync(path.join(c.savesDir, "TS_Save_3.json")) && c.rows[3].v.text.includes("up to date"), c.rows[3].v);
     fs.writeFileSync(path.join(c.savesDir, "TS_Save_2.json"), "the player saved over it");
-    fs.writeFileSync(c.L.tableJson, '{"SaveName": "MTG Table (rules engine)", "x": 2}');
+    fs.writeFileSync(ws, '{"SaveName": "MTG Table (rules engine)", "x": 2}');
     c.reloadPackage();
     ok = await c.doSave();
     check("a new package table after the player saved over ours: TS_Save_3.json, theirs kept", ok && fs.readFileSync(path.join(c.savesDir, "TS_Save_2.json"), "utf8") === "the player saved over it" && fs.existsSync(path.join(c.savesDir, "TS_Save_3.json")), c.rows[3].v);
-    fs.writeFileSync(c.L.tableJson, '{"SaveName": "MTG Table (rules engine)", "x": 3}');
+    fs.writeFileSync(ws, '{"SaveName": "MTG Table (rules engine)", "x": 3}');
     c.reloadPackage();
     ok = await c.doSave();
     check("a newer package table, ours untouched: updated in place, a backup kept", ok && fs.readFileSync(path.join(c.savesDir, "TS_Save_3.json"), "utf8").includes('"x": 3') && fs.readdirSync(path.join(c.stateDir, "backup")).length === 1 && !fs.existsSync(path.join(c.savesDir, "TS_Save_4.json")), c.rows[3].v);
@@ -824,8 +839,7 @@ async function saveFiles() {
   // TTS never run here: the step waits, makes no folder, and goes on once TTS's folder appears
   const n = fakeController(false);
   try {
-    fs.mkdirSync(path.join(n.tmp, "table"), { recursive: true });
-    fs.writeFileSync(n.c.L.tableJson, '{"SaveName": "MTG Table (rules engine)"}');
+    fakeWorkshop(n.c, '{"SaveName": "MTG Table (rules engine)"}', path.join(n.tmp, "workshop", `${L.TableWorkshopId}.json`));
     const tts = path.join(n.tmp, "home", "Tabletop Simulator");
     n.c.findSaves = () => ({ dir: path.join(tts, "Saves"), found: fs.existsSync(tts), tried: [tts] });
     n.c.reloadPackage();
@@ -835,6 +849,85 @@ async function saveFiles() {
     ok = await n.c.doSave();
     check("TTS run once (its folder there): Try again installs the table", ok && fs.existsSync(path.join(tts, "Saves", "TS_Save_1.json")), n.c.rows[3].v);
   } catch (e) { check("no TTS folder: no exception", false, e.stack); } finally { fs.rmSync(n.tmp, { recursive: true, force: true }); }
+}
+
+// the table save made from the host's own Workshop copy (the package ships no table): the pure parts, then the
+// controller on a temp package with a fake patcher
+async function workshopTable() {
+  section("the table from the host's Workshop copy");
+  const native = P.workshopCandidates("linux", "/home/deck/.local/share/Tabletop Simulator/Saves", "2296042369", "/home/deck", {}, () => null);
+  check("Workshop (Linux): beside Saves first", native[0] === "/home/deck/.local/share/Tabletop Simulator/Mods/Workshop/2296042369.json", native[0]);
+  check("Workshop (Linux): then the game's own folder in Steam's libraries (Game Data location)", native.includes("/home/deck/.local/share/Steam/steamapps/common/Tabletop Simulator/Tabletop Simulator_Data/Mods/Workshop/2296042369.json"), native);
+  const sd = P.workshopCandidates("linux", "/x/Saves", "1", "/home/deck", {}, (f) => (f === "/home/deck/.local/share/Steam/steamapps/libraryfolders.vdf" ? '"path" "/run/media/mmcblk0p1"' : null));
+  check("Workshop (Linux): an SD card's library too", sd.includes("/run/media/mmcblk0p1/steamapps/common/Tabletop Simulator/Tabletop Simulator_Data/Mods/Workshop/1.json"), sd);
+  const proton = P.workshopCandidates("linux", "/home/deck/.local/share/Steam/steamapps/compatdata/286160/pfx/drive_c/users/steamuser/Documents/My Games/Tabletop Simulator/Saves", "2296042369", "/home/deck", {}, () => null);
+  check("Workshop (Proton): beside the prefix's Saves", proton[0] === "/home/deck/.local/share/Steam/steamapps/compatdata/286160/pfx/drive_c/users/steamuser/Documents/My Games/Tabletop Simulator/Mods/Workshop/2296042369.json", proton[0]);
+  const mac = P.workshopCandidates("darwin", "/Users/a/Library/Tabletop Simulator/Saves", "2296042369", "/Users/a", {}, () => null);
+  check("Workshop (macOS): beside Saves", mac.length === 1 && mac[0] === "/Users/a/Library/Tabletop Simulator/Mods/Workshop/2296042369.json", mac);
+  const miss = L.workshopMissing(L.workshopUrl(L.TableWorkshopId), native);
+  check("Workshop missing: red, the link, what to do, Try again (the Windows companion's words)", miss.light === Light.Red && miss.fix === Fixes.Retry
+    && miss.text === "Subscribe to the table on the Steam Workshop: https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369, start TTS once so it downloads, then press Try again.", miss);
+  check("Workshop missing: the hint names where it looked", miss.hint.includes(native[0]) && miss.hint.includes(native[1]));
+  check("the 6-player table's link is ready for its profile", L.workshopUrl(L.SixWorkshopId) === "https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471");
+  const okb = L.parseMakeTable(0, 'noise\n{"ok":true,"table":"4p","stamp":"5a6fd66e","save":"09d84816","workshop":"e502cd67"}\n');
+  check("make-table: its JSON line read", okb.ok && okb.stamp === "5a6fd66e" && okb.save === "09d84816" && okb.workshop === "e502cd67" && okb.error === null, okb);
+  const gone = L.parseMakeTable(3, '{"ok":false,"missing":true,"error":"x isn\'t there"}');
+  check("make-table: the Workshop file gone", !gone.ok && gone.missing && gone.error === "x isn't there", gone);
+  const bad = L.parseMakeTable(1, '{"ok":false,"error":"a patch didn\'t apply to this Workshop copy: FAIL Draw"}');
+  check("make-table: a patch that didn't apply", !bad.ok && !bad.missing && bad.error.includes("FAIL Draw"));
+  check("make-table: ok:true but a non-zero exit is a failure", !L.parseMakeTable(1, '{"ok":true}').ok);
+  const none = L.parseMakeTable(1, "Error: Cannot find module");
+  check("make-table: no JSON line: a failure that says what it printed", !none.ok && none.error.includes("Cannot find module"), none);
+  const refused = L.tableBuildFailed(bad);
+  check("make-table failed: red, why, Try again, a hint about the Workshop table changing", refused.light === Light.Red && refused.text.includes("FAIL Draw") && refused.fix === Fixes.Retry && refused.hint.includes("newer"), refused);
+  check("save done: the package's table: green; no hash to compare: green", L.saveDone("Installed.", "s1", "s1", "t1", "t1").light === Light.Green && L.saveDone("Installed.", "s1", null, "t1", null).light === Light.Green);
+  const other = L.saveDone("Installed.", "s2", "s1", "t2", "t1");
+  check("save done: another Workshop copy made another table: amber, says both", other.light === Light.Amber && other.text.startsWith("Installed.") && other.text.includes("t2") && other.text.includes("t1"), other);
+  const dep = { table: "t1", bridge: "b" };
+  const next = L.deployedWithTable(dep, "t2");
+  check("deployed.json: the host's table, the package's kept as tablePackage", next && next.table === "t2" && next.tablePackage === "t1" && next.bridge === "b" && dep.table === "t1", next);
+  check("deployed.json: already the host's: no rewrite; the package's kept on a second rewrite", L.deployedWithTable(dep, "t1") === null && L.deployedWithTable(null, "t2") === null && L.deployedWithTable(next, "t3").tablePackage === "t1");
+
+  // the controller: a temp package, a fake patcher
+  const { c, tmp } = fakeController(false);
+  try {
+    const body1 = '{"SaveName": "MTG Table (rules engine)", "v": 1}';
+    fs.writeFileSync(c.L.versionFile, JSON.stringify({ table: "t1", save: L.sha8(Buffer.from(body1)), workshop: { id: L.TableWorkshopId, url: L.workshopUrl(L.TableWorkshopId) } }));
+    fs.mkdirSync(path.dirname(c.L.deployedFile), { recursive: true });
+    fs.writeFileSync(c.L.deployedFile, JSON.stringify({ table: "t1", bridge: "b" }));
+    c.reloadPackage();
+    const ws = path.join(path.dirname(c.savesDir), "Mods", "Workshop", `${L.TableWorkshopId}.json`);
+    let body = body1, stamp = "t1", refuse = false, runs = 0, seen = null;
+    c.buildTable = (w, out) => { runs++; seen = w; if (refuse) return { ok: false, error: "a patch didn't apply to this Workshop copy: FAIL Draw" }; fs.writeFileSync(out, body); return { ok: true, stamp }; };
+    const saves = () => (fs.existsSync(c.savesDir) ? fs.readdirSync(c.savesDir).filter((f) => f.endsWith(".json")).length : 0);
+    const row = () => c.rows[L.Step.Save].v;
+    let ok = await c.doSave();
+    check("no Workshop copy: red with the subscribe hint, the patcher never ran, nothing installed", !ok && row().light === Light.Red && row().text.startsWith("Subscribe to the table on the Steam Workshop: https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369") && runs === 0 && saves() === 0, row());
+    fs.mkdirSync(path.dirname(ws), { recursive: true });
+    fs.writeFileSync(ws, "{}");
+    refuse = true;
+    ok = await c.doSave();
+    check("the patcher refuses the copy: red with its reason, nothing installed", !ok && row().light === Light.Red && row().text.includes("FAIL Draw") && runs === 1 && saves() === 0, row());
+    refuse = false;
+    ok = await c.doSave();
+    check("the package's table from the Workshop copy: green, installed, made from the file found", ok && row().light === Light.Green && saves() === 1 && fs.readFileSync(path.join(c.savesDir, "TS_Save_1.json"), "utf8") === body && seen === ws, row());
+    check("the table it made stays in the package's table folder", fs.readFileSync(c.L.tableJson, "utf8") === body);
+    check("the package's deployed.json untouched while the table is the package's", JSON.parse(fs.readFileSync(c.L.deployedFile, "utf8")).table === "t1");
+    body = '{"SaveName": "MTG Table (rules engine)", "v": 2}'; stamp = "t9";
+    ok = await c.doSave();
+    check("another Workshop copy (its author changed it): installed over our untouched save, amber, says both tables", ok && row().light === Light.Amber && row().text.includes("t9") && row().text.includes("t1") && fs.readFileSync(path.join(c.savesDir, "TS_Save_1.json"), "utf8") === body && saves() === 1, row());
+    const dj = JSON.parse(fs.readFileSync(c.L.deployedFile, "utf8"));
+    check("another Workshop copy: deployed.json says the host's table, the package's kept", dj.table === "t9" && dj.tablePackage === "t1" && dj.bridge === "b", dj);
+    check("another Workshop copy: the TTS light expects the host's table", c.builtStamp === "t9");
+    fs.unlinkSync(ws);
+    ok = await c.doSave();
+    check("the Workshop copy unsubscribed later: red again, the installed save left alone", !ok && row().light === Light.Red && fs.readFileSync(path.join(c.savesDir, "TS_Save_1.json"), "utf8") === body, row());
+    // the real patcher path: the package's table/make-table.js missing is a red light, not an exception
+    c.buildTable = null;
+    fs.writeFileSync(ws, "{}");
+    ok = await c.doSave();
+    check("no table/make-table.js in the package: red, says to unpack again", !ok && row().light === Light.Red && row().text.includes("make-table.js is missing"), row());
+  } catch (e) { check("Workshop table: no exception", false, e.stack); } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 
 // the real server on a free port: the guards and the API, as a browser and an attacker would talk to it
@@ -918,7 +1011,7 @@ async function main(outFile) {
   out = []; fails = 0; passes = 0;
   modes(); sequence(); docker(); images(); stack(); ports(); bridge(); gameLock(); saves(); tts(); misc(); update();
   startEngineRules();
-  await parser(); await wiring(); await launchStartsNothing(); await watcherBeforeStart(); await saveFiles(); await server(); await notStartedStatus(); shim();
+  await parser(); await wiring(); await launchStartsNothing(); await watcherBeforeStart(); await saveFiles(); await workshopTable(); await server(); await notStartedStatus(); shim();
   out.push(`${passes} passed, ${fails} failed`);
   const text = `${out.join("\n")}\n`;
   if (outFile) fs.writeFileSync(outFile, text); else process.stdout.write(text);

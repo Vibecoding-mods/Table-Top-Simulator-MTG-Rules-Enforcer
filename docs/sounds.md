@@ -349,7 +349,7 @@ worktree with the main checkout's `assets/sounds/kenney-cc0/download`, `assets/s
 
 **What the user does** (one per kind, or none to keep today's):
 
-1. Listen to the four files in `C:\Users\bruhm\mtg-tts\tmp\upload7\` and pick (say `countered-kenney-a`; for
+1. Listen to the four files in `tmp\upload7\` and pick (say `countered-kenney-a`; for
    knockout, keep ours or pick one).
 2. In TTS: Modding → Cloud Manager → upload the picked mp3 (any folder). Right-click it → copy the link.
 3. Paste the link where the kind's link is now, replacing it:
