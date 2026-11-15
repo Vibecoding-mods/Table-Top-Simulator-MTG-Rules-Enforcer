@@ -114,6 +114,8 @@ five minutes:
   row on the near strip of your own mat (below your lands); private ones (foretold) are in the small second hand zone. Drag one onto the battlefield to
   play it.
 - **Cards exiled by a permanent** (Banishing Light, O-Ring...) lie half-size under that permanent.
+- **Your own face-down cards** (a hideaway card under Mosswort Bridge, a morph): point at the card, or at the land
+  it lies under, and its face shows on your screen, left of the ability box. Only you see it.
 - **Discarding most of your hand** (cleanup with a huge hand, "discard 2" with 3 cards): the table asks which cards
   to **keep** instead; the rest are discarded. Dragging a card onto your graveyard still discards that card.
 - **Long lists** (a creature type, a big search): the last button says **More...** and shows the next page; the
