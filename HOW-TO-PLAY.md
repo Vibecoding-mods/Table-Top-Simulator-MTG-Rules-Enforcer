@@ -186,7 +186,10 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg clear deck` | removes your own deck and commander from your seat (when your Delete key does nothing on them); not during a game |
 | `mtg friendly 0\|1\|2` | free mulligans each, for everyone, the same as the Free mulligans button |
 | `mtg mode 2hg` / `mtg mode ffa` | host: the next games are Two-Headed Giant (White + Red against Yellow + Blue) or free-for-all again. Partners share one life total (30 a team, 80 in Commander), poison (15 loses) and a commander's damage (42 loses), lose together, block for each other and see each other's hands; each player still takes their own turn, the team's two turns back to back. All four seats play (Forge AI players fill the empty ones). Works with `mtg mode standard` too |
-| `mtg team <colour> 1\|2` | host, after `mtg mode 2hg`: move a seat to team 1 or 2 (partners must sit next to each other in turn order) |
+| `mtg mode 2v2` | host: 2v2 Team Commander, White + Red against Yellow + Blue. Each player keeps their own life (40, 20 in Standard) and turn; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play |
+| `mtg mode juggernaut` | host: Juggernaut, one player (White unless changed) against the other three. The Juggernaut starts with 80 life (40 in Standard), 10 cards, draws one extra card each draw step and goes first; it wins when all three have lost, and the three win together when it loses. All four seats play |
+| `mtg juggernaut ...` | host: the Juggernaut's settings: `mtg juggernaut <colour>` (who), `life <n>` or `life auto`, `hand <n>`, `draw <n>` (extra cards), `land <n>` (extra land plays), `cmd 21` or `cmd 42` (commander damage that knocks it out), `order first` or `order after` (a turn after every challenger's); `mtg juggernaut` alone says the settings |
+| `mtg team <colour> 1\|2` | host, after `mtg mode 2hg` or `mtg mode 2v2`: move a seat to team 1 or 2 (in Two-Headed Giant partners must sit next to each other in turn order; 2v2 takes any 2 + 2) |
 | `mtg engine on` / `off` | anyone seated: the rules engine on or off |
 | `mtg start [ai N]` | anyone seated: start (optionally with N Forge AI players) |
 | `mtg reset` | host: end the game and give the imported decks back (anyone seated once the game is over) |
@@ -196,7 +199,7 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg timer [seconds]` / `mtg timer off` | turn timers for everyone (host) |
 | `mtg art off` / `mtg art on` | host: everyone sees the normal card pictures / the pictures players linked in their deck lists (`1 Sol Ring #https://...`) |
 | `mtg fix` (`yes` / `no` / `done` / `cancel`) | the manual fix, as the Fix... button |
-| `mtg concede` | leave the game (twice within 15 s); in Two-Headed Giant it concedes for your whole team |
+| `mtg concede` | leave the game (twice within 15 s); in Two-Headed Giant it concedes for your whole team (in 2v2 and Juggernaut only for you) |
 | `mtg effects on/off`, `mtg sounds on/off` | your own effects and sounds |
 | `mtg sounds test <kind> [N]` | host: play one table sound now, with N the one for N at once (death 5 plays the 4-stack); kinds: knockout, wipe, death, exile, damage, lifegain, instant, counter (counter and knockout have no sound yet) |
 | `mtg mana 99` | (testing) a manual fix in one line: 99 of each mana until the end of the turn |

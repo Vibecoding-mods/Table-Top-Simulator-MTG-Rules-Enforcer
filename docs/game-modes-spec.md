@@ -243,9 +243,9 @@ Each player has their own life (40), turns go around the table as usual, teammat
 have lost (verified: `GameAction.java:2025-2042`). Engine work: §4 only. Bridge and table: team choice, team tint, "TEAM
 WINS" (about 8 hours on top of §4; not verified).
 
-**As built (2026-11-15, branch `teams-2v2-juggernaut`, image tag `engine1116-teams`, not deployed).** §4's plumbing was
+**As built (2026-11-15, branch `teams-2v2-juggernaut`, image tag `engine1116-teams2` (with the 2HG rules audit), not deployed).** §4's plumbing was
 already in engine1115b for 2HG (`gameConfig`, `teamRules` `none`/`teams`/`sharedLife`, per player `team`,
-`startingLife`, `startingHand`); engine1116-teams adds the per-player rules Juggernaut needs, so all three modes share
+`startingLife`, `startingHand`); engine1116-teams2 adds the per-player rules Juggernaut needs, so all three modes share
 one path: per player `perks` (Forge card-script lines, `forge-harness` `host/Perks.java`: one hidden effect card in the
 player's command zone, made after `match.createGame()`, kept by a rewind), `commanderDamageToLose` (Forge
 `RegisteredPlayer`, read by `Player.getCommanderDamageToLose` and the Forge AI) and `goesFirst` (Forge
@@ -565,7 +565,7 @@ One strong player against a team of three.
 (Note 2026-11-13: the setter names are now verified, `RegisteredPlayer.java:62` and `:103`; the text above is unchanged
 on purpose. Its team and per-player parts are §4.)
 
-### 6.1 As built (2026-11-15, branch `teams-2v2-juggernaut`, image tag `engine1116-teams`, not deployed)
+### 6.1 As built (2026-11-15, branch `teams-2v2-juggernaut`, image tag `engine1116-teams2` (with the 2HG rules audit), not deployed)
 - **Settings (host, chat):** `mtg mode juggernaut`, `mtg juggernaut <colour>` (who; the teams follow), `mtg juggernaut
   life <1-999|auto>` (auto: twice the format's, 80 in Commander, 40 in Standard), `hand <0-30>` (10), `draw <0-5>`
   (1), `land <0-5>` (0), `cmd 21|42` (21), `order first|after` (first). The settings can be set before the mode;
