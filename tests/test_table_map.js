@@ -36,7 +36,7 @@ ok("tableCard parsed: its keys were found", sent.includes("tap") && sent.include
 // (kw: built by statusLists; the rest are keys of helpers that sit between tableCard and the slice's end marker:
 // delayedOf's player marks { label, tip }, playWindow's { until }, facePeek's pk { n, f, v }, the face-down stub's
 // CardDto-shaped { name, text })
-const NOT_KEYS = new Set(["kw", "label", "tip", "until", "v", "name", "text"]);
+const NOT_KEYS = new Set(["kw", "label", "tip", "until", "v", "name", "text", "back"]); // (back: battleInfo's back-face name, a helper's word, not a table key)
 for (const k of sent) ok(`table key ${k} is mapped`, mapped.has(k) || TABLE_ONLY_KEYS[k] || NOT_KEYS.has(k), "add it to the fact it shows");
 for (const [f, e] of Object.entries(CARD_FACTS)) for (const k of e.to || []) {
   if (k !== "playable") ok(`${f}: tableCard sends ${k}`, new RegExp(`\\b${k}: |\\b${k}\\b.*\\[`).test(tableCard), "the map names a key that is gone");
