@@ -820,6 +820,8 @@ Player = setmetatable({}, { __index = function(t, color)
   p.clearSelectedObjects = function() end
   p.changeColor = function() end
   p.getPointerPosition = function() return vec(0, 0, 0) end
+  -- the object under the player's pointer: __sim.hover = { [color] = guid } (none by default)
+  p.getHoverObject = function() local g = SIM.hover and SIM.hover[color] return g and getObjectFromGUID(g) or nil end
   p.lookAt = function() end
   return p
 end })
