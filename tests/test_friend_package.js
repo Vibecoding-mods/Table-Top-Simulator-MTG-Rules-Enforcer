@@ -47,7 +47,7 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
 {
   const d = { bridge: "b1", table: "t1", save: "s1", node: "sha256:nnnnnnnnnnnnnnnnnnnn", relay: "sha256:rrrrrrrrrrrrrrrrrrrr" };
   const compose = "services:\n  relay:\n    image: mtg-relay:exile\n  forge-room:\n    image: mtg-forge-node:exile\n";
-  const good = { deployed: d, tags: { node: d.node, relay: d.relay }, containers: { node: d.node, relay: d.relay }, save: { stamp: "t1", sha8: "s1" }, bridge: "b1", compose };
+  const good = { deployed: d, tags: { node: d.node, relay: d.relay }, containers: { node: d.node, relay: d.relay }, table: { stamp: "t1", save: "s9" }, bridge: "b1", compose };
   const said = (change, opts) => pack.refusals({ ...good, ...change }, opts);
   same("refuse: nothing when all agree", said({}), []);
   const one = (name, change, word, opts) => { const r = said(change, opts); ok(`refuse: ${name}`, r.length === 1 && r[0].includes(word), JSON.stringify(r)); };
@@ -56,16 +56,117 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
   one("a tag moved", { tags: { node: "sha256:oooooooooooooooooooo", relay: d.relay } }, "tag moved");
   one("a container on another image", { containers: { node: d.node, relay: "sha256:oooooooooooooooooooo" } }, "running relay container");
   same("refuse: Docker can't say: both containers", said({ containers: { node: null, relay: null } }).length, 2);
-  one("the save is another table", { save: { stamp: "t2", sha8: "s1" } }, "deploy again");
-  one("the save was saved over", { save: { stamp: "t1", sha8: "s2" } }, "changed since the deploy");
-  same("refuse: a saved-over save, allowed", said({ save: { stamp: "t1", sha8: "s2" } }, { allowChangedSave: true }), []);
-  one("another table is refused even when saves may change", { save: { stamp: "t2", sha8: "s2" } }, "deploy again", { allowChangedSave: true });
-  one("no save", { save: null }, "can't be read");
-  one("a save with no stamp (older than stamps)", { save: { stamp: null, sha8: "s1" } }, "no table stamp");
-  one("a save with no stamp, even when saves may change", { save: { stamp: null, sha8: "s2" } }, "no table stamp", { allowChangedSave: true });
+  one("the sources make another table than the deploy's", { table: { stamp: "t2", save: "s9" } }, "deploy again");
+  one("no Workshop copy to make the table from", { table: { error: "no such file" } }, "Subscribe to https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369");
+  one("the patcher refused this PC's Workshop copy", { table: { error: "a patch didn't apply" } }, "a patch didn't apply");
+  one("the table not tried", { table: null }, "can't be made");
+  same("refuse: the TTS save is no longer read (a Save in TTS changes nothing)", said({ save: { stamp: "t9", sha8: "zz" } }), []);
   one("bridge code not deployed", { bridge: "b2" }, "--allow-undeployed-bridge");
   same("refuse: undeployed bridge, allowed", said({ bridge: "b2" }, { allowUndeployedBridge: true }), []);
   one("compose runs another image", { compose: compose.replace("mtg-relay:exile", "mtg-relay:exile2") }, "doesn't run mtg-relay:exile");
+}
+
+// ── the package holds NO Workshop table (Steam lets subscribers use a Workshop item, not hand out copies): it ships
+// our patcher, and the companion makes the table from the host's own copy with tools/make-table.js
+{
+  const fs = require("fs"), os = require("os"), path = require("path"), crypto = require("crypto");
+  const { execFileSync, spawnSync } = require("child_process");
+  const mt = require("../tools/make-table");
+  const ps = require("../tools/patch-save");
+  const tools = path.join(__dirname, "..", "tools");
+  const sha8 = (b) => crypto.createHash("sha256").update(b).digest("hex").slice(0, 8);
+
+  // what would be a copy of a Workshop table, named (a planted one fails by its name)
+  const clean = [...mt.PATCHER_FILES.map((f) => ({ rel: `table/${f}` })), { rel: "table/README.txt" }, { rel: "version.json", text: '{"bridge":"b","save":"s"}' },
+    { rel: "decks/atraxa.json", text: '{"name":"Atraxa","cards":[]}' }, { rel: "stack/deployed.json", text: '{"table":"t"}' }, { rel: "bridge/forge-cards.json", text: "{}" }, { rel: "LICENSES/source/companion/src/Logic.cs" }];
+  same("no table copy: the patcher, the README, decks, the records", pack.tableCopies(clean), []);
+  for (const bad of [{ rel: "table/MTG Table.json" }, { rel: "table/anything.json" }, { rel: "2296042369.json" }, { rel: "images/2293586471.png" }, { rel: "bridge/TS_Save_3.json" },
+    { rel: "decks/sneaky.json", text: '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "x",\r\n  "ObjectStates": [' }])
+    same(`table copy caught by name: ${bad.rel}`, pack.tableCopies([...clean, bad]), [bad.rel]);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "mtg-no-table-"));
+  try {
+    // the package's table folder as main() fills it: the patcher's files, every one in tools/, none of them JSON
+    ok("the patcher's files are all in tools/ and none is JSON", mt.PATCHER_FILES.every((f) => fs.existsSync(path.join(tools, f)) && !/\.json$/i.test(f)) && mt.PATCHER_FILES.includes("make-engine-copy.js"));
+    const pkg = path.join(tmp, "pkg");
+    for (const f of mt.PATCHER_FILES) { fs.mkdirSync(path.join(pkg, "table"), { recursive: true }); fs.copyFileSync(path.join(tools, f), path.join(pkg, "table", f)); }
+    fs.writeFileSync(path.join(pkg, "table", "README.txt"), pack.tableReadme());
+    fs.mkdirSync(path.join(pkg, "decks"));
+    fs.writeFileSync(path.join(pkg, "decks", "a.json"), '{"name":"a"}');
+    same("a package folder with the patcher: no table copy", pack.tableCopies(pack.packageEntries(pkg)), []);
+    fs.writeFileSync(path.join(pkg, "decks", "b.json"), `{\n  "SaveName": "x",\n  "ObjectStates": []\n}`);
+    same("a package folder: a TTS save under another name is caught by its content", pack.tableCopies(pack.packageEntries(pkg)), ["decks/b.json"]);
+    fs.rmSync(path.join(pkg, "decks", "b.json"));
+    ok("the table folder's README says where the table comes from", /holds no table/.test(pack.tableReadme()) && pack.tableReadme().includes("https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369"));
+
+    // finish(): the ENGINE MODE save's script stamped as a deploy stamps it, CRLF as patch-save leaves it, renamed
+    const engine = JSON.stringify({ SaveName: "MTG 4 player table - ENGINE MODE", GameMode: "x", LuaScript: 'a = 1\r\nfunction engineStamp() return "dev" end\nb()\r\n', ObjectStates: [{ Nickname: "SaveName", LuaScript: "z" }] }, null, 2);
+    const f = mt.finish(engine, pack.SAVE_NAME);
+    const want = sha8('a = 1\nfunction engineStamp() return "dev" end\nb()\n');
+    same("finish: the stamp is the LF script's hash with the stamp at dev", f.stamp, want);
+    same("finish: the script stamped, CRLF throughout", JSON.parse(f.text).LuaScript, `a = 1\r\nfunction engineStamp() return "${want}" end\r\nb()\r\n`);
+    same("finish: renamed", JSON.parse(f.text).SaveName, "MTG Table (rules engine)");
+    same("finish: every other byte kept", f.text.replace(JSON.stringify(JSON.parse(f.text).LuaScript), "S").replace('"MTG Table (rules engine)"', "N"), engine.replace(JSON.stringify(JSON.parse(engine).LuaScript), "S").replace('"MTG 4 player table - ENGINE MODE"', "N"));
+    const old = ps.patch(JSON.parse(engine).LuaScript, JSON.parse(engine).LuaScript, {});
+    same("finish = a deploy's patch-save on the same save, then the package's rename (byte for byte)", f.text, pack.renameSave(ps.rewrite(engine, old.script), pack.SAVE_NAME));
+    let threw = null; try { mt.finish(engine.replace("dev", "v1"), "x"); } catch (e) { threw = e.message; }
+    ok("finish: a script without the dev stamp is refused", /engineStamp/.test(threw || ""), threw);
+
+    // the command line the companions run, from the package's table folder (its own copies of the patcher)
+    const cli = (...a) => spawnSync(process.execPath, [path.join(pkg, "table", "make-table.js"), ...a], { encoding: "utf8" });
+    const said = (r) => { try { return JSON.parse(r.stdout.trim().split("\n").pop()); } catch { return null; } };
+    const out = path.join(pkg, "table", "MTG Table.json");
+    let r = cli(path.join(tmp, "no-such", "2296042369.json"), out);
+    ok("missing Workshop file: exit 3, missing, nothing written", r.status === 3 && said(r)?.missing === true && said(r)?.ok === false && !fs.existsSync(out), r.stdout + r.stderr);
+    fs.writeFileSync(path.join(tmp, "not-the-table.json"), JSON.stringify({ SaveName: "Something else", LuaScript: "x = 1", ObjectStates: [] }));
+    r = cli(path.join(tmp, "not-the-table.json"), out);
+    ok("a Workshop file the patches don't fit: exit 1, the FAIL lines, nothing written", r.status === 1 && said(r)?.ok === false && /a patch didn't apply.*FAIL/.test(said(r)?.error || "") && !fs.existsSync(out), r.stdout + r.stderr);
+    r = cli(path.join(tmp, "not-the-table.json"), out, "--table", "6p");
+    ok("the 6-player table: not made yet (its patcher is the hook), nothing written", r.status === 1 && /can't be made yet/.test(said(r)?.error || "") && !fs.existsSync(out), r.stdout);
+    ok("the 6-player table is listed, optional, with its Workshop link", mt.TABLES["6p"].optional && mt.TABLES["6p"].url === "https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471" && mt.TABLES["4p"].url === "https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369");
+
+    // the real Workshop copy (not in this repo: subscribe to it, or point MTG_WORKSHOP at it)
+    const ws = pack.WORKSHOP;
+    if (!fs.existsSync(ws)) process.stdout.write(`SKIP the Workshop copy checks: no ${ws} (subscribe to the table, or set MTG_WORKSHOP)\n`);
+    else {
+      const before = sha8(fs.readFileSync(ws));
+      r = cli(ws, out);
+      const run = said(r);
+      ok("Workshop copy: the companion's run writes the table", r.status === 0 && run?.ok && fs.existsSync(out), r.stdout + r.stderr);
+      const bytes = fs.readFileSync(out);
+      const b = mt.build(ws);
+      ok("Workshop copy: the companion's run from the package = the build's make-table (byte for byte)", bytes.equals(b.bytes) && run.save === b.save && run.stamp === b.stamp && run.save === sha8(bytes));
+      // today's path for the same input: make-engine-copy's ENGINE MODE save, a deploy's patch-save on it, the
+      // package's rename (tools/make-friend-package.js renamed the deployed save)
+      const eng = path.join(tmp, "engine.json");
+      execFileSync(process.execPath, [path.join(tools, "make-engine-copy.js"), ws, eng], { stdio: "pipe" });
+      const raw = fs.readFileSync(eng, "utf8"), built = JSON.parse(raw);
+      const p = ps.patch(built.LuaScript, built.LuaScript, {});
+      const deployedSave = ps.addPieces(ps.rewrite(raw, p.script), built);
+      ok("Workshop copy: a deploy would add no status pieces (the build has them all)", deployedSave.added.length === 0, deployedSave.added.join(", "));
+      const today = Buffer.from(pack.renameSave(deployedSave.raw, pack.SAVE_NAME), "utf8");
+      ok("Workshop copy: byte for byte the save today's build ships for this input (make-engine-copy, patch-save, rename)", bytes.equals(today), `${sha8(bytes)} vs ${sha8(today)}`);
+      same("Workshop copy: the stamp is the one a deploy gives this script", run.stamp, p.stamp);
+      same("Workshop copy: named for TTS's list", JSON.parse(bytes.toString("utf8")).SaveName, "MTG Table (rules engine)");
+      ok("Workshop copy: its picture beside the table", fs.existsSync(ws.replace(/\.json$/i, ".png")) === fs.existsSync(out.replace(/\.json$/i, ".png")));
+      same("Workshop copy: only read, never written", sha8(fs.readFileSync(ws)), before);
+      // the deployed table: when the table's source is the deployed one, the table made here is the deployed table
+      const versions = require("../bridge/versions");
+      const dep = versions.readManifest();
+      if (dep && dep.tableSource === versions.fileHash(versions.TABLE_SOURCE)) same("Workshop copy: the deployed sources make the deployed table", run.stamp, dep.table);
+      else process.stdout.write(`SKIP the deployed-table check: the table's source changed since the deploy (made ${run.stamp}, deployed ${dep ? dep.table : "nothing"})\n`);
+    }
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+
+// the friend README: what a host needs (the same in README.md and docs/companion-app-spec.md)
+{
+  const t = pack.readmeText({ nodeVersion: "v0", bridge: "b", table: "t", built: "2026-11-15" });
+  for (const [name, re] of [["the section", /^HOST REQUIREMENTS/m], ["Windows 10/11 x64", /Windows 10 or 11 on an x64 processor \(Intel or AMD\)/], ["4 cores, 16 GB, estimates", /4 CPU cores and 16 GB of RAM recommended[\s\S]*2 cores and about 8 GB[\s\S]*estimates/],
+    ["2 GB of disk", /About 2 GB of free disk/], ["Docker Desktop's link", /https:\/\/www\.docker\.com\/products\/docker-desktop\//], ["All-users installation", /"All-users installation"/],
+    ["wsl --install", /wsl --install {2}in an administrator PowerShell and restart/], ["sign out and in", /sign out of\s+Windows and back in/], ["SVM / VT-x", /SVM \(AMD\) or Intel VT-x/],
+    ["the 4-player table", /https:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=2296042369/], ["the 6-player table", /https:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=2293586471/],
+    ["friends need only TTS", /friends who only join need just TTS/], ["subscribe before the first start", /Subscribe to the table on the Steam Workshop/]])
+    ok(`friend README: ${name}`, re.test(t));
 }
 
 // the compose file
@@ -86,7 +187,8 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
   ok("release: new images without the tar (--no-images) refused", pack.releaseRefusals({ build: ["images"], imagesFile: null, tag: "v1" }).some((w) => w.includes("--no-images")));
   same("release: unchanged images without the tar are fine", pack.releaseRefusals({ build: ["app"], imagesFile: null, tag: "v1" }), []);
   ok("release: --allow-undeployed-bridge refused", pack.releaseRefusals({ build: [], imagesFile: "x", tag: "v1", allowUndeployedBridge: true }).some((w) => w.includes("--allow-undeployed-bridge")));
-  ok("release: --allow-changed-save refused", pack.releaseRefusals({ build: [], imagesFile: "x", tag: "v1", allowChangedSave: true }).some((w) => w.includes("--allow-changed-save")));
+  ok("release: the table part is the patcher folder (table/), which holds no table", JSON.stringify(pack.RELEASE_PARTS.table.holds) === JSON.stringify(["table"]));
+  ok("release: format 2 (a format-1 companion takes the new companion first: it would install no table)", pack.UPDATE_FORMAT === 2);
   ok("release: a tag with a slash or of dots refused", [".", "..", "...", "a/b", "a b", ""].every((tag) => pack.releaseRefusals({ build: [], imagesFile: "x", tag }).length === 1));
   ok("tag: release names kept", ["v2026.11.10-1432", "v1", ".v1", "a_b"].every(pack.validTag) && ![".", "..", "x/..", null].some(pack.validTag));
   {

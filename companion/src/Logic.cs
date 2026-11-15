@@ -264,6 +264,10 @@ namespace MtgCompanion
 
         // ───────────────────────────── 1. Docker ─────────────────────────────
 
+        // Why Docker Desktop may never start on a fresh PC. Not detected (Windows reports these features to
+        // administrators only, and Docker words its own message differently from version to version), so said here.
+        public const string VmpHint = "If Docker Desktop never gets going, or says WSL or virtualization isn't available:\r\n- Windows' Virtual Machine Platform may be off. Install Docker Desktop again choosing \"All-users installation\" (it turns the feature on), or run  wsl --install  in an administrator PowerShell and restart the PC. Then start Docker Desktop once and sign out of Windows and back in.\r\n- If Docker says virtualization is off: turn on SVM (AMD) or Intel VT-x (Intel) in the PC's BIOS/UEFI settings.";
+
         public static Verdict DecideDocker(DockerFacts f)
         {
             if (f.Answers)
@@ -276,7 +280,7 @@ namespace MtgCompanion
             if (!f.CliFound && !f.DesktopFound)
                 return new Verdict(Light.Red, "Install Docker Desktop, then press Try again. Get it from " + DockerUrl)
                     .WithFix(Fixes.Retry, "Try again")
-                    .WithHint("Docker Desktop isn't installed on this PC.\r\nDownload it yourself from:\r\n    " + DockerUrl + "\r\nInstall it, start it once, accept its agreement, then press Try again.");
+                    .WithHint("Docker Desktop isn't installed on this PC.\r\nDownload it yourself from:\r\n    " + DockerUrl + "\r\nInstall it (choose \"All-users installation\"), start it once, accept its agreement, then press Try again.\r\n\r\n" + VmpHint);
             // (running, but the pipe refuses this account: waiting would only say "starting" for 3 minutes)
             if (f.AccessDenied)
                 return new Verdict(Light.Red, "Docker Desktop is running, but Windows doesn't let this account use it yet. After installing Docker Desktop, sign out of Windows and back in (or restart the PC), then press Try again.")
@@ -288,7 +292,7 @@ namespace MtgCompanion
             {
                 if (f.WaitedSec >= 180)
                     return new Verdict(Light.Red, "Docker Desktop didn't answer within 3 minutes. Open its window and finish anything it asks (agreement, sign-in, a WSL update or a restart), then press the button.")
-                        .WithFix(Fixes.DockerStart, "Start Docker Desktop");
+                        .WithFix(Fixes.DockerStart, "Start Docker Desktop").WithHint(VmpHint);
                 return new Verdict(Light.Busy, "Docker Desktop is starting (" + (int)f.WaitedSec + " s). If it opens a window asking for something, answer it.").WithAction(Actions.Wait);
             }
             if (f.DesktopRunning)
@@ -481,6 +485,82 @@ namespace MtgCompanion
             }
             string file = "TS_Save_" + (max + 1) + ".json";
             return new SavePlan(SaveKind.Install, file, "Installing the table as " + file + ".");
+        }
+
+        // ── the table comes from the host's own Workshop copy (the package ships our patcher, table\make-table.js, never
+        // the Workshop table: Steam lets a subscriber use a Workshop item, not hand out copies)
+
+        public const string TableWorkshopId = "2296042369";   // the 4-player table
+        public const string SixWorkshopId = "2293586471";     // the 6-player table (optional, once its profile exists)
+        public static string WorkshopUrl(string id) { return "https://steamcommunity.com/sharedfiles/filedetails/?id=" + id; }
+
+        // Where TTS keeps a downloaded Workshop table: Mods\Workshop beside Saves (TTS's "Documents" mod location, the
+        // default), else in the game's own folder (its "Game Data" location) in Steam's library
+        public static List<string> WorkshopCandidates(string savesDir, string steamPath, string id)
+        {
+            var list = new List<string>();
+            var tts = Path.GetDirectoryName(savesDir ?? "");
+            if (!string.IsNullOrEmpty(tts)) list.Add(Path.Combine(tts, "Mods", "Workshop", id + ".json"));
+            if (!string.IsNullOrEmpty(steamPath)) list.Add(Path.Combine(steamPath, "steamapps", "common", "Tabletop Simulator", "Tabletop Simulator_Data", "Mods", "Workshop", id + ".json"));
+            return list;
+        }
+
+        public static Verdict WorkshopMissing(string url, IEnumerable<string> tried)
+        {
+            return new Verdict(Light.Red, "Subscribe to the table on the Steam Workshop: " + url + ", start TTS once so it downloads, then press Try again.")
+                .WithFix(Fixes.Retry, "Try again")
+                .WithHint("This package doesn't include the table: the companion makes it from your own Workshop copy.\r\n1. Open " + url + " (signed in to Steam) and press Subscribe.\r\n2. Start Tabletop Simulator once, up to its main menu, so Steam downloads it.\r\n3. Press Try again.\r\nLooked for it in:\r\n    " + string.Join("\r\n    ", tried ?? new string[0]));
+        }
+
+        // `node make-table.js <workshop.json> <out.json>` (tools/make-table.js in the repo)
+        public static string MakeTableArgs(string script, string workshop, string outFile)
+        {
+            return "\"" + script + "\" \"" + workshop + "\" \"" + outFile + "\"";
+        }
+
+        // make-table.js prints one JSON line: { ok, stamp, save, workshop } or { ok: false, missing, error }
+        public static TableBuild ParseMakeTable(int exit, string output)
+        {
+            var b = new TableBuild();
+            object o = null;
+            foreach (var line in (output ?? "").Split('\n').Reverse())
+            {
+                var t = line.Trim();
+                if (t.StartsWith("{")) { o = J.Parse(t); if (o is Dictionary<string, object>) break; o = null; }
+            }
+            if (o == null) { b.Error = "the patcher said nothing" + (exit != 0 ? " (exit " + exit + ")" : "") + (string.IsNullOrWhiteSpace(output) ? "" : ": " + output.Trim().Split('\n').Last().Trim()); return b; }
+            b.Ok = exit == 0 && J.Get(o, "ok") is bool && (bool)J.Get(o, "ok");
+            b.Missing = J.Get(o, "missing") is bool && (bool)J.Get(o, "missing");
+            b.Stamp = J.Str(o, "stamp"); b.Save = J.Str(o, "save"); b.Workshop = J.Str(o, "workshop");
+            b.Error = b.Ok ? null : (J.Str(o, "error") ?? "the patcher failed (exit " + exit + ")");
+            return b;
+        }
+
+        public static Verdict TableBuildFailed(TableBuild b)
+        {
+            return new Verdict(Light.Red, "Couldn't make the table from your Workshop copy: " + b.Error)
+                .WithFix(Fixes.Retry, "Try again")
+                .WithHint("The companion patches your Workshop copy of the table. A patch that doesn't apply means the table's author changed it on the Workshop since this package was made: ask whoever gave you this package for a newer one.");
+        }
+
+        // The save step's line once installed: green when the table is the one this package was checked with, amber
+        // when the host's Workshop copy made another (its author changed it: it may well work, but it is untested)
+        public static Verdict SaveDone(string text, string ourHash, string packageSave, string stamp, string packageTable)
+        {
+            if (packageSave == null || ourHash == packageSave) return new Verdict(Light.Green, text);
+            return new Verdict(Light.Amber, text + " Your Workshop copy of the table isn't the one this package was checked with (the table's author may have changed it): its table is " + (stamp ?? "?") + ", the package's " + (packageTable ?? "?") + ". It may work; if the table misbehaves, ask for a newer package.");
+        }
+
+        // The package's stack\deployed.json with the table this host made (the bridge compares the loaded table with
+        // it), or null when it already says so. The package's own stays as tablePackage.
+        public static Dictionary<string, object> DeployedWithTable(object deployed, string stamp)
+        {
+            var d = deployed as Dictionary<string, object>;
+            if (d == null || string.IsNullOrEmpty(stamp) || J.Str(d, "table") == stamp) return null;
+            var next = new Dictionary<string, object>(d);
+            if (!next.ContainsKey("tablePackage")) next["tablePackage"] = J.Str(d, "table");
+            next["table"] = stamp;
+            return next;
         }
 
         // The save's own name, as TTS lists it
@@ -940,6 +1020,9 @@ namespace MtgCompanion
     public class SaveEntry { public string Name; public long Size; public SaveEntry(string n, long s) { Name = n; Size = s; } }
 
     public class InstallState { public string SaveFile, SaveHash, SavesDir; }
+
+    // what make-table.js (in the package's table folder) said
+    public class TableBuild { public bool Ok, Missing; public string Stamp, Save, Workshop, Error; }
 
     public enum SaveKind { Skip, Adopt, Install, Update }
 

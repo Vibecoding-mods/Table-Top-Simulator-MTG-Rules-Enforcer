@@ -75,8 +75,11 @@ GitHub has no "unlisted" repositories. A private repository is seen only by peop
      big for git itself (100 MB per file).
 - **For someone without a GitHub account:** upload the same zip to a file host with an "anyone with the link" setting
   (Google Drive, OneDrive, Dropbox). That is the only real link-only option.
-- The friend zip contains a **patched copy of the Workshop table**. That redistributes the author's work, even when
-  shared privately, so message them first (draft below).
+- The friend zip no longer contains the table (changed 2026-11-15, Steam Subscriber Agreement 2.G/6.B: subscribers
+  may use Workshop items, not hand out copies). It ships our patcher (`table/make-table.js` and the files it needs) as
+  readable source; the companion finds the host's own subscribed Workshop copy and patches it into a TTS save. The
+  packager refuses to zip anything that looks like a table (a `table/*.json`, a `TS_Save_N.json`, a file named after
+  a Workshop id, or any JSON with `SaveName` and `ObjectStates`), and tests/test_friend_package.js checks it.
 - Done for it: the privacy scan was re-run on 2026-11-09.
   - Commit authors are the GitHub noreply address.
   - No keys or email addresses are present.
@@ -90,9 +93,9 @@ Draft message to the table's author, for a Workshop comment on 2296042369 or the
 > enforcing the rules (triggers, the stack, priority, combat and AI opponents). It patches a copy of your table to add
 > the engine scripts, and removes the hard-coded "promote me" permission and the Smart mulligan button.
 >
-> It's a work in progress. I'm sharing it with a few friends now, including a ready-to-run download with the patched
-> table, and I'll make the GitHub repo public soon. You're credited as the table's author with a link to your Workshop
-> page.
+> It's a work in progress. I'm sharing it with a few friends now (a ready-to-run download that patches each player's
+> own Workshop copy; it doesn't include your table), and I'll make the GitHub repo public soon. You're credited
+> as the table's author with a link to your Workshop page.
 
 ## Before making the repository public
 
@@ -106,8 +109,8 @@ Draft message to the table's author, for a Workshop comment on 2296042369 or the
   > The GitHub repository doesn't include your tables: a script patches each player's own copy from the Workshop. The
   > patch adds the engine scripts, removes the decoration objects for performance, removes the hard-coded "promote me"
   > permission and the Smart mulligan button, and adds commander-damage trackers to the 6 player table. The docs describe
-  > how your scripts work so the patch can find its way around them. The ready-to-run download I share with friends does
-  > contain a patched copy of the 4 player table.
+  > how your scripts work so the patch can find its way around them. The ready-to-run download I share with friends
+  > doesn't include your tables either: it patches the host's own Workshop copy.
   >
   > You're credited as the tables' author with links to your Workshop pages:
   > https://github.com/Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer

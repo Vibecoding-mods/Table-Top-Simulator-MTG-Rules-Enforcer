@@ -10,14 +10,16 @@
 //                           extracted node-v<ver>-<os>-<arch> folder. Archives are extracted into a new empty temp
 //                           folder, only bin/node and LICENSE.
 //     --platform            default linux-x64; "all" for the three
-//     --repo <dir>          the repo whose deployed stack, bridge, decks, table save and licences are shipped (default:
+//     --repo <dir>          the repo whose deployed stack, bridge, decks, table patcher and licences are shipped (default:
 //                           this tree). The companion always comes from this tree's companion-node/.
 //     --out <dir>           default <repo>/dist
 //     --no-images           images/ left empty (no docker save): quick runs
 //     --images-tar <file>   use a docker save tar made before (checked against the deploy record like a fresh one)
-//     --allow-undeployed-bridge, --allow-changed-save   as tools/make-friend-package.js
-// It refuses, saying why, when the deploy record disagrees with the images, the running containers or the save (the
-// repo's own refusals()), and it only reads the TTS save.
+//     --allow-undeployed-bridge   as tools/make-friend-package.js
+// It refuses, saying why, when the deploy record disagrees with the images, the running containers or the table the
+// sources make from this PC's Workshop copy (the repo's own refusals()). Like the Windows package it ships NO table,
+// only our patcher in table/ (the companion makes the table from the host's own subscribed copy), and it never
+// writes in TTS's folders.
 //
 // The layout (companion-node/logic.js makeLayout is the contract):
 //   start.sh, stop.sh                         (Linux) or "MTG Companion.command", "Stop MTG.command" (Mac)
@@ -25,7 +27,7 @@
 //   runtime/node/bin/node, runtime/node/LICENSE   the official Node.js, byte for byte from its archive
 //   companion/                                companion-node/ byte for byte, plus page.html (the status page, from
 //                                             companion/src/WebPage.cs) and release-keys.txt (the public key)
-//   bridge/ decks/ manabrew/public/preset_decks/ scenarios/ stack/ images/ table/ logs/ LICENSES/   as on Windows
+//   bridge/ decks/ manabrew/public/preset_decks/ scenarios/ stack/ images/ table/ (the patcher) logs/ LICENSES/   as on Windows
 //   README-FRIEND-LINUX.txt or README-FRIEND-MAC.txt
 "use strict";
 const crypto = require("crypto");
@@ -188,6 +190,20 @@ const launchers = (platform) => {
   return mac ? { "MTG Companion.command": start, "Stop MTG.command": stopIt } : { "start.sh": start, "stop.sh": stopIt };
 };
 
+// the package's entries as tools/make-friend-package.js tableCopies() reads them: paths inside the package folder, and
+// a .json file's first 64 KB (a TTS save starts with its SaveName)
+function tableCheckEntries(entries, folder) {
+  const head = (e) => {
+    if (e.data) return e.data.subarray(0, 65536).toString("utf8");
+    const fd = fs.openSync(e.file, "r");
+    try { const b = Buffer.alloc(65536); return b.subarray(0, fs.readSync(fd, b, 0, b.length, 0)).toString("utf8"); } finally { fs.closeSync(fd); }
+  };
+  return entries.filter((e) => !e.dir).map((e) => {
+    const rel = e.name.startsWith(`${folder}/`) ? e.name.slice(folder.length + 1) : e.name;
+    return { rel, text: /\.json$/i.test(rel) ? head(e) : undefined };
+  });
+}
+
 // every file of companion-node, byte for byte, as package entries under companion/
 function companionEntries(dir, extra) {
   const walk = (rel) => {
@@ -235,6 +251,15 @@ function shasumFor(text, name) {
 
 // ───────── the READMEs ─────────
 
+// what every host needs beside its own system (the Windows README's HOST REQUIREMENTS says the same)
+const hostCommon = (engine) => `- At least 4 CPU cores and 16 GB of RAM recommended. The engine uses 2 cores and about 8 GB inside ${engine}; TTS
+  and the system need the rest. These are estimates, not measured limits.
+- The tables, subscribed on the Steam Workshop (this package doesn't include them; the companion makes the
+  rules-engine table from your own copy):
+    4 players: https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369
+    6 players: https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471
+  After subscribing, start TTS once so Steam downloads them.`;
+
 const readmeLinux = (v) => `MTG Table (rules engine) for Linux and the Steam Deck - host it on your own computer
 ===================================================================================
 
@@ -244,7 +269,7 @@ blockers, triggers) and moves the cards. This folder lets YOU host it. Friends w
 Package: built ${v.built.slice(0, 10)}, bridge ${v.bridge}, table ${v.table}, for Linux on x86-64 (Steam Deck, or a PC).
 
 
-WHAT YOU NEED
+HOST REQUIREMENTS (the computer that runs the engine; friends who only join need just TTS)
 - Linux on an x86-64 processor. On a Steam Deck: SteamOS 3.5 or newer, used in Desktop Mode.
 - Tabletop Simulator (Steam). The Linux version and the Windows version through Proton both work.
 - Podman (the Steam Deck has it built in) or Docker. Check in a terminal (Konsole on the Deck):
@@ -254,6 +279,7 @@ WHAT YOU NEED
 - About 3 GB of free disk: about 1.5 GB for the engine inside Podman (in ~/.local/share/containers) and about
   1.2 GB for this folder (the .tar.gz can be deleted once it is unpacked).
 - A web browser on the same computer, for the companion's status page.
+${hostCommon("Podman")}
 
 
 FIRST TIME (Steam Deck)
@@ -267,8 +293,9 @@ FIRST TIME (Steam Deck)
       ./start.sh
 4. The status page opens in your browser (if not, open the address the terminal prints, http://127.0.0.1:48790/).
    The companion checks everything, but starts nothing yet. Press "Start engine" (under Actions). The first start
-   takes a few minutes while it loads the engine into Podman. It also copies the table into your TTS saves. Then
-   it starts the engine and the bridge and opens Tabletop Simulator.
+   takes a few minutes while it loads the engine into Podman. It also makes the table from your Workshop copy
+   (subscribe first: HOST REQUIREMENTS) and puts it in your TTS saves. Then it starts the engine and the bridge and
+   opens Tabletop Simulator.
    Keep the terminal window open while you play: closing it stops the companion (the engine and the bridge keep
    running, and the next ./start.sh finds them running).
 
@@ -295,9 +322,11 @@ Each red light says what is wrong and has one button that fixes it. The usual on
   type "mtg reset" in TTS chat first.
 - Bridge: press "Start the bridge". If it says another program holds port 39998, close the TTS extension of VS Code
   or Atom (they use the same port). If it says the folder can't be written to, move the folder (FIRST TIME, step 2).
-- Table save: it says which folder it looked for. TTS keeps its saves in
-  ~/.local/share/Tabletop Simulator/Saves (the Linux version), or inside Steam's Proton folder for TTS when only the
-  Windows version was ever started. Start TTS once, then press Try again.
+- Table save: "Subscribe to the table on the Steam Workshop": do that, start TTS once so it downloads, then press
+  "Try again". If it says a patch didn't apply, the table's author changed it on the Workshop since this package was
+  made: ask whoever gave you this for a newer package. Otherwise it says which folder it looked for. TTS keeps its
+  saves in ~/.local/share/Tabletop Simulator/Saves (the Linux version), or inside Steam's Proton folder for TTS when
+  only the Windows version was ever started. Start TTS once, then press Try again.
 - TTS: red when the table loaded in TTS isn't this package's. Load "${v.saveName}" again (step 2 above).
 Fix buttons that restart things are locked while a game is on, so a fix never ends a game by surprise.
 Still stuck: Ctrl+C in the terminal, ./start.sh again. Then send the files in the "logs" folder to whoever gave you
@@ -348,7 +377,7 @@ blockers, triggers) and moves the cards. This folder lets YOU host it. Friends w
 Package: built ${v.built.slice(0, 10)}, bridge ${v.bridge}, table ${v.table}, for ${v.arch === "arm64" ? "Macs with Apple Silicon (M1 or newer)" : "Macs with an Intel processor"}.
 
 
-WHAT YOU NEED
+HOST REQUIREMENTS (the Mac that runs the engine; friends who only join need just TTS)
 - macOS 12 or newer${v.arch === "arm64" ? " on an Apple Silicon Mac (an Intel Mac needs the macos-x64 package)" : " on an Intel Mac (an Apple Silicon Mac needs the macos-arm64 package)"}.
 - Tabletop Simulator (Steam).
 - Docker Desktop: https://www.docker.com/products/docker-desktop/  Install it, start it once and finish its
@@ -358,6 +387,7 @@ WHAT YOU NEED
   newer). Without it Docker uses a much slower emulator, and the engine may take minutes to answer.` : ""}
 - About 3 GB of free disk: about 1.5 GB for the engine inside Docker and about 1.2 GB for this folder (the .tar.gz
   can be deleted once it is unpacked).
+${hostCommon("Docker")}
 
 
 FIRST TIME
@@ -373,8 +403,8 @@ FIRST TIME
    A Terminal window opens: keep it open while you play.
 4. The status page opens in your browser (if not, open the address the Terminal prints, http://127.0.0.1:48790/).
    The companion checks everything, but starts nothing yet. Press "Start engine" (under Actions). The first start
-   takes a few minutes while it loads the engine into Docker. It also copies the table into your TTS saves. Then
-   it starts the engine and opens TTS.
+   takes a few minutes while it loads the engine into Docker. It also makes the table from your Workshop copy
+   (subscribe first: HOST REQUIREMENTS) and puts it in your TTS saves. Then it starts the engine and opens TTS.
 
 
 EVERY GAME NIGHT
@@ -542,15 +572,15 @@ async function main() {
 
   // what was deployed, and whether this PC still agrees with it (the repo's own checks)
   const deployed = versions.readManifest();
-  const saveFile = process.env.MTG_SAVE || path.join(process.env.USERPROFILE || os.homedir(), "Documents/My Games/Tabletop Simulator/Saves/TS_Save_1.json");
-  let save = null;
-  try { const raw = fs.readFileSync(saveFile); save = { raw, stamp: pack.stampOf(raw.toString("utf8")), sha8: versions.sha8(raw) }; } catch { /* refused below */ }
+  if (flag("allow-changed-save")) stop("--allow-changed-save is gone: the package ships no save (the companion makes the table from the host's Workshop copy)");
+  const tables = require(path.join(repo, "tools", "make-table.js"));
+  const made4p = pack.readTable();
   const compose = fs.readFileSync(path.join(repo, "stack", "compose.yml"), "utf8");
   const containers = await new Promise((done) => versions.containerImages(done));
   const bridge = versions.bridgeHash();
   const tags = {};
   for (const k of ["node", "relay"]) tags[k] = docker(["image", "inspect", "-f", "{{.Id}}", pack.IMAGES[k]]);
-  const why = pack.refusals({ deployed, tags, containers, save, bridge, compose }, { allowChangedSave: flag("allow-changed-save"), allowUndeployedBridge: flag("allow-undeployed-bridge") });
+  const why = pack.refusals({ deployed, tags, containers, table: made4p, bridge, compose }, { allowUndeployedBridge: flag("allow-undeployed-bridge") });
   if (why.length) stop(`stack/deployed.json disagrees with what would be shipped:\n  - ${why.join("\n  - ")}`);
 
   const licences = {
@@ -620,11 +650,9 @@ async function main() {
     const packaged = versions.sha8(versions.BRIDGE_FILES.map((f) => fs.readFileSync(f, "utf8")).join("\0"));
     if (packaged !== bridge) stop(`the packaged bridge hashes to ${packaged}, not ${bridge}`);
     const counts = pack.DATA_DIRS.map((dir) => { const names = jsonFiles(path.join(repo, dir)); for (const n of names) file(`${dir}/${n}`, path.join(repo, dir, n)); return names.length; });
-    const table = Buffer.from(pack.renameSave(save.raw.toString("utf8"), pack.SAVE_NAME), "utf8");
-    if (pack.stampOf(table.toString("utf8")) !== deployed.table) stop("the renamed save lost its table stamp");
-    shared.push({ name: "table/MTG Table.json", mode: 0o644, data: table });
-    const png = saveFile.replace(/\.json$/i, ".png");
-    if (fs.existsSync(png)) file("table/MTG Table.png", png);
+    // the table: our patcher, never the table itself (the companion makes it from the host's Workshop copy)
+    for (const f of tables.PATCHER_FILES) file(`table/${f}`, path.join(repo, "tools", f));
+    shared.push({ name: "table/README.txt", mode: 0o644, data: Buffer.from(pack.tableReadme()) });
     shared.push({ name: "stack/compose.yml", mode: 0o644, data: Buffer.from(`# On Linux and macOS the companion runs these two containers with plain run commands, the same settings
 # (companion/platform.js runArgs), with Docker or Podman; no compose is needed. This file is the reference.
 ${pack.composeYaml()}`) });
@@ -633,15 +661,18 @@ ${pack.composeYaml()}`) });
     for (const [to, from] of Object.entries(licences)) file(`LICENSES/${to}`, from);
 
     const built = new Date().toISOString();
-    const save8 = versions.sha8(table);
+    const save8 = made4p.save;
+    const TABLE = tables.TABLES["4p"];
     const made = [];
     for (const p of platforms) {
       const P = PLATFORMS[p], r = runtimes[p];
       const name = `MTG-Table-${p}-${date}`;
       const info = {
-        bridge, table: deployed.table, save: save8, node: deployed.node, relay: deployed.relay, built, gitCommit: treeCommit(),
+        bridge, table: made4p.stamp, save: save8, node: deployed.node, relay: deployed.relay, built, gitCommit: treeCommit(),
         deployed: { bridge: deployed.bridge, save: deployed.save, at: deployed.at },
         images: held, imagesFile: imagesTar ? "images/mtg-images.tar" : null, nodeVersion: r.version, saveName: pack.SAVE_NAME, composeProject: pack.PROJECT,
+        workshop: { id: TABLE.id, url: TABLE.url, sha8: made4p.workshop },
+        tables: [{ key: "4p", id: TABLE.id, url: TABLE.url, saveName: TABLE.saveName, file: TABLE.file, optional: false }],
         platform: p, companion: "node", nodeArchive: r.archive ? { file: r.archive.file, sha256: r.archive.sha256 } : null,
       };
       const v = { ...info, folder: name, arch: P.arch };
@@ -659,6 +690,8 @@ ${pack.composeYaml()}`) });
       ].map((e) => ({ ...e, name: `${name}/${e.name}` }));
       const dup = entries.map((e) => e.name).find((n, i, all) => all.indexOf(n) !== i);
       if (dup) stop(`${dup} twice in the package`);
+      const copies = pack.tableCopies(tableCheckEntries(entries, name));
+      if (copies.length) stop(`the package would hand out a copy of a Workshop table (Steam lets subscribers use it, not distribute it): ${copies.join(", ")}`);
       const target = path.join(out, `${name}.tar.gz`);
       const tmp = `${target}.part`;
       console.log(`  writing ${target}`);
@@ -672,4 +705,4 @@ ${pack.composeYaml()}`) });
 }
 
 if (require.main === module) main().catch((e) => stop(e.stack || e.message));
-module.exports = { writeTarGz, readTarGz, splitName, paxRecord, launchers, companionEntries, unreadable, binaryKind, findNodeArchive, shasumFor, readmeLinux, readmeMac, sourceText, PLATFORMS };
+module.exports = { writeTarGz, readTarGz, splitName, paxRecord, launchers, companionEntries, tableCheckEntries, unreadable, binaryKind, findNodeArchive, shasumFor, readmeLinux, readmeMac, sourceText, PLATFORMS };
