@@ -184,6 +184,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-15 (no image; built in a cloud session) | `engine1117-teamblock` (no image ids) | engine1117 + Two-Headed Giant team blocks as one joint decision (805.10d, 805.2): revise rounds, cap of 4, the primary settles | **Both** (protocol: optional `chooseBlockers` fields `title`, `reviseRound`, `currentAssignments`, `teamBlockLines`) | outer branch `cloud/team-block` | not deployed | `engine1117` |
 | 2026-11-15 (no image; built in a cloud session) | `engine1117` (no image ids) | Two-Headed Giant level 2 (engine1117-l2) + the life house rule `teamLifeEvents` (engine1116-teams3) in one engine; no Team draws or Team effects | Node only (no protocol change) | outer branch `cloud/team-block` (the engine1117 commit), patches regenerated there | not deployed | `engine1116-teams3` |
 | 2026-11-15 (no image; harness jar built in a cloud session) | `engine1117-l2` (no image ids yet) | Two-Headed Giant level 2, shared team turns: tracks A (tests), B (turns and priority) and C (combat) merged into `engine/forge.patch` and `engine/manabrew.patch` | Node only (no protocol change) | outer branch `cloud/l2-merge` (patches regenerated there) | not deployed | `engine1116-teams2` |
 | 2026-11-15 04:21 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams2` (`a904893325fc` / `5173c7e692c2`) | engine1116-teams + engine1115-2hgrules in one engine (the four 2hg-rules Forge commits and their harness tests cherry-picked) | Node only, as both parts | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (+ `6c97e3b`..`ba4da9e`), its `forge/` + `e7b32d36`..`85bc8c3d`; outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` |
@@ -257,6 +258,26 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-15 engine1117-teamblock: 2HG team blocks as one joint decision (built in the cloud, no image)
+- **Problem:** the defending team declares its blocks together and can change its mind until it agrees (805.10d); the
+  engine asked each defender once, so the primary couldn't revise after seeing the partner's blocks.
+- **What, Forge:** `PhaseHandler.declareJointBlockers` (in `declareTeamBlockers`, so a refused block still starts again
+  from round 1, up to 3 rounds): round 1 asks each defender in turn order; an answer that changes the team's block asks
+  each partner who already answered again (their own blocks taken back first), and an unchanged answer is agreement. After
+  `MAX_TEAM_BLOCK_REVISIONS` (4) re-asks the primary player settles it (805.2): the latest answers stand, and both
+  defenders are told "<primary> settles the team's blocks (rule 805.2)". Each change in a re-ask round is told to the team
+  ("Yellow: Wall of Wood now blocks Hill Giant."). Level 1 (shared life, own turns) blocks the same way, each defender's
+  blockers still finished on their own. `Combat.teamBlockRound` and `teamBlockAnswers` carry the round and the defender's
+  last answer to the controllers. Free-for-all, 2v2 and Juggernaut: one ask per defender, unchanged.
+- **What, protocol and harness:** `ChooseBlockersInput` gets four optional fields (older tables ignore them): `title`,
+  `reviseRound` (1 to 4, absent in round 1), `currentAssignments` (the defender's own current blocks, for Agree) and
+  `teamBlockLines` (one line per attacker). The interactive controller fills them in a team block only.
+- **Proof:** `engine/test-harness-local.sh --all` 23 of 23 classes (SharedCombatTest 22 checks, 8 new);
+  `node tools/l2-mutate.js --local <tree>`: 49 of 49 mutations caught by name (10 new), files restored by sha256;
+  `cargo build` of the protocol, agent interface, manabot, node and server crates; `cargo test -p manabrew-protocol` 147.
+- **Not done:** no Docker images (build both: the shared protocol crate changed, and whether the relay keeps unknown
+  prompt fields was not checked), no live check, no table work.
 
 ### 2026-11-15 engine1117: Two-Headed Giant level 2 + the life house rule, built in the cloud, no image
 - **What:** the level 2 engine (`engine1117-l2`) and the live life house rule (`teamLifeEvents`, engine1116-teams3) merged
