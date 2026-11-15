@@ -184,6 +184,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-15 12:08 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams3` (`c156f48555ce` / `5b2f8fd69dc8`) | engine1116-teams2 + the 2HG house rule: a partner's life gain or loss counts as yours (triggers, this-turn counts, first time each turn, lifegain replacements), behind `GameRules.teamLifeEvents`, on in every `sharedLife` game | Node only (relay source unchanged) | tree `tmp/wt-2hghouse/tmp/eb-house`, branch `2hg-house` (`1806dd9` on `ba4da9e`), its `forge/` `2hg-house` (`02c1dad1` on `85bc8c3d`); outer branch `2hg-house-life` | not deployed | `engine1116-teams2` (`a904893325fc` / `5173c7e692c2`) |
 | 2026-11-15 04:21 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams2` (`a904893325fc` / `5173c7e692c2`) | engine1116-teams + engine1115-2hgrules in one engine (the four 2hg-rules Forge commits and their harness tests cherry-picked) | Node only, as both parts | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (+ `6c97e3b`..`ba4da9e`), its `forge/` + `e7b32d36`..`85bc8c3d`; outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` |
 | 2026-11-15 03:16 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams` (`0966b1c0d6cb` / `b07cf1600b20`) | Per-player rules for 2v2 Team Commander and Juggernaut: perks (hidden effect cards from Forge script lines), a player's own commander-damage limit, a named first player, `ReplaceBeginTurn` `ExtraTurn$ False`; on top of engine1115b | Node only (`gameConfig` fields through the node's serde structs; relay source unchanged) | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (`0569073`, `36617e3`, `4eb95da` on `44de312`), its `forge/` branch `teams-1116` (`7451885e` on `19931d89`); outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
 | 2026-11-15 (2026-11-15 03:46 / relay layers cached, 2026-11-14 12:51 stamp) | `engine1115-2hgrules` (`01be70a2e78f` / `b3d530c62920`) | Two-Headed Giant rules audit against CR 810: team pay life (810.9h), can't win (810.8a), can't get poison (810.10c), opponents' poison once a team (810.10a), set life and redistribution one member a team (810.9d, 810.9f), proliferate one poison a team (701.34b) | Both rebuilt, no protocol change | tree `tmp/wt-2hgrules/tmp/eb-rules`, branch `2hg-rules` (`8b33391` on `44de312`), its `forge/` branch `2hg-rules` (`ec4266d5` on `19931d89`); outer branch `2hg-team-rules` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
@@ -255,6 +256,59 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-15 engine1116-teams3: the 2HG house rule, a partner's life gain or loss is yours (built, not deployed)
+- **Problem:** the user's answer to the rules audit's first conflict (2026-11-15): build it as a house rule. In 2HG a
+  teammate's life gain or loss also counts as yours for "you gain/lose life" triggers and conditions. CR 810.9 has them
+  happen to each player alone, so this is not the CR (`docs/game-modes-spec.md` §5.9.1 says so). Commander damage stays 42
+  summed over the team (the user: no change).
+- **What, Forge (`engine/forge.patch`, behind the new `GameRules.teamLifeEvents`, which counts only with
+  `sharedTeamLife`):** `Trigger.matchesValidLifePlayer` (used by `TriggerLifeGained`, `TriggerLifeLost`,
+  `TriggerLifeLostAll`): a gain or loss by a teammate of the trigger's controller is tested as the controller's own, so
+  Ajani's Pridemate grows on the partner's gain; the event is still one player's, so each trigger fires once per gain.
+  `ReplaceGainLife.gainedByTeammate`: "if you would gain life" replacements (Boon Reflection) apply to the partner's gain,
+  each replacement once. `Player.lifeEventTeam` and `getTeamLifeGainedThisTurn`, `getTeamLifeGainedTimesThisTurn`,
+  `getTeamLifeLostThisTurn`, `getTeamLifeLostLastTurn` (the team's sums) feed the counts `LifeYouGainedThisTurn`,
+  `LifeYouLostThisTurn`, `LifeYouGainedTimesThisTurn`, the player counts `LifeLostThisTurn`, `LifeLostLastTurn`,
+  `LifeGainedThisTurn` and the `LostLifeThisTurn` player property; a gain's or loss's `FirstTime` is the team's first that
+  turn. Each player's own fields and getters are unchanged, so rewinds and game copies copy them as before. Not changed
+  (chosen): "if you would lose life" replacements, opponents' counts (`LifeOppsLostThisTurn`).
+- **What, harness (`engine/manabrew.patch`):** `configureTeamRules` turns `setTeamLifeEvents(true)` on with
+  `setSharedTeamLife(true)` (no request field: every 2HG game has it); `forge-harness/.../AGENTS.md` says so; 6 new
+  `TeamGameTest` checks and one more line in `requestSetsTeamsAndTwoHeadedGiantNumbers` (41 in all). No protocol change.
+- **Source:** tree `tmp/wt-2hghouse/tmp/eb-house`, a clone of `tmp/wt-teams/tmp/eb1116-teams` (engine1116-teams2, left
+  untouched): branch `2hg-house` = `teams-1116` (`ba4da9e`) + `1806dd9`; its `forge/` branch `2hg-house` =
+  `teams-1116` (`85bc8c3d`) + `02c1dad1`. Patches regenerated with `ENGINE_WORK_DIR=tmp/wt-2hghouse/tmp/eb-house
+  ENGINE_BUILD_DIR=tmp/wt-2hgrules/tmp/engine-build bash engine/make-patches.sh` (446 and 58 files); against main's
+  engine1116-teams2 patches only the house-rule files and hunk offsets differ.
+- **Build:** through `tmp/slot.js`, `ENGINE_BUILD_DIR=tmp/wt-2hgrules/tmp/engine-build bash engine/build-images.sh
+  engine1116-teams3`: `mtg-forge-node:engine1116-teams3` `c156f48555ce`, `mtg-relay:engine1116-teams3` `5b2f8fd69dc8`
+  (relay unchanged); test image `mtg-harness-test:engine1116-teams3` `21ef2452af0c` (`--target java-builder`). The running
+  stack was not touched.
+- **Proof:** `engine/checks/harness-tests.sh` in `mtg-harness-test:engine1116-teams3` on
+  `tmp/wt-2hghouse/tmp/eb-house/forge-harness`: 18 of 18 classes, 194 checks (`TeamGameTest` 41). New checks:
+  `aPartnersLifeGainTriggersYourPridemateOnce` (Red gains 3: White's and Red's Pridemates once each, Yellow's not),
+  `lifeGainedThisTurnCountsThePartnersGain` (Angelic Accord's count: Red's 4 gained and 2 lost are White's, not Yellow's;
+  each player's own record unchanged), `theFirstGainEachTurnIsTheTeams` (Attended Healer once on Red's first gain, not
+  again on White's), `aPartnersLifeLossTriggersYourLoseLifeTrigger` (Gonti's Machinations on a Bolt to Red),
+  `yourLifegainReplacementDoublesAPartnersGainOnce` (White's Boon Reflection: Red's 2 becomes 4, an opponent's stays 2),
+  `partnersLifeEventsAreTheirOwnWithoutTheHouseRule` (shared life with the flag off: no trigger, no count, no doubling).
+  Break-it (`tmp/wt-2hghouse/tmp/mutate-house.sh`: the nine changed Forge classes compiled into the harness classpath
+  ahead of the engine1116-teams2 jar, one mutation at a time, each file restored and checked by sha256), baseline 41 of
+  41: the trigger's partner test removed fails `aPartnersLifeGainTriggersYourPridemateOnce` and
+  `theFirstGainEachTurnIsTheTeams`; the first gain the player's own fails `theFirstGainEachTurnIsTheTeams`; gained and
+  lost this turn the player's own each fail `lifeGainedThisTurnCountsThePartnersGain`; the replacement's partner test
+  removed fails `yourLifegainReplacementDoublesAPartnersGainOnce`; a gain also run as each partner's (the double trigger)
+  fails `aPartnersLifeGainTriggersYourPridemateOnce` (2 triggers); the rule on with shared life alone fails
+  `lifelinkRaisesTheTeamAndTriggersOnlyItsController` and `partnersLifeEventsAreTheirOwnWithoutTheHouseRule`; the harness
+  not setting it fails `requestSetsTeamsAndTwoHeadedGiantNumbers`. Live, `LIVE_STACK=8 LIVE_TIMEOUT=600 sh
+  tools/live-check.sh engine1116-teams3 tests/live_2hg_check.js`: 24 of 24. A headless 2HG Commander game to the end on
+  test stack 8 (port 9452, `tmp/wt-2hghouse/tmp/headless-2hg.sh`, `bridge/engine-test.js --seats 4 --bots 3 --mode 2hg`):
+  80 shared life, 33 turns, 632 responses, Yellow + Blue won. `tests/test_table_golden.js` 6 games match;
+  `tests/test_bridge_golden.js` (with `MTG_HOME` at the main checkout, for Manabrew's preset decks) 1072 of 1072.
+- **Deploy (when wanted):** TTS closed, no game running, from main after this branch is merged:
+  `MTG_MANABREW=tmp/wt-2hghouse/tmp/eb-house node tools/deploy.js --image engine1116-teams3`.
+- **Rollback:** `node tools/deploy.js --image engine1116-teams2` (or `engine1115b`, the live one).
 
 ### 2026-11-15 engine1116-teams2: engine1116-teams and the 2HG rules audit together (built, not deployed)
 - **What:** one engine with both 2026-11-15 changes: engine1116-teams (below) and engine1115-2hgrules (its entry below).
