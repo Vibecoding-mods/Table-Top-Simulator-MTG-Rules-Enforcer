@@ -1615,6 +1615,21 @@ function onRoomUpdate(seat, room) {
     game.maxSet = true;
     controllerOf(room, seats).send({ type: "SetMaxPlayers", max_players: game.total });
   }
+  // The relay takes StartGame's format only in an "Any" room: a room fresh from the node is the node's format (Commander)
+  // until its first game ends, when the relay sets it back to Any. A room of another format is switched first
+  // (controller only), and the relay then un-readies the people, so each seat says ready again once the room shows it.
+  // (headless 2026-11-15: a Standard start in a fresh Commander room got 40 life and Forge's Commander game)
+  const wantFormat = MODES[game.mode || "commander"].format;
+  const formatOk = !room.format || room.format === "Any" || room.format === wantFormat;
+  if (!formatOk && !game.formatSent && me && seat === controllerOf(room, seats)) {
+    game.formatSent = true;
+    log(`room format ${room.format}: setting it to ${wantFormat}`);
+    seat.send({ type: "SetFormat", format: wantFormat });
+  }
+  if (game.formatSent && room.format === wantFormat && me && seat.joined && !me.ready && !seat.readyAgain) {
+    seat.readyAgain = true;
+    seat.send({ type: "SetReady", ready: true });
+  }
   const forgeBots = forgeBotCount();
   if (!game.botsRequested && forgeBots > 0 && seats.every((s) => s.joined)) {
     game.botsRequested = true;
@@ -1640,7 +1655,7 @@ function onRoomUpdate(seat, room) {
     } });
   }
   const ready = room.players.filter((p) => p.ready && p.connected).length;
-  if (!game.startSent && room.status === "Lobby" && ready >= game.total) {
+  if (!game.startSent && formatOk && room.status === "Lobby" && ready >= game.total) {
     game.startSent = true;
     const order = clockwiseOrder(room);
     // (Two-Headed Giant: the teams first, which the node keeps for the game it starts next, host.rs gameConfig)
