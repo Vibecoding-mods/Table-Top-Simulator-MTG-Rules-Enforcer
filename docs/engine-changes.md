@@ -184,6 +184,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-15 (no image; harness jar built in a cloud session) | `engine1117-l2` (no image ids yet) | Two-Headed Giant level 2, shared team turns: tracks A (tests), B (turns and priority) and C (combat) merged into `engine/forge.patch` and `engine/manabrew.patch` | Node only (no protocol change) | outer branch `cloud/l2-merge` (patches regenerated there) | not deployed | `engine1116-teams2` |
 | 2026-11-15 04:21 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams2` (`a904893325fc` / `5173c7e692c2`) | engine1116-teams + engine1115-2hgrules in one engine (the four 2hg-rules Forge commits and their harness tests cherry-picked) | Node only, as both parts | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (+ `6c97e3b`..`ba4da9e`), its `forge/` + `e7b32d36`..`85bc8c3d`; outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` |
 | 2026-11-15 03:16 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams` (`0966b1c0d6cb` / `b07cf1600b20`) | Per-player rules for 2v2 Team Commander and Juggernaut: perks (hidden effect cards from Forge script lines), a player's own commander-damage limit, a named first player, `ReplaceBeginTurn` `ExtraTurn$ False`; on top of engine1115b | Node only (`gameConfig` fields through the node's serde structs; relay source unchanged) | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (`0569073`, `36617e3`, `4eb95da` on `44de312`), its `forge/` branch `teams-1116` (`7451885e` on `19931d89`); outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
 | 2026-11-15 (2026-11-15 03:46 / relay layers cached, 2026-11-14 12:51 stamp) | `engine1115-2hgrules` (`01be70a2e78f` / `b3d530c62920`) | Two-Headed Giant rules audit against CR 810: team pay life (810.9h), can't win (810.8a), can't get poison (810.10c), opponents' poison once a team (810.10a), set life and redistribution one member a team (810.9d, 810.9f), proliferate one poison a team (701.34b) | Both rebuilt, no protocol change | tree `tmp/wt-2hgrules/tmp/eb-rules`, branch `2hg-rules` (`8b33391` on `44de312`), its `forge/` branch `2hg-rules` (`ec4266d5` on `19931d89`); outer branch `2hg-team-rules` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
@@ -255,6 +256,39 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-15 engine1117-l2: Two-Headed Giant level 2 shared team turns (built, not deployed)
+- **What:** the level 2 rules for 2HG (`GameRules.sharedTeamTurns`, on top of level 1's shared life), merged from three
+  tracks: B (turns and priority, Forge branch `l2-turns`), C (combat, Forge branch `l2-combat`) and A's tests. Level 1
+  and every other mode are unchanged (each rule checks the flag).
+- **Rules, one line each:**
+  - 805.2: the team's primary player (its first seat in turn order, `PhaseHandler.getPrimaryPlayer`) orders the team's
+    triggers. Which seat counts as "rightmost" is still the owner's call (see below).
+  - 805.3a, 805.3b: the starting team declares mulligans and takes pregame actions first.
+  - 805.4: the turn goes to the next team; the whole team untaps, draws, discards to hand size, and each step's
+    triggers run for each active player (805.4d, including "that player" through a condition or svars).
+  - 805.5b: a team passes priority once each of its players passes; all teams passing in a row resolves or ends the
+    step; the active team gets priority after a resolution.
+  - 805.7: the active team, then each other team in turn order, puts all its triggers on the stack in one order; each
+    controller still makes their own trigger's choices as it goes on the stack.
+  - 805.8: one effect that gives or skips a turn, phase or step for several players of a team does it once for the
+    team (`SpellAbilityEffect.oncePerTeam`, in AddTurn, SkipTurn, SkipPhase); a partner's extra turn or step is the team's.
+  - 805.9: "the active player" is one player: the one whose step triggered the ability, else the controller if on the
+    active team, else the first seat.
+  - 805.10a-c: each active player declares their own attackers into one team attack, checked as a whole; a refused team
+    attack is asked again up to 3 rounds; the attacking player of a creature is its controller; Coveted Jewel
+    (`AttackerUnblockedOnce`) triggers once, for the right player; banding damage assignment; each attacking player
+    keeps their own combat modes.
+  - 805.10d: the defending team declares one combined block, each player in turn order; the block is checked as a
+    whole and an illegal one is asked again up to 3 rounds; the AI declares as the second player.
+  - 805.10e: "defending player" is the player the creature attacks.
+  - Harness: the primary player gets the team's trigger-order prompt; the team's blockers prompt lists every creature
+    attacking the team, at level 1 too.
+- **Proof (cloud session, no Docker):** `engine/test-harness-local.sh --all`: 23 of 23 classes pass (SharedTurnsTest
+  33, SharedTurnsDevTest 16, SharedCombatTest 14, TeamGameTest). `node tools/l2-mutate.js --local`: see
+  `docs/handoff/l2-merge-report.md` for the caught table.
+- **Not done:** no Docker images built, no live check. Build with `engine/build-images.sh engine1117-l2`.
+- **Rollback:** `node tools/deploy.js --image engine1116-teams2` (or whatever is live).
 
 ### 2026-11-15 engine1116-teams2: engine1116-teams and the 2HG rules audit together (built, not deployed)
 - **What:** one engine with both 2026-11-15 changes: engine1116-teams (below) and engine1115-2hgrules (its entry below).

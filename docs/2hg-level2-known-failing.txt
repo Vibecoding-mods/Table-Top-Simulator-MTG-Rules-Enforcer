@@ -1,5 +1,3 @@
 # SharedTurnsTest checks expected to FAIL until their track lands (one name per line, # comments).
 # Owner in brackets; take a name off when it passes. tools/l2-mutate.js reads this list.
-theTeamPassesOnceBothMembersPass  # [B] CR 805.5b team priority: after Red acts, White passes for the team before Yellow's team
-thePrimaryPlayerOrdersTheTeamsTriggers  # [B] CR 805.2 the team's trigger order goes to its primary player (White, Yellow); today each player orders their own
-theActiveTeamOrdersAllItsTriggersFirst  # [B] CR 805.7 the active team orders all its triggers as one batch, then the other team; today one batch per player
+# Empty since the level 2 merge (2026-11-15): every check passes on the merged engine.
