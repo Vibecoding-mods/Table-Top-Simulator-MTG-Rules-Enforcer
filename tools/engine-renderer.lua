@@ -750,12 +750,17 @@ end
 -- none. Globals, not locals: the main chunk is at Lua's 200-local limit.
 ENGINE_TEAMS = nil
 ENGINE_TEAM_MODE = nil -- "2hg" | "2v2" | "juggernaut" while ENGINE_TEAMS is set
+-- Two-Headed Giant's level: nil is Level 1 (each player's own turn, the team's back to back), "shared" Level 2 (one turn
+-- for the team, attacks and blocks together: CR 805, 810.2). "mtg 2hg turns shared|own" (host); sent with Start as
+-- teamTurns, only in a Two-Headed Giant game (engineTeamTurnsSent; the bridge's gameConfig says "sharedTurns").
+ENGINE_TEAM_TURNS = nil
 -- the Juggernaut's settings (bridge/teams.js JUGG_DEFAULTS; life nil: twice the format's, 80 or 40)
 ENGINE_JUGG = { color = "White", hand = 10, draw = 1, land = 0, cmd = 21, order = "first" }
 ENGINE_TEAM_NAMES = { ["2hg"] = "Two-Headed Giant", ["2v2"] = "2v2 Team Commander", juggernaut = "Juggernaut" }
 function engineTeamsSent() return ENGINE_TEAMS end
 function engineTeamModeSent() return ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil end
 function engineJuggSent() return (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == "juggernaut") and ENGINE_JUGG or nil end
+function engineTeamTurnsSent() return (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == "2hg") and ENGINE_TEAM_TURNS or nil end
 -- "White + Red" from a list of colours, by what the screen calls each player
 function engineTeamWords(colors)
   local names = {}
@@ -789,17 +794,33 @@ end
 ENGINE_JUGG_LIMITS = { life = { 1, 999 }, hand = { 0, 30 }, draw = { 0, 5 }, land = { 0, 5 }, cmd = { 1, 99 } }
 -- what each mode means, said when the host picks it
 ENGINE_TEAM_HELP = {
-  ["2hg"] = ". Partners share life (30 a team, 80 in Commander), poison (15) and a commander's damage (42), block for each other and see each other's hands; each player takes their own turn. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).",
+  ["2hg"] = ". Partners share life (30 a team, 80 in Commander), poison (15) and a commander's damage (42), block for each other and see each other's hands; each player takes their own turn. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host). One turn for each team, attacking and blocking together:  mtg 2hg turns shared  (back:  mtg 2hg turns own).",
   ["2v2"] = ". Each player has their own life (40, 20 in Standard) and turn; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).",
 }
 -- "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team <colour> <1|2>" and "mtg juggernaut ..." (host): true when handled
 -- (engineChat, make-engine-copy.js); any other "mtg mode" word is left to the other game modes
+-- ("mtg 2hg turns shared|own" too: the chat's command word is letters only, so "2hg" comes in rest with cmd "")
 function engineTeamChat(cmd, rest, pl, isHost)
   local isMode = cmd == "mode" and (rest == "2hg" or rest == "2v2" or rest == "juggernaut" or rest == "ffa")
-  if not isMode and cmd ~= "team" and cmd ~= "juggernaut" then return false end
+  local isLevel = cmd == "" and rest:sub(1, 3) == "2hg"
+  if not isMode and not isLevel and cmd ~= "team" and cmd ~= "juggernaut" then return false end
   if not isHost then pl.broadcast("[MTG] Only the host can set up team games.") return true end
   local who = tostring(pl.steam_name or pl.color)
   local function redraw() if engineSetupButtons ~= nil then pcall(engineSetupButtons) end end
+  if isLevel then
+    local level = rest:match("^2hg%s+turns%s+(%a+)$")
+    if level ~= "shared" and level ~= "own" then
+      pl.broadcast("[MTG] Two-Headed Giant turns: " .. (ENGINE_TEAM_TURNS == "shared" and "one turn for each team" or "each player's own turn")
+        .. ". Use:  mtg 2hg turns shared  (one turn for each team, attacking and blocking together) or  mtg 2hg turns own  (each player's own turn, the team's back to back).")
+      return true
+    end
+    ENGINE_TEAM_TURNS = level == "shared" and "shared" or nil
+    local note = (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == "2hg") and "" or " (for Two-Headed Giant games:  mtg mode 2hg)"
+    broadcastToAll("[MTG] " .. who .. " set Two-Headed Giant to " .. (level == "shared"
+      and "one turn for each team: partners take their turn together, attack together and block together." or "each player's own turn, the team's back to back.") .. note, { 1, 0.85, 0.4 })
+    redraw()
+    return true
+  end
   if isMode and rest == "ffa" then
     if ENGINE_TEAMS == nil then pl.broadcast("[MTG] The games are already free-for-all.") return true end
     ENGINE_TEAMS = nil
@@ -865,7 +886,7 @@ TEAMS_SPOT = Vector(-47, 1.1, 17.5) -- (right of Free mulligans on the same stri
 function engineTeamsLabel()
   local m = ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil
   if m == "juggernaut" then return "Juggernaut\n" .. ENGINE_JUGG.color end
-  return "Teams\n" .. (m == "2hg" and "2HG" or m == "2v2" and "2v2" or "None")
+  return "Teams\n" .. (m == "2hg" and (ENGINE_TEAM_TURNS == "shared" and "2HG team turns" or "2HG") or m == "2v2" and "2v2" or "None")
 end
 function onMtgSetupTeams(obj, playerColor)
   local pl = Player[playerColor]
@@ -909,6 +930,39 @@ function engineTeamTurnTag(t, viewer)
   local mine = false
   for _, c in ipairs(side) do if c == viewer then mine = true end end
   return "  <color=#B8D8FF>" .. (mine and "(YOUR TEAM)" or ("(TEAM " .. string.upper(engineTeamWords(side)) .. ")")) .. "</color>"
+end
+-- ── Two-Headed Giant Level 2: the team's shared turn (CR 805.4-805.5, 805.10) ──
+-- The board's activeTeam (bridge.js, a "sharedTurns" game only) lists both partners, the active player first: each of
+-- them is on their turn (the phase bar's YOUR TEAM'S TURN, attacking, sorcery timing, untapping). Outside such a game
+-- it is the one active player, as before.
+function engineMyTurn(t, color)
+  if t == nil or color == nil then return false end
+  if t.active == color then return true end
+  for _, c in ipairs(t.activeTeam or {}) do if c == color then return true end end
+  return false
+end
+-- whose turn in a shared-turn game: "YOUR TEAM'S TURN" or "TEAM WHITE + RED'S TURN"
+function engineTeamTurnWords(t, color)
+  if engineMyTurn(t, color) then return "YOUR TEAM'S TURN" end
+  return "TEAM " .. string.upper(engineTeamWords(t.activeTeam)) .. "'S TURN"
+end
+-- whether colours a and b are partners in a shared-turn game (the board's teams sides; never outside one)
+function engineTurnPartners(t, a, b)
+  if t == nil or t.activeTeam == nil or a == nil or b == nil then return false end
+  local side = engineTeamOf(t, a)
+  for _, c in ipairs(side or {}) do if c == b then return true end end
+  return false
+end
+-- the line while another player holds priority in a shared-turn game (805.5: the team has priority, one player at a
+-- time decides): to the partner "Team White + Red has priority: White is deciding", to the other team "Waiting for Team
+-- White + Red (White is deciding)..."; nil outside such a game
+function engineTeamPriorityHint(t, color)
+  if t == nil or t.activeTeam == nil or t.priority == nil then return nil end
+  local side = engineTeamOf(t, t.priority)
+  if side == nil then return nil end
+  local who = engineNameOf(t.priority)
+  if engineTurnPartners(t, t.priority, color) then return "Team " .. engineTeamWords(side) .. " has priority: " .. who .. " is deciding" end
+  return "Waiting for Team " .. engineTeamWords(side) .. " (" .. who .. " is deciding)..."
 end
 -- ── The team pieces (spec §5.6; looks only), drawn from each board's `teams` while a Two-Headed Giant game runs ──
 -- 1. Team tint: a line round each partner's mat, in the team's colour (green for the team with White, violet for the
@@ -1296,7 +1350,7 @@ local function detectPending(m)
         -- untaps: your own permanents the engine untapped as your turn began (Forge rarely stops in the untap step
         -- itself, so "a new turn and it is yours" is the sign)
         -- (not for a player who pressed READY: their Untap button is out of the way, so untapping happens at once)
-        if m.active == color and m.turn ~= prev.turn and not (engineReadyState ~= nil and engineReadyState[color] == "ready") then
+        if engineMyTurn(m, color) and m.turn ~= prev.turn and not (engineReadyState ~= nil and engineReadyState[color] == "ready") then
           for _, c in ipairs(pl.battlefield or {}) do
             if prev.tapped[c.id] and not c.tap then p.untap[c.id] = true end
           end
@@ -4528,12 +4582,14 @@ end
 -- one of their planeswalkers (or a blockers question is theirs), else nil. Read from the board (atk / atkT).
 function engineCombatSide(color, t)
   if t == nil or not tostring(t.step or ""):find("^combat") then return nil end
-  if t.active == color then return "attack" end
+  if engineMyTurn(t, color) then return "attack" end
   local q = enginePrompts[color]
   if q ~= nil and describePrompt(q).kind == "block" then return "block" end
   for _, pl in ipairs(t.players or {}) do
     for _, c in ipairs(pl.battlefield or {}) do
-      if c.atk and c.atkT ~= nil and (c.atkT == color or (engineMeta[c.atkT] or {}).color == color) then return "block" end
+      -- (in a shared-turn game an attack on the partner is the whole defending team's, 805.10d)
+      local at = c.atk and c.atkT ~= nil and ((engineMeta[c.atkT] or {}).color or c.atkT) or nil
+      if at ~= nil and (c.atkT == color or at == color or engineTurnPartners(t, at, color)) then return "block" end
     end
   end
   return nil
@@ -4555,6 +4611,10 @@ function engineUpdateCorner(color, p)
   end
   local whose = t and t.active and ((t.active == color) and "<b><color=#7CFC9A>YOUR TURN</color></b>" or ("<b>" .. string.upper(engineNameOf(t.active)) .. "'S TURN</b>")) or ""
   whose = whose .. engineTeamTurnTag(t, color) -- (Two-Headed Giant: the team whose turn it is)
+  -- (Level 2: the turn is the team's, said once: "YOUR TEAM'S TURN", "TEAM WHITE + RED'S TURN")
+  if t ~= nil and t.active ~= nil and t.activeTeam ~= nil then
+    whose = engineMyTurn(t, color) and ("<b><color=#7CFC9A>" .. engineTeamTurnWords(t, color) .. "</color></b>") or ("<b>" .. engineTeamTurnWords(t, color) .. "</b>")
+  end
   setAttr("eng_phase_" .. color, "active", t ~= nil and "true" or "false")
   setAttr("eng_phasebg_" .. color, "active", t ~= nil and "true" or "false")
   -- day or night, once a daybound card has made it one (nothing showed it, playtest 2026-10-26)
@@ -4619,7 +4679,7 @@ function engineUpdateCorner(color, p)
     if hint ~= "" and q.note ~= nil and q.note ~= "" then hint = hint .. "\n" .. engineCut(tostring(q.note), 140) end
     if describePrompt(q).kind == "priority" or step == "cleanup" then engineStepBanner(color, t) end
   elseif t ~= nil and t.priority ~= nil and t.priority ~= color and not t.gameOver then
-    hint = "Waiting for " .. engineNameOf(t.priority) .. "..."
+    hint = engineTeamPriorityHint(t, color) or ("Waiting for " .. engineNameOf(t.priority) .. "...")
   elseif t ~= nil and t.priority == color and not t.gameOver then
     hint = "Thinking..." -- you answered; the engine hasn't asked the next thing yet (instant click feedback)
   end
@@ -4640,13 +4700,13 @@ function engineUpdateCorner(color, p)
     local first = engineBannerSeen[color] == nil
     engineBannerSeen[color] = tostring(t.active) .. "|" .. tostring(t.turn)
     if not first and not engineEffectsOff[color] then
-      setText("eng_banner_" .. color, t.active == color and "YOUR TURN" or (string.upper(engineNameOf(t.active)) .. "'S TURN"))
+      setText("eng_banner_" .. color, t.activeTeam ~= nil and engineTeamTurnWords(t, color) or t.active == color and "YOUR TURN" or (string.upper(engineNameOf(t.active)) .. "'S TURN"))
       engineBannerAt = engineBannerAt or {}
       engineBannerAt[color] = os.clock()
       -- gold for your turn, blue-white for someone else's (as Arena). (Not UI.show / UI.hide: they showed every
       -- player's banner to everyone, YOUR TURN over BLUE'S TURN, playtest 2026-10-23; "active" keeps it to its player.)
-      setAttr("eng_banner_" .. color, "color", t.active == color and "#FFD27A" or "#D6E4FF")
-      setAttr("eng_banner_" .. color, "outline", t.active == color and "#2a1600E0" or "#0b1a3aE0")
+      setAttr("eng_banner_" .. color, "color", engineMyTurn(t, color) and "#FFD27A" or "#D6E4FF")
+      setAttr("eng_banner_" .. color, "outline", engineMyTurn(t, color) and "#2a1600E0" or "#0b1a3aE0")
       setAttr("eng_banner_" .. color, "active", "true")
       local mark = engineBannerSeen[color]
       Wait.time(function() if engineBannerSeen[color] == mark then setAttr("eng_banner_" .. color, "active", "false") end end, 1.6)
@@ -10330,6 +10390,7 @@ function engineAbWhy(color, card, a, p, prio)
   -- (Forge offers mana abilities while a cost is paid, not at priority)
   if a.mana then return "Used while paying a cost (tap it with Q/E)" end
   if p == nil then
+    if t.priority ~= nil and t.priority ~= color and not t.gameOver and engineTurnPartners(t, t.priority, color) then return "Not your priority yet (your partner " .. engineNameOf(t.priority) .. " is deciding)" end
     if t.priority ~= nil and t.priority ~= color and not t.gameOver then return "Not your priority (waiting for " .. engineNameOf(t.priority) .. ")" end
     return "Not your priority"
   end
@@ -10340,7 +10401,7 @@ function engineAbWhy(color, card, a, p, prio)
     if cost:find("{Q}", 1, true) and not card.tap then return "Untapped ({Q} untaps it)" end
     if cost:find("{T}", 1, true) and engineHasType(card, "Creature") and card.sick and not tostring(card.tx or ""):find("Haste", 1, true) then return "Summoning sickness" end
   end
-  local main = t.active == color and (t.step == "main1" or t.step == "main2") and #(t.stack or {}) == 0
+  local main = engineMyTurn(t, color) and (t.step == "main1" or t.step == "main2") and #(t.stack or {}) == 0
   if a.loyalty ~= nil then
     if not main then return "Loyalty: your main phase, empty stack" end
     local have

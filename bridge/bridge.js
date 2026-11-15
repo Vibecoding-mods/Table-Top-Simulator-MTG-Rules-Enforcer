@@ -9,6 +9,13 @@ const { execFile } = require("child_process");
 const delta = require("./state-delta");
 const versions = require("./versions");
 const teams2hg = require("./teams"); // the team modes: Two-Headed Giant, 2v2, Juggernaut (docs/game-modes-spec.md §4-§6)
+// Whether it is player id's turn on board gv: the active player's, and in a Two-Headed Giant Level 2 game ("sharedTurns",
+// CR 805.4) the active player's partner's too. Every "is it my turn" check of the bridge reads this; outside a
+// shared-turn game it is the old activePlayerId === id, exactly.
+const turnOf = (gv, id) => (teams2hg.sharesTurns(gv) ? teams2hg.isTurnOf(gv, id) : gv.activePlayerId === id);
+// whether a stack item's controller ctl is on the other side from player who: everyone but who, and in a shared-turn
+// game not who's partner either (a partner's spell is the team's own, not one to answer)
+const notOurs = (gv, ctl, who) => ctl !== who && !teams2hg.turnPartners(gv, ctl, who);
 const home = require("./home"); // where the data and logs are (MTG_HOME, MTG_LOG_DIR; unset: the repo)
 
 const arg = (name, def) => {
@@ -1211,6 +1218,13 @@ class Seat {
       if (game.declaredBlocks?.turn !== turn) game.declaredBlocks = { turn, ids: new Set() };
       for (const a of output.assignments || []) if (a.attackerId) game.declaredBlocks.ids.add(a.attackerId);
     }
+    // (Two-Headed Giant Level 2: each partner's part of the team's one attack and one block, this turn's, for the other
+    // partner's question, which the engine asks before any board shows the first part: teams2hg.teamAttackLines)
+    const declGv = this.board?.state?.gameView;
+    if (game && teams2hg.sharesTurns(declGv) && ((type === "chooseAttackers" && output?.type === "declareAttackers") || (type === "chooseBlockers" && output?.type === "declareBlockers"))) {
+      if (game.teamDecl?.turn !== declGv.turn) game.teamDecl = { turn: declGv.turn, attacks: {}, blocks: {} };
+      game.teamDecl[type === "chooseAttackers" ? "attacks" : "blocks"][this.slot] = (output.assignments || []).map((a) => ({ ...a }));
+    }
     if (type === "chooseAction" && output?.type === "act") {
       const act = (this.lastRawPrompt?.input?.actions || []).find((a) => a.id === output.actionId);
       // (with its name: Forge asks a cost's "Sacrifice Dauthi Voidwalker?" without a source card, playtest 2026-10-27)
@@ -1568,7 +1582,8 @@ const forgeBotCount = () => game.bots - (game.harmlessWanted || []).length;
 // teams: the table's teams ({ White: 1, ... }, teams2hg.setupOf), null for free-for-all; either mode. teamMode: "2hg"
 // (the default with teams), "2v2" or "juggernaut"; jugg: the Juggernaut's settings (teams2hg.juggOf). A Juggernaut
 // start's teams are already the Juggernaut's (setupOf, the start handler).
-function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode, teams = null, teamMode = "2hg", jugg = null) {
+// turns: "shared" for Two-Headed Giant Level 2 (the team's one turn, teamRules "sharedTurns"), else null (setupOf).
+function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode, teams = null, teamMode = "2hg", jugg = null, turns = null) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
   const std = mode === "standard";
   // (a deck checked for the other mode is no deck for this one: checked again with Ready)
@@ -1595,7 +1610,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
     friendly: friendlyCount(friendly), mode,
     teams: teams || null, // (a team mode: sent to the engine as gameConfig before StartGame, onRoomUpdate)
-    ...(teams ? { teamMode, ...(teamMode === "juggernaut" ? { jugg } : {}) } : {}),
+    ...(teams ? { teamMode, ...(teamMode === "juggernaut" ? { jugg } : {}), ...(teamMode === "2hg" && turns === "shared" ? { teamTurns: "shared" } : {}) } : {}),
     // (Planechase: the planar pool, sent in the first seated player's deck, onRoomUpdate)
     planes: pool?.names || null, planeSeat: pool ? seatList[0] : null,
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
@@ -1616,7 +1631,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   const harmlessN = game.harmlessWanted.length, forgeN = forgeBotCount();
   chat(`[MTG] Setting up${std ? ` ${modeWords(mode, total)}` : ""}: ${seatList.join(", ")}${forgeN ? ` + ${forgeN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
   if (preset.length) chat(`[MTG] AI seats: ${aiSeatsText(preset)}.`);
-  if (teams) chat(`[MTG] ${teams2hg.setupWords(teamMode, teams, jugg, std)}`);
+  if (teams) chat(`[MTG] ${teams2hg.setupWords(teamMode, teams, jugg, std, game.teamTurns || null)}`);
   log(`setup: seats ${seatList.join(", ")}, bots ${bots}, relay ${RELAY}`);
 }
 
@@ -1699,7 +1714,7 @@ function onRoomUpdate(seat, room) {
     // (a team mode: the teams first, which the node keeps for the game it starts next, host.rs gameConfig)
     if (game.teams) controllerOf(room, seats).send({ type: "BroadcastState", state: {
       kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId: `tts-${Date.now()}-teams`, roomId: seat.roomId,
-      payload: teams2hg.gameConfig(game.teams, order, game.seatColors, game.teamMode, game.jugg, game.mode === "standard") } });
+      payload: teams2hg.gameConfig(game.teams, order, game.seatColors, game.teamMode, game.jugg, game.mode === "standard", game.teamTurns || null) } });
     controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: order });
   }
 }
@@ -5802,6 +5817,8 @@ function sendTable() {
   const phaseNo = phaseNumber(pub);
   const tableMsg = {
     t: "table", turn: pub.turn, step: pub.step, active: game.slotColor[pub.activePlayerId] || null,
+    // (Two-Headed Giant Level 2: both partners' colours, the active player first; the table's whose-turn reads it)
+    ...(teams2hg.sharesTurns(pub) ? { activeTeam: teams2hg.turnPlayerIds(pub).map((id) => game.slotColor[id] || id) } : {}),
     activeTurnNo: game.turnsTaken?.[pub.activePlayerId] || 1,
     ...(phaseNo ? { phaseNo } : {}), // (an extra combat's or main phase's number, the phase bar's "COMBAT (2)": phaseNumber)
     priority: game.slotColor[pub.priorityPlayerId] || null, gameOver: !!pub.gameOver,
@@ -6178,7 +6195,7 @@ const PLAYER_MARKS = [
   // active player, true only when the flag is true: the turn header reads it too, extraTurn, so the label and the
   // header agree on a flag of 1 or "true", which neither takes as one. No number: it says this turn is one; more still
   // queued are the extraTurns row's, beside the life counter, 2026-11-12)
-  { key: "extraTurn", read: (p, pub) => pub.activePlayerId === p.id && p.isExtraTurn === true, label: () => "EXTRA TURN" },
+  { key: "extraTurn", read: (p, pub) => turnOf(pub, p.id) && p.isExtraTurn === true, label: () => "EXTRA TURN" },
   { key: "prevention", read: (p) => positive(p.damagePrevention), label: (n) => `PREVENT ${n}` },
   // (as text: a maximum of 0 is shown)
   { key: "handSize", read: (p) => (p.unlimitedHandSize ? "none" : p.maxHandSize != null && p.maxHandSize !== 7 ? String(p.maxHandSize) : null),
@@ -7633,7 +7650,7 @@ const SKIP_ORDER = ["untap", "upkeep", "draw", "main1", "combatBegin", "combatDe
 // player's own next turn
 function skipReached(skip, gv, slot) {
   const at = SKIP_ORDER.indexOf(gv.step), first = SKIP_ORDER.indexOf(SKIP_PHASES[skip.phase][0]);
-  if (skip.phase === "mine") return gv.activePlayerId === slot && gv.turn > skip.turn;
+  if (skip.phase === "mine") return turnOf(gv, slot) && gv.turn > skip.turn;
   return at >= first && (gv.turn > skip.turn || SKIP_ORDER.indexOf(skip.step) < first);
 }
 // whether a skip stops at this step. "Until <phase>" stays on and stops at that phase in every turn, yours and the
@@ -8151,10 +8168,11 @@ function onPrompt(seat, prompt) {
       // passes by itself, like Arena (see worthStopping).
       // (the player whose priority it is: a player this seat controls asks as itself, its main phase its own, see actingFor)
       const who = forP || seat.slot;
-      const myMain = gv.activePlayerId === who && /main/i.test(gv.step || "");
+      // (Two-Headed Giant Level 2: the team's turn is both partners' own, turnOf; a partner's spell is no opponent's, notOurs)
+      const myMain = turnOf(gv, who) && /main/i.test(gv.step || "");
       // Arena-style stops: besides your main phases, you only get asked when an opponent put something on the
       // stack you could answer, or in a step you switched a stop on for (panel: Start of turn / Combat / End of turn).
-      const opponentsStack = (gv.stack || []).some((x) => x.controllerId !== who);
+      const opponentsStack = (gv.stack || []).some((x) => notOurs(gv, x.controllerId, who));
       const stepStop = [...(seat.stops || DEFAULT_STOPS)].some((group) => (STOP_STEPS[group] || []).includes(gv.step));
       // your own main phase only when you can actually do something there (Arena passes it otherwise); your own spell
       // waiting to resolve only when you hold a spell to answer it with (ownSpellStop, below)
@@ -8165,14 +8183,14 @@ function onPrompt(seat, prompt) {
       // when you hold an instant (playtest 2026-10-24: with the Combat stop off, Blue's Galadriel's Dismissal never got
       // the chance while Yellow attacked)
       const attacking = (gv.zones || []).some((z) => z.zone === "battlefield" && (z.cards || []).some((c) => c.isAttacking));
-      const combatStop = gv.activePlayerId !== who && attacking && ["combatDeclareAttackers", "combatDeclareBlockers"].includes(gv.step);
+      const combatStop = !turnOf(gv, who) && attacking && ["combatDeclareAttackers", "combatDeclareBlockers"].includes(gv.step);
       // the attacker too, once blockers are declared and something blocks, as Arena does: the pump spell or the ping
       // for the blocker (live check 2026-11-11: Craw Wurm blocked Hero of Bladehold, and White, holding Giant Growth,
       // Lightning Bolt and Prodigal Pyromancer, was passed through blockers and damage). The blocks are Forge's
       // combatAssignments (blockerId, attackerId); a board that marks blockers on the card says isBlocking.
       const blocked = (gv.combatAssignments || []).some((a) => a.blockerId && a.attackerId)
         || (gv.zones || []).some((z) => z.zone === "battlefield" && (z.cards || []).some((c) => c.isBlocking));
-      const attackerStop = gv.activePlayerId === who && attacking && blocked && gv.step === "combatDeclareBlockers";
+      const attackerStop = turnOf(gv, who) && attacking && blocked && gv.step === "combatDeclareBlockers";
       const ninjaStop = ["combatDeclareBlockers", "combatFirstStrikeDamage", "combatDamage"].includes(gv.step) && actions.some((a) =>
         (a.type === "activateAbility" && /ninjutsu/i.test(`${a.description || ""} ${a.label || ""}`)) ||
         (a.type === "cast" && a.mode?.type === "alternative" && a.mode.cost === "sneak"));
@@ -8180,13 +8198,13 @@ function onPrompt(seat, prompt) {
       // SKIP_PHASES). Questions other than priority (targets, blocks, discards) are still asked.
       let skipStop = false;
       if (seat.skipTo) {
-        const theirs = (gv.stack || []).find((x) => x.controllerId !== seat.slot);
+        const theirs = (gv.stack || []).find((x) => notOurs(gv, x.controllerId, seat.slot));
         if (theirs || skipStopsHere(seat.skipTo, gv, seat.slot)) {
           // (said once per stop: each priority in that phase, or under that spell, asks without a second line)
           const once = seat.skipTo.phase === "mine";
           const key = theirs ? `stack|${theirs.id}` : `${gv.turn}|${gv.activePlayerId}|${seat.skipTo.phase}`;
           if (seat.skipTo.said !== key) {
-            chat(`[MTG] ${once ? "Skip ended" : "Stopped"}: ${theirs ? `${theirs.identity?.name || "something"} (${nameOf(theirs.controllerId)}) is on the stack` : `${STEP_WORDS[gv.step] || gv.step}, ${gv.activePlayerId === seat.slot ? "your" : `${nameOf(gv.activePlayerId)}'s`} turn`}.${once ? "" : ` "${SKIP_SAID[seat.skipTo.phase]}" stays on.`}`, seat.color);
+            chat(`[MTG] ${once ? "Skip ended" : "Stopped"}: ${theirs ? `${theirs.identity?.name || "something"} (${nameOf(theirs.controllerId)}) is on the stack` : `${STEP_WORDS[gv.step] || gv.step}, ${teams2hg.turnWhose(gv, seat.slot, nameOf)} turn`}.${once ? "" : ` "${SKIP_SAID[seat.skipTo.phase]}" stays on.`}`, seat.color);
             seat.skipTo.said = key;
           }
           if (once) { seat.skipTo = null; autoNotice(seat); }
@@ -8198,7 +8216,7 @@ function onPrompt(seat, prompt) {
         }
       }
       // Auto-resolve: someone else's turn, so pass (your own turn still asks as usual)
-      if (autoResolve[seat.color] && gv.activePlayerId !== who) {
+      if (autoResolve[seat.color] && !turnOf(gv, who)) {
         seat.respond(prompt.promptId, type, { type: "pass" });
         if (seat.prompt) closePrompt(seat);
         return;
@@ -9410,8 +9428,11 @@ function onPrompt(seat, prompt) {
       // (the engine's own attack data, kept for this declaration's refusal and tax payments; null from an older engine)
       seat.attackData = engineAttackData(input);
       const attackData = seat.attackData;
-      const text = [said, ...remind.lines].filter(Boolean).join("\n");
-      const note = refused || remind.note;
+      // (Two-Headed Giant Level 2: one attack for the team, each partner asked for their own creatures, 805.10a-b; what
+      // the partner already sent in is said, as the board's attack lines show it)
+      const teamLines = teams2hg.teamAttackLines(gv, forP || seat.slot, Object.values(byId), cname, nameOf, game?.teamDecl);
+      const text = [said, ...teamLines, ...remind.lines].filter(Boolean).join("\n");
+      const note = refused || remind.note || teamLines[0];
       ui = { title: "Choose attackers", mode: "multi", min: 0, max: pairs.length, keepOrder: true, options: [...quick, ...pairs], ...(text ? { text } : {}), ...(note ? { note } : {}),
         ...(Object.keys(remind.cantAttack).length ? { cantAttack: remind.cantAttack } : {}) };
       const askUi = ui;
@@ -9474,8 +9495,16 @@ function onPrompt(seat, prompt) {
         if (b) atBattle.set(b.name, [...(atBattle.get(b.name) || []), attackerLabel(at.attackerId)]);
       }
       const battleLines = [...atBattle].map(([name, who]) => `${who.join(", ")} ${who.length === 1 ? "attacks" : "attack"} ${name}, the battle you protect. Damage that gets through takes off its defense counters.`);
-      const blockText = [input.error, ...battleLines].filter(Boolean).join("\n");
-      ui = { title: "Choose blockers", mode: "multi", min: 0, max: pairs.length, options: pairs, text: blockText || input.error };
+      // (Two-Headed Giant Level 2: the defending team blocks as one, 805.10d; the partner's blocks already made are said.
+      // A blocker of the partner's in this question is named with its controller: one player may declare for the team)
+      const blockWho = forP || seat.slot;
+      const teamLines = teams2hg.teamBlockLines(gv, blockWho, gv.combatAssignments, (id) => byId[id]?.controllerId, cname, nameOf, game?.teamDecl);
+      if (teamLines.length) for (const p of pairs) {
+        const ctl = byId[p.id.split("|")[0]]?.controllerId;
+        if (ctl && ctl !== blockWho) p.label = `${nameOf(ctl)}'s ${p.label}`;
+      }
+      const blockText = [input.error, ...teamLines, ...battleLines].filter(Boolean).join("\n");
+      ui = { title: "Choose blockers", mode: "multi", min: 0, max: pairs.length, options: pairs, text: blockText || input.error, ...(teamLines.length ? { note: teamLines.join(" ") } : {}) };
       toOutput = (a) => {
         const byBlocker = {};
         for (const v of a) { const [b, at] = v.split("|"); byBlocker[b] = at; }
@@ -9979,7 +10008,7 @@ function armTimer(seat) {
   if (!t?.on || !seat.prompt) return;
   const gv = seat.board?.state?.gameView || {};
   seat.timeBank ??= TIMER_BANK;
-  if (gv.activePlayerId === seat.slot && seat.timerTurn !== gv.turn) {
+  if (turnOf(gv, seat.slot) && seat.timerTurn !== gv.turn) {
     if (seat.timerTurn != null) seat.timeBank = Math.min(TIMER_BANK, seat.timeBank + TIMER_REFILL);
     seat.timerTurn = gv.turn;
   }
@@ -10086,7 +10115,7 @@ function describesCard(words, card) {
 }
 function restrictionLines(gv, kind, who, card, zone) {
   const out = [];
-  const sorceryNow = gv.activePlayerId === who && /main/i.test(gv.step || "") && !(gv.stack || []).length;
+  const sorceryNow = turnOf(gv, who) && /main/i.test(gv.step || "") && !(gv.stack || []).length;
   for (const z of gv.zones || []) {
     if (z.zone !== "battlefield") continue;
     for (const c of z.cards || []) {
@@ -10102,10 +10131,10 @@ function restrictionLines(gv, kind, who, card, zone) {
         else if (self.test(s)) { if (c.id !== card?.id) continue; }
         else if (/\b(?:your opponents|each opponent|opponents)\b/i.test(s)) { if (who === ctl) continue; }
         else if (/^you\b/i.test(s) && who !== ctl) continue;
-        if (/\bduring your turn\b/i.test(s) && gv.activePlayerId !== ctl) continue;
+        if (/\bduring your turn\b/i.test(s) && !turnOf(gv, ctl)) continue;
         if (/\bduring combat\b/i.test(s) && !/combat|attack|block|damage/i.test(gv.step || "")) continue;
         if (/\bonly (?:any time (?:they|you) could cast a sorcery|as a sorcery)\b/i.test(s) && sorceryNow) continue;
-        if (/\bonly during (?:their|your) own turns?\b/i.test(s) && gv.activePlayerId === who) continue;
+        if (/\bonly during (?:their|your) own turns?\b/i.test(s) && turnOf(gv, who)) continue;
         if (/\bfrom anywhere other than (?:their|your) hands?\b/i.test(s)) { if (zone === "hand") continue; }
         else if (/\bfrom (?:[a-z' ]*?)(?:graveyards?|librar(?:y|ies)|exile)\b/i.test(s)) {
           const from = s.match(/\bfrom ([^.]*)/i)[1];
@@ -10187,7 +10216,7 @@ function whyNot(seat, cardId, { anyPriority = false } = {}) {
   const who = ruledBy(gv, seat.slot).includes(holder) ? holder : seat.slot;
   const me = (gv.players || []).find((p) => p.id === who);
   const types = card?.types || [];
-  const myMain = gv.activePlayerId === who && /main/i.test(gv.step || "") && !(gv.stack || []).length;
+  const myMain = turnOf(gv, who) && /main/i.test(gv.step || "") && !(gv.stack || []).length;
   if (card?.phasedOut) return `${name} is phased out: it counts as not there until it phases in.`;
   if (!anyPriority && gv.priorityPlayerId !== who) return `${name}: wait, it isn't ${who === seat.slot ? "your" : `${nameOf(who)}'s`} priority.`;
   // (a permanent already on the battlefield is not played: Arena of Glory, its one ability a mana ability, read "lands
@@ -10215,7 +10244,7 @@ function whyNot(seat, cardId, { anyPriority = false } = {}) {
     if (!own) return `${name} is in ${whose} ${ZONE_SAID[zone] || zone}: it can be ${types.includes("Land") ? "played" : "cast"} from there only if ${lets}.`;
   }
   if (types.includes("Land")) {
-    if (gv.activePlayerId !== who) return `${name}: lands can only be played on ${who === seat.slot ? "your" : `${nameOf(who)}'s`} turn.`;
+    if (!turnOf(gv, who)) return `${name}: lands can only be played on ${who === seat.slot ? "your" : `${nameOf(who)}'s`} turn.`;
     if (me && me.landsPlayedThisTurn >= (me.maxLandPlaysPerTurn || 1)) return `${name}: you already played a land this turn.`;
     const banned = restrictionLines(gv, "land", who, card, zone);
     if (banned.length) return `${name}: you can't play lands right now.${onTheTable(banned)}`;
@@ -10244,7 +10273,7 @@ function sacrificedIfInstant(card) {
 // your own main phase with an empty stack: when a sorcery could be cast (or the main phase of the player whose question
 // is open, one this seat controls: see actingFor)
 function sorceryTime(seat, gv) {
-  return gv.activePlayerId === (seat.prompt?.forP || seat.slot) && /main/i.test(gv.step || "") && !(gv.stack || []).length;
+  return turnOf(gv, seat.prompt?.forP || seat.slot) && /main/i.test(gv.step || "") && !(gv.stack || []).length;
 }
 
 // A player's answer or gesture starts a count of the engine questions until the next one shown to them (GET /stats trips)
@@ -10610,7 +10639,7 @@ function onTTS(m) {
       noteStamp(m);
       warnIfOutOfStep();
       const go = () => {
-        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg }) => [teams, mode || "2hg", jugg])(teams2hg.setupOf(m)));
+        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg, turns }) => [teams, mode || "2hg", jugg, turns])(teams2hg.setupOf(m)));
         if (game && m.autoplay) game.autoplay = true;
       };
       // the table's Start button (autoReset): a game left over from before is reset first, and a room that is still
@@ -10681,7 +10710,7 @@ function onTTS(m) {
         autoNotice(seat);
       }
       const gv = seat?.board?.state?.gameView;
-      if (m.on && seat?.prompt?.type === "chooseAction" && gv && gv.activePlayerId !== seat.slot) {
+      if (m.on && seat?.prompt?.type === "chooseAction" && gv && !turnOf(gv, seat.slot)) {
         seat.respond(seat.prompt.promptId, "chooseAction", { type: "pass" });
         closePrompt(seat);
       }
@@ -10701,7 +10730,7 @@ function onTTS(m) {
       chat(phase === "mine" ? "[MTG] Passing until your next turn; an opponent's spell stops it. (mtg skip off)"
         : `[MTG] "${SKIP_SAID[phase]}": you pass priority except in ${SKIP_WHERE[phase]} (every turn, anyone's) or when an opponent's spell or ability is on the stack. It stays on until you change it. (mtg skip off)`, m.color);
       // a priority already waiting goes at once
-      if (seat.prompt?.type === "chooseAction" && !skipStopsHere(seat.skipTo, gv, seat.slot) && !(gv.stack || []).some((x) => x.controllerId !== seat.slot)) {
+      if (seat.prompt?.type === "chooseAction" && !skipStopsHere(seat.skipTo, gv, seat.slot) && !(gv.stack || []).some((x) => notOurs(gv, x.controllerId, seat.slot))) {
         seat.respond(seat.prompt.promptId, "chooseAction", { type: "pass" }); closePrompt(seat);
       }
       break;
