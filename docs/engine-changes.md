@@ -285,8 +285,9 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   - Harness: the primary player gets the team's trigger-order prompt; the team's blockers prompt lists every creature
     attacking the team, at level 1 too.
 - **Proof (cloud session, no Docker):** `engine/test-harness-local.sh --all`: 23 of 23 classes pass (SharedTurnsTest
-  33, SharedTurnsDevTest 16, SharedCombatTest 14, TeamGameTest). `node tools/l2-mutate.js --local`: see
-  `docs/handoff/l2-merge-report.md` for the caught table.
+  33, SharedTurnsDevTest 16, SharedCombatTest 14, TeamGameTest). `node tools/l2-mutate.js --local`: 40 of 40 runs
+  caught by name (table in `docs/handoff/l2-merge-report.md`). Patches regenerated: forge.patch 470 files (unchanged),
+  manabrew.patch 63 files; both apply to a fresh tree at the pinned commits.
 - **Not done:** no Docker images built, no live check. Build with `engine/build-images.sh engine1117-l2`.
 - **Rollback:** `node tools/deploy.js --image engine1116-teams2` (or whatever is live).
 

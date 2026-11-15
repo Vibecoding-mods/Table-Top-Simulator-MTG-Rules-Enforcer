@@ -9413,10 +9413,10 @@ index 0000000..849bb01
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java b/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java
 new file mode 100644
-index 0000000..a4889d0
+index 0000000..6a2018d
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java
-@@ -0,0 +1,549 @@
+@@ -0,0 +1,564 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -9475,6 +9475,7 @@ index 0000000..a4889d0
 +        CHECKS.put("cr805.10d theDefendingTeamIsAskedOnceInTurnOrder", SharedCombatTest::theDefendingTeamIsAskedOnceInTurnOrder);
 +        CHECKS.put("cr805.10d aCreatureThatCantBlockAloneBlocksBesideItsPartnersBlocker", SharedCombatTest::aCreatureThatCantBlockAloneBlocksBesideItsPartnersBlocker);
 +        CHECKS.put("cr805.10d aRefusedTeamBlockIsAskedAgainThenStands", SharedCombatTest::aRefusedTeamBlockIsAskedAgainThenStands);
++        CHECKS.put("cr805.10d theTeamsBlockIsCheckedForTheSecondDefenderToo", SharedCombatTest::theTeamsBlockIsCheckedForTheSecondDefenderToo);
 +        CHECKS.put("cr805.10d anAiSecondDeclarerLeavesItsPartnersBlockAlone", SharedCombatTest::anAiSecondDeclarerLeavesItsPartnersBlockAlone);
 +        CHECKS.put("cr805.10b anAiSecondAttackerKeepsItsPartnersTaxedAttacker", SharedCombatTest::anAiSecondAttackerKeepsItsPartnersTaxedAttacker);
 +        CHECKS.put("cr805.10b aRefusedTeamAttackIsAskedAgainThenTakesTheLegalAttack", SharedCombatTest::aRefusedTeamAttackIsAskedAgainThenTakesTheLegalAttack);
@@ -9557,6 +9558,20 @@ index 0000000..a4889d0
 +        l1Combat.addBlocker(l1Bears, l1Jackal);
 +        l1Combat.addBlocker(l1Bears, l1Blue);
 +        expect(CombatUtil.validateBlocks(l1Combat, l1.yellow) != null, "level 1: Yellow's Jackal may block beside Blue's Bears");
++    }
++
++    private static void theTeamsBlockIsCheckedForTheSecondDefenderToo() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        creature("Grizzly Bears", f.yellow);
++        creature("Watchdog", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        final Blocks blocks = recordBlocks(f, Map.of());
++        declareBlockers(f);
++        expect(blocks.asked.equals(List.of(f.yellow, f.blue, f.yellow, f.blue, f.yellow, f.blue)),
++                "the team's block left out Blue's Watchdog, which blocks each combat if able, but was asked " + blocks.asked + ", not refused for three rounds (rule 805.10d)");
++        expect(blocks.told.stream().anyMatch(t -> t.contains("Watchdog")), "no defender was told the Watchdog must block: " + blocks.told);
 +    }
 +
 +    private static void aRefusedTeamBlockIsAskedAgainThenStands() throws Exception {
@@ -9968,10 +9983,10 @@ index 0000000..a4889d0
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SharedTurnsDevTest.java b/forge-harness/src/test/java/forge/harness/host/SharedTurnsDevTest.java
 new file mode 100644
-index 0000000..00e8f5a
+index 0000000..1038adb
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/SharedTurnsDevTest.java
-@@ -0,0 +1,350 @@
+@@ -0,0 +1,363 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -10027,6 +10042,7 @@ index 0000000..00e8f5a
 +        check("bothActivePlayersDiscardToHandSize", SharedTurnsDevTest::bothActivePlayersDiscardToHandSize);
 +        check("oneEffectSkippingBothOpponentsTurnsSkipsOneTeamTurn", SharedTurnsDevTest::oneEffectSkippingBothOpponentsTurnsSkipsOneTeamTurn);
 +        check("aPartnersExtraTurnIsTheTeams", SharedTurnsDevTest::aPartnersExtraTurnIsTheTeams);
++        check("oneEffectGivingBothPartnersATurnGivesOneTeamTurn", SharedTurnsDevTest::oneEffectGivingBothPartnersATurnGivesOneTeamTurn);
 +        check("oneEffectSkippingBothUntapsSkipsOneUntapStep", SharedTurnsDevTest::oneEffectSkippingBothUntapsSkipsOneUntapStep);
 +        check("theActiveTeamsTriggersGoOnTheStackFirst", SharedTurnsDevTest::theActiveTeamsTriggersGoOnTheStackFirst);
 +        check("thePrimaryPlayerOrdersTheTeamsTriggers", SharedTurnsDevTest::thePrimaryPlayerOrdersTheTeamsTriggers);
@@ -10155,6 +10171,18 @@ index 0000000..00e8f5a
 +            }
 +        }
 +        expect(turns.toString().equals("WY"), "turns went " + turns);
++    }
++
++    private static void oneEffectGivingBothPartnersATurnGivesOneTeamTurn() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 0, 2);
++        resolve(f, "DB$ AddTurn | Defined$ Player.YourTeam | NumTurns$ 1", f.red);
++        final StringBuilder turns = new StringBuilder();
++        for (int i = 0; i < 3; i++) {
++            final int turn = f.ph.getTurn();
++            f.runUntil(() -> f.ph.getTurn() != turn);
++            turns.append(f.ph.getPlayerTurn().getName().charAt(0));
++        }
++        expect(turns.toString().equals("WYW"), "one effect gave White and Red an extra turn, but the turns went " + turns + ", not one team turn then Yellow's (rule 805.8)");
 +    }
 +
 +    private static void oneEffectSkippingBothUntapsSkipsOneUntapStep() throws Exception {
@@ -10324,10 +10352,10 @@ index 0000000..00e8f5a
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java b/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java
 new file mode 100644
-index 0000000..e354b61
+index 0000000..4d71149
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java
-@@ -0,0 +1,1090 @@
+@@ -0,0 +1,1112 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -10995,21 +11023,43 @@ index 0000000..e354b61
 +
 +    private static List<List<Player>> recordTriggerOrders(final Fixture f) {
 +        final List<List<Player>> calls = new ArrayList<>();
++        final Set<SpellAbility> ordered = new HashSet<>();
++        final boolean[] placing = {false};
 +        for (final Player p : f.game.getPlayers()) {
 +            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
 +                @Override
-+                public void orderAndPlaySimultaneousSa(final List<SpellAbility> activePlayerSAs) {
-+                    final List<Player> call = new ArrayList<>();
-+                    call.add(p);
-+                    for (final SpellAbility sa : activePlayerSAs) {
-+                        call.add(sa.getHostCard().getController());
++                public List<SpellAbility> orderSimultaneousSa(final List<SpellAbility> sas) {
++                    if (!placing[0]) {
++                        calls.add(triggerOrderCall(p, sas));
++                        ordered.addAll(sas);
 +                    }
-+                    calls.add(call);
-+                    super.orderAndPlaySimultaneousSa(activePlayerSAs);
++                    return super.orderSimultaneousSa(sas);
++                }
++
++                @Override
++                public void orderAndPlaySimultaneousSa(final List<SpellAbility> activePlayerSAs) {
++                    if (!ordered.containsAll(activePlayerSAs)) {
++                        calls.add(triggerOrderCall(p, activePlayerSAs));
++                    }
++                    placing[0] = true;
++                    try {
++                        super.orderAndPlaySimultaneousSa(activePlayerSAs);
++                    } finally {
++                        placing[0] = false;
++                    }
 +                }
 +            });
 +        }
 +        return calls;
++    }
++
++    private static List<Player> triggerOrderCall(final Player asked, final List<SpellAbility> sas) {
++        final List<Player> call = new ArrayList<>();
++        call.add(asked);
++        for (final SpellAbility sa : sas) {
++            call.add(sa.getHostCard().getController());
++        }
++        return call;
 +    }
 +
 +    private static Player asker(final List<List<Player>> calls, final Player controller) {
