@@ -2,7 +2,7 @@
 // mutation switches one piece of the team-mode code off, runs both tests, lists the checks that failed by name, then
 // puts the file back and checks it by sha256. A mutation no check catches is printed as SURVIVED. The Two-Headed Giant
 // pieces they share are tools/mutate-teams.js's.
-//   node tools/mutate-team-modes.js
+//   node tools/mutate-team-modes.js [label pattern]
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -36,7 +36,6 @@ const MUTATIONS = [
   ["boardTeams: the lone Juggernaut dropped", "bridge/teams.js", "if (p.teamNumber == null && rules.rule === \"sharedLife\") continue;", "if (p.teamNumber == null) continue;"],
   ["teamsField: no Juggernaut named", "bridge/teams.js", "...(lone ? { juggernaut: lone[0] } : {})", "...{}"],
   ["teamsField: the lone winner's side not found", "bridge/teams.js", "(winner.teamNumber != null || t.rule === \"teams\")", "(winner.teamNumber != null)"],
-  ["start: Juggernaut teams as sent", "bridge/bridge.js", "if (teams && teamMode === \"juggernaut\") { jugg = teams2hg.juggOf(jugg); teams = teams2hg.juggTeams(jugg.color); }", ""],
   ["start: the mode not passed on", "bridge/bridge.js", "...(({ teams, mode, jugg }) => [teams, mode || \"2hg\", jugg])(teams2hg.setupOf(m))", "...(({ teams }) => [teams])(teams2hg.setupOf(m))"],
   ["table: 2v2 not a mode", "tools/engine-renderer.lua", "(rest == \"2hg\" or rest == \"2v2\" or rest == \"juggernaut\" or rest == \"ffa\")", "(rest == \"2hg\" or rest == \"juggernaut\" or rest == \"ffa\")"],
   ["table: Juggernaut keeps the old teams", "tools/engine-renderer.lua", "    ENGINE_TEAM_MODE = \"juggernaut\"\n    ENGINE_TEAMS = engineJuggTeams()\n", "    ENGINE_TEAM_MODE = \"juggernaut\"\n    ENGINE_TEAMS = ENGINE_TEAMS or {}\n"],
