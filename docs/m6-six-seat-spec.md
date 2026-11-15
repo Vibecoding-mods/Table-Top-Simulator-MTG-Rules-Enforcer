@@ -200,3 +200,9 @@ Reading the results:
 2. May the 6-player engine table become a second save? Needed for step 15.
 3. The relay's cap of 8 is a change upstream may refuse. Fine for now: no upstream PR yet.
 4. What actually broke the friend's buttons at about 64 KB? The probe (6.2) answers it.
+
+## 8. User decision 2026-11-15
+
+- Remove the 6-player table's background objects and give it the same backdrop as the 4-player engine table (its skybox, lighting and background settings), so there is no lag from decoration objects.
+- Commander damage: set up like the 4-player table (the user, 2026-11-15): permanent per-seat commander-damage trackers in the save, one per attacker by each player's life tracker, the same objects and script the 4-player table uses, read by mtg fix and driven by the engine as on the 4-player table. Not options A or B of section 2.4. First check whether the 6-player Workshop table already has such trackers somewhere (docs/m6-compare-objects.md).
+- The 6-player engine table may be a second save (the user pointed at Workshop 2293586471 to catch up to the 4-player state).
