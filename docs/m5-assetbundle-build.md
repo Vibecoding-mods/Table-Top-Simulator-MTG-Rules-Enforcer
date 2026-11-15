@@ -252,7 +252,10 @@ public static class MtgBundles
 
 ## 8. The two-client test (plan step 3, not yet run)
 
-A second TTS client (a friend, or a second Steam account on another PC) joins the host's table and sits.
+A second TTS client (a friend, or a second Steam account on another PC) joins the host's table and sits. The
+user's version of this list, with chat commands only: `docs/two-player-check.md`. From chat, `mtg fx test <kind>
+[colour]` (host) is `engineFxTest(kind, <the card under the pointer, else that colour>)`; `mtg fx test wave <colour>
+<key>` the wave.
 
 | # | Check | How | Pass |
 |---|---|---|---|
