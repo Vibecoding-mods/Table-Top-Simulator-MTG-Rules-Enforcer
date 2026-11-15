@@ -10,6 +10,7 @@ Tracks: **A** tests (this plan), **B** Forge turn structure and priority, **C** 
 | --- | --- | --- |
 | Engine checks | `forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java` in the engine tree (branch `l2-tests`) | the level 2 dev loop: `node tmp/slot.js sh <engine>/tmp/l2-tests-run.sh SharedTurnsTest`. It compiles the changed Forge files over the jar in `mtg-harness-test:engine1116-teams2`. Pass check names as extra args to run only those. |
 | Known-failing list | `docs/2hg-level2-known-failing.txt` | Names of checks that fail until their track lands, with the owning track. Take a name off once it passes. |
+| Without Docker | `engine/test-harness-local.sh [TestClass ...]` | builds the patched engine at `ENGINE_WORK_DIR` (default `~/engine`) from the two pinned commits and runs the classes; `node tools/l2-mutate.js --local <tree>` runs the mutation proof there, restoring each file by sha256. |
 | Mutation proof | `tools/l2-mutate.js` + `tools/l2-mutate.sh` | `node tmp/slot.js node tools/l2-mutate.js --engine <engine tree>` breaks one rule at a time in the engine source and requires the named checks to fail. The unmutated run may fail only names on the known-failing list. |
 | Protocol fixture for D | `tests/golden/fixtures/2hg-level2-protocol.json`, built by `tests/make_2hg_level2_fixture.js` | `node tests/make_2hg_level2_fixture.js` rewrites it, and `--check` fails if it is stale. Its status is `"expected"`: it is hand-built and has not been recorded yet. |
 
@@ -47,8 +48,17 @@ Status is measured against the WIP engine (forge `7d586b47`, harness `8ed302a`).
 | 805.5b | the team passes once both partners pass: after Red acts, White passes before Yellow's team | `theTeamPassesOnceBothMembersPass` | B | **FAILS** (known-failing): passes go Red, Yellow, Blue, White |
 | 805.5b | after resolving, the active team gets priority | `theActiveTeamGetsPriorityAfterResolving` | B | passes (the level 1 order already gives this) |
 | 805.4a | a pass-until stops in the team's turn for the partner's slot | `fastForwardStopsOnThePartnersSlot` | B (harness) | passes; `active-team-is-first-seat` |
+| 805.2 | the team's primary player settles the team's choices: here, the order of the team's triggers (Awakening on all four seats) goes to White and Yellow | `thePrimaryPlayerOrdersTheTeamsTriggers` | B | **FAILS** (known-failing): each player orders their own triggers |
+| 805.3a | mulligans are declared by the starting team first, then the other team; the first mulligan is free | `theStartingTeamDeclaresMulligansFirst` | B | passes; `mulligans-from-first-seat` |
+| 805.3b | pregame actions (Leyline of Sanctity from the opening hand): the starting team first | `theStartingTeamTakesPregameActionsFirst` | B | passes; `pregame-from-first-seat` |
+| 805.7 | the active team puts all its triggers on the stack as one batch, in an order it picks, then the other team | `theActiveTeamOrdersAllItsTriggersFirst` | B | **FAILS** (known-failing): one batch per player, Yellow, Blue, White, Red |
+| 805.9 | "the player whose turn it is" (Obeka's `Defined$ ActivePlayer`) is one player of the active team, not both | `theActivePlayerIsOnePlayerOfTheActiveTeam` | B | passes; `active-player-is-whole-team` |
+| 805.10e | "defending player" for an attacker is the one player it attacks (Red's Jangling Automaton at Blue untaps only Blue's creatures) | `defendingPlayerIsThePlayerItAttacks` | C | passes; `defending-player-is-first-defender` |
+| 805.8 | a partner's extra step is the team's: Paradox Haze on Red gives the team an additional upkeep, and both partners' Phyrexian Arenas trigger in it | `aPartnersExtraStepIsTheTeams` | B | passes; `extra-step-not-the-teams`, `phase-trigger-first-seat-only` |
 
-Not tested yet (choices or rare cases, to add when B or C reach them): 805.2 the primary player settles a team disagreement; 805.3a/b team mulligans and pregame actions; 805.7 the active team orders all its triggers before the other team; 805.9 "the active player" means one chosen player; 805.10e "defending player" for an attacker; the 805.8 extra phase or step.
+Not tested yet: 805.9's "the active team chooses which player" and 805.10e's choice when an effect names a defending player without an attacker (Forge has no team choice for these yet: `ActivePlayer` is always the first seat), and 805.2 for choices other than the trigger order (the attack confirm in `docs/game-modes-spec.md` §5.5). The two known-failing checks above have no mutation yet: there is no engine code to break until B builds the team trigger order; B adds the mutation with it.
+
+Primary player (805.2): "the player seated in the rightmost seat from that team's perspective". Play passes to the left, so a team's first seat in turn order (White, Yellow) sits on its right, and the check expects that seat (`GameAction.teamLead`). `docs/game-modes-spec.md` §5.4 calls it "teamLead's mirror image"; the two disagree, and the owner decides. Flipping the check is one line.
 
 ## Protocol fixture (track D)
 

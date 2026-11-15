@@ -9363,10 +9363,10 @@ index 0000000..849bb01
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java b/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java
 new file mode 100644
-index 0000000..d26b886
+index 0000000..e354b61
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java
-@@ -0,0 +1,859 @@
+@@ -0,0 +1,1090 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -9446,6 +9446,13 @@ index 0000000..d26b886
 +        CHECKS.put("cr805.5b theTeamPassesOnceBothMembersPass", SharedTurnsTest::theTeamPassesOnceBothMembersPass);
 +        CHECKS.put("cr805.5b theActiveTeamGetsPriorityAfterResolving", SharedTurnsTest::theActiveTeamGetsPriorityAfterResolving);
 +        CHECKS.put("cr805.4a fastForwardStopsOnThePartnersSlot", SharedTurnsTest::fastForwardStopsOnThePartnersSlot);
++        CHECKS.put("cr805.2 thePrimaryPlayerOrdersTheTeamsTriggers", SharedTurnsTest::thePrimaryPlayerOrdersTheTeamsTriggers);
++        CHECKS.put("cr805.3a theStartingTeamDeclaresMulligansFirst", SharedTurnsTest::theStartingTeamDeclaresMulligansFirst);
++        CHECKS.put("cr805.3b theStartingTeamTakesPregameActionsFirst", SharedTurnsTest::theStartingTeamTakesPregameActionsFirst);
++        CHECKS.put("cr805.7 theActiveTeamOrdersAllItsTriggersFirst", SharedTurnsTest::theActiveTeamOrdersAllItsTriggersFirst);
++        CHECKS.put("cr805.9 theActivePlayerIsOnePlayerOfTheActiveTeam", SharedTurnsTest::theActivePlayerIsOnePlayerOfTheActiveTeam);
++        CHECKS.put("cr805.10e defendingPlayerIsThePlayerItAttacks", SharedTurnsTest::defendingPlayerIsThePlayerItAttacks);
++        CHECKS.put("cr805.8 aPartnersExtraStepIsTheTeams", SharedTurnsTest::aPartnersExtraStepIsTheTeams);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            if (only.isEmpty() || only.contains(e.getKey()) || only.contains(e.getKey().split(" ")[1])) {
 +                check(e.getKey(), e.getValue());
@@ -9977,6 +9984,230 @@ index 0000000..d26b886
 +        final Fixture l1 = new Fixture(false);
 +        l1.game.getPhaseHandler().devModeSet(PhaseType.MAIN2, l1.white, 3);
 +        expect(!PriorityFastForward.reachedTarget(l1.game, "player-1", "main2"), "level 1: a pass-until Red's main 2 stops in White's main 2");
++    }
++
++    private static void thePrimaryPlayerOrdersTheTeamsTriggers() throws Exception {
++        final Fixture f = new Fixture(true);
++        final List<List<Player>> calls = recordTriggerOrders(f);
++        for (final Player p : f.game.getPlayers()) {
++            add("Awakening", p, ZoneType.Battlefield);
++        }
++        f.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, f.white, 3);
++        stepTo(f, PhaseType.UPKEEP);
++        resolveTriggers(f);
++        expect(asker(calls, f.red) == f.white && asker(calls, f.blue) == f.yellow,
++                "the teams' trigger orders were asked of " + calls + " ([asked, controllers...]), not each team's primary player White and Yellow (rule 805.2)");
++        final Fixture l1 = new Fixture(false);
++        final List<List<Player>> l1Calls = recordTriggerOrders(l1);
++        for (final Player p : l1.game.getPlayers()) {
++            add("Awakening", p, ZoneType.Battlefield);
++        }
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, l1.white, 5);
++        stepTo(l1, PhaseType.UPKEEP);
++        resolveTriggers(l1);
++        expect(asker(l1Calls, l1.red) == l1.red && asker(l1Calls, l1.blue) == l1.blue, "level 1: trigger orders asked " + l1Calls);
++    }
++
++    private static void theActiveTeamOrdersAllItsTriggersFirst() throws Exception {
++        final Fixture f = new Fixture(true);
++        final List<List<Player>> calls = recordTriggerOrders(f);
++        for (final Player p : f.game.getPlayers()) {
++            add("Awakening", p, ZoneType.Battlefield);
++        }
++        f.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, f.yellow, 4);
++        stepTo(f, PhaseType.UPKEEP);
++        resolveTriggers(f);
++        expect(calls.size() == 2 && Set.copyOf(calls.get(0).subList(1, calls.get(0).size())).equals(Set.of(f.yellow, f.blue))
++                && Set.copyOf(calls.get(1).subList(1, calls.get(1).size())).equals(Set.of(f.white, f.red)),
++                "the triggers were ordered in the batches " + calls + " ([asked, controllers...]), not Yellow's team's together, then White's team's (rule 805.7)");
++        final Fixture l1 = new Fixture(false);
++        final List<List<Player>> l1Calls = recordTriggerOrders(l1);
++        for (final Player p : l1.game.getPlayers()) {
++            add("Awakening", p, ZoneType.Battlefield);
++        }
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, l1.yellow, 6);
++        stepTo(l1, PhaseType.UPKEEP);
++        resolveTriggers(l1);
++        expect(l1Calls.equals(List.of(List.of(l1.yellow, l1.yellow), List.of(l1.blue, l1.blue), List.of(l1.white, l1.white), List.of(l1.red, l1.red))),
++                "level 1: triggers ordered in the batches " + l1Calls + ", not each player's own in turn order from Yellow");
++    }
++
++    private static List<List<Player>> recordTriggerOrders(final Fixture f) {
++        final List<List<Player>> calls = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public void orderAndPlaySimultaneousSa(final List<SpellAbility> activePlayerSAs) {
++                    final List<Player> call = new ArrayList<>();
++                    call.add(p);
++                    for (final SpellAbility sa : activePlayerSAs) {
++                        call.add(sa.getHostCard().getController());
++                    }
++                    calls.add(call);
++                    super.orderAndPlaySimultaneousSa(activePlayerSAs);
++                }
++            });
++        }
++        return calls;
++    }
++
++    private static Player asker(final List<List<Player>> calls, final Player controller) {
++        for (final List<Player> call : calls) {
++            if (call.subList(1, call.size()).contains(controller)) {
++                return call.get(0);
++            }
++        }
++        return null;
++    }
++
++    private static void resolveTriggers(final Fixture f) throws Exception {
++        withoutPrompts(f, "resolving the triggers", () -> {
++            f.game.getStack().addAllTriggeredAbilitiesToStack();
++            for (int i = 0; i < 20 && !f.game.getStack().isEmpty(); i++) {
++                f.game.getStack().resolveStack();
++            }
++        });
++        expect(f.game.getStack().isEmpty(), "the triggers never resolved");
++    }
++
++    private static void theStartingTeamDeclaresMulligansFirst() throws Exception {
++        final Fixture f = new Fixture(true);
++        final List<Player> asked = mulligans(f, f.white, f.white);
++        expect(asked.equals(List.of(f.white, f.red, f.yellow, f.blue, f.white)),
++                "mulligans were declared in the order " + asked + ", not the starting team White + Red first, then Yellow + Blue (rule 805.3a)");
++        expect(f.white.getCardsIn(ZoneType.Hand).size() == 7, "White's first mulligan was not free: she kept " + f.white.getCardsIn(ZoneType.Hand).size());
++        final Fixture second = new Fixture(true);
++        final List<Player> secondAsked = mulligans(second, second.yellow, null);
++        expect(secondAsked.equals(List.of(second.yellow, second.blue, second.white, second.red)),
++                "with Yellow's team starting, mulligans were declared in the order " + secondAsked + " (rule 805.3a)");
++        final Fixture l1 = new Fixture(false);
++        final List<Player> l1Asked = mulligans(l1, l1.yellow, null);
++        expect(l1Asked.equals(List.of(l1.yellow, l1.blue, l1.white, l1.red)), "level 1: mulligans declared in the order " + l1Asked);
++    }
++
++    private static List<Player> mulligans(final Fixture f, final Player first, final Player mulligansOnce) throws Exception {
++        final List<Player> asked = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public boolean mulliganKeepHand(final Player firstPlayer, final int cardsToReturn) {
++                    asked.add(p);
++                    return p != mulligansOnce || asked.indexOf(p) != asked.lastIndexOf(p);
++                }
++            });
++            p.drawCards(7);
++        }
++        f.game.setAge(GameStage.Mulligan);
++        withoutPrompts(f, "mulligans", () -> new forge.game.mulligan.MulliganService(first).perform());
++        f.game.setAge(GameStage.Play);
++        return asked;
++    }
++
++    private static void theStartingTeamTakesPregameActionsFirst() throws Exception {
++        final Fixture f = new Fixture(true);
++        final List<Player> order = openingHandActions(f, f.yellow);
++        expect(order.equals(List.of(f.yellow, f.blue, f.white, f.red)),
++                "opening hand actions were taken in the order " + order + ", not the starting team Yellow + Blue first, then White + Red (rule 805.3b)");
++        for (final Player p : f.game.getPlayers()) {
++            expect(p.getCardsIn(ZoneType.Battlefield).anyMatch(c -> "Leyline of Sanctity".equals(c.getName())), p + "'s Leyline did not start on the battlefield");
++        }
++        final Fixture l1 = new Fixture(false);
++        final List<Player> l1Order = openingHandActions(l1, l1.white);
++        expect(l1Order.equals(List.of(l1.white, l1.red, l1.yellow, l1.blue)), "level 1: opening hand actions in the order " + l1Order);
++    }
++
++    private static List<Player> openingHandActions(final Fixture f, final Player first) throws Exception {
++        final List<Player> order = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public List<SpellAbility> chooseSaToActivateFromOpeningHand(final List<SpellAbility> usable) {
++                    order.add(p);
++                    return usable;
++                }
++            });
++            add("Leyline of Sanctity", p, ZoneType.Hand);
++        }
++        final Method run = forge.game.GameAction.class.getDeclaredMethod("runOpeningHandActions", Player.class);
++        run.setAccessible(true);
++        withoutPrompts(f, "opening hand actions", () -> {
++            try {
++                run.invoke(f.game.getAction(), first);
++            } catch (final ReflectiveOperationException e) {
++                throw new RuntimeException(e.getCause() != null ? e.getCause() : e);
++            }
++        });
++        return order;
++    }
++
++    private static void theActivePlayerIsOnePlayerOfTheActiveTeam() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card obeka = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final List<Player> active = AbilityUtils.getDefinedPlayers(obeka, "ActivePlayer", obeka.getFirstSpellAbility());
++        expect(active.size() == 1 && f.game.getPhaseHandler().isPlayerTurn(active.get(0)),
++                "\"the player whose turn it is\" in White's team turn is " + active + ", not one player of the active team (rule 805.9)");
++        final Map<Player, Integer> before = handSizes(f);
++        resolve(f, AbilityFactory.getAbility("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", obeka), f.yellow);
++        final Map<Player, Integer> drawn = handGrowth(f, before);
++        expect(drawn.get(f.white) + drawn.get(f.red) == 1 && drawn.get(f.yellow) == 0 && drawn.get(f.blue) == 0,
++                "\"the active player draws a card\" drew " + names(drawn) + ", not one card for one player of the active team (rule 805.9)");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Obeka = add("Obeka, Brute Chronologist", l1.yellow, ZoneType.Battlefield);
++        expect(new ArrayList<>(AbilityUtils.getDefinedPlayers(l1Obeka, "ActivePlayer", l1Obeka.getFirstSpellAbility())).equals(List.of(l1.white)),
++                "level 1: the active player in White's turn is " + AbilityUtils.getDefinedPlayers(l1Obeka, "ActivePlayer", l1Obeka.getFirstSpellAbility()));
++    }
++
++    private static void defendingPlayerIsThePlayerItAttacks() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card automaton = creature("Jangling Automaton", f.red);
++        final Card yellowBears = creature("Grizzly Bears", f.yellow);
++        final Card blueBears = creature("Grizzly Bears", f.blue);
++        recordAttacks(f, Map.of(bears, f.yellow, automaton, f.blue));
++        declareAttackers(f, f.white);
++        expect(new ArrayList<>(AbilityUtils.getDefinedPlayers(bears, "DefendingPlayer", bears.getFirstSpellAbility())).equals(List.of(f.yellow)),
++                "the defending player of White's Bears is " + AbilityUtils.getDefinedPlayers(bears, "DefendingPlayer", bears.getFirstSpellAbility()) + ", not Yellow, the player it attacks (rule 805.10e)");
++        yellowBears.setTapped(true);
++        blueBears.setTapped(true);
++        expect(count(triggeredHosts(f), automaton) == 1, "Red's Jangling Automaton triggered " + count(triggeredHosts(f), automaton) + " times");
++        resolveTriggers(f);
++        expect(blueBears.isUntapped() && yellowBears.isTapped(), "Red's Jangling Automaton attacking Blue untapped the creatures of "
++                + (yellowBears.isUntapped() ? "Yellow" : "nobody") + (blueBears.isUntapped() ? " and Blue" : "") + ", not Blue's alone (rule 805.10e)");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Automaton = creature("Jangling Automaton", l1.white);
++        final Card l1Yellow = creature("Grizzly Bears", l1.yellow);
++        final Card l1Blue = creature("Grizzly Bears", l1.blue);
++        recordAttacks(l1, Map.of(l1Automaton, l1.blue));
++        declareAttackers(l1, l1.white);
++        l1Yellow.setTapped(true);
++        l1Blue.setTapped(true);
++        resolveTriggers(l1);
++        expect(l1Blue.isUntapped() && l1Yellow.isTapped(), "level 1: White's Automaton attacking Blue untapped Yellow " + l1Yellow.isUntapped() + ", Blue " + l1Blue.isUntapped());
++    }
++
++    private static void aPartnersExtraStepIsTheTeams() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card haze = add("Paradox Haze", f.yellow, ZoneType.Battlefield);
++        haze.attachToEntity(f.red, null);
++        final Card whiteArena = add("Phyrexian Arena", f.white, ZoneType.Battlefield);
++        final Card redArena = add("Phyrexian Arena", f.red, ZoneType.Battlefield);
++        f.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, f.white, 3);
++        stepTo(f, PhaseType.UPKEEP);
++        expect(count(triggeredHosts(f), haze) == 1, "Paradox Haze on Red triggered " + count(triggeredHosts(f), haze) + " times in her team's first upkeep, not once");
++        resolveTriggers(f);
++        stepTo(f, PhaseType.UPKEEP);
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        expect(ph.getTurn() == 3 && ph.isPlayerTurn(f.white) && ph.isPlayerTurn(f.red),
++                "Red's additional upkeep step was not her team's: the next upkeep is turn " + ph.getTurn() + " of " + ph.getActiveTeam() + " (rule 805.8)");
++        expect(count(triggeredHosts(f), whiteArena) == 1 && count(triggeredHosts(f), redArena) == 1 && count(triggeredHosts(f), haze) == 0,
++                "in the team's additional upkeep White's Arena triggered " + count(triggeredHosts(f), whiteArena) + ", Red's "
++                        + count(triggeredHosts(f), redArena) + " and Paradox Haze " + count(triggeredHosts(f), haze) + " times, not 1, 1 and 0");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Haze = add("Paradox Haze", l1.yellow, ZoneType.Battlefield);
++        l1Haze.attachToEntity(l1.red, null);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, l1.white, 5);
++        stepTo(l1, PhaseType.UPKEEP);
++        expect(count(triggeredHosts(l1), l1Haze) == 0, "level 1: Paradox Haze on Red triggered in White's upkeep");
 +    }
 +
 +    private static Card creature(final String name, final Player p) {
