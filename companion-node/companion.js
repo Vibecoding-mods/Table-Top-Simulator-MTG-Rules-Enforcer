@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // MTG Companion for Linux (Steam Deck) and macOS: the Windows app's start sequence, watcher and status page, in plain
 // Node (no packages). Started by start.sh / "MTG Companion.command" with the Node in runtime/node, or from the repo:
-//   node companion-node/companion.js
+//   node companion-node/companion.js          checks everything (starts nothing), then watches; the status page's
+//                                             Start engine button starts it (since 2026-11-14, as the Windows app)
 // Flags (the Windows app's, where they apply):
-//   --observe               reads and shows only: no start, no fix, no update, no single-instance lock
+//   --start                 start everything at launch, then watch (what every launch did before 2026-11-14);
+//                           --after-update / --apply-update (the Windows app's self-update restart) imply it
+//   --observe               reads and shows only: no start, no fix, no update, no single-instance lock (beats --start)
 //   --dump FILE             with --observe: write the lights after one pass and exit
 //   --no-web, --web-port N, --no-browser     the status page (default 127.0.0.1:48790)
 //   --home DIR, --saves DIR, --state DIR, --log FILE, --bridge-url URL, --steps 4,5   overrides (tests)
@@ -59,7 +62,7 @@ async function main() {
   const stateDir = opt("state") ? path.resolve(opt("state")) : P.stateDirFor(process.platform, home, process.env);
   Log.file = opt("log") ? path.resolve(opt("log")) : layout.companionLog;
   const observe = flag("observe");
-  const controller = new Controller({ layout, observe, findSaves, stateDir, appDir: __dirname, platform: process.platform, arch: process.arch, engine, bridgeUrl: opt("bridge-url") || undefined });
+  const controller = new Controller({ layout, observe, autoStart: !observe && L.autoStart(args), findSaves, stateDir, appDir: __dirname, platform: process.platform, arch: process.arch, engine, bridgeUrl: opt("bridge-url") || undefined });
   if (opt("steps")) controller.onlySteps = new Set(opt("steps").split(",").map(Number));
 
   if (flag("stop")) {
@@ -133,7 +136,8 @@ async function main() {
     const wait = setInterval(() => { if (controller.firstPassDone) { clearInterval(wait); updater.checkInBackground(); } }, 500);
   }
 
-  // the page opens by itself on the first start of a package, later only when the first pass ends with a red light
+  // the page opens by itself on the first start of a package, later when the first pass ends with a red light or with
+  // nothing started (launch only checks: the page is where Start engine is)
   if (web && !flag("no-browser")) {
     if (openAtStart(layout.friend, observe, controller.statusPageShownBefore())) { if (openBrowser()) controller.markStatusPageShown(); }
     else {
@@ -141,7 +145,7 @@ async function main() {
       const w = setInterval(() => {
         if (!controller.firstPassDone && Date.now() - t0 < 600000) return;
         clearInterval(w);
-        if (controller.firstPassDone && openAfterFirstPass(observe, controller.rows.map((r) => r.v.light))) openBrowser();
+        if (controller.firstPassDone && openAfterFirstPass(observe, controller.rows.map((r) => r.v.light), controller.needsStart)) openBrowser();
       }, 500);
     }
   }

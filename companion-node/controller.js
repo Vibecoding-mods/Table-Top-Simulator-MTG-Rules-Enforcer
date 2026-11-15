@@ -43,7 +43,12 @@ class Controller {
     this.listeners = []; this.notify = null;
     this.firstPassDone = false; this.windowVisible = true; this.onlySteps = null;
     this.work = []; this.quit = false; this.cancel = false; this.wakeUp = null;
-    this.pendingFrom = 1; this.resumeFrom = 0; this.stoppedAt = 0;
+    this.pendingFrom = 0; this.resumeFrom = 0; this.stoppedAt = 0;
+    // Launch only checks: the worker's first turn is one read-only pass of the six steps (checkPending), and nothing
+    // starts until Start engine (or a fix button) asks; autoStart (--start) runs the start sequence at launch instead.
+    // engineStarted: a start sequence ran (or the check found the engine already up); until then, parts that are only
+    // not running yet are grey and point at Start engine (logic.beforeStart).
+    this.autoStart = !!o.autoStart; this.checkPending = true; this.checking = false; this.engineStarted = false;
     this.busyLogged = new Map(); this.notified = new Map();
     this.forceFresh = false; this.forceLoad = false; this.everythingStopped = false; this.ttsLaunched = false;
     this.versionsCache = null; this.versionsAt = 0; this.loginAt = 0; this.imagesAt = 0; this.loginCache = null;
@@ -72,6 +77,7 @@ class Controller {
     const b = L.str(this.version, "built");
     return `Version ${L.str(this.version, "release") || `built ${b && b.length >= 10 ? b.slice(0, 10) : "?"}`}`;
   }
+  get dryRun() { return this.observe || this.checking; } // (observe mode, or the launch check: read only)
   want(key) { return L.str(this.L.friend ? this.version : this.deployed, key); }
 
   // ───────────────────────────── the worker ─────────────────────────────
@@ -79,6 +85,7 @@ class Controller {
   start() {
     Log.write(`start: ${this.L.mode} mode, home ${this.L.home}${this.observe ? " (observe only: no changes)" : ""}; ${this.platform}/${this.arch}; saves ${this.savesDir}`);
     if (this.L.friend) Log.write(`package: ${JSON.stringify(this.version)}`);
+    if (!this.observe) Log.write(this.autoStart ? "launch: --start: running the start sequence" : "launch: checking only; Start engine starts the engine");
     this.loopDone = this.loop();
   }
 
@@ -109,9 +116,18 @@ class Controller {
       this.resumeFrom = 0;
       return true;
     }
+    if (this.checkPending && this.autoStart && !this.observe) { this.checkPending = false; this.pendingFrom = 1; } // (--start: the launch runs the start sequence)
     if (this.pendingFrom > 0) {
+      this.checkPending = false; // (a start before the launch check ran: the run is the check)
       const from = this.startAt(this.pendingFrom); this.pendingFrom = 0; this.cancel = false;
       await this.safe(() => this.runSequence(from), "start sequence");
+      this.firstPassDone = true;
+      this.fire();
+      return true;
+    }
+    if (this.checkPending) {
+      this.checkPending = false; this.cancel = false;
+      await this.checkPass();
       this.firstPassDone = true;
       this.fire();
       return true;
@@ -177,12 +193,35 @@ class Controller {
 
   // ───────────────────────────── the start sequence ─────────────────────────────
 
+  // the launch's check: the six steps read only (each do* treats it as observe mode, with Start engine's words);
+  // nothing is started, loaded, installed or opened
+  async checkPass() {
+    this.checking = !this.observe;
+    try { await this.safe(() => this.runSequence(1), "check"); } finally { this.checking = false; }
+  }
+
+  // the Start engine button: the start sequence from step 1, as every launch ran it before (2026-11-14)
+  startEngine() {
+    if (this.observe) return "Observe mode: nothing is changed.";
+    Log.write("button: start engine");
+    this.enqueue(() => { this.everythingStopped = false; this.pendingFrom = 1; });
+    return null;
+  }
+
+  // nothing has been started yet (launch only checked, or Stop everything ran) and no start is queued: the page points
+  // at Start engine
+  get needsStart() { return !this.observe && !this.engineStarted && this.pendingFrom === 0; }
+
+  // a light as shown before Start engine (logic.beforeStart), else as decided
+  unstarted(step, v) { return this.engineStarted || this.observe ? v : L.beforeStart(step, v); }
+
   async runSequence(from) {
     this.everythingStopped = false; this.stoppedAt = 0;
+    if (!this.dryRun) this.engineStarted = true;
     const fresh = this.forceFresh; this.forceFresh = false;
     for (let step = from; step <= 6 && !this.quit; step++) {
       if (this.onlySteps && !this.onlySteps.has(step)) { this.rows[step - 1].v = verdict(Light.Grey, "Skipped (--steps)."); continue; }
-      this.setPhase(this.observe ? "Checking (observe only)" : `Starting: step ${step} of 6`);
+      this.setPhase(this.observe ? "Checking (observe only)" : this.checking ? `Checking: step ${step} of 6` : `Starting: step ${step} of 6`);
       let ok;
       switch (step - 1) {
         case Step.Docker: ok = await this.doDocker(); break;
@@ -193,8 +232,10 @@ class Controller {
         default: ok = await this.doTts(); break;
       }
       // (stoppedAt too: a press for a later step must not skip this unfinished one, logic.startFrom)
+      // (the launch check cut short by a press: nothing to resume, the check runs again unless the press starts)
+      if (this.cancel && !this.quit && this.checking) { this.checkPending = true; return; }
       if (this.cancel && !this.quit) { this.resumeFrom = step; this.stoppedAt = step; this.setPhase("Interrupted"); return; }
-      if (!ok && !this.observe) {
+      if (!ok && !this.dryRun) {
         this.stoppedAt = step;
         this.setPhase(`Stopped at step ${step} (${Names[step - 1]}): see the red light`);
         for (let k = step; k < 6; k++) this.rows[k].v = verdict(Light.Grey, `Waiting for ${Names[step - 1]}.`);
@@ -203,7 +244,8 @@ class Controller {
         return;
       }
     }
-    this.setPhase(this.observe ? "Observing (no changes)" : "Ready");
+    if (this.checking && L.engineUp(this.rows.map((r) => r.v.light))) { this.engineStarted = true; Log.write("launch check: the engine is already up"); }
+    this.setPhase(this.observe ? "Observing (no changes)" : this.checking && !this.engineStarted ? L.NotStartedPhase : "Ready");
   }
 
   // ── 1. the container engine
@@ -215,10 +257,10 @@ class Controller {
       f.waiting = waitStart !== null;
       f.waitedSec = waitStart !== null ? (Date.now() - waitStart) / 1000 : 0;
       let v = L.decideDocker(f);
-      if (this.observe && v.action) v = verdict(Light.Red, f.desktopRunning ? "Docker Desktop runs, but its engine isn't answering." : "Docker isn't running (the app would start Docker Desktop).");
+      if (this.dryRun && v.action) v = this.checking ? L.beforeStart(Step.Docker, v) : verdict(Light.Red, f.desktopRunning ? "Docker Desktop runs, but its engine isn't answering." : "Docker isn't running (the app would start Docker Desktop).");
       this.set(Step.Docker, v);
       if (v.light === Light.Green) return true;
-      if (v.light === Light.Red || this.observe) return false;
+      if (v.light === Light.Red || this.dryRun) return false;
       if (v.action === Actions.StartDesktop && waitStart === null) { this.engine.startDesktop(); waitStart = Date.now(); }
       else if (waitStart === null) waitStart = Date.now();
       if (!(await this.pause(3000))) return false;
@@ -229,7 +271,7 @@ class Controller {
   // ── 2. engine images
 
   async doImages() {
-    if (this.rows[Step.Docker].v.light !== Light.Green) { this.set(Step.Images, verdict(Light.Grey, "Waiting for the container engine.")); return this.observe; }
+    if (this.rows[Step.Docker].v.light !== Light.Green) { this.set(Step.Images, verdict(Light.Grey, "Waiting for the container engine.")); return this.dryRun; }
     let loaded = false;
     for (let round = 0; round < 3 && !this.quit; round++) {
       const r1 = await this.engine.imageId(P.Images.relay), r2 = await this.engine.imageId(P.Images["forge-room"]);
@@ -249,13 +291,14 @@ class Controller {
       this.forceLoad = false;
       let v = L.decideImages(f);
       this.imagesAt = Date.now();
-      if (v.action === Actions.Load && !this.observe) {
+      if (v.action === Actions.Load && !this.dryRun) {
         this.set(Step.Images, v);
         if (!(await this.loadImages())) { this.set(Step.Images, verdict(Light.Red, "Loading the engine images didn't work. The log (Open logs folder, companion.log) has the engine's message.", { fix: Fixes.ImagesLoad, label: "Load the engine again" })); return false; }
         loaded = true;
         continue;
       }
-      if (this.observe && v.action === Actions.Load) v = verdict(Light.Amber, `Would load the engine images from ${path.posix.basename(this.L.imagesTar)} (${this.imageDiff(relay, node)}).`);
+      if (this.checking && v.action === Actions.Load) v = L.beforeStart(Step.Images, v);
+      else if (this.observe && v.action === Actions.Load) v = verdict(Light.Amber, `Would load the engine images from ${path.posix.basename(this.L.imagesTar)} (${this.imageDiff(relay, node)}).`);
       this.set(Step.Images, v);
       return v.light === Light.Green || v.light === Light.Amber;
     }
@@ -281,11 +324,11 @@ class Controller {
   }
 
   async doStack(fresh) {
-    if (this.rows[Step.Docker].v.light !== Light.Green) { this.set(Step.Stack, verdict(Light.Grey, "Waiting for the container engine.")); return this.observe; }
+    if (this.rows[Step.Docker].v.light !== Light.Green) { this.set(Step.Stack, verdict(Light.Grey, "Waiting for the container engine.")); return this.dryRun; }
     await this.refreshGame();
     const locked = this.isLocked;
     let autoRestarts = 0;
-    if (!locked && !this.observe) {
+    if (!locked && !this.dryRun) {
       this.set(Step.Stack, verdict(Light.Busy, "Starting the engine (relay and Forge room)."));
       const up = await this.engine.up();
       if (up.code !== 0) { this.set(Step.Stack, verdict(Light.Red, L.composeFailure(up.timedOut ? "timed out" : up.out, this.L.friend), { fix: Fixes.StackRestart, label: "Start the engine" })); return false; }
@@ -304,8 +347,8 @@ class Controller {
       const relay = a.info, room = b.info;
       const canLogin = relay && relay.exists && relay.state === "running" && relay.health !== "starting" && !locked;
       const login = canLogin ? await this.login() : { kind: "skipped" };
-      let v = L.decideStack(relay, room, login, this.game, this.L.friend);
-      if (this.observe || v.light === Light.Green || login.kind === "authFailed") { this.set(Step.Stack, v); return v.light === Light.Green; }
+      let v = this.unstarted(Step.Stack, L.decideStack(relay, room, login, this.game, this.L.friend));
+      if (this.dryRun || v.light === Light.Green || login.kind === "authFailed") { this.set(Step.Stack, v); return v.light === Light.Green; }
       if (locked && v.light === Light.Red) { this.set(Step.Stack, v); return false; }
       // (healthy, or no health check at all: Podman runs the relay without one)
       const broken = canLogin && (relay.health === "healthy" || relay.health === "") && login.kind !== "ok";
@@ -386,8 +429,9 @@ class Controller {
       if (st && path.resolve(st.savesDir || "/nonexistent") !== path.resolve(dir)) st = null;
       const plan = L.planSave(existing, st, want, ourHash, ours.length, (n) => L.sha8(fs.readFileSync(path.join(dir, n))));
       Log.write(`save plan: ${plan.kind} ${plan.file} (${plan.text}) in ${dir}`);
-      if (this.observe) {
-        this.set(Step.Save, plan.kind === "skip" || plan.kind === "adopt" ? verdict(Light.Green, plan.text) : verdict(Light.Amber, `Would do: ${plan.text} (in ${dir})`));
+      if (this.dryRun) {
+        this.set(Step.Save, plan.kind === "skip" || plan.kind === "adopt" ? verdict(Light.Green, plan.text)
+          : this.checking ? verdict(Light.Grey, `Start engine does this: ${plan.text}`) : verdict(Light.Amber, `Would do: ${plan.text} (in ${dir})`));
         return true;
       }
       if (plan.kind === "update") { await this.refreshGame(); if (this.isLocked) { this.set(Step.Save, verdict(Light.Amber, "A newer table is in this package; it installs after the game.")); return true; } }
@@ -447,8 +491,9 @@ class Controller {
       if (vers.kind === "ok") { this.versionsCache = vers; this.versionsAt = Date.now(); }
       let v = await this.bridgeVerdict(vers);
       if (v.light === Light.Red) this.versionsCache = null; // (another program answers: its table isn't ours to judge)
-      if (this.observe) {
-        if (v.action === Actions.StartBridge) v = verdict(Light.Red, "The bridge isn't running (the app would start it).");
+      if (this.dryRun) {
+        if (this.checking) v = L.beforeStart(Step.Bridge, v);
+        else if (v.action === Actions.StartBridge) v = verdict(Light.Red, "The bridge isn't running (the app would start it).");
         this.set(Step.Bridge, v);
         return v.light === Light.Green;
       }
@@ -503,7 +548,7 @@ class Controller {
   }
 
   async doTts() {
-    if (!(await this.ttsProc()) && !this.observe && !this.ttsLaunched && this.steamFound()) {
+    if (!(await this.ttsProc()) && !this.dryRun && !this.ttsLaunched && this.steamFound()) {
       this.launchTts();
       this.set(Step.Tts, verdict(Light.Busy, "Opening Tabletop Simulator through Steam."));
       const until = Date.now() + 120000;
@@ -532,6 +577,7 @@ class Controller {
     await this.refreshGame();
     const f = await this.engine.detect();
     if (f.answers) this.set(Step.Docker, L.decideDocker(f));
+    else if (!this.engineStarted && !this.observe) this.set(Step.Docker, L.beforeStart(Step.Docker, L.decideDocker(f))); // (before Start engine: no red light for a Docker nobody asked to start)
     else this.set(Step.Docker, verdict(f.desktopRunning ? Light.Amber : Light.Red, f.desktopRunning ? "Docker Desktop runs, but its engine isn't answering (starting or stopped)." : L.decideDocker({ ...f, desktopFound: false }).text,
       f.desktopFound ? { fix: Fixes.DockerStart, label: "Start Docker Desktop" } : { fix: Fixes.Retry, label: "Try again" }));
     if (f.answers) {
@@ -540,7 +586,7 @@ class Controller {
         const r1 = await this.engine.imageId(P.Images.relay), r2 = await this.engine.imageId(P.Images["forge-room"]);
         if (!r1.error && !r2.error) {
           const [wr, wn] = this.L.friend ? this.expectedImages() : [this.want("relay"), this.want("node")];
-          let v = L.decideImages({ friend: this.L.friend, relayId: r1.id, nodeId: r2.id, wantRelay: wr, wantNode: wn, tarPath: this.L.imagesTar, locked: this.isLocked });
+          let v = this.unstarted(Step.Images, L.decideImages({ friend: this.L.friend, relayId: r1.id, nodeId: r2.id, wantRelay: wr, wantNode: wn, tarPath: this.L.imagesTar, locked: this.isLocked }));
           if (v.action === Actions.Load) v = verdict(Light.Amber, `The engine images differ from this package (${this.imageDiff(r1.id, r2.id)}).`, { fix: Fixes.ImagesLoad, label: "Load the engine images" });
           this.set(Step.Images, v);
         }
@@ -550,20 +596,25 @@ class Controller {
         const rc = a.info, oc = b.info;
         const canLogin = rc && rc.exists && rc.state === "running" && rc.health !== "starting" && !this.isLocked;
         const login = !canLogin ? { kind: "skipped" } : !this.loginCache || Date.now() - this.loginAt > 60000 ? await this.login() : this.loginCache;
-        this.set(Step.Stack, L.decideStack(rc, oc, login, this.game, this.L.friend));
+        this.set(Step.Stack, this.unstarted(Step.Stack, L.decideStack(rc, oc, login, this.game, this.L.friend)));
       }
     } else this.set(Step.Stack, verdict(Light.Grey, "Waiting for the container engine."));
     // bridge: /versions every 30 s, not more (each call runs an inspect inside the bridge)
     if (Date.now() - this.versionsAt > 30000) {
       const vers = await probes.httpGet(`${this.bridgeUrl}/versions`, 15000);
       if (vers.kind === "ok") { this.versionsCache = vers; this.versionsAt = Date.now(); } else this.versionsAt = Date.now() - 25000; // (try again in 5 s)
-      let v = await this.bridgeVerdict(vers);
+      let v = this.unstarted(Step.Bridge, await this.bridgeVerdict(vers));
       if (v.action === Actions.StartBridge) v = verdict(Light.Red, "The bridge isn't running.", { fix: Fixes.BridgeStart, label: "Start the bridge" });
       else if (v.action === Actions.Wait) v = verdict(Light.Busy, "The bridge is (re)starting.");
       if (vers.kind !== "ok" || v.light === Light.Red) this.versionsCache = null;
       this.set(Step.Bridge, v);
     }
     await this.updateTts();
+    // (the engine came up without Start engine, e.g. a companion that was restarted: it counts as started)
+    if (!this.engineStarted && !this.observe && this.pendingFrom === 0 && L.engineUp(this.rows.map((r) => r.v.light))) {
+      this.engineStarted = true; Log.write("the engine is up (started outside this app): watching it as started");
+      if (this.phase === L.NotStartedPhase || this.phase === L.StoppedPhase) this.setPhase("Ready");
+    }
     if (!this.observe && this.phase.startsWith("Ready")) this.setPhase(this.rows.some((r) => r.v.light === Light.Red) ? "Ready, with a problem: see the red light" : "Ready");
   }
 
@@ -608,13 +659,13 @@ class Controller {
     if (this.observe) { if (done) done(); return; }
     Log.write(`menu: stop everything (game: ${this.game.kind})`);
     this.enqueue(async () => {
-      this.everythingStopped = true; this.pendingFrom = 0; this.stoppedAt = 0;
+      this.everythingStopped = true; this.pendingFrom = 0; this.stoppedAt = 0; this.engineStarted = false;
       this.setPhase("Stopping");
       await this.stopBridge();
       if (this.engine.cli && this.rows[Step.Docker].v.light === Light.Green) await (this.L.friend ? this.engine.down() : this.engine.stop());
       for (let i = 0; i < this.rows.length; i++)
         if (i !== Step.Docker) this.rows[i].v = verdict(Light.Grey, i === Step.Save ? (this.L.friend ? "Installed (unchanged)." : this.rows[i].v.text) : "Stopped.");
-      this.setPhase("Stopped. Restart engine starts it again.");
+      this.setPhase(L.StoppedPhase);
       this.fire();
       if (done) done();
     });

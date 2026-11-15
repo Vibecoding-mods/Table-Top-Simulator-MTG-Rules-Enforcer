@@ -12,13 +12,14 @@ names the archive it came from and that archive's sha256, which you can compare 
 The companion uses only Node's built-in modules: there is no node_modules folder and nothing is downloaded.
 
 What each file does:
-  companion.js    the command line: finds the package, starts the status page and the start sequence
+  companion.js    the command line: finds the package, starts the status page and checks the six steps. It
+                  starts nothing itself: the page's Start engine button does (or --start, at launch)
   logic.js        every decision (the lights, the messages, the game lock, never overwriting your TTS saves,
                   the update check rules); no input or output of its own
   platform.js     Linux and macOS facts (where TTS keeps its saves, the container commands, reading processes)
   probes.js       the input and output: files, processes, ports, HTTP, the engine's login check
   engine.js       Docker or Podman: load the images, run, start, stop and remove the two engine containers
-  controller.js   the start sequence (6 steps) and the watcher that keeps the lights current
+  controller.js   the launch check, the start sequence (6 steps) and the watcher that keeps the lights current
   web.js          the status page server, on 127.0.0.1 only, with a per-run token; page.html is its page
   bridge-loop.js  runs the bridge (bridge/bridge.js, also plain JavaScript) and restarts it if it stops
   update.js       checks GitHub for a newer release (signature-checked with release-keys.txt, the PUBLIC key only).

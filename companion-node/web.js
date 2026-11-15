@@ -5,6 +5,8 @@
 //   GET  /              the page, with this run's token and a CSP nonce put in
 //   GET  /api/status    the lights, the game lock, the menu, versions, the log tail (status() below; "api": 1)
 //   POST /api/action    {"id": "...", "confirmLocked": bool}: the Controller's calls, under the same game lock
+//                       (start-engine, restart-engine, stop-everything, open-logs, update-check, fix:<row>:<fix>; a
+//                       second press while the same one is queued or running answers "Already running")
 //   GET  /api/tools     the bridge's table tools, passed through from the bridge's GET /tools
 //   POST /api/tools     {"kind": "ai-seat"|"debug-mode"|"debug"|"gif-key", ...}: one change, passed to the bridge
 //
@@ -287,6 +289,7 @@ class WebUi {
   headline(w, g) {
     const red = this.c.rows.find((r) => r.v.light === Light.Red);
     if (red) return `Problem: ${red.name}`;
+    if (this.c.needsStart && !this.c.everythingStopped) return "Not started"; // (after Stop everything: Stopped)
     switch (w) {
       case Light.Busy: return this.c.phase;
       case Light.Amber: return `${this.c.rows.filter((r) => r.v.light === Light.Amber).length} to check`;
@@ -297,6 +300,8 @@ class WebUi {
   menu(locked, g) {
     const c = this.c;
     return [
+      // (primary: drawn gold while nothing is started; no confirm: starting stops nothing)
+      { id: "start-engine", label: "Start engine", enabled: !c.observe, title: c.observe ? ObserveText : "Starts the container engine if needed (Docker Desktop on a Mac), the engine (relay and Forge room), installs the table save, starts the bridge and opens TTS.", confirm: null, confirmLocked: false, primary: c.needsStart },
       { id: "restart-engine", label: locked ? "Restart engine (locked: game on)" : "Restart engine", enabled: !locked && !c.observe, title: c.observe ? ObserveText : locked ? L.lockText(g) : "Stops the bridge, restarts relay and room, then starts the bridge again.", confirm: "Restart the engine? This stops the bridge, restarts the relay and the Forge room, and starts the bridge again (under a minute).", confirmLocked: false },
       { id: "stop-everything", label: "Stop everything", enabled: !c.observe, title: c.observe ? ObserveText : "Stops the bridge and the engine containers; the container engine and TTS keep running.", confirm: locked ? `${g.text}\n\nStopping everything ends that game for everyone. Stop anyway?` : "Stop the bridge and the engine containers? The container engine and TTS keep running.", confirmLocked: locked },
       { id: "open-logs", label: "Open logs folder", enabled: true, title: c.L.logsDir, confirm: null, confirmLocked: false },
@@ -316,9 +321,9 @@ class WebUi {
       step: i + 1, name: row.name, state: stateOf(row.v.light), busy: row.v.light === Light.Busy, word: wordOf(row.v.light), text: row.v.text, hint: row.v.hint,
       at: row.at ? row.at.toTimeString().slice(0, 8) : null, action: this.lightAction(i, row.v, g, locked),
     }));
-    const w = L.worst(c.rows.map((r) => r.v.light));
-    const hint = c.rows.map((r) => r.v).filter((v) => v.hint && v.light !== Light.Green && v.light !== Light.Grey).map((v) => v.hint)[0]
-      || `${L.ttsHowTo(c.saveName)}\n\nOnly the host runs this app. Friends join your TTS game (Multiplayer) and need nothing else.`;
+    const needsStart = c.needsStart;
+    const w = L.overall(c.rows.map((r) => r.v.light), c.everythingStopped || needsStart);
+    const hint = L.nextHint(c.rows.map((r) => r.v), needsStart, c.saveName);
     return {
       api: 1, app: "MTG Companion", at: new Date().toTimeString().slice(0, 8), mode: c.L.friend ? "friend" : "home", home: c.L.home, observe: c.observe, phase: c.phase,
       worst: { state: stateOf(w), busy: w === Light.Busy, text: this.headline(w, g) },
@@ -345,6 +350,13 @@ class WebUi {
     const already = () => done("Already running; the lights show how far it is.");
     if (id.startsWith("fix:")) return this.fix(id);
     switch (id) {
+      case "start-engine": {
+        if (!c.observe && this.repeat(id)) return already();
+        const refused = c.startEngine();
+        if (refused) return no(refused);
+        this.lastAccepted = id;
+        return done("Starting the engine: the lights show each step.");
+      }
       case "restart-engine": {
         if (!c.observe && this.repeat(id)) return already();
         const refused = c.restartEngine();
@@ -422,8 +434,9 @@ function noBridge(h) {
         : `The bridge couldn't be asked (${h.error || `HTTP ${h.status}`}).`;
 }
 
-// the first start of a package opens the page once by itself; later starts only when the first pass ends red
+// the first start of a package opens the page once by itself; later starts when the first pass ends red, or with
+// nothing started (launch only checks: the page is where Start engine is)
 const openAtStart = (friend, observe, shownBefore) => friend && !observe && !shownBefore;
-const openAfterFirstPass = (observe, lights) => !observe && lights.some((l) => l === Light.Red);
+const openAfterFirstPass = (observe, lights, needsStart) => !observe && (!!needsStart || lights.some((l) => l === Light.Red));
 
 module.exports = { WebUi, parseHead, reader, writeResp, jsonType, pageFromCs, loadPage, stateOf, wordOf, updateSection, openAtStart, openAfterFirstPass, MaxHead, MaxBody, TokenHeader };
