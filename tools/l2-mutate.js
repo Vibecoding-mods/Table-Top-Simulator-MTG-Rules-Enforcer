@@ -122,6 +122,9 @@ const MUTATIONS = [
     expect: ["aLevelOneDefenderBlocksForItsPartnerInThePrompt"] },
   { name: "coveted-jewel-first-seat", edits: [["forge-game/src/main/java/forge/game/trigger/TriggerAttackerUnblockedOnce.java", "        for (final Player p : combat.getAttackingPlayers()) {\n            final List<GameEntity> defenders", "        for (final Player p : combat.getAttackingPlayers().subList(0, 1)) {\n            final List<GameEntity> defenders"]],
     expect: ["anUnblockedPartnerGetsCovetedJewel"] },
+  { name: "life-house-rule-off", edits: [["forge-game/src/main/java/forge/game/trigger/Trigger.java", "        if (matchesValidParam(\"ValidPlayer\", o)) {\n            return true;\n        }\n        final Player you = getHostCard().getController();",
+    "        if (true) {\n            return matchesValidParam(\"ValidPlayer\", o);\n        }\n        final Player you = getHostCard().getController();"]],
+    expect: ["aGainInTheTeamTurnTriggersThePartnersLifeCardOnce"] },
 ];
 
 const known = fs.existsSync(KNOWN) ? fs.readFileSync(KNOWN, "utf8").split(/\r?\n/).map((l) => l.replace(/#.*/, "").trim()).filter(Boolean) : [];

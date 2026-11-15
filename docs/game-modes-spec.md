@@ -283,7 +283,8 @@ own team game-over, proven in `PlayerRulesTest.aTeamCommanderTeamWinsWhenBothOpp
   player or planeswalker it attacks; the defending team blocks as a group, and a defender may block a creature attacking
   **either** defending player (805.10d).
 - **Who decides:** if teammates can't agree, the **primary player** decides: the one in the team's rightmost seat from
-  the team's view (805.2).
+  the team's view (805.2). On the 4-player table that is the team's first seat in turn order: White for team 1, Yellow for
+  team 2 (the owner's decision, 2026-11-15).
 - **Resources:** nothing else is shared; teammates may look at each other's hands and talk, but not handle each other's
   cards (810.5).
 - **Changed in the current rules:** 810.7 now says 2HG "uses the combat rules for the shared team turns option ... This
@@ -359,7 +360,9 @@ On top of §5.3:
    creatures (`AttackConstraints.java:40`). It becomes the team; each player declares their own creatures' attacks, and
    the attack is checked as a whole (805.10b). `declareAttackersTurnBasedAction` (`PhaseHandler.java:537-550`) asks each
    teammate in turn.
-4. **Triggers:** the active team's triggers go on the stack first, in an order the team picks (805.7).
+4. **Triggers:** the active team's triggers go on the stack first, in an order the team picks (805.7). The team's
+   primary player picks it (805.2): the team's furthest-right seat from the team's view, which on the 4-player table is the
+   team's first seat in turn order, White for team 1 and Yellow for team 2 (the owner's decision, 2026-11-15).
 5. **"Attacking player" / "defending player"** on cards: one specific player, chosen per creature (805.10c, 805.10e):
    check `getAttackingPlayer()` (14 calls in `forge-game`, 8 in `forge-ai`) and `getDefendingPlayer` (9 and 6).
 6. **AI:** Forge's attack and block AI plan for one attacking player. A Forge AI teammate in a shared turn is the
@@ -537,8 +540,10 @@ out the second partner's third from the already lowered team total (team 30: 10 
   `sharedTeamTurns`) so Level 1 stays as is. `GameAction.teamLead` is the team's first seat in turn order, i.e. where a team
   turn would start; `PhaseHandler.isStartingTeamsFirstDraw` counts the starting team's first turns, which becomes "the
   team's first turn" once a turn is the team's (805.4b, 103.8b).
-- Harness: questions still go to the player Forge asks (§5.5); the primary player (805.2) is `teamLead`'s mirror image
-  (rightmost seat) and is not computed yet.
+- Harness: questions still go to the player Forge asks (§5.5). The primary player (805.2) is the team's furthest-right
+  seat from the team's view, which on the 4-player table is the team's first seat in turn order: White for team 1,
+  Yellow for team 2 (the owner's decision, 2026-11-15). That is `GameAction.teamLead`, and level 2's
+  `PhaseHandler.getPrimaryPlayer` uses it.
 - Bridge: `teams.teamsProblem`'s side-by-side rule exists only because Level 1 plays the team's turns back to back.
   `gameConfig` would carry the new rule (`teamRules: "sharedTurns"` or a separate field).
 - Table: the phase bar's team tag already names the team on either partner's turn.
