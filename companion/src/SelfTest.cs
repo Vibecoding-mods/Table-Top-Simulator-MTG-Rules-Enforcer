@@ -178,7 +178,16 @@ namespace MtgCompanion
                 Action watch = () => watched++;
                 Check("wiring: before any run, no stop: a button starts where it asks", c.StoppedAt == 0 && c.StartAt(5) == 5, c.StoppedAt);
                 bool ran = c.WorkOnce(watch);
-                Check("wiring: the first turn runs the start sequence, not the watcher; the red step is recorded", ran && watched == 0 && c.PendingFrom == 0 && c.StoppedAt == 4 && c.Phase.StartsWith("Stopped at step 4"), ran + " " + watched + " / " + c.StoppedAt + " / " + c.Phase);
+                Check("launch: the first turn is the check, not the watcher and not the start sequence: no stop recorded, Not started", ran && watched == 0 && c.PendingFrom == 0 && c.StoppedAt == 0 && c.Phase == Logic.NotStartedPhase && c.NeedsStart && !c.EngineStarted, ran + " " + watched + " / " + c.StoppedAt + " / " + c.Phase);
+                Check("launch: the check read the save step (red: no table here) and set no row waiting", c.Rows[Controller.StepSave].V.Light == Light.Red && c.Rows[Controller.StepTts].V.Text != "Waiting for Table save.", c.Rows[Controller.StepSave].V);
+                ran = c.WorkOnce(watch);
+                Check("launch: then only the watcher, nothing queued, still Not started", !ran && watched == 1 && c.PendingFrom == 0 && c.NeedsStart, ran + " " + watched + " / " + c.PendingFrom);
+                Check("launch: Start engine queues a press (nothing runs until the worker takes it)", c.StartEngine() == null && c.QueuedWork == 1 && c.PendingFrom == 0);
+                ran = c.WorkOnce(watch);
+                Check("Start engine: the press is a turn of its own: it queues the start sequence from step 1", ran && c.PendingFrom == 1 && !c.NeedsStart, c.PendingFrom);
+                watched = 0;
+                ran = c.WorkOnce(watch);
+                Check("wiring: Start engine's turn runs the start sequence, not the watcher; the red step is recorded", ran && watched == 0 && c.PendingFrom == 0 && c.StoppedAt == 4 && c.Phase.StartsWith("Stopped at step 4") && c.EngineStarted, ran + " " + watched + " / " + c.StoppedAt + " / " + c.Phase);
                 Check("wiring: the steps after the stop wait for it", c.Rows[4].V.Light == Light.Grey && c.Rows[5].V.Text == "Waiting for Table save.", c.Rows[5].V);
                 ran = c.WorkOnce(watch);
                 Check("wiring: still red: a watcher turn, nothing queued", !ran && watched == 1 && c.PendingFrom == 0 && c.StoppedAt == 4, ran + " " + watched + " / " + c.PendingFrom);
@@ -249,7 +258,9 @@ namespace MtgCompanion
                 // a run already queued (the watcher's update install queues one from step 1) is kept, not replaced
                 var u = new Controller(Layout.Make(Mode.Friend, tmp), false, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state-u"), "x.exe");
                 u.OnlySteps = new HashSet<int> { 4 };
-                u.RunSequence(1); // (its queued first run, from step 1, not consumed)
+                u.StartEngine();
+                u.WorkOnce(watch); // (the press: a run from step 1 queued)
+                u.RunSequence(1); // (that queued run, from step 1, not consumed)
                 u.Rows[Controller.StepSave].V = new Verdict(Light.Green, "Installed.");
                 u.ResumeIfGreen();
                 Check("wiring: a run already queued is kept, not replaced by the carry-on", u.StoppedAt == 4 && u.PendingFrom == 1 && u.StartAt(1) == 1, u.StoppedAt + " / " + u.PendingFrom);
@@ -263,6 +274,90 @@ namespace MtgCompanion
             }
             catch (Exception e) { Check("wiring: no exception", false, e); }
             finally { try { if (Directory.Exists(tmp)) Directory.Delete(tmp, true); } catch { } }
+            LaunchStartsNothing();
+            StartEngineRules();
+        }
+
+        // Launch only checks (2026-11-14: "I don't want it to start on click of the app"). The table save is the one step
+        // that changes something without Docker, so it is the proof: a package with a table, --steps 4. The launch's check
+        // installs nothing; Start engine installs it; --start (AutoStart) installs it at launch as every launch did before.
+        static void LaunchStartsNothing()
+        {
+            var tmp = Path.Combine(Path.GetTempPath(), "mtg-companion-selftest-" + Guid.NewGuid().ToString("N").Substring(0, 6));
+            try
+            {
+                var l = Layout.Make(Mode.Friend, tmp);
+                Directory.CreateDirectory(Path.GetDirectoryName(l.TableJson));
+                File.WriteAllText(l.TableJson, "{\"SaveName\": \"Selftest table\", \"ObjectStates\": []}");
+                string saves = Path.Combine(tmp, "saves");
+                Func<string, int> filesIn = d => Directory.Exists(d) ? Directory.GetFiles(d).Length : 0;
+                var c = new Controller(l, false, saves, Path.Combine(tmp, "state"), "x.exe");
+                c.OnlySteps = new HashSet<int> { 4 };
+                int watched = 0;
+                Action watch = () => watched++;
+                c.WorkOnce(watch);
+                Check("launch starts nothing: the check installed no table save", filesIn(saves) == 0, filesIn(saves));
+                Check("launch starts nothing: the save row is grey and says Start engine does it", c.Rows[Controller.StepSave].V.Light == Light.Grey && c.Rows[Controller.StepSave].V.Text == "Start engine does this: Installing the table as TS_Save_1.json.", c.Rows[Controller.StepSave].V);
+                Check("launch starts nothing: Not started, nothing queued, not started", c.Phase == Logic.NotStartedPhase && c.PendingFrom == 0 && c.NeedsStart && !c.EngineStarted, c.Phase);
+                c.WorkOnce(watch); c.WorkOnce(watch);
+                Check("launch starts nothing: the watcher's turns install nothing either", watched == 2 && filesIn(saves) == 0, watched + " / " + filesIn(saves));
+                c.StartEngine();
+                c.WorkOnce(watch); // the press
+                c.WorkOnce(watch); // the start sequence
+                Check("Start engine: the table save installed (TS_Save_1.json), the row green, Ready", File.Exists(Path.Combine(saves, "TS_Save_1.json")) && c.Rows[Controller.StepSave].V.Light == Light.Green && c.Phase == "Ready" && c.EngineStarted && !c.NeedsStart, c.Rows[Controller.StepSave].V + " / " + c.Phase);
+
+                string saves2 = Path.Combine(tmp, "saves2");
+                var a = new Controller(l, false, saves2, Path.Combine(tmp, "state2"), "x.exe");
+                a.OnlySteps = new HashSet<int> { 4 };
+                a.AutoStart = true;
+                bool ran = a.WorkOnce(watch);
+                Check("--start: the launch's first turn is the start sequence: the save installed, Ready", ran && File.Exists(Path.Combine(saves2, "TS_Save_1.json")) && a.Phase == "Ready" && a.EngineStarted, a.Phase + " / " + filesIn(saves2));
+
+                string saves3 = Path.Combine(tmp, "saves3");
+                var o = new Controller(l, true, saves3, Path.Combine(tmp, "state3"), "x.exe");
+                o.OnlySteps = new HashSet<int> { 4 };
+                o.AutoStart = true;
+                o.WorkOnce(watch);
+                Check("--observe beats --start: nothing installed, Observing", filesIn(saves3) == 0 && o.Phase == "Observing (no changes)" && !o.NeedsStart && o.StartEngine() != null, o.Phase);
+            }
+            catch (Exception e) { Check("launch starts nothing: no exception", false, e); }
+            finally { try { if (Directory.Exists(tmp)) Directory.Delete(tmp, true); } catch { } }
+        }
+
+        static void StartEngineRules()
+        {
+            Check("--start: the flags that start at launch (--start, a self-update's restart); none: launch only checks",
+                Program.AutoStart(new[] { "--start" }) && Program.AutoStart(new[] { "--after-update" }) && Program.AutoStart(new[] { "--apply-update", "v1.2" })
+                && !Program.AutoStart(new string[0]) && !Program.AutoStart(new[] { "--observe" }) && !Program.AutoStart(new[] { "--no-browser", "--web-port", "0" }));
+            var notRunning = Logic.DecideDocker(new DockerFacts { CliFound = true, DesktopFound = true });
+            var bs = Logic.BeforeStart(Controller.StepDocker, notRunning);
+            Check("before start: Docker not running: grey, points at Start engine (no red, no balloon)", notRunning.Action == Actions.StartDesktop && bs.Light == Light.Grey && bs.Text.Contains("Start engine") && bs.Fix == null, bs);
+            var missing = Logic.DecideDocker(new DockerFacts());
+            Check("before start: Docker not installed is a real problem: kept red with its hint", Logic.BeforeStart(Controller.StepDocker, missing) == missing && missing.Light == Light.Red && missing.Hint != null);
+            var noRelay = Logic.DecideStack(null, null, null, Game.None("No game."));
+            var bsStack = Logic.BeforeStart(Controller.StepStack, noRelay);
+            Check("before start: no relay container: grey, Start engine", bsStack.Light == Light.Grey && bsStack.Text.Contains("Start engine"), bsStack);
+            var unhealthy = Logic.DecideStack(new ContainerInfo { Exists = true, State = "running", Health = "unhealthy" }, new ContainerInfo { Exists = true, State = "running" }, null, Game.None("No game."));
+            Check("before start: an unhealthy relay is a real problem: kept red", Logic.BeforeStart(Controller.StepStack, unhealthy) == unhealthy && unhealthy.Light == Light.Red);
+            var noBridge = Logic.DecideBridge(new HttpResult { Kind = HttpKind.Refused }, null, false, null, true);
+            var bsBridge = Logic.BeforeStart(Controller.StepBridge, noBridge);
+            Check("before start: no bridge: grey, Start engine (no StartBridge action left to act on)", noBridge.Action == Actions.StartBridge && bsBridge.Light == Light.Grey && bsBridge.Action == null && bsBridge.Text.Contains("Start engine"), bsBridge);
+            var port = new Verdict(Light.Red, "node.exe holds port 39998.").WithFix(Fixes.ShowProgram, "Show the program");
+            Check("before start: a port taken is a real problem: kept", Logic.BeforeStart(Controller.StepBridge, port) == port);
+            var load = Logic.DecideImages(new ImageFacts { Friend = true, TarPath = "x.tar" });
+            Check("before start: images to load: grey, Start engine loads them", load.Action == Actions.Load && Logic.BeforeStart(Controller.StepImages, load).Light == Light.Grey);
+            var tts = new Verdict(Light.Amber, "Tabletop Simulator isn't running.").WithFix(Fixes.TtsOpen, "Open TTS");
+            Check("before start: the TTS row is left as it is (its Open TTS button too)", Logic.BeforeStart(Controller.StepTts, tts) == tts);
+            Check("engine up: Docker, images, stack and bridge green (save and TTS don't count)", Logic.EngineUp(new[] { Light.Green, Light.Green, Light.Green, Light.Grey, Light.Green, Light.Amber })
+                && !Logic.EngineUp(new[] { Light.Green, Light.Green, Light.Grey, Light.Green, Light.Green, Light.Green }) && !Logic.EngineUp(new[] { Light.Green, Light.Green, Light.Green, Light.Green, Light.Grey, Light.Green }));
+            var rows = new[] { bs, new Verdict(Light.Grey, "x"), bsStack, new Verdict(Light.Grey, "y"), bsBridge, tts.WithHint("In TTS: Create") };
+            Check("what to do next: before start: press Start engine (not the TTS row's hint)", Logic.NextHint(rows, true, "T") == Logic.StartHint && Logic.StartHint.StartsWith("The engine isn't running. Press Start engine"));
+            Check("what to do next: after start: the first amber/red hint, as before", Logic.NextHint(rows, false, "T") == "In TTS: Create");
+            rows[0] = missing;
+            Check("what to do next: before start, a red light with a hint comes first", Logic.NextHint(rows, true, "T") == missing.Hint);
+            Check("what to do next: nothing to say: how to load the table", Logic.NextHint(new[] { new Verdict(Light.Green, "ok") }, false, "My table").StartsWith(Logic.TtsHowTo("My table") + "\n\nOnly the host"));
+            Check("APPDATA for the bridge: set from Windows' folder only when this app has none", Logic.AppDataFor(null, "C:\\Roaming") == "C:\\Roaming" && Logic.AppDataFor("", "C:\\Roaming") == "C:\\Roaming"
+                && Logic.AppDataFor("D:\\Mine", "C:\\Roaming") == null && Logic.AppDataFor(null, "") == null);
         }
 
         static void Stack()

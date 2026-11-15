@@ -1,7 +1,9 @@
-// MTG Companion: one double-click starts the rules-engine table (Docker, the engine images and stack, the table save,
-// the bridge, TTS) and shows one status light per step. Design: docs/companion-app-spec.md; friend mode: the package
-// folder (version.json beside the exe); home mode: the repo.
-//   MTG Companion.exe                      start everything, then watch (tray icon)
+// MTG Companion: shows one status light per step of the rules-engine table (Docker, the engine images and stack, the
+// table save, the bridge, TTS), and its Start engine button starts them in that order. Design: docs/companion-app-spec.md;
+// friend mode: the package folder (version.json beside the exe); home mode: the repo.
+//   MTG Companion.exe                      check everything (starts nothing), then watch (tray icon); Start engine starts it
+//   MTG Companion.exe --start              start everything at launch, then watch (what every launch did before 2026-11-14;
+//       a self-update's restart, --after-update or --apply-update, starts it too, as the update stopped the bridge)
 //   MTG Companion.exe --observe            only read and show the lights; changes nothing
 //       [--home DIR] [--saves DIR] [--state DIR] [--dump FILE]   (--dump: write the lights after one pass and exit)
 //       [--no-web] [--web-port N] [--no-browser]   the status page on 127.0.0.1:48790 (WebUi.cs) or the old window
@@ -60,6 +62,12 @@ namespace MtgCompanion
                 AttachConsole(-1); Console.Out.Write(text); Console.Out.Flush();
             }
             catch { }
+        }
+
+        // launch starts the engine only when asked: --start, or the restart a self-update makes (it stopped the bridge)
+        public static bool AutoStart(string[] args)
+        {
+            return args.Contains("--start") || args.Contains("--after-update") || Arg(args, "--apply-update") != null;
         }
 
         static string Quote(string a) { return a.Length > 0 && a.IndexOfAny(new[] { ' ', '"', '\t' }) < 0 ? a : "\"" + a.Replace("\"", "\\\"") + "\""; }
@@ -243,6 +251,7 @@ namespace MtgCompanion
 
             Controller.UpdateBase = Updates.TestBaseOk(ub) ? ub : null;
             var c = new Controller(layout, observe, savesDir, stateDir, exe);
+            c.AutoStart = AutoStart(args);
             c.Recovered = recovered;
             c.ApplyAfterSwap = Arg(args, "--apply-update");
             if (Arg(args, "--bridge-url") != null) Controller.BridgeUrl = Arg(args, "--bridge-url");
@@ -342,6 +351,9 @@ namespace MtgCompanion
                     var psi = new ProcessStartInfo("cmd.exe", "/d /s /c \"" + inner + "\"") { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(l.BridgeJs) };
                     psi.EnvironmentVariables["MTG_HOME"] = l.Home;
                     psi.EnvironmentVariables["MTG_LOG_DIR"] = l.LogsDir; // (its logs and resume file in logs\, as README-FRIEND says)
+                    // (the GIPHY key and GIF favourites are in %APPDATA%\MTG-TTS: never a bridge without APPDATA)
+                    var appData = Logic.AppDataFor(psi.EnvironmentVariables["APPDATA"], Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+                    if (appData != null) psi.EnvironmentVariables["APPDATA"] = appData;
                     int code = -1;
                     try
                     {

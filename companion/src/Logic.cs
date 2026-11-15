@@ -764,6 +764,15 @@ namespace MtgCompanion
             return "compose -p " + l.Project + " -f \"" + l.ComposeFile + "\" " + rest;
         }
 
+        // APPDATA for the bridge's process: the bridge keeps the GIPHY key and the GIF favourites in %APPDATA%\MTG-TTS and,
+        // with APPDATA unset, looks in ~/.config instead and finds no key (2026-11-14: a bridge started from an environment
+        // without APPDATA). current: the variable as this process has it; known: the user's Roaming folder from Windows
+        // (Environment.GetFolderPath, which doesn't read the variable). null: nothing to set.
+        public static string AppDataFor(string current, string known)
+        {
+            return string.IsNullOrEmpty(current) && !string.IsNullOrEmpty(known) ? known : null;
+        }
+
         // The relay key: MANABREW_SERVER_KEY in stack\.env, else the compose default
         public static string RelayKey(string envText)
         {
@@ -811,6 +820,57 @@ namespace MtgCompanion
         }
 
         static int Rank(Light l) { return l == Light.Red ? 4 : l == Light.Amber ? 3 : l == Light.Busy ? 2 : l == Light.Green ? 1 : 0; }
+
+        // ───────────────────────────── Start engine ─────────────────────────────
+        // Launching the app only checks (one read-only pass, then the watcher); the Start engine button runs the start
+        // sequence (--start on the command line still starts it at launch, as every launch did before 2026-11-14).
+
+        public const string NotStartedPhase = "Not started: press Start engine";
+        public const string StoppedPhase = "Stopped. Start engine starts it again.";
+        public const string StartHint = "The engine isn't running. Press Start engine (under Actions): it starts Docker Desktop if needed, the engine (relay and Forge room), installs the table save, starts the bridge and opens Tabletop Simulator. The lights show each step.\n\nOnly the host runs this app. Friends join your TTS game (Multiplayer) and need nothing else.";
+
+        // the engine is up: Docker, the images, the stack and the bridge all green (the save and TTS don't decide it)
+        public static bool EngineUp(IList<Light> rows)
+        {
+            return rows.Count >= 5 && rows[0] == Light.Green && rows[1] == Light.Green && rows[2] == Light.Green && rows[4] == Light.Green;
+        }
+
+        // A light before Start engine was pressed: a part that only isn't running yet is grey and points at Start engine
+        // (no red light, no balloon, nothing started); a real problem (Docker not installed, a port taken, a missing
+        // package file) keeps its light. step: 0-5 as Controller.Step*.
+        public static Verdict BeforeStart(int step, Verdict v)
+        {
+            if (v == null) return v;
+            switch (step)
+            {
+                case 0:
+                    if (v.Action == Actions.StartDesktop) return new Verdict(Light.Grey, "Docker Desktop isn't running. Start engine starts it.");
+                    if (v.Action == Actions.Wait) return new Verdict(Light.Grey, "Docker Desktop runs, but its engine isn't answering yet. Start engine waits for it.");
+                    break;
+                case 1:
+                    if (v.Action == Actions.Load) return new Verdict(Light.Grey, "Not loaded yet. Start engine loads them from the package (first run: a few minutes).");
+                    break;
+                case 2:
+                    if (v.Fix == Fixes.StackRestart && v.FixLabel == "Start the engine") return new Verdict(Light.Grey, "Not running. Start engine starts the relay and the Forge room.");
+                    break;
+                case 4:
+                    if (v.Action == Actions.StartBridge) return new Verdict(Light.Grey, "Not running. Start engine starts it.");
+                    break;
+            }
+            return v;
+        }
+
+        // "What to do next" (its lines end in \n; the window turns them into \r\n): the first hint of an amber or red
+        // light; before Start engine, the first red light's hint (a real problem comes first), else the Start engine
+        // sentence; else how to load the table in TTS
+        public static string NextHint(IEnumerable<Verdict> rows, bool needsStart, string saveName)
+        {
+            var list = rows.Where(v => v != null).ToList();
+            if (needsStart)
+                return list.Where(v => v.Hint != null && v.Light == Light.Red).Select(v => v.Hint).FirstOrDefault() ?? StartHint;
+            return list.Where(v => v.Hint != null && v.Light != Light.Green && v.Light != Light.Grey).Select(v => v.Hint).FirstOrDefault()
+                ?? TtsHowTo(saveName) + "\n\nOnly the host runs this app. Friends join your TTS game (Multiplayer) and need nothing else.";
+        }
     }
 
     // ───────────────────────────── fact types ─────────────────────────────

@@ -422,15 +422,16 @@ var MtgPage = (function () {
   var NOW = 'Right now: ';
   var STEP_ICONS = ['cube', 'layers', 'gear', 'disk', 'bridge', 'dice'];
   var MENU_TIPS = {
-    'restart-engine': 'Restart engine: stops the bridge, restarts the rules engine (the relay and the Forge room), then runs the start steps again from step 1 and starts the bridge: under a minute, and it asks first. Locked while a game is on, or while the companion can’t tell whether one is: wait for the game to end (a game that is set up or finished unlocks after mtg reset in TTS chat). After Stop everything, this starts it all again. It never overwrites a table save you have saved over.',
-    'stop-everything': 'Stop everything: stops the bridge and the engine containers; Docker Desktop and TTS keep running. It asks first, and during a game it warns you, because stopping ends that game for everyone. Restart engine starts it all again.',
+    'start-engine': 'Start engine: runs the start steps in order: starts Docker Desktop if it isn’t running, loads the engine images (first run only), starts the rules engine (the relay and the Forge room), installs the table save, starts the bridge and opens Tabletop Simulator. Opening the companion only checks the lights; nothing starts until you press this. It never overwrites a table save you have saved over.',
+    'restart-engine': 'Restart engine: stops the bridge, restarts the rules engine (the relay and the Forge room), then runs the start steps again from step 1 and starts the bridge: under a minute, and it asks first. Locked while a game is on, or while the companion can’t tell whether one is: wait for the game to end (a game that is set up or finished unlocks after mtg reset in TTS chat). After Stop everything, this (or Start engine) starts it all again. It never overwrites a table save you have saved over.',
+    'stop-everything': 'Stop everything: stops the bridge and the engine containers; Docker Desktop and TTS keep running. It asks first, and during a game it warns you, because stopping ends that game for everyone. Start engine starts it all again.',
     'open-logs': 'Open logs folder: opens the folder with companion.log and the bridge’s log. It changes nothing and works at any time, even during a game.',
     'wsl-limits': 'Limit Docker’s CPU use: optional, and it asks first. It writes processors=2 and memory=8GB into the [wsl2] section of .wslconfig in your user folder (other lines are kept, and a copy of the old file is saved beside it), so the engine’s Linux VM leaves CPU for TTS; the engine thinks a little slower. It affects every WSL program on this PC and takes effect only after WSL restarts: nothing restarts now. A game doesn’t lock it.',
     'update-now': 'Update now: downloads and installs this update (it asks first). The bridge stops for about a minute while it installs. During a game it only downloads, and installs 2 minutes after the game ends.',
     'update-later': 'Later: no reminder for this update until you press Check for updates. Nothing is downloaded.',
     'update-check': 'Check for updates: asks the project’s releases whether a newer package is out. Nothing is installed until you press Update now.'
   };
-  var MENU_ICONS = { 'restart-engine': 'restart', 'stop-everything': 'stop', 'open-logs': 'folder', 'wsl-limits': 'cpu', 'update-now': 'download', 'update-later': 'clock', 'update-check': 'search' };
+  var MENU_ICONS = { 'start-engine': 'play', 'restart-engine': 'restart', 'stop-everything': 'stop', 'open-logs': 'folder', 'wsl-limits': 'cpu', 'update-now': 'download', 'update-later': 'clock', 'update-check': 'search' };
   var UPDATE_BUSY = 'an update is being checked, downloaded or installed.';
   // (by the fix id after 'fix:<row>:'; the tip starts with the button's own label)
   var FIX_TIPS = {
@@ -460,14 +461,15 @@ var MtgPage = (function () {
   }
 
   // Every button (a light's fix, the menu, the update section's actions) has this one shape:
-  // { id, kind, label, locked, lockText, confirm, confirmLocked, disabled, busy, title, aria, danger, tip, icon }.
+  // { id, kind, label, locked, lockText, confirm, confirmLocked, disabled, busy, title, aria, danger, primary, tip, icon }.
+  // primary: the one button to press now (Start engine while nothing is started), drawn gold like a fix.
   // b = { down, inflight }: down disables everything; an id in inflight is disabled until its request answers.
   function lightButton(a, name, b) {
     var busy = !!b.inflight[a.id], locked = !!a.locked, lockText = str(a.lockText), kind = fixKind(a.id);
     return {
       id: a.id, kind: 'fix', label: str(a.label), locked: locked, lockText: lockText, confirm: a.confirm || null, confirmLocked: false,
       disabled: locked || b.down || busy, busy: busy, title: locked ? lockText : '',
-      aria: str(a.label) + ' (' + name + ')' + (locked ? '. ' + lockText : ''), danger: false,
+      aria: str(a.label) + ' (' + name + ')' + (locked ? '. ' + lockText : ''), danger: false, primary: false,
       tip: withNow(str(a.label) + ': ' + (FIX_TIPS[kind] || 'the companion’s fix for the ' + name + ' step.'), nowWhy(b.down, busy, locked, lockText)),
       icon: FIX_ICONS[kind] || 'wrench'
     };
@@ -481,7 +483,7 @@ var MtgPage = (function () {
     return {
       id: m.id, kind: 'menu', label: str(m.label), locked: locked, lockText: lockText, confirm: m.confirm || null, confirmLocked: !!m.confirmLocked,
       disabled: locked || b.down || busy, busy: busy, title: str(m.title),
-      aria: locked ? str(m.label) + '. ' + lockText : null, danger: m.id === 'stop-everything' || !!m.danger,
+      aria: locked ? str(m.label) + '. ' + lockText : null, danger: m.id === 'stop-everything' || !!m.danger, primary: !!m.primary,
       tip: withNow(base + extra, nowWhy(b.down, busy, locked, upd ? UPDATE_BUSY : lockText)),
       icon: MENU_ICONS[m.id] || 'bolt'
     };
@@ -808,7 +810,7 @@ var MtgPage = (function () {
     doc.addEventListener('scroll', function () { if (tips.shown) tipHide(); }, true);
 
     function paint(e, v) {
-      e.className = 'btn' + (v.kind === 'fix' ? ' fix' : '') + (v.danger ? ' danger' : '');
+      e.className = 'btn' + (v.kind === 'fix' || v.primary ? ' fix' : '') + (v.danger ? ' danger' : '');
       set(e, v.label);
       e.setAttribute('aria-disabled', v.disabled ? 'true' : 'false');
       e.setAttribute('aria-busy', v.busy ? 'true' : 'false');

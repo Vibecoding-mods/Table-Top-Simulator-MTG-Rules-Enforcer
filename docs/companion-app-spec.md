@@ -13,8 +13,9 @@ run (docs-only task). Test counts quoted from the earlier spec are marked as suc
 **MTG Companion.exe** is a small Windows program, written in C# 5 and compiled with the `csc.exe` that ships with
 Windows (`companion/build.cmd:1-29`; no SDK, no NuGet, .NET Framework 4.8, `/target:winexe`). Double-click it and it:
 
-1. runs a six-step start sequence, one status light per step: Docker, Engine images, Engine stack, Table save, Bridge,
-   TTS (`Controller.cs:48-49`);
+1. checks the six steps once, read only, and starts nothing (since 2026-11-14; before, every launch started them): one
+   status light per step: Docker, Engine images, Engine stack, Table save, Bridge, TTS. Its **Start engine** button (page
+   Actions, the window, the tray menu) runs the six-step start sequence; `--start` runs it at launch, as before (§5.0);
 2. then keeps watching and keeps the lights current (`Controller.cs:340-344`, `1057-1111`);
 3. never restarts or replaces anything while a game is on, or while it cannot tell whether one is (§6);
 4. shows everything as a **status page in the default browser** on `127.0.0.1:48790`, plus a tray icon (§8, §9);
@@ -64,7 +65,8 @@ From the header of `Program.cs:3-17`, checked against `Main` (`Program.cs:120-29
 
 | Flag | Does |
 |---|---|
-| (none) | start sequence, then watch; status page and tray |
+| (none) | one read-only check of the six steps (nothing started), then watch; status page and tray; Start engine starts it (§5.0) |
+| `--start` | the start sequence at launch, then watch (every launch did this before 2026-11-14); `--after-update` and `--apply-update` (a self-update's restart) imply it, as the update stopped the bridge; `--observe` overrides it |
 | `--observe` | reads and shows only; no start, no fix, no update, no single-instance lock (`Program.cs:236`). `--dump FILE` writes the lights after one pass and exits; `--shot FILE` (with `--observe`) writes a PNG of the old window |
 | `--no-web`, `--web-port N`, `--no-browser` | status page switches (`WebUi.cs:283-293`) |
 | `--home DIR`, `--saves DIR`, `--state DIR`, `--log FILE`, `--bridge-url URL`, `--steps 4,5` | test overrides (`Program.cs:144-250`) |
@@ -133,6 +135,19 @@ finish** (`Controller.cs:1025-1036`). The hint, in an amber light, says how to l
 No TTS crash, hang, object-count or GPU watching exists (§14).
 
 ## 5. The start sequence
+
+### 5.0 Launch only checks; Start engine starts
+At launch the worker's first turn is `CheckPass`: `RunSequence(1)` with every step read only (as `--observe`), so nothing
+is started, loaded, installed or opened. A part that is only not running yet is grey and points at Start engine
+(`Logic.BeforeStart`): Docker Desktop not running, images not loaded, no relay or room container, no bridge; the save row
+says "Start engine does this: ..."; a real problem (Docker not installed, a port taken, a file missing) keeps its light.
+The phase is "Not started: press Start engine", the header "Not started" (grey), What to do next says to press Start engine
+unless a red light has its own hint (`Logic.NextHint`), and Start engine is first in Actions, drawn gold
+(`primary`). The page opens by itself after that pass when nothing is started (`WebUi.OpenAfterFirstPass`). The
+watcher keeps the same grey lights until a start sequence runs; an engine found already up (Docker, images, stack and
+bridge green: started by Start MTG.bat, or a companion that was restarted) counts as started. Start engine
+(`Controller.StartEngine`, page action `start-engine`) queues the start sequence from step 1, exactly what every launch
+ran before; Stop everything returns to the not-started state ("Stopped. Start engine starts it again.").
 
 `RunSequence(from)` runs steps `from..6` (`Controller.cs:468-499`). Each step is a method that sets its light and returns
 true to go on. A false stops the sequence there, greys the steps after it with "Waiting for <step>", and records

@@ -144,6 +144,18 @@ function status() {
     log: { file: "C:\\pkg\\logs\\companion.log", lines: ["one", "two"] }, update: null,
   };
 }
+// launch only checks (2026-11-14): nothing started yet, Start engine first in the menu and primary, the hint says press it
+const START_HINT = "The engine isn't running. Press Start engine (under Actions): it starts Docker Desktop if needed, the engine (relay and Forge room), installs the table save, starts the bridge and opens Tabletop Simulator. The lights show each step.\n\nOnly the host runs this app. Friends join your TTS game (Multiplayer) and need nothing else.";
+function notStarted() {
+  const s = status();
+  s.phase = "Not started: press Start engine";
+  s.worst = { state: "grey", busy: false, text: "Not started" };
+  s.lights = s.lights.map((l, i) => i === 5 ? { ...l, state: "amber", word: "Check", text: "Tabletop Simulator isn't running.", action: { id: "fix:5:tts-open", label: "Open TTS", locked: false, lockText: null, confirm: null } }
+    : { ...l, state: "grey", word: "—", text: "Not running. Start engine starts it." });
+  s.menu.unshift({ id: "start-engine", label: "Start engine", enabled: true, title: "Starts Docker Desktop if needed, the engine (relay and Forge room), installs the table save, starts the bridge and opens TTS.", confirm: null, confirmLocked: false, primary: true });
+  s.hint = START_HINT;
+  return s;
+}
 function redFix(s, locked) {
   s.worst = { state: "red", busy: false, text: "Problem: Engine stack" };
   s.lights[2] = { ...s.lights[2], state: "red", word: "Problem", text: "The relay is down.", action: { id: "fix:2:stack-restart", label: "Restart relay and room", locked: !!locked, lockText: locked ? LOCK : null, confirm: "Restart the relay and the Forge room (about 20 s)?" } };
@@ -175,6 +187,21 @@ ok("vm: the script defines MtgPage without a document (and starts nothing)", P &
   same("vm: six lights with name, word, text, checked time", v.lights.map((l) => [l.state, l.name, l.word, l.at]).slice(0, 2), [["green", "Docker", "OK", "checked 12:00:00"], ["green", "Engine images", "OK", "checked 12:00:00"]]);
   same("vm: no buttons on green lights; no banners", [v.lights.every((l) => l.button === null), v.game.shown, v.observe, v.update, v.conn.banner, v.conn.down], [true, false, false, null, false, false]);
   same("vm: menu in order, enabled, stop-everything drawn as danger", v.menu.map((b) => [b.id, b.disabled, b.danger, b.kind]), [["restart-engine", false, false, "menu"], ["stop-everything", false, true, "menu"], ["open-logs", false, false, "menu"]]);
+  {
+    const ns = P.viewModel(notStarted(), none), b0 = ns.menu[0];
+    same("start: not started: the header grey, Not started, the phase says press Start engine", [ns.header.state, ns.header.text, ns.header.phase], ["grey", "Not started", "Not started: press Start engine"]);
+    same("start: Start engine first in the menu, a menu button, enabled, primary, not danger, the play icon", [b0.id, b0.kind, b0.label, b0.disabled, b0.primary, b0.danger, b0.icon], ["start-engine", "menu", "Start engine", false, true, false, "play"]);
+    ok("start: its tip says what it starts, in order, and that opening the companion only checks", /^Start engine: runs the start steps in order/.test(b0.tip) && /Docker Desktop/.test(b0.tip) && /bridge/.test(b0.tip) && /Opening the companion only checks the lights; nothing starts until you press this/.test(b0.tip), b0.tip);
+    same("start: the hint is the server's (press Start engine)", ns.hint, START_HINT);
+    same("start: the other menu buttons are never primary", ns.menu.slice(1).map((x) => x.primary), [false, false, false]);
+    const started = notStarted(); started.menu[0].primary = false;
+    same("start: once started the button stays (not primary)", [P.viewModel(started, none).menu[0].id, P.viewModel(started, none).menu[0].primary], ["start-engine", false]);
+    same("start: a fix button is never primary", P.viewModel(redFix(status()), none).lights[2].button.primary, false);
+    const sob = notStarted(); sob.observe = true; sob.menu[0] = { ...sob.menu[0], enabled: false, primary: false, title: "Observe mode: nothing is changed." };
+    same("start: observe mode: disabled, says why", [P.viewModel(sob, none).menu[0].disabled, P.viewModel(sob, none).menu[0].tip.endsWith("\nRight now: Observe mode: nothing is changed.")], [true, true]);
+    same("click: Start engine acts at once (no confirm: starting stops nothing)", P.clickPlan(b0, { down: false, inflight: {} }), { do: "act", id: "start-engine", confirm: null, confirmLocked: false });
+    ok("static: Stop everything's tip names Start engine as the way back", /Start engine starts it all again/.test(P.viewModel(status(), none).menu[1].tip));
+  }
   same("vm: log lines joined, the file, the footer", [v.log.text, v.log.file, v.footer.versions, v.footer.updated], ["one\ntwo", "C:\\pkg\\logs\\companion.log", "table 0fa50b21 · companion 1.2.3.4", "Updated 12:00:00"]);
   const e = status(); e.log.lines = []; e.versions.text = ""; e.mode = "home"; e.home = "C:\\repo";
   const ve = P.viewModel(e, none);
@@ -882,6 +909,23 @@ function boot(body) {
     ok("mana: a pointer far outside is clamped to a quarter of the window", far.every((b) => Math.abs(b.x) <= 250 && Math.abs(b.y) <= 200) && far[0].x === 250 && far[0].y === 200);
     const corner = P.manaDrift(0, 0, 1000, 800);
     ok("mana: pointer on the white corner: white stays home and grows, the others lean toward it", corner[0].x === 0 && corner[0].y === 0 && corner[0].s === 1.18 && corner[4].x < 0 && corner[4].y < 0);
+  }
+
+  {
+    const h = boot(notStarted());
+    await h.clock.advance(0);
+    same("shell: not started: the header, the phase and the hint say press Start engine", [h.$("overall").className, h.$("overall-text").textContent, h.$("phase").textContent, h.$("hint").textContent],
+      ["pill grey", "Not started", "Not started: press Start engine", START_HINT]);
+    same("shell: not started: Start engine drawn first, gold (the fix style), enabled; the rest as before", h.$("tools").children.map((b) => [b.textContent, b.getAttribute("aria-disabled"), b.className, b.getAttribute("data-icon")]),
+      [["Start engine", "false", "btn fix", "play"], ["Restart engine", "false", "btn", "restart"], ["Stop everything", "false", "btn danger", "stop"], ["Open logs folder", "false", "btn", "folder"]]);
+    h.$("tools").children[0].click();
+    await flush(); await flush();
+    same("shell: a click on Start engine sends start-engine, asks nothing", [h.confirms.length, h.posts.map((p) => [p.url, p.method, p.body])], [0, [["/api/action", "POST", { id: "start-engine", confirmLocked: false }]]]);
+    const started = notStarted(); started.menu[0].primary = false; started.phase = "Starting: step 1 of 6"; started.hint = "In TTS: Create, Singleplayer.";
+    h.body = started;
+    await h.clock.advance(2500);
+    same("shell: started: the gold goes off, the button stays, the hint changes", [h.$("tools").children[0].textContent, h.$("tools").children[0].className, h.$("phase").textContent, h.$("hint").textContent],
+      ["Start engine", "btn", "Starting: step 1 of 6", "In TTS: Create, Singleplayer."]);
   }
 
   process.stdout.write(`${passed} passed, ${failed} failed\n`);
