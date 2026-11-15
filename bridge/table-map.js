@@ -79,7 +79,7 @@ const CARD_FACTS = {
   unlockedDoors: { to: ["kw"], show: "the status box: Unlocked: Bottomless Pool, or Both doors unlocked", check: "badges" },
   pairedWith: { to: ["kw"], show: "the status box: Paired with X", check: "badges" },
   attachedToPlayer: { to: ["attP", "kw"], show: "a curse lies in the cursed player's non-creature row (its controller can still move it); the status box: Attached to White", check: "place" },
-  protectorId: { to: ["kw"], show: "the status box of a battle: Protected by White", check: "badges" },
+  protectorId: { to: ["kw", "prot"], show: "the status box of a battle: Protected by White; prot, the protector's colour, names it in the table's attack line", check: "badges" },
   cantAttack: { to: ["kw"], show: "the status box: Can't attack (not on a card with Defender, whose own line says it)", check: "badges" },
   cantBlock: { to: ["kw"], show: "the status box: Can't block (not on a suspected card, whose own line says it)", check: "badges" },
   mustAttack: { to: ["kw"], show: "the status box: Must attack", check: "badges" },
