@@ -43,15 +43,17 @@ function teamsOf(raw) {
   return out;
 }
 
-// A start message's team setup (its teams, teamMode and juggernaut fields): { teams, mode, jugg }; teams null is a
-// free-for-all game. A Juggernaut start's teams come from the Juggernaut's colour, whatever teams it sent.
+// A start message's team setup (its teams, teamMode, juggernaut and teamDraws fields): { teams, mode, jugg }; teams null
+// is a free-for-all game. A Juggernaut start's teams come from the Juggernaut's colour, whatever teams it sent. A
+// Two-Headed Giant start also has teamDraws: the table's teamDraws setting, true only when it is exactly true.
 function setupOf(m) {
   if (m?.teamMode === "juggernaut") {
     const jugg = juggOf(m.juggernaut);
     return { teams: juggTeams(jugg.color), mode: "juggernaut", jugg };
   }
   const teams = teamsOf(m?.teams);
-  return { teams, mode: teams ? teamModeOf(m?.teamMode) : null, jugg: null };
+  const mode = teams ? teamModeOf(m?.teamMode) : null;
+  return { teams, mode, jugg: null, ...(mode === "2hg" ? { teamDraws: m.teamDraws === true } : {}) };
 }
 
 // The team modes: what a start's teamMode can be (teams sent with none: Two-Headed Giant, as the table sent before 2v2
@@ -144,9 +146,10 @@ function teamsProblem(teams, total, mode = "2hg") {
 // Two-Headed Giant: life, poison and commander damage are left to the engine's 2HG defaults (30 / 80, 15, 42). 2v2:
 // teamRules "teams", each player's life the engine's default. Juggernaut (jugg: juggOf; std: a Standard game): teams
 // "teams", and the Juggernaut's life, hand, perks, own commander limit (only when not 21, Forge's) and first turn.
-function gameConfig(teams, usernames, colors, mode = "2hg", jugg = null, std = false) {
+// teamDraws (shared-life games only): the table's teamDraws setting, true only when it is exactly true.
+function gameConfig(teams, usernames, colors, mode = "2hg", jugg = null, std = false, teamDraws = false) {
   const rule = TEAM_MODES[teamModeOf(mode)].rule;
-  return { type: "gameConfig", teamRules: rule, players: usernames.map((u, i) => {
+  return { type: "gameConfig", teamRules: rule, ...(rule === "sharedLife" ? { teamDraws: teamDraws === true } : {}), players: usernames.map((u, i) => {
     const p = { username: u, team: teams[colors[i]] };
     if (mode !== "juggernaut" || !jugg || colors[i] !== jugg.color) return p;
     const perks = juggPerks(jugg);

@@ -1567,8 +1567,9 @@ const forgeBotCount = () => game.bots - (game.harmlessWanted || []).length;
 // mode: "commander" | "standard" (MODES; the table's, sent with the start)
 // teams: the table's teams ({ White: 1, ... }, teams2hg.setupOf), null for free-for-all; either mode. teamMode: "2hg"
 // (the default with teams), "2v2" or "juggernaut"; jugg: the Juggernaut's settings (teams2hg.juggOf). A Juggernaut
-// start's teams are already the Juggernaut's (setupOf, the start handler).
-function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode, teams = null, teamMode = "2hg", jugg = null) {
+// start's teams are already the Juggernaut's (setupOf, the start handler). teamDraws: the table's teamDraws setting
+// (Two-Headed Giant only, sent in gameConfig).
+function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode, teams = null, teamMode = "2hg", jugg = null, teamDraws = false) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
   const std = mode === "standard";
   // (a deck checked for the other mode is no deck for this one: checked again with Ready)
@@ -1595,7 +1596,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
     friendly: friendlyCount(friendly), mode,
     teams: teams || null, // (a team mode: sent to the engine as gameConfig before StartGame, onRoomUpdate)
-    ...(teams ? { teamMode, ...(teamMode === "juggernaut" ? { jugg } : {}) } : {}),
+    ...(teams ? { teamMode, ...(teamMode === "juggernaut" ? { jugg } : {}), ...(teamMode === "2hg" ? { teamDraws: teamDraws === true } : {}) } : {}),
     // (Planechase: the planar pool, sent in the first seated player's deck, onRoomUpdate)
     planes: pool?.names || null, planeSeat: pool ? seatList[0] : null,
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
@@ -1699,7 +1700,7 @@ function onRoomUpdate(seat, room) {
     // (a team mode: the teams first, which the node keeps for the game it starts next, host.rs gameConfig)
     if (game.teams) controllerOf(room, seats).send({ type: "BroadcastState", state: {
       kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId: `tts-${Date.now()}-teams`, roomId: seat.roomId,
-      payload: teams2hg.gameConfig(game.teams, order, game.seatColors, game.teamMode, game.jugg, game.mode === "standard") } });
+      payload: teams2hg.gameConfig(game.teams, order, game.seatColors, game.teamMode, game.jugg, game.mode === "standard", game.teamDraws) } });
     controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: order });
   }
 }
@@ -10610,7 +10611,7 @@ function onTTS(m) {
       noteStamp(m);
       warnIfOutOfStep();
       const go = () => {
-        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg }) => [teams, mode || "2hg", jugg])(teams2hg.setupOf(m)));
+        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg, teamDraws }) => [teams, mode || "2hg", jugg, teamDraws])(teams2hg.setupOf(m)));
         if (game && m.autoplay) game.autoplay = true;
       };
       // the table's Start button (autoReset): a game left over from before is reset first, and a room that is still
