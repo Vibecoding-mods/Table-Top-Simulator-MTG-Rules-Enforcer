@@ -543,6 +543,47 @@ out the second partner's third from the already lowered team total (team 30: 10 
   `gameConfig` would carry the new rule (`teamRules: "sharedTurns"` or a separate field).
 - Table: the phase bar's team tag already names the team on either partner's turn.
 
+### 5.11 Level 2 bridge and table (2026-11-15, branch `l2-bridge`, against the expected fixture; engine not landed)
+
+Built against `tests/golden/fixtures/2hg-level2-protocol.json` (branch `l2-tests`, status "expected": hand-built, not
+recorded). Every piece is gated on the board's `teamRules.rule == "sharedTurns"` (bridge) or the board's `activeTeam`
+(table), so Level 1 and free-for-all boards are unchanged (`test_bridge_golden`, `test_table_golden` green).
+
+- **Level switch (host):** `mtg 2hg turns shared|own` (`ENGINE_TEAM_TURNS`); `mtg 2hg turns` says the setting. The Start
+  sends `teamTurns: "shared"` only with `teamMode` 2hg; the bridge's `setupOf` keeps it as `turns`, `gameConfig` sends
+  `teamRules: "sharedTurns"` instead of `sharedLife`, and the setup line says "each team takes one turn together,
+  attacks together and blocks together". The Teams button reads "2HG team turns".
+- **Whose turn (bridge, `teams.js` `turnPlayerIds` / `isTurnOf`, `bridge.js` `turnOf`):** the engine's `activeTeamIds`
+  when sent (the fixture's proposed field), else the players with the active player's `teamNumber`. Both partners are on
+  their own turn for: the main-phase stop, the combat stops (attacker / defender), auto-resolve, "Until my turn",
+  the timer's turn refill, sorcery timing and land plays in the why-not words, "during your turn" restrictions, the
+  EXTRA TURN mark. A partner's spell on the stack is the team's own (`notOurs`): it doesn't stop a skip or count as an
+  opponent's spell to answer. Skip words say "your team's turn" / "White + Red's turn".
+- **Board for the table:** `activeTeam` (both partners' colours, the active player first) and `teams.turns: "shared"`.
+  Shared life, poison n/15, the team life tip and commander damage read `sharedTurns` as `sharedLife`.
+- **Table:** `engineMyTurn` (the active player or anyone in `activeTeam`) replaces "active == me" for the phase bar
+  ("YOUR TEAM'S TURN" / "TEAM WHITE + RED'S TURN", no separate team tag), the turn banner, untapping on the new turn,
+  the combat side (both partners attack; an attack at either defender makes both defenders "block"), and the ability
+  panel's sorcery-speed check. Priority: the partner reads "Team White + Red has priority: White is deciding", the other
+  team "Waiting for Team White + Red (White is deciding)..."; the ability panel says "Not your priority yet (your partner
+  White is deciding)".
+- **Attacks:** each partner's question says "Your team attacks together: you pick your creatures, Red picks theirs."; the
+  second partner's names what the first already sent in ("White attacks with Grizzly Bears → Yellow. Now pick yours."),
+  from the board's `isAttacking` or, since the engine asks the second partner before any board shows the first one's
+  part, from the first partner's own answer (`game.teamDecl`, this turn's). Also on the corner line (the question's note).
+- **Blocks:** each defender's question says "Your team blocks together: you and Blue can each block any attacker, even one
+  attacking your partner."; the partner's blocks already made are listed; a partner's creature offered in the question (one
+  player declaring for the team) is named "Blue's Hill Giant blocks ...". Works for either shape track C picks (one
+  question per defender, as in the fixture, or one combined question).
+- **Tests:** `tests/test_bridge_2hg_level2.js` (the fixture through the bridge, with a Level 1 contrast) and
+  `tests/test_table_2hg_level2.js` (the bridge's boards on the fake TTS with four seated players, with a Level 1 contrast);
+  24 mutations, each made a named check fail and every file came back to its sha256.
+
+Waits on the engine: the real `activeTeamIds` / `priorityTeamIds` names (the bridge reads `activeTeamIds` and falls back
+to `teamNumber`; the table derives the priority team from the sides), a recorded fixture to replace the hand-built one,
+and track C's combat shape (`docs/2hg-level2-combat.md`, not written yet). Not built: the primary player's team questions
+(805.2, 805.7 trigger order), team mulligans (805.3a), a Forge AI partner in a shared turn (§5.4 item 6).
+
 ## 6. Juggernaut (3v1; kept as written)
 One strong player against a team of three.
 
