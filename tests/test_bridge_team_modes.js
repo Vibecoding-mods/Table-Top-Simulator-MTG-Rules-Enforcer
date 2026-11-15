@@ -49,6 +49,8 @@ async function startFlow(h) {
   same("setupOf: a Juggernaut start's teams come from the Juggernaut, not the teams sent", T.setupOf({ teamMode: "juggernaut", teams: { White: 1, Red: 1, Yellow: 2, Blue: 2 }, juggernaut: { color: "Yellow" } }).teams, { White: 2, Red: 2, Yellow: 1, Blue: 2 });
   same("setupOf: nothing is free-for-all", T.setupOf({}), { teams: null, mode: null, jugg: null });
   same("juggOf: the defaults (spec §6)", T.juggOf(undefined), { color: "White", life: null, hand: 10, draw: 1, land: 0, cmd: 21, order: "first" });
+  same("juggOf: a colour that is not a seat is White", T.juggOf({ color: "Purple" }).color, "White");
+  same("juggOf: a seat's colour in lower case is White too (the table sends White, Red, ...)", T.juggOf({ color: "red" }).color, "White");
   same("juggOf: good values kept, bad ones the defaults", T.juggOf({ color: "Blue", life: "60", hand: 99, draw: -1, land: 1, cmd: 42, order: "after" }),
     { color: "Blue", life: 60, hand: 10, draw: 1, land: 1, cmd: 42, order: "after" });
 
@@ -120,6 +122,7 @@ async function startFlow(h) {
   same("end words: a lone winner wins", T.teamWinWords(["White"], (c) => c), "White wins");
   same("end words: the three win", T.teamWinWords(["Red", "Yellow", "Blue"], (c) => c), "Red + Yellow + Blue win");
   const pub2 = { teamRules: { rule: "teams", poisonToLose: 10 }, players: [{ id: "player-0", teamNumber: 1 }, { id: "player-1", teamNumber: 2 }, { id: "player-2", teamNumber: 1 }, { id: "player-3", teamNumber: 2 }] };
+  same("board: a free-for-all rule (none) has no teams, whatever the team numbers", T.boardTeams({ ...pub2, teamRules: { rule: "none", poisonToLose: 10 } }, slotColor), null);
   same("board 2v2: the two sides, no Juggernaut", T.teamsField(pub2, slotColor, "2v2").teams, { rule: "teams", mode: "2v2", sides: [["White", "Yellow"], ["Red", "Blue"]] });
   await run(async (h) => {
     // a concede in 2v2 is the player's own (the team plays on), not a team concede as in Two-Headed Giant

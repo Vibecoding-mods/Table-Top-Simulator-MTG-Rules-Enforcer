@@ -1,7 +1,8 @@
-// Break-it for the Two-Headed Giant bridge and table tests (tests/test_bridge_teams.js, tests/test_table_teams.js): each
+// Break-it for the Two-Headed Giant bridge and table tests (tests/test_bridge_teams.js, tests/test_bridge_team_modes.js,
+// tests/test_table_teams.js): each
 // mutation switches one piece of the team code off, runs both tests, lists the checks that failed by name, then puts
 // the file back and checks it by sha256. A mutation no check catches is printed as SURVIVED.
-//   node tools/mutate-teams.js
+//   node tools/mutate-teams.js [label pattern]
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -9,7 +10,7 @@ const { spawnSync } = require("child_process");
 
 const ROOT = path.join(__dirname, "..");
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
-const TESTS = ["tests/test_bridge_teams.js", "tests/test_table_teams.js"];
+const TESTS = ["tests/test_bridge_teams.js", "tests/test_bridge_team_modes.js", "tests/test_table_teams.js"];
 
 // [label, file, from, to]: `from` must occur exactly once
 const MUTATIONS = [
@@ -54,11 +55,13 @@ function runTests() {
   return failed;
 }
 
+const only = process.argv[2] ? new RegExp(process.argv[2], "i") : null; // (a label pattern: just those mutations)
+const list = MUTATIONS.filter(([label]) => !only || only.test(label));
 const base = runTests();
 console.log(base.length ? `BASELINE FAILS: ${base.join(" | ")}` : "baseline: green");
 if (base.length) process.exit(1);
 let survived = 0;
-for (const [label, rel, from, to] of MUTATIONS) {
+for (const [label, rel, from, to] of list) {
   const file = path.join(ROOT, rel);
   const before = sha(file);
   const text = fs.readFileSync(file, "utf8");
@@ -70,5 +73,5 @@ for (const [label, rel, from, to] of MUTATIONS) {
   if (!failed.length) survived++;
   console.log(`${failed.length ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${failed.join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
 }
-console.log(survived ? `${survived} of ${MUTATIONS.length} survived` : `all ${MUTATIONS.length} caught, every file restored`);
+console.log(survived ? `${survived} of ${list.length} survived` : `all ${list.length} caught, every file restored`);
 process.exit(survived ? 1 : 0);
