@@ -1,6 +1,6 @@
 # Planechase and dungeons driven by the engine
 
-Status: spec, 2026-11-05, reviewed the same day (see "Review 2026-11-05" at the end). Nothing here is built.
+Status: spec, 2026-11-05, reviewed the same day (see "Review 2026-11-05" at the end). Built 2026-11-12/13 and deployed in the engine since engine1114-rejoin; checked live on engine1115b 2026-11-15 (PLAN.md, "Planechase and dungeons"). Sections 1-3 describe the code as it was before.
 Read-only research of the code as it is today. PLAN.md item "Later (decided 2026-10-17): Planechase and dungeons".
 
 Words used here:

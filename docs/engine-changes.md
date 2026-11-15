@@ -168,6 +168,9 @@ Then the usual: a row in section 3 and an entry in section 4, a rollback tag, `d
 starts from the planechase-fix-1113 patch. In `mtg-harness-test:engine1114-rejoin` the five new `PlanechaseTest` checks
 pass (whole suite 16 of 16 classes, 140 checks). Steps 3 (break-it) and 4 (the live spike, plain and `--raw`) are still
 to do, on `engine1114-rejoin` in place of `pcfix1113`, before that image is deployed.
+**Update 2026-11-15:** step 4 done on the deployed `engine1115b` (`:exile`, `c298b620cfd8`, which carries this source):
+`tests/live_planechase_check.js` passed 38 of 38 plain and 38 of 38 with `LIVE_ARGS=--raw` (LIVE_STACK=7). In the plain
+run the op left the plane with the active player at once (fix 3). Step 3 (the harness break-it) is still to do.
 
 **engine1115-2hg (Two-Headed Giant Level 1 and team plumbing, built 2026-11-14, not deployed).** Section 4's
 "2026-11-14 engine1115-2hg" entry. On top of engine1114-rejoin. Branch `2hg` of the outer repo (worktree `tmp/wt-2hg`),
