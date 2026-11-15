@@ -62,7 +62,9 @@ async function main() {
   const stateDir = opt("state") ? path.resolve(opt("state")) : P.stateDirFor(process.platform, home, process.env);
   Log.file = opt("log") ? path.resolve(opt("log")) : layout.companionLog;
   const observe = flag("observe");
-  const controller = new Controller({ layout, observe, autoStart: !observe && L.autoStart(args), findSaves, stateDir, appDir: __dirname, platform: process.platform, arch: process.arch, engine, bridgeUrl: opt("bridge-url") || undefined });
+  // (the Workshop table: beside Saves, wherever TTS keeps them, then in the game's own folder of each Steam library)
+  const workshopCandidates = (savesDir, id) => P.workshopCandidates(process.platform, savesDir, id, opt("saves") ? null : home, process.env, probes.readText);
+  const controller = new Controller({ layout, observe, autoStart: !observe && L.autoStart(args), findSaves, workshopCandidates, stateDir, appDir: __dirname, platform: process.platform, arch: process.arch, engine, bridgeUrl: opt("bridge-url") || undefined });
   if (opt("steps")) controller.onlySteps = new Set(opt("steps").split(",").map(Number));
 
   if (flag("stop")) {

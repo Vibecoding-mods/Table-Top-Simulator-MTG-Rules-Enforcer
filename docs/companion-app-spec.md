@@ -96,7 +96,7 @@ The six lights and what turns each colour (all pure functions in `Logic.cs`, so 
 | 1 | Docker | `DecideDocker` `Logic.cs:239` | engine answers (`GET /info` on the Docker pipe), Linux containers | (watcher) Desktop runs but engine silent | Windows containers, not installed (address as text, no download), pipe refuses this account ("sign out and back in"), 180 s without an answer (**Start Docker Desktop**) |
 | 2 | Engine images | `DecideImages` `Logic.cs:311` | `mtg-relay:exile` and `mtg-forge-node:exile` exist and match the expected ids | friend: a newer engine waits for the game to end; ids differ after a load (games probably fine); home: present but not the deployed ids | missing (friend: **Load the engine again** or **Try again** when the tar is missing; home: "run build-images.sh") |
 | 3 | Engine stack | `DecideStack` `Logic.cs:344` | relay and room containers running, relay healthy, login works, room `tts-commander` in `Lobby` (or in a game while locked) | - | no relay or room container (**Start the engine**), unhealthy, login fails or room busy while no game (**Restart relay and room**), relay refuses the key (**Try again**), 5-minute wait ran out |
-| 4 | Table save | `DoSave` `Controller.cs:834`, `PlanSave` `Logic.cs:413` | installed, adopted, or already up to date | a newer table waits for the game to end | `table\MTG Table.json` missing, or the write failed (**Try again**) |
+| 4 | Table save | `DoSave` `Controller.cs:834`, `PlanSave` `Logic.cs:413` | installed, adopted, or already up to date | a newer table waits for the game to end; made from a different Workshop copy than the package was checked with (installed anyway) | the Workshop table is not subscribed or not downloaded ("Subscribe to the table on the Steam Workshop: <link>, start TTS once so it downloads, then press Try again."), the patcher refused the copy, or the write failed (**Try again**) |
 | 5 | Bridge | `DecideBridge` `Logic.cs:487`, `DecidePorts` `Logic.cs:466` | `/versions` answers and `now.bridge` equals the expected hash | runs but is not the package's/deployed bridge, or did not answer in time (**Restart the bridge**) | another program holds 39998 or 48787 (**Show the program**), another MTG bridge holds them, unwritable folder, 45 s without starting (**Start the bridge**) |
 | 6 | TTS | `DecideTts` `Logic.cs:521` | TTS runs and the table spoke to the bridge since this TTS started, with the expected stamp | TTS not running (**Open TTS**), table not loaded yet, table stamp `"dev"`, bridge not up yet | table has no version, or a different stamp than expected ("load it again") |
 
@@ -194,6 +194,26 @@ While a game runs this step is amber and loads afterwards (`Logic.cs:337-338`). 
 5. "port is already allocated" is turned into a sentence naming the other engine (`Logic.ComposeFailure` `Logic.cs:391`).
 
 ### 5.4 Table save (`DoSave`, `Controller.cs:834`; friend only)
+The package ships no table (Steam Subscriber Agreement 2.G/6.B), only the patcher in `table\` (`make-table.js`,
+`make-engine-copy.js`, two Lua files) as readable source. The step first makes the table:
+- it looks for the host's subscribed copy of Workshop item 2296042369 (`version.json` `workshop.id`): first
+  `Mods\Workshop\2296042369.json` beside the Saves folder (Documents), then Steam's
+  `steamapps\common\Tabletop Simulator\Tabletop Simulator_Data\Mods\Workshop` (TTS's "Game Data" mod location;
+  `Logic.WorkshopCandidates`, Steam folder from the registry). The companion-node app searches the same two places
+  on Linux (Steam library folders included) and only the Documents one on macOS (`platform.workshopCandidates`);
+- none found: red, `Logic.WorkshopMissing` ("Subscribe to the table on the Steam Workshop: <link>, start TTS once so
+  it downloads, then press Try again."), plus the paths it tried;
+- found: runs `runtime\node\node.exe table\make-table.js <workshop> <out>` (`Logic.ParseMakeTable`). The script
+  runs `make-engine-copy`, stamps the script and names the save "MTG Table (rules engine)". For the same Workshop
+  copy the bytes equal what the old packager made (tests/test_friend_package.js proves it). It only reads the
+  Workshop file. Exit 3 = missing, 1 = the patcher refused the copy (red with its first FAIL line);
+- the made save's hash is compared with `version.json` `save` (made from the packager's copy): equal is green;
+  different is amber ("Your Workshop copy of the table isn't the one this package was checked with ...") but still
+  installed, and `stack\deployed.json` `table` is set to the built stamp (the old one kept as `tablePackage`), so the TTS light expects the stamp actually installed;
+- the 6-player table (2293586471) has a slot in `make-table.js` `TABLES["6p"]` with no patcher yet; nothing uses it
+  until one exists.
+
+Then it installs the made file:
 `Logic.PlanSave` (`Logic.cs:413-443`) never writes over a file the app did not install:
 - the file in `state.json` (`saveFile`, `saveHash`): update it **only** if the package's save hash changed **and** the file still
   hashes to what the app installed; if the player has saved over it, the new table goes to a new number beside it;
@@ -468,15 +488,25 @@ Install Docker Desktop, start it once, sign out and in (the install adds the acc
 repository's Releases page (**the repository is private and invite-only**, README.md:89); right-click the zip → Properties →
 Unblock; unzip to a plain folder (not OneDrive, Documents or Program Files); double-click `MTG Companion.exe` (**not code-signed**:
 SmartScreen "More info → Run anyway"; Smart App Control may block it outright). First start loads the engine (a few minutes) and
-copies the table into the TTS saves. Then in TTS: Create → Multiplayer → Games → Save & Load → "MTG Table (rules engine)".
+makes the table from the host's subscribed Workshop copy (§5.4) and installs it in the TTS saves. Then in TTS: Create → Multiplayer → Games → Save & Load → "MTG Table (rules engine)".
+
+HOST REQUIREMENTS (the same list as README.md and `README-FRIEND.txt`): Windows 10/11 x64 (Intel/AMD); at least
+4 CPU cores and 16 GB RAM recommended (estimates: the engine uses 2 cores and about 8 GB in Docker); about 2 GB free
+disk; Docker Desktop ("All-users installation", which turns on Virtual Machine Platform, or `wsl --install` in an admin
+PowerShell and restart; start Docker once, then sign out and back in; if virtualization is off, enable SVM / Intel VT-x
+in the BIOS); TTS (Steam) with both tables subscribed
+(https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369,
+https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471). Friends who only join need just TTS. The Docker red
+light adds the Virtual Machine Platform hint as text (`Logic.VmpHint`); it isn't detected.
 
 ### 11.2 Package contents (`tools/make-friend-package.js:20-34`)
 `MTG Companion.exe`, `version.json` (`bridge, table, save, node, relay, built, gitCommit, nodeVersion, ...`), `runtime\node\node.exe`,
 `bridge\`, `decks\`, `manabrew\public\preset_decks\`, `scenarios\`, `stack\compose.yml` (project `mtg-table`),
-`stack\deployed.json`, `images\mtg-images.tar` (docker save of both images), `table\MTG Table.json` + `.png`, an empty `logs\`,
+`stack\deployed.json`, `images\mtg-images.tar` (docker save of both images), `table\` (the patcher as readable source,
+**no table JSON**: the packager stops if it finds one, `tableCopies`), an empty `logs\`,
 `README-FRIEND.txt`, `LICENSES\`. The packager refuses when `deployed.json` disagrees with the images it would ship, the running
-containers or the save (`make-friend-package.js:11, 172`). `--no-images`, `--allow-undeployed-bridge`, `--allow-changed-save`
-exist for quick local runs, and are refused with `--release`.
+containers or the table made from the packager's own Workshop copy (`MTG_WORKSHOP` overrides where it looks).
+`--no-images` and `--allow-undeployed-bridge` exist for quick local runs, and are refused with `--release`.
 
 ### 11.3 A release (`node tools/make-friend-package.js --release [--tag T] [--previous update-manifest.json]`)
 Writes `dist/release-<tag>/` (tag `v<yyyy.mm.dd-HHMM>`) and prints the files to attach; **the user creates the GitHub release

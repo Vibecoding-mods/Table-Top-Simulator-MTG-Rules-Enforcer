@@ -36,6 +36,11 @@ class Controller {
     this.appDir = o.appDir; this.platform = o.platform; this.arch = o.arch;
     this.bridgeUrl = o.bridgeUrl || "http://127.0.0.1:48787";
     this.engine = o.engine;
+    // the Workshop table: where to look ((savesDir, id) => [files]; default: Mods/Workshop beside Saves only), and the
+    // patcher ((workshop, out) => make-table.js's result; default: the package's own, run by its Node). Tests: fakes.
+    this.workshopCandidates = o.workshopCandidates || ((savesDir, id) => [path.join(path.dirname(savesDir), "Mods", "Workshop", `${id}.json`)]);
+    this.buildTable = o.buildTable || null;
+    this.builtStamp = null; // (the table stamp this host's Workshop copy made, when that isn't the package's: the TTS light expects it)
     this.rows = Names.map((n) => ({ name: n, v: verdict(Light.Grey, "Not checked yet."), at: null }));
     this.game = L.Game.cantTell("Not checked yet.");
     this.phase = "Starting";
@@ -411,18 +416,47 @@ class Controller {
     return [relay, node];
   }
 
+  // The Workshop table the package makes its table from: version.json "workshop" (id, url), else the 4-player one.
+  // (A 6-player table, once its profile exists, comes as a second entry of version.json "tables"; this step makes the
+  // first, required one.)
+  workshopId() { return L.str(L.get(this.version, "workshop"), "id") || L.TableWorkshopId; }
+  workshopLink() { return L.str(L.get(this.version, "workshop"), "url") || L.workshopUrl(this.workshopId()); }
+
+  // the package's table/make-table.js run by the package's own Node: the Workshop copy in, the table out
+  runMakeTable(workshop, outFile) {
+    const script = path.join(this.L.home, "table", "make-table.js");
+    if (!probes.exists(script)) return { ok: false, error: "table/make-table.js is missing from the package. Unpack the package again" };
+    const node = probes.exists(this.L.nodeExe) ? this.L.nodeExe : process.execPath;
+    const r = require("child_process").spawnSync(node, [script, workshop, outFile], { encoding: "utf8", timeout: 120000, maxBuffer: 1 << 24, cwd: this.L.home });
+    if (r.error) return { ok: false, error: r.error.code === "ETIMEDOUT" ? "the patcher took over 2 minutes" : `couldn't run ${node}: ${r.error.message}` };
+    return L.parseMakeTable(r.status, `${r.stderr || ""}\n${r.stdout || ""}`.trim()); // (its JSON line is the last of stdout)
+  }
+
   async doSave() {
     if (!this.L.friend) { this.set(Step.Save, verdict(Light.Grey, `Home mode: you keep your own save (${this.saveName}).`)); return true; }
-    if (!probes.exists(this.L.tableJson)) { this.set(Step.Save, verdict(Light.Red, "table/MTG Table.json is missing from the package. Unpack the package again, then press Try again.", { fix: Fixes.Retry, label: "Try again" })); return false; }
     const where = this.findSaves();
     this.savesDir = where.dir;
     const notYet = L.savesFolderVerdict(where.found, where.tried);
     if (notYet) { Log.write(`no TTS folder yet; looked in: ${where.tried.join(" | ")}`); this.set(Step.Save, notYet); return false; }
+    // the table: made here from the host's own Workshop copy (the package ships none)
+    const tried = this.workshopCandidates(this.savesDir, this.workshopId());
+    const workshop = tried.find((f) => probes.exists(f));
+    if (!workshop) { Log.write(`no Workshop table ${this.workshopId()}; looked in: ${tried.join(" | ")}`); this.set(Step.Save, L.workshopMissing(this.workshopLink(), tried)); return false; }
+    // (a check makes it in a temp file: it changes nothing, not even the package's table folder)
+    const made = this.dryRun ? path.join(require("os").tmpdir(), `mtg-companion-table-${process.pid}-${Date.now()}.json`) : this.L.tableJson;
     try {
-      const ours = fs.readFileSync(this.L.tableJson);
+      fs.mkdirSync(path.dirname(made), { recursive: true });
+      const b = (this.buildTable || ((w, o) => this.runMakeTable(w, o)))(workshop, made);
+      Log.write(`table from ${workshop}: ${b.ok ? `stamp ${b.stamp}, save ${b.save}, Workshop copy ${b.workshop}` : `failed: ${b.error}`}`);
+      if (!b.ok || !probes.exists(made)) { this.set(Step.Save, b.missing ? L.workshopMissing(this.workshopLink(), tried) : L.tableBuildFailed(b.ok ? { error: "it wrote nothing" } : b)); return false; }
+      const ours = fs.readFileSync(made);
       const ourHash = L.sha8(ours);
-      const want = this.want("save") || ourHash;
-      if (want !== ourHash) Log.write(`note: version.json save ${want} but table/MTG Table.json hashes to ${ourHash}`);
+      const packageSave = this.want("save"), packageTable = this.want("table");
+      if (packageSave && packageSave !== ourHash) Log.write(`note: this Workshop copy made save ${ourHash} (stamp ${b.stamp}), the package was checked with ${packageSave} (${packageTable})`);
+      this.builtStamp = b.stamp && b.stamp !== packageTable ? b.stamp : null;
+      if (!this.dryRun && this.builtStamp) this.rewriteDeployedTable(this.builtStamp);
+      const want = ourHash; // (what goes into the save is what was just made)
+      const finished = (text) => L.saveDone(text, ourHash, packageSave, b.stamp, packageTable);
       const dir = this.savesDir;
       const existing = probes.exists(dir) ? fs.readdirSync(dir).filter((f) => { try { return fs.statSync(path.join(dir, f)).isFile(); } catch { return false; } }).map((f) => ({ name: f, size: fs.statSync(path.join(dir, f)).size })) : [];
       let st = this.loadState();
@@ -430,7 +464,7 @@ class Controller {
       const plan = L.planSave(existing, st, want, ourHash, ours.length, (n) => L.sha8(fs.readFileSync(path.join(dir, n))));
       Log.write(`save plan: ${plan.kind} ${plan.file} (${plan.text}) in ${dir}`);
       if (this.dryRun) {
-        this.set(Step.Save, plan.kind === "skip" || plan.kind === "adopt" ? verdict(Light.Green, plan.text)
+        this.set(Step.Save, plan.kind === "skip" || plan.kind === "adopt" ? finished(plan.text)
           : this.checking ? verdict(Light.Grey, `Start engine does this: ${plan.text}`) : verdict(Light.Amber, `Would do: ${plan.text} (in ${dir})`));
         return true;
       }
@@ -458,13 +492,23 @@ class Controller {
       // (the hash of the bytes now in that file: planSave overwrites it later only while it still hashes to this)
       this.saveState({ saveFile: plan.file, saveHash: ourHash, savesDir: dir });
       const done = plan.kind === "skip" || plan.kind === "adopt" ? plan.text : plan.kind === "update" ? `Updated ${plan.file} (${this.saveName}).` : `Installed as ${plan.file} (${this.saveName}).`;
-      this.set(Step.Save, verdict(Light.Green, done));
+      this.set(Step.Save, finished(done));
       return true;
     } catch (e) {
       Log.write(`save install failed: ${e.stack || e}`);
       this.set(Step.Save, verdict(Light.Red, `Couldn't install the table save: ${e.message}`, { fix: Fixes.Retry, label: "Try again" }));
       return false;
+    } finally {
+      if (this.dryRun) for (const f of [made, made.replace(/\.json$/i, ".png")]) { try { fs.unlinkSync(f); } catch { /* none */ } }
     }
+  }
+
+  // The table this host made, in the package's stack/deployed.json (its Workshop copy made another than the package's)
+  rewriteDeployedTable(stamp) {
+    const next = L.deployedWithTable(this.deployed, stamp);
+    if (!next) return;
+    try { probes.writeJsonAtomic(this.L.deployedFile, next); this.deployed = next; Log.write(`stack/deployed.json: this host's table ${stamp} recorded`); }
+    catch (e) { Log.write(`stack/deployed.json not rewritten: ${e.message}`); }
   }
 
   // ── 5. bridge
@@ -566,7 +610,7 @@ class Controller {
     const heardAgo = L.get(body, "tableHeardMs") === null ? null : L.int(body, "tableHeardMs") / 1000 + (Date.now() - this.versionsAt) / 1000;
     const tts = await this.ttsProc();
     this.set(Step.Tts, L.decideTts({
-      running: !!tts, versionsOk: !!vers, tableHeard: L.has(now, "table"), table: L.str(now, "table"), wantTable: this.want("table"),
+      running: !!tts, versionsOk: !!vers, tableHeard: L.has(now, "table"), table: L.str(now, "table"), wantTable: this.builtStamp || this.want("table"),
       saveName: this.saveName, steamFound: this.steamFound(), home: !this.L.friend, tableHeardAgoSec: heardAgo, ttsUpSec: tts ? tts.upSec : null,
     }));
   }

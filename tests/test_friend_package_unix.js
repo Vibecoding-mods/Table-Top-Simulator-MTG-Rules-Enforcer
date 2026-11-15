@@ -10,6 +10,7 @@ const crypto = require("crypto");
 const { Writable, Readable } = require("stream");
 const { execFileSync } = require("child_process");
 const pack = require("../tools/make-friend-package-unix");
+const win = require("../tools/make-friend-package"); // (tableCopies: the check both builders run before writing)
 
 let failed = 0, passed = 0;
 const ok = (name, cond, why) => { if (cond) passed++; else { failed++; process.stdout.write(`FAIL ${name}${why ? `: ${why}` : ""}\n`); } };
@@ -135,6 +136,19 @@ async function pure() {
   ok("README Linux: Steam Deck Desktop Mode, Dolphin, Konsole, podman info, ./start.sh", ["Switch to Desktop", "Dolphin", "Konsole", "podman info", "./start.sh", "./stop.sh"].every((s) => lin.includes(s)));
   ok("README Linux: both places TTS keeps its saves", lin.includes("~/.local/share/Tabletop Simulator/Saves") && lin.includes("Proton"));
   ok("README Mac arm64: Rosetta; Intel: none", macA.includes("Rosetta") && !macI.includes("Rosetta"));
+  for (const [n, t] of [["Linux", lin], ["Mac", macA]]) {
+    ok(`README ${n}: HOST REQUIREMENTS, cores and RAM as estimates`, /^HOST REQUIREMENTS/m.test(t) && /4 CPU cores and 16 GB of RAM recommended[\s\S]*estimates/.test(t) && t.includes("friends who only join need just TTS"));
+    ok(`README ${n}: both Workshop tables to subscribe to, made from the host's own copy`, t.includes("https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369") && t.includes("https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471") && t.includes("makes the table from your Workshop copy") && !t.includes("copies the table"));
+  }
+
+  // ── the package's entries as the Workshop-copy check reads them: inside the folder, a .json file's start
+  {
+    const e = pack.tableCheckEntries([{ name: "P/table/make-table.js", data: Buffer.from("x") }, { name: "P/decks/a.json", data: Buffer.from('{"SaveName": "x", "ObjectStates": []}') }, { name: "P/logs/", dir: true }], "P");
+    same("table check entries: paths inside the folder, a JSON file's text, no folders", e.map((x) => [x.rel, x.text]), [["table/make-table.js", undefined], ["decks/a.json", '{"SaveName": "x", "ObjectStates": []}']]);
+    same("table check entries: a TTS save among them is caught", win.tableCopies(e), ["decks/a.json"]);
+    const big = pack.tableCheckEntries([{ name: "P/table/MTG Table.json", data: Buffer.alloc(200000, 32) }], "P");
+    ok("table check entries: only a JSON file's first 64 KB is read; a table/ JSON is caught by name", big[0].text.length === 65536 && win.tableCopies(big).length === 1);
+  }
   ok("README Linux and Mac: the token is readable by other accounts; stop refuses mid-game, --force", [lin, macA].every((t) => t.includes("access token can be read by other accounts") && t.includes("--force")));
   ok("README Mac: Docker Desktop, the .command, the unsigned-launcher step", ["Docker Desktop", "MTG Companion.command", "right-click it > Open", "Stop MTG.command"].every((s) => macA.includes(s)));
   ok("SOURCE.txt: the images are linux/amd64, Node's licence from its archive", /linux\/amd64/.test(pack.sourceText({ images: ["a", "b"], manabrewCommit: "m", forgeCommit: "f", nodeVersion: "v1", patches: { manabrew: "1", forge: "2" } })));
@@ -183,10 +197,12 @@ async function built(file, sumsFile) {
   ok(`${tag}: every script and page shipped is readable (no minified line, base64 blob, eval)`, shell.length === 0 && js.length === 0, [...shell, ...js].slice(0, 5).join("; "));
   ok(`${tag}: no *.min.js, no node_modules`, !Object.keys(by).some((n) => /\.min\.js$|node_modules/.test(n)));
   ok(`${tag}: the README for ${P.os}, pointing at the source`, (by[P.readme]?.data?.toString() || "").includes("companion/README.txt"));
-  ok(`${tag}: bridge, table, stack, LICENSES, logs/`, ["bridge/bridge.js", "bridge/versions.js", "table/MTG Table.json", "stack/compose.yml", "stack/deployed.json", "LICENSES/SOURCE.txt", "LICENSES/Node-LICENSE.txt", "LICENSES/LICENSE", "logs/"].every((n) => by[n]));
+  ok(`${tag}: bridge, the table's patcher, stack, LICENSES, logs/`, ["bridge/bridge.js", "bridge/versions.js", "table/make-table.js", "table/make-engine-copy.js", "table/README.txt", "stack/compose.yml", "stack/deployed.json", "LICENSES/SOURCE.txt", "LICENSES/Node-LICENSE.txt", "LICENSES/LICENSE", "logs/"].every((n) => by[n]));
   const img = entries.find((e) => e.name === `${top}/images/mtg-images.tar`);
   ok(`${tag}: images/mtg-images.tar (unless built --no-images)`, v.imagesFile === null || (img && img.size > 100e6), img ? img.size : "none");
-  ok(`${tag}: the table save is named for TTS's list`, JSON.parse(by["table/MTG Table.json"]?.data?.toString() || "{}").SaveName === "MTG Table (rules engine)");
+  const copies = win.tableCopies(Object.keys(by).map((n) => ({ rel: n, text: /\.json$/i.test(n) ? by[n]?.data?.subarray(0, 65536).toString("utf8") : undefined })));
+  same(`${tag}: no copy of a Workshop table in it`, copies, []);
+  ok(`${tag}: version.json names the Workshop table the companion makes the table from`, v.workshop?.id === "2296042369" && v.tables?.[0]?.id === "2296042369");
 }
 
 (async () => {

@@ -35,13 +35,36 @@ function savesDirFor(platform, homeDir, exists, env, readText) {
   const xdg = env.XDG_DATA_HOME && env.XDG_DATA_HOME.startsWith("/") ? env.XDG_DATA_HOME : share;
   const flat = path.join(homeDir, ".var", "app", "com.valvesoftware.Steam");
   const native = [path.join(xdg, tts), path.join(share, tts), path.join(flat, ".local", "share", tts), path.join(flat, "data", tts)];
-  const roots = [path.join(xdg, "Steam"), path.join(share, "Steam"), path.join(homeDir, ".steam", "steam"), path.join(homeDir, ".steam", "root"), path.join(flat, ".local", "share", "Steam")];
-  const libs = [];
-  for (const r of roots) libs.push(r, ...steamLibraries(readText(path.join(r, "steamapps", "libraryfolders.vdf"))));
+  const libs = steamLibraryDirs(homeDir, env, readText);
   const proton = libs.map((l) => path.join(l, "steamapps", "compatdata", String(TTS_APP_ID), "pfx", "drive_c", "users", "steamuser", "Documents", "My Games", tts));
   const tried = [...new Set([...native, ...proton])];
   const hit = tried.find((d) => exists(d));
   return { dir: path.join(hit || native[0], "Saves"), found: !!hit, tried };
+}
+
+// Linux: every Steam root (~/.local/share/Steam, ~/.steam/steam, ~/.steam/root, Flatpak's) and the libraries they list
+function steamLibraryDirs(homeDir, env, readText) {
+  env = env || {}; readText = readText || (() => null);
+  const share = path.join(homeDir, ".local", "share");
+  const xdg = env.XDG_DATA_HOME && env.XDG_DATA_HOME.startsWith("/") ? env.XDG_DATA_HOME : share;
+  const flat = path.join(homeDir, ".var", "app", "com.valvesoftware.Steam");
+  const roots = [path.join(xdg, "Steam"), path.join(share, "Steam"), path.join(homeDir, ".steam", "steam"), path.join(homeDir, ".steam", "root"), path.join(flat, ".local", "share", "Steam")];
+  const libs = [];
+  for (const r of roots) libs.push(r, ...steamLibraries(readText(path.join(r, "steamapps", "libraryfolders.vdf"))));
+  return [...new Set(libs)];
+}
+
+// ───────────────────────────── the Workshop table ─────────────────────────────
+
+// Where TTS keeps a downloaded Workshop table <id>.json, in order: Mods/Workshop beside the Saves folder (TTS's
+// "Documents" mod location, the default, wherever that TTS folder is: native, Flatpak or Proton), then on Linux the
+// game's own folder in each Steam library (its "Game Data" location: the native build's Tabletop Simulator_Data, and
+// Proton's, which is the same folder of the Windows build)
+function workshopCandidates(platform, savesDir, id, homeDir, env, readText) {
+  const out = [path.join(path.dirname(savesDir), "Mods", "Workshop", `${id}.json`)];
+  if (platform !== "darwin" && homeDir)
+    for (const l of steamLibraryDirs(homeDir, env, readText)) out.push(path.join(l, "steamapps", "common", "Tabletop Simulator", "Tabletop Simulator_Data", "Mods", "Workshop", `${id}.json`));
+  return [...new Set(out)];
 }
 
 // The companion's own state (state.json, updates.json, save backups)
@@ -263,7 +286,7 @@ function ttsLaunch(platform, steamCmd) {
 const openCommand = (platform, target) => (platform === "darwin" ? ["open", [target]] : ["xdg-open", [target]]);
 
 module.exports = {
-  TTS_APP_ID, steamLibraries, savesDirFor, stateDirFor, chooseRuntime, parseInfo, accessDeniedText, noSuchText, containerName,
+  TTS_APP_ID, steamLibraries, steamLibraryDirs, workshopCandidates, savesDirFor, stateDirFor, chooseRuntime, parseInfo, accessDeniedText, noSuchText, containerName,
   Services, Images, runArgs, secretEnv, removeArgs, isLoopCmd, isCompanionCmd, engineKey, upPlan, roomPlan, containerFromInspect, procStartTicks, procListening, parseEtime, parsePs,
   parseLsof, procName, procFromCmdline, findTts, bridgeProcs, ttsLaunch, openCommand,
 };

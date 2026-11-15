@@ -5,7 +5,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const TTS = path.join(process.env.USERPROFILE, "Documents", "My Games", "Tabletop Simulator");
+const TTS = path.join(process.env.USERPROFILE || require("os").homedir(), "Documents", "My Games", "Tabletop Simulator");
 const SRC = process.argv[2] || path.join(TTS, "Mods", "Workshop", "2296042369.json");
 const DEST = process.argv[3] || path.join(TTS, "Saves", "MTG 4 player table - ENGINE MODE.json");
 const TAG = "-- [engine copy]";
