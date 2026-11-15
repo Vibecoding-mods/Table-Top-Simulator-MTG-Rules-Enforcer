@@ -22,7 +22,7 @@ index b363b43..228c02a 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..4d7cbdb 100644
+index 54173c6..f0e4e62 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
 @@ -74,18 +74,48 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
@@ -58,7 +58,7 @@ index 54173c6..4d7cbdb 100644
 +
 +### Teams and Two-Headed Giant (`teamRules`)
 +
-+`StartGameRequest` takes an optional game-level `teamRules` (`none`, the default; `teams`; `sharedLife`), `poisonToLose`, `commanderDamageToLose`, and per player `team`, `startingLife`, `startingHand`; the self-hosted node fills them from the room controller's `gameConfig` roomRelay message. `configureTeamRules` refuses an unknown rule, a missing or negative team, fewer than two teams, a `poisonToLose` or `commanderDamageToLose` below 1, and for `sharedLife` uneven teams, partners apart in seat order (the order wraps round, so `1,2,2,1` is two adjacent pairs) and partners given different `startingLife`. `sharedLife` sets Forge's `GameRules.setSharedTeamLife` (the 2HG rules live in Forge, `engine/forge.patch`: life and poison mirrored to teammates, a team loses together, teammates block for each other, the team's first seat starts and the starting team skips its first draws, a commander's damage summed over the team) and the defaults by team size `heads`: poison `15 + 5 * (heads - 2)`, commander damage `21 * heads`, starting life `40 * heads` in Commander and `30 + 15 * (heads - 2)` otherwise. Life and poison are mirrored, not pooled: every teammate's `life` is the team total, so readers need no team arithmetic. The first-player roll offers only each team's first seat (`GameAction.teamLead`). `GameViewDto.teamRules` (`rule`, `poisonToLose`, `commanderDamageToLose` in Commander) is sent only when a team has two players; a teammate's hand is shown to the viewer in a `sharedLife` game (`sharesHandWith`, CR 810.5). The Rust engine backend has no team rules: the node logs a warning and starts such a game without its `gameConfig`. A `teams` game without `sharedLife` keeps Forge's ordinary win: when one player wins, everyone else loses, teammates included. `TeamGameTest` pins each rule with real cards.
++`StartGameRequest` takes an optional game-level `teamRules` (`none`, the default; `teams`; `sharedLife`), `poisonToLose`, `commanderDamageToLose`, and per player `team`, `startingLife`, `startingHand`; the self-hosted node fills them from the room controller's `gameConfig` roomRelay message. `configureTeamRules` refuses an unknown rule, a missing or negative team, fewer than two teams, a `poisonToLose` or `commanderDamageToLose` below 1, and for `sharedLife` uneven teams, partners apart in seat order (the order wraps round, so `1,2,2,1` is two adjacent pairs) and partners given different `startingLife`. `sharedLife` sets Forge's `GameRules.setSharedTeamLife` (the 2HG rules live in Forge, `engine/forge.patch`: life and poison mirrored to teammates, a team loses together, teammates block for each other, the team's first seat starts and the starting team skips its first draws, a commander's damage summed over the team), `GameRules.setTeamLifeEvents` (a house rule, not CR 810: a teammate's life gain or loss also counts as the player's own for "you gain/lose life" triggers, the life-this-turn counts and "if you would gain life" replacements) and the defaults by team size `heads`: poison `15 + 5 * (heads - 2)`, commander damage `21 * heads`, starting life `40 * heads` in Commander and `30 + 15 * (heads - 2)` otherwise. Life and poison are mirrored, not pooled: every teammate's `life` is the team total, so readers need no team arithmetic. The first-player roll offers only each team's first seat (`GameAction.teamLead`). `GameViewDto.teamRules` (`rule`, `poisonToLose`, `commanderDamageToLose` in Commander) is sent only when a team has two players; a teammate's hand is shown to the viewer in a `sharedLife` game (`sharesHandWith`, CR 810.5). The Rust engine backend has no team rules: the node logs a warning and starts such a game without its `gameConfig`. A `teams` game without `sharedLife` keeps Forge's ordinary win: when one player wins, everyone else loses, teammates included. `TeamGameTest` pins each rule with real cards.
 +
 +Per player, three more settings (Juggernaut, `configurePlayerRules`): `perks`, a list of card-script lines (`Name:`, `Oracle:`, `SVar:`, `T:`, `S:`, `R:`; anything else refuses the start) that `Perks` turns into one immutable effect card in that player's command zone after `match.createGame()`, so its triggers, statics and replacements are rules of the game (an immutable card without an effect source is in neither the command zone nor `effects` of the view); `commanderDamageToLose`, that player's own limit (Forge `RegisteredPlayer.setCommanderDamageToLose`, read by `Player.getCommanderDamageToLose`, which falls back to the game's); and `goesFirst`, at most one player, who then starts (Forge `GameRules.setStartingPlayer`, ahead of the roll). Forge's `ReplaceBeginTurn` takes `ExtraTurn$ False` (only a turn that is not an extra one), which the Juggernaut's "after every challenger" order uses. `PlayerRulesTest` pins them.
 +
@@ -2035,7 +2035,7 @@ index 713e1ef..e272c0d 100644
          if (source == null) {
              return 0;
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-index c69b549..ea4f188 100644
+index c69b549..416b380 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 @@ -47,6 +47,11 @@ import java.util.concurrent.ConcurrentHashMap;
@@ -2099,7 +2099,7 @@ index c69b549..ea4f188 100644
          session.attach(match, game, botSeats, request.isSnapshotRecording());
          if (request.checkpointMetrics) {
              session.enableCheckpointMetrics();
-@@ -357,6 +376,108 @@ public final class ManaBrewEngineAdapter {
+@@ -357,6 +376,109 @@ public final class ManaBrewEngineAdapter {
          }
      }
  
@@ -2145,6 +2145,7 @@ index c69b549..ea4f188 100644
 +        final int heads = sizes.values().iterator().next();
 +        rules.setSharedTeamLife(true);
 +        rules.setSharedTeamTurns(TEAM_RULES_SHARED_TURNS.equals(teamRules));
++        rules.setTeamLifeEvents(true);
 +        rules.setPoisonCountersToLose(request.getPoisonToLose() != null
 +                ? request.getPoisonToLose() : 15 + 5 * (heads - 2));
 +        rules.setCommanderDamageToLose(request.getCommanderDamageToLose() != null
@@ -2208,7 +2209,7 @@ index c69b549..ea4f188 100644
      private static GameType resolveGameType(final StartGameRequest request) {
          final String variant = request.getVariant();
          if (variant != null && !variant.isBlank()) {
-@@ -380,7 +501,7 @@ public final class ManaBrewEngineAdapter {
+@@ -380,7 +502,7 @@ public final class ManaBrewEngineAdapter {
          return commanderGame ? GameType.Commander : GameType.Constructed;
      }
  
@@ -2217,7 +2218,7 @@ index c69b549..ea4f188 100644
          JsonObject root = JsonParser.parseString(requestJson).getAsJsonObject();
          String gameId = requiredString(root, "gameId");
          String variant = optionalString(root, "variant");
-@@ -426,11 +547,28 @@ public final class ManaBrewEngineAdapter {
+@@ -426,11 +548,28 @@ public final class ManaBrewEngineAdapter {
              boolean bot = playerObject.has("bot")
                      && !playerObject.get("bot").isJsonNull()
                      && playerObject.get("bot").getAsBoolean();
@@ -2247,7 +2248,7 @@ index c69b549..ea4f188 100644
          return request;
      }
  
-@@ -455,6 +593,25 @@ public final class ManaBrewEngineAdapter {
+@@ -455,6 +594,25 @@ public final class ManaBrewEngineAdapter {
          return value;
      }
  
@@ -2273,7 +2274,7 @@ index c69b549..ea4f188 100644
      private static String optionalString(final JsonObject object, final String key) {
          if (!object.has(key) || object.get(key).isJsonNull()) {
              return null;
-@@ -470,6 +627,9 @@ public final class ManaBrewEngineAdapter {
+@@ -470,6 +628,9 @@ public final class ManaBrewEngineAdapter {
          private final boolean snapshotRecording;
          private boolean checkpointMetrics;
          private final List<PlayerConfig> players;
@@ -2283,7 +2284,7 @@ index c69b549..ea4f188 100644
  
          public StartGameRequest(
                  final String gameId,
-@@ -516,6 +676,29 @@ public final class ManaBrewEngineAdapter {
+@@ -516,6 +677,29 @@ public final class ManaBrewEngineAdapter {
          public List<PlayerConfig> getPlayers() {
              return players;
          }
@@ -2313,7 +2314,7 @@ index c69b549..ea4f188 100644
      }
  
      public static final class PlayerConfig {
-@@ -526,6 +709,13 @@ public final class ManaBrewEngineAdapter {
+@@ -526,6 +710,13 @@ public final class ManaBrewEngineAdapter {
          private final List<String> commanderNames;
          private final boolean ai;
          private final boolean bot;
@@ -2327,7 +2328,7 @@ index c69b549..ea4f188 100644
  
          public PlayerConfig(
                  final String name,
-@@ -535,6 +725,19 @@ public final class ManaBrewEngineAdapter {
+@@ -535,6 +726,19 @@ public final class ManaBrewEngineAdapter {
                  final List<String> commanderNames,
                  final boolean ai,
                  final boolean bot
@@ -2347,7 +2348,7 @@ index c69b549..ea4f188 100644
          ) {
              if (name == null || name.isBlank()) {
                  throw new IllegalArgumentException("player name is required");
-@@ -549,6 +752,11 @@ public final class ManaBrewEngineAdapter {
+@@ -549,6 +753,11 @@ public final class ManaBrewEngineAdapter {
              this.commanderNames = commanderNames == null ? List.of() : List.copyOf(commanderNames);
              this.ai = ai;
              this.bot = bot;
@@ -2359,7 +2360,7 @@ index c69b549..ea4f188 100644
          }
  
          public String getName() {
-@@ -578,6 +786,45 @@ public final class ManaBrewEngineAdapter {
+@@ -578,6 +787,45 @@ public final class ManaBrewEngineAdapter {
          public boolean isBot() {
              return bot;
          }
@@ -11470,10 +11471,10 @@ index 0000000..4d71149
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java b/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java
 new file mode 100644
-index 0000000..311d4ff
+index 0000000..a5d3088
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java
-@@ -0,0 +1,881 @@
+@@ -0,0 +1,977 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -11568,6 +11569,12 @@ index 0000000..311d4ff
 +        check("aRedistributionTouchesOneMemberOfEachTeam", TeamGameTest::aRedistributionTouchesOneMemberOfEachTeam);
 +        check("eachOpponentLosingLifeCountsEveryPlayerOfTheTeam", TeamGameTest::eachOpponentLosingLifeCountsEveryPlayerOfTheTeam);
 +        check("proliferatingBothPartnersGivesTheTeamOnePoison", TeamGameTest::proliferatingBothPartnersGivesTheTeamOnePoison);
++        check("aPartnersLifeGainTriggersYourPridemateOnce", TeamGameTest::aPartnersLifeGainTriggersYourPridemateOnce);
++        check("lifeGainedThisTurnCountsThePartnersGain", TeamGameTest::lifeGainedThisTurnCountsThePartnersGain);
++        check("theFirstGainEachTurnIsTheTeams", TeamGameTest::theFirstGainEachTurnIsTheTeams);
++        check("aPartnersLifeLossTriggersYourLoseLifeTrigger", TeamGameTest::aPartnersLifeLossTriggersYourLoseLifeTrigger);
++        check("yourLifegainReplacementDoublesAPartnersGainOnce", TeamGameTest::yourLifegainReplacementDoublesAPartnersGainOnce);
++        check("partnersLifeEventsAreTheirOwnWithoutTheHouseRule", TeamGameTest::partnersLifeEventsAreTheirOwnWithoutTheHouseRule);
 +        System.out.println(failed == 0 ? "PASS TeamGameTest" : "FAIL TeamGameTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
 +    }
@@ -11622,6 +11629,7 @@ index 0000000..311d4ff
 +    private static void requestSetsTeamsAndTwoHeadedGiantNumbers() {
 +        final Setup commander = new Setup(requestJson("Commander", "sharedLife", 1, 1, 2, 2));
 +        expect(commander.rules.hasSharedTeamLife(), "2HG Commander: life is not shared");
++        expect(commander.rules.hasTeamLifeEvents(), "2HG Commander: a partner's life gain is not the player's own (house rule)");
 +        expect(commander.rules.getPoisonCountersToLose() == 15, "2HG poison to lose " + commander.rules.getPoisonCountersToLose());
 +        expect(commander.rules.getCommanderDamageToLose() == 42, "2HG Commander damage to lose " + commander.rules.getCommanderDamageToLose());
 +        for (int i = 0; i < 4; i++) {
@@ -11639,6 +11647,7 @@ index 0000000..311d4ff
 +        expect(threeHeadedCommander.rules.getCommanderDamageToLose() == 63, "3HG Commander damage " + threeHeadedCommander.rules.getCommanderDamageToLose());
 +        final Setup teams = new Setup(requestJson("Commander", "teams", 1, 1, 2, 2));
 +        expect(!teams.rules.hasSharedTeamLife(), "Team Commander shares life");
++        expect(!teams.rules.hasTeamLifeEvents(), "Team Commander shares life gains");
 +        expect(teams.players.get(0).getStartingLife() == 40 && teams.players.get(1).getTeamNumber() == 1,
 +                "Team Commander: life " + teams.players.get(0).getStartingLife() + ", team " + teams.players.get(1).getTeamNumber());
 +        final ManaBrewEngineAdapter.StartGameRequest custom = ManaBrewEngineAdapter.parseStartGameRequest(
@@ -12174,6 +12183,94 @@ index 0000000..311d4ff
 +        expect("Number$10".equals(drain.getSVar("AFLifeLost")), "the life lost this way is " + drain.getSVar("AFLifeLost") + ", not 10");
 +        final List<Card> triggered = triggeredHosts(f);
 +        expect(java.util.Collections.frequency(triggered, blood) == 2, "Exquisite Blood triggered " + java.util.Collections.frequency(triggered, blood) + " times, not once per opponent");
++    }
++
++    private static Fixture houseRule() {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        f.game.getRules().setTeamLifeEvents(true);
++        return f;
++    }
++
++    private static void aPartnersLifeGainTriggersYourPridemateOnce() throws Exception {
++        final Fixture f = houseRule();
++        final Card whiteCat = add("Ajani's Pridemate", f.white, ZoneType.Battlefield);
++        final Card redCat = add("Ajani's Pridemate", f.red, ZoneType.Battlefield);
++        final Card yellowCat = add("Ajani's Pridemate", f.yellow, ZoneType.Battlefield);
++        f.game.getTriggerHandler().resetActiveTriggers();
++        resolve(f, AbilityFactory.getAbility("DB$ GainLife | Defined$ You | LifeAmount$ 3", redCat), f.red);
++        expectLife(f, 33, 33, 30, 30);
++        final List<Card> triggered = triggeredHosts(f);
++        expect(java.util.Collections.frequency(triggered, whiteCat) == 1, "White's Pridemate triggered " + java.util.Collections.frequency(triggered, whiteCat) + " times on partner Red's gain, not once");
++        expect(java.util.Collections.frequency(triggered, redCat) == 1, "Red's Pridemate triggered " + java.util.Collections.frequency(triggered, redCat) + " times on Red's own gain, not once");
++        expect(!triggered.contains(yellowCat), "the opponent Yellow's Pridemate triggered on Red's gain");
++    }
++
++    private static void lifeGainedThisTurnCountsThePartnersGain() throws Exception {
++        final Fixture f = houseRule();
++        final Card accord = add("Angelic Accord", f.white, ZoneType.Battlefield);
++        final Card source = add("Grizzly Bears", f.red, ZoneType.Battlefield);
++        resolve(f, AbilityFactory.getAbility("DB$ GainLife | Defined$ You | LifeAmount$ 4", source), f.red);
++        final SpellAbility read = AbilityFactory.getAbility("DB$ Token | TokenAmount$ X", accord);
++        read.setActivatingPlayer(f.white);
++        expect(AbilityUtils.calculateAmount(accord, "Count$LifeYouGainedThisTurn", read) == 4,
++                "White gained " + AbilityUtils.calculateAmount(accord, "Count$LifeYouGainedThisTurn", read) + " life this turn after partner Red's 4, not 4");
++        expect(AbilityUtils.calculateAmount(accord, "Count$LifeYouGainedTimesThisTurn", read) == 1,
++                "White gained life " + AbilityUtils.calculateAmount(accord, "Count$LifeYouGainedTimesThisTurn", read) + " times, not once");
++        resolve(f, AbilityFactory.getAbility("DB$ LoseLife | Defined$ You | LifeAmount$ 2", source), f.red);
++        expect(AbilityUtils.calculateAmount(accord, "Count$LifeYouLostThisTurn", read) == 2, "White lost " + AbilityUtils.calculateAmount(accord, "Count$LifeYouLostThisTurn", read) + " life this turn after Red's 2, not 2");
++        final SpellAbility yellows = AbilityFactory.getAbility("DB$ Token | TokenAmount$ X", accord);
++        yellows.setActivatingPlayer(f.yellow);
++        expect(AbilityUtils.calculateAmount(accord, "Count$LifeYouGainedThisTurn", yellows) == 0, "the opponent Yellow counts Red's gain");
++        expect(f.white.getLifeGainedThisTurn() == 0 && f.red.getLifeGainedThisTurn() == 4, "each player's own record changed: White " + f.white.getLifeGainedThisTurn() + ", Red " + f.red.getLifeGainedThisTurn());
++    }
++
++    private static void theFirstGainEachTurnIsTheTeams() throws Exception {
++        final Fixture f = houseRule();
++        final Card healer = add("Attended Healer", f.white, ZoneType.Battlefield);
++        final Card source = add("Grizzly Bears", f.red, ZoneType.Battlefield);
++        f.game.getTriggerHandler().resetActiveTriggers();
++        resolve(f, AbilityFactory.getAbility("DB$ GainLife | Defined$ You | LifeAmount$ 1", source), f.red);
++        expect(java.util.Collections.frequency(triggeredHosts(f), healer) == 1, "Attended Healer did not trigger on the team's first gain (partner Red's)");
++        resolve(f, AbilityFactory.getAbility("DB$ GainLife | Defined$ You | LifeAmount$ 1", healer), f.white);
++        expect(java.util.Collections.frequency(triggeredHosts(f), healer) == 1, "Attended Healer triggered again on White's gain, the team's second this turn");
++    }
++
++    private static void aPartnersLifeLossTriggersYourLoseLifeTrigger() throws Exception {
++        final Fixture f = houseRule();
++        final Card gonti = add("Gonti's Machinations", f.white, ZoneType.Battlefield);
++        final Card bolt = add("Lightning Bolt", f.yellow, ZoneType.Hand);
++        f.game.getTriggerHandler().resetActiveTriggers();
++        final SpellAbility sa = bolt.getFirstSpellAbility();
++        sa.getTargets().add(f.red);
++        resolve(f, sa, f.yellow);
++        expectLife(f, 27, 27, 30, 30);
++        expect(java.util.Collections.frequency(triggeredHosts(f), gonti) == 1, "Gonti's Machinations did not trigger once on partner Red's life loss");
++    }
++
++    private static void yourLifegainReplacementDoublesAPartnersGainOnce() throws Exception {
++        final Fixture f = houseRule();
++        add("Boon Reflection", f.white, ZoneType.Battlefield);
++        final Card source = add("Grizzly Bears", f.red, ZoneType.Battlefield);
++        f.game.getAction().checkStaticAbilities();
++        resolve(f, AbilityFactory.getAbility("DB$ GainLife | Defined$ You | LifeAmount$ 2", source), f.red);
++        expectLife(f, 34, 34, 30, 30);
++        resolve(f, AbilityFactory.getAbility("DB$ GainLife | Defined$ You | LifeAmount$ 2", source), f.yellow);
++        expectLife(f, 34, 34, 32, 32);
++    }
++
++    private static void partnersLifeEventsAreTheirOwnWithoutTheHouseRule() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        final Card whiteCat = add("Ajani's Pridemate", f.white, ZoneType.Battlefield);
++        add("Boon Reflection", f.white, ZoneType.Battlefield);
++        final Card source = add("Grizzly Bears", f.red, ZoneType.Battlefield);
++        f.game.getAction().checkStaticAbilities();
++        f.game.getTriggerHandler().resetActiveTriggers();
++        resolve(f, AbilityFactory.getAbility("DB$ GainLife | Defined$ You | LifeAmount$ 2", source), f.red);
++        expectLife(f, 32, 32, 30, 30);
++        expect(!triggeredHosts(f).contains(whiteCat), "White's Pridemate triggered on Red's gain without the house rule");
++        final SpellAbility read = AbilityFactory.getAbility("DB$ Token | TokenAmount$ X", whiteCat);
++        read.setActivatingPlayer(f.white);
++        expect(AbilityUtils.calculateAmount(whiteCat, "Count$LifeYouGainedThisTurn", read) == 0, "White counts Red's gain without the house rule");
 +    }
 +
 +    private static void proliferatingBothPartnersGivesTheTeamOnePoison() throws Exception {
