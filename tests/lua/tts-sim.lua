@@ -304,6 +304,7 @@ local function makeObj(d)
   -- stayed white under fresh names, and loaded at a second setXml). Loading takes 20 frames here; UI.loading says so.
   rawset(o, "UI", setmetatable({
     setXml = function(x)
+      if (o.__d.uiXml or "") == "" then o.__d.uiFirstXmlFrame = SIM.frame end
       o.__d.uiXml = x
       local blank = {}
       if SIM.frame < (o.__d.uiLoadingUntil or -1) then for n in pairs(o.__d.uiNew or {}) do blank[n] = true end end
@@ -311,7 +312,11 @@ local function makeObj(d)
       fx("objUI.setXml", o, hash(x))
     end,
     getXml = function() return o.__d.uiXml end,
-    setAttribute = function(id, k, v) o.__d.uiAttrs[id .. "|" .. k] = tostring(v) fx("objUI.setAttribute", o, id, k, tostring(v)) end,
+    -- (an attribute set in the same frame as the object's first XML: real TTS hasn't built it yet and raises, live
+    -- 2026-11-14 at every GIF pick, the new frame's play right after its first draw)
+    setAttribute = function(id, k, v)
+      if o.__d.uiFirstXmlFrame == SIM.frame then error("Object reference not set to an instance of an object (setAttribute in the same frame as the first XML)") end
+      o.__d.uiAttrs[id .. "|" .. k] = tostring(v) fx("objUI.setAttribute", o, id, k, tostring(v)) end,
     getAttribute = function(id, k) return o.__d.uiAttrs[id .. "|" .. k] end,
     setAttributes = function(id, t) for k, v in pairs(t) do o.__d.uiAttrs[id .. "|" .. k] = tostring(v) end fx("objUI.setAttributes", o, id, t) end,
     setValue = function(id, v) fx("objUI.setValue", o, id, v) end,
@@ -400,16 +405,7 @@ function M.setColorTint(o, c) o.__d.tint = c fx("setColorTint", o, c) end
 -- (the alpha only when one was set: TTS's Color has one, a = 1 when none was given)
 function M.getColorTint(o) local c = o.__d.tint or { 1, 1, 1 } return { r = c.r or c[1], g = c.g or c[2], b = c.b or c[3], a = c.a or c[4] } end
 function M.isDestroyed(o) return o.__d.destroyed == true end
--- (destroying the object whose own UI button is being clicked, inside that click: real TTS then raises "Object reference
--- not set to an instance of an object" when it finishes the click, live 2026-11-14 a GIF pick; __sim.clicking is the
--- object a test's click is on)
-function M.destruct(o)
-  if not o.__d.destroyed then
-    if __sim ~= nil and __sim.clicking == o then __sim.clickBroke = true end
-    kill(o) fx("destruct", o)
-  end
-  return true
-end
+function M.destruct(o) if not o.__d.destroyed then kill(o) fx("destruct", o) end return true end
 function M.isSmoothMoving(o) return false end
 function M.getVelocity(o) return (o.__d.vel or vec({ x = 0, y = 0, z = 0 })):copy() end
 function M.setVelocity(o, v) o.__d.vel = vec(v) fx("setVelocity", o, o.__d.vel) end
